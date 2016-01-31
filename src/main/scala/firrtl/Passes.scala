@@ -27,7 +27,7 @@ object Passes extends LazyLogging {
        //case "renameall" => renameall(Map())
      }
    }
- 
+
    private def toField(p: Port): Field = {
      logger.debug(s"toField called on port ${p.serialize}")
      p.direction match {
@@ -52,7 +52,7 @@ object Passes extends LazyLogging {
          "Pull Muxes",
          "Expand Connects")
       var c_BANG = c
-      (names, passes).zipped.foreach { 
+      (names, passes).zipped.foreach {
          (n,p) => {
             println("Starting " + n)
             c_BANG = p(c_BANG)
@@ -62,7 +62,7 @@ object Passes extends LazyLogging {
       }
       c_BANG
    }
- 
+
   // ============== TO WORKING IR ==================
   def toWorkingIr (c:Circuit) = {
      def toExp (e:Expression) : Expression = {
@@ -80,7 +80,7 @@ object Passes extends LazyLogging {
            case s => sMap(toStmt _,s)
         }
      }
-     val modulesx = c.modules.map { m => 
+     val modulesx = c.modules.map { m =>
         mname = m.name
         m match {
            case m:InModule => InModule(m.info,m.name, m.ports, toStmt(m.body))
@@ -105,7 +105,7 @@ object Passes extends LazyLogging {
             def resolve_stmt (s:Stmt):Stmt = eMap(resolve_expr,sMap(resolve_stmt,s))
             resolve_stmt(body)
          }
-   
+
          def find (m:Module) = {
             def find_stmt (s:Stmt):Stmt = {
                s match {
@@ -125,9 +125,9 @@ object Passes extends LazyLogging {
                case m:ExModule => false
             }
          }
-       
+
          mname = m.name
-         find(m)   
+         find(m)
          m match {
             case m:InModule => {
                val bodyx = resolve(m.body)
@@ -168,11 +168,11 @@ object Passes extends LazyLogging {
       }
       apply_t(t)
    }
-   
 
-   
+
+
    // ------------------ Pass -------------------------
-   
+
    def inferTypes (c:Circuit) : Circuit = {
       val module_types = HashMap[String,Type]()
       def infer_types (m:Module) : Module = {
@@ -228,7 +228,7 @@ object Passes extends LazyLogging {
                case s => eMap(infer_types_e _,sMap(infer_types_s,s))
             }
          }
- 
+
          mname = m.name
          m.ports.foreach(p => types += (p.name -> p.tpe))
          m match {
@@ -236,8 +236,8 @@ object Passes extends LazyLogging {
             case m:ExModule => m
          }
        }
- 
-      val modulesx = c.modules.map { 
+
+      val modulesx = c.modules.map {
          m => {
             mname = m.name
             val portsx = m.ports.map(p => Port(p.info,p.name,p.direction,remove_unknowns(p.tpe)))
@@ -257,7 +257,7 @@ object Passes extends LazyLogging {
          e match {
             case e:WRef => WRef(e.name,e.tpe,e.kind,g)
             case e:WSubField => {
-               val expx = 
+               val expx =
                   field_flip(tpe(e.exp),e.name) match {
                      case DEFAULT => resolve_e(g)(e.exp)
                      case REVERSE => resolve_e(swap(g))(e.exp)
@@ -276,7 +276,7 @@ object Passes extends LazyLogging {
             case e => eMap(resolve_e(g) _,e)
          }
       }
-            
+
       def resolve_s (s:Stmt) : Stmt = {
          s match {
             case s:IsInvalid => {
@@ -296,7 +296,7 @@ object Passes extends LazyLogging {
             case s => sMap(resolve_s,eMap(resolve_e(MALE) _,s))
          }
       }
-      val modulesx = c.modules.map { 
+      val modulesx = c.modules.map {
          m => {
             mname = m.name
             m match {
@@ -364,7 +364,7 @@ object Passes extends LazyLogging {
 
    // ============ EXPAND CONNECTS ==================
    // ---------------- UTILS ------------------
-   def get_flip (t:Type, i:Int, f:Flip) : Flip = { 
+   def get_flip (t:Type, i:Int, f:Flip) : Flip = {
       if (i >= get_size(t)) error("Shouldn't be here")
       val x = t match {
          case (t:UIntType) => f
@@ -398,8 +398,8 @@ object Passes extends LazyLogging {
       }
       x
    }
-   
-   def get_point (e:Expression) : Int = { 
+
+   def get_point (e:Expression) : Int = {
       e match {
          case (e:WRef) => 0
          case (e:WSubField) => {
@@ -415,7 +415,7 @@ object Passes extends LazyLogging {
          case (e:WSubAccess) => get_point(e.exp)
       }
    }
-   
+
    def create_exps (n:String, t:Type) : Seq[Expression] =
       create_exps(WRef(n,t,ExpKind(),UNKNOWNGENDER))
    def create_exps (e:Expression) : Seq[Expression] = {
@@ -423,7 +423,7 @@ object Passes extends LazyLogging {
          case (e:Mux) => {
             val e1s = create_exps(e.tval)
             val e2s = create_exps(e.fval)
-            (e1s, e2s).zipped.map { 
+            (e1s, e2s).zipped.map {
                (e1,e2) => Mux(e.cond,e1,e2,mux_type_and_widths(e1,e2))
             }
          }
@@ -451,11 +451,11 @@ object Passes extends LazyLogging {
          }
       }
    }
-   
+
    //---------------- Pass ---------------------
-   
-   def expandConnects (c:Circuit) : Circuit = { 
-      def expand_connects (m:InModule) : InModule = { 
+
+   def expandConnects (c:Circuit) : Circuit = {
+      def expand_connects (m:InModule) : InModule = {
          mname = m.name
          val genders = HashMap[String,Gender]()
          def expand_s (s:Stmt) : Stmt = {
@@ -533,12 +533,12 @@ object Passes extends LazyLogging {
                case (s) => sMap(expand_s _,s)
             }
          }
-   
+
          m.ports.foreach { p => genders += (p.name -> to_gender(p.direction)) }
          InModule(m.info,m.name,m.ports,expand_s(m.body))
       }
-   
-      val modulesx = c.modules.map { 
+
+      val modulesx = c.modules.map {
          m => {
             m match {
                case (m:ExModule) => m
@@ -664,7 +664,7 @@ object Passes extends LazyLogging {
   //    case p: DefRegister =>
   //      DefRegister(p.info, renameall(p.name), p.tpe, p.clock, p.reset, p.init)
   //    case p : DefMemory =>
-  //      DefMemory(p.info, renameall(p.name), p.dataType, p.depth, p.writeLatency, p.readLatency, 
+  //      DefMemory(p.info, renameall(p.name), p.dataType, p.depth, p.writeLatency, p.readLatency,
   //                p.readers, p.writers, p.readwriters)
   //    case p : DefInstance =>
   //      DefInstance(p.info, renameall(p.name), renameall(p.module))
@@ -705,4 +705,65 @@ object Passes extends LazyLogging {
   //    Circuit(c.info, renameall(c.name), c.modules.map(renameall(_)))
   //  }
   //}
+
+   /** Constant propagation pass
+     * A straight translation of Stanza FIRRTL's const-prop
+     */
+   private def const_prop_e(e: Expression): Expression = {
+     eMap(const_prop_e(_), e) match {
+       case e: DoPrim => {
+         e.op match {
+           case SHIFT_RIGHT_OP => {
+             e.args(0) match {
+               case x: UIntValue =>
+                 val b = x.value >> e.consts(0).toInt
+                 UIntValue(b, e.tpe.asInstanceOf[UIntType].width)
+               case x: SIntValue =>
+                 val b = x.value >> e.consts(0).toInt
+                 SIntValue(b, e.tpe.asInstanceOf[UIntType].width)
+               case x => e
+             }
+           }
+           case BITS_SELECT_OP => {
+             e.args(0) match {
+               case x: UIntValue =>
+                 val hi = e.consts(0).toInt
+                 val lo = e.consts(1).toInt
+                 require(hi >= lo)
+                 val b = (x.value >> lo) & ((BigInt(1) << (hi - lo + 1)) - 1)
+                 // TODO: should the output width be the extracted width?
+                 UIntValue(b, e.tpe.asInstanceOf[UIntType].width)
+               case x => {
+                 if (longBANG(e.tpe) == longBANG(x.asInstanceOf[TypedExpression].tpe)) {
+                   x match {
+                     case x: UIntType => x
+                     case x => DoPrim(AS_UINT_OP, Seq(x), Seq(), e.tpe)
+                   }
+                 } else {
+                   e
+                 }
+               }
+             }
+           }
+           case _ => e
+         }
+       }
+       case e => e
+     }
+   }
+
+   private def const_prop_s(s: Stmt): Stmt = {
+     eMap(const_prop_e(_), sMap(const_prop_s(_), s))
+   }
+
+   def const_prop(c: Circuit): Circuit = {
+     def const_prop_module(m: Module): Module = {
+       m match {
+         case m: ExModule => m
+         case m: InModule =>
+           InModule(m.info, m.name, m.ports, const_prop_s(m.body))
+       }
+     }
+     Circuit(c.info, c.modules.map(m => const_prop_module(m)), c.main)
+   }
 }

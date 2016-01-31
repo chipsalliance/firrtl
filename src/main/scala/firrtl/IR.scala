@@ -16,10 +16,10 @@ case class FileInfo(file: String, line: Int, column: Int) extends Info {
 
 case class FIRRTLException(str:String) extends Exception
 
-trait AST 
+trait AST
 
 trait PrimOp extends AST
-case object ADD_OP extends PrimOp 
+case object ADD_OP extends PrimOp
 case object SUB_OP extends PrimOp
 case object MUL_OP extends PrimOp
 case object DIV_OP extends PrimOp
@@ -53,22 +53,25 @@ case object HEAD_OP extends PrimOp
 case object TAIL_OP extends PrimOp
 
 trait Expression extends AST
-case class Ref(name: String, tpe: Type) extends Expression
-case class SubField(exp: Expression, name: String, tpe: Type) extends Expression
-case class SubIndex(exp: Expression, value: Int, tpe: Type) extends Expression
-case class SubAccess(exp: Expression, index: Expression, tpe: Type) extends Expression
-case class Mux(cond: Expression, tval: Expression, fval: Expression, tpe: Type) extends Expression
-case class ValidIf(cond: Expression, value: Expression, tpe: Type) extends Expression
+trait TypedExpression extends Expression {
+  def tpe: Type
+}
+case class Ref(name: String, tpe: Type) extends TypedExpression
+case class SubField(exp: Expression, name: String, tpe: Type) extends TypedExpression
+case class SubIndex(exp: Expression, value: Int, tpe: Type) extends TypedExpression
+case class SubAccess(exp: Expression, index: Expression, tpe: Type) extends TypedExpression
+case class Mux(cond: Expression, tval: Expression, fval: Expression, tpe: Type) extends TypedExpression
+case class ValidIf(cond: Expression, value: Expression, tpe: Type) extends TypedExpression
 case class UIntValue(value: BigInt, width: Width) extends Expression
 case class SIntValue(value: BigInt, width: Width) extends Expression
-case class DoPrim(op: PrimOp, args: Seq[Expression], consts: Seq[BigInt], tpe: Type) extends Expression 
+case class DoPrim(op: PrimOp, args: Seq[Expression], consts: Seq[BigInt], tpe: Type) extends TypedExpression
 
 trait Stmt extends AST
 case class DefWire(info: Info, name: String, tpe: Type) extends Stmt
 case class DefPoison(info: Info, name: String, tpe: Type) extends Stmt
-case class DefRegister(info: Info, name: String, tpe: Type, clock: Expression, reset: Expression, init: Expression) extends Stmt 
-case class DefInstance(info: Info, name: String, module: String) extends Stmt 
-case class DefMemory(info: Info, name: String, data_type: Type, depth: Int, write_latency: Int, 
+case class DefRegister(info: Info, name: String, tpe: Type, clock: Expression, reset: Expression, init: Expression) extends Stmt
+case class DefInstance(info: Info, name: String, module: String) extends Stmt
+case class DefMemory(info: Info, name: String, data_type: Type, depth: Int, write_latency: Int,
                read_latency: Int, readers: Seq[String], writers: Seq[String], readwriters: Seq[String]) extends Stmt
 case class DefNode(info: Info, name: String, value: Expression) extends Stmt
 case class Conditionally(info: Info, pred: Expression, conseq: Stmt, alt: Stmt) extends Stmt
@@ -80,8 +83,8 @@ case class Stop(info: Info, ret: Int, clk: Expression, en: Expression) extends S
 case class Print(info: Info, string: String, args: Seq[Expression], clk: Expression, en: Expression) extends Stmt
 case class Empty() extends Stmt
 
-trait Width extends AST 
-case class IntWidth(width: BigInt) extends Width 
+trait Width extends AST
+case class IntWidth(width: BigInt) extends Width
 case class UnknownWidth() extends Width
 
 trait Flip extends AST

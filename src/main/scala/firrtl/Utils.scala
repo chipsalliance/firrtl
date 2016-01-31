@@ -27,7 +27,7 @@ object Utils {
    def ceil_log2(x: BigInt): BigInt = (x-1).bitLength
    val gen_names = Map[String,Int]()
    val delin = "_"
-   def BoolType () = { UIntType(IntWidth(1)) } 
+   def BoolType () = { UIntType(IntWidth(1)) }
    def firrtl_gensym (s:String):String = {
       firrtl_gensym(s,Map[String,Int]())
    }
@@ -96,7 +96,7 @@ object Utils {
          case v => UnknownType()
       }
    }
-   
+
 //=====================================
    def widthBANG (t:Type) : Width = {
       t match {
@@ -106,6 +106,26 @@ object Utils {
          case t => error("No width!")
       }
    }
+
+   /** Returns the width of a type.
+     * TODO: give it a better name.
+     */
+   def longBANG (t:Type) : BigInt = {
+     t match {
+       case t: UIntType => t.asInstanceOf[IntWidth].width
+       case t: SIntType => t.asInstanceOf[IntWidth].width
+       case t: BundleType => {
+         var w = BigInt(0)
+         for (f <- t.fields) {
+           w += longBANG(f.tpe)
+         }
+         w
+       }
+       case t: VectorType => BigInt(t.size) * longBANG(t.tpe)
+       case t: ClockType => BigInt(1)
+     }
+   }
+
 // =================================
    def error(str:String) = throw new FIRRTLException(str)
    def debug(node: AST)(implicit flags: FlagMap): String = {
@@ -125,12 +145,12 @@ object Utils {
    }
 
    implicit class BigIntUtils(bi: BigInt){
-     def serialize(implicit flags: FlagMap = FlagMap): String = 
+     def serialize(implicit flags: FlagMap = FlagMap): String =
        "\"h" + bi.toString(16) + "\""
    }
 
    implicit class ASTUtils(ast: AST) {
-     def getType(): Type = 
+     def getType(): Type =
        ast match {
          case e: Expression => e.getType
          case s: Stmt => s.getType
@@ -367,7 +387,7 @@ object Utils {
         case s: Stmt => s
       }
    def eMap(f:Expression => Expression, stmt:Stmt) : Stmt =
-      stmt match { 
+      stmt match {
         case r: DefRegister => DefRegister(r.info, r.name, r.tpe, f(r.clock), f(r.reset), f(r.init))
         case n: DefNode => DefNode(n.info, n.name, f(n.value))
         case c: Connect => Connect(c.info, f(c.loc), f(c.exp))
@@ -376,9 +396,9 @@ object Utils {
         case i: IsInvalid => IsInvalid(i.info, f(i.exp))
         case s: Stop => Stop(s.info, s.ret, f(s.clk), f(s.en))
         case p: Print => Print(p.info, p.string, p.args.map(f), f(p.clk), f(p.en))
-        case s: Stmt => s 
+        case s: Stmt => s
       }
-   def eMap(f: Expression => Expression, exp:Expression): Expression = 
+   def eMap(f: Expression => Expression, exp:Expression): Expression =
       exp match {
         case s: SubField => SubField(f(s.exp), s.name, s.tpe)
         case s: SubIndex => SubIndex(f(s.exp), s.value, s.tpe)
@@ -458,7 +478,7 @@ object Utils {
    //  }
    //  implicit def forExp(f: Expression => Expression) = new StmtMagnet {
    //    override def map(stmt: Stmt): Stmt =
-   //      stmt match { 
+   //      stmt match {
    //        case r: DefRegister => DefRegister(r.info, r.name, r.tpe, f(r.clock), f(r.reset), f(r.init))
    //        case n: DefNode => DefNode(n.info, n.name, f(n.value))
    //        case c: Connect => Connect(c.info, f(c.loc), f(c.exp))
@@ -467,7 +487,7 @@ object Utils {
    //        case i: IsInvalid => IsInvalid(i.info, f(i.exp))
    //        case s: Stop => Stop(s.info, s.ret, f(s.clk), f(s.en))
    //        case p: Print => Print(p.info, p.string, p.args.map(f), f(p.clk), f(p.en))
-   //        case s: Stmt => s 
+   //        case s: Stmt => s
    //      }
    //  }
    //}
@@ -482,18 +502,18 @@ object Utils {
          case s: SubAccess => s"${s.exp.serialize}[${s.index.serialize}]"
          case m: Mux => s"mux(${m.cond.serialize}, ${m.tval.serialize}, ${m.fval.serialize})"
          case v: ValidIf => s"validif(${v.cond.serialize}, ${v.value.serialize})"
-         case p: DoPrim => 
+         case p: DoPrim =>
            s"${p.op.serialize}(" + (p.args.map(_.serialize) ++ p.consts.map(_.toString)).mkString(", ") + ")"
          case r: WRef => r.name
          case s: WSubField => s"${s.exp.serialize}.${s.name}"
          case s: WSubIndex => s"${s.exp.serialize}[${s.value}]"
          case s: WSubAccess => s"${s.exp.serialize}[${s.index.serialize}]"
-       } 
+       }
        ret + debug(exp)
      }
    }
 
-   //  def map(f: Expression => Expression): Expression = 
+   //  def map(f: Expression => Expression): Expression =
    //    exp match {
    //      case s: SubField => SubField(f(s.exp), s.name, s.tpe)
    //      case s: SubIndex => SubIndex(f(s.exp), s.value, s.tpe)
@@ -513,7 +533,7 @@ object Utils {
      {
        var ret = stmt match {
          case w: DefWire => s"wire ${w.name} : ${w.tpe.serialize}"
-         case r: DefRegister => 
+         case r: DefRegister =>
            val str = new StringBuilder(s"reg ${r.name} : ${r.tpe.serialize}, ${r.clock.serialize} with : ")
            withIndent {
              str ++= newline + s"reset => (${r.reset.serialize}, ${r.init.serialize})"
@@ -531,7 +551,7 @@ object Utils {
                (if (m.readers.nonEmpty) m.readers.map(r => s"reader => ${r}").mkString(newline) + newline
                 else "") +
                (if (m.writers.nonEmpty) m.writers.map(w => s"writer => ${w}").mkString(newline) + newline
-                else "") + 
+                else "") +
                (if (m.readwriters.nonEmpty) m.readwriters.map(rw => s"readwriter => ${rw}").mkString(newline) + newline
                 else "") +
                s"read-under-write => undefined"
@@ -560,19 +580,19 @@ object Utils {
                else s ++= b.stmts(i).serialize
             }
             s.result + debug(b)
-         } 
+         }
          case i: IsInvalid => s"${i.exp.serialize} is invalid"
          case s: Stop => s"stop(${s.clk.serialize}, ${s.en.serialize}, ${s.ret})"
-         case p: Print => s"printf(${p.clk.serialize}, ${p.en.serialize}, ${p.string}" + 
+         case p: Print => s"printf(${p.clk.serialize}, ${p.en.serialize}, ${p.string}" +
                           (if (p.args.nonEmpty) p.args.map(_.serialize).mkString(", ", ", ", "") else "") + ")"
          case s:Empty => "skip"
-       } 
+       }
        ret + debug(stmt)
      }
 
      // Using implicit types to allow overloading of function type to map, see StmtMagnet above
      //def map[T](f: T => T)(implicit magnet: (T => T) => StmtMagnet): Stmt = magnet(f).map(stmt)
-     
+
      def getType(): Type =
        stmt match {
          case s: DefWire    => s.tpe
@@ -587,7 +607,7 @@ object Utils {
        val s = w match {
          case w:UnknownWidth => "" //"?"
          case w: IntWidth => s"<${w.width.toString}>"
-       } 
+       }
        s + debug(w)
      }
    }
@@ -597,7 +617,7 @@ object Utils {
        val s = f match {
          case REVERSE => "flip "
          case DEFAULT => ""
-       } 
+       }
        s + debug(f)
      }
      def flip(): Flip = {
@@ -606,7 +626,7 @@ object Utils {
          case DEFAULT => REVERSE
        }
      }
-         
+
      def toDirection(): Direction = {
        f match {
          case DEFAULT => OUTPUT
@@ -616,7 +636,7 @@ object Utils {
    }
 
    implicit class FieldUtils(field: Field) {
-     def serialize(implicit flags: FlagMap = FlagMap): String = 
+     def serialize(implicit flags: FlagMap = FlagMap): String =
        s"${field.flip.serialize}${field.name} : ${field.tpe.serialize}" + debug(field)
      def flip(): Field = Field(field.name, field.flip.flip, field.tpe)
 
@@ -635,17 +655,17 @@ object Utils {
            case t: SIntType => s"SInt${t.width.serialize}"
            case t: BundleType => s"{ ${t.fields.map(_.serialize).mkString(commas)}}"
            case t: VectorType => s"${t.tpe.serialize}[${t.size}]"
-         } 
+         }
          s + debug(t)
      }
 
-     def getType(): Type = 
+     def getType(): Type =
        t match {
          case v: VectorType => v.tpe
          case tpe: Type => UnknownType()
        }
 
-     def wipeWidth(): Type = 
+     def wipeWidth(): Type =
        t match {
          case t: UIntType => UIntType(UnknownWidth())
          case t: SIntType => SIntType(UnknownWidth())
@@ -658,7 +678,7 @@ object Utils {
        val s = d match {
          case INPUT => "input"
          case OUTPUT => "output"
-       } 
+       }
        s + debug(d)
      }
      def toFlip(): Flip = {
@@ -670,7 +690,7 @@ object Utils {
    }
 
    implicit class PortUtils(p: Port) {
-     def serialize(implicit flags: FlagMap = FlagMap): String = 
+     def serialize(implicit flags: FlagMap = FlagMap): String =
        s"${p.direction.serialize} ${p.name} : ${p.tpe.serialize}" + debug(p)
      def getType(): Type = p.tpe
      def toField(): Field = Field(p.name, p.direction.toFlip, p.tpe)
