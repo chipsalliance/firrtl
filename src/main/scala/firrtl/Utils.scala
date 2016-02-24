@@ -49,8 +49,8 @@ import scala.collection.mutable.LinkedHashMap
 object Utils {
 //
 //   // Is there a more elegant way to do this?
-   private type FlagMap = Map[String, Boolean]
-   private val FlagMap = Map[String, Boolean]().withDefaultValue(false)
+   private[firrtl] type FlagMap = Map[String, Boolean]
+   private[firrtl] val FlagMap = Map[String, Boolean]().withDefaultValue(false)
    implicit class WithAs[T](x: T) {
      import scala.reflect._
      def as[O: ClassTag]: Option[O] = x match {
@@ -818,14 +818,14 @@ object Utils {
          case s: SubAccess => s"${s.exp.serialize}[${s.index.serialize}]"
          case m: Mux => s"mux(${m.cond.serialize}, ${m.tval.serialize}, ${m.fval.serialize})"
          case v: ValidIf => s"validif(${v.cond.serialize}, ${v.value.serialize})"
-         case p: DoPrim => 
+         case p: DoPrim =>
            s"${p.op.serialize}(" + (p.args.map(_.serialize) ++ p.consts.map(_.toString)).mkString(", ") + ")"
          case r: WRef => r.name
          case s: WSubField => s"${s.exp.serialize}.${s.name}"
          case s: WSubIndex => s"${s.exp.serialize}[${s.value}]"
          case s: WSubAccess => s"${s.exp.serialize}[${s.index.serialize}]"
          case r: WVoid => "VOID"
-       } 
+       }
        ret + debug(exp)
      }
    }
