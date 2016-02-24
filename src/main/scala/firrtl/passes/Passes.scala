@@ -79,7 +79,11 @@ object PassUtils extends LazyLogging {
   lazy val mapNameToPass: Map[String, Pass] = listOfPasses.map(p => p.name -> p).toMap
 
   def executePasses(c: Circuit, passes: Seq[Pass]): Circuit = { 
-    if (passes.isEmpty) {logger.debug(s"Done!"); c}
+    if (passes.isEmpty) {
+//       logger.debug(s"Done!")
+       println("Done!")
+       c
+    }
     else {
        val p = passes.head
        val name = p.name

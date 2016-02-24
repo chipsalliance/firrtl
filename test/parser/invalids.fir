@@ -1,5 +1,5 @@
-; RUN: firrtl -i %s -o %s.out -X firrtl && cat %s.out | FileCheck %s
-; CHECK: Done!
+; RUN: firrtl -i %s -o %s.out -X firrtl ; cat %s.out | FileCheck %s
+; CHECK: w is in
 circuit GCD : 
    module GCD : 
       input x : UInt<128>

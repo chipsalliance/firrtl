@@ -5,8 +5,8 @@ circuit top :
    module top :
       input clk : Clock
       output read : UInt<30>
-      cmem m : UInt<30>[128], clk
-      read accessor x = m[UInt(0)]
+      cmem m : UInt<30>[128];, clk
+      read mport x = m[UInt(0)], clk
       read <= x
       
 

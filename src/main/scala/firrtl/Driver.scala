@@ -114,7 +114,7 @@ object Driver extends LazyLogging {
       case false => List()
     }
 
-    if (!printVars.isEmpty) {
+    if (printVars.nonEmpty) {
       logger.warn("-p options currently ignored")
       if (!logger.underlying.isDebugEnabled) {
         logger.warn("-p options will only print at DEBUG log level, logging configuration can be edited in src/main/resources/logback.xml")
