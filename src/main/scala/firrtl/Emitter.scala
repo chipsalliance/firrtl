@@ -361,9 +361,31 @@ object VerilogEmitter extends Emitter {
       def stop (ret:Int) : Seq[Any] = {
          Seq("$fdisplay(32'h80000002,\"",ret,"\");$finish;")
       }
+      def serialize(exp: Expression) (implicit flags: Utils.FlagMap = FlagMap) : String = {
+         val ret = exp match {
+            case v: UIntValue => s"${v.width match {
+               case w: IntWidth => w.width.toString
+            }}'H${v.value.toString(16)}"
+            case v: SIntValue => s"${v.width match {
+               case w: IntWidth => w.width.toString
+            }}'sH${v.value.toString(16)}"
+            case r: Ref => r.name
+            case r: WRef => r.name
+               // TODO do any other types appear here?
+//            case s: SubField => s"${s.exp.serialize}.${s.name}"
+//            case s: SubIndex => s"${s.exp.serialize}[${s.value}]"
+//            case s: SubAccess => s"${s.exp.serialize}[${s.index.serialize}]"
+//            case p: DoPrim =>
+//               s"${p.op.serialize}(" + (p.args.map(_.serialize) ++ p.consts.map(_.toString)).mkString(", ") + ")"
+//            case s: WSubField => s"${s.exp.serialize}.${s.name}"
+//            case s: WSubIndex => s"${s.exp.serialize}[${s.value}]"
+//            case s: WSubAccess => s"${s.exp.serialize}[${s.index.serialize}]"
+         }
+         ret + debug(exp)
+      }
       def printf (str:String,args:Seq[Expression]) : Seq[Any] = {
          val q = '"'.toString
-         val strx = (Seq(q + escape(str) + q) ++ args.map(x => escape(x.serialize()))).reduce(_ + "," + _)
+         val strx = (Seq(q + escape(str) + q) ++ args.map(x => escape(serialize(x)))).reduce(_ + ", " + _)
          Seq("$fwrite(32'h80000002,",strx,");")
       }
       def delay (e:Expression, n:Int, clk:Expression) : Expression = {

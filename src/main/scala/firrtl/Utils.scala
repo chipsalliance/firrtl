@@ -49,8 +49,8 @@ import scala.collection.mutable.LinkedHashMap
 object Utils {
 //
 //   // Is there a more elegant way to do this?
-   private type FlagMap = Map[String, Boolean]
-   private val FlagMap = Map[String, Boolean]().withDefaultValue(false)
+   private[firrtl] type FlagMap = Map[String, Boolean]
+   private[firrtl] val FlagMap = Map[String, Boolean]().withDefaultValue(false)
    implicit class WithAs[T](x: T) {
      import scala.reflect._
      def as[O: ClassTag]: Option[O] = x match {
