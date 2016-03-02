@@ -697,7 +697,7 @@ object CheckWidths extends Pass with StanzaPass {
                   (e.width) match { 
                      case (w:IntWidth) => 
                         if (scala.math.max(1,e.value.bitLength) > w.width) {
-                           errors += new WidthTooSmall(info,e.value.serialize)
+                           errors += new WidthTooSmall(info, serialize(e.value))
                         }
                      case (w) => errors += new UninferredWidth(info)
                   }
@@ -706,7 +706,7 @@ object CheckWidths extends Pass with StanzaPass {
                case (e:SIntValue) => {
                   (e.width) match { 
                      case (w:IntWidth) => 
-                        if (e.value.bitLength + 1 > w.width) errors += new WidthTooSmall(info,e.value.serialize)
+                        if (e.value.bitLength + 1 > w.width) errors += new WidthTooSmall(info, serialize(e.value))
                      case (w) => errors += new UninferredWidth(info)
                   }
                   check_width_w(info)(e.width)
