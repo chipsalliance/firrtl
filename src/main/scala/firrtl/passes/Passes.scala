@@ -86,9 +86,12 @@ object PassUtils extends LazyLogging {
        val p = passes.head
        val name = p.name
        logger.debug(s"Starting ${name}")
+       println(s"Starting ${name}")
        val x = p.run(c)
        logger.debug(x.serialize)
        logger.debug(s"Finished ${name}")
+       println(x.serialize)
+       println(s"Finished ${name}")
        executePasses(x, passes.tail)
     }
   }
@@ -1138,11 +1141,15 @@ object ConstProp extends Pass {
                case SHIFT_RIGHT_OP => {
                   (e.args(0)) match {
                      case (x:UIntValue) => {
-                        val b = x.value >> e.consts(0).toInt
+
+                        val b =
+                           if (e.consts(0) > long_BANG(tpe(x))) // shift amount is larger than input width
+                              BigInt(0)
+                           else x.value >> e.consts(0).toInt
                         UIntValue(b,tpe(e).as[UIntType].get.width)
                      }
                      case (x:SIntValue) => {
-                        val b = x.value >> e.consts(0).toInt
+                        val b = x.value >> (long_BANG(tpe(x)) - long_BANG(tpe(e))).toInt // take sign bit if shift amount is larger than input width
                         SIntValue(b,tpe(e).as[SIntType].get.width)
                      }
                      case (x) => e
