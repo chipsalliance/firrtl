@@ -245,7 +245,7 @@ class Visitor(val fullFilename: String) extends FIRRTLBaseVisitor[AST]
               (IntWidth(string2BigInt(ctx.IntLit(0).getText)), string2BigInt(ctx.IntLit(1).getText))
             else {
                val bigint = string2BigInt(ctx.IntLit(0).getText)
-               (IntWidth(BigInt(bigint.bitLength + 1)),bigint)
+               (IntWidth(BigInt(scala.math.max(bigint.bitLength,1))),bigint)
             }
           SIntValue(value, width)
         }
