@@ -211,7 +211,13 @@ object VerilogEmitter extends Emitter {
             }
          }
          case SHIFT_LEFT_OP => Seq(cast(a0())," << ",c0())
-         case SHIFT_RIGHT_OP => Seq(a0(),"[", long_BANG(tpe(a0())) - 1,":",c0(),"]")
+         case SHIFT_RIGHT_OP => {
+            val msb = long_BANG(tpe(a0())) - 1
+            val amount = scala.math.max(msb - c0(),0)
+            if (msb == 1) Seq(a0())
+            else if (amount == 0) Seq(a0(),"[", msb, "]")
+            else Seq(a0(),"[", msb,":",msb - amount,"]")
+         }
          case NEG_OP => Seq("-{",cast(a0()),"}")
          case CONVERT_OP => {
             tpe(a0()) match {
