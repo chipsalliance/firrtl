@@ -706,7 +706,7 @@ object CheckWidths extends Pass with StanzaPass {
                case (e:SIntValue) => {
                   (e.width) match { 
                      case (w:IntWidth) => 
-                        if (e.value.bitLength + 1 > w.width) errors += new WidthTooSmall(info, serialize(e.value))
+                        if (e.value.bitLength > w.width) errors += new WidthTooSmall(info, serialize(e.value))
                      case (w) => errors += new UninferredWidth(info)
                   }
                   check_width_w(info)(e.width)
