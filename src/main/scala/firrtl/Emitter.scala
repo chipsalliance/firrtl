@@ -86,8 +86,8 @@ class VerilogEmitter extends Emitter {
                case (e:Mux) => emit2(Seq(e.cond," ? ",cast(e.tval)," : ",cast(e.fval)),top + 1)
                case (e:ValidIf) => emit2(Seq(cast(e.value)),top + 1)
                case (e:WRef) => w.get.write(e.serialize)
-               case (e:WSubField) => w.get.write(lowered_name(e))
-               case (e:WSubAccess) => w.get.write(lowered_name(e.exp) + "[" + lowered_name(e.index) + "]")
+               case (e:WSubField) => w.get.write(LowerTypes.lowered_name(e))
+               case (e:WSubAccess) => w.get.write(LowerTypes.lowered_name(e.exp) + "[" + LowerTypes.lowered_name(e.index) + "]")
                case (e:WSubIndex) => w.get.write(e.serialize)
                case (_:UIntValue|_:SIntValue) => v_print(e)
             }
@@ -328,14 +328,14 @@ class VerilogEmitter extends Emitter {
       def instantiate (n:String,m:String,es:Seq[Expression]) = {
          instdeclares += Seq(m," ",n," (")
          (es,0 until es.size).zipped.foreach{ (e,i) => {
-            val s = Seq(tab,".",remove_root(e),"(",lowered_name(e),")")
+            val s = Seq(tab,".",remove_root(e),"(",LowerTypes.lowered_name(e),")")
             if (i != es.size - 1) instdeclares += Seq(s,",")
             else instdeclares += s
          }}
          instdeclares += Seq(");")
          for (e <- es) {
-            declare("wire",lowered_name(e),tpe(e))
-            val ex = WRef(lowered_name(e),tpe(e),kind(e),gender(e))
+            declare("wire",LowerTypes.lowered_name(e),tpe(e))
+            val ex = WRef(LowerTypes.lowered_name(e),tpe(e),kind(e),gender(e))
             if (gender(e) == FEMALE) {
                assign(ex,netlist(e))
             }
@@ -441,10 +441,10 @@ class VerilogEmitter extends Emitter {
                   val en = mem_exp(r,"en")
                   val clk = mem_exp(r,"clk")
                   
-                  declare("wire",lowered_name(data),tpe(data))
-                  declare("wire",lowered_name(addr),tpe(addr))
-                  declare("wire",lowered_name(en),tpe(en))
-                  declare("wire",lowered_name(clk),tpe(clk))
+                  declare("wire",LowerTypes.lowered_name(data),tpe(data))
+                  declare("wire",LowerTypes.lowered_name(addr),tpe(addr))
+                  declare("wire",LowerTypes.lowered_name(en),tpe(en))
+                  declare("wire",LowerTypes.lowered_name(clk),tpe(clk))
    
                   //; Read port
                   assign(addr,netlist(addr)) //;Connects value to m.r.addr
@@ -463,11 +463,11 @@ class VerilogEmitter extends Emitter {
                   val en = mem_exp(w,"en")
                   val clk = mem_exp(w,"clk")
                   
-                  declare("wire",lowered_name(data),tpe(data))
-                  declare("wire",lowered_name(addr),tpe(addr))
-                  declare("wire",lowered_name(mask),tpe(mask))
-                  declare("wire",lowered_name(en),tpe(en))
-                  declare("wire",lowered_name(clk),tpe(clk))
+                  declare("wire",LowerTypes.lowered_name(data),tpe(data))
+                  declare("wire",LowerTypes.lowered_name(addr),tpe(addr))
+                  declare("wire",LowerTypes.lowered_name(mask),tpe(mask))
+                  declare("wire",LowerTypes.lowered_name(en),tpe(en))
+                  declare("wire",LowerTypes.lowered_name(clk),tpe(clk))
    
                   //; Write port
                   assign(data,netlist(data))
@@ -493,13 +493,13 @@ class VerilogEmitter extends Emitter {
                   val en = mem_exp(rw,"en")
                   val clk = mem_exp(rw,"clk")
                   
-                  declare("wire",lowered_name(wmode),tpe(wmode))
-                  declare("wire",lowered_name(rdata),tpe(rdata))
-                  declare("wire",lowered_name(data),tpe(data))
-                  declare("wire",lowered_name(mask),tpe(mask))
-                  declare("wire",lowered_name(addr),tpe(addr))
-                  declare("wire",lowered_name(en),tpe(en))
-                  declare("wire",lowered_name(clk),tpe(clk))
+                  declare("wire",LowerTypes.lowered_name(wmode),tpe(wmode))
+                  declare("wire",LowerTypes.lowered_name(rdata),tpe(rdata))
+                  declare("wire",LowerTypes.lowered_name(data),tpe(data))
+                  declare("wire",LowerTypes.lowered_name(mask),tpe(mask))
+                  declare("wire",LowerTypes.lowered_name(addr),tpe(addr))
+                  declare("wire",LowerTypes.lowered_name(en),tpe(en))
+                  declare("wire",LowerTypes.lowered_name(clk),tpe(clk))
    
                   //; Assigned to lowered wires of each
                   assign(clk,netlist(clk))
