@@ -1357,6 +1357,14 @@ object VerilogRename extends Pass {
 object LowerTypes extends Pass {
    def name = "Lower Types"
    var mname = ""
+   val delineator = "$"
+   def lowered_name(e: Expression): String = {
+      (e) match {
+         case (e:WRef) => e.name
+         case (e:WSubField) => lowered_name(e.exp) + delineator + e.name
+         case (e:WSubIndex) => lowered_name(e.exp) + delineator + e.value
+      }
+   }
    def is_ground (t:Type) : Boolean = {
       (t) match {
          case (_:UIntType|_:SIntType) => true
@@ -1403,7 +1411,7 @@ object LowerTypes extends Pass {
       create_exps(names(0),dt).map{ x => {
          var base = lowered_name(x)
          for (i <- 0 until names.size) {
-            if (i >= 3) base = base + "_" + names(i)
+            if (i >= 3) base = base + delineator + names(i)
          }
          val m = WRef(base, UnknownType(), kind(e), UNKNOWNGENDER)
          val p = WSubField(m,names(1),UnknownType(),UNKNOWNGENDER)
@@ -1416,7 +1424,7 @@ object LowerTypes extends Pass {
       else {
          var base = names(0)
          for (i <- 0 until names.size) {
-            if (i >= 3) base = base + "_" + names(i)
+            if (i >= 3) base = base + delineator + names(i)
          }
          val m = WRef(base, UnknownType(), kind(e), UNKNOWNGENDER)
          val p = WSubField(m,names(1),UnknownType(),UNKNOWNGENDER)
@@ -1453,7 +1461,7 @@ object LowerTypes extends Pass {
                         val names = expand_name(e)
                         var n = names(1)
                         for (i <- 0 until names.size) {
-                           if (i > 1) n = n + "_" + names(i)
+                           if (i > 1) n = n + delineator + names(i)
                         }
                         WSubField(root_ref(e),n,tpe(e),gender(e))
                      }
