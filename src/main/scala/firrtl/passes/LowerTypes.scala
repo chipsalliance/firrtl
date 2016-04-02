@@ -40,6 +40,7 @@ import scala.collection.mutable.HashMap
 import scala.collection.mutable.HashSet
 import scala.collection.mutable.ArrayBuffer
 
+// TODO Fix name collision in Memory Types
 object LowerTypes extends Pass {
   def name = "Lower Types"
   var mname: String = ""
@@ -195,6 +196,22 @@ object LowerTypes extends Pass {
     }
   }
 
+  // Splits an Expression into root Ref and tail
+  // This function only supports WRef, WSubField, and WSubIndex
+  private def splitRef(e: Expression): (WRef, Expression) = e match {
+    case e: WSubIndex => 
+      val (root, tail) = splitRef(e.exp)
+      (root, WSubIndex(tail, e.value, e.tpe, e.gender))
+    case e: WSubField => e.exp match {
+      case ee: WRef => 
+        (ee, WRef(e.name, e.tpe, ee.kind, e.gender))
+      case ee => 
+        val (root, tail) = splitRef(ee)
+        (root, WSubField(tail, e.name, e.tpe, e.gender))
+    }
+    case _ => error("This utility function does not support expression $e")
+  }
+
   // Map module name to port namemap
   private val portNameMap = HashMap[String, Map[String, NameMapNode]]()
 
@@ -204,22 +221,34 @@ object LowerTypes extends Pass {
     // Map of default loweredNames to loweredNames with disambiguation
     val nameMap = HashMap[String, NameMapNode]()
 
+    // Map from instance name to module name
+    // TODO replace with Analysis
+    val instMap = HashMap[String, String]()
+
     def lowerTypesExp(e: Expression): Expression = e match {
       case e: WRef => disambiguateExp(e, nameMap.toMap)
       case e: WSubField => kind(e) match {
-        case k: InstanceKind => ???
-        case k: MemKind => ???
+        case k: InstanceKind =>
+          val (root, tail) = splitRef(e)
+          val instNameMap = portNameMap(instMap(root.name))
+          val name = loweredName(disambiguateExp(tail, instNameMap))
+          WSubField(root, name, e.tpe, e.gender)
+        case k: MemKind => 
+          val (root, tail) = splitRef(e)
+          val name = loweredName(disambiguateExp(tail, nameMap.toMap))
+          WSubField(root, name, e.tpe, e.gender)
+          ??? 
+          // TODO Fixme
         case k => 
           val exp = disambiguateExp(e, nameMap.toMap)
           WRef(loweredName(exp), tpe(exp), kind(exp), gender(exp))
       }
-      case e: WSubIndex => kind(e) match {
-        case k: InstanceKind => ???
-        case k: MemKind => ???
-        case k => 
-          val exp = disambiguateExp(e, nameMap.toMap)
-          WRef(loweredName(exp), tpe(exp), kind(exp), gender(exp))
-      }
+      case e: WSubIndex => 
+        if(kind(e).isInstanceOf[InstanceKind] ||
+           kind(e).isInstanceOf[MemKind])
+          error("WSubIndex with InstanceKind or MemKind, this shouldnt happen")
+        val exp = disambiguateExp(e, nameMap.toMap)
+        WRef(loweredName(exp), tpe(exp), kind(exp), gender(exp))
       case e: Mux => e map (lowerTypesExp)
       case e: ValidIf => e map (lowerTypesExp)
       case (_: UIntValue | _: SIntValue) => e
@@ -253,6 +282,7 @@ object LowerTypes extends Pass {
         // Could instead just save the type of each Module as it gets processed
         case s: WDefInstance => s.tpe match {
           case t: BundleType =>
+            instMap += (s.name -> s.module) // TODO replace with analysis
             val fieldsx = t.fields flatMap { f =>
               val exps = 
                 create_exps(WRef(f.name, f.tpe, ExpKind(), times(f.flip, MALE)))
@@ -267,7 +297,18 @@ object LowerTypes extends Pass {
             WDefInstance(s.info, s.name, s.module, BundleType(fieldsx))
           case _ => error("WDefInstance type should be Bundle!")
         }
-        case s: DefMemory => ???
+        case s: DefMemory => 
+          if (s.data_type.isGround) {
+            s
+          } else {
+            val exps = createExps(s.name, s.data_type, nameMap.toMap)
+            val stmts = exps map { e =>
+              DefMemory(s.info, loweredName(e), tpe(e), s.depth, 
+                s.write_latency, s.read_latency, s.readers, s.writers, 
+                s.readwriters)
+            }
+            Begin(stmts)
+          }
         case s: DefNode => 
           val names = create_exps(s.name, tpe(s.value)) map (lowerTypesExp)
           val exps = create_exps(s.value) map (lowerTypesExp)
@@ -314,12 +355,15 @@ object LowerTypes extends Pass {
     }
 
     sinfo = m.info
+    val res = 
     m match {
       case m: ExModule => 
         ExModule(m.info, m.name, lowerPorts(m.ports))
       case m: InModule => 
         InModule(m.info, m.name, lowerPorts(m.ports), lowerBody(m.body))
     }
+    println(s"Final nameMap =\n  $nameMap")
+    res
   }
 
   def run(c: Circuit): Circuit = {
