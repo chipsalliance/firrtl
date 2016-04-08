@@ -85,10 +85,13 @@ object PassUtils extends LazyLogging {
     else {
        val p = passes.head
        val name = p.name
-       logger.debug(s"Starting ${name}")
+       logger.info(s"Starting ${name}")
+       val t0 = System.nanoTime()
        val x = p.run(c)
+       val t1 = System.nanoTime()
        logger.debug(x.serialize)
-       logger.debug(s"Finished ${name}")
+       logger.info(s"Finished ${name}")
+       logger.info(s"Elapsed time for pass: " + ((t1 - t0) / 1000) + " ms")
        executePasses(x, passes.tail)
     }
   }

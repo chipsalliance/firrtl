@@ -43,9 +43,7 @@ import scala.collection.mutable.ArrayBuffer
 // TODO Fix name collision in Memory Types
 object LowerTypes extends Pass {
   def name = "Lower Types"
-  var mname: String = ""
-  var sinfo: Info = NoInfo
-  
+
   // Utility functions for lowering names
   private val delim = "_"
   def loweredName(e: Expression): String = e match {
@@ -55,15 +53,17 @@ object LowerTypes extends Pass {
   }
 
   private case class LowerTypesException(msg: String) extends FIRRTLException(msg)
-  private def error(msg: String) = 
+  private def error(msg: String)(implicit sinfo: Info, mname: String) =
     throw new LowerTypesException(s"$sinfo: [module $mname] $msg")
+  //private def error(msg: String) =
+  //  throw new LowerTypesException("$sinfo: [module $mname] $msg")
   private case class NameMapNode(name: String, elts: Map[String, NameMapNode])
 
-  // Appends $delim to $prefix until no collisions of $prefix + $elts in $names
-  @tailrec 
+  // Appends delim to prefix until no collisions of prefix + elts in names
+  @tailrec
   private def findValidPrefix(
-      prefix: String, 
-      elts: Seq[String], 
+      prefix: String,
+      elts: Seq[String],
       namespace: HashSet[String]): String = {
     elts find (elt => namespace.contains(prefix + elt)) match {
       case Some(_) => findValidPrefix(prefix + "_", elts, namespace)
@@ -81,10 +81,11 @@ object LowerTypes extends Pass {
   }
 
   // Accepts a Type and an initial namespace
-  // Returns new Type with disambiguated names 
+  // Returns new Type with disambiguated names
   private def disambiguateNames(
-      t: BundleType, 
-      namespace: HashSet[String]): BundleType = {
+      t: BundleType,
+      namespace: HashSet[String])
+      (implicit sinfo: Info, mname: String): BundleType = {
     def recDisamNames(t: Type, namespace: HashSet[String]): Type = t match {
       case t: BundleType =>
         // Initialize namespace
@@ -114,8 +115,9 @@ object LowerTypes extends Pass {
   // Creates a mapping from flattened references to members of $from ->
   //   flattened references to members of $to
   private def createNameMapping(
-      from: Type, 
-      to: Type): Map[String, NameMapNode] = {
+      from: Type,
+      to: Type)
+      (implicit sinfo: Info, mname: String): Map[String, NameMapNode] = {
     (from, to) match {
       case (from: BundleType, to: BundleType) =>
         (from.fields zip to.fields flatMap { case (f, t) =>
@@ -125,40 +127,24 @@ object LowerTypes extends Pass {
           } else {
             Map[String, NameMapNode]()
           }
-        }).toMap 
-      case (from: VectorType, to: VectorType) => 
+        }).toMap
+      case (from: VectorType, to: VectorType) =>
         createNameMapping(from.tpe, to.tpe)
-      case (from, to) => 
-        if (from.getClass == to.getClass) Map() 
+      case (from, to) =>
+        if (from.getClass == to.getClass) Map()
         else error("Types to map between do not match!")
     }
   }
 
-  // Creates a Bundle Type from a Stmt
-  // Useful for converting body of Module to Type for name disambiguation
-  private def stmtToType(s: Stmt): BundleType = {
-    def recStmtToType(s: Stmt): Seq[Field] = s match {
-      case s: DefWire => Seq(Field(s.name, DEFAULT, s.tpe))
-      case s: DefRegister => Seq(Field(s.name, DEFAULT, s.tpe))
-      // Use UnknownType because instance ports don't collide in this module 
-      case s: WDefInstance => Seq(Field(s.name, DEFAULT, UnknownType()))
-      case s: DefMemory => Seq(Field(s.name, DEFAULT, get_type(s)))
-      case s: DefNode => Seq(Field(s.name, DEFAULT, UnknownType()))
-      case s: Conditionally => recStmtToType(s.conseq) ++ recStmtToType(s.alt)
-      case s: Begin => (s.stmts map (recStmtToType)).flatten
-      case s => Seq()
-    }
-    BundleType(recStmtToType(s))
-  }
-
   // Maps names in expression to new disambiguated names
   private def disambiguateExp(
-      exp: Expression, 
-      map: Map[String, NameMapNode]): Expression = {
+      exp: Expression,
+      map: Map[String, NameMapNode])
+      (implicit sinfo: Info, mname: String): Expression = {
     // Recursive Helper
-    def rec(exp: Expression, map: Map[String, NameMapNode]): 
+    def rec(exp: Expression, map: Map[String, NameMapNode]):
         (Expression, Map[String, NameMapNode]) = exp match {
-      case e: WRef => 
+      case e: WRef =>
         if (map.contains(e.name)) {
           val node = map(e.name)
           (WRef(node.name, e.tpe, e.kind, e.gender), node.elts)
@@ -166,7 +152,7 @@ object LowerTypes extends Pass {
         else (e, Map())
       case e: WSubField =>
         val (subExp, subMap) = rec(e.exp, map)
-        val (retName, retMap) = 
+        val (retName, retMap) =
           if (subMap.contains(e.name)) {
             val node = subMap(e.name)
             (node.name, node.elts)
@@ -182,193 +168,343 @@ object LowerTypes extends Pass {
     rec(exp, map)._1
   }
 
-  // Enhanced version of Utils.create_exps 
+  // Enhanced version of Utils.create_exps
   // Uses nameMap to rename expressions if necessary
   private def createExps(
-      name: String, 
-      tpe: Type, 
-      nameMap: Map[String, NameMapNode]): Seq[Expression] = {
-    val es = create_exps(name, tpe)
+      name: String,
+      tpe: Type,
+      nameMap: Map[String, NameMapNode])
+      (implicit sinfo: Info, mname: String): Seq[Expression] = {
+    val exps = create_exps(name, tpe)
     if (nameMap.contains(name)) {
-      es map (e => disambiguateExp(e, nameMap.toMap))
+      exps map (e => disambiguateExp(e, nameMap.toMap))
     } else {
-      es
+      exps
     }
   }
 
+  private case object EmptyExpression extends Expression
   // Splits an Expression into root Ref and tail
   // This function only supports WRef, WSubField, and WSubIndex
-  private def splitRef(e: Expression): (WRef, Expression) = e match {
-    case e: WSubIndex => 
+  private def splitRef(
+      e: Expression)
+      (implicit sinfo: Info, mname: String): (WRef, Expression) = e match {
+    case e: WRef => (e, EmptyExpression)
+    case e: WSubIndex =>
       val (root, tail) = splitRef(e.exp)
       (root, WSubIndex(tail, e.value, e.tpe, e.gender))
-    case e: WSubField => e.exp match {
-      case ee: WRef => 
-        (ee, WRef(e.name, e.tpe, ee.kind, e.gender))
-      case ee => 
-        val (root, tail) = splitRef(ee)
-        (root, WSubField(tail, e.name, e.tpe, e.gender))
-    }
-    case _ => error("This utility function does not support expression $e")
+    case e: WSubField =>
+      val (root, tail) = splitRef(e.exp)
+      tail match {
+        case EmptyExpression => (root, WRef(e.name, e.tpe, root.kind, e.gender))
+        case exp => (root, WSubField(tail, e.name, e.tpe, e.gender))
+      }
+    //e.exp match {
+    //  case exp: WRef =>
+    //    (exp, WRef(e.name, e.tpe, exp.kind, e.gender))
+    //  case exp =>
+    //    val (root, tail) = splitRef(exp)
+    //    (root, WSubField(tail, e.name, e.tpe, e.gender))
+    //}
+    case _ => error(s"This utility function does not support expression $e")
   }
 
-  // Map module name to port namemap
-  private val portNameMap = HashMap[String, Map[String, NameMapNode]]()
-
-  // Each module is its own namespace
-  private def lowerTypes(m: Module): Module = {
-    val namespace = HashSet[String]() 
-    // Map of default loweredNames to loweredNames with disambiguation
-    val nameMap = HashMap[String, NameMapNode]()
-
-    // Map from instance name to module name
-    // TODO replace with Analysis
-    val instMap = HashMap[String, String]()
-
-    def lowerTypesExp(e: Expression): Expression = e match {
-      case e: WRef => disambiguateExp(e, nameMap.toMap)
-      case e: WSubField => kind(e) match {
-        case k: InstanceKind =>
-          val (root, tail) = splitRef(e)
-          val instNameMap = portNameMap(instMap(root.name))
-          val name = loweredName(disambiguateExp(tail, instNameMap))
-          WSubField(root, name, e.tpe, e.gender)
-        case k: MemKind => 
-          val (root, tail) = splitRef(e)
-          val name = loweredName(disambiguateExp(tail, nameMap.toMap))
-          WSubField(root, name, e.tpe, e.gender)
-          ??? 
-          // TODO Fixme
-        case k => 
-          val exp = disambiguateExp(e, nameMap.toMap)
-          WRef(loweredName(exp), tpe(exp), kind(exp), gender(exp))
-      }
-      case e: WSubIndex => 
-        if(kind(e).isInstanceOf[InstanceKind] ||
-           kind(e).isInstanceOf[MemKind])
-          error("WSubIndex with InstanceKind or MemKind, this shouldnt happen")
-        val exp = disambiguateExp(e, nameMap.toMap)
-        WRef(loweredName(exp), tpe(exp), kind(exp), gender(exp))
-      case e: Mux => e map (lowerTypesExp)
-      case e: ValidIf => e map (lowerTypesExp)
-      case (_: UIntValue | _: SIntValue) => e
-      case e: DoPrim => e map (lowerTypesExp)
+  // Adds a root reference to some SubField/SubIndex chain
+  private def mergeRef(
+      root: WRef,
+      body: Expression)
+      (implicit sinfo: Info, mname: String): Expression = body match {
+    case e: WRef =>
+      WSubField(root, e.name, e.tpe, e.gender) // TODO any "kind" issues?
+    case e: WSubIndex =>
+      WSubIndex(mergeRef(root, e.exp), e.value, e.tpe, e.gender)
+    case e: WSubField =>
+      WSubField(mergeRef(root, e.exp), e.name, e.tpe, e.gender)
+    case EmptyExpression => root
+    case e => error(s"This utility function does not support expression $e")
+  }
+  // TODO Fix? Probably not the best way to do this
+  private def splitMemRef(e1: Expression)(implicit sinfo: Info, mname: String):
+      (WRef, WRef, WRef, Option[Expression]) = {
+    val (mem, tail1) = splitRef(e1)
+    val (port, tail2) = splitRef(tail1)
+    tail2 match {
+      case e2: WRef =>
+        (mem, port, e2, None)
+      case _ =>
+        val (field, tail3) = splitRef(tail2)
+        (mem, port, field, Some(tail3))
     }
-
-    def lowerTypesStmt(s: Stmt): Stmt = {
-      s map (lowerTypesStmt) match {
-        case s: DefWire => 
-          if (s.tpe.isGround) { 
-            s
-          } else {
-            val es = createExps(s.name, s.tpe, nameMap.toMap)
-            val stmts = es map (e => DefWire(s.info, loweredName(e), tpe(e)))
-            Begin(stmts)
-          }
-        case s: DefRegister =>
-          if (s.tpe.isGround) {
-            s
-          } else {
-            val es = createExps(s.name, s.tpe, nameMap.toMap)
-            val inits = create_exps(s.init) map (lowerTypesExp)
-            if (es.length != inits.length) 
-              error("Error! DefRegister not correctly initialized! " + 
-                    "This should be detected elsewhere...")
-            val stmts = es zip inits map { case (e, i) =>
-              DefRegister(s.info, loweredName(e), tpe(e), s.clock, s.reset, i)
-            }
-            Begin(stmts)
-          }
-        // Could instead just save the type of each Module as it gets processed
-        case s: WDefInstance => s.tpe match {
-          case t: BundleType =>
-            instMap += (s.name -> s.module) // TODO replace with analysis
-            val fieldsx = t.fields flatMap { f =>
-              val exps = 
-                create_exps(WRef(f.name, f.tpe, ExpKind(), times(f.flip, MALE)))
-              val disamExps = exps map ( e => 
-                disambiguateExp(e, portNameMap(s.module))
-              )
-              disamExps map { e =>
-                // Flip because inst genders are reversed from Module type
-                Field(loweredName(e), toFlip(gender(e)).flip, tpe(e))
-              }
-            }
-            WDefInstance(s.info, s.name, s.module, BundleType(fieldsx))
-          case _ => error("WDefInstance type should be Bundle!")
-        }
-        case s: DefMemory => 
-          if (s.data_type.isGround) {
-            s
-          } else {
-            val exps = createExps(s.name, s.data_type, nameMap.toMap)
-            val stmts = exps map { e =>
-              DefMemory(s.info, loweredName(e), tpe(e), s.depth, 
-                s.write_latency, s.read_latency, s.readers, s.writers, 
-                s.readwriters)
-            }
-            Begin(stmts)
-          }
-        case s: DefNode => 
-          val names = create_exps(s.name, tpe(s.value)) map (lowerTypesExp)
-          val exps = create_exps(s.value) map (lowerTypesExp)
-          val stmts = names zip exps map { case (n, e) =>
-            DefNode(s.info, loweredName(n), e)
-          }
-          Begin(stmts)
-        case s: IsInvalid => s map (lowerTypesExp)
-          // TODO handle MemKind?
-        case s: Connect => s map (lowerTypesExp)
-          // TODO handle MemKind?
-        case s => s
-      }
-        
-    }
-
-    def lowerBody(s: Stmt): Stmt = {
-      val bodyType = stmtToType(s)
-      val disamBodyType = disambiguateNames(bodyType, namespace)
-      val localMap = createNameMapping(bodyType, disamBodyType)
-      nameMap ++= localMap
-      // No reason to add to namespace, nothing else uses it
-      lowerTypesStmt(s)
-    }
-
-    // Disambiguate ports and expand aggregate types
-    // Adds port names to namespace, and local and global namemaps
-    def lowerPorts(ports: Seq[Port]): Seq[Port] = {
-
-      val portsType = BundleType(ports map (_.toField))
-      val disamPortsType = disambiguateNames(portsType, HashSet())
-      val localMap = createNameMapping(portsType, disamPortsType)
-      nameMap ++= localMap
-      portNameMap += (m.name -> localMap)
-      namespace ++= create_exps("", disamPortsType) map 
-                    (loweredName) map (_.tail)
-
-      ports zip disamPortsType.fields flatMap { case (p, f) => 
-        val es = create_exps(WRef(f.name, f.tpe, PortKind(), toGender(f.flip)))
-        es map { e =>
-          Port(p.info, loweredName(e), to_dir(gender(e)), tpe(e))
-        }
-      }
-    }
-
-    sinfo = m.info
-    val res = 
-    m match {
-      case m: ExModule => 
-        ExModule(m.info, m.name, lowerPorts(m.ports))
-      case m: InModule => 
-        InModule(m.info, m.name, lowerPorts(m.ports), lowerBody(m.body))
-    }
-    println(s"Final nameMap =\n  $nameMap")
-    res
   }
 
+  // Everything wrapped in run so that it's thread safe
   def run(c: Circuit): Circuit = {
+    // TODO Do we really need both?
+    // Debug state
+    implicit var mname: String = ""
+    implicit var sinfo: Info = NoInfo
+    // Global state
+    val portNameMap = HashMap[String, Map[String, NameMapNode]]()
+    val portTypeMap = HashMap[String, Type]()
+
+    // Creates a Bundle Type from a Stmt
+    // Useful for converting body of Module to Type for name disambiguation
+    // Needs portTypeMap for WDefInstances
+    def stmtToType(s: Stmt): BundleType = {
+      // Recursive helper
+      def recStmtToType(s: Stmt): Seq[Field] = s match {
+        case s: DefWire => Seq(Field(s.name, DEFAULT, s.tpe))
+        case s: DefRegister => Seq(Field(s.name, DEFAULT, s.tpe))
+        // Use UnknownType because instance ports don't collide in this module
+        case s: WDefInstance => Seq(Field(s.name, DEFAULT, portTypeMap(s.module)))
+        case s: DefMemory => s.data_type match {
+          case (_: UIntType | _: SIntType) =>
+            Seq(Field(s.name, DEFAULT, get_type(s)))
+          case tpe: BundleType =>
+            val newFields = tpe.fields map ( f =>
+              DefMemory(s.info, f.name, f.tpe, s.depth, s.write_latency,
+                s.read_latency, s.readers, s.writers, s.readwriters)
+            ) flatMap (recStmtToType)
+            Seq(Field(s.name, DEFAULT, BundleType(newFields)))
+          case tpe: VectorType =>
+            val newFields = (0 until tpe.size) map ( i =>
+              s.copy(name = i.toString, data_type = tpe.tpe)
+            ) flatMap (recStmtToType)
+            Seq(Field(s.name, DEFAULT, BundleType(newFields)))
+          case tpe => error(s"Error! Unsupported mem type: $tpe")
+        }
+        case s: DefNode => Seq(Field(s.name, DEFAULT, UnknownType()))
+        case s: Conditionally => recStmtToType(s.conseq) ++ recStmtToType(s.alt)
+        case s: Begin => (s.stmts map (recStmtToType)).flatten
+        case s => Seq()
+      }
+      BundleType(recStmtToType(s))
+    }
+
+    def lowerTypes(m: Module): Module = {
+      val namespace = HashSet[String]()
+      // Map of default loweredNames to loweredNames with disambiguation
+      val nameMap = HashMap[String, NameMapNode]()
+      val memDataTypeMap = HashMap[String, Type]()
+
+      // Map from instance name to module name
+      // TODO replace with Analysis
+      val instMap = HashMap[String, String]()
+
+      // Lowers an expression of MemKind
+      // Since mems with Bundle type must be split into multiple ground type
+      //   mem, references to fields addr, en, clk, and rmode must be replicated
+      //   for each resulting memory
+      // References to data, mask, and rdata have already been split in expand connects
+      //   and just need to be converted to refer to the correct new memory
+      def lowerTypesMemExp(e: Expression): Seq[Expression] = {
+        val (mem, port, field, tail) = splitMemRef(e)
+        //val (newMem, newExp) =
+        // Fields that need to be replicated for each resulting mem
+        if (Seq("addr", "en", "clk", "rmode").contains(field.name)) {
+          require(tail.isEmpty) // there can't be a tail for these
+          val memType = memDataTypeMap(mem.name)
+
+          if (memType.isGround) {
+            val newMem = disambiguateExp(mem, nameMap.toMap).asInstanceOf[WRef]
+            Seq(mergeRef(newMem, mergeRef(port, field)))
+          } else {
+            val exps = createExps(mem.name, memType, nameMap.toMap)
+            exps map { e =>
+              val newMemName = loweredName(e)
+              val newMem = WRef(newMemName, UnknownType(), kind(mem), UNKNOWNGENDER)
+              mergeRef(newMem, mergeRef(port, field))
+            }
+          }
+        // Fields that need not be replicated for each
+        // TODO handle disambiguation on subfields?
+        } else if (Seq("data", "mask", "rdata").contains(field.name)) {
+          val newMem = tail match {
+            case Some(e) =>
+              val newMemExp = disambiguateExp(mergeRef(mem, e), nameMap.toMap)
+              val newMemName = loweredName(newMemExp)
+              WRef(newMemName, UnknownType(), kind(mem), UNKNOWNGENDER)
+            case None =>
+              disambiguateExp(mem, nameMap.toMap).asInstanceOf[WRef]
+          }
+          Seq(mergeRef(newMem, mergeRef(port, field)))
+        } else {
+          error(s"Error! Unhandled memory field ${field.name}")
+        }
+      }
+
+      def lowerTypesExp(e: Expression): Expression = e match {
+        case e: WRef => disambiguateExp(e, nameMap.toMap)
+        //case e: WSubField => kind(e) match {
+        case (_: WSubField | _: WSubIndex) => kind(e) match {
+          case k: InstanceKind =>
+            val (root, tail) = splitRef(e)
+            val disamRoot = disambiguateExp(root, nameMap.toMap).asInstanceOf[WRef]
+            val instNameMap = portNameMap(instMap(disamRoot.name))
+            val name = loweredName(disambiguateExp(tail, instNameMap))
+            WSubField(disamRoot, name, tpe(e), gender(e))
+          case k: MemKind =>
+            val exps = lowerTypesMemExp(e)
+            if (exps.length > 1)
+              error("Error! lowerTypesExp called on MemKind SubField that needs" +
+                    " to be expanded!")
+            exps(0)
+          case k =>
+            val exp = disambiguateExp(e, nameMap.toMap)
+            WRef(loweredName(exp), tpe(exp), kind(exp), gender(exp))
+        }
+        //case e: WSubIndex =>
+        //  if(kind(e).isInstanceOf[InstanceKind] ||
+        //     kind(e).isInstanceOf[MemKind])
+        //    error(s"WSubIndex with InstanceKind or MemKind, this shouldnt happen\n${e.serialize}")
+        //  val exp = disambiguateExp(e, nameMap.toMap)
+        //  WRef(loweredName(exp), tpe(exp), kind(exp), gender(exp))
+        case e: Mux => e map (lowerTypesExp)
+        case e: ValidIf => e map (lowerTypesExp)
+        case (_: UIntValue | _: SIntValue) => e
+        case e: DoPrim => e map (lowerTypesExp)
+      }
+
+      def lowerTypesStmt(s: Stmt): Stmt = {
+        s map (lowerTypesStmt) match {
+          case s: DefWire =>
+            sinfo = s.info
+            if (s.tpe.isGround) {
+              s
+            } else {
+              val es = createExps(s.name, s.tpe, nameMap.toMap)
+              val stmts = es map (e => DefWire(s.info, loweredName(e), tpe(e)))
+              Begin(stmts)
+            }
+          case s: DefRegister =>
+            sinfo = s.info
+            if (s.tpe.isGround) {
+              s
+            } else {
+              val es = createExps(s.name, s.tpe, nameMap.toMap)
+              val inits = create_exps(s.init) map (lowerTypesExp)
+              if (es.length != inits.length)
+                error("Error! DefRegister not correctly initialized! " +
+                      "This should be detected elsewhere...")
+              val stmts = es zip inits map { case (e, i) =>
+                DefRegister(s.info, loweredName(e), tpe(e), s.clock, s.reset, i)
+              }
+              Begin(stmts)
+            }
+          // Could instead just save the type of each Module as it gets processed
+          case s: WDefInstance =>
+            sinfo = s.info
+            s.tpe match {
+              case t: BundleType =>
+                val name = if (nameMap.contains(s.name)) nameMap(s.name).name else s.name
+                instMap += (name -> s.module) // TODO replace with analysis
+                val fieldsx = t.fields flatMap { f =>
+                  val exps = create_exps(WRef(f.name, f.tpe, ExpKind(), times(f.flip, MALE)))
+                  val disamExps = exps map (e => disambiguateExp(e, portNameMap(s.module)))
+                  disamExps map ( e =>
+                    // Flip because inst genders are reversed from Module type
+                    Field(loweredName(e), toFlip(gender(e)).flip, tpe(e))
+                  )
+                }
+                WDefInstance(s.info, name, s.module, BundleType(fieldsx))
+              case _ => error("WDefInstance type should be Bundle!")
+            }
+          case s: DefMemory =>
+            sinfo = s.info
+            memDataTypeMap += (s.name -> s.data_type)
+            if (s.data_type.isGround) {
+              s
+            } else {
+              val exps = createExps(s.name, s.data_type, nameMap.toMap)
+              val stmts = exps map { e =>
+                DefMemory(s.info, loweredName(e), tpe(e), s.depth,
+                  s.write_latency, s.read_latency, s.readers, s.writers,
+                  s.readwriters)
+              }
+              Begin(stmts)
+            }
+          case s: DefNode =>
+            sinfo = s.info
+            val names = create_exps(s.name, tpe(s.value)) map (lowerTypesExp)
+            val exps = create_exps(s.value) map (lowerTypesExp)
+            val stmts = names zip exps map { case (n, e) =>
+              DefNode(s.info, loweredName(n), e)
+            }
+            Begin(stmts)
+          case s: IsInvalid =>
+            sinfo = s.info
+            kind(s.exp) match {
+              case k: MemKind =>
+                val exps = lowerTypesMemExp(s.exp)
+                Begin(exps map (exp => IsInvalid(s.info, exp)))
+              case _ => s map (lowerTypesExp)
+            }
+          case s: Connect =>
+            sinfo = s.info
+            kind(s.loc) match {
+              case k: MemKind =>
+                val exp = lowerTypesExp(s.exp)
+                val locs = lowerTypesMemExp(s.loc)
+                Begin(locs map (loc => Connect(s.info, loc, exp)))
+              case _ => s map (lowerTypesExp)
+            }
+          case s => s map (lowerTypesExp)
+        }
+      }
+
+      def lowerBody(s: Stmt): Stmt = {
+        val bodyType = stmtToType(s)
+        val disamBodyType = disambiguateNames(bodyType, namespace)
+        val localMap = createNameMapping(bodyType, disamBodyType)
+        nameMap ++= localMap
+        // No reason to add to namespace, nothing else uses it
+        lowerTypesStmt(s)
+      }
+
+      // Disambiguate ports and expand aggregate types
+
+        //nameMap ++= localMap
+        //namespace ++= create_exps("", disamPortsType) map
+        //              (loweredName) map (_.tail)
+      sinfo = m.info
+      mname = m.name
+      m match {
+        case m: ExModule => m
+        case m: InModule =>
+          // Adds port names to namespace and namemap
+          nameMap ++= portNameMap(m.name)
+          namespace ++= create_exps("", portTypeMap(m.name)) map
+                        (loweredName) map (_.tail)
+          m.copy(body = lowerBody(m.body))
+      }
+    }
+
+    def lowerPorts(m: Module): Module = {
+      def lowerPorts(ports: Seq[Port]): Seq[Port] = {
+        val portsType = BundleType(ports map (_.toField))
+        val disamPortsType = disambiguateNames(portsType, HashSet())
+        val localMap = createNameMapping(portsType, disamPortsType)
+        portNameMap += (m.name -> localMap)
+        portTypeMap += (m.name -> disamPortsType)
+
+        ports zip disamPortsType.fields flatMap { case (p, f) =>
+          val exps = create_exps(WRef(f.name, f.tpe, PortKind(), toGender(f.flip)))
+          exps map { e =>
+            Port(p.info, loweredName(e), to_dir(gender(e)), tpe(e))
+          }
+        }
+      }
+
+      sinfo = m.info
+      mname = m.name
+      m match {
+        case m: ExModule => m.copy(ports = lowerPorts(m.ports))
+        case m: InModule => m.copy(ports = lowerPorts(m.ports))
+      }
+    }
+
     sinfo = c.info
-    Circuit(c.info, c.modules map (lowerTypes), c.main)
+    Circuit(c.info, c.modules map lowerPorts map lowerTypes, c.main)
   }
 }
 
@@ -385,9 +521,9 @@ object OldLowerTypes extends Pass {
    }
    //// Escape names to prevent collision with lowered names
    //private def escapedName(s: String): String = s.replaceAll("_", "__")
-   //private def escapedNameExp(e: Expression): Expression = 
+   //private def escapedNameExp(e: Expression): Expression =
    //  e map (escapedNameExp) map (escapedName)
-   //private def escapedNameStmt(s: Stmt): Stmt = 
+   //private def escapedNameStmt(s: Stmt): Stmt =
    //  s map (escapedNameStmt) map (escapedNameExp) map (escapedName)
 
    def is_ground (t:Type) : Boolean = {
@@ -465,9 +601,9 @@ object OldLowerTypes extends Pass {
          case (e:WSubAccess) => root_ref(e.exp)
       }
    }
-   
+
    //;------------- Pass ------------------
-   
+
    def lower_types (m:Module) : Module = {
       val mdt = LinkedHashMap[String,Type]()
       mname = m.name
@@ -492,7 +628,7 @@ object OldLowerTypes extends Pass {
                      }
                      case (k:MemKind) => {
                         println(s"lower_types_e called on MemKind ${e.serialize} \n $e ")
-                        val res = 
+                        val res =
                         if (gender(e) != FEMALE) lower_mem(e)(0)
                         else e
                         println(s"  resulting in ${res.serialize} \n $res \n\n")
@@ -528,11 +664,11 @@ object OldLowerTypes extends Pass {
                }
             }
             case (s:DefRegister) => {
-               if (is_ground(s.tpe)) { 
+               if (is_ground(s.tpe)) {
                   s map (lower_types_e)
                } else {
                   val es = create_exps(s.name,s.tpe)
-                  val inits = create_exps(s.init) 
+                  val inits = create_exps(s.init)
                   val stmts = (es, 0 until es.size).zipped.map{ (e,i) => {
                      val init = lower_types_e(inits(i))
                      DefRegister(s.info,loweredName(e),tpe(e),s.clock,s.reset,init)
@@ -597,8 +733,8 @@ object OldLowerTypes extends Pass {
             case (s) => s map (lower_types_s) map (lower_types_e)
          }
       }
-   
-      val portsx = m.ports flatMap { p => 
+
+      val portsx = m.ports flatMap { p =>
          val es = create_exps(WRef(p.name,p.tpe,PortKind(),to_gender(p.direction)))
          //es map (escapedNameExp) map { e =>
          es map { e =>
@@ -607,16 +743,16 @@ object OldLowerTypes extends Pass {
       }
       (m) match {
          case (m:ExModule) => ExModule(m.info,m.name,portsx)
-         case (m:InModule) => 
+         case (m:InModule) =>
             // In lowering names, need to escape the delimiter
             // TODO Possibly combine with the above for performance
-            //val escapedBody = m.body map (escapedNameStmt) map 
+            //val escapedBody = m.body map (escapedNameStmt) map
             //                    (escapedNameExp) map (escapedName)
-            val escapedBody = m.body 
+            val escapedBody = m.body
             InModule(m.info,m.name,portsx,lower_types_s(escapedBody))
       }
    }
-   
+
    def run (c:Circuit) : Circuit = {
       val modulesx = c.modules.map(m => lower_types(m))
       Circuit(c.info,modulesx,c.main)

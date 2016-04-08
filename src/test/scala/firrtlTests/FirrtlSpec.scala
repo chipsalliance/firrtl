@@ -90,7 +90,7 @@ trait BackendCompilationUtilities {
     val e = Process(s"./V${prefix}", dir) !
       ProcessLogger(line => {
         triggered = triggered || line.contains(assertionMsg)
-        //System.out.println(line)
+        System.out.println(line)
       })
     triggered
   }
@@ -109,7 +109,7 @@ trait FirrtlRunners extends BackendCompilationUtilities {
     Driver.compile(s"${testDir}/${prefix}.fir", s"${testDir}/${prefix}.v", VerilogCompiler)
     testDir
   }
-  def runFirrtlTest(prefix: String, srcDir: String) {
+  def runFirrtlTest(prefix: String, srcDir: String): Boolean = {
     val testDir = compileFirrtlTest(prefix, srcDir)
     val harness = new File(testDir, s"top.cpp")
     copyResourceToFile(cppHarness.toString, harness)
