@@ -95,7 +95,7 @@ object LowerTypes extends Pass {
             val tpe = recDisamNames(f.tpe, HashSet())
             val elts = create_exps(WRef("", tpe, PortKind(), toGender(f.flip)))
             val prefix = findValidPrefix(f.name, elts map (loweredName), namespace)
-            namespace ++= (elts map (prefix + _))
+            namespace ++= (elts map (e => prefix + loweredName(e)))
             Field(prefix, f.flip, tpe)
           } else {
             f
@@ -199,13 +199,6 @@ object LowerTypes extends Pass {
         case EmptyExpression => (root, WRef(e.name, e.tpe, root.kind, e.gender))
         case exp => (root, WSubField(tail, e.name, e.tpe, e.gender))
       }
-    //e.exp match {
-    //  case exp: WRef =>
-    //    (exp, WRef(e.name, e.tpe, exp.kind, e.gender))
-    //  case exp =>
-    //    val (root, tail) = splitRef(exp)
-    //    (root, WSubField(tail, e.name, e.tpe, e.gender))
-    //}
     case _ => error(s"This utility function does not support expression $e")
   }
 
@@ -353,12 +346,6 @@ object LowerTypes extends Pass {
             val exp = disambiguateExp(e, nameMap.toMap)
             WRef(loweredName(exp), tpe(exp), kind(exp), gender(exp))
         }
-        //case e: WSubIndex =>
-        //  if(kind(e).isInstanceOf[InstanceKind] ||
-        //     kind(e).isInstanceOf[MemKind])
-        //    error(s"WSubIndex with InstanceKind or MemKind, this shouldnt happen\n${e.serialize}")
-        //  val exp = disambiguateExp(e, nameMap.toMap)
-        //  WRef(loweredName(exp), tpe(exp), kind(exp), gender(exp))
         case e: Mux => e map (lowerTypesExp)
         case e: ValidIf => e map (lowerTypesExp)
         case (_: UIntValue | _: SIntValue) => e
@@ -462,10 +449,6 @@ object LowerTypes extends Pass {
       }
 
       // Disambiguate ports and expand aggregate types
-
-        //nameMap ++= localMap
-        //namespace ++= create_exps("", disamPortsType) map
-        //              (loweredName) map (_.tail)
       sinfo = m.info
       mname = m.name
       m match {
@@ -475,7 +458,7 @@ object LowerTypes extends Pass {
           nameMap ++= portNameMap(m.name)
           namespace ++= create_exps("", portTypeMap(m.name)) map
                         (loweredName) map (_.tail)
-          m.copy(body = lowerBody(m.body))
+          m.copy(body = lowerBody(m.body) )
       }
     }
 
