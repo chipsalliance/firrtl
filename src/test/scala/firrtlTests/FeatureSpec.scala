@@ -7,7 +7,7 @@ import org.scalatest._
 class FeatureSpec extends FirrtlPropSpec {
 
   property("Nested SubAccesses should be supported!") {
-    compileFirrtlTest("NestedSubAccessTester", "/features")
+    runFirrtlTest("NestedSubAccessTester", "/features")
   }
 }
 
