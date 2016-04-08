@@ -390,6 +390,15 @@ object Utils {
          case OUTPUT => FEMALE
       }
    }
+  def toGender(f: Flip): Gender = f match {
+    case DEFAULT => FEMALE
+    case REVERSE => MALE
+  }
+  def toFlip(g: Gender): Flip = g match {
+    case MALE => REVERSE
+    case FEMALE => DEFAULT
+  }
+
    def field_flip (v:Type,s:String) : Flip = {
       v match {
          case v:BundleType => {
