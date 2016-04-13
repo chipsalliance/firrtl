@@ -3,6 +3,7 @@ package firrtlTests
 
 import java.io._
 
+import com.typesafe.scalalogging.LazyLogging
 import scala.sys.process._
 import org.scalatest._
 import org.scalatest.prop._
@@ -109,7 +110,7 @@ trait FirrtlRunners extends BackendCompilationUtilities {
     Driver.compile(s"${testDir}/${prefix}.fir", s"${testDir}/${prefix}.v", VerilogCompiler)
     testDir
   }
-  def runFirrtlTest(prefix: String, srcDir: String) {
+  def runFirrtlTest(prefix: String, srcDir: String): Boolean = {
     val testDir = compileFirrtlTest(prefix, srcDir)
     val harness = new File(testDir, s"top.cpp")
     copyResourceToFile(cppHarness.toString, harness)
@@ -120,5 +121,17 @@ trait FirrtlRunners extends BackendCompilationUtilities {
   }
 }
 
-class FirrtlPropSpec extends PropSpec with PropertyChecks with FirrtlRunners
+trait FirrtlMatchers {
+  // Replace all whitespace with a single space and remove leading and
+  //   trailing whitespace
+  // Note this is intended for single-line strings, no newlines
+  def normalized(s: String): String = {
+    require(!s.contains("\n"))
+    s.replaceAll("\\s+", " ").trim
+  }
+}
+
+class FirrtlPropSpec extends PropSpec with PropertyChecks with FirrtlRunners with LazyLogging
+
+class FirrtlFlatSpec extends FlatSpec with Matchers with FirrtlMatchers with LazyLogging
 

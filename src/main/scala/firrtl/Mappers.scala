@@ -79,7 +79,10 @@ object Mappers {
           case s: DefWire => DefWire(s.info,f(s.name),s.tpe)
           case s: DefPoison => DefPoison(s.info,f(s.name),s.tpe)
           case s: DefRegister => DefRegister(s.info,f(s.name), s.tpe, s.clock, s.reset, s.init)
-          case s: DefMemory => DefMemory(s.info,f(s.name), s.data_type, s.depth, s.write_latency, s.read_latency, s.readers, s.writers, s.readwriters)
+          case s: DefMemory =>
+            DefMemory(s.info,f(s.name), s.data_type, s.depth, s.write_latency,
+              s.read_latency, s.readers map (f), s.writers map (f),
+              s.readwriters map (f))
           case s: DefNode => DefNode(s.info,f(s.name),s.value)
           case s: DefInstance => DefInstance(s.info,f(s.name), s.module)
           case s: WDefInstance => WDefInstance(s.info,f(s.name), s.module,s.tpe)
@@ -135,6 +138,17 @@ object Mappers {
         exp match {
           case e: UIntValue => UIntValue(e.value,f(e.width))
           case e: SIntValue => SIntValue(e.value,f(e.width))
+          case e => e
+        }
+      }
+    }
+    implicit def forString(f: String => String) = new ExpMagnet {
+      override def map(exp: Expression): Expression = {
+        exp match {
+          case e: Ref => Ref(f(e.name), e.tpe)
+          case e: SubField => SubField(e.exp, f(e.name), e.tpe)
+          case e: WRef => WRef(f(e.name), e.tpe, e.kind, e.gender)
+          case e: WSubField => WSubField(e.exp, f(e.name), e.tpe, e.gender)
           case e => e
         }
       }

@@ -155,13 +155,6 @@ object Utils {
          }
       }
    }
-   def lowered_name (e:Expression) : String = {
-      (e) match {
-         case (e:WRef) => e.name
-         case (e:WSubField) => lowered_name(e.exp) + "_" + e.name
-         case (e:WSubIndex) => lowered_name(e.exp) + "_" + e.value
-      }
-   }
    def get_flip (t:Type, i:Int, f:Flip) : Flip = { 
       if (i >= get_size(t)) error("Shouldn't be here")
       val x = t match {
@@ -397,6 +390,15 @@ object Utils {
          case OUTPUT => FEMALE
       }
    }
+  def toGender(f: Flip): Gender = f match {
+    case DEFAULT => FEMALE
+    case REVERSE => MALE
+  }
+  def toFlip(g: Gender): Flip = g match {
+    case MALE => REVERSE
+    case FEMALE => DEFAULT
+  }
+
    def field_flip (v:Type,s:String) : Flip = {
       v match {
          case v:BundleType => {
@@ -428,6 +430,14 @@ object Utils {
          case REVERSE => swap(d)
       }
    }
+   def times (g: Gender, d: Direction): Direction = times(d, g)
+   // TODO Does this make sense?
+   def times (d: Direction, g: Gender): Direction = g match {
+     case FEMALE => d
+     case MALE => swap(d) // MALE == INPUT == REVERSE
+     case _ => error(s"times called on invalid Gender: $g")
+   }
+
    def times (g:Gender,flip:Flip) : Gender = times(flip, g)
    def times (flip:Flip,g:Gender) : Gender = {
       flip match {
@@ -691,10 +701,21 @@ object Utils {
      def flip(): Field = Field(field.name, field.flip.flip, field.tpe)
 
      def getType(): Type = field.tpe
-     def toPort(): Port = Port(NoInfo, field.name, field.flip.toDirection, field.tpe)
+     def toPort(info: Info = NoInfo): Port =
+       Port(info, field.name, field.flip.toDirection, field.tpe)
    }
 
    implicit class TypeUtils(t: Type) {
+     // TODO Should these be more safe? (ie. error on UnknownType)
+     def isGround: Boolean = t match {
+       case (_: UIntType | _: SIntType | _: ClockType) => true
+       case _ => false
+     }
+     def isAggregate: Boolean = t match {
+       case (_: BundleType | _: VectorType) => true
+       case _ => false
+     }
+
      def getType(): Type = 
        t match {
          case v: VectorType => v.tpe
