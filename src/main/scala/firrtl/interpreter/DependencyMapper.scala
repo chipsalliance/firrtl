@@ -7,19 +7,20 @@ import firrtl._
 
 
 object DependencyMapper extends LazyLogging {
-  def getCircuitDependencies(c: Circuit): Map[String, Map[Expression, Seq[Expression]]] = {
-    def getModuleDependencies(m: Module): Map[Expression, Seq[Expression]] = {
-      val deps = collection.mutable.HashMap[Expression, collection.mutable.ArrayBuffer[Expression]]()
+  def getCircuitDependencies(c: Circuit): Map[String, Map[Expression, Expression]] = {
+    def getModuleDependencies(m: Module): Map[Expression, Expression] = {
+      val deps = collection.mutable.HashMap[Expression, Expression]()
 
-      def enumExpr(e: Expression): Seq[Expression] = e match {
-        case (_: UIntValue | _: SIntValue) => Seq(e)
-        case (_: Ref | _: WRef | _: WSubField) => Seq(e)
-        case m: Mux => Seq(m.cond, m.tval, m.fval) flatMap enumExpr
-        case v: ValidIf => Seq(v.cond, v.value) flatMap enumExpr
-        case d: DoPrim => d.args flatMap enumExpr
+      def enumExpr(e: Expression): Expression = e match {
+        case (_: UIntValue | _: SIntValue) => e
+        case (_: Ref | _: WRef | _: WSubField) => e
+        case m: Mux => m
+          //TODO: Validate that the following are not LoFIRRTL
+//        case v: ValidIf => v.cond, v.value flatMap enumExpr
+//        case d: DoPrim => d.args flatMap enumExpr
         case _ =>
           println(s"Got node I can't handle $e")
-          Seq()
+          UIntValue(0, IntWidth(1))
       }
 
       def getDepsStmt(s: Stmt): Stmt = s match {
@@ -29,22 +30,23 @@ object DependencyMapper extends LazyLogging {
           begin
         case con: Connect =>
           println(s"Got a connect $con")
-          enumExpr(con.exp) foreach { e =>
-            val d = deps.getOrElseUpdate(e, new collection.mutable.ArrayBuffer[Expression]())
-            d += con.loc
-          }
+//          enumExpr(con.exp) foreach { e =>
+//            val d = deps.getOrElseUpdate(e, new collection.mutable.ArrayBuffer[Expression]())
+//            d += con.loc
+//          }
+          deps(con.loc) = con.exp
           con
         case conditionally: Conditionally =>
           println(s"got a conditionally $conditionally")
           conditionally
-        case n: DefNode =>
-          println(s"got a DefNode $n")
-          val expr = WRef(n.name, Utils.tpe(n.value), NodeKind(), MALE)
-          enumExpr(n.value) foreach { v =>
-            val d = deps.getOrElseUpdate(v, new collection.mutable.ArrayBuffer[Expression]())
-            d += expr
-          }
-          n
+//        case n: DefNode =>
+//          println(s"got a DefNode $n")
+//          val expr = WRef(n.name, Utils.tpe(n.value), NodeKind(), MALE)
+//          enumExpr(n.value) foreach { v =>
+//            val d = deps.getOrElseUpdate(v, new collection.mutable.ArrayBuffer[Expression]())
+//            d += expr
+//          }
+//          n
         case _ => s
       }
 
@@ -54,7 +56,7 @@ object DependencyMapper extends LazyLogging {
       }
       println(s"For ${m.name} deps =")
       deps foreach { case (k, v) =>
-        println(s"  ${k.serialize} -> (" + v.map(_.serialize).mkString(", ") + ")")
+        println(s"  ${k.serialize} -> (" + v.toString + ")")
         //println(s"  $k -> $v")
       }
       deps.toMap
