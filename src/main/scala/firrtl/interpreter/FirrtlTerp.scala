@@ -32,13 +32,13 @@ object FirrtlTerp {
         |    input a : UInt<1>
         |    input b : UInt<1>
         |    input select : UInt<1>
-        |    output c : UInt<1>
+        |    output c : UInt<2>
         |    reg w : UInt<1>, clk
         |
         |    w <= a
         |    c <= w
         |    when select :
-        |       c <= b
+        |       c <= add(b, a)
       """.stripMargin
 //    val input =
 //    """circuit Test :
