@@ -9,18 +9,15 @@ import org.scalatest.{ShouldMatchers, FlatSpec}
 class TypeInstanceFactorySpec extends FlatSpec with ShouldMatchers {
   behavior of "TypeInstanceFactory"
 
-  it should "create types of proper size for UIntTypes" in {
+  it should "concrete types are initialized with value zero" in {
     for(width <- 0 to 100) {
       val ui = TypeInstanceFactory(UIntType(IntWidth(width)))
-      ui.min should be (0)
-      ui.max should be (math.pow(2.0, width.toDouble).toInt)
-    }
-  }
-  it should "create types of proper size for SIntTypes" in {
-    for(width <- 0 to 100) {
-      val ui = TypeInstanceFactory(SIntType(IntWidth(width)))
-      ui.min should be (-math.pow(2.0, width.toDouble).toInt)
-      ui.max should be (math.pow(2.0, width.toDouble).toInt)
+      ui.value should be (0)
+      ui.width should be (IntWidth(width))
+
+      val si = TypeInstanceFactory(SIntType(IntWidth(width)))
+      si.value should be (0)
+      si.width should be (IntWidth(width))
     }
   }
   it should "throw exception on other types" in {

@@ -24,7 +24,6 @@ ANY, PROVIDED HEREUNDER IS PROVIDED "AS IS". REGENTS HAS NO OBLIGATION
 TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR
 MODIFICATIONS.
 */
-
 package firrtl.interpreter
 
 import firrtl._
@@ -32,14 +31,26 @@ import firrtl._
 /**
   * Created by chick on 4/21/16.
   */
+class LoFirrtlExpressionEvaluator(previousState: CircuitState, nextState: CircuitState) {
+  def evaluate(expression: Expression): ConcreteValue = {
+    expression match {
+      case mux: Mux =>
+        if( evaluate(mux.cond).value > 0 ) {
+          evaluate(mux.tval)
+        }
+        else {
+          evaluate(mux.fval)
+        }
+      case DoPrim(op, args, const, x) =>
+        op match {
+          case ADD_OP =>
+          case SUB_OP =>
+          case _ =>
+            throw new InterruptedException(s"PrimOP $op in $expression not yet supported")
+        }
+      case UIntValue(value, width) =>
 
-object TypeInstanceFactory {
-  def apply(typ: Type): ConcreteValue = {
-    typ match {
-      case u: UIntType => UIntValue(0, u.width)
-      case s: SIntType => SIntValue(0, s.width)
-      case c: ClockType => UIntValue(0, IntWidth(1))
-      case _ => throw new InterpreterException(s"Unsupported LoFIRRTL type for interperter $typ")
     }
+    UIntValue(0, IntWidth(1))
   }
 }

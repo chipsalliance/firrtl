@@ -28,7 +28,8 @@ package firrtl.interpreter
 
 import firrtl._
 import org.scalatest.{Matchers, FlatSpec}
-import org.scalatest.matchers.ShouldMatchers
+
+import scala.collection.mutable
 
 class CircuitStateSpec extends FlatSpec with Matchers {
   behavior of "CircuitState"
@@ -36,7 +37,7 @@ class CircuitStateSpec extends FlatSpec with Matchers {
   val u1Type = UIntType(IntWidth(1))
   val u1Instance = TypeInstanceFactory(u1Type)
   val port = Port(NoInfo, "port0", INPUT, u1Type)
-  val c = CircuitState(List(port -> u1Instance).toMap, Map(), Map(), Map())
+  val c = CircuitState(mutable.Map(port -> u1Instance), mutable.Map(), mutable.Map(), Map())
 
   it should "be creatable" in {
 
@@ -52,7 +53,7 @@ class CircuitStateSpec extends FlatSpec with Matchers {
   }
 
   it should "have mutable type instances, distinct in copy" in {
-    new_c.inputPorts(port).value = 5
+    new_c.inputPorts(port) = UIntValue(5, IntWidth(4))
 
     c.inputPorts(port).value should be (0)
     new_c.inputPorts(port).value should be (5)

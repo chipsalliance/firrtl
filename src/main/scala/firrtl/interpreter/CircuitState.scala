@@ -29,18 +29,28 @@ package firrtl.interpreter
 
 import firrtl._
 
+import scala.collection.mutable
+
 object CircuitState {
   def apply(circuit: Circuit): CircuitState = {
     require(circuit.modules.length == 1)
     val dependencyList = DependencyMapper(circuit.modules.head)
     new CircuitState(
-      circuit.modules.head.ports.filter(_.direction == INPUT).map { port =>
-        port -> TypeInstanceFactory(port.tpe)
-      }.toMap,
-      circuit.modules.head.ports.filter(_.direction == OUTPUT).map { port =>
-        port -> TypeInstanceFactory(port.tpe)
-      }.toMap,
-      dependencyList.keys.map { case key => key -> TypeInstanceFactory(UIntType(IntWidth(1)))}.toMap,
+      mutable.Map(
+        circuit.modules.head.ports.filter(_.direction == INPUT).map { port =>
+          port -> TypeInstanceFactory(port.tpe)
+        }: _*
+      ),
+      mutable.Map(
+        circuit.modules.head.ports.filter(_.direction == OUTPUT).map { port =>
+          port -> TypeInstanceFactory(port.tpe)
+        }: _*
+      ),
+      mutable.Map(
+        dependencyList.keys.map { case key =>
+          key -> TypeInstanceFactory(UIntType(IntWidth(1)))
+        }.toSeq: _*
+      ),
       dependencyList
     )
   }
@@ -51,15 +61,15 @@ object CircuitState {
 }
 
 case class CircuitState(
-                    inputPorts: Map[Port, TypeInstance],
-                    outputPorts: Map[Port, TypeInstance],
-                    registers: Map[Expression, TypeInstance],
+                    inputPorts: mutable.Map[Port, ConcreteValue],
+                    outputPorts: mutable.Map[Port, ConcreteValue],
+                    registers: mutable.Map[Expression, ConcreteValue],
                     dependencyList: Map[Expression, Expression]) {
   def copy: CircuitState = {
     new CircuitState(
-      inputPorts.map { case (key, value) => key -> value.copy()},
-      outputPorts.map { case (key, value) => key -> value.copy()},
-      registers.map { case (key, value) => key -> value.copy()},
+      inputPorts.clone(),
+      outputPorts.clone(),
+      registers.clone(),
       dependencyList
     )
   }
