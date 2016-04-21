@@ -16,8 +16,9 @@ class FirrtlTerp(input: String) {
 
   println(s"ast $lowered_ast")
 
-  DependencyMapper.getCircuitDependencies(lowered_ast)
+//  DependencyMapper.apply(lowered_ast)
 
+  val unitialized_state = CircuitState(lowered_ast)
 }
 
 object FirrtlTerp {
