@@ -32,6 +32,21 @@ import firrtl._
   * Created by chick on 4/21/16.
   */
 class LoFirrtlExpressionEvaluator(previousState: CircuitState, nextState: CircuitState) {
+  def resolveWidth(primOp: PrimOp, a: ConcreteValue, b: ConcreteValue): IntWidth = {
+    primOp match {
+      case ADD_OP =>
+        (a.width, b.width) match {
+          case (a_width: IntWidth, b_width: IntWidth) => IntWidth(a_width.width.max(b_width.width))
+          case _ => throw new InterpreterException(s"Can't handle width for $primOp($a,$b)")
+        }
+      case SUB_OP =>
+        (a.width, b.width) match {
+          case (a_width: IntWidth, b_width: IntWidth) => IntWidth(a_width.width.max(b_width.width))
+          case _ => throw new InterpreterException(s"Can't handle width for $primOp($a,$b)")
+        }
+      case _ => throw new InterpreterException(s"Can't handle width for $primOp($a,$b)")
+    }
+  }
   def evaluate(expression: Expression): ConcreteValue = {
     expression match {
       case mux: Mux =>
@@ -41,16 +56,31 @@ class LoFirrtlExpressionEvaluator(previousState: CircuitState, nextState: Circui
         else {
           evaluate(mux.fval)
         }
+      case WRef(ref, tpe, kind, gender) =>
+        previousState.inputPorts.foreach { case (port,value) =>
+          if(port.name == ref) return value
+        }
+        previousState.registers.foreach {
+          case (port: WRef, value) =>
+            if(port.name == ref) return value
+          case _ =>
+            throw new InterpreterException(s"Could not resolve WRef $expression")
+        }
+        throw new InterpreterException(s"Could not resolve WRef $expression")
       case DoPrim(op, args, const, x) =>
         op match {
           case ADD_OP =>
+            (evaluate(args(0)), evaluate(args(1))) match {
+              case (a: UIntValue, b: UIntValue) => UIntValue(a.value + b.value, resolveWidth(op, a, b))
+            }
           case SUB_OP =>
+            (evaluate(args(0)), evaluate(args(1))) match {
+              case (a: UIntValue, b: UIntValue) => UIntValue(a.value + b.value, resolveWidth(op, a, b))
+            }
           case _ =>
             throw new InterruptedException(s"PrimOP $op in $expression not yet supported")
         }
-      case UIntValue(value, width) =>
-
+      case c: ConcreteValue => c
     }
-    UIntValue(0, IntWidth(1))
   }
 }

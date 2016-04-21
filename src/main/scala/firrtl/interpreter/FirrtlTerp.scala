@@ -43,7 +43,22 @@ class FirrtlTerp(input: String) {
 
 //  DependencyMapper.apply(lowered_ast)
 
-  val unitialized_state = CircuitState(lowered_ast)
+  val initial_state = CircuitState(lowered_ast)
+
+  initial_state.inputPorts.foreach { case (port, value) =>
+    initial_state.inputPorts(port) = TypeInstanceFactory(port.tpe, 1)
+  }
+
+  val final_state = initial_state.copy
+
+  val evaluator = new LoFirrtlExpressionEvaluator(initial_state, final_state)
+  for((target, expression) <- initial_state.dependencyList) {
+    val result = evaluator.evaluate(expression)
+    println(s"$target <= $result")
+
+  }
+
+
 }
 
 object FirrtlTerp {
@@ -60,10 +75,8 @@ object FirrtlTerp {
         |    output c : UInt<2>
         |    reg w : UInt<1>, clk
         |
-        |    w <= a
+        |    w <= add(a, b)
         |    c <= w
-        |    when select :
-        |       c <= add(b, a)
       """.stripMargin
 //    val input =
 //    """circuit Test :
