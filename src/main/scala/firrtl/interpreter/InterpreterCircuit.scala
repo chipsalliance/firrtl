@@ -47,7 +47,7 @@ class InterpreterCircuit(val circuit: Circuit) {
 
   val nameToPort = module.ports.map { port =>
     port.name -> port
-  }
+  }.toMap
 
   def makePortToConcreteValueMap(direction: Direction) = {
     mutable.Map(module.ports.filter(_.direction == direction).map { port =>

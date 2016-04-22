@@ -26,14 +26,41 @@ MODIFICATIONS.
 */
 package firrtl.interpreter
 
-import firrtl.{Port, ConcreteValue}
+import firrtl._
 
 /**
   * Base class for tools used to update top level inputs
+  *
   * @param interpreterCircuit
   */
 abstract class InputUpdater(interpreterCircuit: InterpreterCircuit) {
   def getValue(name: String): ConcreteValue
-}
+  var calls = 0
 
-//class RandomInputUpdater(inputNames:)
+  def updateAllInputs(circuitState: CircuitState): Unit = {
+    for(port <- interpreterCircuit.inputPortToValue.keys) {
+      val value = getValue(port.name)
+      println(s"Updating input port ${port.name} <= $value")
+      circuitState.inputPorts(port) = value
+    }
+  }
+}
+class RandomInputUpdater(val interpreterCircuit: InterpreterCircuit, randomSeed: Long = 0L)
+  extends InputUpdater(interpreterCircuit) {
+  val random = util.Random
+  random.setSeed(randomSeed)
+
+  def getValue(name: String): ConcreteValue = {
+    val port = interpreterCircuit.nameToPort(name)
+    def getWidth(width: Width): Int = width match {
+      case iw: IntWidth => iw.width.toInt
+    }
+    val width = port.tpe match {
+      case u: UIntType => getWidth(u.width)
+      case c: ClockType => 1
+    }
+    val value = BigInt(width, random)
+    TypeInstanceFactory(port.tpe, value)
+  }
+
+}

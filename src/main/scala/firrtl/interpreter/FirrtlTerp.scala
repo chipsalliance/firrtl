@@ -27,32 +27,60 @@ MODIFICATIONS.
 
 package firrtl.interpreter
 
-import firrtl.{Circuit, ToLoFirrtl, Parser}
+import firrtl._
 
 class FirrtlTerp(ast: Circuit) {
   val lowered_ast = ToLoFirrtl.lower(ast)
 
   val interpreterCircuit = new InterpreterCircuit(lowered_ast)
+
+  val inputUpdater = new RandomInputUpdater(interpreterCircuit)
   println(s"ast $lowered_ast")
 
-  val source_state = CircuitState(interpreterCircuit)
+  var source_state = CircuitState(interpreterCircuit)
+  var target_state = source_state.copy
 
-  source_state.inputPorts.foreach { case (port, value) =>
-    source_state.inputPorts(port) = TypeInstanceFactory(port.tpe, 1)
-  }
 
-  val target_state = source_state.copy
-
-  val evaluator = new LoFirrtlExpressionEvaluator(source_state, target_state)
-  for((target, expression) <- source_state.dependencyList) {
-    val result = evaluator.evaluate(expression)
-    println(s"$target <= $result")
-  }
+  //  val evaluator = new LoFirrtlExpressionEvaluator(source_state, target_state)
+//  for ((target, expression) <- source_state.dependencyList) {
+//    val result = evaluator.evaluate(expression)
+//    println(s"$target <= $result")
+//  }
 
   def updateInputs(): Unit = {
-    source_state.inputPorts.foreach { case (port, value) =>
-      source_state.inputPorts(port) = TypeInstanceFactory(port.tpe, 1)
+    inputUpdater.updateAllInputs(source_state)
+  }
+
+  def updateOutputs(): Unit = updateDependencies(PortKind())
+  def updateRegisters(): Unit = updateDependencies(RegKind())
+
+  def doOneCycle(): Unit = {
+    updateInputs()
+    updateOutputs()
+    updateRegisters()
+  }
+
+  private def updateDependencies(kind: Kind): Unit = {
+    updateTarget()
+    val evaluator = new LoFirrtlExpressionEvaluator(source_state, target_state)
+
+    for ((lhs_expression, rhs_expression) <- source_state.dependencyList) {
+      lhs_expression match {
+        case WRef(name, _, kind, FEMALE) =>
+          val port = interpreterCircuit.nameToPort(name)
+          val value = evaluator.evaluate(rhs_expression)
+          println(s"updating output port ${name} <= $value")
+          target_state.outputPorts(port) = value
+      }
     }
+    updateSource()
+  }
+
+  private def updateSource(): Unit = {
+    source_state = target_state
+  }
+  private def updateTarget(): Unit = {
+    target_state = source_state.copy
   }
 }
 
@@ -124,6 +152,8 @@ object FirrtlTerp {
 //      """.stripMargin
 
     val interpreter = FirrtlTerp(input)
+
+    interpreter.doOneCycle()
 
 
   }
