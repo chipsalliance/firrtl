@@ -24,48 +24,16 @@ ANY, PROVIDED HEREUNDER IS PROVIDED "AS IS". REGENTS HAS NO OBLIGATION
 TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR
 MODIFICATIONS.
 */
-
 package firrtl.interpreter
 
-import firrtl._
+import firrtl.{Port, ConcreteValue}
 
-import scala.collection.mutable
-
-object CircuitState {
-  def apply(circuit: Circuit): CircuitState = apply(InterpreterCircuit(circuit))
-
-  def apply(interpreterCircuit: InterpreterCircuit): CircuitState = {
-    val circuit = interpreterCircuit.circuit
-
-    val dependencyList = DependencyMapper(circuit.modules.head)
-    new CircuitState(
-      interpreterCircuit.inputPortToValue,
-      interpreterCircuit.outputPortToValue,
-      mutable.Map(
-        dependencyList.keys.map { case key =>
-          key -> TypeInstanceFactory(UIntType(IntWidth(1)))
-        }.toSeq: _*
-      ),
-      dependencyList
-    )
-  }
-
-  def apply(state: CircuitState): CircuitState = {
-    state.copy
-  }
+/**
+  * Base class for tools used to update top level inputs
+  * @param interpreterCircuit
+  */
+abstract class InputUpdater(interpreterCircuit: InterpreterCircuit) {
+  def getValue(name: String): ConcreteValue
 }
 
-case class CircuitState(
-                    inputPorts: mutable.Map[Port, ConcreteValue],
-                    outputPorts: mutable.Map[Port, ConcreteValue],
-                    registers: mutable.Map[Expression, ConcreteValue],
-                    dependencyList: Map[Expression, Expression]) {
-  def copy: CircuitState = {
-    new CircuitState(
-      inputPorts.clone(),
-      outputPorts.clone(),
-      registers.clone(),
-      dependencyList
-    )
-  }
-}
+//class RandomInputUpdater(inputNames:)

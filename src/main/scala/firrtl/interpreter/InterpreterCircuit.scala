@@ -24,48 +24,40 @@ ANY, PROVIDED HEREUNDER IS PROVIDED "AS IS". REGENTS HAS NO OBLIGATION
 TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR
 MODIFICATIONS.
 */
-
 package firrtl.interpreter
 
-import firrtl._
+import firrtl.{Direction, INPUT, OUTPUT, Circuit}
 
 import scala.collection.mutable
 
-object CircuitState {
-  def apply(circuit: Circuit): CircuitState = apply(InterpreterCircuit(circuit))
+/**
+  * A convienence wrapper for a Circuit that provides methods for getting
+  * port value maps used in the interpreter, and name to port mappings
+  * Circuit must be LoFIRRTL
+  *
+  * @param circuit a LoFIRRTL circuit
+  */
+class InterpreterCircuit(val circuit: Circuit) {
+  require(circuit.modules.length == 1)
 
-  def apply(interpreterCircuit: InterpreterCircuit): CircuitState = {
-    val circuit = interpreterCircuit.circuit
+  val module = circuit.modules.head
 
-    val dependencyList = DependencyMapper(circuit.modules.head)
-    new CircuitState(
-      interpreterCircuit.inputPortToValue,
-      interpreterCircuit.outputPortToValue,
-      mutable.Map(
-        dependencyList.keys.map { case key =>
-          key -> TypeInstanceFactory(UIntType(IntWidth(1)))
-        }.toSeq: _*
-      ),
-      dependencyList
-    )
+  def inputPortToValue = makePortToConcreteValueMap(INPUT)
+  def outputPortToValue = makePortToConcreteValueMap(OUTPUT)
+
+  val nameToPort = module.ports.map { port =>
+    port.name -> port
   }
 
-  def apply(state: CircuitState): CircuitState = {
-    state.copy
+  def makePortToConcreteValueMap(direction: Direction) = {
+    mutable.Map(module.ports.filter(_.direction == direction).map { port =>
+      port -> TypeInstanceFactory(port.tpe)
+    }: _*)
   }
 }
 
-case class CircuitState(
-                    inputPorts: mutable.Map[Port, ConcreteValue],
-                    outputPorts: mutable.Map[Port, ConcreteValue],
-                    registers: mutable.Map[Expression, ConcreteValue],
-                    dependencyList: Map[Expression, Expression]) {
-  def copy: CircuitState = {
-    new CircuitState(
-      inputPorts.clone(),
-      outputPorts.clone(),
-      registers.clone(),
-      dependencyList
-    )
+object InterpreterCircuit {
+  def apply(circuit: Circuit): InterpreterCircuit = {
+    new InterpreterCircuit(circuit)
   }
 }

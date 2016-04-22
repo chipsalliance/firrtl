@@ -27,44 +27,45 @@ MODIFICATIONS.
 
 package firrtl.interpreter
 
-import firrtl.{ToLoFirrtl, Parser}
-import firrtl.antlr.FIRRTLBaseVisitor
+import firrtl.{Circuit, ToLoFirrtl, Parser}
 
-class ExecutionVisitor extends FIRRTLBaseVisitor {
-
-}
-
-class FirrtlTerp(input: String) {
-  val ast = Parser.parse("", input.split("\n").toIterator)
-
+class FirrtlTerp(ast: Circuit) {
   val lowered_ast = ToLoFirrtl.lower(ast)
 
+  val interpreterCircuit = new InterpreterCircuit(lowered_ast)
   println(s"ast $lowered_ast")
 
-//  DependencyMapper.apply(lowered_ast)
+  val source_state = CircuitState(interpreterCircuit)
 
-  val initial_state = CircuitState(lowered_ast)
-
-  initial_state.inputPorts.foreach { case (port, value) =>
-    initial_state.inputPorts(port) = TypeInstanceFactory(port.tpe, 1)
+  source_state.inputPorts.foreach { case (port, value) =>
+    source_state.inputPorts(port) = TypeInstanceFactory(port.tpe, 1)
   }
 
-  val final_state = initial_state.copy
+  val target_state = source_state.copy
 
-  val evaluator = new LoFirrtlExpressionEvaluator(initial_state, final_state)
-  for((target, expression) <- initial_state.dependencyList) {
+  val evaluator = new LoFirrtlExpressionEvaluator(source_state, target_state)
+  for((target, expression) <- source_state.dependencyList) {
     val result = evaluator.evaluate(expression)
     println(s"$target <= $result")
-
   }
 
-
+  def updateInputs(): Unit = {
+    source_state.inputPorts.foreach { case (port, value) =>
+      source_state.inputPorts(port) = TypeInstanceFactory(port.tpe, 1)
+    }
+  }
 }
 
 object FirrtlTerp {
-  def main(args: Array[String]) {
-    println("hello world")
+  val random = util.Random
+  random.setSeed(0L)
 
+  def apply(input: String): FirrtlTerp = {
+    val ast = Parser.parse("", input.split("\n").toIterator)
+    new FirrtlTerp(ast)
+  }
+
+  def main(args: Array[String]) {
     val input =
       """circuit Test :
         |  module Test :
@@ -122,7 +123,7 @@ object FirrtlTerp {
 //        |    c <= a
 //      """.stripMargin
 
-    val interpreter = new FirrtlTerp(input)
+    val interpreter = FirrtlTerp(input)
 
 
   }
