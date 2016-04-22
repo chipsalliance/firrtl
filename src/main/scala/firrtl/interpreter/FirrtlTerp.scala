@@ -99,9 +99,6 @@ class FirrtlTerp(ast: Circuit) {
 }
 
 object FirrtlTerp {
-  val random = util.Random
-  random.setSeed(0L)
-
   def apply(input: String): FirrtlTerp = {
     val ast = Parser.parse("", input.split("\n").toIterator)
     new FirrtlTerp(ast)
@@ -117,9 +114,13 @@ object FirrtlTerp {
         |    input select : UInt<1>
         |    output c : UInt<2>
         |    reg w : UInt<1>, clk
+        |    reg x : UInt<1>, clk
+        |    reg y : UInt<1>, clk
         |
-        |    w <= add(a, b)
-        |    c <= w
+        |    w <= a
+        |    x <= w
+        |    y <= x
+        |    c <= y
       """.stripMargin
 //    val input =
 //    """circuit Test :
@@ -167,6 +168,7 @@ object FirrtlTerp {
 
     val interpreter = FirrtlTerp(input)
 
+    interpreter.doOneCycle()
     interpreter.doOneCycle()
     interpreter.doOneCycle()
     interpreter.doOneCycle()

@@ -38,6 +38,7 @@ abstract class InputUpdater(interpreterCircuit: InterpreterCircuit) {
   var calls = 0
 
   def updateAllInputs(circuitState: CircuitState): Unit = {
+    calls += 1
     for(port <- interpreterCircuit.inputPortToValue.keys) {
       val value = getValue(port.name)
       println(s"Updating input port ${port.name} <= $value")
@@ -55,12 +56,13 @@ class RandomInputUpdater(val interpreterCircuit: InterpreterCircuit, randomSeed:
     def getWidth(width: Width): Int = width match {
       case iw: IntWidth => iw.width.toInt
     }
-    val width = port.tpe match {
-      case u: UIntType => getWidth(u.width)
-      case c: ClockType => 1
+    port.tpe match {
+      case u: UIntType =>
+//        TypeInstanceFactory(port.tpe, BigInt(getWidth(u.width), random))
+        TypeInstanceFactory(port.tpe, 1)
+      case c: ClockType =>
+        TypeInstanceFactory(port.tpe, calls % 2)
     }
-    val value = BigInt(width, random)
-    TypeInstanceFactory(port.tpe, value)
   }
 
 }
