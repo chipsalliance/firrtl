@@ -37,16 +37,11 @@ object CircuitState {
   def apply(interpreterCircuit: InterpreterCircuit): CircuitState = {
     val circuit = interpreterCircuit.circuit
 
-    val dependencyList = DependencyMapper(circuit.modules.head)
     new CircuitState(
       interpreterCircuit.inputPortToValue,
       interpreterCircuit.outputPortToValue,
-      mutable.Map(
-        dependencyList.keys.map { case key =>
-          key -> TypeInstanceFactory(UIntType(IntWidth(1)))
-        }.toSeq: _*
-      ),
-      dependencyList
+      interpreterCircuit.makeRegisterToConcreteValueMap,
+      interpreterCircuit.dependencyList
     )
   }
 

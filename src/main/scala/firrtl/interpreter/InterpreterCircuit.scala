@@ -26,7 +26,7 @@ MODIFICATIONS.
 */
 package firrtl.interpreter
 
-import firrtl.{Direction, INPUT, OUTPUT, Circuit}
+import firrtl._
 
 import scala.collection.mutable
 
@@ -42,12 +42,28 @@ class InterpreterCircuit(val circuit: Circuit) {
 
   val module = circuit.modules.head
 
+  val dependencyList = DependencyMapper(circuit.modules.head)
+
   def inputPortToValue = makePortToConcreteValueMap(INPUT)
   def outputPortToValue = makePortToConcreteValueMap(OUTPUT)
 
   val nameToPort = module.ports.map { port =>
     port.name -> port
   }.toMap
+
+  val nameToRegister = new mutable.HashMap[String, Expression]
+
+  def makeRegisterToConcreteValueMap: mutable.Map[Expression, ConcreteValue] = {
+    val m = new mutable.HashMap[Expression, ConcreteValue]()
+    val x = dependencyList.keys.map { case register =>
+        register match {
+          case w: WRef =>
+            m(register) = TypeInstanceFactory(w.tpe)
+            nameToRegister(w.name) = register
+        }
+    }
+    m
+  }
 
   def makePortToConcreteValueMap(direction: Direction) = {
     mutable.Map(module.ports.filter(_.direction == direction).map { port =>

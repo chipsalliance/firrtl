@@ -51,29 +51,43 @@ class FirrtlTerp(ast: Circuit) {
     inputUpdater.updateAllInputs(source_state)
   }
 
-  def updateOutputs(): Unit = updateDependencies(PortKind())
-  def updateRegisters(): Unit = updateDependencies(RegKind())
-
-  def doOneCycle(): Unit = {
-    updateInputs()
-    updateOutputs()
-    updateRegisters()
-  }
-
-  private def updateDependencies(kind: Kind): Unit = {
+  def updateOutputs(): Unit = {
     updateTarget()
     val evaluator = new LoFirrtlExpressionEvaluator(source_state, target_state)
 
     for ((lhs_expression, rhs_expression) <- source_state.dependencyList) {
       lhs_expression match {
-        case WRef(name, _, kind, FEMALE) =>
+        case WRef(name, _, PortKind(), FEMALE) =>
           val port = interpreterCircuit.nameToPort(name)
           val value = evaluator.evaluate(rhs_expression)
-          println(s"updating output port ${name} <= $value")
+          println(s"updating output port $name <= $value")
           target_state.outputPorts(port) = value
+        case _ => Unit
       }
     }
     updateSource()
+  }
+  def updateRegisters(): Unit = {
+    updateTarget()
+    val evaluator = new LoFirrtlExpressionEvaluator(source_state, target_state)
+
+    for ((lhs_expression, rhs_expression) <- source_state.dependencyList) {
+      lhs_expression match {
+        case WRef(name, _, RegKind(), FEMALE) =>
+          val register = interpreterCircuit.nameToRegister(name)
+          val value = evaluator.evaluate(rhs_expression)
+          println(s"updating register ${name} <= $value")
+          target_state.registers(register) = value
+        case _ => Unit
+      }
+    }
+    updateSource()
+  }
+
+  def doOneCycle(): Unit = {
+    updateInputs()
+    updateOutputs()
+    updateRegisters()
   }
 
   private def updateSource(): Unit = {
@@ -153,6 +167,8 @@ object FirrtlTerp {
 
     val interpreter = FirrtlTerp(input)
 
+    interpreter.doOneCycle()
+    interpreter.doOneCycle()
     interpreter.doOneCycle()
 
 
