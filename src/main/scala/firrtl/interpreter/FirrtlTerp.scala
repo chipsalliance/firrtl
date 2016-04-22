@@ -114,6 +114,22 @@ object FirrtlTerp {
 
     val input = if(args.isEmpty) {
       println("Usage: FirrtlTerp file_name")
+      """circuit Test :
+        |  module Test :
+        |    input clk : Clock
+        |    input a : UInt<1>
+        |    input b : UInt<1>
+        |    input select : UInt<1>
+        |    output c : UInt<2>
+        |    reg w : UInt<1>, clk
+        |    reg x : UInt<1>, clk
+        |    reg y : UInt<1>, clk
+        |
+        |    w <= a
+        |    x <= w
+        |    y <= x
+        |    c <= y
+      """.stripMargin
     }
     else io.Source.fromFile(args.head).mkString
 
