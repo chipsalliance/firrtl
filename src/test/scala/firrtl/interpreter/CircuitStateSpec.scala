@@ -37,10 +37,9 @@ class CircuitStateSpec extends FlatSpec with Matchers {
   val u1Type = UIntType(IntWidth(1))
   val u1Instance = TypeInstanceFactory(u1Type)
   val port = Port(NoInfo, "port0", INPUT, u1Type)
-  val c = CircuitState(mutable.Map(port -> u1Instance), mutable.Map(), mutable.Map(), Map())
+  val c = CircuitState(mutable.Map(port -> u1Instance), mutable.Map(), mutable.Map())
 
   it should "be creatable" in {
-
     c.inputPorts.size should be (1)
     c.outputPorts.size should be (0)
   }

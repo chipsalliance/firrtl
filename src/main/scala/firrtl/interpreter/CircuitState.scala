@@ -40,8 +40,7 @@ object CircuitState {
     new CircuitState(
       interpreterCircuit.inputPortToValue,
       interpreterCircuit.outputPortToValue,
-      interpreterCircuit.makeRegisterToConcreteValueMap,
-      interpreterCircuit.dependencyList
+      interpreterCircuit.makeRegisterToConcreteValueMap
     )
   }
 
@@ -50,17 +49,55 @@ object CircuitState {
   }
 }
 
+/**
+  * Holds the state of the circuit at a particular time
+  * State is kept for input, output and registers
+  *
+  * @param inputPorts
+  * @param outputPorts
+  * @param registers
+  */
 case class CircuitState(
                     inputPorts: mutable.Map[Port, ConcreteValue],
                     outputPorts: mutable.Map[Port, ConcreteValue],
-                    registers: mutable.Map[Expression, ConcreteValue],
-                    dependencyList: Map[Expression, Expression]) {
+                    registers: mutable.Map[Expression, ConcreteValue]) {
   def copy: CircuitState = {
     new CircuitState(
       inputPorts.clone(),
       outputPorts.clone(),
-      registers.clone(),
-      dependencyList
+      registers.clone()
     )
+  }
+
+  /**
+    * prints a human readable version of the state,
+    *
+    * @param dense if true puts input, output and registers on one line each
+    * @return
+    */
+  def prettyString(dense: Boolean = true): String = {
+    val (prefix, separator, postfix) = if(dense) (": ", ", ", "") else (":\n  ", "\n  ", "")
+    def expression_name(e: Expression): String = {
+      e match {
+        case w: WRef => w.name
+        case _ => e.toString
+      }
+    }
+    def showPorts(msg: String, m: Map[Port,ConcreteValue]): String = {
+      m.keys.toSeq.sortBy(_.name).map { case key =>
+        s"${key.name}=${m(key).value}"
+      }.mkString(msg+prefix, separator, postfix)
+    }
+    def showRegisters(msg: String, m: Map[Expression,ConcreteValue]): String = {
+      m.keys.toSeq.sortBy(expression_name).map { case key =>
+        s"${expression_name(key)}=${m(key).value}"
+      }.mkString(msg+prefix, separator, postfix)
+    }
+    s"""
+       |CircuitState
+       |${showPorts("Inputs", inputPorts.toMap)}
+       |${showPorts("Outputs", outputPorts.toMap)}
+       |${showRegisters("Registers", registers.toMap)}
+     """.stripMargin
   }
 }

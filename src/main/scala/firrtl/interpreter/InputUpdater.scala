@@ -41,7 +41,7 @@ abstract class InputUpdater(interpreterCircuit: InterpreterCircuit) {
     calls += 1
     for(port <- interpreterCircuit.inputPortToValue.keys) {
       val value = getValue(port.name)
-      println(s"Updating input port ${port.name} <= $value")
+//      println(s"Updating input port ${port.name} <= $value")
       circuitState.inputPorts(port) = value
     }
   }
@@ -58,8 +58,8 @@ class RandomInputUpdater(val interpreterCircuit: InterpreterCircuit, randomSeed:
     }
     port.tpe match {
       case u: UIntType =>
-//        TypeInstanceFactory(port.tpe, BigInt(getWidth(u.width), random))
-        TypeInstanceFactory(port.tpe, 1)
+        TypeInstanceFactory(port.tpe, BigInt(getWidth(u.width), random))
+//        TypeInstanceFactory(port.tpe, 1)
       case c: ClockType =>
         TypeInstanceFactory(port.tpe, calls % 2)
     }

@@ -57,9 +57,10 @@ class InterpreterCircuit(val circuit: Circuit) {
     val m = new mutable.HashMap[Expression, ConcreteValue]()
     val x = dependencyList.keys.map { case register =>
         register match {
-          case w: WRef =>
-            m(register) = TypeInstanceFactory(w.tpe)
-            nameToRegister(w.name) = register
+          case WRef(name,tpe,RegKind(),_) =>
+            m(register) = TypeInstanceFactory(tpe)
+            nameToRegister(name) = register
+          case _ => Unit
         }
     }
     m
