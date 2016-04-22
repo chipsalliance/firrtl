@@ -8,7 +8,7 @@ import firrtl._
 
 object DependencyMapper extends LazyLogging {
   def apply(m: Module): Map[Expression, Expression] = {
-    val deps = collection.mutable.HashMap[Expression, Expression]()
+    val dependencies = collection.mutable.HashMap[Expression, Expression]()
 
     def enumExpr(e: Expression): Expression = e match {
       case (_: UIntValue | _: SIntValue) => e
@@ -24,28 +24,16 @@ object DependencyMapper extends LazyLogging {
 
     def getDepsStmt(s: Stmt): Stmt = s match {
       case begin: Begin =>
-        println(s"got a begin $begin")
+        // println(s"got a begin $begin")
         begin.stmts map getDepsStmt
         begin
       case con: Connect =>
-        println(s"Got a connect $con")
-        //          enumExpr(con.exp) foreach { e =>
-        //            val d = deps.getOrElseUpdate(e, new collection.mutable.ArrayBuffer[Expression]())
-        //            d += con.loc
-        //          }
-        deps(con.loc) = con.exp
+        // println(s"Got a connect $con")
+        dependencies(con.loc) = con.exp
         con
       case conditionally: Conditionally =>
-        println(s"got a conditionally $conditionally")
+        // println(s"got a conditionally $conditionally")
         conditionally
-      //        case n: DefNode =>
-      //          println(s"got a DefNode $n")
-      //          val expr = WRef(n.name, Utils.tpe(n.value), NodeKind(), MALE)
-      //          enumExpr(n.value) foreach { v =>
-      //            val d = deps.getOrElseUpdate(v, new collection.mutable.ArrayBuffer[Expression]())
-      //            d += expr
-      //          }
-      //          n
       case _ => s
     }
 
@@ -53,12 +41,12 @@ object DependencyMapper extends LazyLogging {
       case i: InModule => getDepsStmt(i.body)
       case e: ExModule => // Do nothing
     }
-    println(s"For ${m.name} deps =")
-    deps foreach { case (k, v) =>
-      println(s"  ${k} -> (" + v.toString + ")")
+    println(s"For ${m.name} dependencies =")
+    dependencies foreach { case (k, v) =>
+      println(s"  $k -> (" + v.toString + ")")
       //println(s"  $k -> $v")
     }
-    deps.toMap
+    dependencies.toMap
   }
 
   def apply(c: Circuit): Map[String, Map[Expression, Expression]] = {

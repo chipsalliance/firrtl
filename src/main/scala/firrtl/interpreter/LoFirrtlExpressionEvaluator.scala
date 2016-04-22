@@ -94,11 +94,11 @@ class LoFirrtlExpressionEvaluator(previousState: CircuitState, nextState: Circui
       case DoPrim(op, args, const, x) =>
         op match {
           case ADD_OP =>
-            (evaluate(args(0)), evaluate(args(1))) match {
+            (evaluate(args.head), evaluate(args.tail.head)) match {
               case (a: UIntValue, b: UIntValue) => UIntValue(a.value + b.value, resolveWidth(op, a, b))
             }
           case SUB_OP =>
-            (evaluate(args(0)), evaluate(args(1))) match {
+            (evaluate(args.head), evaluate(args.tail.head)) match {
               case (a: UIntValue, b: UIntValue) => UIntValue(a.value + b.value, resolveWidth(op, a, b))
             }
           case _ =>

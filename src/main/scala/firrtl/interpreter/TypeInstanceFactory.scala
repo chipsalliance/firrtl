@@ -39,7 +39,7 @@ object TypeInstanceFactory {
       case u: UIntType => UIntValue(initial_value, u.width)
       case s: SIntType => SIntValue(initial_value, s.width)
       case c: ClockType => UIntValue(if(initial_value > 0) 1 else 0, IntWidth(1))
-      case _ => throw new InterpreterException(s"Unsupported LoFIRRTL type for interperter $typ")
+      case _ => throw new InterpreterException(s"Unsupported LoFIRRTL type for interpreter $typ")
     }
   }
 }

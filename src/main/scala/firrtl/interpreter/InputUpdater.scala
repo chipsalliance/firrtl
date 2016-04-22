@@ -31,7 +31,8 @@ import firrtl._
 /**
   * Base class for tools used to update top level inputs
   *
-  * @param interpreterCircuit
+  * @param interpreterCircuit The wrapped circuit to update, use it's inputs map
+  *                           to determine names and widths
   */
 abstract class InputUpdater(interpreterCircuit: InterpreterCircuit) {
   def getValue(name: String): ConcreteValue

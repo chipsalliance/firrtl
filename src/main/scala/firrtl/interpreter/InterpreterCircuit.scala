@@ -31,7 +31,7 @@ import firrtl._
 import scala.collection.mutable
 
 /**
-  * A convienence wrapper for a Circuit that provides methods for getting
+  * A convenience wrapper for a Circuit that provides methods for getting
   * port value maps used in the interpreter, and name to port mappings
   * Circuit must be LoFIRRTL
   *

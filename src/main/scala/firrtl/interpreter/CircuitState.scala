@@ -35,8 +35,6 @@ object CircuitState {
   def apply(circuit: Circuit): CircuitState = apply(InterpreterCircuit(circuit))
 
   def apply(interpreterCircuit: InterpreterCircuit): CircuitState = {
-    val circuit = interpreterCircuit.circuit
-
     new CircuitState(
       interpreterCircuit.inputPortToValue,
       interpreterCircuit.outputPortToValue,
@@ -53,9 +51,9 @@ object CircuitState {
   * Holds the state of the circuit at a particular time
   * State is kept for input, output and registers
   *
-  * @param inputPorts
-  * @param outputPorts
-  * @param registers
+  * @param inputPorts  a map to current concrete value
+  * @param outputPorts a map to current concrete value
+  * @param registers   a map to current concrete value
   */
 case class CircuitState(
                     inputPorts: mutable.Map[Port, ConcreteValue],
