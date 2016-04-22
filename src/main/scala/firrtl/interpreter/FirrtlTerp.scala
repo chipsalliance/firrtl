@@ -27,10 +27,14 @@ MODIFICATIONS.
 
 package firrtl.interpreter
 
+import java.io.File
+
 import firrtl._
 
 class FirrtlTerp(ast: Circuit) {
   val lowered_ast = ToLoFirrtl.lower(ast)
+  println("-"*120)
+  println(lowered_ast.serialize)
 
   val interpreterCircuit = new InterpreterCircuit(lowered_ast)
 
@@ -107,23 +111,30 @@ object FirrtlTerp {
   }
 
   def main(args: Array[String]) {
-    val input =
-      """circuit Test :
-        |  module Test :
-        |    input clk : Clock
-        |    input a : UInt<1>
-        |    input b : UInt<1>
-        |    input select : UInt<1>
-        |    output c : UInt<2>
-        |    reg w : UInt<1>, clk
-        |    reg x : UInt<1>, clk
-        |    reg y : UInt<1>, clk
-        |
-        |    w <= a
-        |    x <= w
-        |    y <= x
-        |    c <= y
-      """.stripMargin
+
+    val input = if(args.isEmpty) {
+      println("Usage: FirrtlTerp file_name")
+    }
+    else io.Source.fromFile(args.head).mkString
+
+//    if()
+//    val input =
+//      """circuit Test :
+//        |  module Test :
+//        |    input clk : Clock
+//        |    input a : UInt<1>
+//        |    input b : UInt<1>
+//        |    input select : UInt<1>
+//        |    output c : UInt<2>
+//        |    reg w : UInt<1>, clk
+//        |    reg x : UInt<1>, clk
+//        |    reg y : UInt<1>, clk
+//        |
+//        |    w <= a
+//        |    x <= w
+//        |    y <= x
+//        |    c <= y
+//      """.stripMargin
 //    val input =
 //    """circuit Test :
 //      |  module Test :

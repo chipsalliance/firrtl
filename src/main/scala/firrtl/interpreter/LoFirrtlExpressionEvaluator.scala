@@ -55,6 +55,13 @@ package firrtl.interpreter
 
 import firrtl._
 
+/**
+  * This is the evaluation engine for the FirrtlTerp
+  * it requires the previousState of the system
+  * @param previousState  the state of the system, should not be modified before all dependencies have been resolved
+  * @param nextState the next state, this is where updates would be taking place, TODO: this is not currently being
+  *                  used, suggests it it not necessary
+  */
 class LoFirrtlExpressionEvaluator(previousState: CircuitState, nextState: CircuitState) {
   def resolveWidth(primOp: PrimOp, a: ConcreteValue, b: ConcreteValue): IntWidth = {
     primOp match {
@@ -66,6 +73,11 @@ class LoFirrtlExpressionEvaluator(previousState: CircuitState, nextState: Circui
       case SUB_OP =>
         (a.width, b.width) match {
           case (a_width: IntWidth, b_width: IntWidth) => IntWidth(a_width.width.max(b_width.width))
+          case _ => throw new InterpreterException(s"Can't handle width for $primOp($a,$b)")
+        }
+      case MUL_OP =>
+        (a.width, b.width) match {
+          case (a_width: IntWidth, b_width: IntWidth) => IntWidth(a_width.width * b_width.width)
           case _ => throw new InterpreterException(s"Can't handle width for $primOp($a,$b)")
         }
       case _ => throw new InterpreterException(s"Can't handle width for $primOp($a,$b)")
@@ -100,6 +112,14 @@ class LoFirrtlExpressionEvaluator(previousState: CircuitState, nextState: Circui
           case SUB_OP =>
             (evaluate(args.head), evaluate(args.tail.head)) match {
               case (a: UIntValue, b: UIntValue) => UIntValue(a.value + b.value, resolveWidth(op, a, b))
+            }
+          case MUL_OP =>
+            (evaluate(args.head), evaluate(args.tail.head)) match {
+              case (a: UIntValue, b: UIntValue) => UIntValue(a.value * b.value, resolveWidth(op, a, b))
+            }
+          case EQUAL_OP =>
+            (evaluate(args.head), evaluate(args.tail.head)) match {
+              case (a: UIntValue, b: UIntValue) => UIntValue(if(a.value == b.value) 1 else 0, IntWidth(1))
             }
           case _ =>
             throw new InterruptedException(s"PrimOP $op in $expression not yet supported")
