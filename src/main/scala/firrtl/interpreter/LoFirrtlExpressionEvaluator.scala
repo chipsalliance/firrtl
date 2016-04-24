@@ -35,12 +35,12 @@ import collection.mutable
   * This is the evaluation engine for the FirrtlTerp
   * it requires the previousState of the system
   *
-  * @param cicuitState  the state of the system, should not be modified before all dependencies have been resolved
+  * @param circuitState  the state of the system, should not be modified before all dependencies have been resolved
   */
 class LoFirrtlExpressionEvaluator(
                                    startKeys: Iterable[String],
                                    dependencyGraph: DependencyGraph,
-                                   cicuitState: CircuitState) {
+                                   circuitState: CircuitState) {
   val toResolve = mutable.HashSet(startKeys.toSeq:_*)
   val inProcess = toResolve.empty
 
@@ -66,7 +66,7 @@ class LoFirrtlExpressionEvaluator(
   }
 
   def getValue(key: String): ConcreteValue = {
-    cicuitState.getValue(key).getOrElse {
+    circuitState.getValue(key).getOrElse {
       resolveDependency(key)
     }
   }
@@ -111,19 +111,19 @@ class LoFirrtlExpressionEvaluator(
   }
 
   private def resolveDependency(key: String): ConcreteValue = {
+    assert(toResolve.contains(key))
     toResolve -= key
 
     println(s"resolveDependency: $key")
-    val value = if(cicuitState.isInput(key)) {
-      cicuitState.getValue(key).get
-    }
+    val value = if(circuitState.isInput(key)) circuitState.getValue(key).get
+    else if(circuitState.isRegister(key)) circuitState.getValue(key).get
     else {
       val expression = dependencyGraph.nameToExpression(key)
       evaluate(expression)
     }
     println(s"resolveDependency: $key <= $value")
 
-    cicuitState.setValue(key, value)
+    circuitState.setValue(key, value)
   }
 
   def resolveDependencies(): Unit = {

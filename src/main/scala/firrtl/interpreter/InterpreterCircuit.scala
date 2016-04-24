@@ -55,7 +55,8 @@ class InterpreterCircuit(val circuit: Circuit) {
 
   val nameToRegister = new mutable.HashMap[String, Expression]
 
-  def makeRegisterToConcreteValueMap: mutable.Map[String, ConcreteValue] = {
+  def makeRegisterToConcreteValueMap(dependencyGraph: DependencyGraph): mutable.Map[String, ConcreteValue] = {
+
     val m = new mutable.HashMap[String, ConcreteValue]()
     m
   }

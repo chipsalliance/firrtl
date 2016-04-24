@@ -42,8 +42,8 @@ abstract class InputUpdater(interpreterCircuit: InterpreterCircuit) {
     calls += 1
     for(port <- interpreterCircuit.inputPortToValue.keys) {
       val value = getValue(port)
-//      println(s"Updating input port ${port.name} <= $value")
-      circuitState.inputPorts(port) = value
+      println(s"Updating input port ${port} <= $value")
+      circuitState.setValue(port, value)
     }
   }
 }

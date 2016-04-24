@@ -50,60 +50,15 @@ class FirrtlTerp(ast: Circuit) {
     inputUpdater.updateAllInputs(source_state)
   }
 
-  def updateOutputs(): Unit = {
-    //TODO: ReWrite this after refactoring dependency list
-
-//    updateTarget()
-//    val evaluator = new LoFirrtlExpressionEvaluator(source_state, target_state)
-//
-//    interpreterCircuit.outputPorts.foreach { port =>
-//      interpreterCircuit.dependencyList(port).foreach { expression =>
-//        val expression_value = evaluator.evaluate(expression)
-//        target_state.outputPorts(port) = expression_value
-//
-//      }
-//    }
-//
-//    for ((lhs_expression, rhs_expression) <- interpreterCircuit.dependencyList.nameToExpression) {
-//      lhs_expression match {
-//        case WRef(name, _, PortKind(), FEMALE) =>
-//          val port = interpreterCircuit.nameToPort(name)
-//          val value = evaluator.evaluate(rhs_expression)
-//
-//          // println(s"updating output port $name <= $value")
-//          target_state.outputPorts(port) = value
-//        case _ => Unit
-//      }
-//    }
-//    updateSource()
-  }
-  def updateRegisters(): Unit = {
-//    updateTarget()
-//    val evaluator = new LoFirrtlExpressionEvaluator(source_state, target_state)
-//
-//    for ((lhs_expression, rhs_expression) <- interpreterCircuit.dependencyList.nameToExpression) {
-//      lhs_expression match {
-//        case WRef(name, _, RegKind(), FEMALE) =>
-//          val register = interpreterCircuit.nameToRegister(name)
-//          val value = evaluator.evaluate(rhs_expression)
-//          // println(s"updating register ${name} <= $value")
-//          target_state.registers(register) = value
-//        case _ => Unit
-//      }
-//    }
-//    updateSource()
-  }
-
   def doOneCycle(): Unit = {
-//    updateInputs()
+    updateInputs()
 //    updateOutputs()
 //    updateRegisters()
 
     val evaluator = new LoFirrtlExpressionEvaluator(
-      startKeys = interpreterCircuit.outputPorts,
+      startKeys = interpreterCircuit.dependencyList.keys,
       dependencyGraph = interpreterCircuit.dependencyList,
-      cicuitState = source_state,
-      nextState = target_state
+      circuitState = source_state
     )
     evaluator.resolveDependencies()
     println(s"${source_state.prettyString()}")

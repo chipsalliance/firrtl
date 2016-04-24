@@ -47,6 +47,7 @@ object DependencyGraph extends LazyLogging {
         s
       case DefRegister(_, name, tpe, _, _, _) =>
         println(s"declaration:reg: $s")
+        dependencies.registers += name
         dependencies.register(name)
         dependencies.recordType(name, tpe)
         s
@@ -84,9 +85,13 @@ class DependencyGraph {
   val nameToExpression = new scala.collection.mutable.HashMap[String, Expression]
   val lhsEntities      = new mutable.HashSet[String]
   val nameToType       = new mutable.HashMap[String, Type]
+  val registers        = new mutable.HashSet[String]
 
   def update(key: String, e: Expression): Unit = nameToExpression(key) = e
-  def apply(key: String): Option[Expression] = nameToExpression.get(key)
+  def apply(key: String): Option[Expression] = {
+    register(key)
+    nameToExpression.get(key)
+  }
   def keys: Iterable[String] = nameToExpression.keys
   def register(key: String): Unit = lhsEntities += key
   def recordType(key: String, tpe: Type): Unit = {nameToType(key) = tpe}
