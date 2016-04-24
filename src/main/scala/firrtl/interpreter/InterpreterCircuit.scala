@@ -42,7 +42,7 @@ class InterpreterCircuit(val circuit: Circuit) {
 
   val module = circuit.modules.head
 
-  val dependencyList = DependencyGraph(circuit.modules.head)
+  val dependencyGraph = DependencyGraph(circuit.modules.head)
 
   def inputPortToValue  = makePortToConcreteValueMap(INPUT)
   def outputPortToValue = makePortToConcreteValueMap(OUTPUT)
@@ -55,10 +55,10 @@ class InterpreterCircuit(val circuit: Circuit) {
 
   val nameToRegister = new mutable.HashMap[String, Expression]
 
-  def makeRegisterToConcreteValueMap(dependencyGraph: DependencyGraph): mutable.Map[String, ConcreteValue] = {
-
-    val m = new mutable.HashMap[String, ConcreteValue]()
-    m
+  def makeRegisterToConcreteValueMap: mutable.Map[String, ConcreteValue] = {
+    mutable.Map(dependencyGraph.registerNames.map { name =>
+      name -> TypeInstanceFactory(dependencyGraph.getType(name))
+    }.toSeq:_*)
   }
 
   def makePortToConcreteValueMap(direction: Direction) = {

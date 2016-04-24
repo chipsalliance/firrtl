@@ -56,8 +56,8 @@ class FirrtlTerp(ast: Circuit) {
 //    updateRegisters()
 
     val evaluator = new LoFirrtlExpressionEvaluator(
-      startKeys = interpreterCircuit.dependencyList.keys,
-      dependencyGraph = interpreterCircuit.dependencyList,
+      startKeys = interpreterCircuit.dependencyGraph.keys,
+      dependencyGraph = interpreterCircuit.dependencyGraph,
       circuitState = source_state
     )
     evaluator.resolveDependencies()

@@ -38,7 +38,7 @@ object CircuitState {
     val circuitState = new CircuitState(
       interpreterCircuit.inputPortToValue,
       interpreterCircuit.outputPortToValue,
-      interpreterCircuit.makeRegisterToConcreteValueMap(interpreterCircuit.dependencyList),
+      interpreterCircuit.makeRegisterToConcreteValueMap,
       new mutable.HashMap[String, ConcreteValue]()
     )
     circuitState
@@ -62,17 +62,17 @@ case class CircuitState(
                     outputPorts: mutable.Map[String, ConcreteValue],
                     registers: mutable.Map[String, ConcreteValue],
                     ephemera: mutable.Map[String, ConcreteValue] = new mutable.HashMap[String, ConcreteValue]()) {
-  val nameToConcreteValue = new mutable.HashMap[String, ConcreteValue]()
   val nextRegisters = new mutable.HashMap[String, ConcreteValue]()
+
+  val nameToConcreteValue = mutable.HashMap((inputPorts ++ outputPorts ++ registers).toSeq:_*)
 
   def getNextState: CircuitState = {
     val nextState = new CircuitState(
       inputPorts.clone(),
       outputPorts.clone(),
       nextRegisters.clone(),
-      ephemera.clone()
+      ephemera.empty
     )
-    nextState.nameToConcreteValue ++= nameToConcreteValue.filterNot { case (name, _) => isEphemera(name)}
     nextState
   }
 

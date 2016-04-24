@@ -38,17 +38,17 @@ object DependencyGraph extends LazyLogging {
         con
       case DefNode(_, name, expression) =>
         println(s"declaration:node: $s")
-        dependencies.register(name)
+        dependencies.recordLhs(name)
         dependencies(name) = expression
         s
       case DefWire(_, name, _) =>
         println(s"declaration:node: $s")
-        dependencies.register(name)
+        dependencies.recordLhs(name)
         s
       case DefRegister(_, name, tpe, _, _, _) =>
         println(s"declaration:reg: $s")
-        dependencies.registers += name
-        dependencies.register(name)
+        dependencies.registerNames += name
+        dependencies.recordLhs(name)
         dependencies.recordType(name, tpe)
         s
       case conditionally: Conditionally =>
@@ -85,15 +85,16 @@ class DependencyGraph {
   val nameToExpression = new scala.collection.mutable.HashMap[String, Expression]
   val lhsEntities      = new mutable.HashSet[String]
   val nameToType       = new mutable.HashMap[String, Type]
-  val registers        = new mutable.HashSet[String]
+  val registerNames    = new mutable.HashSet[String]
 
   def update(key: String, e: Expression): Unit = nameToExpression(key) = e
   def apply(key: String): Option[Expression] = {
-    register(key)
+    recordLhs(key)
     nameToExpression.get(key)
   }
   def keys: Iterable[String] = nameToExpression.keys
-  def register(key: String): Unit = lhsEntities += key
+  def recordLhs(key: String): Unit = lhsEntities += key
   def recordType(key: String, tpe: Type): Unit = {nameToType(key) = tpe}
+  def getType(key: String): Type = nameToType(key)
   def getNameSet: mutable.HashSet[String] = mutable.HashSet(nameToExpression.keys.toSeq:_*)
 }
