@@ -58,7 +58,7 @@ object CircuitState {
 case class CircuitState(
                     inputPorts: mutable.Map[Port, ConcreteValue],
                     outputPorts: mutable.Map[Port, ConcreteValue],
-                    registers: mutable.Map[Expression, ConcreteValue]) {
+                    registers: mutable.Map[String, ConcreteValue]) {
   def copy: CircuitState = {
     new CircuitState(
       inputPorts.clone(),
@@ -86,9 +86,9 @@ case class CircuitState(
         s"${key.name}=${m(key).value}"
       }.mkString(msg+prefix, separator, postfix)
     }
-    def showRegisters(msg: String, m: Map[Expression,ConcreteValue]): String = {
-      m.keys.toSeq.sortBy(expression_name).map { case key =>
-        s"${expression_name(key)}=${m(key).value}"
+    def showRegisters(msg: String, m: Map[String,ConcreteValue]): String = {
+      m.keys.toSeq.sorted.map { case key =>
+        s"${key}=${m(key).value}"
       }.mkString(msg+prefix, separator, postfix)
     }
     s"""

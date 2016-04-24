@@ -51,36 +51,38 @@ class FirrtlTerp(ast: Circuit) {
   }
 
   def updateOutputs(): Unit = {
-    updateTarget()
-    val evaluator = new LoFirrtlExpressionEvaluator(source_state, target_state)
-
-    for ((lhs_expression, rhs_expression) <- interpreterCircuit.dependencyList) {
-      lhs_expression match {
-        case WRef(name, _, PortKind(), FEMALE) =>
-          val port = interpreterCircuit.nameToPort(name)
-          val value = evaluator.evaluate(rhs_expression)
-          // println(s"updating output port $name <= $value")
-          target_state.outputPorts(port) = value
-        case _ => Unit
-      }
-    }
-    updateSource()
+    //TODO: ReWrite this after refactoring dependency list
+//    updateTarget()
+//    val evaluator = new LoFirrtlExpressionEvaluator(source_state, target_state)
+//
+//    for ((lhs_expression, rhs_expression) <- interpreterCircuit.dependencyList.nameToExpression) {
+//      lhs_expression match {
+//        case WRef(name, _, PortKind(), FEMALE) =>
+//          val port = interpreterCircuit.nameToPort(name)
+//          val value = evaluator.evaluate(rhs_expression)
+//
+//          // println(s"updating output port $name <= $value")
+//          target_state.outputPorts(port) = value
+//        case _ => Unit
+//      }
+//    }
+//    updateSource()
   }
   def updateRegisters(): Unit = {
-    updateTarget()
-    val evaluator = new LoFirrtlExpressionEvaluator(source_state, target_state)
-
-    for ((lhs_expression, rhs_expression) <- interpreterCircuit.dependencyList) {
-      lhs_expression match {
-        case WRef(name, _, RegKind(), FEMALE) =>
-          val register = interpreterCircuit.nameToRegister(name)
-          val value = evaluator.evaluate(rhs_expression)
-          // println(s"updating register ${name} <= $value")
-          target_state.registers(register) = value
-        case _ => Unit
-      }
-    }
-    updateSource()
+//    updateTarget()
+//    val evaluator = new LoFirrtlExpressionEvaluator(source_state, target_state)
+//
+//    for ((lhs_expression, rhs_expression) <- interpreterCircuit.dependencyList.nameToExpression) {
+//      lhs_expression match {
+//        case WRef(name, _, RegKind(), FEMALE) =>
+//          val register = interpreterCircuit.nameToRegister(name)
+//          val value = evaluator.evaluate(rhs_expression)
+//          // println(s"updating register ${name} <= $value")
+//          target_state.registers(register) = value
+//        case _ => Unit
+//      }
+//    }
+//    updateSource()
   }
 
   def doOneCycle(): Unit = {

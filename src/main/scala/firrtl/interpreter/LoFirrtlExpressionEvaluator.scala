@@ -97,8 +97,8 @@ class LoFirrtlExpressionEvaluator(previousState: CircuitState, nextState: Circui
           if(port.name == ref) return value
         }
         previousState.registers.foreach {
-          case (port: WRef, value) =>
-            if(port.name == ref) return value
+          case (port: String, value) =>
+            if(port == ref) return value
           case _ =>
             throw new InterpreterException(s"Could not resolve WRef $expression")
         }
