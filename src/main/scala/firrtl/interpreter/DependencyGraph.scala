@@ -55,7 +55,7 @@ object DependencyGraph extends LazyLogging {
         // println(s"got a conditionally $conditionally")
         throw new InterpreterException(s"conditionally unsupported in interpreter $conditionally")
       case _ =>
-        println(s"TODO: Unhandled statement ${s}")
+        println(s"TODO: Unhandled statement $s")
         s
     }
 

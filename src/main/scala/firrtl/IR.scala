@@ -92,6 +92,9 @@ case object TAIL_OP extends PrimOp
 trait ConcreteValue {
   def value: BigInt
   def width: Width
+  def widthAsBigInt: BigInt = {
+    width.asInstanceOf[IntWidth].width
+  }
 }
 trait Expression extends AST
 case class Ref(name: String, tpe: Type) extends Expression with HasName
@@ -102,6 +105,7 @@ case class Mux(cond: Expression, tval: Expression, fval: Expression, tpe: Type) 
 case class ValidIf(cond: Expression, value: Expression, tpe: Type) extends Expression
 case class UIntValue(value: BigInt, width: Width) extends Expression with ConcreteValue
 case class SIntValue(value: BigInt, width: Width) extends Expression with ConcreteValue
+case class ClockValue(value: BigInt, width: Width) extends Expression with ConcreteValue
 case class DoPrim(op: PrimOp, args: Seq[Expression], consts: Seq[BigInt], tpe: Type) extends Expression
 
 trait Stmt extends AST

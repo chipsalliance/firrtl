@@ -31,51 +31,52 @@ import java.io.File
 
 import firrtl._
 
+// TODO: Work through more operators
+// TODO: Figure out what to do about clock and reset inputs
+// TODO: Implement VCD parser and emitter (https://github.com/impedimentToProgress/ProcessVCD.git)?
+// TODO: Get official Firrtl to LoFirrtl transformer
+
 class FirrtlTerp(ast: Circuit) {
   val lowered_ast = ToLoFirrtl.lower(ast)
   println("-"*120)
   println(lowered_ast.serialize)
+  println(s"ast $lowered_ast")
 
   val interpreterCircuit = new InterpreterCircuit(lowered_ast)
 
-  val inputUpdater = new RandomInputUpdater(interpreterCircuit)
-  println(s"ast $lowered_ast")
-
-  var source_state = CircuitState(interpreterCircuit)
-  // target state could be hidden inside updates
-  // but for development sometimes nice to compare it
-  var target_state = source_state.getNextState
+  var inputUpdater: InputUpdater = new RandomInputUpdater(interpreterCircuit)
+  def setInputUpdater(newInputUpdater: InputUpdater): Unit = {
+    inputUpdater = newInputUpdater
+  }
+  var sourceState = CircuitState(interpreterCircuit)
 
   def updateInputs(): Unit = {
-    inputUpdater.updateAllInputs(source_state)
+    inputUpdater.updateInputs(sourceState)
   }
 
   def doOneCycle(): Unit = {
     updateInputs()
-//    updateOutputs()
-//    updateRegisters()
 
     val evaluator = new LoFirrtlExpressionEvaluator(
       startKeys = interpreterCircuit.dependencyGraph.keys,
       dependencyGraph = interpreterCircuit.dependencyGraph,
-      circuitState = source_state
+      circuitState = sourceState
     )
     evaluator.resolveDependencies()
-    println(s"${source_state.prettyString()}")
+    println(s"After cycle ${"-"*80}\n${sourceState.prettyString()}")
+
+    sourceState = sourceState.getNextState
   }
 
   def doCycles(n: Int): Unit = {
+    println(s"Initial state ${"-"*80}\n${sourceState.prettyString()}")
+
     for(cycle <- 1 to n) {
+      println(s"Cycle $cycle ${"-"*80}")
       doOneCycle()
     }
   }
 
-  private def updateSource(): Unit = {
-    source_state = target_state
-  }
-  private def updateTarget(): Unit = {
-    target_state = source_state.getNextState
-  }
 }
 
 object FirrtlTerp {
@@ -171,8 +172,24 @@ object FirrtlTerp {
 
     val interpreter = FirrtlTerp(input)
 
-    interpreter.doCycles(10)
+    val inputUpdater = new MappedInputUpdater(interpreter.interpreterCircuit) {
+      override def step_values: Array[Map[String, BigInt]] = Array(
+        Map("io_a" -> 6, "io_b" -> 2, "io_e" -> 1),
+        Map("io_a" -> 6, "io_b" -> 2, "io_e" -> 0),
+        Map("io_a" -> 6, "io_b" -> 2, "io_e" -> 0),
+        Map("io_a" -> 6, "io_b" -> 2, "io_e" -> 0),
+        Map("io_a" -> 6, "io_b" -> 2, "io_e" -> 0),
+        Map("io_a" -> 6, "io_b" -> 2, "io_e" -> 0),
+        Map("io_a" -> 6, "io_b" -> 2, "io_e" -> 0),
+        Map("io_a" -> 6, "io_b" -> 2, "io_e" -> 0),
+        Map("io_a" -> 6, "io_b" -> 2, "io_e" -> 0),
+        Map("io_a" -> 6, "io_b" -> 2, "io_e" -> 0),
+        Map("io_a" -> 6, "io_b" -> 2, "io_e" -> 0)
+      )
+    }
 
+    interpreter.setInputUpdater(inputUpdater)
 
+    interpreter.doCycles(6)
   }
 }

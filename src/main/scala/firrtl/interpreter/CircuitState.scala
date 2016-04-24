@@ -79,19 +79,29 @@ case class CircuitState(
   def setValue(key: String, concreteValue: ConcreteValue): ConcreteValue = {
     if(outputPorts.contains(key)) {
       outputPorts(key) = concreteValue
+      nameToConcreteValue(key) = concreteValue
     }
     else if(registers.contains(key)) {
       nextRegisters(key) = concreteValue
+      // we continue to use the initial values of registers when they appear on RHS of an expression
     }
     else {
       ephemera(key) = concreteValue
+      nameToConcreteValue(key) = concreteValue
     }
-    nameToConcreteValue(key) = concreteValue
     concreteValue
   }
 
+  def setInput(key: String, value: BigInt): ConcreteValue = {
+    val concrete_value = TypeInstanceFactory(inputPorts(key), value)
+    inputPorts(key) = concrete_value
+    nameToConcreteValue(key) = concrete_value
+    concrete_value
+  }
+
   def getValue(key: String): Option[ConcreteValue] = {
-    nameToConcreteValue.get(key)
+    val value = nameToConcreteValue.get(key)
+    value
   }
 
   def isInput(key: String): Boolean = inputPorts.contains(key)
@@ -115,21 +125,18 @@ case class CircuitState(
         case _ => e.toString
       }
     }
-    def showPorts(msg: String, m: Map[String, ConcreteValue]): String = {
+    def showConcreteValues(msg: String, m: Map[String, ConcreteValue]): String = {
       m.keys.toSeq.sorted.map { case key =>
-        s"${key}=${m(key).value}"
-      }.mkString(msg+prefix, separator, postfix)
-    }
-    def showRegisters(msg: String, m: Map[String, ConcreteValue]): String = {
-      m.keys.toSeq.sorted.map { case key =>
-        s"${key}=${m(key).value}"
+        s"$key=${m(key).value}"
       }.mkString(msg+prefix, separator, postfix)
     }
     s"""
        |CircuitState
-       |${showPorts("Inputs", inputPorts.toMap)}
-       |${showPorts("Outputs", outputPorts.toMap)}
-       |${showRegisters("Registers", registers.toMap)}
+       |${showConcreteValues("Inputs", inputPorts.toMap)}
+       |${showConcreteValues("Outputs", outputPorts.toMap)}
+       |${showConcreteValues("BeforeRegisters", registers.toMap)}
+       |${showConcreteValues("AfterRegisters", nextRegisters.toMap)}
+       |${showConcreteValues("Ephemera", ephemera.toMap)}
      """.stripMargin
   }
 }

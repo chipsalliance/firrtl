@@ -30,40 +30,72 @@ import firrtl._
 
 /**
   * Base class for tools used to update top level inputs
+  * Right now this class will be called once per cycle and
+  * will update the inputs as the specific subclasses see fit.
   *
-  * @param interpreterCircuit The wrapped circuit to update, use it's inputs map
-  *                           to determine names and widths
   */
-abstract class InputUpdater(interpreterCircuit: InterpreterCircuit) {
-  def getValue(name: String): ConcreteValue
-  var calls = 0
+abstract class InputUpdater {
+  def getValue(name: String): BigInt
+  var step = 0
+  def nextStep(): Unit = {
+    step += 1
+  }
 
-  def updateAllInputs(circuitState: CircuitState): Unit = {
-    calls += 1
-    for(port <- interpreterCircuit.inputPortToValue.keys) {
-      val value = getValue(port)
-      println(s"Updating input port ${port} <= $value")
-      circuitState.setValue(port, value)
+  def updateInput(circuitState: CircuitState, name: String): Unit = {
+    val value = getValue(name)
+    println(s"Updating input port $name <= $value")
+    circuitState.setInput(name, value)
+  }
+  def updateInputs(circuitState: CircuitState, ports: Iterable[String] = Iterable.empty): Unit = {
+    println(s"Update inputs step $step")
+    val ports_to_do = if(ports.nonEmpty) ports else circuitState.inputPorts.keys
+    for(port <- ports) {
+      updateInput(circuitState, port)
     }
+    nextStep()
   }
 }
-class RandomInputUpdater(val interpreterCircuit: InterpreterCircuit, randomSeed: Long = 0L)
-  extends InputUpdater(interpreterCircuit) {
+
+/**
+  * pick a random number of suitable size for every input at each step
+  * pathologically alternates clock for no good reason at the moment
+  * @param interpreterCircuit used to find input ports
+  * @param randomSeed randomize seed, defaults to 0L
+  */
+class RandomInputUpdater(interpreterCircuit: InterpreterCircuit, randomSeed: Long = 0L)
+  extends InputUpdater {
   val random = util.Random
   random.setSeed(randomSeed)
 
-  def getValue(name: String): ConcreteValue = {
-    val port = interpreterCircuit.nameToPort(name)
+  def getValue(name: String): BigInt = {
+    def getPort(name: String) = interpreterCircuit.dependencyGraph.nameToType(name)
     def getWidth(width: Width): Int = width match {
       case iw: IntWidth => iw.width.toInt
     }
-    port.tpe match {
-      case u: UIntType =>
-        TypeInstanceFactory(port.tpe, BigInt(getWidth(u.width), random))
-//        TypeInstanceFactory(port.tpe, 1)
-      case c: ClockType =>
-        TypeInstanceFactory(port.tpe, calls % 2)
+
+    getPort(name) match {
+      case u: UIntType => BigInt(getWidth(u.width), random)
+      case s: SIntType => BigInt(getWidth(s.width), random) * (if(random.nextBoolean()) 1 else -1)
+      case c: ClockType => step % 2
     }
   }
+}
 
+/**
+  * Allows for simpled hard coding of a series of inputs to be loaded into
+  * desired inputs at each step
+  * @param interpreterCircuit used to identify input ports
+  */
+abstract class MappedInputUpdater(val interpreterCircuit: InterpreterCircuit)
+  extends InputUpdater {
+  def step_values: Array[Map[String, BigInt]]
+
+  def getValue(name: String): BigInt = {
+    val value = step_values(step)(name)
+    value
+  }
+
+  override def updateInputs(circuitState: CircuitState, ports: Iterable[String] = Iterable.empty): Unit = {
+    super.updateInputs(circuitState, ports = step_values(step).keys)
+  }
 }

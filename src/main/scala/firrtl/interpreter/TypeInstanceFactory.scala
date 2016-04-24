@@ -42,4 +42,10 @@ object TypeInstanceFactory {
       case _ => throw new InterpreterException(s"Unsupported LoFIRRTL type for interpreter $typ")
     }
   }
+  def apply(template: ConcreteValue, value: BigInt) = {
+    template match {
+      case UIntValue(_, width) => UIntValue(value, width)
+      case SIntValue(_, width) => SIntValue(value, width)
+    }
+  }
 }
