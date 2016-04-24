@@ -13,12 +13,9 @@ object DependencyGraph extends LazyLogging {
     val node_map = new collection.mutable.HashMap[String, Expression]
 
     def enumExpr(e: Expression): Expression = e match {
-      case WRef(name, tpe, NodeKind(), gender) =>
-        println(s"declaration:WRef: $name $tpe")
-        e
+      case w: WRef => e
       case (_: UIntValue | _: SIntValue) => e
-      case (_: Ref |_: WRef |_: WSubField) =>
-        e
+      case (_: Ref |_: WRef |_: WSubField) => e
       case m: Mux => m
       //TODO: Validate that the following are not LoFIRRTL
       //        case v: ValidIf => v.cond, v.value flatMap enumExpr
@@ -39,9 +36,10 @@ object DependencyGraph extends LazyLogging {
           case _ => throw new InterpreterException(s"error:unsupported lhs $con")
         }
         con
-      case DefNode(_, name, _) =>
+      case DefNode(_, name, expression) =>
         println(s"declaration:node: $s")
         dependencies.register(name)
+        dependencies(name) = expression
         s
       case DefWire(_, name, _) =>
         println(s"declaration:node: $s")
@@ -88,8 +86,9 @@ class DependencyGraph {
   val nameToType       = new mutable.HashMap[String, Type]
 
   def update(key: String, e: Expression): Unit = nameToExpression(key) = e
-  def apply(key: String): Expression = nameToExpression(key)
+  def apply(key: String): Option[Expression] = nameToExpression.get(key)
   def keys: Iterable[String] = nameToExpression.keys
   def register(key: String): Unit = lhsEntities += key
   def recordType(key: String, tpe: Type): Unit = {nameToType(key) = tpe}
+  def getNameSet: mutable.HashSet[String] = mutable.HashSet(nameToExpression.keys.toSeq:_*)
 }

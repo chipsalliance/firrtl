@@ -44,7 +44,7 @@ class FirrtlTerp(ast: Circuit) {
   var source_state = CircuitState(interpreterCircuit)
   // target state could be hidden inside updates
   // but for development sometimes nice to compare it
-  var target_state = source_state.copy
+  var target_state = source_state.getNextState
 
   def updateInputs(): Unit = {
     inputUpdater.updateAllInputs(source_state)
@@ -52,8 +52,17 @@ class FirrtlTerp(ast: Circuit) {
 
   def updateOutputs(): Unit = {
     //TODO: ReWrite this after refactoring dependency list
+
 //    updateTarget()
 //    val evaluator = new LoFirrtlExpressionEvaluator(source_state, target_state)
+//
+//    interpreterCircuit.outputPorts.foreach { port =>
+//      interpreterCircuit.dependencyList(port).foreach { expression =>
+//        val expression_value = evaluator.evaluate(expression)
+//        target_state.outputPorts(port) = expression_value
+//
+//      }
+//    }
 //
 //    for ((lhs_expression, rhs_expression) <- interpreterCircuit.dependencyList.nameToExpression) {
 //      lhs_expression match {
@@ -86,9 +95,17 @@ class FirrtlTerp(ast: Circuit) {
   }
 
   def doOneCycle(): Unit = {
-    updateInputs()
-    updateOutputs()
-    updateRegisters()
+//    updateInputs()
+//    updateOutputs()
+//    updateRegisters()
+
+    val evaluator = new LoFirrtlExpressionEvaluator(
+      startKeys = interpreterCircuit.outputPorts,
+      dependencyGraph = interpreterCircuit.dependencyList,
+      cicuitState = source_state,
+      nextState = target_state
+    )
+    evaluator.resolveDependencies()
     println(s"${source_state.prettyString()}")
   }
 
@@ -102,7 +119,7 @@ class FirrtlTerp(ast: Circuit) {
     source_state = target_state
   }
   private def updateTarget(): Unit = {
-    target_state = source_state.copy
+    target_state = source_state.getNextState
   }
 }
 

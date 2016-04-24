@@ -44,8 +44,10 @@ class InterpreterCircuit(val circuit: Circuit) {
 
   val dependencyList = DependencyGraph(circuit.modules.head)
 
-  def inputPortToValue = makePortToConcreteValueMap(INPUT)
+  def inputPortToValue  = makePortToConcreteValueMap(INPUT)
   def outputPortToValue = makePortToConcreteValueMap(OUTPUT)
+  val inputPorts        = module.ports.filter(_.direction == INPUT).map(_.name)
+  val outputPorts       = module.ports.filter(_.direction == OUTPUT).map(_.name)
 
   val nameToPort = module.ports.map { port =>
     port.name -> port
@@ -60,7 +62,7 @@ class InterpreterCircuit(val circuit: Circuit) {
 
   def makePortToConcreteValueMap(direction: Direction) = {
     mutable.Map(module.ports.filter(_.direction == direction).map { port =>
-      port -> TypeInstanceFactory(port.tpe)
+      port.name -> TypeInstanceFactory(port.tpe)
     }: _*)
   }
 }

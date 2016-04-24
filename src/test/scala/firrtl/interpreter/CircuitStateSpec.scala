@@ -37,14 +37,14 @@ class CircuitStateSpec extends FlatSpec with Matchers {
   val u1Type = UIntType(IntWidth(1))
   val u1Instance = TypeInstanceFactory(u1Type)
   val port = Port(NoInfo, "port0", INPUT, u1Type)
-  val c = CircuitState(mutable.Map(port -> u1Instance), mutable.Map(), mutable.Map())
+  val c = CircuitState(mutable.Map(port.name -> u1Instance), mutable.Map(), mutable.Map())
 
   it should "be creatable" in {
     c.inputPorts.size should be (1)
     c.outputPorts.size should be (0)
   }
 
-  val new_c = c.copy
+  val new_c = c.getNextState
 
   it should "produce copies" in {
     new_c.inputPorts.size should be (1)
@@ -52,9 +52,9 @@ class CircuitStateSpec extends FlatSpec with Matchers {
   }
 
   it should "have mutable type instances, distinct in copy" in {
-    new_c.inputPorts(port) = UIntValue(5, IntWidth(4))
+    new_c.inputPorts(port.name) = UIntValue(5, IntWidth(4))
 
-    c.inputPorts(port).value should be (0)
-    new_c.inputPorts(port).value should be (5)
+    c.inputPorts(port.name).value should be (0)
+    new_c.inputPorts(port.name).value should be (5)
   }
 }

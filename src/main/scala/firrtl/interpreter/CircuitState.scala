@@ -38,12 +38,13 @@ object CircuitState {
     new CircuitState(
       interpreterCircuit.inputPortToValue,
       interpreterCircuit.outputPortToValue,
-      interpreterCircuit.makeRegisterToConcreteValueMap
+      interpreterCircuit.makeRegisterToConcreteValueMap,
+      new mutable.HashMap[String, ConcreteValue]()
     )
   }
 
   def apply(state: CircuitState): CircuitState = {
-    state.copy
+    state.getNextState
   }
 }
 
@@ -56,15 +57,47 @@ object CircuitState {
   * @param registers   a map to current concrete value
   */
 case class CircuitState(
-                    inputPorts: mutable.Map[Port, ConcreteValue],
-                    outputPorts: mutable.Map[Port, ConcreteValue],
-                    registers: mutable.Map[String, ConcreteValue]) {
-  def copy: CircuitState = {
-    new CircuitState(
+                    inputPorts: mutable.Map[String, ConcreteValue],
+                    outputPorts: mutable.Map[String, ConcreteValue],
+                    registers: mutable.Map[String, ConcreteValue],
+                    ephemera: mutable.Map[String, ConcreteValue] = new mutable.HashMap[String, ConcreteValue]()) {
+  val nameToConcreteValue = new mutable.HashMap[String, ConcreteValue]()
+  val nextRegisters = new mutable.HashMap[String, ConcreteValue]()
+
+  def getNextState: CircuitState = {
+    val nextState = new CircuitState(
       inputPorts.clone(),
       outputPorts.clone(),
-      registers.clone()
+      registers.clone(),
+      ephemera.clone()
     )
+    nextState.nameToConcreteValue ++= nameToConcreteValue.filterNot { case (name, _) => isEphemera(name)}
+    nextState
+  }
+
+  def setValue(key: String, concreteValue: ConcreteValue): ConcreteValue = {
+    if(outputPorts.contains(key)) {
+      outputPorts(key) = concreteValue
+    }
+    else if(registers.contains(key)) {
+      nextRegisters(key) = concreteValue
+    }
+    else {
+      ephemera(key) = concreteValue
+    }
+    nameToConcreteValue(key) = concreteValue
+    concreteValue
+  }
+
+  def getValue(key: String): Option[ConcreteValue] = {
+    nameToConcreteValue.get(key)
+  }
+
+  def isInput(key: String): Boolean = inputPorts.contains(key)
+  def isOutput(key: String): Boolean = outputPorts.contains(key)
+  def isRegister(key: String): Boolean = registers.contains(key)
+  def isEphemera(key:String): Boolean = {
+    ! (isInput(key) || isOutput(key) || isRegister(key))
   }
 
   /**
@@ -81,12 +114,12 @@ case class CircuitState(
         case _ => e.toString
       }
     }
-    def showPorts(msg: String, m: Map[Port,ConcreteValue]): String = {
-      m.keys.toSeq.sortBy(_.name).map { case key =>
-        s"${key.name}=${m(key).value}"
+    def showPorts(msg: String, m: Map[String, ConcreteValue]): String = {
+      m.keys.toSeq.sorted.map { case key =>
+        s"${key}=${m(key).value}"
       }.mkString(msg+prefix, separator, postfix)
     }
-    def showRegisters(msg: String, m: Map[String,ConcreteValue]): String = {
+    def showRegisters(msg: String, m: Map[String, ConcreteValue]): String = {
       m.keys.toSeq.sorted.map { case key =>
         s"${key}=${m(key).value}"
       }.mkString(msg+prefix, separator, postfix)
