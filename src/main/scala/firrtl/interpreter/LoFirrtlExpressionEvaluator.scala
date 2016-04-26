@@ -383,4 +383,20 @@ class LoFirrtlExpressionEvaluator(
       resolveDependency(key)
     }
   }
+
+  def checkStops(): Option[Int] = {
+    for(stopCondition <- dependencyGraph.stops) {
+      if(evaluate(stopCondition.expression).value > 0) {
+        if(stopCondition.returnValue == 0) {
+          println(s"Success:${stopCondition.info}")
+          return Some(0)
+        }
+        else {
+          println(s"Failure:${stopCondition.info} returned ${stopCondition.returnValue}")
+          return Some(stopCondition.returnValue)
+        }
+      }
+    }
+    None
+  }
 }

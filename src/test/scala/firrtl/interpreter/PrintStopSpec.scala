@@ -24,52 +24,62 @@ ANY, PROVIDED HEREUNDER IS PROVIDED "AS IS". REGENTS HAS NO OBLIGATION
 TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR
 MODIFICATIONS.
 */
+package firrtl.interpreter
 
-package firrtl
+import org.scalatest.{Matchers, FlatSpec}
 
-import firrtl.passes._
+class PrintStopSpec extends FlatSpec with Matchers {
+  behavior of "stop"
 
-/**
-  * Created by chick on 4/21/16.
-  */
-object ToLoFirrtl {
-  // TODO: Verify this is the proper subset of passes that guarantees LoFirrtl
-  val passes = Seq(
-    CInferTypes,
-    CInferMDir,
-    RemoveCHIRRTL,
-    ToWorkingIR,
-    CheckHighForm,
-    ResolveKinds,
-    InferTypes,
-    CheckTypes,
-    Uniquify,
-    ResolveKinds,
-    InferTypes,
-    ResolveGenders,
-    CheckGenders,
-    InferWidths,
-    CheckWidths,
-    PullMuxes,
-    ExpandConnects,
-    RemoveAccesses,
-    ExpandWhens,
-    CheckInitialization,
-    ResolveKinds,
-    InferTypes,
-    ResolveGenders,
-    InferWidths,
-    Legalize,
-    LowerTypes,
-    ResolveKinds,
-    InferTypes,
-    ResolveGenders,
-    InferWidths,
-    SplitExp,
-    ConstProp
-  )
+  it should "return not stop if condition is not met" in {
+    val input =
+      """
+        |circuit Stop0 :
+        |  module Stop0 :
+        |    input clk : Clock
+        |    stop(clk, UInt(0), 2) ; Can't happen!
+        |
+      """.stripMargin
 
-  def lower(c: Circuit): Circuit = {
-    PassUtils.executePasses(c, passes)
+    val interpreter = FirrtlTerp(input)
+
+    for (cycle_number <- 0 to 10) {
+      interpreter.doCycles(2)
+      interpreter.stopped should be (false)
+    }
+  }
+
+  it should "return failure if a stop with non-zero result" in {
+    val input =
+      """
+        |circuit Stop0 :
+        |  module Stop0 :
+        |    input clk : Clock
+        |    stop(clk, UInt(1), 2) ; Failure!
+        |
+      """.stripMargin
+
+    val interpreter = FirrtlTerp(input)
+
+    interpreter.doCycles(2)
+    interpreter.stopped should be (true)
+    interpreter.stopResult should be (2)
+  }
+
+  it should "return success if a stop with zero result" in {
+    val input =
+      """
+        |circuit Stop0 :
+        |  module Stop0 :
+        |    input clk : Clock
+        |    stop(clk, UInt(1), 0) ; Failure!
+        |
+      """.stripMargin
+
+    val interpreter = FirrtlTerp(input)
+
+    interpreter.doCycles(2)
+    interpreter.stopped should be (true)
+    interpreter.stopResult should be (0)
   }
 }

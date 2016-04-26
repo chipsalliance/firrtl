@@ -11,6 +11,7 @@ circuit ChirrtlMems :
     wen <= not(reset) ; Don't const prop me!
 
     reg raddr : UInt<4>, clk with : (reset => (reset, UInt(0)))
+
     raddr <= add(raddr, UInt(1))
     infer mport r = ram[raddr], newClock
 

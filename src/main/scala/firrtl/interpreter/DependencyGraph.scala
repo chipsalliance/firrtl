@@ -5,6 +5,7 @@ package firrtl.interpreter
 import com.typesafe.scalalogging.LazyLogging
 import firrtl._
 import collection.mutable
+import scala.collection.mutable.ArrayBuffer
 
 object DependencyGraph extends LazyLogging {
   def apply(m: Module): DependencyGraph = {
@@ -25,6 +26,21 @@ object DependencyGraph extends LazyLogging {
         UIntValue(0, IntWidth(1))
     }
 
+//   1 /**
+//      *
+//      * @param expression
+//      * @param nameSoFar
+//      * @return
+//      */
+//    def lhsGetName(expression: Expression, nameSoFar: String = ""): String = {
+//      expression match {
+//        case WRef(name, _, _, _) => name
+//        case WSubField(subExpression, name, _, _ ) => lhsGetName(subExpression) + "." + name
+//        case WSubIndex(subExpression, value, _, _ ) => lhsGetName(subExpression) + "." + value.toString
+//        case _ => throw new InterpreterException(s"error:unsupported lhs $expression")
+//      }
+//    }
+
     def getDepsStmt(s: Stmt): Stmt = s match {
       case begin: Begin =>
         // println(s"got a begin $begin")
@@ -33,7 +49,9 @@ object DependencyGraph extends LazyLogging {
       case con: Connect =>
         con.loc match {
           case WRef(name,_,_,_) => dependencies(name) = enumExpr(con.exp)
-          case _ => throw new InterpreterException(s"error:unsupported lhs $con")
+          case (_: WSubField | _: WSubIndex) =>
+            val name = con.loc.serialize
+            dependencies(name) = enumExpr(con.exp)
         }
         con
       case DefNode(_, name, expression) =>
@@ -50,6 +68,9 @@ object DependencyGraph extends LazyLogging {
         dependencies.registerNames += name
         dependencies.recordLhs(name)
         dependencies.recordType(name, tpe)
+        s
+      case Stop(info, returnValue, _, expression) =>
+        dependencies.addStop(expression, returnValue, info)
         s
       case conditionally: Conditionally =>
         // println(s"got a conditionally $conditionally")
@@ -77,15 +98,14 @@ object DependencyGraph extends LazyLogging {
 //  }
 }
 
-abstract class DependencyKey extends Expression { val name: String }
-case class RegisterDependencyKey(val name: String) extends DependencyKey
-case class NodeDependencyKey(val name: String) extends DependencyKey
+case class StopCondition(expression: Expression, returnValue : Int, info: Info)
 
 class DependencyGraph {
   val nameToExpression = new scala.collection.mutable.HashMap[String, Expression]
   val lhsEntities      = new mutable.HashSet[String]
   val nameToType       = new mutable.HashMap[String, Type]
   val registerNames    = new mutable.HashSet[String]
+  val stops            = new ArrayBuffer[StopCondition]
 
   def update(key: String, e: Expression): Unit = nameToExpression(key) = e
   def apply(key: String): Option[Expression] = {
@@ -97,4 +117,7 @@ class DependencyGraph {
   def recordType(key: String, tpe: Type): Unit = {nameToType(key) = tpe}
   def getType(key: String): Type = nameToType(key)
   def getNameSet: mutable.HashSet[String] = mutable.HashSet(nameToExpression.keys.toSeq:_*)
+  def addStop(expression: Expression, returnValue: Int, info: Info): Unit = {
+    stops += StopCondition(expression, returnValue, info)
+  }
 }

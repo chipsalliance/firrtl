@@ -31,14 +31,24 @@ import java.io.File
 
 import firrtl._
 
+// TODO: Support stop and print
+// TODO: Support reset on regs
+// TODO: Support Memory
+// TODO: Add poison concept
+// TODO: Make into separate repo
+// TODO: Support Multiple modules
 // TODO: Work through more operators
 // TODO: Figure out what to do about clock and reset inputs
 // TODO: Implement VCD parser and emitter (https://github.com/impedimentToProgress/ProcessVCD.git)?
 // TODO: Get official Firrtl to LoFirrtl transformer
 
 class FirrtlTerp(ast: Circuit) {
+  var lastStopResult: Option[Int] = None
+  def stopped: Boolean = lastStopResult.nonEmpty
+  def stopResult = lastStopResult.get
+
   val lowered_ast = ToLoFirrtl.lower(ast)
-  println("-"*120)
+  println("LoFirrtl" + "="*120)
   println(lowered_ast.serialize)
   println(s"ast $lowered_ast")
 
@@ -54,7 +64,7 @@ class FirrtlTerp(ast: Circuit) {
     inputUpdater.updateInputs(sourceState)
   }
 
-  def doOneCycle(): Unit = {
+  def doOneCycle() = {
     updateInputs()
 
     val evaluator = new LoFirrtlExpressionEvaluator(
@@ -63,6 +73,7 @@ class FirrtlTerp(ast: Circuit) {
       circuitState = sourceState
     )
     evaluator.resolveDependencies()
+    lastStopResult = evaluator.checkStops()
     println(s"After cycle ${"-"*80}\n${sourceState.prettyString()}")
 
     sourceState = sourceState.getNextState
@@ -74,6 +85,7 @@ class FirrtlTerp(ast: Circuit) {
     for(cycle <- 1 to n) {
       println(s"Cycle $cycle ${"-"*80}")
       doOneCycle()
+      if(stopped) return
     }
   }
 
@@ -188,7 +200,7 @@ object FirrtlTerp {
       )
     }
 
-    interpreter.setInputUpdater(inputUpdater)
+//    interpreter.setInputUpdater(inputUpdater)
 
     interpreter.doCycles(6)
   }

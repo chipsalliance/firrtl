@@ -99,7 +99,6 @@ trait ConcreteValue {
     width.asInstanceOf[IntWidth].width
   }
 }
-trait Expression extends AST
 case class Ref(name: String, tpe: Type) extends Expression with HasName
 case class SubField(exp: Expression, name: String, tpe: Type) extends Expression with HasName
 case class SubIndex(exp: Expression, value: Int, tpe: Type) extends Expression
@@ -109,10 +108,12 @@ case class ValidIf(cond: Expression, value: Expression, tpe: Type) extends Expre
 case class UIntValue(value: BigInt, width: Width) extends Expression with ConcreteValue {
   def tpe = UIntType(width)
 }
-case class SIntValue(value: BigInt, width: Width) extends Expression with ConcreteValue{
+case class SIntValue(value: BigInt, width: Width) extends Expression with ConcreteValue {
   def tpe = SIntType(width)
 }
-case class ClockValue(value: BigInt, width: Width) extends Expression with ConcreteValue
+case class ClockValue(value: BigInt, width: Width) extends Expression with ConcreteValue {
+  def tpe = ClockType()
+}
 case class DoPrim(op: PrimOp, args: Seq[Expression], consts: Seq[BigInt], tpe: Type) extends Expression
 
 trait Stmt extends AST
