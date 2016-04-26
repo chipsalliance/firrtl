@@ -34,25 +34,26 @@ import firrtl._
 import firrtl.Utils._
 import firrtl.Mappers._
 
-// Datastructures
-import scala.collection.mutable.HashMap
-import scala.collection.mutable.HashSet
-
-// Notes:
-//  - Must be run after InferTypes because DefNodes need type
-//  - Given:
-//      wire a = { b, c }[2]
-//      wire a_0
-//    This lowers to:
-//      wire a__0_b
-//      wire a__0_c
-//      wire a__1_b
-//      wire a__1_c
-//      wire a_0
-//    There wouldn't be a collision even if we didn't map a -> a_, but
-//      there WOULD be collisions in references a[0] and a_0 so we still have
-//      to rename a
-//
+/** Resolve name collisions that would occur in [[LowerTypes]]
+  *
+  *  @note Must be run after [[InferTypes]] because [[DefNode]]s need type
+  *  @example
+  *  {{{
+  *      wire a = { b, c }[2]
+  *      wire a_0
+  *  }}}
+  *    This lowers to:
+  *  {{{
+  *      wire a__0_b
+  *      wire a__0_c
+  *      wire a__1_b
+  *      wire a__1_c
+  *      wire a_0
+  *  }}}
+  *    There wouldn't be a collision even if we didn't map a -> a_, but
+  *      there WOULD be collisions in references a[0] and a_0 so we still have
+  *      to rename a
+  */
 object Uniquify extends Pass {
   def name = "Uniquify Identifiers"
 
@@ -70,7 +71,7 @@ object Uniquify extends Pass {
   private def findValidPrefix(
       prefix: String,
       elts: Seq[String],
-      namespace: HashSet[String]): String = {
+      namespace: collection.mutable.HashSet[String]): String = {
     elts find (elt => namespace.contains(prefix + elt)) match {
       case Some(_) => findValidPrefix(prefix + "_", elts, namespace)
       case None => prefix
@@ -98,19 +99,18 @@ object Uniquify extends Pass {
   // Returns new Type with uniquified names
   private def uniquifyNames(
       t: BundleType,
-      namespace: HashSet[String])
+      namespace: collection.mutable.HashSet[String])
       (implicit sinfo: Info, mname: String): BundleType = {
-    def recUniquifyNames(t: Type, namespace: HashSet[String]): Type = t match {
+    def recUniquifyNames(t: Type, namespace: collection.mutable.HashSet[String]): Type = t match {
       case t: BundleType =>
         // First add everything
-        // Order matters so we can't filter
         val newFields = t.fields map { f =>
           val newName = findValidPrefix(f.name, Seq(""), namespace)
           namespace += newName
           Field(newName, f.flip, f.tpe)
         } map { f =>
           if (f.tpe.isAggregate) {
-            val tpe = recUniquifyNames(f.tpe, HashSet())
+            val tpe = recUniquifyNames(f.tpe, collection.mutable.HashSet())
             val elts = enumerateNames(tpe)
             // Need leading _ for findValidPrefix, it doesn't add _ for checks
             val eltsNames = elts map (e => "_" + LowerTypes.loweredName(e))
@@ -162,7 +162,6 @@ object Uniquify extends Pass {
   }
 
   // Maps names in expression to new uniquified names
-  // Perhaps this method should replace uniquifyNamesExp
   private def uniquifyNamesExp(
       exp: Expression,
       map: Map[String, NameMapNode])
@@ -193,11 +192,9 @@ object Uniquify extends Pass {
         val (subExp, subMap) = rec(e.exp, m)
         val index = uniquifyNamesExp(e.index, map)
         (WSubAccess(subExp, index, e.tpe, e.gender), subMap)
-      //
       case (_: UIntValue | _: SIntValue) => (exp, m)
       case (_: Mux | _: ValidIf | _: DoPrim) =>
         (exp map ((e: Expression) => uniquifyNamesExp(e, map)), m)
-      case _ => error(s"Error! Unsupported ${exp.getClass} in uniquifyNamesExp ${exp.serialize}")
     }
     rec(exp, map)._1
   }
@@ -243,7 +240,6 @@ object Uniquify extends Pass {
             s.copy(name = i.toString, data_type = tpe.tpe)
           ) flatMap (recStmtToType)
           Seq(Field(s.name, DEFAULT, BundleType(newFields)))
-        case tpe => error(s"Error! Unsupported mem type: $tpe")
       }
       case s: DefNode => Seq(Field(s.name, DEFAULT, get_type(s)))
       case s: Conditionally => recStmtToType(s.conseq) ++ recStmtToType(s.alt)
@@ -259,12 +255,12 @@ object Uniquify extends Pass {
     implicit var mname: String = ""
     implicit var sinfo: Info = NoInfo
     // Global state
-    val portNameMap = HashMap[String, Map[String, NameMapNode]]()
-    val portTypeMap = HashMap[String, Type]()
+    val portNameMap = collection.mutable.HashMap[String, Map[String, NameMapNode]]()
+    val portTypeMap = collection.mutable.HashMap[String, Type]()
 
     def uniquifyModule(m: Module): Module = {
-      val namespace = HashSet[String]()
-      val nameMap = HashMap[String, NameMapNode]()
+      val namespace = collection.mutable.HashSet[String]()
+      val nameMap = collection.mutable.HashMap[String, NameMapNode]()
 
       def uniquifyExp(e: Expression): Expression = e match {
         case (_: WRef | _: WSubField | _: WSubIndex | _: WSubAccess ) =>
@@ -353,7 +349,7 @@ object Uniquify extends Pass {
     def uniquifyPorts(m: Module): Module = {
       def uniquifyPorts(ports: Seq[Port]): Seq[Port] = {
         val portsType = BundleType(ports map (_.toField))
-        val uniquePortsType = uniquifyNames(portsType, HashSet())
+        val uniquePortsType = uniquifyNames(portsType, collection.mutable.HashSet())
         val localMap = createNameMapping(portsType, uniquePortsType)
         portNameMap += (m.name -> localMap)
         portTypeMap += (m.name -> uniquePortsType)

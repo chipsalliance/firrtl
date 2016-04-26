@@ -82,14 +82,18 @@ object PassUtils extends LazyLogging {
   lazy val mapNameToPass: Map[String, Pass] = listOfPasses.map(p => p.name -> p).toMap
 
   def executePasses(c: Circuit, passes: Seq[Pass]): Circuit = { 
-    if (passes.isEmpty) {logger.debug(s"Done!"); c}
+    if (passes.isEmpty) {logger.info(s"Done!"); c}
     else {
        val p = passes.head
        val name = p.name
-       logger.debug(s"Starting ${name}")
+       logger.info(s"Starting ${name}")
+       val start = System.nanoTime
        val x = p.run(c)
+       val end = System.nanoTime
        logger.debug(x.serialize)
-       logger.debug(s"Finished ${name}")
+       logger.info(s"Finished ${name}")
+       val timeMillis = (end - start) / 1000000.0
+       logger.info(f"$name took $timeMillis%.1f ms\n")
        executePasses(x, passes.tail)
     }
   }
@@ -204,10 +208,9 @@ object InferTypes extends Pass {
    def remove_unknowns (t:Type)(implicit n: Namespace): Type = mapr(remove_unknowns_w _,t)
    def run (c:Circuit): Circuit = {
       val module_types = LinkedHashMap[String,Type]()
-      val module_wnamespaces = HashMap[String, Namespace]()
+      implicit val wnamespace = Namespace()
       def infer_types (m:Module) : Module = {
          val types = LinkedHashMap[String,Type]()
-         implicit val wnamespace = module_wnamespaces(m.name)
          def infer_types_e (e:Expression) : Expression = {
             e map (infer_types_e) match {
                case e:ValidIf => ValidIf(e.cond,e.value,tpe(e.value))
@@ -271,8 +274,6 @@ object InferTypes extends Pass {
       val modulesx = c.modules.map { 
          m => {
             mname = m.name
-            implicit val wnamespace = Namespace()
-            module_wnamespaces += (m.name -> wnamespace)
             val portsx = m.ports.map(p => Port(p.info,p.name,p.direction,remove_unknowns(p.tpe)))
             m match {
                case m:InModule => InModule(m.info,m.name,portsx,m.body)
@@ -1158,6 +1159,18 @@ object Legalize extends Pass {
     }
     case _ => e
   }
+  def legalizeConnect(c: Connect): Stmt = {
+    val t = tpe(c.loc)
+    val w = long_BANG(t)
+    if (w >= long_BANG(tpe(c.exp))) c
+    else {
+      val newType = t match {
+        case _: UIntType => UIntType(IntWidth(w))
+        case _: SIntType => SIntType(IntWidth(w))
+      }
+      Connect(c.info, c.loc, DoPrim(BITS_SELECT_OP, Seq(c.exp), Seq(w-1, 0), newType))
+    }
+  }
   def run (c: Circuit): Circuit = {
     def legalizeE (e: Expression): Expression = {
       e map (legalizeE) match {
@@ -1165,7 +1178,13 @@ object Legalize extends Pass {
         case e => e
       }
     }
-    def legalizeS (s: Stmt): Stmt = s map (legalizeS) map (legalizeE)
+    def legalizeS (s: Stmt): Stmt = {
+      val legalizedStmt = s match {
+        case c: Connect => legalizeConnect(c)
+        case _ => s
+      }
+      legalizedStmt map legalizeS map legalizeE
+    }
     def legalizeM (m: Module): Module = m map (legalizeS)
     Circuit(c.info, c.modules.map(legalizeM), c.main)
   }
@@ -1240,19 +1259,24 @@ object SplitExp extends Pass {
          def split_exp_e (i:Int)(e:Expression) : Expression = {
             e map (split_exp_e(i + 1)) match {
                case (e:DoPrim) => if (i > 0) split(e) else e
+               case (e:Mux) => if (i > 0) split(e) else e
                case (e) => e
             }
          }
-	 s match {
+         s match {
             case (s:Begin) => s map (split_exp_s)
-	    case (s:Print) => {
-		val sx = s map (split_exp_e(1))
-                v += sx; sx
-	    }
+            case (s:Print) => {
+               val sx = s map (split_exp_e(1))
+               v += sx; sx
+            }
+            case (s:Stop) => {
+               val sx = s map (split_exp_e(1))
+               v += sx; sx
+            }
             case (s) => {
-		val sx = s map (split_exp_e(0))
-                v += sx; sx
-	    }
+               val sx = s map (split_exp_e(0))
+               v += sx; sx
+            }
          }
       }
       split_exp_s(m.body)
@@ -1544,7 +1568,7 @@ object RemoveCHIRRTL extends Pass {
                   def set_poison (vec:Seq[MPort],addr:String) : Unit = {
                      for (r <- vec ) {
                         stmts += IsInvalid(s.info,SubField(SubField(Ref(s.name,ut),r.name,ut),addr,taddr))
-                        stmts += Connect(s.info,SubField(SubField(Ref(s.name,ut),r.name,ut),"clk",taddr),r.clk)
+                        stmts += IsInvalid(s.info,SubField(SubField(Ref(s.name,ut),r.name,ut),"clk",taddr))
                      }
                   }
                   def set_enable (vec:Seq[MPort],en:String) : Unit = {
@@ -1581,30 +1605,37 @@ object RemoveCHIRRTL extends Pass {
                case (s:CDefMPort) => {
                   mport_types(s.name) = mport_types(s.mem)
                   val addrs = ArrayBuffer[String]()
+                  val clks = ArrayBuffer[String]()
                   val ens = ArrayBuffer[String]()
                   val masks = ArrayBuffer[String]()
                   s.direction match {
                      case MReadWrite => {
                         repl(s.name) = DataRef(SubField(Ref(s.mem,ut),s.name,ut),"rdata","data","mask",true)
                         addrs += "addr"
+                        clks += "clk"
                         ens += "en"
                         masks += "mask"
                      }
                      case MWrite => {
                         repl(s.name) = DataRef(SubField(Ref(s.mem,ut),s.name,ut),"data","data","mask",false)
                         addrs += "addr"
+                        clks += "clk"
                         ens += "en"
                         masks += "mask"
                      }
                      case _ => {
                         repl(s.name) = DataRef(SubField(Ref(s.mem,ut),s.name,ut),"data","data","blah",false)
                         addrs += "addr"
+                        clks += "clk"
                         ens += "en"
                      }
                   }
                   val stmts = ArrayBuffer[Stmt]()
                   for (x <- addrs ) {
                      stmts += Connect(s.info,SubField(SubField(Ref(s.mem,ut),s.name,ut),x,ut),s.exps(0))
+                  }
+                  for (x <- clks ) {
+                     stmts += Connect(s.info,SubField(SubField(Ref(s.mem,ut),s.name,ut),x,ut),s.exps(1))
                   }
                   for (x <- ens ) {
                      stmts += Connect(s.info,SubField(SubField(Ref(s.mem,ut),s.name,ut),x,ut),one)

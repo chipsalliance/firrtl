@@ -1,4 +1,4 @@
-<!-- 
+/*
 Copyright (c) 2014 - 2016 The Regents of the University of
 California (Regents). All Rights Reserved.  Redistribution and use in
 source and binary forms, with or without modification, are permitted
@@ -23,14 +23,56 @@ A PARTICULAR PURPOSE. THE SOFTWARE AND ACCOMPANYING DOCUMENTATION, IF
 ANY, PROVIDED HEREUNDER IS PROVIDED "AS IS". REGENTS HAS NO OBLIGATION
 TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR
 MODIFICATIONS.
--->
-<configuration>
-    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
-        <encoder>
-            <pattern>[%-4level] %msg%n</pattern>
-        </encoder>
-    </appender>
-    <root level="info">
-        <appender-ref ref="STDOUT" />
-    </root>
-</configuration>
+*/
+
+package firrtlTests
+
+import java.io._
+import org.scalatest._
+import org.scalatest.prop._
+import firrtl.{Parser,Circuit}
+import firrtl.passes._
+
+class ChirrtlSpec extends FirrtlFlatSpec {
+
+  "Chirrtl memories" should "allow ports with clocks defined after the memory" in {
+    val passes = Seq(
+      CInferTypes,
+      CInferMDir,
+      RemoveCHIRRTL,
+      ToWorkingIR,            
+      CheckHighForm,
+      ResolveKinds,
+      InferTypes,
+      CheckTypes,
+      ResolveGenders,
+      CheckGenders,
+      InferWidths,
+      CheckWidths,
+      PullMuxes,
+      ExpandConnects,
+      RemoveAccesses,
+      ExpandWhens,
+      CheckInitialization
+    )
+    val input =
+     """circuit Unit :
+       |  module Unit :
+       |    input clk : Clock
+       |    smem ram : UInt<32>[128]
+       |    node newClock = clk
+       |    infer mport x = ram[UInt(2)], newClock
+       |    x <= UInt(3)
+       |    when UInt(1) :
+       |      infer mport y = ram[UInt(4)], newClock
+       |      y <= UInt(5)
+       """.stripMargin
+    passes.foldLeft(Parser.parse("",input.split("\n").toIterator)) {
+      (c: Circuit, p: Pass) => p.run(c)
+    }
+  }
+
+  it should "compile and run" in {
+    runFirrtlTest("CHIRRTLMems", "/features")
+  }
+}

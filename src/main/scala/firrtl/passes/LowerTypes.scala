@@ -36,11 +36,28 @@ import firrtl.Mappers._
 // Datastructures
 import scala.collection.mutable.HashMap
 
+/** Removes all aggregate types from a [[Circuit]]
+  *
+  * @note Assumes [[firrtl.SubAccess]]es have been removed
+  * @note Assumes [[firrtl.Connect]]s and [[firrtl.IsInvalid]]s only operate on [[firrtl.Expression]]s of ground type
+  * @example
+  * {{{
+  *   wire foo : { a : UInt<32>, b : UInt<16> }
+  * }}} lowers to
+  * {{{
+  *   wire foo_a : UInt<32>
+  *   wire foo_b : UInt<16>
+  * }}}
+  */
 object LowerTypes extends Pass {
   def name = "Lower Types"
 
-  // Utility functions for lowering names
+  /** Delimiter used in lowering names */
   val delim = "_"
+  /** Expands a chain of referential [[firrtl.Expression]]s into the equivalent lowered name
+    * @param e [[firrtl.Expression]] made up of _only_ [[firrtl.WRef]], [[firrtl.WSubField]], and [[firrtl.WSubIndex]]
+    * @return Lowered name of e
+    */
   def loweredName(e: Expression): String = e match {
     case e: WRef => e.name
     case e: WSubField => loweredName(e.exp) + delim + e.name
@@ -53,13 +70,21 @@ object LowerTypes extends Pass {
     throw new LowerTypesException(s"$sinfo: [module $mname] $msg")
 
   // Useful for splitting then remerging references
-  private case object EmptyExpression extends Expression
+  private case object EmptyExpression extends Expression { def tpe = UnknownType() }
 
-  // Splits an Expression into root Ref and tail
-  // This function only supports WRef, WSubField, and WSubIndex
-  private def splitRef(
-      e: Expression)
-      (implicit sinfo: Info, mname: String): (WRef, Expression) = e match {
+  /** Splits an Expression into root Ref and tail
+    *
+    * @example
+    *   Given:   SubField(SubIndex(SubField(Ref("a", UIntType(IntWidth(32))), "b"), 2), "c")
+    *   Returns: (Ref("a"), SubField(SubIndex(Ref("b"), 2), "c"))
+    *   a.b[2].c -> (a, b[2].c)
+    * @example
+    *   Given:   SubField(SubIndex(Ref("b"), 2), "c")
+    *   Returns: (Ref("b"), SubField(SubIndex(EmptyExpression, 2), "c"))
+    *   b[2].c -> (b, EMPTY[2].c)
+    * @note This function only supports WRef, WSubField, and WSubIndex
+    */
+  private def splitRef(e: Expression): (WRef, Expression) = e match {
     case e: WRef => (e, EmptyExpression)
     case e: WSubIndex =>
       val (root, tail) = splitRef(e.exp)
@@ -70,14 +95,10 @@ object LowerTypes extends Pass {
         case EmptyExpression => (root, WRef(e.name, e.tpe, root.kind, e.gender))
         case exp => (root, WSubField(tail, e.name, e.tpe, e.gender))
       }
-    case _ => error(s"This utility function does not support expression $e")
   }
 
-  // Adds a root reference to some SubField/SubIndex chain
-  private def mergeRef(
-      root: WRef,
-      body: Expression)
-      (implicit sinfo: Info, mname: String): Expression = body match {
+  /** Adds a root reference to some SubField/SubIndex chain */
+  private def mergeRef(root: WRef, body: Expression): Expression = body match {
     case e: WRef =>
       WSubField(root, e.name, e.tpe, e.gender)
     case e: WSubIndex =>
@@ -85,12 +106,10 @@ object LowerTypes extends Pass {
     case e: WSubField =>
       WSubField(mergeRef(root, e.exp), e.name, e.tpe, e.gender)
     case EmptyExpression => root
-    case e => error(s"This utility function does not support expression $e")
   }
 
   // TODO Improve? Probably not the best way to do this
-  private def splitMemRef(e1: Expression)(implicit sinfo: Info, mname: String):
-      (WRef, WRef, WRef, Option[Expression]) = {
+  private def splitMemRef(e1: Expression): (WRef, WRef, WRef, Option[Expression]) = {
     val (mem, tail1) = splitRef(e1)
     val (port, tail2) = splitRef(tail1)
     tail2 match {
@@ -135,6 +154,8 @@ object LowerTypes extends Pass {
             }
           }
         // Fields that need not be replicated for each
+        // eg. mem.reader.data[0].a
+        // (Connect/IsInvalid must already have been split to gorund types)
         } else if (Seq("data", "mask", "rdata").contains(field.name)) {
           val loMem = tail match {
             case Some(e) =>
@@ -225,6 +246,13 @@ object LowerTypes extends Pass {
               }
               Begin(stmts)
             }
+          // wire foo : { a , b }
+          // node x = foo
+          // node y = x.a
+          //  ->
+          // node x_a = foo_a
+          // node x_b = foo_b
+          // node y = x_a
           case s: DefNode =>
             sinfo = s.info
             val names = create_exps(s.name, tpe(s.value)) map (lowerTypesExp)

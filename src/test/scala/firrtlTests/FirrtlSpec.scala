@@ -159,5 +159,5 @@ trait FirrtlMatchers {
 
 class FirrtlPropSpec extends PropSpec with PropertyChecks with FirrtlRunners with LazyLogging
 
-class FirrtlFlatSpec extends FlatSpec with Matchers with FirrtlMatchers with LazyLogging
+class FirrtlFlatSpec extends FlatSpec with Matchers with FirrtlRunners with FirrtlMatchers with LazyLogging
 
