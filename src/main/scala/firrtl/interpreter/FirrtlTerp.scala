@@ -74,6 +74,8 @@ class FirrtlTerp(ast: Circuit) {
     )
     evaluator.resolveDependencies()
     lastStopResult = evaluator.checkStops()
+    evaluator.checkPrints()
+
     println(s"After cycle ${"-"*80}\n${sourceState.prettyString()}")
 
     sourceState = sourceState.getNextState

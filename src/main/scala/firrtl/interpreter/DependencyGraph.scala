@@ -69,8 +69,11 @@ object DependencyGraph extends LazyLogging {
         dependencies.recordLhs(name)
         dependencies.recordType(name, tpe)
         s
-      case Stop(info, returnValue, _, expression) =>
-        dependencies.addStop(expression, returnValue, info)
+      case stopStatement: Stop =>
+        dependencies.addStop(stopStatement)
+        s
+      case printStatement: Print =>
+        dependencies.addPrint(printStatement)
         s
       case conditionally: Conditionally =>
         // println(s"got a conditionally $conditionally")
@@ -98,14 +101,13 @@ object DependencyGraph extends LazyLogging {
 //  }
 }
 
-case class StopCondition(expression: Expression, returnValue : Int, info: Info)
-
 class DependencyGraph {
   val nameToExpression = new scala.collection.mutable.HashMap[String, Expression]
   val lhsEntities      = new mutable.HashSet[String]
   val nameToType       = new mutable.HashMap[String, Type]
   val registerNames    = new mutable.HashSet[String]
-  val stops            = new ArrayBuffer[StopCondition]
+  val stops            = new ArrayBuffer[Stop]
+  val prints           = new ArrayBuffer[Print]
 
   def update(key: String, e: Expression): Unit = nameToExpression(key) = e
   def apply(key: String): Option[Expression] = {
@@ -117,7 +119,6 @@ class DependencyGraph {
   def recordType(key: String, tpe: Type): Unit = {nameToType(key) = tpe}
   def getType(key: String): Type = nameToType(key)
   def getNameSet: mutable.HashSet[String] = mutable.HashSet(nameToExpression.keys.toSeq:_*)
-  def addStop(expression: Expression, returnValue: Int, info: Info): Unit = {
-    stops += StopCondition(expression, returnValue, info)
-  }
+  def addStop(stopStatment: Stop): Unit = { stops += stopStatment }
+  def addPrint(printStatment: Print): Unit = { prints += printStatment }
 }

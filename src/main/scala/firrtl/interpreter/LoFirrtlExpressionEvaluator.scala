@@ -385,18 +385,31 @@ class LoFirrtlExpressionEvaluator(
   }
 
   def checkStops(): Option[Int] = {
-    for(stopCondition <- dependencyGraph.stops) {
-      if(evaluate(stopCondition.expression).value > 0) {
-        if(stopCondition.returnValue == 0) {
-          println(s"Success:${stopCondition.info}")
+    for(stopStatement <- dependencyGraph.stops) {
+      if(evaluate(stopStatement.en).value > 0) {
+        if(stopStatement.ret == 0) {
+          println(s"Success:${stopStatement.info}")
           return Some(0)
         }
         else {
-          println(s"Failure:${stopCondition.info} returned ${stopCondition.returnValue}")
-          return Some(stopCondition.returnValue)
+          println(s"Failure:${stopStatement.info} returned ${stopStatement.ret}")
+          return Some(stopStatement.ret)
         }
       }
     }
     None
+  }
+
+  def checkPrints(): Unit = {
+    for(printStatment <- dependencyGraph.prints) {
+      val condition = evaluate(printStatment.en)
+      if(condition.value > 0) {
+        val resolvedArgs = printStatment.args.map { case arg =>
+          evaluate(arg).value
+        }
+        val formatString = printStatment.string.array.map(_.toChar).mkString("")
+        printf(formatString, resolvedArgs:_*)
+      }
+    }
   }
 }

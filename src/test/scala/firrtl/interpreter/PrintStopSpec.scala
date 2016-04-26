@@ -82,4 +82,39 @@ class PrintStopSpec extends FlatSpec with Matchers {
     interpreter.stopped should be (true)
     interpreter.stopResult should be (0)
   }
+
+  behavior of "Print statement"
+
+  it should "be visible" in {
+    val input =
+      """
+        |circuit Stop0 :
+        |  module Stop0 :
+        |    input clk : Clock
+        |
+        |    printf(clk, UInt(1), "HELLO WORLD\n")
+        |
+      """.stripMargin
+
+    val interpreter = FirrtlTerp(input)
+
+    interpreter.doCycles(2)
+
+  }
+  it should "support printf formatting" in {
+    val input =
+      """
+        |circuit Stop0 :
+        |  module Stop0 :
+        |    input clk : Clock
+        |
+        |    printf(clk, UInt(1), "HELLO WORLD int %d hex %x sint %d\n", UInt(7), UInt(31), SInt(-2) )
+        |
+      """.stripMargin
+
+    val interpreter = FirrtlTerp(input)
+
+    interpreter.doCycles(2)
+
+  }
 }
