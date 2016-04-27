@@ -80,6 +80,7 @@ object VerilogCompiler extends Compiler {
     InferTypes,
     ResolveGenders,
     InferWidths,
+    Legalize,
     LowerTypes,
     ResolveKinds,
     InferTypes,
