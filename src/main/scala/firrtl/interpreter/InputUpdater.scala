@@ -99,3 +99,27 @@ abstract class MappedInputUpdater(val interpreterCircuit: InterpreterCircuit)
     super.updateInputs(circuitState, ports = step_values(step).keys)
   }
 }
+
+/**
+  * Allows user to just set keys manually for the next step
+  * just call set value before next interpreter.doCycle call
+  * If set values is not called previous values will be used
+  */
+class ManualMappedInputUpdater extends InputUpdater {
+  var stepValues: Map[String, BigInt] = Map.empty
+
+  def getValue(name: String): BigInt = {
+    val value = stepValues(name)
+    value
+  }
+  /**
+    * set a new map of keys to values
+    * @param newValues complete map of new values for next cycle
+    */
+  def setValues(newValues: Map[String, BigInt]): Unit = {
+    stepValues = newValues
+  }
+  override def updateInputs(circuitState: CircuitState, ports: Iterable[String] = Iterable.empty): Unit = {
+    super.updateInputs(circuitState, ports = stepValues.keys)
+  }
+}

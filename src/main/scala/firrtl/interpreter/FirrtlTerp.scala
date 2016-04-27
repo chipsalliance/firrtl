@@ -27,8 +27,6 @@ MODIFICATIONS.
 
 package firrtl.interpreter
 
-import java.io.File
-
 import firrtl._
 
 // TODO: Support reset on regs
@@ -76,17 +74,13 @@ class FirrtlTerp(ast: Circuit) {
     )
     evaluator.setVerbose(verbose)
     evaluator.resolveDependencies()
-    println(s"After resolve ${"-"*80}\n${sourceState.prettyString()}")
     lastStopResult = evaluator.checkStops()
     evaluator.checkPrints()
 
-    println(s"After PRINT ${"-"*80}\n${sourceState.prettyString()}")
     evaluator.processRegisterResets()
 
-    println(s"After RESET ${"-"*80}\n${sourceState.prettyString()}")
-
     sourceState = sourceState.getNextState
-    println(s"After NEXT STATE ${"-"*80}\n${sourceState.prettyString()}")
+    println(s"FirrtlTerp: cycle complete ${"="*80}\n${sourceState.prettyString()}")
 
   }
 

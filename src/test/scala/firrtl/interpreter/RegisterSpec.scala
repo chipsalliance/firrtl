@@ -80,41 +80,49 @@ class RegisterSpec extends FlatSpec with Matchers {
         |    input reset1 : UInt<1>
         |    input reset2 : UInt<1>
         |
-        |    reg reg1 : UInt<16>, clk with : (reset => (reset1, UInt(3)))
-        |    reg reg2 : UInt<16>, clk with : (reset => (reset2, UInt(5)))
-        |    reg reg3 : UInt<16>, clk
-        |    reg reg4 : UInt<16>, clk
-        |    reg reg5 : UInt<16>, clk
+        |    reg reg1 : UInt<16>, clk with : (reset => (reset1, UInt(0)))
+        |    reg reg2 : UInt<16>, clk with : (reset => (reset2, reg1))
         |
         |    reg1 <= add(reg1, UInt(1))
-        |    reg2 <= UInt(11)
-        |    reg3 <= reg1
-        |    reg4 <= reg2
-        |    reg5 <= add(reg3, reg4)
+        |    reg2 <= add(reg2, UInt(3))
         |
       """.stripMargin
 
     val interpreter = FirrtlTerp(input)
-    val inputUpdater = new MappedInputUpdater(interpreter.interpreterCircuit) {
-      override def step_values: Array[Map[String, BigInt]] = Array(
-        Map("reset1" -> 1, "reset2" -> 1),
-        Map("reset1" -> 0, "reset2" -> 0),
-        Map("reset1" -> 0, "reset2" -> 0),
-
-        Map("reset1" -> 1, "reset2" -> 0),
-        Map("reset1" -> 0, "reset2" -> 0),
-        Map("reset1" -> 0, "reset2" -> 0),
-
-        Map("reset1" -> 0, "reset2" -> 1),
-        Map("reset1" -> 0, "reset2" -> 0),
-        Map("reset1" -> 0, "reset2" -> 0)
-      )
-    }
+    val inputUpdater = new ManualMappedInputUpdater
 
     interpreter.setInputUpdater(inputUpdater)
 
     // interpreter.setVerbose(true)
-    interpreter.doCycles(inputUpdater.step_values.length)
+    inputUpdater.setValues(Map("reset1" -> 1, "reset2" -> 1))
+    interpreter.doCycles(1)
+    interpreter.sourceState.registers("reg1").value should be (0)
+    interpreter.sourceState.registers("reg2").value should be (0)
+
+    inputUpdater.setValues(Map("reset1" -> 0, "reset2" -> 0))
+    interpreter.doCycles(1)
+    interpreter.sourceState.registers("reg1").value should be (1)
+    interpreter.sourceState.registers("reg2").value should be (3)
+
+    inputUpdater.setValues(Map("reset1" -> 0, "reset2" -> 0))
+    interpreter.doCycles(1)
+    interpreter.sourceState.registers("reg1").value should be (2)
+    interpreter.sourceState.registers("reg2").value should be (6)
+
+    inputUpdater.setValues(Map("reset1" -> 1, "reset2" -> 0))
+    interpreter.doCycles(1)
+    interpreter.sourceState.registers("reg1").value should be (0)
+    interpreter.sourceState.registers("reg2").value should be (9)
+
+    inputUpdater.setValues(Map("reset1" -> 0, "reset2" -> 0))
+    interpreter.doCycles(1)
+    interpreter.sourceState.registers("reg1").value should be (1)
+    interpreter.sourceState.registers("reg2").value should be (12)
+
+    inputUpdater.setValues(Map("reset1" -> 0, "reset2" -> 1))
+    interpreter.doCycles(1)
+    interpreter.sourceState.registers("reg1").value should be (2)
+    interpreter.sourceState.registers("reg2").value should be (1)
 
   }
 }
