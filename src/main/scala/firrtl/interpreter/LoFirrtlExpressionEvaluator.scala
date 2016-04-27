@@ -177,6 +177,23 @@ class LoFirrtlExpressionEvaluator(
     }
   }
 
+  def bitSelectOp(opCode: PrimOp, args: Seq[Expression], parameters: Seq[BigInt], tpe: Type): ConcreteValue = {
+    val e = evaluate(args.head)
+    val hi = parameters.head
+    val lo = parameters.tail.head
+    opCode match {
+      case BITS_SELECT_OP =>
+        val shifted = shiftRight(e.value, lo)
+        val masked = mask(shifted, hi - lo)
+        if(e.isInstanceOf[UIntValue]) {
+          makeUIntValue(masked, getWidth(tpe))
+        }
+        else {
+          makeSIntValue(masked, getWidth(tpe))
+        }
+    }
+  }
+
   def comparisonOp(opCode: PrimOp, args: Seq[Expression], tpe: Type): ConcreteValue = {
     val arg1 = evaluate(args.head)
     val arg2 = evaluate(args.tail.head)
@@ -330,6 +347,7 @@ class LoFirrtlExpressionEvaluator(
           case GREATER_EQ_OP      => comparisonOp(op, args, tpe)
 
           case PAD_OP             => paddingOp(op, args, const, tpe)
+          case BITS_SELECT_OP     => bitSelectOp(op, args, const, tpe)
 
           case AS_UINT_OP         => castingOp(op, args, tpe)
           case AS_SINT_OP         => castingOp(op, args, tpe)
@@ -381,6 +399,17 @@ class LoFirrtlExpressionEvaluator(
     while (toResolve.nonEmpty) {
       val key = toResolve.head
       resolveDependency(key)
+    }
+  }
+
+  def processRegisterResets(): Unit = {
+    for(registerDef <- dependencyGraph.registers) {
+      val resetCondition = evaluate(registerDef.reset)
+      if(resetCondition.value > 0 ) {
+        val resetValue = evaluate(registerDef.init)
+        println(s"Register ${registerDef.name} reset to $resetValue")
+        circuitState.nextRegisters(registerDef.name) = resetValue
+      }
     }
   }
 

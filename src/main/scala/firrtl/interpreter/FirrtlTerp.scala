@@ -31,7 +31,6 @@ import java.io.File
 
 import firrtl._
 
-// TODO: Support stop and print
 // TODO: Support reset on regs
 // TODO: Support Memory
 // TODO: Add poison concept
@@ -51,6 +50,9 @@ class FirrtlTerp(ast: Circuit) {
   println("LoFirrtl" + "="*120)
   println(lowered_ast.serialize)
   println(s"ast $lowered_ast")
+
+  var verbose = false
+  def setVerbose(value: Boolean): Unit = { verbose = value }
 
   val interpreterCircuit = new InterpreterCircuit(lowered_ast)
 
@@ -72,13 +74,20 @@ class FirrtlTerp(ast: Circuit) {
       dependencyGraph = interpreterCircuit.dependencyGraph,
       circuitState = sourceState
     )
+    evaluator.setVerbose(verbose)
     evaluator.resolveDependencies()
+    println(s"After resolve ${"-"*80}\n${sourceState.prettyString()}")
     lastStopResult = evaluator.checkStops()
     evaluator.checkPrints()
 
-    println(s"After cycle ${"-"*80}\n${sourceState.prettyString()}")
+    println(s"After PRINT ${"-"*80}\n${sourceState.prettyString()}")
+    evaluator.processRegisterResets()
+
+    println(s"After RESET ${"-"*80}\n${sourceState.prettyString()}")
 
     sourceState = sourceState.getNextState
+    println(s"After NEXT STATE ${"-"*80}\n${sourceState.prettyString()}")
+
   }
 
   def doCycles(n: Int): Unit = {

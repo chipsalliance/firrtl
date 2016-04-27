@@ -11,8 +11,6 @@ object DependencyGraph extends LazyLogging {
   def apply(m: Module): DependencyGraph = {
     val dependencies = new DependencyGraph
 
-    val node_map = new collection.mutable.HashMap[String, Expression]
-
     def enumExpr(e: Expression): Expression = e match {
       case w: WRef => e
       case (_: UIntValue | _: SIntValue) => e
@@ -26,21 +24,6 @@ object DependencyGraph extends LazyLogging {
         UIntValue(0, IntWidth(1))
     }
 
-//   1 /**
-//      *
-//      * @param expression
-//      * @param nameSoFar
-//      * @return
-//      */
-//    def lhsGetName(expression: Expression, nameSoFar: String = ""): String = {
-//      expression match {
-//        case WRef(name, _, _, _) => name
-//        case WSubField(subExpression, name, _, _ ) => lhsGetName(subExpression) + "." + name
-//        case WSubIndex(subExpression, value, _, _ ) => lhsGetName(subExpression) + "." + value.toString
-//        case _ => throw new InterpreterException(s"error:unsupported lhs $expression")
-//      }
-//    }
-
     def getDepsStmt(s: Stmt): Stmt = s match {
       case begin: Begin =>
         // println(s"got a begin $begin")
@@ -48,10 +31,10 @@ object DependencyGraph extends LazyLogging {
         begin
       case con: Connect =>
         con.loc match {
-          case WRef(name,_,_,_) => dependencies(name) = enumExpr(con.exp)
+          case WRef(name,_,_,_) => dependencies(name) = con.exp
           case (_: WSubField | _: WSubIndex) =>
             val name = con.loc.serialize
-            dependencies(name) = enumExpr(con.exp)
+            dependencies(name) = con.exp
         }
         con
       case DefNode(_, name, expression) =>
@@ -63,11 +46,12 @@ object DependencyGraph extends LazyLogging {
         println(s"declaration:node: $s")
         dependencies.recordLhs(name)
         s
-      case DefRegister(_, name, tpe, _, _, _) =>
+      case DefRegister(_, name, tpe, _, resetExpression, initValueExpression) =>
         println(s"declaration:reg: $s")
         dependencies.registerNames += name
         dependencies.recordLhs(name)
         dependencies.recordType(name, tpe)
+        dependencies.registers += s.asInstanceOf[DefRegister]
         s
       case stopStatement: Stop =>
         dependencies.addStop(stopStatement)
@@ -87,8 +71,9 @@ object DependencyGraph extends LazyLogging {
       case i: InModule => getDepsStmt(i.body)
       case e: ExModule => // Do nothing
     }
-    println(s"For ${m.name} dependencies =")
-    dependencies.nameToExpression foreach { case (k, v) =>
+    println(s"For module ${m.name} dependencies =")
+    dependencies.nameToExpression.keys.toSeq.sorted foreach { case k =>
+      val v = dependencies.nameToExpression(k)
       println(s"  $k -> (" + v.toString + ")")
     }
     dependencies
@@ -106,6 +91,7 @@ class DependencyGraph {
   val lhsEntities      = new mutable.HashSet[String]
   val nameToType       = new mutable.HashMap[String, Type]
   val registerNames    = new mutable.HashSet[String]
+  val registers        = new ArrayBuffer[DefRegister]
   val stops            = new ArrayBuffer[Stop]
   val prints           = new ArrayBuffer[Print]
 

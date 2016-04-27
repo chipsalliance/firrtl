@@ -10,6 +10,7 @@ circuit ChirrtlMems :
     wire wen : UInt<1>
     wen <= not(reset) ; Don't const prop me!
 
+    reg dummy : UInt<4>, clk
     reg raddr : UInt<4>, clk with : (reset => (reset, UInt(0)))
 
     raddr <= add(raddr, UInt(1))

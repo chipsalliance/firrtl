@@ -82,6 +82,7 @@ case class CircuitState(
       nameToConcreteValue(key) = concreteValue
     }
     else if(registers.contains(key)) {
+      println(s"Updating nextRegiser $key => $concreteValue")
       nextRegisters(key) = concreteValue
       // we continue to use the initial values of registers when they appear on RHS of an expression
     }
