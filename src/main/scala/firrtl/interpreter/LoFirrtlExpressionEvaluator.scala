@@ -323,12 +323,12 @@ class LoFirrtlExpressionEvaluator(
     indent()
 
     val result = expression match {
-      case mux: Mux =>
-        if( evaluate(mux.cond).value > 0 ) {
-          evaluate(mux.tval)
+      case Mux(condition, tval, fval, _) =>
+        if( evaluate(condition).value > 0 ) {
+          evaluate(tval)
         }
         else {
-          evaluate(mux.fval)
+          evaluate(fval)
         }
       case WRef(name, tpe, kind, gender) => getValue(name)
       case DoPrim(op, args, const, tpe) =>

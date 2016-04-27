@@ -11,19 +11,6 @@ object DependencyGraph extends LazyLogging {
   def apply(m: Module): DependencyGraph = {
     val dependencies = new DependencyGraph
 
-    def enumExpr(e: Expression): Expression = e match {
-      case w: WRef => e
-      case (_: UIntValue | _: SIntValue) => e
-      case (_: Ref |_: WRef |_: WSubField) => e
-      case m: Mux => m
-      //TODO: Validate that the following are not LoFIRRTL
-      //        case v: ValidIf => v.cond, v.value flatMap enumExpr
-      //        case d: DoPrim => d.args flatMap enumExpr
-      case _ =>
-        println(s"Got node I can't handle $e")
-        UIntValue(0, IntWidth(1))
-    }
-
     def getDepsStmt(s: Stmt): Stmt = s match {
       case begin: Begin =>
         // println(s"got a begin $begin")

@@ -29,15 +29,17 @@ package firrtl.interpreter
 
 import firrtl._
 
-// TODO: Support reset on regs
 // TODO: Support Memory
-// TODO: Add poison concept
+// TODO: Check for loops in dependency graph during evaluation
+// TODO: Add poison concept/multi-state
+// TODO: Consider adding counts to nodes and registers
 // TODO: Make into separate repo
 // TODO: Support Multiple modules
 // TODO: Work through more operators
 // TODO: Figure out what to do about clock and reset inputs
 // TODO: Implement VCD parser and emitter (https://github.com/impedimentToProgress/ProcessVCD.git)?
 // TODO: Get official Firrtl to LoFirrtl transformer
+// TODO: x(8, 4) := UInt(31)
 
 class FirrtlTerp(ast: Circuit) {
   var lastStopResult: Option[Int] = None
@@ -68,7 +70,7 @@ class FirrtlTerp(ast: Circuit) {
     updateInputs()
 
     val evaluator = new LoFirrtlExpressionEvaluator(
-      startKeys = interpreterCircuit.dependencyGraph.keys,
+      startKeys = interpreterCircuit.dependencyGraph.keys, //TODO: maybe remove this
       dependencyGraph = interpreterCircuit.dependencyGraph,
       circuitState = sourceState
     )
