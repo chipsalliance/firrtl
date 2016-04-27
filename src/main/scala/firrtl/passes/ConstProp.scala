@@ -183,15 +183,11 @@ object ConstProp extends Pass {
             case LESS_EQ_OP    if (r0 <= r1) => one
             case GREATER_OP    if (r0 > r1) => one
             case GREATER_EQ_OP if (r0 >= r1) => one
-            //case EQUAL_OP      if (r0 === r1) => one
-            //case NEQUAL_OP     if ((r0 < r1) || (r0 > r1)) => one
             // Always false
             case LESS_OP       if (r0 >= r1) => zero
             case LESS_EQ_OP    if (r0 > r1) => zero
             case GREATER_OP    if (r0 <= r1) => zero
             case GREATER_EQ_OP if (r0 < r1) => zero
-            //case EQUAL_OP      if ((r0 < r1) || (r0 > r1)) => zero
-            //case NEQUAL_OP     if (r0 === r1) => zero
             case _ => e
           }
         }

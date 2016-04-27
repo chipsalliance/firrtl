@@ -93,7 +93,6 @@ object VerilogCompiler extends Compiler {
     SplitExpressions,
     CommonSubexpressionElimination,
     DeadCodeElimination,
-    ConstProp,
     VerilogRename
   )
   def run(c: Circuit, w: Writer)
