@@ -57,8 +57,15 @@ case class WVoid() extends Expression { def tpe = UnknownType() }
 case class WInvalid() extends Expression { def tpe = UnknownType() }
 case class WDefInstance(info:Info,name:String,module:String,tpe:Type) extends Stmt 
 
-case object ADDW_OP extends PrimOp 
+// Resultant width is the same as the maximum input width
+case object ADDW_OP extends PrimOp
+// Resultant width is the same as the maximum input width
 case object SUBW_OP extends PrimOp
+// Resultant width is the same as input argument width
+case object DSHLW_OP extends PrimOp
+// Resultant width is the same as input argument width
+case object SHLW_OP extends PrimOp
+
 
 object WrappedExpression {
    def apply (e:Expression) = new WrappedExpression(e)
