@@ -80,17 +80,19 @@ object VerilogCompiler extends Compiler {
     InferTypes,
     ResolveGenders,
     InferWidths,
-    Legalize,
     LowerTypes,
     ResolveKinds,
     InferTypes,
     ResolveGenders,
     InferWidths,
-    SplitExp,
+    RemoveValidIf,
     ConstProp,
+    PadWidths,
+    VerilogWrap,
+    SplitExpressions,
     CommonSubexpressionElimination,
     DeadCodeElimination,
-    VerilogWrap,
+    ConstProp,
     VerilogRename
   )
   def run(c: Circuit, w: Writer)
