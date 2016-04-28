@@ -64,25 +64,25 @@ class LoFirrtlExpressionEvaluatorSpec extends FlatSpec with Matchers {
     val outWidth = IntWidth(4)
     val outWidthType = UIntType(outWidth)
 
-    evaluator.mathPrimitive(MUL_OP, Seq(i1, i1), outWidthType ).isInstanceOf[UIntValue] should be (true)
-    evaluator.mathPrimitive(MUL_OP, Seq(i1, s1), outWidthType ).isInstanceOf[SIntValue] should be (true)
-    evaluator.mathPrimitive(MUL_OP, Seq(s1, i1), outWidthType ).isInstanceOf[SIntValue] should be (true)
-    evaluator.mathPrimitive(MUL_OP, Seq(s1, s1), outWidthType ).isInstanceOf[SIntValue] should be (true)
+    evaluator.mathPrimitive(MUL_OP, Seq(i1, i1), outWidthType ).isInstanceOf[ConcreteUInt] should be (true)
+    evaluator.mathPrimitive(MUL_OP, Seq(i1, s1), outWidthType ).isInstanceOf[ConcreteSInt] should be (true)
+    evaluator.mathPrimitive(MUL_OP, Seq(s1, i1), outWidthType ).isInstanceOf[ConcreteSInt] should be (true)
+    evaluator.mathPrimitive(MUL_OP, Seq(s1, s1), outWidthType ).isInstanceOf[ConcreteSInt] should be (true)
 
   }
   they should "evaluate multiply UIntValues correctly" in {
     for(i <- 0 to 10) {
-      val w1 = IntWidth(BigInt(baseWidth, random))
-      val w2 = IntWidth(BigInt(baseWidth, random))
-      val i1 = evaluator.makeUIntValue(BigInt(baseWidth, random), w1)
-      val i2 = evaluator.makeUIntValue(BigInt(baseWidth, random), w2)
+      val w1 = IntWidth(BigInt(baseWidth, random).abs)
+      val w2 = IntWidth(BigInt(baseWidth, random).abs)
+      val i1 = evaluator.makeUIntValue(BigInt(baseWidth-1, random).abs, w1)
+      val i2 = evaluator.makeUIntValue(BigInt(baseWidth-1, random).abs, w2)
       val outWidth = IntWidth(BigInt(baseWidth, random))
       val outWidthType = UIntType(outWidth)
 
       val out = evaluator.mathPrimitive(MUL_OP, Seq(i1, i2), outWidthType )
 
-      println(s"$i1 * $i2 => $out")
-      out.value should be (evaluator.mask(i1.value * i2.value, outWidth.width))
+      println(s"$i1 * $i2 => $out $outWidth")
+      out.value should be (i1.value * i2.value)
     }
   }
   they should "evaluate multiply SIntValues correctly" in {
@@ -98,7 +98,23 @@ class LoFirrtlExpressionEvaluatorSpec extends FlatSpec with Matchers {
       val out = evaluator.mathPrimitive(MUL_OP, Seq(i1, i2), outWidthType )
 
       println(s"$i1 * $i2 => $out")
-      out.value should be (evaluator.mask(i1.value * i2.value, outWidth.width))
+      out.value should be (i1.value * i2.value)
+    }
+  }
+
+  behavior of "requiredBits"
+
+  it should "return the right amount" in {
+    requiredBits(BigInt("1"*29, 2)) should be (29)
+    for( width <- 1 to 100) {
+      val num = Big1 << (width - 1)
+      val computed = requiredBits(num)
+      computed should be (width)
+
+      val maxNum = BigInt("1"*width, 2)
+      val maxComputed = requiredBits(maxNum)
+      println(s"width $width computed $maxComputed num $maxNum")
+      maxComputed should be (width)
     }
   }
 
@@ -111,7 +127,7 @@ class LoFirrtlExpressionEvaluatorSpec extends FlatSpec with Matchers {
     evaluator.mask(num, bits) should be(num % pow)
 
     var power: BigInt = 2
-    for(maskSize <- 0 to 100) {
+    for(maskSize <- 1 to 100) {
       for (samples <- 0 to 10) {
         val number = BigInt(maskSize + 10, random)
         val masked = evaluator.mask(number, maskSize)
@@ -136,14 +152,23 @@ class LoFirrtlExpressionEvaluatorSpec extends FlatSpec with Matchers {
     }
   }
   it should "shift bits n bits to the right" in {
-    for(i <- 3 to 100) {
-      for(arg <- 1 until i) {
-        val num = BigInt("1"*i, 2)
-        val target = UIntValue(evaluator.shiftLeft(num, arg), IntWidth(i + arg))
+    def testShiftOp(width: Int, shift: Int): Unit = {
+      val num = BigInt("1"*width, 2)
+      val shiftedNum = num << shift
+      val target = UIntValue(shiftedNum, IntWidth(width + shift))
+      requiredBits(num) should be (width)
+      requiredBits(shiftedNum) should be (width + shift)
 
-        val result = evaluator.bitOps(SHIFT_RIGHT_OP, Seq(target), Seq(arg), UIntType(IntWidth(i)))
-        //        println(s"num $num arg $arg, target $target result $result")
-        result.value should be (num)
+      println(s"width $width => num $num arg $shift, target $target result NA")
+      val result = evaluator.bitOps(SHIFT_RIGHT_OP, Seq(target), Seq(shift), UIntType(IntWidth(width)))
+      println(s"width $width => num $num arg $shift, target $target result $result")
+      result.value should be (num)
+    }
+    testShiftOp(29, 1)
+
+    for(i <- 3 to 40) {
+      for(arg <- 1 until i) {
+        testShiftOp(i, arg)
       }
       for(arg <- 1 until i) {
         val num = BigInt("1"*i, 2)
@@ -181,7 +206,7 @@ class LoFirrtlExpressionEvaluatorSpec extends FlatSpec with Matchers {
         val result = evaluator.bitOps(SHIFT_LEFT_OP, Seq(target), Seq(arg), UIntType(IntWidth(i+arg)))
         //        println(s"num $num arg $arg, target $target result $result")
         result.value should be (testTarget)
-        result.widthAsBigInt should be (i+arg)
+        result.width should be (i+arg)
       }
       for(arg <- 1 until 50) {
         val num = BigInt("1"*i, 2)
@@ -191,7 +216,7 @@ class LoFirrtlExpressionEvaluatorSpec extends FlatSpec with Matchers {
         val result = evaluator.bitOps(SHIFT_LEFT_OP, Seq(target), Seq(arg), SIntType(IntWidth(i+arg)))
         //        println(s"num $num arg $arg, target $target result $result")
         result.value should be (testTarget)
-        result.widthAsBigInt should be (i+arg)
+        result.width should be (i+arg)
       }
     }
   }
@@ -203,12 +228,47 @@ class LoFirrtlExpressionEvaluatorSpec extends FlatSpec with Matchers {
       evaluator.dynamicBitOps(DYN_SHIFT_LEFT_OP,
         Seq(UIntValue(1, IntWidth(3)), UIntValue(0, IntWidth(2))), Seq(), UIntType(IntWidth(3)))
     }
-    intercept[AssertionError] {
+    intercept[InterpreterException] {
       evaluator.dynamicBitOps(DYN_SHIFT_LEFT_OP,
         Seq(UIntValue(1, IntWidth(3)), SIntValue(1, IntWidth(2))), Seq(), UIntType(IntWidth(3)))
     }
   }
   it should "shift bits n bits to the left" in {
+    def testShiftOp(width: Int, shift: Int): Unit = {
+      val num = BigInt("1"*width, 2)
+      val shiftedNum = num << shift
+      val target = UIntValue(shiftedNum, IntWidth(width + shift))
+      requiredBits(num) should be (width)
+      requiredBits(shiftedNum) should be (width + shift)
+
+      println(s"width $width => num $num arg $shift, target $target result NA")
+      val result = evaluator.bitOps(SHIFT_RIGHT_OP, Seq(target), Seq(shift), UIntType(IntWidth(width)))
+      println(s"width $width => num $num arg $shift, target $target result $result")
+      result.value should be (num)
+    }
+    testShiftOp(29, 1)
+
+    for(i <- 3 to 40) {
+      for(arg <- 1 until i) {
+        testShiftOp(i, arg)
+      }
+      for(arg <- 1 until i) {
+        val num = BigInt("1"*i, 2)
+        val target = SIntValue(evaluator.shiftLeft(num, arg), IntWidth(i + arg + 1))
+
+        val result = evaluator.bitOps(SHIFT_RIGHT_OP, Seq(target), Seq(arg), SIntType(IntWidth(i+1)))
+        //        println(s"num $num arg $arg, target $target result $result")
+        result.value should be (num)
+      }
+      for(arg <- 1 until i) {
+        val num = -BigInt("1"*i, 2)
+        val target = SIntValue(evaluator.shiftLeft(num, arg), IntWidth(i + arg + 1))
+
+        val result = evaluator.bitOps(SHIFT_RIGHT_OP, Seq(target), Seq(arg), SIntType(IntWidth(i+1)))
+        //        println(s"num $num arg $arg, target $target result $result")
+        result.value should be (num)
+      }
+    }
     for(i <- 3 to 100) {
       for(arg <- 1 until 50) {
         val num = BigInt("1"*i, 2)
@@ -216,10 +276,10 @@ class LoFirrtlExpressionEvaluatorSpec extends FlatSpec with Matchers {
         val testTarget = evaluator.shiftLeft(num, arg)
         val shiftValue = evaluator.makeUIntValue(arg, IntWidth(req_num_bits(arg)))
 
-        val result = evaluator.dynamicBitOps(DYN_SHIFT_LEFT_OP, Seq(target, shiftValue), Seq(arg), UIntType(IntWidth(i+arg)))
+        val result = evaluator.dynamicBitOps(DYN_SHIFT_LEFT_OP, Seq(target, shiftValue), Seq(), UIntType(IntWidth(i+arg)))
         //        println(s"num $num arg $arg, target $target result $result")
         result.value should be (testTarget)
-        result.widthAsBigInt should be (i+arg)
+        result.width should be (i+arg)
       }
       for(arg <- 1 until 50) {
         val num = BigInt("1"*i, 2)
@@ -227,10 +287,10 @@ class LoFirrtlExpressionEvaluatorSpec extends FlatSpec with Matchers {
         val testTarget = evaluator.shiftLeft(num, arg)
         val shiftValue = evaluator.makeUIntValue(arg, IntWidth(req_num_bits(arg)))
 
-        val result = evaluator.dynamicBitOps(DYN_SHIFT_LEFT_OP, Seq(target, shiftValue), Seq(0), SIntType(IntWidth(i+arg)))
+        val result = evaluator.dynamicBitOps(DYN_SHIFT_LEFT_OP, Seq(target, shiftValue), Seq(), SIntType(IntWidth(i+arg)))
         //        println(s"num $num arg $arg, target $target result $result")
         result.value should be (testTarget)
-        result.widthAsBigInt should be (i+arg)
+        result.width should be (i+arg)
       }
     }
   }
@@ -238,44 +298,34 @@ class LoFirrtlExpressionEvaluatorSpec extends FlatSpec with Matchers {
   behavior of "DYN_SHIFT_RIGHT_OP"
 
   it should "throw assertions when parameter is zero" in {
-    intercept[AssertionError] {
+    intercept[InterpreterException] {
       evaluator.dynamicBitOps(DYN_SHIFT_RIGHT_OP,
         Seq(UIntValue(1, IntWidth(3)), UIntValue(4, IntWidth(2))), Seq(), UIntType(IntWidth(3)))
     }
-    intercept[AssertionError] {
+    intercept[InterpreterException] {
       evaluator.dynamicBitOps(DYN_SHIFT_RIGHT_OP,
         Seq(UIntValue(1, IntWidth(3)), SIntValue(1, IntWidth(2))), Seq(), UIntType(IntWidth(3)))
     }
   }
   it should "shift bits n bits to the right" in {
-//    evaluator.setVerbose(true)
-    for(i <- 3 to 100) {
-      for(arg <- 1 until i) {
-        val num = BigInt("1"*i, 2)
-        val target = UIntValue(evaluator.shiftLeft(num, arg), IntWidth(i + arg))
-        val shiftValue = evaluator.makeUIntValue(arg, IntWidth(req_num_bits(arg)))
+    def testShiftOp(width: Int, shift: Int): Unit = {
+      val num = BigInt("1"*width, 2)
+      val shiftedNum = num >> shift
 
-        val result = evaluator.dynamicBitOps(DYN_SHIFT_RIGHT_OP, Seq(target, shiftValue), Seq(), UIntType(IntWidth(i)))
-        //        println(s"num $num arg $arg, target $target result $result")
-        result.value should be (num)
-      }
-      for(arg <- 1 until i) {
-        val num = BigInt("1"*i, 2)
-        val target = SIntValue(evaluator.shiftLeft(num, arg), IntWidth(i + arg + 1))
-        val shiftValue = evaluator.makeUIntValue(arg, IntWidth(req_num_bits(arg)))
+      val target = UIntValue(num, IntWidth(width))
+      val shiftUInt = UIntValue(shift, IntWidth(requiredBits(shift)))
 
-        val result = evaluator.dynamicBitOps(DYN_SHIFT_RIGHT_OP, Seq(target, shiftValue), Seq(), SIntType(IntWidth(i+1)))
-        //        println(s"num $num arg $arg, target $target result $result")
-        result.value should be (num)
-      }
-      for(arg <- 1 until i) {
-        val num = -BigInt("1"*i, 2)
-        val target = SIntValue(evaluator.shiftLeft(num, arg), IntWidth(i + arg + 1))
-        val shiftValue = evaluator.makeUIntValue(arg, IntWidth(req_num_bits(arg)))
+      requiredBits(num) should be (width)
+      requiredBits(shiftedNum) should be (width - shift)
 
-        val result = evaluator.dynamicBitOps(DYN_SHIFT_RIGHT_OP, Seq(target, shiftValue), Seq(), SIntType(IntWidth(i+1)))
-        //        println(s"num $num arg $arg, target $target result $result")
-        result.value should be (num)
+      val result = evaluator.dynamicBitOps(DYN_SHIFT_RIGHT_OP, Seq(target, shiftUInt), Seq(), UIntType(IntWidth(width)))
+      println(s"width $width => num $num arg $shift, target $target result $result")
+      result.value should be (shiftedNum)
+    }
+
+    for(i <- 3 to 20) {
+      for(arg <- 1 until i) {
+        testShiftOp(i, arg)
       }
     }
   }
@@ -294,13 +344,13 @@ class LoFirrtlExpressionEvaluatorSpec extends FlatSpec with Matchers {
     }
   }
   it should "shift n bits at top of number over the width - n bits to the right" in {
-    for(i <- 3 to 100) {
+    for(i <- 1 to 100) {
       for(arg <- 1 until i) {
         val num = BigInt("1"*i, 2)
         val target = UIntValue(evaluator.shiftLeft(num, arg), IntWidth(i + arg))
 
+        println(s"i $i num $num arg $arg, target $target result NA")
         val result = evaluator.bitOps(HEAD_OP, Seq(target), Seq(i), UIntType(IntWidth(i)))
-        //        println(s"num $num arg $arg, target $target result $result")
         result.value should be (num)
       }
     }
@@ -313,21 +363,16 @@ class LoFirrtlExpressionEvaluatorSpec extends FlatSpec with Matchers {
       evaluator.bitOps(TAIL_OP, Seq(UIntValue(1, IntWidth(3))), Seq(0), UIntType(IntWidth(3)))
     }
     intercept[AssertionError] {
-      evaluator.bitOps(TAIL_OP, Seq(UIntValue(1, IntWidth(3))), Seq(3), UIntType(IntWidth(3)))
-    }
-    intercept[AssertionError] {
       evaluator.bitOps(TAIL_OP, Seq(UIntValue(1, IntWidth(33))), Seq(34), UIntType(IntWidth(3)))
     }
   }
   it should "remove top n bits of a number" in {
-    evaluator.bitOps(TAIL_OP, Seq(UIntValue(1, IntWidth(3))), Seq(1), UIntType(IntWidth(3))) should be (UIntValue(1,IntWidth(3)))
-
     for(i <- 3 to 100) {
       for(arg <- 1 until i) {
         val num = BigInt("1"*i, 2)
-        val mask = BigInt("1"*(i-arg), 2)
+        val mask = BigInt("1"*arg, 2)
         val target = UIntValue(num, IntWidth(i))
-        val result = evaluator.bitOps(TAIL_OP, Seq(target), Seq(arg), UIntType(IntWidth(i)))
+        val result = evaluator.bitOps(TAIL_OP, Seq(target), Seq(arg), UIntType(IntWidth(arg)))
         //        println(s"num $num arg $arg, result $result")
         result.value should be (mask)
       }

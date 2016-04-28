@@ -39,7 +39,7 @@ object CircuitState {
       interpreterCircuit.inputPortToValue,
       interpreterCircuit.outputPortToValue,
       interpreterCircuit.makeRegisterToConcreteValueMap,
-      new mutable.HashMap[String, ConcreteValue]()
+      new mutable.HashMap[String, Concrete]()
     )
     circuitState
   }
@@ -58,11 +58,11 @@ object CircuitState {
   * @param registers   a map to current concrete value
   */
 case class CircuitState(
-                    inputPorts: mutable.Map[String, ConcreteValue],
-                    outputPorts: mutable.Map[String, ConcreteValue],
-                    registers: mutable.Map[String, ConcreteValue],
-                    ephemera: mutable.Map[String, ConcreteValue] = new mutable.HashMap[String, ConcreteValue]()) {
-  val nextRegisters = new mutable.HashMap[String, ConcreteValue]()
+                    inputPorts: mutable.Map[String, Concrete],
+                    outputPorts: mutable.Map[String, Concrete],
+                    registers: mutable.Map[String, Concrete],
+                    ephemera: mutable.Map[String, Concrete] = new mutable.HashMap[String, Concrete]()) {
+  val nextRegisters = new mutable.HashMap[String, Concrete]()
 
   val nameToConcreteValue = mutable.HashMap((inputPorts ++ outputPorts ++ registers).toSeq:_*)
 
@@ -76,13 +76,13 @@ case class CircuitState(
     nextState
   }
 
-  def setValue(key: String, concreteValue: ConcreteValue): ConcreteValue = {
+  def setValue(key: String, concreteValue: Concrete): Concrete = {
     if(outputPorts.contains(key)) {
       outputPorts(key) = concreteValue
       nameToConcreteValue(key) = concreteValue
     }
     else if(registers.contains(key)) {
-      println(s"Updating nextRegiser $key => $concreteValue")
+      println(s"Updating nextRegister $key => $concreteValue")
       nextRegisters(key) = concreteValue
       // we continue to use the initial values of registers when they appear on RHS of an expression
     }
@@ -93,14 +93,14 @@ case class CircuitState(
     concreteValue
   }
 
-  def setInput(key: String, value: BigInt): ConcreteValue = {
-    val concrete_value = TypeInstanceFactory(inputPorts(key), value)
-    inputPorts(key) = concrete_value
-    nameToConcreteValue(key) = concrete_value
-    concrete_value
+  def setInput(key: String, value: BigInt): Concrete = {
+    val concreteValue = TypeInstanceFactory(inputPorts(key), value)
+    inputPorts(key) = concreteValue
+    nameToConcreteValue(key) = concreteValue
+    concreteValue
   }
 
-  def getValue(key: String): Option[ConcreteValue] = {
+  def getValue(key: String): Option[Concrete] = {
     val value = nameToConcreteValue.get(key)
     value
   }
@@ -126,7 +126,7 @@ case class CircuitState(
         case _ => e.toString
       }
     }
-    def showConcreteValues(msg: String, m: Map[String, ConcreteValue]): String = {
+    def showConcreteValues(msg: String, m: Map[String, Concrete]): String = {
       m.keys.toSeq.sorted.map { case key =>
         s"$key=${m(key).value}"
       }.mkString(msg+prefix, separator, postfix)

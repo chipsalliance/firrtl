@@ -63,7 +63,7 @@ class LoFirrtlExpressionEvaluator(
     * @param key  the name of the assignable thing
     * @return
     */
-  def getValue(key: String): ConcreteValue = {
+  def getValue(key: String): Concrete = {
     circuitState.getValue(key).getOrElse(resolveDependency(key))
   }
 
@@ -77,6 +77,7 @@ class LoFirrtlExpressionEvaluator(
     * @return
     */
   def mask(number: BigInt, size: BigInt): BigInt = {
+    if(size < 1) return Big0
     val convenientShiftSize = 30
     var modulo: BigInt = 1
     var toShift: BigInt = (size - 1).max(0) + 1
@@ -140,171 +141,95 @@ class LoFirrtlExpressionEvaluator(
     intWidth
   }
 
-  def mathPrimitive(opCode: PrimOp, args: Seq[Expression], tpe: Type): ConcreteValue = {
+  def mathPrimitive(opCode: PrimOp, args: Seq[Expression], tpe: Type): Concrete = {
     val arg1 = evaluate(args.head)
     val arg2 = evaluate(args.tail.head)
     opCode match {
-      case ADD_OP => (arg1, arg2) match {
-        case (e1: UIntValue, e2: UIntValue) => makeUIntValue(e1.value + e2.value, getWidth(tpe))
-        case (e1: UIntValue, e2: SIntValue) => makeSIntValue(e1.value + e2.value, getWidth(tpe))
-        case (e1: SIntValue, e2: UIntValue) => makeSIntValue(e1.value + e2.value, getWidth(tpe))
-        case (e1: SIntValue, e2: SIntValue) => makeSIntValue(e1.value + e2.value, getWidth(tpe))
-      }
-      case SUB_OP => (arg1, arg2) match {
-        case (e1: UIntValue, e2: UIntValue) => makeSIntValue(e1.value - e2.value, getWidth(tpe))
-        case (e1: UIntValue, e2: SIntValue) => makeSIntValue(e1.value - e2.value, getWidth(tpe))
-        case (e1: SIntValue, e2: UIntValue) => makeSIntValue(e1.value - e2.value, getWidth(tpe))
-        case (e1: SIntValue, e2: SIntValue) => makeSIntValue(e1.value - e2.value, getWidth(tpe))
-      }
-      case MUL_OP => (arg1, arg2) match {
-        case (e1: UIntValue, e2: UIntValue) => makeUIntValue(e1.value * e2.value, getWidth(tpe))
-        case (e1: UIntValue, e2: SIntValue) => makeSIntValue(e1.value * e2.value, getWidth(tpe))
-        case (e1: SIntValue, e2: UIntValue) => makeSIntValue(e1.value * e2.value, getWidth(tpe))
-        case (e1: SIntValue, e2: SIntValue) => makeSIntValue(e1.value * e2.value, getWidth(tpe))
-      }
-      case DIV_OP => (arg1, arg2) match {
-        case (e1: UIntValue, e2: UIntValue) => makeUIntValue(e1.value / e2.value, getWidth(tpe))
-        case (e1: UIntValue, e2: SIntValue) => makeUIntValue(e1.value / e2.value, getWidth(tpe))
-        case (e1: SIntValue, e2: UIntValue) => makeSIntValue(e1.value / e2.value, getWidth(tpe))
-        case (e1: SIntValue, e2: SIntValue) => makeSIntValue(e1.value / e2.value, getWidth(tpe))
-      }
-      case REM_OP => (arg1, arg2) match {
-        case (e1: UIntValue, e2: UIntValue) => makeUIntValue(e1.value % e2.value, getWidth(tpe))
-        case (e1: UIntValue, e2: SIntValue) => makeSIntValue(e1.value % e2.value, getWidth(tpe))
-        case (e1: SIntValue, e2: UIntValue) => makeSIntValue(e1.value % e2.value, getWidth(tpe))
-        case (e1: SIntValue, e2: SIntValue) => makeSIntValue(e1.value % e2.value, getWidth(tpe))
-      }
+      case ADD_OP => arg1 + arg2
+      case SUB_OP => arg1 - arg2
+      case MUL_OP => arg1 * arg2
+      case DIV_OP => arg1 / arg2
+      case REM_OP => arg1 % arg2
     }
   }
 
-  def bitSelectOp(opCode: PrimOp, args: Seq[Expression], parameters: Seq[BigInt], tpe: Type): ConcreteValue = {
+  def bitSelectOp(opCode: PrimOp, args: Seq[Expression], parameters: Seq[BigInt], tpe: Type): Concrete = {
     val e = evaluate(args.head)
     val hi = parameters.head
     val lo = parameters.tail.head
-    opCode match {
-      case BITS_SELECT_OP =>
-        val shifted = shiftRight(e.value, lo)
-        val masked = mask(shifted, hi - lo)
-        if(e.isInstanceOf[UIntValue]) {
-          makeUIntValue(masked, getWidth(tpe))
-        }
-        else {
-          makeSIntValue(masked, getWidth(tpe))
-        }
-    }
+    e(hi, lo)
   }
 
-  def comparisonOp(opCode: PrimOp, args: Seq[Expression], tpe: Type): ConcreteValue = {
+  def comparisonOp(opCode: PrimOp, args: Seq[Expression], tpe: Type): Concrete = {
     val arg1 = evaluate(args.head)
     val arg2 = evaluate(args.tail.head)
     opCode match {
-      case EQUAL_OP      => makeUIntValue(if(arg1.value == arg2.value) 1 else 0, getWidth(tpe))
-      case NEQUAL_OP     => makeUIntValue(if(arg1.value != arg2.value) 1 else 0, getWidth(tpe))
-      case LESS_OP       => makeUIntValue(if(arg1.value <  arg2.value) 1 else 0, getWidth(tpe))
-      case LESS_EQ_OP    => makeUIntValue(if(arg1.value <= arg2.value) 1 else 0, getWidth(tpe))
-      case GREATER_OP    => makeUIntValue(if(arg1.value >  arg2.value) 1 else 0, getWidth(tpe))
-      case GREATER_EQ_OP => makeUIntValue(if(arg1.value >= arg2.value) 1 else 0, getWidth(tpe))
+      case EQUAL_OP      => arg1 == arg2
+      case NEQUAL_OP     => arg1 != arg2
+      case LESS_OP       => arg1 <  arg2
+      case LESS_EQ_OP    => arg1 <= arg2
+      case GREATER_OP    => arg1 >  arg2
+      case GREATER_EQ_OP => arg1 >= arg2
     }
   }
 
-  def paddingOp(opCode: PrimOp, args: Seq[Expression], parameters: Seq[BigInt], tpe: Type): ConcreteValue = {
-    val arg = evaluate(args.head)
-
-    opCode match {
-      case padOp => arg match {
-        // padding is handled by the width being used in concrete value instantiation
-        case u: UIntValue => makeUIntValue(u.value, getWidth(tpe))
-        case u: SIntValue => makeSIntValue(u.value, getWidth(tpe))
-      }
-    }
-  }
-
-  def castingOp(opCode: PrimOp, args: Seq[Expression], tpe: Type): ConcreteValue = {
-    val arg = evaluate(args.head)
-
-    opCode match {
-      case AS_UINT_OP => arg match {
-        // padding is handled by the width being used in concrete value instantiation
-        case u: UIntValue  => makeUIntValue(u.value, getWidth(tpe))
-        case u: SIntValue  => makeUIntValue(u.value, getWidth(tpe))
-        case u: ClockValue => makeUIntValue(u.value, getWidth(tpe))
-      }
-      case AS_SINT_OP => arg match {
-        // padding is handled by the width being used in concrete value instantiation
-        case u: UIntValue  => makeSIntValue(u.value, getWidth(tpe))
-        case u: SIntValue  => makeSIntValue(u.value, getWidth(tpe))
-        case u: ClockValue => makeSIntValue(u.value, getWidth(tpe))
-      }
-      case AS_CLOCK_OP => arg match {
-        // padding is handled by the width being used in concrete value instantiation
-        case u: UIntValue  => makeSIntValue(u.value, getWidth(tpe))
-        case u: SIntValue  => makeSIntValue(u.value, getWidth(tpe))
-        case u: ClockValue => makeSIntValue(u.value, getWidth(tpe))
-      }
-    }
-  }
-
-  def bitOps(opCode: PrimOp, args: Seq[Expression], parameters: Seq[BigInt], tpe: Type): ConcreteValue = {
+  def paddingOp(opCode: PrimOp, args: Seq[Expression], parameters: Seq[BigInt], tpe: Type): Concrete = {
     val e = evaluate(args.head)
     val n = parameters.head
-    val argWidth = e.widthAsBigInt
+
+    e.pad(n)
+  }
+
+  def castingOp(opCode: PrimOp, args: Seq[Expression], tpe: Type): Concrete = {
+    val e = evaluate(args.head)
 
     opCode match {
-      case SHIFT_LEFT_OP =>
-        assert(n > 0, s"SHIFT_LEFT_OP(${args.head}, $n): parameter must be greater than zero")
-
-        e match {
-          case UIntValue(value, _) => makeUIntValue(shiftLeft(value, n), getWidth(tpe))
-          case SIntValue(value, _) => makeSIntValue(shiftLeft(value, n), getWidth(tpe))
-        }
-      case SHIFT_RIGHT_OP =>
-        assert(n > 0, s"SHIFT_RIGHT_OP(${args.head}, $n): parameter must be greater than zero")
-        assert(argWidth >= n,
-          s"SHIFT_RIGHT_OP(${args.head}, $n): parameter must be less than or equal to width args")
-
-        e match {
-          case UIntValue(value, _) => makeUIntValue(shiftRight(value, n), getWidth(tpe))
-          case SIntValue(value, _) => makeSIntValue(shiftRight(value, n), getWidth(tpe))
-        }
-      case HEAD_OP =>
-        assert(argWidth >= n,
-          s"HEAD_OP(${args.head}, $n): parameter must be less than or equal to width args")
-        assert(n > 0, s"tail_op(${args.head}, $n): parameter must be greater than zero")
-
-        val shiftSize = argWidth - n
-        makeUIntValue(shiftRight(e.value, shiftSize), getWidth(tpe))
-      case TAIL_OP =>
-        assert(argWidth > n,
-          s"TAIL_OP(${args.head}, $n): parameter $n must be strictly less than width args")
-        assert(n > 0, s"TAIL_OP(${args.head}, $n): parameter $n must be greater than zero")
-
-        val maskSize = (argWidth - n).max(0)
-        makeUIntValue(mask(e.value, maskSize), getWidth(tpe))
+      case AS_UINT_OP  => e.asUInt
+      case AS_SINT_OP  => e.asSInt
+      case AS_CLOCK_OP => e.asClock
     }
   }
-  def dynamicBitOps(opCode: PrimOp, args: Seq[Expression], parameters: Seq[BigInt], tpe: Type): ConcreteValue = {
+
+  def bitOps(opCode: PrimOp, args: Seq[Expression], parameters: Seq[BigInt], tpe: Type): Concrete = {
+    val e = evaluate(args.head)
+    val n = parameters.head
+
+    opCode match {
+      case SHIFT_LEFT_OP => e << n
+      case SHIFT_RIGHT_OP => e >> n
+      case HEAD_OP => e.head(n)
+      case TAIL_OP => e.tail(n)
+    }
+  }
+  def dynamicBitOps(opCode: PrimOp, args: Seq[Expression], parameters: Seq[BigInt], tpe: Type): Concrete = {
     val e = evaluate(args.head)
     val n = evaluate(args.tail.head)
 
     opCode match {
-      case DYN_SHIFT_LEFT_OP =>
-        assert(n.value > 0, s"DYN_SHIFT_LEFT(${args.head}, $n): parameter must be greater than zero")
-        assert(n.isInstanceOf[UIntValue], "DYN_SHIFT_LEFT($args), n must be UIntValue")
+      case DYN_SHIFT_LEFT_OP => e << n
+      case DYN_SHIFT_RIGHT_OP => e >> n
+    }
+  }
+  def oneArgOps(opCode: PrimOp, args: Seq[Expression], parameters: Seq[BigInt], tpe: Type): Concrete = {
+    val e = evaluate(args.head)
 
-        e match {
-          case UIntValue(value, _) => makeUIntValue(shiftLeft(value, n.value), getWidth(tpe))
-          case SIntValue(value, _) => makeSIntValue(shiftLeft(value, n.value), getWidth(tpe))
-        }
-      case DYN_SHIFT_RIGHT_OP =>
-        assert(n.value > 0, s"tail_op(${args.head}, $n): parameter must be greater than zero")
-        assert(n.isInstanceOf[UIntValue], "DYN_SHIFT_RIGHT($args), n must be UIntValue")
-        assert(e.widthAsBigInt >= n.value,
-          s"tail_op(${args.head}, $n): parameter must be less than or equal to width args")
-
-        e match {
-          case UIntValue(value, _) => makeUIntValue(shiftRight(value, n.value), getWidth(tpe))
-          case SIntValue(value, _) => makeSIntValue(shiftRight(value, n.value), getWidth(tpe))
-        }
+    opCode match {
+      case CONVERT_OP         => e.cvt
+      case NEG_OP             => e.neg
+      case NOT_OP             => e.not
+      case AND_REDUCE_OP      => e.andReduce
+      case OR_REDUCE_OP       => e.orReduce
+      case XOR_REDUCE_OP      => e.xorReduce
+    }
+  }
+  def binaryBitWise(opCode: PrimOp, args: Seq[Expression], tpe: Type): Concrete = {
+    val arg1 = evaluate(args.head)
+    val arg2 = evaluate(args.tail.head)
+    opCode match {
+      case AND_OP    => arg1 & arg2
+      case OR_OP     => arg1 | arg2
+      case XOR_OP    => arg1 ^ arg2
+      case CONCAT_OP => arg1.cat(arg2)
     }
   }
   /**
@@ -313,22 +238,22 @@ class LoFirrtlExpressionEvaluator(
     * there will be no loops here
     *
     * @param expression a LoFirrtl expression to evaluate
-    * @return the resulting ConcreteValue
+    * @return the resulting Concrete
     *
     * Note: OpCodes here are double matched, once in main loop herein, then again in function suitable for that
     * family of opCodes, it makes the code cleaner, I think, but may ultimately need to be inlined for performance
     */
-  def evaluate(expression: Expression): ConcreteValue = {
+  def evaluate(expression: Expression): Concrete = {
     log(s"evaluate $expression")
     indent()
 
     val result = expression match {
-      case Mux(condition, tval, fval, _) =>
+      case Mux(condition, trueExpression, falseExpression, _) =>
         if( evaluate(condition).value > 0 ) {
-          evaluate(tval)
+          evaluate(trueExpression)
         }
         else {
-          evaluate(fval)
+          evaluate(falseExpression)
         }
       case WRef(name, tpe, kind, gender) => getValue(name)
       case DoPrim(op, args, const, tpe) =>
@@ -347,24 +272,41 @@ class LoFirrtlExpressionEvaluator(
           case GREATER_EQ_OP      => comparisonOp(op, args, tpe)
 
           case PAD_OP             => paddingOp(op, args, const, tpe)
-          case BITS_SELECT_OP     => bitSelectOp(op, args, const, tpe)
 
           case AS_UINT_OP         => castingOp(op, args, tpe)
           case AS_SINT_OP         => castingOp(op, args, tpe)
           case AS_CLOCK_OP        => castingOp(op, args, tpe)
 
+          case SHIFT_LEFT_OP      => bitOps(op, args, const, tpe)
+          case SHIFT_RIGHT_OP     => bitOps(op, args, const, tpe)
+
           case DYN_SHIFT_LEFT_OP  => dynamicBitOps(op, args, const, tpe)
           case DYN_SHIFT_RIGHT_OP => dynamicBitOps(op, args, const, tpe)
 
-          case SHIFT_LEFT_OP      => bitOps(op, args, const, tpe)
-          case SHIFT_RIGHT_OP     => bitOps(op, args, const, tpe)
+          case CONVERT_OP         => oneArgOps(op, args, const, tpe)
+          case NEG_OP             => oneArgOps(op, args, const, tpe)
+          case NOT_OP             => oneArgOps(op, args, const, tpe)
+
+          case AND_OP             => binaryBitWise(op, args, tpe)
+          case OR_OP              => binaryBitWise(op, args, tpe)
+          case XOR_OP             => binaryBitWise(op, args, tpe)
+
+          case AND_REDUCE_OP      => oneArgOps(op, args, const, tpe)
+          case OR_REDUCE_OP       => oneArgOps(op, args, const, tpe)
+          case XOR_REDUCE_OP      => oneArgOps(op, args, const, tpe)
+
+          case CONCAT_OP          => binaryBitWise(op, args, tpe)
+
+          case BITS_SELECT_OP     => bitSelectOp(op, args, const, tpe)
+
           case HEAD_OP            => bitOps(op, args, const, tpe)
           case TAIL_OP            => bitOps(op, args, const, tpe)
 
           case _ =>
             throw new InterruptedException(s"PrimOP $op in $expression not yet supported")
         }
-      case c: ConcreteValue => c
+      case c: UIntValue           => Concrete(c)
+      case c: SIntValue           => Concrete(c)
     }
 
     dedent()
@@ -373,7 +315,7 @@ class LoFirrtlExpressionEvaluator(
     result
   }
 
-  private def resolveDependency(key: String): ConcreteValue = {
+  private def resolveDependency(key: String): Concrete = {
     assert(toResolve.contains(key))
     toResolve -= key
 

@@ -35,26 +35,28 @@ import firrtl._
 // TODO: Consider adding counts to nodes and registers
 // TODO: Make into separate repo
 // TODO: Support Multiple modules
-// TODO: Work through more operators
-// TODO: Figure out what to do about clock and reset inputs
+// TODO: Figure out what to do about clock
 // TODO: Implement VCD parser and emitter (https://github.com/impedimentToProgress/ProcessVCD.git)?
 // TODO: Get official Firrtl to LoFirrtl transformer
 // TODO: x(8, 4) := UInt(31)
+// TODO: resolve bit(hi, lo) base offset
+// TODO: What is divide by zero strategy
+// TODO: for all OpCodes, add assertions that width of computation matches width of target being assigned to
 
 class FirrtlTerp(ast: Circuit) {
   var lastStopResult: Option[Int] = None
   def stopped: Boolean = lastStopResult.nonEmpty
   def stopResult = lastStopResult.get
 
-  val lowered_ast = ToLoFirrtl.lower(ast)
+  val loweredAst = ToLoFirrtl.lower(ast)
   println("LoFirrtl" + "="*120)
-  println(lowered_ast.serialize)
-  println(s"ast $lowered_ast")
+  println(loweredAst.serialize)
+  println(s"ast $loweredAst")
 
   var verbose = false
   def setVerbose(value: Boolean): Unit = { verbose = value }
 
-  val interpreterCircuit = new InterpreterCircuit(lowered_ast)
+  val interpreterCircuit = new InterpreterCircuit(loweredAst)
 
   var inputUpdater: InputUpdater = new RandomInputUpdater(interpreterCircuit)
   def setInputUpdater(newInputUpdater: InputUpdater): Unit = {
@@ -81,8 +83,9 @@ class FirrtlTerp(ast: Circuit) {
 
     evaluator.processRegisterResets()
 
-    sourceState = sourceState.getNextState
     println(s"FirrtlTerp: cycle complete ${"="*80}\n${sourceState.prettyString()}")
+    sourceState = sourceState.getNextState
+    println(s"FirrtlTerp: next state computed ${"="*80}\n${sourceState.prettyString()}")
 
   }
 
@@ -107,7 +110,7 @@ object FirrtlTerp {
   def main(args: Array[String]) {
 
     val input = if(args.isEmpty) {
-      println("Usage: FirrtlTerp file_name")
+      println("Usage: FirrtlTerp fileName")
       """circuit Test :
         |  module Test :
         |    input clk : Clock
@@ -191,21 +194,21 @@ object FirrtlTerp {
 
     val interpreter = FirrtlTerp(input)
 
-    val inputUpdater = new MappedInputUpdater(interpreter.interpreterCircuit) {
-      override def step_values: Array[Map[String, BigInt]] = Array(
-        Map("io_a" -> 6, "io_b" -> 2, "io_e" -> 1),
-        Map("io_a" -> 6, "io_b" -> 2, "io_e" -> 0),
-        Map("io_a" -> 6, "io_b" -> 2, "io_e" -> 0),
-        Map("io_a" -> 6, "io_b" -> 2, "io_e" -> 0),
-        Map("io_a" -> 6, "io_b" -> 2, "io_e" -> 0),
-        Map("io_a" -> 6, "io_b" -> 2, "io_e" -> 0),
-        Map("io_a" -> 6, "io_b" -> 2, "io_e" -> 0),
-        Map("io_a" -> 6, "io_b" -> 2, "io_e" -> 0),
-        Map("io_a" -> 6, "io_b" -> 2, "io_e" -> 0),
-        Map("io_a" -> 6, "io_b" -> 2, "io_e" -> 0),
-        Map("io_a" -> 6, "io_b" -> 2, "io_e" -> 0)
-      )
-    }
+//    val inputUpdater = new MappedInputUpdater(interpreter.interpreterCircuit) {
+//      override def step_values: Array[Map[String, BigInt]] = Array(
+//        Map("io_a" -> 6, "io_b" -> 2, "io_e" -> 1),
+//        Map("io_a" -> 6, "io_b" -> 2, "io_e" -> 0),
+//        Map("io_a" -> 6, "io_b" -> 2, "io_e" -> 0),
+//        Map("io_a" -> 6, "io_b" -> 2, "io_e" -> 0),
+//        Map("io_a" -> 6, "io_b" -> 2, "io_e" -> 0),
+//        Map("io_a" -> 6, "io_b" -> 2, "io_e" -> 0),
+//        Map("io_a" -> 6, "io_b" -> 2, "io_e" -> 0),
+//        Map("io_a" -> 6, "io_b" -> 2, "io_e" -> 0),
+//        Map("io_a" -> 6, "io_b" -> 2, "io_e" -> 0),
+//        Map("io_a" -> 6, "io_b" -> 2, "io_e" -> 0),
+//        Map("io_a" -> 6, "io_b" -> 2, "io_e" -> 0)
+//      )
+//    }
 
 //    interpreter.setInputUpdater(inputUpdater)
 

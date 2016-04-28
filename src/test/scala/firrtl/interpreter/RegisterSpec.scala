@@ -58,16 +58,16 @@ class RegisterSpec extends FlatSpec with Matchers {
 
     interpreter.setInputUpdater(inputUpdater)
 
-    // interpreter.setVerbose(true)
-    interpreter.doCycles(1)
+    interpreter.setVerbose(true)
+    interpreter.doOneCycle()
     interpreter.sourceState.registers("reg1").value should be (3)
-    interpreter.doCycles(1)
+    interpreter.doOneCycle()
     interpreter.sourceState.registers("reg1").value should be (4)
-    interpreter.doCycles(1)
+    interpreter.doOneCycle()
     interpreter.sourceState.registers("reg1").value should be (5)
-    interpreter.doCycles(1)
+    interpreter.doOneCycle()
     interpreter.sourceState.registers("reg1").value should be (3)
-    interpreter.doCycles(1)
+    interpreter.doOneCycle()
     interpreter.sourceState.registers("reg1").value should be (4)
 
   }

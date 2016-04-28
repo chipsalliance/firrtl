@@ -48,8 +48,8 @@ abstract class InputUpdater {
   }
   def updateInputs(circuitState: CircuitState, ports: Iterable[String] = Iterable.empty): Unit = {
     println(s"Update inputs step $step")
-    val ports_to_do = if(ports.nonEmpty) ports else circuitState.inputPorts.keys
-    for(port <- ports) {
+    val portsToDo = if(ports.nonEmpty) ports else circuitState.inputPorts.keys
+    for(port <- portsToDo) {
       updateInput(circuitState, port)
     }
     nextStep()
@@ -68,7 +68,9 @@ class RandomInputUpdater(interpreterCircuit: InterpreterCircuit, randomSeed: Lon
   random.setSeed(randomSeed)
 
   def getValue(name: String): BigInt = {
-    def getPort(name: String) = interpreterCircuit.dependencyGraph.nameToType(name)
+    def getPort(name: String) = {
+      interpreterCircuit.dependencyGraph.nameToType(name)
+    }
     def getWidth(width: Width): Int = width match {
       case iw: IntWidth => iw.width.toInt
     }

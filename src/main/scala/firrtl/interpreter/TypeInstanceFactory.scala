@@ -34,18 +34,18 @@ import firrtl._
   */
 
 object TypeInstanceFactory {
-  def apply(typ: Type, initial_value: BigInt = 0): ConcreteValue = {
+  def apply(typ: Type, initialValue: BigInt = 0): Concrete = {
     typ match {
-      case u: UIntType => UIntValue(initial_value, u.width)
-      case s: SIntType => SIntValue(initial_value, s.width)
-      case c: ClockType => UIntValue(if(initial_value > 0) 1 else 0, IntWidth(1))
+      case u: UIntType => ConcreteUInt(initialValue, widthToInt(u.width))
+      case s: SIntType => ConcreteSInt(initialValue, widthToInt(s.width))
+      case c: ClockType => ConcreteUInt(if(initialValue > 0) 1 else 0, 1)
       case _ => throw new InterpreterException(s"Unsupported LoFIRRTL type for interpreter $typ")
     }
   }
-  def apply(template: ConcreteValue, value: BigInt) = {
+  def apply(template: Concrete, value: BigInt) = {
     template match {
-      case UIntValue(_, width) => UIntValue(value, width)
-      case SIntValue(_, width) => SIntValue(value, width)
+      case ConcreteUInt(_, width) => ConcreteUInt(value, width)
+      case ConcreteSInt(_, width) => ConcreteSInt(value, width)
     }
   }
 }

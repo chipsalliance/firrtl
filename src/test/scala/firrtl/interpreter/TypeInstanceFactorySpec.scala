@@ -13,11 +13,11 @@ class TypeInstanceFactorySpec extends FlatSpec with ShouldMatchers {
     for(width <- 0 to 100) {
       val ui = TypeInstanceFactory(UIntType(IntWidth(width)))
       ui.value should be (0)
-      ui.width should be (IntWidth(width))
+      ui.width should be (width)
 
       val si = TypeInstanceFactory(SIntType(IntWidth(width)))
       si.value should be (0)
-      si.width should be (IntWidth(width))
+      si.width should be (width)
     }
   }
   it should "throw exception on other types" in {

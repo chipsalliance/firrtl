@@ -55,7 +55,11 @@ object DependencyGraph extends LazyLogging {
     }
 
     m match {
-      case i: InModule => getDepsStmt(i.body)
+      case i: InModule =>
+        for(port <- i.ports) {
+          dependencies.nameToType(port.name) = port.tpe
+        }
+        getDepsStmt(i.body)
       case e: ExModule => // Do nothing
     }
     println(s"For module ${m.name} dependencies =")
@@ -92,6 +96,6 @@ class DependencyGraph {
   def recordType(key: String, tpe: Type): Unit = {nameToType(key) = tpe}
   def getType(key: String): Type = nameToType(key)
   def getNameSet: mutable.HashSet[String] = mutable.HashSet(nameToExpression.keys.toSeq:_*)
-  def addStop(stopStatment: Stop): Unit = { stops += stopStatment }
-  def addPrint(printStatment: Print): Unit = { prints += printStatment }
+  def addStop(stopStatement: Stop): Unit = { stops += stopStatement }
+  def addPrint(printStatement: Print): Unit = { prints += printStatement }
 }

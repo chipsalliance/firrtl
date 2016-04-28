@@ -52,7 +52,7 @@ class CircuitStateSpec extends FlatSpec with Matchers {
   }
 
   it should "have mutable type instances, distinct in copy" in {
-    new_c.inputPorts(port.name) = UIntValue(5, IntWidth(4))
+    new_c.inputPorts(port.name) = ConcreteUInt(5, 4)
 
     c.inputPorts(port.name).value should be (0)
     new_c.inputPorts(port.name).value should be (5)
