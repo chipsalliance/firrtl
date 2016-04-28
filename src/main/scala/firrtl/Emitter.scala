@@ -350,7 +350,7 @@ class VerilogEmitter extends Emitter {
          val wx = ((long_BANG(t) + 31) / 32).toInt
          val tx = SIntType(IntWidth(wx * 32))
          val rand = Seq("{",wx.toString,"{",ran,"}}")
-         declare("wire",nx,tx)
+         declare("reg",nx,tx)
          initials += Seq(wref(nx,tx)," = ",rand,";")
          Seq(nx,"[",long_BANG(t) - 1,":0]")
       }
