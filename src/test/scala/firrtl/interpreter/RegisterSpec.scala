@@ -39,7 +39,7 @@ class RegisterSpec extends FlatSpec with Matchers {
         |    input clk : Clock
         |    input reset1 : UInt<1>
         |
-        |    reg reg1 : UInt<16>, clk with : (reset => (reset1, UInt(3)))
+        |    reg reg1 : UInt<16>, clk with : (reset => (reset1, UInt<16>(3)))
         |
         |    reg1 <= add(reg1, UInt(1))
         |
@@ -80,7 +80,7 @@ class RegisterSpec extends FlatSpec with Matchers {
         |    input reset1 : UInt<1>
         |    input reset2 : UInt<1>
         |
-        |    reg reg1 : UInt<16>, clk with : (reset => (reset1, UInt(0)))
+        |    reg reg1 : UInt<16>, clk with : (reset => (reset1, UInt<16>(0)))
         |    reg reg2 : UInt<16>, clk with : (reset => (reset2, reg1))
         |
         |    reg1 <= add(reg1, UInt(1))

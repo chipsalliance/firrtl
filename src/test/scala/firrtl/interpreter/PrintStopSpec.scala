@@ -108,7 +108,7 @@ class PrintStopSpec extends FlatSpec with Matchers {
         |  module Stop0 :
         |    input clk : Clock
         |
-        |    printf(clk, UInt(1), "HELLO WORLD int %d hex %x sint %d\n", UInt(7), UInt(31), SInt(-2) )
+        |    printf(clk, UInt(1), "HELLO WORLD int %d hex %x SIint %d\n", UInt(7), UInt(31), SInt(-2) )
         |
       """.stripMargin
 

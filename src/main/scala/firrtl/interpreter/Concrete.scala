@@ -97,13 +97,13 @@ trait Concrete {
   // Shifting
   def <<(that: Concrete): Concrete = that match {
     case ConcreteUInt(thisValue, _) =>
-      assert(thisValue > 0)
+      assert(thisValue >= 0, s"ERROR:$this << $that ${that.value} must be >= 0")
       <<(that.value)
     case _ => throw new InterpreterException(s"Cannot shift $this << $that where $that is not a UInt parameter")
   }
   def <<(that: ConcreteUInt): Concrete = {
     val shift = that.value.toInt
-    assert(that.value > 0)
+    assert(that.value >= 0, s"ERROR:$this << $that ${that.value} must be >= 0")
     this match {
       case ConcreteUInt(thisValue, thisWidth) => ConcreteUInt(this.value << shift, thisWidth + shift)
       case ConcreteSInt(thisValue, thisWidth) => ConcreteSInt(this.value << shift, thisWidth + shift)
@@ -111,7 +111,7 @@ trait Concrete {
   }
   def <<(that: BigInt): Concrete = <<(that.toInt)
   def <<(shift: Int): Concrete = {
-    assert(shift > 0)
+    assert(shift >= 0, s"ERROR:$this << $shift $shift must be >= 0")
     this match {
       case ConcreteUInt(thisValue, thisWidth) => ConcreteUInt(this.value << shift, thisWidth + shift)
       case ConcreteSInt(thisValue, thisWidth) => ConcreteSInt(this.value << shift, thisWidth + shift)
@@ -120,15 +120,15 @@ trait Concrete {
   def >>(that: Concrete): Concrete = that match {
     case ConcreteUInt(thatValue, _) =>
       val shift = thatValue.toInt
-      assert(shift >= 0)
-      assert(shift < this.width)
+      assert(shift >= 0, s"ERROR:$this >> $that ${that.value} must be >= 0")
+      assert(shift < this.width, s"ERROR:$this >> $that ${that.value} must be > ${this.width}")
       ConcreteUInt(this.value >> shift, this.width)
     case _ => throw new InterpreterException(s"Cannot shift $this >> $that where $that is not a UInt parameter")
   }
   def >>(that: BigInt): Concrete = >>(that.toInt)
   def >>(shift: Int): Concrete = {
-    assert(shift > 0)
-    assert(shift < this.width)
+    assert(shift > 0, s"ERROR:$this >> $shift $shift must be >= 0")
+    assert(shift < this.width, s"ERROR:$this >> $shift $shift must be >= 0")
     this match {
       case ConcreteUInt(thisValue, thisWidth) => ConcreteUInt(this.value >> shift, thisWidth - shift)
       case ConcreteSInt(thisValue, thisWidth) => ConcreteSInt(this.value >> shift, thisWidth - shift)
@@ -153,27 +153,42 @@ trait Concrete {
     ConcreteUInt((this.value.abs << that.width) + that.value, this.width + that.width)
   }
   // extraction
-  def bits(hi: BigInt, lo: BigInt): ConcreteUInt = apply(hi, lo)
-  def bits(hi: Int, lo: Int): ConcreteUInt = apply(hi, lo)
-  def apply(hi: BigInt, lo: BigInt): ConcreteUInt = apply(hi.toInt, lo.toInt)
-  def apply(hi: Int, lo: Int): ConcreteUInt = {
-    val finalWidth = (hi - lo) + 1
-    val bottomRemoved = value >> (lo - lowBitOffset)
-    val modulus = Big1 << finalWidth
+  def getBits(hi: Int, lo: Int): BigInt = {
+    val desiredNumberOfBits = (hi - lo) + 1
+    val bottomRemoved = value >> lo
+    val modulus = Big1 << desiredNumberOfBits
     val topRemoved = bottomRemoved % modulus
-    ConcreteUInt(topRemoved, finalWidth)
+    topRemoved
   }
-  def head(n: BigInt): ConcreteUInt = head(n.toInt)
-  def head(n: Int): ConcreteUInt = {
-    assert(n > 0)
-    assert(n <= width)
-    bits(width + lowBitOffset, width - n + lowBitOffset)
+//  def bits(hi: BigInt, lo: BigInt): ConcreteUInt = bits(hi.toInt, lo.toInt)
+  def bits(hi: BigInt, lo: BigInt): Concrete = {
+  assert(lo >= Big0, s"Error:BIT_SELECT_OP($this, hi=$hi, lo=$lo) lo must be >= 0")
+  assert(lo <= width, s"Error:BIT_SELECT_OP($this, hi=$hi, lo=$lo) lo must be < ${this.width}")
+  assert(hi >= lo,   s"Error:BIT_SELECT_OP($this, hi=$hi, lo=$lo) hi must be >= $lo")
+  assert(hi <= width, s"Error:BIT_SELECT_OP($this, hi=$hi, lo=$lo) lo must be < ${this.width}")
+    val (high, low) = (hi.toInt, lo.toInt)
+    this match {
+      case ConcreteUInt(v, _) => ConcreteUInt(getBits(high, low), high - low + 1)
+      case ConcreteSInt(v, _) => ConcreteSInt(getBits(high, low), high - low + 1)
+    }
+  }
+  def head(n: BigInt): Concrete = {
+    assert(n > 0, s"Error:HEAD_OP($this, n=$n) n must be >= 0")
+    assert(n <= width, s"Error:HEAD_OP($this, n=$n) n must be <= ${this.width}")
+    bits(width-1, width - n)
   }
   def tail(n: BigInt): ConcreteUInt = tail(n.toInt)
   def tail(n: Int): ConcreteUInt = {
-    assert(n > 0)
-    assert(n <= width)
-    bits(n, 1)
+    assert(n >= 0, s"Error:TAIL_OP($this, n=$n) n must be >= 0")
+    assert(n < width, s"Error:TAIL_OP($this, n=$n) n must be < ${this.width}")
+    if(n == 0) {
+      ConcreteUInt(value, width)
+    }
+    else {
+      val modulo = Big1 << (width - n)
+      val modulus = value % modulo
+      ConcreteUInt(modulus, width - n)
+    }
   }
 
   def andReduce: Concrete = this match {
@@ -214,7 +229,6 @@ case class ConcreteUInt(val value: BigInt, val width: Int) extends Concrete {
   val bitsRequired = requiredBits(value)
   if((width > 0) && (bitsRequired > width)) {
     throw new InterpreterException(s"error: ConcreteUInt($value, $width) bad width $width needs ${requiredBits(value.toInt)}")
-    assert(true)
   }
 }
 case class ConcreteSInt(val value: BigInt, val width: Int) extends Concrete

@@ -125,3 +125,9 @@ class ManualMappedInputUpdater extends InputUpdater {
     super.updateInputs(circuitState, ports = stepValues.keys)
   }
 }
+
+class EmptyUpdater extends InputUpdater {
+  def getValue(name: String): BigInt = Big0
+  override def updateInputs(circuitState: CircuitState, ports: Iterable[String] = Iterable.empty): Unit = {
+  }
+}

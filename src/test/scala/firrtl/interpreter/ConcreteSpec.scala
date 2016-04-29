@@ -28,17 +28,19 @@ package firrtl.interpreter
 
 import org.scalatest.{Matchers, FlatSpec}
 
+import TestUtils._
+
 /**
   * Created by chick on 4/27/16.
   */
 class ConcreteSpec extends FlatSpec with Matchers {
-  val maxWidth = 100
+  val maxWidth = TestUtils.MaxWidth
 
   behavior of "random BigInt generation"
 
   it should "not create numbers with wider than specified width" in {
-    for(i <- 20 to 100) {
-      for( trails <- 0 to 1000) {
+    for(i <- IntWidthTestValuesGenerator(1, maxWidth)) {
+      for( trails <- 0 to 200) {
         val x = randomBigInt(i)
 //        println(s"$i $x ${x.bitLength}")
         x.bitLength should be <= i
@@ -49,8 +51,8 @@ class ConcreteSpec extends FlatSpec with Matchers {
   behavior of "creating concrete values"
 
   it should "work up to a reasonable size" in {
-    for(i <- 20 to 100) {
-      for( trails <- 0 to 1000) {
+    for(i <- IntWidthTestValuesGenerator(1, maxWidth)) {
+      for( trails <- 0 to 200) {
         val x = randomBigInt(i)
 //        println(s"$i $x ${x.bitLength}")
 
@@ -196,22 +198,23 @@ class ConcreteSpec extends FlatSpec with Matchers {
 
   it should "allows arbitrary selection of bits" in {
     def testBits(width: Int, lo: Int, hi: Int) {
-      val num = BigInt("1" * width, 2)
+      val num = allOnes(width)
       val uint = ConcreteUInt(num, width)
 
+      println(s"width $width lo $lo hi $hi uint $uint ")
       val subUint = uint.bits(hi, lo)
-      println(s"width $width lo $lo hi $hi uint $uint => $subUint")
 
       val size = hi - lo + 1
-      subUint.value should be (BigInt("1" * size, 2))
+      val expected = allOnes(size)
+      subUint.value should be (expected)
       subUint.width should be (size)
     }
 
-    testBits(32, 1, 32)
+    testBits(7, 4, 6)
 
-    for(width <- 1 to maxWidth) {
-      for(lo <- 0 until width) {
-        for(hi <- lo until width) {
+    for(width <- IntWidthTestValuesGenerator(1, maxWidth)) {
+      for(lo <- IntWidthTestValuesGenerator(0, width-1)) {
+        for(hi <- IntWidthTestValuesGenerator(lo, width-1)) {
           testBits(width, lo, hi)
         }
       }
@@ -222,13 +225,13 @@ class ConcreteSpec extends FlatSpec with Matchers {
 
   it should "allows arbitrary selection of top n bits" in {
     def testBits(width: Int, n: Int) {
-      val num = BigInt("1" * width, 2)
+      val num = allOnes(width)
       val uint = ConcreteUInt(num, width)
 
       val subUint = uint.head(n)
-      println(s"width $width n $n uint $uint => $subUint")
+      // println(s"width $width n $n uint $uint => $subUint")
 
-      subUint.value should be (BigInt("1" * n, 2))
+      subUint.value should be (allOnes(n))
       subUint.width should be (n)
     }
 
@@ -243,28 +246,38 @@ class ConcreteSpec extends FlatSpec with Matchers {
 
   it should "allows arbitrary selection of top n bits" in {
     def testBits(width: Int, n: Int) {
-      val num = BigInt("1" * width, 2)
+      val num = allOnes(width)
       val uint = ConcreteUInt(num, width)
 
       val subUint = uint.tail(n)
-      println(s"width $width n $n uint $uint => $subUint")
+      //println(s"width $width n $n uint $uint => $subUint")
 
-      subUint.value should be (BigInt("1" * n, 2))
-      subUint.width should be (n)
+      val expectedWith = width - n
+      val expectedValue = allOnes(width-n)
+      subUint.value should be (expectedValue)
+      subUint.width should be (width-n)
     }
 
-    for(width <- 1 to maxWidth) {
-      for(n <- 1 to width) {
+    for(width <- IntWidthTestValuesGenerator(1, maxWidth)) {
+      for(n <- IntWidthTestValuesGenerator(0, width-1)) {
         testBits(width, n)
       }
     }
   }
 
+  it should "satisfy the following specific tests" in {
+    val e = ConcreteSInt(BigInt(-4), 33)
+    e.tail(1).value should be (-4)
+
+  }
+
+  it should "take an SInt"
+
   behavior of "dyn shift left"
 
   it should "work for wide range of values" in {
     def testShiftOp(width: Int, shift: Int): Unit = {
-      val num = BigInt("1"*width, 2)
+      val num = allOnes(width)
       val shiftedNum = num << shift
 
       val target = ConcreteUInt(num, width)

@@ -28,6 +28,7 @@ package firrtl.interpreter
 
 import firrtl._
 import firrtl.Utils._
+import TestUtils._
 import org.scalatest.{Matchers, FlatSpec}
 
 /**
@@ -191,9 +192,9 @@ class LoFirrtlExpressionEvaluatorSpec extends FlatSpec with Matchers {
 
   behavior of "SHIFT_LEFT_OP"
 
-  it should "throw assertions when parameter is zero" in {
+  it should "throw assertions when parameter is  > zero" in {
     intercept[AssertionError] {
-      evaluator.bitOps(SHIFT_LEFT_OP, Seq(UIntValue(1, IntWidth(3))), Seq(0), UIntType(IntWidth(3)))
+      evaluator.bitOps(SHIFT_LEFT_OP, Seq(UIntValue(1, IntWidth(3))), Seq(-1), UIntType(IntWidth(3)))
     }
   }
   it should "shift bits n bits to the left" in {
@@ -223,10 +224,10 @@ class LoFirrtlExpressionEvaluatorSpec extends FlatSpec with Matchers {
 
   behavior of "DYN_SHIFT_LEFT_OP"
 
-  it should "throw assertions when parameter is zero" in {
-    intercept[AssertionError] {
+  it should "throw assertions when parameter is > zero" in {
+    intercept[InterpreterException] {
       evaluator.dynamicBitOps(DYN_SHIFT_LEFT_OP,
-        Seq(UIntValue(1, IntWidth(3)), UIntValue(0, IntWidth(2))), Seq(), UIntType(IntWidth(3)))
+        Seq(UIntValue(1, IntWidth(3)), SIntValue(-1, IntWidth(2))), Seq(), UIntType(IntWidth(3)))
     }
     intercept[InterpreterException] {
       evaluator.dynamicBitOps(DYN_SHIFT_LEFT_OP,
@@ -360,20 +361,21 @@ class LoFirrtlExpressionEvaluatorSpec extends FlatSpec with Matchers {
 
   it should "throw assertions when parameter is zero or not less than width of target" in {
     intercept[AssertionError] {
-      evaluator.bitOps(TAIL_OP, Seq(UIntValue(1, IntWidth(3))), Seq(0), UIntType(IntWidth(3)))
+      evaluator.bitOps(TAIL_OP, Seq(UIntValue(1, IntWidth(3))), Seq(-1), UIntType(IntWidth(3)))
     }
     intercept[AssertionError] {
       evaluator.bitOps(TAIL_OP, Seq(UIntValue(1, IntWidth(33))), Seq(34), UIntType(IntWidth(3)))
     }
   }
   it should "remove top n bits of a number" in {
-    for(i <- 3 to 100) {
-      for(arg <- 1 until i) {
-        val num = BigInt("1"*i, 2)
-        val mask = BigInt("1"*arg, 2)
+    for(i <- IntWidthTestValuesGenerator(1, TestUtils.MaxWidth)) {
+      for(arg <- IntWidthTestValuesGenerator(0, i-1)) {
+        val num  = allOnes(i)
+        val mask = allOnes(i-arg)
+
         val target = UIntValue(num, IntWidth(i))
-        val result = evaluator.bitOps(TAIL_OP, Seq(target), Seq(arg), UIntType(IntWidth(arg)))
-        //        println(s"num $num arg $arg, result $result")
+        val result = evaluator.bitOps(TAIL_OP, Seq(target), Seq(arg), UIntType(IntWidth(i-arg)))
+//        println(s"num $num arg $arg, result $result")
         result.value should be (mask)
       }
     }

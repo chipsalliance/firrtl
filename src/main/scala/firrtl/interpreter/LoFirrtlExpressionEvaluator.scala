@@ -30,6 +30,7 @@ package firrtl.interpreter
 import firrtl._
 
 import collection.mutable
+import scala.collection.mutable.ArrayBuffer
 
 /**
   * This is the evaluation engine for the FirrtlTerp
@@ -54,6 +55,7 @@ class LoFirrtlExpressionEvaluator(
       println(s"${" "*(resolveDepth*2)}$message")
     }
   }
+  val expressionStack = new ArrayBuffer[Expression]
 
   /**
     * get the value from the current circuit state, if it is dependent on something else
@@ -157,7 +159,7 @@ class LoFirrtlExpressionEvaluator(
     val e = evaluate(args.head)
     val hi = parameters.head
     val lo = parameters.tail.head
-    e(hi, lo)
+    e.bits(hi, lo)
   }
 
   def comparisonOp(opCode: PrimOp, args: Seq[Expression], tpe: Type): Concrete = {
@@ -246,69 +248,85 @@ class LoFirrtlExpressionEvaluator(
   def evaluate(expression: Expression): Concrete = {
     log(s"evaluate $expression")
     indent()
+    expressionStack += expression
 
-    val result = expression match {
-      case Mux(condition, trueExpression, falseExpression, _) =>
-        if( evaluate(condition).value > 0 ) {
-          evaluate(trueExpression)
-        }
-        else {
-          evaluate(falseExpression)
-        }
-      case WRef(name, tpe, kind, gender) => getValue(name)
-      case DoPrim(op, args, const, tpe) =>
-        op match {
-          case ADD_OP             => mathPrimitive(op, args, tpe)
-          case SUB_OP             => mathPrimitive(op, args, tpe)
-          case MUL_OP             => mathPrimitive(op, args, tpe)
-          case DIV_OP             => mathPrimitive(op, args, tpe)
-          case REM_OP             => mathPrimitive(op, args, tpe)
+    val result = try {
+      expression match {
+        case Mux(condition, trueExpression, falseExpression, _) =>
+          if (evaluate(condition).value > 0) {
+            evaluate(trueExpression)
+          }
+          else {
+            evaluate(falseExpression)
+          }
+        case WRef(name, tpe, kind, gender) => getValue(name)
+        case DoPrim(op, args, const, tpe) =>
+          op match {
+            case ADD_OP => mathPrimitive(op, args, tpe)
+            case SUB_OP => mathPrimitive(op, args, tpe)
+            case MUL_OP => mathPrimitive(op, args, tpe)
+            case DIV_OP => mathPrimitive(op, args, tpe)
+            case REM_OP => mathPrimitive(op, args, tpe)
 
-          case EQUAL_OP           => comparisonOp(op, args, tpe)
-          case NEQUAL_OP          => comparisonOp(op, args, tpe)
-          case LESS_OP            => comparisonOp(op, args, tpe)
-          case LESS_EQ_OP         => comparisonOp(op, args, tpe)
-          case GREATER_OP         => comparisonOp(op, args, tpe)
-          case GREATER_EQ_OP      => comparisonOp(op, args, tpe)
+            case EQUAL_OP => comparisonOp(op, args, tpe)
+            case NEQUAL_OP => comparisonOp(op, args, tpe)
+            case LESS_OP => comparisonOp(op, args, tpe)
+            case LESS_EQ_OP => comparisonOp(op, args, tpe)
+            case GREATER_OP => comparisonOp(op, args, tpe)
+            case GREATER_EQ_OP => comparisonOp(op, args, tpe)
 
-          case PAD_OP             => paddingOp(op, args, const, tpe)
+            case PAD_OP => paddingOp(op, args, const, tpe)
 
-          case AS_UINT_OP         => castingOp(op, args, tpe)
-          case AS_SINT_OP         => castingOp(op, args, tpe)
-          case AS_CLOCK_OP        => castingOp(op, args, tpe)
+            case AS_UINT_OP => castingOp(op, args, tpe)
+            case AS_SINT_OP => castingOp(op, args, tpe)
+            case AS_CLOCK_OP => castingOp(op, args, tpe)
 
-          case SHIFT_LEFT_OP      => bitOps(op, args, const, tpe)
-          case SHIFT_RIGHT_OP     => bitOps(op, args, const, tpe)
+            case SHIFT_LEFT_OP => bitOps(op, args, const, tpe)
+            case SHIFT_RIGHT_OP => bitOps(op, args, const, tpe)
 
-          case DYN_SHIFT_LEFT_OP  => dynamicBitOps(op, args, const, tpe)
-          case DYN_SHIFT_RIGHT_OP => dynamicBitOps(op, args, const, tpe)
+            case DYN_SHIFT_LEFT_OP => dynamicBitOps(op, args, const, tpe)
+            case DYN_SHIFT_RIGHT_OP => dynamicBitOps(op, args, const, tpe)
 
-          case CONVERT_OP         => oneArgOps(op, args, const, tpe)
-          case NEG_OP             => oneArgOps(op, args, const, tpe)
-          case NOT_OP             => oneArgOps(op, args, const, tpe)
+            case CONVERT_OP => oneArgOps(op, args, const, tpe)
+            case NEG_OP => oneArgOps(op, args, const, tpe)
+            case NOT_OP => oneArgOps(op, args, const, tpe)
 
-          case AND_OP             => binaryBitWise(op, args, tpe)
-          case OR_OP              => binaryBitWise(op, args, tpe)
-          case XOR_OP             => binaryBitWise(op, args, tpe)
+            case AND_OP => binaryBitWise(op, args, tpe)
+            case OR_OP => binaryBitWise(op, args, tpe)
+            case XOR_OP => binaryBitWise(op, args, tpe)
 
-          case AND_REDUCE_OP      => oneArgOps(op, args, const, tpe)
-          case OR_REDUCE_OP       => oneArgOps(op, args, const, tpe)
-          case XOR_REDUCE_OP      => oneArgOps(op, args, const, tpe)
+            case AND_REDUCE_OP => oneArgOps(op, args, const, tpe)
+            case OR_REDUCE_OP => oneArgOps(op, args, const, tpe)
+            case XOR_REDUCE_OP => oneArgOps(op, args, const, tpe)
 
-          case CONCAT_OP          => binaryBitWise(op, args, tpe)
+            case CONCAT_OP => binaryBitWise(op, args, tpe)
 
-          case BITS_SELECT_OP     => bitSelectOp(op, args, const, tpe)
+            case BITS_SELECT_OP => bitSelectOp(op, args, const, tpe)
 
-          case HEAD_OP            => bitOps(op, args, const, tpe)
-          case TAIL_OP            => bitOps(op, args, const, tpe)
+            case HEAD_OP => bitOps(op, args, const, tpe)
+            case TAIL_OP => bitOps(op, args, const, tpe)
 
-          case _ =>
-            throw new InterruptedException(s"PrimOP $op in $expression not yet supported")
-        }
-      case c: UIntValue           => Concrete(c)
-      case c: SIntValue           => Concrete(c)
+            case _ =>
+              throw new InterruptedException(s"PrimOP $op in $expression not yet supported")
+          }
+        case c: UIntValue => Concrete(c)
+        case c: SIntValue => Concrete(c)
+      }
+    }
+    catch {
+      case ie: Exception =>
+        println(s"Error: ${ie.getMessage}")
+        println("Expression Evaluation stack")
+        println(expressionStack.mkString("  ", "\n  ", ""))
+        throw ie
+      case ie: AssertionError =>
+        println(s"Error: ${ie.getMessage}")
+        println("Expression Evaluation stack")
+        println(expressionStack.mkString("  ", "\n  ", ""))
+        throw ie
     }
 
+    expressionStack.remove(expressionStack.size-1)
     dedent()
     log(s"evaluator:returns:$result")
 
@@ -316,7 +334,7 @@ class LoFirrtlExpressionEvaluator(
   }
 
   private def resolveDependency(key: String): Concrete = {
-    assert(toResolve.contains(key))
+    assert(toResolve.contains(key), s"Error: attempt to resolve dependency for unknown key $key")
     toResolve -= key
 
     log(s"resolveDependency:start: $key")
@@ -372,13 +390,13 @@ class LoFirrtlExpressionEvaluator(
   }
 
   def checkPrints(): Unit = {
-    for(printStatment <- dependencyGraph.prints) {
-      val condition = evaluate(printStatment.en)
+    for(printStatement <- dependencyGraph.prints) {
+      val condition = evaluate(printStatement.en)
       if(condition.value > 0) {
-        val resolvedArgs = printStatment.args.map { case arg =>
+        val resolvedArgs = printStatement.args.map { case arg =>
           evaluate(arg).value
         }
-        val formatString = printStatment.string.array.map(_.toChar).mkString("")
+        val formatString = printStatement.string.array.map(_.toChar).mkString("")
         printf(formatString, resolvedArgs:_*)
       }
     }

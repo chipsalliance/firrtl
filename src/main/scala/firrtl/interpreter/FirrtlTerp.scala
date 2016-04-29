@@ -32,6 +32,7 @@ import firrtl._
 // TODO: Support Memory
 // TODO: Check for loops in dependency graph during evaluation
 // TODO: Add poison concept/multi-state
+// TODO: Make a nice stack listing option, for problems
 // TODO: Consider adding counts to nodes and registers
 // TODO: Make into separate repo
 // TODO: Support Multiple modules
@@ -39,8 +40,9 @@ import firrtl._
 // TODO: Implement VCD parser and emitter (https://github.com/impedimentToProgress/ProcessVCD.git)?
 // TODO: Get official Firrtl to LoFirrtl transformer
 // TODO: x(8, 4) := UInt(31)
-// TODO: resolve bit(hi, lo) base offset
+// TODO: Get *official* story on widths of SInt (Is sign part of width)
 // TODO: What is divide by zero strategy
+// TODO: How do zero width wires affect interpreter
 // TODO: for all OpCodes, add assertions that width of computation matches width of target being assigned to
 
 class FirrtlTerp(ast: Circuit) {
@@ -67,6 +69,15 @@ class FirrtlTerp(ast: Circuit) {
   def updateInputs(): Unit = {
     inputUpdater.updateInputs(sourceState)
   }
+
+  def hasPort(name: String, desiredDirection: Direction): Boolean = {
+    interpreterCircuit.nameToPort.get(name) match {
+      case Some(port) => port.direction == desiredDirection
+      case _ => false
+    }
+  }
+  def hasInput(name: String) = hasPort(name, INPUT)
+  def hasOutput(name: String) = hasPort(name, OUTPUT)
 
   def doOneCycle() = {
     updateInputs()
