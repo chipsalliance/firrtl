@@ -309,6 +309,6 @@ class ConcreteSpec extends FlatSpec with Matchers {
   }
   def randS: ConcreteSInt = {
     val randomWidth = random.nextInt(maxWidth)
-    ConcreteSInt(BigInt(randomWidth, random) * (if(random.nextBoolean()) 1 else -1), randomWidth)
+    ConcreteSInt(BigInt(randomWidth, random) * (if(random.nextBoolean()) 1 else -1), randomWidth+1)
   }
 }

@@ -30,10 +30,11 @@ package firrtlTests
 import java.io._
 import org.scalatest._
 import org.scalatest.prop._
-import firrtl.{Parser,Circuit}
-import firrtl.passes.{Pass,ToWorkingIR,CheckHighForm,ResolveKinds,InferTypes,CheckTypes,PassExceptions}
+import firrtl._
+import firrtl.passes._
 
 class UnitTests extends FlatSpec with Matchers {
+  def parse (input:String) = Parser.parse("",input.split("\n").toIterator,false)
   "Connecting bundles of different types" should "throw an exception" in {
     val passes = Seq(
       ToWorkingIR,
@@ -48,7 +49,7 @@ class UnitTests extends FlatSpec with Matchers {
         |    output x: {a : UInt<1>, b : UInt<1>}
         |    x <= y""".stripMargin
     intercept[PassExceptions] {
-      passes.foldLeft(Parser.parse("",input.split("\n").toIterator)) {
+      passes.foldLeft(parse(input)) {
         (c: Circuit, p: Pass) => p.run(c)
       }
     }
@@ -70,9 +71,69 @@ class UnitTests extends FlatSpec with Matchers {
        |    reg y : { valid : UInt<1>, bits : UInt<3> }, clk with :
        |      reset => (reset, x)""".stripMargin
     intercept[PassExceptions] {
-      passes.foldLeft(Parser.parse("",input.split("\n").toIterator)) {
+      passes.foldLeft(parse(input)) {
         (c: Circuit, p: Pass) => p.run(c)
       }
     }
+  }
+
+  "Partial connection two bundle types whose relative flips don't match but leaf node directions do" should "connect correctly" in {
+    val passes = Seq(
+      ToWorkingIR,
+      CheckHighForm,
+      ResolveKinds,
+      InferTypes,
+      CheckTypes,
+      ExpandConnects)
+    val input =
+     """circuit Unit :
+       |  module Unit :
+       |    wire x : { flip a: { b: UInt<32> } }
+       |    wire y : { a: { flip b: UInt<32> } }
+       |    x <- y""".stripMargin
+    val check =
+     """circuit Unit :
+       |  module Unit :
+       |    wire x : { flip a: { b: UInt<32> } }
+       |    wire y : { a: { flip b: UInt<32> } }
+       |    y.a.b <= x.a.b""".stripMargin
+    val c_result = passes.foldLeft(parse(input)) {
+      (c: Circuit, p: Pass) => p.run(c)
+    }
+    val writer = new StringWriter()
+    FIRRTLEmitter.run(c_result,writer)
+    (parse(writer.toString())) should be (parse(check))
+  }
+
+  val splitExpTestCode =
+     """
+       |circuit Unit :
+       |  module Unit :
+       |    input a : UInt<1>
+       |    input b : UInt<2>
+       |    input c : UInt<2>
+       |    output out : UInt<1>
+       |    out <= bits(mux(a, b, c), 0, 0)
+       |""".stripMargin
+
+  "Emitting a nested expression" should "throw an exception" in {
+    val passes = Seq(
+      ToWorkingIR,
+      InferTypes)
+    intercept[PassException] {
+      val c = Parser.parse("",splitExpTestCode.split("\n").toIterator)
+      val c2 = passes.foldLeft(c)((c, p) => p run c)
+      new VerilogEmitter().run(c2, new OutputStreamWriter(new ByteArrayOutputStream))
+    }
+  }
+
+  "After splitting, emitting a nested expression" should "compile" in {
+    val passes = Seq(
+      ToWorkingIR,
+      SplitExp,
+      InferTypes)
+    val c = Parser.parse("",splitExpTestCode.split("\n").toIterator)
+    val c2 = passes.foldLeft(c)((c, p) => p run c)
+    new VerilogEmitter().run(c2, new OutputStreamWriter(new ByteArrayOutputStream))
   }
 }

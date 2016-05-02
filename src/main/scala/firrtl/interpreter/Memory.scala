@@ -28,9 +28,7 @@ package firrtl.interpreter
 
 import firrtl.{Info, DefMemory}
 
-/**
-  * Created by chick on 4/30/16.
-  */
+
 class Memory(
             info: Info,
             name: String,

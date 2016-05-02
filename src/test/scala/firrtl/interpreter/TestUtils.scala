@@ -110,7 +110,7 @@ class IntWidthTestValuesGenerator(minValue: Int = 0, maxValue: Int = TestUtils.M
     }
 
     def updatePowerAndNextValue(): Unit = {
-      while(nextPower+1 < nextValue) {
+      while(nextPower+1 <= nextValue) {
         incrementPower()
       }
       nextValue = (nextPower - 1).min(maxValue).max(returnValue+1)
@@ -157,7 +157,7 @@ class BigIntTestValuesGenerator(minValue: BigInt = 0, maxValue: BigInt = MaxWidt
     }
 
     def updatePowerAndNextValue(): Unit = {
-      while(nextPower+1 < nextValue) {
+      while(nextPower+1 <= nextValue) {
         incrementPower()
       }
       nextValue = (nextPower - 1).min(maxValue).max(returnValue+1)

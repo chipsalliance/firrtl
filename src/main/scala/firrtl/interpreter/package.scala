@@ -18,6 +18,11 @@ package object interpreter {
   def boolToInt(condition: Boolean): Int = if(condition) 1 else 0
   def boolToBigInt(condition: Boolean): BigInt = if(condition) 1 else 0
   def widthToInt(width: Width): Int = width.asInstanceOf[IntWidth].width.toInt
+  def typeToWidth(tpe: Type): Int = tpe match {
+    case UIntType(w)  => widthToInt(w)
+    case SIntType(w)  => widthToInt(w)
+    case _: ClockType => 1
+  }
   def ceilingLog2(x: Int): Int = scala.math.ceil(scala.math.log(x) / scala.math.log(2)).toInt
 
   /**

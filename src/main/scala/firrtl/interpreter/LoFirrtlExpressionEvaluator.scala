@@ -366,7 +366,7 @@ class LoFirrtlExpressionEvaluator(
     for(registerDef <- dependencyGraph.registers) {
       val resetCondition = evaluate(registerDef.reset)
       if(resetCondition.value > 0 ) {
-        val resetValue = evaluate(registerDef.init)
+        val resetValue = evaluate(registerDef.init).forceWidth(typeToWidth(dependencyGraph.nameToType(registerDef.name)))
         println(s"Register ${registerDef.name} reset to $resetValue")
         circuitState.nextRegisters(registerDef.name) = resetValue
       }

@@ -98,7 +98,7 @@ class LoFirrtlExpressionEvaluatorSpec extends FlatSpec with Matchers {
 
       val out = evaluator.mathPrimitive(MUL_OP, Seq(i1, i2), outWidthType )
 
-      println(s"$i1 * $i2 => $out")
+//      println(s"$i1 * $i2 => $out")
       out.value should be (i1.value * i2.value)
     }
   }
@@ -114,7 +114,7 @@ class LoFirrtlExpressionEvaluatorSpec extends FlatSpec with Matchers {
 
       val maxNum = BigInt("1"*width, 2)
       val maxComputed = requiredBits(maxNum)
-      println(s"width $width computed $maxComputed num $maxNum")
+//      println(s"width $width computed $maxComputed num $maxNum")
       maxComputed should be (width)
     }
   }
@@ -160,9 +160,9 @@ class LoFirrtlExpressionEvaluatorSpec extends FlatSpec with Matchers {
       requiredBits(num) should be (width)
       requiredBits(shiftedNum) should be (width + shift)
 
-      println(s"width $width => num $num arg $shift, target $target result NA")
+//      println(s"width $width => num $num arg $shift, target $target result NA")
       val result = evaluator.bitOps(SHIFT_RIGHT_OP, Seq(target), Seq(shift), UIntType(IntWidth(width)))
-      println(s"width $width => num $num arg $shift, target $target result $result")
+//      println(s"width $width => num $num arg $shift, target $target result $result")
       result.value should be (num)
     }
     testShiftOp(29, 1)
@@ -242,9 +242,9 @@ class LoFirrtlExpressionEvaluatorSpec extends FlatSpec with Matchers {
       requiredBits(num) should be (width)
       requiredBits(shiftedNum) should be (width + shift)
 
-      println(s"width $width => num $num arg $shift, target $target result NA")
+//      println(s"width $width => num $num arg $shift, target $target result NA")
       val result = evaluator.bitOps(SHIFT_RIGHT_OP, Seq(target), Seq(shift), UIntType(IntWidth(width)))
-      println(s"width $width => num $num arg $shift, target $target result $result")
+//      println(s"width $width => num $num arg $shift, target $target result $result")
       result.value should be (num)
     }
     testShiftOp(29, 1)
@@ -320,7 +320,7 @@ class LoFirrtlExpressionEvaluatorSpec extends FlatSpec with Matchers {
       requiredBits(shiftedNum) should be (width - shift)
 
       val result = evaluator.dynamicBitOps(DYN_SHIFT_RIGHT_OP, Seq(target, shiftUInt), Seq(), UIntType(IntWidth(width)))
-      println(s"width $width => num $num arg $shift, target $target result $result")
+//      println(s"width $width => num $num arg $shift, target $target result $result")
       result.value should be (shiftedNum)
     }
 
@@ -350,7 +350,7 @@ class LoFirrtlExpressionEvaluatorSpec extends FlatSpec with Matchers {
         val num = BigInt("1"*i, 2)
         val target = UIntValue(evaluator.shiftLeft(num, arg), IntWidth(i + arg))
 
-        println(s"i $i num $num arg $arg, target $target result NA")
+//        println(s"i $i num $num arg $arg, target $target result NA")
         val result = evaluator.bitOps(HEAD_OP, Seq(target), Seq(i), UIntType(IntWidth(i)))
         result.value should be (num)
       }

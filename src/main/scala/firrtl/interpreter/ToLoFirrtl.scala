@@ -25,8 +25,9 @@ TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR
 MODIFICATIONS.
 */
 
-package firrtl
+package firrtl.interpreter
 
+import firrtl.Circuit
 import firrtl.passes._
 
 /**

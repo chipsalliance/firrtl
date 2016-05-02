@@ -69,7 +69,7 @@ class MemorySpec extends FlatSpec with Matchers {
     """.stripMargin
 
   it should "run this circuit" in {
-//    val tester = new InterpretiveTester(input) {
+    val tester = new InterpretiveTester(input) {
 //      poke("a", 3)
 //      poke("b", 5)
 //      poke("select", 0)
@@ -84,7 +84,7 @@ class MemorySpec extends FlatSpec with Matchers {
 //      testC()
 //      testC()
 //      testC()
-//    }
+    }
   }
 
 

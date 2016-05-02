@@ -37,7 +37,7 @@ class TestUtilsSpec extends FlatSpec with Matchers {
   it should "return a bunch of ints" in {
     val l = for (i <- IntWidthTestValuesGenerator(8, 256)) yield i
     val expected = List(8, 9, 15, 16, 17, 31, 32, 33, 63, 64, 65, 127, 128, 129, 255, 256)
-    println(l.mkString(","))
+//    println(l.mkString(","))
     l.zip(expected.iterator).foreach { case (l1, e1) =>
       l1 should be(e1)
     }
@@ -50,7 +50,7 @@ class TestUtilsSpec extends FlatSpec with Matchers {
       -17, -16, -15, -9, -8, -7, -5, -4, -3, -2, -1,
       0, 1, 2, 3, 4, 5, 7, 8, 9,
       15, 16, 17, 31, 32, 33, 63, 64, 65, 127, 128, 129, 255, 256)
-    println(l.mkString(","))
+//    println(l.mkString(","))
     l.zip(expected.iterator).foreach { case (l1, e1) =>
       l1 should be(e1)
     }
@@ -59,10 +59,11 @@ class TestUtilsSpec extends FlatSpec with Matchers {
   it should "return a allow negative to negative range" in {
     var count = 0
     for (i <- IntWidthTestValuesGenerator(-18, -12)) {
-      println(s"$i")
+      print(s"$i")
       if (count > 18) assert(false)
       count += 1
     }
+    println()
   }
 
   it should "work with following specific examples" in {
@@ -99,7 +100,7 @@ class TestUtilsSpec extends FlatSpec with Matchers {
 
     val l = for (i <- BigIntTestValuesGenerator(8, 256)) yield i
     val expected = List(8, 9, 15, 16, 17, 31, 32, 33, 63, 64, 65, 127, 128, 129, 255, 256)
-    println(l.mkString(","))
+//    println(l.mkString(","))
     l.zip(expected.iterator).foreach { case (l1, e1) =>
       l1 should be(e1)
     }
@@ -118,7 +119,7 @@ class TestUtilsSpec extends FlatSpec with Matchers {
       -17, -16, -15, -9, -8, -7, -5, -4, -3, -2, -1,
       0, 1, 2, 3, 4, 5, 7, 8, 9,
       15, 16, 17, 31, 32, 33, 63, 64, 65, 127, 128, 129, 255, 256)
-    println(l.mkString(","))
+//    println(l.mkString(","))
     l.zip(expected.iterator).foreach { case (l1, e1) =>
       l1 should be(e1)
     }
@@ -128,7 +129,7 @@ class TestUtilsSpec extends FlatSpec with Matchers {
   it should "return a allow negative to negative range" in {
     var count = 0
     for (i <- BigIntTestValuesGenerator(-18, -12)) {
-      println(s"$i")
+//      println(s"$i")
       if (count > 18) assert(false)
       count += 1
 
@@ -139,7 +140,7 @@ class TestUtilsSpec extends FlatSpec with Matchers {
     //    for(i <- BigIntGenerator(-BigInt("1"*10, 2), BigInt("1"*10, 2))) {
     //    for(i <- BigIntGenerator(-8, BigInt("1"*100, 2))) {
     for(i <- BigIntTestValuesGenerator(-BigInt("1"*100, 2), 8)) {
-      println(s"$i")
+//      println(s"$i")
     }
   }
 
@@ -160,7 +161,7 @@ class TestUtilsSpec extends FlatSpec with Matchers {
       if startWidth != 0
       if finishWidth != 0
     } {
-      println(s"New generator for $startWidth to $finishWidth")
+//      println(s"New generator for $startWidth to $finishWidth")
       testGenerator(startWidth, finishWidth)
     }
   }

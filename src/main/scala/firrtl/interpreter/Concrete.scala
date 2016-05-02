@@ -215,6 +215,7 @@ trait Concrete {
     case ConcreteClock(v) =>
       ConcreteUInt(boolToBigInt(! v.testBit(0)), 1)
   }
+  def forceWidth(width: Int): Concrete
 }
 object Concrete {
   def apply(u: UIntValue): ConcreteUInt = {
@@ -230,10 +231,19 @@ case class ConcreteUInt(val value: BigInt, val width: Int) extends Concrete {
   if((width > 0) && (bitsRequired > width)) {
     throw new InterpreterException(s"error: ConcreteUInt($value, $width) bad width $width needs ${requiredBits(value.toInt)}")
   }
+  def forceWidth(width:Int): ConcreteUInt = ConcreteUInt(this.value, width)
 }
-case class ConcreteSInt(val value: BigInt, val width: Int) extends Concrete
+case class ConcreteSInt(val value: BigInt, val width: Int) extends Concrete {
+  val bitsRequired = requiredBits(value)
+  if ((width > 0) && (bitsRequired > width)) {
+    throw new InterpreterException(s"error: ConcreteSInt($value, $width) bad width $width needs ${requiredBits(value.toInt)}")
+  }
+
+  def forceWidth(width: Int): ConcreteSInt = ConcreteSInt(this.value, width)
+}
 case class ConcreteClock(val value: BigInt) extends Concrete {
   val width = 1
+  def forceWidth(width: Int): ConcreteClock = throw new InterpreterException(s"withWidth not supported for $this")
 }
 
 
