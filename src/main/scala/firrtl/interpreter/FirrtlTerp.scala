@@ -29,10 +29,8 @@ package firrtl.interpreter
 
 import firrtl._
 
-// TODO: Support Memory
 // TODO: Check for loops in dependency graph during evaluation
 // TODO: Add poison concept/multi-state
-// TODO: Make a nice stack listing option, for problems
 // TODO: Consider adding counts to nodes and registers
 // TODO: Make into separate repo
 // TODO: Support Multiple modules
@@ -42,8 +40,11 @@ import firrtl._
 // TODO: x(8, 4) := UInt(31)
 // TODO: Get *official* story on widths of SInt (Is sign part of width)
 // TODO: What is divide by zero strategy
+// TODO: SInt must support width 1
 // TODO: How do zero width wires affect interpreter
 // TODO: for all OpCodes, add assertions that width of computation matches width of target being assigned to
+// TODO: try inlining pass
+// TODO: finish support for read/write memory ports
 
 class FirrtlTerp(ast: Circuit) {
   var lastStopResult: Option[Int] = None

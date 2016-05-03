@@ -48,4 +48,15 @@ package object interpreter {
       (scala.math.ceil(scala.math.log(a) / scala.math.log(2)) + (if(num < 0) 1.0 else 0.0)).toInt
     }
   }
+
+  trait SimpleLogger {
+    var verbose = false
+    def setVerbose(value: Boolean = true): Unit = {
+      verbose = value
+    }
+
+    def log(msg: => String): Unit = {
+      if(verbose) println(msg)
+    }
+  }
 }

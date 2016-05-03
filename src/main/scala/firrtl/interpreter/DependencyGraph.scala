@@ -41,6 +41,7 @@ object DependencyGraph extends LazyLogging {
         dependencies.registers += s.asInstanceOf[DefRegister]
         s
       case defMemory: DefMemory =>
+        println(s"declaration:mem $defMemory")
         dependencies.addMemory(defMemory)
         s
       case stopStatement: Stop =>
@@ -102,5 +103,7 @@ class DependencyGraph {
   def getNameSet: mutable.HashSet[String] = mutable.HashSet(nameToExpression.keys.toSeq:_*)
   def addStop(stopStatement: Stop): Unit = { stops += stopStatement }
   def addPrint(printStatement: Print): Unit = { prints += printStatement }
-  def addMemory(memory: DefMemory): Unit = { memories(memory.name) = null }
+  def addMemory(defMemory: DefMemory): Unit = {
+    memories(defMemory.name) = Memory(defMemory)
+  }
 }
