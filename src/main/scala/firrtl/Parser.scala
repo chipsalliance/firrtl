@@ -41,7 +41,7 @@ case class InvalidEscapeCharException(message: String) extends ParserException(m
 object Parser extends LazyLogging
 {
   /** Takes Iterator over lines of FIRRTL, returns AST (root node is Circuit) */
-  def parse(filename: String, lines: Iterator[String], useInfo: Boolean = true): Circuit = {
+  def parse(filename: String, lines: Iterator[String], infoMode: InfoMode = UseInfo): Circuit = {
     val fixedInput = time("Translator") { Translator.addBrackets(lines) }
     val antlrStream = new ANTLRInputStream(fixedInput.result)
     val lexer = new FIRRTLLexer(antlrStream)
@@ -56,7 +56,7 @@ object Parser extends LazyLogging
     val numSyntaxErrors = parser.getNumberOfSyntaxErrors
     if (numSyntaxErrors > 0) throw new ParserException(s"${numSyntaxErrors} syntax error(s) detected")
 
-    val visitor = new Visitor(filename, useInfo) 
+    val visitor = new Visitor(filename, infoMode)
     val ast = time("Visitor") { visitor.visit(cst) } match {
       case c: Circuit => c
       case x => throw new ClassCastException("Error! AST not rooted with Circuit node!")
@@ -67,4 +67,9 @@ object Parser extends LazyLogging
 
   def parse(lines: Seq[String]): Circuit = parse("<None>", lines.iterator)
 
+  abstract class InfoMode
+  case object IgnoreInfo extends InfoMode
+  case object UseInfo extends InfoMode
+  case object GenInfo extends InfoMode
+  case object AppendInfo extends InfoMode
 }

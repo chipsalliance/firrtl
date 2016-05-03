@@ -41,9 +41,10 @@ import scala.collection.JavaConversions._
 import antlr._
 import PrimOps._
 import FIRRTLParser._
+import Parser.{InfoMode, IgnoreInfo, UseInfo, GenInfo, AppendInfo}
 import scala.annotation.tailrec
 
-class Visitor(val fullFilename: String, val useInfo : Boolean) extends FIRRTLBaseVisitor[AST] 
+class Visitor(val fullFilename: String, infoMode : InfoMode) extends FIRRTLBaseVisitor[AST]
 {
   // Strip file path
   private val filename = fullFilename.drop(fullFilename.lastIndexOf("/")+1)
@@ -77,22 +78,40 @@ class Visitor(val fullFilename: String, val useInfo : Boolean) extends FIRRTLBas
     }
   }
   private def string2Int(s: String): Int = string2BigInt(s).toInt
-  private def getInfo(ctx: ParserRuleContext): Info = 
-    if (useInfo) {
-      FileInfo(filename, ctx.getStart().getLine(), ctx.getStart().getCharPositionInLine())
-    } else NoInfo
 
-	private def visitCircuit[AST](ctx: FIRRTLParser.CircuitContext): Circuit = 
-    Circuit(getInfo(ctx), ctx.module.map(visitModule), (ctx.id.getText)) 
+  private def visitInfo(ctx: Option[FIRRTLParser.InfoContext], parentCtx: ParserRuleContext): Info = {
+    lazy val genInfo: String = s"$filename@${parentCtx.getStart.getLine}.${parentCtx.getStart.getCharPositionInLine}"
+    lazy val useInfo: String = ctx match {
+      case Some(info) => info.getText.tail.init // remove surrounding double quotes
+      case None => ""
+    }
+    infoMode match {
+      case UseInfo => if (useInfo.length == 0) NoInfo else FileInfo(FIRRTLStringLitHandler.unescape(useInfo))
+      case AppendInfo => FileInfo(FIRRTLStringLitHandler.unescape(s"$useInfo:$genInfo"))
+      case GenInfo => FileInfo(FIRRTLStringLitHandler.unescape(genInfo))
+      case IgnoreInfo => NoInfo
+    }
+  }
+
+	private def visitCircuit[AST](ctx: FIRRTLParser.CircuitContext): Circuit =
+    Circuit(visitInfo(Option(ctx.info), ctx), ctx.module.map(visitModule), (ctx.id.getText))
     
-  private def visitModule[AST](ctx: FIRRTLParser.ModuleContext): Module = 
-     ctx.getChild(0).getText match {
-        case "module" => InModule(getInfo(ctx), (ctx.id.getText), ctx.port.map(visitPort), visitBlock(ctx.block))
-        case "extmodule" => ExModule(getInfo(ctx), (ctx.id.getText), ctx.port.map(visitPort))
-      }
+  private def visitModule[AST](ctx: FIRRTLParser.ModuleContext): Module = {
+    val moduleText = ctx.getChild(0) match {
+      case term: TerminalNode => term.getText
+      case info: InfoContext => ctx.getChild(1).getText
+    }
+    moduleText match {
+      case "module" =>
+        InModule(visitInfo(Option(ctx.info), ctx), ctx.id.getText, ctx.port.map(visitPort), visitBlock(ctx.block))
+      case "extmodule" =>
+        ExModule(visitInfo(Option(ctx.info), ctx), ctx.id.getText, ctx.port.map(visitPort))
+    }
+  }
 
-  private def visitPort[AST](ctx: FIRRTLParser.PortContext): Port = 
-    Port(getInfo(ctx), (ctx.id.getText), visitDir(ctx.dir), visitType(ctx.`type`))
+  private def visitPort[AST](ctx: FIRRTLParser.PortContext): Port = {
+    Port(visitInfo(Option(ctx.info), ctx), (ctx.id.getText), visitDir(ctx.dir), visitType(ctx.`type`))
+  }
   private def visitDir[AST](ctx: FIRRTLParser.DirContext): Direction =
     ctx.getText match {
       case "input" => INPUT
@@ -150,7 +169,7 @@ class Visitor(val fullFilename: String, val useInfo : Boolean) extends FIRRTLBas
       }
     }
 
-    val info = getInfo(ctx)
+    val info = visitInfo(None, ctx)
     // Build map of different Memory fields to their values
     val map = try {
       parseChildren(ctx.children.drop(4), Map[String, Seq[ParseTree]]()) // First 4 tokens are 'mem' id ':' '{', skip to fields
@@ -177,9 +196,13 @@ class Visitor(val fullFilename: String, val useInfo : Boolean) extends FIRRTLBas
 
   // visitStmt
 	private def visitStmt[AST](ctx: FIRRTLParser.StmtContext): Stmt = {
-    val info = getInfo(ctx)
+    val (infoCtx, child0, child1) = ctx.getChild(0) match {
+      case iCtx: InfoContext => (Some(iCtx), ctx.getChild(1), ctx.getChild(2))
+      case _ => (None, ctx.getChild(0), ctx.getChild(1))
+    }
+    val info = visitInfo(infoCtx, ctx)
 
-    ctx.getChild(0) match {
+    child0 match {
       case term: TerminalNode => term.getText match {
         case "wire" => DefWire(info, (ctx.id(0).getText), visitType(ctx.`type`(0)))
         case "reg"  => {
@@ -216,13 +239,11 @@ class Visitor(val fullFilename: String, val useInfo : Boolean) extends FIRRTLBas
         case "skip" => Empty()
       }
       // If we don't match on the first child, try the next one
-      case _ => {
-        ctx.getChild(1).getText match {
-          case "<=" => Connect(info, visitExp(ctx.exp(0)), visitExp(ctx.exp(1)) )
-          case "<-" => BulkConnect(info, visitExp(ctx.exp(0)), visitExp(ctx.exp(1)) )
-          case "is" => IsInvalid(info, visitExp(ctx.exp(0)))
-          case "mport" => CDefMPort(info, ctx.id(0).getText, UnknownType(),ctx.id(1).getText,Seq(visitExp(ctx.exp(0)),visitExp(ctx.exp(1))),visitMdir(ctx.mdir))
-        }
+      case _ => child1.getText match {
+        case "<=" => Connect(info, visitExp(ctx.exp(0)), visitExp(ctx.exp(1)) )
+        case "<-" => BulkConnect(info, visitExp(ctx.exp(0)), visitExp(ctx.exp(1)) )
+        case "is" => IsInvalid(info, visitExp(ctx.exp(0)))
+        case "mport" => CDefMPort(info, ctx.id(0).getText, UnknownType(),ctx.id(1).getText,Seq(visitExp(ctx.exp(0)),visitExp(ctx.exp(1))),visitMdir(ctx.mdir))
       }
     }
   }
