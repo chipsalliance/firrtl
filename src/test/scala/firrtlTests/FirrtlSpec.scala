@@ -33,6 +33,7 @@ import com.typesafe.scalalogging.LazyLogging
 import scala.sys.process._
 import org.scalatest._
 import org.scalatest.prop._
+import scala.io.Source
 
 import firrtl._
 
@@ -133,7 +134,7 @@ trait FirrtlRunners extends BackendCompilationUtilities {
     val testDir = createTempDirectory(prefix)
     copyResourceToFile(s"${srcDir}/${prefix}.fir", new File(testDir, s"${prefix}.fir"))
     
-    Driver.compile(s"${testDir}/${prefix}.fir", s"${testDir}/${prefix}.v", VerilogCompiler)
+    Driver.compile(s"${testDir}/${prefix}.fir", s"${testDir}/${prefix}.v", new VerilogCompiler())
     testDir
   }
   def runFirrtlTest(prefix: String, srcDir: String) {
