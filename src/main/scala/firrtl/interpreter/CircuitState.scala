@@ -39,7 +39,8 @@ object CircuitState {
       interpreterCircuit.inputPortToValue,
       interpreterCircuit.outputPortToValue,
       interpreterCircuit.makeRegisterToConcreteValueMap,
-      new mutable.HashMap[String, Concrete]()
+      new mutable.HashMap[String, Concrete](),
+      interpreterCircuit.dependencyGraph.memories
     )
     circuitState
   }
@@ -58,10 +59,11 @@ object CircuitState {
   * @param registers   a map to current concrete value
   */
 case class CircuitState(
-                    inputPorts: mutable.Map[String, Concrete],
+                    inputPorts:  mutable.Map[String, Concrete],
                     outputPorts: mutable.Map[String, Concrete],
-                    registers: mutable.Map[String, Concrete],
-                    ephemera: mutable.Map[String, Concrete] = new mutable.HashMap[String, Concrete]()) {
+                    registers:   mutable.Map[String, Concrete],
+                    ephemera:    mutable.Map[String, Concrete] = new mutable.HashMap[String, Concrete](),
+                    memories:    mutable.Map[String, Memory]   = new mutable.HashMap[String, Memory]) {
   val nextRegisters = new mutable.HashMap[String, Concrete]()
 
   val nameToConcreteValue = mutable.HashMap((inputPorts ++ outputPorts ++ registers).toSeq:_*)
@@ -71,7 +73,8 @@ case class CircuitState(
       inputPorts.clone(),
       outputPorts.clone(),
       nextRegisters.clone(),
-      ephemera.empty
+      ephemera.empty,
+      memories.clone()
     )
     nextState
   }
@@ -85,6 +88,14 @@ case class CircuitState(
       println(s"Updating nextRegister $key => $concreteValue")
       nextRegisters(key) = concreteValue
       // we continue to use the initial values of registers when they appear on RHS of an expression
+    }
+    else if(isMemory(key)) {
+      println(s"Updating memory interface $key => $concreteValue")
+      key match {
+        case Memory.KeyPattern(memoryName, _, _) => memories(memoryName).setValue(key, concreteValue)
+        case _ =>
+          throw new InterpreterException(s"Error:failed memory($key).setValue($key, $concreteValue)")
+      }
     }
     else {
       ephemera(key) = concreteValue
@@ -101,8 +112,14 @@ case class CircuitState(
   }
 
   def getValue(key: String): Option[Concrete] = {
-    val value = nameToConcreteValue.get(key)
-    value
+    nameToConcreteValue.get(key) match {
+      case Some(value) => Some(value)
+      case _=>
+        key match {
+          case Memory.KeyPattern(memoryName, _, _) => Some(memories(memoryName).getValue(key))
+          case _ => None
+        }
+    }
   }
 
   def isInput(key: String): Boolean = inputPorts.contains(key)
@@ -110,6 +127,10 @@ case class CircuitState(
   def isRegister(key: String): Boolean = registers.contains(key)
   def isEphemera(key:String): Boolean = {
     ! (isInput(key) || isOutput(key) || isRegister(key))
+  }
+  def isMemory(key: String): Boolean = {
+    val memKey = Memory.memoryKey(key)
+    memories.contains(memKey)
   }
 
   /**

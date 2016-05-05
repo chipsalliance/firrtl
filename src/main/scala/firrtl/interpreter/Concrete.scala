@@ -26,7 +26,7 @@ MODIFICATIONS.
 */
 package firrtl.interpreter
 
-import firrtl.{SIntValue, IntWidth, UIntValue}
+import firrtl._
 
 trait Concrete {
   val value : BigInt
@@ -143,8 +143,20 @@ trait Concrete {
     //TODO: Is this right?
     ConcreteSInt(-value, width+1)
   }
-  def not: ConcreteUInt = {
-    ConcreteUInt(~value, width)
+  def not: ConcreteUInt = this match {
+    case ConcreteUInt(v, _) =>
+      var flipped = value
+      for(bitIndex <- 0 until width) {
+        flipped = flipped.flipBit(bitIndex)
+      }
+      ConcreteUInt(flipped, width)
+    case ConcreteSInt(v, _) =>
+      var flipped = value.abs
+      for(bitIndex <- 0 until width-1) {
+        flipped = flipped.flipBit(bitIndex)
+      }
+      if(v >= 0) flipped = flipped.setBit(width-1) // invert sign and stick at high end
+      ConcreteUInt(flipped, width)
   }
   def &(that: Concrete): ConcreteUInt = ConcreteUInt(this.value & that.value, width.max(that.width))
   def |(that: Concrete): ConcreteUInt = ConcreteUInt(this.value | that.value, width.max(that.width))
@@ -165,7 +177,7 @@ trait Concrete {
   assert(lo >= Big0, s"Error:BIT_SELECT_OP($this, hi=$hi, lo=$lo) lo must be >= 0")
   assert(lo <= width, s"Error:BIT_SELECT_OP($this, hi=$hi, lo=$lo) lo must be < ${this.width}")
   assert(hi >= lo,   s"Error:BIT_SELECT_OP($this, hi=$hi, lo=$lo) hi must be >= $lo")
-  assert(hi <= width, s"Error:BIT_SELECT_OP($this, hi=$hi, lo=$lo) lo must be < ${this.width}")
+  assert(hi <= width, s"Error:BIT_SELECT_OP($this, hi=$hi, lo=$lo) hi must be < ${this.width}")
     val (high, low) = (hi.toInt, lo.toInt)
     this match {
       case ConcreteUInt(v, _) => ConcreteUInt(getBits(high, low), high - low + 1)
@@ -215,7 +227,18 @@ trait Concrete {
     case ConcreteClock(v) =>
       ConcreteUInt(boolToBigInt(! v.testBit(0)), 1)
   }
-  def forceWidth(width: Int): Concrete
+  def forceWidth(newWidth: Int): Concrete
+  def forceWidth(tpe: Type): Concrete
+  def asBinaryString: String = {
+    val bitString = value.abs.toString(2)
+
+    this match {
+      case ConcreteUInt(v, w) =>
+        s"UInt<$width>${"0"*(width-bitString.length)}$bitString"
+      case ConcreteSInt(v, w) =>
+        s"UInt<$width>${if(v<0)"-" else "+"}${"0"*((width-1)-bitString.length)}$bitString"
+    }
+  }
 }
 object Concrete {
   def apply(u: UIntValue): ConcreteUInt = {
@@ -224,26 +247,64 @@ object Concrete {
   def apply(u: SIntValue): ConcreteSInt = {
     ConcreteSInt(u.value, u.width.asInstanceOf[IntWidth].width.toInt)
   }
+  def apply(tpe: Type, value: BigInt = Big0): Concrete = {
+    tpe match {
+      case UIntType(IntWidth(w))     => ConcreteUInt(value, w.toInt)
+//      case UIntValue(v, IntWidth(w)) => ConcreteUInt(v, w.toInt)
+      case SIntType(IntWidth(w))     => ConcreteSInt(value, w.toInt)
+//      case SIntValue(v, IntWidth(w)) => ConcreteSInt(v, w.toInt)
+      case ClockType()               => ConcreteClock(value)
+    }
+  }
+  def randomUInt(width: Int): ConcreteUInt = ConcreteUInt(randomBigInt(width), width)
+  def randomSInt(width: Int): ConcreteSInt = ConcreteSInt(randomBigInt(width), width)
 }
-// TODO: remove case classes, so that constructor can enforce widths
+
+/**
+  * A runtime instance of a UInt
+  * @param value the BigInt value of this UInt, must be non-negative
+  * @param width the number of bits in this value, must be big enough to contain value
+  */
 case class ConcreteUInt(val value: BigInt, val width: Int) extends Concrete {
+  if(width < 0) {
+    throw new InterpreterException(s"error: ConcreteUInt($value, $width) bad width $width must be > 0")
+  }
   val bitsRequired = requiredBits(value)
   if((width > 0) && (bitsRequired > width)) {
     throw new InterpreterException(s"error: ConcreteUInt($value, $width) bad width $width needs ${requiredBits(value.toInt)}")
   }
-  def forceWidth(width:Int): ConcreteUInt = ConcreteUInt(this.value, width)
+  def forceWidth(newWidth:Int): ConcreteUInt = {
+    if(newWidth == width) this else ConcreteUInt(this.value, newWidth)
+  }
+  def forceWidth(tpe: Type): ConcreteUInt = forceWidth(typeToWidth(tpe))
 }
+/**
+  * A runtime instance of a SInt
+  * @param value the BigInt value of this UInt,
+  * @param width the number of bits in this value, must be big enough to contain value plus 1 for sign bit
+  */
 case class ConcreteSInt(val value: BigInt, val width: Int) extends Concrete {
+  if(width < 0) {
+    throw new InterpreterException(s"error: ConcreteSInt($value, $width) bad width $width must be > 0")
+  }
   val bitsRequired = requiredBits(value)
   if ((width > 0) && (bitsRequired > width)) {
     throw new InterpreterException(s"error: ConcreteSInt($value, $width) bad width $width needs ${requiredBits(value.toInt)}")
   }
 
-  def forceWidth(width: Int): ConcreteSInt = ConcreteSInt(this.value, width)
+  def forceWidth(newWidth: Int): ConcreteSInt = {
+    if(newWidth == width) this else ConcreteSInt(this.value, newWidth)
+  }
+  def forceWidth(tpe: Type): ConcreteSInt = forceWidth(typeToWidth(tpe))
 }
 case class ConcreteClock(val value: BigInt) extends Concrete {
   val width = 1
-  def forceWidth(width: Int): ConcreteClock = throw new InterpreterException(s"withWidth not supported for $this")
+
+  def forceWidth(width: Int): ConcreteClock = {
+    if(width == 1) this
+    else throw new InterpreterException(s"withWidth($width) not supported for $this")
+  }
+  def forceWidth(tpe: Type): ConcreteClock = forceWidth(typeToWidth(tpe))
 }
 
 

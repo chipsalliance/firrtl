@@ -38,7 +38,7 @@ package firrtl
 
 import scala.collection.mutable.StringBuilder
 import java.io.PrintWriter
-import PrimOps._
+import com.typesafe.scalalogging.LazyLogging
 import WrappedExpression._
 import firrtl.WrappedType._
 import firrtl.Mappers._
@@ -46,7 +46,18 @@ import scala.collection.mutable.ArrayBuffer
 import scala.collection.mutable.LinkedHashMap
 //import scala.reflect.runtime.universe._
 
-object Utils {
+object Utils extends LazyLogging {
+  private[firrtl] def time[R](name: String)(block: => R): R = {
+    logger.info(s"Starting $name")
+    val t0 = System.nanoTime()
+    val result = block
+    val t1 = System.nanoTime()
+    logger.info(s"Finished $name")
+    val timeMillis = (t1 - t0) / 1000000.0
+    logger.info(f"$name took $timeMillis%.1f ms\n")
+    result
+  }
+
    implicit class WithAs[T](x: T) {
      import scala.reflect._
      def as[O: ClassTag]: Option[O] = x match {
@@ -569,6 +580,81 @@ object Utils {
        case _ => NoInfo
     }}
 
+  /** Splits an Expression into root Ref and tail
+    *
+    * @example
+    *   Given:   SubField(SubIndex(SubField(Ref("a", UIntType(IntWidth(32))), "b"), 2), "c")
+    *   Returns: (Ref("a"), SubField(SubIndex(Ref("b"), 2), "c"))
+    *   a.b[2].c -> (a, b[2].c)
+    * @example
+    *   Given:   SubField(SubIndex(Ref("b"), 2), "c")
+    *   Returns: (Ref("b"), SubField(SubIndex(EmptyExpression, 2), "c"))
+    *   b[2].c -> (b, EMPTY[2].c)
+    * @note This function only supports WRef, WSubField, and WSubIndex
+    */
+  def splitRef(e: Expression): (WRef, Expression) = e match {
+    case e: WRef => (e, EmptyExpression)
+    case e: WSubIndex =>
+      val (root, tail) = splitRef(e.exp)
+      (root, WSubIndex(tail, e.value, e.tpe, e.gender))
+    case e: WSubField =>
+      val (root, tail) = splitRef(e.exp)
+      tail match {
+        case EmptyExpression => (root, WRef(e.name, e.tpe, root.kind, e.gender))
+        case exp => (root, WSubField(tail, e.name, e.tpe, e.gender))
+      }
+  }
+
+  /** Adds a root reference to some SubField/SubIndex chain */
+  def mergeRef(root: WRef, body: Expression): Expression = body match {
+    case e: WRef =>
+      WSubField(root, e.name, e.tpe, e.gender)
+    case e: WSubIndex =>
+      WSubIndex(mergeRef(root, e.exp), e.value, e.tpe, e.gender)
+    case e: WSubField =>
+      WSubField(mergeRef(root, e.exp), e.name, e.tpe, e.gender)
+    case EmptyExpression => root
+  }
+
+  case class DeclarationNotFoundException(msg: String) extends FIRRTLException(msg)
+
+  /** Gets the root declaration of an expression
+    *
+    * @param m the [[firrtl.InModule]] to search
+    * @param expr the [[firrtl.Expression]] that refers to some declaration
+    * @return the [[firrtl.IsDeclaration]] of `expr`
+    * @throws DeclarationNotFoundException if no declaration of `expr` is found
+    */
+  def getDeclaration(m: InModule, expr: Expression): IsDeclaration = {
+    def getRootDecl(name: String)(s: Stmt): Option[IsDeclaration] = s match {
+      case decl: IsDeclaration => if (decl.name == name) Some(decl) else None
+      case c: Conditionally =>
+        val m = (getRootDecl(name)(c.conseq), getRootDecl(name)(c.alt))
+        m match {
+          case (Some(decl), None) => Some(decl)
+          case (None, Some(decl)) => Some(decl)
+          case (None, None) => None
+        }
+      case begin: Begin =>
+        val stmts = begin.stmts flatMap getRootDecl(name) // can we short circuit?
+        if (stmts.nonEmpty) Some(stmts.head) else None
+      case _ => None
+    }
+    expr match {
+      case (_: WRef | _: WSubIndex | _: WSubField) =>
+        val (root, tail) = splitRef(expr)
+        val rootDecl = m.ports find (_.name == root.name) match {
+          case Some(decl) => decl
+          case None =>
+            getRootDecl(root.name)(m.body) match {
+              case Some(decl) => decl
+              case None => throw new DeclarationNotFoundException(s"[module ${m.name}]  Reference ${expr.serialize} not declared!")
+            }
+        }
+        rootDecl
+      case e => throw new FIRRTLException(s"getDeclaration does not support Expressions of type ${e.getClass}")
+    }
+  }
 
 // =============== RECURISVE MAPPERS ===================
    def mapr (f: Width => Width, t:Type) : Type = {

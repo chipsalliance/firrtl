@@ -106,17 +106,22 @@ class IntWidthTestValuesGenerator(minValue: Int = 0, maxValue: Int = TestUtils.M
     val returnValue = nextValue
 
     def incrementPower(): Unit = {
-      nextPower = if(nextPower > 0) nextPower << 1 else nextPower >> 1
+      nextPower = {
+        if(nextPower > 0) nextPower << 1
+        else if(nextPower == -1 || nextPower == 0) 1
+        else nextPower >> 1
+      }
     }
 
     def updatePowerAndNextValue(): Unit = {
       while(nextPower+1 <= nextValue) {
         incrementPower()
       }
-      nextValue = (nextPower - 1).min(maxValue).max(returnValue+1)
+      nextValue = (nextPower - 1).min(maxValue-1).max(returnValue+1)
     }
 
     if(-5 <= nextValue && nextValue <= 4) nextValue += 1
+    else if(nextValue == maxValue-1)      nextValue += 1
     else if(nextValue == 5) {
       nextPower = 4
       updatePowerAndNextValue()
@@ -127,7 +132,7 @@ class IntWidthTestValuesGenerator(minValue: Int = 0, maxValue: Int = TestUtils.M
     else if(nextValue == minValue + 1)  updatePowerAndNextValue()
     else if(nextValue == minValue)      nextValue = minValue + 1
     else if(nextValue > nextPower+1)    updatePowerAndNextValue()
-
+    else nextValue += 1
     done = returnValue >= maxValue || nextValue > maxValue
 
     returnValue
@@ -153,7 +158,11 @@ class BigIntTestValuesGenerator(minValue: BigInt = 0, maxValue: BigInt = MaxWidt
     val returnValue = nextValue
 
     def incrementPower(): Unit = {
-      nextPower = if(nextPower > 0) nextPower << 1 else nextPower >> 1
+      nextPower = {
+        if(nextPower > 0) nextPower << 1
+        else if(nextPower == -Big1 || nextPower == Big0) 1
+        else nextPower >> 1
+      }
     }
 
     def updatePowerAndNextValue(): Unit = {
@@ -164,8 +173,9 @@ class BigIntTestValuesGenerator(minValue: BigInt = 0, maxValue: BigInt = MaxWidt
     }
 
     if(-Big5 <= nextValue && nextValue <= Big4) nextValue += 1
+    else if(nextValue == maxValue-1)      nextValue += 1
     else if(nextValue == Big5) {
-      nextPower = 4
+      nextPower = Big4
       updatePowerAndNextValue()
     }
     else if(nextValue == nextPower - 1) nextValue += 1
@@ -174,6 +184,7 @@ class BigIntTestValuesGenerator(minValue: BigInt = 0, maxValue: BigInt = MaxWidt
     else if(nextValue == minValue + 1)  updatePowerAndNextValue()
     else if(nextValue == minValue)      nextValue = minValue + 1
     else if(nextValue > nextPower+1)    updatePowerAndNextValue()
+    else nextValue += 1
 
     done = returnValue >= maxValue || nextValue > maxValue
 

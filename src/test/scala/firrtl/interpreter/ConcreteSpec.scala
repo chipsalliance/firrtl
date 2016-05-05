@@ -194,6 +194,43 @@ class ConcreteSpec extends FlatSpec with Matchers {
     }
   }
 
+  behavior of "not"
+
+  it should "flip bits of UInts" in {
+    def makeNum(width: Int, offset: Int): Concrete = {
+      val uOrS: String = if(width < 0) "S" else "U"
+      val num = (0 until width.abs).map(x => ((x + offset) % 2).toString).mkString
+      uOrS match {
+        case "U" => ConcreteUInt(BigInt(num, 2), width.abs)
+        case "S" => ConcreteSInt(BigInt(num, 2) * (if((width-1) % 2 == 0) 1 else -1), width.abs + 1)
+      }
+    }
+    for(width <- IntWidthTestValuesGenerator(-MaxWidth, MaxWidth)) {
+      if (width < -1 || width > 1) {
+        val bitString1 = (0 until width.abs-1).map(x => (x % 2).toString).mkString
+        val bitString2 = (0 until width.abs-1).map(x => ((x+1) % 2).toString).mkString
+
+        for(sign <- Array(-1, 1)) {
+          val bigInt = sign*BigInt(bitString1, 2)
+          val si = ConcreteSInt(bigInt, width.abs)
+          val topUintBit1 = if (bigInt < 0) "1" else "0"
+          val topUintBit2 = if (bigInt < 0) "0" else "1"
+
+          val ui       = ConcreteUInt(BigInt(topUintBit1 + bitString1, 2), width.abs)
+          val expected = ConcreteUInt(BigInt(topUintBit2 + bitString2, 2), width.abs)
+
+//          println(s"width $width si     ${si.asBinaryString}")
+//          println(s"width $width ui     ${ui.asBinaryString}")
+//          println(s"width $width si.ex  ${expected.asBinaryString}")
+//          println(s"width $width si.not ${si.not.asBinaryString}")
+//          println()
+
+          si.not should be (expected)
+          ui.not should be (expected)
+        }
+      }
+    }
+  }
   behavior of "bits"
 
   it should "allows arbitrary selection of bits" in {

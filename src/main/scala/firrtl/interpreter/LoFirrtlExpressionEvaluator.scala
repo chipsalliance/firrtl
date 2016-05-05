@@ -252,16 +252,34 @@ class LoFirrtlExpressionEvaluator(
 
     val result = try {
       expression match {
-        case Mux(condition, trueExpression, falseExpression, _) =>
-          if (evaluate(condition).value > 0) {
+        case Mux(condition, trueExpression, falseExpression, tpe) =>
+          val v = if (evaluate(condition).value > 0) {
             evaluate(trueExpression)
           }
           else {
             evaluate(falseExpression)
           }
-        case WRef(name, tpe, kind, gender) => getValue(name)
+          v.forceWidth(tpe)
+        case WRef(name, tpe, kind, gender) => getValue(name).forceWidth(tpe)
+        case ws: WSubField =>
+          val name = expression.serialize
+          getValue(name).forceWidth(ws.tpe)
+        case ws: WSubIndex =>
+          val name = expression.serialize
+          getValue(name).forceWidth(ws.tpe)
+        case ValidIf(condition, value, tpe) =>
+          if (evaluate(condition).value > 0) {
+            evaluate(value).forceWidth(tpe)
+          }
+          else {
+            val random = util.Random
+            tpe match {
+              case UIntType(IntWidth(w)) => Concrete.randomUInt(w.toInt)
+              case SIntType(IntWidth(w)) => Concrete.randomSInt(w.toInt)
+            }
+          }
         case DoPrim(op, args, const, tpe) =>
-          op match {
+          val v = op match {
             case ADD_OP => mathPrimitive(op, args, tpe)
             case SUB_OP => mathPrimitive(op, args, tpe)
             case MUL_OP => mathPrimitive(op, args, tpe)
@@ -309,8 +327,9 @@ class LoFirrtlExpressionEvaluator(
             case _ =>
               throw new InterruptedException(s"PrimOP $op in $expression not yet supported")
           }
-        case c: UIntValue => Concrete(c)
-        case c: SIntValue => Concrete(c)
+          v.forceWidth(tpe)
+        case c: UIntValue => Concrete(c).forceWidth(c.tpe)
+        case c: SIntValue => Concrete(c).forceWidth(c.tpe)
       }
     }
     catch {
@@ -334,7 +353,18 @@ class LoFirrtlExpressionEvaluator(
   }
 
   private def resolveDependency(key: String): Concrete = {
-    assert(toResolve.contains(key), s"Error: attempt to resolve dependency for unknown key $key")
+    if(toResolve.contains(key)) {
+      toResolve -= key
+    }
+    else {
+      key match {
+        case Memory.KeyPattern(memoryName, _, _) =>
+          println("Got memory key to resolve")
+        case _ =>
+          throw new InterruptedException(s"Error: attempt to resolve dependency for unknown key $key")
+      }
+    }
+
     toResolve -= key
 
     log(s"resolveDependency:start: $key")

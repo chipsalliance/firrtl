@@ -26,67 +26,195 @@ MODIFICATIONS.
 */
 package firrtl.interpreter
 
+import firrtl.{IntWidth, UIntType, NoInfo, DefMemory}
 import org.scalatest.{Matchers, FlatSpec}
 
-/**
-  * Created by chick on 4/30/16.
-  */
+
 class MemorySpec extends FlatSpec with Matchers {
-  behavior of "memory primitives"
 
-  val input =
-    """circuit Test :
-      |  module Test :
-      |    input clk : Clock
-      |    input a : UInt<1>
-      |    input b : UInt<1>
-      |    input select : UInt<1>
-      |    output c : UInt<1>
-      |    mem m :
-      |      data-type => { a : UInt<8>, b : UInt<8>}[2]
-      |      depth => 32
-      |      read-latency => 0
-      |      write-latency => 1
-      |      reader => read
-      |      writer => write
-      |    m.read.clk <= clk
-      |    m.read.en <= UInt<1>(1)
-      |    m.read.addr is invalid
-      |    node x = m.read.data
-      |    node y = m.read.data[0].b
-      |
-      |    m.write.clk <= clk
-      |    m.write.en <= UInt<1>(0)
-      |    m.write.mask is invalid
-      |    m.write.addr is invalid
-      |    wire w : { a : UInt<8>, b : UInt<8>}[2]
-      |    w[0].a <= UInt<4>(2)
-      |    w[0].b <= UInt<4>(3)
-      |    w[1].a <= UInt<4>(4)
-      |    w[1].b <= UInt<4>(5)
-      |    m.write.data <= w
-      |    c <= a
-    """.stripMargin
+  behavior of "Memory instances"
 
-  it should "run this circuit" in {
-    val tester = new InterpretiveTester(input) {
-//      poke("a", 3)
-//      poke("b", 5)
-//      poke("select", 0)
-//
-//      step(1)
-//
-//      def testC(): Unit = {
-//        val m = peek("c")
-//        println(s"got $m")
-//        step(1)
-//      }
-//      testC()
-//      testC()
-//      testC()
+  it should "be creatable" in {
+    val dataWidth = 42
+    val memory = Memory(DefMemory(
+      NoInfo, "memory1", UIntType(IntWidth(dataWidth)), 17, 1, 1, Seq("read1", "read2"), Seq("write1"), Seq()
+    ))
+
+    memory.depth should be(17)
+    memory.readers.length should be(2)
+    memory.readers.contains("read1") should be(true)
+    memory.readers.contains("read2") should be(true)
+
+    memory.writers.length should be(1)
+    memory.writers.contains("write1") should be(true)
+
+    memory.dataStore.length should be(17)
+  }
+
+  it should "allow port values to be read and written" in {
+    val dataWidth = 42
+    val memory = Memory(DefMemory(
+      NoInfo, "memory1", UIntType(IntWidth(dataWidth)), 17, 1, 1, Seq("read1", "read2"), Seq("write1"), Seq()
+    ))
+
+    val key = "memory1.read1.addr"
+
+    for(i <- 0 until memory.depth) {
+      memory.dataStore(i) = ConcreteUInt(9999, dataWidth)
+    }
+    memory.getValue(key).value should be(0)
+    memory.setValue(key, ConcreteUInt(23, dataWidth))
+    memory.getValue(key).value should be(23)
+  }
+
+  it should "assign to memory by setting en, data, and addr" in {
+    val dataWidth = 42
+    val memory = Memory(DefMemory(
+      NoInfo, "memory1", UIntType(IntWidth(dataWidth)), 17, 1, 1, Seq("read1", "read2"), Seq("write1"), Seq()
+    ))
+
+    var lastValue = Big0
+    val key = "memory1.write1"
+    for (i <- 0 until memory.depth) {
+      println(s"Write test slot $i" + ("="*80))
+      memory.setValue(key + ".en", ConcreteUInt(1, 1))
+      memory.setValue(key + ".addr", ConcreteUInt(i, memory.addressWidth))
+      memory.setValue(key + ".mask", ConcreteUInt(0, dataWidth))
+      memory.setValue(key + ".data", ConcreteUInt(i * 2, dataWidth))
+      memory.cycle()
+
+      if(i > 0) memory.dataStore(i-1 % memory.depth).value should be(lastValue)
+      lastValue = i * 2
     }
   }
 
+  it should "read from memory by setting en, addr using read latency 0" in {
+    val dataWidth = 42
+    val memory = Memory(DefMemory(
+      NoInfo, "memory1", UIntType(IntWidth(dataWidth)), 17, 1, 0, Seq("read1", "read2"), Seq("write1"), Seq()
+    ))
 
+    val key = "memory1.read1"
+    var lastValue = Big0
 
+    for (i <- 0 until memory.depth) {
+      memory.dataStore(i) = ConcreteUInt(i * 4, dataWidth)
+    }
+
+    println(s"memory is ${memory.dataStore.map(_.value).mkString(",")}")
+
+    lastValue = 999
+    val staleValue = ConcreteUInt(lastValue, dataWidth)
+    memory.setValue(key + ".data", staleValue)
+
+    for (i <- 0 until memory.depth) {
+      println(s"Checking memory slot $i" + ("=" * 80))
+      memory.setValue(key + ".en", ConcreteUInt(1, 1))
+      memory.setValue(key + ".addr", ConcreteUInt(i, memory.addressWidth))
+      println("enable and address set")
+
+      memory.cycle()
+      memory.getValue(key + ".data").value should be (i * 4)
+
+      lastValue = i * 4
+
+      println(s"got value $i ${memory.getValue(key+".data").value}")
+    }
+  }
+
+  it should "read from memory by setting en, addr using read latency 1" in {
+    val dataWidth = 42
+    val memory = Memory(DefMemory(
+      NoInfo, "memory1", UIntType(IntWidth(dataWidth)), 17, 1, 1, Seq("read1", "read2"), Seq("write1"), Seq()
+    ))
+
+    val key = "memory1.read1"
+    var lastValue = Big0
+
+    for (i <- 0 until memory.depth) {
+      memory.dataStore(i) = ConcreteUInt(i * 3, dataWidth)
+    }
+
+    println(s"memory is ${memory.dataStore.map(_.value).mkString(",")}")
+
+    lastValue = 999
+    val staleValue = ConcreteUInt(lastValue, dataWidth)
+    memory.setValue(key + ".data", staleValue)
+
+    for (i <- 0 until memory.depth) {
+      println(s"Checking memory slot $i" + ("=" * 80))
+      memory.setValue(key + ".en", ConcreteUInt(1, 1))
+      memory.setValue(key + ".addr", ConcreteUInt(i, memory.addressWidth))
+      println("enable and address set")
+
+      memory.cycle()
+      memory.getValue(key + ".data").value should be(lastValue)
+
+      lastValue = i * 3
+
+      println(s"got value $i ${memory.getValue(key+".data").value}")
+    }
+  }
+
+  it should "observe read delay" in {
+    val dataWidth = 64
+    for(readDelay <- 1 to 5) {
+      println(s"testing read delay of $readDelay ${"="*80}")
+      val memory = Memory(DefMemory(
+        NoInfo, "memory1", UIntType(IntWidth(dataWidth)), 17, 1, readDelay, Seq("read1", "read2"), Seq("write1"), Seq()
+      ))
+      memory.setVerbose()
+
+      val key = "memory1.read1"
+
+      val testValue = 77
+      memory.dataStore(3) = ConcreteUInt(testValue, dataWidth)
+      memory.dataStore(3).value should be (testValue)
+
+      memory.setValue(key + ".en", ConcreteUInt(1, 1))
+      memory.setValue(key + ".addr", ConcreteUInt(3, memory.addressWidth))
+      memory.setValue(key + ".data", ConcreteUInt(99, memory.dataWidth))
+      memory.cycle()
+
+      for(wait<- 0 until readDelay) {
+        memory.dataStore(3).value should be (testValue)
+        memory.getValue(key + ".data").value should be(99)
+        memory.setValue(key + ".en", ConcreteUInt(0, 1))
+        memory.cycle()
+      }
+
+      memory.dataStore(3).value should be (testValue)
+      memory.getValue(key + ".data").value should be(testValue)
+
+    }
+  }
+
+  it should "observe write delay" in {
+    val dataWidth = 64
+    for(writeDelay <- 1 to 5) {
+      println(s"testing write delay of $writeDelay ${"="*80}")
+      val memory = Memory(DefMemory(
+        NoInfo, "memory1", UIntType(IntWidth(dataWidth)), 17, writeDelay, 1, Seq("read1", "read2"), Seq("write1"), Seq()
+      ))
+      memory.setVerbose()
+
+      val key = "memory1.write1"
+
+      memory.dataStore(3).value should be (0)
+
+      memory.setValue(key + ".en", ConcreteUInt(1, 1))
+      memory.setValue(key + ".addr", ConcreteUInt(3, memory.addressWidth))
+      memory.setValue(key + ".data", ConcreteUInt(11, memory.dataWidth))
+      memory.cycle()
+
+      for(wait<- 0 until writeDelay) {
+        memory.dataStore(3).value should be (0)
+        memory.setValue(key + ".en", ConcreteUInt(0, 1))
+        memory.cycle()
+      }
+
+      memory.dataStore(3).value should be (11)
+
+    }
+  }
 }
