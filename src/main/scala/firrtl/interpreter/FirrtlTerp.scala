@@ -99,6 +99,24 @@ class FirrtlTerp(ast: Circuit) {
 
   }
 
+  def doCombinationalUpdate() = {
+    updateInputs()
+
+    val evaluator = new LoFirrtlExpressionEvaluator(
+      startKeys = interpreterCircuit.dependencyGraph.keys, //TODO: maybe remove this
+      dependencyGraph = interpreterCircuit.dependencyGraph,
+      circuitState = sourceState
+    )
+    evaluator.setVerbose(verbose)
+    evaluator.resolveDependencies()
+    lastStopResult = evaluator.checkStops()
+    evaluator.checkPrints()
+
+    evaluator.processRegisterResets()
+
+    println(s"FirrtlTerp: combinational update complete ${"="*80}\n${sourceState.prettyString()}")
+  }
+
   def doCycles(n: Int): Unit = {
     println(s"Initial state ${"-"*80}\n${sourceState.prettyString()}")
 
