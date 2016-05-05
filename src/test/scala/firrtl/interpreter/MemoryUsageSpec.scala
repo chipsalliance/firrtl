@@ -136,20 +136,19 @@ class MemoryUsageSpec extends FlatSpec with Matchers {
       """.stripMargin
 
     val tester = new InterpretiveTester(input) {
-      //      poke("a", 3)
-      //      poke("b", 5)
-      //      poke("select", 0)
-      //
-      //      step(1)
-      //
-      //      def testC(): Unit = {
-      //        val m = peek("c")
-      //        println(s"got $m")
-      //        step(1)
-      //      }
-      //      testC()
-      //      testC()
-      //      testC()
+      poke("a", 1)
+      poke("b", 0)
+      poke("select", 0)
+
+      step(1)
+
+      def testC(): Unit = {
+        val m = peek("c")
+        println(s"got $m")
+        step(1)
+      }
+      testC()
+
     }
   }
 }

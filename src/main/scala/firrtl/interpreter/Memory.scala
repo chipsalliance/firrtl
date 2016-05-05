@@ -63,7 +63,7 @@ class Memory(
   val bigDepth     = BigInt(depth)
 
   assert(writeLatency < 10, s"Interpreter memory $name write latency $writeLatency not supported, must be 1")
-  assert(readLatency < 10,   s"Interpreter memory $name read latency $readLatency not supported, must be 0 or 1")
+  assert(readLatency < 10,  s"Interpreter memory $name read latency $readLatency not supported, must be 0 or 1")
   assert(readLatency >= 0,  s"Interpreter memory $name read latency $readLatency not supported, must be 0 or 1")
 
   val ports: Map[String, MemoryPort] = {
@@ -159,10 +159,11 @@ class Memory(
       */
     def cycle(): Unit = {
       queue.foreach { _.currentDelay -= 1}
-      if(enabled) queue += QueueValue(readLatency, dataStore(intAddress))
+      if(enabled) queue += QueueValue(readLatency, dataStore(intAddress), address.value.toInt)
 
       queue.headOption.foreach { case head =>
         if(head.currentDelay <= 0) {
+          log(s"memory($name) read  dataStore(${head.address}) gives ${head.value}")
           data = head.value
           queue.dequeue()
         }
@@ -197,6 +198,7 @@ class Memory(
 
       queue.headOption.foreach { case head =>
         if(head.currentDelay <= 0) {
+          log(s"memory($name) write dataStore(${head.address}) <= ${head.value}")
           dataStore(head.address) = head.value
           queue.dequeue()
         }

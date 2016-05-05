@@ -76,6 +76,9 @@ case class CircuitState(
       ephemera.empty,
       memories.clone()
     )
+
+    nextState.memories.values.foreach { memory => memory.cycle() }
+
     nextState
   }
 

@@ -256,8 +256,9 @@ object Concrete {
       case ClockType()               => ConcreteClock(value)
     }
   }
-  def randomUInt(width: Int): ConcreteUInt = ConcreteUInt(randomBigInt(width), width)
-  def randomSInt(width: Int): ConcreteSInt = ConcreteSInt(randomBigInt(width), width)
+  def randomUInt(width: Int): ConcreteUInt  = ConcreteUInt(randomBigInt(width), width)
+  def randomSInt(width: Int): ConcreteSInt  = ConcreteSInt(randomBigInt(width), width)
+  def randomClock():          ConcreteClock = ConcreteClock(randomBigInt(1))
 }
 
 /**

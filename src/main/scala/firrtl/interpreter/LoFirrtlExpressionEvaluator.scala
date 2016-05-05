@@ -276,6 +276,7 @@ class LoFirrtlExpressionEvaluator(
             tpe match {
               case UIntType(IntWidth(w)) => Concrete.randomUInt(w.toInt)
               case SIntType(IntWidth(w)) => Concrete.randomSInt(w.toInt)
+              case ClockType()           => Concrete.randomClock()
             }
           }
         case DoPrim(op, args, const, tpe) =>
