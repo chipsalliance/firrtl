@@ -78,8 +78,8 @@ class DynamicMemorySearch extends FlatSpec with Matchers {
     val n = 8
     val w = 4
 
-    val x = new InterpretiveTester(input) {
-//      interpreter.setVerbose(true)
+    new InterpretiveTester(input) {
+      interpreter.setVerbose(true)
       interpreter.sourceState.memories("list").setVerbose()
       step(1)
 
@@ -131,7 +131,7 @@ class DynamicMemorySearch extends FlatSpec with Matchers {
 
         println(s"Done waiting wait count is $waitCount done is ${peek("io_done")}")
         expect("io_done", 1)
-        expect("io_target", expectedIndex+1)
+        expect("io_target", expectedIndex)
         step(1)
       }
     }

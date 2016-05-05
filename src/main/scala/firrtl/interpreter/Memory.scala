@@ -120,7 +120,12 @@ class Memory(
     println(s"memory($name) dataStore ${dataStore.map{_.value}.mkString(",")}")
   }
 
-  class MemoryPort {
+  def getFieldDependencies(portName: String): Seq[String] = {
+    ports(portName).getFieldDependencies
+  }
+
+  abstract class MemoryPort {
+    val portName: String
     var enable: Concrete         = ConcreteUInt(0, 1)
     var clock: Concrete          = ConcreteClock(0)
     var data: Concrete           = ConcreteUInt(0, dataWidth)
@@ -152,6 +157,10 @@ class Memory(
           throw new Exception(s"error:bad field specifier memory($name).getValue($fieldName)")
       }
     }
+    def getFieldDependencies: Seq[String]
+    override def toString: String = {
+      s"${enable.value}:${address.value}:${data.value}"
+    }
   }
 
   case class ReadPort(portName: String) extends MemoryPort {
@@ -172,6 +181,9 @@ class Memory(
       }
       log(s"read.cycle q = ${queue.mkString(",")}")
     }
+
+    val fieldDependencies = Seq("en", "addr").map { fieldName => s"$name.$portName.$fieldName"}
+    def getFieldDependencies: Seq[String] = fieldDependencies
   }
   case class WritePort(portName: String) extends MemoryPort {
     var mask: Concrete           = ConcreteUInt(0, dataWidth)
@@ -207,6 +219,11 @@ class Memory(
       }
       log(s"write.cycle q = ${queue.mkString(",")}")
     }
+    val fieldDependencies = Seq("en", "addr", "mask").map { fieldName => s"$name.$portName.$fieldName"}
+    def getFieldDependencies: Seq[String] = fieldDependencies
+    override def toString: String = {
+      s"${enable.value}:${address.value}:${data.value}"
+    }
   }
   case class ReadWritePort(portName: String) extends MemoryPort {
     var writeMode: Concrete      = ConcreteUInt(0, 1)
@@ -232,6 +249,9 @@ class Memory(
     def cycle(): Unit = {
 
     }
+    val fieldDependencies = Seq("en", "addr", "mask", "wmod").map { fieldName => s"$name.$portName.$fieldName"}
+    def getFieldDependencies: Seq[String] = fieldDependencies
+
   }
   case class QueueValue(delay: Int, value: Concrete, address: Int = 0) {
     var currentDelay = delay

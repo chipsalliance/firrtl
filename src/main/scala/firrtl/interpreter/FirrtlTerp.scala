@@ -31,8 +31,6 @@ import firrtl._
 
 // TODO: Check for loops in dependency graph during evaluation
 // TODO: Add poison concept/multi-state
-// TODO: Consider adding counts to nodes and registers
-// TODO: Make into separate repo
 // TODO: Support Multiple modules
 // TODO: Figure out what to do about clock
 // TODO: Implement VCD parser and emitter (https://github.com/impedimentToProgress/ProcessVCD.git)?
@@ -44,6 +42,7 @@ import firrtl._
 // TODO: for all OpCodes, add assertions that width of computation matches width of target being assigned to
 // TODO: try inlining pass
 // TODO: finish support for read/write memory ports
+// TODO: Make into separate repo
 
 class FirrtlTerp(ast: Circuit) {
   var lastStopResult: Option[Int] = None

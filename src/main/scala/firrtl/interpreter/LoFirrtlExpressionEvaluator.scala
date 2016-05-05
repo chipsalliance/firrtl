@@ -66,7 +66,24 @@ class LoFirrtlExpressionEvaluator(
     * @return
     */
   def getValue(key: String): Concrete = {
-    circuitState.getValue(key).getOrElse(resolveDependency(key))
+    key match {
+      case Memory.KeyPattern(memoryName, portName, fieldName) =>
+        if(fieldName == "data") {
+          log(s"resolving: rhs memory data reference, dispatching implicit dependencies")
+          circuitState.getMemoryDependencies(memoryName, portName).foreach { dependentKey =>
+            resolveDependency(dependentKey)
+          }
+        }
+        else {
+          log("resolving memory key")
+        }
+      case _ =>
+    }
+    circuitState.getValue(key) match {
+      case Some(value) => value
+      case _ =>
+        resolveDependency(key)
+    }
   }
 
   /**
@@ -272,7 +289,6 @@ class LoFirrtlExpressionEvaluator(
             evaluate(value).forceWidth(tpe)
           }
           else {
-            val random = util.Random
             tpe match {
               case UIntType(IntWidth(w)) => Concrete.randomUInt(w.toInt)
               case SIntType(IntWidth(w)) => Concrete.randomSInt(w.toInt)
@@ -359,14 +375,22 @@ class LoFirrtlExpressionEvaluator(
     }
     else {
       key match {
-        case Memory.KeyPattern(memoryName, _, _) =>
-          println("Got memory key to resolve")
+        case Memory.KeyPattern(memoryName, portName, fieldName) =>
+          if(fieldName == "data") {
+            log(s"resolving: rhs memory data reference, dispatching implicit dependencies")
+            circuitState.getMemoryDependencies(memoryName, portName).foreach { dependentKey =>
+              resolveDependency(dependentKey)
+            }
+          }
+          else {
+            log("resolving memory key")
+          }
         case _ =>
           throw new InterruptedException(s"Error: attempt to resolve dependency for unknown key $key")
       }
     }
 
-    toResolve -= key
+//    toResolve -= key
 
     log(s"resolveDependency:start: $key")
     resolveDepth += 1
@@ -387,6 +411,17 @@ class LoFirrtlExpressionEvaluator(
   }
 
   def resolveDependencies(): Unit = {
+    val memKeys = toResolve.filter { circuitState.isMemory }
+    toResolve --= memKeys
+
+    while (memKeys.nonEmpty) {
+      val key = memKeys.head
+      resolveDependency(key)
+      memKeys -= key
+    }
+
+    circuitState.cycleMemories()
+
     while (toResolve.nonEmpty) {
       val key = toResolve.head
       resolveDependency(key)

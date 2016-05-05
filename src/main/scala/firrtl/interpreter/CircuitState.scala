@@ -70,6 +70,14 @@ case class CircuitState(
 
   var stateCounter = 0
 
+  def getMemoryDependencies(memoryName: String, portName: String): Seq[String] = {
+    memories(memoryName).getFieldDependencies(portName)
+  }
+
+  def cycleMemories(): Unit = {
+    memories.values.foreach { memory => memory.cycle() }
+  }
+
   def getNextState: CircuitState = {
     val nextState = new CircuitState(
       inputPorts.clone(),
@@ -80,8 +88,6 @@ case class CircuitState(
     )
 
     nextState.stateCounter = stateCounter + 1
-    nextState.memories.values.foreach { memory => memory.cycle() }
-
     nextState
   }
 
@@ -147,12 +153,6 @@ case class CircuitState(
     */
   def prettyString(dense: Boolean = true): String = {
     val (prefix, separator, postfix) = if(dense) (": ", ", ", "") else (":\n  ", "\n  ", "")
-    def expression_name(e: Expression): String = {
-      e match {
-        case w: WRef => w.name
-        case _ => e.toString
-      }
-    }
     def showConcreteValues(msg: String, m: Map[String, Concrete]): String = {
       m.keys.toSeq.sorted.map { case key =>
         s"$key=${m(key).value}"
