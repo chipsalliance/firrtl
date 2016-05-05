@@ -79,6 +79,7 @@ class DynamicMemorySearch extends FlatSpec with Matchers {
     val w = 4
 
     val x = new InterpretiveTester(input) {
+//      interpreter.setVerbose(true)
       interpreter.sourceState.memories("list").setVerbose()
       step(1)
 
@@ -95,13 +96,16 @@ class DynamicMemorySearch extends FlatSpec with Matchers {
       }
 
       for (k <- 0 until 16) {
+        println(s"memory test iteration $k ${"X"*80}")
         // WRITE A WORD
         poke("io_en", 0)
         poke("io_isWr", 1)
         val wrAddr = random.nextInt(n - 1)
-        val data = random.nextInt((1 << w) - 1) + 1 // can'"t be 0
+        val data   = random.nextInt((1 << w) - 1) + 1 // can'"t be 0
         poke("io_wrAddr", wrAddr)
         poke("io_data", data)
+
+        println(s"memory test iteration $k setting mem($wrAddr) to $data ${"-"*80}")
         step(1)
         list(wrAddr) = data
         // SETUP SEARCH
@@ -111,7 +115,7 @@ class DynamicMemorySearch extends FlatSpec with Matchers {
         poke("io_en", 1)
         step(1)
         poke("io_en", 0)
-        step(1)
+//        step(1)
         val expectedIndex = if (list.contains(target)) {
           list.indexOf(target)
         } else {
@@ -127,7 +131,7 @@ class DynamicMemorySearch extends FlatSpec with Matchers {
 
         println(s"Done waiting wait count is $waitCount done is ${peek("io_done")}")
         expect("io_done", 1)
-        expect("io_target", expectedIndex)
+        expect("io_target", expectedIndex+1)
         step(1)
       }
     }

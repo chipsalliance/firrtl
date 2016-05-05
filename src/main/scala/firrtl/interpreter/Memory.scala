@@ -116,6 +116,8 @@ class Memory(
     for(writer <- writePorts) writer.cycle()
     for(reader <- readPorts) reader.cycle()
     for(readWriter <- readWritePorts) readWriter.cycle()
+
+    println(s"memory($name) dataStore ${dataStore.map{_.value}.mkString(",")}")
   }
 
   class MemoryPort {

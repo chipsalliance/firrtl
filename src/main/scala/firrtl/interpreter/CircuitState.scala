@@ -68,6 +68,8 @@ case class CircuitState(
 
   val nameToConcreteValue = mutable.HashMap((inputPorts ++ outputPorts ++ registers).toSeq:_*)
 
+  var stateCounter = 0
+
   def getNextState: CircuitState = {
     val nextState = new CircuitState(
       inputPorts.clone(),
@@ -77,6 +79,7 @@ case class CircuitState(
       memories.clone()
     )
 
+    nextState.stateCounter = stateCounter + 1
     nextState.memories.values.foreach { memory => memory.cycle() }
 
     nextState
@@ -156,7 +159,7 @@ case class CircuitState(
       }.mkString(msg+prefix, separator, postfix)
     }
     s"""
-       |CircuitState
+       |CircuitState $stateCounter
        |${showConcreteValues("Inputs", inputPorts.toMap)}
        |${showConcreteValues("Outputs", outputPorts.toMap)}
        |${showConcreteValues("BeforeRegisters", registers.toMap)}

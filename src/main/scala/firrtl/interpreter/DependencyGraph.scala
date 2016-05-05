@@ -50,6 +50,8 @@ object DependencyGraph extends LazyLogging {
       case printStatement: Print =>
         dependencies.addPrint(printStatement)
         s
+      case e: Empty =>
+        s
       case conditionally: Conditionally =>
         // println(s"got a conditionally $conditionally")
         throw new InterpreterException(s"conditionally unsupported in interpreter $conditionally")

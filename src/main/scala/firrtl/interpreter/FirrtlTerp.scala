@@ -38,7 +38,6 @@ import firrtl._
 // TODO: Implement VCD parser and emitter (https://github.com/impedimentToProgress/ProcessVCD.git)?
 // TODO: Get official Firrtl to LoFirrtl transformer
 // TODO: x(8, 4) := UInt(31)
-// TODO: Get *official* story on widths of SInt (Is sign part of width)
 // TODO: What is divide by zero strategy
 // TODO: SInt must support width 1
 // TODO: How do zero width wires affect interpreter
@@ -95,7 +94,7 @@ class FirrtlTerp(ast: Circuit) {
 
     evaluator.processRegisterResets()
 
-    println(s"FirrtlTerp: cycle complete ${"="*80}\n${sourceState.prettyString()}")
+//    println(s"FirrtlTerp: cycle complete ${"="*80}\n${sourceState.prettyString()}")
     sourceState = sourceState.getNextState
     println(s"FirrtlTerp: next state computed ${"="*80}\n${sourceState.prettyString()}")
 
