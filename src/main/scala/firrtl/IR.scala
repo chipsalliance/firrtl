@@ -109,6 +109,52 @@ case class SIntLiteral(value: BigInt, width: Width) extends Literal {
 }
 case class DoPrim(op: PrimOp, args: Seq[Expression], consts: Seq[BigInt], tpe: Type) extends Expression
 
+// Mem Ports/Fields
+case class MemoryPortField(name: String, orientation: Orientation, tpe: Type) extends FIRRTLNode
+case class MemoryPortData(tpe: Type, orientation: Orientation) extends MemoryPortField("data", orientation, tpe)
+case class MemoryPortAddress(tpe: Type) extends MemoryPortField("addr", Default, tpe)
+case object MemoryPortEnable extends MemoryField("en", Default, UIntType(IntWidth(1)))
+case object MemoryPortClock extends MemoryField("clk", Default, ClockType)
+case class MemoryPortWriteMask(tpe: Type) extends MemoryField("mask", Default, tpe)
+case object MemoryPortWriteMode extends MemoryField("wmode", Default, UIntType(IntWidth(1)))
+
+// ********** Memory Port 1 **********
+abstract class MemoryPort extends FIRRTLNode {
+  val name: String
+  val data: MemoryPortData
+  val addr: MemoryPortAddress
+  val en: MemoryPortEnable
+  val clk: MemoryPortClock
+}
+case class Reader(
+    name: String,
+    data: MemoryPortData,
+    addr: MemoryPortAddress,
+    en: MemoryPortEnable,
+    clk: MemoryPortClock) extends MemoryPort
+case class Writer(
+    name: String,
+    data: MemoryPortData,
+    mask: MemoryPortWriteMask,
+    addr: MemoryPortAddress,
+    en: MemoryPortEnable,
+    clk: MemoryPortClock) extends MemoryPort
+case class ReadWriter(
+    name: String,
+    data: MemoryPortData,
+    mask: MemoryPortWriteMask,
+    addr: MemoryPortAddress,
+    en: MemoryPortEnable,
+    mode: MemoryPortWriteMode,
+    clk: MemoryPortClock) extends MemoryPort
+
+// ********** Memory Port 2 **********
+abstract class MemoryPortType extends FIRRTLNode
+case object Reader extends MemoryPortType
+case object Writer extends MemoryPortType
+case object ReadWriter extends MemoryPortType
+case class MemoryPort(name: String, tpe: MemoryPortType, fields: Seq[MemoryPortField]) extends FIRRTLNode
+
 abstract class Statement extends FIRRTLNode
 case class DefWire(info: Info, name: String, tpe: Type) extends Statement with IsDeclaration
 case class DefRegister(
@@ -126,9 +172,7 @@ case class DefMemory(
     depth: Int,
     writeLatency: Int,
     readLatency: Int,
-    readers: Seq[String],
-    writers: Seq[String],
-    readwriters: Seq[String]) extends Statement with IsDeclaration
+    ports: Seq[MemoryPort]) extends Statement with IsDeclaration
 case class DefNode(info: Info, name: String, value: Expression) extends Statement with IsDeclaration
 case class Conditionally(info: Info, pred: Expression, conseq: Statement, alt: Statement) extends Statement
 case class Begin(stmts: Seq[Statement]) extends Statement
