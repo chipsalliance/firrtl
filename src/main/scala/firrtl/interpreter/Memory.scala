@@ -47,7 +47,7 @@ import scala.collection.mutable.ArrayBuffer
   * @param readWriters list of named read/write ports
   * @param readUnderWrite behavior
   */
-// TODO: Should enable choke if fed values other than zero or 1 or things wider than 1
+// TODO: Should we enable choke if fed values other than zero or 1 or things wider than 1
 class Memory(
               val info: Info,
               val name: String,
@@ -66,8 +66,8 @@ class Memory(
   val addressWidth = requiredBits(depth)
   val bigDepth     = BigInt(depth)
 
-  assert(writeLatency < 10, s"Interpreter memory $name write latency $writeLatency not supported, must be 1")
-  assert(readLatency < 10,  s"Interpreter memory $name read latency $readLatency not supported, must be 0 or 1")
+  assert(writeLatency == 1, s"Interpreter memory $name write latency $writeLatency not supported, must be 1")
+  assert(readLatency <  2,  s"Interpreter memory $name read latency $readLatency not supported, must be 0 or 1")
   assert(readLatency >= 0,  s"Interpreter memory $name read latency $readLatency not supported, must be 0 or 1")
 
   val ports: Map[String, MemoryPort] = {

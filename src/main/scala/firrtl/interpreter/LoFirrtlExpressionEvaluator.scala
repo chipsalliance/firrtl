@@ -71,7 +71,9 @@ class LoFirrtlExpressionEvaluator(
         if(fieldName == "data") {
           log(s"resolving: rhs memory data reference, dispatching implicit dependencies")
           circuitState.getMemoryDependencies(memoryName, portName).foreach { dependentKey =>
-            resolveDependency(dependentKey)
+            if(toResolve.contains(dependentKey)) {
+              resolveDependency(dependentKey)
+            }
           }
         }
         else {
@@ -379,7 +381,9 @@ class LoFirrtlExpressionEvaluator(
           if(fieldName == "data") {
             log(s"resolving: rhs memory data reference, dispatching implicit dependencies")
             circuitState.getMemoryDependencies(memoryName, portName).foreach { dependentKey =>
-              resolveDependency(dependentKey)
+              if(toResolve.contains(dependentKey)) {
+                resolveDependency(dependentKey)
+              }
             }
           }
           else {
