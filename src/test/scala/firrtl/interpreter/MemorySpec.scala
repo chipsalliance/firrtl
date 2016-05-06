@@ -51,20 +51,55 @@ class MemorySpec extends FlatSpec with Matchers {
     memory.dataStore.length should be(17)
   }
 
-  it should "allow port values to be read and written" in {
+  it should "fields of a read port can be written then read" in {
     val dataWidth = 42
+    val depth = 17
     val memory = Memory(DefMemory(
-      NoInfo, "memory1", UIntType(IntWidth(dataWidth)), 17, 1, 1, Seq("read1", "read2"), Seq("write1"), Seq()
+      NoInfo, "memory1", UIntType(IntWidth(dataWidth)), 17, 1, 1, Seq("read1"), Seq("write1"), Seq()
     ))
 
-    val key = "memory1.read1.addr"
-
-    for(i <- 0 until memory.depth) {
-      memory.dataStore(i) = ConcreteUInt(9999, dataWidth)
+    var key = "memory1.read1.en"
+//    memory.setValue(key, ConcreteUInt(Big1, dataWidth))
+//    memory.getValue(key).value should be(Big1)
+//    memory.setValue(key, ConcreteUInt(Big0, dataWidth))
+//    memory.getValue(key).value should be(Big0)
+//
+//    key = "memory1.read1.addr"
+//    for (value <- IntWidthTestValuesGenerator(0, depth)) {
+//      memory.setValue(key, ConcreteUInt(value, memory.addressWidth))
+//      memory.getValue(key).value should be(value)
+//    }
+    key = "memory1.read1.data"
+    for (value <- IntWidthTestValuesGenerator(0, depth)) {
+      memory.setValue(key, ConcreteUInt(value, memory.addressWidth))
+      memory.getValue(key).value should be(value)
     }
-    memory.getValue(key).value should be(0)
-    memory.setValue(key, ConcreteUInt(23, dataWidth))
-    memory.getValue(key).value should be(23)
+  }
+
+  it should "fields of a write port can be written then read" in {
+    val dataWidth = 42
+    val depth = 17
+    val memory = Memory(DefMemory(
+      NoInfo, "memory1", UIntType(IntWidth(dataWidth)), 17, 1, 1, Seq("read1"), Seq("write1"), Seq()
+    ))
+
+
+    var key = "memory1.write1.en"
+    memory.setValue(key, ConcreteUInt(Big1, dataWidth))
+    memory.getValue(key).value should be(Big1)
+    memory.setValue(key, ConcreteUInt(Big0, dataWidth))
+    memory.getValue(key).value should be(Big0)
+
+    key = "memory1.write1.addr"
+    for(value <- IntWidthTestValuesGenerator(0, depth)) {
+      memory.setValue(key, ConcreteUInt(value, memory.addressWidth))
+      memory.getValue(key).value should be(value)
+    }
+    key = "memory1.write1.data"
+    for(value <- IntWidthTestValuesGenerator(1, 100)) {
+      memory.setValue(key, ConcreteUInt(value, dataWidth))
+      memory.getValue(key).value should be(value)
+    }
   }
 
   it should "assign to memory by setting en, data, and addr" in {
@@ -140,6 +175,7 @@ class MemorySpec extends FlatSpec with Matchers {
     lastValue = 999
     val staleValue = ConcreteUInt(lastValue, dataWidth)
     memory.setValue(key + ".data", staleValue)
+    memory.getValue(key + ".data").value should be (staleValue.value)
 
     for (i <- 0 until memory.depth) {
       println(s"Checking memory slot $i" + ("=" * 80))
@@ -147,10 +183,10 @@ class MemorySpec extends FlatSpec with Matchers {
       memory.setValue(key + ".addr", ConcreteUInt(i, memory.addressWidth))
       println("enable and address set")
 
+      println(memory)
       memory.cycle()
-      memory.getValue(key + ".data").value should be(lastValue)
-
-      lastValue = i * 3
+      println(memory)
+      memory.getValue(key + ".data").value should be(i * 3)
 
       println(s"got value $i ${memory.getValue(key+".data").value}")
     }

@@ -239,6 +239,7 @@ trait Concrete {
         s"UInt<$width>${if(v<0)"-" else "+"}${"0"*((width-1)-bitString.length)}$bitString"
     }
   }
+  def poisoned: Boolean = false
 }
 object Concrete {
   def apply(u: UIntValue): ConcreteUInt = {
@@ -306,6 +307,19 @@ case class ConcreteClock(val value: BigInt) extends Concrete {
     else throw new InterpreterException(s"withWidth($width) not supported for $this")
   }
   def forceWidth(tpe: Type): ConcreteClock = forceWidth(typeToWidth(tpe))
+}
+
+case class PoisonedUInt(width: Int) extends Concrete {
+  val value = Big0
+  override def forceWidth(w: Int): PoisonedUInt = PoisonedUInt(w)
+  def forceWidth(tpe: Type): PoisonedUInt = forceWidth(typeToWidth(tpe))
+  override def poisoned: Boolean = true
+}
+case class PoisonedSInt(width: Int) extends Concrete {
+  val value = Big0
+  override def forceWidth(w: Int): PoisonedSInt = PoisonedSInt(w)
+  def forceWidth(tpe: Type): PoisonedSInt = forceWidth(typeToWidth(tpe))
+  override def poisoned: Boolean = true
 }
 
 
