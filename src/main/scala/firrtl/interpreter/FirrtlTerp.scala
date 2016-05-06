@@ -78,7 +78,7 @@ class FirrtlTerp(ast: Circuit) {
   def hasInput(name: String) = hasPort(name, INPUT)
   def hasOutput(name: String) = hasPort(name, OUTPUT)
 
-  def doOneCycle() = {
+  def doOneCycle(showState: Boolean = true) = {
     updateInputs()
 
     val evaluator = new LoFirrtlExpressionEvaluator(
@@ -95,7 +95,7 @@ class FirrtlTerp(ast: Circuit) {
 
 //    println(s"FirrtlTerp: cycle complete ${"="*80}\n${sourceState.prettyString()}")
     sourceState = sourceState.getNextState
-    println(s"FirrtlTerp: next state computed ${"="*80}\n${sourceState.prettyString()}")
+    if(showState) println(s"FirrtlTerp: next state computed ${"="*80}\n${sourceState.prettyString()}")
 
   }
 

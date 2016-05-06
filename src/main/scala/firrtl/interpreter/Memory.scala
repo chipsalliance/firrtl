@@ -238,6 +238,7 @@ class Memory(
     def inputHasChanged(): Unit = {
       if(latency > 0) {
         val newElement = elementFromSnapshot
+        println(s"memory $fullName input changed $newElement")
         pipeLine(0) =  newElement
       }
     }
@@ -258,14 +259,12 @@ class Memory(
     def cycle(): Unit = {
       if(latency > 0) {
         val element = pipeLine.remove(0)
-        if (element.enable) {
-          dataStore(element.address) = {
-            val mask = element.mask.forceWidth(dataWidth)
-            val preservedBits = dataStore(element.address) & mask
-            val incomingBits  = element.data & mask.not
-            val newValue      = preservedBits | incomingBits
-            newValue
-          }
+        if (element.enable && element.mask.value > 0) {
+          println("memory $fullName cycle element is $element, executed")
+          dataStore(element.address) = element.data
+        }
+        else {
+          println("memory $fullName cycle element is $element, REJECTED")
         }
         pipeLine += elementFromSnapshot
       }

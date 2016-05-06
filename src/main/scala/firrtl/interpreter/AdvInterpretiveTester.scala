@@ -62,7 +62,7 @@ class AdvInterpretiveTester(input: String) {
 
   def step(n: Int = 1): Unit = {
     for(_ <- 0 until n) {
-      interpreter.doOneCycle()
+      interpreter.doOneCycle(showState = false)
       interpreter.doCombinationalUpdate()
     }
   }

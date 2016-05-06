@@ -41,11 +41,11 @@ class DynamicMemorySearch extends FlatSpec with Matchers {
       |  module DynamicMemorySearch :
       |    input clk : Clock
       |    input reset : UInt<1>
-      |    output io : {flip isWr : UInt<1>, flip wrAddr : UInt<3>, flip data : UInt<4>, flip en : UInt<1>, target : UInt<3>, done : UInt<1>}
+      |    output io : {flip isWr : UInt<1>, flip wrAddr : UInt<3>, flip data : UInt<6>, flip en : UInt<1>, target : UInt<3>, done : UInt<1>}
       |
       |    io is invalid
       |    reg index : UInt<3>, clk with : (reset => (reset, UInt<3>("h00")))
-      |    cmem list : UInt<4>[8]
+      |    cmem list : UInt<6>[8]
       |    infer mport memVal = list[index], clk
       |    node T_10 = eq(io.en, UInt<1>("h00"))
       |    node T_11 = eq(memVal, io.data)
@@ -80,33 +80,37 @@ class DynamicMemorySearch extends FlatSpec with Matchers {
 
     new InterpretiveTester(input) {
 //      interpreter.setVerbose(true)
-      interpreter.sourceState.memories("list").setVerbose()
-      step(1)
+//      interpreter.sourceState.memories("list").setVerbose()
 
       val list = Array.fill(n)(0)
       random.setSeed(0L)
 
       // initialize memory
-      for(write_address <- 0 until n) {
-        poke("io_en", 0)
-        poke("io_isWr", 1)
-        poke("io_wrAddr", write_address)
-        poke("io_data", write_address)
-        step(1)
-      }
+//      for(write_address <- 0 until n) {
+//        println(s"Initializing memory address $write_address")
+//        poke("io_en", 0)
+//        poke("io_isWr", 1)
+//        poke("io_wrAddr", write_address)
+//        poke("io_data",   write_address)
+//        step(1)
+//      }
 
       for (k <- 0 until 16) {
         println(s"memory test iteration $k ${"X"*80}")
-        // WRITE A WORD
+
+        // Compute a randome address and value
+        val wrAddr = random.nextInt(n - 1)
+        val data   = random.nextInt((1 << w) - 1) + 10
+
+        // poke it intro memory
         poke("io_en", 0)
         poke("io_isWr", 1)
-        val wrAddr = random.nextInt(n - 1)
-        val data   = random.nextInt((1 << w) - 1) + 1 // can'"t be 0
         poke("io_wrAddr", wrAddr)
-        poke("io_data", data)
-
+        poke("io_data",   data)
         println(s"memory test iteration $k setting mem($wrAddr) to $data ${"-"*80}")
         step(1)
+        println(s"memory test iteration $k expected list is ${list.mkString(",")} ${"-"*80}")
+
         list(wrAddr) = data
         // SETUP SEARCH
         val target = if (k > 12) random.nextInt(1 << w) else data
@@ -129,7 +133,7 @@ class DynamicMemorySearch extends FlatSpec with Matchers {
           waitCount += 1
         }
 
-        println(s"Done waiting wait count is $waitCount done is ${peek("io_done")}")
+        println(s"Done wait count is $waitCount done is ${peek("io_done")} expected ${peek("io_target")} got $expectedIndex")
         expect("io_done", 1)
         expect("io_target", expectedIndex)
         step(1)
