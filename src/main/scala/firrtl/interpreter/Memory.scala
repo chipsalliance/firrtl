@@ -28,7 +28,6 @@ package firrtl.interpreter
 
 import firrtl.{Type, Info, DefMemory}
 
-import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
 /**
@@ -153,7 +152,7 @@ class Memory(
         case "addr"    => address = concreteValue.value.toInt
         case "data"    => data    = concreteValue
         case _  =>
-          throw new Exception(s"error:bad field specifier memory ${fullName}.setValue($fieldName, $concreteValue)")
+          throw new Exception(s"error:bad field specifier memory $fullName.setValue($fieldName, $concreteValue)")
       }
       log(s"port is now en $enable addr $address data $data")
     }
@@ -164,11 +163,11 @@ class Memory(
         case "addr"    => ConcreteUInt(address, addressWidth)
         case "data"    => data
         case _  =>
-          throw new Exception(s"error:bad field specifier memory ${fullName}.getValue($fieldName)")
+          throw new Exception(s"error:bad field specifier memory $fullName.getValue($fieldName)")
       }
     }
     def fieldDependencies: Seq[String]
-    val fullName: String = s"memory ${name}.$portName"
+    val fullName: String = s"memory $name.$portName"
   }
 
   /**
@@ -185,7 +184,7 @@ class Memory(
     }
     val pipeLine : ArrayBuffer[ReadPipeLineElement] = {
       ArrayBuffer.empty[ReadPipeLineElement] ++
-        Array.fill(readLatency)(ReadPipeLineElement(ConcreteUInt(0, dataWidth)))
+        Array.fill(latency)(ReadPipeLineElement(ConcreteUInt(0, dataWidth)))
     }
 
     override def setValue(fieldName: String, concreteValue: Concrete): Unit = {
@@ -198,17 +197,20 @@ class Memory(
         data = dataStore(address)
       }
       else {
-        pipeLine(0) = ReadPipeLineElement( if(enable) dataStore(address) else PoisonedUInt(dataWidth))
+        pipeLine(0) = ReadPipeLineElement(if(enable) dataStore(address) else PoisonedUInt(dataWidth))
       }
     }
     def cycle(): Unit = {
       if(latency > 0) {
         data = pipeLine.remove(0).data
-        pipeLine += ReadPipeLineElement(dataStore(address))
+        pipeLine += ReadPipeLineElement(if(enable) dataStore(address) else PoisonedUInt(dataWidth))
+      }
+      else {
+        data = if(enable) dataStore(address) else PoisonedUInt(dataWidth)
       }
     }
     override def toString: String = {
-      s"${enable}:${address}:${data.value}" +
+      s"$enable:$address:${data.value}" +
         pipeLine.mkString(" pl:", ",", "")
     }
   }
@@ -227,21 +229,21 @@ class Memory(
     }
     val pipeLine : ArrayBuffer[WritePipeLineElement] = {
       ArrayBuffer.empty[WritePipeLineElement] ++
-        Array.fill(readLatency)(elementFromSnapshot)
+        Array.fill(latency)(elementFromSnapshot)
     }
 
     def elementFromSnapshot = {
       WritePipeLineElement(enable, address, data, mask)
     }
     def inputHasChanged(): Unit = {
-      if(latency > 0 && enable) {
+      if(latency > 0) {
         pipeLine(0) = elementFromSnapshot
       }
     }
     override def setValue(fieldName: String, concreteValue: Concrete): Unit = {
       fieldName match {
         case "mask"    => mask = concreteValue
-        case "data"    => data = concreteValue & mask.not
+        case "data"    => data = concreteValue
         case _         => super.setValue(fieldName, concreteValue)
       }
       inputHasChanged()
@@ -253,17 +255,26 @@ class Memory(
       }
     }
     def cycle(): Unit = {
-      val element = pipeLine(0)
-      if(element.enable) {
-        dataStore(element.address) = {
-          (dataStore(element.address) & element.mask) | (element.data & element.mask.not)
+      if(latency > 0) {
+        val element = pipeLine(0)
+        if (element.enable) {
+          dataStore(element.address) = {
+            val preservedBits = dataStore(element.address) & element.mask
+            val incomingBits  = element.data & element.mask.not
+            val newValue      = preservedBits | incomingBits
+            newValue
+          }
         }
+        pipeLine += elementFromSnapshot
       }
-      pipeLine += elementFromSnapshot
+      else {
+        // combinational write
+        dataStore(address) = data
+      }
     }
     val fieldDependencies = Seq("en", "addr", "data", "mask").map { fieldName => s"$name.$portName.$fieldName"}
     override def toString: String = {
-      s"${enable}:${address}:${data.value},${mask.value}" +
+      s"$enable:$address:${data.value},${mask.value}" +
       pipeLine.mkString(" pl:", ",", "")
     }
   }

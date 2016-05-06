@@ -183,74 +183,204 @@ class MemorySpec extends FlatSpec with Matchers {
       memory.setValue(key + ".addr", ConcreteUInt(i, memory.addressWidth))
       println("enable and address set")
 
-      println(memory)
+//      println(memory)
       memory.cycle()
-      println(memory)
+//      println(memory)
       memory.getValue(key + ".data").value should be(i * 3)
 
       println(s"got value $i ${memory.getValue(key+".data").value}")
     }
   }
 
-  it should "observe read delay" in {
+  it should "work combinationally when read delay is 0" in {
     val dataWidth = 64
-    for(readDelay <- 1 to 5) {
-      println(s"testing read delay of $readDelay ${"="*80}")
-      val memory = Memory(DefMemory(
-        NoInfo, "memory1", UIntType(IntWidth(dataWidth)), 17, 1, readDelay, Seq("read1", "read2"), Seq("write1"), Seq()
-      ))
-      memory.setVerbose()
+    val depth     = 23
+    val readDelay =  0
 
-      val key = "memory1.read1"
+    val memory = Memory(DefMemory(
+      NoInfo, "memory1", UIntType(IntWidth(dataWidth)), depth, 1, readDelay, Seq("read1"), Seq("write1"), Seq()
+    ))
+    //      memory.setVerbose()
+    val key = "memory1.read1"
 
-      val testValue = 77
-      memory.dataStore(3) = ConcreteUInt(testValue, dataWidth)
-      memory.dataStore(3).value should be (testValue)
+    val testValue1 = 77
+    memory.dataStore(3) = ConcreteUInt(testValue1, dataWidth)
+    memory.dataStore(3).value should be(testValue1)
 
-      memory.setValue(key + ".en", ConcreteUInt(1, 1))
-      memory.setValue(key + ".addr", ConcreteUInt(3, memory.addressWidth))
-      memory.setValue(key + ".data", ConcreteUInt(99, memory.dataWidth))
-      memory.cycle()
+    val testValue2 = 55
+    memory.dataStore(4) = ConcreteUInt(testValue2, dataWidth)
+    memory.dataStore(4).value should be(testValue2)
 
-      for(wait<- 0 until readDelay) {
-        memory.dataStore(3).value should be (testValue)
-        memory.getValue(key + ".data").value should be(99)
-        memory.setValue(key + ".en", ConcreteUInt(0, 1))
-        memory.cycle()
-      }
+    memory.setValue(key + ".en", ConcreteUInt(1, 1))
+    memory.setValue(key + ".addr", ConcreteUInt(3, memory.addressWidth))
+    memory.cycle()
+    memory.getValue(key + ".data").value should be(testValue1)
 
-      memory.dataStore(3).value should be (testValue)
-      memory.getValue(key + ".data").value should be(testValue)
 
-    }
+    memory.setValue(key + ".addr", ConcreteUInt(4, memory.addressWidth))
+    memory.getValue(key + ".data").value should be(testValue2)
+
+    memory.getValue(key + ".data").value should be(testValue2)
   }
 
-  it should "observe write delay" in {
-    val dataWidth = 64
-    for(writeDelay <- 1 to 5) {
-      println(s"testing write delay of $writeDelay ${"="*80}")
-      val memory = Memory(DefMemory(
-        NoInfo, "memory1", UIntType(IntWidth(dataWidth)), 17, writeDelay, 1, Seq("read1", "read2"), Seq("write1"), Seq()
-      ))
-      memory.setVerbose()
+  it should "work  when read delay is 1" in {
+    val dataWidth = 22
+    val depth     = 44
+    val readDelay =  1
 
-      val key = "memory1.write1"
+    val memory = Memory(DefMemory(
+      NoInfo, "memory1", UIntType(IntWidth(dataWidth)), depth, 1, readDelay, Seq("read1"), Seq("write1"), Seq()
+    ))
+    //      memory.setVerbose()
 
-      memory.dataStore(3).value should be (0)
+    val key = "memory1.read1"
 
-      memory.setValue(key + ".en", ConcreteUInt(1, 1))
-      memory.setValue(key + ".addr", ConcreteUInt(3, memory.addressWidth))
-      memory.setValue(key + ".data", ConcreteUInt(11, memory.dataWidth))
-      memory.cycle()
+    val testValue1 = 77
+    memory.dataStore(3) = ConcreteUInt(testValue1, dataWidth)
+    memory.dataStore(3).value should be(testValue1)
 
-      for(wait<- 0 until writeDelay) {
-        memory.dataStore(3).value should be (0)
-        memory.setValue(key + ".en", ConcreteUInt(0, 1))
-        memory.cycle()
-      }
+    val testValue2 = 55
+    memory.dataStore(4) = ConcreteUInt(testValue2, dataWidth)
+    memory.dataStore(4).value should be(testValue2)
 
-      memory.dataStore(3).value should be (11)
+    memory.setValue(key + ".en", ConcreteUInt(1, 1))
+    memory.setValue(key + ".addr", ConcreteUInt(3, memory.addressWidth))
+    memory.getValue(key + ".data").value should not be testValue1
+    memory.cycle()
+    memory.getValue(key + ".data").value should be (testValue1)
+    memory.setValue(key + ".addr", ConcreteUInt(4, memory.addressWidth))
+    memory.cycle()
+    memory.getValue(key + ".data").value should be(testValue2)
 
-    }
+    memory.setValue(key + ".en", ConcreteUInt(0, 1))
+    memory.getValue(key + ".data").value should be (testValue2)
+
+    memory.cycle()
+    memory.getValue(key + ".data").poisoned should be(true)
+
+    memory.cycle()
+    memory.getValue(key + ".data").poisoned should be(true)
+
+    memory.setValue(key + ".en", ConcreteUInt(1, 1))
+    memory.setValue(key + ".addr", ConcreteUInt(4, memory.addressWidth))
+    memory.setValue(key + ".addr", ConcreteUInt(3, memory.addressWidth))
+    memory.getValue(key + ".data").poisoned should be(true)
+
+    memory.cycle()
+    memory.getValue(key + ".data").value should be(testValue1)
+  }
+
+  it should "observe write delay 1" in {
+    val dataWidth   = 64
+    val depth       = 15
+    val writeDelay  =  1
+    val testValue1  = 53
+    val testValue2  =  7
+    val testAddress =  3
+
+    println(s"testing write delay of $writeDelay ${"="*80}")
+    val memory = Memory(DefMemory(
+      NoInfo, "memory1", UIntType(IntWidth(dataWidth)), depth, writeDelay, 1, Seq("read1", "read2"), Seq("write1"), Seq()
+    ))
+
+    val key = "memory1.write1"
+
+    memory.dataStore(testAddress) = ConcreteUInt(testValue1, memory.dataWidth)
+    memory.dataStore(testAddress).value should be (testValue1)
+
+    memory.setValue(key + ".en", ConcreteUInt(1, 1))
+    memory.setValue(key + ".addr", ConcreteUInt(testAddress, memory.addressWidth))
+    memory.setValue(key + ".data", ConcreteUInt(testValue2, memory.dataWidth))
+
+    memory.dataStore(testAddress).value should be (testValue1)
+
+    note("we write to the write ports but nothing happens to the backing data store yet")
+    memory.ports("write1").address should be (testAddress)
+    memory.ports("write1").data.value should be (testValue2)
+    memory.ports("write1").enable     should be (true)
+
+    val pipeLine = memory.ports("write1").asInstanceOf[Memory#WritePort].pipeLine
+    pipeLine(0).address should be (testAddress)
+    pipeLine(0).data.value should be (testValue2)
+    pipeLine(0).enable     should be (true)
+
+    memory.cycle()
+    memory.dataStore(testAddress).value should be (testValue2)
+
+    memory.setValue(key + ".en",   ConcreteUInt(0, 1))
+    memory.setValue(key + ".addr", ConcreteUInt(testAddress, memory.addressWidth))
+    memory.setValue(key + ".data", ConcreteUInt(testValue1, memory.dataWidth))
+
+    memory.ports("write1").address    should be (testAddress)
+    memory.ports("write1").data.value should be (testValue1)
+    memory.ports("write1").enable     should be (false)
+
+    pipeLine(0).address should be (testAddress)
+    pipeLine(0).data.value should be (testValue1)
+    pipeLine(0).enable     should be (false)
+
+    memory.dataStore(testAddress).value should be (testValue2)
+    memory.cycle()
+    memory.dataStore(testAddress).value should be (testValue2)
+  }
+
+  it should "use write mask to protect bits already in memory" in {
+    val dataWidth   = 11
+    val depth       = 15
+    val writeDelay  =  1
+    val testValue1  = BigInt( "101", 2)
+    val testValue2  = BigInt("1010", 2)
+    val testValue3  = BigInt("1111", 2)
+    val testValue4  = BigInt("0011", 2)
+    val testValue5  = BigInt("1001", 2)
+    val testAddress =  3
+
+    println(s"testing write delay of $writeDelay ${"="*80}")
+    val memory = Memory(DefMemory(
+      NoInfo, "memory1", UIntType(IntWidth(dataWidth)), depth, writeDelay, 1, Seq("read1", "read2"), Seq("write1"), Seq()
+    ))
+
+    val key = "memory1.write1"
+
+    memory.dataStore(testAddress) = ConcreteUInt(testValue1, memory.dataWidth)
+    memory.dataStore(testAddress).value should be (testValue1)
+
+    // Use a mask of testValue1 to save all it's set bits
+    memory.setValue(key + ".en",   ConcreteUInt(1, 1))
+    memory.setValue(key + ".addr", ConcreteUInt(testAddress, memory.addressWidth))
+    memory.setValue(key + ".data", ConcreteUInt(testValue2, memory.dataWidth))
+    memory.setValue(key + ".mask", ConcreteUInt(testValue1, dataWidth))
+
+    memory.dataStore(testAddress).value should be (testValue1)
+    memory.cycle()
+    memory.dataStore(testAddress).value should be (testValue3)
+
+    // put testValue1 back into the data store
+    memory.dataStore(testAddress) = ConcreteUInt(testValue1, memory.dataWidth)
+    memory.dataStore(testAddress).value should be (testValue1)
+
+    // Use a mask of testValue2 protects none of the bits in current and allows none of the bits in incoming
+    memory.setValue(key + ".en",   ConcreteUInt(1, 1))
+    memory.setValue(key + ".addr", ConcreteUInt(testAddress, memory.addressWidth))
+    memory.setValue(key + ".data", ConcreteUInt(testValue2, memory.dataWidth))
+    memory.setValue(key + ".mask", ConcreteUInt(testValue2, dataWidth))
+
+    memory.dataStore(testAddress).value should be (testValue1)
+    memory.cycle()
+    memory.dataStore(testAddress).value should be (Big0)
+
+    // put testValue1 back into the data store
+    memory.dataStore(testAddress) = ConcreteUInt(testValue1, memory.dataWidth)
+    memory.dataStore(testAddress).value should be (testValue1)
+
+    // Use a mask of testValue2 to save ignore all the current bits in the data store
+    memory.setValue(key + ".en",   ConcreteUInt(1, 1))
+    memory.setValue(key + ".addr", ConcreteUInt(testAddress, memory.addressWidth))
+    memory.setValue(key + ".data", ConcreteUInt(testValue2, memory.dataWidth))
+    memory.setValue(key + ".mask", ConcreteUInt(testValue4, dataWidth))
+
+    memory.dataStore(testAddress).value should be (testValue1)
+    memory.cycle()
+    memory.dataStore(testAddress).value should be (testValue5)
   }
 }
