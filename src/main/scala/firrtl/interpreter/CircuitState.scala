@@ -66,7 +66,11 @@ case class CircuitState(
                     memories:    mutable.Map[String, Memory]   = new mutable.HashMap[String, Memory]) {
   val nextRegisters = new mutable.HashMap[String, Concrete]()
 
-  val nameToConcreteValue = mutable.HashMap((inputPorts ++ outputPorts ++ registers).toSeq:_*)
+  var nameToConcreteValue = mutable.HashMap((inputPorts ++ outputPorts ++ registers).toSeq:_*)
+
+  def resetNameToConcreteValue(): Unit = {
+    nameToConcreteValue = mutable.HashMap((inputPorts ++ outputPorts ++ registers).toSeq:_*)
+  }
 
   def getNextState: CircuitState = {
     val nextState = new CircuitState(
