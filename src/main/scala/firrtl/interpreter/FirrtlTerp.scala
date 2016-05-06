@@ -126,7 +126,6 @@ class FirrtlTerp(ast: Circuit) {
       if(stopped) return
     }
   }
-
 }
 
 object FirrtlTerp {

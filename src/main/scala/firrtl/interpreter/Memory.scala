@@ -121,7 +121,7 @@ class Memory(
     for(reader <- readPorts) reader.cycle()
     for(readWriter <- readWritePorts) readWriter.cycle()
 
-    println(s"memory($name) dataStore ${dataStore.map{_.value}.mkString(",")}")
+    println(s"memory cycled $toString")
   }
 
   def getFieldDependencies(portName: String): Seq[String] = {
@@ -131,7 +131,7 @@ class Memory(
   override def toString: String = {
     s"memory $name" +
     readPorts.mkString(" rp:", ",", "") +
-    readPorts.mkString(" wp:", ",", "") +
+    writePorts.mkString(" wp:", ",", " ") +
       (0 until depth.min(20)).map( a => dataStore(a).value).mkString(",")
   }
 
@@ -210,8 +210,8 @@ class Memory(
       }
     }
     override def toString: String = {
-      s"$enable:$address:${data.value}" +
-        pipeLine.mkString(" pl:", ",", "")
+      s"[$enable:$address:${data.value}" +
+        (if(latency>0) pipeLine.mkString(" pl:", ",", "") else "]")
     }
   }
 
@@ -237,7 +237,8 @@ class Memory(
     }
     def inputHasChanged(): Unit = {
       if(latency > 0) {
-        pipeLine(0) = elementFromSnapshot
+        val newElement = elementFromSnapshot
+        pipeLine(0) =  newElement
       }
     }
     override def setValue(fieldName: String, concreteValue: Concrete): Unit = {
@@ -256,11 +257,12 @@ class Memory(
     }
     def cycle(): Unit = {
       if(latency > 0) {
-        val element = pipeLine(0)
+        val element = pipeLine.remove(0)
         if (element.enable) {
           dataStore(element.address) = {
-            val preservedBits = dataStore(element.address) & element.mask
-            val incomingBits  = element.data & element.mask.not
+            val mask = element.mask.forceWidth(dataWidth)
+            val preservedBits = dataStore(element.address) & mask
+            val incomingBits  = element.data & mask.not
             val newValue      = preservedBits | incomingBits
             newValue
           }
@@ -274,8 +276,8 @@ class Memory(
     }
     val fieldDependencies = Seq("en", "addr", "data", "mask").map { fieldName => s"$name.$portName.$fieldName"}
     override def toString: String = {
-      s"$enable:$address:${data.value},${mask.value}" +
-      pipeLine.mkString(" pl:", ",", "")
+      s"[$enable:$address:${data.value},${mask.value}" +
+        (if(latency>0) pipeLine.mkString(" pl:", ",", "]") else "]")
     }
   }
 

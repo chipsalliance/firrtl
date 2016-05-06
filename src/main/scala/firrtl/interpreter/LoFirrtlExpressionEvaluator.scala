@@ -424,8 +424,6 @@ class LoFirrtlExpressionEvaluator(
       memKeys -= key
     }
 
-    circuitState.cycleMemories()
-
     while (toResolve.nonEmpty) {
       val key = toResolve.head
       resolveDependency(key)

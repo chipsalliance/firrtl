@@ -84,9 +84,9 @@ case class CircuitState(
       outputPorts.clone(),
       nextRegisters.clone(),
       ephemera.empty,
-      memories.clone()
+      memories
     )
-
+    nextState.cycleMemories()
     nextState.stateCounter = stateCounter + 1
     nextState
   }
@@ -165,6 +165,7 @@ case class CircuitState(
        |${showConcreteValues("BeforeRegisters", registers.toMap)}
        |${showConcreteValues("AfterRegisters", nextRegisters.toMap)}
        |${showConcreteValues("Ephemera", ephemera.toMap)}
+       |Memories${memories.values.mkString("\n", "\n  ", "")}
      """.stripMargin
   }
 }

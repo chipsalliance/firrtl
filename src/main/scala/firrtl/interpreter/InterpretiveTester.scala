@@ -27,7 +27,9 @@ MODIFICATIONS.
 package firrtl.interpreter
 
 /**
-  * Created by chick on 4/30/16.
+  * Works a lot like the chisel classic tester
+  *
+  * @param input
   */
 class InterpretiveTester(input: String) {
   val interpreter = FirrtlTerp(input)

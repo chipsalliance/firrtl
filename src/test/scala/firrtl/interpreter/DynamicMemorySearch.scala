@@ -34,52 +34,52 @@ import org.scalatest.{Matchers, FlatSpec}
 class DynamicMemorySearch extends FlatSpec with Matchers {
   behavior of "dynamic memory search"
 
-    it should "run with correct results" in {
-      val input =
-      """
-        |circuit DynamicMemorySearch :
-        |  module DynamicMemorySearch :
-        |    input clk : Clock
-        |    input reset : UInt<1>
-        |    output io : {flip isWr : UInt<1>, flip wrAddr : UInt<3>, flip data : UInt<4>, flip en : UInt<1>, target : UInt<3>, done : UInt<1>}
-        |
-        |    io is invalid
-        |    reg index : UInt<3>, clk with : (reset => (reset, UInt<3>("h00")))
-        |    cmem list : UInt<4>[8]
-        |    infer mport memVal = list[index], clk
-        |    node T_10 = eq(io.en, UInt<1>("h00"))
-        |    node T_11 = eq(memVal, io.data)
-        |    node T_13 = eq(index, UInt<3>("h07"))
-        |    node T_14 = or(T_11, T_13)
-        |    node over = and(T_10, T_14)
-        |    when io.isWr :
-        |      infer mport T_15 = list[io.wrAddr], clk
-        |      T_15 <= io.data
-        |      skip
-        |    node T_17 = eq(io.isWr, UInt<1>("h00"))
-        |    node T_18 = and(T_17, io.en)
-        |    when T_18 :
-        |      index <= UInt<1>("h00")
-        |      skip
-        |    node T_21 = eq(over, UInt<1>("h00"))
-        |    node T_23 = eq(io.isWr, UInt<1>("h00"))
-        |    node T_25 = eq(io.en, UInt<1>("h00"))
-        |    node T_26 = and(T_23, T_25)
-        |    node T_27 = and(T_26, T_21)
-        |    when T_27 :
-        |      node T_29 = add(index, UInt<1>("h01"))
-        |      node T_30 = tail(T_29, 1)
-        |      index <= T_30
-        |      skip
-        |    io.done <= over
-        |    io.target <= index
-      """.stripMargin
+  it should "run with correct results" in {
+    val input =
+    """
+      |circuit DynamicMemorySearch :
+      |  module DynamicMemorySearch :
+      |    input clk : Clock
+      |    input reset : UInt<1>
+      |    output io : {flip isWr : UInt<1>, flip wrAddr : UInt<3>, flip data : UInt<4>, flip en : UInt<1>, target : UInt<3>, done : UInt<1>}
+      |
+      |    io is invalid
+      |    reg index : UInt<3>, clk with : (reset => (reset, UInt<3>("h00")))
+      |    cmem list : UInt<4>[8]
+      |    infer mport memVal = list[index], clk
+      |    node T_10 = eq(io.en, UInt<1>("h00"))
+      |    node T_11 = eq(memVal, io.data)
+      |    node T_13 = eq(index, UInt<3>("h07"))
+      |    node T_14 = or(T_11, T_13)
+      |    node over = and(T_10, T_14)
+      |    when io.isWr :
+      |      infer mport T_15 = list[io.wrAddr], clk
+      |      T_15 <= io.data
+      |      skip
+      |    node T_17 = eq(io.isWr, UInt<1>("h00"))
+      |    node T_18 = and(T_17, io.en)
+      |    when T_18 :
+      |      index <= UInt<1>("h00")
+      |      skip
+      |    node T_21 = eq(over, UInt<1>("h00"))
+      |    node T_23 = eq(io.isWr, UInt<1>("h00"))
+      |    node T_25 = eq(io.en, UInt<1>("h00"))
+      |    node T_26 = and(T_23, T_25)
+      |    node T_27 = and(T_26, T_21)
+      |    when T_27 :
+      |      node T_29 = add(index, UInt<1>("h01"))
+      |      node T_30 = tail(T_29, 1)
+      |      index <= T_30
+      |      skip
+      |    io.done <= over
+      |    io.target <= index
+    """.stripMargin
 
     val n = 8
     val w = 4
 
     new InterpretiveTester(input) {
-      interpreter.setVerbose(true)
+//      interpreter.setVerbose(true)
       interpreter.sourceState.memories("list").setVerbose()
       step(1)
 
