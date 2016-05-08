@@ -29,11 +29,10 @@ package firrtl.interpreter
 /**
   * Works a lot like the chisel classic tester
   *
-  * @param input
+  * @param input a firrtl program contained in a string
   */
 class InterpretiveTester(input: String) {
   val interpreter = FirrtlTerp(input)
-  interpreter.setInputUpdater(new EmptyUpdater())
 
   def poke(name: String, value: BigInt): Unit = {
     interpreter.circuitState.setInput(name, value)
@@ -64,11 +63,5 @@ class InterpretiveTester(input: String) {
     for(_ <- 0 until n) {
       interpreter.cycle()
     }
-  }
-}
-
-object InterpretiveTester {
-  def main(args: Array[String]) {
-
   }
 }

@@ -84,12 +84,6 @@ object DependencyGraph extends LazyLogging {
     }
     dependencyGraph
   }
-
-//  def apply(c: Circuit): Map[String, Map[Expression, Expression]] = {
-//    c.modules.map { module =>
-//      module.name -> apply(module)
-//    }.toMap
-//  }
 }
 
 class DependencyGraph(val circuit: Circuit, val module: Module) {

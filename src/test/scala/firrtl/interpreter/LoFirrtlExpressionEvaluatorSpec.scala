@@ -49,7 +49,7 @@ class LoFirrtlExpressionEvaluatorSpec extends FlatSpec with Matchers {
     """.stripMargin
 
   val interpreter = FirrtlTerp(input)
-  val evaluator = new LoFirrtlExpressionEvaluator(Iterable.empty, interpreter.dependencyGraph, interpreter.circuitState)
+  val evaluator = new LoFirrtlExpressionEvaluator(interpreter.dependencyGraph, interpreter.circuitState)
   val random = util.Random
 
   val baseWidth = 4

@@ -39,10 +39,11 @@ import scala.collection.mutable.ArrayBuffer
   * @param circuitState  the state of the system, should not be modified before all dependencies have been resolved
   */
 class LoFirrtlExpressionEvaluator(
-                                   startKeys: Iterable[String],
+
                                    dependencyGraph: DependencyGraph,
                                    circuitState: CircuitState) {
-  val toResolve = mutable.HashSet(startKeys.toSeq:_*)
+
+  var toResolve = mutable.HashSet(dependencyGraph.keys.toSeq:_*)
   val inProcess = toResolve.empty
 
   private var resolveDepth = 0
@@ -415,6 +416,8 @@ class LoFirrtlExpressionEvaluator(
   }
 
   def resolveDependencies(): Unit = {
+    toResolve = mutable.HashSet(dependencyGraph.keys.toSeq:_*)
+
     val memKeys = toResolve.filter { circuitState.isMemory }
     toResolve --= memKeys
 

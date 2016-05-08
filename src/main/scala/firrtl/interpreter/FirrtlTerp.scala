@@ -74,28 +74,18 @@ class FirrtlTerp(ast: Circuit) extends SimpleLogger {
 
   val dependencyGraph    = DependencyGraph(loweredAst)
 
-  var inputUpdater: InputUpdater = new EmptyUpdater()
-  def setInputUpdater(newInputUpdater: InputUpdater): Unit = {
-    inputUpdater = newInputUpdater
-  }
   var circuitState = CircuitState(dependencyGraph)
   val evaluator = new LoFirrtlExpressionEvaluator(
-    startKeys = dependencyGraph.keys, //TODO: maybe remove this
     dependencyGraph = dependencyGraph,
     circuitState = circuitState
   )
-
-
-  def updateInputs(): Unit = {
-    inputUpdater.updateInputs(circuitState)
-  }
 
   def getValue(name: String): Concrete = {
     assert(dependencyGraph.lhsEntities.contains(name),
       s"Error: setValue($name) is not an element of this circuit")
 
   if(circuitState.isStale) {
-      cycle()
+      evaluateCircuit()
     }
     circuitState.getValue(name) match {
       case Some(value) => value
@@ -103,31 +93,37 @@ class FirrtlTerp(ast: Circuit) extends SimpleLogger {
     }
   }
 
-  def setValue(name: String, force: Boolean = true): Concrete = {
+  def setValue(name: String, value: Concrete, force: Boolean = true): Concrete = {
     if(!force) {
       assert(circuitState.isInput(name),
         s"Error: setValue($name) not on input, use setValue($name, force=true) to override")
     }
-    assert(dependencyGraph.lhsEntities.contains(name),
-      s"Error: setValue($name) is not an element of this circuit")
 
-    circuitState.getValue(name) match {
-      case Some(value) => value
-      case _ => throw InterpreterException(s"Error: getValue($name) returns value not found")
-    }
+    circuitState.setValue(name, value)
   }
 
   def hasInput(name: String)  = dependencyGraph.hasInput(name)
   def hasOutput(name: String) = dependencyGraph.hasOutput(name)
 
-  def cycle(showState: Boolean = true) = {
-    updateInputs()
-
+  def evaluateCircuit(): Unit = {
+    log(s"resovle dependencies")
     evaluator.resolveDependencies()
-    lastStopResult = evaluator.checkStops()
-    evaluator.checkPrints()
-
+    log(s"process reset")
     evaluator.processRegisterResets()
+    log(s"check prints")
+    evaluator.checkPrints()
+    log(s"check stops")
+    lastStopResult = evaluator.checkStops()
+    circuitState.isStale = false
+    log(s"${circuitState.prettyString()}")
+  }
+  def cycle(showState: Boolean = true) = {
+    log(s"calling cycle")
+    if(circuitState.isStale) {
+      evaluateCircuit()
+    }
+
+    circuitState.cycle()
 
 //    println(s"FirrtlTerp: cycle complete ${"="*80}\n${sourceState.prettyString()}")
     if(showState) println(s"FirrtlTerp: next state computed ${"="*80}\n${circuitState.prettyString()}")
@@ -146,9 +142,12 @@ class FirrtlTerp(ast: Circuit) extends SimpleLogger {
 }
 
 object FirrtlTerp {
-  def apply(input: String): FirrtlTerp = {
+  def apply(input: String, verbose: Boolean = false): FirrtlTerp = {
     val ast = Parser.parse("", input.split("\n").toIterator)
-    new FirrtlTerp(ast)
+    val interpreter = new FirrtlTerp(ast)
+    interpreter.setVerbose(verbose)
+    interpreter.evaluateCircuit()
+    interpreter
   }
 
   def main(args: Array[String]) {

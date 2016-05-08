@@ -66,22 +66,8 @@ class GCDTester extends FlatSpec with Matchers {
 
   val interpreter = FirrtlTerp(gcdFirrtl)
 
-  it should "run gcd" in {
-    val inputUpdater = new ManualMappedInputUpdater
-    interpreter.setInputUpdater(inputUpdater)
-
-    inputUpdater.setValues(Map("io_a" -> 6, "io_b" -> 3, "io_e" -> 1))
-    interpreter.cycle()
-    inputUpdater.setValues(Map("io_e" -> 0))
-//    interpreter.setVerbose(true)
-    interpreter.cycle()
-    interpreter.cycle()
-    interpreter.cycle()
-    interpreter.cycle()
-  }
-
-  it should "run with InterpretedTester too" in {
-    val x = new InterpretiveTester(gcdFirrtl) {
+  it should "run with InterpretedTester" in {
+    new InterpretiveTester(gcdFirrtl) {
       step(1)
       poke("io_a", 34)
       poke("io_b", 17)

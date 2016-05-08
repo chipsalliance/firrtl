@@ -45,32 +45,33 @@ class RegisterSpec extends FlatSpec with Matchers {
         |
       """.stripMargin
 
-    val interpreter = FirrtlTerp(input)
-    val inputUpdater = new MappedInputUpdater(interpreter.dependencyGraph) {
-      override def step_values: Array[Map[String, BigInt]] = Array(
-        Map("reset1" -> 1),
-        Map("reset1" -> 0),
-        Map("reset1" -> 0),
-        Map("reset1" -> 1),
-        Map("reset1" -> 0)
-      )
-    }
+    val interpreter = FirrtlTerp(input, verbose = true)
 
-    interpreter.setInputUpdater(inputUpdater)
+    def makeValue(value: BigInt) = ConcreteUInt(value, 1)
 
-    interpreter.setVerbose(true)
+    interpreter.setValue("reset1", makeValue(1))
     interpreter.cycle()
     interpreter.circuitState.registers("reg1").value should be (3)
+
+    interpreter.setValue("reset1", makeValue(0))
     interpreter.cycle()
+    interpreter.getValue("reg1").value should be (4)
+
     interpreter.circuitState.registers("reg1").value should be (4)
+
+    interpreter.setValue("reset1", makeValue(0))
     interpreter.cycle()
     interpreter.circuitState.registers("reg1").value should be (5)
+
+    interpreter.setValue("reset1", makeValue(1))
     interpreter.cycle()
     interpreter.circuitState.registers("reg1").value should be (3)
-    interpreter.cycle()
-    interpreter.circuitState.registers("reg1").value should be (4)
 
+    interpreter.setValue("reset1", makeValue(0))
+    interpreter.cycle()
+    interpreter.getValue("reg1").value should be (4)
   }
+
   it should "be able to initialize registers from other places" in {
     val input =
       """
@@ -89,37 +90,42 @@ class RegisterSpec extends FlatSpec with Matchers {
       """.stripMargin
 
     val interpreter = FirrtlTerp(input)
-    val inputUpdater = new ManualMappedInputUpdater
 
-    interpreter.setInputUpdater(inputUpdater)
+    def makeValue(value: BigInt) = ConcreteUInt(value, 16)
 
     // interpreter.setVerbose(true)
-    inputUpdater.setValues(Map("reset1" -> 1, "reset2" -> 1))
+    interpreter.setValue("reset1", makeValue(1))
+    interpreter.setValue("reset2", makeValue(1))
     interpreter.doCycles(1)
     interpreter.circuitState.registers("reg1").value should be (0)
     interpreter.circuitState.registers("reg2").value should be (0)
 
-    inputUpdater.setValues(Map("reset1" -> 0, "reset2" -> 0))
+    interpreter.setValue("reset1", makeValue(0))
+    interpreter.setValue("reset2", makeValue(0))
     interpreter.doCycles(1)
     interpreter.circuitState.registers("reg1").value should be (1)
     interpreter.circuitState.registers("reg2").value should be (3)
 
-    inputUpdater.setValues(Map("reset1" -> 0, "reset2" -> 0))
+    interpreter.setValue("reset1", makeValue(0))
+    interpreter.setValue("reset2", makeValue(0))
     interpreter.doCycles(1)
     interpreter.circuitState.registers("reg1").value should be (2)
     interpreter.circuitState.registers("reg2").value should be (6)
 
-    inputUpdater.setValues(Map("reset1" -> 1, "reset2" -> 0))
+    interpreter.setValue("reset1", makeValue(1))
+    interpreter.setValue("reset2", makeValue(0))
     interpreter.doCycles(1)
     interpreter.circuitState.registers("reg1").value should be (0)
     interpreter.circuitState.registers("reg2").value should be (9)
 
-    inputUpdater.setValues(Map("reset1" -> 0, "reset2" -> 0))
+    interpreter.setValue("reset1", makeValue(0))
+    interpreter.setValue("reset2", makeValue(0))
     interpreter.doCycles(1)
     interpreter.circuitState.registers("reg1").value should be (1)
     interpreter.circuitState.registers("reg2").value should be (12)
 
-    inputUpdater.setValues(Map("reset1" -> 0, "reset2" -> 1))
+    interpreter.setValue("reset1", makeValue(0))
+    interpreter.setValue("reset2", makeValue(1))
     interpreter.doCycles(1)
     interpreter.circuitState.registers("reg1").value should be (2)
     interpreter.circuitState.registers("reg2").value should be (1)

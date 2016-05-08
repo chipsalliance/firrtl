@@ -41,7 +41,8 @@ object CircuitState {
       inputPortToValue,
       outputPortToValue,
       registerToValue,
-      dependencyGraph.memories
+      dependencyGraph.memories,
+      dependencyGraph.lhsEntities
     )
     circuitState
   }
@@ -71,11 +72,12 @@ case class CircuitState(
                     inputPorts:  mutable.Map[String, Concrete],
                     outputPorts: mutable.Map[String, Concrete],
                     registers:   mutable.Map[String, Concrete],
-                    memories:    mutable.Map[String, Memory]) {
+                    memories:    mutable.Map[String, Memory],
+                    validNames:  mutable.HashSet[String]) {
   val nextRegisters = new mutable.HashMap[String, Concrete]()
   val ephemera      = new mutable.HashMap[String, Concrete]()
 
-  val nameToConcreteValue = mutable.HashMap((inputPorts ++ outputPorts ++ registers).toSeq:_*)
+  var nameToConcreteValue = mutable.HashMap((inputPorts ++ outputPorts ++ registers).toSeq:_*)
 
   var stateCounter = 0
   var isStale      = true
@@ -93,13 +95,19 @@ case class CircuitState(
     nextRegisters.clear()
     ephemera.clear()
     cycleMemories()
+    nameToConcreteValue = mutable.HashMap((inputPorts ++ outputPorts ++ registers).toSeq:_*)
+    isStale = true
     stateCounter += 1
   }
   def cycleMemories(): Unit = {
     memories.values.foreach { memory => memory.cycle() }
   }
   def setValue(key: String, concreteValue: Concrete): Concrete = {
-    if(outputPorts.contains(key)) {
+    if(isInput(key)) {
+      inputPorts(key) = concreteValue
+      nameToConcreteValue(key) = concreteValue
+    }
+    else if(isOutput(key)) {
       outputPorts(key) = concreteValue
       nameToConcreteValue(key) = concreteValue
     }
@@ -116,9 +124,12 @@ case class CircuitState(
           throw new InterpreterException(s"Error:failed memory($key).setValue($key, $concreteValue)")
       }
     }
-    else {
+    else if(validNames.contains(key)) {
       ephemera(key) = concreteValue
       nameToConcreteValue(key) = concreteValue
+    }
+    else {
+      throw InterpreterException(s"Error: setValue($key, $concreteValue) $key is not an element of this circuit")
     }
     isStale = true
     concreteValue
@@ -170,7 +181,7 @@ case class CircuitState(
       }.mkString(msg+prefix, separator, postfix)
     }
     s"""
-       |CircuitState $stateCounter
+       |CircuitState $stateCounter (${if(isStale) "STALE" else "FRESH"})
        |${showConcreteValues("Inputs", inputPorts.toMap)}
        |${showConcreteValues("Outputs", outputPorts.toMap)}
        |${showConcreteValues("BeforeRegisters", registers.toMap)}
