@@ -35,13 +35,13 @@ class InterpretiveTester(input: String) {
   val interpreter = FirrtlTerp(input)
 
   def poke(name: String, value: BigInt): Unit = {
-    interpreter.circuitState.setInput(name, value)
+    interpreter.setValueWithBigInt(name, value)
   }
 
   def peek(name: String): BigInt = {
-    interpreter.circuitState.getValue(name) match {
-      case Some(ConcreteUInt(value, _)) => value
-      case Some(ConcreteSInt(value, _)) => value
+    interpreter.getValue(name) match {
+      case ConcreteUInt(value, _) => value
+      case ConcreteSInt(value, _) => value
       case _ => throw new InterpreterException(s"Error:peek($name) value not found")
       }
   }

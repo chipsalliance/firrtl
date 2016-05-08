@@ -43,6 +43,7 @@ import firrtl._
 // TODO: try inlining pass
 // TODO: finish support for read/write memory ports
 // TODO: Make into separate repo
+// TODO: Support forced values on nodes (don't recompute them if forced)
 
 /**
   * This is the Firrtl interpreter.  It is the top level control engine
@@ -81,8 +82,8 @@ class FirrtlTerp(ast: Circuit) extends SimpleLogger {
   )
 
   def getValue(name: String): Concrete = {
-    assert(dependencyGraph.lhsEntities.contains(name),
-      s"Error: setValue($name) is not an element of this circuit")
+    assert(dependencyGraph.validNames.contains(name),
+      s"Error: getValue($name) is not an element of this circuit")
 
   if(circuitState.isStale) {
       evaluateCircuit()
@@ -102,11 +103,24 @@ class FirrtlTerp(ast: Circuit) extends SimpleLogger {
     circuitState.setValue(name, value)
   }
 
+  def setValueWithBigInt(name: String, value: BigInt, force: Boolean = true): Concrete = {
+    if(!force) {
+      assert(circuitState.isInput(name),
+        s"Error: setValue($name) not on input, use setValue($name, force=true) to override")
+    }
+    val concreteValue = TypeInstanceFactory(dependencyGraph.nameToType(name), value)
+
+    circuitState.setValue(name, concreteValue)
+  }
+
   def hasInput(name: String)  = dependencyGraph.hasInput(name)
   def hasOutput(name: String) = dependencyGraph.hasOutput(name)
 
   def evaluateCircuit(): Unit = {
-    log(s"resovle dependencies")
+    log(s"clear ephemera")
+    circuitState.prepareForDependencyResolution()
+    log(circuitState.prettyString())
+    log(s"resolve dependencies")
     evaluator.resolveDependencies()
     log(s"process reset")
     evaluator.processRegisterResets()
@@ -118,10 +132,12 @@ class FirrtlTerp(ast: Circuit) extends SimpleLogger {
     log(s"${circuitState.prettyString()}")
   }
   def cycle(showState: Boolean = true) = {
-    log(s"calling cycle")
     if(circuitState.isStale) {
+      log("interpreter cycle() called, state is stale, re-evaluate Circuit")
+      log(circuitState.prettyString())
       evaluateCircuit()
     }
+    else log(s"interpreter cycle() called, state is fresh")
 
     circuitState.cycle()
 

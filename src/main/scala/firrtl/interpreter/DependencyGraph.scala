@@ -28,17 +28,17 @@ object DependencyGraph extends LazyLogging {
         con
       case DefNode(_, name, expression) =>
         println(s"declaration:node: $s")
-        dependencyGraph.recordLhs(name)
+        dependencyGraph.recordName(name)
         dependencyGraph(name) = expression
         s
       case DefWire(_, name, _) =>
         println(s"declaration:node: $s")
-        dependencyGraph.recordLhs(name)
+        dependencyGraph.recordName(name)
         s
       case DefRegister(_, name, tpe, _, resetExpression, initValueExpression) =>
         println(s"declaration:reg: $s")
         dependencyGraph.registerNames += name
-        dependencyGraph.recordLhs(name)
+        dependencyGraph.recordName(name)
         dependencyGraph.recordType(name, tpe)
         dependencyGraph.registers += s.asInstanceOf[DefRegister]
         s
@@ -68,9 +68,11 @@ object DependencyGraph extends LazyLogging {
           dependencyGraph.nameToType(port.name) = port.tpe
           if(port.direction == INPUT) {
             dependencyGraph.inputPorts += port.name
+            dependencyGraph.recordName(port.name)
           }
           else if(port.direction == OUTPUT) {
             dependencyGraph.outputPorts += port.name
+            dependencyGraph.recordName(port.name)
           }
         }
         getDepsStmt(i.body)
@@ -88,7 +90,7 @@ object DependencyGraph extends LazyLogging {
 
 class DependencyGraph(val circuit: Circuit, val module: Module) {
   val nameToExpression = new scala.collection.mutable.HashMap[String, Expression]
-  val lhsEntities      = new mutable.HashSet[String]
+  val validNames       = new mutable.HashSet[String]
   val nameToType       = new mutable.HashMap[String, Type]
   val registerNames    = new mutable.HashSet[String]
   val registers        = new ArrayBuffer[DefRegister]
@@ -101,11 +103,11 @@ class DependencyGraph(val circuit: Circuit, val module: Module) {
 
   def update(key: String, e: Expression): Unit = nameToExpression(key) = e
   def apply(key: String): Option[Expression] = {
-    recordLhs(key)
+    recordName(key)
     nameToExpression.get(key)
   }
   def keys: Iterable[String] = nameToExpression.keys
-  def recordLhs(key: String): Unit = lhsEntities += key
+  def recordName(key: String): Unit = validNames += key
   def recordType(key: String, tpe: Type): Unit = {nameToType(key) = tpe}
   def getType(key: String): Type = nameToType(key)
   def getNameSet: mutable.HashSet[String] = mutable.HashSet(nameToExpression.keys.toSeq:_*)

@@ -260,11 +260,11 @@ class Memory(
       if(latency > 0) {
         val element = pipeLine.remove(0)
         if (element.enable && element.mask.value > 0) {
-          println("memory $fullName cycle element is $element, executed")
+          println(s"memory $fullName cycle element is $element, executed")
           dataStore(element.address) = element.data
         }
         else {
-          println("memory $fullName cycle element is $element, REJECTED")
+          println(s"memory $fullName cycle element is $element, REJECTED")
         }
         pipeLine += elementFromSnapshot
       }

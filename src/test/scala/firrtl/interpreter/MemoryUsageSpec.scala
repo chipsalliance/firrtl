@@ -37,7 +37,7 @@ class MemoryUsageSpec extends FlatSpec with Matchers {
   behavior of "chirrtl mems"
 
   it should "parse and run ok" in {
-    val chirrltMemInput =
+    val chirrtlMemInput =
       """
         |circuit ChirrtlMems :
         |  module ChirrtlMems :
@@ -93,7 +93,7 @@ class MemoryUsageSpec extends FlatSpec with Matchers {
         |    waddr <= bits(GEN_18, 3, 0)
       """.stripMargin
 
-    val tester = new InterpretiveTester(chirrltMemInput) {
+    val tester = new InterpretiveTester(chirrtlMemInput) {
       step(1)
     }
   }

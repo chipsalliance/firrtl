@@ -43,7 +43,7 @@ class CircuitStateSpec extends FlatSpec with Matchers {
     outputPorts = mutable.Map(port1.name -> u1Instance),
     registers   = mutable.Map("reg1" -> u1Instance, "reg2" -> u1Instance),
     memories    = mutable.Map(),
-    validNames  = mutable.HashSet()
+    validNames  = mutable.HashSet("wire0")
   )
 
   it should "be creatable" in {

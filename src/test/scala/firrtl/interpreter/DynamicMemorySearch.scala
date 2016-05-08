@@ -79,7 +79,7 @@ class DynamicMemorySearch extends FlatSpec with Matchers {
     val w = 4
 
     new InterpretiveTester(input) {
-//      interpreter.setVerbose(true)
+      interpreter.setVerbose(true)
 //      interpreter.sourceState.memories("list").setVerbose()
 
       val list = Array.fill(n)(0)
@@ -98,7 +98,7 @@ class DynamicMemorySearch extends FlatSpec with Matchers {
       for (k <- 0 until 16) {
         println(s"memory test iteration $k ${"X"*80}")
 
-        // Compute a randome address and value
+        // Compute a random address and value
         val wrAddr = random.nextInt(n - 1)
         val data   = random.nextInt((1 << w) - 1) + 10
 

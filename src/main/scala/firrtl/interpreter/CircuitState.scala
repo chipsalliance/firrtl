@@ -42,7 +42,7 @@ object CircuitState {
       outputPortToValue,
       registerToValue,
       dependencyGraph.memories,
-      dependencyGraph.lhsEntities
+      dependencyGraph.validNames
     )
     circuitState
   }
@@ -86,6 +86,14 @@ case class CircuitState(
     memories(memoryName).getFieldDependencies(portName)
   }
 
+  /**
+    * in order to compute dependencies, ephemera must be clear and their
+    * associated values cleared
+    */
+  def prepareForDependencyResolution(): Unit = {
+    nameToConcreteValue = mutable.HashMap((inputPorts ++ outputPorts ++ registers).toSeq:_*)
+    ephemera.clear()
+  }
   /**
     * prepare this cycle
     */

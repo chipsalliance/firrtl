@@ -114,7 +114,7 @@ class MemorySpec extends FlatSpec with Matchers {
       println(s"Write test slot $i" + ("="*80))
       memory.setValue(key + ".en", ConcreteUInt(1, 1))
       memory.setValue(key + ".addr", ConcreteUInt(i, memory.addressWidth))
-      memory.setValue(key + ".mask", ConcreteUInt(0, dataWidth))
+      memory.setValue(key + ".mask", ConcreteUInt(1, dataWidth))
       memory.setValue(key + ".data", ConcreteUInt(i * 2, dataWidth))
       memory.cycle()
 
@@ -289,6 +289,7 @@ class MemorySpec extends FlatSpec with Matchers {
     memory.dataStore(testAddress).value should be (testValue1)
 
     memory.setValue(key + ".en", ConcreteUInt(1, 1))
+    memory.setValue(key + ".mask", ConcreteUInt(1, 1))
     memory.setValue(key + ".addr", ConcreteUInt(testAddress, memory.addressWidth))
     memory.setValue(key + ".data", ConcreteUInt(testValue2, memory.dataWidth))
 
@@ -322,65 +323,5 @@ class MemorySpec extends FlatSpec with Matchers {
     memory.dataStore(testAddress).value should be (testValue2)
     memory.cycle()
     memory.dataStore(testAddress).value should be (testValue2)
-  }
-
-  it should "use write mask to protect bits already in memory" in {
-    val dataWidth   = 11
-    val depth       = 15
-    val writeDelay  =  1
-    val testValue1  = BigInt( "101", 2)
-    val testValue2  = BigInt("1010", 2)
-    val testValue3  = BigInt("1111", 2)
-    val testValue4  = BigInt("0011", 2)
-    val testValue5  = BigInt("1001", 2)
-    val testAddress =  3
-
-    println(s"testing write delay of $writeDelay ${"="*80}")
-    val memory = Memory(DefMemory(
-      NoInfo, "memory1", UIntType(IntWidth(dataWidth)), depth, writeDelay, 1, Seq("read1", "read2"), Seq("write1"), Seq()
-    ))
-
-    val key = "memory1.write1"
-
-    memory.dataStore(testAddress) = ConcreteUInt(testValue1, memory.dataWidth)
-    memory.dataStore(testAddress).value should be (testValue1)
-
-    // Use a mask of testValue1 to save all it's set bits
-    memory.setValue(key + ".en",   ConcreteUInt(1, 1))
-    memory.setValue(key + ".addr", ConcreteUInt(testAddress, memory.addressWidth))
-    memory.setValue(key + ".data", ConcreteUInt(testValue2, memory.dataWidth))
-    memory.setValue(key + ".mask", ConcreteUInt(testValue1, dataWidth))
-
-    memory.dataStore(testAddress).value should be (testValue1)
-    memory.cycle()
-    memory.dataStore(testAddress).value should be (testValue3)
-
-    // put testValue1 back into the data store
-    memory.dataStore(testAddress) = ConcreteUInt(testValue1, memory.dataWidth)
-    memory.dataStore(testAddress).value should be (testValue1)
-
-    // Use a mask of testValue2 protects none of the bits in current and allows none of the bits in incoming
-    memory.setValue(key + ".en",   ConcreteUInt(1, 1))
-    memory.setValue(key + ".addr", ConcreteUInt(testAddress, memory.addressWidth))
-    memory.setValue(key + ".data", ConcreteUInt(testValue2, memory.dataWidth))
-    memory.setValue(key + ".mask", ConcreteUInt(testValue2, dataWidth))
-
-    memory.dataStore(testAddress).value should be (testValue1)
-    memory.cycle()
-    memory.dataStore(testAddress).value should be (Big0)
-
-    // put testValue1 back into the data store
-    memory.dataStore(testAddress) = ConcreteUInt(testValue1, memory.dataWidth)
-    memory.dataStore(testAddress).value should be (testValue1)
-
-    // Use a mask of testValue2 to save ignore all the current bits in the data store
-    memory.setValue(key + ".en",   ConcreteUInt(1, 1))
-    memory.setValue(key + ".addr", ConcreteUInt(testAddress, memory.addressWidth))
-    memory.setValue(key + ".data", ConcreteUInt(testValue2, memory.dataWidth))
-    memory.setValue(key + ".mask", ConcreteUInt(testValue4, dataWidth))
-
-    memory.dataStore(testAddress).value should be (testValue1)
-    memory.cycle()
-    memory.dataStore(testAddress).value should be (testValue5)
   }
 }
