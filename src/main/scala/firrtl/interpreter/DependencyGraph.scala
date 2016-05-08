@@ -8,8 +8,10 @@ import collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
 object DependencyGraph extends LazyLogging {
-  def apply(m: Module): DependencyGraph = {
-    val dependencies = new DependencyGraph
+  def apply(circuit: Circuit): DependencyGraph = {
+    val module = circuit.modules.head
+
+    val dependencyGraph = new DependencyGraph(circuit, module)
 
     def getDepsStmt(s: Stmt): Stmt = s match {
       case begin: Begin =>
@@ -18,37 +20,37 @@ object DependencyGraph extends LazyLogging {
         begin
       case con: Connect =>
         con.loc match {
-          case WRef(name,_,_,_) => dependencies(name) = con.exp
+          case WRef(name,_,_,_) => dependencyGraph(name) = con.exp
           case (_: WSubField | _: WSubIndex) =>
             val name = con.loc.serialize
-            dependencies(name) = con.exp
+            dependencyGraph(name) = con.exp
         }
         con
       case DefNode(_, name, expression) =>
         println(s"declaration:node: $s")
-        dependencies.recordLhs(name)
-        dependencies(name) = expression
+        dependencyGraph.recordLhs(name)
+        dependencyGraph(name) = expression
         s
       case DefWire(_, name, _) =>
         println(s"declaration:node: $s")
-        dependencies.recordLhs(name)
+        dependencyGraph.recordLhs(name)
         s
       case DefRegister(_, name, tpe, _, resetExpression, initValueExpression) =>
         println(s"declaration:reg: $s")
-        dependencies.registerNames += name
-        dependencies.recordLhs(name)
-        dependencies.recordType(name, tpe)
-        dependencies.registers += s.asInstanceOf[DefRegister]
+        dependencyGraph.registerNames += name
+        dependencyGraph.recordLhs(name)
+        dependencyGraph.recordType(name, tpe)
+        dependencyGraph.registers += s.asInstanceOf[DefRegister]
         s
       case defMemory: DefMemory =>
         println(s"declaration:mem $defMemory")
-        dependencies.addMemory(defMemory)
+        dependencyGraph.addMemory(defMemory)
         s
       case stopStatement: Stop =>
-        dependencies.addStop(stopStatement)
+        dependencyGraph.addStop(stopStatement)
         s
       case printStatement: Print =>
-        dependencies.addPrint(printStatement)
+        dependencyGraph.addPrint(printStatement)
         s
       case e: Empty =>
         s
@@ -60,20 +62,27 @@ object DependencyGraph extends LazyLogging {
         s
     }
 
-    m match {
+    module match {
       case i: InModule =>
         for(port <- i.ports) {
-          dependencies.nameToType(port.name) = port.tpe
+          dependencyGraph.nameToType(port.name) = port.tpe
+          if(port.direction == INPUT) {
+            dependencyGraph.inputPorts += port.name
+          }
+          else if(port.direction == OUTPUT) {
+            dependencyGraph.outputPorts += port.name
+          }
         }
         getDepsStmt(i.body)
       case e: ExModule => // Do nothing
     }
-    println(s"For module ${m.name} dependencies =")
-    dependencies.nameToExpression.keys.toSeq.sorted foreach { case k =>
-      val v = dependencies.nameToExpression(k)
+
+    println(s"For module ${module.name} dependencyGraph =")
+    dependencyGraph.nameToExpression.keys.toSeq.sorted foreach { case k =>
+      val v = dependencyGraph.nameToExpression(k)
       println(s"  $k -> (" + v.toString + ")")
     }
-    dependencies
+    dependencyGraph
   }
 
 //  def apply(c: Circuit): Map[String, Map[Expression, Expression]] = {
@@ -83,7 +92,7 @@ object DependencyGraph extends LazyLogging {
 //  }
 }
 
-class DependencyGraph {
+class DependencyGraph(val circuit: Circuit, val module: Module) {
   val nameToExpression = new scala.collection.mutable.HashMap[String, Expression]
   val lhsEntities      = new mutable.HashSet[String]
   val nameToType       = new mutable.HashMap[String, Type]
@@ -92,6 +101,9 @@ class DependencyGraph {
   val memories         = new mutable.HashMap[String, Memory]
   val stops            = new ArrayBuffer[Stop]
   val prints           = new ArrayBuffer[Print]
+
+  val inputPorts       = new mutable.HashSet[String]
+  val outputPorts      = new mutable.HashSet[String]
 
   def update(key: String, e: Expression): Unit = nameToExpression(key) = e
   def apply(key: String): Option[Expression] = {
@@ -108,4 +120,7 @@ class DependencyGraph {
   def addMemory(defMemory: DefMemory): Unit = {
     memories(defMemory.name) = Memory(defMemory)
   }
+
+  def hasInput(name: String): Boolean = inputPorts.contains(name)
+  def hasOutput(name: String): Boolean = outputPorts.contains(name)
 }

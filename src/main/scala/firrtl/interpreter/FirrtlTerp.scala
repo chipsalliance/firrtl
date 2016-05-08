@@ -44,49 +44,85 @@ import firrtl._
 // TODO: finish support for read/write memory ports
 // TODO: Make into separate repo
 
-class FirrtlTerp(ast: Circuit) {
+/**
+  * This is the Firrtl interpreter.  It is the top level control engine
+  * that controls the simulation of a circuit running.
+  *
+  * It coordinates updating of the circuit's inputs (other elements, nodes,
+  * registers, etc can be forced to values) and querying the circuits outputs
+  * (or optionally other circuit components)
+  *
+  * This mainly involves updating of a circuit state instance by using a
+  * expression evaluator on a dependency graph.
+  *
+  * @param ast the circuit to be simulated
+  */
+class FirrtlTerp(ast: Circuit) extends SimpleLogger {
   var lastStopResult: Option[Int] = None
   def stopped: Boolean = lastStopResult.nonEmpty
-  def stopResult = lastStopResult.get
+  def stopResult       = lastStopResult.get
 
   val loweredAst = ToLoFirrtl.lower(ast)
   println("LoFirrtl" + "="*120)
   println(loweredAst.serialize)
   println(s"ast $loweredAst")
 
-  var verbose = false
-  def setVerbose(value: Boolean): Unit = { verbose = value }
+  override def setVerbose(value: Boolean): Unit = {
+    super.setVerbose(value)
+    evaluator.setVerbose(value)
+  }
 
-  val interpreterCircuit = new InterpreterCircuit(loweredAst)
+  val dependencyGraph    = DependencyGraph(loweredAst)
 
-  var inputUpdater: InputUpdater = new RandomInputUpdater(interpreterCircuit)
+  var inputUpdater: InputUpdater = new EmptyUpdater()
   def setInputUpdater(newInputUpdater: InputUpdater): Unit = {
     inputUpdater = newInputUpdater
   }
-  var sourceState = CircuitState(interpreterCircuit)
+  var circuitState = CircuitState(dependencyGraph)
+  val evaluator = new LoFirrtlExpressionEvaluator(
+    startKeys = dependencyGraph.keys, //TODO: maybe remove this
+    dependencyGraph = dependencyGraph,
+    circuitState = circuitState
+  )
+
 
   def updateInputs(): Unit = {
-    inputUpdater.updateInputs(sourceState)
+    inputUpdater.updateInputs(circuitState)
   }
 
-  def hasPort(name: String, desiredDirection: Direction): Boolean = {
-    interpreterCircuit.nameToPort.get(name) match {
-      case Some(port) => port.direction == desiredDirection
-      case _ => false
+  def getValue(name: String): Concrete = {
+    assert(dependencyGraph.lhsEntities.contains(name),
+      s"Error: setValue($name) is not an element of this circuit")
+
+  if(circuitState.isStale) {
+      cycle()
+    }
+    circuitState.getValue(name) match {
+      case Some(value) => value
+      case _ => throw InterpreterException(s"Error: getValue($name) returns value not found")
     }
   }
-  def hasInput(name: String) = hasPort(name, INPUT)
-  def hasOutput(name: String) = hasPort(name, OUTPUT)
 
-  def doOneCycle(showState: Boolean = true) = {
+  def setValue(name: String, force: Boolean = true): Concrete = {
+    if(!force) {
+      assert(circuitState.isInput(name),
+        s"Error: setValue($name) not on input, use setValue($name, force=true) to override")
+    }
+    assert(dependencyGraph.lhsEntities.contains(name),
+      s"Error: setValue($name) is not an element of this circuit")
+
+    circuitState.getValue(name) match {
+      case Some(value) => value
+      case _ => throw InterpreterException(s"Error: getValue($name) returns value not found")
+    }
+  }
+
+  def hasInput(name: String)  = dependencyGraph.hasInput(name)
+  def hasOutput(name: String) = dependencyGraph.hasOutput(name)
+
+  def cycle(showState: Boolean = true) = {
     updateInputs()
 
-    val evaluator = new LoFirrtlExpressionEvaluator(
-      startKeys = interpreterCircuit.dependencyGraph.keys, //TODO: maybe remove this
-      dependencyGraph = interpreterCircuit.dependencyGraph,
-      circuitState = sourceState
-    )
-    evaluator.setVerbose(verbose)
     evaluator.resolveDependencies()
     lastStopResult = evaluator.checkStops()
     evaluator.checkPrints()
@@ -94,35 +130,16 @@ class FirrtlTerp(ast: Circuit) {
     evaluator.processRegisterResets()
 
 //    println(s"FirrtlTerp: cycle complete ${"="*80}\n${sourceState.prettyString()}")
-    sourceState = sourceState.getNextState
-    if(showState) println(s"FirrtlTerp: next state computed ${"="*80}\n${sourceState.prettyString()}")
+    if(showState) println(s"FirrtlTerp: next state computed ${"="*80}\n${circuitState.prettyString()}")
 
-  }
-
-  def doCombinationalUpdate() = {
-    updateInputs()
-
-    val evaluator = new LoFirrtlExpressionEvaluator(
-      startKeys = interpreterCircuit.dependencyGraph.keys, //TODO: maybe remove this
-      dependencyGraph = interpreterCircuit.dependencyGraph,
-      circuitState = sourceState
-    )
-    evaluator.setVerbose(verbose)
-    evaluator.resolveDependencies()
-    lastStopResult = evaluator.checkStops()
-    evaluator.checkPrints()
-
-    evaluator.processRegisterResets()
-
-    println(s"FirrtlTerp: combinational update complete ${"="*80}\n${sourceState.prettyString()}")
   }
 
   def doCycles(n: Int): Unit = {
-    println(s"Initial state ${"-"*80}\n${sourceState.prettyString()}")
+    println(s"Initial state ${"-"*80}\n${circuitState.prettyString()}")
 
-    for(cycle <- 1 to n) {
-      println(s"Cycle $cycle ${"-"*80}")
-      doOneCycle()
+    for(cycle_number <- 1 to n) {
+      println(s"Cycle $cycle_number ${"-"*80}")
+      cycle()
       if(stopped) return
     }
   }
@@ -135,110 +152,5 @@ object FirrtlTerp {
   }
 
   def main(args: Array[String]) {
-
-    val input = if(args.isEmpty) {
-      println("Usage: FirrtlTerp fileName")
-      """circuit Test :
-        |  module Test :
-        |    input clk : Clock
-        |    input a : UInt<1>
-        |    input b : UInt<1>
-        |    input select : UInt<1>
-        |    output c : UInt<2>
-        |    reg w : UInt<1>, clk
-        |    reg x : UInt<1>, clk
-        |    reg y : UInt<1>, clk
-        |
-        |    w <= a
-        |    x <= w
-        |    y <= x
-        |    c <= y
-      """.stripMargin
-    }
-    else io.Source.fromFile(args.head).mkString
-
-//    if()
-//    val input =
-//      """circuit Test :
-//        |  module Test :
-//        |    input clk : Clock
-//        |    input a : UInt<1>
-//        |    input b : UInt<1>
-//        |    input select : UInt<1>
-//        |    output c : UInt<2>
-//        |    reg w : UInt<1>, clk
-//        |    reg x : UInt<1>, clk
-//        |    reg y : UInt<1>, clk
-//        |
-//        |    w <= a
-//        |    x <= w
-//        |    y <= x
-//        |    c <= y
-//      """.stripMargin
-//    val input =
-//    """circuit Test :
-//      |  module Test :
-//      |    input clk : Clock
-//      |    input a : UInt<1>
-//      |    input b : UInt<1>
-//      |    input select : UInt<1>
-//      |    output c : UInt<1>
-//      |    c <= mux(select, a, b)
-//    """.stripMargin
-//    val input =
-//      """circuit Test :
-//        |  module Test :
-//        |    input clk : Clock
-//        |    input a : UInt<1>
-//        |    input b : UInt<1>
-//        |    input select : UInt<1>
-//        |    output c : UInt<1>
-//        |    mem m :
-//        |      data-type => { a : UInt<8>, b : UInt<8>}[2]
-//        |      depth => 32
-//        |      read-latency => 0
-//        |      write-latency => 1
-//        |      reader => read
-//        |      writer => write
-//        |    m.read.clk <= clk
-//        |    m.read.en <= UInt<1>(1)
-//        |    m.read.addr is invalid
-//        |    node x = m.read.data
-//        |    node y = m.read.data[0].b
-//        |
-//        |    m.write.clk <= clk
-//        |    m.write.en <= UInt<1>(0)
-//        |    m.write.mask is invalid
-//        |    m.write.addr is invalid
-//        |    wire w : { a : UInt<8>, b : UInt<8>}[2]
-//        |    w[0].a <= UInt<4>(2)
-//        |    w[0].b <= UInt<4>(3)
-//        |    w[1].a <= UInt<4>(4)
-//        |    w[1].b <= UInt<4>(5)
-//        |    m.write.data <= w
-//        |    c <= a
-//      """.stripMargin
-
-    val interpreter = FirrtlTerp(input)
-
-//    val inputUpdater = new MappedInputUpdater(interpreter.interpreterCircuit) {
-//      override def step_values: Array[Map[String, BigInt]] = Array(
-//        Map("io_a" -> 6, "io_b" -> 2, "io_e" -> 1),
-//        Map("io_a" -> 6, "io_b" -> 2, "io_e" -> 0),
-//        Map("io_a" -> 6, "io_b" -> 2, "io_e" -> 0),
-//        Map("io_a" -> 6, "io_b" -> 2, "io_e" -> 0),
-//        Map("io_a" -> 6, "io_b" -> 2, "io_e" -> 0),
-//        Map("io_a" -> 6, "io_b" -> 2, "io_e" -> 0),
-//        Map("io_a" -> 6, "io_b" -> 2, "io_e" -> 0),
-//        Map("io_a" -> 6, "io_b" -> 2, "io_e" -> 0),
-//        Map("io_a" -> 6, "io_b" -> 2, "io_e" -> 0),
-//        Map("io_a" -> 6, "io_b" -> 2, "io_e" -> 0),
-//        Map("io_a" -> 6, "io_b" -> 2, "io_e" -> 0)
-//      )
-//    }
-
-//    interpreter.setInputUpdater(inputUpdater)
-
-    interpreter.doCycles(6)
   }
 }

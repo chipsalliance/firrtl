@@ -32,21 +32,30 @@ import firrtl._
 import scala.collection.mutable
 
 object CircuitState {
-  def apply(circuit: Circuit): CircuitState = apply(InterpreterCircuit(circuit))
+  def apply(dependencyGraph: DependencyGraph): CircuitState = {
+    val inputPortToValue  = makePortToConcreteValueMap(dependencyGraph, INPUT)
+    val outputPortToValue = makePortToConcreteValueMap(dependencyGraph, OUTPUT)
+    val registerToValue   = makeRegisterToConcreteValueMap(dependencyGraph)
 
-  def apply(interpreterCircuit: InterpreterCircuit): CircuitState = {
     val circuitState = new CircuitState(
-      interpreterCircuit.inputPortToValue,
-      interpreterCircuit.outputPortToValue,
-      interpreterCircuit.makeRegisterToConcreteValueMap,
-      new mutable.HashMap[String, Concrete](),
-      interpreterCircuit.dependencyGraph.memories
+      inputPortToValue,
+      outputPortToValue,
+      registerToValue,
+      dependencyGraph.memories
     )
     circuitState
   }
 
-  def apply(state: CircuitState): CircuitState = {
-    state.getNextState
+  def makeRegisterToConcreteValueMap(dependencyGraph: DependencyGraph): mutable.Map[String, Concrete] = {
+    mutable.Map(dependencyGraph.registerNames.map { name =>
+      name -> TypeInstanceFactory(dependencyGraph.getType(name))
+    }.toSeq:_*)
+  }
+
+  def makePortToConcreteValueMap(dependencyGraph: DependencyGraph, direction: Direction) = {
+    mutable.Map(dependencyGraph.module.ports.filter(_.direction == direction).map { port =>
+      port.name -> TypeInstanceFactory(port.tpe)
+    }: _*)
   }
 }
 
@@ -62,35 +71,33 @@ case class CircuitState(
                     inputPorts:  mutable.Map[String, Concrete],
                     outputPorts: mutable.Map[String, Concrete],
                     registers:   mutable.Map[String, Concrete],
-                    ephemera:    mutable.Map[String, Concrete] = new mutable.HashMap[String, Concrete](),
-                    memories:    mutable.Map[String, Memory]   = new mutable.HashMap[String, Memory]) {
+                    memories:    mutable.Map[String, Memory]) {
   val nextRegisters = new mutable.HashMap[String, Concrete]()
+  val ephemera      = new mutable.HashMap[String, Concrete]()
 
   val nameToConcreteValue = mutable.HashMap((inputPorts ++ outputPorts ++ registers).toSeq:_*)
 
   var stateCounter = 0
+  var isStale      = true
 
   def getMemoryDependencies(memoryName: String, portName: String): Seq[String] = {
     memories(memoryName).getFieldDependencies(portName)
   }
 
+  /**
+    * prepare this cycle
+    */
+  def cycle(): Unit = {
+    assert(!isStale, s"Cycle cannot be called when stale, refresh should occur at a higher level")
+    registers.keys.foreach { key => registers(key) = nextRegisters(key) }
+    nextRegisters.clear()
+    ephemera.clear()
+    cycleMemories()
+    stateCounter += 1
+  }
   def cycleMemories(): Unit = {
     memories.values.foreach { memory => memory.cycle() }
   }
-
-  def getNextState: CircuitState = {
-    val nextState = new CircuitState(
-      inputPorts.clone(),
-      outputPorts.clone(),
-      nextRegisters.clone(),
-      ephemera.empty,
-      memories
-    )
-    nextState.cycleMemories()
-    nextState.stateCounter = stateCounter + 1
-    nextState
-  }
-
   def setValue(key: String, concreteValue: Concrete): Concrete = {
     if(outputPorts.contains(key)) {
       outputPorts(key) = concreteValue
@@ -113,10 +120,14 @@ case class CircuitState(
       ephemera(key) = concreteValue
       nameToConcreteValue(key) = concreteValue
     }
+    isStale = true
     concreteValue
   }
 
   def setInput(key: String, value: BigInt): Concrete = {
+    if(!isInput(key)) {
+
+    }
     val concreteValue = TypeInstanceFactory(inputPorts(key), value)
     inputPorts(key) = concreteValue
     nameToConcreteValue(key) = concreteValue

@@ -36,12 +36,11 @@ class InterpretiveTester(input: String) {
   interpreter.setInputUpdater(new EmptyUpdater())
 
   def poke(name: String, value: BigInt): Unit = {
-    assert(interpreter.hasInput(name))
-    interpreter.sourceState.setInput(name, value)
+    interpreter.circuitState.setInput(name, value)
   }
 
   def peek(name: String): BigInt = {
-    interpreter.sourceState.getValue(name) match {
+    interpreter.circuitState.getValue(name) match {
       case Some(ConcreteUInt(value, _)) => value
       case Some(ConcreteSInt(value, _)) => value
       case _ => throw new InterpreterException(s"Error:peek($name) value not found")
@@ -54,7 +53,7 @@ class InterpretiveTester(input: String) {
         throw new InterpreterException (s"Error:expect($name, $expectedValue) got $value")
       }
     }
-    interpreter.sourceState.getValue(name) match {
+    interpreter.circuitState.getValue(name) match {
       case Some(ConcreteUInt (value, _)) => testValue(value)
       case Some(ConcreteSInt(value, _))  => testValue(value)
       case _ => throw new InterpreterException(s"Error:expect($name, $expectedValue) value not found")
@@ -63,7 +62,7 @@ class InterpretiveTester(input: String) {
 
   def step(n: Int = 1): Unit = {
     for(_ <- 0 until n) {
-      interpreter.doOneCycle()
+      interpreter.cycle()
     }
   }
 }

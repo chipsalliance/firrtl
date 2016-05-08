@@ -71,13 +71,13 @@ class GCDTester extends FlatSpec with Matchers {
     interpreter.setInputUpdater(inputUpdater)
 
     inputUpdater.setValues(Map("io_a" -> 6, "io_b" -> 3, "io_e" -> 1))
-    interpreter.doOneCycle()
+    interpreter.cycle()
     inputUpdater.setValues(Map("io_e" -> 0))
 //    interpreter.setVerbose(true)
-    interpreter.doOneCycle()
-    interpreter.doOneCycle()
-    interpreter.doOneCycle()
-    interpreter.doOneCycle()
+    interpreter.cycle()
+    interpreter.cycle()
+    interpreter.cycle()
+    interpreter.cycle()
   }
 
   it should "run with InterpretedTester too" in {

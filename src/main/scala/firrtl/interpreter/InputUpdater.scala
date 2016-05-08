@@ -59,17 +59,17 @@ abstract class InputUpdater {
 /**
   * pick a random number of suitable size for every input at each step
   * pathologically alternates clock for no good reason at the moment
-  * @param interpreterCircuit used to find input ports
+  * @param dependencyGraph used to find input ports
   * @param randomSeed randomize seed, defaults to 0L
   */
-class RandomInputUpdater(interpreterCircuit: InterpreterCircuit, randomSeed: Long = 0L)
+class RandomInputUpdater(dependencyGraph: DependencyGraph, randomSeed: Long = 0L)
   extends InputUpdater {
   val random = util.Random
   random.setSeed(randomSeed)
 
   def getValue(name: String): BigInt = {
     def getPort(name: String) = {
-      interpreterCircuit.dependencyGraph.nameToType(name)
+      dependencyGraph.nameToType(name)
     }
     def getWidth(width: Width): Int = width match {
       case iw: IntWidth => iw.width.toInt
@@ -86,9 +86,9 @@ class RandomInputUpdater(interpreterCircuit: InterpreterCircuit, randomSeed: Lon
 /**
   * Allows for simpled hard coding of a series of inputs to be loaded into
   * desired inputs at each step
-  * @param interpreterCircuit used to identify input ports
+  * @param dependencyGraph used to identify input ports
   */
-abstract class MappedInputUpdater(val interpreterCircuit: InterpreterCircuit)
+abstract class MappedInputUpdater(val dependencyGraph: DependencyGraph)
   extends InputUpdater {
   def step_values: Array[Map[String, BigInt]]
 
