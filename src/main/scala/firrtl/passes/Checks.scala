@@ -199,7 +199,7 @@ object CheckHighForm extends Pass with LazyLogging {
       t map (checkHighFormW)
     }
 
-    def checkHighFormM(m: Module): Module = {
+    def checkHighFormM(m: DefModule): DefModule = {
       val names = HashMap[String, Boolean]()
       val mnames = HashMap[String, Boolean]()
       val tries = Trie(HashMap[String, Trie](),false)
@@ -276,8 +276,8 @@ object CheckHighForm extends Pass with LazyLogging {
       }
 
       m match {
-        case m: InModule => checkHighFormS(m.body)
-        case m: ExModule => // Do Nothing
+        case m: Module => checkHighFormS(m.body)
+        case m: ExtModule => // Do Nothing
       }
       m
     }
@@ -503,8 +503,8 @@ object CheckTypes extends Pass with LazyLogging {
       for (m <- c.modules ) {
          mname = m.name
          (m) match { 
-            case (m:ExModule) => false
-            case (m:InModule) => check_types_s(m.body)
+            case (m:ExtModule) => false
+            case (m:Module) => check_types_s(m.body)
          }
       }
       if (errors.nonEmpty) throw new PassExceptions(errors)
@@ -668,8 +668,8 @@ object CheckGenders extends Pass {
             genders(p.name) = dir_to_gender(p.direction)
          }
          (m) match { 
-            case (m:ExModule) => false
-            case (m:InModule) => check_genders_s(genders)(m.body)
+            case (m:ExtModule) => false
+            case (m:Module) => check_genders_s(genders)(m.body)
          }
       }
       if (errors.nonEmpty) throw new PassExceptions(errors)
@@ -685,7 +685,7 @@ object CheckWidths extends Pass with StanzaPass {
    class NegWidthException(info:Info) extends PassException(s"${info}: [module ${mname}] Width cannot be negative or zero.")
    def run (c:Circuit): Circuit = {
       val errors = ArrayBuffer[PassException]()
-      def check_width_m (m:Module) : Unit = {
+      def check_width_m (m:DefModule) : Unit = {
          def check_width_w (info:Info)(w:Width) : Width = {
             (w) match { 
                case (w:IntWidth)=> if (w.width <= 0) errors += new NegWidthException(info)
@@ -729,8 +729,8 @@ object CheckWidths extends Pass with StanzaPass {
          }
    
          (m) match { 
-            case (m:ExModule) => {}
-            case (m:InModule) => check_width_s(m.body)
+            case (m:ExtModule) => {}
+            case (m:Module) => check_width_s(m.body)
          }
       }
       

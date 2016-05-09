@@ -85,10 +85,10 @@ class Visitor(val fullFilename: String, val useInfo : Boolean) extends FIRRTLBas
 	private def visitCircuit[AST](ctx: FIRRTLParser.CircuitContext): Circuit = 
     Circuit(getInfo(ctx), ctx.module.map(visitModule), (ctx.id.getText)) 
     
-  private def visitModule[AST](ctx: FIRRTLParser.ModuleContext): Module = 
+  private def visitModule[AST](ctx: FIRRTLParser.ModuleContext): DefModule =
      ctx.getChild(0).getText match {
-        case "module" => InModule(getInfo(ctx), (ctx.id.getText), ctx.port.map(visitPort), visitBlock(ctx.block))
-        case "extmodule" => ExModule(getInfo(ctx), (ctx.id.getText), ctx.port.map(visitPort))
+        case "module" => Module(getInfo(ctx), (ctx.id.getText), ctx.port.map(visitPort), visitBlock(ctx.block))
+        case "extmodule" => ExtModule(getInfo(ctx), (ctx.id.getText), ctx.port.map(visitPort))
       }
 
   private def visitPort[AST](ctx: FIRRTLParser.PortContext): Port = 
