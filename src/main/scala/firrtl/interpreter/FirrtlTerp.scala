@@ -131,7 +131,7 @@ class FirrtlTerp(ast: Circuit) extends SimpleLogger {
     circuitState.isStale = false
     log(s"${circuitState.prettyString()}")
   }
-  def cycle(showState: Boolean = true) = {
+  def cycle(showState: Boolean = false) = {
     if(circuitState.isStale) {
       log("interpreter cycle() called, state is stale, re-evaluate Circuit")
       log(circuitState.prettyString())

@@ -238,7 +238,7 @@ class ConcreteSpec extends FlatSpec with Matchers {
       val num = allOnes(width)
       val uint = ConcreteUInt(num, width)
 
-      println(s"width $width lo $lo hi $hi uint $uint ")
+//      println(s"width $width lo $lo hi $hi uint $uint ")
       val subUint = uint.bits(hi, lo)
 
       val size = hi - lo + 1

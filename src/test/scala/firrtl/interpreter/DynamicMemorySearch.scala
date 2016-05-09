@@ -79,39 +79,39 @@ class DynamicMemorySearch extends FlatSpec with Matchers {
     val w = 4
 
     new InterpretiveTester(input) {
-      interpreter.setVerbose(true)
+//      interpreter.setVerbose(true)
 //      interpreter.sourceState.memories("list").setVerbose()
 
       val list = Array.fill(n)(0)
       random.setSeed(0L)
 
       // initialize memory
-//      for(write_address <- 0 until n) {
-//        println(s"Initializing memory address $write_address")
-//        poke("io_en", 0)
-//        poke("io_isWr", 1)
-//        poke("io_wrAddr", write_address)
-//        poke("io_data",   write_address)
-//        step(1)
-//      }
+      for(write_address <- 0 until n) {
+        println(s"Initializing memory address $write_address")
+        poke("io_en", 0)
+        poke("io_isWr", 1)
+        poke("io_wrAddr", write_address)
+        poke("io_data",   write_address)
+        list(write_address) = write_address
+        step(1)
+      }
 
-      for (k <- 0 until 16) {
-        println(s"memory test iteration $k ${"X"*80}")
+      for (k <- 0 until 160) {
+        println(s"memory test iteration $k") // ${"X"*80}")
 
         // Compute a random address and value
         val wrAddr = random.nextInt(n - 1)
-        val data   = random.nextInt((1 << w) - 1) + 10
+        val data   = random.nextInt((1 << w) - 1)
+//        println(s"setting memory($wrAddr) = $data")
 
         // poke it intro memory
         poke("io_en", 0)
         poke("io_isWr", 1)
         poke("io_wrAddr", wrAddr)
         poke("io_data",   data)
-        println(s"memory test iteration $k setting mem($wrAddr) to $data ${"-"*80}")
-        step(1)
-        println(s"memory test iteration $k expected list is ${list.mkString(",")} ${"-"*80}")
-
         list(wrAddr) = data
+        step(1)
+
         // SETUP SEARCH
         val target = if (k > 12) random.nextInt(1 << w) else data
         poke("io_isWr", 0)
@@ -128,12 +128,14 @@ class DynamicMemorySearch extends FlatSpec with Matchers {
 
         var waitCount = 0
         while(waitCount <= n && peek("io_done") == Big0) {
-          println(s"Waiting for done $waitCount")
+//          println(s"Waiting for done $waitCount")
+//          println(this.interpreter.circuitState.prettyString())
+//          println(s"external list ${list.mkString(",")}")
           step(1)
           waitCount += 1
         }
 
-        println(s"Done wait count is $waitCount done is ${peek("io_done")} expected ${peek("io_target")} got $expectedIndex")
+        println(s"Done wait count is $waitCount done is ${peek("io_done")} got ${peek("io_target")} got $expectedIndex")
         expect("io_done", 1)
         expect("io_target", expectedIndex)
         step(1)

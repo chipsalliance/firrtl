@@ -120,12 +120,12 @@ case class CircuitState(
       nameToConcreteValue(key) = concreteValue
     }
     else if(registers.contains(key)) {
-      println(s"Updating nextRegister $key => $concreteValue")
+//      println(s"Updating nextRegister $key => $concreteValue")
       nextRegisters(key) = concreteValue
       // we continue to use the initial values of registers when they appear on RHS of an expression
     }
     else if(isMemory(key)) {
-      println(s"Updating memory interface $key => $concreteValue")
+//      println(s"Updating memory interface $key => $concreteValue")
       key match {
         case Memory.KeyPattern(memoryName, _, _) => memories(memoryName).setValue(key, concreteValue)
         case _ =>
@@ -195,7 +195,6 @@ case class CircuitState(
        |${showConcreteValues("BeforeRegisters", registers.toMap)}
        |${showConcreteValues("AfterRegisters", nextRegisters.toMap)}
        |${showConcreteValues("Ephemera", ephemera.toMap)}
-       |Memories${memories.values.mkString("\n", "\n  ", "")}
-     """.stripMargin
+       |Memories${memories.values.mkString("\n", "\n  ", "")}""".stripMargin
   }
 }

@@ -7,7 +7,7 @@ import firrtl._
 import collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
-object DependencyGraph extends LazyLogging {
+object DependencyGraph extends SimpleLogger {
   def apply(circuit: Circuit): DependencyGraph = {
     val module = circuit.modules.head
 
@@ -27,23 +27,23 @@ object DependencyGraph extends LazyLogging {
         }
         con
       case DefNode(_, name, expression) =>
-        println(s"declaration:node: $s")
+        log(s"declaration:node: $s")
         dependencyGraph.recordName(name)
         dependencyGraph(name) = expression
         s
       case DefWire(_, name, _) =>
-        println(s"declaration:node: $s")
+        log(s"declaration:node: $s")
         dependencyGraph.recordName(name)
         s
       case DefRegister(_, name, tpe, _, resetExpression, initValueExpression) =>
-        println(s"declaration:reg: $s")
+        log(s"declaration:reg: $s")
         dependencyGraph.registerNames += name
         dependencyGraph.recordName(name)
         dependencyGraph.recordType(name, tpe)
         dependencyGraph.registers += s.asInstanceOf[DefRegister]
         s
       case defMemory: DefMemory =>
-        println(s"declaration:mem $defMemory")
+        log(s"declaration:mem $defMemory")
         dependencyGraph.addMemory(defMemory)
         s
       case stopStatement: Stop =>
@@ -55,7 +55,7 @@ object DependencyGraph extends LazyLogging {
       case e: Empty =>
         s
       case conditionally: Conditionally =>
-        // println(s"got a conditionally $conditionally")
+        // log(s"got a conditionally $conditionally")
         throw new InterpreterException(s"conditionally unsupported in interpreter $conditionally")
       case _ =>
         println(s"TODO: Unhandled statement $s")
@@ -79,10 +79,10 @@ object DependencyGraph extends LazyLogging {
       case e: ExModule => // Do nothing
     }
 
-    println(s"For module ${module.name} dependencyGraph =")
+    log(s"For module ${module.name} dependencyGraph =")
     dependencyGraph.nameToExpression.keys.toSeq.sorted foreach { case k =>
       val v = dependencyGraph.nameToExpression(k)
-      println(s"  $k -> (" + v.toString + ")")
+      log(s"  $k -> (" + v.toString + ")")
     }
     dependencyGraph
   }

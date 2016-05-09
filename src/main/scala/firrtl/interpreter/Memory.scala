@@ -121,7 +121,7 @@ class Memory(
     for(reader <- readPorts) reader.cycle()
     for(readWriter <- readWritePorts) readWriter.cycle()
 
-    println(s"memory cycled $toString")
+    log(s"memory cycled $toString")
   }
 
   def getFieldDependencies(portName: String): Seq[String] = {
@@ -238,7 +238,7 @@ class Memory(
     def inputHasChanged(): Unit = {
       if(latency > 0) {
         val newElement = elementFromSnapshot
-        println(s"memory $fullName input changed $newElement")
+        log(s"memory $fullName input changed $newElement")
         pipeLine(0) =  newElement
       }
     }
@@ -260,11 +260,11 @@ class Memory(
       if(latency > 0) {
         val element = pipeLine.remove(0)
         if (element.enable && element.mask.value > 0) {
-          println(s"memory $fullName cycle element is $element, executed")
+          log(s"memory $fullName cycle element is $element, executed")
           dataStore(element.address) = element.data
         }
         else {
-          println(s"memory $fullName cycle element is $element, REJECTED")
+          log(s"memory $fullName cycle element is $element, REJECTED")
         }
         pipeLine += elementFromSnapshot
       }

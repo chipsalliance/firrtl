@@ -38,24 +38,10 @@ import scala.collection.mutable.ArrayBuffer
   *
   * @param circuitState  the state of the system, should not be modified before all dependencies have been resolved
   */
-class LoFirrtlExpressionEvaluator(
-
-                                   dependencyGraph: DependencyGraph,
-                                   circuitState: CircuitState) {
-
+class LoFirrtlExpressionEvaluator(dependencyGraph: DependencyGraph, circuitState: CircuitState) extends SimpleLogger {
   var toResolve = mutable.HashSet(dependencyGraph.keys.toSeq:_*)
   val inProcess = toResolve.empty
 
-  private var resolveDepth = 0
-  private var verbose = false
-  def setVerbose(value: Boolean): Unit = {verbose = value }
-  private def indent(): Unit = resolveDepth += 1
-  private def dedent(): Unit = resolveDepth -= 1
-  private def log(message: => String): Unit = {
-    if(verbose) {
-      println(s"${" "*(resolveDepth*2)}$message")
-    }
-  }
   val expressionStack = new ArrayBuffer[Expression]
 
   /**
@@ -470,6 +456,14 @@ class LoFirrtlExpressionEvaluator(
         val formatString = printStatement.string.array.map(_.toChar).mkString("")
         printf(formatString, resolvedArgs:_*)
       }
+    }
+  }
+  private var resolveDepth = 0
+  private def indent(): Unit = resolveDepth += 1
+  private def dedent(): Unit = resolveDepth -= 1
+  override def log(message: => String): Unit = {
+    if(verbose) {
+      println(s"${" "*(resolveDepth*2)}$message")
     }
   }
 }
