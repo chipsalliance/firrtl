@@ -519,8 +519,8 @@ object CheckGenders extends Pass {
    
    def dir_to_gender (d:Direction) : Gender = {
       d match {
-         case INPUT => MALE
-         case OUTPUT => FEMALE //BI-GENDER
+         case Input => MALE
+         case Output => FEMALE //BI-GENDER
       }
    }
    

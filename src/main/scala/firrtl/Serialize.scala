@@ -186,8 +186,8 @@ private object Serialize {
 
   def serialize(d: Direction): String = {
     d match {
-      case INPUT => "input"
-      case OUTPUT => "output"
+      case Input => "input"
+      case Output => "output"
     }
   }
 

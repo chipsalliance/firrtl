@@ -95,8 +95,8 @@ class Visitor(val fullFilename: String, val useInfo : Boolean) extends FIRRTLBas
     Port(getInfo(ctx), (ctx.id.getText), visitDir(ctx.dir), visitType(ctx.`type`))
   private def visitDir[AST](ctx: FIRRTLParser.DirContext): Direction =
     ctx.getText match {
-      case "input" => INPUT
-      case "output" => OUTPUT
+      case "input" => Input
+      case "output" => Output
     }
   private def visitMdir[AST](ctx: FIRRTLParser.MdirContext): MPortDir =
     ctx.getText match {
