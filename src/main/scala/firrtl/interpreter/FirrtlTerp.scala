@@ -29,21 +29,14 @@ package firrtl.interpreter
 
 import firrtl._
 
-// TODO: Check for loops in dependency graph during evaluation
 // TODO: Add poison concept/multi-state
-// TODO: Support Multiple modules
-// TODO: Figure out what to do about clock
-// TODO: Implement VCD parser and emitter (https://github.com/impedimentToProgress/ProcessVCD.git)?
-// TODO: Get official Firrtl to LoFirrtl transformer
-// TODO: x(8, 4) := UInt(31)
-// TODO: What is divide by zero strategy
-// TODO: SInt must support width 1
-// TODO: How do zero width wires affect interpreter
-// TODO: for all OpCodes, add assertions that width of computation matches width of target being assigned to
 // TODO: try inlining pass
-// TODO: finish support for read/write memory ports
-// TODO: Make into separate repo
+// TODO: Implement VCD parser and emitter (https://github.com/impedimentToProgress/ProcessVCD.git)?
 // TODO: Support forced values on nodes (don't recompute them if forced)
+// TODO: How do zero width wires affect interpreter
+// TODO: Figure out what to do about clock
+// TODO: Check for loops in dependency graph during evaluation
+// TODO: Get official Firrtl to LoFirrtl transformer
 
 /**
   * This is the Firrtl interpreter.  It is the top level control engine

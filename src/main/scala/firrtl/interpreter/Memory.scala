@@ -132,6 +132,7 @@ class Memory(
     s"memory $name" +
     readPorts.mkString(" rp:", ",", "") +
     writePorts.mkString(" wp:", ",", " ") +
+    readWritePorts.mkString(" rwp:", ",", " ") +
       (0 until depth.min(20)).map( a => dataStore(a).value).mkString(",")
   }
 
@@ -179,12 +180,11 @@ class Memory(
   case class ReadPort(portName: String, latency: Int) extends MemoryPort {
     val fieldDependencies = Seq("en", "addr").map { fieldName => s"$name.$portName.$fieldName"}
 
-    case class ReadPipeLineElement(data: Concrete) {
-      override def toString: String = s"[${data.value}]"
+    case class ReadPipeLineElement(readPipeLineData: Concrete) {
+      override def toString: String = s"[${readPipeLineData.value}]"
     }
     val pipeLine : ArrayBuffer[ReadPipeLineElement] = {
-      ArrayBuffer.empty[ReadPipeLineElement] ++
-        Array.fill(latency)(ReadPipeLineElement(ConcreteUInt(0, dataWidth)))
+      ArrayBuffer.fill(latency)(ReadPipeLineElement(ConcreteUInt(0, dataWidth)))
     }
 
     override def setValue(fieldName: String, concreteValue: Concrete): Unit = {
@@ -202,7 +202,7 @@ class Memory(
     }
     def cycle(): Unit = {
       if(latency > 0) {
-        data = pipeLine.remove(0).data
+        data = pipeLine.remove(0).readPipeLineData
         pipeLine += ReadPipeLineElement(if(enable) dataStore(address) else PoisonedUInt(dataWidth))
       }
       else {
@@ -222,7 +222,7 @@ class Memory(
     * @param latency  the number of cycles between port and memory
     */
   case class WritePort(portName: String, latency: Int) extends MemoryPort {
-    var mask: Concrete           = ConcreteUInt(0, dataWidth)
+    var mask: Concrete           = ConcreteUInt(0, 1)
 
     case class WritePipeLineElement(enable: Boolean, address: Int, data: Concrete, mask: Concrete) {
       override def toString: String = s"[$enable:$address:${data.value}:${mask.value}]"
@@ -235,6 +235,7 @@ class Memory(
     def elementFromSnapshot = {
       WritePipeLineElement(enable, address, data, mask)
     }
+
     def inputHasChanged(): Unit = {
       if(latency > 0) {
         val newElement = elementFromSnapshot
@@ -281,33 +282,97 @@ class Memory(
   }
 
   case class ReadWritePort(portName: String) extends MemoryPort {
-    val latency = readLatency
-    var writeMode: Concrete      = ConcreteUInt(0, 1)
-    var readData: Concrete       = ConcreteUInt(0, dataWidth)
-    var mask: Concrete           = ConcreteUInt(0, dataWidth)
+    val latency:   Int           = readLatency
+    var writeMode: Boolean       = false
+    var readData:  Concrete      = ConcreteUInt(0, dataWidth)
+    var mask:      Concrete      = ConcreteUInt(0, dataWidth)
+
+    case class ReadPipeLineElement(readPipeLineData: Concrete) {
+      override def toString: String = s"[${readPipeLineData.value}]"
+    }
+    val readPipeLine : ArrayBuffer[ReadPipeLineElement] = {
+      ArrayBuffer.fill(readLatency)(ReadPipeLineElement(ConcreteUInt(0, dataWidth)))
+    }
+
+    case class WritePipeLineElement(enable: Boolean, address: Int, data: Concrete, mask: Concrete) {
+      override def toString: String = s"[$enable:$address:${data.value}:${mask.value}]"
+    }
+    val writePipeLine : ArrayBuffer[WritePipeLineElement] = {
+      ArrayBuffer.fill[WritePipeLineElement](writeLatency)(writeElementFromSnapshot)
+    }
+    def writeElementFromSnapshot = {
+      WritePipeLineElement(enable && writeMode, address, data, mask)
+    }
+    def inputHasChanged(): Unit = {
+      if(writeMode) {
+        if (latency > 0) {
+          val newElement = writeElementFromSnapshot
+          log(s"memory $fullName input changed $newElement")
+          writePipeLine(0) = newElement
+        }
+      }
+      else {
+        if(latency == 0) {
+          readData = dataStore(address)
+        }
+        else {
+          readPipeLine(0) = ReadPipeLineElement(if(enable) dataStore(address) else PoisonedUInt(dataWidth))
+        }
+      }
+    }
 
     override def setValue(fieldName: String, concreteValue: Concrete): Unit = {
       fieldName match {
-        case "wmod"    => writeMode = concreteValue
-        case "rdata"   => readData = concreteValue
-        case "mask"    => mask = concreteValue
+        case "wmode"   => writeMode = concreteValue.value > Big0
+        case "rdata"   => readData  = concreteValue
+        case "mask"    => mask      = concreteValue
         case _         => super.setValue(fieldName, concreteValue)
       }
+      inputHasChanged()
     }
     override def getValue(fieldName: String): Concrete = {
       fieldName match {
-        case "wmod"    => mask
-        case "rdata"   => mask
+        case "wmod"    => ConcreteUInt(boolToBigInt(writeMode), 1)
+        case "rdata"   => readData
         case "mask"    => mask
         case _         => super.getValue(fieldName)
       }
     }
     def cycle(): Unit = {
+      if(readLatency > 0) {
+        readData = readPipeLine.remove(0).readPipeLineData
+        readPipeLine += ReadPipeLineElement(if(enable) dataStore(address) else PoisonedUInt(dataWidth))
+      }
+      else {
+        readData = if(enable) dataStore(address) else PoisonedUInt(dataWidth)
+      }
+
+      if(writeLatency > 0) {
+        val element = writePipeLine.remove(0)
+        if (element.enable && element.mask.value > 0) {
+          log(s"memory $fullName cycle element is $element, executed")
+          dataStore(element.address) = element.data
+        }
+        else {
+          log(s"memory $fullName cycle element is $element, REJECTED")
+        }
+        writePipeLine += writeElementFromSnapshot
+      }
+      else {
+        // combinational write
+        dataStore(address) = data
+      }
+
 
     }
-    val fieldDependencies = Seq("en", "addr", "mask", "wmod").map { fieldName => s"$name.$portName.$fieldName"}
-    def getFieldDependencies: Seq[String] = fieldDependencies
+    val fieldDependencies = Seq("en", "addr", "mask", "wmode").map { fieldName => s"$name.$portName.$fieldName"}
 
+    override def toString: String = {
+      s"[${if(writeMode)"W" else "R"}:$enable:$address:${data.value}:${readData.value},${mask.value}" +
+        (if(readLatency>0) readPipeLine.mkString(" rpl:[", ",", "]")) +
+        (if(writeLatency>0) writePipeLine.mkString(" wpl:[", ",", "]")) +
+        "]"
+    }
   }
 }
 

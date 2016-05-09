@@ -26,7 +26,6 @@ MODIFICATIONS.
 */
 package firrtl.interpreter
 
-import firrtl.{DefMemory, IntWidth, NoInfo, UIntType}
 import org.scalatest.{FlatSpec, Matchers}
 
 /**

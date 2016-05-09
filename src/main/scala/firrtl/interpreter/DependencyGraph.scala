@@ -2,7 +2,6 @@
 
 package firrtl.interpreter
 
-import com.typesafe.scalalogging.LazyLogging
 import firrtl._
 import collection.mutable
 import scala.collection.mutable.ArrayBuffer

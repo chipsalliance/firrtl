@@ -324,4 +324,81 @@ class MemorySpec extends FlatSpec with Matchers {
     memory.cycle()
     memory.dataStore(testAddress).value should be (testValue2)
   }
+
+  behavior of "read/write memory"
+
+  it should "allow writing and reading to read/write port" in {
+    val dataWidth = 64
+    val depth = 15
+    val writeDelay = 1
+    val testValue1 = 53
+    val testValue2 = 7
+    val testAddress = 3
+
+    val portKey     = "read_write"
+    val key         = s"memory1.$portKey"
+
+    println(s"testing write delay of $writeDelay ${"=" * 80}")
+    val memory = Memory(DefMemory(
+      NoInfo, "memory1", UIntType(IntWidth(dataWidth)), depth, writeDelay, 1, Seq(), Seq(), Seq("read_write")
+    ))
+
+    memory.dataStore(testAddress) = ConcreteUInt(testValue1, memory.dataWidth)
+    memory.dataStore(testAddress).value should be(testValue1)
+
+    memory.setValue(key + ".wmode", ConcreteUInt(1, 1))
+    memory.setValue(key + ".en",    ConcreteUInt(1, 1))
+    memory.setValue(key + ".mask",  ConcreteUInt(1, 1))
+    memory.setValue(key + ".addr",  ConcreteUInt(testAddress, memory.addressWidth))
+    memory.setValue(key + ".data",  ConcreteUInt(testValue2, memory.dataWidth))
+
+    memory.dataStore(testAddress).value should be(testValue1)
+
+    note("we write to the write ports but nothing happens to the backing data store yet")
+    memory.ports(portKey).address should be(testAddress)
+    memory.ports(portKey).data.value should be(testValue2)
+    memory.ports(portKey).enable should be(true)
+
+    val writePipeLine = memory.ports(portKey).asInstanceOf[Memory#ReadWritePort].writePipeLine
+    writePipeLine(0).address should be(testAddress)
+    writePipeLine(0).data.value should be(testValue2)
+    writePipeLine(0).enable should be(true)
+
+    memory.cycle()
+    memory.dataStore(testAddress).value should be(testValue2)
+
+    memory.setValue(key + ".en", ConcreteUInt(0, 1))
+    memory.setValue(key + ".addr", ConcreteUInt(testAddress, memory.addressWidth))
+    memory.setValue(key + ".data", ConcreteUInt(testValue1, memory.dataWidth))
+
+    memory.ports(portKey).address should be(testAddress)
+    memory.ports(portKey).data.value should be(testValue1)
+    memory.ports(portKey).enable should be(false)
+
+    writePipeLine(0).address should be(testAddress)
+    writePipeLine(0).data.value should be(testValue1)
+    writePipeLine(0).enable should be(false)
+
+    memory.dataStore(testAddress).value should be(testValue2)
+    memory.cycle()
+    memory.dataStore(testAddress).value should be(testValue2)
+
+    val testAddress2: BigInt = 5
+    val readValue2: BigInt   = 11
+    memory.dataStore(testAddress2.toInt) = ConcreteUInt(readValue2, dataWidth)
+
+
+    memory.setValue(key + ".wmode", ConcreteUInt(0, 1))
+    memory.setValue(key + ".en",    ConcreteUInt(1, 1))
+    memory.setValue(key + ".addr",  ConcreteUInt(testAddress2, memory.addressWidth))
+    memory.getValue(key + ".rdata").value should not be readValue2
+
+    memory.cycle()
+
+    memory.getValue(key + ".rdata").value should be (readValue2)
+    memory.setValue(key + ".addr", ConcreteUInt(4, memory.addressWidth))
+    memory.cycle()
+    memory.getValue(key + ".rdata").value should be(Big0)
+
+  }
 }

@@ -131,4 +131,10 @@ class RegisterSpec extends FlatSpec with Matchers {
     interpreter.circuitState.registers("reg2").value should be (1)
 
   }
+
+  behavior of "reset support"
+
+  it should "load registers before any dependencies are evaluated" in {
+    // TODO: what should happen here
+  }
 }

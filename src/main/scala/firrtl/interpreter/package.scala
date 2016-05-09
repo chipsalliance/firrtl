@@ -4,6 +4,8 @@ package firrtl
   * Created by chick on 4/28/16.
   */
 package object interpreter {
+  val InterpreterMaxSupportedWidth = 100
+
   val Big0 = BigInt(0)
   val Big1 = BigInt(1)
   val DangerShiftSize = 27

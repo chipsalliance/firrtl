@@ -58,21 +58,35 @@ trait Concrete {
     }
   }
   def /(that: Concrete): Concrete = {
-    if(that.value == BigInt(0)) throw new InterpreterException("divide by zero")
     (this, that) match {
-      case (ConcreteUInt(v1, w1), ConcreteUInt(v2, w2)) => ConcreteUInt(v1 / v2, w1)
-      case (ConcreteUInt(v1, w1), ConcreteSInt(v2, w2)) => ConcreteSInt(v1 / v2, w1+1)
-      case (ConcreteSInt(v1, w1), ConcreteUInt(v2, w2)) => ConcreteSInt(v1 / v2, w1)
-      case (ConcreteSInt(v1, w1), ConcreteSInt(v2, w2)) => ConcreteSInt(v1 / v2, w1+1)
+      case (ConcreteUInt(v1, w1), ConcreteUInt(v2, w2)) =>
+        if(that.value == BigInt(0)) PoisonedUInt(w1)
+        else ConcreteUInt(v1 / v2, w1)
+      case (ConcreteUInt(v1, w1), ConcreteSInt(v2, w2)) =>
+        if(that.value == BigInt(0)) PoisonedSInt(w1)
+        else ConcreteSInt(v1 / v2, w1+1)
+      case (ConcreteSInt(v1, w1), ConcreteUInt(v2, w2)) =>
+        if(that.value == BigInt(0)) PoisonedSInt(w1)
+        else ConcreteSInt(v1 / v2, w1)
+      case (ConcreteSInt(v1, w1), ConcreteSInt(v2, w2)) =>
+        if(that.value == BigInt(0)) PoisonedSInt(w1)
+        else ConcreteSInt(v1 / v2, w1+1)
     }
   }
   def %(that: Concrete): Concrete = {
-    if(that.value == BigInt(0)) throw new InterpreterException("divide by zero")
     (this, that) match {
-      case (ConcreteUInt(v1, w1), ConcreteUInt(v2, w2)) => ConcreteUInt(v1 % v2, w1.min(w2))
-      case (ConcreteUInt(v1, w1), ConcreteSInt(v2, w2)) => ConcreteUInt(v1 % v2, w1.min(w2))
-      case (ConcreteSInt(v1, w1), ConcreteUInt(v2, w2)) => ConcreteSInt(v1 % v2, w1.min(w2+1))
-      case (ConcreteSInt(v1, w1), ConcreteSInt(v2, w2)) => ConcreteSInt(v1 % v2, w1.min(w2))
+      case (ConcreteUInt(v1, w1), ConcreteUInt(v2, w2)) =>
+        if(that.value == BigInt(0)) PoisonedUInt(w1.min(w2))
+        else ConcreteUInt(v1 % v2, w1.min(w2))
+      case (ConcreteUInt(v1, w1), ConcreteSInt(v2, w2)) =>
+        if(that.value == BigInt(0)) PoisonedUInt(w1.min(w2))
+        else ConcreteUInt(v1 % v2, w1.min(w2))
+      case (ConcreteSInt(v1, w1), ConcreteUInt(v2, w2)) =>
+        if(that.value == BigInt(0)) PoisonedSInt(w1.min(w2+1))
+        else ConcreteSInt(v1 % v2, w1.min(w2+1))
+      case (ConcreteSInt(v1, w1), ConcreteSInt(v2, w2)) =>
+        if(that.value == BigInt(0)) PoisonedSInt(w1.min(w2))
+        else ConcreteSInt(v1 % v2, w1.min(w2))
     }
   }
   // Comparison operators
@@ -264,6 +278,7 @@ object Concrete {
 
 /**
   * A runtime instance of a UInt
+  *
   * @param value the BigInt value of this UInt, must be non-negative
   * @param width the number of bits in this value, must be big enough to contain value
   */
@@ -282,6 +297,7 @@ case class ConcreteUInt(val value: BigInt, val width: Int) extends Concrete {
 }
 /**
   * A runtime instance of a SInt
+  *
   * @param value the BigInt value of this UInt,
   * @param width the number of bits in this value, must be big enough to contain value plus 1 for sign bit
   */
@@ -289,9 +305,16 @@ case class ConcreteSInt(val value: BigInt, val width: Int) extends Concrete {
   if(width < 0) {
     throw new InterpreterException(s"error: ConcreteSInt($value, $width) bad width $width must be > 0")
   }
-  val bitsRequired = requiredBits(value)
-  if ((width > 0) && (bitsRequired > width)) {
-    throw new InterpreterException(s"error: ConcreteSInt($value, $width) bad width $width needs ${requiredBits(value.toInt)}")
+  if(width == 1) {
+    if(value < -1 || value > 0) {
+      throw new InterpreterException(s"error: ConcreteSInt($value, $width) width one must have value 0 or -1")
+    }
+  }
+  else {
+    val bitsRequired = requiredBits(value)
+    if ((width > 0) && (bitsRequired > width)) {
+      throw new InterpreterException(s"error: ConcreteSInt($value, $width) bad width $width needs ${requiredBits(value.toInt)}")
+    }
   }
 
   def forceWidth(newWidth: Int): ConcreteSInt = {

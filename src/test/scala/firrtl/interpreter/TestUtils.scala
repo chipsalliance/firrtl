@@ -27,7 +27,7 @@ MODIFICATIONS.
 package firrtl.interpreter
 
 object TestUtils {
-  val MaxWidth = 100
+  val MaxWidth = InterpreterMaxSupportedWidth
   val Big2 = BigInt(2)
   val Big4 = BigInt(4)
   val Big5 = BigInt(5)

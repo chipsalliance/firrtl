@@ -80,13 +80,15 @@ class ConcreteSpec extends FlatSpec with Matchers {
   }
 
   it should "return obvious additions under large range of numbers" in {
-    for (trials <- 0 to 10000) {
-      val (width1, width2) = (random.nextInt(maxWidth), random.nextInt(maxWidth))
-      val (num1, num2) = (randomBigInt(width1), randomBigInt(width2))
-      val (cu1, cu2) = (ConcreteUInt(num1, width1), ConcreteUInt(num2, width2))
-      val sum = cu1 + cu2
+    for(width1 <- IntWidthTestValuesGenerator(1, MaxWidth)) {
+      for(width2 <- IntWidthTestValuesGenerator(1, MaxWidth)) {
+        val (num1, num2) = (randomBigInt(width1), randomBigInt(width2))
+        val (cu1, cu2) = (ConcreteUInt(num1, width1), ConcreteUInt(num2, width2))
+        val sum = cu1 + cu2
 
-      sum.value should be (cu1.value + cu2.value)
+        sum.value should be (cu1.value + cu2.value)
+        sum.width should be (width1.max(width2) + 1)
+      }
     }
   }
 
@@ -160,9 +162,12 @@ class ConcreteSpec extends FlatSpec with Matchers {
     for (trials <- 0 to 10000) {
       val (cu1, cu2) = (randC, randC)
 
+      val dividend = cu1 / cu2
       if(cu2.value != Big0 ) {
-        val sum = cu1 / cu2
-        sum.value should be (cu1.value / cu2.value)
+        dividend.value should be (cu1.value / cu2.value)
+      }
+      else {
+        dividend.poisoned should be (true)
       }
     }
   }
@@ -187,9 +192,13 @@ class ConcreteSpec extends FlatSpec with Matchers {
     for (trials <- 0 to 10000) {
       val (cu1, cu2) = (randC, randC)
 
+      val modulus = cu1 % cu2
       if(cu2.value != Big0 ) {
-        val sum = cu1 % cu2
-        sum.value should be (cu1.value % cu2.value)
+        modulus.value should be (cu1.value % cu2.value)
+        modulus.poisoned should be (false)
+      }
+      else {
+        modulus.poisoned should be (true)
       }
     }
   }
@@ -197,14 +206,6 @@ class ConcreteSpec extends FlatSpec with Matchers {
   behavior of "not"
 
   it should "flip bits of UInts" in {
-    def makeNum(width: Int, offset: Int): Concrete = {
-      val uOrS: String = if(width < 0) "S" else "U"
-      val num = (0 until width.abs).map(x => ((x + offset) % 2).toString).mkString
-      uOrS match {
-        case "U" => ConcreteUInt(BigInt(num, 2), width.abs)
-        case "S" => ConcreteSInt(BigInt(num, 2) * (if((width-1) % 2 == 0) 1 else -1), width.abs + 1)
-      }
-    }
     for(width <- IntWidthTestValuesGenerator(-MaxWidth, MaxWidth)) {
       if (width < -1 || width > 1) {
         val bitString1 = (0 until width.abs-1).map(x => (x % 2).toString).mkString
@@ -289,7 +290,6 @@ class ConcreteSpec extends FlatSpec with Matchers {
       val subUint = uint.tail(n)
       //println(s"width $width n $n uint $uint => $subUint")
 
-      val expectedWith = width - n
       val expectedValue = allOnes(width-n)
       subUint.value should be (expectedValue)
       subUint.width should be (width-n)
@@ -334,7 +334,30 @@ class ConcreteSpec extends FlatSpec with Matchers {
         testShiftOp(i, arg)
       }
     }
+  }
 
+  behavior of "SInt with width 1"
+
+  it should "act as either -1 or 0" in {
+    val s0_1      = ConcreteSInt(0, 1)
+    val sMinus1_1 = ConcreteSInt(-1, 1)
+    val s7_16     = ConcreteSInt(7, 16)
+
+    (s7_16 + s0_1).value should be (7)
+    (s7_16 * s0_1).value should be (0)
+    (s7_16 - s0_1).value should be (7)
+//    (s7_16 / s0_1).value should be (0) TODO: what should this be?
+//    (s7_16 % s0_1).value should be (0)
+
+    (s7_16 + sMinus1_1).value should be (6)
+    (s7_16 * sMinus1_1).value should be (-7)
+    (s7_16 - sMinus1_1).value should be (8)
+    (s7_16 / sMinus1_1).value should be (-7)
+    (s7_16 % sMinus1_1).value should be (0)
+
+    intercept[InterpreterException] {
+      ConcreteSInt(1, 1)
+    }
   }
 
   def randC: Concrete = {
