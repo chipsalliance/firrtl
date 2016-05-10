@@ -200,7 +200,7 @@ object ConstProp extends Pass {
       propagated
     }
 
-    def constPropStmt(s: Stmt): Stmt = {
+    def constPropStmt(s: Statement): Statement = {
       s match {
         case x: DefNode => nodeMap(x.name) = x.value
         case _ =>

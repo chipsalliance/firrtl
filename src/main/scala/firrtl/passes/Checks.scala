@@ -228,7 +228,7 @@ object CheckHighForm extends Pass with LazyLogging {
         e map (checkHighFormT)
         e
       }
-      def checkHighFormS(s: Stmt): Stmt = {
+      def checkHighFormS(s: Statement): Statement = {
         def checkName(name: String): String = {
           if (names.contains(name)) errors.append(new NotUniqueException(name))
           else names(name) = true
@@ -242,12 +242,8 @@ object CheckHighForm extends Pass with LazyLogging {
         s map (checkHighFormT)
         s map (checkHighFormE)
         s match {
-          case s: DefPoison => {
-             if (hasFlip(s.tpe)) errors.append(new PoisonWithFlipException(s.name))
-             checkHighFormT(s.tpe)
-          }
           case s: DefMemory => { 
-            if (hasFlip(s.data_type)) errors.append(new MemWithFlipException(s.name))
+            if (hasFlip(s.dataType)) errors.append(new MemWithFlipException(s.name))
             if (s.depth <= 0) errors.append(new NegMemSizeException)
           }
           case s: WDefInstance => { 
@@ -255,7 +251,7 @@ object CheckHighForm extends Pass with LazyLogging {
               errors.append(new ModuleNotDefinedException(s.module))
           }
           case s: Connect => checkValidLoc(s.loc)
-          case s: BulkConnect => checkValidLoc(s.loc)
+          case s: PartialConnect => checkValidLoc(s.loc)
           case s: Print => checkFstring(s.string, s.args.length)
           case _ => // Do Nothing
         }
@@ -477,11 +473,11 @@ object CheckTypes extends Pass with LazyLogging {
          }
       }
 
-      def check_types_s (s:Stmt) : Stmt = {
+      def check_types_s (s:Statement) : Statement = {
          s map (check_types_e(get_info(s))) match { 
-            case (s:Connect) => if (wt(tpe(s.loc)) != wt(tpe(s.exp))) errors += new InvalidConnect(s.info)
+            case (s:Connect) => if (wt(tpe(s.loc)) != wt(tpe(s.expr))) errors += new InvalidConnect(s.info)
             case (s:DefRegister) => if (wt(s.tpe) != wt(tpe(s.init))) errors += new InvalidRegInit(s.info)
-            case (s:BulkConnect) => if (!bulk_equals(tpe(s.loc),tpe(s.exp),Default,Default) ) errors += new InvalidConnect(s.info)
+            case (s:PartialConnect) => if (!bulk_equals(tpe(s.loc),tpe(s.expr),Default,Default) ) errors += new InvalidConnect(s.info)
             case (s:Stop) => {
                if (wt(tpe(s.clk)) != wt(ClockType) ) errors += new ReqClk(s.info)
                if (wt(tpe(s.en)) != wt(ut()) ) errors += new EnNotUInt(s.info)
@@ -620,12 +616,11 @@ object CheckGenders extends Pass {
          e
       }
         
-      def check_genders_s (genders:HashMap[String,Gender])(s:Stmt) : Stmt = {
+      def check_genders_s (genders:HashMap[String,Gender])(s:Statement) : Statement = {
          s map (check_genders_e(get_info(s),genders))
          s map (check_genders_s(genders))
          (s) match { 
             case (s:DefWire) => genders(s.name) = BIGENDER
-            case (s:DefPoison) => genders(s.name) = MALE
             case (s:DefRegister) => genders(s.name) = BIGENDER
             case (s:DefNode) => {
                check_gender(s.info,genders,MALE)(s.value)
@@ -635,7 +630,7 @@ object CheckGenders extends Pass {
             case (s:WDefInstance) => genders(s.name) = MALE
             case (s:Connect) => {
                check_gender(s.info,genders,FEMALE)(s.loc)
-               check_gender(s.info,genders,MALE)(s.exp)
+               check_gender(s.info,genders,MALE)(s.expr)
             }
             case (s:Print) => {
                for (x <- s.args ) {
@@ -644,14 +639,14 @@ object CheckGenders extends Pass {
                check_gender(s.info,genders,MALE)(s.en)
                check_gender(s.info,genders,MALE)(s.clk)
             }
-            case (s:BulkConnect) => {
+            case (s:PartialConnect) => {
                check_gender(s.info,genders,FEMALE)(s.loc)
-               check_gender(s.info,genders,MALE)(s.exp)
+               check_gender(s.info,genders,MALE)(s.expr)
             }
             case (s:Conditionally) => {
                check_gender(s.info,genders,MALE)(s.pred)
             }
-            case (s:Empty) => false
+            case EmptyStmt => false
             case (s:Stop) => {
                check_gender(s.info,genders,MALE)(s.en)
                check_gender(s.info,genders,MALE)(s.clk)
@@ -718,7 +713,7 @@ object CheckWidths extends Pass with StanzaPass {
             }
             e
          }
-         def check_width_s (s:Stmt) : Stmt = {
+         def check_width_s (s:Statement) : Statement = {
             s map (check_width_s) map (check_width_e(get_info(s)))
             def tm (t:Type) : Type = mapr(check_width_w(info(s)) _,t)
             s map (tm)

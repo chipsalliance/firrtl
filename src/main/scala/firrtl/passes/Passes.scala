@@ -105,7 +105,7 @@ object ToWorkingIR extends Pass {
             case e => e
          }
       }
-      def toStmt (s:Stmt) : Stmt = {
+      def toStmt (s:Statement) : Statement = {
          s map (toExp) match {
             case s:DefInstance => WDefInstance(s.info,s.name,s.module,UnknownType)
             case s => s map (toStmt)
@@ -133,22 +133,21 @@ object ResolveKinds extends Pass {
    def run (c:Circuit): Circuit = {
       def resolve_kinds (m:DefModule, c:Circuit):DefModule = {
          val kinds = LinkedHashMap[String,Kind]()
-         def resolve (body:Stmt) = {
+         def resolve (body:Statement) = {
             def resolve_expr (e:Expression):Expression = {
                e match {
                   case e:WRef => WRef(e.name,tpe(e),kinds(e.name),e.gender)
                   case e => e map (resolve_expr)
                }
             }
-            def resolve_stmt (s:Stmt):Stmt = s map (resolve_stmt) map (resolve_expr)
+            def resolve_stmt (s:Statement):Statement = s map (resolve_stmt) map (resolve_expr)
             resolve_stmt(body)
          }
    
          def find (m:DefModule) = {
-            def find_stmt (s:Stmt):Stmt = {
+            def find_stmt (s:Statement):Statement = {
                s match {
                   case s:DefWire => kinds(s.name) = WireKind()
-                  case s:DefPoison => kinds(s.name) = PoisonKind()
                   case s:DefNode => kinds(s.name) = NodeKind()
                   case s:DefRegister => kinds(s.name) = RegKind()
                   case s:WDefInstance => kinds(s.name) = InstanceKind()
@@ -182,13 +181,12 @@ object ResolveKinds extends Pass {
 object InferTypes extends Pass {
    private var mname = ""
    def name = "Infer Types"
-   def set_type (s:Stmt,t:Type) : Stmt = {
+   def set_type (s:Statement, t:Type) : Statement = {
       s match {
          case s:DefWire => DefWire(s.info,s.name,t)
          case s:DefRegister => DefRegister(s.info,s.name,t,s.clock,s.reset,s.init)
-         case s:DefMemory => DefMemory(s.info,s.name,t,s.depth,s.write_latency,s.read_latency,s.readers,s.writers,s.readwriters)
+         case s:DefMemory => DefMemory(s.info,s.name,t,s.depth,s.writeLatency,s.readLatency,s.readers,s.writers,s.readwriters)
          case s:DefNode => s
-         case s:DefPoison => DefPoison(s.info,s.name,t)
       }
    }
    def remove_unknowns_w (w:Width)(implicit namespace: Namespace):Width = {
@@ -216,7 +214,7 @@ object InferTypes extends Pass {
                case e:SIntValue => e
             }
          }
-         def infer_types_s (s:Stmt) : Stmt = {
+         def infer_types_s (s:Statement) : Statement = {
             s match {
                case s:DefRegister => {
                   val t = remove_unknowns(get_type(s))
@@ -225,12 +223,6 @@ object InferTypes extends Pass {
                }
                case s:DefWire => {
                   val sx = s map(infer_types_e)
-                  val t = remove_unknowns(get_type(sx))
-                  types(s.name) = t
-                  set_type(sx,t)
-               }
-               case s:DefPoison => {
-                  val sx = s map (infer_types_e)
                   val t = remove_unknowns(get_type(sx))
                   types(s.name) = t
                   set_type(sx,t)
@@ -244,7 +236,7 @@ object InferTypes extends Pass {
                case s:DefMemory => {
                   val t = remove_unknowns(get_type(s))
                   types(s.name) = t
-                  val dt = remove_unknowns(s.data_type)
+                  val dt = remove_unknowns(s.dataType)
                   set_type(s,dt)
                }
                case s:WDefInstance => {
@@ -306,21 +298,21 @@ object ResolveGenders extends Pass {
          }
       }
             
-      def resolve_s (s:Stmt) : Stmt = {
+      def resolve_s (s:Statement) : Statement = {
          s match {
             case s:IsInvalid => {
-               val expx = resolve_e(FEMALE)(s.exp)
+               val expx = resolve_e(FEMALE)(s.expr)
                IsInvalid(s.info,expx)
             }
             case s:Connect => {
                val locx = resolve_e(FEMALE)(s.loc)
-               val expx = resolve_e(MALE)(s.exp)
+               val expx = resolve_e(MALE)(s.expr)
                Connect(s.info,locx,expx)
             }
-            case s:BulkConnect => {
+            case s:PartialConnect => {
                val locx = resolve_e(FEMALE)(s.loc)
-               val expx = resolve_e(MALE)(s.exp)
-               BulkConnect(s.info,locx,expx)
+               val expx = resolve_e(MALE)(s.expr)
+               PartialConnect(s.info,locx,expx)
             }
             case s => s map (resolve_e(MALE)) map (resolve_s)
          }
@@ -591,12 +583,12 @@ object InferWidths extends Pass {
                constrain(ONE,width_BANG(e.cond))
                e }
             case (e) => e }}
-      def get_constraints (s:Stmt) : Stmt = {
+      def get_constraints (s:Statement) : Statement = {
          (s map (get_constraints_e)) match {
             case (s:Connect) => {
                val n = get_size(tpe(s.loc))
                val ce_loc = create_exps(s.loc)
-               val ce_exp = create_exps(s.exp)
+               val ce_exp = create_exps(s.expr)
                for (i <- 0 until n) {
                   val locx = ce_loc(i)
                   val expx = ce_exp(i)
@@ -604,11 +596,11 @@ object InferWidths extends Pass {
                      case Default => constrain(width_BANG(locx),width_BANG(expx))
                      case Flip => constrain(width_BANG(expx),width_BANG(locx)) }}
                s }
-            case (s:BulkConnect) => {
-               val ls = get_valid_points(tpe(s.loc),tpe(s.exp),Default,Default)
+            case (s:PartialConnect) => {
+               val ls = get_valid_points(tpe(s.loc),tpe(s.expr),Default,Default)
                for (x <- ls) {
                   val locx = create_exps(s.loc)(x._1)
-                  val expx = create_exps(s.exp)(x._2)
+                  val expx = create_exps(s.expr)(x._2)
                   get_flip(tpe(s.loc),x._1,Default) match {
                      case Default => constrain(width_BANG(locx),width_BANG(expx))
                      case Flip => constrain(width_BANG(expx),width_BANG(locx)) }}
@@ -673,7 +665,7 @@ object PullMuxes extends Pass {
          }
          ex map (pull_muxes_e)
       }
-      def pull_muxes (s:Stmt) : Stmt = s map (pull_muxes) map (pull_muxes_e)
+      def pull_muxes (s:Statement) : Statement = s map (pull_muxes) map (pull_muxes_e)
       val modulesx = c.modules.map {
          m => {
             mname = m.name
@@ -694,7 +686,7 @@ object ExpandConnects extends Pass {
       def expand_connects (m:Module) : Module = {
          mname = m.name
          val genders = LinkedHashMap[String,Gender]()
-         def expand_s (s:Stmt) : Stmt = {
+         def expand_s (s:Statement) : Statement = {
             def set_gender (e:Expression) : Expression = {
                e map (set_gender) match {
                   case (e:WRef) => WRef(e.name,e.tpe,e.kind,genders(e.name))
@@ -713,12 +705,11 @@ object ExpandConnects extends Pass {
                case (s:DefRegister) => { genders(s.name) = BIGENDER; s }
                case (s:WDefInstance) => { genders(s.name) = MALE; s }
                case (s:DefMemory) => { genders(s.name) = MALE; s }
-               case (s:DefPoison) => { genders(s.name) = MALE; s }
                case (s:DefNode) => { genders(s.name) = MALE; s }
                case (s:IsInvalid) => {
-                  val n = get_size(tpe(s.exp))
-                  val invalids = ArrayBuffer[Stmt]()
-                  val exps = create_exps(s.exp)
+                  val n = get_size(tpe(s.expr))
+                  val invalids = ArrayBuffer[Statement]()
+                  val exps = create_exps(s.expr)
                   for (i <- 0 until n) {
                      val expx = exps(i)
                      val gexpx = set_gender(expx)
@@ -729,16 +720,16 @@ object ExpandConnects extends Pass {
                      }
                   }
                   if (invalids.length == 0) {
-                     Empty()
+                     EmptyStmt
                   } else if (invalids.length == 1) {
                      invalids(0)
                   } else Begin(invalids)
                }
                case (s:Connect) => {
                   val n = get_size(tpe(s.loc))
-                  val connects = ArrayBuffer[Stmt]()
+                  val connects = ArrayBuffer[Statement]()
                   val locs = create_exps(s.loc)
-                  val exps = create_exps(s.exp)
+                  val exps = create_exps(s.expr)
                   for (i <- 0 until n) {
                      val locx = locs(i)
                      val expx = exps(i)
@@ -750,11 +741,11 @@ object ExpandConnects extends Pass {
                   }
                   Begin(connects)
                }
-               case (s:BulkConnect) => {
-                  val ls = get_valid_points(tpe(s.loc),tpe(s.exp),Default,Default)
-                  val connects = ArrayBuffer[Stmt]()
+               case (s:PartialConnect) => {
+                  val ls = get_valid_points(tpe(s.loc),tpe(s.expr),Default,Default)
+                  val connects = ArrayBuffer[Statement]()
                   val locs = create_exps(s.loc)
-                  val exps = create_exps(s.exp)
+                  val exps = create_exps(s.expr)
                   ls.foreach { x => {
                      val locx = locs(x._1)
                      val expx = exps(x._2)
@@ -853,8 +844,8 @@ object RemoveAccesses extends Pass {
       def remove_m (m:Module) : Module = {
          val namespace = Namespace(m)
          mname = m.name
-         def remove_s (s:Stmt) : Stmt = {
-            val stmts = ArrayBuffer[Stmt]()
+         def remove_s (s:Statement) : Statement = {
+            val stmts = ArrayBuffer[Statement]()
             def create_temp (e:Expression) : Expression = {
                val n = namespace.newTemp
                stmts += DefWire(info(s),n,tpe(e))
@@ -886,7 +877,7 @@ object RemoveAccesses extends Pass {
                                     if (i < temps.size) {
                                        stmts += Connect(info(s),get_temp(i),x.base)
                                     } else {
-                                       stmts += Conditionally(info(s),x.guard,Connect(info(s),get_temp(i),x.base),Empty())
+                                       stmts += Conditionally(info(s),x.guard,Connect(info(s),get_temp(i),x.base),EmptyStmt)
                                     }
                                  }
                               }
@@ -906,11 +897,11 @@ object RemoveAccesses extends Pass {
                         if (ls.size == 1 & weq(ls(0).guard,one)) s.loc
                         else {
                            val temp = create_temp(s.loc)
-                           for (x <- ls) { stmts += Conditionally(s.info,x.guard,Connect(s.info,x.base,temp),Empty()) }
+                           for (x <- ls) { stmts += Conditionally(s.info,x.guard,Connect(s.info,x.base,temp),EmptyStmt) }
                            temp
                         }
-                     Connect(s.info,locx,remove_e(s.exp))
-                  } else { Connect(s.info,s.loc,remove_e(s.exp)) }
+                     Connect(s.info,locx,remove_e(s.expr))
+                  } else { Connect(s.info,s.loc,remove_e(s.expr)) }
                }
                case (s) => s map (remove_e) map (remove_s)
             }
@@ -954,16 +945,16 @@ object Legalize extends Pass {
     }
     case _ => e
   }
-  def legalizeConnect(c: Connect): Stmt = {
+  def legalizeConnect(c: Connect): Statement = {
     val t = tpe(c.loc)
     val w = long_BANG(t)
-    if (w >= long_BANG(tpe(c.exp))) c
+    if (w >= long_BANG(tpe(c.expr))) c
     else {
       val newType = t match {
         case _: UIntType => UIntType(IntWidth(w))
         case _: SIntType => SIntType(IntWidth(w))
       }
-      Connect(c.info, c.loc, DoPrim(BITS_SELECT_OP, Seq(c.exp), Seq(w-1, 0), newType))
+      Connect(c.info, c.loc, DoPrim(BITS_SELECT_OP, Seq(c.expr), Seq(w-1, 0), newType))
     }
   }
   def run (c: Circuit): Circuit = {
@@ -973,7 +964,7 @@ object Legalize extends Pass {
         case e => e
       }
     }
-    def legalizeS (s: Stmt): Stmt = {
+    def legalizeS (s: Statement): Statement = {
       val legalizedStmt = s match {
         case c: Connect => legalizeConnect(c)
         case _ => s
@@ -1017,7 +1008,7 @@ object VerilogWrap extends Pass {
          case (e) => e
       }
    }
-   def v_wrap_s (s:Stmt) : Stmt = {
+   def v_wrap_s (s:Statement) : Statement = {
       s map (v_wrap_s) map (v_wrap_e) match {
         case s: Print =>
            Print(s.info, VerilogStringLitHandler.format(s.string), s.args, s.clk, s.en)
@@ -1044,8 +1035,8 @@ object SplitExp extends Pass {
    def split_exp (m:Module) : Module = {
       val namespace = Namespace(m)
       mname = m.name
-      val v = ArrayBuffer[Stmt]()
-      def split_exp_s (s:Stmt) : Stmt = {
+      val v = ArrayBuffer[Statement]()
+      def split_exp_s (s:Statement) : Statement = {
          def split (e:Expression) : Expression = {
             val n = namespace.newTemp
             v += DefNode(info(s),n,e)
@@ -1102,7 +1093,7 @@ object VerilogRename extends Pass {
            case (e) => e map (verilog_rename_e)
          }
       }
-      def verilog_rename_s (s:Stmt) : Stmt = {
+      def verilog_rename_s (s:Statement) : Statement = {
         s map (verilog_rename_s) map (verilog_rename_e) map (verilog_rename_n)
       }
       val modulesx = c.modules.map{ m => {
@@ -1121,14 +1112,13 @@ object VerilogRename extends Pass {
 object CInferTypes extends Pass {
    def name = "CInfer Types"
    var mname = ""
-   def set_type (s:Stmt,t:Type) : Stmt = {
+   def set_type (s:Statement, t:Type) : Statement = {
       (s) match { 
          case (s:DefWire) => DefWire(s.info,s.name,t)
          case (s:DefRegister) => DefRegister(s.info,s.name,t,s.clock,s.reset,s.init)
          case (s:CDefMemory) => CDefMemory(s.info,s.name,t,s.size,s.seq)
          case (s:CDefMPort) => CDefMPort(s.info,s.name,t,s.mem,s.exps,s.direction)
          case (s:DefNode) => s
-         case (s:DefPoison) => DefPoison(s.info,s.name,t)
       }
    }
    
@@ -1169,7 +1159,7 @@ object CInferTypes extends Pass {
                case (_:UIntValue|_:SIntValue) => e
             }
          }
-         def infer_types_s (s:Stmt) : Stmt = {
+         def infer_types_s (s:Statement) : Statement = {
             (s) match { 
                case (s:DefRegister) => {
                   types(s.name) = s.tpe
@@ -1177,10 +1167,6 @@ object CInferTypes extends Pass {
                   s
                }
                case (s:DefWire) => {
-                  types(s.name) = s.tpe
-                  s
-               }
-               case (s:DefPoison) => {
                   types(s.name) = s.tpe
                   s
                }
@@ -1265,26 +1251,26 @@ object CInferMDir extends Pass {
                case (e) => e
             }
          }
-         def infer_mdir_s (s:Stmt) : Stmt = {
+         def infer_mdir_s (s:Statement) : Statement = {
             (s) match { 
                case (s:CDefMPort) => {
                   mports(s.name) = s.direction
                   s map (infer_mdir_e(MRead))
                }
                case (s:Connect) => {
-                  infer_mdir_e(MRead)(s.exp)
+                  infer_mdir_e(MRead)(s.expr)
                   infer_mdir_e(MWrite)(s.loc)
                   s
                }
-               case (s:BulkConnect) => {
-                  infer_mdir_e(MRead)(s.exp)
+               case (s:PartialConnect) => {
+                  infer_mdir_e(MRead)(s.expr)
                   infer_mdir_e(MWrite)(s.loc)
                   s
                }
                case (s) => s map (infer_mdir_s) map (infer_mdir_e(MRead))
             }
          }
-         def set_mdir_s (s:Stmt) : Stmt = {
+         def set_mdir_s (s:Statement) : Statement = {
             (s) match { 
                case (s:CDefMPort) => 
                   CDefMPort(s.info,s.name,s.tpe,s.mem,s.exps,mports(s.name))
@@ -1339,7 +1325,7 @@ object RemoveCHIRRTL extends Pass {
          val ut = UnknownType
          val mport_types = LinkedHashMap[String,Type]()
          def EMPs () : MPorts = MPorts(ArrayBuffer[MPort](),ArrayBuffer[MPort](),ArrayBuffer[MPort]())
-         def collect_mports (s:Stmt) : Stmt = {
+         def collect_mports (s:Statement) : Statement = {
             (s) match { 
                case (s:CDefMPort) => {
                   val mports = hash.getOrElse(s.mem,EMPs())
@@ -1354,11 +1340,11 @@ object RemoveCHIRRTL extends Pass {
                case (s) => s map (collect_mports)
             }
          }
-         def collect_refs (s:Stmt) : Stmt = {
+         def collect_refs (s:Statement) : Statement = {
             (s) match { 
                case (s:CDefMemory) => {
                   mport_types(s.name) = s.tpe
-                  val stmts = ArrayBuffer[Stmt]()
+                  val stmts = ArrayBuffer[Statement]()
                   val taddr = UIntType(IntWidth(scala.math.max(1,ceil_log2(s.size))))
                   val tdata = s.tpe
                   def set_poison (vec:Seq[MPort],addr:String) : Unit = {
@@ -1426,7 +1412,7 @@ object RemoveCHIRRTL extends Pass {
                         ens += "en"
                      }
                   }
-                  val stmts = ArrayBuffer[Stmt]()
+                  val stmts = ArrayBuffer[Statement]()
                   for (x <- addrs ) {
                      stmts += Connect(s.info,SubField(SubField(Ref(s.mem,ut),s.name,ut),x,ut),s.exps(0))
                   }
@@ -1441,7 +1427,7 @@ object RemoveCHIRRTL extends Pass {
                case (s) => s map (collect_refs)
             }
          }
-         def remove_chirrtl_s (s:Stmt) : Stmt = {
+         def remove_chirrtl_s (s:Statement) : Statement = {
             var has_write_mport = false
             var has_readwrite_mport:Option[Expression] = None
             def remove_chirrtl_e (g:Gender)(e:Expression) : Expression = {
@@ -1478,8 +1464,8 @@ object RemoveCHIRRTL extends Pass {
             }
             (s) match { 
                case (s:Connect) => {
-                  val stmts = ArrayBuffer[Stmt]()
-                  val rocx = remove_chirrtl_e(MALE)(s.exp)
+                  val stmts = ArrayBuffer[Statement]()
+                  val rocx = remove_chirrtl_e(MALE)(s.expr)
                   val locx = remove_chirrtl_e(FEMALE)(s.loc)
                   stmts += Connect(s.info,locx,rocx)
                   if (has_write_mport) {
@@ -1495,13 +1481,13 @@ object RemoveCHIRRTL extends Pass {
                   if (stmts.size > 1) Begin(stmts)
                   else stmts(0)
                }
-               case (s:BulkConnect) => {
-                  val stmts = ArrayBuffer[Stmt]()
+               case (s:PartialConnect) => {
+                  val stmts = ArrayBuffer[Statement]()
                   val locx = remove_chirrtl_e(FEMALE)(s.loc)
-                  val rocx = remove_chirrtl_e(MALE)(s.exp)
-                  stmts += BulkConnect(s.info,locx,rocx)
+                  val rocx = remove_chirrtl_e(MALE)(s.expr)
+                  stmts += PartialConnect(s.info,locx,rocx)
                   if (has_write_mport != false) {
-                     val ls = get_valid_points(tpe(s.loc),tpe(s.exp),Default,Default)
+                     val ls = get_valid_points(tpe(s.loc),tpe(s.expr),Default,Default)
                      val locs = create_exps(get_mask(s.loc))
                      for (x <- ls ) {
                         val locx = locs(x._1)

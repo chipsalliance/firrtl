@@ -268,15 +268,15 @@ class VerilogEmitter extends Emitter {
    def emit_verilog (m:Module) : DefModule = {
       mname = m.name
       val netlist = LinkedHashMap[WrappedExpression,Expression]()
-      val simlist = ArrayBuffer[Stmt]()
+      val simlist = ArrayBuffer[Statement]()
       val namespace = Namespace(m)
-      def build_netlist (s:Stmt) : Stmt = {
+      def build_netlist (s:Statement) : Statement = {
          s match {
-            case (s:Connect) => netlist(s.loc) = s.exp
+            case (s:Connect) => netlist(s.loc) = s.expr
             case (s:IsInvalid) => {
                val n = namespace.newTemp
-               val e = wref(n,tpe(s.exp))
-               netlist(s.exp) = e
+               val e = wref(n,tpe(s.expr))
+               netlist(s.expr) = e
             }
             case (s:Conditionally) => simlist += s
             case (s:DefNode) => {
@@ -341,8 +341,8 @@ class VerilogEmitter extends Emitter {
       def initialize (e:Expression) = initials += Seq(e," = ",rand_string(tpe(e)),";")
       def initialize_mem(s: DefMemory) = {
         initials += Seq("for (initvar = 0; initvar < ", s.depth, "; initvar = initvar+1)")
-        val index = WRef("initvar", s.data_type, ExpKind(), UNKNOWNGENDER)
-        initials += Seq(tab, WSubAccess(wref(s.name, s.data_type), index, s.data_type, FEMALE), " = ", rand_string(s.data_type), ";")
+        val index = WRef("initvar", s.dataType, ExpKind(), UNKNOWNGENDER)
+        initials += Seq(tab, WSubAccess(wref(s.name, s.dataType), index, s.dataType, FEMALE), " = ", rand_string(s.dataType), ";")
       }
       def instantiate (n:String,m:String,es:Seq[Expression]) = {
          instdeclares += Seq(m," ",n," (")
@@ -406,9 +406,9 @@ class VerilogEmitter extends Emitter {
             }
          }}
       }
-      def build_streams (s:Stmt) : Stmt = {
+      def build_streams (s:Statement) : Statement = {
          s match {
-            case (s:Empty) => s
+            case EmptyStmt => s
             case (s:Connect) => s
             case (s:DefWire) => 
                declare("wire",s.name,s.tpe)
@@ -421,15 +421,9 @@ class VerilogEmitter extends Emitter {
                initialize(e)
             }
             case (s:IsInvalid) => {
-               val wref = netlist(s.exp).as[WRef].get
-               declare("reg",wref.name,tpe(s.exp))
+               val wref = netlist(s.expr).as[WRef].get
+               declare("reg",wref.name,tpe(s.expr))
                initialize(wref)
-            }
-            case (s:DefPoison) => {
-               val n = s.name
-               val e = wref(n,s.tpe)
-               declare("reg",n,tpe(e))
-               initialize(e)
             }
             case (s:DefNode) => {
                declare("wire",s.name,tpe(s.value))
@@ -450,7 +444,7 @@ class VerilogEmitter extends Emitter {
                   WSubField(x,f,t2,UNKNOWNGENDER)
                }
       
-               declare("reg",s.name,VectorType(s.data_type,s.depth))
+               declare("reg",s.name,VectorType(s.dataType,s.depth))
                initialize_mem(s)
                for (r <- s.readers ) {
                   val data = mem_exp(r,"data")
@@ -467,9 +461,9 @@ class VerilogEmitter extends Emitter {
                   assign(addr,netlist(addr)) //;Connects value to m.r.addr
                   assign(en,netlist(en))     //;Connects value to m.r.en
                   assign(clk,netlist(clk))   //;Connects value to m.r.clk
-                  val addrx = delay(addr,s.read_latency,clk)
-                  val enx = delay(en,s.read_latency,clk)
-                  val mem_port = WSubAccess(mem,addrx,s.data_type,UNKNOWNGENDER)
+                  val addrx = delay(addr,s.readLatency,clk)
+                  val enx = delay(en,s.readLatency,clk)
+                  val mem_port = WSubAccess(mem,addrx,s.dataType,UNKNOWNGENDER)
                   assign(data,mem_port)
                }
    
@@ -493,11 +487,11 @@ class VerilogEmitter extends Emitter {
                   assign(en,netlist(en))
                   assign(clk,netlist(clk))
    
-                  val datax = delay(data,s.write_latency - 1,clk)
-                  val addrx = delay(addr,s.write_latency - 1,clk)
-                  val maskx = delay(mask,s.write_latency - 1,clk)
-                  val enx = delay(en,s.write_latency - 1,clk)
-                  val mem_port = WSubAccess(mem,addrx,s.data_type,UNKNOWNGENDER)
+                  val datax = delay(data,s.writeLatency - 1,clk)
+                  val addrx = delay(addr,s.writeLatency - 1,clk)
+                  val maskx = delay(mask,s.writeLatency - 1,clk)
+                  val enx = delay(en,s.writeLatency - 1,clk)
+                  val mem_port = WSubAccess(mem,addrx,s.dataType,UNKNOWNGENDER)
                   update(mem_port,datax,clk,AND(enx,maskx))
                }
    
@@ -528,18 +522,18 @@ class VerilogEmitter extends Emitter {
                   assign(wmode,netlist(wmode))
    
                   //; Delay new signals by latency
-                  val raddrx = delay(addr,s.read_latency,clk)
-                  val waddrx = delay(addr,s.write_latency - 1,clk)
-                  val enx = delay(en,s.write_latency - 1,clk)
-                  val rmodx = delay(wmode,s.write_latency - 1,clk)
-                  val datax = delay(data,s.write_latency - 1,clk)
-                  val maskx = delay(mask,s.write_latency - 1,clk)
+                  val raddrx = delay(addr,s.readLatency,clk)
+                  val waddrx = delay(addr,s.writeLatency - 1,clk)
+                  val enx = delay(en,s.writeLatency - 1,clk)
+                  val rmodx = delay(wmode,s.writeLatency - 1,clk)
+                  val datax = delay(data,s.writeLatency - 1,clk)
+                  val maskx = delay(mask,s.writeLatency - 1,clk)
    
                   //; Write 
    
-                  val rmem_port = WSubAccess(mem,raddrx,s.data_type,UNKNOWNGENDER)
+                  val rmem_port = WSubAccess(mem,raddrx,s.dataType,UNKNOWNGENDER)
                   assign(rdata,rmem_port)
-                  val wmem_port = WSubAccess(mem,waddrx,s.data_type,UNKNOWNGENDER)
+                  val wmem_port = WSubAccess(mem,waddrx,s.dataType,UNKNOWNGENDER)
                   update(wmem_port,datax,clk,AND(AND(enx,maskx),wmode))
                }
             }
