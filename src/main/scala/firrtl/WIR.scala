@@ -59,8 +59,8 @@ case class WInvalid() extends Expression { def tpe = UnknownType }
 case object EmptyExpression extends Expression { def tpe = UnknownType }
 case class WDefInstance(info:Info,name:String,module:String,tpe:Type) extends Statement with IsDeclaration
 
-case object ADDW_OP extends PrimOp 
-case object SUBW_OP extends PrimOp
+case object Addw extends PrimOp { override def toString = "addw" }
+case object Subw extends PrimOp { override def toString = "subw" }
 
 object WrappedExpression {
    def apply (e:Expression) = new WrappedExpression(e)

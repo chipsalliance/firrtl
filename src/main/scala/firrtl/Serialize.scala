@@ -54,7 +54,7 @@ private object Serialize {
     if (bi < BigInt(0)) "\"h" + bi.toString(16).substring(1) + "\""
     else "\"h" + bi.toString(16) + "\""
 
-  def serialize(op: PrimOp): String = op.getString
+  def serialize(op: PrimOp): String = op.toString
 
   def serialize(lit: StringLit): String = FIRRTLStringLitHandler.escape(lit)
 
