@@ -41,9 +41,10 @@ import scala.collection.JavaConversions._
 import antlr._
 import PrimOps._
 import FIRRTLParser._
+import firrtl.IR._
 import scala.annotation.tailrec
 
-class Visitor(val fullFilename: String, val useInfo : Boolean) extends FIRRTLBaseVisitor[AST] 
+class Visitor(val fullFilename: String, val useInfo : Boolean) extends FIRRTLBaseVisitor[FIRRTLNode]
 {
   // Strip file path
   private val filename = fullFilename.drop(fullFilename.lastIndexOf("/")+1)

@@ -43,6 +43,7 @@ import WrappedExpression._
 import firrtl.WrappedType._
 import firrtl.Mappers._
 import firrtl.PrimOps._
+import firrtl.IR._
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.mutable.LinkedHashMap
 //import scala.reflect.runtime.universe._
@@ -277,7 +278,7 @@ object Utils extends LazyLogging {
 // =================================
    def error(str:String) = throw new FIRRTLException(str)
 
-   implicit class ASTUtils(ast: AST) {
+   implicit class ASTUtils(ast: FIRRTLNode) {
      def getType(): Type = 
        ast match {
          case e: Expression => e.getType
@@ -612,9 +613,9 @@ object Utils extends LazyLogging {
 
   /** Gets the root declaration of an expression
     *
-    * @param m    the [[firrtl.Module]] to search
-    * @param expr the [[firrtl.Expression]] that refers to some declaration
-    * @return the [[firrtl.IsDeclaration]] of `expr`
+    * @param m    the [[firrtl.IR.Module]] to search
+    * @param expr the [[firrtl.IR.Expression]] that refers to some declaration
+    * @return the [[firrtl.IR.IsDeclaration]] of `expr`
     * @throws DeclarationNotFoundException if no declaration of `expr` is found
     */
   def getDeclaration(m: Module, expr: Expression): IsDeclaration = {

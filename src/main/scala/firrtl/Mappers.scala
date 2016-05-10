@@ -27,6 +27,8 @@ MODIFICATIONS.
 
 package firrtl
 
+import firrtl.IR._
+
 // TODO: Implement remaining mappers and recursive mappers
 object Mappers {
 

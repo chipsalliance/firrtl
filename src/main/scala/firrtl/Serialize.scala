@@ -27,12 +27,13 @@ MODIFICATIONS.
 
 package firrtl
 
+import firrtl.IR._
 import firrtl.PrimOps._
 import firrtl.Utils._
 
 private object Serialize {
 
-  def serialize(root: AST): String = {
+  def serialize(root: FIRRTLNode): String = {
     root match {
       case r: PrimOp => serialize(r)
       case r: Expression => serialize(r)

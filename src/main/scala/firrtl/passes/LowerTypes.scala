@@ -30,16 +30,17 @@ package firrtl.passes
 import com.typesafe.scalalogging.LazyLogging
 
 import firrtl._
+import firrtl.IR._
 import firrtl.Utils._
 import firrtl.Mappers._
 
 // Datastructures
 import scala.collection.mutable.HashMap
 
-/** Removes all aggregate types from a [[Circuit]]
+/** Removes all aggregate types from a [[firrtl.IR.Circuit]]
   *
-  * @note Assumes [[firrtl.SubAccess]]es have been removed
-  * @note Assumes [[firrtl.Connect]]s and [[firrtl.IsInvalid]]s only operate on [[firrtl.Expression]]s of ground type
+  * @note Assumes [[firrtl.IR.SubAccess]]es have been removed
+  * @note Assumes [[firrtl.IR.Connect]]s and [[firrtl.IR.IsInvalid]]s only operate on [[firrtl.IR.Expression]]s of ground type
   * @example
   * {{{
   *   wire foo : { a : UInt<32>, b : UInt<16> }
@@ -54,8 +55,8 @@ object LowerTypes extends Pass {
 
   /** Delimiter used in lowering names */
   val delim = "_"
-  /** Expands a chain of referential [[firrtl.Expression]]s into the equivalent lowered name
-    * @param e [[firrtl.Expression]] made up of _only_ [[firrtl.WRef]], [[firrtl.WSubField]], and [[firrtl.WSubIndex]]
+  /** Expands a chain of referential [[firrtl.IR.Expression]]s into the equivalent lowered name
+    * @param e [[firrtl.IR.Expression]] made up of _only_ [[firrtl.WRef]], [[firrtl.WSubField]], and [[firrtl.WSubIndex]]
     * @return Lowered name of e
     */
   def loweredName(e: Expression): String = e match {

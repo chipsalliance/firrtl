@@ -30,6 +30,7 @@ package firrtl
 import com.typesafe.scalalogging.LazyLogging
 import java.io.Writer
 
+import firrtl.IR._
 import Utils._
 import firrtl.passes._
 

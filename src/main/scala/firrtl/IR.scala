@@ -44,154 +44,156 @@ case class FileInfo(file: String, line: Int, column: Int) extends Info {
 
 class FIRRTLException(str: String) extends Exception(str)
 
-trait AST {
-  def serialize: String = firrtl.Serialize.serialize(this)
-}
-
-trait HasName {
-  val name: String
-}
-trait HasInfo {
-  val info: Info
-}
-trait IsDeclaration extends HasName with HasInfo
-
-case class StringLit(array: Array[Byte]) extends AST
-
-/** Primitive Operation
-  *
-  * See [[PrimOps]]
-  */
-abstract class PrimOp extends AST
-
-abstract class Expression extends AST {
-  def tpe: Type
-}
-case class Reference(name: String, tpe: Type) extends Expression with HasName
-case class SubField(expr: Expression, name: String, tpe: Type) extends Expression with HasName
-case class SubIndex(expr: Expression, value: Int, tpe: Type) extends Expression
-case class SubAccess(expr: Expression, index: Expression, tpe: Type) extends Expression
-case class Mux(cond: Expression, tval: Expression, fval: Expression, tpe: Type) extends Expression
-case class ValidIf(cond: Expression, value: Expression, tpe: Type) extends Expression
-abstract class Literal extends Expression {
-  val value: BigInt
-  val width: Width
-}
-case class UIntLiteral(value: BigInt, width: Width) extends Literal {
-  def tpe = UIntType(width)
-}
-case class SIntLiteral(value: BigInt, width: Width) extends Literal {
-  def tpe = SIntType(width)
-}
-case class DoPrim(op: PrimOp, args: Seq[Expression], consts: Seq[BigInt], tpe: Type) extends Expression
-
-abstract class Statement extends AST
-case class DefWire(info: Info, name: String, tpe: Type) extends Statement with IsDeclaration
-case class DefRegister(
-    info: Info,
-    name: String,
-    tpe: Type,
-    clock: Expression,
-    reset: Expression,
-    init: Expression) extends Statement with IsDeclaration
-case class DefInstance(info: Info, name: String, module: String) extends Statement with IsDeclaration
-case class DefMemory(
-    info: Info,
-    name: String,
-    dataType: Type,
-    depth: Int,
-    writeLatency: Int,
-    readLatency: Int,
-    readers: Seq[String],
-    writers: Seq[String],
-    readwriters: Seq[String]) extends Statement with IsDeclaration
-case class DefNode(info: Info, name: String, value: Expression) extends Statement with IsDeclaration
-case class Conditionally(
-    info: Info,
-    pred: Expression,
-    conseq: Statement,
-    alt: Statement) extends Statement with HasInfo
-case class Begin(stmts: Seq[Statement]) extends Statement
-case class PartialConnect(info: Info, loc: Expression, expr: Expression) extends Statement with HasInfo
-case class Connect(info: Info, loc: Expression, expr: Expression) extends Statement with HasInfo
-case class IsInvalid(info: Info, expr: Expression) extends Statement with HasInfo
-case class Stop(info: Info, ret: Int, clk: Expression, en: Expression) extends Statement with HasInfo
-case class Print(
-    info: Info,
-    string: StringLit,
-    args: Seq[Expression],
-    clk: Expression,
-    en: Expression) extends Statement with HasInfo
-case object EmptyStmt extends Statement
-
-abstract class Width extends AST {
-  def +(x: Width): Width = (this, x) match {
-    case (a: IntWidth, b: IntWidth) => IntWidth(a.width + b.width)
-    case _ => UnknownWidth
+/** Intermediate Representation */
+object IR {
+  abstract class FIRRTLNode {
+    def serialize: String = firrtl.Serialize.serialize(this)
   }
-  def -(x: Width): Width = (this, x) match {
-    case (a: IntWidth, b: IntWidth) => IntWidth(a.width - b.width)
-    case _ => UnknownWidth
+
+  trait HasName {
+    val name: String
   }
-  def max(x: Width): Width = (this, x) match {
-    case (a: IntWidth, b: IntWidth) => IntWidth(a.width max b.width)
-    case _ => UnknownWidth
+  trait HasInfo {
+    val info: Info
   }
-  def min(x: Width): Width = (this, x) match {
-    case (a: IntWidth, b: IntWidth) => IntWidth(a.width min b.width)
-    case _ => UnknownWidth
+  trait IsDeclaration extends HasName with HasInfo
+
+  case class StringLit(array: Array[Byte]) extends FIRRTLNode
+
+  /** Primitive Operation
+    *
+    * See [[PrimOps]]
+    */
+  abstract class PrimOp extends FIRRTLNode
+
+  abstract class Expression extends FIRRTLNode {
+    def tpe: Type
   }
+  case class Reference(name: String, tpe: Type) extends Expression with HasName
+  case class SubField(expr: Expression, name: String, tpe: Type) extends Expression with HasName
+  case class SubIndex(expr: Expression, value: Int, tpe: Type) extends Expression
+  case class SubAccess(expr: Expression, index: Expression, tpe: Type) extends Expression
+  case class Mux(cond: Expression, tval: Expression, fval: Expression, tpe: Type) extends Expression
+  case class ValidIf(cond: Expression, value: Expression, tpe: Type) extends Expression
+  abstract class Literal extends Expression {
+    val value: BigInt
+    val width: Width
+  }
+  case class UIntLiteral(value: BigInt, width: Width) extends Literal {
+    def tpe = UIntType(width)
+  }
+  case class SIntLiteral(value: BigInt, width: Width) extends Literal {
+    def tpe = SIntType(width)
+  }
+  case class DoPrim(op: PrimOp, args: Seq[Expression], consts: Seq[BigInt], tpe: Type) extends Expression
+
+  abstract class Statement extends FIRRTLNode
+  case class DefWire(info: Info, name: String, tpe: Type) extends Statement with IsDeclaration
+  case class DefRegister(
+      info: Info,
+      name: String,
+      tpe: Type,
+      clock: Expression,
+      reset: Expression,
+      init: Expression) extends Statement with IsDeclaration
+  case class DefInstance(info: Info, name: String, module: String) extends Statement with IsDeclaration
+  case class DefMemory(
+      info: Info,
+      name: String,
+      dataType: Type,
+      depth: Int,
+      writeLatency: Int,
+      readLatency: Int,
+      readers: Seq[String],
+      writers: Seq[String],
+      readwriters: Seq[String]) extends Statement with IsDeclaration
+  case class DefNode(info: Info, name: String, value: Expression) extends Statement with IsDeclaration
+  case class Conditionally(
+      info: Info,
+      pred: Expression,
+      conseq: Statement,
+      alt: Statement) extends Statement with HasInfo
+  case class Begin(stmts: Seq[Statement]) extends Statement
+  case class PartialConnect(info: Info, loc: Expression, expr: Expression) extends Statement with HasInfo
+  case class Connect(info: Info, loc: Expression, expr: Expression) extends Statement with HasInfo
+  case class IsInvalid(info: Info, expr: Expression) extends Statement with HasInfo
+  case class Stop(info: Info, ret: Int, clk: Expression, en: Expression) extends Statement with HasInfo
+  case class Print(
+      info: Info,
+      string: StringLit,
+      args: Seq[Expression],
+      clk: Expression,
+      en: Expression) extends Statement with HasInfo
+  case object EmptyStmt extends Statement
+
+  abstract class Width extends FIRRTLNode {
+    def +(x: Width): Width = (this, x) match {
+      case (a: IntWidth, b: IntWidth) => IntWidth(a.width + b.width)
+      case _ => UnknownWidth
+    }
+    def -(x: Width): Width = (this, x) match {
+      case (a: IntWidth, b: IntWidth) => IntWidth(a.width - b.width)
+      case _ => UnknownWidth
+    }
+    def max(x: Width): Width = (this, x) match {
+      case (a: IntWidth, b: IntWidth) => IntWidth(a.width max b.width)
+      case _ => UnknownWidth
+    }
+    def min(x: Width): Width = (this, x) match {
+      case (a: IntWidth, b: IntWidth) => IntWidth(a.width min b.width)
+      case _ => UnknownWidth
+    }
+  }
+  /** Positive Integer Bit Width of a [[GroundType]] */
+  case class IntWidth(width: BigInt) extends Width
+  case object UnknownWidth extends Width
+
+  /** Orientation of [[Field]] */
+  abstract class Orientation extends FIRRTLNode
+  case object Default extends Orientation
+  case object Flip extends Orientation
+
+  /** Field of [[BundleType]] */
+  case class Field(name: String, flip: Orientation, tpe: Type) extends FIRRTLNode with HasName
+
+  abstract class Type extends FIRRTLNode
+  abstract class GroundType extends Type {
+    val width: Width
+  }
+  abstract class AggregateType extends Type
+  case class UIntType(width: Width) extends GroundType
+  case class SIntType(width: Width) extends GroundType
+  case class BundleType(fields: Seq[Field]) extends AggregateType
+  case class VectorType(tpe: Type, size: Int) extends AggregateType
+  case object ClockType extends GroundType {
+    val width = IntWidth(1)
+  }
+  case object UnknownType extends Type
+
+  /** [[Port]] Direction */
+  abstract class Direction extends FIRRTLNode
+  case object Input extends Direction
+  case object Output extends Direction
+
+  /** [[DefModule]] Port */
+  case class Port(info: Info, name: String, direction: Direction, tpe: Type) extends FIRRTLNode with IsDeclaration
+
+  /** Base class for modules */
+  abstract class DefModule extends FIRRTLNode with IsDeclaration {
+    val info : Info
+    val name : String
+    val ports : Seq[Port]
+  }
+  /** Internal Module
+    *
+    * An instantiable hardware block
+    */
+  case class Module(info: Info, name: String, ports: Seq[Port], body: Statement) extends DefModule
+  /** External Module
+    *
+    * Generally used for Verilog black boxes
+    */
+  case class ExtModule(info: Info, name: String, ports: Seq[Port]) extends DefModule
+
+  case class Circuit(info: Info, modules: Seq[DefModule], main: String) extends FIRRTLNode with HasInfo
 }
-/** Positive Integer Bit Width of a [[GroundType]] */
-case class IntWidth(width: BigInt) extends Width
-case object UnknownWidth extends Width
-
-/** Orientation of [[Field]] */
-abstract class Orientation extends AST
-case object Default extends Orientation
-case object Flip extends Orientation
-
-/** Field of [[BundleType]] */
-case class Field(name: String, flip: Orientation, tpe: Type) extends AST with HasName
-
-abstract class Type extends AST
-abstract class GroundType extends Type {
-  val width: Width
-}
-abstract class AggregateType extends Type
-case class UIntType(width: Width) extends GroundType
-case class SIntType(width: Width) extends GroundType
-case class BundleType(fields: Seq[Field]) extends AggregateType
-case class VectorType(tpe: Type, size: Int) extends AggregateType
-case object ClockType extends GroundType {
-  val width = IntWidth(1)
-}
-case object UnknownType extends Type
-
-/** [[Port]] Direction */
-abstract class Direction extends AST
-case object Input extends Direction
-case object Output extends Direction
-
-/** [[DefModule]] Port */
-case class Port(info: Info, name: String, direction: Direction, tpe: Type) extends AST with IsDeclaration
-
-/** Base class for modules */
-abstract class DefModule extends AST with IsDeclaration {
-  val info : Info
-  val name : String
-  val ports : Seq[Port]
-}
-/** Internal Module
-  *
-  * An instantiable hardware block
-  */
-case class Module(info: Info, name: String, ports: Seq[Port], body: Statement) extends DefModule
-/** External Module
-  *
-  * Generally used for Verilog black boxes
-  */
-case class ExtModule(info: Info, name: String, ports: Seq[Port]) extends DefModule
-
-case class Circuit(info: Info, modules: Seq[DefModule], main: String) extends AST with HasInfo
-

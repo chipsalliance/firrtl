@@ -40,6 +40,7 @@ import scala.collection.mutable.HashMap
 import scala.collection.mutable.ArrayBuffer
 
 import firrtl._
+import firrtl.IR._
 import firrtl.Utils._
 import firrtl.Mappers._
 import firrtl.Serialize._

@@ -28,6 +28,7 @@ MODIFICATIONS.
 package firrtl
 
 import scala.collection.mutable.HashSet
+import firrtl.IR._
 import Mappers._
 
 class Namespace private {
