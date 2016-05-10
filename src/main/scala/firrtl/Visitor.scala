@@ -112,9 +112,9 @@ class Visitor(val fullFilename: String, val useInfo : Boolean) extends FIRRTLBas
       case term: TerminalNode => 
         term.getText match {
           case "UInt" => if (ctx.getChildCount > 1) UIntType(IntWidth(string2BigInt(ctx.IntLit.getText))) 
-                         else UIntType( UnknownWidth() )
+                         else UIntType( UnknownWidth )
           case "SInt" => if (ctx.getChildCount > 1) SIntType(IntWidth(string2BigInt(ctx.IntLit.getText))) 
-                         else SIntType( UnknownWidth() )
+                         else SIntType( UnknownWidth )
           case "Clock" => ClockType
           case "{" => BundleType(ctx.field.map(visitField))
         }
