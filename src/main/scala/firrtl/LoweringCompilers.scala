@@ -30,6 +30,7 @@ package firrtl
 import com.typesafe.scalalogging.LazyLogging
 import java.io.Writer
 import firrtl.passes.Pass
+import firrtl.ir.Circuit
 
 // ===========================================
 //              Utility Traits
