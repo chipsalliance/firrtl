@@ -52,9 +52,9 @@ class InterpretiveTester(input: String) {
         throw new InterpreterException (s"Error:expect($name, $expectedValue) got $value")
       }
     }
-    interpreter.circuitState.getValue(name) match {
-      case Some(ConcreteUInt (value, _)) => testValue(value)
-      case Some(ConcreteSInt(value, _))  => testValue(value)
+    interpreter.getValue(name) match {
+      case ConcreteUInt (value, _) => testValue(value)
+      case ConcreteSInt(value, _)  => testValue(value)
       case _ => throw new InterpreterException(s"Error:expect($name, $expectedValue) value not found")
     }
   }
