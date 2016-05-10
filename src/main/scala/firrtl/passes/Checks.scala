@@ -178,7 +178,7 @@ object CheckHighForm extends Pass with LazyLogging {
     }
     def checkValidLoc(e: Expression) = {
       e match {
-        case e @ ( _: UIntValue | _: SIntValue | _: DoPrim ) => errors.append(new InvalidLOCException)
+        case e @ (_: UIntLiteral | _: SIntLiteral | _: DoPrim ) => errors.append(new InvalidLOCException)
         case _ => // Do Nothing
       }
     }
@@ -220,7 +220,7 @@ object CheckHighForm extends Pass with LazyLogging {
             validSubexp(e.exp)
             e
           }
-          case e: UIntValue => 
+          case e: UIntLiteral =>
             if (e.value < 0) errors.append(new NegUIntException)
           case e => e map (validSubexp)
         }
@@ -444,7 +444,7 @@ object CheckTypes extends Pass with LazyLogging {
                if (!passive(tpe(e))) errors += new ValidIfPassiveTypes(info)
                if (!(tpe(e.cond).typeof[UIntType])) errors += new ValidIfCondUInt(info)
             }
-            case (_:UIntValue|_:SIntValue) => false
+            case (_:UIntLiteral | _:SIntLiteral) => false
          }
          e
       }
@@ -593,8 +593,8 @@ object CheckGenders extends Pass {
             case (e:WSubIndex) => get_gender(e.exp,genders)
             case (e:WSubAccess) => get_gender(e.exp,genders)
             case (e:DoPrim) => MALE
-            case (e:UIntValue) => MALE
-            case (e:SIntValue) => MALE
+            case (e:UIntLiteral) => MALE
+            case (e:SIntLiteral) => MALE
             case (e:Mux) => MALE
             case (e:ValidIf) => MALE
          }
@@ -610,8 +610,8 @@ object CheckGenders extends Pass {
             case (e:DoPrim) => for (e <- e.args ) { check_gender(info,genders,MALE)(e) }
             case (e:Mux) => e map (check_gender(info,genders,MALE))
             case (e:ValidIf) => e map (check_gender(info,genders,MALE))
-            case (e:UIntValue) => false
-            case (e:SIntValue) => false
+            case (e:UIntLiteral) => false
+            case (e:SIntLiteral) => false
          }
          e
       }
@@ -690,7 +690,7 @@ object CheckWidths extends Pass with StanzaPass {
          }
          def check_width_e (info:Info)(e:Expression) : Expression = {
             (e map (check_width_e(info))) match { 
-               case (e:UIntValue) => {
+               case (e:UIntLiteral) => {
                   (e.width) match { 
                      case (w:IntWidth) => 
                         if (scala.math.max(1,e.value.bitLength) > w.width) {
@@ -700,7 +700,7 @@ object CheckWidths extends Pass with StanzaPass {
                   }
                   check_width_w(info)(e.width)
                }
-               case (e:SIntValue) => {
+               case (e:SIntLiteral) => {
                   (e.width) match { 
                      case (w:IntWidth) => 
                         if (e.value.bitLength + 1 > w.width) errors += new WidthTooSmall(info, serialize(e.value))

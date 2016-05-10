@@ -92,7 +92,7 @@ class VerilogEmitter extends Emitter {
                case (e:WSubField) => w.get.write(LowerTypes.loweredName(e))
                case (e:WSubAccess) => w.get.write(LowerTypes.loweredName(e.exp) + "[" + LowerTypes.loweredName(e.index) + "]")
                case (e:WSubIndex) => w.get.write(e.serialize)
-               case (_:UIntValue|_:SIntValue) => v_print(e)
+               case (_:UIntLiteral | _:SIntLiteral) => v_print(e)
             }
          }
          case (t:Type) => {
@@ -128,11 +128,11 @@ class VerilogEmitter extends Emitter {
    //;------------- PASS -----------------
    def v_print (e:Expression) = {
       e match {
-         case (e:UIntValue) => {
+         case (e:UIntLiteral) => {
             val str = e.value.toString(16)
             w.get.write(long_BANG(tpe(e)).toString + "'h" + str)
          }
-         case (e:SIntValue) => {
+         case (e:SIntLiteral) => {
             val str = e.value.toString(16)
             w.get.write(long_BANG(tpe(e)).toString + "'sh" + str)
          }
@@ -166,8 +166,8 @@ class VerilogEmitter extends Emitter {
       def c1 () : Int = doprim.consts(1).toInt
 
       def checkArgumentLegality(e: Expression) = e match {
-        case _: UIntValue =>
-        case _: SIntValue =>
+        case _: UIntLiteral =>
+        case _: SIntLiteral =>
         case _: WRef =>
         case _: WSubField =>
         case _ => throw new EmitterException(s"Can't emit ${e.getClass.getName} as PrimOp argument")

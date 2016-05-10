@@ -185,8 +185,8 @@ class Visitor(val fullFilename: String, val useInfo : Boolean) extends FIRRTLBas
         case "reg"  => {
           val name = (ctx.id(0).getText)
           val tpe = visitType(ctx.`type`(0))
-          val reset = if (ctx.exp(1) != null) visitExp(ctx.exp(1)) else UIntValue(0, IntWidth(1))
-          val init  = if (ctx.exp(2) != null) visitExp(ctx.exp(2)) else Ref(name, tpe)
+          val reset = if (ctx.exp(1) != null) visitExp(ctx.exp(1)) else UIntLiteral(0, IntWidth(1))
+          val init  = if (ctx.exp(2) != null) visitExp(ctx.exp(2)) else Reference(name, tpe)
           DefRegister(info, name, tpe, visitExp(ctx.exp(0)), reset, init)
         }
         case "mem" => visitMem(ctx)
@@ -236,7 +236,7 @@ class Visitor(val fullFilename: String, val useInfo : Boolean) extends FIRRTLBas
   // - Add validif
 	private def visitExp[AST](ctx: FIRRTLParser.ExpContext): Expression = 
     if( ctx.getChildCount == 1 ) 
-      Ref((ctx.getText), UnknownType)
+      Reference((ctx.getText), UnknownType)
     else
       ctx.getChild(0).getText match {
         case "UInt" => { // This could be better
@@ -247,7 +247,7 @@ class Visitor(val fullFilename: String, val useInfo : Boolean) extends FIRRTLBas
                val bigint = string2BigInt(ctx.IntLit(0).getText)
                (IntWidth(BigInt(scala.math.max(bigint.bitLength,1))),bigint)
             }
-          UIntValue(value, width)
+          UIntLiteral(value, width)
         }
         case "SInt" => {
           val (width, value) = 
@@ -257,7 +257,7 @@ class Visitor(val fullFilename: String, val useInfo : Boolean) extends FIRRTLBas
                val bigint = string2BigInt(ctx.IntLit(0).getText)
                (IntWidth(BigInt(bigint.bitLength + 1)),bigint)
             }
-          SIntValue(value, width)
+          SIntLiteral(value, width)
         }
         case "validif(" => ValidIf(visitExp(ctx.exp(0)), visitExp(ctx.exp(1)), UnknownType)
         case "mux(" => Mux(visitExp(ctx.exp(0)), visitExp(ctx.exp(1)), visitExp(ctx.exp(2)), UnknownType)
