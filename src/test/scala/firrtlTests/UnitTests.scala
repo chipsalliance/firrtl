@@ -31,6 +31,7 @@ import java.io._
 import org.scalatest._
 import org.scalatest.prop._
 import firrtl._
+import firrtl.IR.Circuit
 import firrtl.passes._
 
 class UnitTests extends FlatSpec with Matchers {

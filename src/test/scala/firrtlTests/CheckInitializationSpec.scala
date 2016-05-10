@@ -30,7 +30,8 @@ package firrtlTests
 import java.io._
 import org.scalatest._
 import org.scalatest.prop._
-import firrtl._
+import firrtl.Parser
+import firrtl.IR.Circuit
 import firrtl.passes._
 
 class CheckInitializationSpec extends FirrtlFlatSpec {
