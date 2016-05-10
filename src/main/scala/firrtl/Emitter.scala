@@ -79,7 +79,7 @@ class VerilogEmitter extends Emitter {
          (tpe(e)) match {
             case (t:UIntType) => e
             case (t:SIntType) => Seq("$signed(",e,")")
-            case (t:ClockType) => e
+            case ClockType => e
          }
       }
       (x) match {
@@ -100,7 +100,7 @@ class VerilogEmitter extends Emitter {
                case (_:UIntType|_:SIntType) => 
                   val wx = long_BANG(t) - 1
                   if (wx > 0) w.get.write("[" + wx + ":0]") else w.get.write("")
-               case (t:ClockType) => w.get.write("")
+               case ClockType => w.get.write("")
                case (t:VectorType) => 
                   emit2(t.tpe, top + 1)
                   w.get.write("[" + (t.size - 1) + ":0]")

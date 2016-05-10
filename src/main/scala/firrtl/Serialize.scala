@@ -175,8 +175,8 @@ private object Serialize {
   def serialize(t: Type): String = {
     val commas = ", " // for mkString in BundleType
     t match {
-      case c:ClockType => "Clock"
-      case u:UnknownType => "?"
+      case ClockType => "Clock"
+      case UnknownType => "?"
       case t: UIntType => s"UInt${serialize(t.width)}"
       case t: SIntType => s"SInt${serialize(t.width)}"
       case t: BundleType => s"{ ${t.fields.map(serialize).mkString(commas)}}"

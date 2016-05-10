@@ -115,7 +115,7 @@ class Visitor(val fullFilename: String, val useInfo : Boolean) extends FIRRTLBas
                          else UIntType( UnknownWidth() )
           case "SInt" => if (ctx.getChildCount > 1) SIntType(IntWidth(string2BigInt(ctx.IntLit.getText))) 
                          else SIntType( UnknownWidth() )
-          case "Clock" => ClockType()
+          case "Clock" => ClockType
           case "{" => BundleType(ctx.field.map(visitField))
         }
       case tpe: TypeContext => new VectorType(visitType(ctx.`type`), string2Int(ctx.IntLit.getText))
@@ -221,7 +221,7 @@ class Visitor(val fullFilename: String, val useInfo : Boolean) extends FIRRTLBas
           case "<=" => Connect(info, visitExp(ctx.exp(0)), visitExp(ctx.exp(1)) )
           case "<-" => BulkConnect(info, visitExp(ctx.exp(0)), visitExp(ctx.exp(1)) )
           case "is" => IsInvalid(info, visitExp(ctx.exp(0)))
-          case "mport" => CDefMPort(info, ctx.id(0).getText, UnknownType(),ctx.id(1).getText,Seq(visitExp(ctx.exp(0)),visitExp(ctx.exp(1))),visitMdir(ctx.mdir))
+          case "mport" => CDefMPort(info, ctx.id(0).getText, UnknownType,ctx.id(1).getText,Seq(visitExp(ctx.exp(0)),visitExp(ctx.exp(1))),visitMdir(ctx.mdir))
         }
       }
     }
@@ -236,7 +236,7 @@ class Visitor(val fullFilename: String, val useInfo : Boolean) extends FIRRTLBas
   // - Add validif
 	private def visitExp[AST](ctx: FIRRTLParser.ExpContext): Expression = 
     if( ctx.getChildCount == 1 ) 
-      Ref((ctx.getText), UnknownType())
+      Ref((ctx.getText), UnknownType)
     else
       ctx.getChild(0).getText match {
         case "UInt" => { // This could be better
@@ -259,17 +259,17 @@ class Visitor(val fullFilename: String, val useInfo : Boolean) extends FIRRTLBas
             }
           SIntValue(value, width)
         }
-        case "validif(" => ValidIf(visitExp(ctx.exp(0)), visitExp(ctx.exp(1)), UnknownType())
-        case "mux(" => Mux(visitExp(ctx.exp(0)), visitExp(ctx.exp(1)), visitExp(ctx.exp(2)), UnknownType())
+        case "validif(" => ValidIf(visitExp(ctx.exp(0)), visitExp(ctx.exp(1)), UnknownType)
+        case "mux(" => Mux(visitExp(ctx.exp(0)), visitExp(ctx.exp(1)), visitExp(ctx.exp(2)), UnknownType)
         case _ => 
           ctx.getChild(1).getText match {
-            case "." => new SubField(visitExp(ctx.exp(0)), (ctx.id.getText), UnknownType())
+            case "." => new SubField(visitExp(ctx.exp(0)), (ctx.id.getText), UnknownType)
             case "[" => if (ctx.exp(1) == null)  
-                          new SubIndex(visitExp(ctx.exp(0)), string2Int(ctx.IntLit(0).getText), UnknownType())
-                        else new SubAccess(visitExp(ctx.exp(0)), visitExp(ctx.exp(1)), UnknownType())
+                          new SubIndex(visitExp(ctx.exp(0)), string2Int(ctx.IntLit(0).getText), UnknownType)
+                        else new SubAccess(visitExp(ctx.exp(0)), visitExp(ctx.exp(1)), UnknownType)
             // Assume primop
             case _ => DoPrim(visitPrimop(ctx.primop), ctx.exp.map(visitExp),
-                             ctx.IntLit.map(x => string2BigInt(x.getText)), UnknownType())
+                             ctx.IntLit.map(x => string2BigInt(x.getText)), UnknownType)
           }
       }
   
