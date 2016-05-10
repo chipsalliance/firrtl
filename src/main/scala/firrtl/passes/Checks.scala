@@ -99,7 +99,7 @@ object CheckHighForm extends Pass with LazyLogging {
       t map (findFlip) match {
         case t: BundleType => {
           for (f <- t.fields) {
-            if (f.flip == REVERSE) has = true
+            if (f.flip == Flip) has = true
           }
           t
         }
@@ -399,7 +399,7 @@ object CheckTypes extends Pass with LazyLogging {
             case (t:BundleType) => {
                var p = true
                for (x <- t.fields ) {
-                  if (x.flip == REVERSE) p = false
+                  if (x.flip == Flip) p = false
                   if (!passive(x.tpe)) p = false
                }
                p
@@ -453,7 +453,7 @@ object CheckTypes extends Pass with LazyLogging {
          e
       }
    
-      def bulk_equals (t1: Type, t2: Type, flip1: Flip, flip2: Flip): Boolean = {
+      def bulk_equals (t1: Type, t2: Type, flip1: Orientation, flip2: Orientation): Boolean = {
          //;println_all(["Inside with t1:" t1 ",t2:" t2 ",f1:" flip1 ",f2:" flip2])
          (t1,t2) match {
             case (ClockType, ClockType) => flip1 == flip2
@@ -481,7 +481,7 @@ object CheckTypes extends Pass with LazyLogging {
          s map (check_types_e(get_info(s))) match { 
             case (s:Connect) => if (wt(tpe(s.loc)) != wt(tpe(s.exp))) errors += new InvalidConnect(s.info)
             case (s:DefRegister) => if (wt(s.tpe) != wt(tpe(s.init))) errors += new InvalidRegInit(s.info)
-            case (s:BulkConnect) => if (!bulk_equals(tpe(s.loc),tpe(s.exp),DEFAULT,DEFAULT) ) errors += new InvalidConnect(s.info)
+            case (s:BulkConnect) => if (!bulk_equals(tpe(s.loc),tpe(s.exp),Default,Default) ) errors += new InvalidConnect(s.info)
             case (s:Stop) => {
                if (wt(tpe(s.clk)) != wt(ClockType) ) errors += new ReqClk(s.info)
                if (wt(tpe(s.en)) != wt(ut()) ) errors += new EnNotUInt(s.info)
@@ -550,7 +550,7 @@ object CheckGenders extends Pass {
          val kindx = get_kind(e)
          def flipQ (t:Type) : Boolean = {
             var fQ = false
-            def flip_rec (t:Type,f:Flip) : Type = {
+            def flip_rec (t:Type,f:Orientation) : Type = {
                (t) match { 
                   case (t:BundleType) => {
                      for (field <- t.fields) {
@@ -558,11 +558,11 @@ object CheckGenders extends Pass {
                      }
                   }
                   case (t:VectorType) => flip_rec(t.tpe,f)
-                  case (t) => if (f == REVERSE) fQ = true
+                  case (t) => if (f == Flip) fQ = true
                }
                t
             }
-            flip_rec(t,DEFAULT)
+            flip_rec(t,Default)
             fQ
          }
             

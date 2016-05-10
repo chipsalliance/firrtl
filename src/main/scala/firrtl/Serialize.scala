@@ -38,7 +38,7 @@ private object Serialize {
       case r: Expression => serialize(r)
       case r: Stmt => serialize(r)
       case r: Width => serialize(r)
-      case r: Flip => serialize(r)
+      case r: Orientation => serialize(r)
       case r: Field => serialize(r)
       case r: Type => serialize(r)
       case r: Direction => serialize(r)
@@ -162,10 +162,10 @@ private object Serialize {
     }
   }
 
-  def serialize(f: Flip): String = {
+  def serialize(f: Orientation): String = {
     f match {
-      case REVERSE => "flip "
-      case DEFAULT => ""
+      case Flip => "flip "
+      case Default => ""
     }
   }
 
