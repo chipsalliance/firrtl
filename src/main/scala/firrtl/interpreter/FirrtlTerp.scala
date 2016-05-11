@@ -109,12 +109,12 @@ class FirrtlTerp(ast: Circuit) extends SimpleLogger {
   def hasInput(name: String)  = dependencyGraph.hasInput(name)
   def hasOutput(name: String) = dependencyGraph.hasOutput(name)
 
-  def evaluateCircuit(): Unit = {
+  def evaluateCircuit(specificDependencies: Seq[String] = Seq()): Unit = {
     log(s"clear ephemera")
     circuitState.prepareForDependencyResolution()
     log(circuitState.prettyString())
     log(s"resolve dependencies")
-    evaluator.resolveDependencies()
+    evaluator.resolveDependencies(specificDependencies)
     log(s"process reset")
     evaluator.processRegisterResets()
     log(s"check prints")
@@ -124,6 +124,12 @@ class FirrtlTerp(ast: Circuit) extends SimpleLogger {
     circuitState.isStale = false
     log(s"${circuitState.prettyString()}")
   }
+
+  def reEvaluate(name: String): Unit = {
+    setVerbose(true)
+    evaluateCircuit(Seq(name))
+  }
+
   def cycle(showState: Boolean = false) = {
     if(circuitState.isStale) {
       log("interpreter cycle() called, state is stale, re-evaluate Circuit")

@@ -34,14 +34,14 @@ class LifeCellSpec extends FlatSpec with Matchers {
   it should "observe neighbor transition rules" in {
     val input =
       """
-        | circuit LifeCell :
+        |circuit LifeCell :
         |  module LifeCell :
         |    input clk : Clock
         |    input reset : UInt<1>
-        |    output io : {flip running : UInt<1>, flip top_left : UInt<4>, flip top_center : UInt<4>, flip top_right : UInt<4>, flip mid_left : UInt<4>, flip mid_right : UInt<4>, flip bot_left : UInt<4>, flip bot_center : UInt<4>, flip bot_right : UInt<4>, flip F : UInt<1>, flip set_dead : UInt<1>, is_alive : UInt<1>}
+        |    output io : {flip running : UInt<1>, flip top_left : UInt<4>, flip top_center : UInt<4>, flip top_right : UInt<4>, flip mid_left : UInt<4>, flip mid_right : UInt<4>, flip bot_left : UInt<4>, flip bot_center : UInt<4>, flip bot_right : UInt<4>, flip set_alive : UInt<1>, flip set_dead : UInt<1>, is_alive : UInt<1>}
         |
         |    io is invalid
-        |    reg is_alive : UInt<1>, clk with : (reset => (reset, UInt<1>("h00")))
+        |    reg is_alive : UInt<1>, clk
         |    node T_13 = add(io.top_left, io.top_center)
         |    node sum0 = tail(T_13, 1)
         |    node T_14 = add(io.top_right, io.mid_left)
@@ -69,11 +69,11 @@ class LifeCellSpec extends FlatSpec with Matchers {
         |    node T_36 = mux(io.set_alive, UInt<1>("h01"), T_35)
         |    is_alive <= T_36
         |    io.is_alive <= is_alive
-        |
-      """.stripMargin
+        |      """.stripMargin
 
     new InterpretiveTester(input) {
-      interpreter.setVerbose()
+      setVerbose()
+
       def setAlive(alive: Boolean): Unit = {
         poke("io_running", 0)
         poke("io_set_alive", if(alive) 1 else 0)
@@ -81,7 +81,7 @@ class LifeCellSpec extends FlatSpec with Matchers {
         step(1)
         poke("io_running", 1)
         poke("io_set_alive", 0)
-        poke("io_set_dead",  1)
+        poke("io_set_dead",  0)
       }
 
       def setNeighborsIgnoreCenter(
@@ -130,6 +130,7 @@ class LifeCellSpec extends FlatSpec with Matchers {
       expect("io_is_alive", 0)
 
       // dead cell with exactly three neighbors becomes alive
+      setAlive(false)
       setNeighborsIgnoreCenter(
         1,0,0,
         1,0,0,

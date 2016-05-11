@@ -34,6 +34,10 @@ package firrtl.interpreter
 class InterpretiveTester(input: String) {
   val interpreter = FirrtlTerp(input)
 
+  def setVerbose(value: Boolean = true): Unit = {
+    interpreter.setVerbose(value)
+  }
+
   def poke(name: String, value: BigInt): Unit = {
     interpreter.setValueWithBigInt(name, value)
   }
@@ -49,13 +53,16 @@ class InterpretiveTester(input: String) {
   def expect(name: String, expectedValue: BigInt): Unit = {
     def testValue(value: BigInt): Unit = {
       if (value != expectedValue) {
+        if(! interpreter.verbose) interpreter.reEvaluate(name)
         throw new InterpreterException (s"Error:expect($name, $expectedValue) got $value")
       }
     }
     interpreter.getValue(name) match {
       case ConcreteUInt (value, _) => testValue(value)
       case ConcreteSInt(value, _)  => testValue(value)
-      case _ => throw new InterpreterException(s"Error:expect($name, $expectedValue) value not found")
+      case _ => {
+        throw new InterpreterException(s"Error:expect($name, $expectedValue) value not found")
+      }
     }
   }
 

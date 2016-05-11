@@ -401,8 +401,11 @@ class LoFirrtlExpressionEvaluator(dependencyGraph: DependencyGraph, circuitState
     value
   }
 
-  def resolveDependencies(): Unit = {
-    toResolve = mutable.HashSet(dependencyGraph.keys.toSeq:_*)
+  def resolveDependencies(specificDependencies: Seq[String]): Unit = {
+    toResolve = {
+      if (specificDependencies.isEmpty) mutable.HashSet(dependencyGraph.keys.toSeq: _*)
+      else mutable.HashSet(specificDependencies: _*)
+    }
 
     val memKeys = toResolve.filter { circuitState.isMemory }
     toResolve --= memKeys
