@@ -211,9 +211,13 @@ trait Concrete {
       ConcreteUInt(value, width)
     }
     else {
-      val modulo = Big1 << (width - n)
-      val modulus = value % modulo
-      ConcreteUInt(modulus, width - n)
+      var x = Big0
+      val bitsWanted = width - n
+      for(i <- 0 until bitsWanted) {
+        if(value.testBit(i)) x = x.setBit(i)
+      }
+      x
+      ConcreteUInt(x, bitsWanted)
     }
   }
 

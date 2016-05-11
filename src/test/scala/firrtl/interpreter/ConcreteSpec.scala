@@ -282,7 +282,7 @@ class ConcreteSpec extends FlatSpec with Matchers {
 
   behavior of "tail"
 
-  it should "allows arbitrary selection of top n bits" in {
+  it should "allow arbitrary selection of top n bits" in {
     def testBits(width: Int, n: Int) {
       val num = allOnes(width)
       val uint = ConcreteUInt(num, width)
@@ -303,9 +303,12 @@ class ConcreteSpec extends FlatSpec with Matchers {
   }
 
   it should "satisfy the following specific tests" in {
-    val e = ConcreteSInt(BigInt(-4), 33)
-    e.tail(1).value should be (-4)
+    val b2 = ConcreteSInt(BigInt(-2), 16)
 
+    b2.tail(1).value should be (32766)
+    b2.tail(13).value should be (6)
+    b2.tail(14).value should be (2)
+    b2.tail(15).value should be (0)
   }
 
   it should "take an SInt"
