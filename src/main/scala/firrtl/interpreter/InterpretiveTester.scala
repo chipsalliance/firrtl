@@ -60,9 +60,8 @@ class InterpretiveTester(input: String) {
     interpreter.getValue(name) match {
       case ConcreteUInt (value, _) => testValue(value)
       case ConcreteSInt(value, _)  => testValue(value)
-      case _ => {
+      case _ =>
         throw new InterpreterException(s"Error:expect($name, $expectedValue) value not found")
-      }
     }
   }
 
