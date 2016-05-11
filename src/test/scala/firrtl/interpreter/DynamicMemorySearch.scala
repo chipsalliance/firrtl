@@ -135,11 +135,13 @@ class DynamicMemorySearch extends FlatSpec with Matchers {
           waitCount += 1
         }
 
-        println(s"Done wait count is $waitCount done is ${peek("io_done")} got ${peek("io_target")} got $expectedIndex")
+        // println(s"Done wait count is $waitCount done is ${peek("io_done")} got ${peek("io_target")} got $expectedIndex")
         expect("io_done", 1)
         expect("io_target", expectedIndex)
         step(1)
+
       }
+      report()
     }
   }
 }

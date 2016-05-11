@@ -32,6 +32,8 @@ package firrtl.interpreter
   * @param input a firrtl program contained in a string
   */
 class InterpretiveTester(input: String) {
+  var expectationsMet = 0
+
   val interpreter = FirrtlTerp(input)
 
   def setVerbose(value: Boolean = true): Unit = {
@@ -39,7 +41,14 @@ class InterpretiveTester(input: String) {
   }
 
   def poke(name: String, value: BigInt): Unit = {
-    interpreter.setValueWithBigInt(name, value)
+    try {
+      interpreter.setValueWithBigInt(name, value)
+    }
+    catch {
+      case ie: InterpreterException =>
+        println(s"Error: poke($name, $value)")
+        throw ie
+    }
   }
 
   def peek(name: String): BigInt = {
@@ -63,11 +72,19 @@ class InterpretiveTester(input: String) {
       case _ =>
         throw new InterpreterException(s"Error:expect($name, $expectedValue) value not found")
     }
+    expectationsMet += 1
   }
 
   def step(n: Int = 1): Unit = {
     for(_ <- 0 until n) {
       interpreter.cycle()
     }
+  }
+
+  def report(): Unit = {
+    println(
+      s"test ${interpreter.loweredAst.modules.head.name} " +
+        s"Success: $expectationsMet tests passed " +
+        s"in ${interpreter.circuitState.stateCounter} cycles")
   }
 }
