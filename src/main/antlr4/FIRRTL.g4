@@ -37,16 +37,16 @@ grammar FIRRTL;
 
 // Does there have to be at least one module?
 circuit
-  : 'circuit' id ':' '{' module* '}'
+  : info? 'circuit' id ':' '{' module* '}'
   ;
 
 module
-  : 'module' id ':' '{' port* block '}'
-  | 'extmodule' id ':' '{' port* '}'
+  : info? 'module' id ':' '{' port* block '}'
+  | info? 'extmodule' id ':' '{' port* '}'
   ;
 
 port
-  : dir id ':' type
+  : info? dir id ':' type
   ;
 
 dir
@@ -72,9 +72,9 @@ block
   ; 
 
 stmt
-  : 'wire' id ':' type
-  | 'reg' id ':' type exp ('with' ':' '{' 'reset' '=>' '(' exp exp ')' '}')?
-  | 'mem' id ':' '{' ( 'data-type' '=>' type 
+  : info? 'wire' id ':' type
+  | info? 'reg' id ':' type exp ('with' ':' '{' 'reset' '=>' '(' exp exp ')' '}')?
+  | info? 'mem' id ':' '{' ( 'data-type' '=>' type
                      | 'depth' '=>' IntLit
                      | 'read-latency' '=>' IntLit
                      | 'write-latency' '=>' IntLit
@@ -84,18 +84,22 @@ stmt
                      | 'readwriter' '=>' id 
                      )*
                  '}'
-  | 'cmem' id ':' type
-  | 'smem' id ':' type
-  | mdir 'mport' id '=' id '[' exp ']' exp
-  | 'inst' id 'of' id 
-  | 'node' id '=' exp
-  | exp '<=' exp 
-  | exp '<-' exp
-  | exp 'is' 'invalid'
-  | 'when' exp ':' '{' block '}' ( 'else' ':' '{' block '}' )? 
-  | 'stop(' exp exp IntLit ')'
-  | 'printf(' exp exp StringLit (exp)* ')'
-  | 'skip'
+  | info? 'cmem' id ':' type
+  | info? 'smem' id ':' type
+  | info? mdir 'mport' id '=' id '[' exp ']' exp
+  | info? 'inst' id 'of' id
+  | info? 'node' id '=' exp
+  | info? exp '<=' exp
+  | info? exp '<-' exp
+  | info? exp 'is' 'invalid'
+  | info? 'when' exp ':' '{' block '}' ( 'else' ':' '{' block '}' )?
+  | info? 'stop(' exp exp IntLit ')'
+  | info? 'printf(' exp exp StringLit (exp)* ')'
+  | info? 'skip'
+  ;
+
+info
+  : StringLit
   ;
 
 mdir
