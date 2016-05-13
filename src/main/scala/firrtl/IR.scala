@@ -49,7 +49,7 @@ trait AST {
 }
 
 trait HasName {
-  val name: String
+  def name: String
 }
 trait HasInfo {
   val info: Info
@@ -163,6 +163,129 @@ object DoPrim {
   }
 }
 
+/** Common interface for [[Field]] and [[MemPortField]] */
+trait DefField extends AST with HasName {
+  def name: String
+  def flip: Flip
+  def tpe: Type
+}
+
+// Memory Port Fields
+abstract class MemPortField extends DefField {
+  def toField: Field = Field(name, flip, tpe)
+}
+case class MemPortData(tpe: Type, flip: Flip) extends MemPortField {
+  def name = "data"
+}
+case class MemPortAddress(tpe: Type) extends MemPortField {
+  def name = "addr"
+  def flip = DEFAULT
+}
+object MemPortAddress {
+  /** Construct a [[MemPortAddress]] from depth of a [[DefMemory]] */
+  def apply(memDepth: Int): MemPortAddress = {
+    val width = IntWidth(scala.math.max(Utils.ceil_log2(memDepth), 1))
+    MemPortAddress(UIntType(width))
+  }
+}
+case object MemPortEnable extends MemPortField {
+  def name = "en"
+  def flip = DEFAULT
+  def tpe = UIntType(IntWidth(1))
+}
+case object MemPortClock extends MemPortField {
+  def name = "clk"
+  def flip = DEFAULT
+  def tpe = ClockType()
+}
+// Use constructor in companion object
+case class MemPortWriteMask (tpe: Type) extends MemPortField {
+  def name = "mask"
+  def flip = DEFAULT
+}
+object MemPortWriteMask {
+  /** Construct [[MemPortWriteMask]] from dataType of [[DefMemory]]
+    *
+    * @note Cannot override apply because of identical signature
+    */
+  def construct(dataType: Type): MemPortWriteMask =
+    new MemPortWriteMask(Utils.create_mask(dataType))
+}
+case object MemPortWriteMode extends MemPortField {
+  def name = "wmode"
+  def flip = DEFAULT
+  def tpe = UIntType(IntWidth(1))
+}
+
+abstract class MemPort extends AST {
+  val name: String
+  val data: MemPortData
+  val addr: MemPortAddress
+  val en: MemPortField
+  val clk: MemPortField
+  def fields: Seq[MemPortField]
+  def getType: Type = BundleType(fields map (_.toField))
+}
+case class ReadPort(
+    name: String,
+    data: MemPortData,
+    addr: MemPortAddress,
+    en: MemPortField,
+    clk: MemPortField) extends MemPort {
+  val fields = Seq(data, addr, en, clk)
+}
+object ReadPort {
+  def apply(name: String, dataType: Type, memDepth: Int) = {
+    val data = MemPortData(dataType, REVERSE)
+    val addr = MemPortAddress(memDepth)
+    val en = MemPortEnable
+    val clk = MemPortClock
+    new ReadPort(name, data, addr, en, clk)
+  }
+}
+case class WritePort(
+    name: String,
+    data: MemPortData,
+    addr: MemPortAddress,
+    en: MemPortField,
+    mask: MemPortWriteMask,
+    clk: MemPortField) extends MemPort {
+  val fields = Seq(data, addr, en, mask, clk)
+}
+object WritePort {
+  def apply(name: String, dataType: Type, memDepth: Int) = {
+    val data = MemPortData(dataType, DEFAULT)
+    val addr = MemPortAddress(memDepth)
+    val en = MemPortEnable
+    val mask = MemPortWriteMask.construct(dataType)
+    val clk = MemPortClock
+    new WritePort(name, data, addr, en, mask, clk)
+  }
+}
+case class ReadWritePort(
+    name: String,
+    data: MemPortData,
+    rdata: MemPortData,
+    addr: MemPortAddress,
+    en: MemPortField,
+    mask: MemPortWriteMask,
+    mode: MemPortField,
+    clk: MemPortField) extends MemPort {
+  val fields = Seq(data, rdata, en, addr, mask, mode, clk)
+}
+object ReadWritePort {
+  def apply(name: String, dataType: Type, memDepth: Int) = {
+    val data = MemPortData(dataType, DEFAULT)
+    val rdata = MemPortData(dataType, REVERSE)
+    val addr = MemPortAddress(memDepth)
+    val en = MemPortEnable
+    val mask = MemPortWriteMask(dataType)
+    val mode = MemPortWriteMode
+    val clk = MemPortClock
+    new ReadWritePort(name, data, rdata, addr, en, mask, mode, clk)
+  }
+}
+
 trait Stmt extends AST
 case class DefWire(info: Info, name: String, tpe: Type) extends Stmt with IsDeclaration
 case class DefPoison(info: Info, name: String, tpe: Type) extends Stmt with IsDeclaration
@@ -238,7 +361,7 @@ trait Flip extends AST
 case object DEFAULT extends Flip
 case object REVERSE extends Flip
 
-case class Field(name: String, flip: Flip, tpe: Type) extends AST with HasName
+case class Field(name: String, flip: Flip, tpe: Type) extends DefField
 
 trait Type extends AST
 case class UIntType(width: Width) extends Type
