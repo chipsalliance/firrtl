@@ -891,23 +891,21 @@ object RemoveAccesses extends Pass {
 // TODO replace UInt with zero-width wire instead
 object Legalize extends Pass {
   def name = "Legalize"
-  def legalizeShiftRight (e: DoPrim): Expression = e.op match {
-    case SHIFT_RIGHT_OP => {
-      val amount = e.consts(0).toInt
-      val width = long_BANG(tpe(e.args(0)))
-      lazy val msb = width - 1
-      if (amount >= width) {
-        e.tpe match {
-          case t: UIntType => UIntValue(0, IntWidth(1))
-          case t: SIntType =>
-            DoPrim(BITS_SELECT_OP, e.args, Seq(msb, msb), SIntType(IntWidth(1)))
-          case t => error(s"Unsupported type ${t} for Primop Shift Right")
-        }
-      } else {
-        e
+  private def legalizeShiftRight(e: DoPrim): Expression = {
+    val amount = e.consts(0).toInt
+    val width = long_BANG(e.args(0).tpe)
+    lazy val msb = width - 1
+    if (amount >= width) {
+      e.tpe match {
+        case UIntType(_) => UIntValue(0, IntWidth(1))
+        case SIntType(_) =>
+          val e2 = DoPrim(BITS_SELECT_OP, e.args, Seq(msb, msb), UIntType(IntWidth(1)))
+          DoPrim(AS_SINT_OP, Seq(e2), Seq(), SIntType(IntWidth(1)))
+        case t => error(s"Unsupported type ${t} for Primop Shift Right")
       }
+    } else {
+      e
     }
-    case _ => e
   }
   def legalizeConnect(c: Connect): Stmt = {
     val t = tpe(c.loc)
@@ -922,11 +920,12 @@ object Legalize extends Pass {
     }
   }
   def run (c: Circuit): Circuit = {
-    def legalizeE (e: Expression): Expression = {
-      e map (legalizeE) match {
-        case e: DoPrim => legalizeShiftRight(e)
-        case e => e
+    def legalizeE (expr: Expression): Expression = expr map legalizeE match {
+      case prim: DoPrim => prim.op match {
+        case SHIFT_RIGHT_OP => legalizeShiftRight(prim)
+        case _ => prim
       }
+      case e => e // respect pre-order traversal
     }
     def legalizeS (s: Stmt): Stmt = {
       val legalizedStmt = s match {
