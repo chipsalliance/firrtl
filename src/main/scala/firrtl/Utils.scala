@@ -527,26 +527,7 @@ object Utils extends LazyLogging {
        case s:DefPoison => s.tpe
        case s:DefRegister => s.tpe
        case s:DefNode => tpe(s.value)
-       case s:DefMemory => {
-          val depth = s.depth
-          val addr = Field("addr",DEFAULT,UIntType(IntWidth(scala.math.max(ceil_log2(depth), 1))))
-          val en = Field("en",DEFAULT,BoolType())
-          val clk = Field("clk",DEFAULT,ClockType())
-          val def_data = Field("data",DEFAULT,s.data_type)
-          val rev_data = Field("data",REVERSE,s.data_type)
-          val mask = Field("mask",DEFAULT,create_mask(s.data_type))
-          val wmode = Field("wmode",DEFAULT,UIntType(IntWidth(1)))
-          val rdata = Field("rdata",REVERSE,s.data_type)
-          val read_type = BundleType(Seq(rev_data,addr,en,clk))
-          val write_type = BundleType(Seq(def_data,mask,addr,en,clk))
-          val readwrite_type = BundleType(Seq(wmode,rdata,def_data,mask,addr,en,clk))
-
-          val mem_fields = ArrayBuffer[Field]()
-          s.readers.foreach {x => mem_fields += Field(x,REVERSE,read_type)}
-          s.writers.foreach {x => mem_fields += Field(x,REVERSE,write_type)}
-          s.readwriters.foreach {x => mem_fields += Field(x,REVERSE,readwrite_type)}
-          BundleType(mem_fields)
-       }
+       case s:DefMemory => s.tpe
        case s:DefInstance => UnknownType()
        case s:WDefInstance => s.tpe
        case _ => UnknownType()

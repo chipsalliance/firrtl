@@ -81,7 +81,7 @@ object Mappers {
           case s: DefRegister => DefRegister(s.info,f(s.name), s.tpe, s.clock, s.reset, s.init)
           case s: DefMemory => DefMemory(s.info,f(s.name), s.data_type, s.depth, s.write_latency, s.read_latency, s.readers, s.writers, s.readwriters)
           case s: DefNode => DefNode(s.info,f(s.name),s.value)
-          case s: DefInstance => DefInstance(s.info,f(s.name), s.module)
+          case s: DefInstance => s.copy(name = f(s.name))
           case s: WDefInstance => WDefInstance(s.info,f(s.name), s.module,s.tpe)
           case s: CDefMemory => CDefMemory(s.info,f(s.name),s.tpe,s.size,s.seq)
           case s: CDefMPort => CDefMPort(s.info,f(s.name),s.tpe,s.mem,s.exps,s.direction)

@@ -54,7 +54,10 @@ trait HasName {
 trait HasInfo {
   val info: Info
 }
-trait IsDeclaration extends HasName with HasInfo
+trait HasType {
+  def tpe: Type
+}
+trait IsDeclaration extends HasName with HasType with HasInfo
 
 case class StringLit(array: Array[Byte]) extends AST
 
@@ -96,27 +99,111 @@ trait Expression extends AST {
   def tpe: Type
 }
 case class Ref(name: String, tpe: Type) extends Expression with HasName
+object Ref {
+  def apply(decl: IsDeclaration) = new Ref(decl.name, decl.tpe)
+}
 case class SubField(exp: Expression, name: String, tpe: Type) extends Expression with HasName
+object SubField {
+  def apply(expr: Expression, field: DefField) = new SubField(expr, field.name, field.tpe)
+}
 case class SubIndex(exp: Expression, value: Int, tpe: Type) extends Expression
+object SubIndex {
+  def apply(expr: Expression, value: Int) = {
+    val tpe = expr.tpe match {
+      case VectorType(tpe, size) =>
+        if (value >= size) throw new FIRRTLException("SubIndex out of bounds!")
+        tpe
+      case _ => throw new FIRRTLException("Attempting to SubIndex non-VectorType!!!")
+    }
+    new SubIndex(expr, value, tpe)
+  }
+}
 case class SubAccess(exp: Expression, index: Expression, tpe: Type) extends Expression
+object SubAccess {
+  def apply(expr: Expression, index: Expression) = {
+    val tpe = expr.tpe match {
+      case VectorType(tpe, size) => tpe
+      case _ => throw new FIRRTLException("Attempting to SubAccess non-VectorType!!!")
+    }
+    new SubAccess(expr, index, tpe)
+  }
+}
 case class Mux(cond: Expression, tval: Expression, fval: Expression, tpe: Type) extends Expression
+object Mux {
+  def apply(cond: Expression, tval: Expression, fval: Expression) = {
+    val tpe = Utils.mux_type_and_widths(tval.tpe, fval.tpe)
+    if (tpe.isInstanceOf[UnknownType])
+      throw new FIRRTLException("Attempting to create Mux from Expressions of different type!")
+    new Mux(cond, tval, fval, tpe)
+  }
+}
 case class ValidIf(cond: Expression, value: Expression, tpe: Type) extends Expression
+object ValidIf {
+  def apply(cond: Expression, value: Expression) = new ValidIf(cond, value, value.tpe)
+}
 case class UIntValue(value: BigInt, width: Width) extends Expression {
   def tpe = UIntType(width)
+}
+object UIntValue {
+  def apply(value: BigInt) = new UIntValue(value, IntWidth(scala.math.max(value.bitLength, 1)))
 }
 case class SIntValue(value: BigInt, width: Width) extends Expression {
   def tpe = SIntType(width)
 }
+object SIntValue {
+  def apply(value: BigInt) = new SIntValue(value, IntWidth(value.bitLength + 1))
+}
 case class DoPrim(op: PrimOp, args: Seq[Expression], consts: Seq[BigInt], tpe: Type) extends Expression
+object DoPrim {
+  def apply(op: PrimOp, args: Seq[Expression], consts: Seq[BigInt]) = {
+    val tpe = PrimOps.set_primop_type(new DoPrim(op, args, consts, UnknownType())).tpe
+    if (tpe.isInstanceOf[UnknownType])
+      throw new FIRRTLException("Attempting to create DoPrim from Expressions of different type!")
+    new DoPrim(op, args, consts, tpe)
+  }
+}
 
 trait Stmt extends AST
 case class DefWire(info: Info, name: String, tpe: Type) extends Stmt with IsDeclaration
 case class DefPoison(info: Info, name: String, tpe: Type) extends Stmt with IsDeclaration
 case class DefRegister(info: Info, name: String, tpe: Type, clock: Expression, reset: Expression, init: Expression) extends Stmt with IsDeclaration
-case class DefInstance(info: Info, name: String, module: String) extends Stmt with IsDeclaration
-case class DefMemory(info: Info, name: String, data_type: Type, depth: Int, write_latency: Int, 
-               read_latency: Int, readers: Seq[String], writers: Seq[String], readwriters: Seq[String]) extends Stmt with IsDeclaration
-case class DefNode(info: Info, name: String, value: Expression) extends Stmt with IsDeclaration
+case class DefInstance(info: Info, name: String, module: String, tpe: Type) extends Stmt with IsDeclaration
+object DefInstance {
+  def apply(info: Info, name: String, module: String, nameMap: Map[String, Module]) = {
+    new DefInstance(info, name, module, nameMap(module).tpe)
+  }
+}
+case class DefMemory(
+    info: Info,
+    name: String,
+    data_type: Type,
+    depth: Int,
+    write_latency: Int,
+    read_latency: Int,
+    readers: Seq[String],
+    writers: Seq[String],
+    readwriters: Seq[String]) extends Stmt with IsDeclaration {
+  def tpe: Type = {
+    val addr = Field("addr",DEFAULT,UIntType(IntWidth(scala.math.max(Utils.ceil_log2(depth), 1))))
+    val en = Field("en",DEFAULT,Utils.BoolType())
+    val clk = Field("clk",DEFAULT,ClockType())
+    val def_data = Field("data",DEFAULT,data_type)
+    val rev_data = Field("data",REVERSE,data_type)
+    val mask = Field("mask",DEFAULT,Utils.create_mask(data_type))
+    val wmode = Field("wmode",DEFAULT,UIntType(IntWidth(1)))
+    val rdata = Field("rdata",REVERSE,data_type)
+    val read_type = BundleType(Seq(rev_data,addr,en,clk))
+    val write_type = BundleType(Seq(def_data,mask,addr,en,clk))
+    val readwrite_type = BundleType(Seq(wmode,rdata,def_data,mask,addr,en,clk))
+
+    BundleType(readers.map(x => Field(x,REVERSE,read_type)) ++
+               writers.map(x => Field(x,REVERSE,write_type)) ++
+               readwriters.map(x => Field(x,REVERSE,readwrite_type)))
+  }
+}
+case class DefNode(info: Info, name: String, value: Expression) extends Stmt with IsDeclaration {
+  def tpe = value.tpe
+}
 case class Conditionally(info: Info, pred: Expression, conseq: Stmt, alt: Stmt) extends Stmt with HasInfo
 case class Begin(stmts: Seq[Stmt]) extends Stmt
 case class BulkConnect(info: Info, loc: Expression, exp: Expression) extends Stmt with HasInfo
@@ -161,16 +248,25 @@ case class VectorType(tpe: Type, size: Int) extends Type
 case class ClockType() extends Type
 case class UnknownType() extends Type
 
-trait Direction extends AST
-case object INPUT extends Direction
-case object OUTPUT extends Direction
+trait Direction extends AST {
+  def toFlip: Flip
+}
+case object INPUT extends Direction {
+  def toFlip = REVERSE
+}
+case object OUTPUT extends Direction {
+  def toFlip = DEFAULT
+}
 
-case class Port(info: Info, name: String, direction: Direction, tpe: Type) extends AST with IsDeclaration
+case class Port(info: Info, name: String, direction: Direction, tpe: Type) extends AST with IsDeclaration {
+  def toField: Field = Field(name, direction.toFlip, tpe)
+}
 
 trait Module extends AST with IsDeclaration {
   val info : Info
   val name : String
   val ports : Seq[Port]
+  def tpe: Type = BundleType(ports map (_.toField))
 }
 case class InModule(info: Info, name: String, ports: Seq[Port], body: Stmt) extends Module
 case class ExModule(info: Info, name: String, ports: Seq[Port]) extends Module
