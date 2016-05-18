@@ -219,7 +219,7 @@ class Visitor(infoMode: InfoMode) extends FIRRTLBaseVisitor[AST]
               case _ => throw new ParserException(s"${info}: Must provide cmem with vector type")
            }
         }
-        case "inst"  => DefInstance(info, (ctx.id(0).getText), (ctx.id(1).getText))
+        case "inst"  => DefInstance(info, (ctx.id(0).getText), (ctx.id(1).getText), UnknownType())
         case "node" =>  DefNode(info, (ctx.id(0).getText), visitExp(ctx.exp(0)))
         case "when" => {
           val alt = if (ctx.block.length > 1) visitBlock(ctx.block(1)) else Empty()
