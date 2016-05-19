@@ -88,25 +88,32 @@ trait BackendCompilationUtilities {
     * @param dir output directory
     * @param vSources list of additional Verilog sources to compile
     * @param cppHarness C++ testharness to compile/link against
+    * @note copied from Chisel3
     */
   def verilogToCpp(
       dutFile: String,
       dir: File,
       vSources: Seq[File],
-      cppHarness: File): ProcessBuilder =
-
-    Seq("verilator",
-        "--cc", s"$dutFile.v") ++
-        vSources.map(file => Seq("-v", file.toString)).flatten ++
-        Seq("--assert",
-            "--Wno-fatal",
-            "--trace",
-            "-O2",
-            "--top-module", dutFile,
-            "+define+TOP_TYPE=V" + dutFile,
-            "-CFLAGS", s"""-Wno-undefined-bool-conversion -O2 -DTOP_TYPE=V$dutFile -include V$dutFile.h""",
-            "-Mdir", dir.toString,
-            "--exe", cppHarness.toString)
+      cppHarness: File
+                  ): ProcessBuilder = {                                                                                                                                                                                                                                                                                     
+    val command = Seq("verilator",
+      "--cc", s"$dutFile.v") ++
+      vSources.map(file => Seq("-v", file.toString)).flatten ++
+      Seq("--assert",
+        "-Wno-fatal",
+        "-Wno-WIDTH",
+        "-Wno-STMTDLY",
+        "--trace",
+        "-O2",
+        "+define+TOP_TYPE=V" + dutFile,
+        s"+define+PRINTF_COND=!$dutFile.reset",
+        "-CFLAGS",
+        s"""-Wno-undefined-bool-conversion -O2 -DTOP_TYPE=V$dutFile -include V$dutFile.h""",
+        "-Mdir", dir.toString,
+        "--exe", cppHarness.toString)
+    System.out.println(s"${command.mkString(" ")}") // scalastyle:ignore regex
+    command
+  }
 
   def cppToExe(prefix: String, dir: File): ProcessBuilder =
     Seq("make", "-C", dir.toString, "-j", "-f", s"V${prefix}.mk", s"V${prefix}")
