@@ -58,7 +58,7 @@ class Namespace private {
 object Namespace {
   def apply(): Namespace = new Namespace
 
-  // Initializes a namespace from a Module
+  // Initializes a [[Namespace]] for members of a [[Module]]
   def apply(m: Module): Namespace = {
     val namespace = new Namespace
 
@@ -81,6 +81,15 @@ object Namespace {
       case _ => // Do nothing
     }
 
+    namespace
+  }
+
+  /** Initializes a [[Namespace]] for [[Module]] names in a [[Circuit]] */
+  def apply(c: Circuit): Namespace = {
+    val namespace = new Namespace
+    c.modules foreach { m =>
+      namespace.namespace += m.name
+    }
     namespace
   }
 }
