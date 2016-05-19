@@ -57,6 +57,19 @@ object Utils extends LazyLogging {
     logger.info(f"$name took $timeMillis%.1f ms\n")
     result
   }
+  /** Recursively filters out [[Empty]] Statements */
+  def squashEmpty(s: Stmt): Stmt = {
+    s map squashEmpty match {
+      case Begin(stmts) =>
+        val newStmts = stmts filter (_ != Empty())
+        newStmts.size match {
+          case 0 => Empty()
+          case 1 => newStmts.head
+          case _ => Begin(newStmts)
+        }
+      case s => s
+    }
+  }
 
    implicit class WithAs[T](x: T) {
      import scala.reflect._
