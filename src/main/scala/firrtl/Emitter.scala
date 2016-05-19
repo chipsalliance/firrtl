@@ -355,12 +355,6 @@ class VerilogEmitter extends Emitter {
          Seq(nx,"[",long_BANG(t) - 1,":0]")
       }
       def initialize (e:Expression) = initials += Seq(e," = ",rand_string(tpe(e)),";")
-      def initialize_mem(s: DefMemory) = {
-        val index = WRef("initvar", s.data_type, ExpKind(), UNKNOWNGENDER)
-        val rstring = rand_string(s.data_type)
-        initials += Seq("for (initvar = 0; initvar < ", s.depth, "; initvar = initvar+1)")
-        initials += Seq(tab, WSubAccess(wref(s.name, s.data_type), index, s.data_type, FEMALE), " = ", rstring,";")
-      }
       def instantiate (n:String,m:String,es:Seq[Expression]) = {
          instdeclares += Seq(m," ",n," (")
          (es,0 until es.size).zipped.foreach{ (e,i) => {
@@ -399,17 +393,6 @@ class VerilogEmitter extends Emitter {
 	       val strx = Seq(q + VerilogStringLitHandler.escape(str) + q) ++
                     args.flatMap(x => Seq(",",x))
          Seq("$fwrite(32'h80000002,",strx,");")
-      }
-      def delay (e:Expression, n:Int, clk:Expression) : Expression = {
-         var ex = e
-         for (i <- 0 until n) {
-            val name = namespace.newTemp
-            declare("reg",name,tpe(e))
-            val exx = WRef(name,tpe(e),ExpKind(),UNKNOWNGENDER)
-            update(exx,ex,clk,one)
-            ex = exx
-         }
-         ex
       }
       def build_ports () = {
          (m.ports,0 until m.ports.size).zipped.foreach{(p,i) => {
@@ -457,105 +440,6 @@ class VerilogEmitter extends Emitter {
             case (s:WDefInstance) => {
                val es = create_exps(WRef(s.name,s.tpe,InstanceKind(),MALE))
                instantiate(s.name,s.module,es)
-            }
-            case (s:DefMemory) => {
-               val mem = WRef(s.name,get_type(s),MemKind(s.readers ++ s.writers ++ s.readwriters),UNKNOWNGENDER)
-               def mem_exp (p:String,f:String) = {
-                  val t1 = field_type(mem.tpe,p)
-                  val t2 = field_type(t1,f)
-                  val x = WSubField(mem,p,t1,UNKNOWNGENDER)
-                  WSubField(x,f,t2,UNKNOWNGENDER)
-               }
-      
-               declare("reg",s.name,VectorType(s.data_type,s.depth))
-               initialize_mem(s)
-               for (r <- s.readers ) {
-                  val data = mem_exp(r,"data")
-                  val addr = mem_exp(r,"addr")
-                  val en = mem_exp(r,"en")
-                  //Ports should share an always@posedge, so can't have intermediary wire
-                  val clk = netlist(mem_exp(r,"clk")) 
-                  
-                  declare("wire",LowerTypes.loweredName(data),tpe(data))
-                  declare("wire",LowerTypes.loweredName(addr),tpe(addr))
-                  declare("wire",LowerTypes.loweredName(en),tpe(en))
-   
-                  //; Read port
-                  assign(addr,netlist(addr)) //;Connects value to m.r.addr
-                  assign(en,netlist(en))     //;Connects value to m.r.en
-                  val addrx = delay(addr,s.read_latency,clk)
-                  val enx = delay(en,s.read_latency,clk)
-                  val mem_port = WSubAccess(mem,addrx,s.data_type,UNKNOWNGENDER)
-                  assign(data,mem_port)
-               }
-   
-               for (w <- s.writers ) {
-                  val data = mem_exp(w,"data")
-                  val addr = mem_exp(w,"addr")
-                  val mask = mem_exp(w,"mask")
-                  val en = mem_exp(w,"en")
-                  //Ports should share an always@posedge, so can't have intermediary wire
-                  val clk = netlist(mem_exp(w,"clk"))
-                  
-                  declare("wire",LowerTypes.loweredName(data),tpe(data))
-                  declare("wire",LowerTypes.loweredName(addr),tpe(addr))
-                  declare("wire",LowerTypes.loweredName(mask),tpe(mask))
-                  declare("wire",LowerTypes.loweredName(en),tpe(en))
-   
-                  //; Write port
-                  assign(data,netlist(data))
-                  assign(addr,netlist(addr))
-                  assign(mask,netlist(mask))
-                  assign(en,netlist(en))
-   
-                  val datax = delay(data,s.write_latency - 1,clk)
-                  val addrx = delay(addr,s.write_latency - 1,clk)
-                  val maskx = delay(mask,s.write_latency - 1,clk)
-                  val enx = delay(en,s.write_latency - 1,clk)
-                  val mem_port = WSubAccess(mem,addrx,s.data_type,UNKNOWNGENDER)
-                  update(mem_port,datax,clk,AND(enx,maskx))
-               }
-   
-               for (rw <- s.readwriters) {
-                  val wmode = mem_exp(rw,"wmode")
-                  val rdata = mem_exp(rw,"rdata")
-                  val data = mem_exp(rw,"data")
-                  val mask = mem_exp(rw,"mask")
-                  val addr = mem_exp(rw,"addr")
-                  val en = mem_exp(rw,"en")
-                  //Ports should share an always@posedge, so can't have intermediary wire
-                  val clk = netlist(mem_exp(rw,"clk"))
-                  
-                  declare("wire",LowerTypes.loweredName(wmode),tpe(wmode))
-                  declare("wire",LowerTypes.loweredName(rdata),tpe(rdata))
-                  declare("wire",LowerTypes.loweredName(data),tpe(data))
-                  declare("wire",LowerTypes.loweredName(mask),tpe(mask))
-                  declare("wire",LowerTypes.loweredName(addr),tpe(addr))
-                  declare("wire",LowerTypes.loweredName(en),tpe(en))
-   
-                  //; Assigned to lowered wires of each
-                  assign(addr,netlist(addr))
-                  assign(data,netlist(data))
-                  assign(addr,netlist(addr))
-                  assign(mask,netlist(mask))
-                  assign(en,netlist(en))
-                  assign(wmode,netlist(wmode))
-   
-                  //; Delay new signals by latency
-                  val raddrx = delay(addr,s.read_latency,clk)
-                  val waddrx = delay(addr,s.write_latency - 1,clk)
-                  val enx = delay(en,s.write_latency - 1,clk)
-                  val rmodx = delay(wmode,s.write_latency - 1,clk)
-                  val datax = delay(data,s.write_latency - 1,clk)
-                  val maskx = delay(mask,s.write_latency - 1,clk)
-   
-                  //; Write 
-   
-                  val rmem_port = WSubAccess(mem,raddrx,s.data_type,UNKNOWNGENDER)
-                  assign(rdata,rmem_port)
-                  val wmem_port = WSubAccess(mem,waddrx,s.data_type,UNKNOWNGENDER)
-                  update(wmem_port,datax,clk,AND(AND(enx,maskx),wmode))
-               }
             }
             case (s:Begin) => s map (build_streams)
          }
