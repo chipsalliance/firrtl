@@ -36,6 +36,7 @@ import org.scalatest._
 import org.scalatest.prop._
 import org.scalatest.Assertions._
 import org.scalacheck._
+import Chisel.testers.TesterDriver.copyResourceToFile
 
 class PrintfSpec extends FirrtlPropSpec {
 
@@ -45,7 +46,7 @@ class PrintfSpec extends FirrtlPropSpec {
     val harness = new File(testDir, s"top.cpp")
     copyResourceToFile(cppHarness.toString, harness)
 
-    verilogToCpp(prefix, testDir, Seq(), harness).!
+    verilogToCpp(prefix, prefix, testDir, Seq(), harness).!
     cppToExe(prefix, testDir).!
 
     // Check for correct Printf:
