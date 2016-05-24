@@ -128,6 +128,7 @@ Options:
       case Some("high") => compile(input, output, new HighFirrtlCompiler(), infoMode, allAnnotations)
       case Some("low") => compile(input, output, new LowFirrtlCompiler(), infoMode, allAnnotations)
       case Some("verilog") => compile(input, output, new VerilogCompiler(), infoMode, allAnnotations)
+      case Some("verilogCoverage") => compile(input, output, new VerilogCoverageCompiler(), infoMode, allAnnotations)
       case Some(other) => throw new Exception("Unknown compiler option: " + other)
       case None => throw new Exception("No specified compiler option.")
     }

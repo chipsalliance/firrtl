@@ -200,3 +200,17 @@ class VerilogCompiler extends Compiler {
       new EmitVerilogFromLowFirrtl(writer)
    )
 }
+
+// Emits Verilog with When Coverage
+class VerilogCoverageCompiler extends Compiler {
+   def transforms(writer: Writer): Seq[Transform] = Seq(
+      new Chisel3ToHighFirrtl(),
+      new IRToWorkingIR(),
+      new ResolveAndCheck(),
+      new passes.Coverage("clk", "reset"),
+      new HighFirrtlToMiddleFirrtl(),
+      new MiddleFirrtlToLowFirrtl(),
+      passes.InlineInstances,
+      new EmitVerilogFromLowFirrtl(writer)
+   )
+}
