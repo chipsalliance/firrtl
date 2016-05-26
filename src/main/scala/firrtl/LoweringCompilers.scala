@@ -30,6 +30,7 @@ package firrtl
 import com.typesafe.scalalogging.LazyLogging
 import java.io.Writer
 import firrtl.passes.Pass
+import Annotations._
 
 // ===========================================
 //              Utility Traits
@@ -63,7 +64,7 @@ class Chisel3ToHighFirrtl () extends Transform with SimpleRun {
       passes.CInferTypes,
       passes.CInferMDir,
       passes.RemoveCHIRRTL)
-   def execute (circuit: Circuit, annotations: Seq[CircuitAnnotation]): TransformResult =
+   def execute (circuit: Circuit, annotationMap: AnnotationMap): TransformResult =
       run(circuit, passSeq)
 }
 
@@ -71,7 +72,7 @@ class Chisel3ToHighFirrtl () extends Transform with SimpleRun {
 //  to a working representation (WIR.scala)
 class IRToWorkingIR () extends Transform with SimpleRun {
    val passSeq = Seq(passes.ToWorkingIR)
-   def execute (circuit: Circuit, annotations: Seq[CircuitAnnotation]): TransformResult =
+   def execute (circuit: Circuit, annotationMap: AnnotationMap): TransformResult =
       run(circuit, passSeq)
 }
 
@@ -90,7 +91,7 @@ class ResolveAndCheck () extends Transform with SimpleRun {
       passes.CheckGenders,
       passes.InferWidths,
       passes.CheckWidths)
-   def execute (circuit: Circuit, annotations: Seq[CircuitAnnotation]): TransformResult =
+   def execute (circuit: Circuit, annotationMap: AnnotationMap): TransformResult =
       run(circuit, passSeq)
 }
 
@@ -105,11 +106,12 @@ class HighFirrtlToMiddleFirrtl () extends Transform with SimpleRun {
       passes.RemoveAccesses,
       passes.ExpandWhens,
       passes.CheckInitialization,
+      passes.ConstProp,
       passes.ResolveKinds,
       passes.InferTypes,
       passes.ResolveGenders,
       passes.InferWidths)
-   def execute (circuit: Circuit, annotations: Seq[CircuitAnnotation]): TransformResult =
+   def execute (circuit: Circuit, annotationMap: AnnotationMap): TransformResult =
       run(circuit, passSeq)
 }
 
@@ -125,7 +127,7 @@ class MiddleFirrtlToLowFirrtl () extends Transform with SimpleRun {
       passes.InferTypes,
       passes.ResolveGenders,
       passes.InferWidths)
-   def execute (circuit: Circuit, annotations: Seq[CircuitAnnotation]): TransformResult =
+   def execute (circuit: Circuit, annotationMap: AnnotationMap): TransformResult =
       run(circuit, passSeq)
 }
 
@@ -145,7 +147,7 @@ class EmitVerilogFromLowFirrtl (val writer: Writer) extends Transform with Simpl
       passes.CommonSubexpressionElimination,
       passes.DeadCodeElimination,
       passes.VerilogRename)
-   def execute (circuit: Circuit, annotations: Seq[CircuitAnnotation]): TransformResult = {
+   def execute (circuit: Circuit, annotationMap: AnnotationMap): TransformResult = {
       val result = run(circuit, passSeq)
       (new VerilogEmitter).run(result.circuit, writer)
       result
@@ -155,7 +157,7 @@ class EmitVerilogFromLowFirrtl (val writer: Writer) extends Transform with Simpl
 // Emits Firrtl.
 // Operates on WIR/IR nodes.
 class EmitFirrtl (val writer: Writer) extends Transform {
-   def execute (circuit: Circuit, annotations: Seq[CircuitAnnotation]): TransformResult = {
+   def execute (circuit: Circuit, annotationMap: AnnotationMap): TransformResult = {
       FIRRTLEmitter.run(circuit, writer)
       TransformResult(circuit)
    }
@@ -180,7 +182,7 @@ class LowFirrtlCompiler extends Compiler {
    def transforms(writer: Writer): Seq[Transform] = Seq(
       new Chisel3ToHighFirrtl(),
       new IRToWorkingIR(),
-      passes.InlineInstances,
+      new passes.InlineInstances(TransID(0)),
       new ResolveAndCheck(),
       new HighFirrtlToMiddleFirrtl(),
       new MiddleFirrtlToLowFirrtl(),
@@ -196,7 +198,7 @@ class VerilogCompiler extends Compiler {
       new ResolveAndCheck(),
       new HighFirrtlToMiddleFirrtl(),
       new MiddleFirrtlToLowFirrtl(),
-      passes.InlineInstances,
+      new passes.InlineInstances(TransID(0)),
       new EmitVerilogFromLowFirrtl(writer)
    )
 }
