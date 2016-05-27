@@ -106,6 +106,12 @@ object Utils extends LazyLogging {
       else DoPrim(EQUAL_OP,Seq(e1.e1,zero),Seq(),UIntType(IntWidth(1)))
    }
 
+   def md5(string: String): String = {
+      val message = java.security.MessageDigest.getInstance("MD5")
+      val bytes = string.getBytes("UTF-8")
+      message.update(bytes, 0, bytes.length)
+      new java.math.BigInteger(1, message.digest()).toString(16)
+   }
    
    //def MUX (p:Expression,e1:Expression,e2:Expression) : Expression = {
    //   Mux(p,e1,e2,mux_type(tpe(e1),tpe(e2)))

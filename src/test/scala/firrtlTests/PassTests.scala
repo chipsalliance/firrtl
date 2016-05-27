@@ -31,8 +31,10 @@ abstract class SimpleTransformSpec extends FlatSpec with Matchers with Compiler 
    // Executes the test. Call in tests.
    def execute(writer: Writer, annotations: AnnotationMap, input: String, check: String) = {
       compile(parse(input), annotations, writer)
-      logger.debug(writer.toString)
-      logger.debug(check)
+      println(writer.toString)
+      println(check)
+      //logger.debug(writer.toString)
+      //logger.debug(check)
       (parse(writer.toString)) should be (parse(check))
    }
    // Executes the test, should throw an error
