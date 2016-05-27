@@ -36,16 +36,6 @@ import Utils._
 import Parser.{InfoMode, IgnoreInfo, UseInfo, GenInfo, AppendInfo}
 
 object Driver {
-  private val usage = """
-Usage: sbt "run-main firrtl.Driver -i <input_file> -o <output_file> -X <compiler>"
-       firrtl -i <input_file> -o <output_file> -X <compiler> [options]
-Options:
-  -X <compiler>         Specify the target compiler
-                        Currently supported: high low verilog
-  --info-mode <mode>    Specify Info Mode
-                        Supported modes: ignore, use, gen, append
-  """
-
   // Compiles circuit. First parses a circuit from an input file,
   //  executes all compiler passes, and writes result to an output
   //  file.
@@ -69,11 +59,14 @@ Options:
    */
   def main(args: Array[String]) = {
     val usage = """
-    Usage: sbt "run-main firrtl.google.Driver -i <input_file> -o <output_file> -X <compiler> [--inline [<module_name>|<module_name>.<instance_name>]]"
+    Usage: sbt "run-main firrtl.Driver -i <input_file> -o <output_file> -X <compiler> [--inline [<module_name>|<module_name>.<instance_name>]]"
            firrtl -i <input_file> -o <output_file> -X <compiler> [--inline [<module_name>|<module_name>.<instance_name>]]
     Options:
-          -X <compiler>    Specify the target compiler
-                           Currently supported: high low verilog
+      -X <compiler>                                          Specify the target compiler
+                                                             Currently supported: high low verilog
+      --info-mode <mode>                                     Specify Info Mode
+                                                             Supported modes: ignore, use, gen, append
+      --inline [<module_name>|<module_name>.<instance_name>] Specify which instances to inline
     """
 
     def handleInlineOption(value: String): Annotation =
