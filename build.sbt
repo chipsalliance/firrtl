@@ -36,3 +36,5 @@ antlr4GenListener in Antlr4 := false // default = true
 
 antlr4PackageName in Antlr4 := Option("firrtl.antlr")
 
+parallelExecution in Test := false
+
