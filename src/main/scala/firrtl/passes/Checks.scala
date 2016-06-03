@@ -30,7 +30,7 @@ package firrtl.passes
 import com.typesafe.scalalogging.LazyLogging
 
 // Datastructures
-import scala.collection.mutable.HashMap
+import scala.collection.mutable.{HashMap, HashSet}
 import scala.collection.mutable.ArrayBuffer
 
 import firrtl._
@@ -61,6 +61,36 @@ object CheckHighForm extends Pass with LazyLogging {
   class BadPrintfException(x: Char) extends PassException(s"${sinfo}: [module ${mname}] Bad printf format: " + "\"%" + x + "\"")
   class BadPrintfTrailingException extends PassException(s"${sinfo}: [module ${mname}] Bad printf format: trailing " + "\"%\"")
   class BadPrintfIncorrectNumException extends PassException(s"${sinfo}: [module ${mname}] Bad printf format: incorrect number of arguments")
+  class InstanceLoop(loop: String) extends PassException(s"${sinfo}: [module ${mname}] Has instance loop $loop")
+
+  class ModuleGraph {
+    val nodes = new HashMap[String, HashSet[String]]
+
+    def add(parent: String, child: String): List[String] = {
+      val childSet = nodes.getOrElseUpdate(parent, new HashSet[String])
+      childSet += child
+      pathExists(child, parent, List(child, parent))
+    }
+
+    def pathExists(child: String, parent: String, path: List[String] = Nil): List[String] = {
+      nodes.get(child) match {
+        case Some(children) =>
+          if(children.contains(parent)) {
+            parent :: path
+          }
+          else {
+            children.foreach { grandchild =>
+              val newPath = pathExists(grandchild, parent, grandchild :: path)
+              if(newPath.nonEmpty)
+                return newPath
+              }
+            Nil
+            }
+        case _ => Nil
+      }
+    }
+  }
+  val moduleGraph = new ModuleGraph
 
   // Utility functions
   def hasFlip(t: Type): Boolean = {
@@ -220,6 +250,10 @@ object CheckHighForm extends Pass with LazyLogging {
           case s: WDefInstance => { 
             if (!c.modules.map(_.name).contains(s.module))
               errors.append(new ModuleNotDefinedException(s.module))
+            val childToParent = moduleGraph.add(mname, s.module)
+            if(childToParent.nonEmpty) {
+              errors.append(new InstanceLoop(childToParent.mkString("->")))
+            }
           }
           case s: Connect => checkValidLoc(s.loc)
           case s: BulkConnect => checkValidLoc(s.loc)
