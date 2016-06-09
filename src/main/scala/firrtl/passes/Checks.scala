@@ -30,8 +30,7 @@ package firrtl.passes
 import com.typesafe.scalalogging.LazyLogging
 
 // Datastructures
-import scala.collection.mutable.{HashMap, HashSet}
-import scala.collection.mutable.ArrayBuffer
+import scala.collection._
 
 import firrtl._
 import firrtl.Utils._
@@ -70,7 +69,7 @@ object CheckHighForm extends Pass with LazyLogging {
     * The graph is a map between the name of a node to set of names of that nodes children
     */
   class ModuleGraph {
-    val nodes = new HashMap[String, HashSet[String]]
+    val nodes = new mutable.HashMap[String, mutable.HashSet[String]]
 
     /**
       * Add a child to a parent node
@@ -81,7 +80,7 @@ object CheckHighForm extends Pass with LazyLogging {
       * @return a list indicating a path from child to parent, empty if no such path
       */
     def add(parent: String, child: String): List[String] = {
-      val childSet = nodes.getOrElseUpdate(parent, new HashSet[String])
+      val childSet = nodes.getOrElseUpdate(parent, new mutable.HashSet[String])
       childSet += child
       pathExists(child, parent, List(child, parent))
     }
@@ -226,8 +225,8 @@ object CheckHighForm extends Pass with LazyLogging {
     }
 
     def checkHighFormM(m: Module): Module = {
-      val names = HashMap[String, Boolean]()
-      val mnames = HashMap[String, Boolean]()
+      val names = mutable.HashMap[String, Boolean]()
+      val mnames = mutable.HashMap[String, Boolean]()
       def checkHighFormE(e: Expression): Expression = {
         def validSubexp(e: Expression): Expression = {
           e match {
@@ -574,7 +573,7 @@ object CheckGenders extends Pass {
          }
       }
    
-      def check_gender (info:Info,genders:HashMap[String,Gender],desired:Gender)(e:Expression) : Expression = {
+      def check_gender (info:Info,genders:mutable.HashMap[String,Gender],desired:Gender)(e:Expression) : Expression = {
          val gender = get_gender(e,genders)
          val kindx = get_kind(e)
          def flipQ (t:Type) : Boolean = {
@@ -617,7 +616,7 @@ object CheckGenders extends Pass {
          e
       }
    
-      def get_gender (e:Expression,genders:HashMap[String,Gender]) : Gender = {
+      def get_gender (e:Expression,genders:mutable.HashMap[String,Gender]) : Gender = {
          (e) match { 
             case (e:WRef) => genders(e.name)
             case (e:WSubField) => 
@@ -633,7 +632,7 @@ object CheckGenders extends Pass {
          }
       }
    
-      def check_genders_e (info:Info,genders:HashMap[String,Gender])(e:Expression) : Expression = {
+      def check_genders_e (info:Info,genders:mutable.HashMap[String,Gender])(e:Expression) : Expression = {
          e map (check_genders_e(info,genders))
          (e) match { 
             case (e:WRef) => false
@@ -649,7 +648,7 @@ object CheckGenders extends Pass {
          e
       }
         
-      def check_genders_s (genders:HashMap[String,Gender])(s:Stmt) : Stmt = {
+      def check_genders_s (genders:mutable.HashMap[String,Gender])(s:Stmt) : Stmt = {
          s map (check_genders_e(get_info(s),genders))
          s map (check_genders_s(genders))
          (s) match { 
@@ -692,7 +691,7 @@ object CheckGenders extends Pass {
    
       for (m <- c.modules ) {
          mname = m.name
-         val genders = HashMap[String,Gender]()
+         val genders = mutable.HashMap[String,Gender]()
          for (p <- m.ports) {
             genders(p.name) = dir_to_gender(p.direction)
          }
