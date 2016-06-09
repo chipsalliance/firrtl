@@ -249,29 +249,6 @@ class InlineInstancesTests extends HighTransformSpec {
       val annotation = StickyCircuitAnnotation(InlineCAKind,map)
       failingexecute(writer, Seq(annotation), input)
    }
-   "Instance loops" should "be detected" in {
-      val input =
-        """
-          |circuit Foo :
-          |  module Foo :
-          |    input a : UInt<32>
-          |    output b : UInt<32>
-          |    inst bar of Bar
-          |    bar.a <= a
-          |    b <= bar.b
-          |
-          |  module Bar :
-          |    input a : UInt<32>
-          |    output b : UInt<32>
-          |    inst foo of Foo
-          |    foo.a <= a
-          |    b <= foo.b
-        """.stripMargin
-      val writer = new StringWriter()
-      val map: Map[Named, Annotation] = Map(ModuleName("Bar") -> TagAnnotation)
-      val annotation = StickyCircuitAnnotation(InlineCAKind,map)
-      failingexecute(writer, Seq(annotation), input)
-   }
 }
 
 // Execution driven tests for inlining modules
