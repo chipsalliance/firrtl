@@ -59,15 +59,15 @@ class CheckSpec extends FlatSpec with Matchers {
       CheckHighForm)
     val input =
       """
-        |circuit Foo :
-        |  module Foo :
+        |circuit Dog :
+        |  module Dog :
         |    input a : UInt<32>
         |    output b : UInt<32>
-        |    inst bar of Bar
+        |    inst bar of Cat
         |    bar.a <= a
         |    b <= bar.b
         |
-        |  module Bar :
+        |  module Cat :
         |    input a : UInt<32>
         |    output b : UInt<32>
         |    inst ik of Ik
@@ -77,7 +77,7 @@ class CheckSpec extends FlatSpec with Matchers {
         |  module Ik :
         |    input a : UInt<32>
         |    output b : UInt<32>
-        |    inst foo of Foo
+        |    inst foo of Dog
         |    foo.a <= a
         |    b <= foo.b
         |      """.stripMargin
@@ -94,11 +94,11 @@ class CheckSpec extends FlatSpec with Matchers {
       CheckHighForm)
     val input =
       """
-        |circuit Foo :
-        |  module Foo :
+        |circuit Apple :
+        |  module Apple :
         |    input a : UInt<32>
         |    output b : UInt<32>
-        |    inst recurse_foo of Foo
+        |    inst recurse_foo of Apple
         |    recurse_foo.a <= a
         |    b <= recurse_foo.b
         |      """.stripMargin
@@ -115,22 +115,22 @@ class CheckSpec extends FlatSpec with Matchers {
       CheckHighForm)
     val input =
       """
-        |circuit Foo :
-        |  module Foo :
+        |circuit Hammer :
+        |  module Hammer :
         |    input a : UInt<32>
         |    output b : UInt<32>
-        |    inst bar of Bar
+        |    inst bar of Chisel
         |    bar.a <= a
         |    b <= bar.b
         |
-        |  module Bar :
+        |  module Chisel :
         |    input a : UInt<32>
         |    output b : UInt<32>
-        |    inst ik of Ik
+        |    inst ik of Saw
         |    ik.a <= a
         |    b <= ik.b
         |
-        |  module Ik :
+        |  module Saw :
         |    input a : UInt<32>
         |    output b : UInt<32>
         |    b <= a

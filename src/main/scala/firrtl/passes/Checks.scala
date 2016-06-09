@@ -90,7 +90,6 @@ object CheckHighForm extends Pass with LazyLogging {
       }
     }
   }
-  val moduleGraph = new ModuleGraph
 
   // Utility functions
   def hasFlip(t: Type): Boolean = {
@@ -117,6 +116,8 @@ object CheckHighForm extends Pass with LazyLogging {
   private var sinfo: Info = NoInfo
   def run (c:Circuit): Circuit = {
     val errors = new Errors()
+    val moduleGraph = new ModuleGraph
+
     def checkHighFormPrimop(e: DoPrim) = {
       def correctNum(ne: Option[Int], nc: Int) = {
         ne match {
