@@ -57,7 +57,6 @@ class Errors {
     case 0 =>
     case 1 => throw errors.head
     case _ =>
-      println(errors.map { e => e.getMessage}.mkString("multiple errors", "\n", ""))
       append(new PassException(s"${errors.length} errors detected!"))
       throw new PassExceptions(errors)
   }
