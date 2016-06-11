@@ -354,6 +354,11 @@ object CheckTypes extends Pass with LazyLogging {
          case BITS_SELECT_OP =>  all_ground(e.args)
          case HEAD_OP =>  all_ground(e.args)
          case TAIL_OP =>  all_ground(e.args)
+         // WIR
+         case ADDW_OP => all_ground(e.args)
+         case SUBW_OP => all_ground(e.args)
+         case DSHLW_OP => is_uint(e.args(1)); all_ground(e.args)
+         case SHLW_OP => all_ground(e.args)
       }
    }
       

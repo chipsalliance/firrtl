@@ -59,7 +59,7 @@ trait SimpleRun extends LazyLogging {
 //  circuit has only IR nodes, not WIR.
 // TODO(izraelevitz): Create RenameMap from RemoveCHIRRTL
 class Chisel3ToHighFirrtl () extends Transform with SimpleRun {
-   val passSeq = Seq(
+   def passSeq = Seq(
       passes.CInferTypes,
       passes.CInferMDir,
       passes.RemoveCHIRRTL)
@@ -70,7 +70,7 @@ class Chisel3ToHighFirrtl () extends Transform with SimpleRun {
 // Converts from the bare intermediate representation (IR.scala)
 //  to a working representation (WIR.scala)
 class IRToWorkingIR () extends Transform with SimpleRun {
-   val passSeq = Seq(passes.ToWorkingIR)
+   def passSeq = Seq(passes.ToWorkingIR)
    def execute (circuit: Circuit, annotations: Seq[CircuitAnnotation]): TransformResult =
       run(circuit, passSeq)
 }
@@ -78,7 +78,7 @@ class IRToWorkingIR () extends Transform with SimpleRun {
 // Resolves types, kinds, and genders, and checks the circuit legality.
 // Operates on working IR nodes and high Firrtl.
 class ResolveAndCheck () extends Transform with SimpleRun {
-   val passSeq = Seq(
+   def passSeq = Seq(
       passes.CheckHighForm,
       passes.ResolveKinds,
       passes.InferTypes,
@@ -99,7 +99,7 @@ class ResolveAndCheck () extends Transform with SimpleRun {
 //  well-formed graph.
 // Operates on working IR nodes.
 class HighFirrtlToMiddleFirrtl () extends Transform with SimpleRun {
-   val passSeq = Seq(
+   def passSeq = Seq(
       passes.PullMuxes,
       passes.ExpandConnects,
       passes.RemoveAccesses,
@@ -118,8 +118,7 @@ class HighFirrtlToMiddleFirrtl () extends Transform with SimpleRun {
 // Operates on working IR nodes.
 // TODO(izraelevitz): Create RenameMap from RemoveCHIRRTL
 class MiddleFirrtlToLowFirrtl () extends Transform with SimpleRun {
-   val passSeq = Seq(
-      passes.Legalize,
+   def passSeq = Seq(
       passes.LowerTypes,
       passes.ResolveKinds,
       passes.InferTypes,
@@ -136,10 +135,11 @@ class MiddleFirrtlToLowFirrtl () extends Transform with SimpleRun {
 // Operates on working IR nodes.
 // TODO(izraelevitz): Create RenameMap from VerilogRename
 class EmitVerilogFromLowFirrtl (val writer: Writer) extends Transform with SimpleRun {
-   val passSeq = Seq(
+   def passSeq = Seq(
       passes.RemoveValidIf,
       passes.ConstProp,
       passes.PadWidths,
+      passes.Legalize,
       passes.VerilogWrap,
       passes.SplitExpressions,
       passes.CommonSubexpressionElimination,

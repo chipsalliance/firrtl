@@ -902,42 +902,62 @@ object RemoveAccesses extends Pass {
 // TODO replace UInt with zero-width wire instead
 object Legalize extends Pass {
   def name = "Legalize"
-  def legalizeShiftRight (e: DoPrim): Expression = e.op match {
-    case SHIFT_RIGHT_OP => {
-      val amount = e.consts(0).toInt
-      val width = long_BANG(tpe(e.args(0)))
-      lazy val msb = width - 1
-      if (amount >= width) {
-        e.tpe match {
-          case t: UIntType => UIntValue(0, IntWidth(1))
-          case t: SIntType =>
-            DoPrim(BITS_SELECT_OP, e.args, Seq(msb, msb), SIntType(IntWidth(1)))
-          case t => error(s"Unsupported type ${t} for Primop Shift Right")
-        }
-      } else {
-        e
+  private def legalizeShiftRight(e: DoPrim): Expression = {
+    val amount = e.consts(0).toInt
+    val width = long_BANG(e.args(0).tpe)
+    lazy val msb = width - 1
+    if (amount >= width) {
+      e.tpe match {
+        case UIntType(_) => UIntValue(0, IntWidth(1))
+        case SIntType(_) =>
+          val e2 = DoPrim(BITS_SELECT_OP, e.args, Seq(msb, msb), UIntType(IntWidth(1)))
+          DoPrim(AS_SINT_OP, Seq(e2), Seq(), SIntType(IntWidth(1)))
+        case t => error(s"Unsupported type ${t} for Primop Shift Right")
       }
+    } else {
+      e
     }
-    case _ => e
   }
-  def legalizeConnect(c: Connect): Stmt = {
-    val t = tpe(c.loc)
+  private def legalizeBits(expr: DoPrim): Expression = {
+    lazy val (hi, low) = (expr.consts(0), expr.consts(1))
+    lazy val mask = (BigInt(1) << (hi - low + 1).toInt) - 1
+    lazy val width = IntWidth(hi - low + 1)
+    expr.args.head match {
+      case UIntValue(value, _) => UIntValue((value >> low.toInt) & mask, width)
+      case SIntValue(value, _) => SIntValue((value >> low.toInt) & mask, width)
+      case _ => expr
+    }
+  }
+  private def legalizePad(expr: DoPrim): Expression = expr.args.head match {
+    case UIntValue(value, IntWidth(width)) if (width < expr.consts.head) =>
+      UIntValue(value, IntWidth(expr.consts.head))
+    case SIntValue(value, IntWidth(width)) if (width < expr.consts.head) =>
+      SIntValue(value, IntWidth(expr.consts.head))
+    case _ => expr
+  }
+  private def legalizeConnect(c: Connect): Stmt = {
+    val t = c.loc.tpe
     val w = long_BANG(t)
-    if (w >= long_BANG(tpe(c.exp))) c
-    else {
-      val newType = t match {
-        case _: UIntType => UIntType(IntWidth(w))
-        case _: SIntType => SIntType(IntWidth(w))
+    if (w >= long_BANG(c.exp.tpe)) {
+      c
+    } else {
+      val e1 = DoPrim(BITS_SELECT_OP, Seq(c.exp), Seq(w-1, 0), UIntType(IntWidth(w)))
+      val e2 = t match {
+        case UIntType(_) => e1
+        case SIntType(_) => DoPrim(AS_SINT_OP, Seq(e1), Seq(), SIntType(IntWidth(w)))
       }
-      Connect(c.info, c.loc, DoPrim(BITS_SELECT_OP, Seq(c.exp), Seq(w-1, 0), newType))
+      Connect(c.info, c.loc, e2)
     }
   }
   def run (c: Circuit): Circuit = {
-    def legalizeE (e: Expression): Expression = {
-      e map (legalizeE) match {
-        case e: DoPrim => legalizeShiftRight(e)
-        case e => e
+    def legalizeE (expr: Expression): Expression = expr map legalizeE match {
+      case prim: DoPrim => prim.op match {
+        case SHIFT_RIGHT_OP => legalizeShiftRight(prim)
+        case PAD_OP => legalizePad(prim)
+        case BITS_SELECT_OP => legalizeBits(prim)
+        case _ => prim
       }
+      case e => e // respect pre-order traversal
     }
     def legalizeS (s: Stmt): Stmt = {
       val legalizedStmt = s match {

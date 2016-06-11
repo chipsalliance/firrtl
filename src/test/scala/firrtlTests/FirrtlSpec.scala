@@ -129,7 +129,45 @@ trait BackendCompilationUtilities {
   }
 }
 
-trait FirrtlRunners extends BackendCompilationUtilities {
+/** Debug Compilers insert additional checks into compilation */
+trait DebugCompilers {
+  // Check passes to insert
+  private val checks = Seq(
+    passes.CheckTypes,
+    passes.CheckGenders,
+    passes.CheckWidths)
+  // Passes exempt from checking
+  private val exempt = Seq(
+    passes.LowerTypes,
+    passes.ResolveKinds,
+    passes.InferTypes,
+    passes.ResolveGenders,
+    passes.InferWidths)
+
+  private def insertChecks(list: Seq[passes.Pass]): Seq[passes.Pass] =
+    list flatMap (p => if (exempt.contains(p)) Seq(p) else p +: checks)
+
+  class DebugHighFirrtlToMiddleFirrtl extends HighFirrtlToMiddleFirrtl {
+    override def passSeq = insertChecks(super.passSeq)
+  }
+  class DebugMiddleFirrtlToLowFirrtl extends MiddleFirrtlToLowFirrtl {
+    override def passSeq = insertChecks(super.passSeq)
+  }
+  class DebugEmitVerilogFromLowFirrtl(writer: Writer) extends EmitVerilogFromLowFirrtl(writer) {
+    override def passSeq = insertChecks(super.passSeq)
+  }
+  class DebugVerilogCompiler extends VerilogCompiler {
+    override def transforms(writer: Writer): Seq[Transform] =
+      super.transforms(writer) map {
+        case _: HighFirrtlToMiddleFirrtl => new DebugHighFirrtlToMiddleFirrtl
+        case _: MiddleFirrtlToLowFirrtl => new DebugMiddleFirrtlToLowFirrtl
+        case e: EmitVerilogFromLowFirrtl => new DebugEmitVerilogFromLowFirrtl(e.writer)
+        case t => t
+      }
+  }
+}
+
+trait FirrtlRunners extends BackendCompilationUtilities with DebugCompilers {
   lazy val cppHarness = new File(s"/top.cpp")
   def compileFirrtlTest(
       prefix: String,
@@ -141,7 +179,7 @@ trait FirrtlRunners extends BackendCompilationUtilities {
     Driver.compile(
       s"$testDir/$prefix.fir",
       s"$testDir/$prefix.v",
-      new VerilogCompiler(),
+      new DebugVerilogCompiler,
       Parser.IgnoreInfo,
       annotations)
     testDir
