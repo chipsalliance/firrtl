@@ -28,7 +28,7 @@ grammar FIRRTL;
 
 tokens { INDENT, DEDENT }
 
-@header {
+@lexer::header {
 import firrtl.LexerHelper;
 }
 
