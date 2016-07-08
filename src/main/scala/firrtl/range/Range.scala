@@ -3,10 +3,25 @@ package firrtl.range
 import firrtl.ir.{IntWidth, UIntType, SIntType, GroundType, ClockType}
 
 case class Value(value: BigInt) {
-  def - (that: Value): Value = Value(value - that.value) //TODO(izraelevitz): think of a better way to do this
-  //def + (that: Value) = value + that.value
-  //def * (that: Value) = value * that.value
-  //def / (that: Value) = value / that.value
+  //TODO(izraelevitz): think of a better way to do this
+  def - (that: Value): Value = Value(value - that.value)
+  def + (that: Value): Value = Value(value + that.value)
+  def * (that: Value): Value = Value(value * that.value)
+  def / (that: Value): Value = Value(value / that.value)
+  def % (that: Value): Value = Value(value % that.value)
+  def << (that: Value): Value =
+    if(Range.isTooBig(that.value)) throw new RangeException(s"shift left value $that is too big")
+    else Value(value << that.value.toInt)
+  def >> (that: Value): Value =
+    if(Range.isTooBig(that.value)) throw new RangeException(s"shift right value $that is too big")
+    else Value(value >> that.value.toInt)
+  def & (that: Value): Value = Value(value & that.value)
+  def | (that: Value): Value = Value(value | that.value)
+  def ^ (that: Value): Value = Value(value ^ that.value)
+  def < (that: Value): Boolean = value < that.value
+  def <= (that: Value): Boolean = value <= that.value
+  def > (that: Value): Boolean = value > that.value
+  def >= (that: Value): Boolean = value >= that.value
 }
 
 class RangeException(message: String) extends Exception(message)
