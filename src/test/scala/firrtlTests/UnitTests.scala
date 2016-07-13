@@ -31,6 +31,7 @@ import java.io._
 import org.scalatest._
 import org.scalatest.prop._
 import firrtl._
+import firrtl.ir.Circuit
 import firrtl.passes._
 import firrtl.Parser.IgnoreInfo
 
@@ -60,7 +61,7 @@ class UnitTests extends FirrtlFlatSpec {
         |    input y: {a : UInt<1>}
         |    output x: {a : UInt<1>, b : UInt<1>}
         |    x <= y""".stripMargin
-    intercept[PassExceptions] {
+    intercept[CheckTypes.InvalidConnect] {
       passes.foldLeft(parse(input)) {
         (c: Circuit, p: Pass) => p.run(c)
       }
@@ -82,7 +83,7 @@ class UnitTests extends FirrtlFlatSpec {
        |    wire x : { valid : UInt<1> }
        |    reg y : { valid : UInt<1>, bits : UInt<3> }, clk with :
        |      reset => (reset, x)""".stripMargin
-    intercept[PassExceptions] {
+    intercept[CheckTypes.InvalidRegInit] {
       passes.foldLeft(parse(input)) {
         (c: Circuit, p: Pass) => p.run(c)
       }
