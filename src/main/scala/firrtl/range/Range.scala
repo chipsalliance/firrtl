@@ -22,6 +22,8 @@ case class Value(value: BigInt) {
   def <= (that: Value): Boolean = value <= that.value
   def > (that: Value): Boolean = value > that.value
   def >= (that: Value): Boolean = value >= that.value
+  def min(that: Value): Value = Value(value.min(that.value))
+  def max(that: Value): Value = Value(value.max(that.value))
 }
 
 class RangeException(message: String) extends Exception(message)
