@@ -475,46 +475,46 @@ object InferWidths extends Pass {
          case (t) => error("No width!"); IntWidth(-1) } }
    def width_BANG (e:Expression) : Width = width_BANG(tpe(e))
 
-   def reduce_var_widths(c: Circuit, h: LinkedHashMap[String,Width]): Circuit = {
-      def evaluate(w: Width): Width = {
-         def map2(a: Option[BigInt], b: Option[BigInt], f: (BigInt,BigInt) => BigInt): Option[BigInt] =
-            for (a_num <- a; b_num <- b) yield f(a_num, b_num)
-         def reduceOptions(l: Seq[Option[BigInt]], f: (BigInt,BigInt) => BigInt): Option[BigInt] =
-            l.reduce(map2(_, _, f))
+   def evaluate(w: Width, h: Map[String, Width]): Width = {
+      def map2(a: Option[BigInt], b: Option[BigInt], f: (BigInt,BigInt) => BigInt): Option[BigInt] =
+         for (a_num <- a; b_num <- b) yield f(a_num, b_num)
+      def reduceOptions(l: Seq[Option[BigInt]], f: (BigInt,BigInt) => BigInt): Option[BigInt] =
+         l.reduce(map2(_, _, f))
 
-         // This function shouldn't be necessary
-         // Added as protection in case a constraint accidentally uses MinWidth/MaxWidth
-         // without any actual Widths. This should be elevated to an earlier error
-         def forceNonEmpty(in: Seq[Option[BigInt]], default: Option[BigInt]): Seq[Option[BigInt]] =
-            if(in.isEmpty) Seq(default)
-            else in
+      // This function shouldn't be necessary
+      // Added as protection in case a constraint accidentally uses MinWidth/MaxWidth
+      // without any actual Widths. This should be elevated to an earlier error
+      def forceNonEmpty(in: Seq[Option[BigInt]], default: Option[BigInt]): Seq[Option[BigInt]] =
+         if(in.isEmpty) Seq(default)
+         else in
 
 
-         def solve(w: Width): Option[BigInt] = w match {
-            case (w: VarWidth) =>
-               for{
-                  v <- h.get(w.name) if !v.isInstanceOf[VarWidth]
-                  result <- solve(v)
-               } yield result
-            case (w: MaxWidth) => reduceOptions(forceNonEmpty(w.args.map(solve _), Some(BigInt(0))), max)
-            case (w: MinWidth) => reduceOptions(forceNonEmpty(w.args.map(solve _), None), min)
-            case (w: PlusWidth) => map2(solve(w.arg1), solve(w.arg2), {_ + _})
-            case (w: MinusWidth) => map2(solve(w.arg1), solve(w.arg2), {_ - _})
-            case (w: ExpWidth) => map2(Some(BigInt(2)), solve(w.arg1), pow_minus_one)
-            case (w: IntWidth) => Some(w.width)
-            case (w) => println(w); error("Shouldn't be here"); None;
-         }
-
-         val s = solve(w)
-         (s) match {
-            case Some(s) => IntWidth(s)
-            case (s) => w
-         }
+      def solve(w: Width): Option[BigInt] = w match {
+         case (w: VarWidth) =>
+            for{
+               v <- h.get(w.name) if !v.isInstanceOf[VarWidth]
+               result <- solve(v)
+            } yield result
+         case (w: MaxWidth) => reduceOptions(forceNonEmpty(w.args.map(solve _), Some(BigInt(0))), max)
+         case (w: MinWidth) => reduceOptions(forceNonEmpty(w.args.map(solve _), None), min)
+         case (w: PlusWidth) => map2(solve(w.arg1), solve(w.arg2), {_ + _})
+         case (w: MinusWidth) => map2(solve(w.arg1), solve(w.arg2), {_ - _})
+         case (w: ExpWidth) => map2(Some(BigInt(2)), solve(w.arg1), pow_minus_one)
+         case (w: IntWidth) => Some(w.width)
+         case (w) => println(w); error("Shouldn't be here"); None;
       }
+
+      val s = solve(w)
+      (s) match {
+         case Some(s) => IntWidth(s)
+         case (s) => w
+      }
+   }
+   def reduce_var_widths(c: Circuit, h: LinkedHashMap[String,Width]): Circuit = {
 
       def reduce_var_widths_w (w:Width) : Width = {
          //println-all-debug(["REPLACE: " w])
-         val wx = evaluate(w)
+         val wx = evaluate(w, h.toMap)
          //println-all-debug(["WITH: " wx])
          wx
       }

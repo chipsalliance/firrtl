@@ -118,7 +118,6 @@ case class DefRegister(
   def serialize: String =
     s"reg $name : ${tpe.serialize}, ${clock.serialize} with :" +
     indent("\n" + s"reset => (${reset.serialize}, ${init.serialize})" + info.serialize)
-
 }
 case class DefInstance(info: Info, name: String, module: String) extends Statement with IsDeclaration {
   def serialize: String = s"inst $name of $module" + info.serialize
