@@ -71,18 +71,6 @@ object ExpandWhens extends Pass {
     }
     expsx
   }
-  private def squashEmpty(s: Statement): Statement = {
-    s map squashEmpty match {
-      case Block(stmts) =>
-        val newStmts = stmts filter (_ != EmptyStmt)
-        newStmts.size match {
-          case 0 => EmptyStmt
-          case 1 => newStmts.head
-          case _ => Block(newStmts)
-        }
-      case s => s
-    }
-  }
   private def expandNetlist(netlist: LinkedHashMap[WrappedExpression, Expression]) =
     netlist map { case (k, v) =>
       v match {
