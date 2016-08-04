@@ -179,7 +179,7 @@ object ExpandWhens extends Pass {
         case m: ExtModule => m
         case m: Module =>
         val (netlist, simlist, bodyx) = expandWhens(m)
-        val newBody = Block(Seq(bodyx map squashEmpty) ++ expandNetlist(netlist) ++ simlist)
+        val newBody = Block(Seq(squashEmpty(bodyx)) ++ expandNetlist(netlist) ++ simlist)
         Module(m.info, m.name, m.ports, newBody)
       }
     }
