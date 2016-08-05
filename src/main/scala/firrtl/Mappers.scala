@@ -163,6 +163,7 @@ object Mappers {
         tpe match {
           case t: UIntType => UIntType(f(t.width))
           case t: SIntType => SIntType(f(t.width))
+          case t: FixedType => FixedType(f(t.width), f(t.point))
           case t => t
         }
       }

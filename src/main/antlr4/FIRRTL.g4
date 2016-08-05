@@ -78,6 +78,7 @@ dir
 type 
   : 'UInt' ('<' IntLit '>')?
   | 'SInt' ('<' IntLit '>')?
+  | 'Fixed' ('<' (IntLit)? '>')? ('<' '<' IntLit '>' '>')?
   | 'Clock'
   | '{' field* '}'        // Bundle
   | type '[' IntLit ']'   // Vector

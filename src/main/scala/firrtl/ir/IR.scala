@@ -99,6 +99,13 @@ case class SIntLiteral(value: BigInt, width: Width) extends Literal {
   def tpe = SIntType(width)
   def serialize = s"SInt${width.serialize}(" + Utils.serialize(value) + ")"
 }
+case class FixedLiteral(value: BigInt, width: Width, point: Width) extends Literal {
+  def tpe = FixedType(width, point)
+  def serialize = {
+    val pstring = if(point == UnknownWidth) "" else s"<${point.serialize}>"
+    s"Fixed${width.serialize}$pstring(" + Utils.serialize(value) + ")"
+  }
+}
 case class DoPrim(op: PrimOp, args: Seq[Expression], consts: Seq[BigInt], tpe: Type) extends Expression {
   def serialize: String = op.serialize + "(" +
     (args.map(_.serialize) ++ consts.map(_.toString)).mkString(", ") + ")"
@@ -242,6 +249,12 @@ case class UIntType(width: Width) extends GroundType {
 }
 case class SIntType(width: Width) extends GroundType {
   def serialize: String = "SInt" + width.serialize
+}
+case class FixedType(width: Width, point: Width) extends GroundType {
+  override def serialize: String = {
+    val pstring = if(point == UnknownWidth) "" else s"<${point.serialize}>"
+    s"Fixed${width.serialize}$pstring"
+  }
 }
 case class BundleType(fields: Seq[Field]) extends AggregateType {
   def serialize: String = "{ " + (fields map (_.serialize) mkString ", ") + "}"

@@ -466,14 +466,6 @@ object InferWidths extends Pass {
       }
       b
    }
-      
-   def width_BANG (t:Type) : Width = {
-      (t) match {
-         case (t:UIntType) => t.width
-         case (t:SIntType) => t.width
-         case ClockType => IntWidth(1)
-         case (t) => error("No width!"); IntWidth(-1) } }
-   def width_BANG (e:Expression) : Width = width_BANG(tpe(e))
 
    def reduce_var_widths(c: Circuit, h: LinkedHashMap[String,Width]): Circuit = {
       def evaluate(w: Width): Width = {
@@ -536,11 +528,16 @@ object InferWidths extends Pass {
    
    def run (c:Circuit): Circuit = {
       val v = ArrayBuffer[WGeq]()
-      def constrain (w1:Width,w2:Width) : Unit = v += WGeq(w1,w2)
+      def constrain(t1: Type, t2: Type) : Unit = (t1, t2) match {
+         case (FixedType(w1, p1), FixedType(w2, p2)) => 
+            v += WGeq(w1,w2)
+            v += WGeq(p1,p2)
+         case (t1: GroundType, t2: GroundType) => v += WGeq(t1.width, t2.width)
+         case (t) => error("No width!")
+      }
       def get_constraints_t (t1:Type,t2:Type,f:Orientation) : Unit = {
          (t1,t2) match {
-            case (t1:UIntType,t2:UIntType) => constrain(t1.width,t2.width)
-            case (t1:SIntType,t2:SIntType) => constrain(t1.width,t2.width)
+            case (t1:GroundType,t2:GroundType) => constrain(t1, t2)
             case (t1:BundleType,t2:BundleType) => {
                (t1.fields,t2.fields).zipped.foreach{ (f1,f2) => {
                   get_constraints_t(f1.tpe,f2.tpe,times(f1.flip,f)) }}}
@@ -548,12 +545,18 @@ object InferWidths extends Pass {
       def get_constraints_e (e:Expression) : Expression = {
          (e map (get_constraints_e)) match {
             case (e:Mux) => {
-               constrain(width_BANG(e.cond),ONE)
-               constrain(ONE,width_BANG(e.cond))
+               constrain(e.cond.tpe, BoolType)
+               constrain(BoolType, e.cond.tpe)
                e }
             case (e) => e }}
+      def get_constraints_declared_type (t: Type): Type = t match {
+         case FixedType(_, p) => 
+            v += WGeq(p,IntWidth(0))
+            t
+         case _ => t map get_constraints_declared_type
+      }
       def get_constraints (s:Statement) : Statement = {
-         (s map (get_constraints_e)) match {
+         (s map (get_constraints_e) map get_constraints_declared_type) match {
             case (s:Connect) => {
                val n = get_size(tpe(s.loc))
                val ce_loc = create_exps(s.loc)
@@ -562,8 +565,8 @@ object InferWidths extends Pass {
                   val locx = ce_loc(i)
                   val expx = ce_exp(i)
                   get_flip(tpe(s.loc),i,Default) match {
-                     case Default => constrain(width_BANG(locx),width_BANG(expx))
-                     case Flip => constrain(width_BANG(expx),width_BANG(locx)) }}
+                     case Default => constrain(locx.tpe, expx.tpe)
+                     case Flip => constrain(expx.tpe,locx.tpe) }}
                s }
             case (s:PartialConnect) => {
                val ls = get_valid_points(tpe(s.loc),tpe(s.expr),Default,Default)
@@ -571,31 +574,34 @@ object InferWidths extends Pass {
                   val locx = create_exps(s.loc)(x._1)
                   val expx = create_exps(s.expr)(x._2)
                   get_flip(tpe(s.loc),x._1,Default) match {
-                     case Default => constrain(width_BANG(locx),width_BANG(expx))
-                     case Flip => constrain(width_BANG(expx),width_BANG(locx)) }}
+                     case Default => constrain(locx.tpe,expx.tpe)
+                     case Flip => constrain(expx.tpe,locx.tpe) }}
                s }
             case (s:DefRegister) => {
-               constrain(width_BANG(s.reset),ONE)
-               constrain(ONE,width_BANG(s.reset))
+               constrain(s.reset.tpe,BoolType)
+               constrain(BoolType,s.reset.tpe)
                get_constraints_t(s.tpe,tpe(s.init),Default)
                s }
             case (s:Conditionally) => {
-               v += WGeq(width_BANG(s.pred),ONE)
-               v += WGeq(ONE,width_BANG(s.pred))
+               constrain(s.pred.tpe,BoolType)
+               constrain(BoolType,s.pred.tpe)
                s map (get_constraints) }
             case (s) => s map (get_constraints) }}
 
       for (m <- c.modules) {
          (m) match {
-            case (m:Module) => mname = m.name; get_constraints(m.body)
+            case (m:Module) =>
+               mname = m.name
+               get_constraints(m.body)
+               m.ports.foreach(p => get_constraints_declared_type(p.tpe))
             case (m) => false }}
-      //println-debug("======== ALL CONSTRAINTS ========")
-      //for x in v do : println-debug(x)
-      //println-debug("=================================")
+      //println("======== ALL CONSTRAINTS ========")
+      //for(x <- v) {println(x)}
+      //println("=================================")
       val h = solve_constraints(v)
-      //println-debug("======== SOLVED CONSTRAINTS ========")
-      //for x in h do : println-debug(x)
-      //println-debug("====================================")
+      //println("======== SOLVED CONSTRAINTS ========")
+      //for(x <- h) {println(x)}
+      //println("====================================")
       reduce_var_widths(Circuit(c.info,c.modules,c.main),h)
    }
 }

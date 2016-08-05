@@ -145,8 +145,7 @@ object Utils extends LazyLogging {
             val fieldss = t.fields.map { f => Field(f.name,f.flip,create_mask(f.tpe)) }
             BundleType(fieldss)
          }
-         case t:UIntType => BoolType
-         case t:SIntType => BoolType
+         case t:GroundType => BoolType
       }
    }
    def create_exps (n:String, t:Type) : Seq[Expression] =
@@ -161,9 +160,7 @@ object Utils extends LazyLogging {
          case (e:ValidIf) => create_exps(e.value).map { e1 => ValidIf(e.cond,e1,tpe(e1)) }
          case (e) => {
             tpe(e) match {
-               case (t:UIntType) => Seq(e)
-               case (t:SIntType) => Seq(e)
-               case ClockType => Seq(e)
+               case (t:GroundType) => Seq(e)
                case (t:BundleType) => {
                   t.fields.flatMap { f => create_exps(WSubField(e,f.name,f.tpe,times(gender(e), f.flip))) }
                }
@@ -177,9 +174,7 @@ object Utils extends LazyLogging {
    def get_flip (t:Type, i:Int, f:Orientation) : Orientation = {
       if (i >= get_size(t)) error("Shouldn't be here")
       val x = t match {
-         case (t:UIntType) => f
-         case (t:SIntType) => f
-         case ClockType => f
+         case (t:GroundType) => f
          case (t:BundleType) => {
             var n = i
             var ret:Option[Orientation] = None
@@ -249,6 +244,7 @@ object Utils extends LazyLogging {
          (t1,t2) match { 
             case (t1:UIntType,t2:UIntType) => UIntType(UnknownWidth)
             case (t1:SIntType,t2:SIntType) => SIntType(UnknownWidth)
+            case (t1:FixedType,t2:FixedType) => FixedType(UnknownWidth, UnknownWidth)
             case (t1:VectorType,t2:VectorType) => VectorType(mux_type(t1.tpe,t2.tpe),t1.size)
             case (t1:BundleType,t2:BundleType) => 
                BundleType((t1.fields,t2.fields).zipped.map((f1,f2) => {
@@ -258,6 +254,26 @@ object Utils extends LazyLogging {
       } else UnknownType
    }
    def mux_type_and_widths (e1:Expression,e2:Expression) : Type = mux_type_and_widths(tpe(e1),tpe(e2))
+   def PLUS (w1:Width,w2:Width) : Width = (w1, w2) match {
+     case (IntWidth(i), IntWidth(j)) => IntWidth(i + j)
+     case _ => PlusWidth(w1,w2)
+   }
+   def MAX (w1:Width,w2:Width) : Width = (w1, w2) match {
+     case (IntWidth(i), IntWidth(j)) => IntWidth(max(i,j))
+     case _ => MaxWidth(Seq(w1,w2))
+   }
+   def MINUS (w1:Width,w2:Width) : Width = (w1, w2) match {
+     case (IntWidth(i), IntWidth(j)) => IntWidth(i - j)
+     case _ => MinusWidth(w1,w2)
+   }
+   def POW (w1:Width) : Width = w1 match {
+     case IntWidth(i) => IntWidth(pow_minus_one(BigInt(2), i))
+     case _ => ExpWidth(w1)
+   }
+   def MIN (w1:Width,w2:Width) : Width = (w1, w2) match {
+     case (IntWidth(i), IntWidth(j)) => IntWidth(min(i,j))
+     case _ => MinWidth(Seq(w1,w2))
+   }
    def mux_type_and_widths (t1:Type,t2:Type) : Type = {
       def wmax (w1:Width,w2:Width) : Width = {
          (w1,w2) match {
@@ -271,6 +287,8 @@ object Utils extends LazyLogging {
          (t1,t2) match {
             case (t1:UIntType,t2:UIntType) => UIntType(wmax(t1.width,t2.width))
             case (t1:SIntType,t2:SIntType) => SIntType(wmax(t1.width,t2.width))
+            case (FixedType(w1, p1), FixedType(w2, p2)) =>
+              FixedType(PLUS(MAX(p1, p2),MAX(MINUS(w1, p1), MINUS(w2, p2))), MAX(p1, p2))
             case (t1:VectorType,t2:VectorType) => VectorType(mux_type_and_widths(t1.tpe,t2.tpe),t1.size)
             case (t1:BundleType,t2:BundleType) => BundleType((t1.fields zip t2.fields).map{case (f1, f2) => Field(f1.name,f1.flip,mux_type_and_widths(f1.tpe,f2.tpe))})
          }
@@ -354,6 +372,7 @@ object Utils extends LazyLogging {
       (t1,t2) match {
          case (t1:UIntType,t2:UIntType) => if (flip1 == flip2) Seq((0, 0)) else Seq()
          case (t1:SIntType,t2:SIntType) => if (flip1 == flip2) Seq((0, 0)) else Seq()
+         case (t1:FixedType,t2:FixedType) => if (flip1 == flip2) Seq((0, 0)) else Seq()
          case (t1:BundleType,t2:BundleType) => {
             val points = ArrayBuffer[(Int,Int)]()
             var ilen = 0
@@ -559,6 +578,7 @@ object Utils extends LazyLogging {
          case e:ValidIf => e.tpe
          case e:UIntLiteral => UIntType(e.width)
          case e:SIntLiteral => SIntType(e.width)
+         case e:FixedLiteral => FixedType(e.width, e.point)
          case e:WVoid => UnknownType
          case e:WInvalid => UnknownType
       }
@@ -809,7 +829,7 @@ object Utils extends LazyLogging {
 
    implicit class TypeUtils(t: Type) {
      def isGround: Boolean = t match {
-       case (_: UIntType | _: SIntType | ClockType) => true
+       case (_: UIntType | _: SIntType | _: FixedType | ClockType) => true
        case (_: BundleType | _: VectorType) => false
      }
      def isAggregate: Boolean = !t.isGround
@@ -824,6 +844,7 @@ object Utils extends LazyLogging {
        t match {
          case t: UIntType => UIntType(UnknownWidth)
          case t: SIntType => SIntType(UnknownWidth)
+         case t: FixedType => FixedType(UnknownWidth, UnknownWidth)
          case _ => t
        }
    }

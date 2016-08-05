@@ -154,6 +154,7 @@ class WrappedType (val t:Type) {
          case (t2:WrappedType) => {
             (t,t2.t) match {
                case (t1:UIntType,t2:UIntType) => true
+               case (t1:FixedType,t2:FixedType) => true
                case (t1:SIntType,t2:SIntType) => true
                case (ClockType, ClockType) => true
                case (t1:VectorType,t2:VectorType) => (wt(t1.tpe) == wt(t2.tpe) && t1.size == t2.size)

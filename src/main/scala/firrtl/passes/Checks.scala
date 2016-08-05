@@ -55,7 +55,7 @@ object CheckHighForm extends Pass with LazyLogging {
   class ModuleNotDefinedException(name: String) extends PassException(s"${sinfo}: Module ${name} is not defined.")
   class IncorrectNumArgsException(op: String, n: Int) extends PassException(s"${sinfo}: [module ${mname}] Primop ${op} requires ${n} expression arguments.")
   class IncorrectNumConstsException(op: String, n: Int) extends PassException(s"${sinfo}: [module ${mname}] Primop ${op} requires ${n} integer arguments.")
-  class NegWidthException extends PassException(s"${sinfo}: [module ${mname}] Width cannot be negative or zero.")
+  class NegWidthException extends PassException(s"${sinfo}: [module ${mname}] Width cannot be negative.")
   class NegVecSizeException extends PassException(s"${sinfo}: [module ${mname}] Vector type size cannot be negative.")
   class NegMemSizeException extends PassException(s"${sinfo}: [module ${mname}] Memory size cannot be negative or zero.")
   class BadPrintfException(x: Char) extends PassException(s"${sinfo}: [module ${mname}] Bad printf format: " + "\"%" + x + "\"")
@@ -193,7 +193,7 @@ object CheckHighForm extends Pass with LazyLogging {
     def checkHighFormW(w: Width): Width = {
       w match {
         case w: IntWidth => 
-          if (w.width <= BigInt(0)) errors.append(new NegWidthException)
+          if (w.width < BigInt(0)) errors.append(new NegWidthException)
         case _ => // Do Nothing
       }
       w
@@ -319,6 +319,7 @@ object CheckTypes extends Pass with LazyLogging {
    class EnNotUInt(info:Info) extends PassException(s"${info}: [module ${mname}]  Enable must be a UIntType typed signal.")
    class PredNotUInt(info:Info) extends PassException(s"${info}: [module ${mname}]  Predicate not a UIntType.")
    class OpNotGround(info:Info, op:String) extends PassException(s"${info}: [module ${mname}]  Primop ${op} cannot operate on non-ground types.")
+   class OpNoMixFix(info:Info, op:String) extends PassException(s"${info}: [module ${mname}]  Primop ${op} cannot operate on args of some, but not all, fixed type.")
    class OpNotUInt(info:Info, op:String,e:String) extends PassException(s"${info}: [module ${mname}]  Primop ${op} requires argument ${e} to be a UInt type.")
    class OpNotAllUInt(info:Info, op:String) extends PassException(s"${info}: [module ${mname}]  Primop ${op} requires all arguments to be UInt type.")
    class OpNotAllSameType(info:Info, op:String) extends PassException(s"${info}: [module ${mname}]  Primop ${op} requires all operands to have the same type.")
@@ -340,13 +341,33 @@ object CheckTypes extends Pass with LazyLogging {
          }
          if (error) errors.append(new OpNotAllSameType(info,e.op.serialize))
       }
-      def all_ground (ls:Seq[Expression]) : Unit = {
-         var error = false
-         for (x <- ls ) {
-            if (!(tpe(x).typeof[UIntType] || tpe(x).typeof[SIntType])) error = true
-         }
+      def all_USC(ls:Seq[Expression]) : Unit = {
+         val error = ls.foldLeft(false)((error, x) => x.tpe match {
+           case (_: UIntType| _: SIntType| ClockType) => error
+           case _ => true
+         })
          if (error) errors.append(new OpNotGround(info,e.op.serialize))
       }
+      def all_USF(ls:Seq[Expression]) : Unit = {
+         val error = ls.foldLeft(false)((error, x) => x.tpe match {
+           case (_: UIntType| _: SIntType| _: FixedType) => error
+           case _ => true
+         })
+         if (error) errors.append(new OpNotGround(info,e.op.serialize))
+      }
+      def all_US(ls: Seq[Expression]): Unit = {
+         val error = ls.foldLeft(false)((error, x) => x.tpe match {
+           case (_: UIntType| _: SIntType) => error
+           case _ => true
+         })
+         if (error) errors.append(new OpNotGround(info,e.op.serialize))
+      }
+      def strictFix (ls: Seq[Expression]): Unit =
+        ls.filter(!_.tpe.isInstanceOf[FixedType]).size match {
+          case 0 => 
+          case x if(x == ls.size) =>
+          case x => errors.append(new OpNoMixFix(info,e.op.serialize))
+        }
       def all_uint (ls:Seq[Expression]) : Unit = {
          var error = false
          for (x <- ls ) {
@@ -363,36 +384,36 @@ object CheckTypes extends Pass with LazyLogging {
       e.op match {
          case AsUInt =>
          case AsSInt =>
-         case AsClock =>
-         case Dshl => is_uint(e.args(1)); all_ground(e.args)
-         case Dshr => is_uint(e.args(1)); all_ground(e.args)
-         case Add => all_ground(e.args)
-         case Sub => all_ground(e.args)
-         case Mul => all_ground(e.args)
-         case Div => all_ground(e.args)
-         case Rem => all_ground(e.args)
-         case Lt => all_ground(e.args)
-         case Leq => all_ground(e.args)
-         case Gt => all_ground(e.args)
-         case Geq => all_ground(e.args)
-         case Eq => all_ground(e.args)
-         case Neq => all_ground(e.args)
-         case Pad => all_ground(e.args)
-         case Shl => all_ground(e.args)
-         case Shr => all_ground(e.args)
-         case Cvt => all_ground(e.args)
-         case Neg => all_ground(e.args)
-         case Not => all_ground(e.args)
-         case And => all_ground(e.args)
-         case Or => all_ground(e.args)
-         case Xor => all_ground(e.args)
-         case Andr => all_ground(e.args)
-         case Orr => all_ground(e.args)
-         case Xorr => all_ground(e.args)
-         case Cat => all_ground(e.args)
-         case Bits => all_ground(e.args)
-         case Head => all_ground(e.args)
-         case Tail => all_ground(e.args)
+         case AsClock => all_USC(e.args)
+         case Dshl => is_uint(e.args(1)); all_US(e.args)
+         case Dshr => is_uint(e.args(1)); all_US(e.args)
+         case Add => all_USF(e.args); strictFix(e.args)
+         case Sub => all_USF(e.args); strictFix(e.args)
+         case Mul => all_USF(e.args); strictFix(e.args)
+         case Div => all_US(e.args)
+         case Rem => all_US(e.args)
+         case Lt => all_USF(e.args); strictFix(e.args)
+         case Leq => all_USF(e.args); strictFix(e.args)
+         case Gt => all_USF(e.args); strictFix(e.args)
+         case Geq => all_USF(e.args); strictFix(e.args)
+         case Eq => all_USF(e.args); strictFix(e.args)
+         case Neq => all_USF(e.args); strictFix(e.args)
+         case Pad => all_USF(e.args)
+         case Shl => all_US(e.args)
+         case Shr => all_US(e.args)
+         case Cvt => all_US(e.args)
+         case Neg => all_US(e.args)
+         case Not => all_US(e.args)
+         case And => all_US(e.args)
+         case Or => all_US(e.args)
+         case Xor => all_US(e.args)
+         case Andr => all_US(e.args)
+         case Orr => all_US(e.args)
+         case Xorr => all_US(e.args)
+         case Cat => all_USF(e.args)
+         case Bits => all_USF(e.args)
+         case Head => all_US(e.args)
+         case Tail => all_US(e.args)
       }
    }
       
@@ -689,7 +710,7 @@ object CheckWidths extends Pass {
    class WidthTooSmall(info: Info, b: BigInt) extends PassException(
          s"$info : [module $mname]  Width too small for constant " +
          serialize(b) + ".")
-   class NegWidthException(info:Info) extends PassException(s"${info}: [module ${mname}] Width cannot be negative or zero.")
+   class NegWidthException(info:Info) extends PassException(s"${info}: [module ${mname}] Width cannot be negative.")
    class BitsWidthException(info: Info, hi: BigInt, width: BigInt) extends PassException(s"${info}: [module ${mname}] High bit $hi in bits operator is larger than input width $width.")
    class HeadWidthException(info: Info, n: BigInt, width: BigInt) extends PassException(s"${info}: [module ${mname}] Parameter $n in head operator is larger than input width $width.")
    class TailWidthException(info: Info, n: BigInt, width: BigInt) extends PassException(s"${info}: [module ${mname}] Parameter $n in tail operator is larger than input width $width.")
@@ -698,7 +719,7 @@ object CheckWidths extends Pass {
       def check_width_m (m:DefModule) : Unit = {
          def check_width_w (info:Info)(w:Width) : Width = {
             (w) match { 
-               case (w:IntWidth)=> if (w.width <= 0) errors.append(new NegWidthException(info))
+               case (w:IntWidth)=> if (w.width < 0) errors.append(new NegWidthException(info))
                case (w) => errors.append(new UninferredWidth(info))
             }
             w
