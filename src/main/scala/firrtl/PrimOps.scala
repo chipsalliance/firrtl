@@ -98,10 +98,11 @@ object PrimOps extends LazyLogging {
   case object Head extends PrimOp { override def toString = "head" }
   /** Tail */
   case object Tail extends PrimOp { override def toString = "tail" }
+  case object AsFixedPoint extends PrimOp { override def toString = "asFixedPoint" }
 
   private lazy val builtinPrimOps: Seq[PrimOp] =
     Seq(Add, Sub, Mul, Div, Rem, Lt, Leq, Gt, Geq, Eq, Neq, Pad, AsUInt, AsSInt, AsClock, Shl, Shr,
-        Dshl, Dshr, Neg, Cvt, Not, And, Or, Xor, Andr, Orr, Xorr, Cat, Bits, Head, Tail)
+        Dshl, Dshr, Neg, Cvt, Not, And, Or, Xor, Andr, Orr, Xorr, Cat, Bits, Head, Tail, AsFixedPoint)
   private lazy val strToPrimOp: Map[String, PrimOp] = builtinPrimOps map (op => op.toString -> op) toMap
 
   /** Seq of String representations of [[ir.PrimOp]]s */
@@ -268,6 +269,16 @@ object PrimOps extends LazyLogging {
                case (t1:SIntType) => SIntType(w1)
                case (t1:FixedType) => SIntType(w1)
                case ClockType => SIntType(Utils.ONE)
+               case (t1) => UnknownType
+            }
+            DoPrim(o,a,c,t)
+         }
+         case AsFixedPoint => {
+            val t = (t1) match {
+               case (t1:UIntType) => FixedType(w1, c1)
+               case (t1:SIntType) => FixedType(w1, c1)
+               case (t1:FixedType) => FixedType(w1, c1)
+               case ClockType => FixedType(Utils.ONE, c1)
                case (t1) => UnknownType
             }
             DoPrim(o,a,c,t)

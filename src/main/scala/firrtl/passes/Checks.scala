@@ -149,6 +149,7 @@ object CheckHighForm extends Pass with LazyLogging {
         case Pad => correctNum(Option(1),1)
         case AsUInt => correctNum(Option(1),0)
         case AsSInt => correctNum(Option(1),0)
+        case AsFixedPoint => correctNum(Option(1),1)
         case AsClock => correctNum(Option(1),0)
         case Shl => correctNum(Option(1),1)
         case Shr => correctNum(Option(1),1)
@@ -384,6 +385,7 @@ object CheckTypes extends Pass with LazyLogging {
       e.op match {
          case AsUInt =>
          case AsSInt =>
+         case AsFixedPoint =>
          case AsClock => all_USC(e.args)
          case Dshl => is_uint(e.args(1)); all_US(e.args)
          case Dshr => is_uint(e.args(1)); all_US(e.args)
