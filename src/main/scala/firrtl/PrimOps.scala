@@ -409,14 +409,14 @@ object PrimOps extends LazyLogging {
          }
          case Head => {
             val t = (t1) match {
-               case (_:UIntType|_:SIntType) => UIntType(c1)
+               case (_:UIntType|_:SIntType|_:FixedType) => UIntType(c1)
                case (t1) => UnknownType
             }
             DoPrim(o,a,c,t)
          }
          case Tail => {
             val t = (t1) match {
-               case (_:UIntType|_:SIntType) => UIntType(MINUS(w1,c1))
+               case (_:UIntType|_:SIntType|_:FixedType) => UIntType(MINUS(w1,c1))
                case (t1) => UnknownType
             }
             DoPrim(o,a,c,t)

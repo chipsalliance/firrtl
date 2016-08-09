@@ -414,8 +414,8 @@ object CheckTypes extends Pass with LazyLogging {
          case Xorr => all_US(e.args)
          case Cat => all_USF(e.args)
          case Bits => all_USF(e.args)
-         case Head => all_US(e.args)
-         case Tail => all_US(e.args)
+         case Head => all_USF(e.args)
+         case Tail => all_USF(e.args)
       }
    }
       
