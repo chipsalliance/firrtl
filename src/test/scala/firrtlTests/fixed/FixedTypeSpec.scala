@@ -81,6 +81,37 @@ class FixedTypeSpec extends FirrtlFlatSpec {
         |    d <= add(a, add(b, c))""".stripMargin
     executeTest(input, check.split("\n") map normalized, passes)
   }
+
+  "Fixed types" should "be removed" in {
+    val passes = Seq(
+      ToWorkingIR,
+      CheckHighForm,
+      ResolveKinds,
+      InferTypes,
+      CheckTypes,
+      ResolveGenders,
+      CheckGenders,
+      InferWidths,
+      CheckWidths,
+      ConvertFixedToSInt)
+    val input =
+      """circuit Unit :
+        |  module Unit :
+        |    input a : Fixed<10><<2>>
+        |    input b : Fixed<10>
+        |    input c : Fixed<4><<3>>
+        |    output d : Fixed<<5>>
+        |    d <= add(a, add(b, c))""".stripMargin
+    val check =
+      """circuit Unit :
+         |  module Unit :
+         |    input a : SInt<10>
+         |    input b : SInt<10>
+         |    input c : SInt<4>
+         |    output d : SInt<15>
+         |    d <= shl(add(shl(a, 1), add(shl(b, 3), c)), 2)""".stripMargin
+    executeTest(input, check.split("\n") map normalized, passes)
+  }
 }
 
 // vim: set ts=4 sw=4 et:
