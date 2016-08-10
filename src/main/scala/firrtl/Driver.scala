@@ -27,6 +27,7 @@ MODIFICATIONS.
 
 package firrtl
 
+import java.io.{PrintWriter, Writer, File}
 import scala.io.Source
 import scala.collection.mutable
 import Annotations._
@@ -35,6 +36,9 @@ import Utils._
 import Parser.{InfoMode, IgnoreInfo, UseInfo, GenInfo, AppendInfo}
 
 object Driver {
+
+  var outputPath = ""
+
   /**
    * Implements the default Firrtl compilers and an inlining pass.
    *
@@ -57,6 +61,7 @@ Optional Arguments:
                                  Supported modes: ignore, use, gen, append
   --inferRW <circuit>            Enable readwrite port inference for the target circuit
   --inline <module>|<instance>   Inline a module (e.g. "MyModule") or instance (e.g. "MyModule.myinstance")
+  --subMem <circuit>    Substitute memory black box + configuration file for sequential memories
   [--help|-h]                    Print usage string
 """
 
@@ -74,12 +79,16 @@ Optional Arguments:
     def handleInferRWOption(value: String) = 
       passes.InferReadWriteAnnotation(value, TransID(-1))
 
+    def handleSubMemOption(value: String) =
+      passes.ReplaceSeqMemsAnnotation(value, TransID(-2))  
+
     run(args: Array[String],
       Map( "high" -> new HighFirrtlCompiler(),
         "low" -> new LowFirrtlCompiler(),
         "verilog" -> new VerilogCompiler()),
       Map("--inline" -> handleInlineOption _,
-          "--inferRW" -> handleInferRWOption _),
+          "--inferRW" -> handleInferRWOption _,
+          "--subMem" -> handleSubMemOption _),
       usage
     )
   }
@@ -157,6 +166,8 @@ Optional Arguments:
     // Get input circuit/output filenames
     val input = options.getOrElse(InputFileName, throw new Exception("No input file provided!" + usage))
     val output = options.getOrElse(OutputFileName, throw new Exception("No output file provided!" + usage))
+
+    outputPath = output
 
     val infoMode = options.get(InfoModeOption) match {
       case (Some("use") | None) => UseInfo
