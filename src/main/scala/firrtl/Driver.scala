@@ -27,6 +27,7 @@ MODIFICATIONS.
 
 package firrtl
 
+import java.io.{PrintWriter, Writer, File}
 import scala.io.Source
 import scala.collection.mutable
 import Annotations._
@@ -35,6 +36,9 @@ import Utils._
 import Parser.{InfoMode, IgnoreInfo, UseInfo, GenInfo, AppendInfo}
 
 object Driver {
+
+  var outputPath = ""
+
   private val usage = """
 Usage: sbt "run-main firrtl.Driver -i <input_file> -o <output_file> -X <compiler>"
        firrtl -i <input_file> -o <output_file> -X <compiler> [options]
@@ -44,6 +48,7 @@ Options:
   --info-mode <mode>    Specify Info Mode
                         Supported modes: ignore, use, gen, append
   --inferRW <circuit>   Enable readwrite port inference for the target circuit
+  --subMem <circuit>    Substitute memory black box + configuration file for sequential memories
   """
 
   // Compiles circuit. First parses a circuit from an input file,
@@ -56,12 +61,9 @@ Options:
       infoMode: InfoMode = IgnoreInfo,
       annotations: AnnotationMap = new AnnotationMap(Seq.empty)) = {
     val parsedInput = Parser.parse(Source.fromFile(input).getLines, infoMode)
-    val outputBuffer = new java.io.CharArrayWriter
-    compiler.compile(parsedInput, annotations, outputBuffer)
-
-    val outputFile = new java.io.PrintWriter(output)
-    outputFile.write(outputBuffer.toString)
-    outputFile.close()
+    val writerOutput = new PrintWriter(new File(output))
+    compiler.compile(parsedInput, annotations, writerOutput)
+    writerOutput.close
   }
 
   /**
@@ -93,12 +95,16 @@ Options:
     def handleInferRWOption(value: String) = 
       passes.InferReadWriteAnnotation(value, TransID(-1))
 
+    def handleSubMemOption(value: String) =
+      passes.ReplaceSeqMemsAnnotation(value, TransID(-2))  
+
     run(args: Array[String],
       Map( "high" -> new HighFirrtlCompiler(),
         "low" -> new LowFirrtlCompiler(),
         "verilog" -> new VerilogCompiler()),
       Map("--inline" -> handleInlineOption _,
-          "--inferRW" -> handleInferRWOption _),
+          "--inferRW" -> handleInferRWOption _,
+          "--subMem" -> handleSubMemOption _),
       usage
     )
   }
@@ -157,6 +163,8 @@ Options:
     // Get input circuit/output filenames
     val input = options.getOrElse(InputFileName, throw new Exception("No input file provided!" + usage))
     val output = options.getOrElse(OutputFileName, throw new Exception("No output file provided!" + usage))
+
+    outputPath = output
 
     val infoMode = options.get(InfoModeOption) match {
       case (Some("use") | None) => UseInfo
