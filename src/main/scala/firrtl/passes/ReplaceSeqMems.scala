@@ -66,7 +66,7 @@ object ReplaceSeqMems extends Pass {
     val conf = new java.io.BufferedWriter(new java.io.FileWriter(confFront+".conf"))
     //println("UNIQUE MEMORY MACROS NEEDED")
     uniqueMems foreach { x => 
-      printf(x.serialize)
+      //printf(x.serialize)
       conf write x.serialize
     }  
     conf.close()
@@ -530,3 +530,4 @@ class ReplaceSeqMems(transID: TransID) extends Transform with LazyLogging {
 
 //////////////////////////////////////////////////////////////
 // Extra reset
+// Annotate black box
