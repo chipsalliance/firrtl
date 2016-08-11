@@ -39,7 +39,10 @@ object ConvertFixedToSInt extends Pass {
         case DoPrim(op, args, consts, tpe) =>
           val point = calcPoint(args)
           val newExp = DoPrim(op, args.map(x => alignArg(x, point)), consts, UnknownType)
-          newExp map updateExpType
+          newExp map updateExpType match {
+            case DoPrim(AsFixedPoint, args, consts, tpe) => DoPrim(AsSInt, args, consts, tpe)
+            case e => e
+          }
         case Mux(cond, tval, fval, tpe) =>
           val point = calcPoint(Seq(tval, fval))
           val newExp = Mux(cond, alignArg(tval, point), alignArg(fval, point), UnknownType)
