@@ -352,6 +352,7 @@ object Utils extends LazyLogging {
    def get_valid_points (t1:Type, t2:Type, flip1:Orientation, flip2:Orientation) : Seq[(Int,Int)] = {
       //;println_all(["Inside with t1:" t1 ",t2:" t2 ",f1:" flip1 ",f2:" flip2])
       (t1,t2) match {
+         case (ClockType,ClockType) => if (flip1 == flip2) Seq((0, 0)) else Seq()
          case (t1:UIntType,t2:UIntType) => if (flip1 == flip2) Seq((0, 0)) else Seq()
          case (t1:SIntType,t2:SIntType) => if (flip1 == flip2) Seq((0, 0)) else Seq()
          case (t1:BundleType,t2:BundleType) => {
@@ -390,7 +391,6 @@ object Utils extends LazyLogging {
             }
             points
          }
-        case (ClockType,ClockType) => if (flip1 == flip2) Seq((0, 0)) else Seq()
       }
    }
 // =========== GENDER/FLIP UTILS ============
