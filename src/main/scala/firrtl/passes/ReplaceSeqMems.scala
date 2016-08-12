@@ -303,19 +303,19 @@ object ReplaceSeqMems extends Pass {
           val extLoc = WSubField(extRef,portName,finalType,swap(intGender))
           if (intGender == MALE){
             // Write port (blackbox has write data ports concatenated)
-            //println(t)
-            val intLoc = {
-              //println(loweredIntName)
-              //println(finalType)
-              //println(t)
-              if (t.size == 1){
-                WRef(loweredIntName + "_0",t,PortKind(),intGender)
-              }
-              else {
-                memModStmts ++= catVec(t,loweredIntName,intGender,portName)
-                WRef(memModStmts.last.asInstanceOf[DefNode].name,finalType,NodeKind(),intGender)
-              }
-            }
+						//println(t)
+						val intLoc = {
+							//println(loweredIntName)
+							//println(finalType)
+							//println(t)
+							if (t.size == 1){
+								WRef(loweredIntName + "_0",t,PortKind(),intGender)
+							}
+							else {
+		          	memModStmts ++= catVec(t,loweredIntName,intGender,portName)
+		          	WRef(memModStmts.last.asInstanceOf[DefNode].name,finalType,NodeKind(),intGender)
+							}
+						}
             memModStmts += Connect(NoInfo,extLoc,intLoc)
           }
           else {
