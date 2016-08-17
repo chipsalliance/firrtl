@@ -7,7 +7,6 @@ import scala.collection.mutable
 import firrtl.Mappers.{ExpMap,StmtMap}
 import firrtl.Utils.WithAs
 import firrtl.ir._
-import firrtl.passes.{PassException,PassExceptions}
 import Annotations.{Loose, Unstable, Annotation, TransID, Named, ModuleName, ComponentName, CircuitName, AnnotationMap}
 
 

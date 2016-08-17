@@ -32,6 +32,8 @@ import firrtl.Utils.{max, min, pow_minus_one}
 
 import com.typesafe.scalalogging.LazyLogging
 
+import scala.language.postfixOps
+
 /** Definitions and Utility functions for [[ir.PrimOp]]s */
 object PrimOps extends LazyLogging {
   /** Addition */

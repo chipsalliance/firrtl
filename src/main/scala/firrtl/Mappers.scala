@@ -28,6 +28,7 @@ MODIFICATIONS.
 package firrtl
 
 import firrtl.ir._
+import scala.language.implicitConversions
 
 // TODO: Implement remaining mappers and recursive mappers
 object Mappers {
