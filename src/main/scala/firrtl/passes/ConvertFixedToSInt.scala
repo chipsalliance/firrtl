@@ -84,6 +84,10 @@ object ConvertFixedToSInt extends Pass {
           val point = calcPoint(Seq(loc))
           val newExp = alignArg(exp, point)
           Connect(info, loc, newExp) map updateExpType
+        case PartialConnect(info, loc, exp) => 
+          val point = calcPoint(Seq(loc))
+          val newExp = alignArg(exp, point)
+          PartialConnect(info, loc, newExp) map updateExpType
         // check Connect case, need to shl
         case s => (s map updateStmtType) map updateExpType
       }

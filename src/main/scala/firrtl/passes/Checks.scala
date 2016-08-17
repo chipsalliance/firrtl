@@ -485,9 +485,7 @@ object CheckTypes extends Pass with LazyLogging {
       def bulk_equals (t1: Type, t2: Type, flip1: Orientation, flip2: Orientation): Boolean = {
          //;println_all(["Inside with t1:" t1 ",t2:" t2 ",f1:" flip1 ",f2:" flip2])
          (t1,t2) match {
-            case (ClockType, ClockType) => flip1 == flip2
-            case (t1:UIntType,t2:UIntType) => flip1 == flip2
-            case (t1:SIntType,t2:SIntType) => flip1 == flip2
+            case (t1:GroundType,t2:GroundType) => flip1 == flip2
             case (t1:BundleType,t2:BundleType) => {
                var isEqual = true
                for (i <- 0 until t1.fields.size) {
