@@ -784,6 +784,7 @@ object Legalize extends Pass {
       val newType = t match {
         case _: UIntType => UIntType(IntWidth(w))
         case _: SIntType => SIntType(IntWidth(w))
+        case FixedType(width, point) => FixedType(width, point)
       }
       Connect(c.info, c.loc, DoPrim(Bits, Seq(c.expr), Seq(w-1, 0), newType))
     }
