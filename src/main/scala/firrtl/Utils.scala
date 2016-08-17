@@ -409,6 +409,7 @@ object Utils extends LazyLogging {
             }
             points
          }
+        case (ClockType,ClockType) => if (flip1 == flip2) Seq((0, 0)) else Seq()
       }
    }
 // =========== GENDER/FLIP UTILS ============
