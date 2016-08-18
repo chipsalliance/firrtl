@@ -38,8 +38,8 @@ import scala.io.Source
 import Utils._
 import firrtl.Mappers._
 import firrtl.passes._
-import firrtl.PrimOps._
 import firrtl.ir._
+import firrtl.ir.PrimOps._
 import WrappedExpression._
 // Datastructures
 import scala.collection.mutable.LinkedHashMap
@@ -56,12 +56,6 @@ object FIRRTLEmitter extends Emitter {
 }
 
 case class VIndent()
-case class VRandom(width: BigInt) extends Expression {
-  def tpe = UIntType(IntWidth(width))
-  def nWords = (width + 31) / 32
-  def realWidth = nWords * 32
-  def serialize: String = "RANDOM"
-}
 class VerilogEmitter extends Emitter {
    val tab = "  "
    var w:Option[Writer] = None

@@ -33,7 +33,7 @@ import firrtl.ir._
 import WrappedExpression._
 import WrappedWidth._
 
-trait Kind
+sealed trait Kind
 case class WireKind() extends Kind
 case class PoisonKind() extends Kind 
 case class RegKind() extends Kind
@@ -43,49 +43,11 @@ case class NodeKind() extends Kind
 case class MemKind(ports: Seq[String]) extends Kind
 case class ExpKind() extends Kind
 
-trait Gender
+sealed trait Gender
 case object MALE extends Gender
 case object FEMALE extends Gender
 case object BIGENDER extends Gender
 case object UNKNOWNGENDER extends Gender
-
-case class WRef(name: String, tpe: Type, kind: Kind, gender: Gender) extends Expression {
-  def serialize: String = name
-}
-case class WSubField(exp: Expression, name: String, tpe: Type, gender: Gender) extends Expression {
-  def serialize: String = s"${exp.serialize}.$name"
-}
-case class WSubIndex(exp: Expression, value: Int, tpe: Type, gender: Gender) extends Expression {
-  def serialize: String = s"${exp.serialize}[$value]"
-}
-case class WSubAccess(exp: Expression, index: Expression, tpe: Type, gender: Gender) extends Expression {
-  def serialize: String = s"${exp.serialize}[${index.serialize}]"
-}
-case class WVoid() extends Expression {
-  def tpe = UnknownType
-  def serialize: String = "VOID"
-}
-case class WInvalid() extends Expression {
-  def tpe = UnknownType
-  def serialize: String = "INVALID"
-}
-// Useful for splitting then remerging references
-case object EmptyExpression extends Expression {
-  def tpe = UnknownType
-  def serialize: String = "EMPTY"
-}
-case class WDefInstance(info: Info, name: String, module: String, tpe: Type) extends Statement with IsDeclaration {
-  def serialize: String = s"inst $name of $module" + info.serialize
-}
-
-// Resultant width is the same as the maximum input width
-case object Addw extends PrimOp { override def toString = "addw" }
-// Resultant width is the same as the maximum input width
-case object Subw extends PrimOp { override def toString = "subw" }
-// Resultant width is the same as input argument width
-case object Dshlw extends PrimOp { override def toString = "dshlw" }
-// Resultant width is the same as input argument width
-case object Shlw extends PrimOp { override def toString = "shlw" }
 
 object WrappedExpression {
    def apply (e:Expression) = new WrappedExpression(e)
@@ -123,25 +85,6 @@ class WrappedExpression (val e1:Expression) {
    override def toString = e1.serialize
 }
       
-
-case class VarWidth(name: String) extends Width {
-  def serialize: String = name
-}
-case class PlusWidth(arg1: Width, arg2: Width) extends Width {
-  def serialize: String = "(" + arg1.serialize + " + " + arg2.serialize + ")"
-}
-case class MinusWidth(arg1: Width, arg2: Width) extends Width {
-  def serialize: String = "(" + arg1.serialize + " - " + arg2.serialize + ")"
-}
-case class MaxWidth(args: Seq[Width]) extends Width {
-  def serialize: String = args map (_.serialize) mkString ("max(", ", ", ")")
-}
-case class MinWidth(args: Seq[Width]) extends Width {
-  def serialize: String = args map (_.serialize) mkString ("min(", ", ", ")")
-}
-case class ExpWidth(arg1: Width) extends Width {
-  def serialize: String = "exp(" + arg1.serialize + " )"
-}
 
 object WrappedType {
    def apply (t:Type) = new WrappedType(t)
@@ -239,8 +182,8 @@ class WrappedWidth (val w:Width) {
    }
 }
 
-trait Constraint
-class WGeq(val loc:Width,val exp:Width) extends Constraint {
+sealed trait Constraint
+sealed class WGeq(val loc:Width,val exp:Width) extends Constraint {
    override def toString = {
       val wloc = new WrappedWidth(loc)
       val wexp = new WrappedWidth(exp)
@@ -249,40 +192,5 @@ class WGeq(val loc:Width,val exp:Width) extends Constraint {
 }
 object WGeq {
    def apply (loc:Width,exp:Width) = new WGeq(loc,exp)
-}
-
-abstract class MPortDir extends FirrtlNode
-case object MInfer extends MPortDir {
-  def serialize: String = "infer"
-}
-case object MRead extends MPortDir {
-  def serialize: String = "read"
-}
-case object MWrite extends MPortDir {
-  def serialize: String = "write"
-}
-case object MReadWrite extends MPortDir {
-  def serialize: String = "rdwr"
-}
-
-case class CDefMemory(
-    info: Info,
-    name: String,
-    tpe: Type,
-    size: Int,
-    seq: Boolean) extends Statement {
-  def serialize: String = (if (seq) "smem" else "cmem") +
-    s" $name : ${tpe.serialize} [$size]" + info.serialize
-}
-case class CDefMPort(info: Info,
-    name: String,
-    tpe: Type,
-    mem: String,
-    exps: Seq[Expression],
-    direction: MPortDir) extends Statement {
-  def serialize: String = {
-    val dir = direction.serialize
-    s"$dir mport $name = $mem[${exps(0).serialize}], ${exps(1).serialize}" + info.serialize
-  }
 }
 

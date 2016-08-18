@@ -35,9 +35,9 @@ import scala.collection.mutable.ArrayBuffer
 
 import firrtl._
 import firrtl.ir._
+import firrtl.ir.PrimOps._
 import firrtl.Utils._
 import firrtl.Mappers._
-import firrtl.PrimOps._
 import firrtl.WrappedType._
 
 

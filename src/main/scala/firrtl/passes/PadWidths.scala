@@ -3,8 +3,8 @@ package passes
 
 import firrtl.Mappers.{ExpMap, StmtMap}
 import firrtl.Utils.{tpe, long_BANG}
-import firrtl.PrimOps._
 import firrtl.ir._
+import firrtl.ir.PrimOps._
 
 // Makes all implicit width extensions and truncations explicit
 object PadWidths extends Pass {
