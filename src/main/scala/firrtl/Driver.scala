@@ -27,7 +27,6 @@ MODIFICATIONS.
 
 package firrtl
 
-import java.io.{PrintWriter, Writer, File}
 import scala.io.Source
 import scala.collection.mutable
 import Annotations._
@@ -36,32 +35,6 @@ import Utils._
 import Parser.{InfoMode, IgnoreInfo, UseInfo, GenInfo, AppendInfo}
 
 object Driver {
-  private val usage = """
-Usage: sbt "run-main firrtl.Driver -i <input_file> -o <output_file> -X <compiler>"
-       firrtl -i <input_file> -o <output_file> -X <compiler> [options]
-Options:
-  -X <compiler>         Specify the target compiler
-                        Currently supported: high low verilog
-  --info-mode <mode>    Specify Info Mode
-                        Supported modes: ignore, use, gen, append
-  --inferRW <circuit>   Enable readwrite port inference for the target circuit
-  """
-
-  // Compiles circuit. First parses a circuit from an input file,
-  //  executes all compiler passes, and writes result to an output
-  //  file.
-  def compile(
-      input: String, 
-      output: String, 
-      compiler: Compiler, 
-      infoMode: InfoMode = IgnoreInfo,
-      annotations: AnnotationMap = new AnnotationMap(Seq.empty)) = {
-    val parsedInput = Parser.parse(Source.fromFile(input).getLines, infoMode)
-    val writerOutput = new PrintWriter(new File(output))
-    compiler.compile(parsedInput, annotations, writerOutput)
-    writerOutput.close
-  }
-
   /**
    * Implements the default Firrtl compilers and an inlining pass.
    *
@@ -70,12 +43,22 @@ Options:
    */
   def main(args: Array[String]) = {
     val usage = """
-    Usage: sbt "run-main firrtl.google.Driver -i <input_file> -o <output_file> -X <compiler> [--inline [<module_name>|<module_name>.<instance_name>]]"
-           firrtl -i <input_file> -o <output_file> -X <compiler> [--inline [<module_name>|<module_name>.<instance_name>]]
-    Options:
-          -X <compiler>    Specify the target compiler
-                           Currently supported: high low verilog
-    """
+Usage: firrtl -i <input_file> -o <output_file> -X <compiler> [options] 
+       sbt "run-main firrtl.Driver -i <input_file> -o <output_file> -X <compiler> [options]"
+
+Required Arguments:
+  -i <filename>         Specify the input *.fir file
+  -o <filename>         Specify the output file
+  -X <compiler>         Specify the target compiler
+                        Currently supported: high low verilog
+
+Optional Arguments:
+  --info-mode <mode>             Specify Info Mode
+                                 Supported modes: ignore, use, gen, append
+  --inferRW <circuit>            Enable readwrite port inference for the target circuit
+  --inline <module>|<instance>   Inline a module (e.g. "MyModule") or instance (e.g. "MyModule.myinstance")
+  [--help|-h]                    Print usage string
+"""
 
     def handleInlineOption(value: String): Annotation =
       value.split('.') match {
@@ -85,7 +68,7 @@ Options:
           passes.InlineAnnotation(ModuleName(module, CircuitName(circuit)), TransID(0))
         case Array(circuit, module, inst) =>
           passes.InlineAnnotation((ComponentName(inst,ModuleName(module,CircuitName(circuit)))), TransID(0))
-        case _ => throw new Exception(s"Bad inline instance/module name: $value")
+        case _ => throw new Exception(s"Bad inline instance/module name: $value" + usage)
       }
 
     def handleInferRWOption(value: String) = 
@@ -99,6 +82,25 @@ Options:
           "--inferRW" -> handleInferRWOption _),
       usage
     )
+  }
+
+
+  // Compiles circuit. First parses a circuit from an input file,
+  //  executes all compiler passes, and writes result to an output
+  //  file.
+  def compile(
+      input: String, 
+      output: String, 
+      compiler: Compiler, 
+      infoMode: InfoMode = IgnoreInfo,
+      annotations: AnnotationMap = new AnnotationMap(Seq.empty)) = {
+    val parsedInput = Parser.parse(Source.fromFile(input).getLines, infoMode)
+    val outputBuffer = new java.io.CharArrayWriter
+    compiler.compile(parsedInput, annotations, outputBuffer)
+
+    val outputFile = new java.io.PrintWriter(output)
+    outputFile.write(outputBuffer.toString)
+    outputFile.close()
   }
 
   /**
@@ -145,7 +147,7 @@ Options:
           nextOption(map, tail)
         case ("-h" | "--help") :: tail => { println(usage); sys.exit(0) }
         case option :: tail =>
-          throw new Exception("Unknown option " + option)
+          throw new Exception("Unknown option " + option + usage)
       }
     }
 
@@ -161,7 +163,7 @@ Options:
       case Some("ignore") => IgnoreInfo
       case Some("gen") => GenInfo(input)
       case Some("append") => AppendInfo(input)
-      case Some(other) => throw new Exception("Unknown info mode option: " + other)
+      case Some(other) => throw new Exception("Unknown info mode option: " + other + usage)
     }
 
     // Execute selected compiler - error if not recognized compiler
@@ -169,9 +171,9 @@ Options:
       case Some(name) =>
         compilers.get(name) match {
           case Some(compiler) => compile(input, output, compiler, infoMode, new AnnotationMap(annotations.toSeq))
-          case None => throw new Exception("Unknown compiler option: " + name)
+          case None => throw new Exception("Unknown compiler option: " + name + usage)
         }
-      case None => throw new Exception("No specified compiler option.")
+      case None => throw new Exception("No specified compiler option." + usage)
     }
   }
 }

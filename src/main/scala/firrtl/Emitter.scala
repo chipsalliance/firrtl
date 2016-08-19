@@ -437,16 +437,14 @@ class VerilogEmitter extends Emitter {
          Seq("$fwrite(32'h80000002,",strx,");")
       }
       def delay (e:Expression, n:Int, clk:Expression) : Expression = {
-         var ex = e
-         for (i <- 0 until n) {
+         ((0 until n) foldLeft e){(ex, i) =>
             val name = namespace.newTemp
             declare("reg",name,tpe(e))
             val exx = WRef(name,tpe(e),ExpKind(),UNKNOWNGENDER)
             initialize(exx)
             update(exx,ex,clk,one)
-            ex = exx
+            exx
          }
-         ex
       }
       def build_ports () = {
          (m.ports,0 until m.ports.size).zipped.foreach{(p,i) => {
@@ -513,12 +511,20 @@ class VerilogEmitter extends Emitter {
                   declare("wire",LowerTypes.loweredName(data),tpe(data))
                   declare("wire",LowerTypes.loweredName(addr),tpe(addr))
                   declare("wire",LowerTypes.loweredName(en),tpe(en))
-   
+
                   //; Read port
                   assign(addr,netlist(addr)) //;Connects value to m.r.addr
                   assign(en,netlist(en))     //;Connects value to m.r.en
-                  val addrx = delay(addr,s.readLatency,clk)
-                  val enx = delay(en,s.readLatency,clk)
+                  val addr_pipe = delay(addr,s.readLatency-1,clk)
+                  val en_pipe = if (weq(en,one)) one else delay(en,s.readLatency-1,clk)
+                  val addrx = if (s.readLatency > 0) {
+                    val name = namespace.newTemp
+                    val ref = WRef(name,tpe(addr),ExpKind(),UNKNOWNGENDER)
+                    declare("reg",name,tpe(addr))
+                    initialize(ref)
+                    update(ref,addr_pipe,clk,en_pipe)
+                    ref
+                  } else addr
                   val mem_port = WSubAccess(mem,addrx,s.dataType,UNKNOWNGENDER)
                   val depthValue = UIntLiteral(s.depth, IntWidth(BigInt(s.depth).bitLength))
                   val garbageGuard = DoPrim(Geq, Seq(addrx, depthValue), Seq(), UnknownType)
@@ -559,8 +565,8 @@ class VerilogEmitter extends Emitter {
                for (rw <- s.readwriters) {
                   val wmode = mem_exp(rw,"wmode")
                   val rdata = mem_exp(rw,"rdata")
-                  val data = mem_exp(rw,"data")
-                  val mask = mem_exp(rw,"mask")
+                  val wdata = mem_exp(rw,"wdata")
+                  val wmask = mem_exp(rw,"wmask")
                   val addr = mem_exp(rw,"addr")
                   val en = mem_exp(rw,"en")
                   //Ports should share an always@posedge, so can't have intermediary wire
@@ -568,39 +574,50 @@ class VerilogEmitter extends Emitter {
                   
                   declare("wire",LowerTypes.loweredName(wmode),tpe(wmode))
                   declare("wire",LowerTypes.loweredName(rdata),tpe(rdata))
-                  declare("wire",LowerTypes.loweredName(data),tpe(data))
-                  declare("wire",LowerTypes.loweredName(mask),tpe(mask))
+                  declare("wire",LowerTypes.loweredName(wdata),tpe(wdata))
+                  declare("wire",LowerTypes.loweredName(wmask),tpe(wmask))
                   declare("wire",LowerTypes.loweredName(addr),tpe(addr))
                   declare("wire",LowerTypes.loweredName(en),tpe(en))
    
                   //; Assigned to lowered wires of each
                   assign(addr,netlist(addr))
-                  assign(data,netlist(data))
+                  assign(wdata,netlist(wdata))
                   assign(addr,netlist(addr))
-                  assign(mask,netlist(mask))
+                  assign(wmask,netlist(wmask))
                   assign(en,netlist(en))
                   assign(wmode,netlist(wmode))
    
                   //; Delay new signals by latency
-                  val raddrx = delay(addr,s.readLatency,clk)
+                  val raddrx = if (s.readLatency > 0) delay(addr,s.readLatency - 1,clk) else addr
                   val waddrx = delay(addr,s.writeLatency - 1,clk)
                   val enx = delay(en,s.writeLatency - 1,clk)
-                  val rmodx = delay(wmode,s.writeLatency - 1,clk)
-                  val datax = delay(data,s.writeLatency - 1,clk)
-                  val maskx = delay(mask,s.writeLatency - 1,clk)
-   
-                  //; Write 
-   
-                  val rmem_port = WSubAccess(mem,raddrx,s.dataType,UNKNOWNGENDER)
+                  val wmodex = delay(wmode,s.writeLatency - 1,clk)
+                  val wdatax = delay(wdata,s.writeLatency - 1,clk)
+                  val wmaskx = delay(wmask,s.writeLatency - 1,clk)
+
+                  val raddrxx = if (s.readLatency > 0) {
+                    val name = namespace.newTemp
+                    val ref = WRef(name,tpe(raddrx),ExpKind(),UNKNOWNGENDER)
+                    declare("reg",name,tpe(raddrx))
+                    initialize(ref)
+                    ref
+                  } else addr
+                  val rmem_port = WSubAccess(mem,raddrxx,s.dataType,UNKNOWNGENDER)
                   assign(rdata,rmem_port)
                   val wmem_port = WSubAccess(mem,waddrx,s.dataType,UNKNOWNGENDER)
 
-                  val tempName = namespace.newTemp
-                  val tempExp = AND(enx,maskx)
-                  declare("wire", tempName, tpe(tempExp))
-                  val tempWRef = wref(tempName, tpe(tempExp))
-                  assign(tempWRef, tempExp)
-                  update(wmem_port,datax,clk,AND(tempWRef,wmode))
+                  def declare_and_assign(exp: Expression) = {
+                    val name = namespace.newTemp
+                    val ref = wref(name, tpe(exp))
+                    declare("wire", name, tpe(exp))
+                    assign(ref, exp)
+                    ref
+                  }
+                  val ren = declare_and_assign(NOT(wmodex))
+                  val wen = declare_and_assign(AND(wmodex, wmaskx))
+                  if (s.readLatency > 0)
+                    update(raddrxx,raddrx,clk,AND(enx,ren))
+                  update(wmem_port,wdatax,clk,AND(enx,wen))
                }
             }
             case (s:Block) => s map (build_streams)

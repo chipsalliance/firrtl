@@ -50,24 +50,25 @@ object Parser extends LazyLogging {
   /** Takes Iterator over lines of FIRRTL, returns FirrtlNode (root node is Circuit) */
   def parse(lines: Iterator[String], infoMode: InfoMode = UseInfo): Circuit = {
 
-    val parser = {
-      import scala.collection.JavaConverters._
-      val inStream = new SequenceInputStream(
-        lines.map{s => new ByteArrayInputStream((s + "\n").getBytes("UTF-8")) }.asJavaEnumeration
-      )
-      val lexer = new FIRRTLLexer(new ANTLRInputStream(inStream))
-      new FIRRTLParser(new CommonTokenStream(lexer))
-    }
+    val cst = time("ANTLR Parser") {
+      val parser = {
+        import scala.collection.JavaConverters._
+        val inStream = new SequenceInputStream(
+          lines.map{s => new ByteArrayInputStream((s + "\n").getBytes("UTF-8")) }.asJavaEnumeration
+        )
+        val lexer = new FIRRTLLexer(new ANTLRInputStream(inStream))
+        new FIRRTLParser(new CommonTokenStream(lexer))
+      }
 
-    time("ANTLR Parser") {
       parser.getInterpreter.setPredictionMode(PredictionMode.SLL)
+
+      // Concrete Syntax Tree
+      val cst = parser.circuit
+
+      val numSyntaxErrors = parser.getNumberOfSyntaxErrors
+      if (numSyntaxErrors > 0) throw new ParserException(s"$numSyntaxErrors syntax error(s) detected")
+      cst
     }
-
-    // Concrete Syntax Tree
-    val cst = parser.circuit
-
-    val numSyntaxErrors = parser.getNumberOfSyntaxErrors
-    if (numSyntaxErrors > 0) throw new ParserException(s"$numSyntaxErrors syntax error(s) detected")
 
     val visitor = new Visitor(infoMode)
     val ast = time("Visitor") {
@@ -81,6 +82,8 @@ object Parser extends LazyLogging {
   }
 
   def parse(lines: Seq[String]): Circuit = parse(lines.iterator)
+
+  def parse(text: String): Circuit = parse(text split "\n")
 
   sealed abstract class InfoMode
 
