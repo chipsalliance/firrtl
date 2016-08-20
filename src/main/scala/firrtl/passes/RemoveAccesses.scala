@@ -14,63 +14,70 @@ import scala.collection.mutable
 object RemoveAccesses extends Pass {
   def name = "Remove Accesses"
 
-  /** Container for a base expression and its corresponding guard
-    */
-  private case class Location(base: Expression, guard: Expression)
-
-  /** Walks a referencing expression and returns a list of valid references
-    * (base) and the corresponding guard which, if true, returns that base.
-    * E.g. if called on a[i] where a: UInt[2], we would return:
-    *   Seq(Location(a[0], UIntLiteral(0)), Location(a[1], UIntLiteral(1)))
-    */
-  private def getLocations(e: Expression): Seq[Location] = e match {
-    case e: WRef => create_exps(e).map(Location(_,one))
-    case e: WSubIndex =>
-      val ls = getLocations(e.exp)
-      val start = get_point(e)
-      val end = start + get_size(tpe(e))
-      val stride = get_size(tpe(e.exp))
-      for ((l, i) <- ls.zipWithIndex
-        if ((i % stride) >= start) & ((i % stride) < end)) yield l
-    case e: WSubField =>
-      val ls = getLocations(e.exp)
-      val start = get_point(e)
-      val end = start + get_size(tpe(e))
-      val stride = get_size(tpe(e.exp))
-      for ((l, i) <- ls.zipWithIndex
-        if ((i % stride) >= start) & ((i % stride) < end)) yield l
-    case e: WSubAccess =>
-      val ls = getLocations(e.exp)
-      val stride = get_size(tpe(e))
-      val wrap = tpe(e.exp).asInstanceOf[VectorType].size
-      ls.zipWithIndex map {case (l, i) =>
-        val c = (i / stride) % wrap
-        val basex = l.base
-        val guardx = AND(l.guard,EQV(uint(c),e.index))
-        Location(basex,guardx)
-      }
-  }
-  /** Returns true if e contains a [[firrtl.WSubAccess]]
-    */
-  private def hasAccess(e: Expression): Boolean = {
-    def rec_has_access(e: Expression): Boolean = e match {
-      case (e:WSubAccess) => true
-      case (e:WSubField) => rec_has_access(e.exp)
-      case (e:WSubIndex) => rec_has_access(e.exp)
-      case (e:Mux) => rec_has_access(e.cond) || rec_has_access(e.tval) || rec_has_access(e.fval)
-      case (e:ValidIf) => rec_has_access(e.cond) || rec_has_access(e.value)
-      case (e:DoPrim) => e.args exists rec_has_access
-      case _ => false
-    }
-    rec_has_access(e)
-  }
   def run(c: Circuit): Circuit = {
+    // This improves the performance of this pass
+    val createExpsCache = mutable.HashMap[Expression, Seq[Expression]]()
+    def create_exps(e: Expression) =
+      createExpsCache getOrElseUpdate (e, firrtl.Utils.create_exps(e))
+
+    /** Container for a base expression and its corresponding guard
+      */
+    case class Location(base: Expression, guard: Expression)
+
+    /** Walks a referencing expression and returns a list of valid references
+      * (base) and the corresponding guard which, if true, returns that base.
+      * E.g. if called on a[i] where a: UInt[2], we would return:
+      *   Seq(Location(a[0], UIntLiteral(0)), Location(a[1], UIntLiteral(1)))
+      */
+    def getLocations(e: Expression): Seq[Location] = e match {
+      case e: WRef => create_exps(e).map(Location(_,one))
+      case e: WSubIndex =>
+        val ls = getLocations(e.exp)
+        val start = get_point(e)
+        val end = start + get_size(e.tpe)
+        val stride = get_size(e.exp.tpe)
+        for ((l, i) <- ls.zipWithIndex
+          if ((i % stride) >= start) & ((i % stride) < end)) yield l
+      case e: WSubField =>
+        val ls = getLocations(e.exp)
+        val start = get_point(e)
+        val end = start + get_size(e.tpe)
+        val stride = get_size(e.exp.tpe)
+        for ((l, i) <- ls.zipWithIndex
+          if ((i % stride) >= start) & ((i % stride) < end)) yield l
+      case e: WSubAccess =>
+        val ls = getLocations(e.exp)
+        val stride = get_size(e.tpe)
+        val wrap = e.exp.tpe.asInstanceOf[VectorType].size
+        ls.zipWithIndex map {case (l, i) =>
+          val c = (i / stride) % wrap
+          val basex = l.base
+          val guardx = AND(l.guard,EQV(uint(c),e.index))
+          Location(basex,guardx)
+        }
+    }
+
+    /** Returns true if e contains a [[firrtl.WSubAccess]]
+      */
+    def hasAccess(e: Expression): Boolean = {
+      def rec_has_access(e: Expression): Boolean = e match {
+        case (e:WSubAccess) => true
+        case (e:WSubField) => rec_has_access(e.exp)
+        case (e:WSubIndex) => rec_has_access(e.exp)
+        case (e:Mux) => rec_has_access(e.cond) || rec_has_access(e.tval) || rec_has_access(e.fval)
+        case (e:ValidIf) => rec_has_access(e.cond) || rec_has_access(e.value)
+        case (e:DoPrim) => e.args exists rec_has_access
+        case _ => false
+      }
+      rec_has_access(e)
+    }
+
     def remove_m(m: Module): Module = {
       val namespace = Namespace(m)
       def onStmt(s: Statement): Statement = {
         def create_temp(e: Expression): (Statement, Expression) = {
           val n = namespace.newTemp
-          (DefWire(info(s), n, tpe(e)), WRef(n, tpe(e), kind(e), gender(e)))
+          (DefWire(info(s), n, e.tpe), WRef(n, e.tpe, kind(e), gender(e)))
         }
 
         /** Replaces a subaccess in a given male expression
