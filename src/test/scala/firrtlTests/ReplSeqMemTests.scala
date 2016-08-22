@@ -107,7 +107,7 @@ circuit sram6t :
     mem_ext.W0_data <= W0_data     
 """.stripMargin
 
-    val checkConf = """name mem depth 128 width 32 ports write,read  """
+    val checkConf = """name mem_ext depth 128 width 32 ports write,read  """
     
     def read(file: String) = scala.io.Source.fromFile(file).getLines.mkString("\n")
     
