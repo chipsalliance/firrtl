@@ -8,9 +8,9 @@ import firrtl._
 import firrtl.Utils._
 import MemPortUtils._
 
-object ReplaceMemMacros extends Pass {
+class ReplaceMemMacros(writer: ConfWriter) extends Pass {
 
-  def name = "Replace memories with black box wrappers (optimizes when write mask isn't needed)"
+  def name = "Replace memories with black box wrappers (optimizes when write mask isn't needed) + configuration file"
 
   def run(c: Circuit) = {
 
@@ -56,6 +56,8 @@ object ReplaceMemMacros extends Pass {
     }
 
     memMods foreach { m => moduleNamespace.newName(m.name) }
+    // print conf
+    writer.serialize
     c.copy(modules = updatedMods ++ memMods.toSeq) 
   }  
 
@@ -85,6 +87,9 @@ object ReplaceMemMacros extends Pass {
     //println(wrapper.body.serialize)
 
     val bb = ExtModule(m.info,bbName,bbioPorts) 
+
+    // add to conf file
+    writer.append(m)
     Seq(bb,wrapper)
   }
 
