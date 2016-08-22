@@ -50,7 +50,7 @@ class ConfWriter(filename: String) {
     val ports = (writers ++ readers ++ readwriters).mkString(",")
     val maskGranConf = if (maskGran == None) "" else s"mask_gran ${maskGran.get}"
     val width = bitWidth(m.dataType)
-    val conf = s"name ${m.name} depth ${m.depth} width ${width} ports ${ports} ${maskGranConf} \n"
+    val conf = s"name ${m.name}_ext depth ${m.depth} width ${width} ports ${ports} ${maskGranConf} \n"
     outputBuffer.append(conf)
   }
   def serialize = {
