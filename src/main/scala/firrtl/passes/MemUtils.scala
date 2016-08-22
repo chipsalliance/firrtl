@@ -54,7 +54,7 @@ object toBits {
     case t => error("Invalid operand expression for toBits!")
   }
   def hiercat(e: Expression, dt: Type): Expression = dt match {
-    case t:VectorType => seqCat((0 until t.size).map(i => hiercat(WSubIndex(e, i, t.tpe, UNKNOWNGENDER),t.tpe)))
+    case t:VectorType => seqCat((0 until t.size).reverse.map(i => hiercat(WSubIndex(e, i, t.tpe, UNKNOWNGENDER),t.tpe)))
     case t:BundleType => seqCat(t.fields.map(f => hiercat(WSubField(e, f.name, f.tpe, UNKNOWNGENDER), f.tpe)))
     case t:GroundType => e
     case t => error("Unknown type encountered in toBits!")
@@ -69,7 +69,7 @@ object toBitMask {
     case t => error("Invalid operand expression for toBits!")
   }
   def hiermask(e: Expression, maskType: Type, dataType: Type): Expression = (maskType, dataType) match {
-    case (mt:VectorType, dt:VectorType) => seqCat((0 until mt.size).map(i => hiermask(WSubIndex(e, i, mt.tpe, UNKNOWNGENDER), mt.tpe, dt.tpe)))
+    case (mt:VectorType, dt:VectorType) => seqCat((0 until mt.size).reverse.map(i => hiermask(WSubIndex(e, i, mt.tpe, UNKNOWNGENDER), mt.tpe, dt.tpe)))
     case (mt:BundleType, dt:BundleType) => seqCat((mt.fields zip dt.fields).map{ case (mf,df) =>
       hiermask(WSubField(e, mf.name, mf.tpe, UNKNOWNGENDER), mf.tpe, df.tpe) })
     case (mt:UIntType, dt:GroundType) => seqCat(List.fill(bitWidth(dt).intValue)(e))
