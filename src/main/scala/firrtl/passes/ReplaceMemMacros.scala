@@ -33,9 +33,11 @@ class ReplaceMemMacros(writer: ConfWriter) extends Pass {
           
           // prototype mem
           if (ref == None) {
-            memMods ++= createMemModule(m)
-            uniqueMems += m
-            WDefInstance(info, m.name, m.name, UnknownType) 
+            val newName = moduleNamespace.newName(m.name)
+            val newMem = m.copy(name = newName)
+            memMods ++= createMemModule(newMem)
+            uniqueMems += newMem
+            WDefInstance(info, m.name, newMem.name, UnknownType) 
           }
           else {
             val r = ref.get match {case s: String => s}
@@ -55,7 +57,6 @@ class ReplaceMemMacros(writer: ConfWriter) extends Pass {
       case m: ExtModule => m
     }
 
-    memMods foreach { m => moduleNamespace.newName(m.name) }
     // print conf
     writer.serialize
     c.copy(modules = updatedMods ++ memMods.toSeq) 
