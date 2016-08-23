@@ -103,6 +103,7 @@ class ReplSeqMem(transID: TransID) extends Transform with LazyLogging {
             (
               Seq(
                 Legalize,
+                ExpandWhens,
                 AnnotateMemMacros,
                 UpdateDuplicateMemMacros,
                 new ReplaceMemMacros(outConfigFile),
