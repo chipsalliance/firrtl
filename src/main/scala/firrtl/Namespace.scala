@@ -73,7 +73,7 @@ object Namespace {
       case dec: IsDeclaration => Seq(dec.name)
       case x => Nil
     }
-    namespace.namespace ++= (m.ports flatMap buildNamespacePort)
+    namespace.namespace ++= (m.ports collect {case dec: IsDeclaration => dec.name})
     m match {
       case in: Module =>
         namespace.namespace ++= buildNamespaceStmt(in.body)

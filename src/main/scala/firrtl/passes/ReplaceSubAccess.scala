@@ -21,10 +21,10 @@ object ReplaceAccesses extends Pass {
       case e => e map onExp
     }
   
-    val newModules = c.modules.map( _ match {
+    val newModules = c.modules map {
       case m: ExtModule => m
-      case Module(i, n, ps, b) => Module(i, n, ps, onStmt(b))
-    })
+      case m: Module => m.copy(body=onStmt(m.body))
+    }
     Circuit(c.info, newModules, c.main)
   }
 }

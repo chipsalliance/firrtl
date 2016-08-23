@@ -34,21 +34,21 @@ object RemoveAccesses extends Pass {
       case e: WSubIndex =>
         val ls = getLocations(e.exp)
         val start = get_point(e)
-        val end = start + get_size(tpe(e))
-        val stride = get_size(tpe(e.exp))
+        val end = start + get_size(e.tpe)
+        val stride = get_size(e.exp.tpe)
         for ((l, i) <- ls.zipWithIndex
           if ((i % stride) >= start) & ((i % stride) < end)) yield l
       case e: WSubField =>
         val ls = getLocations(e.exp)
         val start = get_point(e)
-        val end = start + get_size(tpe(e))
-        val stride = get_size(tpe(e.exp))
+        val end = start + get_size(e.tpe)
+        val stride = get_size(e.exp.tpe)
         for ((l, i) <- ls.zipWithIndex
           if ((i % stride) >= start) & ((i % stride) < end)) yield l
       case e: WSubAccess =>
         val ls = getLocations(e.exp)
-        val stride = get_size(tpe(e))
-        val wrap = tpe(e.exp).asInstanceOf[VectorType].size
+        val stride = get_size(e.tpe)
+        val wrap = e.exp.tpe.asInstanceOf[VectorType].size
         ls.zipWithIndex map {case (l, i) =>
           val c = (i / stride) % wrap
           val basex = l.base
@@ -77,7 +77,7 @@ object RemoveAccesses extends Pass {
       def onStmt(s: Statement): Statement = {
         def create_temp(e: Expression): (Statement, Expression) = {
           val n = namespace.newTemp
-          (DefWire(info(s), n, tpe(e)), WRef(n, tpe(e), kind(e), gender(e)))
+          (DefWire(get_info(s), n, e.tpe), WRef(n, e.tpe, kind(e), gender(e)))
         }
 
         /** Replaces a subaccess in a given male expression
@@ -95,9 +95,9 @@ object RemoveAccesses extends Pass {
                 stmts += wire
                 rs.zipWithIndex foreach {
                   case (x, i) if i < temps.size =>
-                    stmts += Connect(info(s),getTemp(i),x.base)
+                    stmts += Connect(get_info(s),getTemp(i),x.base)
                   case (x, i) =>
-                    stmts += Conditionally(info(s),x.guard,Connect(info(s),getTemp(i),x.base),EmptyStmt)
+                    stmts += Conditionally(get_info(s),x.guard,Connect(get_info(s),getTemp(i),x.base),EmptyStmt)
                 }
                 temp
             }
