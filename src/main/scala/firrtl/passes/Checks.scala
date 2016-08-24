@@ -301,123 +301,87 @@ object CheckHighForm extends Pass with LazyLogging {
 }
 
 object CheckTypes extends Pass with LazyLogging {
-   def name = "Check Types"
-   var mname = ""
+  def name = "Check Types"
+  var mname = ""
 
-  // Custom Exceptions
-   class SubfieldNotInBundle(info:Info, name:String) extends PassException(s"${info}: [module ${mname} ]  Subfield ${name} is not in bundle.")
-   class SubfieldOnNonBundle(info:Info, name:String) extends PassException(s"${info}: [module ${mname}]  Subfield ${name} is accessed on a non-bundle.")
-   class IndexTooLarge(info:Info, value:Int) extends PassException(s"${info}: [module ${mname}]  Index with value ${value} is too large.")
-   class IndexOnNonVector(info:Info) extends PassException(s"${info}: [module ${mname}]  Index illegal on non-vector type.")
-   class AccessIndexNotUInt(info:Info) extends PassException(s"${info}: [module ${mname}]  Access index must be a UInt type.")
-   class IndexNotUInt(info:Info) extends PassException(s"${info}: [module ${mname}]  Index is not of UIntType.")
-   class EnableNotUInt(info:Info) extends PassException(s"${info}: [module ${mname}]  Enable is not of UIntType.")
-   class InvalidConnect(info:Info, lhs:String, rhs:String) extends PassException(s"${info}: [module ${mname}]  Type mismatch. Cannot connect ${lhs} to ${rhs}.")
-   class InvalidRegInit(info:Info) extends PassException(s"${info}: [module ${mname}]  Type of init must match type of DefRegister.")
-   class PrintfArgNotGround(info:Info) extends PassException(s"${info}: [module ${mname}]  Printf arguments must be either UIntType or SIntType.")
-   class ReqClk(info:Info) extends PassException(s"${info}: [module ${mname}]  Requires a clock typed signal.")
-   class EnNotUInt(info:Info) extends PassException(s"${info}: [module ${mname}]  Enable must be a UIntType typed signal.")
-   class PredNotUInt(info:Info) extends PassException(s"${info}: [module ${mname}]  Predicate not a UIntType.")
-   class OpNotGround(info:Info, op:String) extends PassException(s"${info}: [module ${mname}]  Primop ${op} cannot operate on non-ground types.")
-   class OpNotUInt(info:Info, op:String,e:String) extends PassException(s"${info}: [module ${mname}]  Primop ${op} requires argument ${e} to be a UInt type.")
-   class OpNotAllUInt(info:Info, op:String) extends PassException(s"${info}: [module ${mname}]  Primop ${op} requires all arguments to be UInt type.")
-   class OpNotAllSameType(info:Info, op:String) extends PassException(s"${info}: [module ${mname}]  Primop ${op} requires all operands to have the same type.")
-   class NodePassiveType(info:Info) extends PassException(s"${info}: [module ${mname}]  Node must be a passive type.")
-   class MuxSameType(info:Info) extends PassException(s"${info}: [module ${mname}]  Must mux between equivalent types.")
-   class MuxPassiveTypes(info:Info) extends PassException(s"${info}: [module ${mname}]  Must mux between passive types.")
-   class MuxCondUInt(info:Info) extends PassException(s"${info}: [module ${mname}]  A mux condition must be of type UInt.")
-   class ValidIfPassiveTypes(info:Info) extends PassException(s"${info}: [module ${mname}]  Must validif a passive type.")
-   class ValidIfCondUInt(info:Info) extends PassException(s"${info}: [module ${mname}]  A validif condition must be of type UInt.")
-   //;---------------- Helper Functions --------------
-   def ut () : UIntType = UIntType(UnknownWidth)
-   def st () : SIntType = SIntType(UnknownWidth)
+ // Custom Exceptions
+  class SubfieldNotInBundle(info:Info, name:String) extends PassException(s"${info}: [module ${mname} ]  Subfield ${name} is not in bundle.")
+  class SubfieldOnNonBundle(info:Info, name:String) extends PassException(s"${info}: [module ${mname}]  Subfield ${name} is accessed on a non-bundle.")
+  class IndexTooLarge(info:Info, value:Int) extends PassException(s"${info}: [module ${mname}]  Index with value ${value} is too large.")
+  class IndexOnNonVector(info:Info) extends PassException(s"${info}: [module ${mname}]  Index illegal on non-vector type.")
+  class AccessIndexNotUInt(info:Info) extends PassException(s"${info}: [module ${mname}]  Access index must be a UInt type.")
+  class IndexNotUInt(info:Info) extends PassException(s"${info}: [module ${mname}]  Index is not of UIntType.")
+  class EnableNotUInt(info:Info) extends PassException(s"${info}: [module ${mname}]  Enable is not of UIntType.")
+  class InvalidConnect(info:Info, lhs:String, rhs:String) extends PassException(s"${info}: [module ${mname}]  Type mismatch. Cannot connect ${lhs} to ${rhs}.")
+  class InvalidRegInit(info:Info) extends PassException(s"${info}: [module ${mname}]  Type of init must match type of DefRegister.")
+  class PrintfArgNotGround(info:Info) extends PassException(s"${info}: [module ${mname}]  Printf arguments must be either UIntType or SIntType.")
+  class ReqClk(info:Info) extends PassException(s"${info}: [module ${mname}]  Requires a clock typed signal.")
+  class EnNotUInt(info:Info) extends PassException(s"${info}: [module ${mname}]  Enable must be a UIntType typed signal.")
+  class PredNotUInt(info:Info) extends PassException(s"${info}: [module ${mname}]  Predicate not a UIntType.")
+  class OpNotGround(info:Info, op:String) extends PassException(s"${info}: [module ${mname}]  Primop ${op} cannot operate on non-ground types.")
+  class OpNotUInt(info:Info, op:String,e:String) extends PassException(s"${info}: [module ${mname}]  Primop ${op} requires argument ${e} to be a UInt type.")
+  class OpNotAllUInt(info:Info, op:String) extends PassException(s"${info}: [module ${mname}]  Primop ${op} requires all arguments to be UInt type.")
+  class OpNotAllSameType(info:Info, op:String) extends PassException(s"${info}: [module ${mname}]  Primop ${op} requires all operands to have the same type.")
+  class NodePassiveType(info:Info) extends PassException(s"${info}: [module ${mname}]  Node must be a passive type.")
+  class MuxSameType(info:Info) extends PassException(s"${info}: [module ${mname}]  Must mux between equivalent types.")
+  class MuxPassiveTypes(info:Info) extends PassException(s"${info}: [module ${mname}]  Must mux between passive types.")
+  class MuxCondUInt(info:Info) extends PassException(s"${info}: [module ${mname}]  A mux condition must be of type UInt.")
+  class ValidIfPassiveTypes(info:Info) extends PassException(s"${info}: [module ${mname}]  Must validif a passive type.")
+  class ValidIfCondUInt(info:Info) extends PassException(s"${info}: [module ${mname}]  A validif condition must be of type UInt.")
+  //;---------------- Helper Functions --------------
+  def ut: UIntType = UIntType(UnknownWidth)
+  def st: SIntType = SIntType(UnknownWidth)
    
-   def check_types_primop (e:DoPrim, errors:Errors, info:Info) : Unit = {
-      def all_same_type (ls:Seq[Expression]) : Unit = {
-         var error = false
-         for (x <- ls) {
-            if (wt(tpe(ls.head)) != wt(tpe(x))) error = true
-         }
-         if (error) errors.append(new OpNotAllSameType(info,e.op.serialize))
-      }
-      def all_ground (ls:Seq[Expression]) : Unit = {
-         var error = false
-         for (x <- ls ) {
-            if (!(tpe(x).typeof[UIntType] || tpe(x).typeof[SIntType])) error = true
-         }
-         if (error) errors.append(new OpNotGround(info,e.op.serialize))
-      }
-      def all_uint (ls:Seq[Expression]) : Unit = {
-         var error = false
-         for (x <- ls ) {
-            if (!(tpe(x).typeof[UIntType])) error = true
-         }
-         if (error) errors.append(new OpNotAllUInt(info,e.op.serialize))
-      }
-      def is_uint (x:Expression) : Unit = {
-         var error = false
-         if (!(tpe(x).typeof[UIntType])) error = true
-         if (error) errors.append(new OpNotUInt(info,e.op.serialize,x.serialize))
-      }
+  def check_types_primop (e: DoPrim, errors: Errors, info: Info) {
+    def all_same_type (ls:Seq[Expression]) {
+      val error = ls exists (x => wt(ls.head.tpe) != wt(e.tpe))
+      if (error) errors.append(new OpNotAllSameType(info, e.op.serialize))
+    }
+    def all_ground (ls: Seq[Expression]) {
+      val error = ls exists (x => x.tpe match {
+        case _: UIntType | _: SIntType => false
+        case _ => true
+      })
+      if (error) errors.append(new OpNotGround(info, e.op.serialize))
+    }
+    def all_uint (ls: Seq[Expression]) {
+      val error = ls exists (x => x.tpe match {
+        case _: UIntType => false
+        case _ => true
+      })
+      if (error) errors.append(new OpNotAllUInt(info, e.op.serialize))
+    }
+    def is_uint (x:Expression) : Unit = {
+       var error = false
+       if (!x.tpe.typeof[UIntType]) error = true
+       if (error) errors.append(new OpNotUInt(info, e.op.serialize, x.serialize))
+    }
       
-      e.op match {
-         case AsUInt =>
-         case AsSInt =>
-         case AsClock =>
-         case Dshl => is_uint(e.args(1)); all_ground(e.args)
-         case Dshr => is_uint(e.args(1)); all_ground(e.args)
-         case Add => all_ground(e.args)
-         case Sub => all_ground(e.args)
-         case Mul => all_ground(e.args)
-         case Div => all_ground(e.args)
-         case Rem => all_ground(e.args)
-         case Lt => all_ground(e.args)
-         case Leq => all_ground(e.args)
-         case Gt => all_ground(e.args)
-         case Geq => all_ground(e.args)
-         case Eq => all_ground(e.args)
-         case Neq => all_ground(e.args)
-         case Pad => all_ground(e.args)
-         case Shl => all_ground(e.args)
-         case Shr => all_ground(e.args)
-         case Cvt => all_ground(e.args)
-         case Neg => all_ground(e.args)
-         case Not => all_ground(e.args)
-         case And => all_ground(e.args)
-         case Or => all_ground(e.args)
-         case Xor => all_ground(e.args)
-         case Andr => all_ground(e.args)
-         case Orr => all_ground(e.args)
-         case Xorr => all_ground(e.args)
-         case Cat => all_ground(e.args)
-         case Bits => all_ground(e.args)
-         case Head => all_ground(e.args)
-         case Tail => all_ground(e.args)
-      }
-   }
+    e.op match {
+      case AsUInt =>
+      case AsSInt =>
+      case AsClock =>
+      case Dshl => is_uint(e.args(1)); all_ground(e.args)
+      case Dshr => is_uint(e.args(1)); all_ground(e.args)
+      case _ => all_ground(e.args)
+    }
+  }
       
-   def run (c:Circuit) : Circuit = {
-      val errors = new Errors()
-      def passive (t:Type) : Boolean = {
-         (t) match { 
-            case (_:UIntType|_:SIntType) => true
-            case (t:VectorType) => passive(t.tpe)
-            case (t:BundleType) => {
-               var p = true
-               for (x <- t.fields ) {
-                  if (x.flip == Flip) p = false
-                  if (!passive(x.tpe)) p = false
-               }
-               p
-            }
-            case (t) => true
-         }
-      }
+  def run (c:Circuit) : Circuit = {
+    val errors = new Errors()
+    def passive (t: Type): Boolean = t match { 
+      case (_: UIntType |_: SIntType) => true
+      case (t: VectorType) => passive(t.tpe)
+      case (t: BundleType) => t.fields forall (x =>
+        x.flip == Default && passive(x.tpe)
+      )
+      case (t) => true
+    }
       def check_types_e (info:Info)(e:Expression) : Expression = {
          (e map (check_types_e(info))) match { 
             case (e:WRef) => e
             case (e:WSubField) => {
-               (tpe(e.exp)) match  { 
+               (e.exp.tpe) match  { 
                   case (t:BundleType) => {
                      val ft = t.fields.find(p => p.name == e.name)
                      if (ft == None) errors.append(new SubfieldNotInBundle(info,e.name))
@@ -426,7 +390,7 @@ object CheckTypes extends Pass with LazyLogging {
                }
             }
             case (e:WSubIndex) => {
-               (tpe(e.exp)) match { 
+               (e.exp.tpe) match { 
                   case (t:VectorType) => {
                      if (e.value >= t.size) errors.append(new IndexTooLarge(info,e.value))
                   }
@@ -434,24 +398,24 @@ object CheckTypes extends Pass with LazyLogging {
                }
             }
             case (e:WSubAccess) => {
-               (tpe(e.exp)) match { 
+               (e.exp.tpe) match { 
                   case (t:VectorType) => false
                   case (t) => errors.append(new IndexOnNonVector(info))
                }
-               (tpe(e.index)) match { 
+               (e.index.tpe) match { 
                   case (t:UIntType) => false
                   case (t) => errors.append(new AccessIndexNotUInt(info))
                }
             }
             case (e:DoPrim) => check_types_primop(e,errors,info)
             case (e:Mux) => {
-               if (wt(tpe(e.tval)) != wt(tpe(e.fval))) errors.append(new MuxSameType(info))
-               if (!passive(tpe(e))) errors.append(new MuxPassiveTypes(info))
-               if (!(tpe(e.cond).typeof[UIntType])) errors.append(new MuxCondUInt(info))
+               if (wt(e.tval.tpe) != wt(e.fval.tpe)) errors.append(new MuxSameType(info))
+               if (!passive(e.tpe)) errors.append(new MuxPassiveTypes(info))
+               if (!e.cond.tpe.typeof[UIntType]) errors.append(new MuxCondUInt(info))
             }
             case (e:ValidIf) => {
-               if (!passive(tpe(e))) errors.append(new ValidIfPassiveTypes(info))
-               if (!(tpe(e.cond).typeof[UIntType])) errors.append(new ValidIfCondUInt(info))
+               if (!passive(e.tpe)) errors.append(new ValidIfPassiveTypes(info))
+               if (!e.cond.tpe.typeof[UIntType]) errors.append(new ValidIfCondUInt(info))
             }
             case (_:UIntLiteral | _:SIntLiteral) => false
          }
@@ -484,22 +448,22 @@ object CheckTypes extends Pass with LazyLogging {
 
       def check_types_s (s:Statement) : Statement = {
          s map (check_types_e(get_info(s))) match { 
-            case (s:Connect) => if (wt(tpe(s.loc)) != wt(tpe(s.expr))) errors.append(new InvalidConnect(s.info, s.loc.serialize, s.expr.serialize))
-            case (s:DefRegister) => if (wt(s.tpe) != wt(tpe(s.init))) errors.append(new InvalidRegInit(s.info))
-            case (s:PartialConnect) => if (!bulk_equals(tpe(s.loc),tpe(s.expr),Default,Default) ) errors.append(new InvalidConnect(s.info, s.loc.serialize, s.expr.serialize))
+            case (s:Connect) => if (wt(s.loc.tpe) != wt(s.expr.tpe)) errors.append(new InvalidConnect(s.info, s.loc.serialize, s.expr.serialize))
+            case (s:DefRegister) => if (wt(s.tpe) != wt(s.init.tpe)) errors.append(new InvalidRegInit(s.info))
+            case (s:PartialConnect) => if (!bulk_equals(s.loc.tpe,s.expr.tpe,Default,Default) ) errors.append(new InvalidConnect(s.info, s.loc.serialize, s.expr.serialize))
             case (s:Stop) => {
-               if (wt(tpe(s.clk)) != wt(ClockType) ) errors.append(new ReqClk(s.info))
-               if (wt(tpe(s.en)) != wt(ut()) ) errors.append(new EnNotUInt(s.info))
+               if (wt(s.clk.tpe) != wt(ClockType) ) errors.append(new ReqClk(s.info))
+               if (wt(s.en.tpe) != wt(ut) ) errors.append(new EnNotUInt(s.info))
             }
             case (s:Print)=> {
                for (x <- s.args ) {
-                  if (wt(tpe(x)) != wt(ut()) && wt(tpe(x)) != wt(st()) ) errors.append(new PrintfArgNotGround(s.info))
+                  if (wt(x.tpe) != wt(ut) && wt(x.tpe) != wt(st) ) errors.append(new PrintfArgNotGround(s.info))
                }
-               if (wt(tpe(s.clk)) != wt(ClockType) ) errors.append(new ReqClk(s.info))
-               if (wt(tpe(s.en)) != wt(ut()) ) errors.append(new EnNotUInt(s.info))
+               if (wt(s.clk.tpe) != wt(ClockType) ) errors.append(new ReqClk(s.info))
+               if (wt(s.en.tpe) != wt(ut) ) errors.append(new EnNotUInt(s.info))
             }
-            case (s:Conditionally) => if (wt(tpe(s.pred)) != wt(ut()) ) errors.append(new PredNotUInt(s.info))
-            case (s:DefNode) => if (!passive(tpe(s.value)) ) errors.append(new NodePassiveType(s.info))
+            case (s:Conditionally) => if (wt(s.pred.tpe) != wt(ut) ) errors.append(new PredNotUInt(s.info))
+            case (s:DefNode) => if (!passive(s.value.tpe) ) errors.append(new NodePassiveType(s.info))
             case (s) => false
          }
          s map (check_types_s)
@@ -571,7 +535,7 @@ object CheckGenders extends Pass {
             fQ
          }
             
-         val has_flipQ = flipQ(tpe(e))
+         val has_flipQ = flipQ(e.tpe)
          //println(e)
          //println(gender)
          //println(desired)
@@ -597,7 +561,7 @@ object CheckGenders extends Pass {
          (e) match { 
             case (e:WRef) => genders(e.name)
             case (e:WSubField) => 
-               val f = tpe(e.exp).as[BundleType].get.fields.find(f => f.name == e.name).get
+               val f = e.exp.tpe.as[BundleType].get.fields.find(f => f.name == e.name).get
                times(get_gender(e.exp,genders),f.flip)
             case (e:WSubIndex) => get_gender(e.exp,genders)
             case (e:WSubAccess) => get_gender(e.exp,genders)
@@ -735,7 +699,7 @@ object CheckWidths extends Pass {
          }
          def check_width_s (s:Statement) : Statement = {
             s map (check_width_s) map (check_width_e(get_info(s)))
-            def tm (t:Type) : Type = mapr(check_width_w(info(s)) _,t)
+            def tm (t:Type) : Type = mapr(check_width_w(get_info(s)) _,t)
             s map (tm)
          }
       
