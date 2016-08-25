@@ -36,16 +36,14 @@ MODIFICATIONS.
 
 package firrtl
 
-import scala.collection.mutable.StringBuilder
+import firrtl.ir._
+import firrtl.PrimOps._
+import firrtl.Mappers._
+import firrtl.WrappedExpression._
+import firrtl.WrappedType._
+import scala.collection.mutable.{StringBuilder, ArrayBuffer, LinkedHashMap, HashMap, HashSet}
 import java.io.PrintWriter
 import com.typesafe.scalalogging.LazyLogging
-import WrappedExpression._
-import firrtl.WrappedType._
-import firrtl.Mappers._
-import firrtl.PrimOps._
-import firrtl.ir._
-import scala.collection.mutable.ArrayBuffer
-import scala.collection.mutable.LinkedHashMap
 //import scala.reflect.runtime.universe._
 
 class FIRRTLException(str: String) extends Exception(str)
@@ -82,375 +80,358 @@ object Utils extends LazyLogging {
     if (bi < BigInt(0)) "\"h" + bi.toString(16).substring(1) + "\""
     else "\"h" + bi.toString(16) + "\""
 
-   implicit class WithAs[T](x: T) {
-     import scala.reflect._
-     def as[O: ClassTag]: Option[O] = x match {
-       case o: O => Some(o)
-       case _ => None }
-     def typeof[O: ClassTag]: Boolean = x match {
-       case o: O => true
-       case _ => false }
-   }
-   implicit def toWrappedExpression (x:Expression) = new WrappedExpression(x)
-   def ceil_log2(x: BigInt): BigInt = (x-1).bitLength
-   def ceil_log2(x: Int): Int = scala.math.ceil(scala.math.log(x) / scala.math.log(2)).toInt
-   def max(a: BigInt, b: BigInt): BigInt = if (a >= b) a else b
-   def min(a: BigInt, b: BigInt): BigInt = if (a >= b) b else a
-   def pow_minus_one(a: BigInt, b: BigInt): BigInt = a.pow(b.toInt) - 1
-   val gen_names = Map[String,Int]()
-   val delin = "_"
-   val BoolType = UIntType(IntWidth(1))
-   val one  = UIntLiteral(BigInt(1),IntWidth(1))
-   val zero = UIntLiteral(BigInt(0),IntWidth(1))
-   def uint (i:Int) : UIntLiteral = {
-      val num_bits = req_num_bits(i)
-      val w = IntWidth(scala.math.max(1,num_bits - 1))
-      UIntLiteral(BigInt(i),w)
-   }
-   def req_num_bits (i: Int) : Int = {
-      val ix = if (i < 0) ((-1 * i) - 1) else i
-      ceil_log2(ix + 1) + 1
-   }
-   def EQV (e1:Expression,e2:Expression) : Expression =
-      DoPrim(Eq, Seq(e1, e2), Nil, e1.tpe)
-   // TODO: these should be fixed
-   def AND (e1:WrappedExpression,e2:WrappedExpression) : Expression = {
-      if (e1 == e2) e1.e1
-      else if ((e1 == we(zero)) | (e2 == we(zero))) zero
-      else if (e1 == we(one)) e2.e1
-      else if (e2 == we(one)) e1.e1
-      else DoPrim(And,Seq(e1.e1,e2.e1),Seq(),UIntType(IntWidth(1)))
-   }
-   def OR (e1:WrappedExpression,e2:WrappedExpression) : Expression = {
-      if (e1 == e2) e1.e1
-      else if ((e1 == we(one)) | (e2 == we(one))) one
-      else if (e1 == we(zero)) e2.e1
-      else if (e2 == we(zero)) e1.e1
-      else DoPrim(Or,Seq(e1.e1,e2.e1),Seq(),UIntType(IntWidth(1)))
-   }
-   def NOT (e1:WrappedExpression) : Expression = {
-      if (e1 == we(one)) zero
-      else if (e1 == we(zero)) one
-      else DoPrim(Eq,Seq(e1.e1,zero),Seq(),UIntType(IntWidth(1)))
-   }
+  implicit def toWrappedExpression (x:Expression) = new WrappedExpression(x)
+  def ceil_log2(x: BigInt): BigInt = (x-1).bitLength
+  def ceil_log2(x: Int): Int = scala.math.ceil(scala.math.log(x) / scala.math.log(2)).toInt
+  def max(a: BigInt, b: BigInt): BigInt = if (a >= b) a else b
+  def min(a: BigInt, b: BigInt): BigInt = if (a >= b) b else a
+  def pow_minus_one(a: BigInt, b: BigInt): BigInt = a.pow(b.toInt) - 1
+  val BoolType = UIntType(IntWidth(1))
+  val one  = UIntLiteral(BigInt(1),IntWidth(1))
+  val zero = UIntLiteral(BigInt(0),IntWidth(1))
+  def uint (i:Int) : UIntLiteral = {
+     val num_bits = req_num_bits(i)
+     val w = IntWidth(scala.math.max(1,num_bits - 1))
+     UIntLiteral(BigInt(i),w)
+  }
+  def req_num_bits (i: Int) : Int = {
+     val ix = if (i < 0) ((-1 * i) - 1) else i
+     ceil_log2(ix + 1) + 1
+  }
+  def EQV (e1:Expression,e2:Expression) : Expression =
+     DoPrim(Eq, Seq(e1, e2), Nil, e1.tpe)
+  // TODO: these should be fixed
+  def AND (e1:WrappedExpression,e2:WrappedExpression) : Expression = {
+     if (e1 == e2) e1.e1
+     else if ((e1 == we(zero)) | (e2 == we(zero))) zero
+     else if (e1 == we(one)) e2.e1
+     else if (e2 == we(one)) e1.e1
+     else DoPrim(And,Seq(e1.e1,e2.e1),Seq(),UIntType(IntWidth(1)))
+  }
+  def OR (e1:WrappedExpression,e2:WrappedExpression) : Expression = {
+     if (e1 == e2) e1.e1
+     else if ((e1 == we(one)) | (e2 == we(one))) one
+     else if (e1 == we(zero)) e2.e1
+     else if (e2 == we(zero)) e1.e1
+     else DoPrim(Or,Seq(e1.e1,e2.e1),Seq(),UIntType(IntWidth(1)))
+  }
+  def NOT (e1:WrappedExpression) : Expression = {
+     if (e1 == we(one)) zero
+     else if (e1 == we(zero)) one
+     else DoPrim(Eq,Seq(e1.e1,zero),Seq(),UIntType(IntWidth(1)))
+  }
 
-   def create_mask (dt:Type) : Type = dt match {
-      case t:VectorType => VectorType(create_mask(t.tpe),t.size)
-      case t:BundleType => BundleType(t.fields.map (f => f.copy(tpe=create_mask(f.tpe))))
-      case t:UIntType => BoolType
-      case t:SIntType => BoolType
-   }
+  def create_mask (dt:Type) : Type = dt match {
+     case t:VectorType => VectorType(create_mask(t.tpe),t.size)
+     case t:BundleType => BundleType(t.fields.map (f => f.copy(tpe=create_mask(f.tpe))))
+     case t:UIntType => BoolType
+     case t:SIntType => BoolType
+  }
 
-   def create_exps (n:String, t:Type) : Seq[Expression] =
-      create_exps(WRef(n,t,ExpKind(),UNKNOWNGENDER))
-   def create_exps (e:Expression) : Seq[Expression] = e match {
-     case (e:Mux) =>
-       val e1s = create_exps(e.tval)
-       val e2s = create_exps(e.fval)
-       e1s zip e2s map {case (e1, e2) =>
-         Mux(e.cond, e1, e2, mux_type_and_widths(e1,e2))
-       }
-     case (e:ValidIf) => create_exps(e.value) map (e1 => ValidIf(e.cond, e1, e1.tpe))
-     case (e) => e.tpe match {
-       case (_:GroundType) => Seq(e)
-       case (t:BundleType) => (t.fields foldLeft Seq[Expression]())((exps, f) =>
-         exps ++ create_exps(WSubField(e, f.name, f.tpe,times(gender(e), f.flip))))
-       case (t:VectorType) => ((0 until t.size) foldLeft Seq[Expression]())((exps, i) =>
-         exps ++ create_exps(WSubIndex(e, i, t.tpe,gender(e))))
-     }
-   }
-   def get_flip (t:Type, i:Int, f:Orientation) : Orientation = {
-     if (i >= get_size(t)) error("Shouldn't be here")
-     t match {
-       case (_: GroundType) => f
-       case (t: BundleType) => ((t.fields foldLeft (i, None: Option[Orientation])){
-         case ((n, ret), x) if n < get_size(x.tpe) => ret match {
-           case None => (n, Some(get_flip(x.tpe, n, times(x.flip, f))))
-           case Some(_) => (n, ret)
-         }
-         case ((n, ret), x) => (n - get_size(x.tpe), ret)
-       }) match {
-         case (_, Some(p)) => p
-         case (_, None) => error("Shouldn't be here")
-       }
-       case (t: VectorType) => (((0 until t.size) foldLeft (i, None: Option[Orientation])){
-         case ((n, ret), x) if n < get_size(t.tpe) => ret match {
-           case None => (n, Some(get_flip(t.tpe, n, f)))
-           case Some(_) => (n, ret)
-         }
-         case ((n, ret), x) => (n - get_size(t.tpe), ret)
-       }) match {
-         case (_, Some(p)) => p
-         case (_, None) => error("Shouldn't be here")
-       }
-     }
-   }
+  def create_exps (n:String, t:Type) : Seq[Expression] =
+    create_exps(WRef(n,t,ExpKind(),UNKNOWNGENDER))
+  def create_exps (e:Expression) : Seq[Expression] = e match {
+    case (e:Mux) =>
+      val e1s = create_exps(e.tval)
+      val e2s = create_exps(e.fval)
+      e1s zip e2s map {case (e1, e2) =>
+        Mux(e.cond, e1, e2, mux_type_and_widths(e1,e2))
+      }
+    case (e:ValidIf) => create_exps(e.value) map (e1 => ValidIf(e.cond, e1, e1.tpe))
+    case (e) => e.tpe match {
+      case (_:GroundType) => Seq(e)
+      case (t:BundleType) => (t.fields foldLeft Seq[Expression]())((exps, f) =>
+        exps ++ create_exps(WSubField(e, f.name, f.tpe,times(gender(e), f.flip))))
+      case (t:VectorType) => ((0 until t.size) foldLeft Seq[Expression]())((exps, i) =>
+        exps ++ create_exps(WSubIndex(e, i, t.tpe,gender(e))))
+    }
+  }
+  def get_flip (t:Type, i:Int, f:Orientation) : Orientation = {
+    if (i >= get_size(t)) error("Shouldn't be here")
+    t match {
+      case (_: GroundType) => f
+      case (t: BundleType) => ((t.fields foldLeft (i, None: Option[Orientation])){
+        case ((n, ret), x) if n < get_size(x.tpe) => ret match {
+          case None => (n, Some(get_flip(x.tpe, n, times(x.flip, f))))
+          case Some(_) => (n, ret)
+        }
+        case ((n, ret), x) => (n - get_size(x.tpe), ret)
+      }) match {
+        case (_, Some(p)) => p
+        case (_, None) => error("Shouldn't be here")
+      }
+      case (t: VectorType) => (((0 until t.size) foldLeft (i, None: Option[Orientation])){
+        case ((n, ret), x) if n < get_size(t.tpe) => ret match {
+          case None => (n, Some(get_flip(t.tpe, n, f)))
+          case Some(_) => (n, ret)
+        }
+        case ((n, ret), x) => (n - get_size(t.tpe), ret)
+      }) match {
+        case (_, Some(p)) => p
+        case (_, None) => error("Shouldn't be here")
+      }
+    }
+  }
 
-   def get_point (e:Expression) : Int = e match {
-     case (e: WRef) => 0
-     case (e: WSubField) => e.exp.tpe match {case b: BundleType =>
-        (b.fields takeWhile (_.name != e.name) foldLeft 0)(
-          (point, f) => point + get_size(f.tpe))
-     }
-     case (e: WSubIndex) => e.value * get_size(e.tpe)
-     case (e: WSubAccess) => get_point(e.exp)
-   }
+  def get_point (e:Expression) : Int = e match {
+    case (e: WRef) => 0
+    case (e: WSubField) => e.exp.tpe match {case b: BundleType =>
+       (b.fields takeWhile (_.name != e.name) foldLeft 0)(
+         (point, f) => point + get_size(f.tpe))
+    }
+    case (e: WSubIndex) => e.value * get_size(e.tpe)
+    case (e: WSubAccess) => get_point(e.exp)
+  }
 
-   /** Returns true if t, or any subtype, contains a flipped field
-     * @param t [[firrtl.ir.Type]]
-     * @return if t contains [[firrtl.ir.Flip]]
-     */
-   def hasFlip(t: Type): Boolean = t match {
-     case t: BundleType =>
-       (t.fields exists (_.flip == Flip)) ||
-       (t.fields exists (f => hasFlip(f.tpe)))
-     case t: VectorType => hasFlip(t.tpe)
-     case _ => false
-   }
+  /** Returns true if t, or any subtype, contains a flipped field
+    * @param t [[firrtl.ir.Type]]
+    * @return if t contains [[firrtl.ir.Flip]]
+    */
+  def hasFlip(t: Type): Boolean = t match {
+    case t: BundleType =>
+      (t.fields exists (_.flip == Flip)) ||
+      (t.fields exists (f => hasFlip(f.tpe)))
+    case t: VectorType => hasFlip(t.tpe)
+    case _ => false
+  }
 
 //============== TYPES ================
-   def mux_type (e1:Expression, e2:Expression) : Type = mux_type(e1.tpe, e2.tpe)
-   def mux_type (t1:Type, t2:Type) : Type = (t1,t2) match { 
-     case (t1:UIntType, t2:UIntType) => UIntType(UnknownWidth)
-     case (t1:SIntType, t2:SIntType) => SIntType(UnknownWidth)
-     case (t1:VectorType, t2:VectorType) => VectorType(mux_type(t1.tpe, t2.tpe), t1.size)
-     case (t1:BundleType, t2:BundleType) => BundleType((t1.fields zip t2.fields) map {
-       case (f1, f2) => Field(f1.name, f1.flip, mux_type(f1.tpe, f2.tpe))
-     })
-     case _ => UnknownType
-   }
-   def mux_type_and_widths (e1:Expression,e2:Expression) : Type =
-     mux_type_and_widths(e1.tpe, e2.tpe)
-   def mux_type_and_widths (t1:Type, t2:Type) : Type = {
-     def wmax (w1:Width, w2:Width) : Width = (w1,w2) match {
-       case (w1:IntWidth, w2:IntWidth) => IntWidth(w1.width max w2.width)
-       case (w1, w2) => MaxWidth(Seq(w1, w2))
-     }
-     (t1, t2) match {
-       case (t1:UIntType, t2:UIntType) => UIntType(wmax(t1.width, t2.width))
-       case (t1:SIntType, t2:SIntType) => SIntType(wmax(t1.width, t2.width))
-       case (t1:VectorType, t2:VectorType) => VectorType(
-         mux_type_and_widths(t1.tpe, t2.tpe), t1.size)
-       case (t1:BundleType, t2:BundleType) => BundleType((t1.fields zip t2.fields) map {
-         case (f1, f2) => Field(f1.name,f1.flip,mux_type_and_widths(f1.tpe, f2.tpe))
-       })
-       case _ => UnknownType
-     }
-   }
-   def module_type (m:DefModule) : Type = BundleType(m.ports map (_.toField))
-   def sub_type (v:Type) : Type = v match {
-     case v:VectorType => v.tpe
-     case v => UnknownType
-   }
-   def field_type (v:Type,s:String) : Type = v match {
-     case v: BundleType => v.fields find (_.name == s) match {
-       case Some(ft) => ft.tpe
-       case None => UnknownType
-     }
-     case v => UnknownType
-   }
+  def mux_type (e1:Expression, e2:Expression) : Type = mux_type(e1.tpe, e2.tpe)
+  def mux_type (t1:Type, t2:Type) : Type = (t1,t2) match { 
+    case (t1:UIntType, t2:UIntType) => UIntType(UnknownWidth)
+    case (t1:SIntType, t2:SIntType) => SIntType(UnknownWidth)
+    case (t1:VectorType, t2:VectorType) => VectorType(mux_type(t1.tpe, t2.tpe), t1.size)
+    case (t1:BundleType, t2:BundleType) => BundleType((t1.fields zip t2.fields) map {
+      case (f1, f2) => Field(f1.name, f1.flip, mux_type(f1.tpe, f2.tpe))
+    })
+    case _ => UnknownType
+  }
+  def mux_type_and_widths (e1:Expression,e2:Expression) : Type =
+    mux_type_and_widths(e1.tpe, e2.tpe)
+  def mux_type_and_widths (t1:Type, t2:Type) : Type = {
+    def wmax (w1:Width, w2:Width) : Width = (w1,w2) match {
+      case (w1:IntWidth, w2:IntWidth) => IntWidth(w1.width max w2.width)
+      case (w1, w2) => MaxWidth(Seq(w1, w2))
+    }
+    (t1, t2) match {
+      case (t1:UIntType, t2:UIntType) => UIntType(wmax(t1.width, t2.width))
+      case (t1:SIntType, t2:SIntType) => SIntType(wmax(t1.width, t2.width))
+      case (t1:VectorType, t2:VectorType) => VectorType(
+        mux_type_and_widths(t1.tpe, t2.tpe), t1.size)
+      case (t1:BundleType, t2:BundleType) => BundleType((t1.fields zip t2.fields) map {
+        case (f1, f2) => Field(f1.name,f1.flip,mux_type_and_widths(f1.tpe, f2.tpe))
+      })
+      case _ => UnknownType
+    }
+  }
+
+  def module_type(m: DefModule): Type = BundleType(m.ports map {
+    case Port(_, name, dir, tpe) => Field(name, to_flip(dir), tpe)
+  })
+  def sub_type(v: Type): Type = v match {
+    case v: VectorType => v.tpe
+    case v => UnknownType
+  }
+  def field_type(v:Type, s: String) : Type = v match {
+    case v: BundleType => v.fields find (_.name == s) match {
+      case Some(f) => f.tpe
+      case None => UnknownType
+    }
+    case v => UnknownType
+  }
    
 ////=====================================
-   def widthBANG (t:Type) : Width = t match {
-     case g: GroundType => g.width
-     case t => error("No width!")
-   }
-   def long_BANG (t:Type) : Long = t match {
-     case (g: GroundType) => g.width match {
-       case IntWidth(x) => x.toLong
-       case _ => error(s"Expecting IntWidth, got: ${g.width}")
-     }
-     case (t:BundleType) => (t.fields foldLeft 0)((w, f) =>
-       w + long_BANG(f.tpe).toInt)
-     case (t:VectorType) => t.size * long_BANG(t.tpe)
-   }
+  def widthBANG (t:Type) : Width = t match {
+    case g: GroundType => g.width
+    case t => error("No width!")
+  }
+  def long_BANG(t: Type): Long = t match {
+    case (g: GroundType) => g.width match {
+      case IntWidth(x) => x.toLong
+      case _ => error(s"Expecting IntWidth, got: ${g.width}")
+    }
+    case (t: BundleType) => (t.fields foldLeft 0)((w, f) =>
+      w + long_BANG(f.tpe).toInt)
+    case (t: VectorType) => t.size * long_BANG(t.tpe)
+  }
 
 // =================================
-   def error(str:String) = throw new FIRRTLException(str)
-
-   implicit class FirrtlNodeUtils(node: FirrtlNode) {
-     def getType(): Type = node match {
-       case e: Expression => e.getType
-       case s: Statement => s.getType
-       //case f: Field => f.getType
-       case t: Type => t.getType
-       case p: Port => p.getType
-       case _ => UnknownType
-     }
-   }
+   def error(str: String) = throw new FIRRTLException(str)
 
 //// =============== EXPANSION FUNCTIONS ================
-   def get_size(t:Type) : Int = t match {
+   def get_size(t: Type): Int = t match {
      case (t:BundleType) => (t.fields foldLeft 0)((sum, f) => sum + get_size(f.tpe))
      case (t:VectorType) => t.size * get_size(t.tpe)
      case (t) => 1
    }
-   def get_valid_points (t1:Type, t2:Type, flip1:Orientation, flip2:Orientation) : Seq[(Int,Int)] = {
-      //;println_all(["Inside with t1:" t1 ",t2:" t2 ",f1:" flip1 ",f2:" flip2])
-      (t1,t2) match {
-         case (t1:UIntType,t2:UIntType) => if (flip1 == flip2) Seq((0, 0)) else Seq()
-         case (t1:SIntType,t2:SIntType) => if (flip1 == flip2) Seq((0, 0)) else Seq()
-         case (t1:BundleType,t2:BundleType) => (
-           (t1.fields foldLeft (Seq[(Int, Int)](), 0)){case ((points, ilen), f1) => (points ++ (
-             (t2.fields foldLeft (Seq[(Int, Int)](), 0)){case ((points, jlen), f2) => (points ++ (
-               if (f1.name == f2.name) {
-                 val ls: Seq[(Int, Int)] = get_valid_points(f1.tpe,f2.tpe,times(flip1,f1.flip),times(flip2,f2.flip))
-                 ls map {case (x, y) => (x + ilen, y + jlen)} 
-               } else Nil
-             ), jlen + get_size(f2.tpe))}
-           )._1, ilen + get_size(f1.tpe))}
-         )._1
-         case (t1:VectorType,t2:VectorType) => (
-           ((0 until math.min(t1.size,t2.size)) foldLeft (Seq[(Int, Int)](), 0, 0)){
-             case ((points, ilen, jlen), _) => (points ++ {
-               val ls = get_valid_points(t1.tpe,t2.tpe,flip1,flip2)
-               ls map {case (x, y) => ((x + ilen), (y + jlen))}
-             }, ilen + get_size(t1.tpe), jlen + get_size(t2.tpe))
-           }
-         )._1
-         case (ClockType,ClockType) => if (flip1 == flip2) Seq((0, 0)) else Seq()
-         case _ => error("shouldn't be here")
-      }
+   def get_valid_points(t1: Type, t2: Type, flip1: Orientation, flip2: Orientation) : Seq[(Int,Int)] = {
+     //;println_all(["Inside with t1:" t1 ",t2:" t2 ",f1:" flip1 ",f2:" flip2])
+     (t1, t2) match {
+        case (t1:UIntType,t2:UIntType) => if (flip1 == flip2) Seq((0, 0)) else Seq()
+        case (t1:SIntType,t2:SIntType) => if (flip1 == flip2) Seq((0, 0)) else Seq()
+        case (t1:BundleType,t2:BundleType) => (
+          (t1.fields foldLeft (Seq[(Int, Int)](), 0)){case ((points, ilen), f1) => (points ++ (
+            (t2.fields foldLeft (Seq[(Int, Int)](), 0)){case ((points, jlen), f2) => (points ++ (
+              if (f1.name == f2.name) {
+                val ls: Seq[(Int, Int)] = get_valid_points(f1.tpe,f2.tpe,times(flip1,f1.flip),times(flip2,f2.flip))
+                ls map {case (x, y) => (x + ilen, y + jlen)} 
+              } else Nil
+            ), jlen + get_size(f2.tpe))}
+          )._1, ilen + get_size(f1.tpe))}
+        )._1
+        case (t1:VectorType,t2:VectorType) => (
+          ((0 until math.min(t1.size,t2.size)) foldLeft (Seq[(Int, Int)](), 0, 0)){
+            case ((points, ilen, jlen), _) => (points ++ {
+              val ls = get_valid_points(t1.tpe,t2.tpe,flip1,flip2)
+              ls map {case (x, y) => ((x + ilen), (y + jlen))}
+            }, ilen + get_size(t1.tpe), jlen + get_size(t2.tpe))
+          }
+        )._1
+        case (ClockType,ClockType) => if (flip1 == flip2) Seq((0, 0)) else Seq()
+        case _ => error("shouldn't be here")
+     }
    }
+
 // =========== GENDER/FLIP UTILS ============
-   def swap (g:Gender) : Gender = g match {
-     case UNKNOWNGENDER => UNKNOWNGENDER
-     case MALE => FEMALE
-     case FEMALE => MALE
-     case BIGENDER => BIGENDER
-   }
-   def swap (d:Direction) : Direction = d match {
-     case Output => Input
-     case Input => Output
-   }
-   def swap (f:Orientation) : Orientation = f match {
-     case Default => Flip
-     case Flip => Default
-   }
-   def to_dir (g:Gender) : Direction = g match {
-     case MALE => Input
-     case FEMALE => Output
-   }
-   def to_gender (d:Direction) : Gender = d match {
-     case Input => MALE
-     case Output => FEMALE
-   }
-   def toGender(f: Orientation): Gender = f match {
-     case Default => FEMALE
-     case Flip => MALE
-   }
-   def toFlip(g: Gender): Orientation = g match {
-     case MALE => Flip
-     case FEMALE => Default
-   }
+  def swap(g: Gender) : Gender = g match {
+    case UNKNOWNGENDER => UNKNOWNGENDER
+    case MALE => FEMALE
+    case FEMALE => MALE
+    case BIGENDER => BIGENDER
+  }
+  def swap(d: Direction) : Direction = d match {
+    case Output => Input
+    case Input => Output
+  }
+  def swap(f: Orientation) : Orientation = f match {
+    case Default => Flip
+    case Flip => Default
+  }
+  def to_dir(g: Gender): Direction = g match {
+    case MALE => Input
+    case FEMALE => Output
+  }
+  def to_gender(d: Direction): Gender = d match {
+    case Input => MALE
+    case Output => FEMALE
+  }
+  def to_flip(d: Direction): Orientation = d match {
+    case Input => Flip
+    case Output => Default
+  }
+  def to_flip(g: Gender): Orientation = g match {
+    case MALE => Flip
+    case FEMALE => Default
+  }
 
-   def field_flip (v:Type,s:String) : Orientation = v match {
-     case (v:BundleType) => v.fields find (_.name == s) match {
-       case Some(ft) => ft.flip
-       case None => Default
-     }
-     case v => Default
-   }
-   def get_field (v:Type,s:String) : Field = v match {
-     case (v:BundleType) => v.fields find (_.name == s) match {
-       case Some(ft) => ft
-       case None => error("Shouldn't be here")
-     }
-     case v => error("Shouldn't be here")
-   }
-   def times (flip:Orientation, d:Direction) : Direction = times(flip, d)
-   def times (d:Direction,flip:Orientation) : Direction = flip match {
-     case Default => d
-     case Flip => swap(d)
-   }
-   def times (g: Gender, d: Direction): Direction = times(d, g)
-   def times (d: Direction, g: Gender): Direction = g match {
-     case FEMALE => d
-     case MALE => swap(d) // MALE == INPUT == REVERSE
-   }
+  def field_flip(v:Type, s:String) : Orientation = v match {
+    case (v:BundleType) => v.fields find (_.name == s) match {
+      case Some(ft) => ft.flip
+      case None => Default
+    }
+    case v => Default
+  }
+  def get_field(v:Type, s:String) : Field = v match {
+    case (v:BundleType) => v.fields find (_.name == s) match {
+      case Some(ft) => ft
+      case None => error("Shouldn't be here")
+    }
+    case v => error("Shouldn't be here")
+  }
 
-   def times (g:Gender,flip:Orientation) : Gender = times(flip, g)
-   def times (flip:Orientation, g:Gender) : Gender = flip match {
-     case Default => g
-     case Flip => swap(g)
-   }
-   def times (f1:Orientation, f2:Orientation) : Orientation = f2 match {
-     case Default => f1
-     case Flip => swap(f1)
-   }
+  def times(flip: Orientation, d: Direction): Direction = times(flip, d)
+  def times(d: Direction,flip: Orientation): Direction = flip match {
+    case Default => d
+    case Flip => swap(d)
+  }
+  def times(g: Gender, d: Direction): Direction = times(d, g)
+  def times(d: Direction, g: Gender): Direction = g match {
+    case FEMALE => d
+    case MALE => swap(d) // MALE == INPUT == REVERSE
+  }
 
+  def times(g: Gender,flip: Orientation): Gender = times(flip, g)
+  def times(flip: Orientation, g: Gender): Gender = flip match {
+    case Default => g
+    case Flip => swap(g)
+  }
+  def times(f1: Orientation, f2: Orientation): Orientation = f2 match {
+    case Default => f1
+    case Flip => swap(f1)
+  }
 
 // =========== ACCESSORS =========
-   def gender (e: Expression): Gender = e match {
-     case e: WRef => e.gender
-     case e: WSubField => e.gender
-     case e: WSubIndex => e.gender
-     case e: WSubAccess => e.gender
-     case e: DoPrim => MALE
-     case e: UIntLiteral => MALE
-     case e: SIntLiteral => MALE
-     case e: Mux => MALE
-     case e: ValidIf => MALE
-     case e: WInvalid => MALE
-     case e => println(e); error("Shouldn't be here")
-   }
-   def get_gender(s:Statement): Gender = s match {
-     case s: DefWire => BIGENDER
-     case s: DefRegister => BIGENDER
-     case s: WDefInstance => MALE
-     case s: DefNode => MALE
-     case s: DefInstance => MALE
-     case s: DefMemory => MALE
-     case s: Block => UNKNOWNGENDER
-     case s: Connect => UNKNOWNGENDER
-     case s: PartialConnect => UNKNOWNGENDER
-     case s: Stop => UNKNOWNGENDER
-     case s: Print => UNKNOWNGENDER
-     case s: IsInvalid => UNKNOWNGENDER
-     case EmptyStmt => UNKNOWNGENDER
-   }
-   def get_gender(p: Port): Gender = if (p.direction == Input) MALE else FEMALE
-   def kind(e: Expression): Kind = e match {
-     case e: WRef => e.kind
-     case e: WSubField => kind(e.exp)
-     case e: WSubIndex => kind(e.exp)
-     case e => ExpKind()
-   }
-   def get_type(s: Statement): Type = s match {
-     case s: DefWire => s.tpe
-     case s: DefRegister => s.tpe
-     case s: DefNode => s.value.tpe
-     case s: DefMemory =>
-       val depth = s.depth
-       val addr = Field("addr", Default, UIntType(IntWidth(scala.math.max(ceil_log2(depth), 1))))
-       val en = Field("en", Default, BoolType)
-       val clk = Field("clk", Default, ClockType)
-       val def_data = Field("data", Default, s.dataType)
-       val rev_data = Field("data", Flip, s.dataType)
-       val mask = Field("mask", Default, create_mask(s.dataType))
-       val wmode = Field("wmode", Default, UIntType(IntWidth(1)))
-       val rdata = Field("rdata", Flip, s.dataType)
-       val wdata = Field("wdata", Default, s.dataType)
-       val wmask = Field("wmask", Default, create_mask(s.dataType))
-       val read_type = BundleType(Seq(rev_data, addr, en, clk))
-       val write_type = BundleType(Seq(def_data, mask, addr, en, clk))
-       val readwrite_type = BundleType(Seq(wmode, rdata, wdata, wmask, addr, en, clk))
-       BundleType(
-         (s.readers map (Field(_, Flip, read_type))) ++
-         (s.writers map (Field(_, Flip, write_type))) ++
-         (s.readwriters map (Field(_, Flip, readwrite_type)))
-       )
-     case s: WDefInstance => s.tpe
-     case _ => UnknownType
-   }
-   def get_name (s: Statement): String = s match {
-     case s: HasName => s.name
-     case _ => error("Shouldn't be here")
-   }
-   def get_info (s: Statement): Info = s match {
-     case s: HasInfo => s.info
-     case _ => NoInfo
-   }
+  def kind(e: Expression): Kind = e match {
+    case e: WRef => e.kind
+    case e: WSubField => kind(e.exp)
+    case e: WSubIndex => kind(e.exp)
+    case e: WSubAccess => kind(e.exp)
+    case e => ExpKind()
+  }
+  def gender (e: Expression): Gender = e match {
+    case e: WRef => e.gender
+    case e: WSubField => e.gender
+    case e: WSubIndex => e.gender
+    case e: WSubAccess => e.gender
+    case e: DoPrim => MALE
+    case e: UIntLiteral => MALE
+    case e: SIntLiteral => MALE
+    case e: Mux => MALE
+    case e: ValidIf => MALE
+    case e: WInvalid => MALE
+    case e => println(e); error("Shouldn't be here")
+  }
+  def get_gender(s:Statement): Gender = s match {
+    case s: DefWire => BIGENDER
+    case s: DefRegister => BIGENDER
+    case s: WDefInstance => MALE
+    case s: DefNode => MALE
+    case s: DefInstance => MALE
+    case s: DefMemory => MALE
+    case s: Block => UNKNOWNGENDER
+    case s: Connect => UNKNOWNGENDER
+    case s: PartialConnect => UNKNOWNGENDER
+    case s: Stop => UNKNOWNGENDER
+    case s: Print => UNKNOWNGENDER
+    case s: IsInvalid => UNKNOWNGENDER
+    case EmptyStmt => UNKNOWNGENDER
+  }
+  def get_gender(p: Port): Gender = if (p.direction == Input) MALE else FEMALE
+  def get_type(s: Statement): Type = s match {
+    case s: DefWire => s.tpe
+    case s: DefRegister => s.tpe
+    case s: DefNode => s.value.tpe
+    case s: DefMemory =>
+      val depth = s.depth
+      val addr = Field("addr", Default, UIntType(IntWidth(scala.math.max(ceil_log2(depth), 1))))
+      val en = Field("en", Default, BoolType)
+      val clk = Field("clk", Default, ClockType)
+      val def_data = Field("data", Default, s.dataType)
+      val rev_data = Field("data", Flip, s.dataType)
+      val mask = Field("mask", Default, create_mask(s.dataType))
+      val wmode = Field("wmode", Default, UIntType(IntWidth(1)))
+      val rdata = Field("rdata", Flip, s.dataType)
+      val wdata = Field("wdata", Default, s.dataType)
+      val wmask = Field("wmask", Default, create_mask(s.dataType))
+      val read_type = BundleType(Seq(rev_data, addr, en, clk))
+      val write_type = BundleType(Seq(def_data, mask, addr, en, clk))
+      val readwrite_type = BundleType(Seq(wmode, rdata, wdata, wmask, addr, en, clk))
+      BundleType(
+        (s.readers map (Field(_, Flip, read_type))) ++
+        (s.writers map (Field(_, Flip, write_type))) ++
+        (s.readwriters map (Field(_, Flip, readwrite_type)))
+      )
+    case s: WDefInstance => s.tpe
+    case _ => UnknownType
+  }
+  def get_name(s: Statement): String = s match {
+    case s: HasName => s.name
+    case _ => error("Shouldn't be here")
+  }
+  def get_info(s: Statement): Info = s match {
+    case s: HasInfo => s.info
+    case _ => NoInfo
+  }
 
   /** Splits an Expression into root Ref and tail
     *
@@ -520,7 +501,8 @@ object Utils extends LazyLogging {
           case None =>
             getRootDecl(root.name)(m.body) match {
               case Some(decl) => decl
-              case None => throw new DeclarationNotFoundException(s"[module ${m.name}]  Reference ${expr.serialize} not declared!")
+              case None => throw new DeclarationNotFoundException(
+                s"[module ${m.name}]  Reference ${expr.serialize} not declared!")
             }
         }
         rootDecl
@@ -590,302 +572,79 @@ object Utils extends LazyLogging {
    //   to-stmt(body(m))
    //   map(to-port,ports(m))
    //   sym-hash
-   implicit class StmtUtils(stmt: Statement) {
 
-     def getType(): Type = stmt match {
-       case s: DefWire => s.tpe
-       case s: DefRegister => s.tpe
-       case s: DefMemory => s.dataType
-       case _ => UnknownType
-     }
+  val v_keywords = Set(
+    "alias", "always", "always_comb", "always_ff", "always_latch",
+    "and", "assert", "assign", "assume", "attribute", "automatic",
 
-     def getInfo: Info = stmt match {
-       case s: HasInfo => s.info
-       case _ => NoInfo
-     }
-   }
+    "before", "begin", "bind", "bins", "binsof", "bit", "break",
+    "buf", "bufif0", "bufif1", "byte",
 
-   implicit class FlipUtils(f: Orientation) {
-     def flip(): Orientation = f match {
-       case Flip => Default
-       case Default => Flip
-     }
-         
-     def toDirection(): Direction = f match {
-       case Default => Output
-       case Flip => Input
-     }
-   }
+    "case", "casex", "casez", "cell", "chandle", "class", "clocking",
+    "cmos", "config", "const", "constraint", "context", "continue",
+    "cover", "covergroup", "coverpoint", "cross",
 
-   implicit class FieldUtils(field: Field) {
-     def flip(): Field = Field(field.name, field.flip.flip, field.tpe)
+    "deassign", "default", "defparam", "design", "disable", "dist", "do",
 
-     def getType(): Type = field.tpe
-     def toPort(info: Info = NoInfo): Port =
-       Port(info, field.name, field.flip.toDirection, field.tpe)
-   }
+    "edge", "else", "end", "endattribute", "endcase", "endclass",
+    "endclocking", "endconfig", "endfunction", "endgenerate",
+    "endgroup", "endinterface", "endmodule", "endpackage",
+    "endprimitive", "endprogram", "endproperty", "endspecify",
+    "endsequence", "endtable", "endtask",
+    "enum", "event", "expect", "export", "extends", "extern",
 
-   implicit class TypeUtils(t: Type) {
-     def isGround: Boolean = t match {
-       case (_: UIntType | _: SIntType | ClockType) => true
-       case (_: BundleType | _: VectorType) => false
-     }
-     def isAggregate: Boolean = !t.isGround
+    "final", "first_match", "for", "force", "foreach", "forever",
+    "fork", "forkjoin", "function",
 
-     def getType(): Type = t match {
-       case v: VectorType => v.tpe
-       case tpe: Type => UnknownType
-     }
+    "generate", "genvar",
 
-     def wipeWidth(): Type = t match {
-       case t: UIntType => UIntType(UnknownWidth)
-       case t: SIntType => SIntType(UnknownWidth)
-       case _ => t
-     }
-   }
+    "highz0", "highz1",
 
-   implicit class DirectionUtils(d: Direction) {
-     def toFlip(): Orientation = d match {
-       case Input => Flip
-       case Output => Default
-     }
-   }
-  
-  implicit class PortUtils(p: Port) {
-    def getType(): Type = p.tpe
-    def toField(): Field = Field(p.name, p.direction.toFlip, p.tpe)
-  }
+    "if", "iff", "ifnone", "ignore_bins", "illegal_bins", "import",
+    "incdir", "include", "initial", "initvar", "inout", "input",
+    "inside", "instance", "int", "integer", "interconnect",
+    "interface", "intersect",
 
+    "join", "join_any", "join_none", "large", "liblist", "library",
+    "local", "localparam", "logic", "longint",
 
-   val v_keywords = Map[String,Boolean]() +
-      ("alias" -> true) +
-      ("always" -> true) +
-      ("always_comb" -> true) +
-      ("always_ff" -> true) +
-      ("always_latch" -> true) +
-      ("and" -> true) +
-      ("assert" -> true) +
-      ("assign" -> true) +
-      ("assume" -> true) +
-      ("attribute" -> true) +
-      ("automatic" -> true) +
-      ("before" -> true) +
-      ("begin" -> true) +
-      ("bind" -> true) +
-      ("bins" -> true) +
-      ("binsof" -> true) +
-      ("bit" -> true) +
-      ("break" -> true) +
-      ("buf" -> true) +
-      ("bufif0" -> true) +
-      ("bufif1" -> true) +
-      ("byte" -> true) +
-      ("case" -> true) +
-      ("casex" -> true) +
-      ("casez" -> true) +
-      ("cell" -> true) +
-      ("chandle" -> true) +
-      ("class" -> true) +
-      ("clocking" -> true) +
-      ("cmos" -> true) +
-      ("config" -> true) +
-      ("const" -> true) +
-      ("constraint" -> true) +
-      ("context" -> true) +
-      ("continue" -> true) +
-      ("cover" -> true) +
-      ("covergroup" -> true) +
-      ("coverpoint" -> true) +
-      ("cross" -> true) +
-      ("deassign" -> true) +
-      ("default" -> true) +
-      ("defparam" -> true) +
-      ("design" -> true) +
-      ("disable" -> true) +
-      ("dist" -> true) +
-      ("do" -> true) +
-      ("edge" -> true) +
-      ("else" -> true) +
-      ("end" -> true) +
-      ("endattribute" -> true) +
-      ("endcase" -> true) +
-      ("endclass" -> true) +
-      ("endclocking" -> true) +
-      ("endconfig" -> true) +
-      ("endfunction" -> true) +
-      ("endgenerate" -> true) +
-      ("endgroup" -> true) +
-      ("endinterface" -> true) +
-      ("endmodule" -> true) +
-      ("endpackage" -> true) +
-      ("endprimitive" -> true) +
-      ("endprogram" -> true) +
-      ("endproperty" -> true) +
-      ("endspecify" -> true) +
-      ("endsequence" -> true) +
-      ("endtable" -> true) +
-      ("endtask" -> true) +
-      ("enum" -> true) +
-      ("event" -> true) +
-      ("expect" -> true) +
-      ("export" -> true) +
-      ("extends" -> true) +
-      ("extern" -> true) +
-      ("final" -> true) +
-      ("first_match" -> true) +
-      ("for" -> true) +
-      ("force" -> true) +
-      ("foreach" -> true) +
-      ("forever" -> true) +
-      ("fork" -> true) +
-      ("forkjoin" -> true) +
-      ("function" -> true) +
-      ("generate" -> true) +
-      ("genvar" -> true) +
-      ("highz0" -> true) +
-      ("highz1" -> true) +
-      ("if" -> true) +
-      ("iff" -> true) +
-      ("ifnone" -> true) +
-      ("ignore_bins" -> true) +
-      ("illegal_bins" -> true) +
-      ("import" -> true) +
-      ("incdir" -> true) +
-      ("include" -> true) +
-      ("initial" -> true) +
-      ("initvar" -> true) +
-      ("inout" -> true) +
-      ("input" -> true) +
-      ("inside" -> true) +
-      ("instance" -> true) +
-      ("int" -> true) +
-      ("integer" -> true) +
-      ("interconnect" -> true) +
-      ("interface" -> true) +
-      ("intersect" -> true) +
-      ("join" -> true) +
-      ("join_any" -> true) +
-      ("join_none" -> true) +
-      ("large" -> true) +
-      ("liblist" -> true) +
-      ("library" -> true) +
-      ("local" -> true) +
-      ("localparam" -> true) +
-      ("logic" -> true) +
-      ("longint" -> true) +
-      ("macromodule" -> true) +
-      ("matches" -> true) +
-      ("medium" -> true) +
-      ("modport" -> true) +
-      ("module" -> true) +
-      ("nand" -> true) +
-      ("negedge" -> true) +
-      ("new" -> true) +
-      ("nmos" -> true) +
-      ("nor" -> true) +
-      ("noshowcancelled" -> true) +
-      ("not" -> true) +
-      ("notif0" -> true) +
-      ("notif1" -> true) +
-      ("null" -> true) +
-      ("or" -> true) +
-      ("output" -> true) +
-      ("package" -> true) +
-      ("packed" -> true) +
-      ("parameter" -> true) +
-      ("pmos" -> true) +
-      ("posedge" -> true) +
-      ("primitive" -> true) +
-      ("priority" -> true) +
-      ("program" -> true) +
-      ("property" -> true) +
-      ("protected" -> true) +
-      ("pull0" -> true) +
-      ("pull1" -> true) +
-      ("pulldown" -> true) +
-      ("pullup" -> true) +
-      ("pulsestyle_onevent" -> true) +
-      ("pulsestyle_ondetect" -> true) +
-      ("pure" -> true) +
-      ("rand" -> true) +
-      ("randc" -> true) +
-      ("randcase" -> true) +
-      ("randsequence" -> true) +
-      ("rcmos" -> true) +
-      ("real" -> true) +
-      ("realtime" -> true) +
-      ("ref" -> true) +
-      ("reg" -> true) +
-      ("release" -> true) +
-      ("repeat" -> true) +
-      ("return" -> true) +
-      ("rnmos" -> true) +
-      ("rpmos" -> true) +
-      ("rtran" -> true) +
-      ("rtranif0" -> true) +
-      ("rtranif1" -> true) +
-      ("scalared" -> true) +
-      ("sequence" -> true) +
-      ("shortint" -> true) +
-      ("shortreal" -> true) +
-      ("showcancelled" -> true) +
-      ("signed" -> true) +
-      ("small" -> true) +
-      ("solve" -> true) +
-      ("specify" -> true) +
-      ("specparam" -> true) +
-      ("static" -> true) +
-      ("strength" -> true) +
-      ("string" -> true) +
-      ("strong0" -> true) +
-      ("strong1" -> true) +
-      ("struct" -> true) +
-      ("super" -> true) +
-      ("supply0" -> true) +
-      ("supply1" -> true) +
-      ("table" -> true) +
-      ("tagged" -> true) +
-      ("task" -> true) +
-      ("this" -> true) +
-      ("throughout" -> true) +
-      ("time" -> true) +
-      ("timeprecision" -> true) +
-      ("timeunit" -> true) +
-      ("tran" -> true) +
-      ("tranif0" -> true) +
-      ("tranif1" -> true) +
-      ("tri" -> true) +
-      ("tri0" -> true) +
-      ("tri1" -> true) +
-      ("triand" -> true) +
-      ("trior" -> true) +
-      ("trireg" -> true) +
-      ("type" -> true) +
-      ("typedef" -> true) +
-      ("union" -> true) +
-      ("unique" -> true) +
-      ("unsigned" -> true) +
-      ("use" -> true) +
-      ("var" -> true) +
-      ("vectored" -> true) +
-      ("virtual" -> true) +
-      ("void" -> true) +
-      ("wait" -> true) +
-      ("wait_order" -> true) +
-      ("wand" -> true) +
-      ("weak0" -> true) +
-      ("weak1" -> true) +
-      ("while" -> true) +
-      ("wildcard" -> true) +
-      ("wire" -> true) +
-      ("with" -> true) +
-      ("within" -> true) +
-      ("wor" -> true) +
-      ("xnor" -> true) +
-      ("xor" -> true) +
-      ("SYNTHESIS" -> true) +
-      ("PRINTF_COND" -> true) +
-      ("VCS" -> true)
+    "macromodule", "matches", "medium", "modport", "module",
+
+    "nand", "negedge", "new", "nmos", "nor", "noshowcancelled",
+    "not", "notif0", "notif1", "null",
+
+    "or", "output",
+
+    "package", "packed", "parameter", "pmos", "posedge",
+    "primitive", "priority", "program", "property", "protected",
+    "pull0", "pull1", "pulldown", "pullup",
+    "pulsestyle_onevent", "pulsestyle_ondetect", "pure",
+
+    "rand", "randc", "randcase", "randsequence", "rcmos",
+    "real", "realtime", "ref", "reg", "release", "repeat",
+    "return", "rnmos", "rpmos", "rtran", "rtranif0", "rtranif1",
+
+    "scalared", "sequence", "shortint", "shortreal", "showcancelled",
+    "signed", "small", "solve", "specify", "specparam", "static",
+    "strength", "string", "strong0", "strong1", "struct", "super",
+    "supply0", "supply1",
+
+    "table", "tagged", "task", "this", "throughout", "time", "timeprecision",
+    "timeunit", "tran", "tranif0", "tranif1", "tri", "tri0", "tri1", "triand",
+    "trior", "trireg", "type","typedef",
+
+    "union", "unique", "unsigned", "use",
+
+    "var", "vectored", "virtual", "void",
+
+    "wait", "wait_order", "wand", "weak0", "weak1", "while",
+    "wildcard", "wire", "with", "within", "wor",
+
+    "xnor", "xor",
+
+    "SYNTHESIS",
+    "PRINTF_COND",
+    "VCS")
 }
 
 object MemoizedHash {
@@ -900,3 +659,57 @@ class MemoizedHash[T](val t: T) {
     case _ => false
   }
 }
+
+/**
+  * Maintains a one to many graph of each modules instantiated child module.
+  * This graph can be searched for a path from a child module back to one of
+  * it's parents.  If one is found a recursive loop has happened
+  * The graph is a map between the name of a node to set of names of that nodes children
+  */
+class ModuleGraph {
+  val nodes = HashMap[String, HashSet[String]]()
+
+  /**
+    * Add a child to a parent node
+    * A parent node is created if it does not already exist
+    *
+    * @param parent module that instantiates another module
+    * @param child  module instantiated by parent
+    * @return a list indicating a path from child to parent, empty if no such path
+    */
+  def add(parent: String, child: String): List[String] = {
+    val childSet = nodes.getOrElseUpdate(parent, new HashSet[String])
+    childSet += child
+    pathExists(child, parent, List(child, parent))
+  }
+
+  /**
+    * Starting at the name of a given child explore the tree of all children in depth first manner.
+    * Return the first path (a list of strings) that goes from child to parent,
+    * or an empty list of no such path is found.
+    *
+    * @param child  starting name
+    * @param parent name to find in children (recursively)
+    * @param path
+    * @return
+    */
+  def pathExists(child: String, parent: String, path: List[String] = Nil): List[String] = {
+    nodes.get(child) match {
+      case Some(children) =>
+        if(children(parent)) {
+          parent :: path
+        }
+        else {
+          children.foreach { grandchild =>
+            val newPath = pathExists(grandchild, parent, grandchild :: path)
+            if(newPath.nonEmpty) {
+              return newPath
+            }
+          }
+          Nil
+        }
+      case _ => Nil
+    }
+  }
+}
+
