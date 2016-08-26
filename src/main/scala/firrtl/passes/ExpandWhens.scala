@@ -49,6 +49,7 @@ import annotation.tailrec
 */
 object ExpandWhens extends Pass {
   def name = "Expand Whens"
+  type NodeMap = collection.mutable.HashMap[MemoizedHash[Expression], String]
   type Netlist = collection.mutable.LinkedHashMap[WrappedExpression, Expression]
   type Defaults = Seq[collection.mutable.Map[WrappedExpression, Expression]]
 
@@ -90,6 +91,7 @@ object ExpandWhens extends Pass {
   def run(c: Circuit): Circuit = {
     def expandWhens(m: Module): (Netlist, ArrayBuffer[Statement], Statement) = {
       val namespace = Namespace(m)
+      val nodes = new NodeMap
       val simlist = ArrayBuffer[Statement]()
 
       // defaults ideally would be immutable.Map but conversion from mutable.LinkedHashMap to mutable.Map is VERY slow
@@ -134,10 +136,16 @@ object ExpandWhens extends Pass {
                 conseqNetlist getOrElse (lvalue, altNetlist(lvalue))
             }
 
-            val memoNode = DefNode(s.info, namespace.newTemp, res)
-            val memoExpr = WRef(memoNode.name, res.tpe, NodeKind(), MALE)
-            netlist(lvalue) = memoExpr
-            memoNode
+            nodes get res match {
+              case Some(name) =>
+                netlist(lvalue) = WRef(name, res.tpe, NodeKind(), MALE)
+                EmptyStmt
+              case None =>
+                val name = namespace.newTemp
+                nodes(res) = name
+                netlist(lvalue) = WRef(name, res.tpe, NodeKind(), MALE)
+                DefNode(s.info, name, res)
+            }
           }
           Block(Seq(conseqStmt, altStmt) ++ memos)
         case s: Print =>
