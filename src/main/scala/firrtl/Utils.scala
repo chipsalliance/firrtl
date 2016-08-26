@@ -41,8 +41,6 @@ import firrtl.PrimOps._
 import firrtl.Mappers._
 import firrtl.WrappedExpression._
 import firrtl.WrappedType._
-import scala.collection.mutable.{StringBuilder, ArrayBuffer, LinkedHashMap, HashMap, HashSet}
-import java.io.PrintWriter
 import com.typesafe.scalalogging.LazyLogging
 //import scala.reflect.runtime.universe._
 
@@ -59,6 +57,8 @@ object Utils extends LazyLogging {
     logger.info(f"$name took $timeMillis%.1f ms\n")
     result
   }
+
+  def error(str: String) = throw new FIRRTLException(str)
 
   /** Removes all [[firrtl.ir.Empty]] statements and condenses
    * [[firrtl.ir.Block]] statements.
@@ -80,7 +80,7 @@ object Utils extends LazyLogging {
     if (bi < BigInt(0)) "\"h" + bi.toString(16).substring(1) + "\""
     else "\"h" + bi.toString(16) + "\""
 
-  implicit def toWrappedExpression (x:Expression) = new WrappedExpression(x)
+  implicit def toWrappedExpression(x: Expression) = new WrappedExpression(x)
   def ceil_log2(x: BigInt): BigInt = (x-1).bitLength
   def ceil_log2(x: Int): Int = scala.math.ceil(scala.math.log(x) / scala.math.log(2)).toInt
   def max(a: BigInt, b: BigInt): BigInt = if (a >= b) a else b
@@ -102,30 +102,30 @@ object Utils extends LazyLogging {
      DoPrim(Eq, Seq(e1, e2), Nil, e1.tpe)
   // TODO: these should be fixed
   def AND (e1:WrappedExpression,e2:WrappedExpression) : Expression = {
-     if (e1 == e2) e1.e1
-     else if ((e1 == we(zero)) | (e2 == we(zero))) zero
-     else if (e1 == we(one)) e2.e1
-     else if (e2 == we(one)) e1.e1
-     else DoPrim(And,Seq(e1.e1,e2.e1),Seq(),UIntType(IntWidth(1)))
+    if (e1 == e2) e1.e1
+    else if ((e1 == we(zero)) | (e2 == we(zero))) zero
+    else if (e1 == we(one)) e2.e1
+    else if (e2 == we(one)) e1.e1
+    else DoPrim(And,Seq(e1.e1,e2.e1),Seq(),UIntType(IntWidth(1)))
   }
   def OR (e1:WrappedExpression,e2:WrappedExpression) : Expression = {
-     if (e1 == e2) e1.e1
-     else if ((e1 == we(one)) | (e2 == we(one))) one
-     else if (e1 == we(zero)) e2.e1
-     else if (e2 == we(zero)) e1.e1
-     else DoPrim(Or,Seq(e1.e1,e2.e1),Seq(),UIntType(IntWidth(1)))
+    if (e1 == e2) e1.e1
+    else if ((e1 == we(one)) | (e2 == we(one))) one
+    else if (e1 == we(zero)) e2.e1
+    else if (e2 == we(zero)) e1.e1
+    else DoPrim(Or,Seq(e1.e1,e2.e1),Seq(),UIntType(IntWidth(1)))
   }
   def NOT (e1:WrappedExpression) : Expression = {
-     if (e1 == we(one)) zero
-     else if (e1 == we(zero)) one
-     else DoPrim(Eq,Seq(e1.e1,zero),Seq(),UIntType(IntWidth(1)))
+    if (e1 == we(one)) zero
+    else if (e1 == we(zero)) one
+    else DoPrim(Eq,Seq(e1.e1,zero),Seq(),UIntType(IntWidth(1)))
   }
 
   def create_mask (dt:Type) : Type = dt match {
-     case t:VectorType => VectorType(create_mask(t.tpe),t.size)
-     case t:BundleType => BundleType(t.fields.map (f => f.copy(tpe=create_mask(f.tpe))))
-     case t:UIntType => BoolType
-     case t:SIntType => BoolType
+    case t: VectorType => VectorType(create_mask(t.tpe),t.size)
+    case t: BundleType => BundleType(t.fields.map (f => f.copy(tpe=create_mask(f.tpe))))
+    case t: UIntType => BoolType
+    case t: SIntType => BoolType
   }
 
   def create_exps (n:String, t:Type) : Seq[Expression] =
@@ -256,40 +256,40 @@ object Utils extends LazyLogging {
     case (t: VectorType) => t.size * long_BANG(t.tpe)
   }
 
-// =================================
-   def error(str: String) = throw new FIRRTLException(str)
-
 //// =============== EXPANSION FUNCTIONS ================
    def get_size(t: Type): Int = t match {
      case (t:BundleType) => (t.fields foldLeft 0)((sum, f) => sum + get_size(f.tpe))
      case (t:VectorType) => t.size * get_size(t.tpe)
      case (t) => 1
    }
-   def get_valid_points(t1: Type, t2: Type, flip1: Orientation, flip2: Orientation) : Seq[(Int,Int)] = {
+   def get_valid_points(t1: Type, t2: Type, flip1: Orientation, flip2: Orientation): Seq[(Int, Int)] = {
      //;println_all(["Inside with t1:" t1 ",t2:" t2 ",f1:" flip1 ",f2:" flip2])
      (t1, t2) match {
-        case (t1:UIntType,t2:UIntType) => if (flip1 == flip2) Seq((0, 0)) else Seq()
-        case (t1:SIntType,t2:SIntType) => if (flip1 == flip2) Seq((0, 0)) else Seq()
-        case (t1:BundleType,t2:BundleType) => (
-          (t1.fields foldLeft (Seq[(Int, Int)](), 0)){case ((points, ilen), f1) => (points ++ (
-            (t2.fields foldLeft (Seq[(Int, Int)](), 0)){case ((points, jlen), f2) => (points ++ (
-              if (f1.name == f2.name) {
-                val ls: Seq[(Int, Int)] = get_valid_points(f1.tpe,f2.tpe,times(flip1,f1.flip),times(flip2,f2.flip))
-                ls map {case (x, y) => (x + ilen, y + jlen)} 
-              } else Nil
-            ), jlen + get_size(f2.tpe))}
-          )._1, ilen + get_size(f1.tpe))}
-        )._1
-        case (t1:VectorType,t2:VectorType) => (
-          ((0 until math.min(t1.size,t2.size)) foldLeft (Seq[(Int, Int)](), 0, 0)){
-            case ((points, ilen, jlen), _) => (points ++ {
-              val ls = get_valid_points(t1.tpe,t2.tpe,flip1,flip2)
-              ls map {case (x, y) => ((x + ilen), (y + jlen))}
-            }, ilen + get_size(t1.tpe), jlen + get_size(t2.tpe))
-          }
-        )._1
-        case (ClockType,ClockType) => if (flip1 == flip2) Seq((0, 0)) else Seq()
-        case _ => error("shouldn't be here")
+       case (t1:UIntType, t2:UIntType) => if (flip1 == flip2) Seq((0, 0)) else Nil
+       case (t1:SIntType, t2:SIntType) => if (flip1 == flip2) Seq((0, 0)) else Nil
+       case (t1:BundleType, t2:BundleType) =>
+         def emptyMap = Map[String, (Type, Orientation, Int)]()
+         val t1_fields = ((t1.fields foldLeft (emptyMap, 0)){case ((map, ilen), f1) =>
+           (map + (f1.name -> (f1.tpe, f1.flip, ilen)), ilen + get_size(f1.tpe))})._1
+         ((t2.fields foldLeft (Seq[(Int, Int)](), 0)){case ((points, jlen), f2) =>
+           t1_fields get f2.name match {
+             case None => (points, jlen + get_size(f2.tpe))
+             case Some((f1_tpe, f1_flip, ilen))=>
+               val f1_times = times(flip1, f1_flip)
+               val f2_times = times(flip2, f2.flip)
+               val ls = get_valid_points(f1_tpe, f2.tpe, f1_times, f2_times)
+               (points ++ (ls map {case (x, y) => (x + ilen, y + jlen)}), jlen + get_size(f2.tpe))
+           }
+         })._1
+       case (t1:VectorType, t2:VectorType) =>
+         val size = math.min(t1.size, t2.size)
+         (((0 until size) foldLeft (Seq[(Int, Int)](), 0, 0)){case ((points, ilen, jlen), _) =>
+           val ls = get_valid_points(t1.tpe, t2.tpe, flip1, flip2)
+           (points ++ (ls map {case (x, y) => ((x + ilen), (y + jlen))}),
+             ilen + get_size(t1.tpe), jlen + get_size(t2.tpe))
+         })._1
+       case (ClockType, ClockType) => if (flip1 == flip2) Seq((0, 0)) else Nil
+       case _ => error("shouldn't be here")
      }
    }
 
@@ -511,69 +511,6 @@ object Utils extends LazyLogging {
     }
   }
 
-// =============== RECURISVE MAPPERS ===================
-   def mapr (f: Width => Width, t:Type) : Type = {
-      def apply_t (t:Type) : Type = t map (apply_t) map (f)
-      apply_t(t)
-   }
-   def mapr (f: Width => Width, s:Statement) : Statement = {
-      def apply_t (t:Type) : Type = mapr(f,t)
-      def apply_e (e:Expression) : Expression = e map (apply_e) map (apply_t) map (f)
-      def apply_s (s:Statement) : Statement = s map (apply_s) map (apply_e) map (apply_t)
-      apply_s(s)
-   }
-   val ONE = IntWidth(1)
-   //def digits (s:String) : Boolean {
-   //   val digits = "0123456789"
-   //   var yes:Boolean = true
-   //   for (c <- s) {
-   //      if !digits.contains(c) : yes = false
-   //   }
-   //   yes
-   //}
-   //def generated (s:String) : Option[Int] = {
-   //   (1 until s.length() - 1).find{
-   //      i => {
-   //         val sub = s.substring(i + 1)
-   //         s.substring(i,i).equals("_") & digits(sub) & !s.substring(i - 1,i-1).equals("_")
-   //      }
-   //   }
-   //}
-   //def get-sym-hash (m:InModule) : LinkedHashMap[String,Int] = { get-sym-hash(m,Seq()) }
-   //def get-sym-hash (m:InModule,keywords:Seq[String]) : LinkedHashMap[String,Int] = {
-   //   val sym-hash = LinkedHashMap[String,Int]()
-   //   for (k <- keywords) { sym-hash += (k -> 0) }
-   //   def add-name (s:String) : String = {
-   //      val sx = to-string(s)
-   //      val ix = generated(sx)
-   //      ix match {
-   //         case (i:False) => {
-   //            if (sym_hash.contains(s)) {
-   //               val num = sym-hash(s)
-   //               sym-hash += (s -> max(num,0))
-   //            } else {
-   //               sym-hash += (s -> 0)
-   //            }
-   //         }
-   //         case (i:Int) => {
-   //            val name = sx.substring(0,i)
-   //            val digit = to-int(substring(sx,i + 1))
-   //            if key?(sym-hash,name) :
-   //               val num = sym-hash[name]
-   //               sym-hash[name] = max(num,digit)
-   //            else :
-   //               sym-hash[name] = digit
-   //         }
-   //      s
-   //         
-   //   defn to-port (p:Port) : add-name(name(p))
-   //   defn to-stmt (s:Stmt) -> Stmt :
-   //     map{to-stmt,_} $ map(add-name,s)
-   //
-   //   to-stmt(body(m))
-   //   map(to-port,ports(m))
-   //   sym-hash
-
   val v_keywords = Set(
     "alias", "always", "always_comb", "always_ff", "always_latch",
     "and", "assert", "assign", "assume", "attribute", "automatic",
@@ -668,6 +605,7 @@ class MemoizedHash[T](val t: T) {
   * The graph is a map between the name of a node to set of names of that nodes children
   */
 class ModuleGraph {
+  import scala.collection.mutable.{HashMap, HashSet}
   val nodes = HashMap[String, HashSet[String]]()
 
   /**
@@ -713,4 +651,3 @@ class ModuleGraph {
     }
   }
 }
-
