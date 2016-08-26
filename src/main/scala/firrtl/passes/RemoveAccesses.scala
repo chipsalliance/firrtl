@@ -1,11 +1,11 @@
 package firrtl.passes
 
+import firrtl.{WRef, WSubAccess, WSubIndex, WSubField, Namespace}
+import firrtl.PrimOps.{And, Eq}
 import firrtl.ir._
-import firrtl.{WRef, WSubAccess, WSubIndex, WSubField}
 import firrtl.Mappers._
 import firrtl.Utils._
 import firrtl.WrappedExpression._
-import firrtl.Namespace
 import scala.collection.mutable
 
 
@@ -13,6 +13,12 @@ import scala.collection.mutable
   */
 object RemoveAccesses extends Pass {
   def name = "Remove Accesses"
+
+  private def AND(e1: Expression, e2: Expression) =
+    DoPrim(And, Seq(e1, e2), Nil, UIntType(IntWidth(1)))
+
+  private def EQV(e1: Expression, e2: Expression): Expression =
+    DoPrim(Eq, Seq(e1, e2), Nil, e1.tpe)
 
   def run(c: Circuit): Circuit = {
     // This improves the performance of this pass
@@ -52,7 +58,7 @@ object RemoveAccesses extends Pass {
         ls.zipWithIndex map {case (l, i) =>
           val c = (i / stride) % wrap
           val basex = l.base
-          val guardx = AND(l.guard,EQV(uint(c),e.index))
+          val guardx = AND(l.guard, EQV(uint(c), e.index))
           Location(basex,guardx)
         }
     }
@@ -151,10 +157,9 @@ object RemoveAccesses extends Pass {
       Module(m.info, m.name, m.ports, squashEmpty(onStmt(m.body)))
     }
   
-    val newModules = c.modules.map( _ match {
+    c copy (modules = (c.modules map {
       case m: ExtModule => m
       case m: Module => remove_m(m)
-    })
-    Circuit(c.info, newModules, c.main)
+    }))
   }
 }
