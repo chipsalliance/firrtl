@@ -316,11 +316,16 @@ class VerilogEmitter extends Emitter {
          assigns += Seq("assign ",e," = ",value,";")
       // In simulation, assign garbage under a predicate
       def garbageAssign(e: Expression, syn: Expression, garbageCond: Expression) = {
-         assigns += Seq("`ifndef RANDOMIZE")
+         assigns += Seq("`ifndef RANDOMIZE_GARBAGE_ASSIGN")
          assigns += Seq("assign ", e, " = ", syn, ";")
          assigns += Seq("`else")
          assigns += Seq("assign ", e, " = ", garbageCond, " ? ", rand_string(tpe(syn)), " : ", syn, ";")
          assigns += Seq("`endif")
+      }
+      def invalidAssign(e: Expression) = {
+        assigns += Seq("`ifdef RANDOMIZE_INVALID_ASSIGN")
+        assigns += Seq("assign ", e, " = ", rand_string(tpe(e)), ";")
+        assigns += Seq("`endif")
       }
       def update_and_reset(r: Expression, clk: Expression, reset: Expression, init: Expression) = {
         // We want to flatten Mux trees for reg updates into if-trees for
@@ -381,14 +386,14 @@ class VerilogEmitter extends Emitter {
          Seq(nx,"[",long_BANG(t) - 1,":0]")
       }
       def initialize(e: Expression) = {
-        initials += Seq("`ifdef RANDOMIZE")
+        initials += Seq("`ifdef RANDOMIZE_REG_INIT")
         initials += Seq(e, " = ", rand_string(tpe(e)), ";")
         initials += Seq("`endif")
       }
       def initialize_mem(s: DefMemory) = {
         val index = WRef("initvar", s.dataType, ExpKind(), UNKNOWNGENDER)
         val rstring = rand_string(s.dataType)
-        initials += Seq("`ifdef RANDOMIZE")
+        initials += Seq("`ifdef RANDOMIZE_MEM_INIT")
         initials += Seq("for (initvar = 0; initvar < ", s.depth, "; initvar = initvar+1)")
         initials += Seq(tab, WSubAccess(wref(s.name, s.dataType), index, s.dataType, FEMALE), " = ", rstring,";")
         initials += Seq("`endif")
@@ -437,16 +442,14 @@ class VerilogEmitter extends Emitter {
          Seq("$fwrite(32'h80000002,",strx,");")
       }
       def delay (e:Expression, n:Int, clk:Expression) : Expression = {
-         var ex = e
-         for (i <- 0 until n) {
+         ((0 until n) foldLeft e){(ex, i) =>
             val name = namespace.newTemp
             declare("reg",name,tpe(e))
             val exx = WRef(name,tpe(e),ExpKind(),UNKNOWNGENDER)
             initialize(exx)
             update(exx,ex,clk,one)
-            ex = exx
+            exx
          }
-         ex
       }
       def build_ports () = {
          (m.ports,0 until m.ports.size).zipped.foreach{(p,i) => {
@@ -476,8 +479,8 @@ class VerilogEmitter extends Emitter {
             }
             case (s:IsInvalid) => {
                val wref = netlist(s.expr).as[WRef].get
-               declare("reg",wref.name,tpe(s.expr))
-               initialize(wref)
+               declare("wire",wref.name,tpe(s.expr))
+               invalidAssign(wref)
             }
             case (s:DefNode) => {
                declare("wire",s.name,tpe(s.value))
@@ -513,12 +516,20 @@ class VerilogEmitter extends Emitter {
                   declare("wire",LowerTypes.loweredName(data),tpe(data))
                   declare("wire",LowerTypes.loweredName(addr),tpe(addr))
                   declare("wire",LowerTypes.loweredName(en),tpe(en))
-   
+
                   //; Read port
                   assign(addr,netlist(addr)) //;Connects value to m.r.addr
                   assign(en,netlist(en))     //;Connects value to m.r.en
-                  val addrx = delay(addr,s.readLatency,clk)
-                  val enx = delay(en,s.readLatency,clk)
+                  val addr_pipe = delay(addr,s.readLatency-1,clk)
+                  val en_pipe = if (weq(en,one)) one else delay(en,s.readLatency-1,clk)
+                  val addrx = if (s.readLatency > 0) {
+                    val name = namespace.newTemp
+                    val ref = WRef(name,tpe(addr),ExpKind(),UNKNOWNGENDER)
+                    declare("reg",name,tpe(addr))
+                    initialize(ref)
+                    update(ref,addr_pipe,clk,en_pipe)
+                    ref
+                  } else addr
                   val mem_port = WSubAccess(mem,addrx,s.dataType,UNKNOWNGENDER)
                   val depthValue = UIntLiteral(s.depth, IntWidth(BigInt(s.depth).bitLength))
                   val garbageGuard = DoPrim(Geq, Seq(addrx, depthValue), Seq(), UnknownType)
@@ -559,8 +570,8 @@ class VerilogEmitter extends Emitter {
                for (rw <- s.readwriters) {
                   val wmode = mem_exp(rw,"wmode")
                   val rdata = mem_exp(rw,"rdata")
-                  val data = mem_exp(rw,"data")
-                  val mask = mem_exp(rw,"mask")
+                  val wdata = mem_exp(rw,"wdata")
+                  val wmask = mem_exp(rw,"wmask")
                   val addr = mem_exp(rw,"addr")
                   val en = mem_exp(rw,"en")
                   //Ports should share an always@posedge, so can't have intermediary wire
@@ -568,39 +579,50 @@ class VerilogEmitter extends Emitter {
                   
                   declare("wire",LowerTypes.loweredName(wmode),tpe(wmode))
                   declare("wire",LowerTypes.loweredName(rdata),tpe(rdata))
-                  declare("wire",LowerTypes.loweredName(data),tpe(data))
-                  declare("wire",LowerTypes.loweredName(mask),tpe(mask))
+                  declare("wire",LowerTypes.loweredName(wdata),tpe(wdata))
+                  declare("wire",LowerTypes.loweredName(wmask),tpe(wmask))
                   declare("wire",LowerTypes.loweredName(addr),tpe(addr))
                   declare("wire",LowerTypes.loweredName(en),tpe(en))
    
                   //; Assigned to lowered wires of each
                   assign(addr,netlist(addr))
-                  assign(data,netlist(data))
+                  assign(wdata,netlist(wdata))
                   assign(addr,netlist(addr))
-                  assign(mask,netlist(mask))
+                  assign(wmask,netlist(wmask))
                   assign(en,netlist(en))
                   assign(wmode,netlist(wmode))
    
                   //; Delay new signals by latency
-                  val raddrx = delay(addr,s.readLatency,clk)
+                  val raddrx = if (s.readLatency > 0) delay(addr,s.readLatency - 1,clk) else addr
                   val waddrx = delay(addr,s.writeLatency - 1,clk)
                   val enx = delay(en,s.writeLatency - 1,clk)
-                  val rmodx = delay(wmode,s.writeLatency - 1,clk)
-                  val datax = delay(data,s.writeLatency - 1,clk)
-                  val maskx = delay(mask,s.writeLatency - 1,clk)
-   
-                  //; Write 
-   
-                  val rmem_port = WSubAccess(mem,raddrx,s.dataType,UNKNOWNGENDER)
+                  val wmodex = delay(wmode,s.writeLatency - 1,clk)
+                  val wdatax = delay(wdata,s.writeLatency - 1,clk)
+                  val wmaskx = delay(wmask,s.writeLatency - 1,clk)
+
+                  val raddrxx = if (s.readLatency > 0) {
+                    val name = namespace.newTemp
+                    val ref = WRef(name,tpe(raddrx),ExpKind(),UNKNOWNGENDER)
+                    declare("reg",name,tpe(raddrx))
+                    initialize(ref)
+                    ref
+                  } else addr
+                  val rmem_port = WSubAccess(mem,raddrxx,s.dataType,UNKNOWNGENDER)
                   assign(rdata,rmem_port)
                   val wmem_port = WSubAccess(mem,waddrx,s.dataType,UNKNOWNGENDER)
 
-                  val tempName = namespace.newTemp
-                  val tempExp = AND(enx,maskx)
-                  declare("wire", tempName, tpe(tempExp))
-                  val tempWRef = wref(tempName, tpe(tempExp))
-                  assign(tempWRef, tempExp)
-                  update(wmem_port,datax,clk,AND(tempWRef,wmode))
+                  def declare_and_assign(exp: Expression) = {
+                    val name = namespace.newTemp
+                    val ref = wref(name, tpe(exp))
+                    declare("wire", name, tpe(exp))
+                    assign(ref, exp)
+                    ref
+                  }
+                  val ren = declare_and_assign(NOT(wmodex))
+                  val wen = declare_and_assign(AND(wmodex, wmaskx))
+                  if (s.readLatency > 0)
+                    update(raddrxx,raddrx,clk,AND(enx,ren))
+                  update(wmem_port,wdatax,clk,AND(enx,wen))
                }
             }
             case (s:Block) => s map (build_streams)
@@ -656,16 +678,33 @@ class VerilogEmitter extends Emitter {
    
          emit(Seq("endmodule"))
       }
-   
+
       build_netlist(m.body)
       build_ports()
       build_streams(m.body)
       emit_streams()
       m
    }
-   
+
+   def emit_preamble() {
+    emit(Seq(
+        "`ifdef RANDOMIZE_GARBAGE_ASSIGN\n",
+        "`define RANDOMIZE\n",
+        "`endif\n",
+        "`ifdef RANDOMIZE_INVALID_ASSIGN\n",
+        "`define RANDOMIZE\n",
+        "`endif\n",
+        "`ifdef RANDOMIZE_REG_INIT\n",
+        "`define RANDOMIZE\n",
+        "`endif\n",
+        "`ifdef RANDOMIZE_MEM_INIT\n",
+        "`define RANDOMIZE\n",
+        "`endif\n"))
+   }
+
    def run(c: Circuit, w: Writer) = {
       this.w = Some(w)
+      emit_preamble()
       for (m <- c.modules) {
          m match {
             case (m:Module) => emit_verilog(m)
