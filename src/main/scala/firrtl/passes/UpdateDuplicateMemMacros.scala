@@ -75,7 +75,7 @@ object UpdateDuplicateMemMacros extends Pass {
             updatedMem
           } 
           else updatedMem.copy(info = appendInfo(updatedMem.info,"ref" -> proto.get.name))
-        case b: Block => Block(b.stmts map updateMemStmts)
+        case b: Block => b map updateMemStmts
         case s => s
       }
 

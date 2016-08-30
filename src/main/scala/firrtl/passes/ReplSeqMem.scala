@@ -12,16 +12,6 @@ case object InputConfigFileName extends PassOption
 case object OutputConfigFileName extends PassOption
 case object PassCircuitName extends PassOption
 
-object Error {
-  def apply(msg: String) = throw new Exception(msg)
-}
-object Warn {
-  def apply[T <: Any](msg: String, r: T) = {
-    println(Console.RED + msg + Console.RESET)
-    r
-  }
-}
-
 object PassConfigUtil {
 
   def getPassOptions(t: String, usage: String = "") = {
@@ -41,7 +31,7 @@ object PassConfigUtil {
         case "-c" :: value :: tail =>
           nextPassOption(map + (PassCircuitName -> value), tail)
         case option :: tail =>
-          Error("Unknown option " + option + usage)
+          error("Unknown option " + option + usage)
       }
     }
     nextPassOption(Map[PassOption, String](), passArgList)
@@ -92,11 +82,11 @@ Optional Arguments:
   val passOptions = PassConfigUtil.getPassOptions(t,usage)
   val outputConfig = passOptions.getOrElse(
     OutputConfigFileName, 
-    Error("No output config file provided for ReplSeqMem!" + usage)
+    error("No output config file provided for ReplSeqMem!" + usage)
   )
   val passCircuit = passOptions.getOrElse(
     PassCircuitName, 
-    Error("No circuit name specified for ReplSeqMem!" + usage)
+    error("No circuit name specified for ReplSeqMem!" + usage)
   )
   val target = CircuitName(passCircuit)
   def duplicate(n: Named) = this.copy(t=t.replace("-c:"+passCircuit,"-c:"+n.name))
@@ -113,7 +103,7 @@ class ReplSeqMem(transID: TransID) extends Transform with LazyLogging {
           val inConfigFile = {
             if (inputFileName.isEmpty) None 
             else if (new java.io.File(inputFileName).exists) Some(new YamlFileReader(inputFileName))
-            else Error("Input configuration file does not exist!")
+            else error("Input configuration file does not exist!")
           }
 
           val outConfigFile = new ConfWriter(PassConfigUtil.getPassOptions(t).get(OutputConfigFileName).get)
@@ -141,7 +131,7 @@ class ReplSeqMem(transID: TransID) extends Transform with LazyLogging {
             Some(map)
           )
         }  
-        case _ => TransformResult(circuit, None, Some(map))
+        case _ => error("Unexpected transform annotation")
       }
       case _ => TransformResult(circuit, None, Some(map))
     }

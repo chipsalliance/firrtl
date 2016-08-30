@@ -7,6 +7,7 @@ import MemTransformUtils._
 import firrtl._
 import firrtl.Utils._
 import MemPortUtils._
+import firrtl.Mappers._
 
 class ReplaceMemMacros(writer: ConfWriter) extends Pass {
 
@@ -44,7 +45,7 @@ class ReplaceMemMacros(writer: ConfWriter) extends Pass {
             val r = ref.get match {case s: String => s}
             WDefInstance(info, m.name, r, UnknownType) 
           }
-        case b: Block => Block(b.stmts map updateMemStmts)
+        case b: Block => b map updateMemStmts
         case s => s
       }
 

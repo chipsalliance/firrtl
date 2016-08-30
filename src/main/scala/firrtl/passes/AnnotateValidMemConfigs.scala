@@ -6,6 +6,7 @@ import net.jcazevedo.moultingyaml._
 import net.jcazevedo.moultingyaml.DefaultYamlProtocol._
 import AnalysisUtils._
 import scala.collection.mutable.ArrayBuffer
+import firrtl.Mappers._
 
 object CustomYAMLProtocol extends DefaultYamlProtocol {
   // bottom depends on top
@@ -64,7 +65,7 @@ case class SRAMConfig(
       // Expects the contents of [] are valid configuration fields (otherwise key match error)
       val fieldVal = {
         try fieldMap(a.substring(1,a.length-1)) 
-        catch { case e: Exception => Error("**SRAM config field incorrect**") }
+        catch { case e: Exception => error("**SRAM config field incorrect**") }
       }
       b.replace(a,fieldVal.toString)
     })
@@ -197,6 +198,8 @@ case class SRAMCompiler(
       if (validConfig.width <= r.getValidWidths.max && validConfig.depth <= r.getValidDepths.max) validRules += r
     }
     // TODO: don't just take first option
+    // TODO: More optimal split if particular value is in range but not supported
+    // TODO: Support up to 2 read ports, 2 write ports; should be power of 2?
     val bestRule = validRules.head
     val memWidth = bestRule.getValidWidths.find(validConfig.width <= _).get
     val memDepth = bestRule.getValidDepths.find(validConfig.depth <= _).get
@@ -222,7 +225,7 @@ class YamlFileReader(file: String){
       )
       optionOut.filter(_ != None).map(_.get)
     }
-    else Error("Yaml file doesn't exist!")
+    else error("Yaml file doesn't exist!")
   }
 }
 
@@ -274,14 +277,14 @@ class AnnotateValidMemConfigs(reader: Option[YamlFileReader]) extends Pass {
           if (sramCompilers == None) m 
           else {
             if (m.readwriters.length == 1)
-              if (sramCompilers.get.sp == None) Error("Design needs RW port memory compiler!")
+              if (sramCompilers.get.sp == None) error("Design needs RW port memory compiler!")
               else sramCompilers.get.sp.get.append(m)
             else
-              if (sramCompilers.get.dp == None) Error("Design needs R,W port memory compiler!")
+              if (sramCompilers.get.dp == None) error("Design needs R,W port memory compiler!")
               else sramCompilers.get.dp.get.append(m)
           }
         }  
-        case b: Block => Block(b.stmts map updateStmts)
+        case b: Block => b map updateStmts
         case s => s
       }
       m.copy(body=updateStmts(m.body))

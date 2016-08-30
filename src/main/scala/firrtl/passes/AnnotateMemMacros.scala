@@ -6,6 +6,7 @@ import firrtl.WrappedExpression._
 import firrtl.ir._
 import firrtl._
 import firrtl.Utils._
+import firrtl.Mappers._
 
 case class AppendableInfo(fields: Map[String,Any]) extends Info {
   def append(a: Map[String,Any]) = this.copy(fields = fields ++ a)
@@ -23,8 +24,6 @@ object AnalysisUtils {
     val connects = HashMap[String, Expression]()
     def getConnects(s: Statement): Unit = s match {
       case s: Connect =>
-        connects(s.loc.serialize) = s.expr
-      case s: PartialConnect =>
         connects(s.loc.serialize) = s.expr
       case s: DefNode =>
         connects(s.name) = s.value
@@ -53,6 +52,10 @@ object AnalysisUtils {
     case _ => getConnectOrigin(connects,e.serialize)  
   }
 
+  // takes in a list of connections in a given module and looks to find the origin of some node
+  // where origin is the source of a connect. note that if the source is a trivial primop that
+  // has yet to be optimized via constant propagation, the function will try to search backwards
+  // past the primop. this allows you to compare if two nodes have the same origin, for example. 
   // backward searches until PrimOp, Lit or non-trivial Mux appears
   // technically, you should keep searching through PrimOp, because a node + 0 is still itself, 
   // a node shifted by 0 is still itself, etc. 
@@ -68,9 +71,9 @@ object AnalysisUtils {
       else if (we(tvOrigin) == we(fvOrigin)) tvOrigin
       else if (we(fvOrigin) == we(zero) && we(condOrigin) == we(tvOrigin)) condOrigin
       else e
-    case DoPrim(op, args, consts, tpe) if op == PrimOps.Or && args.contains(one) => one
-    case DoPrim(op, args, consts, tpe) if op == PrimOps.And && args.contains(zero) => zero
-    case DoPrim(op, args, consts, tpe) if op == PrimOps.Bits =>  
+    case DoPrim(PrimOps.Or, args, consts, tpe) if args.contains(one) => one
+    case DoPrim(PrimOps.And, args, consts, tpe) if args.contains(zero) => zero
+    case DoPrim(PrimOps.Bits, args, consts, tpe) =>  
       val msb = consts(0)
       val lsb = consts(1) 
       val extractionWidth = (msb-lsb)+1
@@ -145,7 +148,7 @@ object AnnotateMemMacros extends Pass {
           val tempInfo = appendInfo(m.info,memAnnotations)
           if (maskBits == None) m.copy(info = tempInfo)
           else m.copy(info = tempInfo.append("maskGran" -> dataBits/maskBits.get))       
-        case b: Block => Block(b.stmts map updateStmts)
+        case b: Block => b map updateStmts
         case s => s
       }
       m.copy(body=updateStmts(m.body))
