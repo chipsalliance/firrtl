@@ -21,11 +21,11 @@ class FixedPointMathSpec extends FirrtlFlatSpec {
 
     for {
       bits1        <- 1 to 4
-      binaryPoint1 <- -4 to 4
-//      binaryPoint1 <- 1 to 4
+//      binaryPoint1 <- -4 to 4
+      binaryPoint1 <- 1 to 4
       bits2        <- 1 to 4
-      binaryPoint2 <- -4 to 4
-//      binaryPoint2 <- 1 to 4
+//      binaryPoint2 <- -4 to 4
+      binaryPoint2 <- 1 to 4
     } {
       val input =
         s"""circuit Unit :
@@ -37,7 +37,7 @@ class FixedPointMathSpec extends FirrtlFlatSpec {
         |    output difference : Fixed
         |    sum        <= add(a, b)
         |    product    <= mul(a, b)
-        |    difference <= mul(a, b)
+        |    difference <= sub(a, b)
         |    """.
           stripMargin
 

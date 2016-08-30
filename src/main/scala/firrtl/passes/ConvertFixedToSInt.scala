@@ -16,7 +16,7 @@ object ConvertFixedToSInt extends Pass {
       if((point - p) > 0) {
         DoPrim(Shl, Seq(e), Seq(point - p), UnknownType)
       } else if (point - p < 0) {
-        error("Shouldn't be here")
+        DoPrim(Shr, Seq(e), Seq(p - point), UnknownType)
       } else e
     case FixedType(w, p) => error("Shouldn't be here")
     case _ => e
@@ -36,6 +36,8 @@ object ConvertFixedToSInt extends Pass {
     def onModule(m:DefModule) : DefModule = {
       val types = mutable.HashMap[String,Type]()
       def updateExpType(e:Expression): Expression = e match {
+        case DoPrim(Mul, args, consts, tpe) => e map updateExpType
+        case DoPrim(AsFixedPoint, args, consts, tpe) => DoPrim(AsSInt, args, Seq.empty, tpe)
         case DoPrim(op, args, consts, tpe) =>
           val point = calcPoint(args)
           val newExp = DoPrim(op, args.map(x => alignArg(x, point)), consts, UnknownType)
