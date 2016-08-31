@@ -428,7 +428,7 @@ class VerilogEmitter extends Emitter {
           initialize(e)
           s
         case (s: IsInvalid) =>
-          val wref = netlist(s.expr).asInstanceOf[WRef]
+          val wref = netlist(s.expr) match {case e: WRef => e}
           declare("reg", wref.name, s.expr.tpe)
           initialize(wref)
           s
