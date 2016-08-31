@@ -27,24 +27,20 @@ MODIFICATIONS.
 
 package firrtl.passes
 
-import com.typesafe.scalalogging.LazyLogging
-import java.nio.file.{Paths, Files}
-
 // Datastructures
-import scala.collection.mutable.{LinkedHashMap, HashMap, HashSet, ArrayBuffer}
+import scala.collection.mutable.ArrayBuffer
 import scala.collection.immutable.ListMap
 
 import firrtl._
 import firrtl.ir._
 import firrtl.Utils._
 import firrtl.Mappers._
-import firrtl.PrimOps._
-import firrtl.WrappedExpression._
 
 object InferWidths extends Pass {
   def name = "Infer Widths"
+  type ConstraintMap = collection.mutable.LinkedHashMap[String, Width]
 
-  def solve_constraints(l: Seq[WGeq]): LinkedHashMap[String,Width] = {
+  def solve_constraints(l: Seq[WGeq]): ConstraintMap = {
     def unique(ls: Seq[Width]) : Seq[Width] =
       (ls map (new WrappedWidth(_))).distinct map (_.w)
     def make_unique(ls: Seq[WGeq]): ListMap[String,Width] = {
@@ -80,7 +76,7 @@ object InferWidths extends Pass {
       case _ => w
     }
 
-    def substitute(h: LinkedHashMap[String, Width])(w: Width): Width = {
+    def substitute(h: ConstraintMap)(w: Width): Width = {
       //;println-all-debug(["Substituting for [" w "]"])
       val wx = simplify(w)
       //;println-all-debug(["After Simplify: [" wx "]"])
@@ -100,7 +96,7 @@ object InferWidths extends Pass {
         //;println-all-debug(["not varwidth!" w])
       }
     }
-    def b_sub(h: LinkedHashMap[String, Width])(w: Width): Width = {
+    def b_sub(h: ConstraintMap)(w: Width): Width = {
       w map b_sub(h) match {
         case w: VarWidth => h getOrElse (w.name, w)
         case w => w
@@ -143,7 +139,7 @@ object InferWidths extends Pass {
     //for (x <- u) { println(x) }
     //println("====================================")
  
-    val f = LinkedHashMap[String,Width]()
+    val f = new ConstraintMap
     val o = ArrayBuffer[String]()
     for ((n, e) <- u) {
       //println("==== SOLUTIONS TABLE ====")
@@ -173,7 +169,7 @@ object InferWidths extends Pass {
     //for (x <- f) println(x)
  
     //; Backwards Solve
-    val b = LinkedHashMap[String,Width]()
+    val b = new ConstraintMap
     for (n <- o) {
       /*
       println("SOLVE BACK: [" + n + " => " + f(n) + "]")
