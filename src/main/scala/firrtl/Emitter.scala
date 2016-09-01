@@ -240,7 +240,7 @@ class VerilogEmitter extends Emitter {
           netlist(s.expr) = wref(namespace.newTemp, s.expr.tpe)
           s
         case (s: DefNode) =>
-          val e = WRef(s.name, get_type(s), NodeKind(), MALE)
+          val e = WRef(s.name, s.value.tpe, NodeKind(), MALE)
           netlist(e) = s.value
           s
         case (s) => s

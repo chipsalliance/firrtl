@@ -66,20 +66,20 @@ object InferTypes extends Pass {
         types(s.name) = t
         s copy (tpe = t)
       case s: DefWire =>
-        val t = remove_unknowns(get_type(s))
+        val t = remove_unknowns(s.tpe)
         types(s.name) = t
         s copy (tpe = t)
       case s: DefNode =>
-        val sx = s map infer_types_e(types)
-        val t = remove_unknowns(get_type(sx))
+        val sx = s map infer_types_e(types) match {case sx: DefNode => sx}
+        val t = remove_unknowns(sx.value.tpe)
         types(s.name) = t
         sx map infer_types_e(types)
       case s: DefRegister =>
-        val t = remove_unknowns(get_type(s))
+        val t = remove_unknowns(s.tpe)
         types(s.name) = t
         s copy (tpe = t) map infer_types_e(types)
       case s: DefMemory =>
-        val t = remove_unknowns(get_type(s))
+        val t = remove_unknowns(MemPortUtils.memType(s))
         types(s.name) = t
         s copy (dataType = remove_unknowns(s.dataType))
       case s => s map infer_types_s(types) map infer_types_e(types)
@@ -110,17 +110,17 @@ object CInferTypes extends Pass {
 
     def infer_types_e(types: TypeMap)(e:Expression) : Expression =
       e map infer_types_e(types) match {
-         case (e :Reference) => e copy (tpe = (types getOrElse (e.name, UnknownType)))
-         case (e :SubField) => e copy (tpe = field_type(e.expr.tpe, e.name))
-         case (e :SubIndex) => e copy (tpe = sub_type(e.expr.tpe))
-         case (e :SubAccess) => e copy (tpe = sub_type(e.expr.tpe))
-         case (e :DoPrim) => PrimOps.set_primop_type(e)
-         case (e :Mux) => e copy (tpe = mux_type(e.tval,e.tval))
-         case (e :ValidIf) => e copy (tpe = e.value.tpe)
-         case e @ (_:UIntLiteral | _:SIntLiteral) => e
+        case (e: Reference) => e copy (tpe = (types getOrElse (e.name, UnknownType)))
+        case (e: SubField) => e copy (tpe = field_type(e.expr.tpe, e.name))
+        case (e: SubIndex) => e copy (tpe = sub_type(e.expr.tpe))
+        case (e: SubAccess) => e copy (tpe = sub_type(e.expr.tpe))
+        case (e: DoPrim) => PrimOps.set_primop_type(e)
+        case (e: Mux) => e copy (tpe = mux_type(e.tval,e.tval))
+        case (e: ValidIf) => e copy (tpe = e.value.tpe)
+        case e @ (_: UIntLiteral | _: SIntLiteral) => e
       }
 
-    def infer_types_s(types: TypeMap)(s:Statement): Statement = s match {
+    def infer_types_s(types: TypeMap)(s: Statement): Statement = s match {
       case (s: DefRegister) =>
         types(s.name) = s.tpe
         s map infer_types_e(types)
@@ -128,10 +128,10 @@ object CInferTypes extends Pass {
         types(s.name) = s.tpe
         s
       case (s: DefNode) =>
-        types(s.name) = get_type(s)
+        types(s.name) = s.value.tpe
         s
       case (s: DefMemory) =>
-        types(s.name) = get_type(s)
+        types(s.name) = MemPortUtils.memType(s)
         s
       case (s: CDefMPort) =>
         val t = types getOrElse(s.mem, UnknownType)
