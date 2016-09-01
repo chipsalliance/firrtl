@@ -59,7 +59,7 @@ class Errors {
 object ToWorkingIR extends Pass {
   def name = "Working IR"
 
-  def toExp(e:Expression) : Expression = e map (toExp) match {
+  def toExp(e: Expression): Expression = e map (toExp) match {
     case e: Reference => WRef(e.name, e.tpe, NodeKind(), UNKNOWNGENDER)
     case e: SubField => WSubField(e.expr, e.name, e.tpe, UNKNOWNGENDER)
     case e: SubIndex => WSubIndex(e.expr, e.value, e.tpe, UNKNOWNGENDER)
@@ -72,50 +72,50 @@ object ToWorkingIR extends Pass {
     case s => s map (toStmt)
   }
 
-  def run (c:Circuit): Circuit =
+  def run(c: Circuit): Circuit =
     c copy (modules = (c.modules map (_ map toStmt)))
 }
 
 object PullMuxes extends Pass {
-   def name = "Pull Muxes"
-   def run(c: Circuit): Circuit = {
-     def pull_muxes_e(e: Expression): Expression = {
-       val ex = e map (pull_muxes_e) match {
-         case (e: WSubField) => e.exp match {
-           case (ex: Mux) => Mux(ex.cond,
-              WSubField(ex.tval, e.name, e.tpe, e.gender),
-              WSubField(ex.fval, e.name, e.tpe, e.gender), e.tpe)
-           case (ex: ValidIf) => ValidIf(ex.cond,
-              WSubField(ex.value, e.name, e.tpe, e.gender), e.tpe)
-           case (ex) => e
-         }
-         case (e: WSubIndex) => e.exp match {
-           case (ex: Mux) => Mux(ex.cond,
-              WSubIndex(ex.tval, e.value, e.tpe, e.gender),
-              WSubIndex(ex.fval, e.value, e.tpe, e.gender), e.tpe)
-           case (ex: ValidIf) => ValidIf(ex.cond,
-              WSubIndex(ex.value, e.value, e.tpe, e.gender), e.tpe)
-           case (ex) => e
-         }
-         case (e: WSubAccess) => e.exp match {
-           case (ex: Mux) => Mux(ex.cond,
-              WSubAccess(ex.tval, e.index, e.tpe, e.gender),
-              WSubAccess(ex.fval, e.index, e.tpe, e.gender), e.tpe)
-           case (ex: ValidIf) => ValidIf(ex.cond,
-              WSubAccess(ex.value, e.index, e.tpe, e.gender), e.tpe)
-           case (ex) => e
-         }
-         case (e) => e
-       }
-       ex map (pull_muxes_e)
-     }
-     def pull_muxes(s: Statement): Statement = s map (pull_muxes) map (pull_muxes_e)
-     val modulesx = c.modules.map {
-       case (m:Module) => Module(m.info, m.name, m.ports, pull_muxes(m.body))
-       case (m:ExtModule) => m
-     }
-     Circuit(c.info, modulesx, c.main)
-   }
+  def name = "Pull Muxes"
+  def run(c: Circuit): Circuit = {
+    def pull_muxes_e(e: Expression): Expression = {
+      val ex = e map (pull_muxes_e) match {
+        case (e: WSubField) => e.exp match {
+          case (ex: Mux) => Mux(ex.cond,
+             WSubField(ex.tval, e.name, e.tpe, e.gender),
+             WSubField(ex.fval, e.name, e.tpe, e.gender), e.tpe)
+          case (ex: ValidIf) => ValidIf(ex.cond,
+             WSubField(ex.value, e.name, e.tpe, e.gender), e.tpe)
+          case (ex) => e
+        }
+        case (e: WSubIndex) => e.exp match {
+          case (ex: Mux) => Mux(ex.cond,
+             WSubIndex(ex.tval, e.value, e.tpe, e.gender),
+             WSubIndex(ex.fval, e.value, e.tpe, e.gender), e.tpe)
+          case (ex: ValidIf) => ValidIf(ex.cond,
+             WSubIndex(ex.value, e.value, e.tpe, e.gender), e.tpe)
+          case (ex) => e
+        }
+        case (e: WSubAccess) => e.exp match {
+          case (ex: Mux) => Mux(ex.cond,
+             WSubAccess(ex.tval, e.index, e.tpe, e.gender),
+             WSubAccess(ex.fval, e.index, e.tpe, e.gender), e.tpe)
+          case (ex: ValidIf) => ValidIf(ex.cond,
+             WSubAccess(ex.value, e.index, e.tpe, e.gender), e.tpe)
+          case (ex) => e
+        }
+        case (e) => e
+      }
+      ex map (pull_muxes_e)
+    }
+    def pull_muxes(s: Statement): Statement = s map (pull_muxes) map (pull_muxes_e)
+    val modulesx = c.modules.map {
+      case (m:Module) => Module(m.info, m.name, m.ports, pull_muxes(m.body))
+      case (m:ExtModule) => m
+    }
+    Circuit(c.info, modulesx, c.main)
+  }
 }
 
 object ExpandConnects extends Pass {
@@ -237,7 +237,7 @@ object Legalize extends Pass {
 
 object VerilogWrap extends Pass {
   def name = "Verilog Wrap"
-  def v_wrap_e(e :Expression): Expression = e map v_wrap_e match {
+  def v_wrap_e(e: Expression): Expression = e map v_wrap_e match {
     case e: DoPrim => e.op match {
       case Tail => e.args.head match {
         case e0: DoPrim => e0.op match {
@@ -251,14 +251,14 @@ object VerilogWrap extends Pass {
     }
     case _ => e
   }
-  def v_wrap_s(s:Statement): Statement = {
+  def v_wrap_s(s: Statement): Statement = {
     s map v_wrap_s map v_wrap_e match {
       case s: Print => s copy (string = VerilogStringLitHandler.format(s.string))
       case s => s
     }
   }
 
-  def run (c:Circuit): Circuit =
+  def run(c: Circuit): Circuit =
     c copy (modules = (c.modules map (_ map v_wrap_s)))
 }
 
@@ -273,6 +273,6 @@ object VerilogRename extends Pass {
   def verilog_rename_s(s: Statement): Statement =
     s map verilog_rename_s map verilog_rename_e map verilog_rename_n
 
-  def run (c:Circuit): Circuit =
+  def run(c: Circuit): Circuit =
     c copy (modules = (c.modules map (_ map verilog_rename_s)))
 }
