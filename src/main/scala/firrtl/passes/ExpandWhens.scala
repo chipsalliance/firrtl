@@ -140,14 +140,15 @@ object ExpandWhens extends Pass {
                   conseqNetlist.getOrElse(lvalue, altNetlist(lvalue))
               }
 
+              // Only memoize non-referential expressions
               res match {
-                case _: WInvalid|_: WRef|_: WSubField|_: WSubIndex|_: Literal =>
-                  netlist(lvalue) = res
-                case _ =>
+                case _: ValidIf|_: Mux|_: DoPrim =>
                   val memoNode = DefNode(s.info, namespace.newTemp, res)
                   val memoExpr = WRef(memoNode.name, res.tpe, NodeKind(), MALE)
                   memos += memoNode
                   netlist(lvalue) = memoExpr
+                case _ =>
+                  netlist(lvalue) = res
               }
             }
             Block(Seq(conseqStmt, altStmt) ++ memos)
