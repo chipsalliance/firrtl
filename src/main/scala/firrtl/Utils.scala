@@ -89,12 +89,12 @@ object Utils extends LazyLogging {
   val BoolType = UIntType(IntWidth(1))
   val one  = UIntLiteral(BigInt(1),IntWidth(1))
   val zero = UIntLiteral(BigInt(0),IntWidth(1))
-  def uint(i: Int) : UIntLiteral = {
+  def uint(i: Int): UIntLiteral = {
     val num_bits = req_num_bits(i)
     val w = IntWidth(scala.math.max(1,num_bits - 1))
     UIntLiteral(BigInt(i),w)
   }
-  def req_num_bits(i: Int) : Int = {
+  def req_num_bits(i: Int): Int = {
     val ix = if (i < 0) ((-1 * i) - 1) else i
     ceil_log2(ix + 1) + 1
   }
@@ -211,22 +211,6 @@ object Utils extends LazyLogging {
     case v => UnknownType
   }
    
-////=====================================
-  def width_BANG(t: Type) : Width = t match {
-    case g: GroundType => g.width
-    case t => error("No width!")
-  }
-  def width_BANG(e: Expression) : Width = width_BANG(e.tpe)
-  def long_BANG(t: Type): Long = t match {
-    case (g: GroundType) => g.width match {
-      case IntWidth(x) => x.toLong
-      case _ => error(s"Expecting IntWidth, got: ${g.width}")
-    }
-    case (t: BundleType) => (t.fields foldLeft 0)((w, f) =>
-      w + long_BANG(f.tpe).toInt)
-    case (t: VectorType) => t.size * long_BANG(t.tpe)
-  }
-
 // =================================
   def error(str: String) = throw new FIRRTLException(str)
 

@@ -74,14 +74,23 @@ object toBitMask {
   }
 }
 
+object getWidth {
+  def apply(t: Type): Width = t match {
+    case t: GroundType => t.width
+    case _ => error("No width!")
+  }
+  def apply(e: Expression): Width = apply(e.tpe)
+}
+
 object bitWidth {
   def apply(dt: Type): BigInt = widthOf(dt)
   private def widthOf(dt: Type): BigInt = dt match {
-    case t: VectorType => t.size * bitWidth(t.tpe)
-    case t: BundleType => t.fields.map(f => bitWidth(f.tpe)).foldLeft(BigInt(0))(_+_)
-    case UIntType(IntWidth(width)) => width
-    case SIntType(IntWidth(width)) => width
-    case _ => error("Unknown type encountered in bitWidth!")
+    case t: VectorType => t.size * widthOf(t.tpe)
+    case t: BundleType => (t.fields foldLeft BigInt(0))((w, f) => w + widthOf(f.tpe))
+    case t: GroundType => t.width match {
+      case IntWidth(x) => x
+      case _ => error("Unknown type encountered in bitWidth!")
+    }
   }
 }
 

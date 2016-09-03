@@ -196,7 +196,7 @@ object Legalize extends Pass {
   def legalizeShiftRight(e: DoPrim): Expression = e.op match {
     case Shr =>
       val amount = e.consts.head.toInt
-      val width = long_BANG(e.args.head.tpe)
+      val width = bitWidth(e.args.head.tpe)
       lazy val msb = width - 1
       if (amount >= width) e.tpe match {
         case t: UIntType => UIntLiteral(0, IntWidth(1))
@@ -208,13 +208,13 @@ object Legalize extends Pass {
   }
   def legalizeConnect(c: Connect): Statement = {
     val t = c.loc.tpe
-    val w = long_BANG(t)
-    if (w >= long_BANG(c.expr.tpe)) c else {
+    val w = bitWidth(t)
+    if (w >= bitWidth(c.expr.tpe)) c else {
       val newType = t match {
         case _: UIntType => UIntType(IntWidth(w))
         case _: SIntType => SIntType(IntWidth(w))
       }
-      Connect(c.info, c.loc, DoPrim(Bits, Seq(c.expr), Seq(w-1, 0), newType))
+      Connect(c.info, c.loc, DoPrim(Bits, Seq(c.expr), Seq(w.toInt - 1, 0), newType))
     }
   }
   def run (c: Circuit): Circuit = {

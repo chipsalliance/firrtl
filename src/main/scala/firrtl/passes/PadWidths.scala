@@ -1,15 +1,14 @@
 package firrtl
 package passes
 
-import firrtl.Mappers.{ExpMap, StmtMap}
-import firrtl.Utils.long_BANG
-import firrtl.PrimOps._
 import firrtl.ir._
+import firrtl.PrimOps._
+import firrtl.Mappers.{ExpMap, StmtMap}
 
 // Makes all implicit width extensions and truncations explicit
 object PadWidths extends Pass {
    def name = "Pad Widths"
-   private def width(t: Type): Int = long_BANG(t).toInt
+   private def width(t: Type): Int = bitWidth(t).toInt
    private def width(e: Expression): Int = width(e.tpe)
    // Returns an expression with the correct integer width
    private def fixup(i: Int)(e: Expression) = {
