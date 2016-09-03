@@ -45,7 +45,7 @@ object VerilogMemDelays extends Pass {
   def buildNetlist(netlist: Netlist)(s: Statement): Statement = {
     s match {
       case Connect(_, loc, expr) => kind(loc) match {
-        case MemKind(_) => netlist(loc) = expr
+        case MemKind => netlist(loc) = expr
         case _ =>
       }
       case _ =>
@@ -74,14 +74,14 @@ object VerilogMemDelays extends Pass {
         readwriters = Nil, readLatency = 0, writeLatency = 1)
       def pipe(e: Expression, n: Int, clk: Expression, cond: Expression): (Expression, Seq[Statement]) = {
         val node = DefNode(NoInfo, namespace.newTemp, netlist(e))
-        val wref = WRef(node.name, e.tpe, NodeKind(), MALE)
+        val wref = WRef(node.name, e.tpe, NodeKind, MALE)
         ((0 until n) foldLeft (wref, Seq[Statement](node))){case ((ex, stmts), i) =>
           val name = namespace newName s"${LowerTypes.loweredName(e)}_pipe_$i"
-          val exx = WRef(name, e.tpe, RegKind(), ug)
+          val exx = WRef(name, e.tpe, RegKind, ug)
           (exx, stmts ++ Seq(DefRegister(NoInfo, name, e.tpe, clk, zero, exx)) ++
             (if (i < n - 1 && WrappedExpression.weq(cond, one)) Seq(Connect(NoInfo, exx, ex)) else {
               val condn = namespace newName s"${LowerTypes.loweredName(e)}_en"
-              val condx = WRef(condn, BoolType, NodeKind(), FEMALE)
+              val condx = WRef(condn, BoolType, NodeKind, FEMALE)
               Seq(DefNode(NoInfo, condn, cond),
                   Connect(NoInfo, condx, cond),
                   Connect(NoInfo, exx, Mux(condx, ex, exx, e.tpe)))
@@ -140,7 +140,7 @@ object VerilogMemDelays extends Pass {
         )
       })))
     case s: Connect => kind(s.loc) match {
-      case MemKind(_) => EmptyStmt
+      case MemKind => EmptyStmt
       case _ => s
     }
     case s => s

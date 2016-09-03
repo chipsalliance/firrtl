@@ -69,11 +69,11 @@ class VerilogEmitter extends Emitter {
     else if (e2 == we(one)) e1.e1
     else DoPrim(And, Seq(e1.e1, e2.e1), Nil, UIntType(IntWidth(1)))
   }
-  def wref(n: String, t: Type) = WRef(n, t, ExpKind(), UNKNOWNGENDER)
+  def wref(n: String, t: Type) = WRef(n, t, ExpKind, UNKNOWNGENDER)
   def remove_root(ex: Expression): Expression = ex match {
     case ex: WSubField => ex.exp match {
       case (e: WSubField) => remove_root(e)
-      case (_: WRef) => WRef(ex.name, ex.tpe, InstanceKind(), UNKNOWNGENDER)
+      case (_: WRef) => WRef(ex.name, ex.tpe, InstanceKind, UNKNOWNGENDER)
     }
     case _ => error("Shouldn't be here")
   }
@@ -238,7 +238,7 @@ class VerilogEmitter extends Emitter {
         case (s: Connect) =>
           netlist(s.loc) = s.expr
           (kind(s.loc), kind(s.expr)) match {
-            case (_: MemKind, _: RegKind) => addrRegs += s.expr
+            case (MemKind, RegKind) => addrRegs += s.expr
             case _ =>
           }
           s
@@ -246,7 +246,7 @@ class VerilogEmitter extends Emitter {
           netlist(s.expr) = wref(namespace.newTemp, s.expr.tpe)
           s
         case (s: DefNode) =>
-          val e = WRef(s.name, s.value.tpe, NodeKind(), MALE)
+          val e = WRef(s.name, s.value.tpe, NodeKind, MALE)
           netlist(e) = s.value
           s
         case (s) => s
@@ -416,7 +416,7 @@ class VerilogEmitter extends Emitter {
           case Input =>
             Seq(p.direction, "  ", p.tpe, " ", p.name)
           case Output =>
-            val ex = WRef(p.name, p.tpe, PortKind(), FEMALE)
+            val ex = WRef(p.name, p.tpe, PortKind, FEMALE)
             assign(ex, netlist(ex))
             Seq(p.direction, " ", p.tpe, " ", p.name)
         }
@@ -441,7 +441,7 @@ class VerilogEmitter extends Emitter {
           s
         case (s: DefNode) =>
           declare("wire", s.name, s.value.tpe)
-          assign(WRef(s.name, s.value.tpe, NodeKind(), MALE), s.value)
+          assign(WRef(s.name, s.value.tpe, NodeKind, MALE), s.value)
           s
         case (s: Stop) =>
           val errorString = StringLit(s"${s.ret}\n".getBytes)
@@ -451,7 +451,7 @@ class VerilogEmitter extends Emitter {
           simulate(s.clk, s.en, printf(s.string, s.args), Some("PRINTF_COND"))
           s
         case (s: WDefInstance) =>
-          val es = create_exps(WRef(s.name, s.tpe, InstanceKind(), MALE))
+          val es = create_exps(WRef(s.name, s.tpe, InstanceKind, MALE))
           instantiate(s.name, s.module, es)
           s
         case (s: DefMemory) =>
@@ -475,7 +475,7 @@ class VerilogEmitter extends Emitter {
             //; Read port
             assign(addr, netlist(addr)) //;Connects value to m.r.addr
             // assign(en, netlist(en))     //;Connects value to m.r.en
-            val mem = WRef(s.name, memToBundle(s), kind(s), UNKNOWNGENDER)
+            val mem = WRef(s.name, memToBundle(s), MemKind, UNKNOWNGENDER)
             val mem_port = WSubAccess(mem, addr, s.dataType, UNKNOWNGENDER)
             val depthValue = UIntLiteral(s.depth, IntWidth(BigInt(s.depth).bitLength))
             val garbageGuard = DoPrim(Geq, Seq(addr, depthValue), Seq(), UnknownType)
@@ -505,7 +505,7 @@ class VerilogEmitter extends Emitter {
             assign(mask,netlist(mask))
             assign(en,netlist(en))
 
-            val mem = WRef(s.name, memToBundle(s), kind(s), UNKNOWNGENDER)
+            val mem = WRef(s.name, memToBundle(s), MemKind, UNKNOWNGENDER)
             val mem_port = WSubAccess(mem, addr, s.dataType, UNKNOWNGENDER)
             update(mem_port, data, clk, AND(en, mask))
           }
