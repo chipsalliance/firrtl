@@ -202,9 +202,8 @@ case class SRAMCompiler(
     bestRule.getValidConfig(width = memWidth, depth = memDepth).get.copy(xsplit = validConfig.xsplit, ysplit = validConfig.ysplit)
   }
 
-  def serialize = {
-    // TODO
-  }
+  // TODO
+  def serialize = ???
 
 }  
 
