@@ -1,3 +1,5 @@
+// See LICENSE for license details.
+
 package firrtl.passes
 
 import com.typesafe.scalalogging.LazyLogging
@@ -43,7 +45,7 @@ class ConfWriter(filename: String) {
   val outputBuffer = new java.io.CharArrayWriter
   def append(m: DefMemory) = {
     // legacy
-    val maskGran = getInfo(m.info,"maskGran")
+    val maskGran = getInfo(m.info, "maskGran")
     val writers = m.writers map (x => if (maskGran == None) "write" else "mwrite")
     val readers = List.fill(m.readers.length)("read")
     val readwriters = m.readwriters map (x => if (maskGran == None) "rw" else "mrw")
@@ -79,7 +81,7 @@ Optional Arguments:
   -i<filename>         Specify the input configuration file (for additional optimizations)
 """    
 
-  val passOptions = PassConfigUtil.getPassOptions(t,usage)
+  val passOptions = PassConfigUtil.getPassOptions(t, usage)
   val outputConfig = passOptions.getOrElse(
     OutputConfigFileName, 
     error("No output config file provided for ReplSeqMem!" + usage)
@@ -89,7 +91,7 @@ Optional Arguments:
     error("No circuit name specified for ReplSeqMem!" + usage)
   )
   val target = CircuitName(passCircuit)
-  def duplicate(n: Named) = this.copy(t=t.replace("-c:"+passCircuit,"-c:"+n.name))
+  def duplicate(n: Named) = this.copy(t=t.replace("-c:"+passCircuit, "-c:"+n.name))
   
 }
 
@@ -99,7 +101,7 @@ class ReplSeqMem(transID: TransID) extends Transform with LazyLogging {
       case Some(p) => p get CircuitName(circuit.main) match {
         case Some(ReplSeqMemAnnotation(t, _)) => {
 
-          val inputFileName = PassConfigUtil.getPassOptions(t).getOrElse(InputConfigFileName,"")
+          val inputFileName = PassConfigUtil.getPassOptions(t).getOrElse(InputConfigFileName, "")
           val inConfigFile = {
             if (inputFileName.isEmpty) None 
             else if (new java.io.File(inputFileName).exists) Some(new YamlFileReader(inputFileName))
@@ -121,12 +123,12 @@ class ReplSeqMem(transID: TransID) extends Transform with LazyLogging {
                 InferTypes,
                 ResolveGenders
               ) foldLeft circuit
-            ){ 
+            ) { 
               (c, pass) =>
                 val x = Utils.time(pass.name)(pass run c)
                 logger debug x.serialize
                 x
-            }, 
+            } , 
             None, 
             Some(map)
           )
