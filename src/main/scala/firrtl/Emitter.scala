@@ -316,11 +316,16 @@ class VerilogEmitter extends Emitter {
          assigns += Seq("assign ",e," = ",value,";")
       // In simulation, assign garbage under a predicate
       def garbageAssign(e: Expression, syn: Expression, garbageCond: Expression) = {
-         assigns += Seq("`ifndef RANDOMIZE")
+         assigns += Seq("`ifndef RANDOMIZE_GARBAGE_ASSIGN")
          assigns += Seq("assign ", e, " = ", syn, ";")
          assigns += Seq("`else")
          assigns += Seq("assign ", e, " = ", garbageCond, " ? ", rand_string(tpe(syn)), " : ", syn, ";")
          assigns += Seq("`endif")
+      }
+      def invalidAssign(e: Expression) = {
+        assigns += Seq("`ifdef RANDOMIZE_INVALID_ASSIGN")
+        assigns += Seq("assign ", e, " = ", rand_string(tpe(e)), ";")
+        assigns += Seq("`endif")
       }
       def update_and_reset(r: Expression, clk: Expression, reset: Expression, init: Expression) = {
         // We want to flatten Mux trees for reg updates into if-trees for
@@ -381,14 +386,14 @@ class VerilogEmitter extends Emitter {
          Seq(nx,"[",long_BANG(t) - 1,":0]")
       }
       def initialize(e: Expression) = {
-        initials += Seq("`ifdef RANDOMIZE")
+        initials += Seq("`ifdef RANDOMIZE_REG_INIT")
         initials += Seq(e, " = ", rand_string(tpe(e)), ";")
         initials += Seq("`endif")
       }
       def initialize_mem(s: DefMemory) = {
         val index = WRef("initvar", s.dataType, ExpKind(), UNKNOWNGENDER)
         val rstring = rand_string(s.dataType)
-        initials += Seq("`ifdef RANDOMIZE")
+        initials += Seq("`ifdef RANDOMIZE_MEM_INIT")
         initials += Seq("for (initvar = 0; initvar < ", s.depth, "; initvar = initvar+1)")
         initials += Seq(tab, WSubAccess(wref(s.name, s.dataType), index, s.dataType, FEMALE), " = ", rstring,";")
         initials += Seq("`endif")
@@ -474,8 +479,8 @@ class VerilogEmitter extends Emitter {
             }
             case (s:IsInvalid) => {
                val wref = netlist(s.expr).as[WRef].get
-               declare("reg",wref.name,tpe(s.expr))
-               initialize(wref)
+               declare("wire",wref.name,tpe(s.expr))
+               invalidAssign(wref)
             }
             case (s:DefNode) => {
                declare("wire",s.name,tpe(s.value))
@@ -652,7 +657,7 @@ class VerilogEmitter extends Emitter {
             //  then start the simulation later
             // Verilator does not support delay statements, so they are omitted.
             emit(Seq("    `ifndef verilator"))
-            emit(Seq("      #0.002;"))
+            emit(Seq("      #0.002 begin end"))
             emit(Seq("    `endif"))
             for (x <- initials) {
                emit(Seq(tab,x))
@@ -673,16 +678,33 @@ class VerilogEmitter extends Emitter {
    
          emit(Seq("endmodule"))
       }
-   
+
       build_netlist(m.body)
       build_ports()
       build_streams(m.body)
       emit_streams()
       m
    }
-   
+
+   def emit_preamble() {
+    emit(Seq(
+        "`ifdef RANDOMIZE_GARBAGE_ASSIGN\n",
+        "`define RANDOMIZE\n",
+        "`endif\n",
+        "`ifdef RANDOMIZE_INVALID_ASSIGN\n",
+        "`define RANDOMIZE\n",
+        "`endif\n",
+        "`ifdef RANDOMIZE_REG_INIT\n",
+        "`define RANDOMIZE\n",
+        "`endif\n",
+        "`ifdef RANDOMIZE_MEM_INIT\n",
+        "`define RANDOMIZE\n",
+        "`endif\n"))
+   }
+
    def run(c: Circuit, w: Writer) = {
       this.w = Some(w)
+      emit_preamble()
       for (m <- c.modules) {
          m match {
             case (m:Module) => emit_verilog(m)
