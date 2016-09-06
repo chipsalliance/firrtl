@@ -96,12 +96,14 @@ object InferWidths extends Pass {
         //;println-all-debug(["not varwidth!" w])
       }
     }
+
     def b_sub(h: ConstraintMap)(w: Width): Width = {
       w map b_sub(h) match {
         case w: VarWidth => h getOrElse (w.name, w)
         case w => w
       }
     }
+
     def remove_cycle(n: String)(w: Width): Width = {
       //;println-all-debug(["Removing cycle for " n " inside " w])
       (w map remove_cycle(n)) match {
@@ -117,17 +119,17 @@ object InferWidths extends Pass {
       }
       //;println-all-debug(["After removing cycle for " n ", returning " wx])
     }
-    def self_rec(n: String, w: Width): Boolean = {
-      var has = false
-      def look (w:Width) : Width = {
-         (w map (look)) match {
-            case (w:VarWidth) => if (w.name == n) has = true
-            case (w) => w }
-         w }
-      look(w)
-      has
+
+    def hasVarWidth(n: String)(w: Width): Boolean = w match {
+      case VarWidth(name) => name == n
+      case MaxWidth(args) => args exists hasVarWidth(n)
+      case MinWidth(args) => args exists hasVarWidth(n)
+      case PlusWidth(arg1, arg2) => hasVarWidth(n)(arg1) || hasVarWidth(n)(arg2)
+      case MinusWidth(arg1, arg2) => hasVarWidth(n)(arg1) || hasVarWidth(n)(arg2)
+      case ExpWidth(arg) => hasVarWidth(n)(arg)
+      case _ => false
     }
-         
+ 
     //; Forward solve
     //; Returns a solved list where each constraint undergoes:
     //;  1) Continuous Solving (using triangular solving)
@@ -157,7 +159,7 @@ object InferWidths extends Pass {
       val ex = remove_cycle(n)(e_sub)
 
       //println("After Remove Cycle: " + n + " => " + ex)
-      if (!self_rec(n, ex)) {
+      if (!hasVarWidth(n)(ex)) {
         //println("Not rec!: " + n + " => " + ex)
         //println("Adding [" + n + "=>" + ex + "] to Solutions Table")
         f(n) = ex
@@ -194,16 +196,16 @@ object InferWidths extends Pass {
   def run (c: Circuit): Circuit = {
     val v = ArrayBuffer[WGeq]()
 
-    def get_constraints_t(t1:Type, t2:Type, f:Orientation): Seq[WGeq] = (t1,t2) match {
-      case (t1:UIntType,t2:UIntType) => Seq(WGeq(t1.width, t2.width))
-      case (t1:SIntType,t2:SIntType) => Seq(WGeq(t1.width, t2.width))
-      case (t1:BundleType,t2:BundleType) => t1.fields zip t2.fields flatMap {
+    def get_constraints_t(t1: Type, t2: Type, f: Orientation): Seq[WGeq] = (t1,t2) match {
+      case (t1: UIntType, t2: UIntType) => Seq(WGeq(t1.width, t2.width))
+      case (t1: SIntType, t2: SIntType) => Seq(WGeq(t1.width, t2.width))
+      case (t1: BundleType, t2: BundleType) => t1.fields zip t2.fields flatMap {
         case (f1, f2) => get_constraints_t(f1.tpe, f2.tpe, times(f1.flip, f))
       }
-      case (t1:VectorType,t2:VectorType) => get_constraints_t(t1.tpe, t2.tpe, f)
+      case (t1: VectorType, t2: VectorType) => get_constraints_t(t1.tpe, t2.tpe, f)
     }
 
-    def get_constraints_e(e:Expression): Expression = {
+    def get_constraints_e(e: Expression): Expression = {
       e match {
         case (e: Mux) => v ++= Seq(
           WGeq(getWidth(e.cond), IntWidth(1)),
@@ -214,7 +216,7 @@ object InferWidths extends Pass {
       e map get_constraints_e
     }
 
-    def get_constraints_s(s:Statement): Statement = {
+    def get_constraints_s(s: Statement): Statement = {
       s match {
         case (s: Connect) =>
           val n = get_size(s.loc.tpe)
@@ -226,7 +228,7 @@ object InferWidths extends Pass {
               case Flip => WGeq(getWidth(expx), getWidth(locx))
             }
           })
-        case (s:PartialConnect) =>
+        case (s: PartialConnect) =>
           val ls = get_valid_points(s.loc.tpe, s.expr.tpe, Default, Default)
           val locs = create_exps(s.loc)
           val exps = create_exps(s.expr)
@@ -238,11 +240,11 @@ object InferWidths extends Pass {
               case Flip => WGeq(getWidth(expx), getWidth(locx))
             }
           })
-        case (s:DefRegister) => v ++= (Seq(
+        case (s: DefRegister) => v ++= (Seq(
            WGeq(getWidth(s.reset), IntWidth(1)),
            WGeq(IntWidth(1), getWidth(s.reset))
         ) ++ get_constraints_t(s.tpe, s.init.tpe, Default))
-        case (s:Conditionally) => v ++= Seq(
+        case (s: Conditionally) => v ++= Seq(
            WGeq(getWidth(s.pred), IntWidth(1)),
            WGeq(IntWidth(1), getWidth(s.pred))
         )
