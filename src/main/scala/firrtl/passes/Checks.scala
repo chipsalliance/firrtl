@@ -201,11 +201,12 @@ object CheckHighForm extends Pass with LazyLogging {
     }
     def checkHighFormT(t: Type): Type = {
       t map (checkHighFormT) match {
-        case t: VectorType => 
-          if (t.size < 0) errors.append(new NegVecSizeException)
-        case _ => // Do nothing
+        case t: VectorType if (t.size < 0) =>
+          errors.append(new NegVecSizeException)
+          t
+        //case FixedType(width, point) => FixedType(checkHighFormW(width), point)
+        case _ => t map checkHighFormW
       }
-      t map (checkHighFormW)
     }
 
     def checkHighFormM(m: DefModule): DefModule = {
@@ -278,8 +279,7 @@ object CheckHighForm extends Pass with LazyLogging {
         // FIXME should we set sinfo here?
         names(p.name) = true
         val tpe = p.getType
-        tpe map (checkHighFormT)
-        tpe map (checkHighFormW)
+        checkHighFormT(tpe)
       }
 
       m match {
@@ -754,14 +754,17 @@ object CheckWidths extends Pass {
             }
             e
          }
+         def check_type(info: Info)(t: Type): Type = t map (check_type(info)) match {
+           //case FixedType(width, point) => FixedType(check_width_w(info)(width), point)
+           case _ => t map (check_width_w(info) _)
+         }
          def check_width_s (s:Statement) : Statement = {
             s map (check_width_s) map (check_width_e(get_info(s)))
-            def tm (t:Type) : Type = mapr(check_width_w(info(s)) _,t)
-            s map (tm)
+            s map (check_type(info(s)) _)
          }
       
          for (p <- m.ports) {
-            mapr(check_width_w(p.info) _,p.tpe)
+            check_type(p.info)(p.tpe)
          }
    
          (m) match { 

@@ -74,10 +74,12 @@ object CheckChirrtl extends Pass with LazyLogging {
     }
     def checkChirrtlT(t: Type): Type = {
       t map (checkChirrtlT) match {
-        case t: VectorType if (t.size < 0) => errors.append(new NegVecSizeException)
-        case _ => // Do nothing
+        case t: VectorType if (t.size < 0) =>
+          errors.append(new NegVecSizeException)
+          t map checkChirrtlW
+        //case FixedType(width, point) => FixedType(checkChirrtlW(width), point)
+        case _ => t map checkChirrtlW
       }
-      t map (checkChirrtlW)
     }
 
     def checkChirrtlM(m: DefModule): DefModule = {
@@ -139,8 +141,7 @@ object CheckChirrtl extends Pass with LazyLogging {
         sinfo = p.info
         names(p.name) = true
         val tpe = p.getType
-        tpe map (checkChirrtlT)
-        tpe map (checkChirrtlW)
+        checkChirrtlT(tpe)
       }
 
       m match {
