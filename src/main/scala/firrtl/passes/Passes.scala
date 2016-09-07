@@ -846,10 +846,10 @@ object VerilogWrap extends Pass {
 
 object VerilogRename extends Pass {
    def name = "Verilog Rename"
+   def verilog_rename_n (n:String) : String = {
+      if (v_keywords.contains(n)) (n + "$") else n
+   }
    def run (c:Circuit): Circuit = {
-      def verilog_rename_n (n:String) : String = {
-         if (v_keywords.contains(n)) (n + "$") else n
-      }
       def verilog_rename_e (e:Expression) : Expression = {
          (e) match {
            case (e:WRef) => WRef(verilog_rename_n(e.name),e.tpe,kind(e),gender(e))
