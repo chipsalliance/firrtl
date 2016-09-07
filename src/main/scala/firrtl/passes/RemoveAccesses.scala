@@ -1,7 +1,7 @@
 package firrtl.passes
 
 import firrtl.ir._
-import firrtl.{WRef, WSubAccess, WSubIndex, WSubField}
+//import firrtl.{WRef, WSubAccess, WSubIndex, WSubField}
 import firrtl.Mappers._
 import firrtl.Utils._
 import firrtl.WrappedExpression._

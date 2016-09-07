@@ -32,8 +32,8 @@ import com.typesafe.scalalogging.LazyLogging
 
 import firrtl._
 import firrtl.ir._
+import firrtl.ir.PrimOps._
 import firrtl.Mappers._
-import firrtl.PrimOps._
 import Annotations._
 
 case class InferReadWriteAnnotation(t: String, tID: TransID)

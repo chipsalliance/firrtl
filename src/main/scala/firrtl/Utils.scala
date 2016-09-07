@@ -42,11 +42,12 @@ import com.typesafe.scalalogging.LazyLogging
 import WrappedExpression._
 import firrtl.WrappedType._
 import firrtl.Mappers._
-import firrtl.PrimOps._
 import firrtl.ir._
+import firrtl.ir.PrimOps._
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.mutable.LinkedHashMap
 //import scala.reflect.runtime.universe._
+import scala.language.implicitConversions
 
 class FIRRTLException(str: String) extends Exception(str)
 

@@ -29,6 +29,7 @@ package firrtlTests
 
 import org.scalatest._
 import firrtl._
+import firrtl.ir._
 
 class ParserSpec extends FirrtlFlatSpec {
 

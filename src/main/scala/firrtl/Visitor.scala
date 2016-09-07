@@ -37,7 +37,7 @@ import org.antlr.v4.runtime.tree.TerminalNode
 import scala.collection.JavaConversions._
 import scala.collection.mutable
 import firrtl.antlr._
-import PrimOps._
+import ir.PrimOps._
 import FIRRTLParser._
 import Parser.{AppendInfo, GenInfo, IgnoreInfo, InfoMode, UseInfo}
 import firrtl.ir._

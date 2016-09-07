@@ -29,9 +29,9 @@ package firrtl.passes
 
 import firrtl._
 import firrtl.ir._
+import firrtl.ir.PrimOps._
 import firrtl.Utils._
 import firrtl.Mappers._
-import firrtl.PrimOps._
 
 import annotation.tailrec
 
