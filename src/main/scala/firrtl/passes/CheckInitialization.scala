@@ -60,7 +60,8 @@ object CheckInitialization extends Pass {
   }
 
   def run(c: Circuit): Circuit = {
-    val errors = new Errors()
+    val errors = collection.mutable.ArrayBuffer[PassException]()
+
 
     def checkInitM(m: Module): Unit = {
       val voidExprs = collection.mutable.HashMap[WrappedExpression, VoidExpr]()
@@ -68,17 +69,19 @@ object CheckInitialization extends Pass {
       def hasVoidExpr(e: Expression): (Boolean, Seq[Expression]) = {
         var void = false
         val voidDeps = collection.mutable.ArrayBuffer[Expression]()
-        def hasVoid(e: Expression): Expression = e match {
-          case e: WVoid =>
-            void = true
-            e
-          case (_: WRef | _: WSubField) =>
-            if (voidExprs.contains(e)) {
+        def hasVoid(e: Expression): Expression = {
+          e match {
+            case e: WVoid =>
               void = true
-              voidDeps += e
-            }
-            e
-          case e => e map hasVoid
+              e
+            case (_: WRef | _: WSubField) =>
+              if (voidExprs.contains(e)) {
+                void = true
+                voidDeps += e
+              }
+              e
+            case e => e map hasVoid
+          }
         }
         hasVoid(e)
         (void, voidDeps)
@@ -107,16 +110,19 @@ object CheckInitialization extends Pass {
           case node: DefNode => // Ignore nodes
           case decl: IsDeclaration =>
             val trace = getTrace(expr, voidExprs.toMap)
-            errors append new RefNotInitializedException(decl.info, m.name, decl.name, trace)
+            errors += new RefNotInitializedException(decl.info, m.name, decl.name, trace)
         }
       }
     }
 
-    c.modules foreach {
-      case m: Module => checkInitM(m)
-      case m => // Do nothing
+    c.modules foreach { m =>
+      m match {
+        case m: Module => checkInitM(m)
+        case m => // Do nothing
+      }
     }
-    errors.trigger
+
+    if (errors.nonEmpty) throw new PassExceptions(errors)
     c
   }
 }
