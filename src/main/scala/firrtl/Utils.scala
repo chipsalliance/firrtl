@@ -98,28 +98,6 @@ object Utils extends LazyLogging {
      val ix = if (i < 0) ((-1 * i) - 1) else i
      ceil_log2(ix + 1) + 1
   }
-  def EQV (e1:Expression,e2:Expression) : Expression =
-     DoPrim(Eq, Seq(e1, e2), Nil, e1.tpe)
-  // TODO: these should be fixed
-  def AND (e1:WrappedExpression,e2:WrappedExpression) : Expression = {
-     if (e1 == e2) e1.e1
-     else if ((e1 == we(zero)) | (e2 == we(zero))) zero
-     else if (e1 == we(one)) e2.e1
-     else if (e2 == we(one)) e1.e1
-     else DoPrim(And,Seq(e1.e1,e2.e1),Seq(),UIntType(IntWidth(1)))
-  }
-  def OR (e1:WrappedExpression,e2:WrappedExpression) : Expression = {
-     if (e1 == e2) e1.e1
-     else if ((e1 == we(one)) | (e2 == we(one))) one
-     else if (e1 == we(zero)) e2.e1
-     else if (e2 == we(zero)) e1.e1
-     else DoPrim(Or,Seq(e1.e1,e2.e1),Seq(),UIntType(IntWidth(1)))
-  }
-  def NOT (e1:WrappedExpression) : Expression = {
-     if (e1 == we(one)) zero
-     else if (e1 == we(zero)) one
-     else DoPrim(Eq,Seq(e1.e1,zero),Seq(),UIntType(IntWidth(1)))
-  }
 
   def create_mask(dt: Type): Type = dt match {
     case t: VectorType => VectorType(create_mask(t.tpe),t.size)
@@ -662,5 +640,58 @@ class MemoizedHash[T](val t: T) {
   override def equals(that: Any) = that match {
     case x: MemoizedHash[_] => t equals x.t
     case _ => false
+  }
+}
+
+/**
+  * Maintains a one to many graph of each modules instantiated child module.
+  * This graph can be searched for a path from a child module back to one of
+  * it's parents.  If one is found a recursive loop has happened
+  * The graph is a map between the name of a node to set of names of that nodes children
+  */
+class ModuleGraph {
+  val nodes = HashMap[String, HashSet[String]]()
+
+  /**
+    * Add a child to a parent node
+    * A parent node is created if it does not already exist
+    *
+    * @param parent module that instantiates another module
+    * @param child  module instantiated by parent
+    * @return a list indicating a path from child to parent, empty if no such path
+    */
+  def add(parent: String, child: String): List[String] = {
+    val childSet = nodes.getOrElseUpdate(parent, new HashSet[String])
+    childSet += child
+    pathExists(child, parent, List(child, parent))
+  }
+
+  /**
+    * Starting at the name of a given child explore the tree of all children in depth first manner.
+    * Return the first path (a list of strings) that goes from child to parent,
+    * or an empty list of no such path is found.
+    *
+    * @param child  starting name
+    * @param parent name to find in children (recursively)
+    * @param path
+    * @return
+    */
+  def pathExists(child: String, parent: String, path: List[String] = Nil): List[String] = {
+    nodes.get(child) match {
+      case Some(children) =>
+        if(children(parent)) {
+          parent :: path
+        }
+        else {
+          children.foreach { grandchild =>
+            val newPath = pathExists(grandchild, parent, grandchild :: path)
+            if(newPath.nonEmpty) {
+              return newPath
+            }
+          }
+          Nil
+        }
+      case _ => Nil
+    }
   }
 }

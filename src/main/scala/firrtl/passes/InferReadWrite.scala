@@ -123,7 +123,7 @@ object InferReadWritePass extends Pass {
           if (wp exists (a => rp exists (b => checkComplement(a, b)))) {
             val allPorts = (mem.readers ++ mem.writers ++ mem.readwriters ++ readwriters).toSet
             // Uniquify names by examining all ports of the memory
-            var rw = (for {
+            val rw = (for {
                 idx <- Stream from 0
                 newName = s"rw_$idx"
                 if !allPorts(newName)
