@@ -133,7 +133,11 @@ object ExpandWhens extends Pass {
                     case (WInvalid(), WInvalid()) => WInvalid()
                     case (WInvalid(), fv) => ValidIf(NOT(s.pred), fv, tpe(fv))
                     case (tv, WInvalid()) => ValidIf(s.pred, tv, tpe(tv))
-                    case (tv, fv) => Mux(s.pred, tv, fv, mux_type_and_widths(tv, fv))
+                    case (tv, fv) => {
+                      // parameterization might result in the same tv, fv -- get rid of unnecessary mux
+                      if (tv != fv) Mux(s.pred, tv, fv, mux_type_and_widths(tv, fv))
+                      else tv
+                    }
                   }
                 case None =>
                   // Since not in netlist, lvalue must be declared in EXACTLY one of conseq or alt

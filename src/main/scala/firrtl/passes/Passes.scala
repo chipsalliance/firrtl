@@ -1127,11 +1127,18 @@ object RemoveCHIRRTL extends Pass {
                      }}
                   def set_write (vec:Seq[MPort],data:String,mask:String) : Unit = {
                      val tmask = create_mask(s.tpe)
+                     // mem data type = ground type implies no masking used (per Chisel spec)
+                     val maskInitVal = tmask match {
+                        case BoolType => one
+                        case _ => zero
+                     }
                      for (r <- vec ) {
                         stmts += IsInvalid(s.info,SubField(SubField(Reference(s.name,ut),r.name,ut),data,tdata))
                         for (x <- create_exps(SubField(SubField(Reference(s.name,ut),r.name,ut),mask,tmask)) ) {
-                           stmts += Connect(s.info,x,zero)
-                        }}}
+                           stmts += Connect(s.info,x,maskInitVal)
+                        }
+                     }
+                  }
                   val rds = (hash.getOrElse(s.name,EMPs())).readers
                   set_poison(rds,"addr")
                   set_enable(rds,"en")
