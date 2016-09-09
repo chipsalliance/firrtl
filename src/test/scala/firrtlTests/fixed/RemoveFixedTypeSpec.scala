@@ -29,6 +29,7 @@ package firrtlTests
 package fixed
 
 import java.io._
+import firrtl.Annotations.AnnotationMap
 import org.scalatest._
 import org.scalatest.prop._
 import firrtl._
@@ -192,6 +193,48 @@ class RemoveFixedTypeSpec extends FirrtlFlatSpec {
         |    output d : SInt<11>
         |    d <= shl(a, 1)""".stripMargin
     executeTest(input, check.split("\n") map normalized, passes)
+  }
+
+  "Fixed point numbers" should "allow binary point to be set" in {
+    val passes = Seq(
+      ToWorkingIR,
+      CheckHighForm,
+      ResolveKinds,
+      InferTypes,
+      CheckTypes,
+      ResolveGenders,
+      CheckGenders,
+      InferWidths,
+      CheckWidths,
+      ConvertFixedToSInt)
+    val input =
+      """
+        |circuit SBP :
+        |  module SBP :
+        |    input clk : Clock
+        |    input reset : UInt<1>
+        |    output io : {flip in : Fixed<12><<6>>, out : Fixed<6><<0>>}
+        |
+        |    io is invalid
+        |    node T_2 = bpset(io.in, 1)
+        |    io.out <= T_2
+      """.stripMargin
+
+    println("Set binary point test\n" + input)
+    val lowerer = new LowFirrtlCompiler
+
+    val writer = new StringWriter()
+
+    lowerer.compile(parse(input), new AnnotationMap(Seq.empty), writer)
+
+    val output = writer.toString.split("\n")
+//    val check =
+//      """circuit Unit :
+//        |  module Unit :
+//        |    input a : SInt<10>
+//        |    output d : SInt<11>
+//        |    d <= shl(a, 1)""".stripMargin
+//    executeTest(input, check.split("\n") map normalized, passes)
   }
 }
 
