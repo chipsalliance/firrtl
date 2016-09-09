@@ -179,12 +179,18 @@ object Utils extends LazyLogging {
     mux_type_and_widths(e1.tpe, e2.tpe)
   def mux_type_and_widths(t1: Type, t2: Type): Type = {
     def wmax(w1: Width, w2: Width): Width = (w1, w2) match {
-      case (w1: IntWidth, w2: IntWidth) => IntWidth(w1.width max w2.width)
+      case (w1: IntWidth, w2: IntWidth) => w1 max w2
       case (w1, w2) => MaxWidth(Seq(w1, w2))
     }
     (t1, t2) match {
-      case (t1: UIntType, t2: UIntType) => UIntType(wmax(t1.width, t2.width))
-      case (t1: SIntType, t2: SIntType) => SIntType(wmax(t1.width, t2.width))
+      case (t1: UIntType, t2: UIntType) => (t1.width, t2.width) match {
+        case (IntWidth(a), IntWidth(b)) => if (a > b) t1 else t2
+        case (w1, w2) => UIntType(wmax(w1, w2))
+      }
+      case (t1: SIntType, t2: SIntType) => (t1.width, t2.width) match {
+        case (IntWidth(a), IntWidth(b)) => if (a > b) t1 else t2
+        case (w1, w2) => SIntType(wmax(w1, w2))
+      }
       case (t1: VectorType, t2: VectorType) => VectorType(
         mux_type_and_widths(t1.tpe, t2.tpe), t1.size)
       case (t1: BundleType, t2: BundleType) => BundleType(t1.fields zip t2.fields map {

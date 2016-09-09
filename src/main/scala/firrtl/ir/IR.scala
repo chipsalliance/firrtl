@@ -202,11 +202,11 @@ abstract class Width extends FirrtlNode {
     case _ => UnknownWidth
   }
   def max(x: Width): Width = (this, x) match {
-    case (a: IntWidth, b: IntWidth) => IntWidth(a.width max b.width)
+    case (a: IntWidth, b: IntWidth) => if (a.width > b.width) a else b
     case _ => UnknownWidth
   }
   def min(x: Width): Width = (this, x) match {
-    case (a: IntWidth, b: IntWidth) => IntWidth(a.width min b.width)
+    case (a: IntWidth, b: IntWidth) => if (a.width < b.width) a else b
     case _ => UnknownWidth
   }
 }
