@@ -213,7 +213,7 @@ class RemoveFixedTypeSpec extends FirrtlFlatSpec {
         |  module SBP :
         |    input clk : Clock
         |    input reset : UInt<1>
-        |    output io : {flip in : Fixed<12><<6>>, out : Fixed<6><<0>>}
+        |    output io : {flip in : Fixed<12><<6>>, out : Fixed}
         |
         |    io is invalid
         |    node T_2 = bpset(io.in, 1)

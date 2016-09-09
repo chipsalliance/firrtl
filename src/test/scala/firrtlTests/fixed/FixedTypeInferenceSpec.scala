@@ -279,6 +279,46 @@ class FixedTypeInferenceSpec extends FirrtlFlatSpec {
         |    d <= asFixedPoint(a, 2)""".stripMargin
     executeTest(input, check.split("\n") map normalized, passes)
   }
+
+  "Fixed types" should "support binary point of zero" in {
+    val passes = Seq(
+      ToWorkingIR,
+      CheckHighForm,
+      ResolveKinds,
+      InferTypes,
+      CheckTypes,
+      ResolveGenders,
+      CheckGenders,
+      InferWidths,
+      CheckWidths,
+      ConvertFixedToSInt)
+    val input =
+      """
+        |circuit Unit :
+        |  module Unit :
+        |    input clk : Clock
+        |    input reset : UInt<1>
+        |    input io_in : Fixed<6><<0>>
+        |    output io_out : Fixed<6><<0>>
+        |
+        |    io_in is invalid
+        |    io_out is invalid
+        |    io_out <= io_in
+      """.stripMargin
+    val check =
+      """
+        |circuit Unit :
+        |  module Unit :
+        |    input clk : Clock
+        |    input reset : UInt<1>
+        |    input io_in : SInt<6>
+        |    output io_out : SInt<6>
+        |
+        |    io_out <= io_in
+        |
+      """.stripMargin
+    executeTest(input, check.split("\n") map normalized, passes)
+  }
 }
 
 // vim: set ts=4 sw=4 et:
