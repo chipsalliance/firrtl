@@ -168,8 +168,9 @@ object CheckHighForm extends Pass with LazyLogging {
         case Bits => correctNum(Option(1),2)
         case Head => correctNum(Option(1),1)
         case Tail => correctNum(Option(1),1)
-        case ShiftBP => correctNum(Option(1),1)
-        case SetBP => correctNum(Option(1), 1)
+        case BPShl => correctNum(Option(1),1)
+        case BPShr => correctNum(Option(1),1)
+        case BPSet => correctNum(Option(1), 1)
       }
     }
 
@@ -425,8 +426,9 @@ object CheckTypes extends Pass with LazyLogging {
          case Bits => all_USF(e.args)
          case Head => all_USF(e.args)
          case Tail => all_USF(e.args)
-         case ShiftBP => all_F(e.args)
-         case SetBP => all_F(e.args)
+         case BPShl => all_F(e.args)
+         case BPShr => all_F(e.args)
+         case BPSet => all_F(e.args)
       }
    }
       

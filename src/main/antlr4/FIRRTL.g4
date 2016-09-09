@@ -274,8 +274,9 @@ primop
   | 'head('
   | 'tail('
   | 'asFixedPoint('
-  | 'shiftbp('
-  | 'setbp('
+  | 'bpshl('
+  | 'bpshr('
+  | 'bpset('
   ;
 
 /*------------------------------------------------------------------

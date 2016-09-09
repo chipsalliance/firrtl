@@ -112,6 +112,87 @@ class RemoveFixedTypeSpec extends FirrtlFlatSpec {
          |    d <- shl(add(shl(a, 1), add(shl(b, 3), c)), 2)""".stripMargin
     executeTest(input, check.split("\n") map normalized, passes)
   }
+
+  "Fixed types" should "remove binary point shift correctly" in {
+    val passes = Seq(
+      ToWorkingIR,
+      CheckHighForm,
+      ResolveKinds,
+      InferTypes,
+      CheckTypes,
+      ResolveGenders,
+      CheckGenders,
+      InferWidths,
+      CheckWidths,
+      ConvertFixedToSInt)
+    val input =
+      """circuit Unit :
+        |  module Unit :
+        |    input a : Fixed<10><<2>>
+        |    output d : Fixed<12><<4>>
+        |    d <= bpshl(a, 2)""".stripMargin
+    val check =
+      """circuit Unit :
+        |  module Unit :
+        |    input a : SInt<10>
+        |    output d : SInt<12>
+        |    d <= shl(a, 2)""".stripMargin
+    executeTest(input, check.split("\n") map normalized, passes)
+  }
+
+  "Fixed types" should "remove binary point shift correctly in reverse" in {
+    val passes = Seq(
+      ToWorkingIR,
+      CheckHighForm,
+      ResolveKinds,
+      InferTypes,
+      CheckTypes,
+      ResolveGenders,
+      CheckGenders,
+      InferWidths,
+      CheckWidths,
+      ConvertFixedToSInt)
+    val input =
+      """circuit Unit :
+        |  module Unit :
+        |    input a : Fixed<10><<2>>
+        |    output d : Fixed<9><<1>>
+        |    d <= bpshr(a, 1)""".stripMargin
+    val check =
+      """circuit Unit :
+        |  module Unit :
+        |    input a : SInt<10>
+        |    output d : SInt<9>
+        |    d <= shr(a, 1)""".stripMargin
+    executeTest(input, check.split("\n") map normalized, passes)
+  }
+
+  "Fixed types" should "remove an absolutely set binary point correctly" in {
+    val passes = Seq(
+      ToWorkingIR,
+      CheckHighForm,
+      ResolveKinds,
+      InferTypes,
+      CheckTypes,
+      ResolveGenders,
+      CheckGenders,
+      InferWidths,
+      CheckWidths,
+      ConvertFixedToSInt)
+    val input =
+      """circuit Unit :
+        |  module Unit :
+        |    input a : Fixed<10><<2>>
+        |    output d : Fixed
+        |    d <= bpset(a, 3)""".stripMargin
+    val check =
+      """circuit Unit :
+        |  module Unit :
+        |    input a : SInt<10>
+        |    output d : SInt<11>
+        |    d <= shl(a, 1)""".stripMargin
+    executeTest(input, check.split("\n") map normalized, passes)
+  }
 }
 
 // vim: set ts=4 sw=4 et:

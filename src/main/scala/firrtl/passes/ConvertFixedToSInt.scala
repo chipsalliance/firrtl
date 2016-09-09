@@ -38,6 +38,9 @@ object ConvertFixedToSInt extends Pass {
       def updateExpType(e:Expression): Expression = e match {
         case DoPrim(Mul, args, consts, tpe) => e map updateExpType
         case DoPrim(AsFixedPoint, args, consts, tpe) => DoPrim(AsSInt, args, Seq.empty, tpe)
+        case DoPrim(BPShl, args, consts, tpe) => DoPrim(Shl, args, consts, tpe)
+        case DoPrim(BPShr, args, consts, tpe) => DoPrim(Shr, args, consts, tpe)
+        case DoPrim(BPSet, args, consts, FixedType(w, IntWidth(p))) => alignArg(args.head, p)
         case DoPrim(op, args, consts, tpe) =>
           val point = calcPoint(args)
           val newExp = DoPrim(op, args.map(x => alignArg(x, point)), consts, UnknownType)

@@ -100,14 +100,16 @@ object PrimOps extends LazyLogging {
   case object Tail extends PrimOp { override def toString = "tail" }
   /** Interpret as Fixed Point **/
   case object AsFixedPoint extends PrimOp { override def toString = "asFixedPoint" }
-  /** Shift Binary Point **/
-  case object ShiftBP extends PrimOp { override def toString = "shiftbp" }
+  /** Shift Binary Point Left **/
+  case object BPShl extends PrimOp { override def toString = "bpshl" }
+  /** Shift Binary Point Right **/
+  case object BPShr extends PrimOp { override def toString = "bpshr" }
   /** Set Binary Point **/
-  case object SetBP extends PrimOp { override def toString = "setbp" }
+  case object BPSet extends PrimOp { override def toString = "bpset" }
 
   private lazy val builtinPrimOps: Seq[PrimOp] =
     Seq(Add, Sub, Mul, Div, Rem, Lt, Leq, Gt, Geq, Eq, Neq, Pad, AsUInt, AsSInt, AsClock, Shl, Shr,
-        Dshl, Dshr, Neg, Cvt, Not, And, Or, Xor, Andr, Orr, Xorr, Cat, Bits, Head, Tail, AsFixedPoint, ShiftBP, SetBP)
+        Dshl, Dshr, Neg, Cvt, Not, And, Or, Xor, Andr, Orr, Xorr, Cat, Bits, Head, Tail, AsFixedPoint, BPShl, BPShr, BPSet)
   private lazy val strToPrimOp: Map[String, PrimOp] = builtinPrimOps map (op => op.toString -> op) toMap
 
   /** Seq of String representations of [[ir.PrimOp]]s */
@@ -430,14 +432,21 @@ object PrimOps extends LazyLogging {
             }
             DoPrim(o,a,c,t)
          }
-         case ShiftBP => {
+         case BPShl => {
             val t = (t1) match {
                case _:FixedType => FixedType(PLUS(w1,c1), PLUS(p1, c1))
                case (t1) => UnknownType
             }
             DoPrim(o,a,c,t)
          }
-         case SetBP => {
+         case BPShr => {
+            val t = (t1) match {
+               case _:FixedType => FixedType(MINUS(w1,c1), MINUS(p1, c1))
+               case (t1) => UnknownType
+            }
+            DoPrim(o,a,c,t)
+         }
+         case BPSet => {
             val t = (t1) match {
                case _:FixedType => FixedType(PLUS(c1, MINUS(w1, p1)), c1)
                case (t1) => UnknownType
