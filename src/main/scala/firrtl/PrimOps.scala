@@ -98,11 +98,16 @@ object PrimOps extends LazyLogging {
   case object Head extends PrimOp { override def toString = "head" }
   /** Tail */
   case object Tail extends PrimOp { override def toString = "tail" }
+  /** Interpret as Fixed Point **/
   case object AsFixedPoint extends PrimOp { override def toString = "asFixedPoint" }
+  /** Shift Binary Point **/
+  case object ShiftBP extends PrimOp { override def toString = "shiftbp" }
+  /** Set Binary Point **/
+  case object SetBP extends PrimOp { override def toString = "setbp" }
 
   private lazy val builtinPrimOps: Seq[PrimOp] =
     Seq(Add, Sub, Mul, Div, Rem, Lt, Leq, Gt, Geq, Eq, Neq, Pad, AsUInt, AsSInt, AsClock, Shl, Shr,
-        Dshl, Dshr, Neg, Cvt, Not, And, Or, Xor, Andr, Orr, Xorr, Cat, Bits, Head, Tail, AsFixedPoint)
+        Dshl, Dshr, Neg, Cvt, Not, And, Or, Xor, Andr, Orr, Xorr, Cat, Bits, Head, Tail, AsFixedPoint, ShiftBP, SetBP)
   private lazy val strToPrimOp: Map[String, PrimOp] = builtinPrimOps map (op => op.toString -> op) toMap
 
   /** Seq of String representations of [[ir.PrimOp]]s */
@@ -296,6 +301,7 @@ object PrimOps extends LazyLogging {
             val t = (t1) match {
                case (t1:UIntType) => UIntType(PLUS(w1,c1))
                case (t1:SIntType) => SIntType(PLUS(w1,c1))
+               case (t1:FixedType) => FixedType(PLUS(w1,c1), p1)
                case (t1) => UnknownType
             }
             DoPrim(o,a,c,t)
@@ -304,6 +310,7 @@ object PrimOps extends LazyLogging {
             val t = (t1) match {
                case (t1:UIntType) => UIntType(MAX(MINUS(w1,c1),Utils.ONE))
                case (t1:SIntType) => SIntType(MAX(MINUS(w1,c1),Utils.ONE))
+               case (t1:FixedType) => FixedType(MAX(MAX(MINUS(w1,c1),Utils.ONE), p1), p1)
                case (t1) => UnknownType
             }
             DoPrim(o,a,c,t)
@@ -312,6 +319,7 @@ object PrimOps extends LazyLogging {
             val t = (t1) match {
                case (t1:UIntType) => UIntType(PLUS(w1,POW(w2)))
                case (t1:SIntType) => SIntType(PLUS(w1,POW(w2)))
+               case (t1:FixedType) => FixedType(PLUS(w1,POW(w2)), p1)
                case (t1) => UnknownType
             }
             DoPrim(o,a,c,t)
@@ -320,6 +328,7 @@ object PrimOps extends LazyLogging {
             val t = (t1) match {
                case (t1:UIntType) => UIntType(w1)
                case (t1:SIntType) => SIntType(w1)
+               case (t1:FixedType) => FixedType(w1, p1)
                case (t1) => UnknownType
             }
             DoPrim(o,a,c,t)
@@ -417,6 +426,20 @@ object PrimOps extends LazyLogging {
          case Tail => {
             val t = (t1) match {
                case (_:UIntType|_:SIntType|_:FixedType) => UIntType(MINUS(w1,c1))
+               case (t1) => UnknownType
+            }
+            DoPrim(o,a,c,t)
+         }
+         case ShiftBP => {
+            val t = (t1) match {
+               case _:FixedType => FixedType(PLUS(w1,c1), PLUS(p1, c1))
+               case (t1) => UnknownType
+            }
+            DoPrim(o,a,c,t)
+         }
+         case SetBP => {
+            val t = (t1) match {
+               case _:FixedType => FixedType(PLUS(c1, MINUS(w1, p1)), c1)
                case (t1) => UnknownType
             }
             DoPrim(o,a,c,t)

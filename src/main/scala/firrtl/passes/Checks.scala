@@ -168,6 +168,8 @@ object CheckHighForm extends Pass with LazyLogging {
         case Bits => correctNum(Option(1),2)
         case Head => correctNum(Option(1),1)
         case Tail => correctNum(Option(1),1)
+        case ShiftBP => correctNum(Option(1),1)
+        case SetBP => correctNum(Option(1), 1)
       }
     }
 
@@ -363,6 +365,13 @@ object CheckTypes extends Pass with LazyLogging {
          })
          if (error) errors.append(new OpNotGround(info,e.op.serialize))
       }
+      def all_F(ls: Seq[Expression]): Unit = {
+         val error = ls.foldLeft(false)((error, x) => x.tpe match {
+           case _:FixedType => error
+           case _ => true
+         })
+         if (error) errors.append(new OpNotGround(info,e.op.serialize))
+      }
       def strictFix (ls: Seq[Expression]): Unit =
         ls.filter(!_.tpe.isInstanceOf[FixedType]).size match {
           case 0 => 
@@ -387,8 +396,8 @@ object CheckTypes extends Pass with LazyLogging {
          case AsSInt =>
          case AsFixedPoint =>
          case AsClock => all_USC(e.args)
-         case Dshl => is_uint(e.args(1)); all_US(e.args)
-         case Dshr => is_uint(e.args(1)); all_US(e.args)
+         case Dshl => is_uint(e.args(1)); all_USF(e.args)
+         case Dshr => is_uint(e.args(1)); all_USF(e.args)
          case Add => all_USF(e.args); strictFix(e.args)
          case Sub => all_USF(e.args); strictFix(e.args)
          case Mul => all_USF(e.args); strictFix(e.args)
@@ -401,8 +410,8 @@ object CheckTypes extends Pass with LazyLogging {
          case Eq => all_USF(e.args); strictFix(e.args)
          case Neq => all_USF(e.args); strictFix(e.args)
          case Pad => all_USF(e.args)
-         case Shl => all_US(e.args)
-         case Shr => all_US(e.args)
+         case Shl => all_USF(e.args)
+         case Shr => all_USF(e.args)
          case Cvt => all_US(e.args)
          case Neg => all_US(e.args)
          case Not => all_US(e.args)
@@ -416,6 +425,8 @@ object CheckTypes extends Pass with LazyLogging {
          case Bits => all_USF(e.args)
          case Head => all_USF(e.args)
          case Tail => all_USF(e.args)
+         case ShiftBP => all_F(e.args)
+         case SetBP => all_F(e.args)
       }
    }
       

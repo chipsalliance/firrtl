@@ -36,7 +36,7 @@ import firrtl.ir.Circuit
 import firrtl.passes._
 import firrtl.Parser.IgnoreInfo
 
-class FixedTypeSpec extends FirrtlFlatSpec {
+class RemoveFixedTypeSpec extends FirrtlFlatSpec {
   def parse (input:String) = Parser.parse(input.split("\n").toIterator, IgnoreInfo)
   private def executeTest(input: String, expected: Seq[String], passes: Seq[Pass]) = {
     val c = passes.foldLeft(Parser.parse(input.split("\n").toIterator)) {
@@ -50,36 +50,6 @@ class FixedTypeSpec extends FirrtlFlatSpec {
     expected foreach { e =>
       lines should contain(e)
     }
-  }
-
-  "Fixed types" should "parse" in {
-    val passes = Seq(
-      ToWorkingIR,
-      CheckHighForm,
-      ResolveKinds,
-      InferTypes,
-      CheckTypes,
-      ResolveGenders,
-      CheckGenders,
-      InferWidths,
-      CheckWidths)
-    val input =
-      """circuit Unit :
-        |  module Unit :
-        |    input a : Fixed<10><<2>>
-        |    input b : Fixed<10>
-        |    input c : Fixed<4><<3>>
-        |    output d : Fixed
-        |    d <= add(a, add(b, c))""".stripMargin
-    val check =
-      """circuit Unit :
-        |  module Unit :
-        |    input a : Fixed<10><<2>>
-        |    input b : Fixed<10><<0>>
-        |    input c : Fixed<4><<3>>
-        |    output d : Fixed<15><<3>>
-        |    d <= add(a, add(b, c))""".stripMargin
-    executeTest(input, check.split("\n") map normalized, passes)
   }
 
   "Fixed types" should "be removed" in {
