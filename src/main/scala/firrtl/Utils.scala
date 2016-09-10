@@ -102,8 +102,7 @@ object Utils extends LazyLogging {
   def create_mask(dt: Type): Type = dt match {
     case t: VectorType => VectorType(create_mask(t.tpe),t.size)
     case t: BundleType => BundleType(t.fields.map (f => f.copy(tpe=create_mask(f.tpe))))
-    case t: UIntType => BoolType
-    case t: SIntType => BoolType
+    case t: GroundType => BoolType
   }
 
   def create_exps(n: String, t: Type): Seq[Expression] =
@@ -270,6 +269,7 @@ object Utils extends LazyLogging {
             ilen + get_size(t1.tpe), jlen + get_size(t2.tpe))
         })._1
       case (ClockType, ClockType) => if (flip1 == flip2) Seq((0, 0)) else Nil
+      case (AnalogType(w1), AnalogType(w2)) => Nil
       case _ => error("shouldn't be here")
     }
   }

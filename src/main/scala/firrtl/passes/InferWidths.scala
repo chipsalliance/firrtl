@@ -254,6 +254,8 @@ object InferWidths extends Pass {
            WGeq(width_BANG(s.pred), IntWidth(1)),
            WGeq(IntWidth(1), width_BANG(s.pred))
         )
+        case (s: Attach) =>
+          v += WGeq(width_BANG(s.source), MaxWidth(s.exprs map width_BANG))
         case _ =>
       }
       s map get_constraints_e map get_constraints_s
@@ -261,13 +263,13 @@ object InferWidths extends Pass {
 
     c.modules foreach (_ map get_constraints_s)
 
-    //println-debug("======== ALL CONSTRAINTS ========")
-    //for x in v do : println-debug(x)
-    //println-debug("=================================")
+    //println("======== ALL CONSTRAINTS ========")
+    //for(x <- v) println(x)
+    //println("=================================")
     val h = solve_constraints(v)
-    //println-debug("======== SOLVED CONSTRAINTS ========")
-    //for x in h do : println-debug(x)
-    //println-debug("====================================")
+    //println("======== SOLVED CONSTRAINTS ========")
+    //for(x <- h) println(x)
+    //println("====================================")
 
     def evaluate(w: Width): Width = {
       def map2(a: Option[BigInt], b: Option[BigInt], f: (BigInt,BigInt) => BigInt): Option[BigInt] =

@@ -173,6 +173,9 @@ case class Connect(info: Info, loc: Expression, expr: Expression) extends Statem
 case class IsInvalid(info: Info, expr: Expression) extends Statement with HasInfo {
   def serialize: String =  s"${expr.serialize} is invalid" + info.serialize
 }
+case class Attach(info: Info, source: Expression, exprs: Seq[Expression]) extends Statement with HasInfo {
+  def serialize: String = "attach " + source.serialize + " to (" + exprs.map(_.serialize).mkString(", ") + ")"
+}
 case class Stop(info: Info, ret: Int, clk: Expression, en: Expression) extends Statement with HasInfo {
   def serialize: String = s"stop(${clk.serialize}, ${en.serialize}, $ret)" + info.serialize
 }
@@ -252,6 +255,9 @@ case class VectorType(tpe: Type, size: Int) extends AggregateType {
 case object ClockType extends GroundType {
   val width = IntWidth(1)
   def serialize: String = "Clock"
+}
+case class AnalogType(width: Width) extends GroundType {
+  def serialize: String = "Analog" + width.serialize
 }
 case object UnknownType extends Type {
   def serialize: String = "?"

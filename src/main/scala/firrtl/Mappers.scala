@@ -55,9 +55,11 @@ object Mappers {
           case s: PartialConnect => PartialConnect(s.info, f(s.loc), f(s.expr))
           case s: Conditionally => Conditionally(s.info, f(s.pred), s.conseq, s.alt)
           case s: IsInvalid => IsInvalid(s.info, f(s.expr))
+          case s: Attach => Attach(s.info, f(s.source), s.exprs map f)
           case s: Stop => Stop(s.info, s.ret, f(s.clk), f(s.en))
           case s: Print => Print(s.info, s.string, s.args.map(f), f(s.clk), f(s.en))
           case s: CDefMPort => CDefMPort(s.info,s.name,s.tpe,s.mem,s.exps.map(f),s.direction)
+          case s: WDefInstanceConnector => WDefInstanceConnector(s.info,s.name, s.module,s.tpe,s.exprs map f)
           case s: Statement => s
         }
       }
@@ -68,6 +70,8 @@ object Mappers {
           case s:DefWire => DefWire(s.info,s.name,f(s.tpe))
           case s:DefRegister => DefRegister(s.info,s.name,f(s.tpe),s.clock,s.reset,s.init)
           case s:DefMemory => DefMemory(s.info,s.name, f(s.dataType), s.depth, s.writeLatency, s.readLatency, s.readers, s.writers, s.readwriters)
+          case s:WDefInstance => WDefInstance(s.info,s.name, s.module,f(s.tpe))
+          case s:WDefInstanceConnector => WDefInstanceConnector(s.info,s.name, s.module,f(s.tpe), s.exprs)
           case s:CDefMemory => CDefMemory(s.info,s.name, f(s.tpe), s.size, s.seq)
           case s:CDefMPort => CDefMPort(s.info,s.name, f(s.tpe), s.mem, s.exps,s.direction)
           case s => s
@@ -83,6 +87,7 @@ object Mappers {
           case s: DefNode => DefNode(s.info,f(s.name),s.value)
           case s: DefInstance => DefInstance(s.info,f(s.name), s.module)
           case s: WDefInstance => WDefInstance(s.info,f(s.name), s.module,s.tpe)
+          case s: WDefInstanceConnector => WDefInstanceConnector(s.info,f(s.name), s.module,s.tpe, s.exprs)
           case s: CDefMemory => CDefMemory(s.info,f(s.name),s.tpe,s.size,s.seq)
           case s: CDefMPort => CDefMPort(s.info,f(s.name),s.tpe,s.mem,s.exps,s.direction)
           case s => s
@@ -163,6 +168,7 @@ object Mappers {
         tpe match {
           case t: UIntType => UIntType(f(t.width))
           case t: SIntType => SIntType(f(t.width))
+          case t: AnalogType => AnalogType(f(t.width))
           case t => t
         }
       }

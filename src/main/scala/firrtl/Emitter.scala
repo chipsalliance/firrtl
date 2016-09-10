@@ -54,12 +54,14 @@ object FIRRTLEmitter extends Emitter {
 }
 
 case class VIndent()
+
 case class VRandom(width: BigInt) extends Expression {
   def tpe = UIntType(IntWidth(width))
   def nWords = (width + 31) / 32
   def realWidth = nWords * 32
   def serialize: String = "RANDOM"
 }
+
 class VerilogEmitter extends Emitter {
   val tab = "  "
   def AND(e1: WrappedExpression, e2: WrappedExpression): Expression = {
@@ -96,6 +98,7 @@ class VerilogEmitter extends Emitter {
       case (t: UIntType) => e
       case (t: SIntType) => Seq("$signed(",e,")")
       case ClockType => e
+      case AnalogType(w) => e
     }
     (x) match {
       case (e: DoPrim) => emit(op_stream(e), top + 1)
@@ -115,6 +118,9 @@ class VerilogEmitter extends Emitter {
         val wx = long_BANG(t) - 1
         if (wx > 0) w write s"[$wx:0]"
       case ClockType =>
+      case t: AnalogType =>
+        val wx = long_BANG(t) - 1
+        if (wx > 0) w write s"[$wx:0]"
       case (t: VectorType) => 
         emit(t.tpe, top + 1)
         w write s"[${t.size - 1}:0]"
@@ -370,21 +376,6 @@ class VerilogEmitter extends Emitter {
         initials += Seq("`endif")
       }
 
-      def instantiate(n: String,m: String, es: Seq[Expression]) {
-         instdeclares += Seq(m, " ", n, " (")
-         es.zipWithIndex foreach {case (e, i) =>
-           val s = Seq(tab, ".", remove_root(e), "(", LowerTypes.loweredName(e), ")")
-           if (i != es.size - 1) instdeclares += Seq(s, ",")
-           else instdeclares += s
-         }
-         instdeclares += Seq(");")
-         es foreach { e => 
-           declare("wire",LowerTypes.loweredName(e), e.tpe)
-           val ex = WRef(LowerTypes.loweredName(e), e.tpe, kind(e), gender(e))
-           if (gender(e) == FEMALE) assign(ex,netlist(e))
-         }
-      }
-
       def simulate(clk: Expression, en: Expression, s: Seq[Any], cond: Option[String]) {
         if (!at_clock.contains(clk)) at_clock(clk) = ArrayBuffer[Seq[Any]]()
         at_clock(clk) += Seq("`ifndef SYNTHESIS")
@@ -425,13 +416,17 @@ class VerilogEmitter extends Emitter {
       }
 
       def build_ports: Unit = m.ports.zipWithIndex foreach {case (p, i) =>
-        p.direction match {
-          case Input =>
-            portdefs += Seq(p.direction, "  ", p.tpe, " ", p.name)
-          case Output =>
-            portdefs += Seq(p.direction, " ", p.tpe, " ", p.name)
-            val ex = WRef(p.name, p.tpe, PortKind(), FEMALE)
-            assign(ex, netlist(ex))
+        p.tpe match {
+          case AnalogType(w) =>
+            portdefs += Seq("inout", "  ", p.tpe, " ", p.name)
+          case _ => p.direction match {
+            case Input =>
+              portdefs += Seq(p.direction, "  ", p.tpe, " ", p.name)
+            case Output =>
+              portdefs += Seq(p.direction, " ", p.tpe, " ", p.name)
+              val ex = WRef(p.name, p.tpe, PortKind(), FEMALE)
+              assign(ex, netlist(ex))
+          }
         }
       }
 
@@ -439,7 +434,10 @@ class VerilogEmitter extends Emitter {
         case (s: DefWire) => 
           declare("wire",s.name,s.tpe)
           val e = wref(s.name,s.tpe)
-          assign(e,netlist(e))
+          netlist.get(e) match {
+            case Some(n) => assign(e,n)
+            case None =>
+          }
           s
         case (s: DefRegister) =>
           declare("reg", s.name, s.tpe)
@@ -463,9 +461,15 @@ class VerilogEmitter extends Emitter {
         case (s: Print) =>
           simulate(s.clk, s.en, printf(s.string, s.args), Some("PRINTF_COND"))
           s
-        case (s: WDefInstance) =>
+        case (s: WDefInstanceConnector) =>
           val es = create_exps(WRef(s.name, s.tpe, InstanceKind(), MALE))
-          instantiate(s.name, s.module, es)
+          instdeclares += Seq(s.module, " ", s.name, " (")
+          (es zip s.exprs).zipWithIndex foreach {case ((l, r), i) =>
+            val s = Seq(tab, ".", remove_root(l), "(", r, ")")
+            if (i != es.size - 1) instdeclares += Seq(s, ",")
+            else instdeclares += s
+          }
+          instdeclares += Seq(");")
           s
         case (s: DefMemory) =>
           val mem = WRef(s.name, get_type(s),
