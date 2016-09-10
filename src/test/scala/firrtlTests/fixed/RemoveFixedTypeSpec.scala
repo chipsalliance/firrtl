@@ -28,7 +28,6 @@ MODIFICATIONS.
 package firrtlTests
 package fixed
 
-import java.io._
 import firrtl.Annotations.AnnotationMap
 import firrtl._
 import firrtl.ir.Circuit
@@ -193,22 +192,7 @@ class RemoveFixedTypeSpec extends FirrtlFlatSpec {
     executeTest(input, check.split("\n") map normalized, passes)
   }
 
-  "Fixed point numbers" should "allow binary point to be set" in {
-    class AdamsCompiler() extends Transform with SimpleRun {
-      val passSeq = Seq(
-        ToWorkingIR,
-        CheckHighForm,
-        ResolveKinds,
-        InferTypes,
-        CheckTypes,
-        ResolveGenders,
-        CheckGenders,
-        InferWidths,
-        CheckWidths,
-        ConvertFixedToSInt)
-      def execute (circuit: Circuit, annotationMap: AnnotationMap): TransformResult =
-        run(circuit, passSeq)
-    }
+  "Fixed point numbers" should "allow binary point to be set to zero at creation" in {
     val input =
       """
         |circuit Unit :
@@ -223,17 +207,14 @@ class RemoveFixedTypeSpec extends FirrtlFlatSpec {
         |    io_out <= io_in
       """.stripMargin
 
-    println("Set binary point test\n" + input)
-    println("Testing with above")
-    val adamsCompiler = new AdamsCompiler
+    class CheckChirrtlTransform extends Transform with SimpleRun {
+      val passSeq = Seq(passes.CheckChirrtl)
+      def execute (circuit: Circuit, annotationMap: AnnotationMap): TransformResult =
+        run(circuit, passSeq)
+    }
 
-    adamsCompiler.execute(parse(input), new AnnotationMap(Seq.empty))
-
-    val lowerer = new LowFirrtlCompiler
-
-    val writer = new StringWriter()
-    println("Testing with lowerer")
-    lowerer.compile(parse(input), new AnnotationMap(Seq.empty), writer)
+    val chirrtlTransform = new CheckChirrtlTransform
+    chirrtlTransform.execute(parse(input), new AnnotationMap(Seq.empty))
   }
 }
 
