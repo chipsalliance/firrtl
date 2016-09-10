@@ -30,8 +30,6 @@ package fixed
 
 import java.io._
 import firrtl.Annotations.AnnotationMap
-import org.scalatest._
-import org.scalatest.prop._
 import firrtl._
 import firrtl.ir.Circuit
 import firrtl.passes._
@@ -196,45 +194,46 @@ class RemoveFixedTypeSpec extends FirrtlFlatSpec {
   }
 
   "Fixed point numbers" should "allow binary point to be set" in {
-    val passes = Seq(
-      ToWorkingIR,
-      CheckHighForm,
-      ResolveKinds,
-      InferTypes,
-      CheckTypes,
-      ResolveGenders,
-      CheckGenders,
-      InferWidths,
-      CheckWidths,
-      ConvertFixedToSInt)
+    class AdamsCompiler() extends Transform with SimpleRun {
+      val passSeq = Seq(
+        ToWorkingIR,
+        CheckHighForm,
+        ResolveKinds,
+        InferTypes,
+        CheckTypes,
+        ResolveGenders,
+        CheckGenders,
+        InferWidths,
+        CheckWidths,
+        ConvertFixedToSInt)
+      def execute (circuit: Circuit, annotationMap: AnnotationMap): TransformResult =
+        run(circuit, passSeq)
+    }
     val input =
       """
-        |circuit SBP :
-        |  module SBP :
+        |circuit Unit :
+        |  module Unit :
         |    input clk : Clock
         |    input reset : UInt<1>
-        |    output io : {flip in : Fixed<12><<6>>, out : Fixed}
+        |    input io_in : Fixed<6><<0>>
+        |    output io_out : Fixed
         |
-        |    io is invalid
-        |    node T_2 = bpset(io.in, 1)
-        |    io.out <= T_2
+        |    io_in is invalid
+        |    io_out is invalid
+        |    io_out <= io_in
       """.stripMargin
 
     println("Set binary point test\n" + input)
+    println("Testing with above")
+    val adamsCompiler = new AdamsCompiler
+
+    adamsCompiler.execute(parse(input), new AnnotationMap(Seq.empty))
+
     val lowerer = new LowFirrtlCompiler
 
     val writer = new StringWriter()
-
+    println("Testing with lowerer")
     lowerer.compile(parse(input), new AnnotationMap(Seq.empty), writer)
-
-    val output = writer.toString.split("\n")
-//    val check =
-//      """circuit Unit :
-//        |  module Unit :
-//        |    input a : SInt<10>
-//        |    output d : SInt<11>
-//        |    d <= shl(a, 1)""".stripMargin
-//    executeTest(input, check.split("\n") map normalized, passes)
   }
 }
 
