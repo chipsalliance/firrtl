@@ -67,7 +67,7 @@ object CheckChirrtl extends Pass with LazyLogging {
       case _ => // Do Nothing
     }
     def checkChirrtlW(w: Width): Width = w match {
-      case w: IntWidth if (w.width <= BigInt(0)) =>
+      case w: IntWidth if (w.width < BigInt(0)) =>
         errors.append(new NegWidthException)
         w
       case _ => w
