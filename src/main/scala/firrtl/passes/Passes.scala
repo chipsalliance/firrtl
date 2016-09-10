@@ -346,8 +346,10 @@ object VerilogPrep extends Pass {
         instCons(loc.serialize) = lowerInstE(exp)
         EmptyStmt
       case IsInvalid(info, exp) if kind(exp) == InstanceKind() =>
-        instCons(exp.serialize) = WRef(LowerTypes.loweredName(exp), exp.tpe, WireKind(), MALE)
-        DefWire(info, LowerTypes.loweredName(exp), exp.tpe)
+        val wref = WRef(LowerTypes.loweredName(exp), exp.tpe, WireKind(), MALE)
+        instCons(exp.serialize) = wref
+        Block(Seq(IsInvalid(info, wref),
+                  DefWire(info, LowerTypes.loweredName(exp), exp.tpe)))
       case Attach(info, source, exps) =>
         val lowerSource = lowerInstE(source)
         (kind(lowerSource), gender(lowerSource), lowerSource.tpe) match {
