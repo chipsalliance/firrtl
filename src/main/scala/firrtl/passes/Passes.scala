@@ -345,6 +345,9 @@ object VerilogPrep extends Pass {
       case Connect(_, loc, exp) if kind(loc) == InstanceKind() =>
         instCons(loc.serialize) = lowerInstE(exp)
         EmptyStmt
+      case IsInvalid(info, exp) if kind(exp) == InstanceKind() =>
+        instCons(exp.serialize) = WRef(LowerTypes.loweredName(exp), exp.tpe, WireKind(), MALE)
+        DefWire(info, LowerTypes.loweredName(exp), exp.tpe)
       case Attach(info, source, exps) =>
         val lowerSource = lowerInstE(source)
         (kind(lowerSource), gender(lowerSource), lowerSource.tpe) match {
@@ -374,7 +377,7 @@ object VerilogPrep extends Pass {
     }
     def insertInstConnector(instCons: InstConnects)(s: Statement): Statement = s match {
       case WDefInstance(info, name, module, tpe) => 
-        WDefInstanceConnector(info, name, module, tpe, create_exps(name, tpe) map (
+        WDefInstanceConnector(info, name, module, tpe, create_exps(WRef(name, tpe, ExpKind(), MALE)) map (
           e => e.tpe match {
             case AnalogType(w) => instCons(e.serialize)
             case _ => gender(e) match {
