@@ -85,6 +85,7 @@ object bitWidth {
     case t: BundleType => t.fields.map(f => bitWidth(f.tpe)).foldLeft(BigInt(0))(_+_)
     case UIntType(IntWidth(width)) => width
     case SIntType(IntWidth(width)) => width
+    case AnalogType(IntWidth(width)) => width
     case t => error("Unknown type encountered in bitWidth!")
   }
 }

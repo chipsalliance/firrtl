@@ -154,7 +154,7 @@ class WrappedType(val t: Type) {
       case (_: AnalogType, _: AnalogType) => false
       case (t1: VectorType, t2: VectorType) =>
         t1.size == t2.size && wt(t1.tpe) == wt(t2.tpe)
-      case (t1:BundleType,t2:BundleType) =>
+      case (t1:BundleType, t2:BundleType) =>
         t1.fields.size == t2.fields.size && (
         (t1.fields zip t2.fields) forall {case (f1, f2) =>
           f1.flip == f2.flip && f1.name == f2.name

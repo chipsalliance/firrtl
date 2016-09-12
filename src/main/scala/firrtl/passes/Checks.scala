@@ -308,7 +308,7 @@ object CheckTypes extends Pass with LazyLogging {
         if (ls exists (x => wt(ls.head.tpe) != wt(e.tpe)))
           errors append new OpNotAllSameType(info, mname, e.op.serialize)
       }
-      def all_int (ls: Seq[Expression]) {
+      def allInt(ls: Seq[Expression]) {
         if (ls exists (x => x.tpe match {
           case _: UIntType | _: SIntType => false
           case _ => true
@@ -328,9 +328,9 @@ object CheckTypes extends Pass with LazyLogging {
       }
       e.op match {
         case AsUInt | AsSInt | AsClock =>
-        case Dshl => is_uint(e.args(1)); all_int(e.args)
-        case Dshr => is_uint(e.args(1)); all_int(e.args)
-        case _ => all_int(e.args)
+        case Dshl => is_uint(e.args(1)); allInt(e.args)
+        case Dshr => is_uint(e.args(1)); allInt(e.args)
+        case _ => allInt(e.args)
       }
     }
 
@@ -622,7 +622,7 @@ object CheckWidths extends Pass {
       s map check_width_e(info, mname) map check_width_s(info, mname) match {
         case Attach(info, source, exprs) => 
           exprs foreach ( e =>
-            if(width_BANG(e) != width_BANG(source))
+            if (bitWidth(e.tpe) != bitWidth(source.tpe))
               errors append new AttachWidthsNotEqual(info, mname, e.serialize, source.serialize)
           )
           s
