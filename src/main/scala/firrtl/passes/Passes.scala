@@ -368,11 +368,11 @@ object VerilogPrep extends Pass {
             EmptyStmt
         }
       case WDefInstance(info, name, module, tpe) => 
-        Block(create_exps(name, tpe).map ( e =>
+        Block(create_exps(WRef(name, tpe, ExpKind(), MALE)).map ( e =>
           e.tpe match {
             case AnalogType(w) => EmptyStmt
             case t if gender(e) == MALE => DefWire(info, LowerTypes.loweredName(e), t)
-            case t => EmptyStmt
+            case t if gender(e) == FEMALE => EmptyStmt
           }
         ) :+ s)
       case s => s map lowerInstS(instCons) map lowerInstE
