@@ -286,7 +286,7 @@ object CheckTypes extends Pass with LazyLogging {
   class IllegalAnalogDeclaration(info: Info, mname: String, decName: String) extends PassException(
     s"${info}: [module ${mname}]  Cannot declare a reg, node, or memory with an Analog type: $decName.")
   class IllegalAttachSource(info: Info, mname: String, sourceName: String) extends PassException(
-    s"${info}: [module ${mname}]  Attach source must be a ground type: $sourceName.")
+    s"${info}: [module ${mname}]  Attach source must be a wire or port with an analog type: $sourceName.")
   class IllegalAttachExp(info: Info, mname: String, expName: String) extends PassException(
     s"${info}: [module ${mname}]  Attach expression must be an instance: $expName.")
 
@@ -423,8 +423,8 @@ object CheckTypes extends Pass with LazyLogging {
           case t =>
         }
         case (s: Attach) => 
-          s.source.tpe match {
-            case g: GroundType =>
+          (s.source.tpe, kind(s.source)) match {
+            case (AnalogType(w), _: PortKind|_: WireKind)  =>
             case _ => errors append new IllegalAttachSource(info, mname, s.source.serialize)
           }
           (s.exprs foreach) { e =>

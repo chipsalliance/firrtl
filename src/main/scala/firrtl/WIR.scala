@@ -78,7 +78,7 @@ case class WDefInstance(info: Info, name: String, module: String, tpe: Type) ext
   def serialize: String = s"inst $name of $module" + info.serialize
 }
 case class WDefInstanceConnector(info: Info, name: String, module: String, tpe: Type, exprs: Seq[Expression]) extends Statement with IsDeclaration {
-  def serialize: String = s"inst $name of $module with $tpe connected to (" + exprs.map(_.serialize).mkString(", ") + ")" + info.serialize
+  def serialize: String = s"inst $name of $module with ${tpe.serialize} connected to (" + exprs.map(_.serialize).mkString(", ") + ")" + info.serialize
 }
 
 

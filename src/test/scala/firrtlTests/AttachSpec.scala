@@ -118,7 +118,7 @@ class InoutVerilog extends FirrtlFlatSpec {
      executeTest(input, check, compiler)
    }
 
-  "Circuit" should "attach an instance input source" in {
+  "Circuit" should "not attach an instance input source" in {
     val compiler = new VerilogCompiler
     val input =
       """circuit Attaching : 
@@ -130,19 +130,9 @@ class InoutVerilog extends FirrtlFlatSpec {
          |    input an: Analog<3>
          |  module B:
          |    input an: Analog<3> """.stripMargin
-     val check = 
-      """module Attaching(
-        |);
-        |  wire [2:0] a_an;
-        |  A a (
-        |    .an(a_an)
-        |  );
-        |  B b (
-        |    .an(a_an)
-        |  );
-        |endmodule
-        |""".stripMargin.split("\n") map normalized
-     executeTest(input, check, compiler)
+     intercept[CheckTypes.IllegalAttachSource] {
+       executeTest(input, Seq.empty, compiler)
+     }
    }
 
   "Circuit" should "attach an instance output source" in {
@@ -157,22 +147,12 @@ class InoutVerilog extends FirrtlFlatSpec {
          |    input an: Analog<3>
          |  module B:
          |    input an: Analog<3> """.stripMargin
-    val check = 
-      """module Attaching(
-        |);
-        |  wire [2:0] b_an;
-        |  A a (
-        |    .an(b_an)
-        |  );
-        |  B b (
-        |    .an(b_an)
-        |  );
-        |endmodule
-        |""".stripMargin.split("\n") map normalized
-    executeTest(input, check, compiler)
+    intercept[CheckTypes.IllegalAttachSource] {
+      executeTest(input, Seq.empty, compiler)
+    }
   }
 
-  "Circuit" should "attach an wire source" in {
+  "Circuit" should "attach a wire source" in {
     val compiler = new VerilogCompiler
     val input =
       """circuit Attaching : 
@@ -290,7 +270,7 @@ class AttachAnalogSpec extends FirrtlFlatSpec {
     }
   }
 
-  "Attaching a non-analog source" should "be ok" in {
+  "Attaching a non-analog source" should "not be ok" in {
     val passes = Seq(
       ToWorkingIR,
       CheckHighForm,
@@ -308,12 +288,14 @@ class AttachAnalogSpec extends FirrtlFlatSpec {
         |    output o: Analog<2>
         |  extmodule B:
         |    input o: Analog<2>""".stripMargin
-    passes.foldLeft(parse(input)) {
-      (c: Circuit, p: Pass) => p.run(c)
+    intercept[CheckTypes.IllegalAttachSource] {
+      passes.foldLeft(parse(input)) {
+        (c: Circuit, p: Pass) => p.run(c)
+      }
     }
   }
 
-  "Attach instance analog male source" should "be ok." in {
+  "Attach instance analog male source" should "not be ok." in {
     val passes = Seq(
       ToWorkingIR,
       CheckHighForm,
@@ -330,12 +312,14 @@ class AttachAnalogSpec extends FirrtlFlatSpec {
         |    output o: Analog<2>
         |  extmodule B:
         |    input o: Analog<2>""".stripMargin
-    passes.foldLeft(parse(input)) {
-      (c: Circuit, p: Pass) => p.run(c)
+    intercept[CheckTypes.IllegalAttachSource] {
+      passes.foldLeft(parse(input)) {
+        (c: Circuit, p: Pass) => p.run(c)
+      }
     }
   }
 
-  "Attach instance analog female source" should "be ok." in {
+  "Attach instance analog female source" should "not be ok." in {
     val passes = Seq(
       ToWorkingIR,
       CheckHighForm,
@@ -352,8 +336,10 @@ class AttachAnalogSpec extends FirrtlFlatSpec {
         |    output o: Analog<2>
         |  extmodule B:
         |    input o: Analog<2>""".stripMargin
-    passes.foldLeft(parse(input)) {
-      (c: Circuit, p: Pass) => p.run(c)
+    intercept[CheckTypes.IllegalAttachSource] {
+      passes.foldLeft(parse(input)) {
+        (c: Circuit, p: Pass) => p.run(c)
+      }
     }
   }
 

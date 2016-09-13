@@ -334,66 +334,38 @@ object VerilogRename extends Pass {
 
 object VerilogPrep extends Pass {
   def name = "Verilog Prep"
-  type InstConnects = collection.mutable.HashMap[String, Expression]
+  type InstAttaches = collection.mutable.HashMap[String, Expression]
   def run(c: Circuit): Circuit = {
-    def lowerInstE(e: Expression): Expression = (kind(e), gender(e), e.tpe) match {
-      case (InstanceKind(), MALE, AnalogType(w)) => e map lowerInstE
-      case (InstanceKind(), MALE, _ ) => WRef(LowerTypes.loweredName(e), e.tpe, kind(e), gender(e))
-      case _ => e map lowerInstE
+    def buildS(attaches: InstAttaches)(s: Statement): Statement = s match {
+      case Attach(_, source, exps) => 
+        exps foreach { e => attaches(e.serialize) = source }
+        s
+      case _ => s map buildS(attaches)
     }
-    def lowerInstS(instCons: InstConnects)(s: Statement): Statement = s match {
-      case Connect(_, loc, exp) if kind(loc) == InstanceKind() =>
-        instCons(loc.serialize) = lowerInstE(exp)
-        EmptyStmt
-      case IsInvalid(info, exp) if kind(exp) == InstanceKind() =>
-        val wref = WRef(LowerTypes.loweredName(exp), exp.tpe, WireKind(), MALE)
-        instCons(exp.serialize) = wref
-        Block(Seq(IsInvalid(info, wref),
-                  DefWire(info, LowerTypes.loweredName(exp), exp.tpe)))
-      case Attach(info, source, exps) =>
-        val lowerSource = lowerInstE(source)
-        (kind(lowerSource), gender(lowerSource), lowerSource.tpe) match {
-          case (InstanceKind(), _, AnalogType(w)) => //if instance and analog, need to create temp wire
-            val handle = WRef(LowerTypes.loweredName(lowerSource), lowerSource.tpe, WireKind(), MALE)
-            exps foreach (e => instCons(e.serialize) = handle)
-            instCons(lowerSource.serialize) = handle
-            DefWire(info, LowerTypes.loweredName(lowerSource), lowerSource.tpe)
-          case (InstanceKind(), FEMALE, _) => //if instance and FEMALE, need to create temp wire
-            val handle = WRef(LowerTypes.loweredName(lowerSource), lowerSource.tpe, WireKind(), MALE)
-            exps foreach (e => instCons(e.serialize) = handle)
-            instCons(lowerSource.serialize) = handle
-            DefWire(info, LowerTypes.loweredName(lowerSource), lowerSource.tpe)
-          case _ =>
-            exps foreach (e => instCons(e.serialize) = lowerSource)
-            EmptyStmt
-        }
-      case WDefInstance(info, name, module, tpe) => 
-        Block(create_exps(WRef(name, tpe, ExpKind(), MALE)).map ( e =>
-          e.tpe match {
-            case AnalogType(w) => EmptyStmt
-            case t if gender(e) == MALE => DefWire(info, LowerTypes.loweredName(e), t)
-            case t if gender(e) == FEMALE => EmptyStmt
-          }
-        ) :+ s)
-      case s => s map lowerInstS(instCons) map lowerInstE
+    def lowerE(e: Expression): Expression = e match {
+      case _: WRef|_: WSubField if (kind(e) == InstanceKind()) => 
+        WRef(LowerTypes.loweredName(e), e.tpe, kind(e), gender(e))
+      case _ => e map lowerE
     }
-    def insertInstConnector(instCons: InstConnects)(s: Statement): Statement = s match {
-      case WDefInstance(info, name, module, tpe) => 
-        WDefInstanceConnector(info, name, module, tpe, create_exps(WRef(name, tpe, ExpKind(), MALE)) map (
-          e => e.tpe match {
-            case AnalogType(w) => instCons(e.serialize)
-            case _ => gender(e) match {
-              case FEMALE => instCons(e.serialize)
-              case MALE => WRef(LowerTypes.loweredName(e), e.tpe, WireKind(), FEMALE)
-            }
-          }
-        ))
-      case s => s map insertInstConnector(instCons)
+    def lowerS(attaches: InstAttaches)(s: Statement): Statement = s match {
+      case WDefInstance(info, name, module, tpe) =>
+        val exps = create_exps(WRef(name, tpe, ExpKind(), MALE))
+        val wcon = WDefInstanceConnector(info, name, module, tpe, exps.map( e => e.tpe match {
+          case AnalogType(w) => attaches(e.serialize)
+          case _ => WRef(LowerTypes.loweredName(e), e.tpe, WireKind(), MALE)
+        }))
+        val wires = exps.map ( e => e.tpe match {
+          case AnalogType(w) => EmptyStmt
+          case _ => DefWire(info, LowerTypes.loweredName(e), e.tpe)
+        })
+        Block(Seq(wcon) ++ wires)
+      case Attach(info, source, exps) => EmptyStmt
+      case _ => s map lowerS(attaches) map lowerE
     }
     def prepModule(m: DefModule): DefModule = {
-      val instCons = new InstConnects
-      val mx = m map lowerInstS(instCons) 
-      mx map insertInstConnector(instCons)
+      val attaches = new InstAttaches
+      m map buildS(attaches)
+      m map lowerS(attaches)
     }
     c copy (modules = (c.modules map prepModule))
   }
