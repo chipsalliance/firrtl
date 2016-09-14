@@ -14,6 +14,7 @@ import firrtl.{
    Compiler,
    Parser
 }
+import firrtl.Annotations.AnnotationMap
 
 /**
  * An example methodology for testing Firrtl compilers.
@@ -29,7 +30,7 @@ abstract class CompilerSpec extends FlatSpec {
    def input: String
    def check: String
    def getOutput: String = {
-      compiler.compile(parse(input), Seq.empty, writer)
+      compiler.compile(parse(input), new AnnotationMap(Seq.empty), writer)
       writer.toString()
    }
 }
@@ -105,6 +106,19 @@ circuit Top :
     b <= a
 """
    val check = Seq(
+      "`ifdef RANDOMIZE_GARBAGE_ASSIGN",
+      "`define RANDOMIZE",
+      "`endif",
+      "`ifdef RANDOMIZE_INVALID_ASSIGN",
+      "`define RANDOMIZE",
+      "`endif",
+      "`ifdef RANDOMIZE_REG_INIT",
+      "`define RANDOMIZE",
+      "`endif",
+      "`ifdef RANDOMIZE_MEM_INIT",
+      "`define RANDOMIZE",
+      "`endif",
+      "",
       "module Top(",
       "  input   a_0,",
       "  input   a_1,",
