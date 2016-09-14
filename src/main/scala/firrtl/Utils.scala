@@ -81,68 +81,30 @@ object Utils extends LazyLogging {
     else "\"h" + bi.toString(16) + "\""
 
   implicit def toWrappedExpression (x:Expression) = new WrappedExpression(x)
-  def ceil_log2(x: BigInt): BigInt = (x-1).bitLength
-  def ceil_log2(x: Int): Int = scala.math.ceil(scala.math.log(x) / scala.math.log(2)).toInt
+  def ceilLog2(x: BigInt): Int = (x-1).bitLength
   def max(a: BigInt, b: BigInt): BigInt = if (a >= b) a else b
   def min(a: BigInt, b: BigInt): BigInt = if (a >= b) b else a
   def pow_minus_one(a: BigInt, b: BigInt): BigInt = a.pow(b.toInt) - 1
   val BoolType = UIntType(IntWidth(1))
-  val one  = UIntLiteral(BigInt(1),IntWidth(1))
-  val zero = UIntLiteral(BigInt(0),IntWidth(1))
-  def uint (i:Int) : UIntLiteral = {
-     val num_bits = req_num_bits(i)
-     val w = IntWidth(scala.math.max(1,num_bits - 1))
-     UIntLiteral(BigInt(i),w)
-  }
-  def req_num_bits (i: Int) : Int = {
-     val ix = if (i < 0) ((-1 * i) - 1) else i
-     ceil_log2(ix + 1) + 1
-  }
-  def EQV (e1:Expression,e2:Expression) : Expression =
-     DoPrim(Eq, Seq(e1, e2), Nil, e1.tpe)
-  // TODO: these should be fixed
-  def AND (e1:WrappedExpression,e2:WrappedExpression) : Expression = {
-     if (e1 == e2) e1.e1
-     else if ((e1 == we(zero)) | (e2 == we(zero))) zero
-     else if (e1 == we(one)) e2.e1
-     else if (e2 == we(one)) e1.e1
-     else DoPrim(And,Seq(e1.e1,e2.e1),Seq(),UIntType(IntWidth(1)))
-  }
-  def OR (e1:WrappedExpression,e2:WrappedExpression) : Expression = {
-     if (e1 == e2) e1.e1
-     else if ((e1 == we(one)) | (e2 == we(one))) one
-     else if (e1 == we(zero)) e2.e1
-     else if (e2 == we(zero)) e1.e1
-     else DoPrim(Or,Seq(e1.e1,e2.e1),Seq(),UIntType(IntWidth(1)))
-  }
-  def NOT (e1:WrappedExpression) : Expression = {
-     if (e1 == we(one)) zero
-     else if (e1 == we(zero)) one
-     else DoPrim(Eq,Seq(e1.e1,zero),Seq(),UIntType(IntWidth(1)))
-  }
-
-  def create_mask(dt: Type): Type = dt match {
-    case t: VectorType => VectorType(create_mask(t.tpe),t.size)
-    case t: BundleType => BundleType(t.fields.map (f => f.copy(tpe=create_mask(f.tpe))))
-    case t: UIntType => BoolType
-    case t: SIntType => BoolType
-  }
+  val one  = UIntLiteral(BigInt(1), IntWidth(1))
+  val zero = UIntLiteral(BigInt(0), IntWidth(1))
+  def uint(i: BigInt): UIntLiteral = UIntLiteral(i, IntWidth(1 max i.bitLength))
 
   def create_exps(n: String, t: Type): Seq[Expression] =
-    create_exps(WRef(n, t, ExpKind(), UNKNOWNGENDER))
+    create_exps(WRef(n, t, ExpKind, UNKNOWNGENDER))
   def create_exps(e: Expression): Seq[Expression] = e match {
     case (e: Mux) =>
       val e1s = create_exps(e.tval)
       val e2s = create_exps(e.fval)
       e1s zip e2s map {case (e1, e2) =>
-        Mux(e.cond, e1, e2, mux_type_and_widths(e1,e2))
+        Mux(e.cond, e1, e2, mux_type_and_widths(e1, e2))
       }
     case (e: ValidIf) => create_exps(e.value) map (e1 => ValidIf(e.cond, e1, e1.tpe))
     case (e) => e.tpe match {
       case (_: GroundType) => Seq(e)
       case (t: BundleType) => (t.fields foldLeft Seq[Expression]())((exps, f) =>
         exps ++ create_exps(WSubField(e, f.name, f.tpe,times(gender(e), f.flip))))
-      case (t: VectorType) => ((0 until t.size) foldLeft Seq[Expression]())((exps, i) =>
+      case (t: VectorType) => (0 until t.size foldLeft Seq[Expression]())((exps, i) =>
         exps ++ create_exps(WSubIndex(e, i, t.tpe,gender(e))))
     }
   }
@@ -194,30 +156,30 @@ object Utils extends LazyLogging {
   }
 
 //============== TYPES ================
-  def mux_type (e1:Expression, e2:Expression) : Type = mux_type(e1.tpe, e2.tpe)
-  def mux_type (t1:Type, t2:Type) : Type = (t1,t2) match { 
-    case (t1:UIntType, t2:UIntType) => UIntType(UnknownWidth)
-    case (t1:SIntType, t2:SIntType) => SIntType(UnknownWidth)
-    case (t1:VectorType, t2:VectorType) => VectorType(mux_type(t1.tpe, t2.tpe), t1.size)
-    case (t1:BundleType, t2:BundleType) => BundleType((t1.fields zip t2.fields) map {
+  def mux_type(e1: Expression, e2: Expression): Type = mux_type(e1.tpe, e2.tpe)
+  def mux_type(t1: Type, t2: Type): Type = (t1, t2) match {
+    case (t1: UIntType, t2: UIntType) => UIntType(UnknownWidth)
+    case (t1: SIntType, t2: SIntType) => SIntType(UnknownWidth)
+    case (t1: VectorType, t2: VectorType) => VectorType(mux_type(t1.tpe, t2.tpe), t1.size)
+    case (t1: BundleType, t2: BundleType) => BundleType(t1.fields zip t2.fields map {
       case (f1, f2) => Field(f1.name, f1.flip, mux_type(f1.tpe, f2.tpe))
     })
     case _ => UnknownType
   }
-  def mux_type_and_widths (e1:Expression,e2:Expression) : Type =
+  def mux_type_and_widths(e1: Expression,e2: Expression): Type =
     mux_type_and_widths(e1.tpe, e2.tpe)
-  def mux_type_and_widths (t1:Type, t2:Type) : Type = {
-    def wmax (w1:Width, w2:Width) : Width = (w1,w2) match {
-      case (w1:IntWidth, w2:IntWidth) => IntWidth(w1.width max w2.width)
+  def mux_type_and_widths(t1: Type, t2: Type): Type = {
+    def wmax(w1: Width, w2: Width): Width = (w1, w2) match {
+      case (w1: IntWidth, w2: IntWidth) => IntWidth(w1.width max w2.width)
       case (w1, w2) => MaxWidth(Seq(w1, w2))
     }
     (t1, t2) match {
-      case (t1:UIntType, t2:UIntType) => UIntType(wmax(t1.width, t2.width))
-      case (t1:SIntType, t2:SIntType) => SIntType(wmax(t1.width, t2.width))
-      case (t1:VectorType, t2:VectorType) => VectorType(
+      case (t1: UIntType, t2: UIntType) => UIntType(wmax(t1.width, t2.width))
+      case (t1: SIntType, t2: SIntType) => SIntType(wmax(t1.width, t2.width))
+      case (t1: VectorType, t2: VectorType) => VectorType(
         mux_type_and_widths(t1.tpe, t2.tpe), t1.size)
-      case (t1:BundleType, t2:BundleType) => BundleType((t1.fields zip t2.fields) map {
-        case (f1, f2) => Field(f1.name,f1.flip,mux_type_and_widths(f1.tpe, f2.tpe))
+      case (t1: BundleType, t2: BundleType) => BundleType(t1.fields zip t2.fields map {
+        case (f1, f2) => Field(f1.name, f1.flip, mux_type_and_widths(f1.tpe, f2.tpe))
       })
       case _ => UnknownType
     }
@@ -230,7 +192,7 @@ object Utils extends LazyLogging {
     case v: VectorType => v.tpe
     case v => UnknownType
   }
-  def field_type(v:Type, s: String) : Type = v match {
+  def field_type(v: Type, s: String) : Type = v match {
     case v: BundleType => v.fields find (_.name == s) match {
       case Some(f) => f.tpe
       case None => UnknownType
@@ -238,21 +200,6 @@ object Utils extends LazyLogging {
     case v => UnknownType
   }
    
-////=====================================
-  def widthBANG (t:Type) : Width = t match {
-    case g: GroundType => g.width
-    case t => error("No width!")
-  }
-  def long_BANG(t: Type): Long = t match {
-    case (g: GroundType) => g.width match {
-      case IntWidth(x) => x.toLong
-      case _ => error(s"Expecting IntWidth, got: ${g.width}")
-    }
-    case (t: BundleType) => (t.fields foldLeft 0)((w, f) =>
-      w + long_BANG(f.tpe).toInt)
-    case (t: VectorType) => t.size * long_BANG(t.tpe)
-  }
-
 // =================================
   def error(str: String) = throw new FIRRTLException(str)
 
@@ -327,15 +274,15 @@ object Utils extends LazyLogging {
     case FEMALE => Default
   }
 
-  def field_flip(v:Type, s:String) : Orientation = v match {
-    case (v:BundleType) => v.fields find (_.name == s) match {
+  def field_flip(v: Type, s: String): Orientation = v match {
+    case (v: BundleType) => v.fields find (_.name == s) match {
       case Some(ft) => ft.flip
       case None => Default
     }
     case v => Default
   }
-  def get_field(v:Type, s:String) : Field = v match {
-    case (v:BundleType) => v.fields find (_.name == s) match {
+  def get_field(v: Type, s: String): Field = v match {
+    case (v: BundleType) => v.fields find (_.name == s) match {
       case Some(ft) => ft
       case None => error("Shouldn't be here")
     }
@@ -369,9 +316,9 @@ object Utils extends LazyLogging {
     case e: WSubField => kind(e.exp)
     case e: WSubIndex => kind(e.exp)
     case e: WSubAccess => kind(e.exp)
-    case e => ExpKind()
+    case e => ExpKind
   }
-  def gender (e: Expression): Gender = e match {
+  def gender(e: Expression): Gender = e match {
     case e: WRef => e.gender
     case e: WSubField => e.gender
     case e: WSubIndex => e.gender
@@ -381,10 +328,10 @@ object Utils extends LazyLogging {
     case e: SIntLiteral => MALE
     case e: Mux => MALE
     case e: ValidIf => MALE
-    case e: WInvalid => MALE
+    case WInvalid => MALE
     case e => println(e); error("Shouldn't be here")
   }
-  def get_gender(s:Statement): Gender = s match {
+  def get_gender(s: Statement): Gender = s match {
     case s: DefWire => BIGENDER
     case s: DefRegister => BIGENDER
     case s: WDefInstance => MALE
@@ -400,37 +347,6 @@ object Utils extends LazyLogging {
     case EmptyStmt => UNKNOWNGENDER
   }
   def get_gender(p: Port): Gender = if (p.direction == Input) MALE else FEMALE
-  def get_type(s: Statement): Type = s match {
-    case s: DefWire => s.tpe
-    case s: DefRegister => s.tpe
-    case s: DefNode => s.value.tpe
-    case s: DefMemory =>
-      val depth = s.depth
-      val addr = Field("addr", Default, UIntType(IntWidth(scala.math.max(ceil_log2(depth), 1))))
-      val en = Field("en", Default, BoolType)
-      val clk = Field("clk", Default, ClockType)
-      val def_data = Field("data", Default, s.dataType)
-      val rev_data = Field("data", Flip, s.dataType)
-      val mask = Field("mask", Default, create_mask(s.dataType))
-      val wmode = Field("wmode", Default, UIntType(IntWidth(1)))
-      val rdata = Field("rdata", Flip, s.dataType)
-      val wdata = Field("wdata", Default, s.dataType)
-      val wmask = Field("wmask", Default, create_mask(s.dataType))
-      val read_type = BundleType(Seq(rev_data, addr, en, clk))
-      val write_type = BundleType(Seq(def_data, mask, addr, en, clk))
-      val readwrite_type = BundleType(Seq(wmode, rdata, wdata, wmask, addr, en, clk))
-      BundleType(
-        (s.readers map (Field(_, Flip, read_type))) ++
-        (s.writers map (Field(_, Flip, write_type))) ++
-        (s.readwriters map (Field(_, Flip, readwrite_type)))
-      )
-    case s: WDefInstance => s.tpe
-    case _ => UnknownType
-  }
-  def get_name(s: Statement): String = s match {
-    case s: HasName => s.name
-    case _ => error("Shouldn't be here")
-  }
   def get_info(s: Statement): Info = s match {
     case s: HasInfo => s.info
     case _ => NoInfo
@@ -512,68 +428,6 @@ object Utils extends LazyLogging {
       case e => error(s"getDeclaration does not support Expressions of type ${e.getClass}")
     }
   }
-
-// =============== RECURISVE MAPPERS ===================
-   def mapr (f: Width => Width, t:Type) : Type = {
-      def apply_t (t:Type) : Type = t map (apply_t) map (f)
-      apply_t(t)
-   }
-   def mapr (f: Width => Width, s:Statement) : Statement = {
-      def apply_t (t:Type) : Type = mapr(f,t)
-      def apply_e (e:Expression) : Expression = e map (apply_e) map (apply_t) map (f)
-      def apply_s (s:Statement) : Statement = s map (apply_s) map (apply_e) map (apply_t)
-      apply_s(s)
-   }
-   //def digits (s:String) : Boolean {
-   //   val digits = "0123456789"
-   //   var yes:Boolean = true
-   //   for (c <- s) {
-   //      if !digits.contains(c) : yes = false
-   //   }
-   //   yes
-   //}
-   //def generated (s:String) : Option[Int] = {
-   //   (1 until s.length() - 1).find{
-   //      i => {
-   //         val sub = s.substring(i + 1)
-   //         s.substring(i,i).equals("_") & digits(sub) & !s.substring(i - 1,i-1).equals("_")
-   //      }
-   //   }
-   //}
-   //def get-sym-hash (m:InModule) : LinkedHashMap[String,Int] = { get-sym-hash(m,Seq()) }
-   //def get-sym-hash (m:InModule,keywords:Seq[String]) : LinkedHashMap[String,Int] = {
-   //   val sym-hash = LinkedHashMap[String,Int]()
-   //   for (k <- keywords) { sym-hash += (k -> 0) }
-   //   def add-name (s:String) : String = {
-   //      val sx = to-string(s)
-   //      val ix = generated(sx)
-   //      ix match {
-   //         case (i:False) => {
-   //            if (sym_hash.contains(s)) {
-   //               val num = sym-hash(s)
-   //               sym-hash += (s -> max(num,0))
-   //            } else {
-   //               sym-hash += (s -> 0)
-   //            }
-   //         }
-   //         case (i:Int) => {
-   //            val name = sx.substring(0,i)
-   //            val digit = to-int(substring(sx,i + 1))
-   //            if key?(sym-hash,name) :
-   //               val num = sym-hash[name]
-   //               sym-hash[name] = max(num,digit)
-   //            else :
-   //               sym-hash[name] = digit
-   //         }
-   //      s
-   //         
-   //   defn to-port (p:Port) : add-name(name(p))
-   //   defn to-stmt (s:Stmt) -> Stmt :
-   //     map{to-stmt,_} $ map(add-name,s)
-   //
-   //   to-stmt(body(m))
-   //   map(to-port,ports(m))
-   //   sym-hash
 
   val v_keywords = Set(
     "alias", "always", "always_comb", "always_ff", "always_latch",
@@ -659,5 +513,58 @@ class MemoizedHash[T](val t: T) {
   override def equals(that: Any) = that match {
     case x: MemoizedHash[_] => t equals x.t
     case _ => false
+  }
+}
+
+/**
+  * Maintains a one to many graph of each modules instantiated child module.
+  * This graph can be searched for a path from a child module back to one of
+  * it's parents.  If one is found a recursive loop has happened
+  * The graph is a map between the name of a node to set of names of that nodes children
+  */
+class ModuleGraph {
+  val nodes = HashMap[String, HashSet[String]]()
+
+  /**
+    * Add a child to a parent node
+    * A parent node is created if it does not already exist
+    *
+    * @param parent module that instantiates another module
+    * @param child  module instantiated by parent
+    * @return a list indicating a path from child to parent, empty if no such path
+    */
+  def add(parent: String, child: String): List[String] = {
+    val childSet = nodes.getOrElseUpdate(parent, new HashSet[String])
+    childSet += child
+    pathExists(child, parent, List(child, parent))
+  }
+
+  /**
+    * Starting at the name of a given child explore the tree of all children in depth first manner.
+    * Return the first path (a list of strings) that goes from child to parent,
+    * or an empty list of no such path is found.
+    *
+    * @param child  starting name
+    * @param parent name to find in children (recursively)
+    * @param path
+    * @return
+    */
+  def pathExists(child: String, parent: String, path: List[String] = Nil): List[String] = {
+    nodes.get(child) match {
+      case Some(children) =>
+        if(children(parent)) {
+          parent :: path
+        }
+        else {
+          children.foreach { grandchild =>
+            val newPath = pathExists(grandchild, parent, grandchild :: path)
+            if(newPath.nonEmpty) {
+              return newPath
+            }
+          }
+          Nil
+        }
+      case _ => Nil
+    }
   }
 }

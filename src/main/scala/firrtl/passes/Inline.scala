@@ -1,14 +1,12 @@
 package firrtl
 package passes
 
+import firrtl.ir._
+import firrtl.Mappers._
+import firrtl.Annotations._
+
 // Datastructures
 import scala.collection.mutable
-
-import firrtl.Mappers.{ExpMap,StmtMap}
-import firrtl.ir._
-import firrtl.passes.{PassException,PassExceptions}
-import Annotations.{Loose, Unstable, Annotation, TransID, Named, ModuleName, ComponentName, CircuitName, AnnotationMap}
-
 
 // Tags an annotation to be consumed by this pass
 case class InlineAnnotation(target: Named, tID: TransID) extends Annotation with Loose with Unstable {
@@ -108,7 +106,7 @@ class InlineInstances (transID: TransID) extends Transform {
                if (inlinedInstances.contains(ref)) {
                   val newName = ref + inlineDelim + field
                   set(ComponentName(ref, ModuleName(m.name, cname)), Seq.empty)
-                  WRef(newName, tpe, WireKind(), gen)
+                  WRef(newName, tpe, WireKind, gen)
                }
                else e
             }
