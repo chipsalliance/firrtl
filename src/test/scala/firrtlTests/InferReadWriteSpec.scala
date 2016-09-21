@@ -100,9 +100,9 @@ circuit sram6t :
       T_5 <= io.wdata
 """.stripMargin
 
-    val annotaitonMap = AnnotationMap(Seq(InferReadWriteAnnotation("sram6t", TransID(-1))))
+    val annotationMap = AnnotationMap(Seq(InferReadWriteAnnotation("sram6t", TransID(-1))))
     val writer = new java.io.StringWriter
-    compile(parse(input), annotaitonMap, writer)
+    compile(parse(input), annotationMap, writer)
     // Check correctness of firrtl
     parse(writer.toString)
   }
@@ -132,10 +132,10 @@ circuit sram6t :
       T_5 <= io.wdata
 """.stripMargin
 
-    val annotaitonMap = AnnotationMap(Seq(InferReadWriteAnnotation("sram6t", TransID(-1))))
+    val annotationMap = AnnotationMap(Seq(InferReadWriteAnnotation("sram6t", TransID(-1))))
     val writer = new java.io.StringWriter
     intercept[InferReadWriteCheckException] {
-      compile(parse(input), annotaitonMap, writer)
+      compile(parse(input), annotationMap, writer)
     }
   }
 }
