@@ -12,7 +12,7 @@ import scala.collection.mutable
 //  and named intermediate nodes
 object SplitExpressions extends Pass {
    def name = "Split Expressions"
-   private def onModule(m: Module): Module = {
+   private def onModule(m: DefModule): DefModule = {
       val namespace = Namespace(m)
       def onStmt(s: Statement): Statement = {
         val v = mutable.ArrayBuffer[Statement]()
@@ -21,17 +21,17 @@ object SplitExpressions extends Pass {
         def split(e: Expression): Expression = e match {
           case e: DoPrim => {
             val name = namespace.newTemp
-            v += DefNode(get_info(s), name, e)
+            v += DefNode(get_info(s), name, e, Seq.empty)
             WRef(name, e.tpe, kind(e), gender(e))
           }
           case e: Mux => {
             val name = namespace.newTemp
-            v += DefNode(get_info(s), name, e)
+            v += DefNode(get_info(s), name, e, Seq.empty)
             WRef(name, e.tpe, kind(e), gender(e))
           }
           case e: ValidIf => {
             val name = namespace.newTemp
-            v += DefNode(get_info(s), name, e)
+            v += DefNode(get_info(s), name, e, Seq.empty)
             WRef(name, e.tpe, kind(e), gender(e))
           }
           case e => e
@@ -55,13 +55,7 @@ object SplitExpressions extends Pass {
              }
         }
       }
-      Module(m.info, m.name, m.ports, onStmt(m.body))
+      m map onStmt
    }
-   def run(c: Circuit): Circuit = {
-     val modulesx = c.modules map {
-       case m: Module => onModule(m)
-       case m: ExtModule => m
-     }
-     Circuit(c.info, modulesx, c.main)
-   }
+   def run(c: Circuit): Circuit = c map onModule
 }

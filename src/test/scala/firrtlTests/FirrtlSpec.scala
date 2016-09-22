@@ -143,8 +143,7 @@ trait FirrtlRunners extends BackendCompilationUtilities {
       s"$testDir/$prefix.fir",
       s"$testDir/$prefix.v",
       new VerilogCompiler(),
-      Parser.IgnoreInfo,
-      annotations)
+      Parser.IgnoreInfo)
     testDir
   }
   def runFirrtlTest(

@@ -66,30 +66,31 @@ Optional Arguments:
   [--help|-h]                    Print usage string
 """
 
-    def handleInlineOption(value: String): Annotation =
-      value.split('.') match {
-        case Array(circuit) =>
-          passes.InlineAnnotation(CircuitName(circuit), TransID(0))
-        case Array(circuit, module) =>
-          passes.InlineAnnotation(ModuleName(module, CircuitName(circuit)), TransID(0))
-        case Array(circuit, module, inst) =>
-          passes.InlineAnnotation((ComponentName(inst,ModuleName(module,CircuitName(circuit)))), TransID(0))
-        case _ => throw new Exception(s"Bad inline instance/module name: $value" + usage)
-      }
+    //def handleInlineOption(value: String): Annotation =
+    //  value.split('.') match {
+    //    case Array(circuit) =>
+    //      passes.InlineAnnotation(CircuitName(circuit), TransID(0))
+    //    case Array(circuit, module) =>
+    //      passes.InlineAnnotation(ModuleName(module, CircuitName(circuit)), TransID(0))
+    //    case Array(circuit, module, inst) =>
+    //      passes.InlineAnnotation((ComponentName(inst,ModuleName(module,CircuitName(circuit)))), TransID(0))
+    //    case _ => throw new Exception(s"Bad inline instance/module name: $value" + usage)
+    //  }
 
-    def handleInferRWOption(value: String) = 
-      passes.InferReadWriteAnnotation(value, TransID(-1))
+    //def handleInferRWOption(value: String) = 
+    //  passes.InferReadWriteAnnotation(value, TransID(-1))
 
-    def handleReplSeqMem(value: String) = 
-      passes.ReplSeqMemAnnotation(value, TransID(-2))
+    //def handleReplSeqMem(value: String) = 
+    //  passes.ReplSeqMemAnnotation(value, TransID(-2))
 
     run(args: Array[String],
       Map( "high" -> new HighFirrtlCompiler(),
         "low" -> new LowFirrtlCompiler(),
         "verilog" -> new VerilogCompiler()),
-      Map("--inline" -> handleInlineOption _,
-          "--inferRW" -> handleInferRWOption _,
-          "--replSeqMem" -> handleReplSeqMem _),
+      Map(),
+      //Map("--inline" -> handleInlineOption _,
+      //    "--inferRW" -> handleInferRWOption _,
+      //    "--replSeqMem" -> handleReplSeqMem _),
       usage
     )
   }
@@ -102,11 +103,10 @@ Optional Arguments:
       input: String, 
       output: String, 
       compiler: Compiler, 
-      infoMode: InfoMode = IgnoreInfo,
-      annotations: AnnotationMap = new AnnotationMap(Seq.empty)) = {
-    val parsedInput = Parser.parse(Source.fromFile(input).getLines, infoMode)
+      infoMode: InfoMode = IgnoreInfo) = {
+    val parsedInput = TransformationResult.createTR(Source.fromFile(input).getLines, infoMode)
     val outputBuffer = new java.io.CharArrayWriter
-    compiler.compile(parsedInput, annotations, outputBuffer)
+    compiler.compile(parsedInput, outputBuffer)
 
     val outputFile = new java.io.PrintWriter(output)
     outputFile.write(outputBuffer.toString)
@@ -180,7 +180,7 @@ Optional Arguments:
     options.get(CompilerName) match {
       case Some(name) =>
         compilers.get(name) match {
-          case Some(compiler) => compile(input, output, compiler, infoMode, new AnnotationMap(annotations.toSeq))
+          case Some(compiler) => compile(input, output, compiler, infoMode)
           case None => throw new Exception("Unknown compiler option: " + name + usage)
         }
       case None => throw new Exception("No specified compiler option." + usage)

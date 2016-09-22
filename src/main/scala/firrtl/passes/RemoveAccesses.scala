@@ -78,12 +78,12 @@ object RemoveAccesses extends Pass {
     createExpsCache getOrElseUpdate (e, firrtl.Utils.create_exps(e))
 
   def run(c: Circuit): Circuit = {
-    def remove_m(m: Module): Module = {
+    def remove_m(m: DefModule): DefModule = {
       val namespace = Namespace(m)
       def onStmt(s: Statement): Statement = {
         def create_temp(e: Expression): (Statement, Expression) = {
           val n = namespace.newTemp
-          (DefWire(get_info(s), n, e.tpe), WRef(n, e.tpe, kind(e), gender(e)))
+          (DefWire(get_info(s), n, e.tpe, Seq.empty), WRef(n, e.tpe, kind(e), gender(e)))
         }
 
         /** Replaces a subaccess in a given male expression
@@ -154,12 +154,9 @@ object RemoveAccesses extends Pass {
         stmts += sx
         if (stmts.size != 1) Block(stmts) else stmts(0)
       }
-      Module(m.info, m.name, m.ports, squashEmpty(onStmt(m.body)))
+      m map {b: Statement => squashEmpty(onStmt(b))}
     }
   
-    c copy (modules = (c.modules map {
-      case m: ExtModule => m
-      case m: Module => remove_m(m)
-    }))
+    c copy (modules = (c.modules map remove_m))
   }
 }

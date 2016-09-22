@@ -9,8 +9,8 @@ import firrtl.ir.Circuit
 import firrtl.Parser.IgnoreInfo
 import firrtl.passes.{Pass, PassExceptions}
 import firrtl.{
-   Transform,
-   TransformResult,
+   Transformation,
+   TransformationResult,
    SimpleRun,
    Chisel3ToHighFirrtl,
    IRToWorkingIR,
@@ -27,11 +27,11 @@ import firrtl.Annotations.AnnotationMap
 // Spec class should extend this class
 abstract class SimpleTransformSpec extends FlatSpec with Matchers with Compiler with LazyLogging {
    // Utility function
-   def parse(s: String): Circuit = Parser.parse(s.split("\n").toIterator, infoMode = IgnoreInfo)
+   def parse(s: String): TransformationResult = TransformationResult.createTR(s.split("\n").toIterator, infoMode = IgnoreInfo)
 
    // Executes the test. Call in tests.
    def execute(writer: Writer, annotations: AnnotationMap, input: String, check: String) = {
-      compile(parse(input), annotations, writer)
+      compile(parse(input), writer)
       logger.debug(writer.toString)
       logger.debug(check)
       (parse(writer.toString)) should be (parse(check))
@@ -39,13 +39,13 @@ abstract class SimpleTransformSpec extends FlatSpec with Matchers with Compiler 
    // Executes the test, should throw an error
    def failingexecute(writer: Writer, annotations: AnnotationMap, input: String): Exception = {
       intercept[PassExceptions] {
-         compile(parse(input), annotations, writer)
+         compile(parse(input), writer)
       }
    }
 }
 
 trait LowTransformSpec extends SimpleTransformSpec {
-   def transform: Transform
+   def transform: Transformation
    def transforms (writer: Writer) = Seq(
       new Chisel3ToHighFirrtl(),
       new IRToWorkingIR(),
@@ -59,7 +59,7 @@ trait LowTransformSpec extends SimpleTransformSpec {
 }
 
 trait MiddleTransformSpec extends SimpleTransformSpec {
-   def transform: Transform
+   def transform: Transformation
    def transforms (writer: Writer) = Seq(
       new Chisel3ToHighFirrtl(),
       new IRToWorkingIR(),
@@ -72,7 +72,7 @@ trait MiddleTransformSpec extends SimpleTransformSpec {
 }
 
 trait HighTransformSpec extends SimpleTransformSpec {
-   def transform: Transform
+   def transform: Transformation
    def transforms (writer: Writer) = Seq(
       new Chisel3ToHighFirrtl(),
       new IRToWorkingIR(),

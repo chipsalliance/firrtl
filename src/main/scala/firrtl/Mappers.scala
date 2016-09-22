@@ -31,6 +31,25 @@ import firrtl.ir._
 
 // TODO: Implement remaining mappers and recursive mappers
 object Mappers {
+  // ********** Port Mappers **********
+  private trait PortMagnet {
+    def map(port: Port): Port
+  }
+  private object PortMagnet {
+    implicit def forType(f: Type => Type) = new PortMagnet {
+      override def map(port: Port) : Port = port mapType f
+    }
+    implicit def forString(f: String => String) = new PortMagnet {
+      override def map(port: Port): Port = port mapString f
+    }
+    implicit def forAnnos(f: Annotation => Annotation) = new PortMagnet {
+      override def map(port: Port): Port = port mapAnnos f
+    }
+  }
+  implicit class PortMap(val port: Port) extends AnyVal {
+    // Using implicit types to allow overloading of function type to map, see PortMagnet above
+    def map[T](f: T => T)(implicit magnet: (T => T) => PortMagnet): Port = magnet(f).map(port)
+  }
 
   // ********** Stmt Mappers **********
   private trait StmtMagnet {
@@ -48,6 +67,9 @@ object Mappers {
     }
     implicit def forString(f: String => String) = new StmtMagnet {
       override def map(stmt: Statement): Statement = stmt mapString f
+    }
+    implicit def forAnnos(f: Annotation => Annotation) = new StmtMagnet {
+      override def map(stmt: Statement): Statement = stmt mapAnnos f
     }
   }
   implicit class StmtMap(val stmt: Statement) extends AnyVal {
@@ -120,9 +142,31 @@ object Mappers {
     implicit def forString(f: String => String) = new ModuleMagnet {
       override def map(module: DefModule): DefModule = module mapString f
     }
+    implicit def forAnnos(f: Annotation => Annotation) = new ModuleMagnet {
+      override def map(module: DefModule): DefModule = module mapAnnos f
+    }
   }
   implicit class ModuleMap(val module: DefModule) extends AnyVal {
     def map[T](f: T => T)(implicit magnet: (T => T) => ModuleMagnet): DefModule = magnet(f).map(module)
   }
 
+
+  // ********** Circuit Mappers **********
+  private trait CircuitMagnet {
+    def map(circuit: Circuit): Circuit
+  }
+  private object CircuitMagnet {
+    implicit def forDefModule(f: DefModule => DefModule) = new CircuitMagnet {
+      override def map(circuit: Circuit): Circuit = circuit mapDefModule f
+    }
+    implicit def forString(f: String => String) = new CircuitMagnet {
+      override def map(circuit: Circuit): Circuit = circuit mapString f
+    }
+    implicit def forAnnos(f: Annotation => Annotation) = new CircuitMagnet {
+      override def map(circuit: Circuit): Circuit = circuit mapAnnos f
+    }
+  }
+  implicit class CircuitMap(val circuit: Circuit) extends AnyVal {
+    def map[T](f: T => T)(implicit magnet: (T => T) => CircuitMagnet): Circuit = magnet(f).map(circuit)
+  }
 }

@@ -76,9 +76,8 @@ class ChirrtlMemSpec extends LowTransformSpec {
     }
   }
 
-  object MemEnableCheck extends Transform with SimpleRun {
-    def execute(c: Circuit, map: AnnotationMap) =
-      run(c, Seq(ConstProp, MemEnableCheckPass))
+  object MemEnableCheck extends SimpleRun {
+    val passSeq = Seq(ConstProp, MemEnableCheckPass)
   }
 
   def transform = MemEnableCheck
@@ -104,7 +103,7 @@ circuit foo :
 
     val annotationMap = AnnotationMap(Nil)
     val writer = new java.io.StringWriter
-    compile(parse(input), annotationMap, writer)
+    compile(parse(input), writer)
     // Check correctness of firrtl
     parse(writer.toString)
   }
@@ -131,7 +130,7 @@ circuit foo :
 
     val annotationMap = AnnotationMap(Nil)
     val writer = new java.io.StringWriter
-    compile(parse(input), annotationMap, writer)
+    compile(parse(input), writer)
     // Check correctness of firrtl
     parse(writer.toString)
   }

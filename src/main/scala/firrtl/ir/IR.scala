@@ -52,7 +52,9 @@ trait HasName {
 trait HasInfo {
   val info: Info
 }
-trait IsDeclaration extends HasName with HasInfo
+trait IsDeclaration extends HasName with HasInfo {
+  def annos: Seq[Annotation]
+}
 
 case class StringLit(array: Array[Byte]) extends FirrtlNode {
   def serialize: String = FIRRTLStringLitHandler.escape(this)
@@ -140,13 +142,15 @@ abstract class Statement extends FirrtlNode {
   def mapExpr(f: Expression => Expression): Statement
   def mapType(f: Type => Type): Statement
   def mapString(f: String => String): Statement
+  def mapAnnos(f: Annotation => Annotation): Statement
 }
-case class DefWire(info: Info, name: String, tpe: Type) extends Statement with IsDeclaration {
+case class DefWire(info: Info, name: String, tpe: Type, annos: Seq[Annotation]) extends Statement with IsDeclaration {
   def serialize: String = s"wire $name : ${tpe.serialize}" + info.serialize
   def mapStmt(f: Statement => Statement): Statement = this
   def mapExpr(f: Expression => Expression): Statement = this
-  def mapType(f: Type => Type): Statement = DefWire(info, name, f(tpe))
-  def mapString(f: String => String): Statement = DefWire(info, f(name), tpe)
+  def mapType(f: Type => Type): Statement = DefWire(info, name, f(tpe), annos)
+  def mapString(f: String => String): Statement = DefWire(info, f(name), tpe, annos)
+  def mapAnnos(f: Annotation => Annotation): Statement = this.copy(annos = annos map f)
 }
 case class DefRegister(
     info: Info,
@@ -154,23 +158,26 @@ case class DefRegister(
     tpe: Type,
     clock: Expression,
     reset: Expression,
-    init: Expression) extends Statement with IsDeclaration {
+    init: Expression,
+    annos: Seq[Annotation]) extends Statement with IsDeclaration {
   def serialize: String =
     s"reg $name : ${tpe.serialize}, ${clock.serialize} with :" +
     indent("\n" + s"reset => (${reset.serialize}, ${init.serialize})" + info.serialize)
   def mapStmt(f: Statement => Statement): Statement = this
   def mapExpr(f: Expression => Expression): Statement =
-    DefRegister(info, name, tpe, f(clock), f(reset), f(init))
+    DefRegister(info, name, tpe, f(clock), f(reset), f(init), annos)
   def mapType(f: Type => Type): Statement = this.copy(tpe = f(tpe))
   def mapString(f: String => String): Statement = this.copy(name = f(name))
+  def mapAnnos(f: Annotation => Annotation): Statement = this.copy(annos = annos map f)
 
 }
-case class DefInstance(info: Info, name: String, module: String) extends Statement with IsDeclaration {
+case class DefInstance(info: Info, name: String, module: String, annos: Seq[Annotation]) extends Statement with IsDeclaration {
   def serialize: String = s"inst $name of $module" + info.serialize
   def mapStmt(f: Statement => Statement): Statement = this
   def mapExpr(f: Expression => Expression): Statement = this
   def mapType(f: Type => Type): Statement = this
-  def mapString(f: String => String): Statement = DefInstance(info, f(name), module)
+  def mapString(f: String => String): Statement = DefInstance(info, f(name), module, annos)
+  def mapAnnos(f: Annotation => Annotation): Statement = this.copy(annos = annos map f)
 }
 case class DefMemory(
     info: Info,
@@ -183,7 +190,9 @@ case class DefMemory(
     writers: Seq[String],
     readwriters: Seq[String],
     // TODO: handle read-under-write
-    readUnderWrite: Option[String] = None) extends Statement with IsDeclaration {
+    readUnderWrite: Option[String],
+    annos: Seq[Annotation]
+    ) extends Statement with IsDeclaration {
   def serialize: String =
     s"mem $name :" + info.serialize +
     indent(
@@ -199,13 +208,15 @@ case class DefMemory(
   def mapExpr(f: Expression => Expression): Statement = this
   def mapType(f: Type => Type): Statement = this.copy(dataType = f(dataType))
   def mapString(f: String => String): Statement = this.copy(name = f(name))
+  def mapAnnos(f: Annotation => Annotation): Statement = this.copy(annos = annos map f)
 }
-case class DefNode(info: Info, name: String, value: Expression) extends Statement with IsDeclaration {
+case class DefNode(info: Info, name: String, value: Expression, annos: Seq[Annotation]) extends Statement with IsDeclaration {
   def serialize: String = s"node $name = ${value.serialize}" + info.serialize
   def mapStmt(f: Statement => Statement): Statement = this
-  def mapExpr(f: Expression => Expression): Statement = DefNode(info, name, f(value))
+  def mapExpr(f: Expression => Expression): Statement = DefNode(info, name, f(value), annos)
   def mapType(f: Type => Type): Statement = this
-  def mapString(f: String => String): Statement = DefNode(info, f(name), value)
+  def mapString(f: String => String): Statement = DefNode(info, f(name), value, annos)
+  def mapAnnos(f: Annotation => Annotation): Statement = this.copy(annos = annos map f)
 }
 case class Conditionally(
     info: Info,
@@ -221,6 +232,7 @@ case class Conditionally(
   def mapExpr(f: Expression => Expression): Statement = Conditionally(info, f(pred), conseq, alt)
   def mapType(f: Type => Type): Statement = this
   def mapString(f: String => String): Statement = this
+  def mapAnnos(f: Annotation => Annotation): Statement = this
 }
 case class Block(stmts: Seq[Statement]) extends Statement {
   def serialize: String = stmts map (_.serialize) mkString "\n"
@@ -228,6 +240,7 @@ case class Block(stmts: Seq[Statement]) extends Statement {
   def mapExpr(f: Expression => Expression): Statement = this
   def mapType(f: Type => Type): Statement = this
   def mapString(f: String => String): Statement = this
+  def mapAnnos(f: Annotation => Annotation): Statement = this
 }
 case class PartialConnect(info: Info, loc: Expression, expr: Expression) extends Statement with HasInfo {
   def serialize: String =  s"${loc.serialize} <- ${expr.serialize}" + info.serialize
@@ -235,6 +248,7 @@ case class PartialConnect(info: Info, loc: Expression, expr: Expression) extends
   def mapExpr(f: Expression => Expression): Statement = PartialConnect(info, f(loc), f(expr))
   def mapType(f: Type => Type): Statement = this
   def mapString(f: String => String): Statement = this
+  def mapAnnos(f: Annotation => Annotation): Statement = this
 }
 case class Connect(info: Info, loc: Expression, expr: Expression) extends Statement with HasInfo {
   def serialize: String =  s"${loc.serialize} <= ${expr.serialize}" + info.serialize
@@ -242,6 +256,7 @@ case class Connect(info: Info, loc: Expression, expr: Expression) extends Statem
   def mapExpr(f: Expression => Expression): Statement = Connect(info, f(loc), f(expr))
   def mapType(f: Type => Type): Statement = this
   def mapString(f: String => String): Statement = this
+  def mapAnnos(f: Annotation => Annotation): Statement = this
 }
 case class IsInvalid(info: Info, expr: Expression) extends Statement with HasInfo {
   def serialize: String =  s"${expr.serialize} is invalid" + info.serialize
@@ -249,6 +264,7 @@ case class IsInvalid(info: Info, expr: Expression) extends Statement with HasInf
   def mapExpr(f: Expression => Expression): Statement = IsInvalid(info, f(expr))
   def mapType(f: Type => Type): Statement = this
   def mapString(f: String => String): Statement = this
+  def mapAnnos(f: Annotation => Annotation): Statement = this
 }
 case class Stop(info: Info, ret: Int, clk: Expression, en: Expression) extends Statement with HasInfo {
   def serialize: String = s"stop(${clk.serialize}, ${en.serialize}, $ret)" + info.serialize
@@ -256,6 +272,7 @@ case class Stop(info: Info, ret: Int, clk: Expression, en: Expression) extends S
   def mapExpr(f: Expression => Expression): Statement = Stop(info, ret, f(clk), f(en))
   def mapType(f: Type => Type): Statement = this
   def mapString(f: String => String): Statement = this
+  def mapAnnos(f: Annotation => Annotation): Statement = this
 }
 case class Print(
     info: Info,
@@ -272,6 +289,7 @@ case class Print(
   def mapExpr(f: Expression => Expression): Statement = Print(info, string, args map f, f(clk), f(en))
   def mapType(f: Type => Type): Statement = this
   def mapString(f: String => String): Statement = this
+  def mapAnnos(f: Annotation => Annotation): Statement = this
 }
 case object EmptyStmt extends Statement {
   def serialize: String = "skip"
@@ -279,6 +297,7 @@ case object EmptyStmt extends Statement {
   def mapExpr(f: Expression => Expression): Statement = this
   def mapType(f: Type => Type): Statement = this
   def mapString(f: String => String): Statement = this
+  def mapAnnos(f: Annotation => Annotation): Statement = this
 }
 
 abstract class Width extends FirrtlNode {
@@ -408,8 +427,12 @@ case class Port(
     info: Info,
     name: String,
     direction: Direction,
-    tpe: Type) extends FirrtlNode with IsDeclaration {
+    tpe: Type,
+    annos: Seq[Annotation]) extends FirrtlNode with IsDeclaration {
   def serialize: String = s"${direction.serialize} $name : ${tpe.serialize}" + info.serialize
+  def mapString(f: String => String): Port = this.copy(name = f(name))
+  def mapType(f: Type => Type): Port = this.copy(tpe = f(tpe))
+  def mapAnnos(f: Annotation => Annotation): Port = this.copy(annos = annos map f)
 }
 
 /** Base class for modules */
@@ -417,36 +440,43 @@ abstract class DefModule extends FirrtlNode with IsDeclaration {
   val info : Info
   val name : String
   val ports : Seq[Port]
+  val annos: Seq[Annotation]
   protected def serializeHeader(tpe: String): String =
     s"$tpe $name :" + info.serialize +
     indent(ports map ("\n" + _.serialize) mkString) + "\n"
   def mapStmt(f: Statement => Statement): DefModule
   def mapPort(f: Port => Port): DefModule
   def mapString(f: String => String): DefModule
+  def mapAnnos(f: Annotation => Annotation): DefModule
 }
 /** Internal Module
   *
   * An instantiable hardware block
   */
-case class Module(info: Info, name: String, ports: Seq[Port], body: Statement) extends DefModule {
+case class Module(info: Info, name: String, ports: Seq[Port], body: Statement, annos: Seq[Annotation]) extends DefModule {
   def serialize: String = serializeHeader("module") + indent("\n" + body.serialize)
   def mapStmt(f: Statement => Statement): DefModule = this.copy(body = f(body))
   def mapPort(f: Port => Port): DefModule = this.copy(ports = ports map f)
   def mapString(f: String => String): DefModule = this.copy(name = f(name))
+  def mapAnnos(f: Annotation => Annotation): DefModule = this.copy(annos = annos map f)
 }
 /** External Module
   *
   * Generally used for Verilog black boxes
   */
-case class ExtModule(info: Info, name: String, ports: Seq[Port]) extends DefModule {
+case class ExtModule(info: Info, name: String, ports: Seq[Port], annos: Seq[Annotation]) extends DefModule {
   def serialize: String = serializeHeader("extmodule")
   def mapStmt(f: Statement => Statement): DefModule = this
   def mapPort(f: Port => Port): DefModule = this.copy(ports = ports map f)
   def mapString(f: String => String): DefModule = this.copy(name = f(name))
+  def mapAnnos(f: Annotation => Annotation): DefModule = this.copy(annos = annos map f)
 }
 
-case class Circuit(info: Info, modules: Seq[DefModule], main: String) extends FirrtlNode with HasInfo {
+case class Circuit(info: Info, modules: Seq[DefModule], main: String, annos: Seq[Annotation]) extends FirrtlNode with HasInfo {
   def serialize: String =
     s"circuit $main :" + info.serialize +
     (modules map ("\n" + _.serialize) map indent mkString "\n") + "\n"
+  def mapString(f: String => String): Circuit = this.copy(main = f(this.main))
+  def mapDefModule(f: DefModule => DefModule): Circuit = this.copy(modules = this.modules map (m => f(m)))
+  def mapAnnos(f: Annotation => Annotation): Circuit = this.copy(annos = annos map f)
 }

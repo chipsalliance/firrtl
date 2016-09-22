@@ -231,10 +231,7 @@ object Uniquify extends Pass {
         case (_: UIntType | _: SIntType) =>
           Seq(Field(s.name, Default, memType(s)))
         case tpe: BundleType =>
-          val newFields = tpe.fields map ( f =>
-            DefMemory(s.info, f.name, f.tpe, s.depth, s.writeLatency,
-              s.readLatency, s.readers, s.writers, s.readwriters)
-          ) flatMap (recStmtToType)
+          val newFields = tpe.fields map ( f => s.copy(name=f.name, dataType=f.tpe)) flatMap (recStmtToType)
           Seq(Field(s.name, Default, BundleType(newFields)))
         case tpe: VectorType =>
           val newFields = (0 until tpe.size) map ( i =>
@@ -278,7 +275,7 @@ object Uniquify extends Pass {
             sinfo = s.info
             if (nameMap.contains(s.name)) {
               val node = nameMap(s.name)
-              DefWire(s.info, node.name, uniquifyNamesType(s.tpe, node.elts))
+              s.copy(name=node.name, tpe=uniquifyNamesType(s.tpe, node.elts))
             } else {
               s
             }
@@ -286,8 +283,7 @@ object Uniquify extends Pass {
             sinfo = s.info
             if (nameMap.contains(s.name)) {
               val node = nameMap(s.name)
-              DefRegister(s.info, node.name, uniquifyNamesType(s.tpe, node.elts),
-                          s.clock, s.reset, s.init)
+              s.copy(name=node.name, tpe=uniquifyNamesType(s.tpe, node.elts))
             } else {
               s
             }
@@ -295,7 +291,7 @@ object Uniquify extends Pass {
             sinfo = s.info
             if (nameMap.contains(s.name)) {
               val node = nameMap(s.name)
-              WDefInstance(s.info, node.name, s.module, s.tpe)
+              s.copy(name=node.name)
             } else {
               s
             }
@@ -316,7 +312,7 @@ object Uniquify extends Pass {
             sinfo = s.info
             if (nameMap.contains(s.name)) {
               val node = nameMap(s.name)
-              DefNode(s.info, node.name, s.value)
+              s.copy(name=node.name)
             } else {
               s
             }
@@ -350,7 +346,7 @@ object Uniquify extends Pass {
     def uniquifyPorts(m: DefModule): DefModule = {
       def uniquifyPorts(ports: Seq[Port]): Seq[Port] = {
         val portsType = BundleType(ports map {
-          case Port(_, name, dir, tpe) => Field(name, to_flip(dir), tpe)
+          case Port(_, name, dir, tpe, annos) => Field(name, to_flip(dir), tpe)
         })
         val uniquePortsType = uniquifyNames(portsType, collection.mutable.HashSet())
         val localMap = createNameMapping(portsType, uniquePortsType)
@@ -358,7 +354,7 @@ object Uniquify extends Pass {
         portTypeMap += (m.name -> uniquePortsType)
 
         ports zip uniquePortsType.fields map { case (p, f) =>
-          Port(p.info, f.name, p.direction, f.tpe)
+          Port(p.info, f.name, p.direction, f.tpe, p.annos)
         }
       }
 
@@ -371,7 +367,7 @@ object Uniquify extends Pass {
     }
 
     sinfo = c.info
-    Circuit(c.info, c.modules map uniquifyPorts map uniquifyModule, c.main)
+    c.copy(modules=c.modules map {m => uniquifyModule(uniquifyPorts(m))})
   }
 }
 

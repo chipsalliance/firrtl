@@ -117,7 +117,7 @@ object RemoveCHIRRTL extends Pass {
         set_enable(rws, "en") ++
         set_write(rws, "wdata", "wmask")
       val mem = DefMemory(s.info, s.name, s.tpe, s.size, 1, if (s.seq) 1 else 0,
-                  rds map (_.name), wrs map (_.name), rws map (_.name))
+                  rds map (_.name), wrs map (_.name), rws map (_.name), None, s.annos)
       Block(mem +: stmts)
     case (s: CDefMPort) => {
       types(s.name) = types(s.mem)
@@ -189,9 +189,9 @@ object RemoveCHIRRTL extends Pass {
       case e => e map remove_chirrtl_e(g)
    }
    (s) match {
-      case DefNode(info, name, value) =>
+      case DefNode(info, name, value, annos) =>
         val valuex = remove_chirrtl_e(MALE)(value)
-        val sx = DefNode(info, name, valuex)
+        val sx = DefNode(info, name, valuex, annos)
         // Check node is used for read port address
         remove_chirrtl_e(FEMALE)(Reference(name, value.tpe))
         has_read_mport match {

@@ -68,7 +68,7 @@ object ToWorkingIR extends Pass {
   }
 
   def toStmt(s: Statement): Statement = s map (toExp) match {
-    case s: DefInstance => WDefInstance(s.info, s.name, s.module, UnknownType)
+    case s: DefInstance => WDefInstance(s.info, s.name, s.module, UnknownType, s.annos)
     case s => s map (toStmt)
   }
 
@@ -110,18 +110,15 @@ object PullMuxes extends Pass {
        ex map (pull_muxes_e)
      }
      def pull_muxes(s: Statement): Statement = s map (pull_muxes) map (pull_muxes_e)
-     val modulesx = c.modules.map {
-       case (m:Module) => Module(m.info, m.name, m.ports, pull_muxes(m.body))
-       case (m:ExtModule) => m
-     }
-     Circuit(c.info, modulesx, c.main)
+
+     c.copy(modules = c.modules map {m => m map pull_muxes})
    }
 }
 
 object ExpandConnects extends Pass {
   def name = "Expand Connects"
   def run(c: Circuit): Circuit = {
-    def expand_connects(m: Module): Module = {
+    def expand_connects(m: DefModule): DefModule = {
       val genders = collection.mutable.LinkedHashMap[String,Gender]()
       def expand_s(s: Statement): Statement = {
         def set_gender(e: Expression): Expression = e map (set_gender) match {
@@ -177,14 +174,10 @@ object ExpandConnects extends Pass {
       }
 
       m.ports.foreach { p => genders(p.name) = to_gender(p.direction) }
-      Module(m.info, m.name, m.ports, expand_s(m.body))
+      m map expand_s
     }
 
-    val modulesx = c.modules.map {
-       case (m: ExtModule) => m
-       case (m: Module) => expand_connects(m)
-    }
-    Circuit(c.info, modulesx, c.main)
+    c.copy(modules = c.modules map(expand_connects))
   }
 }
 

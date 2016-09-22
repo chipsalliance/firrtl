@@ -40,15 +40,26 @@ import Annotations._
 //  1) Don't produce annotations
 //  2) Don't consume annotations
 //  3) No component or module names are renamed
-trait SimpleRun extends LazyLogging {
-  def run (circuit: Circuit, passes: Seq[Pass]): TransformResult = {
-    val result = (passes foldLeft circuit){ (c: Circuit, pass: Pass) =>
+trait SimpleRun extends LazyLogging with Transformation {
+  def passSeq: Seq[Pass]
+  def run(tr: TransformationResult): TransformationResult = {
+    val result = (passSeq foldLeft tr.circuit){ (c: Circuit, pass: Pass) =>
       val name = pass.name
       val x = Utils.time(name)(pass.run(c))
       logger.debug(x.serialize)
       x
     }
-    TransformResult(result)
+    tr.update(result)
+  }
+  def execute(tr: TransformationResult): TransformationResult = run(tr)
+}
+
+trait SimpleEmit extends SimpleRun {
+  def writer: Writer
+  def emit(circuit: Circuit): Unit
+  override def execute(tr: TransformationResult): TransformationResult = {
+    emit(run(tr).circuit)
+    tr
   }
 }
 
@@ -58,27 +69,23 @@ trait SimpleRun extends LazyLogging {
 // This transforms "CHIRRTL", the chisel3 IR, to "Firrtl". Note the resulting
 //  circuit has only IR nodes, not WIR.
 // TODO(izraelevitz): Create RenameMap from RemoveCHIRRTL
-class Chisel3ToHighFirrtl extends Transform with SimpleRun {
+class Chisel3ToHighFirrtl extends SimpleRun {
   val passSeq = Seq(
     passes.CheckChirrtl,
     passes.CInferTypes,
     passes.CInferMDir,
     passes.RemoveCHIRRTL)
-  def execute(circuit: Circuit, annotationMap: AnnotationMap): TransformResult =
-    run(circuit, passSeq)
 }
 
 // Converts from the bare intermediate representation (ir.scala)
 //  to a working representation (WIR.scala)
-class IRToWorkingIR extends Transform with SimpleRun {
+class IRToWorkingIR extends SimpleRun {
   val passSeq = Seq(passes.ToWorkingIR)
-  def execute(circuit: Circuit, annotationMap: AnnotationMap): TransformResult =
-    run(circuit, passSeq)
 }
 
 // Resolves types, kinds, and genders, and checks the circuit legality.
 // Operates on working IR nodes and high Firrtl.
-class ResolveAndCheck extends Transform with SimpleRun {
+class ResolveAndCheck extends SimpleRun {
   val passSeq = Seq(
     passes.CheckHighForm,
     passes.ResolveKinds,
@@ -91,15 +98,13 @@ class ResolveAndCheck extends Transform with SimpleRun {
     passes.CheckGenders,
     passes.InferWidths,
     passes.CheckWidths)
-  def execute(circuit: Circuit, annotationMap: AnnotationMap): TransformResult =
-    run(circuit, passSeq)
 }
 
 // Expands aggregate connects, removes dynamic accesses, and when
 //  statements. Checks for uninitialized values. Must accept a
 //  well-formed graph.
 // Operates on working IR nodes.
-class HighFirrtlToMiddleFirrtl extends Transform with SimpleRun {
+class HighFirrtlToMiddleFirrtl extends SimpleRun {
   val passSeq = Seq(
     passes.PullMuxes,
     passes.ReplaceAccesses,
@@ -112,23 +117,19 @@ class HighFirrtlToMiddleFirrtl extends Transform with SimpleRun {
     passes.ResolveGenders,
     passes.InferWidths,
     passes.CheckWidths)
-  def execute(circuit: Circuit, annotationMap: AnnotationMap): TransformResult =
-    run(circuit, passSeq)
 }
 
 // Expands all aggregate types into many ground-typed components. Must
 //  accept a well-formed graph of only middle Firrtl features.
 // Operates on working IR nodes.
 // TODO(izraelevitz): Create RenameMap from RemoveCHIRRTL
-class MiddleFirrtlToLowFirrtl extends Transform with SimpleRun {
+class MiddleFirrtlToLowFirrtl extends SimpleRun {
   val passSeq = Seq(
     passes.LowerTypes,
     passes.ResolveKinds,
     passes.InferTypes,
     passes.ResolveGenders,
     passes.InferWidths)
-  def execute(circuit: Circuit, annotationMap: AnnotationMap): TransformResult =
-    run(circuit, passSeq)
 }
 
 // Emits Verilog.
@@ -137,7 +138,7 @@ class MiddleFirrtlToLowFirrtl extends Transform with SimpleRun {
 //  renames names that conflict with Verilog keywords.
 // Operates on working IR nodes.
 // TODO(izraelevitz): Create RenameMap from VerilogRename
-class EmitVerilogFromLowFirrtl(val writer: Writer) extends Transform with SimpleRun {
+class EmitVerilogFromLowFirrtl(val writer: Writer) extends SimpleEmit {
   val passSeq = Seq(
     passes.RemoveValidIf,
     passes.ConstProp,
@@ -149,20 +150,14 @@ class EmitVerilogFromLowFirrtl(val writer: Writer) extends Transform with Simple
     passes.CommonSubexpressionElimination,
     passes.DeadCodeElimination,
     passes.VerilogRename)
-  def execute(circuit: Circuit, annotationMap: AnnotationMap): TransformResult = {
-    val result = run(circuit, passSeq)
-    (new VerilogEmitter).run(result.circuit, writer)
-    result
-  }
+  def emit(c: Circuit): Unit = (new VerilogEmitter).run(c, writer)
 }
 
 // Emits Firrtl.
 // Operates on WIR/IR nodes.
-class EmitFirrtl(val writer: Writer) extends Transform {
-  def execute(circuit: Circuit, annotationMap: AnnotationMap): TransformResult = {
-    FIRRTLEmitter.run(circuit, writer)
-    TransformResult(circuit)
-  }
+class EmitFirrtl(val writer: Writer) extends SimpleEmit {
+  val passSeq = Seq()
+  def emit(c: Circuit): Unit = FIRRTLEmitter.run(c, writer)
 }
 
 
@@ -172,7 +167,7 @@ class EmitFirrtl(val writer: Writer) extends Transform {
 // Emits input circuit
 // Will replace Chirrtl constructs with Firrtl
 class HighFirrtlCompiler extends Compiler {
-  def transforms(writer: Writer): Seq[Transform] = Seq(
+  def transforms(writer: Writer): Seq[Transformation] = Seq(
     new Chisel3ToHighFirrtl,
     new IRToWorkingIR,
     new EmitFirrtl(writer)
@@ -181,14 +176,14 @@ class HighFirrtlCompiler extends Compiler {
 
 // Emits lowered input circuit
 class LowFirrtlCompiler extends Compiler {
-  def transforms(writer: Writer): Seq[Transform] = Seq(
+  def transforms(writer: Writer): Seq[Transformation] = Seq(
     new Chisel3ToHighFirrtl,
     new IRToWorkingIR,
-    new passes.InlineInstances(TransID(0)),
+    //new passes.InlineInstances(TransID(0)),
     new ResolveAndCheck,
     new HighFirrtlToMiddleFirrtl,
-    new passes.InferReadWrite(TransID(-1)),
-    new passes.ReplSeqMem(TransID(-2)),
+    //new passes.InferReadWrite(TransID(-1)),
+    //new passes.ReplSeqMem(TransID(-2)),
     new MiddleFirrtlToLowFirrtl,
     new EmitFirrtl(writer)
   )
@@ -196,15 +191,15 @@ class LowFirrtlCompiler extends Compiler {
 
 // Emits Verilog
 class VerilogCompiler extends Compiler {
-  def transforms(writer: Writer): Seq[Transform] = Seq(
+  def transforms(writer: Writer): Seq[Transformation] = Seq(
     new Chisel3ToHighFirrtl,
     new IRToWorkingIR,
     new ResolveAndCheck,
     new HighFirrtlToMiddleFirrtl,
-    new passes.InferReadWrite(TransID(-1)),
-    new passes.ReplSeqMem(TransID(-2)),
+    //new passes.InferReadWrite(TransID(-1)),
+    //new passes.ReplSeqMem(TransID(-2)),
     new MiddleFirrtlToLowFirrtl,
-    new passes.InlineInstances(TransID(0)),
+    //new passes.InlineInstances(TransID(0)),
     new EmitVerilogFromLowFirrtl(writer)
   )
 }

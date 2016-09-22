@@ -186,7 +186,7 @@ object Utils extends LazyLogging {
   }
 
   def module_type(m: DefModule): Type = BundleType(m.ports map {
-    case Port(_, name, dir, tpe) => Field(name, to_flip(dir), tpe)
+    case Port(_, name, dir, tpe, annos) => Field(name, to_flip(dir), tpe)
   })
   def sub_type(v: Type): Type = v match {
     case v: VectorType => v.tpe

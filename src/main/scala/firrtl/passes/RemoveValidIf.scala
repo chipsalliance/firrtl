@@ -16,12 +16,7 @@ object RemoveValidIf extends Pass {
    // Recursive.
    private def onStmt(s: Statement): Statement = s map onStmt map onExp
 
-   private def onModule(m: DefModule): DefModule = {
-      m match {
-         case m: Module => Module(m.info, m.name, m.ports, onStmt(m.body))
-         case m: ExtModule => m
-      }
-   }
+   private def onModule(m: DefModule): DefModule = m map onStmt
 
-   def run(c: Circuit): Circuit = Circuit(c.info, c.modules.map(onModule _), c.main)
+   def run(c: Circuit): Circuit = c map onModule
 }

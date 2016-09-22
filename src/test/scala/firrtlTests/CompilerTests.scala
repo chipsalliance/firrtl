@@ -12,7 +12,8 @@ import firrtl.{
    LowFirrtlCompiler,
    VerilogCompiler,
    Compiler,
-   Parser
+   Parser,
+   TransformationResult
 }
 import firrtl.Annotations.AnnotationMap
 
@@ -24,13 +25,13 @@ import firrtl.Annotations.AnnotationMap
  * should be compared against the check string.
  */
 abstract class CompilerSpec extends FlatSpec {
-   def parse (s: String): Circuit = Parser.parse(s.split("\n").toIterator)
+   def parse (s: String): TransformationResult = TransformationResult.createTR(s.split("\n").toIterator)
    val writer = new StringWriter()
    def compiler: Compiler
    def input: String
    def check: String
    def getOutput: String = {
-      compiler.compile(parse(input), new AnnotationMap(Seq.empty), writer)
+      compiler.compile(parse(input), writer)
       writer.toString()
    }
 }
@@ -53,7 +54,7 @@ class HighFirrtlCompilerSpec extends CompilerSpec with Matchers {
 """
    val check = input
    "Any circuit" should "match exactly to its input" in {
-      (parse(getOutput)) should be (parse(check))
+      (parse(getOutput).circuit) should be (parse(check).circuit)
    }
 }
 
@@ -83,7 +84,7 @@ circuit Top :
       "    node x_1 = a_1\n\n"
    ).reduce(_ + "\n" + _)
    "A circuit" should "match exactly to its lowered state" in {
-      (parse(getOutput)) should be (parse(check))
+      (parse(getOutput).circuit) should be (parse(check).circuit)
    }
 }
 

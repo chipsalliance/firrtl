@@ -146,7 +146,7 @@ object ExpandWhens extends Pass {
                   val name = namespace.newTemp
                   nodes(res) = name
                   netlist(lvalue) = WRef(name, res.tpe, NodeKind, MALE)
-                  DefNode(s.info, name, res)
+                  DefNode(s.info, name, res, Seq.empty)
               }
               case _ =>
                 netlist(lvalue) = res
@@ -164,7 +164,7 @@ object ExpandWhens extends Pass {
       }
       val netlist = new Netlist
       // Add ports to netlist
-      netlist ++= (m.ports flatMap { case Port(_, name, dir, tpe) =>
+      netlist ++= (m.ports flatMap { case Port(_, name, dir, tpe, annos) =>
         getFemaleRefs(name, tpe, to_gender(dir)) map (ref => we(ref) -> WVoid)
       })
       (netlist, simlist, expandWhens(netlist, Seq(netlist), one)(m.body))
@@ -174,9 +174,9 @@ object ExpandWhens extends Pass {
       case m: Module =>
       val (netlist, simlist, bodyx) = expandWhens(m)
       val newBody = Block(Seq(squashEmpty(bodyx)) ++ expandNetlist(netlist) ++ simlist)
-      Module(m.info, m.name, m.ports, newBody)
+      m.copy(body=newBody)
     }
-    Circuit(c.info, modulesx, c.main)
+    c.copy(modules=modulesx)
   }
 }
 

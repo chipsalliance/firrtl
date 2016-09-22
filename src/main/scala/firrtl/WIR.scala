@@ -95,12 +95,13 @@ case object EmptyExpression extends Expression {
   def mapType(f: Type => Type): Expression = this
   def mapWidth(f: Width => Width): Expression = this
 }
-case class WDefInstance(info: Info, name: String, module: String, tpe: Type) extends Statement with IsDeclaration {
+case class WDefInstance(info: Info, name: String, module: String, tpe: Type, annos: Seq[Annotation]) extends Statement with IsDeclaration {
   def serialize: String = s"inst $name of $module" + info.serialize
   def mapExpr(f: Expression => Expression): Statement = this
   def mapStmt(f: Statement => Statement): Statement = this
   def mapType(f: Type => Type): Statement = this.copy(tpe = f(tpe))
   def mapString(f: String => String): Statement = this.copy(name = f(name))
+  def mapAnnos(f: Annotation => Annotation): Statement = this.copy(annos = annos map f)
 }
 
 // Resultant width is the same as the maximum input width
@@ -264,20 +265,23 @@ case class CDefMemory(
     name: String,
     tpe: Type,
     size: Int,
-    seq: Boolean) extends Statement {
+    seq: Boolean,
+    annos: Seq[Annotation]) extends Statement {
   def serialize: String = (if (seq) "smem" else "cmem") +
     s" $name : ${tpe.serialize} [$size]" + info.serialize
   def mapExpr(f: Expression => Expression): Statement = this
   def mapStmt(f: Statement => Statement): Statement = this
   def mapType(f: Type => Type): Statement = this.copy(tpe = f(tpe))
   def mapString(f: String => String): Statement = this.copy(name = f(name))
+  def mapAnnos(f: Annotation => Annotation): Statement = this.copy(annos = annos map f)
 }
 case class CDefMPort(info: Info,
     name: String,
     tpe: Type,
     mem: String,
     exps: Seq[Expression],
-    direction: MPortDir) extends Statement {
+    direction: MPortDir,
+    annos: Seq[Annotation]) extends Statement {
   def serialize: String = {
     val dir = direction.serialize
     s"$dir mport $name = $mem[${exps(0).serialize}], ${exps(1).serialize}" + info.serialize
@@ -286,5 +290,6 @@ case class CDefMPort(info: Info,
   def mapStmt(f: Statement => Statement): Statement = this
   def mapType(f: Type => Type): Statement = this.copy(tpe = f(tpe))
   def mapString(f: String => String): Statement = this.copy(name = f(name))
+  def mapAnnos(f: Annotation => Annotation): Statement = this.copy(annos = annos map f)
 }
 

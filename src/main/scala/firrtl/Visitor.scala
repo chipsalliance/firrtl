@@ -98,21 +98,22 @@ class Visitor(infoMode: InfoMode) extends FIRRTLBaseVisitor[FirrtlNode] {
   }
 
   private def visitCircuit[FirrtlNode](ctx: FIRRTLParser.CircuitContext): Circuit =
-    Circuit(visitInfo(Option(ctx.info), ctx), ctx.module.map(visitModule), ctx.id.getText)
+    Circuit(visitInfo(Option(ctx.info), ctx), ctx.module.map(visitModule), ctx.id.getText, Seq.empty)
 
   private def visitModule[FirrtlNode](ctx: FIRRTLParser.ModuleContext): DefModule = {
     val info = visitInfo(Option(ctx.info), ctx)
     ctx.getChild(0).getText match {
       case "module" => Module(info, ctx.id.getText, ctx.port.map(visitPort),
-        if (ctx.moduleBlock() != null)
+        (if (ctx.moduleBlock() != null)
           visitBlock(ctx.moduleBlock())
-        else EmptyStmt)
-      case "extmodule" => ExtModule(info, ctx.id.getText, ctx.port.map(visitPort))
+        else EmptyStmt),
+        Seq.empty)
+      case "extmodule" => ExtModule(info, ctx.id.getText, ctx.port.map(visitPort), Seq.empty)
     }
   }
 
   private def visitPort[FirrtlNode](ctx: FIRRTLParser.PortContext): Port = {
-    Port(visitInfo(Option(ctx.info), ctx), ctx.id.getText, visitDir(ctx.dir), visitType(ctx.`type`))
+    Port(visitInfo(Option(ctx.info), ctx), ctx.id.getText, visitDir(ctx.dir), visitType(ctx.`type`), Seq.empty)
   }
 
   private def visitDir[FirrtlNode](ctx: FIRRTLParser.DirContext): Direction =
@@ -209,7 +210,8 @@ class Visitor(infoMode: InfoMode) extends FIRRTLBaseVisitor[FirrtlNode] {
       depth = lit("depth"),
       writeLatency = lit("write-latency"), readLatency = lit("read-latency"),
       readers = readers, writers = writers, readwriters = readwriters,
-      readUnderWrite = ruw
+      readUnderWrite = ruw,
+      Seq.empty
     )
   }
 
@@ -239,7 +241,7 @@ class Visitor(infoMode: InfoMode) extends FIRRTLBaseVisitor[FirrtlNode] {
     ctx.getChild(0) match {
       case when: WhenContext => visitWhen(when)
       case term: TerminalNode => term.getText match {
-        case "wire" => DefWire(info, ctx.id(0).getText, visitType(ctx.`type`()))
+        case "wire" => DefWire(info, ctx.id(0).getText, visitType(ctx.`type`()), Seq.empty)
         case "reg" =>
           val name = ctx.id(0).getText
           val tpe = visitType(ctx.`type`())
@@ -252,12 +254,12 @@ class Visitor(infoMode: InfoMode) extends FIRRTLBaseVisitor[FirrtlNode] {
             else
               (UIntLiteral(0, IntWidth(1)), Reference(name, tpe))
           }
-          DefRegister(info, name, tpe, visitExp(ctx.exp(0)), reset, init)
+          DefRegister(info, name, tpe, visitExp(ctx.exp(0)), reset, init, Seq.empty)
         case "mem" => visitMem(ctx)
         case "cmem" =>
           val t = visitType(ctx.`type`())
           t match {
-            case (t: VectorType) => CDefMemory(info, ctx.id(0).getText, t.tpe, t.size, seq = false)
+            case (t: VectorType) => CDefMemory(info, ctx.id(0).getText, t.tpe, t.size, seq = false, Seq.empty)
             case _ => throw new ParserException(s"${
               info
             }: Must provide cmem with vector type")
@@ -265,13 +267,13 @@ class Visitor(infoMode: InfoMode) extends FIRRTLBaseVisitor[FirrtlNode] {
         case "smem" =>
           val t = visitType(ctx.`type`())
           t match {
-            case (t: VectorType) => CDefMemory(info, ctx.id(0).getText, t.tpe, t.size, seq = true)
+            case (t: VectorType) => CDefMemory(info, ctx.id(0).getText, t.tpe, t.size, seq = true, Seq.empty)
             case _ => throw new ParserException(s"${
               info
             }: Must provide cmem with vector type")
           }
-        case "inst" => DefInstance(info, ctx.id(0).getText, ctx.id(1).getText)
-        case "node" => DefNode(info, ctx.id(0).getText, visitExp(ctx.exp(0)))
+        case "inst" => DefInstance(info, ctx.id(0).getText, ctx.id(1).getText, Seq.empty)
+        case "node" => DefNode(info, ctx.id(0).getText, visitExp(ctx.exp(0)), Seq.empty)
 
         case "stop(" => Stop(info, string2Int(ctx.IntLit().getText), visitExp(ctx.exp(0)), visitExp(ctx.exp(1)))
         case "printf(" => Print(info, visitStringLit(ctx.StringLit), ctx.exp.drop(2).map(visitExp),
@@ -284,7 +286,7 @@ class Visitor(infoMode: InfoMode) extends FIRRTLBaseVisitor[FirrtlNode] {
           case "<=" => Connect(info, visitExp(ctx.exp(0)), visitExp(ctx.exp(1)))
           case "<-" => PartialConnect(info, visitExp(ctx.exp(0)), visitExp(ctx.exp(1)))
           case "is" => IsInvalid(info, visitExp(ctx.exp(0)))
-          case "mport" => CDefMPort(info, ctx.id(0).getText, UnknownType, ctx.id(1).getText, Seq(visitExp(ctx.exp(0)), visitExp(ctx.exp(1))), visitMdir(ctx.mdir))
+          case "mport" => CDefMPort(info, ctx.id(0).getText, UnknownType, ctx.id(1).getText, Seq(visitExp(ctx.exp(0)), visitExp(ctx.exp(1))), visitMdir(ctx.mdir), Seq.empty)
         }
     }
   }

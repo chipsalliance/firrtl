@@ -316,9 +316,7 @@ object InferWidths extends Pass {
       s map reduce_var_widths_s map reduce_var_widths_t
     }
 
-    def reduce_var_widths_p(p: Port): Port = {
-      Port(p.info, p.name, p.direction, reduce_var_widths_t(p.tpe))
-    } 
+    def reduce_var_widths_p(p: Port): Port = p map reduce_var_widths_t
   
     InferTypes.run(c.copy(modules = c.modules map (_
       map reduce_var_widths_p

@@ -146,7 +146,7 @@ object LowerTypes extends Pass {
       case s: DefWire => s.tpe match {
         case _: GroundType => s
         case _ => Block(create_exps(s.name, s.tpe) map (
-          e => DefWire(s.info, loweredName(e), e.tpe)))
+          e => DefWire(s.info, loweredName(e), e.tpe, s.annos)))
       }
       case s: DefRegister => s.tpe match {
         case _: GroundType => s map lowerTypesExp(memDataTypeMap, info, mname)
@@ -156,7 +156,7 @@ object LowerTypes extends Pass {
           val clock = lowerTypesExp(memDataTypeMap, info, mname)(s.clock)
           val reset = lowerTypesExp(memDataTypeMap, info, mname)(s.reset)
           Block(es zip inits map { case (e, i) =>
-            DefRegister(s.info, loweredName(e), e.tpe, clock, reset, i)
+            DefRegister(s.info, loweredName(e), e.tpe, clock, reset, i, s.annos)
           })
       }
       // Could instead just save the type of each Module as it gets processed
@@ -166,7 +166,7 @@ object LowerTypes extends Pass {
             create_exps(WRef(f.name, f.tpe, ExpKind, times(f.flip, MALE))) map (
               // Flip because inst genders are reversed from Module type
               e => Field(loweredName(e), swap(to_flip(gender(e))), e.tpe)))
-          WDefInstance(s.info, s.name, s.module, BundleType(fieldsx))
+          WDefInstance(s.info, s.name, s.module, BundleType(fieldsx), s.annos)
         case _ => error("WDefInstance type should be Bundle!")(info, mname)
       }
       case s: DefMemory =>
@@ -186,7 +186,7 @@ object LowerTypes extends Pass {
       case s: DefNode =>
         val names = create_exps(s.name, s.value.tpe) map lowerTypesExp(memDataTypeMap, info, mname)
         val exps = create_exps(s.value) map lowerTypesExp(memDataTypeMap, info, mname)
-        Block(names zip exps map { case (n, e) => DefNode(info, loweredName(n), e) })
+        Block(names zip exps map { case (n, e) => DefNode(info, loweredName(n), e, s.annos) })
       case s: IsInvalid => kind(s.expr) match {
         case MemKind =>
           Block(lowerTypesMemExp(memDataTypeMap, info, mname)(s.expr) map (IsInvalid(info, _)))
@@ -208,7 +208,7 @@ object LowerTypes extends Pass {
     // Lower Ports
     val portsx = m.ports flatMap { p =>
       val exps = create_exps(WRef(p.name, p.tpe, PortKind, to_gender(p.direction)))
-      exps map (e => Port(p.info, loweredName(e), to_dir(gender(e)), e.tpe))
+      exps map (e => Port(p.info, loweredName(e), to_dir(gender(e)), e.tpe, p.annos))
     }
     m match {
       case m: ExtModule =>
