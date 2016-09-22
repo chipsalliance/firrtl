@@ -80,7 +80,7 @@ class WidthSpec extends FirrtlFlatSpec {
         |    input x: UInt<3>
         |    input y: SInt<2>
         |    output z: SInt
-        |    z <= add(y, x)""".stripMargin
+        |    z <= sub(y, x)""".stripMargin
     val check = Seq( "output z : SInt<5>")
     executeTest(input, check, passes)
   }
