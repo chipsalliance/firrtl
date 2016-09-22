@@ -138,13 +138,19 @@ trait FirrtlRunners extends BackendCompilationUtilities {
       annotations: AnnotationMap = new AnnotationMap(Seq.empty)): File = {
     val testDir = createTempDirectory(prefix)
     copyResourceToFile(s"${srcDir}/${prefix}.fir", new File(testDir, s"${prefix}.fir"))
+    val input = s"$testDir/$prefix.fir"
+    val output = s"$testDir/$prefix.v"
+    val infoMode = Parser.IgnoreInfo
+    val compiler = new VerilogCompiler
 
-    Driver.compile(
-      s"$testDir/$prefix.fir",
-      s"$testDir/$prefix.v",
-      new VerilogCompiler(),
-      Parser.IgnoreInfo,
-      annotations)
+    val parsedInput = Parser.parse(Source.fromFile(input).getLines, infoMode)
+    val outputBuffer = new java.io.CharArrayWriter
+    compiler.compile(parsedInput, annotations, outputBuffer)
+
+    val outputFile = new java.io.PrintWriter(output)
+    outputFile.write(outputBuffer.toString)
+    outputFile.close()
+
     testDir
   }
   def runFirrtlTest(

@@ -38,3 +38,8 @@ antlr4GenListener in Antlr4 := false // default = true
 
 antlr4PackageName in Antlr4 := Option("firrtl.antlr")
 
+// Command-line Argument Parser
+
+libraryDependencies += "com.github.scopt" %% "scopt" % "3.5.0"
+
+resolvers += Resolver.sonatypeRepo("public")
