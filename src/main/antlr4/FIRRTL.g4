@@ -95,6 +95,7 @@ parameter
   : 'parameter' id '=' IntLit NEWLINE
   | 'parameter' id '=' StringLit NEWLINE
   | 'parameter' id '=' DoubleLit NEWLINE
+  | 'parameter' id '=' RawString NEWLINE
   ;
 
 moduleBlock
@@ -314,7 +315,16 @@ HexDigit
   ;
 
 StringLit
-  : '"' ('\\"'|.)*? '"'
+  : '"' UnquotedString? '"'
+  ;
+
+RawString
+  : '\'' UnquotedString? '\''
+  ;
+
+fragment
+UnquotedString
+  : ('\\"'|~[\r\n])+?
   ;
 
 FileInfo
