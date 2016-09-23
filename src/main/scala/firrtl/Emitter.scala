@@ -92,6 +92,14 @@ class VerilogEmitter extends Emitter {
     }
     case _ => error("Shouldn't be here")
   }
+  /** Turn Params into Verilog Strings */
+  def stringify(param: Param): String = param match {
+    case IntParam(name, value) => s".$name($value)"
+    case DoubleParam(name, value) => s".$name($value)"
+    case StringParam(name, value) =>
+      val strx = "\"" + VerilogStringLitHandler.escape(value) + "\""
+      s".${name}($strx)"
+  }
   def emit(x: Any)(implicit w: Writer) { emit(x, 0) }
   def emit(x: Any, top: Int)(implicit w: Writer) {
     def cast(e: Expression): Any = e.tpe match {
@@ -244,7 +252,7 @@ class VerilogEmitter extends Emitter {
      }
    }
    
-    def emit_verilog(m: Module)(implicit w: Writer): DefModule = {
+    def emit_verilog(m: Module, moduleMap: Map[String, DefModule])(implicit w: Writer): DefModule = {
       val netlist = LinkedHashMap[WrappedExpression, Expression]()
       val simlist = ArrayBuffer[Statement]()
       val namespace = Namespace(m)
@@ -372,8 +380,9 @@ class VerilogEmitter extends Emitter {
         initials += Seq("`endif")
       }
 
-      def instantiate(n: String,m: String, es: Seq[Expression]) {
-         instdeclares += Seq(m, " ", n, " (")
+      def instantiate(n: String, m: String, es: Seq[Expression], params: Seq[Param]): Unit = {
+         val ps = if (params.nonEmpty) params map stringify mkString ("#(", ", ", ") ") else ""
+         instdeclares += Seq(m, " ", ps, n ," (")
          es.zipWithIndex foreach {case (e, i) =>
            val s = Seq(tab, ".", remove_root(e), "(", LowerTypes.loweredName(e), ")")
            if (i != es.size - 1) instdeclares += Seq(s, ",")
@@ -466,8 +475,12 @@ class VerilogEmitter extends Emitter {
           simulate(s.clk, s.en, printf(s.string, s.args), Some("PRINTF_COND"))
           s
         case (s: WDefInstance) =>
+          val (module, params) = moduleMap(s.module) match {
+            case ExtModule(_, _, _, extname, params) => (extname, params)
+            case Module(_, name, _, _) => (name, Seq.empty)
+          }
           val es = create_exps(WRef(s.name, s.tpe, InstanceKind, MALE))
-          instantiate(s.name, s.module, es)
+          instantiate(s.name, module, es, params)
           s
         case (s: DefMemory) =>
           val mem = WRef(s.name, MemPortUtils.memType(s), MemKind, UNKNOWNGENDER)
@@ -664,8 +677,9 @@ class VerilogEmitter extends Emitter {
 
    def run(c: Circuit, w: Writer) = {
      emit_preamble(w)
+     val moduleMap = (c.modules map (m => m.name -> m)).toMap
      c.modules foreach {
-       case (m: Module) => emit_verilog(m)(w)
+       case (m: Module) => emit_verilog(m, moduleMap)(w)
        case (m: ExtModule) =>
      }
    }

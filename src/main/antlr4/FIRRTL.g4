@@ -63,7 +63,7 @@ circuit
 
 module
   : 'module' id ':' info? INDENT port* moduleBlock DEDENT
-  | 'extmodule' id ':' info? INDENT port* DEDENT
+  | 'extmodule' id ':' info? INDENT port* defname? parameter* DEDENT
   ;
 
 port
@@ -85,6 +85,16 @@ type
 
 field
   : 'flip'? id ':' type
+  ;
+
+defname
+  : 'defname' '=' id NEWLINE
+  ;
+
+parameter
+  : 'parameter' id '=' IntLit NEWLINE
+  | 'parameter' id '=' StringLit NEWLINE
+  | 'parameter' id '=' DoubleLit NEWLINE
   ;
 
 moduleBlock
@@ -282,6 +292,10 @@ IntLit
   : '0'
   | ( '+' | '-' )? [1-9] ( Digit )*
   | '"' 'h' ( HexDigit )+ '"'
+  ;
+
+DoubleLit
+  : ( '+' | '-' )? Digit+ '.' Digit+ ( 'E' Digit+ )?
   ;
 
 fragment
