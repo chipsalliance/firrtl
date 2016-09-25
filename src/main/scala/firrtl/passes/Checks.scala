@@ -420,7 +420,7 @@ object CheckTypes extends Pass {
         }
         case (s: Attach) => 
           (s.source.tpe, kind(s.source)) match {
-            case (AnalogType(w), _: PortKind|_: WireKind)  =>
+            case (AnalogType(w), PortKind|WireKind)  =>
             case _ => errors append new IllegalAttachSource(info, mname, s.source.serialize)
           }
           (s.exprs foreach) { e =>
@@ -429,7 +429,7 @@ object CheckTypes extends Pass {
               case _ => errors append new OpNotAnalog(info, mname, e.serialize)
             }
             kind(e) match {
-              case InstanceKind() =>
+              case InstanceKind =>
               case _ =>  errors append new IllegalAttachExp(info, mname, e.serialize)
             }
           }

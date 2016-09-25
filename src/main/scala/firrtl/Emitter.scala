@@ -120,7 +120,7 @@ class VerilogEmitter extends Emitter {
         if (wx > 0) w write s"[$wx:0]"
       case ClockType =>
       case t: AnalogType =>
-        val wx = long_BANG(t) - 1
+        val wx = bitWidth(t) - 1
         if (wx > 0) w write s"[$wx:0]"
       case (t: VectorType) => 
         emit(t.tpe, top + 1)

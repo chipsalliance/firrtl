@@ -254,7 +254,7 @@ object InferWidths extends Pass {
            WGeq(IntWidth(1), getWidth(s.pred))
         )
         case (s: Attach) =>
-          v += WGeq(width_BANG(s.source), MaxWidth(s.exprs map width_BANG))
+          v += WGeq(getWidth(s.source), MaxWidth(s.exprs map {e => getWidth(e.tpe)}))
         case _ =>
       }
       s map get_constraints_e map get_constraints_s

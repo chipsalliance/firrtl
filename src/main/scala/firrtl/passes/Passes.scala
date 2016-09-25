@@ -321,16 +321,16 @@ object VerilogPrep extends Pass {
       case _ => s map buildS(attaches)
     }
     def lowerE(e: Expression): Expression = e match {
-      case _: WRef|_: WSubField if (kind(e) == InstanceKind()) => 
+      case _: WRef|_: WSubField if (kind(e) == InstanceKind) => 
         WRef(LowerTypes.loweredName(e), e.tpe, kind(e), gender(e))
       case _ => e map lowerE
     }
     def lowerS(attaches: InstAttaches)(s: Statement): Statement = s match {
       case WDefInstance(info, name, module, tpe) =>
-        val exps = create_exps(WRef(name, tpe, ExpKind(), MALE))
+        val exps = create_exps(WRef(name, tpe, ExpKind, MALE))
         val wcon = WDefInstanceConnector(info, name, module, tpe, exps.map( e => e.tpe match {
           case AnalogType(w) => attaches(e.serialize)
-          case _ => WRef(LowerTypes.loweredName(e), e.tpe, WireKind(), MALE)
+          case _ => WRef(LowerTypes.loweredName(e), e.tpe, WireKind, MALE)
         }))
         val wires = exps.map ( e => e.tpe match {
           case AnalogType(w) => EmptyStmt
