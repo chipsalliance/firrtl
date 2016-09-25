@@ -74,9 +74,9 @@ object RemoveCHIRRTL extends Pass {
       case (s:CDefMPort) =>
         val p = mports getOrElse (s.mem, EMPs)
         s.direction match {
-          case MRead => p.readers += MPort(s.name,s.exps(1))
-          case MWrite => p.writers += MPort(s.name,s.exps(1))
-          case MReadWrite => p.readwriters += MPort(s.name,s.exps(1))
+          case MRead => p.readers += MPort(s.name, s.exps(1))
+          case MWrite => p.writers += MPort(s.name, s.exps(1))
+          case MReadWrite => p.readwriters += MPort(s.name, s.exps(1))
         }
         mports(s.mem) = p
       case s =>
@@ -88,20 +88,17 @@ object RemoveCHIRRTL extends Pass {
       refs: DataRefMap, raddrs: AddrMap)(s: Statement): Statement = s match {
     case (s: CDefMemory) =>
       types(s.name) = s.tpe
-      val taddr = UIntType(IntWidth(math.max(1, ceil_log2(s.size))))
+      val taddr = UIntType(IntWidth(1 max ceilLog2(s.size)))
       val tdata = s.tpe
-      def set_poison(vec: Seq[MPort], addr: String) = vec flatMap (r => Seq(
-        IsInvalid(s.info, SubField(SubField(Reference(s.name, ut), r.name, ut), addr, taddr)),
-        IsInvalid(s.info, SubField(SubField(Reference(s.name, ut), r.name, ut), "clk", taddr))
+      def set_poison(vec: Seq[MPort]) = vec flatMap (r => Seq(
+        IsInvalid(s.info, SubField(SubField(Reference(s.name, ut), r.name, ut), "addr", taddr)),
+        IsInvalid(s.info, SubField(SubField(Reference(s.name, ut), r.name, ut), "clk", ClockType))
       ))
       def set_enable(vec: Seq[MPort], en: String) = vec map (r =>
-        Connect(s.info, SubField(SubField(Reference(s.name, ut), r.name, ut), en, taddr), zero)
+        Connect(s.info, SubField(SubField(Reference(s.name, ut), r.name, ut), en, BoolType), zero)
       )
-      def set_wmode (vec: Seq[MPort], wmode: String) = vec map (r =>
-        Connect(s.info, SubField(SubField(Reference(s.name, ut), r.name, ut), wmode, taddr), zero)
-      )
-      def set_write (vec: Seq[MPort], data: String, mask: String) = vec flatMap {r =>
-        val tmask = create_mask(s.tpe)
+      def set_write(vec: Seq[MPort], data: String, mask: String) = vec flatMap {r =>
+        val tmask = createMask(s.tpe)
         IsInvalid(s.info, SubField(SubField(Reference(s.name, ut), r.name, ut), data, tdata)) +:
              (create_exps(SubField(SubField(Reference(s.name, ut), r.name, ut), mask, tmask))
                map (Connect(s.info, _, zero))
@@ -110,13 +107,13 @@ object RemoveCHIRRTL extends Pass {
       val rds = (mports getOrElse (s.name, EMPs)).readers
       val wrs = (mports getOrElse (s.name, EMPs)).writers
       val rws = (mports getOrElse (s.name, EMPs)).readwriters
-      val stmts = set_poison(rds, "addr") ++
+      val stmts = set_poison(rds) ++
         set_enable(rds, "en") ++
-        set_poison(wrs, "addr") ++
+        set_poison(wrs) ++
         set_enable(wrs, "en") ++
         set_write(wrs, "data", "mask") ++
-        set_poison(rws, "addr") ++
-        set_wmode(rws, "wmode") ++
+        set_poison(rws) ++
+        set_enable(rws, "wmode") ++
         set_enable(rws, "en") ++
         set_write(rws, "wdata", "wmask")
       val mem = DefMemory(s.info, s.name, s.tpe, s.size, 1, if (s.seq) 1 else 0,
@@ -149,7 +146,7 @@ object RemoveCHIRRTL extends Pass {
           }
       }
       Block(
-        (addrs map (x => Connect(s.info, SubField(SubField(Reference(s.mem, ut), s.name, ut), x, ut), s.exps(0)))) ++
+        (addrs map (x => Connect(s.info, SubField(SubField(Reference(s.mem, ut), s.name, ut), x, ut), s.exps.head))) ++
         (clks map (x => Connect(s.info, SubField(SubField(Reference(s.mem, ut), s.name, ut), x, ut), s.exps(1)))) ++
         (ens map (x => Connect(s.info,SubField(SubField(Reference(s.mem,ut), s.name, ut), x, ut), one))))
     }
@@ -160,7 +157,7 @@ object RemoveCHIRRTL extends Pass {
     e map get_mask(refs) match {
       case e: Reference => refs get e.name match {
         case None => e
-        case Some(p) => SubField(p.exp, p.mask, create_mask(e.tpe))
+        case Some(p) => SubField(p.exp, p.mask, createMask(e.tpe))
       }
       case e => e
     }
@@ -174,7 +171,7 @@ object RemoveCHIRRTL extends Pass {
         case Some(p) => g match {
           case FEMALE =>
             has_write_mport = true
-            if (p.rdwrite) has_readwrite_mport = Some(SubField(p.exp, "wmode", UIntType(IntWidth(1))))
+            if (p.rdwrite) has_readwrite_mport = Some(SubField(p.exp, "wmode", BoolType))
             SubField(p.exp, p.female, tpe)
           case MALE =>
             SubField(p.exp, p.male, tpe)
@@ -195,6 +192,8 @@ object RemoveCHIRRTL extends Pass {
       case DefNode(info, name, value) =>
         val valuex = remove_chirrtl_e(MALE)(value)
         val sx = DefNode(info, name, valuex)
+        // Check node is used for read port address
+        remove_chirrtl_e(FEMALE)(Reference(name, value.tpe))
         has_read_mport match {
           case None => sx
           case Some(en) => Block(Seq(sx, Connect(info, en, one)))

@@ -28,20 +28,12 @@ MODIFICATIONS.
 package firrtl.passes
 
 import com.typesafe.scalalogging.LazyLogging
-import java.nio.file.{Paths, Files}
-
-// Datastructures
-import scala.collection.mutable.LinkedHashMap
-import scala.collection.mutable.HashMap
-import scala.collection.mutable.HashSet
-import scala.collection.mutable.ArrayBuffer
 
 import firrtl._
 import firrtl.ir._
 import firrtl.Utils._
 import firrtl.Mappers._
 import firrtl.PrimOps._
-import firrtl.WrappedExpression._
 
 trait Pass extends LazyLogging {
   def name: String
@@ -52,9 +44,9 @@ trait Pass extends LazyLogging {
 class PassException(message: String) extends Exception(message)
 class PassExceptions(exceptions: Seq[PassException]) extends Exception("\n" + exceptions.mkString("\n"))
 class Errors {
-  val errors = ArrayBuffer[PassException]()
+  val errors = collection.mutable.ArrayBuffer[PassException]()
   def append(pe: PassException) = errors.append(pe)
-  def trigger = errors.size match {
+  def trigger() = errors.size match {
     case 0 =>
     case 1 => throw errors.head
     case _ =>
@@ -65,33 +57,23 @@ class Errors {
 
 // These should be distributed into separate files
 object ToWorkingIR extends Pass {
-   private var mname = ""
-   def name = "Working IR"
-   def run (c:Circuit): Circuit = {
-      def toExp (e:Expression) : Expression = {
-         e map (toExp) match {
-            case e:Reference => WRef(e.name, e.tpe, NodeKind(), UNKNOWNGENDER)
-            case e:SubField => WSubField(e.expr, e.name, e.tpe, UNKNOWNGENDER)
-            case e:SubIndex => WSubIndex(e.expr, e.value, e.tpe, UNKNOWNGENDER)
-            case e:SubAccess => WSubAccess(e.expr, e.index, e.tpe, UNKNOWNGENDER)
-            case e => e
-         }
-      }
-      def toStmt (s:Statement) : Statement = {
-         s map (toExp) match {
-            case s:DefInstance => WDefInstance(s.info,s.name,s.module,UnknownType)
-            case s => s map (toStmt)
-         }
-      }
-      val modulesx = c.modules.map { m => 
-         mname = m.name
-         m match {
-            case m:Module => Module(m.info,m.name, m.ports, toStmt(m.body))
-            case m:ExtModule => m
-         }
-      }
-      Circuit(c.info,modulesx,c.main)
-   }
+  def name = "Working IR"
+
+  def toExp(e: Expression): Expression = e map (toExp) match {
+    case e: Reference => WRef(e.name, e.tpe, NodeKind, UNKNOWNGENDER)
+    case e: SubField => WSubField(e.expr, e.name, e.tpe, UNKNOWNGENDER)
+    case e: SubIndex => WSubIndex(e.expr, e.value, e.tpe, UNKNOWNGENDER)
+    case e: SubAccess => WSubAccess(e.expr, e.index, e.tpe, UNKNOWNGENDER)
+    case e => e
+  }
+
+  def toStmt(s: Statement): Statement = s map (toExp) match {
+    case s: DefInstance => WDefInstance(s.info, s.name, s.module, UnknownType)
+    case s => s map (toStmt)
+  }
+
+  def run (c:Circuit): Circuit =
+    c copy (modules = (c.modules map (_ map toStmt)))
 }
 
 object PullMuxes extends Pass {
@@ -140,7 +122,7 @@ object ExpandConnects extends Pass {
   def name = "Expand Connects"
   def run(c: Circuit): Circuit = {
     def expand_connects(m: Module): Module = {
-      val genders = LinkedHashMap[String,Gender]()
+      val genders = collection.mutable.LinkedHashMap[String,Gender]()
       def expand_s(s: Statement): Statement = {
         def set_gender(e: Expression): Expression = e map (set_gender) match {
           case (e: WRef) => WRef(e.name, e.tpe, e.kind, genders(e.name))
@@ -211,42 +193,63 @@ object ExpandConnects extends Pass {
 // TODO replace UInt with zero-width wire instead
 object Legalize extends Pass {
   def name = "Legalize"
-  def legalizeShiftRight (e: DoPrim): Expression = e.op match {
-    case Shr => {
-      val amount = e.consts.head.toInt
-      val width = long_BANG(e.args.head.tpe)
-      lazy val msb = width - 1
-      if (amount >= width) {
-        e.tpe match {
-          case t: UIntType => UIntLiteral(0, IntWidth(1))
-          case t: SIntType =>
-            DoPrim(Bits, e.args, Seq(msb, msb), SIntType(IntWidth(1)))
-          case t => error(s"Unsupported type ${t} for Primop Shift Right")
-        }
-      } else {
-        e
+  private def legalizeShiftRight(e: DoPrim): Expression = {
+    require(e.op == Shr)
+    val amount = e.consts.head.toInt
+    val width = bitWidth(e.args.head.tpe)
+    lazy val msb = width - 1
+    if (amount >= width) {
+      e.tpe match {
+        case UIntType(_) => zero
+        case SIntType(_) =>
+          val bits = DoPrim(Bits, e.args, Seq(msb, msb), BoolType)
+          DoPrim(AsSInt, Seq(bits), Seq.empty, SIntType(IntWidth(1)))
+        case t => error(s"Unsupported type ${t} for Primop Shift Right")
       }
+    } else {
+      e
     }
-    case _ => e
   }
-  def legalizeConnect(c: Connect): Statement = {
+  private def legalizeBits(expr: DoPrim): Expression = {
+    lazy val (hi, low) = (expr.consts.head, expr.consts(1))
+    lazy val mask = (BigInt(1) << (hi - low + 1).toInt) - 1
+    lazy val width = IntWidth(hi - low + 1)
+    expr.args.head match {
+      case UIntLiteral(value, _) => UIntLiteral((value >> low.toInt) & mask, width)
+      case SIntLiteral(value, _) => SIntLiteral((value >> low.toInt) & mask, width)
+      case _ => expr
+    }
+  }
+  private def legalizePad(expr: DoPrim): Expression = expr.args.head match {
+    case UIntLiteral(value, IntWidth(width)) if (width < expr.consts.head) =>
+      UIntLiteral(value, IntWidth(expr.consts.head))
+    case SIntLiteral(value, IntWidth(width)) if (width < expr.consts.head) =>
+      SIntLiteral(value, IntWidth(expr.consts.head))
+    case _ => expr
+  }
+  private def legalizeConnect(c: Connect): Statement = {
     val t = c.loc.tpe
-    val w = long_BANG(t)
-    if (w >= long_BANG(c.expr.tpe)) c
-    else {
-      val newType = t match {
-        case _: UIntType => UIntType(IntWidth(w))
-        case _: SIntType => SIntType(IntWidth(w))
+    val w = bitWidth(t)
+    if (w >= bitWidth(c.expr.tpe)) {
+      c
+    } else {
+      val bits = DoPrim(Bits, Seq(c.expr), Seq(w - 1, 0), UIntType(IntWidth(w)))
+      val expr = t match {
+        case UIntType(_) => bits
+        case SIntType(_) => DoPrim(AsSInt, Seq(bits), Seq(), SIntType(IntWidth(w)))
       }
-      Connect(c.info, c.loc, DoPrim(Bits, Seq(c.expr), Seq(w-1, 0), newType))
+      Connect(c.info, c.loc, expr)
     }
   }
   def run (c: Circuit): Circuit = {
-    def legalizeE (e: Expression): Expression = {
-      e map (legalizeE) match {
-        case e: DoPrim => legalizeShiftRight(e)
-        case e => e
+    def legalizeE(expr: Expression): Expression = expr map legalizeE match {
+      case prim: DoPrim => prim.op match {
+        case Shr => legalizeShiftRight(prim)
+        case Pad => legalizePad(prim)
+        case Bits => legalizeBits(prim)
+        case _ => prim
       }
+      case e => e // respect pre-order traversal
     }
     def legalizeS (s: Statement): Statement = {
       val legalizedStmt = s match {
@@ -255,80 +258,55 @@ object Legalize extends Pass {
       }
       legalizedStmt map legalizeS map legalizeE
     }
-    def legalizeM (m: DefModule): DefModule = m map (legalizeS)
-    Circuit(c.info, c.modules.map(legalizeM), c.main)
+    c copy (modules = (c.modules map (_ map legalizeS)))
   }
 }
 
 object VerilogWrap extends Pass {
-   def name = "Verilog Wrap"
-   var mname = ""
-   def v_wrap_e (e:Expression) : Expression = {
-      e map (v_wrap_e) match {
-         case (e:DoPrim) => {
-            def a0 () = e.args(0)
-            if (e.op == Tail) {
-               (a0()) match {
-                  case (e0:DoPrim) => {
-                     if (e0.op == Add) DoPrim(Addw,e0.args,Seq(),e.tpe)
-                     else if (e0.op == Sub) DoPrim(Subw,e0.args,Seq(),e.tpe)
-                     else e
-                  }
-                  case (e0) => e
-               }
-            }
-            else e
-         }
-         case (e) => e
+  def name = "Verilog Wrap"
+  def vWrapE(e: Expression): Expression = e map vWrapE match {
+    case e: DoPrim => e.op match {
+      case Tail => e.args.head match {
+        case e0: DoPrim => e0.op match {
+          case Add => DoPrim(Addw, e0.args, Nil, e.tpe)
+          case Sub => DoPrim(Subw, e0.args, Nil, e.tpe)
+          case _ => e
+        }
+        case _ => e
       }
-   }
-   def v_wrap_s (s:Statement) : Statement = {
-      s map (v_wrap_s) map (v_wrap_e) match {
-        case s: Print =>
-          Print(s.info, VerilogStringLitHandler.format(s.string), s.args, s.clk, s.en)
-        case s => s
-      }
-   }
-   def run (c:Circuit): Circuit = {
-      val modulesx = c.modules.map{ m => {
-         (m) match {
-            case (m:Module) => {
-               mname = m.name
-               Module(m.info,m.name,m.ports,v_wrap_s(m.body))
-            }
-            case (m:ExtModule) => m
-         }
-      }}
-      Circuit(c.info,modulesx,c.main)
-   }
+      case _ => e
+    }
+    case _ => e
+  }
+  def vWrapS(s: Statement): Statement = {
+    s map vWrapS map vWrapE match {
+      case s: Print => s copy (string = VerilogStringLitHandler.format(s.string))
+      case s => s
+    }
+  }
+
+  def run(c: Circuit): Circuit =
+    c copy (modules = (c.modules map (_ map vWrapS)))
 }
 
 object VerilogRename extends Pass {
-   def name = "Verilog Rename"
-   def run (c:Circuit): Circuit = {
-      def verilog_rename_n (n:String) : String = {
-         if (v_keywords.contains(n)) (n + "$") else n
-      }
-      def verilog_rename_e (e:Expression) : Expression = {
-         (e) match {
-           case (e:WRef) => WRef(verilog_rename_n(e.name),e.tpe,kind(e),gender(e))
-           case (e) => e map (verilog_rename_e)
-         }
-      }
-      def verilog_rename_s (s:Statement) : Statement = {
-        s map (verilog_rename_s) map (verilog_rename_e) map (verilog_rename_n)
-      }
-      val modulesx = c.modules.map{ m => {
-         val portsx = m.ports.map{ p => {
-            Port(p.info,verilog_rename_n(p.name),p.direction,p.tpe)
-         }}
-         m match {
-            case (m:Module) => Module(m.info,m.name,portsx,verilog_rename_s(m.body))
-            case (m:ExtModule) => m
-         }
-      }}
-      Circuit(c.info,modulesx,c.main)
-   }
+  def name = "Verilog Rename"
+  def verilogRenameN(n: String): String =
+    if (v_keywords(n)) "%s$".format(n) else n
+
+  def verilogRenameE(e: Expression): Expression = e match {
+    case e: WRef => e copy (name = verilogRenameN(e.name))
+    case e => e map verilogRenameE
+  }
+
+  def verilogRenameS(s: Statement): Statement =
+    s map verilogRenameS map verilogRenameE map verilogRenameN
+
+  def verilogRenameP(p: Port): Port =
+    p copy (name = verilogRenameN(p.name))
+
+  def run(c: Circuit): Circuit =
+    c copy (modules = (c.modules map (_ map verilogRenameP map verilogRenameS)))
 }
 
 

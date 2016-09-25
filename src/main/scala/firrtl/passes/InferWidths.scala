@@ -28,20 +28,19 @@ MODIFICATIONS.
 package firrtl.passes
 
 // Datastructures
-import scala.collection.mutable.{LinkedHashMap, HashMap, HashSet, ArrayBuffer}
+import scala.collection.mutable.ArrayBuffer
 import scala.collection.immutable.ListMap
 
 import firrtl._
 import firrtl.ir._
 import firrtl.Utils._
 import firrtl.Mappers._
-import firrtl.PrimOps._
-import firrtl.WrappedExpression._
 
 object InferWidths extends Pass {
   def name = "Infer Widths"
+  type ConstraintMap = collection.mutable.LinkedHashMap[String, Width]
 
-  def solve_constraints(l: Seq[WGeq]): LinkedHashMap[String, Width] = {
+  def solve_constraints(l: Seq[WGeq]): ConstraintMap = {
     def unique(ls: Seq[Width]) : Seq[Width] =
       (ls map (new WrappedWidth(_))).distinct map (_.w)
     def make_unique(ls: Seq[WGeq]): ListMap[String,Width] = {
@@ -77,7 +76,7 @@ object InferWidths extends Pass {
       case _ => w
     }
 
-    def substitute(h: LinkedHashMap[String, Width])(w: Width): Width = {
+    def substitute(h: ConstraintMap)(w: Width): Width = {
       //;println-all-debug(["Substituting for [" w "]"])
       val wx = simplify(w)
       //;println-all-debug(["After Simplify: [" wx "]"])
@@ -98,7 +97,7 @@ object InferWidths extends Pass {
       }
     }
 
-    def b_sub(h: LinkedHashMap[String, Width])(w: Width): Width = {
+    def b_sub(h: ConstraintMap)(w: Width): Width = {
       w map b_sub(h) match {
         case w: VarWidth => h getOrElse (w.name, w)
         case w => w
@@ -145,7 +144,7 @@ object InferWidths extends Pass {
     //for (x <- u) { println(x) }
     //println("====================================")
  
-    val f = LinkedHashMap[String, Width]()
+    val f = new ConstraintMap
     val o = ArrayBuffer[String]()
     for ((n, e) <- u) {
       //println("==== SOLUTIONS TABLE ====")
@@ -175,7 +174,7 @@ object InferWidths extends Pass {
     //for (x <- f) println(x)
  
     //; Backwards Solve
-    val b = LinkedHashMap[String, Width]()
+    val b = new ConstraintMap
     for (i <- (o.size - 1) to 0 by -1) {
       val n = o(i) // Should visit `o` backward
       /*
@@ -214,8 +213,8 @@ object InferWidths extends Pass {
     def get_constraints_e(e: Expression): Expression = {
       e match {
         case (e: Mux) => v ++= Seq(
-          WGeq(width_BANG(e.cond), IntWidth(1)),
-          WGeq(IntWidth(1), width_BANG(e.cond))
+          WGeq(getWidth(e.cond), IntWidth(1)),
+          WGeq(IntWidth(1), getWidth(e.cond))
         )
         case _ =>
       }
@@ -230,8 +229,8 @@ object InferWidths extends Pass {
           val exps = create_exps(s.expr)
           v ++= ((locs zip exps).zipWithIndex map {case ((locx, expx), i) =>
             get_flip(s.loc.tpe, i, Default) match {
-              case Default => WGeq(width_BANG(locx), width_BANG(expx))
-              case Flip => WGeq(width_BANG(expx), width_BANG(locx))
+              case Default => WGeq(getWidth(locx), getWidth(expx))
+              case Flip => WGeq(getWidth(expx), getWidth(locx))
             }
           })
         case (s: PartialConnect) =>
@@ -242,17 +241,17 @@ object InferWidths extends Pass {
             val locx = locs(x)
             val expx = exps(y)
             get_flip(s.loc.tpe, x, Default) match {
-              case Default => WGeq(width_BANG(locx), width_BANG(expx))
-              case Flip => WGeq(width_BANG(expx), width_BANG(locx))
+              case Default => WGeq(getWidth(locx), getWidth(expx))
+              case Flip => WGeq(getWidth(expx), getWidth(locx))
             }
           })
         case (s:DefRegister) => v ++= (Seq(
-           WGeq(width_BANG(s.reset), IntWidth(1)),
-           WGeq(IntWidth(1), width_BANG(s.reset))
+           WGeq(getWidth(s.reset), IntWidth(1)),
+           WGeq(IntWidth(1), getWidth(s.reset))
         ) ++ get_constraints_t(s.tpe, s.init.tpe, Default))
         case (s:Conditionally) => v ++= Seq(
-           WGeq(width_BANG(s.pred), IntWidth(1)),
-           WGeq(IntWidth(1), width_BANG(s.pred))
+           WGeq(getWidth(s.pred), IntWidth(1)),
+           WGeq(IntWidth(1), getWidth(s.pred))
         )
         case (s: Attach) =>
           v += WGeq(width_BANG(s.source), MaxWidth(s.exprs map width_BANG))

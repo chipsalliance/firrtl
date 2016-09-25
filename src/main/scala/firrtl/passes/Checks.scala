@@ -27,8 +27,6 @@ MODIFICATIONS.
 
 package firrtl.passes
 
-import com.typesafe.scalalogging.LazyLogging
-
 import firrtl._
 import firrtl.ir._
 import firrtl.PrimOps._
@@ -36,11 +34,9 @@ import firrtl.Utils._
 import firrtl.Mappers._
 import firrtl.WrappedType._
 
-// Datastructures
-import scala.collection.mutable.{HashMap, HashSet}
-
-object CheckHighForm extends Pass with LazyLogging {
+object CheckHighForm extends Pass {
   def name = "High Form Check"
+  type NameSet = collection.mutable.HashSet[String]
 
   // Custom Exceptions
   class NotUniqueException(info: Info, mname: String, name: String) extends PassException(
@@ -160,7 +156,7 @@ object CheckHighForm extends Pass with LazyLogging {
       e
     }
 
-    def checkHighFormE(info: Info, mname: String, names: HashSet[String])(e: Expression): Expression = {
+    def checkHighFormE(info: Info, mname: String, names: NameSet)(e: Expression): Expression = {
       e match {
         case e: WRef if !names(e.name) =>
           errors append new UndeclaredReferenceException(info, mname, e.name)
@@ -176,14 +172,14 @@ object CheckHighForm extends Pass with LazyLogging {
          map checkHighFormE(info, mname, names))
     }
 
-    def checkName(info: Info, mname: String, names: HashSet[String])(name: String): String = {
+    def checkName(info: Info, mname: String, names: NameSet)(name: String): String = {
       if (names(name))
         errors append new NotUniqueException(info, mname, name)
       names += name
       name
     }
 
-    def checkHighFormS(minfo: Info, mname: String, names: HashSet[String])(s: Statement): Statement = {
+    def checkHighFormS(minfo: Info, mname: String, names: NameSet)(s: Statement): Statement = {
       val info = get_info(s) match {case NoInfo => minfo case x => x}
       (s map checkName(info, mname, names)) match {
         case s: DefMemory =>
@@ -208,7 +204,7 @@ object CheckHighForm extends Pass with LazyLogging {
          map checkHighFormS(minfo, mname, names))
     }
 
-    def checkHighFormP(mname: String, names: HashSet[String])(p: Port): Port = {
+    def checkHighFormP(mname: String, names: NameSet)(p: Port): Port = {
       names += p.name
       (p.tpe map checkHighFormT(p.info, mname)
              map checkHighFormW(p.info, mname))
@@ -216,13 +212,13 @@ object CheckHighForm extends Pass with LazyLogging {
     }
 
     def checkHighFormM(m: DefModule) {
-      val names = HashSet[String]()
+      val names = new NameSet
       (m map checkHighFormP(m.name, names)
          map checkHighFormS(m.info, m.name, names))
     }
     
     c.modules foreach checkHighFormM
-    (c.modules filter (_.name == c.main)).size match {
+    c.modules count (_.name == c.main) match {
       case 1 =>
       case _ => errors append new NoTopModuleException(c.info, c.main)
     }
@@ -231,7 +227,7 @@ object CheckHighForm extends Pass with LazyLogging {
   }
 }
 
-object CheckTypes extends Pass with LazyLogging {
+object CheckTypes extends Pass {
   def name = "Check Types"
 
   // Custom Exceptions
@@ -462,6 +458,7 @@ object CheckTypes extends Pass with LazyLogging {
 
 object CheckGenders extends Pass {
   def name = "Check Genders"
+  type GenderMap = collection.mutable.HashMap[String, Gender]
 
   implicit def toStr(g: Gender): String = g match {
     case MALE => "source"
@@ -476,7 +473,7 @@ object CheckGenders extends Pass {
   def run (c:Circuit): Circuit = {
     val errors = new Errors()
 
-    def get_gender(e: Expression, genders: HashMap[String, Gender]): Gender = e match {
+    def get_gender(e: Expression, genders: GenderMap): Gender = e match {
       case (e: WRef) => genders(e.name)
       case (e: WSubIndex) => get_gender(e.exp, genders)
       case (e: WSubAccess) => get_gender(e.exp, genders)
@@ -498,14 +495,13 @@ object CheckGenders extends Pass {
       flip_rec(t, Default)
     }
 
-    def check_gender(info:Info, mname: String,
-        genders: HashMap[String,Gender], desired: Gender)(e:Expression): Expression = {
+    def check_gender(info:Info, mname: String, genders: GenderMap, desired: Gender)(e:Expression): Expression = {
       val gender = get_gender(e,genders)
       (gender, desired) match {
         case (MALE, FEMALE) =>
           errors append new WrongGender(info, mname, e.serialize, desired, gender)
         case (FEMALE, MALE) => kind(e) match {
-          case _: PortKind | _: InstanceKind if !flip_q(e.tpe) => // OK!
+          case PortKind | InstanceKind if !flip_q(e.tpe) => // OK!
           case _ =>
             errors append new WrongGender(info, mname, e.serialize, desired, gender)
         }
@@ -514,7 +510,7 @@ object CheckGenders extends Pass {
       e
    }
    
-    def check_genders_e (info:Info, mname: String, genders: HashMap[String,Gender])(e:Expression): Expression = {
+    def check_genders_e (info:Info, mname: String, genders: GenderMap)(e:Expression): Expression = {
       e match {
         case e: Mux => e map check_gender(info, mname, genders, MALE)
         case e: DoPrim => e.args map check_gender(info, mname, genders, MALE)
@@ -523,7 +519,7 @@ object CheckGenders extends Pass {
       e map check_genders_e(info, mname, genders)
     }
         
-    def check_genders_s(minfo: Info, mname: String, genders: HashMap[String,Gender])(s: Statement): Statement = {
+    def check_genders_s(minfo: Info, mname: String, genders: GenderMap)(s: Statement): Statement = {
       val info = get_info(s) match { case NoInfo => minfo case x => x }
       s match {
         case (s: DefWire) => genders(s.name) = BIGENDER
@@ -554,7 +550,7 @@ object CheckGenders extends Pass {
     }
    
     for (m <- c.modules) {
-      val genders = HashMap[String, Gender]()
+      val genders = new GenderMap
       genders ++= (m.ports map (p => p.name -> to_gender(p.direction)))
       m map check_genders_s(m.info, m.name, genders)
     }
@@ -606,12 +602,12 @@ object CheckWidths extends Pass {
             errors append new WidthTooSmall(info, mname, e.value)
           case _ =>
         }
-        case DoPrim(Bits, Seq(a), Seq(hi, lo), _) if long_BANG(a.tpe) <= hi =>
-          errors append new BitsWidthException(info, mname, hi, long_BANG(a.tpe))
-        case DoPrim(Head, Seq(a), Seq(n), _) if long_BANG(a.tpe) < n =>
-          errors append new HeadWidthException(info, mname, n, long_BANG(a.tpe))
-        case DoPrim(Tail, Seq(a), Seq(n), _) if long_BANG(a.tpe) <= n =>
-          errors append new TailWidthException(info, mname, n, long_BANG(a.tpe))
+        case DoPrim(Bits, Seq(a), Seq(hi, lo), _) if bitWidth(a.tpe) <= hi =>
+          errors append new BitsWidthException(info, mname, hi, bitWidth(a.tpe))
+        case DoPrim(Head, Seq(a), Seq(n), _) if bitWidth(a.tpe) < n =>
+          errors append new HeadWidthException(info, mname, n, bitWidth(a.tpe))
+        case DoPrim(Tail, Seq(a), Seq(n), _) if bitWidth(a.tpe) <= n =>
+          errors append new TailWidthException(info, mname, n, bitWidth(a.tpe))
         case _ =>
       }
       e map check_width_w(info, mname) map check_width_e(info, mname)

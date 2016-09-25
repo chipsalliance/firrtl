@@ -16,9 +16,77 @@ class ReplSeqMemSpec extends SimpleTransformSpec {
     new passes.ReplSeqMem(TransID(-2)),
     new MiddleFirrtlToLowFirrtl(),
     (new Transform with SimpleRun {
-     def execute(c: ir.Circuit, a: AnnotationMap) = run(c, passSeq) }),
+     def execute(c: ir.Circuit, a: AnnotationMap) = run(c, passSeq) } ),
     new EmitFirrtl(writer)
   )
+
+  "ReplSeqMem" should "generate blackbox wrappers for mems of bundle type" in {
+    val input = """
+circuit Top : 
+  module Top : 
+    input clk : Clock
+    input reset : UInt<1>
+    input head_ptr : UInt<5>
+    input tail_ptr : UInt<5>
+    input wmask : {takens : UInt<2>, history : UInt<14>, info : UInt<14>}
+    output io : {backend : {flip allocate : {valid : UInt<1>, bits : {info : {takens : UInt<2>, history : UInt<14>, info : UInt<14>}}}}, commit_entry : {valid : UInt<1>, bits : {info : {takens : UInt<2>, history : UInt<14>, info : UInt<14>}}}}
+    output io2 : {backend : {flip allocate : {valid : UInt<1>, bits : {info : {takens : UInt<2>, history : UInt<14>, info : UInt<14>}}}}, commit_entry : {valid : UInt<1>, bits : {info : {takens : UInt<2>, history : UInt<14>, info : UInt<14>}}}}
+
+    io is invalid
+    io2 is invalid
+
+    smem entries_info : {takens : UInt<2>, history : UInt<14>, info : UInt<14>}[24]
+    when io.backend.allocate.valid :
+      write mport W = entries_info[tail_ptr], clk
+      W <- io.backend.allocate.bits.info
+
+    read mport R = entries_info[head_ptr], clk
+    io.commit_entry.bits.info <- R
+
+    smem entries_info2 : {takens : UInt<2>, history : UInt<14>, info : UInt<14>}[24]
+    when io2.backend.allocate.valid :
+      write mport W1 = entries_info2[tail_ptr], clk
+      when wmask.takens :
+        W1.takens <- io.backend.allocate.bits.info.takens
+      when wmask.history :
+        W1.history <- io.backend.allocate.bits.info.history
+      when wmask.info :
+        W1.info <- io.backend.allocate.bits.info.history
+      
+    read mport R1 = entries_info2[head_ptr], clk
+    io2.commit_entry.bits.info <- R1
+""".stripMargin
+    val confLoc = "ReplSeqMemTests.confTEMP"
+    val aMap = AnnotationMap(Seq(ReplSeqMemAnnotation("-c:Top:-o:"+confLoc, TransID(-2))))
+    val writer = new java.io.StringWriter
+    compile(parse(input), aMap, writer)
+    // Check correctness of firrtl
+    parse(writer.toString)
+    (new java.io.File(confLoc)).delete()
+  }
+
+  "ReplSeqMem" should "not infinite loop if control signals are derived from registered versions of themselves" in {
+    val input = """
+circuit Top :
+  module Top :
+    input clk : Clock
+    input hsel : UInt<1>
+
+    reg p_valid : UInt<1>, clk
+    reg p_address : UInt<5>, clk
+    smem mem : UInt<8>[8][32] 
+    when hsel : 
+      when p_valid : 
+        write mport T_155 = mem[p_address], clk
+""".stripMargin
+    val confLoc = "ReplSeqMemTests.confTEMP"
+    val aMap = AnnotationMap(Seq(ReplSeqMemAnnotation("-c:Top:-o:"+confLoc, TransID(-2))))
+    val writer = new java.io.StringWriter
+    compile(parse(input), aMap, writer)
+    // Check correctness of firrtl
+    parse(writer.toString)
+    (new java.io.File(confLoc)).delete()
+  }
 
   "ReplSeqMem Utility -- getConnectOrigin" should 
       "determine connect origin across nodes/PrimOps even if ConstProp isn't performed" in {
@@ -39,7 +107,7 @@ circuit Top :
       val circuit = InferTypes.run(ToWorkingIR.run(parse(input)))
       val m = circuit.modules.head.asInstanceOf[ir.Module]
       val connects = AnalysisUtils.getConnects(m)
-      val calculatedOrigin = AnalysisUtils.getConnectOrigin(connects,"f").serialize 
+      val calculatedOrigin = AnalysisUtils.getConnectOrigin(connects)("f").serialize 
       require(calculatedOrigin == origin, s"getConnectOrigin returns incorrect origin $calculatedOrigin !")
     }
 
@@ -61,108 +129,8 @@ circuit Top :
       "bits(a, 0, 0)" -> "a"
     )
 
-    tests.foreach{ case(hurdle, origin) => checkConnectOrigin(hurdle, origin) }
+    tests foreach { case(hurdle, origin) => checkConnectOrigin(hurdle, origin) }
 
-  }
-
-  "ReplSeqMem" should "generate blackbox wrappers (no wmask, r, w ports)" in {
-    val input = """
-circuit sram6t :
-  module sram6t :
-    input clk : Clock
-    input reset : UInt<1>
-    output io : {flip en : UInt<1>, flip wen : UInt<1>, flip waddr : UInt<8>, flip wdata : UInt<32>, flip raddr : UInt<8>, rdata : UInt<32>}
-
-    io is invalid
-    smem mem : UInt<32>[128]
-    node T_0 = eq(io.wen, UInt<1>("h00"))
-    node T_1 = and(io.en, T_0)
-    wire T_2 : UInt
-    T_2 is invalid
-    when T_1 :
-      T_2 <= io.raddr
-    read mport T_3 = mem[T_2], clk
-    io.rdata <= T_3
-    node T_4 = and(io.en, io.wen)
-    when T_4 :
-      write mport T_5 = mem[io.waddr], clk
-      T_5 <= io.wdata
-""".stripMargin
-
-    val check = """
-circuit sram6t :
-  module sram6t :
-    input clk : Clock
-    input reset : UInt<1>
-    input io_en : UInt<1>
-    input io_wen : UInt<1>
-    input io_waddr : UInt<8>
-    input io_wdata : UInt<32>
-    input io_raddr : UInt<8>
-    output io_rdata : UInt<32>
-
-    inst mem of mem
-    node T_0 = eq(io_wen, UInt<1>("h0"))
-    node T_1 = and(io_en, T_0)
-    wire T_2 : UInt<8>
-    node GEN_0 = validif(T_1, io_raddr)
-    node T_4 = and(io_en, io_wen)
-    node GEN_4 = validif(T_4, io_wdata)
-    node GEN_2 = validif(T_4, io_waddr)
-    node GEN_5 = validif(T_4, clk)
-    io_rdata <= mem.R0_data
-    mem.R0_addr <= bits(T_2, 6, 0)
-    mem.R0_clk <= clk
-    mem.R0_en <= T_1
-    mem.W0_addr <= bits(GEN_2, 6, 0)
-    mem.W0_clk <= GEN_5
-    mem.W0_en <= T_4
-    mem.W0_data <= GEN_4
-    T_2 <= GEN_0
-
-  extmodule mem_ext :
-    input R0_addr : UInt<7>
-    input R0_en : UInt<1>
-    input R0_clk : Clock
-    output R0_data : UInt<32>
-    input W0_addr : UInt<7>
-    input W0_en : UInt<1>
-    input W0_clk : Clock
-    input W0_data : UInt<32>
-  
-
-  module mem :
-    input R0_addr : UInt<7>
-    input R0_en : UInt<1>
-    input R0_clk : Clock
-    output R0_data : UInt<32>
-    input W0_addr : UInt<7>
-    input W0_en : UInt<1>
-    input W0_clk : Clock
-    input W0_data : UInt<32>
-
-    inst mem_ext of mem_ext
-    mem_ext.R0_addr <= R0_addr
-    mem_ext.R0_en <= R0_en
-    mem_ext.R0_clk <= R0_clk
-    R0_data <= mem_ext.R0_data
-    mem_ext.W0_addr <= W0_addr
-    mem_ext.W0_en <= W0_en
-    mem_ext.W0_clk <= W0_clk
-    mem_ext.W0_data <= W0_data
-""".stripMargin
-
-    val checkConf = """name mem_ext depth 128 width 32 ports write,read  """
-    
-    def read(file: String) = scala.io.Source.fromFile(file).getLines.mkString("\n")
-    
-    val confLoc = "ReplSeqMemTests.confTEMP"
-    val aMap = AnnotationMap(Seq(ReplSeqMemAnnotation("-c:sram6t:-o:"+confLoc, TransID(-2))))
-    val writer = new java.io.StringWriter
-    execute(writer, aMap, input, check)
-    val confOut = read(confLoc)
-    require(confOut==checkConf, "Conf file incorrect!")
-    (new java.io.File(confLoc)).delete()
   }
 }
 

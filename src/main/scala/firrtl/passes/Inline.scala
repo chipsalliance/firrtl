@@ -1,12 +1,12 @@
 package firrtl
 package passes
 
+import firrtl.ir._
+import firrtl.Mappers._
+import firrtl.Annotations._
+
 // Datastructures
 import scala.collection.mutable
-
-import firrtl.ir._
-import firrtl.Annotations._
-import firrtl.Mappers.{ExpMap, StmtMap}
 
 // Tags an annotation to be consumed by this pass
 case class InlineAnnotation(target: Named, tID: TransID) extends Annotation with Loose with Unstable {
@@ -72,11 +72,11 @@ class InlineInstances (transID: TransID) extends Transform {
       }
 
       moduleNames.foreach{mn => checkExists(mn.name)}
-      if (!errors.isEmpty) throw new PassExceptions(errors)
+      if (errors.nonEmpty) throw new PassExceptions(errors)
       moduleNames.foreach{mn => checkExternal(mn.name)}
-      if (!errors.isEmpty) throw new PassExceptions(errors)
+      if (errors.nonEmpty) throw new PassExceptions(errors)
       instanceNames.foreach{cn => checkInstance(cn)}
-      if (!errors.isEmpty) throw new PassExceptions(errors)
+      if (errors.nonEmpty) throw new PassExceptions(errors)
    }
 
    def run(c: Circuit, modsToInline: Set[ModuleName], instsToInline: Set[ComponentName]): TransformResult = {
@@ -106,7 +106,7 @@ class InlineInstances (transID: TransID) extends Transform {
                if (inlinedInstances.contains(ref)) {
                   val newName = ref + inlineDelim + field
                   set(ComponentName(ref, ModuleName(m.name, cname)), Seq.empty)
-                  WRef(newName, tpe, WireKind(), gen)
+                  WRef(newName, tpe, WireKind, gen)
                }
                else e
             }

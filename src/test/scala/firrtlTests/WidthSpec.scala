@@ -31,52 +31,57 @@ import java.io._
 import org.scalatest._
 import org.scalatest.prop._
 import firrtl._
+import firrtl.ir.Circuit
 import firrtl.passes._
-import firrtl.ir._
 import firrtl.Parser.IgnoreInfo
 
-class ExpandWhensSpec extends FirrtlFlatSpec {
-  private def parse(input: String) = Parser.parse(input.split("\n").toIterator, IgnoreInfo)
-  private def executeTest(input: String, notExpected: String, passes: Seq[Pass]) = {
+class WidthSpec extends FirrtlFlatSpec {
+  def parse (input:String) = Parser.parse(input.split("\n").toIterator, IgnoreInfo)
+  private def executeTest(input: String, expected: Seq[String], passes: Seq[Pass]) = {
     val c = passes.foldLeft(Parser.parse(input.split("\n").toIterator)) {
       (c: Circuit, p: Pass) => p.run(c)
     }
     val lines = c.serialize.split("\n") map normalized
 
-    lines foreach { l =>
-      l.contains(notExpected) should be (false)
+    expected foreach { e =>
+      lines should contain(e)
     }
   }
-  "Expand Whens" should "compile and run" in {
-    runFirrtlTest("ExpandWhens", "/passes/ExpandWhens")
-  }
-  "Expand Whens" should "not emit INVALID" in {
+
+  "Add of UInt<2> and SInt<2>" should "return SInt<4>" in {
     val passes = Seq(
       ToWorkingIR,
       CheckHighForm,
       ResolveKinds,
       InferTypes,
       CheckTypes,
-      Uniquify,
+      InferWidths)
+    val input =
+      """circuit Unit :
+        |  module Unit :
+        |    input x: UInt<2>
+        |    input y: SInt<2>
+        |    output z: SInt
+        |    z <= add(x, y)""".stripMargin
+    val check = Seq( "output z : SInt<4>")
+    executeTest(input, check, passes)
+  }
+  "SInt<2> - UInt<3>" should "return SInt<5>" in {
+    val passes = Seq(
+      ToWorkingIR,
+      CheckHighForm,
       ResolveKinds,
       InferTypes,
-      ResolveGenders,
-      CheckGenders,
-      InferWidths,
-      CheckWidths,
-      PullMuxes,
-      ExpandConnects,
-      RemoveAccesses,
-      ExpandWhens)
+      CheckTypes,
+      InferWidths)
     val input =
-  """|circuit Tester : 
-     |  module Tester :
-     |    input p : UInt<1>
-     |    when p :
-     |      wire a : {b : UInt<64>, c : UInt<64>}
-     |      a is invalid
-     |      a.b <= UInt<64>("h04000000000000000")""".stripMargin
-    val check = "INVALID"
+      """circuit Unit :
+        |  module Unit :
+        |    input x: UInt<3>
+        |    input y: SInt<2>
+        |    output z: SInt
+        |    z <= sub(y, x)""".stripMargin
+    val check = Seq( "output z : SInt<5>")
     executeTest(input, check, passes)
   }
 }

@@ -132,25 +132,25 @@ object PrimOps extends LazyLogging {
       case (IntWidth(i), IntWidth(j)) => IntWidth(min(i,j))
       case _ => MinWidth(Seq(w1, w2))
     }
-    def t1 = e.args(0).tpe
+    def t1 = e.args.head.tpe
     def t2 = e.args(1).tpe
     def t3 = e.args(2).tpe
-    def w1 = Utils.width_BANG(e.args(0).tpe)
-    def w2 = Utils.width_BANG(e.args(1).tpe)
-    def c1 = IntWidth(e.consts(0))
+    def w1 = passes.getWidth(e.args.head.tpe)
+    def w2 = passes.getWidth(e.args(1).tpe)
+    def c1 = IntWidth(e.consts.head)
     def c2 = IntWidth(e.consts(1))
     e copy (tpe = (e.op match {
       case Add => (t1, t2) match {
         case (_: UIntType, _: UIntType) => UIntType(PLUS(MAX(w1, w2), IntWidth(1)))
-        case (_: UIntType, _: SIntType) => SIntType(PLUS(MAX(w1, w2), IntWidth(1)))
-        case (_: SIntType, _: UIntType) => SIntType(PLUS(MAX(w1, w2), IntWidth(1)))
+        case (_: UIntType, _: SIntType) => SIntType(PLUS(MAX(w1, MINUS(w2, IntWidth(1))), IntWidth(2)))
+        case (_: SIntType, _: UIntType) => SIntType(PLUS(MAX(w2, MINUS(w1, IntWidth(1))), IntWidth(2)))
         case (_: SIntType, _: SIntType) => SIntType(PLUS(MAX(w1, w2), IntWidth(1)))
         case _ => UnknownType
       }
       case Sub => (t1, t2) match {
         case (_: UIntType, _: UIntType) => SIntType(PLUS(MAX(w1, w2), IntWidth(1)))
-        case (_: UIntType, _: SIntType) => SIntType(PLUS(MAX(w1, w2), IntWidth(1)))
-        case (_: SIntType, _: UIntType) => SIntType(PLUS(MAX(w1, w2), IntWidth(1)))
+        case (_: UIntType, _: SIntType) => SIntType(MAX(PLUS(w2, IntWidth(1)), PLUS(w1, IntWidth(2))))
+        case (_: SIntType, _: UIntType) => SIntType(MAX(PLUS(w1, IntWidth(1)), PLUS(w2, IntWidth(2))))
         case (_: SIntType, _: SIntType) => SIntType(PLUS(MAX(w1, w2), IntWidth(1)))
         case _ => UnknownType
       }

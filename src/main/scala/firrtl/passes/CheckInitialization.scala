@@ -69,7 +69,7 @@ object CheckInitialization extends Pass {
         var void = false
         val voidDeps = collection.mutable.ArrayBuffer[Expression]()
         def hasVoid(e: Expression): Expression = e match {
-          case e: WVoid =>
+          case WVoid =>
             void = true
             e
           case (_: WRef | _: WSubField) =>
@@ -92,7 +92,7 @@ object CheckInitialization extends Pass {
           case node: DefNode =>
             val (hasVoid, voidDeps) = hasVoidExpr(node.value)
             if (hasVoid) {
-              val nodeRef = WRef(node.name, node.value.tpe, NodeKind(), MALE)
+              val nodeRef = WRef(node.name, node.value.tpe, NodeKind, MALE)
               voidExprs(nodeRef) = VoidExpr(node, voidDeps)
             }
             node

@@ -15,7 +15,7 @@ object RemoveAccesses extends Pass {
   def name = "Remove Accesses"
 
   private def AND(e1: Expression, e2: Expression) =
-    DoPrim(And, Seq(e1, e2), Nil, UIntType(IntWidth(1)))
+    DoPrim(And, Seq(e1, e2), Nil, BoolType)
 
   private def EQV(e1: Expression, e2: Expression): Expression =
     DoPrim(Eq, Seq(e1, e2), Nil, e1.tpe)
@@ -115,7 +115,7 @@ object RemoveAccesses extends Pass {
         def removeFemale(info: Info, loc: Expression): Expression = loc match {
           case (_: WSubAccess| _: WSubField| _: WSubIndex| _: WRef) if (hasAccess(loc)) => 
             val ls = getLocations(loc)
-            if (ls.size == 1 & weq(ls(0).guard,one)) loc
+            if (ls.size == 1 & weq(ls.head.guard,one)) loc
             else {
               val (wire, temp) = create_temp(loc)
               stmts += wire
