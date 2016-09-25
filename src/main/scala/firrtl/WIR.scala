@@ -188,6 +188,10 @@ class WrappedType(val t: Type) {
       case (_: UIntType, _: UIntType) => true
       case (_: SIntType, _: SIntType) => true
       case (ClockType, ClockType) => true
+      // Analog totally skips out of the Firrtl type system.
+      // The only way Analog can play with another Analog component is through Attach.
+      // Ohterwise, we'd need to special case it during ExpandWhens, Lowering,
+      // ExpandConnects, etc.
       case (_: AnalogType, _: AnalogType) => false
       case (t1: VectorType, t2: VectorType) =>
         t1.size == t2.size && wt(t1.tpe) == wt(t2.tpe)
