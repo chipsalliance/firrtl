@@ -88,11 +88,11 @@ class ReplaceMemMacros(writer: ConfWriter) extends Pass {
         m.writers foreach { w => memPortMap(s"${m.name}.$w.mask") = EmptyExpression }
         m.readwriters foreach { w => memPortMap(s"${m.name}.$w.wmask") = EmptyExpression }
       }
-      val info = getInfo(m.info, "info") match {
+      val info = (getInfo(m.info, "info"): @unchecked) match {
         case None => NoInfo
         case Some(p: Info) => p
       }
-      getInfo(m.info, "ref") match {
+      (getInfo(m.info, "ref"): @unchecked) match {
         case None =>
           // prototype mem
           val newWrapperName = namespace newName m.name
