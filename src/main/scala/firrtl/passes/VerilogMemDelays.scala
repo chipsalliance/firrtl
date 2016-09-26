@@ -60,12 +60,8 @@ object VerilogMemDelays extends Pass {
       repl: Netlist)
       (s: Statement): Statement = s map memDelayStmt(netlist, namespace, repl) match {
     case s: DefMemory =>
-      val ports = (s.readers ++ s.writers).toSet
-      def newPortName(rw: String, p: String) = (for {
-        idx <- Stream from 0
-        newName = s"${rw}_${p}_${idx}"
-        if !ports(newName)
-      } yield newName).head
+      lazy val pnamespace = Namespace(s.readers ++ s.writers ++ s.readwriters)
+      def newPortName(rw: String, p: String) = pnamespace newName s"${rw}_$p"
       val rwMap = (s.readwriters map (rw =>
         rw -> (newPortName(rw, "r"), newPortName(rw, "w")))).toMap
       // 1. readwrite ports are split into read & write ports
@@ -121,7 +117,6 @@ object VerilogMemDelays extends Pass {
         Connect(NoInfo, memPortField(mem, writer, "addr"), addr),
         Connect(NoInfo, memPortField(mem, writer, "data"), data)
       )
- 
 
       Block(mem +: ((s.readers flatMap {reader =>
         // generate latency pipes for read ports (enable & addr)
