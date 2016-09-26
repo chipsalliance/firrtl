@@ -145,10 +145,13 @@ class EmitVerilogFromLowFirrtl(val writer: Writer) extends Transform with Simple
     passes.ConstProp,
     passes.Legalize,
     passes.VerilogWrap,
+    passes.VerilogMemDelays,
+    passes.ConstProp,
     passes.SplitExpressions,
     passes.CommonSubexpressionElimination,
     passes.DeadCodeElimination,
-    passes.VerilogRename)
+    passes.VerilogRename,
+    passes.VerilogPrep)
   def execute(circuit: Circuit, annotationMap: AnnotationMap): TransformResult = {
     val result = run(circuit, passSeq)
     (new VerilogEmitter).run(result.circuit, writer)
