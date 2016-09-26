@@ -35,11 +35,12 @@ object ResolveKinds extends Pass {
   def name = "Resolve Kinds"
   type KindMap = collection.mutable.LinkedHashMap[String, Kind]
 
-  def find_port(kinds: KindMap)(p: Port): Port = {
-    kinds(p.name) = PortKind ; p
+  def findPort(kinds: KindMap)(p: Port): Port = {
+    kinds(p.name) = PortKind
+    p
   }
 
-  def find_stmt(kinds: KindMap)(s: Statement):Statement = {
+  def findStmt(kinds: KindMap)(s: Statement):Statement = {
     s match {
       case s: DefWire => kinds(s.name) = WireKind
       case s: DefNode => kinds(s.name) = NodeKind
@@ -48,66 +49,64 @@ object ResolveKinds extends Pass {
       case s: DefMemory => kinds(s.name) = MemKind
       case s =>
     } 
-    s map find_stmt(kinds)
+    s map findStmt(kinds)
   }
 
-  def resolve_expr(kinds: KindMap)(e: Expression): Expression = e match {
+  def resolveExpr(kinds: KindMap)(e: Expression): Expression = e match {
     case e: WRef => e copy (kind = kinds(e.name))
-    case e => e map resolve_expr(kinds)
+    case e => e map resolveExpr(kinds)
   }
 
-  def resolve_stmt(kinds: KindMap)(s: Statement): Statement =
-    s map resolve_stmt(kinds) map resolve_expr(kinds)
+  def resolveStmt(kinds: KindMap)(s: Statement): Statement =
+    s map resolveStmt(kinds) map resolveExpr(kinds)
 
-  def resolve_kinds(m: DefModule): DefModule = {
+  def resolveKinds(m: DefModule): DefModule = {
     val kinds = new KindMap
-    (m map find_port(kinds)
-       map find_stmt(kinds)
-       map resolve_stmt(kinds))
+    m map findPort(kinds) map findStmt(kinds) map resolveStmt(kinds)
   }
  
   def run(c: Circuit): Circuit =
-    c copy (modules = (c.modules map resolve_kinds))
+    c copy (modules = c.modules map resolveKinds)
 }
 
 object ResolveGenders extends Pass {
   def name = "Resolve Genders"
-  def resolve_e(g: Gender)(e: Expression): Expression = e match {
+  def resolveE(g: Gender)(e: Expression): Expression = e match {
     case e: WRef => e copy (gender = g)
     case WSubField(exp, name, tpe, _) => WSubField(
       Utils.field_flip(exp.tpe, name) match {
-        case Default => resolve_e(g)(exp)
-        case Flip => resolve_e(Utils.swap(g))(exp)
+        case Default => resolveE(g)(exp)
+        case Flip => resolveE(Utils.swap(g))(exp)
       }, name, tpe, g)
     case WSubIndex(exp, value, tpe, _) =>
-      WSubIndex(resolve_e(g)(exp), value, tpe, g)
+      WSubIndex(resolveE(g)(exp), value, tpe, g)
     case WSubAccess(exp, index, tpe, _) =>
-      WSubAccess(resolve_e(g)(exp), resolve_e(MALE)(index), tpe, g)
-    case e => e map resolve_e(g)
+      WSubAccess(resolveE(g)(exp), resolveE(MALE)(index), tpe, g)
+    case e => e map resolveE(g)
   }
         
-  def resolve_s(s: Statement): Statement = s match {
+  def resolveS(s: Statement): Statement = s match {
     //TODO(azidar): pretty sure don't need to do anything for Attach, but not positive...
     case IsInvalid(info, expr) =>
-      IsInvalid(info, resolve_e(FEMALE)(expr))
+      IsInvalid(info, resolveE(FEMALE)(expr))
     case Connect(info, loc, expr) =>
-      Connect(info, resolve_e(FEMALE)(loc), resolve_e(MALE)(expr))
+      Connect(info, resolveE(FEMALE)(loc), resolveE(MALE)(expr))
     case PartialConnect(info, loc, expr) =>
-      PartialConnect(info, resolve_e(FEMALE)(loc), resolve_e(MALE)(expr))
-    case s => s map resolve_e(MALE) map resolve_s
+      PartialConnect(info, resolveE(FEMALE)(loc), resolveE(MALE)(expr))
+    case s => s map resolveE(MALE) map resolveS
   }
 
-  def resolve_gender(m: DefModule): DefModule = m map resolve_s
+  def resolveGender(m: DefModule): DefModule = m map resolveS
 
   def run(c: Circuit): Circuit =
-    c copy (modules = (c.modules map resolve_gender))
+    c copy (modules = c.modules map resolveGender)
 }
 
 object CInferMDir extends Pass {
   def name = "CInfer MDir"
   type MPortDirMap = collection.mutable.LinkedHashMap[String, MPortDir]
 
-  def infer_mdir_e(mports: MPortDirMap, dir: MPortDir)(e: Expression): Expression = e match {
+  def inferMDirE(mports: MPortDirMap, dir: MPortDir)(e: Expression): Expression = e match {
     case e: Reference =>
       mports get e.name match {
         case None =>
@@ -132,37 +131,37 @@ object CInferMDir extends Pass {
       }
       e
     case e: SubAccess =>
-      infer_mdir_e(mports, dir)(e.expr)
-      infer_mdir_e(mports, MRead)(e.index) // index can't be a write port
+      inferMDirE(mports, dir)(e.expr)
+      inferMDirE(mports, MRead)(e.index) // index can't be a write port
       e
-    case e => e map infer_mdir_e(mports, dir)
+    case e => e map inferMDirE(mports, dir)
   }
 
-  def infer_mdir_s(mports: MPortDirMap)(s: Statement): Statement = s match { 
+  def inferMDirS(mports: MPortDirMap)(s: Statement): Statement = s match { 
     case s: CDefMPort =>
        mports(s.name) = s.direction
-       s map infer_mdir_e(mports, MRead)
+       s map inferMDirE(mports, MRead)
     case s: Connect =>
-       infer_mdir_e(mports, MRead)(s.expr)
-       infer_mdir_e(mports, MWrite)(s.loc)
+       inferMDirE(mports, MRead)(s.expr)
+       inferMDirE(mports, MWrite)(s.loc)
        s
     case s: PartialConnect =>
-       infer_mdir_e(mports, MRead)(s.expr)
-       infer_mdir_e(mports, MWrite)(s.loc)
+       inferMDirE(mports, MRead)(s.expr)
+       inferMDirE(mports, MWrite)(s.loc)
        s
-    case s => s map infer_mdir_s(mports) map infer_mdir_e(mports, MRead)
+    case s => s map inferMDirS(mports) map inferMDirE(mports, MRead)
   }
         
-  def set_mdir_s(mports: MPortDirMap)(s: Statement): Statement = s match { 
+  def setMDirS(mports: MPortDirMap)(s: Statement): Statement = s match { 
     case s: CDefMPort => s copy (direction = mports(s.name))
-    case s => s map set_mdir_s(mports)
+    case s => s map setMDirS(mports)
   }
   
-  def infer_mdir(m: DefModule): DefModule = {
+  def inferMDir(m: DefModule): DefModule = {
     val mports = new MPortDirMap
-    m map infer_mdir_s(mports) map set_mdir_s(mports)
+    m map inferMDirS(mports) map setMDirS(mports)
   }
      
   def run(c: Circuit): Circuit =
-    c copy (modules = (c.modules map infer_mdir))
+    c copy (modules = c.modules map inferMDir)
 }
