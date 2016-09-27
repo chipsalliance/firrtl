@@ -28,9 +28,7 @@ MODIFICATIONS.
 package firrtlTests
 package fixed
 
-import java.io._
-import org.scalatest._
-import org.scalatest.prop._
+import firrtl.Annotations.AnnotationMap
 import firrtl._
 import firrtl.ir.Circuit
 import firrtl.passes._
@@ -192,6 +190,31 @@ class RemoveFixedTypeSpec extends FirrtlFlatSpec {
         |    output d : SInt<11>
         |    d <= shl(a, 1)""".stripMargin
     executeTest(input, check.split("\n") map normalized, passes)
+  }
+
+  "Fixed point numbers" should "allow binary point to be set to zero at creation" in {
+    val input =
+      """
+        |circuit Unit :
+        |  module Unit :
+        |    input clk : Clock
+        |    input reset : UInt<1>
+        |    input io_in : Fixed<6><<0>>
+        |    output io_out : Fixed
+        |
+        |    io_in is invalid
+        |    io_out is invalid
+        |    io_out <= io_in
+      """.stripMargin
+
+    class CheckChirrtlTransform extends Transform with SimpleRun {
+      val passSeq = Seq(passes.CheckChirrtl)
+      def execute (circuit: Circuit, annotationMap: AnnotationMap): TransformResult =
+        run(circuit, passSeq)
+    }
+
+    val chirrtlTransform = new CheckChirrtlTransform
+    chirrtlTransform.execute(parse(input), new AnnotationMap(Seq.empty))
   }
 }
 

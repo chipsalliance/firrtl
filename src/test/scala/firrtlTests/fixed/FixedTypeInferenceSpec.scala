@@ -28,9 +28,6 @@ MODIFICATIONS.
 package firrtlTests
 package fixed
 
-import java.io._
-import org.scalatest._
-import org.scalatest.prop._
 import firrtl._
 import firrtl.ir.Circuit
 import firrtl.passes._
@@ -277,6 +274,46 @@ class FixedTypeInferenceSpec extends FirrtlFlatSpec {
         |    input a : SInt<10>
         |    output d : Fixed<10><<2>>
         |    d <= asFixedPoint(a, 2)""".stripMargin
+    executeTest(input, check.split("\n") map normalized, passes)
+  }
+
+  "Fixed types" should "support binary point of zero" in {
+    val passes = Seq(
+      ToWorkingIR,
+      CheckHighForm,
+      ResolveKinds,
+      InferTypes,
+      CheckTypes,
+      ResolveGenders,
+      CheckGenders,
+      InferWidths,
+      CheckWidths,
+      ConvertFixedToSInt)
+    val input =
+      """
+        |circuit Unit :
+        |  module Unit :
+        |    input clk : Clock
+        |    input reset : UInt<1>
+        |    input io_in : Fixed<6><<0>>
+        |    output io_out : Fixed<6><<0>>
+        |
+        |    io_in is invalid
+        |    io_out is invalid
+        |    io_out <= io_in
+      """.stripMargin
+    val check =
+      """
+        |circuit Unit :
+        |  module Unit :
+        |    input clk : Clock
+        |    input reset : UInt<1>
+        |    input io_in : SInt<6>
+        |    output io_out : SInt<6>
+        |
+        |    io_out <= io_in
+        |
+      """.stripMargin
     executeTest(input, check.split("\n") map normalized, passes)
   }
 }

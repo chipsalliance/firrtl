@@ -68,10 +68,9 @@ object CheckChirrtl extends Pass {
         errors append new InvalidLOCException(info, mname)
       case _ => // Do Nothing
     }
-
-    def checkChirrtlW(info: Info, mname: String)(w: Width): Width = w match {
-      case w: IntWidth if w.width <= 0 =>
-        errors append new NegWidthException(info, mname)
+    def checkChirrtlW(w: Width): Width = w match {
+      case w: IntWidth if (w.width < BigInt(0)) =>
+        errors.append(new NegWidthException(info, mname)
         w
       case _ => w
     }
