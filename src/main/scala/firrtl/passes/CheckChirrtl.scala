@@ -70,7 +70,7 @@ object CheckChirrtl extends Pass {
     }
     def checkChirrtlW(w: Width): Width = w match {
       case w: IntWidth if (w.width < BigInt(0)) =>
-        errors.append(new NegWidthException(info, mname)
+        errors.append(new NegWidthException(info, mname))
         w
       case _ => w
     }
