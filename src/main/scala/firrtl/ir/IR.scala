@@ -33,6 +33,16 @@ import Utils.indent
 /** Intermediate Representation */
 abstract class FirrtlNode {
   def serialize: String
+  def children: Seq[FirrtlNode] = this match {
+    case prod: Product => prod.productIterator.toList flatMap {
+      case fn: FirrtlNode => List(fn)
+      case it: Iterable[_] => it collect { case fn: FirrtlNode => fn }
+      case _ => List.empty[FirrtlNode]
+    }
+    case other => throw new Exception(s"Unexpected FirrtlNode $this that doesn't implement Product!")
+  }
+  def foldLeft[B](z: B)(op: (B, FirrtlNode) => B): B =
+    this.children.foldLeft(z)(op)
 }
 
 abstract class Info extends FirrtlNode {
