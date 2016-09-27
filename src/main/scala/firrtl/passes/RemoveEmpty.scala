@@ -2,7 +2,7 @@ package firrtl
 package passes
 
 import scala.collection.mutable
-import firrtl.Mappers.{ExpMap, StmtMap}
+import firrtl.Mappers._
 import firrtl.ir._
 
 object RemoveEmpty extends Pass {
@@ -13,7 +13,5 @@ object RemoveEmpty extends Pass {
       case m: ExtModule => m
     }
   }
-  def run(c: Circuit): Circuit = Circuit(c.info, c.modules.map(onModule _), c.main)
+  def run(c: Circuit): Circuit = Circuit(c.info, c.modules.map(onModule), c.main)
 }
-
-// vim: set ts=4 sw=4 et:

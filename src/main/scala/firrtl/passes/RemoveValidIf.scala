@@ -1,6 +1,6 @@
 package firrtl
 package passes
-import firrtl.Mappers.{ExpMap, StmtMap}
+import firrtl.Mappers._
 import firrtl.ir._
 
 // Removes ValidIf as an optimization
@@ -23,5 +23,5 @@ object RemoveValidIf extends Pass {
       }
    }
 
-   def run(c: Circuit): Circuit = Circuit(c.info, c.modules.map(onModule _), c.main)
+   def run(c: Circuit): Circuit = Circuit(c.info, c.modules.map(onModule), c.main)
 }

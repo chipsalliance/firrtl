@@ -5,7 +5,7 @@ import firrtl.PrimOps._
 import firrtl.ir._
 import firrtl._
 import firrtl.Mappers._
-import firrtl.Utils.{get_type, sub_type, module_type, field_type, BoolType, max, min, pow_minus_one}
+import firrtl.Utils.{sub_type, module_type, field_type, BoolType, max, min, pow_minus_one}
 
 /** Replaces FixedType with SIntType, and correctly aligns all binary points
   */
@@ -78,7 +78,7 @@ object ConvertFixedToSInt extends Pass {
           DefNode(info, name, newValue)
         case DefMemory(info, name, dt, depth, wL, rL, rs, ws, rws, ruw) =>
           val newStmt = DefMemory(info, name, toSIntType(dt), depth, wL, rL, rs, ws, rws, ruw)
-          val newType = get_type(newStmt)
+          val newType = MemPortUtils.memType(newStmt)
           types(name) = newType
           newStmt
         case WDefInstance(info, name, module, tpe) =>
