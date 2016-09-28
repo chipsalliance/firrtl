@@ -112,13 +112,13 @@ object CheckHighForm extends Pass {
     def checkFstring(info: Info, mname: String, s: StringLit, i: Int) {
       val validFormats = "bdxc"
       val (percent, npercents) = (s.array foldLeft (false, 0)){
-        case ((percent, n), b) if percent && (validFormats contains b) =>
+        case ((percentx, n), b) if percentx && (validFormats contains b) =>
           (false, n + 1)
-        case ((percent, n), b) if percent && b != '%' =>
+        case ((percentx, n), b) if percentx && b != '%' =>
           errors append new BadPrintfException(info, mname, b.toChar)
           (false, n)
-        case ((percent, n), b) =>
-          (if (b == '%') !percent else false /* %% -> percent = false */, n)
+        case ((percentx, n), b) =>
+          (if (b == '%') !percentx else false /* %% -> percentx = false */, n)
       }
       if (percent) errors append new BadPrintfTrailingException(info, mname)
       if (npercents != i) errors append new BadPrintfIncorrectNumException(info, mname)
@@ -132,16 +132,16 @@ object CheckHighForm extends Pass {
 
     def checkHighFormW(info: Info, mname: String)(w: Width): Width = {
       w match {
-        case w: IntWidth if w.width <= 0 =>
+        case wx: IntWidth if wx.width <= 0 =>
           errors append new NegWidthException(info, mname)
-        case w => // Do nothing
+        case wx => // Do nothing
       }
       w
     }
 
     def checkHighFormT(info: Info, mname: String)(t: Type): Type = {
       t match {
-        case t: VectorType if t.size < 0 => 
+        case tx: VectorType if tx.size < 0 =>
           errors append new NegVecSizeException(info, mname)
         case _ => // Do nothing
       }
@@ -158,14 +158,14 @@ object CheckHighForm extends Pass {
 
     def checkHighFormE(info: Info, mname: String, names: NameSet)(e: Expression): Expression = {
       e match {
-        case e: WRef if !names(e.name) =>
-          errors append new UndeclaredReferenceException(info, mname, e.name)
-        case e: UIntLiteral if e.value < 0 =>
+        case ex: WRef if !names(ex.name) =>
+          errors append new UndeclaredReferenceException(info, mname, ex.name)
+        case ex: UIntLiteral if ex.value < 0 =>
           errors append new NegUIntException(info, mname)
-        case e: DoPrim => checkHighFormPrimop(info, mname, e)
+        case ex: DoPrim => checkHighFormPrimop(info, mname, ex)
         case _: WRef | _: UIntLiteral | _: Mux | _: ValidIf =>
-        case e: WSubAccess => validSubexp(info, mname)(e.exp)
-        case e => e map validSubexp(info, mname)
+        case ex: WSubAccess => validSubexp(info, mname)(ex.exp)
+        case ex => ex map validSubexp(info, mname)
       }
       (e map checkHighFormW(info, mname)
          map checkHighFormT(info, mname)

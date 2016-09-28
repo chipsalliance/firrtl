@@ -104,9 +104,9 @@ object Uniquify extends Pass {
       namespace: collection.mutable.HashSet[String])
       (implicit sinfo: Info, mname: String): BundleType = {
     def recUniquifyNames(t: Type, namespace: collection.mutable.HashSet[String]): Type = t match {
-      case t: BundleType =>
+      case tx: BundleType =>
         // First add everything
-        val newFields = t.fields map { f =>
+        val newFields = tx.fields map { f =>
           val newName = findValidPrefix(f.name, Seq(""), namespace)
           namespace += newName
           Field(newName, f.flip, f.tpe)
@@ -128,13 +128,13 @@ object Uniquify extends Pass {
           }
         }
         BundleType(newFields)
-      case t: VectorType =>
-        VectorType(recUniquifyNames(t.tpe, namespace), t.size)
-      case t => t
+      case tx: VectorType =>
+        VectorType(recUniquifyNames(tx.tpe, namespace), tx.size)
+      case tx => tx
     }
     recUniquifyNames(t, namespace) match {
-      case t: BundleType => t
-      case t => error("Shouldn't be here")
+      case tx: BundleType => tx
+      case tx => error("Shouldn't be here")
     }
   }
 

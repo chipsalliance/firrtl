@@ -105,8 +105,8 @@ object LowerTypes extends Pass {
       // (Connect/IsInvalid must already have been split to ground types)
       case "data" | "mask" | "rdata" | "wdata" | "wmask" =>
         val loMem = tail match {
-          case Some(e) =>
-            val loMemExp = mergeRef(mem, e)
+          case Some(ex) =>
+            val loMemExp = mergeRef(mem, ex)
             val loMemName = loweredName(loMemExp)
             WRef(loMemName, UnknownType, kind(mem), UNKNOWNGENDER)
           case None => mem
