@@ -80,34 +80,34 @@ object PullMuxes extends Pass {
    def name = "Pull Muxes"
    def run(c: Circuit): Circuit = {
      def pull_muxes_e(e: Expression): Expression = {
-       val ex = e map pull_muxes_e match {
-         case (e: WSubField) => e.exp match {
-           case (ex: Mux) => Mux(ex.cond,
-              WSubField(ex.tval, e.name, e.tpe, e.gender),
-              WSubField(ex.fval, e.name, e.tpe, e.gender), e.tpe)
-           case (ex: ValidIf) => ValidIf(ex.cond,
-              WSubField(ex.value, e.name, e.tpe, e.gender), e.tpe)
-           case (ex) => e
+       val exxx = e map pull_muxes_e match {
+         case ex: WSubField => ex.exp match {
+           case exx: Mux => Mux(exx.cond,
+              WSubField(exx.tval, ex.name, ex.tpe, ex.gender),
+              WSubField(exx.fval, ex.name, ex.tpe, ex.gender), ex.tpe)
+           case exx: ValidIf => ValidIf(exx.cond,
+              WSubField(exx.value, ex.name, ex.tpe, ex.gender), ex.tpe)
+           case _ => ex
          }
-         case (e: WSubIndex) => e.exp match {
-           case (ex: Mux) => Mux(ex.cond,
-              WSubIndex(ex.tval, e.value, e.tpe, e.gender),
-              WSubIndex(ex.fval, e.value, e.tpe, e.gender), e.tpe)
-           case (ex: ValidIf) => ValidIf(ex.cond,
-              WSubIndex(ex.value, e.value, e.tpe, e.gender), e.tpe)
-           case (ex) => e
+         case ex: WSubIndex => ex.exp match {
+           case exx: Mux => Mux(exx.cond,
+              WSubIndex(exx.tval, ex.value, ex.tpe, ex.gender),
+              WSubIndex(exx.fval, ex.value, ex.tpe, ex.gender), ex.tpe)
+           case exx: ValidIf => ValidIf(exx.cond,
+              WSubIndex(exx.value, ex.value, ex.tpe, ex.gender), ex.tpe)
+           case _ => ex
          }
-         case (e: WSubAccess) => e.exp match {
-           case (ex: Mux) => Mux(ex.cond,
-              WSubAccess(ex.tval, e.index, e.tpe, e.gender),
-              WSubAccess(ex.fval, e.index, e.tpe, e.gender), e.tpe)
-           case (ex: ValidIf) => ValidIf(ex.cond,
-              WSubAccess(ex.value, e.index, e.tpe, e.gender), e.tpe)
-           case (ex) => e
+         case ex: WSubAccess => ex.exp match {
+           case exx: Mux => Mux(exx.cond,
+              WSubAccess(exx.tval, ex.index, ex.tpe, ex.gender),
+              WSubAccess(exx.fval, ex.index, ex.tpe, ex.gender), ex.tpe)
+           case exx: ValidIf => ValidIf(exx.cond,
+              WSubAccess(exx.value, ex.index, ex.tpe, ex.gender), ex.tpe)
+           case _ => ex
          }
-         case (e) => e
+         case _ => e
        }
-       ex map pull_muxes_e
+       exxx map pull_muxes_e
      }
      def pull_muxes(s: Statement): Statement = s map pull_muxes map pull_muxes_e
      val modulesx = c.modules.map {
