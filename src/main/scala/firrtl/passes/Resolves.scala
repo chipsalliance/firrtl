@@ -94,7 +94,7 @@ object ResolveGenders extends Pass {
       Connect(info, resolve_e(FEMALE)(loc), resolve_e(MALE)(expr))
     case PartialConnect(info, loc, expr) =>
       PartialConnect(info, resolve_e(FEMALE)(loc), resolve_e(MALE)(expr))
-    case s => s map resolve_e(MALE) map resolve_s
+    case sx => sx map resolve_e(MALE) map resolve_s
   }
 
   def resolve_gender(m: DefModule): DefModule = m map resolve_s
@@ -135,23 +135,23 @@ object CInferMDir extends Pass {
   }
 
   def infer_mdir_s(mports: MPortDirMap)(s: Statement): Statement = s match { 
-    case s: CDefMPort =>
-       mports(s.name) = s.direction
-       s map infer_mdir_e(mports, MRead)
-    case s: Connect =>
-       infer_mdir_e(mports, MRead)(s.expr)
-       infer_mdir_e(mports, MWrite)(s.loc)
-       s
-    case s: PartialConnect =>
-       infer_mdir_e(mports, MRead)(s.expr)
-       infer_mdir_e(mports, MWrite)(s.loc)
-       s
-    case s => s map infer_mdir_s(mports) map infer_mdir_e(mports, MRead)
+    case sx: CDefMPort =>
+       mports(sx.name) = sx.direction
+       sx map infer_mdir_e(mports, MRead)
+    case sx: Connect =>
+       infer_mdir_e(mports, MRead)(sx.expr)
+       infer_mdir_e(mports, MWrite)(sx.loc)
+       sx
+    case sx: PartialConnect =>
+       infer_mdir_e(mports, MRead)(sx.expr)
+       infer_mdir_e(mports, MWrite)(sx.loc)
+       sx
+    case sx => sx map infer_mdir_s(mports) map infer_mdir_e(mports, MRead)
   }
         
   def set_mdir_s(mports: MPortDirMap)(s: Statement): Statement = s match { 
-    case s: CDefMPort => s copy (direction = mports(s.name))
-    case s => s map set_mdir_s(mports)
+    case sx: CDefMPort => sx copy (direction = mports(sx.name))
+    case sx => sx map set_mdir_s(mports)
   }
   
   def infer_mdir(m: DefModule): DefModule = {
