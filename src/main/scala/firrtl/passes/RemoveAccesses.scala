@@ -63,8 +63,8 @@ object RemoveAccesses extends Pass {
     var ret: Boolean = false
     def rec_has_access(e: Expression): Expression = {
       e match {
-        case e : WSubAccess => ret = true
-        case e =>
+        case _ : WSubAccess => ret = true
+        case _ =>
       }
       e map rec_has_access
     }

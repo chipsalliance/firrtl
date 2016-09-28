@@ -73,7 +73,7 @@ object ResolveKinds extends Pass {
 object ResolveGenders extends Pass {
   def name = "Resolve Genders"
   def resolve_e(g: Gender)(e: Expression): Expression = e match {
-    case e: WRef => e copy (gender = g)
+    case ex: WRef => ex copy (gender = g)
     case WSubField(exp, name, tpe, _) => WSubField(
       Utils.field_flip(exp.tpe, name) match {
         case Default => resolve_e(g)(exp)
@@ -83,7 +83,7 @@ object ResolveGenders extends Pass {
       WSubIndex(resolve_e(g)(exp), value, tpe, g)
     case WSubAccess(exp, index, tpe, _) =>
       WSubAccess(resolve_e(g)(exp), resolve_e(MALE)(index), tpe, g)
-    case e => e map resolve_e(g)
+    case _ => e map resolve_e(g)
   }
         
   def resolve_s(s: Statement): Statement = s match {

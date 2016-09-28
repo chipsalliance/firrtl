@@ -70,16 +70,16 @@ object RemoveCHIRRTL extends Pass {
 
   def collect_smems_and_mports(mports: MPortMap, smems: SeqMemSet)(s: Statement): Statement = {
     s match {
-      case (s:CDefMemory) if s.seq => smems += s.name
-      case (s:CDefMPort) =>
-        val p = mports getOrElse (s.mem, EMPs)
-        s.direction match {
-          case MRead => p.readers += MPort(s.name, s.exps(1))
-          case MWrite => p.writers += MPort(s.name, s.exps(1))
-          case MReadWrite => p.readwriters += MPort(s.name, s.exps(1))
+      case sx: CDefMemory if sx.seq => smems += sx.name
+      case sx: CDefMPort =>
+        val p = mports getOrElse (sx.mem, EMPs)
+        sx.direction match {
+          case MRead => p.readers += MPort(sx.name, sx.exps(1))
+          case MWrite => p.writers += MPort(sx.name, sx.exps(1))
+          case MReadWrite => p.readwriters += MPort(sx.name, sx.exps(1))
         }
-        mports(s.mem) = p
-      case s =>
+        mports(sx.mem) = p
+      case _ =>
     }
     s map collect_smems_and_mports(mports, smems)
   }

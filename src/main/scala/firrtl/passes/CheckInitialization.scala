@@ -78,7 +78,7 @@ object CheckInitialization extends Pass {
               voidDeps += e
             }
             e
-          case e => e map hasVoid
+          case _ => e map hasVoid
         }
         hasVoid(e)
         (void, voidDeps)
