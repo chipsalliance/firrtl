@@ -50,19 +50,19 @@ object RemoveCHIRRTL extends Pass {
   type AddrMap = collection.mutable.HashMap[String, Expression]
 
   def create_exps(e: Expression): Seq[Expression] = e match {
-    case (e: Mux) =>
-      val e1s = create_exps(e.tval)
-      val e2s = create_exps(e.fval)
-      (e1s zip e2s) map { case (e1, e2) => Mux(e.cond, e1, e2, mux_type(e1, e2)) }
-    case (e: ValidIf) =>
-      create_exps(e.value) map (e1 => ValidIf(e.cond, e1, e1.tpe))
-    case (e) => e.tpe match {
-      case (_: GroundType) => Seq(e)
-      case (t: BundleType) => (t.fields foldLeft Seq[Expression]())((exps, f) =>
-        exps ++ create_exps(SubField(e, f.name, f.tpe)))
-      case (t: VectorType) => ((0 until t.size) foldLeft Seq[Expression]())((exps, i) =>
-        exps ++ create_exps(SubIndex(e, i, t.tpe)))
-      case UnknownType => Seq(e)
+    case ex: Mux =>
+      val e1s = create_exps(ex.tval)
+      val e2s = create_exps(ex.fval)
+      (e1s zip e2s) map { case (e1, e2) => Mux(ex.cond, e1, e2, mux_type(e1, e2)) }
+    case ex: ValidIf =>
+      create_exps(ex.value) map (e1 => ValidIf(ex.cond, e1, e1.tpe))
+    case ex => ex.tpe match {
+      case _: GroundType => Seq(ex)
+      case t: BundleType => (t.fields foldLeft Seq[Expression]())((exps, f) =>
+        exps ++ create_exps(SubField(ex, f.name, f.tpe)))
+      case t: VectorType => ((0 until t.size) foldLeft Seq[Expression]())((exps, i) =>
+        exps ++ create_exps(SubIndex(ex, i, t.tpe)))
+      case UnknownType => Seq(ex)
     }
   }
 

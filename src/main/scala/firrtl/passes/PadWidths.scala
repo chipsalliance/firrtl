@@ -53,11 +53,11 @@ object PadWidths extends Pass {
 
   // Recursive. Fixes assignments and register initialization widths
   private def onStmt(s: Statement): Statement = s map onExp match {
-    case s: Connect =>
-      s copy (expr = fixup(width(s.loc))(s.expr))
-    case s: DefRegister =>
-      s copy (init = fixup(width(s.tpe))(s.init))
-    case s => s map onStmt
+    case sx: Connect =>
+      sx copy (expr = fixup(width(sx.loc))(sx.expr))
+    case sx: DefRegister =>
+      sx copy (init = fixup(width(sx.tpe))(sx.init))
+    case _ => s map onStmt
   }
 
   def run(c: Circuit): Circuit = c copy (modules = c.modules map (_ map onStmt))

@@ -53,25 +53,25 @@ object InferWidths extends Pass {
       })
     }
     def simplify(w: Width): Width = w map simplify match {
-      case (w: MinWidth) => MinWidth(unique((w.args foldLeft Seq[Width]()){
-        case (res, w: MinWidth) => res ++ w.args
-        case (res, w) => res :+ w
+      case wx: MinWidth => MinWidth(unique((wx.args foldLeft Seq[Width]()){
+        case (res, wxx: MinWidth) => res ++ wxx.args
+        case (res, wxx) => res :+ wxx
       }))
-      case (w: MaxWidth) => MaxWidth(unique((w.args foldLeft Seq[Width]()){
-        case (res, w: MaxWidth) => res ++ w.args
-        case (res, w) => res :+ w
+      case wx: MaxWidth => MaxWidth(unique((wx.args foldLeft Seq[Width]()){
+        case (res, wxx: MaxWidth) => res ++ wxx.args
+        case (res, wxx) => res :+ wxx
       }))
-      case (w: PlusWidth) => (w.arg1, w.arg2) match {
+      case wx: PlusWidth => (wx.arg1, wx.arg2) match {
         case (w1: IntWidth, w2 :IntWidth) => IntWidth(w1.width + w2.width)
-        case _ => w
+        case _ => wx
       }
-      case (w: MinusWidth) => (w.arg1, w.arg2) match {
+      case wx: MinusWidth => (wx.arg1, wx.arg2) match {
         case (w1: IntWidth, w2: IntWidth) => IntWidth(w1.width - w2.width)
-        case _ => w
+        case _ => wx
       }
-      case (w: ExpWidth) => w.arg1 match {
-        case (w1: IntWidth) => IntWidth(BigInt((math.pow(2, w1.width.toDouble) - 1).toLong))
-        case (w1) => w
+      case wx: ExpWidth => wx.arg1 match {
+        case w1: IntWidth => IntWidth(BigInt((math.pow(2, w1.width.toDouble) - 1).toLong))
+        case _ => wx
       }
       case _ => w
     }
