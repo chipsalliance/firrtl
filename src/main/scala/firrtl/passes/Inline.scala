@@ -151,16 +151,16 @@ class InlineInstances (transID: TransID) extends Transform {
                     stmts += renameStmt(instInModule.body)
                     Block(stmts.toSeq)
                  } else s
-               case s => s map onExp map onStmt
+               case sx => sx map onExp map onStmt
             }
          m match {
             case Module(info, name, ports, body) =>
               val mx = Module(info, name, ports, onStmt(body))
               inlinedModules(name) = mx
               mx
-            case m: ExtModule =>
-              inlinedModules(m.name) = m
-              m
+            case mx: ExtModule =>
+              inlinedModules(mx.name) = mx
+              mx
          }
       }
 

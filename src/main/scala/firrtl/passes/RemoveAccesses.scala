@@ -149,7 +149,7 @@ object RemoveAccesses extends Pass {
         val sx = s match {
           case Connect(info, loc, exp) =>
             Connect(info, removeFemale(info, fixFemale(loc)), fixMale(exp))
-          case (s) => s map fixMale map onStmt
+          case sxx => sxx map fixMale map onStmt
         }
         stmts += sx
         if (stmts.size != 1) Block(stmts) else stmts(0)
