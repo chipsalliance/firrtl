@@ -86,14 +86,14 @@ class VerilogEmitter extends Emitter {
   def emit(x: Any, top: Int)(implicit w: Writer) {
     def cast(e: Expression): Any = e.tpe match {
       case (t: UIntType) => e
-      case (t: SIntType) => Seq("$signed(",e,")")
+      case (t: SIntType) => Seq("$signed(", e, ")")
       case ClockType => e
       case AnalogType(w) => e
     }
     x match {
       case (e: DoPrim) => emit(op_stream(e), top + 1)
-      case (e: Mux) => emit(Seq(e.cond," ? ",cast(e.tval)," : ",cast(e.fval)),top + 1)
-      case (e: ValidIf) => emit(Seq(cast(e.value)),top + 1)
+      case (e: Mux) => emit(Seq(e.cond, " ? ", cast(e.tval), " : ", cast(e.fval)), top + 1)
+      case (e: ValidIf) => emit(Seq(cast(e.value)), top + 1)
       case (e: WRef) => w write e.serialize
       case (e: WSubField) => w write LowerTypes.loweredName(e)
       case (e: WSubAccess) => w write s"${LowerTypes.loweredName(e.exp)}[${LowerTypes.loweredName(e.index)}]"
@@ -266,11 +266,11 @@ class VerilogEmitter extends Emitter {
       val at_clock = mutable.LinkedHashMap[Expression,ArrayBuffer[Seq[Any]]]()
       val initials = ArrayBuffer[Seq[Any]]()
       val simulates = ArrayBuffer[Seq[Any]]()
-      def declare(b: String, n: String, t: Type) = t match {
+      def declare(b: String, n: String, t: Type, a: String = "") = t match {
         case (t: VectorType) =>
-          declares += Seq(b, " ", t.tpe, " ", n, " [0:", t.size - 1, "];")
+          declares += Seq(b, " ", t.tpe, " ", n, " [0:", t.size - 1, "]", a, ";")
         case (t) =>
-          declares += Seq(b, " ", t, " ", n,";")
+          declares += Seq(b, " ", t, " ", n, a, ";")
       }
       def assign(e: Expression, value: Expression) {
         assigns += Seq("assign ", e, " = ", value, ";")
@@ -354,7 +354,7 @@ class VerilogEmitter extends Emitter {
          val nx = namespace.newTemp
          val rand = VRandom(bitWidth(t))
          val tx = SIntType(IntWidth(rand.realWidth))
-         declare("reg",nx, tx)
+         declare("reg", nx, tx)
          initials += Seq(wref(nx, tx), " = ", VRandom(bitWidth(t)), ";")
          Seq(nx, "[", bitWidth(t) - 1, ":0]")
       }
@@ -383,12 +383,12 @@ class VerilogEmitter extends Emitter {
           at_clock(clk) += Seq(tab, s"if (`${cond.get}) begin")
           at_clock(clk) += Seq("`endif")
         }
-        at_clock(clk) += Seq(tab,tab,"if (",en,") begin")
-        at_clock(clk) += Seq(tab,tab,tab,s)
-        at_clock(clk) += Seq(tab,tab,"end")
+        at_clock(clk) += Seq(tab, tab, "if (", en, ") begin")
+        at_clock(clk) += Seq(tab, tab, tab, s)
+        at_clock(clk) += Seq(tab, tab, "end")
         if (cond.nonEmpty) {
           at_clock(clk) += Seq(s"`ifdef ${cond.get}")
-          at_clock(clk) += Seq(tab,"end")
+          at_clock(clk) += Seq(tab, "end")
           at_clock(clk) += Seq("`endif")
         }
         at_clock(clk) += Seq("`endif")
@@ -408,26 +408,30 @@ class VerilogEmitter extends Emitter {
           case (AnalogType(_), _) =>
             Seq("inout", "  ", p.tpe, " ", p.name)
           case (_, Input) =>
-            Seq(p.direction, "  ", p.tpe, " ", p.name)
+            Seq(p.direction, "  ", p.tpe, " ", p.name, " /* verilator public_flat */")
           case (_, Output) =>
             val ex = WRef(p.name, p.tpe, PortKind, FEMALE)
             assign(ex, netlist(ex))
-            Seq(p.direction, " ", p.tpe, " ", p.name)
+            Seq(p.direction, " ", p.tpe, " ", p.name, " /* verilator public_flat_rd */")
         }
       }
 
       def build_streams(s: Statement): Statement = s map build_streams match {
-        case (s: DefWire) => 
-          declare("wire",s.name,s.tpe)
-          val e = wref(s.name,s.tpe)
+        case (s: DefWire) =>
+          val a = if (!(s.name startsWith "T_") && !(s.name startsWith "GEN_"))
+            " /* verilator public_flat_rd */" else ""
+          val e = wref(s.name, s.tpe)
+          declare("wire", s.name, s.tpe, a)
           netlist get e match {
-            case Some(n) => assign(e,n)
+            case Some(n) => assign(e, n)
             case None =>
           }
           s
         case (s: DefRegister) =>
-          declare("reg", s.name, s.tpe)
+          val a = if (!(s.name startsWith "T_") && !(s.name startsWith "GEN_"))
+            " /* verilator public_flat */" else ""
           val e = wref(s.name, s.tpe)
+          declare("reg", s.name, s.tpe, a)
           update_and_reset(e, s.clock, s.reset, s.init)
           initialize(e)
           s
@@ -437,7 +441,9 @@ class VerilogEmitter extends Emitter {
           initialize(wref)
           s
         case (s: DefNode) =>
-          declare("wire", s.name, s.value.tpe)
+          val a = if (!(s.name startsWith "T_") && !(s.name startsWith "GEN_"))
+            " /* verilator public_flat_rd */" else ""
+          declare("wire", s.name, s.value.tpe, a)
           assign(WRef(s.name, s.value.tpe, NodeKind, MALE), s.value)
           s
         case (s: Stop) =>
@@ -458,7 +464,9 @@ class VerilogEmitter extends Emitter {
           instdeclares += Seq(");")
           s
         case (s: DefMemory) =>
-          declare("reg", s.name, VectorType(s.dataType, s.depth))
+          val a = if (!(s.name startsWith "T_") && !(s.name startsWith "GEN_"))
+            " /* verilator public_flat */" else ""
+          declare("reg", s.name, VectorType(s.dataType, s.depth), a)
           initialize_mem(s)
           if (s.readLatency != 0 || s.writeLatency != 1)
             throw EmitterException("All memories should be transformed into " +
