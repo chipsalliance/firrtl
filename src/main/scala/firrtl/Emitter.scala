@@ -88,7 +88,7 @@ class VerilogEmitter extends Emitter {
       case (t: UIntType) => e
       case (t: SIntType) => Seq("$signed(",e,")")
       case ClockType => e
-      case AnalogType(w) => e
+      case AnalogType(_) => e
     }
     x match {
       case (e: DoPrim) => emit(op_stream(e), top + 1)
