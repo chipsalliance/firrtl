@@ -34,21 +34,21 @@ object PadWidths extends Pass {
   private def onExp(e: Expression): Expression = e map onExp match {
     case Mux(cond, tval, fval, tpe) =>
       Mux(cond, fixup(width(tpe))(tval), fixup(width(tpe))(fval), tpe)
-    case e: ValidIf => e copy (value = fixup(width(e.tpe))(e.value))
-    case e: DoPrim => e.op match {
+    case ex: ValidIf => ex copy (value = fixup(width(ex.tpe))(ex.value))
+    case ex: DoPrim => ex.op match {
       case Lt | Leq | Gt | Geq | Eq | Neq | Not | And | Or | Xor |
            Add | Sub | Mul | Div | Rem | Shr =>
         // sensitive ops
-        e map fixup((e.args map width foldLeft 0)(math.max))
+        ex map fixup((ex.args map width foldLeft 0)(math.max))
       case Dshl =>
         // special case as args aren't all same width
-        e copy (op = Dshlw, args = Seq(fixup(width(e.tpe))(e.args.head), e.args(1)))
+        ex copy (op = Dshlw, args = Seq(fixup(width(ex.tpe))(ex.args.head), ex.args(1)))
       case Shl =>
         // special case as arg should be same width as result
-        e copy (op = Shlw, args = Seq(fixup(width(e.tpe))(e.args.head)))
-      case _ => e
+        ex copy (op = Shlw, args = Seq(fixup(width(ex.tpe))(ex.args.head)))
+      case _ => ex
     }
-    case e => e
+    case _ => e
   }
 
   // Recursive. Fixes assignments and register initialization widths
