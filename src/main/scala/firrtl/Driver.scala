@@ -36,17 +36,17 @@ import Annotations._
 import Parser.{InfoMode, IgnoreInfo, UseInfo, GenInfo, AppendInfo}
 import scala.collection._
 
-class CommonOptions(
-                   var topName:       String = "",
-                   var targetDirName: String = "."
-                   ) {
+class CommonOptions {
+  var topName:       String = ""
+  var targetDirName: String = "."
+
   trait ParserOptions {
     self: OptionParser[Unit] =>
 
     note("common options")
 
     if(topName.isEmpty) {
-      opt[String]("top-name").abbr("tn").required().valueName("<top-level-circuit-name>").foreach { x =>
+      opt[String]("top-name").abbr("tn").valueName("<top-level-circuit-name>").foreach { x =>
         topName = x
       }.text("This options defines the top level circuit")
     }
@@ -222,7 +222,7 @@ object Driver {
   }
 
   def execute(args: Array[String]): Unit = {
-    val commonOptions = new CommonOptions(targetDirName = ".")
+    val commonOptions = new CommonOptions()
     val firrtlOptions = new FirrtlExecutionOptions(commonOptions = commonOptions)
 
     val parser = new OptionParser[Unit]("firrtl") with firrtlOptions.ParserOptions with commonOptions.ParserOptions
