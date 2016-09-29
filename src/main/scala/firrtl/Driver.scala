@@ -27,30 +27,236 @@ MODIFICATIONS.
 
 package firrtl
 
+import scopt.OptionParser
+
 import scala.io.Source
 import scala.collection.mutable
 import Annotations._
 
-import Utils._
 import Parser.{InfoMode, IgnoreInfo, UseInfo, GenInfo, AppendInfo}
+import scala.collection._
+
+class CommonOptions(
+                   var topName:       String = "",
+                   var targetDirName: String = "."
+                   ) {
+  trait ParserOptions {
+    self: OptionParser[Unit] =>
+
+    note("common options")
+
+    if(topName.isEmpty) {
+      opt[String]("top-name").abbr("tn").required().valueName("<top-level-circuit-name>").foreach { x =>
+        topName = x
+      }.text("This options defines the top level circuit")
+    }
+    else {
+      opt[String]("top-name").abbr("tn").valueName("<top-level-circuit-name>").foreach { x =>
+        topName = x
+      }.text("This options defines the top level circuit")
+    }
+    if(targetDirName.isEmpty) {
+      opt[String]("target-dir").abbr("td").required().valueName("<target-directory>").foreach { x =>
+        targetDirName = x
+      }.text("This options defines the default directory")
+    }
+    else {
+      opt[String]("target-dir").abbr("td").valueName("<target-directory>").foreach { x =>
+        targetDirName = x
+      }.text("This options defines the default directory")
+    }
+  }
+}
+/**
+  * The options that firrtl supports in callable component sense
+ *
+  * @param inputFileNameOverride  default is targetDir/topName.fir
+  * @param outputFileNameOverride default is targetDir/topName.v
+  * @param compilerName
+  * @param infoModeName
+  * @param inferRW
+  * @param inLine
+  */
+class FirrtlExecutionOptions(
+                              var inputFileNameOverride:  String = "",
+                              var outputFileNameOverride: String = "",
+                              var compilerName:           String = "verilog",
+                              var infoModeName:           String = "use",
+                              var inferRW:                Seq[String] = Seq(),
+                              var inLine:                 Seq[String] = Seq(),
+                              var commonOptions:          CommonOptions = new CommonOptions()
+                            )
+{
+  trait ParserOptions {
+    self: OptionParser[Unit] =>
+
+    note("firrtl options")
+
+    opt[String]('i', "input-file") valueName ("<firrtl-source>") foreach { x =>
+      inputFileNameOverride = x
+    } text {
+      "use this to override the top name default"
+    }
+
+    opt[String]('o', "output-file") valueName ("<output>") foreach { x =>
+      outputFileNameOverride = x
+    } text {
+      "use this to override the default name"
+    }
+
+    opt[String]('X', "compiler") valueName ("<high|low|verilog>") foreach { x =>
+      compilerName = x
+    } validate { x =>
+      if (Array("high", "low", "verilog").contains(x.toLowerCase)) success
+      else failure(s"$x not a legal compiler")
+    } text {
+      "compiler to use, default is verilog"
+    }
+
+    opt[String]("info-mode") valueName ("<ignore|use|gen|append>") foreach { x =>
+      infoModeName = x.toLowerCase
+    } validate { x =>
+      if (Array("ignore", "use", "gen", "append").contains(x.toLowerCase)) success
+      else failure(s"$x not a legal compiler")
+    } text {
+      "specifies the source info handling"
+    }
+
+    opt[Seq[String]]("infer-rw") abbr ("irw") valueName ("<ignore|use|gen|append>") foreach { x =>
+      inferRW = x
+    } text {
+      "specifies the source info handling"
+    }
+
+    opt[Seq[String]]("in-line") valueName ("<circuit>[.<module>][.<instance>]") foreach { x =>
+      inLine = x
+    } text {
+      "specifies what to in-line"
+    }
+    note("")
+  }
+
+  def infoMode: InfoMode = {
+    infoModeName match {
+      case "use" => UseInfo
+      case "ignore" => IgnoreInfo
+      case "gen" => GenInfo(inputFileNameOverride)
+      case "append" => AppendInfo(inputFileNameOverride)
+      case other => UseInfo
+    }
+  }
+
+  def compiler: Compiler = {
+    compilerName match {
+      case "high" => new HighFirrtlCompiler()
+      case "low" => new LowFirrtlCompiler()
+      case "verilog" => new VerilogCompiler()
+    }
+  }
+
+  def inputFileName: String = {
+    if(inputFileNameOverride.isEmpty) {
+      s"${commonOptions.targetDirName}/${commonOptions.topName}.fir"
+    }
+    else {
+      if(inputFileNameOverride.startsWith("./") ||
+        inputFileNameOverride.startsWith("/")) {
+        inputFileNameOverride
+      }
+      else {
+        s"${commonOptions.targetDirName}/${inputFileNameOverride}"
+      }
+    }
+  }
+  def outputFileName: String = {
+    def suffix: String = {
+      if(compilerName == "verilog") {
+        "v"
+      }
+      else {
+        "fir"
+      }
+    }
+    if(outputFileNameOverride.isEmpty) {
+      s"${commonOptions.targetDirName}/${commonOptions.topName}.$suffix"
+    }
+    else {
+      if(outputFileNameOverride.startsWith("./") ||
+        outputFileNameOverride.startsWith("/")) {
+        outputFileNameOverride
+      }
+      else {
+        s"${commonOptions.targetDirName}/${outputFileNameOverride}"
+      }
+    }
+  }
+}
 
 object Driver {
+  // Compiles circuit. First parses a circuit from an input file,
+  //  executes all compiler passes, and writes result to an output
+  //  file.
+  def compile(
+               input: String,
+               output: String,
+               compiler: Compiler,
+               infoMode: InfoMode = IgnoreInfo,
+               annotations: AnnotationMap = new AnnotationMap(Seq.empty)) = {
+    val parsedInput = Parser.parse(Source.fromFile(input).getLines, infoMode)
+    val outputBuffer = new java.io.CharArrayWriter
+    compiler.compile(parsedInput, annotations, outputBuffer)
+
+    val outputFile = new java.io.PrintWriter(output)
+    outputFile.write(outputBuffer.toString)
+    outputFile.close()
+  }
+
+  def execute(firrtlConfig: FirrtlExecutionOptions): Unit = {
+    println(s"in Firrtl's Driver.execute with $firrtlConfig  ")
+    compile(
+      input = firrtlConfig.inputFileName,
+      output = firrtlConfig.outputFileName,
+      compiler = firrtlConfig.compiler,
+      infoMode = firrtlConfig.infoMode
+    )
+  }
+
+  def execute(args: Array[String]): Unit = {
+    val commonOptions = new CommonOptions(targetDirName = ".")
+    val firrtlOptions = new FirrtlExecutionOptions(commonOptions = commonOptions)
+
+    val parser = new OptionParser[Unit]("firrtl") with firrtlOptions.ParserOptions with commonOptions.ParserOptions
+
+    parser.parse(args) match {
+      case true =>
+        execute(firrtlOptions)
+      case _ =>
+    }
+  }
+
+  def main(args: Array[String]): Unit = {
+    execute(args)
+  }
+}
+
+object OldDriver {
   /**
-   * Implements the default Firrtl compilers and an inlining pass.
-   *
-   * Arguments specify the compiler, input file, output file, and
-   * optionally the module/instances to inline.
-   */
+    * Implements the default Firrtl compilers and an inlining pass.
+    *
+    * Arguments specify the compiler, input file, output file, and
+    * optionally the module/instances to inline.
+    */
   def main(args: Array[String]) = {
-    val usage = """
-Usage: firrtl -i <input_file> -o <output_file> -X <compiler> [options] 
-       sbt "run-main firrtl.Driver -i <input_file> -o <output_file> -X <compiler> [options]"
+    val usage =
+      """
+Usage: firrtl -i <input_file> -o <output_file> -X <compiler> [options]
+     sbt "run-main firrtl.Driver -i <input_file> -o <output_file> -X <compiler> [options]"
 
 Required Arguments:
-  -i <filename>         Specify the input *.fir file
-  -o <filename>         Specify the output file
-  -X <compiler>         Specify the target compiler
-                        Currently supported: high low verilog
+-i <filename>         Specify the input *.fir file
+-o <filename>         Specify the output file
+-X <compiler>         Specify the target compiler
+                      Currently supported: high low verilog
 
 Optional Arguments:
   --info-mode <mode>             Specify Info Mode
@@ -58,11 +264,11 @@ Optional Arguments:
   --inferRW <circuit>            Enable readwrite port inference for the target circuit
   --inline <module>|<instance>   Inline a module (e.g. "MyModule") or instance (e.g. "MyModule.myinstance")
 
-  --replSeqMem -c:<circuit>:-i:<filename>:-o:<filename> 
+  --replSeqMem -c:<circuit>:-i:<filename>:-o:<filename>
   *** Replace sequential memories with blackboxes + configuration file
   *** Input configuration file optional
   *** Note: sub-arguments to --replSeqMem should be delimited by : and not white space!
-  
+
   [--help|-h]                    Print usage string
 """
 
@@ -99,11 +305,11 @@ Optional Arguments:
   //  executes all compiler passes, and writes result to an output
   //  file.
   def compile(
-      input: String, 
-      output: String, 
-      compiler: Compiler, 
-      infoMode: InfoMode = IgnoreInfo,
-      annotations: AnnotationMap = new AnnotationMap(Seq.empty)) = {
+               input: String,
+               output: String,
+               compiler: Compiler,
+               infoMode: InfoMode = IgnoreInfo,
+               annotations: AnnotationMap = new AnnotationMap(Seq.empty)) = {
     val parsedInput = Parser.parse(Source.fromFile(input).getLines, infoMode)
     val outputBuffer = new java.io.CharArrayWriter
     compiler.compile(parsedInput, annotations, outputBuffer)
