@@ -44,8 +44,15 @@ class CommonOptions {
     * @return
     */
   def getBuildFileName(suffix: String): String = {
+    makeTargetDir()
     val normalizedSuffix = if(suffix.startsWith(".")) suffix.drop(1) else suffix
     s"$targetDirName/$topName.$normalizedSuffix"
+  }
+
+  def setTopNameIfUnset(newTopName: String) {
+    if(topName.isEmpty) {
+      topName = newTopName
+    }
   }
 }
 /**
