@@ -73,7 +73,8 @@ class FirrtlExecutionOptions(
                               var compilerName:           String = "verilog",
                               var infoModeName:           String = "use",
                               var inferRW:                Seq[String] = Seq(),
-                              var inLine:                 Seq[String] = Seq()
+                              var inLine:                 Seq[String] = Seq(),
+                              var firrtlSource:           Option[String] = None
                             ) extends CommonOptions
 {
   override def addOptions(parser: OptionParser[Unit]): Unit = {
@@ -139,9 +140,9 @@ class FirrtlExecutionOptions(
 
   def compiler: Compiler = {
     compilerName match {
-      case "high" => new HighFirrtlCompiler()
-      case "low" => new LowFirrtlCompiler()
-      case "verilog" => new VerilogCompiler()
+      case "high"      => new HighFirrtlCompiler()
+      case "low"       => new LowFirrtlCompiler()
+      case "verilator" => new VerilogCompiler()
     }
   }
 
@@ -161,11 +162,12 @@ class FirrtlExecutionOptions(
   }
   def outputFileName: String = {
     def suffix: String = {
-      if(compilerName == "verilog") {
-        "v"
-      }
-      else {
-        "fir"
+      compilerName match {
+        case "verilator" => "v"
+        case "low"       => "lo.fir"
+        case "high"      => "hi.fir"
+        case _ =>
+          throw new Exception(s"Illegal compiler name $compilerName")
       }
     }
     if(outputFileNameOverride.isEmpty) {
@@ -184,6 +186,7 @@ class FirrtlExecutionOptions(
 }
 
 case class FirrtlExecutionResult(
+                                emitType: String,
                                 emitted: String,
                                 success: Boolean
                                 )
@@ -197,24 +200,35 @@ object Driver {
                output: String,
                compiler: Compiler,
                infoMode: InfoMode = IgnoreInfo,
-               annotations: AnnotationMap = new AnnotationMap(Seq.empty)) = {
-    val parsedInput = Parser.parse(Source.fromFile(input).getLines, infoMode)
+               annotations: AnnotationMap = new AnnotationMap(Seq.empty)): String = {
+    val parsedInput = Parser.parse(Source.fromFile(input).getLines(), infoMode)
     val outputBuffer = new java.io.CharArrayWriter
     compiler.compile(parsedInput, annotations, outputBuffer)
 
     val outputFile = new java.io.PrintWriter(output)
-    outputFile.write(outputBuffer.toString)
+    val outputString = outputBuffer.toString
+    outputFile.write(outputString)
     outputFile.close()
+    outputString
   }
 
-  def execute(firrtlConfig: FirrtlExecutionOptions): Unit = {
-    println(s"in Firrtl's Driver.execute with $firrtlConfig  ")
-    compile(
-      input = firrtlConfig.inputFileName,
-      output = firrtlConfig.outputFileName,
-      compiler = firrtlConfig.compiler,
-      infoMode = firrtlConfig.infoMode
-    )
+  def execute(firrtlConfig: FirrtlExecutionOptions): FirrtlExecutionResult = {
+    val firrtlSource = firrtlConfig.firrtlSource match {
+      case Some(text) => text.split("\n").toIterator
+      case None       => io.Source.fromFile(firrtlConfig.inputFileName).getLines()
+    }
+    val parsedInput = Parser.parse(firrtlSource, firrtlConfig.infoMode)
+    val outputBuffer = new java.io.CharArrayWriter
+    firrtlConfig.compiler.compile(parsedInput, new AnnotationMap(Seq.empty), outputBuffer)
+
+    val name = firrtlConfig.outputFileName
+
+    val outputFile = new java.io.PrintWriter(firrtlConfig.outputFileName)
+    val outputString = outputBuffer.toString
+    outputFile.write(outputString)
+    outputFile.close()
+
+    FirrtlExecutionResult(firrtlConfig.compilerName, outputBuffer.toString, success = true)
   }
 
   def execute(args: Array[String]): Unit = {
@@ -227,6 +241,7 @@ object Driver {
       case true =>
         execute(firrtlOptions)
       case _ =>
+        FirrtlExecutionResult(firrtlOptions.compilerName, "", success = false)
     }
   }
 

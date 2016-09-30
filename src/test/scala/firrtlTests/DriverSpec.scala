@@ -2,6 +2,8 @@
 
 package firrtlTests
 
+import java.io.File
+
 import org.scalatest.{Matchers, FreeSpec}
 
 import firrtl._
@@ -69,8 +71,7 @@ class DriverSpec extends FreeSpec with Matchers {
     }
     "input and output file names can be overridden" in {
       val firrtlOptions = new FirrtlExecutionOptions()
-      val parser = new OptionParser[Unit]("firrtl")
-        {}
+      val parser = new OptionParser[Unit]("firrtl") {}
 
       firrtlOptions.addOptions(parser)
 
@@ -80,6 +81,37 @@ class DriverSpec extends FreeSpec with Matchers {
 
       firrtlOptions.inputFileName should be ("./bob.fir")
       firrtlOptions.outputFileName should be ("test_run_dir/carol.v")
+    }
+  }
+
+  val input =
+    """
+      |circuit Dummy :
+      |  module Dummy :
+      |    input x : UInt<1>
+      |    output y : UInt<1>
+      |    y <= x
+    """.stripMargin
+
+  "Driver produces files with different names depending on the compiler" - {
+    "compiler changes the default name of the output file" in {
+
+      Seq(
+        "low" -> "test_run_dir/Dummy.lo.fir",
+        "high" -> "test_run_dir/Dummy.hi.fir",
+        "verilator" -> "test_run_dir/Dummy.v"
+      ).foreach { case (compilerName, expectedOutputFileName) =>
+        val firrtlOptions = new FirrtlExecutionOptions()
+        firrtlOptions.topName = "Dummy"
+        firrtlOptions.compilerName = compilerName
+        firrtlOptions.firrtlSource = Some(input)
+
+        firrtl.Driver.execute(firrtlOptions)
+
+        val file = new File(expectedOutputFileName)
+        file.exists() should be (true)
+        file.delete()
+      }
     }
   }
 }
