@@ -12,7 +12,9 @@ class DriverSpec extends FreeSpec with Matchers {
     "CommonOption provide an scopt implementation of an OptionParser" - {
       "Options can be set from an Array[String] as is passed into a main" in {
         val commonOptions = new CommonOptions
-        val parser = new OptionParser[Unit]("firrtl") with commonOptions.ParserOptions
+        val parser = new OptionParser[Unit]("firrtl") {}
+
+        commonOptions.addOptions(parser)
 
         parser.parse(Array.empty[String]) should be (true)
 
@@ -33,7 +35,9 @@ class DriverSpec extends FreeSpec with Matchers {
           dir.delete()
         }
         val commonOptions = new CommonOptions
-        val parser = new OptionParser[Unit]("firrtl") with commonOptions.ParserOptions
+        val parser = new OptionParser[Unit]("firrtl") {}
+
+        commonOptions.addOptions(parser)
 
         parser.parse(Array("--top-name", "dog", "--target-dir", "a/b/c")) should be (true)
 
@@ -50,14 +54,13 @@ class DriverSpec extends FreeSpec with Matchers {
   "FirrtlOptions holds option information for the firrtl compiler" - {
     "It includes a CommonOptions" in {
       val firrtlOptions = new FirrtlExecutionOptions()
-      firrtlOptions.commonOptions.targetDirName should be ("test_run_dir")
+      firrtlOptions.targetDirName should be ("test_run_dir")
     }
     "It provides input and output file names based on target" in {
       val firrtlOptions = new FirrtlExecutionOptions()
-      val commonOptions = firrtlOptions.commonOptions
-      val parser = new OptionParser[Unit]("firrtl")
-        with commonOptions.ParserOptions
-        with firrtlOptions.ParserOptions
+      val parser = new OptionParser[Unit]("firrtl") {}
+
+      firrtlOptions.addOptions(parser)
 
       parser.parse(Array("--top-name", "cat")) should be (true)
 
@@ -66,10 +69,10 @@ class DriverSpec extends FreeSpec with Matchers {
     }
     "input and output file names can be overridden" in {
       val firrtlOptions = new FirrtlExecutionOptions()
-      val commonOptions = firrtlOptions.commonOptions
       val parser = new OptionParser[Unit]("firrtl")
-        with commonOptions.ParserOptions
-        with firrtlOptions.ParserOptions
+        {}
+
+      firrtlOptions.addOptions(parser)
 
       parser.parse(
         Array("--top-name", "cat", "-fif", "./bob.fir", "-fof", "carol.v")

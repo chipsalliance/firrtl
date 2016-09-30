@@ -11,19 +11,21 @@ import Annotations._
 import Parser.{InfoMode, IgnoreInfo, UseInfo, GenInfo, AppendInfo}
 import scala.collection._
 
-class CommonOptions {
+trait ComposableOptions {
+  def addOptions(parser: OptionParser[Unit]): Unit
+}
+
+class CommonOptions extends ComposableOptions {
   var topName:       String = ""
   var targetDirName: String = "test_run_dir"
 
-  trait ParserOptions {
-    self: OptionParser[Unit] =>
+  def addOptions(parser: OptionParser[Unit]): Unit = {
+    parser.note("common options")
 
-    note("common options")
-
-    opt[String]("top-name").abbr("tn").valueName("<top-level-circuit-name>").foreach { x =>
+    parser.opt[String]("top-name").abbr("tn").valueName("<top-level-circuit-name>").foreach { x =>
       topName = x
     }.text("This options defines the top level circuit, defaults to dut when possible")
-    opt[String]("target-dir").abbr("td").valueName("<target-directory>").foreach { x =>
+    parser.opt[String]("target-dir").abbr("td").valueName("<target-directory>").foreach { x =>
       targetDirName = x
     }.text("This options defines a work directory for intermediate files")
   }
@@ -71,12 +73,13 @@ class FirrtlExecutionOptions(
                               var compilerName:           String = "verilog",
                               var infoModeName:           String = "use",
                               var inferRW:                Seq[String] = Seq(),
-                              var inLine:                 Seq[String] = Seq(),
-                              var commonOptions:          CommonOptions = new CommonOptions()
-                            )
+                              var inLine:                 Seq[String] = Seq()
+                            ) extends CommonOptions
 {
-  trait ParserOptions {
-    self: OptionParser[Unit] =>
+  override def addOptions(parser: OptionParser[Unit]): Unit = {
+    super.addOptions(parser)
+
+    import parser._
 
     note("firrtl options")
 
@@ -144,7 +147,7 @@ class FirrtlExecutionOptions(
 
   def inputFileName: String = {
     if(inputFileNameOverride.isEmpty) {
-      commonOptions.getBuildFileName("fir")
+      getBuildFileName("fir")
     }
     else {
       if(inputFileNameOverride.startsWith("./") ||
@@ -152,7 +155,7 @@ class FirrtlExecutionOptions(
         inputFileNameOverride
       }
       else {
-        s"${commonOptions.targetDirName}/$inputFileNameOverride"
+        s"$targetDirName/$inputFileNameOverride"
       }
     }
   }
@@ -166,7 +169,7 @@ class FirrtlExecutionOptions(
       }
     }
     if(outputFileNameOverride.isEmpty) {
-      commonOptions.getBuildFileName(suffix)
+      getBuildFileName(suffix)
     }
     else {
       if(outputFileNameOverride.startsWith("./") ||
@@ -174,7 +177,7 @@ class FirrtlExecutionOptions(
         outputFileNameOverride
       }
       else {
-        s"${commonOptions.targetDirName}/$outputFileNameOverride"
+        s"$targetDirName/$outputFileNameOverride"
       }
     }
   }
@@ -215,10 +218,10 @@ object Driver {
   }
 
   def execute(args: Array[String]): Unit = {
-    val commonOptions = new CommonOptions()
-    val firrtlOptions = new FirrtlExecutionOptions(commonOptions = commonOptions)
+    val firrtlOptions = new FirrtlExecutionOptions()
 
-    val parser = new OptionParser[Unit]("firrtl") with firrtlOptions.ParserOptions with commonOptions.ParserOptions
+    val parser = new OptionParser[Unit]("firrtl") {}
+    firrtlOptions.addOptions(parser)
 
     parser.parse(args) match {
       case true =>
@@ -236,7 +239,7 @@ object FileUtils {
   /**
     * recursive create directory and all parents
     *
-    * @param directoryName
+    * @param directoryName a directory string with one or more levels
     * @return
     */
   def makeDirectory(directoryName: String): Boolean = {
@@ -258,7 +261,7 @@ object FileUtils {
     * recursively delete all directories in a relative path
     * DO NOT DELETE absolute paths
     *
-    * @param directoryPathName
+    * @param directoryPathName a directory hierarchy to delete
     */
   def deleteDirectoryHierarchy(directoryPathName: String): Unit = {
     if(directoryPathName.isEmpty || directoryPathName.startsWith("/")) {
