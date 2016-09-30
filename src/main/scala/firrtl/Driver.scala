@@ -1,29 +1,4 @@
-/*
-Copyright (c) 2014 - 2016 The Regents of the University of
-California (Regents). All Rights Reserved.  Redistribution and use in
-source and binary forms, with or without modification, are permitted
-provided that the following conditions are met:
-   * Redistributions of source code must retain the above
-     copyright notice, this list of conditions and the following
-     two paragraphs of disclaimer.
-   * Redistributions in binary form must reproduce the above
-     copyright notice, this list of conditions and the following
-     two paragraphs of disclaimer in the documentation and/or other materials
-     provided with the distribution.
-   * Neither the name of the Regents nor the names of its contributors
-     may be used to endorse or promote products derived from this
-     software without specific prior written permission.
-IN NO EVENT SHALL REGENTS BE LIABLE TO ANY PARTY FOR DIRECT, INDIRECT,
-SPECIAL, INCIDENTAL, OR CONSEQUENTIAL DAMAGES, INCLUDING LOST PROFITS,
-ARISING OUT OF THE USE OF THIS SOFTWARE AND ITS DOCUMENTATION, EVEN IF
-REGENTS HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-REGENTS SPECIFICALLY DISCLAIMS ANY WARRANTIES, INCLUDING, BUT NOT
-LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-A PARTICULAR PURPOSE. THE SOFTWARE AND ACCOMPANYING DOCUMENTATION, IF
-ANY, PROVIDED HEREUNDER IS PROVIDED "AS IS". REGENTS HAS NO OBLIGATION
-TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR
-MODIFICATIONS.
-*/
+// See License
 
 package firrtl
 
@@ -38,33 +13,37 @@ import scala.collection._
 
 class CommonOptions {
   var topName:       String = ""
-  var targetDirName: String = "."
+  var targetDirName: String = "local_builds"
 
   trait ParserOptions {
     self: OptionParser[Unit] =>
 
     note("common options")
 
-    if(topName.isEmpty) {
-      opt[String]("top-name").abbr("tn").valueName("<top-level-circuit-name>").foreach { x =>
-        topName = x
-      }.text("This options defines the top level circuit")
-    }
-    else {
-      opt[String]("top-name").abbr("tn").valueName("<top-level-circuit-name>").foreach { x =>
-        topName = x
-      }.text("This options defines the top level circuit")
-    }
-    if(targetDirName.isEmpty) {
-      opt[String]("target-dir").abbr("td").required().valueName("<target-directory>").foreach { x =>
-        targetDirName = x
-      }.text("This options defines the default directory")
-    }
-    else {
-      opt[String]("target-dir").abbr("td").valueName("<target-directory>").foreach { x =>
-        targetDirName = x
-      }.text("This options defines the default directory")
-    }
+    opt[String]("top-name").abbr("tn").valueName("<top-level-circuit-name>").foreach { x =>
+      topName = x
+    }.text("This options defines the top level circuit, defaults to dut when possible")
+    opt[String]("target-dir").abbr("td").valueName("<target-directory>").foreach { x =>
+      targetDirName = x
+    }.text("This options defines a work directory for intermediate files")
+  }
+
+  /**
+    * make sure that all levels of targetDirName exist
+    * @return true if directory exists
+    */
+  def makeTargetDir: Boolean = {
+    FileUtils.makeDirectory(targetDirName)
+  }
+
+  /**
+    * return a file based on targetDir, topName and suffix
+    * @param suffix suffix to add, removes . if present
+    * @return
+    */
+  def getBuildFileName(suffix: String): String = {
+    val normalizedSuffix = if(suffix.startsWith(".")) suffix.drop(1) else suffix
+    s"$targetDirName/$topName.$normalizedSuffix"
   }
 }
 /**
@@ -72,10 +51,10 @@ class CommonOptions {
  *
   * @param inputFileNameOverride  default is targetDir/topName.fir
   * @param outputFileNameOverride default is targetDir/topName.v
-  * @param compilerName
-  * @param infoModeName
-  * @param inferRW
-  * @param inLine
+  * @param compilerName           which compiler to use
+  * @param infoModeName           use specific annotations
+  * @param inferRW                use specific annotations
+  * @param inLine                 in line modules
   */
 class FirrtlExecutionOptions(
                               var inputFileNameOverride:  String = "",
@@ -92,45 +71,45 @@ class FirrtlExecutionOptions(
 
     note("firrtl options")
 
-    opt[String]('i', "input-file") valueName ("<firrtl-source>") foreach { x =>
+    opt[String]('i', "input-file").valueName ("<firrtl-source>").foreach { x =>
       inputFileNameOverride = x
     } text {
       "use this to override the top name default"
     }
 
-    opt[String]('o', "output-file") valueName ("<output>") foreach { x =>
+    opt[String]('o', "output-file").valueName ("<output>").foreach { x =>
       outputFileNameOverride = x
     } text {
       "use this to override the default name"
     }
 
-    opt[String]('X', "compiler") valueName ("<high|low|verilog>") foreach { x =>
+    opt[String]('X', "compiler").valueName ("<high|low|verilog>").foreach { x =>
       compilerName = x
-    } validate { x =>
+    }.validate { x =>
       if (Array("high", "low", "verilog").contains(x.toLowerCase)) success
       else failure(s"$x not a legal compiler")
-    } text {
+    }.text {
       "compiler to use, default is verilog"
     }
 
-    opt[String]("info-mode") valueName ("<ignore|use|gen|append>") foreach { x =>
+    opt[String]("info-mode").valueName ("<ignore|use|gen|append>").foreach { x =>
       infoModeName = x.toLowerCase
-    } validate { x =>
+    }.validate { x =>
       if (Array("ignore", "use", "gen", "append").contains(x.toLowerCase)) success
       else failure(s"$x not a legal compiler")
-    } text {
+    }.text {
       "specifies the source info handling"
     }
 
-    opt[Seq[String]]("infer-rw") abbr ("irw") valueName ("<ignore|use|gen|append>") foreach { x =>
+    opt[Seq[String]]("infer-rw").abbr ("irw").valueName ("<ignore|use|gen|append>").foreach { x =>
       inferRW = x
-    } text {
+    }.text {
       "specifies the source info handling"
     }
 
-    opt[Seq[String]]("in-line") valueName ("<circuit>[.<module>][.<instance>]") foreach { x =>
+    opt[Seq[String]]("in-line").valueName ("<circuit>[.<module>][.<instance>]").foreach { x =>
       inLine = x
-    } text {
+    }.text {
       "specifies what to in-line"
     }
     note("")
@@ -156,7 +135,7 @@ class FirrtlExecutionOptions(
 
   def inputFileName: String = {
     if(inputFileNameOverride.isEmpty) {
-      s"${commonOptions.targetDirName}/${commonOptions.topName}.fir"
+      commonOptions.getBuildFileName("fir")
     }
     else {
       if(inputFileNameOverride.startsWith("./") ||
@@ -164,7 +143,7 @@ class FirrtlExecutionOptions(
         inputFileNameOverride
       }
       else {
-        s"${commonOptions.targetDirName}/${inputFileNameOverride}"
+        s"${commonOptions.targetDirName}/$inputFileNameOverride"
       }
     }
   }
@@ -178,7 +157,7 @@ class FirrtlExecutionOptions(
       }
     }
     if(outputFileNameOverride.isEmpty) {
-      s"${commonOptions.targetDirName}/${commonOptions.topName}.$suffix"
+      commonOptions.getBuildFileName(suffix)
     }
     else {
       if(outputFileNameOverride.startsWith("./") ||
@@ -186,11 +165,16 @@ class FirrtlExecutionOptions(
         outputFileNameOverride
       }
       else {
-        s"${commonOptions.targetDirName}/${outputFileNameOverride}"
+        s"${commonOptions.targetDirName}/$outputFileNameOverride"
       }
     }
   }
 }
+
+case class FirrtlExecutionResult(
+                                emitted: String,
+                                success: Boolean
+                                )
 
 object Driver {
   // Compiles circuit. First parses a circuit from an input file,
@@ -236,6 +220,23 @@ object Driver {
 
   def main(args: Array[String]): Unit = {
     execute(args)
+  }
+}
+
+object FileUtils {
+  def makeDirectory(directoryName: String): Boolean = {
+    val dirFile = new java.io.File(directoryName)
+    if(dirFile.exists()) {
+      if(dirFile.isDirectory) {
+        true
+      }
+      else {
+        false
+      }
+    }
+    else {
+      dirFile.mkdirs()
+    }
   }
 }
 
@@ -335,7 +336,6 @@ Optional Arguments:
     case object InputFileName extends CompilerOption
     case object OutputFileName extends CompilerOption
     case object CompilerName extends CompilerOption
-    case object AnnotationOption extends CompilerOption
     case object InfoModeOption extends CompilerOption
     /**
      * Maps compiler option to user-specified value
