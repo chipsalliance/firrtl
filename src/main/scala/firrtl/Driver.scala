@@ -13,7 +13,7 @@ import scala.collection._
 
 class CommonOptions {
   var topName:       String = ""
-  var targetDirName: String = "local_builds"
+  var targetDirName: String = "test_run_dir"
 
   trait ParserOptions {
     self: OptionParser[Unit] =>
@@ -30,14 +30,16 @@ class CommonOptions {
 
   /**
     * make sure that all levels of targetDirName exist
+    *
     * @return true if directory exists
     */
-  def makeTargetDir: Boolean = {
+  def makeTargetDir(): Boolean = {
     FileUtils.makeDirectory(targetDirName)
   }
 
   /**
     * return a file based on targetDir, topName and suffix
+    *
     * @param suffix suffix to add, removes . if present
     * @return
     */
@@ -71,19 +73,19 @@ class FirrtlExecutionOptions(
 
     note("firrtl options")
 
-    opt[String]('i', "input-file").valueName ("<firrtl-source>").foreach { x =>
+    opt[String]("input-file").abbr("fif").valueName ("<firrtl-source>").foreach { x =>
       inputFileNameOverride = x
     } text {
       "use this to override the top name default"
     }
 
-    opt[String]('o', "output-file").valueName ("<output>").foreach { x =>
+    opt[String]("output-file").abbr("fof").valueName ("<output>").foreach { x =>
       outputFileNameOverride = x
     } text {
       "use this to override the default name"
     }
 
-    opt[String]('X', "compiler").valueName ("<high|low|verilog>").foreach { x =>
+    opt[String]("compiler").abbr("fc").valueName ("<high|low|verilog>").foreach { x =>
       compilerName = x
     }.validate { x =>
       if (Array("high", "low", "verilog").contains(x.toLowerCase)) success
@@ -224,6 +226,12 @@ object Driver {
 }
 
 object FileUtils {
+  /**
+    * recursive create directory and all parents
+    *
+    * @param directoryName
+    * @return
+    */
   def makeDirectory(directoryName: String): Boolean = {
     val dirFile = new java.io.File(directoryName)
     if(dirFile.exists()) {
@@ -236,6 +244,28 @@ object FileUtils {
     }
     else {
       dirFile.mkdirs()
+    }
+  }
+
+  /**
+    * recursively delete all directories in a relative path
+    * DO NOT DELETE absolute paths
+    *
+    * @param directoryPathName
+    */
+  def deleteDirectoryHierarchy(directoryPathName: String): Unit = {
+    if(directoryPathName.isEmpty || directoryPathName.startsWith("/")) {
+      // don't delete absolute path
+    }
+    else {
+      val directory = new java.io.File(directoryPathName)
+      if(directory.isDirectory) {
+        directory.delete()
+        val directories = directoryPathName.split("/+").reverse.tail
+        if (directories.nonEmpty) {
+          deleteDirectoryHierarchy(directories.reverse.mkString("/"))
+        }
+      }
     }
   }
 }
