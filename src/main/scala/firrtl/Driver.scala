@@ -70,7 +70,7 @@ class CommonOptions extends ComposableOptions {
 class FirrtlExecutionOptions(
                               var inputFileNameOverride:  String = "",
                               var outputFileNameOverride: String = "",
-                              var compilerName:           String = "verilog",
+                              var compilerName:           String = "verilator",
                               var infoModeName:           String = "use",
                               var inferRW:                Seq[String] = Seq(),
                               var inLine:                 Seq[String] = Seq(),
