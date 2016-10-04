@@ -146,7 +146,7 @@ class DriverSpec extends FreeSpec with Matchers {
       Seq(
         "low" -> "test_run_dir/Dummy.lo.fir",
         "high" -> "test_run_dir/Dummy.hi.fir",
-        "verilator" -> "test_run_dir/Dummy.v"
+        "verilog" -> "test_run_dir/Dummy.v"
       ).foreach { case (compilerName, expectedOutputFileName) =>
         val firrtlOptions = new FirrtlExecutionOptions()
         firrtlOptions.topName = "Dummy"
