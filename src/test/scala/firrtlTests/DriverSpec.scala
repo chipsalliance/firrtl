@@ -82,6 +82,53 @@ class DriverSpec extends FreeSpec with Matchers {
       firrtlOptions.inputFileName should be ("./bob.fir")
       firrtlOptions.outputFileName should be ("test_run_dir/carol.v")
     }
+    "various annotations can be created from command line, currently:" - {
+      "inline annotation" in {
+        val firrtlOptions = new FirrtlExecutionOptions()
+        val parser = new OptionParser[Unit]("firrtl") {}
+
+        firrtlOptions.addOptions(parser)
+
+        parser.parse(
+          Array("--in-line", "module,module.submodule,module.submodule.instance")
+        ) should be (true)
+
+        firrtlOptions.annotations.length should be (3)
+        firrtlOptions.annotations.foreach { annotation =>
+          annotation shouldBe a [passes.InlineAnnotation]
+        }
+      }
+      "infer-rw annotation" in {
+        val firrtlOptions = new FirrtlExecutionOptions()
+        val parser = new OptionParser[Unit]("firrtl") {}
+
+        firrtlOptions.addOptions(parser)
+
+        parser.parse(
+          Array("--infer-rw", "ignore,use,gen,append")
+        ) should be (true)
+
+        firrtlOptions.annotations.length should be (4)
+        firrtlOptions.annotations.foreach { annotation =>
+          annotation shouldBe a [passes.InferReadWriteAnnotation]
+        }
+      }
+      "repl-seq-mem annotation" in {
+        val firrtlOptions = new FirrtlExecutionOptions()
+        val parser = new OptionParser[Unit]("firrtl") {}
+
+        firrtlOptions.addOptions(parser)
+
+        parser.parse(
+          Array("--repl-seq-mem", "-c:circuit1:-i:infile1:-o:outfile1,-c:circuit2:-i:infile2:-o:outfile2")
+        ) should be (true)
+
+        firrtlOptions.annotations.length should be (2)
+        firrtlOptions.annotations.foreach { annotation =>
+          annotation shouldBe a [passes.ReplSeqMemAnnotation]
+        }
+      }
+    }
   }
 
   val input =

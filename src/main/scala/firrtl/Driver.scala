@@ -79,6 +79,9 @@ class FirrtlExecutionOptions(
                               var firrtlSource:           Option[String] = None
                             ) extends CommonOptions
 {
+  val annotations = mutable.ArrayBuffer[Annotation]()
+
+
   override def addOptions(parser: OptionParser[Unit]): Unit = {
     super.addOptions(parser)
 
@@ -116,17 +119,38 @@ class FirrtlExecutionOptions(
       "specifies the source info handling"
     }
 
-    opt[Seq[String]]("infer-rw").abbr ("irw").valueName ("<ignore|use|gen|append>").foreach { x =>
-      inferRW = x
+    opt[Seq[String]]("in-line").abbr("fil").valueName ("<circuit>[.<module>][.<instance>][,..],").foreach { x =>
+      inLine = x
+      annotations ++= x.map { value =>
+        value.split('.') match {
+          case Array(circuit) =>
+            passes.InlineAnnotation(CircuitName(circuit), TransID(0))
+          case Array(circuit, module) =>
+            passes.InlineAnnotation(ModuleName(module, CircuitName(circuit)), TransID(0))
+          case Array(circuit, module, inst) =>
+            passes.InlineAnnotation(ComponentName(inst, ModuleName(module, CircuitName(circuit))), TransID(0))
+        }
+      }
     }.text {
-      "specifies the source info handling"
+      """Inline a module (e.g. "MyModule") or instance (e.g. "MyModule.myinstance"""
     }
 
-    opt[Seq[String]]("in-line").valueName ("<circuit>[.<module>][.<instance>]").foreach { x =>
-      inLine = x
+    opt[Seq[String]]("infer-rw").abbr("firw").valueName ("<ignore|use|gen|append>[,...]").foreach { x =>
+      inferRW = x
+      annotations ++= x.map { value => passes.InferReadWriteAnnotation(value, TransID(-1))}
     }.text {
-      "specifies what to in-line"
+      "Enable readwrite port inference for the target circuit, for multiples separate with commas and no spaces"
     }
+
+    opt[Seq[String]]("repl-seq-mem").abbr("frsq").valueName ("-c:<circuit>:-i:<filename>:-o:<filename>[,...]").foreach { x =>
+      inferRW = x
+      annotations ++= x.map { value => passes.ReplSeqMemAnnotation(value, TransID(-2))}
+    }.text {
+      "Replace sequential memories with blackboxes + configuration file"
+    }
+    note("Input configuration file optional")
+    note("Note: sub-arguments to --replSeqMem should be delimited by : and not white space!")
+    note("for multiples separate with commas and no spaces")
     note("")
   }
 
