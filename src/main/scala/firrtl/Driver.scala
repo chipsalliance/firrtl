@@ -72,7 +72,7 @@ class CommonOptions extends ComposableOptions {
 class FirrtlExecutionOptions(
                               var inputFileNameOverride:  String = "",
                               var outputFileNameOverride: String = "",
-                              var compilerName:           String = "verilator",
+                              var compilerName:           String = "verilog",
                               var infoModeName:           String = "use",
                               var inferRW:                Seq[String] = Seq(),
                               var inLine:                 Seq[String] = Seq(),
@@ -144,7 +144,7 @@ class FirrtlExecutionOptions(
     compilerName match {
       case "high"      => new HighFirrtlCompiler()
       case "low"       => new LowFirrtlCompiler()
-      case "verilator" => new VerilogCompiler()
+      case "verilog"   => new VerilogCompiler()
     }
   }
 
@@ -165,7 +165,7 @@ class FirrtlExecutionOptions(
   def outputFileName: String = {
     def suffix: String = {
       compilerName match {
-        case "verilator" => "v"
+        case "verilog"   => "v"
         case "low"       => "lo.fir"
         case "high"      => "hi.fir"
         case _ =>
@@ -244,8 +244,6 @@ object Driver {
     val parsedInput = Parser.parse(firrtlSource, firrtlConfig.infoMode)
     val outputBuffer = new java.io.CharArrayWriter
     firrtlConfig.compiler.compile(parsedInput, new AnnotationMap(Seq.empty), outputBuffer)
-
-    val name = firrtlConfig.outputFileName
 
     val outputFile = new java.io.PrintWriter(firrtlConfig.outputFileName)
     val outputString = outputBuffer.toString
