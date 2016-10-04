@@ -2,6 +2,8 @@
 
 package firrtl
 
+import java.io.FileNotFoundException
+
 import scopt.OptionParser
 
 import scala.io.Source
@@ -185,11 +187,12 @@ class FirrtlExecutionOptions(
   }
 }
 
-case class FirrtlExecutionResult(
+trait FirrtlExecutionResult
+case class FirrtlExecutionSuccess(
                                 emitType: String,
-                                emitted: String,
-                                success: Boolean
-                                )
+                                emitted:  String
+                                ) extends FirrtlExecutionResult
+case class FirrtlExecutionFailure(message: String) extends FirrtlExecutionResult
 
 object Driver {
   // Compiles circuit. First parses a circuit from an input file,
@@ -212,11 +215,32 @@ object Driver {
     outputString
   }
 
+  def dramaticError(message: String): Unit = {
+    println(Console.RED + "-"*78)
+    println(s"Error: $message")
+    println("-"*78 + Console.RESET)
+  }
+
   def execute(firrtlConfig: FirrtlExecutionOptions): FirrtlExecutionResult = {
     val firrtlSource = firrtlConfig.firrtlSource match {
       case Some(text) => text.split("\n").toIterator
-      case None       => io.Source.fromFile(firrtlConfig.inputFileName).getLines()
-    }
+      case None       =>
+        if(firrtlConfig.topName.isEmpty && firrtlConfig.inputFileNameOverride.isEmpty) {
+          val message = "either top-name or input-file-override must be set"
+          dramaticError(message)
+          return FirrtlExecutionFailure(message)
+        }
+        try {
+          io.Source.fromFile(firrtlConfig.inputFileName).getLines()
+        }
+        catch {
+          case e: FileNotFoundException =>
+            val message = s"Input file ${firrtlConfig.inputFileName} not found"
+            dramaticError(message)
+            return FirrtlExecutionFailure(message)
+          }
+        }
+
     val parsedInput = Parser.parse(firrtlSource, firrtlConfig.infoMode)
     val outputBuffer = new java.io.CharArrayWriter
     firrtlConfig.compiler.compile(parsedInput, new AnnotationMap(Seq.empty), outputBuffer)
@@ -228,10 +252,10 @@ object Driver {
     outputFile.write(outputString)
     outputFile.close()
 
-    FirrtlExecutionResult(firrtlConfig.compilerName, outputBuffer.toString, success = true)
+    FirrtlExecutionSuccess(firrtlConfig.compilerName, outputBuffer.toString)
   }
 
-  def execute(args: Array[String]): Unit = {
+  def execute(args: Array[String]): FirrtlExecutionResult = {
     val firrtlOptions = new FirrtlExecutionOptions()
 
     val parser = new OptionParser[Unit]("firrtl") {}
@@ -239,9 +263,17 @@ object Driver {
 
     parser.parse(args) match {
       case true =>
-        execute(firrtlOptions)
+        execute(firrtlOptions) match {
+          case success: FirrtlExecutionSuccess =>
+            success
+          case failure: FirrtlExecutionFailure =>
+            parser.showUsageAsError()
+            failure
+          case result =>
+            throw new Exception(s"Error: Unknown Firrtl Execution result $result")
+        }
       case _ =>
-        FirrtlExecutionResult(firrtlOptions.compilerName, "", success = false)
+        FirrtlExecutionFailure("")
     }
   }
 
