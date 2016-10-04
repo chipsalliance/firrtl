@@ -13,11 +13,42 @@ import Annotations._
 import Parser.{InfoMode, IgnoreInfo, UseInfo, GenInfo, AppendInfo}
 import scala.collection._
 
+/**
+  * The driver provides methods to access the firrtl compiler.
+  * Invoke the compiler with either a FirrtlExecutionOption
+  * @example
+  *          {{
+  *          val options = new FirrtlExecutionOptions()
+  *          firrtlOptions.topName = "Dummy"
+  *          firrtlOptions.compilerName = "verilog"
+  *          firrtl.Driver.execute(options)
+  *          }}}
+  *  or a series of command line arguments
+  * @example
+  *          {{
+  *          firrtl.Driver.execute(Array("--top-name Dummy --compiler verilog".split(" +"))
+  *          }}}
+  * each approach has its own endearing aspects
+  * @see  firrtlTests.DriverSpec.scala in the test directory for a lot more examples
+  */
+
+/**
+  * Use this trait to define an options class that can add its private command line options to a externally
+  * declared parser
+  */
 trait ComposableOptions {
   def addOptions(parser: OptionParser[Unit]): Unit
 }
 
+/**
+  * Most of the chisel toolchain components require a topName which defines a circuit or a device under test.
+  * Much of the work that is done takes place in a directory.
+  * It would be simplest to require topName to be defined but in practice it is preferred to defer this.
+  * For example, in chisel, by deferring this it is possible for the execute there to first elaborate the
+  * circuit and then set the topName from that if it has not already been set.
+  */
 class CommonOptions extends ComposableOptions {
+  //TODO: Figure out how to declare the following as parameters without having them being val when jar'ified
   var topName:       String = ""
   var targetDirName: String = "test_run_dir"
 
@@ -30,6 +61,8 @@ class CommonOptions extends ComposableOptions {
     parser.opt[String]("target-dir").abbr("td").valueName("<target-directory>").foreach { x =>
       targetDirName = x
     }.text("This options defines a work directory for intermediate files")
+
+    parser.help("help").text("prints this usage text")
   }
 
   /**
@@ -43,6 +76,7 @@ class CommonOptions extends ComposableOptions {
 
   /**
     * return a file based on targetDir, topName and suffix
+    * Will not add the suffix if the topName already ends with that suffix
     *
     * @param suffix suffix to add, removes . if present
     * @return
@@ -50,9 +84,14 @@ class CommonOptions extends ComposableOptions {
   def getBuildFileName(suffix: String): String = {
     makeTargetDir()
     val normalizedSuffix = if(suffix.startsWith(".")) suffix.drop(1) else suffix
-    s"$targetDirName/$topName.$normalizedSuffix"
-  }
 
+    s"$targetDirName/$topName.${if(topName.endsWith(normalizedSuffix)) "" else normalizedSuffix}"
+  }
+  /**
+    * Use this to set the topName in cases when it has been discovered via circuit elaboration
+    * This will not set the topName if it has already been set, presumably by users wishing to override the default
+    * @param newTopName topName to set
+    */
   def setTopNameIfUnset(newTopName: String) {
     if(topName.isEmpty) {
       topName = newTopName
@@ -245,6 +284,12 @@ object Driver {
     println("-"*78 + Console.RESET)
   }
 
+  /**
+    * Run the firrtl compiler using the provided option
+    * @param firrtlConfig the desired flags to the compiler
+    * @return a FirrtlExectionResult indicating success or failure, provide access to emitted data on success
+    *         for downstream tools as desired
+    */
   def execute(firrtlConfig: FirrtlExecutionOptions): FirrtlExecutionResult = {
     val firrtlSource = firrtlConfig.firrtlSource match {
       case Some(text) => text.split("\n").toIterator
@@ -277,6 +322,12 @@ object Driver {
     FirrtlExecutionSuccess(firrtlConfig.compilerName, outputBuffer.toString)
   }
 
+  /**
+    * this is a wrapper for execute that builds the options from a standard command line args,
+    * for example, like strings passed to main()
+    * @param args  an Array of string s containing legal arguments
+    * @return
+    */
   def execute(args: Array[String]): FirrtlExecutionResult = {
     val firrtlOptions = new FirrtlExecutionOptions()
 
@@ -356,6 +407,7 @@ object OldDriver {
     * Arguments specify the compiler, input file, output file, and
     * optionally the module/instances to inline.
     */
+  @deprecated("This is on it's way out, use Driver intstead", "firrtl")
   def main(args: Array[String]) = {
     val usage =
       """
