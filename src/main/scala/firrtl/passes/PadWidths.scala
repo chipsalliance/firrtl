@@ -48,7 +48,7 @@ object PadWidths extends Pass {
         ex copy (op = Shlw, args = Seq(fixup(width(ex.tpe))(ex.args.head)))
       case _ => ex
     }
-    case _ => e
+    case ex => ex
   }
 
   // Recursive. Fixes assignments and register initialization widths
@@ -57,7 +57,7 @@ object PadWidths extends Pass {
       sx copy (expr = fixup(width(sx.loc))(sx.expr))
     case sx: DefRegister =>
       sx copy (init = fixup(width(sx.tpe))(sx.init))
-    case _ => s map onStmt
+    case sx => sx map onStmt
   }
 
   def run(c: Circuit): Circuit = c copy (modules = c.modules map (_ map onStmt))

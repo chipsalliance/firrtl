@@ -72,7 +72,7 @@ object Utils extends LazyLogging {
         case 1 => newStmts.head
         case _ => Block(newStmts)
       }
-    case _ => s
+    case sx => sx
   }
 
   /** Indent the results of [[ir.FirrtlNode.serialize]] */
