@@ -17,7 +17,7 @@ import scala.collection._
   * The driver provides methods to access the firrtl compiler.
   * Invoke the compiler with either a FirrtlExecutionOption
   * @example
-  *          {{
+  *          {{{
   *          val options = new FirrtlExecutionOptions()
   *          firrtlOptions.topName = "Dummy"
   *          firrtlOptions.compilerName = "verilog"
@@ -25,7 +25,7 @@ import scala.collection._
   *          }}}
   *  or a series of command line arguments
   * @example
-  *          {{
+  *          {{{
   *          firrtl.Driver.execute(Array("--top-name Dummy --compiler verilog".split(" +"))
   *          }}}
   * each approach has its own endearing aspects
