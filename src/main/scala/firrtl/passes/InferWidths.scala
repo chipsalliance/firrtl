@@ -80,7 +80,7 @@ object InferWidths extends Pass {
       //;println-all-debug(["Substituting for [" w "]"])
       val wx = simplify(w)
       //;println-all-debug(["After Simplify: [" wx "]"])
-      (wx map substitute(h)) match {
+      wx map substitute(h) match {
         //;("matched  println-debugvarwidth!")
         case w: VarWidth => h get w.name match {
           case None => w
@@ -106,7 +106,7 @@ object InferWidths extends Pass {
 
     def remove_cycle(n: String)(w: Width): Width = {
       //;println-all-debug(["Removing cycle for " n " inside " w])
-      (w map remove_cycle(n)) match {
+      w map remove_cycle(n) match {
         case w: MaxWidth => MaxWidth(w.args filter {
           case w: VarWidth => !(n equals w.name)
           case w => true
@@ -253,6 +253,8 @@ object InferWidths extends Pass {
            WGeq(getWidth(s.pred), IntWidth(1)),
            WGeq(IntWidth(1), getWidth(s.pred))
         )
+        case (s: Attach) =>
+          v += WGeq(getWidth(s.source), MaxWidth(s.exprs map (e => getWidth(e.tpe))))
         case _ =>
       }
       s map get_constraints_e map get_constraints_s
@@ -260,13 +262,13 @@ object InferWidths extends Pass {
 
     c.modules foreach (_ map get_constraints_s)
 
-    //println-debug("======== ALL CONSTRAINTS ========")
-    //for x in v do : println-debug(x)
-    //println-debug("=================================")
+    //println("======== ALL CONSTRAINTS ========")
+    //for(x <- v) println(x)
+    //println("=================================")
     val h = solve_constraints(v)
-    //println-debug("======== SOLVED CONSTRAINTS ========")
-    //for x in h do : println-debug(x)
-    //println-debug("====================================")
+    //println("======== SOLVED CONSTRAINTS ========")
+    //for(x <- h) println(x)
+    //println("====================================")
 
     def evaluate(w: Width): Width = {
       def map2(a: Option[BigInt], b: Option[BigInt], f: (BigInt,BigInt) => BigInt): Option[BigInt] =
@@ -287,8 +289,8 @@ object InferWidths extends Pass {
             v <- h.get(w.name) if !v.isInstanceOf[VarWidth]
             result <- solve(v)
           } yield result
-        case (w: MaxWidth) => reduceOptions(forceNonEmpty(w.args.map(solve _), Some(BigInt(0))), max)
-        case (w: MinWidth) => reduceOptions(forceNonEmpty(w.args.map(solve _), None), min)
+        case (w: MaxWidth) => reduceOptions(forceNonEmpty(w.args.map(solve), Some(BigInt(0))), max)
+        case (w: MinWidth) => reduceOptions(forceNonEmpty(w.args.map(solve), None), min)
         case (w: PlusWidth) => map2(solve(w.arg1), solve(w.arg2), {_ + _})
         case (w: MinusWidth) => map2(solve(w.arg1), solve(w.arg2), {_ - _})
         case (w: ExpWidth) => map2(Some(BigInt(2)), solve(w.arg1), pow_minus_one)

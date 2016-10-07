@@ -48,6 +48,7 @@ object ExpandWhens extends Pass {
   type NodeMap = collection.mutable.HashMap[MemoizedHash[Expression], String]
   type Netlist = collection.mutable.LinkedHashMap[WrappedExpression, Expression]
   type Simlist = collection.mutable.ArrayBuffer[Statement]
+  type Attachlist = collection.mutable.ArrayBuffer[Statement]
   type Defaults = Seq[collection.mutable.Map[WrappedExpression, Expression]]
 
   // ========== Expand When Utilz ==========
@@ -55,9 +56,12 @@ object ExpandWhens extends Pass {
     def getGender(t: Type, i: Int, g: Gender): Gender = times(g, get_flip(t, i, Default))
     val exps = create_exps(WRef(n, t, ExpKind, g))
     (exps.zipWithIndex foldLeft Seq[Expression]()){
-      case (expsx, (exp, j)) => getGender(t, j, g) match {
-        case (BIGENDER | FEMALE) => expsx :+ exp
-        case _ => expsx
+      case (expsx, (exp, j)) => exp.tpe match {
+        case AnalogType(w) => expsx
+        case _ => getGender(t, j, g) match {
+          case (BIGENDER | FEMALE) => expsx :+ exp
+          case _ => expsx
+        }
       }
     }
   }
@@ -108,15 +112,16 @@ object ExpandWhens extends Pass {
         case c: IsInvalid =>
           netlist(c.expr) = WInvalid
           EmptyStmt
+        case c: Attach => c
         case s: Conditionally =>
           val conseqNetlist = new Netlist
           val altNetlist = new Netlist
           val conseqStmt = expandWhens(conseqNetlist, netlist +: defaults, AND(p, s.pred))(s.conseq)
           val altStmt = expandWhens(altNetlist, netlist +: defaults, AND(p, NOT(s.pred)))(s.alt)
 
-          // Process combined set of keys because we only want to create 1 mux for each node
-          //   being connected to in the conseq and/or alt
-          val memos = (conseqNetlist.keySet ++ altNetlist.keySet) map { lvalue =>
+          // Process combined maps because we only want to create 1 mux for each node
+          //   present in the conseq and/or alt
+          val memos = (conseqNetlist ++ altNetlist) map { case (lvalue, _) =>
             // Defaults in netlist get priority over those in defaults
             val default = netlist get lvalue match {
               case Some(v) => Some(v)

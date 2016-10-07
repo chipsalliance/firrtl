@@ -40,41 +40,41 @@ object CheckHighForm extends Pass {
 
   // Custom Exceptions
   class NotUniqueException(info: Info, mname: String, name: String) extends PassException(
-    s"${info}: [module ${mname}] Reference ${name} does not have a unique name.")
+    s"$info: [module $mname] Reference $name does not have a unique name.")
   class InvalidLOCException(info: Info, mname: String) extends PassException(
-    s"${info}: [module ${mname}] Invalid connect to an expression that is not a reference or a WritePort.")
+    s"$info: [module $mname] Invalid connect to an expression that is not a reference or a WritePort.")
   class NegUIntException(info: Info, mname: String) extends PassException(
-    s"${info}: [module ${mname}] UIntLiteral cannot be negative.")
+    s"$info: [module $mname] UIntLiteral cannot be negative.")
   class UndeclaredReferenceException(info: Info, mname: String, name: String) extends PassException(
-    s"${info}: [module ${mname}] Reference ${name} is not declared.")
+    s"$info: [module $mname] Reference $name is not declared.")
   class PoisonWithFlipException(info: Info, mname: String, name: String) extends PassException(
-    s"${info}: [module ${mname}] Poison ${name} cannot be a bundle type with flips.")
+    s"$info: [module $mname] Poison $name cannot be a bundle type with flips.")
   class MemWithFlipException(info: Info, mname: String, name: String) extends PassException(
-    s"${info}: [module ${mname}] Memory ${name} cannot be a bundle type with flips.")
+    s"$info: [module $mname] Memory $name cannot be a bundle type with flips.")
   class InvalidAccessException(info: Info, mname: String) extends PassException(
-    s"${info}: [module ${mname}] Invalid access to non-reference.")
+    s"$info: [module $mname] Invalid access to non-reference.")
   class ModuleNotDefinedException(info: Info, mname: String, name: String) extends PassException(
-    s"${info}: Module ${name} is not defined.")
+    s"$info: Module $name is not defined.")
   class IncorrectNumArgsException(info: Info, mname: String, op: String, n: Int) extends PassException(
-    s"${info}: [module ${mname}] Primop ${op} requires ${n} expression arguments.")
+    s"$info: [module $mname] Primop $op requires $n expression arguments.")
   class IncorrectNumConstsException(info: Info, mname: String, op: String, n: Int) extends PassException(
-    s"${info}: [module ${mname}] Primop ${op} requires ${n} integer arguments.")
+    s"$info: [module $mname] Primop $op requires $n integer arguments.")
   class NegWidthException(info: Info, mname: String) extends PassException(
-    s"${info}: [module ${mname}] Width cannot be negative or zero.")
+    s"$info: [module $mname] Width cannot be negative or zero.")
   class NegVecSizeException(info: Info, mname: String) extends PassException(
-    s"${info}: [module ${mname}] Vector type size cannot be negative.")
+    s"$info: [module $mname] Vector type size cannot be negative.")
   class NegMemSizeException(info: Info, mname: String) extends PassException(
-    s"${info}: [module ${mname}] Memory size cannot be negative or zero.")
+    s"$info: [module $mname] Memory size cannot be negative or zero.")
   class BadPrintfException(info: Info, mname: String, x: Char) extends PassException(
-    s"${info}: [module ${mname}] Bad printf format: " + "\"%" + x + "\"")
+    s"$info: [module $mname] Bad printf format: " + "\"%" + x + "\"")
   class BadPrintfTrailingException(info: Info, mname: String) extends PassException(
-    s"${info}: [module ${mname}] Bad printf format: trailing " + "\"%\"")
+    s"$info: [module $mname] Bad printf format: trailing " + "\"%\"")
   class BadPrintfIncorrectNumException(info: Info, mname: String) extends PassException(
-    s"${info}: [module ${mname}] Bad printf format: incorrect number of arguments")
+    s"$info: [module $mname] Bad printf format: incorrect number of arguments")
   class InstanceLoop(info: Info, mname: String, loop: String) extends PassException(
-    s"${info}: [module ${mname}] Has instance loop $loop")
+    s"$info: [module $mname] Has instance loop $loop")
   class NoTopModuleException(info: Info, name: String) extends PassException(
-    s"${info}: A single module must be named ${name}.")
+    s"$info: A single module must be named $name.")
 
   // TODO FIXME
   // - Do we need to check for uniquness on port names?
@@ -87,7 +87,7 @@ object CheckHighForm extends Pass {
       def correctNum(ne: Option[Int], nc: Int) {
         ne match {
           case Some(i) if e.args.length != i =>
-            errors append (new IncorrectNumArgsException(info, mname, e.op.toString, i))
+            errors append new IncorrectNumArgsException(info, mname, e.op.toString, i)
           case _ => // Do Nothing
         }
         if (e.consts.length != nc)
@@ -181,7 +181,7 @@ object CheckHighForm extends Pass {
 
     def checkHighFormS(minfo: Info, mname: String, names: NameSet)(s: Statement): Statement = {
       val info = get_info(s) match {case NoInfo => minfo case x => x}
-      (s map checkName(info, mname, names)) match {
+      s map checkName(info, mname, names) match {
         case s: DefMemory =>
           if (hasFlip(s.dataType))
             errors append new MemWithFlipException(info, mname, s.name)
@@ -218,11 +218,11 @@ object CheckHighForm extends Pass {
     }
     
     c.modules foreach checkHighFormM
-    (c.modules filter (_.name == c.main)).size match {
+    c.modules count (_.name == c.main) match {
       case 1 =>
       case _ => errors append new NoTopModuleException(c.info, c.main)
     }
-    errors.trigger
+    errors.trigger()
     c
   }
 }
@@ -232,51 +232,59 @@ object CheckTypes extends Pass {
 
   // Custom Exceptions
   class SubfieldNotInBundle(info: Info, mname: String, name: String) extends PassException(
-    s"${info}: [module ${mname} ]  Subfield ${name} is not in bundle.")
+    s"$info: [module $mname ]  Subfield $name is not in bundle.")
   class SubfieldOnNonBundle(info: Info, mname: String, name: String) extends PassException(
-    s"${info}: [module ${mname}]  Subfield ${name} is accessed on a non-bundle.")
+    s"$info: [module $mname]  Subfield $name is accessed on a non-bundle.")
   class IndexTooLarge(info: Info, mname: String, value: Int) extends PassException(
-    s"${info}: [module ${mname}]  Index with value ${value} is too large.")
+    s"$info: [module $mname]  Index with value $value is too large.")
   class IndexOnNonVector(info: Info, mname: String) extends PassException(
-    s"${info}: [module ${mname}]  Index illegal on non-vector type.")
+    s"$info: [module $mname]  Index illegal on non-vector type.")
   class AccessIndexNotUInt(info: Info, mname: String) extends PassException(
-    s"${info}: [module ${mname}]  Access index must be a UInt type.")
+    s"$info: [module $mname]  Access index must be a UInt type.")
   class IndexNotUInt(info: Info, mname: String) extends PassException(
-    s"${info}: [module ${mname}]  Index is not of UIntType.")
+    s"$info: [module $mname]  Index is not of UIntType.")
   class EnableNotUInt(info: Info, mname: String) extends PassException(
-    s"${info}: [module ${mname}]  Enable is not of UIntType.")
+    s"$info: [module $mname]  Enable is not of UIntType.")
   class InvalidConnect(info: Info, mname: String, lhs: String, rhs: String) extends PassException(
-    s"${info}: [module ${mname}]  Type mismatch. Cannot connect ${lhs} to ${rhs}.")
+    s"$info: [module $mname]  Type mismatch. Cannot connect $lhs to $rhs.")
   class InvalidRegInit(info: Info, mname: String) extends PassException(
-    s"${info}: [module ${mname}]  Type of init must match type of DefRegister.")
+    s"$info: [module $mname]  Type of init must match type of DefRegister.")
   class PrintfArgNotGround(info: Info, mname: String) extends PassException(
-    s"${info}: [module ${mname}]  Printf arguments must be either UIntType or SIntType.")
+    s"$info: [module $mname]  Printf arguments must be either UIntType or SIntType.")
   class ReqClk(info: Info, mname: String) extends PassException(
-    s"${info}: [module ${mname}]  Requires a clock typed signal.")
+    s"$info: [module $mname]  Requires a clock typed signal.")
   class EnNotUInt(info: Info, mname: String) extends PassException(
-    s"${info}: [module ${mname}]  Enable must be a UIntType typed signal.")
+    s"$info: [module $mname]  Enable must be a UIntType typed signal.")
   class PredNotUInt(info: Info, mname: String) extends PassException(
-    s"${info}: [module ${mname}]  Predicate not a UIntType.")
+    s"$info: [module $mname]  Predicate not a UIntType.")
   class OpNotGround(info: Info, mname: String, op: String) extends PassException(
-    s"${info}: [module ${mname}]  Primop ${op} cannot operate on non-ground types.")
+    s"$info: [module $mname]  Primop $op cannot operate on non-ground types.")
   class OpNotUInt(info: Info, mname: String, op: String, e: String) extends PassException(
-    s"${info}: [module ${mname}]  Primop ${op} requires argument ${e} to be a UInt type.")
+    s"$info: [module $mname]  Primop $op requires argument $e to be a UInt type.")
   class OpNotAllUInt(info: Info, mname: String, op: String) extends PassException(
-    s"${info}: [module ${mname}]  Primop ${op} requires all arguments to be UInt type.")
+    s"$info: [module $mname]  Primop $op requires all arguments to be UInt type.")
   class OpNotAllSameType(info: Info, mname: String, op: String) extends PassException(
-    s"${info}: [module ${mname}]  Primop ${op} requires all operands to have the same type.")
+    s"$info: [module $mname]  Primop $op requires all operands to have the same type.")
+  class OpNotAnalog(info: Info, mname: String, exp: String) extends PassException(
+    s"$info: [module $mname]  Attach requires all arguments to be Analog type: $exp.")
   class NodePassiveType(info: Info, mname: String) extends PassException(
-    s"${info}: [module ${mname}]  Node must be a passive type.")
+    s"$info: [module $mname]  Node must be a passive type.")
   class MuxSameType(info: Info, mname: String) extends PassException(
-    s"${info}: [module ${mname}]  Must mux between equivalent types.")
+    s"$info: [module $mname]  Must mux between equivalent types.")
   class MuxPassiveTypes(info: Info, mname: String) extends PassException(
-    s"${info}: [module ${mname}]  Must mux between passive types.")
+    s"$info: [module $mname]  Must mux between passive types.")
   class MuxCondUInt(info: Info, mname: String) extends PassException(
-    s"${info}: [module ${mname}]  A mux condition must be of type UInt.")
+    s"$info: [module $mname]  A mux condition must be of type UInt.")
   class ValidIfPassiveTypes(info: Info, mname: String) extends PassException(
-    s"${info}: [module ${mname}]  Must validif a passive type.")
+    s"$info: [module $mname]  Must validif a passive type.")
   class ValidIfCondUInt(info: Info, mname: String) extends PassException(
-    s"${info}: [module ${mname}]  A validif condition must be of type UInt.")
+    s"$info: [module $mname]  A validif condition must be of type UInt.")
+  class IllegalAnalogDeclaration(info: Info, mname: String, decName: String) extends PassException(
+    s"$info: [module $mname]  Cannot declare a reg, node, or memory with an Analog type: $decName.")
+  class IllegalAttachSource(info: Info, mname: String, sourceName: String) extends PassException(
+    s"$info: [module $mname]  Attach source must be a wire or port with an analog type: $sourceName.")
+  class IllegalAttachExp(info: Info, mname: String, expName: String) extends PassException(
+    s"$info: [module $mname]  Attach expression must be an instance: $expName.")
 
   //;---------------- Helper Functions --------------
   def ut: UIntType = UIntType(UnknownWidth)
@@ -291,13 +299,12 @@ object CheckTypes extends Pass {
       case (t: BundleType) => t.fields forall (x => x.flip == Default && passive(x.tpe))
       case (t) => true
     }
-
     def check_types_primop(info: Info, mname: String, e: DoPrim) {
       def all_same_type (ls:Seq[Expression]) {
         if (ls exists (x => wt(ls.head.tpe) != wt(e.tpe)))
           errors append new OpNotAllSameType(info, mname, e.op.serialize)
       }
-      def all_ground (ls: Seq[Expression]) {
+      def allInt(ls: Seq[Expression]) {
         if (ls exists (x => x.tpe match {
           case _: UIntType | _: SIntType => false
           case _ => true
@@ -315,12 +322,11 @@ object CheckTypes extends Pass {
           case _ => true
         }) errors append new OpNotUInt(info, mname, e.op.serialize, x.serialize)
       }
-
       e.op match {
         case AsUInt | AsSInt | AsClock =>
-        case Dshl => is_uint(e.args(1)); all_ground(e.args)
-        case Dshr => is_uint(e.args(1)); all_ground(e.args)
-        case _ => all_ground(e.args)
+        case Dshl => is_uint(e.args(1)); allInt(e.args)
+        case Dshr => is_uint(e.args(1)); allInt(e.args)
+        case _ => allInt(e.args)
       }
     }
 
@@ -336,9 +342,9 @@ object CheckTypes extends Pass {
         case (e: WSubIndex) => e.exp.tpe match {
           case (t: VectorType) if e.value < t.size =>
           case (t: VectorType) =>
-            errors append (new IndexTooLarge(info, mname, e.value))
+            errors append new IndexTooLarge(info, mname, e.value)
           case _ =>
-            errors append (new IndexOnNonVector(info, mname))
+            errors append new IndexOnNonVector(info, mname)
         }
         case (e: WSubAccess) =>
           e.exp.tpe match {
@@ -377,6 +383,7 @@ object CheckTypes extends Pass {
         case (ClockType, ClockType) => flip1 == flip2
         case (_: UIntType, _: UIntType) => flip1 == flip2
         case (_: SIntType, _: SIntType) => flip1 == flip2
+        case (_: AnalogType, _: AnalogType) => false
         case (t1: BundleType, t2: BundleType) =>
           val t1_fields = (t1.fields foldLeft Map[String, (Type, Orientation)]())(
             (map, f1) => map + (f1.name -> (f1.tpe, f1.flip)))
@@ -397,14 +404,35 @@ object CheckTypes extends Pass {
       s match {
         case (s: Connect) if wt(s.loc.tpe) != wt(s.expr.tpe) =>
           errors append new InvalidConnect(info, mname, s.loc.serialize, s.expr.serialize)
-        case (s:PartialConnect) if !bulk_equals(s.loc.tpe, s.expr.tpe, Default, Default) =>
+        case (s: PartialConnect) if !bulk_equals(s.loc.tpe, s.expr.tpe, Default, Default) =>
           errors append new InvalidConnect(info, mname, s.loc.serialize, s.expr.serialize)
-        case (s: DefRegister) if wt(s.tpe) != wt(s.init.tpe) =>
-          errors append new InvalidRegInit(info, mname)
+        case (s: DefRegister) => s.tpe match {
+          case AnalogType(w) => errors append new IllegalAnalogDeclaration(info, mname, s.name)
+          case t if (wt(s.tpe) != wt(s.init.tpe)) => errors append new InvalidRegInit(info, mname)
+          case t =>
+        }
         case (s: Conditionally) if wt(s.pred.tpe) != wt(ut) =>
           errors append new PredNotUInt(info, mname)
-        case (s: DefNode) if !passive(s.value.tpe) =>
-          errors append new NodePassiveType(info, mname)
+        case (s: DefNode) => s.value.tpe match {
+          case AnalogType(w) => errors append new IllegalAnalogDeclaration(info, mname, s.name)
+          case t if !passive(s.value.tpe) => errors append new NodePassiveType(info, mname)
+          case t =>
+        }
+        case (s: Attach) => 
+          (s.source.tpe, kind(s.source)) match {
+            case (AnalogType(w), PortKind | WireKind)  =>
+            case _ => errors append new IllegalAttachSource(info, mname, s.source.serialize)
+          }
+          (s.exprs foreach) { e =>
+            e.tpe match {
+              case _: AnalogType =>
+              case _ => errors append new OpNotAnalog(info, mname, e.serialize)
+            }
+            kind(e) match {
+              case InstanceKind =>
+              case _ =>  errors append new IllegalAttachExp(info, mname, e.serialize)
+            }
+          }
         case (s: Stop) =>
           if (wt(s.clk.tpe) != wt(ClockType)) errors append new ReqClk(info, mname)
           if (wt(s.en.tpe) != wt(ut)) errors append new EnNotUInt(info, mname)
@@ -413,13 +441,17 @@ object CheckTypes extends Pass {
             errors append new PrintfArgNotGround(info, mname)
           if (wt(s.clk.tpe) != wt(ClockType)) errors append new ReqClk(info, mname)
           if (wt(s.en.tpe) != wt(ut)) errors append new EnNotUInt(info, mname)
+        case (s: DefMemory) => s.dataType match {
+          case AnalogType(w) => errors append new IllegalAnalogDeclaration(info, mname, s.name)
+          case t =>
+        }
         case _ =>
       }
       s map check_types_e(info, mname) map check_types_s(info, mname)
     }
 
     c.modules foreach (m => m map check_types_s(m.info, m.name))
-    errors.trigger
+    errors.trigger()
     c
   }
 }
@@ -436,7 +468,7 @@ object CheckGenders extends Pass {
   }
    
   class WrongGender(info:Info, mname: String, expr: String, wrong: Gender, right: Gender) extends PassException(
-    s"${info}: [module ${mname}]  Expression ${expr} is used as a ${wrong} but can only be used as a ${right}.")
+    s"$info: [module $mname]  Expression $expr is used as a $wrong but can only be used as a $right.")
    
   def run (c:Circuit): Circuit = {
     val errors = new Errors()
@@ -522,7 +554,7 @@ object CheckGenders extends Pass {
       genders ++= (m.ports map (p => p.name -> to_gender(p.direction)))
       m map check_genders_s(m.info, m.name, genders)
     }
-    errors.trigger
+    errors.trigger()
     c
   }
 }
@@ -530,17 +562,21 @@ object CheckGenders extends Pass {
 object CheckWidths extends Pass {
   def name = "Width Check"
   class UninferredWidth (info: Info, mname: String) extends PassException(
-    s"${info} : [module ${mname}]  Uninferred width.")
+    s"$info : [module $mname]  Uninferred width.")
   class WidthTooSmall(info: Info, mname: String, b: BigInt) extends PassException(
     s"$info : [module $mname]  Width too small for constant ${serialize(b)}.")
+  class WidthTooBig(info: Info, mname: String) extends PassException(
+    s"$info : [module $mname]  Width of dshl shift amount cannot be larger than 31 bits.")
   class NegWidthException(info:Info, mname: String) extends PassException(
-    s"${info}: [module ${mname}] Width cannot be negative or zero.")
+    s"$info: [module $mname] Width cannot be negative or zero.")
   class BitsWidthException(info: Info, mname: String, hi: BigInt, width: BigInt) extends PassException(
-    s"${info}: [module ${mname}] High bit $hi in bits operator is larger than input width $width.")
+    s"$info: [module $mname] High bit $hi in bits operator is larger than input width $width.")
   class HeadWidthException(info: Info, mname: String, n: BigInt, width: BigInt) extends PassException(
-    s"${info}: [module ${mname}] Parameter $n in head operator is larger than input width $width.")
+    s"$info: [module $mname] Parameter $n in head operator is larger than input width $width.")
   class TailWidthException(info: Info, mname: String, n: BigInt, width: BigInt) extends PassException(
-    s"${info}: [module ${mname}] Parameter $n in tail operator is larger than input width $width.")
+    s"$info: [module $mname] Parameter $n in tail operator is larger than input width $width.")
+  class AttachWidthsNotEqual(info: Info, mname: String, eName: String, source: String) extends PassException(
+    s"$info: [module $mname] Attach source $source and expression $eName must have identical widths.")
 
   def run(c: Circuit): Circuit = {
     val errors = new Errors()
@@ -574,6 +610,8 @@ object CheckWidths extends Pass {
           errors append new HeadWidthException(info, mname, n, bitWidth(a.tpe))
         case DoPrim(Tail, Seq(a), Seq(n), _) if bitWidth(a.tpe) <= n =>
           errors append new TailWidthException(info, mname, n, bitWidth(a.tpe))
+        case DoPrim(Dshl, Seq(a, b), _, _) if bitWidth(b.tpe) >= BigInt(32) =>
+          errors append new WidthTooBig(info, mname)
         case _ =>
       }
       e map check_width_w(info, mname) map check_width_e(info, mname)
@@ -581,7 +619,15 @@ object CheckWidths extends Pass {
 
     def check_width_s(minfo: Info, mname: String)(s: Statement): Statement = {
       val info = get_info(s) match { case NoInfo => minfo case x => x }
-      s map check_width_e(info, mname) map check_width_s(info, mname)
+      s map check_width_e(info, mname) map check_width_s(info, mname) match {
+        case Attach(info, source, exprs) => 
+          exprs foreach ( e =>
+            if (bitWidth(e.tpe) != bitWidth(source.tpe))
+              errors append new AttachWidthsNotEqual(info, mname, e.serialize, source.serialize)
+          )
+          s
+        case _ => s
+      }
     }
 
     def check_width_p(minfo: Info, mname: String)(p: Port): Port = {
@@ -594,7 +640,7 @@ object CheckWidths extends Pass {
     }
 
     c.modules foreach check_width_m
-    errors.trigger
+    errors.trigger()
     c
   }
 }

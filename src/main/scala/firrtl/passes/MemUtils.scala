@@ -35,7 +35,7 @@ import firrtl.PrimOps._
 object seqCat {
   def apply(args: Seq[Expression]): Expression = args.length match {
     case 0 => error("Empty Seq passed to seqcat")
-    case 1 => args(0)
+    case 1 => args.head
     case 2 => DoPrim(PrimOps.Cat, args, Nil, UIntType(UnknownWidth))
     case _ =>
       val (high, low) = args splitAt (args.length / 2)
@@ -140,16 +140,31 @@ object createMask {
   def apply(dt: Type): Type = dt match {
     case t: VectorType => VectorType(apply(t.tpe), t.size)
     case t: BundleType => BundleType(t.fields map (f => f copy (tpe=apply(f.tpe))))
-    case t: UIntType => BoolType
-    case t: SIntType => BoolType
+    case t: GroundType => BoolType
   }
 }
 
+object createRef {
+  def apply(n: String, t: Type = UnknownType, k: Kind = ExpKind) = WRef(n, t, k, UNKNOWNGENDER)
+}
+
+object createSubField {
+  def apply(exp: Expression, n: String) = WSubField(exp, n, field_type(exp.tpe, n), UNKNOWNGENDER)
+}
+
+object connectFields {
+  def apply(lref: Expression, lname: String, rref: Expression, rname: String) =
+    Connect(NoInfo, createSubField(lref, lname), createSubField(rref, rname))
+}
+
+object flattenType {
+  def apply(t: Type) = UIntType(IntWidth(bitWidth(t)))
+}
+
 object MemPortUtils {
-
-  import AnalysisUtils._
-
-  def flattenType(t: Type) = UIntType(IntWidth(bitWidth(t)))
+  type MemPortMap = collection.mutable.HashMap[String, Expression]
+  type Memories = collection.mutable.ArrayBuffer[DefMemory]
+  type Modules = collection.mutable.ArrayBuffer[DefModule]
 
   def defaultPortSeq(mem: DefMemory) = Seq(
     Field("addr", Default, UIntType(IntWidth(ceilLog2(mem.depth) max 1))),
@@ -157,64 +172,10 @@ object MemPortUtils {
     Field("clk", Default, ClockType)
   )
 
-  def getFillWMask(mem: DefMemory) =
-    getInfo(mem.info, "maskGran") match {
-      case None => false
-      case Some(maskGran) => maskGran == 1
-    }
-
-  def rPortToBundle(mem: DefMemory) = BundleType(
-    defaultPortSeq(mem) :+ Field("data", Flip, mem.dataType))
-  def rPortToFlattenBundle(mem: DefMemory) = BundleType(
-    defaultPortSeq(mem) :+ Field("data", Flip, flattenType(mem.dataType)))
-
-  def wPortToBundle(mem: DefMemory) = BundleType(
-    (defaultPortSeq(mem) :+ Field("data", Default, mem.dataType)) ++
-    (if (!containsInfo(mem.info, "maskGran")) Nil
-     else Seq(Field("mask", Default, createMask(mem.dataType))))
-  )
-  def wPortToFlattenBundle(mem: DefMemory) = BundleType(
-    (defaultPortSeq(mem) :+ Field("data", Default, flattenType(mem.dataType))) ++
-    (if (!containsInfo(mem.info, "maskGran")) Nil
-     else if (getFillWMask(mem)) Seq(Field("mask", Default, flattenType(mem.dataType)))
-     else Seq(Field("mask", Default, flattenType(createMask(mem.dataType)))))
-  )
-  // TODO: Don't use createMask???
-
-  def rwPortToBundle(mem: DefMemory) = BundleType(
-    defaultPortSeq(mem) ++ Seq(
-      Field("wmode", Default, BoolType),
-      Field("wdata", Default, mem.dataType),
-      Field("rdata", Flip, mem.dataType)
-    ) ++ (if (!containsInfo(mem.info, "maskGran")) Nil
-     else Seq(Field("wmask", Default, createMask(mem.dataType)))
-    )
-  )
-
-  def rwPortToFlattenBundle(mem: DefMemory) = BundleType(
-    defaultPortSeq(mem) ++ Seq(
-      Field("wmode", Default, BoolType),
-      Field("wdata", Default, flattenType(mem.dataType)),
-      Field("rdata", Flip, flattenType(mem.dataType))
-    ) ++ (if (!containsInfo(mem.info, "maskGran")) Nil
-     else if (getFillWMask(mem)) Seq(Field("wmask", Default, flattenType(mem.dataType)))
-     else Seq(Field("wmask", Default, flattenType(createMask(mem.dataType))))
-    )  
-  )
-
-  def memToBundle(s: DefMemory) = BundleType(
-    s.readers.map(Field(_, Flip, rPortToBundle(s))) ++
-    s.writers.map(Field(_, Flip, wPortToBundle(s))) ++
-    s.readwriters.map(Field(_, Flip, rwPortToBundle(s))))
-  
-  def memToFlattenBundle(s: DefMemory) = BundleType(
-    s.readers.map(Field(_, Flip, rPortToFlattenBundle(s))) ++
-    s.writers.map(Field(_, Flip, wPortToFlattenBundle(s))) ++
-    s.readwriters.map(Field(_, Flip, rwPortToFlattenBundle(s))))
-
   // Todo: merge it with memToBundle
   def memType(mem: DefMemory) = {
-    val rType = rPortToBundle(mem)
+    val rType = BundleType(defaultPortSeq(mem) :+
+      Field("data", Flip, mem.dataType))
     val wType = BundleType(defaultPortSeq(mem) ++ Seq(
       Field("data", Default, mem.dataType),
       Field("mask", Default, createMask(mem.dataType))))

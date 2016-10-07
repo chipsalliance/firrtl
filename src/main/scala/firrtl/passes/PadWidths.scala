@@ -39,13 +39,13 @@ object PadWidths extends Pass {
       case Lt | Leq | Gt | Geq | Eq | Neq | Not | And | Or | Xor |
            Add | Sub | Mul | Div | Rem | Shr =>
         // sensitive ops
-        e map fixup((e.args map (width(_)) foldLeft 0)(math.max(_, _)))
+        e map fixup((e.args map width foldLeft 0)(math.max))
       case Dshl =>
         // special case as args aren't all same width
-        e copy (op = Dshlw, args = Seq(fixup(width(e.tpe))(e.args(0)), e.args(1)))
+        e copy (op = Dshlw, args = Seq(fixup(width(e.tpe))(e.args.head), e.args(1)))
       case Shl =>
         // special case as arg should be same width as result
-        e copy (op = Shlw, args = Seq(fixup(width(e.tpe))(e.args(0))))
+        e copy (op = Shlw, args = Seq(fixup(width(e.tpe))(e.args.head)))
       case _ => e
     }
     case e => e
@@ -60,5 +60,5 @@ object PadWidths extends Pass {
     case s => s map onStmt
   }
 
-  def run(c: Circuit): Circuit = c copy (modules = (c.modules map (_ map onStmt)))
+  def run(c: Circuit): Circuit = c copy (modules = c.modules map (_ map onStmt))
 }

@@ -56,7 +56,7 @@ object RemoveCHIRRTL extends Pass {
       (e1s zip e2s) map { case (e1, e2) => Mux(e.cond, e1, e2, mux_type(e1, e2)) }
     case (e: ValidIf) =>
       create_exps(e.value) map (e1 => ValidIf(e.cond, e1, e1.tpe))
-    case (e) => (e.tpe) match {
+    case (e) => e.tpe match {
       case (_: GroundType) => Seq(e)
       case (t: BundleType) => (t.fields foldLeft Seq[Expression]())((exps, f) =>
         exps ++ create_exps(SubField(e, f.name, f.tpe)))
@@ -74,9 +74,9 @@ object RemoveCHIRRTL extends Pass {
       case (s:CDefMPort) =>
         val p = mports getOrElse (s.mem, EMPs)
         s.direction match {
-          case MRead => p.readers += MPort(s.name,s.exps(1))
-          case MWrite => p.writers += MPort(s.name,s.exps(1))
-          case MReadWrite => p.readwriters += MPort(s.name,s.exps(1))
+          case MRead => p.readers += MPort(s.name, s.exps(1))
+          case MWrite => p.writers += MPort(s.name, s.exps(1))
+          case MReadWrite => p.readwriters += MPort(s.name, s.exps(1))
         }
         mports(s.mem) = p
       case s =>
@@ -90,17 +90,14 @@ object RemoveCHIRRTL extends Pass {
       types(s.name) = s.tpe
       val taddr = UIntType(IntWidth(1 max ceilLog2(s.size)))
       val tdata = s.tpe
-      def set_poison(vec: Seq[MPort], addr: String) = vec flatMap (r => Seq(
-        IsInvalid(s.info, SubField(SubField(Reference(s.name, ut), r.name, ut), addr, taddr)),
-        IsInvalid(s.info, SubField(SubField(Reference(s.name, ut), r.name, ut), "clk", taddr))
+      def set_poison(vec: Seq[MPort]) = vec flatMap (r => Seq(
+        IsInvalid(s.info, SubField(SubField(Reference(s.name, ut), r.name, ut), "addr", taddr)),
+        IsInvalid(s.info, SubField(SubField(Reference(s.name, ut), r.name, ut), "clk", ClockType))
       ))
       def set_enable(vec: Seq[MPort], en: String) = vec map (r =>
-        Connect(s.info, SubField(SubField(Reference(s.name, ut), r.name, ut), en, taddr), zero)
+        Connect(s.info, SubField(SubField(Reference(s.name, ut), r.name, ut), en, BoolType), zero)
       )
-      def set_wmode (vec: Seq[MPort], wmode: String) = vec map (r =>
-        Connect(s.info, SubField(SubField(Reference(s.name, ut), r.name, ut), wmode, taddr), zero)
-      )
-      def set_write (vec: Seq[MPort], data: String, mask: String) = vec flatMap {r =>
+      def set_write(vec: Seq[MPort], data: String, mask: String) = vec flatMap {r =>
         val tmask = createMask(s.tpe)
         IsInvalid(s.info, SubField(SubField(Reference(s.name, ut), r.name, ut), data, tdata)) +:
              (create_exps(SubField(SubField(Reference(s.name, ut), r.name, ut), mask, tmask))
@@ -110,36 +107,36 @@ object RemoveCHIRRTL extends Pass {
       val rds = (mports getOrElse (s.name, EMPs)).readers
       val wrs = (mports getOrElse (s.name, EMPs)).writers
       val rws = (mports getOrElse (s.name, EMPs)).readwriters
-      val stmts = set_poison(rds, "addr") ++
+      val stmts = set_poison(rds) ++
         set_enable(rds, "en") ++
-        set_poison(wrs, "addr") ++
+        set_poison(wrs) ++
         set_enable(wrs, "en") ++
         set_write(wrs, "data", "mask") ++
-        set_poison(rws, "addr") ++
-        set_wmode(rws, "wmode") ++
+        set_poison(rws) ++
+        set_enable(rws, "wmode") ++
         set_enable(rws, "en") ++
         set_write(rws, "wdata", "wmask")
       val mem = DefMemory(s.info, s.name, s.tpe, s.size, 1, if (s.seq) 1 else 0,
                   rds map (_.name), wrs map (_.name), rws map (_.name))
       Block(mem +: stmts)
-    case (s: CDefMPort) => {
+    case (s: CDefMPort) =>
       types(s.name) = types(s.mem)
       val addrs = ArrayBuffer[String]()
       val clks = ArrayBuffer[String]()
       val ens = ArrayBuffer[String]()
       s.direction match {
         case MReadWrite =>
-          refs(s.name) = DataRef(SubField(Reference(s.mem, ut), s.name, ut), "rdata", "wdata", "wmask", true)
+          refs(s.name) = DataRef(SubField(Reference(s.mem, ut), s.name, ut), "rdata", "wdata", "wmask", rdwrite = true)
           addrs += "addr"
           clks += "clk"
           ens += "en"
         case MWrite =>
-          refs(s.name) = DataRef(SubField(Reference(s.mem, ut), s.name, ut), "data", "data", "mask", false)
+          refs(s.name) = DataRef(SubField(Reference(s.mem, ut), s.name, ut), "data", "data", "mask", rdwrite = false)
           addrs += "addr"
           clks += "clk"
           ens += "en"
         case MRead =>
-          refs(s.name) = DataRef(SubField(Reference(s.mem, ut), s.name, ut), "data", "data", "blah", false)
+          refs(s.name) = DataRef(SubField(Reference(s.mem, ut), s.name, ut), "data", "data", "blah", rdwrite = false)
           addrs += "addr"
           clks += "clk"
           s.exps.head match {
@@ -149,10 +146,9 @@ object RemoveCHIRRTL extends Pass {
           }
       }
       Block(
-        (addrs map (x => Connect(s.info, SubField(SubField(Reference(s.mem, ut), s.name, ut), x, ut), s.exps(0)))) ++
+        (addrs map (x => Connect(s.info, SubField(SubField(Reference(s.mem, ut), s.name, ut), x, ut), s.exps.head))) ++
         (clks map (x => Connect(s.info, SubField(SubField(Reference(s.mem, ut), s.name, ut), x, ut), s.exps(1)))) ++
         (ens map (x => Connect(s.info,SubField(SubField(Reference(s.mem,ut), s.name, ut), x, ut), one))))
-    }
     case (s) => s map collect_refs(mports, smems, types, refs, raddrs)
   }
 
@@ -191,10 +187,12 @@ object RemoveCHIRRTL extends Pass {
         remove_chirrtl_e(g)(expr), remove_chirrtl_e(MALE)(index), tpe)
       case e => e map remove_chirrtl_e(g)
    }
-   (s) match {
+   s match {
       case DefNode(info, name, value) =>
         val valuex = remove_chirrtl_e(MALE)(value)
         val sx = DefNode(info, name, valuex)
+        // Check node is used for read port address
+        remove_chirrtl_e(FEMALE)(Reference(name, value.tpe))
         has_read_mport match {
           case None => sx
           case Some(en) => Block(Seq(sx, Connect(info, en, one)))
@@ -252,5 +250,5 @@ object RemoveCHIRRTL extends Pass {
   }
 
   def run(c: Circuit): Circuit =
-    c copy (modules = (c.modules map remove_chirrtl_m))
+    c copy (modules = c.modules map remove_chirrtl_m)
 }

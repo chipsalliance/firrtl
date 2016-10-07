@@ -250,6 +250,13 @@ case class IsInvalid(info: Info, expr: Expression) extends Statement with HasInf
   def mapType(f: Type => Type): Statement = this
   def mapString(f: String => String): Statement = this
 }
+case class Attach(info: Info, source: Expression, exprs: Seq[Expression]) extends Statement with HasInfo {
+  def serialize: String = "attach " + source.serialize + " to (" + exprs.map(_.serialize).mkString(", ") + ")"
+  def mapStmt(f: Statement => Statement): Statement = this
+  def mapExpr(f: Expression => Expression): Statement = Attach(info, f(source), exprs map f)
+  def mapType(f: Type => Type): Statement = this
+  def mapString(f: String => String): Statement = this
+}
 case class Stop(info: Info, ret: Int, clk: Expression, en: Expression) extends Statement with HasInfo {
   def serialize: String = s"stop(${clk.serialize}, ${en.serialize}, $ret)" + info.serialize
   def mapStmt(f: Statement => Statement): Statement = this
@@ -264,7 +271,7 @@ case class Print(
     clk: Expression,
     en: Expression) extends Statement with HasInfo {
   def serialize: String = {
-    val strs = Seq(clk.serialize, en.serialize, ("\"" + string.serialize + "\"")) ++
+    val strs = Seq(clk.serialize, en.serialize, "\"" + string.serialize + "\"") ++
                (args map (_.serialize))
     "printf(" + (strs mkString ", ") + ")" + info.serialize
   }
@@ -388,6 +395,10 @@ case object ClockType extends GroundType {
   def serialize: String = "Clock"
   def mapWidth(f: Width => Width): Type = this
 }
+case class AnalogType(width: Width) extends GroundType {
+  def serialize: String = "Analog" + width.serialize
+  def mapWidth(f: Width => Width): Type = AnalogType(f(width))
+}
 case object UnknownType extends Type {
   def serialize: String = "?"
   def mapType(f: Type => Type): Type = this
@@ -418,8 +429,7 @@ abstract class DefModule extends FirrtlNode with IsDeclaration {
   val name : String
   val ports : Seq[Port]
   protected def serializeHeader(tpe: String): String =
-    s"$tpe $name :" + info.serialize +
-    indent(ports map ("\n" + _.serialize) mkString) + "\n"
+    s"$tpe $name :${info.serialize}${indent(ports.map("\n" + _.serialize).mkString)}\n"
   def mapStmt(f: Statement => Statement): DefModule
   def mapPort(f: Port => Port): DefModule
   def mapString(f: String => String): DefModule

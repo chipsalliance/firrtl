@@ -67,7 +67,7 @@ object ResolveKinds extends Pass {
   }
  
   def run(c: Circuit): Circuit =
-    c copy (modules = (c.modules map resolve_kinds))
+    c copy (modules = c.modules map resolve_kinds)
 }
 
 object ResolveGenders extends Pass {
@@ -87,6 +87,7 @@ object ResolveGenders extends Pass {
   }
         
   def resolve_s(s: Statement): Statement = s match {
+    //TODO(azidar): pretty sure don't need to do anything for Attach, but not positive...
     case IsInvalid(info, expr) =>
       IsInvalid(info, resolve_e(FEMALE)(expr))
     case Connect(info, loc, expr) =>
@@ -99,16 +100,17 @@ object ResolveGenders extends Pass {
   def resolve_gender(m: DefModule): DefModule = m map resolve_s
 
   def run(c: Circuit): Circuit =
-    c copy (modules = (c.modules map resolve_gender))
+    c copy (modules = c.modules map resolve_gender)
 }
 
 object CInferMDir extends Pass {
   def name = "CInfer MDir"
   type MPortDirMap = collection.mutable.LinkedHashMap[String, MPortDir]
 
-  def infer_mdir_e(mports: MPortDirMap, dir: MPortDir)(e: Expression): Expression = {
-    (e map infer_mdir_e(mports, dir)) match {
-      case e: Reference => mports get e.name match {
+  def infer_mdir_e(mports: MPortDirMap, dir: MPortDir)(e: Expression): Expression = e match {
+    case e: Reference =>
+      mports get e.name match {
+        case None =>
         case Some(p) => mports(e.name) = (p, dir) match {
           case (MInfer, MInfer) => Utils.error("Shouldn't be here")
           case (MInfer, MWrite) => MWrite
@@ -126,11 +128,14 @@ object CInferMDir extends Pass {
           case (MReadWrite, MWrite) => MReadWrite
           case (MReadWrite, MRead) => MReadWrite
           case (MReadWrite, MReadWrite) => MReadWrite
-        } ; e
-        case None => e
+        }
       }
-      case _ => e
-    }
+      e
+    case e: SubAccess =>
+      infer_mdir_e(mports, dir)(e.expr)
+      infer_mdir_e(mports, MRead)(e.index) // index can't be a write port
+      e
+    case e => e map infer_mdir_e(mports, dir)
   }
 
   def infer_mdir_s(mports: MPortDirMap)(s: Statement): Statement = s match { 
@@ -159,5 +164,5 @@ object CInferMDir extends Pass {
   }
      
   def run(c: Circuit): Circuit =
-    c copy (modules = (c.modules map infer_mdir))
+    c copy (modules = c.modules map infer_mdir)
 }

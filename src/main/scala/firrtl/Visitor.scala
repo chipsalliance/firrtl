@@ -61,15 +61,13 @@ class Visitor(infoMode: InfoMode) extends FIRRTLBaseVisitor[FirrtlNode] {
       case ZeroPattern(_*) => BigInt(0)
       case HexPattern(hexdigits) =>
         hexdigits(0) match {
-          case NegPattern(_) => {
+          case NegPattern(_) =>
             BigInt("-" + hexdigits, 16)
-          }
           case _ => BigInt(hexdigits, 16)
         }
-      case DecPattern(sign, num) => {
+      case DecPattern(sign, num) =>
         if (sign != null) BigInt(sign + num, 10)
         else BigInt(num, 10)
-      }
       case _ => throw new Exception("Invalid String for conversion to BigInt " + s)
     }
   }
@@ -139,6 +137,8 @@ class Visitor(infoMode: InfoMode) extends FIRRTLBaseVisitor[FirrtlNode] {
           case "SInt" => if (ctx.getChildCount > 1) SIntType(IntWidth(string2BigInt(ctx.IntLit.getText)))
           else SIntType(UnknownWidth)
           case "Clock" => ClockType
+          case "Analog" => if (ctx.getChildCount > 1) AnalogType(IntWidth(string2BigInt(ctx.IntLit.getText)))
+          else AnalogType(UnknownWidth)
           case "{" => BundleType(ctx.field.map(visitField))
         }
       case typeContext: TypeContext => new VectorType(visitType(ctx.`type`), string2Int(ctx.IntLit.getText))
@@ -274,6 +274,7 @@ class Visitor(infoMode: InfoMode) extends FIRRTLBaseVisitor[FirrtlNode] {
         case "node" => DefNode(info, ctx.id(0).getText, visitExp(ctx.exp(0)))
 
         case "stop(" => Stop(info, string2Int(ctx.IntLit().getText), visitExp(ctx.exp(0)), visitExp(ctx.exp(1)))
+        case "attach" => Attach(info, visitExp(ctx.exp.head), ctx.exp.tail map visitExp)
         case "printf(" => Print(info, visitStringLit(ctx.StringLit), ctx.exp.drop(2).map(visitExp),
           visitExp(ctx.exp(0)), visitExp(ctx.exp(1)))
         case "skip" => EmptyStmt
@@ -297,7 +298,7 @@ class Visitor(infoMode: InfoMode) extends FIRRTLBaseVisitor[FirrtlNode] {
       Reference(ctx.getText, UnknownType)
     else
       ctx.getChild(0).getText match {
-        case "UInt" => {
+        case "UInt" =>
           // This could be better
           val (width, value) =
             if (ctx.getChildCount > 4)
@@ -307,8 +308,7 @@ class Visitor(infoMode: InfoMode) extends FIRRTLBaseVisitor[FirrtlNode] {
               (IntWidth(BigInt(scala.math.max(bigint.bitLength, 1))), bigint)
             }
           UIntLiteral(value, width)
-        }
-        case "SInt" => {
+        case "SInt" =>
           val (width, value) =
             if (ctx.getChildCount > 4)
               (IntWidth(string2BigInt(ctx.IntLit(0).getText)), string2BigInt(ctx.IntLit(1).getText))
@@ -317,7 +317,6 @@ class Visitor(infoMode: InfoMode) extends FIRRTLBaseVisitor[FirrtlNode] {
               (IntWidth(BigInt(bigint.bitLength + 1)), bigint)
             }
           SIntLiteral(value, width)
-        }
         case "validif(" => ValidIf(visitExp(ctx.exp(0)), visitExp(ctx.exp(1)), UnknownType)
         case "mux(" => Mux(visitExp(ctx.exp(0)), visitExp(ctx.exp(1)), visitExp(ctx.exp(2)), UnknownType)
         case _ =>

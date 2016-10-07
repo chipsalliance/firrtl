@@ -37,25 +37,25 @@ object CheckChirrtl extends Pass {
   type NameSet = collection.mutable.HashSet[String]
 
   class NotUniqueException(info: Info, mname: String, name: String) extends PassException(
-    s"${info}: [module ${mname}] Reference ${name} does not have a unique name.")
+    s"$info: [module $mname] Reference $name does not have a unique name.")
   class InvalidLOCException(info: Info, mname: String) extends PassException(
-    s"${info}: [module ${mname}] Invalid connect to an expression that is not a reference or a WritePort.")
+    s"$info: [module $mname] Invalid connect to an expression that is not a reference or a WritePort.")
   class UndeclaredReferenceException(info: Info, mname: String, name: String) extends PassException(
-    s"${info}: [module ${mname}] Reference ${name} is not declared.")
+    s"$info: [module $mname] Reference $name is not declared.")
   class MemWithFlipException(info: Info, mname: String, name: String) extends PassException(
-    s"${info}: [module ${mname}] Memory ${name} cannot be a bundle type with flips.")
+    s"$info: [module $mname] Memory $name cannot be a bundle type with flips.")
   class InvalidAccessException(info: Info, mname: String) extends PassException(
-    s"${info}: [module ${mname}] Invalid access to non-reference.")
+    s"$info: [module $mname] Invalid access to non-reference.")
   class ModuleNotDefinedException(info: Info, mname: String, name: String) extends PassException(
-    s"${info}: Module ${name} is not defined.")
+    s"$info: Module $name is not defined.")
   class NegWidthException(info: Info, mname: String) extends PassException(
-    s"${info}: [module ${mname}] Width cannot be negative or zero.")
+    s"$info: [module $mname] Width cannot be negative or zero.")
   class NegVecSizeException(info: Info, mname: String) extends PassException(
-    s"${info}: [module ${mname}] Vector type size cannot be negative.")
+    s"$info: [module $mname] Vector type size cannot be negative.")
   class NegMemSizeException(info: Info, mname: String) extends PassException(
-    s"${info}: [module ${mname}] Memory size cannot be negative or zero.")
+    s"$info: [module $mname] Memory size cannot be negative or zero.")
   class NoTopModuleException(info: Info, name: String) extends PassException(
-    s"${info}: A single module must be named ${name}.")
+    s"$info: A single module must be named $name.")
 
   // TODO FIXME
   // - Do we need to check for uniquness on port names?
@@ -109,14 +109,14 @@ object CheckChirrtl extends Pass {
 
     def checkName(info: Info, mname: String, names: NameSet)(name: String): String = {
       if (names(name))
-        errors append (new NotUniqueException(info, mname, name))
+        errors append new NotUniqueException(info, mname, name)
       names += name
       name 
     }
 
     def checkChirrtlS(minfo: Info, mname: String, names: NameSet)(s: Statement): Statement = {
       val info = get_info(s) match {case NoInfo => minfo case x => x}
-      (s map checkName(info, mname, names)) match {
+      s map checkName(info, mname, names) match {
         case s: DefMemory =>
           if (hasFlip(s.dataType)) errors append new MemWithFlipException(info, mname, s.name)
           if (s.depth <= 0) errors append new NegMemSizeException(info, mname)
@@ -145,11 +145,11 @@ object CheckChirrtl extends Pass {
     }
     
     c.modules foreach checkChirrtlM
-    (c.modules filter (_.name == c.main)).size match {
+    c.modules count (_.name == c.main) match {
       case 1 =>
       case _ => errors append new NoTopModuleException(c.info, c.main)
     }
-    errors.trigger
+    errors.trigger()
     c
   }
 }

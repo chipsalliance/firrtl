@@ -112,7 +112,7 @@ object LowerTypes extends Pass {
           case None => mem
         }
         Seq(mergeRef(loMem, mergeRef(port, field)))
-      case name => error(s"Error! Unhandled memory field ${name}")(info, mname)
+      case name => error(s"Error! Unhandled memory field $name")(info, mname)
     }
   }
 
@@ -218,6 +218,6 @@ object LowerTypes extends Pass {
     }
   }
 
-  def run(c: Circuit): Circuit = c copy (modules = (c.modules map lowerTypes))
+  def run(c: Circuit): Circuit = c copy (modules = c.modules map lowerTypes)
 }
 

@@ -46,7 +46,7 @@ class PassExceptions(exceptions: Seq[PassException]) extends Exception("\n" + ex
 class Errors {
   val errors = collection.mutable.ArrayBuffer[PassException]()
   def append(pe: PassException) = errors.append(pe)
-  def trigger = errors.size match {
+  def trigger() = errors.size match {
     case 0 =>
     case 1 => throw errors.head
     case _ =>
@@ -59,7 +59,7 @@ class Errors {
 object ToWorkingIR extends Pass {
   def name = "Working IR"
 
-  def toExp(e: Expression): Expression = e map (toExp) match {
+  def toExp(e: Expression): Expression = e map toExp match {
     case e: Reference => WRef(e.name, e.tpe, NodeKind, UNKNOWNGENDER)
     case e: SubField => WSubField(e.expr, e.name, e.tpe, UNKNOWNGENDER)
     case e: SubIndex => WSubIndex(e.expr, e.value, e.tpe, UNKNOWNGENDER)
@@ -67,20 +67,20 @@ object ToWorkingIR extends Pass {
     case e => e
   }
 
-  def toStmt(s: Statement): Statement = s map (toExp) match {
+  def toStmt(s: Statement): Statement = s map toExp match {
     case s: DefInstance => WDefInstance(s.info, s.name, s.module, UnknownType)
-    case s => s map (toStmt)
+    case s => s map toStmt
   }
 
   def run (c:Circuit): Circuit =
-    c copy (modules = (c.modules map (_ map toStmt)))
+    c copy (modules = c.modules map (_ map toStmt))
 }
 
 object PullMuxes extends Pass {
    def name = "Pull Muxes"
    def run(c: Circuit): Circuit = {
      def pull_muxes_e(e: Expression): Expression = {
-       val ex = e map (pull_muxes_e) match {
+       val ex = e map pull_muxes_e match {
          case (e: WSubField) => e.exp match {
            case (ex: Mux) => Mux(ex.cond,
               WSubField(ex.tval, e.name, e.tpe, e.gender),
@@ -107,9 +107,9 @@ object PullMuxes extends Pass {
          }
          case (e) => e
        }
-       ex map (pull_muxes_e)
+       ex map pull_muxes_e
      }
-     def pull_muxes(s: Statement): Statement = s map (pull_muxes) map (pull_muxes_e)
+     def pull_muxes(s: Statement): Statement = s map pull_muxes map pull_muxes_e
      val modulesx = c.modules.map {
        case (m:Module) => Module(m.info, m.name, m.ports, pull_muxes(m.body))
        case (m:ExtModule) => m
@@ -124,7 +124,7 @@ object ExpandConnects extends Pass {
     def expand_connects(m: Module): Module = {
       val genders = collection.mutable.LinkedHashMap[String,Gender]()
       def expand_s(s: Statement): Statement = {
-        def set_gender(e: Expression): Expression = e map (set_gender) match {
+        def set_gender(e: Expression): Expression = e map set_gender match {
           case (e: WRef) => WRef(e.name, e.tpe, e.kind, genders(e.name))
           case (e: WSubField) =>
             val f = get_field(e.exp.tpe, e.name)
@@ -172,7 +172,7 @@ object ExpandConnects extends Pass {
                  case Flip => Connect(s.info, exps(y), locs(x))
               }
             })
-          case (s) => s map (expand_s)
+          case (s) => s map expand_s
         }
       }
 
@@ -204,14 +204,14 @@ object Legalize extends Pass {
         case SIntType(_) =>
           val bits = DoPrim(Bits, e.args, Seq(msb, msb), BoolType)
           DoPrim(AsSInt, Seq(bits), Seq.empty, SIntType(IntWidth(1)))
-        case t => error(s"Unsupported type ${t} for Primop Shift Right")
+        case t => error(s"Unsupported type $t for Primop Shift Right")
       }
     } else {
       e
     }
   }
   private def legalizeBits(expr: DoPrim): Expression = {
-    lazy val (hi, low) = (expr.consts(0), expr.consts(1))
+    lazy val (hi, low) = (expr.consts.head, expr.consts(1))
     lazy val mask = (BigInt(1) << (hi - low + 1).toInt) - 1
     lazy val width = IntWidth(hi - low + 1)
     expr.args.head match {
@@ -221,9 +221,9 @@ object Legalize extends Pass {
     }
   }
   private def legalizePad(expr: DoPrim): Expression = expr.args.head match {
-    case UIntLiteral(value, IntWidth(width)) if (width < expr.consts.head) =>
+    case UIntLiteral(value, IntWidth(width)) if width < expr.consts.head =>
       UIntLiteral(value, IntWidth(expr.consts.head))
-    case SIntLiteral(value, IntWidth(width)) if (width < expr.consts.head) =>
+    case SIntLiteral(value, IntWidth(width)) if width < expr.consts.head =>
       SIntLiteral(value, IntWidth(expr.consts.head))
     case _ => expr
   }
@@ -258,7 +258,7 @@ object Legalize extends Pass {
       }
       legalizedStmt map legalizeS map legalizeE
     }
-    c copy (modules = (c.modules map (_ map legalizeS)))
+    c copy (modules = c.modules map (_ map legalizeS))
   }
 }
 
@@ -286,7 +286,7 @@ object VerilogWrap extends Pass {
   }
 
   def run(c: Circuit): Circuit =
-    c copy (modules = (c.modules map (_ map vWrapS)))
+    c copy (modules = c.modules map (_ map vWrapS))
 }
 
 object VerilogRename extends Pass {
@@ -306,5 +306,45 @@ object VerilogRename extends Pass {
     p copy (name = verilogRenameN(p.name))
 
   def run(c: Circuit): Circuit =
-    c copy (modules = (c.modules map (_ map verilogRenameP map verilogRenameS)))
+    c copy (modules = c.modules map (_ map verilogRenameP map verilogRenameS))
+}
+
+
+object VerilogPrep extends Pass {
+  def name = "Verilog Prep"
+  type InstAttaches = collection.mutable.HashMap[String, Expression]
+  def run(c: Circuit): Circuit = {
+    def buildS(attaches: InstAttaches)(s: Statement): Statement = s match {
+      case Attach(_, source, exps) => 
+        exps foreach { e => attaches(e.serialize) = source }
+        s
+      case _ => s map buildS(attaches)
+    }
+    def lowerE(e: Expression): Expression = e match {
+      case _: WRef|_: WSubField if (kind(e) == InstanceKind) => 
+        WRef(LowerTypes.loweredName(e), e.tpe, kind(e), gender(e))
+      case _ => e map lowerE
+    }
+    def lowerS(attaches: InstAttaches)(s: Statement): Statement = s match {
+      case WDefInstance(info, name, module, tpe) =>
+        val exps = create_exps(WRef(name, tpe, ExpKind, MALE))
+        val wcon = WDefInstanceConnector(info, name, module, tpe, exps.map( e => e.tpe match {
+          case AnalogType(w) => attaches(e.serialize)
+          case _ => WRef(LowerTypes.loweredName(e), e.tpe, WireKind, MALE)
+        }))
+        val wires = exps.map ( e => e.tpe match {
+          case AnalogType(w) => EmptyStmt
+          case _ => DefWire(info, LowerTypes.loweredName(e), e.tpe)
+        })
+        Block(Seq(wcon) ++ wires)
+      case Attach(info, source, exps) => EmptyStmt
+      case _ => s map lowerS(attaches) map lowerE
+    }
+    def prepModule(m: DefModule): DefModule = {
+      val attaches = new InstAttaches
+      m map buildS(attaches)
+      m map lowerS(attaches)
+    }
+    c copy (modules = (c.modules map prepModule))
+  }
 }
