@@ -94,6 +94,9 @@ class ChirrtlSpec extends FirrtlFlatSpec {
     }
   }
 
+  it should "compile" in {
+    compileFirrtlTest("EmptyChirrtlMem", "/features")
+  }
   it should "compile and run" in {
     runFirrtlTest("ChirrtlMems", "/features")
   }
