@@ -251,10 +251,22 @@ class FirrtlExecutionOptions(
 }
 
 trait FirrtlExecutionResult
+
+/**
+  * Indicates a successful execution of the firrtl compiler, returning the compiled result and
+  * the type of compile
+  * @param emitType  The name of the compiler used, currently "high", "low", or "verilog"
+  * @param emitted   The text result of the compilation, could be verilog or firrtl text.
+  */
 case class FirrtlExecutionSuccess(
                                 emitType: String,
                                 emitted:  String
                                 ) extends FirrtlExecutionResult
+
+/**
+  * The firrtl compilation failed.
+  * @param message  Some kind of hint as to what went wrong.
+  */
 case class FirrtlExecutionFailure(message: String) extends FirrtlExecutionResult
 
 object Driver {
