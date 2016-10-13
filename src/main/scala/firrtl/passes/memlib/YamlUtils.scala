@@ -5,8 +5,6 @@ import java.io.{File, CharArrayWriter, PrintWriter}
 
 object CustomYAMLProtocol extends DefaultYamlProtocol {
   // bottom depends on top
-  implicit val pin = yamlFormat2(Pin)
-  implicit val configs = yamlFormat1(ConfigPins)
 }
 
 class YamlFileReader(file: String) {
