@@ -93,14 +93,14 @@ object InferReadWritePass extends Pass {
 
   def replaceExp(repl: Netlist)(e: Expression): Expression =
     e map replaceExp(repl) match {
-      case e: WSubField => repl getOrElse (e.serialize, e)
-      case e => e
+      case ex: WSubField => repl getOrElse (ex.serialize, ex)
+      case ex => ex
     }
 
   def replaceStmt(repl: Netlist)(s: Statement): Statement =
     s map replaceStmt(repl) map replaceExp(repl) match {
       case Connect(_, EmptyExpression, _) => EmptyStmt 
-      case s => s
+      case sx => sx
     }
     
   def inferReadWriteStmt(connects: Connects,
@@ -149,7 +149,7 @@ object InferReadWritePass extends Pass {
         readers = mem.readers filterNot readers,
         writers = mem.writers filterNot writers,
         readwriters = mem.readwriters ++ readwriters)
-    case s => s map inferReadWriteStmt(connects, repl, stmts)
+    case sx => sx map inferReadWriteStmt(connects, repl, stmts)
   }
 
   def inferReadWrite(m: DefModule) = {
