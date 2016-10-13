@@ -95,8 +95,10 @@ Optional Arguments:
 class ReplSeqMem(transID: TransID) extends Transform with SimpleRun {
   def passSeq(inConfigFile: Option[YamlFileReader], outConfigFile: ConfWriter) =
     Seq(Legalize,
-        AnnotateMemMacros,
-        UpdateDuplicateMemMacros,
+        ToMemIR,
+        ResolveMaskGranularity,
+        RenameAnnotatedMemoryPorts,
+        ResolveMemoryReference,
         //new AnnotateValidMemConfigs(inConfigFile),
         new ReplaceMemMacros(outConfigFile),
         RemoveEmpty,

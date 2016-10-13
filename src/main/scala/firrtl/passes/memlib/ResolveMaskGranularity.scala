@@ -8,8 +8,8 @@ import firrtl.ir._
 import firrtl.Utils._
 import firrtl.Mappers._
 import WrappedExpression.weq
-import MemPortUtils.memPortField
 import AnalysisUtils._
+import MemTransformUtils._
 
 object AnalysisUtils {
   type Connects = collection.mutable.HashMap[String, Expression]
@@ -80,21 +80,15 @@ object AnalysisUtils {
   def eqMems(a: DefAnnotatedMemory, b: DefAnnotatedMemory) = a == b.copy(name = a.name) 
 }
 
-/** Annotates sequential memories that are candidates for macro replacement.
-  * Annotations are held in DefMemory's info field as AppendableInfo
-  * Requirements for macro replacement:
-  *   - read latency and write latency of one
-  *   - only one readwrite port or write port
-  *   - zero or one read port
-  * In addition, determines if a write mask is needed (wmode/en and wmask are equivalent).
+/** Determines if a write mask is needed (wmode/en and wmask are equivalent).
+  * Populates the maskGran field of DefAnnotatedMemory
   * Annotations:
-  *   - "useMacro" -- is true if a valid candidate
-  *   - "maskGran" -- (dataType size) / (number of mask bits)
+  *   - maskGran = (dataType size) / (number of mask bits)
   *      - i.e. 1 if bitmask, 8 if bytemask, absent for no mask
   * TODO(shunshou): Add floorplan info?
   */
-object AnnotateMemMacros extends Pass {
-  def name = "Annotate Memory Macros"
+object ResolveMaskGranularity extends Pass {
+  def name = "Resolve Mask Granularity"
 
   /** Returns the number of mask bits, if used
     */
@@ -111,8 +105,7 @@ object AnnotateMemMacros extends Pass {
     * i.e. rw, w + r (read, write 1 cycle delay)
     */
   def updateStmts(connects: Connects)(s: Statement): Statement = s match {
-    case m: DefMemory if m.readLatency == 1 && m.writeLatency == 1 &&
-        (m.writers.length + m.readwriters.length) == 1 && m.readers.length <= 1 =>
+    case m: DefAnnotatedMemory =>
       val dataBits = bitWidth(m.dataType)
       val rwMasks = m.readwriters map (rw =>
         getMaskBits(connects, memPortField(m, rw, "wmode"), memPortField(m, rw, "wmask")))
@@ -122,24 +115,10 @@ object AnnotateMemMacros extends Pass {
         case None =>  None
         case Some(maskBits) => Some(dataBits / maskBits)
       }
-      DefAnnotatedMemory(
-        m.info,
-        m.name,
-        m.dataType,
-        m.depth,
-        m.writeLatency,
-        m.readLatency,
-        m.readers,
-        m.writers,
-        m.readwriters,
-        m.readUnderWrite,
-        maskGran, // Add mask granularity annotation
-        None // No reference yet to another memory
-      )
+      m.copy(maskGran = maskGran)
     case sx => sx map updateStmts(connects)
   }
 
   def annotateModMems(m: DefModule) = m map updateStmts(getConnects(m))
   def run(c: Circuit) = c copy (modules = c.modules map annotateModMems)
 }
-

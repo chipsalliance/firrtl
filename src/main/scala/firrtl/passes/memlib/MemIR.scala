@@ -19,7 +19,7 @@ case class DefAnnotatedMemory(
     readwriters: Seq[String],
     readUnderWrite: Option[String],
     maskGran: Option[BigInt],
-    ref: Option[String]
+    memRef: Option[String]
     //pins: Seq[Pin],
     ) extends Statement with IsDeclaration {
   def serialize: String =

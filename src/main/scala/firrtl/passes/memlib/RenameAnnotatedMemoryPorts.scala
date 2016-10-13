@@ -13,13 +13,12 @@ import MemTransformUtils._
 
 
 /** Changes memory port names to standard port names (i.e. RW0 instead T_408)
- *  Adds annotation "ref" to memories that exactly match (except name) another memory
  *
- *  TODO(shunshou): Module namespace?
+ *  TODO(shunshou): Module namespace can collide with new names!
  */
-object UpdateDuplicateMemMacros extends Pass {
+object RenameAnnotatedMemoryPorts extends Pass {
 
-  def name = "Update Duplicate Mem Macros"
+  def name = "Rename Annotated Memory Ports"
 
   type AnnotatedMemories = collection.mutable.ArrayBuffer[DefAnnotatedMemory]
 
@@ -60,33 +59,24 @@ object UpdateDuplicateMemMacros extends Pass {
   }
 
   /** Replaces candidate memories with memories with standard port names
-    * If a candidate memory is identical except for name to another, add an
-    *   annotation that references the name of the other memory.
     * Does not update the references (this is done via updateStmtRefs)
     */
-  def updateMemStmts(uniqueMems: AnnotatedMemories,
-                     memPortMap: MemPortMap)
-                     (s: Statement): Statement = s match {
+  def updateMemStmts(memPortMap: MemPortMap)(s: Statement): Statement = s match {
     case m: DefAnnotatedMemory =>
       val updatedMem = createMemProto(m)
       memPortMap ++= getMemPortMap(m)
-      uniqueMems find (x => eqMems(x, updatedMem)) match {
-        case None =>
-          uniqueMems += updatedMem
-          updatedMem
-        case Some(proto) => updatedMem copy (ref = Some(proto.name))
-      }
-    case s => s map updateMemStmts(uniqueMems, memPortMap)
+      updatedMem
+    case s => s map updateMemStmts(memPortMap)
   }
 
   /** Replaces candidate memories and their references with standard port names
    */
   def updateMemMods(m: DefModule) = {
-    val uniqueMems = new AnnotatedMemories
     val memPortMap = new MemPortMap
-    (m map updateMemStmts(uniqueMems, memPortMap)
+    (m map updateMemStmts(memPortMap)
        map updateStmtRefs(memPortMap))
   }
 
   def run(c: Circuit) = c copy (modules = c.modules map updateMemMods)
 }
+

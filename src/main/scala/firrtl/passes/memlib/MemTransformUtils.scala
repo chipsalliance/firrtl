@@ -42,6 +42,8 @@ object MemTransformUtils {
   }
 
   def defaultPortSeq(mem: DefAnnotatedMemory): Seq[Field] = MemPortUtils.defaultPortSeq(mem.toMem)
+  def memPortField(s: DefAnnotatedMemory, p: String, f: String): Expression =
+    MemPortUtils.memPortField(s.toMem, p, f)
 }
 
 // vim: set ts=4 sw=4 et:
