@@ -1,12 +1,14 @@
 // See LICENSE for license details.
 
 package firrtl.passes
+package memlib
 
 import firrtl._
 import firrtl.ir._
 import Annotations._
 import AnalysisUtils._
 import Utils.error
+import AppendableUtils._
 import java.io.{File, CharArrayWriter, PrintWriter}
 
 sealed trait PassOption
@@ -96,7 +98,7 @@ class ReplSeqMem(transID: TransID) extends Transform with SimpleRun {
     Seq(Legalize,
         AnnotateMemMacros,
         UpdateDuplicateMemMacros,
-        new AnnotateValidMemConfigs(inConfigFile),
+        //new AnnotateValidMemConfigs(inConfigFile),
         new ReplaceMemMacros(outConfigFile),
         RemoveEmpty,
         CheckInitialization,

@@ -191,7 +191,7 @@ class LowFirrtlCompiler extends Compiler {
     new ResolveAndCheck,
     new HighFirrtlToMiddleFirrtl,
     new passes.InferReadWrite(TransID(-1)),
-    new passes.ReplSeqMem(TransID(-2)),
+    new passes.memlib.ReplSeqMem(TransID(-2)),
     new MiddleFirrtlToLowFirrtl,
     new EmitFirrtl(writer)
   )
@@ -205,7 +205,7 @@ class VerilogCompiler extends Compiler {
     new ResolveAndCheck,
     new HighFirrtlToMiddleFirrtl,
     new passes.InferReadWrite(TransID(-1)),
-    new passes.ReplSeqMem(TransID(-2)),
+    new passes.memlib.ReplSeqMem(TransID(-2)),
     new MiddleFirrtlToLowFirrtl,
     new passes.InlineInstances(TransID(0)),
     new EmitVerilogFromLowFirrtl(writer)

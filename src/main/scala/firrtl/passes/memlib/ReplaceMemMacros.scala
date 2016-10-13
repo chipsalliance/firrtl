@@ -1,6 +1,7 @@
 // See LICENSE for license details.
 
 package firrtl.passes
+package memlib
 
 import firrtl._
 import firrtl.ir._
@@ -9,16 +10,78 @@ import firrtl.Mappers._
 import MemPortUtils._
 import MemTransformUtils._
 import AnalysisUtils._
+import AppendableUtils._
 
+/** Replace DefMemory with memory blackbox + wrapper + conf file.
+  * This will not generate wmask ports if not needed.
+  * Creates the minimum # of black boxes needed by the design.
+  */
 class ReplaceMemMacros(writer: ConfWriter) extends Pass {
-  def name = "Replace memories with black box wrappers" +
-             " (optimizes when write mask isn't needed) + configuration file"
+  def name = "Replace Memory Macros"
 
-  // from Albert
+  /** Return true if mask granularity is per bit, false if per byte or unspecified
+    */
+  private def getFillWMask(mem: DefMemory) = getInfo(mem.info, "maskGran") match {
+    case None => false
+    case Some(maskGran) => maskGran == 1
+  }
+
+  private def rPortToBundle(mem: DefMemory) = BundleType(
+    defaultPortSeq(mem) :+ Field("data", Flip, mem.dataType))
+  private def rPortToFlattenBundle(mem: DefMemory) = BundleType(
+    defaultPortSeq(mem) :+ Field("data", Flip, flattenType(mem.dataType)))
+
+  private def wPortToBundle(mem: DefMemory) = BundleType(
+    (defaultPortSeq(mem) :+ Field("data", Default, mem.dataType)) ++
+    (if (!containsInfo(mem.info, "maskGran")) Nil
+     else Seq(Field("mask", Default, createMask(mem.dataType))))
+  )
+  private def wPortToFlattenBundle(mem: DefMemory) = BundleType(
+    (defaultPortSeq(mem) :+ Field("data", Default, flattenType(mem.dataType))) ++
+    (if (!containsInfo(mem.info, "maskGran")) Nil
+     else if (getFillWMask(mem)) Seq(Field("mask", Default, flattenType(mem.dataType)))
+     else Seq(Field("mask", Default, flattenType(createMask(mem.dataType)))))
+  )
+  // TODO(shunshou): Don't use createMask???
+
+  private def rwPortToBundle(mem: DefMemory) = BundleType(
+    defaultPortSeq(mem) ++ Seq(
+      Field("wmode", Default, BoolType),
+      Field("wdata", Default, mem.dataType),
+      Field("rdata", Flip, mem.dataType)
+    ) ++ (if (!containsInfo(mem.info, "maskGran")) Nil
+     else Seq(Field("wmask", Default, createMask(mem.dataType)))
+    )
+  )
+  private def rwPortToFlattenBundle(mem: DefMemory) = BundleType(
+    defaultPortSeq(mem) ++ Seq(
+      Field("wmode", Default, BoolType),
+      Field("wdata", Default, flattenType(mem.dataType)),
+      Field("rdata", Flip, flattenType(mem.dataType))
+    ) ++ (if (!containsInfo(mem.info, "maskGran")) Nil
+     else if (getFillWMask(mem)) Seq(Field("wmask", Default, flattenType(mem.dataType)))
+     else Seq(Field("wmask", Default, flattenType(createMask(mem.dataType))))
+    )  
+  )
+
+  def memToBundle(s: DefMemory) = BundleType(
+    s.readers.map(Field(_, Flip, rPortToBundle(s))) ++
+    s.writers.map(Field(_, Flip, wPortToBundle(s))) ++
+    s.readwriters.map(Field(_, Flip, rwPortToBundle(s))))
+  def memToFlattenBundle(s: DefMemory) = BundleType(
+    s.readers.map(Field(_, Flip, rPortToFlattenBundle(s))) ++
+    s.writers.map(Field(_, Flip, wPortToFlattenBundle(s))) ++
+    s.readwriters.map(Field(_, Flip, rwPortToFlattenBundle(s))))
+
+  /** Creates a wrapper module and external module to replace a candidate memory
+   *  The wrapper module has the same type as the memory it replaces
+   *  The external module
+   */
   def createMemModule(m: DefMemory, wrapperName: String): Seq[DefModule] = {
     assert(m.dataType != UnknownType)
     val wrapperIoType = memToBundle(m)
     val wrapperIoPorts = wrapperIoType.fields map (f => Port(NoInfo, f.name, Input, f.tpe))
+    // Creates a type with the write/readwrite masks omitted if necessary
     val bbIoType = memToFlattenBundle(m)
     val bbIoPorts = bbIoType.fields map (f => Port(NoInfo, f.name, Input, f.tpe))
     val bbRef = createRef(m.name, bbIoType)
@@ -38,18 +101,20 @@ class ReplaceMemMacros(writer: ConfWriter) extends Pass {
     Seq(bb, wrapper)
   }
 
-  // TODO: get rid of copy pasta
-  def defaultConnects(wrapperPort: WRef, bbPort: WSubField) =
+  // TODO(shunshou): get rid of copy pasta
+  // Connects the clk, en, and addr fields from the wrapperPort to the bbPort
+  def defaultConnects(wrapperPort: WRef, bbPort: WSubField): Seq[Connect] =
     Seq("clk", "en", "addr") map (f => connectFields(bbPort, f, wrapperPort, f))
 
-  def maskBits(mask: WSubField, dataType: Type, fillMask: Boolean) =
+  // Connects the clk, en, and addr fields from the wrapperPort to the bbPort
+  def maskBits(mask: WSubField, dataType: Type, fillMask: Boolean): Expression =
     if (fillMask) toBitMask(mask, dataType) else toBits(mask)
 
-  def adaptReader(wrapperPort: WRef, bbPort: WSubField) =
+  def adaptReader(wrapperPort: WRef, bbPort: WSubField): Seq[Statement]  =
     defaultConnects(wrapperPort, bbPort) :+
     fromBits(createSubField(wrapperPort, "data"), createSubField(bbPort, "data"))
 
-  def adaptWriter(wrapperPort: WRef, bbPort: WSubField, hasMask: Boolean, fillMask: Boolean) = {
+  def adaptWriter(wrapperPort: WRef, bbPort: WSubField, hasMask: Boolean, fillMask: Boolean): Seq[Statement] = {
     val wrapperData = createSubField(wrapperPort, "data")
     val defaultSeq = defaultConnects(wrapperPort, bbPort) :+
       Connect(NoInfo, createSubField(bbPort, "data"), toBits(wrapperData))
@@ -63,7 +128,7 @@ class ReplaceMemMacros(writer: ConfWriter) extends Pass {
     }
   }
 
-  def adaptReadWriter(wrapperPort: WRef, bbPort: WSubField, hasMask: Boolean, fillMask: Boolean) = {
+  def adaptReadWriter(wrapperPort: WRef, bbPort: WSubField, hasMask: Boolean, fillMask: Boolean): Seq[Statement] = {
     val wrapperWData = createSubField(wrapperPort, "wdata")
     val defaultSeq = defaultConnects(wrapperPort, bbPort) ++ Seq(
       fromBits(createSubField(wrapperPort, "rdata"), createSubField(bbPort, "rdata")),
