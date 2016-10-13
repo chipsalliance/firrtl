@@ -7,12 +7,11 @@ import firrtl._
 import firrtl.ir._
 import firrtl.Utils._
 import firrtl.Mappers._
-import MemPortUtils._
+import MemPortUtils.{MemPortMap, Modules}
 import MemTransformUtils._
 import AnalysisUtils._
-import AppendableUtils._
 
-/** Replace DefMemory with memory blackbox + wrapper + conf file.
+/** Replace DefAnnotatedMemory with memory blackbox + wrapper + conf file.
   * This will not generate wmask ports if not needed.
   * Creates the minimum # of black boxes needed by the design.
   */
@@ -21,54 +20,58 @@ class ReplaceMemMacros(writer: ConfWriter) extends Pass {
 
   /** Return true if mask granularity is per bit, false if per byte or unspecified
     */
-  private def getFillWMask(mem: DefMemory) = getInfo(mem.info, "maskGran") match {
+  private def getFillWMask(mem: DefAnnotatedMemory) = mem.maskGran match {
     case None => false
-    case Some(maskGran) => maskGran == 1
+    case Some(v) => v == 1
   }
 
-  private def rPortToBundle(mem: DefMemory) = BundleType(
+  private def rPortToBundle(mem: DefAnnotatedMemory) = BundleType(
     defaultPortSeq(mem) :+ Field("data", Flip, mem.dataType))
-  private def rPortToFlattenBundle(mem: DefMemory) = BundleType(
+  private def rPortToFlattenBundle(mem: DefAnnotatedMemory) = BundleType(
     defaultPortSeq(mem) :+ Field("data", Flip, flattenType(mem.dataType)))
 
-  private def wPortToBundle(mem: DefMemory) = BundleType(
-    (defaultPortSeq(mem) :+ Field("data", Default, mem.dataType)) ++
-    (if (!containsInfo(mem.info, "maskGran")) Nil
-     else Seq(Field("mask", Default, createMask(mem.dataType))))
+  private def wPortToBundle(mem: DefAnnotatedMemory) = BundleType(
+    (defaultPortSeq(mem) :+ Field("data", Default, mem.dataType)) ++ (mem.maskGran match {
+      case None => Nil
+      case Some(_) => Seq(Field("mask", Default, createMask(mem.dataType)))
+    })
   )
-  private def wPortToFlattenBundle(mem: DefMemory) = BundleType(
-    (defaultPortSeq(mem) :+ Field("data", Default, flattenType(mem.dataType))) ++
-    (if (!containsInfo(mem.info, "maskGran")) Nil
-     else if (getFillWMask(mem)) Seq(Field("mask", Default, flattenType(mem.dataType)))
-     else Seq(Field("mask", Default, flattenType(createMask(mem.dataType)))))
+  private def wPortToFlattenBundle(mem: DefAnnotatedMemory) = BundleType(
+    (defaultPortSeq(mem) :+ Field("data", Default, flattenType(mem.dataType))) ++ (mem.maskGran match {
+      case None => Nil
+      case Some(_) if getFillWMask(mem) => Seq(Field("mask", Default, flattenType(mem.dataType)))
+      case Some(_) => Seq(Field("mask", Default, flattenType(createMask(mem.dataType))))
+    })
   )
   // TODO(shunshou): Don't use createMask???
 
-  private def rwPortToBundle(mem: DefMemory) = BundleType(
+  private def rwPortToBundle(mem: DefAnnotatedMemory) = BundleType(
     defaultPortSeq(mem) ++ Seq(
       Field("wmode", Default, BoolType),
       Field("wdata", Default, mem.dataType),
       Field("rdata", Flip, mem.dataType)
-    ) ++ (if (!containsInfo(mem.info, "maskGran")) Nil
-     else Seq(Field("wmask", Default, createMask(mem.dataType)))
-    )
+    ) ++ (mem.maskGran match {
+      case None => Nil
+      case Some(_) => Seq(Field("wmask", Default, createMask(mem.dataType)))
+    })
   )
-  private def rwPortToFlattenBundle(mem: DefMemory) = BundleType(
+  private def rwPortToFlattenBundle(mem: DefAnnotatedMemory) = BundleType(
     defaultPortSeq(mem) ++ Seq(
       Field("wmode", Default, BoolType),
       Field("wdata", Default, flattenType(mem.dataType)),
       Field("rdata", Flip, flattenType(mem.dataType))
-    ) ++ (if (!containsInfo(mem.info, "maskGran")) Nil
-     else if (getFillWMask(mem)) Seq(Field("wmask", Default, flattenType(mem.dataType)))
-     else Seq(Field("wmask", Default, flattenType(createMask(mem.dataType))))
-    )  
+    ) ++ (mem.maskGran match {
+      case None => Nil
+      case Some(_) if (getFillWMask(mem)) => Seq(Field("wmask", Default, flattenType(mem.dataType)))
+      case Some(_) => Seq(Field("wmask", Default, flattenType(createMask(mem.dataType))))
+    })
   )
 
-  def memToBundle(s: DefMemory) = BundleType(
+  def memToBundle(s: DefAnnotatedMemory) = BundleType(
     s.readers.map(Field(_, Flip, rPortToBundle(s))) ++
     s.writers.map(Field(_, Flip, wPortToBundle(s))) ++
     s.readwriters.map(Field(_, Flip, rwPortToBundle(s))))
-  def memToFlattenBundle(s: DefMemory) = BundleType(
+  def memToFlattenBundle(s: DefAnnotatedMemory) = BundleType(
     s.readers.map(Field(_, Flip, rPortToFlattenBundle(s))) ++
     s.writers.map(Field(_, Flip, wPortToFlattenBundle(s))) ++
     s.readwriters.map(Field(_, Flip, rwPortToFlattenBundle(s))))
@@ -77,7 +80,7 @@ class ReplaceMemMacros(writer: ConfWriter) extends Pass {
    *  The wrapper module has the same type as the memory it replaces
    *  The external module
    */
-  def createMemModule(m: DefMemory, wrapperName: String): Seq[DefModule] = {
+  def createMemModule(m: DefAnnotatedMemory, wrapperName: String): Seq[DefModule] = {
     assert(m.dataType != UnknownType)
     val wrapperIoType = memToBundle(m)
     val wrapperIoPorts = wrapperIoType.fields map (f => Port(NoInfo, f.name, Input, f.tpe))
@@ -85,7 +88,7 @@ class ReplaceMemMacros(writer: ConfWriter) extends Pass {
     val bbIoType = memToFlattenBundle(m)
     val bbIoPorts = bbIoType.fields map (f => Port(NoInfo, f.name, Input, f.tpe))
     val bbRef = createRef(m.name, bbIoType)
-    val hasMask = containsInfo(m.info, "maskGran")
+    val hasMask = !m.maskGran.isEmpty
     val fillMask = getFillWMask(m)
     def portRef(p: String) = createRef(p, field_type(wrapperIoType, p))
     val stmts = Seq(WDefInstance(NoInfo, m.name, m.name, UnknownType)) ++
@@ -148,25 +151,21 @@ class ReplaceMemMacros(writer: ConfWriter) extends Pass {
                      memPortMap: MemPortMap,
                      memMods: Modules)
                      (s: Statement): Statement = s match {
-    case m: DefMemory if containsInfo(m.info, "useMacro") => 
-      if (!containsInfo(m.info, "maskGran")) {
+    case m: DefAnnotatedMemory => 
+      if (m.maskGran.isEmpty) {
         m.writers foreach { w => memPortMap(s"${m.name}.$w.mask") = EmptyExpression }
         m.readwriters foreach { w => memPortMap(s"${m.name}.$w.wmask") = EmptyExpression }
       }
-      val info = getInfo(m.info, "info") match {
-        case None => NoInfo
-        case Some(p: Info) => p
-      }
-      getInfo(m.info, "ref") match {
+      m.ref match {
         case None =>
           // prototype mem
           val newWrapperName = namespace newName m.name
           val newMemBBName = namespace newName s"${m.name}_ext"
           val newMem = m copy (name = newMemBBName)
           memMods ++= createMemModule(newMem, newWrapperName)
-          WDefInstance(info, m.name, newWrapperName, UnknownType) 
+          WDefInstance(m.info, m.name, newWrapperName, UnknownType) 
         case Some(ref: String) =>
-          WDefInstance(info, m.name, ref, UnknownType) 
+          WDefInstance(m.info, m.name, ref, UnknownType) 
       }
     case sx => sx map updateMemStmts(namespace, memPortMap, memMods)
   }

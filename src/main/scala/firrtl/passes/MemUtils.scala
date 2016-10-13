@@ -182,14 +182,14 @@ object MemPortUtils {
   type Memories = collection.mutable.ArrayBuffer[DefMemory]
   type Modules = collection.mutable.ArrayBuffer[DefModule]
 
-  def defaultPortSeq(mem: DefMemory) = Seq(
+  def defaultPortSeq(mem: DefMemory): Seq[Field] = Seq(
     Field("addr", Default, UIntType(IntWidth(ceilLog2(mem.depth) max 1))),
     Field("en", Default, BoolType),
     Field("clk", Default, ClockType)
   )
 
   // Todo: merge it with memToBundle
-  def memType(mem: DefMemory) = {
+  def memType(mem: DefMemory): Type = {
     val rType = BundleType(defaultPortSeq(mem) :+
       Field("data", Flip, mem.dataType))
     val wType = BundleType(defaultPortSeq(mem) ++ Seq(
@@ -206,7 +206,7 @@ object MemPortUtils {
       (mem.readwriters map (Field(_, Flip, rwType))))
   }
 
-  def memPortField(s: DefMemory, p: String, f: String) = {
+  def memPortField(s: DefMemory, p: String, f: String): Expression = {
     val mem = WRef(s.name, memType(s), MemKind, UNKNOWNGENDER)
     val t1 = field_type(mem.tpe, p)
     val t2 = field_type(t1, f)

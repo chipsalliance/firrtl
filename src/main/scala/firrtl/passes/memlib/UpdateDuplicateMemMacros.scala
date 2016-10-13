@@ -10,7 +10,6 @@ import firrtl.Mappers._
 import AnalysisUtils._
 import MemPortUtils._
 import MemTransformUtils._
-import AppendableUtils._
 
 
 /** Changes memory port names to standard port names (i.e. RW0 instead T_408)
@@ -22,12 +21,14 @@ object UpdateDuplicateMemMacros extends Pass {
 
   def name = "Update Duplicate Mem Macros"
 
+  type AnnotatedMemories = collection.mutable.ArrayBuffer[DefAnnotatedMemory]
+
   /** Renames memory ports to a standard naming scheme:
    *    - R0, R1, ... for each read port
    *    - W0, W1, ... for each write port
    *    - RW0, RW1, ... for each readwrite port
    */
-  def createMemProto(m: DefMemory): DefMemory = {
+  def createMemProto(m: DefAnnotatedMemory): DefAnnotatedMemory = {
     val rports = m.readers.indices map (i => s"R$i")
     val wports = m.writers.indices map (i => s"W$i")
     val rwports = m.readwriters.indices map (i => s"RW$i")
@@ -39,7 +40,7 @@ object UpdateDuplicateMemMacros extends Pass {
    *  E.g.:
    *    - ("m.read.addr") becomes (m.R0.addr)
    */
-  def getMemPortMap(m: DefMemory): MemPortMap = {
+  def getMemPortMap(m: DefAnnotatedMemory): MemPortMap = {
     val memPortMap = new MemPortMap
     val defaultFields = Seq("addr", "en", "clk")
     val rFields = defaultFields :+ "data"
@@ -63,18 +64,17 @@ object UpdateDuplicateMemMacros extends Pass {
     *   annotation that references the name of the other memory.
     * Does not update the references (this is done via updateStmtRefs)
     */
-  def updateMemStmts(uniqueMems: Memories,
+  def updateMemStmts(uniqueMems: AnnotatedMemories,
                      memPortMap: MemPortMap)
                      (s: Statement): Statement = s match {
-    case m: DefMemory if containsInfo(m.info, "useMacro") => 
+    case m: DefAnnotatedMemory =>
       val updatedMem = createMemProto(m)
       memPortMap ++= getMemPortMap(m)
       uniqueMems find (x => eqMems(x, updatedMem)) match {
         case None =>
           uniqueMems += updatedMem
           updatedMem
-        case Some(proto) =>
-          updatedMem copy (info = appendInfo(updatedMem.info, "ref" -> proto.name))
+        case Some(proto) => updatedMem copy (ref = Some(proto.name))
       }
     case s => s map updateMemStmts(uniqueMems, memPortMap)
   }
@@ -82,7 +82,7 @@ object UpdateDuplicateMemMacros extends Pass {
   /** Replaces candidate memories and their references with standard port names
    */
   def updateMemMods(m: DefModule) = {
-    val uniqueMems = new Memories
+    val uniqueMems = new AnnotatedMemories
     val memPortMap = new MemPortMap
     (m map updateMemStmts(uniqueMems, memPortMap)
        map updateStmtRefs(memPortMap))

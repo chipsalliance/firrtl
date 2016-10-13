@@ -10,7 +10,6 @@ import firrtl.Mappers._
 import WrappedExpression.weq
 import MemPortUtils.memPortField
 import AnalysisUtils._
-import AppendableUtils._
 
 object AnalysisUtils {
   type Connects = collection.mutable.HashMap[String, Expression]
@@ -78,7 +77,7 @@ object AnalysisUtils {
 
   /** Checks whether the two memories are equivalent in all respects except name
     */
-  def eqMems(a: DefMemory, b: DefMemory) = a == b.copy(name = a.name) 
+  def eqMems(a: DefAnnotatedMemory, b: DefAnnotatedMemory) = a == b.copy(name = a.name) 
 }
 
 /** Annotates sequential memories that are candidates for macro replacement.
@@ -119,14 +118,24 @@ object AnnotateMemMacros extends Pass {
         getMaskBits(connects, memPortField(m, rw, "wmode"), memPortField(m, rw, "wmask")))
       val wMasks = m.writers map (w =>
         getMaskBits(connects, memPortField(m, w, "en"), memPortField(m, w, "mask")))
-      val memAnnotations = Map("useMacro" -> true)
-      val tempInfo = appendInfo(m.info, memAnnotations)
-      (rwMasks ++ wMasks).head match {
-        case None =>
-          m copy (info = tempInfo)
-        case Some(maskBits) =>
-          m.copy(info = tempInfo.append("maskGran" -> dataBits / maskBits))
+      val maskGran = (rwMasks ++ wMasks).head match {
+        case None =>  None
+        case Some(maskBits) => Some(dataBits / maskBits)
       }
+      DefAnnotatedMemory(
+        m.info,
+        m.name,
+        m.dataType,
+        m.depth,
+        m.writeLatency,
+        m.readLatency,
+        m.readers,
+        m.writers,
+        m.readwriters,
+        m.readUnderWrite,
+        maskGran, // Add mask granularity annotation
+        None // No reference yet to another memory
+      )
     case sx => sx map updateStmts(connects)
   }
 

@@ -6,8 +6,7 @@ import firrtl.ir._
 import firrtl.Utils._
 import firrtl.Mappers._
 import AnalysisUtils._
-import MemPortUtils._
-import AppendableUtils._
+import MemPortUtils.{MemPortMap}
 
 object MemTransformUtils {
 
@@ -42,6 +41,7 @@ object MemTransformUtils {
     updateStmtRefs(s)
   }
 
+  def defaultPortSeq(mem: DefAnnotatedMemory): Seq[Field] = MemPortUtils.defaultPortSeq(mem.toMem)
 }
 
 // vim: set ts=4 sw=4 et:

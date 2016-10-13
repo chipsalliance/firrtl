@@ -8,7 +8,6 @@ import firrtl.ir._
 import Annotations._
 import AnalysisUtils._
 import Utils.error
-import AppendableUtils._
 import java.io.{File, CharArrayWriter, PrintWriter}
 
 sealed trait PassOption
@@ -42,9 +41,9 @@ object PassConfigUtil {
 
 class ConfWriter(filename: String) {
   val outputBuffer = new CharArrayWriter
-  def append(m: DefMemory) = {
+  def append(m: DefAnnotatedMemory) = {
     // legacy
-    val maskGran = getInfo(m.info, "maskGran")
+    val maskGran = m.maskGran
     val readers = List.fill(m.readers.length)("read")
     val writers = List.fill(m.writers.length)(if (maskGran.isEmpty) "write" else "mwrite")
     val readwriters = List.fill(m.readwriters.length)(if (maskGran.isEmpty) "rw" else "mrw")
