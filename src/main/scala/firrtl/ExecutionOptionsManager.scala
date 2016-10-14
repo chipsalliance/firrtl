@@ -31,7 +31,7 @@ case class CommonOptions(
 }
 
 abstract class HasParser(applicationName: String) {
-  val parser: OptionParser[Unit] = new OptionParser[Unit](applicationName) {}
+  final val parser: OptionParser[Unit] = new OptionParser[Unit](applicationName) {}
 }
 
 trait HasCommonOptions {
@@ -42,12 +42,20 @@ trait HasCommonOptions {
   def addToParser(): Unit = {
     parser.note("common options")
 
-    parser.opt[String]("top-name").abbr("tn").valueName("<top-level-circuit-name>").foreach { x =>
-      commonOptions = commonOptions.copy(topName = x)
-    }.text("This options defines the top level circuit, defaults to dut when possible")
-    parser.opt[String]("target-dir").abbr("td").valueName("<target-directory>").foreach { x =>
-      commonOptions = commonOptions.copy(targetDirName = x)
-    }.text("This options defines a work directory for intermediate files")
+    parser.opt[String]("top-name")
+      .abbr("tn")
+      .valueName("<top-level-circuit-name>")
+      .foreach { x =>
+        commonOptions = commonOptions.copy(topName = x)
+      }
+      .text("This options defines the top level circuit, defaults to dut when possible")
+
+    parser.opt[String]("target-dir")
+      .abbr("td").valueName("<target-directory>")
+      .foreach { x =>
+        commonOptions = commonOptions.copy(targetDirName = x)
+      }
+      .text("This options defines a work directory for intermediate files")
 
     parser.help("help").text("prints this usage text")
   }
@@ -127,7 +135,7 @@ trait HasFirrtlOptions {
 
   parser.note("firrtl options")
 
-    parser.opt[String]("input-file")
+  parser.opt[String]("input-file")
     .abbr("fif")
     .valueName ("<firrtl-source>")
     .foreach { x =>
@@ -136,7 +144,7 @@ trait HasFirrtlOptions {
       "use this to override the top name default"
     }
 
-    parser.opt[String]("output-file")
+  parser.opt[String]("output-file")
     .abbr("fof")
     .valueName ("<output>").
     foreach { x =>
@@ -145,30 +153,33 @@ trait HasFirrtlOptions {
       "use this to override the default name"
     }
 
-    parser.opt[String]("compiler")
+  parser.opt[String]("compiler")
     .abbr("fc")
     .valueName ("<high|low|verilog>")
     .foreach { x =>
       firrtlOptions = firrtlOptions.copy(compilerName = x)
-    }.validate { x =>
-    if (Array("high", "low", "verilog").contains(x.toLowerCase)) parser.success
-    else parser.failure(s"$x not a legal compiler")
-  }.text {
-    "compiler to use, default is verilog"
-  }
+    }
+    .validate { x =>
+      if (Array("high", "low", "verilog").contains(x.toLowerCase)) parser.success
+      else parser.failure(s"$x not a legal compiler")
+    }.text {
+      "compiler to use, default is verilog"
+    }
 
-    parser.opt[String]("info-mode")
+  parser.opt[String]("info-mode")
     .valueName ("<ignore|use|gen|append>")
     .foreach { x =>
       firrtlOptions = firrtlOptions.copy(infoModeName = x.toLowerCase)
-    }.validate { x =>
-    if (Array("ignore", "use", "gen", "append").contains(x.toLowerCase)) parser.success
-    else parser.failure(s"$x not a legal compiler")
-  }.text {
-    "specifies the source info handling"
-  }
+    }
+    .validate { x =>
+      if (Array("ignore", "use", "gen", "append").contains(x.toLowerCase)) parser.success
+      else parser.failure(s"$x not a legal compiler")
+    }
+    .text {
+      "specifies the source info handling"
+    }
 
-    parser.opt[Seq[String]]("in-line")
+  parser.opt[Seq[String]]("in-line")
     .abbr("fil")
     .valueName ("<circuit>[.<module>[.<instance>]][,..],")
     .foreach { x =>
@@ -183,11 +194,12 @@ trait HasFirrtlOptions {
         }
       }
       firrtlOptions = firrtlOptions.copy(annotations = firrtlOptions.annotations ++ newAnnotations)
-    }.text {
-    """Inline one or more module (comma separated, no spaces) module looks like "MyModule" or "MyModule.myinstance"""
-  }
+    }
+    .text {
+      """Inline one or more module (comma separated, no spaces) module looks like "MyModule" or "MyModule.myinstance"""
+    }
 
-    parser.opt[Seq[String]]("infer-rw")
+  parser.opt[Seq[String]]("infer-rw")
     .abbr("firw")
     .valueName ("<circuit[,...]>")
     .foreach { x =>
@@ -196,10 +208,10 @@ trait HasFirrtlOptions {
           x.map { value => passes.InferReadWriteAnnotation(value, TransID(-1)) }
       )
     }.text {
-    "Enable readwrite port inference for the target circuit, for multiples separate with commas and no spaces"
-  }
+      "Enable readwrite port inference for the target circuit, for multiples separate with commas and no spaces"
+    }
 
-    parser.opt[Seq[String]]("repl-seq-mem")
+  parser.opt[Seq[String]]("repl-seq-mem")
     .abbr("frsq")
     .valueName ("-c:<circuit>:-i:<filename>:-o:<filename>[,...]")
     .foreach { x =>
