@@ -104,6 +104,7 @@ class ReplSeqMem(transID: TransID) extends Transform with SimpleRun {
         RemoveEmpty,
         CheckInitialization,
         InferTypes,
+        Uniquify,
         ResolveKinds,         // Must be run for the transform to work!
         ResolveGenders)
 

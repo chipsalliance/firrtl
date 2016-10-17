@@ -13,14 +13,10 @@ import MemTransformUtils._
 
 
 /** Changes memory port names to standard port names (i.e. RW0 instead T_408)
- *
- *  TODO(shunshou): Module namespace can collide with new names!
  */
 object RenameAnnotatedMemoryPorts extends Pass {
 
   def name = "Rename Annotated Memory Ports"
-
-  type AnnotatedMemories = collection.mutable.ArrayBuffer[DefAnnotatedMemory]
 
   /** Renames memory ports to a standard naming scheme:
    *    - R0, R1, ... for each read port

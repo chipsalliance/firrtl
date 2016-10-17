@@ -22,17 +22,7 @@ case class DefAnnotatedMemory(
     memRef: Option[String]
     //pins: Seq[Pin],
     ) extends Statement with IsDeclaration {
-  def serialize: String =
-    s"mem $name :" + info.serialize +
-    indent(
-      (Seq("\ndata-type => " + dataType.serialize,
-          "depth => " + depth,
-          "read-latency => " + readLatency,
-          "write-latency => " + writeLatency) ++
-          (readers map ("reader => " + _)) ++
-          (writers map ("writer => " + _)) ++
-          (readwriters map ("readwriter => " + _)) ++
-       Seq("read-under-write => undefined")) mkString "\n")
+  def serialize: String = this.toMem.serialize
   def mapStmt(f: Statement => Statement): Statement = this
   def mapExpr(f: Expression => Expression): Statement = this
   def mapType(f: Type => Type): Statement = this.copy(dataType = f(dataType))

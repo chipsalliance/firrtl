@@ -95,7 +95,7 @@ object ResolveMaskGranularity extends Pass {
   def getMaskBits(connects: Connects, wen: Expression, wmask: Expression): Option[Int] = {
     val wenOrigin = getOrigin(connects)(wen)
     val wmaskOrigin = connects.keys filter
-      (_ startsWith wmask.serialize) map {s: String => getOrigin(connects)(WRef(s, UnknownType, ExpKind, UNKNOWNGENDER))}
+      (_ startsWith wmask.serialize) map {s: String => getOrigin(connects, s)}
     // all wmask bits are equal to wmode/wen or all wmask bits = 1(for redundancy checking)
     val redundantMask = wmaskOrigin forall (x => weq(x, wenOrigin) || weq(x, one))
     if (redundantMask) None else Some(wmaskOrigin.size)

@@ -36,5 +36,3 @@ object ResolveMemoryReference extends Pass {
 
   def run(c: Circuit) = c copy (modules = c.modules map updateMemMods)
 }
-
-// vim: set ts=4 sw=4 et:

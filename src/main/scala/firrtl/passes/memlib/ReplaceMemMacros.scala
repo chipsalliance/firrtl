@@ -88,7 +88,7 @@ class ReplaceMemMacros(writer: ConfWriter) extends Pass {
     val bbIoType = memToFlattenBundle(m)
     val bbIoPorts = bbIoType.fields map (f => Port(NoInfo, f.name, Input, f.tpe))
     val bbRef = createRef(m.name, bbIoType)
-    val hasMask = !m.maskGran.isEmpty
+    val hasMask = m.maskGran.isDefined
     val fillMask = getFillWMask(m)
     def portRef(p: String) = createRef(p, field_type(wrapperIoType, p))
     val stmts = Seq(WDefInstance(NoInfo, m.name, m.name, UnknownType)) ++
