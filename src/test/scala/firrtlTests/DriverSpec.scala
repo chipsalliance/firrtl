@@ -98,11 +98,11 @@ class DriverSpec extends FreeSpec with Matchers {
         val optionsManager = new ExecutionOptionsManager("test") with HasFirrtlOptions
 
         optionsManager.parse(
-          Array("--infer-rw", "ignore,use,gen,append")
+          Array("--infer-rw", "circuit")
         ) should be (true)
 
         val firrtlOptions = optionsManager.firrtlOptions
-        firrtlOptions.annotations.length should be (4)
+        firrtlOptions.annotations.length should be (1)
         firrtlOptions.annotations.foreach { annotation =>
           annotation shouldBe a [passes.InferReadWriteAnnotation]
         }
@@ -111,12 +111,12 @@ class DriverSpec extends FreeSpec with Matchers {
         val optionsManager = new ExecutionOptionsManager("test") with HasFirrtlOptions
 
         optionsManager.parse(
-          Array("--repl-seq-mem", "-c:circuit1:-i:infile1:-o:outfile1,-c:circuit2:-i:infile2:-o:outfile2")
+          Array("--repl-seq-mem", "-c:circuit1:-i:infile1:-o:outfile1")
         ) should be (true)
 
         val firrtlOptions = optionsManager.firrtlOptions
 
-        firrtlOptions.annotations.length should be (2)
+        firrtlOptions.annotations.length should be (1)
         firrtlOptions.annotations.foreach { annotation =>
           annotation shouldBe a [passes.ReplSeqMemAnnotation]
         }

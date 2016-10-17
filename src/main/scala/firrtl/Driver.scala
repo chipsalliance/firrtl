@@ -127,7 +127,7 @@ object Driver {
             throw new Exception(s"Error: Unknown Firrtl Execution result $result")
         }
       case _ =>
-        FirrtlExecutionFailure("")
+        FirrtlExecutionFailure("Could not parser command line options")
     }
   }
 

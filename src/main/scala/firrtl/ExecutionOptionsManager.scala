@@ -173,7 +173,7 @@ trait HasFirrtlOptions {
     }
     .validate { x =>
       if (Array("ignore", "use", "gen", "append").contains(x.toLowerCase)) parser.success
-      else parser.failure(s"$x not a legal compiler")
+      else parser.failure(s"$x bad value must be one of ignore|use|gen|append")
     }
     .text {
       "specifies the source info handling"
@@ -199,24 +199,23 @@ trait HasFirrtlOptions {
       """Inline one or more module (comma separated, no spaces) module looks like "MyModule" or "MyModule.myinstance"""
     }
 
-  parser.opt[Seq[String]]("infer-rw")
+  parser.opt[String]("infer-rw")
     .abbr("firw")
-    .valueName ("<circuit[,...]>")
+    .valueName ("<circuit>")
     .foreach { x =>
       firrtlOptions = firrtlOptions.copy(
-        annotations = firrtlOptions.annotations ++
-          x.map { value => passes.InferReadWriteAnnotation(value, TransID(-1)) }
+        annotations = firrtlOptions.annotations :+ passes.InferReadWriteAnnotation(x, TransID(-1))
       )
     }.text {
-      "Enable readwrite port inference for the target circuit, for multiples separate with commas and no spaces"
+      "Enable readwrite port inference for the target circuit"
     }
 
-  parser.opt[Seq[String]]("repl-seq-mem")
+  parser.opt[String]("repl-seq-mem")
     .abbr("frsq")
-    .valueName ("-c:<circuit>:-i:<filename>:-o:<filename>[,...]")
+    .valueName ("-c:<circuit>:-i:<filename>:-o:<filename>")
     .foreach { x =>
       firrtlOptions = firrtlOptions.copy(
-        annotations = firrtlOptions.annotations ++ x.map { value => passes.ReplSeqMemAnnotation(value, TransID(-2))}
+        annotations = firrtlOptions.annotations :+ passes.ReplSeqMemAnnotation(x, TransID(-2))
       )
     }
     .text {
