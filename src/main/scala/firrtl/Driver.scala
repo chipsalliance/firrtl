@@ -54,6 +54,7 @@ object Driver {
 
   /**
     * print the message in red
+    *
     * @param message error message
     */
   def dramaticError(message: String): Unit = {
@@ -77,6 +78,14 @@ object Driver {
       case None       =>
         if(optionsManager.topName.isEmpty && firrtlConfig.inputFileNameOverride.isEmpty) {
           val message = "either top-name or input-file-override must be set"
+          dramaticError(message)
+          return FirrtlExecutionFailure(message)
+        }
+        if(
+          optionsManager.topName.isEmpty &&
+            firrtlConfig.inputFileNameOverride.nonEmpty &&
+            firrtlConfig.outputFileNameOverride.isEmpty) {
+          val message = "inputFileName set but neither top-name or output-file-override is set"
           dramaticError(message)
           return FirrtlExecutionFailure(message)
         }

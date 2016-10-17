@@ -136,7 +136,7 @@ trait HasFirrtlOptions {
   parser.note("firrtl options")
 
   parser.opt[String]("input-file")
-    .abbr("fif")
+    .abbr("i")
     .valueName ("<firrtl-source>")
     .foreach { x =>
       firrtlOptions = firrtlOptions.copy(inputFileNameOverride = x)
@@ -145,7 +145,7 @@ trait HasFirrtlOptions {
     }
 
   parser.opt[String]("output-file")
-    .abbr("fof")
+    .abbr("o")
     .valueName ("<output>").
     foreach { x =>
       firrtlOptions = firrtlOptions.copy(outputFileNameOverride = x)
@@ -300,7 +300,7 @@ class ExecutionOptionsManager(val applicationName: String) extends HasParser(app
     * Will not add the suffix if the topName already ends with that suffix
     *
     * @param suffix suffix to add, removes . if present
-    * @param fileNameOverride this will override the topName if nonEmpty
+    * @param fileNameOverride this will override the topName if nonEmpty, when using this targetDir is ignored
     * @return
     */
   def getBuildFileName(suffix: String, fileNameOverride: String = ""): String = {
@@ -308,7 +308,10 @@ class ExecutionOptionsManager(val applicationName: String) extends HasParser(app
 
     val baseName = if(fileNameOverride.nonEmpty) fileNameOverride else topName
     val directoryName = {
-      if(baseName.startsWith("./") || baseName.startsWith("/")) {
+      if(fileNameOverride.nonEmpty) {
+        "./"
+      }
+      else if(baseName.startsWith("./") || baseName.startsWith("/")) {
         ""
       }
       else {
