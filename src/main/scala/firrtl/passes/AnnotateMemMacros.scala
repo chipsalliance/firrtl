@@ -132,12 +132,12 @@ object AnnotateMemMacros extends Pass {
         case Some(maskBits) =>
           m.copy(info = tempInfo.append("maskGran" -> dataBits / maskBits))
       }
-    case s => s map updateStmts(connects)
+    case sx => sx map updateStmts(connects)
   }
 
   def annotateModMems(m: DefModule) = m map updateStmts(getConnects(m))
 
-  def run(c: Circuit) = c copy (modules = (c.modules map annotateModMems))
+  def run(c: Circuit) = c copy (modules = c.modules map annotateModMems)
 }
 
 // TODO: Add floorplan info?

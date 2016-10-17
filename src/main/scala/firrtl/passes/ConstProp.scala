@@ -139,11 +139,11 @@ object ConstProp extends Pass {
           case _ => false
         }
       x match {
-        case DoPrim(Lt,  Seq(a,b),_,_) if(isUInt(a) && isZero(b)) => zero
-        case DoPrim(Leq, Seq(a,b),_,_) if(isZero(a) && isUInt(b)) => one
-        case DoPrim(Gt,  Seq(a,b),_,_) if(isZero(a) && isUInt(b)) => zero
-        case DoPrim(Geq, Seq(a,b),_,_) if(isUInt(a) && isZero(b)) => one
-        case e => e
+        case DoPrim(Lt,  Seq(a,b),_,_) if isUInt(a) && isZero(b) => zero
+        case DoPrim(Leq, Seq(a,b),_,_) if isZero(a) && isUInt(b) => one
+        case DoPrim(Gt,  Seq(a,b),_,_) if isZero(a) && isUInt(b) => zero
+        case DoPrim(Geq, Seq(a,b),_,_) if isUInt(a) && isZero(b) => one
+        case ex => ex
       }
     }
 
@@ -176,23 +176,23 @@ object ConstProp extends Pass {
       }
       // Calculates an expression's range of values
       x match {
-        case e: DoPrim =>
-          def r0 = range(e.args.head)
-          def r1 = range(e.args(1))
-          e.op match {
+        case ex: DoPrim =>
+          def r0 = range(ex.args.head)
+          def r1 = range(ex.args(1))
+          ex.op match {
             // Always true
-            case Lt  if (r0 < r1) => one
-            case Leq if (r0 <= r1) => one
-            case Gt  if (r0 > r1) => one
-            case Geq if (r0 >= r1) => one
+            case Lt  if r0 < r1 => one
+            case Leq if r0 <= r1 => one
+            case Gt  if r0 > r1 => one
+            case Geq if r0 >= r1 => one
             // Always false
-            case Lt  if (r0 >= r1) => zero
-            case Leq if (r0 > r1) => zero
-            case Gt  if (r0 <= r1) => zero
-            case Geq if (r0 < r1) => zero
-            case _ => e
+            case Lt  if r0 >= r1 => zero
+            case Leq if r0 > r1 => zero
+            case Gt  if r0 <= r1 => zero
+            case Geq if r0 < r1 => zero
+            case _ => ex
           }
-        case e => e
+        case ex => ex
       }
     }
     foldIfZeroedArg(foldIfOutsideRange(e))

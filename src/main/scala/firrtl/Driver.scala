@@ -73,7 +73,7 @@ Optional Arguments:
         case Array(circuit, module) =>
           passes.InlineAnnotation(ModuleName(module, CircuitName(circuit)), TransID(0))
         case Array(circuit, module, inst) =>
-          passes.InlineAnnotation((ComponentName(inst,ModuleName(module,CircuitName(circuit)))), TransID(0))
+          passes.InlineAnnotation(ComponentName(inst, ModuleName(module, CircuitName(circuit))), TransID(0))
         case _ => throw new Exception(s"Bad inline instance/module name: $value" + usage)
       }
 
@@ -152,7 +152,7 @@ Optional Arguments:
           nextOption(map + (CompilerName -> value), tail)
         case "--info-mode" :: value :: tail =>
           nextOption(map + (InfoModeOption -> value), tail)
-        case flag :: value :: tail if(customOptions.contains(flag)) =>
+        case flag :: value :: tail if customOptions.contains(flag) =>
           annotations += customOptions(flag)(value)
           nextOption(map, tail)
         case ("-h" | "--help") :: tail => println(usage); sys.exit(0)
@@ -169,10 +169,10 @@ Optional Arguments:
     val output = options.getOrElse(OutputFileName, throw new Exception("No output file provided!" + usage))
 
     val infoMode = options.get(InfoModeOption) match {
-      case (Some("use") | None) => UseInfo
+      case (Some("append") | None) => AppendInfo(input)
+      case Some("use") => UseInfo
       case Some("ignore") => IgnoreInfo
       case Some("gen") => GenInfo(input)
-      case Some("append") => AppendInfo(input)
       case Some(other) => throw new Exception("Unknown info mode option: " + other + usage)
     }
 

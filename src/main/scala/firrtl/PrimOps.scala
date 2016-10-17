@@ -110,7 +110,7 @@ object PrimOps extends LazyLogging {
   private lazy val builtinPrimOps: Seq[PrimOp] =
     Seq(Add, Sub, Mul, Div, Rem, Lt, Leq, Gt, Geq, Eq, Neq, Pad, AsUInt, AsSInt, AsClock, Shl, Shr,
         Dshl, Dshr, Neg, Cvt, Not, And, Or, Xor, Andr, Orr, Xorr, Cat, Bits, Head, Tail, AsFixedPoint, BPShl, BPShr, BPSet)
-  private lazy val strToPrimOp: Map[String, PrimOp] = builtinPrimOps map (op => op.toString -> op) toMap
+  private lazy val strToPrimOp: Map[String, PrimOp] = builtinPrimOps.map { case op : PrimOp=> op.toString -> op }.toMap
 
   /** Seq of String representations of [[ir.PrimOp]]s */
   lazy val listing: Seq[String] = builtinPrimOps map (_.toString)
@@ -151,7 +151,7 @@ object PrimOps extends LazyLogging {
     def p2 = t2 match { case FixedType(w, p) => p } //Intentional
     def c1 = IntWidth(e.consts.head)
     def c2 = IntWidth(e.consts(1))
-    e copy (tpe = (e.op match {
+    e copy (tpe = e.op match {
       case Add => (t1, t2) match {
         case (_: UIntType, _: UIntType) => UIntType(PLUS(MAX(w1, w2), IntWidth(1)))
         case (_: UIntType, _: SIntType) => SIntType(PLUS(MAX(w1, MINUS(w2, IntWidth(1))), IntWidth(2)))
@@ -276,21 +276,21 @@ object PrimOps extends LazyLogging {
         case _ => UnknownType
       }
       case Shl => t1 match {
-        case _: UIntType => UIntType(PLUS(w1,c1))
-        case _: SIntType => SIntType(PLUS(w1,c1))
+        case _: UIntType => UIntType(PLUS(w1, c1))
+        case _: SIntType => SIntType(PLUS(w1, c1))
         case _: FixedType => FixedType(PLUS(w1,c1), p1)
         case _ => UnknownType
       }
       case Shr => t1 match {
-        case _: UIntType => UIntType(MAX(MINUS(w1,c1),IntWidth(1)))
-        case _: SIntType => SIntType(MAX(MINUS(w1,c1),IntWidth(1)))
-        case _: FixedType => FixedType(MAX(MAX(MINUS(w1,c1),IntWidth(1)), p1), p1)
+        case _: UIntType => UIntType(MAX(MINUS(w1, c1), IntWidth(1)))
+        case _: SIntType => SIntType(MAX(MINUS(w1, c1), IntWidth(1)))
+        case _: FixedType => FixedType(MAX(MAX(MINUS(w1,c1), IntWidth(1)), p1), p1)
         case _ => UnknownType
       }
       case Dshl => t1 match {
-        case _: UIntType => UIntType(PLUS(w1,POW(w2)))
-        case _: SIntType => SIntType(PLUS(w1,POW(w2)))
-        case _: FixedType => FixedType(PLUS(w1,POW(w2)), p1)
+        case _: UIntType => UIntType(PLUS(w1, POW(w2)))
+        case _: SIntType => SIntType(PLUS(w1, POW(w2)))
+        case _: FixedType => FixedType(PLUS(w1, POW(w2)), p1)
         case _ => UnknownType
       }
       case Dshr => t1 match {
@@ -300,13 +300,13 @@ object PrimOps extends LazyLogging {
         case _ => UnknownType
       }
       case Cvt => t1 match {
-        case _: UIntType => SIntType(PLUS(w1,IntWidth(1)))
+        case _: UIntType => SIntType(PLUS(w1, IntWidth(1)))
         case _: SIntType => SIntType(w1)
         case _ => UnknownType
       }
       case Neg => t1 match {
-        case _: UIntType => SIntType(PLUS(w1,IntWidth(1)))
-        case _: SIntType => SIntType(PLUS(w1,IntWidth(1)))
+        case _: UIntType => SIntType(PLUS(w1, IntWidth(1)))
+        case _: SIntType => SIntType(PLUS(w1, IntWidth(1)))
         case _ => UnknownType
       }
       case Not => t1 match {
@@ -345,8 +345,8 @@ object PrimOps extends LazyLogging {
         case (t1, t2) => UnknownType
       }
       case Bits => t1 match {
-        case (_: UIntType | _: SIntType) => UIntType(PLUS(MINUS(c1,c2),IntWidth(1)))
-        case _: FixedType => UIntType(PLUS(MINUS(c1,c2),IntWidth(1)))
+        case (_: UIntType | _: SIntType) => UIntType(PLUS(MINUS(c1, c2), IntWidth(1)))
+        case _: FixedType => UIntType(PLUS(MINUS(c1, c2), IntWidth(1)))
         case _ => UnknownType
       }
       case Head => t1 match {
@@ -354,7 +354,7 @@ object PrimOps extends LazyLogging {
         case _ => UnknownType
       }
       case Tail => t1 match {
-        case (_: UIntType | _: SIntType | _: FixedType) => UIntType(MINUS(w1,c1))
+        case (_: UIntType | _: SIntType | _: FixedType) => UIntType(MINUS(w1, c1))
         case _ => UnknownType
       }
       case BPShl => t1 match {
@@ -369,6 +369,6 @@ object PrimOps extends LazyLogging {
         case _: FixedType => FixedType(PLUS(c1, MINUS(w1, p1)), c1)
         case _ => UnknownType
       }
-    }))
+    })
   }
 }
