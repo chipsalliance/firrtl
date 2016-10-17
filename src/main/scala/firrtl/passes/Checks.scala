@@ -304,27 +304,27 @@ object CheckTypes extends Pass {
         if (ls exists (x => wt(ls.head.tpe) != wt(e.tpe)))
           errors append new OpNotAllSameType(info, mname, e.op.serialize)
       }
-      def all_USC(ls: Seq[Expression]) {
+      def allUSC(ls: Seq[Expression]) {
         val error = ls.foldLeft(false)((error, x) => x.tpe match {
           case (_: UIntType| _: SIntType| ClockType) => error
           case _ => true
         })
         if (error) errors.append(new OpNotGround(info, mname, e.op.serialize))
       }
-      def all_USF(ls: Seq[Expression]) {
+      def allUSF(ls: Seq[Expression]) {
         val error = ls.foldLeft(false)((error, x) => x.tpe match {
           case (_: UIntType| _: SIntType| _: FixedType) => error
           case _ => true
         })
         if (error) errors.append(new OpNotGround(info, mname, e.op.serialize))
       }
-      def all_US(ls: Seq[Expression]) {
+      def allUS(ls: Seq[Expression]) {
         if (ls exists (x => x.tpe match {
           case _: UIntType | _: SIntType => false
           case _ => true
         })) errors append new OpNotGround(info, mname, e.op.serialize)
       }
-      def all_F(ls: Seq[Expression]) {
+      def allF(ls: Seq[Expression]) {
         val error = ls.foldLeft(false)((error, x) => x.tpe match {
           case _:FixedType => error
           case _ => true
@@ -351,13 +351,13 @@ object CheckTypes extends Pass {
       }
       e.op match {
         case AsUInt | AsSInt | AsFixedPoint =>
-        case AsClock => all_USC(e.args)
-        case Dshl => is_uint(e.args(1)); all_USF(e.args)
-        case Dshr => is_uint(e.args(1)); all_USF(e.args)
-        case Add | Sub | Mul | Lt | Leq | Gt | Geq | Eq | Neq => all_USF(e.args); strictFix(e.args)
-        case Pad | Shl | Shr | Cat | Bits | Head | Tail => all_USF(e.args)
-        case BPShl | BPShr | BPSet => all_F(e.args)
-        case _ => all_US(e.args)
+        case AsClock => allUSC(e.args)
+        case Dshl => is_uint(e.args(1)); allUSF(e.args)
+        case Dshr => is_uint(e.args(1)); allUSF(e.args)
+        case Add | Sub | Mul | Lt | Leq | Gt | Geq | Eq | Neq => allUSF(e.args); strictFix(e.args)
+        case Pad | Shl | Shr | Cat | Bits | Head | Tail => allUSF(e.args)
+        case BPShl | BPShr | BPSet => allF(e.args)
+        case _ => allUS(e.args)
       }
     }
 
