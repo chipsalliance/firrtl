@@ -34,5 +34,3 @@ class YamlFileWriter(file: String) {
     outputFile.close()
   }
 }
-
-// vim: set ts=4 sw=4 et:

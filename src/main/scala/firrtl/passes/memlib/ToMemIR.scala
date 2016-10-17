@@ -39,6 +39,3 @@ object ToMemIR extends Pass {
   def annotateModMems(m: DefModule) = m map updateStmts
   def run(c: Circuit) = c copy (modules = c.modules map annotateModMems)
 }
-
-
-// vim: set ts=4 sw=4 et:

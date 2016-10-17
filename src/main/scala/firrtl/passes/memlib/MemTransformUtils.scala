@@ -45,5 +45,3 @@ object MemTransformUtils {
   def memPortField(s: DefAnnotatedMemory, p: String, f: String): Expression =
     MemPortUtils.memPortField(s.toMem, p, f)
 }
-
-// vim: set ts=4 sw=4 et:

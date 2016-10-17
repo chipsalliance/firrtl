@@ -75,4 +75,3 @@ object RenameAnnotatedMemoryPorts extends Pass {
 
   def run(c: Circuit) = c copy (modules = c.modules map updateMemMods)
 }
-
