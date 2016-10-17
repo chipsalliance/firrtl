@@ -1,3 +1,0 @@
-Problem with zero-width wires.
-Need to add an "identity" range, not [0,0] range.
-thus, S0 * S1 = S1, not S0
