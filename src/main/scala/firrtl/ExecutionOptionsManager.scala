@@ -37,28 +37,25 @@ abstract class HasParser(applicationName: String) {
 trait HasCommonOptions {
   self: ExecutionOptionsManager =>
   var commonOptions = CommonOptions()
-  addToParser()
 
-  def addToParser(): Unit = {
-    parser.note("common options")
+  parser.note("common options")
 
-    parser.opt[String]("top-name")
-      .abbr("tn")
-      .valueName("<top-level-circuit-name>")
-      .foreach { x =>
-        commonOptions = commonOptions.copy(topName = x)
-      }
-      .text("This options defines the top level circuit, defaults to dut when possible")
+  parser.opt[String]("top-name")
+    .abbr("tn")
+    .valueName("<top-level-circuit-name>")
+    .foreach { x =>
+      commonOptions = commonOptions.copy(topName = x)
+    }
+    .text("This options defines the top level circuit, defaults to dut when possible")
 
-    parser.opt[String]("target-dir")
-      .abbr("td").valueName("<target-directory>")
-      .foreach { x =>
-        commonOptions = commonOptions.copy(targetDirName = x)
-      }
-      .text("This options defines a work directory for intermediate files")
+  parser.opt[String]("target-dir")
+    .abbr("td").valueName("<target-directory>")
+    .foreach { x =>
+      commonOptions = commonOptions.copy(targetDirName = x)
+    }
+    .text(s"This options defines a work directory for intermediate files, default is ${commonOptions.targetDirName}")
 
-    parser.help("help").text("prints this usage text")
-  }
+  parser.help("help").text("prints this usage text")
 }
 
 /**
@@ -141,7 +138,7 @@ trait HasFirrtlOptions {
     .foreach { x =>
       firrtlOptions = firrtlOptions.copy(inputFileNameOverride = x)
     }.text {
-      "use this to override the top name default"
+      "use this to override the top name default, default is empty"
     }
 
   parser.opt[String]("output-file")
@@ -150,7 +147,7 @@ trait HasFirrtlOptions {
     foreach { x =>
       firrtlOptions = firrtlOptions.copy(outputFileNameOverride = x)
     }.text {
-      "use this to override the default name"
+      "use this to override the default name, default is empty"
     }
 
   parser.opt[String]("compiler")
@@ -163,7 +160,7 @@ trait HasFirrtlOptions {
       if (Array("high", "low", "verilog").contains(x.toLowerCase)) parser.success
       else parser.failure(s"$x not a legal compiler")
     }.text {
-      "compiler to use, default is verilog"
+      s"compiler to use, default is ${firrtlOptions.compilerName}"
     }
 
   parser.opt[String]("info-mode")
@@ -176,7 +173,7 @@ trait HasFirrtlOptions {
       else parser.failure(s"$x bad value must be one of ignore|use|gen|append")
     }
     .text {
-      "specifies the source info handling"
+      s"specifies the source info handling, default is ${firrtlOptions.infoMode}"
     }
 
   parser.opt[Seq[String]]("in-line")
@@ -222,9 +219,6 @@ trait HasFirrtlOptions {
       "Replace sequential memories with blackboxes + configuration file"
     }
 
-  parser.note("Input configuration file optional")
-  parser.note("Note: sub-arguments to --replSeqMem should be delimited by : and not white space!")
-  parser.note("for multiples separate with commas and no spaces")
   parser.note("")
 
 }
