@@ -22,14 +22,7 @@ trait ComposableOptions
   * For example, in chisel, by deferring this it is possible for the execute there to first elaborate the
   * circuit and then set the topName from that if it has not already been set.
   */
-case class CommonOptions(
-                          topName:       String = "",
-                          targetDirName: String = "test_run_dir"
-                        ) extends ComposableOptions {
-
-  val key = "CommonOptions"
-
-}
+case class CommonOptions(topName: String = "", targetDirName: String = "test_run_dir") extends ComposableOptions
 
 abstract class HasParser(applicationName: String) {
   final val parser: OptionParser[Unit] = new OptionParser[Unit](applicationName) {}
@@ -72,7 +65,7 @@ case class FirrtlExecutionOptions(
     inputFileNameOverride:  String = "",
     outputFileNameOverride: String = "",
     compilerName:           String = "verilog",
-    infoModeName:           String = "use",
+    infoModeName:           String = "append",
     inferRW:                Seq[String] = Seq.empty,
     firrtlSource:           Option[String] = None,
     annotations:            List[Annotation] = List.empty)
@@ -224,7 +217,7 @@ trait HasFirrtlOptions {
 
 }
 
-trait FirrtlExecutionResult
+sealed trait FirrtlExecutionResult
 
 /**
   * Indicates a successful execution of the firrtl compiler, returning the compiled result and
@@ -233,10 +226,7 @@ trait FirrtlExecutionResult
   * @param emitType  The name of the compiler used, currently "high", "low", or "verilog"
   * @param emitted   The text result of the compilation, could be verilog or firrtl text.
   */
-case class FirrtlExecutionSuccess(
-                                   emitType: String,
-                                   emitted:  String
-                                 ) extends FirrtlExecutionResult
+case class FirrtlExecutionSuccess(emitType: String, emitted: String) extends FirrtlExecutionResult
 
 /**
   * The firrtl compilation failed.
