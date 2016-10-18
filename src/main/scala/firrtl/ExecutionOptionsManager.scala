@@ -145,7 +145,7 @@ trait HasFirrtlOptions {
     }
 
   parser.opt[String]("compiler")
-    .abbr("fc")
+    .abbr("X")
     .valueName ("<high|low|verilog>")
     .foreach { x =>
       firrtlOptions = firrtlOptions.copy(compilerName = x)
@@ -170,7 +170,7 @@ trait HasFirrtlOptions {
       s"specifies the source info handling, default is ${firrtlOptions.infoMode}"
     }
 
-  parser.opt[Seq[String]]("in-line")
+  parser.opt[Seq[String]]("inline")
     .abbr("fil")
     .valueName ("<circuit>[.<module>[.<instance>]][,..],")
     .foreach { x =>
