@@ -38,11 +38,12 @@ object Driver {
   //  executes all compiler passes, and writes result to an output
   //  file.
   def compile(
-               input: String,
-               output: String,
-               compiler: Compiler,
-               infoMode: InfoMode = IgnoreInfo,
-               annotations: AnnotationMap = new AnnotationMap(Seq.empty)): String = {
+      input: String,
+      output: String,
+      compiler: Compiler,
+      infoMode: InfoMode = IgnoreInfo,
+      annotations: AnnotationMap = new AnnotationMap(Seq.empty)
+  ): String = {
     val parsedInput = Parser.parse(Source.fromFile(input).getLines(), infoMode)
     val outputBuffer = new java.io.CharArrayWriter
     compiler.compile(parsedInput, annotations, outputBuffer)

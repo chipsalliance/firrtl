@@ -86,7 +86,7 @@ class DriverSpec extends FreeSpec with Matchers {
         val optionsManager = new ExecutionOptionsManager("test") with HasFirrtlOptions
 
         optionsManager.parse(
-          Array("--in-line", "module,module.submodule,module.submodule.instance")
+          Array("--inline", "module,module.submodule,module.submodule.instance")
         ) should be (true)
 
         val firrtlOptions = optionsManager.firrtlOptions
