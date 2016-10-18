@@ -4,6 +4,7 @@ package firrtlTests
 
 import java.io.File
 
+import firrtl.passes.memlib.ReplSeqMemAnnotation
 import org.scalatest.{Matchers, FreeSpec}
 
 import firrtl._
@@ -118,7 +119,7 @@ class DriverSpec extends FreeSpec with Matchers {
 
         firrtlOptions.annotations.length should be (1)
         firrtlOptions.annotations.foreach { annotation =>
-          annotation shouldBe a [passes.ReplSeqMemAnnotation]
+          annotation shouldBe a [ReplSeqMemAnnotation]
         }
       }
     }

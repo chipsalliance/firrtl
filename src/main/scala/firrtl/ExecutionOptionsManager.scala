@@ -4,6 +4,7 @@ package firrtl
 
 import firrtl.Annotations._
 import firrtl.Parser._
+import firrtl.passes.memlib.ReplSeqMemAnnotation
 import scopt.OptionParser
 
 import scala.collection.Seq
@@ -212,7 +213,7 @@ trait HasFirrtlOptions {
     .valueName ("-c:<circuit>:-i:<filename>:-o:<filename>")
     .foreach { x =>
       firrtlOptions = firrtlOptions.copy(
-        annotations = firrtlOptions.annotations :+ passes.ReplSeqMemAnnotation(x, TransID(-2))
+        annotations = firrtlOptions.annotations :+ ReplSeqMemAnnotation(x, TransID(-2))
       )
     }
     .text {
