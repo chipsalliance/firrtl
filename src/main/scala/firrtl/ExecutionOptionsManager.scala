@@ -309,7 +309,7 @@ class ExecutionOptionsManager(val applicationName: String) extends HasParser(app
     val baseName = if(fileNameOverride.nonEmpty) fileNameOverride else topName
     val directoryName = {
       if(fileNameOverride.nonEmpty) {
-        "./"
+        ""
       }
       else if(baseName.startsWith("./") || baseName.startsWith("/")) {
         ""

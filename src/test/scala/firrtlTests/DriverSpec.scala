@@ -67,18 +67,18 @@ class DriverSpec extends FreeSpec with Matchers {
       val outputFileName = optionsManager.getBuildFileName("v", firrtlOptions.outputFileNameOverride)
       outputFileName should be ("test_run_dir/cat.v")
     }
-    "input and output file names can be overridden" in {
+    "input and output file names can be overridden, overrides do not use targetDir" in {
       val optionsManager = new ExecutionOptionsManager("test") with HasFirrtlOptions
 
       optionsManager.parse(
-        Array("--top-name", "cat", "-fif", "./bob.fir", "-fof", "carol.v")
+        Array("--top-name", "cat", "-i", "./bob.fir", "-o", "carol.v")
       ) should be (true)
 
       val firrtlOptions = optionsManager.firrtlOptions
       val inputFileName = optionsManager.getBuildFileName("fir", firrtlOptions.inputFileNameOverride)
       inputFileName should be ("./bob.fir")
       val outputFileName = optionsManager.getBuildFileName("v", firrtlOptions.outputFileNameOverride)
-      outputFileName should be ("test_run_dir/carol.v")
+      outputFileName should be ("carol.v")
     }
     "various annotations can be created from command line, currently:" - {
       "inline annotation" in {
