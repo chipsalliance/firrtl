@@ -33,10 +33,8 @@ class WiringTests extends FirrtlFlatSpec {
   )
 
   "Wiring from r to X" should "work" in {
-    val cName = CircuitName("Top")
-    val source = ComponentName("r", ModuleName("C", cName))
-    val sinks = Set(ModuleName("X", cName))
-    val sas = WiringInfo(source, sinks, ModuleName("A", cName))
+    val sinks = Map(("X"-> "pin"))
+    val sas = WiringInfo("C", "r", sinks, "A")
     val input =
       """circuit Top :
         |  module Top :
@@ -49,6 +47,8 @@ class WiringTests extends FirrtlFlatSpec {
         |    b.clk <= clk
         |    inst x of X
         |    x.clk <= clk
+        |    inst d of D
+        |    d.clk <= clk
         |  module B :
         |    input clk: Clock
         |    inst c of C
@@ -79,9 +79,12 @@ class WiringTests extends FirrtlFlatSpec {
         |    b.clk <= clk
         |    inst x of X
         |    x.clk <= clk
+        |    inst d of D
+        |    d.clk <= clk
         |    wire r: UInt<5>
         |    r <= b.r
-        |    x.r <= r
+        |    x.pin <= r
+        |    d.r <= r
         |  module B :
         |    input clk: Clock
         |    output r: UInt<5>
@@ -103,11 +106,11 @@ class WiringTests extends FirrtlFlatSpec {
         |    x1.clk <= clk
         |    inst x2 of X
         |    x2.clk <= clk
-        |    x1.r <= r
-        |    x2.r <= r
+        |    x1.pin <= r
+        |    x2.pin <= r
         |  extmodule X :
         |    input clk: Clock
-        |    input r: UInt<5>
+        |    input pin: UInt<5>
         |""".stripMargin
     val c = passes.foldLeft(parse(input)) {
       (c: Circuit, p: Pass) => p.run(c)

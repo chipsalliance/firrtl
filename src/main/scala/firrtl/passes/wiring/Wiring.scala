@@ -19,13 +19,49 @@ case class SourceAnnotation(target: ComponentName, tID: TransID) extends Annotat
 
 /** A module, e.g. ExtModule etc.
   */
-case class SinkAnnotation(target: ModuleName, tID: TransID) extends Annotation with Loose with Unstable {
+case class SinkAnnotation(target: ModuleName, tID: TransID, pin: String) extends Annotation with Loose with Unstable {
   def duplicate(n: Named) = n match {
     case n: ModuleName => this copy (target = n)
   }
 }
 
-case class WiringInfo(src: ComponentName, sinks: Set[ModuleName], top: ModuleName)
+case class TopAnnotation(target: ModuleName, tID: TransID) extends Annotation with Loose with Unstable {
+  def duplicate(n: Named) = n match {
+    case n: ModuleName => this copy (target = n)
+  }
+}
+
+case class WiringInfo(source: String, comp: String, sinks: Map[String, String], top: String)
+
+class WiringTransform(transID: TransID) extends Transform with SimpleRun {
+  def passSeq(wi: WiringInfo) =
+    Seq(new Wiring(wi),
+        InferTypes,
+        ResolveKinds,
+        ResolveGenders)
+  def execute(c: Circuit, map: AnnotationMap) = map get transID match {
+    case Some(p) => 
+      val sinks = mutable.HashMap[String, String]()
+      val sources = mutable.Set[String]()
+      val tops = mutable.Set[String]()
+      val comp = mutable.Set[String]()
+      p.values.foreach{a =>
+        a match {
+          case SinkAnnotation(m, _, pin) => sinks(m.name) = pin
+          case SourceAnnotation(c, _) =>
+            sources += c.module.name
+            comp += c.name
+          case TopAnnotation(m, _) => tops += m.name
+        }
+      }
+      (sources.size, tops.size, sinks.size, comp.size) match {
+        case (0, 0, 0, 0) => TransformResult(c)
+        case (1, 1, p, 1) if p > 0 => run(c, passSeq(WiringInfo(sources.head, comp.head, sinks.toMap, tops.head)))
+        case _ => error("Wrong number of sources, tops, or sinks!")
+      }
+    case None => TransformResult(c)
+  }
+}
 
 case class Lineage(
   name: String,
@@ -122,28 +158,34 @@ class Wiring(wi: WiringInfo) extends Pass {
     there are no other instance sinks in modules not in scope of wiring pass
     component is a ref (not index, or access, or subfield, or anything)
     */
-    val source = wi.src.module.name
-    val sinks = wi.sinks.map(_.name)
-    val compName = wi.src.name
+    val source = wi.source
+    val sinks = wi.sinks.keys.toSet
+    val compName = wi.comp
     val portNames = c.modules.foldLeft(Map[String, String]()){(map, m) =>
-      map + (m.name -> Namespace(m).newName(wi.src.name))
+      map + (m.name -> {
+        val ns = Namespace(m)
+        wi.sinks.get(m.name) match {
+          case Some(pin) => ns.newName(pin)
+          case None => ns.newName(compName)
+        }
+      })
     }
-    val lineages = getLineage(c, wi.top.name)
+    val lineages = getLineage(c, wi.top)
 
-    println(s"""Source Module: $source""")
-    println(s"""Sink Modules: $sinks""")
-    println(s"""Lineages: ${lineages.smallString("")}""")
+    //println(s"""Source Module: $source""")
+    //println(s"""Sink Modules: $sinks""")
+    //println(s"""Lineages: ${lineages.smallString("")}""")
 
-    val withFields = setSharedParent(wi.top.name)(setFields(sinks, source)(lineages))
-    println(s"""Lineages with fields: $withFields""")
+    val withFields = setSharedParent(wi.top)(setFields(sinks, source)(lineages))
+    //println(s"""Lineages with fields: $withFields""")
 
     val withThings = setThings(portNames, compName)(withFields)
-    println(s"""Lineages with things: $withThings""")
+    //println(s"""Lineages with things: ${withThings.serialize("")}""")
 
     val map = pointToLineage(withThings)
-    println(s"""Map: $map""")
+    //println(s"""Map: $map""")
     val cx = c.copy(modules = c.modules map onModule(map, getType(c, source, compName)))
-    println(cx.serialize)
+    //println(cx.serialize)
     cx
   }
 }
