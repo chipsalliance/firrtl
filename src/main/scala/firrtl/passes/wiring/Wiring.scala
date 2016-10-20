@@ -99,12 +99,35 @@ case object DecWire extends DecType
 
 class Wiring(wi: WiringInfo) extends Pass {
   def name = this.getClass.getSimpleName
-  private def toExp(s: String): Expression = {
-    val tokens = s.split('.')
-    val root: Expression = WRef(tokens.head, UnknownType, ExpKind, UNKNOWNGENDER)
-    tokens.tail.foldLeft(root){(e, s) =>
-      WSubField(e, s, UnknownType, UNKNOWNGENDER)
+  def toExp(s: String): Expression = {
+    def tokenize(s: String): Seq[String] = s.find(c => "[].".contains(c)) match {
+      case Some(_) =>
+        val i = s.indexWhere(c => "[].".contains(c))
+        Seq(s.slice(0, i), s(i).toString) ++ tokenize(s.drop(i + 1))
+      case None => Seq(s)
     }
+    def parse(tokens: Seq[String]): Expression = {
+      val DecPattern = """([1-9]\d*)""".r
+      def findClose(tokens: Seq[String], index: Int, nOpen: Int): Seq[String] = tokens(index) match {
+        case "[" => findClose(tokens, index + 1, nOpen + 1)
+        case "]" if nOpen == 1 => tokens.slice(1, index - 1)
+        case _ => findClose(tokens, index + 1, nOpen)
+      }
+      def buildup(e: Expression, tokens: Seq[String]): Expression = tokens match {
+        case "[" :: tail => 
+          val indexOrAccess = findClose(tokens, 0, 0)
+          indexOrAccess.head match {
+            case DecPattern(d) => WSubIndex(e, d.toInt, UnknownType, UNKNOWNGENDER)
+            case _ => buildup(WSubAccess(e, parse(indexOrAccess), UnknownType, UNKNOWNGENDER), tokens.tail.slice(0, indexOrAccess.size + 1))
+          }
+        case "." :: tail =>
+          buildup(WSubField(e, tokens(1), UnknownType, UNKNOWNGENDER), tokens.drop(2))
+        case Nil => e
+      }
+      val root = WRef(tokens.head, UnknownType, ExpKind, UNKNOWNGENDER)
+      buildup(root, tokens.tail)
+    }
+    parse(tokenize(s))
   }
   private def onModule(map: Map[String, Lineage], t: Type)(m: DefModule) = {
     map.get(m.name) match {
@@ -132,11 +155,31 @@ class Wiring(wi: WiringInfo) extends Pass {
     }
   }
   private def getType(c: Circuit, module: String, comp: String) = {
+    def getRoot(e: Expression): String = e match {
+      case r: WRef => r.name
+      case i: WSubIndex => getRoot(i.exp)
+      case a: WSubAccess => getRoot(a.exp)
+      case f: WSubField => getRoot(f.exp)
+    }
+    val eComp = toExp(comp)
+    val root = getRoot(eComp)
     var tpe: Option[Type] = None
     def getType(s: Statement): Statement = s match {
-      case DefRegister(_, n, t, _, _, _) if n == comp =>
+      case DefRegister(_, n, t, _, _, _) if n == root =>
         tpe = Some(t)
         s
+      case DefWire(_, n, t) if n == root =>
+        tpe = Some(t)
+        s
+      case WDefInstance(_, n, m, t) if n == root => 
+        tpe = Some(t)
+        s
+      case DefNode(_, n, e) if n == root =>
+        tpe = Some(e.tpe)
+        s
+      case sx: DefMemory =>
+        tpe = Some(MemPortUtils.memType(sx))
+        sx
       case sx => sx map getType
     }
     val m =  c.modules.filter(_.name == module) match {
@@ -149,7 +192,14 @@ class Wiring(wi: WiringInfo) extends Pass {
     }
     tpe match {
       case None => error("Didn't find register $comp in $module!")
-      case Some(t) => t
+      case Some(t) => 
+        def setType(e: Expression): Expression = e map setType match {
+          case ex: WRef => ex.copy(tpe = t)
+          case ex: WSubField => ex copy (tpe = field_type(ex.exp.tpe, ex.name))
+          case ex: WSubIndex => ex copy (tpe = sub_type(ex.exp.tpe))
+          case ex: WSubAccess => ex copy (tpe = sub_type(ex.exp.tpe))
+        }
+        setType(eComp).tpe
     }
   }
   def run(c: Circuit): Circuit = {
@@ -166,7 +216,7 @@ class Wiring(wi: WiringInfo) extends Pass {
         val ns = Namespace(m)
         wi.sinks.get(m.name) match {
           case Some(pin) => ns.newName(pin)
-          case None => ns.newName(compName)
+          case None => ns.newName(LowerTypes.loweredName(toExp(compName)))
         }
       })
     }
@@ -221,11 +271,12 @@ object WiringUtils {
 
   def setFields(sinks: Set[String], source: String)(lin: Lineage): Lineage = lin map setFields(sinks, source) match {
     case l if sinks.contains(l.name) => l.copy(sink = true)
-    case l if l.name == source => l.copy(source = true, sourceParent = true)
     case l => 
+      val src = l.name == source
       val sinkParent = l.children.foldLeft(false){(b, c) => b || c._2.sink || c._2.sinkParent}
-      val sourceParent = l.children.foldLeft(false){(b, c) => b || c._2.source || c._2.sourceParent}
-      l.copy(sinkParent=sinkParent, sourceParent=sourceParent)
+      val sourceParent = if(src) true else l.children.foldLeft(false){(b, c) => b || c._2.source || c._2.sourceParent}
+      println(s"Lineage ${l.name} has sinkParent $sinkParent")
+      l.copy(sinkParent=sinkParent, sourceParent=sourceParent, source=src)
   }
 
   def setSharedParent(top: String)(lin: Lineage): Lineage = lin map setSharedParent(top) match {

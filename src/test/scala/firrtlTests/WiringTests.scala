@@ -119,4 +119,47 @@ class WiringTests extends FirrtlFlatSpec {
     val retC = wiringPass.run(c)
     (parse(retC.serialize).serialize) should be (parse(check).serialize)
   }
+
+  "Wiring from r.x to X" should "work" in {
+    val sinks = Map(("X"-> "pin"))
+    val sas = WiringInfo("A", "r.x", sinks, "A")
+    val input =
+      """circuit Top :
+        |  module Top :
+        |    input clk: Clock
+        |    inst a of A
+        |    a.clk <= clk
+        |  module A :
+        |    input clk: Clock
+        |    reg r : {x: UInt<5>}, clk
+        |    inst x of X
+        |    x.clk <= clk
+        |  extmodule X :
+        |    input clk: Clock
+        |""".stripMargin
+    val check =
+      """circuit Top :
+        |  module Top :
+        |    input clk: Clock
+        |    inst a of A
+        |    a.clk <= clk
+        |  module A :
+        |    input clk: Clock
+        |    reg r: {x: UInt<5>}, clk
+        |    inst x of X
+        |    x.clk <= clk
+        |    wire r_x: UInt<5>
+        |    r_x <= r.x
+        |    x.pin <= r_x
+        |  extmodule X :
+        |    input clk: Clock
+        |    input pin: UInt<5>
+        |""".stripMargin
+    val c = passes.foldLeft(parse(input)) {
+      (c: Circuit, p: Pass) => p.run(c)
+    }
+    val wiringPass = new Wiring(sas)
+    val retC = wiringPass.run(c)
+    (parse(retC.serialize).serialize) should be (parse(check).serialize)
+  }
 }
