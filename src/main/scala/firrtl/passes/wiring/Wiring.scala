@@ -186,12 +186,13 @@ class Wiring(wi: WiringInfo) extends Pass {
       case Seq(mod) => mod
       case _ => error(s"Must have a module named $module")
     }
+    m.ports.foreach{ p => if(p.name == root) tpe = Some(p.tpe)}
     m match {
       case Module(i, n, ps, b) => getType(b)
-      case e: ExtModule => error(s"Module $module cannot be an external module")
+      case e: ExtModule =>
     }
     tpe match {
-      case None => error(s"Didn't find register $comp in $module!")
+      case None => error(s"Didn't find $comp in $module!")
       case Some(t) => 
         def setType(e: Expression): Expression = e map setType match {
           case ex: WRef => ex.copy(tpe = t)
