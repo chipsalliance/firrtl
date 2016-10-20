@@ -11,12 +11,15 @@ class CreateMemoryAnnotations(reader: Option[YamlFileReader], replaceID: TransID
     case None => TransformResult(c)
     case Some(r) =>
       import CustomYAMLProtocol._
-      val config = r.parse[Config].head
-      val cN = CircuitName(c.main)
-      val top = TopAnnotation(ModuleName(config.top.name, cN), wiringID)
-      val source = SourceAnnotation(ComponentName(config.source.name, ModuleName(config.source.module, cN)), wiringID)
-      val pin = PinAnnotation(cN, replaceID, config.pin.name)
-      TransformResult(c, None, Some(AnnotationMap(Seq(top, source, pin))))
+      r.parse[Config] match {
+        case Seq(config) =>
+          val cN = CircuitName(c.main)
+          val top = TopAnnotation(ModuleName(config.top.name, cN), wiringID)
+          val source = SourceAnnotation(ComponentName(config.source.name, ModuleName(config.source.module, cN)), wiringID)
+          val pin = PinAnnotation(cN, replaceID, config.pin.name)
+          TransformResult(c, None, Some(AnnotationMap(Seq(top, source, pin))))
+        case Nil => TransformResult(c, None, None)
+      }
   }
 }
 
