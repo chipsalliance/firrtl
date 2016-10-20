@@ -227,7 +227,7 @@ class Wiring(wi: WiringInfo) extends Pass {
     //println(s"""Lineages: ${lineages.smallString("")}""")
 
     val withFields = setSharedParent(wi.top)(setFields(sinks, source)(lineages))
-    //println(s"""Lineages with fields: $withFields""")
+    //println(s"""Lineages with fields: ${withFields.serialize("")}""")
 
     val withThings = setThings(portNames, compName)(withFields)
     //println(s"""Lineages with things: ${withThings.serialize("")}""")
@@ -275,7 +275,7 @@ object WiringUtils {
       val src = l.name == source
       val sinkParent = l.children.foldLeft(false){(b, c) => b || c._2.sink || c._2.sinkParent}
       val sourceParent = if(src) true else l.children.foldLeft(false){(b, c) => b || c._2.source || c._2.sourceParent}
-      println(s"Lineage ${l.name} has sinkParent $sinkParent")
+      //println(s"Lineage ${l.name} has sinkParent $sinkParent")
       l.copy(sinkParent=sinkParent, sourceParent=sourceParent, source=src)
   }
 
