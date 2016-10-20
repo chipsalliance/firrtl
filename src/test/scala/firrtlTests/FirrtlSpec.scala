@@ -36,6 +36,7 @@ import org.scalatest.prop._
 import scala.io.Source
 
 import firrtl._
+import firrtl.Parser.IgnoreInfo
 import firrtl.Annotations.AnnotationMap
 
 // This trait is borrowed from Chisel3, ideally this code should only exist in one location
@@ -131,6 +132,7 @@ trait BackendCompilationUtilities {
 }
 
 trait FirrtlRunners extends BackendCompilationUtilities {
+  def parse(str: String) = Parser.parse(str.split("\n").toIterator, IgnoreInfo)
   lazy val cppHarness = new File(s"/top.cpp")
   /** Compile a Firrtl file
     *
@@ -150,6 +152,7 @@ trait FirrtlRunners extends BackendCompilationUtilities {
       s"$testDir/$prefix.v",
       new VerilogCompiler(),
       Parser.IgnoreInfo,
+      List.empty,
       annotations)
     testDir
   }
