@@ -55,7 +55,7 @@ class WiringTransform(transID: TransID) extends Transform with SimpleRun {
         }
       }
       (sources.size, tops.size, sinks.size, comp.size) match {
-        case (0, 0, 0, 0) => TransformResult(c)
+        case (0, 0, p, 0) => TransformResult(c)
         case (1, 1, p, 1) if p > 0 => run(c, passSeq(WiringInfo(sources.head, comp.head, sinks.toMap, tops.head)))
         case _ => error("Wrong number of sources, tops, or sinks!")
       }
