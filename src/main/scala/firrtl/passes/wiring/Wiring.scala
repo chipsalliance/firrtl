@@ -184,14 +184,14 @@ class Wiring(wi: WiringInfo) extends Pass {
     }
     val m =  c.modules.filter(_.name == module) match {
       case Seq(mod) => mod
-      case _ => error("Must have a module named $module")
+      case _ => error(s"Must have a module named $module")
     }
     m match {
       case Module(i, n, ps, b) => getType(b)
-      case e: ExtModule => error("Module $module cannot be an external module")
+      case e: ExtModule => error(s"Module $module cannot be an external module")
     }
     tpe match {
-      case None => error("Didn't find register $comp in $module!")
+      case None => error(s"Didn't find register $comp in $module!")
       case Some(t) => 
         def setType(e: Expression): Expression = e map setType match {
           case ex: WRef => ex.copy(tpe = t)
