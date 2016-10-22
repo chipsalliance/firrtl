@@ -83,7 +83,7 @@ object toBitMask {
   private def hiermask(mask: Expression, dataType: Type): Expression =
     (mask.tpe, dataType) match {
       case (mt: VectorType, dt: VectorType) =>
-        seqCat((0 until mt.size).reverse map { i =>
+        seqCat((0 until mt.size) map { i =>
           hiermask(WSubIndex(mask, i, mt.tpe, UNKNOWNGENDER), dt.tpe)
         })
       case (mt: BundleType, dt: BundleType) =>
