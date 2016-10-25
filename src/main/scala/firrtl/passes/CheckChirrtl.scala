@@ -68,22 +68,21 @@ object CheckChirrtl extends Pass {
         errors append new InvalidLOCException(info, mname)
       case _ => // Do Nothing
     }
-
     def checkChirrtlW(info: Info, mname: String)(w: Width): Width = w match {
-      case w: IntWidth if w.width <= 0 =>
-        errors append new NegWidthException(info, mname)
+      case w: IntWidth if (w.width < BigInt(0)) =>
+        errors.append(new NegWidthException(info, mname))
         w
       case _ => w
     }
 
-    def checkChirrtlT(info: Info, mname: String)(t: Type): Type = {
+    def checkChirrtlT(info: Info, mname: String)(t: Type): Type =
       t map checkChirrtlT(info, mname) match {
         case t: VectorType if t.size < 0 =>
           errors append new NegVecSizeException(info, mname)
-        case _ => // Do nothing
+          t map checkChirrtlW(info, mname)
+        //case FixedType(width, point) => FixedType(checkChirrtlW(width), point)
+        case _ => t map checkChirrtlW(info, mname)
       }
-      t map checkChirrtlW(info, mname) map checkChirrtlT(info, mname)
-    }
 
     def validSubexp(info: Info, mname: String)(e: Expression): Expression = {
       e match {
@@ -97,10 +96,10 @@ object CheckChirrtl extends Pass {
     def checkChirrtlE(info: Info, mname: String, names: NameSet)(e: Expression): Expression = {
       e match {
         case _: DoPrim | _:Mux | _:ValidIf | _: UIntLiteral =>
-        case e: Reference if !names(e.name) =>
-          errors append new UndeclaredReferenceException(info, mname, e.name)
-        case e: SubAccess => validSubexp(info, mname)(e.expr)
-        case e => e map validSubexp(info, mname)
+        case ex: Reference if !names(ex.name) =>
+          errors append new UndeclaredReferenceException(info, mname, ex.name)
+        case ex: SubAccess => validSubexp(info, mname)(ex.expr)
+        case ex => ex map validSubexp(info, mname)
       }
       (e map checkChirrtlW(info, mname)
          map checkChirrtlT(info, mname)
@@ -117,13 +116,13 @@ object CheckChirrtl extends Pass {
     def checkChirrtlS(minfo: Info, mname: String, names: NameSet)(s: Statement): Statement = {
       val info = get_info(s) match {case NoInfo => minfo case x => x}
       s map checkName(info, mname, names) match {
-        case s: DefMemory =>
-          if (hasFlip(s.dataType)) errors append new MemWithFlipException(info, mname, s.name)
-          if (s.depth <= 0) errors append new NegMemSizeException(info, mname)
-        case s: DefInstance if !moduleNames(s.module) =>
-          errors append new ModuleNotDefinedException(info, mname, s.module)
-        case s: Connect => checkValidLoc(info, mname, s.loc)
-        case s: PartialConnect => checkValidLoc(info, mname, s.loc)
+        case sx: DefMemory =>
+          if (hasFlip(sx.dataType)) errors append new MemWithFlipException(info, mname, sx.name)
+          if (sx.depth <= 0) errors append new NegMemSizeException(info, mname)
+        case sx: DefInstance if !moduleNames(sx.module) =>
+          errors append new ModuleNotDefinedException(info, mname, sx.module)
+        case sx: Connect => checkValidLoc(info, mname, sx.loc)
+        case sx: PartialConnect => checkValidLoc(info, mname, sx.loc)
         case _ => // Do Nothing
       }
       (s map checkChirrtlT(info, mname)

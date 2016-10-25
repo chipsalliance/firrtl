@@ -32,8 +32,9 @@ import firrtl.ir._
 import firrtl.Mappers._
 import firrtl.PrimOps._
 import firrtl.Utils.{one, zero, BoolType}
+import firrtl.passes.memlib._
 import MemPortUtils.memPortField
-import AnalysisUtils.{Connects, getConnects, getConnectOrigin}
+import AnalysisUtils.{Connects, getConnects, getOrigin}
 import WrappedExpression.weq
 import Annotations._
 
@@ -92,14 +93,14 @@ object InferReadWritePass extends Pass {
 
   def replaceExp(repl: Netlist)(e: Expression): Expression =
     e map replaceExp(repl) match {
-      case e: WSubField => repl getOrElse (e.serialize, e)
-      case e => e
+      case ex: WSubField => repl getOrElse (ex.serialize, ex)
+      case ex => ex
     }
 
   def replaceStmt(repl: Netlist)(s: Statement): Statement =
     s map replaceStmt(repl) map replaceExp(repl) match {
       case Connect(_, EmptyExpression, _) => EmptyStmt 
-      case s => s
+      case sx => sx
     }
     
   def inferReadWriteStmt(connects: Connects,
@@ -117,8 +118,8 @@ object InferReadWritePass extends Pass {
       for (w <- mem.writers ; r <- mem.readers) {
         val wp = getProductTerms(connects)(memPortField(mem, w, "en"))
         val rp = getProductTerms(connects)(memPortField(mem, r, "en"))
-        val wclk = getConnectOrigin(connects, memPortField(mem, w, "clk"))
-        val rclk = getConnectOrigin(connects, memPortField(mem, r, "clk"))
+        val wclk = getOrigin(connects)(memPortField(mem, w, "clk"))
+        val rclk = getOrigin(connects)(memPortField(mem, r, "clk"))
         if (weq(wclk, rclk) && (wp exists (a => rp exists (b => checkComplement(a, b))))) {
           val rw = namespace newName "rw"
           val rwExp = createSubField(createRef(mem.name), rw)
@@ -148,7 +149,7 @@ object InferReadWritePass extends Pass {
         readers = mem.readers filterNot readers,
         writers = mem.writers filterNot writers,
         readwriters = mem.readwriters ++ readwriters)
-    case s => s map inferReadWriteStmt(connects, repl, stmts)
+    case sx => sx map inferReadWriteStmt(connects, repl, stmts)
   }
 
   def inferReadWrite(m: DefModule) = {

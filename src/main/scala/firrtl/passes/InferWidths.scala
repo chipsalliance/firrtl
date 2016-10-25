@@ -53,25 +53,25 @@ object InferWidths extends Pass {
       })
     }
     def simplify(w: Width): Width = w map simplify match {
-      case (w: MinWidth) => MinWidth(unique((w.args foldLeft Seq[Width]()){
-        case (res, w: MinWidth) => res ++ w.args
-        case (res, w) => res :+ w
+      case wx: MinWidth => MinWidth(unique((wx.args foldLeft Seq[Width]()){
+        case (res, wxx: MinWidth) => res ++ wxx.args
+        case (res, wxx) => res :+ wxx
       }))
-      case (w: MaxWidth) => MaxWidth(unique((w.args foldLeft Seq[Width]()){
-        case (res, w: MaxWidth) => res ++ w.args
-        case (res, w) => res :+ w
+      case wx: MaxWidth => MaxWidth(unique((wx.args foldLeft Seq[Width]()){
+        case (res, wxx: MaxWidth) => res ++ wxx.args
+        case (res, wxx) => res :+ wxx
       }))
-      case (w: PlusWidth) => (w.arg1, w.arg2) match {
+      case wx: PlusWidth => (wx.arg1, wx.arg2) match {
         case (w1: IntWidth, w2 :IntWidth) => IntWidth(w1.width + w2.width)
-        case _ => w
+        case _ => wx
       }
-      case (w: MinusWidth) => (w.arg1, w.arg2) match {
+      case wx: MinusWidth => (wx.arg1, wx.arg2) match {
         case (w1: IntWidth, w2: IntWidth) => IntWidth(w1.width - w2.width)
-        case _ => w
+        case _ => wx
       }
-      case (w: ExpWidth) => w.arg1 match {
-        case (w1: IntWidth) => IntWidth(BigInt((math.pow(2, w1.width.toDouble) - 1).toLong))
-        case (w1) => w
+      case wx: ExpWidth => wx.arg1 match {
+        case w1: IntWidth => IntWidth(BigInt((math.pow(2, w1.width.toDouble) - 1).toLong))
+        case _ => wx
       }
       case _ => w
     }
@@ -82,40 +82,40 @@ object InferWidths extends Pass {
       //;println-all-debug(["After Simplify: [" wx "]"])
       wx map substitute(h) match {
         //;("matched  println-debugvarwidth!")
-        case w: VarWidth => h get w.name match {
-          case None => w
+        case wxx: VarWidth => h get wxx.name match {
+          case None => wxx
           case Some(p) =>
             //;println-debug("Contained!")
-            //;println-all-debug(["Width: " w])
-            //;println-all-debug(["Accessed: " h[name(w)]])
+            //;println-all-debug(["Width: " wxx])
+            //;println-all-debug(["Accessed: " h[name(wxx)]])
             val t = simplify(substitute(h)(p))
-            h(w.name) = t
+            h(wxx.name) = t
             t
         }
-        case w => w
+        case wxx => wxx
         //;println-all-debug(["not varwidth!" w])
       }
     }
 
     def b_sub(h: ConstraintMap)(w: Width): Width = {
       w map b_sub(h) match {
-        case w: VarWidth => h getOrElse (w.name, w)
-        case w => w
+        case wx: VarWidth => h getOrElse (wx.name, wx)
+        case wx => wx
       }
     }
 
     def remove_cycle(n: String)(w: Width): Width = {
       //;println-all-debug(["Removing cycle for " n " inside " w])
       w map remove_cycle(n) match {
-        case w: MaxWidth => MaxWidth(w.args filter {
-          case w: VarWidth => !(n equals w.name)
-          case w => true
+        case wx: MaxWidth => MaxWidth(wx.args filter {
+          case wxx: VarWidth => !(n equals wxx.name)
+          case _ => true
         })
-        case w: MinusWidth => w.arg1 match {
+        case wx: MinusWidth => wx.arg1 match {
           case v: VarWidth if n == v.name => v
-          case v => w
+          case v => wx
         }
-        case w => w
+        case wx => wx
       }
       //;println-all-debug(["After removing cycle for " n ", returning " wx])
     }
@@ -124,8 +124,8 @@ object InferWidths extends Pass {
       var has = false
       def rec(w: Width): Width = {
         w match {
-          case w: VarWidth if w.name == n => has = true
-          case w =>
+          case wx: VarWidth if wx.name == n => has = true
+          case _ =>
         }
         w map rec
       }
@@ -200,14 +200,19 @@ object InferWidths extends Pass {
   def run (c: Circuit): Circuit = {
     val v = ArrayBuffer[WGeq]()
 
-    def get_constraints_t(t1: Type, t2: Type, f: Orientation): Seq[WGeq] = (t1,t2) match {
+    def get_constraints_t(t1: Type, t2: Type): Seq[WGeq] = (t1,t2) match {
       case (t1: UIntType, t2: UIntType) => Seq(WGeq(t1.width, t2.width))
       case (t1: SIntType, t2: SIntType) => Seq(WGeq(t1.width, t2.width))
+      case (ClockType, ClockType) => Nil
+      case (FixedType(w1, p1), FixedType(w2, p2)) => Seq(WGeq(w1,w2), WGeq(p1,p2))
       case (t1: BundleType, t2: BundleType) =>
         (t1.fields zip t2.fields foldLeft Seq[WGeq]()){case (res, (f1, f2)) =>
-          res ++ get_constraints_t(f1.tpe, f2.tpe, times(f1.flip, f))
+          res ++ (f1.flip match {
+            case Default => get_constraints_t(f1.tpe, f2.tpe)
+            case Flip => get_constraints_t(f2.tpe, f1.tpe)
+          })
         }
-      case (t1: VectorType, t2: VectorType) => get_constraints_t(t1.tpe, t2.tpe, f)
+      case (t1: VectorType, t2: VectorType) => get_constraints_t(t1.tpe, t2.tpe)
     }
 
     def get_constraints_e(e: Expression): Expression = {
@@ -221,38 +226,44 @@ object InferWidths extends Pass {
       e map get_constraints_e
     }
 
+    def get_constraints_declared_type (t: Type): Type = t match {
+      case FixedType(_, p) => 
+        v += WGeq(p,IntWidth(0))
+        t
+      case _ => t map get_constraints_declared_type
+    }
+
     def get_constraints_s(s: Statement): Statement = {
-      s match {
+      s map get_constraints_declared_type match {
         case (s: Connect) =>
           val n = get_size(s.loc.tpe)
           val locs = create_exps(s.loc)
           val exps = create_exps(s.expr)
-          v ++= ((locs zip exps).zipWithIndex map {case ((locx, expx), i) =>
+          v ++= ((locs zip exps).zipWithIndex flatMap {case ((locx, expx), i) =>
             get_flip(s.loc.tpe, i, Default) match {
-              case Default => WGeq(getWidth(locx), getWidth(expx))
-              case Flip => WGeq(getWidth(expx), getWidth(locx))
+              case Default => get_constraints_t(locx.tpe, expx.tpe)//WGeq(getWidth(locx), getWidth(expx))
+              case Flip => get_constraints_t(expx.tpe, locx.tpe)//WGeq(getWidth(expx), getWidth(locx))
             }
           })
         case (s: PartialConnect) =>
           val ls = get_valid_points(s.loc.tpe, s.expr.tpe, Default, Default)
           val locs = create_exps(s.loc)
           val exps = create_exps(s.expr)
-          v ++= (ls map {case (x, y) =>
+          v ++= (ls flatMap {case (x, y) =>
             val locx = locs(x)
             val expx = exps(y)
             get_flip(s.loc.tpe, x, Default) match {
-              case Default => WGeq(getWidth(locx), getWidth(expx))
-              case Flip => WGeq(getWidth(expx), getWidth(locx))
+              case Default => get_constraints_t(locx.tpe, expx.tpe)//WGeq(getWidth(locx), getWidth(expx))
+              case Flip => get_constraints_t(expx.tpe, locx.tpe)//WGeq(getWidth(expx), getWidth(locx))
             }
           })
-        case (s:DefRegister) => v ++= (Seq(
-           WGeq(getWidth(s.reset), IntWidth(1)),
-           WGeq(IntWidth(1), getWidth(s.reset))
-        ) ++ get_constraints_t(s.tpe, s.init.tpe, Default))
-        case (s:Conditionally) => v ++= Seq(
-           WGeq(getWidth(s.pred), IntWidth(1)),
-           WGeq(IntWidth(1), getWidth(s.pred))
-        )
+        case (s: DefRegister) => v ++= (
+           get_constraints_t(s.reset.tpe, UIntType(IntWidth(1))) ++
+           get_constraints_t(UIntType(IntWidth(1)), s.reset.tpe) ++ 
+           get_constraints_t(s.tpe, s.init.tpe))
+        case (s:Conditionally) => v ++= 
+           get_constraints_t(s.pred.tpe, UIntType(IntWidth(1))) ++
+           get_constraints_t(UIntType(IntWidth(1)), s.pred.tpe)
         case (s: Attach) =>
           v += WGeq(getWidth(s.source), MaxWidth(s.exprs map (e => getWidth(e.tpe))))
         case _ =>
@@ -261,6 +272,7 @@ object InferWidths extends Pass {
     }
 
     c.modules foreach (_ map get_constraints_s)
+    c.modules foreach (_.ports foreach {p => get_constraints_declared_type(p.tpe)})
 
     //println("======== ALL CONSTRAINTS ========")
     //for(x <- v) println(x)
@@ -284,18 +296,18 @@ object InferWidths extends Pass {
         else in
 
       def solve(w: Width): Option[BigInt] = w match {
-        case (w: VarWidth) =>
+        case wx: VarWidth =>
           for{
-            v <- h.get(w.name) if !v.isInstanceOf[VarWidth]
+            v <- h.get(wx.name) if !v.isInstanceOf[VarWidth]
             result <- solve(v)
           } yield result
-        case (w: MaxWidth) => reduceOptions(forceNonEmpty(w.args.map(solve), Some(BigInt(0))), max)
-        case (w: MinWidth) => reduceOptions(forceNonEmpty(w.args.map(solve), None), min)
-        case (w: PlusWidth) => map2(solve(w.arg1), solve(w.arg2), {_ + _})
-        case (w: MinusWidth) => map2(solve(w.arg1), solve(w.arg2), {_ - _})
-        case (w: ExpWidth) => map2(Some(BigInt(2)), solve(w.arg1), pow_minus_one)
-        case (w: IntWidth) => Some(w.width)
-        case (w) => println(w); error("Shouldn't be here"); None;
+        case wx: MaxWidth => reduceOptions(forceNonEmpty(wx.args.map(solve), Some(BigInt(0))), max)
+        case wx: MinWidth => reduceOptions(forceNonEmpty(wx.args.map(solve), None), min)
+        case wx: PlusWidth => map2(solve(wx.arg1), solve(wx.arg2), {_ + _})
+        case wx: MinusWidth => map2(solve(wx.arg1), solve(wx.arg2), {_ - _})
+        case wx: ExpWidth => map2(Some(BigInt(2)), solve(wx.arg1), pow_minus_one)
+        case wx: IntWidth => Some(wx.width)
+        case wx => println(wx); error("Shouldn't be here"); None;
       }
 
       solve(w) match {
