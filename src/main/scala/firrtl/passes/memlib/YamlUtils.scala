@@ -4,7 +4,7 @@ import net.jcazevedo.moultingyaml._
 import java.io.{File, CharArrayWriter, PrintWriter}
 
 object CustomYAMLProtocol extends DefaultYamlProtocol {
-//  // bottom depends on top
+  // bottom depends on top
   implicit val _pin = yamlFormat1(Pin)
   implicit val _source = yamlFormat2(Source)
   implicit val _top = yamlFormat1(Top)

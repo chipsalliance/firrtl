@@ -14,11 +14,12 @@ import Annotations._
 import wiring._
 
 
-/** 
+/** Annotates the name of the pin to add for WiringTransform
   */
 case class PinAnnotation(target: CircuitName, tID: TransID, pin: String) extends Annotation with Loose with Unstable {
   def duplicate(n: Named) = n match {
-    case n: CircuitName => this copy (target = n)
+    case n: CircuitName => this.copy(target = n)
+    case _ => throwInternalError
   }
 }
 
@@ -221,7 +222,7 @@ class ReplaceMemMacros(writer: ConfWriter, myID: TransID, wiringID: TransID) ext
         }
       case None => "pin"
     }
-    val annos = memMods.filter{case m: ExtModule => true case _ => false} map(m => SinkAnnotation(ModuleName(m.name, CircuitName(c.main)), wiringID, pin))
-    TransformResult(c copy (modules = modules ++ memMods), None, Some(AnnotationMap(annos)))
+    val annos = memMods.collect { case m: ExtModule => SinkAnnotation(ModuleName(m.name, CircuitName(c.main)), wiringID, pin) }
+    TransformResult(c.copy(modules = modules ++ memMods), None, Some(AnnotationMap(annos)))
   }  
 }

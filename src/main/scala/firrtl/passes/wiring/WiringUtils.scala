@@ -11,7 +11,7 @@ import WiringUtils._
 
 /** Declaration kind in lineage (e.g. input port, output port, wire)
   */
-trait DecKind
+sealed trait DecKind
 case object DecInput extends DecKind
 case object DecOutput extends DecKind
 case object DecWire extends DecKind
@@ -83,7 +83,7 @@ object WiringUtils {
     */
   def countInstances(childrenMap: ChildrenMap, top: String, module: String): Int = {
     if(top == module) 1
-    else childrenMap(top).foldLeft(0){case (count, (i, child)) =>
+    else childrenMap(top).foldLeft(0) { case (count, (i, child)) =>
       count + countInstances(childrenMap, child, module)
     }
   }
@@ -91,7 +91,7 @@ object WiringUtils {
   /** Returns a module's lineage, containing all children lineages as well
     */
   def getLineage(childrenMap: ChildrenMap, module: String): Lineage =
-    Lineage(module, childrenMap(module) map (c => (c._1, getLineage(childrenMap, c._2))))
+    Lineage(module, childrenMap(module) map { case (i, m) => (i, getLineage(childrenMap, m)) } )
 
   /** Sets the sink, sinkParent, source, and sourceParent fields of every
     *  Lineage in tree
@@ -100,8 +100,8 @@ object WiringUtils {
     case l if sinks.contains(l.name) => l.copy(sink = true)
     case l => 
       val src = l.name == source
-      val sinkParent = l.children.foldLeft(false){(b, c) => b || c._2.sink || c._2.sinkParent}
-      val sourceParent = if(src) true else l.children.foldLeft(false){(b, c) => b || c._2.source || c._2.sourceParent}
+      val sinkParent = l.children.foldLeft(false) { (b, c) => b || c._2.sink || c._2.sinkParent }
+      val sourceParent = if(src) true else l.children.foldLeft(false) { (b, c) => b || c._2.source || c._2.sourceParent }
       l.copy(sinkParent=sinkParent, sourceParent=sourceParent, source=src)
   }
 
@@ -132,18 +132,18 @@ object WiringUtils {
         case Lineage(name, _, true, _, _, _, _, _, _) => //Source
           val tos = Seq(s"${portNames(name)}")
           val from = compName
-          l.copy(cons=l.cons ++ tos.map(t => (t, from)))
+          l.copy(cons = l.cons ++ tos.map(t => (t, from)))
         case Lineage(name, _, _, _, true, _, _, _, _) => //SourceParent
           val tos = Seq(s"${portNames(name)}")
-          val from = l.children.filter{case (i, c) => c.sourceParent}.map{case (i, c) => s"$i.${portNames(c.name)}"}.head
-          l.copy(cons=l.cons ++ tos.map(t => (t, from)))
+          val from = l.children.filter { case (i, c) => c.sourceParent }.map { case (i, c) => s"$i.${portNames(c.name)}" }.head
+          l.copy(cons = l.cons ++ tos.map(t => (t, from)))
         case l => l
       }),
       ((l: Lineage) => l match {
         case Lineage(name, _, _, _, _, true, _, _, _) => //SinkParent
-          val tos = l.children.filter{case (i, c) => (c.sinkParent || c.sink) && !c.sourceParent}.map{case (i, c) => s"$i.${portNames(c.name)}"}
+          val tos = l.children.filter { case (i, c) => (c.sinkParent || c.sink) && !c.sourceParent } map { case (i, c) => s"$i.${portNames(c.name)}" }
           val from = s"${portNames(name)}"
-          l.copy(cons=l.cons ++ tos.map(t => (t, from)))
+          l.copy(cons = l.cons ++ tos.map(t => (t, from)))
         case l => l
       })
     )

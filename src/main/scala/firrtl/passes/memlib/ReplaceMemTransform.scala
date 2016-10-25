@@ -114,11 +114,8 @@ class ReplSeqMem(transID: TransID) extends Transform with SimpleRun {
         SimpleTransform(ResolveKinds),
         SimpleTransform(ResolveGenders))
   def run(circuit: Circuit, map: AnnotationMap, xForms: Seq[Transform]): TransformResult = {
-    (xForms foldLeft TransformResult(circuit, None, Some(map))){ case (tr: TransformResult, xForm: Transform) =>
-      //val name = xForm.name
-      //val x = Utils.time(name)(xForm.execute(tr.circuit, tr.annotation.get))
+    (xForms.foldLeft(TransformResult(circuit, None, Some(map)))) { case (tr: TransformResult, xForm: Transform) =>
       val x = xForm.execute(tr.circuit, tr.annotation.get)
-      //logger.debug(x.circuit.serialize)
       x.annotation match {
         case None => TransformResult(x.circuit, None, Some(map))
         case Some(ann) => TransformResult(x.circuit, None, Some(

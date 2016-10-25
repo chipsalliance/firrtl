@@ -111,7 +111,7 @@ object Annotations {
   }
   case class ComponentName(name: String, module: ModuleName) extends Named {
     if(!validComponentName(name)) throw AnnotationException(s"Illegal component name: $name")
-    def exp: Expression = toExp(name)
+    def expr: Expression = toExp(name)
   }
 
   /**

@@ -50,12 +50,12 @@ class Wiring(wi: WiringInfo) extends Pass {
     }
 
     // Create valid port names for wiring that have no name conflicts
-    val portNames = c.modules.foldLeft(Map[String, String]()){(map, m) =>
+    val portNames = c.modules.foldLeft(Map.empty[String, String]) { (map, m) =>
       map + (m.name -> {
         val ns = Namespace(m)
         wi.sinks.get(m.name) match {
           case Some(pin) => ns.newName(pin)
-          case None => ns.newName(tokenize(compName).filter(t => !("[].".contains(t))).reduce(_ + "_" + _))
+          case None => ns.newName(tokenize(compName) filterNot ("[]." contains _) mkString "_")
         }
       })
     }
@@ -100,9 +100,9 @@ class Wiring(wi: WiringInfo) extends Pass {
               stmts += DefWire(NoInfo, s, t)
           }
         }
-        stmts ++= l.cons.map{case ((l, r)) => 
+        stmts ++= (l.cons map { case ((l, r)) =>
           Connect(NoInfo, toExp(l), toExp(r))
-        }
+        })
         def onStmt(s: Statement): Statement = Block(Seq(s) ++ stmts)
         m match {
           case Module(i, n, ps, s) => Module(i, n, ps ++ ports, Block(Seq(s) ++ stmts))
@@ -155,9 +155,9 @@ class Wiring(wi: WiringInfo) extends Pass {
       case Some(t) => 
         def setType(e: Expression): Expression = e map setType match {
           case ex: Reference => ex.copy(tpe = t)
-          case ex: SubField => ex copy (tpe = field_type(ex.expr.tpe, ex.name))
-          case ex: SubIndex => ex copy (tpe = sub_type(ex.expr.tpe))
-          case ex: SubAccess => ex copy (tpe = sub_type(ex.expr.tpe))
+          case ex: SubField => ex.copy(tpe = field_type(ex.expr.tpe, ex.name))
+          case ex: SubIndex => ex.copy(tpe = sub_type(ex.expr.tpe))
+          case ex: SubAccess => ex.copy(tpe = sub_type(ex.expr.tpe))
         }
         setType(eComp).tpe
     }

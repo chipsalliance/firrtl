@@ -13,7 +13,8 @@ import WiringUtils._
   */
 case class SourceAnnotation(target: ComponentName, tID: TransID) extends Annotation with Loose with Unstable {
   def duplicate(n: Named) = n match {
-    case n: ComponentName => this copy (target = n)
+    case n: ComponentName => this.copy (target = n)
+    case _ => throwInternalError
   }
 }
 
@@ -22,6 +23,7 @@ case class SourceAnnotation(target: ComponentName, tID: TransID) extends Annotat
 case class SinkAnnotation(target: ModuleName, tID: TransID, pin: String) extends Annotation with Loose with Unstable {
   def duplicate(n: Named) = n match {
     case n: ModuleName => this copy (target = n)
+    case _ => throwInternalError
   }
 }
 
@@ -31,6 +33,7 @@ case class SinkAnnotation(target: ModuleName, tID: TransID, pin: String) extends
 case class TopAnnotation(target: ModuleName, tID: TransID) extends Annotation with Loose with Unstable {
   def duplicate(n: Named) = n match {
     case n: ModuleName => this copy (target = n)
+    case _ => throwInternalError
   }
 }
 
@@ -58,7 +61,7 @@ class WiringTransform(transID: TransID) extends Transform with SimpleRun {
       val sources = mutable.Set[String]()
       val tops = mutable.Set[String]()
       val comp = mutable.Set[String]()
-      p.values.foreach{a =>
+      p.values.foreach { a =>
         a match {
           case SinkAnnotation(m, _, pin) => sinks(m.name) = pin
           case SourceAnnotation(c, _) =>
