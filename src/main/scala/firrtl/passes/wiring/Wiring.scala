@@ -141,11 +141,8 @@ class Wiring(wi: WiringInfo) extends Pass {
         sx
       case sx => sx map getType
     }
-    val m =  c.modules.filter(_.name == module) match {
-      case Seq(mod) => mod
-      case _ => error(s"Must have a module named $module")
-    }
-    m.ports.foreach{ p => if(p.name == root) tpe = Some(p.tpe) }
+    val m = c.modules find (_.name == module) getOrElse error(s"Must have a module named $module")
+    tpe = m.ports find (_.name == root) map (_.tpe)
     m match {
       case Module(i, n, ps, b) => getType(b)
       case e: ExtModule =>
