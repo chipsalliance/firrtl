@@ -148,7 +148,9 @@ class ReplaceMemMacros(writer: ConfWriter) extends Pass {
     }
   }
 
+  /** Mapping from (module, memory name) pairs to blackbox names */
   private type NameMap = collection.mutable.HashMap[(String, String), String]
+  /** Construct NameMap by assigning unique names for each memory blackbox */
   def constructNameMap(namespace: Namespace, nameMap: NameMap, mname: String)(s: Statement): Statement = {
     s match {
       case m: DefAnnotatedMemory => m.memRef match {
