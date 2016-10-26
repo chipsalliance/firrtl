@@ -100,8 +100,8 @@ object WiringUtils {
     case l if sinks.contains(l.name) => l.copy(sink = true)
     case l => 
       val src = l.name == source
-      val sinkParent = l.children.foldLeft(false) { (b, c) => b || c._2.sink || c._2.sinkParent }
-      val sourceParent = if(src) true else l.children.foldLeft(false) { (b, c) => b || c._2.source || c._2.sourceParent }
+      val sinkParent = l.children.foldLeft(false) { case (b, (i, m)) => b || m.sink || m.sinkParent }
+      val sourceParent = if(src) true else l.children.foldLeft(false) { case (b, (i, m)) => b || m.source || m.sourceParent }
       l.copy(sinkParent=sinkParent, sourceParent=sourceParent, source=src)
   }
 
