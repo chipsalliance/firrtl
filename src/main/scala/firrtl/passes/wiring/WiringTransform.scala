@@ -13,7 +13,7 @@ import WiringUtils._
   */
 case class SourceAnnotation(target: ComponentName, tID: TransID) extends Annotation with Loose with Unstable {
   def duplicate(n: Named) = n match {
-    case n: ComponentName => this.copy (target = n)
+    case n: ComponentName => this.copy(target = n)
     case _ => throwInternalError
   }
 }
@@ -22,7 +22,7 @@ case class SourceAnnotation(target: ComponentName, tID: TransID) extends Annotat
   */
 case class SinkAnnotation(target: ModuleName, tID: TransID, pin: String) extends Annotation with Loose with Unstable {
   def duplicate(n: Named) = n match {
-    case n: ModuleName => this copy (target = n)
+    case n: ModuleName => this.copy(target = n)
     case _ => throwInternalError
   }
 }
@@ -32,7 +32,7 @@ case class SinkAnnotation(target: ModuleName, tID: TransID, pin: String) extends
   */
 case class TopAnnotation(target: ModuleName, tID: TransID) extends Annotation with Loose with Unstable {
   def duplicate(n: Named) = n match {
-    case n: ModuleName => this copy (target = n)
+    case n: ModuleName => this.copy(target = n)
     case _ => throwInternalError
   }
 }
