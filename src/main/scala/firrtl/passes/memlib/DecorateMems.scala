@@ -19,6 +19,7 @@ class CreateMemoryAnnotations(reader: Option[YamlFileReader], replaceID: TransID
           val pin = PinAnnotation(cN, replaceID, config.pin.name)
           TransformResult(c, None, Some(AnnotationMap(Seq(top, source, pin))))
         case Nil => TransformResult(c, None, None)
+        case _ => error("Can only have one config in yaml file")
       }
   }
 }
