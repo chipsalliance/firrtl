@@ -106,7 +106,7 @@ class Wiring(wi: WiringInfo) extends Pass {
         def onStmt(s: Statement): Statement = Block(Seq(s) ++ stmts)
         m match {
           case Module(i, n, ps, s) => Module(i, n, ps ++ ports, Block(Seq(s) ++ stmts))
-          case ExtModule(i, n, ps) => ExtModule(i, n, ps ++ ports)
+          case ExtModule(i, n, ps, dn, p) => ExtModule(i, n, ps ++ ports, dn, p)
         }
     }
   }
