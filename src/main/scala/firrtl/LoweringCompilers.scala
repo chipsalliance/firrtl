@@ -126,7 +126,22 @@ class LowFirrtlCompiler extends Compiler {
 
 /** Emits Verilog */
 class VerilogCompiler extends Compiler {
+//<<<<<<< HEAD
   def emitter = new VerilogEmitter
   def transforms: Seq[Transform] =
     getLoweringTransforms(ChirrtlForm, LowForm) :+ (new LowFirrtlOptimization)
+//=======
+//  def transforms(writer: Writer): Seq[Transform] = Seq(
+//    new Chisel3ToHighFirrtl,
+//    new IRToWorkingIR,
+//    new ResolveAndCheck,
+//    new HighFirrtlToMiddleFirrtl,
+//    new passes.InferReadWrite(TransID(-1)),
+//    new passes.memlib.ReplSeqMem(TransID(-2)),
+//    new MiddleFirrtlToLowFirrtl,
+//    new passes.clocklist.ClockListTransform(TransID(-3)),
+//    new passes.InlineInstances(TransID(0)),
+//    new EmitVerilogFromLowFirrtl(writer)
+//  )
+//>>>>>>> Added clocklist transform
 }
