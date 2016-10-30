@@ -27,8 +27,12 @@ MODIFICATIONS.
 
 package firrtlTests
 
-import org.scalatest._
-
-// Miscellaneous Feature Checks
-class NestedSubAccessExecutionTest extends ExecutionTest("NestedSubAccessTester", "/features")
+class SimpleExtModuleExecutionTest extends ExecutionTest("SimpleExtModuleTester", "/blackboxes",
+                                                         Seq("SimpleExtModule"))
+class MultiExtModuleExecutionTest extends ExecutionTest("MultiExtModuleTester", "/blackboxes",
+                                                        Seq("SimpleExtModule", "AdderExtModule"))
+class RenamedExtModuleExecutionTest extends ExecutionTest("RenamedExtModuleTester", "/blackboxes",
+                                                          Seq("SimpleExtModule"))
+class ParameterizedExtModuleExecutionTest extends ExecutionTest(
+    "ParameterizedExtModuleTester", "/blackboxes", Seq("ParameterizedExtModule"))
 

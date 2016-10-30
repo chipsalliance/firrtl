@@ -440,6 +440,31 @@ case class Port(
   def serialize: String = s"${direction.serialize} $name : ${tpe.serialize}" + info.serialize
 }
 
+/** Parameters for external modules */
+sealed abstract class Param extends FirrtlNode {
+  def name: String
+  def serialize: String = s"parameter $name = "
+}
+/** Integer (of any width) Parameter */
+case class IntParam(name: String, value: BigInt) extends Param {
+  override def serialize: String = super.serialize + value
+}
+/** IEEE Double Precision Parameter (for Verilog real) */
+case class DoubleParam(name: String, value: Double) extends Param {
+  override def serialize: String = super.serialize + value
+}
+/** String Parameter */
+case class StringParam(name: String, value: StringLit) extends Param {
+  override def serialize: String = super.serialize + value.serialize
+}
+/** Raw String Parameter
+  * Useful for Verilog type parameters
+  * @note Firrtl doesn't guarantee anything about this String being legal in any backend
+  */
+case class RawStringParam(name: String, value: String) extends Param {
+  override def serialize: String = super.serialize + s"'$value'"
+}
+
 /** Base class for modules */
 abstract class DefModule extends FirrtlNode with IsDeclaration {
   val info : Info
@@ -464,9 +489,16 @@ case class Module(info: Info, name: String, ports: Seq[Port], body: Statement) e
 /** External Module
   *
   * Generally used for Verilog black boxes
+  * @param defname Defined name of the external module (ie. the name Firrtl will emit)
   */
-case class ExtModule(info: Info, name: String, ports: Seq[Port]) extends DefModule {
-  def serialize: String = serializeHeader("extmodule")
+case class ExtModule(
+    info: Info,
+    name: String,
+    ports: Seq[Port],
+    defname: String,
+    params: Seq[Param]) extends DefModule {
+  def serialize: String = serializeHeader("extmodule") +
+    indent(s"\ndefname = $defname\n" + params.map(_.serialize).mkString("\n"))
   def mapStmt(f: Statement => Statement): DefModule = this
   def mapPort(f: Port => Port): DefModule = this.copy(ports = ports map f)
   def mapString(f: String => String): DefModule = this.copy(name = f(name))
