@@ -97,3 +97,4 @@ class ChirrtlSpec extends FirrtlFlatSpec {
 
 class ChirrtlMemsExecutionTest extends ExecutionTest("ChirrtlMems", "/features")
 class EmptyChirrtlMemCompilationTest extends CompilationTest("EmptyChirrtlMem", "/features")
+class NodeTypeCompilationTest extends CompilationTest("NodeType", "/features")
