@@ -59,7 +59,7 @@ class DoPrimVerilog extends FirrtlFlatSpec {
         |  input  [3:0] a,
         |  output  b
         |);
-        |  assign b = a[0] ^ a[1] ^ a[2] ^ a[3];
+        |  assign b = ^a;
         |endmodule
         |""".stripMargin.split("\n") map normalized
     executeTest(input, check, compiler)
@@ -77,7 +77,7 @@ class DoPrimVerilog extends FirrtlFlatSpec {
         |  input  [3:0] a,
         |  output  b
         |);
-        |  assign b = a[0] & a[1] & a[2] & a[3];
+        |  assign b = &a;
         |endmodule
         |""".stripMargin.split("\n") map normalized
     executeTest(input, check, compiler)
@@ -95,7 +95,7 @@ class DoPrimVerilog extends FirrtlFlatSpec {
         |  input  [3:0] a,
         |  output  b
         |);
-        |  assign b = a[0] | a[1] | a[2] | a[3];
+        |  assign b = |a;
         |endmodule
         |""".stripMargin.split("\n") map normalized
     executeTest(input, check, compiler)
