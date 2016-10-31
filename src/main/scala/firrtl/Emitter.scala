@@ -223,12 +223,12 @@ class VerilogEmitter extends Emitter {
        case And => Seq(cast_as(a0), " & ", cast_as(a1))
        case Or => Seq(cast_as(a0), " | ", cast_as(a1))
        case Xor => Seq(cast_as(a0), " ^ ", cast_as(a1))
-       case Andr => (0 until bitWidth(doprim.tpe).toInt) map (
-         Seq(cast(a0), "[", _, "]")) reduce (_ + " & " + _)
-       case Orr => (0 until bitWidth(doprim.tpe).toInt) map (
-         Seq(cast(a0), "[", _, "]")) reduce (_ + " | " + _)
-       case Xorr => (0 until bitWidth(doprim.tpe).toInt) map (
-         Seq(cast(a0), "[", _, "]")) reduce (_ + " ^ " + _)
+       case Andr => (0 until bitWidth(a0.tpe).toInt) map (
+         Seq(cast(a0), "[", _, "]")) reduce ((l, r) => (l :+ " & ") ++ r)
+       case Orr => (0 until bitWidth(a0.tpe).toInt) map (
+         Seq(cast(a0), "[", _, "]")) reduce ((l, r) => (l :+ " | ") ++ r)
+       case Xorr => (0 until bitWidth(a0.tpe).toInt) map (
+         Seq(cast(a0), "[", _, "]")) reduce ((l, r) => (l :+ " ^ ") ++ r)
        case Cat => Seq("{", cast(a0), ",", cast(a1), "}")
        // If selecting zeroth bit and single-bit wire, just emit the wire
        case Bits if c0 == 0 && c1 == 0 && bitWidth(a0.tpe) == BigInt(1) => Seq(a0)
