@@ -1,0 +1,30 @@
+- transformClass: chick.chisel.DiamondPass
+  targetString: ModC
+  value: ModC.this params 16 32
+- transformClass: chick.chisel.DiamondPass
+  targetString: ModC.io.out
+  value: ModuleC(16,32) width < 32
+- transformClass: chick.chisel.DiamondPass
+  targetString: ModA
+  value: ModA.this
+- transformClass: chick.chisel.DiamondPass
+  targetString: ModA.io.out
+  value: inside ModA.io.out params 64,64
+- transformClass: chick.chisel.DiamondPass
+  targetString: ModC_1
+  value: ModC.this params 42 77
+- transformClass: chick.chisel.DiamondPass
+  targetString: ModC_1.io.out
+  value: ModuleC(42,77) width < 77
+- transformClass: chick.chisel.DiamondPass
+  targetString: ModB.io.out
+  value: inside ModB.io.out params 32,48
+- transformClass: chick.chisel.DiamondPass
+  targetString: TopOfDiamond
+  value: |-
+    TopOfDiamond
+    With
+    Some new lines
+- transformClass: chick.chisel.DiamondPass
+  targetString: ModB.io.in
+  value: TopOfDiamond.moduleB.io.in

@@ -1,15 +1,26 @@
+<<<<<<< HEAD
 // See LICENSE for license details.
+=======
+//// See LICENSE for license details.
+>>>>>>> d9572b3... annotations can be read from a file.  are added to the optionsManager if the file exists
 
 package firrtlTests
 
 import java.io.File
 
+<<<<<<< HEAD
 import firrtl.Annotations.Annotation
 import org.scalatest.{Matchers, FreeSpec}
 
 import firrtl._
 import firrtl.passes.InlineInstances
 import firrtl.passes.memlib.{ReplSeqMem, InferReadWrite}
+=======
+//import firrtl.passes.memlib.ReplSeqMemAnnotation
+import org.scalatest.{Matchers, FreeSpec}
+
+import firrtl._
+>>>>>>> d9572b3... annotations can be read from a file.  are added to the optionsManager if the file exists
 
 class DriverSpec extends FreeSpec with Matchers {
   "CommonOptions are some simple options available across the chisel3 ecosystem" - {
@@ -21,7 +32,11 @@ class DriverSpec extends FreeSpec with Matchers {
 
           val commonOptions = optionsManager.commonOptions
           commonOptions.topName should be("")
+<<<<<<< HEAD
           commonOptions.targetDirName should be(".")
+=======
+          commonOptions.targetDirName should be("test_run_dir")
+>>>>>>> d9572b3... annotations can be read from a file.  are added to the optionsManager if the file exists
         }
         "top name and target can be set" in {
           val optionsManager = new ExecutionOptionsManager("test")
@@ -57,7 +72,11 @@ class DriverSpec extends FreeSpec with Matchers {
   "FirrtlOptions holds option information for the firrtl compiler" - {
     "It includes a CommonOptions" in {
       val optionsManager = new ExecutionOptionsManager("test")
+<<<<<<< HEAD
       optionsManager.commonOptions.targetDirName should be (".")
+=======
+      optionsManager.commonOptions.targetDirName should be ("test_run_dir")
+>>>>>>> d9572b3... annotations can be read from a file.  are added to the optionsManager if the file exists
     }
     "It provides input and output file names based on target" in {
       val optionsManager = new ExecutionOptionsManager("test") with HasFirrtlOptions
@@ -66,9 +85,15 @@ class DriverSpec extends FreeSpec with Matchers {
 
       val firrtlOptions = optionsManager.firrtlOptions
       val inputFileName = optionsManager.getBuildFileName("fir", firrtlOptions.inputFileNameOverride)
+<<<<<<< HEAD
       inputFileName should be ("./cat.fir")
       val outputFileName = optionsManager.getBuildFileName("v", firrtlOptions.outputFileNameOverride)
       outputFileName should be ("./cat.v")
+=======
+      inputFileName should be ("test_run_dir/cat.fir")
+      val outputFileName = optionsManager.getBuildFileName("v", firrtlOptions.outputFileNameOverride)
+      outputFileName should be ("test_run_dir/cat.v")
+>>>>>>> d9572b3... annotations can be read from a file.  are added to the optionsManager if the file exists
     }
     "input and output file names can be overridden, overrides do not use targetDir" in {
       val optionsManager = new ExecutionOptionsManager("test") with HasFirrtlOptions
@@ -83,6 +108,7 @@ class DriverSpec extends FreeSpec with Matchers {
       val outputFileName = optionsManager.getBuildFileName("v", firrtlOptions.outputFileNameOverride)
       outputFileName should be ("carol.v")
     }
+<<<<<<< HEAD
     "various annotations can be created from command line, currently:" - {
       "inline annotation" in {
         val optionsManager = new ExecutionOptionsManager("test") with HasFirrtlOptions
@@ -126,6 +152,64 @@ class DriverSpec extends FreeSpec with Matchers {
         }
       }
     }
+=======
+//    "various annotations can be created from command line, currently:" - {
+//      "inline annotation" in {
+//        val optionsManager = new ExecutionOptionsManager("test") with HasFirrtlOptions
+//
+//        optionsManager.parse(
+//          Array("--inline", "module,module.submodule,module.submodule.instance")
+//        ) should be (true)
+//
+//        val firrtlOptions = optionsManager.firrtlOptions
+//        firrtlOptions.annotations.length should be (3)
+//        firrtlOptions.annotations.foreach { annotation =>
+//          annotation shouldBe a [passes.I]
+//        }
+//      }
+//      "infer-rw annotation" in {
+//        val optionsManager = new ExecutionOptionsManager("test") with HasFirrtlOptions
+//
+//        optionsManager.parse(
+//          Array("--infer-rw", "circuit")
+//        ) should be (true)
+//
+//        val firrtlOptions = optionsManager.firrtlOptions
+//        firrtlOptions.annotations.length should be (1)
+//        firrtlOptions.annotations.foreach { annotation =>
+//          annotation shouldBe a [passes.InferReadWriteAnnotation]
+//        }
+//      }
+//      "repl-seq-mem annotation" in {
+//        val optionsManager = new ExecutionOptionsManager("test") with HasFirrtlOptions
+//
+//        optionsManager.parse(
+//          Array("--repl-seq-mem", "-c:circuit1:-i:infile1:-o:outfile1")
+//        ) should be (true)
+//
+//        val firrtlOptions = optionsManager.firrtlOptions
+//
+//        firrtlOptions.annotations.length should be (1)
+//        firrtlOptions.annotations.foreach { annotation =>
+//          annotation shouldBe a [ReplSeqMemAnnotation]
+//        }
+//      }
+//    }
+  }
+
+  "Annotations can be read from a file" in {
+    val optionsManager = new ExecutionOptionsManager("test") with HasFirrtlOptions {
+      commonOptions = commonOptions.copy(topName = "a.fir")
+      firrtlOptions = firrtlOptions.copy(
+        annotationFileNameOverride = "src/test/resources/annotations/SampleAnnotations"
+      )
+    }
+    optionsManager.firrtlOptions.annotations.length should be (0)
+    Driver.loadAnnotations(optionsManager)
+    optionsManager.firrtlOptions.annotations.length should be (9)
+
+    optionsManager.firrtlOptions.annotations.head.transformClass should be ("chick.chisel.DiamondPass")
+>>>>>>> d9572b3... annotations can be read from a file.  are added to the optionsManager if the file exists
   }
 
   val input =
@@ -141,9 +225,15 @@ class DriverSpec extends FreeSpec with Matchers {
     "compiler changes the default name of the output file" in {
 
       Seq(
+<<<<<<< HEAD
         "low" -> "./Dummy.lo.fir",
         "high" -> "./Dummy.hi.fir",
         "verilog" -> "./Dummy.v"
+=======
+        "low" -> "test_run_dir/Dummy.lo.fir",
+        "high" -> "test_run_dir/Dummy.hi.fir",
+        "verilog" -> "test_run_dir/Dummy.v"
+>>>>>>> d9572b3... annotations can be read from a file.  are added to the optionsManager if the file exists
       ).foreach { case (compilerName, expectedOutputFileName) =>
         val manager = new ExecutionOptionsManager("test") with HasFirrtlOptions {
           commonOptions = CommonOptions(topName = "Dummy")
