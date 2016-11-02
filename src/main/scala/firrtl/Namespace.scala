@@ -33,7 +33,7 @@ import firrtl.ir._
 import Mappers._
 
 class Namespace private {
-  private val tempNamePrefix: String = "GEN"
+  private val tempNamePrefix: String = "_GEN"
   // Begin with a tempNamePrefix in namespace so we always have a number suffix
   private val namespace = mutable.HashSet[String](tempNamePrefix)
   private var n = 0L
