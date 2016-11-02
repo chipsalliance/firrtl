@@ -72,19 +72,18 @@ class ClockListTests extends FirrtlFlatSpec {
         |    output clk3: Clock
         |""".stripMargin
     val check = 
-  """Clocklist: List(h$b$d$clock, h$b$clock, h$c$clock, h$clock, clock) 
-    |Sourcelist: List(h$clkGen$clk1, h$clkGen$clk2, h$clkGen$clk3, clock) 
-    |Good Origin of h$b$d$clock is h$clkGen$clk2
-    |Good Origin of h$b$clock is h$clkGen$clk2
-    |Good Origin of h$c$clock is h$clkGen$clk3
-    |Good Origin of h$clock is h$clkGen$clk1
+  """Sourcelist: List(h$clkGen$clk1, h$clkGen$clk2, h$clkGen$clk3, clock) 
     |Good Origin of clock is clock
+    |Good Origin of h.clock is h$clkGen.clk1
+    |Good Origin of h$b.clock is h$clkGen.clk2
+    |Good Origin of h$c.clock is h$clkGen.clk3
     |""".stripMargin
     val c = passes.foldLeft(parse(input)) {
       (c: Circuit, p: Pass) => p.run(c)
     }
     val writer = new StringWriter()
     val retC = new ClockList("HTop", writer).run(c)
+    println(writer.toString())
     (writer.toString()) should be (check)
   }
 }

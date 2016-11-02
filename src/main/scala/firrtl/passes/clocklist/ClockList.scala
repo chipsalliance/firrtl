@@ -103,18 +103,13 @@ object ClockListUtils {
     childSet + lin.name
   }
 
-  def getLists(moduleMap: Map[String, DefModule])(lin: Lineage): (Seq[String], Seq[String]) = {
+  def getLists(moduleMap: Map[String, DefModule])(lin: Lineage): Seq[String] = {
     //println(s"On ${lin.name}")
-    val (c, s) = lin.foldLeft((Seq[String](), Seq[String]())){case ((cL, sL), (i, l)) =>
+    val s = lin.foldLeft(Seq[String]()){case (sL, (i, l)) =>
       //println(s"At child ${l.name}")
-      val (cLx, sLx) = getLists(moduleMap)(l)
-      val cLxx = cLx map (i + "$" + _)
+      val sLx = getLists(moduleMap)(l)
       val sLxx = sLx map (i + "$" + _)
-      (cL ++ cLxx, sL ++ sLxx)
-    }
-    val clockList = moduleMap(lin.name) match {
-      case Module(i, n, ports, b) => ports.filter(p => p.name == "clock").map(_.name)
-      case _ => Nil
+      sL ++ sLxx
     }
     val sourceList = moduleMap(lin.name) match {
       case ExtModule(i, n, ports, dn, p) =>
@@ -122,9 +117,29 @@ object ClockListUtils {
         portExps.filter(e => (e.tpe == ClockType) && (gender(e) == FEMALE)).map(e => e.serialize)
       case _ => Nil
     }
-    val (cx, sx) = (c ++ clockList, s ++ sourceList)
+    val sx = sourceList ++ s
     //println(s"From ${lin.name}, returning clocklist $cx and sourcelist $sx")
-    (cx, sx)
+    sx
+  }
+  def getOrigins(connects: Connects, me: String, moduleMap: Map[String, DefModule])(lin: Lineage): Map[String, String] = {
+    //println(s"On ${lin.name}")
+    // if origins has my parent, and it is the same origin as me, then don't add me
+    val sep = if(me == "") "" else "$"
+    val childrenOrigins = lin.foldLeft(Map[String, String]()){case (o, (i, l)) =>
+      o ++ getOrigins(connects, me + sep + i, moduleMap)(l)
+    }
+    val clockOpt = moduleMap(lin.name) match {
+      case Module(i, n, ports, b) => ports.collectFirst { case p if p.name == "clock" => me + sep + "clock" }
+      case ExtModule(i, n, ports, dn, p) => None
+    }
+    clockOpt match {
+      case Some(clock) =>
+        val myOrigin = getOrigin(connects, clock).serialize
+        childrenOrigins.foldLeft(Map(me -> myOrigin)) { case (o, (childInstance, childOrigin)) =>
+          if(childOrigin == myOrigin) o else o + (childInstance -> childOrigin)
+        }
+      case None => childrenOrigins
+    }
   }
 }
 
@@ -142,9 +157,8 @@ class ClockList(top: String, writer: Writer) extends Pass {
 
     // Stuff
     val lineages = getLineage(childrenMap, top)
-    val (clockList, partialSourceList) = getLists(moduleMap)(lineages)
+    val partialSourceList = getLists(moduleMap)(lineages)
     val sourceList = partialSourceList ++ moduleMap(top).ports.collect{ case Port(i, n, Input, ClockType) => n }
-    writer.append(s"Clocklist: $clockList \n")
     writer.append(s"Sourcelist: $sourceList \n")
 
     // Inline all non-black-boxes
@@ -154,14 +168,23 @@ class ClockList(top: String, writer: Writer) extends Pass {
     val cx = inline.run(RemoveAllButClocks.run(c), modulesToInline, Set()).circuit
     val topModule = cx.modules.collectFirst { case m if m.name == top => m }.get
     val connects = getConnects(topModule)
-    clockList.foreach { clock =>
-      val origin = getOrigin(connects, clock).serialize.replace('.', '$')
-      if(!sourceList.contains(origin)){
-        outputBuffer.append(s"Bad Origin of $clock is $origin\n")
+
+    val origins = getOrigins(connects, "", moduleMap)(lineages)
+    origins.foreach { case (instance, origin) =>
+      val sep = if(instance == "") "" else "."
+      if(!sourceList.contains(origin.replace('.','$'))){
+        outputBuffer.append(s"Bad Origin of $instance${sep}clock is $origin\n")
       } else {
-        outputBuffer.append(s"Good Origin of $clock is $origin\n")
+        outputBuffer.append(s"Good Origin of $instance${sep}clock is $origin\n")
       }
     }
+
+    //clockList.foreach { clock =>
+    //  val (origin, name) = getOrigin(connects, clock).serialize.split('.') match {
+    //    case Seq(o, n) => (o, n)
+    //  }
+    //  origins.keys.filter
+    //}
 
     // Write to output file
     writer.write(outputBuffer.toString)
