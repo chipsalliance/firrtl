@@ -83,7 +83,6 @@ class ClockListTests extends FirrtlFlatSpec {
     }
     val writer = new StringWriter()
     val retC = new ClockList("HTop", writer).run(c)
-    println(writer.toString())
     (writer.toString()) should be (check)
   }
 }

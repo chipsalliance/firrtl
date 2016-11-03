@@ -6,34 +6,14 @@ import firrtl.ir._
 import Annotations._
 import Utils.error
 import java.io.{File, CharArrayWriter, PrintWriter, Writer}
-import wiring.WiringUtils.{getChildrenMap, countInstances, ChildrenMap}
+import wiring.WiringUtils.{getChildrenMap, countInstances, ChildrenMap, getLineage}
+import wiring.Lineage
 import ClockListUtils._
 import Utils._
 import memlib.AnalysisUtils._
 import memlib._
 import Mappers._
 
-/** A lineage tree representing the instance hierarchy in a design
-  */
-case class Lineage(
-    name: String,
-    children: Seq[(String, Lineage)] = Seq.empty,
-    values: Map[Any, Any] = Map.empty) {
-
-  def map(f: Lineage => Lineage): Lineage =
-    this.copy(children = children.map{ case (i, m) => (i, f(m)) })
-
-  def foldLeft[B](z: B)(op: (B, (String, Lineage)) => B): B = 
-    this.children.foldLeft(z)(op)
-
-  override def toString: String = serialize("")
-
-  def serialize(tab: String): String = s"""
-    |$tab name: $name,
-    |$tab map: $values,
-    |$tab children: ${children.map(c => tab + "   " + c._2.serialize(tab + "    "))}
-    |""".stripMargin
-}
 
 class ClockListTransform(transID: TransID) extends Transform {
   def passSeq(top: String, writer: Writer): Seq[Pass] =
@@ -94,20 +74,11 @@ Usage:
 }
 
 object ClockListUtils {
-  /** Returns a module's lineage, containing all children lineages as well */
-  def getLineage(childrenMap: ChildrenMap, module: String): Lineage =
-    Lineage(module, childrenMap(module) map (c => (c._1, getLineage(childrenMap, c._2))))
-
-  def getModules(set: Set[String], lin: Lineage): Set[String] = {
-    val childSet = lin.foldLeft(set) { case (s, (i, l)) => getModules(s, l) }
-    childSet + lin.name
-  }
-
-  def getLists(moduleMap: Map[String, DefModule])(lin: Lineage): Seq[String] = {
-    //println(s"On ${lin.name}")
+  /** Returns a list of clock outputs from instances of external modules
+   */
+  def getSourceList(moduleMap: Map[String, DefModule])(lin: Lineage): Seq[String] = {
     val s = lin.foldLeft(Seq[String]()){case (sL, (i, l)) =>
-      //println(s"At child ${l.name}")
-      val sLx = getLists(moduleMap)(l)
+      val sLx = getSourceList(moduleMap)(l)
       val sLxx = sLx map (i + "$" + _)
       sL ++ sLxx
     }
@@ -118,20 +89,23 @@ object ClockListUtils {
       case _ => Nil
     }
     val sx = sourceList ++ s
-    //println(s"From ${lin.name}, returning clocklist $cx and sourcelist $sx")
     sx
   }
+  /** Returns a map from instance name to its clock origin.
+   *  Child instances are not included if they share the same clock as their parent
+   */
   def getOrigins(connects: Connects, me: String, moduleMap: Map[String, DefModule])(lin: Lineage): Map[String, String] = {
-    //println(s"On ${lin.name}")
-    // if origins has my parent, and it is the same origin as me, then don't add me
     val sep = if(me == "") "" else "$"
+    // Get origins from all children
     val childrenOrigins = lin.foldLeft(Map[String, String]()){case (o, (i, l)) =>
       o ++ getOrigins(connects, me + sep + i, moduleMap)(l)
     }
+    // If I have a clock, get it
     val clockOpt = moduleMap(lin.name) match {
       case Module(i, n, ports, b) => ports.collectFirst { case p if p.name == "clock" => me + sep + "clock" }
       case ExtModule(i, n, ports, dn, p) => None
     }
+    // Return new origins with children removed, if they match my clock
     clockOpt match {
       case Some(clock) =>
         val myOrigin = getOrigin(connects, clock).serialize
@@ -143,33 +117,44 @@ object ClockListUtils {
   }
 }
 
+/** Starting with a top module, determine the clock origins of each child instance.
+ *  Write the result to writer.
+ */
 class ClockList(top: String, writer: Writer) extends Pass {
   def name = this.getClass.getSimpleName
   def run(c: Circuit): Circuit = {
-    // Assume blackbox output is the only clocks we care about
-    // If a module has a single input clock, it is in that clock domain
-    // All reg/mem's in a module must be connected to input "clock" or "clk" or whatever
+    // Build useful datastructures
     val childrenMap = getChildrenMap(c)
     val moduleMap = c.modules.foldLeft(Map[String, DefModule]())((map, m) => map + (m.name -> m))
+    val lineages = getLineage(childrenMap, top)
     val outputBuffer = new CharArrayWriter
 
     // === Checks ===
-
-    // Stuff
-    val lineages = getLineage(childrenMap, top)
-    val partialSourceList = getLists(moduleMap)(lineages)
+    // TODO(izraelevitz): Check all registers/memories use "clock" clock port
+    // ==============
+    
+    // Clock sources must be blackbox outputs and top's clock
+    val partialSourceList = getSourceList(moduleMap)(lineages)
     val sourceList = partialSourceList ++ moduleMap(top).ports.collect{ case Port(i, n, Input, ClockType) => n }
     writer.append(s"Sourcelist: $sourceList \n")
 
-    // Inline all non-black-boxes
-    val inline = new InlineInstances(TransID(-10)) //TID doesn't matter
+    // Remove everything from the circuit, unless it has a clock type
+    // This simplifies the circuit drastically so InlineInstances doesn't take forever.
+    val onlyClockCircuit = RemoveAllButClocks.run(c)
+    
+    // Inline the clock-only circuit up to the specified top module
     val modulesToInline = (c.modules.collect { case Module(_, n, _, _) if n != top => ModuleName(n, CircuitName(c.main)) }).toSet
-    //val modulesToInline = (getModules(Set[String](), lineages) - top).map(m => ModuleName(m, CircuitName(c.main)))
-    val cx = inline.run(RemoveAllButClocks.run(c), modulesToInline, Set()).circuit
-    val topModule = cx.modules.collectFirst { case m if m.name == top => m }.get
+    val inlineTransform = new InlineInstances(TransID(-10)) //TID doesn't matter
+    val inlinedCircuit = inlineTransform.run(onlyClockCircuit, modulesToInline, Set()).circuit
+    val topModule = inlinedCircuit.modules.collectFirst { case m if m.name == top => m }.get
+
+    // Build a hashmap of connections to use for getOrigins
     val connects = getConnects(topModule)
 
+    // Return a map from instance name to clock origin
     val origins = getOrigins(connects, "", moduleMap)(lineages)
+
+    // If the clock origin is contained in the source list, label good (otherwise bad)
     origins.foreach { case (instance, origin) =>
       val sep = if(instance == "") "" else "."
       if(!sourceList.contains(origin.replace('.','$'))){
@@ -179,13 +164,6 @@ class ClockList(top: String, writer: Writer) extends Pass {
       }
     }
 
-    //clockList.foreach { clock =>
-    //  val (origin, name) = getOrigin(connects, clock).serialize.split('.') match {
-    //    case Seq(o, n) => (o, n)
-    //  }
-    //  origins.keys.filter
-    //}
-
     // Write to output file
     writer.write(outputBuffer.toString)
 
@@ -194,6 +172,10 @@ class ClockList(top: String, writer: Writer) extends Pass {
   }
 }
 
+
+/** Remove all statements and ports (except instances/whens/blocks) whose
+ *  expressions do not relate to ground types.
+ */
 object RemoveAllButClocks extends Pass {
   def name = this.getClass.getSimpleName
   def onStmt(s: Statement): Statement = (s map onStmt) match {
