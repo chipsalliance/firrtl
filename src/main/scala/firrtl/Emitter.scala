@@ -1,29 +1,4 @@
-/*
-Copyright (c) 2014 - 2016 The Regents of the University of
-California (Regents). All Rights Reserved.  Redistribution and use in
-source and binary forms, with or without modification, are permitted
-provided that the following conditions are met:
-   * Redistributions of source code must retain the above
-     copyright notice, this list of conditions and the following
-     two paragraphs of disclaimer.
-   * Redistributions in binary form must reproduce the above
-     copyright notice, this list of conditions and the following
-     two paragraphs of disclaimer in the documentation and/or other materials
-     provided with the distribution.
-   * Neither the name of the Regents nor the names of its contributors
-     may be used to endorse or promote products derived from this
-     software without specific prior written permission.
-IN NO EVENT SHALL REGENTS BE LIABLE TO ANY PARTY FOR DIRECT, INDIRECT,
-SPECIAL, INCIDENTAL, OR CONSEQUENTIAL DAMAGES, INCLUDING LOST PROFITS,
-ARISING OUT OF THE USE OF THIS SOFTWARE AND ITS DOCUMENTATION, EVEN IF
-REGENTS HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-REGENTS SPECIFICALLY DISCLAIMS ANY WARRANTIES, INCLUDING, BUT NOT
-LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-A PARTICULAR PURPOSE. THE SOFTWARE AND ACCOMPANYING DOCUMENTATION, IF
-ANY, PROVIDED HEREUNDER IS PROVIDED "AS IS". REGENTS HAS NO OBLIGATION
-TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR
-MODIFICATIONS.
-*/
+// See LICENSE for license details.
 
 package firrtl
 
@@ -47,12 +22,8 @@ import scala.collection.mutable.{ArrayBuffer, LinkedHashMap, HashSet}
 
 case class EmitterException(message: String) extends PassException(message)
 
-trait Emitter extends LazyLogging {
-  def run(c: Circuit, w: Writer)
-}
-
-object FIRRTLEmitter extends Emitter {
-  def run(c: Circuit, w: Writer) = w.write(c.serialize)
+class FirrtlEmitter extends Emitter {
+  def emit(state: CircuitState, writer: Writer): Unit = writer.write(state.circuit.serialize)
 }
 
 case class VRandom(width: BigInt) extends Expression {
@@ -65,7 +36,7 @@ case class VRandom(width: BigInt) extends Expression {
   def mapWidth(f: Width => Width): Expression = this
 }
 
-class VerilogEmitter extends Emitter {
+class VerilogEmitter extends Emitter with PassBased {
   val tab = "  "
   def AND(e1: WrappedExpression, e2: WrappedExpression): Expression = {
     if (e1 == e2) e1.e1
@@ -590,12 +561,18 @@ class VerilogEmitter extends Emitter {
         "`endif\n"))
    }
 
-   def run(c: Circuit, w: Writer) = {
-     emit_preamble(w)
-     val moduleMap = (c.modules map (m => m.name -> m)).toMap
-     c.modules foreach {
-       case (m: Module) => emit_verilog(m, moduleMap)(w)
-       case (m: ExtModule) =>
-     }
-   }
+  def passSeq = Seq(
+    passes.VerilogWrap,
+    passes.VerilogRename,
+    passes.VerilogPrep)
+
+  def emit(state: CircuitState, writer: Writer): Unit = {
+    val circuit = runPasses(state.circuit)
+    emit_preamble(writer)
+    val moduleMap = (circuit.modules map (m => m.name -> m)).toMap
+    circuit.modules foreach {
+      case (m: Module) => emit_verilog(m, moduleMap)(writer)
+      case (m: ExtModule) =>
+    }
+  }
 }
