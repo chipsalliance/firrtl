@@ -15,11 +15,13 @@ import memlib._
 import Mappers._
 
 
-class ClockListTransform(transID: TransID) extends Transform {
+class ClockListTransform extends Transform {
+  def inputForm = LowForm
+  def outputForm = LowForm
   def passSeq(top: String, writer: Writer): Seq[Pass] =
     Seq(new ClockList(top, writer))
-  def execute(c: Circuit, map: AnnotationMap) = map get transID match {
-    case Some(p) => (p.toSeq.collect { case (ModuleName(m, CircuitName(c.main)), cla) =>
+  def execute(state: CircuitState): CircuitState = getMyAnnotations(state) match {
+    case Some(p) => (p.toSeq.collect { case (ModuleName(m, CircuitName(state.circuit.main)), cla) =>
       cla match {
         case x: ClockListAnnotation => (m, x.outputConfig)
         case _ => error(s"Found an unexpected annotation: $cla")
@@ -27,18 +29,18 @@ class ClockListTransform(transID: TransID) extends Transform {
     }) match {
       case Seq((top, out)) => 
         val outputFile = new PrintWriter(out)
-        val newC = (new ClockList(top, outputFile)).run(c)
+        val newC = (new ClockList(top, outputFile)).run(state.circuit)
         outputFile.close()
-        TransformResult(newC)
+        CircuitState(newC, state.form)
       case _ => error(s"Found too many (or too few) ClockListAnnotations!")
     }
-    case None => TransformResult(c)
+    case None => CircuitState(state.circuit, state.form)
   }
 }
 
-case class ClockListAnnotation(t: String, tID: TransID)
+case class ClockListAnnotation(t: String)
     extends Annotation with Loose with Unstable {
-
+  def transform = classOf[ClockListTransform]
   val usage = """
 [Optional] ClockList
   List which signal drives each clock of every descendent of specified module
@@ -144,7 +146,7 @@ class ClockList(top: String, writer: Writer) extends Pass {
     
     // Inline the clock-only circuit up to the specified top module
     val modulesToInline = (c.modules.collect { case Module(_, n, _, _) if n != top => ModuleName(n, CircuitName(c.main)) }).toSet
-    val inlineTransform = new InlineInstances(TransID(-10)) //TID doesn't matter
+    val inlineTransform = new InlineInstances
     val inlinedCircuit = inlineTransform.run(onlyClockCircuit, modulesToInline, Set()).circuit
     val topModule = inlinedCircuit.modules.collectFirst { case m if m.name == top => m }.get
 
