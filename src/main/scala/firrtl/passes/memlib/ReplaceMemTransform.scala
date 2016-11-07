@@ -96,7 +96,7 @@ Optional Arguments:
 class SimpleTransform(p: Pass, form: CircuitForm) extends Transform {
   def inputForm = form
   def outputForm = form
-  def execute(state: CircuitState): CircuitState = state.copy(circuit = p.run(state.circuit), annotations = None)
+  def execute(state: CircuitState): CircuitState = CircuitState(p.run(state.circuit), state.form)
 }
 
 class SimpleMidTransform(p: Pass) extends SimpleTransform(p, MidForm)

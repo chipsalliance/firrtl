@@ -69,14 +69,12 @@ class WiringTransform extends Transform with SimpleRun {
       val sources = mutable.Set[String]()
       val tops = mutable.Set[String]()
       val comp = mutable.Set[String]()
-      p.foreach { a =>
-        a match {
-          case SinkAnnotation(m, pin) => sinks(m.name) = pin
-          case SourceAnnotation(c) =>
-            sources += c.module.name
-            comp += c.name
-          case TopAnnotation(m) => tops += m.name
-        }
+      p.foreach { 
+        case SinkAnnotation(m, pin) => sinks(m.name) = pin
+        case SourceAnnotation(c) =>
+          sources += c.module.name
+          comp += c.name
+        case TopAnnotation(m) => tops += m.name
       }
       (sources.size, tops.size, sinks.size, comp.size) match {
         case (0, 0, p, 0) => state
