@@ -247,8 +247,8 @@ object Annotations {
           Tuple2(pNMap, ptransformMap)
         }
       }
-    def get(id: Class[_]): Option[Map[Named, Annotation]] = idMap.get(id)
-    def get(named: Named): Option[Map[Class[_], Annotation]] = namedMap.get(named)
+    def get(id: Class[_]): Seq[Annotation] = annotations.filter(a => a.transform == id)
+    def get(named: Named): Seq[Annotation] = annotations.filter(n => n == named)
   }
 }
 
