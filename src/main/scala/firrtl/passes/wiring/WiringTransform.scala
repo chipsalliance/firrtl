@@ -63,12 +63,13 @@ class WiringTransform extends Transform with SimpleRun {
         ResolveKinds,
         ResolveGenders)
   def execute(state: CircuitState): CircuitState = getMyAnnotations(state) match {
-    case Some(p) => 
+    case Nil => CircuitState(state.circuit, state.form)
+    case p => 
       val sinks = mutable.HashMap[String, String]()
       val sources = mutable.Set[String]()
       val tops = mutable.Set[String]()
       val comp = mutable.Set[String]()
-      p.values.foreach { a =>
+      p.foreach { a =>
         a match {
           case SinkAnnotation(m, pin) => sinks(m.name) = pin
           case SourceAnnotation(c) =>
@@ -84,6 +85,5 @@ class WiringTransform extends Transform with SimpleRun {
           state.copy(circuit = runPasses(state.circuit, passSeq(winfo)))
         case _ => error("Wrong number of sources, tops, or sinks!")
       }
-      case None => state
   }
 }
