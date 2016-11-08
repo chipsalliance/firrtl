@@ -65,16 +65,12 @@ class ClockListTransform extends Transform {
   def passSeq(top: String, writer: Writer): Seq[Pass] =
     Seq(new ClockList(top, writer))
   def execute(state: CircuitState): CircuitState = getMyAnnotations(state) match {
-    case Some(p) => 
-      val matchingAnnos = p.toSeq.collect { case (ModuleName(m, CircuitName(state.circuit.main)), ClockListAnnotation(_, out)) => (m, out) }
-      matchingAnnos match {
-        case Seq((top, out)) =>  // There should only be one ClockListAnnotations
-          val outputFile = new PrintWriter(out)
-          val newC = (new ClockList(top, outputFile)).run(state.circuit)
-          outputFile.close()
-          CircuitState(newC, state.form)
-        case _ => error(s"Found too many (or too few) ClockListAnnotations!")
-      }
-    case None => CircuitState(state.circuit, state.form)
+    case Seq(ClockListAnnotation(ModuleName(top, CircuitName(state.circuit.main)), out)) => 
+      val outputFile = new PrintWriter(out)
+      val newC = (new ClockList(top, outputFile)).run(state.circuit)
+      outputFile.close()
+      CircuitState(newC, state.form)
+    case Nil => CircuitState(state.circuit, state.form)
+    case seq => error(s"Found illegal clock list annotation(s): $seq")
   }
 }
