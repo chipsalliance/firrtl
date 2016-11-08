@@ -79,12 +79,8 @@ class AnnotationTests extends AnnotationSpec with Matchers {
   val cName = ComponentName("c", mName)
 
   "Loose and Sticky annotation on a node" should "pass through" in {
-    case class TestAnnotation(target: Named) extends Annotation with Loose with Sticky {
-      def duplicate(to: Named) = this.copy(target=to)
-      def transform = classOf[Transform]
-    }
     val w = new StringWriter()
-    val ta = TestAnnotation(cName)
+    val ta = Annotation(cName, classOf[Transform], "")
     execute(w, getAMap(ta), input, ta)
   }
 }

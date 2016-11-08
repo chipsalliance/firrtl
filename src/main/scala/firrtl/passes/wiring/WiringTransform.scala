@@ -13,33 +13,22 @@ import WiringUtils._
 
 /** A component, e.g. register etc. Must be declared only once under the TopAnnotation
   */
-case class SourceAnnotation(target: ComponentName) extends Annotation with Loose with Unstable {
-  def transform = classOf[WiringTransform]
-  def duplicate(n: Named) = n match {
-    case n: ComponentName => this.copy(target = n)
-    case _ => throwInternalError
-  }
+object SourceAnnotation {
+  def apply(target: ComponentName): Annotation = Annotation(target, classOf[WiringTransform], "source")
 }
 
 /** A module, e.g. ExtModule etc., that should add the input pin
   */
-case class SinkAnnotation(target: ModuleName, pin: String) extends Annotation with Loose with Unstable {
-  def transform = classOf[WiringTransform]
-  def duplicate(n: Named) = n match {
-    case n: ModuleName => this.copy(target = n)
-    case _ => throwInternalError
-  }
+object SinkAnnotation {
+  def apply(target: ModuleName, pin: String): Annotation = Annotation(target, classOf[WiringTransform], s"sink $pin")
+  val matcher = "sink (.+)".r
 }
 
 /** A module under which all sink module must be declared, and there is only
   * one source component
   */
-case class TopAnnotation(target: ModuleName) extends Annotation with Loose with Unstable {
-  def transform = classOf[WiringTransform]
-  def duplicate(n: Named) = n match {
-    case n: ModuleName => this.copy(target = n)
-    case _ => throwInternalError
-  }
+object TopAnnotation {
+  def apply(target: ModuleName): Annotation = Annotation(target, classOf[WiringTransform], s"top")
 }
 
 /** Add pins to modules and wires a signal to them, under the scope of a specified top module
@@ -70,11 +59,11 @@ class WiringTransform extends Transform with SimpleRun {
       val tops = mutable.Set[String]()
       val comp = mutable.Set[String]()
       p.foreach { 
-        case SinkAnnotation(m, pin) => sinks(m.name) = pin
-        case SourceAnnotation(c) =>
-          sources += c.module.name
-          comp += c.name
-        case TopAnnotation(m) => tops += m.name
+        case Annotation(m, _, SinkAnnotation.matcher(pin)) => sinks(m.name) = pin
+        case Annotation(ComponentName(n, ModuleName(m, CircuitName(c))), _, "source") =>
+          sources += m
+          comp += n
+        case Annotation(m, _, "top") => tops += m.name
       }
       (sources.size, tops.size, sinks.size, comp.size) match {
         case (0, 0, p, 0) => state

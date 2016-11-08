@@ -13,10 +13,8 @@ import firrtl.passes.memlib.AnalysisUtils.{Connects, getConnects, getOrigin}
 import WrappedExpression.weq
 import Annotations._
 
-case class InferReadWriteAnnotation(t: String) extends Annotation with Loose with Unstable {
-  val target = CircuitName(t)
-  def duplicate(n: Named) = this.copy(t=n.name)
-  def transform = classOf[InferReadWrite]
+object InferReadWriteAnnotation {
+  def apply(t: String) = Annotation(CircuitName(t), classOf[InferReadWrite], "")
 }
 
 // This pass examine the enable signals of the read & write ports of memories
@@ -155,6 +153,6 @@ class InferReadWrite extends Transform with PassBased {
   )
   def execute(state: CircuitState): CircuitState = getMyAnnotations(state) match {
     case Nil => CircuitState(state.circuit, state.form)
-    case Seq(InferReadWriteAnnotation(_)) => CircuitState(runPasses(state.circuit), state.form)
+    case Seq(Annotation(_, _, _)) => CircuitState(runPasses(state.circuit), state.form)
   }
 }

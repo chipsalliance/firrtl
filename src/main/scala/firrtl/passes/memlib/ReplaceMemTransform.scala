@@ -64,9 +64,9 @@ class ConfWriter(filename: String) {
   }
 }
 
-case class ReplSeqMemAnnotation(t: String) extends Annotation with Loose with Unstable {
-
-  val usage = """
+object ReplSeqMemAnnotation {
+  def apply(t: String): Annotation = {
+    val usage = """
 [Optional] ReplSeqMem
   Pass to replace sequential memories with blackboxes + configuration file
 
@@ -82,18 +82,18 @@ Optional Arguments:
   -i<filename>         Specify the input configuration file (for additional optimizations)
 """    
 
-  val passOptions = PassConfigUtil.getPassOptions(t, usage)
-  val outputConfig = passOptions.getOrElse(
-    OutputConfigFileName, 
-    error("No output config file provided for ReplSeqMem!" + usage)
-  )
-  val passCircuit = passOptions.getOrElse(
-    PassCircuitName, 
-    error("No circuit name specified for ReplSeqMem!" + usage)
-  )
-  val target = CircuitName(passCircuit)
-  def duplicate(n: Named) = this copy (t = t.replace(s"-c:$passCircuit", s"-c:${n.name}"))
-  def transform = classOf[ReplSeqMem]
+    val passOptions = PassConfigUtil.getPassOptions(t, usage)
+    val outputConfig = passOptions.getOrElse(
+      OutputConfigFileName, 
+      error("No output config file provided for ReplSeqMem!" + usage)
+    )
+    val passCircuit = passOptions.getOrElse(
+      PassCircuitName, 
+      error("No circuit name specified for ReplSeqMem!" + usage)
+    )
+    val target = CircuitName(passCircuit)
+    Annotation(target, classOf[ReplSeqMem], t)
+  }
 }
 
 class SimpleTransform(p: Pass, form: CircuitForm) extends Transform {
@@ -139,7 +139,7 @@ class ReplSeqMem extends Transform with SimpleRun {
     getMyAnnotations(state) match {
       case Nil => state.copy(annotations = None) // Do nothing if there are no annotations
       case p => (p.collectFirst { case a if (a.target == CircuitName(state.circuit.main)) => a }) match {
-        case Some(ReplSeqMemAnnotation(t)) =>
+        case Some(Annotation(_, _, t)) =>
           val inputFileName = PassConfigUtil.getPassOptions(t).getOrElse(InputConfigFileName, "")
           val inConfigFile = {
             if (inputFileName.isEmpty) None 

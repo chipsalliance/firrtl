@@ -4,10 +4,12 @@ package firrtlTests
 
 import java.io.File
 
-import firrtl.passes.memlib.{InferReadWriteAnnotation, ReplSeqMemAnnotation}
+import firrtl.Annotations.Annotation
 import org.scalatest.{Matchers, FreeSpec}
 
 import firrtl._
+import firrtl.passes.InlineInstances
+import firrtl.passes.memlib.{ReplSeqMem, InferReadWrite}
 
 class DriverSpec extends FreeSpec with Matchers {
   "CommonOptions are some simple options available across the chisel3 ecosystem" - {
@@ -91,8 +93,9 @@ class DriverSpec extends FreeSpec with Matchers {
 
         val firrtlOptions = optionsManager.firrtlOptions
         firrtlOptions.annotations.length should be (3)
+        val x = classOf[InlineInstances]
         firrtlOptions.annotations.foreach { annotation =>
-          annotation shouldBe a [passes.InlineAnnotation]
+          annotation.transform shouldBe classOf[InlineInstances]
         }
       }
       "infer-rw annotation" in {
@@ -105,7 +108,7 @@ class DriverSpec extends FreeSpec with Matchers {
         val firrtlOptions = optionsManager.firrtlOptions
         firrtlOptions.annotations.length should be (1)
         firrtlOptions.annotations.foreach { annotation =>
-          annotation shouldBe a [InferReadWriteAnnotation]
+          annotation.transform shouldBe classOf[InferReadWrite]
         }
       }
       "repl-seq-mem annotation" in {
@@ -119,7 +122,7 @@ class DriverSpec extends FreeSpec with Matchers {
 
         firrtlOptions.annotations.length should be (1)
         firrtlOptions.annotations.foreach { annotation =>
-          annotation shouldBe a [ReplSeqMemAnnotation]
+          annotation.transform shouldBe classOf[ReplSeqMem]
         }
       }
     }

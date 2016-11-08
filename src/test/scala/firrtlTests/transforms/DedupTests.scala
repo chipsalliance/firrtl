@@ -18,7 +18,7 @@ import firrtl.Annotations.{
    Annotation,
    AnnotationMap
 }
-import firrtl.transforms.{DedupModules, DedupAnnotation}
+import firrtl.transforms.DedupModules
 
 
 /**

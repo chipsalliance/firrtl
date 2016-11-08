@@ -217,15 +217,13 @@ object Annotations {
    * duplicate function to create the same annotation associated with a new
    * component.
    */
-  trait Annotation extends Permissibility with Tenacity {
-    def target: Named
-    def transform: Class[_ <: Transform]
-    protected def duplicate(n: Named): Annotation
+  case class Annotation(target: Named, transform: Class[_ <: Transform], value: String) extends Sticky with Loose {
     def serialize: String = this.toString
     def update(tos: Seq[Named]): Seq[Annotation] = {
       check(target, tos, this)
       propagate(target, tos, duplicate)
     }
+    def duplicate(n: Named) = this.copy(target = n)
   }
 
   /**

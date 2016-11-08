@@ -16,17 +16,8 @@ import memlib.AnalysisUtils._
 import memlib._
 import Mappers._
 
-case class ClockListAnnotation(target: ModuleName, outputConfig: String)
-    extends Annotation with Loose with Unstable {
-  def transform = classOf[ClockListTransform]
-  def duplicate(n: Named) = n match {
-    case m: ModuleName => this.copy(target = m, outputConfig = outputConfig)
-    case _ => error("Clocklist can only annotate a module.")
-  }
-}
-
 object ClockListAnnotation {
-  def apply(t: String) = {
+  def apply(t: String): Annotation = {
     val usage = """
 [Optional] ClockList
   List which signal drives each clock of every descendent of specified module
@@ -55,7 +46,7 @@ Usage:
       case None =>
     }
     val target = ModuleName(passModule, CircuitName(passCircuit))
-    new ClockListAnnotation(target, outputConfig)
+    Annotation(target, classOf[ClockListTransform], outputConfig)
   }
 }
 
@@ -65,7 +56,7 @@ class ClockListTransform extends Transform {
   def passSeq(top: String, writer: Writer): Seq[Pass] =
     Seq(new ClockList(top, writer))
   def execute(state: CircuitState): CircuitState = getMyAnnotations(state) match {
-    case Seq(ClockListAnnotation(ModuleName(top, CircuitName(state.circuit.main)), out)) => 
+    case Seq(Annotation(ModuleName(top, CircuitName(state.circuit.main)), _, out)) => 
       val outputFile = new PrintWriter(out)
       val newC = (new ClockList(top, outputFile)).run(state.circuit)
       outputFile.close()

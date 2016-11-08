@@ -11,9 +11,8 @@ import firrtl.Annotations._
 import scala.collection.mutable
 
 // Tags an annotation to be consumed by this pass
-case class InlineAnnotation(target: Named) extends Annotation with Loose with Unstable {
-  def duplicate(n: Named) = this.copy(target=n)
-  def transform = classOf[InlineInstances]
+object InlineAnnotation {
+  def apply(target: Named): Annotation = Annotation(target, classOf[InlineInstances], "")
 }
 
 // Only use on legal Firrtl. Specifically, the restriction of
@@ -28,9 +27,9 @@ class InlineInstances extends Transform {
    private def collectAnns(anns: Iterable[Annotation]): (Set[ModuleName], Set[ComponentName]) =
      anns.foldLeft(Set.empty[ModuleName], Set.empty[ComponentName]) {
        case ((modNames, instNames), ann) => ann match {
-         case InlineAnnotation(ModuleName(mod, cir)) => (modNames + ModuleName(mod, cir), instNames)
-         case InlineAnnotation(ComponentName(com, mod)) => (modNames, instNames + ComponentName(com, mod))
-         case _ => throw new PassException("Annotation must be InlineAnnotation")
+         case Annotation(ModuleName(mod, cir), _, _) => (modNames + ModuleName(mod, cir), instNames)
+         case Annotation(ComponentName(com, mod), _, _) => (modNames, instNames + ComponentName(com, mod))
+         case _ => throw new PassException("Annotation must be on module or component")
        }
      }
 
