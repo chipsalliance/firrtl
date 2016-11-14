@@ -82,7 +82,7 @@ class ClockListTests extends FirrtlFlatSpec {
     }
     val writer = new StringWriter()
     val retC = new ClockList("HTop", writer).run(c)
-    (writer.toString()) should be (check)
+    (writer.toString) should be (check)
   }
   "A->B->C, and A.clock == C.clock" should "still emit C.clock origin" in {
     val input =
@@ -113,6 +113,6 @@ class ClockListTests extends FirrtlFlatSpec {
     }
     val writer = new StringWriter()
     val retC = new ClockList("A", writer).run(c)
-    (writer.toString()) should be (check)
+    (writer.toString) should be (check)
   }
 }

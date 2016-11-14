@@ -53,7 +53,7 @@ object ClockListUtils {
       case Some(clock) =>
         val myOrigin = getOrigin(connects, clock).serialize
         childrenOrigins.foldLeft(Map(me -> myOrigin)) { case (o, (childInstance, childOrigin)) =>
-          val childrenInstances = lin.children.map { case (i, l) => me + sep + i }
+          val childrenInstances = lin.children.map { case (instance, _) => me + sep + instance }
           // If direct child shares my origin, omit it
           if(childOrigin == myOrigin && childrenInstances.contains(childInstance)) o else o + (childInstance -> childOrigin)
         }
