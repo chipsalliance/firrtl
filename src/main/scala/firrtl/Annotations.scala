@@ -1,47 +1,92 @@
 // See LICENSE for license details.
 
 package firrtl
+package annotations
 
 import firrtl.ir._
 
 import scala.collection.mutable
 import java.io.Writer
 
+import net.jcazevedo.moultingyaml._
+import AnnotationUtils._
+
+
+
+object AnnotationYAMLProtocol extends DefaultYamlProtocol {
+  // bottom depends on top
+  implicit object AnnotationYamlFormat extends YamlFormat[Annotation] {
+    def write(a: Annotation) =
+      YamlArray(
+        YamlString(a.targetString),
+        YamlString(a.transformClass),
+        YamlString(a.value))
+
+    def read(value: YamlValue) = {
+      value.asYamlObject.getFields(
+        YamlString("targetString"),
+        YamlString("transformClass"),
+        YamlString("value")) match {
+        case Seq(
+          YamlString(targetString),
+          YamlString(transformClass),
+          YamlString(value)) =>
+          new Annotation(toTarget(targetString), Class.forName(transformClass).asInstanceOf[Class[_ <: Transform]], value)
+        case _ => deserializationError("Color expected")
+      }
+    }
+    def toTarget(string: String) = string.split('.').toSeq match {
+      case Seq(c) => CircuitName(c)
+      case Seq(c, m) => ModuleName(m, CircuitName(c))
+      case Nil => error("BAD")
+      case s => ComponentName(s.drop(2).mkString("."), ModuleName(s(1), CircuitName(s(0))))
+    }
+  }
+}
 
 /**
- * Firrtl Annotation Library
- *
- * WARNING(izraelevitz): Untested, and requires unit tests, which require the
- * LowerTypes pass and ConstProp pass to correctly populate its RenameMap.
- *
- * The following tables explain how Tenacity and Permissibility interact
- * with different RenameMap scenarios:
- *  x -> x   : a component named "x" is renamed to the same name, "x"
- *  x -> y   : a component named "x" is renamed to a different name, "y"
- *  x -> y,z : a component named "x" is split into two components named "y" and "z"
- *  x -> ()  : a component named "x" is removed
- *
- * Tenacity Propagation Behavior:
- * ----------|----------|----------|------------|-----------|
- *           |  x -> x  |  x -> y  |  x -> y,z  |  x -> ()  |
- * ----------|----------|----------|------------|-----------|
- * Unstable  |    x     |    ()    |     ()     |    ()     |
- * Fickle    |    x     |    y     |     ()     |    ()     |
- * Insistent |    x     |    y     |     y      |    ()     |
- * Sticky    |    x     |    y     |     y,z    |    ()     |
- * ----------|----------|----------|------------|-----------|
- *
- * Permissibility Accepted Ranges:
- * ----------|----------|----------|------------|-----------|
- *           |  x -> x  |  x -> y  |  x -> y,z  |  x -> ()  |
- * ----------|----------|----------|------------|-----------|
- * Strict    |   ok     |   error  |    error   |   error   |
- * Rigid     |   ok     |    ok    |    error   |   error   |
- * Firm      |   ok     |    ok    |     ok     |   error   |
- * Loose     |   ok     |    ok    |     ok     |    ok     |
- * ----------|----------|----------|------------|-----------|
+ * Named classes associate an annotation with a component in a Firrtl circuit
  */
-object Annotations {
+
+trait Named {
+  def name: String
+  def serialize: String
+}
+
+case class CircuitName(name: String) extends Named {
+  if(!validModuleName(name)) throw AnnotationException(s"Illegal circuit name: $name")
+  def serialize: String = name
+}
+
+case class ModuleName(name: String, circuit: CircuitName) extends Named {
+  if(!validModuleName(name)) throw AnnotationException(s"Illegal module name: $name")
+  def serialize: String = name + "." + circuit.serialize
+}
+
+case class ComponentName(name: String, module: ModuleName) extends Named {
+  if(!validComponentName(name)) throw AnnotationException(s"Illegal component name: $name")
+  def expr: Expression = toExp(name)
+  def serialize: String = name + "." + module.serialize
+}
+
+case class AnnotationException(message: String) extends Exception(message)
+
+
+case class Annotation(target: Named, transform: Class[_ <: Transform], value: String) {
+  val targetString: String = target.serialize
+  val transformClass: String = transform.getName
+  def serialize: String = this.toString
+  def update(tos: Seq[Named]): Seq[Annotation] = {
+    check(target, tos, this)
+    propagate(target, tos, duplicate)
+  }
+  def propagate(from: Named, tos: Seq[Named], dup: Named=>Annotation): Seq[Annotation] = tos.map(dup(_))
+  def check(from: Named, tos: Seq[Named], which: Annotation): Unit = {}
+  def duplicate(n: Named) = new Annotation(n, transform, value)
+  //def transform: Class[_ <: Transform] = 
+}
+
+object AnnotationUtils {
   /** Returns true if a valid Module name */
   val SerializedModuleName = """([a-zA-Z_][a-zA-Z_0-9~!@#$%^*\-+=?/]*)""".r
   def validModuleName(s: String): Boolean = s match {
@@ -97,141 +142,6 @@ object Annotations {
     if(validComponentName(s)) {
       parse(tokenize(s))
     } else error(s"Cannot convert $s into an expression.")
-  }
-
-  case class AnnotationException(message: String) extends Exception(message)
-
-  /**
-   * Named classes associate an annotation with a component in a Firrtl circuit
-   */
-  trait Named { def name: String }
-  case class CircuitName(name: String) extends Named {
-    if(!validModuleName(name)) throw AnnotationException(s"Illegal circuit name: $name")
-  }
-  case class ModuleName(name: String, circuit: CircuitName) extends Named {
-    if(!validModuleName(name)) throw AnnotationException(s"Illegal module name: $name")
-  }
-  case class ComponentName(name: String, module: ModuleName) extends Named {
-    if(!validComponentName(name)) throw AnnotationException(s"Illegal component name: $name")
-    def expr: Expression = toExp(name)
-  }
-
-  /**
-   * Permissibility defines the range of acceptable changes to the annotated component.
-   */
-  trait Permissibility {
-    def check(from: Named, tos: Seq[Named], which: Annotation): Unit
-  }
-  /**
-   * Annotated component cannot be renamed, expanded, or removed.
-   */
-  trait Strict extends Permissibility {
-    def check(from: Named, tos: Seq[Named], which: Annotation): Unit = tos.size match {
-      case 0 =>
-        throw new AnnotationException(s"Cannot remove the strict annotation ${which.serialize} on ${from.name}")
-      case 1 if from != tos.head =>
-        throw new AnnotationException(s"Cannot rename the strict annotation ${which.serialize} on ${from.name} -> ${tos.head.name}")
-      case _ =>
-        throw new AnnotationException(s"Cannot expand a strict annotation on ${from.name} -> ${tos.map(_.name)}")
-    }
-  }
-
-  /**
-   * Annotated component can be renamed, but cannot be expanded or removed.
-   */
-  trait Rigid extends Permissibility {
-    def check(from: Named, tos: Seq[Named], which: Annotation): Unit = tos.size match {
-      case 0 => throw new AnnotationException(s"Cannot remove the rigid annotation ${which.serialize} on ${from.name}")
-      case 1 =>
-      case _ => throw new AnnotationException(s"Cannot expand a rigid annotation on ${from.name} -> ${tos.map(_.name)}")
-    }
-  }
-
-  /**
-   * Annotated component can be renamed, and expanded, but not removed.
-   */
-  trait Firm extends Permissibility {
-    def check(from: Named, tos: Seq[Named], which: Annotation): Unit = tos.size match {
-      case 0 => throw new AnnotationException(s"Cannot remove the firm annotation ${which.serialize} on ${from.name}")
-      case _ =>
-    }
-  }
-
-  /**
-   * Annotated component can be renamed, and expanded, and removed.
-   */
-  trait Loose extends Permissibility {
-    def check(from: Named, tos: Seq[Named], which: Annotation): Unit = {}
-  }
-
-  /**
-   * Tenacity defines how the annotation propagates when changes to the
-   * annotated component occur.
-   */
-  trait Tenacity {
-    protected def propagate(from: Named, tos: Seq[Named], dup: Named=>Annotation): Seq[Annotation]
-  }
-
-  /**
-   * Annotation propagates to all new components
-   */
-  trait Sticky extends Tenacity {
-    protected def propagate(from: Named, tos: Seq[Named], dup: Named=>Annotation): Seq[Annotation] = tos.map(dup(_))
-  }
-
-  /**
-   * Annotation propagates to the first of all new components
-   */
-  trait Insistent extends Tenacity {
-    protected def propagate(from: Named, tos: Seq[Named], dup: Named=>Annotation): Seq[Annotation] = tos.headOption match {
-      case None => Seq.empty
-      case Some(n) => Seq(dup(n))
-    }
-  }
-
-  /**
-   * Annotation propagates only if there is one new component.
-   */
-  trait Fickle extends Tenacity {
-    protected def propagate(from: Named, tos: Seq[Named], dup: Named=>Annotation): Seq[Annotation] = tos.size match {
-      case 1 => Seq(dup(tos.head))
-      case _ => Seq.empty
-    }
-  }
-
-  /**
-   * Annotation propagates only the new component shares the same name.
-   */
-  trait Unstable extends Tenacity {
-    protected def propagate(from: Named, tos: Seq[Named], dup: Named=>Annotation): Seq[Annotation] = tos.size match {
-      case 1 if tos.head == from => Seq(dup(tos.head))
-      case _ => Seq.empty
-    }
-  }
-
-  /**
-   * Annotation associates with a given named circuit component (target) and a
-   * given transformation (transform).  Also defined are the legal ranges of changes
-   * to the associated component (Permissibility) and how the annotation
-   * propagates under such changes (Tenacity). Subclasses must implement the
-   * duplicate function to create the same annotation associated with a new
-   * component.
-   */
-  case class Annotation(target: Named, transform: Class[_ <: Transform], value: String) extends Sticky with Loose {
-    def serialize: String = this.toString
-    def update(tos: Seq[Named]): Seq[Annotation] = {
-      check(target, tos, this)
-      propagate(target, tos, duplicate)
-    }
-    def duplicate(n: Named) = this.copy(target = n)
-  }
-
-  /**
-   * Container of all annotations for a Firrtl compiler.
-   */
-  case class AnnotationMap(annotations: Seq[Annotation]) {
-    def get(id: Class[_]): Seq[Annotation] = annotations.filter(a => a.transform == id)
-    def get(named: Named): Seq[Annotation] = annotations.filter(n => n == named)
   }
 }
 

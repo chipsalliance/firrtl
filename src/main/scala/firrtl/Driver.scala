@@ -5,15 +5,16 @@ package firrtl
 import java.io.{File, FileNotFoundException}
 import net.jcazevedo.moultingyaml._
 
-import firrtl.AnnotationYAMLProtocol._
 
 import logger.Logger
 
 import scala.io.Source
-import Annotations._
+import annotations._
+import firrtl.annotations.AnnotationYAMLProtocol._
 
 import Parser.{InfoMode, IgnoreInfo}
 import scala.collection._
+import net.jcazevedo.moultingyaml._
 
 /**
   * The driver provides methods to access the firrtl compiler.

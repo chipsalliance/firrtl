@@ -11,7 +11,7 @@ import firrtl.Utils.{one, zero, BoolType}
 import MemPortUtils.memPortField
 import firrtl.passes.memlib.AnalysisUtils.{Connects, getConnects, getOrigin}
 import WrappedExpression.weq
-import Annotations._
+import annotations._
 
 object InferReadWriteAnnotation {
   def apply(t: String) = Annotation(CircuitName(t), classOf[InferReadWrite], "")

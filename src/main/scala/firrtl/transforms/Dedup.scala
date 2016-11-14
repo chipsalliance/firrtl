@@ -5,7 +5,7 @@ package transforms
 
 import firrtl.ir._
 import firrtl.Mappers._
-import firrtl.Annotations._
+import firrtl.annotations._
 import firrtl.passes.PassException
 
 // Datastructures

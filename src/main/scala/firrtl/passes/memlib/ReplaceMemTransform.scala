@@ -5,7 +5,7 @@ package memlib
 
 import firrtl._
 import firrtl.ir._
-import Annotations._
+import firrtl.annotations._
 import AnalysisUtils._
 import Utils.error
 import java.io.{File, CharArrayWriter, PrintWriter}

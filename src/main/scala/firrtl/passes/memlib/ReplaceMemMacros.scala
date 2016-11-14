@@ -10,7 +10,7 @@ import firrtl.Mappers._
 import MemPortUtils.{MemPortMap, Modules}
 import MemTransformUtils._
 import AnalysisUtils._
-import Annotations._
+import firrtl.annotations._
 import wiring._
 
 

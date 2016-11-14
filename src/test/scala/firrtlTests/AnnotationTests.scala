@@ -9,7 +9,7 @@ import org.scalatest.Matchers
 import org.scalatest.junit.JUnitRunner
 
 import firrtl.ir.Circuit
-import firrtl.Parser
+import firrtl.{Parser, AnnotationMap}
 import firrtl.{
    CircuitState,
    ResolveAndCheck,
@@ -20,22 +20,13 @@ import firrtl.{
    VerilogCompiler,
    Transform
 }
-import firrtl.Annotations.{
+import firrtl.annotations.{
    Named,
    CircuitName,
    ModuleName,
    ComponentName,
    AnnotationException,
-   Annotation,
-   Strict,
-   Rigid,
-   Firm,
-   Loose,
-   Sticky,
-   Insistent,
-   Fickle,
-   Unstable,
-   AnnotationMap
+   Annotation
 }
 
 /**

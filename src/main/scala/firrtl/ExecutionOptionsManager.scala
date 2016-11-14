@@ -2,7 +2,7 @@
 
 package firrtl
 
-import firrtl.Annotations._
+import firrtl.annotations._
 import firrtl.Parser._
 import firrtl.passes.memlib.{InferReadWriteAnnotation, ReplSeqMemAnnotation}
 import firrtl.passes.clocklist.ClockListAnnotation

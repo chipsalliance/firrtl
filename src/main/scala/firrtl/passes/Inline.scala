@@ -5,7 +5,7 @@ package passes
 
 import firrtl.ir._
 import firrtl.Mappers._
-import firrtl.Annotations._
+import firrtl.annotations._
 
 // Datastructures
 import scala.collection.mutable
