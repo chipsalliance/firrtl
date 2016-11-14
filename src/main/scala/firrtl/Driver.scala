@@ -10,7 +10,7 @@ import logger.Logger
 
 import scala.io.Source
 import annotations._
-import firrtl.annotations.AnnotationYAMLProtocol._
+import firrtl.annotations.AnnotationYamlProtocol._
 
 import Parser.{InfoMode, IgnoreInfo}
 import scala.collection._
