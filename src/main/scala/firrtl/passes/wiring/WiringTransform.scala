@@ -14,7 +14,8 @@ import WiringUtils._
 /** A component, e.g. register etc. Must be declared only once under the TopAnnotation
   */
 object SourceAnnotation {
-  def apply(target: ComponentName): Annotation = Annotation(target, classOf[WiringTransform], "source")
+  def apply(target: ComponentName, pin: String): Annotation = Annotation(target, classOf[WiringTransform], s"source $pin")
+  val matcher = "source (.+)".r
 }
 
 /** A module, e.g. ExtModule etc., that should add the input pin
@@ -28,7 +29,8 @@ object SinkAnnotation {
   * one source component
   */
 object TopAnnotation {
-  def apply(target: ModuleName): Annotation = Annotation(target, classOf[WiringTransform], s"top")
+  def apply(target: ModuleName, pin: String): Annotation = Annotation(target, classOf[WiringTransform], s"top $pin")
+  val matcher = "top (.+)".r
 }
 
 /** Add pins to modules and wires a signal to them, under the scope of a specified top module
@@ -46,30 +48,32 @@ object TopAnnotation {
 class WiringTransform extends Transform with SimpleRun {
   def inputForm = MidForm
   def outputForm = MidForm
-  def passSeq(wi: WiringInfo) =
-    Seq(new Wiring(wi),
+  def passSeq(wis: Seq[WiringInfo]) =
+    Seq(new Wiring(wis),
         InferTypes,
         ResolveKinds,
         ResolveGenders)
   def execute(state: CircuitState): CircuitState = getMyAnnotations(state) match {
     case Nil => CircuitState(state.circuit, state.form)
     case p => 
-      val sinks = mutable.HashMap[String, String]()
-      val sources = mutable.Set[String]()
-      val tops = mutable.Set[String]()
-      val comp = mutable.Set[String]()
+      val sinks = mutable.HashMap[String, Set[String]]()
+      val sources = mutable.HashMap[String, String]()
+      val tops = mutable.HashMap[String, String]()
+      val comp = mutable.HashMap[String, String]()
       p.foreach { 
-        case Annotation(m, _, SinkAnnotation.matcher(pin)) => sinks(m.name) = pin
-        case Annotation(ComponentName(n, ModuleName(m, CircuitName(c))), _, "source") =>
-          sources += m
-          comp += n
-        case Annotation(m, _, "top") => tops += m.name
+        case Annotation(m, _, SinkAnnotation.matcher(pin)) => sinks(pin) = sinks.getOrElse(pin, Set.empty) + m.name
+        case Annotation(ComponentName(n, ModuleName(m, CircuitName(c))), _, SourceAnnotation.matcher(pin)) =>
+          sources(pin) = m
+          comp(pin) = n
+        case Annotation(m, _, TopAnnotation.matcher(pin)) => tops(pin) = m.name
       }
       (sources.size, tops.size, sinks.size, comp.size) match {
-        case (0, 0, p, 0) => state
-        case (1, 1, p, 1) if p > 0 =>
-          val winfo = WiringInfo(sources.head, comp.head, sinks.toMap, tops.head)
-          state.copy(circuit = runPasses(state.circuit, passSeq(winfo)))
+        case (0, 0, p, 0) => state.copy(annotations = None)
+        case (s, t, p, c) if (p > 0) & (s == t) & (t == c) =>
+          val wis = tops.foldLeft(Seq[WiringInfo]()) { case (seq, (pin, top)) =>
+            seq :+ WiringInfo(sources(pin), comp(pin), sinks(pin), pin, top)
+          }
+          state.copy(circuit = runPasses(state.circuit, passSeq(wis)), annotations = None)
         case _ => error("Wrong number of sources, tops, or sinks!")
       }
   }

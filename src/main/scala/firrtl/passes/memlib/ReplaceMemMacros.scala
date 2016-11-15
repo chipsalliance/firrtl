@@ -17,7 +17,10 @@ import wiring._
 /** Annotates the name of the pin to add for WiringTransform
   */
 object PinAnnotation {
-  def apply(target: CircuitName, pin: String): Annotation = Annotation(target, classOf[ReplaceMemMacros], pin)
+  def apply(target: CircuitName, pins: Seq[String]): Annotation = {
+    Annotation(target, classOf[ReplaceMemMacros], pins.foldLeft("") { (str, p) => str + "pin:" + p + " " } )
+  }
+  val matcher = "pin:([^ ]+)".r
 }
 
 /** Replace DefAnnotatedMemory with memory blackbox + wrapper + conf file.
@@ -214,12 +217,20 @@ class ReplaceMemMacros(writer: ConfWriter) extends Transform {
     val modules = c.modules map updateMemMods(namespace, nameMap, memMods)
     // print conf
     writer.serialize()
-    val pin = getMyAnnotations(state) match {
-      case Nil => "pin"
-      case Seq(p) => p.value
+    val pins = getMyAnnotations(state) match {
+      case Nil => Nil
+      case Seq(Annotation(c, t, string)) =>
+        PinAnnotation.matcher.findAllIn(string).toSeq match {
+          case Nil => error(s"Bad Annotation: ${Annotation(c, t, string)}")
+          case seq => seq
+        }
       case _ => throwInternalError
     }
-    val annos = memMods.collect { case m: ExtModule => SinkAnnotation(ModuleName(m.name, CircuitName(c.main)), pin) }
+    val annos = pins.foldLeft(Seq[Annotation]()) { (seq, pin) =>
+      seq ++ memMods.collect { 
+        case m: ExtModule => SinkAnnotation(ModuleName(m.name, CircuitName(c.main)), pin) 
+      }
+    }
     CircuitState(c.copy(modules = modules ++ memMods), inputForm, Some(AnnotationMap(annos)))
   }
 }
