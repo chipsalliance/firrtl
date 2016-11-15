@@ -18,7 +18,7 @@ case class WiringInfo(source: String, comp: String, sinks: Set[String], pin: Str
 class Wiring(wiSeq: Seq[WiringInfo]) extends Pass {
   def name = this.getClass.getSimpleName
   def run(c: Circuit): Circuit = {
-    wiSeq.foldLeft(c){(circuit, wi) => wire(circuit, wi) }
+    wiSeq.foldLeft(c) { (circuit, wi) => wire(circuit, wi) }
   }
 
   /** Add pins to modules and wires a signal to them, under the scope of a specified top module
