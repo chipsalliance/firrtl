@@ -96,7 +96,6 @@ class DriverSpec extends FreeSpec with Matchers {
 
         val firrtlOptions = optionsManager.firrtlOptions
         firrtlOptions.annotations.length should be (3)
-        val x = classOf[InlineInstances]
         firrtlOptions.annotations.foreach { annotation =>
           annotation.transform shouldBe classOf[InlineInstances]
         }
