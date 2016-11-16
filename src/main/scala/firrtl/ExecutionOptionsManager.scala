@@ -229,7 +229,7 @@ trait HasFirrtlOptions {
   }
 
   parser.opt[String]("annotation-file")
-    .abbr("a")
+    .abbr("faf")
     .valueName ("<output>").
     foreach { x =>
       firrtlOptions = firrtlOptions.copy(outputFileNameOverride = x)

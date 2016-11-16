@@ -2,19 +2,15 @@
 
 package firrtl
 
+import scala.collection._
+import scala.io.Source
 import java.io.{File, FileNotFoundException}
 import net.jcazevedo.moultingyaml._
-
-
 import logger.Logger
-
-import scala.io.Source
+import Parser.{InfoMode, IgnoreInfo}
 import annotations._
 import firrtl.annotations.AnnotationYamlProtocol._
 
-import Parser.{InfoMode, IgnoreInfo}
-import scala.collection._
-import net.jcazevedo.moultingyaml._
 
 /**
   * The driver provides methods to access the firrtl compiler.
@@ -90,7 +86,7 @@ object Driver {
     val firrtlConfig = optionsManager.firrtlOptions
     val annotationFileName = firrtlConfig.getAnnotationFileName(optionsManager)
     val annotationFile = new File(annotationFileName)
-    if(annotationFile.exists()) {
+    if(annotationFile.exists) {
       val annotationsYaml = io.Source.fromFile(annotationFile).getLines().mkString("\n").parseYaml
       val annotationArray = annotationsYaml.convertTo[Array[Annotation]]
       optionsManager.firrtlOptions = firrtlConfig.copy(annotations = firrtlConfig.annotations ++ annotationArray)

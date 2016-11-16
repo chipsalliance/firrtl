@@ -7,7 +7,7 @@ import firrtl.ir._
 
 case class AnnotationException(message: String) extends Exception(message)
 
-case class Annotation(target: Named, transform: Class[_ <: Transform], value: String) {
+final case class Annotation(target: Named, transform: Class[_ <: Transform], value: String) {
   val targetString: String = target.serialize
   val transformClass: String = transform.getName
   def serialize: String = this.toString

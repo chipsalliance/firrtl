@@ -121,7 +121,6 @@ class DriverSpec extends FreeSpec with Matchers {
         ) should be (true)
 
         val firrtlOptions = optionsManager.firrtlOptions
-
         firrtlOptions.annotations.length should be (1)
         firrtlOptions.annotations.foreach { annotation =>
           annotation.transform shouldBe classOf[ReplSeqMem]

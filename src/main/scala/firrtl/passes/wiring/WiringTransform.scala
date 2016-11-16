@@ -15,14 +15,24 @@ import WiringUtils._
   */
 object SourceAnnotation {
   def apply(target: ComponentName, pin: String): Annotation = Annotation(target, classOf[WiringTransform], s"source $pin")
-  val matcher = "source (.+)".r
+
+  private val matcher = "source (.+)".r
+  def unapply(a: Annotation): Option[(ComponentName, String)] = a match {
+    case Annotation(ComponentName(n, m), _, matcher(pin)) => Some((ComponentName(n, m), pin))
+    case _ => None
+  }
 }
 
 /** A module, e.g. ExtModule etc., that should add the input pin
   */
 object SinkAnnotation {
   def apply(target: ModuleName, pin: String): Annotation = Annotation(target, classOf[WiringTransform], s"sink $pin")
-  val matcher = "sink (.+)".r
+
+  private val matcher = "sink (.+)".r
+  def unapply(a: Annotation): Option[(ModuleName, String)] = a match {
+    case Annotation(ModuleName(n, c), _, matcher(pin)) => Some((ModuleName(n, c), pin))
+    case _ => None
+  }
 }
 
 /** A module under which all sink module must be declared, and there is only
@@ -30,7 +40,12 @@ object SinkAnnotation {
   */
 object TopAnnotation {
   def apply(target: ModuleName, pin: String): Annotation = Annotation(target, classOf[WiringTransform], s"top $pin")
-  val matcher = "top (.+)".r
+
+  private val matcher = "top (.+)".r
+  def unapply(a: Annotation): Option[(ModuleName, String)] = a match {
+    case Annotation(ModuleName(n, c), _, matcher(pin)) => Some((ModuleName(n, c), pin))
+    case _ => None
+  }
 }
 
 /** Add pins to modules and wires a signal to them, under the scope of a specified top module
@@ -61,11 +76,12 @@ class WiringTransform extends Transform with SimpleRun {
       val tops = mutable.HashMap[String, String]()
       val comp = mutable.HashMap[String, String]()
       p.foreach { 
-        case Annotation(m, _, SinkAnnotation.matcher(pin)) => sinks(pin) = sinks.getOrElse(pin, Set.empty) + m.name
-        case Annotation(ComponentName(n, ModuleName(m, CircuitName(c))), _, SourceAnnotation.matcher(pin)) =>
-          sources(pin) = m
-          comp(pin) = n
-        case Annotation(m, _, TopAnnotation.matcher(pin)) => tops(pin) = m.name
+        case SinkAnnotation(m, pin) =>
+          sinks(pin) = sinks.getOrElse(pin, Set.empty) + m.name
+        case SourceAnnotation(c, pin) =>
+          sources(pin) = c.module.name
+          comp(pin) = c.name
+        case TopAnnotation(m, pin) => tops(pin) = m.name
       }
       (sources.size, tops.size, sinks.size, comp.size) match {
         case (0, 0, p, 0) => state.copy(annotations = None)

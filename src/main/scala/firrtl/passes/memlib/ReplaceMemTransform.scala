@@ -87,12 +87,23 @@ Optional Arguments:
       OutputConfigFileName, 
       error("No output config file provided for ReplSeqMem!" + usage)
     )
+    val inputFileName = PassConfigUtil.getPassOptions(t).getOrElse(InputConfigFileName, "")
     val passCircuit = passOptions.getOrElse(
       PassCircuitName, 
       error("No circuit name specified for ReplSeqMem!" + usage)
     )
     val target = CircuitName(passCircuit)
-    Annotation(target, classOf[ReplSeqMem], t)
+    Annotation(target, classOf[ReplSeqMem], s"$inputFileName $outputConfig")
+  }
+
+  def apply(target: CircuitName, inputFileName: String, outputConfig: String): Annotation =
+    Annotation(target, classOf[ReplSeqMem], s"$inputFileName $outputConfig")
+
+  private val matcher = "([^ ]*) ([^ ]+)".r
+  def unapply(a: Annotation): Option[(CircuitName, String, String)] = a match {
+    case Annotation(CircuitName(c), t, matcher(inputFileName, outputConfig)) if t == classOf[ReplSeqMem] =>
+      Some((CircuitName(c), inputFileName, outputConfig))
+    case _ => None
   }
 }
 
@@ -139,14 +150,13 @@ class ReplSeqMem extends Transform with SimpleRun {
     getMyAnnotations(state) match {
       case Nil => state.copy(annotations = None) // Do nothing if there are no annotations
       case p => (p.collectFirst { case a if (a.target == CircuitName(state.circuit.main)) => a }) match {
-        case Some(Annotation(_, _, t)) =>
-          val inputFileName = PassConfigUtil.getPassOptions(t).getOrElse(InputConfigFileName, "")
+        case Some(ReplSeqMemAnnotation(target, inputFileName, outputConfig)) =>
           val inConfigFile = {
             if (inputFileName.isEmpty) None 
             else if (new File(inputFileName).exists) Some(new YamlFileReader(inputFileName))
             else error("Input configuration file does not exist!")
           }
-          val outConfigFile = new ConfWriter(PassConfigUtil.getPassOptions(t)(OutputConfigFileName))
+          val outConfigFile = new ConfWriter(outputConfig)
           run(state, passSeq(inConfigFile, outConfigFile))
         case _ => error("Unexpected transform annotation")
       }

@@ -9,22 +9,22 @@ import AnnotationUtils.{validModuleName, validComponentName, toExp}
 /**
  * Named classes associate an annotation with a component in a Firrtl circuit
  */
-trait Named {
+sealed trait Named {
   def name: String
   def serialize: String
 }
 
-case class CircuitName(name: String) extends Named {
+final case class CircuitName(name: String) extends Named {
   if(!validModuleName(name)) throw AnnotationException(s"Illegal circuit name: $name")
   def serialize: String = name
 }
 
-case class ModuleName(name: String, circuit: CircuitName) extends Named {
+final case class ModuleName(name: String, circuit: CircuitName) extends Named {
   if(!validModuleName(name)) throw AnnotationException(s"Illegal module name: $name")
   def serialize: String = name + "." + circuit.serialize
 }
 
-case class ComponentName(name: String, module: ModuleName) extends Named {
+final case class ComponentName(name: String, module: ModuleName) extends Named {
   if(!validComponentName(name)) throw AnnotationException(s"Illegal component name: $name")
   def expr: Expression = toExp(name)
   def serialize: String = name + "." + module.serialize

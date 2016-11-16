@@ -48,6 +48,15 @@ Usage:
     val target = ModuleName(passModule, CircuitName(passCircuit))
     Annotation(target, classOf[ClockListTransform], outputConfig)
   }
+
+  def apply(target: ModuleName, outputConfig: String): Annotation =
+    Annotation(target, classOf[ClockListTransform], outputConfig)
+
+  def unapply(a: Annotation): Option[(ModuleName, String)] = a match {
+    case Annotation(ModuleName(m, c), t, outputConfig) if t == classOf[ClockListTransform] =>
+      Some((ModuleName(m, c), outputConfig))
+    case _ => None
+  }
 }
 
 class ClockListTransform extends Transform {
@@ -56,7 +65,7 @@ class ClockListTransform extends Transform {
   def passSeq(top: String, writer: Writer): Seq[Pass] =
     Seq(new ClockList(top, writer))
   def execute(state: CircuitState): CircuitState = getMyAnnotations(state) match {
-    case Seq(Annotation(ModuleName(top, CircuitName(state.circuit.main)), _, out)) => 
+    case Seq(ClockListAnnotation(ModuleName(top, CircuitName(state.circuit.main)), out)) => 
       val outputFile = new PrintWriter(out)
       val newC = (new ClockList(top, outputFile)).run(state.circuit)
       outputFile.close()
