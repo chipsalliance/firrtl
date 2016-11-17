@@ -28,7 +28,10 @@ class InlineInstances extends Transform {
    private def collectAnns(circuit: Circuit, anns: Iterable[Annotation]): (Set[ModuleName], Set[ComponentName]) =
      anns.foldLeft(Set.empty[ModuleName], Set.empty[ComponentName]) {
        case ((modNames, instNames), ann) => ann match {
-         case InlineAnnotation(CircuitName(c)) => (circuit.modules.collect { case Module(_, name, _, _) if name != circuit.main => ModuleName(name, CircuitName(c)) }.toSet , instNames)
+         case InlineAnnotation(CircuitName(c)) =>
+           (circuit.modules.collect {
+             case Module(_, name, _, _) if name != circuit.main => ModuleName(name, CircuitName(c))
+           }.toSet, instNames)
          case InlineAnnotation(ModuleName(mod, cir)) => (modNames + ModuleName(mod, cir), instNames)
          case InlineAnnotation(ComponentName(com, mod)) => (modNames, instNames + ComponentName(com, mod))
          case _ => throw new PassException("Annotation must be InlineAnnotation")
@@ -112,7 +115,7 @@ class InlineInstances extends Transform {
 
     def appendNamePrefix(prefix: String)(name:String): String = prefix + name
     def appendRefPrefix(prefix: String, currentModule: String)(e: Expression): Expression = e match {
-      case WSubField(WRef(ref, _, InstanceKind, _), field, tpe, gen) if (flatInstances.contains(currentModule + "." + ref)) =>
+      case WSubField(WRef(ref, _, InstanceKind, _), field, tpe, gen) if flatInstances.contains(currentModule + "." + ref) =>
         WRef(prefix + ref + inlineDelim + field, tpe, WireKind, gen)
       case WRef(name, tpe, kind, gen) => WRef(prefix + name, tpe, kind, gen)
       case ex => ex map appendRefPrefix(prefix, currentModule)
