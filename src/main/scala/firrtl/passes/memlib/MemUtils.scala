@@ -27,7 +27,7 @@ object toBits {
     case t => error("Invalid operand expression for toBits!")
   }
   private def hiercat(e: Expression): Expression = e.tpe match {
-    case t: VectorType => seqCat((0 until t.size).reverse map (i =>
+    case t: VectorType => seqCat((0 until t.size) map (i =>
       hiercat(WSubIndex(e, i, t.tpe, UNKNOWNGENDER))))
     case t: BundleType => seqCat(t.fields map (f =>
       hiercat(WSubField(e, f.name, f.tpe, UNKNOWNGENDER))))
@@ -58,7 +58,7 @@ object toBitMask {
   private def hiermask(mask: Expression, dataType: Type): Expression =
     (mask.tpe, dataType) match {
       case (mt: VectorType, dt: VectorType) =>
-        seqCat((0 until mt.size).reverse map { i =>
+        seqCat((0 until mt.size) map { i =>
           hiermask(WSubIndex(mask, i, mt.tpe, UNKNOWNGENDER), dt.tpe)
         })
       case (mt: BundleType, dt: BundleType) =>
