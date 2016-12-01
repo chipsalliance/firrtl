@@ -21,7 +21,6 @@ final case class CircuitName(name: String) extends Named {
 
 final case class ModuleName(name: String, circuit: CircuitName) extends Named {
   if(!validModuleName(name)) throw AnnotationException(s"Illegal module name: $name")
-//  def serialize: String = name + "." + circuit.serialize
   def serialize: String = circuit.serialize + "." + name
 }
 

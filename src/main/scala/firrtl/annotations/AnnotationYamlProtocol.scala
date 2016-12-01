@@ -28,7 +28,7 @@ object AnnotationYamlProtocol extends DefaultYamlProtocol {
     def toTarget(string: String): Named = string.split('.').toSeq match {
       case Seq(c) => CircuitName(c)
       case Seq(c, m) => ModuleName(m, CircuitName(c))
-      case Nil => sys.error("BAD")
+      case Nil => Utils.error("BAD")
       case s => ComponentName(s.drop(2).mkString("."), ModuleName(s.tail.head, CircuitName(s.head)))
     }
   }
