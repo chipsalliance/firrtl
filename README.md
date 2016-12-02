@@ -23,11 +23,15 @@
  2. Compile firrtl:```sbt compile```
  3. Run tests: ```sbt test```
  4. Build executable (`utils/bin/firrtl`): ```sbt assembly```
-    * **Note:** You can add `utils/bin/firrtl` to your path to call firrtl from other processes
+    * **Note:** You can add `utils/bin` to your path to call firrtl from other processes
  5. Run regression:
 ```
 mkdir -p build
 ./utils/bin/firrtl -i regress/rocket.fir -o build/rocket.v -X verilog
+```
+ 6. Publish this version locally in order to satisfy other tool chain library dependencies:
+```
+sbt publish-local
 ```
 
 ##### Useful sbt Tips
