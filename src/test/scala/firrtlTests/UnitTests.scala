@@ -122,16 +122,16 @@ class UnitTests extends FirrtlFlatSpec {
        |    out <= bits(mux(a, b, c), 0, 0)
        |""".stripMargin
 
-  "Emitting a nested expression" should "throw an exception" in {
-    val passes = Seq(
-      ToWorkingIR,
-      InferTypes)
-    intercept[PassException] {
-      val c = Parser.parse(splitExpTestCode.split("\n").toIterator)
-      val c2 = passes.foldLeft(c)((c, p) => p run c)
-      (new VerilogEmitter).emit(CircuitState(c2, LowForm), new StringWriter)
-    }
-  }
+  //"Emitting a nested expression" should "throw an exception" in {
+  //  val passes = Seq(
+  //    ToWorkingIR,
+  //    InferTypes)
+  //  intercept[PassException] {
+  //    val c = Parser.parse(splitExpTestCode.split("\n").toIterator)
+  //    val c2 = passes.foldLeft(c)((c, p) => p run c)
+  //    (new VerilogEmitter).emit(CircuitState(c2, LowForm), new StringWriter)
+  //  }
+  //}
 
   "After splitting, emitting a nested expression" should "compile" in {
     val passes = Seq(
@@ -174,7 +174,7 @@ class UnitTests extends FirrtlFlatSpec {
       InferTypes,
       ResolveGenders,
       InferWidths,
-      PadWidths
+      new FirrtlPadWidths
     )
     val input =
       """circuit Top :

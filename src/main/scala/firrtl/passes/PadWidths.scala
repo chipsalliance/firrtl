@@ -8,7 +8,7 @@ import firrtl.PrimOps._
 import firrtl.Mappers._
 
 // Makes all implicit width extensions and truncations explicit
-object PadWidths extends Pass {
+abstract class PadWidths(doVerilog: Boolean) extends Pass {
   def name = "Pad Widths"
   private def width(t: Type): Int = bitWidth(t).toInt
   private def width(e: Expression): Int = width(e.tpe)
@@ -42,10 +42,10 @@ object PadWidths extends Pass {
            Add | Sub | Mul | Div | Rem | Shr =>
         // sensitive ops
         ex map fixup((ex.args map width foldLeft 0)(math.max))
-      case Dshl =>
+      case Dshl if doVerilog =>
         // special case as args aren't all same width
         ex copy (op = Dshlw, args = Seq(fixup(width(ex.tpe))(ex.args.head), ex.args(1)))
-      case Shl =>
+      case Shl if doVerilog =>
         // special case as arg should be same width as result
         ex copy (op = Shlw, args = Seq(fixup(width(ex.tpe))(ex.args.head)))
       case _ => ex
@@ -64,3 +64,7 @@ object PadWidths extends Pass {
 
   def run(c: Circuit): Circuit = c copy (modules = c.modules map (_ map onStmt))
 }
+
+class FirrtlPadWidths extends PadWidths(false)
+class VerilogPadWidths extends PadWidths(true)
+

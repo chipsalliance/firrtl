@@ -97,7 +97,7 @@ class LowFirrtlOptimization extends CoreTransform {
   def passSeq = Seq(
     passes.RemoveValidIf,
     passes.ConstProp,
-    passes.PadWidths,
+    new passes.FirrtlPadWidths,
     passes.ConstProp,
     passes.Legalize,
     passes.memlib.VerilogMemDelays, // TODO move to Verilog emitter

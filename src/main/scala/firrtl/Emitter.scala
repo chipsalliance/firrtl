@@ -562,6 +562,8 @@ class VerilogEmitter extends Emitter with PassBased {
    }
 
   def passSeq = Seq(
+    new passes.VerilogPadWidths,
+    passes.SplitExpressions,
     passes.VerilogWrap,
     passes.VerilogRename,
     passes.VerilogPrep)
