@@ -69,6 +69,32 @@ class AnnotationTests extends AnnotationSpec with Matchers {
     annotationArray(7).value should be (expectedValue)
   }
 
+  "Badly formatted serializations" should "return reasonable error messages" in {
+    var badYaml =
+      """
+        |- transformClass: firrtl.passes.InlineInstances
+        |  targetString: circuit.module..
+        |  value: ModC.this params 16 32
+      """.stripMargin.parseYaml
+
+    var thrown = intercept[Exception] {
+      badYaml.convertTo[Array[Annotation]]
+    }
+    thrown.getMessage should include ("Illegal component name")
+
+    badYaml =
+      """
+        |- transformClass: firrtl.passes.InlineInstances
+        |  targetString: .circuit.module.component
+        |  value: ModC.this params 16 32
+      """.stripMargin.parseYaml
+
+    thrown = intercept[Exception] {
+      badYaml.convertTo[Array[Annotation]]
+    }
+    thrown.getMessage should include ("Illegal circuit name")
+  }
+
   "Round tripping annotations through text file" should "preserve annotations" in {
     val annos: Array[Annotation] = Seq(
       InlineAnnotation(CircuitName("fox")),

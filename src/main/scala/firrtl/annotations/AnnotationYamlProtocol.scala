@@ -15,21 +15,33 @@ object AnnotationYamlProtocol extends DefaultYamlProtocol {
     )
 
     def read(yamlValue: YamlValue): Annotation = {
-      yamlValue.asYamlObject.getFields(
-        YamlString("targetString"),
-        YamlString("transformClass"),
-        YamlString("value")) match {
+      try {
+        yamlValue.asYamlObject.getFields(
+          YamlString("targetString"),
+          YamlString("transformClass"),
+          YamlString("value")) match {
           case Seq(YamlString(targetString), YamlString(transformClass), YamlString(value)) =>
-              Annotation(
-                toTarget(targetString), Class.forName(transformClass).asInstanceOf[Class[_ <: Transform]], value)
-          case _ => deserializationError("Color expected")
+            Annotation(
+              toTarget(targetString), Class.forName(transformClass).asInstanceOf[Class[_ <: Transform]], value)
+          case _ => deserializationError("Annotation expected")
+        }
+      }
+      catch {
+        case annotationException: AnnotationException =>
+          Utils.error(
+            s"Error: ${annotationException.getMessage} while parsing annotation from yaml\n${yamlValue.prettyPrint}")
+        case annotationException: FIRRTLException =>
+          Utils.error(
+            s"Error: ${annotationException.getMessage} while parsing annotation from yaml\n${yamlValue.prettyPrint}")
       }
     }
-    def toTarget(string: String): Named = string.split('.').toSeq match {
+    def toTarget(string: String): Named = string.split("""\.""", -1).toSeq match {
       case Seq(c) => CircuitName(c)
       case Seq(c, m) => ModuleName(m, CircuitName(c))
       case Nil => Utils.error("BAD")
-      case s => ComponentName(s.drop(2).mkString("."), ModuleName(s.tail.head, CircuitName(s.head)))
+      case s =>
+        val componentString = s.drop(2).mkString(".")
+        ComponentName(componentString, ModuleName(s.tail.head, CircuitName(s.head)))
     }
   }
 }
