@@ -271,6 +271,8 @@ object ConstProp extends Pass {
       case m: ExtModule => m
       case m: Module => constPropModule(m)
     }
-    Circuit(c.info, modulesx, c.main)
+    val cx = Circuit(c.info, modulesx, c.main)
+    //println(cx.serialize)
+    cx
   }
 }

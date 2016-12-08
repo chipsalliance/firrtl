@@ -77,7 +77,7 @@ case class WDefInstance(info: Info, name: String, module: String, tpe: Type) ext
   def mapType(f: Type => Type): Statement = this.copy(tpe = f(tpe))
   def mapString(f: String => String): Statement = this.copy(name = f(name))
 }
-case class WDefInstanceConnector(info: Info, name: String, module: String, tpe: Type, exprs: Seq[Expression]) extends Statement with IsDeclaration {
+case class WDefInstanceConnector(info: Info, name: String, module: String, tpe: Type, exprs: Seq[Expression], defname: String, params: Seq[Param]) extends Statement with IsDeclaration {
   def serialize: String = s"inst $name of $module with ${tpe.serialize} connected to (" + exprs.map(_.serialize).mkString(", ") + ")" + info.serialize
   def mapExpr(f: Expression => Expression): Statement = this.copy(exprs = exprs map f)
   def mapStmt(f: Statement => Statement): Statement = this

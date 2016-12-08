@@ -156,7 +156,9 @@ object ExpandWhens extends Pass {
       val newBody = Block(Seq(squashEmpty(bodyx)) ++ expandNetlist(netlist) ++ simlist)
       Module(m.info, m.name, m.ports, newBody)
     }
-    Circuit(c.info, modulesx, c.main)
+    val cx = Circuit(c.info, modulesx, c.main)
+    //println(cx.serialize)
+    cx
   }
 }
 

@@ -15,8 +15,8 @@ import logger.LazyLogging
 class FIRRTLException(str: String) extends Exception(str)
 
 object Utils extends LazyLogging {
-  def throwInternalError =
-    error("Internal Error! Please file an issue at https://github.com/ucb-bar/firrtl/issues")
+  def throwInternalError(any: Any) =
+    error(s"Internal Error! Please file an issue at https://github.com/ucb-bar/firrtl/issues\nHint: $any")
   private[firrtl] def time[R](name: String)(block: => R): R = {
     logger.info(s"Starting $name")
     val t0 = System.nanoTime()

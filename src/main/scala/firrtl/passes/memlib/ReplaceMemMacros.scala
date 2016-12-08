@@ -20,7 +20,7 @@ case class PinAnnotation(target: CircuitName, pins: Seq[String]) extends Annotat
   def transform = classOf[ReplaceMemMacros]
   def duplicate(n: Named) = n match {
     case n: CircuitName => this.copy(target = n)
-    case _ => throwInternalError
+    case _ => throwInternalError(n)
   }
 }
 
@@ -224,7 +224,7 @@ class ReplaceMemMacros(writer: ConfWriter) extends Transform {
         case PinAnnotation(c, pins) => pins
         case _ => error(s"Bad Annotation: ${p}")
       }
-      case _ => throwInternalError
+      case x => throwInternalError(x)
     }
     val annos = pins.foldLeft(Seq[Annotation]()) { (seq, pin) =>
       seq ++ memMods.collect { 

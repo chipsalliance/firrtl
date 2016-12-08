@@ -193,6 +193,10 @@ object LowerTypes extends Pass {
     }
   }
 
-  def run(c: Circuit): Circuit = c copy (modules = c.modules map lowerTypes)
+  def run(c: Circuit): Circuit ={
+    val cx = c copy (modules = c.modules map lowerTypes)
+    //println(cx.serialize)
+    cx
+  }
 }
 

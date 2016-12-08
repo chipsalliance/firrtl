@@ -55,6 +55,8 @@ object CommonSubexpressionElimination extends Pass {
       case m: ExtModule => m
       case m: Module => Module(m.info, m.name, m.ports, cse(m.body))
     }
-    Circuit(c.info, modulesx, c.main)
+    val cs = Circuit(c.info, modulesx, c.main)
+    //println(cs.serialize)
+    cs
   }
 }

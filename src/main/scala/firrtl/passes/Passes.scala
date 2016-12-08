@@ -288,6 +288,9 @@ object VerilogPrep extends Pass {
   def name = "Verilog Prep"
   type InstAttaches = collection.mutable.HashMap[String, Expression]
   def run(c: Circuit): Circuit = {
+    val moduleMap = c.modules.foldLeft(Map[String, DefModule]()) { (map, m) =>
+      map + (m.name -> m)
+    }
     def buildS(attaches: InstAttaches)(s: Statement): Statement = s match {
       case Attach(_, source, exps) => 
         exps foreach { e => attaches(e.serialize) = source }
@@ -302,15 +305,19 @@ object VerilogPrep extends Pass {
     def lowerS(attaches: InstAttaches)(s: Statement): Statement = s match {
       case WDefInstance(info, name, module, tpe) =>
         val exps = create_exps(WRef(name, tpe, ExpKind, MALE))
+        val (defName, params) = moduleMap(module) match {
+          case ExtModule(_, _, _, dn, ps) => (dn, ps)
+          case Module(_, n, _, _) => (n, Seq.empty)
+        }
         val wcon = WDefInstanceConnector(info, name, module, tpe, exps.map( e => e.tpe match {
           case AnalogType(w) => attaches(e.serialize)
           case _ => WRef(LowerTypes.loweredName(e), e.tpe, WireKind, MALE)
-        }))
+        }), defName, params)
         val wires = exps.map ( e => e.tpe match {
           case AnalogType(w) => EmptyStmt
           case _ => DefWire(info, LowerTypes.loweredName(e), e.tpe)
         })
-        Block(Seq(wcon) ++ wires)
+        Block(wires ++ Seq(wcon))
       case Attach(info, source, exps) => EmptyStmt
       case _ => s map lowerS(attaches) map lowerE
     }

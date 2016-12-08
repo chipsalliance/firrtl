@@ -17,7 +17,7 @@ case class SourceAnnotation(target: ComponentName, pin: String) extends Annotati
   def transform = classOf[WiringTransform]
   def duplicate(n: Named) = n match {
     case n: ComponentName => this.copy(target = n)
-    case _ => throwInternalError
+    case _ => throwInternalError(n)
   }
 }
 
@@ -27,7 +27,7 @@ case class SinkAnnotation(target: ModuleName, pin: String) extends Annotation wi
   def transform = classOf[WiringTransform]
   def duplicate(n: Named) = n match {
     case n: ModuleName => this.copy(target = n)
-    case _ => throwInternalError
+    case _ => throwInternalError(n)
   }
 }
 
@@ -38,7 +38,7 @@ case class TopAnnotation(target: ModuleName, pin: String) extends Annotation wit
   def transform = classOf[WiringTransform]
   def duplicate(n: Named) = n match {
     case n: ModuleName => this.copy(target = n)
-    case _ => throwInternalError
+    case _ => throwInternalError(n)
   }
 }
 
