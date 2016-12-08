@@ -32,25 +32,30 @@ object VerilogMemDelays extends Pass {
 
   def memDelayStmt(
       netlist: Netlist,
+      mems: Mems,
       namespace: Namespace,
       repl: Netlist)
-      (s: Statement): Statement = s map memDelayStmt(netlist, namespace, repl) match {
-    case sx: DefMemory =>
-      val ports = (sx.readers ++ sx.writers).toSet
+      (s: Statement): Statement = s map memDelayStmt(netlist, mems, namespace, repl) match {
+    case mem: DefMemory =>
+      val ports = (mem.readers ++ mem.writers).toSet
       def newPortName(rw: String, p: String) = (for {
         idx <- Stream from 0
         newName = s"${rw}_${p}_$idx"
         if !ports(newName)
       } yield newName).head
+      val ports = (sx.readers ++ sx.writers).toSet
       val rwMap = (sx.readwriters map (rw =>
         rw -> (newPortName(rw, "r"), newPortName(rw, "w")))).toMap
+      mems(mem.name) = (mem, rwMap)
       // 1. readwrite ports are split into read & write ports
       // 2. memories are transformed into combinational
       //    because latency pipes are added for longer latencies
-      val mem = sx copy (
-        readers = sx.readers ++ (sx.readwriters map (rw => rwMap(rw)._1)),
-        writers = sx.writers ++ (sx.readwriters map (rw => rwMap(rw)._2)),
+      mem copy (
+        readers = mem.readers ++ (mem.readwriters map (rw => rwMap(rw)._1)),
+        writers = mem.writers ++ (mem.readwriters map (rw => rwMap(rw)._2)),
         readwriters = Nil, readLatency = 0, writeLatency = 1)
+    case Connect(i, WSubField(WSubField(WRef(memName, _, MemKind, _), port, _, _), field, _, _), exp) =>
+      val (mem, rwMap) = mems(memName)
       def pipe(e: Expression, // Expression to be piped
                n: Int, // pipe depth
                clk: Expression, // clock expression
@@ -61,6 +66,7 @@ object VerilogMemDelays extends Pass {
         // 2) pipe registers and connects
         val node = DefNode(NoInfo, namespace.newTemp, netlist(e))
         val wref = WRef(node.name, e.tpe, NodeKind, MALE)
+        println(s"NODE NAME: ${node.name}")
         ((0 until n) foldLeft (wref, Seq[Statement](node))){case ((ex, stmts), i) =>
           val name = namespace newName s"${LowerTypes.loweredName(e)}_pipe_$i"
           val exx = WRef(name, e.tpe, RegKind, ug)
@@ -74,63 +80,39 @@ object VerilogMemDelays extends Pass {
           )
         }
       }
-      def readPortConnects(reader: String,
-                           clk: Expression,
-                           en: Expression,
-                           addr: Expression) = Seq(
-        Connect(NoInfo, memPortField(mem, reader, "clk"), clk),
-        // connect latency pipes to read ports
-        Connect(NoInfo, memPortField(mem, reader, "en"), en),
-        Connect(NoInfo, memPortField(mem, reader, "addr"), addr)
-      )
-      def writePortConnects(writer: String,
-                            clk: Expression,
-                            en: Expression,
-                            mask: Expression,
-                            addr: Expression,
-                            data: Expression) = Seq(
-        Connect(NoInfo, memPortField(mem, writer, "clk"), clk),
-        // connect latency pipes to write ports
-        Connect(NoInfo, memPortField(mem, writer, "en"), en),
-        Connect(NoInfo, memPortField(mem, writer, "mask"), mask),
-        Connect(NoInfo, memPortField(mem, writer, "addr"), addr),
-        Connect(NoInfo, memPortField(mem, writer, "data"), data)
-      )
- 
-
-      Block(mem +: ((sx.readers flatMap {reader =>
-        // generate latency pipes for read ports (enable & addr)
-        val clk = netlist(memPortField(sx, reader, "clk"))
-        val (en, ss1) = pipe(memPortField(sx, reader, "en"), sx.readLatency - 1, clk, one)
-        val (addr, ss2) = pipe(memPortField(sx, reader, "addr"), sx.readLatency, clk, en)
-        ss1 ++ ss2 ++ readPortConnects(reader, clk, en, addr)
-      }) ++ (sx.writers flatMap {writer =>
-        // generate latency pipes for write ports (enable, mask, addr, data)
-        val clk = netlist(memPortField(sx, writer, "clk"))
-        val (en, ss1) = pipe(memPortField(sx, writer, "en"), sx.writeLatency - 1, clk, one)
-        val (mask, ss2) = pipe(memPortField(sx, writer, "mask"), sx.writeLatency - 1, clk, one)
-        val (addr, ss3) = pipe(memPortField(sx, writer, "addr"), sx.writeLatency - 1, clk, one)
-        val (data, ss4) = pipe(memPortField(sx, writer, "data"), sx.writeLatency - 1, clk, one)
-        ss1 ++ ss2 ++ ss3 ++ ss4 ++ writePortConnects(writer, clk, en, mask, addr, data)
-      }) ++ (sx.readwriters flatMap {readwriter =>
-        val (reader, writer) = rwMap(readwriter)
-        val clk = netlist(memPortField(sx, readwriter, "clk"))
-        // generate latency pipes for readwrite ports (enable, addr, wmode, wmask, wdata)
-        val (en, ss1) = pipe(memPortField(sx, readwriter, "en"), sx.readLatency - 1, clk, one)
-        val (wmode, ss2) = pipe(memPortField(sx, readwriter, "wmode"), sx.writeLatency - 1, clk, one)
-        val (wmask, ss3) = pipe(memPortField(sx, readwriter, "wmask"), sx.writeLatency - 1, clk, one)
-        val (wdata, ss4) = pipe(memPortField(sx, readwriter, "wdata"), sx.writeLatency - 1, clk, one)
-        val (raddr, ss5) = pipe(memPortField(sx, readwriter, "addr"), sx.readLatency, clk, AND(en, NOT(wmode)))
-        val (waddr, ss6) = pipe(memPortField(sx, readwriter, "addr"), sx.writeLatency - 1, clk, one)
-        repl(memPortField(sx, readwriter, "rdata")) = memPortField(mem, reader, "data")
-        ss1 ++ ss2 ++ ss3 ++ ss4 ++ ss5 ++ ss6 ++
-        readPortConnects(reader, clk, en, raddr) ++
-        writePortConnects(writer, clk, AND(en, wmode), wmask, waddr, wdata)
-      })))
-    case sx: Connect => kind(sx.loc) match {
-      case MemKind => EmptyStmt
-      case _ => sx
-    }
+      val clk = netlist(memPortField(mem, port, "clk"))
+      val wFieldMatch = "(addr|en|mask|data)".r
+      val rwWriterFieldMatch = "(wmask|wdata|wmode)".r
+      val rwMap = (mem.readwriters map (rw =>
+        rw -> (newPortName(rw, "r"), newPortName(rw, "w")))).toMap
+      (field, mem.readers.contains(port), mem.writers.contains(port), mem.readwriters.contains(port))  match {
+        case ("clk", _, _, _) => s
+        case ("en", true, false, false) => 
+          val (en, ss1) = pipe(memPortField(mem, port, "en"), mem.readLatency - 1, clk, one)
+          Block(Seq(ss1) +: Connect(NoInfo, memPortField(mem, port, "en"), en))
+        case ("addr", true, false, false) => 
+          val (addr, ss1) = pipe(memPortField(mem, port, "addr"), mem.readLatency, clk, one)
+          Block(Seq(ss1) +: Connect(NoInfo, memPortField(mem, port, "addr"), addr))
+        case (wFieldMatch(wField), false, true, false) => 
+          val (value, ss1) = pipe(memPortField(mem, port, wField), mem.writeLatency - 1, clk, one)
+          Block(Seq(ss1) +: Connect(NoInfo, memPortField(mem, port, wField), value))
+        case (rwWriterFieldMatch(wField), false, false, true) => 
+          val (reader, writer) = rwMap(port)
+          val (value, ss1) = pipe(memPortField(mem, port, wField), mem.writeLatency - 1, clk, one)
+          Block(Seq(ss1) +: Connect(NoInfo, memPortField(mem, writer, wField), value))
+        case ("addr", false, false, true) =>
+          val (reader, writer) = rwMap(port)
+          repl(memPortField(mem, port, "rdata")) = memPortField(mem, reader, "data") //replace all references to rw port's rdata
+          val wmode = netlist(memPortField(mem, port, "wmode"))
+          val en = netlist(memPortField(mem, port, "en"))
+          val (raddr, ss5) = pipe(memPortField(mem, readwriter, "addr"), mem.readLatency, clk, AND(en, NOT(wmode)))
+          val (waddr, ss6) = pipe(memPortField(mem, readwriter, "addr"), mem.writeLatency - 1, clk, one)
+          Block(Seq(ss5, Connect(NoInfo, memPortField(mem, reader, "addr"), raddr), ss6, Connect(NoInfo, memPortField(mem, writer, "addr"), waddr)))
+        case ("en", false, false, true) =>
+          val (reader, writer) = rwMap(port)
+          val (en, ss1) = pipe(memPortField(mem, port, "en"), mem.readLatency - 1, clk, one)
+          Block(Seq(ss1) +: Connect(NoInfo, memPortField(mem, reader, "en"), en) +: Connect(NoInfo, memPortField(mem, writer, "en"), AND(en, wmode)))
+      }
     case sx => sx
   }
 
@@ -149,8 +131,10 @@ object VerilogMemDelays extends Pass {
     val netlist = new Netlist
     val namespace = Namespace(m)
     val repl = new Netlist
+    type Mems = collection.mutable.HashMap[String, (Statement, Map[String, (String, String)])]
+    val mems = new Mems
     (m map buildNetlist(netlist)
-       map memDelayStmt(netlist, namespace, repl)
+       map memDelayStmt(netlist, mems, namespace, repl)
        map replaceStmt(repl))
   }
 
