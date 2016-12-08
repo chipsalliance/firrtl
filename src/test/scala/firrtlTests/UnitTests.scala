@@ -71,10 +71,10 @@ class UnitTests extends FirrtlFlatSpec {
     val input =
      """circuit Unit :
        |  module Unit :
-       |    input clk : Clock
+       |    input clock : Clock
        |    input reset : UInt<1>
        |    wire x : { valid : UInt<1> }
-       |    reg y : { valid : UInt<1>, bits : UInt<3> }, clk with :
+       |    reg y : { valid : UInt<1>, bits : UInt<3> }, clock with :
        |      reset => (reset, x)""".stripMargin
     intercept[CheckTypes.InvalidRegInit] {
       passes.foldLeft(parse(input)) {
@@ -202,13 +202,13 @@ class UnitTests extends FirrtlFlatSpec {
     val input =
       """circuit AssignViaDeref : 
          |  module AssignViaDeref : 
-         |    input clk : Clock
+         |    input clock : Clock
          |    input reset : UInt<1>
          |    output io : {a : UInt<8>, sel : UInt<1>}
          |
          |    io is invalid
-         |    reg table : {a : UInt<8>}[2], clk
-         |    reg otherTable : {a : UInt<8>}[2], clk
+         |    reg table : {a : UInt<8>}[2], clock
+         |    reg otherTable : {a : UInt<8>}[2], clock
          |    otherTable[table[UInt<1>("h01")].a].a <= UInt<1>("h00")""".stripMargin
      //TODO(azidar): I realize this is brittle, but unfortunately there
      //  isn't a better way to test this pass
@@ -303,5 +303,22 @@ class UnitTests extends FirrtlFlatSpec {
       }
     }
 
+  }
+
+  "Conditional conection of clocks" should "throw an exception" in {
+    val input =
+      """circuit Unit :
+        |  module Unit :
+        |    input clock1 : Clock
+        |    input clock2 : Clock
+        |    input sel : UInt<1>
+        |    output clock3 : Clock
+        |    clock3 <= clock1
+        |    when sel :
+        |      clock3 <= clock2
+        |""".stripMargin
+    intercept[PassExceptions] { // Both MuxClock and InvalidConnect are thrown
+      compileToVerilog(input)
+    }
   }
 }
