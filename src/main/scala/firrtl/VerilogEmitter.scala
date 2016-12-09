@@ -63,6 +63,14 @@ case class GarbageConnect(i: Info, loc: Expression, exp: Expression) extends Sta
   def mapString(f: String => String): Statement = this
 }
 
+case class Garbage(tpe: Type, start: Option[BigInt]) extends Expression {
+  def serialize: String = s"GARBAGE(start)"
+  def mapExpr(f: Expression => Expression): Expression = this
+  def mapType(f: Type => Type): Expression = this.copy(tpe = f(tpe))
+  def mapWidth(f: Width => Width): Expression = this
+  def mapString(f: String => String): Expression = this
+}
+
 class AddMemoryConnector extends Pass {
   def name = this.getClass.getSimpleName
   private def AND(e1: Expression, e2: Expression) = DoPrim(And, Seq(e1, e2), Nil, BoolType)
@@ -98,8 +106,11 @@ class AddMemoryConnector extends Pass {
           readPortAssignments += Connect(sx.info, lowExpr, memPort)
         else {
           val newName = namespace.newName("INVALID")
-          readPortAssignments += DefInvalid(sx.info, newName, memPort.tpe)
-          readPortAssignments += GarbageConnect(sx.info, lowExpr, Mux(garbageGuard, WRef(newName, memPort.tpe, ExpKind, MALE), memPort, UnknownType))
+          //readPortAssignments += DefWire(sx.info, newName, memPort.tpe)
+          //readPortAssignments += IsInvalid(sx.info, WRef(newName, memPort.tpe, WireKind, MALE))
+          val tval = Garbage(memPort.tpe, None)
+          val muxTpe = mux_type_and_widths(tval, memPort)
+          readPortAssignments += Connect(sx.info, lowExpr, ConstProp.constProp(connects)(Mux(garbageGuard, tval, memPort, muxTpe)))
         }
       }
 
@@ -132,39 +143,46 @@ case class DefInvalid(info: Info, name: String, tpe: Type) extends Statement wit
   def mapString(f: String => String): Statement = DefInvalid(info, f(name), tpe)
 }
 
-//case class InvalidOutput extends Direction {
-//  def serialize: String = "invalid-output"
-//}
+case class InvalidBlock(info: Info, name: String, width: BigInt, exps: Seq[(Expression, BigInt)]) extends Statement {
+  def serialize: String = "InvalidBlock"
+  def mapStmt(f: Statement => Statement): Statement = this
+  def mapExpr(f: Expression => Expression): Statement = this
+  def mapType(f: Type => Type): Statement = this
+  def mapString(f: String => String): Statement = this.copy(name = f(name))
+}
 
 class RewireInvalidWires extends Pass {
   def name = this.getClass.getSimpleName
   private def onModule(m: DefModule): DefModule = {
-    val invalidWires = collection.mutable.HashSet[String]()
-    val invalidPorts = collection.mutable.HashSet[String]()
+    val invalidExps = collection.mutable.ArrayBuffer[(Expression, BigInt)]()
+    var randomWidth = BigInt(0)
     val namespace = Namespace(m)
-    def buildStmt(s: Statement): Statement = s match {
-      case IsInvalid(i, WRef(n, t, _, g)) =>
-        invalidWires += n
-        EmptyStmt
+    val randomName = namespace.newName("_RANDOM")
+    def buildRand(t: Type): Expression = {
+      val width = bitWidth(t)
+      val e = DoPrim(Bits, Seq(WRef(randomName, UIntType(UnknownWidth), ExpKind, MALE)), Seq(randomWidth + width - 1, randomWidth), UIntType(IntWidth(width)))
+      randomWidth += width
+      e
+    }
+    def buildExp(e: Expression): Expression = e match {
+      case Garbage(tpe, None) => buildRand(tpe)
+      case e => e map buildExp
+    }
+    def buildStmt(s: Statement): Statement = s map buildExp match {
+      case IsInvalid(i, e) => Connect(i, e, buildRand(e.tpe))
       case DefMemory(i, n, dt, depth, wL, rL, rds, wrs, rws, ruw) =>
-        val init = namespace.newName("INVALID")
-        Block(Seq(
-          DefInvalid(i, init, dt),
-          DefMemoryConnector(i, n, dt, depth, wL, rL, rds, wrs, rws, ruw, init)
-        ))
+        invalidExps += ((WRef(n, VectorType(dt, depth), MemKind, MALE), randomWidth))
+        randomWidth += bitWidth(dt) * depth
+        s
+      case DefRegister(i, n, t, clk, reset, init) =>
+        invalidExps += ((WRef(n, t, RegKind, MALE), randomWidth))
+        randomWidth += bitWidth(t)
+        s
       case sx => sx map buildStmt
     }
-    def onStmt(s: Statement): Statement = s match {
-      case DefWire(i, n, t) if invalidWires.contains(n) =>
-        DefInvalid(i, n, t)
-      case sx => sx map onStmt
-    }
-    //def onPorts(p: Port): Port = p match {
-    //  case Port(i, n, Output, t) if invalidPorts.contains(n) =>
-    //    InvalidPort(i, n, InvalidOutput, t)
-    //  case px => px
-    //}
-    m map buildStmt map onStmt //map onPorts
+    def onStmt(s: Statement): Statement =
+      Block(Seq(DefInvalid(NoInfo, randomName, UIntType(IntWidth(randomWidth))), s, InvalidBlock(NoInfo, randomName, randomWidth, invalidExps)))
+    m map buildStmt map onStmt
   }
   def run(c: Circuit): Circuit = c.copy(modules = c.modules map onModule)
 }
@@ -280,29 +298,31 @@ class VerilogWriter(writer: Writer) extends Transform with PassBased {
       s".${name}($strx)"
     case RawStringParam(name, value) => s".$name($value)"
   }
-  private def onRegisterMuxes(tabs: String, r: String, e: Expression): Seq[String] = e match {
-    case Mux(cond, tval, fval, t) =>
-      val w = new StringWriter()
-      val ifStatement = s"${tabs}if (${vString(cond)}) begin\n"
-      val trueCase = onRegisterMuxes(s"$tabs  ", r, tval)
-      val elseStatement = s"${tabs}end else begin\n"
-      val ifNotStatement = s"${tabs}if (!${vString(cond)}) begin\n"
-      val falseCase = onRegisterMuxes(s"$tabs  ", r, fval)
-      val endStatement = s"${tabs}end\n"
-      ((trueCase.nonEmpty, falseCase.nonEmpty): @ unchecked) match {
-        case (true, true) =>
-          ifStatement +: trueCase ++: elseStatement +: falseCase :+ endStatement
-        case (true, false) =>
-          ifStatement +: trueCase :+ endStatement
-        case (false, true) =>
-          ifNotStatement +: falseCase :+ endStatement
-        case (false, false) =>
-          println(r)
-          Nil
-      }
-    case ex if vString(ex) == r => Nil
-    case ex => Seq(s"${tabs}$r <= ${vString(ex)};\n")
-  }
+  private def onRegisterMuxes(tabs: String, r: String, e: Expression, connects: Connects): Seq[String] = 
+    ConstProp.constProp(connects)(e) match {
+      case Mux(cond, tval, fval, t) =>
+        val w = new StringWriter()
+        val ifStatement = s"${tabs}if (${vString(cond)}) begin\n"
+        val trueCase = onRegisterMuxes(s"$tabs  ", r, tval, connects)
+        val elseStatement = s"${tabs}end else begin\n"
+        val ifNotStatement = s"${tabs}if (!${vString(cond)}) begin\n"
+        val falseCase = onRegisterMuxes(s"$tabs  ", r, fval, connects)
+        val endStatement = s"${tabs}end\n"
+        ((trueCase.nonEmpty, falseCase.nonEmpty): @ unchecked) match {
+          case (true, true) =>
+            ifStatement +: trueCase ++: elseStatement +: falseCase :+ endStatement
+          case (true, false) =>
+            ifStatement +: trueCase :+ endStatement
+          case (false, true) =>
+            ifNotStatement +: falseCase :+ endStatement
+          case (false, false) =>
+            println(r)
+            Nil
+        }
+      case ex if vString(ex) == r => Nil
+      case ex => Seq(s"${tabs}$r <= ${vString(ex)};\n")
+    }
+  private def vBits(hi: BigInt, lo: BigInt): String = if(hi == lo) s"[$hi]" else s"[$hi:$lo]"
   private def vString(e: Expression): String = e match {
     case UIntLiteral(value, IntWidth(width)) => s"$width'h${value.toString(16)}"
     case SIntLiteral(value, IntWidth(width)) =>
@@ -400,6 +420,7 @@ class VerilogWriter(writer: Writer) extends Transform with PassBased {
         case Xorr => s"^$a0SignedIfOpSigned"
         case Cat => s"{$a0SignedIfOpSigned, $a1CastToType}"
         // If selecting zeroth bit and single-bit wire, just emit the wire
+        case Bits if c0 == 0 && c1 == 0 && args(0).tpe == UIntType(UnknownWidth) =>  s"$a0[$c0]"
         case Bits if c0 == 0 && c1 == 0 && bitWidth(args(0).tpe) == BigInt(1) => a0
         case Bits if c0 == c1 => s"$a0[$c0]"
         case Bits => s"$a0[$c0:$c1]"
@@ -416,6 +437,10 @@ class VerilogWriter(writer: Writer) extends Transform with PassBased {
       x
     case x => throwInternalError(x)
   }
+  private def vInfoLine(i: Info) = i match {
+    case NoInfo => ""
+    case FileInfo(info) => s"  /*${i.serialize}*/\n"
+  }
   private def vInfo(i: Info) = i match {
     case NoInfo => ""
     case FileInfo(info) => s"  /*${i.serialize}*/"
@@ -424,25 +449,26 @@ class VerilogWriter(writer: Writer) extends Transform with PassBased {
     case WSubField(WRef(_, _, k, _), name, tpe, g) => WRef(name, tpe, k, g)
     case _ => e map removeRoot
   }
-  private def onStmt(w: Writer)(s: Statement): Statement = {
+  private def onStmt(w: Writer, namespace: Namespace, connects: Connects)(s: Statement): Statement = {
     s match {
       case ClockBlock(clock, stmts) =>
         w.write(s"  always @(posedge ${vString(clock)}) begin\n")
-        stmts map onStmt(w)
+        stmts map onStmt(w, namespace, connects)
         w.write(s"  end\n")
       case Connect(i, WRef(r, t, RegKind, g), exp) =>
-        w.write("  " + vInfo(i) + "\n")
-        w.write(onRegisterMuxes("    ", r, exp).mkString(""))
+        w.write(vInfoLine(i))
+        w.write(onRegisterMuxes("    ", r, exp, connects).mkString(""))
       case CDefMPort(i, _, t, memName, Seq(data, addr, clk, en), MWrite) =>
         val mem = WRef(memName, UnknownType, MemKind, UNKNOWNGENDER)
         val memPort = WSubAccess(mem, addr, UnknownType, UNKNOWNGENDER)
-        w.write("  " + vInfo(i) + "\n")
-        w.write(onRegisterMuxes("    ", vString(memPort), Mux(en, data, memPort, UnknownType)).mkString(""))
+        w.write(vInfoLine(i))
+        w.write(onRegisterMuxes("    ", vString(memPort), Mux(en, data, memPort, UnknownType), connects).mkString(""))
       case _: Print | _: Stop =>
         val (command, cond, en) = s match {
           case Print(i, string, args, clk, en) =>
             val q = '"'.toString
-            val strx = s"""$q${VerilogStringLitHandler escape string}$q""" +: (args flatMap (Seq("," , _)))
+            val strx =
+     s"""$q${VerilogStringLitHandler escape string}$q${(args map { a => "," + vString(a) }).mkString}"""
             (s"$$fwrite(32'h80000002, $strx); ${vInfo(i)}", "PRINTF_COND", vString(en))
           case Stop(i, ret, clk, en) =>
             val command =
@@ -473,9 +499,52 @@ class VerilogWriter(writer: Writer) extends Transform with PassBased {
         w.write(s"  wire ${vwidth(exp.tpe)} $n; ${vInfo(i)}\n")
         w.write(s"  assign $n = ${vString(exp)}; ${vInfo(i)}\n")
       case DefInvalid(i, n, t) =>
-        w.write(s"  reg ${vwidth(t)} $n; ${vInfo(i)}\n")
         val nWords = (bitWidth(t) + 31) / 32
-        w.write(s"  assign $n = {$nWords{$$random}}; ${vInfo(i)}\n")
+        val fullWidth = nWords * 32
+        w.write(s"  reg [$fullWidth:0] $n;\n")
+      case InvalidBlock(i, random, minimumWidth, exps) =>
+        val memTemps = collection.mutable.HashMap[String, String]()
+        val nWords = (minimumWidth + 31) / 32
+        w.write(s"/*======================*\n")
+        w.write(s" * INITIALIZATION BLOCK *\n")
+        w.write(s" *----------------------*/\n")
+        exps.collect {
+          case (WRef(n, VectorType(dt, depth), MemKind, _), start) => (n, bitWidth(dt), start)
+        } foreach { case (n, width, start) =>
+          val tempName = namespace.newName(s"_TEMP_RANDOM_ELEMENT_$n")
+          memTemps(n) = tempName
+          w.write(s"  reg [${width - 1}:0] $tempName;\n")
+        }
+        w.write(s"`ifdef RANDOMIZE\n")
+        w.write(s"   integer initvar;\n")
+        w.write(s"   initial begin\n")
+        w.write(s"     `ifndef verilator\n")
+        w.write(s"      #0.002 begin end\n")
+        w.write(s"     `endif\n")
+        val rString = "{" + Seq.fill(nWords.toInt)("$$random").mkString(",") + "}"
+        w.write(s"      $random = $rString;\n")
+        w.write(s"`ifdef RANDOMIZE_REG_INIT\n")
+        exps.collect {
+          case (WRef(n, t, RegKind, _), start) => (n, bitWidth(t), start) 
+        } foreach { case (n, width, start) =>
+          w.write(s"    assign $n = $random${vBits(start + width - 1,start)};\n")
+        }
+        w.write(s"`endif /*RANDOMIZE_REG_INIT*/\n")
+        w.write(s"`ifdef RANDOMIZE_MEM_INIT\n")
+        exps.collect {
+          case (WRef(n, VectorType(dt, depth), MemKind, _), start) => (n, bitWidth(dt), depth, start)
+        } foreach { case (n, width, depth, start) =>
+          val max = start + width * depth - 1
+          val tempName = memTemps(n)
+          w.write(s"  for (initvar = 0; initvar < $depth; initvar = initvar+1) begin\n")
+          w.write(s"    $tempName = ($random${vBits(max,start)} << (($depth - initvar) * $width) >> (initvar * $width));\n")
+          w.write(s"    $n[initvar] = $tempName${vBits({width - 1},0)};\n")
+          w.write(s"  end\n")
+        }
+        w.write(s"`endif /*RANDOMIZE_MEM_INIT*/\n")
+        w.write(s"  end /*initial block*/\n")
+        w.write(s"`endif /*RANDOMIZE*/\n")
+        w.write(s"/*======================*/\n")
       case DefWire(i, n, t) =>
         w.write(s"  wire ${vwidth(t)} $n; ${vInfo(i)}\n")
       case DefRegister(i, n, t, _, _, _) =>
@@ -490,16 +559,10 @@ class VerilogWriter(writer: Writer) extends Transform with PassBased {
           else w.write(s"\n")
         }
         w.write(");\n")
-      case DefMemoryConnector(i, n, dt, depth, wL, rL, rds, wrs, rws, ruw, init) =>
+      case DefMemory(i, n, dt, depth, wL, rL, rds, wrs, rws, ruw) =>
         // Declare Memory
         w.write(s"  reg ${vwidth(dt)} $n [${depth - 1}:0]; ${vInfo(i)}\n")
-
-        // Initialize Memory
-        w.write(s"  `ifdef RANDOMIZE_MEM_INIT\n")
-        w.write(s"  for (initvar = 0; initvar < $depth; initvar = initvar+1)\n")
-        w.write(s"    ${n}[initvar] = $init;\n")
-        w.write(s"  `endif")
-      case sx: Block => sx map onStmt(w)
+      case sx: Block => sx map onStmt(w, namespace, connects)
       case EmptyStmt =>
       case _ => throwInternalError(s)
     }
@@ -521,7 +584,9 @@ class VerilogWriter(writer: Writer) extends Transform with PassBased {
         else w.write(",\n")
       }
       w.write(s");\n")
-      onStmt(w)(b)
+      val namespace = Namespace(m)
+      val connects = getConnects(m)
+      onStmt(w, namespace, connects)(b)
       w.write(s"endmodule\n")
       m
   }

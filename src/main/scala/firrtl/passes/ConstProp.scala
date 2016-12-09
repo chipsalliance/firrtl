@@ -7,6 +7,7 @@ import firrtl.ir._
 import firrtl.Utils._
 import firrtl.Mappers._
 import firrtl.PrimOps._
+import firrtl.passes.memlib.AnalysisUtils.Connects
 
 import annotation.tailrec
 
@@ -234,6 +235,15 @@ object ConstProp extends Pass {
   private def constPropNodeRef(r: WRef, e: Expression) = e match {
     case _: UIntLiteral | _: SIntLiteral | _: WRef => e
     case _ => r
+  }
+
+  def constProp(connects: Connects)(e: Expression): Expression = {
+    e map constProp(connects) match {
+      case p: DoPrim => constPropPrim(p)
+      case m: Mux => constPropMux(m)
+      case r: WRef if connects contains r.name => constPropNodeRef(r, connects(r.name))
+      case x => x
+    }
   }
 
   @tailrec

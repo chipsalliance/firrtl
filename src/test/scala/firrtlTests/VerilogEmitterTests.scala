@@ -16,7 +16,7 @@ trait VerilogSpec extends FirrtlFlatSpec {
     val writer = new StringWriter()
     compiler.compile(CircuitState(parse(input), ChirrtlForm), writer)
     val output = writer.toString()
-    println(output)
+    //println(output)
     val lines = output.split("\n") map normalized
     expected foreach { e =>
       lines should contain(e)
