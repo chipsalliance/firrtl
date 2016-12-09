@@ -1,6 +1,6 @@
 // See LICENSE for license details.
 
-package util
+package firrtl.util
 
 import scala.sys.process._
 import java.io._

@@ -13,7 +13,7 @@ import scala.io.Source
 import firrtl._
 import firrtl.Parser.IgnoreInfo
 import firrtl.annotations
-import util.BackendCompilationUtilities
+import firrtl.util.BackendCompilationUtilities
 
 trait FirrtlRunners extends BackendCompilationUtilities {
   def parse(str: String) = Parser.parse(str.split("\n").toIterator, IgnoreInfo)
