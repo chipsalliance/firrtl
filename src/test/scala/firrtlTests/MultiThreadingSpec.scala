@@ -2,6 +2,8 @@
 
 package firrtlTests
 
+import firrtl.{ChirrtlForm, CircuitState, Compiler, annotations}
+
 import scala.concurrent.{Future, Await, ExecutionContext}
 import scala.concurrent.duration.Duration
 
@@ -13,7 +15,7 @@ class MultiThreadingSpec extends FirrtlPropSpec {
     def runCompiler(input: Seq[String], compiler: firrtl.Compiler): String = {
       val writer = new java.io.StringWriter
       val parsedInput = firrtl.Parser.parse(input)
-      compiler.compile(parsedInput, Seq(), writer)
+      compiler.compile(CircuitState(parsedInput, ChirrtlForm), writer)
       writer.toString
     }
     // The parameters we're testing with
@@ -22,7 +24,7 @@ class MultiThreadingSpec extends FirrtlPropSpec {
       new firrtl.LowFirrtlCompiler,
       new firrtl.VerilogCompiler)
     val inputFilePath = s"/integration/GCDTester.fir" // arbitrary
-    val numThreads = 8 // arbitrary
+    val numThreads = 64 // arbitrary
 
     // Begin the actual test
     val inputStream = getClass().getResourceAsStream(inputFilePath)

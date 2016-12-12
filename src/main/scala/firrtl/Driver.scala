@@ -1,135 +1,232 @@
-/*
-Copyright (c) 2014 - 2016 The Regents of the University of
-California (Regents). All Rights Reserved.  Redistribution and use in
-source and binary forms, with or without modification, are permitted
-provided that the following conditions are met:
-   * Redistributions of source code must retain the above
-     copyright notice, this list of conditions and the following
-     two paragraphs of disclaimer.
-   * Redistributions in binary form must reproduce the above
-     copyright notice, this list of conditions and the following
-     two paragraphs of disclaimer in the documentation and/or other materials
-     provided with the distribution.
-   * Neither the name of the Regents nor the names of its contributors
-     may be used to endorse or promote products derived from this
-     software without specific prior written permission.
-IN NO EVENT SHALL REGENTS BE LIABLE TO ANY PARTY FOR DIRECT, INDIRECT,
-SPECIAL, INCIDENTAL, OR CONSEQUENTIAL DAMAGES, INCLUDING LOST PROFITS,
-ARISING OUT OF THE USE OF THIS SOFTWARE AND ITS DOCUMENTATION, EVEN IF
-REGENTS HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-REGENTS SPECIFICALLY DISCLAIMS ANY WARRANTIES, INCLUDING, BUT NOT
-LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-A PARTICULAR PURPOSE. THE SOFTWARE AND ACCOMPANYING DOCUMENTATION, IF
-ANY, PROVIDED HEREUNDER IS PROVIDED "AS IS". REGENTS HAS NO OBLIGATION
-TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR
-MODIFICATIONS.
-*/
+// See LICENSE for license details.
 
 package firrtl
 
-import java.io.{PrintWriter, Writer, File}
+import scala.collection._
 import scala.io.Source
-import scala.collection.mutable
+import java.io.{File, FileNotFoundException}
+import net.jcazevedo.moultingyaml._
+import logger.Logger
+import Parser.{InfoMode, IgnoreInfo}
+import annotations._
+import firrtl.annotations.AnnotationYamlProtocol._
 
-import Utils._
-import Parser.{InfoMode, IgnoreInfo, UseInfo, GenInfo, AppendInfo}
+
+/**
+  * The driver provides methods to access the firrtl compiler.
+  * Invoke the compiler with either a FirrtlExecutionOption
+  *
+  * @example
+  *          {{{
+  *          val optionsManager = ExecutionOptionsManager("firrtl")
+  *          optionsManager.register(
+  *              FirrtlExecutionOptionsKey ->
+  *              new FirrtlExecutionOptions(topName = "Dummy", compilerName = "verilog"))
+  *          firrtl.Driver.execute(optionsManager)
+  *          }}}
+  *  or a series of command line arguments
+  * @example
+  *          {{{
+  *          firrtl.Driver.execute(Array("--top-name Dummy --compiler verilog".split(" +"))
+  *          }}}
+  * each approach has its own endearing aspects
+  * @see firrtlTests/DriverSpec.scala in the test directory for a lot more examples
+  * @see [[CompilerUtils.mergeTransforms]] to see how customTransformations are inserted
+  */
 
 object Driver {
-  private val usage = """
-Usage: sbt "run-main firrtl.Driver -i <input_file> -o <output_file> -X <compiler>"
-       firrtl -i <input_file> -o <output_file> -X <compiler> [options]
-Options:
-  -X <compiler>         Specify the target compiler
-                        Currently supported: high low verilog
-  --info-mode <mode>    Specify Info Mode
-                        Supported modes: ignore, use, gen, append
-  """
-
   // Compiles circuit. First parses a circuit from an input file,
   //  executes all compiler passes, and writes result to an output
   //  file.
   def compile(
-      input: String, 
-      output: String, 
-      compiler: Compiler, 
+      input: String,
+      output: String,
+      compiler: Compiler,
       infoMode: InfoMode = IgnoreInfo,
-      annotations: Seq[CircuitAnnotation] = Seq.empty) = {
-    val parsedInput = Parser.parse(Source.fromFile(input).getLines, infoMode)
-    val writerOutput = new PrintWriter(new File(output))
-    compiler.compile(parsedInput, annotations, writerOutput)
-    writerOutput.close
+      customTransforms: Seq[Transform] = Seq.empty,
+      annotations: AnnotationMap = AnnotationMap(Seq.empty)
+  ): String = {
+    val parsedInput = Parser.parse(Source.fromFile(input).getLines(), infoMode)
+    val outputBuffer = new java.io.CharArrayWriter
+    compiler.compile(
+      CircuitState(parsedInput, ChirrtlForm, Some(annotations)),
+      outputBuffer,
+      customTransforms)
+
+    val outputFile = new java.io.PrintWriter(output)
+    val outputString = outputBuffer.toString
+    outputFile.write(outputString)
+    outputFile.close()
+    outputString
   }
 
-  // Arguments specify the compiler, input file, and output file
-  def main(args: Array[String]) = {
-    val arglist = args.toList
+  /**
+    * print the message in red
+    *
+    * @param message error message
+    */
+  def dramaticError(message: String): Unit = {
+    println(Console.RED + "-"*78)
+    println(s"Error: $message")
+    println("-"*78 + Console.RESET)
+  }
 
-    sealed trait CompilerOption
-    case object InputFileName extends CompilerOption
-    case object OutputFileName extends CompilerOption
-    case object CompilerName extends CompilerOption
-    case object InfoModeOption extends CompilerOption
-    val defaultOptions = Map[CompilerOption, String]()
-
-    // Inline Annotation datastructure/function
-    val inlineAnnotations = mutable.HashMap[Named,Annotation]()
-    def handleInlineOption(value: String): Unit =
-       value.split('.') match {
-         case Array(module) =>
-           inlineAnnotations(ModuleName(module)) = TagAnnotation
-         case Array(module, inst) =>
-           inlineAnnotations(ComponentName(inst,ModuleName(module))) = TagAnnotation
-         case _ => throw new Exception(s"Bad inline instance/module name: $value")
-       }
-
-    type OptionMap = Map[CompilerOption, String]
-    def nextOption(map: OptionMap, list: List[String]): OptionMap = {
-      list match {
-        case Nil => map
-        case "--inline" :: value :: tail =>
-          handleInlineOption(value)
-          nextOption(map, tail)
-        case "-X" :: value :: tail =>
-                  nextOption(map + (CompilerName -> value), tail)
-        case "-i" :: value :: tail =>
-                  nextOption(map + (InputFileName -> value), tail)
-        case "-o" :: value :: tail =>
-                  nextOption(map + (OutputFileName -> value), tail)
-        case "--info-mode" :: value :: tail =>
-                  nextOption(map + (InfoModeOption -> value), tail)
-        case ("-h" | "--help") :: tail => { println(usage); sys.exit(0) }
-        case option :: tail =>
-                  throw new Exception("Unknown option " + option)
+  /**
+    * Load annotation file based on options
+    * @param optionsManager use optionsManager config to load annotation file if it exists
+    *                       update the firrtlOptions with new annotations if it does
+    */
+  def loadAnnotations(optionsManager: ExecutionOptionsManager with HasFirrtlOptions): Unit = {
+    /*
+     If firrtlAnnotations in the firrtlOptions are nonEmpty then these will be the annotations
+     used by firrtl.
+     To use the file annotations make sure that the annotations in the firrtlOptions are empty
+     The annotation file if needed is found via
+     s"$targetDirName/$topName.anno" or s"$annotationFileNameOverride.anno"
+    */
+    val firrtlConfig = optionsManager.firrtlOptions
+    if(firrtlConfig.annotations.isEmpty) {
+      val annotationFileName = firrtlConfig.getAnnotationFileName(optionsManager)
+      val annotationFile = new File(annotationFileName)
+      if (annotationFile.exists) {
+        val annotationsYaml = io.Source.fromFile(annotationFile).getLines().mkString("\n").parseYaml
+        val annotationArray = annotationsYaml.convertTo[Array[Annotation]]
+        optionsManager.firrtlOptions = firrtlConfig.copy(annotations = firrtlConfig.annotations ++ annotationArray)
       }
     }
+  }
 
-    val options = nextOption(defaultOptions, arglist)
+  /**
+    * Run the firrtl compiler using the provided option
+    *
+    * @param optionsManager the desired flags to the compiler
+    * @return a FirrtlExectionResult indicating success or failure, provide access to emitted data on success
+    *         for downstream tools as desired
+    */
+  def execute(optionsManager: ExecutionOptionsManager with HasFirrtlOptions): FirrtlExecutionResult = {
+    val firrtlConfig = optionsManager.firrtlOptions
 
-    // Get input circuit/output filenames
-    val input = options.getOrElse(InputFileName, throw new Exception("No input file provided!" + usage))
-    val output = options.getOrElse(OutputFileName, throw new Exception("No output file provided!" + usage))
+    Logger.setOptions(optionsManager)
 
-    val infoMode = options.get(InfoModeOption) match {
-      case (Some("use") | None) => UseInfo
-      case Some("ignore") => IgnoreInfo
-      case Some("gen") => GenInfo(input)
-      case Some("append") => AppendInfo(input)
-      case Some(other) => throw new Exception("Unknown info mode option: " + other)
+    val firrtlSource = firrtlConfig.firrtlSource match {
+      case Some(text) => text.split("\n").toIterator
+      case None       =>
+        if(optionsManager.topName.isEmpty && firrtlConfig.inputFileNameOverride.isEmpty) {
+          val message = "either top-name or input-file-override must be set"
+          dramaticError(message)
+          return FirrtlExecutionFailure(message)
+        }
+        if(
+          optionsManager.topName.isEmpty &&
+            firrtlConfig.inputFileNameOverride.nonEmpty &&
+            firrtlConfig.outputFileNameOverride.isEmpty) {
+          val message = "inputFileName set but neither top-name or output-file-override is set"
+          dramaticError(message)
+          return FirrtlExecutionFailure(message)
+        }
+        val inputFileName = firrtlConfig.getInputFileName(optionsManager)
+        try {
+          io.Source.fromFile(inputFileName).getLines()
+        }
+        catch {
+          case _: FileNotFoundException =>
+            val message = s"Input file $inputFileName not found"
+            dramaticError(message)
+            return FirrtlExecutionFailure(message)
+          }
+        }
+
+    loadAnnotations(optionsManager)
+
+    val parsedInput = Parser.parse(firrtlSource, firrtlConfig.infoMode)
+    val outputBuffer = new java.io.CharArrayWriter
+    firrtlConfig.compiler.compile(
+      CircuitState(parsedInput, ChirrtlForm, Some(AnnotationMap(firrtlConfig.annotations))),
+      outputBuffer,
+      firrtlConfig.customTransforms
+    )
+
+    val outputFileName = firrtlConfig.getOutputFileName(optionsManager)
+    val outputFile     = new java.io.PrintWriter(outputFileName)
+    val outputString   = outputBuffer.toString
+    outputFile.write(outputString)
+    outputFile.close()
+
+    FirrtlExecutionSuccess(firrtlConfig.compilerName, outputBuffer.toString)
+  }
+
+  /**
+    * this is a wrapper for execute that builds the options from a standard command line args,
+    * for example, like strings passed to main()
+    *
+    * @param args  an Array of string s containing legal arguments
+    * @return
+    */
+  def execute(args: Array[String]): FirrtlExecutionResult = {
+    val optionsManager = new ExecutionOptionsManager("firrtl") with HasFirrtlOptions
+
+    if(optionsManager.parse(args)) {
+      execute(optionsManager) match {
+        case success: FirrtlExecutionSuccess =>
+          success
+        case failure: FirrtlExecutionFailure =>
+          optionsManager.showUsageAsError()
+          failure
+        case result =>
+          throw new Exception(s"Error: Unknown Firrtl Execution result $result")
+      }
     }
+    else {
+      FirrtlExecutionFailure("Could not parser command line options")
+    }
+  }
 
-    // Construct all Circuit Annotations
-    val inlineCA =
-       if (inlineAnnotations.isEmpty) Seq.empty
-       else Seq(StickyCircuitAnnotation(passes.InlineCAKind, inlineAnnotations.toMap))
-    val allAnnotations = inlineCA // other annotations will be added here
+  def main(args: Array[String]): Unit = {
+    execute(args)
+  }
+}
 
-    // Execute selected compiler - error if not recognized compiler
-    options.get(CompilerName) match {
-      case Some("high") => compile(input, output, new HighFirrtlCompiler(), infoMode, allAnnotations)
-      case Some("low") => compile(input, output, new LowFirrtlCompiler(), infoMode, allAnnotations)
-      case Some("verilog") => compile(input, output, new VerilogCompiler(), infoMode, allAnnotations)
-      case Some(other) => throw new Exception("Unknown compiler option: " + other)
-      case None => throw new Exception("No specified compiler option.")
+object FileUtils {
+  /**
+    * recursive create directory and all parents
+    *
+    * @param directoryName a directory string with one or more levels
+    * @return
+    */
+  def makeDirectory(directoryName: String): Boolean = {
+    val dirFile = new java.io.File(directoryName)
+    if(dirFile.exists()) {
+      if(dirFile.isDirectory) {
+        true
+      }
+      else {
+        false
+      }
+    }
+    else {
+      dirFile.mkdirs()
+    }
+  }
+
+  /**
+    * recursively delete all directories in a relative path
+    * DO NOT DELETE absolute paths
+    *
+    * @param directoryPathName a directory hierarchy to delete
+    */
+  def deleteDirectoryHierarchy(directoryPathName: String): Unit = {
+    if(directoryPathName.isEmpty || directoryPathName.startsWith("/")) {
+      // don't delete absolute path
+    }
+    else {
+      val directory = new java.io.File(directoryPathName)
+      if(directory.isDirectory) {
+        directory.delete()
+        val directories = directoryPathName.split("/+").reverse.tail
+        if (directories.nonEmpty) {
+          deleteDirectoryHierarchy(directories.reverse.mkString("/"))
+        }
+      }
     }
   }
 }

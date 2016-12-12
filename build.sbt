@@ -4,7 +4,7 @@ organization := "edu.berkeley.cs"
 
 name := "firrtl"
 
-version := "0.1-SNAPSHOT"
+version := "1.1-SNAPSHOT"
 
 scalaVersion := "2.11.7"
 
@@ -17,6 +17,10 @@ libraryDependencies += "ch.qos.logback" % "logback-classic" % "1.1.2"
 libraryDependencies += "org.scalatest" % "scalatest_2.11" % "2.2.6" % "test"
 
 libraryDependencies += "org.scalacheck" %% "scalacheck" % "1.12.5" % "test"
+
+libraryDependencies += "com.github.scopt" %% "scopt" % "3.4.0"
+
+libraryDependencies += "net.jcazevedo" %% "moultingyaml" % "0.2"
 
 // Assembly
 

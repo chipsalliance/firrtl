@@ -1,56 +1,72 @@
+// See LICENSE for license details.
+
 package firrtl
 package passes
+
+import firrtl.ir._
+import firrtl.Mappers._
+import firrtl.annotations._
 
 // Datastructures
 import scala.collection.mutable
 
-import firrtl.Mappers.{ExpMap,StmtMap}
-import firrtl.Utils.WithAs
-import firrtl.ir._
-
-
 // Tags an annotation to be consumed by this pass
-case object InlineCAKind extends CircuitAnnotationKind
+object InlineAnnotation {
+  def apply(target: Named): Annotation = Annotation(target, classOf[InlineInstances], "")
+
+  def unapply(a: Annotation): Option[Named] = a match {
+    case Annotation(named, t, _) if t == classOf[InlineInstances] => Some(named)
+    case _ => None
+  }
+}
 
 // Only use on legal Firrtl. Specifically, the restriction of
 //  instance loops must have been checked, or else this pass can
 //  infinitely recurse
-object InlineInstances extends Transform {
+class InlineInstances extends Transform {
+   def inputForm = LowForm
+   def outputForm = LowForm
    val inlineDelim = "$"
-   def name = "Inline Instances"
-   def execute(circuit: Circuit, annotations: Seq[CircuitAnnotation]): TransformResult = {
-      annotations.count(_.kind == InlineCAKind) match {
-         case 0 => TransformResult(circuit, None, None)
-         case 1 => {
-            // This could potentially be cleaned up, but the best solution is unclear at the moment.
-            val myAnnotation = annotations.find(_.kind == InlineCAKind).get match {
-               case x: StickyCircuitAnnotation => x
-               case _ => throw new PassException("Circuit annotation must be StickyCircuitAnnotation")
-            }
-            check(circuit, myAnnotation)
-            run(circuit, myAnnotation.getModuleNames, myAnnotation.getComponentNames)
-         }
-         // Default behavior is to error if more than one annotation for inlining
-         //  This could potentially change
-         case _ => throw new PassException("Found more than one circuit annotation of InlineCAKind!")
-      }
+   override def name = "Inline Instances"
+
+   private def collectAnns(circuit: Circuit, anns: Iterable[Annotation]): (Set[ModuleName], Set[ComponentName]) =
+     anns.foldLeft(Set.empty[ModuleName], Set.empty[ComponentName]) {
+       case ((modNames, instNames), ann) => ann match {
+         case InlineAnnotation(CircuitName(c)) =>
+           (circuit.modules.collect {
+             case Module(_, name, _, _) if name != circuit.main => ModuleName(name, CircuitName(c))
+           }.toSet, instNames)
+         case InlineAnnotation(ModuleName(mod, cir)) => (modNames + ModuleName(mod, cir), instNames)
+         case InlineAnnotation(ComponentName(com, mod)) => (modNames, instNames + ComponentName(com, mod))
+         case _ => throw new PassException("Annotation must be InlineAnnotation")
+       }
+     }
+
+   def execute(state: CircuitState): CircuitState = {
+     // TODO Add error check for more than one annotation for inlining
+     // TODO Propagate other annotations
+     getMyAnnotations(state) match {
+       case Nil => CircuitState(state.circuit, state.form)
+       case myAnnotations =>
+         val (modNames, instNames) = collectAnns(state.circuit, myAnnotations)
+         run(state.circuit, modNames, instNames)
+     }
    }
 
    // Checks the following properties:
    // 1) All annotated modules exist
    // 2) All annotated modules are InModules (can be inlined)
    // 3) All annotated instances exist, and their modules can be inline
-   def check(c: Circuit, ca: StickyCircuitAnnotation): Unit = {
+   def check(c: Circuit, moduleNames: Set[ModuleName], instanceNames: Set[ComponentName]): Unit = {
       val errors = mutable.ArrayBuffer[PassException]()
       val moduleMap = (for(m <- c.modules) yield m.name -> m).toMap
-      val annModuleNames = ca.getModuleNames.map(_.name) ++ ca.getComponentNames.map(_.module.name)
       def checkExists(name: String): Unit =
          if (!moduleMap.contains(name))
-            errors += new PassException(s"Annotated module does not exist: ${name}")
+            errors += new PassException(s"Annotated module does not exist: $name")
       def checkExternal(name: String): Unit = moduleMap(name) match {
-            case m: ExtModule => errors += new PassException(s"Annotated module cannot be an external module: ${name}")
-            case _ => {}
-         }
+            case m: ExtModule => errors += new PassException(s"Annotated module cannot be an external module: $name")
+            case _ =>
+      }
       def checkInstance(cn: ComponentName): Unit = {
          var containsCN = false
          def onStmt(name: String)(s: Statement): Statement = {
@@ -60,113 +76,76 @@ object InlineInstances extends Transform {
                      containsCN = true
                      checkExternal(module_name)
                   }
-               case _ => {}
+               case _ =>
             }
             s map onStmt(name)
          }
          onStmt(cn.name)(moduleMap(cn.module.name).asInstanceOf[Module].body)
          if (!containsCN) errors += new PassException(s"Annotated instance does not exist: ${cn.module.name}.${cn.name}")
       }
-      annModuleNames.foreach{n => checkExists(n)}
-      if (!errors.isEmpty) throw new PassExceptions(errors)
-      annModuleNames.foreach{n => checkExternal(n)}
-      if (!errors.isEmpty) throw new PassExceptions(errors)
-      ca.getComponentNames.foreach{cn => checkInstance(cn)}
-      if (!errors.isEmpty) throw new PassExceptions(errors)
+
+      moduleNames.foreach{mn => checkExists(mn.name)}
+      if (errors.nonEmpty) throw new PassExceptions(errors)
+      moduleNames.foreach{mn => checkExternal(mn.name)}
+      if (errors.nonEmpty) throw new PassExceptions(errors)
+      instanceNames.foreach{cn => checkInstance(cn)}
+      if (errors.nonEmpty) throw new PassExceptions(errors)
    }
 
-   def run(c: Circuit, modsToInline: Seq[ModuleName], instsToInline: Seq[ComponentName]): TransformResult = {
-      // ---- Rename functions/data ----
-      val renameMap = mutable.HashMap[Named,Seq[Named]]()
-      // Updates renameMap with new names
-      def update(name: Named, rename: Named) = {
-         val existing = renameMap.getOrElse(name, Seq[Named]())
-         if (!existing.contains(rename)) renameMap(name) = existing.:+(rename)
+
+  def run(c: Circuit, modsToInline: Set[ModuleName], instsToInline: Set[ComponentName]): CircuitState = {
+    def getInstancesOf(c: Circuit, modules: Set[String]): Set[String] =
+      c.modules.foldLeft(Set[String]()) { (set, d) =>
+        d match {
+          case e: ExtModule => set
+          case m: Module =>
+            val instances = mutable.HashSet[String]()
+            def findInstances(s: Statement): Statement = s match {
+              case WDefInstance(info, instName, moduleName, instTpe) if modules.contains(moduleName) =>
+                instances += m.name + "." + instName
+                s
+              case sx => sx map findInstances
+            }
+            findInstances(m.body)
+            instances.toSet ++ set
+        }
       }
 
-      // ---- Pass functions/data ----
-      // Contains all unaltered modules
-      val originalModules = mutable.HashMap[String,DefModule]()
-      // Contains modules whose direct/indirect children modules have been inlined, and whose tagged instances have been inlined.
-      val inlinedModules = mutable.HashMap[String,DefModule]()
+    // Check annotations and circuit match up
+    check(c, modsToInline, instsToInline)
+    val flatModules = modsToInline.map(m => m.name)
+    val flatInstances = instsToInline.map(i => i.module.name + "." + i.name) ++ getInstancesOf(c, flatModules)
+    val moduleMap = c.modules.foldLeft(Map[String, DefModule]()) { (map, m) => map + (m.name -> m) }
 
-      // Recursive.
-      def onModule(m: DefModule): DefModule = {
-         val inlinedInstances = mutable.ArrayBuffer[String]()
-         // Recursive. Replaces inst.port with inst$port
-         def onExp(e: Expression): Expression = e match {
-            case WSubField(WRef(ref, _, _, _), field, tpe, gen) => {
-               // Relies on instance declaration before any instance references
-               if (inlinedInstances.contains(ref)) {
-                  val newName = ref + inlineDelim + field
-                  update(ComponentName(ref, ModuleName(m.name)), ComponentName(newName, ModuleName(m.name)))
-                  WRef(newName, tpe, WireKind(), gen)
-               }
-               else e
-            }
-            case e => e map onExp
-         }
-         // Recursive. Inlines tagged instances
-         def onStmt(s: Statement): Statement = s match {
-               case WDefInstance(info, instName, moduleName, instTpe) => {
-                  def rename(name:String): String = {
-                     val newName = instName + inlineDelim + name
-                     update(ComponentName(name, ModuleName(moduleName)), ComponentName(newName, ModuleName(m.name)))
-                     newName
-                  }
-                  // Rewrites references in inlined statements from ref to inst$ref
-                  def renameStmt(s: Statement): Statement = {
-                     def renameExp(e: Expression): Expression = {
-                        e map renameExp match {
-                           case WRef(name, tpe, kind, gen) => WRef(rename(name), tpe, kind, gen)
-                           case e => e
-                        }
-                     }
-                     s map rename map renameStmt map renameExp
-                  }
-                  val shouldInline =
-                     modsToInline.contains(ModuleName(moduleName)) ||
-                        instsToInline.contains(ComponentName(instName, ModuleName(m.name)))
-                  // Used memoized instance if available
-                  val instModule =
-                     if (inlinedModules.contains(name)) inlinedModules(name)
-                     else {
-                        // Warning - can infinitely recurse if there is an instance loop
-                        onModule(originalModules(moduleName))
-                     }
-                  if (shouldInline) {
-                     inlinedInstances += instName
-                     val instInModule = instModule match {
-                        case m: ExtModule => throw new PassException("Cannot inline external module")
-                        case m: Module => m
-                     }
-                     val stmts = mutable.ArrayBuffer[Statement]()
-                     for (p <- instInModule.ports) {
-                        stmts += DefWire(p.info, rename(p.name), p.tpe)
-                     }
-                     stmts += renameStmt(instInModule.body)
-                     Begin(stmts.toSeq)
-                  } else s
-               }
-               case s => s map onExp map onStmt
-            }
-         m match {
-            case Module(info, name, ports, body) => {
-               val mx = Module(info, name, ports, onStmt(body))
-               inlinedModules(name) = mx
-               mx
-            }
-            case m: ExtModule => {
-               inlinedModules(m.name) = m
-               m
-            }
-         }
-      }
+    def appendNamePrefix(prefix: String)(name:String): String = prefix + name
+    def appendRefPrefix(prefix: String, currentModule: String)(e: Expression): Expression = e match {
+      case WSubField(WRef(ref, _, InstanceKind, _), field, tpe, gen) if flatInstances.contains(currentModule + "." + ref) =>
+        WRef(prefix + ref + inlineDelim + field, tpe, WireKind, gen)
+      case WRef(name, tpe, kind, gen) => WRef(prefix + name, tpe, kind, gen)
+      case ex => ex map appendRefPrefix(prefix, currentModule)
+    }
 
-      c.modules.foreach{ m => originalModules(m.name) = m}
-      val top = c.modules.find(m => m.name == c.main).get
-      onModule(top)
-      val modulesx = c.modules.map(m => inlinedModules(m.name))
-      TransformResult(Circuit(c.info, modulesx, c.main), Some(BasicRenameMap(renameMap.toMap)), None)
-   }
+    def onStmt(prefix: String, currentModule: String)(s: Statement): Statement = s match {
+      case WDefInstance(info, instName, moduleName, instTpe) =>
+        // Rewrites references in inlined statements from ref to inst$ref
+        val shouldInline = flatInstances.contains(currentModule + "." + instName)
+        // Used memoized instance if available
+        if (shouldInline) {
+          val toInline = moduleMap(moduleName) match {
+            case m: ExtModule => throw new PassException("Cannot inline external module")
+            case m: Module => m
+          }
+          val stmts = toInline.ports.map(p => DefWire(p.info, p.name, p.tpe)) :+ toInline.body
+          onStmt(prefix + instName + inlineDelim, moduleName)(Block(stmts))
+        } else s
+      case sx => sx map appendRefPrefix(prefix, currentModule) map onStmt(prefix, currentModule) map appendNamePrefix(prefix)
+    }
+
+    val flatCircuit = c.copy(modules = c.modules.flatMap { 
+      case m if flatModules.contains(m.name) => None
+      case m => 
+        Some(m map onStmt("", m.name))
+    })
+    CircuitState(flatCircuit, LowForm, None, None)
+  }
 }

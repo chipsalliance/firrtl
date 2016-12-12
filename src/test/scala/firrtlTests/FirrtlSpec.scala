@@ -1,29 +1,4 @@
-/*
-Copyright (c) 2014 - 2016 The Regents of the University of
-California (Regents). All Rights Reserved.  Redistribution and use in
-source and binary forms, with or without modification, are permitted
-provided that the following conditions are met:
-   * Redistributions of source code must retain the above
-     copyright notice, this list of conditions and the following
-     two paragraphs of disclaimer.
-   * Redistributions in binary form must reproduce the above
-     copyright notice, this list of conditions and the following
-     two paragraphs of disclaimer in the documentation and/or other materials
-     provided with the distribution.
-   * Neither the name of the Regents nor the names of its contributors
-     may be used to endorse or promote products derived from this
-     software without specific prior written permission.
-IN NO EVENT SHALL REGENTS BE LIABLE TO ANY PARTY FOR DIRECT, INDIRECT,
-SPECIAL, INCIDENTAL, OR CONSEQUENTIAL DAMAGES, INCLUDING LOST PROFITS,
-ARISING OUT OF THE USE OF THIS SOFTWARE AND ITS DOCUMENTATION, EVEN IF
-REGENTS HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-REGENTS SPECIFICALLY DISCLAIMS ANY WARRANTIES, INCLUDING, BUT NOT
-LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-A PARTICULAR PURPOSE. THE SOFTWARE AND ACCOMPANYING DOCUMENTATION, IF
-ANY, PROVIDED HEREUNDER IS PROVIDED "AS IS". REGENTS HAS NO OBLIGATION
-TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR
-MODIFICATIONS.
-*/
+// See LICENSE for license details.
 
 package firrtlTests
 
@@ -36,6 +11,8 @@ import org.scalatest.prop._
 import scala.io.Source
 
 import firrtl._
+import firrtl.Parser.IgnoreInfo
+import firrtl.annotations
 
 // This trait is borrowed from Chisel3, ideally this code should only exist in one location
 trait BackendCompilationUtilities {
@@ -130,11 +107,27 @@ trait BackendCompilationUtilities {
 }
 
 trait FirrtlRunners extends BackendCompilationUtilities {
+  def parse(str: String) = Parser.parse(str.split("\n").toIterator, IgnoreInfo)
   lazy val cppHarness = new File(s"/top.cpp")
+  /** Compiles input Firrtl to Verilog */
+  def compileToVerilog(input: String, annotations: AnnotationMap = AnnotationMap(Seq.empty)): String = {
+    val circuit = Parser.parse(input.split("\n").toIterator)
+    val compiler = new VerilogCompiler
+    val writer = new java.io.StringWriter
+    compiler.compile(CircuitState(circuit, HighForm, Some(annotations)), writer)
+    writer.toString
+  }
+  /** Compile a Firrtl file
+    *
+    * @param prefix is the name of the Firrtl file without path or file extension
+    * @param srcDir directory where all Resources for this test are located
+    * @param annotations Optional Firrtl annotations
+    */
   def compileFirrtlTest(
       prefix: String,
       srcDir: String,
-      annotations: Seq[CircuitAnnotation] = Seq.empty): File = {
+      customTransforms: Seq[Transform] = Seq.empty,
+      annotations: AnnotationMap = new AnnotationMap(Seq.empty)): File = {
     val testDir = createTempDirectory(prefix)
     copyResourceToFile(s"${srcDir}/${prefix}.fir", new File(testDir, s"${prefix}.fir"))
 
@@ -143,18 +136,35 @@ trait FirrtlRunners extends BackendCompilationUtilities {
       s"$testDir/$prefix.v",
       new VerilogCompiler(),
       Parser.IgnoreInfo,
+      customTransforms,
       annotations)
     testDir
   }
+  /** Execute a Firrtl Test
+    *
+    * @param prefix is the name of the Firrtl file without path or file extension
+    * @param srcDir directory where all Resources for this test are located
+    * @param verilogPrefixes names of option Verilog resources without path or file extension
+    * @param annotations Optional Firrtl annotations
+    */
   def runFirrtlTest(
       prefix: String,
       srcDir: String,
-      annotations: Seq[CircuitAnnotation] = Seq.empty) = {
-    val testDir = compileFirrtlTest(prefix, srcDir, annotations)
+      verilogPrefixes: Seq[String] = Seq.empty,
+      customTransforms: Seq[Transform] = Seq.empty,
+      annotations: AnnotationMap = new AnnotationMap(Seq.empty)) = {
+    val testDir = compileFirrtlTest(prefix, srcDir, customTransforms, annotations)
     val harness = new File(testDir, s"top.cpp")
     copyResourceToFile(cppHarness.toString, harness)
 
-    verilogToCpp(prefix, testDir, Seq(), harness).!
+    // Note file copying side effect
+    val verilogFiles = verilogPrefixes map { vprefix =>
+      val file = new File(testDir, s"$vprefix.v")
+      copyResourceToFile(s"$srcDir/$vprefix.v", file)
+      file
+    }
+
+    verilogToCpp(prefix, testDir, verilogFiles, harness).!
     cppToExe(prefix, testDir).!
     assert(executeExpectingSuccess(prefix, testDir))
   }
@@ -170,7 +180,21 @@ trait FirrtlMatchers {
   }
 }
 
-class FirrtlPropSpec extends PropSpec with PropertyChecks with FirrtlRunners with LazyLogging
+abstract class FirrtlPropSpec extends PropSpec with PropertyChecks with FirrtlRunners with LazyLogging
 
-class FirrtlFlatSpec extends FlatSpec with Matchers with FirrtlRunners with FirrtlMatchers with LazyLogging
+abstract class FirrtlFlatSpec extends FlatSpec with Matchers with FirrtlRunners with FirrtlMatchers with LazyLogging
+
+/** Super class for execution driven Firrtl tests */
+abstract class ExecutionTest(name: String, dir: String, vFiles: Seq[String] = Seq.empty) extends FirrtlPropSpec {
+  property(s"$name should execute correctly") {
+    runFirrtlTest(name, dir, vFiles)
+  }
+}
+/** Super class for compilation driven Firrtl tests */
+abstract class CompilationTest(name: String, dir: String) extends FirrtlPropSpec {
+  property(s"$name should compile correctly") {
+    compileFirrtlTest(name, dir)
+  }
+}
+
 

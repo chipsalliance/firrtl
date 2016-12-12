@@ -1,29 +1,4 @@
-/*
-Copyright (c) 2014 - 2016 The Regents of the University of
-California (Regents). All Rights Reserved.  Redistribution and use in
-source and binary forms, with or without modification, are permitted
-provided that the following conditions are met:
-   * Redistributions of source code must retain the above
-     copyright notice, this list of conditions and the following
-     two paragraphs of disclaimer.
-   * Redistributions in binary form must reproduce the above
-     copyright notice, this list of conditions and the following
-     two paragraphs of disclaimer in the documentation and/or other materials
-     provided with the distribution.
-   * Neither the name of the Regents nor the names of its contributors
-     may be used to endorse or promote products derived from this
-     software without specific prior written permission.
-IN NO EVENT SHALL REGENTS BE LIABLE TO ANY PARTY FOR DIRECT, INDIRECT,
-SPECIAL, INCIDENTAL, OR CONSEQUENTIAL DAMAGES, INCLUDING LOST PROFITS,
-ARISING OUT OF THE USE OF THIS SOFTWARE AND ITS DOCUMENTATION, EVEN IF
-REGENTS HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-REGENTS SPECIFICALLY DISCLAIMS ANY WARRANTIES, INCLUDING, BUT NOT
-LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-A PARTICULAR PURPOSE. THE SOFTWARE AND ACCOMPANYING DOCUMENTATION, IF
-ANY, PROVIDED HEREUNDER IS PROVIDED "AS IS". REGENTS HAS NO OBLIGATION
-TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR
-MODIFICATIONS.
-*/
+// See LICENSE for license details.
 
 package firrtlTests
 
@@ -109,13 +84,12 @@ class StringSpec extends FirrtlPropSpec {
   }
 
   // Generators for random testing
-  val validChar = for (c <- Gen.choose(0x20.toChar, 0x7e.toChar) if c != '\\') yield c
+  val validChar = Gen.oneOf((0x20.toChar to 0x5b.toChar).toSeq ++
+                             (0x5e.toChar to 0x7e.toChar).toSeq) // exclude '\\'
   val validCharSeq = Gen.containerOf[Seq, Char](validChar)
   val invalidChar = Gen.oneOf(Gen.choose(0x00.toChar, 0x1f.toChar),
                              Gen.choose(0x7f.toChar, 0xff.toChar))
-  val invalidEsc = for (
-    c <- Gen.choose(0x00.toChar, 0xff.toChar
-  ) if (!validEsc.contains(c))) yield c
+  val invalidEsc = Gen.oneOf((0x00.toChar to 0xff.toChar).toSeq diff validEsc)
 
   property("Random invalid strings should fail") {
     forAll(validCharSeq, invalidChar, validCharSeq) { 

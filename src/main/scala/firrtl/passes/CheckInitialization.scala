@@ -1,29 +1,4 @@
-/*
-Copyright (c) 2014 - 2016 The Regents of the University of
-California (Regents). All Rights Reserved.  Redistribution and use in
-source and binary forms, with or without modification, are permitted
-provided that the following conditions are met:
-   * Redistributions of source code must retain the above
-     copyright notice, this list of conditions and the following
-     two paragraphs of disclaimer.
-   * Redistributions in binary form must reproduce the above
-     copyright notice, this list of conditions and the following
-     two paragraphs of disclaimer in the documentation and/or other materials
-     provided with the distribution.
-   * Neither the name of the Regents nor the names of its contributors
-     may be used to endorse or promote products derived from this
-     software without specific prior written permission.
-IN NO EVENT SHALL REGENTS BE LIABLE TO ANY PARTY FOR DIRECT, INDIRECT,
-SPECIAL, INCIDENTAL, OR CONSEQUENTIAL DAMAGES, INCLUDING LOST PROFITS,
-ARISING OUT OF THE USE OF THIS SOFTWARE AND ITS DOCUMENTATION, EVEN IF
-REGENTS HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-REGENTS SPECIFICALLY DISCLAIMS ANY WARRANTIES, INCLUDING, BUT NOT
-LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-A PARTICULAR PURPOSE. THE SOFTWARE AND ACCOMPANYING DOCUMENTATION, IF
-ANY, PROVIDED HEREUNDER IS PROVIDED "AS IS". REGENTS HAS NO OBLIGATION
-TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR
-MODIFICATIONS.
-*/
+// See LICENSE for license details.
 
 package firrtl.passes
 
@@ -60,8 +35,7 @@ object CheckInitialization extends Pass {
   }
 
   def run(c: Circuit): Circuit = {
-    val errors = collection.mutable.ArrayBuffer[PassException]()
-
+    val errors = new Errors()
 
     def checkInitM(m: Module): Unit = {
       val voidExprs = collection.mutable.HashMap[WrappedExpression, VoidExpr]()
@@ -69,19 +43,17 @@ object CheckInitialization extends Pass {
       def hasVoidExpr(e: Expression): (Boolean, Seq[Expression]) = {
         var void = false
         val voidDeps = collection.mutable.ArrayBuffer[Expression]()
-        def hasVoid(e: Expression): Expression = {
-          e match {
-            case e: WVoid =>
+        def hasVoid(e: Expression): Expression = e match {
+          case WVoid =>
+            void = true
+            e
+          case (_: WRef | _: WSubField) =>
+            if (voidExprs.contains(e)) {
               void = true
-              e
-            case (_: WRef | _: WSubField) =>
-              if (voidExprs.contains(e)) {
-                void = true
-                voidDeps += e
-              }
-              e
-            case e => e map hasVoid
-          }
+              voidDeps += e
+            }
+            e
+          case _ => e map hasVoid
         }
         hasVoid(e)
         (void, voidDeps)
@@ -95,11 +67,11 @@ object CheckInitialization extends Pass {
           case node: DefNode =>
             val (hasVoid, voidDeps) = hasVoidExpr(node.value)
             if (hasVoid) {
-              val nodeRef = WRef(node.name, node.value.tpe, NodeKind(), MALE)
+              val nodeRef = WRef(node.name, node.value.tpe, NodeKind, MALE)
               voidExprs(nodeRef) = VoidExpr(node, voidDeps)
             }
             node
-          case s => s map checkInitS
+          case sx => sx map checkInitS
         }
       }
       checkInitS(m.body)
@@ -110,19 +82,16 @@ object CheckInitialization extends Pass {
           case node: DefNode => // Ignore nodes
           case decl: IsDeclaration =>
             val trace = getTrace(expr, voidExprs.toMap)
-            errors += new RefNotInitializedException(decl.info, m.name, decl.name, trace)
+            errors append new RefNotInitializedException(decl.info, m.name, decl.name, trace)
         }
       }
     }
 
-    c.modules foreach { m =>
-      m match {
-        case m: Module => checkInitM(m)
-        case m => // Do nothing
-      }
+    c.modules foreach {
+      case m: Module => checkInitM(m)
+      case m => // Do nothing
     }
-
-    if (errors.nonEmpty) throw new PassExceptions(errors)
+    errors.trigger()
     c
   }
 }
