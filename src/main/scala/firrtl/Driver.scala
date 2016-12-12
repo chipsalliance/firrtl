@@ -1,16 +1,16 @@
-// See License
+// See LICENSE for license details.
 
 package firrtl
 
-import java.io.FileNotFoundException
-
-import logger.Logger
-
-import scala.io.Source
-import Annotations._
-
-import Parser.{InfoMode, IgnoreInfo}
 import scala.collection._
+import scala.io.Source
+import java.io.{File, FileNotFoundException}
+import net.jcazevedo.moultingyaml._
+import logger.Logger
+import Parser.{InfoMode, IgnoreInfo}
+import annotations._
+import firrtl.annotations.AnnotationYamlProtocol._
+
 
 /**
   * The driver provides methods to access the firrtl compiler.
@@ -30,7 +30,8 @@ import scala.collection._
   *          firrtl.Driver.execute(Array("--top-name Dummy --compiler verilog".split(" +"))
   *          }}}
   * each approach has its own endearing aspects
-  * @see  firrtlTests.DriverSpec.scala in the test directory for a lot more examples
+  * @see firrtlTests/DriverSpec.scala in the test directory for a lot more examples
+  * @see [[CompilerUtils.mergeTransforms]] to see how customTransformations are inserted
   */
 
 object Driver {
@@ -42,11 +43,15 @@ object Driver {
       output: String,
       compiler: Compiler,
       infoMode: InfoMode = IgnoreInfo,
-      annotations: AnnotationMap = new AnnotationMap(Seq.empty)
+      customTransforms: Seq[Transform] = Seq.empty,
+      annotations: AnnotationMap = AnnotationMap(Seq.empty)
   ): String = {
     val parsedInput = Parser.parse(Source.fromFile(input).getLines(), infoMode)
     val outputBuffer = new java.io.CharArrayWriter
-    compiler.compile(parsedInput, annotations, outputBuffer)
+    compiler.compile(
+      CircuitState(parsedInput, ChirrtlForm, Some(annotations)),
+      outputBuffer,
+      customTransforms)
 
     val outputFile = new java.io.PrintWriter(output)
     val outputString = outputBuffer.toString
@@ -64,6 +69,31 @@ object Driver {
     println(Console.RED + "-"*78)
     println(s"Error: $message")
     println("-"*78 + Console.RESET)
+  }
+
+  /**
+    * Load annotation file based on options
+    * @param optionsManager use optionsManager config to load annotation file if it exists
+    *                       update the firrtlOptions with new annotations if it does
+    */
+  def loadAnnotations(optionsManager: ExecutionOptionsManager with HasFirrtlOptions): Unit = {
+    /*
+     If firrtlAnnotations in the firrtlOptions are nonEmpty then these will be the annotations
+     used by firrtl.
+     To use the file annotations make sure that the annotations in the firrtlOptions are empty
+     The annotation file if needed is found via
+     s"$targetDirName/$topName.anno" or s"$annotationFileNameOverride.anno"
+    */
+    val firrtlConfig = optionsManager.firrtlOptions
+    if(firrtlConfig.annotations.isEmpty) {
+      val annotationFileName = firrtlConfig.getAnnotationFileName(optionsManager)
+      val annotationFile = new File(annotationFileName)
+      if (annotationFile.exists) {
+        val annotationsYaml = io.Source.fromFile(annotationFile).getLines().mkString("\n").parseYaml
+        val annotationArray = annotationsYaml.convertTo[Array[Annotation]]
+        optionsManager.firrtlOptions = firrtlConfig.copy(annotations = firrtlConfig.annotations ++ annotationArray)
+      }
+    }
   }
 
   /**
@@ -99,16 +129,22 @@ object Driver {
           io.Source.fromFile(inputFileName).getLines()
         }
         catch {
-          case e: FileNotFoundException =>
+          case _: FileNotFoundException =>
             val message = s"Input file $inputFileName not found"
             dramaticError(message)
             return FirrtlExecutionFailure(message)
           }
         }
 
+    loadAnnotations(optionsManager)
+
     val parsedInput = Parser.parse(firrtlSource, firrtlConfig.infoMode)
     val outputBuffer = new java.io.CharArrayWriter
-    firrtlConfig.compiler.compile(parsedInput, new AnnotationMap(firrtlConfig.annotations), outputBuffer)
+    firrtlConfig.compiler.compile(
+      CircuitState(parsedInput, ChirrtlForm, Some(AnnotationMap(firrtlConfig.annotations))),
+      outputBuffer,
+      firrtlConfig.customTransforms
+    )
 
     val outputFileName = firrtlConfig.getOutputFileName(optionsManager)
     val outputFile     = new java.io.PrintWriter(outputFileName)
@@ -129,19 +165,19 @@ object Driver {
   def execute(args: Array[String]): FirrtlExecutionResult = {
     val optionsManager = new ExecutionOptionsManager("firrtl") with HasFirrtlOptions
 
-    optionsManager.parse(args) match {
-      case true =>
-        execute(optionsManager) match {
-          case success: FirrtlExecutionSuccess =>
-            success
-          case failure: FirrtlExecutionFailure =>
-            optionsManager.showUsageAsError()
-            failure
-          case result =>
-            throw new Exception(s"Error: Unknown Firrtl Execution result $result")
-        }
-      case _ =>
-        FirrtlExecutionFailure("Could not parser command line options")
+    if(optionsManager.parse(args)) {
+      execute(optionsManager) match {
+        case success: FirrtlExecutionSuccess =>
+          success
+        case failure: FirrtlExecutionFailure =>
+          optionsManager.showUsageAsError()
+          failure
+        case result =>
+          throw new Exception(s"Error: Unknown Firrtl Execution result $result")
+      }
+    }
+    else {
+      FirrtlExecutionFailure("Could not parser command line options")
     }
   }
 

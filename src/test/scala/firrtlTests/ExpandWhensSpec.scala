@@ -1,29 +1,4 @@
-/*
-Copyright (c) 2014 - 2016 The Regents of the University of
-California (Regents). All Rights Reserved.  Redistribution and use in
-source and binary forms, with or without modification, are permitted
-provided that the following conditions are met:
-   * Redistributions of source code must retain the above
-     copyright notice, this list of conditions and the following
-     two paragraphs of disclaimer.
-   * Redistributions in binary form must reproduce the above
-     copyright notice, this list of conditions and the following
-     two paragraphs of disclaimer in the documentation and/or other materials
-     provided with the distribution.
-   * Neither the name of the Regents nor the names of its contributors
-     may be used to endorse or promote products derived from this
-     software without specific prior written permission.
-IN NO EVENT SHALL REGENTS BE LIABLE TO ANY PARTY FOR DIRECT, INDIRECT,
-SPECIAL, INCIDENTAL, OR CONSEQUENTIAL DAMAGES, INCLUDING LOST PROFITS,
-ARISING OUT OF THE USE OF THIS SOFTWARE AND ITS DOCUMENTATION, EVEN IF
-REGENTS HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-REGENTS SPECIFICALLY DISCLAIMS ANY WARRANTIES, INCLUDING, BUT NOT
-LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-A PARTICULAR PURPOSE. THE SOFTWARE AND ACCOMPANYING DOCUMENTATION, IF
-ANY, PROVIDED HEREUNDER IS PROVIDED "AS IS". REGENTS HAS NO OBLIGATION
-TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR
-MODIFICATIONS.
-*/
+// See LICENSE for license details.
 
 package firrtlTests
 
@@ -36,19 +11,18 @@ import firrtl.ir._
 import firrtl.Parser.IgnoreInfo
 
 class ExpandWhensSpec extends FirrtlFlatSpec {
-  private def parse(input: String) = Parser.parse(input.split("\n").toIterator, IgnoreInfo)
-  private def executeTest(input: String, notExpected: String, passes: Seq[Pass]) = {
+  private def executeTest(input: String, check: String, passes: Seq[Pass], expected: Boolean) = {
     val c = passes.foldLeft(Parser.parse(input.split("\n").toIterator)) {
       (c: Circuit, p: Pass) => p.run(c)
     }
     val lines = c.serialize.split("\n") map normalized
+    println(c.serialize)
 
-    lines foreach { l =>
-      l.contains(notExpected) should be (false)
+    if(expected) {
+      c.serialize.contains(check) should be (true)
+    } else {
+      lines foreach { l => l.contains(check) should be (false) }
     }
-  }
-  "Expand Whens" should "compile and run" in {
-    runFirrtlTest("ExpandWhens", "/passes/ExpandWhens")
   }
   "Expand Whens" should "not emit INVALID" in {
     val passes = Seq(
@@ -77,6 +51,50 @@ class ExpandWhensSpec extends FirrtlFlatSpec {
      |      a is invalid
      |      a.b <= UInt<64>("h04000000000000000")""".stripMargin
     val check = "INVALID"
-    executeTest(input, check, passes)
+    executeTest(input, check, passes, false)
+  }
+  "Expand Whens" should "void unwritten memory fields" in {
+    val passes = Seq(
+      ToWorkingIR,
+      CheckHighForm,
+      ResolveKinds,
+      InferTypes,
+      CheckTypes,
+      Uniquify,
+      ResolveKinds,
+      InferTypes,
+      ResolveGenders,
+      CheckGenders,
+      InferWidths,
+      CheckWidths,
+      PullMuxes,
+      ExpandConnects,
+      RemoveAccesses,
+      ExpandWhens)
+    val input =
+  """|circuit Tester : 
+     |  module Tester :
+     |    input clk : Clock
+     |    mem memory:
+     |      data-type => UInt<32>
+     |      depth => 32
+     |      reader => r0
+     |      writer => w0
+     |      read-latency => 0
+     |      write-latency => 1
+     |      read-under-write => undefined
+     |    memory.r0.addr <= UInt<1>(1)
+     |    memory.r0.en <= UInt<1>(1)
+     |    memory.r0.clk <= clk
+     |    memory.w0.addr <= UInt<1>(1)
+     |    memory.w0.data <= UInt<1>(1)
+     |    memory.w0.en <= UInt<1>(1)
+     |    memory.w0.clk <= clk
+     |    """.stripMargin
+    val check = "VOID"
+    executeTest(input, check, passes, true)
   }
 }
+
+class ExpandWhensExecutionTest extends ExecutionTest("ExpandWhens", "/passes/ExpandWhens")
+

@@ -1,29 +1,4 @@
-/*
-Copyright (c) 2014 - 2016 The Regents of the University of
-California (Regents). All Rights Reserved.  Redistribution and use in
-source and binary forms, with or without modification, are permitted
-provided that the following conditions are met:
-   * Redistributions of source code must retain the above
-     copyright notice, this list of conditions and the following
-     two paragraphs of disclaimer.
-   * Redistributions in binary form must reproduce the above
-     copyright notice, this list of conditions and the following
-     two paragraphs of disclaimer in the documentation and/or other materials
-     provided with the distribution.
-   * Neither the name of the Regents nor the names of its contributors
-     may be used to endorse or promote products derived from this
-     software without specific prior written permission.
-IN NO EVENT SHALL REGENTS BE LIABLE TO ANY PARTY FOR DIRECT, INDIRECT,
-SPECIAL, INCIDENTAL, OR CONSEQUENTIAL DAMAGES, INCLUDING LOST PROFITS,
-ARISING OUT OF THE USE OF THIS SOFTWARE AND ITS DOCUMENTATION, EVEN IF
-REGENTS HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-REGENTS SPECIFICALLY DISCLAIMS ANY WARRANTIES, INCLUDING, BUT NOT
-LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-A PARTICULAR PURPOSE. THE SOFTWARE AND ACCOMPANYING DOCUMENTATION, IF
-ANY, PROVIDED HEREUNDER IS PROVIDED "AS IS". REGENTS HAS NO OBLIGATION
-TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR
-MODIFICATIONS.
-*/
+// See LICENSE for license details.
 
 package firrtlTests
 
@@ -36,7 +11,6 @@ import firrtl.passes._
 import firrtl.Parser.IgnoreInfo
 
 class UnitTests extends FirrtlFlatSpec {
-  def parse (input:String) = Parser.parse(input.split("\n").toIterator, IgnoreInfo)
   private def executeTest(input: String, expected: Seq[String], passes: Seq[Pass]) = {
     val c = passes.foldLeft(Parser.parse(input.split("\n").toIterator)) {
       (c: Circuit, p: Pass) => p.run(c)
@@ -45,6 +19,25 @@ class UnitTests extends FirrtlFlatSpec {
 
     expected foreach { e =>
       lines should contain(e)
+    }
+  }
+
+  "Pull muxes" should "not be exponential in runtime" in {
+    val passes = Seq(
+      ToWorkingIR,
+      CheckHighForm,
+      ResolveKinds,
+      InferTypes,
+      CheckTypes,
+      PullMuxes)
+    val input =
+      """circuit Unit :
+        |  module Unit :
+        |    input _2: UInt<1>
+        |    output x: UInt<32>
+        |    x <= cat(_2, cat(_2, cat(_2, cat(_2, cat(_2, cat(_2, cat(_2, cat(_2, cat(_2, cat(_2, cat(_2, cat(_2, cat(_2, cat(_2, cat(_2, cat(_2, cat(_2, cat(_2, cat(_2, cat(_2, cat(_2, cat(_2, cat(_2, cat(_2, cat(_2, cat(_2, cat(_2, cat(   _2, cat(_2, cat(_2, cat(_2, _2)))))))))))))))))))))))))))))))""".stripMargin
+    passes.foldLeft(parse(input)) {
+      (c: Circuit, p: Pass) => p.run(c)
     }
   }
 
@@ -78,10 +71,10 @@ class UnitTests extends FirrtlFlatSpec {
     val input =
      """circuit Unit :
        |  module Unit :
-       |    input clk : Clock
+       |    input clock : Clock
        |    input reset : UInt<1>
        |    wire x : { valid : UInt<1> }
-       |    reg y : { valid : UInt<1>, bits : UInt<3> }, clk with :
+       |    reg y : { valid : UInt<1>, bits : UInt<3> }, clock with :
        |      reset => (reset, x)""".stripMargin
     intercept[CheckTypes.InvalidRegInit] {
       passes.foldLeft(parse(input)) {
@@ -114,7 +107,7 @@ class UnitTests extends FirrtlFlatSpec {
       (c: Circuit, p: Pass) => p.run(c)
     }
     val writer = new StringWriter()
-    FIRRTLEmitter.run(c_result,writer)
+    (new FirrtlEmitter).emit(CircuitState(c_result, HighForm), writer)
     (parse(writer.toString())) should be (parse(check))
   }
 
@@ -136,7 +129,7 @@ class UnitTests extends FirrtlFlatSpec {
     intercept[PassException] {
       val c = Parser.parse(splitExpTestCode.split("\n").toIterator)
       val c2 = passes.foldLeft(c)((c, p) => p run c)
-      new VerilogEmitter().run(c2, new OutputStreamWriter(new ByteArrayOutputStream))
+      (new VerilogEmitter).emit(CircuitState(c2, LowForm), new StringWriter)
     }
   }
 
@@ -147,7 +140,7 @@ class UnitTests extends FirrtlFlatSpec {
       InferTypes)
     val c = Parser.parse(splitExpTestCode.split("\n").toIterator)
     val c2 = passes.foldLeft(c)((c, p) => p run c)
-    new VerilogEmitter().run(c2, new OutputStreamWriter(new ByteArrayOutputStream))
+    (new VerilogEmitter).emit(CircuitState(c2, LowForm), new StringWriter)
   }
 
   "Simple compound expressions" should "be split" in {
@@ -168,8 +161,8 @@ class UnitTests extends FirrtlFlatSpec {
          |    output c : UInt<1>
          |    c <= geq(add(a, b),d)""".stripMargin
     val check = Seq(
-      "node GEN_0 = add(a, b)",
-      "c <= geq(GEN_0, d)"
+      "node _GEN_0 = add(a, b)",
+      "c <= geq(_GEN_0, d)"
     )
     executeTest(input, check, passes)
   }
@@ -209,27 +202,27 @@ class UnitTests extends FirrtlFlatSpec {
     val input =
       """circuit AssignViaDeref : 
          |  module AssignViaDeref : 
-         |    input clk : Clock
+         |    input clock : Clock
          |    input reset : UInt<1>
          |    output io : {a : UInt<8>, sel : UInt<1>}
          |
          |    io is invalid
-         |    reg table : {a : UInt<8>}[2], clk
-         |    reg otherTable : {a : UInt<8>}[2], clk
+         |    reg table : {a : UInt<8>}[2], clock
+         |    reg otherTable : {a : UInt<8>}[2], clock
          |    otherTable[table[UInt<1>("h01")].a].a <= UInt<1>("h00")""".stripMargin
      //TODO(azidar): I realize this is brittle, but unfortunately there
      //  isn't a better way to test this pass
      val check = Seq(
-       """wire GEN_0 : { a : UInt<8>}""",
-       """GEN_0.a <= table[0].a""",
+       """wire _GEN_0 : { a : UInt<8>}""",
+       """_GEN_0.a <= table[0].a""",
        """when UInt<1>("h1") :""",
-       """GEN_0.a <= table[1].a""",
-       """wire GEN_1 : UInt<8>""",
-       """when eq(UInt<1>("h0"), GEN_0.a) :""",
-       """otherTable[0].a <= GEN_1""",
-       """when eq(UInt<1>("h1"), GEN_0.a) :""",
-       """otherTable[1].a <= GEN_1""",
-       """GEN_1 <= UInt<1>("h0")"""
+       """_GEN_0.a <= table[1].a""",
+       """wire _GEN_1 : UInt<8>""",
+       """when eq(UInt<1>("h0"), _GEN_0.a) :""",
+       """otherTable[0].a <= _GEN_1""",
+       """when eq(UInt<1>("h1"), _GEN_0.a) :""",
+       """otherTable[1].a <= _GEN_1""",
+       """_GEN_1 <= UInt<1>("h0")"""
      )
      executeTest(input, check, passes)
   }
@@ -288,6 +281,44 @@ class UnitTests extends FirrtlFlatSpec {
       passes.foldLeft(Parser.parse(input.split("\n").toIterator)) {
         (c: Circuit, p: Pass) => p.run(c)
       }
+    }
+  }
+
+  "Partial connecting incompatable types" should "throw an exception" in {
+    val passes = Seq(
+      ToWorkingIR,
+      ResolveKinds,
+      InferTypes,
+      CheckTypes)
+    val input =
+      """circuit Unit :
+        |  module Unit :
+        |    input foo : { bar : UInt<32> }
+        |    output bar : UInt<32>
+        |    bar <- foo
+        |""".stripMargin
+    intercept[PassException] {
+      passes.foldLeft(Parser.parse(input.split("\n").toIterator)) {
+        (c: Circuit, p: Pass) => p.run(c)
+      }
+    }
+
+  }
+
+  "Conditional conection of clocks" should "throw an exception" in {
+    val input =
+      """circuit Unit :
+        |  module Unit :
+        |    input clock1 : Clock
+        |    input clock2 : Clock
+        |    input sel : UInt<1>
+        |    output clock3 : Clock
+        |    clock3 <= clock1
+        |    when sel :
+        |      clock3 <= clock2
+        |""".stripMargin
+    intercept[PassExceptions] { // Both MuxClock and InvalidConnect are thrown
+      compileToVerilog(input)
     }
   }
 }

@@ -1,10 +1,11 @@
-// See License
+// See LICENSE for license details.
 
 package firrtl
 
-import firrtl.Annotations._
+import firrtl.annotations._
 import firrtl.Parser._
-import firrtl.passes.memlib.ReplSeqMemAnnotation
+import firrtl.passes.memlib.{InferReadWriteAnnotation, ReplSeqMemAnnotation}
+import firrtl.passes.clocklist.ClockListAnnotation
 import logger.LogLevel
 import scopt.OptionParser
 
@@ -29,7 +30,7 @@ abstract class HasParser(applicationName: String) {
   */
 case class CommonOptions(
     topName:        String         = "",
-    targetDirName:  String         = "test_run_dir",
+    targetDirName:  String         = ".",
     globalLogLevel: LogLevel.Value = LogLevel.Error,
     logToFile:      Boolean        = false,
     logClassNames:  Boolean        = false,
@@ -140,9 +141,11 @@ case class FirrtlExecutionOptions(
     infoModeName:           String = "append",
     inferRW:                Seq[String] = Seq.empty,
     firrtlSource:           Option[String] = None,
-    annotations:            List[Annotation] = List.empty)
+    customTransforms:       Seq[Transform] = List.empty,
+    annotations:            List[Annotation] = List.empty,
+    annotationFileNameOverride: String = "",
+    forceAppendAnnoFile:    Boolean = false)
   extends ComposableOptions {
-
 
   def infoMode: InfoMode = {
     infoModeName match {
@@ -190,6 +193,15 @@ case class FirrtlExecutionOptions(
   def getOutputFileName(optionsManager: ExecutionOptionsManager): String = {
     optionsManager.getBuildFileName(outputSuffix, outputFileNameOverride)
   }
+  /**
+    * build the annotation file name, taking overriding parameters
+    *
+    * @param optionsManager this is needed to access build function and its common options
+    * @return
+    */
+  def getAnnotationFileName(optionsManager: ExecutionOptionsManager): String = {
+    optionsManager.getBuildFileName("anno", annotationFileNameOverride)
+  }
 }
 
 trait HasFirrtlOptions {
@@ -204,7 +216,7 @@ trait HasFirrtlOptions {
     .foreach { x =>
       firrtlOptions = firrtlOptions.copy(inputFileNameOverride = x)
     }.text {
-      "use this to override the top name default, default is empty"
+      "use this to override the default input file name , default is empty"
     }
 
   parser.opt[String]("output-file")
@@ -213,7 +225,24 @@ trait HasFirrtlOptions {
     foreach { x =>
       firrtlOptions = firrtlOptions.copy(outputFileNameOverride = x)
     }.text {
-      "use this to override the default name, default is empty"
+    "use this to override the default output file name, default is empty"
+  }
+
+  parser.opt[String]("annotation-file")
+    .abbr("faf")
+    .valueName ("<output>").
+    foreach { x =>
+      firrtlOptions = firrtlOptions.copy(outputFileNameOverride = x)
+    }.text {
+    "use this to override the default annotation file name, default is empty"
+  }
+
+  parser.opt[Unit]("force-append-anno-file")
+    .abbr("ffaaf")
+    .foreach { _ =>
+      firrtlOptions = firrtlOptions.copy(forceAppendAnnoFile = true)
+    }.text {
+      "use this to force appending annotation file to annotations being passed in through optionsManager"
     }
 
   parser.opt[String]("compiler")
@@ -239,7 +268,7 @@ trait HasFirrtlOptions {
       else parser.failure(s"$x bad value must be one of ignore|use|gen|append")
     }
     .text {
-      s"specifies the source info handling, default is ${firrtlOptions.infoMode}"
+      s"specifies the source info handling, default is ${firrtlOptions.infoModeName}"
     }
 
   parser.opt[Seq[String]]("inline")
@@ -249,14 +278,17 @@ trait HasFirrtlOptions {
       val newAnnotations = x.map { value =>
         value.split('.') match {
           case Array(circuit) =>
-            passes.InlineAnnotation(CircuitName(circuit), TransID(0))
+            passes.InlineAnnotation(CircuitName(circuit))
           case Array(circuit, module) =>
-            passes.InlineAnnotation(ModuleName(module, CircuitName(circuit)), TransID(0))
+            passes.InlineAnnotation(ModuleName(module, CircuitName(circuit)))
           case Array(circuit, module, inst) =>
-            passes.InlineAnnotation(ComponentName(inst, ModuleName(module, CircuitName(circuit))), TransID(0))
+            passes.InlineAnnotation(ComponentName(inst, ModuleName(module, CircuitName(circuit))))
         }
       }
-      firrtlOptions = firrtlOptions.copy(annotations = firrtlOptions.annotations ++ newAnnotations)
+      firrtlOptions = firrtlOptions.copy(
+        annotations = firrtlOptions.annotations ++ newAnnotations,
+        customTransforms = firrtlOptions.customTransforms :+ new passes.InlineInstances
+      )
     }
     .text {
       """Inline one or more module (comma separated, no spaces) module looks like "MyModule" or "MyModule.myinstance"""
@@ -267,7 +299,8 @@ trait HasFirrtlOptions {
     .valueName ("<circuit>")
     .foreach { x =>
       firrtlOptions = firrtlOptions.copy(
-        annotations = firrtlOptions.annotations :+ passes.InferReadWriteAnnotation(x, TransID(-1))
+        annotations = firrtlOptions.annotations :+ InferReadWriteAnnotation(x),
+        customTransforms = firrtlOptions.customTransforms :+ new passes.memlib.InferReadWrite
       )
     }.text {
       "Enable readwrite port inference for the target circuit"
@@ -278,11 +311,25 @@ trait HasFirrtlOptions {
     .valueName ("-c:<circuit>:-i:<filename>:-o:<filename>")
     .foreach { x =>
       firrtlOptions = firrtlOptions.copy(
-        annotations = firrtlOptions.annotations :+ ReplSeqMemAnnotation(x, TransID(-2))
+        annotations = firrtlOptions.annotations :+ ReplSeqMemAnnotation(x),
+        customTransforms = firrtlOptions.customTransforms :+ new passes.memlib.ReplSeqMem
       )
     }
     .text {
       "Replace sequential memories with blackboxes + configuration file"
+    }
+
+  parser.opt[String]("list-clocks")
+    .abbr("clks")
+    .valueName ("-c:<circuit>:-m:<module>:-o:<filename>")
+    .foreach { x =>
+      firrtlOptions = firrtlOptions.copy(
+        annotations = firrtlOptions.annotations :+ ClockListAnnotation(x),
+        customTransforms = firrtlOptions.customTransforms :+ new passes.clocklist.ClockListTransform
+      )
+    }
+    .text {
+      "List which signal drives each clock of every descendent of specified module"
     }
 
   parser.note("")

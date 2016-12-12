@@ -1,29 +1,4 @@
-/*
-Copyright (c) 2014 - 2016 The Regents of the University of
-California (Regents). All Rights Reserved.  Redistribution and use in
-source and binary forms, with or without modification, are permitted
-provided that the following conditions are met:
-   * Redistributions of source code must retain the above
-     copyright notice, this list of conditions and the following
-     two paragraphs of disclaimer.
-   * Redistributions in binary form must reproduce the above
-     copyright notice, this list of conditions and the following
-     two paragraphs of disclaimer in the documentation and/or other materials
-     provided with the distribution.
-   * Neither the name of the Regents nor the names of its contributors
-     may be used to endorse or promote products derived from this
-     software without specific prior written permission.
-IN NO EVENT SHALL REGENTS BE LIABLE TO ANY PARTY FOR DIRECT, INDIRECT,
-SPECIAL, INCIDENTAL, OR CONSEQUENTIAL DAMAGES, INCLUDING LOST PROFITS,
-ARISING OUT OF THE USE OF THIS SOFTWARE AND ITS DOCUMENTATION, EVEN IF
-REGENTS HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-REGENTS SPECIFICALLY DISCLAIMS ANY WARRANTIES, INCLUDING, BUT NOT
-LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-A PARTICULAR PURPOSE. THE SOFTWARE AND ACCOMPANYING DOCUMENTATION, IF
-ANY, PROVIDED HEREUNDER IS PROVIDED "AS IS". REGENTS HAS NO OBLIGATION
-TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR
-MODIFICATIONS.
-*/
+// See LICENSE for license details.
 
 package firrtl.passes
 
@@ -104,7 +79,7 @@ object CheckHighForm extends Pass {
           correctNum(Option(1), 1)
         case Bits =>
           correctNum(Option(1), 2)
-        case Andr | Orr | Xorr =>
+        case Andr | Orr | Xorr | Neg =>
           correctNum(None,0)
       }
     }
@@ -275,6 +250,8 @@ object CheckTypes extends Pass {
     s"$info: [module $mname]  Must mux between passive types.")
   class MuxCondUInt(info: Info, mname: String) extends PassException(
     s"$info: [module $mname]  A mux condition must be of type UInt.")
+  class MuxClock(info: Info, mname: String) extends PassException(
+    s"$info: [module $mname]  Firrtl does not support muxing clocks.")
   class ValidIfPassiveTypes(info: Info, mname: String) extends PassException(
     s"$info: [module $mname]  Must validif a passive type.")
   class ValidIfCondUInt(info: Info, mname: String) extends PassException(
@@ -396,6 +373,8 @@ object CheckTypes extends Pass {
             case _: UIntType =>
             case _ => errors append new MuxCondUInt(info, mname)
           }
+          if ((e.tval.tpe == ClockType) || (e.fval.tpe == ClockType))
+            errors.append(new MuxClock(info, mname))
         case (e: ValidIf) =>
           if (!passive(e.tpe))
             errors append new ValidIfPassiveTypes(info, mname)
@@ -428,6 +407,7 @@ object CheckTypes extends Pass {
           )
         case (t1: VectorType, t2: VectorType) =>
           bulk_equals(t1.tpe, t2.tpe, flip1, flip2)
+        case (t1, t2) => false
       }
     }
 
@@ -624,6 +604,12 @@ object CheckWidths extends Pass {
       w
     }
 
+    def hasWidth(tpe: Type): Boolean = tpe match {
+      case GroundType(IntWidth(w)) => true
+      case GroundType(_) => false
+      case _ => println(tpe); throwInternalError
+    }
+
     def check_width_t(info: Info, mname: String)(t: Type): Type =
       t map check_width_t(info, mname) map check_width_w(info, mname)
 
@@ -639,13 +625,13 @@ object CheckWidths extends Pass {
             errors append new WidthTooSmall(info, mname, e.value)
           case _ =>
         }
-        case DoPrim(Bits, Seq(a), Seq(hi, lo), _) if bitWidth(a.tpe) <= hi =>
+        case DoPrim(Bits, Seq(a), Seq(hi, lo), _) if (hasWidth(a.tpe) && bitWidth(a.tpe) <= hi) =>
           errors append new BitsWidthException(info, mname, hi, bitWidth(a.tpe))
-        case DoPrim(Head, Seq(a), Seq(n), _) if bitWidth(a.tpe) < n =>
+        case DoPrim(Head, Seq(a), Seq(n), _) if (hasWidth(a.tpe) && bitWidth(a.tpe) < n) =>
           errors append new HeadWidthException(info, mname, n, bitWidth(a.tpe))
-        case DoPrim(Tail, Seq(a), Seq(n), _) if bitWidth(a.tpe) <= n =>
+        case DoPrim(Tail, Seq(a), Seq(n), _) if (hasWidth(a.tpe) && bitWidth(a.tpe) <= n) =>
           errors append new TailWidthException(info, mname, n, bitWidth(a.tpe))
-        case DoPrim(Dshl, Seq(a, b), _, _) if bitWidth(b.tpe) >= BigInt(32) =>
+        case DoPrim(Dshl, Seq(a, b), _, _) if (hasWidth(a.tpe) && bitWidth(b.tpe) >= BigInt(32)) =>
           errors append new WidthTooBig(info, mname)
         case _ =>
       }

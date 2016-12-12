@@ -1,47 +1,26 @@
-/*
-Copyright (c) 2014 - 2016 The Regents of the University of
-California (Regents). All Rights Reserved.  Redistribution and use in
-source and binary forms, with or without modification, are permitted
-provided that the following conditions are met:
-   * Redistributions of source code must retain the above
-     copyright notice, this list of conditions and the following
-     two paragraphs of disclaimer.
-   * Redistributions in binary form must reproduce the above
-     copyright notice, this list of conditions and the following
-     two paragraphs of disclaimer in the documentation and/or other materials
-     provided with the distribution.
-   * Neither the name of the Regents nor the names of its contributors
-     may be used to endorse or promote products derived from this
-     software without specific prior written permission.
-IN NO EVENT SHALL REGENTS BE LIABLE TO ANY PARTY FOR DIRECT, INDIRECT,
-SPECIAL, INCIDENTAL, OR CONSEQUENTIAL DAMAGES, INCLUDING LOST PROFITS,
-ARISING OUT OF THE USE OF THIS SOFTWARE AND ITS DOCUMENTATION, EVEN IF
-REGENTS HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-REGENTS SPECIFICALLY DISCLAIMS ANY WARRANTIES, INCLUDING, BUT NOT
-LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-A PARTICULAR PURPOSE. THE SOFTWARE AND ACCOMPANYING DOCUMENTATION, IF
-ANY, PROVIDED HEREUNDER IS PROVIDED "AS IS". REGENTS HAS NO OBLIGATION
-TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR
-MODIFICATIONS.
-*/
+// See LICENSE for license details.
 
 package firrtl.passes
+package memlib
 
 import firrtl._
 import firrtl.ir._
 import firrtl.Mappers._
 import firrtl.PrimOps._
 import firrtl.Utils.{one, zero, BoolType}
-import firrtl.passes.memlib._
 import MemPortUtils.memPortField
-import AnalysisUtils.{Connects, getConnects, getOrigin}
+import firrtl.passes.memlib.AnalysisUtils.{Connects, getConnects, getOrigin}
 import WrappedExpression.weq
-import Annotations._
+import annotations._
 
-case class InferReadWriteAnnotation(t: String, tID: TransID)
-    extends Annotation with Loose with Unstable {
-  val target = CircuitName(t)
-  def duplicate(n: Named) = this.copy(t=n.name)
+object InferReadWriteAnnotation {
+  def apply(t: String) = Annotation(CircuitName(t), classOf[InferReadWrite], "")
+  def apply(target: CircuitName) = Annotation(target, classOf[InferReadWrite], "")
+  def unapply(a: Annotation): Option[(CircuitName)] = a match {
+    case Annotation(CircuitName(t), transform, "") if transform == classOf[InferReadWrite] =>
+      Some(CircuitName(t))
+    case _ => None
+  }
 }
 
 // This pass examine the enable signals of the read & write ports of memories
@@ -168,7 +147,9 @@ object InferReadWritePass extends Pass {
 
 // Transform input: Middle Firrtl. Called after "HighFirrtlToMidleFirrtl"
 // To use this transform, circuit name should be annotated with its TransId.
-class InferReadWrite(transID: TransID) extends Transform with SimpleRun {
+class InferReadWrite extends Transform with PassBased {
+  def inputForm = MidForm
+  def outputForm = MidForm
   def passSeq = Seq(
     InferReadWritePass,
     CheckInitialization,
@@ -176,11 +157,9 @@ class InferReadWrite(transID: TransID) extends Transform with SimpleRun {
     ResolveKinds,
     ResolveGenders
   )
-  def execute(c: Circuit, map: AnnotationMap) = map get transID match {
-    case Some(p) => p get CircuitName(c.main) match {
-      case Some(InferReadWriteAnnotation(_, _)) => run(c, passSeq)
-      case _ => sys.error("Unexpected annotation for InferReadWrite")
-    }
-    case _ => TransformResult(c)
+  def execute(state: CircuitState): CircuitState = getMyAnnotations(state) match {
+    case Nil => CircuitState(state.circuit, state.form)
+    case Seq(InferReadWriteAnnotation(CircuitName(state.circuit.main))) =>
+      CircuitState(runPasses(state.circuit), state.form)
   }
 }

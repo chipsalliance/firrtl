@@ -10,13 +10,27 @@ import firrtl.Mappers._
 import MemPortUtils.{MemPortMap, Modules}
 import MemTransformUtils._
 import AnalysisUtils._
+import firrtl.annotations._
+import wiring._
+
+
+/** Annotates the name of the pin to add for WiringTransform
+  */
+object PinAnnotation {
+  def apply(target: CircuitName, pins: Seq[String]): Annotation = {
+    Annotation(target, classOf[ReplaceMemMacros], pins.foldLeft("") { (str, p) => str + "pin:" + p + " " } )
+  }
+  val matcher = "pin:([^ ]+)".r
+}
 
 /** Replace DefAnnotatedMemory with memory blackbox + wrapper + conf file.
   * This will not generate wmask ports if not needed.
   * Creates the minimum # of black boxes needed by the design.
   */
-class ReplaceMemMacros(writer: ConfWriter) extends Pass {
-  def name = "Replace Memory Macros"
+class ReplaceMemMacros(writer: ConfWriter) extends Transform {
+  override def name = "Replace Memory Macros"
+  def inputForm = MidForm
+  def outputForm = MidForm
 
   /** Return true if mask granularity is per bit, false if per byte or unspecified
     */
@@ -96,7 +110,7 @@ class ReplaceMemMacros(writer: ConfWriter) extends Pass {
       (m.writers flatMap (w => adaptWriter(portRef(w), createSubField(bbRef, w), hasMask, fillMask))) ++
       (m.readwriters flatMap (rw => adaptReadWriter(portRef(rw), createSubField(bbRef, rw), hasMask, fillMask)))
     val wrapper = Module(NoInfo, wrapperName, wrapperIoPorts, Block(stmts))
-    val bb = ExtModule(NoInfo, m.name, bbIoPorts)
+    val bb = ExtModule(NoInfo, m.name, bbIoPorts, m.name, Seq.empty)
     // TODO: Annotate? -- use actual annotation map
 
     // add to conf file
@@ -148,7 +162,23 @@ class ReplaceMemMacros(writer: ConfWriter) extends Pass {
     }
   }
 
+  /** Mapping from (module, memory name) pairs to blackbox names */
+  private type NameMap = collection.mutable.HashMap[(String, String), String]
+  /** Construct NameMap by assigning unique names for each memory blackbox */
+  def constructNameMap(namespace: Namespace, nameMap: NameMap, mname: String)(s: Statement): Statement = {
+    s match {
+      case m: DefAnnotatedMemory => m.memRef match {
+        case None => nameMap(mname -> m.name) = namespace newName m.name
+        case Some(_) =>
+      }
+      case _ =>
+    }
+    s map constructNameMap(namespace, nameMap, mname)
+  }
+
   def updateMemStmts(namespace: Namespace,
+                     nameMap: NameMap,
+                     mname: String,
                      memPortMap: MemPortMap,
                      memMods: Modules)
                      (s: Statement): Statement = s match {
@@ -160,30 +190,47 @@ class ReplaceMemMacros(writer: ConfWriter) extends Pass {
       m.memRef match {
         case None =>
           // prototype mem
-          val newWrapperName = namespace newName m.name
-          val newMemBBName = namespace newName s"${m.name}_ext"
+          val newWrapperName = nameMap(mname -> m.name)
+          val newMemBBName = namespace newName s"${newWrapperName}_ext"
           val newMem = m copy (name = newMemBBName)
           memMods ++= createMemModule(newMem, newWrapperName)
-          WDefInstance(m.info, m.name, newWrapperName, UnknownType) 
-        case Some(ref: String) =>
-          WDefInstance(m.info, m.name, ref, UnknownType) 
+          WDefInstance(m.info, m.name, newWrapperName, UnknownType)
+        case Some((module, mem)) =>
+          WDefInstance(m.info, m.name, nameMap(module -> mem), UnknownType)
       }
-    case sx => sx map updateMemStmts(namespace, memPortMap, memMods)
+    case sx => sx map updateMemStmts(namespace, nameMap, mname, memPortMap, memMods)
   }
 
-  def updateMemMods(namespace: Namespace, memMods: Modules)(m: DefModule) = {
+  def updateMemMods(namespace: Namespace, nameMap: NameMap, memMods: Modules)(m: DefModule) = {
     val memPortMap = new MemPortMap
 
-    (m map updateMemStmts(namespace, memPortMap, memMods)
+    (m map updateMemStmts(namespace, nameMap, m.name, memPortMap, memMods)
        map updateStmtRefs(memPortMap))
   }
 
-  def run(c: Circuit) = {
+  def execute(state: CircuitState): CircuitState = {
+    val c = state.circuit
     val namespace = Namespace(c)
     val memMods = new Modules
-    val modules = c.modules map updateMemMods(namespace, memMods)
+    val nameMap = new NameMap
+    c.modules map (m => m map constructNameMap(namespace, nameMap, m.name))
+    val modules = c.modules map updateMemMods(namespace, nameMap, memMods)
     // print conf
     writer.serialize()
-    c copy (modules = modules ++ memMods)
-  }  
+    val pins = getMyAnnotations(state) match {
+      case Nil => Nil
+      case Seq(Annotation(c, t, string)) =>
+        PinAnnotation.matcher.findAllIn(string).toSeq match {
+          case Nil => error(s"Bad Annotation: ${Annotation(c, t, string)}")
+          case seq => seq
+        }
+      case _ => throwInternalError
+    }
+    val annos = pins.foldLeft(Seq[Annotation]()) { (seq, pin) =>
+      seq ++ memMods.collect { 
+        case m: ExtModule => SinkAnnotation(ModuleName(m.name, CircuitName(c.main)), pin) 
+      }
+    }
+    CircuitState(c.copy(modules = modules ++ memMods), inputForm, Some(AnnotationMap(annos)))
+  }
 }

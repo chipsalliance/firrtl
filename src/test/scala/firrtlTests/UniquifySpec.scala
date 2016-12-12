@@ -1,29 +1,4 @@
-/*
-Copyright (c) 2014 - 2016 The Regents of the University of
-California (Regents). All Rights Reserved.  Redistribution and use in
-source and binary forms, with or without modification, are permitted
-provided that the following conditions are met:
-   * Redistributions of source code must retain the above
-     copyright notice, this list of conditions and the following
-     two paragraphs of disclaimer.
-   * Redistributions in binary form must reproduce the above
-     copyright notice, this list of conditions and the following
-     two paragraphs of disclaimer in the documentation and/or other materials
-     provided with the distribution.
-   * Neither the name of the Regents nor the names of its contributors
-     may be used to endorse or promote products derived from this
-     software without specific prior written permission.
-IN NO EVENT SHALL REGENTS BE LIABLE TO ANY PARTY FOR DIRECT, INDIRECT,
-SPECIAL, INCIDENTAL, OR CONSEQUENTIAL DAMAGES, INCLUDING LOST PROFITS,
-ARISING OUT OF THE USE OF THIS SOFTWARE AND ITS DOCUMENTATION, EVEN IF
-REGENTS HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-REGENTS SPECIFICALLY DISCLAIMS ANY WARRANTIES, INCLUDING, BUT NOT
-LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-A PARTICULAR PURPOSE. THE SOFTWARE AND ACCOMPANYING DOCUMENTATION, IF
-ANY, PROVIDED HEREUNDER IS PROVIDED "AS IS". REGENTS HAS NO OBLIGATION
-TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR
-MODIFICATIONS.
-*/
+// See LICENSE for license details.
 
 package firrtlTests
 
@@ -77,15 +52,15 @@ class UniquifySpec extends FirrtlFlatSpec {
     val input =
       """circuit Test :
         |  module Test :
-        |    input clk : Clock
-        |    reg a : { b : UInt<1>, c : { d : UInt<2>, e : UInt<3>}[2], c_1_e : UInt<4>}[2], clk
-        |    reg a_0_c_ : UInt<5>, clk
-        |    reg a__0 : UInt<6>, clk
+        |    input clock : Clock
+        |    reg a : { b : UInt<1>, c : { d : UInt<2>, e : UInt<3>}[2], c_1_e : UInt<4>}[2], clock
+        |    reg a_0_c_ : UInt<5>, clock
+        |    reg a__0 : UInt<6>, clock
       """.stripMargin
     val expected = Seq(
-      "reg a__ : { b : UInt<1>, c_ : { d : UInt<2>, e : UInt<3>}[2], c_1_e : UInt<4>}[2], clk with :",
-      "reg a_0_c_ : UInt<5>, clk with :",
-      "reg a__0 : UInt<6>, clk with :") map normalized
+      "reg a__ : { b : UInt<1>, c_ : { d : UInt<2>, e : UInt<3>}[2], c_1_e : UInt<4>}[2], clock with :",
+      "reg a_0_c_ : UInt<5>, clock with :",
+      "reg a__0 : UInt<6>, clock with :") map normalized
 
     executeTest(input, expected)
   }
@@ -94,8 +69,8 @@ class UniquifySpec extends FirrtlFlatSpec {
     val input =
       """circuit Test :
         |  module Test :
-        |    input clk : Clock
-        |    reg x : { b : UInt<1>, c : { d : UInt<2>, e : UInt<3>}[2], c_1_e : UInt<4>}[2], clk
+        |    input clock : Clock
+        |    reg x : { b : UInt<1>, c : { d : UInt<2>, e : UInt<3>}[2], c_1_e : UInt<4>}[2], clock
         |    node a = x
         |    node a_0_c_ = a[0].b
         |    node a__0  = a[1].c[0].d
@@ -106,21 +81,21 @@ class UniquifySpec extends FirrtlFlatSpec {
   }
 
 
-  it should "rename DefRegister expressions: clk, reset, and init" in {
+  it should "rename DefRegister expressions: clock, reset, and init" in {
     val input =
       """circuit Test :
         |  module Test :
-        |    input clk : Clock[2]
-        |    input clk_0 : Clock
+        |    input clock : Clock[2]
+        |    input clock_0 : Clock
         |    input reset : { a : UInt<1>, b : UInt<1>}
         |    input reset_a : UInt<1>
         |    input init : { a : UInt<4>, b : { c : UInt<4>, d : UInt<4>}[2], b_1_c : UInt<4>}[4]
         |    input init_0_a : UInt<4>
-        |    reg foo : UInt<4>, clk[1], with :
+        |    reg foo : UInt<4>, clock[1], with :
         |      reset => (reset.a, init[3].b[1].d)
       """.stripMargin
     val expected = Seq(
-      "reg foo : UInt<4>, clk_[1] with :",
+      "reg foo : UInt<4>, clock_[1] with :",
       "reset => (reset_.a, init_[3].b_[1].d)"
     ) map normalized
 
@@ -212,7 +187,7 @@ class UniquifySpec extends FirrtlFlatSpec {
     val input =
       """circuit Test :
         |  module Test :
-        |    input clk : Clock
+        |    input clock : Clock
         |    mem mem :
         |      data-type => { a : UInt<8>, b : UInt<8>[2]}[2]
         |      depth => 32
@@ -224,12 +199,12 @@ class UniquifySpec extends FirrtlFlatSpec {
         |
         |    mem.read.addr is invalid
         |    mem.read.en <= UInt(1)
-        |    mem.read.clk <= clk
+        |    mem.read.clk <= clock
         |    mem.write.data is invalid
         |    mem.write.mask is invalid
         |    mem.write.addr is invalid
         |    mem.write.en <= UInt(0)
-        |    mem.write.clk <= clk
+        |    mem.write.clk <= clock
       """.stripMargin
     val expected = Seq(
       "mem mem_ :",
@@ -243,7 +218,7 @@ class UniquifySpec extends FirrtlFlatSpec {
     val input =
       """circuit Test :
         |  module Test :
-        |    input clk : Clock
+        |    input clock : Clock
         |    mem mem :
         |      data-type => { a : UInt<8>, b : UInt<8>[2], b_0 : UInt<8> }
         |      depth => 32
@@ -255,12 +230,12 @@ class UniquifySpec extends FirrtlFlatSpec {
         |
         |    mem.read.addr is invalid
         |    mem.read.en <= UInt(1)
-        |    mem.read.clk <= clk
+        |    mem.read.clk <= clock
         |    mem.write.data is invalid
         |    mem.write.mask is invalid
         |    mem.write.addr is invalid
         |    mem.write.en <= UInt(0)
-        |    mem.write.clk <= clk
+        |    mem.write.clk <= clock
       """.stripMargin
     val expected = Seq(
       "data-type => { a : UInt<8>, b_ : UInt<8>[2], b_0 : UInt<8>}",

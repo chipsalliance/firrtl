@@ -1,4 +1,5 @@
-# firrtl
+# Firrtl
+[![Build Status](https://travis-ci.org/ucb-bar/firrtl.svg?branch=master)](https://travis-ci.org/ucb-bar/firrtl)
 #### Flexible Internal Representation for RTL
 
  Firrtl is an intermediate representation (IR) for digital circuits designed as a platform for writing circuit-level transformations.
@@ -23,11 +24,15 @@
  2. Compile firrtl:```sbt compile```
  3. Run tests: ```sbt test```
  4. Build executable (`utils/bin/firrtl`): ```sbt assembly```
-    * **Note:** You can add `utils/bin/firrtl` to your path to call firrtl from other processes
+    * **Note:** You can add `utils/bin` to your path to call firrtl from other processes
  5. Run regression:
 ```
 mkdir -p build
 ./utils/bin/firrtl -i regress/rocket.fir -o build/rocket.v -X verilog
+```
+ 6. Publish this version locally in order to satisfy other tool chain library dependencies:
+```
+sbt publish-local
 ```
 
 ##### Useful sbt Tips
@@ -47,3 +52,6 @@ sbt
 utils/bin/firrtl -i regress/rocket.fir -o regress/rocket.v -X verilog // Compiles rocket-chip to Verilog
 utils/bin/firrtl --help // Returns usage string
 ```
+
+##### Other Tools
+Firrtl syntax highlighting for Vim users: https://github.com/azidar/firrtl-syntax

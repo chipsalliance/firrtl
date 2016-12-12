@@ -1,3 +1,5 @@
+// See LICENSE for license details.
+
 package firrtlTests
 
 import java.io._
@@ -164,7 +166,7 @@ class CheckSpec extends FlatSpec with Matchers {
           |    input jtag : {TCK : Clock}
           | 
           |  module TheRealTop : 
-          |    input clk : Clock
+          |    input clock : Clock
           |    input reset : UInt<1>
           |    output io : {flip jtag : {TCK : Clock}}
           |    

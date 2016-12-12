@@ -1,29 +1,4 @@
-/*
-Copyright (c) 2014 - 2016 The Regents of the University of
-California (Regents). All Rights Reserved.  Redistribution and use in
-source and binary forms, with or without modification, are permitted
-provided that the following conditions are met:
-   * Redistributions of source code must retain the above
-     copyright notice, this list of conditions and the following
-     two paragraphs of disclaimer.
-   * Redistributions in binary form must reproduce the above
-     copyright notice, this list of conditions and the following
-     two paragraphs of disclaimer in the documentation and/or other materials
-     provided with the distribution.
-   * Neither the name of the Regents nor the names of its contributors
-     may be used to endorse or promote products derived from this
-     software without specific prior written permission.
-IN NO EVENT SHALL REGENTS BE LIABLE TO ANY PARTY FOR DIRECT, INDIRECT,
-SPECIAL, INCIDENTAL, OR CONSEQUENTIAL DAMAGES, INCLUDING LOST PROFITS,
-ARISING OUT OF THE USE OF THIS SOFTWARE AND ITS DOCUMENTATION, EVEN IF
-REGENTS HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-REGENTS SPECIFICALLY DISCLAIMS ANY WARRANTIES, INCLUDING, BUT NOT
-LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-A PARTICULAR PURPOSE. THE SOFTWARE AND ACCOMPANYING DOCUMENTATION, IF
-ANY, PROVIDED HEREUNDER IS PROVIDED "AS IS". REGENTS HAS NO OBLIGATION
-TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR
-MODIFICATIONS.
-*/
+// See LICENSE for license details.
 
 package firrtl
 
@@ -47,12 +22,8 @@ import scala.collection.mutable.{ArrayBuffer, LinkedHashMap, HashSet}
 
 case class EmitterException(message: String) extends PassException(message)
 
-trait Emitter extends LazyLogging {
-  def run(c: Circuit, w: Writer)
-}
-
-object FIRRTLEmitter extends Emitter {
-  def run(c: Circuit, w: Writer) = w.write(c.serialize)
+class FirrtlEmitter extends Emitter {
+  def emit(state: CircuitState, writer: Writer): Unit = writer.write(state.circuit.serialize)
 }
 
 case class VRandom(width: BigInt) extends Expression {
@@ -65,7 +36,7 @@ case class VRandom(width: BigInt) extends Expression {
   def mapWidth(f: Width => Width): Expression = this
 }
 
-class VerilogEmitter extends Emitter {
+class VerilogEmitter extends Emitter with PassBased {
   val tab = "  "
   def AND(e1: WrappedExpression, e2: WrappedExpression): Expression = {
     if (e1 == e2) e1.e1
@@ -81,6 +52,15 @@ class VerilogEmitter extends Emitter {
       case (_: WRef) => WRef(ex.name, ex.tpe, InstanceKind, UNKNOWNGENDER)
     }
     case _ => error("Shouldn't be here")
+  }
+  /** Turn Params into Verilog Strings */
+  def stringify(param: Param): String = param match {
+    case IntParam(name, value) => s".$name($value)"
+    case DoubleParam(name, value) => s".$name($value)"
+    case StringParam(name, value) =>
+      val strx = "\"" + VerilogStringLitHandler.escape(value) + "\""
+      s".${name}($strx)"
+    case RawStringParam(name, value) => s".$name($value)"
   }
   def emit(x: Any)(implicit w: Writer) { emit(x, 0) }
   def emit(x: Any, top: Int)(implicit w: Writer) {
@@ -214,12 +194,9 @@ class VerilogEmitter extends Emitter {
        case And => Seq(cast_as(a0), " & ", cast_as(a1))
        case Or => Seq(cast_as(a0), " | ", cast_as(a1))
        case Xor => Seq(cast_as(a0), " ^ ", cast_as(a1))
-       case Andr => (0 until bitWidth(doprim.tpe).toInt) map (
-         Seq(cast(a0), "[", _, "]")) reduce (_ + " & " + _)
-       case Orr => (0 until bitWidth(doprim.tpe).toInt) map (
-         Seq(cast(a0), "[", _, "]")) reduce (_ + " | " + _)
-       case Xorr => (0 until bitWidth(doprim.tpe).toInt) map (
-         Seq(cast(a0), "[", _, "]")) reduce (_ + " ^ " + _)
+       case Andr => Seq("&", cast(a0))
+       case Orr => Seq("|", cast(a0))
+       case Xorr => Seq("^", cast(a0))
        case Cat => Seq("{", cast(a0), ",", cast(a1), "}")
        // If selecting zeroth bit and single-bit wire, just emit the wire
        case Bits if c0 == 0 && c1 == 0 && bitWidth(a0.tpe) == BigInt(1) => Seq(a0)
@@ -237,7 +214,7 @@ class VerilogEmitter extends Emitter {
      }
    }
    
-    def emit_verilog(m: Module)(implicit w: Writer): DefModule = {
+    def emit_verilog(m: Module, moduleMap: Map[String, DefModule])(implicit w: Writer): DefModule = {
       val netlist = mutable.LinkedHashMap[WrappedExpression, Expression]()
       val addrRegs = mutable.HashSet[WrappedExpression]()
       val namespace = Namespace(m)
@@ -448,8 +425,13 @@ class VerilogEmitter extends Emitter {
           simulate(sx.clk, sx.en, printf(sx.string, sx.args), Some("PRINTF_COND"))
           sx
         case sx: WDefInstanceConnector =>
+          val (module, params) = moduleMap(sx.module) match {
+            case ExtModule(_, _, _, extname, params) => (extname, params)
+            case Module(_, name, _, _) => (name, Seq.empty)
+          }
           val es = create_exps(WRef(sx.name, sx.tpe, InstanceKind, MALE))
-          instdeclares += Seq(sx.module, " ", sx.name, " (")
+          val ps = if (params.nonEmpty) params map stringify mkString ("#(", ", ", ") ") else ""
+          instdeclares += Seq(module, " ", ps, sx.name ," (")
           (es zip sx.exprs).zipWithIndex foreach {case ((l, r), i) =>
             val s = Seq(tab, ".", remove_root(l), "(", r, ")")
             if (i != es.size - 1) instdeclares += Seq(s, ",")
@@ -579,11 +561,18 @@ class VerilogEmitter extends Emitter {
         "`endif\n"))
    }
 
-   def run(c: Circuit, w: Writer) = {
-     emit_preamble(w)
-     c.modules foreach {
-       case (m: Module) => emit_verilog(m)(w)
-       case (m: ExtModule) =>
-     }
-   }
+  def passSeq = Seq(
+    passes.VerilogWrap,
+    passes.VerilogRename,
+    passes.VerilogPrep)
+
+  def emit(state: CircuitState, writer: Writer): Unit = {
+    val circuit = runPasses(state.circuit)
+    emit_preamble(writer)
+    val moduleMap = (circuit.modules map (m => m.name -> m)).toMap
+    circuit.modules foreach {
+      case (m: Module) => emit_verilog(m, moduleMap)(writer)
+      case (m: ExtModule) =>
+    }
+  }
 }

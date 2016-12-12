@@ -1,29 +1,4 @@
-/*
-Copyright (c) 2014 - 2016 The Regents of the University of
-California (Regents). All Rights Reserved.  Redistribution and use in
-source and binary forms, with or without modification, are permitted
-provided that the following conditions are met:
-   * Redistributions of source code must retain the above
-     copyright notice, this list of conditions and the following
-     two paragraphs of disclaimer.
-   * Redistributions in binary form must reproduce the above
-     copyright notice, this list of conditions and the following
-     two paragraphs of disclaimer in the documentation and/or other materials
-     provided with the distribution.
-   * Neither the name of the Regents nor the names of its contributors
-     may be used to endorse or promote products derived from this
-     software without specific prior written permission.
-IN NO EVENT SHALL REGENTS BE LIABLE TO ANY PARTY FOR DIRECT, INDIRECT,
-SPECIAL, INCIDENTAL, OR CONSEQUENTIAL DAMAGES, INCLUDING LOST PROFITS,
-ARISING OUT OF THE USE OF THIS SOFTWARE AND ITS DOCUMENTATION, EVEN IF
-REGENTS HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-REGENTS SPECIFICALLY DISCLAIMS ANY WARRANTIES, INCLUDING, BUT NOT
-LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-A PARTICULAR PURPOSE. THE SOFTWARE AND ACCOMPANYING DOCUMENTATION, IF
-ANY, PROVIDED HEREUNDER IS PROVIDED "AS IS". REGENTS HAS NO OBLIGATION
-TO PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR
-MODIFICATIONS.
-*/
+// See LICENSE for license details.
 
 package firrtl
 package ir
@@ -38,12 +13,18 @@ abstract class FirrtlNode {
 abstract class Info extends FirrtlNode {
   // default implementation
   def serialize: String = this.toString
+  def ++(that: Info): Info
 }
 case object NoInfo extends Info {
   override def toString: String = ""
+  def ++(that: Info): Info = that
 }
 case class FileInfo(info: StringLit) extends Info {
   override def toString: String = " @[" + info.serialize + "]"
+  def ++(that: Info): Info = that match {
+    case NoInfo => this
+    case FileInfo(otherInfo) => FileInfo(FIRRTLStringLitHandler.unescape(info.serialize + " " + otherInfo.serialize))
+  }
 }
 
 trait HasName {
@@ -440,6 +421,31 @@ case class Port(
   def serialize: String = s"${direction.serialize} $name : ${tpe.serialize}" + info.serialize
 }
 
+/** Parameters for external modules */
+sealed abstract class Param extends FirrtlNode {
+  def name: String
+  def serialize: String = s"parameter $name = "
+}
+/** Integer (of any width) Parameter */
+case class IntParam(name: String, value: BigInt) extends Param {
+  override def serialize: String = super.serialize + value
+}
+/** IEEE Double Precision Parameter (for Verilog real) */
+case class DoubleParam(name: String, value: Double) extends Param {
+  override def serialize: String = super.serialize + value
+}
+/** String Parameter */
+case class StringParam(name: String, value: StringLit) extends Param {
+  override def serialize: String = super.serialize + value.serialize
+}
+/** Raw String Parameter
+  * Useful for Verilog type parameters
+  * @note Firrtl doesn't guarantee anything about this String being legal in any backend
+  */
+case class RawStringParam(name: String, value: String) extends Param {
+  override def serialize: String = super.serialize + s"'$value'"
+}
+
 /** Base class for modules */
 abstract class DefModule extends FirrtlNode with IsDeclaration {
   val info : Info
@@ -464,9 +470,16 @@ case class Module(info: Info, name: String, ports: Seq[Port], body: Statement) e
 /** External Module
   *
   * Generally used for Verilog black boxes
+  * @param defname Defined name of the external module (ie. the name Firrtl will emit)
   */
-case class ExtModule(info: Info, name: String, ports: Seq[Port]) extends DefModule {
-  def serialize: String = serializeHeader("extmodule")
+case class ExtModule(
+    info: Info,
+    name: String,
+    ports: Seq[Port],
+    defname: String,
+    params: Seq[Param]) extends DefModule {
+  def serialize: String = serializeHeader("extmodule") +
+    indent(s"\ndefname = $defname\n" + params.map(_.serialize).mkString("\n"))
   def mapStmt(f: Statement => Statement): DefModule = this
   def mapPort(f: Port => Port): DefModule = this.copy(ports = ports map f)
   def mapString(f: String => String): DefModule = this.copy(name = f(name))
