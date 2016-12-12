@@ -60,7 +60,6 @@ object ZeroWidth extends Pass {
   }
   def run(c: Circuit): Circuit = {
     val cx = c.copy(modules = c.modules map onModule)
-    println(cx.serialize)
     ConstProp.run(InferTypes.run(cx))
   }
 }
