@@ -66,6 +66,7 @@ class HighFirrtlToMiddleFirrtl extends CoreTransform {
     passes.InferTypes,
     passes.CheckTypes,
     passes.ResolveGenders,
+    passes.ZeroWidth,
     passes.InferWidths,
     passes.CheckWidths)
 }
