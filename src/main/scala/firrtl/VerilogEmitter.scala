@@ -347,10 +347,10 @@ class VerilogWriter(writer: Writer) extends Transform with PassBased {
         case SIntType(_) => argsAsStrings.map { x => s"$$signed($x)" }
         case _ => argsAsStrings
       }
-      val argsCastToType: Seq[String] = args map {
-        e => e.tpe match {
-          case UIntType(_) => s"$$unsigned(${vString(e)})"
-          case SIntType(_) => s"$$signed(${vString(e)})"
+      val argsCastToType: Seq[String] = args.zipWithIndex map {
+        case (e, i) => e.tpe match {
+          case UIntType(_) => s"$$unsigned(${argsAsStrings(i)})"
+          case SIntType(_) => s"$$signed(${argsAsStrings(i)})"
           case t => throwInternalError(t)
         }
       }
