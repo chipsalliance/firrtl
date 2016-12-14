@@ -43,7 +43,6 @@ object VerilogModulusCleanup extends Pass {
 
       def verilogRemWidth(e: DoPrim)(tpe: Type): Type = {
         val newWidth = maxWidth(e.args.map(exp => getWidth(exp)))
-        println(s"New width is $newWidth")
         tpe mapWidth (w => newWidth)
       }
 
@@ -52,7 +51,6 @@ object VerilogModulusCleanup extends Pass {
           case Rem => 
             val name = namespace.newTemp
             val newType = e mapType verilogRemWidth(e)
-            println(s"New type has width ${bitWidth(newType.tpe)}")
             v += DefNode(get_info(s), name, e mapType verilogRemWidth(e))
             val remRef = WRef(name, newType.tpe, kind(e), gender(e))
             val remWidth = bitWidth(e.tpe)
