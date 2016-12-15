@@ -76,6 +76,8 @@ object PrimOps extends LazyLogging {
   case object Tail extends PrimOp { override def toString = "tail" }
   /** Interpret as Fixed Point **/
   case object AsFixedPoint extends PrimOp { override def toString = "asFixedPoint" }
+  /** Interpret as Interval **/
+  case object AsInterval extends PrimOp { override def toString = "asInterval" }
   /** Shift Binary Point Left **/
   case object BPShl extends PrimOp { override def toString = "bpshl" }
   /** Shift Binary Point Right **/
@@ -85,7 +87,7 @@ object PrimOps extends LazyLogging {
 
   private lazy val builtinPrimOps: Seq[PrimOp] =
     Seq(Add, Sub, Mul, Div, Rem, Lt, Leq, Gt, Geq, Eq, Neq, Pad, AsUInt, AsSInt, AsClock, Shl, Shr,
-        Dshl, Dshr, Neg, Cvt, Not, And, Or, Xor, Andr, Orr, Xorr, Cat, Bits, Head, Tail, AsFixedPoint, BPShl, BPShr, BPSet)
+        Dshl, Dshr, Neg, Cvt, Not, And, Or, Xor, Andr, Orr, Xorr, Cat, Bits, Head, Tail, AsFixedPoint, AsInterval, BPShl, BPShr, BPSet)
   private lazy val strToPrimOp: Map[String, PrimOp] = builtinPrimOps.map { case op : PrimOp=> op.toString -> op }.toMap
 
   /** Seq of String representations of [[ir.PrimOp]]s */
@@ -256,6 +258,15 @@ object PrimOps extends LazyLogging {
         case _: IntervalType => FixedType(w1, c1)
         case ClockType => FixedType(IntWidth(1), c1)
         case _: AnalogType => FixedType(w1, c1)
+        case _ => UnknownType
+      }
+      case AsInterval => t1 match {
+        case _: UIntType => IntervalType(IVal(e.consts(0), e.consts(1)))
+        case _: SIntType => IntervalType(IVal(e.consts(0), e.consts(1)))
+        case _: FixedType => IntervalType(IVal(e.consts(0), e.consts(1)))
+        case _: IntervalType => IntervalType(IVal(e.consts(0), e.consts(1)))
+        case ClockType => IntervalType(IVal(e.consts(0), e.consts(1)))
+        case _: AnalogType => IntervalType(IVal(e.consts(0), e.consts(1)))
         case _ => UnknownType
       }
       case AsClock => t1 match {

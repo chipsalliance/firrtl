@@ -11,7 +11,9 @@ import firrtl.Mappers._
 import InferIntervalsUtils._
 import collection.immutable.ListMap
 
-case class Bigger(loc: Interval, exp: Interval)
+case class Bigger(loc: Interval, exp: Interval) {
+  def serialize: String = s"${loc.serialize} encompasses ${exp.serialize}"
+}
 case class IVar(name: String) extends Interval {
   def serialize: String = s"$name"
   def map(f: Interval=>Interval): Interval = this
@@ -19,6 +21,19 @@ case class IVar(name: String) extends Interval {
 object IAdd {
   def apply(x: Interval, y: Interval): Interval = (x, y) match {
     case (IVal(a, b), IVal(c, d)) => IVal(a + c, b + d)
+    // Reorder adds
+    case (IAdd(IVal(a, b), x), IVal(c, d)) => IAdd(IVal(a + c, b + d), x)
+    case (IAdd(x, IVal(a, b)), IVal(c, d)) => IAdd(IVal(a + c, b + d), x)
+    case (IVal(c, d), IAdd(IVal(a, b), x)) => IAdd(IVal(a + c, b + d), x)
+    case (IVal(c, d), IAdd(x, IVal(a, b))) => IAdd(IVal(a + c, b + d), x)
+    // Reorder subs
+    case (ISub(IVal(a, b), x), IVal(c, d)) => ISub(IVal(a + c, b + d), x)
+    case (ISub(x, IVal(c, d)), IVal(a, b)) => IAdd(IVal(a - d, b - c), x)
+    case (IVal(c, d), ISub(IVal(a, b), x)) => ISub(IVal(a + c, b + d), x)
+    case (IVal(a, b), ISub(x, IVal(c, d))) => IAdd(IVal(a - d, b - c), x) 
+    // Add zero
+    case (IVal(a, b), x) if a == b && a == BigInt(0) => x
+    case (x, IVal(a, b)) if a == b && a == BigInt(0) => x
     case _ => new IAdd(x, y)
   }
   def unapply(i: IAdd): Option[(Interval, Interval)] = Some((i.x, i.y))
@@ -29,7 +44,19 @@ class IAdd(val x: Interval, val y: Interval) extends Interval {
 }
 object ISub {
   def apply(x: Interval, y: Interval): Interval = (x, y) match {
-    case (IVal(a, b), IVal(c, d)) => IVal(b - c, a - d)
+    case (IVal(a, b), IVal(c, d)) => IVal(a - d, b - c)
+    // Reorder adds
+    case (IAdd(IVal(a, b), x), IVal(c, d)) => IAdd(IVal(a - d, b - c), x)
+    case (IAdd(x, IVal(a, b)), IVal(c, d)) => IAdd(IVal(a - d, b - c), x)
+    case (IVal(a, b), IAdd(IVal(c, d), x)) => ISub(IVal(a - d, b - c), x)
+    case (IVal(a, b), IAdd(x, IVal(c, d))) => ISub(IVal(a - d, b - c), x)
+    // Reorder subs
+    case (ISub(IVal(a, b), x), IVal(c, d)) => ISub(IVal(a - d, b - c), x)
+    case (ISub(x, IVal(c, d)), IVal(a, b)) => IAdd(IVal(-(a + c), -(b + d)), x)
+    case (IVal(a, b), ISub(IVal(c, d), x)) => IAdd(IVal(a - d, b - c), x)
+    case (IVal(a, b), ISub(x, IVal(c, d))) => ISub(IVal(a + c, b + d), x) 
+    // Sub zero
+    case (x, IVal(a, b)) if a == b && a == BigInt(0) => x
     case _ => new ISub(x, y)
   }
   def unapply(i: ISub): Option[(Interval, Interval)] = Some((i.x, i.y))
@@ -80,13 +107,24 @@ class IRem(val x: Interval, val y: Interval) extends Interval {
   def map(f: Interval=>Interval): Interval = IRem(f(x), f(y))
 }
 object IMax {
-  def apply(is: Seq[Interval]): Interval = 
-    is.foldLeft(IVal(0, 0):Interval) { (i, next) =>
-      (i, next) match {
-        case (IVal(a, b), IVal(x, y)) => IVal(min(a, x), max(b, y))
-        case _ => IMax(is)
+  def apply(is: Seq[Interval]): Interval = {
+    val flattened = is.flatMap { i =>
+      i match {
+        case IMax(seq) => seq
+        case x => Seq(x)
       }
     }
+    val (seq, imax) = flattened.foldLeft((Seq[Interval](), IVal(BigInt(0), BigInt(0)))) { case ((seq, IVal(a, b)), next) =>
+      next match {
+        case IVal(x, y) => (seq, IVal(min(a, x), max(b, y)))
+        case _ => (seq :+ next, IVal(a, b))
+      }
+    }
+    seq match {
+      case Nil => imax
+      case _ => new IMax(seq :+ imax)
+    }
+  }
   def unapply(i: IMax): Option[Seq[Interval]] = Some(i.is)
 }
 class IMax(val is: Seq[Interval]) extends Interval {
@@ -137,7 +175,10 @@ object InferIntervalsUtils {
   }
 
   def removeCycle(n: String)(w: Interval): Interval = w match {
-    case IMax(is) => IMax(is collect { case IVar(name) if name != n => IVar(name) } )
+    case IMax(is) => IMax(is filter { 
+      case IVar(name) => n != name
+      case x => true
+    })
     case _ => w
   }
 
@@ -233,9 +274,9 @@ object InferIntervalsUtils {
 
     def solve(w: Interval): Interval = w map solve match {
       case IVar(name) => h.get(name) match {
-        case Some(IVar(_)) => IUnknown
+        case Some(IVar(_)) => IUnknown //(azidar): not sure why we don't recurse...
         case Some(i) => solve(i)
-        case None => throwInternalError
+        case None => IUnknown
       }
       case IVal(x, y) => IVal(x, y)
       case _: IMax|_: IAdd|_: ISub|_: IMul|_: IDiv|_: IRem => IUnknown

@@ -7,6 +7,7 @@ import firrtl.PrimOps._
 import firrtl.Mappers._
 import firrtl.WrappedExpression._
 import firrtl.WrappedType._
+import firrtl.passes.IMax
 import scala.collection.mutable
 import scala.collection.mutable.{StringBuilder, ArrayBuffer, LinkedHashMap, HashMap, HashSet}
 import java.io.PrintWriter
@@ -233,6 +234,7 @@ object Utils extends LazyLogging {
       case (t1x: SIntType, t2x: SIntType) => SIntType(wmax(t1x.width, t2x.width))
       case (FixedType(w1, p1), FixedType(w2, p2)) =>
         FixedType(PLUS(MAX(p1, p2),MAX(MINUS(w1, p1), MINUS(w2, p2))), MAX(p1, p2))
+      case (IntervalType(i1), IntervalType(i2)) => IntervalType(IMax(Seq(i1, i2)))
       case (t1x: VectorType, t2x: VectorType) => VectorType(
         mux_type_and_widths(t1x.tpe, t2x.tpe), t1x.size)
       case (t1x: BundleType, t2x: BundleType) => BundleType(t1x.fields zip t2x.fields map {
