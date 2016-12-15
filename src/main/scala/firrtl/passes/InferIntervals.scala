@@ -22,15 +22,15 @@ object IAdd {
   def apply(x: Interval, y: Interval): Interval = (x, y) match {
     case (IVal(a, b), IVal(c, d)) => IVal(a + c, b + d)
     // Reorder adds
-    case (IAdd(IVal(a, b), x), IVal(c, d)) => IAdd(IVal(a + c, b + d), x)
-    case (IAdd(x, IVal(a, b)), IVal(c, d)) => IAdd(IVal(a + c, b + d), x)
-    case (IVal(c, d), IAdd(IVal(a, b), x)) => IAdd(IVal(a + c, b + d), x)
-    case (IVal(c, d), IAdd(x, IVal(a, b))) => IAdd(IVal(a + c, b + d), x)
+    case (IAdd(a: IVal, x), b: IVal) => IAdd(IAdd(a, b), x)
+    case (IAdd(x, a: IVal), b: IVal) => IAdd(IAdd(a, b), x)
+    case (b: IVal, IAdd(a: IVal, x)) => IAdd(IAdd(a, b), x)
+    case (b: IVal, IAdd(x, a: IVal)) => IAdd(IAdd(a, b), x)
     // Reorder subs
-    case (ISub(IVal(a, b), x), IVal(c, d)) => ISub(IVal(a + c, b + d), x)
-    case (ISub(x, IVal(c, d)), IVal(a, b)) => IAdd(IVal(a - d, b - c), x)
-    case (IVal(c, d), ISub(IVal(a, b), x)) => ISub(IVal(a + c, b + d), x)
-    case (IVal(a, b), ISub(x, IVal(c, d))) => IAdd(IVal(a - d, b - c), x) 
+    case (ISub(a: IVal, x), b: IVal) => ISub(IAdd(a, b), x)
+    case (ISub(x, a: IVal), b: IVal) => IAdd(ISub(b, a), x)
+    case (b: IVal, ISub(a: IVal, x)) => ISub(IAdd(a, b), x)
+    case (b: IVal, ISub(x, a: IVal)) => IAdd(ISub(b, a), x)
     // Add zero
     case (IVal(a, b), x) if a == b && a == BigInt(0) => x
     case (x, IVal(a, b)) if a == b && a == BigInt(0) => x
@@ -42,19 +42,22 @@ class IAdd(val x: Interval, val y: Interval) extends Interval {
   def serialize: String = s"(${x.serialize} + ${y.serialize})"
   def map(f: Interval=>Interval): Interval = IAdd(f(x), f(y))
 }
+object INeg {
+  def apply(x: Interval): Interval = ISub(IVal(BigInt(0), BigInt(0)), x)
+}
 object ISub {
   def apply(x: Interval, y: Interval): Interval = (x, y) match {
     case (IVal(a, b), IVal(c, d)) => IVal(a - d, b - c)
     // Reorder adds
-    case (IAdd(IVal(a, b), x), IVal(c, d)) => IAdd(IVal(a - d, b - c), x)
-    case (IAdd(x, IVal(a, b)), IVal(c, d)) => IAdd(IVal(a - d, b - c), x)
-    case (IVal(a, b), IAdd(IVal(c, d), x)) => ISub(IVal(a - d, b - c), x)
-    case (IVal(a, b), IAdd(x, IVal(c, d))) => ISub(IVal(a - d, b - c), x)
+    case (IAdd(a: IVal, x), b: IVal) => IAdd(ISub(a, b), x)
+    case (IAdd(x, a: IVal), b: IVal) => IAdd(ISub(a, b), x)
+    case (b: IVal, IAdd(a: IVal, x)) => ISub(ISub(b, a), x)
+    case (b: IVal, IAdd(x, a: IVal)) => ISub(ISub(b, a), x)
     // Reorder subs
-    case (ISub(IVal(a, b), x), IVal(c, d)) => ISub(IVal(a - d, b - c), x)
-    case (ISub(x, IVal(c, d)), IVal(a, b)) => IAdd(IVal(-(a + c), -(b + d)), x)
-    case (IVal(a, b), ISub(IVal(c, d), x)) => IAdd(IVal(a - d, b - c), x)
-    case (IVal(a, b), ISub(x, IVal(c, d))) => ISub(IVal(a + c, b + d), x) 
+    case (ISub(a: IVal, x), b: IVal) => ISub(ISub(a, b), x)
+    case (ISub(x, a: IVal), b: IVal) => IAdd(INeg(IAdd(a, b)), x)
+    case (b: IVal, ISub(a: IVal, x)) => IAdd(ISub(b, a), x)
+    case (b: IVal, ISub(x, a: IVal)) => ISub(IAdd(a, b), x)
     // Sub zero
     case (x, IVal(a, b)) if a == b && a == BigInt(0) => x
     case _ => new ISub(x, y)
@@ -68,6 +71,21 @@ class ISub(val x: Interval, val y: Interval) extends Interval {
 object IMul {
   def apply(x: Interval, y: Interval): Interval = (x, y) match {
     case (IVal(a, b), IVal(c, d)) => IVal(a * c, b * d)
+    // Reorder muls
+    case (IMul(a: IVal, x), b: IVal) => IMul(IMul(a, b), x)
+    case (IMul(x, a: IVal), b: IVal) => IMul(IMul(a, b), x)
+    case (b: IVal, IMul(a: IVal, x)) => IMul(IMul(a, b), x)
+    case (b: IVal, IMul(x, a: IVal)) => IMul(IMul(a, b), x)
+    // Reorder divs
+    case (IDiv(a: IVal, x), b: IVal) => IDiv(IMul(a, b), x)
+    case (IDiv(x, a: IVal), b: IVal) => IMul(IDiv(b, a), x)
+    case (b: IVal, IDiv(a: IVal, x)) => IDiv(IMul(a, b), x)
+    case (b: IVal, IDiv(x, a: IVal)) => IMul(IDiv(b, a), x)
+    // Mul zero
+    case (IVal(a, b), x) if a == b && a == BigInt(0) => IVal(BigInt(0), BigInt(0))
+    case (x, IVal(a, b)) if a == b && a == BigInt(0) => IVal(BigInt(0), BigInt(0))
+    case (IVal(a, b), x) if a == b && a == BigInt(1) => x
+    case (x, IVal(a, b)) if a == b && a == BigInt(1) => x
     case _ => new IMul(x, y)
   }
   def unapply(i: IMul): Option[(Interval, Interval)] = Some((i.x, i.y))
@@ -82,6 +100,19 @@ object IDiv {
     case (IVal(a, b), IVal(c, d)) =>
       val values = Seq(div(a, c), div(a, d), div(b, c), div(b, d))
       IVal(values.reduce(_ min _), values.reduce(_ max _))
+    // Reorder muls
+    case (IMul(a: IVal, x), b: IVal) => IMul(IDiv(a, b), x)
+    case (IMul(x, a: IVal), b: IVal) => IMul(IDiv(a, b), x)
+    case (b: IVal, IMul(a: IVal, x)) => IDiv(IDiv(b, a), x)
+    case (b: IVal, IMul(x, a: IVal)) => IDiv(IDiv(b, a), x)
+    // Reorder divs
+    case (IDiv(a: IVal, x), b: IVal) => IDiv(IDiv(a, b), x)
+    case (IDiv(x, a: IVal), b: IVal) => IDiv(x, IMul(b, a))
+    case (b: IVal, IDiv(a: IVal, x)) => IMul(IDiv(b, a), x)
+    case (b: IVal, IDiv(x, a: IVal)) => IDiv(IMul(b, a), x)
+    // Div zero
+    case (IVal(a, b), x) if a == b && a == BigInt(0) => IVal(BigInt(0), BigInt(0))
+    case (x, IVal(a, b)) if a <= BigInt(1) && b <= BigInt(1) && a >= BigInt(0) && b >= BigInt(0) => x
     case _ => new IDiv(x, y)
   }
   def unapply(i: IDiv): Option[(Interval, Interval)] = Some((i.x, i.y))
