@@ -55,6 +55,7 @@ type
   : 'UInt' ('<' IntLit '>')?
   | 'SInt' ('<' IntLit '>')?
   | 'Fixed' ('<' IntLit '>')? ('<' '<' IntLit '>' '>')?
+  | 'Interval' ('[' IntLit IntLit ']')?
   | 'Clock'
   | 'Analog' ('<' IntLit '>')?
   | '{' field* '}'        // Bundle

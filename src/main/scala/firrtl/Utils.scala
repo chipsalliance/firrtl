@@ -49,7 +49,13 @@ object Utils extends LazyLogging {
     else "\"h" + bi.toString(16) + "\""
 
   implicit def toWrappedExpression (x:Expression): WrappedExpression = new WrappedExpression(x)
-  def ceilLog2(x: BigInt): Int = (x-1).bitLength
+  def ceilLog2(value: BigInt): Int = value match {
+    case v if(v == BigInt(0)) => 0
+    case v if(v > BigInt(0)) => value.bitLength
+    case v => 
+      println(s"cannot take ceilLog2 of negative number $v")
+      throwInternalError
+  }
   def max(a: BigInt, b: BigInt): BigInt = if (a >= b) a else b
   def min(a: BigInt, b: BigInt): BigInt = if (a >= b) b else a
   def pow_minus_one(a: BigInt, b: BigInt): BigInt = a.pow(b.toInt) - 1

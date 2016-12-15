@@ -21,7 +21,10 @@ object InferTypes extends Pass {
     }
 
     def remove_unknowns(t: Type): Type =
-      t map remove_unknowns map remove_unknowns_w
+      t map remove_unknowns map remove_unknowns_w match {
+        case IntervalType(IUnknown) => IntervalType(IVar(namespace.newName("i")))
+        case tx => tx
+      }
 
     def infer_types_e(types: TypeMap)(e: Expression): Expression =
       e map infer_types_e(types) match {

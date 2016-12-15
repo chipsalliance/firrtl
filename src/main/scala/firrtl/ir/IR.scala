@@ -379,6 +379,40 @@ case class FixedType(width: Width, point: Width) extends GroundType {
   }
   def mapWidth(f: Width => Width): Type = FixedType(f(width), f(point))
 }
+trait Interval {
+  def serialize: String
+  def map(f: Interval=>Interval): Interval
+}
+case class IVal(min: BigInt, max: BigInt) extends Interval {
+  def serialize: String = s"[$min, $max]"
+  def map(f: Interval=>Interval): Interval = this
+}
+case object IUnknown extends Interval {
+  def serialize: String = s""
+  def map(f: Interval=>Interval): Interval = this
+}
+case class IntervalType(interval: Interval) extends GroundType {
+  override def serialize: String = s"Interval${interval.serialize}"
+  val width: Width = interval match {
+    case IVal(minValue, maxValue) =>
+      val minWidth = minValue match {
+        case v if(v == 0) => 0
+        case v if(v > 0) => firrtl.Utils.ceilLog2(v) + 1
+        case v if(v == -1) => 1
+        case v if(v < -1) => firrtl.Utils.ceilLog2(-v - 1) + 1 //e.g. v = -2 -> 1
+      }
+      
+      val maxWidth = maxValue match {
+        case v if(v == 0) => 0
+        case v if(v > 0) => firrtl.Utils.ceilLog2(v) + 1
+        case v if(v == -1) => 1
+        case v if(v < -1) => firrtl.Utils.ceilLog2(-v - 1) + 1 //e.g. v = -2 -> 1
+      }
+      IntWidth(math.max(minWidth,maxWidth))
+    case _ => UnknownWidth
+  }
+  def mapWidth(f: Width => Width): Type = this
+}
 case class BundleType(fields: Seq[Field]) extends AggregateType {
   def serialize: String = "{ " + (fields map (_.serialize) mkString ", ") + "}"
   def mapType(f: Type => Type): Type =

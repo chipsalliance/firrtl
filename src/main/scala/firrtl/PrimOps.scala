@@ -4,6 +4,7 @@ package firrtl
 
 import firrtl.ir._
 import firrtl.Utils.{min, max, pow_minus_one}
+import firrtl.passes.{IAdd, ISub, IMul, IDiv, IRem}
 
 import com.typesafe.scalalogging.LazyLogging
 
@@ -133,6 +134,7 @@ object PrimOps extends LazyLogging {
         case (_: SIntType, _: UIntType) => SIntType(PLUS(MAX(w2, MINUS(w1, IntWidth(1))), IntWidth(2)))
         case (_: SIntType, _: SIntType) => SIntType(PLUS(MAX(w1, w2), IntWidth(1)))
         case (_: FixedType, _: FixedType) => FixedType(PLUS(PLUS(MAX(p1, p2), MAX(MINUS(w1, p1), MINUS(w2, p2))), IntWidth(1)), MAX(p1, p2))
+        case (IntervalType(i), IntervalType(j)) => IntervalType(IAdd(i, j))
         case _ => UnknownType
       }
       case Sub => (t1, t2) match {
@@ -141,6 +143,7 @@ object PrimOps extends LazyLogging {
         case (_: SIntType, _: UIntType) => SIntType(MAX(PLUS(w1, IntWidth(1)), PLUS(w2, IntWidth(2))))
         case (_: SIntType, _: SIntType) => SIntType(PLUS(MAX(w1, w2), IntWidth(1)))
         case (_: FixedType, _: FixedType) => FixedType(PLUS(PLUS(MAX(p1, p2),MAX(MINUS(w1, p1), MINUS(w2, p2))),IntWidth(1)), MAX(p1, p2))
+        case (IntervalType(i), IntervalType(j)) => IntervalType(ISub(i, j))
         case _ => UnknownType
       }
       case Mul => (t1, t2) match {
@@ -149,6 +152,7 @@ object PrimOps extends LazyLogging {
         case (_: SIntType, _: UIntType) => SIntType(PLUS(w1, w2))
         case (_: SIntType, _: SIntType) => SIntType(PLUS(w1, w2))
         case (_: FixedType, _: FixedType) => FixedType(PLUS(w1, w2), PLUS(p1, p2))
+        case (IntervalType(i), IntervalType(j)) => IntervalType(IMul(i, j))
         case _ => UnknownType
       }
       case Div => (t1, t2) match {
@@ -156,6 +160,7 @@ object PrimOps extends LazyLogging {
         case (_: UIntType, _: SIntType) => SIntType(PLUS(w1, IntWidth(1)))
         case (_: SIntType, _: UIntType) => SIntType(w1)
         case (_: SIntType, _: SIntType) => SIntType(PLUS(w1, IntWidth(1)))
+        case (IntervalType(i), IntervalType(j)) => IntervalType(IDiv(i, j))
         case _ => UnknownType
       }
       case Rem => (t1, t2) match {
@@ -163,6 +168,7 @@ object PrimOps extends LazyLogging {
         case (_: UIntType, _: SIntType) => UIntType(MIN(w1, w2))
         case (_: SIntType, _: UIntType) => SIntType(MIN(w1, PLUS(w2, IntWidth(1))))
         case (_: SIntType, _: SIntType) => SIntType(MIN(w1, w2))
+        case (IntervalType(i), IntervalType(j)) => IntervalType(IRem(i, j))
         case _ => UnknownType
       }
       case Lt => (t1, t2) match {
@@ -171,6 +177,7 @@ object PrimOps extends LazyLogging {
         case (_: UIntType, _: SIntType) => Utils.BoolType
         case (_: SIntType, _: SIntType) => Utils.BoolType
         case (_: FixedType, _: FixedType) => Utils.BoolType
+        case (_: IntervalType, _: IntervalType) => Utils.BoolType
         case _ => UnknownType
       }
       case Leq => (t1, t2) match {
@@ -179,6 +186,7 @@ object PrimOps extends LazyLogging {
         case (_: UIntType, _: SIntType) => Utils.BoolType
         case (_: SIntType, _: SIntType) => Utils.BoolType
         case (_: FixedType, _: FixedType) => Utils.BoolType
+        case (_: IntervalType, _: IntervalType) => Utils.BoolType
         case _ => UnknownType
       }
       case Gt => (t1, t2) match {
@@ -187,6 +195,7 @@ object PrimOps extends LazyLogging {
         case (_: UIntType, _: SIntType) => Utils.BoolType
         case (_: SIntType, _: SIntType) => Utils.BoolType
         case (_: FixedType, _: FixedType) => Utils.BoolType
+        case (_: IntervalType, _: IntervalType) => Utils.BoolType
         case _ => UnknownType
       }
       case Geq => (t1, t2) match {
@@ -195,6 +204,7 @@ object PrimOps extends LazyLogging {
         case (_: UIntType, _: SIntType) => Utils.BoolType
         case (_: SIntType, _: SIntType) => Utils.BoolType
         case (_: FixedType, _: FixedType) => Utils.BoolType
+        case (_: IntervalType, _: IntervalType) => Utils.BoolType
         case _ => UnknownType
       }
       case Eq => (t1, t2) match {
@@ -203,6 +213,7 @@ object PrimOps extends LazyLogging {
         case (_: UIntType, _: SIntType) => Utils.BoolType
         case (_: SIntType, _: SIntType) => Utils.BoolType
         case (_: FixedType, _: FixedType) => Utils.BoolType
+        case (_: IntervalType, _: IntervalType) => Utils.BoolType
         case _ => UnknownType
       }
       case Neq => (t1, t2) match {
@@ -211,6 +222,7 @@ object PrimOps extends LazyLogging {
         case (_: UIntType, _: SIntType) => Utils.BoolType
         case (_: SIntType, _: SIntType) => Utils.BoolType
         case (_: FixedType, _: FixedType) => Utils.BoolType
+        case (_: IntervalType, _: IntervalType) => Utils.BoolType
         case _ => UnknownType
       }
       case Pad => t1 match {
@@ -225,12 +237,14 @@ object PrimOps extends LazyLogging {
         case _: FixedType => UIntType(w1)
         case ClockType => UIntType(IntWidth(1))
         case AnalogType(w) => UIntType(w1)
+        case _: IntervalType => UIntType(w1)
         case _ => UnknownType
       }
       case AsSInt => t1 match {
         case _: UIntType => SIntType(w1)
         case _: SIntType => SIntType(w1)
         case _: FixedType => SIntType(w1)
+        case _: IntervalType => UIntType(w1)
         case ClockType => SIntType(IntWidth(1))
         case _: AnalogType => SIntType(w1)
         case _ => UnknownType
@@ -239,6 +253,7 @@ object PrimOps extends LazyLogging {
         case _: UIntType => FixedType(w1, c1)
         case _: SIntType => FixedType(w1, c1)
         case _: FixedType => FixedType(w1, c1)
+        case _: IntervalType => FixedType(w1, c1)
         case ClockType => FixedType(IntWidth(1), c1)
         case _: AnalogType => FixedType(w1, c1)
         case _ => UnknownType

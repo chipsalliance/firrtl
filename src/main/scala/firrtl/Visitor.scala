@@ -114,7 +114,8 @@ class Visitor(infoMode: InfoMode) extends FIRRTLBaseVisitor[FirrtlNode] {
 
   // Match on a type instead of on strings?
   private def visitType[FirrtlNode](ctx: FIRRTLParser.TypeContext): Type = {
-    def getWidth(n: TerminalNode): Width = IntWidth(string2BigInt(n.getText))
+    def getBigInt(n: TerminalNode): BigInt = string2BigInt(n.getText)
+    def getWidth(n: TerminalNode): Width = IntWidth(getBigInt(n))
     ctx.getChild(0) match {
       case term: TerminalNode =>
         term.getText match {
@@ -129,6 +130,10 @@ class Visitor(infoMode: InfoMode) extends FIRRTLBaseVisitor[FirrtlNode] {
               case _ => FixedType(getWidth(ctx.IntLit(0)), UnknownWidth)
             }
             case 2 => FixedType(getWidth(ctx.IntLit(0)), getWidth(ctx.IntLit(1)))
+          }
+          case "Interval" => ctx.IntLit.size match {
+            case 0 => IntervalType(IUnknown)
+            case 2 => IntervalType(IVal(getBigInt(ctx.IntLit(0)), getBigInt(ctx.IntLit(1))))
           }
           case "Clock" => ClockType
           case "Analog" => if (ctx.getChildCount > 1) AnalogType(IntWidth(string2BigInt(ctx.IntLit(0).getText)))
