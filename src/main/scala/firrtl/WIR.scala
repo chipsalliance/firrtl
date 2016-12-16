@@ -164,6 +164,7 @@ class WrappedType(val t: Type) {
       case (_: SIntType, _: SIntType) => true
       case (ClockType, ClockType) => true
       case (_: FixedType, _: FixedType) => true
+      case (_: IntervalType, _: IntervalType) => true
       // Analog totally skips out of the Firrtl type system.
       // The only way Analog can play with another Analog component is through Attach.
       // Ohterwise, we'd need to special case it during ExpandWhens, Lowering,

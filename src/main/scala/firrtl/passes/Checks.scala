@@ -240,6 +240,7 @@ object CheckTypes extends Pass {
   class OpNotAllSameType(info: Info, mname: String, op: String) extends PassException(
     s"$info: [module $mname]  Primop $op requires all operands to have the same type.")
   class OpNoMixFix(info:Info, mname: String, op: String) extends PassException(s"${info}: [module ${mname}]  Primop ${op} cannot operate on args of some, but not all, fixed type.")
+  class OpNoMixInterval(info:Info, mname: String, op: String) extends PassException(s"${info}: [module ${mname}]  Primop ${op} cannot operate on args of some, but not all, interval type.")
   class OpNotAnalog(info: Info, mname: String, exp: String) extends PassException(
     s"$info: [module $mname]  Attach requires all arguments to be Analog type: $exp.")
   class NodePassiveType(info: Info, mname: String) extends PassException(
@@ -288,6 +289,13 @@ object CheckTypes extends Pass {
         })
         if (error) errors.append(new OpNotGround(info, mname, e.op.serialize))
       }
+      def allUSFI(ls: Seq[Expression]) {
+        val error = ls.foldLeft(false)((error, x) => x.tpe match {
+          case (_: UIntType| _: SIntType| _: FixedType| _: IntervalType) => error
+          case _ => true
+        })
+        if (error) errors.append(new OpNotGround(info, mname, e.op.serialize))
+      }
       def allUSF(ls: Seq[Expression]) {
         val error = ls.foldLeft(false)((error, x) => x.tpe match {
           case (_: UIntType| _: SIntType| _: FixedType) => error
@@ -308,11 +316,17 @@ object CheckTypes extends Pass {
         })
         if (error) errors.append(new OpNotGround(info, mname, e.op.serialize))
       }
-      def strictFix(ls: Seq[Expression]) = 
+      def strictFix(ls: Seq[Expression]) =
         ls.filter(!_.tpe.isInstanceOf[FixedType]).size match {
-          case 0 => 
+          case 0 =>
           case x if(x == ls.size) =>
           case x => errors.append(new OpNoMixFix(info, mname, e.op.serialize))
+        }
+      def strictInterval(ls: Seq[Expression]) =
+        ls.filter(!_.tpe.isInstanceOf[IntervalType]).size match {
+          case 0 =>
+          case x if(x == ls.size) =>
+          case x => errors.append(new OpNoMixInterval(info, mname, e.op.serialize))
         }
       def all_uint (ls: Seq[Expression]) {
         if (ls exists (x => x.tpe match {
@@ -327,11 +341,11 @@ object CheckTypes extends Pass {
         }) errors append new OpNotUInt(info, mname, e.op.serialize, x.serialize)
       }
       e.op match {
-        case AsUInt | AsSInt | AsFixedPoint =>
+        case AsUInt | AsSInt | AsFixedPoint | AsInterval =>
         case AsClock => allUSC(e.args)
         case Dshl => is_uint(e.args(1)); allUSF(e.args)
         case Dshr => is_uint(e.args(1)); allUSF(e.args)
-        case Add | Sub | Mul | Lt | Leq | Gt | Geq | Eq | Neq => allUSF(e.args); strictFix(e.args)
+        case Add | Sub | Mul | Lt | Leq | Gt | Geq | Eq | Neq => allUSFI(e.args); strictFix(e.args); strictInterval(e.args)
         case Pad | Shl | Shr | Cat | Bits | Head | Tail => allUSF(e.args)
         case BPShl | BPShr | BPSet => allF(e.args)
         case _ => allUS(e.args)

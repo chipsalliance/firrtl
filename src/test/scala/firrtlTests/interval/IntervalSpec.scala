@@ -16,8 +16,6 @@ import firrtl.Parser.IgnoreInfo
  ** Rem
  ** Multiple assign
  ** Through ports
- ** DShr
- ** DShl
  */
 class IntervalSpec extends FirrtlFlatSpec {
   private def executeTest(input: String, expected: Seq[String], passes: Seq[Pass]) = {
@@ -27,6 +25,14 @@ class IntervalSpec extends FirrtlFlatSpec {
     val lines = c.serialize.split("\n") map normalized
     println(c.serialize)
 
+    expected foreach { e =>
+      lines should contain(e)
+    }
+  }
+  private def executeTest(input: String, expected: Seq[String], compiler: Compiler) = {
+    val writer = new StringWriter()
+    compiler.compile(CircuitState(parse(input), ChirrtlForm), writer)
+    val lines = writer.toString().split("\n") map normalized
     expected foreach { e =>
       lines should contain(e)
     }
@@ -162,5 +168,44 @@ class IntervalSpec extends FirrtlFlatSpec {
       "reg r : Interval[0, 2], clock with :"
     )
     executeTest(input, check, passes)
+  }
+
+  "Convert Intervals to SInts" should "work" in {
+    val passes = Seq(
+      ToWorkingIR,
+      CheckHighForm,
+      ResolveKinds,
+      InferTypes,
+      InferIntervals,
+      ConvertIntervalToSInt)
+    val input =
+      """circuit Unit :
+        |  module Unit :
+        |    input x: Interval[-2, 0]
+        |    node q = add(add(x, asInterval(UInt(1), 1, 1)), x)
+        |""".stripMargin
+    val check = Seq(
+      """node q = asSInt(bits(add(add(x, cvt(UInt<1>("h1"))), x), 2, 0))"""
+    )
+    executeTest(input, check, passes)
+  }
+
+  "Intervals" should "lower properly" in {
+    val compiler = new LowFirrtlCompiler
+    val input =
+      """circuit Xorr :
+        |  module Xorr :
+        |    input x: Interval[0, 2]
+        |    input y: Interval[0, 4]
+        |    output z: Interval
+        |    z <= add(x, y)""".stripMargin
+    val check =
+      """circuit Xorr :
+        |  module Xorr :
+        |    input x : SInt<3>
+        |    input y : SInt<4>
+        |    output z : SInt<4>
+        |    z <= asSInt(bits(add(x, y), 3, 0))""".stripMargin.split("\n") map normalized
+    executeTest(input, check, compiler)
   }
 }

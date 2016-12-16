@@ -41,6 +41,7 @@ class ResolveAndCheck extends CoreTransform {
     passes.Uniquify,
     passes.ResolveKinds,
     passes.InferTypes,
+    passes.InferIntervals,
     passes.ResolveGenders,
     passes.CheckGenders,
     passes.InferWidths,
@@ -84,6 +85,7 @@ class MiddleFirrtlToLowFirrtl extends CoreTransform {
     passes.InferTypes,
     passes.ResolveGenders,
     passes.InferWidths,
+    passes.ConvertIntervalToSInt,
     passes.ConvertFixedToSInt,
     passes.Legalize)
 }
