@@ -224,7 +224,6 @@ class ReplaceMemMacros(writer: ConfWriter) extends Transform {
           case Nil => error(s"Bad Annotation: ${Annotation(c, t, string)}")
           case seq => seq
         }
-      case _ => throwInternalError
     }
     val annos = pins.foldLeft(Seq[Annotation]()) { (seq, pin) =>
       seq ++ memMods.collect { 

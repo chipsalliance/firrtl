@@ -51,7 +51,7 @@ object CheckWidths extends Pass {
     def hasWidth(tpe: Type): Boolean = tpe match {
       case GroundType(IntWidth(w)) => true
       case GroundType(_) => false
-      case _ => println(tpe); throwInternalError
+      case _ => println(tpe); throwInternalError()
     }
 
     def check_width_t(info: Info, mname: String)(t: Type): Type =

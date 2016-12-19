@@ -10,6 +10,7 @@ import logger.Logger
 import Parser.{InfoMode, IgnoreInfo}
 import annotations._
 import firrtl.annotations.AnnotationYamlProtocol._
+import firrtl.Utils._
 
 
 /**
@@ -46,12 +47,18 @@ object Driver {
       customTransforms: Seq[Transform] = Seq.empty,
       annotations: AnnotationMap = AnnotationMap(Seq.empty)
   ): String = {
-    val parsedInput = Parser.parse(Source.fromFile(input).getLines(), infoMode)
     val outputBuffer = new java.io.CharArrayWriter
-    compiler.compile(
-      CircuitState(parsedInput, ChirrtlForm, Some(annotations)),
-      outputBuffer,
-      customTransforms)
+    try {
+      val parsedInput = Parser.parse(Source.fromFile(input).getLines(), infoMode)
+      compiler.compile(
+        CircuitState(parsedInput, ChirrtlForm, Some(annotations)),
+        outputBuffer,
+        customTransforms)
+    }
+
+    catch {
+      case e: Exception => throwInternalError(Some(e))
+    }
 
     val outputFile = new java.io.PrintWriter(output)
     val outputString = outputBuffer.toString
@@ -136,15 +143,23 @@ object Driver {
           }
         }
 
-    loadAnnotations(optionsManager)
-
-    val parsedInput = Parser.parse(firrtlSource, firrtlConfig.infoMode)
     val outputBuffer = new java.io.CharArrayWriter
-    firrtlConfig.compiler.compile(
-      CircuitState(parsedInput, ChirrtlForm, Some(AnnotationMap(firrtlConfig.annotations))),
-      outputBuffer,
-      firrtlConfig.customTransforms
-    )
+
+    // Wrap compilation in a try/catch to present Scala MatchErrors in a more user-friendly format.
+    try {
+      loadAnnotations(optionsManager)
+
+      val parsedInput = Parser.parse(firrtlSource, firrtlConfig.infoMode)
+      firrtlConfig.compiler.compile(
+        CircuitState(parsedInput, ChirrtlForm, Some(AnnotationMap(firrtlConfig.annotations))),
+        outputBuffer,
+        firrtlConfig.customTransforms
+      )
+    }
+
+    catch {
+      case e: Exception => throwInternalError(Some(e))
+    }
 
     val outputFileName = firrtlConfig.getOutputFileName(optionsManager)
     val outputFile     = new java.io.PrintWriter(outputFileName)
