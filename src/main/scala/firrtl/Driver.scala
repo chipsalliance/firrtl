@@ -4,6 +4,7 @@ package firrtl
 
 import scala.collection._
 import scala.io.Source
+import scala.util.control.ControlThrowable
 import java.io.{File, FileNotFoundException}
 import net.jcazevedo.moultingyaml._
 import logger.Logger
@@ -11,6 +12,7 @@ import Parser.{InfoMode, IgnoreInfo}
 import annotations._
 import firrtl.annotations.AnnotationYamlProtocol._
 import firrtl.Utils._
+import firrtl.passes.PassException
 
 
 /**
@@ -57,6 +59,10 @@ object Driver {
     }
 
     catch {
+      // Rethrow the exceptions which are expected or due to the runtime environment (out of memory, stack overflow)
+      case p: PassException  => throw p
+      case p: ControlThrowable => throw p
+      // Treat remaining exceptions as internal errors.
       case e: Exception => throwInternalError(Some(e))
     }
 
@@ -158,6 +164,10 @@ object Driver {
     }
 
     catch {
+      // Rethrow the exceptions which are expected or due to the runtime environment (out of memory, stack overflow)
+      case p: PassException  => throw p
+      case p: ControlThrowable => throw p
+      // Treat remaining exceptions as internal errors.
       case e: Exception => throwInternalError(Some(e))
     }
 

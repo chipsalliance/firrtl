@@ -5,16 +5,12 @@ package firrtlTests
 import java.io.File
 
 import firrtl._
-import firrtl.annotations.Annotation
-import firrtl.annotations.AnnotationYamlProtocol._
-import firrtl.passes.InlineInstances
-import firrtl.passes.memlib.{InferReadWrite, ReplSeqMem}
-import net.jcazevedo.moultingyaml._
+import firrtl.Utils.getThrowable
 import org.scalatest.{FreeSpec, Matchers}
-import java.io.StringWriter
+
 
 class InternalErrorSpec extends FreeSpec with Matchers with BackendCompilationUtilities {
-  "MatchErrors appear as InternalErrors" - {
+  "Unexpected exceptions" - {
     val input =
       """
         |circuit Dummy :
@@ -23,16 +19,27 @@ class InternalErrorSpec extends FreeSpec with Matchers with BackendCompilationUt
         |    input x : UInt<1>
         |    output y : UInt<1>
         |    output io : { flip in : UInt<16>, out : UInt<16> }
-        |;    io is invalid
-        |;    io.out <= io.in
-        |    y <= shr(x, UInt(1))
+        |    y <= shr(x, UInt(1)); this should generate an exception in PrimOps.scala:127.
         |      """.stripMargin
-    val manager = new ExecutionOptionsManager("test") with HasFirrtlOptions {
-      commonOptions = CommonOptions(topName = "Dummy")
-      firrtlOptions = FirrtlExecutionOptions(firrtlSource = Some(input), compilerName = "low")
+
+    var exception: Exception = null
+    "should throw a FIRRTLException" in {
+      val manager = new ExecutionOptionsManager("test") with HasFirrtlOptions {
+        commonOptions = CommonOptions(topName = "Dummy")
+        firrtlOptions = FirrtlExecutionOptions(firrtlSource = Some(input), compilerName = "low")
+      }
+      exception = intercept[FIRRTLException] {
+        firrtl.Driver.execute(manager)
+      }
     }
 
-    val output = firrtl.Driver.execute(manager)
-    println(output)
+    "should contain the expected string" in {
+      assert(exception.getMessage.contains("Internal Error! Please file an issue"))
+    }
+
+    "should contain the name of the file originating the exception in the stack trace" in {
+      val first = true
+      assert(getThrowable(Some(exception), first).getStackTrace exists (_.getFileName.contains("PrimOps.scala")))
+    }
   }
 }

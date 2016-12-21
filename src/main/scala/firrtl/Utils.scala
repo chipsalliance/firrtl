@@ -12,15 +12,54 @@ import scala.collection.mutable.{StringBuilder, ArrayBuffer, LinkedHashMap, Hash
 import java.io.PrintWriter
 import logger.LazyLogging
 
-class FIRRTLException(str: String) extends Exception(str)
+object FIRRTLException {
+  def defaultMessage(message: String, cause: Throwable) = {
+    if (message != null) {
+      message
+    } else if (cause != null) {
+      cause.toString
+    } else {
+      null
+    }
+  }
+}
+class FIRRTLException(str: String, cause: Throwable = null)
+  extends RuntimeException(FIRRTLException.defaultMessage(str, cause), cause)
 
 object Utils extends LazyLogging {
-  def throwInternalError(maybeException: Option[Exception] = None) = {
-    val message = maybeException match {
-      case Some(e: Exception) => ", mentioning:\n" + e.getMessage
-      case _ => ""
+  /** Unwind the causal chain until we hit the initial exception (which may be the first).
+    *
+    * @param maybeException - possible exception triggering the error,
+    * @param first - true if we want the first (eldest) exception in the chain,
+    * @return first or last Throwable in the chain.
+    */
+  def getThrowable(maybeException: Option[Throwable], first: Boolean): Throwable = {
+    maybeException match {
+      case Some(e: Throwable) => {
+        val t = e.getCause
+        if (t != null) {
+          if (first) {
+            getThrowable(Some(t), first)
+          } else {
+            t
+          }
+        } else {
+          e
+        }
+      }
+      case None | null => null
     }
-    error("Internal Error! Please file an issue at https://github.com/ucb-bar/firrtl/issues" + message)
+  }
+
+  /** Throw an internal error, possibly due to an exception.
+    *
+    * @param maybeException - possible exception triggering the error.
+   */
+  def throwInternalError(maybeException: Option[Exception] = None) = {
+    // We'll get the last exception in the chain, keeping it intact.
+    val last = false
+    val throwable = getThrowable(maybeException, last)
+    error("Internal Error! Please file an issue at https://github.com/ucb-bar/firrtl/issues", throwable)
   }
   private[firrtl] def time[R](name: String)(block: => R): R = {
     logger.info(s"Starting $name")
@@ -258,7 +297,7 @@ object Utils extends LazyLogging {
 //>>>>>>> e54fb610c6bf0a7fe5c9c0f0e0b3acbb3728cfd0
    
 // =================================
-  def error(str: String) = throw new FIRRTLException(str)
+  def error(str: String, cause: Throwable = null) = throw new FIRRTLException(str, cause)
 
 //// =============== EXPANSION FUNCTIONS ================
   def get_size(t: Type): Int = t match {
