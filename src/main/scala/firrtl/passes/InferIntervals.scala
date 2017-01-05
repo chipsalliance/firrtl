@@ -330,6 +330,7 @@ object InferIntervals extends Pass {
         })
       }
     case (t1: VectorType, t2: VectorType) => getTypeConstraints(t1.tpe, t2.tpe)
+    case (_, _) => Nil
   }
   def run (c: Circuit): Circuit = {
     val v = collection.mutable.ArrayBuffer[Bigger]()
@@ -369,9 +370,9 @@ object InferIntervals extends Pass {
 
     c.modules foreach (_ map getStmtConstraints)
 
-    println("======== ALL CONSTRAINTS ========")
-    for(x <- v) println(x)
-    println("=================================")
+    //println("======== ALL CONSTRAINTS ========")
+    //for(x <- v) println(x.serialize)
+    //println("=================================")
     val h = solveConstraints(v)
     //println("======== SOLVED CONSTRAINTS ========")
     //for(x <- h) println(x)
