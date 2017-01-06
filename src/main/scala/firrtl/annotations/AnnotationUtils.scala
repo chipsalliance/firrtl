@@ -4,6 +4,7 @@ package firrtl
 package annotations
 
 import firrtl.ir._
+import firrtl.Utils.error
 
 object AnnotationUtils {
   /** Returns true if a valid Module name */
