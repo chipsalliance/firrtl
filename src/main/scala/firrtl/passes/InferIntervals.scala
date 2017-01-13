@@ -235,7 +235,7 @@ object InferIntervalsUtils {
     val u = uniquify(l)
     
     //println("======== UNIQUE CONSTRAINTS ========")
-    //for (x <- u) { println(x) }
+    //for (x <- u) { println(s"${x._1}: ${x._2.serialize}") }
     //println("====================================")
  
     val f = new ConstraintMap

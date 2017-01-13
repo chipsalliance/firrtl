@@ -82,8 +82,8 @@ class opTypeTests extends FlatSpec with Matchers {
   "opType of mul(S<3>, S<2>)" should "be S<5>" in {
     opType(DoPrim(Mul, Seq(S3, S2), Seq.empty, UnknownType)) should be (S5.tpe);
   }
-  "opType of mul(U<2>, U<0>)" should "be U<2>" in {
-    opType(DoPrim(Mul, Seq(U2, U0), Seq.empty, UnknownType)) should be (U2.tpe);
+  "opType of mul(U<2>, U<0>)" should "be U<0>" in {
+    opType(DoPrim(Mul, Seq(U2, U0), Seq.empty, UnknownType)) should be (U0.tpe);
   }
 }
 

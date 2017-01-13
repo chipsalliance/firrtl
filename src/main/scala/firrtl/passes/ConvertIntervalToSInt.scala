@@ -67,6 +67,9 @@ object ConvertIntervalToSInt extends Pass {
           val newValue = trim(tpe, newArg)
           types(name) = newValue.tpe
           DefNode(info, name, newValue)
+        case DefNode(info, name, value) =>
+          types(name) = value.tpe
+          DefNode(info, name, value)
         case DefMemory(info, name, dt, depth, wL, rL, rs, ws, rws, ruw) =>
           val newStmt = DefMemory(info, name, toSIntType(dt), depth, wL, rL, rs, ws, rws, ruw)
           val newType = MemPortUtils.memType(newStmt)
