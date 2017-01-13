@@ -21,7 +21,6 @@ object VerilogFileParser {
     io.Source.fromFile(fileName).getLines().foreach { line =>
       line match {
         case StartModule(moduleName) =>
-          println(s"got $moduleName")
           currentModuleName = moduleName
           moduleText = Some(new mutable.StringBuilder())
         case EndModule() =>
