@@ -2,11 +2,14 @@
 
 package firrtl
 
+import java.io.{File, FilenameFilter}
+
 import firrtl.annotations._
 import firrtl.Parser._
 import firrtl.passes.memlib.{InferReadWriteAnnotation, ReplSeqMemAnnotation}
 import firrtl.passes.clocklist.ClockListAnnotation
-import logger.LogLevel
+import _root_.logger.LogLevel
+import firrtl.blackboxes.VerilogFileParser
 import scopt.OptionParser
 
 import scala.collection.Seq
@@ -142,6 +145,8 @@ case class FirrtlExecutionOptions(
     inferRW:                Seq[String] = Seq.empty,
     firrtlSource:           Option[String] = None,
     customTransforms:       Seq[Transform] = List.empty,
+    blackBoxFiles:          Seq[String] = List.empty,
+    verilogBlackBoxes:      Map[String, String] = Map.empty,
     annotations:            List[Annotation] = List.empty,
     annotationFileNameOverride: String = "",
     forceAppendAnnoFile:    Boolean = false)
@@ -161,7 +166,7 @@ case class FirrtlExecutionOptions(
     compilerName match {
       case "high"      => new HighFirrtlCompiler()
       case "low"       => new LowFirrtlCompiler()
-      case "verilog"   => new VerilogCompiler()
+      case "verilog"   => new VerilogCompiler(verilogBlackBoxes)
     }
   }
 
@@ -292,6 +297,33 @@ trait HasFirrtlOptions {
     }
     .text {
       """Inline one or more module (comma separated, no spaces) module looks like "MyModule" or "MyModule.myinstance"""
+    }
+
+  parser.opt[Seq[String]]("black-box-files")
+    .abbr("fbbf")
+    .valueName ("[file-name,[,..]],")
+    .foreach { x =>
+      val fileNames = x.map { fileName =>
+        val file = new java.io.File(fileName)
+        if(! file.exists() ) {
+          parser.failure("--black-box-files, had bad file in list fileName")
+        }
+        else if(file.isDirectory) {
+          file.listFiles(new FilenameFilter {
+            override def accept(dir: File, name: String) = name.endsWith(".v")
+          }).foreach { childFile =>
+            val newBlackBoxes = firrtlOptions.verilogBlackBoxes ++ VerilogFileParser.getModules(childFile)
+            firrtlOptions = firrtlOptions.copy(verilogBlackBoxes = newBlackBoxes)
+          }
+        }
+        else {
+          val newBlackBoxes = firrtlOptions.verilogBlackBoxes ++ VerilogFileParser.getModules(file)
+          firrtlOptions = firrtlOptions.copy(verilogBlackBoxes = newBlackBoxes)
+        }
+      }
+    }
+    .text {
+      """A list of files or directories containing verilog modules (comma separated, no spaces)"""
     }
 
   parser.opt[String]("infer-rw")

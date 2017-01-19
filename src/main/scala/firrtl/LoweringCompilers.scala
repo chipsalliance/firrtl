@@ -126,8 +126,8 @@ class LowFirrtlCompiler extends Compiler {
 }
 
 /** Emits Verilog */
-class VerilogCompiler extends Compiler {
-  def emitter = new VerilogEmitter
+class VerilogCompiler(verilogBlackBoxes: Map[String, String] = Map.empty) extends Compiler {
+  def emitter = new VerilogEmitter(verilogBlackBoxes)
   def transforms: Seq[Transform] =
     getLoweringTransforms(ChirrtlForm, LowForm) :+ (new LowFirrtlOptimization)
 }

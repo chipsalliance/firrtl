@@ -36,8 +36,10 @@ case class VRandom(width: BigInt) extends Expression {
   def mapWidth(f: Width => Width): Expression = this
 }
 
-class VerilogEmitter extends Emitter with PassBased {
+class VerilogEmitter(verilogBlackBoxes: Map[String, String] = Map.empty) extends Emitter with PassBased {
   val tab = "  "
+  private val blackBoxesEmitted = new mutable.HashSet[String]
+
   def AND(e1: WrappedExpression, e2: WrappedExpression): Expression = {
     if (e1 == e2) e1.e1
     else if ((e1 == we(zero)) | (e2 == we(zero))) zero
@@ -561,6 +563,17 @@ class VerilogEmitter extends Emitter with PassBased {
         "`endif\n"))
    }
 
+  def emitBlackBoxInline(blackBoxName: String)(implicit w: Writer): Unit = {
+    if(! blackBoxesEmitted.contains(blackBoxName)) {
+      blackBoxesEmitted += blackBoxName
+      if(verilogBlackBoxes.contains(blackBoxName)) {
+        w.write("\n")
+        w.write(verilogBlackBoxes(blackBoxName)
+        )
+      }
+    }
+  }
+
   def passSeq = Seq(
     passes.VerilogModulusCleanup,
     passes.VerilogWrap,
@@ -574,6 +587,10 @@ class VerilogEmitter extends Emitter with PassBased {
     circuit.modules foreach {
       case (m: Module) => emit_verilog(m, moduleMap)(writer)
       case (m: ExtModule) =>
+    }
+    circuit.modules foreach {
+      case (m: Module) =>
+      case (m: ExtModule) => emitBlackBoxInline(m.defname)(writer)
     }
   }
 }
