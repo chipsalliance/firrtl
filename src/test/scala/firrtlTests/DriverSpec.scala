@@ -2,19 +2,14 @@
 
 package firrtlTests
 
-import java.io.File
+import java.io.{File, FileNotFoundException, FileOutputStream}
+import org.scalatest.{FreeSpec, Matchers}
 
-import firrtl.annotations.Annotation
-import org.scalatest.{Matchers, FreeSpec}
-
-import firrtl._
 import firrtl.passes.InlineInstances
-import firrtl.passes.memlib.{ReplSeqMem, InferReadWrite}
-import org.scalatest.{Matchers, FreeSpec}
-
+import firrtl.passes.memlib.{InferReadWrite, ReplSeqMem}
 import firrtl._
 
-class DriverSpec extends FreeSpec with Matchers {
+class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities {
   "CommonOptions are some simple options available across the chisel3 ecosystem" - {
     "CommonOption provide an scopt implementation of an OptionParser" - {
       "Options can be set from an Array[String] as is passed into a main" - {
@@ -133,14 +128,17 @@ class DriverSpec extends FreeSpec with Matchers {
     val optionsManager = new ExecutionOptionsManager("test") with HasFirrtlOptions {
       commonOptions = commonOptions.copy(topName = "a.fir")
       firrtlOptions = firrtlOptions.copy(
-        annotationFileNameOverride = "src/test/resources/annotations/SampleAnnotations"
+        annotationFileNameOverride = "SampleAnnotations"
       )
     }
+    val annotationsTestFile =  new File(optionsManager.commonOptions.targetDirName, optionsManager.firrtlOptions.annotationFileNameOverride + ".anno")
+    copyResourceToFile("/annotations/SampleAnnotations.anno", annotationsTestFile)
     optionsManager.firrtlOptions.annotations.length should be (0)
     Driver.loadAnnotations(optionsManager)
     optionsManager.firrtlOptions.annotations.length should be (9)
 
     optionsManager.firrtlOptions.annotations.head.transformClass should be ("firrtl.passes.InlineInstances")
+    annotationsTestFile.delete()
   }
 
   val input =
@@ -158,6 +156,7 @@ class DriverSpec extends FreeSpec with Matchers {
       Seq(
         "low" -> "./Dummy.lo.fir",
         "high" -> "./Dummy.hi.fir",
+        "middle" -> "./Dummy.mid.fir",
         "verilog" -> "./Dummy.v"
       ).foreach { case (compilerName, expectedOutputFileName) =>
         val manager = new ExecutionOptionsManager("test") with HasFirrtlOptions {
