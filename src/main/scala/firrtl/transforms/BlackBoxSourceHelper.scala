@@ -78,17 +78,15 @@ class BlackBoxSourceHelper extends firrtl.Transform {
       case Nil => state
       case myAnnotations =>
         val sources = getSources(myAnnotations)
-        sources.foreach { source =>
-          source match {
-            case BlackBoxResource(resourceId) =>
-              val name = resourceId.split("/").last
-              BlackBoxSourceHelper.copyResourceToFile(resourceId, new File(targetDir, name))
-            case BlackBoxInline(name, text) =>
-              val outFile = new PrintWriter(new File(targetDir, name))
-              outFile.write(text)
-              outFile.close()
-            case _ =>
-          }
+        sources.foreach {
+          case BlackBoxResource(resourceId) =>
+            val name = resourceId.split("/").last
+            BlackBoxSourceHelper.copyResourceToFile(resourceId, new File(targetDir, name))
+          case BlackBoxInline(name, text) =>
+            val outFile = new PrintWriter(new File(targetDir, name))
+            outFile.write(text)
+            outFile.close()
+          case _ =>
         }
         state
     }

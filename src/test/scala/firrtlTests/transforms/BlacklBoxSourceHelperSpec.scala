@@ -4,10 +4,10 @@ package firrtlTests.transforms
 
 import java.io.StringWriter
 
-import firrtl.{AnnotationMap, FIRRTLException, Transform}
 import firrtl.annotations.{Annotation, CircuitName, ModuleName}
 import firrtl.transforms._
-import firrtlTests.{HighTransformSpec, LowTransformSpec}
+import firrtl.{AnnotationMap, FIRRTLException, Transform}
+import firrtlTests.HighTransformSpec
 import org.scalacheck.Test.Failed
 import org.scalatest.{FreeSpec, Matchers, Succeeded}
 
@@ -24,7 +24,9 @@ class BlacklBoxSourceHelperSpec extends FreeSpec with Matchers {
 
       val serialized = BlackBoxResource(resource).serialize
       BlackBoxSource.parse(serialized) match {
-        case Some(BlackBoxResource(id)) => Succeeded
+        case Some(BlackBoxResource(id)) =>
+          id should be (resource)
+          Succeeded
         case _ => Failed
       }
     }
@@ -40,8 +42,8 @@ class BlacklBoxSourceHelperSpec extends FreeSpec with Matchers {
 class BlacklBoxSourceHelperTransformSpec extends HighTransformSpec {
    def transform: Transform = new BlackBoxSourceHelper
 
-  val moduleName = ModuleName("Top", CircuitName("Top"))
-  val input = """
+  private val moduleName = ModuleName("Top", CircuitName("Top"))
+  private val input = """
     |circuit Top :
     |
     |  extmodule AdderExtModule :
@@ -62,14 +64,14 @@ class BlacklBoxSourceHelperTransformSpec extends HighTransformSpec {
   "annotated external modules" should "appear in output directory" in {
 
     val writer = new StringWriter()
-    val aMap = new AnnotationMap(Seq(
+    val aMap = AnnotationMap(Seq(
       Annotation(moduleName, classOf[BlackBoxSourceHelper], BlackBoxTargetDir("test_run_dir").serialize),
       Annotation(moduleName, classOf[BlackBoxSourceHelper], BlackBoxResource("/blackboxes/AdderExtModule.v").serialize)
     ))
 
     execute(writer, aMap, input, input)
 
-    (new java.io.File("test_run_dir/AdderExtModule.v")).exists should be (true)
+    new java.io.File("test_run_dir/AdderExtModule.v").exists should be (true)
   }
 }
 
