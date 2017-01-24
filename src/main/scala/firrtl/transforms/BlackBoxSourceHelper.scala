@@ -52,13 +52,26 @@ object BlackBoxSourceAnnotation {
   }
 }
 
+/**
+  * This transform handles the moving of verilator source for black boxes into the
+  * target directory so that it can be accessed by verilator or other backend compilers
+  * While parsing it's annotations it looks for a BlackBoxTargetDir annotation that
+  * will set the directory where the verilog will be written.  This annotation is typically be
+  * set by the execution harness, or directly in the tests
+  */
 class BlackBoxSourceHelper extends firrtl.Transform {
   var targetDir: File = new File(".")
 
   override def inputForm: CircuitForm = HighForm
   override def outputForm: CircuitForm = HighForm
 
-
+  /**
+    * parse the annotations and convert the generic annotations to specific information
+    * required to find the verilog
+    * @note Side effect is that while converting a magic target dir annotation is found and sets the target
+    * @param annos a list of generic annotations for this transform
+    * @return
+    */
   def getSources(annos: Seq[Annotation]): Seq[BlackBoxSource] = {
     annos.flatMap { anno => BlackBoxSource.parse(anno.value) }
       .flatMap {
@@ -73,6 +86,12 @@ class BlackBoxSourceHelper extends firrtl.Transform {
       .distinct
   }
 
+  /**
+    * write the verilog source for each annotation to the target directory
+    * @note the state is not changed by this transform
+    * @param state Input Firrtl AST
+    * @return A transformed Firrtl AST
+    */
   override def execute(state: CircuitState): CircuitState = {
     getMyAnnotations(state) match {
       case Nil => state
@@ -94,6 +113,11 @@ class BlackBoxSourceHelper extends firrtl.Transform {
 }
 
 object BlackBoxSourceHelper {
+  /**
+    * finds the named resource and writes into the directory
+    * @param name the name of the resource
+    * @param file the file to write it into
+    */
   def copyResourceToFile(name: String, file: File) {
     val in = getClass.getResourceAsStream(name)
     if (in == null) {

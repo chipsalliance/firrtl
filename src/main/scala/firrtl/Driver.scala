@@ -96,10 +96,14 @@ object Driver {
           val annos = annotationsYaml.convertTo[Array[Annotation]]
 
           if (annos.nonEmpty) {
-            annos + Annotation(
+            annos ++ List(Annotation(
               ModuleName("All", CircuitName("All")),
               classOf[BlackBoxSourceHelper],
-              BlackBoxTargetDir(optionsManager.targetDirName))
+              BlackBoxTargetDir(optionsManager.targetDirName).serialize
+            ))
+          }
+          else {
+            annos
           }
         }
         optionsManager.firrtlOptions = firrtlConfig.copy(annotations = firrtlConfig.annotations ++ annotationArray)
