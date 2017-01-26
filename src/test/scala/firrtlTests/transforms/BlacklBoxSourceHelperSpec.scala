@@ -72,7 +72,7 @@ class BlacklBoxSourceHelperTransformSpec extends HighTransformSpec {
     execute(writer, aMap, input, input)
 
     new java.io.File("test_run_dir/AdderExtModule.v").exists should be (true)
-
+    new java.io.File(s"test_run_dir/${BlackBoxSourceHelper.FileListName}").exists should be (true)
   }
 }
 

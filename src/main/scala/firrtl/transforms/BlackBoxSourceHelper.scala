@@ -7,6 +7,8 @@ import java.io.{File, FileNotFoundException, FileOutputStream, PrintWriter}
 import firrtl._
 import firrtl.annotations.{Annotation, ModuleName}
 
+import scala.collection.mutable.ArrayBuffer
+
 
 trait BlackBoxSource {
   def serialize: String
@@ -60,7 +62,8 @@ object BlackBoxSourceAnnotation {
   * set by the execution harness, or directly in the tests
   */
 class BlackBoxSourceHelper extends firrtl.Transform {
-  var targetDir: File = new File(".")
+  private var targetDir: File = new File(".")
+  private val fileList = new ArrayBuffer[String]
 
   override def inputForm: CircuitForm = HighForm
   override def outputForm: CircuitForm = HighForm
@@ -93,26 +96,36 @@ class BlackBoxSourceHelper extends firrtl.Transform {
     * @return A transformed Firrtl AST
     */
   override def execute(state: CircuitState): CircuitState = {
-    getMyAnnotations(state) match {
+    val resultState = getMyAnnotations(state) match {
       case Nil => state
       case myAnnotations =>
         val sources = getSources(myAnnotations)
         sources.foreach {
           case BlackBoxResource(resourceId) =>
             val name = resourceId.split("/").last
-            BlackBoxSourceHelper.copyResourceToFile(resourceId, new File(targetDir, name))
+            val outFile = new File(targetDir, name)
+            BlackBoxSourceHelper.copyResourceToFile(resourceId,outFile)
+            fileList += outFile.getAbsolutePath
           case BlackBoxInline(name, text) =>
-            val outFile = new PrintWriter(new File(targetDir, name))
-            outFile.write(text)
-            outFile.close()
+            val outFile = new File(targetDir, name)
+            val writer = new PrintWriter(outFile)
+            writer.write(text)
+            writer.close()
+            fileList += outFile.getAbsolutePath
           case _ =>
         }
         state
     }
+    val writer = new PrintWriter(new File(targetDir, BlackBoxSourceHelper.FileListName))
+    writer.write(fileList.map { fileName => s"-v $fileName" }.mkString("\n"))
+    writer.close()
+
+    resultState
   }
 }
 
 object BlackBoxSourceHelper {
+  val FileListName = "black_box_verilog_files.f"
   /**
     * finds the named resource and writes into the directory
     * @param name the name of the resource
