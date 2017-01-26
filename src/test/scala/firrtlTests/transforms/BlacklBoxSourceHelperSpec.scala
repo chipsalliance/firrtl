@@ -6,8 +6,8 @@ import java.io.StringWriter
 
 import firrtl.annotations.{Annotation, CircuitName, ModuleName}
 import firrtl.transforms._
-import firrtl.{AnnotationMap, FIRRTLException, Transform}
-import firrtlTests.HighTransformSpec
+import firrtl.{AnnotationMap, FIRRTLException, Transform, VerilogCompiler}
+import firrtlTests.{HighTransformSpec, LowTransformSpec}
 import org.scalacheck.Test.Failed
 import org.scalatest.{FreeSpec, Matchers, Succeeded}
 
@@ -39,27 +39,44 @@ class BlacklBoxSourceHelperSpec extends FreeSpec with Matchers {
   }
 }
 
-class BlacklBoxSourceHelperTransformSpec extends HighTransformSpec {
+class BlacklBoxSourceHelperTransformSpec extends LowTransformSpec {
    def transform: Transform = new BlackBoxSourceHelper
 
   private val moduleName = ModuleName("Top", CircuitName("Top"))
   private val input = """
-    |circuit Top :
-    |
-    |  extmodule AdderExtModule :
-    |    input foo : UInt<16>
-    |    output bar : UInt<16>
-    |
-    |    defname = BBFAdd
-    |
-    |  module Top :
-    |   input x : UInt<16>
-    |   output y : UInt<16>
-    |
-    |   inst a1 of AdderExtModule
-    |   a1.foo <= x
-    |   y <= a1.bar
-  """.stripMargin
+                        |circuit Top :
+                        |
+                        |  extmodule AdderExtModule :
+                        |    input foo : UInt<16>
+                        |    output bar : UInt<16>
+                        |
+                        |    defname = BBFAdd
+                        |
+                        |  module Top :
+                        |   input x : UInt<16>
+                        |   output y : UInt<16>
+                        |
+                        |   inst a1 of AdderExtModule
+                        |   a1.foo <= x
+                        |   y <= a1.bar
+                      """.stripMargin
+  private val output = """
+                        |circuit Top :
+                        |
+                        |  extmodule AdderExtModule :
+                        |    input foo : UInt<16>
+                        |    output bar : UInt<16>
+                        |
+                        |    defname = BBFAdd
+                        |
+                        |  module Top :
+                        |   input x : UInt<16>
+                        |   output y : UInt<16>
+                        |
+                        |   inst a1 of AdderExtModule
+                        |   y <= a1.bar
+                        |   a1.foo <= x
+                      """.stripMargin
 
   "annotated external modules" should "appear in output directory" in {
 
@@ -69,10 +86,15 @@ class BlacklBoxSourceHelperTransformSpec extends HighTransformSpec {
       Annotation(moduleName, classOf[BlackBoxSourceHelper], BlackBoxResource("/blackboxes/AdderExtModule.v").serialize)
     ))
 
-    execute(writer, aMap, input, input)
+    execute(writer, aMap, input, output)
 
     new java.io.File("test_run_dir/AdderExtModule.v").exists should be (true)
     new java.io.File(s"test_run_dir/${BlackBoxSourceHelper.FileListName}").exists should be (true)
+  }
+
+  "verilog compiler" should "have BlackBoxSourceHelper transform" in {
+    val verilogCompiler = new VerilogCompiler
+    verilogCompiler.transforms.map { x => x.getClass } should contain (classOf[BlackBoxSourceHelper])
   }
 }
 

@@ -65,8 +65,8 @@ class BlackBoxSourceHelper extends firrtl.Transform {
   private var targetDir: File = new File(".")
   private val fileList = new ArrayBuffer[String]
 
-  override def inputForm: CircuitForm = HighForm
-  override def outputForm: CircuitForm = HighForm
+  override def inputForm: CircuitForm = LowForm
+  override def outputForm: CircuitForm = LowForm
 
   /**
     * parse the annotations and convert the generic annotations to specific information
