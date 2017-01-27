@@ -93,7 +93,7 @@ object castRhs {
   def apply(lhst: Type, rhs: Expression) = {
     lhst match {
       case _: SIntType => DoPrim(AsSInt, Seq(rhs), Seq.empty, lhst)
-      case _: FixedType => DoPrim(AsFixedPoint, Seq(rhs), Seq.empty, lhst)
+      case FixedType(_, IntWidth(p)) => DoPrim(AsFixedPoint, Seq(rhs), Seq(p), lhst)
       case _: UIntType => rhs
     }  
   }
