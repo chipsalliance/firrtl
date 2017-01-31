@@ -97,7 +97,7 @@ object Driver {
 
           if (annos.nonEmpty) {
             annos ++ List(Annotation(
-              ModuleName("All", CircuitName("All")),
+              CircuitName("All"),
               classOf[BlackBoxSourceHelper],
               BlackBoxTargetDir(optionsManager.targetDirName).serialize
             ))
