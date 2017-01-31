@@ -20,15 +20,17 @@ version := "1.1-SNAPSHOT"
 
 scalaVersion := "2.11.8"
 
+javacOptions ++= Seq("-source", "1.7", "-target", "1.7")
+
 libraryDependencies += "org.scala-lang" % "scala-reflect" % scalaVersion.value
 
-libraryDependencies += "com.typesafe.scala-logging" %% "scala-logging" % "3.1.0"
+libraryDependencies += "com.typesafe.scala-logging" %% "scala-logging" % "3.5.0"
 
 libraryDependencies += "ch.qos.logback" % "logback-classic" % "1.1.7"
 
-libraryDependencies += "org.scalatest" % "scalatest_2.11" % "2.2.6" % "test"
+libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.1" % "test"
 
-libraryDependencies += "org.scalacheck" %% "scalacheck" % "1.12.6" % "test"
+libraryDependencies += "org.scalacheck" %% "scalacheck" % "1.13.4" % "test"
 
 libraryDependencies += "com.github.scopt" %% "scopt" % "3.5.0"
 
