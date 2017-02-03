@@ -30,6 +30,12 @@ case class WRef(name: String, tpe: Type, kind: Kind, gender: Gender) extends Exp
   def mapType(f: Type => Type): Expression = this.copy(tpe = f(tpe))
   def mapWidth(f: Width => Width): Expression = this
 }
+object WRef {
+  /** Creates a WRef from a Wire */
+  def apply(wire: DefWire): WRef = new WRef(wire.name, wire.tpe, WireKind, UNKNOWNGENDER)
+  /** Creates a WRef from a Register */
+  def apply(reg: DefRegister): WRef = new WRef(reg.name, reg.tpe, RegKind, UNKNOWNGENDER)
+}
 case class WSubField(exp: Expression, name: String, tpe: Type, gender: Gender) extends Expression {
   def serialize: String = s"${exp.serialize}.$name"
   def mapExpr(f: Expression => Expression): Expression = this.copy(exp = f(exp))
