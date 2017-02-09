@@ -134,8 +134,8 @@ object Driver {
         if(
           optionsManager.topName.isEmpty &&
             firrtlConfig.inputFileNameOverride.nonEmpty &&
-            firrtlConfig.outputFileNameOverride.isEmpty) {
-          val message = "inputFileName set but neither top-name or output-file-override is set"
+            firrtlConfig.outputConfig.isEmpty) {
+          val message = "inputFileName set but neither top-name or output-config is set"
           dramaticError(message)
           return FirrtlExecutionFailure(message)
         }
@@ -154,20 +154,30 @@ object Driver {
     loadAnnotations(optionsManager)
 
     val parsedInput = Parser.parse(firrtlSource, firrtlConfig.infoMode)
-    val outputBuffer = new java.io.CharArrayWriter
-    firrtlConfig.compiler.compile(
+
+    // Does this need to be before calling compiler?
+    optionsManager.makeTargetDir()
+
+    val (_, emittedCircuit) = firrtlConfig.compiler.compile(
       CircuitState(parsedInput, ChirrtlForm, Some(AnnotationMap(firrtlConfig.annotations))),
-      outputBuffer,
       firrtlConfig.customTransforms
     )
 
-    val outputFileName = firrtlConfig.getOutputFileName(optionsManager)
-    val outputFile     = new java.io.PrintWriter(outputFileName)
-    val outputString   = outputBuffer.toString
-    outputFile.write(outputString)
-    outputFile.close()
+    firrtlConfig.getOutputFormat(optionsManager) match {
+      case SingleFile(fileName) =>
+        val outputFile = new java.io.PrintWriter(fileName)
+        outputFile.write(emittedCircuit.emit)
+        outputFile.close()
+      case OneFilePerModule(dirName) =>
+        emittedCircuit.modules.foreach { case module =>
+          val fileName = optionsManager.getBuildFileName(firrtlConfig.outputSuffix, s"$dirName/${module.name}")
+          val outputFile = new java.io.PrintWriter(fileName)
+          outputFile.write(module.emit)
+          outputFile.close()
+        }
+    }
 
-    FirrtlExecutionSuccess(firrtlConfig.compilerName, outputBuffer.toString)
+    FirrtlExecutionSuccess(firrtlConfig.compilerName, emittedCircuit)
   }
 
   /**

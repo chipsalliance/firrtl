@@ -142,6 +142,7 @@ abstract class PassBasedTransform extends Transform with PassBased {
   */
 abstract class Emitter {
   def emit(state: CircuitState, writer: Writer): Unit
+  def emit(state: CircuitState): EmittedCircuit
 }
 
 object CompilerUtils {
@@ -245,6 +246,21 @@ trait Compiler {
   def compile(state: CircuitState,
               writer: Writer,
               customTransforms: Seq[Transform] = Seq.empty): CircuitState = {
+    val (finalState, emittedCircuit) = compile(state, customTransforms)
+    writer.write(emittedCircuit.emit)
+    finalState
+  }
+
+  /** Perform compilation
+    *
+    * @param state The Firrtl AST to compile
+    * @param customTransforms Any custom [[Transform]]s that will be inserted
+    *   into the compilation process by [[CompilerUtils.mergeTransforms]]
+    * @return Tuple of CircuitState after compilation and Map of Module names to emitted String
+    */
+  def compile(state: CircuitState,
+              customTransforms: Seq[Transform]): (CircuitState, EmittedCircuit) = {
+    // TODO unify with above compile function
     val allTransforms = CompilerUtils.mergeTransforms(transforms, customTransforms)
 
     val finalState = allTransforms.foldLeft(state) { (in, xform) =>
@@ -274,8 +290,7 @@ trait Compiler {
       CircuitState(result.circuit, result.form, Some(newAnnotations))
     }
 
-    emitter.emit(finalState, writer)
-    finalState
+    (finalState, emitter.emit(finalState))
   }
 }
 

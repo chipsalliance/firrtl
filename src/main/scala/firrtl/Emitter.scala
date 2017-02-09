@@ -22,8 +22,77 @@ import scala.collection.mutable.{ArrayBuffer, LinkedHashMap, HashSet}
 
 case class EmitterException(message: String) extends PassException(message)
 
+/** Super class for emitted Modules */
+sealed abstract class EmittedModule {
+  def name: String
+  def emit: String
+}
+class EmittedVerilogModule(val name: String, val value: String) extends EmittedModule {
+  def emit: String = EmittedVerilogModule.preamble + "\n" + value
+}
+case object EmittedVerilogModule {
+  /** Preamble for every emitted Verilog file */
+  def preamble: String =
+    """|`ifdef RANDOMIZE_GARBAGE_ASSIGN
+       |`define RANDOMIZE
+       |`endif
+       |`ifdef RANDOMIZE_INVALID_ASSIGN
+       |`define RANDOMIZE
+       |`endif
+       |`ifdef RANDOMIZE_REG_INIT
+       |`define RANDOMIZE
+       |`endif
+       |`ifdef RANDOMIZE_MEM_INIT
+       |`define RANDOMIZE
+       |`endif
+       |""".stripMargin
+}
+class EmittedFirrtlModule(circuit: Circuit) extends EmittedModule {
+  def name: String = circuit.main
+  def emit: String = circuit.serialize
+}
+sealed abstract class EmittedCircuit {
+  def top: String
+  def emit: String
+  def modules: Seq[EmittedModule]
+}
+class EmittedVerilogCircuit(val top: String, val modules: Seq[EmittedVerilogModule]) extends EmittedCircuit {
+  def emit: String = EmittedVerilogModule.preamble + "\n" + modules.map(_.value).mkString("\n")
+}
+class EmittedFirrtlCircuit(circuit: Circuit) extends EmittedCircuit {
+  def top: String = circuit.main
+  def modules: Seq[EmittedFirrtlModule] = {
+    // For a given module, returns a Seq of all modules instantited inside of it
+    def collectInstantiatedModules(mod: Module, map: Map[String, DefModule]): Seq[DefModule] = {
+      // Use list instead of set to maintain order
+      val modules = mutable.ArrayBuffer.empty[DefModule]
+      def onStmt(stmt: Statement): Statement = stmt match {
+        case DefInstance(_, _, name) =>
+          modules += map(name)
+          stmt
+        case other => other map onStmt
+      }
+      onStmt(mod.body)
+      modules.distinct
+    }
+    val modMap = circuit.modules.map(m => m.name -> m).toMap
+    // Turn each module into it's own circuit with it as the top and all instantied modules as ExtModules
+    // Note that this loses ExtModules
+    circuit.modules collect { case m: Module =>
+      val instModules = collectInstantiatedModules(m, modMap)
+      val extModules = instModules map {
+        case Module(info, name, ports, _) => ExtModule(info, name, ports, name, Seq.empty)
+        case ext: ExtModule => ext
+      }
+      new EmittedFirrtlModule(Circuit(m.info, extModules :+ m, m.name))
+    }
+  }
+  def emit: String = circuit.serialize
+}
+
 class FirrtlEmitter extends Emitter {
   def emit(state: CircuitState, writer: Writer): Unit = writer.write(state.circuit.serialize)
+  def emit(state: CircuitState): EmittedFirrtlCircuit = new EmittedFirrtlCircuit(state.circuit)
 }
 
 case class VRandom(width: BigInt) extends Expression {
@@ -570,22 +639,6 @@ class VerilogEmitter extends Emitter with PassBased {
       m
    }
 
-   def emit_preamble(implicit w: Writer) {
-    emit(Seq(
-        "`ifdef RANDOMIZE_GARBAGE_ASSIGN\n",
-        "`define RANDOMIZE\n",
-        "`endif\n",
-        "`ifdef RANDOMIZE_INVALID_ASSIGN\n",
-        "`define RANDOMIZE\n",
-        "`endif\n",
-        "`ifdef RANDOMIZE_REG_INIT\n",
-        "`define RANDOMIZE\n",
-        "`endif\n",
-        "`ifdef RANDOMIZE_MEM_INIT\n",
-        "`define RANDOMIZE\n",
-        "`endif\n"))
-   }
-
   def passSeq = Seq(
     passes.VerilogModulusCleanup,
     passes.VerilogWrap,
@@ -593,12 +646,23 @@ class VerilogEmitter extends Emitter with PassBased {
     passes.VerilogPrep)
 
   def emit(state: CircuitState, writer: Writer): Unit = {
+    val emitted = emit(state)
+    writer.write(emitted.emit)
+  }
+
+  /** Emits each module in the Circuit to a different String
+    *
+    * @return Map of [[Module]] names to emitted Verilog
+    */
+  def emit(state: CircuitState): EmittedVerilogCircuit = {
     val circuit = runPasses(state.circuit)
-    emit_preamble(writer)
-    val moduleMap = (circuit.modules map (m => m.name -> m)).toMap
-    circuit.modules foreach {
-      case (m: Module) => emit_verilog(m, moduleMap)(writer)
-      case (m: ExtModule) =>
+    val moduleMap = circuit.modules.map(m => m.name -> m).toMap
+    val modules = circuit.modules.collect {
+      case m: Module =>
+        val writer = new java.io.StringWriter
+        emit_verilog(m, moduleMap)(writer)
+        new EmittedVerilogModule(m.name, writer.toString)
     }
+    new EmittedVerilogCircuit(state.circuit.main, modules)
   }
 }

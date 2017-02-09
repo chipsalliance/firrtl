@@ -125,6 +125,10 @@ trait HasCommonOptions {
   parser.help("help").text("prints this usage text")
 }
 
+sealed abstract class OutputConfig
+final case class SingleFile(targetFile: String) extends OutputConfig
+final case class OneFilePerModule(targetDir: String) extends OutputConfig
+
 /**
   * The options that firrtl supports in callable component sense
   *
@@ -133,10 +137,9 @@ trait HasCommonOptions {
   * @param compilerName           which compiler to use
   * @param annotations            annotations to pass to compiler
   */
-
 case class FirrtlExecutionOptions(
     inputFileNameOverride:  String = "",
-    outputFileNameOverride: String = "",
+    outputConfig:           Option[OutputConfig] = None,
     compilerName:           String = "verilog",
     infoModeName:           String = "append",
     inferRW:                Seq[String] = Seq.empty,
@@ -186,14 +189,17 @@ case class FirrtlExecutionOptions(
   def getInputFileName(optionsManager: ExecutionOptionsManager): String = {
     optionsManager.getBuildFileName("fir", inputFileNameOverride)
   }
-  /**
-    * build the output file name, taking overriding parameters
+  /** Get the user-specified [[OutputFormat]]
     *
     * @param optionsManager this is needed to access build function and its common options
     * @return
     */
-  def getOutputFileName(optionsManager: ExecutionOptionsManager): String = {
-    optionsManager.getBuildFileName(outputSuffix, outputFileNameOverride)
+  def getOutputFormat(optionsManager: ExecutionOptionsManager): OutputConfig = {
+    outputConfig match {
+      case Some(format) => format
+      case None =>
+        SingleFile(optionsManager.getBuildFileName(outputSuffix))
+    }
   }
   /**
     * build the annotation file name, taking overriding parameters
@@ -210,6 +216,11 @@ trait HasFirrtlOptions {
   self: ExecutionOptionsManager =>
   var firrtlOptions = FirrtlExecutionOptions()
 
+  private def validateInput() = firrtlOptions.outputConfig match {
+    case Some(_) => parser.failure("Output file already specified. Cannot specify both -i and -fsm")
+    case None => parser.success
+  }
+
   parser.note("firrtl options")
 
   parser.opt[String]("input-file")
@@ -223,9 +234,12 @@ trait HasFirrtlOptions {
 
   parser.opt[String]("output-file")
     .abbr("o")
-    .valueName ("<output>").
-    foreach { x =>
-      firrtlOptions = firrtlOptions.copy(outputFileNameOverride = x)
+    .valueName("<output>")
+    .validate { x =>
+      validateInput()
+    }
+    .foreach { x =>
+      firrtlOptions = firrtlOptions.copy(outputConfig = Some(SingleFile(x)))
     }.text {
     "use this to override the default output file name, default is empty"
   }
@@ -234,7 +248,7 @@ trait HasFirrtlOptions {
     .abbr("faf")
     .valueName ("<output>").
     foreach { x =>
-      firrtlOptions = firrtlOptions.copy(outputFileNameOverride = x)
+      firrtlOptions = firrtlOptions.copy(annotationFileNameOverride = x)
     }.text {
     "use this to override the default annotation file name, default is empty"
   }
@@ -334,8 +348,30 @@ trait HasFirrtlOptions {
       "List which signal drives each clock of every descendent of specified module"
     }
 
+  parser.opt[Unit]("split-modules")
+    .abbr("fsm")
+    .validate { _ =>
+      validateInput()
+    }
+    .foreach { _ =>
+      firrtlOptions = firrtlOptions.copy(outputConfig = Some(OneFilePerModule(self.targetDirName)))
+    }.text {
+      "Emit each module to its own file in the target directory. " +
+      "Currently only supported by the Verilog emitter"
+    }
+
   parser.note("")
 
+  // Check output configuration
+  parser.checkConfig { _ =>
+    firrtlOptions.outputConfig match {
+      case Some(OneFilePerModule(dir)) =>
+        if (dir != targetDirName) parser.failure("Must specify split-modules before target-dir")
+        else parser.success
+      case Some(SingleFile(_)) => parser.success
+      case None => parser.success // Will be created from top name and target dir
+    }
+  }
 }
 
 sealed trait FirrtlExecutionResult
@@ -345,9 +381,9 @@ sealed trait FirrtlExecutionResult
   * the type of compile
   *
   * @param emitType  The name of the compiler used, currently "high", "middle", "low", or "verilog"
-  * @param emitted   The text result of the compilation, could be verilog or firrtl text.
+  * @param emitted   The emitted result of compilation
   */
-case class FirrtlExecutionSuccess(emitType: String, emitted: String) extends FirrtlExecutionResult
+case class FirrtlExecutionSuccess(emitType: String, emitted: EmittedCircuit) extends FirrtlExecutionResult
 
 /**
   * The firrtl compilation failed.
