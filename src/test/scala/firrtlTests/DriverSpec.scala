@@ -8,6 +8,7 @@ import org.scalatest.{FreeSpec, Matchers}
 import firrtl.passes.InlineInstances
 import firrtl.passes.memlib.{InferReadWrite, ReplSeqMem}
 import firrtl._
+import firrtl.util.BackendCompilationUtilities
 
 class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities {
   "CommonOptions are some simple options available across the chisel3 ecosystem" - {
@@ -48,7 +49,7 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
         optionsManager.makeTargetDir() should be (true)
         dir = new java.io.File("a/b/c")
         dir.exists() should be (true)
-        FileUtils.deleteDirectoryHierarchy(commonOptions.targetDirName)
+        FileUtils.deleteDirectoryHierarchy("a") should be (true)
       }
     }
   }
@@ -135,9 +136,10 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
     copyResourceToFile("/annotations/SampleAnnotations.anno", annotationsTestFile)
     optionsManager.firrtlOptions.annotations.length should be (0)
     Driver.loadAnnotations(optionsManager)
-    optionsManager.firrtlOptions.annotations.length should be (9)
+    optionsManager.firrtlOptions.annotations.length should be (10) // 9 from circuit plus 1 for targetDir
 
     optionsManager.firrtlOptions.annotations.head.transformClass should be ("firrtl.passes.InlineInstances")
+    annotationsTestFile.delete()
   }
 
   val input =
@@ -155,6 +157,7 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
       Seq(
         "low" -> "./Dummy.lo.fir",
         "high" -> "./Dummy.hi.fir",
+        "middle" -> "./Dummy.mid.fir",
         "verilog" -> "./Dummy.v"
       ).foreach { case (compilerName, expectedOutputFileName) =>
         val manager = new ExecutionOptionsManager("test") with HasFirrtlOptions {
@@ -168,6 +171,19 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
         file.exists() should be (true)
         file.delete()
       }
+    }
+  }
+
+  "Directory deleter is handy for cleaning up after tests" - {
+    "for example making a directory tree, and deleting it looks like" in {
+      FileUtils.makeDirectory("dog/fox/wolf")
+      val dir = new File("dog/fox/wolf")
+      dir.exists() should be (true)
+      dir.isDirectory should be (true)
+
+      FileUtils.deleteDirectoryHierarchy("wolf") should be (false)
+      FileUtils.deleteDirectoryHierarchy("dog") should be (true)
+      dir.exists() should be (false)
     }
   }
 }
