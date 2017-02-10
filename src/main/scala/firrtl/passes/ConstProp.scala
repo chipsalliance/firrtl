@@ -198,8 +198,8 @@ object ConstProp extends Pass {
       case _ => e
     }
     case Pad => e.args.head match {
-      case UIntLiteral(v, IntWidth(w)) => UIntLiteral(v, IntWidth(max(e.consts.head, w)))
-      case SIntLiteral(v, IntWidth(w)) => SIntLiteral(v, IntWidth(max(e.consts.head, w)))
+      case UIntLiteral(v, IntWidth(w)) => UIntLiteral(v, IntWidth(e.consts.head max w))
+      case SIntLiteral(v, IntWidth(w)) => SIntLiteral(v, IntWidth(e.consts.head max w))
       case _ if bitWidth(e.args.head.tpe) == e.consts.head => e.args.head
       case _ => e
     }
