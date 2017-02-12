@@ -386,6 +386,12 @@ class VerilogEmitter extends Emitter with PassBased {
         case (p, i) => (p.tpe, p.direction) match {
           case (AnalogType(_), _) =>
             Seq("inout", "  ", p.tpe, " ", p.name)
+          case (SIntType(_), Input) =>
+            Seq(p.direction, " signed  ", p.tpe, " ", p.name)
+          case (SIntType(_), Output) =>
+            val ex = WRef(p.name, p.tpe, PortKind, FEMALE)
+            assign(ex, netlist(ex))
+            Seq(p.direction, " signed ", p.tpe, " ", p.name)
           case (_, Input) =>
             Seq(p.direction, "  ", p.tpe, " ", p.name)
           case (_, Output) =>
