@@ -454,7 +454,11 @@ class VerilogEmitter extends Emitter with PassBased {
           instdeclares += Seq(");")
           sx
         case sx: DefMemory =>
-          declare("reg", sx.name, VectorType(sx.dataType, sx.depth))
+          val fullSize = sx.depth*(sx.dataType match { case GroundType(i:IntWidth) => i.width })
+          if(fullSize > (1 << 29))
+            declare("reg /* sparse */", sx.name, VectorType(sx.dataType, sx.depth))
+          else
+            declare("reg", sx.name, VectorType(sx.dataType, sx.depth))
           initialize_mem(sx)
           if (sx.readLatency != 0 || sx.writeLatency != 1)
             throw EmitterException("All memories should be transformed into " +
