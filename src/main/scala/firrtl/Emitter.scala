@@ -454,7 +454,7 @@ class VerilogEmitter extends Emitter with PassBased {
           instdeclares += Seq(");")
           sx
         case sx: DefMemory =>
-          val fullSize = sx.depth * (sx.dataType match { case GroundType(IntWidth(width)) => i.width })
+          val fullSize = sx.depth * (sx.dataType match { case GroundType(IntWidth(width)) => width })
           val decl = if (fullSize > (1 << 29)) "reg /* sparse */" else "reg"
           declare(decl, sx.name, VectorType(sx.dataType, sx.depth))
           initialize_mem(sx)
