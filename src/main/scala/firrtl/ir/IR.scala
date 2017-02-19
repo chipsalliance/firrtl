@@ -371,9 +371,45 @@ object GroundType {
 abstract class AggregateType extends Type {
   def mapWidth(f: Width => Width): Type = this
 }
-case class UIntType(width: Width) extends GroundType {
+object UIntType {
+  private val maxCached = 1024
+  private val cache = new Array[UIntType](maxCached + 1)
+  val UnknownWidth = new UIntType(ir.UnknownWidth)
+
+  def apply(width: Width): UIntType = width match {
+    // Should this be combined with the memoization in IntWidth?
+    case IntWidth(w) if 0 <= w && w <= maxCached =>
+      val i = w.toInt
+      var t = cache(i)
+      if (t eq null) {
+        t = new UIntType(width)
+        cache(i) = t
+      }
+      t
+    case ir.UnknownWidth => UnknownWidth
+    case other => new UIntType(width)
+  }
+  // For pattern matching
+  def unapply(u: UIntType): Option[Width] = Some(u.width)
+}
+class UIntType private (val width: Width) extends GroundType with Product {
   def serialize: String = "UInt" + width.serialize
   def mapWidth(f: Width => Width): Type = UIntType(f(width))
+
+  override def equals(that: Any) = that match {
+    case UIntType(w) => width == w
+    case _ => false
+  }
+  override def hashCode = width.hashCode
+  override def productPrefix = "UIntType"
+  override def toString = s"$productPrefix($width)"
+  def copy(width: Width = width) = UIntType(width)
+  def canEqual(that: Any) = that.isInstanceOf[UIntType]
+  def productArity = 1
+  def productElement(int: Int) = int match {
+    case 0 => width
+    case _ => throw new IndexOutOfBoundsException
+  }
 }
 case class SIntType(width: Width) extends GroundType {
   def serialize: String = "SInt" + width.serialize
