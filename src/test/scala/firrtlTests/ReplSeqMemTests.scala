@@ -225,6 +225,47 @@ circuit CustomMemory :
     (new java.io.File(confLoc)).delete()
   }
 
+  "ReplSeqMem" should "only not de-duplicate memories with the nodedupe annotation " in {
+    val input = """
+circuit CustomMemory :
+  module CustomMemory :
+    input clock : Clock
+    input reset : UInt<1>
+    output io : {flip rClk : Clock, flip rAddr : UInt<3>, dO : UInt<16>, flip wClk : Clock, flip wAddr : UInt<3>, flip wEn : UInt<1>, flip dI : UInt<16>}
+
+    io is invalid
+    smem mem_0 : UInt<16>[7]
+    smem mem_1 : UInt<16>[7]
+    smem mem_2 : UInt<16>[7]
+    read mport _T_17 = mem_0[io.rAddr], clock
+    read mport _T_19 = mem_1[io.rAddr], clock
+    read mport _T_21 = mem_2[io.rAddr], clock
+    io.dO <= _T_17
+    when io.wEn :
+      write mport _T_18 = mem_0[io.wAddr], clock
+      write mport _T_20 = mem_1[io.wAddr], clock
+      write mport _T_22 = mem_2[io.wAddr], clock
+      _T_18 <= io.dI
+      _T_20 <= io.dI
+      _T_22 <= io.dI
+      skip
+""".stripMargin
+    val confLoc = "ReplSeqMemTests.confTEMP"
+    val aMap = AnnotationMap(Seq(
+      ReplSeqMemAnnotation("-c:CustomMemory:-o:"+confLoc),
+      NoDedupMemAnnotation(ComponentName("mem_1", ModuleName("CustomMemory",CircuitName("CustomMemory"))))))
+    val writer = new java.io.StringWriter
+    compile(CircuitState(parse(input), ChirrtlForm, Some(aMap)), writer)
+    // Check correctness of firrtl
+    val circuit = parse(writer.toString)
+    val numExtMods = circuit.modules.count {
+      case e: ExtModule =>  true
+      case _ => false
+    }
+    require(numExtMods == 2)
+    (new java.io.File(confLoc)).delete()
+  }
+
   "ReplSeqMem" should "de-duplicate memories without an annotation " in {
     val input = """
 circuit CustomMemory :
