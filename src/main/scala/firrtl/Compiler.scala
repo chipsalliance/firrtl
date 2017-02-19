@@ -114,6 +114,8 @@ trait SimpleRun extends LazyLogging {
     passSeq.foldLeft(circuit) { (c: Circuit, pass: Pass) =>
       val x = Utils.time(pass.name) { pass.run(c) }
       logger.debug(x.serialize)
+      logger.info("Number of unique nodes = " +
+        Utils.time("Count Unique Nodes")(Utils.countUniqueNodes(x)) + "\n")
       x
     }
 }

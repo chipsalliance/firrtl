@@ -28,6 +28,31 @@ object Utils extends LazyLogging {
     result
   }
 
+ /** Counts the number of unique objects in a Firrtl graph
+   *   using java.util.IdentityHashMap
+   * This is not intended to be used as a metric for the size of an actual
+   *   circuit, but rather to debug the compiler itself
+   * Works because all FirrtlNodes implement Product (case classes do)
+   */
+  def countUniqueNodes(c: Circuit): Long = {
+    // Want IdentityHashSet but that doesn't exist so map to Boolean
+    val nodes = new java.util.IdentityHashMap[Any, Boolean]()
+    def onNode(node: Any): Unit = {
+      require(node.isInstanceOf[Product] || !node.isInstanceOf[FirrtlNode],
+        "Unexpected FirrtlNode that does not implement Product!")
+      if (!nodes.containsKey(node)) {
+        nodes.put(node, true)
+        node match { // FirrtlNodes are Products
+          case p: Product => p.productIterator.foreach(onNode(_))
+          case i: Iterable[Any] => i.foreach(onNode(_))
+          case _ => // Done on leaf nodes
+        }
+      }
+    }
+    onNode(c)
+    nodes.size
+  }
+
   /** Removes all [[firrtl.ir.EmptyStmt]] statements and condenses
    * [[firrtl.ir.Block]] statements.
     */
