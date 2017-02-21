@@ -208,7 +208,7 @@ circuit CustomMemory :
       _T_18 <= io.dI
       _T_20 <= io.dI
       skip
-""".stripMargin
+"""
     val confLoc = "ReplSeqMemTests.confTEMP"
     val aMap = AnnotationMap(Seq(
       ReplSeqMemAnnotation("-c:CustomMemory:-o:"+confLoc),
@@ -249,7 +249,7 @@ circuit CustomMemory :
       _T_20 <= io.dI
       _T_22 <= io.dI
       skip
-""".stripMargin
+"""
     val confLoc = "ReplSeqMemTests.confTEMP"
     val aMap = AnnotationMap(Seq(
       ReplSeqMemAnnotation("-c:CustomMemory:-o:"+confLoc),
@@ -286,7 +286,7 @@ circuit CustomMemory :
       _T_18 <= io.dI
       _T_20 <= io.dI
       skip
-""".stripMargin
+"""
     val confLoc = "ReplSeqMemTests.confTEMP"
     val aMap = AnnotationMap(Seq(ReplSeqMemAnnotation("-c:CustomMemory:-o:"+confLoc)))
     val writer = new java.io.StringWriter
