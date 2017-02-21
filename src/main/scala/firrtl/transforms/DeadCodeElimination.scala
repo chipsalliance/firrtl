@@ -10,7 +10,6 @@ import firrtl.analyses.InstanceGraph
 import firrtl.Mappers._
 import firrtl.WrappedExpression._
 import firrtl.Utils.{throwInternalError, toWrappedExpression, kind}
-import firrtl.MemoizedHash._
 import wiring.WiringUtils.getChildrenMap
 
 import collection.mutable
@@ -36,7 +35,7 @@ class DeadCodeElimination extends Transform {
   def outputForm = LowForm
 
   /** Based on LogicNode ins CheckCombLoops, currently kind of faking it */
-  private type LogicNode = MemoizedHash[WrappedExpression]
+  private type LogicNode = WrappedExpression
   private object LogicNode {
     def apply(moduleName: String, expr: Expression): LogicNode =
       WrappedExpression(Utils.mergeRef(WRef(moduleName), expr))

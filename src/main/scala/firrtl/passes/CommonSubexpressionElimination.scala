@@ -11,7 +11,7 @@ import annotation.tailrec
 
 object CommonSubexpressionElimination extends Pass {
   private def cse(s: Statement): Statement = {
-    val expressions = collection.mutable.HashMap[MemoizedHash[Expression], String]()
+    val expressions = collection.mutable.HashMap[Expression, String]()
     val nodes = collection.mutable.HashMap[String, Expression]()
 
     def eliminateNodeRef(e: Expression): Expression = e match {

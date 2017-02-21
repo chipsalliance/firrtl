@@ -662,19 +662,6 @@ object Utils extends LazyLogging {
     "VCS")
 }
 
-object MemoizedHash {
-  implicit def convertTo[T](e: T): MemoizedHash[T] = new MemoizedHash(e)
-  implicit def convertFrom[T](f: MemoizedHash[T]): T = f.t
-}
-
-class MemoizedHash[T](val t: T) {
-  override lazy val hashCode = t.hashCode
-  override def equals(that: Any) = that match {
-    case x: MemoizedHash[_] => t equals x.t
-    case _ => false
-  }
-}
-
 /**
   * Maintains a one to many graph of each modules instantiated child module.
   * This graph can be searched for a path from a child module back to one of
