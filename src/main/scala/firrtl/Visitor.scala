@@ -20,26 +20,17 @@ class Visitor(infoMode: InfoMode) extends FIRRTLBaseVisitor[FirrtlNode] {
   def visit[FirrtlNode](ctx: FIRRTLParser.CircuitContext): Circuit = visitCircuit(ctx)
 
   //  These regex have to change if grammar changes
-  private val HexPattern =
-    """\"*h([a-zA-Z0-9]+)\"*""".r
+  private val HexPattern = """\"*h(\+|-)?([a-zA-Z0-9]+)\"*""".r
   private val DecPattern = """(\+|-)?([1-9]\d*)""".r
   private val ZeroPattern = "0".r
-  private val NegPattern = "(89AaBbCcDdEeFf)".r
 
-  private def trim(width: BigInt, s: String): String = s match {
-  
-
-  }
   private def string2BigInt(s: String): BigInt = {
     // private define legal patterns
     s match {
       case ZeroPattern(_*) => BigInt(0)
-      case HexPattern(hexdigits) =>
-        hexdigits(0) match {
-          case NegPattern(_) =>
-            BigInt("-" + hexdigits, 16)
-          case _ => BigInt(hexdigits, 16)
-        }
+      case HexPattern(sign, hexdigits) =>
+        if (sign != null) BigInt(sign + hexdigits, 16)
+        else BigInt(hexdigits, 16)
       case DecPattern(sign, num) =>
         if (sign != null) BigInt(sign + num, 10)
         else BigInt(num, 10)
@@ -311,20 +302,16 @@ class Visitor(infoMode: InfoMode) extends FIRRTLBaseVisitor[FirrtlNode] {
           val (width, value) =
             if (ctx.getChildCount > 4) {
               val width = string2BigInt(ctx.IntLit(0).getText)
-              val trimmedStr = trim(width, ctx.IntLit(1).getText)
-              val value = string2BigInt(trimmedStr)
-              if (isNeg(trimmedStr)) {
-                (IntWidth(width), value - (BigInt(1) << (value.bitLength + 1)))
-              } else {
-                (IntWidth(width), value)
-              }
+              val value = string2BigInt(ctx.IntLit(1).getText)
+              (IntWidth(width), value)
             } else {
               val str = ctx.IntLit(0).getText
               val value = string2BigInt(str)
-              if (isNeg(str)) {
-                (IntWidth(BigInt(value.bitLength)), value - (BigInt(1) << (value.bitLength + 1)))
+              if (value < 0) {
+                val sintWidth = (value.abs - BigInt(1)).bitLength + 1
+                (IntWidth(BigInt(sintWidth)), value)
               } else {
-                (IntWidth(BigInt(value.bitLength)), value)
+                (IntWidth(BigInt(value.bitLength + 1)), value)
               }
             }
           val x = SIntLiteral(value, width)

@@ -110,13 +110,7 @@ case class UIntLiteral(value: BigInt, width: Width) extends Literal {
 }
 case class SIntLiteral(value: BigInt, width: Width) extends Literal {
   def tpe = SIntType(width)
-  def serialize = {
-    if (value < 0) {
-      s"""SInt${width.serialize}("h""" + (value + (BigInt(1) << value.bitLength)).toString(16)+ """")"""
-    } else {
-      s"""SInt${width.serialize}("h0""" + value.toString(16)+ """")"""
-    }
-  }
+  def serialize = s"""SInt${width.serialize}("h""" + value.toString(16)+ """")"""
   def mapExpr(f: Expression => Expression): Expression = this
   def mapType(f: Type => Type): Expression = this
   def mapWidth(f: Width => Width): Expression = SIntLiteral(value, f(width))

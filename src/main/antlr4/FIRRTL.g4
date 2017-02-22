@@ -275,7 +275,7 @@ primop
 IntLit
   : '0'
   | ( '+' | '-' )? [1-9] ( Digit )*
-  | '"' 'h' ( HexDigit )+ '"'
+  | '"' 'h' ( '+' | '-' )? ( HexDigit )+ '"'
   ;
 
 DoubleLit

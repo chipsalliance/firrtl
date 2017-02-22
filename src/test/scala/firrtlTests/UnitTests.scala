@@ -330,15 +330,23 @@ class UnitTests extends FirrtlFlatSpec {
         |    node posSInt = SInt(13)
         |    node negSInt = SInt(-13)
         |    node posSIntString = SInt("h0d")
-        |    node negSIntString = SInt("hd")
-        |    node negSIntStringWidth = SInt<5>("hd")
+        |    node posSIntString2 = SInt("h+d")
+        |    node posSIntString3 = SInt("hd")
+        |    node negSIntString = SInt("h-d")
+        |    node negSIntStringWidth = SInt<5>("h-d")
+        |    node neg2 = SInt("h-2")
+        |    node pos2 = SInt("h2")
         |""".stripMargin
     val expected = Seq(
-      """node posSInt = SInt<5>("h0d")""",
-      """node negSInt = SInt<5>("hf3")""",
-      """node posSIntString = SInt<5>("h0d")""",
-      """node negSIntString = SInt<4>("hd")""",
-      """node negSIntStringWidth = SInt<5>("hfd")"""
+      """node posSInt = SInt<5>("hd")""",
+      """node negSInt = SInt<5>("h-d")""",
+      """node posSIntString = SInt<5>("hd")""",
+      """node posSIntString2 = SInt<5>("hd")""",
+      """node posSIntString3 = SInt<5>("hd")""",
+      """node negSIntString = SInt<5>("h-d")""",
+      """node negSIntStringWidth = SInt<5>("h-d")""",
+      """node neg2 = SInt<2>("h-2")""",
+      """node pos2 = SInt<3>("h2")"""
     )
     executeTest(input, expected, passes)
   }
@@ -351,11 +359,10 @@ class UnitTests extends FirrtlFlatSpec {
         |    output negSInt : SInt
         |    posSInt <= SInt(13)
         |    negSInt <= SInt(-13)
-        |    posSIntString <= SInt(-13)
         |""".stripMargin
     val expected = Seq(
       """assign posSInt = 5'shd;""",
-      """assign negSInt = 5'sh13;"""
+      """assign negSInt = -5'shd;"""
     )
     val out = compileToVerilog(input)
     val lines = out.split("\n") map normalized
