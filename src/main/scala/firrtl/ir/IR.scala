@@ -117,17 +117,10 @@ case class SIntLiteral(value: BigInt, width: Width) extends Literal {
 }
 case class FixedLiteral(value: BigInt, width: Width, point: Width) extends Literal {
   def tpe = FixedType(width, point)
-  def serialize = ""
-  //{
-  //  val pstring = if(point == UnknownWidth) "" else s"<${point.serialize}>"
-  //  if (value < 0) {
-  //    s"""Fixed${width.serialize}$pstring("h""" + Utils.serialize(Utils.twosComp(value)) + """")"""
-  //    s"""SInt${width.serialize}("h""" + (value + (BigInt(1) << value.bitLength)).toString(16)+ """")"""
-  //  } else {
-  //    s"Fixed${width.serialize}$pstring(" + Utils.serialize(Utils.twosComp(value)) + ")"
-  //    s"""SInt${width.serialize}("h0""" + value.toString(16)+ """")"""
-  //  }
-  //}
+  def serialize = {
+    val pstring = if(point == UnknownWidth) "" else s"<${point.serialize}>"
+    s"""Fixed${width.serialize}$pstring("h""" + value.toString(16) + """")"""
+  }
   def mapExpr(f: Expression => Expression): Expression = this
   def mapType(f: Type => Type): Expression = this
   def mapWidth(f: Width => Width): Expression = FixedLiteral(value, f(width), f(point))

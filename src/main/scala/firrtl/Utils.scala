@@ -44,34 +44,6 @@ object Utils extends LazyLogging {
 
   /** Indent the results of [[ir.FirrtlNode.serialize]] */
   def indent(str: String) = str replaceAllLiterally ("\n", "\n  ")
-  //def twosComp(value: BigInt): BigInt = {
-  //  if(value < 0) {
-  //    val twoComp = (0 until value.bitLength).foldLeft(value.abs) { case (v, i) => v.flipBit(i) } + 1 + (1 << value.bitLength)
-  //    //check for overflow?
-  //    twoComp
-  //  } else {
-  //    value
-  //  }
-  //}
-  //def serialize(bi: BigInt): String = {
-  //  println(s"Printing $bi")
-  //  if (bi < BigInt(0)) {
-  //    val tC = twosComp(bi)
-  //    val nSignExtend = (tC.bitLength % 4) match {
-  //      case 0 => 0
-  //      case x => 4 - x
-  //    }
-  //    val sE = (tC.bitLength until (tC.bitLength + nSignExtend)).foldLeft(tC) { case (v, i) =>
-  //      v + (1 << i)
-  //    }
-  //    "\"h" + sE.toString(16).substring(1) + "\""
-  //  } else {
-  //    bi.testBit(bi.bitLength - 1) match {
-  //      case true =>  "\"h0" + bi.toString(16) + "\""
-  //      case false => "\"h" + bi.toString(16) + "\""
-  //    }
-  //  }
-  //}
 
   implicit def toWrappedExpression (x:Expression): WrappedExpression = new WrappedExpression(x)
   def ceilLog2(x: BigInt): Int = (x-1).bitLength
