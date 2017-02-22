@@ -1,8 +1,16 @@
+// See LICENSE for license details.
+
+// sbt-site - sbt-ghpages
+
 site.settings
 
 site.includeScaladoc()
 
 ghpages.settings
+
+git.remoteRepo := "git@github.com:ucb-bar/firrtl.git"
+
+// Firrtl code
 
 organization := "edu.berkeley.cs"
 
@@ -44,8 +52,6 @@ antlr4GenListener in Antlr4 := false // default = true
 
 antlr4PackageName in Antlr4 := Option("firrtl.antlr")
 
-  git.remoteRepo := "git@github.com:ucb-bar/firrtl.git"
-
   publishMavenStyle := true
   publishArtifact in Test := false
   pomIncludeRepository := { x => false }
@@ -83,3 +89,23 @@ antlr4PackageName in Antlr4 := Option("firrtl.antlr")
     Resolver.sonatypeRepo("snapshots"),
     Resolver.sonatypeRepo("releases")
   )
+
+// ScalaDoc
+
+import UnidocKeys._
+
+lazy val customUnidocSettings = unidocSettings ++ Seq (
+  doc in Compile := (doc in ScalaUnidoc).value,
+  target in unidoc in ScalaUnidoc := crossTarget.value / "api"
+)
+
+autoAPIMappings := true
+
+scalacOptions in Compile in doc ++= Seq(
+  "-diagrams",
+  "-diagrams-max-classes", "25",
+  "-doc-version", version.value,
+  "-doc-title", name.value,
+  "-doc-root-content", baseDirectory.value+"/root-doc.txt"
+)
+
