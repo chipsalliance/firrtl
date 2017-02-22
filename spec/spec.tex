@@ -1,4 +1,4 @@
-% See LICENSE for license details.
+
 %Useful Macros
 \newcommand{\id}{\text{id }}
 \newcommand{\idst}{\text{id*}}
@@ -911,24 +911,24 @@ A literal unsigned integer can alternatively be created given a string represent
 
 The following radices are supported:
 \begin{enumerate}
-\item \verb|0b| : For representing binary numbers.
-\item \verb|0o| : For representing octal numbers.
-\item \verb|0x| : For representing hexadecimal numbers.
+\item \verb|b| : For representing binary numbers.
+\item \verb|o| : For representing octal numbers.
+\item \verb|h| : For representing hexadecimal numbers.
 \end{enumerate}
 
 If a bit width is not given, the number of bits in the bit representation is directly represented by the string. The following examples create a 8-bit integer representing the number 13.
 \begin{verbatim}
-UBits("0b00001101")
-UBits("0x0D")
+UInt("b00001101")
+UInt("h0D")
 \end{verbatim}
 
-If the provided bit width is larger than the number of bits represented by the string, then the resulting value is equivalent to the string zero-extended up to the provided bit width. If the provided bit width is smaller than the number of bits represented by the string, then the resulting value is equivalent to the string truncated down to the provided bit width. All truncated bits must be zero.
+If the provided bit width is larger than the number of bits required to represent the string's value, then the resulting value is equivalent to the string zero-extended up to the provided bit width. If the provided bit width is smaller than the number of bits represented by the string, then the resulting value is equivalent to the string truncated down to the provided bit width. All truncated bits must be zero.
 
 The following examples create a 7-bit integer representing the number 13.
 \begin{verbatim}
-UBits<7>("0b00001101")
-UBits<7>("0o015")
-UBits<7>("0xD")
+UInt<7>("b00001101")
+UInt<7>("o015")
+UInt<7>("hD")
 \end{verbatim}
 
 \subsection{Signed Integers}
@@ -945,22 +945,18 @@ SInt(-42)
 
 \subsection{Signed Integers from Literal Bits}
 
-Similar to unsigned integers, a literal signed integer can alternatively be created given a string representing its bit representation and an optional bit width. 
+Similar to unsigned integers, a literal signed integer can alternatively be created given a string representing its bit representation and an optional bit width.
 
-If a bit width is not given, the number of bits in the bit representation is directly represented by the string. The following examples create a 8-bit integer representing the number -13.
+The bit representation contains a binary, octal or hex indicator, followed by an optional sign, followed by the value.
+
+If a bit width is not given, the number of bits in the bit representation is the minimal bitwidth to represent the value represented by the string. The following examples create a 8-bit integer representing the number -13.
 \begin{verbatim}
-SBits("0b11110011")
-SBits("0xF3")
+SInt("b-1101")
+SInt("h-d")
 \end{verbatim}
 
-If the provided bit width is larger than the number of bits represented by the string, then the resulting value is equivalent to the string sign-extended up to the provided bit width. If the provided bit width is smaller than the number of bits represented by the string, then the resulting value is equivalent to the string truncated down to the provided bit width. All truncated bits must match the sign bit of the final truncated number.
-
-The following examples create a 7-bit integer representing the number -13.
-\begin{verbatim}
-SBits<7>("0b10011")
-SBits<7>("0o763")
-SBits<7>("0xF3")
-\end{verbatim}
+If the provided bit width is larger than the number of bits represented by the string, then the resulting value is unchanged.
+It is an error to provide a bit width smaller than the number of bits required to represent the string's value.
 
 \subsection{References}
 A reference is simply a name that refers to a previously declared circuit component. It may refer to a module port, node, wire, register, instance, or memory.
@@ -1807,18 +1803,9 @@ The concrete syntax of FIRRTL is defined in section \ref{syntax_tree}. Productio
 %\section{TODO}
 %
 %- FIRRTL implementation
-%   - Add UBits                         ; andrew doesn't care, favors overloading UInt
-%   - Add SBits
 %   - Add partial connect algorithm     ; 
 %   - Add oriented types to type checker
 %   - Add memory read-under-write flag  ; probably overengineering, but could be a wash
-%   - *FINISHED* Make register reset/init optional ; good
-%   - *FINISHED* removed addw, added head and tail ; great!
-%   - *FINISHED* Rework readwrite port types       ; limits optimizations but probably ok
-%   - *FINISHED* Add Mux expression                ; that's lovely, need glitch-free mux for clock types
-%   - *FINISHED* add rename pass for verilog
-%   - *FINISHED* Add is invalid                    ; good
-%   - *FINISHED* Add validif                       ; good
 
 \end{document}
 
