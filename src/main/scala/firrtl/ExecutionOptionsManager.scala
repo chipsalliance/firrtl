@@ -189,16 +189,33 @@ case class FirrtlExecutionOptions(
   def getInputFileName(optionsManager: ExecutionOptionsManager): String = {
     optionsManager.getBuildFileName("fir", inputFileNameOverride)
   }
-  /** Get the user-specified [[OutputFormat]]
+  /** Get the user-specified [[OutputConfig]]
     *
     * @param optionsManager this is needed to access build function and its common options
-    * @return
+    * @return the output configuration
     */
   def getOutputFormat(optionsManager: ExecutionOptionsManager): OutputConfig = {
     outputConfig match {
       case Some(format) => format
-      case None =>
-        SingleFile(optionsManager.getBuildFileName(outputSuffix))
+      case None => SingleFile(optionsManager.getBuildFileName(outputSuffix))
+    }
+  }
+  /** Gives annotations based on the output configuration
+    *
+    * @param optionsManager this is needed to access build function and its common options
+    * @return Annotations that will be consumed by emitter Transforms
+    */
+  def getEmitterAnnos(optionsManager: ExecutionOptionsManager): Seq[Annotation] = {
+    // TODO should this be a public function?
+    val emitter = compilerName match {
+      case "high" => classOf[HighFirrtlEmitter]
+      case "middle" => classOf[MiddleFirrtlEmitter]
+      case "low" => classOf[LowFirrtlEmitter]
+      case "verilog" => classOf[VerilogEmitter]
+    }
+    getOutputFormat(optionsManager) match {
+      case SingleFile(_) => Seq(EmitCircuitAnnotation(emitter))
+      case OneFilePerModule(_) => Seq(EmitAllModulesAnnotation(emitter))
     }
   }
   /**
@@ -217,7 +234,7 @@ trait HasFirrtlOptions {
   var firrtlOptions = FirrtlExecutionOptions()
 
   private def validateInput() = firrtlOptions.outputConfig match {
-    case Some(_) => parser.failure("Output file already specified. Cannot specify both -i and -fsm")
+    case Some(_) => parser.failure("Output file already specified. Cannot specify both -o and -fsm")
     case None => parser.success
   }
 
@@ -366,7 +383,7 @@ trait HasFirrtlOptions {
   parser.checkConfig { _ =>
     firrtlOptions.outputConfig match {
       case Some(OneFilePerModule(dir)) =>
-        if (dir != targetDirName) parser.failure("Must specify split-modules before target-dir")
+        if (dir != targetDirName) parser.failure("Must specify target-dir before split-modules")
         else parser.success
       case Some(SingleFile(_)) => parser.success
       case None => parser.success // Will be created from top name and target dir
@@ -383,7 +400,7 @@ sealed trait FirrtlExecutionResult
   * @param emitType  The name of the compiler used, currently "high", "middle", "low", or "verilog"
   * @param emitted   The emitted result of compilation
   */
-case class FirrtlExecutionSuccess(emitType: String, emitted: EmittedCircuit) extends FirrtlExecutionResult
+case class FirrtlExecutionSuccess(emitType: String, emitted: String) extends FirrtlExecutionResult
 
 /**
   * The firrtl compilation failed.

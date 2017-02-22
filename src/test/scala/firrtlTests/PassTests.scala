@@ -9,33 +9,11 @@ import org.scalatest.junit.JUnitRunner
 import firrtl.ir.Circuit
 import firrtl.Parser.UseInfo
 import firrtl.passes.{Pass, PassExceptions, RemoveEmpty}
-import firrtl.{
-   Transform,
-   AnnotationMap,
-   PassBasedTransform,
-   CircuitState,
-   CircuitForm,
-   ChirrtlForm,
-   HighForm,
-   MidForm,
-   LowForm,
-   SimpleRun,
-   ChirrtlToHighFirrtl,
-   IRToWorkingIR,
-   ResolveAndCheck,
-   HighFirrtlToMiddleFirrtl,
-   MiddleFirrtlToLowFirrtl,
-   FirrtlEmitter,
-   Compiler,
-   Parser
-}
-
+import firrtl._
 
 // An example methodology for testing Firrtl Passes
 // Spec class should extend this class
 abstract class SimpleTransformSpec extends FlatSpec with Matchers with Compiler with LazyLogging {
-   def emitter = new FirrtlEmitter
-
    // Utility function
    def parse(s: String): Circuit = Parser.parse(s.split("\n").toIterator, infoMode = UseInfo)
    def squash(c: Circuit): Circuit = RemoveEmpty.run(c)
@@ -65,6 +43,7 @@ class CustomResolveAndCheck(form: CircuitForm) extends PassBasedTransform {
 }
 
 trait LowTransformSpec extends SimpleTransformSpec {
+   def emitter = new LowFirrtlEmitter
    def transform: Transform
    def transforms = Seq(
       new ChirrtlToHighFirrtl(),
@@ -78,6 +57,7 @@ trait LowTransformSpec extends SimpleTransformSpec {
 }
 
 trait MiddleTransformSpec extends SimpleTransformSpec {
+   def emitter = new MiddleFirrtlEmitter
    def transform: Transform
    def transforms = Seq(
       new ChirrtlToHighFirrtl(),
@@ -90,6 +70,7 @@ trait MiddleTransformSpec extends SimpleTransformSpec {
 }
 
 trait HighTransformSpec extends SimpleTransformSpec {
+   def emitter = new HighFirrtlEmitter
    def transform: Transform
    def transforms = Seq(
       new ChirrtlToHighFirrtl(),

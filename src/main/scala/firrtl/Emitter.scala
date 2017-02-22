@@ -9,9 +9,11 @@ import java.io.{Reader, Writer}
 import scala.collection.mutable
 import scala.sys.process._
 import scala.io.Source
+import scala.util.Try
 
 import firrtl.ir._
 import firrtl.passes._
+import firrtl.annotations._
 import firrtl.Mappers._
 import firrtl.PrimOps._
 import firrtl.WrappedExpression._
@@ -20,48 +22,66 @@ import MemPortUtils.{memPortField, memType}
 // Datastructures
 import scala.collection.mutable.{ArrayBuffer, LinkedHashMap, HashSet}
 
+import net.jcazevedo.moultingyaml._
+
 case class EmitterException(message: String) extends PassException(message)
 
-/** Super class for emitted Modules */
-sealed abstract class EmittedModule {
-  def name: String
-  def emit: String
+// ***** Annotations for telling the Emitters what to emit *****
+sealed abstract class EmitAnnotation(marker: String) {
+  // TODO Is there a better way to do Name to indicate don't care?
+  def apply(transform: Class[_ <: Transform]): Annotation =
+    Annotation(CircuitTopName, transform, marker)
+  def unapply(a: Annotation): Boolean = a match {
+    // Assumes transform is already filtered appropriately
+    case Annotation(CircuitTopName, _, str) if str == marker => true
+    case _ => false
+  }
 }
-class EmittedVerilogModule(val name: String, val value: String) extends EmittedModule {
-  def emit: String = EmittedVerilogModule.preamble + "\n" + value
+object EmitCircuitAnnotation extends EmitAnnotation("emitCircuit")
+object EmitAllModulesAnnotation extends EmitAnnotation("emitAllModules")
+
+// ***** Annotations for results of emission *****
+final case class EmittedCircuit(form: String, value: String)
+final case class EmittedModule(form: String, name: String, value: String)
+
+object EmitterYamlProtocol extends DefaultYamlProtocol {
+  implicit val emittedCircuitFormat = yamlFormat2(EmittedCircuit)
+  implicit val emittedModuleFormat = yamlFormat3(EmittedModule)
 }
-case object EmittedVerilogModule {
-  /** Preamble for every emitted Verilog file */
-  def preamble: String =
-    """|`ifdef RANDOMIZE_GARBAGE_ASSIGN
-       |`define RANDOMIZE
-       |`endif
-       |`ifdef RANDOMIZE_INVALID_ASSIGN
-       |`define RANDOMIZE
-       |`endif
-       |`ifdef RANDOMIZE_REG_INIT
-       |`define RANDOMIZE
-       |`endif
-       |`ifdef RANDOMIZE_MEM_INIT
-       |`define RANDOMIZE
-       |`endif
-       |""".stripMargin
+
+// Because of implicits, I don't think this part can be type parameterized
+object EmittedCircuitAnnotation {
+  import EmitterYamlProtocol._
+
+  // TODO Better target transform?
+  def apply(emitted: EmittedCircuit): Annotation =
+    Annotation(CircuitTopName, classOf[Transform], emitted.toYaml.prettyPrint)
+  def unapply(a: Annotation): Option[EmittedCircuit] = a match {
+    case Annotation(CircuitTopName, _, value) =>
+      val yaml = Try(value.parseYaml)
+      yaml.map(_.convertTo[EmittedCircuit]).toOption
+    case _ => None
+  }
 }
-class EmittedFirrtlModule(circuit: Circuit) extends EmittedModule {
-  def name: String = circuit.main
-  def emit: String = circuit.serialize
+object EmittedModuleAnnotation {
+  import EmitterYamlProtocol._
+
+  // TODO Better target transform?
+  def apply(emitted: EmittedModule): Annotation =
+    Annotation(CircuitTopName, classOf[Transform], emitted.toYaml.prettyPrint)
+  def unapply(a: Annotation): Option[EmittedModule] = a match {
+    case Annotation(CircuitTopName, _, value) =>
+      val yaml = Try(value.parseYaml)
+      yaml.map(_.convertTo[EmittedModule]).toOption
+    case _ => None
+  }
 }
-sealed abstract class EmittedCircuit {
-  def top: String
-  def emit: String
-  def modules: Seq[EmittedModule]
-}
-class EmittedVerilogCircuit(val top: String, val modules: Seq[EmittedVerilogModule]) extends EmittedCircuit {
-  def emit: String = EmittedVerilogModule.preamble + "\n" + modules.map(_.value).mkString("\n")
-}
-class EmittedFirrtlCircuit(circuit: Circuit) extends EmittedCircuit {
-  def top: String = circuit.main
-  def modules: Seq[EmittedFirrtlModule] = {
+
+sealed abstract class FirrtlEmitter(form: CircuitForm) extends Transform with Emitter {
+  def inputForm = form
+  def outputForm = form
+
+  private def emitAllModules(circuit: Circuit): Seq[EmittedModule] = {
     // For a given module, returns a Seq of all modules instantited inside of it
     def collectInstantiatedModules(mod: Module, map: Map[String, DefModule]): Seq[DefModule] = {
       // Use list instead of set to maintain order
@@ -70,6 +90,10 @@ class EmittedFirrtlCircuit(circuit: Circuit) extends EmittedCircuit {
         case DefInstance(_, _, name) =>
           modules += map(name)
           stmt
+        case WDefInstance(_, _, name, _) =>
+          modules += map(name)
+          stmt
+        case _: WDefInstanceConnector => throwInternalError
         case other => other map onStmt
       }
       onStmt(mod.body)
@@ -77,23 +101,40 @@ class EmittedFirrtlCircuit(circuit: Circuit) extends EmittedCircuit {
     }
     val modMap = circuit.modules.map(m => m.name -> m).toMap
     // Turn each module into it's own circuit with it as the top and all instantied modules as ExtModules
-    // Note that this loses ExtModules
     circuit.modules collect { case m: Module =>
       val instModules = collectInstantiatedModules(m, modMap)
       val extModules = instModules map {
         case Module(info, name, ports, _) => ExtModule(info, name, ports, name, Seq.empty)
         case ext: ExtModule => ext
       }
-      new EmittedFirrtlModule(Circuit(m.info, extModules :+ m, m.name))
+      val newCircuit = Circuit(m.info, extModules :+ m, m.name)
+      EmittedModule("firrtl", m.name, newCircuit.serialize)
     }
   }
-  def emit: String = circuit.serialize
+
+  def execute(state: CircuitState): CircuitState = {
+    val newAnnos = getMyAnnotations(state).flatMap {
+      case EmitCircuitAnnotation() =>
+        Seq(EmittedCircuitAnnotation(EmittedCircuit("firrtl", state.circuit.serialize)))
+      case EmitAllModulesAnnotation() =>
+        emitAllModules(state.circuit) map (EmittedModuleAnnotation(_))
+      case _ => Seq()
+    }
+    state.copy(annotations = Some(AnnotationMap(newAnnos)))
+  }
+
+  // Old style, deprecated
+  def emit(state: CircuitState, writer: Writer): Unit = writer.write(state.circuit.serialize)
 }
 
-class FirrtlEmitter extends Emitter {
-  def emit(state: CircuitState, writer: Writer): Unit = writer.write(state.circuit.serialize)
-  def emit(state: CircuitState): EmittedFirrtlCircuit = new EmittedFirrtlCircuit(state.circuit)
-}
+// ***** Start actual Emitters *****
+class HighFirrtlEmitter extends FirrtlEmitter(HighForm)
+class MiddleFirrtlEmitter extends FirrtlEmitter(HighForm)
+class LowFirrtlEmitter extends FirrtlEmitter(HighForm)
+
+//class FirrtlEmitter extends Emitter {
+//  def emit(state: CircuitState, writer: Writer): Unit = writer.write(state.circuit.serialize)
+//}
 
 case class VRandom(width: BigInt) extends Expression {
   def tpe = UIntType(IntWidth(width))
@@ -105,7 +146,10 @@ case class VRandom(width: BigInt) extends Expression {
   def mapWidth(f: Width => Width): Expression = this
 }
 
-class VerilogEmitter extends Emitter with PassBased {
+class VerilogEmitter extends Transform with PassBased with Emitter {
+  def inputForm = LowForm
+  def outputForm = LowForm
+
   val tab = "  "
   def AND(e1: WrappedExpression, e2: WrappedExpression): Expression = {
     if (e1 == e2) e1.e1
@@ -639,6 +683,23 @@ class VerilogEmitter extends Emitter with PassBased {
       m
    }
 
+  /** Preamble for every emitted Verilog file */
+  def preamble: String =
+    """|`ifdef RANDOMIZE_GARBAGE_ASSIGN
+       |`define RANDOMIZE
+       |`endif
+       |`ifdef RANDOMIZE_INVALID_ASSIGN
+       |`define RANDOMIZE
+       |`endif
+       |`ifdef RANDOMIZE_REG_INIT
+       |`define RANDOMIZE
+       |`endif
+       |`ifdef RANDOMIZE_MEM_INIT
+       |`define RANDOMIZE
+       |`endif
+       |
+       |""".stripMargin
+
   def passSeq = Seq(
     passes.VerilogModulusCleanup,
     passes.VerilogWrap,
@@ -646,23 +707,37 @@ class VerilogEmitter extends Emitter with PassBased {
     passes.VerilogPrep)
 
   def emit(state: CircuitState, writer: Writer): Unit = {
-    val emitted = emit(state)
-    writer.write(emitted.emit)
-  }
+    writer.write(preamble)
 
-  /** Emits each module in the Circuit to a different String
-    *
-    * @return Map of [[Module]] names to emitted Verilog
-    */
-  def emit(state: CircuitState): EmittedVerilogCircuit = {
     val circuit = runPasses(state.circuit)
     val moduleMap = circuit.modules.map(m => m.name -> m).toMap
-    val modules = circuit.modules.collect {
-      case m: Module =>
-        val writer = new java.io.StringWriter
-        emit_verilog(m, moduleMap)(writer)
-        new EmittedVerilogModule(m.name, writer.toString)
+    circuit.modules.foreach {
+      case m: Module => emit_verilog(m, moduleMap)(writer)
+      case _: ExtModule => // do nothing
     }
-    new EmittedVerilogCircuit(state.circuit.main, modules)
+  }
+
+  def execute(state: CircuitState): CircuitState = {
+    val newAnnos = getMyAnnotations(state).flatMap {
+      case EmitCircuitAnnotation() =>
+        val writer = new java.io.StringWriter
+        emit(state, writer)
+        Seq(EmittedCircuitAnnotation(EmittedCircuit("verilog", writer.toString)))
+
+      case EmitAllModulesAnnotation() =>
+        val circuit = runPasses(state.circuit)
+        val moduleMap = circuit.modules.map(m => m.name -> m).toMap
+
+        circuit.modules flatMap {
+          case module: Module =>
+            val writer = new java.io.StringWriter
+            writer.write(preamble)
+            emit_verilog(module, moduleMap)(writer)
+            Some(EmittedModuleAnnotation(EmittedModule("verilog", module.name, writer.toString)))
+          case _: ExtModule => None
+        }
+      case _ => Seq()
+    }
+    state.copy(annotations = Some(AnnotationMap(newAnnos)))
   }
 }

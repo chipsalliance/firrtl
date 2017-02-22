@@ -107,7 +107,7 @@ class UnitTests extends FirrtlFlatSpec {
       (c: Circuit, p: Pass) => p.run(c)
     }
     val writer = new StringWriter()
-    (new FirrtlEmitter).emit(CircuitState(c_result, HighForm), writer)
+    (new HighFirrtlEmitter).emit(CircuitState(c_result, HighForm), writer)
     (parse(writer.toString())) should be (parse(check))
   }
 

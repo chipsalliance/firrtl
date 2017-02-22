@@ -12,6 +12,7 @@ import Parser.{IgnoreInfo, InfoMode}
 import annotations._
 import firrtl.annotations.AnnotationYamlProtocol._
 import firrtl.transforms.{BlackBoxSourceHelper, BlackBoxTargetDir}
+import Utils.throwInternalError
 
 
 /**
@@ -158,26 +159,49 @@ object Driver {
     // Does this need to be before calling compiler?
     optionsManager.makeTargetDir()
 
-    val (_, emittedCircuit) = firrtlConfig.compiler.compile(
-      CircuitState(parsedInput, ChirrtlForm, Some(AnnotationMap(firrtlConfig.annotations))),
+    // Output Annotations
+    val outputAnnos = firrtlConfig.getEmitterAnnos(optionsManager)
+
+    val finalState = firrtlConfig.compiler.compile(
+      CircuitState(parsedInput, ChirrtlForm, Some(AnnotationMap(firrtlConfig.annotations ++ outputAnnos))),
       firrtlConfig.customTransforms
     )
 
-    firrtlConfig.getOutputFormat(optionsManager) match {
-      case SingleFile(fileName) =>
-        val outputFile = new java.io.PrintWriter(fileName)
-        outputFile.write(emittedCircuit.emit)
-        outputFile.close()
-      case OneFilePerModule(dirName) =>
-        emittedCircuit.modules.foreach { case module =>
-          val fileName = optionsManager.getBuildFileName(firrtlConfig.outputSuffix, s"$dirName/${module.name}")
-          val outputFile = new java.io.PrintWriter(fileName)
-          outputFile.write(module.emit)
-          outputFile.close()
+    // Do emission
+    // Note: Single emission target assumption is baked in here
+    // Note: FirrtlExecutionSuccess emitted is only used if we're emitting the whole Circuit
+    // TODO This could probably be cleaner
+    val emittedRes = firrtlConfig.getOutputFormat(optionsManager) match {
+      case SingleFile(filename) =>
+        val emittedCircuit = finalState.annotations flatMap { a =>
+          a.annotations collectFirst { case EmittedCircuitAnnotation(x) => x }
         }
+        emittedCircuit match {
+          case Some(EmittedCircuit(_, value)) =>
+            val outputFile = new java.io.PrintWriter(filename)
+            outputFile.write(value)
+            outputFile.close()
+            value
+          case _ => throwInternalError
+        }
+      case OneFilePerModule(dirName) =>
+        val emittedModulesOpt = finalState.annotations map { a =>
+          a.annotations collect { case EmittedModuleAnnotation(x) => x }
+        }
+        emittedModulesOpt match {
+          case Some(emittedModules) =>
+            emittedModules.foreach { case module =>
+              val filename = optionsManager.getBuildFileName(firrtlConfig.outputSuffix, s"$dirName/${module.name}")
+              val outputFile = new java.io.PrintWriter(filename)
+              outputFile.write(module.value)
+              outputFile.close()
+            }
+          case None => throwInternalError
+        }
+        "" // Should we return something different here?
     }
 
-    FirrtlExecutionSuccess(firrtlConfig.compilerName, emittedCircuit)
+    FirrtlExecutionSuccess(firrtlConfig.compilerName, emittedRes)
   }
 
   /**

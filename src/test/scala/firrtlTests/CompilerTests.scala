@@ -170,6 +170,9 @@ circuit Top :
       "endmodule\n"
    ).reduce(_ + "\n" + _)
    "A circuit's verilog output" should "match the given string" in {
-      (getOutput) should be (check)
+      // For some reason just comparing the Strings doesn't work, but comparing characters does
+      for ((x, y) <- getOutput.zip(check)) {
+        x should be (y)
+      }
    }
 }

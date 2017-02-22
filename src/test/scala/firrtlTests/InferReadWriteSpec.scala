@@ -42,6 +42,7 @@ class InferReadWriteSpec extends SimpleTransformSpec {
     def passSeq = Seq(InferReadWriteCheckPass)
   }
 
+  def emitter = new MiddleFirrtlEmitter
   def transforms = Seq(
     new ChirrtlToHighFirrtl,
     new IRToWorkingIR,

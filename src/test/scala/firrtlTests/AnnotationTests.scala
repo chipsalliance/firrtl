@@ -27,7 +27,7 @@ trait AnnotationSpec extends LowTransformSpec {
   }
   def execute(writer: Writer, annotations: AnnotationMap, input: String, check: Annotation): Unit = {
     val cr = compile(CircuitState(parse(input), ChirrtlForm, Some(annotations)), writer)
-    cr.annotations.get.annotations should be (Seq(check))
+    cr.annotations.get.annotations should contain (check)
   }
 }
 
