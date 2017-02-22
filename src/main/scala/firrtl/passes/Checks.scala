@@ -77,7 +77,7 @@ object CheckHighForm extends Pass {
           correctNum(Option(1), 0)
         case AsFixedPoint | Pad | Shl | Shr | Head | Tail | BPShl | BPShr | BPSet =>
           correctNum(Option(1), 1)
-        case Bits | AsInterval =>
+        case Bits | AsInterval | Wrap | Sat =>
           correctNum(Option(1), 2)
         case Andr | Orr | Xorr | Neg =>
           correctNum(None,0)

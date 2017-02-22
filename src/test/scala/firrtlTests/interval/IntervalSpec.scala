@@ -62,6 +62,8 @@ class IntervalSpec extends FirrtlFlatSpec {
         |    output ndiv: Interval
         |    output nrem: Interval
         |    output mux: Interval
+        |    output wrap: Interval
+        |    output sat: Interval
         |    add <= add(x, y)
         |    sub <= sub(x, y)
         |    mul <= mul(x, y)
@@ -70,6 +72,8 @@ class IntervalSpec extends FirrtlFlatSpec {
         |    ndiv <= div(r, q)
         |    nrem <= rem(r, q)
         |    mux <= mux(asUInt(p), x, z)
+        |    wrap <= wrap(y, 4, 2)
+        |    sat <= sat(y, 4, 2)
         |""".stripMargin
     val check = Seq(
       "output add : Interval[0, 6]",
@@ -79,7 +83,9 @@ class IntervalSpec extends FirrtlFlatSpec {
       "output rem : Interval[0, 2]",
       "output ndiv : Interval[-1, -1]",
       "output nrem : Interval[1, 1]",
-      "output mux : Interval[-3, 2]"
+      "output mux : Interval[-3, 2]",
+      "output wrap : Interval[2, 4]",
+      "output sat : Interval[2, 4]"
     )
     executeTest(input, check, passes)
   }
@@ -207,5 +213,33 @@ class IntervalSpec extends FirrtlFlatSpec {
         |    output z : SInt<4>
         |    z <= asSInt(bits(add(x, y), 3, 0))""".stripMargin.split("\n") map normalized
     executeTest(input, check, compiler)
+  }
+
+  "Wrapping Intervals" should "optimize properly" in {
+    val passes = Seq(
+      ToWorkingIR,
+      CheckHighForm,
+      ResolveKinds,
+      InferTypes,
+      InferIntervals,
+      ConvertIntervalToSInt)
+    val input =
+      """circuit Xorr :
+        |  module Xorr :
+        |    input x: Interval[0, 15]
+        |    input y: Interval[-15, 15]
+        |    output shr: Interval
+        |    output sub: Interval
+        |    output mod: Interval
+        |    shr <= wrap(y, 7, 0)
+        |    sub <= wrap(x, 13, -1)
+        |    mod <= wrap(x, 2, -1)
+        |""".stripMargin
+    val check = Seq(
+      """shr <= bits(y, 2, 0)""",
+      """sub <= mux(gt(x, SInt(13)), add(SInt(-1), sub(x, SInt(13))), mux(lt(x, SInt(-1)), sub(SInt(13), sub(SInt(-1), x)), x))""",
+      """mod <= add(mod(sub(x, SInt(-1)), SInt(15)), SInt(-1))"""
+    )
+    executeTest(input, check, passes)
   }
 }
