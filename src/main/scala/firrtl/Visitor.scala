@@ -20,13 +20,18 @@ class Visitor(infoMode: InfoMode) extends FIRRTLBaseVisitor[FirrtlNode] {
   def visit[FirrtlNode](ctx: FIRRTLParser.CircuitContext): Circuit = visitCircuit(ctx)
 
   //  These regex have to change if grammar changes
+  private val HexPattern =
+    """\"*h([a-zA-Z0-9]+)\"*""".r
+  private val DecPattern = """(\+|-)?([1-9]\d*)""".r
+  private val ZeroPattern = "0".r
+  private val NegPattern = "(89AaBbCcDdEeFf)".r
+
+  private def trim(width: BigInt, s: String): String = s match {
+  
+
+  }
   private def string2BigInt(s: String): BigInt = {
     // private define legal patterns
-    val HexPattern =
-      """\"*h([a-zA-Z0-9]+)\"*""".r
-    val DecPattern = """(\+|-)?([1-9]\d*)""".r
-    val ZeroPattern = "0".r
-    val NegPattern = "(89AaBbCcDdEeFf)".r
     s match {
       case ZeroPattern(_*) => BigInt(0)
       case HexPattern(hexdigits) =>
@@ -304,13 +309,26 @@ class Visitor(infoMode: InfoMode) extends FIRRTLBaseVisitor[FirrtlNode] {
           UIntLiteral(value, width)
         case "SInt" =>
           val (width, value) =
-            if (ctx.getChildCount > 4)
-              (IntWidth(string2BigInt(ctx.IntLit(0).getText)), string2BigInt(ctx.IntLit(1).getText))
-            else {
-              val bigint = string2BigInt(ctx.IntLit(0).getText)
-              (IntWidth(BigInt(bigint.bitLength + 1)), bigint)
+            if (ctx.getChildCount > 4) {
+              val width = string2BigInt(ctx.IntLit(0).getText)
+              val trimmedStr = trim(width, ctx.IntLit(1).getText)
+              val value = string2BigInt(trimmedStr)
+              if (isNeg(trimmedStr)) {
+                (IntWidth(width), value - (BigInt(1) << (value.bitLength + 1)))
+              } else {
+                (IntWidth(width), value)
+              }
+            } else {
+              val str = ctx.IntLit(0).getText
+              val value = string2BigInt(str)
+              if (isNeg(str)) {
+                (IntWidth(BigInt(value.bitLength)), value - (BigInt(1) << (value.bitLength + 1)))
+              } else {
+                (IntWidth(BigInt(value.bitLength)), value)
+              }
             }
-          SIntLiteral(value, width)
+          val x = SIntLiteral(value, width)
+          x
         case "validif(" => ValidIf(visitExp(ctx.exp(0)), visitExp(ctx.exp(1)), UnknownType)
         case "mux(" => Mux(visitExp(ctx.exp(0)), visitExp(ctx.exp(1)), visitExp(ctx.exp(2)), UnknownType)
         case _ =>
