@@ -2,7 +2,6 @@
 
 package firrtlTests
 
-import com.typesafe.scalalogging.LazyLogging
 import java.io.{StringWriter,Writer}
 import org.scalatest.{FlatSpec, Matchers}
 import org.scalatest.junit.JUnitRunner
@@ -33,7 +32,7 @@ import firrtl.{
 
 // An example methodology for testing Firrtl Passes
 // Spec class should extend this class
-abstract class SimpleTransformSpec extends FlatSpec with Matchers with Compiler with LazyLogging {
+abstract class SimpleTransformSpec extends FlatSpec with Matchers with Compiler {
    def emitter = new FirrtlEmitter
 
    // Utility function
