@@ -62,6 +62,17 @@ class VerilogEmitter extends Emitter with PassBased {
       s".${name}($strx)"
     case RawStringParam(name, value) => s".$name($value)"
   }
+  def stringify(tpe: GroundType): String = tpe match {
+    case (_: UIntType | _: SIntType | _: AnalogType) =>
+      val wx = bitWidth(tpe) - 1
+      if (wx > 0) s"[$wx:0]" else ""
+    case ClockType => ""
+    case _ => error("Shouldn't be here")
+  }
+  def stringify(dir: Direction): String = dir match {
+    case Input => "input"
+    case Output => "output"
+  }
   def emit(x: Any)(implicit w: Writer) { emit(x, 0) }
   def emit(x: Any, top: Int)(implicit w: Writer) {
     def cast(e: Expression): Any = e.tpe match {
@@ -80,21 +91,11 @@ class VerilogEmitter extends Emitter with PassBased {
       case (e: WSubIndex) => w write e.serialize
       case (e: Literal) => v_print(e)
       case (e: VRandom) => w write s"{${e.nWords}{$$random}}"
-      case (t: UIntType) => 
-        val wx = bitWidth(t) - 1
-        if (wx > 0) w write s"[$wx:0]"
-      case (t: SIntType) => 
-        val wx = bitWidth(t) - 1
-        if (wx > 0) w write s"[$wx:0]"
-      case ClockType =>
-      case t: AnalogType =>
-        val wx = bitWidth(t) - 1
-        if (wx > 0) w write s"[$wx:0]"
+      case (t: GroundType) => w write stringify(t)
       case (t: VectorType) => 
         emit(t.tpe, top + 1)
         w write s"[${t.size - 1}:0]"
-      case Input => w write "input"
-      case Output => w write "output"
+      case (d: Direction) => w write stringify(d)
       case (s: String) => w write s
       case (i: Int) => w write i.toString
       case (i: Long) => w write i.toString
@@ -382,16 +383,26 @@ class VerilogEmitter extends Emitter with PassBased {
         Seq("$fwrite(32'h80000002,", strx, ");")
       }
 
-      def build_ports(): Unit = portdefs ++= m.ports.zipWithIndex map {
-        case (p, i) => (p.tpe, p.direction) match {
-          case (AnalogType(_), _) =>
-            Seq("inout", "  ", p.tpe, " ", p.name)
-          case (_, Input) =>
-            Seq(p.direction, "  ", p.tpe, " ", p.name)
-          case (_, Output) =>
-            val ex = WRef(p.name, p.tpe, PortKind, FEMALE)
-            assign(ex, netlist(ex))
-            Seq(p.direction, " ", p.tpe, " ", p.name)
+      def build_ports(): Unit = {
+        def padToMax(strs: Seq[String]): Seq[String] = {
+          val len = if (strs.nonEmpty) strs.map(_.length).max else 0
+          strs map (_.padTo(len, ' '))
+        }
+        val dirs = m.ports map { case Port(_, name, dir, tpe) =>
+          (dir, tpe) match {
+            case (_, AnalogType(_)) => "inout"
+            case (Input, _) => stringify(dir)
+            case (Output, _) =>
+              // Assign to the Port
+              val ex = WRef(name, tpe, PortKind, FEMALE)
+              assign(ex, netlist(ex))
+              stringify(dir)
+          }
+        }
+        val tpes = m.ports map (p => stringify(p.tpe.asInstanceOf[GroundType]))
+
+        portdefs ++= (padToMax(dirs), padToMax(tpes), m.ports).zipped.map {
+          case (dir, tpe, Port(_, name, _,_)) => Seq(dir, " " , tpe, " ", name)
         }
       }
 
