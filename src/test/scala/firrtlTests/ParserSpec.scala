@@ -107,7 +107,7 @@ class ParserPropSpec extends FirrtlPropSpec {
     xs <- Gen.listOf(legalChar)
   } yield (x :: xs).mkString
 
-  property("Identifiers allow [A-Za-z0-9_$] but not allow starting with a digit or $") {
+  property("Identifiers should allow [A-Za-z0-9_$] but not allow starting with a digit or $") {
     forAll (identifier) { id =>
       whenever(id.nonEmpty) {
         val input = s"""
