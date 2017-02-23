@@ -41,6 +41,7 @@ object Driver {
   // Compiles circuit. First parses a circuit from an input file,
   //  executes all compiler passes, and writes result to an output
   //  file.
+  @deprecated("Please use execute", "firrtl 1.0")
   def compile(
       input: String,
       output: String,
@@ -170,33 +171,24 @@ object Driver {
     // Do emission
     // Note: Single emission target assumption is baked in here
     // Note: FirrtlExecutionSuccess emitted is only used if we're emitting the whole Circuit
-    // TODO This could probably be cleaner
     val emittedRes = firrtlConfig.getOutputFormat(optionsManager) match {
       case SingleFile(filename) =>
-        val emittedCircuit = finalState.annotations flatMap { a =>
-          a.annotations collectFirst { case EmittedCircuitAnnotation(x) => x }
-        }
-        emittedCircuit match {
-          case Some(EmittedCircuit(_, value)) =>
+        finalState.emittedCircuitOption match {
+          case Some(emitted: EmittedCircuit) =>
             val outputFile = new java.io.PrintWriter(filename)
-            outputFile.write(value)
+            outputFile.write(emitted.value)
             outputFile.close()
-            value
+            emitted.value
           case _ => throwInternalError
         }
       case OneFilePerModule(dirName) =>
-        val emittedModulesOpt = finalState.annotations map { a =>
-          a.annotations collect { case EmittedModuleAnnotation(x) => x }
-        }
-        emittedModulesOpt match {
-          case Some(emittedModules) =>
-            emittedModules.foreach { case module =>
-              val filename = optionsManager.getBuildFileName(firrtlConfig.outputSuffix, s"$dirName/${module.name}")
-              val outputFile = new java.io.PrintWriter(filename)
-              outputFile.write(module.value)
-              outputFile.close()
-            }
-          case None => throwInternalError
+        val emittedModules = finalState.emittedComponents collect { case x: EmittedModule => x }
+        if (emittedModules.isEmpty) throwInternalError // There should be something
+        emittedModules.foreach { case module =>
+          val filename = optionsManager.getBuildFileName(firrtlConfig.outputSuffix, s"$dirName/${module.name}")
+          val outputFile = new java.io.PrintWriter(filename)
+          outputFile.write(module.value)
+          outputFile.close()
         }
         "" // Should we return something different here?
     }

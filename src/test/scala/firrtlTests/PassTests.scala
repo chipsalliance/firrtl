@@ -19,18 +19,18 @@ abstract class SimpleTransformSpec extends FlatSpec with Matchers with Compiler 
    def squash(c: Circuit): Circuit = RemoveEmpty.run(c)
 
    // Executes the test. Call in tests.
-   def execute(writer: Writer, annotations: AnnotationMap, input: String, check: String): Unit = {
-      compile(CircuitState(parse(input), ChirrtlForm, Some(annotations)), writer)
-      val actual = RemoveEmpty.run(parse(writer.toString)).serialize
+   def execute(annotations: AnnotationMap, input: String, check: String): Unit = {
+      val finalState = compileAndEmit(CircuitState(parse(input), ChirrtlForm, Some(annotations)))
+      val actual = RemoveEmpty.run(parse(finalState.emittedCircuitOption.get.value)).serialize
       val expected = parse(check).serialize
       logger.debug(actual)
       logger.debug(expected)
       (actual) should be (expected)
    }
    // Executes the test, should throw an error
-   def failingexecute(writer: Writer, annotations: AnnotationMap, input: String): Exception = {
+   def failingexecute(annotations: AnnotationMap, input: String): Exception = {
       intercept[PassExceptions] {
-         compile(CircuitState(parse(input), ChirrtlForm, Some(annotations)), writer)
+         compile(CircuitState(parse(input), ChirrtlForm, Some(annotations)), Seq.empty)
       }
    }
 }

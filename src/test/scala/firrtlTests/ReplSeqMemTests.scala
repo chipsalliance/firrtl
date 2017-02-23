@@ -63,10 +63,9 @@ circuit Top :
 """.stripMargin
     val confLoc = "ReplSeqMemTests.confTEMP"
     val aMap = AnnotationMap(Seq(ReplSeqMemAnnotation("-c:Top:-o:"+confLoc)))
-    val writer = new java.io.StringWriter
-    compile(CircuitState(parse(input), ChirrtlForm, Some(aMap)), writer)
+    val res = compileAndEmit(CircuitState(parse(input), ChirrtlForm, Some(aMap)))
     // Check correctness of firrtl
-    parse(writer.toString)
+    parse(res.emittedCircuitOption.get.value)
     (new java.io.File(confLoc)).delete()
   }
 
@@ -86,10 +85,9 @@ circuit Top :
 """.stripMargin
     val confLoc = "ReplSeqMemTests.confTEMP"
     val aMap = AnnotationMap(Seq(ReplSeqMemAnnotation("-c:Top:-o:"+confLoc)))
-    val writer = new java.io.StringWriter
-    compile(CircuitState(parse(input), ChirrtlForm, Some(aMap)), writer)
+    val res = compileAndEmit(CircuitState(parse(input), ChirrtlForm, Some(aMap)))
     // Check correctness of firrtl
-    parse(writer.toString)
+    parse(res.emittedCircuitOption.get.value)
     (new java.io.File(confLoc)).delete()
   }
 
@@ -112,10 +110,9 @@ circuit CustomMemory :
 """.stripMargin
     val confLoc = "ReplSeqMemTests.confTEMP"
     val aMap = AnnotationMap(Seq(ReplSeqMemAnnotation("-c:CustomMemory:-o:"+confLoc)))
-    val writer = new java.io.StringWriter
-    compile(CircuitState(parse(input), ChirrtlForm, Some(aMap)), writer)
+    val res = compileAndEmit(CircuitState(parse(input), ChirrtlForm, Some(aMap)))
     // Check correctness of firrtl
-    parse(writer.toString)
+    parse(res.emittedCircuitOption.get.value)
     (new java.io.File(confLoc)).delete()
   }
 
@@ -138,10 +135,9 @@ circuit CustomMemory :
 """.stripMargin
     val confLoc = "ReplSeqMemTests.confTEMP"
     val aMap = AnnotationMap(Seq(ReplSeqMemAnnotation("-c:CustomMemory:-o:"+confLoc)))
-    val writer = new java.io.StringWriter
-    compile(CircuitState(parse(input), ChirrtlForm, Some(aMap)), writer)
+    val res = compileAndEmit(CircuitState(parse(input), ChirrtlForm, Some(aMap)))
     // Check correctness of firrtl
-    parse(writer.toString)
+    parse(res.emittedCircuitOption.get.value)
     (new java.io.File(confLoc)).delete()
   }
 
@@ -214,10 +210,9 @@ circuit CustomMemory :
     val aMap = AnnotationMap(Seq(
       ReplSeqMemAnnotation("-c:CustomMemory:-o:"+confLoc),
       NoDedupMemAnnotation(ComponentName("mem_0", ModuleName("CustomMemory",CircuitName("CustomMemory"))))))
-    val writer = new java.io.StringWriter
-    compile(CircuitState(parse(input), ChirrtlForm, Some(aMap)), writer)
+    val res = compileAndEmit(CircuitState(parse(input), ChirrtlForm, Some(aMap)))
     // Check correctness of firrtl
-    val circuit = parse(writer.toString)
+    val circuit = parse(res.emittedCircuitOption.get.value)
     val numExtMods = circuit.modules.count {
       case e: ExtModule =>  true
       case _ => false
@@ -255,10 +250,9 @@ circuit CustomMemory :
     val aMap = AnnotationMap(Seq(
       ReplSeqMemAnnotation("-c:CustomMemory:-o:"+confLoc),
       NoDedupMemAnnotation(ComponentName("mem_1", ModuleName("CustomMemory",CircuitName("CustomMemory"))))))
-    val writer = new java.io.StringWriter
-    compile(CircuitState(parse(input), ChirrtlForm, Some(aMap)), writer)
+    val res = compileAndEmit(CircuitState(parse(input), ChirrtlForm, Some(aMap)))
     // Check correctness of firrtl
-    val circuit = parse(writer.toString)
+    val circuit = parse(res.emittedCircuitOption.get.value)
     val numExtMods = circuit.modules.count {
       case e: ExtModule =>  true
       case _ => false
@@ -290,10 +284,9 @@ circuit CustomMemory :
 """
     val confLoc = "ReplSeqMemTests.confTEMP"
     val aMap = AnnotationMap(Seq(ReplSeqMemAnnotation("-c:CustomMemory:-o:"+confLoc)))
-    val writer = new java.io.StringWriter
-    compile(CircuitState(parse(input), ChirrtlForm, Some(aMap)), writer)
+    val res = compileAndEmit(CircuitState(parse(input), ChirrtlForm, Some(aMap)))
     // Check correctness of firrtl
-    val circuit = parse(writer.toString)
+    val circuit = parse(res.emittedCircuitOption.get.value)
     val numExtMods = circuit.modules.count {
       case e: ExtModule =>  true
       case _ => false

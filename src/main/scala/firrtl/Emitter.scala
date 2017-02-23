@@ -41,47 +41,73 @@ object EmitCircuitAnnotation extends EmitAnnotation("emitCircuit")
 object EmitAllModulesAnnotation extends EmitAnnotation("emitAllModules")
 
 // ***** Annotations for results of emission *****
-final case class EmittedCircuit(form: String, value: String)
-final case class EmittedModule(form: String, name: String, value: String)
+sealed abstract class EmittedComponent {
+  def name: String
+  def value: String
+}
+sealed abstract class EmittedCircuit extends EmittedComponent
+final case class EmittedFirrtlCircuit(name: String, value: String) extends EmittedCircuit
+final case class EmittedVerilogCircuit(name: String, value: String) extends EmittedCircuit
+sealed abstract class EmittedModule extends EmittedComponent
+final case class EmittedFirrtlModule(name: String, value: String) extends EmittedModule
+final case class EmittedVerilogModule(name: String, value: String) extends EmittedModule
 
-object EmitterYamlProtocol extends DefaultYamlProtocol {
-  implicit val emittedCircuitFormat = yamlFormat2(EmittedCircuit)
-  implicit val emittedModuleFormat = yamlFormat3(EmittedModule)
+/** Super class for Annotations containing emitted components
+  *
+  * @note These annotations cannot be serialized and deserialized to/from an annotation file
+  */
+sealed abstract class EmittedAnnotation[T <: EmittedComponent](marker: String) {
+  // Private datastructure to hold the actual emitted objects
+  // TODO Once annotations can contain arbitrary datastructures, get rid of this
+  private val emitted = mutable.ArrayBuffer.empty[T]
+
+  def apply(value: T): Annotation = {
+    emitted += value
+    val idx = emitted.size - 1
+    Annotation(CircuitTopName, classOf[Transform], s"$marker:$idx")
+  }
+  def unapply(a: Annotation): Option[T] = a match {
+    // assume transform has been filtered
+    case Annotation(CircuitTopName, _, str) if str.startsWith(marker) =>
+      val idx = str.stripPrefix(s"$marker:").toInt
+      Some(emitted(idx))
+    case _ => None
+  }
 }
 
-// Because of implicits, I don't think this part can be type parameterized
+object EmittedFirrtlCircuitAnnotation extends EmittedAnnotation[EmittedFirrtlCircuit]("emittedFirrtlCircuit")
+object EmittedVerilogCircuitAnnotation extends EmittedAnnotation[EmittedVerilogCircuit]("emittedVerilogCircuit")
 object EmittedCircuitAnnotation {
-  import EmitterYamlProtocol._
-
-  // TODO Better target transform?
-  def apply(emitted: EmittedCircuit): Annotation =
-    Annotation(CircuitTopName, classOf[Transform], emitted.toYaml.prettyPrint)
+  def apply(value: EmittedCircuit): Annotation = value match {
+    case firrtl: EmittedFirrtlCircuit => EmittedFirrtlCircuitAnnotation(firrtl)
+    case verilog: EmittedVerilogCircuit => EmittedVerilogCircuitAnnotation(verilog)
+  }
   def unapply(a: Annotation): Option[EmittedCircuit] = a match {
-    case Annotation(CircuitTopName, _, value) =>
-      val yaml = Try(value.parseYaml)
-      yaml.map(_.convertTo[EmittedCircuit]).toOption
+    case EmittedFirrtlCircuitAnnotation(x) => Some(x)
+    case EmittedVerilogCircuitAnnotation(x) => Some(x)
     case _ => None
   }
 }
+object EmittedFirrtlModuleAnnotation extends EmittedAnnotation[EmittedFirrtlModule]("emittedFirrtlModule")
+object EmittedVerilogModuleAnnotation extends EmittedAnnotation[EmittedVerilogModule]("emittedVerilogModule")
 object EmittedModuleAnnotation {
-  import EmitterYamlProtocol._
-
-  // TODO Better target transform?
-  def apply(emitted: EmittedModule): Annotation =
-    Annotation(CircuitTopName, classOf[Transform], emitted.toYaml.prettyPrint)
+  def apply(value: EmittedModule): Annotation = value match {
+    case firrtl: EmittedFirrtlModule => EmittedFirrtlModuleAnnotation(firrtl)
+    case verilog: EmittedVerilogModule => EmittedVerilogModuleAnnotation(verilog)
+  }
   def unapply(a: Annotation): Option[EmittedModule] = a match {
-    case Annotation(CircuitTopName, _, value) =>
-      val yaml = Try(value.parseYaml)
-      yaml.map(_.convertTo[EmittedModule]).toOption
+    case EmittedFirrtlModuleAnnotation(x) => Some(x)
+    case EmittedVerilogModuleAnnotation(x) => Some(x)
     case _ => None
   }
 }
+
 
 sealed abstract class FirrtlEmitter(form: CircuitForm) extends Transform with Emitter {
   def inputForm = form
   def outputForm = form
 
-  private def emitAllModules(circuit: Circuit): Seq[EmittedModule] = {
+  private def emitAllModules(circuit: Circuit): Seq[EmittedFirrtlModule] = {
     // For a given module, returns a Seq of all modules instantited inside of it
     def collectInstantiatedModules(mod: Module, map: Map[String, DefModule]): Seq[DefModule] = {
       // Use list instead of set to maintain order
@@ -108,16 +134,17 @@ sealed abstract class FirrtlEmitter(form: CircuitForm) extends Transform with Em
         case ext: ExtModule => ext
       }
       val newCircuit = Circuit(m.info, extModules :+ m, m.name)
-      EmittedModule("firrtl", m.name, newCircuit.serialize)
+      EmittedFirrtlModule(m.name, newCircuit.serialize)
     }
   }
 
   def execute(state: CircuitState): CircuitState = {
     val newAnnos = getMyAnnotations(state).flatMap {
       case EmitCircuitAnnotation() =>
-        Seq(EmittedCircuitAnnotation(EmittedCircuit("firrtl", state.circuit.serialize)))
+        Seq(EmittedFirrtlCircuitAnnotation.apply(
+              EmittedFirrtlCircuit(state.circuit.main, state.circuit.serialize)))
       case EmitAllModulesAnnotation() =>
-        emitAllModules(state.circuit) map (EmittedModuleAnnotation(_))
+        emitAllModules(state.circuit) map (EmittedFirrtlModuleAnnotation(_))
       case _ => Seq()
     }
     state.copy(annotations = Some(AnnotationMap(newAnnos)))
@@ -722,7 +749,7 @@ class VerilogEmitter extends Transform with PassBased with Emitter {
       case EmitCircuitAnnotation() =>
         val writer = new java.io.StringWriter
         emit(state, writer)
-        Seq(EmittedCircuitAnnotation(EmittedCircuit("verilog", writer.toString)))
+        Seq(EmittedVerilogCircuitAnnotation(EmittedVerilogCircuit(state.circuit.main, writer.toString)))
 
       case EmitAllModulesAnnotation() =>
         val circuit = runPasses(state.circuit)
@@ -733,7 +760,7 @@ class VerilogEmitter extends Transform with PassBased with Emitter {
             val writer = new java.io.StringWriter
             writer.write(preamble)
             emit_verilog(module, moduleMap)(writer)
-            Some(EmittedModuleAnnotation(EmittedModule("verilog", module.name, writer.toString)))
+            Some(EmittedVerilogModuleAnnotation(EmittedVerilogModule(module.name, writer.toString)))
           case _: ExtModule => None
         }
       case _ => Seq()

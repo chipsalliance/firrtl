@@ -34,10 +34,23 @@ case class AnnotationMap(annotations: Seq[Annotation]) {
   *   Generally only a return value from [[Transform]]s
   */
 case class CircuitState(
-  circuit: Circuit,
-  form: CircuitForm,
-  annotations: Option[AnnotationMap] = None,
-  renames: Option[RenameMap] = None)
+    circuit: Circuit,
+    form: CircuitForm,
+    annotations: Option[AnnotationMap] = None,
+    renames: Option[RenameMap] = None) {
+
+  /** Helper for getting at just an emitted circuit */
+  def emittedCircuitOption: Option[EmittedCircuit] =
+    emittedComponents collectFirst { case x: EmittedCircuit => x }
+  /** Helper function for extracting emitted components from annotations */
+  def emittedComponents: Seq[EmittedComponent] = {
+    val emittedOpt = annotations map (_.annotations collect {
+      case EmittedCircuitAnnotation(x) => x
+      case EmittedModuleAnnotation(x) => x
+    })
+    emittedOpt.getOrElse(Seq.empty)
+  }
+}
 
 /** Current form of the Firrtl Circuit
   *
@@ -140,6 +153,7 @@ abstract class PassBasedTransform extends Transform with PassBased {
 
 /** Defines old API for Emission. Deprecated */
 trait Emitter {
+  @deprecated("Use emission annotations instead", "firrtl 1.0")
   def emit(state: CircuitState, writer: Writer): Unit
 }
 
@@ -244,35 +258,49 @@ trait Compiler {
     * @param customTransforms Any custom [[Transform]]s that will be inserted
     *   into the compilation process by [[CompilerUtils.mergeTransforms]]
     */
-  @deprecated("Please use annotation form instead", "firrtl 1.0")
+  @deprecated("Please use compileAndEmit or other compile method instead", "firrtl 1.0")
   def compile(state: CircuitState,
               writer: Writer,
               customTransforms: Seq[Transform] = Seq.empty): CircuitState = {
+    val finalState = compileAndEmit(state, customTransforms)
+    finalState.emittedCircuitOption match {
+      case Some(emitted) => writer.write(emitted.value)
+      case _ => throwInternalError
+    }
+    finalState
+  }
 
+  /** Perform compilation and emit the whole Circuit
+    *
+    * This is intended as a convenience method wrapping up Annotation creation for the common case.
+    * It creates a [[EmitCircuitAnnotation]] that will be consumed by this Transform's emitter. The
+    * [[EmittedCircuit]] can be extracted from the returned [[CircuitState]] via
+    * [[CircuitState.emittedCircuitOption]]
+    *
+    * @param state The Firrtl AST to compile
+    * @param customTransforms Any custom [[Transform]]s that will be inserted
+    *   into the compilation process by [[CompilerUtils.mergeTransforms]]
+    * @return result of compilation with emitted circuit annotated
+    */
+  def compileAndEmit(state: CircuitState,
+                     customTransforms: Seq[Transform] = Seq.empty): CircuitState = {
     val emitAnno = EmitCircuitAnnotation(emitter.getClass)
     // TODO This is ridiculous. Fix Annotations
     val annotations = state.annotations.map(_.annotations).getOrElse(Seq.empty)
     val annotationMap = AnnotationMap(annotations :+ emitAnno)
 
     // Run compiler
-    val finalState = compile(state.copy(annotations = Some(annotationMap)), customTransforms)
-
-    // TODO merge with code in Driver
-    val emittedCircuit = finalState.annotations flatMap { a =>
-      a.annotations collectFirst { case EmittedCircuitAnnotation(x) => x }
-    }
-    emittedCircuit match {
-      case Some(EmittedCircuit(_, value)) => writer.write(value)
-      case _ => throwInternalError
-    }
-    finalState
+    compile(state.copy(annotations = Some(annotationMap)), customTransforms)
   }
 
   /** Perform compilation
     *
+    * Emission will only be performed if [[EmitAnnotation]]s are present
+    *
     * @param state The Firrtl AST to compile
-    * @param customTransforms Any custom [[Transform]]s that will be inserted
-    *   into the compilation process by [[CompilerUtils.mergeTransforms]]
+    * @param customTransforms Any custom [[Transform]]s that will be inserted into the compilation
+    *   process by [[CompilerUtils.mergeTransforms]]
+    * @return result of compilation
     */
   def compile(state: CircuitState, customTransforms: Seq[Transform]): CircuitState = {
     val allTransforms = CompilerUtils.mergeTransforms(transforms, customTransforms) :+ emitter
