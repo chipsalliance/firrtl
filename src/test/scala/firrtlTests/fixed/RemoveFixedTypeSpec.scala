@@ -14,6 +14,7 @@ class RemoveFixedTypeSpec extends FirrtlFlatSpec {
       (c: Circuit, p: Pass) => p.run(c)
     }
     val lines = c.serialize.split("\n") map normalized
+    println(c.serialize)
 
     expected foreach { e =>
       lines should contain(e)
@@ -167,7 +168,7 @@ class RemoveFixedTypeSpec extends FirrtlFlatSpec {
       """
         |circuit Unit :
         |  module Unit :
-        |    input clk : Clock
+        |    input clock : Clock
         |    input reset : UInt<1>
         |    input io_in : Fixed<6><<0>>
         |    output io_out : Fixed
@@ -185,6 +186,33 @@ class RemoveFixedTypeSpec extends FirrtlFlatSpec {
 
     val chirrtlTransform = new CheckChirrtlTransform
     chirrtlTransform.execute(CircuitState(parse(input), ChirrtlForm, Some(new AnnotationMap(Seq.empty))))
+  }
+
+  "Fixed point numbers" should "remove nested AsFixedPoint" in {
+    val passes = Seq(
+      ToWorkingIR,
+      CheckHighForm,
+      ResolveKinds,
+      InferTypes,
+      CheckTypes,
+      ResolveGenders,
+      CheckGenders,
+      InferWidths,
+      CheckWidths,
+      ConvertFixedToSInt)
+    val input =
+      """
+        |circuit Unit :
+        |  module Unit :
+        |    node x = asFixedPoint(asFixedPoint(UInt(3), 0), 1)
+      """.stripMargin
+    val check =
+      """
+        |circuit Unit :
+        |  module Unit :
+        |    node x = asSInt(asSInt(UInt<2>("h3")))
+      """.stripMargin
+    executeTest(input, check.split("\n") map normalized, passes)
   }
 }
 

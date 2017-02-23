@@ -79,7 +79,7 @@ object CheckHighForm extends Pass {
           correctNum(Option(1), 1)
         case Bits =>
           correctNum(Option(1), 2)
-        case Andr | Orr | Xorr =>
+        case Andr | Orr | Xorr | Neg =>
           correctNum(None,0)
       }
     }
@@ -250,16 +250,16 @@ object CheckTypes extends Pass {
     s"$info: [module $mname]  Must mux between passive types.")
   class MuxCondUInt(info: Info, mname: String) extends PassException(
     s"$info: [module $mname]  A mux condition must be of type UInt.")
+  class MuxClock(info: Info, mname: String) extends PassException(
+    s"$info: [module $mname]  Firrtl does not support muxing clocks.")
   class ValidIfPassiveTypes(info: Info, mname: String) extends PassException(
     s"$info: [module $mname]  Must validif a passive type.")
   class ValidIfCondUInt(info: Info, mname: String) extends PassException(
     s"$info: [module $mname]  A validif condition must be of type UInt.")
   class IllegalAnalogDeclaration(info: Info, mname: String, decName: String) extends PassException(
     s"$info: [module $mname]  Cannot declare a reg, node, or memory with an Analog type: $decName.")
-  class IllegalAttachSource(info: Info, mname: String, sourceName: String) extends PassException(
-    s"$info: [module $mname]  Attach source must be a wire or port with an analog type: $sourceName.")
   class IllegalAttachExp(info: Info, mname: String, expName: String) extends PassException(
-    s"$info: [module $mname]  Attach expression must be an instance: $expName.")
+    s"$info: [module $mname]  Attach expression must be an port, wire, or port of instance: $expName.")
 
   //;---------------- Helper Functions --------------
   def ut: UIntType = UIntType(UnknownWidth)
@@ -371,6 +371,8 @@ object CheckTypes extends Pass {
             case _: UIntType =>
             case _ => errors append new MuxCondUInt(info, mname)
           }
+          if ((e.tval.tpe == ClockType) || (e.fval.tpe == ClockType))
+            errors.append(new MuxClock(info, mname))
         case (e: ValidIf) =>
           if (!passive(e.tpe))
             errors append new ValidIfPassiveTypes(info, mname)
@@ -390,7 +392,7 @@ object CheckTypes extends Pass {
         case (_: UIntType, _: UIntType) => flip1 == flip2
         case (_: SIntType, _: SIntType) => flip1 == flip2
         case (_: FixedType, _: FixedType) => flip1 == flip2
-        case (_: AnalogType, _: AnalogType) => false
+        case (_: AnalogType, _: AnalogType) => true
         case (t1: BundleType, t2: BundleType) =>
           val t1_fields = (t1.fields foldLeft Map[String, (Type, Orientation)]())(
             (map, f1) => map + (f1.name -> (f1.tpe, f1.flip)))
@@ -427,18 +429,14 @@ object CheckTypes extends Pass {
           case t =>
         }
         case sx: Attach =>
-          (sx.source.tpe, kind(sx.source)) match {
-            case (AnalogType(w), PortKind | WireKind)  =>
-            case _ => errors append new IllegalAttachSource(info, mname, sx.source.serialize)
-          }
-          sx.exprs foreach { e =>
+          for (e <- sx.exprs) {
             e.tpe match {
               case _: AnalogType =>
-              case _ => errors append new OpNotAnalog(info, mname, e.serialize)
+              case _ => errors.append(new OpNotAnalog(info, mname, e.serialize))
             }
             kind(e) match {
-              case InstanceKind =>
-              case _ =>  errors append new IllegalAttachExp(info, mname, e.serialize)
+              case (InstanceKind | PortKind | WireKind) =>
+              case _ =>  errors.append(new IllegalAttachExp(info, mname, e.serialize))
             }
           }
         case sx: Stop =>
@@ -562,100 +560,6 @@ object CheckGenders extends Pass {
       genders ++= (m.ports map (p => p.name -> to_gender(p.direction)))
       m map check_genders_s(m.info, m.name, genders)
     }
-    errors.trigger()
-    c
-  }
-}
-
-object CheckWidths extends Pass {
-  def name = "Width Check"
-  class UninferredWidth (info: Info, mname: String) extends PassException(
-    s"$info : [module $mname]  Uninferred width.")
-  class WidthTooSmall(info: Info, mname: String, b: BigInt) extends PassException(
-    s"$info : [module $mname]  Width too small for constant ${serialize(b)}.")
-  class WidthTooBig(info: Info, mname: String) extends PassException(
-    s"$info : [module $mname]  Width of dshl shift amount cannot be larger than 31 bits.")
-  class NegWidthException(info:Info, mname: String) extends PassException(
-    s"$info: [module $mname] Width cannot be negative or zero.")
-  class BitsWidthException(info: Info, mname: String, hi: BigInt, width: BigInt) extends PassException(
-    s"$info: [module $mname] High bit $hi in bits operator is larger than input width $width.")
-  class HeadWidthException(info: Info, mname: String, n: BigInt, width: BigInt) extends PassException(
-    s"$info: [module $mname] Parameter $n in head operator is larger than input width $width.")
-  class TailWidthException(info: Info, mname: String, n: BigInt, width: BigInt) extends PassException(
-    s"$info: [module $mname] Parameter $n in tail operator is larger than input width $width.")
-  class AttachWidthsNotEqual(info: Info, mname: String, eName: String, source: String) extends PassException(
-    s"$info: [module $mname] Attach source $source and expression $eName must have identical widths.")
-
-  def run(c: Circuit): Circuit = {
-    val errors = new Errors()
-
-    def check_width_w(info: Info, mname: String)(w: Width): Width = {
-      w match {
-        case w: IntWidth if w.width >= 0 =>
-        case _: IntWidth =>
-          errors append new NegWidthException(info, mname)
-        case _ =>
-          errors append new UninferredWidth(info, mname)
-      }
-      w
-    }
-
-    def hasWidth(tpe: Type): Boolean = tpe match {
-      case GroundType(IntWidth(w)) => true
-      case GroundType(_) => false
-      case _ => println(tpe); throwInternalError
-    }
-
-    def check_width_t(info: Info, mname: String)(t: Type): Type =
-      t map check_width_t(info, mname) map check_width_w(info, mname)
-
-    def check_width_e(info: Info, mname: String)(e: Expression): Expression = {
-      e match {
-        case e: UIntLiteral => e.width match {
-          case w: IntWidth if math.max(1, e.value.bitLength) > w.width =>
-            errors append new WidthTooSmall(info, mname, e.value)
-          case _ =>
-        }
-        case e: SIntLiteral => e.width match {
-          case w: IntWidth if e.value.bitLength + 1 > w.width =>
-            errors append new WidthTooSmall(info, mname, e.value)
-          case _ =>
-        }
-        case DoPrim(Bits, Seq(a), Seq(hi, lo), _) if (hasWidth(a.tpe) && bitWidth(a.tpe) <= hi) =>
-          errors append new BitsWidthException(info, mname, hi, bitWidth(a.tpe))
-        case DoPrim(Head, Seq(a), Seq(n), _) if (hasWidth(a.tpe) && bitWidth(a.tpe) < n) =>
-          errors append new HeadWidthException(info, mname, n, bitWidth(a.tpe))
-        case DoPrim(Tail, Seq(a), Seq(n), _) if (hasWidth(a.tpe) && bitWidth(a.tpe) <= n) =>
-          errors append new TailWidthException(info, mname, n, bitWidth(a.tpe))
-        case DoPrim(Dshl, Seq(a, b), _, _) if (hasWidth(a.tpe) && bitWidth(b.tpe) >= BigInt(32)) =>
-          errors append new WidthTooBig(info, mname)
-        case _ =>
-      }
-      //e map check_width_t(info, mname) map check_width_e(info, mname)
-      e map check_width_e(info, mname)
-    }
-
-
-    def check_width_s(minfo: Info, mname: String)(s: Statement): Statement = {
-      val info = get_info(s) match { case NoInfo => minfo case x => x }
-      s map check_width_e(info, mname) map check_width_s(info, mname) map check_width_t(info, mname) match {
-        case Attach(infox, source, exprs) => 
-          exprs foreach ( e =>
-            if (bitWidth(e.tpe) != bitWidth(source.tpe))
-              errors append new AttachWidthsNotEqual(infox, mname, e.serialize, source.serialize)
-          )
-          s
-        case _ => s
-      } 
-    }
-
-    def check_width_p(minfo: Info, mname: String)(p: Port): Port = p.copy(tpe =  check_width_t(p.info, mname)(p.tpe))
-
-    def check_width_m(m: DefModule) {
-      m map check_width_p(m.info, m.name) map check_width_s(m.info, m.name)
-    }
-
-    c.modules foreach check_width_m
     errors.trigger()
     c
   }

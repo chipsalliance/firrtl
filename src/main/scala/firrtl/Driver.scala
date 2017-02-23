@@ -5,11 +5,13 @@ package firrtl
 import scala.collection._
 import scala.io.Source
 import java.io.{File, FileNotFoundException}
+
 import net.jcazevedo.moultingyaml._
 import logger.Logger
-import Parser.{InfoMode, IgnoreInfo}
+import Parser.{IgnoreInfo, InfoMode}
 import annotations._
 import firrtl.annotations.AnnotationYamlProtocol._
+import firrtl.transforms.{BlackBoxSourceHelper, BlackBoxTargetDir}
 
 
 /**
@@ -44,7 +46,7 @@ object Driver {
       compiler: Compiler,
       infoMode: InfoMode = IgnoreInfo,
       customTransforms: Seq[Transform] = Seq.empty,
-      annotations: AnnotationMap = new AnnotationMap(Seq.empty)
+      annotations: AnnotationMap = AnnotationMap(Seq.empty)
   ): String = {
     val parsedInput = Parser.parse(Source.fromFile(input).getLines(), infoMode)
     val outputBuffer = new java.io.CharArrayWriter
@@ -65,6 +67,7 @@ object Driver {
     *
     * @param message error message
     */
+  //scalastyle:off regex
   def dramaticError(message: String): Unit = {
     println(Console.RED + "-"*78)
     println(s"Error: $message")
@@ -78,18 +81,33 @@ object Driver {
     */
   def loadAnnotations(optionsManager: ExecutionOptionsManager with HasFirrtlOptions): Unit = {
     /*
-     Right now annotations will be looked for always based on the
+     If firrtlAnnotations in the firrtlOptions are nonEmpty then these will be the annotations
+     used by firrtl.
+     To use the file annotations make sure that the annotations in the firrtlOptions are empty
+     The annotation file if needed is found via
      s"$targetDirName/$topName.anno" or s"$annotationFileNameOverride.anno"
-     If found they will be added to the annotations already in the
-     optionsManager.firrtlOptions, duplicates may be created, but this should be ok
     */
-    val firrtlConfig = optionsManager.firrtlOptions
-    val annotationFileName = firrtlConfig.getAnnotationFileName(optionsManager)
-    val annotationFile = new File(annotationFileName)
-    if(annotationFile.exists) {
-      val annotationsYaml = io.Source.fromFile(annotationFile).getLines().mkString("\n").parseYaml
-      val annotationArray = annotationsYaml.convertTo[Array[Annotation]]
-      optionsManager.firrtlOptions = firrtlConfig.copy(annotations = firrtlConfig.annotations ++ annotationArray)
+    def firrtlConfig = optionsManager.firrtlOptions
+
+    if(firrtlConfig.annotations.isEmpty) {
+      val annotationFileName = firrtlConfig.getAnnotationFileName(optionsManager)
+      val annotationFile = new File(annotationFileName)
+      if (annotationFile.exists) {
+        val annotationsYaml = io.Source.fromFile(annotationFile).getLines().mkString("\n").parseYaml
+        val annotationArray = annotationsYaml.convertTo[Array[Annotation]]
+        optionsManager.firrtlOptions = firrtlConfig.copy(annotations = firrtlConfig.annotations ++ annotationArray)
+      }
+    }
+
+    if(firrtlConfig.annotations.nonEmpty) {
+      val targetDirAnno = List(Annotation(
+        CircuitName("All"),
+        classOf[BlackBoxSourceHelper],
+        BlackBoxTargetDir(optionsManager.targetDirName).serialize
+      ))
+
+      optionsManager.firrtlOptions = optionsManager.firrtlOptions.copy(
+        annotations = firrtlConfig.annotations ++ targetDirAnno)
     }
   }
 
@@ -101,7 +119,7 @@ object Driver {
     *         for downstream tools as desired
     */
   def execute(optionsManager: ExecutionOptionsManager with HasFirrtlOptions): FirrtlExecutionResult = {
-    val firrtlConfig = optionsManager.firrtlOptions
+    def firrtlConfig = optionsManager.firrtlOptions
 
     Logger.setOptions(optionsManager)
 
@@ -126,7 +144,7 @@ object Driver {
           io.Source.fromFile(inputFileName).getLines()
         }
         catch {
-          case e: FileNotFoundException =>
+          case _: FileNotFoundException =>
             val message = s"Input file $inputFileName not found"
             dramaticError(message)
             return FirrtlExecutionFailure(message)
@@ -138,7 +156,7 @@ object Driver {
     val parsedInput = Parser.parse(firrtlSource, firrtlConfig.infoMode)
     val outputBuffer = new java.io.CharArrayWriter
     firrtlConfig.compiler.compile(
-      CircuitState(parsedInput, ChirrtlForm, Some(new AnnotationMap(firrtlConfig.annotations))),
+      CircuitState(parsedInput, ChirrtlForm, Some(AnnotationMap(firrtlConfig.annotations))),
       outputBuffer,
       firrtlConfig.customTransforms
     )
@@ -162,19 +180,19 @@ object Driver {
   def execute(args: Array[String]): FirrtlExecutionResult = {
     val optionsManager = new ExecutionOptionsManager("firrtl") with HasFirrtlOptions
 
-    optionsManager.parse(args) match {
-      case true =>
-        execute(optionsManager) match {
-          case success: FirrtlExecutionSuccess =>
-            success
-          case failure: FirrtlExecutionFailure =>
-            optionsManager.showUsageAsError()
-            failure
-          case result =>
-            throw new Exception(s"Error: Unknown Firrtl Execution result $result")
-        }
-      case _ =>
-        FirrtlExecutionFailure("Could not parser command line options")
+    if(optionsManager.parse(args)) {
+      execute(optionsManager) match {
+        case success: FirrtlExecutionSuccess =>
+          success
+        case failure: FirrtlExecutionFailure =>
+          optionsManager.showUsageAsError()
+          failure
+        case result =>
+          throw new Exception(s"Error: Unknown Firrtl Execution result $result")
+      }
+    }
+    else {
+      FirrtlExecutionFailure("Could not parser command line options")
     }
   }
 
@@ -211,19 +229,32 @@ object FileUtils {
     *
     * @param directoryPathName a directory hierarchy to delete
     */
-  def deleteDirectoryHierarchy(directoryPathName: String): Unit = {
-    if(directoryPathName.isEmpty || directoryPathName.startsWith("/")) {
-      // don't delete absolute path
+  def deleteDirectoryHierarchy(directoryPathName: String): Boolean = {
+    deleteDirectoryHierarchy(new File(directoryPathName))
+  }
+  /**
+    * recursively delete all directories in a relative path
+    * DO NOT DELETE absolute paths
+    *
+    * @param file: a directory hierarchy to delete
+    */
+  def deleteDirectoryHierarchy(file: File, atTop: Boolean = true): Boolean = {
+    if(file.getPath.split("/").last.isEmpty ||
+      file.getAbsolutePath == "/" ||
+      file.getPath.startsWith("/")) {
+      Driver.dramaticError(s"delete directory ${file.getPath} will not delete absolute paths")
+      false
     }
     else {
-      val directory = new java.io.File(directoryPathName)
-      if(directory.isDirectory) {
-        directory.delete()
-        val directories = directoryPathName.split("/+").reverse.tail
-        if (directories.nonEmpty) {
-          deleteDirectoryHierarchy(directories.reverse.mkString("/"))
+      val result = {
+        if(file.isDirectory) {
+          file.listFiles().forall( f => deleteDirectoryHierarchy(f)) && file.delete()
+        }
+        else {
+          file.delete()
         }
       }
+      result
     }
   }
 }

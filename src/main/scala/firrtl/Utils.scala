@@ -28,7 +28,7 @@ object Utils extends LazyLogging {
     result
   }
 
-  /** Removes all [[firrtl.ir.Empty]] statements and condenses
+  /** Removes all [[firrtl.ir.EmptyStmt]] statements and condenses
    * [[firrtl.ir.Block]] statements.
     */
   def squashEmpty(s: Statement): Statement = s map squashEmpty match {
@@ -269,6 +269,7 @@ object Utils extends LazyLogging {
       case (_: UIntType, _: UIntType) => if (flip1 == flip2) Seq((0, 0)) else Nil
       case (_: SIntType, _: SIntType) => if (flip1 == flip2) Seq((0, 0)) else Nil
       case (_: FixedType, _: FixedType) => if (flip1 == flip2) Seq((0, 0)) else Nil
+      case (_: AnalogType, _: AnalogType) => if (flip1 == flip2) Seq((0, 0)) else Nil
       case (t1x: BundleType, t2x: BundleType) =>
         def emptyMap = Map[String, (Type, Orientation, Int)]()
         val t1_fields = t1x.fields.foldLeft(emptyMap, 0) { case ((map, ilen), f1) =>

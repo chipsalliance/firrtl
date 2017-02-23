@@ -2,19 +2,15 @@
 
 package firrtlTests
 
-import java.io.File
+import java.io.{File, FileNotFoundException, FileOutputStream}
+import org.scalatest.{FreeSpec, Matchers}
 
-import firrtl.annotations.Annotation
-import org.scalatest.{Matchers, FreeSpec}
-
-import firrtl._
 import firrtl.passes.InlineInstances
-import firrtl.passes.memlib.{ReplSeqMem, InferReadWrite}
-import org.scalatest.{Matchers, FreeSpec}
-
+import firrtl.passes.memlib.{InferReadWrite, ReplSeqMem}
 import firrtl._
+import firrtl.util.BackendCompilationUtilities
 
-class DriverSpec extends FreeSpec with Matchers {
+class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities {
   "CommonOptions are some simple options available across the chisel3 ecosystem" - {
     "CommonOption provide an scopt implementation of an OptionParser" - {
       "Options can be set from an Array[String] as is passed into a main" - {
@@ -53,7 +49,7 @@ class DriverSpec extends FreeSpec with Matchers {
         optionsManager.makeTargetDir() should be (true)
         dir = new java.io.File("a/b/c")
         dir.exists() should be (true)
-        FileUtils.deleteDirectoryHierarchy(commonOptions.targetDirName)
+        FileUtils.deleteDirectoryHierarchy("a") should be (true)
       }
     }
   }
@@ -133,14 +129,17 @@ class DriverSpec extends FreeSpec with Matchers {
     val optionsManager = new ExecutionOptionsManager("test") with HasFirrtlOptions {
       commonOptions = commonOptions.copy(topName = "a.fir")
       firrtlOptions = firrtlOptions.copy(
-        annotationFileNameOverride = "src/test/resources/annotations/SampleAnnotations"
+        annotationFileNameOverride = "SampleAnnotations"
       )
     }
+    val annotationsTestFile =  new File(optionsManager.commonOptions.targetDirName, optionsManager.firrtlOptions.annotationFileNameOverride + ".anno")
+    copyResourceToFile("/annotations/SampleAnnotations.anno", annotationsTestFile)
     optionsManager.firrtlOptions.annotations.length should be (0)
     Driver.loadAnnotations(optionsManager)
-    optionsManager.firrtlOptions.annotations.length should be (9)
+    optionsManager.firrtlOptions.annotations.length should be (10) // 9 from circuit plus 1 for targetDir
 
     optionsManager.firrtlOptions.annotations.head.transformClass should be ("firrtl.passes.InlineInstances")
+    annotationsTestFile.delete()
   }
 
   val input =
@@ -158,6 +157,7 @@ class DriverSpec extends FreeSpec with Matchers {
       Seq(
         "low" -> "./Dummy.lo.fir",
         "high" -> "./Dummy.hi.fir",
+        "middle" -> "./Dummy.mid.fir",
         "verilog" -> "./Dummy.v"
       ).foreach { case (compilerName, expectedOutputFileName) =>
         val manager = new ExecutionOptionsManager("test") with HasFirrtlOptions {
@@ -171,6 +171,19 @@ class DriverSpec extends FreeSpec with Matchers {
         file.exists() should be (true)
         file.delete()
       }
+    }
+  }
+
+  "Directory deleter is handy for cleaning up after tests" - {
+    "for example making a directory tree, and deleting it looks like" in {
+      FileUtils.makeDirectory("dog/fox/wolf")
+      val dir = new File("dog/fox/wolf")
+      dir.exists() should be (true)
+      dir.isDirectory should be (true)
+
+      FileUtils.deleteDirectoryHierarchy("wolf") should be (false)
+      FileUtils.deleteDirectoryHierarchy("dog") should be (true)
+      dir.exists() should be (false)
     }
   }
 }
