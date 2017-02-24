@@ -668,7 +668,7 @@ class VerilogEmitter extends Transform with PassBased with Emitter {
         }
         emit(Seq(");"))
 
-        if (declares.isEmpty && assigns.isEmpty) emit(Seq(tab, "always @(*) begin end"))
+        if (declares.isEmpty && assigns.isEmpty) emit(Seq(tab, "initial begin end"))
         for (x <- declares) emit(Seq(tab, x))
         for (x <- instdeclares) emit(Seq(tab, x))
         for (x <- assigns) emit(Seq(tab, x))
