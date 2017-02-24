@@ -136,7 +136,7 @@ object Driver {
         if(
           optionsManager.topName.isEmpty &&
             firrtlConfig.inputFileNameOverride.nonEmpty &&
-            firrtlConfig.outputConfig.isEmpty) {
+            firrtlConfig.outputFileNameOverride.nonEmpty) {
           val message = "inputFileName set but neither top-name or output-config is set"
           dramaticError(message)
           return FirrtlExecutionFailure(message)
@@ -171,7 +171,7 @@ object Driver {
     // Do emission
     // Note: Single emission target assumption is baked in here
     // Note: FirrtlExecutionSuccess emitted is only used if we're emitting the whole Circuit
-    val emittedRes = firrtlConfig.getOutputFormat(optionsManager) match {
+    val emittedRes = firrtlConfig.getOutputConfig(optionsManager) match {
       case SingleFile(filename) =>
         finalState.emittedCircuitOption match {
           case Some(emitted: EmittedCircuit) =>

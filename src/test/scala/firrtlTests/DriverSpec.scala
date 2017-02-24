@@ -66,7 +66,7 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
       val firrtlOptions = optionsManager.firrtlOptions
       val inputFileName = optionsManager.getBuildFileName("fir", firrtlOptions.inputFileNameOverride)
       inputFileName should be ("./cat.fir")
-      val outputFileName = firrtlOptions.getOutputFormat(optionsManager).asInstanceOf[SingleFile].targetFile
+      val outputFileName = firrtlOptions.getOutputConfig(optionsManager).asInstanceOf[SingleFile].targetFile
       outputFileName should be ("./cat.v")
     }
     "input and output file names can be overridden, overrides do not use targetDir" in {
@@ -79,7 +79,7 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
       val firrtlOptions = optionsManager.firrtlOptions
       val inputFileName = optionsManager.getBuildFileName("fir", firrtlOptions.inputFileNameOverride)
       inputFileName should be ("./bob.fir")
-      val outputFileName = firrtlOptions.getOutputFormat(optionsManager).asInstanceOf[SingleFile].targetFile
+      val outputFileName = firrtlOptions.getOutputConfig(optionsManager).asInstanceOf[SingleFile].targetFile
       outputFileName should be ("carol.v")
     }
     "various annotations can be created from command line, currently:" - {
@@ -188,8 +188,8 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
         val manager = new ExecutionOptionsManager("test") with HasFirrtlOptions {
           commonOptions = CommonOptions(topName = "Top")
           firrtlOptions = FirrtlExecutionOptions(firrtlSource = Some(input),
-                                                 outputConfig = Some(OneFilePerModule(".")),
-                                                 compilerName = compilerName)
+                                                 compilerName = compilerName,
+                                                 emitOneFilePerModule = true)
         }
 
         firrtl.Driver.execute(manager)

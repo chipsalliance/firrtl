@@ -139,7 +139,7 @@ final case class OneFilePerModule(targetDir: String) extends OutputConfig
   */
 case class FirrtlExecutionOptions(
     inputFileNameOverride:  String = "",
-    outputConfig:           Option[OutputConfig] = None,
+    outputFileNameOverride: String = "",
     compilerName:           String = "verilog",
     infoModeName:           String = "append",
     inferRW:                Seq[String] = Seq.empty,
@@ -147,8 +147,12 @@ case class FirrtlExecutionOptions(
     customTransforms:       Seq[Transform] = List.empty,
     annotations:            List[Annotation] = List.empty,
     annotationFileNameOverride: String = "",
-    forceAppendAnnoFile:    Boolean = false)
+    forceAppendAnnoFile:    Boolean = false,
+    emitOneFilePerModule:   Boolean = false)
   extends ComposableOptions {
+
+  require(!(emitOneFilePerModule && outputFileNameOverride.nonEmpty),
+    "Cannot both specify the output filename and emit one file per module!!!")
 
   def infoMode: InfoMode = {
     infoModeName match {
@@ -194,11 +198,9 @@ case class FirrtlExecutionOptions(
     * @param optionsManager this is needed to access build function and its common options
     * @return the output configuration
     */
-  def getOutputFormat(optionsManager: ExecutionOptionsManager): OutputConfig = {
-    outputConfig match {
-      case Some(format) => format
-      case None => SingleFile(optionsManager.getBuildFileName(outputSuffix))
-    }
+  def getOutputConfig(optionsManager: ExecutionOptionsManager): OutputConfig = {
+    if (emitOneFilePerModule) OneFilePerModule(optionsManager.targetDirName)
+    else SingleFile(optionsManager.getBuildFileName(outputSuffix, outputFileNameOverride))
   }
   /** Gives annotations based on the output configuration
     *
@@ -213,7 +215,7 @@ case class FirrtlExecutionOptions(
       case "low" => classOf[LowFirrtlEmitter]
       case "verilog" => classOf[VerilogEmitter]
     }
-    getOutputFormat(optionsManager) match {
+    getOutputConfig(optionsManager) match {
       case SingleFile(_) => Seq(EmitCircuitAnnotation(emitter))
       case OneFilePerModule(_) => Seq(EmitAllModulesAnnotation(emitter))
     }
@@ -233,11 +235,6 @@ trait HasFirrtlOptions {
   self: ExecutionOptionsManager =>
   var firrtlOptions = FirrtlExecutionOptions()
 
-  private def validateInput() = firrtlOptions.outputConfig match {
-    case Some(_) => parser.failure("Output file already specified. Cannot specify both -o and -fsm")
-    case None => parser.success
-  }
-
   parser.note("firrtl options")
 
   parser.opt[String]("input-file")
@@ -253,10 +250,12 @@ trait HasFirrtlOptions {
     .abbr("o")
     .valueName("<output>")
     .validate { x =>
-      validateInput()
+      if (firrtlOptions.emitOneFilePerModule)
+        parser.failure("Cannot override output-file if split-modules is specified")
+      else parser.success
     }
     .foreach { x =>
-      firrtlOptions = firrtlOptions.copy(outputConfig = Some(SingleFile(x)))
+      firrtlOptions = firrtlOptions.copy(outputFileNameOverride = x)
     }.text {
     "use this to override the default output file name, default is empty"
   }
@@ -367,28 +366,18 @@ trait HasFirrtlOptions {
 
   parser.opt[Unit]("split-modules")
     .abbr("fsm")
-    .validate { _ =>
-      validateInput()
+    .validate { x =>
+      if (firrtlOptions.outputFileNameOverride.nonEmpty)
+        parser.failure("Cannot split-modules if output-file is specified")
+      else parser.success
     }
     .foreach { _ =>
-      firrtlOptions = firrtlOptions.copy(outputConfig = Some(OneFilePerModule(self.targetDirName)))
+      firrtlOptions = firrtlOptions.copy(emitOneFilePerModule = true)
     }.text {
-      "Emit each module to its own file in the target directory. " +
-      "Currently only supported by the Verilog emitter"
+      "Emit each module to its own file in the target directory."
     }
 
   parser.note("")
-
-  // Check output configuration
-  parser.checkConfig { _ =>
-    firrtlOptions.outputConfig match {
-      case Some(OneFilePerModule(dir)) =>
-        if (dir != targetDirName) parser.failure("Must specify target-dir before split-modules")
-        else parser.success
-      case Some(SingleFile(_)) => parser.success
-      case None => parser.success // Will be created from top name and target dir
-    }
-  }
 }
 
 sealed trait FirrtlExecutionResult
