@@ -21,8 +21,6 @@ import MemPortUtils.{memPortField, memType}
 // Datastructures
 import scala.collection.mutable.{ArrayBuffer, LinkedHashMap, HashSet}
 
-import net.jcazevedo.moultingyaml._
-
 case class EmitterException(message: String) extends PassException(message)
 
 // ***** Annotations for telling the Emitters what to emit *****
