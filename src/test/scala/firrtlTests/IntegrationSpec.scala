@@ -15,13 +15,13 @@ class MemExecutionTest extends ExecutionTest("MemTester", "/integration")
 // This is a bit custom some kind of one off
 class GCDSplitEmissionExecutionTest extends FirrtlFlatSpec {
   "GCDTester" should "work even when the modules are emitted to different files" in {
-    val topName = "GCDTester"
+    val top = "GCDTester"
     val testDir = createTestDirectory("GCDTesterSplitEmission")
-    val sourceFile = new File(testDir, s"$topName.fir")
-    copyResourceToFile(s"/integration/$topName.fir", sourceFile)
+    val sourceFile = new File(testDir, s"$top.fir")
+    copyResourceToFile(s"/integration/$top.fir", sourceFile)
 
     val optionsManager = new ExecutionOptionsManager("GCDTesterSplitEmission") with HasFirrtlOptions {
-      commonOptions = CommonOptions(topName = topName, targetDirName = testDir.getPath)
+      commonOptions = CommonOptions(topName = top, targetDirName = testDir.getPath)
       firrtlOptions = FirrtlExecutionOptions(
                         inputFileNameOverride = sourceFile.getPath,
                         compilerName = "verilog",
@@ -32,7 +32,7 @@ class GCDSplitEmissionExecutionTest extends FirrtlFlatSpec {
 
     // expected filenames
     val dutFile = new File(testDir, "DecoupledGCD.v")
-    val topFile = new File(testDir, s"$topName.v")
+    val topFile = new File(testDir, s"$top.v")
     dutFile should exist
     topFile should exist
 
@@ -41,9 +41,9 @@ class GCDSplitEmissionExecutionTest extends FirrtlFlatSpec {
     copyResourceToFile(cppHarness.toString, harness)
 
     // topFile will be compiled by Verilator command by default but we need to also include dutFile
-    verilogToCpp(topName, testDir, Seq(dutFile), harness).!
-    cppToExe(topName, testDir).!
-    assert(executeExpectingSuccess(topName, testDir))
+    verilogToCpp(top, testDir, Seq(dutFile), harness).!
+    cppToExe(top, testDir).!
+    assert(executeExpectingSuccess(top, testDir))
   }
 }
 
