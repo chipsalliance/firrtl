@@ -136,8 +136,8 @@ object Driver {
         if(
           optionsManager.topName.isEmpty &&
             firrtlConfig.inputFileNameOverride.nonEmpty &&
-            firrtlConfig.outputFileNameOverride.nonEmpty) {
-          val message = "inputFileName set but neither top-name or output-config is set"
+            firrtlConfig.outputFileNameOverride.isEmpty) {
+          val message = "inputFileName set but neither top-name or output-file-override is set"
           dramaticError(message)
           return FirrtlExecutionFailure(message)
         }
