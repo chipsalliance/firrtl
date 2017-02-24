@@ -56,18 +56,22 @@ final case class EmittedVerilogModule(name: String, value: String) extends Emitt
 sealed abstract class EmittedAnnotation[T <: EmittedComponent](marker: String) {
   // Private datastructure to hold the actual emitted objects
   // TODO Once annotations can contain arbitrary datastructures, get rid of this
-  private val emitted = mutable.ArrayBuffer.empty[T]
+  private val emittedBuffer = mutable.ArrayBuffer.empty[T]
 
   def apply(value: T): Annotation = {
-    emitted += value
-    val idx = emitted.size - 1
+    // Synchronize because of multithreading
+    //   This doesn't happen often, shouldn't be a big deal for performance
+    val idx = emittedBuffer.synchronized {
+      emittedBuffer += value
+      emittedBuffer.size - 1
+    }
     Annotation(CircuitTopName, classOf[Transform], s"$marker:$idx")
   }
   def unapply(a: Annotation): Option[T] = a match {
     // assume transform has been filtered
     case Annotation(CircuitTopName, _, str) if str.startsWith(marker) =>
       val idx = str.stripPrefix(s"$marker:").toInt
-      Some(emitted(idx))
+      Some(emittedBuffer(idx))
     case _ => None
   }
 }
