@@ -152,7 +152,7 @@ abstract class PassBasedTransform extends Transform with PassBased {
 }
 
 /** Defines old API for Emission. Deprecated */
-trait Emitter {
+trait Emitter extends Transform {
   @deprecated("Use emission annotations instead", "firrtl 1.0")
   def emit(state: CircuitState, writer: Writer): Unit
 }
@@ -227,7 +227,7 @@ object CompilerUtils {
 
 trait Compiler {
   // Emitter is still somewhat special because we want to make sure it is run last
-  def emitter: Transform with Emitter
+  def emitter: Emitter
 
   /** The sequence of transforms this compiler will execute
     * @note The inputForm of a given transform must be higher than or equal to the ouputForm of the
