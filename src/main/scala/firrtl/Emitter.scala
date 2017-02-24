@@ -9,7 +9,6 @@ import java.io.{Reader, Writer}
 import scala.collection.mutable
 import scala.sys.process._
 import scala.io.Source
-import scala.util.Try
 
 import firrtl.ir._
 import firrtl.passes._
