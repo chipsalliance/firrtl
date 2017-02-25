@@ -67,11 +67,7 @@ class VerilogEmitter extends Emitter with PassBased {
       val wx = bitWidth(tpe) - 1
       if (wx > 0) s"[$wx:0]" else ""
     case ClockType => ""
-    case _ => error("Shouldn't be here")
-  }
-  def stringify(dir: Direction): String = dir match {
-    case Input => "input"
-    case Output => "output"
+    case _ => error("Trying to write unsupported type in the Verilog Emitter")
   }
   def emit(x: Any)(implicit w: Writer) { emit(x, 0) }
   def emit(x: Any, top: Int)(implicit w: Writer) {
@@ -92,10 +88,9 @@ class VerilogEmitter extends Emitter with PassBased {
       case (e: Literal) => v_print(e)
       case (e: VRandom) => w write s"{${e.nWords}{$$random}}"
       case (t: GroundType) => w write stringify(t)
-      case (t: VectorType) => 
+      case (t: VectorType) =>
         emit(t.tpe, top + 1)
         w write s"[${t.size - 1}:0]"
-      case (d: Direction) => w write stringify(d)
       case (s: String) => w write s
       case (i: Int) => w write i.toString
       case (i: Long) => w write i.toString
@@ -383,25 +378,32 @@ class VerilogEmitter extends Emitter with PassBased {
         Seq("$fwrite(32'h80000002,", strx, ");")
       }
 
+      // Turn ports into Seq[String] and add to portdefs
       def build_ports(): Unit = {
         def padToMax(strs: Seq[String]): Seq[String] = {
           val len = if (strs.nonEmpty) strs.map(_.length).max else 0
           strs map (_.padTo(len, ' '))
         }
+        // Turn directions into strings (and AnalogType into inout)
         val dirs = m.ports map { case Port(_, name, dir, tpe) =>
           (dir, tpe) match {
-            case (_, AnalogType(_)) => "inout"
-            case (Input, _) => stringify(dir)
+            case (_, AnalogType(_)) => "inout " // padded to length of output
+            case (Input, _) => "input "
             case (Output, _) =>
               // Assign to the Port
               val ex = WRef(name, tpe, PortKind, FEMALE)
               assign(ex, netlist(ex))
-              stringify(dir)
+              "output"
           }
         }
-        val tpes = m.ports map (p => stringify(p.tpe.asInstanceOf[GroundType]))
+        // Turn types into strings, all ports must be GroundTypes
+        val tpes = m.ports map {
+          case Port(_,_,_, tpe: GroundType) => stringify(tpe)
+          case port: Port => error("Trying to emit non-GroundType Port $port")
+        }
 
-        portdefs ++= (padToMax(dirs), padToMax(tpes), m.ports).zipped.map {
+        // dirs are already padded
+        portdefs ++= (dirs, padToMax(tpes), m.ports).zipped.map {
           case (dir, tpe, Port(_, name, _,_)) => Seq(dir, " " , tpe, " ", name)
         }
       }
