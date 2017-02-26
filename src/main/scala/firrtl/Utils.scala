@@ -61,7 +61,8 @@ object bitWidth {
 
 object castRhs {
   def apply(lhst: Type, rhs: Expression) = {
-    lhst match {
+    if (lhst.getClass == rhs.tpe.getClass) rhs
+    else lhst match {
       case _: SIntType => DoPrim(AsSInt, Seq(rhs), Seq.empty, lhst)
       case FixedType(_, IntWidth(p)) => DoPrim(AsFixedPoint, Seq(rhs), Seq(p), lhst)
       case ClockType => DoPrim(AsClock, Seq(rhs), Seq.empty, lhst)
