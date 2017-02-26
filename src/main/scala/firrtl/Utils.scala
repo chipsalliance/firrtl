@@ -65,7 +65,7 @@ object castRhs {
       case _: SIntType => DoPrim(AsSInt, Seq(rhs), Seq.empty, lhst)
       case FixedType(_, IntWidth(p)) => DoPrim(AsFixedPoint, Seq(rhs), Seq(p), lhst)
       case ClockType => DoPrim(AsClock, Seq(rhs), Seq.empty, lhst)
-      case _: UIntType => rhs
+      case _: UIntType => DoPrim(AsUInt, Seq(rhs), Seq.empty, lhst)
     }  
   }
 }
