@@ -4,6 +4,7 @@ package firrtl
 
 import scala.collection._
 import scala.io.Source
+import scala.sys.process.{BasicIO,stringSeqToProcess}
 import scala.util.control.ControlThrowable
 import java.io.{File, FileNotFoundException}
 
@@ -283,4 +284,20 @@ object FileUtils {
       result
     }
   }
+
+  /** Indicate if an external command (executable) is available.
+    *
+    * @param cmd the command/executable
+    * @return true if ```cmd``` is found in PATH.
+    */
+  def isCommandAvailable(cmd: String): Boolean = {
+    // Eat any output.
+    val sb = new StringBuffer
+    val ioToDevNull = BasicIO(false, sb, None)
+
+    Seq("bash", "-c", "which %s".format(cmd)).run(ioToDevNull).exitValue == 0
+  }
+
+  /** isVCSAvailable - flag indicating vcs is available (for Verilog compilation and testing. */
+  lazy val isVCSAvailable: Boolean = isCommandAvailable("vcs")
 }
