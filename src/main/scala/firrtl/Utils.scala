@@ -72,8 +72,7 @@ object castRhs {
         DoPrim(AsClock, Seq(rhs), Seq.empty, lhst)
       case (_: UIntType, _) => 
         DoPrim(AsUInt, Seq(rhs), Seq.empty, lhst)
-      case (_, _) =>
-        throw new Exception("castRhs types are invalid")
+      case (_, _) => error("castRhs lhst, rhs type combination is invalid")
     }  
   }
 }
