@@ -61,12 +61,19 @@ object bitWidth {
 
 object castRhs {
   def apply(lhst: Type, rhs: Expression) = {
-    if (lhst.getClass == rhs.tpe.getClass) rhs
-    else lhst match {
-      case _: SIntType => DoPrim(AsSInt, Seq(rhs), Seq.empty, lhst)
-      case FixedType(_, IntWidth(p)) => DoPrim(AsFixedPoint, Seq(rhs), Seq(p), lhst)
-      case ClockType => DoPrim(AsClock, Seq(rhs), Seq.empty, lhst)
-      case _: UIntType => DoPrim(AsUInt, Seq(rhs), Seq.empty, lhst)
+    (lhst, rhs.tpe) match {
+      case (x: GroundType, y: GroundType) if WrappedType(x) == WrappedType(y) => 
+        rhs
+      case (_: SIntType, _) => 
+        DoPrim(AsSInt, Seq(rhs), Seq.empty, lhst)
+      case (FixedType(_, IntWidth(p)), _) => 
+        DoPrim(AsFixedPoint, Seq(rhs), Seq(p), lhst)
+      case (ClockType, _) => 
+        DoPrim(AsClock, Seq(rhs), Seq.empty, lhst)
+      case (_: UIntType, _) => 
+        DoPrim(AsUInt, Seq(rhs), Seq.empty, lhst)
+      case (_, _) =>
+        throw new Exception("castRhs types are invalid")
     }  
   }
 }
