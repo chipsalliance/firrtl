@@ -62,6 +62,13 @@ class VerilogEmitter extends Emitter with PassBased {
       s".${name}($strx)"
     case RawStringParam(name, value) => s".$name($value)"
   }
+  def stringify(tpe: GroundType): String = tpe match {
+    case (_: UIntType | _: SIntType | _: AnalogType) =>
+      val wx = bitWidth(tpe) - 1
+      if (wx > 0) s"[$wx:0]" else ""
+    case ClockType => ""
+    case _ => error("Trying to write unsupported type in the Verilog Emitter")
+  }
   def emit(x: Any)(implicit w: Writer) { emit(x, 0) }
   def emit(x: Any, top: Int)(implicit w: Writer) {
     def cast(e: Expression): Any = e.tpe match {
@@ -80,21 +87,10 @@ class VerilogEmitter extends Emitter with PassBased {
       case (e: WSubIndex) => w write e.serialize
       case (e: Literal) => v_print(e)
       case (e: VRandom) => w write s"{${e.nWords}{$$random}}"
-      case (t: UIntType) => 
-        val wx = bitWidth(t) - 1
-        if (wx > 0) w write s"[$wx:0]"
-      case (t: SIntType) => 
-        val wx = bitWidth(t) - 1
-        if (wx > 0) w write s"[$wx:0]"
-      case ClockType =>
-      case t: AnalogType =>
-        val wx = bitWidth(t) - 1
-        if (wx > 0) w write s"[$wx:0]"
-      case (t: VectorType) => 
+      case (t: GroundType) => w write stringify(t)
+      case (t: VectorType) =>
         emit(t.tpe, top + 1)
         w write s"[${t.size - 1}:0]"
-      case Input => w write "input"
-      case Output => w write "output"
       case (s: String) => w write s
       case (i: Int) => w write i.toString
       case (i: Long) => w write i.toString
@@ -102,7 +98,7 @@ class VerilogEmitter extends Emitter with PassBased {
       case (s: Seq[Any]) =>
         s foreach (emit(_, top + 1))
         if (top == 0) w write "\n"
-      case _ => error("Shouldn't be here")
+      case x => println(x); throwInternalError;
     }
   }
 
@@ -382,16 +378,33 @@ class VerilogEmitter extends Emitter with PassBased {
         Seq("$fwrite(32'h80000002,", strx, ");")
       }
 
-      def build_ports(): Unit = portdefs ++= m.ports.zipWithIndex map {
-        case (p, i) => (p.tpe, p.direction) match {
-          case (AnalogType(_), _) =>
-            Seq("inout", "  ", p.tpe, " ", p.name)
-          case (_, Input) =>
-            Seq(p.direction, "  ", p.tpe, " ", p.name)
-          case (_, Output) =>
-            val ex = WRef(p.name, p.tpe, PortKind, FEMALE)
-            assign(ex, netlist(ex))
-            Seq(p.direction, " ", p.tpe, " ", p.name)
+      // Turn ports into Seq[String] and add to portdefs
+      def build_ports(): Unit = {
+        def padToMax(strs: Seq[String]): Seq[String] = {
+          val len = if (strs.nonEmpty) strs.map(_.length).max else 0
+          strs map (_.padTo(len, ' '))
+        }
+        // Turn directions into strings (and AnalogType into inout)
+        val dirs = m.ports map { case Port(_, name, dir, tpe) =>
+          (dir, tpe) match {
+            case (_, AnalogType(_)) => "inout " // padded to length of output
+            case (Input, _) => "input "
+            case (Output, _) =>
+              // Assign to the Port
+              val ex = WRef(name, tpe, PortKind, FEMALE)
+              assign(ex, netlist(ex))
+              "output"
+          }
+        }
+        // Turn types into strings, all ports must be GroundTypes
+        val tpes = m.ports map {
+          case Port(_,_,_, tpe: GroundType) => stringify(tpe)
+          case port: Port => error("Trying to emit non-GroundType Port $port")
+        }
+
+        // dirs are already padded
+        portdefs ++= (dirs, padToMax(tpes), m.ports).zipped.map {
+          case (dir, tpe, Port(_, name, _,_)) => Seq(dir, " " , tpe, " ", name)
         }
       }
 
@@ -454,7 +467,9 @@ class VerilogEmitter extends Emitter with PassBased {
           instdeclares += Seq(");")
           sx
         case sx: DefMemory =>
-          declare("reg", sx.name, VectorType(sx.dataType, sx.depth))
+          val fullSize = sx.depth * (sx.dataType match { case GroundType(IntWidth(width)) => width })
+          val decl = if (fullSize > (1 << 29)) "reg /* sparse */" else "reg"
+          declare(decl, sx.name, VectorType(sx.dataType, sx.depth))
           initialize_mem(sx)
           if (sx.readLatency != 0 || sx.writeLatency != 1)
             throw EmitterException("All memories should be transformed into " +
@@ -525,7 +540,7 @@ class VerilogEmitter extends Emitter with PassBased {
         }
         emit(Seq(");"))
 
-        if (declares.isEmpty && assigns.isEmpty) emit(Seq(tab, "always @(*) begin end"))
+        if (declares.isEmpty && assigns.isEmpty) emit(Seq(tab, "initial begin end"))
         for (x <- declares) emit(Seq(tab, x))
         for (x <- instdeclares) emit(Seq(tab, x))
         for (x <- assigns) emit(Seq(tab, x))
