@@ -199,9 +199,8 @@ class InlineInstancesTests extends LowTransformSpec {
            |    input a : UInt<32>
            |    output b : UInt<32>
            |    b <= a""".stripMargin
-      val writer = new StringWriter()
       val aMap = new AnnotationMap(Seq(InlineAnnotation(ModuleName("A", CircuitName("Top")))))
-      execute(writer, aMap, input, check)
+      execute(aMap, input, check)
    }
 
    // ---- Errors ----
