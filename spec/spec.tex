@@ -912,7 +912,6 @@ A literal unsigned integer can alternatively be created given a string represent
 The following radices are supported:
 \begin{enumerate}
 \item \verb|b| : For representing binary numbers.
-\item \verb|o| : For representing octal numbers.
 \item \verb|h| : For representing hexadecimal numbers.
 \end{enumerate}
 
@@ -927,7 +926,6 @@ If the provided bit width is larger than the number of bits required to represen
 The following examples create a 7-bit integer representing the number 13.
 \begin{verbatim}
 UInt<7>("b00001101")
-UInt<7>("o015")
 UInt<7>("hD")
 \end{verbatim}
 
@@ -947,7 +945,7 @@ SInt(-42)
 
 Similar to unsigned integers, a literal signed integer can alternatively be created given a string representing its bit representation and an optional bit width.
 
-The bit representation contains a binary, octal or hex indicator, followed by an optional sign, followed by the value.
+The bit representation contains a binary or hex indicator, followed by an optional sign, followed by the value.
 
 If a bit width is not given, the number of bits in the bit representation is the minimal bitwidth to represent the value represented by the string. The following examples create a 8-bit integer representing the number -13.
 \begin{verbatim}
@@ -1663,7 +1661,6 @@ The following characters are allowed in identifiers: upper and lower case letter
 An integer literal in FIRRTL begins with one of the following, where `\#' represents a digit between 0 and 9. 
 \begin{itemize}
 \item `0x' : For indicating a hexadecimal number. The rest of the literal must consist of either digits or a letter between `A' and `F', or the separator `\_'. 
-\item `0o' : For indicating an octal number. The rest of the literal must consist of digits between 0 and 7, or the separator `\_'. 
 \item `0b' : For indicating a binary number. The rest of the literal must consist of either 0 or 1, or the separator `\_'.
 \item `-\#' : For indicating a negative decimal number. The rest of the literal must consist of digits between 0 and 9.
 \item `\#' : For indicating a positive decimal number. The rest of the literal must consist of digits between 0 and 9.
@@ -1715,20 +1712,22 @@ The concrete syntax of FIRRTL is defined in section \ref{syntax_tree}. Productio
 \subsection{Concrete Syntax Tree} \label{syntax_tree}
 
 \begin{tabular}{rrll}
-\pd{circuit}    &=     &\opt{\pd{info}} \vv{circuit} \pd{id} \vv{:} \vv{(}\rpt{\pd{module}}\vv{)}              &\text{Circuit}\\
-\pd{module}     &=     &\opt{\pd{info}} \vv{module} \pd{id} \vv{:} \vv{(}\rpt{\pd{port}} \pd{stmt}\vv{)}       &\text{Module}\\
-                &\pipe &\opt{\pd{info}} \vv{extmodule} \pd{id} \vv{:} \vv{(}\rpt{\pd{port}}\vv{)}              &\text{External Module}\\
-\pd{port}       &=     &\opt{\pd{info}} \pd{dir} \pd{id} \vv{:} \pd{type}                                      &\text{Port}\\
+\pd{circuit}    &=     &\vv{circuit} \pd{id} \vv{:} \opt{\pd{info}} \vv{(}\rpt{\pd{module}}\vv{)}              &\text{Circuit}\\
+\pd{module}     &=     &\vv{module} \pd{id} \vv{:} \opt{\pd{info}} \vv{(}\rpt{\pd{port}} \pd{stmt}\vv{)}       &\text{Module}\\
+                &\pipe &\vv{extmodule} \pd{id} \vv{:} \opt{\pd{info}} \vv{(}\rpt{\pd{port}}\vv{)}              &\text{External Module}\\
+\pd{port}       &=     &\pd{dir} \pd{id} \vv{:} \pd{type} \opt{\pd{info}}                                      &\text{Port}\\
 \pd{dir}        &=     &\vv{input} \pipe \vv{ output}                                                          &\text{Port Direction}\\
 \pd{type}       &=     &\vv{UInt}\opt{\vv{<}\pd{int}\vv{>}}                                                    &\text{Unsigned Integer}\\
                 &\pipe &\vv{SInt}\opt{\vv{<}\pd{int}\vv{>}}                                                    &\text{Signed Integer}\\
+                &\pipe &\vv{Fixed}\opt{\vv{<}\pd{int}\vv{>}}\opt{\vv{<<}\pd{int}\vv{>>}}                       &\text{Fixed Point}\\
                 &\pipe &\vv{Clock}                                                                             &\text{Clock}\\
+                &\pipe &\vv{Analog}\opt{\vv{<}\pd{int}\vv{>}}                                                  &\text{Analog}\\
                 &\pipe &\verb|{|\rpt{\pd{field}}\verb|}|                                                       &\text{Bundle}\\
                 &\pipe &\pd{type}\vv{[}\pd{int}\vv{]}                                                          &\text{Vector}\\
 \pd{field}      &=     &\opt{\vv{flip}} \pd{id} \vv{:} \pd{type}                                               &\text{Bundle Field}\\
-\pd{stmt}       &=     &\opt{\pd{info}} \vv{wire} \pd{id} \vv{:} \pd{type}                                     &\text{Wire}\\
-                &\pipe &\opt{\pd{info}} \vv{reg} \pd{id} \vv{:} \pd{type} \pd{exp} \opt{\vv{(with:} \vv{\{reset => (}\pd{exp}, \pd{exp}\vv{)\})}}   &\text{Register}\\
-                &\pipe &\opt{\pd{info}} \vv{mem} \pd{id} \vv{:} \vv{(}                                         &\text{Memory}\\
+\pd{stmt}       &=     &\vv{wire} \pd{id} \vv{:} \pd{type} \opt{\pd{info}}                                     &\text{Wire}\\
+                &\pipe &\vv{reg} \pd{id} \vv{:} \pd{type} \pd{exp} \opt{\vv{(with:} \vv{\{reset => (}\pd{exp}, \pd{exp}\vv{)\})}} \opt{\pd{info}}   &\text{Register}\\
+                &\pipe &\vv{mem} \pd{id} \vv{:} \opt{\pd{info}} \vv{(}                                         &\text{Memory}\\
                 && \verb|       |\vv{data-type =>} \pd{type}\\
                 && \verb|       |\vv{depth =>} \pd{int}\\                
                 && \verb|       |\vv{read-latency =>} \pd{int}\\                
@@ -1737,16 +1736,17 @@ The concrete syntax of FIRRTL is defined in section \ref{syntax_tree}. Productio
                 && \verb|       |\rpt{\vv{reader =>} \pd{id}}\\             
                 && \verb|       |\rpt{\vv{writer =>} \pd{id}}\\    
                 && \verb|       |\rpt{\vv{readwriter =>} \pd{id}}\vv{)}                                \\
-                &\pipe &\opt{\pd{info}} \vv{inst} \pd{id} \vv{of} \pd{id}                                      &\text{Instance}\\
-                &\pipe &\opt{\pd{info}} \vv{node} \pd{id} \vv{=} \pd{exp}                                      &\text{Node}\\
-                &\pipe &\opt{\pd{info}} \pd{exp} \vv{<=} \pd{exp}                                              &\text{Connect}\\
-                &\pipe &\opt{\pd{info}} \pd{exp} \vv{<-} \pd{exp}                                              &\text{Partial Connect}\\
-                &\pipe &\opt{\pd{info}} \pd{exp} \vv{is invalid}                                               &\text{Invalidate}\\
-                &\pipe &\opt{\pd{info}} \vv{when} \pd{exp} \vv{:} \pd{stmt} \opt{\vv{else} \vv{:} \pd{stmt}}   &\text{Conditional}\\
-                &\pipe &\opt{\pd{info}} \vv{stop(}\pd{exp}, \pd{exp}, \pd{int})                                &\text{Stop}\\
-                &\pipe &\opt{\pd{info}} \vv{printf(}\pd{exp}, \pd{exp}, \pd{string}, \rpt{\pd{exp}}\vv{)}      &\text{Printf}\\
-                &\pipe &\opt{\pd{info}} \vv{skip}                                                              &\text{Empty}\\
-                &\pipe &\opt{\pd{info}} \vv{(}\rpt{\pd{stmt}}\vv{)}                                            &\text{Statement Group}\\
+                &\pipe &\vv{inst} \pd{id} \vv{of} \pd{id} \opt{\pd{info}}                                      &\text{Instance}\\
+                &\pipe &\vv{node} \pd{id} \vv{=} \pd{exp} \opt{\pd{info}}                                      &\text{Node}\\
+                &\pipe &\pd{exp} \vv{<=} \pd{exp} \opt{\pd{info}}                                              &\text{Connect}\\
+                &\pipe &\pd{exp} \vv{<-} \pd{exp} \opt{\pd{info}}                                              &\text{Partial Connect}\\
+                &\pipe &\pd{exp} \vv{is invalid} \opt{\pd{info}}                                               &\text{Invalidate}\\
+                &\pipe &\vv{attach}\vv{(}\rpt{\pd{exp}}\vv{)}                                                  &\text{Attach}\\
+                &\pipe &\vv{when} \pd{exp} \vv{:} \opt{\pd{info}} \pd{stmt} \opt{\vv{else} \vv{:} \pd{stmt}}   &\text{Conditional}\\
+                &\pipe &\vv{stop(}\pd{exp}, \pd{exp}, \pd{int})\opt{\pd{info}}                                 &\text{Stop}\\
+                &\pipe &\vv{printf(}\pd{exp}, \pd{exp}, \pd{string}, \rpt{\pd{exp}}\vv{)} \opt{\pd{info}}      &\text{Printf}\\
+                &\pipe &\vv{skip} \opt{\pd{info}}                                                              &\text{Empty}\\
+                &\pipe &\vv{(}\rpt{\pd{stmt}}\vv{)}                                                            &\text{Statement Group}\\
 \pd{ruw}        &=     &\vv{old} \pipe \vv{ new} \pipe \vv{ undefined}                                         &\text{Read Under Write Flag}\\
 \pd{info}       &=     &\vv{@[}\pd{string}\vv{]}                                                               &\text{File Information Token}\\
 \end{tabular}

@@ -335,6 +335,7 @@ class UnitTests extends FirrtlFlatSpec {
         |    node negSIntStringWidth = SInt<5>("h-d")
         |    node neg2 = SInt("h-2")
         |    node pos2 = SInt("h2")
+        |    node neg1 = SInt("h-1")
         |""".stripMargin
     val expected = Seq(
       """node posSInt = SInt<5>("hd")""",
@@ -345,7 +346,8 @@ class UnitTests extends FirrtlFlatSpec {
       """node negSIntString = SInt<5>("h-d")""",
       """node negSIntStringWidth = SInt<5>("h-d")""",
       """node neg2 = SInt<2>("h-2")""",
-      """node pos2 = SInt<3>("h2")"""
+      """node pos2 = SInt<3>("h2")""",
+      """node neg1 = SInt<1>("h-1")"""
     )
     executeTest(input, expected, passes)
   }

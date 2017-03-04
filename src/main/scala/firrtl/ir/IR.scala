@@ -119,7 +119,7 @@ case class FixedLiteral(value: BigInt, width: Width, point: Width) extends Liter
   def tpe = FixedType(width, point)
   def serialize = {
     val pstring = if(point == UnknownWidth) "" else s"<${point.serialize}>"
-    s"""Fixed${width.serialize}$pstring("h""" + value.toString(16) + """")"""
+    s"""Fixed${width.serialize}$pstring("h${value.toString(16)}")"""
   }
   def mapExpr(f: Expression => Expression): Expression = this
   def mapType(f: Type => Type): Expression = this
