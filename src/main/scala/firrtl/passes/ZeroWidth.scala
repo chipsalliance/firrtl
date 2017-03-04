@@ -16,16 +16,13 @@ object ZeroWidth extends Pass {
   private def removeZero(t: Type): Option[Type] = t match {
     case GroundType(IntWidth(ZERO)) => None
     case BundleType(fields) =>
-      fields.zip(fields.map(f => removeZero(f.tpe))) collect {
+      fields map (f => (f, removeZero(f.tpe))) collect {
         case (Field(name, flip, _), Some(t)) => Field(name, flip, t)
       } match {
         case Nil => None
         case seq => Some(BundleType(seq))
       }
-    case VectorType(t, size) => removeZero(t) match {
-      case None => None
-      case Some(tx) => Some(VectorType(tx, size))
-    }
+    case VectorType(t, size) => removeZero(t) map (VectorType(_, size))
     case x => Some(x)
   }
   private def onExp(e: Expression): Expression = removeZero(e.tpe) match {
@@ -38,19 +35,23 @@ object ZeroWidth extends Pass {
       def replaceType(x: Type): Type = t
       (e map replaceType) map onExp
   }
-  private def onStmt(s: Statement): Statement = s map onExp match {
+  private def onStmt(s: Statement): Statement = s match {
     case sx: IsDeclaration =>
       var removed = false
       def applyRemoveZero(t: Type): Type = removeZero(t) match {
         case None => removed = true; t
         case Some(tx) => tx
       }
-      val sxx = sx map applyRemoveZero
+      val sxx = (sx map onExp) map applyRemoveZero
       if(removed) EmptyStmt else sxx
+    case Connect(info, loc, exp) => removeZero(loc.tpe) match {
+      case None => EmptyStmt
+      case Some(t) => Connect(info, loc, onExp(exp))
+    }
     case sx => sx map onStmt
   }
   private def onModule(m: DefModule): DefModule = {
-    val ports = m.ports.zip(m.ports.map(p => removeZero(p.tpe))) collect {
+    val ports = m.ports map (p => (p, removeZero(p.tpe))) collect {
       case (Port(info, name, dir, _), Some(t)) => Port(info, name, dir, t)
     }
     m match {
@@ -59,7 +60,6 @@ object ZeroWidth extends Pass {
     }
   }
   def run(c: Circuit): Circuit = {
-    val cx = c.copy(modules = c.modules map onModule)
-    ConstProp.run(InferTypes.run(cx))
+    InferTypes.run(c.copy(modules = c.modules map onModule))
   }
 }
