@@ -22,7 +22,7 @@ trait FirrtlRunners extends BackendCompilationUtilities {
     val circuit = Parser.parse(input.split("\n").toIterator)
     val compiler = new VerilogCompiler
     val res = compiler.compileAndEmit(CircuitState(circuit, HighForm, Some(annotations)))
-    res.emittedCircuitOption.get.value
+    res.getEmittedCircuit.value
   }
   /** Compile a Firrtl file
     *
@@ -94,7 +94,7 @@ trait FirrtlMatchers extends Matchers {
     */
   def executeTest(input: String, expected: Seq[String], compiler: Compiler) = {
     val finalState = compiler.compileAndEmit(CircuitState(parse(input), ChirrtlForm))
-    val lines = finalState.emittedCircuitOption.get.value split "\n" map normalized
+    val lines = finalState.getEmittedCircuit.value split "\n" map normalized
     for (e <- expected) {
       lines should contain (e)
     }

@@ -15,7 +15,7 @@ class MultiThreadingSpec extends FirrtlPropSpec {
     def runCompiler(input: Seq[String], compiler: firrtl.Compiler): String = {
       val parsedInput = firrtl.Parser.parse(input)
       val res = compiler.compileAndEmit(CircuitState(parsedInput, ChirrtlForm))
-      res.emittedCircuitOption.get.value
+      res.getEmittedCircuit.value
     }
     // The parameters we're testing with
     val compilers = Seq(

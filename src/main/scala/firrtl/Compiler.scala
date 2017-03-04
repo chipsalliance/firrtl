@@ -39,9 +39,14 @@ case class CircuitState(
     annotations: Option[AnnotationMap] = None,
     renames: Option[RenameMap] = None) {
 
-  /** Helper for getting at just an emitted circuit */
+  /** Helper for getting just an emitted circuit */
   def emittedCircuitOption: Option[EmittedCircuit] =
     emittedComponents collectFirst { case x: EmittedCircuit => x }
+  /** Helper for getting an [[EmittedCircuit]] when it is known to exist */
+  def getEmittedCircuit: EmittedCircuit = emittedCircuitOption match {
+    case Some(emittedCircuit) => emittedCircuit
+    case None => throw new FIRRTLException("No EmittedCircuit found! Check Emitter Annotations")
+  }
   /** Helper function for extracting emitted components from annotations */
   def emittedComponents: Seq[EmittedComponent] = {
     val emittedOpt = annotations map (_.annotations collect {

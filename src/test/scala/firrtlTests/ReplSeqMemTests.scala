@@ -65,7 +65,7 @@ circuit Top :
     val aMap = AnnotationMap(Seq(ReplSeqMemAnnotation("-c:Top:-o:"+confLoc)))
     val res = compileAndEmit(CircuitState(parse(input), ChirrtlForm, Some(aMap)))
     // Check correctness of firrtl
-    parse(res.emittedCircuitOption.get.value)
+    parse(res.getEmittedCircuit.value)
     (new java.io.File(confLoc)).delete()
   }
 
@@ -87,7 +87,7 @@ circuit Top :
     val aMap = AnnotationMap(Seq(ReplSeqMemAnnotation("-c:Top:-o:"+confLoc)))
     val res = compileAndEmit(CircuitState(parse(input), ChirrtlForm, Some(aMap)))
     // Check correctness of firrtl
-    parse(res.emittedCircuitOption.get.value)
+    parse(res.getEmittedCircuit.value)
     (new java.io.File(confLoc)).delete()
   }
 
@@ -112,7 +112,7 @@ circuit CustomMemory :
     val aMap = AnnotationMap(Seq(ReplSeqMemAnnotation("-c:CustomMemory:-o:"+confLoc)))
     val res = compileAndEmit(CircuitState(parse(input), ChirrtlForm, Some(aMap)))
     // Check correctness of firrtl
-    parse(res.emittedCircuitOption.get.value)
+    parse(res.getEmittedCircuit.value)
     (new java.io.File(confLoc)).delete()
   }
 
@@ -137,7 +137,7 @@ circuit CustomMemory :
     val aMap = AnnotationMap(Seq(ReplSeqMemAnnotation("-c:CustomMemory:-o:"+confLoc)))
     val res = compileAndEmit(CircuitState(parse(input), ChirrtlForm, Some(aMap)))
     // Check correctness of firrtl
-    parse(res.emittedCircuitOption.get.value)
+    parse(res.getEmittedCircuit.value)
     (new java.io.File(confLoc)).delete()
   }
 
@@ -212,7 +212,7 @@ circuit CustomMemory :
       NoDedupMemAnnotation(ComponentName("mem_0", ModuleName("CustomMemory",CircuitName("CustomMemory"))))))
     val res = compileAndEmit(CircuitState(parse(input), ChirrtlForm, Some(aMap)))
     // Check correctness of firrtl
-    val circuit = parse(res.emittedCircuitOption.get.value)
+    val circuit = parse(res.getEmittedCircuit.value)
     val numExtMods = circuit.modules.count {
       case e: ExtModule =>  true
       case _ => false
@@ -252,7 +252,7 @@ circuit CustomMemory :
       NoDedupMemAnnotation(ComponentName("mem_1", ModuleName("CustomMemory",CircuitName("CustomMemory"))))))
     val res = compileAndEmit(CircuitState(parse(input), ChirrtlForm, Some(aMap)))
     // Check correctness of firrtl
-    val circuit = parse(res.emittedCircuitOption.get.value)
+    val circuit = parse(res.getEmittedCircuit.value)
     val numExtMods = circuit.modules.count {
       case e: ExtModule =>  true
       case _ => false
@@ -286,7 +286,7 @@ circuit CustomMemory :
     val aMap = AnnotationMap(Seq(ReplSeqMemAnnotation("-c:CustomMemory:-o:"+confLoc)))
     val res = compileAndEmit(CircuitState(parse(input), ChirrtlForm, Some(aMap)))
     // Check correctness of firrtl
-    val circuit = parse(res.emittedCircuitOption.get.value)
+    val circuit = parse(res.getEmittedCircuit.value)
     val numExtMods = circuit.modules.count {
       case e: ExtModule =>  true
       case _ => false

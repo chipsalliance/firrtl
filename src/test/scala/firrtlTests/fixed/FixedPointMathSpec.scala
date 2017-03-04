@@ -41,7 +41,7 @@ class FixedPointMathSpec extends FirrtlFlatSpec {
 
       val res = lowerer.compileAndEmit(CircuitState(parse(input), ChirrtlForm))
 
-      val output = res.emittedCircuitOption.get.value split "\n"
+      val output = res.getEmittedCircuit.value split "\n"
 
       def inferredAddWidth: Int = {
         val binaryDifference = binaryPoint1 - binaryPoint2

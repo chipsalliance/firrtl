@@ -79,7 +79,7 @@ circuit foo :
     val annotationMap = AnnotationMap(Nil)
     val res = compileAndEmit(CircuitState(parse(input), ChirrtlForm, Some(annotationMap)))
     // Check correctness of firrtl
-    parse(res.emittedCircuitOption.get.value)
+    parse(res.getEmittedCircuit.value)
   }
 
   "Combinational Memory" should "have correct enable signals" in {
@@ -105,6 +105,6 @@ circuit foo :
     val annotationMap = AnnotationMap(Nil)
     val res = compileAndEmit(CircuitState(parse(input), ChirrtlForm, Some(annotationMap)))
     // Check correctness of firrtl
-    parse(res.emittedCircuitOption.get.value)
+    parse(res.getEmittedCircuit.value)
   }
 }

@@ -160,10 +160,6 @@ class HighFirrtlEmitter extends FirrtlEmitter(HighForm)
 class MiddleFirrtlEmitter extends FirrtlEmitter(HighForm)
 class LowFirrtlEmitter extends FirrtlEmitter(HighForm)
 
-//class FirrtlEmitter extends Emitter {
-//  def emit(state: CircuitState, writer: Writer): Unit = writer.write(state.circuit.serialize)
-//}
-
 case class VRandom(width: BigInt) extends Expression {
   def tpe = UIntType(IntWidth(width))
   def nWords = (width + 31) / 32

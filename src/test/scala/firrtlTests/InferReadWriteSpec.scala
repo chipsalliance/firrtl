@@ -79,7 +79,7 @@ circuit sram6t :
     val annotationMap = AnnotationMap(Seq(memlib.InferReadWriteAnnotation("sram6t")))
     val res = compileAndEmit(CircuitState(parse(input), ChirrtlForm, Some(annotationMap)))
     // Check correctness of firrtl
-    parse(res.emittedCircuitOption.get.value)
+    parse(res.getEmittedCircuit.value)
   }
 
   "Infer ReadWrite Ports" should "not infer readwrite ports for the difference clocks" in {

@@ -14,8 +14,7 @@ sealed trait Named {
   def serialize: String
 }
 
-// TODO Is there a better way to just indicate the top?
-// Perhaps this should be a termporary thing that gets turned into CircuitName below
+/** Name referring to the top of the circuit */
 final case object CircuitTopName extends Named {
   def name: String = "CircuitTop"
   def serialize: String = name

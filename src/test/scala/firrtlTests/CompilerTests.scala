@@ -32,7 +32,7 @@ abstract class CompilerSpec extends FlatSpec {
    def check: String
    def getOutput: String = {
      val res = compiler.compileAndEmit(CircuitState(parse(input), ChirrtlForm))
-     res.emittedCircuitOption.get.value
+     res.getEmittedCircuit.value
    }
 }
 
@@ -167,9 +167,6 @@ circuit Top :
       "endmodule\n"
    ).reduce(_ + "\n" + _)
    "A circuit's verilog output" should "match the given string" in {
-      // For some reason just comparing the Strings doesn't work, but comparing characters does
-      for ((x, y) <- getOutput.zip(check)) {
-        x should be (y)
-      }
+      getOutput should be (check)
    }
 }

@@ -21,7 +21,7 @@ abstract class SimpleTransformSpec extends FlatSpec with Matchers with Compiler 
    // Executes the test. Call in tests.
    def execute(annotations: AnnotationMap, input: String, check: String): Unit = {
       val finalState = compileAndEmit(CircuitState(parse(input), ChirrtlForm, Some(annotations)))
-      val actual = RemoveEmpty.run(parse(finalState.emittedCircuitOption.get.value)).serialize
+      val actual = RemoveEmpty.run(parse(finalState.getEmittedCircuit.value)).serialize
       val expected = parse(check).serialize
       logger.debug(actual)
       logger.debug(expected)

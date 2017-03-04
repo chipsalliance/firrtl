@@ -125,6 +125,11 @@ trait HasCommonOptions {
   parser.help("help").text("prints this usage text")
 }
 
+/** Firrtl output configuration specified by [[FirrtlExecutionOptions]]
+  *
+  * Derived from the fields of the execution options
+  * @see [[FirrtlExecutionOptions.getOutputConfig]]
+  */
 sealed abstract class OutputConfig
 final case class SingleFile(targetFile: String) extends OutputConfig
 final case class OneFilePerModule(targetDir: String) extends OutputConfig
@@ -201,6 +206,17 @@ case class FirrtlExecutionOptions(
   def getOutputConfig(optionsManager: ExecutionOptionsManager): OutputConfig = {
     if (emitOneFilePerModule) OneFilePerModule(optionsManager.targetDirName)
     else SingleFile(optionsManager.getBuildFileName(outputSuffix, outputFileNameOverride))
+  }
+  /** Get the user-specified targetFile assuming [[OutputConfig]] is [[SingleFile]]
+    *
+    * @param optionsManager this is needed to access build function and its common options
+    * @return the targetFile as a String
+    */
+  def getTargetFile(optionsManager: ExecutionOptionsManager): String = {
+    getOutputConfig(optionsManager) match {
+      case SingleFile(targetFile) => targetFile
+      case other => throw new Exception("OutputConfig is not SingleFile!")
+    }
   }
   /** Gives annotations based on the output configuration
     *
