@@ -12,7 +12,7 @@ import firrtl.PrimOps._
 
 import scala.collection.mutable
 
-trait Pass extends Transform {
+trait Pass(inputForm: Form, outputForm: Form) extends Transform {
   def name: String
   def run(c: Circuit): Circuit
   def execute(state: CircuitState): CircuitState = {
