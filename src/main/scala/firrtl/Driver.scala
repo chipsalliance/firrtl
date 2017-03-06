@@ -4,6 +4,7 @@ package firrtl
 
 import scala.collection._
 import scala.io.Source
+import scala.sys.process.{BasicIO,stringSeqToProcess}
 import java.io.{File, FileNotFoundException}
 
 import net.jcazevedo.moultingyaml._
@@ -12,6 +13,7 @@ import Parser.{IgnoreInfo, InfoMode}
 import annotations._
 import firrtl.annotations.AnnotationYamlProtocol._
 import firrtl.transforms.{BlackBoxSourceHelper, BlackBoxTargetDir}
+import Utils.throwInternalError
 
 
 /**
@@ -40,6 +42,7 @@ object Driver {
   // Compiles circuit. First parses a circuit from an input file,
   //  executes all compiler passes, and writes result to an output
   //  file.
+  @deprecated("Please use execute", "firrtl 1.0")
   def compile(
       input: String,
       output: String,
@@ -154,20 +157,44 @@ object Driver {
     loadAnnotations(optionsManager)
 
     val parsedInput = Parser.parse(firrtlSource, firrtlConfig.infoMode)
-    val outputBuffer = new java.io.CharArrayWriter
-    firrtlConfig.compiler.compile(
-      CircuitState(parsedInput, ChirrtlForm, Some(AnnotationMap(firrtlConfig.annotations))),
-      outputBuffer,
+
+    // Does this need to be before calling compiler?
+    optionsManager.makeTargetDir()
+
+    // Output Annotations
+    val outputAnnos = firrtlConfig.getEmitterAnnos(optionsManager)
+
+    val finalState = firrtlConfig.compiler.compile(
+      CircuitState(parsedInput, ChirrtlForm, Some(AnnotationMap(firrtlConfig.annotations ++ outputAnnos))),
       firrtlConfig.customTransforms
     )
 
-    val outputFileName = firrtlConfig.getOutputFileName(optionsManager)
-    val outputFile     = new java.io.PrintWriter(outputFileName)
-    val outputString   = outputBuffer.toString
-    outputFile.write(outputString)
-    outputFile.close()
+    // Do emission
+    // Note: Single emission target assumption is baked in here
+    // Note: FirrtlExecutionSuccess emitted is only used if we're emitting the whole Circuit
+    val emittedRes = firrtlConfig.getOutputConfig(optionsManager) match {
+      case SingleFile(filename) =>
+        finalState.emittedCircuitOption match {
+          case Some(emitted: EmittedCircuit) =>
+            val outputFile = new java.io.PrintWriter(filename)
+            outputFile.write(emitted.value)
+            outputFile.close()
+            emitted.value
+          case _ => throwInternalError
+        }
+      case OneFilePerModule(dirName) =>
+        val emittedModules = finalState.emittedComponents collect { case x: EmittedModule => x }
+        if (emittedModules.isEmpty) throwInternalError // There should be something
+        emittedModules.foreach { case module =>
+          val filename = optionsManager.getBuildFileName(firrtlConfig.outputSuffix, s"$dirName/${module.name}")
+          val outputFile = new java.io.PrintWriter(filename)
+          outputFile.write(module.value)
+          outputFile.close()
+        }
+        "" // Should we return something different here?
+    }
 
-    FirrtlExecutionSuccess(firrtlConfig.compilerName, outputBuffer.toString)
+    FirrtlExecutionSuccess(firrtlConfig.compilerName, emittedRes)
   }
 
   /**
@@ -257,4 +284,20 @@ object FileUtils {
       result
     }
   }
+
+  /** Indicate if an external command (executable) is available.
+    *
+    * @param cmd the command/executable
+    * @return true if ```cmd``` is found in PATH.
+    */
+  def isCommandAvailable(cmd: String): Boolean = {
+    // Eat any output.
+    val sb = new StringBuffer
+    val ioToDevNull = BasicIO(false, sb, None)
+
+    Seq("bash", "-c", "which %s".format(cmd)).run(ioToDevNull).exitValue == 0
+  }
+
+  /** isVCSAvailable - flag indicating vcs is available (for Verilog compilation and testing. */
+  lazy val isVCSAvailable: Boolean = isCommandAvailable("vcs")
 }
