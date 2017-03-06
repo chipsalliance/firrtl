@@ -85,7 +85,7 @@ final case object MidForm extends CircuitForm(1)
 final case object LowForm extends CircuitForm(0)
 
 /** The basic unit of operating on a Firrtl AST */
-abstract class Transform {
+abstract class Transform extends LazyLogging {
   /** A convenience function useful for debugging and error messages */
   def name: String = this.getClass.getSimpleName
   /** The [[CircuitForm]] that this transform requires to operate on */
@@ -104,12 +104,21 @@ abstract class Transform {
     * @return A collection of annotations
     */
   final def getMyAnnotations(state: CircuitState): Seq[Annotation] = state.annotations match {
-    case Some(annotations) => annotations.get(this.getClass)
+    case Some(annotations) => annotations.get(this.getClass) // ++ annotations.get(classOf[Transform])
     case None => Nil
   }
 }
 
 trait SimpleRun extends LazyLogging {
+  def runPasses(state: CircuitState, xformSeq: Seq[Transform]): Circuit =
+    passSeq.foldLeft(circuit) { (c: Circuit, pass: Pass) =>
+      val x = Utils.time(pass.name) { pass.run(c) }
+      logger.debug(x.serialize)
+      x
+    }
+}
+
+trait ComplexRun extends LazyLogging {
   def runPasses(circuit: Circuit, passSeq: Seq[Pass]): Circuit =
     passSeq.foldLeft(circuit) { (c: Circuit, pass: Pass) =>
       val x = Utils.time(pass.name) { pass.run(c) }
@@ -117,6 +126,7 @@ trait SimpleRun extends LazyLogging {
       x
     }
 }
+
 
 /** For PassBased Transforms and Emitters
   *
@@ -129,11 +139,11 @@ trait PassBased extends SimpleRun {
 }
 
 /** For transformations that are simply a sequence of passes */
-abstract class PassBasedTransform extends Transform with PassBased {
+abstract class TransformBasedTransform extends Transform with PassBased {
   def execute(state: CircuitState): CircuitState = {
     require(state.form <= inputForm,
       s"[$name]: Input form must be lower or equal to $inputForm. Got ${state.form}")
-    CircuitState(runPasses(state.circuit), outputForm)
+    CircuitState(runPasses(state), outputForm)
   }
 }
 
@@ -248,34 +258,38 @@ trait Compiler {
     val allTransforms = CompilerUtils.mergeTransforms(transforms, customTransforms)
 
     val finalState = allTransforms.foldLeft(state) { (in, xform) =>
+      xform match {
       val result = Utils.time(s"***${xform.name}***") { xform.execute(in) }
-
-      // Annotation propagation
-      // TODO: This should be redone
-      val inAnnotationMap = in.annotations getOrElse AnnotationMap(Seq.empty)
-      val remappedAnnotations: Seq[Annotation] = result.renames match {
-        case Some(RenameMap(rmap)) =>
-          // For each key in the rename map (rmap), obtain the
-          // corresponding annotations (in.annotationMap.get(from)). If any
-          // annotations exist, for each annotation, create a sequence of
-          // annotations with the names in rmap's value.
-          for {
-            (oldName, newNames) <- rmap.toSeq
-            oldAnno <- inAnnotationMap.get(oldName)
-            newAnno <- oldAnno.update(newNames)
-          } yield newAnno
-        case _ => inAnnotationMap.annotations
-      }
-      val resultAnnotations: Seq[Annotation] = result.annotations match {
-        case None => Nil
-        case Some(p) => p.annotations
-      }
-      val newAnnotations = AnnotationMap(remappedAnnotations ++ resultAnnotations)
-      CircuitState(result.circuit, result.form, Some(newAnnotations))
+      CircuitState(result.circuit, result.form, propagateAnnotations(in.annotations, result.renames))
     }
 
     emitter.emit(finalState, writer)
     finalState
   }
+
+  def propagateAnnotations(annotations: Option[AnnotationMap], renames: Option[RenameMap]): AnnoationMap = {
+    // Annotation propagation
+    // TODO: This should be redone
+    val inAnnotationMap = annotations getOrElse AnnotationMap(Seq.empty)
+    val remappedAnnotations: Seq[Annotation] = renames match {
+      case Some(RenameMap(rmap)) =>
+        // For each key in the rename map (rmap), obtain the
+        // corresponding annotations (in.annotationMap.get(from)). If any
+        // annotations exist, for each annotation, create a sequence of
+        // annotations with the names in rmap's value.
+        for {
+          (oldName, newNames) <- rmap.toSeq
+          oldAnno <- inAnnotationMap.get(oldName)
+          newAnno <- oldAnno.update(newNames)
+        } yield newAnno
+      case _ => inAnnotationMap.annotations
+    }
+    val resultAnnotations: Seq[Annotation] = result.annotations match {
+      case None => Nil
+      case Some(p) => p.annotations
+    }
+    val newAnnotations = AnnotationMap(remappedAnnotations ++ resultAnnotations)
+  }
+
 }
 

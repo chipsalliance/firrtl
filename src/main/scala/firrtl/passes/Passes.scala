@@ -12,9 +12,14 @@ import firrtl.PrimOps._
 
 import scala.collection.mutable
 
-trait Pass extends LazyLogging {
+trait Pass extends Transform {
   def name: String
   def run(c: Circuit): Circuit
+  def execute(state: CircuitState): CircuitState = {
+    require(state.form <= inputForm,
+      s"[$name]: Input form must be lower or equal to $inputForm. Got ${state.form}")
+    CircuitState(run(circuit), outputForm, ann, rename)
+  }
 }
 
 // Error handling
