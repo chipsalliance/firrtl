@@ -104,7 +104,14 @@ final case object MidForm extends CircuitForm(1)
 final case object LowForm extends CircuitForm(0)
 /** Unknown Form
   * 
-  * TODO(azidar): Explanation
+  * Often passes may modify a circuit (e.g. InferTypes), but return
+  * a circuit in the same form it was given.
+  *
+  * For this use case, use UnknownForm. It cannot be compared against other
+  * forms.
+  *
+  * TODO(azidar): Replace with PreviousForm, which more explicitly encodes
+  * this requirement.
   */
 final case object UnknownForm extends CircuitForm(-1) {
   override def compare(that: CircuitForm): Int = { error("Illegal to compare UnknownForm"); 0 }
@@ -118,7 +125,9 @@ abstract class Transform extends LazyLogging {
   def inputForm: CircuitForm
   /** The [[CircuitForm]] that this transform outputs */
   def outputForm: CircuitForm
-  /** Perform the transform
+  /** Perform the transform, encode renaming with RenameMap, and can
+    *   delete annotations
+    * Called by [[runTransform]].
     *
     * @param state Input Firrtl AST
     * @return A transformed Firrtl AST
@@ -130,14 +139,17 @@ abstract class Transform extends LazyLogging {
     * @return A collection of annotations
     */
   final def getMyAnnotations(state: CircuitState): Seq[Annotation] = state.annotations match {
-    case Some(annotations) => annotations.get(this.getClass) // ++ annotations.get(classOf[Transform])
+    case Some(annotations) => annotations.get(this.getClass) //TODO(azidar): ++ annotations.get(classOf[Transform])
     case None => Nil
   }
-
+  /** Perform the transform and update annotations.
+    *
+    * @param state Input Firrtl AST
+    * @return A transformed Firrtl AST
+    */
   final def runTransform(state: CircuitState): CircuitState = {
     logger.info(s"======== Starting Transform $name ========")
 
-    //val (timeMillis, result) = Utils.time { xform.execute(state) }
     val (timeMillis, result) = Utils.time { execute(state) }
 
     logger.info(s"""----------------------------${"-" * name.size}---------\n""")
@@ -156,6 +168,13 @@ abstract class Transform extends LazyLogging {
     CircuitState(result.circuit, result.form, Some(AnnotationMap(remappedAnnotations)), None)
   }
 
+  /** Propagate annotations and update their names.
+    *
+    * @param inAnno input AnnotationMap
+    * @param resAnno result AnnotationMap
+    * @param renameOpt result RenameMap
+    * @return the updated annotations
+    */
   final private def propagateAnnotations(inAnno: Option[AnnotationMap], resAnno: Option[AnnotationMap],
       renameOpt: Option[RenameMap]): Seq[Annotation] = {
     val newAnnotations = {
@@ -215,8 +234,8 @@ object CompilerUtils extends LazyLogging {
           Seq(new IRToWorkingIR, new ResolveAndCheck, new transforms.DedupModules,
               new HighFirrtlToMiddleFirrtl) ++ getLoweringTransforms(MidForm, outputForm)
         case MidForm => Seq(new MiddleFirrtlToLowFirrtl) ++ getLoweringTransforms(LowForm, outputForm)
-        case LowForm => error("Internal Error! This shouldn't be possible") // should be caught by if above
-        case UnknownForm => error("Internal Error! This shouldn't be possible") // should be caught by if above
+        case LowForm => throwInternalError // should be caught by if above
+        case UnknownForm => throwInternalError // should be caught by if above
       }
     }
   }
