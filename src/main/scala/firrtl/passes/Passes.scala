@@ -12,13 +12,20 @@ import firrtl.PrimOps._
 
 import scala.collection.mutable
 
-trait Pass(inputForm: Form, outputForm: Form) extends Transform {
-  def name: String
+trait Pass extends Transform {
+  def inputForm: CircuitForm = UnknownForm
+  def outputForm: CircuitForm = UnknownForm
   def run(c: Circuit): Circuit
   def execute(state: CircuitState): CircuitState = {
-    require(state.form <= inputForm,
-      s"[$name]: Input form must be lower or equal to $inputForm. Got ${state.form}")
-    CircuitState(run(circuit), outputForm, ann, rename)
+    val result = (state.form, inputForm) match {
+      case (UnknownForm, UnknownForm) => run(state.circuit)
+      case (_, UnknownForm) => run(state.circuit)
+      case (UnknownForm, _) => run(state.circuit)
+      case (x, y) if x > y =>
+        error(s"[$name]: Input form must be lower or equal to $inputForm. Got ${state.form}")
+      case _ => run(state.circuit)
+    }
+    CircuitState(result, outputForm, state.annotations, state.renames)
   }
 }
 
@@ -39,8 +46,6 @@ class Errors {
 
 // These should be distributed into separate files
 object ToWorkingIR extends Pass {
-  def name = "Working IR"
-
   def toExp(e: Expression): Expression = e map toExp match {
     case ex: Reference => WRef(ex.name, ex.tpe, NodeKind, UNKNOWNGENDER)
     case ex: SubField => WSubField(ex.expr, ex.name, ex.tpe, UNKNOWNGENDER)
@@ -59,7 +64,6 @@ object ToWorkingIR extends Pass {
 }
 
 object PullMuxes extends Pass {
-   def name = "Pull Muxes"
    def run(c: Circuit): Circuit = {
      def pull_muxes_e(e: Expression): Expression = e map pull_muxes_e match {
        case ex: WSubField => ex.exp match {
@@ -98,7 +102,6 @@ object PullMuxes extends Pass {
 }
 
 object ExpandConnects extends Pass {
-  def name = "Expand Connects"
   def run(c: Circuit): Circuit = {
     def expand_connects(m: Module): Module = {
       val genders = collection.mutable.LinkedHashMap[String,Gender]()
@@ -176,7 +179,6 @@ object ExpandConnects extends Pass {
 // Replace shr by amount >= arg width with 0 for UInts and MSB for SInts
 // TODO replace UInt with zero-width wire instead
 object Legalize extends Pass {
-  def name = "Legalize"
   private def legalizeShiftRight(e: DoPrim): Expression = {
     require(e.op == Shr)
     val amount = e.consts.head.toInt
@@ -249,7 +251,6 @@ object Legalize extends Pass {
 }
 
 object VerilogWrap extends Pass {
-  def name = "Verilog Wrap"
   def vWrapE(e: Expression): Expression = e map vWrapE match {
     case e: DoPrim => e.op match {
       case Tail => e.args.head match {
@@ -276,7 +277,6 @@ object VerilogWrap extends Pass {
 }
 
 object VerilogRename extends Pass {
-  def name = "Verilog Rename"
   def verilogRenameN(n: String): String =
     if (v_keywords(n)) "%s$".format(n) else n
 
@@ -306,7 +306,6 @@ object VerilogRename extends Pass {
   * @note The result of this pass is NOT legal Firrtl
   */
 object VerilogPrep extends Pass {
-  def name = "Verilog Prep"
 
   type AttachSourceMap = Map[WrappedExpression, Expression]
 

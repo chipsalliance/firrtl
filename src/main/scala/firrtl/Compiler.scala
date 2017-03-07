@@ -83,6 +83,13 @@ final case object MidForm extends CircuitForm(1)
   *  - All implicit truncations must be made explicit
   */
 final case object LowForm extends CircuitForm(0)
+/** Unknown Form
+  * 
+  * TODO(azidar): Explanation
+  */
+final case object UnknownForm extends CircuitForm(-1) {
+  override def compare(that: CircuitForm): Int = { error("Illegal to compare UnknownForm"); 0 }
+}
 
 /** The basic unit of operating on a Firrtl AST */
 abstract class Transform extends LazyLogging {
@@ -97,7 +104,7 @@ abstract class Transform extends LazyLogging {
     * @param state Input Firrtl AST
     * @return A transformed Firrtl AST
     */
-  def execute(state: CircuitState): CircuitState
+  protected def execute(state: CircuitState): CircuitState
   /** Convenience method to get annotations relevant to this Transform
     *
     * @param state The [[CircuitState]] form which to extract annotations
@@ -107,6 +114,50 @@ abstract class Transform extends LazyLogging {
     case Some(annotations) => annotations.get(this.getClass) // ++ annotations.get(classOf[Transform])
     case None => Nil
   }
+
+  final def runTransform(state: CircuitState): CircuitState = {
+    logger.info(s"======== Starting Transform $name ========")
+
+    //val (timeMillis, result) = Utils.time { xform.execute(state) }
+    val (timeMillis, result) = Utils.time { execute(state) }
+
+    logger.info(s"""----------------------------${"-" * name.size}---------\n""")
+    logger.info(f"Time: $timeMillis%.1f ms")
+
+    val remappedAnnotations = propagateAnnotations(state.annotations, result.annotations, result.renames)
+
+    logger.info(s"Form: ${result.form}")
+    logger.debug(s"Annotations:")
+    remappedAnnotations.foreach { a =>
+      logger.debug(a.serialize)
+    }
+    logger.debug(s"Circuit:\n${result.circuit.serialize}")
+    logger.info(s"======== Finished Transform $name ========\n")
+
+    CircuitState(result.circuit, result.form, Some(AnnotationMap(remappedAnnotations)), None)
+  }
+
+  final private def propagateAnnotations(inAnno: Option[AnnotationMap], resAnno: Option[AnnotationMap],
+      renameOpt: Option[RenameMap]): Seq[Annotation] = {
+    val newAnnotations = {
+      val inSet = inAnno.getOrElse(AnnotationMap(Seq.empty)).annotations.toSet
+      val resSet = resAnno.getOrElse(AnnotationMap(Seq.empty)).annotations.toSet
+      val deleted = (inSet -- resSet).map {
+        case DeletedAnnotation(xFormName, delAnno) => DeletedAnnotation(s"$xFormName+$name", delAnno)
+        case anno => DeletedAnnotation(name, anno)
+      }
+      val created = resSet -- inSet
+      val unchanged = resSet & inSet
+      (deleted ++ created ++ unchanged)
+    }
+
+    // For each annotation, rename all annotations.
+    val renames = renameOpt.getOrElse(RenameMap()).map
+    for {
+      anno <- newAnnotations.toSeq
+      newAnno <- anno.update(renames.getOrElse(anno.target, Seq(anno.target)))
+    } yield newAnno
+  }
 }
 
 /** For transformations that are simply a sequence of transforms */
@@ -115,18 +166,19 @@ abstract class SeqTransform extends Transform {
   def execute(state: CircuitState): CircuitState = {
     require(state.form <= inputForm,
       s"[$name]: Input form must be lower or equal to $inputForm. Got ${state.form}")
-    CircuitState(runPasses(state.circuit), outputForm, state.annotations)
+    val ret = transforms.foldLeft(state) { (in, xform) => xform.runTransform(in) }
+    CircuitState(ret.circuit, outputForm, ret.annotations, ret.renames)
   }
 }
 
 /** Similar to a Transform except that it writes to a Writer instead of returning a
   * CircuitState
   */
-abstract class Emitter {
+abstract trait Emitter {
   def emit(state: CircuitState, writer: Writer): Unit
 }
 
-object CompilerUtils {
+object CompilerUtils extends LazyLogging {
   /** Generates a sequence of [[Transform]]s to lower a Firrtl circuit
     *
     * @param inputForm [[CircuitForm]] to lower from
@@ -145,6 +197,7 @@ object CompilerUtils {
               new HighFirrtlToMiddleFirrtl) ++ getLoweringTransforms(MidForm, outputForm)
         case MidForm => Seq(new MiddleFirrtlToLowFirrtl) ++ getLoweringTransforms(LowForm, outputForm)
         case LowForm => error("Internal Error! This shouldn't be possible") // should be caught by if above
+        case UnknownForm => error("Internal Error! This shouldn't be possible") // should be caught by if above
       }
     }
   }
@@ -229,59 +282,11 @@ trait Compiler extends LazyLogging {
               customTransforms: Seq[Transform] = Seq.empty): CircuitState = {
     val allTransforms = CompilerUtils.mergeTransforms(transforms, customTransforms)
 
-    val finalState = allTransforms.foldLeft(state) runTransform
+    val finalState = allTransforms.foldLeft(state) { (in, xform) => xform.runTransform(in) }
 
     emitter.emit(finalState, writer)
     finalState
   }
 
-  def runTransform(state: CircuitState, xform: Transform): CircuitState = {
-    logger.info(s"======== Starting Transform ${xform.name} ========")
-
-    //val (timeMillis, result) = Utils.time { xform.execute(state) }
-    val (timeMillis, result) = Utils.time {
-      xform match {
-        case sform: SeqTransform => sform.transforms.foldLet (state) runTransform
-        case _ => xform.execute(state)
-      }
-    }
-
-    logger.info(s"""----------------------------${"-" * xform.name.size}---------\n""")
-    logger.info(f"Time: $timeMillis%.1f ms")
-
-    val remappedAnnotations = propagateAnnotations(state.annotations, result.annotations, renames)
-
-    logger.info(s"Form: ${result.form}")
-    logger.debug(s"Annotations:")
-    remappedAnnotations.foreach { a =>
-      logger.debug(a.serialize)
-    }
-    logger.debug(s"Circuit:\n${result.circuit.serialize}")
-    logger.info(s"======== Finished Transform ${xform.name} ========\n")
-
-    CircuitState(result.circuit, result.form, AnnotationMap(remappedAnnotations), None)
-  }
-
-  def propagateAnnotations(inAnno: Option[AnnotationMap], resAnno: Option[AnnotationMap],
-      renameOpt: Option[RenameMap]): Seq[Annotation] = {
-    val newAnnotations = {
-      val inSet = inAnno.getOrElse(AnnotationMap(Seq.empty)).annotations.toSet
-      val resSet = resAnno.getOrElse(AnnotationMap(Seq.empty)).annotations.toSet
-      val deleted = (inSet -- resSet).map {
-        case DeletedAnnotation(xFormName, delAnno) => DeletedAnnotation(s"${xFormName}+${xform.name}", delAnno)
-        case anno => DeletedAnnotation(xform.name, anno)
-      }
-      val created = resSet -- inSet
-      val unchanged = resSet & inSet
-      (deleted ++ created ++ unchanged)
-    }
-
-    // For each annotation, rename all annotations.
-    val renames = renameOpt.getOrElse(RenameMap()).map
-    for {
-      anno <- newAnnotations.toSeq
-      newAnno <- anno.update(renames.getOrElse(anno.target, Seq(anno.target)))
-    } yield newAnno
-  }
 }
 

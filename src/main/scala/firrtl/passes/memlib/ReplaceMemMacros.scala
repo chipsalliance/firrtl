@@ -28,7 +28,6 @@ object PinAnnotation {
   * Creates the minimum # of black boxes needed by the design.
   */
 class ReplaceMemMacros(writer: ConfWriter) extends Transform {
-  override def name = "Replace Memory Macros"
   def inputForm = MidForm
   def outputForm = MidForm
 

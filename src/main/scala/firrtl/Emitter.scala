@@ -36,7 +36,9 @@ case class VRandom(width: BigInt) extends Expression {
   def mapWidth(f: Width => Width): Expression = this
 }
 
-class VerilogEmitter extends Emitter with PassBased {
+class VerilogEmitter extends SeqTransform with Emitter {
+  def inputForm = LowForm
+  def outputForm = LowForm
   val tab = "  "
   def AND(e1: WrappedExpression, e2: WrappedExpression): Expression = {
     if (e1 == e2) e1.e1
@@ -599,14 +601,14 @@ class VerilogEmitter extends Emitter with PassBased {
         "`endif\n"))
    }
 
-  def passSeq = Seq(
+  def transforms = Seq(
     passes.VerilogModulusCleanup,
     passes.VerilogWrap,
     passes.VerilogRename,
     passes.VerilogPrep)
 
   def emit(state: CircuitState, writer: Writer): Unit = {
-    val circuit = runPasses(state.circuit)
+    val circuit = runTransform(state).circuit
     emit_preamble(writer)
     val moduleMap = (circuit.modules map (m => m.name -> m)).toMap
     circuit.modules foreach {
