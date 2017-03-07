@@ -8,49 +8,29 @@ import org.scalatest.junit.JUnitRunner
 import firrtl.ir.Circuit
 import firrtl.Parser.UseInfo
 import firrtl.passes.{Pass, PassExceptions, RemoveEmpty}
-import firrtl.{
-   Transform,
-   SeqTransform,
-   AnnotationMap,
-   CircuitState,
-   CircuitForm,
-   ChirrtlForm,
-   HighForm,
-   MidForm,
-   LowForm,
-   ChirrtlToHighFirrtl,
-   IRToWorkingIR,
-   ResolveAndCheck,
-   HighFirrtlToMiddleFirrtl,
-   MiddleFirrtlToLowFirrtl,
-   FirrtlEmitter,
-   Compiler,
-   Parser
-}
-
+import firrtl._
+import logger._
 
 // An example methodology for testing Firrtl Passes
 // Spec class should extend this class
-abstract class SimpleTransformSpec extends FlatSpec with Matchers with Compiler {
-   def emitter = new FirrtlEmitter
-
+abstract class SimpleTransformSpec extends FlatSpec with Matchers with Compiler with LazyLogging {
    // Utility function
    def parse(s: String): Circuit = Parser.parse(s.split("\n").toIterator, infoMode = UseInfo)
    def squash(c: Circuit): Circuit = RemoveEmpty.run(c)
 
    // Executes the test. Call in tests.
-   def execute(writer: Writer, annotations: AnnotationMap, input: String, check: String): Unit = {
-      compile(CircuitState(parse(input), ChirrtlForm, Some(annotations)), writer)
-      val actual = RemoveEmpty.run(parse(writer.toString)).serialize
+   def execute(annotations: AnnotationMap, input: String, check: String): Unit = {
+      val finalState = compileAndEmit(CircuitState(parse(input), ChirrtlForm, Some(annotations)))
+      val actual = RemoveEmpty.run(parse(finalState.getEmittedCircuit.value)).serialize
       val expected = parse(check).serialize
       logger.debug(actual)
       logger.debug(expected)
       (actual) should be (expected)
    }
    // Executes the test, should throw an error
-   def failingexecute(writer: Writer, annotations: AnnotationMap, input: String): Exception = {
+   def failingexecute(annotations: AnnotationMap, input: String): Exception = {
       intercept[PassExceptions] {
-         compile(CircuitState(parse(input), ChirrtlForm, Some(annotations)), writer)
+         compile(CircuitState(parse(input), ChirrtlForm, Some(annotations)), Seq.empty)
       }
    }
 }
@@ -62,6 +42,7 @@ class CustomResolveAndCheck(form: CircuitForm) extends SeqTransform {
 }
 
 trait LowTransformSpec extends SimpleTransformSpec {
+   def emitter = new LowFirrtlEmitter
    def transform: Transform
    def transforms: Seq[Transform] = Seq(
       new ChirrtlToHighFirrtl(),
@@ -75,6 +56,7 @@ trait LowTransformSpec extends SimpleTransformSpec {
 }
 
 trait MiddleTransformSpec extends SimpleTransformSpec {
+   def emitter = new MiddleFirrtlEmitter
    def transform: Transform
    def transforms: Seq[Transform] = Seq(
       new ChirrtlToHighFirrtl(),
@@ -87,6 +69,7 @@ trait MiddleTransformSpec extends SimpleTransformSpec {
 }
 
 trait HighTransformSpec extends SimpleTransformSpec {
+   def emitter = new HighFirrtlEmitter
    def transform: Transform
    def transforms = Seq(
       new ChirrtlToHighFirrtl(),

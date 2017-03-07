@@ -37,6 +37,7 @@ class InferReadWriteSpec extends SimpleTransformSpec {
     }
   }
 
+  def emitter = new MiddleFirrtlEmitter
   def transforms = Seq(
     new ChirrtlToHighFirrtl,
     new IRToWorkingIR,
@@ -71,10 +72,9 @@ circuit sram6t :
 """.stripMargin
 
     val annotationMap = AnnotationMap(Seq(memlib.InferReadWriteAnnotation("sram6t")))
-    val writer = new java.io.StringWriter
-    compile(CircuitState(parse(input), ChirrtlForm, Some(annotationMap)), writer)
+    val res = compileAndEmit(CircuitState(parse(input), ChirrtlForm, Some(annotationMap)))
     // Check correctness of firrtl
-    parse(writer.toString)
+    parse(res.getEmittedCircuit.value)
   }
 
   "Infer ReadWrite Ports" should "not infer readwrite ports for the difference clocks" in {
@@ -103,9 +103,8 @@ circuit sram6t :
 """.stripMargin
 
     val annotationMap = AnnotationMap(Seq(memlib.InferReadWriteAnnotation("sram6t")))
-    val writer = new java.io.StringWriter
     intercept[InferReadWriteCheckException] {
-      compile(CircuitState(parse(input), ChirrtlForm, Some(annotationMap)), writer)
+      compileAndEmit(CircuitState(parse(input), ChirrtlForm, Some(annotationMap)))
     }
   }
 }
