@@ -108,15 +108,6 @@ class ZeroWidthTests extends FirrtlFlatSpec {
 }
 
 class ZeroWidthVerilog extends FirrtlFlatSpec {
-  private def executeTest(input: String, expected: Seq[String], compiler: Compiler) = {
-    val writer = new StringWriter()
-    compiler.compile(CircuitState(parse(input), ChirrtlForm), writer)
-    val lines = writer.toString().split("\n") map normalized
-    println(writer.toString())
-    expected foreach { e =>
-      lines should contain(e)
-    }
-  }
   "Circuit" should "accept zero width wires" in {
     val compiler = new VerilogCompiler
     val input =
