@@ -106,6 +106,18 @@ class ZeroWidthTests extends FirrtlFlatSpec {
         |    node x = UInt(0)""".stripMargin
       (parse(exec(input)).serialize) should be (parse(check).serialize)
   }
+  "IsInvalid on <0>" should "be deleted" in {
+    val input =
+      """circuit Top :
+        |  module Top :
+        |    output y: UInt<0>
+        |    y is invalid""".stripMargin
+    val check =
+      """circuit Top :
+        |  module Top :
+        |    skip""".stripMargin
+      (parse(exec(input)).serialize) should be (parse(check).serialize)
+  }
 }
 
 class ZeroWidthVerilog extends FirrtlFlatSpec {

@@ -26,8 +26,8 @@ trait AnnotationSpec extends LowTransformSpec {
       compile(CircuitState(parse(input), ChirrtlForm, Some(annotations)), Seq.empty)
     }
   }
-  def execute(annotations: AnnotationMap, input: String, check: Annotation): Unit = {
-    val cr = compile(CircuitState(parse(input), ChirrtlForm, Some(annotations)), Seq.empty)
+  def execute(aMap: Option[AnnotationMap], input: String, check: Annotation): Unit = {
+    val cr = compile(CircuitState(parse(input), ChirrtlForm, aMap), Seq.empty)
     cr.annotations.get.annotations should contain (check)
   }
 }
@@ -41,20 +41,19 @@ trait AnnotationSpec extends LowTransformSpec {
  * Unstable, Fickle, and Insistent can be tested.
  */
 class AnnotationTests extends AnnotationSpec with Matchers {
-  def getAMap (a: Annotation): AnnotationMap = AnnotationMap(Seq(a))
-  val input: String =
-    """circuit Top :
-       |  module Top :
-       |    input a : UInt<1>[2]
-       |    input b : UInt<1>
-       |    node c = b""".stripMargin
-  val mName = ModuleName("Top", CircuitName("Top"))
-  val aName = ComponentName("a", mName)
-  val bName = ComponentName("b", mName)
-  val cName = ComponentName("c", mName)
+  def getAMap (a: Annotation): Option[AnnotationMap] = Some(AnnotationMap(Seq(a)))
+  def getAMap (as: Seq[Annotation]): Option[AnnotationMap] = Some(AnnotationMap(as))
+  def anno(s: String, value: String ="this is a value"): Annotation =
+    Annotation(ComponentName(s, ModuleName("Top", CircuitName("Top"))), classOf[Transform], value)
 
   "Loose and Sticky annotation on a node" should "pass through" in {
-    val ta = Annotation(cName, classOf[Transform], "")
+    val input: String =
+      """circuit Top :
+         |  module Top :
+         |    input a : UInt<1>[2]
+         |    input b : UInt<1>
+         |    node c = b""".stripMargin
+    val ta = anno("c", "")
     execute(getAMap(ta), input, ta)
   }
 
@@ -135,34 +134,192 @@ class AnnotationTests extends AnnotationSpec with Matchers {
       val outputForm = LowForm
       def execute(state: CircuitState) = state.copy(annotations = None)
     }
-    val anno = InlineAnnotation(CircuitName("Top"))
-    val annoOpt = Some(AnnotationMap(Seq(anno)))
-    val result = compiler.compile(CircuitState(parse(input), ChirrtlForm, annoOpt), Seq(new DeletingTransform))
+    val inlineAnn = InlineAnnotation(CircuitName("Top"))
+    val result = compiler.compile(CircuitState(parse(input), ChirrtlForm, getAMap(inlineAnn)), Seq(new DeletingTransform))
     result.annotations.get.annotations.head should matchPattern {
-      case DeletedAnnotation(x, anno) =>
+      case DeletedAnnotation(x, inlineAnn) =>
     }
   }
 
-  "Renaming" should "update all Annotations" in {
+  "Renaming" should "propagate in RemoveChirrtl and Lowering of memories" in {
     val compiler = new VerilogCompiler
     val input =
      """circuit Top :
         |  module Top :
+        |    input clk: Clock
         |    input in: UInt<3>
-        |    input zero: UInt<0>
-        |    output out: UInt<3>
-        |    wire x: {a: UInt<3>, b: UInt<0>}
-        |    x.b <= UInt(0)
-        |    x.a <= in
-        |    node q = UInt(3)
-        |    out <= add(x.a, zero)
+        |    cmem m: {a: UInt<4>, b: UInt<4>}[8]
+        |    read mport r = m[in], clk
         |""".stripMargin
-    def anno(s: String): Annotation =
-      Annotation(ComponentName(s, ModuleName("Top", CircuitName("Top"))), classOf[Transform], "this is a value")
-    val annos = Seq(anno("in"), anno("zero"), anno("out"), anno("x.a"), anno("x.b"), anno("q"))
-    val annoOpt = Some(AnnotationMap(annos))
-    val result = compiler.compile(CircuitState(parse(input), ChirrtlForm, annoOpt), Nil)
-    result.annotations.get.annotations should contain allOf (anno("in"), anno("out"), anno("x_a"))
-    result.annotations.get.annotations should contain noneOf (anno("zero"), anno("x.a"), anno("x.b"), anno("x_b"), anno("q"))
+    val annos = Seq(anno("r"), anno("m"))
+    val result = compiler.compile(CircuitState(parse(input), ChirrtlForm, getAMap(annos)), Nil)
+    val resultAnno = result.annotations.get.annotations
+    resultAnno should contain (anno("m_a"))
+    resultAnno should contain (anno("m_b"))
+    resultAnno should contain (anno("m_a.r.data"))
+    resultAnno should contain (anno("m_b.r.data"))
+    resultAnno should not contain (anno("m"))
+    resultAnno should not contain (anno("r"))
+  }
+
+  "Renaming" should "propagate in ZeroWidth" in {
+    val compiler = new VerilogCompiler
+    val input =
+     """circuit Top :
+        |  module Top :
+        |    input zero: UInt<0>
+        |    wire x: {a: UInt<3>, b: UInt<0>}
+        |    wire y: UInt<0>[3]
+        |    y[0] <= zero
+        |    y[1] <= zero
+        |    y[2] <= zero
+        |    x.a <= zero
+        |    x.b <= zero
+        |""".stripMargin
+    val annos = Seq(anno("zero"), anno("x.a"), anno("x.b"), anno("y[0]"), anno("y[1]"), anno("y[2]"))
+    val result = compiler.compile(CircuitState(parse(input), ChirrtlForm, getAMap(annos)), Nil)
+    val resultAnno = result.annotations.get.annotations
+    resultAnno should contain (anno("x_a"))
+    resultAnno should not contain (anno("zero"))
+    resultAnno should not contain (anno("x.a"))
+    resultAnno should not contain (anno("x.b"))
+    resultAnno should not contain (anno("x_b"))
+    resultAnno should not contain (anno("y[0]"))
+    resultAnno should not contain (anno("y[1]"))
+    resultAnno should not contain (anno("y[2]"))
+    resultAnno should not contain (anno("y_0"))
+    resultAnno should not contain (anno("y_1"))
+    resultAnno should not contain (anno("y_2"))
+  }
+
+  "Renaming subcomponents" should "propagate in Lowering" in {
+    val compiler = new VerilogCompiler
+    val input =
+     """circuit Top :
+        |  module Top :
+        |    input clk: Clock
+        |    input pred: UInt<1>
+        |    input in: {a: UInt<3>, b: UInt<3>[2]}
+        |    output out: {a: UInt<3>, b: UInt<3>[2]}
+        |    wire w: {a: UInt<3>, b: UInt<3>[2]}
+        |    w is invalid
+        |    node n = mux(pred, in, w)
+        |    out <= n
+        |    reg r: {a: UInt<3>, b: UInt<3>[2]}, clk
+        |""".stripMargin
+    val annos = Seq(
+      anno("in.a"), anno("in.b[0]"), anno("in.b[1]"),
+      anno("out.a"), anno("out.b[0]"), anno("out.b[1]"),
+      anno("w.a"), anno("w.b[0]"), anno("w.b[1]"),
+      anno("n.a"), anno("n.b[0]"), anno("n.b[1]"),
+      anno("r.a"), anno("r.b[0]"), anno("r.b[1]")
+    )
+    val result = compiler.compile(CircuitState(parse(input), ChirrtlForm, getAMap(annos)), Nil)
+    val resultAnno = result.annotations.get.annotations
+    resultAnno should not contain (anno("in.a"))
+    resultAnno should not contain (anno("in.b[0]"))
+    resultAnno should not contain (anno("in.b[1]"))
+    resultAnno should not contain (anno("out.a"))
+    resultAnno should not contain (anno("out.b[0]"))
+    resultAnno should not contain (anno("out.b[1]"))
+    resultAnno should not contain (anno("w.a"))
+    resultAnno should not contain (anno("w.b[0]"))
+    resultAnno should not contain (anno("w.b[1]"))
+    resultAnno should not contain (anno("n.a"))
+    resultAnno should not contain (anno("n.b[0]"))
+    resultAnno should not contain (anno("n.b[1]"))
+    resultAnno should not contain (anno("r.a"))
+    resultAnno should not contain (anno("r.b[0]"))
+    resultAnno should not contain (anno("r.b[1]"))
+    resultAnno should contain (anno("in_a"))
+    resultAnno should contain (anno("in_b_0"))
+    resultAnno should contain (anno("in_b_1"))
+    resultAnno should contain (anno("out_a"))
+    resultAnno should contain (anno("out_b_0"))
+    resultAnno should contain (anno("out_b_1"))
+    resultAnno should contain (anno("w_a"))
+    resultAnno should contain (anno("w_b_0"))
+    resultAnno should contain (anno("w_b_1"))
+    resultAnno should contain (anno("n_a"))
+    resultAnno should contain (anno("n_b_0"))
+    resultAnno should contain (anno("n_b_1"))
+    resultAnno should contain (anno("r_a"))
+    resultAnno should contain (anno("r_b_0"))
+    resultAnno should contain (anno("r_b_1"))
+  }
+
+  "Renaming components" should "expand in Lowering" in {
+    val compiler = new VerilogCompiler
+    val input =
+     """circuit Top :
+        |  module Top :
+        |    input clk: Clock
+        |    input pred: UInt<1>
+        |    input in: {a: UInt<3>, b: UInt<3>[2]}
+        |    output out: {a: UInt<3>, b: UInt<3>[2]}
+        |    wire w: {a: UInt<3>, b: UInt<3>[2]}
+        |    w is invalid
+        |    node n = mux(pred, in, w)
+        |    out <= n
+        |    reg r: {a: UInt<3>, b: UInt<3>[2]}, clk
+        |""".stripMargin
+    val annos = Seq(anno("in"), anno("out"), anno("w"), anno("n"), anno("r"))
+    val result = compiler.compile(CircuitState(parse(input), ChirrtlForm, getAMap(annos)), Nil)
+    val resultAnno = result.annotations.get.annotations
+    resultAnno should contain (anno("in_a"))
+    resultAnno should contain (anno("in_b_0"))
+    resultAnno should contain (anno("in_b_1"))
+    resultAnno should contain (anno("out_a"))
+    resultAnno should contain (anno("out_b_0"))
+    resultAnno should contain (anno("out_b_1"))
+    resultAnno should contain (anno("w_a"))
+    resultAnno should contain (anno("w_b_0"))
+    resultAnno should contain (anno("w_b_1"))
+    resultAnno should contain (anno("n_a"))
+    resultAnno should contain (anno("n_b_0"))
+    resultAnno should contain (anno("n_b_1"))
+    resultAnno should contain (anno("r_a"))
+    resultAnno should contain (anno("r_b_0"))
+    resultAnno should contain (anno("r_b_1"))
+  }
+
+
+  "Renaming" should "track dce" in {
+    val compiler = new VerilogCompiler
+    val input =
+     """circuit Top :
+        |  module Top :
+        |    input clk: Clock
+        |    input pred: UInt<1>
+        |    input in: {a: UInt<3>, b: UInt<3>[2]}
+        |    output out: {a: UInt<3>, b: UInt<3>[2]}
+        |    node n = in
+        |    out <= n
+        |""".stripMargin
+    val annos = Seq(
+      anno("in.a"), anno("in.b[0]"), anno("in.b[1]"),
+      anno("out.a"), anno("out.b[0]"), anno("out.b[1]"),
+      anno("n.a"), anno("n.b[0]"), anno("n.b[1]")
+    )
+    val result = compiler.compile(CircuitState(parse(input), ChirrtlForm, getAMap(annos)), Nil)
+    val resultAnno = result.annotations.get.annotations
+    resultAnno should not contain (anno("in.a"))
+    resultAnno should not contain (anno("in.b[0]"))
+    resultAnno should not contain (anno("in.b[1]"))
+    resultAnno should not contain (anno("out.a"))
+    resultAnno should not contain (anno("out.b[0]"))
+    resultAnno should not contain (anno("out.b[1]"))
+    resultAnno should not contain (anno("n.a"))
+    resultAnno should not contain (anno("n.b[0]"))
+    resultAnno should not contain (anno("n.b[1]"))
+    resultAnno should not contain (anno("n_a"))
+    resultAnno should not contain (anno("n_b_0"))
+    resultAnno should not contain (anno("n_b_1"))
+    resultAnno should contain (anno("in_a"))
+    resultAnno should contain (anno("in_b_0"))
+    resultAnno should contain (anno("in_b_1"))
+    resultAnno should contain (anno("out_a"))
+    resultAnno should contain (anno("out_b_0"))
+    resultAnno should contain (anno("out_b_1"))
   }
 }

@@ -67,6 +67,10 @@ object ZeroWidth extends Transform {
       case None => EmptyStmt
       case Some(t) => Connect(info, loc, onExp(exp))
     }
+    case IsInvalid(info, exp) => removeZero(exp.tpe) match {
+      case None => EmptyStmt
+      case Some(t) => IsInvalid(info, onExp(exp))
+    }
     case sx => sx map onStmt(renames)
   }
   private def onModule(renames: RenameMap)(m: DefModule): DefModule = {

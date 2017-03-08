@@ -123,21 +123,25 @@ object LowerTypes extends Transform {
         case _: GroundType => s
         case _ => 
           val exps = create_exps(s.name, s.tpe)
-          Block(exps map { e => 
-            renames.rename(e.serialize, loweredName(e))
-            DefWire(s.info, loweredName(e), e.tpe)
+          val names = exps map loweredName
+          renames.rename(s.name, names)
+          Block((exps zip names) map { case (e, n) => 
+            renames.rename(e.serialize, n)
+            DefWire(s.info, n, e.tpe)
           })
       }
       case sx: DefRegister => sx.tpe match {
         case _: GroundType => sx map lowerTypesExp(memDataTypeMap, info, mname)
         case _ =>
           val es = create_exps(sx.name, sx.tpe)
+          val names = es map loweredName
+          renames.rename(sx.name, names)
           val inits = create_exps(sx.init) map lowerTypesExp(memDataTypeMap, info, mname)
           val clock = lowerTypesExp(memDataTypeMap, info, mname)(sx.clock)
           val reset = lowerTypesExp(memDataTypeMap, info, mname)(sx.reset)
-          Block(es zip inits map { case (e, i) =>
-            renames.rename(e.serialize, loweredName(e))
-            DefRegister(sx.info, loweredName(e), e.tpe, clock, reset, i)
+          Block((es zip names) zip inits map { case ((e, n), i) =>
+            renames.rename(e.serialize, n)
+            DefRegister(sx.info, n, e.tpe, clock, reset, i)
           })
       }
       // Could instead just save the type of each Module as it gets processed
@@ -160,8 +164,10 @@ object LowerTypes extends Transform {
           case _ => Block(create_exps(sx.name, sx.dataType) map {e =>
             val newName = loweredName(e)
             val newMem = sx copy (name = newName, dataType = e.tpe)
+            renames.rename(sx.name, newName)
             (create_exps(sx.name, memType(newMem)) zip create_exps(newName, memType(newMem))) foreach { 
-              case (from, to) => renames.rename(from.serialize, to.serialize)
+              case (from, to) => 
+                renames.rename(from.serialize, to.serialize)
             }
             newMem
           })
@@ -174,11 +180,14 @@ object LowerTypes extends Transform {
       // node x_b = foo_b
       // node y = x_a
       case sx: DefNode =>
-        val names = create_exps(sx.name, sx.value.tpe) map lowerTypesExp(memDataTypeMap, info, mname)
+        val refs = create_exps(sx.name, sx.value.tpe)
+        val names = refs map lowerTypesExp(memDataTypeMap, info, mname)
         val exps = create_exps(sx.value) map lowerTypesExp(memDataTypeMap, info, mname)
         renames.rename(sx.name, names.map(loweredName(_)))
-        Block(names zip exps map { case (n, e) =>
-          DefNode(info, loweredName(n), e)
+        Block((refs zip names) zip exps map { case ((r, n), e) =>
+          val name = loweredName(n)
+          renames.rename(r.serialize, name)
+          DefNode(info, name, e)
         })
       case sx: IsInvalid => kind(sx.expr) match {
         case MemKind =>
@@ -202,8 +211,12 @@ object LowerTypes extends Transform {
     // Lower Ports
     val portsx = m.ports flatMap { p =>
       val exps = create_exps(WRef(p.name, p.tpe, PortKind, to_gender(p.direction)))
-      renames.rename(p.name, exps map (_.serialize))
-      exps map {e => Port(p.info, loweredName(e), to_dir(gender(e)), e.tpe) }
+      val names = exps map loweredName
+      renames.rename(p.name, names)
+      (exps zip names) map { case (e, n) =>
+        renames.rename(e.serialize, n)
+        Port(p.info, n, to_dir(gender(e)), e.tpe)
+      }
     }
     m match {
       case m: ExtModule =>
