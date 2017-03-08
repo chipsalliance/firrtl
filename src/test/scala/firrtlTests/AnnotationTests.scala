@@ -142,4 +142,27 @@ class AnnotationTests extends AnnotationSpec with Matchers {
       case DeletedAnnotation(x, anno) =>
     }
   }
+
+  "Renaming" should "update all Annotations" in {
+    val compiler = new VerilogCompiler
+    val input =
+     """circuit Top :
+        |  module Top :
+        |    input in: UInt<3>
+        |    input zero: UInt<0>
+        |    output out: UInt<3>
+        |    wire x: {a: UInt<3>, b: UInt<0>}
+        |    x.b <= UInt(0)
+        |    x.a <= in
+        |    node q = UInt(3)
+        |    out <= add(x.a, zero)
+        |""".stripMargin
+    def anno(s: String): Annotation =
+      Annotation(ComponentName(s, ModuleName("Top", CircuitName("Top"))), classOf[Transform], "this is a value")
+    val annos = Seq(anno("in"), anno("zero"), anno("out"), anno("x.a"), anno("x.b"), anno("q"))
+    val annoOpt = Some(AnnotationMap(annos))
+    val result = compiler.compile(CircuitState(parse(input), ChirrtlForm, annoOpt), Nil)
+    result.annotations.get.annotations should contain allOf (anno("in"), anno("out"), anno("x_a"))
+    result.annotations.get.annotations should contain noneOf (anno("zero"), anno("x.a"), anno("x.b"), anno("x_b"), anno("q"))
+  }
 }

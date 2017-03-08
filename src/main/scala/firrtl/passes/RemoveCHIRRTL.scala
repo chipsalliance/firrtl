@@ -14,7 +14,9 @@ case class MPort(name: String, clk: Expression)
 case class MPorts(readers: ArrayBuffer[MPort], writers: ArrayBuffer[MPort], readwriters: ArrayBuffer[MPort])
 case class DataRef(exp: Expression, male: String, female: String, mask: String, rdwrite: Boolean)
 
-object RemoveCHIRRTL extends Pass {
+object RemoveCHIRRTL extends Transform {
+  def inputForm: CircuitForm = UnknownForm
+  def outputForm: CircuitForm = UnknownForm
   val ut = UnknownType
   type MPortMap = collection.mutable.LinkedHashMap[String, MPorts]
   type SeqMemSet = collection.mutable.HashSet[String]
@@ -59,7 +61,7 @@ object RemoveCHIRRTL extends Pass {
   }
 
   def collect_refs(mports: MPortMap, smems: SeqMemSet, types: MPortTypeMap,
-      refs: DataRefMap, raddrs: AddrMap)(s: Statement): Statement = s match {
+      refs: DataRefMap, raddrs: AddrMap, renames: RenameMap)(s: Statement): Statement = s match {
     case sx: CDefMemory =>
       types(sx.name) = sx.tpe
       val taddr = UIntType(IntWidth(1 max ceilLog2(sx.size)))
@@ -104,11 +106,13 @@ object RemoveCHIRRTL extends Pass {
           addrs += "addr"
           clks += "clk"
           ens += "en"
+          renames.rename(sx.name, Seq(s"${sx.mem}.${sx.name}.rdata", s"${sx.mem}.${sx.name}.wdata"))
         case MWrite =>
           refs(sx.name) = DataRef(SubField(Reference(sx.mem, ut), sx.name, ut), "data", "data", "mask", rdwrite = false)
           addrs += "addr"
           clks += "clk"
           ens += "en"
+          renames.rename(sx.name, s"${sx.mem}.${sx.name}.data")
         case MRead =>
           refs(sx.name) = DataRef(SubField(Reference(sx.mem, ut), sx.name, ut), "data", "data", "blah", rdwrite = false)
           addrs += "addr"
@@ -118,13 +122,14 @@ object RemoveCHIRRTL extends Pass {
               raddrs(e.name) = SubField(SubField(Reference(sx.mem, ut), sx.name, ut), "en", ut)
             case _ => ens += "en"
           }
+          renames.rename(sx.name, s"${sx.mem}.${sx.name}.data")
         case MInfer => // do nothing if it's not being used
       }
       Block(
         (addrs map (x => Connect(sx.info, SubField(SubField(Reference(sx.mem, ut), sx.name, ut), x, ut), sx.exps.head))) ++
         (clks map (x => Connect(sx.info, SubField(SubField(Reference(sx.mem, ut), sx.name, ut), x, ut), sx.exps(1)))) ++
         (ens map (x => Connect(sx.info,SubField(SubField(Reference(sx.mem,ut), sx.name, ut), x, ut), one))))
-    case sx => sx map collect_refs(mports, smems, types, refs, raddrs)
+    case sx => sx map collect_refs(mports, smems, types, refs, raddrs, renames)
   }
 
   def get_mask(refs: DataRefMap)(e: Expression): Expression =
@@ -213,17 +218,23 @@ object RemoveCHIRRTL extends Pass {
     }
   }
 
-  def remove_chirrtl_m(m: DefModule): DefModule = {
+  def remove_chirrtl_m(renames: RenameMap)(m: DefModule): DefModule = {
     val mports = new MPortMap
     val smems = new SeqMemSet
     val types = new MPortTypeMap
     val refs = new DataRefMap
     val raddrs = new AddrMap
+    renames.setModule(m.name)
     (m map collect_smems_and_mports(mports, smems)
-       map collect_refs(mports, smems, types, refs, raddrs)
+       map collect_refs(mports, smems, types, refs, raddrs, renames)
        map remove_chirrtl_s(refs, raddrs))
   }
 
-  def run(c: Circuit): Circuit =
-    c copy (modules = c.modules map remove_chirrtl_m)
+  def execute(state: CircuitState): CircuitState = {
+    val c = state.circuit
+    val renames = RenameMap()
+    renames.setCircuit(c.main)
+    val result = c copy (modules = c.modules map remove_chirrtl_m(renames))
+    CircuitState(result, outputForm, state.annotations, Some(renames))
+  }
 }

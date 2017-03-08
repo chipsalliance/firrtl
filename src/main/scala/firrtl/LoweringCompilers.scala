@@ -6,7 +6,6 @@ sealed abstract class CoreTransform extends SeqTransform
 
 /** This transforms "CHIRRTL", the chisel3 IR, to "Firrtl". Note the resulting
   * circuit has only IR nodes, not WIR.
-  * TODO(izraelevitz): Create RenameMap from RemoveCHIRRTL
   */
 class ChirrtlToHighFirrtl extends CoreTransform {
   def inputForm = ChirrtlForm
