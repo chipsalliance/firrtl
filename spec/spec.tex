@@ -912,6 +912,7 @@ A literal unsigned integer can alternatively be created given a string represent
 The following radices are supported:
 \begin{enumerate}
 \item \verb|b| : For representing binary numbers.
+\item \verb|o| : For representing octal numbers.
 \item \verb|h| : For representing hexadecimal numbers.
 \end{enumerate}
 
@@ -926,6 +927,7 @@ If the provided bit width is larger than the number of bits required to represen
 The following examples create a 7-bit integer representing the number 13.
 \begin{verbatim}
 UInt<7>("b00001101")
+UInt<7>("o015")
 UInt<7>("hD")
 \end{verbatim}
 
@@ -945,7 +947,7 @@ SInt(-42)
 
 Similar to unsigned integers, a literal signed integer can alternatively be created given a string representing its bit representation and an optional bit width.
 
-The bit representation contains a binary or hex indicator, followed by an optional sign, followed by the value.
+The bit representation contains a binary, octal or hex indicator, followed by an optional sign, followed by the value.
 
 If a bit width is not given, the number of bits in the bit representation is the minimal bitwidth to represent the value represented by the string. The following examples create a 8-bit integer representing the number -13.
 \begin{verbatim}
@@ -1661,6 +1663,7 @@ The following characters are allowed in identifiers: upper and lower case letter
 An integer literal in FIRRTL begins with one of the following, where `\#' represents a digit between 0 and 9. 
 \begin{itemize}
 \item `0x' : For indicating a hexadecimal number. The rest of the literal must consist of either digits or a letter between `A' and `F', or the separator `\_'. 
+\item `0o' : For indicating an octal number. The rest of the literal must consist of digits between 0 and 7, or the separator `\_'. 
 \item `0b' : For indicating a binary number. The rest of the literal must consist of either 0 or 1, or the separator `\_'.
 \item `-\#' : For indicating a negative decimal number. The rest of the literal must consist of digits between 0 and 9.
 \item `\#' : For indicating a positive decimal number. The rest of the literal must consist of digits between 0 and 9.
@@ -1741,7 +1744,7 @@ The concrete syntax of FIRRTL is defined in section \ref{syntax_tree}. Productio
                 &\pipe &\pd{exp} \vv{<=} \pd{exp} \opt{\pd{info}}                                              &\text{Connect}\\
                 &\pipe &\pd{exp} \vv{<-} \pd{exp} \opt{\pd{info}}                                              &\text{Partial Connect}\\
                 &\pipe &\pd{exp} \vv{is invalid} \opt{\pd{info}}                                               &\text{Invalidate}\\
-                &\pipe &\vv{attach}\vv{(}\rpt{\pd{exp}}\vv{)}                                                  &\text{Attach}\\
+                &\pipe &\vv{attach}\vv{(}\rpt{\pd{exp}}\vv{)} \opt{\pd{info}}                                  &\text{Attach}\\
                 &\pipe &\vv{when} \pd{exp} \vv{:} \opt{\pd{info}} \pd{stmt} \opt{\vv{else} \vv{:} \pd{stmt}}   &\text{Conditional}\\
                 &\pipe &\vv{stop(}\pd{exp}, \pd{exp}, \pd{int})\opt{\pd{info}}                                 &\text{Stop}\\
                 &\pipe &\vv{printf(}\pd{exp}, \pd{exp}, \pd{string}, \rpt{\pd{exp}}\vv{)} \opt{\pd{info}}      &\text{Printf}\\
