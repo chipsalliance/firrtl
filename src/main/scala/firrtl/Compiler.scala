@@ -2,7 +2,7 @@
 
 package firrtl
 
-import logger.LazyLogging
+import logger._
 import java.io.Writer
 import annotations._
 import scala.collection.mutable

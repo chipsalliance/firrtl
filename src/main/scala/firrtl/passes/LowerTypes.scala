@@ -2,6 +2,7 @@
 
 package firrtl.passes
 
+import scala.collection.mutable
 import firrtl._
 import firrtl.ir._
 import firrtl.Utils._
@@ -36,7 +37,47 @@ object LowerTypes extends Transform {
     case e: WSubIndex => s"${loweredName(e.exp)}$delim${e.value}"
   }
   def loweredName(s: Seq[String]): String = s mkString delim
+  def renameExps(renames: RenameMap, n: String, t: Type): Seq[String] =
+    renameExps(renames, WRef(n, t, ExpKind, UNKNOWNGENDER), n)
+  def renameExps(renames: RenameMap, e: Expression, root: String): Seq[String] = e.tpe match {
+    case (_: GroundType) =>
+      val name = loweredName(mergeRef(WRef(root), splitRef(e)._2))
+      renames.rename(e.serialize, name)
+      Seq(name)
+    case (t: BundleType) => t.fields.foldLeft(Seq[String]()){(names, f) =>
+      val subNames = renameExps(renames, WSubField(e, f.name, f.tpe, times(gender(e), f.flip)), root)
+      renames.rename(e.serialize, subNames)
+      names ++ subNames
+    }
+    case (t: VectorType) => (0 until t.size).foldLeft(Seq[String]()){(names, i) =>
+      val subNames = renameExps(renames, WSubIndex(e, i, t.tpe,gender(e)), root)
+      renames.rename(e.serialize, subNames)
+      names ++ subNames
+    }
+  }
 
+  private def renameMemExps(renames: RenameMap, e: Expression, portAndField: Expression): Seq[String] = e.tpe match {
+    case (_: GroundType) =>
+      val (mem, tail) = splitRef(e)
+      val loRef = mergeRef(WRef(loweredName(e)), portAndField)
+      val hiRef = mergeRef(mem, mergeRef(portAndField, tail))
+      renames.rename(hiRef.serialize, loRef.serialize)
+      Seq(loRef.serialize)
+    case (t: BundleType) => t.fields.foldLeft(Seq[String]()){(names, f) =>
+      val subNames = renameMemExps(renames, WSubField(e, f.name, f.tpe, times(gender(e), f.flip)), portAndField)
+      val (mem, tail) = splitRef(e)
+      val hiRef = mergeRef(mem, mergeRef(portAndField, tail))
+      renames.rename(hiRef.serialize, subNames)
+      names ++ subNames
+    }
+    case (t: VectorType) => (0 until t.size).foldLeft(Seq[String]()){(names, i) =>
+      val subNames = renameMemExps(renames, WSubIndex(e, i, t.tpe,gender(e)), portAndField)
+      val (mem, tail) = splitRef(e)
+      val hiRef = mergeRef(mem, mergeRef(portAndField, tail))
+      renames.rename(hiRef.serialize, subNames)
+      names ++ subNames
+    }
+  }
   private case class LowerTypesException(msg: String) extends FIRRTLException(msg)
   private def error(msg: String)(info: Info, mname: String) =
     throw LowerTypesException(s"$info: [module $mname] $msg")
@@ -114,7 +155,6 @@ object LowerTypes extends Transform {
     case e: DoPrim => e map lowerTypesExp(memDataTypeMap, info, mname)
     case e @ (_: UIntLiteral | _: SIntLiteral) => e
   }
-
   def lowerTypesStmt(memDataTypeMap: MemDataTypeMap,
       minfo: Info, mname: String, renames: RenameMap)(s: Statement): Statement = {
     val info = get_info(s) match {case NoInfo => minfo case x => x}
@@ -124,9 +164,8 @@ object LowerTypes extends Transform {
         case _ => 
           val exps = create_exps(s.name, s.tpe)
           val names = exps map loweredName
-          renames.rename(s.name, names)
+          renameExps(renames, s.name, s.tpe)
           Block((exps zip names) map { case (e, n) => 
-            renames.rename(e.serialize, n)
             DefWire(s.info, n, e.tpe)
           })
       }
@@ -135,21 +174,20 @@ object LowerTypes extends Transform {
         case _ =>
           val es = create_exps(sx.name, sx.tpe)
           val names = es map loweredName
-          renames.rename(sx.name, names)
+          renameExps(renames, sx.name, sx.tpe)
           val inits = create_exps(sx.init) map lowerTypesExp(memDataTypeMap, info, mname)
           val clock = lowerTypesExp(memDataTypeMap, info, mname)(sx.clock)
           val reset = lowerTypesExp(memDataTypeMap, info, mname)(sx.reset)
           Block((es zip names) zip inits map { case ((e, n), i) =>
-            renames.rename(e.serialize, n)
             DefRegister(sx.info, n, e.tpe, clock, reset, i)
           })
       }
       // Could instead just save the type of each Module as it gets processed
       case sx: WDefInstance => sx.tpe match {
         case t: BundleType =>
+          renameExps(renames, sx.name, sx.tpe)
           val fieldsx = t.fields flatMap (f =>
             create_exps(WRef(f.name, f.tpe, ExpKind, times(f.flip, MALE))) map { e => 
-              renames.rename(sx.name + "." + e.serialize, loweredName(e))
               // Flip because inst genders are reversed from Module type
               Field(loweredName(e), swap(to_flip(gender(e))), e.tpe)
             }
@@ -161,16 +199,30 @@ object LowerTypes extends Transform {
         memDataTypeMap(sx.name) = sx.dataType
         sx.dataType match {
           case _: GroundType => sx
-          case _ => Block(create_exps(sx.name, sx.dataType) map {e =>
-            val newName = loweredName(e)
-            val newMem = sx copy (name = newName, dataType = e.tpe)
-            renames.rename(sx.name, newName)
-            (create_exps(sx.name, memType(newMem)) zip create_exps(newName, memType(newMem))) foreach { 
-              case (from, to) => 
-                renames.rename(from.serialize, to.serialize)
+          case _ =>
+            // Rename ports
+            val seen: mutable.Set[String] = mutable.Set[String]()
+            create_exps(sx.name, memType(sx)) foreach { e =>
+              val (mem, port, field, tail) = splitMemRef(e)
+              if (!seen.contains(field.name)) {
+                seen += field.name
+                val d = WRef(mem.name, sx.dataType)
+                tail match {
+                  case None =>
+                    create_exps(mem.name, sx.dataType) foreach { x =>
+                      renames.rename(e.serialize, s"${loweredName(x)}.${port.serialize}.${field.serialize}")
+                    }
+                  case Some(_) =>
+                    renameMemExps(renames, d, mergeRef(port, field))
+                }
+              }
             }
-            newMem
-          })
+            Block(create_exps(sx.name, sx.dataType) map {e =>
+              val newName = loweredName(e)
+              // Rename mems
+              renames.rename(sx.name, newName)
+              sx copy (name = newName, dataType = e.tpe)
+            })
         }
       // wire foo : { a , b }
       // node x = foo
@@ -180,14 +232,11 @@ object LowerTypes extends Transform {
       // node x_b = foo_b
       // node y = x_a
       case sx: DefNode =>
-        val refs = create_exps(sx.name, sx.value.tpe)
-        val names = refs map lowerTypesExp(memDataTypeMap, info, mname)
+        val names = create_exps(sx.name, sx.value.tpe) map lowerTypesExp(memDataTypeMap, info, mname)
         val exps = create_exps(sx.value) map lowerTypesExp(memDataTypeMap, info, mname)
-        renames.rename(sx.name, names.map(loweredName(_)))
-        Block((refs zip names) zip exps map { case ((r, n), e) =>
-          val name = loweredName(n)
-          renames.rename(r.serialize, name)
-          DefNode(info, name, e)
+        renameExps(renames, sx.name, sx.value.tpe)
+        Block(names zip exps map { case (n, e) =>
+          DefNode(info, loweredName(n), e)
         })
       case sx: IsInvalid => kind(sx.expr) match {
         case MemKind =>
@@ -212,9 +261,8 @@ object LowerTypes extends Transform {
     val portsx = m.ports flatMap { p =>
       val exps = create_exps(WRef(p.name, p.tpe, PortKind, to_gender(p.direction)))
       val names = exps map loweredName
-      renames.rename(p.name, names)
+      renameExps(renames, p.name, p.tpe)
       (exps zip names) map { case (e, n) =>
-        renames.rename(e.serialize, n)
         Port(p.info, n, to_dir(gender(e)), e.tpe)
       }
     }

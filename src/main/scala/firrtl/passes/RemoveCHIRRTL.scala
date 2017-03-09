@@ -24,6 +24,15 @@ object RemoveCHIRRTL extends Transform {
   type DataRefMap = collection.mutable.LinkedHashMap[String, DataRef]
   type AddrMap = collection.mutable.HashMap[String, Expression]
 
+  def create_all_exps(ex: Expression): Seq[Expression] = ex.tpe match {
+    case _: GroundType => Seq(ex)
+    case t: BundleType => (t.fields foldLeft Seq[Expression]())((exps, f) =>
+      exps ++ create_all_exps(SubField(ex, f.name, f.tpe))) ++ Seq(ex)
+    case t: VectorType => ((0 until t.size) foldLeft Seq[Expression]())((exps, i) =>
+      exps ++ create_all_exps(SubIndex(ex, i, t.tpe))) ++ Seq(ex)
+    case UnknownType => Seq(ex)
+  }
+
   def create_exps(e: Expression): Seq[Expression] = e match {
     case ex: Mux =>
       val e1s = create_exps(ex.tval)
@@ -106,13 +115,25 @@ object RemoveCHIRRTL extends Transform {
           addrs += "addr"
           clks += "clk"
           ens += "en"
-          renames.rename(sx.name, Seq(s"${sx.mem}.${sx.name}.rdata", s"${sx.mem}.${sx.name}.wdata"))
+          renames.rename(sx.name, s"${sx.mem}.${sx.name}.rdata")
+          renames.rename(sx.name, s"${sx.mem}.${sx.name}.wdata")
+          val es = create_all_exps(WRef(sx.name, sx.tpe))
+          val rs = create_all_exps(WRef(s"${sx.mem}.${sx.name}.rdata", sx.tpe))
+          val ws = create_all_exps(WRef(s"${sx.mem}.${sx.name}.wdata", sx.tpe))
+          ((es zip rs) zip ws) map {
+             case ((e, r), w) => renames.rename(e.serialize, Seq(r.serialize, w.serialize))
+          }
         case MWrite =>
           refs(sx.name) = DataRef(SubField(Reference(sx.mem, ut), sx.name, ut), "data", "data", "mask", rdwrite = false)
           addrs += "addr"
           clks += "clk"
           ens += "en"
           renames.rename(sx.name, s"${sx.mem}.${sx.name}.data")
+          val es = create_all_exps(WRef(sx.name, sx.tpe))
+          val ws = create_all_exps(WRef(s"${sx.mem}.${sx.name}.data", sx.tpe))
+          (es zip ws) map {
+            case (e, w) => renames.rename(e.serialize, w.serialize)
+          }
         case MRead =>
           refs(sx.name) = DataRef(SubField(Reference(sx.mem, ut), sx.name, ut), "data", "data", "blah", rdwrite = false)
           addrs += "addr"
@@ -123,6 +144,11 @@ object RemoveCHIRRTL extends Transform {
             case _ => ens += "en"
           }
           renames.rename(sx.name, s"${sx.mem}.${sx.name}.data")
+          val es = create_all_exps(WRef(sx.name, sx.tpe))
+          val rs = create_all_exps(WRef(s"${sx.mem}.${sx.name}.data", sx.tpe))
+          (es zip rs) map {
+            case (e, r) => renames.rename(e.serialize, r.serialize)
+          }
         case MInfer => // do nothing if it's not being used
       }
       Block(

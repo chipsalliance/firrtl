@@ -11,6 +11,7 @@ import firrtl.passes.InlineAnnotation
 import firrtl.passes.memlib.PinAnnotation
 import net.jcazevedo.moultingyaml._
 import org.scalatest.Matchers
+import logger._
 
 /**
  * An example methodology for testing Firrtl annotations.
@@ -141,23 +142,61 @@ class AnnotationTests extends AnnotationSpec with Matchers {
     }
   }
 
-  "Renaming" should "propagate in RemoveChirrtl and Lowering of memories" in {
+  "Renaming" should "propagate in Lowering of memories" in {
     val compiler = new VerilogCompiler
+    Logger.setClassLogLevels(Map(compiler.getClass.getName -> LogLevel.Debug))
     val input =
      """circuit Top :
         |  module Top :
         |    input clk: Clock
         |    input in: UInt<3>
-        |    cmem m: {a: UInt<4>, b: UInt<4>}[8]
-        |    read mport r = m[in], clk
+        |    mem m: 
+        |      data-type => {a: UInt<4>, b: UInt<4>[2]}
+        |      depth => 8
+        |      write-latency => 1
+        |      read-latency => 0
+        |      reader => r
+        |    m.r.clk <= clk
+        |    m.r.en <= UInt(1)
+        |    m.r.addr <= in
         |""".stripMargin
-    val annos = Seq(anno("r"), anno("m"))
+    val annos = Seq(anno("m.r.data.b", "sub"), anno("m.r.data", "all"), anno("m", "mem"))
     val result = compiler.compile(CircuitState(parse(input), ChirrtlForm, getAMap(annos)), Nil)
     val resultAnno = result.annotations.get.annotations
-    resultAnno should contain (anno("m_a"))
-    resultAnno should contain (anno("m_b"))
-    resultAnno should contain (anno("m_a.r.data"))
-    resultAnno should contain (anno("m_b.r.data"))
+    resultAnno should contain (anno("m_a", "mem"))
+    resultAnno should contain (anno("m_b_0", "mem"))
+    resultAnno should contain (anno("m_b_1", "mem"))
+    resultAnno should contain (anno("m_a.r.data", "all"))
+    resultAnno should contain (anno("m_b_0.r.data", "all"))
+    resultAnno should contain (anno("m_b_1.r.data", "all"))
+    resultAnno should contain (anno("m_b_0.r.data", "sub"))
+    resultAnno should contain (anno("m_b_1.r.data", "sub"))
+    resultAnno should not contain (anno("m"))
+    resultAnno should not contain (anno("r"))
+  }
+
+  "Renaming" should "propagate in RemoveChirrtl and Lowering of memories" in {
+    val compiler = new VerilogCompiler
+    Logger.setClassLogLevels(Map(compiler.getClass.getName -> LogLevel.Debug))
+    val input =
+     """circuit Top :
+        |  module Top :
+        |    input clk: Clock
+        |    input in: UInt<3>
+        |    cmem m: {a: UInt<4>, b: UInt<4>[2]}[8]
+        |    read mport r = m[in], clk
+        |""".stripMargin
+    val annos = Seq(anno("r.b", "sub"), anno("r", "all"), anno("m", "mem"))
+    val result = compiler.compile(CircuitState(parse(input), ChirrtlForm, getAMap(annos)), Nil)
+    val resultAnno = result.annotations.get.annotations
+    resultAnno should contain (anno("m_a", "mem"))
+    resultAnno should contain (anno("m_b_0", "mem"))
+    resultAnno should contain (anno("m_b_1", "mem"))
+    resultAnno should contain (anno("m_a.r.data", "all"))
+    resultAnno should contain (anno("m_b_0.r.data", "all"))
+    resultAnno should contain (anno("m_b_1.r.data", "all"))
+    resultAnno should contain (anno("m_b_0.r.data", "sub"))
+    resultAnno should contain (anno("m_b_1.r.data", "sub"))
     resultAnno should not contain (anno("m"))
     resultAnno should not contain (anno("r"))
   }
@@ -206,13 +245,17 @@ class AnnotationTests extends AnnotationSpec with Matchers {
         |    node n = mux(pred, in, w)
         |    out <= n
         |    reg r: {a: UInt<3>, b: UInt<3>[2]}, clk
+        |    cmem mem: {a: UInt<3>, b: UInt<3>[2]}[8]
+        |    write mport write = mem[pred], clk
+        |    write <= in
         |""".stripMargin
     val annos = Seq(
       anno("in.a"), anno("in.b[0]"), anno("in.b[1]"),
       anno("out.a"), anno("out.b[0]"), anno("out.b[1]"),
       anno("w.a"), anno("w.b[0]"), anno("w.b[1]"),
       anno("n.a"), anno("n.b[0]"), anno("n.b[1]"),
-      anno("r.a"), anno("r.b[0]"), anno("r.b[1]")
+      anno("r.a"), anno("r.b[0]"), anno("r.b[1]"),
+      anno("write.a"), anno("write.b[0]"), anno("write.b[1]")
     )
     val result = compiler.compile(CircuitState(parse(input), ChirrtlForm, getAMap(annos)), Nil)
     val resultAnno = result.annotations.get.annotations
@@ -246,6 +289,9 @@ class AnnotationTests extends AnnotationSpec with Matchers {
     resultAnno should contain (anno("r_a"))
     resultAnno should contain (anno("r_b_0"))
     resultAnno should contain (anno("r_b_1"))
+    resultAnno should contain (anno("mem_a.write.data"))
+    resultAnno should contain (anno("mem_b_0.write.data"))
+    resultAnno should contain (anno("mem_b_1.write.data"))
   }
 
   "Renaming components" should "expand in Lowering" in {
@@ -279,6 +325,36 @@ class AnnotationTests extends AnnotationSpec with Matchers {
     resultAnno should contain (anno("n_b_0"))
     resultAnno should contain (anno("n_b_1"))
     resultAnno should contain (anno("r_a"))
+    resultAnno should contain (anno("r_b_0"))
+    resultAnno should contain (anno("r_b_1"))
+  }
+
+  "Renaming subcomponents that aren't leaves" should "expand in Lowering" in {
+    val compiler = new VerilogCompiler
+    val input =
+     """circuit Top :
+        |  module Top :
+        |    input clk: Clock
+        |    input pred: UInt<1>
+        |    input in: {a: UInt<3>, b: UInt<3>[2]}
+        |    output out: {a: UInt<3>, b: UInt<3>[2]}
+        |    wire w: {a: UInt<3>, b: UInt<3>[2]}
+        |    w is invalid
+        |    node n = mux(pred, in, w)
+        |    out <= n
+        |    reg r: {a: UInt<3>, b: UInt<3>[2]}, clk
+        |""".stripMargin
+    val annos = Seq(anno("in.b"), anno("out.b"), anno("w.b"), anno("n.b"), anno("r.b"))
+    val result = compiler.compile(CircuitState(parse(input), ChirrtlForm, getAMap(annos)), Nil)
+    val resultAnno = result.annotations.get.annotations
+    resultAnno should contain (anno("in_b_0"))
+    resultAnno should contain (anno("in_b_1"))
+    resultAnno should contain (anno("out_b_0"))
+    resultAnno should contain (anno("out_b_1"))
+    resultAnno should contain (anno("w_b_0"))
+    resultAnno should contain (anno("w_b_1"))
+    resultAnno should contain (anno("n_b_0"))
+    resultAnno should contain (anno("n_b_1"))
     resultAnno should contain (anno("r_b_0"))
     resultAnno should contain (anno("r_b_1"))
   }
