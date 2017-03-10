@@ -38,7 +38,6 @@ To run this example:
 sbt assembly
 ./utils/bin/firrtl -td regress -tn rocket --custom-transforms tutorial.lesson1.AnalyzeCircuit
 ./utils/bin/firrtl -td regress -tn rocket --custom-transforms tutorial.lesson2.AnalyzeCircuit
-```
 
 ##### Useful sbt Tips
  1. Run a single test suite:
