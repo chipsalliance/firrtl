@@ -39,8 +39,11 @@ object InferReadWritePass extends Pass {
 
   def getProductTerms(connects: Connects)(e: Expression): Seq[Expression] = e match {
     // No ConstProp yet...
+    // TODO: do const prop before
     case Mux(cond, tval, fval, _) if weq(tval, one) && weq(fval, zero) =>
       getProductTerms(connects)(cond)
+    case Mux(cond, tval, fval, _) if weq(fval, zero) =>
+      getProductTerms(connects)(cond) ++ getProductTerms(connects)(tval)
     // Visit each term of AND operation
     case DoPrim(op, args, consts, tpe) if op == And =>
       e +: (args flatMap getProductTerms(connects))
@@ -158,8 +161,8 @@ class InferReadWrite extends Transform with PassBased {
     ResolveGenders
   )
   def execute(state: CircuitState): CircuitState = getMyAnnotations(state) match {
-    case Nil => CircuitState(state.circuit, state.form)
+    case Nil => state
     case Seq(InferReadWriteAnnotation(CircuitName(state.circuit.main))) =>
-      CircuitState(runPasses(state.circuit), state.form)
+      state.copy(circuit = runPasses(state.circuit))
   }
 }
