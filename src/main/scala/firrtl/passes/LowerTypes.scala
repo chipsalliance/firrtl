@@ -37,11 +37,13 @@ object LowerTypes extends Transform {
     case e: WSubIndex => s"${loweredName(e.exp)}$delim${e.value}"
   }
   def loweredName(s: Seq[String]): String = s mkString delim
+  def renameExps(renames: RenameMap, n: String, t: Type, root: String): Seq[String] =
+    renameExps(renames, WRef(n, t, ExpKind, UNKNOWNGENDER), root)
   def renameExps(renames: RenameMap, n: String, t: Type): Seq[String] =
-    renameExps(renames, WRef(n, t, ExpKind, UNKNOWNGENDER), n)
+    renameExps(renames, WRef(n, t, ExpKind, UNKNOWNGENDER), "")
   def renameExps(renames: RenameMap, e: Expression, root: String): Seq[String] = e.tpe match {
     case (_: GroundType) =>
-      val name = loweredName(mergeRef(WRef(root), splitRef(e)._2))
+      val name = root + loweredName(e)
       renames.rename(e.serialize, name)
       Seq(name)
     case (t: BundleType) => t.fields.foldLeft(Seq[String]()){(names, f) =>
@@ -185,13 +187,13 @@ object LowerTypes extends Transform {
       // Could instead just save the type of each Module as it gets processed
       case sx: WDefInstance => sx.tpe match {
         case t: BundleType =>
-          renameExps(renames, sx.name, sx.tpe)
-          val fieldsx = t.fields flatMap (f =>
+          val fieldsx = t.fields flatMap { f =>
+            renameExps(renames, f.name, sx.tpe, s"${sx.name}.")
             create_exps(WRef(f.name, f.tpe, ExpKind, times(f.flip, MALE))) map { e => 
               // Flip because inst genders are reversed from Module type
               Field(loweredName(e), swap(to_flip(gender(e))), e.tpe)
             }
-          )
+          }
           WDefInstance(sx.info, sx.name, sx.module, BundleType(fieldsx))
         case _ => error("WDefInstance type should be Bundle!")(info, mname)
       }
