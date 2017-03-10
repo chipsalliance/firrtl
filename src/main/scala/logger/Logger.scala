@@ -2,9 +2,11 @@
 
 package logger
 
-import java.io.{PrintStream, File, FileOutputStream}
+import java.io.{File, FileOutputStream, PrintStream}
 
 import firrtl.ExecutionOptionsManager
+
+import scala.util.DynamicVariable
 
 /**
   * This provides a facility for a log4scala* type logging system.  Why did we write our own?  Because
@@ -36,45 +38,103 @@ trait LazyLogging {
   val logger = new Logger(this.getClass.getName)
 }
 
-/**
-  * Singleton in control of what is supposed to get logged, how it's to be logged and where it is to be logged
-  */
-object Logger {
+class LoggerState {
   var globalLevel = LogLevel.Error
   val classLevels = new scala.collection.mutable.HashMap[String, LogLevel.Value]
+  val classToLevelCache = new scala.collection.mutable.HashMap[String, LogLevel.Value]
   var logClassNames = false
+  var stream: PrintStream = System.out
+}
 
+/**
+  * Singleton in control of what is supposed to get logged, how it's to be logged and where it is to be logged
+  * We uses a dynamic variable in case multiple threads are used as can be in scalatests
+  */
+object Logger {
+  private val updatableLoggerState = new DynamicVariable[Option[LoggerState]](None)
+  private val state = updatableLoggerState.value.getOrElse(new LoggerState)
+
+  def testPackageNameMatch(className: String, level: LogLevel.Value): Boolean = {
+    if(state.classLevels.isEmpty) return false
+
+    // If this class name in cache just use that value
+    val levelForThisClassName = state.classToLevelCache.getOrElse(className, {
+      // otherwise break up the class name in to full package path as list and find most specific entry you can
+      val packageNameList = className.split("""\.""").toList
+      /*
+       * start with full class path, lopping off from the tail until nothing left
+       */
+      def matchPathToFindLevel(packageList: List[String]): LogLevel.Value = {
+        if(packageList.isEmpty) {
+          LogLevel.Error
+        }
+        else {
+          val partialName = packageList.mkString(".")
+          state.classLevels.getOrElse(partialName, {
+            matchPathToFindLevel(packageList.reverse.tail.reverse)
+          })
+        }
+      }
+      state.classToLevelCache(className) = matchPathToFindLevel(packageNameList)
+      state.classToLevelCache(className)
+    })
+    levelForThisClassName >= level
+  }
+
+  //scalastyle:off regex
   def showMessage(level: LogLevel.Value, className: String, message: => String): Unit = {
-    if(globalLevel == level || (classLevels.nonEmpty && classLevels.getOrElse(className, LogLevel.Error) >= level)) {
-      if(logClassNames) {
-        stream.println(s"[$level:$className] $message")
+    if(state.globalLevel >= level || testPackageNameMatch(className, level)) {
+      if(state.logClassNames) {
+        state.stream.println(s"[$level:$className] $message")
       }
       else {
-        stream.println(message)
+        state.stream.println(message)
       }
     }
   }
 
-  var stream: PrintStream = System.out
+  def reset(): Unit = {
+    state.classLevels.clear()
+    clearCache()
+    state.logClassNames = false
+    state.globalLevel = LogLevel.Error
+    state.stream = System.out
+  }
+
+  def clearCache(): Unit = {
+    state.classToLevelCache.clear()
+  }
+
+  def setLevel(level: LogLevel.Value): Unit = {
+    state.globalLevel = level
+  }
 
   def setOutput(fileName: String): Unit = {
-    stream = new PrintStream(new FileOutputStream(new File(fileName)))
+    state.stream = new PrintStream(new FileOutputStream(new File(fileName)))
+  }
+  def setOutput(stream: PrintStream): Unit = {
+    state.stream = stream
   }
   def setConsole(): Unit = {
-    stream = Console.out
+    state.stream = Console.out
+  }
+  def addClassLogLevels(namesToLevel: Map[String, LogLevel.Value]): Unit = {
+    state.classLevels ++= namesToLevel
   }
   def setClassLogLevels(namesToLevel: Map[String, LogLevel.Value]): Unit = {
-    classLevels ++= namesToLevel
+    state.classLevels.clear()
+    clearCache()
+    state.classLevels ++= namesToLevel
   }
 
   def setOptions(optionsManager: ExecutionOptionsManager): Unit = {
     val commonOptions = optionsManager.commonOptions
-    globalLevel = commonOptions.globalLogLevel
+    state.globalLevel = commonOptions.globalLogLevel
     setClassLogLevels(commonOptions.classLogLevels)
     if(commonOptions.logToFile) {
       setOutput(commonOptions.getLogFileName(optionsManager))
     }
-    logClassNames = commonOptions.logClassNames
+    state.logClassNames = commonOptions.logClassNames
   }
 }
 
