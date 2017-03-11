@@ -748,7 +748,8 @@ class VerilogEmitter extends Transform with PassBased with Emitter {
     passes.VerilogModulusCleanup,
     passes.VerilogWrap,
     passes.VerilogRename,
-    passes.VerilogPrep)
+    passes.VerilogPrep,
+    passes.DeadCodeElimination)
 
   def emit(state: CircuitState, writer: Writer): Unit = {
     writer.write(preamble)
