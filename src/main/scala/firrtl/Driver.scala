@@ -121,80 +121,82 @@ object Driver {
     * @return a FirrtlExectionResult indicating success or failure, provide access to emitted data on success
     *         for downstream tools as desired
     */
+  //scalastyle:off cyclomatic.complexity method.length
   def execute(optionsManager: ExecutionOptionsManager with HasFirrtlOptions): FirrtlExecutionResult = {
     def firrtlConfig = optionsManager.firrtlOptions
 
-    Logger.setOptions(optionsManager)
+    Logger.invoke(optionsManager) {
 
-    val firrtlSource = firrtlConfig.firrtlSource match {
-      case Some(text) => text.split("\n").toIterator
-      case None       =>
-        if(optionsManager.topName.isEmpty && firrtlConfig.inputFileNameOverride.isEmpty) {
-          val message = "either top-name or input-file-override must be set"
-          dramaticError(message)
-          return FirrtlExecutionFailure(message)
-        }
-        if(
-          optionsManager.topName.isEmpty &&
-            firrtlConfig.inputFileNameOverride.nonEmpty &&
-            firrtlConfig.outputFileNameOverride.isEmpty) {
-          val message = "inputFileName set but neither top-name or output-file-override is set"
-          dramaticError(message)
-          return FirrtlExecutionFailure(message)
-        }
-        val inputFileName = firrtlConfig.getInputFileName(optionsManager)
-        try {
-          io.Source.fromFile(inputFileName).getLines()
-        }
-        catch {
-          case _: FileNotFoundException =>
-            val message = s"Input file $inputFileName not found"
+      val firrtlSource = firrtlConfig.firrtlSource match {
+        case Some(text) => text.split("\n").toIterator
+        case None =>
+          if (optionsManager.topName.isEmpty && firrtlConfig.inputFileNameOverride.isEmpty) {
+            val message = "either top-name or input-file-override must be set"
             dramaticError(message)
             return FirrtlExecutionFailure(message)
           }
-        }
+          if (
+            optionsManager.topName.isEmpty &&
+              firrtlConfig.inputFileNameOverride.nonEmpty &&
+              firrtlConfig.outputFileNameOverride.isEmpty) {
+            val message = "inputFileName set but neither top-name or output-file-override is set"
+            dramaticError(message)
+            return FirrtlExecutionFailure(message)
+          }
+          val inputFileName = firrtlConfig.getInputFileName(optionsManager)
+          try {
+            io.Source.fromFile(inputFileName).getLines()
+          }
+          catch {
+            case _: FileNotFoundException =>
+              val message = s"Input file $inputFileName not found"
+              dramaticError(message)
+              return FirrtlExecutionFailure(message)
+          }
+      }
 
-    loadAnnotations(optionsManager)
+      loadAnnotations(optionsManager)
 
-    val parsedInput = Parser.parse(firrtlSource, firrtlConfig.infoMode)
+      val parsedInput = Parser.parse(firrtlSource, firrtlConfig.infoMode)
 
-    // Does this need to be before calling compiler?
-    optionsManager.makeTargetDir()
+      // Does this need to be before calling compiler?
+      optionsManager.makeTargetDir()
 
-    // Output Annotations
-    val outputAnnos = firrtlConfig.getEmitterAnnos(optionsManager)
+      // Output Annotations
+      val outputAnnos = firrtlConfig.getEmitterAnnos(optionsManager)
 
-    val finalState = firrtlConfig.compiler.compile(
-      CircuitState(parsedInput, ChirrtlForm, Some(AnnotationMap(firrtlConfig.annotations ++ outputAnnos))),
-      firrtlConfig.customTransforms
-    )
+      val finalState = firrtlConfig.compiler.compile(
+        CircuitState(parsedInput, ChirrtlForm, Some(AnnotationMap(firrtlConfig.annotations ++ outputAnnos))),
+        firrtlConfig.customTransforms
+      )
 
-    // Do emission
-    // Note: Single emission target assumption is baked in here
-    // Note: FirrtlExecutionSuccess emitted is only used if we're emitting the whole Circuit
-    val emittedRes = firrtlConfig.getOutputConfig(optionsManager) match {
-      case SingleFile(filename) =>
-        finalState.emittedCircuitOption match {
-          case Some(emitted: EmittedCircuit) =>
+      // Do emission
+      // Note: Single emission target assumption is baked in here
+      // Note: FirrtlExecutionSuccess emitted is only used if we're emitting the whole Circuit
+      val emittedRes = firrtlConfig.getOutputConfig(optionsManager) match {
+        case SingleFile(filename) =>
+          finalState.emittedCircuitOption match {
+            case Some(emitted: EmittedCircuit) =>
+              val outputFile = new java.io.PrintWriter(filename)
+              outputFile.write(emitted.value)
+              outputFile.close()
+              emitted.value
+            case _ => throwInternalError
+          }
+        case OneFilePerModule(dirName) =>
+          val emittedModules = finalState.emittedComponents collect { case x: EmittedModule => x }
+          if (emittedModules.isEmpty) throwInternalError // There should be something
+          emittedModules.foreach { module =>
+            val filename = optionsManager.getBuildFileName(firrtlConfig.outputSuffix, s"$dirName/${module.name}")
             val outputFile = new java.io.PrintWriter(filename)
-            outputFile.write(emitted.value)
+            outputFile.write(module.value)
             outputFile.close()
-            emitted.value
-          case _ => throwInternalError
-        }
-      case OneFilePerModule(dirName) =>
-        val emittedModules = finalState.emittedComponents collect { case x: EmittedModule => x }
-        if (emittedModules.isEmpty) throwInternalError // There should be something
-        emittedModules.foreach { case module =>
-          val filename = optionsManager.getBuildFileName(firrtlConfig.outputSuffix, s"$dirName/${module.name}")
-          val outputFile = new java.io.PrintWriter(filename)
-          outputFile.write(module.value)
-          outputFile.close()
-        }
-        "" // Should we return something different here?
-    }
+          }
+          "" // Should we return something different here?
+      }
 
-    FirrtlExecutionSuccess(firrtlConfig.compilerName, emittedRes)
+      FirrtlExecutionSuccess(firrtlConfig.compilerName, emittedRes)
+    }
   }
 
   /**
