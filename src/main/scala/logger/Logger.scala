@@ -38,7 +38,11 @@ trait LazyLogging {
   val logger = new Logger(this.getClass.getName)
 }
 
-class LoggerState {
+/**
+  * Mutable state of the logging system.  Multiple LoggerStates may be present
+  * when used in multi-threaded environments
+  */
+private class LoggerState {
   var globalLevel = LogLevel.None
   val classLevels = new scala.collection.mutable.HashMap[String, LogLevel.Value]
   val classToLevelCache = new scala.collection.mutable.HashMap[String, LogLevel.Value]
@@ -50,6 +54,19 @@ class LoggerState {
   override def toString: String = {
     s"gl $globalLevel classLevels ${classLevels.mkString("\n")}"
   }
+
+  /**
+    * create a new state object copying the basic values of this state
+    * @return new state object
+    */
+  def copy: LoggerState = {
+    val newState = new LoggerState
+    newState.globalLevel = this.globalLevel
+    newState.classLevels ++= this.classLevels
+    newState.stream = this.stream
+    newState.logClassNames = this.logClassNames
+    newState
+  }
 }
 
 /**
@@ -57,8 +74,8 @@ class LoggerState {
   * We uses a dynamic variable in case multiple threads are used as can be in scalatests
   */
 object Logger {
-  val updatableLoggerState = new DynamicVariable[Option[LoggerState]](Some(new LoggerState))
-  def state: LoggerState = {
+  private val updatableLoggerState = new DynamicVariable[Option[LoggerState]](Some(new LoggerState))
+  private def state: LoggerState = {
     updatableLoggerState.value.get
   }
 
@@ -89,11 +106,7 @@ object Logger {
         newRunState
       }
       else {
-        val forcedNewRunState = new LoggerState
-        forcedNewRunState.classLevels ++= newRunState.classLevels.clone()
-        forcedNewRunState.globalLevel = newRunState.globalLevel
-        forcedNewRunState.stream = newRunState.stream
-        forcedNewRunState.logClassNames = newRunState.logClassNames
+        val forcedNewRunState = newRunState.copy
         forcedNewRunState.fromInvoke = true
         forcedNewRunState
       }
@@ -260,7 +273,7 @@ object Logger {
     */
   def clearStringBuffer(): Unit = {
     state.stringBufferOption match {
-      case Some(captor) => log2StringBuffer()
+      case Some(_) => log2StringBuffer()
       case None =>
     }
   }

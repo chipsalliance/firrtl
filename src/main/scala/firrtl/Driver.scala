@@ -39,6 +39,7 @@ import Utils.throwInternalError
   */
 
 object Driver {
+  //noinspection ScalaDeprecation
   // Compiles circuit. First parses a circuit from an input file,
   //  executes all compiler passes, and writes result to an output
   //  file.
@@ -118,7 +119,7 @@ object Driver {
     * Run the firrtl compiler using the provided option
     *
     * @param optionsManager the desired flags to the compiler
-    * @return a FirrtlExectionResult indicating success or failure, provide access to emitted data on success
+    * @return a FirrtlExecutionResult indicating success or failure, provide access to emitted data on success
     *         for downstream tools as desired
     */
   //scalastyle:off cyclomatic.complexity method.length
@@ -295,7 +296,7 @@ object FileUtils {
   def isCommandAvailable(cmd: String): Boolean = {
     // Eat any output.
     val sb = new StringBuffer
-    val ioToDevNull = BasicIO(false, sb, None)
+    val ioToDevNull = BasicIO(withIn = false, sb, None)
 
     Seq("bash", "-c", "which %s".format(cmd)).run(ioToDevNull).exitValue == 0
   }
