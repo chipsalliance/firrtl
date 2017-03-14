@@ -39,7 +39,7 @@ trait LazyLogging {
 }
 
 class LoggerState {
-  var globalLevel = LogLevel.Error
+  var globalLevel = LogLevel.None
   val classLevels = new scala.collection.mutable.HashMap[String, LogLevel.Value]
   val classToLevelCache = new scala.collection.mutable.HashMap[String, LogLevel.Value]
   var logClassNames = false
@@ -90,6 +90,10 @@ object Logger {
       }
       else {
         val forcedNewRunState = new LoggerState
+        forcedNewRunState.classLevels ++= newRunState.classLevels.clone()
+        forcedNewRunState.globalLevel = newRunState.globalLevel
+        forcedNewRunState.stream = newRunState.stream
+        forcedNewRunState.logClassNames = newRunState.logClassNames
         forcedNewRunState.fromInvoke = true
         forcedNewRunState
       }
@@ -254,7 +258,7 @@ object Logger {
     * Clears the logging data in the string capture buffer if it exists
     * @return The logging data if it exists
     */
-  def clearStringBuffer: Unit = {
+  def clearStringBuffer(): Unit = {
     state.stringBufferOption match {
       case Some(captor) => log2StringBuffer()
       case None =>
@@ -313,9 +317,18 @@ object Logger {
     */
   def setOptions(optionsManager: ExecutionOptionsManager): Unit = {
     val commonOptions = optionsManager.commonOptions
-    state.globalLevel = commonOptions.globalLogLevel
+    state.globalLevel = (state.globalLevel, commonOptions.globalLogLevel) match {
+      case (LogLevel.None, LogLevel.None) => LogLevel.Error
+      case (x, LogLevel.None) => x
+      case (LogLevel.None, x) => x
+      case (_, x) => x
+      case _ => LogLevel.Error
+    }
     setClassLogLevels(commonOptions.classLogLevels)
-    if(commonOptions.logToFile) {
+    if(commonOptions.logToStringBuffer) {
+      log2StringBuffer()
+    }
+    else if(commonOptions.logToFile) {
       setOutput(commonOptions.getLogFileName(optionsManager))
     }
     state.logClassNames = commonOptions.logClassNames

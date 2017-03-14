@@ -29,11 +29,12 @@ abstract class HasParser(applicationName: String) {
   * circuit and then set the topName from that if it has not already been set.
   */
 case class CommonOptions(
-    topName:        String         = "",
-    targetDirName:  String         = ".",
-    globalLogLevel: LogLevel.Value = LogLevel.Error,
-    logToFile:      Boolean        = false,
-    logClassNames:  Boolean        = false,
+    topName:           String         = "",
+    targetDirName:     String         = ".",
+    globalLogLevel:    LogLevel.Value = LogLevel.None,
+    logToStringBuffer: Boolean        = false,
+    logToFile:         Boolean        = false,
+    logClassNames:     Boolean        = false,
     classLogLevels: Map[String, LogLevel.Value] = Map.empty) extends ComposableOptions {
 
   def getLogFileName(optionsManager: ExecutionOptionsManager): String = {
@@ -107,6 +108,13 @@ trait HasCommonOptions {
 
     }
     .text(s"This options defines a work directory for intermediate files, default is ${commonOptions.targetDirName}")
+
+  parser.opt[Unit]("log-to-string")
+    .abbr("lts")
+    .foreach { _ =>
+      commonOptions = commonOptions.copy(logToStringBuffer = true)
+    }
+    .text(s"log message got to internal string, useful for testing")
 
   parser.opt[Unit]("log-to-file")
     .abbr("ltf")
