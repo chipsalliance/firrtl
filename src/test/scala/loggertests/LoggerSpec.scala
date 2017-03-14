@@ -230,17 +230,16 @@ class LoggerSpec extends FreeSpec with Matchers with OneInstancePerTest {
           messagesLogged.contains("logger3") should be(true)
         }
       }
-      "Show tests can be set with command options" in {
+      "Show tests can be set with command options, using built-in string capture" in {
         logger.Logger.invoke(Array("--class-log-level", "loggertests.LogsInfo3:info")) {
-          val captor = new OutputCaptor
-          logger.Logger.setOutput(captor.printStream)
+          logger.Logger.log2StringBuffer()
 
           val r2 = new LogsInfo2
           val r3 = new LogsInfo3
           r2.run()
           r3.run()
 
-          val messagesLogged = captor.getOutputStrings
+          val messagesLogged = logger.Logger.getStringBuffer.get
 
           messagesLogged.contains("logger2") should be(false)
           messagesLogged.contains("logger3") should be(true)

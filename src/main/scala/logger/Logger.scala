@@ -2,7 +2,7 @@
 
 package logger
 
-import java.io.{File, FileOutputStream, PrintStream}
+import java.io.{ByteArrayOutputStream, File, FileOutputStream, PrintStream}
 
 import firrtl.ExecutionOptionsManager
 
@@ -45,6 +45,7 @@ class LoggerState {
   var logClassNames = false
   var stream: PrintStream = System.out
   var fromInvoke: Boolean = false  // this is used to not have invokes re-create run-state
+  var stringBufferOption: Option[Logger.OutputCaptor] = None
 
   override def toString: String = {
     s"gl $globalLevel classLevels ${classLevels.mkString("\n")}"
@@ -59,6 +60,17 @@ object Logger {
   val updatableLoggerState = new DynamicVariable[Option[LoggerState]](Some(new LoggerState))
   def state: LoggerState = {
     updatableLoggerState.value.get
+  }
+
+  /**
+    * a class for managing capturing logging output in a string buffer
+    */
+  class OutputCaptor {
+    val byteArrayOutputStream = new ByteArrayOutputStream()
+    val printStream = new PrintStream(byteArrayOutputStream)
+    def getOutputStrings: Seq[String] = {
+      byteArrayOutputStream.toString.split("""\n""")
+    }
   }
 
   /**
@@ -238,6 +250,34 @@ object Logger {
     state.classLevels(name) = level
   }
 
+  /**
+    * Clears the logging data in the string capture buffer if it exists
+    * @return The logging data if it exists
+    */
+  def clearStringBuffer: Unit = {
+    state.stringBufferOption match {
+      case Some(captor) => log2StringBuffer()
+      case None =>
+    }
+  }
+  /**
+    * Get the logging data in the string capture buffer if it exists
+    * @return The logging data if it exists
+    */
+  def getStringBuffer: Option[Seq[String]] = {
+    state.stringBufferOption match {
+      case Some(captor) => Some(captor.byteArrayOutputStream.toString().split("\n"))
+      case None => None
+    }
+  }
+  /**
+    * Set logger to string buffer.  Useful for debugging and testing or other situations where you would
+    * like to programmatically examine the logging output
+    */
+  def log2StringBuffer(): Unit = {
+    state.stringBufferOption = Some(new OutputCaptor)
+    setOutput(state.stringBufferOption.get.printStream)
+  }
   /**
     * Set the logging destination to a file name
     * @param fileName destination name
