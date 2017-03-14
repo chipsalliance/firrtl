@@ -51,10 +51,18 @@ class LoggerState {
   * We uses a dynamic variable in case multiple threads are used as can be in scalatests
   */
 object Logger {
-  private val updatableLoggerState = new DynamicVariable[Option[LoggerState]](None)
+  private lazy val updatableLoggerState = new DynamicVariable[Option[LoggerState]](Some(new LoggerState))
   private val state = updatableLoggerState.value.getOrElse(new LoggerState)
 
-  def testPackageNameMatch(className: String, level: LogLevel.Value): Boolean = {
+  /**
+    * Used to test whether a given log statement should generate some logging output.
+    * It breaks up a class name into a list of packages.  From this list generate progressively
+    * broader names (lopping off from right side) checking for a match
+    * @param className  class name that the logging statement came from
+    * @param level  the level of the log statement being evaluated
+    * @return
+    */
+  private def testPackageNameMatch(className: String, level: LogLevel.Value): Boolean = {
     if(state.classLevels.isEmpty) return false
 
     // If this class name in cache just use that value
@@ -81,6 +89,13 @@ object Logger {
     levelForThisClassName >= level
   }
 
+  /**
+    * Used as the common log routine, for warn, debug etc.  Only calls message if log should be generated
+    * Allows lazy evaluation of any string interpolation or function that generates the message itself
+    * @param level     level of the called statement
+    * @param className class name of statement
+    * @param message   a function returning a string with the message
+    */
   //scalastyle:off regex
   def showMessage(level: LogLevel.Value, className: String, message: => String): Unit = {
     if(state.globalLevel >= level || testPackageNameMatch(className, level)) {
