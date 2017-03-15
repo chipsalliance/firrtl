@@ -6,6 +6,7 @@ import java.io.{ByteArrayOutputStream, File, FileOutputStream, PrintStream}
 
 import firrtl.ExecutionOptionsManager
 
+import scala.collection.mutable
 import scala.util.DynamicVariable
 
 /**
@@ -79,6 +80,8 @@ object Logger {
     updatableLoggerState.value.get
   }
 
+  private val namedCaptors = synchronized(new mutable.HashMap[String, OutputCaptor])
+
   /**
     * a class for managing capturing logging output in a string buffer
     */
@@ -106,7 +109,7 @@ object Logger {
         newRunState
       }
       else {
-        val forcedNewRunState = newRunState.copy
+        val forcedNewRunState = new LoggerState
         forcedNewRunState.fromInvoke = true
         forcedNewRunState
       }
@@ -273,16 +276,17 @@ object Logger {
     */
   def clearStringBuffer(): Unit = {
     state.stringBufferOption match {
-      case Some(_) => log2StringBuffer()
+      case Some(x) => x.byteArrayOutputStream.reset()
       case None =>
     }
   }
+
   /**
     * Get the logging data in the string capture buffer if it exists
     * @return The logging data if it exists
     */
-  def getStringBuffer: Option[Seq[String]] = {
-    state.stringBufferOption match {
+  def getNamedStringBuffer(name: String): Option[Seq[String]] = {
+    namedCaptors.get(name) match {
       case Some(captor) => Some(captor.byteArrayOutputStream.toString().split("\n"))
       case None => None
     }
@@ -291,8 +295,10 @@ object Logger {
     * Set logger to string buffer.  Useful for debugging and testing or other situations where you would
     * like to programmatically examine the logging output
     */
-  def log2StringBuffer(): Unit = {
-    state.stringBufferOption = Some(new OutputCaptor)
+  def log2StringBuffer(name: String): Unit = {
+    val captor = new OutputCaptor
+    namedCaptors(name) = captor
+    state.stringBufferOption = Some(captor)
     setOutput(state.stringBufferOption.get.printStream)
   }
   /**
@@ -338,8 +344,8 @@ object Logger {
       case _ => LogLevel.Error
     }
     setClassLogLevels(commonOptions.classLogLevels)
-    if(commonOptions.logToStringBuffer) {
-      log2StringBuffer()
+    if(commonOptions.logToStringBuffer.nonEmpty) {
+      log2StringBuffer(commonOptions.logToStringBuffer)
     }
     else if(commonOptions.logToFile) {
       setOutput(commonOptions.getLogFileName(optionsManager))
