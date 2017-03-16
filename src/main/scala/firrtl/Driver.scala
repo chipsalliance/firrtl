@@ -126,8 +126,7 @@ object Driver {
   def execute(optionsManager: ExecutionOptionsManager with HasFirrtlOptions): FirrtlExecutionResult = {
     def firrtlConfig = optionsManager.firrtlOptions
 
-    Logger.invoke(optionsManager) {
-
+    Logger.makeScope(optionsManager) {
       val firrtlSource = firrtlConfig.firrtlSource match {
         case Some(text) => text.split("\n").toIterator
         case None =>

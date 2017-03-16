@@ -32,7 +32,6 @@ case class CommonOptions(
     topName:           String         = "",
     targetDirName:     String         = ".",
     globalLogLevel:    LogLevel.Value = LogLevel.None,
-    logToStringBuffer: String         = "",
     logToFile:         Boolean        = false,
     logClassNames:     Boolean        = false,
     classLogLevels: Map[String, LogLevel.Value] = Map.empty) extends ComposableOptions {
@@ -108,13 +107,6 @@ trait HasCommonOptions {
 
     }
     .text(s"This options defines a work directory for intermediate files, default is ${commonOptions.targetDirName}")
-
-  parser.opt[String]("log-to-string-buffer")
-    .abbr("ltsb")
-    .foreach { x =>
-      commonOptions = commonOptions.copy(logToStringBuffer = x)
-    }
-    .text(s"log message got to a named string buffer, useful for testing")
 
   parser.opt[Unit]("log-to-file")
     .abbr("ltf")

@@ -6,7 +6,6 @@ import java.io.{ByteArrayOutputStream, File, FileOutputStream, PrintStream}
 
 import firrtl.ExecutionOptionsManager
 
-import scala.collection.mutable
 import scala.util.DynamicVariable
 
 /**
@@ -80,16 +79,26 @@ object Logger {
     updatableLoggerState.value.get
   }
 
-  private val namedCaptors = synchronized(new mutable.HashMap[String, OutputCaptor])
-
   /**
     * a class for managing capturing logging output in a string buffer
     */
   class OutputCaptor {
     val byteArrayOutputStream = new ByteArrayOutputStream()
     val printStream = new PrintStream(byteArrayOutputStream)
-    def getOutputStrings: Seq[String] = {
-      byteArrayOutputStream.toString.split("""\n""")
+
+    /**
+      * Get logged messages to this captor as a string
+      * @return
+      */
+    def getOutputStrings: String = {
+      byteArrayOutputStream.toString
+    }
+
+    /**
+      * Clear the string buffer
+      */
+    def clear(): Unit = {
+      byteArrayOutputStream.reset()
     }
   }
 
@@ -102,7 +111,7 @@ object Logger {
     * @tparam A       The return type of codeBlock
     * @return         Whatever block returns
     */
-  def invoke[A](manager: ExecutionOptionsManager)(codeBlock: => A): A = {
+  def makeScope[A](manager: ExecutionOptionsManager)(codeBlock: => A): A = {
     val runState: LoggerState = {
       val newRunState = updatableLoggerState.value.getOrElse(new LoggerState)
       if(newRunState.fromInvoke) {
@@ -122,17 +131,17 @@ object Logger {
   }
 
   /**
-    * See invoke using manager.  This creates a manager from a command line arguments style
+    * See makeScope using manager.  This creates a manager from a command line arguments style
     * list of strings
     * @param args List of strings
     * @param codeBlock  the block to call
     * @tparam A   return type of codeBlock
     * @return
     */
-  def invoke[A](args: Array[String] = Array.empty)(codeBlock: => A): A = {
+  def makeScope[A](args: Array[String] = Array.empty)(codeBlock: => A): A = {
     val executionOptionsManager = new ExecutionOptionsManager("logger")
     if(executionOptionsManager.parse(args)) {
-      invoke(executionOptionsManager)(codeBlock)
+      makeScope(executionOptionsManager)(codeBlock)
     }
     else {
       throw new Exception(s"logger invoke failed to parse args ${args.mkString(", ")}")
@@ -216,6 +225,9 @@ object Logger {
     }
   }
 
+  def getGlobalLevel: LogLevel.Value = {
+    state.globalLevel
+  }
   /**
     * This resets everything in the current Logger environment, including the destination
     * use this with caution.  Unexpected things can happen
@@ -283,26 +295,6 @@ object Logger {
   }
 
   /**
-    * Get the logging data in the string capture buffer if it exists
-    * @return The logging data if it exists
-    */
-  def getNamedStringBuffer(name: String): Option[Seq[String]] = {
-    namedCaptors.get(name) match {
-      case Some(captor) => Some(captor.byteArrayOutputStream.toString().split("\n"))
-      case None => None
-    }
-  }
-  /**
-    * Set logger to string buffer.  Useful for debugging and testing or other situations where you would
-    * like to programmatically examine the logging output
-    */
-  def log2StringBuffer(name: String): Unit = {
-    val captor = new OutputCaptor
-    namedCaptors(name) = captor
-    state.stringBufferOption = Some(captor)
-    setOutput(state.stringBufferOption.get.printStream)
-  }
-  /**
     * Set the logging destination to a file name
     * @param fileName destination name
     */
@@ -338,17 +330,14 @@ object Logger {
   def setOptions(optionsManager: ExecutionOptionsManager): Unit = {
     val commonOptions = optionsManager.commonOptions
     state.globalLevel = (state.globalLevel, commonOptions.globalLogLevel) match {
-      case (LogLevel.None, LogLevel.None) => LogLevel.Error
+      case (LogLevel.None, LogLevel.None) => LogLevel.None
       case (x, LogLevel.None) => x
       case (LogLevel.None, x) => x
       case (_, x) => x
       case _ => LogLevel.Error
     }
     setClassLogLevels(commonOptions.classLogLevels)
-    if(commonOptions.logToStringBuffer.nonEmpty) {
-      log2StringBuffer(commonOptions.logToStringBuffer)
-    }
-    else if(commonOptions.logToFile) {
+    if(commonOptions.logToFile) {
       setOutput(commonOptions.getLogFileName(optionsManager))
     }
     state.logClassNames = commonOptions.logClassNames
