@@ -231,7 +231,7 @@ class LoggerSpec extends FreeSpec with Matchers with OneInstancePerTest {
         }
       }
       "Show tests can be set with command options, using built-in string capture" in {
-        logger.Logger.invoke(Array("-lts", "dog", "--class-log-level", "loggertests.LogsInfo3:info")) {
+        logger.Logger.invoke(Array("-ltsb", "dog", "--class-log-level", "loggertests.LogsInfo3:info")) {
           val r2 = new LogsInfo2
           val r3 = new LogsInfo3
           r2.run()

@@ -209,7 +209,8 @@ object Logger {
       case Some(true) => logIt()
       case Some(false) =>
       case None =>
-        if(state.globalLevel >= level) {
+        if((state.globalLevel == LogLevel.None && level == LogLevel.Error) ||
+          (state.globalLevel != LogLevel.None && state.globalLevel >= level)) {
           logIt()
         }
     }
