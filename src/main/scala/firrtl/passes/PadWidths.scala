@@ -44,10 +44,14 @@ object PadWidths extends Pass {
         ex map fixup((ex.args map width foldLeft 0)(math.max))
       case Dshl =>
         // special case as args aren't all same width
-        ex copy (op = Dshlw, args = Seq(fixup(width(ex.tpe))(ex.args.head), ex.args(1)))
+        val w = width(ex.tpe)
+        val arg = set_primop_type(ex.copy(args = Seq(fixup(w)(ex.args.head), ex.args(1))))
+        DoPrim(Bits, Seq(arg), Seq(w - 1, 0), UIntType(IntWidth(w)))
       case Shl =>
         // special case as arg should be same width as result
-        ex copy (op = Shlw, args = Seq(fixup(width(ex.tpe))(ex.args.head)))
+        val w = width(ex.tpe)
+        val arg = set_primop_type(ex.copy(op = Shl, args = Seq(fixup(width(ex.tpe))(ex.args.head))))
+        DoPrim(Bits, Seq(arg), Seq(w - 1, 0), UIntType(IntWidth(w)))
       case _ => ex
     }
     case ex => ex

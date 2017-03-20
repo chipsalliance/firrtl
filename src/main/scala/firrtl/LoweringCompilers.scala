@@ -104,7 +104,6 @@ class LowFirrtlOptimization extends CoreTransform {
     passes.Legalize,
     passes.memlib.VerilogMemDelays, // TODO move to Verilog emitter
     passes.ConstProp,
-    passes.SplitExpressions,
     passes.CommonSubexpressionElimination,
     passes.DeadCodeElimination)
 }

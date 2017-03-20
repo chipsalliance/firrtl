@@ -255,6 +255,14 @@ object VerilogWrap extends Pass {
         }
         case _ => e
       }
+      case Bits => e.args.head match {
+        case e0: DoPrim => e0.op match {
+          case Dshl => DoPrim(Dshlw, e0.args, Nil, e.tpe)
+          case Shl => DoPrim(Shlw, e0.args, e0.consts, e.tpe)
+          case _ => e
+        }
+        case _ => e
+      }
       case _ => e
     }
     case _ => e

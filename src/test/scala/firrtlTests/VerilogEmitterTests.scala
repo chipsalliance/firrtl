@@ -93,18 +93,18 @@ class DoPrimVerilog extends FirrtlFlatSpec {
       """circuit Dshl :
         |  module Dshl :
         |    input a: UInt<4>
-        |    input b: UInt<1>
+        |    input b: UInt<2>
         |    output c: UInt
         |    c <= dshl(a, b)""".stripMargin
     val check =
       """module Dshl(
         |  input  [3:0] a,
-        |  input        b,
-        |  output [4:0] c
+        |  input  [1:0] b,
+        |  output [6:0] c
         |);
-        |  wire [4:0] _GEN_0;
+        |  wire [6:0] _GEN_0;
         |  assign c = _GEN_0 << b;
-        |  assign _GEN_0 = {{1'd0}, a};
+        |  assign _GEN_0 = {{3'd0}, a};
         |endmodule
         |""".stripMargin.split("\n") map normalized
     executeTest(input, check, compiler)

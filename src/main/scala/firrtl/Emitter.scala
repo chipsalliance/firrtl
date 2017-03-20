@@ -747,6 +747,7 @@ class VerilogEmitter extends Transform with PassBased with Emitter {
   def passSeq = Seq(
     passes.VerilogModulusCleanup,
     passes.VerilogWrap,
+    passes.SplitExpressions,
     passes.VerilogRename,
     passes.VerilogPrep)
 
