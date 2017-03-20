@@ -87,6 +87,48 @@ class DoPrimVerilog extends FirrtlFlatSpec {
         |""".stripMargin.split("\n") map normalized
     executeTest(input, check, compiler)
   }
+  "Dshl" should "emit correctly" in {
+    val compiler = new VerilogCompiler
+    val input =
+      """circuit Dshl :
+        |  module Dshl :
+        |    input a: UInt<4>
+        |    input b: UInt<1>
+        |    output c: UInt
+        |    c <= dshl(a, b)""".stripMargin
+    val check =
+      """module Dshl(
+        |  input  [3:0] a,
+        |  input        b,
+        |  output [4:0] c
+        |);
+        |  wire [4:0] _GEN_0;
+        |  assign c = _GEN_0 << b;
+        |  assign _GEN_0 = {{1'd0}, a};
+        |endmodule
+        |""".stripMargin.split("\n") map normalized
+    executeTest(input, check, compiler)
+  }
+  "Shl" should "emit correctly" in {
+    val compiler = new VerilogCompiler
+    val input =
+      """circuit Shl :
+        |  module Shl :
+        |    input a: UInt<4>
+        |    output c: UInt
+        |    c <= shl(a, 1)""".stripMargin
+    val check =
+      """module Shl(
+        |  input  [3:0] a,
+        |  output [4:0] c
+        |);
+        |  wire [4:0] _GEN_0;
+        |  assign c = _GEN_0 << 1;
+        |  assign _GEN_0 = {{1'd0}, a};
+        |endmodule
+        |""".stripMargin.split("\n") map normalized
+    executeTest(input, check, compiler)
+  }
 }
 
 class VerilogEmitterSpec extends FirrtlFlatSpec {

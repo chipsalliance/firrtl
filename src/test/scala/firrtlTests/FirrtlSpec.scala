@@ -95,7 +95,6 @@ trait FirrtlMatchers extends Matchers {
   def executeTest(input: String, expected: Seq[String], compiler: Compiler) = {
     val finalState = compiler.compileAndEmit(CircuitState(parse(input), ChirrtlForm))
     val lines = finalState.getEmittedCircuit.value split "\n" map normalized
-    println(finalState.getEmittedCircuit.value)
     for (e <- expected) {
       lines should contain (e)
     }
