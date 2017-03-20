@@ -90,7 +90,7 @@ object Logger {
       * Get logged messages to this captor as a string
       * @return
       */
-    def getOutputStrings: String = {
+    def getOutputAsString: String = {
       byteArrayOutputStream.toString
     }
 

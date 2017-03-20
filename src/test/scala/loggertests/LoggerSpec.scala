@@ -42,7 +42,7 @@ class LoggerSpec extends FreeSpec with Matchers with OneInstancePerTest with Laz
 
           val r1 = new Logger1
           r1.run()
-          val messagesLogged = captor.getOutputStrings
+          val messagesLogged = captor.getOutputAsString
 
           messagesLogged.contains(LoggerSpec.ErrorMsg) should be(true)
           messagesLogged.contains(LoggerSpec.WarnMsg) should be(false)
@@ -59,7 +59,7 @@ class LoggerSpec extends FreeSpec with Matchers with OneInstancePerTest with Laz
 
           val r1 = new Logger1
           r1.run()
-          val messagesLogged = captor.getOutputStrings
+          val messagesLogged = captor.getOutputAsString
 
           messagesLogged.contains(LoggerSpec.ErrorMsg) should be(true)
           messagesLogged.contains(LoggerSpec.WarnMsg) should be(true)
@@ -75,7 +75,7 @@ class LoggerSpec extends FreeSpec with Matchers with OneInstancePerTest with Laz
 
           val r1 = new Logger1
           r1.run()
-          val messagesLogged = captor.getOutputStrings
+          val messagesLogged = captor.getOutputAsString
 
           messagesLogged.contains(LoggerSpec.ErrorMsg) should be(true)
           messagesLogged.contains(LoggerSpec.WarnMsg) should be(true)
@@ -94,7 +94,7 @@ class LoggerSpec extends FreeSpec with Matchers with OneInstancePerTest with Laz
 
           val r1 = new Logger1
           r1.run()
-          val messagesLogged = captor.getOutputStrings
+          val messagesLogged = captor.getOutputAsString
 
           messagesLogged.contains(LoggerSpec.ErrorMsg) should be(true)
           messagesLogged.contains(LoggerSpec.WarnMsg) should be(true)
@@ -117,7 +117,7 @@ class LoggerSpec extends FreeSpec with Matchers with OneInstancePerTest with Laz
             r3.run()
             r2.run()
 
-            val messagesLogged = captor.getOutputStrings
+            val messagesLogged = captor.getOutputAsString
 
             messagesLogged.contains("logger3") should be(false)
             messagesLogged.contains("logger2") should be(true)
@@ -135,7 +135,7 @@ class LoggerSpec extends FreeSpec with Matchers with OneInstancePerTest with Laz
             r3.run()
             r2.run()
 
-            val messagesLogged = captor.getOutputStrings
+            val messagesLogged = captor.getOutputAsString
 
             messagesLogged.contains("logger3") should be(false)
             messagesLogged.contains("logger2") should be(true)
@@ -153,7 +153,7 @@ class LoggerSpec extends FreeSpec with Matchers with OneInstancePerTest with Laz
             r2.run()
             r3.run()
 
-            val messagesLogged = captor.getOutputStrings
+            val messagesLogged = captor.getOutputAsString
 
             messagesLogged.contains("logger2") should be(false)
             messagesLogged.contains("logger3") should be(true)
@@ -174,7 +174,7 @@ class LoggerSpec extends FreeSpec with Matchers with OneInstancePerTest with Laz
             r2.run()
             r3.run()
 
-            var messagesLogged = captor.getOutputStrings
+            var messagesLogged = captor.getOutputAsString
 
             messagesLogged.contains("logger2") should be(false)
             messagesLogged.contains("logger3") should be(false)
@@ -184,7 +184,7 @@ class LoggerSpec extends FreeSpec with Matchers with OneInstancePerTest with Laz
             r2.run()
             r3.run()
 
-            messagesLogged = captor.getOutputStrings
+            messagesLogged = captor.getOutputAsString
 
             messagesLogged.contains("logger2") should be(true)
             messagesLogged.contains("logger3") should be(true)
@@ -203,7 +203,7 @@ class LoggerSpec extends FreeSpec with Matchers with OneInstancePerTest with Laz
           r2.run()
           r3.run()
 
-          val messagesLogged = captor.getOutputStrings
+          val messagesLogged = captor.getOutputAsString
 
           messagesLogged.contains("logger2") should be(false)
           messagesLogged.contains("logger3") should be(false)
@@ -223,7 +223,7 @@ class LoggerSpec extends FreeSpec with Matchers with OneInstancePerTest with Laz
           r2.run()
           r3.run()
 
-          val messagesLogged = captor.getOutputStrings
+          val messagesLogged = captor.getOutputAsString
 
           messagesLogged.contains("logger2") should be(false)
           messagesLogged.contains("logger3") should be(true)
@@ -239,7 +239,7 @@ class LoggerSpec extends FreeSpec with Matchers with OneInstancePerTest with Laz
           r2.run()
           r3.run()
 
-          val messagesLogged = captor.getOutputStrings
+          val messagesLogged = captor.getOutputAsString
 
           messagesLogged.contains("logger2") should be(false)
           messagesLogged.contains("logger3") should be(true)
@@ -255,7 +255,7 @@ class LoggerSpec extends FreeSpec with Matchers with OneInstancePerTest with Laz
             logger.error("message 2")
           }
 
-          val logText = captor.getOutputStrings
+          val logText = captor.getOutputAsString
           logText should include ("message 1")
           logText should include ("message 2")
         }
