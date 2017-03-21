@@ -1,4 +1,5 @@
 // See LICENSE for license details.
+import Dependencies._
 
 // sbt-site - sbt-ghpages
 
@@ -70,3 +71,5 @@ scalacOptions in Compile in doc ++= Seq(
   "-doc-title", name.value,
   "-doc-root-content", baseDirectory.value+"/root-doc.txt"
 )
+
+dependsOn((Dependencies.chiselProjectDependencies("firrtl")):_*)
