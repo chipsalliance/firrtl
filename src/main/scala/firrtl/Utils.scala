@@ -125,20 +125,17 @@ object flattenType {
   def apply(t: Type) = UIntType(IntWidth(bitWidth(t)))
 }
 
-class FIRRTLException(str: String) extends Exception(str)
+class FIRRTLException(val str: String) extends Exception(str)
 
 object Utils extends LazyLogging {
   def throwInternalError =
     error("Internal Error! Please file an issue at https://github.com/ucb-bar/firrtl/issues")
-  private[firrtl] def time[R](name: String)(block: => R): R = {
-    logger.info(s"Starting $name")
+  private[firrtl] def time[R](block: => R): (Double, R) = {
     val t0 = System.nanoTime()
     val result = block
     val t1 = System.nanoTime()
-    logger.info(s"Finished $name")
     val timeMillis = (t1 - t0) / 1000000.0
-    logger.info(f"$name took $timeMillis%.1f ms\n")
-    result
+    (timeMillis, result)
   }
 
   /** Removes all [[firrtl.ir.EmptyStmt]] statements and condenses
@@ -157,9 +154,6 @@ object Utils extends LazyLogging {
 
   /** Indent the results of [[ir.FirrtlNode.serialize]] */
   def indent(str: String) = str replaceAllLiterally ("\n", "\n  ")
-  def serialize(bi: BigInt): String =
-    if (bi < BigInt(0)) "\"h" + bi.toString(16).substring(1) + "\""
-    else "\"h" + bi.toString(16) + "\""
 
   implicit def toWrappedExpression (x:Expression): WrappedExpression = new WrappedExpression(x)
   def ceilLog2(x: BigInt): Int = (x-1).bitLength
