@@ -34,22 +34,22 @@ object DeadCodeElimination extends Pass {
       out
     }
 
-    def maybeEliminate(x: Statement, name: String) =
-      if (referenced(name)) x
+    def maybeEliminate(x: Statement, name: String, exception: String): Statement =
+      if (referenced(name) && name != exception) x
       else {
         nEliminated += 1
         EmptyStmt
       }
 
     def maybeEliminateExp(s: Statement, expr: Expression) = expr match {
-      case x: WRef => maybeEliminate(s, x.name)
+      case x: WRef => maybeEliminate(s, x.name, "")
       case _ => s
     }
 
     def removeUnused(s: Statement): Statement = s match {
-      case x: DefRegister => maybeEliminate(x, x.name)
-      case x: DefWire => maybeEliminate(x, x.name)
-      case x: DefNode => maybeEliminate(x, x.name)
+      case x: DefRegister => maybeEliminate(x, x.name, x.name)
+      case x: DefWire => maybeEliminate(x, x.name, "")
+      case x: DefNode => maybeEliminate(x, x.name, "")
       case x: Connect => maybeEliminateExp(x, x.loc)
       case x: PartialConnect => maybeEliminateExp(x, x.loc)
       case x: IsInvalid => maybeEliminateExp(x, x.expr)
