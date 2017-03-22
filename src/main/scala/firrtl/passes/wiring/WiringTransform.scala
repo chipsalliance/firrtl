@@ -87,7 +87,7 @@ class WiringTransform extends Transform {
         case (0, 0, p, 0) => state
         case (s, t, p, c) if (p > 0) & (s == t) & (t == c) =>
           val wis = tops.foldLeft(Seq[WiringInfo]()) { case (seq, (pin, top)) =>
-            seq :+ WiringInfo(sources(pin), comp(pin), sinks("pin:" + pin), pin, top)
+            seq :+ WiringInfo(sources(pin), comp(pin), sinks(pin), pin, top)
           }
           transforms(wis).foldLeft(state) { (in, xform) => xform.runTransform(in) }
         case _ => error("Wrong number of sources, tops, or sinks!")

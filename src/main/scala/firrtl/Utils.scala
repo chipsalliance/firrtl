@@ -125,7 +125,7 @@ object flattenType {
   def apply(t: Type) = UIntType(IntWidth(bitWidth(t)))
 }
 
-class FIRRTLException(str: String) extends Exception(str)
+class FIRRTLException(val str: String) extends Exception(str)
 
 object Utils extends LazyLogging {
   def throwInternalError =
@@ -154,9 +154,6 @@ object Utils extends LazyLogging {
 
   /** Indent the results of [[ir.FirrtlNode.serialize]] */
   def indent(str: String) = str replaceAllLiterally ("\n", "\n  ")
-  def serialize(bi: BigInt): String =
-    if (bi < BigInt(0)) "\"h" + bi.toString(16).substring(1) + "\""
-    else "\"h" + bi.toString(16) + "\""
 
   implicit def toWrappedExpression (x:Expression): WrappedExpression = new WrappedExpression(x)
   def ceilLog2(x: BigInt): Int = (x-1).bitLength
