@@ -748,6 +748,8 @@ class VerilogEmitter extends Transform with PassBased with Emitter {
     passes.VerilogModulusCleanup,
     passes.VerilogWrap,
     passes.SplitExpressions,
+    passes.CommonSubexpressionElimination,
+    passes.DeadCodeElimination,
     passes.VerilogRename,
     passes.VerilogPrep)
 
