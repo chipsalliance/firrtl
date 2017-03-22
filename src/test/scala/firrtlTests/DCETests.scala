@@ -103,4 +103,25 @@ class DCETests extends FirrtlFlatSpec {
          |    skip""".stripMargin
       (parse(exec(input))) should be (parse(check))
   }
+  "Read register" should "not be deleted" in {
+    val input =
+      """circuit Top :
+        |  module Top :
+        |    input y: UInt<1>
+        |    input clk: Clock
+        |    output z: UInt<1>
+        |    reg r: UInt<1>, clk
+        |    r <= y
+        |    z <= r""".stripMargin
+    val check =
+      """circuit Top :
+        |  module Top :
+        |    input y: UInt<1>
+        |    input clk: Clock
+        |    output z: UInt<1>
+        |    reg r: UInt<1>, clk with: (reset => (UInt<1>("h0"), r))
+        |    r <= y
+        |    z <= r""".stripMargin
+      (parse(exec(input))) should be (parse(check))
+  }
 }

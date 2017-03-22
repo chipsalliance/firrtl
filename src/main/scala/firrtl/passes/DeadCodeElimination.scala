@@ -16,40 +16,41 @@ object DeadCodeElimination extends Pass {
     val referenced = collection.mutable.HashSet[String](ports.map(_.name):_*)
     var nEliminated = 0L
 
-    def checkExpressionUse(e: Expression): Expression = {
+    def checkExpressionUse(exception: String)(e: Expression): Expression = {
       e match {
-        case WRef(name, _, _, _) => referenced += name
-        case _ => e map checkExpressionUse
+        case WRef(name, _, _, _) if name != exception => referenced += name
+        case _ => e map checkExpressionUse(exception)
       }
       e
     }
 
     def checkUse(s: Statement): Statement = {
       val out = s match {
-        case x: Connect => x.copy(expr = checkExpressionUse(x.expr))
-        case x: PartialConnect => x.copy(expr = checkExpressionUse(x.expr))
+        case x: Connect => x.copy(expr = checkExpressionUse("")(x.expr))
+        case x: PartialConnect => x.copy(expr = checkExpressionUse("")(x.expr))
         case x: IsInvalid => x
-        case _ => s map checkUse map checkExpressionUse
+        case x: DefRegister => x map checkExpressionUse(x.name)
+        case _ => s map checkUse map checkExpressionUse("")
       }
       out
     }
 
-    def maybeEliminate(x: Statement, name: String, exception: String): Statement =
-      if (referenced(name) && name != exception) x
+    def maybeEliminate(x: Statement, name: String) =
+      if (referenced(name)) x
       else {
         nEliminated += 1
         EmptyStmt
       }
 
     def maybeEliminateExp(s: Statement, expr: Expression) = expr match {
-      case x: WRef => maybeEliminate(s, x.name, "")
+      case x: WRef => maybeEliminate(s, x.name)
       case _ => s
     }
 
     def removeUnused(s: Statement): Statement = s match {
-      case x: DefRegister => maybeEliminate(x, x.name, x.name)
-      case x: DefWire => maybeEliminate(x, x.name, "")
-      case x: DefNode => maybeEliminate(x, x.name, "")
+      case x: DefRegister => maybeEliminate(x, x.name)
+      case x: DefWire => maybeEliminate(x, x.name)
+      case x: DefNode => maybeEliminate(x, x.name)
       case x: Connect => maybeEliminateExp(x, x.loc)
       case x: PartialConnect => maybeEliminateExp(x, x.loc)
       case x: IsInvalid => maybeEliminateExp(x, x.expr)
