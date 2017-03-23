@@ -12,13 +12,15 @@ import firrtl.PrimOps._
 
 import scala.collection.mutable
 
+/** [[Pass]] is simple transform that is generally part of a larger [[Transform]]
+  * Has an [[UnknownForm]], because larger [[Transform]] should specify form
+  */
 trait Pass extends Transform {
   def inputForm: CircuitForm = UnknownForm
   def outputForm: CircuitForm = UnknownForm
   def run(c: Circuit): Circuit
   def execute(state: CircuitState): CircuitState = {
     val result = (state.form, inputForm) match {
-      case (UnknownForm, UnknownForm) => run(state.circuit)
       case (_, UnknownForm) => run(state.circuit)
       case (UnknownForm, _) => run(state.circuit)
       case (x, y) if x > y =>

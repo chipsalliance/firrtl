@@ -149,7 +149,7 @@ object InferReadWritePass extends Pass {
 
 // Transform input: Middle Firrtl. Called after "HighFirrtlToMidleFirrtl"
 // To use this transform, circuit name should be annotated with its TransId.
-class InferReadWrite extends Transform {
+class InferReadWrite extends Transform with SeqTransformBased {
   def inputForm = MidForm
   def outputForm = MidForm
   def transforms = Seq(
@@ -162,7 +162,7 @@ class InferReadWrite extends Transform {
   def execute(state: CircuitState): CircuitState = getMyAnnotations(state) match {
     case Nil => state
     case Seq(InferReadWriteAnnotation(CircuitName(state.circuit.main))) =>
-      val ret = transforms.foldLeft(state) { (in, xform) => xform.runTransform(in) }
+      val ret = runTransforms(state)
       CircuitState(ret.circuit, outputForm, ret.annotations, ret.renames)
   }
 }

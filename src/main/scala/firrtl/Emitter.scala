@@ -752,7 +752,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
   def emit(state: CircuitState, writer: Writer): Unit = {
     writer.write(preamble)
 
-    val circuit = (transforms.foldLeft(state) { (in, xform) => xform.runTransform(in) }).circuit
+    val circuit = runTransforms(state).circuit
     val moduleMap = circuit.modules.map(m => m.name -> m).toMap
     circuit.modules.foreach {
       case m: Module => emit_verilog(m, moduleMap)(writer)
@@ -768,7 +768,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
         Seq(EmittedVerilogCircuitAnnotation(EmittedVerilogCircuit(state.circuit.main, writer.toString)))
 
       case EmitAllModulesAnnotation() =>
-        val circuit = (transforms.foldLeft(state) { (in, xform) => xform.runTransform(in) }).circuit
+        val circuit = runTransforms(state).circuit
         val moduleMap = circuit.modules.map(m => m.name -> m).toMap
 
         circuit.modules flatMap {

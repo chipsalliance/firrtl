@@ -18,7 +18,6 @@ import org.scalatest.Matchers
 trait AnnotationSpec extends LowTransformSpec {
   // Dummy transform
   def transform = new ResolveAndCheck
-  //def transform = new CustomResolveAndCheck(LowForm)
 
   // Check if Annotation Exception is thrown
   override def failingexecute(annotations: AnnotationMap, input: String): Exception = {

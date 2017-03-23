@@ -183,7 +183,9 @@ abstract class Transform extends LazyLogging {
     * @param renameOpt result RenameMap
     * @return the updated annotations
     */
-  final private def propagateAnnotations(inAnno: Option[AnnotationMap], resAnno: Option[AnnotationMap],
+  final private def propagateAnnotations(
+      inAnno: Option[AnnotationMap],
+      resAnno: Option[AnnotationMap],
       renameOpt: Option[RenameMap]): Seq[Annotation] = {
     val newAnnotations = {
       val inSet = inAnno.getOrElse(AnnotationMap(Seq.empty)).annotations.toSet
@@ -206,13 +208,18 @@ abstract class Transform extends LazyLogging {
   }
 }
 
-/** For transformations that are simply a sequence of transforms */
-abstract class SeqTransform extends Transform {
+trait SeqTransformBased {
   def transforms: Seq[Transform]
+  protected def runTransforms(state: CircuitState): CircuitState =
+    transforms.foldLeft(state) { (in, xform) => xform.runTransform(in) }
+}
+
+/** For transformations that are simply a sequence of transforms */
+abstract class SeqTransform extends Transform with SeqTransformBased {
   def execute(state: CircuitState): CircuitState = {
     require(state.form <= inputForm,
       s"[$name]: Input form must be lower or equal to $inputForm. Got ${state.form}")
-    val ret = transforms.foldLeft(state) { (in, xform) => xform.runTransform(in) }
+    val ret = runTransforms(state)
     CircuitState(ret.circuit, outputForm, ret.annotations, ret.renames)
   }
 }
