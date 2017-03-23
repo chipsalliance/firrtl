@@ -18,9 +18,14 @@ import wiring._
   */
 object PinAnnotation {
   def apply(target: CircuitName, pins: Seq[String]): Annotation = {
-    Annotation(target, classOf[ReplaceMemMacros], pins.foldLeft("") { (str, p) => str + "pin:" + p + " " } )
+    Annotation(target, classOf[ReplaceMemMacros], s"pins:${pins.mkString(" ")}")
   }
-  val matcher = "pin:([^ ]+)".r
+  private val matcher = "pins:(.*)".r
+  def unapply(a: Annotation): Option[(CircuitName, Seq[String])] = a match {
+    case Annotation(CircuitName(c), _, matcher(rest)) =>
+      Some((CircuitName(c), rest.split(" ")))
+    case _ => None
+  }
 }
 
 /** Replace DefAnnotatedMemory with memory blackbox + wrapper + conf file.
@@ -101,14 +106,14 @@ class ReplaceMemMacros(writer: ConfWriter) extends Transform {
     // Creates a type with the write/readwrite masks omitted if necessary
     val bbIoType = memToFlattenBundle(m)
     val bbIoPorts = bbIoType.fields map (f => Port(NoInfo, f.name, Input, f.tpe))
-    val bbRef = createRef(m.name, bbIoType)
+    val bbRef = WRef(m.name, bbIoType)
     val hasMask = m.maskGran.isDefined
     val fillMask = getFillWMask(m)
-    def portRef(p: String) = createRef(p, field_type(wrapperIoType, p))
+    def portRef(p: String) = WRef(p, field_type(wrapperIoType, p))
     val stmts = Seq(WDefInstance(NoInfo, m.name, m.name, UnknownType)) ++
-      (m.readers flatMap (r => adaptReader(portRef(r), createSubField(bbRef, r)))) ++
-      (m.writers flatMap (w => adaptWriter(portRef(w), createSubField(bbRef, w), hasMask, fillMask))) ++
-      (m.readwriters flatMap (rw => adaptReadWriter(portRef(rw), createSubField(bbRef, rw), hasMask, fillMask)))
+      (m.readers flatMap (r => adaptReader(portRef(r), WSubField(bbRef, r)))) ++
+      (m.writers flatMap (w => adaptWriter(portRef(w), WSubField(bbRef, w), hasMask, fillMask))) ++
+      (m.readwriters flatMap (rw => adaptReadWriter(portRef(rw), WSubField(bbRef, rw), hasMask, fillMask)))
     val wrapper = Module(NoInfo, wrapperName, wrapperIoPorts, Block(stmts))
     val bb = ExtModule(NoInfo, m.name, bbIoPorts, m.name, Seq.empty)
     // TODO: Annotate? -- use actual annotation map
@@ -130,34 +135,34 @@ class ReplaceMemMacros(writer: ConfWriter) extends Transform {
 
   def adaptReader(wrapperPort: WRef, bbPort: WSubField): Seq[Statement]  =
     defaultConnects(wrapperPort, bbPort) :+
-    fromBits(createSubField(wrapperPort, "data"), createSubField(bbPort, "data"))
+    fromBits(WSubField(wrapperPort, "data"), WSubField(bbPort, "data"))
 
   def adaptWriter(wrapperPort: WRef, bbPort: WSubField, hasMask: Boolean, fillMask: Boolean): Seq[Statement] = {
-    val wrapperData = createSubField(wrapperPort, "data")
+    val wrapperData = WSubField(wrapperPort, "data")
     val defaultSeq = defaultConnects(wrapperPort, bbPort) :+
-      Connect(NoInfo, createSubField(bbPort, "data"), toBits(wrapperData))
+      Connect(NoInfo, WSubField(bbPort, "data"), toBits(wrapperData))
     hasMask match {
       case false => defaultSeq
       case true => defaultSeq :+ Connect(
         NoInfo,
-        createSubField(bbPort, "mask"),
-        maskBits(createSubField(wrapperPort, "mask"), wrapperData.tpe, fillMask)
+        WSubField(bbPort, "mask"),
+        maskBits(WSubField(wrapperPort, "mask"), wrapperData.tpe, fillMask)
       )
     }
   }
 
   def adaptReadWriter(wrapperPort: WRef, bbPort: WSubField, hasMask: Boolean, fillMask: Boolean): Seq[Statement] = {
-    val wrapperWData = createSubField(wrapperPort, "wdata")
+    val wrapperWData = WSubField(wrapperPort, "wdata")
     val defaultSeq = defaultConnects(wrapperPort, bbPort) ++ Seq(
-      fromBits(createSubField(wrapperPort, "rdata"), createSubField(bbPort, "rdata")),
+      fromBits(WSubField(wrapperPort, "rdata"), WSubField(bbPort, "rdata")),
       connectFields(bbPort, "wmode", wrapperPort, "wmode"), 
-      Connect(NoInfo, createSubField(bbPort, "wdata"), toBits(wrapperWData)))
+      Connect(NoInfo, WSubField(bbPort, "wdata"), toBits(wrapperWData)))
     hasMask match {
       case false => defaultSeq
       case true => defaultSeq :+ Connect(
         NoInfo,
-        createSubField(bbPort, "wmask"),
-        maskBits(createSubField(wrapperPort, "wmask"), wrapperWData.tpe, fillMask)
+        WSubField(bbPort, "wmask"),
+        maskBits(WSubField(wrapperPort, "wmask"), wrapperWData.tpe, fillMask)
       )
     }
   }
@@ -219,11 +224,7 @@ class ReplaceMemMacros(writer: ConfWriter) extends Transform {
     writer.serialize()
     val pins = getMyAnnotations(state) match {
       case Nil => Nil
-      case Seq(Annotation(c, t, string)) =>
-        PinAnnotation.matcher.findAllIn(string).toSeq match {
-          case Nil => error(s"Bad Annotation: ${Annotation(c, t, string)}")
-          case seq => seq
-        }
+      case Seq(PinAnnotation(CircuitName(c), pins)) => pins
       case _ => throwInternalError
     }
     val annos = pins.foldLeft(Seq[Annotation]()) { (seq, pin) =>

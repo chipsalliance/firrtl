@@ -67,7 +67,9 @@ class HighFirrtlToMiddleFirrtl extends CoreTransform {
     passes.CheckTypes,
     passes.ResolveGenders,
     passes.InferWidths,
-    passes.CheckWidths)
+    passes.CheckWidths,
+    passes.ConvertFixedToSInt,
+    passes.ZeroWidth)
 }
 
 /** Expands all aggregate types into many ground-typed components. Must
@@ -84,7 +86,6 @@ class MiddleFirrtlToLowFirrtl extends CoreTransform {
     passes.InferTypes,
     passes.ResolveGenders,
     passes.InferWidths,
-    passes.ConvertFixedToSInt,
     passes.Legalize)
 }
 
@@ -116,25 +117,25 @@ import firrtl.transforms.BlackBoxSourceHelper
   * Will replace Chirrtl constructs with Firrtl
   */
 class HighFirrtlCompiler extends Compiler {
-  def emitter = new FirrtlEmitter
+  def emitter = new HighFirrtlEmitter
   def transforms: Seq[Transform] = getLoweringTransforms(ChirrtlForm, HighForm)
 }
 
 /** Emits middle Firrtl input circuit */
 class MiddleFirrtlCompiler extends Compiler {
-  def emitter = new FirrtlEmitter
+  def emitter = new MiddleFirrtlEmitter
   def transforms: Seq[Transform] = getLoweringTransforms(ChirrtlForm, MidForm)
 }
 
 /** Emits lowered input circuit */
 class LowFirrtlCompiler extends Compiler {
-  def emitter = new FirrtlEmitter
+  def emitter = new LowFirrtlEmitter
   def transforms: Seq[Transform] = getLoweringTransforms(ChirrtlForm, LowForm)
 }
 
 /** Emits Verilog */
 class VerilogCompiler extends Compiler {
   def emitter = new VerilogEmitter
-  def transforms: Seq[Transform] =
-    getLoweringTransforms(ChirrtlForm, LowForm) ++ Seq(new LowFirrtlOptimization, new BlackBoxSourceHelper)
+  def transforms: Seq[Transform] = getLoweringTransforms(ChirrtlForm, LowForm) ++
+    Seq(new LowFirrtlOptimization, new BlackBoxSourceHelper)
 }

@@ -12,14 +12,6 @@ import firrtl.passes._
 import firrtl.Parser.IgnoreInfo
 
 class InoutVerilogSpec extends FirrtlFlatSpec {
-  private def executeTest(input: String, expected: Seq[String], compiler: Compiler) = {
-    val writer = new StringWriter()
-    compiler.compile(CircuitState(parse(input), ChirrtlForm), writer)
-    val lines = writer.toString().split("\n") map normalized
-    expected foreach { e =>
-      lines should contain(e)
-    }
-  }
 
   behavior of "Analog"
 
@@ -144,6 +136,29 @@ class InoutVerilogSpec extends FirrtlFlatSpec {
     executeTest(input, check, compiler)
   }
 
+  it should "work in partial connect" in {
+    val compiler = new VerilogCompiler
+    val input =
+      """circuit Attaching :
+         |  module Attaching :
+         |    input foo : { b : UInt<3>, a : Analog<3> }
+         |    output bar : { b : UInt<3>, a : Analog<3> }
+         |    bar <- foo""".stripMargin
+    // Omitting `ifdef SYNTHESIS and `elseif verilator since it's tested above
+    val check =
+      """module Attaching(
+        |  input  [2:0] foo_b,
+        |  inout  [2:0] foo_a,
+        |  output  [2:0] bar_b,
+        |  inout  [2:0] bar_a
+        |);
+        |  assign bar_b = foo_b;
+        |  alias bar_a = foo_a;
+        |endmodule
+        |""".stripMargin.split("\n") map normalized
+    executeTest(input, check, compiler)
+  }
+
   it should "preserve attach order" in {
     val compiler = new VerilogCompiler
     val input =
@@ -189,6 +204,31 @@ class InoutVerilogSpec extends FirrtlFlatSpec {
         |endmodule
         |""".stripMargin.split("\n") map normalized
     executeTest(input2, check2, compiler)
+  }
+
+  it should "infer widths" in {
+    val compiler = new VerilogCompiler
+    val input =
+     """circuit Attaching :
+        |  module Attaching :
+        |    input an: Analog
+        |    inst a of A
+        |    attach (an, a.an1)
+        |  module A:
+        |    input an1: Analog<3>""".stripMargin
+    val check =
+     """module Attaching(
+       |  inout  [2:0] an
+       |);
+       |  A a (
+       |    .an1(an)
+       |  );
+       |endmodule
+       |module A(
+       |  inout  [2:0] an1
+       |);
+       |endmodule""".stripMargin.split("\n") map normalized
+    executeTest(input, check, compiler)
   }
 }
 

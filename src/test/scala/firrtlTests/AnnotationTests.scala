@@ -2,7 +2,7 @@
 
 package firrtlTests
 
-import java.io.{File, FileWriter, StringWriter, Writer}
+import java.io.{File, FileWriter, Writer}
 
 import firrtl.annotations.AnnotationYamlProtocol._
 import firrtl.annotations._
@@ -20,14 +20,14 @@ trait AnnotationSpec extends LowTransformSpec {
   def transform = new CustomResolveAndCheck(LowForm)
 
   // Check if Annotation Exception is thrown
-  override def failingexecute(writer: Writer, annotations: AnnotationMap, input: String): Exception = {
+  override def failingexecute(annotations: AnnotationMap, input: String): Exception = {
     intercept[AnnotationException] {
-      compile(CircuitState(parse(input), ChirrtlForm, Some(annotations)), writer)
+      compile(CircuitState(parse(input), ChirrtlForm, Some(annotations)), Seq.empty)
     }
   }
-  def execute(writer: Writer, annotations: AnnotationMap, input: String, check: Annotation): Unit = {
-    val cr = compile(CircuitState(parse(input), ChirrtlForm, Some(annotations)), writer)
-    cr.annotations.get.annotations should be (Seq(check))
+  def execute(annotations: AnnotationMap, input: String, check: Annotation): Unit = {
+    val cr = compile(CircuitState(parse(input), ChirrtlForm, Some(annotations)), Seq.empty)
+    cr.annotations.get.annotations should contain (check)
   }
 }
 
@@ -53,9 +53,8 @@ class AnnotationTests extends AnnotationSpec with Matchers {
   val cName = ComponentName("c", mName)
 
   "Loose and Sticky annotation on a node" should "pass through" in {
-    val w = new StringWriter()
     val ta = Annotation(cName, classOf[Transform], "")
-    execute(w, getAMap(ta), input, ta)
+    execute(getAMap(ta), input, ta)
   }
 
   "Annotations" should "be readable from file" in {
@@ -121,5 +120,30 @@ class AnnotationTests extends AnnotationSpec with Matchers {
 
       beforeAnno should be (afterAnno)
     }
+  }
+
+  "Deleting annotations" should "create a DeletedAnnotation" in {
+    val compiler = new VerilogCompiler
+    val input =
+     """circuit Top :
+        |  module Top :
+        |    input in: UInt<3>
+        |""".stripMargin
+    class DeletingTransform extends Transform {
+      val inputForm = LowForm
+      val outputForm = LowForm
+      def execute(state: CircuitState) = state.copy(annotations = None)
+    }
+    val anno = InlineAnnotation(CircuitName("Top"))
+    val annoOpt = Some(AnnotationMap(Seq(anno)))
+    val result = compiler.compile(CircuitState(parse(input), ChirrtlForm, annoOpt), Seq(new DeletingTransform))
+    result.annotations.get.annotations.head should matchPattern {
+      case DeletedAnnotation(x, anno) =>
+    }
+    val exception = (intercept[FIRRTLException] {
+      result.getEmittedCircuit
+    })
+    val deleted = result.deletedAnnotations
+    exception.str should be (s"No EmittedCircuit found! Did you delete any annotations?\n$deleted")
   }
 }
