@@ -45,7 +45,8 @@ case class CircuitState(
   /** Helper for getting an [[EmittedCircuit]] when it is known to exist */
   def getEmittedCircuit: EmittedCircuit = emittedCircuitOption match {
     case Some(emittedCircuit) => emittedCircuit
-    case None => throw new FIRRTLException("No EmittedCircuit found! Check Emitter Annotations")
+    case None =>
+      throw new FIRRTLException(s"No EmittedCircuit found! Did you delete any annotations?\n$deletedAnnotations")
   }
   /** Helper function for extracting emitted components from annotations */
   def emittedComponents: Seq[EmittedComponent] = {
@@ -54,6 +55,13 @@ case class CircuitState(
       case EmittedModuleAnnotation(x) => x
     })
     emittedOpt.getOrElse(Seq.empty)
+  }
+  def deletedAnnotations: Seq[Annotation] = {
+    val deletedOpt = annotations map (_.annotations collect {
+      case DeletedAnnotation(xformName, anno) =>
+        DeletedAnnotation(xformName, anno)
+    })
+    deletedOpt.getOrElse(Seq.empty)
   }
 }
 
@@ -271,10 +279,7 @@ trait Compiler extends LazyLogging {
               writer: Writer,
               customTransforms: Seq[Transform] = Seq.empty): CircuitState = {
     val finalState = compileAndEmit(state, customTransforms)
-    finalState.emittedCircuitOption match {
-      case Some(emitted) => writer.write(emitted.value)
-      case _ => throwInternalError
-    }
+    writer.write(finalState.getEmittedCircuit.value)
     finalState
   }
 
