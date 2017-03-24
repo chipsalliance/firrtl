@@ -51,16 +51,16 @@ object ZeroWidth extends Transform {
       (e map replaceType) map onExp
   }
   private def onStmt(renames: RenameMap)(s: Statement): Statement = s match {
-    case sx: IsDeclaration =>
+    case (_: DefWire| _: DefRegister| _: DefMemory) =>
       // List all removed expression names, and delete them from renames
-      renames.delete(getRemoved(sx))
+      renames.delete(getRemoved(s.asInstanceOf[IsDeclaration]))
       // Create new types without zero-width wires
       var removed = false
       def applyRemoveZero(t: Type): Type = removeZero(t) match {
         case None => removed = true; t
         case Some(tx) => tx
       }
-      val sxx = (sx map onExp) map applyRemoveZero
+      val sxx = (s map onExp) map applyRemoveZero
       // Return new declaration
       if(removed) EmptyStmt else sxx
     case Connect(info, loc, exp) => removeZero(loc.tpe) match {
@@ -70,6 +70,10 @@ object ZeroWidth extends Transform {
     case IsInvalid(info, exp) => removeZero(exp.tpe) match {
       case None => EmptyStmt
       case Some(t) => IsInvalid(info, onExp(exp))
+    }
+    case DefNode(info, name, value) => removeZero(value.tpe) match {
+      case None => EmptyStmt
+      case Some(t) => s
     }
     case sx => sx map onStmt(renames)
   }

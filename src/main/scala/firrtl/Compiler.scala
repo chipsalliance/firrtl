@@ -86,7 +86,8 @@ case class CircuitState(
   /** Helper for getting an [[EmittedCircuit]] when it is known to exist */
   def getEmittedCircuit: EmittedCircuit = emittedCircuitOption match {
     case Some(emittedCircuit) => emittedCircuit
-    case None => throw new FIRRTLException("No EmittedCircuit found! Check Emitter Annotations")
+    case None =>
+      throw new FIRRTLException(s"No EmittedCircuit found! Did you delete any annotations?\n$deletedAnnotations")
   }
   /** Helper function for extracting emitted components from annotations */
   def emittedComponents: Seq[EmittedComponent] = {
@@ -95,6 +96,13 @@ case class CircuitState(
       case EmittedModuleAnnotation(x) => x
     })
     emittedOpt.getOrElse(Seq.empty)
+  }
+  def deletedAnnotations: Seq[Annotation] = {
+    val deletedOpt = annotations map (_.annotations collect {
+      case DeletedAnnotation(xformName, anno) =>
+        DeletedAnnotation(xformName, anno)
+    })
+    deletedOpt.getOrElse(Seq.empty)
   }
 }
 
@@ -205,7 +213,6 @@ abstract class Transform extends LazyLogging {
     }
     logger.debug(s"Circuit:\n${result.circuit.serialize}")
     logger.info(s"======== Finished Transform $name ========\n")
-
     CircuitState(result.circuit, result.form, Some(AnnotationMap(remappedAnnotations)), None)
   }
 
@@ -216,7 +223,9 @@ abstract class Transform extends LazyLogging {
     * @param renameOpt result RenameMap
     * @return the updated annotations
     */
-  final private def propagateAnnotations(inAnno: Option[AnnotationMap], resAnno: Option[AnnotationMap],
+  final private def propagateAnnotations(
+      inAnno: Option[AnnotationMap],
+      resAnno: Option[AnnotationMap],
       renameOpt: Option[RenameMap]): Seq[Annotation] = {
     val newAnnotations = {
       val inSet = inAnno.getOrElse(AnnotationMap(Seq.empty)).annotations.toSet
@@ -239,15 +248,20 @@ abstract class Transform extends LazyLogging {
   }
 }
 
-/** For transformations that are simply a sequence of transforms */
-abstract class SeqTransform extends Transform {
+trait SeqTransformBased {
   def transforms: Seq[Transform]
+  protected def runTransforms(state: CircuitState): CircuitState =
+    transforms.foldLeft(state) { (in, xform) => xform.runTransform(in) }
+}
+
+/** For transformations that are simply a sequence of transforms */
+abstract class SeqTransform extends Transform with SeqTransformBased {
   def execute(state: CircuitState): CircuitState = {
     /*
     require(state.form <= inputForm,
       s"[$name]: Input form must be lower or equal to $inputForm. Got ${state.form}")
     */
-    val ret = transforms.foldLeft(state) { (in, xform) => xform.runTransform(in) }
+    val ret = runTransforms(state)
     CircuitState(ret.circuit, outputForm, ret.annotations, ret.renames)
   }
 }
@@ -364,10 +378,7 @@ trait Compiler extends LazyLogging {
               writer: Writer,
               customTransforms: Seq[Transform] = Seq.empty): CircuitState = {
     val finalState = compileAndEmit(state, customTransforms)
-    finalState.emittedCircuitOption match {
-      case Some(emitted) => writer.write(emitted.value)
-      case _ => throwInternalError
-    }
+    writer.write(finalState.getEmittedCircuit.value)
     finalState
   }
 

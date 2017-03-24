@@ -19,7 +19,6 @@ import logger._
 trait AnnotationSpec extends LowTransformSpec {
   // Dummy transform
   def transform = new ResolveAndCheck
-  //def transform = new CustomResolveAndCheck(LowForm)
 
   // Check if Annotation Exception is thrown
   override def failingexecute(annotations: AnnotationMap, input: String): Exception = {
@@ -140,6 +139,11 @@ class AnnotationTests extends AnnotationSpec with Matchers {
     result.annotations.get.annotations.head should matchPattern {
       case DeletedAnnotation(x, inlineAnn) =>
     }
+    val exception = (intercept[FIRRTLException] {
+      result.getEmittedCircuit
+    })
+    val deleted = result.deletedAnnotations
+    exception.str should be (s"No EmittedCircuit found! Did you delete any annotations?\n$deleted")
   }
 
   "Renaming" should "propagate in Lowering of memories" in {

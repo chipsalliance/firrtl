@@ -247,8 +247,11 @@ class VerilogEmitter extends SeqTransform with Emitter {
      case UIntLiteral(value, IntWidth(width)) =>
        w write s"$width'h${value.toString(16)}"
      case SIntLiteral(value, IntWidth(width)) =>
-       val unsignedValue = value + (if (value < 0) BigInt(1) << width.toInt else 0)
-       w write s"$width'sh${unsignedValue.toString(16)}"
+       val stringLiteral = value.toString(16)
+       w write (stringLiteral.head match {
+         case '-' => s"-$width'sh${stringLiteral.tail}"
+         case _ => s"$width'sh${stringLiteral}"
+       })
    }
 
    def op_stream(doprim: DoPrim): Seq[Any] = {
@@ -749,7 +752,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
   def emit(state: CircuitState, writer: Writer): Unit = {
     writer.write(preamble)
 
-    val circuit = (transforms.foldLeft(state) { (in, xform) => xform.runTransform(in) }).circuit
+    val circuit = runTransforms(state).circuit
     val moduleMap = circuit.modules.map(m => m.name -> m).toMap
     circuit.modules.foreach {
       case m: Module => emit_verilog(m, moduleMap)(writer)
@@ -765,7 +768,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
         Seq(EmittedVerilogCircuitAnnotation(EmittedVerilogCircuit(state.circuit.main, writer.toString)))
 
       case EmitAllModulesAnnotation() =>
-        val circuit = (transforms.foldLeft(state) { (in, xform) => xform.runTransform(in) }).circuit
+        val circuit = runTransforms(state).circuit
         val moduleMap = circuit.modules.map(m => m.name -> m).toMap
 
         circuit.modules flatMap {

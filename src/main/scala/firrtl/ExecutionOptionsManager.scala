@@ -46,6 +46,9 @@ case class CommonOptions(
   }
 }
 
+/** [[annotations.GlobalCircuitAnnotation]] that contains the [[CommonOptions]] target directory */
+object TargetDirAnnotation extends GlobalCircuitAnnotation
+
 trait HasCommonOptions {
   self: ExecutionOptionsManager =>
   var commonOptions = CommonOptions()
@@ -318,6 +321,22 @@ trait HasFirrtlOptions {
     .text {
       s"specifies the source info handling, default is ${firrtlOptions.infoModeName}"
     }
+
+  parser.opt[Seq[String]]("custom-transforms")
+    .abbr("fct")
+    .valueName ("<package>.<class>")
+    .foreach { customTransforms: Seq[String] =>
+      firrtlOptions = firrtlOptions.copy(
+        customTransforms = firrtlOptions.customTransforms ++
+          (customTransforms map { x: String =>
+            Class.forName(x).asInstanceOf[Class[_ <: Transform]].newInstance()
+          })
+      )
+    }
+    .text {
+      """runs these custom transforms during compilation."""
+    }
+
 
   parser.opt[Seq[String]]("inline")
     .abbr("fil")

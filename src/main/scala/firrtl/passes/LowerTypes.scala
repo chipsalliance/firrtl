@@ -25,6 +25,7 @@ import firrtl.Mappers._
 object LowerTypes extends Transform {
   def inputForm = UnknownForm
   def outputForm = UnknownForm
+
   /** Delimiter used in lowering names */
   val delim = "_"
   /** Expands a chain of referential [[firrtl.ir.Expression]]s into the equivalent lowered name
