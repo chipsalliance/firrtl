@@ -205,8 +205,8 @@ case class DefRegister(
     reset: Expression,
     init: Expression) extends Statement with IsDeclaration {
   def serialize: String =
-    s"reg $name : ${tpe.serialize}, ${clock.serialize} with :" +
-    indent("\n" + s"reset => (${reset.serialize}, ${init.serialize})" + info.serialize)
+    s"reg $name : ${tpe.serialize}, ${clock.serialize} with : " +
+    indent(s"(reset => (${reset.serialize}, ${init.serialize}))" + info.serialize)
   def mapStmt(f: Statement => Statement): Statement = this
   def mapExpr(f: Expression => Expression): Statement =
     DefRegister(info, name, tpe, f(clock), f(reset), f(init))
