@@ -73,7 +73,7 @@ object ZeroWidth extends Transform {
     }
     case DefNode(info, name, value) => removeZero(value.tpe) match {
       case None => EmptyStmt
-      case Some(t) => s
+      case Some(t) => DefNode(info, name, onExp(value))
     }
     case sx => sx map onStmt(renames)
   }

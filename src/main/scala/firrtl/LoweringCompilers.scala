@@ -84,7 +84,8 @@ class MiddleFirrtlToLowFirrtl extends CoreTransform {
     passes.InferTypes,
     passes.ResolveGenders,
     passes.InferWidths,
-    passes.Legalize)
+    passes.Legalize,
+    passes.CheckCombLoops)
 }
 
 /** Runs a series of optimization passes on LowFirrtl
