@@ -70,5 +70,11 @@ class InstanceGraph(c: Circuit) {
     instances flatMap { i => fullHierarchy(i) }
   }
 
+  lazy val moduleDependencies: Seq[Map[String, Seq[(String, String)]]] =
+    graph.edges.map {
+      case (k,v) => (k.module, (v map { i => (i.name, i.module) }).toMap)
+    }
+
+  lazy val topoSortedModules: Seq[String] = graph.transformNodes(_.module).linearize.reverse
 }
 

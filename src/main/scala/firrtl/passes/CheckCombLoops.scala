@@ -40,9 +40,9 @@ object CheckCombLoops extends Pass {
    * context by its name, its optional parent instance (a WDefInstance
    * or WDefMemory), and its optional memory port name.
    */
-  private case class LogicNode(name: String, inst: Option[String] = None, memport: Option[String] = None)
+  case class LogicNode(name: String, inst: Option[String] = None, memport: Option[String] = None)
 
-  private def toLogicNode(e: Expression): LogicNode = e match {
+  def toLogicNode(e: Expression): LogicNode = e match {
     case r: WRef =>
       LogicNode(r.name)
     case s: WSubField =>
@@ -59,15 +59,14 @@ object CheckCombLoops extends Pass {
       }
   }
 
-  private def getExprDeps(deps: mutable.Set[LogicNode])(e: Expression): Expression = e match {
+  def getExprDeps(deps: mutable.Set[LogicNode])(e: Expression): Expression = e match {
     case r: WRef =>
       deps += toLogicNode(r)
       r
     case s: WSubField =>
       deps += toLogicNode(s)
       s
-    case _ =>
-      e map getExprDeps(deps)
+    case _ => e map getExprDeps(deps)
   }
 
   private def getStmtDeps(
