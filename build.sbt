@@ -70,3 +70,5 @@ scalacOptions in Compile in doc ++= Seq(
   "-doc-title", name.value,
   "-doc-root-content", baseDirectory.value+"/root-doc.txt"
 )
+
+javacOptions ++= Seq("-source", "1.7", "-target", "1.7")
