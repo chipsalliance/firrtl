@@ -11,7 +11,6 @@ import firrtl.Utils.throwInternalError
 
 
 object ZeroWidth extends Pass {
-  def name = this.getClass.getName
   private val ZERO = BigInt(0)
   private def removeZero(t: Type): Option[Type] = t match {
     case GroundType(IntWidth(ZERO)) => None
@@ -50,7 +49,7 @@ object ZeroWidth extends Pass {
     }
     case DefNode(info, name, value) => removeZero(value.tpe) match {
       case None => EmptyStmt
-      case Some(t) => s
+      case Some(t) => DefNode(info, name, onExp(value))
     }
     case sx => sx map onStmt
   }
