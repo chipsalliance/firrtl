@@ -3,9 +3,15 @@
 package firrtl
 package annotations
 
+import net.jcazevedo.moultingyaml._
+import firrtl.annotations.AnnotationYamlProtocol._
+
 import firrtl.ir._
 
 object AnnotationUtils {
+  def toYaml(a: Annotation): String = a.toYaml.prettyPrint
+  def fromYaml(s: String): Annotation = s.parseYaml.convertTo[Annotation]
+
   /** Returns true if a valid Module name */
   val SerializedModuleName = """([a-zA-Z_][a-zA-Z_0-9~!@#$%^*\-+=?/]*)""".r
   def validModuleName(s: String): Boolean = s match {
@@ -34,6 +40,13 @@ object AnnotationUtils {
     case None => Seq(s)
   }
 
+  def toNamed(s: String): Named = tokenize(s) match {
+    case Seq(n) => CircuitName(n)
+    case Seq(c, m) => ModuleName(m, CircuitName(c))
+    case Seq(c, m) => ModuleName(m, CircuitName(c))
+    case Seq(c, m, x) => ComponentName(x, ModuleName(m, CircuitName(c)))
+  }
+
   /** Given a serialized component/subcomponent reference, subindex, subaccess,
    *  or subfield, return the corresponding IR expression.
    *  E.g. "foo.bar" becomes SubField(Reference("foo", UnknownType), "bar", UnknownType)
@@ -43,7 +56,7 @@ object AnnotationUtils {
       val DecPattern = """([1-9]\d*)""".r
       def findClose(tokens: Seq[String], index: Int, nOpen: Int): Seq[String] = {
         if(index >= tokens.size) {
-          error("Cannot find closing bracket ]")
+          Utils.error("Cannot find closing bracket ]")
         } else tokens(index) match {
           case "[" => findClose(tokens, index + 1, nOpen + 1)
           case "]" if nOpen == 1 => tokens.slice(1, index)
@@ -68,7 +81,9 @@ object AnnotationUtils {
     }
     if(validComponentName(s)) {
       parse(tokenize(s))
-    } else error(s"Cannot convert $s into an expression.")
+    } else {
+      Utils.error(s"Cannot convert $s into an expression.")
+    }
   }
 }
 

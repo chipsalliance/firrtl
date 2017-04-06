@@ -18,9 +18,14 @@ import wiring._
   */
 object PinAnnotation {
   def apply(target: CircuitName, pins: Seq[String]): Annotation = {
-    Annotation(target, classOf[ReplaceMemMacros], pins.foldLeft("") { (str, p) => str + "pin:" + p + " " } )
+    Annotation(target, classOf[ReplaceMemMacros], s"pins:${pins.mkString(" ")}")
   }
-  val matcher = "pin:([^ ]+)".r
+  private val matcher = "pins:(.*)".r
+  def unapply(a: Annotation): Option[(CircuitName, Seq[String])] = a match {
+    case Annotation(CircuitName(c), _, matcher(rest)) =>
+      Some((CircuitName(c), rest.split(" ")))
+    case _ => None
+  }
 }
 
 /** Replace DefAnnotatedMemory with memory blackbox + wrapper + conf file.
@@ -28,7 +33,6 @@ object PinAnnotation {
   * Creates the minimum # of black boxes needed by the design.
   */
 class ReplaceMemMacros(writer: ConfWriter) extends Transform {
-  override def name = "Replace Memory Macros"
   def inputForm = MidForm
   def outputForm = MidForm
 
@@ -219,17 +223,17 @@ class ReplaceMemMacros(writer: ConfWriter) extends Transform {
     writer.serialize()
     val pins = getMyAnnotations(state) match {
       case Nil => Nil
-      case Seq(Annotation(c, t, string)) =>
-        PinAnnotation.matcher.findAllIn(string).toSeq match {
-          case Nil => error(s"Bad Annotation: ${Annotation(c, t, string)}")
-          case seq => seq
-        }
+      case Seq(PinAnnotation(CircuitName(c), pins)) => pins
+      case _ => throwInternalError(Some(s"execute: getMyAnnotations - ${getMyAnnotations(state)}"))
     }
-    val annos = pins.foldLeft(Seq[Annotation]()) { (seq, pin) =>
+    val annos = (pins.foldLeft(Seq[Annotation]()) { (seq, pin) =>
       seq ++ memMods.collect { 
         case m: ExtModule => SinkAnnotation(ModuleName(m.name, CircuitName(c.main)), pin) 
       }
-    }
+    }) ++ (state.annotations match {
+      case None => Seq.empty
+      case Some(a) => a.annotations
+    })
     CircuitState(c.copy(modules = modules ++ memMods), inputForm, Some(AnnotationMap(annos)))
   }
 }

@@ -8,11 +8,11 @@ import firrtl.ir._
 import firrtl._
 import firrtl.Mappers._
 import firrtl.Utils.{sub_type, module_type, field_type, BoolType, max, min, pow_minus_one}
+import Utils.throwInternalError
 
 /** Replaces FixedType with SIntType, and correctly aligns all binary points
   */
 object ConvertFixedToSInt extends Pass {
-  def name = "Convert Fixed Types to SInt Types"
   def alignArg(e: Expression, point: BigInt): Expression = e.tpe match {
     case FixedType(IntWidth(w), IntWidth(p)) => // assert(point >= p)
       if((point - p) > 0) {
@@ -20,7 +20,7 @@ object ConvertFixedToSInt extends Pass {
       } else if (point - p < 0) {
         DoPrim(Shr, Seq(e), Seq(p - point), UnknownType)
       } else e
-    case FixedType(w, p) => error("Shouldn't be here")
+    case FixedType(w, p) => throwInternalError(Some(s"alignArg: shouldn't be here - $e"))
     case _ => e
   }
   def calcPoint(es: Seq[Expression]): BigInt =
@@ -30,7 +30,7 @@ object ConvertFixedToSInt extends Pass {
     }).reduce(max(_, _))
   def toSIntType(t: Type): Type = t match {
     case FixedType(IntWidth(w), IntWidth(p)) => SIntType(IntWidth(w))
-    case FixedType(w, p) => error("Shouldn't be here")
+    case FixedType(w, p) => throwInternalError(Some(s"toSIntType: shouldn't be here - $t"))
     case _ => t map toSIntType
   }
   def run(c: Circuit): Circuit = {

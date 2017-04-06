@@ -9,14 +9,13 @@ import firrtl.Mappers._
 import firrtl.Utils._
 
 object CheckWidths extends Pass {
-  def name = "Width Check"
   /** The maximum allowed width for any circuit element */
   val MaxWidth = 1000000
   val DshlMaxWidth = ceilLog2(MaxWidth + 1)
   class UninferredWidth (info: Info, mname: String) extends PassException(
     s"$info : [module $mname]  Uninferred width.")
   class WidthTooSmall(info: Info, mname: String, b: BigInt) extends PassException(
-    s"$info : [module $mname]  Width too small for constant ${serialize(b)}.")
+    s"$info : [module $mname]  Width too small for constant $b.")
   class WidthTooBig(info: Info, mname: String, b: BigInt) extends PassException(
     s"$info : [module $mname]  Width $b greater than max allowed width of $MaxWidth bits")
   class DshlTooBig(info: Info, mname: String) extends PassException(
@@ -51,7 +50,7 @@ object CheckWidths extends Pass {
     def hasWidth(tpe: Type): Boolean = tpe match {
       case GroundType(IntWidth(w)) => true
       case GroundType(_) => false
-      case _ => println(tpe); throwInternalError()
+      case _ => throwInternalError(Some(s"hasWidth - $tpe"))
     }
 
     def check_width_t(info: Info, mname: String)(t: Type): Type =

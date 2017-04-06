@@ -10,7 +10,6 @@ import annotations._
 
 class ChirrtlMemSpec extends LowTransformSpec {
   object MemEnableCheckPass extends Pass {
-    val name = "Check Enable Signal for Chirrtl Mems"
     type Netlist = collection.mutable.HashMap[String, Expression]
     def buildNetlist(netlist: Netlist)(s: Statement): Statement = {
       s match {
@@ -51,10 +50,10 @@ class ChirrtlMemSpec extends LowTransformSpec {
     }
   }
 
-  def transform = new PassBasedTransform {
+  def transform = new SeqTransform {
     def inputForm = LowForm
     def outputForm = LowForm
-    def passSeq = Seq(ConstProp, MemEnableCheckPass)
+    def transforms = Seq(ConstProp, MemEnableCheckPass)
   }
 
   "Sequential Memory" should "have correct enable signals" in {
@@ -77,10 +76,9 @@ circuit foo :
 """.stripMargin
 
     val annotationMap = AnnotationMap(Nil)
-    val writer = new java.io.StringWriter
-    compile(CircuitState(parse(input), ChirrtlForm, Some(annotationMap)), writer)
+    val res = compileAndEmit(CircuitState(parse(input), ChirrtlForm, Some(annotationMap)))
     // Check correctness of firrtl
-    parse(writer.toString)
+    parse(res.getEmittedCircuit.value)
   }
 
   "Combinational Memory" should "have correct enable signals" in {
@@ -104,9 +102,8 @@ circuit foo :
 """.stripMargin
 
     val annotationMap = AnnotationMap(Nil)
-    val writer = new java.io.StringWriter
-    compile(CircuitState(parse(input), ChirrtlForm, Some(annotationMap)), writer)
+    val res = compileAndEmit(CircuitState(parse(input), ChirrtlForm, Some(annotationMap)))
     // Check correctness of firrtl
-    parse(writer.toString)
+    parse(res.getEmittedCircuit.value)
   }
 }

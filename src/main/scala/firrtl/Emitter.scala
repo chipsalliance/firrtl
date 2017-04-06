@@ -12,6 +12,7 @@ import scala.io.Source
 
 import firrtl.ir._
 import firrtl.passes._
+import firrtl.annotations._
 import firrtl.Mappers._
 import firrtl.PrimOps._
 import firrtl.WrappedExpression._
@@ -22,9 +23,146 @@ import scala.collection.mutable.{ArrayBuffer, LinkedHashMap, HashSet}
 
 case class EmitterException(message: String) extends PassException(message)
 
-class FirrtlEmitter extends Emitter {
+// ***** Annotations for telling the Emitters what to emit *****
+sealed abstract class EmitAnnotation(marker: String) {
+  // TODO Is there a better way to do Name to indicate don't care?
+  def apply(transform: Class[_ <: Transform]): Annotation =
+    Annotation(CircuitTopName, transform, marker)
+  def unapply(a: Annotation): Boolean = a match {
+    // Assumes transform is already filtered appropriately
+    case Annotation(CircuitTopName, _, str) if str == marker => true
+    case _ => false
+  }
+}
+object EmitCircuitAnnotation extends EmitAnnotation("emitCircuit")
+object EmitAllModulesAnnotation extends EmitAnnotation("emitAllModules")
+
+// ***** Annotations for results of emission *****
+sealed abstract class EmittedComponent {
+  def name: String
+  def value: String
+}
+sealed abstract class EmittedCircuit extends EmittedComponent
+final case class EmittedFirrtlCircuit(name: String, value: String) extends EmittedCircuit
+final case class EmittedVerilogCircuit(name: String, value: String) extends EmittedCircuit
+sealed abstract class EmittedModule extends EmittedComponent
+final case class EmittedFirrtlModule(name: String, value: String) extends EmittedModule
+final case class EmittedVerilogModule(name: String, value: String) extends EmittedModule
+
+/** Super class for Annotations containing emitted components
+  *
+  * @note These annotations cannot be serialized and deserialized to/from an annotation file
+  */
+sealed abstract class EmittedAnnotation[T <: EmittedComponent](marker: String) {
+  // Private datastructure to hold the actual emitted objects
+  // TODO Once annotations can contain arbitrary datastructures, get rid of this
+  private val emittedBuffer = mutable.ArrayBuffer.empty[T]
+
+  def apply(value: T): Annotation = {
+    // Synchronize because of multithreading
+    //   This doesn't happen often, shouldn't be a big deal for performance
+    val idx = emittedBuffer.synchronized {
+      emittedBuffer += value
+      emittedBuffer.size - 1
+    }
+    Annotation(CircuitTopName, classOf[Transform], s"$marker:$idx")
+  }
+  def unapply(a: Annotation): Option[T] = a match {
+    // assume transform has been filtered
+    case Annotation(CircuitTopName, _, str) if str.startsWith(marker) =>
+      val idx = str.stripPrefix(s"$marker:").toInt
+      Some(emittedBuffer(idx))
+    case _ => None
+  }
+}
+
+object EmittedFirrtlCircuitAnnotation extends EmittedAnnotation[EmittedFirrtlCircuit]("emittedFirrtlCircuit")
+object EmittedVerilogCircuitAnnotation extends EmittedAnnotation[EmittedVerilogCircuit]("emittedVerilogCircuit")
+object EmittedCircuitAnnotation {
+  def apply(value: EmittedCircuit): Annotation = value match {
+    case firrtl: EmittedFirrtlCircuit => EmittedFirrtlCircuitAnnotation(firrtl)
+    case verilog: EmittedVerilogCircuit => EmittedVerilogCircuitAnnotation(verilog)
+  }
+  def unapply(a: Annotation): Option[EmittedCircuit] = a match {
+    case EmittedFirrtlCircuitAnnotation(x) => Some(x)
+    case EmittedVerilogCircuitAnnotation(x) => Some(x)
+    case _ => None
+  }
+}
+object EmittedFirrtlModuleAnnotation extends EmittedAnnotation[EmittedFirrtlModule]("emittedFirrtlModule")
+object EmittedVerilogModuleAnnotation extends EmittedAnnotation[EmittedVerilogModule]("emittedVerilogModule")
+object EmittedModuleAnnotation {
+  def apply(value: EmittedModule): Annotation = value match {
+    case firrtl: EmittedFirrtlModule => EmittedFirrtlModuleAnnotation(firrtl)
+    case verilog: EmittedVerilogModule => EmittedVerilogModuleAnnotation(verilog)
+  }
+  def unapply(a: Annotation): Option[EmittedModule] = a match {
+    case EmittedFirrtlModuleAnnotation(x) => Some(x)
+    case EmittedVerilogModuleAnnotation(x) => Some(x)
+    case _ => None
+  }
+}
+
+
+sealed abstract class FirrtlEmitter(form: CircuitForm) extends Transform with Emitter {
+  def inputForm = form
+  def outputForm = form
+
+  private def emitAllModules(circuit: Circuit): Seq[EmittedFirrtlModule] = {
+    // For a given module, returns a Seq of all modules instantited inside of it
+    def collectInstantiatedModules(mod: Module, map: Map[String, DefModule]): Seq[DefModule] = {
+      // Use list instead of set to maintain order
+      val modules = mutable.ArrayBuffer.empty[DefModule]
+      def onStmt(stmt: Statement): Statement = stmt match {
+        case DefInstance(_, _, name) =>
+          modules += map(name)
+          stmt
+        case WDefInstance(_, _, name, _) =>
+          modules += map(name)
+          stmt
+        case _: WDefInstanceConnector => throwInternalError(Some(s"unrecognized statement: $stmt"))
+        case other => other map onStmt
+      }
+      onStmt(mod.body)
+      modules.distinct
+    }
+    val modMap = circuit.modules.map(m => m.name -> m).toMap
+    // Turn each module into it's own circuit with it as the top and all instantied modules as ExtModules
+    circuit.modules collect { case m: Module =>
+      val instModules = collectInstantiatedModules(m, modMap)
+      val extModules = instModules map {
+        case Module(info, name, ports, _) => ExtModule(info, name, ports, name, Seq.empty)
+        case ext: ExtModule => ext
+      }
+      val newCircuit = Circuit(m.info, extModules :+ m, m.name)
+      EmittedFirrtlModule(m.name, newCircuit.serialize)
+    }
+  }
+
+  override def execute(state: CircuitState): CircuitState = {
+    val newAnnos = getMyAnnotations(state).flatMap {
+      case EmitCircuitAnnotation() =>
+        Seq(EmittedFirrtlCircuitAnnotation.apply(
+              EmittedFirrtlCircuit(state.circuit.main, state.circuit.serialize)))
+      case EmitAllModulesAnnotation() =>
+        emitAllModules(state.circuit) map (EmittedFirrtlModuleAnnotation(_))
+      case _ => Seq()
+    }
+    val annos = newAnnos ++ (state.annotations match {
+      case None => Seq.empty
+      case Some(a) => a.annotations
+    })
+    state.copy(annotations = Some(AnnotationMap(annos)))
+  }
+
+  // Old style, deprecated
   def emit(state: CircuitState, writer: Writer): Unit = writer.write(state.circuit.serialize)
 }
+
+// ***** Start actual Emitters *****
+class HighFirrtlEmitter extends FirrtlEmitter(HighForm)
+class MiddleFirrtlEmitter extends FirrtlEmitter(MidForm)
+class LowFirrtlEmitter extends FirrtlEmitter(LowForm)
 
 case class VRandom(width: BigInt) extends Expression {
   def tpe = UIntType(IntWidth(width))
@@ -36,7 +174,9 @@ case class VRandom(width: BigInt) extends Expression {
   def mapWidth(f: Width => Width): Expression = this
 }
 
-class VerilogEmitter extends Emitter with PassBased {
+class VerilogEmitter extends SeqTransform with Emitter {
+  def inputForm = LowForm
+  def outputForm = LowForm
   val tab = "  "
   def AND(e1: WrappedExpression, e2: WrappedExpression): Expression = {
     if (e1 == e2) e1.e1
@@ -51,7 +191,7 @@ class VerilogEmitter extends Emitter with PassBased {
       case (e: WSubField) => remove_root(e)
       case (_: WRef) => WRef(ex.name, ex.tpe, InstanceKind, UNKNOWNGENDER)
     }
-    case _ => error("Shouldn't be here")
+    case _ => throwInternalError(Some(s"shouldn't be here: remove_root($ex)"))
   }
   /** Turn Params into Verilog Strings */
   def stringify(param: Param): String = param match {
@@ -67,7 +207,7 @@ class VerilogEmitter extends Emitter with PassBased {
       val wx = bitWidth(tpe) - 1
       if (wx > 0) s"[$wx:0]" else ""
     case ClockType => ""
-    case _ => error("Trying to write unsupported type in the Verilog Emitter")
+    case _ => throwInternalError(Some(s"trying to write unsupported type in the Verilog Emitter: $tpe"))
   }
   def emit(x: Any)(implicit w: Writer) { emit(x, 0) }
   def emit(x: Any, top: Int)(implicit w: Writer) {
@@ -76,6 +216,7 @@ class VerilogEmitter extends Emitter with PassBased {
       case (t: SIntType) => Seq("$signed(",e,")")
       case ClockType => e
       case AnalogType(_) => e
+      case _ => throwInternalError(Some(s"unrecognized cast: $e"))
     }
     x match {
       case (e: DoPrim) => emit(op_stream(e), top + 1)
@@ -98,7 +239,7 @@ class VerilogEmitter extends Emitter with PassBased {
       case (s: Seq[Any]) =>
         s foreach (emit(_, top + 1))
         if (top == 0) w write "\n"
-      case x => println(x); throwInternalError();
+      case x => throwInternalError(Some(s"trying to emit unsupported operator: $x"))
     }
   }
 
@@ -107,8 +248,12 @@ class VerilogEmitter extends Emitter with PassBased {
      case UIntLiteral(value, IntWidth(width)) =>
        w write s"$width'h${value.toString(16)}"
      case SIntLiteral(value, IntWidth(width)) =>
-       val unsignedValue = value + (if (value < 0) BigInt(1) << width.toInt else 0)
-       w write s"$width'sh${unsignedValue.toString(16)}"
+       val stringLiteral = value.toString(16)
+       w write (stringLiteral.head match {
+         case '-' => s"-$width'sh${stringLiteral.tail}"
+         case _ => s"$width'sh${stringLiteral}"
+       })
+     case _ => throwInternalError(Some(s"attempt to print unrecognized expression: $e"))
    }
 
    def op_stream(doprim: DoPrim): Seq[Any] = {
@@ -121,16 +266,19 @@ class VerilogEmitter extends Emitter with PassBased {
          case Some(_) => e.tpe match {
            case (_: SIntType) => Seq("$signed(", e, ")")
            case (_: UIntType) => Seq("$signed({1'b0,", e, "})")
+           case _ => throwInternalError(Some(s"unrecognized type: $e"))
          }
        }
      }
      def cast(e: Expression): Any = doprim.tpe match {
        case (t: UIntType) => e
        case (t: SIntType) => Seq("$signed(",e,")")
+       case _ => throwInternalError(Some(s"cast - unrecognized type: $e"))
      }
      def cast_as(e: Expression): Any = e.tpe match {
        case (t: UIntType) => e
        case (t: SIntType) => Seq("$signed(",e,")")
+       case _ => throwInternalError(Some(s"cast_as - unrecognized type: $e"))
      }
      def a0: Expression = doprim.args.head
      def a1: Expression = doprim.args(1)
@@ -583,35 +731,65 @@ class VerilogEmitter extends Emitter with PassBased {
       m
    }
 
-   def emit_preamble(implicit w: Writer) {
-    emit(Seq(
-        "`ifdef RANDOMIZE_GARBAGE_ASSIGN\n",
-        "`define RANDOMIZE\n",
-        "`endif\n",
-        "`ifdef RANDOMIZE_INVALID_ASSIGN\n",
-        "`define RANDOMIZE\n",
-        "`endif\n",
-        "`ifdef RANDOMIZE_REG_INIT\n",
-        "`define RANDOMIZE\n",
-        "`endif\n",
-        "`ifdef RANDOMIZE_MEM_INIT\n",
-        "`define RANDOMIZE\n",
-        "`endif\n"))
-   }
+  /** Preamble for every emitted Verilog file */
+  def preamble: String =
+    """|`ifdef RANDOMIZE_GARBAGE_ASSIGN
+       |`define RANDOMIZE
+       |`endif
+       |`ifdef RANDOMIZE_INVALID_ASSIGN
+       |`define RANDOMIZE
+       |`endif
+       |`ifdef RANDOMIZE_REG_INIT
+       |`define RANDOMIZE
+       |`endif
+       |`ifdef RANDOMIZE_MEM_INIT
+       |`define RANDOMIZE
+       |`endif
+       |
+       |""".stripMargin
 
-  def passSeq = Seq(
+  def transforms = Seq(
     passes.VerilogModulusCleanup,
     passes.VerilogWrap,
     passes.VerilogRename,
     passes.VerilogPrep)
 
   def emit(state: CircuitState, writer: Writer): Unit = {
-    val circuit = runPasses(state.circuit)
-    emit_preamble(writer)
-    val moduleMap = (circuit.modules map (m => m.name -> m)).toMap
-    circuit.modules foreach {
-      case (m: Module) => emit_verilog(m, moduleMap)(writer)
-      case (m: ExtModule) =>
+    writer.write(preamble)
+
+    val circuit = runTransforms(state).circuit
+    val moduleMap = circuit.modules.map(m => m.name -> m).toMap
+    circuit.modules.foreach {
+      case m: Module => emit_verilog(m, moduleMap)(writer)
+      case _: ExtModule => // do nothing
     }
+  }
+
+  override def execute(state: CircuitState): CircuitState = {
+    val newAnnos = getMyAnnotations(state).flatMap {
+      case EmitCircuitAnnotation() =>
+        val writer = new java.io.StringWriter
+        emit(state, writer)
+        Seq(EmittedVerilogCircuitAnnotation(EmittedVerilogCircuit(state.circuit.main, writer.toString)))
+
+      case EmitAllModulesAnnotation() =>
+        val circuit = runTransforms(state).circuit
+        val moduleMap = circuit.modules.map(m => m.name -> m).toMap
+
+        circuit.modules flatMap {
+          case module: Module =>
+            val writer = new java.io.StringWriter
+            writer.write(preamble)
+            emit_verilog(module, moduleMap)(writer)
+            Some(EmittedVerilogModuleAnnotation(EmittedVerilogModule(module.name, writer.toString)))
+          case _: ExtModule => None
+        }
+      case _ => Seq()
+    }
+    val annos = newAnnos ++ (state.annotations match {
+      case None => Seq.empty
+      case Some(a) => a.annotations
+    })
+    state.copy(annotations = Some(AnnotationMap(annos)))
   }
 }

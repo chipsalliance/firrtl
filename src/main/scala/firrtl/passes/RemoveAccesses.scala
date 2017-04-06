@@ -14,8 +14,6 @@ import scala.collection.mutable
 /** Removes all [[firrtl.WSubAccess]] from circuit
   */
 object RemoveAccesses extends Pass {
-  def name = "Remove Accesses"
-
   private def AND(e1: Expression, e2: Expression) =
     DoPrim(And, Seq(e1, e2), Nil, BoolType)
 
@@ -95,7 +93,7 @@ object RemoveAccesses extends Pass {
           case (_:WSubAccess| _: WSubField| _: WSubIndex| _: WRef) if hasAccess(e) =>
             val rs = getLocations(e)
             rs find (x => x.guard != one) match {
-              case None => error("Shouldn't be here")
+              case None => throwInternalError(Some(s"removeMale: shouldn't be here - $e"))
               case Some(_) =>
                 val (wire, temp) = create_temp(e)
                 val temps = create_exps(temp)

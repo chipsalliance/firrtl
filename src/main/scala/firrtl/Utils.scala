@@ -23,12 +23,12 @@ object FIRRTLException {
     }
   }
 }
-class FIRRTLException(str: String, cause: Throwable = null)
+class FIRRTLException(val str: String, cause: Throwable = null)
   extends RuntimeException(FIRRTLException.defaultMessage(str, cause), cause)
 
 object seqCat {
   def apply(args: Seq[Expression]): Expression = args.length match {
-    case 0 => error("Empty Seq passed to seqcat")
+    case 0 => Utils.error("Empty Seq passed to seqcat")
     case 1 => args.head
     case 2 => DoPrim(PrimOps.Cat, args, Nil, UIntType(UnknownWidth))
     case _ =>
@@ -43,7 +43,7 @@ object seqCat {
 object toBits {
   def apply(e: Expression): Expression = e match {
     case ex @ (_: WRef | _: WSubField | _: WSubIndex) => hiercat(ex)
-    case t => error("Invalid operand expression for toBits!")
+    case t => Utils.error(s"Invalid operand expression for toBits: $e")
   }
   private def hiercat(e: Expression): Expression = e.tpe match {
     case t: VectorType => seqCat((0 until t.size).reverse map (i =>
@@ -51,14 +51,14 @@ object toBits {
     case t: BundleType => seqCat(t.fields map (f =>
       hiercat(WSubField(e, f.name, f.tpe, UNKNOWNGENDER))))
     case t: GroundType => DoPrim(AsUInt, Seq(e), Seq.empty, UnknownType)
-    case t => error("Unknown type encountered in toBits!")
+    case t => Utils.error(s"Unknown type encountered in toBits: $e")
   }
 }
 
 object getWidth {
   def apply(t: Type): Width = t match {
     case t: GroundType => t.width
-    case _ => error("No width!")
+    case _ => Utils.error(s"No width: $t")
   }
   def apply(e: Expression): Width = apply(e.tpe)
 }
@@ -69,17 +69,24 @@ object bitWidth {
     case t: VectorType => t.size * bitWidth(t.tpe)
     case t: BundleType => t.fields.map(f => bitWidth(f.tpe)).foldLeft(BigInt(0))(_+_)
     case GroundType(IntWidth(width)) => width
-    case t => error("Unknown type encountered in bitWidth!")
+    case t => Utils.error(s"Unknown type encountered in bitWidth: $dt")
   }
 }
 
 object castRhs {
   def apply(lhst: Type, rhs: Expression) = {
-    lhst match {
-      case _: SIntType => DoPrim(AsSInt, Seq(rhs), Seq.empty, lhst)
-      case FixedType(_, IntWidth(p)) => DoPrim(AsFixedPoint, Seq(rhs), Seq(p), lhst)
-      case ClockType => DoPrim(AsClock, Seq(rhs), Seq.empty, lhst)
-      case _: UIntType => rhs
+    (lhst, rhs.tpe) match {
+      case (x: GroundType, y: GroundType) if WrappedType(x) == WrappedType(y) => 
+        rhs
+      case (_: SIntType, _) => 
+        DoPrim(AsSInt, Seq(rhs), Seq.empty, lhst)
+      case (FixedType(_, IntWidth(p)), _) => 
+        DoPrim(AsFixedPoint, Seq(rhs), Seq(p), lhst)
+      case (ClockType, _) => 
+        DoPrim(AsClock, Seq(rhs), Seq.empty, lhst)
+      case (_: UIntType, _) => 
+        DoPrim(AsUInt, Seq(rhs), Seq.empty, lhst)
+      case (_, _) => Utils.error("castRhs lhst, rhs type combination is invalid")
     }  
   }
 }
@@ -88,7 +95,7 @@ object fromBits {
   def apply(lhs: Expression, rhs: Expression): Statement = {
     val fbits = lhs match {
       case ex @ (_: WRef | _: WSubField | _: WSubIndex) => getPart(ex, ex.tpe, rhs, 0)
-      case _ => error("Invalid LHS expression for fromBits!")
+      case _ => Utils.error("Invalid LHS expression for fromBits!")
     }
     Block(fbits._2)
   }
@@ -119,7 +126,7 @@ object fromBits {
           (tmpOffset, stmts ++ substmts)
       }
       case t: GroundType => getPartGround(lhs, t, rhs, offset)
-      case t => error("Unknown type encountered in fromBits!")
+      case t => Utils.error(s"Unknown type encountered in fromBits: $lhst")
     }
 }
 
@@ -159,23 +166,25 @@ object Utils extends LazyLogging {
 
   /** Throw an internal error, possibly due to an exception.
     *
+    * @param maybeString - possible string to emit,
     * @param maybeException - possible exception triggering the error.
    */
-  def throwInternalError(maybeException: Option[Exception] = None) = {
-    // We'll get the last exception in the chain, keeping it intact.
+  def throwInternalError(message: Option[String] = None, exception: Option[Exception] = None) = {
+    // We'll get the first exception in the chain, keeping it intact.
     val last = false
-    val throwable = getThrowable(maybeException, last)
-    error("Internal Error! Please file an issue at https://github.com/ucb-bar/firrtl/issues", throwable)
+    val throwable = getThrowable(exception, last)
+    val string: String = message match {
+      case Some(s: String) => s + "\n"
+      case _ => ""
+    }
+    error("Internal Error! %sPlease file an issue at https://github.com/ucb-bar/firrtl/issues".format(string), throwable)
   }
-  private[firrtl] def time[R](name: String)(block: => R): R = {
-    logger.info(s"Starting $name")
+  private[firrtl] def time[R](block: => R): (Double, R) = {
     val t0 = System.nanoTime()
     val result = block
     val t1 = System.nanoTime()
-    logger.info(s"Finished $name")
     val timeMillis = (t1 - t0) / 1000000.0
-    logger.info(f"$name took $timeMillis%.1f ms\n")
-    result
+    (timeMillis, result)
   }
 
   /** Removes all [[firrtl.ir.EmptyStmt]] statements and condenses
@@ -194,9 +203,6 @@ object Utils extends LazyLogging {
 
   /** Indent the results of [[ir.FirrtlNode.serialize]] */
   def indent(str: String) = str replaceAllLiterally ("\n", "\n  ")
-  def serialize(bi: BigInt): String =
-    if (bi < BigInt(0)) "\"h" + bi.toString(16).substring(1) + "\""
-    else "\"h" + bi.toString(16) + "\""
 
   implicit def toWrappedExpression (x:Expression): WrappedExpression = new WrappedExpression(x)
   def ceilLog2(x: BigInt): Int = (x-1).bitLength
@@ -227,7 +233,7 @@ object Utils extends LazyLogging {
     }
   }
    def get_flip(t: Type, i: Int, f: Orientation): Orientation = {
-     if (i >= get_size(t)) error("Shouldn't be here")
+     if (i >= get_size(t)) throwInternalError(Some(s"get_flip: shouldn't be here - $i >= get_size($t)"))
      t match {
        case (_: GroundType) => f
        case (tx: BundleType) =>
@@ -444,7 +450,7 @@ object Utils extends LazyLogging {
         }._1
       case (ClockType, ClockType) => if (flip1 == flip2) Seq((0, 0)) else Nil
       case (AnalogType(w1), AnalogType(w2)) => Nil
-      case _ => error("shouldn't be here")
+      case _ => throwInternalError(Some(s"get_valid_points: shouldn't be here - ($t1, $t2)"))
     }
   }
 
@@ -490,9 +496,9 @@ object Utils extends LazyLogging {
   def get_field(v: Type, s: String): Field = v match {
     case vx: BundleType => vx.fields find (_.name == s) match {
       case Some(ft) => ft
-      case None => error("Shouldn't be here")
+      case None => throwInternalError(Some(s"get_field: shouldn't be here - $v.$s"))
     }
-    case vx => error("Shouldn't be here")
+    case vx => throwInternalError(Some(s"get_field: shouldn't be here - $v"))
   }
 
   def times(flip: Orientation, d: Direction): Direction = times(flip, d)
@@ -535,7 +541,7 @@ object Utils extends LazyLogging {
     case ex: Mux => MALE
     case ex: ValidIf => MALE
     case WInvalid => MALE
-    case ex => println(ex); error("Shouldn't be here")
+    case ex => throwInternalError(Some(s"gender: shouldn't be here - $e"))
   }
   def get_gender(s: Statement): Gender = s match {
     case sx: DefWire => BIGENDER

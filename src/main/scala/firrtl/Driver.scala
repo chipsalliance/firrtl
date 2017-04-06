@@ -45,6 +45,7 @@ object Driver {
   // Compiles circuit. First parses a circuit from an input file,
   //  executes all compiler passes, and writes result to an output
   //  file.
+  @deprecated("Please use execute", "firrtl 1.0")
   def compile(
       input: String,
       output: String,
@@ -64,10 +65,11 @@ object Driver {
 
     catch {
       // Rethrow the exceptions which are expected or due to the runtime environment (out of memory, stack overflow)
-      case p: PassException  => throw p
       case p: ControlThrowable => throw p
+      case p: PassException  => throw p
+      case p: FIRRTLException => throw p
       // Treat remaining exceptions as internal errors.
-      case e: Exception => throwInternalError(Some(e))
+      case e: Exception => throwInternalError(exception = Some(e))
     }
 
     val outputFile = new java.io.PrintWriter(output)
@@ -104,7 +106,7 @@ object Driver {
     */
     def firrtlConfig = optionsManager.firrtlOptions
 
-    if(firrtlConfig.annotations.isEmpty) {
+    if (firrtlConfig.annotations.isEmpty || firrtlConfig.forceAppendAnnoFile) {
       val annotationFileName = firrtlConfig.getAnnotationFileName(optionsManager)
       val annotationFile = new File(annotationFileName)
       if (annotationFile.exists) {
@@ -166,35 +168,64 @@ object Driver {
           }
         }
 
-    val outputBuffer = new java.io.CharArrayWriter
+    var maybeFinalState = None: Option[CircuitState]
 
     // Wrap compilation in a try/catch to present Scala MatchErrors in a more user-friendly format.
     try {
       loadAnnotations(optionsManager)
 
       val parsedInput = Parser.parse(firrtlSource, firrtlConfig.infoMode)
-      firrtlConfig.compiler.compile(
-        CircuitState(parsedInput, ChirrtlForm, Some(AnnotationMap(firrtlConfig.annotations))),
-        outputBuffer,
+
+      // Does this need to be before calling compiler?
+      optionsManager.makeTargetDir()
+
+      // Output Annotations
+      val outputAnnos = firrtlConfig.getEmitterAnnos(optionsManager)
+
+      // Should these and outputAnnos be moved to loadAnnotations?
+      val globalAnnos = Seq(TargetDirAnnotation(optionsManager.targetDirName))
+
+      maybeFinalState = Some(firrtlConfig.compiler.compile(
+        CircuitState(parsedInput,
+                     ChirrtlForm,
+                     Some(AnnotationMap(firrtlConfig.annotations ++ outputAnnos ++ globalAnnos))),
         firrtlConfig.customTransforms
-      )
+      ))
     }
 
     catch {
       // Rethrow the exceptions which are expected or due to the runtime environment (out of memory, stack overflow)
-      case p: PassException  => throw p
       case p: ControlThrowable => throw p
+      case p: PassException  => throw p
+      case p: FIRRTLException => throw p
       // Treat remaining exceptions as internal errors.
-      case e: Exception => throwInternalError(Some(e))
+      case e: Exception => throwInternalError(exception = Some(e))
     }
 
-    val outputFileName = firrtlConfig.getOutputFileName(optionsManager)
-    val outputFile     = new java.io.PrintWriter(outputFileName)
-    val outputString   = outputBuffer.toString
-    outputFile.write(outputString)
-    outputFile.close()
+    val finalState = maybeFinalState.get
+    // Do emission
+    // Note: Single emission target assumption is baked in here
+    // Note: FirrtlExecutionSuccess emitted is only used if we're emitting the whole Circuit
+    val emittedRes = firrtlConfig.getOutputConfig(optionsManager) match {
+      case SingleFile(filename) =>
+        val emitted = finalState.getEmittedCircuit
+        val outputFile = new java.io.PrintWriter(filename)
+        outputFile.write(emitted.value)
+        outputFile.close()
+        emitted.value
+      case OneFilePerModule(dirName) =>
+        val emittedModules = finalState.emittedComponents collect { case x: EmittedModule => x }
+        if (emittedModules.isEmpty) throwInternalError(Some("execute - no emitted modules")) // There should be something
+        emittedModules.foreach { case module =>
+          val filename = optionsManager.getBuildFileName(firrtlConfig.outputSuffix, s"$dirName/${module.name}")
+          val outputFile = new java.io.PrintWriter(filename)
+          outputFile.write(module.value)
+          outputFile.close()
+        }
+        "" // Should we return something different here?
+    }
 
-    FirrtlExecutionSuccess(firrtlConfig.compilerName, outputBuffer.toString)
+    FirrtlExecutionSuccess(firrtlConfig.compilerName, emittedRes)
   }
 
   /**
@@ -215,7 +246,7 @@ object Driver {
           optionsManager.showUsageAsError()
           failure
         case result =>
-          throw new Exception(s"Error: Unknown Firrtl Execution result $result")
+          throwInternalError(Some(s"Error: Unknown Firrtl Execution result $result"))
       }
     }
     else {

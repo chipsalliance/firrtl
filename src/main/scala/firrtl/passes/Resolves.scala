@@ -5,9 +5,9 @@ package firrtl.passes
 import firrtl._
 import firrtl.ir._
 import firrtl.Mappers._
+import Utils.throwInternalError
 
 object ResolveKinds extends Pass {
-  def name = "Resolve Kinds"
   type KindMap = collection.mutable.LinkedHashMap[String, Kind]
 
   def find_port(kinds: KindMap)(p: Port): Port = {
@@ -46,7 +46,6 @@ object ResolveKinds extends Pass {
 }
 
 object ResolveGenders extends Pass {
-  def name = "Resolve Genders"
   def resolve_e(g: Gender)(e: Expression): Expression = e match {
     case ex: WRef => ex copy (gender = g)
     case WSubField(exp, name, tpe, _) => WSubField(
@@ -79,7 +78,6 @@ object ResolveGenders extends Pass {
 }
 
 object CInferMDir extends Pass {
-  def name = "CInfer MDir"
   type MPortDirMap = collection.mutable.LinkedHashMap[String, MPortDir]
 
   def infer_mdir_e(mports: MPortDirMap, dir: MPortDir)(e: Expression): Expression = e match {
@@ -87,19 +85,19 @@ object CInferMDir extends Pass {
       mports get e.name match {
         case None =>
         case Some(p) => mports(e.name) = (p, dir) match {
-          case (MInfer, MInfer) => Utils.error("Shouldn't be here")
+          case (MInfer, MInfer) => throwInternalError(Some(s"infer_mdir_e: shouldn't be here - $p, $dir"))
           case (MInfer, MWrite) => MWrite
           case (MInfer, MRead) => MRead
           case (MInfer, MReadWrite) => MReadWrite
-          case (MWrite, MInfer) => Utils.error("Shouldn't be here")
+          case (MWrite, MInfer) => throwInternalError(Some(s"infer_mdir_e: shouldn't be here - $p, $dir"))
           case (MWrite, MWrite) => MWrite
           case (MWrite, MRead) => MReadWrite
           case (MWrite, MReadWrite) => MReadWrite
-          case (MRead, MInfer) => Utils.error("Shouldn't be here")
+          case (MRead, MInfer) => throwInternalError(Some(s"infer_mdir_e: shouldn't be here - $p, $dir"))
           case (MRead, MWrite) => MReadWrite
           case (MRead, MRead) => MRead
           case (MRead, MReadWrite) => MReadWrite
-          case (MReadWrite, MInfer) => Utils.error("Shouldn't be here")
+          case (MReadWrite, MInfer) => throwInternalError(Some(s"infer_mdir_e: shouldn't be here - $p, $dir"))
           case (MReadWrite, MWrite) => MReadWrite
           case (MReadWrite, MRead) => MReadWrite
           case (MReadWrite, MReadWrite) => MReadWrite

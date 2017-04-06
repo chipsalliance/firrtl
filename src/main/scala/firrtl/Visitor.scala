@@ -11,33 +11,32 @@ import PrimOps._
 import FIRRTLParser._
 import Parser.{AppendInfo, GenInfo, IgnoreInfo, InfoMode, UseInfo}
 import firrtl.ir._
+import Utils.throwInternalError
 
 
 class Visitor(infoMode: InfoMode) extends FIRRTLBaseVisitor[FirrtlNode] {
   // Strip file path
   private def stripPath(filename: String) = filename.drop(filename.lastIndexOf("/") + 1)
 
+  // Check if identifier is made of legal characters
+  private def legalId(id: String) = {
+    val legalChars = ('A' to 'Z').toSet ++ ('a' to 'z').toSet ++ ('0' to '9').toSet ++ Set('_', '$')
+    id forall legalChars
+  }
+
   def visit[FirrtlNode](ctx: FIRRTLParser.CircuitContext): Circuit = visitCircuit(ctx)
 
   //  These regex have to change if grammar changes
+  private val HexPattern = """\"*h([+\-]?[a-zA-Z0-9]+)\"*""".r
+  private val DecPattern = """([+\-]?[1-9]\d*)""".r
+  private val ZeroPattern = "0".r
+
   private def string2BigInt(s: String): BigInt = {
     // private define legal patterns
-    val HexPattern =
-      """\"*h([a-zA-Z0-9]+)\"*""".r
-    val DecPattern = """(\+|-)?([1-9]\d*)""".r
-    val ZeroPattern = "0".r
-    val NegPattern = "(89AaBbCcDdEeFf)".r
     s match {
       case ZeroPattern(_*) => BigInt(0)
-      case HexPattern(hexdigits) =>
-        hexdigits(0) match {
-          case NegPattern(_) =>
-            BigInt("-" + hexdigits, 16)
-          case _ => BigInt(hexdigits, 16)
-        }
-      case DecPattern(sign, num) =>
-        if (sign != null) BigInt(sign + num, 10)
-        else BigInt(num, 10)
+      case HexPattern(hexdigits) => BigInt(hexdigits, 16)
+      case DecPattern(num) => BigInt(num, 10)
       case _ => throw new Exception("Invalid String for conversion to BigInt " + s)
     }
   }
@@ -94,7 +93,7 @@ class Visitor(infoMode: InfoMode) extends FIRRTLBaseVisitor[FirrtlNode] {
       case (null, str, null, null) => StringParam(name, visitStringLit(str))
       case (null, null, dbl, null) => DoubleParam(name, dbl.getText.toDouble)
       case (null, null, null, raw) => RawStringParam(name, raw.getText.tail.init) // Remove "\'"s
-      case _ => throw new Exception(s"Internal error: Visiting impossible parameter ${ctx.getText}")
+      case _ => throwInternalError(Some(s"visiting impossible parameter ${ctx.getText}"))
     }
   }
 
@@ -304,18 +303,38 @@ class Visitor(infoMode: InfoMode) extends FIRRTLBaseVisitor[FirrtlNode] {
           UIntLiteral(value, width)
         case "SInt" =>
           val (width, value) =
-            if (ctx.getChildCount > 4)
-              (IntWidth(string2BigInt(ctx.intLit(0).getText)), string2BigInt(ctx.intLit(1).getText))
-            else {
-              val bigint = string2BigInt(ctx.intLit(0).getText)
-              (IntWidth(BigInt(bigint.bitLength + 1)), bigint)
+            if (ctx.getChildCount > 4) {
+              val width = string2BigInt(ctx.intLit(0).getText)
+              val value = string2BigInt(ctx.intLit(1).getText)
+              (IntWidth(width), value)
+            } else {
+              val str = ctx.intLit(0).getText
+              val value = string2BigInt(str)
+              // To calculate bitwidth of negative number,
+              //  1) negate number and subtract one to get the maximum positive value.
+              //  2) get bitwidth of max positive number
+              //  3) add one to account for the signed representation
+              val width = if (value < 0) (value.abs - BigInt(1)).bitLength + 1 else value.bitLength + 1
+              (IntWidth(BigInt(width)), value)
             }
           SIntLiteral(value, width)
         case "validif(" => ValidIf(visitExp(ctx.exp(0)), visitExp(ctx.exp(1)), UnknownType)
         case "mux(" => Mux(visitExp(ctx.exp(0)), visitExp(ctx.exp(1)), visitExp(ctx.exp(2)), UnknownType)
         case _ =>
           ctx.getChild(1).getText match {
-            case "." => new SubField(visitExp(ctx.exp(0)), ctx.fieldId.getText, UnknownType)
+            case "." =>
+              val expr1 = visitExp(ctx.exp(0))
+              // TODO Workaround for #470
+              if (ctx.fieldId == null) {
+                ctx.DoubleLit.getText.split('.') match {
+                  case Array(a, b) if legalId(a) && legalId(b) =>
+                    val inner = new SubField(expr1, a, UnknownType)
+                    new SubField(inner, b, UnknownType)
+                  case Array() => throw new ParserException(s"Illegal Expression at ${ctx.getText}")
+                }
+              } else {
+                new SubField(expr1, ctx.fieldId.getText, UnknownType)
+              }
             case "[" => if (ctx.exp(1) == null)
               new SubIndex(visitExp(ctx.exp(0)), string2Int(ctx.intLit(0).getText), UnknownType)
             else new SubAccess(visitExp(ctx.exp(0)), visitExp(ctx.exp(1)), UnknownType)
