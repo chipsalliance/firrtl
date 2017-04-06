@@ -400,7 +400,7 @@ case object ClockType extends GroundType {
   def serialize: String = "Clock"
   def mapWidth(f: Width => Width): Type = this
 }
-case class AnalogType(width: Width) extends GroundType {
+case class AnalogType(width: Width, emitType: String = "inout") extends GroundType {
   def serialize: String = "Analog" + width.serialize
   def mapWidth(f: Width => Width): Type = AnalogType(f(width))
 }

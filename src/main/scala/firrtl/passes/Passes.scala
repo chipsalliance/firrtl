@@ -3,12 +3,12 @@
 package firrtl.passes
 
 import com.typesafe.scalalogging.LazyLogging
-
 import firrtl._
 import firrtl.ir._
 import firrtl.Utils._
 import firrtl.Mappers._
 import firrtl.PrimOps._
+import firrtl.annotations.{Annotation, CircuitName, ComponentName, Named}
 
 import scala.collection.mutable
 
@@ -152,7 +152,7 @@ object ExpandConnects extends Pass {
             val exps = create_exps(sx.expr)
             val stmts = ls map { case (x, y) =>
               locs(x).tpe match {
-                case AnalogType(_) => Attach(sx.info, Seq(locs(x), exps(y)))
+                case AnalogType(_, _) => Attach(sx.info, Seq(locs(x), exps(y)))
                 case _ =>
                   get_flip(sx.loc.tpe, x, Default) match {
                     case Default => Connect(sx.info, locs(x), exps(y))
@@ -276,6 +276,70 @@ object VerilogWrap extends Pass {
 
   def run(c: Circuit): Circuit =
     c copy (modules = c.modules map (_ map vWrapS))
+}
+
+object AnalogRenamerAnnotation {
+  def apply(target: Named, value: String): Annotation =
+    Annotation(target, classOf[VerilogAnalogRenamer], value)
+
+  def unapply(a: Annotation): Option[(ComponentName, String)] = a match {
+    case Annotation(named, t, value) if t == classOf[VerilogAnalogRenamer] => named match {
+      case c: ComponentName => Some((c, value))
+      case _ => None
+    }
+    case _ => None
+  }
+}
+
+class VerilogAnalogRenamer extends Transform {
+  override def inputForm: CircuitForm  = LowForm
+  override def outputForm: CircuitForm = LowForm
+
+  override def execute(state: CircuitState): CircuitState = {
+    getMyAnnotations(state) match {
+      case Nil => state
+      case annos =>
+        val analogs = annos.collect { case AnalogRenamerAnnotation(ana, name) => (ana, name) }
+        state.copy(circuit = run(state.circuit, analogs))
+    }
+  }
+
+  def run(circuit: Circuit, annos: Seq[(ComponentName, String)]): Circuit = {
+    circuit map walkModule(annos)
+  }
+  def walkModule(annos: Seq[(ComponentName, String)])(m: DefModule): DefModule = {
+    val filteredAnnos = Map(annos.filter(a => a._1.module.name == m.name).map {
+      case (c, s) => c.name.replace(".", "_") -> s
+    }: _*)
+    m map walkStatement(filteredAnnos) map walkPort(filteredAnnos)
+  }
+  def walkStatement(annos: Map[String, String])(s: Statement): Statement = {
+    s map walkExpression(annos)
+  }
+  def walkPort(annos: Map[String, String])(p: Port): Port = {
+    if (annos.contains(p.name)) {
+      val newType = updateAnalogVerilog(annos(p.name))(p.tpe)
+      Port(p.info, p.name, p.direction, newType)
+    }
+    else {
+      p
+    }
+  }
+  def walkExpression(annos: Map[String, String])(e: Expression): Expression = {
+//    e match {
+//      case h: HasName =>
+//        if (annos.contains(h.name)) e mapType updateAnalogVerilog(annos(h.name))
+//      case _ =>
+//    }
+    e
+  }
+  def updateAnalogVerilog(value: String)(tpe: Type): Type = {
+    tpe match {
+      case a: AnalogType =>
+        AnalogType( a.width, value)
+      case t => t
+    }
+  }
 }
 
 object VerilogRename extends Pass {

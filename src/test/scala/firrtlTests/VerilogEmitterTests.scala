@@ -130,4 +130,28 @@ class VerilogEmitterSpec extends FirrtlFlatSpec {
       """.stripMargin
     compiler.compile(CircuitState(parse(input), ChirrtlForm), new java.io.StringWriter)
   }
+  "Analog types" should "be mappable to something other than inout" in {
+    val compiler = new VerilogCompiler
+    val input =
+      """circuit Test :
+        |  module Test :
+        |    input a : Analog<16>
+        |    output b : Analog<16>
+        |    wire x : UInt<32>
+        |    x <= UInt(0)
+      """.stripMargin
+
+    val writer = new java.io.StringWriter
+
+    val a1 = AnalogRenamerAnnotation(ComponentName("a", ModuleName("Test", CircuitName("Test"))), "input\n`ifndef SYNTHESIS\n  real\n`endif\n       ")
+    val a2 = AnalogRenamerAnnotation(ComponentName("b", ModuleName("Test", CircuitName("Test"))), "input\n`ifndef SYNTHESIS\n  real\n`endif\n       ")
+    val state = CircuitState(parse(input), ChirrtlForm, Some(AnnotationMap(Seq(a1, a2))))
+    compiler.compile(state, writer)
+
+    println(input)
+    val lines = writer.toString.split("\n")
+    for (line <- lines) {
+      println(line)
+    }
+  }
 }

@@ -215,7 +215,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
       case (t: UIntType) => e
       case (t: SIntType) => Seq("$signed(",e,")")
       case ClockType => e
-      case AnalogType(_) => e
+      case AnalogType(_, _) => e
     }
     x match {
       case (e: DoPrim) => emit(op_stream(e), top + 1)
@@ -530,7 +530,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
         // Turn directions into strings (and AnalogType into inout)
         val dirs = m.ports map { case Port(_, name, dir, tpe) =>
           (dir, tpe) match {
-            case (_, AnalogType(_)) => "inout " // padded to length of output
+            case (_, AnalogType(_, emitName)) => s"$emitName " // padded to length of output
             case (Input, _) => "input "
             case (Output, _) =>
               // Assign to the Port
@@ -746,6 +746,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
   def transforms = Seq(
     passes.VerilogModulusCleanup,
     passes.VerilogWrap,
+    new passes.VerilogAnalogRenamer,
     passes.VerilogRename,
     passes.VerilogPrep)
 
