@@ -166,13 +166,13 @@ object Utils extends LazyLogging {
 
   /** Throw an internal error, possibly due to an exception.
     *
-    * @param maybeString - possible string to emit,
-    * @param maybeException - possible exception triggering the error.
+    * @param message - possible string to emit,
+    * @param exception - possible exception triggering the error.
    */
   def throwInternalError(message: Option[String] = None, exception: Option[Exception] = None) = {
     // We'll get the first exception in the chain, keeping it intact.
-    val last = false
-    val throwable = getThrowable(exception, last)
+    val first = true
+    val throwable = getThrowable(exception, true)
     val string: String = message match {
       case Some(s: String) => s + "\n"
       case _ => ""

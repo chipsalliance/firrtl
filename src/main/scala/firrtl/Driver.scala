@@ -168,7 +168,7 @@ object Driver {
           }
         }
 
-    var maybeFinalState = None: Option[CircuitState]
+    var maybeFinalState: Option[CircuitState] = None
 
     // Wrap compilation in a try/catch to present Scala MatchErrors in a more user-friendly format.
     try {
