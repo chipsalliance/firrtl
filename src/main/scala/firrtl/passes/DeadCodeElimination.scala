@@ -113,7 +113,13 @@ object DeadCodeElimination extends Pass {
     val depGraph = new MutableDiGraph[LogicNode]
     c.modules.foreach {
       case mod: Module => setupDepGraph(depGraph, instMaps(mod.name))(mod)
-      case ext: ExtModule => ??? // TODO Just connect all inputs to all outputs
+      case ext: ExtModule =>
+        // Connect all inputs to all outputs
+        val node = LogicNode(ext.name, ext.name)
+        val ports = ext.ports.groupBy(_.direction)
+        depGraph.addVertex(node)
+        ports(Output).foreach(output => depGraph.addEdge(LogicNode(ext.name, output.name), node))
+        ports(Input).foreach(input => depGraph.addEdge(node, LogicNode(ext.name, input.name)))
     }
     // Connect circuitSink to top-level outputs
     val topModule = c.modules.find(_.name == c.main).get
