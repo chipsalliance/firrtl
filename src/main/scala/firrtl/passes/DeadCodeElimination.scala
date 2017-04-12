@@ -118,13 +118,16 @@ object DeadCodeElimination extends Pass {
         val node = LogicNode(ext.name, ext.name)
         val ports = ext.ports.groupBy(_.direction)
         depGraph.addVertex(node)
-        ports(Output).foreach(output => depGraph.addEdge(LogicNode(ext.name, output.name), node))
-        ports(Input).foreach(input => depGraph.addEdge(node, LogicNode(ext.name, input.name)))
+        ports.get(Output).foreach(_.foreach(output => depGraph.addEdge(LogicNode(ext.name, output.name), node)))
+        ports.get(Input).foreach(_.foreach(input => depGraph.addEdge(node, LogicNode(ext.name, input.name))))
     }
-    // Connect circuitSink to top-level outputs
+    // Connect circuitSink to top-level outputs (and Analog inputs)
     val topModule = c.modules.find(_.name == c.main).get
-    val topOutputs = topModule.ports.filter(_.direction == Output)
-    topOutputs.foreach(output => depGraph.addEdge(circuitSink, LogicNode(c.main, output.name)))
+    val topOutputs = topModule.ports.foreach {
+      case Port(_, name, Output, _) => depGraph.addEdge(circuitSink, LogicNode(c.main, name))
+      case Port(_, name, _, _: AnalogType) => depGraph.addEdge(circuitSink, LogicNode(c.main, name))
+      case _ =>
+    }
 
     DiGraph(depGraph)
   }
