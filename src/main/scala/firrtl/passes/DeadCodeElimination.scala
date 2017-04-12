@@ -10,7 +10,6 @@ import firrtl.Mappers._
 import firrtl.WrappedExpression._
 import firrtl.Utils.{throwInternalError, toWrappedExpression, kind}
 import wiring.WiringUtils.getChildrenMap
-import logger._
 
 import collection.mutable
 import java.io.{File, FileWriter}
@@ -161,9 +160,9 @@ object DeadCodeElimination extends Pass {
       case con: Connect =>
         val node = getDeps(con.loc) match { case Seq(elt) => elt }
         if (deadNodes.contains(node)) EmptyStmt else con
-      case Attach(info, exprs) => // If any exprs are dead then all should be
-        val exprsx = exprs.flatMap(getDeps(_)).filterNot(deadNodes.contains(_)).map(_.e1)
-        if (exprsx.isEmpty) EmptyStmt else Attach(info, exprsx)
+      case Attach(info, exprs) => // If any exprs are dead then all are
+        val dead = exprs.flatMap(getDeps(_)).forall(deadNodes.contains(_))
+        if (dead) EmptyStmt else Attach(info, exprs)
       case other => other map onStmt
     }
 
@@ -179,39 +178,10 @@ object DeadCodeElimination extends Pass {
     }
     val topoSortedModules = iGraph.graph.transformNodes(_.module).linearize.reverse.map(moduleMap(_))
 
-    //println(" ********** moduleMap ********** ")
-    //println(moduleMap)
-    //val instMaps = getChildrenMap(c).map { case (mod, insts) => mod -> insts.toMap }.toMap
-    //val moduleDeps2 = instMaps.map { case (mod, insts) => mod -> insts.values.toSet }
-    //val topoSortedModules2 = DiGraph(moduleDeps2).linearize.reverse.map(moduleMap(_))
-    //println(" ********** moduleDeps ********** ")
-    //println(moduleDeps)
-    //println(moduleDeps2)
-    //println(" ********** topoSortedModules ********** ")
-    //println(topoSortedModules.map(_.name))
-    //println(topoSortedModules2.map(_.name))
-
-    //println(" ********** instMaps ********** ")
-    //println(instMaps)
-    //println(moduleDeps)
-
-
     val depGraph = createDependencyGraph(moduleDeps, c)
 
-    //println(" ********** Dependency Graph ********** ")
-    //val vertices = depGraph.getVertices
-    //vertices.foreach { v =>
-    //  val deps = depGraph.getEdges(v)
-    //  deps.foreach(d => println("  " + v.e1.serialize + " -> " + d.e1.serialize))
-    //}
-
     val liveNodes = depGraph.reachableFrom(circuitSink) + circuitSink
-    //println(" ********** Live Nodes ********** ")
-    //liveNodes.foreach(n => println("  " + n.e1.serialize))
-
     val deadNodes = depGraph.getVertices -- liveNodes
-    //println(" ********** Dead Nodes ********** ")
-    //deadNodes.foreach(n => println("  " + n.e1.serialize))
 
     // As we delete deadCode, we will delete ports from Modules and somtimes complete modules
     // themselves. We iterate over the modules in a topological order from leaves to the top. The
@@ -227,10 +197,6 @@ object DeadCodeElimination extends Pass {
     }
 
     // Preserve original module order
-    val res = c.copy(modules = c.modules.flatMap(m => modulesxMap.get(m.name)))
-    //println(" ********** New Circuit ********** ")
-    //println(res.serialize)
-    //throw new Exception("bail")
-    res
+    c.copy(modules = c.modules.flatMap(m => modulesxMap.get(m.name)))
   }
 }
