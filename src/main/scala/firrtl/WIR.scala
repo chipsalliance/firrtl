@@ -45,6 +45,7 @@ case class WSubField(exp: Expression, name: String, tpe: Type, gender: Gender) e
 }
 object WSubField {
   def apply(exp: Expression, n: String): WSubField = new WSubField(exp, n, field_type(exp.tpe, n), UNKNOWNGENDER)
+  def apply(exp: Expression, name: String, tpe: Type): WSubField = new WSubField(exp, name, tpe, UNKNOWNGENDER)
 }
 case class WSubIndex(exp: Expression, value: Int, tpe: Type, gender: Gender) extends Expression {
   def serialize: String = s"${exp.serialize}[$value]"
