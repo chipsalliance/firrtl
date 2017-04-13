@@ -360,7 +360,8 @@ object PrimOps extends LazyLogging {
         case _ => UnknownType
       }
       case Tail => t1 match {
-        case (_: UIntType | _: SIntType | _: FixedType) => UIntType(MINUS(w1, c1))
+          //TODO: (chick) What other Ops need IntervalType to be considered
+        case (_: UIntType | _: SIntType | _: FixedType | _: IntervalType) => UIntType(MINUS(w1, c1))
         case _ => UnknownType
       }
       case BPShl => t1 match {

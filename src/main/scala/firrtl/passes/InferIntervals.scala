@@ -202,6 +202,7 @@ object InferIntervalsUtils {
           case None => h + (w.name -> g.exp)
           case Some(p) => h + (w.name -> IMax(Seq(g.exp, p)))
         }
+        case w: IVal => h
         case _ => throwInternalError
       }
     }
