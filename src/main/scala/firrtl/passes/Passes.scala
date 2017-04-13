@@ -10,9 +10,25 @@ import firrtl.Utils._
 import firrtl.Mappers._
 import firrtl.PrimOps._
 
-trait Pass extends LazyLogging {
-  def name: String
+import scala.collection.mutable
+
+/** [[Pass]] is simple transform that is generally part of a larger [[Transform]]
+  * Has an [[UnknownForm]], because larger [[Transform]] should specify form
+  */
+trait Pass extends Transform {
+  def inputForm: CircuitForm = UnknownForm
+  def outputForm: CircuitForm = UnknownForm
   def run(c: Circuit): Circuit
+  def execute(state: CircuitState): CircuitState = {
+    val result = (state.form, inputForm) match {
+      case (_, UnknownForm) => run(state.circuit)
+      case (UnknownForm, _) => run(state.circuit)
+      case (x, y) if x > y =>
+        error(s"[$name]: Input form must be lower or equal to $inputForm. Got ${state.form}")
+      case _ => run(state.circuit)
+    }
+    CircuitState(result, outputForm, state.annotations, state.renames)
+  }
 }
 
 // Error handling
@@ -32,8 +48,6 @@ class Errors {
 
 // These should be distributed into separate files
 object ToWorkingIR extends Pass {
-  def name = "Working IR"
-
   def toExp(e: Expression): Expression = e map toExp match {
     case ex: Reference => WRef(ex.name, ex.tpe, NodeKind, UNKNOWNGENDER)
     case ex: SubField => WSubField(ex.expr, ex.name, ex.tpe, UNKNOWNGENDER)
@@ -52,7 +66,6 @@ object ToWorkingIR extends Pass {
 }
 
 object PullMuxes extends Pass {
-   def name = "Pull Muxes"
    def run(c: Circuit): Circuit = {
      def pull_muxes_e(e: Expression): Expression = e map pull_muxes_e match {
        case ex: WSubField => ex.exp match {
@@ -91,7 +104,6 @@ object PullMuxes extends Pass {
 }
 
 object ExpandConnects extends Pass {
-  def name = "Expand Connects"
   def run(c: Circuit): Circuit = {
     def expand_connects(m: Module): Module = {
       val genders = collection.mutable.LinkedHashMap[String,Gender]()
@@ -138,12 +150,17 @@ object ExpandConnects extends Pass {
             val ls = get_valid_points(sx.loc.tpe, sx.expr.tpe, Default, Default)
             val locs = create_exps(sx.loc)
             val exps = create_exps(sx.expr)
-            Block(ls map {case (x, y) =>
-              get_flip(sx.loc.tpe, x, Default) match {
-                 case Default => Connect(sx.info, locs(x), exps(y))
-                 case Flip => Connect(sx.info, exps(y), locs(x))
+            val stmts = ls map { case (x, y) =>
+              locs(x).tpe match {
+                case AnalogType(_) => Attach(sx.info, Seq(locs(x), exps(y)))
+                case _ =>
+                  get_flip(sx.loc.tpe, x, Default) match {
+                    case Default => Connect(sx.info, locs(x), exps(y))
+                    case Flip => Connect(sx.info, exps(y), locs(x))
+                  }
               }
-            })
+            }
+            Block(stmts)
           case sx => sx map expand_s
         }
       }
@@ -164,7 +181,6 @@ object ExpandConnects extends Pass {
 // Replace shr by amount >= arg width with 0 for UInts and MSB for SInts
 // TODO replace UInt with zero-width wire instead
 object Legalize extends Pass {
-  def name = "Legalize"
   private def legalizeShiftRight(e: DoPrim): Expression = {
     require(e.op == Shr)
     val amount = e.consts.head.toInt
@@ -210,7 +226,7 @@ object Legalize extends Pass {
       val expr = t match {
         case UIntType(_) => bits
         case SIntType(_) => DoPrim(AsSInt, Seq(bits), Seq(), SIntType(IntWidth(w)))
-        //case FixedType(width, point) => FixedType(width, point)
+        case FixedType(_, IntWidth(p)) => DoPrim(AsFixedPoint, Seq(bits), Seq(p), t)
       }
       Connect(c.info, c.loc, expr)
     }
@@ -237,7 +253,6 @@ object Legalize extends Pass {
 }
 
 object VerilogWrap extends Pass {
-  def name = "Verilog Wrap"
   def vWrapE(e: Expression): Expression = e map vWrapE match {
     case e: DoPrim => e.op match {
       case Tail => e.args.head match {
@@ -264,7 +279,6 @@ object VerilogWrap extends Pass {
 }
 
 object VerilogRename extends Pass {
-  def name = "Verilog Rename"
   def verilogRenameN(n: String): String =
     if (v_keywords(n)) "%s$".format(n) else n
 
@@ -283,42 +297,84 @@ object VerilogRename extends Pass {
     c copy (modules = c.modules map (_ map verilogRenameP map verilogRenameS))
 }
 
-
+/** Makes changes to the Firrtl AST to make Verilog emission easier
+  *
+  * - For each instance, adds wires to connect to each port
+  *   - Note that no Namespace is required because Uniquify ensures that there will be no
+  *     collisions with the lowered names of instance ports
+  * - Also removes Attaches where a single Port OR Wire connects to 1 or more instance ports
+  *   - These are expressed in the portCons of WDefInstConnectors
+  *
+  * @note The result of this pass is NOT legal Firrtl
+  */
 object VerilogPrep extends Pass {
-  def name = "Verilog Prep"
-  type InstAttaches = collection.mutable.HashMap[String, Expression]
-  def run(c: Circuit): Circuit = {
-    def buildS(attaches: InstAttaches)(s: Statement): Statement = s match {
-      case Attach(_, source, exps) => 
-        exps foreach { e => attaches(e.serialize) = source }
-        s
-      case _ => s map buildS(attaches)
+
+  type AttachSourceMap = Map[WrappedExpression, Expression]
+
+  // Finds attaches with only a single source (Port or Wire)
+  //   - Creates a map of attached expressions to their source
+  //   - Removes the Attach
+  private def collectAndRemoveAttach(m: DefModule): (DefModule, AttachSourceMap) = {
+    val sourceMap = mutable.HashMap.empty[WrappedExpression, Expression]
+    lazy val namespace = Namespace(m)
+
+    def onStmt(stmt: Statement): Statement = stmt map onStmt match {
+      case attach: Attach =>
+        val wires = attach.exprs groupBy kind
+        val sources = wires.getOrElse(PortKind, Seq.empty) ++ wires.getOrElse(WireKind, Seq.empty)
+        val instPorts = wires.getOrElse(InstanceKind, Seq.empty)
+        // Sanity check (Should be caught by CheckTypes)
+        assert(sources.size + instPorts.size == attach.exprs.size)
+
+        sources match {
+          case Seq() => // Zero sources, can add a wire to connect and remove
+            val name = namespace.newTemp
+            val wire = DefWire(NoInfo, name, instPorts.head.tpe)
+            val ref = WRef(wire)
+            for (inst <- instPorts) sourceMap(inst) = ref
+            wire // Replace the attach with new source wire definition
+          case Seq(source) => // One source can be removed
+            assert(!sourceMap.contains(source)) // should have been merged
+            for (inst <- instPorts) sourceMap(inst) = source
+            EmptyStmt
+          case moreThanOne =>
+            attach
+        }
+      case s => s
     }
+
+    (m map onStmt, sourceMap.toMap)
+  }
+
+  def run(c: Circuit): Circuit = {
     def lowerE(e: Expression): Expression = e match {
-      case _: WRef|_: WSubField if kind(e) == InstanceKind =>
+      case (_: WRef | _: WSubField) if kind(e) == InstanceKind =>
         WRef(LowerTypes.loweredName(e), e.tpe, kind(e), gender(e))
       case _ => e map lowerE
     }
-    def lowerS(attaches: InstAttaches)(s: Statement): Statement = s match {
+
+    def lowerS(attachMap: AttachSourceMap)(s: Statement): Statement = s match {
       case WDefInstance(info, name, module, tpe) =>
-        val exps = create_exps(WRef(name, tpe, ExpKind, MALE))
-        val wcon = WDefInstanceConnector(info, name, module, tpe, exps.map( e => e.tpe match {
-          case AnalogType(w) => attaches(e.serialize)
-          case _ => WRef(LowerTypes.loweredName(e), e.tpe, WireKind, MALE)
-        }))
-        val wires = exps.map ( e => e.tpe match {
-          case AnalogType(w) => EmptyStmt
-          case _ => DefWire(info, LowerTypes.loweredName(e), e.tpe)
-        })
-        Block(Seq(wcon) ++ wires)
-      case Attach(info, source, exps) => EmptyStmt
-      case _ => s map lowerS(attaches) map lowerE
+        val portRefs = create_exps(WRef(name, tpe, ExpKind, MALE))
+        val (portCons, wires) = portRefs.map { p =>
+          attachMap.get(p) match {
+            // If it has a source in attachMap use that
+            case Some(ref) => (p -> ref, None)
+            // If no source, create a wire corresponding to the port and connect it up
+            case None =>
+              val wire = DefWire(info, LowerTypes.loweredName(p), p.tpe)
+              (p -> WRef(wire), Some(wire))
+          }
+        }.unzip
+        val newInst = WDefInstanceConnector(info, name, module, tpe, portCons)
+        Block(wires.flatten :+ newInst)
+      case other => other map lowerS(attachMap) map lowerE
     }
-    def prepModule(m: DefModule): DefModule = {
-      val attaches = new InstAttaches
-      m map buildS(attaches)
-      m map lowerS(attaches)
+
+    val modulesx = c.modules map { mod =>
+      val (modx, attachMap) = collectAndRemoveAttach(mod)
+      modx map lowerS(attachMap)
     }
-    c.copy(modules = c.modules.map(prepModule))
+    c.copy(modules = modulesx)
   }
 }

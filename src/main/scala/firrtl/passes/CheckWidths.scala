@@ -9,14 +9,13 @@ import firrtl.Mappers._
 import firrtl.Utils._
 
 object CheckWidths extends Pass {
-  def name = "Width Check"
   /** The maximum allowed width for any circuit element */
   val MaxWidth = 1000000
   val DshlMaxWidth = ceilLog2(MaxWidth + 1)
   class UninferredWidth (info: Info, mname: String) extends PassException(
     s"$info : [module $mname]  Uninferred width.")
   class WidthTooSmall(info: Info, mname: String, b: BigInt) extends PassException(
-    s"$info : [module $mname]  Width too small for constant ${serialize(b)}.")
+    s"$info : [module $mname]  Width too small for constant $b.")
   class WidthTooBig(info: Info, mname: String, b: BigInt) extends PassException(
     s"$info : [module $mname]  Width $b greater than max allowed width of $MaxWidth bits")
   class DshlTooBig(info: Info, mname: String) extends PassException(
@@ -87,10 +86,10 @@ object CheckWidths extends Pass {
     def check_width_s(minfo: Info, mname: String)(s: Statement): Statement = {
       val info = get_info(s) match { case NoInfo => minfo case x => x }
       s map check_width_e(info, mname) map check_width_s(info, mname) map check_width_t(info, mname) match {
-        case Attach(infox, source, exprs) =>
-          exprs foreach ( e =>
-            if (bitWidth(e.tpe) != bitWidth(source.tpe))
-              errors append new AttachWidthsNotEqual(infox, mname, e.serialize, source.serialize)
+        case Attach(infox, exprs) =>
+          exprs.tail.foreach ( e =>
+            if (bitWidth(e.tpe) != bitWidth(exprs.head.tpe))
+              errors.append(new AttachWidthsNotEqual(infox, mname, e.serialize, exprs.head.serialize))
           )
           s
         case _ => s

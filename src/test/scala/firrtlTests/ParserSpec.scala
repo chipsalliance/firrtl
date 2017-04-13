@@ -4,6 +4,8 @@ package firrtlTests
 
 import org.scalatest._
 import firrtl._
+import org.scalacheck.Gen
+import org.scalacheck.Prop.forAll
 
 class ParserSpec extends FirrtlFlatSpec {
 
@@ -29,14 +31,11 @@ class ParserSpec extends FirrtlFlatSpec {
 
   private object KeywordTests {
     val prelude = Seq("circuit top :", "  module top :")
-    val keywords = Seq( "circuit", "module", "extmodule", "input", "output",
-      "UInt", "SInt", "flip", "Clock", "wire", "reg", "reset", "with", "mem",
-      "data-type", "depth", "read-latency", "write-latency",
-      "read-under-write", "reader", "writer", "readwriter", "inst", "of",
-      "node", "is", "invalid", "when", "else", "stop", "printf", "skip", "old",
-      "new", "undefined", "mux", "validif", "UBits", "SBits", "cmem", "smem",
-      "mport", "infer", "read", "write", "rdwr"
-    ) ++ PrimOps.listing
+    val keywords = Seq("circuit", "module", "extmodule", "parameter", "input", "output", "UInt",
+      "SInt", "Analog", "Fixed", "flip", "Clock", "wire", "reg", "reset", "with", "mem", "depth",
+      "reader", "writer", "readwriter", "inst", "of", "node", "is", "invalid", "when", "else",
+      "stop", "printf", "skip", "old", "new", "undefined", "mux", "validif", "cmem", "smem",
+      "mport", "infer", "read", "write", "rdwr") ++ PrimOps.listing
   }
 
   // ********** Memories **********
@@ -91,6 +90,86 @@ class ParserSpec extends FirrtlFlatSpec {
     keywords foreach { keyword =>
       firrtl.Parser.parse((prelude ++ Seq(s"      wire ${keyword} : UInt",
                                           s"      ${keyword} <= ${keyword}")))
+    }
+  }
+
+  // ********** Digits as Fields **********
+  "Digits" should "be legal fields in bundles and in subexpressions" in {
+    val input = """
+      |circuit Test :
+      |  module Test :
+      |    input in : { 0 : { 0 : UInt<32>, flip 1 : UInt<32> } }
+      |    input in2 : { 4 : { 23 : { foo : UInt<32>, bar : { flip 123 : UInt<32> } } } }
+      |    in.0.1 <= in.0.0
+      |    in2.4.23.bar.123 <= in2.4.23.foo
+      """.stripMargin
+    firrtl.Parser.parse(input split "\n")
+  }
+
+  // ********** Doubles as parameters **********
+  "Doubles" should "be legal parameters for extmodules" in {
+    val nums = Seq("1.0", "7.6", "3.00004", "1.0E10", "1.0023E-17")
+    val signs = Seq("", "+", "-")
+    val tests = "0.0" +: (signs flatMap (s => nums map (n => s + n)))
+    for (test <- tests) {
+      println(s"Trying $test")
+      val input = s"""
+        |circuit Test :
+        |  extmodule Ext :
+        |    input foo : UInt<32>
+        |
+        |    defname = MyExtModule
+        |    parameter REAL = $test
+        |
+        |  module Test :
+        |    input foo : UInt<32>
+        |    output bar : UInt<32>
+        """.stripMargin
+      firrtl.Parser.parse(input split "\n")
+    }
+  }
+}
+
+class ParserPropSpec extends FirrtlPropSpec {
+  // Disable shrinking on error.
+  import org.scalacheck.Shrink
+  implicit val noShrinkString = Shrink[String](_ => Stream.empty)
+
+  def legalStartChar = Gen.frequency((1, '_'), (20, Gen.alphaChar))
+  def legalChar = Gen.frequency((1, Gen.numChar), (1, '$'), (10, legalStartChar))
+
+  def identifier = for {
+    x <- legalStartChar
+    xs <- Gen.listOf(legalChar)
+  } yield (x :: xs).mkString
+
+  property("Identifiers should allow [A-Za-z0-9_$] but not allow starting with a digit or $") {
+    forAll (identifier) { id =>
+      whenever(id.nonEmpty) {
+        val input = s"""
+           |circuit Test :
+           |  module Test :
+           |    input $id : UInt<32>
+           |""".stripMargin
+        firrtl.Parser.parse(input split "\n")
+      }
+    }
+  }
+
+  def bundleField = for {
+    xs <- Gen.nonEmptyListOf(legalChar)
+  } yield xs.mkString
+
+  property("Bundle fields should allow [A-Za-z0-9_] including starting with a digit or $") {
+    forAll (identifier, bundleField) { case (id, field) =>
+      whenever(id.nonEmpty && field.nonEmpty) {
+        val input = s"""
+           |circuit Test :
+           |  module Test :
+           |    input $id : { $field : UInt<32> }
+           |""".stripMargin
+        firrtl.Parser.parse(input split "\n")
+      }
     }
   }
 }

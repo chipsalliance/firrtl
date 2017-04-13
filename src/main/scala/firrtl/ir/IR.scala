@@ -21,10 +21,17 @@ case object NoInfo extends Info {
 }
 case class FileInfo(info: StringLit) extends Info {
   override def toString: String = " @[" + info.serialize + "]"
-  def ++(that: Info): Info = that match {
-    case NoInfo => this
-    case FileInfo(otherInfo) => FileInfo(FIRRTLStringLitHandler.unescape(info.serialize + " " + otherInfo.serialize))
+  def ++(that: Info): Info = MultiInfo(Seq(this, that))
+}
+case class MultiInfo(infos: Seq[Info]) extends Info {
+  private def collectStringLits(info: Info): Seq[StringLit] = info match {
+    case FileInfo(lit) => Seq(lit)
+    case MultiInfo(seq) => seq flatMap collectStringLits
+    case NoInfo => Seq.empty
   }
+  override def toString: String =
+    collectStringLits(this).map(_.serialize).mkString(" @[", " ", "]")
+  def ++(that: Info): Info = MultiInfo(Seq(this, that))
 }
 
 trait HasName {
@@ -96,14 +103,14 @@ abstract class Literal extends Expression {
 }
 case class UIntLiteral(value: BigInt, width: Width) extends Literal {
   def tpe = UIntType(width)
-  def serialize = s"UInt${width.serialize}(" + Utils.serialize(value) + ")"
+  def serialize = s"""UInt${width.serialize}("h""" + value.toString(16)+ """")"""
   def mapExpr(f: Expression => Expression): Expression = this
   def mapType(f: Type => Type): Expression = this
   def mapWidth(f: Width => Width): Expression = UIntLiteral(value, f(width))
 }
 case class SIntLiteral(value: BigInt, width: Width) extends Literal {
   def tpe = SIntType(width)
-  def serialize = s"SInt${width.serialize}(" + Utils.serialize(value) + ")"
+  def serialize = s"""SInt${width.serialize}("h""" + value.toString(16)+ """")"""
   def mapExpr(f: Expression => Expression): Expression = this
   def mapType(f: Type => Type): Expression = this
   def mapWidth(f: Width => Width): Expression = SIntLiteral(value, f(width))
@@ -112,7 +119,7 @@ case class FixedLiteral(value: BigInt, width: Width, point: Width) extends Liter
   def tpe = FixedType(width, point)
   def serialize = {
     val pstring = if(point == UnknownWidth) "" else s"<${point.serialize}>"
-    s"Fixed${width.serialize}$pstring(" + Utils.serialize(value) + ")"
+    s"""Fixed${width.serialize}$pstring("h${value.toString(16)}")"""
   }
   def mapExpr(f: Expression => Expression): Expression = this
   def mapType(f: Type => Type): Expression = this
@@ -241,10 +248,10 @@ case class IsInvalid(info: Info, expr: Expression) extends Statement with HasInf
   def mapType(f: Type => Type): Statement = this
   def mapString(f: String => String): Statement = this
 }
-case class Attach(info: Info, source: Expression, exprs: Seq[Expression]) extends Statement with HasInfo {
-  def serialize: String = "attach " + source.serialize + " to (" + exprs.map(_.serialize).mkString(", ") + ")"
+case class Attach(info: Info, exprs: Seq[Expression]) extends Statement with HasInfo {
+  def serialize: String = "attach " + exprs.map(_.serialize).mkString("(", ", ", ")")
   def mapStmt(f: Statement => Statement): Statement = this
-  def mapExpr(f: Expression => Expression): Statement = Attach(info, f(source), exprs map f)
+  def mapExpr(f: Expression => Expression): Statement = Attach(info, exprs map f)
   def mapType(f: Type => Type): Statement = this
   def mapString(f: String => String): Statement = this
 }
@@ -523,4 +530,6 @@ case class Circuit(info: Info, modules: Seq[DefModule], main: String) extends Fi
   def serialize: String =
     s"circuit $main :" + info.serialize +
     (modules map ("\n" + _.serialize) map indent mkString "\n") + "\n"
+  def mapModule(f: DefModule => DefModule): Circuit = this.copy(modules = modules map f)
+  def mapString(f: String => String): Circuit = this.copy(main = f(main))
 }

@@ -32,8 +32,6 @@ import MemPortUtils.memType
   *      to rename a
   */
 object Uniquify extends Pass {
-  def name = "Uniquify Identifiers"
-
   private case class UniquifyException(msg: String) extends FIRRTLException(msg)
   private def error(msg: String)(implicit sinfo: Info, mname: String) =
     throw new UniquifyException(s"$sinfo: [module $mname] $msg")
@@ -203,7 +201,7 @@ object Uniquify extends Pass {
       case sx: DefRegister => Seq(Field(sx.name, Default, sx.tpe))
       case sx: WDefInstance => Seq(Field(sx.name, Default, sx.tpe))
       case sx: DefMemory => sx.dataType match {
-        case (_: UIntType | _: SIntType) =>
+        case (_: UIntType | _: SIntType | _: FixedType) =>
           Seq(Field(sx.name, Default, memType(sx)))
         case tpe: BundleType =>
           val newFields = tpe.fields map ( f =>

@@ -13,109 +13,16 @@ import scala.io.Source
 import firrtl._
 import firrtl.Parser.IgnoreInfo
 import firrtl.annotations
-
-// This trait is borrowed from Chisel3, ideally this code should only exist in one location
-trait BackendCompilationUtilities {
-  /** Create a temporary directory with the prefix name. Exists here because it doesn't in Java 6.
-    */
-  def createTempDirectory(prefix: String): File = {
-    val temp = File.createTempFile(prefix, "")
-    if (!temp.delete()) {
-      throw new IOException(s"Unable to delete temp file '$temp'")
-    }
-    if (!temp.mkdir()) {
-      throw new IOException(s"Unable to create temp directory '$temp'")
-    }
-    temp
-  }
-
-  /** Copy the contents of a resource to a destination file.
-    */
-  def copyResourceToFile(name: String, file: File) {
-    val in = getClass().getResourceAsStream(name)
-    if (in == null) {
-      throw new FileNotFoundException(s"Resource '$name'")
-    }
-    val out = new FileOutputStream(file)
-    Iterator.continually(in.read).takeWhile(-1 !=).foreach(out.write)
-    out.close()
-  }
-
-
-  def makeHarness(template: String => String, post: String)(f: File): File = {
-    val prefix = f.toString.split("/").last
-    val vf = new File(f.toString + post)
-    val w = new FileWriter(vf)
-    w.write(template(prefix))
-    w.close()
-    vf
-  }
-
-  /** Generates a Verilator invocation to convert Verilog sources to C++
-    * simulation sources.
-    *
-    * The Verilator prefix will be V$dutFile, and running this will generate
-    * C++ sources and headers as well as a makefile to compile them.
-    *
-    * Verilator will automatically locate the top-level module as the one among
-    * all the files which are not included elsewhere. If multiple ones exist,
-    * the compilation will fail.
-    *
-    * @param dutFile name of the DUT .v without the .v extension
-    * @param dir output directory
-    * @param vSources list of additional Verilog sources to compile
-    * @param cppHarness C++ testharness to compile/link against
-    */
-  def verilogToCpp(
-      dutFile: String,
-      dir: File,
-      vSources: Seq[File],
-      cppHarness: File): ProcessBuilder =
-
-    Seq("verilator",
-        "--cc", s"$dutFile.v") ++
-        vSources.map(file => Seq("-v", file.toString)).flatten ++
-        Seq("--assert",
-            "--Wno-fatal",
-            "--trace",
-            "-O2",
-            "--top-module", dutFile,
-            "+define+TOP_TYPE=V" + dutFile,
-            "-CFLAGS", s"""-Wno-undefined-bool-conversion -O2 -DTOP_TYPE=V$dutFile -include V$dutFile.h""",
-            "-Mdir", dir.toString,
-            "--exe", cppHarness.toString)
-
-  def cppToExe(prefix: String, dir: File): ProcessBuilder =
-    Seq("make", "-C", dir.toString, "-j", "-f", s"V${prefix}.mk", s"V${prefix}")
-
-  def executeExpectingFailure(
-      prefix: String,
-      dir: File,
-      assertionMsg: String = "Assertion failed"): Boolean = {
-    var triggered = false
-    val e = Process(s"./V${prefix}", dir) !
-      ProcessLogger(line => {
-        triggered = triggered || line.contains(assertionMsg)
-        System.out.println(line)
-      })
-    triggered
-  }
-
-  def executeExpectingSuccess(prefix: String, dir: File): Boolean = {
-    !executeExpectingFailure(prefix, dir)
-  }
-}
+import firrtl.util.BackendCompilationUtilities
 
 trait FirrtlRunners extends BackendCompilationUtilities {
-  def parse(str: String) = Parser.parse(str.split("\n").toIterator, IgnoreInfo)
   lazy val cppHarness = new File(s"/top.cpp")
   /** Compiles input Firrtl to Verilog */
   def compileToVerilog(input: String, annotations: AnnotationMap = AnnotationMap(Seq.empty)): String = {
     val circuit = Parser.parse(input.split("\n").toIterator)
     val compiler = new VerilogCompiler
-    val writer = new java.io.StringWriter
-    compiler.compile(CircuitState(circuit, HighForm, Some(annotations)), writer)
-    writer.toString
+    val res = compiler.compileAndEmit(CircuitState(circuit, HighForm, Some(annotations)))
+    res.getEmittedCircuit.value
   }
   /** Compile a Firrtl file
     *
@@ -128,16 +35,18 @@ trait FirrtlRunners extends BackendCompilationUtilities {
       srcDir: String,
       customTransforms: Seq[Transform] = Seq.empty,
       annotations: AnnotationMap = new AnnotationMap(Seq.empty)): File = {
-    val testDir = createTempDirectory(prefix)
+    val testDir = createTestDirectory(prefix)
     copyResourceToFile(s"${srcDir}/${prefix}.fir", new File(testDir, s"${prefix}.fir"))
 
-    Driver.compile(
-      s"$testDir/$prefix.fir",
-      s"$testDir/$prefix.v",
-      new VerilogCompiler(),
-      Parser.IgnoreInfo,
-      customTransforms,
-      annotations)
+    val optionsManager = new ExecutionOptionsManager(prefix) with HasFirrtlOptions {
+      commonOptions = CommonOptions(topName = prefix, targetDirName = testDir.getPath)
+      firrtlOptions = FirrtlExecutionOptions(
+                        infoModeName = "ignore",
+                        customTransforms = customTransforms,
+                        annotations = annotations.annotations.toList)
+    }
+    firrtl.Driver.execute(optionsManager)
+
     testDir
   }
   /** Execute a Firrtl Test
@@ -170,7 +79,7 @@ trait FirrtlRunners extends BackendCompilationUtilities {
   }
 }
 
-trait FirrtlMatchers {
+trait FirrtlMatchers extends Matchers {
   // Replace all whitespace with a single space and remove leading and
   //   trailing whitespace
   // Note this is intended for single-line strings, no newlines
@@ -178,11 +87,23 @@ trait FirrtlMatchers {
     require(!s.contains("\n"))
     s.replaceAll("\\s+", " ").trim
   }
+  def parse(str: String) = Parser.parse(str.split("\n").toIterator, IgnoreInfo)
+  /** Helper for executing tests
+    * compiler will be run on input then emitted result will each be split into
+    * lines and normalized.
+    */
+  def executeTest(input: String, expected: Seq[String], compiler: Compiler) = {
+    val finalState = compiler.compileAndEmit(CircuitState(parse(input), ChirrtlForm))
+    val lines = finalState.getEmittedCircuit.value split "\n" map normalized
+    for (e <- expected) {
+      lines should contain (e)
+    }
+  }
 }
 
 abstract class FirrtlPropSpec extends PropSpec with PropertyChecks with FirrtlRunners with LazyLogging
 
-abstract class FirrtlFlatSpec extends FlatSpec with Matchers with FirrtlRunners with FirrtlMatchers with LazyLogging
+abstract class FirrtlFlatSpec extends FlatSpec with FirrtlRunners with FirrtlMatchers with LazyLogging
 
 /** Super class for execution driven Firrtl tests */
 abstract class ExecutionTest(name: String, dir: String, vFiles: Seq[String] = Seq.empty) extends FirrtlPropSpec {

@@ -128,8 +128,8 @@ object PrimOps extends LazyLogging {
     def t1 = e.args.head.tpe
     def t2 = e.args(1).tpe
     def t3 = e.args(2).tpe
-    def w1 = passes.getWidth(e.args.head.tpe)
-    def w2 = passes.getWidth(e.args(1).tpe)
+    def w1 = getWidth(e.args.head.tpe)
+    def w2 = getWidth(e.args(1).tpe)
     def p1 = t1 match { case FixedType(w, p) => p } //Intentional
     def p2 = t2 match { case FixedType(w, p) => p } //Intentional
     def c1 = IntWidth(e.consts.head)
@@ -345,9 +345,7 @@ object PrimOps extends LazyLogging {
         case _ => UnknownType
       }
       case Cat => (t1, t2) match {
-        case (_: UIntType | _: SIntType, _: UIntType | _: SIntType) => UIntType(PLUS(w1, w2))
-        case (_: FixedType, _: UIntType| _: SIntType) => FixedType(PLUS(w1, w2), PLUS(p1, w2))
-        case (_: UIntType | _: SIntType, _: FixedType) => FixedType(PLUS(w1, w2), p1)
+        case (_: UIntType | _: SIntType | _: FixedType, _: UIntType | _: SIntType | _: FixedType) => UIntType(PLUS(w1, w2))
         case (t1, t2) => UnknownType
       }
       case Bits => t1 match {
