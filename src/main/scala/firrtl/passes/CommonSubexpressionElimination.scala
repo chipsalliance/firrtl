@@ -32,7 +32,7 @@ object CommonSubexpressionElimination extends Pass {
           nodes(x.name) = x.value
           expressions.getOrElseUpdate(x.value, x.name)
           x
-        case other => other map eliminateNodeRefs map eliminateNodeRef
+        case other => other map eliminateNodeRefs
       }
     }
 
