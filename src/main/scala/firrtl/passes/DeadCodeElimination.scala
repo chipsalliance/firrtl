@@ -9,6 +9,7 @@ import firrtl.analyses.InstanceGraph
 import firrtl.Mappers._
 import firrtl.WrappedExpression._
 import firrtl.Utils.{throwInternalError, toWrappedExpression, kind}
+import firrtl.MemoizedHash._
 import wiring.WiringUtils.getChildrenMap
 
 import collection.mutable
@@ -17,7 +18,7 @@ import java.io.{File, FileWriter}
 object DeadCodeElimination extends Pass {
 
   /** Based on LogicNode ins CheckCombLoops, currently kind of faking it */
-  private type LogicNode = WrappedExpression
+  private type LogicNode = MemoizedHash[WrappedExpression]
   private object LogicNode {
     def apply(moduleName: String, expr: Expression): LogicNode =
       WrappedExpression(Utils.mergeRef(WRef(moduleName), expr))
