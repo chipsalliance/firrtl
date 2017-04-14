@@ -348,7 +348,6 @@ object InferIntervalsUtils {
 }
      
 object InferIntervals extends Pass {
-  def name = "Infer Intervals"
   private def getTypeConstraints(t1: Type, t2: Type): Seq[Bigger] = (t1,t2) match {
     case (t1: IntervalType, t2: IntervalType) => Seq(Bigger(t1.interval, t2.interval))
     case (t1: BundleType, t2: BundleType) =>

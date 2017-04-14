@@ -12,7 +12,6 @@ import firrtl.Utils._
 /** Replaces FixedType with SIntType, and correctly aligns all binary points
   */
 object ConvertIntervalToSInt extends Pass {
-  def name = "Convert Interval Types to SInt Types"
   def toSIntType(t: Type): Type = t match {
     case it: IntervalType => it match {
       case IntervalType(IVal(a, b)) => SIntType(it.width)
