@@ -4,22 +4,23 @@ package firrtl.passes
 
 // Datastructures
 import scala.collection.mutable.ArrayBuffer
-import scala.collection.immutable.ListMap
+import scala.collection.immutable.LongMap
 
 import firrtl._
 import firrtl.ir._
 import firrtl.Utils._
 import firrtl.Mappers._
 
+// TODO Check replacement of ListMaps and LinkedHashMaps with LongMap
 object InferWidths extends Pass {
-  type ConstraintMap = collection.mutable.LinkedHashMap[String, Width]
+  type ConstraintMap = collection.mutable.LongMap[Width]
 
   def solve_constraints(l: Seq[WGeq]): ConstraintMap = {
     def unique(ls: Seq[Width]) : Seq[Width] =
       (ls map (new WrappedWidth(_))).distinct map (_.w)
     // Combines constraints on the same VarWidth into the same constraint
-    def make_unique(ls: Seq[WGeq]): ListMap[String,Width] = {
-      ls.foldLeft(ListMap.empty[String, Width])((acc, wgeq) => wgeq.loc match {
+    def make_unique(ls: Seq[WGeq]): LongMap[Width] = {
+      ls.foldLeft(LongMap.empty[Width])((acc, wgeq) => wgeq.loc match {
         case VarWidth(name) => acc.get(name) match {
           case None => acc + (name -> wgeq.exp)
           // Avoid constructing massive MaxWidth chains
@@ -126,7 +127,7 @@ object InferWidths extends Pass {
       }
     }
 
-    def remove_cycle(n: String)(w: Width): Width = {
+    def remove_cycle(n: Id)(w: Width): Width = {
       //;println-all-debug(["Removing cycle for " n " inside " w])
       w match {
         case wx: MaxWidth => MaxWidth(wx.args filter {
@@ -143,7 +144,7 @@ object InferWidths extends Pass {
       //;println-all-debug(["After removing cycle for " n ", returning " wx])
     }
 
-    def hasVarWidth(n: String)(w: Width): Boolean = {
+    def hasVarWidth(n: Id)(w: Width): Boolean = {
       var has = false
       def rec(w: Width): Width = {
         w match {
@@ -168,7 +169,7 @@ object InferWidths extends Pass {
     //println("====================================")
  
     val f = new ConstraintMap
-    val o = ArrayBuffer[String]()
+    val o = ArrayBuffer[Id]()
     for ((n, e) <- u) {
       //println("==== SOLUTIONS TABLE ====")
       //for (x <- f) println(x)

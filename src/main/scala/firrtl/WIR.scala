@@ -24,8 +24,8 @@ case object FEMALE extends Gender
 case object BIGENDER extends Gender
 case object UNKNOWNGENDER extends Gender
 
-case class WRef(name: String, tpe: Type, kind: Kind, gender: Gender) extends Expression {
-  def serialize: String = name
+case class WRef(name: Id, tpe: Type, kind: Kind, gender: Gender) extends Expression {
+  def serialize: String = IdNamespace.lookupName(name)
   def mapExpr(f: Expression => Expression): Expression = this
   def mapType(f: Type => Type): Expression = this.copy(tpe = f(tpe))
   def mapWidth(f: Width => Width): Expression = this
@@ -35,16 +35,16 @@ object WRef {
   def apply(wire: DefWire): WRef = new WRef(wire.name, wire.tpe, WireKind, UNKNOWNGENDER)
   /** Creates a WRef from a Register */
   def apply(reg: DefRegister): WRef = new WRef(reg.name, reg.tpe, RegKind, UNKNOWNGENDER)
-  def apply(n: String, t: Type = UnknownType, k: Kind = ExpKind): WRef = new WRef(n, t, k, UNKNOWNGENDER)
+  def apply(n: Id, t: Type = UnknownType, k: Kind = ExpKind): WRef = new WRef(n, t, k, UNKNOWNGENDER)
 }
-case class WSubField(exp: Expression, name: String, tpe: Type, gender: Gender) extends Expression {
+case class WSubField(exp: Expression, name: Id, tpe: Type, gender: Gender) extends Expression {
   def serialize: String = s"${exp.serialize}.$name"
   def mapExpr(f: Expression => Expression): Expression = this.copy(exp = f(exp))
   def mapType(f: Type => Type): Expression = this.copy(tpe = f(tpe))
   def mapWidth(f: Width => Width): Expression = this
 }
 object WSubField {
-  def apply(exp: Expression, n: String): WSubField = new WSubField(exp, n, field_type(exp.tpe, n), UNKNOWNGENDER)
+  def apply(exp: Expression, n: Id): WSubField = new WSubField(exp, n, field_type(exp.tpe, n), UNKNOWNGENDER)
 }
 case class WSubIndex(exp: Expression, value: Int, tpe: Type, gender: Gender) extends Expression {
   def serialize: String = s"${exp.serialize}[$value]"
@@ -80,20 +80,19 @@ case object EmptyExpression extends Expression {
   def mapType(f: Type => Type): Expression = this
   def mapWidth(f: Width => Width): Expression = this
 }
-case class WDefInstance(info: Info, name: String, module: String, tpe: Type) extends Statement with IsDeclaration {
+case class WDefInstance(info: Info, name: Id, module: Id, tpe: Type) extends Statement with IsDeclaration {
   def serialize: String = s"inst $name of $module" + info.serialize
   def mapExpr(f: Expression => Expression): Statement = this
   def mapStmt(f: Statement => Statement): Statement = this
   def mapType(f: Type => Type): Statement = this.copy(tpe = f(tpe))
-  def mapString(f: String => String): Statement = this.copy(name = f(name))
 }
 object WDefInstance {
-  def apply(name: String, module: String): WDefInstance = new WDefInstance(NoInfo, name, module, UnknownType)
+  def apply(name: Id, module: Id): WDefInstance = new WDefInstance(NoInfo, name, module, UnknownType)
 }
 case class WDefInstanceConnector(
     info: Info,
-    name: String,
-    module: String,
+    name: Id,
+    module: Id,
     tpe: Type,
     portCons: Seq[(Expression, Expression)]) extends Statement with IsDeclaration {
   def serialize: String = s"inst $name of $module with ${tpe.serialize} connected to " +
@@ -102,7 +101,6 @@ case class WDefInstanceConnector(
     this.copy(portCons = portCons map { case (e1, e2) => (f(e1), f(e2)) })
   def mapStmt(f: Statement => Statement): Statement = this
   def mapType(f: Type => Type): Statement = this.copy(tpe = f(tpe))
-  def mapString(f: String => String): Statement = this.copy(name = f(name))
 }
 
 // Resultant width is the same as the maximum input width
@@ -146,8 +144,8 @@ class WrappedExpression(val e1: Expression) {
 private[firrtl] sealed trait HasMapWidth {
   def mapWidth(f: Width => Width): Width
 }
-case class VarWidth(name: String) extends Width with HasMapWidth {
-  def serialize: String = name
+case class VarWidth(name: Id) extends Width with HasMapWidth {
+  def serialize: String = IdNamespace.lookupName(name)
   def mapWidth(f: Width => Width): Width = this
 }
 case class PlusWidth(arg1: Width, arg2: Width) extends Width with HasMapWidth {
@@ -210,7 +208,7 @@ object WrappedWidth {
 class WrappedWidth (val w: Width) {
   def ww(w: Width): WrappedWidth = new WrappedWidth(w)
   override def toString = w match {
-    case (w: VarWidth) => w.name
+    case (w: VarWidth) => IdNamespace.lookupName(w.name)
     case (w: MaxWidth) => s"max(${w.args.mkString})"
     case (w: MinWidth) => s"min(${w.args.mkString})"
     case (w: PlusWidth) => s"(${w.arg1} + ${w.arg2})"
@@ -269,7 +267,7 @@ case object MReadWrite extends MPortDir {
 
 case class CDefMemory(
     info: Info,
-    name: String,
+    name: Id,
     tpe: Type,
     size: Int,
     seq: Boolean) extends Statement {
@@ -278,12 +276,11 @@ case class CDefMemory(
   def mapExpr(f: Expression => Expression): Statement = this
   def mapStmt(f: Statement => Statement): Statement = this
   def mapType(f: Type => Type): Statement = this.copy(tpe = f(tpe))
-  def mapString(f: String => String): Statement = this.copy(name = f(name))
 }
 case class CDefMPort(info: Info,
-    name: String,
+    name: Id,
     tpe: Type,
-    mem: String,
+    mem: Id,
     exps: Seq[Expression],
     direction: MPortDir) extends Statement {
   def serialize: String = {
@@ -293,6 +290,5 @@ case class CDefMPort(info: Info,
   def mapExpr(f: Expression => Expression): Statement = this.copy(exps = exps map f)
   def mapStmt(f: Statement => Statement): Statement = this
   def mapType(f: Type => Type): Statement = this.copy(tpe = f(tpe))
-  def mapString(f: String => String): Statement = this.copy(name = f(name))
 }
 

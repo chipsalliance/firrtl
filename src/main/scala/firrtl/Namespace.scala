@@ -21,32 +21,34 @@ class Namespace private {
 
   def contains(value: String): Boolean = namespace.contains(value)
 
-  def newName(value: String): String = {
+  def newName(value: String): Id = {
     var str = value
     while (!tryName(str)) {
       str = s"${value}_$n"
       n += 1
     }
-    str
+    IdNamespace.allocate(str)
   }
-  def newTemp: String = newName(tempNamePrefix)
+  def newTemp: Id = newName(tempNamePrefix)
 }
 
+// TODO the lookups here can't be good
+// Perhaps we need a different abstraction
 object Namespace {
   // Initializes a namespace from a Module
   def apply(m: DefModule): Namespace = {
     val namespace = new Namespace
 
-    def buildNamespaceStmt(s: Statement): Seq[String] = s match {
+    def buildNamespaceStmt(s: Statement): Seq[Id] = s match {
       case s: IsDeclaration => Seq(s.name)
       case s: Conditionally => buildNamespaceStmt(s.conseq) ++ buildNamespaceStmt(s.alt)
       case s: Block => s.stmts flatMap buildNamespaceStmt
       case _ => Nil
     }
-    namespace.namespace ++= m.ports map (_.name)
+    namespace.namespace ++= m.ports.map(p => IdNamespace.lookupName(p.name))
     m match {
       case in: Module =>
-        namespace.namespace ++= buildNamespaceStmt(in.body)
+        namespace.namespace ++= buildNamespaceStmt(in.body).map(IdNamespace.lookupName(_))
       case _ => // Do nothing
     }
 
@@ -56,7 +58,8 @@ object Namespace {
   /** Initializes a [[Namespace]] for [[ir.Module]] names in a [[ir.Circuit]] */
   def apply(c: Circuit): Namespace = {
     val namespace = new Namespace
-    namespace.namespace ++= c.modules map (_.name)
+    // TODO this can't be good
+    namespace.namespace ++= c.modules.map(m => IdNamespace.lookupName(m.name))
     namespace
   }
 

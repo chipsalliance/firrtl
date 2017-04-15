@@ -59,16 +59,16 @@ class InlineInstances extends Transform {
    def check(c: Circuit, moduleNames: Set[ModuleName], instanceNames: Set[ComponentName]): Unit = {
       val errors = mutable.ArrayBuffer[PassException]()
       val moduleMap = (for(m <- c.modules) yield m.name -> m).toMap
-      def checkExists(name: String): Unit =
+      def checkExists(name: Id): Unit =
          if (!moduleMap.contains(name))
             errors += new PassException(s"Annotated module does not exist: $name")
-      def checkExternal(name: String): Unit = moduleMap(name) match {
+      def checkExternal(name: Id): Unit = moduleMap(name) match {
             case m: ExtModule => errors += new PassException(s"Annotated module cannot be an external module: $name")
             case _ =>
       }
       def checkInstance(cn: ComponentName): Unit = {
          var containsCN = false
-         def onStmt(name: String)(s: Statement): Statement = {
+         def onStmt(name: Id)(s: Statement): Statement = {
             s match {
                case WDefInstance(_, inst_name, module_name, tpe) =>
                   if (name == inst_name) {
@@ -93,12 +93,12 @@ class InlineInstances extends Transform {
 
 
   def run(c: Circuit, modsToInline: Set[ModuleName], instsToInline: Set[ComponentName], annos: Option[AnnotationMap]): CircuitState = {
-    def getInstancesOf(c: Circuit, modules: Set[String]): Set[String] =
-      c.modules.foldLeft(Set[String]()) { (set, d) =>
+    def getInstancesOf(c: Circuit, modules: Set[Id]): Set[Id] =
+      c.modules.foldLeft(Set[Id]()) { (set, d) =>
         d match {
           case e: ExtModule => set
           case m: Module =>
-            val instances = mutable.HashSet[String]()
+            val instances = mutable.HashSet[Id]()
             def findInstances(s: Statement): Statement = s match {
               case WDefInstance(info, instName, moduleName, instTpe) if modules.contains(moduleName) =>
                 instances += m.name + "." + instName
@@ -114,7 +114,7 @@ class InlineInstances extends Transform {
     check(c, modsToInline, instsToInline)
     val flatModules = modsToInline.map(m => m.name)
     val flatInstances = instsToInline.map(i => i.module.name + "." + i.name) ++ getInstancesOf(c, flatModules)
-    val moduleMap = c.modules.foldLeft(Map[String, DefModule]()) { (map, m) => map + (m.name -> m) }
+    val moduleMap = c.modules.foldLeft(Map[Id, DefModule]()) { (map, m) => map + (m.name -> m) }
 
     def appendNamePrefix(prefix: String)(name:String): String = prefix + name
     def appendRefPrefix(prefix: String, currentModule: String)(e: Expression): Expression = e match {

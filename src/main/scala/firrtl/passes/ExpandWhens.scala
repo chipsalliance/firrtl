@@ -25,14 +25,14 @@ import collection.immutable.ListSet
 * @note Assumes all references are declared
 */
 object ExpandWhens extends Pass {
-  type NodeMap = mutable.HashMap[MemoizedHash[Expression], String]
+  type NodeMap = mutable.HashMap[MemoizedHash[Expression], Id]
   type Netlist = mutable.LinkedHashMap[WrappedExpression, Expression]
   type Simlist = mutable.ArrayBuffer[Statement]
   // Defaults ideally would be immutable.Map but conversion from mutable.LinkedHashMap to mutable.Map is VERY slow
   type Defaults = Seq[mutable.Map[WrappedExpression, Expression]]
 
   // ========== Expand When Utilz ==========
-  private def getFemaleRefs(n: String, t: Type, g: Gender): Seq[Expression] = {
+  private def getFemaleRefs(n: Id, t: Type, g: Gender): Seq[Expression] = {
     def getGender(t: Type, i: Int, g: Gender): Gender = times(g, get_flip(t, i, Default))
     val exps = create_exps(WRef(n, t, ExpKind, g))
     (exps.zipWithIndex foldLeft Seq[Expression]()){

@@ -10,7 +10,10 @@ import firrtl.Mappers._
 import firrtl.WrappedType._
 
 object CheckHighForm extends Pass {
-  type NameSet = collection.mutable.HashSet[String]
+  type NameSet = collection.mutable.HashSet[Id]
+
+  // TODO Remove this implicit
+  implicit def idToName(id: Id): String = IdNamespace.lookupName(id)
 
   // Custom Exceptions
   class NotUniqueException(info: Info, mname: String, name: String) extends PassException(
@@ -57,7 +60,7 @@ object CheckHighForm extends Pass {
     val moduleGraph = new ModuleGraph
     val moduleNames = (c.modules map (_.name)).toSet
 
-    def checkHighFormPrimop(info: Info, mname: String, e: DoPrim) {
+    def checkHighFormPrimop(info: Info, mname: Id, e: DoPrim) {
       def correctNum(ne: Option[Int], nc: Int) {
         ne match {
           case Some(i) if e.args.length != i =>
@@ -83,7 +86,7 @@ object CheckHighForm extends Pass {
       }
     }
 
-    def checkFstring(info: Info, mname: String, s: StringLit, i: Int) {
+    def checkFstring(info: Info, mname: Id, s: StringLit, i: Int) {
       val validFormats = "bdxc"
       val (percent, npercents) = (s.array foldLeft (false, 0)){
         case ((percentx, n), b) if percentx && (validFormats contains b) =>
@@ -98,13 +101,13 @@ object CheckHighForm extends Pass {
       if (npercents != i) errors append new BadPrintfIncorrectNumException(info, mname)
     }
 
-    def checkValidLoc(info: Info, mname: String, e: Expression) = e match {
+    def checkValidLoc(info: Info, mname: Id, e: Expression) = e match {
       case _: UIntLiteral | _: SIntLiteral | _: DoPrim =>
         errors append new InvalidLOCException(info, mname)
       case _ => // Do Nothing
     }
 
-    def checkHighFormW(info: Info, mname: String)(w: Width): Width = {
+    def checkHighFormW(info: Info, mname: Id)(w: Width): Width = {
       w match {
         case wx: IntWidth if wx.width < 0 =>
           errors append new NegWidthException(info, mname)
@@ -113,7 +116,7 @@ object CheckHighForm extends Pass {
       w
     }
 
-    def checkHighFormT(info: Info, mname: String)(t: Type): Type =
+    def checkHighFormT(info: Info, mname: Id)(t: Type): Type =
       t map checkHighFormT(info, mname) match {
         case tx: VectorType if tx.size < 0 => 
           errors append new NegVecSizeException(info, mname)
@@ -121,7 +124,7 @@ object CheckHighForm extends Pass {
         case _ => t map checkHighFormW(info, mname)
       }
 
-    def validSubexp(info: Info, mname: String)(e: Expression): Expression = {
+    def validSubexp(info: Info, mname: Id)(e: Expression): Expression = {
       e match {
         case _: WRef | _: WSubField | _: WSubIndex | _: WSubAccess | _: Mux | _: ValidIf => // No error
         case _ => errors append new InvalidAccessException(info, mname)
@@ -129,7 +132,7 @@ object CheckHighForm extends Pass {
       e
     }
 
-    def checkHighFormE(info: Info, mname: String, names: NameSet)(e: Expression): Expression = {
+    def checkHighFormE(info: Info, mname: Id, names: NameSet)(e: Expression): Expression = {
       e match {
         case ex: WRef if !names(ex.name) =>
           errors append new UndeclaredReferenceException(info, mname, ex.name)
@@ -145,14 +148,17 @@ object CheckHighForm extends Pass {
          map checkHighFormE(info, mname, names))
     }
 
-    def checkName(info: Info, mname: String, names: NameSet)(name: String): String = {
-      if (names(name))
-        errors append new NotUniqueException(info, mname, name)
-      names += name
-      name
+    def checkName(info: Info, mname: Id, names: NameSet)(stmt: Statement): Statement = stmt match {
+      case decl: IsDeclaration =>
+        val name = decl.name
+        if (names(name))
+          errors append new NotUniqueException(info, mname, name)
+        names += name
+        decl
+      case other => other
     }
 
-    def checkHighFormS(minfo: Info, mname: String, names: NameSet)(s: Statement): Statement = {
+    def checkHighFormS(minfo: Info, mname: Id, names: NameSet)(s: Statement): Statement = {
       val info = get_info(s) match {case NoInfo => minfo case x => x}
       s map checkName(info, mname, names) match {
         case sx: DefMemory =>
@@ -177,7 +183,7 @@ object CheckHighForm extends Pass {
          map checkHighFormS(minfo, mname, names))
     }
 
-    def checkHighFormP(mname: String, names: NameSet)(p: Port): Port = {
+    def checkHighFormP(mname: Id, names: NameSet)(p: Port): Port = {
       names += p.name
       (p.tpe map checkHighFormT(p.info, mname)
              map checkHighFormW(p.info, mname))
@@ -201,6 +207,8 @@ object CheckHighForm extends Pass {
 }
 
 object CheckTypes extends Pass {
+  // TODO Remove this implicit
+  implicit def idToName(id: Id): String = IdNamespace.lookupName(id)
 
   // Custom Exceptions
   class SubfieldNotInBundle(info: Info, mname: String, name: String) extends PassException(
@@ -392,7 +400,7 @@ object CheckTypes extends Pass {
         case (_: FixedType, _: FixedType) => flip1 == flip2
         case (_: AnalogType, _: AnalogType) => true
         case (t1: BundleType, t2: BundleType) =>
-          val t1_fields = (t1.fields foldLeft Map[String, (Type, Orientation)]())(
+          val t1_fields = (t1.fields foldLeft Map[Id, (Type, Orientation)]())(
             (map, f1) => map + (f1.name -> (f1.tpe, f1.flip)))
           t2.fields forall (f2 =>
             t1_fields get f2.name match {
@@ -407,7 +415,7 @@ object CheckTypes extends Pass {
       }
     }
 
-    def check_types_s(minfo: Info, mname: String)(s: Statement): Statement = {
+    def check_types_s(minfo: Info, mname: Id)(s: Statement): Statement = {
       val info = get_info(s) match { case NoInfo => minfo case x => x }
       s match {
         case sx: Connect if wt(sx.loc.tpe) != wt(sx.expr.tpe) =>
@@ -461,7 +469,7 @@ object CheckTypes extends Pass {
 }
 
 object CheckGenders extends Pass {
-  type GenderMap = collection.mutable.HashMap[String, Gender]
+  type GenderMap = collection.mutable.LongMap[Gender]
 
   implicit def toStr(g: Gender): String = g match {
     case MALE => "source"
@@ -469,6 +477,8 @@ object CheckGenders extends Pass {
     case UNKNOWNGENDER => "unknown"
     case BIGENDER => "sourceOrSink"
   }
+  // TODO Remove this implicit
+  implicit def idToName(id: Id): String = IdNamespace.lookupName(id)
    
   class WrongGender(info:Info, mname: String, expr: String, wrong: Gender, right: Gender) extends PassException(
     s"$info: [module $mname]  Expression $expr is used as a $wrong but can only be used as a $right.")
@@ -498,7 +508,7 @@ object CheckGenders extends Pass {
       flip_rec(t, Default)
     }
 
-    def check_gender(info:Info, mname: String, genders: GenderMap, desired: Gender)(e:Expression): Expression = {
+    def check_gender(info:Info, mname: Id, genders: GenderMap, desired: Gender)(e:Expression): Expression = {
       val gender = get_gender(e,genders)
       (gender, desired) match {
         case (MALE, FEMALE) =>
@@ -513,7 +523,7 @@ object CheckGenders extends Pass {
       e
    }
    
-    def check_genders_e (info:Info, mname: String, genders: GenderMap)(e:Expression): Expression = {
+    def check_genders_e (info:Info, mname: Id, genders: GenderMap)(e:Expression): Expression = {
       e match {
         case e: Mux => e map check_gender(info, mname, genders, MALE)
         case e: DoPrim => e.args map check_gender(info, mname, genders, MALE)
@@ -522,7 +532,7 @@ object CheckGenders extends Pass {
       e map check_genders_e(info, mname, genders)
     }
         
-    def check_genders_s(minfo: Info, mname: String, genders: GenderMap)(s: Statement): Statement = {
+    def check_genders_s(minfo: Info, mname: Id, genders: GenderMap)(s: Statement): Statement = {
       val info = get_info(s) match { case NoInfo => minfo case x => x }
       s match {
         case (s: DefWire) => genders(s.name) = BIGENDER

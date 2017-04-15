@@ -117,7 +117,7 @@ object fromBits {
 }
 
 object connectFields {
-  def apply(lref: Expression, lname: String, rref: Expression, rname: String): Connect =
+  def apply(lref: Expression, lname: Id, rref: Expression, rname: Id): Connect =
     Connect(NoInfo, WSubField(lref, lname), WSubField(rref, rname))
 }
 
@@ -165,7 +165,7 @@ object Utils extends LazyLogging {
   val zero = UIntLiteral(BigInt(0), IntWidth(1))
   def uint(i: BigInt): UIntLiteral = UIntLiteral(i, IntWidth(1 max i.bitLength))
 
-  def create_exps(n: String, t: Type): Seq[Expression] =
+  def create_exps(n: Id, t: Type): Seq[Expression] =
     create_exps(WRef(n, t, ExpKind, UNKNOWNGENDER))
   def create_exps(e: Expression): Seq[Expression] = e match {
     case ex: Mux =>
@@ -350,8 +350,8 @@ object Utils extends LazyLogging {
     case vx: VectorType => vx.tpe
     case vx => UnknownType
   }
-  def field_type(v: Type, s: String) : Type = v match {
-    case vx: BundleType => vx.fields find (_.name == s) match {
+  def field_type(v: Type, n: Id) : Type = v match {
+    case vx: BundleType => vx.fields find (_.name == n) match {
       case Some(f) => f.tpe
       case None => UnknownType
     }
@@ -378,7 +378,7 @@ object Utils extends LazyLogging {
       case (_: FixedType, _: FixedType) => if (flip1 == flip2) Seq((0, 0)) else Nil
       case (_: AnalogType, _: AnalogType) => if (flip1 == flip2) Seq((0, 0)) else Nil
       case (t1x: BundleType, t2x: BundleType) =>
-        def emptyMap = Map[String, (Type, Orientation, Int)]()
+        def emptyMap = Map[Id, (Type, Orientation, Int)]()
         val t1_fields = t1x.fields.foldLeft(emptyMap, 0) { case ((map, ilen), f1) =>
           (map + (f1.name ->(f1.tpe, f1.flip, ilen)), ilen + get_size(f1.tpe))
         }._1
@@ -561,7 +561,7 @@ object Utils extends LazyLogging {
     * @throws DeclarationNotFoundException if no declaration of `expr` is found
     */
   def getDeclaration(m: Module, expr: Expression): IsDeclaration = {
-    def getRootDecl(name: String)(s: Statement): Option[IsDeclaration] = s match {
+    def getRootDecl(name: Id)(s: Statement): Option[IsDeclaration] = s match {
       case decl: IsDeclaration => if (decl.name == name) Some(decl) else None
       case c: Conditionally =>
         val m = (getRootDecl(name)(c.conseq), getRootDecl(name)(c.alt))

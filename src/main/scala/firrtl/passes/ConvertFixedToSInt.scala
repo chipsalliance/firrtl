@@ -33,9 +33,9 @@ object ConvertFixedToSInt extends Pass {
     case _ => t map toSIntType
   }
   def run(c: Circuit): Circuit = {
-    val moduleTypes = mutable.HashMap[String,Type]()
+    val moduleTypes = mutable.LongMap[Type]()
     def onModule(m:DefModule) : DefModule = {
-      val types = mutable.HashMap[String,Type]()
+      val types = mutable.LongMap[Type]()
       def updateExpType(e:Expression): Expression = e match {
         case DoPrim(Mul, args, consts, tpe) => e map updateExpType
         case DoPrim(AsFixedPoint, args, consts, tpe) => DoPrim(AsSInt, args, Seq.empty, tpe) map updateExpType
