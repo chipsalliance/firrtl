@@ -12,7 +12,7 @@ import scala.io.Source
 
 import firrtl._
 import firrtl.Parser.IgnoreInfo
-import firrtl.annotations
+import firrtl.annotations._
 import firrtl.util.BackendCompilationUtilities
 
 trait FirrtlRunners extends BackendCompilationUtilities {
@@ -94,7 +94,11 @@ trait FirrtlMatchers extends Matchers {
     * compiler will be run on input then emitted result will each be split into
     * lines and normalized.
     */
-  def executeTest(input: String, expected: Seq[String], compiler: Compiler) = {
+  def executeTest(
+      input: String,
+      expected: Seq[String],
+      compiler: Compiler,
+      annos: Seq[Annotation] = Seq.empty) = {
     val finalState = compiler.compileAndEmit(CircuitState(parse(input), ChirrtlForm))
     val lines = finalState.getEmittedCircuit.value split "\n" map normalized
     for (e <- expected) {
