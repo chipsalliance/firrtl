@@ -5,6 +5,7 @@ package firrtlTests
 import firrtl._
 import firrtl.ir._
 import firrtl.passes._
+import firrtl.transforms._
 import firrtl.passes.memlib._
 import annotations._
 
@@ -21,7 +22,7 @@ class ReplSeqMemSpec extends SimpleTransformSpec {
     new SeqTransform {
       def inputForm = LowForm
       def outputForm = LowForm
-      def transforms = Seq(ConstProp, CommonSubexpressionElimination, DeadCodeElimination, RemoveEmpty)
+      def transforms = Seq(ConstProp, CommonSubexpressionElimination, new DeadCodeElimination, RemoveEmpty)
     }
   )
 

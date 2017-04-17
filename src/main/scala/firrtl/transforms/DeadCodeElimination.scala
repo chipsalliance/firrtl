@@ -1,8 +1,9 @@
 
-package firrtl.passes
+package firrtl.transforms
 
 import firrtl._
 import firrtl.ir._
+import firrtl.passes._
 import firrtl.annotations._
 import firrtl.graph._
 import firrtl.analyses.InstanceGraph
@@ -15,7 +16,9 @@ import wiring.WiringUtils.getChildrenMap
 import collection.mutable
 import java.io.{File, FileWriter}
 
-object DeadCodeElimination extends Pass {
+class DeadCodeElimination extends Transform {
+  def inputForm = LowForm
+  def outputForm = LowForm
 
   /** Based on LogicNode ins CheckCombLoops, currently kind of faking it */
   private type LogicNode = MemoizedHash[WrappedExpression]
@@ -23,6 +26,11 @@ object DeadCodeElimination extends Pass {
     def apply(moduleName: String, expr: Expression): LogicNode =
       WrappedExpression(Utils.mergeRef(WRef(moduleName), expr))
     def apply(moduleName: String, name: String): LogicNode = apply(moduleName, WRef(name))
+    def apply(component: ComponentName): LogicNode = {
+      // Currently only leaf nodes are supported TODO implement
+      val loweredName = LowerTypes.loweredName(component.name.split('.'))
+      apply(component.module.name, WRef(loweredName))
+    }
   }
 
   /** Expression used to represent outputs in the circuit (# is illegal in names) */
@@ -108,8 +116,9 @@ object DeadCodeElimination extends Pass {
     onStmt(mod.body)
   }
 
+  // TODO Make immutable?
   private def createDependencyGraph(instMaps: collection.Map[String, collection.Map[String, String]],
-                                    c: Circuit): DiGraph[LogicNode] = {
+                                    c: Circuit): MutableDiGraph[LogicNode] = {
     val depGraph = new MutableDiGraph[LogicNode]
     c.modules.foreach {
       case mod: Module => setupDepGraph(depGraph, instMaps(mod.name))(mod)
@@ -129,7 +138,7 @@ object DeadCodeElimination extends Pass {
       case _ =>
     }
 
-    DiGraph(depGraph)
+    depGraph
   }
 
   private def deleteDeadCode(instMap: collection.Map[String, String],
@@ -171,7 +180,7 @@ object DeadCodeElimination extends Pass {
     if (portsx.isEmpty) None else Some(mod.copy(ports = portsx, body = onStmt(mod.body)))
   }
 
-  def run(c: Circuit): Circuit = {
+  def run(c: Circuit, dontTouches: Seq[LogicNode]): Circuit = {
     val moduleMap = c.modules.map(m => m.name -> m).toMap
     val iGraph = new InstanceGraph(c)
     val moduleDeps = iGraph.graph.edges.map { case (k,v) =>
@@ -179,7 +188,18 @@ object DeadCodeElimination extends Pass {
     }
     val topoSortedModules = iGraph.graph.transformNodes(_.module).linearize.reverse.map(moduleMap(_))
 
-    val depGraph = createDependencyGraph(moduleDeps, c)
+    val depGraph = {
+      val dGraph = createDependencyGraph(moduleDeps, c)
+      for (dontTouch <- dontTouches) {
+        dGraph.getVertices.find(_ == dontTouch) match {
+          case Some(node) => dGraph.addEdge(circuitSink, node)
+          case None =>
+            val (root, tail) = Utils.splitRef(dontTouch.e1)
+            DontTouchAnnotation.errorNotFound(root.serialize, tail.serialize)
+        }
+      }
+      DiGraph(dGraph)
+    }
 
     val liveNodes = depGraph.reachableFrom(circuitSink) + circuitSink
     val deadNodes = depGraph.getVertices -- liveNodes
@@ -199,5 +219,22 @@ object DeadCodeElimination extends Pass {
 
     // Preserve original module order
     c.copy(modules = c.modules.flatMap(m => modulesxMap.get(m.name)))
+  }
+
+  def execute(state: CircuitState): CircuitState = {
+    //val anno = DontTouchAnnotation(ComponentName("x", ModuleName("Top", CircuitName("Top"))))
+    //val annotations = Option(AnnotationMap(Seq(anno)))
+    //println(AnnotationUtils.toYaml(anno))
+		val dontTouches: Seq[LogicNode] = state.annotations match {
+		//val dontTouches: Seq[LogicNode] = annotations match {
+      case Some(aMap) =>
+        aMap.annotations.collect { case DontTouchAnnotation(component) => LogicNode(component) }
+      case None => Seq.empty
+    }
+
+    println("Running DeadCodeElimination")
+    println(dontTouches.map(_.e1.serialize))
+
+    state.copy(circuit = run(state.circuit, dontTouches))
   }
 }
