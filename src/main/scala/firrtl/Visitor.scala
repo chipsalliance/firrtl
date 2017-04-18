@@ -114,14 +114,15 @@ class Visitor(infoMode: InfoMode) extends FIRRTLBaseVisitor[FirrtlNode] {
   //scalastyle:off cyclomatic.complexity
   private def visitType[FirrtlNode](ctx: FIRRTLParser.TypeContext): Type = {
     def getWidth(n: IntLitContext): Width = IntWidth(string2BigInt(n.getText))
-//    def getBigInt(n: TerminalNode): BigInt = string2BigInt(n.getText)
     ctx.getChild(0) match {
       case term: TerminalNode =>
         term.getText match {
-          case "UInt" => if (ctx.getChildCount > 1) UIntType(IntWidth(string2BigInt(ctx.intLit(0).getText)))
-          else UIntType(UnknownWidth)
-          case "SInt" => if (ctx.getChildCount > 1) SIntType(IntWidth(string2BigInt(ctx.intLit(0).getText)))
-          else SIntType(UnknownWidth)
+          case "UInt" =>
+            if (ctx.getChildCount > 1) UIntType(IntWidth(string2BigInt(ctx.intLit(0).getText)))
+            else UIntType(UnknownWidth)
+          case "SInt" =>
+            if (ctx.getChildCount > 1) SIntType(IntWidth(string2BigInt(ctx.intLit(0).getText)))
+            else SIntType(UnknownWidth)
           case "Fixed" => ctx.intLit.size match {
             case 0 => FixedType(UnknownWidth, UnknownWidth)
             case 1 => ctx.getChild(2).getText match {
@@ -130,13 +131,14 @@ class Visitor(infoMode: InfoMode) extends FIRRTLBaseVisitor[FirrtlNode] {
             }
             case 2 => FixedType(getWidth(ctx.intLit(0)), getWidth(ctx.intLit(1)))
           }
-//          case "Interval" => ctx.intLit.size match {
-//            case 0 => IntervalType(IUnknown)
-//            case 2 => IntervalType(IVal(getBigInt(ctx.intLit(0)), getBigInt(ctx.intLit(1))))
-//          }
+          case "Interval" => ctx.intLit.size match {
+            case 0 => IntervalType(IUnknown)
+            case 2 => IntervalType(IVal(string2BigInt(ctx.intLit(0).getText), string2BigInt(ctx.intLit(1).getText)))
+          }
           case "Clock" => ClockType
-          case "Analog" => if (ctx.getChildCount > 1) AnalogType(IntWidth(string2BigInt(ctx.intLit(0).getText)))
-          else AnalogType(UnknownWidth)
+          case "Analog" =>
+            if (ctx.getChildCount > 1) AnalogType(IntWidth(string2BigInt(ctx.intLit(0).getText)))
+            else AnalogType(UnknownWidth)
           case "{" => BundleType(ctx.field.map(visitField))
         }
       case typeContext: TypeContext => new VectorType(visitType(ctx.`type`), string2Int(ctx.intLit(0).getText))

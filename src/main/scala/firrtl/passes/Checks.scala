@@ -294,7 +294,7 @@ object CheckTypes extends Pass {
       }
       def allUSF(ls: Seq[Expression]) {
         val error = ls.foldLeft(false)((error, x) => x.tpe match {
-          case (_: UIntType| _: SIntType| _: FixedType) => error
+          case (_: UIntType| _: SIntType| _: FixedType| _: IntervalType) => error
           case _ => true
         })
         if (error) errors.append(new OpNotGround(info, mname, e.op.serialize))
