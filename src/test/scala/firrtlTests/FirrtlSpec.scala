@@ -17,7 +17,6 @@ import firrtl.util.BackendCompilationUtilities
 
 trait FirrtlRunners extends BackendCompilationUtilities {
 
-  def parse(str: String) = Parser.parse(str.split("\n").toIterator, IgnoreInfo)
   val cppHarnessResourceName: String = "/firrtl/testTop.cpp"
 
   /** Compiles input Firrtl to Verilog */
