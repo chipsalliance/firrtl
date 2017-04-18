@@ -2,7 +2,7 @@
 
 package firrtl
 
-sealed abstract class CoreTransform extends PassBasedTransform
+sealed abstract class CoreTransform extends SeqTransform
 
 /** This transforms "CHIRRTL", the chisel3 IR, to "Firrtl". Note the resulting
   * circuit has only IR nodes, not WIR.
@@ -11,7 +11,7 @@ sealed abstract class CoreTransform extends PassBasedTransform
 class ChirrtlToHighFirrtl extends CoreTransform {
   def inputForm = ChirrtlForm
   def outputForm = HighForm
-  def passSeq = Seq(
+  def transforms = Seq(
     passes.CheckChirrtl,
     passes.CInferTypes,
     passes.CInferMDir,
@@ -24,7 +24,7 @@ class ChirrtlToHighFirrtl extends CoreTransform {
 class IRToWorkingIR extends CoreTransform {
   def inputForm = HighForm
   def outputForm = HighForm
-  def passSeq = Seq(passes.ToWorkingIR)
+  def transforms = Seq(passes.ToWorkingIR)
 }
 
 /** Resolves types, kinds, and genders, and checks the circuit legality.
@@ -33,7 +33,7 @@ class IRToWorkingIR extends CoreTransform {
 class ResolveAndCheck extends CoreTransform {
   def inputForm = HighForm
   def outputForm = HighForm
-  def passSeq = Seq(
+  def transforms = Seq(
     passes.CheckHighForm,
     passes.ResolveKinds,
     passes.InferTypes,
@@ -55,7 +55,7 @@ class ResolveAndCheck extends CoreTransform {
 class HighFirrtlToMiddleFirrtl extends CoreTransform {
   def inputForm = HighForm
   def outputForm = MidForm
-  def passSeq = Seq(
+  def transforms = Seq(
     passes.PullMuxes,
     passes.ReplaceAccesses,
     passes.ExpandConnects,
@@ -67,7 +67,9 @@ class HighFirrtlToMiddleFirrtl extends CoreTransform {
     passes.CheckTypes,
     passes.ResolveGenders,
     passes.InferWidths,
-    passes.CheckWidths)
+    passes.CheckWidths,
+    passes.ConvertFixedToSInt,
+    passes.ZeroWidth)
 }
 
 /** Expands all aggregate types into many ground-typed components. Must
@@ -78,14 +80,14 @@ class HighFirrtlToMiddleFirrtl extends CoreTransform {
 class MiddleFirrtlToLowFirrtl extends CoreTransform {
   def inputForm = MidForm
   def outputForm = LowForm
-  def passSeq = Seq(
+  def transforms = Seq(
     passes.LowerTypes,
     passes.ResolveKinds,
     passes.InferTypes,
     passes.ResolveGenders,
     passes.InferWidths,
-    passes.ConvertFixedToSInt,
-    passes.Legalize)
+    passes.Legalize,
+    passes.CheckCombLoops)
 }
 
 /** Runs a series of optimization passes on LowFirrtl
@@ -95,7 +97,7 @@ class MiddleFirrtlToLowFirrtl extends CoreTransform {
 class LowFirrtlOptimization extends CoreTransform {
   def inputForm = LowForm
   def outputForm = LowForm
-  def passSeq = Seq(
+  def transforms = Seq(
     passes.RemoveValidIf,
     passes.ConstProp,
     passes.PadWidths,
@@ -110,30 +112,31 @@ class LowFirrtlOptimization extends CoreTransform {
 
 
 import CompilerUtils.getLoweringTransforms
+import firrtl.transforms.BlackBoxSourceHelper
 
 /** Emits input circuit
   * Will replace Chirrtl constructs with Firrtl
   */
 class HighFirrtlCompiler extends Compiler {
-  def emitter = new FirrtlEmitter
+  def emitter = new HighFirrtlEmitter
   def transforms: Seq[Transform] = getLoweringTransforms(ChirrtlForm, HighForm)
 }
 
 /** Emits middle Firrtl input circuit */
 class MiddleFirrtlCompiler extends Compiler {
-  def emitter = new FirrtlEmitter
+  def emitter = new MiddleFirrtlEmitter
   def transforms: Seq[Transform] = getLoweringTransforms(ChirrtlForm, MidForm)
 }
 
 /** Emits lowered input circuit */
 class LowFirrtlCompiler extends Compiler {
-  def emitter = new FirrtlEmitter
+  def emitter = new LowFirrtlEmitter
   def transforms: Seq[Transform] = getLoweringTransforms(ChirrtlForm, LowForm)
 }
 
 /** Emits Verilog */
 class VerilogCompiler extends Compiler {
   def emitter = new VerilogEmitter
-  def transforms: Seq[Transform] =
-    getLoweringTransforms(ChirrtlForm, LowForm) :+ (new LowFirrtlOptimization)
+  def transforms: Seq[Transform] = getLoweringTransforms(ChirrtlForm, LowForm) ++
+    Seq(new LowFirrtlOptimization, new BlackBoxSourceHelper)
 }

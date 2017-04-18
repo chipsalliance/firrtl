@@ -10,7 +10,6 @@ import firrtl.Mappers._
 import firrtl.WrappedType._
 
 object CheckHighForm extends Pass {
-  def name = "High Form Check"
   type NameSet = collection.mutable.HashSet[String]
 
   // Custom Exceptions
@@ -202,7 +201,6 @@ object CheckHighForm extends Pass {
 }
 
 object CheckTypes extends Pass {
-  def name = "Check Types"
 
   // Custom Exceptions
   class SubfieldNotInBundle(info: Info, mname: String, name: String) extends PassException(
@@ -258,10 +256,8 @@ object CheckTypes extends Pass {
     s"$info: [module $mname]  A validif condition must be of type UInt.")
   class IllegalAnalogDeclaration(info: Info, mname: String, decName: String) extends PassException(
     s"$info: [module $mname]  Cannot declare a reg, node, or memory with an Analog type: $decName.")
-  class IllegalAttachSource(info: Info, mname: String, sourceName: String) extends PassException(
-    s"$info: [module $mname]  Attach source must be a wire or port with an analog type: $sourceName.")
   class IllegalAttachExp(info: Info, mname: String, expName: String) extends PassException(
-    s"$info: [module $mname]  Attach expression must be an instance: $expName.")
+    s"$info: [module $mname]  Attach expression must be an port, wire, or port of instance: $expName.")
 
   //;---------------- Helper Functions --------------
   def ut: UIntType = UIntType(UnknownWidth)
@@ -394,7 +390,7 @@ object CheckTypes extends Pass {
         case (_: UIntType, _: UIntType) => flip1 == flip2
         case (_: SIntType, _: SIntType) => flip1 == flip2
         case (_: FixedType, _: FixedType) => flip1 == flip2
-        case (_: AnalogType, _: AnalogType) => false
+        case (_: AnalogType, _: AnalogType) => true
         case (t1: BundleType, t2: BundleType) =>
           val t1_fields = (t1.fields foldLeft Map[String, (Type, Orientation)]())(
             (map, f1) => map + (f1.name -> (f1.tpe, f1.flip)))
@@ -431,18 +427,14 @@ object CheckTypes extends Pass {
           case t =>
         }
         case sx: Attach =>
-          (sx.source.tpe, kind(sx.source)) match {
-            case (AnalogType(w), PortKind | WireKind)  =>
-            case _ => errors append new IllegalAttachSource(info, mname, sx.source.serialize)
-          }
-          sx.exprs foreach { e =>
+          for (e <- sx.exprs) {
             e.tpe match {
               case _: AnalogType =>
-              case _ => errors append new OpNotAnalog(info, mname, e.serialize)
+              case _ => errors.append(new OpNotAnalog(info, mname, e.serialize))
             }
             kind(e) match {
-              case InstanceKind =>
-              case _ =>  errors append new IllegalAttachExp(info, mname, e.serialize)
+              case (InstanceKind | PortKind | WireKind) =>
+              case _ =>  errors.append(new IllegalAttachExp(info, mname, e.serialize))
             }
           }
         case sx: Stop =>
@@ -469,7 +461,6 @@ object CheckTypes extends Pass {
 }
 
 object CheckGenders extends Pass {
-  def name = "Check Genders"
   type GenderMap = collection.mutable.HashMap[String, Gender]
 
   implicit def toStr(g: Gender): String = g match {

@@ -15,9 +15,6 @@ import MemTransformUtils._
 /** Changes memory port names to standard port names (i.e. RW0 instead T_408)
  */
 object RenameAnnotatedMemoryPorts extends Pass {
-
-  def name = "Rename Annotated Memory Ports"
-
   /** Renames memory ports to a standard naming scheme:
    *    - R0, R1, ... for each read port
    *    - W0, W1, ... for each write port
@@ -43,8 +40,8 @@ object RenameAnnotatedMemoryPorts extends Pass {
 
     def updateMemPortMap(ports: Seq[String], fields: Seq[String], newPortKind: String): Unit =
       for ((p, i) <- ports.zipWithIndex; f <- fields) {
-        val newPort = createSubField(createRef(m.name), newPortKind + i)
-        val field = createSubField(newPort, f)
+        val newPort = WSubField(WRef(m.name), newPortKind + i)
+        val field = WSubField(newPort, f)
         memPortMap(s"${m.name}.$p.$f") = field
       }
     updateMemPortMap(m.readers, rFields, "R")
