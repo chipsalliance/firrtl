@@ -5,6 +5,14 @@
             <pattern>[%-4level] %msg%n</pattern>
         </encoder>
     </appender>
+    <timestamp key="TIME" datePattern="yyyyMMdd'-'HHmmss.SSS"/>
+    <appender name="FILE" class="ch.qos.logback.core.FileAppender">
+        <append>false</append>
+        <file>firrtl-${TIME}.log</file>
+        <encoder>
+            <pattern>[%-4level] %msg%n</pattern>
+        </encoder>
+    </appender>
     <root level="warn">
         <appender-ref ref="STDOUT" />
     </root>
