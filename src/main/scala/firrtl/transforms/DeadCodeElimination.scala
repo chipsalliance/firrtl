@@ -99,11 +99,11 @@ class DeadCodeElimination extends Transform {
         // This match enforces the low Firrtl requirement of expanded connections
         val node = getDeps(loc) match { case Seq(elt) => elt }
         getDeps(expr).foreach(ref => depGraph.addEdge(node, ref))
-      // Simulation constructs are treated as top-level outputs
+      //// Simulation constructs are treated as top-level outputs
       case Stop(_,_, clk, en) =>
-        Seq(clk, en).flatMap(getDeps(_)).foreach(ref => depGraph.addEdge(circuitSink, ref))
+      //  Seq(clk, en).flatMap(getDeps(_)).foreach(ref => depGraph.addEdge(circuitSink, ref))
       case Print(_, _, args, clk, en) =>
-        (args :+ clk :+ en).flatMap(getDeps(_)).foreach(ref => depGraph.addEdge(circuitSink, ref))
+      //  (args :+ clk :+ en).flatMap(getDeps(_)).foreach(ref => depGraph.addEdge(circuitSink, ref))
       case Block(stmts) => stmts.foreach(onStmt(_))
       case ignore @ (_: IsInvalid | _: WDefInstance | EmptyStmt) => // do nothing
       case other => throw new Exception(s"Unexpected Statement $other")
