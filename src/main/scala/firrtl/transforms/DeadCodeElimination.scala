@@ -173,6 +173,8 @@ class DeadCodeElimination extends Transform {
       case Attach(info, exprs) => // If any exprs are dead then all are
         val dead = exprs.flatMap(getDeps(_)).forall(deadNodes.contains(_))
         if (dead) EmptyStmt else Attach(info, exprs)
+      // Temporarily remove sim code
+      case (_: Print | _: Stop) => EmptyStmt
       case other => other map onStmt
     }
 
