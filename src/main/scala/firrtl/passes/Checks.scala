@@ -70,11 +70,11 @@ object CheckHighForm extends Pass {
 
       e.op match {
         case Add | Sub | Mul | Div | Rem | Lt | Leq | Gt | Geq |
-             Eq | Neq | Dshl | Dshr | And | Or | Xor | Cat =>
+             Eq | Neq | Dshl | Dshr | And | Or | Xor | Cat | Dshlw =>
           correctNum(Option(2), 0)
         case AsUInt | AsSInt | AsClock | Cvt | Neq | Not =>
           correctNum(Option(1), 0)
-        case AsFixedPoint | Pad | Shl | Shr | Head | Tail | BPShl | BPShr | BPSet =>
+        case AsFixedPoint | Pad | Shl | Shr | Head | Tail | BPShl | BPShr | BPSet | Shlw =>
           correctNum(Option(1), 1)
         case Bits =>
           correctNum(Option(1), 2)

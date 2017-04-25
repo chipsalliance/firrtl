@@ -15,15 +15,26 @@ import firrtl.Parser.IgnoreInfo
 import firrtl.annotations
 import firrtl.util.BackendCompilationUtilities
 
+class CheckLowForm extends SeqTransform {
+  def inputForm = LowForm
+  def outputForm = LowForm
+  def transforms = Seq(
+    passes.CheckHighForm
+  )
+}
+
 trait FirrtlRunners extends BackendCompilationUtilities {
 
   val cppHarnessResourceName: String = "/firrtl/testTop.cpp"
+  /** Extra transforms to run by default */
+  val extraCheckTransforms = Seq(new CheckLowForm)
 
   /** Compiles input Firrtl to Verilog */
   def compileToVerilog(input: String, annotations: AnnotationMap = AnnotationMap(Seq.empty)): String = {
     val circuit = Parser.parse(input.split("\n").toIterator)
     val compiler = new VerilogCompiler
-    val res = compiler.compileAndEmit(CircuitState(circuit, HighForm, Some(annotations)))
+    val res = compiler.compileAndEmit(CircuitState(circuit, HighForm, Some(annotations)),
+                                      extraCheckTransforms)
     res.getEmittedCircuit.value
   }
   /** Compile a Firrtl file
@@ -44,7 +55,7 @@ trait FirrtlRunners extends BackendCompilationUtilities {
       commonOptions = CommonOptions(topName = prefix, targetDirName = testDir.getPath)
       firrtlOptions = FirrtlExecutionOptions(
                         infoModeName = "ignore",
-                        customTransforms = customTransforms,
+                        customTransforms = customTransforms ++ extraCheckTransforms,
                         annotations = annotations.annotations.toList)
     }
     firrtl.Driver.execute(optionsManager)
