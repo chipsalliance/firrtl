@@ -13,6 +13,7 @@ import scala.io.Source
 import firrtl._
 import firrtl.Parser.IgnoreInfo
 import firrtl.annotations._
+import firrtl.transforms.{DontTouchAnnotation, NoDedupAnnotation}
 import firrtl.util.BackendCompilationUtilities
 
 trait FirrtlRunners extends BackendCompilationUtilities {
@@ -82,6 +83,16 @@ trait FirrtlRunners extends BackendCompilationUtilities {
 }
 
 trait FirrtlMatchers extends Matchers {
+  def dontTouch(path: String): Annotation = {
+    val parts = path.split('.')
+    require(parts.size >= 2, "Must specify both module and component!")
+    val name = ComponentName(parts.tail.mkString("."), ModuleName(parts.head, CircuitName("Top")))
+    DontTouchAnnotation(name)
+  }
+  def dontDedup(mod: String): Annotation = {
+    require(mod.split('.').size == 1, "Can only specify a Module, not a component or instance")
+    NoDedupAnnotation(ModuleName(mod, CircuitName("Top")))
+  }
   // Replace all whitespace with a single space and remove leading and
   //   trailing whitespace
   // Note this is intended for single-line strings, no newlines
@@ -98,8 +109,9 @@ trait FirrtlMatchers extends Matchers {
       input: String,
       expected: Seq[String],
       compiler: Compiler,
-      annos: Seq[Annotation] = Seq.empty) = {
-    val finalState = compiler.compileAndEmit(CircuitState(parse(input), ChirrtlForm))
+      annotations: Seq[Annotation] = Seq.empty) = {
+    val annoMap = AnnotationMap(annotations)
+    val finalState = compiler.compileAndEmit(CircuitState(parse(input), ChirrtlForm, Some(annoMap)))
     val lines = finalState.getEmittedCircuit.value split "\n" map normalized
     for (e <- expected) {
       lines should contain (e)

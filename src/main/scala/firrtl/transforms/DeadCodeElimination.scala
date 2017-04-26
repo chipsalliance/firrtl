@@ -157,27 +157,38 @@ class DeadCodeElimination extends Transform {
         }
       }
 
+    var emptyBody = true // TODO is there a better way to do this?
+
     // TODO Delete unused writers from DefMemory???
-    def onStmt(stmt: Statement): Statement = stmt match {
-      case inst: WDefInstance =>
-        moduleMap.get(inst.module) match {
-          case Some(instMod) => inst.copy(tpe = Utils.module_type(instMod))
-          case None => EmptyStmt
-        }
-      case decl: IsDeclaration =>
-        val node = LogicNode(mod.name, decl.name)
-        if (deadNodes.contains(node)) EmptyStmt else decl
-      case con: Connect =>
-        val node = getDeps(con.loc) match { case Seq(elt) => elt }
-        if (deadNodes.contains(node)) EmptyStmt else con
-      case Attach(info, exprs) => // If any exprs are dead then all are
-        val dead = exprs.flatMap(getDeps(_)).forall(deadNodes.contains(_))
-        if (dead) EmptyStmt else Attach(info, exprs)
-      case other => other map onStmt
+    def onStmt(stmt: Statement): Statement = {
+      val stmtx = stmt match {
+        case inst: WDefInstance =>
+          moduleMap.get(inst.module) match {
+            case Some(instMod) => inst.copy(tpe = Utils.module_type(instMod))
+            case None => EmptyStmt
+          }
+        case decl: IsDeclaration =>
+          val node = LogicNode(mod.name, decl.name)
+          if (deadNodes.contains(node)) EmptyStmt else decl
+        case con: Connect =>
+          val node = getDeps(con.loc) match { case Seq(elt) => elt }
+          if (deadNodes.contains(node)) EmptyStmt else con
+        case Attach(info, exprs) => // If any exprs are dead then all are
+          val dead = exprs.flatMap(getDeps(_)).forall(deadNodes.contains(_))
+          if (dead) EmptyStmt else Attach(info, exprs)
+        case block: Block => block map onStmt
+        case other => other
+      }
+      stmtx match { // Check if module empty
+        case EmptyStmt | _: Block =>
+        case other => emptyBody = false
+      }
+      stmtx
     }
 
+    val bodyx = onStmt(mod.body)
     val portsx = mod.ports.filterNot(p => deadNodes.contains(LogicNode(mod.name, p.name)))
-    if (portsx.isEmpty) None else Some(mod.copy(ports = portsx, body = onStmt(mod.body)))
+    if (emptyBody && portsx.isEmpty) None else Some(mod.copy(ports = portsx, body = bodyx))
   }
 
   def run(c: Circuit, dontTouches: Seq[LogicNode]): Circuit = {
@@ -222,18 +233,11 @@ class DeadCodeElimination extends Transform {
   }
 
   def execute(state: CircuitState): CircuitState = {
-    //val anno = DontTouchAnnotation(ComponentName("x", ModuleName("Top", CircuitName("Top"))))
-    //val annotations = Option(AnnotationMap(Seq(anno)))
-    //println(AnnotationUtils.toYaml(anno))
 		val dontTouches: Seq[LogicNode] = state.annotations match {
-		//val dontTouches: Seq[LogicNode] = annotations match {
       case Some(aMap) =>
         aMap.annotations.collect { case DontTouchAnnotation(component) => LogicNode(component) }
       case None => Seq.empty
     }
-
-    println("Running DeadCodeElimination")
-    println(dontTouches.map(_.e1.serialize))
 
     state.copy(circuit = run(state.circuit, dontTouches))
   }
