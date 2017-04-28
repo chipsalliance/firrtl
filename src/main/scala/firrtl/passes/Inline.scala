@@ -27,7 +27,6 @@ class InlineInstances extends Transform {
    def inputForm = LowForm
    def outputForm = LowForm
    val inlineDelim = "$"
-   override def name = "Inline Instances"
 
    private def collectAnns(circuit: Circuit, anns: Iterable[Annotation]): (Set[ModuleName], Set[ComponentName]) =
      anns.foldLeft(Set.empty[ModuleName], Set.empty[ComponentName]) {
@@ -49,7 +48,7 @@ class InlineInstances extends Transform {
        case Nil => CircuitState(state.circuit, state.form)
        case myAnnotations =>
          val (modNames, instNames) = collectAnns(state.circuit, myAnnotations)
-         run(state.circuit, modNames, instNames)
+         run(state.circuit, modNames, instNames, state.annotations)
      }
    }
 
@@ -93,7 +92,7 @@ class InlineInstances extends Transform {
    }
 
 
-  def run(c: Circuit, modsToInline: Set[ModuleName], instsToInline: Set[ComponentName]): CircuitState = {
+  def run(c: Circuit, modsToInline: Set[ModuleName], instsToInline: Set[ComponentName], annos: Option[AnnotationMap]): CircuitState = {
     def getInstancesOf(c: Circuit, modules: Set[String]): Set[String] =
       c.modules.foldLeft(Set[String]()) { (set, d) =>
         d match {
@@ -137,7 +136,7 @@ class InlineInstances extends Transform {
           }
           val stmts = toInline.ports.map(p => DefWire(p.info, p.name, p.tpe)) :+ toInline.body
           onStmt(prefix + instName + inlineDelim, moduleName)(Block(stmts))
-        } else s
+        } else WDefInstance(info, prefix + instName, moduleName, instTpe)
       case sx => sx map appendRefPrefix(prefix, currentModule) map onStmt(prefix, currentModule) map appendNamePrefix(prefix)
     }
 
@@ -146,6 +145,6 @@ class InlineInstances extends Transform {
       case m => 
         Some(m map onStmt("", m.name))
     })
-    CircuitState(flatCircuit, LowForm, None, None)
+    CircuitState(flatCircuit, LowForm, annos, None)
   }
 }

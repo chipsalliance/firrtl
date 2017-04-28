@@ -92,6 +92,42 @@ class ParserSpec extends FirrtlFlatSpec {
                                           s"      ${keyword} <= ${keyword}")))
     }
   }
+
+  // ********** Digits as Fields **********
+  "Digits" should "be legal fields in bundles and in subexpressions" in {
+    val input = """
+      |circuit Test :
+      |  module Test :
+      |    input in : { 0 : { 0 : UInt<32>, flip 1 : UInt<32> } }
+      |    input in2 : { 4 : { 23 : { foo : UInt<32>, bar : { flip 123 : UInt<32> } } } }
+      |    in.0.1 <= in.0.0
+      |    in2.4.23.bar.123 <= in2.4.23.foo
+      """.stripMargin
+    firrtl.Parser.parse(input split "\n")
+  }
+
+  // ********** Doubles as parameters **********
+  "Doubles" should "be legal parameters for extmodules" in {
+    val nums = Seq("1.0", "7.6", "3.00004", "1.0E10", "1.0023E-17")
+    val signs = Seq("", "+", "-")
+    val tests = "0.0" +: (signs flatMap (s => nums map (n => s + n)))
+    for (test <- tests) {
+      println(s"Trying $test")
+      val input = s"""
+        |circuit Test :
+        |  extmodule Ext :
+        |    input foo : UInt<32>
+        |
+        |    defname = MyExtModule
+        |    parameter REAL = $test
+        |
+        |  module Test :
+        |    input foo : UInt<32>
+        |    output bar : UInt<32>
+        """.stripMargin
+      firrtl.Parser.parse(input split "\n")
+    }
+  }
 }
 
 class ParserPropSpec extends FirrtlPropSpec {
