@@ -32,6 +32,11 @@ object ConvertFixedToSInt extends Pass {
     case FixedType(w, p) => error("Shouldn't be here")
     case _ => t map toSIntType
   }
+  def toSIntName(t: Type, n: String): String = t match {
+      case FixedType(IntWidth(w), IntWidth(p)) => s"${n}_${w}q${p}"
+      case FixedType(w, p) => error("Shouldn't be here")
+      case _ => n
+  }
   def run(c: Circuit): Circuit = {
     val moduleTypes = mutable.HashMap[String,Type]()
     def onModule(m:DefModule) : DefModule = {
@@ -66,26 +71,31 @@ object ConvertFixedToSInt extends Pass {
       def updateStmtType(s: Statement): Statement = s match {
         case DefRegister(info, name, tpe, clock, reset, init) =>
           val newType = toSIntType(tpe)
-          types(name) = newType
-          DefRegister(info, name, newType, clock, reset, init) map updateExpType
+          val newName = toSIntName(tpe, name)
+          types(newName) = newType
+          DefRegister(info, newName, newType, clock, reset, init) map updateExpType
         case DefWire(info, name, tpe) =>
           val newType = toSIntType(tpe)
-          types(name) = newType
-          DefWire(info, name, newType)
+          val newName = toSIntName(tpe, name)
+          types(newName) = newType
+          DefWire(info, newName, newType)
         case DefNode(info, name, value) =>
           val newValue = updateExpType(value)
           val newType = toSIntType(newValue.tpe)
-          types(name) = newType
-          DefNode(info, name, newValue)
+          val newName = toSIntName(newValue.tpe, name)
+          types(newName) = newType
+          DefNode(info, newName, newValue)
         case DefMemory(info, name, dt, depth, wL, rL, rs, ws, rws, ruw) =>
-          val newStmt = DefMemory(info, name, toSIntType(dt), depth, wL, rL, rs, ws, rws, ruw)
+          val newName = toSIntName(toSIntType(dt), name)
+          val newStmt = DefMemory(info, newName, toSIntType(dt), depth, wL, rL, rs, ws, rws, ruw)
           val newType = MemPortUtils.memType(newStmt)
-          types(name) = newType
+          types(newName) = newType
           newStmt
         case WDefInstance(info, name, module, tpe) =>
           val newType = moduleTypes(module) 
-          types(name) = newType
-          WDefInstance(info, name, module, newType)
+          val newName = toSIntName(tpe, name)
+          types(newName) = newType
+          WDefInstance(info, newName, module, newType)
         case Connect(info, loc, exp) => 
           val point = calcPoint(Seq(loc))
           val newExp = alignArg(exp, point)
