@@ -226,10 +226,17 @@ class IntervalSpec extends FirrtlFlatSpec {
       """circuit Unit :
         |  module Unit :
         |    input x: Interval[-2, 0]
+        |    input y: {a: Interval[-2, 0]}
+        |    output z: {a: Interval[-2, 0]}
+        |    z <= y
         |    node q = add(add(x, asInterval(UInt(1), 1, 1)), x)
+        |    node t = eq(asInterval(UInt(1), 1, 1), x)
         |""".stripMargin
     val check = Seq(
-      """node q = asSInt(bits(add(add(x, cvt(UInt<1>("h1"))), x), 2, 0))"""
+      """node q = asSInt(bits(add(add(x, cvt(UInt<1>("h1"))), x), 2, 0))""",
+      """node t = eq(cvt(UInt<1>("h1")), x)""",
+      """input y : { a : SInt<2>}""",
+      """output z : { a : SInt<2>}"""
     )
     executeTest(input, check, passes)
   }
@@ -412,7 +419,7 @@ class IntervalSpec extends FirrtlFlatSpec {
       Seq()
     )
 
-    println(s"final state $finalState")
+    println(s"final state ${finalState.circuit.serialize}")
 //    val passes = Seq(
 //      ToWorkingIR,
 //      CheckHighForm,

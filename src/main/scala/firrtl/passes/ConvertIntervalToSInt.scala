@@ -17,7 +17,7 @@ object ConvertIntervalToSInt extends Pass {
       case IntervalType(IVal(a, b)) => SIntType(it.width)
       case _ => throwInternalError
     }
-    case _ => t
+    case _ => t map toSIntType
   }
   def set(e: Expression): Expression = e match {
     case d: DoPrim => set_primop_type(d)
@@ -116,7 +116,7 @@ object ConvertIntervalToSInt extends Pass {
           DefNode(info, name, newValue)
         case DefNode(info, name, value) =>
           types(name) = value.tpe
-          DefNode(info, name, value)
+          DefNode(info, name, value) map updateExpType
         case DefMemory(info, name, dt, depth, wL, rL, rs, ws, rws, ruw) =>
           val newStmt = DefMemory(info, name, toSIntType(dt), depth, wL, rL, rs, ws, rws, ruw)
           val newType = MemPortUtils.memType(newStmt)
@@ -144,7 +144,8 @@ object ConvertIntervalToSInt extends Pass {
       }
     }
     newModules.foreach(m => moduleTypes(m.name) = module_type(m))
-    println(c.serialize)
-    InferTypes.run(Circuit(c.info, newModules.map(onModule(_)), c.main ))
+    val ret = Circuit(c.info, newModules.map(onModule(_)), c.main )
+    println(ret.serialize)
+    InferTypes.run(ret)
   }
 }
