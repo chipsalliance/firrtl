@@ -33,7 +33,7 @@ object ConvertFixedToSInt extends Pass {
     case _ => t map toSIntType
   }
   def toSIntName(t: Type, n: String): String = t match {
-      case FixedType(IntWidth(w), IntWidth(p)) => s"${n}_${w}q${p}"
+      case FixedType(_, IntWidth(p)) => s"${n}_q${p}"
       case FixedType(w, p) => error("Shouldn't be here")
       case _ => n
   }

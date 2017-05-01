@@ -210,7 +210,7 @@ class RemoveFixedTypeSpec extends FirrtlFlatSpec {
       """
         |circuit Unit :
         |  module Unit :
-        |    node x_2q1 = asSInt(asSInt(UInt<2>("h3")))
+        |    node x_q1 = asSInt(asSInt(UInt<2>("h3")))
       """.stripMargin
     executeTest(input, check.split("\n") map normalized, passes)
   }
