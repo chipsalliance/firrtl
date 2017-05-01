@@ -4,12 +4,14 @@ package firrtlTests
 package interval
 
 import java.io._
+
 import org.scalatest._
 import org.scalatest.prop._
 import firrtl._
 import firrtl.ir.Circuit
 import firrtl.passes._
 import firrtl.Parser.IgnoreInfo
+import logger.LogLevel
 
 /** Add, Sub, Mul, Div
  ** Div by zero
@@ -118,6 +120,42 @@ class IntervalSpec extends FirrtlFlatSpec {
     )
     executeTest(input, check, passes)
   }
+
+  "add and comparison" should "work" in {
+    val input =
+      """
+        |circuit IntervalAddTester : @[:@2.0]
+        |  module IntervalAddTester : @[:@3.2]
+        |    input clock : Clock @[:@4.4]
+        |    input reset : UInt<1> @[:@5.4]
+        |
+        |    wire in1 : Interval[0, 4] @[IntervalSpec.scala 53:17:@11.4]
+        |    wire in2 : Interval[0, 4] @[IntervalSpec.scala 54:17:@13.4]
+        |    node _T_6 = add(in1, in2) @[IntervalSpec.scala 59:20:@17.4]
+        |    node _T_7 = tail(_T_6, 1) @[IntervalSpec.scala 59:20:@18.4]
+        |    node result = asInterval(_T_7, 0, 4) @[IntervalSpec.scala 59:20:@19.4]
+        |    node _T_9 = eq(result, asInterval(asSInt(UInt<4>("h4")), 4, 4)) @[IntervalSpec.scala 61:17:@20.4]
+        |    node _T_10 = or(_T_9, reset) @[IntervalSpec.scala 61:9:@21.4]
+        |    node _T_12 = eq(_T_10, UInt<1>("h0")) @[IntervalSpec.scala 61:9:@22.4]
+        |    node _T_14 = eq(reset, UInt<1>("h0")) @[IntervalSpec.scala 63:7:@27.4]
+        |    in1 <= asInterval(asSInt(UInt<3>("h2")), 2, 2)
+        |    in2 <= asInterval(asSInt(UInt<3>("h2")), 2, 2)
+        |    printf(clock, and(and(UInt<1>("h1"), _T_12), UInt<1>("h1")), "Assertion failed\n    at IntervalSpec.scala:61 assert(result === 4.I)\n") @[IntervalSpec.scala 61:9:@24.6]
+        |    stop(clock, and(and(UInt<1>("h1"), _T_12), UInt<1>("h1")), 1) @[IntervalSpec.scala 61:9:@25.6]
+        |    stop(clock, and(and(UInt<1>("h1"), _T_14), UInt<1>("h1")), 0) @[IntervalSpec.scala 63:7:@29.6]
+        |
+        |
+      """.stripMargin
+    val optionsManager = new ExecutionOptionsManager("chisel3") with HasFirrtlOptions {
+      commonOptions = CommonOptions(topName = "interval", targetDirName = "test_run_dir", globalLogLevel = LogLevel.Debug)
+      firrtlOptions = FirrtlExecutionOptions(compilerName = "verilog", firrtlSource = Some(input))
+    }
+
+    firrtl.Driver.execute(optionsManager) match {
+      case _: FirrtlExecutionSuccess => true
+      case _: FirrtlExecutionFailure => false
+    }
+ }
 
   "Long width constraints" should "work" in {
     val passes = Seq(

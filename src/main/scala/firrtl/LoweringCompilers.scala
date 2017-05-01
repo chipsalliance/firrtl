@@ -69,6 +69,7 @@ class HighFirrtlToMiddleFirrtl extends CoreTransform {
     passes.ResolveGenders,
     passes.InferWidths,
     passes.CheckWidths,
+    passes.ConvertIntervalToSInt,
     passes.ConvertFixedToSInt,
     passes.ZeroWidth)
 }
@@ -87,9 +88,6 @@ class MiddleFirrtlToLowFirrtl extends CoreTransform {
     passes.InferTypes,
     passes.ResolveGenders,
     passes.InferWidths,
-    //TODO (CHICK) find where these should really go
-    passes.ConvertIntervalToSInt,
-    passes.ConvertFixedToSInt,
     passes.Legalize,
     passes.CheckCombLoops)
 }
