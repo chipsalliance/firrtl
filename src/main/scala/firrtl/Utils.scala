@@ -12,20 +12,130 @@ import scala.collection.mutable.{StringBuilder, ArrayBuffer, LinkedHashMap, Hash
 import java.io.PrintWriter
 import logger.LazyLogging
 
-class FIRRTLException(str: String) extends Exception(str)
+object seqCat {
+  def apply(args: Seq[Expression]): Expression = args.length match {
+    case 0 => error("Empty Seq passed to seqcat")
+    case 1 => args.head
+    case 2 => DoPrim(PrimOps.Cat, args, Nil, UIntType(UnknownWidth))
+    case _ =>
+      val (high, low) = args splitAt (args.length / 2)
+      DoPrim(PrimOps.Cat, Seq(seqCat(high), seqCat(low)), Nil, UIntType(UnknownWidth))
+  }
+}
+
+/** Given an expression, return an expression consisting of all sub-expressions
+ * concatenated (or flattened).
+ */
+object toBits {
+  def apply(e: Expression): Expression = e match {
+    case ex @ (_: WRef | _: WSubField | _: WSubIndex) => hiercat(ex)
+    case t => error("Invalid operand expression for toBits!")
+  }
+  private def hiercat(e: Expression): Expression = e.tpe match {
+    case t: VectorType => seqCat((0 until t.size).reverse map (i =>
+      hiercat(WSubIndex(e, i, t.tpe, UNKNOWNGENDER))))
+    case t: BundleType => seqCat(t.fields map (f =>
+      hiercat(WSubField(e, f.name, f.tpe, UNKNOWNGENDER))))
+    case t: GroundType => DoPrim(AsUInt, Seq(e), Seq.empty, UnknownType)
+    case t => error("Unknown type encountered in toBits!")
+  }
+}
+
+object getWidth {
+  def apply(t: Type): Width = t match {
+    case t: GroundType => t.width
+    case _ => error("No width!")
+  }
+  def apply(e: Expression): Width = apply(e.tpe)
+}
+
+object bitWidth {
+  def apply(dt: Type): BigInt = widthOf(dt)
+  private def widthOf(dt: Type): BigInt = dt match {
+    case t: VectorType => t.size * bitWidth(t.tpe)
+    case t: BundleType => t.fields.map(f => bitWidth(f.tpe)).foldLeft(BigInt(0))(_+_)
+    case GroundType(IntWidth(width)) => width
+    case t => error("Unknown type encountered in bitWidth!")
+  }
+}
+
+object castRhs {
+  def apply(lhst: Type, rhs: Expression) = {
+    (lhst, rhs.tpe) match {
+      case (x: GroundType, y: GroundType) if WrappedType(x) == WrappedType(y) => 
+        rhs
+      case (_: SIntType, _) => 
+        DoPrim(AsSInt, Seq(rhs), Seq.empty, lhst)
+      case (FixedType(_, IntWidth(p)), _) => 
+        DoPrim(AsFixedPoint, Seq(rhs), Seq(p), lhst)
+      case (ClockType, _) => 
+        DoPrim(AsClock, Seq(rhs), Seq.empty, lhst)
+      case (_: UIntType, _) => 
+        DoPrim(AsUInt, Seq(rhs), Seq.empty, lhst)
+      case (_, _) => error("castRhs lhst, rhs type combination is invalid")
+    }  
+  }
+}
+
+object fromBits {
+  def apply(lhs: Expression, rhs: Expression): Statement = {
+    val fbits = lhs match {
+      case ex @ (_: WRef | _: WSubField | _: WSubIndex) => getPart(ex, ex.tpe, rhs, 0)
+      case _ => error("Invalid LHS expression for fromBits!")
+    }
+    Block(fbits._2)
+  }
+  private def getPartGround(lhs: Expression,
+                            lhst: Type,
+                            rhs: Expression,
+                            offset: BigInt): (BigInt, Seq[Statement]) = {
+    val intWidth = bitWidth(lhst)
+    val sel = DoPrim(PrimOps.Bits, Seq(rhs), Seq(offset + intWidth - 1, offset), UnknownType)
+    val rhsConnect = castRhs(lhst, sel)
+    (offset + intWidth, Seq(Connect(NoInfo, lhs, rhsConnect)))
+  }
+  private def getPart(lhs: Expression,
+                      lhst: Type,
+                      rhs: Expression,
+                      offset: BigInt): (BigInt, Seq[Statement]) =
+    lhst match {
+      case t: VectorType => (0 until t.size foldLeft (offset, Seq[Statement]())) {
+        case ((curOffset, stmts), i) =>
+          val subidx = WSubIndex(lhs, i, t.tpe, UNKNOWNGENDER)
+          val (tmpOffset, substmts) = getPart(subidx, t.tpe, rhs, curOffset)
+          (tmpOffset, stmts ++ substmts)
+      }
+      case t: BundleType => (t.fields foldRight (offset, Seq[Statement]())) {
+        case (f, (curOffset, stmts)) =>
+          val subfield = WSubField(lhs, f.name, f.tpe, UNKNOWNGENDER)
+          val (tmpOffset, substmts) = getPart(subfield, f.tpe, rhs, curOffset)
+          (tmpOffset, stmts ++ substmts)
+      }
+      case t: GroundType => getPartGround(lhs, t, rhs, offset)
+      case t => error("Unknown type encountered in fromBits!")
+    }
+}
+
+object connectFields {
+  def apply(lref: Expression, lname: String, rref: Expression, rname: String): Connect =
+    Connect(NoInfo, WSubField(lref, lname), WSubField(rref, rname))
+}
+
+object flattenType {
+  def apply(t: Type) = UIntType(IntWidth(bitWidth(t)))
+}
+
+class FIRRTLException(val str: String) extends Exception(str)
 
 object Utils extends LazyLogging {
   def throwInternalError =
     error("Internal Error! Please file an issue at https://github.com/ucb-bar/firrtl/issues")
-  private[firrtl] def time[R](name: String)(block: => R): R = {
-    logger.info(s"Starting $name")
+  private[firrtl] def time[R](block: => R): (Double, R) = {
     val t0 = System.nanoTime()
     val result = block
     val t1 = System.nanoTime()
-    logger.info(s"Finished $name")
     val timeMillis = (t1 - t0) / 1000000.0
-    logger.info(f"$name took $timeMillis%.1f ms\n")
-    result
+    (timeMillis, result)
   }
 
   /** Removes all [[firrtl.ir.EmptyStmt]] statements and condenses
@@ -44,9 +154,6 @@ object Utils extends LazyLogging {
 
   /** Indent the results of [[ir.FirrtlNode.serialize]] */
   def indent(str: String) = str replaceAllLiterally ("\n", "\n  ")
-  def serialize(bi: BigInt): String =
-    if (bi < BigInt(0)) "\"h" + bi.toString(16).substring(1) + "\""
-    else "\"h" + bi.toString(16) + "\""
 
   implicit def toWrappedExpression (x:Expression): WrappedExpression = new WrappedExpression(x)
   def ceilLog2(x: BigInt): Int = (x-1).bitLength
@@ -269,6 +376,7 @@ object Utils extends LazyLogging {
       case (_: UIntType, _: UIntType) => if (flip1 == flip2) Seq((0, 0)) else Nil
       case (_: SIntType, _: SIntType) => if (flip1 == flip2) Seq((0, 0)) else Nil
       case (_: FixedType, _: FixedType) => if (flip1 == flip2) Seq((0, 0)) else Nil
+      case (_: AnalogType, _: AnalogType) => if (flip1 == flip2) Seq((0, 0)) else Nil
       case (t1x: BundleType, t2x: BundleType) =>
         def emptyMap = Map[String, (Type, Orientation, Int)]()
         val t1_fields = t1x.fields.foldLeft(emptyMap, 0) { case ((map, ilen), f1) =>

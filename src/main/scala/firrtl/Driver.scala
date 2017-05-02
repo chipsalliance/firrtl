@@ -4,12 +4,16 @@ package firrtl
 
 import scala.collection._
 import scala.io.Source
+import scala.sys.process.{BasicIO,stringSeqToProcess}
 import java.io.{File, FileNotFoundException}
+
 import net.jcazevedo.moultingyaml._
 import logger.Logger
-import Parser.{InfoMode, IgnoreInfo}
+import Parser.{IgnoreInfo, InfoMode}
 import annotations._
 import firrtl.annotations.AnnotationYamlProtocol._
+import firrtl.transforms.{BlackBoxSourceHelper, BlackBoxTargetDir}
+import Utils.throwInternalError
 
 
 /**
@@ -38,6 +42,7 @@ object Driver {
   // Compiles circuit. First parses a circuit from an input file,
   //  executes all compiler passes, and writes result to an output
   //  file.
+  @deprecated("Please use execute", "firrtl 1.0")
   def compile(
       input: String,
       output: String,
@@ -65,6 +70,7 @@ object Driver {
     *
     * @param message error message
     */
+  //scalastyle:off regex
   def dramaticError(message: String): Unit = {
     println(Console.RED + "-"*78)
     println(s"Error: $message")
@@ -84,8 +90,9 @@ object Driver {
      The annotation file if needed is found via
      s"$targetDirName/$topName.anno" or s"$annotationFileNameOverride.anno"
     */
-    val firrtlConfig = optionsManager.firrtlOptions
-    if(firrtlConfig.annotations.isEmpty) {
+    def firrtlConfig = optionsManager.firrtlOptions
+
+    if (firrtlConfig.annotations.isEmpty || firrtlConfig.forceAppendAnnoFile) {
       val annotationFileName = firrtlConfig.getAnnotationFileName(optionsManager)
       val annotationFile = new File(annotationFileName)
       if (annotationFile.exists) {
@@ -93,6 +100,17 @@ object Driver {
         val annotationArray = annotationsYaml.convertTo[Array[Annotation]]
         optionsManager.firrtlOptions = firrtlConfig.copy(annotations = firrtlConfig.annotations ++ annotationArray)
       }
+    }
+
+    if(firrtlConfig.annotations.nonEmpty) {
+      val targetDirAnno = List(Annotation(
+        CircuitName("All"),
+        classOf[BlackBoxSourceHelper],
+        BlackBoxTargetDir(optionsManager.targetDirName).serialize
+      ))
+
+      optionsManager.firrtlOptions = optionsManager.firrtlOptions.copy(
+        annotations = firrtlConfig.annotations ++ targetDirAnno)
     }
   }
 
@@ -104,7 +122,7 @@ object Driver {
     *         for downstream tools as desired
     */
   def execute(optionsManager: ExecutionOptionsManager with HasFirrtlOptions): FirrtlExecutionResult = {
-    val firrtlConfig = optionsManager.firrtlOptions
+    def firrtlConfig = optionsManager.firrtlOptions
 
     Logger.setOptions(optionsManager)
 
@@ -139,20 +157,46 @@ object Driver {
     loadAnnotations(optionsManager)
 
     val parsedInput = Parser.parse(firrtlSource, firrtlConfig.infoMode)
-    val outputBuffer = new java.io.CharArrayWriter
-    firrtlConfig.compiler.compile(
-      CircuitState(parsedInput, ChirrtlForm, Some(AnnotationMap(firrtlConfig.annotations))),
-      outputBuffer,
+
+    // Does this need to be before calling compiler?
+    optionsManager.makeTargetDir()
+
+    // Output Annotations
+    val outputAnnos = firrtlConfig.getEmitterAnnos(optionsManager)
+
+    // Should these and outputAnnos be moved to loadAnnotations?
+    val globalAnnos = Seq(TargetDirAnnotation(optionsManager.targetDirName))
+
+    val finalState = firrtlConfig.compiler.compile(
+      CircuitState(parsedInput,
+                   ChirrtlForm,
+                   Some(AnnotationMap(firrtlConfig.annotations ++ outputAnnos ++ globalAnnos))),
       firrtlConfig.customTransforms
     )
 
-    val outputFileName = firrtlConfig.getOutputFileName(optionsManager)
-    val outputFile     = new java.io.PrintWriter(outputFileName)
-    val outputString   = outputBuffer.toString
-    outputFile.write(outputString)
-    outputFile.close()
+    // Do emission
+    // Note: Single emission target assumption is baked in here
+    // Note: FirrtlExecutionSuccess emitted is only used if we're emitting the whole Circuit
+    val emittedRes = firrtlConfig.getOutputConfig(optionsManager) match {
+      case SingleFile(filename) =>
+        val emitted = finalState.getEmittedCircuit
+        val outputFile = new java.io.PrintWriter(filename)
+        outputFile.write(emitted.value)
+        outputFile.close()
+        emitted.value
+      case OneFilePerModule(dirName) =>
+        val emittedModules = finalState.emittedComponents collect { case x: EmittedModule => x }
+        if (emittedModules.isEmpty) throwInternalError // There should be something
+        emittedModules.foreach { case module =>
+          val filename = optionsManager.getBuildFileName(firrtlConfig.outputSuffix, s"$dirName/${module.name}")
+          val outputFile = new java.io.PrintWriter(filename)
+          outputFile.write(module.value)
+          outputFile.close()
+        }
+        "" // Should we return something different here?
+    }
 
-    FirrtlExecutionSuccess(firrtlConfig.compilerName, outputBuffer.toString)
+    FirrtlExecutionSuccess(firrtlConfig.compilerName, emittedRes)
   }
 
   /**
@@ -214,19 +258,48 @@ object FileUtils {
     *
     * @param directoryPathName a directory hierarchy to delete
     */
-  def deleteDirectoryHierarchy(directoryPathName: String): Unit = {
-    if(directoryPathName.isEmpty || directoryPathName.startsWith("/")) {
-      // don't delete absolute path
+  def deleteDirectoryHierarchy(directoryPathName: String): Boolean = {
+    deleteDirectoryHierarchy(new File(directoryPathName))
+  }
+  /**
+    * recursively delete all directories in a relative path
+    * DO NOT DELETE absolute paths
+    *
+    * @param file: a directory hierarchy to delete
+    */
+  def deleteDirectoryHierarchy(file: File, atTop: Boolean = true): Boolean = {
+    if(file.getPath.split("/").last.isEmpty ||
+      file.getAbsolutePath == "/" ||
+      file.getPath.startsWith("/")) {
+      Driver.dramaticError(s"delete directory ${file.getPath} will not delete absolute paths")
+      false
     }
     else {
-      val directory = new java.io.File(directoryPathName)
-      if(directory.isDirectory) {
-        directory.delete()
-        val directories = directoryPathName.split("/+").reverse.tail
-        if (directories.nonEmpty) {
-          deleteDirectoryHierarchy(directories.reverse.mkString("/"))
+      val result = {
+        if(file.isDirectory) {
+          file.listFiles().forall( f => deleteDirectoryHierarchy(f)) && file.delete()
+        }
+        else {
+          file.delete()
         }
       }
+      result
     }
   }
+
+  /** Indicate if an external command (executable) is available.
+    *
+    * @param cmd the command/executable
+    * @return true if ```cmd``` is found in PATH.
+    */
+  def isCommandAvailable(cmd: String): Boolean = {
+    // Eat any output.
+    val sb = new StringBuffer
+    val ioToDevNull = BasicIO(false, sb, None)
+
+    Seq("bash", "-c", "which %s".format(cmd)).run(ioToDevNull).exitValue == 0
+  }
+
+  /** isVCSAvailable - flag indicating vcs is available (for Verilog compilation and testing. */
+  lazy val isVCSAvailable: Boolean = isCommandAvailable("vcs")
 }

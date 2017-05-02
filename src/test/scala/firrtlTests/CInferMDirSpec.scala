@@ -10,8 +10,6 @@ import annotations._
 
 class CInferMDir extends LowTransformSpec {
   object CInferMDirCheckPass extends Pass {
-    val name = "Check Enable Signal for Chirrtl Mems"
-
     // finds the memory and check its read port
     def checkStmt(s: Statement): Boolean = s match {
       case s: DefMemory if s.name == "indices" =>
@@ -38,10 +36,10 @@ class CInferMDir extends LowTransformSpec {
     }
   }
 
-  def transform = new PassBasedTransform {
+  def transform = new SeqTransform {
     def inputForm = LowForm
     def outputForm = LowForm
-    def passSeq = Seq(ConstProp, CInferMDirCheckPass)
+    def transforms = Seq(ConstProp, CInferMDirCheckPass)
   }
 
   "Memory" should "have correct mem port directions" in {
@@ -70,9 +68,8 @@ circuit foo :
 """.stripMargin
 
     val annotationMap = AnnotationMap(Nil)
-    val writer = new java.io.StringWriter
-    compile(CircuitState(parse(input), ChirrtlForm, Some(annotationMap)), writer)
+    val res = compileAndEmit(CircuitState(parse(input), ChirrtlForm, Some(annotationMap)))
     // Check correctness of firrtl
-    parse(writer.toString)
+    parse(res.getEmittedCircuit.value)
   }
 }
