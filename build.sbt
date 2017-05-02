@@ -18,7 +18,7 @@ name := "firrtl"
 
 version := "1.1-SNAPSHOT"
 
-scalaVersion := "2.11.8"
+scalaVersion := "2.11.11"
 
 javacOptions ++= Seq("-source", "1.7", "-target", "1.7")
 
