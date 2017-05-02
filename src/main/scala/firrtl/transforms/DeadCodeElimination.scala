@@ -144,7 +144,7 @@ class DeadCodeElimination extends Transform {
   private def deleteDeadCode(instMap: collection.Map[String, String],
                              deadNodes: Set[LogicNode],
                              moduleMap: collection.Map[String, DefModule])
-                            (mod: Module): Option[Module] = {
+                            (mod: DefModule): Option[DefModule] = {
     // Gets all dependencies and constructs LogicNodes from them
     // TODO this is a duplicate from setupDepGraph, remove by improving how we lookup
     def getDeps(expr: Expression): Seq[LogicNode] =
@@ -186,9 +186,16 @@ class DeadCodeElimination extends Transform {
       stmtx
     }
 
-    val bodyx = onStmt(mod.body)
     val portsx = mod.ports.filterNot(p => deadNodes.contains(LogicNode(mod.name, p.name)))
-    if (emptyBody && portsx.isEmpty) None else Some(mod.copy(ports = portsx, body = bodyx))
+
+    mod match {
+      case Module(info, name, _, body) =>
+        val bodyx = onStmt(body)
+        if (emptyBody && portsx.isEmpty) None else Some(Module(info, name, portsx, bodyx))
+      case ext: ExtModule =>
+        if (portsx.isEmpty) None else Some(ext.copy(ports = portsx))
+    }
+
   }
 
   def run(c: Circuit, dontTouches: Seq[LogicNode]): Circuit = {
@@ -219,13 +226,10 @@ class DeadCodeElimination extends Transform {
     // themselves. We iterate over the modules in a topological order from leaves to the top. The
     // current status of the modulesxMap is used to either delete instances or update their types
     val modulesxMap = mutable.HashMap.empty[String, DefModule]
-    topoSortedModules.foreach {
-      case mod: Module =>
-        deleteDeadCode(moduleDeps(mod.name), deadNodes, modulesxMap)(mod).foreach { m =>
-          modulesxMap += m.name -> m
-        }
-      case ext: ExtModule =>
-        modulesxMap += ext.name -> ext
+    topoSortedModules.foreach { case mod =>
+      deleteDeadCode(moduleDeps(mod.name), deadNodes, modulesxMap)(mod).foreach { m =>
+        modulesxMap += m.name -> m
+      }
     }
 
     // Preserve original module order

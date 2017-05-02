@@ -199,7 +199,7 @@ circuit CustomMemory :
     smem mem_1 : UInt<16>[7]
     read mport _T_17 = mem_0[io.rAddr], clock
     read mport _T_19 = mem_1[io.rAddr], clock
-    io.dO <= _T_17
+    io.dO <= and(_T_17, _T_19)
     when io.wEn :
       write mport _T_18 = mem_0[io.wAddr], clock
       write mport _T_20 = mem_1[io.wAddr], clock
@@ -218,7 +218,7 @@ circuit CustomMemory :
       case e: ExtModule =>  true
       case _ => false
     }
-    require(numExtMods == 2)
+    numExtMods should be (2)
     (new java.io.File(confLoc)).delete()
   }
 
@@ -237,7 +237,7 @@ circuit CustomMemory :
     read mport _T_17 = mem_0[io.rAddr], clock
     read mport _T_19 = mem_1[io.rAddr], clock
     read mport _T_21 = mem_2[io.rAddr], clock
-    io.dO <= _T_17
+    io.dO <= and(_T_17, and(_T_19, _T_21))
     when io.wEn :
       write mport _T_18 = mem_0[io.wAddr], clock
       write mport _T_20 = mem_1[io.wAddr], clock
@@ -258,7 +258,7 @@ circuit CustomMemory :
       case e: ExtModule =>  true
       case _ => false
     }
-    require(numExtMods == 2)
+    numExtMods should be (2)
     (new java.io.File(confLoc)).delete()
   }
 

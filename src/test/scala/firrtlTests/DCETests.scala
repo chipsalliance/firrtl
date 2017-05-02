@@ -153,7 +153,6 @@ class DCETests extends FirrtlFlatSpec {
         |    z <= r""".stripMargin
     exec(input, check)
   }
-  // Printf is hard because the StringLit doesn't match
   "Logic that feeds into simulation constructs" should "not be deleted" in {
     val input =
       """circuit Top :
@@ -182,6 +181,26 @@ class DCETests extends FirrtlFlatSpec {
         |    input x : UInt<1>
         |    output z : UInt<1>
         |    z <= x
+        |  module Top :
+        |    input x : UInt<1>
+        |    output z : UInt<1>
+        |    inst dead of Dead
+        |    dead.x <= x
+        |    z <= x""".stripMargin
+    val check =
+      """circuit Top :
+        |  module Top :
+        |    input x : UInt<1>
+        |    output z : UInt<1>
+        |    z <= x""".stripMargin
+    exec(input, check)
+  }
+  "Globally dead extmodule" should "be deleted" in {
+    val input =
+      """circuit Top :
+        |  extmodule Dead :
+        |    input x : UInt<1>
+        |    output z : UInt<1>
         |  module Top :
         |    input x : UInt<1>
         |    output z : UInt<1>
