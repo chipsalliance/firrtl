@@ -125,16 +125,19 @@ class DeadCodeElimination extends Transform {
       case ext: ExtModule =>
         // Connect all inputs to all outputs
         val node = LogicNode(ext.name, ext.name)
-        val ports = ext.ports.groupBy(_.direction)
-        depGraph.addVertex(node)
-        ports.get(Output).foreach(_.foreach(output => depGraph.addEdge(LogicNode(ext.name, output.name), node)))
-        ports.get(Input).foreach(_.foreach(input => depGraph.addEdge(node, LogicNode(ext.name, input.name))))
+        ext.ports.foreach {
+          case Port(_, pname, _, AnalogType(_)) =>
+            depGraph.addEdge(LogicNode(ext.name, pname), node)
+            depGraph.addEdge(node, LogicNode(ext.name, pname))
+          case Port(_, pname, Output, _) => depGraph.addEdge(LogicNode(ext.name, pname), node)
+          case Port(_, pname, Input, _) => depGraph.addEdge(node, LogicNode(ext.name, pname))
+        }
     }
     // Connect circuitSink to top-level outputs (and Analog inputs)
     val topModule = c.modules.find(_.name == c.main).get
     val topOutputs = topModule.ports.foreach {
       case Port(_, name, Output, _) => depGraph.addEdge(circuitSink, LogicNode(c.main, name))
-      case Port(_, name, _, _: AnalogType) => depGraph.addEdge(circuitSink, LogicNode(c.main, name))
+      case Port(_, name, _, AnalogType(_)) => depGraph.addEdge(circuitSink, LogicNode(c.main, name))
       case _ =>
     }
 

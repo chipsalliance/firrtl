@@ -260,6 +260,23 @@ class DCETests extends FirrtlFlatSpec {
         |    z <= x""".stripMargin
     exec(input, check, Seq(dontTouch("Dead.z")))
   }
+  "Analog ports of extmodules" should "count as both inputs and outputs" in {
+    val input =
+      """circuit Top :
+        |  extmodule BB1 :
+        |    output bus : Analog<1>
+        |  extmodule BB2 :
+        |    output bus : Analog<1>
+        |    output out : UInt<1>
+        |  module Top :
+        |    output out : UInt<1>
+        |    inst bb1 of BB1
+        |    inst bb2 of BB2
+        |    attach (bb1.bus, bb2.bus)
+        |    out <= bb2.out
+        """.stripMargin
+    exec(input, input)
+  }
   // bar.z is not used and thus is dead code, but foo.z is used so this code isn't eliminated
   "Module deduplication" should "should be preserved despite unused output of ONE instance" in {
     val input =
