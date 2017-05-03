@@ -25,8 +25,8 @@ object RenameMap {
 }
 class RenameMap {
   val renameMap = new mutable.HashMap[Named, Seq[Named]]()
-  var circuitName: String = ""
-  var moduleName: String = ""
+  private var circuitName: String = ""
+  private var moduleName: String = ""
   def setModule(s: String) =
     moduleName = s
   def setCircuit(s: String) =
@@ -34,8 +34,8 @@ class RenameMap {
   def rename(from: String, to: String): Unit = rename(from, Seq(to))
   def rename(from: String, tos: Seq[String]): Unit = {
     val fromName = ComponentName(from, ModuleName(moduleName, CircuitName(circuitName)))
-    val tosName = tos map {
-      ComponentName(_, ModuleName(moduleName, CircuitName(circuitName)))
+    val tosName = tos map { to =>
+      ComponentName(to, ModuleName(moduleName, CircuitName(circuitName)))
     }
     rename(fromName, tosName)
   }
@@ -53,8 +53,8 @@ class RenameMap {
   def addMap(map: Map[Named, Seq[Named]]) =
     renameMap ++= map
   def serialize: String = renameMap.map { case (k, v) =>
-    s"""${k.serialize} => ${v.map(_.serialize) mkString ", "}"""
-  } mkString "\n"
+    k.serialize + "=>" + v.map(_.serialize).mkString(", ")
+  }.mkString("\n")
 }
 
 /**
@@ -257,10 +257,8 @@ trait SeqTransformBased {
 /** For transformations that are simply a sequence of transforms */
 abstract class SeqTransform extends Transform with SeqTransformBased {
   def execute(state: CircuitState): CircuitState = {
-    /*
     require(state.form <= inputForm,
       s"[$name]: Input form must be lower or equal to $inputForm. Got ${state.form}")
-    */
     val ret = runTransforms(state)
     CircuitState(ret.circuit, outputForm, ret.annotations, ret.renames)
   }

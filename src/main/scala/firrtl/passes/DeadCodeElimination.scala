@@ -47,7 +47,7 @@ object DeadCodeElimination extends Transform {
 
   @tailrec
   private def dce(renames: RenameMap)(s: Statement): Statement = {
-    val (res, n) = dceOnce(renames: RenameMap)(s)
+    val (res, n) = dceOnce(renames)(s)
     if (n > 0) dce(renames)(res) else res
   }
 

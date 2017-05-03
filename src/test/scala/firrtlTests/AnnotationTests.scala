@@ -41,8 +41,8 @@ trait AnnotationSpec extends LowTransformSpec {
  * Unstable, Fickle, and Insistent can be tested.
  */
 class AnnotationTests extends AnnotationSpec with Matchers {
-  def getAMap (a: Annotation): Option[AnnotationMap] = Some(AnnotationMap(Seq(a)))
-  def getAMap (as: Seq[Annotation]): Option[AnnotationMap] = Some(AnnotationMap(as))
+  def getAMap(a: Annotation): Option[AnnotationMap] = Some(AnnotationMap(Seq(a)))
+  def getAMap(as: Seq[Annotation]): Option[AnnotationMap] = Some(AnnotationMap(as))
   def anno(s: String, value: String ="this is a value"): Annotation =
     Annotation(ComponentName(s, ModuleName("Top", CircuitName("Top"))), classOf[Transform], value)
 
@@ -148,7 +148,8 @@ class AnnotationTests extends AnnotationSpec with Matchers {
 
   "Renaming" should "propagate in Lowering of memories" in {
     val compiler = new VerilogCompiler
-    Logger.setClassLogLevels(Map(compiler.getClass.getName -> LogLevel.Debug))
+    // Uncomment to help debugging failing tests
+    // Logger.setClassLogLevels(Map(compiler.getClass.getName -> LogLevel.Debug))
     val input =
      """circuit Top :
         |  module Top :
