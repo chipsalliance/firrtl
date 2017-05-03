@@ -6,6 +6,7 @@ import firrtl.ir.Circuit
 import firrtl._
 import firrtl.passes._
 import firrtl.transforms._
+import firrtl.annotations._
 import firrtl.passes.memlib.SimpleTransform
 
 class DCETests extends FirrtlFlatSpec {
@@ -15,8 +16,8 @@ class DCETests extends FirrtlFlatSpec {
     new LowFirrtlOptimization,
     new SimpleTransform(RemoveEmpty, LowForm)
   )
-  private def exec(input: String, check: String): Unit = {
-    val state = CircuitState(parse(input), ChirrtlForm)
+  private def exec(input: String, check: String, annos: Seq[Annotation] = List.empty): Unit = {
+    val state = CircuitState(parse(input), ChirrtlForm, Some(AnnotationMap(annos)))
     val finalState = (new LowFirrtlCompiler).compileAndEmit(state, customTransforms)
     val res = finalState.getEmittedCircuit.value
     // Convert to sets for comparison
@@ -41,6 +42,25 @@ class DCETests extends FirrtlFlatSpec {
         |    output z : UInt<1>
         |    z <= x""".stripMargin
     exec(input, check)
+  }
+  "Unread wire marked dont touch" should "NOT be deleted" in {
+    val input =
+      """circuit Top :
+        |  module Top :
+        |    input x : UInt<1>
+        |    output z : UInt<1>
+        |    wire a : UInt<1>
+        |    z <= x
+        |    a <= x""".stripMargin
+    val check =
+      """circuit Top :
+        |  module Top :
+        |    input x : UInt<1>
+        |    output z : UInt<1>
+        |    wire a : UInt<1>
+        |    z <= x
+        |    a <= x""".stripMargin
+    exec(input, check, Seq(dontTouch("Top.a")))
   }
   "Unread register" should "be deleted" in {
     val input =
@@ -214,6 +234,31 @@ class DCETests extends FirrtlFlatSpec {
         |    output z : UInt<1>
         |    z <= x""".stripMargin
     exec(input, check)
+  }
+  "Globally dead extmodule marked dont touch" should "NOT be deleted" in {
+    val input =
+      """circuit Top :
+        |  extmodule Dead :
+        |    input x : UInt<1>
+        |    output z : UInt<1>
+        |  module Top :
+        |    input x : UInt<1>
+        |    output z : UInt<1>
+        |    inst dead of Dead
+        |    dead.x <= x
+        |    z <= x""".stripMargin
+    val check =
+      """circuit Top :
+        |  extmodule Dead :
+        |    input x : UInt<1>
+        |    output z : UInt<1>
+        |  module Top :
+        |    input x : UInt<1>
+        |    output z : UInt<1>
+        |    inst dead of Dead
+        |    dead.x <= x
+        |    z <= x""".stripMargin
+    exec(input, check, Seq(dontTouch("Dead.z")))
   }
   // bar.z is not used and thus is dead code, but foo.z is used so this code isn't eliminated
   "Module deduplication" should "should be preserved despite unused output of ONE instance" in {
