@@ -9,7 +9,6 @@ import firrtl.Mappers._
 import firrtl.Utils._
 
 object CheckWidths extends Pass {
-  def name = "Width Check"
   /** The maximum allowed width for any circuit element */
   val MaxWidth = 1000000
   val DshlMaxWidth = ceilLog2(MaxWidth + 1)
@@ -92,6 +91,12 @@ object CheckWidths extends Pass {
             if (bitWidth(e.tpe) != bitWidth(exprs.head.tpe))
               errors.append(new AttachWidthsNotEqual(infox, mname, e.serialize, exprs.head.serialize))
           )
+          s
+        case sx: DefRegister =>
+          sx.reset.tpe match {
+            case UIntType(IntWidth(w)) if w == 1 =>
+            case _ => errors.append(new CheckTypes.IllegalResetType(info, mname, sx.name))
+          }
           s
         case _ => s
       }

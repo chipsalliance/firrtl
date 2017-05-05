@@ -93,7 +93,7 @@ object Driver {
     */
     def firrtlConfig = optionsManager.firrtlOptions
 
-    if(firrtlConfig.annotations.isEmpty) {
+    if (firrtlConfig.annotations.isEmpty || firrtlConfig.forceAppendAnnoFile) {
       val annotationFileName = firrtlConfig.getAnnotationFileName(optionsManager)
       val annotationFile = new File(annotationFileName)
       if (annotationFile.exists) {
@@ -165,10 +165,15 @@ object Driver {
       // Output Annotations
       val outputAnnos = firrtlConfig.getEmitterAnnos(optionsManager)
 
-      val finalState = firrtlConfig.compiler.compile(
-        CircuitState(parsedInput, ChirrtlForm, Some(AnnotationMap(firrtlConfig.annotations ++ outputAnnos))),
-        firrtlConfig.customTransforms
-      )
+    // Should these and outputAnnos be moved to loadAnnotations?
+    val globalAnnos = Seq(TargetDirAnnotation(optionsManager.targetDirName))
+
+    val finalState = firrtlConfig.compiler.compile(
+      CircuitState(parsedInput,
+                   ChirrtlForm,
+                   Some(AnnotationMap(firrtlConfig.annotations ++ outputAnnos ++ globalAnnos))),
+      firrtlConfig.customTransforms
+    )
 
     // Do emission
     // Note: Single emission target assumption is baked in here

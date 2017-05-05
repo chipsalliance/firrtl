@@ -93,7 +93,7 @@ class ZeroWidthTests extends FirrtlFlatSpec {
         |    skip""".stripMargin
       (parse(exec(input)).serialize) should be (parse(check).serialize)
   }
-  "Node with <0>" should "be given zero" in {
+  "Node with <0>" should "be removed" in {
     val input =
       """circuit Top :
         |  module Top :
@@ -102,7 +102,21 @@ class ZeroWidthTests extends FirrtlFlatSpec {
     val check =
       """circuit Top :
         |  module Top :
-        |    node x = UInt(0)""".stripMargin
+        |    skip""".stripMargin
+      (parse(exec(input)).serialize) should be (parse(check).serialize)
+  }
+  "Expression in node with type <0>" should "be replaced by UInt<1>(0)" in {
+    val input =
+      """circuit Top :
+        |  module Top :
+        |    input x: UInt<1>
+        |    input y: UInt<0>
+        |    node z = add(x, y)""".stripMargin
+    val check =
+      """circuit Top :
+        |  module Top :
+        |    input x: UInt<1>
+        |    node z = add(x, UInt<1>(0))""".stripMargin
       (parse(exec(input)).serialize) should be (parse(check).serialize)
   }
 }
