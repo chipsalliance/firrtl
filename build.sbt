@@ -1,6 +1,7 @@
 // See LICENSE for license details.
 
 import chiselBuild.ChiselDependencies._
+import chiselBuild.ChiselSettings
 
 // sbt-site - sbt-ghpages
 
@@ -10,17 +11,18 @@ site.includeScaladoc()
 
 ghpages.settings
 
+ChiselSettings.commonSettings
+
+ChiselSettings.publishSettings
+
 git.remoteRepo := "git@github.com:ucb-bar/firrtl.git"
 
 // Firrtl code
+val internalName = "firrtl"
 
-organization := "edu.berkeley.cs"
-
-name := "firrtl"
+name := internalName
 
 version := "1.1-SNAPSHOT"
-
-scalaVersion := "2.11.7"
 
 libraryDependencies += "org.scala-lang" % "scala-reflect" % scalaVersion.value
 
@@ -73,4 +75,6 @@ scalacOptions in Compile in doc ++= Seq(
   "-doc-root-content", baseDirectory.value+"/root-doc.txt"
 )
 
-dependsOn((chiselProjectDependencies("firrtl")):_*)
+libraryDependencies ++= chiselLibraryDependencies(internalName)
+
+dependsOn((chiselProjectDependencies(internalName)):_*)
