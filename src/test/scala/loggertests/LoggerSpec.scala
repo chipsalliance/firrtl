@@ -11,6 +11,7 @@ object LoggerSpec {
   val WarnMsg = "message warn"
   val InfoMsg = "message info"
   val DebugMsg = "message debug"
+  val TraceMsg = "message trace"
 }
 
 class Logger1 extends LazyLogging {
@@ -19,6 +20,7 @@ class Logger1 extends LazyLogging {
     logger.warn(LoggerSpec.WarnMsg)
     logger.info(LoggerSpec.InfoMsg)
     logger.debug(LoggerSpec.DebugMsg)
+    logger.trace(LoggerSpec.TraceMsg)
   }
 }
 
@@ -48,6 +50,7 @@ class LoggerSpec extends FreeSpec with Matchers with OneInstancePerTest with Laz
           messagesLogged.contains(LoggerSpec.WarnMsg) should be(false)
           messagesLogged.contains(LoggerSpec.InfoMsg) should be(false)
           messagesLogged.contains(LoggerSpec.DebugMsg) should be(false)
+          messagesLogged.contains(LoggerSpec.TraceMsg) should be(false)
         }
       }
 
@@ -100,6 +103,27 @@ class LoggerSpec extends FreeSpec with Matchers with OneInstancePerTest with Laz
           messagesLogged.contains(LoggerSpec.WarnMsg) should be(true)
           messagesLogged.contains(LoggerSpec.InfoMsg) should be(true)
           messagesLogged.contains(LoggerSpec.DebugMsg) should be(true)
+          messagesLogged.contains(LoggerSpec.TraceMsg) should be(false)
+        }
+      }
+      "setting level to trace will result in error, info, debug, trace, and warn messages" in {
+        Logger.makeScope() {
+          val captor = new OutputCaptor
+          Logger.setOutput(captor.printStream)
+
+          Logger.setLevel(LogLevel.Error)
+          Logger.setOutput(captor.printStream)
+          Logger.setLevel(LogLevel.Trace)
+
+          val r1 = new Logger1
+          r1.run()
+          val messagesLogged = captor.getOutputAsString
+
+          messagesLogged.contains(LoggerSpec.ErrorMsg) should be(true)
+          messagesLogged.contains(LoggerSpec.WarnMsg) should be(true)
+          messagesLogged.contains(LoggerSpec.InfoMsg) should be(true)
+          messagesLogged.contains(LoggerSpec.DebugMsg) should be(true)
+          messagesLogged.contains(LoggerSpec.TraceMsg) should be(true)
         }
       }
     }
