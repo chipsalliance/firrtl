@@ -18,6 +18,7 @@ ChiselSettings.publishSettings
 git.remoteRepo := "git@github.com:ucb-bar/firrtl.git"
 
 // Firrtl code
+
 val internalName = "firrtl"
 
 name := internalName
