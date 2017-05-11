@@ -134,11 +134,11 @@ class DeadCodeElimination extends Transform {
           case Port(_, pname, _, AnalogType(_)) =>
             depGraph.addEdge(LogicNode(ext.name, pname), node)
             depGraph.addEdge(node, LogicNode(ext.name, pname))
-          // Don't touch external modules *unless* they are specifically marked as doTouch
           case Port(_, pname, Output, _) =>
             val portNode = LogicNode(ext.name, pname)
             depGraph.addEdge(portNode, node)
-            depGraph.addEdge(circuitSink, portNode)
+            // Don't touch external modules *unless* they are specifically marked as doTouch
+            if (!doTouchExtMods.contains(ext.name)) depGraph.addEdge(circuitSink, portNode)
           case Port(_, pname, Input, _) => depGraph.addEdge(node, LogicNode(ext.name, pname))
         }
     }
@@ -277,8 +277,6 @@ class DeadCodeElimination extends Transform {
           (dontTouches, optExtMods)
         case None => (Seq.empty, Seq.empty)
       }
-    // Don't touch external modules *unless* they are specifically marked as doTouch
-
     run(state, dontTouches, doTouchExtMods.toSet)
   }
 }
