@@ -31,6 +31,10 @@ class DeadCodeElimination extends Transform {
       val loweredName = LowerTypes.loweredName(component.name.split('.'))
       apply(component.module.name, WRef(loweredName))
     }
+    /** External Modules are representated as a single node driven by all inputs and driving all
+      * outputs
+      */
+    def apply(ext: ExtModule): LogicNode = LogicNode(ext.name, ext.name)
   }
 
   /** Expression used to represent outputs in the circuit (# is illegal in names) */
@@ -124,7 +128,7 @@ class DeadCodeElimination extends Transform {
       case mod: Module => setupDepGraph(depGraph, instMaps(mod.name))(mod)
       case ext: ExtModule =>
         // Connect all inputs to all outputs
-        val node = LogicNode(ext.name, ext.name)
+        val node = LogicNode(ext)
         ext.ports.foreach {
           case Port(_, pname, _, AnalogType(_)) =>
             depGraph.addEdge(LogicNode(ext.name, pname), node)
@@ -240,11 +244,24 @@ class DeadCodeElimination extends Transform {
   }
 
   def execute(state: CircuitState): CircuitState = {
-		val dontTouches: Seq[LogicNode] = state.annotations match {
-      case Some(aMap) =>
-        aMap.annotations.collect { case DontTouchAnnotation(component) => LogicNode(component) }
-      case None => Seq.empty
+		val (dontTouchAnnos: Seq[LogicNode], doTouchExtMods: Seq[String]) =
+      state.annotations match {
+        case Some(aMap) =>
+          // TODO Do with single walk over annotations
+          val dontTouches = aMap.annotations.collect {
+            case DontTouchAnnotation(component) => LogicNode(component)
+          }
+          val optExtMods = aMap.annotations.collect {
+            case OptimizableExtModuleAnnotation(ModuleName(name, _)) => name
+          }
+          (dontTouches, optExtMods)
+        case None => (Seq.empty, Seq.empty)
+      }
+    // Don't touch external modules *unless* they are specifically marked as doTouch
+    val dontTouchExtMods = state.circuit.modules.collect {
+      case ext: ExtModule if !doTouchExtMods.contains(ext.name) => LogicNode(ext)
     }
+    val dontTouches = dontTouchAnnos ++ dontTouchExtMods
 
     state.copy(circuit = run(state.circuit, dontTouches))
   }

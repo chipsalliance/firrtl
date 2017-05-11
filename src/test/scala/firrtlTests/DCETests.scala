@@ -215,7 +215,7 @@ class DCETests extends FirrtlFlatSpec {
         |    z <= x""".stripMargin
     exec(input, check)
   }
-  "Globally dead extmodule" should "be deleted" in {
+  "Globally dead extmodule" should "NOT be deleted by default" in {
     val input =
       """circuit Top :
         |  extmodule Dead :
@@ -229,13 +229,18 @@ class DCETests extends FirrtlFlatSpec {
         |    z <= x""".stripMargin
     val check =
       """circuit Top :
+        |  extmodule Dead :
+        |    input x : UInt<1>
+        |    output z : UInt<1>
         |  module Top :
         |    input x : UInt<1>
         |    output z : UInt<1>
+        |    inst dead of Dead
+        |    dead.x <= x
         |    z <= x""".stripMargin
     exec(input, check)
   }
-  "Globally dead extmodule marked dont touch" should "NOT be deleted" in {
+  "Globally dead extmodule marked optimizable" should "be deleted" in {
     val input =
       """circuit Top :
         |  extmodule Dead :
@@ -249,16 +254,12 @@ class DCETests extends FirrtlFlatSpec {
         |    z <= x""".stripMargin
     val check =
       """circuit Top :
-        |  extmodule Dead :
-        |    input x : UInt<1>
-        |    output z : UInt<1>
         |  module Top :
         |    input x : UInt<1>
         |    output z : UInt<1>
-        |    inst dead of Dead
-        |    dead.x <= x
         |    z <= x""".stripMargin
-    exec(input, check, Seq(dontTouch("Dead.z")))
+    val doTouchAnno = OptimizableExtModuleAnnotation(ModuleName("Dead", CircuitName("Top")))
+    exec(input, check, Seq(doTouchAnno))
   }
   "Analog ports of extmodules" should "count as both inputs and outputs" in {
     val input =
