@@ -7,6 +7,7 @@ import java.io.{File, FileWriter, Writer}
 import firrtl.annotations.AnnotationYamlProtocol._
 import firrtl.annotations._
 import firrtl._
+import firrtl.transforms.OptimizableExtModuleAnnotation
 import firrtl.passes.InlineAnnotation
 import firrtl.passes.memlib.PinAnnotation
 import firrtl.transforms.DontTouchAnnotation
@@ -44,8 +45,10 @@ trait AnnotationSpec extends LowTransformSpec {
 class AnnotationTests extends AnnotationSpec with Matchers {
   def getAMap(a: Annotation): Option[AnnotationMap] = Some(AnnotationMap(Seq(a)))
   def getAMap(as: Seq[Annotation]): Option[AnnotationMap] = Some(AnnotationMap(as))
-  def anno(s: String, value: String ="this is a value"): Annotation =
-    Annotation(ComponentName(s, ModuleName("Top", CircuitName("Top"))), classOf[Transform], value)
+  def anno(s: String, value: String ="this is a value", mod: String = "Top"): Annotation =
+    Annotation(ComponentName(s, ModuleName(mod, CircuitName("Top"))), classOf[Transform], value)
+  def manno(mod: String): Annotation =
+    Annotation(ModuleName(mod, CircuitName("Top")), classOf[Transform], "some value")
 	// TODO unify with FirrtlMatchers, problems with multiple definitions of parse
   def dontTouch(path: String): Annotation = {
     val parts = path.split('.')
@@ -53,7 +56,6 @@ class AnnotationTests extends AnnotationSpec with Matchers {
     val name = ComponentName(parts.tail.mkString("."), ModuleName(parts.head, CircuitName("Top")))
     DontTouchAnnotation(name)
   }
-
 
   "Loose and Sticky annotation on a node" should "pass through" in {
     val input: String =
@@ -154,7 +156,6 @@ class AnnotationTests extends AnnotationSpec with Matchers {
     val deleted = result.deletedAnnotations
     exception.str should be (s"No EmittedCircuit found! Did you delete any annotations?\n$deleted")
   }
-
   "Renaming" should "propagate in Lowering of memories" in {
     val compiler = new VerilogCompiler
     // Uncomment to help debugging failing tests
@@ -175,7 +176,7 @@ class AnnotationTests extends AnnotationSpec with Matchers {
         |    m.r.addr <= in
         |""".stripMargin
     val annos = Seq(anno("m.r.data.b", "sub"), anno("m.r.data", "all"), anno("m", "mem"),
-                   dontTouch("Top.m"))
+                    dontTouch("Top.m"))
     val result = compiler.compile(CircuitState(parse(input), ChirrtlForm, getAMap(annos)), Nil)
     val resultAnno = result.annotations.get.annotations
     resultAnno should contain (anno("m_a", "mem"))
@@ -189,7 +190,6 @@ class AnnotationTests extends AnnotationSpec with Matchers {
     resultAnno should not contain (anno("m"))
     resultAnno should not contain (anno("r"))
   }
-
   "Renaming" should "propagate in RemoveChirrtl and Lowering of memories" in {
     val compiler = new VerilogCompiler
     Logger.setClassLogLevels(Map(compiler.getClass.getName -> LogLevel.Debug))
@@ -377,8 +377,7 @@ class AnnotationTests extends AnnotationSpec with Matchers {
     resultAnno should contain (anno("r_b_1"))
   }
 
-
-  "Renaming" should "track dce" in {
+  "Renaming" should "track constprop + dce" in {
     val compiler = new VerilogCompiler
     val input =
      """circuit Top :
@@ -415,5 +414,50 @@ class AnnotationTests extends AnnotationSpec with Matchers {
     resultAnno should contain (anno("out_a"))
     resultAnno should contain (anno("out_b_0"))
     resultAnno should contain (anno("out_b_1"))
+  }
+
+  ignore should "track deleted modules AND instances in dce" in {
+    val compiler = new VerilogCompiler
+    val input =
+     """circuit Top :
+        |  module Dead :
+        |    input foo : UInt<8>
+        |    output bar : UInt<8>
+        |    bar <= foo
+        |  extmodule DeadExt :
+        |    input foo : UInt<8>
+        |    output bar : UInt<8>
+        |  module Top :
+        |    input foo : UInt<8>
+        |    output bar : UInt<8>
+        |    inst d of Dead
+        |    d.foo <= foo
+        |    inst d2 of DeadExt
+        |    d2.foo <= foo
+        |    bar <= foo
+        |""".stripMargin
+    val annos = Seq(
+      OptimizableExtModuleAnnotation(ModuleName("DeadExt", CircuitName("Top"))),
+      manno("Dead"), manno("DeadExt"), manno("Top"),
+      anno("d"), anno("d2"),
+      anno("foo", mod = "Top"), anno("bar", mod = "Top"),
+      anno("foo", mod = "Dead"), anno("bar", mod = "Dead"),
+      anno("foo", mod = "DeadExt"), anno("bar", mod = "DeadExt")
+    )
+    val result = compiler.compile(CircuitState(parse(input), ChirrtlForm, getAMap(annos)), Nil)
+    val resultAnno = result.annotations.get.annotations
+
+    resultAnno should contain (manno("Top"))
+    resultAnno should contain (anno("foo", mod = "Top"))
+    resultAnno should contain (anno("bar", mod = "Top"))
+
+    resultAnno should not contain (manno("Dead"))
+    resultAnno should not contain (manno("DeadExt"))
+    resultAnno should not contain (anno("d"))
+    resultAnno should not contain (anno("d2"))
+    resultAnno should not contain (anno("foo", mod = "Dead"))
+    resultAnno should not contain (anno("bar", mod = "Dead"))
+    resultAnno should not contain (anno("foo", mod = "DeadExt"))
+    resultAnno should not contain (anno("bar", mod = "DeadExt"))
   }
 }

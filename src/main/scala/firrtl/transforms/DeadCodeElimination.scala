@@ -122,6 +122,7 @@ class DeadCodeElimination extends Transform {
 
   // TODO Make immutable?
   private def createDependencyGraph(instMaps: collection.Map[String, collection.Map[String, String]],
+                                    doTouchExtMods: Set[String],
                                     c: Circuit): MutableDiGraph[LogicNode] = {
     val depGraph = new MutableDiGraph[LogicNode]
     c.modules.foreach {
@@ -133,16 +134,18 @@ class DeadCodeElimination extends Transform {
           case Port(_, pname, _, AnalogType(_)) =>
             depGraph.addEdge(LogicNode(ext.name, pname), node)
             depGraph.addEdge(node, LogicNode(ext.name, pname))
-          case Port(_, pname, Output, _) => depGraph.addEdge(LogicNode(ext.name, pname), node)
+          // Don't touch external modules *unless* they are specifically marked as doTouch
+          case Port(_, pname, Output, _) =>
+            val portNode = LogicNode(ext.name, pname)
+            depGraph.addEdge(portNode, node)
+            depGraph.addEdge(circuitSink, portNode)
           case Port(_, pname, Input, _) => depGraph.addEdge(node, LogicNode(ext.name, pname))
         }
     }
-    // Connect circuitSink to top-level outputs (and Analog inputs)
+    // Connect circuitSink to ALL top-level ports (we don't want to change the top-level interface)
     val topModule = c.modules.find(_.name == c.main).get
-    val topOutputs = topModule.ports.foreach {
-      case Port(_, name, Output, _) => depGraph.addEdge(circuitSink, LogicNode(c.main, name))
-      case Port(_, name, _, AnalogType(_)) => depGraph.addEdge(circuitSink, LogicNode(c.main, name))
-      case _ =>
+    val topOutputs = topModule.ports.foreach { port =>
+      depGraph.addEdge(circuitSink, LogicNode(c.main, port.name))
     }
 
     depGraph
@@ -214,7 +217,10 @@ class DeadCodeElimination extends Transform {
 
   }
 
-  def run(c: Circuit, dontTouches: Seq[LogicNode]): (Circuit, RenameMap) = {
+  def run(state: CircuitState,
+          dontTouches: Seq[LogicNode],
+          doTouchExtMods: Set[String]): CircuitState = {
+    val c = state.circuit
     val moduleMap = c.modules.map(m => m.name -> m).toMap
     val iGraph = new InstanceGraph(c)
     val moduleDeps = iGraph.graph.edges.map { case (k,v) =>
@@ -223,7 +229,7 @@ class DeadCodeElimination extends Transform {
     val topoSortedModules = iGraph.graph.transformNodes(_.module).linearize.reverse.map(moduleMap(_))
 
     val depGraph = {
-      val dGraph = createDependencyGraph(moduleDeps, c)
+      val dGraph = createDependencyGraph(moduleDeps, doTouchExtMods, c)
       for (dontTouch <- dontTouches) {
         dGraph.getVertices.find(_ == dontTouch) match {
           case Some(node) => dGraph.addEdge(circuitSink, node)
@@ -252,11 +258,13 @@ class DeadCodeElimination extends Transform {
     }
 
     // Preserve original module order
-    (c.copy(modules = c.modules.flatMap(m => modulesxMap.get(m.name))), renames)
+    val newCircuit = c.copy(modules = c.modules.flatMap(m => modulesxMap.get(m.name)))
+
+    state.copy(circuit = newCircuit, renames = Some(renames))
   }
 
   def execute(state: CircuitState): CircuitState = {
-		val (dontTouchAnnos: Seq[LogicNode], doTouchExtMods: Seq[String]) =
+		val (dontTouches: Seq[LogicNode], doTouchExtMods: Seq[String]) =
       state.annotations match {
         case Some(aMap) =>
           // TODO Do with single walk over annotations
@@ -270,13 +278,7 @@ class DeadCodeElimination extends Transform {
         case None => (Seq.empty, Seq.empty)
       }
     // Don't touch external modules *unless* they are specifically marked as doTouch
-    val dontTouchExtMods = state.circuit.modules.collect {
-      case ext: ExtModule if !doTouchExtMods.contains(ext.name) => LogicNode(ext)
-    }
-    val dontTouches = dontTouchAnnos ++ dontTouchExtMods
 
-    val (newCircuit, renames) = run(state.circuit, dontTouches)
-
-    state.copy(circuit = newCircuit, renames = Some(renames))
+    run(state, dontTouches, doTouchExtMods.toSet)
   }
 }
