@@ -134,7 +134,7 @@ object PrimOps extends LazyLogging {
         case _ => UnknownType
       }
       case Sub => (t1, t2) match {
-        case (_: UIntType, _: UIntType) => SIntType(PLUS(MAX(w1, w2), IntWidth(1)))
+        case (_: UIntType, _: UIntType) => UIntType(PLUS(MAX(w1, w2), IntWidth(1)))
         case (_: SIntType, _: SIntType) => SIntType(PLUS(MAX(w1, w2), IntWidth(1)))
         case (_: FixedType, _: FixedType) => FixedType(PLUS(PLUS(MAX(p1, p2),MAX(MINUS(w1, p1), MINUS(w2, p2))),IntWidth(1)), MAX(p1, p2))
         case _ => UnknownType
