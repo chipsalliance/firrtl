@@ -294,9 +294,9 @@ object CheckTypes extends Pass {
       case tx: BundleType => tx.fields forall (x => x.flip == Default && passive(x.tpe))
       case tx => true
     }
-    def check_types_primop(info: Info, mname: String, e: DoPrim): Unit = {
-      def checkAllTypes(exprs: Seq[Expression], okUInt: Boolean, okSInt: Boolean, okClock: Boolean, okFix: Boolean): Unit = {
-        exprs.foldLeft((false, false, false, false)) {
+    def check_types_primop(info: Info, mname: String, e: DoPrim) {
+      def checkAllTypes(exprs: Seq[Expression], okUInt: Boolean, okSInt: Boolean, okClock: Boolean, okFix: Boolean) = {
+        (exprs.foldLeft((false, false, false, false)) {
           case ((isUInt, isSInt, isClock, isFix), expr) => expr.tpe match {
             case u: UIntType  => (true, isSInt, isClock, isFix)
             case s: SIntType  => (isUInt, true, isClock, isFix)
@@ -305,15 +305,15 @@ object CheckTypes extends Pass {
             case UnknownType =>
               errors.append(new IllegalUnknownType(info, mname, e.serialize))
               (isUInt, isSInt, isClock, isFix)
-            case other => throwInternalError(s"Illegal Type: ${other.serialize}")
+            case _ => throwInternalError
           }
-        } match {
+        }) match {
           //   (UInt,  SInt,  Clock, Fixed)
           case (isAll, false, false, false) if isAll == okUInt  =>
           case (false, isAll, false, false) if isAll == okSInt  =>
           case (false, false, isAll, false) if isAll == okClock =>
           case (false, false, false, isAll) if isAll == okFix   =>
-          case x => errors.append(new OpNotCorrectType(info, mname, e.op.serialize, exprs.map(_.tpe.serialize)))
+          case x => println(x); errors.append(new OpNotCorrectType(info, mname, e.op.serialize, exprs.map(_.tpe.serialize)))
         }
       }
       e.op match {
