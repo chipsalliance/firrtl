@@ -102,17 +102,31 @@ class DCETests extends FirrtlFlatSpec {
   "Unused ports" should "be deleted" in {
     val input =
       """circuit Top :
+        |  module Sub :
+        |    input x : UInt<1>
+        |    input y : UInt<1>
+        |    output z : UInt<1>
+        |    z <= x
         |  module Top :
         |    input x : UInt<1>
         |    input y : UInt<1>
         |    output z : UInt<1>
-        |    z <= x""".stripMargin
+        |    inst sub of Sub
+        |    sub.x <= x
+        |    z <= sub.z""".stripMargin
     val check =
       """circuit Top :
-        |  module Top :
+        |  module Sub :
         |    input x : UInt<1>
         |    output z : UInt<1>
-        |    z <= x""".stripMargin
+        |    z <= x
+        |  module Top :
+        |    input x : UInt<1>
+        |    input y : UInt<1>
+        |    output z : UInt<1>
+        |    inst sub of Sub
+        |    sub.x <= x
+        |    z <= sub.z""".stripMargin
     exec(input, check)
   }
   "Chain of unread nodes" should "be deleted" in {
