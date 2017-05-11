@@ -150,7 +150,8 @@ class DeadCodeElimination extends Transform {
 
   private def deleteDeadCode(instMap: collection.Map[String, String],
                              deadNodes: Set[LogicNode],
-                             moduleMap: collection.Map[String, DefModule])
+                             moduleMap: collection.Map[String, DefModule],
+                             renames: RenameMap)
                             (mod: DefModule): Option[DefModule] = {
     // Gets all dependencies and constructs LogicNodes from them
     // TODO this is a duplicate from setupDepGraph, remove by improving how we lookup
@@ -165,6 +166,7 @@ class DeadCodeElimination extends Transform {
       }
 
     var emptyBody = true // TODO is there a better way to do this?
+    renames.setModule(mod.name)
 
     // TODO Delete unused writers from DefMemory???
     def onStmt(stmt: Statement): Statement = {
@@ -172,11 +174,17 @@ class DeadCodeElimination extends Transform {
         case inst: WDefInstance =>
           moduleMap.get(inst.module) match {
             case Some(instMod) => inst.copy(tpe = Utils.module_type(instMod))
-            case None => EmptyStmt
+            case None =>
+              renames.delete(inst.name)
+              EmptyStmt
           }
         case decl: IsDeclaration =>
           val node = LogicNode(mod.name, decl.name)
-          if (deadNodes.contains(node)) EmptyStmt else decl
+          if (deadNodes.contains(node)) {
+            renames.delete(decl.name)
+            EmptyStmt
+          }
+          else decl
         case con: Connect =>
           val node = getDeps(con.loc) match { case Seq(elt) => elt }
           if (deadNodes.contains(node)) EmptyStmt else con
@@ -193,7 +201,8 @@ class DeadCodeElimination extends Transform {
       stmtx
     }
 
-    val portsx = mod.ports.filterNot(p => deadNodes.contains(LogicNode(mod.name, p.name)))
+    val (deadPorts, portsx) = mod.ports.partition(p => deadNodes.contains(LogicNode(mod.name, p.name)))
+    deadPorts.foreach(p => renames.delete(p.name))
 
     mod match {
       case Module(info, name, _, body) =>
@@ -205,7 +214,7 @@ class DeadCodeElimination extends Transform {
 
   }
 
-  def run(c: Circuit, dontTouches: Seq[LogicNode]): Circuit = {
+  def run(c: Circuit, dontTouches: Seq[LogicNode]): (Circuit, RenameMap) = {
     val moduleMap = c.modules.map(m => m.name -> m).toMap
     val iGraph = new InstanceGraph(c)
     val moduleDeps = iGraph.graph.edges.map { case (k,v) =>
@@ -228,19 +237,22 @@ class DeadCodeElimination extends Transform {
 
     val liveNodes = depGraph.reachableFrom(circuitSink) + circuitSink
     val deadNodes = depGraph.getVertices -- liveNodes
+    val renames = RenameMap()
+    renames.setCircuit(c.main)
 
     // As we delete deadCode, we will delete ports from Modules and somtimes complete modules
     // themselves. We iterate over the modules in a topological order from leaves to the top. The
     // current status of the modulesxMap is used to either delete instances or update their types
     val modulesxMap = mutable.HashMap.empty[String, DefModule]
     topoSortedModules.foreach { case mod =>
-      deleteDeadCode(moduleDeps(mod.name), deadNodes, modulesxMap)(mod).foreach { m =>
-        modulesxMap += m.name -> m
+      deleteDeadCode(moduleDeps(mod.name), deadNodes, modulesxMap, renames)(mod) match {
+        case Some(m) => modulesxMap += m.name -> m
+        case None => renames.delete(ModuleName(mod.name, CircuitName(c.main)))
       }
     }
 
     // Preserve original module order
-    c.copy(modules = c.modules.flatMap(m => modulesxMap.get(m.name)))
+    (c.copy(modules = c.modules.flatMap(m => modulesxMap.get(m.name))), renames)
   }
 
   def execute(state: CircuitState): CircuitState = {
@@ -263,6 +275,8 @@ class DeadCodeElimination extends Transform {
     }
     val dontTouches = dontTouchAnnos ++ dontTouchExtMods
 
-    state.copy(circuit = run(state.circuit, dontTouches))
+    val (newCircuit, renames) = run(state.circuit, dontTouches)
+
+    state.copy(circuit = newCircuit, renames = Some(renames))
   }
 }
