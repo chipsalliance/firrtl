@@ -16,6 +16,21 @@ import wiring.WiringUtils.getChildrenMap
 import collection.mutable
 import java.io.{File, FileWriter}
 
+/** Dead Code Elimination (DCE)
+  *
+  * Performs DCE by constructing a global dependency graph starting with top-level outputs, external
+  * module ports, and simulation constructs as circuit sinks. External modules can optionally be
+  * eligible for DCE via the [[OptimizableExtModuleAnnotation]].
+  *
+  * Dead code is eliminated across module boundaries. Wires, ports, registers, and memories are all
+  * eligible for removal. Components marked with a [[DontTouchAnnotation]] will be treated as a
+  * circuit sink and thus anything that drives such a marked component will NOT be removed.
+  *
+  * This transform preserves deduplication. All instances of a given [[DefModule]] are treated as
+  * the same individual module. Thus, while certain instances may have dead code due to the
+  * circumstances of their instantiation in their parent module, they will still not be removed. To
+  * remove such modules, use the [[NoDedupAnnotation]] to prevent deduplication.
+  */
 class DeadCodeElimination extends Transform {
   def inputForm = LowForm
   def outputForm = LowForm
@@ -56,20 +71,25 @@ class DeadCodeElimination extends Transform {
     refs
   }
 
+  // Gets all dependencies and constructs LogicNodes from them
+  private def getDepsImpl(mname: String,
+                          instMap: collection.Map[String, String])
+                         (expr: Expression): Seq[LogicNode] =
+    extractRefs(expr).map { e =>
+      if (kind(e) == InstanceKind) {
+        val (inst, tail) = Utils.splitRef(e)
+        LogicNode(instMap(inst.name), tail)
+      } else {
+        LogicNode(mname, e)
+      }
+    }
+
+
   /** Construct the dependency graph within this module */
   private def setupDepGraph(depGraph: MutableDiGraph[LogicNode],
                             instMap: collection.Map[String, String])
                            (mod: Module): Unit = {
-    // Gets all dependencies and constructs LogicNodes from them
-    def getDeps(expr: Expression): Seq[LogicNode] =
-      extractRefs(expr).map { e =>
-        if (kind(e) == InstanceKind) {
-          val (inst, tail) = Utils.splitRef(e)
-          LogicNode(instMap(inst.name), tail)
-        } else {
-          LogicNode(mod.name, e)
-        }
-      }
+    def getDeps(expr: Expression): Seq[LogicNode] = getDepsImpl(mod.name, instMap)(expr)
 
     def onStmt(stmt: Statement): Unit = stmt match {
       case DefRegister(_, name, _, clock, reset, init) =>
@@ -84,11 +104,11 @@ class DeadCodeElimination extends Transform {
         depGraph.addVertex(LogicNode(mod.name, name))
       case mem: DefMemory =>
         // Treat DefMems as a node with outputs depending on the node and node depending on inputs
-				// From perpsective of the module or instance, MALE expressions are inputs, FEMALE are outputs
+        // From perpsective of the module or instance, MALE expressions are inputs, FEMALE are outputs
         val memRef = WRef(mem.name, MemPortUtils.memType(mem), ExpKind, FEMALE)
-				val exprs = Utils.create_exps(memRef).groupBy(Utils.gender(_))
-				val sources = exprs.getOrElse(MALE, List.empty).flatMap(getDeps(_))
-				val sinks = exprs.getOrElse(FEMALE, List.empty).flatMap(getDeps(_))
+        val exprs = Utils.create_exps(memRef).groupBy(Utils.gender(_))
+        val sources = exprs.getOrElse(MALE, List.empty).flatMap(getDeps(_))
+        val sinks = exprs.getOrElse(FEMALE, List.empty).flatMap(getDeps(_))
         val memNode = getDeps(memRef) match { case Seq(node) => node }
         depGraph.addVertex(memNode)
         sinks.foreach(sink => depGraph.addEdge(sink, memNode))
@@ -114,8 +134,9 @@ class DeadCodeElimination extends Transform {
     }
 
     // Add all ports as vertices
-    mod.ports.foreach { case Port(_, name, _, _: GroundType) =>
-      depGraph.addVertex(LogicNode(mod.name, name))
+    mod.ports.foreach {
+      case Port(_, name, _, _: GroundType) => depGraph.addVertex(LogicNode(mod.name, name))
+      case other => throwInternalError
     }
     onStmt(mod.body)
   }
@@ -156,22 +177,11 @@ class DeadCodeElimination extends Transform {
                              moduleMap: collection.Map[String, DefModule],
                              renames: RenameMap)
                             (mod: DefModule): Option[DefModule] = {
-    // Gets all dependencies and constructs LogicNodes from them
-    // TODO this is a duplicate from setupDepGraph, remove by improving how we lookup
-    def getDeps(expr: Expression): Seq[LogicNode] =
-      extractRefs(expr).map { e =>
-        if (kind(e) == InstanceKind) {
-          val (inst, tail) = Utils.splitRef(e)
-          LogicNode(instMap(inst.name), tail)
-        } else {
-          LogicNode(mod.name, e)
-        }
-      }
+    def getDeps(expr: Expression): Seq[LogicNode] = getDepsImpl(mod.name, instMap)(expr)
 
-    var emptyBody = true // TODO is there a better way to do this?
+    var emptyBody = true
     renames.setModule(mod.name)
 
-    // TODO Delete unused writers from DefMemory???
     def onStmt(stmt: Statement): Statement = {
       val stmtx = stmt match {
         case inst: WDefInstance =>
@@ -212,7 +222,11 @@ class DeadCodeElimination extends Transform {
         val bodyx = onStmt(body)
         if (emptyBody && portsx.isEmpty) None else Some(Module(info, name, portsx, bodyx))
       case ext: ExtModule =>
-        if (portsx.isEmpty) None else Some(ext.copy(ports = portsx))
+        if (portsx.isEmpty) None
+        else {
+          if (ext.ports != portsx) throwInternalError // Sanity check
+          Some(ext.copy(ports = portsx))
+        }
     }
 
   }
@@ -264,7 +278,7 @@ class DeadCodeElimination extends Transform {
   }
 
   def execute(state: CircuitState): CircuitState = {
-		val (dontTouches: Seq[LogicNode], doTouchExtMods: Seq[String]) =
+    val (dontTouches: Seq[LogicNode], doTouchExtMods: Seq[String]) =
       state.annotations match {
         case Some(aMap) =>
           // TODO Do with single walk over annotations
