@@ -317,7 +317,12 @@ object Logger {
     state.stream = Console.out
   }
 
-  private def setClassLogLevels(namesToLevel: Map[String, LogLevel.Value]): Unit = {
+  /**
+    * Adds a list of of className, loglevel tuples to the global (dynamicVar)
+    * See [[testPackageNameMatch]] for a description of how class name matching works
+    * @param namesToLevel a list of tuples (class name, log level)
+    */
+  def setClassLogLevels(namesToLevel: Map[String, LogLevel.Value]): Unit = {
     clearCache()
     state.classLevels ++= namesToLevel
   }
