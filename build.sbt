@@ -1,6 +1,6 @@
 // See LICENSE for license details.
 
-import chiselBuild.ChiselDependencies._
+import chiselBuild.ChiselDependencies.{basicDependencies, chiselLibraryDependencies, chiselProjectDependencies}
 import chiselBuild.ChiselSettings
 
 // sbt-site - sbt-ghpages
@@ -22,6 +22,9 @@ git.remoteRepo := "git@github.com:ucb-bar/firrtl.git"
 val internalName = "firrtl"
 
 name := internalName
+
+// The Chisel projects we're dependendent on.
+val dependentProjects: Seq[String] = basicDependencies(internalName)
 
 version := "1.1-SNAPSHOT"
 
@@ -76,6 +79,6 @@ scalacOptions in Compile in doc ++= Seq(
   "-doc-root-content", baseDirectory.value+"/root-doc.txt"
 )
 
-libraryDependencies ++= chiselLibraryDependencies(internalName)
+libraryDependencies ++= chiselLibraryDependencies(dependentProjects)
 
-dependsOn((chiselProjectDependencies(internalName)):_*)
+lazy val firrtl = (project in file(".")).dependsOn((chiselProjectDependencies(dependentProjects)):_*)
