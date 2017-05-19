@@ -2,12 +2,10 @@
 
 package firrtl.passes
 
-import scala.collection.mutable
-import firrtl.PrimOps._
-import firrtl.ir._
-import firrtl._
 import firrtl.Mappers._
 import firrtl.Utils.throwInternalError
+import firrtl._
+import firrtl.ir._
 
 
 object ZeroWidth extends Transform {

@@ -5,7 +5,7 @@ package firrtlTests.transforms
 import firrtl.annotations.{Annotation, CircuitName, ModuleName}
 import firrtl.transforms._
 import firrtl.{AnnotationMap, FIRRTLException, Transform, VerilogCompiler}
-import firrtlTests.{HighTransformSpec, LowTransformSpec}
+import firrtlTests.LowTransformSpec
 import org.scalacheck.Test.Failed
 import org.scalatest.{FreeSpec, Matchers, Succeeded}
 

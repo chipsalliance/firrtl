@@ -3,12 +3,13 @@
 package firrtl.passes
 
 // Datastructures
-import scala.collection.mutable.ArrayBuffer
+import firrtl.Mappers._
+import firrtl.Utils._
 import firrtl._
 import firrtl.ir._
-import firrtl.Utils._
-import firrtl.Mappers._
 import firrtl.transforms.core._
+
+import scala.collection.mutable.ArrayBuffer
 
 case class MPort(name: String, clk: Expression)
 case class MPorts(readers: ArrayBuffer[MPort], writers: ArrayBuffer[MPort], readwriters: ArrayBuffer[MPort])

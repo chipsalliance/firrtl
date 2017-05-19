@@ -2,24 +2,21 @@
 
 package firrtl
 
-import com.typesafe.scalalogging.LazyLogging
-import java.nio.file.{Files, Paths}
-import java.io.{Reader, Writer}
+import java.io.Writer
 
-import scala.collection.mutable
-import scala.sys.process._
-import scala.io.Source
-import firrtl.ir._
-import firrtl.passes._
-import firrtl.annotations._
 import firrtl.Mappers._
 import firrtl.PrimOps._
+import firrtl.Utils._
+import firrtl.annotations._
+import firrtl.ir._
+import firrtl.passes.MemPortUtils.{memPortField, memType}
+import firrtl.passes._
 import firrtl.transforms.core.WrappedExpression._
-import Utils._
-import MemPortUtils.{memPortField, memType}
 import firrtl.transforms.core._
+
+import scala.collection.mutable
 // Datastructures
-import scala.collection.mutable.{ArrayBuffer, LinkedHashMap, HashSet}
+import scala.collection.mutable.ArrayBuffer
 
 case class EmitterException(message: String) extends PassException(message)
 

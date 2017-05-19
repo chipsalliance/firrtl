@@ -3,13 +3,11 @@
 package firrtl.passes
 package memlib
 
-import firrtl._
-import firrtl.ir._
-import firrtl.annotations._
-import AnalysisUtils._
-import Utils.error
 import java.io.{CharArrayWriter, File, PrintWriter}
 
+import firrtl.Utils.error
+import firrtl._
+import firrtl.annotations._
 import firrtl.transforms.wiring.WiringTransform
 
 sealed trait PassOption

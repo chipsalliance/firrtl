@@ -2,13 +2,13 @@
 
 package firrtl.passes
 
-import firrtl._
-import firrtl.ir._
+import firrtl.Mappers._
 import firrtl.PrimOps._
 import firrtl.Utils._
-import firrtl.Mappers._
-import firrtl.transforms.core._
+import firrtl._
+import firrtl.ir._
 import firrtl.transforms.core.WrappedType._
+import firrtl.transforms.core._
 
 object CheckHighForm extends Pass {
   type NameSet = collection.mutable.HashSet[String]

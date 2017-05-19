@@ -5,18 +5,14 @@ package firrtlTests
 import java.io._
 
 import com.typesafe.scalalogging.LazyLogging
-
-import scala.sys.process._
-import org.scalatest._
-import org.scalatest.prop._
-
-import scala.io.Source
 import firrtl._
-import firrtl.parser.Parser.IgnoreInfo
 import firrtl.annotations._
 import firrtl.parser.Parser
+import firrtl.parser.Parser.IgnoreInfo
 import firrtl.transforms.{DontTouchAnnotation, NoDedupAnnotation}
 import firrtl.util.BackendCompilationUtilities
+import org.scalatest._
+import org.scalatest.prop._
 
 trait FirrtlRunners extends BackendCompilationUtilities {
 

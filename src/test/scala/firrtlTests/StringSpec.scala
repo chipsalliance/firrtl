@@ -2,16 +2,12 @@
 
 package firrtlTests
 
-import firrtl._
 import java.io._
 
 import firrtl.parser.{InvalidEscapeCharException, InvalidStringLitException}
+import org.scalacheck._
 
 import scala.sys.process._
-import org.scalatest._
-import org.scalatest.prop._
-import org.scalatest.Assertions._
-import org.scalacheck._
 
 class PrintfSpec extends FirrtlPropSpec {
 

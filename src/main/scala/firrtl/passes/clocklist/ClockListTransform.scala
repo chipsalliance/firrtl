@@ -3,18 +3,12 @@
 package firrtl.passes
 package clocklist
 
-import firrtl._
-import firrtl.ir._
-import annotations._
-import Utils.error
-import java.io.{CharArrayWriter, File, PrintWriter, Writer}
+import java.io.{PrintWriter, Writer}
 
-import ClockListUtils._
-import Utils._
-import memlib.AnalysisUtils._
-import memlib._
-import Mappers._
-import firrtl.transforms.wiring.Lineage
+import firrtl.Utils.error
+import firrtl._
+import firrtl.annotations._
+import firrtl.passes.memlib._
 
 object ClockListAnnotation {
   def apply(t: String): Annotation = {

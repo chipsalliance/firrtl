@@ -3,16 +3,16 @@
 package firrtl.passes
 package memlib
 
-import firrtl._
-import firrtl.ir._
 import firrtl.Mappers._
 import firrtl.PrimOps._
 import firrtl.Utils.{BoolType, one, zero}
-import MemPortUtils.memPortField
+import firrtl._
+import firrtl.annotations._
+import firrtl.ir._
+import firrtl.passes.MemPortUtils.memPortField
 import firrtl.passes.memlib.AnalysisUtils.{Connects, getConnects, getOrigin}
-import annotations._
-import firrtl.transforms.core._
 import firrtl.transforms.core.WrappedExpression._
+import firrtl.transforms.core._
 
 object InferReadWriteAnnotation {
   def apply(t: String) = Annotation(CircuitName(t), classOf[InferReadWrite], "")

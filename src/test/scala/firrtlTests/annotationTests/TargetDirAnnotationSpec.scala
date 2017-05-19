@@ -3,7 +3,6 @@
 package firrtlTests
 package annotationTests
 
-import firrtlTests._
 import firrtl._
 import firrtl.parser.Parser
 

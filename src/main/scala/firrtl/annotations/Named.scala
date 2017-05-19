@@ -3,8 +3,8 @@
 package firrtl
 package annotations
 
+import firrtl.annotations.AnnotationUtils.{toExp, validComponentName, validModuleName}
 import firrtl.ir.Expression
-import AnnotationUtils.{validModuleName, validComponentName, toExp}
 
 /**
  * Named classes associate an annotation with a component in a Firrtl circuit

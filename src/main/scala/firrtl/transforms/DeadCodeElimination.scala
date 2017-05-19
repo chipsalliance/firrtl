@@ -1,22 +1,18 @@
 
 package firrtl.transforms
 
+import firrtl.Mappers._
+import firrtl.MemoizedHash._
+import firrtl.Utils.{kind, throwInternalError}
 import firrtl._
-import firrtl.ir._
-import firrtl.passes._
+import firrtl.analyses.InstanceGraph
 import firrtl.annotations._
 import firrtl.graph._
-import firrtl.analyses.InstanceGraph
-import firrtl.Mappers._
-import firrtl.transforms.core.WrappedExpression._
-import firrtl.Utils.{kind, throwInternalError, toWrappedExpression}
-import firrtl.MemoizedHash._
-import wiring.WiringUtils.getChildrenMap
-
-import collection.mutable
-import java.io.{File, FileWriter}
-
+import firrtl.ir._
+import firrtl.passes._
 import firrtl.transforms.core._
+
+import scala.collection.mutable
 
 /** Dead Code Elimination (DCE)
   *

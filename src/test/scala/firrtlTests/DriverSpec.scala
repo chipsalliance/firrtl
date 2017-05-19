@@ -2,14 +2,14 @@
 
 package firrtlTests
 
-import java.io.{File, FileNotFoundException, FileOutputStream}
-import org.scalatest.{FreeSpec, Matchers}
+import java.io.File
 
+import firrtl._
 import firrtl.passes.InlineInstances
 import firrtl.passes.memlib.{InferReadWrite, ReplSeqMem}
 import firrtl.transforms.BlackBoxSourceHelper
-import firrtl._
 import firrtl.util.BackendCompilationUtilities
+import org.scalatest.{FreeSpec, Matchers}
 
 class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities {
   "CommonOptions are some simple options available across the chisel3 ecosystem" - {

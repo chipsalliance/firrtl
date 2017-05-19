@@ -2,13 +2,14 @@
 
 package firrtl.passes
 
-import scala.collection.mutable
+import firrtl.Mappers._
+import firrtl.Utils._
 import firrtl._
 import firrtl.ir._
-import firrtl.Utils._
-import MemPortUtils.memType
-import firrtl.Mappers._
+import firrtl.passes.MemPortUtils.memType
 import firrtl.transforms.core._
+
+import scala.collection.mutable
 
 /** Removes all aggregate types from a [[firrtl.ir.Circuit]]
   *

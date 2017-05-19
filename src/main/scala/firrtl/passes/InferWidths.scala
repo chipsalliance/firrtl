@@ -3,13 +3,14 @@
 package firrtl.passes
 
 // Datastructures
-import scala.collection.mutable.ArrayBuffer
-import scala.collection.immutable.ListMap
+import firrtl.Mappers._
+import firrtl.Utils._
 import firrtl._
 import firrtl.ir._
-import firrtl.Utils._
-import firrtl.Mappers._
 import firrtl.transforms.core._
+
+import scala.collection.immutable.ListMap
+import scala.collection.mutable.ArrayBuffer
 
 object InferWidths extends Pass {
   type ConstraintMap = collection.mutable.LinkedHashMap[String, Width]

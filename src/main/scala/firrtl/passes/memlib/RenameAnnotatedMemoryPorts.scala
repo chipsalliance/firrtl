@@ -3,13 +3,10 @@
 package firrtl.passes
 package memlib
 
-import firrtl._
-import firrtl.ir._
-import firrtl.Utils._
 import firrtl.Mappers._
-import AnalysisUtils._
-import MemPortUtils._
-import MemTransformUtils._
+import firrtl.ir._
+import firrtl.passes.MemPortUtils._
+import firrtl.passes.memlib.MemTransformUtils._
 import firrtl.transforms.core.{WRef, WSubField}
 
 

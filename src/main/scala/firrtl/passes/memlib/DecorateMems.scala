@@ -3,8 +3,7 @@
 package firrtl
 package passes
 package memlib
-import ir._
-import annotations._
+import firrtl.annotations._
 import firrtl.transforms.wiring.{SourceAnnotation, TopAnnotation}
 
 class CreateMemoryAnnotations(reader: Option[YamlFileReader]) extends Transform {

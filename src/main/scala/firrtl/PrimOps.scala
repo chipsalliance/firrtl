@@ -2,9 +2,9 @@
 
 package firrtl
 
-import firrtl.ir._
-import firrtl.Utils.{max, min, pow_minus_one}
 import com.typesafe.scalalogging.LazyLogging
+import firrtl.Utils.{max, min, pow_minus_one}
+import firrtl.ir._
 import firrtl.transforms.core._
 
 /** Definitions and Utility functions for [[ir.PrimOp]]s */

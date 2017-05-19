@@ -2,14 +2,14 @@
 
 package firrtl.passes
 
-import firrtl._
-import firrtl.ir._
-import firrtl.Utils._
 import firrtl.Mappers._
 import firrtl.PrimOps._
+import firrtl.Utils._
+import firrtl._
+import firrtl.ir._
 import firrtl.transforms.core.WRef
 
-import annotation.tailrec
+import scala.annotation.tailrec
 
 object ConstProp extends Pass {
   private def pad(e: Expression, t: Type) = (bitWidth(e.tpe), bitWidth(t)) match {

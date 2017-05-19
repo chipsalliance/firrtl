@@ -2,13 +2,12 @@
 
 package firrtl.passes
 
+import firrtl.Mappers._
 import firrtl._
 import firrtl.ir._
-import firrtl.Utils._
-import firrtl.Mappers._
 import firrtl.transforms.core.WRef
 
-import annotation.tailrec
+import scala.annotation.tailrec
 
 object DeadCodeElimination extends Transform {
   def inputForm = UnknownForm

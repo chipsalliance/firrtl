@@ -3,10 +3,9 @@
 package firrtl
 package transforms
 
-import firrtl.ir._
 import firrtl.Mappers._
 import firrtl.annotations._
-import firrtl.passes.PassException
+import firrtl.ir._
 import firrtl.transforms.core.WDefInstance
 
 // Datastructures

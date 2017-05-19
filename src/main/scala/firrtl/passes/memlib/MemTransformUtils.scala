@@ -3,12 +3,9 @@
 package firrtl.passes
 package memlib
 
-import firrtl._
-import firrtl.ir._
-import firrtl.Utils._
 import firrtl.Mappers._
-import AnalysisUtils._
-import MemPortUtils.MemPortMap
+import firrtl.ir._
+import firrtl.passes.MemPortUtils.MemPortMap
 import firrtl.transforms.core.EmptyExpression
 
 object MemTransformUtils {

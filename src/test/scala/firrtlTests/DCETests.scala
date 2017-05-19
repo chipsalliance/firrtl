@@ -2,12 +2,11 @@
 
 package firrtlTests
 
-import firrtl.ir.Circuit
 import firrtl._
-import firrtl.passes._
-import firrtl.transforms._
 import firrtl.annotations._
+import firrtl.passes._
 import firrtl.passes.memlib.SimpleTransform
+import firrtl.transforms._
 
 class DCETests extends FirrtlFlatSpec {
   // Not using executeTest because it is for positive testing, we need to check that stuff got

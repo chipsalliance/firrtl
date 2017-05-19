@@ -2,8 +2,8 @@
 
 package firrtl.passes
 
-import firrtl.ir._
 import firrtl.Mappers._
+import firrtl.ir._
 import firrtl.transforms.core.{WSubAccess, WSubIndex}
 
 

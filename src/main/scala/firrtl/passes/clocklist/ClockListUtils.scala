@@ -3,17 +3,10 @@
 package firrtl.passes
 package clocklist
 
+import firrtl.Utils._
 import firrtl._
 import firrtl.ir._
-import annotations._
-import Utils.error
-import java.io.{CharArrayWriter, File, PrintWriter, Writer}
-
-import ClockListUtils._
-import Utils._
-import memlib.AnalysisUtils._
-import memlib._
-import Mappers._
+import firrtl.passes.memlib.AnalysisUtils._
 import firrtl.transforms.core.{FEMALE, PortKind, WRef}
 import firrtl.transforms.wiring.Lineage
 

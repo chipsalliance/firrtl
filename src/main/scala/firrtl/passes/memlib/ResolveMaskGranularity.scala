@@ -3,14 +3,14 @@
 package firrtl.passes
 package memlib
 
+import firrtl.Mappers._
+import firrtl.Utils._
 import firrtl._
 import firrtl.ir._
-import firrtl.Utils._
-import firrtl.Mappers._
-import AnalysisUtils._
-import MemTransformUtils._
-import firrtl.transforms.core._
+import firrtl.passes.memlib.AnalysisUtils._
+import firrtl.passes.memlib.MemTransformUtils._
 import firrtl.transforms.core.WrappedExpression._
+import firrtl.transforms.core._
 
 object AnalysisUtils {
   type Connects = collection.mutable.HashMap[String, Expression]

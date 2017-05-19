@@ -2,18 +2,13 @@
 
 package firrtl
 
-import firrtl.ir._
-import firrtl.PrimOps._
+import _root_.logger.LazyLogging
 import firrtl.Mappers._
-import firrtl.transforms.core.WrappedExpression._
-import firrtl.transforms.core.WrappedType._
+import firrtl.PrimOps._
+import firrtl.ir._
+import firrtl.transforms.core._
 
 import scala.collection.mutable
-import scala.collection.mutable.{ArrayBuffer, HashMap, HashSet, LinkedHashMap, StringBuilder}
-import java.io.PrintWriter
-
-import firrtl.transforms.core._
-import _root_.logger.LazyLogging
 
 object seqCat {
   def apply(args: Seq[Expression]): Expression = args.length match {

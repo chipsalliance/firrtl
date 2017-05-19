@@ -2,19 +2,20 @@
 
 package firrtl
 
+import java.io.{File, FileNotFoundException}
+
+import firrtl.Utils.throwInternalError
+import firrtl.annotations.AnnotationYamlProtocol._
+import firrtl.annotations._
+import firrtl.parser.Parser
+import firrtl.parser.Parser.{IgnoreInfo, InfoMode}
+import firrtl.transforms.{BlackBoxSourceHelper, BlackBoxTargetDir}
+import logger.Logger
+import net.jcazevedo.moultingyaml._
+
 import scala.collection._
 import scala.io.Source
 import scala.sys.process.{BasicIO, stringSeqToProcess}
-import java.io.{File, FileNotFoundException}
-
-import net.jcazevedo.moultingyaml._
-import logger.Logger
-import firrtl.parser.Parser.{IgnoreInfo, InfoMode}
-import annotations._
-import firrtl.annotations.AnnotationYamlProtocol._
-import firrtl.transforms.{BlackBoxSourceHelper, BlackBoxTargetDir}
-import Utils.throwInternalError
-import firrtl.parser.Parser
 
 
 /**

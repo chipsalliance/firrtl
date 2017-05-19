@@ -2,13 +2,13 @@
 
 package firrtl.passes
 
-import scala.collection.mutable
-import firrtl.PrimOps._
-import firrtl.ir._
-import firrtl._
 import firrtl.Mappers._
-import firrtl.Utils.{BoolType, field_type, max, min, module_type, pow_minus_one, sub_type}
+import firrtl.PrimOps._
+import firrtl.Utils.{field_type, max, module_type, sub_type}
+import firrtl.ir._
 import firrtl.transforms.core._
+
+import scala.collection.mutable
 
 /** Replaces FixedType with SIntType, and correctly aligns all binary points
   */

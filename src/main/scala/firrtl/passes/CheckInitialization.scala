@@ -2,13 +2,12 @@
 
 package firrtl.passes
 
-import firrtl._
-import firrtl.ir._
-import firrtl.Utils._
 import firrtl.Mappers._
+import firrtl.Utils._
+import firrtl.ir._
 import firrtl.transforms.core._
 
-import annotation.tailrec
+import scala.annotation.tailrec
 
 /** Reports errors for any references that are not fully initialized
   *

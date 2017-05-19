@@ -2,9 +2,9 @@
 
 package firrtl
 
-import firrtl.ir._
 import java.nio.charset.StandardCharsets.UTF_8
 
+import firrtl.ir._
 import firrtl.parser.{InvalidEscapeCharException, InvalidStringLitException}
 
 import scala.annotation.tailrec

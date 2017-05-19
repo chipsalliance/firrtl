@@ -7,7 +7,6 @@ import firrtl._
 import firrtl.ir.Circuit
 import firrtl.parser.Parser
 import firrtl.passes._
-import firrtl.parser.Parser.IgnoreInfo
 
 class RemoveFixedTypeSpec extends FirrtlFlatSpec {
   private def executeTest(input: String, expected: Seq[String], passes: Seq[Pass]) = {

@@ -3,9 +3,9 @@
 package firrtl
 package passes
 
-import firrtl.ir._
 import firrtl.Mappers._
 import firrtl.Utils.{gender, get_info, kind}
+import firrtl.ir._
 import firrtl.transforms.core.WRef
 
 // Datastructures

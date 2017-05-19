@@ -3,19 +3,11 @@
 package firrtl.passes
 package clocklist
 
+import firrtl.Mappers._
+import firrtl.Utils._
 import firrtl._
 import firrtl.ir._
-import annotations._
-import Utils.error
-import java.io.{CharArrayWriter, File, PrintWriter, Writer}
-
-import ClockListUtils._
-import Utils._
-import memlib.AnalysisUtils._
-import memlib._
-import Mappers._
 import firrtl.transforms.core.WDefInstance
-import firrtl.transforms.wiring.Lineage
 
 /** Remove all statements and ports (except instances/whens/blocks) whose
  *  expressions do not relate to ground types.

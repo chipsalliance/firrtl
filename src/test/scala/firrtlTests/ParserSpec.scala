@@ -2,11 +2,9 @@
 
 package firrtlTests
 
-import org.scalatest._
-import firrtl.{parser, _}
 import firrtl.parser.{ParameterNotSpecifiedException, ParameterRedefinedException, Parser}
+import firrtl.{parser, _}
 import org.scalacheck.Gen
-import org.scalacheck.Prop.forAll
 
 class ParserSpec extends FirrtlFlatSpec {
 

@@ -2,15 +2,9 @@
 
 package firrtlTests
 
-import java.io._
-
-import org.scalatest._
-import org.scalatest.prop._
 import firrtl._
-import firrtl.passes._
-import firrtl.ir._
 import firrtl.parser.Parser
-import firrtl.parser.Parser.IgnoreInfo
+import firrtl.passes._
 
 class ExpandWhensSpec extends FirrtlFlatSpec {
   private def executeTest(input: String, check: String, transforms: Seq[Transform], expected: Boolean) = {

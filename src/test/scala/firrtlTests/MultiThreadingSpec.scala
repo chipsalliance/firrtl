@@ -3,10 +3,10 @@
 package firrtlTests
 
 import firrtl.parser.Parser
-import firrtl.{ChirrtlForm, CircuitState, Compiler, annotations}
+import firrtl.{ChirrtlForm, CircuitState}
 
-import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.concurrent.duration.Duration
+import scala.concurrent.{Await, ExecutionContext, Future}
 
 class MultiThreadingSpec extends FirrtlPropSpec {
 

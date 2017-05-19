@@ -2,11 +2,11 @@
 
 package firrtl.passes
 
+import firrtl.Mappers._
 import firrtl.Namespace
 import firrtl.PrimOps.{And, Eq}
-import firrtl.ir._
-import firrtl.Mappers._
 import firrtl.Utils._
+import firrtl.ir._
 import firrtl.transforms.core.WrappedExpression._
 import firrtl.transforms.core.{WRef, WSubAccess, WSubField, WSubIndex}
 

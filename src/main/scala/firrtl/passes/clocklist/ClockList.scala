@@ -3,19 +3,15 @@
 package firrtl.passes
 package clocklist
 
-import firrtl._
-import firrtl.ir._
-import annotations._
-import Utils.error
-import java.io.{CharArrayWriter, File, PrintWriter, Writer}
+import java.io.{CharArrayWriter, Writer}
 
-import firrtl.transforms.wiring.WiringUtils.{ChildrenMap, countInstances, getChildrenMap, getLineage}
-import ClockListUtils._
-import Utils._
-import memlib.AnalysisUtils._
-import memlib._
-import Mappers._
-import firrtl.transforms.wiring.Lineage
+import firrtl.Utils._
+import firrtl._
+import firrtl.annotations._
+import firrtl.ir._
+import firrtl.passes.clocklist.ClockListUtils._
+import firrtl.passes.memlib.AnalysisUtils._
+import firrtl.transforms.wiring.WiringUtils.{getChildrenMap, getLineage}
 
 /** Starting with a top module, determine the clock origins of each child instance.
  *  Write the result to writer.

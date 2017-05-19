@@ -3,7 +3,7 @@
 package firrtl
 package ir
 
-import Utils.indent
+import firrtl.Utils.indent
 
 /** Intermediate Representation */
 abstract class FirrtlNode {

@@ -2,17 +2,16 @@
 
 package firrtl.passes
 
-import firrtl._
-import firrtl.ir._
-import firrtl.Utils._
 import firrtl.Mappers._
 import firrtl.PrimOps._
-import firrtl.transforms.core._
+import firrtl.Utils._
+import firrtl._
+import firrtl.ir._
 import firrtl.transforms.core.WrappedExpression._
+import firrtl.transforms.core._
 
-import annotation.tailrec
-import collection.mutable
-import collection.immutable.ListSet
+import scala.annotation.tailrec
+import scala.collection.mutable
 
 /** Expand Whens
 *

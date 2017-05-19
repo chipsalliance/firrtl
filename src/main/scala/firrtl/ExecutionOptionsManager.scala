@@ -4,9 +4,9 @@ package firrtl
 
 import firrtl.annotations._
 import firrtl.parser.Parser._
-import firrtl.passes.memlib.{InferReadWriteAnnotation, ReplSeqMemAnnotation}
 import firrtl.passes.clocklist.ClockListAnnotation
-import logger.LogLevel
+import firrtl.passes.memlib.{InferReadWriteAnnotation, ReplSeqMemAnnotation}
+import _root_.logger.LogLevel
 import scopt.OptionParser
 
 import scala.collection.Seq

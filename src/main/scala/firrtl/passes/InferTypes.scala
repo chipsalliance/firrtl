@@ -2,10 +2,10 @@
 
 package firrtl.passes
 
+import firrtl.Mappers._
+import firrtl.Utils._
 import firrtl._
 import firrtl.ir._
-import firrtl.Utils._
-import firrtl.Mappers._
 import firrtl.transforms.core._
 
 object InferTypes extends Pass {

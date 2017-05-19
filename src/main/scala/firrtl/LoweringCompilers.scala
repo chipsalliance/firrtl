@@ -109,7 +109,7 @@ class LowFirrtlOptimization extends CoreTransform {
 }
 
 
-import CompilerUtils.getLoweringTransforms
+import firrtl.CompilerUtils.getLoweringTransforms
 import firrtl.transforms.BlackBoxSourceHelper
 
 /** Emits input circuit

@@ -1,6 +1,6 @@
 package firrtl.graph
 
-import scala.collection.immutable.{Set, Map, HashSet, HashMap}
+import scala.collection.immutable.{HashSet, Map, Set}
 import scala.collection.mutable
 import scala.collection.mutable.MultiMap
 

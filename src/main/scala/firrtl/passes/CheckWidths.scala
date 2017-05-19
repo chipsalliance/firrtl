@@ -2,11 +2,11 @@
 
 package firrtl.passes
 
+import firrtl.Mappers._
+import firrtl.PrimOps._
+import firrtl.Utils._
 import firrtl._
 import firrtl.ir._
-import firrtl.PrimOps._
-import firrtl.Mappers._
-import firrtl.Utils._
 
 object CheckWidths extends Pass {
   /** The maximum allowed width for any circuit element */

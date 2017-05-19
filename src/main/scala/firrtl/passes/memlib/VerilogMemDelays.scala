@@ -3,12 +3,12 @@
 package firrtl.passes
 package memlib
 
-import firrtl._
-import firrtl.ir._
-import firrtl.Utils._
 import firrtl.Mappers._
 import firrtl.PrimOps._
-import MemPortUtils._
+import firrtl.Utils._
+import firrtl._
+import firrtl.ir._
+import firrtl.passes.MemPortUtils._
 import firrtl.transforms.core._
 
 /** This pass generates delay reigsters for memories for verilog */

@@ -3,10 +3,10 @@
 package firrtl
 package passes
 
-import firrtl.ir._
 import firrtl.Mappers._
 import firrtl.annotations._
-import firrtl.transforms.core.{InstanceKind, WDefInstance, WRef, WireKind, WSubField}
+import firrtl.ir._
+import firrtl.transforms.core._
 
 // Datastructures
 import scala.collection.mutable

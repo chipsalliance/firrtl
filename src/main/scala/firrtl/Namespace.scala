@@ -2,10 +2,9 @@
 
 package firrtl
 
-import scala.collection.mutable
-import scala.collection.mutable.HashSet
 import firrtl.ir._
-import Mappers._
+
+import scala.collection.mutable
 
 class Namespace private {
   private val tempNamePrefix: String = "_GEN"

@@ -2,9 +2,9 @@
 
 package firrtl.passes
 
+import firrtl.Mappers._
 import firrtl._
 import firrtl.ir._
-import firrtl.Mappers._
 import firrtl.transforms.core._
 
 object ResolveKinds extends Pass {
