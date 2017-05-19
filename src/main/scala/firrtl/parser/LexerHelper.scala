@@ -1,12 +1,12 @@
 // See LICENSE for license details.
 
-package firrtl
+package firrtl.parser
 
+import firrtl.antlr.FIRRTLParser
 import org.antlr.v4.runtime.{CommonToken, Token}
 
 import scala.annotation.tailrec
 import scala.collection.mutable
-import firrtl.antlr.FIRRTLParser
 
 /*
  *    ANTLR4 helper to handle indentation tokens in Lexer
@@ -15,7 +15,7 @@ import firrtl.antlr.FIRRTLParser
 
 abstract class LexerHelper {
 
-  import FIRRTLParser.{NEWLINE, INDENT, DEDENT}
+  import FIRRTLParser.{DEDENT, INDENT, NEWLINE}
 
   private val tokenBuffer = mutable.Queue.empty[Token]
   private val indentations = mutable.Stack[Int]()
