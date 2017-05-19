@@ -8,13 +8,15 @@ import firrtl.annotations._
 import firrtl.graph._
 import firrtl.analyses.InstanceGraph
 import firrtl.Mappers._
-import firrtl.WrappedExpression._
-import firrtl.Utils.{throwInternalError, toWrappedExpression, kind}
+import firrtl.transforms.core.WrappedExpression._
+import firrtl.Utils.{kind, throwInternalError, toWrappedExpression}
 import firrtl.MemoizedHash._
 import wiring.WiringUtils.getChildrenMap
 
 import collection.mutable
 import java.io.{File, FileWriter}
+
+import firrtl.transforms.core._
 
 /** Dead Code Elimination (DCE)
   *

@@ -2,16 +2,18 @@
 
 package firrtl.passes
 
-import firrtl.{WRef, WSubAccess, WSubIndex, WSubField, Namespace}
+import firrtl.Namespace
 import firrtl.PrimOps.{And, Eq}
 import firrtl.ir._
 import firrtl.Mappers._
 import firrtl.Utils._
-import firrtl.WrappedExpression._
+import firrtl.transforms.core.WrappedExpression._
+import firrtl.transforms.core.{WRef, WSubAccess, WSubField, WSubIndex}
+
 import scala.collection.mutable
 
 
-/** Removes all [[firrtl.WSubAccess]] from circuit
+/** Removes all [[WSubAccess]] from circuit
   */
 object RemoveAccesses extends Pass {
   private def AND(e1: Expression, e2: Expression) =
@@ -57,7 +59,7 @@ object RemoveAccesses extends Pass {
       }
   }
 
-  /** Returns true if e contains a [[firrtl.WSubAccess]]
+  /** Returns true if e contains a [[WSubAccess]]
     */
   private def hasAccess(e: Expression): Boolean = {
     var ret: Boolean = false

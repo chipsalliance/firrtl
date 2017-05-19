@@ -5,12 +5,15 @@ package firrtl
 import firrtl.ir._
 import firrtl.PrimOps._
 import firrtl.Mappers._
-import firrtl.WrappedExpression._
-import firrtl.WrappedType._
+import firrtl.transforms.core.WrappedExpression._
+import firrtl.transforms.core.WrappedType._
+
 import scala.collection.mutable
-import scala.collection.mutable.{StringBuilder, ArrayBuffer, LinkedHashMap, HashMap, HashSet}
+import scala.collection.mutable.{ArrayBuffer, HashMap, HashSet, LinkedHashMap, StringBuilder}
 import java.io.PrintWriter
-import logger.LazyLogging
+
+import firrtl.transforms.core._
+import _root_.logger.LazyLogging
 
 object seqCat {
   def apply(args: Seq[Expression]): Expression = args.length match {

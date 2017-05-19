@@ -8,6 +8,7 @@ import firrtl.antlr.FIRRTLParser._
 import firrtl.antlr._
 import firrtl.ir._
 import firrtl.parser.Parser._
+import firrtl.transforms.core._
 import org.antlr.v4.runtime.ParserRuleContext
 import org.antlr.v4.runtime.tree.TerminalNode
 

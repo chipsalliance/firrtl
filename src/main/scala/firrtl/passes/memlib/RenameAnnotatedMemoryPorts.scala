@@ -10,6 +10,7 @@ import firrtl.Mappers._
 import AnalysisUtils._
 import MemPortUtils._
 import MemTransformUtils._
+import firrtl.transforms.core.{WRef, WSubField}
 
 
 /** Changes memory port names to standard port names (i.e. RW0 instead T_408)

@@ -3,12 +3,12 @@
 package firrtl.passes
 
 import com.typesafe.scalalogging.LazyLogging
-
 import firrtl._
 import firrtl.ir._
 import firrtl.Utils._
 import firrtl.Mappers._
 import firrtl.PrimOps._
+import firrtl.transforms.core._
 
 import scala.collection.mutable
 

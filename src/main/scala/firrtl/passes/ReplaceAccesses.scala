@@ -3,15 +3,12 @@
 package firrtl.passes
 
 import firrtl.ir._
-import firrtl.{WRef, WSubAccess, WSubIndex, WSubField}
 import firrtl.Mappers._
-import firrtl.Utils._
-import firrtl.WrappedExpression._
-import firrtl.Namespace
-import scala.collection.mutable
+import firrtl.transforms.core.{WSubAccess, WSubIndex}
 
 
-/** Replaces constant [[firrtl.WSubAccess]] with [[firrtl.WSubIndex]]
+
+/** Replaces constant [[WSubAccess]] with [[WSubIndex]]
   * TODO Fold in to High Firrtl Const Prop
   */
 object ReplaceAccesses extends Pass {

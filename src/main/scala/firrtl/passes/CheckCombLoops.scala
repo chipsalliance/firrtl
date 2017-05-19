@@ -6,13 +6,13 @@ import scala.collection.mutable
 import scala.collection.immutable.HashSet
 import scala.collection.immutable.HashMap
 import annotation.tailrec
-
 import firrtl._
 import firrtl.ir._
 import firrtl.Mappers._
 import firrtl.Utils.throwInternalError
-import firrtl.graph.{MutableDiGraph,DiGraph}
+import firrtl.graph.{DiGraph, MutableDiGraph}
 import firrtl.analyses.InstanceGraph
+import firrtl.transforms.core.{WDefInstance, WRef, WSubField}
 
 /** Finds and detects combinational logic loops in a circuit, if any
   * exist. Returns the input circuit with no modifications.

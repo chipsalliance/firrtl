@@ -7,6 +7,7 @@ import firrtl.ir._
 import firrtl.Mappers._
 import firrtl.PrimOps.{Bits, Rem}
 import firrtl.Utils._
+import firrtl.transforms.core.WRef
 
 import scala.collection.mutable
 

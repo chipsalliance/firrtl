@@ -1,12 +1,12 @@
 package firrtl.analyses
 
 import scala.collection.mutable
-
 import firrtl._
 import firrtl.ir._
 import firrtl.graph._
 import firrtl.Utils._
 import firrtl.Mappers._
+import firrtl.transforms.core.WDefInstance
 
 
 /** A class representing the instance hierarchy of a working IR Circuit

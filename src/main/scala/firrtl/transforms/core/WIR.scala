@@ -1,12 +1,13 @@
 // See LICENSE for license details.
 
-package firrtl
+package firrtl.transforms.core
+
+import firrtl.Utils.field_type
+import firrtl.ir._
+import firrtl.transforms.core.WrappedExpression._
+import firrtl.transforms.core.WrappedWidth._
 
 import scala.collection.Seq
-import Utils._
-import firrtl.ir._
-import WrappedExpression._
-import WrappedWidth._
 
 trait Kind
 case object WireKind extends Kind

@@ -7,6 +7,7 @@ import firrtl.ir._
 import firrtl.Utils._
 import firrtl.Mappers._
 import firrtl.PrimOps._
+import firrtl.transforms.core.WRef
 
 import annotation.tailrec
 

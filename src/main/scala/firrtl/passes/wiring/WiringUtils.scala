@@ -7,9 +7,11 @@ import firrtl._
 import firrtl.ir._
 import firrtl.Utils._
 import firrtl.Mappers._
+
 import scala.collection.mutable
 import firrtl.annotations._
 import WiringUtils._
+import firrtl.transforms.core.WDefInstance
 
 /** Declaration kind in lineage (e.g. input port, output port, wire)
   */

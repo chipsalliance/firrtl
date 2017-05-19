@@ -5,7 +5,8 @@ package passes
 
 import firrtl.ir._
 import firrtl.Mappers._
-import firrtl.Utils.{kind, gender, get_info}
+import firrtl.Utils.{gender, get_info, kind}
+import firrtl.transforms.core.WRef
 
 // Datastructures
 import scala.collection.mutable

@@ -6,6 +6,7 @@ import firrtl._
 import firrtl.ir._
 import firrtl.Utils._
 import firrtl.PrimOps._
+import firrtl.transforms.core._
 
 /** Given a mask, return a bitmask corresponding to the desired datatype.
  *  Requirements:

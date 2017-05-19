@@ -7,7 +7,8 @@ import firrtl.ir._
 import firrtl.Utils._
 import firrtl.Mappers._
 import firrtl.PrimOps._
-import firrtl.WrappedExpression._
+import firrtl.transforms.core._
+import firrtl.transforms.core.WrappedExpression._
 
 import annotation.tailrec
 import collection.mutable

@@ -11,6 +11,7 @@ import MemPortUtils.{MemPortMap, Modules}
 import MemTransformUtils._
 import AnalysisUtils._
 import firrtl.annotations._
+import firrtl.transforms.core.{EmptyExpression, WDefInstance, WRef, WSubField}
 import wiring._
 
 

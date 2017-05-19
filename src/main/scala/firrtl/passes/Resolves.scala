@@ -5,6 +5,7 @@ package firrtl.passes
 import firrtl._
 import firrtl.ir._
 import firrtl.Mappers._
+import firrtl.transforms.core._
 
 object ResolveKinds extends Pass {
   type KindMap = collection.mutable.LinkedHashMap[String, Kind]

@@ -6,6 +6,7 @@ package passes
 import firrtl.ir._
 import firrtl.Mappers._
 import firrtl.annotations._
+import firrtl.transforms.core.{InstanceKind, WDefInstance, WRef, WireKind, WSubField}
 
 // Datastructures
 import scala.collection.mutable

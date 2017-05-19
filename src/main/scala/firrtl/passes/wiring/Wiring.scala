@@ -11,6 +11,7 @@ import scala.collection.mutable
 import firrtl.annotations._
 import firrtl.annotations.AnnotationUtils._
 import WiringUtils._
+import firrtl.transforms.core.WDefInstance
 
 case class WiringException(msg: String) extends PassException(msg)
 

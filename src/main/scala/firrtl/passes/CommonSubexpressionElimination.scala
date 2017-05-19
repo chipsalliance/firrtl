@@ -6,6 +6,7 @@ import firrtl._
 import firrtl.ir._
 import firrtl.Utils._
 import firrtl.Mappers._
+import firrtl.transforms.core.WRef
 
 import annotation.tailrec
 

@@ -7,6 +7,7 @@ import firrtl.ir._
 import firrtl.passes._
 import firrtl.Mappers._
 import annotations._
+import firrtl.transforms.core.{MemKind, WrappedExpression}
 
 class ChirrtlMemSpec extends LowTransformSpec {
   object MemEnableCheckPass extends Pass {

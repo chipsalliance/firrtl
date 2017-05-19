@@ -8,6 +8,7 @@ import firrtl.ir._
 import firrtl.Utils._
 import MemPortUtils.memType
 import firrtl.Mappers._
+import firrtl.transforms.core._
 
 /** Removes all aggregate types from a [[firrtl.ir.Circuit]]
   *
@@ -29,7 +30,8 @@ object LowerTypes extends Transform {
   /** Delimiter used in lowering names */
   val delim = "_"
   /** Expands a chain of referential [[firrtl.ir.Expression]]s into the equivalent lowered name
-    * @param e [[firrtl.ir.Expression]] made up of _only_ [[firrtl.WRef]], [[firrtl.WSubField]], and [[firrtl.WSubIndex]]
+ *
+    * @param e [[firrtl.ir.Expression]] made up of _only_ [[WRef]], [[WSubField]], and [[WSubIndex]]
     * @return Lowered name of e
     */
   def loweredName(e: Expression): String = e match {

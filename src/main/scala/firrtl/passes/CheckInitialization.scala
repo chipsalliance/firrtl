@@ -6,12 +6,13 @@ import firrtl._
 import firrtl.ir._
 import firrtl.Utils._
 import firrtl.Mappers._
+import firrtl.transforms.core._
 
 import annotation.tailrec
 
 /** Reports errors for any references that are not fully initialized
   *
-  * @note This pass looks for [[firrtl.WVoid]]s left behind by [[ExpandWhens]]
+  * @note This pass looks for [[WVoid]]s left behind by [[ExpandWhens]]
   * @note Assumes single connection (ie. no last connect semantics)
   */
 object CheckInitialization extends Pass {

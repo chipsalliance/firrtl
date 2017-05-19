@@ -3,6 +3,7 @@
 package firrtl
 
 import firrtl.ir._
+import firrtl.transforms.core.HasMapWidth
 
 // TODO: Implement remaining mappers and recursive mappers
 object Mappers {

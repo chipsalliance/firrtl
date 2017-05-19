@@ -8,7 +8,8 @@ import firrtl.ir._
 import firrtl.Utils._
 import firrtl.Mappers._
 import AnalysisUtils._
-import MemPortUtils.{MemPortMap}
+import MemPortUtils.MemPortMap
+import firrtl.transforms.core.EmptyExpression
 
 object MemTransformUtils {
 
