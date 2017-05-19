@@ -7,7 +7,7 @@ import firrtl.annotations._
 import firrtl.ir.Circuit
 import firrtl.parser.Parser
 import firrtl.passes._
-import firrtl.transforms.core.passes.{Pass, ResolveGenders, ResolveKinds, ToWorkingIR}
+import firrtl.transforms.core.passes._
 import firrtl.transforms.wiring._
 
 class WiringTests extends FirrtlFlatSpec {

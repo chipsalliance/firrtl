@@ -44,8 +44,8 @@ class ResolveAndCheck extends CoreTransform {
     passes.InferTypes,
     ResolveGenders,
     passes.CheckGenders,
-    passes.InferWidths,
-    passes.CheckWidths)
+    InferWidths,
+    CheckWidths)
 }
 
 /** Expands aggregate connects, removes dynamic accesses, and when
@@ -61,15 +61,15 @@ class HighFirrtlToMiddleFirrtl extends CoreTransform {
     ReplaceAccesses,
     ExpandConnects,
     RemoveAccesses,
-    passes.ExpandWhens,
+    ExpandWhens,
     CheckInitialization,
     ResolveKinds,
     passes.InferTypes,
     passes.CheckTypes,
     ResolveGenders,
-    passes.InferWidths,
-    passes.CheckWidths,
-    passes.ConvertFixedToSInt,
+    InferWidths,
+    CheckWidths,
+    ConvertFixedToSInt,
     ZeroWidth)
 }
 
@@ -85,7 +85,7 @@ class MiddleFirrtlToLowFirrtl extends CoreTransform {
     ResolveKinds,
     passes.InferTypes,
     ResolveGenders,
-    passes.InferWidths,
+    InferWidths,
     Legalize,
     CheckCombLoops)
 }
@@ -99,14 +99,14 @@ class LowFirrtlOptimization extends CoreTransform {
   def outputForm = LowForm
   def transforms = Seq(
     RemoveValidIf,
-    passes.ConstProp,
+    ConstProp,
     PadWidths,
-    passes.ConstProp,
+    ConstProp,
     Legalize,
     passes.memlib.VerilogMemDelays, // TODO move to Verilog emitter
-    passes.ConstProp,
+    ConstProp,
     SplitExpressions,
-    passes.CommonSubexpressionElimination,
+    CommonSubexpressionElimination,
     new firrtl.transforms.DeadCodeElimination)
 }
 

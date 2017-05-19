@@ -5,7 +5,7 @@ package firrtlTests
 import firrtl.ir.Circuit
 import firrtl.parser.Parser
 import firrtl.passes._
-import firrtl.transforms.core.passes.{Pass, ResolveGenders, ResolveKinds, ToWorkingIR}
+import firrtl.transforms.core.passes._
 import org.scalatest._
 
 class CheckSpec extends FlatSpec with Matchers {

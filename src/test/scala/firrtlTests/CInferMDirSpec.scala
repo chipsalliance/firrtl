@@ -5,7 +5,7 @@ package firrtlTests
 import firrtl._
 import firrtl.ir._
 import firrtl.passes._
-import firrtl.transforms.core.passes.{Errors, Pass, PassException}
+import firrtl.transforms.core.passes.{ConstProp, Errors, Pass, PassException}
 
 class CInferMDir extends LowTransformSpec {
   object CInferMDirCheckPass extends Pass {

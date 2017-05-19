@@ -8,7 +8,7 @@ import firrtl.ir._
 import firrtl.passes._
 import firrtl.passes.memlib._
 import firrtl.transforms._
-import firrtl.transforms.core.passes.{RemoveEmpty, ToWorkingIR}
+import firrtl.transforms.core.passes.{CommonSubexpressionElimination, ConstProp, RemoveEmpty, ToWorkingIR}
 
 class ReplSeqMemSpec extends SimpleTransformSpec {
   def emitter = new LowFirrtlEmitter

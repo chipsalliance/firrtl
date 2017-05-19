@@ -5,8 +5,7 @@ package firrtl.transforms.core.passes
 import firrtl.Utils._
 import firrtl.ir.Mappers._
 import firrtl.ir._
-import firrtl.passes.ExpandWhens
-import firrtl.transforms.core._
+import firrtl.transforms.core.{WrappedExpression, WVoid, WRef, WSubField, NodeKind, MALE}
 
 import scala.annotation.tailrec
 

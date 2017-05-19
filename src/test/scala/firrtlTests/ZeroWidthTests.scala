@@ -4,7 +4,7 @@ package firrtlTests
 
 import firrtl._
 import firrtl.passes._
-import firrtl.transforms.core.passes.{ResolveGenders, ResolveKinds, ToWorkingIR, ZeroWidth}
+import firrtl.transforms.core.passes._
 
 class ZeroWidthTests extends FirrtlFlatSpec {
   val transforms = Seq(

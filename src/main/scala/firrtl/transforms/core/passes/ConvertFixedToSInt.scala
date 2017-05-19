@@ -1,13 +1,13 @@
 // See LICENSE for license details.
 
-package firrtl.passes
+package firrtl.transforms.core.passes
 
+import firrtl.Utils.{field_type, max, module_type, sub_type}
 import firrtl.ir.Mappers._
 import firrtl.ir.PrimOps._
-import firrtl.Utils.{field_type, max, module_type, sub_type}
 import firrtl.ir._
+import firrtl.passes.MemPortUtils
 import firrtl.transforms.core._
-import firrtl.transforms.core.passes.Pass
 
 import scala.collection.mutable
 

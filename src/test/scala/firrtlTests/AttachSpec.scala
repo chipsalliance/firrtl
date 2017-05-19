@@ -6,7 +6,7 @@ import firrtl._
 import firrtl.ir.Circuit
 import firrtl.parser.Parser
 import firrtl.passes._
-import firrtl.transforms.core.passes.{Pass, ResolveKinds, ToWorkingIR}
+import firrtl.transforms.core.passes._
 
 class InoutVerilogSpec extends FirrtlFlatSpec {
 

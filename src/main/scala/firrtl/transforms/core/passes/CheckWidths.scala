@@ -1,13 +1,13 @@
 // See LICENSE for license details.
 
-package firrtl.passes
+package firrtl.transforms.core.passes
 
-import firrtl.ir.Mappers._
-import firrtl.ir.PrimOps._
 import firrtl.Utils._
 import firrtl._
+import firrtl.ir.Mappers._
+import firrtl.ir.PrimOps._
 import firrtl.ir._
-import firrtl.transforms.core.passes.{Errors, Pass, PassException}
+import firrtl.passes.CheckTypes
 
 object CheckWidths extends Pass {
   /** The maximum allowed width for any circuit element */
