@@ -7,7 +7,7 @@ import firrtl._
 import firrtl.ir.Mappers._
 import firrtl.ir._
 import firrtl.passes.MemPortUtils.memType
-import firrtl.passes.{InferTypes, LowerTypes}
+import firrtl.passes.InferTypes
 import firrtl.transforms.core._
 
 import scala.annotation.tailrec

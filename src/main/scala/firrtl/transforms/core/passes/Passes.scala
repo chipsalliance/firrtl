@@ -7,7 +7,6 @@ import firrtl._
 import firrtl.ir.Mappers._
 import firrtl.ir.PrimOps._
 import firrtl.ir._
-import firrtl.passes.LowerTypes
 import firrtl.transforms.core._
 
 import scala.collection.mutable

@@ -1,12 +1,12 @@
 // See LICENSE for license details.
 
-package firrtl.passes
+package firrtl.transforms.core.passes
 
-import firrtl.ir.Mappers._
 import firrtl.Utils._
+import firrtl.ir.Mappers._
 import firrtl.ir._
+import firrtl.passes.ExpandWhens
 import firrtl.transforms.core._
-import firrtl.transforms.core.passes.{Errors, Pass, PassException}
 
 import scala.annotation.tailrec
 

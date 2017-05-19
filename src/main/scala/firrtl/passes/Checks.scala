@@ -117,7 +117,7 @@ object CheckHighForm extends Pass {
 
     def checkHighFormT(info: Info, mname: String)(t: Type): Type =
       t map checkHighFormT(info, mname) match {
-        case tx: VectorType if tx.size < 0 => 
+        case tx: VectorType if tx.size < 0 =>
           errors.append(new NegVecSizeException(info, mname))
           t
         case _ => t map checkHighFormW(info, mname)
@@ -191,7 +191,7 @@ object CheckHighForm extends Pass {
       (m map checkHighFormP(m.name, names)
          map checkHighFormS(m.info, m.name, names))
     }
-    
+
     c.modules foreach checkHighFormM
     c.modules count (_.name == c.main) match {
       case 1 =>
@@ -268,7 +268,7 @@ object CheckTypes extends Pass {
   //;---------------- Helper Functions --------------
   def ut: UIntType = UIntType(UnknownWidth)
   def st: SIntType = SIntType(UnknownWidth)
-   
+
   def run (c:Circuit) : Circuit = {
     val errors = new Errors()
 
@@ -310,9 +310,9 @@ object CheckTypes extends Pass {
         })
         if (error) errors.append(new OpNotGround(info, mname, e.op.serialize))
       }
-      def strictFix(ls: Seq[Expression]) = 
+      def strictFix(ls: Seq[Expression]) =
         ls.filter(!_.tpe.isInstanceOf[FixedType]).size match {
-          case 0 => 
+          case 0 =>
           case x if(x == ls.size) =>
           case x => errors.append(new OpNoMixFix(info, mname, e.op.serialize))
         }

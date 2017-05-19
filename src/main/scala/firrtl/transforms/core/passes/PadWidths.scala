@@ -1,12 +1,11 @@
 // See LICENSE for license details.
 
-package firrtl
-package passes
+package firrtl.transforms.core.passes
 
+import firrtl.bitWidth
 import firrtl.ir.Mappers._
 import firrtl.ir.PrimOps._
 import firrtl.ir._
-import firrtl.transforms.core.passes.Pass
 import firrtl.transforms.core.{Dshlw, Shlw}
 
 // Makes all implicit width extensions and truncations explicit

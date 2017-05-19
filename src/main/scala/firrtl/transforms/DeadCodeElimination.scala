@@ -11,6 +11,7 @@ import firrtl.graph._
 import firrtl.ir._
 import firrtl.passes._
 import firrtl.transforms.core._
+import firrtl.transforms.core.passes.LowerTypes
 
 import scala.collection.mutable
 

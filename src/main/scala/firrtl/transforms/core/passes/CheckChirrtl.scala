@@ -1,11 +1,10 @@
 // See LICENSE for license details.
 
-package firrtl.passes
+package firrtl.transforms.core.passes
 
-import firrtl.ir.Mappers._
 import firrtl.Utils._
+import firrtl.ir.Mappers._
 import firrtl.ir._
-import firrtl.transforms.core.passes.{Errors, Pass, PassException}
 
 object CheckChirrtl extends Pass {
   type NameSet = collection.mutable.HashSet[String]

@@ -13,7 +13,7 @@ import firrtl.passes.MemPortUtils.memPortField
 import firrtl.passes.memlib.AnalysisUtils.{Connects, getConnects, getOrigin}
 import firrtl.transforms.core.WrappedExpression._
 import firrtl.transforms.core._
-import firrtl.transforms.core.passes.{Pass, ResolveGenders, ResolveKinds}
+import firrtl.transforms.core.passes.{CheckInitialization, Pass, ResolveGenders, ResolveKinds}
 
 object InferReadWriteAnnotation {
   def apply(t: String) = Annotation(CircuitName(t), classOf[InferReadWrite], "")

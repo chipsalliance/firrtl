@@ -71,7 +71,7 @@ object InferTypes extends Pass {
       val types = new TypeMap
       m map infer_types_p(types) map infer_types_s(types)
     }
- 
+
     c copy (modules = c.modules map infer_types)
   }
 }

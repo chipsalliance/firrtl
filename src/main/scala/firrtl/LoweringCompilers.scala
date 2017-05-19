@@ -13,7 +13,7 @@ class ChirrtlToHighFirrtl extends CoreTransform {
   def inputForm = ChirrtlForm
   def outputForm = HighForm
   def transforms = Seq(
-    passes.CheckChirrtl,
+    CheckChirrtl,
     passes.CInferTypes,
     CInferMDir,
     RemoveCHIRRTL)
@@ -62,7 +62,7 @@ class HighFirrtlToMiddleFirrtl extends CoreTransform {
     ExpandConnects,
     RemoveAccesses,
     passes.ExpandWhens,
-    passes.CheckInitialization,
+    CheckInitialization,
     ResolveKinds,
     passes.InferTypes,
     passes.CheckTypes,
@@ -81,13 +81,13 @@ class MiddleFirrtlToLowFirrtl extends CoreTransform {
   def inputForm = MidForm
   def outputForm = LowForm
   def transforms = Seq(
-    passes.LowerTypes,
+    LowerTypes,
     ResolveKinds,
     passes.InferTypes,
     ResolveGenders,
     passes.InferWidths,
     Legalize,
-    passes.CheckCombLoops)
+    CheckCombLoops)
 }
 
 /** Runs a series of optimization passes on LowFirrtl
@@ -100,7 +100,7 @@ class LowFirrtlOptimization extends CoreTransform {
   def transforms = Seq(
     RemoveValidIf,
     passes.ConstProp,
-    passes.PadWidths,
+    PadWidths,
     passes.ConstProp,
     Legalize,
     passes.memlib.VerilogMemDelays, // TODO move to Verilog emitter

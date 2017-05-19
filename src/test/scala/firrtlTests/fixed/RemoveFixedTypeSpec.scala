@@ -7,7 +7,7 @@ import firrtl._
 import firrtl.ir.Circuit
 import firrtl.parser.Parser
 import firrtl.passes._
-import firrtl.transforms.core.passes.{Pass, ResolveGenders, ResolveKinds, ToWorkingIR}
+import firrtl.transforms.core.passes._
 
 class RemoveFixedTypeSpec extends FirrtlFlatSpec {
   private def executeTest(input: String, expected: Seq[String], passes: Seq[Pass]) = {
@@ -182,7 +182,7 @@ class RemoveFixedTypeSpec extends FirrtlFlatSpec {
     class CheckChirrtlTransform extends SeqTransform {
       def inputForm = ChirrtlForm
       def outputForm = ChirrtlForm
-      val transforms = Seq(passes.CheckChirrtl)
+      val transforms = Seq(CheckChirrtl)
     }
 
     val chirrtlTransform = new CheckChirrtlTransform

@@ -1,13 +1,12 @@
 // See LICENSE for license details.
 
-package firrtl.passes
+package firrtl.transforms.core.passes
 
-import firrtl.ir.Mappers._
 import firrtl.Utils.throwInternalError
 import firrtl.analyses.InstanceGraph
 import firrtl.graph.{DiGraph, MutableDiGraph}
+import firrtl.ir.Mappers._
 import firrtl.ir._
-import firrtl.transforms.core.passes.{Errors, Pass, PassException}
 import firrtl.transforms.core.{WDefInstance, WRef, WSubField}
 
 import scala.collection.mutable
