@@ -14,7 +14,7 @@ class ChirrtlToHighFirrtl extends CoreTransform {
   def outputForm = HighForm
   def transforms = Seq(
     CheckChirrtl,
-    passes.CInferTypes,
+    CInferTypes,
     CInferMDir,
     RemoveCHIRRTL)
 }
@@ -35,15 +35,15 @@ class ResolveAndCheck extends CoreTransform {
   def inputForm = HighForm
   def outputForm = HighForm
   def transforms = Seq(
-    passes.CheckHighForm,
+    CheckHighForm,
     ResolveKinds,
-    passes.InferTypes,
-    passes.CheckTypes,
+    InferTypes,
+    CheckTypes,
     Uniquify,
     ResolveKinds,
-    passes.InferTypes,
+    InferTypes,
     ResolveGenders,
-    passes.CheckGenders,
+    CheckGenders,
     InferWidths,
     CheckWidths)
 }
@@ -64,8 +64,8 @@ class HighFirrtlToMiddleFirrtl extends CoreTransform {
     ExpandWhens,
     CheckInitialization,
     ResolveKinds,
-    passes.InferTypes,
-    passes.CheckTypes,
+    InferTypes,
+    CheckTypes,
     ResolveGenders,
     InferWidths,
     CheckWidths,
@@ -83,7 +83,7 @@ class MiddleFirrtlToLowFirrtl extends CoreTransform {
   def transforms = Seq(
     LowerTypes,
     ResolveKinds,
-    passes.InferTypes,
+    InferTypes,
     ResolveGenders,
     InferWidths,
     Legalize,
@@ -113,7 +113,6 @@ class LowFirrtlOptimization extends CoreTransform {
 
 import firrtl.CompilerUtils.getLoweringTransforms
 import firrtl.transforms.BlackBoxSourceHelper
-import firrtl.transforms.core.passes.ZeroWidth
 
 /** Emits input circuit
   * Will replace Chirrtl constructs with Firrtl

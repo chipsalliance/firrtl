@@ -6,7 +6,6 @@ import firrtl.Utils.throwInternalError
 import firrtl._
 import firrtl.ir.Mappers._
 import firrtl.ir._
-import firrtl.passes.InferTypes
 
 
 object ZeroWidth extends Transform {

@@ -1,27 +1,17 @@
-// See LICENSE for license details.
+package firrtl.transforms.hierarchy
 
-package firrtl
-package passes
-
-import firrtl.ir.Mappers._
-import firrtl.annotations._
+import firrtl.annotations.{Annotation, CircuitName, ComponentName, ModuleName}
 import firrtl.ir._
 import firrtl.transforms.core._
 import firrtl.transforms.core.passes.{PassException, PassExceptions}
+import firrtl.{AnnotationMap, CircuitState, LowForm, Transform}
+import firrtl.ir.Mappers._
 
-// Datastructures
 import scala.collection.mutable
 
-// Tags an annotation to be consumed by this pass
-object InlineAnnotation {
-  def apply(target: Named): Annotation = Annotation(target, classOf[InlineInstances], "")
-
-  def unapply(a: Annotation): Option[Named] = a match {
-    case Annotation(named, t, _) if t == classOf[InlineInstances] => Some(named)
-    case _ => None
-  }
-}
-
+/**
+  * Created by adamiz on 5/19/17.
+  */
 // Only use on legal Firrtl. Specifically, the restriction of
 //  instance loops must have been checked, or else this pass can
 //  infinitely recurse
@@ -142,9 +132,9 @@ class InlineInstances extends Transform {
       case sx => sx map appendRefPrefix(prefix, currentModule) map onStmt(prefix, currentModule) map appendNamePrefix(prefix)
     }
 
-    val flatCircuit = c.copy(modules = c.modules.flatMap { 
+    val flatCircuit = c.copy(modules = c.modules.flatMap {
       case m if flatModules.contains(m.name) => None
-      case m => 
+      case m =>
         Some(m map onStmt("", m.name))
     })
     CircuitState(flatCircuit, LowForm, annos, None)

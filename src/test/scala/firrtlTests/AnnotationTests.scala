@@ -7,8 +7,8 @@ import java.io.{File, FileWriter}
 import firrtl._
 import firrtl.annotations.AnnotationYamlProtocol._
 import firrtl.annotations._
-import firrtl.passes.InlineAnnotation
 import firrtl.passes.memlib.PinAnnotation
+import firrtl.transforms.hierarchy.InlineAnnotation
 import firrtl.transforms.{DontTouchAnnotation, OptimizableExtModuleAnnotation}
 import logger._
 import net.jcazevedo.moultingyaml._
@@ -73,7 +73,7 @@ class AnnotationTests extends AnnotationSpec with Matchers {
     val annotationArray = annotationsYaml.convertTo[Array[Annotation]]
     annotationArray.length should be (9)
     annotationArray(0).targetString should be ("ModC")
-    annotationArray(7).transformClass should be ("firrtl.passes.InlineInstances")
+    annotationArray(7).transformClass should be ("firrtl.transforms.hierarchy.InlineInstances")
     val expectedValue = "TopOfDiamond\nWith\nSome new lines"
     annotationArray(7).value should be (expectedValue)
   }
@@ -81,7 +81,7 @@ class AnnotationTests extends AnnotationSpec with Matchers {
   "Badly formatted serializations" should "return reasonable error messages" in {
     var badYaml =
       """
-        |- transformClass: firrtl.passes.InlineInstances
+        |- transformClass: firrtl.transforms.hierarchy.InlineInstances
         |  targetString: circuit.module..
         |  value: ModC.this params 16 32
       """.stripMargin.parseYaml
@@ -93,7 +93,7 @@ class AnnotationTests extends AnnotationSpec with Matchers {
 
     badYaml =
       """
-        |- transformClass: firrtl.passes.InlineInstances
+        |- transformClass: firrtl.transforms.hierarchy.InlineInstances
         |  targetString: .circuit.module.component
         |  value: ModC.this params 16 32
       """.stripMargin.parseYaml

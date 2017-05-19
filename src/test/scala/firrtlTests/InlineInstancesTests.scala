@@ -4,7 +4,7 @@ package firrtlTests
 
 import firrtl.AnnotationMap
 import firrtl.annotations.{CircuitName, ComponentName, ModuleName}
-import firrtl.passes.{InlineAnnotation, InlineInstances}
+import firrtl.transforms.hierarchy.{InlineAnnotation, InlineInstances}
 
 
 /**

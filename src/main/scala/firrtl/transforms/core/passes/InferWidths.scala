@@ -7,7 +7,6 @@ import firrtl.Utils._
 import firrtl._
 import firrtl.ir.Mappers._
 import firrtl.ir._
-import firrtl.passes.InferTypes
 import firrtl.transforms.core._
 
 import scala.collection.immutable.ListMap

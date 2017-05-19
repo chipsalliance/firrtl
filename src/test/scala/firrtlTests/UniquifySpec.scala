@@ -5,7 +5,7 @@ package firrtlTests
 import firrtl._
 import firrtl.parser.Parser
 import firrtl.passes._
-import firrtl.transforms.core.passes.{ResolveKinds, ToWorkingIR, Uniquify}
+import firrtl.transforms.core.passes._
 
 class UniquifySpec extends FirrtlFlatSpec {
 

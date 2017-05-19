@@ -7,6 +7,8 @@ import firrtl.parser.Parser._
 import firrtl.passes.memlib.{InferReadWriteAnnotation, ReplSeqMemAnnotation}
 import _root_.logger.LogLevel
 import firrtl.transforms.clocklist.{ClockListAnnotation, ClockListTransform}
+import firrtl.transforms.hierarchy
+import firrtl.transforms.hierarchy.{InlineAnnotation, InlineInstances}
 import scopt.OptionParser
 
 import scala.collection.Seq
@@ -345,16 +347,16 @@ trait HasFirrtlOptions {
       val newAnnotations = x.map { value =>
         value.split('.') match {
           case Array(circuit) =>
-            passes.InlineAnnotation(CircuitName(circuit))
+            hierarchy.InlineAnnotation(CircuitName(circuit))
           case Array(circuit, module) =>
-            passes.InlineAnnotation(ModuleName(module, CircuitName(circuit)))
+            hierarchy.InlineAnnotation(ModuleName(module, CircuitName(circuit)))
           case Array(circuit, module, inst) =>
-            passes.InlineAnnotation(ComponentName(inst, ModuleName(module, CircuitName(circuit))))
+            InlineAnnotation(ComponentName(inst, ModuleName(module, CircuitName(circuit))))
         }
       }
       firrtlOptions = firrtlOptions.copy(
         annotations = firrtlOptions.annotations ++ newAnnotations,
-        customTransforms = firrtlOptions.customTransforms :+ new passes.InlineInstances
+        customTransforms = firrtlOptions.customTransforms :+ new InlineInstances
       )
     }
     .text {
