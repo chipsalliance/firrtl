@@ -9,14 +9,13 @@ import annotations._
 import Utils.error
 import java.io.{CharArrayWriter, File, PrintWriter, Writer}
 
-import wiring.WiringUtils.{ChildrenMap, countInstances, getChildrenMap, getLineage}
-import wiring.Lineage
 import ClockListUtils._
 import Utils._
 import memlib.AnalysisUtils._
 import memlib._
 import Mappers._
 import firrtl.transforms.core.{FEMALE, PortKind, WRef}
+import firrtl.transforms.wiring.Lineage
 
 object ClockListUtils {
   /** Returns a list of clock outputs from instances of external modules

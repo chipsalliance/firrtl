@@ -12,8 +12,7 @@ import firrtl.passes._
 import firrtl.parser.Parser.IgnoreInfo
 import annotations._
 import firrtl.parser.Parser
-import wiring.WiringUtils._
-import wiring._
+import firrtl.transforms.wiring._
 
 class WiringTests extends FirrtlFlatSpec {
   private def executeTest(input: String, expected: Seq[String], passes: Seq[Pass]) = {

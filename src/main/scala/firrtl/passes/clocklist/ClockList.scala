@@ -7,14 +7,15 @@ import firrtl._
 import firrtl.ir._
 import annotations._
 import Utils.error
-import java.io.{File, CharArrayWriter, PrintWriter, Writer}
-import wiring.WiringUtils.{getChildrenMap, countInstances, ChildrenMap, getLineage}
-import wiring.Lineage
+import java.io.{CharArrayWriter, File, PrintWriter, Writer}
+
+import firrtl.transforms.wiring.WiringUtils.{ChildrenMap, countInstances, getChildrenMap, getLineage}
 import ClockListUtils._
 import Utils._
 import memlib.AnalysisUtils._
 import memlib._
 import Mappers._
+import firrtl.transforms.wiring.Lineage
 
 /** Starting with a top module, determine the clock origins of each child instance.
  *  Write the result to writer.

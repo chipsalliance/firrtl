@@ -5,7 +5,7 @@ package passes
 package memlib
 import ir._
 import annotations._
-import wiring._
+import firrtl.transforms.wiring.{SourceAnnotation, TopAnnotation}
 
 class CreateMemoryAnnotations(reader: Option[YamlFileReader]) extends Transform {
   def inputForm = MidForm

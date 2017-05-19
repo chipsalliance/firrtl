@@ -8,8 +8,9 @@ import firrtl.ir._
 import firrtl.annotations._
 import AnalysisUtils._
 import Utils.error
-import java.io.{File, CharArrayWriter, PrintWriter}
-import wiring._
+import java.io.{CharArrayWriter, File, PrintWriter}
+
+import firrtl.transforms.wiring.WiringTransform
 
 sealed trait PassOption
 case object InputConfigFileName extends PassOption

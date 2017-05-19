@@ -1,17 +1,17 @@
 // See LICENSE for license details.
 
-package firrtl.passes
-package wiring
+package firrtl.transforms.wiring
 
-import firrtl._
-import firrtl.ir._
-import firrtl.Utils._
 import firrtl.Mappers._
-import scala.collection.mutable
-import firrtl.annotations._
+import firrtl.Utils._
+import firrtl._
 import firrtl.annotations.AnnotationUtils._
-import WiringUtils._
+import firrtl.ir._
+import firrtl.passes.{MemPortUtils, Pass, PassException, ToWorkingIR}
 import firrtl.transforms.core.WDefInstance
+import firrtl.transforms.wiring.WiringUtils._
+
+import scala.collection.mutable
 
 case class WiringException(msg: String) extends PassException(msg)
 

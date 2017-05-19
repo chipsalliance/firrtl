@@ -12,7 +12,7 @@ import MemTransformUtils._
 import AnalysisUtils._
 import firrtl.annotations._
 import firrtl.transforms.core.{EmptyExpression, WDefInstance, WRef, WSubField}
-import wiring._
+import firrtl.transforms.wiring.SinkAnnotation
 
 
 /** Annotates the name of the pin to add for WiringTransform

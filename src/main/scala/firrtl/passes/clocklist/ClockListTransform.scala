@@ -7,14 +7,14 @@ import firrtl._
 import firrtl.ir._
 import annotations._
 import Utils.error
-import java.io.{File, CharArrayWriter, PrintWriter, Writer}
-import wiring.WiringUtils.{getChildrenMap, countInstances, ChildrenMap, getLineage}
-import wiring.Lineage
+import java.io.{CharArrayWriter, File, PrintWriter, Writer}
+
 import ClockListUtils._
 import Utils._
 import memlib.AnalysisUtils._
 import memlib._
 import Mappers._
+import firrtl.transforms.wiring.Lineage
 
 object ClockListAnnotation {
   def apply(t: String): Annotation = {

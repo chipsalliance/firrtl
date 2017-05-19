@@ -1,15 +1,13 @@
 // See LICENSE for license details.
 
-package firrtl.passes
-package wiring
+package firrtl.transforms.wiring
 
-import firrtl._
-import firrtl.ir._
 import firrtl.Utils._
-import firrtl.Mappers._
-import scala.collection.mutable
+import firrtl._
 import firrtl.annotations._
-import WiringUtils._
+import firrtl.passes.{InferTypes, ResolveGenders, ResolveKinds}
+
+import scala.collection.mutable
 
 /** A component, e.g. register etc. Must be declared only once under the TopAnnotation
   */
