@@ -4,13 +4,15 @@ package firrtl
 
 import org.antlr.v4.runtime.ParserRuleContext
 import org.antlr.v4.runtime.tree.TerminalNode
+
 import scala.collection.JavaConversions._
 import scala.collection.mutable
 import firrtl.antlr._
 import PrimOps._
 import FIRRTLParser._
-import Parser.{AppendInfo, GenInfo, IgnoreInfo, InfoMode, UseInfo}
 import firrtl.ir._
+import firrtl.parser.{ParameterNotSpecifiedException, ParameterRedefinedException, ParserException}
+import firrtl.parser.Parser.{InfoMode, UseInfo, GenInfo, AppendInfo, IgnoreInfo}
 
 
 class Visitor(infoMode: InfoMode) extends FIRRTLBaseVisitor[FirrtlNode] {

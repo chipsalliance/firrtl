@@ -5,18 +5,9 @@ package firrtlTests
 import org.scalatest.FlatSpec
 import org.scalatest.Matchers
 import org.scalatest.junit.JUnitRunner
-
 import firrtl.ir.Circuit
-import firrtl.{
-  ChirrtlForm,
-  CircuitState,
-  Compiler,
-  HighFirrtlCompiler,
-  MiddleFirrtlCompiler,
-  LowFirrtlCompiler,
-  Parser,
-  VerilogCompiler
-}
+import firrtl.parser.Parser
+import firrtl.{ChirrtlForm, CircuitState, Compiler, HighFirrtlCompiler, LowFirrtlCompiler, MiddleFirrtlCompiler, VerilogCompiler}
 
 /**
  * An example methodology for testing Firrtl compilers.

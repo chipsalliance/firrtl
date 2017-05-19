@@ -6,7 +6,7 @@ import org.scalatest.FlatSpec
 import org.scalatest.Matchers
 import org.scalatest.junit.JUnitRunner
 import firrtl.ir.Circuit
-import firrtl.{AnnotationMap, Parser}
+import firrtl.AnnotationMap
 import firrtl.passes.PassExceptions
 import firrtl.annotations.{Annotation, CircuitName, ComponentName, ModuleName, Named}
 import firrtl.passes.{InlineAnnotation, InlineInstances}

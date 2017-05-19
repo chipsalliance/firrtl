@@ -3,8 +3,9 @@
 package firrtlTests
 
 import firrtl._
-
 import java.io._
+
+import firrtl.parser.{InvalidEscapeCharException, InvalidStringLitException}
 
 import scala.sys.process._
 import org.scalatest._

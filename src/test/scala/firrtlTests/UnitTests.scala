@@ -3,12 +3,14 @@
 package firrtlTests
 
 import java.io._
+
 import org.scalatest._
 import org.scalatest.prop._
 import firrtl._
 import firrtl.ir.Circuit
+import firrtl.parser.Parser
 import firrtl.passes._
-import firrtl.Parser.IgnoreInfo
+import firrtl.parser.Parser.IgnoreInfo
 
 class UnitTests extends FirrtlFlatSpec {
   private def executeTest(input: String, expected: Seq[String], passes: Seq[Pass]) = {

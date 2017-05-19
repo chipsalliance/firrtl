@@ -3,11 +3,12 @@
 package firrtlTests
 
 import org.scalatest.Matchers
-import java.io.{StringWriter,Writer}
+import java.io.{StringWriter, Writer}
+
 import firrtl.ir.Circuit
 import firrtl._
-import firrtl.Parser.IgnoreInfo
-import firrtl.Parser
+import firrtl.parser.Parser
+import firrtl.parser.Parser.IgnoreInfo
 import firrtl.passes._
 
 class ZeroWidthTests extends FirrtlFlatSpec {

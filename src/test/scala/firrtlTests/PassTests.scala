@@ -2,13 +2,15 @@
 
 package firrtlTests
 
-import java.io.{StringWriter,Writer}
+import java.io.{StringWriter, Writer}
+
 import org.scalatest.{FlatSpec, Matchers}
 import org.scalatest.junit.JUnitRunner
 import firrtl.ir.Circuit
-import firrtl.Parser.UseInfo
+import firrtl.parser.Parser.UseInfo
 import firrtl.passes.{Pass, PassExceptions, RemoveEmpty}
 import firrtl._
+import firrtl.parser.Parser
 import logger._
 
 // An example methodology for testing Firrtl Passes

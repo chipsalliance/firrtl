@@ -3,12 +3,13 @@
 package firrtlTests
 
 import java.io._
+
 import org.scalatest._
 import org.scalatest.prop._
-import firrtl.Parser
 import firrtl.ir.Circuit
 import firrtl.passes._
 import firrtl._
+import firrtl.parser.Parser
 
 class UniquifySpec extends FirrtlFlatSpec {
 

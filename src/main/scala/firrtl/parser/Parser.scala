@@ -1,15 +1,16 @@
 // See LICENSE for license details.
 
-package firrtl
+package firrtl.parser
 
 import java.io.{ByteArrayInputStream, SequenceInputStream}
 
+import com.typesafe.scalalogging.LazyLogging
+import firrtl.Utils.time
+import firrtl.Visitor
+import firrtl.antlr.{FIRRTLParser, _}
+import firrtl.ir._
 import org.antlr.v4.runtime._
 import org.antlr.v4.runtime.atn._
-import com.typesafe.scalalogging.LazyLogging
-import firrtl.ir._
-import firrtl.Utils.time
-import firrtl.antlr.{FIRRTLParser, _}
 
 class ParserException(message: String) extends Exception(message)
 

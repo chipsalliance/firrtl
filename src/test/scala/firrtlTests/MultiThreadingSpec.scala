@@ -2,9 +2,10 @@
 
 package firrtlTests
 
+import firrtl.parser.Parser
 import firrtl.{ChirrtlForm, CircuitState, Compiler, annotations}
 
-import scala.concurrent.{Future, Await, ExecutionContext}
+import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.concurrent.duration.Duration
 
 class MultiThreadingSpec extends FirrtlPropSpec {
@@ -13,7 +14,7 @@ class MultiThreadingSpec extends FirrtlPropSpec {
   property("The FIRRTL compiler should be thread safe") {
     // Run the compiler we're testing
     def runCompiler(input: Seq[String], compiler: firrtl.Compiler): String = {
-      val parsedInput = firrtl.Parser.parse(input)
+      val parsedInput = Parser.parse(input)
       val res = compiler.compileAndEmit(CircuitState(parsedInput, ChirrtlForm))
       res.getEmittedCircuit.value
     }

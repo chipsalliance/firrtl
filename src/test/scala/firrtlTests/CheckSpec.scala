@@ -3,11 +3,12 @@
 package firrtlTests
 
 import java.io._
+
 import org.scalatest._
 import org.scalatest.prop._
-import firrtl.Parser
 import firrtl.ir.Circuit
-import firrtl.passes.{Pass,ToWorkingIR,CheckHighForm,ResolveKinds,InferTypes,CheckTypes,PassExceptions,InferWidths,CheckWidths,ResolveGenders,CheckGenders}
+import firrtl.parser.Parser
+import firrtl.passes.{CheckGenders, CheckHighForm, CheckTypes, CheckWidths, InferTypes, InferWidths, Pass, PassExceptions, ResolveGenders, ResolveKinds, ToWorkingIR}
 
 class CheckSpec extends FlatSpec with Matchers {
   "Connecting bundles of different types" should "throw an exception" in {

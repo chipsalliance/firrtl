@@ -4,8 +4,8 @@ package firrtlTests
 
 import org.scalatest.Matchers
 import firrtl.ir.Circuit
-import firrtl.Parser.IgnoreInfo
-import firrtl.Parser
+import firrtl.parser.Parser
+import firrtl.parser.Parser.IgnoreInfo
 import firrtl.passes._
 
 // Tests the following cases for constant propagation:

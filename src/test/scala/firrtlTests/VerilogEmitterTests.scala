@@ -9,7 +9,7 @@ import firrtl._
 import firrtl.annotations._
 import firrtl.ir.Circuit
 import firrtl.passes._
-import firrtl.Parser.IgnoreInfo
+import firrtl.parser.Parser.IgnoreInfo
 
 class DoPrimVerilog extends FirrtlFlatSpec {
   "Xorr" should "emit correctly" in {

@@ -5,6 +5,7 @@ package annotationTests
 
 import firrtlTests._
 import firrtl._
+import firrtl.parser.Parser
 
 /** Looks for [[TargetDirAnnotation]] */
 class FindTargetDirTransform(expected: String) extends Transform {
