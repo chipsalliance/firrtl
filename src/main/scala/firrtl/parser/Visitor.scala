@@ -1,13 +1,13 @@
 // See LICENSE for license details.
 
-package firrtl
+package firrtl.parser
 
 import firrtl.PrimOps._
+import firrtl._
 import firrtl.antlr.FIRRTLParser._
 import firrtl.antlr._
 import firrtl.ir._
 import firrtl.parser.Parser._
-import firrtl.parser.{ParameterNotSpecifiedException, ParameterRedefinedException, ParserException}
 import org.antlr.v4.runtime.ParserRuleContext
 import org.antlr.v4.runtime.tree.TerminalNode
 

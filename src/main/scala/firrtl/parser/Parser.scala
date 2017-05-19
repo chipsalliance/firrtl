@@ -6,7 +6,6 @@ import java.io.{ByteArrayInputStream, SequenceInputStream}
 
 import com.typesafe.scalalogging.LazyLogging
 import firrtl.Utils.time
-import firrtl.Visitor
 import firrtl.antlr.{FIRRTLParser, _}
 import firrtl.ir._
 import org.antlr.v4.runtime._
