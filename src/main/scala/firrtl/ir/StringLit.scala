@@ -1,10 +1,10 @@
 // See LICENSE for license details.
 
-package firrtl
+package firrtl.ir
 
 import java.nio.charset.StandardCharsets.UTF_8
 
-import firrtl.ir._
+import firrtl.FIRRTLException
 import firrtl.parser.{InvalidEscapeCharException, InvalidStringLitException}
 
 import scala.annotation.tailrec

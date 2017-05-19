@@ -1,8 +1,8 @@
 // See LICENSE for license details.
 
-package firrtl
-package passes
+package firrtl.transforms.core.passes
 
+import firrtl.Utils
 import firrtl.ir._
 
 object RemoveEmpty extends Pass {

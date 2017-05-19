@@ -6,7 +6,7 @@ import firrtl._
 import firrtl.ir.Circuit
 import firrtl.parser.Parser
 import firrtl.parser.Parser.UseInfo
-import firrtl.passes.{PassExceptions, RemoveEmpty}
+import firrtl.transforms.core.passes.{PassExceptions, RemoveEmpty}
 import logger._
 import org.scalatest.{FlatSpec, Matchers}
 

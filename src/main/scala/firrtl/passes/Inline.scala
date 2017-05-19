@@ -7,6 +7,7 @@ import firrtl.ir.Mappers._
 import firrtl.annotations._
 import firrtl.ir._
 import firrtl.transforms.core._
+import firrtl.transforms.core.passes.{PassException, PassExceptions}
 
 // Datastructures
 import scala.collection.mutable

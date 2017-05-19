@@ -1,11 +1,11 @@
 // See LICENSE for license details.
 
-package firrtl.passes
+package firrtl.transforms.core.passes
 
-import firrtl.ir.Mappers._
 import firrtl.Namespace
-import firrtl.ir.PrimOps.{And, Eq}
 import firrtl.Utils._
+import firrtl.ir.Mappers._
+import firrtl.ir.PrimOps.{And, Eq}
 import firrtl.ir._
 import firrtl.transforms.core.WrappedExpression._
 import firrtl.transforms.core.{WRef, WSubAccess, WSubField, WSubIndex}

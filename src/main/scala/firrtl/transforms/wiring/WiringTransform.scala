@@ -5,7 +5,8 @@ package firrtl.transforms.wiring
 import firrtl.Utils._
 import firrtl._
 import firrtl.annotations._
-import firrtl.passes.{InferTypes, ResolveGenders, ResolveKinds}
+import firrtl.passes.{InferTypes}
+import firrtl.transforms.core.passes.{ResolveGenders, ResolveKinds}
 
 import scala.collection.mutable
 

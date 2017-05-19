@@ -10,6 +10,7 @@ import firrtl._
 import firrtl.ir._
 import firrtl.passes.MemPortUtils._
 import firrtl.transforms.core._
+import firrtl.transforms.core.passes.Pass
 
 /** This pass generates delay reigsters for memories for verilog */
 object VerilogMemDelays extends Pass {

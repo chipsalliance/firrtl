@@ -3,7 +3,7 @@ package firrtl
 package transforms
 
 import firrtl.annotations._
-import firrtl.passes.PassException
+import firrtl.transforms.core.passes.PassException
 
 /** A component that should be preserved
   *

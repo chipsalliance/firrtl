@@ -5,6 +5,7 @@ package memlib
 
 import firrtl.ir.Mappers._
 import firrtl.ir._
+import firrtl.transforms.core.passes.Pass
 
 /** Annotates sequential memories that are candidates for macro replacement.
   * Requirements for macro replacement:

@@ -13,6 +13,7 @@ import firrtl.passes.MemPortUtils.{memPortField, memType}
 import firrtl.passes._
 import firrtl.transforms.core.WrappedExpression._
 import firrtl.transforms.core._
+import firrtl.transforms.core.passes._
 
 import scala.collection.mutable
 // Datastructures
@@ -741,10 +742,10 @@ class VerilogEmitter extends SeqTransform with Emitter {
        |""".stripMargin
 
   def transforms = Seq(
-    passes.VerilogModulusCleanup,
-    passes.VerilogWrap,
-    passes.VerilogRename,
-    passes.VerilogPrep)
+    VerilogModulusCleanup,
+    VerilogWrap,
+    VerilogRename,
+    VerilogPrep)
 
   def emit(state: CircuitState, writer: Writer): Unit = {
     writer.write(preamble)

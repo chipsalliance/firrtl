@@ -4,9 +4,9 @@ package firrtl
 
 import firrtl.annotations._
 import firrtl.parser.Parser._
-import firrtl.passes.clocklist.ClockListAnnotation
 import firrtl.passes.memlib.{InferReadWriteAnnotation, ReplSeqMemAnnotation}
 import _root_.logger.LogLevel
+import firrtl.transforms.clocklist.{ClockListAnnotation, ClockListTransform}
 import scopt.OptionParser
 
 import scala.collection.Seq
@@ -392,7 +392,7 @@ trait HasFirrtlOptions {
     .foreach { x =>
       firrtlOptions = firrtlOptions.copy(
         annotations = firrtlOptions.annotations :+ ClockListAnnotation(x),
-        customTransforms = firrtlOptions.customTransforms :+ new passes.clocklist.ClockListTransform
+        customTransforms = firrtlOptions.customTransforms :+ new ClockListTransform
       )
     }
     .text {

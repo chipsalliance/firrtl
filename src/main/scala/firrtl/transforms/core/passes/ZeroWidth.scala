@@ -1,11 +1,12 @@
 // See LICENSE for license details.
 
-package firrtl.passes
+package firrtl.transforms.core.passes
 
-import firrtl.ir.Mappers._
 import firrtl.Utils.throwInternalError
 import firrtl._
+import firrtl.ir.Mappers._
 import firrtl.ir._
+import firrtl.passes.InferTypes
 
 
 object ZeroWidth extends Transform {

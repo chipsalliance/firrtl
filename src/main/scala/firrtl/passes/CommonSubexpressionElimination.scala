@@ -6,6 +6,7 @@ import firrtl.ir.Mappers._
 import firrtl._
 import firrtl.ir._
 import firrtl.transforms.core.WRef
+import firrtl.transforms.core.passes.Pass
 
 object CommonSubexpressionElimination extends Pass {
   private def cse(s: Statement): Statement = {

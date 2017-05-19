@@ -5,6 +5,7 @@ package firrtl.passes
 import firrtl.ir.Mappers._
 import firrtl.Utils._
 import firrtl.ir._
+import firrtl.transforms.core.passes.{Errors, Pass, PassException}
 
 object CheckChirrtl extends Pass {
   type NameSet = collection.mutable.HashSet[String]

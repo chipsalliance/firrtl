@@ -5,6 +5,7 @@ package firrtlTests
 import firrtl._
 import firrtl.parser.Parser
 import firrtl.passes._
+import firrtl.transforms.core.passes._
 
 class ChirrtlSpec extends FirrtlFlatSpec {
   def transforms = Seq(

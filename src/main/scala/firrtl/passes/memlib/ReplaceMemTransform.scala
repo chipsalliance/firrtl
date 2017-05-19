@@ -8,6 +8,7 @@ import java.io.{CharArrayWriter, File, PrintWriter}
 import firrtl.Utils.error
 import firrtl._
 import firrtl.annotations._
+import firrtl.transforms.core.passes._
 import firrtl.transforms.wiring.WiringTransform
 
 sealed trait PassOption

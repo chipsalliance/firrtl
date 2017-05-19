@@ -1,10 +1,10 @@
 // See LICENSE for license details.
 
-package firrtl
-package passes
+package firrtl.transforms.core.passes
 
-import firrtl.ir.Mappers._
+import firrtl.Namespace
 import firrtl.Utils.{gender, get_info, kind}
+import firrtl.ir.Mappers._
 import firrtl.ir._
 import firrtl.transforms.core.WRef
 

@@ -4,6 +4,7 @@ package firrtlTests
 
 import firrtl.ir.Circuit
 import firrtl.passes._
+import firrtl.transforms.core.passes.{Pass, ResolveGenders, ResolveKinds, ToWorkingIR}
 
 // Tests the following cases for constant propagation:
 //   1) Unsigned integers are always greater than or

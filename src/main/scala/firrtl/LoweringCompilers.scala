@@ -2,6 +2,8 @@
 
 package firrtl
 
+import transforms.core.passes._
+
 sealed abstract class CoreTransform extends SeqTransform
 
 /** This transforms "CHIRRTL", the chisel3 IR, to "Firrtl". Note the resulting
@@ -13,8 +15,8 @@ class ChirrtlToHighFirrtl extends CoreTransform {
   def transforms = Seq(
     passes.CheckChirrtl,
     passes.CInferTypes,
-    passes.CInferMDir,
-    passes.RemoveCHIRRTL)
+    CInferMDir,
+    RemoveCHIRRTL)
 }
 
 /** Converts from the bare intermediate representation (ir.scala)
@@ -23,7 +25,7 @@ class ChirrtlToHighFirrtl extends CoreTransform {
 class IRToWorkingIR extends CoreTransform {
   def inputForm = HighForm
   def outputForm = HighForm
-  def transforms = Seq(passes.ToWorkingIR)
+  def transforms = Seq(ToWorkingIR)
 }
 
 /** Resolves types, kinds, and genders, and checks the circuit legality.
@@ -34,13 +36,13 @@ class ResolveAndCheck extends CoreTransform {
   def outputForm = HighForm
   def transforms = Seq(
     passes.CheckHighForm,
-    passes.ResolveKinds,
+    ResolveKinds,
     passes.InferTypes,
     passes.CheckTypes,
-    passes.Uniquify,
-    passes.ResolveKinds,
+    Uniquify,
+    ResolveKinds,
     passes.InferTypes,
-    passes.ResolveGenders,
+    ResolveGenders,
     passes.CheckGenders,
     passes.InferWidths,
     passes.CheckWidths)
@@ -55,20 +57,20 @@ class HighFirrtlToMiddleFirrtl extends CoreTransform {
   def inputForm = HighForm
   def outputForm = MidForm
   def transforms = Seq(
-    passes.PullMuxes,
-    passes.ReplaceAccesses,
-    passes.ExpandConnects,
-    passes.RemoveAccesses,
+    PullMuxes,
+    ReplaceAccesses,
+    ExpandConnects,
+    RemoveAccesses,
     passes.ExpandWhens,
     passes.CheckInitialization,
-    passes.ResolveKinds,
+    ResolveKinds,
     passes.InferTypes,
     passes.CheckTypes,
-    passes.ResolveGenders,
+    ResolveGenders,
     passes.InferWidths,
     passes.CheckWidths,
     passes.ConvertFixedToSInt,
-    passes.ZeroWidth)
+    ZeroWidth)
 }
 
 /** Expands all aggregate types into many ground-typed components. Must
@@ -80,11 +82,11 @@ class MiddleFirrtlToLowFirrtl extends CoreTransform {
   def outputForm = LowForm
   def transforms = Seq(
     passes.LowerTypes,
-    passes.ResolveKinds,
+    ResolveKinds,
     passes.InferTypes,
-    passes.ResolveGenders,
+    ResolveGenders,
     passes.InferWidths,
-    passes.Legalize,
+    Legalize,
     passes.CheckCombLoops)
 }
 
@@ -96,14 +98,14 @@ class LowFirrtlOptimization extends CoreTransform {
   def inputForm = LowForm
   def outputForm = LowForm
   def transforms = Seq(
-    passes.RemoveValidIf,
+    RemoveValidIf,
     passes.ConstProp,
     passes.PadWidths,
     passes.ConstProp,
-    passes.Legalize,
+    Legalize,
     passes.memlib.VerilogMemDelays, // TODO move to Verilog emitter
     passes.ConstProp,
-    passes.SplitExpressions,
+    SplitExpressions,
     passes.CommonSubexpressionElimination,
     new firrtl.transforms.DeadCodeElimination)
 }
@@ -111,6 +113,7 @@ class LowFirrtlOptimization extends CoreTransform {
 
 import firrtl.CompilerUtils.getLoweringTransforms
 import firrtl.transforms.BlackBoxSourceHelper
+import firrtl.transforms.core.passes.ZeroWidth
 
 /** Emits input circuit
   * Will replace Chirrtl constructs with Firrtl

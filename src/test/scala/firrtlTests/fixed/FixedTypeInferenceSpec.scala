@@ -7,6 +7,7 @@ import firrtl._
 import firrtl.ir.Circuit
 import firrtl.parser.Parser
 import firrtl.passes._
+import firrtl.transforms.core.passes.{Pass, ResolveGenders, ResolveKinds, ToWorkingIR}
 
 class FixedTypeInferenceSpec extends FirrtlFlatSpec {
   private def executeTest(input: String, expected: Seq[String], passes: Seq[Pass]) = {

@@ -9,6 +9,7 @@ import firrtl._
 import firrtl.ir._
 import firrtl.transforms.core.WrappedExpression._
 import firrtl.transforms.core._
+import firrtl.transforms.core.passes.Pass
 
 import scala.annotation.tailrec
 import scala.collection.mutable

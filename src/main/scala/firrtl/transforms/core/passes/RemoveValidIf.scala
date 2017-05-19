@@ -1,7 +1,7 @@
 // See LICENSE for license details.
 
-package firrtl
-package passes
+package firrtl.transforms.core.passes
+
 import firrtl.ir.Mappers._
 import firrtl.ir._
 

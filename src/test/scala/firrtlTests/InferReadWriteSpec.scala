@@ -5,6 +5,7 @@ package firrtlTests
 import firrtl._
 import firrtl.ir._
 import firrtl.passes._
+import firrtl.transforms.core.passes.{Errors, Pass, PassException}
 
 class InferReadWriteSpec extends SimpleTransformSpec {
   class InferReadWriteCheckException extends PassException(

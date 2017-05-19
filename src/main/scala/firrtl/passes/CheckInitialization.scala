@@ -6,6 +6,7 @@ import firrtl.ir.Mappers._
 import firrtl.Utils._
 import firrtl.ir._
 import firrtl.transforms.core._
+import firrtl.transforms.core.passes.{Errors, Pass, PassException}
 
 import scala.annotation.tailrec
 

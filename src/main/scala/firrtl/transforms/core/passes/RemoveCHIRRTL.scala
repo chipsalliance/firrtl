@@ -1,12 +1,13 @@
 // See LICENSE for license details.
 
-package firrtl.passes
+package firrtl.transforms.core.passes
 
 // Datastructures
-import firrtl.ir.Mappers._
 import firrtl.Utils._
 import firrtl._
+import firrtl.ir.Mappers._
 import firrtl.ir._
+import firrtl.passes.createMask
 import firrtl.transforms.core._
 
 import scala.collection.mutable.ArrayBuffer

@@ -5,6 +5,7 @@ package firrtlTests
 import firrtl._
 import firrtl.parser.Parser
 import firrtl.passes._
+import firrtl.transforms.core.passes._
 
 class ExpandWhensSpec extends FirrtlFlatSpec {
   private def executeTest(input: String, check: String, transforms: Seq[Transform], expected: Boolean) = {

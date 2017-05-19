@@ -8,6 +8,7 @@ import firrtl.Utils._
 import firrtl._
 import firrtl.ir._
 import firrtl.transforms.core.WRef
+import firrtl.transforms.core.passes.Pass
 
 import scala.annotation.tailrec
 

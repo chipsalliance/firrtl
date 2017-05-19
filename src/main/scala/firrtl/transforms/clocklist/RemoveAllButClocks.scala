@@ -1,13 +1,12 @@
 // See license file for details
 
-package firrtl.passes
-package clocklist
+package firrtl.transforms.clocklist
 
-import firrtl.ir.Mappers._
 import firrtl.Utils._
-import firrtl._
+import firrtl.ir.Mappers._
 import firrtl.ir._
 import firrtl.transforms.core.WDefInstance
+import firrtl.transforms.core.passes.Pass
 
 /** Remove all statements and ports (except instances/whens/blocks) whose
  *  expressions do not relate to ground types.

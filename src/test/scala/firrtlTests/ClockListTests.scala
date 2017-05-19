@@ -5,7 +5,8 @@ import java.io._
 import firrtl.ir.Circuit
 import firrtl.parser.Parser
 import firrtl.passes._
-import firrtl.passes.clocklist._
+import firrtl.transforms.clocklist.ClockList
+import firrtl.transforms.core.passes.{Pass, ResolveGenders, ResolveKinds, ToWorkingIR}
 
 class ClockListTests extends FirrtlFlatSpec {
   private def executeTest(input: String, expected: Seq[String], passes: Seq[Pass]) = {

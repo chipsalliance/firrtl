@@ -7,6 +7,7 @@ import firrtl.ir.PrimOps._
 import firrtl.Utils.{field_type, max, module_type, sub_type}
 import firrtl.ir._
 import firrtl.transforms.core._
+import firrtl.transforms.core.passes.Pass
 
 import scala.collection.mutable
 

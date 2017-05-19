@@ -6,6 +6,7 @@ package passes
 import firrtl.ir.Mappers._
 import firrtl.ir.PrimOps._
 import firrtl.ir._
+import firrtl.transforms.core.passes.Pass
 import firrtl.transforms.core.{Dshlw, Shlw}
 
 // Makes all implicit width extensions and truncations explicit

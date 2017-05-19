@@ -7,6 +7,7 @@ import firrtl.ir.PrimOps._
 import firrtl.Utils._
 import firrtl._
 import firrtl.ir._
+import firrtl.transforms.core.passes.{Errors, Pass, PassException}
 
 object CheckWidths extends Pass {
   /** The maximum allowed width for any circuit element */

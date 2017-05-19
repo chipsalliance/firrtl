@@ -1,10 +1,8 @@
 // See license file for details
 
-package firrtl.passes
-package clocklist
+package firrtl.transforms.clocklist
 
 import firrtl.Utils._
-import firrtl._
 import firrtl.ir._
 import firrtl.passes.memlib.AnalysisUtils._
 import firrtl.transforms.core.{FEMALE, PortKind, WRef}

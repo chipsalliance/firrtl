@@ -9,6 +9,7 @@ import firrtl._
 import firrtl.ir._
 import firrtl.transforms.core.WrappedType._
 import firrtl.transforms.core._
+import firrtl.transforms.core.passes.{Errors, Pass, PassException}
 
 object CheckHighForm extends Pass {
   type NameSet = collection.mutable.HashSet[String]

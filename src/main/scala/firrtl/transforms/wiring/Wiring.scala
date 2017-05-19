@@ -7,8 +7,9 @@ import firrtl.Utils._
 import firrtl._
 import firrtl.annotations.AnnotationUtils._
 import firrtl.ir._
-import firrtl.passes.{MemPortUtils, Pass, PassException, ToWorkingIR}
+import firrtl.passes.{MemPortUtils}
 import firrtl.transforms.core.WDefInstance
+import firrtl.transforms.core.passes.{Pass, PassException, ToWorkingIR}
 import firrtl.transforms.wiring.WiringUtils._
 
 import scala.collection.mutable

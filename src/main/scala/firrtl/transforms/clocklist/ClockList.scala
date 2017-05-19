@@ -1,17 +1,17 @@
 // See license file for details
 
-package firrtl.passes
-package clocklist
+package firrtl.transforms.clocklist
 
 import java.io.{CharArrayWriter, Writer}
 
 import firrtl.Utils._
-import firrtl._
 import firrtl.annotations._
 import firrtl.ir._
-import firrtl.passes.clocklist.ClockListUtils._
 import firrtl.passes.memlib.AnalysisUtils._
+import firrtl.passes.InlineInstances
 import firrtl.transforms.wiring.WiringUtils.{getChildrenMap, getLineage}
+import firrtl.transforms.clocklist.ClockListUtils._
+import firrtl.transforms.core.passes.Pass
 
 /** Starting with a top module, determine the clock origins of each child instance.
  *  Write the result to writer.

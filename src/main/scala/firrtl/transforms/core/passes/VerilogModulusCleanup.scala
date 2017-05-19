@@ -1,13 +1,13 @@
 // See LICENSE for license details.
 
-package firrtl
-package passes
+package firrtl.transforms.core.passes
 
+import firrtl.Utils._
 import firrtl.ir.Mappers._
 import firrtl.ir.PrimOps.{Bits, Rem}
-import firrtl.Utils._
 import firrtl.ir._
 import firrtl.transforms.core.WRef
+import firrtl.{Namespace, bitWidth}
 
 import scala.collection.mutable
 
