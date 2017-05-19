@@ -5,10 +5,10 @@ package firrtlTests
 import firrtl._
 import firrtl.annotations._
 import firrtl.ir._
-import firrtl.passes._
-import firrtl.passes.memlib._
+import firrtl.transforms.core.passes._
 import firrtl.transforms._
-import firrtl.transforms.core.passes.{DeadCodeElimination => _, _}
+import firrtl.transforms.mem._
+import firrtl.transforms.opt.DeadCodeElimination
 
 class ReplSeqMemSpec extends SimpleTransformSpec {
   def emitter = new LowFirrtlEmitter

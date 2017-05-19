@@ -1,11 +1,13 @@
 // See LICENSE for license details.
 
-package firrtl.passes
+package firrtl.transforms.mem
 
-import firrtl.Utils._
+import firrtl.util.Utils._
 import firrtl._
 import firrtl.ir._
 import firrtl.transforms.core._
+import firrtl.util.bitWidth
+import firrtl.util.{bitWidth, seqCat}
 
 /** Given a mask, return a bitmask corresponding to the desired datatype.
  *  Requirements:

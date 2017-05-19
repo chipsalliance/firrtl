@@ -2,7 +2,7 @@
 
 package firrtl.transforms.core.passes
 
-import firrtl.Utils._
+import firrtl.util.Utils._
 import firrtl.ir.Mappers._
 import firrtl.ir._
 

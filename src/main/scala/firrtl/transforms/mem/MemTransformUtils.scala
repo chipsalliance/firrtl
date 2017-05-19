@@ -1,12 +1,12 @@
 // See LICENSE for license details.
 
-package firrtl.passes
-package memlib
+package firrtl.transforms.mem
 
 import firrtl.ir.Mappers._
 import firrtl.ir._
-import firrtl.passes.MemPortUtils.MemPortMap
 import firrtl.transforms.core.EmptyExpression
+import firrtl.transforms.mem.MemPortUtils.MemPortMap
+
 
 object MemTransformUtils {
 

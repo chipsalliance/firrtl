@@ -4,11 +4,11 @@ package firrtl
 
 import firrtl.annotations._
 import firrtl.parser.Parser._
-import firrtl.passes.memlib.{InferReadWriteAnnotation, ReplSeqMemAnnotation}
 import _root_.logger.LogLevel
 import firrtl.transforms.clocklist.{ClockListAnnotation, ClockListTransform}
 import firrtl.transforms.hierarchy
 import firrtl.transforms.hierarchy.{InlineAnnotation, InlineInstances}
+import firrtl.transforms.mem.{InferReadWrite, InferReadWriteAnnotation, ReplSeqMem, ReplSeqMemAnnotation}
 import scopt.OptionParser
 
 import scala.collection.Seq
@@ -369,7 +369,7 @@ trait HasFirrtlOptions {
     .foreach { x =>
       firrtlOptions = firrtlOptions.copy(
         annotations = firrtlOptions.annotations :+ InferReadWriteAnnotation(x),
-        customTransforms = firrtlOptions.customTransforms :+ new passes.memlib.InferReadWrite
+        customTransforms = firrtlOptions.customTransforms :+ new InferReadWrite
       )
     }.text {
       "Enable readwrite port inference for the target circuit"
@@ -381,7 +381,7 @@ trait HasFirrtlOptions {
     .foreach { x =>
       firrtlOptions = firrtlOptions.copy(
         annotations = firrtlOptions.annotations :+ ReplSeqMemAnnotation(x),
-        customTransforms = firrtlOptions.customTransforms :+ new passes.memlib.ReplSeqMem
+        customTransforms = firrtlOptions.customTransforms :+ new ReplSeqMem
       )
     }
     .text {

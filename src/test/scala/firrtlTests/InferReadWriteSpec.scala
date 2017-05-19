@@ -4,8 +4,9 @@ package firrtlTests
 
 import firrtl._
 import firrtl.ir._
-import firrtl.passes._
 import firrtl.transforms.core.passes.{Errors, Pass, PassException}
+import firrtl.transforms.mem
+import firrtl.transforms.mem.{InferReadWrite, InferReadWriteAnnotation}
 
 class InferReadWriteSpec extends SimpleTransformSpec {
   class InferReadWriteCheckException extends PassException(
@@ -42,7 +43,7 @@ class InferReadWriteSpec extends SimpleTransformSpec {
     new IRToWorkingIR,
     new ResolveAndCheck,
     new HighFirrtlToMiddleFirrtl,
-    new memlib.InferReadWrite,
+    new InferReadWrite,
     InferReadWriteCheck
   )
 
@@ -70,7 +71,7 @@ circuit sram6t :
       T_5 <= io.wdata
 """.stripMargin
 
-    val annotationMap = AnnotationMap(Seq(memlib.InferReadWriteAnnotation("sram6t")))
+    val annotationMap = AnnotationMap(Seq(InferReadWriteAnnotation("sram6t")))
     val res = compileAndEmit(CircuitState(parse(input), ChirrtlForm, Some(annotationMap)))
     // Check correctness of firrtl
     parse(res.getEmittedCircuit.value)
@@ -101,7 +102,7 @@ circuit sram6t :
       io.dataOut <= _T_22
 """.stripMargin
 
-    val annotationMap = AnnotationMap(Seq(memlib.InferReadWriteAnnotation("sram6t")))
+    val annotationMap = AnnotationMap(Seq(mem.InferReadWriteAnnotation("sram6t")))
     val res = compileAndEmit(CircuitState(parse(input), ChirrtlForm, Some(annotationMap)))
     // Check correctness of firrtl
     parse(res.getEmittedCircuit.value)
@@ -132,7 +133,7 @@ circuit sram6t :
       T_5 <= io.wdata
 """.stripMargin
 
-    val annotationMap = AnnotationMap(Seq(memlib.InferReadWriteAnnotation("sram6t")))
+    val annotationMap = AnnotationMap(Seq(mem.InferReadWriteAnnotation("sram6t")))
     intercept[InferReadWriteCheckException] {
       compileAndEmit(CircuitState(parse(input), ChirrtlForm, Some(annotationMap)))
     }

@@ -1,17 +1,17 @@
 // See LICENSE for license details.
 
-package firrtl.passes
-package memlib
+package firrtl.transforms.mem
 
-import firrtl.ir.Mappers._
-import firrtl.Utils._
+import firrtl.util.Utils._
 import firrtl._
+import firrtl.ir.Mappers._
 import firrtl.ir._
-import firrtl.passes.memlib.AnalysisUtils._
-import firrtl.passes.memlib.MemTransformUtils._
+import MemTransformUtils._
 import firrtl.transforms.core.WrappedExpression._
 import firrtl.transforms.core._
 import firrtl.transforms.core.passes.Pass
+import AnalysisUtils._
+import firrtl.util.bitWidth
 
 object AnalysisUtils {
   type Connects = collection.mutable.HashMap[String, Expression]

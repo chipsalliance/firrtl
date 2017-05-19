@@ -7,9 +7,10 @@ import java.io.{File, FileWriter}
 import firrtl._
 import firrtl.annotations.AnnotationYamlProtocol._
 import firrtl.annotations._
-import firrtl.passes.memlib.PinAnnotation
 import firrtl.transforms.hierarchy.InlineAnnotation
-import firrtl.transforms.{DontTouchAnnotation, OptimizableExtModuleAnnotation}
+import firrtl.transforms.mem.PinAnnotation
+import firrtl.transforms.opt.{DontTouchAnnotation, OptimizableExtModuleAnnotation}
+import firrtl.util.FIRRTLException
 import logger._
 import net.jcazevedo.moultingyaml._
 import org.scalatest.Matchers

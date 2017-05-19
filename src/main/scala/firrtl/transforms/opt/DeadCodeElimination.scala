@@ -1,17 +1,18 @@
 
-package firrtl.transforms
+package firrtl.transforms.opt
 
-import firrtl.ir.Mappers._
-import firrtl.MemoizedHash._
-import firrtl.Utils.{kind, throwInternalError}
+import firrtl.util.MemoizedHash._
+import firrtl.util.Utils.{kind, throwInternalError}
 import firrtl._
 import firrtl.analyses.InstanceGraph
 import firrtl.annotations._
-import firrtl.graph._
+import firrtl.ir.Mappers._
 import firrtl.ir._
-import firrtl.passes._
 import firrtl.transforms.core._
 import firrtl.transforms.core.passes.LowerTypes
+import firrtl.transforms.mem.MemPortUtils
+import firrtl.transforms.hierarchy.NoDedupAnnotation
+import firrtl.util.{DiGraph, MemoizedHash, MutableDiGraph, Utils}
 
 import scala.collection.mutable
 

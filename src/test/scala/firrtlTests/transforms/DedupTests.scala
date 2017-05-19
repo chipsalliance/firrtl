@@ -5,7 +5,7 @@ package transform
 
 import firrtl.AnnotationMap
 import firrtl.annotations.{CircuitName, ModuleName}
-import firrtl.transforms.{DedupModules, NoDedupAnnotation}
+import firrtl.transforms.hierarchy.{DedupModules, NoDedupAnnotation}
 
 
 /**

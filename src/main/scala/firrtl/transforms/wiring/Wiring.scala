@@ -3,14 +3,15 @@
 package firrtl.transforms.wiring
 
 import firrtl.ir.Mappers._
-import firrtl.Utils._
+import firrtl.util.Utils._
 import firrtl._
 import firrtl.annotations.AnnotationUtils._
 import firrtl.ir._
-import firrtl.passes.{MemPortUtils}
 import firrtl.transforms.core.WDefInstance
 import firrtl.transforms.core.passes.{Pass, PassException, ToWorkingIR}
+import firrtl.transforms.mem.MemPortUtils
 import firrtl.transforms.wiring.WiringUtils._
+import firrtl.util.Namespace
 
 import scala.collection.mutable
 

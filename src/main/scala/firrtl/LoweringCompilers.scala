@@ -2,6 +2,9 @@
 
 package firrtl
 
+import firrtl.transforms.mem.VerilogMemDelays
+import firrtl.transforms.opt.DeadCodeElimination
+import firrtl.transforms.other.BlackBoxSourceHelper
 import transforms.core.passes._
 
 sealed abstract class CoreTransform extends SeqTransform
@@ -103,16 +106,15 @@ class LowFirrtlOptimization extends CoreTransform {
     PadWidths,
     ConstProp,
     Legalize,
-    passes.memlib.VerilogMemDelays, // TODO move to Verilog emitter
+    VerilogMemDelays, // TODO move to Verilog emitter
     ConstProp,
     SplitExpressions,
     CommonSubexpressionElimination,
-    new firrtl.transforms.DeadCodeElimination)
+    new DeadCodeElimination)
 }
 
 
 import firrtl.CompilerUtils.getLoweringTransforms
-import firrtl.transforms.BlackBoxSourceHelper
 
 /** Emits input circuit
   * Will replace Chirrtl constructs with Firrtl

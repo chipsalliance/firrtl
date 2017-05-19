@@ -1,9 +1,9 @@
 package firrtl.analyses
 
 import firrtl.ir.Mappers._
-import firrtl.graph._
 import firrtl.ir._
 import firrtl.transforms.core.WDefInstance
+import firrtl.util.{DiGraph, MutableDiGraph}
 
 import scala.collection.mutable
 

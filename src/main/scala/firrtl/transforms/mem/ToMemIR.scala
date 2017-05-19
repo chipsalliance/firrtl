@@ -1,7 +1,6 @@
 // See LICENSE for license details.
 
-package firrtl.passes
-package memlib
+package firrtl.transforms.mem
 
 import firrtl.ir.Mappers._
 import firrtl.ir._

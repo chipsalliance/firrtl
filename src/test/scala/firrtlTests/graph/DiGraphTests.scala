@@ -1,6 +1,6 @@
 package firrtlTests.graph
 
-import firrtl.graph._
+import firrtl.util.DiGraph
 import firrtlTests._
 
 class DiGraphTests extends FirrtlFlatSpec {

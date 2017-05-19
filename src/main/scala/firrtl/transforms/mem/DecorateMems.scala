@@ -1,10 +1,10 @@
 // See LICENSE for license details.
 
-package firrtl
-package passes
-package memlib
+package firrtl.transforms.mem
+
 import firrtl.annotations._
 import firrtl.transforms.wiring.{SourceAnnotation, TopAnnotation}
+import firrtl.{AnnotationMap, CircuitState, MidForm, Transform}
 
 class CreateMemoryAnnotations(reader: Option[YamlFileReader]) extends Transform {
   def inputForm = MidForm
@@ -12,7 +12,7 @@ class CreateMemoryAnnotations(reader: Option[YamlFileReader]) extends Transform 
   def execute(state: CircuitState): CircuitState = reader match {
     case None => state
     case Some(r) =>
-      import CustomYAMLProtocol._
+      import firrtl.transforms.mem.CustomYAMLProtocol._
       val configs = r.parse[Config]
       val cN = CircuitName(state.circuit.main)
       val oldAnnos = state.annotations.getOrElse(AnnotationMap(Seq.empty)).annotations

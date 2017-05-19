@@ -9,7 +9,8 @@ import firrtl._
 import firrtl.annotations._
 import firrtl.parser.Parser
 import firrtl.parser.Parser.IgnoreInfo
-import firrtl.transforms.{DontTouchAnnotation, NoDedupAnnotation}
+import firrtl.transforms.hierarchy.NoDedupAnnotation
+import firrtl.transforms.opt.DontTouchAnnotation
 import firrtl.util.BackendCompilationUtilities
 import org.scalatest._
 import org.scalatest.prop._

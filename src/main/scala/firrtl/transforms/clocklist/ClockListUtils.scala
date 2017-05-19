@@ -2,9 +2,9 @@
 
 package firrtl.transforms.clocklist
 
-import firrtl.Utils._
+import firrtl.util.Utils._
 import firrtl.ir._
-import firrtl.passes.memlib.AnalysisUtils._
+import firrtl.transforms.mem.AnalysisUtils._
 import firrtl.transforms.core.{FEMALE, PortKind, WRef}
 import firrtl.transforms.wiring.Lineage
 

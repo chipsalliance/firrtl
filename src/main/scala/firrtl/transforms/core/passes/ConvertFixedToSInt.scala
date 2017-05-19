@@ -2,12 +2,12 @@
 
 package firrtl.transforms.core.passes
 
-import firrtl.Utils.{field_type, max, module_type, sub_type}
+import firrtl.util.Utils.{field_type, max, module_type, sub_type}
 import firrtl.ir.Mappers._
 import firrtl.ir.PrimOps._
 import firrtl.ir._
-import firrtl.passes.MemPortUtils
 import firrtl.transforms.core._
+import firrtl.transforms.mem.MemPortUtils
 
 import scala.collection.mutable
 

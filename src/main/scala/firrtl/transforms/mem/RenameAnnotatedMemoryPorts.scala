@@ -1,14 +1,13 @@
 // See LICENSE for license details.
 
-package firrtl.passes
-package memlib
+package firrtl.transforms.mem
 
 import firrtl.ir.Mappers._
 import firrtl.ir._
-import firrtl.passes.MemPortUtils._
-import firrtl.passes.memlib.MemTransformUtils._
 import firrtl.transforms.core.passes.Pass
 import firrtl.transforms.core.{WRef, WSubField}
+import firrtl.transforms.mem.MemPortUtils.MemPortMap
+import firrtl.transforms.mem.MemTransformUtils.updateStmtRefs
 
 
 /** Changes memory port names to standard port names (i.e. RW0 instead T_408)

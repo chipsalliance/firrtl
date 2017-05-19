@@ -1,12 +1,12 @@
 // See LICENSE for license details.
 
-package firrtl
-package transforms
+package firrtl.transforms.hierarchy
 
-import firrtl.ir.Mappers._
 import firrtl.annotations._
+import firrtl.ir.Mappers._
 import firrtl.ir._
 import firrtl.transforms.core.WDefInstance
+import firrtl.{CircuitState, HighForm, Transform}
 
 // Datastructures
 import scala.collection.mutable

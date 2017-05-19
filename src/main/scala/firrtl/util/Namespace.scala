@@ -1,7 +1,8 @@
 // See LICENSE for license details.
 
-package firrtl
+package firrtl.util
 
+import firrtl.ir
 import firrtl.ir._
 
 import scala.collection.mutable

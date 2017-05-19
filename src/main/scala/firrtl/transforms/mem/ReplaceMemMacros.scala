@@ -1,17 +1,17 @@
 // See LICENSE for license details.
 
-package firrtl.passes
-package memlib
+package firrtl.transforms.mem
 
-import firrtl.ir.Mappers._
-import firrtl.Utils._
+import firrtl.util.Utils._
 import firrtl._
 import firrtl.annotations._
+import firrtl.ir.Mappers._
 import firrtl.ir._
-import firrtl.passes.MemPortUtils.{MemPortMap, Modules}
-import firrtl.passes.memlib.MemTransformUtils._
 import firrtl.transforms.core.{EmptyExpression, WDefInstance, WRef, WSubField}
 import firrtl.transforms.wiring.SinkAnnotation
+import firrtl.transforms.mem.MemPortUtils.{MemPortMap, Modules}
+import firrtl.transforms.mem.MemTransformUtils.{defaultPortSeq, updateStmtRefs}
+import firrtl.util._
 
 
 /** Annotates the name of the pin to add for WiringTransform

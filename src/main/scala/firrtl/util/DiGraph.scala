@@ -1,4 +1,4 @@
-package firrtl.graph
+package firrtl.util
 
 import scala.collection.immutable.{HashSet, Map, Set}
 import scala.collection.mutable
@@ -30,7 +30,7 @@ trait DiGraphLike[T] {
   * u in the graph are the vertices with inedges from u
   */
 class MutableDiGraph[T](
-  private[graph] val edgeData: MultiMap[T,T] =
+  private[util] val edgeData: MultiMap[T,T] =
     new mutable.HashMap[T, mutable.Set[T]] with MultiMap[T, T]) extends DiGraphLike[T] {
 
   // Inherited methods from DiGraphLike

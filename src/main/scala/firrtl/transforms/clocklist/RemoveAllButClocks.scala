@@ -2,7 +2,7 @@
 
 package firrtl.transforms.clocklist
 
-import firrtl.Utils._
+import firrtl.util.Utils._
 import firrtl.ir.Mappers._
 import firrtl.ir._
 import firrtl.transforms.core.WDefInstance

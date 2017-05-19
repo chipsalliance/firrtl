@@ -4,10 +4,12 @@ package firrtl
 
 import java.io.Writer
 
-import firrtl.Utils.throwInternalError
+import firrtl.util.Utils.throwInternalError
 import firrtl.annotations._
 import firrtl.ir.Circuit
 import firrtl.transforms.core.{CDefMPort, CDefMemory}
+import firrtl.transforms.hierarchy.DedupModules
+import firrtl.util.{FIRRTLException, Utils}
 import logger._
 
 import scala.collection.mutable
@@ -289,7 +291,7 @@ object CompilerUtils extends LazyLogging {
         case ChirrtlForm =>
           Seq(new ChirrtlToHighFirrtl) ++ getLoweringTransforms(HighForm, outputForm)
         case HighForm =>
-          Seq(new IRToWorkingIR, new ResolveAndCheck, new transforms.DedupModules,
+          Seq(new IRToWorkingIR, new ResolveAndCheck, new DedupModules,
               new HighFirrtlToMiddleFirrtl) ++ getLoweringTransforms(MidForm, outputForm)
         case MidForm => Seq(new MiddleFirrtlToLowFirrtl) ++ getLoweringTransforms(LowForm, outputForm)
         case LowForm => throwInternalError // should be caught by if above

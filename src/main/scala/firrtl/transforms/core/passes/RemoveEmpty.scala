@@ -2,8 +2,8 @@
 
 package firrtl.transforms.core.passes
 
-import firrtl.Utils
 import firrtl.ir._
+import firrtl.util.Utils
 
 object RemoveEmpty extends Pass {
   private def onModule(m: DefModule): DefModule = {

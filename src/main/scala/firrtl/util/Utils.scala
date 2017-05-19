@@ -1,8 +1,9 @@
 // See LICENSE for license details.
 
-package firrtl
+package firrtl.util
 
 import _root_.logger.LazyLogging
+import firrtl.ir
 import firrtl.ir.Mappers._
 import firrtl.ir.PrimOps._
 import firrtl.ir._

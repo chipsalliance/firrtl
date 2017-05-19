@@ -3,12 +3,12 @@
 package firrtl.transforms.core.passes
 
 // Datastructures
-import firrtl.Utils._
+import firrtl.util.Utils._
 import firrtl._
 import firrtl.ir.Mappers._
 import firrtl.ir._
-import firrtl.passes.createMask
 import firrtl.transforms.core._
+import firrtl.transforms.mem.createMask
 
 import scala.collection.mutable.ArrayBuffer
 

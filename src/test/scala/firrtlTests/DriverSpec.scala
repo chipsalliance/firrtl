@@ -5,9 +5,9 @@ package firrtlTests
 import java.io.File
 
 import firrtl._
-import firrtl.passes.memlib.{InferReadWrite, ReplSeqMem}
-import firrtl.transforms.BlackBoxSourceHelper
 import firrtl.transforms.hierarchy.InlineInstances
+import firrtl.transforms.mem.{InferReadWrite, ReplSeqMem}
+import firrtl.transforms.other.BlackBoxSourceHelper
 import firrtl.util.BackendCompilationUtilities
 import org.scalatest.{FreeSpec, Matchers}
 

@@ -2,7 +2,7 @@
 
 package firrtl.transforms.core
 
-import firrtl.Utils.field_type
+import firrtl.util.Utils.field_type
 import firrtl.ir._
 import firrtl.transforms.core.WrappedExpression._
 import firrtl.transforms.core.WrappedWidth._

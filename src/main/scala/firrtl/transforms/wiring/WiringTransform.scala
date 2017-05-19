@@ -2,7 +2,7 @@
 
 package firrtl.transforms.wiring
 
-import firrtl.Utils._
+import firrtl.util.Utils._
 import firrtl._
 import firrtl.annotations._
 import firrtl.transforms.core.passes.{InferTypes, ResolveGenders, ResolveKinds}

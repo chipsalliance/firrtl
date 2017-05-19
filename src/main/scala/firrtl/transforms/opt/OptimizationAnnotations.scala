@@ -1,7 +1,7 @@
 
-package firrtl
-package transforms
+package firrtl.transforms.opt
 
+import firrtl.Transform
 import firrtl.annotations._
 import firrtl.transforms.core.passes.PassException
 

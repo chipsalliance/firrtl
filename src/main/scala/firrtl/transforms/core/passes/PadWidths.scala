@@ -2,11 +2,11 @@
 
 package firrtl.transforms.core.passes
 
-import firrtl.bitWidth
 import firrtl.ir.Mappers._
 import firrtl.ir.PrimOps._
 import firrtl.ir._
 import firrtl.transforms.core.{Dshlw, Shlw}
+import firrtl.util.bitWidth
 
 // Makes all implicit width extensions and truncations explicit
 object PadWidths extends Pass {

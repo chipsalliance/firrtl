@@ -2,13 +2,13 @@
 
 package firrtl.transforms.core.passes
 
-import firrtl.Namespace
-import firrtl.Utils._
+import firrtl.util.Utils._
 import firrtl.ir.Mappers._
 import firrtl.ir.PrimOps.{And, Eq}
 import firrtl.ir._
 import firrtl.transforms.core.WrappedExpression._
 import firrtl.transforms.core.{WRef, WSubAccess, WSubField, WSubIndex}
+import firrtl.util.{Namespace, Utils}
 
 import scala.collection.mutable
 
@@ -77,7 +77,7 @@ object RemoveAccesses extends Pass {
   // This improves the performance of this pass
   private val createExpsCache = mutable.HashMap[Expression, Seq[Expression]]()
   private def create_exps(e: Expression) =
-    createExpsCache getOrElseUpdate (e, firrtl.Utils.create_exps(e))
+    createExpsCache getOrElseUpdate (e, Utils.create_exps(e))
 
   def run(c: Circuit): Circuit = {
     def remove_m(m: Module): Module = {

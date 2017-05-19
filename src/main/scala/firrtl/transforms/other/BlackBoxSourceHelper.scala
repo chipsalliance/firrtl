@@ -1,11 +1,12 @@
 // See LICENSE for license details.
 
-package firrtl.transforms
+package firrtl.transforms.other
 
 import java.io.{File, FileNotFoundException, FileOutputStream, PrintWriter}
 
 import firrtl._
 import firrtl.annotations.{Annotation, ModuleName}
+import firrtl.util.FIRRTLException
 
 import scala.collection.mutable.ArrayBuffer
 

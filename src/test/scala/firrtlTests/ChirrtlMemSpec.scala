@@ -5,9 +5,10 @@ package firrtlTests
 import firrtl.ir.Mappers._
 import firrtl._
 import firrtl.ir._
-import firrtl.passes._
 import firrtl.transforms.core.passes.{ConstProp, Errors, Pass, PassException}
 import firrtl.transforms.core.{MemKind, WrappedExpression}
+import firrtl.transforms.mem.MemPortUtils
+import firrtl.util.Utils
 
 class ChirrtlMemSpec extends LowTransformSpec {
   object MemEnableCheckPass extends Pass {

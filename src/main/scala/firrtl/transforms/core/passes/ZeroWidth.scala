@@ -2,10 +2,11 @@
 
 package firrtl.transforms.core.passes
 
-import firrtl.Utils.throwInternalError
+import firrtl.util.Utils.throwInternalError
 import firrtl._
 import firrtl.ir.Mappers._
 import firrtl.ir._
+import firrtl.util.Utils
 
 
 object ZeroWidth extends Transform {

@@ -4,10 +4,10 @@ package firrtl.transforms.clocklist
 
 import java.io.{CharArrayWriter, Writer}
 
-import firrtl.Utils._
+import firrtl.util.Utils._
 import firrtl.annotations._
 import firrtl.ir._
-import firrtl.passes.memlib.AnalysisUtils._
+import firrtl.transforms.mem.AnalysisUtils._
 import firrtl.transforms.wiring.WiringUtils.{getChildrenMap, getLineage}
 import firrtl.transforms.clocklist.ClockListUtils._
 import firrtl.transforms.core.passes.Pass

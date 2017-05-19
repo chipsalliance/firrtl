@@ -1,15 +1,15 @@
 // See LICENSE for license details.
 
-package firrtl.passes
-package memlib
+package firrtl.transforms.mem
 
 import java.io.{CharArrayWriter, File, PrintWriter}
 
-import firrtl.Utils.error
+import firrtl.util.Utils.error
 import firrtl._
 import firrtl.annotations._
 import firrtl.transforms.core.passes._
 import firrtl.transforms.wiring.WiringTransform
+import firrtl.util.bitWidth
 
 sealed trait PassOption
 case object InputConfigFileName extends PassOption

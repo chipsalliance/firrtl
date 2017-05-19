@@ -1,12 +1,12 @@
 // See LICENSE for license details.
 
-package firrtl.passes
-package memlib
-import firrtl.ir.Mappers._
+package firrtl.transforms.mem
+
 import firrtl._
 import firrtl.annotations._
+import firrtl.ir.Mappers._
 import firrtl.ir._
-import firrtl.passes.memlib.AnalysisUtils.eqMems
+import AnalysisUtils.eqMems
 
 /** A component, e.g. register etc. Must be declared only once under the TopAnnotation
   */

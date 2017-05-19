@@ -4,10 +4,10 @@ package firrtlTests
 
 import firrtl._
 import firrtl.annotations._
-import firrtl.passes._
-import firrtl.passes.memlib.SimpleTransform
 import firrtl.transforms._
 import firrtl.transforms.core.passes.RemoveEmpty
+import firrtl.transforms.mem.SimpleTransform
+import firrtl.transforms.opt.OptimizableExtModuleAnnotation
 
 class DCETests extends FirrtlFlatSpec {
   // Not using executeTest because it is for positive testing, we need to check that stuff got

@@ -1,19 +1,19 @@
 // See LICENSE for license details.
 
-package firrtl.passes
-package memlib
+package firrtl.transforms.mem
 
-import firrtl.ir.Mappers._
-import firrtl.ir.PrimOps._
-import firrtl.Utils.{BoolType, one, zero}
+import firrtl.util.Utils.{BoolType, one, zero}
 import firrtl._
 import firrtl.annotations._
+import firrtl.ir.Mappers._
+import firrtl.ir.PrimOps._
 import firrtl.ir._
-import firrtl.passes.MemPortUtils.memPortField
-import firrtl.passes.memlib.AnalysisUtils.{Connects, getConnects, getOrigin}
 import firrtl.transforms.core.WrappedExpression._
 import firrtl.transforms.core._
 import firrtl.transforms.core.passes._
+import firrtl.transforms.mem.AnalysisUtils.{Connects, getConnects, getOrigin}
+import firrtl.transforms.mem.MemPortUtils.memPortField
+import firrtl.util.Namespace
 
 object InferReadWriteAnnotation {
   def apply(t: String) = Annotation(CircuitName(t), classOf[InferReadWrite], "")
