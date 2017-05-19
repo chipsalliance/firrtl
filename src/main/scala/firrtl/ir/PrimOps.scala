@@ -1,11 +1,11 @@
 // See LICENSE for license details.
 
-package firrtl
+package firrtl.ir
 
 import com.typesafe.scalalogging.LazyLogging
 import firrtl.Utils.{max, min, pow_minus_one}
-import firrtl.ir._
 import firrtl.transforms.core._
+import firrtl.{Utils, getWidth, ir}
 
 /** Definitions and Utility functions for [[ir.PrimOp]]s */
 object PrimOps extends LazyLogging {

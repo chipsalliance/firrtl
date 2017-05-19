@@ -2,7 +2,7 @@
 
 package firrtl
 package passes
-import firrtl.Mappers._
+import firrtl.ir.Mappers._
 import firrtl.ir._
 
 // Removes ValidIf as an optimization

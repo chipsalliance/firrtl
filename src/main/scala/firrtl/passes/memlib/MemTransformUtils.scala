@@ -3,7 +3,7 @@
 package firrtl.passes
 package memlib
 
-import firrtl.Mappers._
+import firrtl.ir.Mappers._
 import firrtl.ir._
 import firrtl.passes.MemPortUtils.MemPortMap
 import firrtl.transforms.core.EmptyExpression

@@ -8,7 +8,7 @@ import firrtl.{Transform, LowForm, CircuitState}
 // Firrtl IR classes
 import firrtl.ir.{Circuit, DefModule, Statement, Expression, Mux}
 // Map functions
-import firrtl.Mappers._
+import firrtl.ir.Mappers._
 // Scala's mutable collections
 import scala.collection.mutable
 

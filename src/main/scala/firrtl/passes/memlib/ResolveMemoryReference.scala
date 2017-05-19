@@ -2,7 +2,7 @@
 
 package firrtl.passes
 package memlib
-import firrtl.Mappers._
+import firrtl.ir.Mappers._
 import firrtl._
 import firrtl.annotations._
 import firrtl.ir._

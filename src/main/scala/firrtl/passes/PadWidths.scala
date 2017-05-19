@@ -3,8 +3,8 @@
 package firrtl
 package passes
 
-import firrtl.Mappers._
-import firrtl.PrimOps._
+import firrtl.ir.Mappers._
+import firrtl.ir.PrimOps._
 import firrtl.ir._
 import firrtl.transforms.core.{Dshlw, Shlw}
 

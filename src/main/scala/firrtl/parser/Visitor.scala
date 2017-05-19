@@ -2,7 +2,7 @@
 
 package firrtl.parser
 
-import firrtl.PrimOps._
+import firrtl.ir.PrimOps._
 import firrtl._
 import firrtl.antlr.FIRRTLParser._
 import firrtl.antlr._

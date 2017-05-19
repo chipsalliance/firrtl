@@ -4,8 +4,8 @@ package firrtl
 
 import java.io.Writer
 
-import firrtl.Mappers._
-import firrtl.PrimOps._
+import firrtl.ir.Mappers._
+import firrtl.ir.PrimOps._
 import firrtl.Utils._
 import firrtl.annotations._
 import firrtl.ir._

@@ -1,7 +1,7 @@
 
 package firrtl.transforms
 
-import firrtl.Mappers._
+import firrtl.ir.Mappers._
 import firrtl.MemoizedHash._
 import firrtl.Utils.{kind, throwInternalError}
 import firrtl._

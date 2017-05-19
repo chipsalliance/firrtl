@@ -2,7 +2,7 @@
 
 package firrtl.transforms.wiring
 
-import firrtl.Mappers._
+import firrtl.ir.Mappers._
 import firrtl.Utils._
 import firrtl._
 import firrtl.annotations.AnnotationUtils._

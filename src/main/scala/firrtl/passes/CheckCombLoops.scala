@@ -2,7 +2,7 @@
 
 package firrtl.passes
 
-import firrtl.Mappers._
+import firrtl.ir.Mappers._
 import firrtl.Utils.throwInternalError
 import firrtl.analyses.InstanceGraph
 import firrtl.graph.{DiGraph, MutableDiGraph}
