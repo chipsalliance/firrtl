@@ -3,7 +3,7 @@
 package firrtlTests
 
 import firrtl._
-import org.scalatest.{Matchers, FreeSpec}
+import org.scalatest.{FreeSpec, Matchers}
 
 class ExecutionOptionManagerSpec extends FreeSpec with Matchers {
   "ExecutionOptionManager is a container for one more more ComposableOptions Block" - {

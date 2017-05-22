@@ -2,11 +2,9 @@
 
 package firrtlTests
 
-import firrtl._
-import org.scalatest._
-import org.scalatest.prop._
-
 import java.io.File
+
+import firrtl._
 
 class GCDExecutionTest extends ExecutionTest("GCDTester", "/integration")
 class RightShiftExecutionTest extends ExecutionTest("RightShiftTester", "/integration")

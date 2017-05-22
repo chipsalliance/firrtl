@@ -2,13 +2,8 @@
 
 package firrtlTests
 
-import org.scalatest.Matchers
-import java.io.{StringWriter,Writer}
-import firrtl.ir.Circuit
 import firrtl._
-import firrtl.Parser.IgnoreInfo
-import firrtl.Parser
-import firrtl.passes._
+import firrtl.transforms.core.passes._
 
 class ZeroWidthTests extends FirrtlFlatSpec {
   val transforms = Seq(

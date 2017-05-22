@@ -3,20 +3,9 @@
 package firrtlTests
 package transform
 
-import org.scalatest.FlatSpec
-import org.scalatest.Matchers
-import org.scalatest.junit.JUnitRunner
-
-import firrtl.ir.Circuit
-import firrtl.{Parser, AnnotationMap}
-import firrtl.passes.PassExceptions
-import firrtl.annotations.{
-   Named,
-   CircuitName,
-   ModuleName,
-   Annotation
-}
-import firrtl.transforms.{DedupModules, NoDedupAnnotation}
+import firrtl.AnnotationMap
+import firrtl.annotations.{CircuitName, ModuleName}
+import firrtl.transforms.hierarchy.{DedupModules, NoDedupAnnotation}
 
 
 /**

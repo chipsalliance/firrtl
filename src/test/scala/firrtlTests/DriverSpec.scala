@@ -2,14 +2,14 @@
 
 package firrtlTests
 
-import java.io.{File, FileNotFoundException, FileOutputStream}
-import org.scalatest.{FreeSpec, Matchers}
+import java.io.File
 
-import firrtl.passes.InlineInstances
-import firrtl.passes.memlib.{InferReadWrite, ReplSeqMem}
-import firrtl.transforms.BlackBoxSourceHelper
 import firrtl._
+import firrtl.transforms.hierarchy.InlineInstances
+import firrtl.transforms.mem.{InferReadWrite, ReplSeqMem}
+import firrtl.transforms.other.BlackBoxSourceHelper
 import firrtl.util.BackendCompilationUtilities
+import org.scalatest.{FreeSpec, Matchers}
 
 class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities {
   "CommonOptions are some simple options available across the chisel3 ecosystem" - {
@@ -139,7 +139,7 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
     Driver.loadAnnotations(optionsManager)
     optionsManager.firrtlOptions.annotations.length should be (10) // 9 from circuit plus 1 for targetDir
 
-    optionsManager.firrtlOptions.annotations.head.transformClass should be ("firrtl.passes.InlineInstances")
+    optionsManager.firrtlOptions.annotations.head.transformClass should be ("firrtl.transforms.hierarchy.InlineInstances")
     annotationsTestFile.delete()
   }
 

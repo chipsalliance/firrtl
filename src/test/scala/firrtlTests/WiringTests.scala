@@ -2,16 +2,12 @@
 
 package firrtlTests
 
-import java.io._
-import org.scalatest._
-import org.scalatest.prop._
 import firrtl._
+import firrtl.annotations._
 import firrtl.ir.Circuit
-import firrtl.passes._
-import firrtl.Parser.IgnoreInfo
-import annotations._
-import wiring.WiringUtils._
-import wiring._
+import firrtl.parser.Parser
+import firrtl.transforms.core.passes._
+import firrtl.transforms.wiring._
 
 class WiringTests extends FirrtlFlatSpec {
   private def executeTest(input: String, expected: Seq[String], passes: Seq[Pass]) = {

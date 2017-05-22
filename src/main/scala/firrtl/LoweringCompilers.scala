@@ -2,6 +2,11 @@
 
 package firrtl
 
+import firrtl.transforms.core.passes._
+import firrtl.transforms.mem.VerilogMemDelays
+import firrtl.transforms.opt.DeadCodeElimination
+import firrtl.transforms.other.BlackBoxSourceHelper
+
 sealed abstract class CoreTransform extends SeqTransform
 
 /** This transforms "CHIRRTL", the chisel3 IR, to "Firrtl". Note the resulting
@@ -11,10 +16,10 @@ class ChirrtlToHighFirrtl extends CoreTransform {
   def inputForm = ChirrtlForm
   def outputForm = HighForm
   def transforms = Seq(
-    passes.CheckChirrtl,
-    passes.CInferTypes,
-    passes.CInferMDir,
-    passes.RemoveCHIRRTL)
+    CheckChirrtl,
+    CInferTypes,
+    CInferMDir,
+    RemoveCHIRRTL)
 }
 
 /** Converts from the bare intermediate representation (ir.scala)
@@ -23,7 +28,7 @@ class ChirrtlToHighFirrtl extends CoreTransform {
 class IRToWorkingIR extends CoreTransform {
   def inputForm = HighForm
   def outputForm = HighForm
-  def transforms = Seq(passes.ToWorkingIR)
+  def transforms = Seq(ToWorkingIR)
 }
 
 /** Resolves types, kinds, and genders, and checks the circuit legality.
@@ -33,17 +38,17 @@ class ResolveAndCheck extends CoreTransform {
   def inputForm = HighForm
   def outputForm = HighForm
   def transforms = Seq(
-    passes.CheckHighForm,
-    passes.ResolveKinds,
-    passes.InferTypes,
-    passes.CheckTypes,
-    passes.Uniquify,
-    passes.ResolveKinds,
-    passes.InferTypes,
-    passes.ResolveGenders,
-    passes.CheckGenders,
-    passes.InferWidths,
-    passes.CheckWidths)
+    CheckHighForm,
+    ResolveKinds,
+    InferTypes,
+    CheckTypes,
+    Uniquify,
+    ResolveKinds,
+    InferTypes,
+    ResolveGenders,
+    CheckGenders,
+    InferWidths,
+    CheckWidths)
 }
 
 /** Expands aggregate connects, removes dynamic accesses, and when
@@ -55,20 +60,20 @@ class HighFirrtlToMiddleFirrtl extends CoreTransform {
   def inputForm = HighForm
   def outputForm = MidForm
   def transforms = Seq(
-    passes.PullMuxes,
-    passes.ReplaceAccesses,
-    passes.ExpandConnects,
-    passes.RemoveAccesses,
-    passes.ExpandWhens,
-    passes.CheckInitialization,
-    passes.ResolveKinds,
-    passes.InferTypes,
-    passes.CheckTypes,
-    passes.ResolveGenders,
-    passes.InferWidths,
-    passes.CheckWidths,
-    passes.ConvertFixedToSInt,
-    passes.ZeroWidth)
+    PullMuxes,
+    ReplaceAccesses,
+    ExpandConnects,
+    RemoveAccesses,
+    ExpandWhens,
+    CheckInitialization,
+    ResolveKinds,
+    InferTypes,
+    CheckTypes,
+    ResolveGenders,
+    InferWidths,
+    CheckWidths,
+    ConvertFixedToSInt,
+    ZeroWidth)
 }
 
 /** Expands all aggregate types into many ground-typed components. Must
@@ -79,13 +84,13 @@ class MiddleFirrtlToLowFirrtl extends CoreTransform {
   def inputForm = MidForm
   def outputForm = LowForm
   def transforms = Seq(
-    passes.LowerTypes,
-    passes.ResolveKinds,
-    passes.InferTypes,
-    passes.ResolveGenders,
-    passes.InferWidths,
-    passes.Legalize,
-    passes.CheckCombLoops)
+    LowerTypes,
+    ResolveKinds,
+    InferTypes,
+    ResolveGenders,
+    InferWidths,
+    Legalize,
+    CheckCombLoops)
 }
 
 /** Runs a series of optimization passes on LowFirrtl
@@ -96,21 +101,20 @@ class LowFirrtlOptimization extends CoreTransform {
   def inputForm = LowForm
   def outputForm = LowForm
   def transforms = Seq(
-    passes.RemoveValidIf,
-    passes.ConstProp,
-    passes.PadWidths,
-    passes.ConstProp,
-    passes.Legalize,
-    passes.memlib.VerilogMemDelays, // TODO move to Verilog emitter
-    passes.ConstProp,
-    passes.SplitExpressions,
-    passes.CommonSubexpressionElimination,
-    new firrtl.transforms.DeadCodeElimination)
+    RemoveValidIf,
+    ConstProp,
+    PadWidths,
+    ConstProp,
+    Legalize,
+    VerilogMemDelays, // TODO move to Verilog emitter
+    ConstProp,
+    SplitExpressions,
+    CommonSubexpressionElimination,
+    new DeadCodeElimination)
 }
 
 
-import CompilerUtils.getLoweringTransforms
-import firrtl.transforms.BlackBoxSourceHelper
+import firrtl.CompilerUtils.getLoweringTransforms
 
 /** Emits input circuit
   * Will replace Chirrtl constructs with Firrtl

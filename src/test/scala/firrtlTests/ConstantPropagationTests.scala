@@ -2,11 +2,8 @@
 
 package firrtlTests
 
-import org.scalatest.Matchers
 import firrtl.ir.Circuit
-import firrtl.Parser.IgnoreInfo
-import firrtl.Parser
-import firrtl.passes._
+import firrtl.transforms.core.passes._
 
 // Tests the following cases for constant propagation:
 //   1) Unsigned integers are always greater than or

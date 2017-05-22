@@ -2,10 +2,9 @@
 
 package firrtlTests
 
-import firrtl.ir.Circuit
 import firrtl._
-import firrtl.passes.Pass
-import firrtl.ir._
+import firrtl.ir.{Circuit, _}
+import firrtl.transforms.core.passes.Pass
 
 class CustomTransformSpec extends FirrtlFlatSpec {
   behavior of "Custom Transforms"

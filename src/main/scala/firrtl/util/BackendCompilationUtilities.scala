@@ -7,6 +7,8 @@ import java.nio.file.Files
 import java.text.SimpleDateFormat
 import java.util.Calendar
 
+import firrtl.transforms.other.BlackBoxSourceHelper
+
 import scala.sys.process.{ProcessBuilder, ProcessLogger, _}
  
 trait BackendCompilationUtilities {
@@ -91,7 +93,7 @@ trait BackendCompilationUtilities {
     val topModule = dutFile
 
     val blackBoxVerilogList = {
-      val list_file = new File(dir, firrtl.transforms.BlackBoxSourceHelper.FileListName)
+      val list_file = new File(dir, BlackBoxSourceHelper.FileListName)
       if(list_file.exists()) {
         Seq("-f", list_file.getAbsolutePath)
       }

@@ -4,13 +4,13 @@ package tutorial
 package lesson2
 
 // Compiler Infrastructure
-import firrtl.{Transform, LowForm, CircuitState}
+import firrtl.transforms.core.WDefInstance
+import firrtl.{CircuitState, LowForm, Transform}
 // Firrtl IR classes
 import firrtl.ir.{Circuit, DefModule, Statement, DefInstance, Expression, Mux}
 // Firrtl compiler's working IR classes (WIR)
-import firrtl.WDefInstance
 // Map functions
-import firrtl.Mappers._
+import firrtl.ir.Mappers._
 // Scala's mutable collections
 import scala.collection.mutable
 

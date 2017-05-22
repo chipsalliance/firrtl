@@ -3,9 +3,6 @@
 package firrtl
 package annotations
 
-import net.jcazevedo.moultingyaml._
-import firrtl.annotations.AnnotationYamlProtocol._
-
 case class AnnotationException(message: String) extends Exception(message)
 
 final case class Annotation(target: Named, transform: Class[_ <: Transform], value: String) {

@@ -2,13 +2,9 @@
 
 package firrtlTests
 
-import java.io._
-import org.scalatest._
-import org.scalatest.prop._
-import firrtl.Parser
-import firrtl.ir.Circuit
-import firrtl.passes._
 import firrtl._
+import firrtl.parser.Parser
+import firrtl.transforms.core.passes._
 
 class LowerTypesSpec extends FirrtlFlatSpec {
   private val transforms = Seq(

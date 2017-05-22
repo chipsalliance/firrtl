@@ -3,6 +3,7 @@
 package firrtl
 package annotations
 
+import firrtl.util.{FIRRTLException, Utils}
 import net.jcazevedo.moultingyaml._
 
 object AnnotationYamlProtocol extends DefaultYamlProtocol {

@@ -3,11 +3,10 @@
 package firrtlTests
 package fixed
 
-import java.io._
 import firrtl._
 import firrtl.ir.Circuit
-import firrtl.passes._
-import firrtl.Parser.IgnoreInfo
+import firrtl.parser.Parser
+import firrtl.transforms.core.passes._
 
 class FixedTypeInferenceSpec extends FirrtlFlatSpec {
   private def executeTest(input: String, expected: Seq[String], passes: Seq[Pass]) = {

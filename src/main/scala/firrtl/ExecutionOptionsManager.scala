@@ -2,11 +2,13 @@
 
 package firrtl
 
+import _root_.logger.LogLevel
 import firrtl.annotations._
-import firrtl.Parser._
-import firrtl.passes.memlib.{InferReadWriteAnnotation, ReplSeqMemAnnotation}
-import firrtl.passes.clocklist.ClockListAnnotation
-import logger.LogLevel
+import firrtl.parser.Parser._
+import firrtl.transforms.clocklist.{ClockListAnnotation, ClockListTransform}
+import firrtl.transforms.hierarchy
+import firrtl.transforms.hierarchy.{InlineAnnotation, InlineInstances}
+import firrtl.transforms.mem.{InferReadWrite, InferReadWriteAnnotation, ReplSeqMem, ReplSeqMemAnnotation}
 import scopt.OptionParser
 
 import scala.collection.Seq
@@ -345,16 +347,16 @@ trait HasFirrtlOptions {
       val newAnnotations = x.map { value =>
         value.split('.') match {
           case Array(circuit) =>
-            passes.InlineAnnotation(CircuitName(circuit))
+            hierarchy.InlineAnnotation(CircuitName(circuit))
           case Array(circuit, module) =>
-            passes.InlineAnnotation(ModuleName(module, CircuitName(circuit)))
+            hierarchy.InlineAnnotation(ModuleName(module, CircuitName(circuit)))
           case Array(circuit, module, inst) =>
-            passes.InlineAnnotation(ComponentName(inst, ModuleName(module, CircuitName(circuit))))
+            InlineAnnotation(ComponentName(inst, ModuleName(module, CircuitName(circuit))))
         }
       }
       firrtlOptions = firrtlOptions.copy(
         annotations = firrtlOptions.annotations ++ newAnnotations,
-        customTransforms = firrtlOptions.customTransforms :+ new passes.InlineInstances
+        customTransforms = firrtlOptions.customTransforms :+ new InlineInstances
       )
     }
     .text {
@@ -367,7 +369,7 @@ trait HasFirrtlOptions {
     .foreach { x =>
       firrtlOptions = firrtlOptions.copy(
         annotations = firrtlOptions.annotations :+ InferReadWriteAnnotation(x),
-        customTransforms = firrtlOptions.customTransforms :+ new passes.memlib.InferReadWrite
+        customTransforms = firrtlOptions.customTransforms :+ new InferReadWrite
       )
     }.text {
       "Enable readwrite port inference for the target circuit"
@@ -379,7 +381,7 @@ trait HasFirrtlOptions {
     .foreach { x =>
       firrtlOptions = firrtlOptions.copy(
         annotations = firrtlOptions.annotations :+ ReplSeqMemAnnotation(x),
-        customTransforms = firrtlOptions.customTransforms :+ new passes.memlib.ReplSeqMem
+        customTransforms = firrtlOptions.customTransforms :+ new ReplSeqMem
       )
     }
     .text {
@@ -392,7 +394,7 @@ trait HasFirrtlOptions {
     .foreach { x =>
       firrtlOptions = firrtlOptions.copy(
         annotations = firrtlOptions.annotations :+ ClockListAnnotation(x),
-        customTransforms = firrtlOptions.customTransforms :+ new passes.clocklist.ClockListTransform
+        customTransforms = firrtlOptions.customTransforms :+ new ClockListTransform
       )
     }
     .text {

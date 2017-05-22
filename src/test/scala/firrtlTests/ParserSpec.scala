@@ -2,10 +2,10 @@
 
 package firrtlTests
 
-import org.scalatest._
-import firrtl._
+import firrtl.ir.PrimOps
+import firrtl.parser
+import firrtl.parser.{ParameterNotSpecifiedException, ParameterRedefinedException, Parser}
 import org.scalacheck.Gen
-import org.scalacheck.Prop.forAll
 
 class ParserSpec extends FirrtlFlatSpec {
 
@@ -42,19 +42,19 @@ class ParserSpec extends FirrtlFlatSpec {
   // ********** Memories **********
   "Memories" should "allow arbitrary ordering of fields" in {
     val fields = MemTests.fieldsToSeq(MemTests.fields)
-    val golden = firrtl.Parser.parse((MemTests.prelude ++ fields))
+    val golden = Parser.parse((MemTests.prelude ++ fields))
 
     fields.permutations foreach { permutation =>
-      val circuit = firrtl.Parser.parse((MemTests.prelude ++ permutation))
+      val circuit = parser.Parser.parse((MemTests.prelude ++ permutation))
       assert(golden === circuit)
     }
   }
 
   it should "have exactly one of each: data-type, depth, read-latency, and write-latency" in {
     import MemTests._
-    def parseWithoutField(s: String) = firrtl.Parser.parse((prelude ++ fieldsToSeq(fields - s)))
+    def parseWithoutField(s: String) = parser.Parser.parse((prelude ++ fieldsToSeq(fields - s)))
     def parseWithDuplicate(k: String, v: String) =
-      firrtl.Parser.parse((prelude ++ fieldsToSeq(fields) :+ s"      ${k} => ${v}"))
+      parser.Parser.parse((prelude ++ fieldsToSeq(fields) :+ s"      ${k} => ${v}"))
 
     Seq("data-type", "depth", "read-latency", "write-latency") foreach { field =>
       evaluating { parseWithoutField(field) } should produce [ParameterNotSpecifiedException]
@@ -65,41 +65,41 @@ class ParserSpec extends FirrtlFlatSpec {
   // ********** Registers **********
   "Registers" should "allow no implicit reset" in {
     import RegTests._
-    firrtl.Parser.parse((prelude :+ reg))
+    parser.Parser.parse((prelude :+ reg))
   }
 
   it should "allow same-line reset" in {
     import RegTests._
-    firrtl.Parser.parse((prelude :+ s"${reg} with : (${reset})" :+ "    wire a : UInt"))
+    parser.Parser.parse((prelude :+ s"${reg} with : (${reset})" :+ "    wire a : UInt"))
   }
 
   it should "allow multi-line reset" in {
     import RegTests._
-    firrtl.Parser.parse((prelude :+ s"${reg} with :\n      (${reset})"))
+    parser.Parser.parse((prelude :+ s"${reg} with :\n      (${reset})"))
   }
 
   it should "allow source locators with same-line reset" in {
     import RegTests._
-    firrtl.Parser.parse((prelude :+ s"${reg} with : (${reset}) $finfo" :+ "    wire a : UInt"))
+    parser.Parser.parse((prelude :+ s"${reg} with : (${reset}) $finfo" :+ "    wire a : UInt"))
   }
 
   it should "allow source locators with multi-line reset" in {
     import RegTests._
-    firrtl.Parser.parse((prelude :+ s"${reg} with :\n      (${reset}) $finfo"))
+    parser.Parser.parse((prelude :+ s"${reg} with :\n      (${reset}) $finfo"))
   }
 
   // ********** Keywords **********
   "Keywords" should "be allowed as Ids" in {
     import KeywordTests._
     keywords foreach { keyword =>
-      firrtl.Parser.parse((prelude :+ s"      wire ${keyword} : UInt"))
+      parser.Parser.parse((prelude :+ s"      wire ${keyword} : UInt"))
     }
   }
 
   it should "be allowed on lhs in connects" in {
     import KeywordTests._
     keywords foreach { keyword =>
-      firrtl.Parser.parse((prelude ++ Seq(s"      wire ${keyword} : UInt",
+      parser.Parser.parse((prelude ++ Seq(s"      wire ${keyword} : UInt",
                                           s"      ${keyword} <= ${keyword}")))
     }
   }
@@ -114,7 +114,7 @@ class ParserSpec extends FirrtlFlatSpec {
       |    in.0.1 <= in.0.0
       |    in2.4.23.bar.123 <= in2.4.23.foo
       """.stripMargin
-    firrtl.Parser.parse(input split "\n")
+    parser.Parser.parse(input split "\n")
   }
 
   // ********** Doubles as parameters **********
@@ -136,7 +136,7 @@ class ParserSpec extends FirrtlFlatSpec {
         |    input foo : UInt<32>
         |    output bar : UInt<32>
         """.stripMargin
-      firrtl.Parser.parse(input split "\n")
+      parser.Parser.parse(input split "\n")
     }
   }
 }
@@ -162,7 +162,7 @@ class ParserPropSpec extends FirrtlPropSpec {
            |  module Test :
            |    input $id : UInt<32>
            |""".stripMargin
-        firrtl.Parser.parse(input split "\n")
+        parser.Parser.parse(input split "\n")
       }
     }
   }
@@ -179,7 +179,7 @@ class ParserPropSpec extends FirrtlPropSpec {
            |  module Test :
            |    input $id : { $field : UInt<32> }
            |""".stripMargin
-        firrtl.Parser.parse(input split "\n")
+        parser.Parser.parse(input split "\n")
       }
     }
   }

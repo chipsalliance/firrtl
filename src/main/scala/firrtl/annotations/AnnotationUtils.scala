@@ -3,10 +3,9 @@
 package firrtl
 package annotations
 
-import net.jcazevedo.moultingyaml._
 import firrtl.annotations.AnnotationYamlProtocol._
-
 import firrtl.ir._
+import net.jcazevedo.moultingyaml._
 
 object AnnotationUtils {
   def toYaml(a: Annotation): String = a.toYaml.prettyPrint
