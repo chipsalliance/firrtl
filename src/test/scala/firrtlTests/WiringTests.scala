@@ -6,7 +6,6 @@ import firrtl._
 import firrtl.annotations._
 import firrtl.ir.Circuit
 import firrtl.parser.Parser
-import firrtl.passes._
 import firrtl.transforms.core.passes._
 import firrtl.transforms.wiring._
 

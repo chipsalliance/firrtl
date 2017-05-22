@@ -1,8 +1,6 @@
 
 package firrtl.transforms.opt
 
-import firrtl.util.MemoizedHash._
-import firrtl.util.Utils.{kind, throwInternalError}
 import firrtl._
 import firrtl.annotations._
 import firrtl.ir.Mappers._
@@ -10,8 +8,10 @@ import firrtl.ir._
 import firrtl.transforms.analysis.InstanceGraph
 import firrtl.transforms.core._
 import firrtl.transforms.core.passes.LowerTypes
-import firrtl.transforms.mem.MemPortUtils
 import firrtl.transforms.hierarchy.NoDedupAnnotation
+import firrtl.transforms.mem.MemPortUtils
+import firrtl.util.MemoizedHash._
+import firrtl.util.Utils.{kind, throwInternalError}
 import firrtl.util.{DiGraph, MemoizedHash, MutableDiGraph, Utils}
 
 import scala.collection.mutable

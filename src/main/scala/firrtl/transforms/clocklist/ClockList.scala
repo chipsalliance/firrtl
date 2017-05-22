@@ -4,14 +4,14 @@ package firrtl.transforms.clocklist
 
 import java.io.{CharArrayWriter, Writer}
 
-import firrtl.util.Utils._
 import firrtl.annotations._
 import firrtl.ir._
-import firrtl.transforms.mem.AnalysisUtils._
-import firrtl.transforms.wiring.WiringUtils.{getChildrenMap, getLineage}
 import firrtl.transforms.clocklist.ClockListUtils._
 import firrtl.transforms.core.passes.Pass
 import firrtl.transforms.hierarchy.InlineInstances
+import firrtl.transforms.mem.AnalysisUtils._
+import firrtl.transforms.wiring.WiringUtils.{getChildrenMap, getLineage}
+import firrtl.util.Utils._
 
 /** Starting with a top module, determine the clock origins of each child instance.
  *  Write the result to writer.

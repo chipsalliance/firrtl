@@ -4,7 +4,6 @@ package firrtlTests
 
 import firrtl._
 import firrtl.annotations._
-import firrtl.transforms._
 import firrtl.transforms.core.passes.RemoveEmpty
 import firrtl.transforms.mem.SimpleTransform
 import firrtl.transforms.opt.OptimizableExtModuleAnnotation

@@ -4,11 +4,11 @@ package firrtl.transforms.clocklist
 
 import java.io.{PrintWriter, Writer}
 
-import firrtl.util.Utils.error
 import firrtl._
 import firrtl.annotations._
 import firrtl.transforms.core.passes.Pass
 import firrtl.transforms.mem._
+import firrtl.util.Utils.error
 
 object ClockListAnnotation {
   def apply(t: String): Annotation = {

@@ -4,11 +4,11 @@ package firrtl
 
 import java.io.Writer
 
-import firrtl.util.Utils.throwInternalError
 import firrtl.annotations._
 import firrtl.ir.Circuit
 import firrtl.transforms.core.{CDefMPort, CDefMemory}
 import firrtl.transforms.hierarchy.DedupModules
+import firrtl.util.Utils.throwInternalError
 import firrtl.util.{FIRRTLException, Utils}
 import logger._
 

@@ -2,15 +2,15 @@
 
 package firrtl.transforms.mem
 
-import firrtl.util.Utils._
 import firrtl._
 import firrtl.annotations._
 import firrtl.ir.Mappers._
 import firrtl.ir._
 import firrtl.transforms.core.{EmptyExpression, WDefInstance, WRef, WSubField}
-import firrtl.transforms.wiring.SinkAnnotation
 import firrtl.transforms.mem.MemPortUtils.{MemPortMap, Modules}
 import firrtl.transforms.mem.MemTransformUtils.{defaultPortSeq, updateStmtRefs}
+import firrtl.transforms.wiring.SinkAnnotation
+import firrtl.util.Utils._
 import firrtl.util._
 
 

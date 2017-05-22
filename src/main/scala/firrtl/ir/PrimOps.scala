@@ -3,9 +3,9 @@
 package firrtl.ir
 
 import com.typesafe.scalalogging.LazyLogging
-import firrtl.util.Utils.{max, min, pow_minus_one}
-import firrtl.transforms.core._
 import firrtl.ir
+import firrtl.transforms.core._
+import firrtl.util.Utils.{max, min, pow_minus_one}
 import firrtl.util.{Utils, getWidth}
 
 /** Definitions and Utility functions for [[ir.PrimOp]]s */

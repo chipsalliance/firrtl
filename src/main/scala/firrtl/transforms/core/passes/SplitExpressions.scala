@@ -2,11 +2,11 @@
 
 package firrtl.transforms.core.passes
 
-import firrtl.util.Utils.{gender, get_info, kind}
 import firrtl.ir.Mappers._
 import firrtl.ir._
 import firrtl.transforms.core.WRef
 import firrtl.util.Namespace
+import firrtl.util.Utils.{gender, get_info, kind}
 
 // Datastructures
 import scala.collection.mutable

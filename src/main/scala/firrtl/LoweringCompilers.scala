@@ -2,10 +2,10 @@
 
 package firrtl
 
+import firrtl.transforms.core.passes._
 import firrtl.transforms.mem.VerilogMemDelays
 import firrtl.transforms.opt.DeadCodeElimination
 import firrtl.transforms.other.BlackBoxSourceHelper
-import transforms.core.passes._
 
 sealed abstract class CoreTransform extends SeqTransform
 

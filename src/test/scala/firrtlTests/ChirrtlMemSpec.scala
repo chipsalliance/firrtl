@@ -2,8 +2,8 @@
 
 package firrtlTests
 
-import firrtl.ir.Mappers._
 import firrtl._
+import firrtl.ir.Mappers._
 import firrtl.ir._
 import firrtl.transforms.core.passes.{ConstProp, Errors, Pass, PassException}
 import firrtl.transforms.core.{MemKind, WrappedExpression}

@@ -4,12 +4,12 @@ package firrtl
 
 import java.io.{File, FileNotFoundException}
 
-import firrtl.util.Utils.throwInternalError
 import firrtl.annotations.AnnotationYamlProtocol._
 import firrtl.annotations._
 import firrtl.parser.Parser
 import firrtl.parser.Parser.{IgnoreInfo, InfoMode}
 import firrtl.transforms.other.{BlackBoxSourceHelper, BlackBoxTargetDir}
+import firrtl.util.Utils.throwInternalError
 import logger.Logger
 import net.jcazevedo.moultingyaml._
 

@@ -6,7 +6,7 @@ import firrtl._
 import firrtl.annotations._
 import firrtl.ir.Mappers._
 import firrtl.ir._
-import AnalysisUtils.eqMems
+import firrtl.transforms.mem.AnalysisUtils.eqMems
 
 /** A component, e.g. register etc. Must be declared only once under the TopAnnotation
   */

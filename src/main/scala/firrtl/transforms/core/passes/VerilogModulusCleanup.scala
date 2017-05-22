@@ -2,11 +2,11 @@
 
 package firrtl.transforms.core.passes
 
-import firrtl.util.Utils._
 import firrtl.ir.Mappers._
 import firrtl.ir.PrimOps.{Bits, Rem}
 import firrtl.ir._
 import firrtl.transforms.core.WRef
+import firrtl.util.Utils._
 import firrtl.util.{Namespace, bitWidth}
 
 import scala.collection.mutable

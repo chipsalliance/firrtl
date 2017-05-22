@@ -2,7 +2,6 @@
 
 package firrtl.transforms.mem
 
-import firrtl.util.Utils.{BoolType, one, zero}
 import firrtl._
 import firrtl.annotations._
 import firrtl.ir.Mappers._
@@ -14,6 +13,7 @@ import firrtl.transforms.core.passes._
 import firrtl.transforms.mem.AnalysisUtils.{Connects, getConnects, getOrigin}
 import firrtl.transforms.mem.MemPortUtils.memPortField
 import firrtl.util.Namespace
+import firrtl.util.Utils.{BoolType, one, zero}
 
 object InferReadWriteAnnotation {
   def apply(t: String) = Annotation(CircuitName(t), classOf[InferReadWrite], "")

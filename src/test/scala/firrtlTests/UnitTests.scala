@@ -7,7 +7,6 @@ import java.io._
 import firrtl._
 import firrtl.ir.Circuit
 import firrtl.parser.Parser
-import firrtl.passes._
 import firrtl.transforms.core.passes._
 
 class UnitTests extends FirrtlFlatSpec {

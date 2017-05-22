@@ -3,7 +3,6 @@
 package firrtlTests
 
 import firrtl.ir.Circuit
-import firrtl.passes._
 import firrtl.transforms.core.passes._
 
 // Tests the following cases for constant propagation:

@@ -3,8 +3,8 @@
 package firrtlTests
 
 import firrtl.ir.PrimOps
+import firrtl.parser
 import firrtl.parser.{ParameterNotSpecifiedException, ParameterRedefinedException, Parser}
-import firrtl.{parser, _}
 import org.scalacheck.Gen
 
 class ParserSpec extends FirrtlFlatSpec {

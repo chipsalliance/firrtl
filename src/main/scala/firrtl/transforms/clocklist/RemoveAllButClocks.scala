@@ -2,11 +2,11 @@
 
 package firrtl.transforms.clocklist
 
-import firrtl.util.Utils._
 import firrtl.ir.Mappers._
 import firrtl.ir._
 import firrtl.transforms.core.WDefInstance
 import firrtl.transforms.core.passes.Pass
+import firrtl.util.Utils._
 
 /** Remove all statements and ports (except instances/whens/blocks) whose
  *  expressions do not relate to ground types.

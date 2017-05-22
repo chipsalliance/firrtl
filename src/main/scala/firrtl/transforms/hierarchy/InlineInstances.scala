@@ -1,11 +1,11 @@
 package firrtl.transforms.hierarchy
 
 import firrtl.annotations.{Annotation, CircuitName, ComponentName, ModuleName}
+import firrtl.ir.Mappers._
 import firrtl.ir._
 import firrtl.transforms.core._
 import firrtl.transforms.core.passes.{PassException, PassExceptions}
 import firrtl.{AnnotationMap, CircuitState, LowForm, Transform}
-import firrtl.ir.Mappers._
 
 import scala.collection.mutable
 

@@ -2,11 +2,11 @@
 
 package firrtl.transforms.core.passes
 
-import firrtl.util.Utils.throwInternalError
 import firrtl.ir.Mappers._
 import firrtl.ir._
 import firrtl.transforms.analysis.InstanceGraph
 import firrtl.transforms.core.{WDefInstance, WRef, WSubField}
+import firrtl.util.Utils.throwInternalError
 import firrtl.util.{DiGraph, MutableDiGraph}
 
 import scala.collection.mutable

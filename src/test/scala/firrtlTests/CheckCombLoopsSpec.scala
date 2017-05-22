@@ -3,7 +3,6 @@
 package firrtlTests
 
 import firrtl._
-import firrtl.passes._
 import firrtl.transforms.core.passes.CheckCombLoops
 
 class CheckCombLoopsSpec extends SimpleTransformSpec {

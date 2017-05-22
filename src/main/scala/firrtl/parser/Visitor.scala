@@ -2,10 +2,10 @@
 
 package firrtl.parser
 
-import firrtl.ir.PrimOps._
 import firrtl._
 import firrtl.antlr.FIRRTLParser._
 import firrtl.antlr._
+import firrtl.ir.PrimOps._
 import firrtl.ir._
 import firrtl.parser.Parser._
 import firrtl.transforms.core._

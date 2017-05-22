@@ -2,9 +2,9 @@
 
 package firrtl.transforms.core.passes
 
-import firrtl.util.Utils._
 import firrtl.ir.Mappers._
 import firrtl.ir._
+import firrtl.util.Utils._
 
 object CheckChirrtl extends Pass {
   type NameSet = collection.mutable.HashSet[String]

@@ -4,11 +4,11 @@ package firrtl.transforms.mem
 
 import java.io.{CharArrayWriter, File, PrintWriter}
 
-import firrtl.util.Utils.error
 import firrtl._
 import firrtl.annotations._
 import firrtl.transforms.core.passes._
 import firrtl.transforms.wiring.WiringTransform
+import firrtl.util.Utils.error
 import firrtl.util.bitWidth
 
 sealed trait PassOption

@@ -3,7 +3,6 @@
 package firrtlTests.transforms
 
 import firrtl.annotations.{Annotation, CircuitName, ModuleName}
-import firrtl.transforms._
 import firrtl.transforms.other._
 import firrtl.util.FIRRTLException
 import firrtl.{AnnotationMap, Transform, VerilogCompiler}

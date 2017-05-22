@@ -2,11 +2,11 @@
 
 package firrtl.transforms.clocklist
 
-import firrtl.util.Utils._
 import firrtl.ir._
-import firrtl.transforms.mem.AnalysisUtils._
 import firrtl.transforms.core.{FEMALE, PortKind, WRef}
+import firrtl.transforms.mem.AnalysisUtils._
 import firrtl.transforms.wiring.Lineage
+import firrtl.util.Utils._
 
 object ClockListUtils {
   /** Returns a list of clock outputs from instances of external modules

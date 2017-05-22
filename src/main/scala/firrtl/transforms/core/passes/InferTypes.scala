@@ -2,13 +2,12 @@
 
 package firrtl.transforms.core.passes
 
-import firrtl.util.Utils._
-import firrtl._
 import firrtl.ir.Mappers._
 import firrtl.ir._
 import firrtl.transforms.core._
 import firrtl.transforms.mem.MemPortUtils
 import firrtl.util.Namespace
+import firrtl.util.Utils._
 
 object InferTypes extends Pass {
   type TypeMap = collection.mutable.LinkedHashMap[String, Type]

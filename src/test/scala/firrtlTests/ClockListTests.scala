@@ -4,7 +4,6 @@ import java.io._
 
 import firrtl.ir.Circuit
 import firrtl.parser.Parser
-import firrtl.passes._
 import firrtl.transforms.clocklist.ClockList
 import firrtl.transforms.core.passes._
 

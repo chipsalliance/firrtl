@@ -2,9 +2,9 @@
 
 package firrtl
 
+import _root_.logger.LogLevel
 import firrtl.annotations._
 import firrtl.parser.Parser._
-import _root_.logger.LogLevel
 import firrtl.transforms.clocklist.{ClockListAnnotation, ClockListTransform}
 import firrtl.transforms.hierarchy
 import firrtl.transforms.hierarchy.{InlineAnnotation, InlineInstances}

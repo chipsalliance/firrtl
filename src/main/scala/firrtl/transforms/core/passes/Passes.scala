@@ -7,8 +7,8 @@ import firrtl.ir.Mappers._
 import firrtl.ir.PrimOps._
 import firrtl.ir._
 import firrtl.transforms.core._
-import firrtl.util.{Namespace, bitWidth}
 import firrtl.util.Utils._
+import firrtl.util.{Namespace, bitWidth}
 
 import scala.collection.mutable
 

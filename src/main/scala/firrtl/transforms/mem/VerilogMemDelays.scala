@@ -2,15 +2,14 @@
 
 package firrtl.transforms.mem
 
-import firrtl.util.Utils._
-import firrtl._
 import firrtl.ir.Mappers._
 import firrtl.ir.PrimOps._
 import firrtl.ir._
-import MemPortUtils._
 import firrtl.transforms.core._
 import firrtl.transforms.core.passes.{LowerTypes, Pass}
+import firrtl.transforms.mem.MemPortUtils._
 import firrtl.util.Namespace
+import firrtl.util.Utils._
 
 /** This pass generates delay reigsters for memories for verilog */
 object VerilogMemDelays extends Pass {

@@ -2,10 +2,10 @@
 
 package firrtl.transforms.core
 
-import firrtl.util.Utils.field_type
 import firrtl.ir._
 import firrtl.transforms.core.WrappedExpression._
 import firrtl.transforms.core.WrappedWidth._
+import firrtl.util.Utils.field_type
 
 import scala.collection.Seq
 

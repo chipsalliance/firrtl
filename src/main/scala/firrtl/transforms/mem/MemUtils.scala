@@ -2,11 +2,9 @@
 
 package firrtl.transforms.mem
 
-import firrtl.util.Utils._
-import firrtl._
 import firrtl.ir._
 import firrtl.transforms.core._
-import firrtl.util.bitWidth
+import firrtl.util.Utils._
 import firrtl.util.{bitWidth, seqCat}
 
 /** Given a mask, return a bitmask corresponding to the desired datatype.
