@@ -1,4 +1,4 @@
-package firrtl.analyses
+package firrtl.transforms.analysis
 
 import firrtl.ir.Mappers._
 import firrtl.ir._
