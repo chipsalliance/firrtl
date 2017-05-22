@@ -5,6 +5,7 @@ package firrtl.util
 import _root_.logger.LazyLogging
 import firrtl.ir
 import firrtl.ir.PrimOps._
+import firrtl.ir.Mappers._
 import firrtl.ir._
 import firrtl.transforms.core._
 
