@@ -42,8 +42,55 @@ trait HasInfo {
 }
 trait IsDeclaration extends HasName with HasInfo
 
-case class StringLit(array: Array[Byte]) extends FirrtlNode {
-  def serialize: String = FIRRTLStringLitHandler.escape(this)
+case class StringLit(string: String) extends FirrtlNode {
+  private def throwUnsupportedChar(c: Char) =
+    throw new FIRRTLException(s"Unsupported byte in StringLit: $c")
+  private def needsEsc(c: Char) = (c == '\\' || c == '\\' || c == '"')
+  // Counts number of characters that need escaping
+  //private def charsToEsc: Int = {
+  //  var num = 0
+  //  for (c <- string) {
+  //    if (needsEsc(c)) num += 1
+  //  }
+  //  num
+  //}
+  //// Escapes characters that need to be escaped
+  //private def escape: String = {
+  //  val numToEsc = charsToEsc
+  //  if (numToEsc == 0) string
+  //  else {
+  //    val sb = new StringBuilder(string.size + numToEsc)
+  //    for (c <- string) {
+  //      if (needsEsc(c)) sb += '\\'
+  //      else if (c < ' ' || c > '~') throwUnsupportedChar(c)
+  //      sb += c
+  //    }
+  //    sb.result()
+  //  }
+  //}
+  //private def escape: String = {
+  //  string.foldLeft(new StringBuilder(string.size)) {
+  //    case (sb, c) =>
+  //      if (needsEsc(c)) sb += '\\'
+  //      else if (c < ' ' || c > '~') throwUnsupportedChar(c)
+  //      sb += c
+  //  }.result()
+  //}
+  /** Returns an escaped and quoted String */
+  def escape: String = {
+    import scala.reflect.runtime.universe._
+    Literal(Constant(string)).toString
+  }
+  def serialize: String = escape.init.tail // TODO slice instead?
+  /** Format the string for Verilog */
+  def verilogFormat: StringLit = StringLit(string.replaceAll("%x", "%h"))
+}
+object StringLit {
+  /** Create a StringLit from a raw parsed String */
+  def unescape(raw: String): StringLit = {
+    val str = StringContext.processEscapes(raw)
+    StringLit(str)
+  }
 }
 
 /** Primitive Operation
@@ -269,7 +316,7 @@ case class Print(
     clk: Expression,
     en: Expression) extends Statement with HasInfo {
   def serialize: String = {
-    val strs = Seq(clk.serialize, en.serialize, "\"" + string.serialize + "\"") ++
+    val strs = Seq(clk.serialize, en.serialize, string.escape) ++
                (args map (_.serialize))
     "printf(" + (strs mkString ", ") + ")" + info.serialize
   }

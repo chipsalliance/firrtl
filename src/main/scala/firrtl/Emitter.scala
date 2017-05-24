@@ -198,7 +198,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
     case IntParam(name, value) => s".$name($value)"
     case DoubleParam(name, value) => s".$name($value)"
     case StringParam(name, value) =>
-      val strx = "\"" + VerilogStringLitHandler.escape(value) + "\""
+      val strx = "\"" + value + "\""
       s".${name}($strx)"
     case RawStringParam(name, value) => s".$name($value)"
   }
@@ -516,9 +516,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
       def stop(ret: Int): Seq[Any] = Seq(if (ret == 0) "$finish;" else "$fatal;")
 
       def printf(str: StringLit, args: Seq[Expression]): Seq[Any] = {
-        val q = '"'.toString
-	val strx = s"""$q${VerilogStringLitHandler escape str}$q""" +:
-                  (args flatMap (Seq("," , _)))
+	      val strx = str.escape +: args.flatMap(Seq(",",_))
         Seq("$fwrite(32'h80000002,", strx, ");")
       }
 
@@ -575,7 +573,6 @@ class VerilogEmitter extends SeqTransform with Emitter {
           assign(WRef(sx.name, sx.value.tpe, NodeKind, MALE), sx.value)
           sx
         case sx: Stop =>
-          val errorString = StringLit(s"${sx.ret}\n".getBytes)
           simulate(sx.clk, sx.en, stop(sx.ret), Some("STOP_COND"))
           sx
         case sx: Print =>
