@@ -469,7 +469,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
       // Declares an intermediate wire to hold a large enough random number.
       // Then, return the correct number of bits selected from the random value
       def rand_string(t: Type) : Seq[Any] = {
-         val nx = namespace.newTemp
+         val nx = namespace.newName("_RAND")
          val rand = VRandom(bitWidth(t))
          val tx = SIntType(IntWidth(rand.realWidth))
          declare("reg",nx, tx)
