@@ -151,6 +151,9 @@ class DeadCodeElimination extends Transform {
       case ext: ExtModule =>
         // Connect all inputs to all outputs
         val node = LogicNode(ext)
+        // Don't touch external modules *unless* they are specifically marked as doTouch
+        // Simply marking the extmodule itself is sufficient to prevent inputs from being removed
+        if (!doTouchExtMods.contains(ext.name)) depGraph.addEdge(circuitSink, node)
         ext.ports.foreach {
           case Port(_, pname, _, AnalogType(_)) =>
             depGraph.addEdge(LogicNode(ext.name, pname), node)
@@ -158,7 +161,7 @@ class DeadCodeElimination extends Transform {
           case Port(_, pname, Output, _) =>
             val portNode = LogicNode(ext.name, pname)
             depGraph.addEdge(portNode, node)
-            // Don't touch external modules *unless* they are specifically marked as doTouch
+            // Also mark all outputs as circuit sinks (unless marked doTouch obviously)
             if (!doTouchExtMods.contains(ext.name)) depGraph.addEdge(circuitSink, portNode)
           case Port(_, pname, Input, _) => depGraph.addEdge(node, LogicNode(ext.name, pname))
         }
@@ -244,14 +247,19 @@ class DeadCodeElimination extends Transform {
 
     val depGraph = {
       val dGraph = createDependencyGraph(moduleDeps, doTouchExtMods, c)
-      for (dontTouch <- dontTouches) {
-        dGraph.getVertices.find(_ == dontTouch) match {
-          case Some(node) => dGraph.addEdge(circuitSink, node)
-          case None =>
-            val (root, tail) = Utils.splitRef(dontTouch.e1)
-            DontTouchAnnotation.errorNotFound(root.serialize, tail.serialize)
+
+      val vertices = dGraph.getVertices
+      dontTouches.foreach { dontTouch =>
+        // Ensure that they are actually found
+        if (vertices.contains(dontTouch)) {
+          dGraph.addEdge(circuitSink, dontTouch)
+        } else {
+          val (root, tail) = Utils.splitRef(dontTouch.e1)
+          DontTouchAnnotation.errorNotFound(root.serialize, tail.serialize)
         }
       }
+
+      // Check for dont touches that are not found
       DiGraph(dGraph)
     }
 
