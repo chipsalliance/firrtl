@@ -420,7 +420,7 @@ trait Compiler extends LazyLogging {
       allTransforms.foldLeft(state) { (in, xform) => xform.runTransform(in) }
     }
 
-    logger.info(f"Total FIRRTL Compile Time: $timeMillis%.1f ms")
+    logger.error(f"Total FIRRTL Compile Time: $timeMillis%.1f ms")
 
     finalState
   }
