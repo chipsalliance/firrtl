@@ -29,11 +29,11 @@ abstract class HasParser(applicationName: String) {
   * circuit and then set the topName from that if it has not already been set.
   */
 case class CommonOptions(
-    topName:        String         = "",
-    targetDirName:  String         = ".",
-    globalLogLevel: LogLevel.Value = LogLevel.Error,
-    logToFile:      Boolean        = false,
-    logClassNames:  Boolean        = false,
+    topName:           String         = "",
+    targetDirName:     String         = ".",
+    globalLogLevel:    LogLevel.Value = LogLevel.None,
+    logToFile:         Boolean        = false,
+    logClassNames:     Boolean        = false,
     classLogLevels: Map[String, LogLevel.Value] = Map.empty) extends ComposableOptions {
 
   def getLogFileName(optionsManager: ExecutionOptionsManager): String = {
@@ -156,7 +156,8 @@ case class FirrtlExecutionOptions(
     annotations:            List[Annotation] = List.empty,
     annotationFileNameOverride: String = "",
     forceAppendAnnoFile:    Boolean = false,
-    emitOneFilePerModule:   Boolean = false)
+    emitOneFilePerModule:   Boolean = false,
+    dontCheckCombLoops:     Boolean = false)
   extends ComposableOptions {
 
   require(!(emitOneFilePerModule && outputFileNameOverride.nonEmpty),
@@ -410,6 +411,13 @@ trait HasFirrtlOptions {
       firrtlOptions = firrtlOptions.copy(emitOneFilePerModule = true)
     }.text {
       "Emit each module to its own file in the target directory."
+    }
+
+  parser.opt[Unit]("no-check-comb-loops")
+    .foreach { _ =>
+      firrtlOptions = firrtlOptions.copy(dontCheckCombLoops = true)
+    }.text {
+      "Do NOT check for combinational loops (not recommended)"
     }
 
   parser.note("")
