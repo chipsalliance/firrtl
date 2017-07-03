@@ -4,7 +4,7 @@ package firrtl
 
 import firrtl.ir._
 import firrtl.Utils.{min, max, pow_minus_one}
-import firrtl.passes.{IAdd, ISub, IMul, IDiv, IRem, IWrap, ISat}
+import firrtl.passes.{IAdd, ISub, IMul, IDiv, IRem}
 
 import com.typesafe.scalalogging.LazyLogging
 
@@ -372,14 +372,6 @@ object PrimOps extends LazyLogging {
       }
       case BPSet => t1 match {
         case _: FixedType => FixedType(PLUS(c1, MINUS(w1, p1)), c1)
-        case _ => UnknownType
-      }
-      case Wrap => t1 match {
-        case IntervalType(i) => IntervalType(IWrap(i, e.consts(0), e.consts(1)))
-        case _ => UnknownType
-      }
-      case Sat => t1 match {
-        case IntervalType(i) => IntervalType(ISat(i, e.consts(0), e.consts(1)))
         case _ => UnknownType
       }
     })

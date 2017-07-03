@@ -137,34 +137,6 @@ class IRem(val x: Interval, val y: Interval) extends Interval {
   def serialize: String = s"(${x.serialize} % ${y.serialize})"
   def map(f: Interval=>Interval): Interval = IRem(f(x), f(y))
 }
-object IWrap {
-  def wrap(x: BigInt, hi: BigInt, lo: BigInt): BigInt = ((x - lo) mod (hi - lo + 1)) + lo
-  def apply(x: Interval, hi: BigInt, lo: BigInt): Interval = x match {
-    case IVal(a, b) =>
-      val values = (a until (b + 1)).map { y => wrap(y, hi, lo) }
-      IVal(values.reduce(_ min _), values.reduce(_ max _))
-    case _ => new IWrap(x, hi, lo)
-  }
-  def unapply(i: IWrap): Option[(Interval, BigInt, BigInt)] = Some((i.x, i.hi, i.lo))
-}
-class IWrap(val x: Interval, val hi: BigInt, val lo: BigInt) extends Interval {
-  def serialize: String = s"(${x.serialize} wrap($hi, $lo))"
-  def map(f: Interval=>Interval): Interval = IWrap(f(x), hi, lo)
-}
-object ISat {
-  def sat(x: BigInt, hi: BigInt, lo: BigInt): BigInt = if(x >= hi) hi else if(x <= lo) lo else x
-  def apply(x: Interval, hi: BigInt, lo: BigInt): Interval = x match {
-    case IVal(a, b) =>
-      val values = (a until (b + 1)).map { y => sat(y, hi, lo) }
-      IVal(values.reduce(_ min _), values.reduce(_ max _))
-    case _ => new ISat(x, hi, lo)
-  }
-  def unapply(i: ISat): Option[(Interval, BigInt, BigInt)] = Some((i.x, i.hi, i.lo))
-}
-class ISat(val x: Interval, val hi: BigInt, val lo: BigInt) extends Interval {
-  def serialize: String = s"(${x.serialize} sat($hi, $lo))"
-  def map(f: Interval=>Interval): Interval = ISat(f(x), hi, lo)
-}
 object IMax {
   def apply(is: Seq[Interval]): Interval = {
     val flattened = is.flatMap { i =>

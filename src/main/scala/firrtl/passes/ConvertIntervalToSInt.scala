@@ -54,40 +54,6 @@ object ConvertIntervalToSInt extends Pass {
       def updateExpType(e: Expression): Expression = e match {
         case DoPrim(AsInterval, args, consts, tpe: IntervalType) =>
           set(DoPrim(Cvt, args, Nil, UnknownType))
-        case DoPrim(Wrap, args, consts, tpe: IntervalType) => (consts(1), consts(0), args(0).tpe, args(0)) match {
-          case (lo, hi, _, _) if (lo == BigInt(0)) && (hi == BigInt(0)) => // [0, 0]
-            SIntLit(BigInt(0))
-          case (lo, hi, _, _) if (lo == BigInt(0)) && ((hi > BigInt(0)) && ((hi + 1).bitCount == 1)) => // [0, 2^n]
-            set(DoPrim(Shr, args, Seq(BigInt(hi.bitLength)), UnknownType))
-          case (lo, hi, IntervalType(IVal(min, max)), x) if ((max - min) < (2 * (hi - lo))) && (max > lo) && (hi > min) => // [-(hi-lo), (hi-lo)], where at least part of the intervals overlap
-            //val ltLo = hi - (lo - x)
-            val ltLoVal = set(DoPrim(Add, Seq(x, SIntLit(hi - lo)), Nil, UnknownType))
-            //val gtHi = lo + (x - hi)
-            val gtHiVal = set(DoPrim(Add, Seq(x, SIntLit(lo - hi)), Nil, UnknownType))
-            println(lo-hi)
-            println(SIntLit(lo-hi))
-            println(SIntLit(lo-hi).serialize)
-            println((lo-hi).bitLength)
-            println((lo-hi).byteValue)
-            println((lo-hi).underlying)
-            println(SIntLit(lo-hi).value.toString(2).substring(1))
-            val ltLo = set(DoPrim(Lt, Seq(x, SIntLit(lo)), Nil, UnknownType))
-            val gtHi = set(DoPrim(Gt, Seq(x, SIntLit(hi)), Nil, UnknownType))
-            if(min >= lo && max <= hi) {
-              x
-            } else if(min >= lo) {
-              set(Mux(gtHi, gtHiVal, x, UnknownType))
-            } else if(max <= hi) {
-              set(Mux(ltLo, ltLoVal, x, UnknownType))
-            } else {
-              set(Mux(ltLo, ltLoVal, set(Mux(gtHi, gtHiVal, x, UnknownType)), UnknownType))
-            }
-          case (lo, hi, IntervalType(i), x) =>
-            val sub = set(DoPrim(Sub, Seq(x, SIntLit(lo)), Nil, UnknownType))
-            val mod = set(DoPrim(Rem, Seq(sub, SIntLit(hi - lo + 1)), Nil, UnknownType))
-            val add = set(DoPrim(Add, Seq(mod, SIntLit(lo)), Nil, UnknownType))
-            add
-        }
         case DoPrim(op, args, consts, tpe: IntervalType) =>
           set(DoPrim(op, args map updateExpType, consts, UnknownType))
         case _ => e map updateExpType match {
