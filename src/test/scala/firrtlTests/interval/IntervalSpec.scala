@@ -31,7 +31,7 @@ class IntervalSpec extends FirrtlFlatSpec {
       lines should contain(e)
     }
   }
-  override def executeTest(input: String, expected: Seq[String], compiler: Compiler) = {
+  def executeTest(input: String, expected: Seq[String], compiler: Compiler) = {
     val writer = new StringWriter()
     compiler.compile(CircuitState(parse(input), ChirrtlForm), writer)
     val lines = writer.toString().split("\n") map normalized
@@ -64,8 +64,6 @@ class IntervalSpec extends FirrtlFlatSpec {
         |    output ndiv: Interval
         |    output nrem: Interval
         |    output mux: Interval
-        |    output wrap: Interval
-        |    output sat: Interval
         |    add <= add(x, y)
         |    sub <= sub(x, y)
         |    mul <= mul(x, y)
@@ -74,8 +72,6 @@ class IntervalSpec extends FirrtlFlatSpec {
         |    ndiv <= div(r, q)
         |    nrem <= rem(r, q)
         |    mux <= mux(asUInt(p), x, z)
-        |    wrap <= wrap(y, 4, 2)
-        |    sat <= sat(y, 4, 2)
         |""".stripMargin
     val check = Seq(
       "output add : Interval[0, 6]",
@@ -85,9 +81,7 @@ class IntervalSpec extends FirrtlFlatSpec {
       "output rem : Interval[0, 2]",
       "output ndiv : Interval[-1, -1]",
       "output nrem : Interval[1, 1]",
-      "output mux : Interval[-3, 2]",
-      "output wrap : Interval[2, 4]",
-      "output sat : Interval[2, 4]"
+      "output mux : Interval[-3, 2]"
     )
     executeTest(input, check, passes)
   }
@@ -260,6 +254,7 @@ class IntervalSpec extends FirrtlFlatSpec {
     executeTest(input, check, compiler)
   }
 
+/*
   "Wrapping Intervals" should "optimize properly" in {
     val passes = Seq(
       ToWorkingIR,
@@ -287,6 +282,7 @@ class IntervalSpec extends FirrtlFlatSpec {
     )
     executeTest(input, check, passes)
   }
+  */
 
   "Interval circuit" should "compile and run" in {
     val input =
