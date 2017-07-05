@@ -254,7 +254,7 @@ class ConstantPropagation extends Transform {
   @tailrec
   private def constPropModule(m: Module, dontTouches: Set[String]): Module = {
     var nPropagated = 0L
-    val nodeMap = mutable.HashMap.empty[String, Expression]
+    val nodeMap = mutable.HashMap.empty[WrappedExpression, Expression]
     // For cases where we are trying to constprop a bad name over a good one, we swap their names
     // during the second pass
     val swapMap = mutable.HashMap.empty[String, String]
@@ -266,8 +266,8 @@ class ConstantPropagation extends Transform {
         case ref @ WRef(rname, _,_,_) if swapMap.contains(rname) =>
           ref.copy(name = swapMap(rname))
         // Only const prop on the rhs
-        case ref @ WRef(rname, _,_, MALE) if nodeMap.contains(rname) =>
-          constPropNodeRef(ref, nodeMap(rname))
+        case ref @ WRef(rname, _,_, MALE) if nodeMap.contains(ref) =>
+          constPropNodeRef(ref, nodeMap(ref))
         case x => x
       }
       if (old ne propagated) {
@@ -294,40 +294,40 @@ class ConstantPropagation extends Transform {
       val propagated = old match {
         case p: DoPrim => constPropPrim(p)
         case m: Mux => constPropMux(m)
-        case ref @ WRef(rname, _,_, MALE) if nodeMap.contains(rname) =>
-          constPropNodeRef(ref, nodeMap(rname))
+        case ref @ WRef(rname, _,_, MALE) if nodeMap.contains(ref) =>
+          constPropNodeRef(ref, nodeMap(ref))
         case x => x
       }
       propagated
     }
 
     // When propagating a reference, check if we want to keep the name that would be deleted
-    def propagateRef(lname: String, value: Expression): Unit = {
+    def propagateRef(lref: WRef, value: Expression): Unit = {
       value match {
-        case WRef(rname,_,_,_) if betterName(lname, rname) =>
-          swapMap += (lname -> rname, rname -> lname)
+        case WRef(rname,_,_,_) if betterName(lref.name, rname) =>
+          swapMap += (lref.name -> rname, rname -> lref.name)
         case _ =>
       }
-      nodeMap(lname) = value
+      nodeMap(lref) = value
     }
 
     def constPropStmt(s: Statement): Statement = {
       val stmtx = s map constPropStmt map constPropExpression
       stmtx match {
-        case x: DefNode if !dontTouches.contains(x.name) => propagateRef(x.name, x.value)
-        case Connect(_, WRef(wname, wtpe, WireKind, _), expr) if !dontTouches.contains(wname) =>
+        case x: DefNode if !dontTouches.contains(x.name) => propagateRef(WRef(x), x.value)
+        case Connect(_, ref @ WRef(wname, wtpe, WireKind, _), expr) if !dontTouches.contains(wname) =>
           val exprx = constPropExpression(pad(expr, wtpe))
-          propagateRef(wname, exprx)
+          propagateRef(ref, exprx)
         // Const prop registers that are fed only a constant or a mux between and constant and the
         // register itself
         // This requires that reset has been made explicit
         case Connect(_, rref @ WRef(rname, rtpe, RegKind, _), expr) => expr match {
           case lit: Literal =>
-            nodeMap(rname) = constPropExpression(pad(lit, rtpe))
+            nodeMap(rref) = constPropExpression(pad(lit, rtpe))
           case Mux(_, tval: WRef, fval: Literal, _) if weq(rref, tval) =>
-            nodeMap(rname) = constPropExpression(pad(fval, rtpe))
+            nodeMap(rref) = constPropExpression(pad(fval, rtpe))
           case Mux(_, tval: Literal, fval: WRef, _) if weq(rref, fval) =>
-            nodeMap(rname) = constPropExpression(pad(tval, rtpe))
+            nodeMap(rref) = constPropExpression(pad(tval, rtpe))
           case _ =>
         }
         case _ =>
