@@ -85,6 +85,7 @@ class MiddleFirrtlToLowFirrtl extends CoreTransform {
     passes.ResolveGenders,
     passes.InferWidths,
     passes.Legalize,
+    new firrtl.transforms.RemoveReset,
     new firrtl.transforms.CheckCombLoops)
 }
 
@@ -97,12 +98,12 @@ class LowFirrtlOptimization extends CoreTransform {
   def outputForm = LowForm
   def transforms = Seq(
     passes.RemoveValidIf,
-    passes.ConstProp,
+    new firrtl.transforms.ConstantPropagation,
     passes.PadWidths,
-    passes.ConstProp,
+    new firrtl.transforms.ConstantPropagation,
     passes.Legalize,
     passes.memlib.VerilogMemDelays, // TODO move to Verilog emitter
-    passes.ConstProp,
+    new firrtl.transforms.ConstantPropagation,
     passes.SplitExpressions,
     passes.CommonSubexpressionElimination,
     new firrtl.transforms.DeadCodeElimination)
