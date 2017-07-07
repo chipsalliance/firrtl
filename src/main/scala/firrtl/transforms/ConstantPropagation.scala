@@ -1,16 +1,23 @@
 // See LICENSE for license details.
 
-package firrtl.passes
+package firrtl
+package transforms
 
 import firrtl._
+import firrtl.annotations._
 import firrtl.ir._
 import firrtl.Utils._
 import firrtl.Mappers._
 import firrtl.PrimOps._
+import firrtl.WrappedExpression.weq
 
 import annotation.tailrec
+import collection.mutable
 
-object ConstProp extends Pass {
+class ConstantPropagation extends Transform {
+  def inputForm = LowForm
+  def outputForm = LowForm
+
   private def pad(e: Expression, t: Type) = (bitWidth(e.tpe), bitWidth(t)) match {
     case (we, wt) if we < wt => DoPrim(Pad, Seq(e), Seq(wt), t)
     case (we, wt) if we == wt => e
@@ -234,18 +241,31 @@ object ConstProp extends Pass {
     case _ => r
   }
 
+  // Is "a" a "better name" than "b"?
+  private def betterName(a: String, b: String): Boolean = (a.head != '_') && (b.head == '_')
+
   // Two pass process
   // 1. Propagate constants in expressions and forward propagate references
   // 2. Propagate references again for backwards reference (Wires)
   // TODO Replacing all wires with nodes makes the second pass unnecessary
+  //   However, preserving decent names DOES require a second pass
+  //   Replacing all wires with nodes makes it unnecessary for preserving decent names to trigger an
+  //   extra iteration though
   @tailrec
-  private def constPropModule(m: Module): Module = {
+  private def constPropModule(m: Module, dontTouches: Set[String]): Module = {
     var nPropagated = 0L
-    val nodeMap = collection.mutable.HashMap[String, Expression]()
+    val nodeMap = mutable.HashMap.empty[String, Expression]
+    // For cases where we are trying to constprop a bad name over a good one, we swap their names
+    // during the second pass
+    val swapMap = mutable.HashMap.empty[String, String]
 
     def backPropExpr(expr: Expression): Expression = {
       val old = expr map backPropExpr
       val propagated = old match {
+        // When swapping, we swap both rhs and lhs
+        case ref @ WRef(rname, _,_,_) if swapMap.contains(rname) =>
+          ref.copy(name = swapMap(rname))
+        // Only const prop on the rhs
         case ref @ WRef(rname, _,_, MALE) if nodeMap.contains(rname) =>
           constPropNodeRef(ref, nodeMap(rname))
         case x => x
@@ -255,7 +275,19 @@ object ConstProp extends Pass {
       }
       propagated
     }
-    def backPropStmt(stmt: Statement): Statement = stmt map backPropStmt map backPropExpr
+
+    def backPropStmt(stmt: Statement): Statement = stmt map backPropExpr match {
+      case decl: IsDeclaration if swapMap.contains(decl.name) =>
+        val newName = swapMap(decl.name)
+        nPropagated += 1
+        decl match {
+          case node: DefNode => node.copy(name = newName)
+          case wire: DefWire => wire.copy(name = newName)
+          case reg: DefRegister => reg.copy(name = newName)
+          case other => throwInternalError
+        }
+      case other => other map backPropStmt
+    }
 
     def constPropExpression(e: Expression): Expression = {
       val old = e map constPropExpression
@@ -269,27 +301,63 @@ object ConstProp extends Pass {
       propagated
     }
 
+    // When propagating a reference, check if we want to keep the name that would be deleted
+    def propagateRef(lname: String, value: Expression): Unit = {
+      value match {
+        case WRef(rname,_,_,_) if betterName(lname, rname) =>
+          swapMap += (lname -> rname, rname -> lname)
+        case _ =>
+      }
+      nodeMap(lname) = value
+    }
+
     def constPropStmt(s: Statement): Statement = {
       val stmtx = s map constPropStmt map constPropExpression
       stmtx match {
-        case x: DefNode => nodeMap(x.name) = x.value
-        case Connect(_, WRef(wname, wtpe, WireKind, _), expr) =>
+        case x: DefNode if !dontTouches.contains(x.name) => propagateRef(x.name, x.value)
+        case Connect(_, WRef(wname, wtpe, WireKind, _), expr) if !dontTouches.contains(wname) =>
           val exprx = constPropExpression(pad(expr, wtpe))
-          nodeMap(wname) = exprx
+          propagateRef(wname, exprx)
+        // Const prop registers that are fed only a constant or a mux between and constant and the
+        // register itself
+        // This requires that reset has been made explicit
+        case Connect(_, rref @ WRef(rname, rtpe, RegKind, _), expr) => expr match {
+          case lit: Literal =>
+            nodeMap(rname) = constPropExpression(pad(lit, rtpe))
+          case Mux(_, tval: WRef, fval: Literal, _) if weq(rref, tval) =>
+            nodeMap(rname) = constPropExpression(pad(fval, rtpe))
+          case Mux(_, tval: Literal, fval: WRef, _) if weq(rref, fval) =>
+            nodeMap(rname) = constPropExpression(pad(tval, rtpe))
+          case _ =>
+        }
         case _ =>
       }
       stmtx
     }
 
-    val res = Module(m.info, m.name, m.ports, backPropStmt(constPropStmt(m.body)))
-    if (nPropagated > 0) constPropModule(res) else res
+    val res = m.copy(body = backPropStmt(constPropStmt(m.body)))
+    if (nPropagated > 0) constPropModule(res, dontTouches) else res
   }
 
-  def run(c: Circuit): Circuit = {
+  private def run(c: Circuit, dontTouchMap: Map[String, Set[String]]): Circuit = {
     val modulesx = c.modules.map {
       case m: ExtModule => m
-      case m: Module => constPropModule(m)
+      case m: Module => constPropModule(m, dontTouchMap.getOrElse(m.name, Set.empty))
     }
     Circuit(c.info, modulesx, c.main)
+  }
+
+  def execute(state: CircuitState): CircuitState = {
+    val dontTouches: Seq[(String, String)] = state.annotations match {
+      case Some(aMap) => aMap.annotations.collect {
+        case DontTouchAnnotation(ComponentName(c, ModuleName(m, _))) => m -> c
+      }
+      case None => Seq.empty
+    }
+    // Map from module name to component names
+    val dontTouchMap: Map[String, Set[String]] =
+      dontTouches.groupBy(_._1).mapValues(_.map(_._2).toSet)
+
+    state.copy(circuit = run(state.circuit, dontTouchMap))
   }
 }
