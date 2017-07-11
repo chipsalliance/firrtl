@@ -251,7 +251,7 @@ object PrimOps extends LazyLogging {
         case _: UIntType => SIntType(w1)
         case _: SIntType => SIntType(w1)
         case _: FixedType => SIntType(w1)
-        case _: IntervalType => UIntType(w1)
+        case _: IntervalType => SIntType(w1)
         case ClockType => SIntType(IntWidth(1))
         case _: AnalogType => SIntType(w1)
         case _ => UnknownType
