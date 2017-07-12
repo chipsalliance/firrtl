@@ -361,11 +361,11 @@ case class Field(name: String, flip: Orientation, tpe: Type) extends FirrtlNode 
 /** Bounds of [[IntervalType]] */
 
 trait Bound {
-  def +(that: Bound): Bound
-  def -(that: Bound): Bound
-  def *(that: Bound): Bound
-  def max(that: Bound): Bound
-  def min(that: Bound): Bound
+//  def +(that: Bound): Bound
+//  def -(that: Bound): Bound
+//  def *(that: Bound): Bound
+//  def max(that: Bound): Bound
+//  def min(that: Bound): Bound
   //def /(that: Bound): Bound = (this, that) match {
   //  case (Open(x),   Open(y))   if y == 0 => Open(x)
   //  case (Open(x),   Open(y))             => Open(x / y)
@@ -383,15 +383,57 @@ trait Bound {
   //  case Closed(x)           => Closed(value % x)
   //}
 }
-case object UnknownBound extends Bound {
-  def +(that: Bound): Bound = UnknownBound
-  def -(that: Bound): Bound = UnknownBound
-  def *(that: Bound): Bound = UnknownBound
-  def max(that: Bound): Bound = UnknownBound
-  def min(that: Bound): Bound = UnknownBound
+
+case object UnknownBound extends Bound 
+
+case class VarBound(name: String, value: BigDecimal) extends Bound
+
+object AddBound {
+  def apply(bounds: Bound*): Bound = {
+    val (known, unknowns) = bounds.foldLeft((Open(0): KnownBound, Nil: Seq[Bound])) {
+      case ((known: KnownBound, acc: Seq[Bound]), next: Bound) => next match {
+        case k: KnownBound => (known + k, acc)
+        case u => (known, acc ++ Seq(u))
+      }
+    }
+    (known, unknowns) match {
+      case (Open(x), seq) if x == 0 => new AddBound(seq)
+      case (k, Nil) => known
+    }
+  }
 }
+class AddBound(bounds: Seq[Bound]) extends Bound
+object MulBound {
+  def apply(bounds: Bound*): Bound = {
+    val (known, unknowns) = bounds.foldLeft((Open(0): KnownBound, Nil: Seq[Bound])) {
+      case ((known: KnownBound, acc: Seq[Bound]), next: Bound) => next match {
+        case k: KnownBound => (known * k, acc)
+        case u => (known, acc ++ Seq(u))
+      }
+    }
+    (known, unknowns) match {
+      case (Open(x), seq) if x == 0 => new MulBound(seq)
+      case (k, Nil) => known
+    }
+  }
+}
+class MulBound(bounds: Seq[Bound]) extends Bound
+object NegBound {
+  def apply(bound: Bound): Bound = bound match {
+    case k: KnownBound => k.neg
+    case _ => new NegBound(bound)
+  }
+}
+class NegBound(bound: Bound) extends Bound
+
 sealed trait KnownBound extends Bound {
   val value: BigDecimal
+  def +(that: KnownBound): KnownBound
+  //def -(that: KnownBound): KnownBound
+  def *(that: KnownBound): KnownBound
+  def max(that: KnownBound): KnownBound
+  def min(that: KnownBound): KnownBound
+  def neg: KnownBound
 }
 object KnownBound {
   def unapply(b: Bound): Option[BigDecimal] = b match {
@@ -400,54 +442,56 @@ object KnownBound {
   }
 }
 case class Open(value: BigDecimal) extends KnownBound {
-  def +(that: Bound): Bound = that match {
+  def +(that: KnownBound): KnownBound = that match {
     case KnownBound(x) => Open(value + x)
-    case UnknownBound => UnknownBound
+    //case UnknownBound => UnknownBound
   }
-  def -(that: Bound): Bound = that match {
-    case KnownBound(x) => Open(value - x)
-    case UnknownBound => UnknownBound
-  }
-  def *(that: Bound): Bound = that match {
+  //def -(that: KnownBound): KnownBound = that match {
+  //  case KnownBound(x) => Open(value - x)
+  //  //case UnknownBound => UnknownBound
+  //}
+  def *(that: KnownBound): KnownBound = that match {
     case KnownBound(x) => Open(value * x)
-    case UnknownBound => UnknownBound
+    //case UnknownBound => UnknownBound
   }
-  def min(that: Bound): Bound = that match {
+  def min(that: KnownBound): KnownBound = that match {
     case KnownBound(x) if value < x  => this
     case KnownBound(x)               => that
-    case UnknownBound                => UnknownBound
+    //case UnknownBound                => UnknownBound
   }
-  def max(that: Bound): Bound = that match {
+  def max(that: KnownBound): KnownBound = that match {
     case KnownBound(x) if value > x => this
     case KnownBound(x)              => that
-    case UnknownBound               => UnknownBound
+    //case UnknownBound               => UnknownBound
   }
+  def neg: KnownBound = Open(-value)
 }
 case class Closed(value: BigDecimal) extends KnownBound {
-  def +(that: Bound): Bound = that match {
+  def +(that: KnownBound): KnownBound = that match {
     case Open(x) => Open(value + x)
     case Closed(x) => Closed(value + x)
-    case UnknownBound => UnknownBound
+    //case UnknownBound => UnknownBound
   }
-  def -(that: Bound): Bound = that match {
-    case Open(x) => Open(value - x)
-    case Closed(x) => Closed(value - x)
-    case UnknownBound => UnknownBound
-  }
-  def *(that: Bound): Bound = that match {
+  //def -(that: KnownBound): KnownBound = that match {
+  //  case Open(x) => Open(value - x)
+  //  case Closed(x) => Closed(value - x)
+  //  //case UnknownBound => UnknownBound
+  //}
+  def *(that: KnownBound): KnownBound = that match {
     case Open(x) => Open(value * x)
     case Closed(x) => Closed(value * x)
   }
-  def min(that: Bound): Bound = that match {
+  def min(that: KnownBound): KnownBound = that match {
     case KnownBound(x) if value <= x => this
     case KnownBound(x)               => that
-    case UnknownBound                => UnknownBound
+    //case UnknownBound                => UnknownBound
   }
-  def max(that: Bound): Bound = that match {
+  def max(that: KnownBound): KnownBound = that match {
     case KnownBound(x) if value >= x => this
     case KnownBound(x)               => that
-    case UnknownBound                => UnknownBound
+    //case UnknownBound                => UnknownBound
   }
+  def neg: KnownBound = Closed(-value)
 }
 
 /** Types of [[FirrtlNode]] */

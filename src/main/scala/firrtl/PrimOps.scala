@@ -133,6 +133,7 @@ object PrimOps extends LazyLogging {
         case (_: SIntType, _: UIntType) => SIntType(PLUS(MAX(w2, MINUS(w1, IntWidth(1))), IntWidth(2)))
         case (_: SIntType, _: SIntType) => SIntType(PLUS(MAX(w1, w2), IntWidth(1)))
         case (_: FixedType, _: FixedType) => FixedType(PLUS(PLUS(MAX(p1, p2), MAX(MINUS(w1, p1), MINUS(w2, p2))), IntWidth(1)), MAX(p1, p2))
+        case (IntervalType(l1, u1, p1), IntervalType(l2, u2, p2)) => IntervalType(AddBound(l1, l2), AddBound(u1, u2), MAX(p1, p2))
         case _ => UnknownType
       }
       case Sub => (t1, t2) match {
@@ -141,6 +142,7 @@ object PrimOps extends LazyLogging {
         case (_: SIntType, _: UIntType) => SIntType(MAX(PLUS(w1, IntWidth(1)), PLUS(w2, IntWidth(2))))
         case (_: SIntType, _: SIntType) => SIntType(PLUS(MAX(w1, w2), IntWidth(1)))
         case (_: FixedType, _: FixedType) => FixedType(PLUS(PLUS(MAX(p1, p2),MAX(MINUS(w1, p1), MINUS(w2, p2))),IntWidth(1)), MAX(p1, p2))
+        case (IntervalType(l1, u1, p1), IntervalType(l2, u2, p2)) => IntervalType(AddBound(l1, NegBound(u2)), AddBound(u1, NegBound(l2)), MAX(p1, p2))
         case _ => UnknownType
       }
       case Mul => (t1, t2) match {
@@ -149,6 +151,7 @@ object PrimOps extends LazyLogging {
         case (_: SIntType, _: UIntType) => SIntType(PLUS(w1, w2))
         case (_: SIntType, _: SIntType) => SIntType(PLUS(w1, w2))
         case (_: FixedType, _: FixedType) => FixedType(PLUS(w1, w2), PLUS(p1, p2))
+        case (IntervalType(l1, u1, p1), IntervalType(l2, u2, p2)) => IntervalType(MulBound(l1, l2), MulBound(u1, u2), MAX(p1, p2))
         case _ => UnknownType
       }
       case Div => (t1, t2) match {
