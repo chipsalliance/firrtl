@@ -364,6 +364,7 @@ case class Field(name: String, flip: Orientation, tpe: Type) extends FirrtlNode 
 trait IsConstrainable[T] {
   def optimize(): T
   def map(f: T=>T): T
+  def serialize: String
 }
 trait IsVar {
   def name: String
@@ -373,6 +374,18 @@ trait IsMax[T] {
 }
 trait IsMin[T] {
   def children: Seq[T]
+}
+trait IsAdd[T] {
+  def children: Seq[T]
+}
+trait IsMul[T] {
+  def children: Seq[T]
+}
+trait IsNeg[T] {
+  def children: Seq[T]
+}
+trait IsVal {
+  def value: BigDecimal
 }
 trait Bound extends IsConstrainable[Bound] {
   def serialize: String
@@ -389,7 +402,7 @@ trait Bound extends IsConstrainable[Bound] {
   def optimize(): Bound = map(_.optimize()).reduce()
   def gen(bounds: Seq[Bound]): Bound
   def op(b1: KnownBound, b2: KnownBound): Bound
-  def identity: Int
+  def identity: Option[Int]
   def reduce(): Bound = {
     val newBounds = children.flatMap{ 
       _ match {
@@ -397,7 +410,7 @@ trait Bound extends IsConstrainable[Bound] {
         case x => Seq(x)
       }
     }
-    val groups = newBounds.groupBy{
+    val groups = newBounds.groupBy {
       case x: KnownBound => "known"
       case x: MaxBound   => "max"
       case x: MinBound   => "min"
@@ -407,10 +420,10 @@ trait Bound extends IsConstrainable[Bound] {
       case (k1: KnownBound, k2: KnownBound) => op(k1, k2)
       case _ => sys.error("Shouldn't be here")
     }
-    val known = groups.get("max") match {
+    val known = groups.get("known") match {
       case None => Nil
       case Some(seq) => seq.reduce(genericOp) match {
-        case k: KnownBound if k.value == identity => Nil //TODO add multiply by zero
+        case k: KnownBound if Some(k.value) == identity => Nil //TODO add multiply by zero
         case k => Seq(k)
       }
     }
@@ -427,6 +440,7 @@ trait Bound extends IsConstrainable[Bound] {
       case Some(seq) => seq
     }
     (max, min) match {
+      case (Nil, Nil) if known.size + others.size == 1 => (known ++ others).head
       case (Nil, Nil) => gen(known ++ others)
       case (Seq(x), Nil) => MaxBound(x.children.map { c => gen(Seq(c) ++ known ++ others).reduce() }:_*)
       case (Nil, Seq(x)) => MinBound(x.children.map { c => gen(Seq(c) ++ known ++ others).reduce() }:_*)
@@ -451,22 +465,22 @@ trait Bound extends IsConstrainable[Bound] {
   //}
 }
 
-case class AddBound(bounds: Bound*) extends Bound {
-  val identity: Int = 0
+case class AddBound(bounds: Bound*) extends Bound with IsAdd[Bound] {
+  val identity = Some(0)
   def gen(bounds: Seq[Bound]): Bound = AddBound(bounds:_*)
   def op(b1: KnownBound, b2: KnownBound): Bound = b1 + b2
   def serialize: String = "(" + bounds.map(_.serialize).mkString(" + ") + ")"
   def map(f: Bound=>Bound): Bound = AddBound(bounds.map(f):_*)
 }
-case class MulBound(bounds: Bound*) extends Bound {
-  val identity: Int = 1
+case class MulBound(bounds: Bound*) extends Bound with IsMul[Bound] {
+  val identity = Some(1)
   def gen(bounds: Seq[Bound]): Bound = MulBound(bounds:_*)
   def op(b1: KnownBound, b2: KnownBound): Bound = b1 * b2
   def map(f: Bound=>Bound): Bound = MulBound(bounds.map(f):_*)
   def serialize: String = "(" + bounds.map(_.serialize).mkString(" * ") + ")"
 }
-case class NegBound(bound: Bound) extends Bound {
-  def identity: Int = sys.error("Shouldn't be here")
+case class NegBound(bound: Bound) extends Bound with IsNeg[Bound] {
+  def identity: Option[Int] = sys.error("Shouldn't be here")
   override def reduce(): Bound = bound match {
     case k: KnownBound => k.neg
     case AddBound(bounds) => AddBound(bounds.map { b => NegBound(b).reduce }).reduce
@@ -480,40 +494,31 @@ case class NegBound(bound: Bound) extends Bound {
   def map(f: Bound=>Bound): Bound = NegBound(f(bound))
   def serialize: String = "(-" + bound.serialize + ")"
 }
-case class MaxBound(bounds: Bound*) extends Bound {
-  def identity: Int = sys.error("Shouldn't be here")
+case class MaxBound(bounds: Bound*) extends Bound with IsMax[Bound] {
+  def identity: Option[Int] = None
   def gen(bounds: Seq[Bound]): Bound = MaxBound(bounds:_*)
   def op(b1: KnownBound, b2: KnownBound): Bound = b1 max b2
-  override def reduce() = {
-    val newBounds = bounds.foldLeft(Nil: Seq[Bound]){ (acc, b) =>
-      b match {
-        case a: MaxBound => acc ++ a.bounds
-        case x => acc ++ Seq(x)
-      }
-    }
-    (MaxBound(newBounds.distinct:_*)).reduce
-  }
+  //override def reduce() = {
+  //  val newBounds = bounds.foldLeft(Nil: Seq[Bound]){ (acc, b) =>
+  //    b match {
+  //      case a: MaxBound => acc ++ a.bounds
+  //      case x => acc ++ Seq(x)
+  //    }
+  //  }
+  //  MaxBound(newBounds.distinct:_*)
+  //}
   def serialize: String = "max(" + bounds.map(_.serialize).mkString(", ") + ")"
   def map(f: Bound=>Bound): Bound = MaxBound(bounds.map(f):_*)
 }
-case class MinBound(bounds: Bound*) extends Bound {
-  def identity: Int = sys.error("Shouldn't be here")
+case class MinBound(bounds: Bound*) extends Bound with IsMin[Bound] {
+  def identity: Option[Int] = sys.error("Shouldn't be here")
   def gen(bounds: Seq[Bound]): Bound = MinBound(bounds:_*)
   def op(b1: KnownBound, b2: KnownBound): Bound = b1 min b2
-  override def reduce() = {
-    val newBounds = bounds.foldLeft(Nil: Seq[Bound]){ (acc, b) =>
-      b match {
-        case a: MaxBound => acc ++ a.bounds
-        case x => acc ++ Seq(x)
-      }
-    }
-    (MinBound(newBounds.distinct:_*)).reduce
-  }
   def serialize: String = "min(" + bounds.map(_.serialize).mkString(", ") + ")"
   def map(f: Bound=>Bound): Bound = MinBound(bounds.map(f):_*)
 }
 case object UnknownBound extends Bound {
-  def identity: Int = sys.error("Shouldn't be here")
+  def identity: Option[Int] = sys.error("Shouldn't be here")
   def gen(bounds: Seq[Bound]): Bound = sys.error("Shouldn't be here")
   def op(b1: KnownBound, b2: KnownBound): Bound =  sys.error("Shouldn't be here")
   override def reduce() = this
@@ -521,15 +526,15 @@ case object UnknownBound extends Bound {
   def map(f: Bound=>Bound): Bound = this
 }
 case class VarBound(name: String) extends Bound with IsVar {
-  def identity: Int = sys.error("Shouldn't be here")
+  def identity: Option[Int] = sys.error("Shouldn't be here")
   def gen(bounds: Seq[Bound]): Bound = sys.error("Shouldn't be here")
   def op(b1: KnownBound, b2: KnownBound): Bound =  sys.error("Shouldn't be here")
   override def reduce() = this
   def serialize: String = name
   def map(f: Bound=>Bound): Bound = this
 }
-sealed trait KnownBound extends Bound {
-  def identity: Int = sys.error("Shouldn't be here")
+sealed trait KnownBound extends Bound with IsVal {
+  def identity: Option[Int] = sys.error("Shouldn't be here")
   val value: BigDecimal
   def +(that: KnownBound): KnownBound
   //def -(that: KnownBound): KnownBound
