@@ -37,4 +37,26 @@ class IntervalSpec extends FirrtlFlatSpec {
         |    out1 <= add(in0, add(in1, add(in2, add(in3, add(in4, add(in5, in6))))))""".stripMargin
     executeTest(input, input.split("\n") map normalized, passes)
   }
+
+  "Interval types" should "infer bp correctly" in {
+    val passes = Seq(ToWorkingIR, InferTypes, ResolveGenders, InferBinaryPoints)
+    val input =
+      """circuit Unit :
+        |  module Unit :
+        |    input in0 : Interval(-0.32, 10.1).4
+        |    input in1 : Interval[0, 10.10].3
+        |    input in2 : Interval(-0.32, 10].2
+        |    output out0 : Interval
+        |    out0 <= add(in0, add(in1, in2))""".stripMargin
+    val check =
+      """circuit Unit :
+        |  module Unit :
+        |    input in0 : Interval(-0.32, 10.1).4
+        |    input in1 : Interval[0, 10.10].3
+        |    input in2 : Interval(-0.32, 10].2
+        |    output out0 : Interval.4
+        |    out0 <= add(in0, add(in1, in2))""".stripMargin
+    executeTest(input, check.split("\n") map normalized, passes)
+  }
+
 }
