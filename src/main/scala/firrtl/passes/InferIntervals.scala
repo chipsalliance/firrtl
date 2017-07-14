@@ -16,48 +16,53 @@ trait Constraint[T<:IsConstrainable[T]] {
   def right: T
   def geq: Boolean
 }
-case class BGeq(left: String, right: Bound) extends Constraint[Bound] {
-  val geq = true
-}
-case class BLeq(left: String, right: Bound) extends Constraint[Bound] {
-  val geq = false
-}
-
 abstract class ConstraintSolver[T<:IsConstrainable[T]] {
   /** Unimplemented Members */
+  def genConst(left: String, right: T, geq: Boolean): Constraint[T]
   def genMax(args: T*): T
   def genMin(args: T*): T
   def genVar(name: String): T
 
-  /** Constraint Solver */
+  /** Internal State and Accessors */
+  // initial constraints
   val constraints = mutable.ArrayBuffer[Constraint[T]]()
   def add(c: Constraint[T]) = constraints += c
+  def serializeConstraints: String = constraints.mkString("\n")
 
+  // solved constraints
   type ConstraintMap = mutable.HashMap[String, (T, Boolean)]
+  val solvedConstraintMap = new ConstraintMap()
+  def serializeSolutions: String = solvedConstraintMap.map{
+    case (k, (v, true))  => s"$k >= ${v.serialize}"
+    case (k, (v, false)) => s"$k <= ${v.serialize}"
+  }.mkString("\n")
+
+  /** Constraint Solver */
 
   private def mergeConstraints(constraints: Seq[Constraint[T]]): Seq[Constraint[T]] = {
-    val geqMap = mutable.HashMap[String, T]()
-    val leqMap = mutable.HashMap[String, T]()
+    val mergedMap = mutable.HashMap[String, Constraint[T]]()
     constraints.foreach { c =>
       c match {
-        case c: Constraint[T] if (c.geq == true)  && (leqMap.contains(c.left)) => sys.error("Bad Constraint")
-        case c: Constraint[T] if (c.geq == true)  && (geqMap.contains(c.left)) => geqMap(c.left) = genMax(geqMap(c.left), c.right)
-        case c: Constraint[T] if (c.geq == true)                               => geqMap(c.left) = c.right
-        case c: Constraint[T] if (c.geq == false) && (geqMap.contains(c.left)) => sys.error("Bad Constraint")
-        case c: Constraint[T] if (c.geq == false) && (leqMap.contains(c.left)) => leqMap(c.left) = genMin(leqMap(c.left), c.right)
-        case c: Constraint[T] if (c.geq == false)                              => leqMap(c.left) = c.right
+        case c if (c.geq == true)  && mergedMap.contains(c.left) => mergedMap(c.left) = genConst(c.left, genMax(mergedMap(c.left).right, c.right), true)
+        case c if (c.geq == false) && mergedMap.contains(c.left) => mergedMap(c.left) = genConst(c.left, genMin(mergedMap(c.left).right, c.right), false)
+        case c                                                   => mergedMap(c.left) = c
       }
     }
-    constraints.toSeq
+    mergedMap.values.toSeq
   }
   private def substitute(h: ConstraintMap)(t: T): T = {
     val tOptimized = t.optimize()
-    tOptimized map substitute(h) match {
+    //println(s"tOptimized: $tOptimized")
+    val x = tOptimized map substitute(h)
+    //println("SDFL:")
+    x match {
       case isVar: IsVar => h get isVar.name match {
         case None => isVar.asInstanceOf[T]
         case Some((p, geq)) =>
+          //println("HERE 2")
           val newT = substitute(h)(p)
           val newTOptimized = newT.optimize()
+          //println("HERE 3")
           h(isVar.name) = (newTOptimized, geq)
           newTOptimized
       }
@@ -75,27 +80,53 @@ abstract class ConstraintSolver[T<:IsConstrainable[T]] {
     }
   }
 
-  private def removeCycle(n: String, geq: Boolean)(t: T): T = t match {
-    case isMax: IsMax[T] => genMax(isMax.children collect {
-      case isVar: IsVar if isVar.name != n => isVar.asInstanceOf[T]
-      //TODO think about this case
-      //case MinusWidth(VarWidth(name), IntWidth(i)) if ((i >= 0) && (n == name)) => false
-      case other => other
-    }:_*)
-    // TODO think about this case
-    //case wx: MinusWidth => wx.arg1 match {
-    //  case v: VarWidth if n == v.name => v
-    //  case v => wx
-    //}
-    case other => other
+  private def removeCycle(n: String, geq: Boolean)(t: T): T = if(geq) removeGeqCycle(n)(t) else removeLeqCycle(n)(t)
+
+  private def removeLeqCycle(name: String)(t: T): T = t match {
+    case x if greaterEqThan(name)(x) => genVar(name)
+    case isMin: IsMin[T] => genMin(isMin.children.filter{ c => !greaterEqThan(name)(c)}:_*)
+    case x => x
+  }
+  private def greaterEqThan(name: String)(t: T): Boolean = t.optimize() match {
+    case isMin: IsMin[T] => isMin.children.map(greaterEqThan(name)).reduce(_ && _)
+    case isAdd: IsAdd[T] => isAdd.children match {
+      case Seq(isVar: IsVar, isVal: IsVal) if (isVar.name == name) && (isVal.value >= 0) => true
+      case Seq(isVal: IsVal, isVar: IsVar) if (isVar.name == name) && (isVal.value >= 0) => true
+      case _ => false
+    }
+    case isMul: IsMul[T] => isMul.children match {
+      case Seq(isVar: IsVar, isVal: IsVal) if (isVar.name == name) && (isVal.value >= 0) => true
+      case Seq(isVal: IsVal, isVar: IsVar) if (isVar.name == name) && (isVal.value >= 0) => true
+      case _ => false
+    }
+    case isVar: IsVar if isVar.name == name => true
+    case _ => false
   }
 
-  //private def lessEqThan(name: String)(t: T): Boolean = t.optimize() match {
-  //  case isMax: IsMax[T] => genMax(isMax.children.filter(!lessEqThan(name)))
-  //  case isAdd: IsAdd[T] => isAdd.children match {
-  //    Seq(isVar: IsVar[T], isNeg: IsNeg[T]) =>
-  //  }
-  //}
+  private def removeGeqCycle(name: String)(t: T): T = t match {
+    case x if lessEqThan(name)(x) => genVar(name)
+    case isMax: IsMax[T] => genMax(isMax.children.filter{c => !lessEqThan(name)(c)}:_*)
+    case x => x
+  }
+  private def lessEqThan(name: String)(t: T): Boolean = t.optimize() match {
+    case isMax: IsMax[T] => isMax.children.map(lessEqThan(name)).reduce(_ && _)
+    case isAdd: IsAdd[T] => isAdd.children match {
+      case Seq(isVar: IsVar, isVal: IsVal) if (isVar.name == name) && (isVal.value <= 0) => true
+      case Seq(isVal: IsVal, isVar: IsVar) if (isVar.name == name) && (isVal.value <= 0) => true
+      case _ => false
+    }
+    case isMul: IsMul[T] => isMul.children match {
+      case Seq(isVar: IsVar, isVal: IsVal) if (isVar.name == name) && (isVal.value <= 0) => true
+      case Seq(isVal: IsVal, isVar: IsVar) if (isVar.name == name) && (isVal.value <= 0) => true
+      case _ => false
+    }
+    case isVar: IsVar if isVar.name == name => true
+    case isNeg: IsNeg[T] => isNeg.children match {
+      case Seq(isVar: IsVar) if isVar == name => true
+      case _ => false
+    }
+    case _ => false
+  }
 
   private def hasVar(n: String)(t: T): Boolean = {
     var has = false
@@ -109,21 +140,43 @@ abstract class ConstraintSolver[T<:IsConstrainable[T]] {
     rec(t)
     has
   }
+  def check(): Seq[Constraint[T]] = {
+    val checkMap = new mutable.HashMap[String, Constraint[T]]()
+    constraints.foldLeft(Seq[Constraint[T]]()) { (seq, c) =>
+      checkMap.get(c.left) match {
+        case None =>
+          checkMap(c.left) = c
+          seq ++ Nil
+        case Some(x) if x.geq != c.geq => seq ++ Seq(x, c)
+        case Some(x) => seq ++ Nil
+      }
+    }
+  }
 
-  def solve(): ConstraintMap = {
+  def solve() = {
+    // Check that all constraints per name are either geq or leq, but not both
+    val illegals = check()
+    if (illegals != Nil) sys.error("Illegal constraints!: $illegals")
+
     // Combines constraints on the same VarWidth into the same constraint
- 
+    val uniqueConstraints = mergeConstraints(constraints.toSeq)
+    //println("Unique Constraints!")
+    //println(uniqueConstraints.mkString("\n"))
+
     // Forward solve
     // Returns a solved list where each constraint undergoes:
     //  1) Continuous Solving (using triangular solving)
     //  2) Remove Cycles
     //  3) Move to solved if not self-recursive
-    val uniqueConstraints = mergeConstraints(constraints.toSeq)
     val forwardConstraintMap = new ConstraintMap
     val orderedVars = mutable.ArrayBuffer[String]()
     for (constraint <- uniqueConstraints) {
       //TODO: Risky if used improperly... need to check whether substitution from a leq to a geq is negated (always).
-      val subbedRight = substitute(forwardConstraintMap)(constraint.right).optimize()
+      //println(s" Forward solving: $constraint")
+      val subbedRight = substitute(forwardConstraintMap)(constraint.right)
+      //println(s" subbedRight: $subbedRight")
+      val optSubbedRight = subbedRight.optimize()
+      //println(s" optSubbedRight: $subbedRight")
       val name = constraint.left
       val finishedRight = removeCycle(name, constraint.geq)(subbedRight)
       if (!hasVar(name)(finishedRight)) {
@@ -131,16 +184,17 @@ abstract class ConstraintSolver[T<:IsConstrainable[T]] {
         orderedVars += name
       }
     }
+    //println("Forward Constraints!")
+    //println(forwardConstraintMap.mkString("\n"))
  
     // Backwards Solve
-    val backwardConstraintMap = new ConstraintMap
     for (i <- (orderedVars.size - 1) to 0 by -1) {
       val name = orderedVars(i) // Should visit `orderedVars` backward
       val (forwardRight, forwardGeq) = forwardConstraintMap(name)
-      val solvedRight = backwardSubstitution(backwardConstraintMap)(forwardRight).optimize()
-      backwardConstraintMap(name) = (solvedRight, forwardGeq)
+      val solvedRight = backwardSubstitution(solvedConstraintMap)(forwardRight).optimize()
+      //println("HERE 4")
+      solvedConstraintMap(name) = (solvedRight, forwardGeq)
     }
-    backwardConstraintMap
   }
 }
 
@@ -148,102 +202,122 @@ class BoundConstraintSolver extends ConstraintSolver[Bound] {
   def genMax(args: Bound*): Bound = MaxBound(args:_*)
   def genMin(args: Bound*): Bound = MinBound(args:_*)
   def genVar(name: String): Bound = VarBound(name)
+  def genConst(left: String, right: Bound, geq: Boolean): Constraint[Bound] = geq match {
+    case true => BGeq(left, right)
+    case false => BLeq(left, right)
+  }
+  def addGeq(big: Bound, small: Bound): Unit = (big, small) match {
+    case (VarBound(name), _) => add(BGeq(name, small))
+    case (KnownBound(u), KnownBound(l)) if l > u => println("BAD!")
+    case _ =>
+  }
+  def addLeq(small: Bound, big: Bound): Unit = (small, big) match {
+    case (VarBound(name), _) => add(BLeq(name, big))
+    case (KnownBound(l), KnownBound(u)) if u < l => println("BAD!")
+    case _ =>
+  }
+  def get(b: Bound): Bound = b match {
+    case VarBound(name) => solvedConstraintMap.get(name) match {
+      case None => b
+      case Some((k: KnownBound, _)) => k
+      case Some(_) => b
+    }
+    case x => x
+  }
 }
 
-//object InferIntervals extends Pass {
-//  type ConstraintMap = collection.mutable.LinkedHashMap[String, Width]
-//
-//     
-//  def run (c: Circuit): Circuit = {
-//    val v = ArrayBuffer[WGeq]()
-//
-//    def get_constraints_t(t1: Type, t2: Type): Seq[WGeq] = (t1,t2) match {
-//      case (t1: UIntType, t2: UIntType) => Nil
-//      case (t1: SIntType, t2: SIntType) => Nil
-//      case (ClockType, ClockType) => Nil
-//      case (FixedType(w1, p1), FixedType(w2, p2)) => Nil
-//      case (IntervalType(l1, u1, p1), IntervalType(l1, u1, p2)) => Nil
-//      case (AnalogType(w1), AnalogType(w2)) => Seq(WGeq(w1,w2), WGeq(w2,w1))
-//      case (t1: BundleType, t2: BundleType) =>
-//        (t1.fields zip t2.fields foldLeft Seq[WGeq]()){case (res, (f1, f2)) =>
-//          res ++ (f1.flip match {
-//            case Default => get_constraints_t(f1.tpe, f2.tpe)
-//            case Flip => get_constraints_t(f2.tpe, f1.tpe)
-//          })
-//        }
-//      case (t1: VectorType, t2: VectorType) => get_constraints_t(t1.tpe, t2.tpe)
-//    }
-//
-//    def get_constraints_e(e: Expression): Expression = {
-//      e match {
-//        case (e: Mux) => v ++= Seq(
-//          WGeq(getWidth(e.cond), IntWidth(1)),
-//          WGeq(IntWidth(1), getWidth(e.cond))
-//        )
-//        case _ =>
-//      }
-//      e map get_constraints_e
-//    }
-//
-//    def get_constraints_declared_type (t: Type): Type = t match {
-//      case FixedType(_, p) => 
-//        v += WGeq(p,IntWidth(0))
-//        t
-//      case _ => t map get_constraints_declared_type
-//    }
-//
-//    def get_constraints_s(s: Statement): Statement = {
-//      s map get_constraints_declared_type match {
-//        case (s: Connect) =>
-//          val n = get_size(s.loc.tpe)
-//          val locs = create_exps(s.loc)
-//          val exps = create_exps(s.expr)
-//          v ++= ((locs zip exps).zipWithIndex flatMap {case ((locx, expx), i) =>
-//            get_flip(s.loc.tpe, i, Default) match {
-//              case Default => get_constraints_t(locx.tpe, expx.tpe)//WGeq(getWidth(locx), getWidth(expx))
-//              case Flip => get_constraints_t(expx.tpe, locx.tpe)//WGeq(getWidth(expx), getWidth(locx))
-//            }
-//          })
-//        case (s: PartialConnect) =>
-//          val ls = get_valid_points(s.loc.tpe, s.expr.tpe, Default, Default)
-//          val locs = create_exps(s.loc)
-//          val exps = create_exps(s.expr)
-//          v ++= (ls flatMap {case (x, y) =>
-//            val locx = locs(x)
-//            val expx = exps(y)
-//            get_flip(s.loc.tpe, x, Default) match {
-//              case Default => get_constraints_t(locx.tpe, expx.tpe)//WGeq(getWidth(locx), getWidth(expx))
-//              case Flip => get_constraints_t(expx.tpe, locx.tpe)//WGeq(getWidth(expx), getWidth(locx))
-//            }
-//          })
-//        case (s: DefRegister) => v ++= (
-//           get_constraints_t(s.reset.tpe, UIntType(IntWidth(1))) ++
-//           get_constraints_t(UIntType(IntWidth(1)), s.reset.tpe) ++ 
-//           get_constraints_t(s.tpe, s.init.tpe))
-//        case (s:Conditionally) => v ++= 
-//           get_constraints_t(s.pred.tpe, UIntType(IntWidth(1))) ++
-//           get_constraints_t(UIntType(IntWidth(1)), s.pred.tpe)
-//        case Attach(_, exprs) =>
-//          // All widths must be equal
-//          val widths = exprs map (e => getWidth(e.tpe))
-//          v ++= widths.tail map (WGeq(widths.head, _))
-//        case _ =>
-//      }
-//      s map get_constraints_e map get_constraints_s
-//    }
-//
-//    c.modules foreach (_ map get_constraints_s)
-//    c.modules foreach (_.ports foreach {p => get_constraints_declared_type(p.tpe)})
-//
-//    //println("======== ALL CONSTRAINTS ========")
-//    //for(x <- v) println(x)
-//    //println("=================================")
-//    val h = solve_constraints(v)
-//    //println("======== SOLVED CONSTRAINTS ========")
-//    //for(x <- h) println(x)
-//    //println("====================================")
-//
-//    def evaluate(w: Width): Width = {
+case class BGeq(left: String, right: Bound) extends Constraint[Bound] {
+  val geq = true
+  override def toString: String = s"$left >= ${right.serialize}"
+}
+case class BLeq(left: String, right: Bound) extends Constraint[Bound] {
+  val geq = false
+  override def toString: String = s"$left <= ${right.serialize}"
+}
+
+
+class InferIntervals extends Pass {
+  private val constraintSolver = new BoundConstraintSolver()
+  private def addTypeConstraints(t1: Type, t2: Type): Unit = (t1,t2) match {
+    case (IntervalType(l1, u1, p1), IntervalType(l2, u2, p2)) =>
+      //println(t1)
+      //println(t2)
+      constraintSolver.addLeq(l1, l2)
+      constraintSolver.addGeq(u1, u2)
+    case (t1: BundleType, t2: BundleType) =>
+      (t1.fields zip t2.fields) foreach { case (f1, f2) =>
+        (f1.flip, f2.flip) match {
+          case (Default, Default) => addTypeConstraints(f1.tpe, f2.tpe)
+          case (Flip, Flip) => addTypeConstraints(f2.tpe, f1.tpe)
+          case _ => sys.error("Shouldn't be here")
+        }
+      }
+    case (t1: VectorType, t2: VectorType) => addTypeConstraints(t1.tpe, t2.tpe)
+    case _ =>
+  }
+  private def addDecConstraints (t: Type): Type = t match {
+    case IntervalType(l, u, p) =>
+      constraintSolver.addGeq(u, l)
+      t
+    case _ => t map addDecConstraints
+  }
+  private def addStmtConstraints(s: Statement): Statement = s match {
+    case c: Connect =>
+      val n = get_size(c.loc.tpe)
+      val locs = create_exps(c.loc)
+      val exps = create_exps(c.expr)
+      (locs zip exps).zipWithIndex foreach { case ((loc, exp), i) =>
+        get_flip(c.loc.tpe, i, Default) match {
+          case Default => addTypeConstraints(loc.tpe, exp.tpe)
+          case Flip => addTypeConstraints(exp.tpe, loc.tpe)
+        }
+      }
+      c
+    case pc: PartialConnect =>
+      val ls = get_valid_points(pc.loc.tpe, pc.expr.tpe, Default, Default)
+      val locs = create_exps(pc.loc)
+      val exps = create_exps(pc.expr)
+      ls foreach { case (x, y) =>
+        val loc = locs(x)
+        val exp = exps(y)
+        get_flip(pc.loc.tpe, x, Default) match {
+          case Default => addTypeConstraints(loc.tpe, exp.tpe)
+          case Flip => addTypeConstraints(exp.tpe, loc.tpe)
+        }
+      }
+      pc
+    case x => x map addStmtConstraints map addDecConstraints
+  }
+  private def fixTypeBounds(t: Type): Type = {
+    t map fixTypeBounds match {
+      case IntervalType(l, u, p) => 
+        val lx = constraintSolver.get(l)
+        val ux = constraintSolver.get(u)
+        IntervalType(lx, ux, p)
+      case x => x
+    }
+  }
+  private def fixStmtBounds(s: Statement): Statement = s map fixStmtBounds map fixTypeBounds
+  private def fixPortBounds(p: Port): Port = {
+    Port(p.info, p.name, p.direction, fixTypeBounds(p.tpe))
+  } 
+
+  def run (c: Circuit): Circuit = {
+
+    c.modules foreach (_ map addStmtConstraints)
+    c.modules foreach (_.ports foreach {p => addDecConstraints(p.tpe)})
+    //println("Initial Constraints!")
+    //println(constraintSolver.serializeConstraints)
+
+    constraintSolver.solve()
+    //println("Solved Constraints!")
+    //println(constraintSolver.serializeSolutions)
+    InferTypes.run(c.copy(modules = c.modules map (_
+      map fixPortBounds
+      map fixStmtBounds)))
+  }
+}
+//    def evaluate(constraintMap: (b: Bound): Bound = {
 //      def map2(a: Option[BigInt], b: Option[BigInt], f: (BigInt,BigInt) => BigInt): Option[BigInt] =
 //         for (a_num <- a; b_num <- b) yield f(a_num, b_num)
 //      def reduceOptions(l: Seq[Option[BigInt]], f: (BigInt,BigInt) => BigInt): Option[BigInt] =
@@ -276,27 +350,3 @@ class BoundConstraintSolver extends ConstraintSolver[Bound] {
 //        case Some(s) => IntWidth(s)
 //      }
 //    }
-//
-//    def reduce_var_widths_w(w: Width): Width = {
-//      //println-all-debug(["REPLACE: " w])
-//      evaluate(w)
-//      //println-all-debug(["WITH: " wx])
-//    }
-//
-//    def reduce_var_widths_t(t: Type): Type = {
-//      t map reduce_var_widths_t map reduce_var_widths_w
-//    }
-//
-//    def reduce_var_widths_s(s: Statement): Statement = {
-//      s map reduce_var_widths_s map reduce_var_widths_t
-//    }
-//
-//    def reduce_var_widths_p(p: Port): Port = {
-//      Port(p.info, p.name, p.direction, reduce_var_widths_t(p.tpe))
-//    } 
-//  
-//    InferTypes.run(c.copy(modules = c.modules map (_
-//      map reduce_var_widths_p
-//      map reduce_var_widths_s)))
-//  }
-//}
