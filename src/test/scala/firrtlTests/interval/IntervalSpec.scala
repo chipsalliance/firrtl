@@ -68,15 +68,44 @@ class IntervalSpec extends FirrtlFlatSpec {
         |    input in1 : Interval(0, 10].3
         |    input in2 : Interval(-1, 3].2
         |    output out0 : Interval
-        |    out0 <= add(in0, add(in1, in2))""".stripMargin
+        |    output out1 : Interval
+        |    output out2 : Interval
+        |    out0 <= add(in0, add(in1, in2))
+        |    out1 <= mul(in0, mul(in1, in2))
+        |    out2 <= sub(in0, sub(in1, in2))""".stripMargin
     val check =
+      """output out0 : Interval(-1, 23).4
+        |output out1 : Interval(-100, 300).9
+        |output out2 : Interval(-11, 13).4""".stripMargin
+    executeTest(input, check.split("\n") map normalized, passes)
+  }
+
+  "Interval types" should "be removed correctly" in {
+    val passes = Seq(ToWorkingIR, InferTypes, ResolveGenders, InferBinaryPoints, new InferIntervals(), new RemoveIntervals())
+    val input =
       """circuit Unit :
         |  module Unit :
         |    input in0 : Interval(0, 10).4
         |    input in1 : Interval(0, 10].3
         |    input in2 : Interval(-1, 3].2
-        |    output out0 : Interval(-1, 23).4
-        |    out0 <= add(in0, add(in1, in2))""".stripMargin
+        |    output out0 : Interval
+        |    output out1 : Interval
+        |    output out2 : Interval
+        |    out0 <= add(in0, add(in1, in2))
+        |    out1 <= mul(in0, mul(in1, in2))
+        |    out2 <= sub(in0, sub(in1, in2))""".stripMargin
+    val check =
+      """circuit Unit :
+        |  module Unit :
+        |    input in0 : SInt<9>
+        |    input in1 : SInt<8>
+        |    input in2 : SInt<5>
+        |    output out0 : SInt<10>
+        |    output out1 : SInt<19>
+        |    output out2 : SInt<9>
+        |    out0 <= add(in0, shl(add(in1, shl(in2, 1)), 1))
+        |    out1 <= mul(in0, mul(in1, in2))
+        |    out2 <= sub(in0, shl(sub(in1, shl(in2, 1)), 1))""".stripMargin
     executeTest(input, check.split("\n") map normalized, passes)
   }
 
