@@ -12,7 +12,7 @@ import firrtl.PrimOps._
 import firrtl.WrappedExpression.weq
 
 import annotation.tailrec
-import collection.mutable
+import collection.{mutable, immutable}
 
 class ConstantPropagation extends Transform {
   def inputForm = LowForm
@@ -341,12 +341,81 @@ class ConstantPropagation extends Transform {
     if (nPropagated > 0) constPropModule(res, dontTouches) else res
   }
 
+  @tailrec
   private def run(c: Circuit, dontTouchMap: Map[String, Set[String]]): Circuit = {
-    val modulesx = c.modules.map {
+    val cx = c.copy(modules = c.modules.map {
       case m: ExtModule => m
       case m: Module => constPropModule(m, dontTouchMap.getOrElse(m.name, Set.empty))
+    })
+
+    // Start cross module constant propagation
+    // 1. Find constant ports
+    type PortMap = mutable.HashMap[String, Expression]
+    val portMap = mutable.HashMap[(String, String), PortMap]()
+
+    def findConstStmt(mname: String)(s: Statement): Statement = {
+      s match {
+        case Connect(_, loc, expr: Literal) if kind(loc) == InstanceKind =>
+          val (inst, port) = splitRef(loc)
+          (portMap getOrElseUpdate(inst.name -> mname, new PortMap)) +=
+            (port.serialize -> expr)
+        case _ =>
+      }
+      s map findConstStmt(mname)
     }
-    Circuit(c.info, modulesx, c.main)
+
+    def findConstMod(m: DefModule) = m map findConstStmt(m.name)
+
+    val modMap = (cx.modules map findConstMod map (m => m.name -> m)).toMap
+
+    // 2. Replace ports with constants
+    var nPropagated = 0L
+    val nameMap = mutable.HashMap[(String, String), String]()
+
+    def updateExp(ports: PortMap)(e: Expression): Expression =
+      e map updateExp(ports) match {
+        case e @ WRef(name, _, PortKind, _) =>
+          ports get name match {
+            case None    => e
+            case Some(p) => nPropagated += 1 ; p
+          }
+        case e => e
+      }
+
+    def updateStmt(ports: PortMap, mname: String)(s: Statement): Statement =
+      s map updateStmt(ports, mname) map updateExp(ports) match {
+        case s: WDefInstance => nameMap get (s.name -> mname) match {
+          case None => s
+          case Some(p) => s.copy(module=p)
+        }
+        case s => s
+      }
+
+    if (nPropagated == 0L) cx
+    else {
+      val iGraph = new analyses.InstanceGraph(cx).graph.reverse
+      val modules = new mutable.HashMap[String, DefModule]()
+      // Iterate over all instances in the design
+      for (inst <- iGraph.linearize) {
+        val parent = {
+          val edges = (iGraph getEdges inst)
+          if (edges.isEmpty) "" else edges.head.module
+        }
+        val ports = portMap getOrElse (inst.name -> parent, new PortMap)
+        val module = modMap(inst.module) map updateStmt(ports, inst.module)
+        // Create another module if the instance has constant ports
+        val newName = nameMap getOrElseUpdate (
+          inst.name -> parent,
+          if (ports.isEmpty) inst.module
+          else Namespace(nameMap.values.toSeq) newName inst.module
+        )
+        modules getOrElseUpdate (newName, module match {
+          case m: Module => m.copy(name = newName)
+          case m: ExtModule => m.copy(name = newName)
+        })
+      }
+      run(cx.copy(modules = modules.values.toSeq), dontTouchMap)
+    }
   }
 
   def execute(state: CircuitState): CircuitState = {
