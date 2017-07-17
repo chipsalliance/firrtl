@@ -23,13 +23,13 @@ trait AnnotationSpec extends LowTransformSpec {
   def transform = new ResolveAndCheck
 
   // Check if Annotation Exception is thrown
-  override def failingexecute(annotations: AnnotationMap, input: String): Exception = {
+  override def failingexecute(input: String, annotations: Seq[Annotation]): Exception = {
     intercept[AnnotationException] {
-      compile(CircuitState(parse(input), ChirrtlForm, Some(annotations)), Seq.empty)
+      compile(CircuitState(parse(input), ChirrtlForm, Some(AnnotationMap(annotations))), Seq.empty)
     }
   }
-  def execute(aMap: Option[AnnotationMap], input: String, check: Annotation): Unit = {
-    val cr = compile(CircuitState(parse(input), ChirrtlForm, aMap), Seq.empty)
+  def execute(input: String, check: Annotation, annotations: Seq[Annotation]): Unit = {
+    val cr = compile(CircuitState(parse(input), ChirrtlForm, Some(AnnotationMap(annotations))), Seq.empty)
     cr.annotations.get.annotations should contain (check)
   }
 }
@@ -49,13 +49,6 @@ class AnnotationTests extends AnnotationSpec with Matchers {
     Annotation(ComponentName(s, ModuleName(mod, CircuitName("Top"))), classOf[Transform], value)
   def manno(mod: String): Annotation =
     Annotation(ModuleName(mod, CircuitName("Top")), classOf[Transform], "some value")
-	// TODO unify with FirrtlMatchers, problems with multiple definitions of parse
-  def dontTouch(path: String): Annotation = {
-    val parts = path.split('.')
-    require(parts.size >= 2, "Must specify both module and component!")
-    val name = ComponentName(parts.tail.mkString("."), ModuleName(parts.head, CircuitName("Top")))
-    DontTouchAnnotation(name)
-  }
 
   "Loose and Sticky annotation on a node" should "pass through" in {
     val input: String =
@@ -65,7 +58,7 @@ class AnnotationTests extends AnnotationSpec with Matchers {
          |    input b : UInt<1>
          |    node c = b""".stripMargin
     val ta = anno("c", "")
-    execute(getAMap(ta), input, ta)
+    execute(input, ta, Seq(ta))
   }
 
   "Annotations" should "be readable from file" in {
@@ -272,7 +265,7 @@ class AnnotationTests extends AnnotationSpec with Matchers {
       anno("n.a"), anno("n.b[0]"), anno("n.b[1]"),
       anno("r.a"), anno("r.b[0]"), anno("r.b[1]"),
       anno("write.a"), anno("write.b[0]"), anno("write.b[1]"),
-      dontTouch("Top.r")
+      dontTouch("Top.r"), dontTouch("Top.w")
     )
     val result = compiler.compile(CircuitState(parse(input), ChirrtlForm, getAMap(annos)), Nil)
     val resultAnno = result.annotations.get.annotations
@@ -326,7 +319,8 @@ class AnnotationTests extends AnnotationSpec with Matchers {
         |    out <= n
         |    reg r: {a: UInt<3>, b: UInt<3>[2]}, clk
         |""".stripMargin
-    val annos = Seq(anno("in"), anno("out"), anno("w"), anno("n"), anno("r"), dontTouch("Top.r"))
+    val annos = Seq(anno("in"), anno("out"), anno("w"), anno("n"), anno("r"), dontTouch("Top.r"),
+                    dontTouch("Top.w"))
     val result = compiler.compile(CircuitState(parse(input), ChirrtlForm, getAMap(annos)), Nil)
     val resultAnno = result.annotations.get.annotations
     resultAnno should contain (anno("in_a"))
@@ -362,7 +356,7 @@ class AnnotationTests extends AnnotationSpec with Matchers {
         |    reg r: {a: UInt<3>, b: UInt<3>[2]}, clk
         |""".stripMargin
     val annos = Seq(anno("in.b"), anno("out.b"), anno("w.b"), anno("n.b"), anno("r.b"),
-                    dontTouch("Top.r"))
+                    dontTouch("Top.r"), dontTouch("Top.w"))
     val result = compiler.compile(CircuitState(parse(input), ChirrtlForm, getAMap(annos)), Nil)
     val resultAnno = result.annotations.get.annotations
     resultAnno should contain (anno("in_b_0"))
