@@ -511,7 +511,7 @@ case class MaxBound(bounds: Bound*) extends Bound with IsMax[Bound] {
   def map(f: Bound=>Bound): Bound = MaxBound(bounds.map(f):_*)
 }
 case class MinBound(bounds: Bound*) extends Bound with IsMin[Bound] {
-  def identity: Option[Int] = sys.error("Shouldn't be here")
+  def identity: Option[Int] = None
   def gen(bounds: Seq[Bound]): Bound = MinBound(bounds:_*)
   def op(b1: KnownBound, b2: KnownBound): Bound = b1 min b2
   def serialize: String = "min(" + bounds.map(_.serialize).mkString(", ") + ")"

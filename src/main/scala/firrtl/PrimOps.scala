@@ -159,7 +159,12 @@ object PrimOps extends LazyLogging {
         case (_: SIntType, _: UIntType) => SIntType(PLUS(w1, w2))
         case (_: SIntType, _: SIntType) => SIntType(PLUS(w1, w2))
         case (_: FixedType, _: FixedType) => FixedType(PLUS(w1, w2), PLUS(p1, p2))
-        case (IntervalType(l1, u1, p1), IntervalType(l2, u2, p2)) => IntervalType(MulBound(l1, l2), MulBound(u1, u2), MAX(p1, p2))
+        case (IntervalType(l1, u1, p1), IntervalType(l2, u2, p2)) =>
+          IntervalType(
+            MinBound(MulBound(l1, l2), MulBound(l1, u2), MulBound(u1, l2), MulBound(u1, u2)),
+            MaxBound(MulBound(l1, l2), MulBound(l1, u2), MulBound(u1, l2), MulBound(u1, u2)),
+            PLUS(p1, p2)
+          )
         case _ => UnknownType
       }
       case Div => (t1, t2) match {
@@ -343,10 +348,12 @@ object PrimOps extends LazyLogging {
       }
       case BPShl => t1 match {
         case _: FixedType => FixedType(PLUS(w1,c1), PLUS(p1, c1))
+        case IntervalType(l, u, p) => IntervalType(l, u, PLUS(p, c1))
         case _ => UnknownType
       }
       case BPShr => t1 match {
         case _: FixedType => FixedType(MINUS(w1,c1), MINUS(p1, c1))
+        case IntervalType(l, u, p) => IntervalType(l, u, MINUS(p, c1))
         case _ => UnknownType
       }
       case BPSet => t1 match {

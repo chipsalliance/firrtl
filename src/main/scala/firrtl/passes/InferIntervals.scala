@@ -317,36 +317,3 @@ class InferIntervals extends Pass {
       map fixStmtBounds)))
   }
 }
-//    def evaluate(constraintMap: (b: Bound): Bound = {
-//      def map2(a: Option[BigInt], b: Option[BigInt], f: (BigInt,BigInt) => BigInt): Option[BigInt] =
-//         for (a_num <- a; b_num <- b) yield f(a_num, b_num)
-//      def reduceOptions(l: Seq[Option[BigInt]], f: (BigInt,BigInt) => BigInt): Option[BigInt] =
-//         l.reduce(map2(_, _, f))
-//
-//      // This function shouldn't be necessary
-//      // Added as protection in case a constraint accidentally uses MinWidth/MaxWidth
-//      // without any actual Widths. This should be elevated to an earlier error
-//      def forceNonEmpty(in: Seq[Option[BigInt]], default: Option[BigInt]): Seq[Option[BigInt]] =
-//        if (in.isEmpty) Seq(default)
-//        else in
-//
-//      def solve(w: Width): Option[BigInt] = w match {
-//        case wx: VarWidth =>
-//          for{
-//            v <- h.get(wx.name) if !v.isInstanceOf[VarWidth]
-//            result <- solve(v)
-//          } yield result
-//        case wx: MaxWidth => reduceOptions(forceNonEmpty(wx.args.map(solve), Some(BigInt(0))), max)
-//        case wx: MinWidth => reduceOptions(forceNonEmpty(wx.args.map(solve), None), min)
-//        case wx: PlusWidth => map2(solve(wx.arg1), solve(wx.arg2), {_ + _})
-//        case wx: MinusWidth => map2(solve(wx.arg1), solve(wx.arg2), {_ - _})
-//        case wx: ExpWidth => map2(Some(BigInt(2)), solve(wx.arg1), pow_minus_one)
-//        case wx: IntWidth => Some(wx.width)
-//        case wx => println(wx); error("Shouldn't be here"); None;
-//      }
-//
-//      solve(w) match {
-//        case None => w
-//        case Some(s) => IntWidth(s)
-//      }
-//    }
