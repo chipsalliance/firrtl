@@ -33,12 +33,6 @@ object PrimOps extends LazyLogging {
   case object Neq extends PrimOp { override def toString = "neq" }
   /** Padding */
   case object Pad extends PrimOp { override def toString = "pad" }
-  /** Interpret As UInt */
-  case object AsUInt extends PrimOp { override def toString = "asUInt" }
-  /** Interpret As SInt */
-  case object AsSInt extends PrimOp { override def toString = "asSInt" }
-  /** Interpret As Clock */
-  case object AsClock extends PrimOp { override def toString = "asClock" }
   /** Static Shift Left */
   case object Shl extends PrimOp { override def toString = "shl" }
   /** Static Shift Right */
@@ -73,14 +67,22 @@ object PrimOps extends LazyLogging {
   case object Head extends PrimOp { override def toString = "head" }
   /** Tail */
   case object Tail extends PrimOp { override def toString = "tail" }
-  /** Interpret as Fixed Point **/
-  case object AsFixedPoint extends PrimOp { override def toString = "asFixedPoint" }
   /** Shift Binary Point Left **/
   case object BPShl extends PrimOp { override def toString = "bpshl" }
   /** Shift Binary Point Right **/
   case object BPShr extends PrimOp { override def toString = "bpshr" }
   /** Set Binary Point **/
   case object BPSet extends PrimOp { override def toString = "bpset" }
+  /** Interpret As UInt */
+  case object AsUInt extends PrimOp { override def toString = "asUInt" }
+  /** Interpret As SInt */
+  case object AsSInt extends PrimOp { override def toString = "asSInt" }
+  /** Interpret As Clock */
+  case object AsClock extends PrimOp { override def toString = "asClock" }
+  /** Interpret as Fixed Point **/
+  case object AsFixedPoint extends PrimOp { override def toString = "asFixedPoint" }
+  /** Interpret as Interval (closed lower bound, closed upper bound, binary point) **/
+  case object AsInterval extends PrimOp { override def toString = "asInterval" }
 
   private lazy val builtinPrimOps: Seq[PrimOp] =
     Seq(Add, Sub, Mul, Div, Rem, Lt, Leq, Gt, Geq, Eq, Neq, Pad, AsUInt, AsSInt, AsClock, Shl, Shr,
@@ -134,6 +136,9 @@ object PrimOps extends LazyLogging {
     } //Intentional
     def c1 = IntWidth(e.consts.head)
     def c2 = IntWidth(e.consts(1))
+    def o1 = e.consts(0)
+    def o2 = e.consts(1)
+    def o3 = e.consts(2)
     e copy (tpe = e.op match {
       case Add => (t1, t2) match {
         case (_: UIntType, _: UIntType) => UIntType(PLUS(MAX(w1, w2), IntWidth(1)))
@@ -219,6 +224,7 @@ object PrimOps extends LazyLogging {
         case _: FixedType => UIntType(w1)
         case ClockType => UIntType(IntWidth(1))
         case AnalogType(w) => UIntType(w1)
+        case _: IntervalType => UIntType(w1)
         case _ => UnknownType
       }
       case AsSInt => t1 match {
@@ -227,6 +233,7 @@ object PrimOps extends LazyLogging {
         case _: FixedType => SIntType(w1)
         case ClockType => SIntType(IntWidth(1))
         case _: AnalogType => SIntType(w1)
+        case _: IntervalType => SIntType(w1)
         case _ => UnknownType
       }
       case AsFixedPoint => t1 match {
@@ -235,6 +242,16 @@ object PrimOps extends LazyLogging {
         case _: FixedType => FixedType(w1, c1)
         case ClockType => FixedType(IntWidth(1), c1)
         case _: AnalogType => FixedType(w1, c1)
+        case _: IntervalType => FixedType(w1, c1)
+        case _ => UnknownType
+      }
+      case AsInterval => t1 match {
+        case _: UIntType => IntervalType(Closed(BigDecimal(o1)), Closed(BigDecimal(o2)), IntWidth(o3))
+        case _: SIntType => IntervalType(Closed(BigDecimal(o1)), Closed(BigDecimal(o2)), IntWidth(o3))
+        case _: FixedType => IntervalType(Closed(BigDecimal(o1)), Closed(BigDecimal(o2)), IntWidth(o3))
+        case ClockType => IntervalType(Closed(BigDecimal(o1)), Closed(BigDecimal(o2)), IntWidth(o3))
+        case _: AnalogType => IntervalType(Closed(BigDecimal(o1)), Closed(BigDecimal(o2)), IntWidth(o3))
+        case _: IntervalType => IntervalType(Closed(BigDecimal(o1)), Closed(BigDecimal(o2)), IntWidth(o3))
         case _ => UnknownType
       }
       case AsClock => t1 match {
@@ -242,6 +259,7 @@ object PrimOps extends LazyLogging {
         case _: SIntType => ClockType
         case ClockType => ClockType
         case _: AnalogType => ClockType
+        case _: IntervalType => ClockType
         case _ => UnknownType
       }
       case Shl => t1 match {
