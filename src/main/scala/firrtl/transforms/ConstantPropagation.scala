@@ -338,9 +338,9 @@ class ConstantPropagation extends Transform {
           constPropNodeRef(ref, nodeMap(rname))
         case ref @ WSubField(WRef(inst, _, InstanceKind, _), pname, _, MALE) =>
           val module = instMap(inst)
-          // Check constOutputs to see if the submodule is driving a constant
+          // Check constSubOutputs to see if the submodule is driving a constant
           val res = constSubOutputs.get(module).flatMap(_.get(pname)).getOrElse(ref)
-          logger.debug(s"Submodule output port ${ref.serialize} -> ${res.serialize}")
+          if (res ne ref) logger.debug(s"Submodule output port ${ref.serialize} -> ${res.serialize}")
           res
         case x => x
       }
@@ -366,6 +366,9 @@ class ConstantPropagation extends Transform {
         case Connect(_, WRef(wname, wtpe, WireKind, _), expr: Literal) if !dontTouches.contains(wname) =>
           val exprx = constPropExpression(pad(expr, wtpe))
           propagateRef(wname, exprx)
+        // Record constants driving outputs
+        case Connect(_, WRef(pname, _, PortKind, _), lit: Literal) if !dontTouches.contains(pname) =>
+          constOutputs(pname) = lit
         // Const prop registers that are fed only a constant or a mux between and constant and the
         // register itself
         // This requires that reset has been made explicit
@@ -416,10 +419,10 @@ class ConstantPropagation extends Transform {
 
   private def run(c: Circuit, dontTouchMap: Map[String, Set[String]]): Circuit = {
     val iGraph = (new InstanceGraph(c)).graph
-    logger.debug(" ***** iGraph ***** ")
-    iGraph.edges.foreach { case (mod, children) =>
-      logger.debug(s"  ${mod.module} -> " + children.map(_.module).mkString(", "))
-    }
+    //logger.debug(" ***** iGraph ***** ")
+    //iGraph.edges.foreach { case (mod, children) =>
+    //  logger.debug(s"  ${mod.module} -> " + children.map(_.module).mkString(", "))
+    //}
     val moduleDeps = iGraph.edges.map { case (mod, children) =>
       mod.module -> children.map(i => i.name -> i.module).toMap
     }
@@ -427,21 +430,21 @@ class ConstantPropagation extends Transform {
     logger.debug(moduleDeps.toString)
 
     //val topoSortedModules = iGraph.graph.transformNodes(_.module).linearize.reverse.map(moduleMap(_))
-    val moduleOrder = iGraph.transformNodes(_.module).linearize.reverse //.map(moduleMap(_))
-    logger.debug(" ***** moduleOrder ***** ")
-    logger.debug(moduleOrder.toString)
+    //val moduleOrder = iGraph.transformNodes(_.module).linearize.reverse //.map(moduleMap(_))
+    //logger.debug(" ***** moduleOrder ***** ")
+    //logger.debug(moduleOrder.toString)
 
     // Module name to number of instances
     val instCount: Map[String, Int] = iGraph.getVertices.groupBy(_.module).mapValues(_.size)
-    logger.debug(" ***** instCount ***** ")
-    logger.debug(instCount.toString)
+    //logger.debug(" ***** instCount ***** ")
+    //logger.debug(instCount.toString)
 
     // DiGraph using Module names as nodes, destination of edge is a parent Module
     val parentGraph: DiGraph[String] = iGraph.reverse.transformNodes(_.module)
-    logger.debug(" ***** parentGraph ***** ")
-    logger.debug(iGraph.edges.toString)
-    logger.debug(iGraph.reverse.edges.toString)
-    logger.debug(parentGraph.edges.toString)
+    //logger.debug(" ***** parentGraph ***** ")
+    //logger.debug(iGraph.edges.toString)
+    //logger.debug(iGraph.reverse.edges.toString)
+    //logger.debug(parentGraph.edges.toString)
 
     // This outer loop works by applying constant propagation to the modules in a topologically
     // sorted order from leaf to root
@@ -479,10 +482,10 @@ class ConstantPropagation extends Transform {
         // instance
         val newProppedInputs = constInputsx.flatMap { case (mname, ports) =>
           val portsx = ports.flatMap { case (pname, lits) =>
-            logger.debug(s"Checking $pname with ${lits.map(_.serialize)}")
-            logger.debug(s"  lits.toSet == " + lits.toSet)
+            //logger.debug(s"Checking $pname with ${lits.map(_.serialize)}")
+            //logger.debug(s"  lits.toSet == " + lits.toSet)
             val newPort = !constInputs.get(mname).map(_.contains(pname)).getOrElse(false)
-            logger.debug(s"  newPort = $newPort")
+            //logger.debug(s"  newPort = $newPort")
             val isModule = modules.contains(mname) // ExtModules are not contained in modules
             val allSameConst = lits.size == instCount(mname) && lits.toSet.size == 1
             if (isModule && newPort && allSameConst) Some(pname -> lits.head)
