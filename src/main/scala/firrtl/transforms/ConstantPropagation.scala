@@ -286,7 +286,8 @@ class ConstantPropagation extends Transform {
     // (can have more than 1 of the same submodule)
     val constSubInputs = mutable.HashMap.empty[String, mutable.HashMap[String, Seq[Literal]]]
 
-    nodeMap ++= constInputs
+    // Copy constant mapping for constant inputs (except ones marked dontTouch!)
+    nodeMap ++= constInputs.filterNot { case (pname, _) => dontTouches.contains(pname) }
 
     // Note that on back propagation we *only* worry about swapping names and propagating references
     // to constant wires, we don't need to worry about propagating primops or muxes since we'll do
