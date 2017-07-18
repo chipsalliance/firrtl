@@ -288,14 +288,6 @@ class ConstantPropagation extends Transform {
 
     nodeMap ++= constInputs
 
-    logger.debug(s" ********** Running constPropModule on ${m.name} ********** ")
-    logger.debug(" ***** constInputs ***** ")
-    logger.debug(constInputs.toString)
-    logger.debug(" ***** constSubOutputs ***** ")
-    logger.debug(constSubOutputs.toString)
-    logger.debug(s" ***** instMap ***** ")
-    logger.debug(instMap.toString)
-
     // Note that on back propagation we *only* worry about swapping names and propagating references
     // to constant wires, we don't need to worry about propagating primops or muxes since we'll do
     // that on the next iteration if necessary
@@ -339,9 +331,7 @@ class ConstantPropagation extends Transform {
         case ref @ WSubField(WRef(inst, _, InstanceKind, _), pname, _, MALE) =>
           val module = instMap(inst)
           // Check constSubOutputs to see if the submodule is driving a constant
-          val res = constSubOutputs.get(module).flatMap(_.get(pname)).getOrElse(ref)
-          if (res ne ref) logger.debug(s"Submodule output port ${ref.serialize} -> ${res.serialize}")
-          res
+          constSubOutputs.get(module).flatMap(_.get(pname)).getOrElse(ref)
         case x => x
       }
       propagated
@@ -386,19 +376,12 @@ class ConstantPropagation extends Transform {
           val module = instMap(inst)
           val portsMap = constSubInputs.getOrElseUpdate(module, mutable.HashMap.empty)
           portsMap(port) = lit +: portsMap.getOrElse(port, List.empty)
-          logger.debug(s"Driving instance input ${lref.serialize} with constant ${lit.serialize}!!!")
         case _ =>
       }
       stmtx
     }
 
     val modx = m.copy(body = backPropStmt(constPropStmt(m.body)))
-
-    logger.debug(s" ********** After on ${m.name} ********** ")
-    logger.debug(" ***** constOutputs ***** ")
-    logger.debug(constOutputs.toString)
-    logger.debug(" ***** constSubInputs ***** ")
-    logger.debug(constSubInputs.toString)
 
     // When we call this function again, constOutputs and constSubInputs are reconstructed and
     // strictly a superset of the versions here
@@ -411,57 +394,33 @@ class ConstantPropagation extends Transform {
     b.foldLeft(a) { case (acc, (k, v)) =>
       acc + (k -> acc.get(k).map(f(_, v)).getOrElse(v))
     }
-		//(a.toList ++ b.toList).groupBy(_._1).mapValues {
-		//	case Seq(x) => x._2
-		//	case Seq(x, y) => f(x._2, y._2)
-		//} // other cases are impossible because in combining 2 maps values are present or not in each
-
 
   private def run(c: Circuit, dontTouchMap: Map[String, Set[String]]): Circuit = {
     val iGraph = (new InstanceGraph(c)).graph
-    //logger.debug(" ***** iGraph ***** ")
-    //iGraph.edges.foreach { case (mod, children) =>
-    //  logger.debug(s"  ${mod.module} -> " + children.map(_.module).mkString(", "))
-    //}
     val moduleDeps = iGraph.edges.map { case (mod, children) =>
       mod.module -> children.map(i => i.name -> i.module).toMap
     }
-    logger.debug(" ***** moduleDeps ***** ")
-    logger.debug(moduleDeps.toString)
-
-    //val topoSortedModules = iGraph.graph.transformNodes(_.module).linearize.reverse.map(moduleMap(_))
-    //val moduleOrder = iGraph.transformNodes(_.module).linearize.reverse //.map(moduleMap(_))
-    //logger.debug(" ***** moduleOrder ***** ")
-    //logger.debug(moduleOrder.toString)
 
     // Module name to number of instances
     val instCount: Map[String, Int] = iGraph.getVertices.groupBy(_.module).mapValues(_.size)
-    //logger.debug(" ***** instCount ***** ")
-    //logger.debug(instCount.toString)
 
     // DiGraph using Module names as nodes, destination of edge is a parent Module
     val parentGraph: DiGraph[String] = iGraph.reverse.transformNodes(_.module)
-    //logger.debug(" ***** parentGraph ***** ")
-    //logger.debug(iGraph.edges.toString)
-    //logger.debug(iGraph.reverse.edges.toString)
-    //logger.debug(parentGraph.edges.toString)
 
     // This outer loop works by applying constant propagation to the modules in a topologically
     // sorted order from leaf to root
     // Modules will register any outputs they drive with a constant in constOutputs which is then
     // checked by later modules in the same iteration (since we iterate from leaf to root)
     @tailrec
-    def rec(toVisit: Set[String],
+    def iterate(toVisit: Set[String],
             modules: Map[String, Module],
             constInputs: Map[String, Map[String, Literal]]): Map[String, DefModule] = {
       if (toVisit.isEmpty) modules
       else {
-        logger.debug(s" ********** rec iteration *********** ")
         // Order from leaf modules to root so that any module driving an output
         // with a constant will be visible to modules that instantiate it
+        // TODO Generating order as we execute constant propagation on each module would be faster
         val order = parentGraph.subgraph(toVisit).linearize
-        logger.debug(s"order = $order")
-        logger.debug(s"constInputs = $constInputs")
         // Execute constant propagation on each module in order
         // Aggreagte Module outputs that are driven constant for use by instaniating Modules
         // Aggregate submodule inputs driven constant for checking later
@@ -477,15 +436,10 @@ class ConstantPropagation extends Transform {
               val constInputsx = unify(constInputsAcc, mci)((a, b) => unify(a, b)((c, d) => c ++ d))
               (mmap + (mname -> mx), constOutputs + (mname -> mco), constInputsx)
           }
-        logger.debug(s"constInputsx = $constInputsx")
-        // Remove entries in constInputs unless they have the same literal driving every single
-        // instance
+        // Determine which module inputs have all of the same, new constants driving them
         val newProppedInputs = constInputsx.flatMap { case (mname, ports) =>
           val portsx = ports.flatMap { case (pname, lits) =>
-            //logger.debug(s"Checking $pname with ${lits.map(_.serialize)}")
-            //logger.debug(s"  lits.toSet == " + lits.toSet)
             val newPort = !constInputs.get(mname).map(_.contains(pname)).getOrElse(false)
-            //logger.debug(s"  newPort = $newPort")
             val isModule = modules.contains(mname) // ExtModules are not contained in modules
             val allSameConst = lits.size == instCount(mname) && lits.toSet.size == 1
             if (isModule && newPort && allSameConst) Some(pname -> lits.head)
@@ -493,22 +447,18 @@ class ConstantPropagation extends Transform {
           }
           if (portsx.nonEmpty) Some(mname -> portsx) else None
         }
-        logger.debug(s"newProppedInputs  = $newProppedInputs")
         val modsWithConstInputs = newProppedInputs.keySet
         val newToVisit = modsWithConstInputs ++
                          modsWithConstInputs.flatMap(parentGraph.reachableFrom)
-        logger.debug(s"newToVisit = $newToVisit")
-        // TODO make subgraph accept collection.Set instead of collection.immutable.Set?
         // Combine const inputs (there can't be duplicate values in the inner maps)
         val nextConstInputs = unify(constInputs, newProppedInputs)((a, b) => a ++ b)
-        logger.debug(s"nextConstInputs  = $nextConstInputs")
-        rec(newToVisit.toSet, modulesx, nextConstInputs)
+        iterate(newToVisit.toSet, modulesx, nextConstInputs)
       }
     }
 
     val modulesx = {
       val nameMap = c.modules.collect { case m: Module => m.name -> m }.toMap
-      val mmap = rec(nameMap.keySet, nameMap, Map.empty)
+      val mmap = iterate(nameMap.keySet, nameMap, Map.empty)
       c.modules.map(m => mmap.getOrElse(m.name, m))
     }
 
