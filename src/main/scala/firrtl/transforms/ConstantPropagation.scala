@@ -255,14 +255,12 @@ class ConstantPropagation extends Transform {
     *   However, preserving decent names DOES require a second pass
     *   Replacing all wires with nodes makes it unnecessary for preserving decent names to trigger an
     *   extra iteration though
-    * constPropModule needs to know:
-    *  - Which of MY inputs are constant
-    *  - Which of MY instances have constant outputs
-    * constPropModule needs to return:
-    *  - Which of MY outputs are constant
-    *  - Which of MY instances' inputs am I driving constant
-    *  - Contant propped module itself
     *
+    * @param m the Module to run constant propagation on
+    * @param dontTouches names of components local to m that should not be propagated across
+    * @param instMap map of instance names to Module name
+    * @param constInputs map of names of m's input ports to literal driving it (if applicable)
+    * @param constSubOutputs Map of Module name to Map of output port name to literal driving it
     * @return (Constpropped Module, Map of output port names to literal value,
     *   Map of submodule modulenames to Map of input port names to literal values)
     */
@@ -390,8 +388,8 @@ class ConstantPropagation extends Transform {
     else (modx, constOutputs.toMap, constSubInputs.mapValues(_.toMap).toMap)
   }
 
-	// Unify two maps using f to combine values of duplicate keys
-	private def unify[K, V](a: Map[K, V], b: Map[K, V])(f: (V, V) => V): Map[K, V] =
+  // Unify two maps using f to combine values of duplicate keys
+  private def unify[K, V](a: Map[K, V], b: Map[K, V])(f: (V, V) => V): Map[K, V] =
     b.foldLeft(a) { case (acc, (k, v)) =>
       acc + (k -> acc.get(k).map(f(_, v)).getOrElse(v))
     }
@@ -412,6 +410,9 @@ class ConstantPropagation extends Transform {
     // sorted order from leaf to root
     // Modules will register any outputs they drive with a constant in constOutputs which is then
     // checked by later modules in the same iteration (since we iterate from leaf to root)
+    // Since Modules can be instantiated multiple times, for inputs we must check that all instances
+    // are driven with the same constant value. Then, if we find a Module input where each instance
+    // is driven with the same constant (and not seen in a previous iteration), we iterate again
     @tailrec
     def iterate(toVisit: Set[String],
             modules: Map[String, Module],
@@ -459,6 +460,7 @@ class ConstantPropagation extends Transform {
 
     val modulesx = {
       val nameMap = c.modules.collect { case m: Module => m.name -> m }.toMap
+      // We only pass names of Modules, we can't apply const prop to ExtModules
       val mmap = iterate(nameMap.keySet, nameMap, Map.empty)
       c.modules.map(m => mmap.getOrElse(m.name, m))
     }
