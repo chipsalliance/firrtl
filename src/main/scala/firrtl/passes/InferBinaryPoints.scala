@@ -11,7 +11,7 @@ import firrtl.ir._
 import firrtl.Utils._
 import firrtl.Mappers._
 
-object InferBinaryPoints extends Pass {
+class InferBinaryPoints extends Pass {
   type ConstraintMap = collection.mutable.LinkedHashMap[String, Width]
 
   def run (c: Circuit): Circuit = {

@@ -39,7 +39,7 @@ class IntervalSpec extends FirrtlFlatSpec {
   }
 
   "Interval types" should "infer bp correctly" in {
-    val passes = Seq(ToWorkingIR, InferTypes, ResolveGenders, InferBinaryPoints)
+    val passes = Seq(ToWorkingIR, InferTypes, ResolveGenders, new InferBinaryPoints())
     val input =
       """circuit Unit :
         |  module Unit :
@@ -60,7 +60,7 @@ class IntervalSpec extends FirrtlFlatSpec {
   }
 
   "Interval types" should "infer intervals correctly" in {
-    val passes = Seq(ToWorkingIR, InferTypes, ResolveGenders, InferBinaryPoints, new InferIntervals())
+    val passes = Seq(ToWorkingIR, InferTypes, ResolveGenders, new InferBinaryPoints(), new InferIntervals())
     val input =
       """circuit Unit :
         |  module Unit :
@@ -81,7 +81,7 @@ class IntervalSpec extends FirrtlFlatSpec {
   }
 
   "Interval types" should "be removed correctly" in {
-    val passes = Seq(ToWorkingIR, InferTypes, ResolveGenders, InferBinaryPoints, new InferIntervals(), new RemoveIntervals())
+    val passes = Seq(ToWorkingIR, InferTypes, ResolveGenders, new InferBinaryPoints(), new InferIntervals(), new RemoveIntervals())
     val input =
       """circuit Unit :
         |  module Unit :
@@ -108,5 +108,4 @@ class IntervalSpec extends FirrtlFlatSpec {
         |    out2 <= sub(in0, shl(sub(in1, shl(in2, 1)), 1))""".stripMargin
     executeTest(input, check.split("\n") map normalized, passes)
   }
-
 }
