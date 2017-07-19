@@ -77,7 +77,8 @@ antlr4PackageName in Antlr4 := Option("firrtl.antlr")
       </developer>
     </developers>
 
-  publishTo <<= version { v: String =>
+  publishTo := {
+    val v = version.value
     val nexus = "https://oss.sonatype.org/"
     if (v.trim.endsWith("SNAPSHOT")) {
       Some("snapshots" at nexus + "content/repositories/snapshots")
