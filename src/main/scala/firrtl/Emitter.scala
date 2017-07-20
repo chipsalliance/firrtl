@@ -197,9 +197,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
   def stringify(param: Param): String = param match {
     case IntParam(name, value) => s".$name($value)"
     case DoubleParam(name, value) => s".$name($value)"
-    case StringParam(name, value) =>
-      val strx = "\"" + value + "\""
-      s".${name}($strx)"
+    case StringParam(name, value) => s".${name}(${value.escape})"
     case RawStringParam(name, value) => s".$name($value)"
   }
   def stringify(tpe: GroundType): String = tpe match {
