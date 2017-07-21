@@ -739,6 +739,45 @@ class ConstantPropagationIntegrationSpec extends LowTransformSpec {
     execute(input, check, Seq.empty)
   }
 
+  it should "pad constant connections to outputs when propagating" in {
+      val input =
+        """circuit Top :
+          |  module Child :
+          |    output x : UInt<8>
+          |    x <= UInt<2>("h3")
+          |  module Top :
+          |    output z : UInt<16>
+          |    inst c of Child
+          |    z <= cat(UInt<2>("h3"), c.x)""".stripMargin
+      val check =
+        """circuit Top :
+          |  module Top :
+          |    output z : UInt<16>
+          |    z <= UInt<16>("h303")""".stripMargin
+    execute(input, check, Seq.empty)
+  }
+
+  it should "pad constant connections to submodule inputs when propagating" in {
+      val input =
+        """circuit Top :
+          |  module Child :
+          |    input x : UInt<8>
+          |    output y : UInt<16>
+          |    y <= cat(UInt<2>("h3"), x)
+          |  module Top :
+          |    output z : UInt<16>
+          |    inst c of Child
+          |    c.x <= UInt<2>("h3")
+          |    z <= c.y""".stripMargin
+      val check =
+        """circuit Top :
+          |  module Top :
+          |    output z : UInt<16>
+          |    z <= UInt<16>("h303")""".stripMargin
+    execute(input, check, Seq.empty)
+  }
+
+
   "Registers with no reset or connections" should "be replaced with constant zero" in {
       val input =
         """circuit Top :

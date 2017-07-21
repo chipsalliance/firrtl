@@ -356,8 +356,9 @@ class ConstantPropagation extends Transform {
           val exprx = constPropExpression(pad(expr, wtpe))
           propagateRef(wname, exprx)
         // Record constants driving outputs
-        case Connect(_, WRef(pname, _, PortKind, _), lit: Literal) if !dontTouches.contains(pname) =>
-          constOutputs(pname) = lit
+        case Connect(_, WRef(pname, ptpe, PortKind, _), lit: Literal) if !dontTouches.contains(pname) =>
+          val paddedLit = constPropExpression(pad(lit, ptpe)).asInstanceOf[Literal]
+          constOutputs(pname) = paddedLit
         // Const prop registers that are fed only a constant or a mux between and constant and the
         // register itself
         // This requires that reset has been made explicit
@@ -371,10 +372,11 @@ class ConstantPropagation extends Transform {
           case _ =>
         }
         // Mark instance inputs connected to a constant
-        case Connect(_, lref @ WSubField(WRef(inst, _, InstanceKind, _), port, _,_), lit: Literal) =>
+        case Connect(_, lref @ WSubField(WRef(inst, _, InstanceKind, _), port, ptpe, _), lit: Literal) =>
+          val paddedLit = constPropExpression(pad(lit, ptpe)).asInstanceOf[Literal]
           val module = instMap(inst)
           val portsMap = constSubInputs.getOrElseUpdate(module, mutable.HashMap.empty)
-          portsMap(port) = lit +: portsMap.getOrElse(port, List.empty)
+          portsMap(port) = paddedLit +: portsMap.getOrElse(port, List.empty)
         case _ =>
       }
       stmtx
