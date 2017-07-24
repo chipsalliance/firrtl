@@ -130,6 +130,7 @@ class IntervalMathSpec extends FirrtlFlatSpec {
             val uv = u1 + l2.neg
             assert(varWidth.toInt == width(bp, lv, uv))
           /*
+          TODO: this test
           case AssignPattern(varName, operation, args) =>
             varName match {
               case "sum" =>
