@@ -666,24 +666,6 @@ case class IntervalType(lower: Bound, upper: Bound, point: Width) extends Ground
     case _ => UnknownWidth
   }
   def mapWidth(f: Width => Width): Type = this.copy(point = f(point))
-  //def range: Seq[BigDecimal] = {
-  //  val prec = 1/Math.pow(2, point.get.toDouble)
-  //  val minAdjusted = min match {
-  //    case Open(a) => (a / prec) match {
-  //      case x if x == 0 => x + prec // add precision for open min bound
-  //      case x => x.setScale(0, DOWN) * prec
-  //    }
-  //    case Closed(a) => (a / prec).setScale(0, UP) * prec
-  //  }
-  //  val maxAdjusted = max match {
-  //    case Open(a) => (a / prec) match {
-  //      case x if x == 0 => x - prec // subtract precision for open max bound
-  //      case x => x.setScale(0, DOWN) * prec
-  //    }
-  //    case Closed(a) => (a / prec).setScale(0, UP) * prec
-  //  }
-  //  Range.BigDecimal(minAdjusted, maxAdjusted, prec)
-  //}
 }
 case class BundleType(fields: Seq[Field]) extends AggregateType {
   def serialize: String = "{ " + (fields map (_.serialize) mkString ", ") + "}"
