@@ -92,6 +92,8 @@ object CheckHighForm extends Pass {
           if (lsb > msb) {
             errors.append(new LsbLargerThanMsbException(info, mname, e.op.toString, lsb, msb))
           }
+        case AsInterval =>
+          correctNum(Option(1), 3)
         case Andr | Orr | Xorr | Neg =>
           correctNum(None,0)
       }
