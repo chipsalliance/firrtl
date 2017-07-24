@@ -65,24 +65,14 @@ class IntervalMathSpec extends FirrtlFlatSpec {
 
   for {
     lb1        <- Seq("[", "(")
-    lv1        <- Range.Double(-2.0, 1.0, 0.5)
+    lv1        <- Range.Double(-1.0, 1.0, 0.5)
     uv1        <- Range.Double(lv1, 1.0, 0.5)
-    ub1        <- {
-      (lv1 == uv1, lb1) match {
-        case (true, "[") => Seq("]")
-        case _ => Seq("]", ")")
-      }
-    }
+    ub1        <- if (lv1 == uv1) Seq("]") else Seq("]", ")")
     bp1        <- 0 to 1
     lb2        <- Seq("[", "(")
-    lv2        <- Range.Double(-2.0, 1.0, 0.5)
+    lv2        <- Range.Double(-1.0, 1.0, 0.5)
     uv2        <- Range.Double(lv2, 1.0, 0.5)
-    ub2        <- {
-      (lv2 == uv2, lb2) match {
-        case (true, "[") => Seq("]")
-        case _ => Seq("]", ")")
-      }
-    }
+    ub2        <- if (lv2 == uv2) Seq("]") else Seq("]", ")")
     bp2        <- 0 to 1
   } {
     def config = s"$lb1$lv1,$uv1$ub1.$bp1 and $lb2$lv2,$uv2$ub2.$bp2"

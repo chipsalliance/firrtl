@@ -108,4 +108,18 @@ class IntervalSpec extends FirrtlFlatSpec {
         |    out2 <= sub(in0, shl(sub(in1, shl(in2, 1)), 1))""".stripMargin
     executeTest(input, check.split("\n") map normalized, passes)
   }
+
+  "Interval types" should "infer this example correctly" in {
+    val passes = Seq(ToWorkingIR, InferTypes, ResolveGenders, new InferBinaryPoints(), new InferIntervals())
+      val input =
+        s"""circuit Unit :
+        |  module Unit :
+        |    input  in1 : Interval(0.5, 0.5].1
+        |    input  in2 : Interval(-0.5, 0.5).1
+        |    output sum : Interval
+        |    sum <= add(in2, in1)
+        |    """.stripMargin
+    val check = s"""output sum : Interval(0.0, 1.0).1 """.stripMargin
+    executeTest(input, check.split("\n") map normalized, passes)
+  }
 }

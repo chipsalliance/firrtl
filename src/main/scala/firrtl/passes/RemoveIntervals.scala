@@ -38,7 +38,7 @@ class RemoveIntervals extends Pass {
   private def replacePortInterval(p: Port): Port = p map replaceTypeInterval
   private def replaceTypeInterval(t: Type): Type = t match {
     case i@IntervalType(l: KnownBound, u: KnownBound, p: IntWidth) => SIntType(i.width)
-    case i: IntervalType => sys.error("Shouldn't be here")
+    case i: IntervalType => sys.error(s"Shouldn't be here: $i")
     case v => v map replaceTypeInterval
   }
 
