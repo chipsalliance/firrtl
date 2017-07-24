@@ -597,7 +597,10 @@ object KnownBound {
 case class Open(value: BigDecimal) extends KnownBound {
   def serialize = s"o($value)"
   def +(that: KnownBound): KnownBound = Open(value + that.value)
-  def *(that: KnownBound): KnownBound = Open(value * that.value)
+  def *(that: KnownBound): KnownBound = that match {
+    case Closed(x) if x == 0 => Closed(x)
+    case _ => Open(value * that.value)
+  }
   def min(that: KnownBound): KnownBound = if(value < that.value) this else that
   def max(that: KnownBound): KnownBound = if(value > that.value) this else that
   def neg: KnownBound = Open(-value)
@@ -609,6 +612,7 @@ case class Closed(value: BigDecimal) extends KnownBound {
     case Closed(x) => Closed(value + x)
   }
   def *(that: KnownBound): KnownBound = that match {
+    case KnownBound(x) if value == 0 => Closed(0)
     case Open(x) => Open(value * x)
     case Closed(x) => Closed(value * x)
   }
