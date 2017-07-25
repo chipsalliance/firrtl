@@ -12,8 +12,8 @@ class IntervalMathSpec extends FirrtlFlatSpec {
   val SumPattern    = """.*output sum.*<(\d+)>.*""".r
   val ProductPattern    = """.*output product.*<(\d+)>.*""".r
   val DifferencePattern = """.*output difference.*<(\d+)>.*""".r
-
-  val AssignPattern     = """\s*(\w+) <= asSInt\(bits\((\w+)\((.*)\).*\)\)\s*""".r
+  val ComparisonPattern = """.*output (\w+).*UInt<(\d+)>.*""".r
+  val ArithAssignPattern = """\s*(\w+) <= asSInt\(bits\((\w+)\((.*)\).*\)\)\s*""".r
 
   val prec = 0.5
 
@@ -41,9 +41,21 @@ class IntervalMathSpec extends FirrtlFlatSpec {
         |    output sum        : Interval
         |    output difference : Interval
         |    output product    : Interval
+        |    output lt         : UInt
+        |    output leq        : UInt
+        |    output gt         : UInt
+        |    output geq        : UInt
+        |    output eq         : UInt
+        |    output neq        : UInt
         |    sum        <= add(in1, in2)
         |    difference <= sub(in1, in2)
         |    product    <= mul(in1, in2)
+        |    lt         <= lt(in1, in2)
+        |    leq        <= leq(in1, in2)
+        |    gt         <= gt(in1, in2)
+        |    geq        <= geq(in1, in2)
+        |    eq         <= eq(in1, in2)
+        |    neq        <= lt(in1, in2)
         |    """.stripMargin
 
       val lowerer = new LowFirrtlCompiler
@@ -80,7 +92,8 @@ class IntervalMathSpec extends FirrtlFlatSpec {
             val lv = l1 + u2.neg
             val uv = u1 + l2.neg
             assert(varWidth.toInt == IntervalType(lv, uv, bp).width.asInstanceOf[IntWidth].width)
-          case AssignPattern(varName, operation, args) =>
+          case ComparisonPattern(varWidth) => assert(varWidth.toInt == 1)
+          case ArithAssignPattern(varName, operation, args) =>
             val arg1 = if(IntervalType(getBound(lb1, lv1), getBound(ub1, uv1), IntWidth(bp1)).width == IntWidth(0)) """SInt<1>("h0")""" else "in1"
             val arg2 = if(IntervalType(getBound(lb2, lv2), getBound(ub2, uv2), IntWidth(bp2)).width == IntWidth(0)) """SInt<1>("h0")""" else "in2"
             varName match {
