@@ -272,12 +272,14 @@ object PrimOps extends LazyLogging {
         case _: UIntType => UIntType(PLUS(w1, c1))
         case _: SIntType => SIntType(PLUS(w1, c1))
         case _: FixedType => FixedType(PLUS(w1,c1), p1)
+        case IntervalType(l, u, p) => IntervalType(MulBound(l, Closed(BigDecimal(c1.width))), MulBound(u, Closed(BigDecimal(c1.width))), p)
         case _ => UnknownType
       }
       case Shr => t1 match {
         case _: UIntType => UIntType(MAX(MINUS(w1, c1), IntWidth(1)))
         case _: SIntType => SIntType(MAX(MINUS(w1, c1), IntWidth(1)))
         case _: FixedType => FixedType(MAX(MAX(MINUS(w1,c1), IntWidth(1)), p1), p1)
+        case IntervalType(l, u, p) => IntervalType(MulBound(l, Closed(BigDecimal(1/c1.width))), MulBound(u, Closed(BigDecimal(1/c1.width))), p)
         case _ => UnknownType
       }
       case Dshl => t1 match {
@@ -332,20 +334,19 @@ object PrimOps extends LazyLogging {
         case _ => UnknownType
       }
       case Cat => (t1, t2) match {
-        case (_: UIntType | _: SIntType | _: FixedType, _: UIntType | _: SIntType | _: FixedType) => UIntType(PLUS(w1, w2))
+        case (_: UIntType | _: SIntType | _: FixedType | _: IntervalType, _: UIntType | _: SIntType | _: FixedType | _: IntervalType) => UIntType(PLUS(w1, w2))
         case (t1, t2) => UnknownType
       }
       case Bits => t1 match {
-        case (_: UIntType | _: SIntType) => UIntType(PLUS(MINUS(c1, c2), IntWidth(1)))
-        case _: FixedType => UIntType(PLUS(MINUS(c1, c2), IntWidth(1)))
+        case (_: UIntType | _: SIntType | _: FixedType | _: IntervalType) => UIntType(PLUS(MINUS(c1, c2), IntWidth(1)))
         case _ => UnknownType
       }
       case Head => t1 match {
-        case (_: UIntType | _: SIntType | _: FixedType) => UIntType(c1)
+        case (_: UIntType | _: SIntType | _: FixedType | _: IntervalType) => UIntType(c1)
         case _ => UnknownType
       }
       case Tail => t1 match {
-        case (_: UIntType | _: SIntType | _: FixedType) => UIntType(MINUS(w1, c1))
+        case (_: UIntType | _: SIntType | _: FixedType | _: IntervalType) => UIntType(MINUS(w1, c1))
         case _ => UnknownType
       }
       case BPShl => t1 match {
@@ -360,6 +361,7 @@ object PrimOps extends LazyLogging {
       }
       case BPSet => t1 match {
         case _: FixedType => FixedType(PLUS(c1, MINUS(w1, p1)), c1)
+        case IntervalType(l, u, p) => IntervalType(l, u, c1)
         case _ => UnknownType
       }
     })

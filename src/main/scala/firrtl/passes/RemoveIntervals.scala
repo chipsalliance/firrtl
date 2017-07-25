@@ -55,8 +55,10 @@ class RemoveIntervals extends Pass {
     }
     case other => other map alignStmtBP
   }
+  private val opsToFix = Seq(Add, Sub, Lt, Leq, Gt, Geq, Eq, Neq) //Mul does not need to be fixed
   private def alignExpBP(e: Expression): Expression = e map alignExpBP match {
-    case DoPrim(o, args, consts, t: IntervalType) if (o == Add) || (o == Sub) =>
+    case DoPrim(BPSet, Seq(arg), Seq(const), tpe: IntervalType) => fixBP(IntWidth(const))(arg)
+    case DoPrim(o, args, consts, t) if opsToFix.contains(o) && (args.map(_.tpe).collect { case x: IntervalType => x }).size == args.size =>
       val minBP = 0 //TODO: change this if supporting negative binary points
       val maxBP = args.foldLeft(IntWidth(minBP): Width) { (maxBP, a) =>
         a.tpe match {
