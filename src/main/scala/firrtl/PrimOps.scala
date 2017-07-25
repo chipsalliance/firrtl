@@ -180,36 +180,42 @@ object PrimOps extends LazyLogging {
         case (_: UIntType, _: UIntType) => Utils.BoolType
         case (_: SIntType, _: SIntType) => Utils.BoolType
         case (_: FixedType, _: FixedType) => Utils.BoolType
+        case (_: IntervalType, _: IntervalType) => Utils.BoolType
         case _ => UnknownType
       }
       case Leq => (t1, t2) match {
         case (_: UIntType, _: UIntType) => Utils.BoolType
         case (_: SIntType, _: SIntType) => Utils.BoolType
         case (_: FixedType, _: FixedType) => Utils.BoolType
+        case (_: IntervalType, _: IntervalType) => Utils.BoolType
         case _ => UnknownType
       }
       case Gt => (t1, t2) match {
         case (_: UIntType, _: UIntType) => Utils.BoolType
         case (_: SIntType, _: SIntType) => Utils.BoolType
         case (_: FixedType, _: FixedType) => Utils.BoolType
+        case (_: IntervalType, _: IntervalType) => Utils.BoolType
         case _ => UnknownType
       }
       case Geq => (t1, t2) match {
         case (_: UIntType, _: UIntType) => Utils.BoolType
         case (_: SIntType, _: SIntType) => Utils.BoolType
         case (_: FixedType, _: FixedType) => Utils.BoolType
+        case (_: IntervalType, _: IntervalType) => Utils.BoolType
         case _ => UnknownType
       }
       case Eq => (t1, t2) match {
         case (_: UIntType, _: UIntType) => Utils.BoolType
         case (_: SIntType, _: SIntType) => Utils.BoolType
         case (_: FixedType, _: FixedType) => Utils.BoolType
+        case (_: IntervalType, _: IntervalType) => Utils.BoolType
         case _ => UnknownType
       }
       case Neq => (t1, t2) match {
         case (_: UIntType, _: UIntType) => Utils.BoolType
         case (_: SIntType, _: SIntType) => Utils.BoolType
         case (_: FixedType, _: FixedType) => Utils.BoolType
+        case (_: IntervalType, _: IntervalType) => Utils.BoolType
         case _ => UnknownType
       }
       case Pad => t1 match {
