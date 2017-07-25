@@ -126,12 +126,12 @@ object PrimOps extends LazyLogging {
     def w2 = getWidth(e.args(1).tpe)
     def p1 = t1 match {
       case FixedType(w, p) => p
-      //case IntervalType(min, max, p) => p
+      case IntervalType(min, max, p) => p
       case _ => sys.error(s"Cannot get binary point from $t1")
     }
     def p2 = t2 match {
       case FixedType(w, p) => p
-      //case IntervalType(min, max, p) => p
+      case IntervalType(min, max, p) => p
       case _ => sys.error(s"Cannot get binary point from $t1")
     } //Intentional
     def c1 = IntWidth(e.consts.head)
