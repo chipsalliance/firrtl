@@ -681,27 +681,26 @@ case class IntervalType(lower: Bound, upper: Bound, point: Width) extends Ground
     case v if(v == -1) => 1
     case v if(v < -1) => firrtl.Utils.ceilLog2(-v - 1) + 1 //e.g. v = -2 -> 1
   }
-  //TODO(azidar): move somewhere else?
   val width: Width = (point, lower, upper) match {
     case (IntWidth(i), l: KnownBound, u: KnownBound) =>
       def resize(value: BigDecimal): BigDecimal = value * Math.pow(2, i.toInt)
       val resizedMin = l match {
         case Open(x) => resize(x) match {
-          case v if v.scale == 0 => v + 1
+          case v if v.isWhole => v + 1
           case v => v.setScale(0, UP)
         }
         case Closed(x) => resize(x) match {
-          case v if v.scale == 0 => v
+          case v if v.isWhole => v
           case v => v.setScale(0, DOWN)
         }
       }
       val resizedMax = u match {
         case Open(x) => resize(x) match {
-          case v if v.scale == 0 => v - 1
+          case v if v.isWhole => v - 1
           case v => v.setScale(0, DOWN)
         }
         case Closed(x) => resize(x) match {
-          case v if v.scale == 0 => v
+          case v if v.isWhole => v
           case v => v.setScale(0, UP)
         }
       }

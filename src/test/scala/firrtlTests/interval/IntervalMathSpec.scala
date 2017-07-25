@@ -3,7 +3,7 @@
 package firrtlTests.interval
 
 import firrtl.{CircuitState, ChirrtlForm, LowFirrtlCompiler, Parser, AnnotationMap}
-import firrtl.ir.{Closed, Open, KnownBound, Bound, MinBound, MaxBound, MulBound, AddBound}
+import firrtl.ir.{Closed, Open, KnownBound, Bound, MinBound, MaxBound, MulBound, AddBound, IntervalType, IntWidth}
 import scala.math.BigDecimal.RoundingMode._
 import firrtl.Parser.IgnoreInfo
 import firrtlTests.FirrtlFlatSpec
@@ -61,7 +61,7 @@ class IntervalMathSpec extends FirrtlFlatSpec {
   val ProductPattern    = """.*output product.*<(\d+)>.*""".r
   val DifferencePattern = """.*output difference.*<(\d+)>.*""".r
 
-  val AssignPattern     = """\s*(\w+) <= (\w+)\((.*)\)\s*""".r
+  val AssignPattern     = """\s*(\w+) <= asSInt\(bits\((\w+)\((.*)\)\)\)\s*""".r
 
   val prec = 0.5
 
@@ -78,7 +78,6 @@ class IntervalMathSpec extends FirrtlFlatSpec {
     bp2        <- 0 to 1
   } {
     def config = s"$lb1$lv1,$uv1$ub1.$bp1 and $lb2$lv2,$uv2$ub2.$bp2"
-    println(s"On $config")
 
     s"Configuration $config" should "pass" in {
 
@@ -107,34 +106,32 @@ class IntervalMathSpec extends FirrtlFlatSpec {
       for (line <- output) {
         line match {
           case SumPattern(varWidth)     =>
-            val bp = Math.max(bp1.toInt, bp2.toInt)
+            val bp = IntWidth(Math.max(bp1.toInt, bp2.toInt))
             val lv = getBound(lb1, lv1) + getBound(lb2, lv2)
             val uv = getBound(ub1, uv1) + getBound(ub2, uv2)
-            assert(varWidth.toInt == width(bp, lv, uv))
+            assert(varWidth.toInt == IntervalType(lv, uv, bp).width.asInstanceOf[IntWidth].width)
           case ProductPattern(varWidth)     =>
-            val bp = bp1.toInt + bp2.toInt
+            val bp = IntWidth(bp1.toInt + bp2.toInt)
             val l1 = getBound(lb1, lv1)
             val u1 = getBound(ub1, uv1)
             val l2 = getBound(lb2, lv2)
             val u2 = getBound(ub2, uv2)
             val lv = MinBound(MulBound(l1, l2), MulBound(l1, u2), MulBound(u1, l2), MulBound(u1, u2)).optimize()
             val uv = MaxBound(MulBound(l1, l2), MulBound(l1, u2), MulBound(u1, l2), MulBound(u1, u2)).optimize()
-            assert(varWidth.toInt == width(bp, lv, uv))
+            assert(varWidth.toInt == IntervalType(lv, uv, bp).width.asInstanceOf[IntWidth].width)
           case DifferencePattern(varWidth)     =>
-            val bp = Math.max(bp1.toInt, bp2.toInt)
+            val bp = IntWidth(Math.max(bp1.toInt, bp2.toInt))
             val l1 = getBound(lb1, lv1)
             val u1 = getBound(ub1, uv1)
             val l2 = getBound(lb2, lv2)
             val u2 = getBound(ub2, uv2)
             val lv = l1 + u2.neg
             val uv = u1 + l2.neg
-            assert(varWidth.toInt == width(bp, lv, uv))
-          /*
-          TODO: this test
+            assert(varWidth.toInt == IntervalType(lv, uv, bp).width.asInstanceOf[IntWidth].width)
           case AssignPattern(varName, operation, args) =>
             varName match {
               case "sum" =>
-                assert(operation === "add", s"var sum should be result of an add in $line")
+                assert(operation === "add", s"""var sum should be result of an add in ${output.mkString("\n")}""")
                 if (bp1 > bp2) {
                   assert(!args.contains("shl(a"), s"$config first arg should be just a in $line")
                   assert(args.contains(s"shl(b, ${bp1 - bp2})"),
@@ -167,7 +164,6 @@ class IntervalMathSpec extends FirrtlFlatSpec {
                 }
               case _ =>
             }
-          */
           case _ =>
         }
       }
