@@ -9,59 +9,11 @@ import firrtl.Parser.IgnoreInfo
 import firrtlTests.FirrtlFlatSpec
 
 class IntervalMathSpec extends FirrtlFlatSpec {
-  //def range(lower: KnownBound, upper: KnownBound, point: Int): Seq[BigDecimal] = {
-  //  val prec = 1/Math.pow(2, point.toDouble)
-  //  val minAdjusted = lower match {
-  //    case Open(a) => (a / prec) match {
-  //      case x if x == 0 => x + prec // add precision for open lower bound
-  //      case x => x.setScale(0, DOWN) * prec
-  //    }
-  //    case Closed(a) => (a / prec).setScale(0, UP) * prec
-  //  }
-  //  val maxAdjusted = upper match {
-  //    case Open(a) => (a / prec) match {
-  //      case x if x == 0 => x - prec // subtract precision for open upper bound
-  //      case x => x.setScale(0, DOWN) * prec
-  //    }
-  //    case Closed(a) => (a / prec).setScale(0, UP) * prec
-  //  }
-  //  Range.BigDecimal(minAdjusted, maxAdjusted, prec)
-  //}
-  def width(point: Int, lower: Bound, upper: Bound): Int = {
-    def resize(value: BigDecimal): BigDecimal = value * Math.pow(2, point)
-    def calcWidth(value: BigInt): Int = value match {
-      case v if(v == 0) => 0
-      case v if(v > 0) => firrtl.Utils.ceilLog2(v) + 1
-      case v if(v == -1) => 1
-      case v if(v < -1) => firrtl.Utils.ceilLog2(-v - 1) + 1 //e.g. v = -2 -> 1
-    }
-    val resizedMin = lower match {
-      case Open(x) => resize(x) match {
-        case v if v.scale == 0 => v + 1
-        case v => v.setScale(0, UP)
-      }
-      case Closed(x) => resize(x) match {
-        case v if v.scale == 0 => v
-        case v => v.setScale(0, DOWN)
-      }
-    }
-    val resizedMax = upper match {
-      case Open(x) => resize(x) match {
-        case v if v.scale == 0 => v - 1
-        case v => v.setScale(0, DOWN)
-      }
-      case Closed(x) => resize(x) match {
-        case v if v.scale == 0 => v
-        case v => v.setScale(0, UP)
-      }
-    }
-    Math.max(calcWidth(resizedMin.toBigInt), calcWidth(resizedMax.toBigInt))
-  }
   val SumPattern    = """.*output sum.*<(\d+)>.*""".r
   val ProductPattern    = """.*output product.*<(\d+)>.*""".r
   val DifferencePattern = """.*output difference.*<(\d+)>.*""".r
 
-  val AssignPattern     = """\s*(\w+) <= asSInt\(bits\((\w+)\((.*)\)\)\)\s*""".r
+  val AssignPattern     = """\s*(\w+) <= asSInt\(bits\((\w+)\((.*)\).*\)\)\s*""".r
 
   val prec = 0.5
 
@@ -129,38 +81,40 @@ class IntervalMathSpec extends FirrtlFlatSpec {
             val uv = u1 + l2.neg
             assert(varWidth.toInt == IntervalType(lv, uv, bp).width.asInstanceOf[IntWidth].width)
           case AssignPattern(varName, operation, args) =>
+            val arg1 = if(IntervalType(getBound(lb1, lv1), getBound(ub1, uv1), IntWidth(bp1)).width == IntWidth(0)) """SInt<1>("h0")""" else "in1"
+            val arg2 = if(IntervalType(getBound(lb2, lv2), getBound(ub2, uv2), IntWidth(bp2)).width == IntWidth(0)) """SInt<1>("h0")""" else "in2"
             varName match {
               case "sum" =>
                 assert(operation === "add", s"""var sum should be result of an add in ${output.mkString("\n")}""")
                 if (bp1 > bp2) {
-                  assert(!args.contains("shl(a"), s"$config first arg should be just a in $line")
-                  assert(args.contains(s"shl(b, ${bp1 - bp2})"),
+                  if (arg1 != arg2) assert(!args.contains(s"shl($arg1"), s"$config first arg should be just $arg1 in $line")
+                  assert(args.contains(s"shl($arg2, ${bp1 - bp2})"),
                     s"$config second arg incorrect in $line")
                 } else if (bp1 < bp2) {
-                  assert(args.contains(s"shl(a, ${(bp1 - bp2).abs})"),
+                  assert(args.contains(s"shl($arg1, ${(bp1 - bp2).abs})"),
                     s"$config second arg incorrect in $line")
-                  assert(!args.contains("shl(b"), s"$config second arg should be just b in $line")
+                  assert(!args.contains("shl($arg2"), s"$config second arg should be just $arg2 in $line")
                 } else {
-                  assert(!args.contains("shl(a"), s"$config first arg should be just a in $line")
-                  assert(!args.contains("shl(b"), s"$config second arg should be just b in $line")
+                  assert(!args.contains(s"shl($arg1"), s"$config first arg should be just $arg1 in $line")
+                  assert(!args.contains(s"shl($arg2"), s"$config second arg should be just $arg2 in $line")
                 }
               case "product" =>
                 assert(operation === "mul", s"var sum should be result of an add in $line")
-                assert(!args.contains("shl(a"), s"$config first arg should be just a in $line")
-                assert(!args.contains("shl(b"), s"$config second arg should be just b in $line")
+                assert(!args.contains(s"shl($arg1"), s"$config first arg should be just $arg1 in $line")
+                assert(!args.contains(s"shl($arg2"), s"$config second arg should be just $arg2 in $line")
               case "difference" =>
                 assert(operation === "sub", s"var difference should be result of an sub in $line")
                 if (bp1 > bp2) {
-                  assert(!args.contains("shl(a"), s"$config first arg should be just a in $line")
-                  assert(args.contains(s"shl(b, ${bp1 - bp2})"),
+                  if (arg1 != arg2) assert(!args.contains(s"shl($arg1"), s"$config first arg should be just $arg1 in $line")
+                  assert(args.contains(s"shl($arg2, ${bp1 - bp2})"),
                     s"$config second arg incorrect in $line")
                 } else if (bp1 < bp2) {
-                  assert(args.contains(s"shl(a, ${(bp1 - bp2).abs})"),
+                  assert(args.contains(s"shl($arg1, ${(bp1 - bp2).abs})"),
                     s"$config second arg incorrect in $line")
-                  assert(!args.contains("shl(b"), s"$config second arg should be just b in $line")
+                  if (arg1 != arg2) assert(!args.contains(s"shl($arg2"), s"$config second arg should be just $arg2 in $line")
                 } else {
-                  assert(!args.contains("shl(a"), s"$config first arg should be just a in $line")
-                  assert(!args.contains("shl(b"), s"$config second arg should be just b in $line")
+                  assert(!args.contains(s"shl($arg1"), s"$config first arg should be just $arg1 in $line")
+                  assert(!args.contains(s"shl($arg2"), s"$config second arg should be just $arg2 in $line")
                 }
               case _ =>
             }
