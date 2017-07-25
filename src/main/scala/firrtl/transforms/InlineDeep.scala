@@ -32,10 +32,72 @@ class InlineInstancesDeep extends InlineInstances {
            }.toSet, instNames)
          case InlineDeepAnnotation(ModuleName(mod, cir)) => (modNames + ModuleName(mod, cir), instNames)
          case InlineDeepAnnotation(ComponentName(com, mod)) => (modNames, instNames + ComponentName(com, mod))
-         case _ => throw new PassException("Annotation must be InlineAnnotation")
+         case _ => throw new PassException("Annotation must be InlineDeepAnnotation")
        }
      }
 
+   // Duplicate the circuit such that we inline only the modules that are driven by annotations
+   // Along with duplication we rewrite the original circuit to refer to the new modules that will all be inlined
+   // 
+   def duplicateSubCircuitsFromAnno(c : Circuit, mods:  Set[ModuleName], insts : Set[ComponentName], modsToInline : mutable.Set[ModuleName]) : Circuit = {
+     val modMap = c.modules.map(m => m.name->m) toMap
+     val seedMods = mutable.Map.empty[String, String]
+     val newModDefs= mutable.Set.empty[DefModule]
+     
+     // We start with rewriting original modules that contain annotations
+     def rewriteMod(parent : DefModule)(x : Statement) : Statement = x match {
+         case _: Block =>
+           x map rewriteMod(parent)
+         case WDefInstance(info, instName, moduleName, instTpe) =>
+           if (insts.contains(ComponentName(instName, ModuleName(parent.name, CircuitName("Top"))))
+            || mods.contains(ModuleName(parent.name, CircuitName("Top")))) {
+             val newModName = moduleName+"_DEEPINLINE"
+             seedMods += moduleName -> newModName
+             WDefInstance(info, instName, newModName, instTpe)
+           } else {
+             x
+           }
+         case _ =>
+           //println(s"x $x")
+           x
+       
+     }
+     
+     val modifMods = c.modules map {m => m map rewriteMod(m)}
+     
+     // we recursively rewrite modules in the hierarchy driven by seedMods (originally annotations)
+     def recDupMods(mods : Map[String, String]) : Unit = {
+       val modsToDup = mutable.Map.empty[String, String]
+
+       def dupMod(x : Statement) : Statement = x match {
+         case _: Block =>
+           x map dupMod
+         case WDefInstance(info, instName, moduleName, instTpe) =>
+             val newModName = moduleName+"_DEEPINLINE"
+             modsToDup += moduleName -> newModName
+             WDefInstance(info, instName, newModName, instTpe)
+         case _ =>
+           x 
+       }
+       
+       def dupName(name : String) : String = {
+         mods(name)
+       }
+       val newMods = mods map {case(origName, newName) =>
+         modMap(origName) map dupMod map dupName
+       }
+       newModDefs ++= newMods
+       
+       if(modsToDup.size > 0) 
+         recDupMods(modsToDup.toMap)
+       
+       //modsToDup.toMap    
+     }
+     recDupMods(seedMods.toMap)
+     
+     modsToInline ++= newModDefs.map{m => ModuleName(m.name, CircuitName("Top"))}
+     c.copy(modules = modifMods ++ newModDefs)
+   }
    
    override def execute( state: CircuitState): CircuitState = {
      getMyAnnotations(state) match {
@@ -45,48 +107,13 @@ class InlineInstancesDeep extends InlineInstances {
          val (modNames, instNames) = collectAnns(state.circuit, myAnnotations)
          // take incoming annotation and produce annotations for InlineInstances, i.e. traverse circuit down to find all instances to inline
          val modMap = c.modules.map(m => m.name->m) toMap
-         val instNamesToInline = goDeep(state.circuit, modMap, modNames, instNames) 
-         println(s"instNames = $instNamesToInline")
-         run(state.circuit, Set.empty[ModuleName], instNamesToInline, state.annotations)
+         val modsToInline = mutable.Set.empty[ModuleName]
+         val newc = duplicateSubCircuitsFromAnno(state.circuit,modNames, instNames, modsToInline)
+         //val instNamesToInline = goDeep(state.circuit, modMap, modNames, instNames) 
+         //println(s"instNames = $instNamesToInline")
+         val newCS = run(newc, modsToInline.toSet, Set.empty[ComponentName], state.annotations)
+         //println(s"New CIRCUIT ${newCS.circuit.serialize}")
+         newCS
      }
-   }
-
-   // get instances inside given module definition   
-   def collectModInsts(m : DefModule) : Map[String, String] = {
-     val instModNames = mutable.ListBuffer.empty[(String, String)]
-     
-     def findInsts (s : Statement) : Statement = s match {
-       case WDefInstance(info, instName, moduleName, instTpe) =>
-         instModNames += ((instName, moduleName))
-         s
-       case sx => sx map findInsts
-     }
-     m map findInsts
-     instModNames toMap
-   }
-   
-   // Input is a pair of instanceName and its master moduleName, 
-   // returning ComponentName (for instance)-> ModuleName(for master module name). 
-   // Requires parent modulename    
-   def asComponentNameOf(mn : ModuleName)( instmaster : (String, String)) = instmaster match {
-     case (inst,master) => ComponentName(inst, mn)->ModuleName(master, CircuitName("Top"))
-   }
-   
-   // traverse circuit starting from input annotation down and generate a collection of instances to pass to inline transform
-   private def goDeep(circuit: Circuit, modMap : Map[String, DefModule], mods:  Set[ModuleName], insts : Set[ComponentName]) : Set[ComponentName] = {
-     val modInsts = mods flatMap {mod => collectModInsts(modMap(mod.name)) map asComponentNameOf(mod)} toMap 
-     val instsWithMaster = insts map {inst =>
-       val parentModInsts = collectModInsts (modMap(inst.module.name))
-       val instMasterName = parentModInsts(inst.name) 
-       ComponentName(inst.name, inst.module)->ModuleName(instMasterName, CircuitName("Top"))
-     } toMap 
-     
-     def recurCollectInstances(in : Map[ComponentName, ModuleName]) : Map[ComponentName, ModuleName] = {
-       in.flatMap {case(cname, master) =>
-         val modInsts = collectModInsts(modMap(master.name))
-         in ++ recurCollectInstances(modInsts map asComponentNameOf(ModuleName(master.name, CircuitName("Top"))))
-       }
-     }
-     recurCollectInstances(instsWithMaster ++ modInsts).keySet
    }
 }

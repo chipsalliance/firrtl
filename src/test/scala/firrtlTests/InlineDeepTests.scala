@@ -116,11 +116,9 @@ class InlineDeepTests extends LowTransformSpec {
            |  module Inline1 :
            |    input a : UInt<32>
            |    output b : UInt<32>
-           |    wire i$a : UInt<32>
-           |    wire i$b : UInt<32>
-           |    i$b <= i$a 
-           |    b <= i$a 
-           |    i$a <= a
+           |    inst i of Inline2 
+           |    b <= i.a 
+           |    i.a <= a
            |  module Inline2 :
            |    input a : UInt<32>
            |    output b : UInt<32>
