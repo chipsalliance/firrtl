@@ -9,10 +9,12 @@ import firrtl.Parser.IgnoreInfo
 import firrtlTests.FirrtlFlatSpec
 
 class IntervalMathSpec extends FirrtlFlatSpec {
-  val SumPattern    = """.*output sum.*<(\d+)>.*""".r
-  val ProductPattern    = """.*output product.*<(\d+)>.*""".r
-  val DifferencePattern = """.*output difference.*<(\d+)>.*""".r
-  val ComparisonPattern = """.*output (\w+).*UInt<(\d+)>.*""".r
+  val SumPattern         = """.*output sum.*<(\d+)>.*""".r
+  val ProductPattern     = """.*output product.*<(\d+)>.*""".r
+  val DifferencePattern  = """.*output difference.*<(\d+)>.*""".r
+  val ComparisonPattern  = """.*output (\w+).*UInt<(\d+)>.*""".r
+  val ShiftLeftPattern   = """.*output shl.*<(\d+)>.*""".r
+  val ShiftRightPattern  = """.*output shr.*<(\d+)>.*""".r
   val ArithAssignPattern = """\s*(\w+) <= asSInt\(bits\((\w+)\((.*)\).*\)\)\s*""".r
 
   val prec = 0.5
@@ -41,21 +43,27 @@ class IntervalMathSpec extends FirrtlFlatSpec {
         |    output sum        : Interval
         |    output difference : Interval
         |    output product    : Interval
+        |    output shl        : Interval
+        |    output shr        : Interval
         |    output lt         : UInt
         |    output leq        : UInt
         |    output gt         : UInt
         |    output geq        : UInt
         |    output eq         : UInt
         |    output neq        : UInt
+        |    output cat        : UInt
         |    sum        <= add(in1, in2)
         |    difference <= sub(in1, in2)
         |    product    <= mul(in1, in2)
+        |    shl        <= shl(in1, 3)
+        |    shr        <= shr(in1, 3)
         |    lt         <= lt(in1, in2)
         |    leq        <= leq(in1, in2)
         |    gt         <= gt(in1, in2)
         |    geq        <= geq(in1, in2)
         |    eq         <= eq(in1, in2)
         |    neq        <= lt(in1, in2)
+        |    cat        <= cat(in1, in2)
         |    """.stripMargin
 
       val lowerer = new LowFirrtlCompiler
@@ -91,6 +99,16 @@ class IntervalMathSpec extends FirrtlFlatSpec {
             val u2 = getBound(ub2, uv2)
             val lv = l1 + u2.neg
             val uv = u1 + l2.neg
+            assert(varWidth.toInt == IntervalType(lv, uv, bp).width.asInstanceOf[IntWidth].width)
+          case ShiftLeftPattern(varWidth)     =>
+            val bp = IntWidth(bp1.toInt)
+            val lv = getBound(lb1, lv1) * Closed(3)
+            val uv = getBound(ub1, uv1) * Closed(3)
+            assert(varWidth.toInt == IntervalType(lv, uv, bp).width.asInstanceOf[IntWidth].width)
+          case ShiftRightPattern(varWidth)     =>
+            val bp = IntWidth(bp1.toInt)
+            val lv = getBound(lb1, lv1) * Closed(1/3)
+            val uv = getBound(ub1, uv1) * Closed(1/3)
             assert(varWidth.toInt == IntervalType(lv, uv, bp).width.asInstanceOf[IntWidth].width)
           case ComparisonPattern(varWidth) => assert(varWidth.toInt == 1)
           case ArithAssignPattern(varName, operation, args) =>
