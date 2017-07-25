@@ -148,7 +148,7 @@ class IntervalSpec extends FirrtlFlatSpec {
         |    output out : Interval
         |    out <= mux(p, in2, in1)
         |    """.stripMargin
-    val check = s"""output out : Interval[0, 0.5).1 """.stripMargin
+    val check = s"""output out : Interval[0.0, 0.5).1 """.stripMargin
     executeTest(input, check.split("\n") map normalized, passes)
   }
 }

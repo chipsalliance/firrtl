@@ -348,6 +348,7 @@ object Utils extends LazyLogging {
     case (t1: UIntType, t2: UIntType) => UIntType(UnknownWidth)
     case (t1: SIntType, t2: SIntType) => SIntType(UnknownWidth)
     case (t1: FixedType, t2: FixedType) => FixedType(UnknownWidth, UnknownWidth)
+    case (t1: IntervalType, t2: IntervalType) => IntervalType(UnknownBound, UnknownBound, UnknownWidth)
     case (t1: VectorType, t2: VectorType) => VectorType(mux_type(t1.tpe, t2.tpe), t1.size)
     case (t1: BundleType, t2: BundleType) => BundleType(t1.fields zip t2.fields map {
       case (f1, f2) => Field(f1.name, f1.flip, mux_type(f1.tpe, f2.tpe))
@@ -367,6 +368,8 @@ object Utils extends LazyLogging {
       case (t1x: SIntType, t2x: SIntType) => SIntType(wmax(t1x.width, t2x.width))
       case (FixedType(w1, p1), FixedType(w2, p2)) =>
         FixedType(PLUS(MAX(p1, p2),MAX(MINUS(w1, p1), MINUS(w2, p2))), MAX(p1, p2))
+      case (IntervalType(l1, u1, p1), IntervalType(l2, u2, p2)) =>
+        IntervalType(MinBound(l1, l2), MaxBound(u1, u2), MAX(p1, p2))
       case (t1x: VectorType, t2x: VectorType) => VectorType(
         mux_type_and_widths(t1x.tpe, t2x.tpe), t1x.size)
       case (t1x: BundleType, t2x: BundleType) => BundleType(t1x.fields zip t2x.fields map {
