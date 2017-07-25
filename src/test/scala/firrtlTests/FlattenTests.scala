@@ -22,8 +22,7 @@ class FlattenTests extends LowTransformSpec {
   def flatten(mod: String): Annotation = {
     val parts = mod.split('.')
     val modName = ModuleName(parts.head, CircuitName("Top")) // If this fails, bad input
-    val name = if (parts.size == 1) modName
-               else ComponentName(parts.tail.mkString("."), modName)
+    val name = if (parts.size == 1) modName else ComponentName(parts.tail.mkString("."), modName)
     FlattenAnnotation(name)
   }
   
