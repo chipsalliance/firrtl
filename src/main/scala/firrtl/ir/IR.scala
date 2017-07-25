@@ -359,8 +359,6 @@ case class Field(name: String, flip: Orientation, tpe: Type) extends FirrtlNode 
   def serialize: String = flip.serialize + name + " : " + tpe.serialize
 }
 
-/** Bounds of [[IntervalType]] */
-
 trait IsConstrainable[T] {
   def optimize(): T
   def map(f: T=>T): T
@@ -387,6 +385,9 @@ trait IsNeg[T] {
 trait IsVal {
   def value: BigDecimal
 }
+
+/** Bounds of [[IntervalType]] */
+
 trait Bound extends IsConstrainable[Bound] {
   def serialize: String
   def map(f: Bound=>Bound): Bound
@@ -483,13 +484,6 @@ case class MinBound(bounds: Bound*) extends Bound with IsMin[Bound] {
   def serialize: String = "min(" + bounds.map(_.serialize).mkString(", ") + ")"
   def map(f: Bound=>Bound): Bound = MinBound(bounds.map(f):_*)
 }
-case object UnknownBound extends Bound {
-  def gen(bounds: Seq[Bound]): Bound = sys.error("Shouldn't be here")
-  def op(b1: KnownBound, b2: KnownBound): Bound =  sys.error("Shouldn't be here")
-  override def reduce() = this
-  def serialize: String = "?"
-  def map(f: Bound=>Bound): Bound = this
-}
 case class VarBound(name: String) extends Bound with IsVar {
   def gen(bounds: Seq[Bound]): Bound = sys.error("Shouldn't be here")
   def op(b1: KnownBound, b2: KnownBound): Bound =  sys.error("Shouldn't be here")
@@ -497,10 +491,16 @@ case class VarBound(name: String) extends Bound with IsVar {
   def serialize: String = name
   def map(f: Bound=>Bound): Bound = this
 }
+case object UnknownBound extends Bound {
+  def gen(bounds: Seq[Bound]): Bound = sys.error("Shouldn't be here")
+  def op(b1: KnownBound, b2: KnownBound): Bound =  sys.error("Shouldn't be here")
+  override def reduce() = this
+  def serialize: String = "?"
+  def map(f: Bound=>Bound): Bound = this
+}
 sealed trait KnownBound extends Bound with IsVal {
   val value: BigDecimal
   def +(that: KnownBound): KnownBound
-  //def -(that: KnownBound): KnownBound
   def *(that: KnownBound): KnownBound
   def max(that: KnownBound): KnownBound
   def min(that: KnownBound): KnownBound
