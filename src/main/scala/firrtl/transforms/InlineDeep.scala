@@ -19,8 +19,8 @@ object InlineDeepAnnotation {
 }
 
 //  
-// Takes module and instance annotations to inline the entire hierarchy of modules down from given ones
-// This transformation is based on InlineInstances transformation. More concretely, it fully reuses run method and overriding execute method to collect the right set of instances to inline 
+// Takes all annotations for module instances and inline the entire hierarchy of modules down from the given ones.
+// This transformation is based on InlineInstances transformation. More concretely, it fully reuses run method and overriding execute method to collect the right set of modules to inline 
 // Note: Inlining a module means inlining all its children module instances   
 class InlineInstancesDeep extends InlineInstances {
    private def collectAnns(circuit: Circuit, anns: Iterable[Annotation]): (Set[ModuleName], Set[ComponentName]) =
@@ -36,9 +36,8 @@ class InlineInstancesDeep extends InlineInstances {
        }
      }
 
-   // Duplicate the circuit such that we inline only the modules that are driven by annotations
-   // Along with duplication we rewrite the original circuit to refer to the new modules that will all be inlined
-   // 
+   // Replicate the circuit such that we inline only the modules that are below hierarchy given by the annotations
+   // Along with replication we rewrite the original circuit to refer to the new modules that will be inlined
    def duplicateSubCircuitsFromAnno(c : Circuit, mods:  Set[ModuleName], insts : Set[ComponentName], modsToInline : mutable.Set[ModuleName]) : Circuit = {
      val modMap = c.modules.map(m => m.name->m) toMap
      val seedMods = mutable.Map.empty[String, String]
@@ -49,8 +48,8 @@ class InlineInstancesDeep extends InlineInstances {
          case _: Block =>
            x map rewriteMod(parent)
          case WDefInstance(info, instName, moduleName, instTpe) =>
-           if (insts.contains(ComponentName(instName, ModuleName(parent.name, CircuitName("Top"))))
-            || mods.contains(ModuleName(parent.name, CircuitName("Top")))) {
+           if (insts.contains(ComponentName(instName, ModuleName(parent.name, CircuitName(c.main))))
+            || mods.contains(ModuleName(parent.name, CircuitName(c.main)))) {
              val newModName = moduleName+"_DEEPINLINE"
              seedMods += moduleName -> newModName
              WDefInstance(info, instName, newModName, instTpe)
@@ -67,14 +66,14 @@ class InlineInstancesDeep extends InlineInstances {
      
      // we recursively rewrite modules in the hierarchy driven by seedMods (originally annotations)
      def recDupMods(mods : Map[String, String]) : Unit = {
-       val modsToDup = mutable.Map.empty[String, String]
+       val replMods = mutable.Map.empty[String, String]
 
        def dupMod(x : Statement) : Statement = x match {
          case _: Block =>
            x map dupMod
          case WDefInstance(info, instName, moduleName, instTpe) =>
              val newModName = moduleName+"_DEEPINLINE"
-             modsToDup += moduleName -> newModName
+             replMods += moduleName -> newModName
              WDefInstance(info, instName, newModName, instTpe)
          case _ =>
            x 
@@ -88,14 +87,14 @@ class InlineInstancesDeep extends InlineInstances {
        }
        newModDefs ++= newMods
        
-       if(modsToDup.size > 0) 
-         recDupMods(modsToDup.toMap)
+       if(replMods.size > 0) 
+         recDupMods(replMods.toMap)
        
-       //modsToDup.toMap    
      }
      recDupMods(seedMods.toMap)
-     
-     modsToInline ++= newModDefs.map{m => ModuleName(m.name, CircuitName("Top"))}
+
+     //convert newly created modules to ModuleName for inlining next (outside this function)
+     modsToInline ++= newModDefs.map{m => ModuleName(m.name, CircuitName(c.main))}
      c.copy(modules = modifMods ++ newModDefs)
    }
    
@@ -106,14 +105,9 @@ class InlineInstancesDeep extends InlineInstances {
          val c = state.circuit
          val (modNames, instNames) = collectAnns(state.circuit, myAnnotations)
          // take incoming annotation and produce annotations for InlineInstances, i.e. traverse circuit down to find all instances to inline
-         val modMap = c.modules.map(m => m.name->m) toMap
          val modsToInline = mutable.Set.empty[ModuleName]
          val newc = duplicateSubCircuitsFromAnno(state.circuit,modNames, instNames, modsToInline)
-         //val instNamesToInline = goDeep(state.circuit, modMap, modNames, instNames) 
-         //println(s"instNames = $instNamesToInline")
-         val newCS = run(newc, modsToInline.toSet, Set.empty[ComponentName], state.annotations)
-         //println(s"New CIRCUIT ${newCS.circuit.serialize}")
-         newCS
+         run(newc, modsToInline.toSet, Set.empty[ComponentName], state.annotations)
      }
    }
 }
