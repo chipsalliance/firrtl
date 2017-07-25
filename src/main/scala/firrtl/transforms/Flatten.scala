@@ -9,11 +9,11 @@ import firrtl.annotations._
 import scala.collection.mutable
 
 // Tags an annotation to be consumed by this pass
-object InlineDeepAnnotation {
-  def apply(target: Named): Annotation = Annotation(target, classOf[InlineInstancesDeep], "")
+object FlattenAnnotation {
+  def apply(target: Named): Annotation = Annotation(target, classOf[Flatten], "")
 
   def unapply(a: Annotation): Option[Named] = a match {
-    case Annotation(named, t, _) if t == classOf[InlineInstancesDeep] => Some(named)
+    case Annotation(named, t, _) if t == classOf[Flatten] => Some(named)
     case _ => None
   }
 }
@@ -22,16 +22,16 @@ object InlineDeepAnnotation {
 // Takes all annotations for module instances and inline the entire hierarchy of modules down from the given ones.
 // This transformation is based on InlineInstances transformation. More concretely, it fully reuses run method and overriding execute method to collect the right set of modules to inline 
 // Note: Inlining a module means inlining all its children module instances   
-class InlineInstancesDeep extends InlineInstances {
+class Flatten extends InlineInstances {
    private def collectAnns(circuit: Circuit, anns: Iterable[Annotation]): (Set[ModuleName], Set[ComponentName]) =
      anns.foldLeft(Set.empty[ModuleName], Set.empty[ComponentName]) {
        case ((modNames, instNames), ann) => ann match {
-         case InlineDeepAnnotation(CircuitName(c)) =>
+         case FlattenAnnotation(CircuitName(c)) =>
            (circuit.modules.collect {
              case Module(_, name, _, _) if name != circuit.main => ModuleName(name, CircuitName(c))
            }.toSet, instNames)
-         case InlineDeepAnnotation(ModuleName(mod, cir)) => (modNames + ModuleName(mod, cir), instNames)
-         case InlineDeepAnnotation(ComponentName(com, mod)) => (modNames, instNames + ComponentName(com, mod))
+         case FlattenAnnotation(ModuleName(mod, cir)) => (modNames + ModuleName(mod, cir), instNames)
+         case FlattenAnnotation(ComponentName(com, mod)) => (modNames, instNames + ComponentName(com, mod))
          case _ => throw new PassException("Annotation must be InlineDeepAnnotation")
        }
      }

@@ -9,7 +9,7 @@ import firrtl.ir.Circuit
 import firrtl.Parser
 import firrtl.passes.PassExceptions
 import firrtl.annotations.{Annotation, CircuitName, ComponentName, ModuleName, Named}
-import firrtl.passes.{InlineDeepAnnotation, InlineInstancesDeep}
+import firrtl.passes.{FlattenAnnotation, Flatten}
 import logger.{LogLevel, Logger}
 import logger.LogLevel.Debug
 
@@ -17,14 +17,14 @@ import logger.LogLevel.Debug
 /**
  * Tests deep inline transformation
  */
-class InlineDeepTests extends LowTransformSpec {
-  def transform = new InlineInstancesDeep
-	def inlineDeep(mod: String): Annotation = {
+class FlattenTests extends LowTransformSpec {
+  def transform = new Flatten
+	def flatten(mod: String): Annotation = {
 	  val parts = mod.split('.')
 		val modName = ModuleName(parts.head, CircuitName("Top")) // If this fails, bad input
 		val name = if (parts.size == 1) modName
 							 else ComponentName(parts.tail.mkString("."), modName)
-    InlineDeepAnnotation(name)
+    FlattenAnnotation(name)
   }
   
   
@@ -55,7 +55,7 @@ class InlineDeepTests extends LowTransformSpec {
            |    input a : UInt<32>
            |    output b : UInt<32>
            |    b <= a""".stripMargin
-      execute(input, check, Seq(inlineDeep("Top")))
+      execute(input, check, Seq(flatten("Top")))
    }
 
    "The module instance i in Top " should "be inlined" in {
@@ -123,7 +123,7 @@ class InlineDeepTests extends LowTransformSpec {
            |    input a : UInt<32>
            |    output b : UInt<32>
            |    b <= a""".stripMargin
-      execute(input, check, Seq(inlineDeep("Top.i")))
+      execute(input, check, Seq(flatten("Top.i")))
    }
 
       "The module Inline1" should "be inlined" in {
@@ -187,7 +187,7 @@ class InlineDeepTests extends LowTransformSpec {
            |    input a : UInt<32>
            |    output b : UInt<32>
            |    b <= a""".stripMargin
-      execute(input, check, Seq(inlineDeep("Inline1")))
+      execute(input, check, Seq(flatten("Inline1")))
    }
 
 }
