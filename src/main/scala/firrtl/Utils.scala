@@ -11,6 +11,7 @@ import scala.collection.mutable
 import scala.collection.mutable.{StringBuilder, ArrayBuffer, LinkedHashMap, HashMap, HashSet}
 import java.io.PrintWriter
 import logger.LazyLogging
+import passes.{IsMax, IsMin}
 
 object FIRRTLException {
   def defaultMessage(message: String, cause: Throwable) = {
@@ -369,7 +370,7 @@ object Utils extends LazyLogging {
       case (FixedType(w1, p1), FixedType(w2, p2)) =>
         FixedType(PLUS(MAX(p1, p2),MAX(MINUS(w1, p1), MINUS(w2, p2))), MAX(p1, p2))
       case (IntervalType(l1, u1, p1), IntervalType(l2, u2, p2)) =>
-        IntervalType(MinBound(l1, l2), MaxBound(u1, u2), MAX(p1, p2))
+        IntervalType(IsMin(l1, l2), IsMax(u1, u2), MAX(p1, p2))
       case (t1x: VectorType, t2x: VectorType) => VectorType(
         mux_type_and_widths(t1x.tpe, t2x.tpe), t1x.size)
       case (t1x: BundleType, t2x: BundleType) => BundleType(t1x.fields zip t2x.fields map {

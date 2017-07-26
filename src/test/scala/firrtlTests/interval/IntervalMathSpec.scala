@@ -2,8 +2,10 @@
 
 package firrtlTests.interval
 
+import firrtl.PrimOps.constraint2bound
 import firrtl.{CircuitState, ChirrtlForm, LowFirrtlCompiler, Parser, AnnotationMap}
-import firrtl.ir.{Closed, Open, KnownBound, Bound, MinBound, MaxBound, MulBound, AddBound, IntervalType, IntWidth}
+import firrtl.ir.{Closed, Open, Bound, IntervalType, IntWidth}
+import firrtl.passes.{IsMin, IsMax, IsMul, IsAdd, IsKnown}
 import scala.math.BigDecimal.RoundingMode._
 import firrtl.Parser.IgnoreInfo
 import firrtlTests.FirrtlFlatSpec
@@ -69,7 +71,7 @@ class IntervalMathSpec extends FirrtlFlatSpec {
       val lowerer = new LowFirrtlCompiler
       val res = lowerer.compileAndEmit(CircuitState(parse(input), ChirrtlForm))
       val output = res.getEmittedCircuit.value split "\n"
-      def getBound(bound: String, value: Double): KnownBound = bound match {
+      def getBound(bound: String, value: Double): IsKnown = bound match {
         case "[" => Closed(BigDecimal(value))
         case "]" => Closed(BigDecimal(value))
         case "(" => Open(BigDecimal(value))
@@ -88,8 +90,8 @@ class IntervalMathSpec extends FirrtlFlatSpec {
             val u1 = getBound(ub1, uv1)
             val l2 = getBound(lb2, lv2)
             val u2 = getBound(ub2, uv2)
-            val lv = MinBound(MulBound(l1, l2), MulBound(l1, u2), MulBound(u1, l2), MulBound(u1, u2)).optimize()
-            val uv = MaxBound(MulBound(l1, l2), MulBound(l1, u2), MulBound(u1, l2), MulBound(u1, u2)).optimize()
+            val lv = IsMin(IsMul(l1, l2), IsMul(l1, u2), IsMul(u1, l2), IsMul(u1, u2)).optimize()
+            val uv = IsMax(IsMul(l1, l2), IsMul(l1, u2), IsMul(u1, l2), IsMul(u1, u2)).optimize()
             assert(varWidth.toInt == IntervalType(lv, uv, bp).width.asInstanceOf[IntWidth].width)
           case DifferencePattern(varWidth)     =>
             val bp = IntWidth(Math.max(bp1.toInt, bp2.toInt))
