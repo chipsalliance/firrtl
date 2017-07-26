@@ -15,7 +15,7 @@ object InferTypes extends Pass {
     val mtypes = (c.modules map (m => m.name -> module_type(m))).toMap
 
     def remove_unknowns_b(b: Bound): Bound = b match {
-      case UnknownBound => VarBound(namespace.newName("b"))
+      case UnknownBound => CalcBound(IsVar(namespace.newName("b")))
       case k => k
     }
 

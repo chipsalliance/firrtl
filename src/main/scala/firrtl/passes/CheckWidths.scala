@@ -64,10 +64,10 @@ object CheckWidths extends Pass {
           errors append new InvalidRange(info, mname, name, t)
           i
         case i@IntervalType(KnownBound(_), KnownBound(_), IntWidth(_)) => i
-        case i@IntervalType(_: KnownBound, _, _) =>
+        case i@IntervalType(_: IsKnown, _, _) =>
           errors append new UninferredBound(info, mname, name, t, "upper")
           i
-        case i@IntervalType(_, _: KnownBound, _) =>
+        case i@IntervalType(_, _: IsKnown, _) =>
           errors append new UninferredBound(info, mname, name, t, "lower")
           i
         case i@IntervalType(_, _, _) =>

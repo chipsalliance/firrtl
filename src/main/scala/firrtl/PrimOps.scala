@@ -4,8 +4,10 @@ package firrtl
 
 import firrtl.ir._
 import firrtl.Utils.{min, max, pow_minus_one}
+import passes.{IsMul, IsAdd, IsNeg, IsMax, IsMin, IsConstrainable}
 
 import com.typesafe.scalalogging.LazyLogging
+import PrimOps.{constraint2bound, constraint2width}
 
 /** Definitions and Utility functions for [[ir.PrimOp]]s */
 object PrimOps extends LazyLogging {
@@ -117,7 +119,15 @@ object PrimOps extends LazyLogging {
   }
 
   // Borrowed from Stanza implementation
-  def set_primop_type (e:DoPrim) : DoPrim = {
+  implicit def constraint2bound(c: IsConstrainable): Bound = c match {
+    case x: Bound => x
+    case x => CalcBound(x)
+  }
+  implicit def constraint2width(c: IsConstrainable): Width = c match {
+    case Closed(x) if x.isWhole => IntWidth(x.toBigInt)
+    case _ => UnknownWidth
+  }
+  def set_primop_type(e: DoPrim): DoPrim = {
     //println-all(["Inferencing primop type: " e])
     def t1 = e.args.head.tpe
     def t2 = e.args(1).tpe
@@ -144,14 +154,14 @@ object PrimOps extends LazyLogging {
         case (_: UIntType, _: UIntType) => UIntType(PLUS(MAX(w1, w2), IntWidth(1)))
         case (_: SIntType, _: SIntType) => SIntType(PLUS(MAX(w1, w2), IntWidth(1)))
         case (_: FixedType, _: FixedType) => FixedType(PLUS(PLUS(MAX(p1, p2), MAX(MINUS(w1, p1), MINUS(w2, p2))), IntWidth(1)), MAX(p1, p2))
-        case (IntervalType(l1, u1, p1), IntervalType(l2, u2, p2)) => IntervalType(AddBound(l1, l2), AddBound(u1, u2), MAX(p1, p2))
+        case (IntervalType(l1, u1, p1), IntervalType(l2, u2, p2)) => IntervalType(IsAdd(l1, l2), IsAdd(u1, u2), MAX(p1, p2))
         case _ => UnknownType
       }
       case Sub => (t1, t2) match {
         case (_: UIntType, _: UIntType) => UIntType(PLUS(MAX(w1, w2), IntWidth(1)))
         case (_: SIntType, _: SIntType) => SIntType(PLUS(MAX(w1, w2), IntWidth(1)))
         case (_: FixedType, _: FixedType) => FixedType(PLUS(PLUS(MAX(p1, p2),MAX(MINUS(w1, p1), MINUS(w2, p2))),IntWidth(1)), MAX(p1, p2))
-        case (IntervalType(l1, u1, p1), IntervalType(l2, u2, p2)) => IntervalType(AddBound(l1, NegBound(u2)), AddBound(u1, NegBound(l2)), MAX(p1, p2))
+        case (IntervalType(l1, u1, p1), IntervalType(l2, u2, p2)) => IntervalType(IsAdd(l1, IsNeg(u2)), IsAdd(u1, IsNeg(l2)), MAX(p1, p2))
         case _ => UnknownType
       }
       case Mul => (t1, t2) match {
@@ -160,8 +170,8 @@ object PrimOps extends LazyLogging {
         case (_: FixedType, _: FixedType) => FixedType(PLUS(w1, w2), PLUS(p1, p2))
         case (IntervalType(l1, u1, p1), IntervalType(l2, u2, p2)) =>
           IntervalType(
-            MinBound(MulBound(l1, l2), MulBound(l1, u2), MulBound(u1, l2), MulBound(u1, u2)),
-            MaxBound(MulBound(l1, l2), MulBound(l1, u2), MulBound(u1, l2), MulBound(u1, u2)),
+            IsMin(IsMul(l1, l2), IsMul(l1, u2), IsMul(u1, l2), IsMul(u1, u2)),
+            IsMax(IsMul(l1, l2), IsMul(l1, u2), IsMul(u1, l2), IsMul(u1, u2)),
             PLUS(p1, p2)
           )
         case _ => UnknownType
@@ -272,14 +282,14 @@ object PrimOps extends LazyLogging {
         case _: UIntType => UIntType(PLUS(w1, c1))
         case _: SIntType => SIntType(PLUS(w1, c1))
         case _: FixedType => FixedType(PLUS(w1,c1), p1)
-        case IntervalType(l, u, p) => IntervalType(MulBound(l, Closed(BigDecimal(c1.width))), MulBound(u, Closed(BigDecimal(c1.width))), p)
+        case IntervalType(l, u, p) => IntervalType(IsMul(l, Closed(BigDecimal(c1.width))), IsMul(u, Closed(BigDecimal(c1.width))), p)
         case _ => UnknownType
       }
       case Shr => t1 match {
         case _: UIntType => UIntType(MAX(MINUS(w1, c1), IntWidth(1)))
         case _: SIntType => SIntType(MAX(MINUS(w1, c1), IntWidth(1)))
         case _: FixedType => FixedType(MAX(MAX(MINUS(w1,c1), IntWidth(1)), p1), p1)
-        case IntervalType(l, u, p) => IntervalType(MulBound(l, Closed(BigDecimal(1/c1.width))), MulBound(u, Closed(BigDecimal(1/c1.width))), p)
+        case IntervalType(l, u, p) => IntervalType(IsMul(l, Closed(BigDecimal(1/c1.width))), IsMul(u, Closed(BigDecimal(1/c1.width))), p)
         case _ => UnknownType
       }
       case Dshl => t1 match {
