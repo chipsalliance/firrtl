@@ -151,10 +151,10 @@ class WrappedExpression(val e1: Expression) {
 private[firrtl] sealed trait HasMapWidth {
   def mapWidth(f: Width => Width): Width
 }
-case class VarWidth(name: String) extends Width with HasMapWidth {
-  def serialize: String = name
-  def mapWidth(f: Width => Width): Width = this
-}
+//case class VarWidth(name: String) extends Width with HasMapWidth {
+//  def serialize: String = name
+//  def mapWidth(f: Width => Width): Width = this
+//}
 case class PlusWidth(arg1: Width, arg2: Width) extends Width with HasMapWidth {
   def serialize: String = "(" + arg1.serialize + " + " + arg2.serialize + ")"
   def mapWidth(f: Width => Width): Width = PlusWidth(f(arg1), f(arg2))

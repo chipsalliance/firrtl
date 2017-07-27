@@ -30,7 +30,7 @@ class FixedTypeInferenceSpec extends FirrtlFlatSpec {
       CheckTypes,
       ResolveGenders,
       CheckGenders,
-      InferWidths,
+      new InferWidths(),
       CheckWidths)
     val input =
       """circuit Unit :
@@ -60,7 +60,7 @@ class FixedTypeInferenceSpec extends FirrtlFlatSpec {
       CheckTypes,
       ResolveGenders,
       CheckGenders,
-      InferWidths,
+      new InferWidths(),
       CheckWidths)
     val input =
       """circuit Unit :
@@ -86,7 +86,7 @@ class FixedTypeInferenceSpec extends FirrtlFlatSpec {
       CheckTypes,
       ResolveGenders,
       CheckGenders,
-      InferWidths,
+      new InferWidths(),
       CheckWidths)
     val input =
       """circuit Unit :
@@ -112,7 +112,7 @@ class FixedTypeInferenceSpec extends FirrtlFlatSpec {
       CheckTypes,
       ResolveGenders,
       CheckGenders,
-      InferWidths,
+      new InferWidths(),
       CheckWidths)
     val input =
       """circuit Unit :
@@ -138,7 +138,7 @@ class FixedTypeInferenceSpec extends FirrtlFlatSpec {
       CheckTypes,
       ResolveGenders,
       CheckGenders,
-      InferWidths,
+      new InferWidths(),
       CheckWidths)
     val input =
       """circuit Unit :
@@ -164,7 +164,7 @@ class FixedTypeInferenceSpec extends FirrtlFlatSpec {
       CheckTypes,
       ResolveGenders,
       CheckGenders,
-      InferWidths,
+      new InferWidths(),
       CheckWidths)
     val input =
       """circuit Unit :
@@ -190,7 +190,7 @@ class FixedTypeInferenceSpec extends FirrtlFlatSpec {
       CheckTypes,
       ResolveGenders,
       CheckGenders,
-      InferWidths,
+      new InferWidths(),
       CheckWidths)
     val input =
       """circuit Unit :
@@ -230,7 +230,7 @@ class FixedTypeInferenceSpec extends FirrtlFlatSpec {
       CheckTypes,
       ResolveGenders,
       CheckGenders,
-      InferWidths,
+      new InferWidths(),
       CheckWidths)
     val input =
       """circuit Unit :
@@ -256,7 +256,7 @@ class FixedTypeInferenceSpec extends FirrtlFlatSpec {
       CheckTypes,
       ResolveGenders,
       CheckGenders,
-      InferWidths,
+      new InferWidths(),
       CheckWidths,
       ConvertFixedToSInt)
     val input =

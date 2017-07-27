@@ -30,7 +30,7 @@ class WiringTests extends FirrtlFlatSpec {
     ResolveKinds,
     InferTypes,
     ResolveGenders,
-    InferWidths
+    new InferWidths()
   )
 
   it should "wire from a register source (r) to multiple extmodule sinks (X)" in {

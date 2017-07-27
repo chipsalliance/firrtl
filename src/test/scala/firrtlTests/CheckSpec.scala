@@ -153,7 +153,7 @@ class CheckSpec extends FlatSpec with Matchers {
       CheckTypes,
       ResolveGenders,
       CheckGenders,
-      InferWidths,
+      new InferWidths(),
       CheckWidths)
     val input =
       """

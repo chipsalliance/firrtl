@@ -7,7 +7,7 @@ import firrtl.Utils.{min, max, pow_minus_one}
 import passes.{IsMul, IsAdd, IsNeg, IsMax, IsMin, IsConstrainable}
 
 import com.typesafe.scalalogging.LazyLogging
-import PrimOps.{constraint2bound, constraint2width}
+import PrimOps.{constraint2bound, constraint2width, width2constraint}
 
 /** Definitions and Utility functions for [[ir.PrimOp]]s */
 object PrimOps extends LazyLogging {
@@ -97,26 +97,14 @@ object PrimOps extends LazyLogging {
   def fromString(op: String): PrimOp = strToPrimOp(op)
 
   // Width Constraint Functions
-  def PLUS (w1:Width, w2:Width) : Width = (w1, w2) match {
-    case (IntWidth(i), IntWidth(j)) => IntWidth(i + j)
-    case _ => PlusWidth(w1, w2)
-  }
-  def MAX (w1:Width, w2:Width) : Width = (w1, w2) match {
-    case (IntWidth(i), IntWidth(j)) => IntWidth(max(i,j))
-    case _ => MaxWidth(Seq(w1, w2))
-  }
-  def MINUS (w1:Width, w2:Width) : Width = (w1, w2) match {
-    case (IntWidth(i), IntWidth(j)) => IntWidth(i - j)
-    case _ => MinusWidth(w1, w2)
-  }
-  def POW (w1:Width) : Width = w1 match {
-    case IntWidth(i) => IntWidth(pow_minus_one(BigInt(2), i))
-    case _ => ExpWidth(w1)
-  }
-  def MIN (w1:Width, w2:Width) : Width = (w1, w2) match {
-    case (IntWidth(i), IntWidth(j)) => IntWidth(min(i,j))
-    case _ => MinWidth(Seq(w1, w2))
-  }
+  def PLUS(w1: Width, w2: Width): IsConstrainable = IsAdd(w1, w2)
+  def MAX(w1: Width, w2: Width): IsConstrainable = IsMax(w1, w2)
+  def MINUS(w1: Width, w2: Width): IsConstrainable = IsAdd(w1, IsNeg(w2))
+  //def POW (w1:Width) : Width = w1 match {
+  //  case IntWidth(i) => IntWidth(pow_minus_one(BigInt(2), i))
+  //  case _ => ExpWidth(w1)
+  //}
+  def MIN(w1: Width, w2: Width): IsConstrainable = IsMin(w1, w2)
 
   // Borrowed from Stanza implementation
   implicit def constraint2bound(c: IsConstrainable): Bound = c match {
@@ -125,7 +113,12 @@ object PrimOps extends LazyLogging {
   }
   implicit def constraint2width(c: IsConstrainable): Width = c match {
     case Closed(x) if x.isWhole => IntWidth(x.toBigInt)
-    case _ => UnknownWidth
+    case x => CalcWidth(x)
+  }
+  implicit def width2constraint(w: Width): IsConstrainable = w match {
+    case IntWidth(x) => Closed(BigDecimal(x))
+    case UnknownWidth => UnknownBound
+    case x: IsConstrainable => x
   }
   def set_primop_type(e: DoPrim): DoPrim = {
     //println-all(["Inferencing primop type: " e])
@@ -151,34 +144,34 @@ object PrimOps extends LazyLogging {
     def o3 = e.consts(2)
     e copy (tpe = e.op match {
       case Add => (t1, t2) match {
-        case (_: UIntType, _: UIntType) => UIntType(PLUS(MAX(w1, w2), IntWidth(1)))
-        case (_: SIntType, _: SIntType) => SIntType(PLUS(MAX(w1, w2), IntWidth(1)))
-        case (_: FixedType, _: FixedType) => FixedType(PLUS(PLUS(MAX(p1, p2), MAX(MINUS(w1, p1), MINUS(w2, p2))), IntWidth(1)), MAX(p1, p2))
-        case (IntervalType(l1, u1, p1), IntervalType(l2, u2, p2)) => IntervalType(IsAdd(l1, l2), IsAdd(u1, u2), MAX(p1, p2))
+        case (_: UIntType, _: UIntType) => UIntType(IsAdd(IsMax(w1, w2), IntWidth(1)))
+        case (_: SIntType, _: SIntType) => SIntType(IsAdd(IsMax(w1, w2), IntWidth(1)))
+        case (_: FixedType, _: FixedType) => FixedType(IsAdd(IsAdd(IsMax(p1, p2), IsMax(IsAdd(w1, IsNeg(p1)), IsAdd(w2, IsNeg(p2)))), IntWidth(1)), IsMax(p1, p2))
+        case (IntervalType(l1, u1, p1), IntervalType(l2, u2, p2)) => IntervalType(IsAdd(l1, l2), IsAdd(u1, u2), IsMax(p1, p2))
         case _ => UnknownType
       }
       case Sub => (t1, t2) match {
-        case (_: UIntType, _: UIntType) => UIntType(PLUS(MAX(w1, w2), IntWidth(1)))
-        case (_: SIntType, _: SIntType) => SIntType(PLUS(MAX(w1, w2), IntWidth(1)))
-        case (_: FixedType, _: FixedType) => FixedType(PLUS(PLUS(MAX(p1, p2),MAX(MINUS(w1, p1), MINUS(w2, p2))),IntWidth(1)), MAX(p1, p2))
-        case (IntervalType(l1, u1, p1), IntervalType(l2, u2, p2)) => IntervalType(IsAdd(l1, IsNeg(u2)), IsAdd(u1, IsNeg(l2)), MAX(p1, p2))
+        case (_: UIntType, _: UIntType) => UIntType(IsAdd(IsMax(w1, w2), IntWidth(1)))
+        case (_: SIntType, _: SIntType) => SIntType(IsAdd(IsMax(w1, w2), IntWidth(1)))
+        case (_: FixedType, _: FixedType) => FixedType(IsAdd(IsAdd(IsMax(p1, p2),IsMax(IsAdd(w1, IsNeg(p1)), IsAdd(w2, IsNeg(p2)))),IntWidth(1)), IsMax(p1, p2))
+        case (IntervalType(l1, u1, p1), IntervalType(l2, u2, p2)) => IntervalType(IsAdd(l1, IsNeg(u2)), IsAdd(u1, IsNeg(l2)), IsMax(p1, p2))
         case _ => UnknownType
       }
       case Mul => (t1, t2) match {
-        case (_: UIntType, _: UIntType) => UIntType(PLUS(w1, w2))
-        case (_: SIntType, _: SIntType) => SIntType(PLUS(w1, w2))
-        case (_: FixedType, _: FixedType) => FixedType(PLUS(w1, w2), PLUS(p1, p2))
+        case (_: UIntType, _: UIntType) => UIntType(IsAdd(w1, w2))
+        case (_: SIntType, _: SIntType) => SIntType(IsAdd(w1, w2))
+        case (_: FixedType, _: FixedType) => FixedType(IsAdd(w1, w2), IsAdd(p1, p2))
         case (IntervalType(l1, u1, p1), IntervalType(l2, u2, p2)) =>
           IntervalType(
             IsMin(IsMul(l1, l2), IsMul(l1, u2), IsMul(u1, l2), IsMul(u1, u2)),
             IsMax(IsMul(l1, l2), IsMul(l1, u2), IsMul(u1, l2), IsMul(u1, u2)),
-            PLUS(p1, p2)
+            IsAdd(p1, p2)
           )
         case _ => UnknownType
       }
       case Div => (t1, t2) match {
         case (_: UIntType, _: UIntType) => UIntType(w1)
-        case (_: SIntType, _: SIntType) => SIntType(PLUS(w1, IntWidth(1)))
+        case (_: SIntType, _: SIntType) => SIntType(IsAdd(w1, IntWidth(1)))
         case _ => UnknownType
       }
       case Rem => (t1, t2) match {
@@ -229,9 +222,9 @@ object PrimOps extends LazyLogging {
         case _ => UnknownType
       }
       case Pad => t1 match {
-        case _: UIntType => UIntType(MAX(w1, c1))
-        case _: SIntType => SIntType(MAX(w1, c1))
-        case _: FixedType => FixedType(MAX(w1, c1), p1)
+        case _: UIntType => UIntType(IsMax(w1, c1))
+        case _: SIntType => SIntType(IsMax(w1, c1))
+        case _: FixedType => FixedType(IsMax(w1, c1), p1)
         case _ => UnknownType
       }
       case AsUInt => t1 match {
@@ -279,25 +272,25 @@ object PrimOps extends LazyLogging {
         case _ => UnknownType
       }
       case Shl => t1 match {
-        case _: UIntType => UIntType(PLUS(w1, c1))
-        case _: SIntType => SIntType(PLUS(w1, c1))
-        case _: FixedType => FixedType(PLUS(w1,c1), p1)
+        case _: UIntType => UIntType(IsAdd(w1, c1))
+        case _: SIntType => SIntType(IsAdd(w1, c1))
+        case _: FixedType => FixedType(IsAdd(w1,c1), p1)
         case IntervalType(l, u, p) => IntervalType(IsMul(l, Closed(BigDecimal(c1.width))), IsMul(u, Closed(BigDecimal(c1.width))), p)
         case _ => UnknownType
       }
       case Shr => t1 match {
-        case _: UIntType => UIntType(MAX(MINUS(w1, c1), IntWidth(1)))
-        case _: SIntType => SIntType(MAX(MINUS(w1, c1), IntWidth(1)))
-        case _: FixedType => FixedType(MAX(MAX(MINUS(w1,c1), IntWidth(1)), p1), p1)
+        case _: UIntType => UIntType(IsMax(IsAdd(w1, IsNeg(c1)), IntWidth(1)))
+        case _: SIntType => SIntType(IsMax(IsAdd(w1, IsNeg(c1)), IntWidth(1)))
+        case _: FixedType => FixedType(IsMax(IsMax(IsAdd(w1, IsNeg(c1)), IntWidth(1)), p1), p1)
         case IntervalType(l, u, p) => IntervalType(IsMul(l, Closed(BigDecimal(1/c1.width))), IsMul(u, Closed(BigDecimal(1/c1.width))), p)
         case _ => UnknownType
       }
-      case Dshl => t1 match {
-        case _: UIntType => UIntType(PLUS(w1, POW(w2)))
-        case _: SIntType => SIntType(PLUS(w1, POW(w2)))
-        case _: FixedType => FixedType(PLUS(w1, POW(w2)), p1)
-        case _ => UnknownType
-      }
+      //case Dshl => t1 match {
+      //  case _: UIntType => UIntType(IsAdd(w1, POW(w2)))
+      //  case _: SIntType => SIntType(IsAdd(w1, POW(w2)))
+      //  case _: FixedType => FixedType(IsAdd(w1, POW(w2)), p1)
+      //  case _ => UnknownType
+      //}
       case Dshr => t1 match {
         case _: UIntType => UIntType(w1)
         case _: SIntType => SIntType(w1)
@@ -305,13 +298,13 @@ object PrimOps extends LazyLogging {
         case _ => UnknownType
       }
       case Cvt => t1 match {
-        case _: UIntType => SIntType(PLUS(w1, IntWidth(1)))
+        case _: UIntType => SIntType(IsAdd(w1, IntWidth(1)))
         case _: SIntType => SIntType(w1)
         case _ => UnknownType
       }
       case Neg => t1 match {
-        case _: UIntType => SIntType(PLUS(w1, IntWidth(1)))
-        case _: SIntType => SIntType(PLUS(w1, IntWidth(1)))
+        case _: UIntType => SIntType(IsAdd(w1, IntWidth(1)))
+        case _: SIntType => SIntType(IsAdd(w1, IntWidth(1)))
         case _ => UnknownType
       }
       case Not => t1 match {
@@ -320,15 +313,15 @@ object PrimOps extends LazyLogging {
         case _ => UnknownType
       }
       case And => (t1, t2) match {
-        case (_: SIntType | _: UIntType, _: SIntType | _: UIntType) => UIntType(MAX(w1, w2))
+        case (_: SIntType | _: UIntType, _: SIntType | _: UIntType) => UIntType(IsMax(w1, w2))
         case _ => UnknownType
       }
       case Or => (t1, t2) match {
-        case (_: SIntType | _: UIntType, _: SIntType | _: UIntType) => UIntType(MAX(w1, w2))
+        case (_: SIntType | _: UIntType, _: SIntType | _: UIntType) => UIntType(IsMax(w1, w2))
         case _ => UnknownType
       }
       case Xor => (t1, t2) match {
-        case (_: SIntType | _: UIntType, _: SIntType | _: UIntType) => UIntType(MAX(w1, w2))
+        case (_: SIntType | _: UIntType, _: SIntType | _: UIntType) => UIntType(IsMax(w1, w2))
         case _ => UnknownType
       }
       case Andr => t1 match {
@@ -344,11 +337,11 @@ object PrimOps extends LazyLogging {
         case _ => UnknownType
       }
       case Cat => (t1, t2) match {
-        case (_: UIntType | _: SIntType | _: FixedType | _: IntervalType, _: UIntType | _: SIntType | _: FixedType | _: IntervalType) => UIntType(PLUS(w1, w2))
+        case (_: UIntType | _: SIntType | _: FixedType | _: IntervalType, _: UIntType | _: SIntType | _: FixedType | _: IntervalType) => UIntType(IsAdd(w1, w2))
         case (t1, t2) => UnknownType
       }
       case Bits => t1 match {
-        case (_: UIntType | _: SIntType | _: FixedType | _: IntervalType) => UIntType(PLUS(MINUS(c1, c2), IntWidth(1)))
+        case (_: UIntType | _: SIntType | _: FixedType | _: IntervalType) => UIntType(IsAdd(IsAdd(c1, IsNeg(c2)), IntWidth(1)))
         case _ => UnknownType
       }
       case Head => t1 match {
@@ -356,24 +349,31 @@ object PrimOps extends LazyLogging {
         case _ => UnknownType
       }
       case Tail => t1 match {
-        case (_: UIntType | _: SIntType | _: FixedType | _: IntervalType) => UIntType(MINUS(w1, c1))
+        case (_: UIntType | _: SIntType | _: FixedType | _: IntervalType) => UIntType(IsAdd(w1, IsNeg(c1)))
         case _ => UnknownType
       }
       case BPShl => t1 match {
-        case _: FixedType => FixedType(PLUS(w1,c1), PLUS(p1, c1))
-        case IntervalType(l, u, p) => IntervalType(l, u, PLUS(p, c1))
+        case _: FixedType => FixedType(IsAdd(w1,c1), IsAdd(p1, c1))
+        case IntervalType(l, u, p) => IntervalType(l, u, IsAdd(p, c1))
         case _ => UnknownType
       }
       case BPShr => t1 match {
-        case _: FixedType => FixedType(MINUS(w1,c1), MINUS(p1, c1))
-        case IntervalType(l, u, p) => IntervalType(l, u, MINUS(p, c1))
+        case _: FixedType => FixedType(IsAdd(w1,IsNeg(c1)), IsAdd(p1, IsNeg(c1)))
+        case IntervalType(l, u, p) => IntervalType(l, u, IsAdd(p, IsNeg(c1)))
         case _ => UnknownType
       }
       case BPSet => t1 match {
-        case _: FixedType => FixedType(PLUS(c1, MINUS(w1, p1)), c1)
+        case _: FixedType => FixedType(IsAdd(c1, IsAdd(w1, IsNeg(p1))), c1)
         case IntervalType(l, u, p) => IntervalType(l, u, c1)
         case _ => UnknownType
       }
+      //case Wrap => (t1, t2) match {
+      //  case (IntervalType(l1, u1, p1), IntervalType(l2, u2, p2)) => IntervalType(l2, u2, p1)
+      //  case (IntervalType(l1, u1, p1), UIntType(w: IntWidth)) => IntervalType(Closed(0), Open(BigInt(2).pow(w.width.toInt)), p1)
+      //  case (IntervalType(l1, u1, p1), _: UIntType) => IntervalType(Closed(0), Open(BigInt(2).pow(w.width.toInt)), p1)
+      //  case (IntervalType(l1, u1, p1), u: SIntType) => IntervalType(Closed(0), u.width, p1)
+      //  case _ => UnknownType
+      //}
     })
   }
 }

@@ -23,7 +23,7 @@ class ChirrtlSpec extends FirrtlFlatSpec {
     CheckTypes,
     ResolveGenders,
     CheckGenders,
-    InferWidths,
+    new InferWidths(),
     CheckWidths,
     PullMuxes,
     ExpandConnects,
