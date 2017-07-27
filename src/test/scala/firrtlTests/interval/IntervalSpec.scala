@@ -39,7 +39,7 @@ class IntervalSpec extends FirrtlFlatSpec {
   }
 
   "Interval types" should "infer bp correctly" in {
-    val passes = Seq(ToWorkingIR, InferTypes, ResolveGenders, new InferBinaryPoints())
+    val passes = Seq(ToWorkingIR, InferTypes, ResolveGenders, new InferWidths())
     val input =
       """circuit Unit :
         |  module Unit :
@@ -54,13 +54,13 @@ class IntervalSpec extends FirrtlFlatSpec {
         |    input in0 : Interval(-0.32, 10.1).4
         |    input in1 : Interval[0, 10.10].3
         |    input in2 : Interval(-0.32, 10].2
-        |    output out0 : Interval.4
+        |    output out0 : Interval(-0.64, 30.20).4
         |    out0 <= add(in0, add(in1, in2))""".stripMargin
     executeTest(input, check.split("\n") map normalized, passes)
   }
 
   "Interval types" should "infer intervals correctly" in {
-    val passes = Seq(ToWorkingIR, InferTypes, ResolveGenders, new InferBinaryPoints(), new InferIntervals())
+    val passes = Seq(ToWorkingIR, InferTypes, ResolveGenders, new InferWidths())
     val input =
       """circuit Unit :
         |  module Unit :
@@ -81,7 +81,7 @@ class IntervalSpec extends FirrtlFlatSpec {
   }
 
   "Interval types" should "be removed correctly" in {
-    val passes = Seq(ToWorkingIR, InferTypes, ResolveGenders, new InferBinaryPoints(), new InferIntervals(), new RemoveIntervals())
+    val passes = Seq(ToWorkingIR, InferTypes, ResolveGenders, new InferWidths(), new RemoveIntervals())
     val input =
       """circuit Unit :
         |  module Unit :
@@ -110,7 +110,7 @@ class IntervalSpec extends FirrtlFlatSpec {
   }
 
   "Interval types" should "infer this example correctly" in {
-    val passes = Seq(ToWorkingIR, InferTypes, ResolveGenders, new InferBinaryPoints(), new InferIntervals())
+    val passes = Seq(ToWorkingIR, InferTypes, ResolveGenders, new InferWidths())
       val input =
         s"""circuit Unit :
         |  module Unit :
@@ -124,7 +124,7 @@ class IntervalSpec extends FirrtlFlatSpec {
   }
 
   "Interval types" should "infer multiplication by zero correctly" in {
-    val passes = Seq(ToWorkingIR, InferTypes, ResolveGenders, new InferBinaryPoints(), new InferIntervals())
+    val passes = Seq(ToWorkingIR, InferTypes, ResolveGenders, new InferWidths())
       val input =
         s"""circuit Unit :
         |  module Unit :
@@ -138,7 +138,7 @@ class IntervalSpec extends FirrtlFlatSpec {
   }
 
   "Interval types" should "infer muxes correctly" in {
-    val passes = Seq(ToWorkingIR, InferTypes, ResolveGenders, new InferBinaryPoints(), new InferIntervals())
+    val passes = Seq(ToWorkingIR, InferTypes, ResolveGenders, new InferWidths())
       val input =
         s"""circuit Unit :
         |  module Unit :

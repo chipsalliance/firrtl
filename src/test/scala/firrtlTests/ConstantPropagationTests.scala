@@ -9,7 +9,7 @@ import firrtl.passes._
 import firrtl.transforms._
 
 class ConstantPropagationSpec extends FirrtlFlatSpec {
-  val transforms = Seq(
+  def transforms = Seq(
       ToWorkingIR,
       ResolveKinds,
       InferTypes,

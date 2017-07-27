@@ -426,7 +426,9 @@ case class CalcWidth(arg: IsConstrainable) extends Width with IsConstrainable {
   def map(f: IsConstrainable=>IsConstrainable): IsConstrainable = f(arg)
   override def reduce(): IsConstrainable = arg
 }
-case class VarWidth(name: String) extends Width with IsVar
+case class VarWidth(name: String) extends Width with IsVar {
+  override def serialize: String = s"<$name>"
+}
 
 /** Orientation of [[Field]] */
 abstract class Orientation extends FirrtlNode
@@ -478,6 +480,7 @@ case class Open(value: BigDecimal) extends IsKnown with Bound {
   def min(that: IsKnown): IsKnown = if(value < that.value) this else that
   def max(that: IsKnown): IsKnown = if(value > that.value) this else that
   def neg: IsKnown = Open(-value)
+  def pow: IsKnown = if(value.isBinaryDouble) Open(Math.pow(2, value.toDouble)) else sys.error("Shouldn't be here")
 }
 case class Closed(value: BigDecimal) extends IsKnown with Bound {
   def serialize = s"c($value)"
@@ -493,6 +496,7 @@ case class Closed(value: BigDecimal) extends IsKnown with Bound {
   def min(that: IsKnown): IsKnown = if(value <= that.value) this else that
   def max(that: IsKnown): IsKnown = if(value >= that.value) this else that
   def neg: IsKnown = Closed(-value)
+  def pow: IsKnown = if(value.isBinaryDouble) Closed(Math.pow(2, value.toDouble)) else sys.error("Shouldn't be here")
 }
 
 /** Types of [[FirrtlNode]] */

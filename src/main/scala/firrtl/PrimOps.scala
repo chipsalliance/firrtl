@@ -4,7 +4,7 @@ package firrtl
 
 import firrtl.ir._
 import firrtl.Utils.{min, max, pow_minus_one}
-import passes.{IsMul, IsAdd, IsNeg, IsMax, IsMin, IsConstrainable}
+import passes.{IsMul, IsAdd, IsNeg, IsPow, IsMax, IsMin, IsConstrainable}
 
 import com.typesafe.scalalogging.LazyLogging
 import PrimOps.{constraint2bound, constraint2width, width2constraint}
@@ -111,17 +111,18 @@ object PrimOps extends LazyLogging {
     case x: Bound => x
     case x => CalcBound(x)
   }
-  implicit def constraint2width(c: IsConstrainable): Width = c match {
+  implicit def constraint2width(c: IsConstrainable): Width = c.optimize() match {
     case Closed(x) if x.isWhole => IntWidth(x.toBigInt)
-    case x => CalcWidth(x).optimize()
+    case CalcWidth(Closed(x)) if x.isWhole => IntWidth(x.toBigInt)
+    case x => CalcWidth(x)
   }
   implicit def width2constraint(w: Width): IsConstrainable = w match {
+    case CalcWidth(x: IsConstrainable) => x
     case IntWidth(x) => Closed(BigDecimal(x))
     case UnknownWidth => UnknownBound
-    case x: IsConstrainable => x
+    case VarWidth(x) => VarBound(x)
   }
   def set_primop_type(e: DoPrim): DoPrim = {
-    //println-all(["Inferencing primop type: " e])
     def t1 = e.args.head.tpe
     def t2 = e.args(1).tpe
     def t3 = e.args(2).tpe
@@ -285,12 +286,12 @@ object PrimOps extends LazyLogging {
         case IntervalType(l, u, p) => IntervalType(IsMul(l, Closed(BigDecimal(1/c1.width))), IsMul(u, Closed(BigDecimal(1/c1.width))), p)
         case _ => UnknownType
       }
-      //case Dshl => t1 match {
-      //  case _: UIntType => UIntType(IsAdd(w1, POW(w2)))
-      //  case _: SIntType => SIntType(IsAdd(w1, POW(w2)))
-      //  case _: FixedType => FixedType(IsAdd(w1, POW(w2)), p1)
-      //  case _ => UnknownType
-      //}
+      case Dshl => t1 match {
+        case _: UIntType => UIntType(IsAdd(w1, IsPow(w2)))
+        case _: SIntType => SIntType(IsAdd(w1, IsPow(w2)))
+        case _: FixedType => FixedType(IsAdd(w1, IsPow(w2)), p1)
+        case _ => UnknownType
+      }
       case Dshr => t1 match {
         case _: UIntType => UIntType(w1)
         case _: SIntType => SIntType(w1)
