@@ -30,7 +30,7 @@ class RemoveFixedTypeSpec extends FirrtlFlatSpec {
       CheckTypes,
       ResolveGenders,
       CheckGenders,
-      InferWidths,
+      new InferWidths(),
       CheckWidths,
       ConvertFixedToSInt)
     val input =
@@ -60,7 +60,7 @@ class RemoveFixedTypeSpec extends FirrtlFlatSpec {
       CheckTypes,
       ResolveGenders,
       CheckGenders,
-      InferWidths,
+      new InferWidths(),
       CheckWidths,
       ConvertFixedToSInt)
     val input =
@@ -91,7 +91,7 @@ class RemoveFixedTypeSpec extends FirrtlFlatSpec {
       CheckTypes,
       ResolveGenders,
       CheckGenders,
-      InferWidths,
+      new InferWidths(),
       CheckWidths,
       ConvertFixedToSInt)
     val input =
@@ -118,7 +118,7 @@ class RemoveFixedTypeSpec extends FirrtlFlatSpec {
       CheckTypes,
       ResolveGenders,
       CheckGenders,
-      InferWidths,
+      new InferWidths(),
       CheckWidths,
       ConvertFixedToSInt)
     val input =
@@ -145,7 +145,7 @@ class RemoveFixedTypeSpec extends FirrtlFlatSpec {
       CheckTypes,
       ResolveGenders,
       CheckGenders,
-      InferWidths,
+      new InferWidths(),
       CheckWidths,
       ConvertFixedToSInt)
     val input =
@@ -197,7 +197,7 @@ class RemoveFixedTypeSpec extends FirrtlFlatSpec {
       CheckTypes,
       ResolveGenders,
       CheckGenders,
-      InferWidths,
+      new InferWidths(),
       CheckWidths,
       ConvertFixedToSInt)
     val input =

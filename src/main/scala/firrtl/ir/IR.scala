@@ -6,7 +6,7 @@ package ir
 import Utils.indent
 import scala.math.BigDecimal.RoundingMode._
 import scala.collection.mutable
-import passes.{IsConstrainable, IsKnown}
+import passes.{IsConstrainable, IsKnown, IsVar}
 
 /** Intermediate Representation */
 abstract class FirrtlNode {
@@ -345,6 +345,12 @@ class IntWidth(val width: BigInt) extends Width with Product {
 case object UnknownWidth extends Width {
   def serialize: String = ""
 }
+case class CalcWidth(arg: IsConstrainable) extends Width with IsConstrainable {
+  def serialize: String = arg.serialize
+  def map(f: IsConstrainable=>IsConstrainable): IsConstrainable = f(arg)
+  override def reduce(): IsConstrainable = arg
+}
+case class VarWidth(name: String) extends Width with IsVar
 
 /** Orientation of [[Field]] */
 abstract class Orientation extends FirrtlNode
@@ -373,7 +379,9 @@ case object UnknownBound extends Bound {
 case class CalcBound(arg: IsConstrainable) extends Bound {
   def serialize: String = arg.serialize
   def map(f: IsConstrainable=>IsConstrainable): IsConstrainable = f(arg)
+  override def reduce(): IsConstrainable = arg
 }
+case class VarBound(name: String) extends IsVar with Bound
 object KnownBound {
   def unapply(b: IsConstrainable): Option[BigDecimal] = b match {
     case k: IsKnown => Some(k.value)

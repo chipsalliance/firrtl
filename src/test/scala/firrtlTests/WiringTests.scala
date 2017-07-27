@@ -30,7 +30,7 @@ class WiringTests extends FirrtlFlatSpec {
     ResolveKinds,
     InferTypes,
     ResolveGenders,
-    InferWidths
+    new InferWidths()
   )
 
   "Wiring from r to X" should "work" in {

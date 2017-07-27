@@ -21,7 +21,7 @@ class ConstantPropagationSpec extends FirrtlFlatSpec {
       ResolveKinds,
       InferTypes,
       ResolveGenders,
-      InferWidths,
+      new InferWidths(),
       new ConstantPropagation)
   private def exec(input: String) = {
     transforms.foldLeft(CircuitState(parse(input), UnknownForm)) {

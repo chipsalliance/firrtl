@@ -29,7 +29,7 @@ class WidthSpec extends FirrtlFlatSpec {
       ResolveKinds,
       InferTypes,
       CheckTypes,
-      InferWidths,
+      new InferWidths(),
       CheckWidths)
     val input =
       """circuit Unit :
@@ -51,7 +51,7 @@ class WidthSpec extends FirrtlFlatSpec {
       ResolveKinds,
       InferTypes,
       CheckTypes,
-      InferWidths,
+      new InferWidths(),
       CheckWidths)
     val input =
      s"""circuit Unit :
@@ -69,7 +69,7 @@ class WidthSpec extends FirrtlFlatSpec {
       ResolveKinds,
       InferTypes,
       CheckTypes,
-      InferWidths,
+      new InferWidths(),
       CheckWidths)
     val input =
       """circuit Unit :
