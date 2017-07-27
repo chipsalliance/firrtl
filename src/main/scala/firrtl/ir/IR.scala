@@ -346,7 +346,7 @@ case object UnknownWidth extends Width {
   def serialize: String = ""
 }
 case class CalcWidth(arg: IsConstrainable) extends Width with IsConstrainable {
-  def serialize: String = arg.serialize
+  def serialize: String = s"calcw(${arg.serialize})"
   def map(f: IsConstrainable=>IsConstrainable): IsConstrainable = f(arg)
   override def reduce(): IsConstrainable = arg
 }
@@ -377,7 +377,7 @@ case object UnknownBound extends Bound {
   def map(f: IsConstrainable=>IsConstrainable): IsConstrainable = this
 }
 case class CalcBound(arg: IsConstrainable) extends Bound {
-  def serialize: String = arg.serialize
+  def serialize: String = s"calcb(${arg.serialize})"
   def map(f: IsConstrainable=>IsConstrainable): IsConstrainable = f(arg)
   override def reduce(): IsConstrainable = arg
 }
