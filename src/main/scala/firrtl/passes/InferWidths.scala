@@ -102,12 +102,12 @@ class InferWidths extends Pass {
 
     c.modules foreach (_ map addStmtConstraints)
     c.modules foreach (_.ports foreach {p => addDecConstraints(p.tpe)})
-    println("Initial Constraints!")
-    println(constraintSolver.serializeConstraints)
+    //println("Initial Constraints!")
+    //println(constraintSolver.serializeConstraints)
 
     constraintSolver.solve()
-    println("Solved Constraints!")
-    println(constraintSolver.serializeSolutions)
+    //println("Solved Constraints!")
+    //println(constraintSolver.serializeSolutions)
     InferTypes.run(c.copy(modules = c.modules map (_
       map fixPort
       map fixStmt)))

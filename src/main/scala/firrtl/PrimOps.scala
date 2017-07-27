@@ -113,7 +113,7 @@ object PrimOps extends LazyLogging {
   }
   implicit def constraint2width(c: IsConstrainable): Width = c match {
     case Closed(x) if x.isWhole => IntWidth(x.toBigInt)
-    case x => CalcWidth(x)
+    case x => CalcWidth(x).optimize()
   }
   implicit def width2constraint(w: Width): IsConstrainable = w match {
     case IntWidth(x) => Closed(BigDecimal(x))
