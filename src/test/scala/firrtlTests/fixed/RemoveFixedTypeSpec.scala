@@ -14,7 +14,7 @@ class RemoveFixedTypeSpec extends FirrtlFlatSpec {
       (c: Circuit, p: Pass) => p.run(c)
     }
     val lines = c.serialize.split("\n") map normalized
-    println(c.serialize)
+    //println(c.serialize)
 
     expected foreach { e =>
       lines should contain(e)
@@ -37,7 +37,7 @@ class RemoveFixedTypeSpec extends FirrtlFlatSpec {
       """circuit Unit :
         |  module Unit :
         |    input a : Fixed<10><<2>>
-        |    input b : Fixed<10>
+        |    input b : Fixed<10><<0>>
         |    input c : Fixed<4><<3>>
         |    output d : Fixed<<5>>
         |    d <= add(a, add(b, c))""".stripMargin
@@ -67,7 +67,7 @@ class RemoveFixedTypeSpec extends FirrtlFlatSpec {
       """circuit Unit :
         |  module Unit :
         |    input a : Fixed<10><<2>>
-        |    input b : Fixed<10>
+        |    input b : Fixed<10><<0>>
         |    input c : Fixed<4><<3>>
         |    output d : Fixed<<5>>
         |    d <- add(a, add(b, c))""".stripMargin
@@ -181,7 +181,7 @@ class RemoveFixedTypeSpec extends FirrtlFlatSpec {
     class CheckChirrtlTransform extends SeqTransform {
       def inputForm = ChirrtlForm
       def outputForm = ChirrtlForm
-      val transforms = Seq(passes.CheckChirrtl)
+      def transforms = Seq(passes.CheckChirrtl)
     }
 
     val chirrtlTransform = new CheckChirrtlTransform

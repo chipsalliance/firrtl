@@ -47,6 +47,8 @@ trait IsConstrainable {
     case (_: IsMul, x)                => IsMul(x:_*)
     case (_: IsNeg, x) if x.size != 1 => sys.error("Shouldn't be here")
     case (_: IsNeg, x)                => IsNeg(x.head)
+    case (_: IsPow, x) if x.size != 1 => sys.error("Shouldn't be here")
+    case (_: IsPow, x)                => IsPow(x.head)
     case (_: IsMax, x)                => IsMax(x:_*)
     case (_: IsMin, x)                => IsMin(x:_*)
     case (_: IsVar, x)                => sys.error("Shouldn't be here")
@@ -103,6 +105,7 @@ trait IsKnown extends IsConstrainable {
   def max(that: IsKnown): IsKnown
   def min(that: IsKnown): IsKnown
   def neg: IsKnown
+  def pow: IsKnown
 
   // Unnecessary members
   def map(f: IsConstrainable=>IsConstrainable): IsConstrainable = this
@@ -126,14 +129,32 @@ case class IsMul(override val children: IsConstrainable*) extends IsConstrainabl
 case class IsNeg(child: IsConstrainable) extends IsConstrainable {
   override def reduce(): IsConstrainable = child match {
     case k: IsKnown => k.neg
-    case IsAdd(children) => IsAdd(children.map { b => IsNeg(b).reduce }).reduce
-    case IsMul(children) => IsMul(children.map { b => IsNeg(b).reduce }).reduce
-    case IsNeg(child) => child
-    case IsMax(children) => IsMin(children.map {b => IsNeg(b).reduce }).reduce
-    case IsMin(children) => IsMax(children.map {b => IsNeg(b).reduce }).reduce
+    case x: IsAdd => IsAdd(x.children.map { b => IsNeg(b).reduce }:_*).reduce
+    case x: IsMul => IsMul(x.children.map { b => IsNeg(b).reduce }:_*).reduce
+    case x: IsNeg => x.child
+    case x: IsPow => this
+    case x: IsMax => IsMin(x.children.map {b => IsNeg(b).reduce }:_*).reduce
+    case x: IsMin => IsMax(x.children.map {b => IsNeg(b).reduce }:_*).reduce
+    case x: IsVar => this
+    case _ => this
   }
   def map(f: IsConstrainable=>IsConstrainable): IsConstrainable = IsNeg(f(child))
   def serialize: String = "(-" + child.serialize + ")"
+}
+case class IsPow(child: IsConstrainable) extends IsConstrainable {
+  override def reduce(): IsConstrainable = child match {
+    case k: IsKnown => k.pow
+    case x: IsAdd => IsMul(x.children.map { b => IsPow(b).reduce }:_*).reduce
+    case x: IsMul => this
+    case x: IsNeg => x.child
+    case x: IsPow => IsPow(IsMul(Closed(2), x.child))
+    case x: IsMax => IsMax(x.children.map {b => IsPow(b).reduce }:_*).reduce
+    case x: IsMin => IsMin(x.children.map {b => IsPow(b).reduce }:_*).reduce
+    case x: IsVar => this
+    case _ => this
+  }
+  def map(f: IsConstrainable=>IsConstrainable): IsConstrainable = IsPow(f(child))
+  def serialize: String = "(2^" + child.serialize + ")"
 }
 case class IsMax(override val children: IsConstrainable*) extends IsConstrainable {
   override def op(b1: IsKnown, b2: IsKnown): IsConstrainable = b1 max b2

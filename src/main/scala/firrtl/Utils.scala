@@ -329,7 +329,7 @@ object Utils extends LazyLogging {
   def mux_type_and_widths(t1: Type, t2: Type): Type = {
     def wmax(w1: Width, w2: Width): Width = (w1, w2) match {
       case (w1x: IntWidth, w2x: IntWidth) => IntWidth(w1x.width max w2x.width)
-      case (w1x, w2x) => MaxWidth(Seq(w1x, w2x))
+      case (w1x, w2x) => IsMax(w1x, w2x)
     }
     (t1, t2) match {
       case (t1x: UIntType, t2x: UIntType) => UIntType(wmax(t1x.width, t2x.width))

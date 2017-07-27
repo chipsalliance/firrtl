@@ -16,7 +16,7 @@ import firrtl.transforms._
 //   3) Values are always greater than a number smaller
 //        than their minimum value
 class ConstantPropagationSpec extends FirrtlFlatSpec {
-  val transforms = Seq(
+  def transforms = Seq(
       ToWorkingIR,
       ResolveKinds,
       InferTypes,

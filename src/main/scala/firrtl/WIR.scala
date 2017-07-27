@@ -147,30 +147,6 @@ class WrappedExpression(val e1: Expression) {
 private[firrtl] sealed trait HasMapWidth {
   def mapWidth(f: Width => Width): Width
 }
-//case class VarWidth(name: String) extends Width with HasMapWidth {
-//  def serialize: String = name
-//  def mapWidth(f: Width => Width): Width = this
-//}
-case class PlusWidth(arg1: Width, arg2: Width) extends Width with HasMapWidth {
-  def serialize: String = "(" + arg1.serialize + " + " + arg2.serialize + ")"
-  def mapWidth(f: Width => Width): Width = PlusWidth(f(arg1), f(arg2))
-}
-case class MinusWidth(arg1: Width, arg2: Width) extends Width with HasMapWidth {
-  def serialize: String = "(" + arg1.serialize + " - " + arg2.serialize + ")"
-  def mapWidth(f: Width => Width): Width = MinusWidth(f(arg1), f(arg2))
-}
-case class MaxWidth(args: Seq[Width]) extends Width with HasMapWidth {
-  def serialize: String = args map (_.serialize) mkString ("max(", ", ", ")")
-  def mapWidth(f: Width => Width): Width = MaxWidth(args map f)
-}
-case class MinWidth(args: Seq[Width]) extends Width with HasMapWidth {
-  def serialize: String = args map (_.serialize) mkString ("min(", ", ", ")")
-  def mapWidth(f: Width => Width): Width = MinWidth(args map f)
-}
-case class ExpWidth(arg1: Width) extends Width with HasMapWidth {
-  def serialize: String = "exp(" + arg1.serialize + " )"
-  def mapWidth(f: Width => Width): Width = ExpWidth(f(arg1))
-}
 
 object WrappedType {
   def apply(t: Type) = new WrappedType(t)
@@ -213,29 +189,13 @@ class WrappedWidth (val w: Width) {
   def ww(w: Width): WrappedWidth = new WrappedWidth(w)
   override def toString = w match {
     case (w: VarWidth) => w.name
-    case (w: MaxWidth) => s"max(${w.args.mkString})"
-    case (w: MinWidth) => s"min(${w.args.mkString})"
-    case (w: PlusWidth) => s"(${w.arg1} + ${w.arg2})"
-    case (w: MinusWidth) => s"(${w.arg1} -${w.arg2})"
-    case (w: ExpWidth) => s"exp(${w.arg1})"
     case (w: IntWidth) => w.width.toString
     case UnknownWidth => "?"
   }
   override def equals(o: Any): Boolean = o match {
     case (w2: WrappedWidth) => (w, w2.w) match {
       case (w1: VarWidth, w2: VarWidth) => w1.name.equals(w2.name)
-      case (w1: MaxWidth, w2: MaxWidth) => w1.args.size == w2.args.size &&
-        (w1.args forall (a1 => w2.args exists (a2 => eqw(a1, a2))))
-      case (w1: MinWidth, w2: MinWidth) => w1.args.size == w2.args.size &&
-        (w1.args forall (a1 => w2.args exists (a2 => eqw(a1, a2))))
       case (w1: IntWidth, w2: IntWidth) => w1.width == w2.width
-      case (w1: PlusWidth, w2: PlusWidth) => 
-        (ww(w1.arg1) == ww(w2.arg1) && ww(w1.arg2) == ww(w2.arg2)) ||
-        (ww(w1.arg1) == ww(w2.arg2) && ww(w1.arg2) == ww(w2.arg1))
-      case (w1: MinusWidth,w2: MinusWidth) => 
-        (ww(w1.arg1) == ww(w2.arg1) && ww(w1.arg2) == ww(w2.arg2)) ||
-        (ww(w1.arg1) == ww(w2.arg2) && ww(w1.arg2) == ww(w2.arg1))
-      case (w1: ExpWidth, w2: ExpWidth) => ww(w1.arg1) == ww(w2.arg1)
       case (UnknownWidth, UnknownWidth) => true
       case _ => false
     }

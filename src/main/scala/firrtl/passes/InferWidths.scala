@@ -19,8 +19,13 @@ class InferWidths extends Pass {
     case (UIntType(w1), UIntType(w2)) => constraintSolver.addGeq(w1, w2)
     case (SIntType(w1), SIntType(w2)) => constraintSolver.addGeq(w1, w2)
     case (ClockType, ClockType) =>
-    case (FixedType(w1, p1), FixedType(w2, p2)) => constraintSolver.addGeq(w1, w2)
-    case (_: IntervalType, _: IntervalType) => Nil
+    case (FixedType(w1, p1), FixedType(w2, p2)) =>
+      constraintSolver.addGeq(p1, p2)
+      constraintSolver.addGeq(w1, w2)
+    case (IntervalType(l1, u1, p1), IntervalType(l2, u2, p2)) =>
+      constraintSolver.addGeq(p1, p2)
+      constraintSolver.addLeq(l1, l2)
+      constraintSolver.addGeq(u1, u2)
     case (AnalogType(w1), AnalogType(w2)) =>
       constraintSolver.addGeq(w1, w2)
       constraintSolver.addGeq(w2, w1)
@@ -41,8 +46,12 @@ class InferWidths extends Pass {
     case other => other
   }
   private def addDecConstraints(t: Type): Type = t match {
-    case FixedType(w, _) =>
-      constraintSolver.addGeq(w, Closed(0))
+    case IntervalType(l, u, p) =>
+      constraintSolver.addGeq(u, l)
+      constraintSolver.addGeq(p, Closed(0))
+      t
+    case FixedType(w, p) =>
+      constraintSolver.addGeq(p, Closed(0))
       t
     case _ => t map addDecConstraints
   }
@@ -93,21 +102,39 @@ class InferWidths extends Pass {
     case None => w
     case _ => sys.error("Shouldn't be here")
   }
-  private def fixType(t: Type): Type = t map fixType map fixWidth
+  private def fixType(t: Type): Type = t map fixType map fixWidth match {
+    case IntervalType(l, u, p) => 
+      val (lx, ux) = (constraintSolver.get(l), constraintSolver.get(u)) match {
+        case (Some(x: Bound), Some(y: Bound)) => (x, y)
+        case (None, None) => (l, u)
+        case x => sys.error(s"Shouldn't be here: $x")
+      }
+      val px = constraintSolver.get(p) match {
+        case Some(Closed(x)) if x.isWhole => IntWidth(x.toBigInt)
+        case None => p
+        case _ => sys.error("Shouldn't be here")
+      }
+      IntervalType(lx, ux, px)
+    case FixedType(w, p) => 
+      val px = constraintSolver.get(p) match {
+        case Some(Closed(x)) if x.isWhole => IntWidth(x.toBigInt)
+        case None => p
+        case _ => sys.error("Shouldn't be here")
+      }
+      FixedType(w, px)
+    case x => x
+  }
   private def fixStmt(s: Statement): Statement = s map fixStmt map fixType
   private def fixPort(p: Port): Port = {
     Port(p.info, p.name, p.direction, fixType(p.tpe))
   } 
   def run (c: Circuit): Circuit = {
-
     c.modules foreach (_ map addStmtConstraints)
     c.modules foreach (_.ports foreach {p => addDecConstraints(p.tpe)})
-    //println("Initial Constraints!")
-    //println(constraintSolver.serializeConstraints)
+    //println("Initial Constraints!\n" + constraintSolver.serializeConstraints)
 
     constraintSolver.solve()
-    //println("Solved Constraints!")
-    //println(constraintSolver.serializeSolutions)
+    //println("Solved Constraints!\n" + constraintSolver.serializeSolutions)
     InferTypes.run(c.copy(modules = c.modules map (_
       map fixPort
       map fixStmt)))
