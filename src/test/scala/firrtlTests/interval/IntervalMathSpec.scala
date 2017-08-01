@@ -90,50 +90,45 @@ class IntervalMathSpec extends FirrtlFlatSpec {
           val lowerer = new LowFirrtlCompiler
           val res = lowerer.compileAndEmit(CircuitState(parse(input), ChirrtlForm))
           val output = res.getEmittedCircuit.value split "\n"
+          val min1 = Closed(it1.min)
+          val max1 = Closed(it1.max)
+          val min2 = Closed(it2.min)
+          val max2 = Closed(it2.max)
           for (line <- output) {
             line match {
               case SumPattern(varWidth)     =>
                 val bp = IntWidth(Math.max(bp1.toInt, bp2.toInt))
-                val lv = getBound(lb1, lv1) + getBound(lb2, lv2)
-                val uv = getBound(ub1, uv1) + getBound(ub2, uv2)
-                assert(varWidth.toInt == IntervalType(lv, uv, bp).width.asInstanceOf[IntWidth].width)
+                val it = IntervalType(IsAdd(min1, min2).optimize(), IsAdd(max1, max2).optimize(), bp)
+                assert(varWidth.toInt == it.width.asInstanceOf[IntWidth].width, s"$line,${it.range}")
               case ProductPattern(varWidth)     =>
                 val bp = IntWidth(bp1.toInt + bp2.toInt)
-                val l1 = getBound(lb1, lv1)
-                val u1 = getBound(ub1, uv1)
-                val l2 = getBound(lb2, lv2)
-                val u2 = getBound(ub2, uv2)
-                val lv = IsMin(IsMul(l1, l2), IsMul(l1, u2), IsMul(u1, l2), IsMul(u1, u2)).optimize()
-                val uv = IsMax(IsMul(l1, l2), IsMul(l1, u2), IsMul(u1, l2), IsMul(u1, u2)).optimize()
+                val lv = IsMin(IsMul(min1, min2), IsMul(min1, max2), IsMul(max1, min2), IsMul(max1, max2)).optimize()
+                val uv = IsMax(IsMul(min1, min2), IsMul(min1, max2), IsMul(max1, min2), IsMul(max1, max2)).optimize()
                 assert(varWidth.toInt == IntervalType(lv, uv, bp).width.asInstanceOf[IntWidth].width)
               case DifferencePattern(varWidth)     =>
                 val bp = IntWidth(Math.max(bp1.toInt, bp2.toInt))
-                val l1 = getBound(lb1, lv1)
-                val u1 = getBound(ub1, uv1)
-                val l2 = getBound(lb2, lv2)
-                val u2 = getBound(ub2, uv2)
-                val lv = l1 + u2.neg
-                val uv = u1 + l2.neg
+                val lv = min1 + max2.neg
+                val uv = max1 + min2.neg
                 assert(varWidth.toInt == IntervalType(lv, uv, bp).width.asInstanceOf[IntWidth].width)
               case ShiftLeftPattern(varWidth)     =>
                 val bp = IntWidth(bp1.toInt)
-                val lv = getBound(lb1, lv1) * Closed(3)
-                val uv = getBound(ub1, uv1) * Closed(3)
+                val lv = min1 * Closed(3)
+                val uv = max1 * Closed(3)
                 assert(varWidth.toInt == IntervalType(lv, uv, bp).width.asInstanceOf[IntWidth].width)
               case ShiftRightPattern(varWidth)     =>
                 val bp = IntWidth(bp1.toInt)
-                val lv = getBound(lb1, lv1) * Closed(1/3)
-                val uv = getBound(ub1, uv1) * Closed(1/3)
+                val lv = min1 * Closed(1/3)
+                val uv = max1 * Closed(1/3)
                 assert(varWidth.toInt == IntervalType(lv, uv, bp).width.asInstanceOf[IntWidth].width)
               case DShiftLeftPattern(varWidth)     =>
                 val bp = IntWidth(bp1.toInt)
-                val lv = getBound(lb1, lv1) * Closed(7)
-                val uv = getBound(ub1, uv1) * Closed(7)
+                val lv = min1 * Closed(7)
+                val uv = max1 * Closed(7)
                 assert(varWidth.toInt == IntervalType(lv, uv, bp).width.asInstanceOf[IntWidth].width)
               case DShiftRightPattern(varWidth)     =>
                 val bp = IntWidth(bp1.toInt)
-                val lv = getBound(lb1, lv1)
-                val uv = getBound(ub1, uv1)
+                val lv = min1
+                val uv = max1
                 assert(varWidth.toInt == IntervalType(lv, uv, bp).width.asInstanceOf[IntWidth].width)
               case ComparisonPattern(varWidth) => assert(varWidth.toInt == 1)
               case ArithAssignPattern(varName, operation, args) =>
