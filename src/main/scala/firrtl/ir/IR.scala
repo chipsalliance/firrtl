@@ -477,36 +477,69 @@ case class IntervalType(lower: Bound, upper: Bound, point: Width) extends Ground
     }
     "Interval" + bounds + pointString
   }
-  private def calcWidth(value: BigInt): Int = value match {
-    case v if(v == 0) => 0
-    case v if(v > 0) => firrtl.Utils.ceilLog2(v) + 1
-    case v if(v == -1) => 1
-    case v if(v < -1) => firrtl.Utils.ceilLog2(-v - 1) + 1 //e.g. v = -2 -> 1
+  lazy val prec = 1/Math.pow(2, point.get.toDouble)
+  lazy val min = lower.optimize match {
+    case Open(a) => (a / prec) match {
+      case x if x.isWhole => a + prec // add precision for open lower bound
+      case x => x.setScale(0, CEILING) * prec
+    }
+    //case Closed(a) => (a / prec).setScale(0, FLOOR) * prec
+    case Closed(a) => (a / prec).setScale(0, CEILING) * prec
   }
-  val width: Width = (point, lower, upper) match {
+  lazy val max = upper.optimize match {
+    case Open(a) => (a / prec) match {
+      case x if x.isWhole => a - prec // subtract precision for open upper bound
+      case x => x.setScale(0, FLOOR) * prec
+    }
+    //case Closed(a) => (a / prec).setScale(0, CEILING) * prec
+    case Closed(a) => (a / prec).setScale(0, FLOOR) * prec
+  }
+  lazy val minAdjusted = min * Math.pow(2, point.get.toDouble) match {
+    case x if x.isWhole => x.toBigInt
+    case x => sys.error("MinAdjusted should be a whole number")
+  }
+  lazy val maxAdjusted = max * Math.pow(2, point.get.toDouble) match {
+    case x if x.isWhole => x.toBigInt
+    case x => sys.error("MaxAdjusted should be a whole number")
+  }
+  lazy val range: Option[Seq[BigDecimal]] = (lower, upper, point) match {
+    case (l: IsKnown, u: IsKnown, p: IntWidth) =>
+      if(min > max) Some(Nil) else Some(Range.BigDecimal(min, max + prec, prec))
+    case _ => None
+  }
+  lazy val width: Width = (point, lower, upper) match {
     case (IntWidth(i), l: IsKnown, u: IsKnown) =>
       def resize(value: BigDecimal): BigDecimal = value * Math.pow(2, i.toInt)
       val resizedMin = l match {
         case Open(x) => resize(x) match {
           case v if v.isWhole => v + 1
-          case v => v.setScale(0, UP)
+          case v => v.setScale(0, CEILING)
         }
         case Closed(x) => resize(x) match {
           case v if v.isWhole => v
-          case v => v.setScale(0, DOWN)
+          //case v => v.setScale(0, FLOOR)
+          case v => v.setScale(0, CEILING)
         }
       }
       val resizedMax = u match {
         case Open(x) => resize(x) match {
           case v if v.isWhole => v - 1
-          case v => v.setScale(0, DOWN)
+          case v => v.setScale(0, FLOOR)
         }
         case Closed(x) => resize(x) match {
           case v if v.isWhole => v
-          case v => v.setScale(0, UP)
+          //case v => v.setScale(0, CEILING)
+          case v => v.setScale(0, FLOOR)
         }
       }
-      IntWidth(Math.max(calcWidth(resizedMin.toBigInt), calcWidth(resizedMax.toBigInt)))
+      //val r = range
+      //println(r)
+      //if(r.get.size > 0) {
+      //  val rh = resize(r.get.head)
+      //  val rl = resize(r.get.last)
+      //  assert(rh == resizedMin && rl == resizedMax, s"Min of $this, $r: $rh != $resizedMin\nMax of $this, $r: $rl != $resizedMax")
+      //}
+      IntWidth(Math.max(Utils.getSIntWidth(resizedMin.toBigInt), Utils.getSIntWidth(resizedMax.toBigInt)))
     case _ => UnknownWidth
   }
   def mapWidth(f: Width => Width): Type = this.copy(point = f(point))

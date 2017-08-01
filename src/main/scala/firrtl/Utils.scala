@@ -12,6 +12,7 @@ import scala.collection.mutable.{StringBuilder, ArrayBuffer, LinkedHashMap, Hash
 import java.io.PrintWriter
 import logger.LazyLogging
 import passes.{IsMax, IsMin}
+import Implicits.{constraint2width, width2constraint, constraint2bound}
 
 object seqCat {
   def apply(args: Seq[Expression]): Expression = args.length match {
@@ -157,7 +158,11 @@ object Utils extends LazyLogging {
   def indent(str: String) = str replaceAllLiterally ("\n", "\n  ")
 
   implicit def toWrappedExpression (x:Expression): WrappedExpression = new WrappedExpression(x)
-  def ceilLog2(x: BigInt): Int = (x-1).bitLength
+  def getSIntWidth(s: BigInt): Int = s match {
+    case v if v >= 0 => (2 * v).bitLength
+    case v           => ((-2 * v) - 1).bitLength
+  }
+  def getUIntWidth(u: BigInt): Int = u.bitLength
   def max(a: BigInt, b: BigInt): BigInt = if (a >= b) a else b
   def min(a: BigInt, b: BigInt): BigInt = if (a >= b) b else a
   def pow_minus_one(a: BigInt, b: BigInt): BigInt = a.pow(b.toInt) - 1

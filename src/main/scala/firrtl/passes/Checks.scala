@@ -308,7 +308,7 @@ object CheckTypes extends Pass {
       }
       e.op match {
         case AsUInt | AsSInt | AsClock | AsFixedPoint =>
-        case Dshl | Dshr => checkAllTypes(Seq(e.args(1)), true, false, false, false, false); checkAllTypes(Seq(e.args(0)), true, true, false, true, false)
+        case Dshl | Dshr => checkAllTypes(Seq(e.args(1)), true, false, false, false, false); checkAllTypes(Seq(e.args(0)), true, true, false, true, true)
         case Add | Sub | Mul => checkAllTypes(e.args, true, true, false, true, true)
         case Lt | Leq | Gt | Geq | Eq | Neq => checkAllTypes(e.args, true, true, false, true, true)
         case Shl | Shr | Cat | Bits | Head | Tail => checkAllTypes(e.args, true, true, false, true, true)
