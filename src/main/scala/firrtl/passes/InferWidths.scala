@@ -55,7 +55,7 @@ class InferWidths extends Pass {
       t
     case _ => t map addDecConstraints
   }
-  private def addStmtConstraints(s: Statement): Statement = s map addDecConstraints match {
+  private def addStmtConstraints(s: Statement): Statement = s map addDecConstraints map addExpConstraints match {
     case c: Connect =>
       val n = get_size(c.loc.tpe)
       val locs = create_exps(c.loc)
@@ -109,19 +109,8 @@ class InferWidths extends Pass {
         case (None, None) => (l, u)
         case x => sys.error(s"Shouldn't be here: $x")
       }
-      val px = constraintSolver.get(p) match {
-        case Some(Closed(x)) if x.isWhole => IntWidth(x.toBigInt)
-        case None => p
-        case _ => sys.error("Shouldn't be here")
-      }
-      IntervalType(lx, ux, px)
-    case FixedType(w, p) => 
-      val px = constraintSolver.get(p) match {
-        case Some(Closed(x)) if x.isWhole => IntWidth(x.toBigInt)
-        case None => p
-        case _ => sys.error("Shouldn't be here")
-      }
-      FixedType(w, px)
+      IntervalType(lx, ux, fixWidth(p))
+    case FixedType(w, p) => FixedType(w, fixWidth(p))
     case x => x
   }
   private def fixStmt(s: Statement): Statement = s map fixStmt map fixType
