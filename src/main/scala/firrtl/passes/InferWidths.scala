@@ -98,7 +98,7 @@ class InferWidths extends Pass {
     case x => x map addStmtConstraints
   }
   private def fixWidth(w: Width): Width = constraintSolver.get(w) match {
-    case Some(Closed(x)) if x.isWhole => IntWidth(x.toBigInt)
+    case Some(Closed(x)) if trim(x).isWhole => IntWidth(x.toBigInt)
     case None => w
     case _ => sys.error("Shouldn't be here")
   }

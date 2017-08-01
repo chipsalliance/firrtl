@@ -239,6 +239,16 @@ object Utils extends LazyLogging {
     case v           => ((-2 * v) - 1).bitLength
   }
   def getUIntWidth(u: BigInt): Int = u.bitLength
+  private val zdec1 = """([+\-]?[0-9]\d*)(\.[0-9]*[1-9])(0*)""".r
+  private val zdec2 = """([+\-]?[0-9]\d*)(\.0*)""".r
+  private val dec = """([+\-]?[0-9]\d*)(\.[0-9]\d*)""".r
+  private val int = """([+\-]?[0-9]\d*)""".r
+  def dec2string(v: BigDecimal): String = v.toString match {
+    case zdec1(x, y, z) => x + y
+    case zdec2(x, y) => x
+    case other => other
+  }
+  def trim(v: BigDecimal): BigDecimal = BigDecimal(dec2string(v))
   def max(a: BigInt, b: BigInt): BigInt = if (a >= b) a else b
   def min(a: BigInt, b: BigInt): BigInt = if (a >= b) b else a
   def pow_minus_one(a: BigInt, b: BigInt): BigInt = a.pow(b.toInt) - 1
