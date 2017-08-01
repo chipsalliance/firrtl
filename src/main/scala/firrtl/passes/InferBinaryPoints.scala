@@ -71,21 +71,21 @@ class InferBinaryPoints extends Pass {
     case x => x map addStmtConstraints
   }
   private def fixWidth(w: Width): Width = constraintSolver.get(w) match {
-    case Some(Closed(x)) if x.isWhole => IntWidth(x.toBigInt)
+    case Some(Closed(x)) if trim(x).isWhole => IntWidth(x.toBigInt)
     case None => w
     case _ => sys.error("Shouldn't be here")
   }
   private def fixType(t: Type): Type = t map fixType map fixWidth match {
     case IntervalType(l, u, p) => 
       val px = constraintSolver.get(p) match {
-        case Some(Closed(x)) if x.isWhole => IntWidth(x.toBigInt)
+        case Some(Closed(x)) if trim(x).isWhole => IntWidth(x.toBigInt)
         case None => p
         case _ => sys.error("Shouldn't be here")
       }
       IntervalType(l, u, px)
     case FixedType(w, p) => 
       val px = constraintSolver.get(p) match {
-        case Some(Closed(x)) if x.isWhole => IntWidth(x.toBigInt)
+        case Some(Closed(x)) if trim(x).isWhole => IntWidth(x.toBigInt)
         case None => p
         case _ => sys.error("Shouldn't be here")
       }

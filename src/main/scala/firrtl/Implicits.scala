@@ -4,6 +4,7 @@ package firrtl
 
 import firrtl.ir._
 import firrtl.passes.IsConstrainable
+import Utils.trim
 
 object Implicits {
   implicit def int2WInt(i: Int): WrappedInt = WrappedInt(BigInt(i))
@@ -13,8 +14,8 @@ object Implicits {
     case x => CalcBound(x)
   }
   implicit def constraint2width(c: IsConstrainable): Width = c.optimize() match {
-    case Closed(x) if x.isWhole => IntWidth(x.toBigInt)
-    case CalcWidth(Closed(x)) if x.isWhole => IntWidth(x.toBigInt)
+    case Closed(x) if trim(x).isWhole => IntWidth(x.toBigInt)
+    case CalcWidth(Closed(x)) if trim(x).isWhole => IntWidth(x.toBigInt)
     case x => CalcWidth(x)
   }
   implicit def width2constraint(w: Width): IsConstrainable = w match {

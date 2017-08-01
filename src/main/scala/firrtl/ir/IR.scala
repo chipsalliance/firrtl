@@ -3,7 +3,7 @@
 package firrtl
 package ir
 
-import Utils.indent
+import Utils.{indent, trim, dec2string}
 import scala.math.BigDecimal.RoundingMode._
 import scala.collection.mutable
 import passes.{IsConstrainable, IsKnown, IsVar}
@@ -478,25 +478,16 @@ case class FixedType(width: Width, point: Width) extends GroundType {
   def mapWidth(f: Width => Width): Type = FixedType(f(width), f(point))
 }
 case class IntervalType(lower: Bound, upper: Bound, point: Width) extends GroundType {
-  private val zdec1 = """([+\-]?[0-9]\d*)(\.[0-9]*[1-9])(0*)""".r
-  private val zdec2 = """([+\-]?[0-9]\d*)(\.0*)""".r
-  private val dec = """([+\-]?[0-9]\d*)(\.[0-9]\d*)""".r
-  private val int = """([+\-]?[0-9]\d*)""".r
-  def trim(v: BigDecimal): String = v.toString match {
-    case zdec1(x, y, z) => x + y
-    case zdec2(x, y) => x
-    case other => other
-  }
   override def serialize: String = {
     val lowerString = lower match {
-      case Open(l)      => s"(${trim(l)}, "
-      case Closed(l)    => s"[${trim(l)}, "
+      case Open(l)      => s"(${dec2string(l)}, "
+      case Closed(l)    => s"[${dec2string(l)}, "
       case UnknownBound => s"[?, "
       case _  => s"[?, "
     }
     val upperString = upper match {
-      case Open(u)      => s"${trim(u)})"
-      case Closed(u)    => s"${trim(u)}]"
+      case Open(u)      => s"${dec2string(u)})"
+      case Closed(u)    => s"${dec2string(u)}]"
       case UnknownBound => s"?]"
       case _  => s"?]"
     }
@@ -513,7 +504,7 @@ case class IntervalType(lower: Bound, upper: Bound, point: Width) extends Ground
   lazy val prec = 1/Math.pow(2, point.get.toDouble)
   lazy val min = lower.optimize match {
     case Open(a) => (a / prec) match {
-      case x if x.isWhole => a + prec // add precision for open lower bound
+      case x if trim(x).isWhole => a + prec // add precision for open lower bound
       case x => x.setScale(0, CEILING) * prec
     }
     //case Closed(a) => (a / prec).setScale(0, FLOOR) * prec
@@ -521,31 +512,19 @@ case class IntervalType(lower: Bound, upper: Bound, point: Width) extends Ground
   }
   lazy val max = upper.optimize match {
     case Open(a) => (a / prec) match {
-      case x if x.isWhole => a - prec // subtract precision for open upper bound
+      case x if trim(x).isWhole => a - prec // subtract precision for open upper bound
       case x => x.setScale(0, FLOOR) * prec
     }
     //case Closed(a) => (a / prec).setScale(0, CEILING) * prec
     case Closed(a) => (a / prec).setScale(0, FLOOR) * prec
   }
-  lazy val minAdjusted = {
-    val x = min * BigDecimal(Math.pow(2, point.get.toDouble))
-    println(s"x $x")
-    val bdx = BigDecimal(x.toString)
-    println(s"bdx $bdx")
-    println(s"bdx.isWhole ${bdx.isWhole}")
-    val s = trim(x)
-    println(s"trim $s")
-    val bds = BigDecimal(s)
-    println(s"bds $bds")
-    println(s"bds.isWhole ${bds.isWhole}")
-    bds match {
-      case x if x.isWhole => x.toBigInt
-      case x => sys.error(s"MinAdjusted should be a whole number: $x $min ${Math.pow(2, point.get.toDouble)} ${min * Math.pow(2, point.get.toDouble)} ${(min * BigDecimal(Math.pow(2, point.get.toDouble))).isWhole}")
-    }
+  lazy val minAdjusted = min * Math.pow(2, point.get.toDouble) match {
+    case x if trim(x).isWhole => x.toBigInt
+    case x => sys.error(s"MinAdjusted should be a whole number: $x")
   }
   lazy val maxAdjusted = max * Math.pow(2, point.get.toDouble) match {
-    case x if x.isWhole => x.toBigInt
-    case x => sys.error("MaxAdjusted should be a whole number")
+    case x if trim(x).isWhole => x.toBigInt
+    case x => sys.error(s"MaxAdjusted should be a whole number: $x")
   }
   lazy val range: Option[Seq[BigDecimal]] = (lower, upper, point) match {
     case (l: IsKnown, u: IsKnown, p: IntWidth) =>
@@ -557,22 +536,22 @@ case class IntervalType(lower: Bound, upper: Bound, point: Width) extends Ground
       def resize(value: BigDecimal): BigDecimal = value * Math.pow(2, i.toInt)
       val resizedMin = l match {
         case Open(x) => resize(x) match {
-          case v if v.isWhole => v + 1
+          case v if trim(v).isWhole => v + 1
           case v => v.setScale(0, CEILING)
         }
         case Closed(x) => resize(x) match {
-          case v if v.isWhole => v
+          case v if trim(v).isWhole => v
           //case v => v.setScale(0, FLOOR)
           case v => v.setScale(0, CEILING)
         }
       }
       val resizedMax = u match {
         case Open(x) => resize(x) match {
-          case v if v.isWhole => v - 1
+          case v if trim(v).isWhole => v - 1
           case v => v.setScale(0, FLOOR)
         }
         case Closed(x) => resize(x) match {
-          case v if v.isWhole => v
+          case v if trim(v).isWhole => v
           //case v => v.setScale(0, CEILING)
           case v => v.setScale(0, FLOOR)
         }
