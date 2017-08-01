@@ -55,6 +55,28 @@ case class StringLit(array: Array[Byte]) extends FirrtlNode {
   */
 abstract class PrimOp extends FirrtlNode {
   def serialize: String = this.toString
+  def apply(args: Any*): DoPrim = {
+    val groups = args.groupBy {
+      case x: Expression => "exp"
+      case x: BigInt => "int"
+      case x: Int => "int"
+      case other => "other"
+    }
+    val exprs = groups.getOrElse("exp", Nil).collect {
+      case e: Expression => e
+    }
+    val consts = groups.getOrElse("int", Nil).map {
+      _ match {
+        case i: BigInt => i
+        case i: Int => BigInt(i)
+      }
+    }
+    groups.get("other") match {
+      case None =>
+      case Some(x) => sys.error(s"Shouldn't be here: $x")
+    }
+    DoPrim(this, exprs, consts, UnknownType)
+  }
 }
 
 abstract class Expression extends FirrtlNode {
@@ -88,7 +110,7 @@ case class SubAccess(expr: Expression, index: Expression, tpe: Type) extends Exp
   def mapType(f: Type => Type): Expression = this.copy(tpe = f(tpe))
   def mapWidth(f: Width => Width): Expression = this
 }
-case class Mux(cond: Expression, tval: Expression, fval: Expression, tpe: Type) extends Expression {
+case class Mux(cond: Expression, tval: Expression, fval: Expression, tpe: Type = UnknownType) extends Expression {
   def serialize: String = s"mux(${cond.serialize}, ${tval.serialize}, ${fval.serialize})"
   def mapExpr(f: Expression => Expression): Expression = Mux(f(cond), f(tval), f(fval), tpe)
   def mapType(f: Type => Type): Expression = this.copy(tpe = f(tpe))
@@ -306,6 +328,7 @@ abstract class Width extends FirrtlNode {
     case (a: IntWidth, b: IntWidth) => IntWidth(a.width min b.width)
     case _ => UnknownWidth
   }
+  def get: BigInt = sys.error(s"Cannot call get on $this!")
 }
 /** Positive Integer Bit Width of a [[GroundType]] */
 object IntWidth {
@@ -341,6 +364,7 @@ class IntWidth(val width: BigInt) extends Width with Product {
     case 0 => width
     case _ => throw new IndexOutOfBoundsException
   }
+  override def get: BigInt = width
 }
 case object UnknownWidth extends Width {
   def serialize: String = ""
@@ -455,15 +479,24 @@ case class FixedType(width: Width, point: Width) extends GroundType {
 }
 case class IntervalType(lower: Bound, upper: Bound, point: Width) extends GroundType {
   override def serialize: String = {
+    val zdec1 = """([+\-]?[0-9]\d*)(\.[0-9]*[1-9])(0*)""".r
+    val zdec2 = """([+\-]?[0-9]\d*)(\.0*)""".r
+    val dec = """([+\-]?[0-9]\d*)(\.[0-9]\d*)""".r
+    val int = """([+\-]?[0-9]\d*)""".r
+    def trim(v: BigDecimal): String = v.toString match {
+      case zdec1(x, y, z) => x + y
+      case zdec2(x, y) => x
+      case other => other
+    }
     val lowerString = lower match {
-      case Open(l)      => s"($l, "
-      case Closed(l)    => s"[$l, "
+      case Open(l)      => s"(${trim(l)}, "
+      case Closed(l)    => s"[${trim(l)}, "
       case UnknownBound => s"[?, "
       case _  => s"[?, "
     }
     val upperString = upper match {
-      case Open(u)      => s"$u)"
-      case Closed(u)    => s"$u]"
+      case Open(u)      => s"${trim(u)})"
+      case Closed(u)    => s"${trim(u)}]"
       case UnknownBound => s"?]"
       case _  => s"?]"
     }
@@ -472,8 +505,8 @@ case class IntervalType(lower: Bound, upper: Bound, point: Width) extends Ground
       case _ => ""
     }
     val pointString = point match {
-      case UnknownWidth => ""
       case IntWidth(i)  => "." + i.toString
+      case _ => ""
     }
     "Interval" + bounds + pointString
   }
