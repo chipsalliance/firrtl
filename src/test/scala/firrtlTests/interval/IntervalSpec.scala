@@ -143,12 +143,148 @@ class IntervalSpec extends FirrtlFlatSpec {
         s"""circuit Unit :
         |  module Unit :
         |    input  p   : UInt<1>
-        |    input  in1 : Interval(0.0, 0.5).1
-        |    input  in2 : Interval[0.0, 0.0].1
+        |    input  in1 : Interval(0, 0.5).1
+        |    input  in2 : Interval[0, 0].1
         |    output out : Interval
         |    out <= mux(p, in2, in1)
         |    """.stripMargin
-    val check = s"""output out : Interval[0.0, 0.5).1 """.stripMargin
+    val check = s"""output out : Interval[0, 0.5).1 """.stripMargin
+    executeTest(input, check.split("\n") map normalized, passes)
+  }
+  "Interval types" should "infer dshl correctly" in {
+    val passes = Seq(ToWorkingIR, InferTypes, ResolveGenders, new InferWidths())
+      val input =
+        s"""circuit Unit :
+        |  module Unit :
+        |    input  p   : UInt<3>
+        |    input  in1 : Interval(-1, 0.5).0
+        |    output out : Interval
+        |    out <= dshl(in1, p)
+        |    """.stripMargin
+    val check = s"""output out : Interval(-7, 3.5).0 """.stripMargin
+    executeTest(input, check.split("\n") map normalized, passes)
+  }
+  "Interval types" should "infer asInterval correctly" in {
+    val passes = Seq(ToWorkingIR, InferTypes, ResolveGenders, new InferWidths())
+      val input =
+        s"""circuit Unit :
+        |  module Unit :
+        |    input  p   : UInt<3>
+        |    output out : Interval
+        |    out <= asInterval(p, 0, 4, 1)
+        |    """.stripMargin
+    val check = s"""output out : Interval[0, 2].1 """.stripMargin
+    executeTest(input, check.split("\n") map normalized, passes)
+  }
+  "Interval types" should "do wrap/clip correctly" in {
+    val passes = Seq(ToWorkingIR, InferTypes, ResolveGenders, new InferWidths())
+      val input =
+        s"""circuit Unit :
+        |  module Unit :
+        |    input  s:     SInt<2>
+        |    input  u:     UInt<3>
+        |    input  in1:   Interval[-3, 5].0
+        |    output wrap1: Interval
+        |    output wrap2: Interval
+        |    output wrap3: Interval
+        |    output wrap4: Interval
+        |    output wrap5: Interval
+        |    output wrap6: Interval
+        |    output wrap7: Interval
+        |    output clip1: Interval
+        |    output clip2: Interval
+        |    output clip3: Interval
+        |    output clip4: Interval
+        |    output clip5: Interval
+        |    output clip6: Interval
+        |    output clip7: Interval
+        |    wrap1 <= wrap(in1, u)
+        |    wrap2 <= wrap(in1, s)
+        |    wrap3 <= wrap(in1, asInterval(s, -2, 4, 0))
+        |    wrap4 <= wrap(in1, asInterval(s, -1, 1, 0))
+        |    wrap5 <= wrap(in1, asInterval(s, -4, 4, 0))
+        |    wrap6 <= wrap(in1, asInterval(s, -1, 7, 0))
+        |    wrap7 <= wrap(in1, asInterval(s, -4, 7, 0))
+        |    clip1 <= clip(in1, u)
+        |    clip2 <= clip(in1, s)
+        |    clip3 <= clip(in1, asInterval(s, -2, 4, 0))
+        |    clip4 <= clip(in1, asInterval(s, -1, 1, 0))
+        |    clip5 <= clip(in1, asInterval(s, -4, 4, 0))
+        |    clip6 <= clip(in1, asInterval(s, -1, 7, 0))
+        |    clip7 <= clip(in1, asInterval(s, -4, 7, 0))
+        |    """.stripMargin
+    val check = s"""
+        |    output wrap1 : Interval[0, 7].0
+        |    output wrap2 : Interval[-2, 1].0
+        |    output wrap3 : Interval[-2, 4].0
+        |    output wrap4 : Interval[-1, 1].0
+        |    output wrap5 : Interval[-4, 4].0
+        |    output wrap6 : Interval[-1, 7].0
+        |    output wrap7 : Interval[-4, 7].0
+        |    output clip1 : Interval[0, 5].0
+        |    output clip2 : Interval[-2, 1].0
+        |    output clip3 : Interval[-2, 4].0
+        |    output clip4 : Interval[-1, 1].0
+        |    output clip5 : Interval[-3, 4].0
+        |    output clip6 : Interval[-1, 5].0
+        |    output clip7 : Interval[-3, 5].0 """.stripMargin
+        // TODO: this optimization
+        //|    output wrap7 : Interval[-3, 5].0
+    executeTest(input, check.split("\n") map normalized, passes)
+  }
+  "Interval types" should "remove wrap/clip correctly" in {
+    val passes = Seq(ToWorkingIR, InferTypes, ResolveGenders, new InferWidths(), new RemoveIntervals())
+      val input =
+        s"""circuit Unit :
+        |  module Unit :
+        |    input  s:     SInt<2>
+        |    input  u:     UInt<3>
+        |    input  in1:   Interval[-3, 5].0
+        |    output wrap1: Interval
+        |    output wrap2: Interval
+        |    output wrap3: Interval
+        |    output wrap4: Interval
+        |    output wrap5: Interval
+        |    output wrap6: Interval
+        |    output wrap7: Interval
+        |    output clip1: Interval
+        |    output clip2: Interval
+        |    output clip3: Interval
+        |    output clip4: Interval
+        |    output clip5: Interval
+        |    output clip6: Interval
+        |    output clip7: Interval
+        |    wrap1 <= wrap(in1, u)
+        |    wrap2 <= wrap(in1, s)
+        |    wrap3 <= wrap(in1, asInterval(s, -2, 4, 0))
+        |    wrap4 <= wrap(in1, asInterval(s, -1, 1, 0))
+        |    wrap5 <= wrap(in1, asInterval(s, -4, 4, 0))
+        |    wrap6 <= wrap(in1, asInterval(s, -1, 7, 0))
+        |    wrap7 <= wrap(in1, asInterval(s, -4, 7, 0))
+        |    clip1 <= clip(in1, u)
+        |    clip2 <= clip(in1, s)
+        |    clip3 <= clip(in1, asInterval(s, -2, 4, 0))
+        |    clip4 <= clip(in1, asInterval(s, -1, 1, 0))
+        |    clip5 <= clip(in1, asInterval(s, -4, 4, 0))
+        |    clip6 <= clip(in1, asInterval(s, -1, 7, 0))
+        |    clip7 <= clip(in1, asInterval(s, -4, 7, 0))
+        |    """.stripMargin
+    val check = s"""
+        |    wrap1 <= mux(lt(in1, SInt<0>("h0")), add(in1, SInt<5>("h8")), in1)
+        |    wrap2 <= asSInt(bits(in1, 1, 0))
+        |    wrap3 <= mux(gt(in1, SInt<4>("h4")), sub(in1, SInt<4>("h7")), mux(lt(in1, SInt<2>("h-2")), add(in1, SInt<4>("h7")), in1))
+        |    wrap4 <= add(rem(sub(in1, SInt<1>("h-1")), sub(SInt<2>("h1"), SInt<1>("h-1"))), SInt<1>("h-1"))
+        |    wrap5 <= mux(gt(in1, SInt<4>("h4")), sub(in1, SInt<5>("h9")), in1)
+        |    wrap6 <= mux(lt(in1, SInt<1>("h-1")), add(in1, SInt<5>("h9")), in1)
+        |    wrap7 <= in1
+        |    clip1 <= mux(lt(in1, SInt<0>("h0")), SInt<0>("h0"), in1)
+        |    clip2 <= mux(gt(in1, SInt<2>("h1")), SInt<2>("h1"), mux(lt(in1, SInt<2>("h-2")), SInt<2>("h-2"), in1))
+        |    clip3 <= mux(gt(in1, SInt<4>("h4")), SInt<4>("h4"), mux(lt(in1, SInt<2>("h-2")), SInt<2>("h-2"), in1))
+        |    clip4 <= mux(gt(in1, SInt<2>("h1")), SInt<2>("h1"), mux(lt(in1, SInt<1>("h-1")), SInt<1>("h-1"), in1))
+        |    clip5 <= mux(gt(in1, SInt<4>("h4")), SInt<4>("h4"), in1)
+        |    clip6 <= mux(lt(in1, SInt<1>("h-1")), SInt<1>("h-1"), in1)
+        |    clip7 <= in1
+        """.stripMargin
     executeTest(input, check.split("\n") map normalized, passes)
   }
 }
