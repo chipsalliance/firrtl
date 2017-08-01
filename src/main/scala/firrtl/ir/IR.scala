@@ -554,16 +554,16 @@ case class FixedType(width: Width, point: Width) extends GroundType {
   def mapWidth(f: Width => Width): Type = FixedType(f(width), f(point))
 }
 case class IntervalType(lower: Bound, upper: Bound, point: Width) extends GroundType {
+  private val zdec1 = """([+\-]?[0-9]\d*)(\.[0-9]*[1-9])(0*)""".r
+  private val zdec2 = """([+\-]?[0-9]\d*)(\.0*)""".r
+  private val dec = """([+\-]?[0-9]\d*)(\.[0-9]\d*)""".r
+  private val int = """([+\-]?[0-9]\d*)""".r
+  def trim(v: BigDecimal): String = v.toString match {
+    case zdec1(x, y, z) => x + y
+    case zdec2(x, y) => x
+    case other => other
+  }
   override def serialize: String = {
-    val zdec1 = """([+\-]?[0-9]\d*)(\.[0-9]*[1-9])(0*)""".r
-    val zdec2 = """([+\-]?[0-9]\d*)(\.0*)""".r
-    val dec = """([+\-]?[0-9]\d*)(\.[0-9]\d*)""".r
-    val int = """([+\-]?[0-9]\d*)""".r
-    def trim(v: BigDecimal): String = v.toString match {
-      case zdec1(x, y, z) => x + y
-      case zdec2(x, y) => x
-      case other => other
-    }
     val lowerString = lower match {
       case Open(l)      => s"(${trim(l)}, "
       case Closed(l)    => s"[${trim(l)}, "
@@ -603,9 +603,21 @@ case class IntervalType(lower: Bound, upper: Bound, point: Width) extends Ground
     //case Closed(a) => (a / prec).setScale(0, CEILING) * prec
     case Closed(a) => (a / prec).setScale(0, FLOOR) * prec
   }
-  lazy val minAdjusted = BigDecimal((min * BigDecimal(Math.pow(2, point.get.toDouble))).toString) match {
-    case x if x.isWhole => x.toBigInt
-    case x => sys.error(s"MinAdjusted should be a whole number: $x $min ${Math.pow(2, point.get.toDouble)} ${min * Math.pow(2, point.get.toDouble)} ${(min * BigDecimal(Math.pow(2, point.get.toDouble))).isWhole}")
+  lazy val minAdjusted = {
+    val x = min * BigDecimal(Math.pow(2, point.get.toDouble))
+    println(s"x $x")
+    val bdx = BigDecimal(x.toString)
+    println(s"bdx $bdx")
+    println(s"bdx.isWhole ${bdx.isWhole}")
+    val s = trim(x)
+    println(s"trim $s")
+    val bds = BigDecimal(s)
+    println(s"bds $bds")
+    println(s"bds.isWhole ${bds.isWhole}")
+    bds match {
+      case x if x.isWhole => x.toBigInt
+      case x => sys.error(s"MinAdjusted should be a whole number: $x $min ${Math.pow(2, point.get.toDouble)} ${min * Math.pow(2, point.get.toDouble)} ${(min * BigDecimal(Math.pow(2, point.get.toDouble))).isWhole}")
+    }
   }
   lazy val maxAdjusted = max * Math.pow(2, point.get.toDouble) match {
     case x if x.isWhole => x.toBigInt
