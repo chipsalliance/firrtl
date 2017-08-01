@@ -85,10 +85,14 @@ object PrimOps extends LazyLogging {
   case object AsFixedPoint extends PrimOp { override def toString = "asFixedPoint" }
   /** Interpret as Interval (closed lower bound, closed upper bound, binary point) **/
   case object AsInterval extends PrimOp { override def toString = "asInterval" }
+  /** Wrap First Operand Around Range/Width of Second Operand **/
+  case object Wrap extends PrimOp { override def toString = "wrap" }
+  /** Clip First Operand At Range/Width of Second Operand **/
+  case object Clip extends PrimOp { override def toString = "clip" }
 
   private lazy val builtinPrimOps: Seq[PrimOp] =
     Seq(Add, Sub, Mul, Div, Rem, Lt, Leq, Gt, Geq, Eq, Neq, Pad, AsUInt, AsSInt, AsInterval, AsClock, Shl, Shr,
-        Dshl, Dshr, Neg, Cvt, Not, And, Or, Xor, Andr, Orr, Xorr, Cat, Bits, Head, Tail, AsFixedPoint, BPShl, BPShr, BPSet)
+        Dshl, Dshr, Neg, Cvt, Not, And, Or, Xor, Andr, Orr, Xorr, Cat, Bits, Head, Tail, AsFixedPoint, BPShl, BPShr, BPSet, Wrap, Clip)
   private lazy val strToPrimOp: Map[String, PrimOp] = builtinPrimOps.map { case op : PrimOp=> op.toString -> op }.toMap
 
   /** Seq of String representations of [[ir.PrimOp]]s */
@@ -240,12 +244,12 @@ object PrimOps extends LazyLogging {
         case _ => UnknownType
       }
       case AsInterval => t1 match {
-        case _: UIntType => IntervalType(Closed(BigDecimal(o1)), Closed(BigDecimal(o2)), IntWidth(o3))
-        case _: SIntType => IntervalType(Closed(BigDecimal(o1)), Closed(BigDecimal(o2)), IntWidth(o3))
-        case _: FixedType => IntervalType(Closed(BigDecimal(o1)), Closed(BigDecimal(o2)), IntWidth(o3))
-        case ClockType => IntervalType(Closed(BigDecimal(o1)), Closed(BigDecimal(o2)), IntWidth(o3))
-        case _: AnalogType => IntervalType(Closed(BigDecimal(o1)), Closed(BigDecimal(o2)), IntWidth(o3))
-        case _: IntervalType => IntervalType(Closed(BigDecimal(o1)), Closed(BigDecimal(o2)), IntWidth(o3))
+        case _: UIntType     => IntervalType(Closed(BigDecimal(o1)/Math.pow(2, o3.toDouble).toInt), Closed(BigDecimal(o2)/Math.pow(2, o3.toDouble).toInt), IntWidth(o3))
+        case _: SIntType     => IntervalType(Closed(BigDecimal(o1)/Math.pow(2, o3.toDouble).toInt), Closed(BigDecimal(o2)/Math.pow(2, o3.toDouble).toInt), IntWidth(o3))
+        case _: FixedType    => IntervalType(Closed(BigDecimal(o1)/Math.pow(2, o3.toDouble).toInt), Closed(BigDecimal(o2)/Math.pow(2, o3.toDouble).toInt), IntWidth(o3))
+        case ClockType       => IntervalType(Closed(BigDecimal(o1)/Math.pow(2, o3.toDouble).toInt), Closed(BigDecimal(o2)/Math.pow(2, o3.toDouble).toInt), IntWidth(o3))
+        case _: AnalogType   => IntervalType(Closed(BigDecimal(o1)/Math.pow(2, o3.toDouble).toInt), Closed(BigDecimal(o2)/Math.pow(2, o3.toDouble).toInt), IntWidth(o3))
+        case _: IntervalType => IntervalType(Closed(BigDecimal(o1)/Math.pow(2, o3.toDouble).toInt), Closed(BigDecimal(o2)/Math.pow(2, o3.toDouble).toInt), IntWidth(o3))
         case _ => UnknownType
       }
       case AsClock => t1 match {
@@ -354,13 +358,18 @@ object PrimOps extends LazyLogging {
         case IntervalType(l, u, p) => IntervalType(l, u, c1)
         case _ => UnknownType
       }
-      //case Wrap => (t1, t2) match {
-      //  case (IntervalType(l1, u1, p1), IntervalType(l2, u2, p2)) => IntervalType(l2, u2, p1)
-      //  case (IntervalType(l1, u1, p1), UIntType(w: IntWidth)) => IntervalType(Closed(0), Open(BigInt(2).pow(w.width.toInt)), p1)
-      //  case (IntervalType(l1, u1, p1), _: UIntType) => IntervalType(Closed(0), Open(BigInt(2).pow(w.width.toInt)), p1)
-      //  case (IntervalType(l1, u1, p1), u: SIntType) => IntervalType(Closed(0), u.width, p1)
-      //  case _ => UnknownType
-      //}
+      case Wrap => (t1, t2) match {
+        case (IntervalType(l1, u1, p1), IntervalType(l2, u2, _)) => IntervalType(l2, u2, p1)
+        case (IntervalType(l1, u1, p1), _: SIntType) => IntervalType(IsNeg(IsPow(IsAdd(w2, Closed(-1)))), IsAdd(IsPow(IsAdd(w2, Closed(-1))), Closed(-1)), p1)
+        case (IntervalType(l1, u1, p1), _: UIntType) => IntervalType(Closed(0), IsAdd(IsPow(w2), Closed(-1)), p1)
+        case _ => UnknownType
+      }
+      case Clip => (t1, t2) match {
+        case (IntervalType(l1, u1, p1), IntervalType(l2, u2, _)) => IntervalType(IsMax(l1, l2), IsMin(u1, u2), p1)
+        case (IntervalType(l1, u1, p1), _: SIntType) => IntervalType(IsMax(IsNeg(IsPow(IsAdd(w2, Closed(-1)))), l1), IsMin(IsAdd(IsPow(IsAdd(w2, Closed(-1))), Closed(-1)), u1), p1)
+        case (IntervalType(l1, u1, p1), _: UIntType) => IntervalType(Closed(0), IsMin(u1, IsAdd(IsPow(w2), Closed(-1))), p1)
+        case _ => UnknownType
+      }
     })
   }
 }
