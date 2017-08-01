@@ -98,7 +98,7 @@ class RemoveIntervals extends Pass {
     }
     case other => other map alignStmtBP
   }
-  private val opsToFix = Seq(Add, Sub, Lt, Leq, Gt, Geq, Eq, Neq) //Mul does not need to be fixed
+  private val opsToFix = Seq(Add, Sub, Lt, Leq, Gt, Geq, Eq, Neq, Wrap, Clip) //Mul does not need to be fixed
   private def alignExpBP(e: Expression): Expression = e map alignExpBP match {
     case DoPrim(BPSet, Seq(arg), Seq(const), tpe: IntervalType) => fixBP(IntWidth(const))(arg)
     case DoPrim(o, args, consts, t) if opsToFix.contains(o) && (args.map(_.tpe).collect { case x: IntervalType => x }).size == args.size =>

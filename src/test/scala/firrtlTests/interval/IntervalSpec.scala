@@ -287,4 +287,23 @@ class IntervalSpec extends FirrtlFlatSpec {
         """.stripMargin
     executeTest(input, check.split("\n") map normalized, passes)
   }
+  "Interval types" should "shift wrap/clip correctly" in {
+    val passes = Seq(ToWorkingIR, InferTypes, ResolveGenders, new InferWidths(), new RemoveIntervals())
+      val input =
+        s"""circuit Unit :
+        |  module Unit :
+        |    input  s:     SInt<2>
+        |    input  in1:   Interval[-3, 5].1
+        |    output wrap1: Interval
+        |    output clip1: Interval
+        |    wrap1 <= wrap(in1, asInterval(s, -2, 2, 0))
+        |    clip1 <= clip(in1, asInterval(s, -2, 2, 0))
+        |    """.stripMargin
+    val check = s"""
+        |    wrap1 <= mux(gt(in1, SInt<4>("h4")), sub(in1, SInt<5>("h9")), mux(lt(in1, SInt<3>("h-4")), add(in1, SInt<5>("h9")), in1))
+        |    clip1 <= mux(gt(in1, SInt<4>("h4")), SInt<4>("h4"), mux(lt(in1, SInt<3>("h-4")), SInt<3>("h-4"), in1))
+        """.stripMargin
+    executeTest(input, check.split("\n") map normalized, passes)
+  }
+
 }
