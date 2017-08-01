@@ -605,7 +605,7 @@ case class IntervalType(lower: Bound, upper: Bound, point: Width) extends Ground
   }
   lazy val minAdjusted = min * Math.pow(2, point.get.toDouble) match {
     case x if x.isWhole => x.toBigInt
-    case x => sys.error("MinAdjusted should be a whole number")
+    case x => sys.error(s"MinAdjusted should be a whole number: $x")
   }
   lazy val maxAdjusted = max * Math.pow(2, point.get.toDouble) match {
     case x if x.isWhole => x.toBigInt
