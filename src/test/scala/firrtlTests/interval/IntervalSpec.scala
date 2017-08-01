@@ -25,7 +25,7 @@ class IntervalSpec extends FirrtlFlatSpec {
       """circuit Unit :
         |  module Unit :
         |    input in0 : Interval(-0.32, 10.1).4
-        |    input in1 : Interval[0, 10.10].4
+        |    input in1 : Interval[0, 10.1].4
         |    input in2 : Interval(-0.32, 10].4
         |    input in3 : Interval[-3, 10.1).4
         |    input in4 : Interval(-0.32, 10.1)
@@ -44,7 +44,7 @@ class IntervalSpec extends FirrtlFlatSpec {
       """circuit Unit :
         |  module Unit :
         |    input in0 : Interval(-0.32, 10.1).4
-        |    input in1 : Interval[0, 10.10].3
+        |    input in1 : Interval[0, 10.1].3
         |    input in2 : Interval(-0.32, 10].2
         |    output out0 : Interval
         |    out0 <= add(in0, add(in1, in2))""".stripMargin
@@ -52,9 +52,9 @@ class IntervalSpec extends FirrtlFlatSpec {
       """circuit Unit :
         |  module Unit :
         |    input in0 : Interval(-0.32, 10.1).4
-        |    input in1 : Interval[0, 10.10].3
+        |    input in1 : Interval[0, 10.1].3
         |    input in2 : Interval(-0.32, 10].2
-        |    output out0 : Interval(-0.64, 30.20).4
+        |    output out0 : Interval(-0.64, 30.2).4
         |    out0 <= add(in0, add(in1, in2))""".stripMargin
     executeTest(input, check.split("\n") map normalized, passes)
   }
@@ -119,7 +119,7 @@ class IntervalSpec extends FirrtlFlatSpec {
         |    output sum : Interval
         |    sum <= add(in2, in1)
         |    """.stripMargin
-    val check = s"""output sum : Interval(0.0, 1.0).1 """.stripMargin
+    val check = s"""output sum : Interval(0, 1).1 """.stripMargin
     executeTest(input, check.split("\n") map normalized, passes)
   }
 
@@ -128,8 +128,8 @@ class IntervalSpec extends FirrtlFlatSpec {
       val input =
         s"""circuit Unit :
         |  module Unit :
-        |    input  in1 : Interval(0.0, 0.5).1
-        |    input  in2 : Interval[0.0, 0.0].1
+        |    input  in1 : Interval(0, 0.5).1
+        |    input  in2 : Interval[0, 0].1
         |    output mul : Interval
         |    mul <= mul(in2, in1)
         |    """.stripMargin
