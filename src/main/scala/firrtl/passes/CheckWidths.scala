@@ -11,7 +11,7 @@ import firrtl.Utils._
 object CheckWidths extends Pass {
   /** The maximum allowed width for any circuit element */
   val MaxWidth = 1000000
-  val DshlMaxWidth = ceilLog2(MaxWidth + 1)
+  val DshlMaxWidth = getUIntWidth(MaxWidth + 1)
   class UninferredWidth (info: Info, mname: String, name: String, t: Type) extends PassException(
     s"$info : [module $mname]  Component $name has an Uninferred width: ${t.serialize}")
   class UninferredBound (info: Info, mname: String, name: String, t: Type, bound: String) extends PassException(
@@ -59,6 +59,9 @@ object CheckWidths extends Pass {
 
     def check_width_t(info: Info, mname: String, name: String)(t: Type): Type =
       t map check_width_t(info, mname, name) map check_width_w(info, mname, name, t) match {
+        case i:IntervalType if i.range == Some(Nil) =>
+          errors append new InvalidRange(info, mname, name, t)
+          i
         case i@IntervalType(Closed(l), Closed(u), IntWidth(_)) if l <= u => i
         case i@IntervalType(KnownBound(l), KnownBound(u), IntWidth(p)) if l >= u =>
           errors append new InvalidRange(info, mname, name, t)

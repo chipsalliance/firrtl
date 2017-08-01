@@ -7,7 +7,8 @@ import firrtl.PrimOps._
 import firrtl.ir._
 import firrtl._
 import firrtl.Mappers._
-import firrtl.Utils.{sub_type, module_type, field_type, max, error}
+import firrtl.Utils.{sub_type, module_type, field_type, max, error, getUIntWidth}
+import Implicits.{int2WInt, bigint2WInt}
 
 /** Replaces IntervalType with SIntType, three AST walks:
   * 1) Align binary points
@@ -30,7 +31,7 @@ class RemoveIntervals extends Pass {
   private def replaceModuleInterval(m: DefModule): DefModule = m map replaceStmtInterval map replacePortInterval
   private def replaceStmtInterval(s: Statement): Statement = s map replaceTypeInterval map replaceStmtInterval map replaceExprInterval
   private def replaceExprInterval(e: Expression): Expression = e map replaceExprInterval match {
-    //case DoPrim(AsInterval, args, consts, tpe) => DoPrim(AsSInt, args, Seq.empty, tpe)
+    case DoPrim(AsInterval, args, consts, tpe) => DoPrim(AsSInt, args, Seq.empty, tpe)
     case DoPrim(BPShl, args, consts, tpe) => DoPrim(Shl, args, consts, tpe)
     case DoPrim(BPShr, args, consts, tpe) => DoPrim(Shr, args, consts, tpe)
     case other => other

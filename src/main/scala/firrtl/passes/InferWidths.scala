@@ -10,7 +10,7 @@ import firrtl._
 import firrtl.ir._
 import firrtl.Utils._
 import firrtl.Mappers._
-import firrtl.PrimOps.{constraint2width, width2constraint}
+import firrtl.Implicits.{constraint2width, width2constraint}
 
 class InferWidths extends Pass {
   private val constraintSolver = new ConstraintSolver()

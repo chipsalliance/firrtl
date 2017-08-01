@@ -14,7 +14,7 @@ import firrtl.Mappers._
 class ConstraintSolver {
   def addGeq(big: Any, small: Any): Unit = (big, small) match {
     case (IsVar(name), other: IsConstrainable) => add(GEQ(name, other))
-    case (IsVar(name), other: IntWidth) => add(GEQ(name, PrimOps.width2constraint(other)))
+    case (IsVar(name), other: IntWidth) => add(GEQ(name, Implicits.width2constraint(other)))
     case (IsKnown(u), IsKnown(l)) if l > u => println("BAD!")
     case _ =>
   }

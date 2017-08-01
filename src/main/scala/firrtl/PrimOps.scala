@@ -7,7 +7,7 @@ import firrtl.Utils.{min, max, pow_minus_one}
 import passes.{IsMul, IsAdd, IsNeg, IsPow, IsMax, IsMin, IsConstrainable}
 
 import com.typesafe.scalalogging.LazyLogging
-import PrimOps.{constraint2bound, constraint2width, width2constraint}
+import Implicits.{constraint2bound, constraint2width, width2constraint}
 
 /** Definitions and Utility functions for [[ir.PrimOp]]s */
 object PrimOps extends LazyLogging {
@@ -87,7 +87,7 @@ object PrimOps extends LazyLogging {
   case object AsInterval extends PrimOp { override def toString = "asInterval" }
 
   private lazy val builtinPrimOps: Seq[PrimOp] =
-    Seq(Add, Sub, Mul, Div, Rem, Lt, Leq, Gt, Geq, Eq, Neq, Pad, AsUInt, AsSInt, AsClock, Shl, Shr,
+    Seq(Add, Sub, Mul, Div, Rem, Lt, Leq, Gt, Geq, Eq, Neq, Pad, AsUInt, AsSInt, AsInterval, AsClock, Shl, Shr,
         Dshl, Dshr, Neg, Cvt, Not, And, Or, Xor, Andr, Orr, Xorr, Cat, Bits, Head, Tail, AsFixedPoint, BPShl, BPShr, BPSet)
   private lazy val strToPrimOp: Map[String, PrimOp] = builtinPrimOps.map { case op : PrimOp=> op.toString -> op }.toMap
 
@@ -106,22 +106,6 @@ object PrimOps extends LazyLogging {
   //}
   def MIN(w1: Width, w2: Width): IsConstrainable = IsMin(w1, w2)
 
-  // Borrowed from Stanza implementation
-  implicit def constraint2bound(c: IsConstrainable): Bound = c match {
-    case x: Bound => x
-    case x => CalcBound(x)
-  }
-  implicit def constraint2width(c: IsConstrainable): Width = c.optimize() match {
-    case Closed(x) if x.isWhole => IntWidth(x.toBigInt)
-    case CalcWidth(Closed(x)) if x.isWhole => IntWidth(x.toBigInt)
-    case x => CalcWidth(x)
-  }
-  implicit def width2constraint(w: Width): IsConstrainable = w match {
-    case CalcWidth(x: IsConstrainable) => x
-    case IntWidth(x) => Closed(BigDecimal(x))
-    case UnknownWidth => UnknownBound
-    case VarWidth(x) => VarBound(x)
-  }
   def set_primop_type(e: DoPrim): DoPrim = {
     def t1 = e.args.head.tpe
     def t2 = e.args(1).tpe
@@ -287,15 +271,17 @@ object PrimOps extends LazyLogging {
         case _ => UnknownType
       }
       case Dshl => t1 match {
-        case _: UIntType => UIntType(IsAdd(w1, IsPow(w2)))
-        case _: SIntType => SIntType(IsAdd(w1, IsPow(w2)))
-        case _: FixedType => FixedType(IsAdd(w1, IsPow(w2)), p1)
+        case _: UIntType => UIntType(IsAdd(w1, IsAdd(IsPow(w2), Closed(-1))))
+        case _: SIntType => SIntType(IsAdd(w1, IsAdd(IsPow(w2), Closed(-1))))
+        case _: FixedType => FixedType(IsAdd(w1, IsAdd(IsPow(w2), Closed(-1))), p1)
+        case IntervalType(l, u, p) => IntervalType(IsMul(l, IsAdd(IsPow(w2), Closed(-1))), IsMul(u, IsAdd(IsPow(w2), Closed(-1))), p)
         case _ => UnknownType
       }
       case Dshr => t1 match {
         case _: UIntType => UIntType(w1)
         case _: SIntType => SIntType(w1)
         case _: FixedType => FixedType(w1, p1)
+        case IntervalType(l, u, p) => IntervalType(l, u, p)
         case _ => UnknownType
       }
       case Cvt => t1 match {
