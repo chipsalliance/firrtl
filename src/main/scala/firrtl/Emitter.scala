@@ -514,7 +514,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
       def stop(ret: Int): Seq[Any] = Seq(if (ret == 0) "$finish;" else "$fatal;")
 
       def printf(str: StringLit, args: Seq[Expression]): Seq[Any] = {
-	      val strx = str.escape +: args.flatMap(Seq(",",_))
+	      val strx = str.verilogEscape +: args.flatMap(Seq(",",_))
         Seq("$fwrite(32'h80000002,", strx, ");")
       }
 
