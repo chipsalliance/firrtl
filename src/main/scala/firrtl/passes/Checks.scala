@@ -140,6 +140,7 @@ object CheckHighForm extends Pass {
     def validSubexp(info: Info, mname: String)(e: Expression): Expression = {
       e match {
         case _: WRef | _: WSubField | _: WSubIndex | _: WSubAccess | _: Mux | _: ValidIf => // No error
+        case _: Reference | _: SubField | _: SubIndex | _: SubAccess => // No error
         case _ => errors.append(new InvalidAccessException(info, mname))
       }
       e
@@ -147,13 +148,16 @@ object CheckHighForm extends Pass {
 
     def checkHighFormE(info: Info, mname: String, names: NameSet)(e: Expression): Expression = {
       e match {
+        case ex: Reference if !names(ex.name) =>
+          errors.append(new UndeclaredReferenceException(info, mname, ex.name))
         case ex: WRef if !names(ex.name) =>
           errors.append(new UndeclaredReferenceException(info, mname, ex.name))
         case ex: UIntLiteral if ex.value < 0 =>
           errors.append(new NegUIntException(info, mname))
         case ex: DoPrim => checkHighFormPrimop(info, mname, ex)
-        case _: WRef | _: UIntLiteral | _: Mux | _: ValidIf =>
+        case _: WRef | _: UIntLiteral | _: Mux | _: ValidIf | _: Reference =>
         case ex: WSubAccess => validSubexp(info, mname)(ex.expr)
+        case ex: SubAccess => validSubexp(info, mname)(ex.expr)
         case ex => ex map validSubexp(info, mname)
       }
       (e map checkHighFormW(info, mname)
@@ -176,6 +180,13 @@ object CheckHighForm extends Pass {
             errors.append(new MemWithFlipException(info, mname, sx.name))
           if (sx.depth <= 0)
             errors.append(new NegMemSizeException(info, mname))
+        case sx: DefInstance =>
+          if (!moduleNames(sx.module))
+            errors.append(new ModuleNotDefinedException(info, mname, sx.module))
+          // Check to see if a recursive module instantiation has occured
+          val childToParent = moduleGraph add (mname, sx.module)
+          if (childToParent.nonEmpty)
+            errors.append(new InstanceLoop(info, mname, childToParent mkString "->"))
         case sx: WDefInstance =>
           if (!moduleNames(sx.module))
             errors.append(new ModuleNotDefinedException(info, mname, sx.module))
