@@ -180,11 +180,13 @@ case class FirrtlExecutionOptions(
       case "low"       => new LowFirrtlCompiler()
       case "middle"    => new MiddleFirrtlCompiler()
       case "verilog"   => new VerilogCompiler()
+      case "coreir"    => new CoreIRCompiler()
     }
   }
 
   def outputSuffix: String = {
     compilerName match {
+      case "coreir"    => "coreir.fir"
       case "verilog"   => "v"
       case "low"       => "lo.fir"
       case "high"      => "hi.fir"
@@ -235,6 +237,7 @@ case class FirrtlExecutionOptions(
       case "middle" => classOf[MiddleFirrtlEmitter]
       case "low" => classOf[LowFirrtlEmitter]
       case "verilog" => classOf[VerilogEmitter]
+      case "coreir" => classOf[CoreIREmitter]
     }
     getOutputConfig(optionsManager) match {
       case SingleFile(_) => Seq(EmitCircuitAnnotation(emitter))
@@ -300,12 +303,12 @@ trait HasFirrtlOptions {
 
   parser.opt[String]("compiler")
     .abbr("X")
-    .valueName ("<high|middle|low|verilog>")
+    .valueName ("<high|middle|low|verilog|coreir>")
     .foreach { x =>
       firrtlOptions = firrtlOptions.copy(compilerName = x)
     }
     .validate { x =>
-      if (Array("high", "middle", "low", "verilog").contains(x.toLowerCase)) parser.success
+      if (Array("high", "middle", "low", "verilog", "coreir").contains(x.toLowerCase)) parser.success
       else parser.failure(s"$x not a legal compiler")
     }.text {
       s"compiler to use, default is ${firrtlOptions.compilerName}"
@@ -437,7 +440,7 @@ sealed trait FirrtlExecutionResult
   * Indicates a successful execution of the firrtl compiler, returning the compiled result and
   * the type of compile
   *
-  * @param emitType  The name of the compiler used, currently "high", "middle", "low", or "verilog"
+  * @param emitType  The name of the compiler used, currently "high", "middle", "low", "verilog" or "coreir"
   * @param emitted   The emitted result of compilation
   */
 case class FirrtlExecutionSuccess(emitType: String, emitted: String) extends FirrtlExecutionResult

@@ -139,3 +139,10 @@ class VerilogCompiler extends Compiler {
   def transforms: Seq[Transform] = getLoweringTransforms(ChirrtlForm, LowForm) ++
     Seq(new LowFirrtlOptimization, new BlackBoxSourceHelper)
 }
+
+/** Emits Verilog */
+class CoreIRCompiler extends Compiler {
+  def emitter = new CoreIREmitter
+  def transforms: Seq[Transform] = getLoweringTransforms(ChirrtlForm, LowForm) ++
+    Seq(new LowFirrtlOptimization, new BlackBoxSourceHelper)
+}
