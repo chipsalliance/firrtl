@@ -36,7 +36,7 @@ class FixedTypeInferenceSpec extends FirrtlFlatSpec {
       """circuit Unit :
         |  module Unit :
         |    input a : Fixed<10><<2>>
-        |    input b : Fixed<10>
+        |    input b : Fixed<10><<0>>
         |    input c : Fixed<4><<3>>
         |    output d : Fixed
         |    d <= add(a, add(b, c))""".stripMargin

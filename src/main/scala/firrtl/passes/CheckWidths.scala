@@ -39,14 +39,15 @@ object CheckWidths extends Pass {
     val errors = new Errors()
 
     def check_width_w(info: Info, mname: String, name: String, t: Type)(w: Width): Width = {
-      w match {
-        case IntWidth(width) if width >= MaxWidth =>
+      (w, t) match {
+        case (IntWidth(width), _) if width >= MaxWidth =>
           errors.append(new WidthTooBig(info, mname, width))
-        case w: IntWidth if w.width >= 0 =>
-        case _: IntWidth =>
+        case (w: IntWidth, f: FixedType) if (w.width < 0 && w.width == f.width) =>
           errors append new NegWidthException(info, mname)
-        case _ =>
-          errors append new UninferredWidth(info, mname, name, t)
+        case (w: IntWidth, f: IntervalType) if (w.width < 0) =>
+          errors append new NegWidthException(info, mname)
+        case (_: IntWidth, _) =>
+        case _ => errors append new UninferredWidth(info, mname, name, t)
       }
       w
     }

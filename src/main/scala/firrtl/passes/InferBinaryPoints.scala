@@ -34,15 +34,7 @@ class InferBinaryPoints extends Pass {
       }
     case (t1: VectorType, t2: VectorType) => addTypeConstraints(t1.tpe, t2.tpe)
   }
-  private def addDecConstraints(t: Type): Type = t match {
-    case IntervalType(l, u, p) =>
-      constraintSolver.addGeq(p, Closed(0))
-      t
-    case FixedType(w, p) =>
-      constraintSolver.addGeq(p, Closed(0))
-      t
-    case _ => t map addDecConstraints
-  }
+  private def addDecConstraints(t: Type): Type = t map addDecConstraints
   private def addStmtConstraints(s: Statement): Statement = s map addDecConstraints match {
     case c: Connect =>
       val n = get_size(c.loc.tpe)
