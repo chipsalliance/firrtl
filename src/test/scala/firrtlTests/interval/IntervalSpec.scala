@@ -334,11 +334,12 @@ class IntervalSpec extends FirrtlFlatSpec {
         |  module Unit :
         |    input  in1:   Interval[-2, 4].-1
         |    input  in2:   Interval[-4, 8].-2
-        |    output out: Interval
+        |    output out: Interval.0
         |    out <= add(in1, in2)
         |    """.stripMargin
     val check = s"""
-        |    output out : SInt<4>
+        |    output out : SInt<5>
+        |    out <= shl(add(in1, shl(in2, 1)), 1)
         """.stripMargin
     executeTest(input, check.split("\n") map normalized, passes)
   }
