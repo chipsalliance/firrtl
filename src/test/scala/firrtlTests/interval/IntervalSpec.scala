@@ -39,7 +39,7 @@ class IntervalSpec extends FirrtlFlatSpec {
   }
 
   "Interval types" should "infer bp correctly" in {
-    val passes = Seq(ToWorkingIR, InferTypes, ResolveGenders, new InferWidths())
+    val passes = Seq(ToWorkingIR, InferTypes, ResolveGenders, new InferBinaryPoints())
     val input =
       """circuit Unit :
         |  module Unit :
@@ -54,13 +54,34 @@ class IntervalSpec extends FirrtlFlatSpec {
         |    input in0 : Interval(-0.32, 10.1).4
         |    input in1 : Interval[0, 10.1].3
         |    input in2 : Interval(-0.32, 10].2
-        |    output out0 : Interval(-0.64, 30.2).4
+        |    output out0 : Interval.4
+        |    out0 <= add(in0, add(in1, in2))""".stripMargin
+    executeTest(input, check.split("\n") map normalized, passes)
+  }
+
+  "Interval types" should "trim known intervals correctly" in {
+    val passes = Seq(ToWorkingIR, InferTypes, ResolveGenders, new InferBinaryPoints(), new TrimIntervals())
+    val input =
+      """circuit Unit :
+        |  module Unit :
+        |    input in0 : Interval(-0.32, 10.1).4
+        |    input in1 : Interval[0, 10.1].3
+        |    input in2 : Interval(-0.32, 10].2
+        |    output out0 : Interval
+        |    out0 <= add(in0, add(in1, in2))""".stripMargin
+    val check =
+      """circuit Unit :
+        |  module Unit :
+        |    input in0 : Interval[-0.3125, 10.0625].4
+        |    input in1 : Interval[0, 10].3
+        |    input in2 : Interval[-0.25, 10].2
+        |    output out0 : Interval.4
         |    out0 <= add(in0, add(in1, in2))""".stripMargin
     executeTest(input, check.split("\n") map normalized, passes)
   }
 
   "Interval types" should "infer intervals correctly" in {
-    val passes = Seq(ToWorkingIR, InferTypes, ResolveGenders, new InferWidths())
+    val passes = Seq(ToWorkingIR, InferTypes, ResolveGenders, new InferBinaryPoints(), new TrimIntervals(), new InferWidths())
     val input =
       """circuit Unit :
         |  module Unit :
@@ -74,14 +95,14 @@ class IntervalSpec extends FirrtlFlatSpec {
         |    out1 <= mul(in0, mul(in1, in2))
         |    out2 <= sub(in0, sub(in1, in2))""".stripMargin
     val check =
-      """output out0 : Interval(-1, 23).4
-        |output out1 : Interval(-100, 300).9
-        |output out2 : Interval(-11, 13).4""".stripMargin
+      """output out0 : Interval[-0.5625, 22.9375].4
+        |output out1 : Interval[-74.53125, 298.125].9
+        |output out2 : Interval[-10.6875, 12.8125].4""".stripMargin
     executeTest(input, check.split("\n") map normalized, passes)
   }
 
   "Interval types" should "be removed correctly" in {
-    val passes = Seq(ToWorkingIR, InferTypes, ResolveGenders, new InferWidths(), new RemoveIntervals())
+    val passes = Seq(ToWorkingIR, InferTypes, ResolveGenders, new InferBinaryPoints(), new TrimIntervals(), new InferWidths(), new RemoveIntervals())
     val input =
       """circuit Unit :
         |  module Unit :
@@ -109,46 +130,32 @@ class IntervalSpec extends FirrtlFlatSpec {
     executeTest(input, check.split("\n") map normalized, passes)
   }
 
-  "Interval types" should "infer this example correctly" in {
-    val passes = Seq(ToWorkingIR, InferTypes, ResolveGenders, new InferWidths())
-      val input =
-        s"""circuit Unit :
-        |  module Unit :
-        |    input  in1 : Interval(0.5, 0.5].1
-        |    input  in2 : Interval(-0.5, 0.5).1
-        |    output sum : Interval
-        |    sum <= add(in2, in1)
-        |    """.stripMargin
-    val check = s"""output sum : Interval(0, 1).1 """.stripMargin
-    executeTest(input, check.split("\n") map normalized, passes)
-  }
-
-  "Interval types" should "infer multiplication by zero correctly" in {
-    val passes = Seq(ToWorkingIR, InferTypes, ResolveGenders, new InferWidths())
-      val input =
-        s"""circuit Unit :
-        |  module Unit :
-        |    input  in1 : Interval(0, 0.5).1
-        |    input  in2 : Interval[0, 0].1
-        |    output mul : Interval
-        |    mul <= mul(in2, in1)
-        |    """.stripMargin
-    val check = s"""output mul : Interval[0, 0].2 """.stripMargin
-    executeTest(input, check.split("\n") map normalized, passes)
-  }
+"Interval types" should "infer multiplication by zero correctly" in {
+  val passes = Seq(ToWorkingIR, InferTypes, ResolveGenders, new InferBinaryPoints(), new TrimIntervals(), new InferWidths())
+    val input =
+      s"""circuit Unit :
+      |  module Unit :
+      |    input  in1 : Interval[0, 0.5].1
+      |    input  in2 : Interval[0, 0].1
+      |    output mul : Interval
+      |    mul <= mul(in2, in1)
+      |    """.stripMargin
+  val check = s"""output mul : Interval[0, 0].2 """.stripMargin
+  executeTest(input, check.split("\n") map normalized, passes)
+}
 
   "Interval types" should "infer muxes correctly" in {
-    val passes = Seq(ToWorkingIR, InferTypes, ResolveGenders, new InferWidths())
+    val passes = Seq(ToWorkingIR, InferTypes, ResolveGenders, new InferBinaryPoints(), new TrimIntervals(), new InferWidths())
       val input =
         s"""circuit Unit :
         |  module Unit :
         |    input  p   : UInt<1>
-        |    input  in1 : Interval(0, 0.5).1
+        |    input  in1 : Interval[0, 0.5].1
         |    input  in2 : Interval[0, 0].1
         |    output out : Interval
         |    out <= mux(p, in2, in1)
         |    """.stripMargin
-    val check = s"""output out : Interval[0, 0.5).1 """.stripMargin
+    val check = s"""output out : Interval[0, 0.5].1 """.stripMargin
     executeTest(input, check.split("\n") map normalized, passes)
   }
   "Interval types" should "infer dshl correctly" in {
@@ -288,7 +295,7 @@ class IntervalSpec extends FirrtlFlatSpec {
     executeTest(input, check.split("\n") map normalized, passes)
   }
   "Interval types" should "shift wrap/clip correctly" in {
-    val passes = Seq(ToWorkingIR, InferTypes, ResolveGenders, new InferWidths(), new RemoveIntervals())
+    val passes = Seq(ToWorkingIR, InferTypes, ResolveGenders, new InferBinaryPoints(), new TrimIntervals(), new InferWidths(), new RemoveIntervals())
       val input =
         s"""circuit Unit :
         |  module Unit :
@@ -305,5 +312,34 @@ class IntervalSpec extends FirrtlFlatSpec {
         """.stripMargin
     executeTest(input, check.split("\n") map normalized, passes)
   }
-
+  "Interval types" should "infer negative binary points" in {
+    val passes = Seq(ToWorkingIR, InferTypes, ResolveGenders,  new InferBinaryPoints(), new TrimIntervals(),new InferWidths())
+      val input =
+        s"""circuit Unit :
+        |  module Unit :
+        |    input  in1:   Interval[-2, 4].-1
+        |    input  in2:   Interval[-4, 8].-2
+        |    output out: Interval
+        |    out <= add(in1, in2)
+        |    """.stripMargin
+    val check = s"""
+        |    output out : Interval[-6, 12].-1
+        """.stripMargin
+    executeTest(input, check.split("\n") map normalized, passes)
+  }
+  "Interval types" should "remove negative binary points" in {
+    val passes = Seq(ToWorkingIR, InferTypes, ResolveGenders, new InferBinaryPoints(), new TrimIntervals(), new InferWidths(), new RemoveIntervals())
+      val input =
+        s"""circuit Unit :
+        |  module Unit :
+        |    input  in1:   Interval[-2, 4].-1
+        |    input  in2:   Interval[-4, 8].-2
+        |    output out: Interval
+        |    out <= add(in1, in2)
+        |    """.stripMargin
+    val check = s"""
+        |    output out : SInt<4>
+        """.stripMargin
+    executeTest(input, check.split("\n") map normalized, passes)
+  }
 }

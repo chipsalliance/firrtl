@@ -48,10 +48,8 @@ class InferWidths extends Pass {
   private def addDecConstraints(t: Type): Type = t match {
     case IntervalType(l, u, p) =>
       constraintSolver.addGeq(u, l)
-      constraintSolver.addGeq(p, Closed(0))
       t
     case FixedType(w, p) =>
-      constraintSolver.addGeq(p, Closed(0))
       t
     case _ => t map addDecConstraints
   }
