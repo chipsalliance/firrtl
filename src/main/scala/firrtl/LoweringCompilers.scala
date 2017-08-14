@@ -98,12 +98,12 @@ class LowFirrtlOptimization extends CoreTransform {
   def outputForm = LowForm
   def transforms = Seq(
     passes.RemoveValidIf,
-    //new firrtl.transforms.ConstantPropagation,
+    passes.ConstPropLite,
     passes.PadWidths,
-    //new firrtl.transforms.ConstantPropagation,
+    passes.ConstPropLite,
     passes.Legalize,
     passes.memlib.VerilogMemDelays, // TODO move to Verilog emitter
-    //new firrtl.transforms.ConstantPropagation,
+    passes.ConstPropLite,
     passes.SplitExpressions//,
     //passes.CommonSubexpressionElimination,
     //new firrtl.transforms.DeadCodeElimination)
