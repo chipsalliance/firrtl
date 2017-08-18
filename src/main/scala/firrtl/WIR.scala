@@ -27,7 +27,10 @@ case object UNKNOWNGENDER extends Gender
 case class WRef(name: String, tpe: Type, kind: Kind, gender: Gender) extends Expression {
   def serialize: String = name
   def mapExpr(f: Expression => Expression): Expression = this
-  def mapType(f: Type => Type): Expression = this.copy(tpe = f(tpe))
+  def mapType(f: Type => Type): Expression = {
+    val tpex = f(tpe)
+    if (tpe eq tpex) this else this.copy(tpe = tpex)
+  }
   def mapWidth(f: Width => Width): Expression = this
 }
 object WRef {
@@ -39,8 +42,14 @@ object WRef {
 }
 case class WSubField(expr: Expression, name: String, tpe: Type, gender: Gender) extends Expression {
   def serialize: String = s"${expr.serialize}.$name"
-  def mapExpr(f: Expression => Expression): Expression = this.copy(expr = f(expr))
-  def mapType(f: Type => Type): Expression = this.copy(tpe = f(tpe))
+  def mapExpr(f: Expression => Expression): Expression = {
+    val exprx = f(expr)
+    if (expr eq exprx) this else this.copy(expr = exprx)
+  }
+  def mapType(f: Type => Type): Expression = {
+    val tpex = f(tpe)
+    if (tpe eq tpex) this else this.copy(tpe = tpex)
+  }
   def mapWidth(f: Width => Width): Expression = this
 }
 object WSubField {
@@ -49,14 +58,27 @@ object WSubField {
 }
 case class WSubIndex(expr: Expression, value: Int, tpe: Type, gender: Gender) extends Expression {
   def serialize: String = s"${expr.serialize}[$value]"
-  def mapExpr(f: Expression => Expression): Expression = this.copy(expr = f(expr))
-  def mapType(f: Type => Type): Expression = this.copy(tpe = f(tpe))
+  def mapExpr(f: Expression => Expression): Expression = {
+    val exprx = f(expr)
+    if (expr eq exprx) this else this.copy(expr = exprx)
+  }
+  def mapType(f: Type => Type): Expression = {
+    val tpex = f(tpe)
+    if (tpe eq tpex) this else this.copy(tpe = tpex)
+  }
   def mapWidth(f: Width => Width): Expression = this
 }
 case class WSubAccess(expr: Expression, index: Expression, tpe: Type, gender: Gender) extends Expression {
   def serialize: String = s"${expr.serialize}[${index.serialize}]"
-  def mapExpr(f: Expression => Expression): Expression = this.copy(expr = f(expr), index = f(index))
-  def mapType(f: Type => Type): Expression = this.copy(tpe = f(tpe))
+  def mapExpr(f: Expression => Expression): Expression = {
+    val exprx = f(expr)
+    val indexx = f(index)
+    if ((exprx eq expr) && (index eq indexx)) this else this.copy(expr = exprx, index = indexx)
+  }
+  def mapType(f: Type => Type): Expression = {
+    val tpex = f(tpe)
+    if (tpe eq tpex) this else this.copy(tpe = tpex)
+  }
   def mapWidth(f: Width => Width): Expression = this
 }
 case object WVoid extends Expression {
@@ -85,8 +107,14 @@ case class WDefInstance(info: Info, name: String, module: String, tpe: Type) ext
   def serialize: String = s"inst $name of $module" + info.serialize
   def mapExpr(f: Expression => Expression): Statement = this
   def mapStmt(f: Statement => Statement): Statement = this
-  def mapType(f: Type => Type): Statement = this.copy(tpe = f(tpe))
-  def mapString(f: String => String): Statement = this.copy(name = f(name))
+  def mapType(f: Type => Type): Statement = {
+    val tpex = f(tpe)
+    if (tpe eq tpex) this else this.copy(tpe = tpex)
+  }
+  def mapString(f: String => String): Statement = {
+    val namex = f(name)
+    if (name eq namex) this else this.copy(name = namex)
+  }
 }
 object WDefInstance {
   def apply(name: String, module: String): WDefInstance = new WDefInstance(NoInfo, name, module, UnknownType)
@@ -99,11 +127,20 @@ case class WDefInstanceConnector(
     portCons: Seq[(Expression, Expression)]) extends Statement with IsDeclaration {
   def serialize: String = s"inst $name of $module with ${tpe.serialize} connected to " +
                           portCons.map(_._2.serialize).mkString("(", ", ", ")") + info.serialize
-  def mapExpr(f: Expression => Expression): Statement =
-    this.copy(portCons = portCons map { case (e1, e2) => (f(e1), f(e2)) })
+  def mapExpr(f: Expression => Expression): Statement = {
+    val portConsx = portCons.map { case (e1, e2) => (f(e1), f(e2)) }
+    if (portCons.zip(portConsx).forall { case ((a1, a2), (x1, x2)) => (a1 eq x1) && (a2 eq x2) }) this
+    else this.copy(portCons = portConsx)
+  }
   def mapStmt(f: Statement => Statement): Statement = this
-  def mapType(f: Type => Type): Statement = this.copy(tpe = f(tpe))
-  def mapString(f: String => String): Statement = this.copy(name = f(name))
+  def mapType(f: Type => Type): Statement = {
+    val tpex = f(tpe)
+    if (tpe eq tpex) this else this.copy(tpe = tpex)
+  }
+  def mapString(f: String => String): Statement = {
+    val namex = f(name)
+    if (name eq namex) this else this.copy(name = namex)
+  }
 }
 
 // Resultant width is the same as the maximum input width
@@ -153,23 +190,42 @@ case class VarWidth(name: String) extends Width with HasMapWidth {
 }
 case class PlusWidth(arg1: Width, arg2: Width) extends Width with HasMapWidth {
   def serialize: String = "(" + arg1.serialize + " + " + arg2.serialize + ")"
-  def mapWidth(f: Width => Width): Width = PlusWidth(f(arg1), f(arg2))
+  def mapWidth(f: Width => Width): Width = {
+    val arg1x = f(arg1)
+    val arg2x = f(arg2)
+    if ((arg1x eq arg1) && (arg2 eq arg2x)) this else this.copy(arg1 = arg1x, arg2 = arg2x)
+  }
 }
 case class MinusWidth(arg1: Width, arg2: Width) extends Width with HasMapWidth {
   def serialize: String = "(" + arg1.serialize + " - " + arg2.serialize + ")"
-  def mapWidth(f: Width => Width): Width = MinusWidth(f(arg1), f(arg2))
+  def mapWidth(f: Width => Width): Width = {
+    val arg1x = f(arg1)
+    val arg2x = f(arg2)
+    if ((arg1x eq arg1) && (arg2 eq arg2x)) this else this.copy(arg1 = arg1x, arg2 = arg2x)
+  }
 }
 case class MaxWidth(args: Seq[Width]) extends Width with HasMapWidth {
   def serialize: String = args map (_.serialize) mkString ("max(", ", ", ")")
-  def mapWidth(f: Width => Width): Width = MaxWidth(args map f)
+  def mapWidth(f: Width => Width): Width = {
+    val argsx = args.map(f)
+    if (args.zip(argsx).forall { case (a, x) => a eq x }) this
+    else this.copy(args = argsx)
+  }
 }
 case class MinWidth(args: Seq[Width]) extends Width with HasMapWidth {
   def serialize: String = args map (_.serialize) mkString ("min(", ", ", ")")
-  def mapWidth(f: Width => Width): Width = MinWidth(args map f)
+  def mapWidth(f: Width => Width): Width = {
+    val argsx = args.map(f)
+    if (args.zip(argsx).forall { case (a, x) => a eq x }) this
+    else this.copy(args = argsx)
+  }
 }
 case class ExpWidth(arg1: Width) extends Width with HasMapWidth {
   def serialize: String = "exp(" + arg1.serialize + " )"
-  def mapWidth(f: Width => Width): Width = ExpWidth(f(arg1))
+  def mapWidth(f: Width => Width): Width = {
+    val arg1x = f(arg1)
+    if (arg1 eq arg1x) this else this.copy(arg1 = arg1x)
+  }
 }
 
 object WrappedType {
@@ -278,8 +334,14 @@ case class CDefMemory(
     s" $name : ${tpe.serialize} [$size]" + info.serialize
   def mapExpr(f: Expression => Expression): Statement = this
   def mapStmt(f: Statement => Statement): Statement = this
-  def mapType(f: Type => Type): Statement = this.copy(tpe = f(tpe))
-  def mapString(f: String => String): Statement = this.copy(name = f(name))
+  def mapType(f: Type => Type): Statement = {
+    val tpex = f(tpe)
+    if (tpe eq tpex) this else this.copy(tpe = tpex)
+  }
+  def mapString(f: String => String): Statement = {
+    val namex = f(name)
+    if (name eq namex) this else this.copy(name = namex)
+  }
 }
 case class CDefMPort(info: Info,
     name: String,
@@ -291,9 +353,19 @@ case class CDefMPort(info: Info,
     val dir = direction.serialize
     s"$dir mport $name = $mem[${exps.head.serialize}], ${exps(1).serialize}" + info.serialize
   }
-  def mapExpr(f: Expression => Expression): Statement = this.copy(exps = exps map f)
+  def mapExpr(f: Expression => Expression): Statement = {
+    val expsx = exps.map(f)
+    if (exps.zip(expsx).forall { case (a, x) => a eq x }) this
+    else this.copy(exps = expsx)
+  }
   def mapStmt(f: Statement => Statement): Statement = this
-  def mapType(f: Type => Type): Statement = this.copy(tpe = f(tpe))
-  def mapString(f: String => String): Statement = this.copy(name = f(name))
+  def mapType(f: Type => Type): Statement = {
+    val tpex = f(tpe)
+    if (tpe eq tpex) this else this.copy(tpe = tpex)
+  }
+  def mapString(f: String => String): Statement = {
+    val namex = f(name)
+    if (name eq namex) this else this.copy(name = namex)
+  }
 }
 
