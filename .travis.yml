@@ -1,6 +1,7 @@
 language: scala
 scala:
-  - 2.11
+  - 2.11.11
+  - 2.12.3
 sudo: false
 
 cache:
@@ -15,6 +16,7 @@ sbt_args: -Dsbt.log.noformat=true
 
 env:
   global:
+    SBT="sbt ++$TRAVIS_SCALA_VERSION"
     INSTALL_DIR=$TRAVIS_BUILD_DIR/install
     VERILATOR_ROOT=$INSTALL_DIR
     PATH=$PATH:$VERILATOR_ROOT/bin:$TRAVIS_BUILD_DIR/utils/bin
@@ -30,9 +32,9 @@ jobs:
       script:
         # FIRRTL Tests
         - cd $TRAVIS_BUILD_DIR
-        - sbt clean test
+        - $(SBT) clean test
     - <<: *test
       script:
         - cd $TRAVIS_BUILD_DIR
-        - sbt clean assembly publish-local
+        - $(SBT) clean assembly publish-local
         - bash .run_chisel_tests.sh
