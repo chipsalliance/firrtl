@@ -12,11 +12,10 @@ cache:
 git:
   depth: 10
 
-sbt_args: -Dsbt.log.noformat=true
+sbt_args: -Dsbt.log.noformat=true ++$TRAVIS_SCALA_VERSION
 
 env:
   global:
-    SBT="sbt ++$TRAVIS_SCALA_VERSION"
     INSTALL_DIR=$TRAVIS_BUILD_DIR/install
     VERILATOR_ROOT=$INSTALL_DIR
     PATH=$PATH:$VERILATOR_ROOT/bin:$TRAVIS_BUILD_DIR/utils/bin
@@ -32,9 +31,9 @@ jobs:
       script:
         # FIRRTL Tests
         - cd $TRAVIS_BUILD_DIR
-        - $(SBT) clean test
+        - sbt clean test
     - <<: *test
       script:
         - cd $TRAVIS_BUILD_DIR
-        - $(SBT) clean assembly publish-local
+        - sbt clean assembly publish-local
         - bash .run_chisel_tests.sh
