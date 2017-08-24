@@ -549,7 +549,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
       }
 
       def build_streams(s: Statement): Statement = s map build_streams match {
-        case sx@Connect(info, loc@WRef(_, _, PortKind|WireKind|InstanceKind, _), expr) =>
+        case sx @ Connect(info, loc @ WRef(_, _, PortKind | WireKind | InstanceKind, _), expr) =>
           assign(loc, expr)
           sx
         case sx: DefWire =>
@@ -561,12 +561,12 @@ class VerilogEmitter extends SeqTransform with Emitter {
           update_and_reset(e, sx.clock, sx.reset, sx.init)
           initialize(e)
           sx
-        case sx@IsInvalid(info, expr) =>
+        case sx @ IsInvalid(info, expr) =>
           val wref = netlist(expr) match { case e: WRef => e }
           declare("reg", wref.name, sx.expr.tpe)
           initialize(wref)
           kind(expr) match {
-            case PortKind | WireKind => assign(expr, netlist(expr))
+            case PortKind | WireKind | InstanceKind => assign(expr, netlist(expr))
             case _ =>
           }
           sx
