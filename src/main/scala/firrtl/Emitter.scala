@@ -531,11 +531,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
           (dir, tpe) match {
             case (_, AnalogType(_)) => "inout " // padded to length of output
             case (Input, _) => "input "
-            case (Output, _) =>
-              // Assign to the Port
-              val ex = WRef(name, tpe, PortKind, FEMALE)
-              assign(ex, netlist(ex))
-              "output"
+            case (Output, _) => "output"
           }
         }
         // Turn types into strings, all ports must be GroundTypes
@@ -551,13 +547,11 @@ class VerilogEmitter extends SeqTransform with Emitter {
       }
 
       def build_streams(s: Statement): Statement = s map build_streams match {
+        case sx @ Connect(info, loc @ WRef(_, _, PortKind | WireKind | InstanceKind, _), expr) =>
+          assign(loc, expr)
+          sx
         case sx: DefWire =>
           declare("wire",sx.name,sx.tpe)
-          val e = wref(sx.name,sx.tpe)
-          netlist get e match {
-            case Some(n) => assign(e,n)
-            case None =>
-          }
           sx
         case sx: DefRegister =>
           declare("reg", sx.name, sx.tpe)
