@@ -361,9 +361,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
         case sx: Connect =>
           netlist(sx.loc) = sx.expr
           sx
-        case sx: IsInvalid =>
-          netlist(sx.expr) = wref(namespace.newTemp, sx.expr.tpe)
-          sx
+        case sx: IsInvalid => error("Should have removed these!")
         case sx: DefNode =>
           val e = WRef(sx.name, sx.value.tpe, NodeKind, MALE)
           netlist(e) = sx.value
@@ -567,11 +565,6 @@ class VerilogEmitter extends SeqTransform with Emitter {
           update_and_reset(e, sx.clock, sx.reset, sx.init)
           initialize(e)
           sx
-        case sx: IsInvalid =>
-          val wref = netlist(sx.expr) match { case e: WRef => e }
-          declare("reg", wref.name, sx.expr.tpe)
-          initialize(wref)
-          sx
         case sx: DefNode =>
           declare("wire", sx.name, sx.value.tpe)
           assign(WRef(sx.name, sx.value.tpe, NodeKind, MALE), sx.value)
@@ -698,6 +691,18 @@ class VerilogEmitter extends SeqTransform with Emitter {
           emit(Seq("`endif"))
         }
         if (initials.nonEmpty) {
+          emit(Seq("`ifdef RANDOMIZE_GARBAGE_ASSIGN"))
+          emit(Seq("`define RANDOMIZE"))
+          emit(Seq("`endif"))
+          emit(Seq("`ifdef RANDOMIZE_INVALID_ASSIGN"))
+          emit(Seq("`define RANDOMIZE"))
+          emit(Seq("`endif"))
+          emit(Seq("`ifdef RANDOMIZE_REG_INIT"))
+          emit(Seq("`define RANDOMIZE"))
+          emit(Seq("`endif"))
+          emit(Seq("`ifdef RANDOMIZE_MEM_INIT"))
+          emit(Seq("`define RANDOMIZE"))
+          emit(Seq("`endif"))
           emit(Seq("`ifdef RANDOMIZE"))
           emit(Seq("  integer initvar;"))
           emit(Seq("  initial begin"))
@@ -710,6 +715,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
           for (x <- initials) emit(Seq(tab, x))
           emit(Seq("  end"))
           emit(Seq("`endif // RANDOMIZE"))
+          emit(Seq("`undef RANDOMIZE"))
         }
 
         for (clk_stream <- at_clock if clk_stream._2.nonEmpty) {
@@ -728,22 +734,6 @@ class VerilogEmitter extends SeqTransform with Emitter {
    }
 
   /** Preamble for every emitted Verilog file */
-  def preamble: String =
-    """|`ifdef RANDOMIZE_GARBAGE_ASSIGN
-       |`define RANDOMIZE
-       |`endif
-       |`ifdef RANDOMIZE_INVALID_ASSIGN
-       |`define RANDOMIZE
-       |`endif
-       |`ifdef RANDOMIZE_REG_INIT
-       |`define RANDOMIZE
-       |`endif
-       |`ifdef RANDOMIZE_MEM_INIT
-       |`define RANDOMIZE
-       |`endif
-       |
-       |""".stripMargin
-
   def transforms = Seq(
     passes.VerilogModulusCleanup,
     passes.VerilogWrap,
@@ -751,8 +741,6 @@ class VerilogEmitter extends SeqTransform with Emitter {
     passes.VerilogPrep)
 
   def emit(state: CircuitState, writer: Writer): Unit = {
-    writer.write(preamble)
-
     val circuit = runTransforms(state).circuit
     val moduleMap = circuit.modules.map(m => m.name -> m).toMap
     circuit.modules.foreach {
@@ -775,7 +763,6 @@ class VerilogEmitter extends SeqTransform with Emitter {
         circuit.modules flatMap {
           case module: Module =>
             val writer = new java.io.StringWriter
-            writer.write(preamble)
             emit_verilog(module, moduleMap)(writer)
             Some(EmittedVerilogModuleAnnotation(EmittedVerilogModule(module.name, writer.toString)))
           case _: ExtModule => None
