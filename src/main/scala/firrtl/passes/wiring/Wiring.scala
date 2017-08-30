@@ -69,7 +69,9 @@ class Wiring(wiSeq: Seq[WiringInfo]) extends Pass {
 
     // Populate lineage tree with relationship information, i.e. who is source,
     //   sink, parent of source, etc.
-    val withFields = setSharedParent(wi.top)(setFields(sinks, source)(lineages))
+    val withMostFields = setFields(sinks, source)(lineages)
+    val lcaName = findSharedParent(mutable.Queue(withMostFields))
+    val withFields = setSharedParent(lcaName.get)(withMostFields)
 
     // Populate lineage tree with what to instantiate, connect to/from, etc.
     val withThings = setThings(portNames, compName)(withFields)

@@ -110,11 +110,25 @@ object WiringUtils {
       l.copy(sinkParent=sinkParent, sourceParent=sourceParent, source=src)
   }
 
-  /** Sets the sharedParent of lineage top
+  /** Finds the sharedParent (lowest common ancestor) of lineage top via
+    * breadth first search
     */
-  def setSharedParent(top: String)(lin: Lineage): Lineage = lin map setSharedParent(top) match {
-    case l if l.name == top => l.copy(sharedParent = true)
-    case l => l
+  def findSharedParent(queue: mutable.Queue[Lineage]): Option[String] = {
+    while (queue.nonEmpty) {
+      val l = queue.dequeue
+      if ((l.sinkParent && l.sourceParent) && (l.children.foldLeft(false) { case (b, (i, m)) => b || (m.sinkParent ^ m.sourceParent) || m.sink || m.source })) {
+        return Some(l.name)
+      }
+      queue ++= l.children.map{ case (i, m) => m }
+    }
+    return None
+  }
+
+  /** Sets the sharedParent of lineage top via pre-order DFS
+    */
+  def setSharedParent(lca: String)(lin: Lineage): Lineage = lin match {
+    case l if l.name == lca => l.copy(sharedParent = true)
+    case l => l.copy(sourceParent=false, sinkParent=false) map setSharedParent(lca)
   }
 
   /** Sets the addPort and cons fields of the lineage tree
