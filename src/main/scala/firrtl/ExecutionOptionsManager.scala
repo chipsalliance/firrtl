@@ -301,7 +301,7 @@ trait HasFirrtlOptions {
 
   parser.opt[String]("output-annotation-file")
     .abbr("foaf")
-    .valueName ("<output-anno-file>>")
+    .valueName ("<output-anno-file>")
     .foreach { x =>
       firrtlOptions = firrtlOptions.copy(outputAnnotationFileName = x)
     }.text {
