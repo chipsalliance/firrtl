@@ -178,7 +178,7 @@ class DiGraph[T] (val edges: Map[T, Set[T]]) extends DiGraphLike[T] {
     * @throws PathNotFoundException
     * @return a Seq[T] of nodes defining an arbitrary valid path
     */
-  def path(start: T, end: T) = {
+  def path(start: T, end: T): Seq[T] = {
     val nodePath = new mutable.ArrayBuffer[T]
     val prev = BFS(start)
     nodePath += end
