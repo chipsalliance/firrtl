@@ -284,7 +284,7 @@ trait HasFirrtlOptions {
 
   parser.opt[String]("annotation-file")
     .abbr("faf")
-    .valueName ("<input-anno-file>>")
+    .valueName ("<input-anno-file>")
     .foreach { x =>
       firrtlOptions = firrtlOptions.copy(annotationFileNameOverride = x)
     }.text {
