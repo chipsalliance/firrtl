@@ -339,7 +339,14 @@ class DiGraph[T] (val edges: Map[T, Set[T]]) extends DiGraphLike[T] {
     new DiGraph(eprime)
   }
 
+  /** Case class representing an Euler Tour of a tree
+    */
   case class EulerTour(r: Map[T, Int], e: Seq[T], h: Seq[Int])
+
+  /** Return an Euler Tour of a tree from a root
+    *
+    *  @return An Euler Tour
+    */
   def eulerTour(start: T): EulerTour = {
     var r = mutable.Map[T, Int]()
     var e = mutable.ArrayBuffer[T]()
@@ -358,5 +365,16 @@ class DiGraph[T] (val edges: Map[T, Set[T]]) extends DiGraphLike[T] {
 
     tour(start)
     EulerTour(r.toMap, e, h)
+  }
+
+  /** Naive Range Minimum Query (RMQ) on an Euler Tour
+    *
+    * This is generally inefficient, but can be sped up to O(1) via
+    * Berkman--Vishkin or Fischer--Heun with pre-processing and
+    * storage of the Euler Tour object.
+    */
+  def rmq(t: EulerTour, a: T, b: T): T = {
+    val Seq(l, r) = Seq(t.r(a), t.r(b)).sorted
+    t.e.zip(t.h).slice(l, r + 1).minBy(_._2)._1
   }
 }
