@@ -339,4 +339,24 @@ class DiGraph[T] (val edges: Map[T, Set[T]]) extends DiGraphLike[T] {
     new DiGraph(eprime)
   }
 
+  case class EulerTour(r: Map[T, Int], e: Seq[T], h: Seq[Int])
+  def eulerTour(start: T): EulerTour = {
+    var r = mutable.Map[T, Int]()
+    var e = mutable.ArrayBuffer[T]()
+    var h = mutable.ArrayBuffer[Int]()
+
+    def tour(u: T, height: Int = 0): Unit = {
+      if (!r.contains(u)) { r(u) = e.size }
+      e += u
+      h += height
+      getEdges(u).toSeq.flatMap( v => {
+        tour(v, height + 1)
+        e += u
+        h += height
+      })
+    }
+
+    tour(start)
+    EulerTour(r.toMap, e, h)
+  }
 }
