@@ -348,9 +348,9 @@ class DiGraph[T] (val edges: Map[T, Set[T]]) extends DiGraphLike[T] {
     *  @return An Euler Tour
     */
   def eulerTour(start: T): EulerTour = {
-    var r = mutable.Map[T, Int]()
-    var e = mutable.ArrayBuffer[T]()
-    var h = mutable.ArrayBuffer[Int]()
+    val r = mutable.Map[T, Int]()
+    val e = mutable.ArrayBuffer[T]()
+    val h = mutable.ArrayBuffer[Int]()
 
     def tour(u: T, height: Int = 0): Unit = {
       if (!r.contains(u)) { r(u) = e.size }
@@ -368,13 +368,92 @@ class DiGraph[T] (val edges: Map[T, Set[T]]) extends DiGraphLike[T] {
   }
 
   /** Naive Range Minimum Query (RMQ) on an Euler Tour
-    *
-    * This is generally inefficient, but can be sped up to O(1) via
-    * Berkman--Vishkin or Fischer--Heun with pre-processing and
-    * storage of the Euler Tour object.
     */
-  def rmq(t: EulerTour, a: T, b: T): T = {
+  def naiveRmq(t: EulerTour, a: T, b: T): T = {
     val Seq(l, r) = Seq(t.r(a), t.r(b)).sorted
     t.e.zip(t.h).slice(l, r + 1).minBy(_._2)._1
+  }
+
+  /** Berkman--Vishkin RMQ with simplifications of Bender--Farach-Colton
+    */
+  def pmOneRmq(t: EulerTour, x: T, y: T): T = {
+    val Seq(i, j) = Seq(t.r(x), t.r(y)).sorted
+    def lg(x: Double): Double = math.log(x) / math.log(2)
+    val n = math.ceil(lg(t.h.size) / 2).toInt
+
+    // Split up the tour (t.h) into blocks of size n. The last block
+    // is padded to be a multiple of n. Then compute (a) the minimum
+    // of each block and (b) the index of that minimum in each block.
+    val blocks = (t.h ++ (1 to (n - t.h.size % n))).grouped(n).toArray
+    val (a, b) = (blocks.map(_.min), blocks.map(b => b.indexOf(b.min)))
+
+    /** Construct a Sparse Table (ST) representation of an array to
+      * facilitate fast RMQ queries.
+      *
+      * This is O(n^2 log n) but can be sped up to O(n log n) with
+      * dynamic programming.
+      */
+    def constructSparseTable(x: Seq[Int]): Array[Array[Int]] = {
+      val tmp = Array.ofDim[Int](x.size + 1, math.ceil(lg(x.size)).toInt + 1)
+      // [todo] Compute minima recursively (dynamic programming)
+      for (i <- (0 to x.size);
+        j <- (0 to math.ceil(lg(x.size)).toInt);
+        if i + math.pow(2, j) < x.size + 1) yield {
+          tmp(i)(j) = x.slice(i, i + math.pow(2, j).toInt).min }
+      tmp
+    }
+    val st = constructSparseTable(a)
+
+    /** Precompute all possible RMQs for an array of size N where each
+      * entry in the range is different from the last by only +-1
+      */
+    def constructTableLookups(n: Int): Array[Array[Array[Int]]] = {
+      val size = n - 1
+      Seq.fill(size)(Seq(-1, 1))
+        .flatten.combinations(n - 1).flatMap(_.permutations)
+        .map(_.foldLeft(Seq(0))((h, pm) => (h.head + pm) +: h).reverse)
+        .map(a => {
+          var tmp = Array.ofDim[Int](n, n)
+          for (i <- 0 to n - 1; j <- i to n - 1) yield {
+            val window = a.slice(i, j + 1)
+            tmp(i)(j) = window.indexOf(window.min) + i }
+          tmp }).toArray
+    }
+    val tables = constructTableLookups(n)
+
+    // Determine the table index of each block
+    val tableIdx = blocks.map(b => b.map(i => i - b(0)))
+      .map(b => b.sliding(2).map{ case Seq(l, r) => r > l }.toArray)
+      .map(x => x.reverse.zipWithIndex.map(
+        d => if (d._1) math.pow(2, d._2).toInt else 0).reduce(_ + _))
+
+    val Seq(block_i, block_j) = Seq(i, j) map (_ / n)
+    val Seq(word_i,  word_j)  = Seq(i, j) map (_ % n)
+
+    val idx = if (block_j == block_i) {
+      block_i * n + tables(tableIdx(block_i))(word_i)(word_j)
+    } else if (block_j - block_i == 1) {
+      val min_i = block_i * n + tables(tableIdx(block_i))(word_i)(n - 1)
+      val min_j = block_j * n + tables(tableIdx(block_j))(0)(word_j)
+
+      Seq(min_i, min_j)
+        .zip(Seq(t.h(min_i), t.h(min_j)))
+        .minBy(_._2)._1
+    } else {
+      val min_i = block_i * n + tables(tableIdx(block_i))(word_i)(n - 1)
+      val min_j = block_j * n + tables(tableIdx(block_j))(0)(word_j)
+      val min_between = {
+        val k = math.floor(lg(block_j - block_i - 1)).toInt
+        val n = block_j - math.pow(2, k).toInt
+        val (idx_0, idx_1) = (st(block_i + 1)(k), st(n)(k))
+        val (min_0, min_1) = (t.h(idx_0), t.h(idx_1))
+        Seq(min_0, min_1).min }
+
+      Seq(min_i, min_between, min_j)
+        .zip(Seq(t.h(min_i), t.h(min_between), t.h(min_j)))
+        .minBy(_._2)._1
+    }
+
+    t.e(idx)
   }
 }
