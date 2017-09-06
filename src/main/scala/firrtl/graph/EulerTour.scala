@@ -136,7 +136,7 @@ class EulerTour[T](val r: Map[T, Int], val e: Seq[T], val h: Seq[Int]) {
     // Three possible scenarios:
     //   * i and j are in the same block    -> single table lookup
     //   * i and j are in adjacent blocks   -> two table lookups
-    //   * i and j have blocks between them -> table looks and ST lookup
+    //   * i and j have blocks between them -> two table lookups, one ST lookup
     val idx = if (block_j == block_i) {
       val min_i = block_i * m + tables(tableIdx(block_i))(word_i)(word_j)
       min_i
