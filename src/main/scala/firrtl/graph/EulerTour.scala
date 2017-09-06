@@ -42,6 +42,8 @@ class EulerTour[T](val r: Map[T, Int], val e: Seq[T], val h: Seq[Int]) {
     for (i <- 0 to x.size; j <- 0 to math.ceil(lg(x.size)).toInt) {
       tmp(i)(j) = -1
     }
+    var t2 = System.currentTimeMillis
+    println(s"[info]   init: ${t2 - t1}ms")
 
     def tableRecursive(base: Int, size: Int): Int = {
       if (size == 0) {
@@ -70,8 +72,8 @@ class EulerTour[T](val r: Map[T, Int], val e: Seq[T], val h: Seq[Int]) {
       if i + (1 << j) < x.size + 1) yield {
       tableRecursive(i, j)
     }
-    var t2 = System.currentTimeMillis
-    println(s"[info] done: ${t2 - t1}ms")
+    var t3 = System.currentTimeMillis
+    println(s"[info] done: ${t3 - t1}ms")
     tmp
   }
   lazy val st = constructSparseTable(a)
@@ -101,13 +103,13 @@ class EulerTour[T](val r: Map[T, Int], val e: Seq[T], val h: Seq[Int]) {
   /** Compute the table index of a given block.
     */
   private def mapBlockToTable(block: Seq[Int]): Int = {
-      var index = 0
-      var power = block.size - 2
-      for (Seq(l, r) <- block.sliding(2)) {
-        if (l < r) { index += 1 << power }
-        power -= 1
-      }
-      index
+    var index = 0
+    var power = block.size - 2
+    for (Seq(l, r) <- block.sliding(2)) {
+      if (l < r) { index += 1 << power }
+      power -= 1
+    }
+    index
   }
 
   /** Precompute a mapping of all blocks to table indices.
