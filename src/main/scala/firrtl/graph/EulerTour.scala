@@ -12,6 +12,8 @@ class EulerTour[T](val r: Map[T, Int], val e: Seq[T], val h: Seq[Int]) {
   /** Naive Range Minimum Query (RMQ) on an Euler Tour. This uses no
     * data structures other than the original Euler Tour and is
     * characterized by: <O(1), O(n)>
+    *
+    * Performance: [Preprocessing, Query] -> [O(1), O(n)]
     */
   def rmqNaive(a: T, b: T): T = {
     val Seq(i, j) = Seq(r(a), r(b)).sorted
@@ -32,17 +34,44 @@ class EulerTour[T](val r: Map[T, Int], val e: Seq[T], val h: Seq[Int]) {
 
   /** Construct a Sparse Table (ST) representation of an array to
     * facilitate fast RMQ queries.
-    *
-    * This is O(n^2 log n) but can be sped up to O(n log n) with
-    * dynamic programming.
     */
   private def constructSparseTable(x: Seq[Int]): Array[Array[Int]] = {
+    println(s"[info] constructSparseTable...")
+    var t1 = System.currentTimeMillis
     val tmp = Array.ofDim[Int](x.size + 1, math.ceil(lg(x.size)).toInt + 1)
-    // [todo] Compute minima recursively (dynamic programming)
+    for (i <- 0 to x.size; j <- 0 to math.ceil(lg(x.size)).toInt) {
+      tmp(i)(j) = -1
+    }
+
+    def tableRecursive(base: Int, size: Int): Int = {
+      if (size == 0) {
+        tmp(base)(size) = x(base)
+        x(base)
+      } else {
+        val l = if (tmp(base)(size - 1) != -1) {
+          tmp(base)(size - 1)
+        } else {
+          tableRecursive(base, size - 1)
+        }
+        val r = if (tmp(base + size - 1)(size - 1) != -1) {
+          tmp(base + size - 1)(size - 1)
+        } else {
+          tableRecursive(base + size - 1, size - 1)
+        }
+
+        val min = if (l < r) l else r
+        tmp(base)(size) = min
+        min
+      }
+    }
+
     for (i <- (0 to x.size);
       j <- (0 to math.ceil(lg(x.size)).toInt);
-      if i + math.pow(2, j) < x.size + 1) yield {
-      tmp(i)(j) = x.slice(i, i + math.pow(2, j).toInt).min }
+      if i + (1 << j) < x.size + 1) yield {
+      tableRecursive(i, j)
+    }
+    var t2 = System.currentTimeMillis
+    println(s"[info] done: ${t2 - t1}ms")
     tmp
   }
   lazy val st = constructSparseTable(a)
@@ -51,8 +80,10 @@ class EulerTour[T](val r: Map[T, Int], val e: Seq[T], val h: Seq[Int]) {
     * entry in the range is different from the last by only +-1
     */
   private def constructTableLookups(n: Int): Array[Array[Array[Int]]] = {
+    println(s"[info] constructTableLookups...")
+    var t1 = System.currentTimeMillis
     val size = m - 1
-    Seq.fill(size)(Seq(-1, 1))
+    val out = Seq.fill(size)(Seq(-1, 1))
       .flatten.combinations(m - 1).flatMap(_.permutations)
       .map(_.foldLeft(Seq(0))((h, pm) => (h.head + pm) +: h).reverse)
       .map(a => {
@@ -61,21 +92,40 @@ class EulerTour[T](val r: Map[T, Int], val e: Seq[T], val h: Seq[Int]) {
           val window = a.slice(i, j + 1)
           tmp(i)(j) = window.indexOf(window.min) + i }
         tmp }).toArray
+    var t2 = System.currentTimeMillis
+    println(s"[info] done: ${t2 - t1}ms")
+    out
   }
   lazy val tables = constructTableLookups(m)
 
-  /** Determine an Array-based mapping of blocks to each generated table
+  /** Compute the table index of a given block.
+    */
+  private def mapBlockToTable(block: Seq[Int]): Int = {
+      var index = 0
+      var power = block.size - 2
+      for (Seq(l, r) <- block.sliding(2)) {
+        if (l < r) { index += 1 << power }
+        power -= 1
+      }
+      index
+  }
+
+  /** Precompute a mapping of all blocks to table indices.
     */
   private def mapBlocksToTables(blocks: Seq[Seq[Int]]): Array[Int] = {
-    blocks.map(b => b.map(i => i - b(0)))
-      .map(b => b.sliding(2).map{ case Seq(l, r) => r > l }.toArray)
-      .map(x => x.reverse.zipWithIndex.map(
-        d => if (d._1) math.pow(2, d._2).toInt else 0).reduce(_ + _))
-      .toArray
+    println(s"[info] mapBlocksToTables...")
+    var t1 = System.currentTimeMillis
+    val out = blocks.map(mapBlockToTable(_)).toArray
+    var t2 = System.currentTimeMillis
+    println(s"[info] done: ${t2 - t1}ms")
+    out
   }
   lazy val tableIdx = mapBlocksToTables(blocks)
 
-  /** Berkman--Vishkin RMQ with simplifications of Bender--Farach-Colton
+  /** Berkman--Vishkin RMQ with simplifications of
+    * Bender--Farach-Colton.
+    *
+    * Performance: [Preprocessing, Query] -> [O(n), O(1)]
     */
   def rmqBV(x: T, y: T): T = {
     val Seq(i, j) = Seq(r(x), r(y)).sorted
@@ -94,30 +144,32 @@ class EulerTour[T](val r: Map[T, Int], val e: Seq[T], val h: Seq[Int]) {
       val min_i = block_i * m + tables(tableIdx(block_i))(word_i)( m - 1)
       val min_j = block_j * m + tables(tableIdx(block_j))(     0)(word_j)
 
-      Seq(min_i, min_j)
-        .zip(Seq(h(min_i), h(min_j)))
-        .minBy(_._2)._1
+      if (h(min_i) < h(min_j)) min_i else min_j
     } else {
       val min_i = block_i * m + tables(tableIdx(block_i))(word_i)( m - 1)
       val min_j = block_j * m + tables(tableIdx(block_j))(     0)(word_j)
-      val min_between = {
+      val (min_between_l, min_between_r) = {
         val k = math.floor(lg(block_j - block_i - 1)).toInt
-        val m = block_j - math.pow(2, k).toInt
-        val (idx_0, idx_1) = (st(block_i + 1)(k), st(m)(k))
-        val (min_0, min_1) = (h(idx_0), h(idx_1))
-        Seq(min_0, min_1).min }
+        val m = block_j - (1 << k)
+        val (min_0, min_1) = (h(st(block_i + 1)(k)), h(st(m)(k)))
+        (min_0, min_1) }
 
-      Seq(min_i, min_between, min_j)
-        .zip(Seq(h(min_i), h(min_between), h(min_j)))
+      Seq(min_i, min_between_l, min_between_r, min_j)
+        .zip(Seq(h(min_i), h(min_between_l), h(min_between_r), h(min_j)))
         .minBy(_._2)._1
     }
 
     e(idx)
   }
 
+  /** Outward facing RMQ that may map to a naive or performant
+    * implementation
+    */
   def rmq(x: T, y: T): T = rmqBV(x, y)
 }
 
+/** Euler Tour companion object
+  */
 object EulerTour {
   def apply[T](diGraph: DiGraph[T], start: T): EulerTour[T] = {
     val r = mutable.Map[T, Int]()
