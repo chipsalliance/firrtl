@@ -38,8 +38,8 @@ class EulerTour[T](val r: Map[T, Int], val e: Seq[T], val h: Seq[Int]) {
   private def constructSparseTable(x: Seq[Int]): Array[Array[Int]] = {
     println(s"[info] constructSparseTable...")
     var t1 = System.currentTimeMillis
-    val tmp = Array.ofDim[Int](x.size + 1, math.ceil(lg(x.size)).toInt + 1)
-    for (i <- 0 to x.size; j <- 0 to math.ceil(lg(x.size)).toInt) {
+    val tmp = Array.ofDim[Int](x.size + 1, math.ceil(lg(x.size)).toInt)
+    for (i <- 0 to x.size - 1; j <- 0 to math.ceil(lg(x.size)).toInt - 1) {
       tmp(i)(j) = -1
     }
     var t2 = System.currentTimeMillis
@@ -50,16 +50,13 @@ class EulerTour[T](val r: Map[T, Int], val e: Seq[T], val h: Seq[Int]) {
         tmp(base)(size) = x(base)
         x(base)
       } else {
-        val l = if (tmp(base)(size - 1) != -1) {
-          tmp(base)(size - 1)
-        } else {
-          tableRecursive(base, size - 1)
-        }
-        val r = if (tmp(base + size - 1)(size - 1) != -1) {
-          tmp(base + size - 1)(size - 1)
-        } else {
-          tableRecursive(base + size - 1, size - 1)
-        }
+        val (a, b, c) = (base, base + (1 << (size - 1)), size - 1)
+
+        val l = if (tmp(a)(c) != -1) { tmp(a)(c)            }
+        else                         { tableRecursive(a, c) }
+
+        val r = if (tmp(b)(c) != -1) { tmp(b)(c)            }
+        else                         { tableRecursive(b, c) }
 
         val min = if (l < r) l else r
         tmp(base)(size) = min
@@ -67,9 +64,9 @@ class EulerTour[T](val r: Map[T, Int], val e: Seq[T], val h: Seq[Int]) {
       }
     }
 
-    for (i <- (0 to x.size);
-      j <- (0 to math.ceil(lg(x.size)).toInt);
-      if i + (1 << j) < x.size + 1) yield {
+    for (i <- (0 to x.size - 1);
+      j <- (0 to math.ceil(lg(x.size)).toInt - 1);
+      if i + (1 << j) - 1 < x.size + 1) yield {
       tableRecursive(i, j)
     }
     var t3 = System.currentTimeMillis
