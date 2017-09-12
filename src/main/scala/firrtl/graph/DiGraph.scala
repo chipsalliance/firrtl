@@ -273,16 +273,16 @@ class DiGraph[T] (val edges: Map[T, Set[T]]) extends DiGraphLike[T] {
     // paths(v) holds the set of paths from start to v
     val paths = new mutable.HashMap[T,mutable.Set[Seq[T]]] with mutable.MultiMap[T,Seq[T]]
     val queue = new mutable.Queue[T]
-    val visited = new mutable.HashSet[Seq[T]]
+    val reachable = reachableFrom(start)
     paths.addBinding(start,Seq(start))
-    queue.enqueue(start)
-    visited += Seq(start)
+    queue += start
+    queue ++= linearize.filter(reachable.contains(_))
     while (!queue.isEmpty) {
       val current = queue.dequeue
-      for (v <- getEdges(current); p <- paths(current); if !visited.contains(p :+ v)) {
-        queue.enqueue(v)
-        visited += p :+ v
-        paths.addBinding(v, p :+ v)
+      for (v <- getEdges(current)) {
+        for (p <- paths(current)) {
+          paths.addBinding(v, p :+ v)
+        }
       }
     }
       (paths map { case (k,v) => (k,v.toSeq) }).toMap
