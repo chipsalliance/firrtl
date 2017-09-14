@@ -10,7 +10,7 @@ import firrtl.Mappers._
 
 
 /** A class representing the instance hierarchy of a working IR Circuit
-  * 
+  *
   * @constructor constructs an instance graph from a Circuit
   * @param c the Circuit to analyze
   */
@@ -71,7 +71,7 @@ class InstanceGraph(c: Circuit) {
   /** Finds the absolute paths (each represented by a Seq of instances
     * representing the chain of hierarchy) of all instances of a
     * particular module.
-    * 
+    *
     * @param module the name of the selected module
     * @return a Seq[Seq[WDefInstance]] of absolute instance paths
     */
@@ -125,44 +125,5 @@ class InstanceGraph(c: Circuit) {
     }
     t2 = System.currentTimeMillis
     println(s"[info] BV time: ${(t2 - t1)}ms")
- 
-    // val size = 1024 * 32
-    // val (iters, increment) = (256, 1)
-    // val synth_e = (0 to size).map(a => (0 to a).toList.toSeq).toList.toSeq
-    // println(s"[info] Built data structures")
-    // val synth_h = collection.mutable.ListBuffer(0)
-    // (Seq.fill(size)(1) ++ Seq.fill(size)(-1))
-    //   .map{ pm => synth_h.prepend(synth_h.head + pm) }
-    // println(s"[info] Built data structures")
-    // val synth_r = synth_e.map(n => n -> n.last).toMap
-    // println(s"[info] Built data structures")
-    // val synthetic = new EulerTour[Int](
-    //   r = synth_r,
-    //   e = synth_e,
-    //   h = synth_h)
-    // println(s"[info] Built Euler Tour of size $size")
-
-    // t1 = System.currentTimeMillis
-    // for (i <- 0 to iters * increment - 1 by increment) {
-    //   synthetic.rmqNaive(0, i)
-    // }
-    // t2 = System.currentTimeMillis
-    // println(s"[info] Naive time: ${t2 - t1}ms total, ${(t2 - t1) / iters}ms per query")
-
-    // t1 = System.currentTimeMillis
-    // synthetic.rmqBV(0, 0)
-    // t2 = System.currentTimeMillis
-    // for (i <- increment to iters * increment - 1 by increment) {
-    //   synthetic.rmqBV(0, i)
-    // }
-    // var t3 = System.currentTimeMillis
-    // println(s"[info] BV time: ${t3 - t1}ms total, ${(t3 - t1) / iters}ms per query")
-    // println(s"[info] BV time: ${t3 - t2}ms post-setup, ${(t3 - t2) / iters}ms per query post-setup")
-
-    // println(s"[info] Checking agreement...")
-    // for (i <- 0 to iters * increment - 1 by increment) {
-    //   require(synthetic.rmqNaive(0, i) ==  synthetic.rmqBV(0, i))
-    // }
-    // println(s"[info] Okay!")
   }
 }

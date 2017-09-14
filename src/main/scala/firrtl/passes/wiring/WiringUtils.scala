@@ -128,48 +128,31 @@ object WiringUtils {
     * distance.
     */
   def sinksToSources(sinks: Set[String], source: String, top: String, i: InstanceGraph): Map[Seq[WDefInstance], Seq[WDefInstance]] = {
-    println(s"[info] mapSourcesToSinks")
     val indent = "  "
 
     val owners = new mutable.HashMap[Seq[WDefInstance], Seq[Seq[WDefInstance]]].withDefaultValue(Seq())
     val queue = new mutable.Queue[Seq[WDefInstance]]
     val visited = new mutable.HashMap[Seq[WDefInstance], Boolean].withDefaultValue(false)
 
-    println(s"[info] hierarchy:")
-    for ( (k, v) <- i.fullHierarchy) {
-      println(s"[info]   - ${k.name} <- ${v.map(_.map(_.name))}")
-    }
-
     i.fullHierarchy.keys
       .filter { case WDefInstance(_, _, module, _) => module == source }
       .map    { k => i.fullHierarchy(k)
-        .map  { l => { queue.enqueue(l)
-                       owners(l) = Seq(l)                              }}}
+        .map  { l => queue.enqueue(l)
+                     owners(l) = Seq(l)                                }}
 
-    println(s"[info] queue init (all sources): ${queue.map(_.map(_.name))}")
-
-    var iter = 0
     while (queue.nonEmpty) {
       val u = queue.dequeue
-      println(s"[info] $indent - iter: $iter")
-      println(s"[info] $indent   - queue pre: ${queue.map(_.map(_.name))}")
-      println(s"[info] $indent   - u: ${(u.last.name, u.last.module)}")
       visited(u) = true
 
       val allEdges = (i.graph.getEdges(u.last)
         .map(u :+ _)
         .toSeq :+ u.dropRight(1))
         .filter(e => !visited(e) && e.nonEmpty )
-      println(s"[info] $indent   - allEdges: ${allEdges.map(_.map(_.name))}")
 
       for (v <- allEdges) {
-        println(s"[info] $indent   - examining: ${v.map(_.name)}")
         owners(v) = owners(v) ++ owners(u)
         queue.enqueue(v)
       }
-
-      println(s"[info] $indent   - queue post: ${queue.map(_.map(_.name))}")
-      iter += 1
     }
 
     val sinkInsts = i.fullHierarchy.keys
@@ -180,10 +163,6 @@ object WiringUtils {
     val t = i.fullHierarchy.keys
       .filter { case WDefInstance(_, _, module, _) => sinks.contains(module) }
       .toSeq
-    println(s"[info] t: ${t.map(_.name)}")
-    println(s"[info] hier(t): ${t.map(i.fullHierarchy(_)).map(_.map(_.map(_.name)))}")
-
-    println(s"[info] sinkInsts: ${sinkInsts.map(_.map(_.name))}")
 
     // Check that every sink has a unique owner. The only time that
     // this should fail is if a sink is equidistant to two sources.

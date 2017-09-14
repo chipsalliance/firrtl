@@ -3,7 +3,7 @@ package firrtl.graph
 import scala.collection.mutable
 
 /** A class that represents an Euler Tour of a directed graph from a
-  * given root. This requires O(2n) preprocessing time to generate the
+  * given root. This requires O(n) preprocessing time to generate the
   * initial Euler Tour.
   */
 class EulerTour[T](val r: Map[Seq[T], Int], val e: Seq[Seq[T]], val h: Seq[Int]) {
@@ -11,7 +11,7 @@ class EulerTour[T](val r: Map[Seq[T], Int], val e: Seq[Seq[T]], val h: Seq[Int])
 
   /** Naive Range Minimum Query (RMQ) on an Euler Tour. This uses no
     * data structures other than the original Euler Tour and is
-    * characterized by: <O(1), O(n)>
+    * characterized by
     *
     * Performance: [Preprocessing, Query] -> [O(1), O(n)]
     */
@@ -36,14 +36,10 @@ class EulerTour[T](val r: Map[Seq[T], Int], val e: Seq[Seq[T]], val h: Seq[Int])
     * facilitate fast RMQ queries.
     */
   private def constructSparseTable(x: Seq[Int]): Array[Array[Int]] = {
-    println(s"[info] constructSparseTable...")
-    var t1 = System.currentTimeMillis
     val tmp = Array.ofDim[Int](x.size + 1, math.ceil(lg(x.size)).toInt)
     for (i <- 0 to x.size - 1; j <- 0 to math.ceil(lg(x.size)).toInt - 1) {
       tmp(i)(j) = -1
     }
-    var t2 = System.currentTimeMillis
-    println(s"[info]   init: ${t2 - t1}ms")
 
     def tableRecursive(base: Int, size: Int): Int = {
       if (size == 0) {
@@ -69,8 +65,6 @@ class EulerTour[T](val r: Map[Seq[T], Int], val e: Seq[Seq[T]], val h: Seq[Int])
       if i + (1 << j) - 1 < x.size + 1) yield {
       tableRecursive(i, j)
     }
-    var t3 = System.currentTimeMillis
-    println(s"[info] done: ${t3 - t1}ms")
     tmp
   }
   lazy val st = constructSparseTable(a)
@@ -79,8 +73,6 @@ class EulerTour[T](val r: Map[Seq[T], Int], val e: Seq[Seq[T]], val h: Seq[Int])
     * entry in the range is different from the last by only +-1
     */
   private def constructTableLookups(n: Int): Array[Array[Array[Int]]] = {
-    println(s"[info] constructTableLookups...")
-    var t1 = System.currentTimeMillis
     val size = m - 1
     val out = Seq.fill(size)(Seq(-1, 1))
       .flatten.combinations(m - 1).flatMap(_.permutations)
@@ -91,8 +83,6 @@ class EulerTour[T](val r: Map[Seq[T], Int], val e: Seq[Seq[T]], val h: Seq[Int])
           val window = a.slice(i, j + 1)
           tmp(i)(j) = window.indexOf(window.min) + i }
         tmp }).toArray
-    var t2 = System.currentTimeMillis
-    println(s"[info] done: ${t2 - t1}ms")
     out
   }
   lazy val tables = constructTableLookups(m)
@@ -112,11 +102,7 @@ class EulerTour[T](val r: Map[Seq[T], Int], val e: Seq[Seq[T]], val h: Seq[Int])
   /** Precompute a mapping of all blocks to table indices.
     */
   private def mapBlocksToTables(blocks: Seq[Seq[Int]]): Array[Int] = {
-    println(s"[info] mapBlocksToTables...")
-    var t1 = System.currentTimeMillis
     val out = blocks.map(mapBlockToTable(_)).toArray
-    var t2 = System.currentTimeMillis
-    println(s"[info] done: ${t2 - t1}ms")
     out
   }
   lazy val tableIdx = mapBlocksToTables(blocks)

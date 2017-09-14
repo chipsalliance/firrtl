@@ -118,7 +118,6 @@ class WiringTests extends FirrtlFlatSpec {
     }
     val wiringPass = new Wiring(Seq(sas))
     val retC = wiringPass.run(c)
-    println(s"${parse(retC.serialize).serialize}")
     (parse(retC.serialize).serialize) should be (parse(check).serialize)
   }
 
@@ -162,7 +161,6 @@ class WiringTests extends FirrtlFlatSpec {
     }
     val wiringPass = new Wiring(Seq(sas))
     val retC = wiringPass.run(c)
-    println(s"${parse(retC.serialize).serialize}")
     (parse(retC.serialize).serialize) should be (parse(check).serialize)
   }
   "Wiring from clock to X" should "work" in {

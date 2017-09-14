@@ -42,7 +42,6 @@ class Wiring(wiSeq: Seq[WiringInfo]) extends Pass {
     val pin = wi.pin
 
     val iGraph = new InstanceGraph(c)
-    iGraph.test()
 
     // Create valid port names for wiring that have no name conflicts
     val portNames = c.modules.foldLeft(Map.empty[String, String]) { (map, m) =>
@@ -60,19 +59,12 @@ class Wiring(wiSeq: Seq[WiringInfo]) extends Pass {
     val meta = new mutable.HashMap[String, Metadata].withDefaultValue(Metadata())
     sinksToSources(sinks, source, wi.top, iGraph).map { case (sink, source) =>
       val lca = iGraph.lowestCommonAncestor(sink, source)
-      println(s"[info] - sink: ${sink.map(_.name)}")
-      println(s"[info]   - source: ${source.map(_.name)}")
-      println(s"[info]   - lca: ${lca.map(_.name)}")
 
       // [Sink, ..., LCA] metadata
-      println(s"[info]   - sink -> lca")
       sink.drop(lca.size - 1).sliding(2).toList.reverse.map {
         case Seq(WDefInstance(_,_,pm,_), WDefInstance(_,ci,cm,_)) =>
-          println(s"[info]     - $pm -> $cm ($ci)")
           val to = s"$ci.${portNames(cm)}"
           val from = s"${portNames(pm)}"
-          println(s"[info]       - to:   $to")
-          println(s"[info]       - from: $from")
           meta(pm) = meta(pm).copy(
             addPort = Some((portNames(pm), DecWire)),
             cons    = (meta(pm).cons :+ (to, from)).distinct
@@ -83,26 +75,19 @@ class Wiring(wiSeq: Seq[WiringInfo]) extends Pass {
       }
 
       // Source metadata
-      println(s"[info]   - source")
       source.last match { case WDefInstance(_, name, module, _) =>
         val to = s"${portNames(module)}"
         val from = compName
-        println(s"[info]       - to:   $to")
-        println(s"[info]       - from: $from")
         meta(module) = meta(module).copy(
           cons = Seq((to, from))
         )
       }
 
       // [Source, ..., LCA] metadata
-      println(s"[info]   - source -> lca")
       source.drop(lca.size - 1).sliding(2).toList.reverse.map {
         case Seq(WDefInstance(_,_,pm,_), WDefInstance(_,ci,cm,_)) => {
-          println(s"[info]     - $pm -> $cm ($ci)")
           val to = s"${portNames(pm)}"
           val from = s"$ci.${portNames(cm)}"
-          println(s"[info]       - to:   $to")
-          println(s"[info]       - from: $from")
           meta(pm) = meta(pm).copy(
             cons    = (meta(pm).cons :+ (to, from)).distinct
           )
@@ -118,11 +103,6 @@ class Wiring(wiSeq: Seq[WiringInfo]) extends Pass {
             cons    = (meta(pm).cons :+ (to, from)).distinct
           )
         }
-      }
-
-      for ( (k, v) <- meta) {
-        val indent = "[info] meta:   - "
-        println(s"[info] meta: ${k} -> ${v.serialize(indent)}")
       }
     }
 
