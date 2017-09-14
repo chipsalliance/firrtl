@@ -15,22 +15,22 @@ import WiringUtils._
 
 case class WiringException(msg: String) extends PassException(msg)
 
-case class WiringInfo(source: String, comp: String, sinks: Set[String], pin: String, top: String)
+case class WiringInfo(source: String, comp: String, sinks: Set[String], pin: String)
 
 class Wiring(wiSeq: Seq[WiringInfo]) extends Pass {
   def run(c: Circuit): Circuit = {
     wiSeq.foldLeft(c) { (circuit, wi) => wire(circuit, wi) }
   }
 
-  /** Add pins to modules and wires a signal to them, under the scope of a specified top module
+  /** Add pins to modules and wires a signal to them
     * Description:
     *   Adds a pin to each sink module
-    *   Punches ports up from the source signal to the specified top module
+    *   Punches ports up from the source signal to the lowest common ancestor
     *   Punches ports down to each sink module
     *   Wires the source up and down, connecting to all sink modules
+    *   Sinks are wired to their closest sink
     * Restrictions:
-    *   - Can only have one source module instance under scope of the specified top
-    *   - All instances of each sink module must be under the scope of the specified top
+    *   - A sink cannot be equidistant to two sources
     * Notes:
     *   - No module uniquification occurs (due to imposed restrictions)
     */
@@ -55,9 +55,13 @@ class Wiring(wiSeq: Seq[WiringInfo]) extends Pass {
     // Obtain the source component type
     val sourceComponentType = getType(c, source, compName)
 
-    // 'meta' is a map of Modules to their pending modifications (Metadata)
+    // Determine ownership of sources to sinks by minimum distance
+    val owners = sinksToSources(sinks, source, iGraph)
+
+    // Determine port and connection modifications (Metadata) for all
+    // sink--source pairs
     val meta = new mutable.HashMap[String, Metadata].withDefaultValue(Metadata())
-    sinksToSources(sinks, source, wi.top, iGraph).map { case (sink, source) =>
+    owners.map { case (sink, source) =>
       val lca = iGraph.lowestCommonAncestor(sink, source)
 
       // [Sink, ..., LCA] metadata

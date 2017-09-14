@@ -127,7 +127,7 @@ object WiringUtils {
   /** Return a map of sink instances to source instances that minimizes
     * distance.
     */
-  def sinksToSources(sinks: Set[String], source: String, top: String, i: InstanceGraph): Map[Seq[WDefInstance], Seq[WDefInstance]] = {
+  def sinksToSources(sinks: Set[String], source: String, i: InstanceGraph): Map[Seq[WDefInstance], Seq[WDefInstance]] = {
     val indent = "  "
 
     val owners = new mutable.HashMap[Seq[WDefInstance], Seq[Seq[WDefInstance]]].withDefaultValue(Seq())

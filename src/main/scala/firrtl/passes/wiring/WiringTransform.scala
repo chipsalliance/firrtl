@@ -35,19 +35,6 @@ object SinkAnnotation {
   }
 }
 
-/** A module under which all sink module must be declared, and there is only
-  * one source component
-  */
-object TopAnnotation {
-  def apply(target: ModuleName, pin: String): Annotation = Annotation(target, classOf[WiringTransform], s"top $pin")
-
-  private val matcher = "top (.+)".r
-  def unapply(a: Annotation): Option[(ModuleName, String)] = a match {
-    case Annotation(ModuleName(n, c), _, matcher(pin)) => Some((ModuleName(n, c), pin))
-    case _ => None
-  }
-}
-
 /** Add pins to modules and wires a signal to them, under the scope of a specified top module
   * Description:
   *   Adds a pin to each sink module
@@ -70,24 +57,22 @@ class WiringTransform extends Transform {
         ResolveGenders)
   def execute(state: CircuitState): CircuitState = getMyAnnotations(state) match {
     case Nil => state
-    case p => 
+    case p =>
       val sinks = mutable.HashMap[String, Set[String]]()
       val sources = mutable.HashMap[String, String]()
-      val tops = mutable.HashMap[String, String]()
       val comp = mutable.HashMap[String, String]()
-      p.foreach { 
+      p.foreach {
         case SinkAnnotation(m, pin) =>
           sinks(pin) = sinks.getOrElse(pin, Set.empty) + m.name
         case SourceAnnotation(c, pin) =>
           sources(pin) = c.module.name
           comp(pin) = c.name
-        case TopAnnotation(m, pin) => tops(pin) = m.name
       }
-      (sources.size, tops.size, sinks.size, comp.size) match {
-        case (0, 0, p, 0) => state
-        case (s, t, p, c) if (p > 0) & (s == t) & (t == c) =>
-          val wis = tops.foldLeft(Seq[WiringInfo]()) { case (seq, (pin, top)) =>
-            seq :+ WiringInfo(sources(pin), comp(pin), sinks(pin), pin, top)
+      (sources.size, sinks.size, comp.size) match {
+        case (0, p, 0) => state
+        case (s, p, c) if (p > 0) & (s == c) =>
+          val wis = sources.foldLeft(Seq[WiringInfo]()) { case (seq, (pin, top)) =>
+            seq :+ WiringInfo(sources(pin), comp(pin), sinks(pin), pin)
           }
           transforms(wis).foldLeft(state) { (in, xform) => xform.runTransform(in) }
         case _ => error("Wrong number of sources, tops, or sinks!")

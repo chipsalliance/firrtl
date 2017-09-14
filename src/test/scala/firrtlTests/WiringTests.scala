@@ -35,7 +35,7 @@ class WiringTests extends FirrtlFlatSpec {
 
   "Wiring from r to X" should "work" in {
     val sinks = Set("X")
-    val sas = WiringInfo("C", "r", sinks, "pin", "A")
+    val sas = WiringInfo("C", "r", sinks, "pin")
     val input =
       """circuit Top :
         |  module Top :
@@ -123,7 +123,7 @@ class WiringTests extends FirrtlFlatSpec {
 
   "Wiring from r.x to X" should "work" in {
     val sinks = Set("X")
-    val sas = WiringInfo("A", "r.x", sinks, "pin", "A")
+    val sas = WiringInfo("A", "r.x", sinks, "pin")
     val input =
       """circuit Top :
         |  module Top :
@@ -165,7 +165,7 @@ class WiringTests extends FirrtlFlatSpec {
   }
   "Wiring from clock to X" should "work" in {
     val sinks = Set("X")
-    val sas = WiringInfo("A", "clock", sinks, "pin", "A")
+    val sas = WiringInfo("A", "clock", sinks, "pin")
     val input =
       """circuit Top :
         |  module Top :
@@ -205,7 +205,7 @@ class WiringTests extends FirrtlFlatSpec {
   }
   "Two sources" should "work" in {
     val sinks = Set("X")
-    val sas = WiringInfo("A", "clock", sinks, "pin", "Top")
+    val sas = WiringInfo("A", "clock", sinks, "pin")
     val input =
       """circuit Top :
         |  module Top :
@@ -249,7 +249,7 @@ class WiringTests extends FirrtlFlatSpec {
   }
   "Wiring from A.clock to X, with 2 A's, and A as top" should "work" in {
     val sinks = Set("X")
-    val sas = WiringInfo("A", "clock", sinks, "pin", "A")
+    val sas = WiringInfo("A", "clock", sinks, "pin")
     val input =
       """circuit Top :
         |  module Top :
@@ -293,7 +293,7 @@ class WiringTests extends FirrtlFlatSpec {
   }
   "Wiring from A.clock to X, with 2 A's, and A as top, but Top instantiates X" should "error" in {
     val sinks = Set("X")
-    val sas = WiringInfo("A", "clock", sinks, "pin", "A")
+    val sas = WiringInfo("A", "clock", sinks, "pin")
     val input =
       """circuit Top :
         |  module Top :
@@ -321,7 +321,7 @@ class WiringTests extends FirrtlFlatSpec {
   }
   "Wiring from A.r[a] to X" should "work" in {
     val sinks = Set("X")
-    val sas = WiringInfo("A", "r[a]", sinks, "pin", "A")
+    val sas = WiringInfo("A", "r[a]", sinks, "pin")
     val input =
       """circuit Top :
         |  module Top :
@@ -367,7 +367,6 @@ class WiringTests extends FirrtlFlatSpec {
   "Wiring annotations" should "work" in {
     val source = SourceAnnotation(ComponentName("r", ModuleName("Top", CircuitName("Top"))), "pin")
     val sink = SinkAnnotation(ModuleName("X", CircuitName("Top")), "pin")
-    val top = TopAnnotation(ModuleName("Top", CircuitName("Top")), "pin")
     val input =
       """circuit Top :
         |  module Top :
@@ -394,14 +393,14 @@ class WiringTests extends FirrtlFlatSpec {
       (c: Circuit, p: Pass) => p.run(c)
     }
     val wiringXForm = new WiringTransform()
-    val retC = wiringXForm.execute(CircuitState(c, LowForm, Some(AnnotationMap(Seq(source, sink, top))), None)).circuit
+    val retC = wiringXForm.execute(CircuitState(c, LowForm, Some(AnnotationMap(Seq(source, sink))), None)).circuit
     (parse(retC.serialize).serialize) should be (parse(check).serialize)
   }
 
   "Wiring top equivalency" should "work" in {
     val sinks = Set("X")
-    val topTop = WiringInfo("C", "r", sinks, "pin", "Top")
-    val topA = WiringInfo("C", "r", sinks, "pin", "A")
+    val topTop = WiringInfo("C", "r", sinks, "pin")
+    val topA = WiringInfo("C", "r", sinks, "pin")
     val input =
       """circuit Top :
         |  module Top :
