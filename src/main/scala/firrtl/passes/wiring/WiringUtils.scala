@@ -21,22 +21,12 @@ case object DecOutput extends DecKind
 case object DecWire extends DecKind
 
 case class Metadata(
-  source: Boolean = false,
-  sink: Boolean = false,
-  sourceParent: Boolean = false,
-  sinkParent: Boolean = false,
-  sharedParent: Boolean = false,
   addPort: Option[(String, DecKind)] = None,
   cons: Seq[(String, String)] = Seq.empty) {
 
   override def toString: String = serialize("")
 
   def serialize(tab: String): String = s"""
-$tab source: $source,
-$tab sink: $sink,
-$tab sourceParent: $sourceParent,
-$tab sinkParent: $sinkParent,
-$tab sharedParent: $sharedParent,
 $tab addPort: $addPort
 $tab cons: $cons
 """
@@ -65,7 +55,7 @@ case class Lineage(
     |$tab children: ${children.map(c => tab + "   " + c._2.shortSerialize(tab + "    "))}
     |""".stripMargin
 
-  def foldLeft[B](z: B)(op: (B, (String, Lineage)) => B): B = 
+  def foldLeft[B](z: B)(op: (B, (String, Lineage)) => B): B =
     this.children.foldLeft(z)(op)
 
   def serialize(tab: String): String = s"""
@@ -93,10 +83,10 @@ object WiringUtils {
   def getChildrenMap(c: Circuit): ChildrenMap = {
     val childrenMap = new ChildrenMap()
     def getChildren(mname: String)(s: Statement): Statement = s match {
-      case s: WDefInstance => 
+      case s: WDefInstance =>
         childrenMap(mname) = childrenMap(mname) :+ (s.name, s.module)
         s
-      case s: DefInstance => 
+      case s: DefInstance =>
         childrenMap(mname) = childrenMap(mname) :+ (s.name, s.module)
         s
       case s => s map getChildren(mname)
@@ -127,7 +117,7 @@ object WiringUtils {
     */
   def setFields(sinks: Set[String], source: String)(lin: Lineage): Lineage = lin map setFields(sinks, source) match {
     case l if sinks.contains(l.name) => l.copy(sink = true)
-    case l => 
+    case l =>
       val src = l.name == source
       val sinkParent = l.children.foldLeft(false) { case (b, (i, m)) => b || m.sink || m.sinkParent }
       val sourceParent = if(src) true else l.children.foldLeft(false) { case (b, (i, m)) => b || m.source || m.sourceParent }
