@@ -83,9 +83,9 @@ class WiringTests extends FirrtlFlatSpec {
         |    inst d of D
         |    d.clock <= clock
         |    wire r: UInt<5>
+        |    d.r <= r
         |    r <= b.r
         |    x.pin <= r
-        |    d.r <= r
         |  module B :
         |    input clock: Clock
         |    output r: UInt<5>
@@ -118,6 +118,7 @@ class WiringTests extends FirrtlFlatSpec {
     }
     val wiringPass = new Wiring(Seq(sas))
     val retC = wiringPass.run(c)
+    println(s"${parse(retC.serialize).serialize}")
     (parse(retC.serialize).serialize) should be (parse(check).serialize)
   }
 
@@ -161,6 +162,7 @@ class WiringTests extends FirrtlFlatSpec {
     }
     val wiringPass = new Wiring(Seq(sas))
     val retC = wiringPass.run(c)
+    println(s"${parse(retC.serialize).serialize}")
     (parse(retC.serialize).serialize) should be (parse(check).serialize)
   }
   "Wiring from clock to X" should "work" in {
@@ -203,7 +205,7 @@ class WiringTests extends FirrtlFlatSpec {
     val retC = wiringPass.run(c)
     (parse(retC.serialize).serialize) should be (parse(check).serialize)
   }
-  "Two sources" should "fail" in {
+  "Two sources" should "work" in {
     val sinks = Set("X")
     val sas = WiringInfo("A", "clock", sinks, "pin", "Top")
     val input =
@@ -221,13 +223,31 @@ class WiringTests extends FirrtlFlatSpec {
         |  extmodule X :
         |    input clock: Clock
         |""".stripMargin
-    intercept[WiringException] {
-      val c = passes.foldLeft(parse(input)) {
-        (c: Circuit, p: Pass) => p.run(c)
-      }
-      val wiringPass = new Wiring(Seq(sas))
-      val retC = wiringPass.run(c)
+    val check =
+      """circuit Top :
+        |  module Top :
+        |    input clock: Clock
+        |    inst a1 of A
+        |    a1.clock <= clock
+        |    inst a2 of A
+        |    a2.clock <= clock
+        |  module A :
+        |    input clock: Clock
+        |    inst x of X
+        |    x.clock <= clock
+        |    wire clock_0: Clock
+        |    clock_0 <= clock
+        |    x.pin <= clock_0
+        |  extmodule X :
+        |    input clock: Clock
+        |    input pin: Clock
+        |""".stripMargin
+    val c = passes.foldLeft(parse(input)) {
+      (c: Circuit, p: Pass) => p.run(c)
     }
+    val wiringPass = new Wiring(Seq(sas))
+    val retC = wiringPass.run(c)
+    (parse(retC.serialize).serialize) should be (parse(check).serialize)
   }
   "Wiring from A.clock to X, with 2 A's, and A as top" should "work" in {
     val sinks = Set("X")

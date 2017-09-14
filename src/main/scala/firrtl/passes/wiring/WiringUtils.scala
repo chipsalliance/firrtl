@@ -9,6 +9,8 @@ import firrtl.Utils._
 import firrtl.Mappers._
 import scala.collection.mutable
 import firrtl.annotations._
+import firrtl.analyses.InstanceGraph
+import firrtl.graph.DiGraph
 import WiringUtils._
 
 /** Declaration kind in lineage (e.g. input port, output port, wire)
@@ -17,6 +19,28 @@ sealed trait DecKind
 case object DecInput extends DecKind
 case object DecOutput extends DecKind
 case object DecWire extends DecKind
+
+case class Metadata(
+  source: Boolean = false,
+  sink: Boolean = false,
+  sourceParent: Boolean = false,
+  sinkParent: Boolean = false,
+  sharedParent: Boolean = false,
+  addPort: Option[(String, DecKind)] = None,
+  cons: Seq[(String, String)] = Seq.empty) {
+
+  override def toString: String = serialize("")
+
+  def serialize(tab: String): String = s"""
+$tab source: $source,
+$tab sink: $sink,
+$tab sourceParent: $sourceParent,
+$tab sinkParent: $sinkParent,
+$tab sharedParent: $sharedParent,
+$tab addPort: $addPort
+$tab cons: $cons
+"""
+}
 
 /** A lineage tree representing the instance hierarchy in a design
   */
@@ -108,6 +132,80 @@ object WiringUtils {
       val sinkParent = l.children.foldLeft(false) { case (b, (i, m)) => b || m.sink || m.sinkParent }
       val sourceParent = if(src) true else l.children.foldLeft(false) { case (b, (i, m)) => b || m.source || m.sourceParent }
       l.copy(sinkParent=sinkParent, sourceParent=sourceParent, source=src)
+  }
+
+  /** Return a map of sink instances to source instances that minimizes
+    * distance.
+    */
+  def sinksToSources(sinks: Set[String], source: String, top: String, i: InstanceGraph): Map[Seq[WDefInstance], Seq[WDefInstance]] = {
+    println(s"[info] mapSourcesToSinks")
+    val indent = "  "
+
+    val owners = new mutable.HashMap[Seq[WDefInstance], Seq[Seq[WDefInstance]]].withDefaultValue(Seq())
+    val queue = new mutable.Queue[Seq[WDefInstance]]
+    val visited = new mutable.HashMap[Seq[WDefInstance], Boolean].withDefaultValue(false)
+
+    println(s"[info] hierarchy:")
+    for ( (k, v) <- i.fullHierarchy) {
+      println(s"[info]   - ${k.name} <- ${v.map(_.map(_.name))}")
+    }
+
+    i.fullHierarchy.keys
+      .filter { case WDefInstance(_, _, module, _) => module == source }
+      .map    { k => i.fullHierarchy(k)
+        .map  { l => { queue.enqueue(l)
+                       owners(l) = Seq(l)                              }}}
+
+    println(s"[info] queue init (all sources): ${queue.map(_.map(_.name))}")
+
+    var iter = 0
+    while (queue.nonEmpty) {
+      val u = queue.dequeue
+      println(s"[info] $indent - iter: $iter")
+      println(s"[info] $indent   - queue pre: ${queue.map(_.map(_.name))}")
+      println(s"[info] $indent   - u: ${(u.last.name, u.last.module)}")
+      visited(u) = true
+
+      val allEdges = (i.graph.getEdges(u.last)
+        .map(u :+ _)
+        .toSeq :+ u.dropRight(1))
+        .filter(e => !visited(e) && e.nonEmpty )
+      println(s"[info] $indent   - allEdges: ${allEdges.map(_.map(_.name))}")
+
+      for (v <- allEdges) {
+        println(s"[info] $indent   - examining: ${v.map(_.name)}")
+        owners(v) = owners(v) ++ owners(u)
+        queue.enqueue(v)
+      }
+
+      println(s"[info] $indent   - queue post: ${queue.map(_.map(_.name))}")
+      iter += 1
+    }
+
+    val sinkInsts = i.fullHierarchy.keys
+      .filter { case WDefInstance(_, _, module, _) => sinks.contains(module) }
+      .map    { k => i.fullHierarchy(k)                                      }
+      .toSeq.flatten
+
+    val t = i.fullHierarchy.keys
+      .filter { case WDefInstance(_, _, module, _) => sinks.contains(module) }
+      .toSeq
+    println(s"[info] t: ${t.map(_.name)}")
+    println(s"[info] hier(t): ${t.map(i.fullHierarchy(_)).map(_.map(_.map(_.name)))}")
+
+    println(s"[info] sinkInsts: ${sinkInsts.map(_.map(_.name))}")
+
+    // Check that every sink has a unique owner. The only time that
+    // this should fail is if a sink is equidistant to two sources.
+    sinkInsts.map( s => {
+      if (!owners.contains(s) || owners(s).size > 1) {
+        throw new WiringException(s"Unable to determine source mapping for sink '${s.map(_.name)}'") }
+    })
+
+    owners
+      .filter { case (k, v) => sinkInsts.contains(k) }
+      .map    { case (k, v) => (k, v.flatten)        }
+      .toMap
   }
 
   /** Finds the sharedParent (lowest common ancestor) of lineage top via

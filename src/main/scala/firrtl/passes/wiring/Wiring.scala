@@ -10,6 +10,7 @@ import firrtl.Mappers._
 import scala.collection.mutable
 import firrtl.annotations._
 import firrtl.annotations.AnnotationUtils._
+import firrtl.analyses.InstanceGraph
 import WiringUtils._
 
 case class WiringException(msg: String) extends PassException(msg)
@@ -40,20 +41,8 @@ class Wiring(wiSeq: Seq[WiringInfo]) extends Pass {
     val compName = wi.comp
     val pin = wi.pin
 
-    // Maps modules to children instances, i.e. (instance, module)
-    val childrenMap = getChildrenMap(c)
-
-    // Check restrictions
-    val nSources = countInstances(childrenMap, wi.top, source)
-    if(nSources != 1)
-      throw new WiringException(s"Cannot have $nSources instance of $source under ${wi.top}")
-    sinks.foreach { m =>
-      val total = countInstances(childrenMap, c.main, m)
-      val nTop = countInstances(childrenMap, c.main, wi.top)
-      val perTop = countInstances(childrenMap, wi.top, m)
-      if(total != nTop * perTop)
-        throw new WiringException(s"Module ${wi.top} does not contain all instances of $m.")
-    }
+    val iGraph = new InstanceGraph(c)
+    iGraph.test()
 
     // Create valid port names for wiring that have no name conflicts
     val portNames = c.modules.foldLeft(Map.empty[String, String]) { (map, m) =>
@@ -64,26 +53,81 @@ class Wiring(wiSeq: Seq[WiringInfo]) extends Pass {
       })
     }
 
-    // Create a lineage tree from children map
-    val lineages = getLineage(childrenMap, wi.top)
-
-    // Populate lineage tree with relationship information, i.e. who is source,
-    //   sink, parent of source, etc.
-    val withMostFields = setFields(sinks, source)(lineages)
-    val lcaName = findSharedParent(mutable.Queue(withMostFields))
-    val withFields = setSharedParent(lcaName.get)(withMostFields)
-
-    // Populate lineage tree with what to instantiate, connect to/from, etc.
-    val withThings = setThings(portNames, compName)(withFields)
-
-    // Create a map from module name to lineage information
-    val map = pointToLineage(withThings)
-
     // Obtain the source component type
     val sourceComponentType = getType(c, source, compName)
 
+    // 'meta' is a map of Modules to their pending modifications (Metadata)
+    val meta = new mutable.HashMap[String, Metadata].withDefaultValue(Metadata())
+    sinksToSources(sinks, source, wi.top, iGraph).map { case (sink, source) =>
+      val lca = iGraph.lowestCommonAncestor(sink, source)
+      println(s"[info] - sink: ${sink.map(_.name)}")
+      println(s"[info]   - source: ${source.map(_.name)}")
+      println(s"[info]   - lca: ${lca.map(_.name)}")
+
+      // [Sink, ..., LCA] metadata
+      println(s"[info]   - sink -> lca")
+      sink.drop(lca.size - 1).sliding(2).toList.reverse.map {
+        case Seq(WDefInstance(_,_,pm,_), WDefInstance(_,ci,cm,_)) =>
+          println(s"[info]     - $pm -> $cm ($ci)")
+          val to = s"$ci.${portNames(cm)}"
+          val from = s"${portNames(pm)}"
+          println(s"[info]       - to:   $to")
+          println(s"[info]       - from: $from")
+          meta(pm) = meta(pm).copy(
+            addPort = Some((portNames(pm), DecWire)),
+            cons    = (meta(pm).cons :+ (to, from)).distinct
+          )
+          meta(cm) = meta(cm).copy(
+            addPort = Some((portNames(cm), DecInput))
+          )
+      }
+
+      // Source metadata
+      println(s"[info]   - source")
+      source.last match { case WDefInstance(_, name, module, _) =>
+        val to = s"${portNames(module)}"
+        val from = compName
+        println(s"[info]       - to:   $to")
+        println(s"[info]       - from: $from")
+        meta(module) = meta(module).copy(
+          cons = Seq((to, from))
+        )
+      }
+
+      // [Source, ..., LCA] metadata
+      println(s"[info]   - source -> lca")
+      source.drop(lca.size - 1).sliding(2).toList.reverse.map {
+        case Seq(WDefInstance(_,_,pm,_), WDefInstance(_,ci,cm,_)) => {
+          println(s"[info]     - $pm -> $cm ($ci)")
+          val to = s"${portNames(pm)}"
+          val from = s"$ci.${portNames(cm)}"
+          println(s"[info]       - to:   $to")
+          println(s"[info]       - from: $from")
+          meta(pm) = meta(pm).copy(
+            cons    = (meta(pm).cons :+ (to, from)).distinct
+          )
+          meta(cm) = meta(cm).copy(
+            addPort = Some((portNames(cm), DecOutput))
+          )
+        }
+        case Seq(WDefInstance(_,_,pm,_)) => {
+          val WDefInstance(_,ci,cm,_) = sink.drop(lca.size).head
+          val to = s"$ci.${portNames(cm)}"
+          val from = s"${portNames(pm)}"
+          meta(pm) = meta(pm).copy(
+            cons    = (meta(pm).cons :+ (to, from)).distinct
+          )
+        }
+      }
+
+      for ( (k, v) <- meta) {
+        val indent = "[info] meta:   - "
+        println(s"[info] meta: ${k} -> ${v.serialize(indent)}")
+      }
+    }
+
     // Return new circuit with correct wiring
-    val cx = c.copy(modules = c.modules map onModule(map, sourceComponentType))
+    val cx = c.copy(modules = c.modules map onModule(meta.toMap, sourceComponentType))
 
     // Replace inserted IR nodes with WIR nodes
     ToWorkingIR.run(cx)
@@ -91,7 +135,7 @@ class Wiring(wiSeq: Seq[WiringInfo]) extends Pass {
 
   /** Return new module with correct wiring
     */
-  private def onModule(map: Map[String, Lineage], t: Type)(m: DefModule) = {
+  private def onModule(map: Map[String, Metadata], t: Type)(m: DefModule) = {
     map.get(m.name) match {
       case None => m
       case Some(l) =>
@@ -136,7 +180,7 @@ class Wiring(wiSeq: Seq[WiringInfo]) extends Pass {
       case DefWire(_, n, t) if n == root =>
         tpe = Some(t)
         s
-      case WDefInstance(_, n, m, t) if n == root => 
+      case WDefInstance(_, n, m, t) if n == root =>
         tpe = Some(t)
         s
       case DefNode(_, n, e) if n == root =>
@@ -155,7 +199,7 @@ class Wiring(wiSeq: Seq[WiringInfo]) extends Pass {
     }
     tpe match {
       case None => error(s"Didn't find $comp in $module!")
-      case Some(t) => 
+      case Some(t) =>
         def setType(e: Expression): Expression = e map setType match {
           case ex: Reference => ex.copy(tpe = t)
           case ex: SubField => ex.copy(tpe = field_type(ex.expr.tpe, ex.name))

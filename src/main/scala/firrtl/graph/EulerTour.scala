@@ -4,9 +4,9 @@ import scala.collection.mutable
 
 /** A class that represents an Euler Tour of a directed graph from a
   * given root. This requires O(2n) preprocessing time to generate the
-  * initiate Euler Tour.
+  * initial Euler Tour.
   */
-class EulerTour[T](val r: Map[T, Int], val e: Seq[T], val h: Seq[Int]) {
+class EulerTour[T](val r: Map[Seq[T], Int], val e: Seq[Seq[T]], val h: Seq[Int]) {
   private def lg(x: Double): Double = math.log(x) / math.log(2)
 
   /** Naive Range Minimum Query (RMQ) on an Euler Tour. This uses no
@@ -15,7 +15,7 @@ class EulerTour[T](val r: Map[T, Int], val e: Seq[T], val h: Seq[Int]) {
     *
     * Performance: [Preprocessing, Query] -> [O(1), O(n)]
     */
-  def rmqNaive(a: T, b: T): T = {
+  def rmqNaive(a: Seq[T], b: Seq[T]): Seq[T] = {
     val Seq(i, j) = Seq(r(a), r(b)).sorted
     e.zip(h).slice(i, j + 1).minBy(_._2)._1
   }
@@ -126,7 +126,7 @@ class EulerTour[T](val r: Map[T, Int], val e: Seq[T], val h: Seq[Int]) {
     *
     * Performance: [Preprocessing, Query] -> [O(n), O(1)]
     */
-  def rmqBV(x: T, y: T): T = {
+  def rmqBV(x: Seq[T], y: Seq[T]): Seq[T] = {
     val Seq(i, j) = Seq(r(x), r(y)).sorted
 
     val (block_i, block_j) = (i / m, j / m)
@@ -164,24 +164,25 @@ class EulerTour[T](val r: Map[T, Int], val e: Seq[T], val h: Seq[Int]) {
   /** Outward facing RMQ that may map to a naive or performant
     * implementation
     */
-  def rmq(x: T, y: T): T = rmqBV(x, y)
+  def rmq(x: Seq[T], y: Seq[T]): Seq[T] = rmqBV(x, y)
 }
 
 /** Euler Tour companion object
   */
 object EulerTour {
   def apply[T](diGraph: DiGraph[T], start: T): EulerTour[T] = {
-    val r = mutable.Map[T, Int]()
-    val e = mutable.ArrayBuffer[T]()
+    val r = mutable.Map[Seq[T], Int]()
+    val e = mutable.ArrayBuffer[Seq[T]]()
     val h = mutable.ArrayBuffer[Int]()
 
-    def tour(u: T, height: Int = 0): Unit = {
-      if (!r.contains(u)) { r(u) = e.size }
-      e += u
+    def tour(u: T, parent: Seq[T] = Seq(), height: Int = 0): Unit = {
+      val id = parent :+ u
+      if (!r.contains(id)) { r(id) = e.size }
+      e += id
       h += height
-      diGraph.getEdges(u).toSeq.flatMap( v => {
-        tour(v, height + 1)
-        e += u
+      diGraph.getEdges(id.last).toSeq.flatMap( v => {
+        tour(v, id, height + 1)
+        e += id
         h += height
       })
     }
