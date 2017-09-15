@@ -87,6 +87,7 @@ antlr4Version in Antlr4 := "4.7"
   publishMavenStyle := true
   publishArtifact in Test := false
   pomIncludeRepository := { x => false }
+  // Don't add 'scm' elements if we have a git.remoteRepo definition.
   pomExtra := <url>http://chisel.eecs.berkeley.edu/</url>
     <licenses>
       <license>
@@ -95,10 +96,6 @@ antlr4Version in Antlr4 := "4.7"
         <distribution>repo</distribution>
       </license>
     </licenses>
-    <scm>
-      <url>https://github.com/ucb-bar/firrtl.git</url>
-      <connection>scm:git:github.com/ucb-bar/firrtl.git</connection>
-    </scm>
     <developers>
       <developer>
         <id>jackbackrack</id>
