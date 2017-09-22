@@ -86,8 +86,9 @@ circuit Top :
       "    input reset : UInt<1>",
       "    input a : UInt<1>[2]",
       "    wire b : UInt<1>",
-      "    node _GEN_0 = mux(reset, UInt<1>(\"h0\"), a[0])",
-      "    b <= _GEN_0\n\n"
+      "    node _GEN_0 = eq(reset, UInt<1>(\"h0\"))",
+      "    node _GEN_1 = mux(reset, UInt<1>(\"h0\"), a[0])",
+      "    b <= _GEN_1\n\n"
    ).reduce(_ + "\n" + _)
    "A circuit" should "match exactly to its MidForm state" in {
       (parse(getOutput)) should be (parse(check))
