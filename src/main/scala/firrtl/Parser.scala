@@ -6,7 +6,7 @@ import java.io.{ByteArrayInputStream, SequenceInputStream}
 
 import org.antlr.v4.runtime._
 import org.antlr.v4.runtime.atn._
-import com.typesafe.scalalogging.LazyLogging
+import logger._
 import firrtl.ir._
 import firrtl.Utils.time
 import firrtl.antlr.{FIRRTLParser, _}
@@ -26,6 +26,7 @@ object Parser extends LazyLogging {
   /** Takes Iterator over lines of FIRRTL, returns FirrtlNode (root node is Circuit) */
   def parse(lines: Iterator[String], infoMode: InfoMode = UseInfo): Circuit = {
 
+    logger.info(s"======== Starting ANTLR Parser ========")
     val (parseTimeMillis, cst) = time {
       val parser = {
         import scala.collection.JavaConverters._
@@ -46,10 +47,20 @@ object Parser extends LazyLogging {
       cst
     }
 
+    logger.info(s"---------------------------------------\n")
+    logger.info(f"Time: $parseTimeMillis%.1f ms")
+    logger.info(s"======== Finished ANTLR Parser ========\n")
+
     val visitor = new Visitor(infoMode)
+
+    logger.info(s"======== Starting Visitor ========")
     val (visitTimeMillis, visit) = time {
       visitor.visit(cst)
     }
+    logger.info(s"---------------------------------------\n")
+    logger.info(f"Time: $visitTimeMillis%.1f ms")
+    logger.info(s"======== Finished Visitor ========\n")
+
     val ast = visit match {
       case c: Circuit => c
       case x => throw new ClassCastException("Error! AST not rooted with Circuit node!")
