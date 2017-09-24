@@ -11,27 +11,37 @@ abstract class FirrtlNode {
 }
 
 abstract class Info extends FirrtlNode {
-  // default implementation
-  def serialize: String = this.toString
-  def ++(that: Info): Info
+  def toOption: Option[Info]
+  def serialize: String = this.toOption.map(info => s" @[$info]").getOrElse("")
+  def ++(that: Info): Info = MultiInfo(Seq(this, that))
 }
 case object NoInfo extends Info {
+  def toOption: Option[Info] = None
   override def toString: String = ""
-  def ++(that: Info): Info = that
+  override def ++(that: Info): Info = that
 }
-case class FileInfo(info: StringLit) extends Info {
-  override def toString: String = " @[" + info.serialize + "]"
-  def ++(that: Info): Info = MultiInfo(Seq(this, that))
+@deprecated("Use SourceLocator or StringInfo instead", "1.0")
+object FileInfo {
+  def apply(info: StringLit) = StringInfo(info)
+  def unapply(info: Info): Option[StringLit] = info match {
+    case StringInfo(lit) => Some(lit)
+    case _ => None
+  }
+}
+case class StringInfo(info: StringLit) extends Info {
+  def toOption: Option[StringInfo] = Some(this)
+  override def toString: String = info.serialize
+}
+case class SourceLocator(filename: String, row: Int, column: Int) extends Info {
+  def toOption: Option[SourceLocator] = Some(this)
+  override def toString: String = s"$filename $row:$column"
 }
 case class MultiInfo(infos: Seq[Info]) extends Info {
-  private def collectStringLits(info: Info): Seq[StringLit] = info match {
-    case FileInfo(lit) => Seq(lit)
-    case MultiInfo(seq) => seq flatMap collectStringLits
-    case NoInfo => Seq.empty
+  def toOption: Option[MultiInfo] = infos.flatMap(_.toOption) match {
+    case Seq() => None
+    case nonEmpty => Some(MultiInfo(nonEmpty))
   }
-  override def toString: String =
-    collectStringLits(this).map(_.serialize).mkString(" @[", " ", "]")
-  def ++(that: Info): Info = MultiInfo(Seq(this, that))
+  override def toString: String = this.toOption.map(_.infos.mkString(", ")).getOrElse("")
 }
 
 trait HasName {

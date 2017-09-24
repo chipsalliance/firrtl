@@ -42,23 +42,33 @@ class Visitor(infoMode: InfoMode) extends FIRRTLBaseVisitor[FirrtlNode] {
 
   private def string2Int(s: String): Int = string2BigInt(s).toInt
 
+  private val SourceLocRegex = """\s*(\S+)\s*(\d+):(\d+)\s*""".r
+
   private def visitInfo(ctx: Option[FIRRTLParser.InfoContext], parentCtx: ParserRuleContext): Info = {
-    def genInfo(filename: String): String =
-      stripPath(filename) + "@" + parentCtx.getStart.getLine + "." +
-        parentCtx.getStart.getCharPositionInLine
-    lazy val useInfo: String = ctx match {
-      case Some(info) => info.getText.drop(2).init // remove surrounding @[ ... ]
-      case None => ""
+    def genInfo(filename: String): SourceLocator =
+      SourceLocator(stripPath(filename),
+                    parentCtx.getStart.getLine,
+                    parentCtx.getStart.getCharPositionInLine)
+    def useInfo: Option[Info] = ctx.flatMap { raw =>
+      val rawText = raw.getText
+      val trimmed = rawText.slice(2, rawText.size - 1)
+      val infos = trimmed.split(",").flatMap {
+        case "" => None
+        case SourceLocRegex(fn, row, col) => Some(SourceLocator(fn, row.toInt, col.toInt))
+        case other => Some(StringInfo(ir.StringLit.unescape(other)))
+      }
+      infos.size match {
+        case 0 => None
+        case 1 => Some(infos.head)
+        case more => Some(MultiInfo(infos))
+      }
     }
     infoMode match {
-      case UseInfo =>
-        if (useInfo.length == 0) NoInfo
-        else ir.FileInfo(ir.StringLit.unescape(useInfo))
+      case UseInfo => useInfo.getOrElse(NoInfo)
       case AppendInfo(filename) =>
-        val newInfo = useInfo + ":" + genInfo(filename)
-        ir.FileInfo(ir.StringLit.unescape(newInfo))
-      case GenInfo(filename) =>
-        ir.FileInfo(ir.StringLit.unescape(genInfo(filename)))
+        val gen = genInfo(filename)
+        useInfo.map(info => MultiInfo(Seq(info, gen))).getOrElse(gen)
+      case GenInfo(filename) => genInfo(filename)
       case IgnoreInfo => NoInfo
     }
   }
