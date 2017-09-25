@@ -90,40 +90,4 @@ class InstanceGraph(c: Circuit) {
       Seq[WDefInstance] = {
     tour.rmq(moduleA, moduleB)
   }
-
-  def test(): Unit = {
-    println(s"[info] Euler Tour:")
-    println(s"[info]   - map:")
-    for (i <- tour.r) {
-      println(s"[info]     - ${i._1 map (_.name)}: ${i._2}") }
-    println(s"[info]   - tour:")
-    for ((m, i) <- tour.e zip tour.h) {
-      println(s"[info]     - ${m map (_.name)}: ${i}") }
-
-    println(s"[info] e: ${tour.e.map(_.map(_.name))}")
-
-    val instances = graph.pathsInDAG(trueTopInstance).values.flatten
-    instances.toSeq.combinations(2).toList.map { case Seq(a, b) =>
-      val n = tour.rmqNaive(a, b)
-      val p = tour.rmqBV(a, b)
-      println(s"[info]   - rmqNaive of ${a.map(_.name)}, ${b.map(_.name)}: ${n.map(_.name)}")
-      println(s"[info]   - rmqBV of ${a.map(_.name)}, ${b.map(_.name)}: ${p.map(_.name)}")
-      require(n == p, "Naive RMQ does not agree with BV implementation")
-    }
-
-    var t1 = System.currentTimeMillis
-    val step = 1024 * 4
-    instances.toSeq.combinations(2).toList.map { case Seq(a, b) =>
-      for (i <- 1 to step) { tour.rmqNaive(a, b) }
-    }
-    var t2 = System.currentTimeMillis
-    println(s"[info] Naive time: ${(t2 - t1)}ms")
-
-    t1 = System.currentTimeMillis
-    instances.toSeq.combinations(2).toList.map { case Seq(a, b) =>
-      for (i <- 1 to step) { tour.rmqBV(a, b) }
-    }
-    t2 = System.currentTimeMillis
-    println(s"[info] BV time: ${(t2 - t1)}ms")
-  }
 }
