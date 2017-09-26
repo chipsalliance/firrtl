@@ -102,9 +102,9 @@ object WiringUtils {
   /** Counts the number of instances of a module declared under a top module
     */
   def countInstances(childrenMap: ChildrenMap, top: String, module: String): Int = {
-    if(top == module) 1
-    else childrenMap(top).foldLeft(0) { case (count, (i, child)) =>
-      count + countInstances(childrenMap, child, module)
+    if (top == module) { 1 }
+    else { childrenMap(top).foldLeft(0) { case (count, (i, child)) =>
+      count + countInstances(childrenMap, child, module) }
     }
   }
 
@@ -120,8 +120,10 @@ object WiringUtils {
     case l if sinks.contains(l.name) => l.copy(sink = true)
     case l =>
       val src = l.name == source
-      val sinkParent = l.children.foldLeft(false) { case (b, (i, m)) => b || m.sink || m.sinkParent }
-      val sourceParent = if(src) true else l.children.foldLeft(false) { case (b, (i, m)) => b || m.source || m.sourceParent }
+      val sinkParent = l.children.foldLeft(false) {
+        case (b, (i, m)) => b || m.sink || m.sinkParent }
+      val sourceParent = if(src) true else l.children.foldLeft(false) {
+        case (b, (i, m)) => b || m.source || m.sourceParent }
       l.copy(sinkParent=sinkParent, sourceParent=sourceParent, source=src)
   }
 
@@ -226,13 +228,16 @@ object WiringUtils {
           l.copy(cons = l.cons ++ tos.map(t => (t, from)))
         case Lineage(name, _, _, _, true, _, _, _, _) => //SourceParent
           val tos = Seq(s"${portNames(name)}")
-          val from = l.children.filter { case (i, c) => c.sourceParent }.map { case (i, c) => s"$i.${portNames(c.name)}" }.head
+          val from = l.children.filter { case (i, c) => c.sourceParent }
+            .map { case (i, c) => s"$i.${portNames(c.name)}" }.head
           l.copy(cons = l.cons ++ tos.map(t => (t, from)))
         case l => l
       }),
       ((l: Lineage) => l match {
         case Lineage(name, _, _, _, _, true, _, _, _) => //SinkParent
-          val tos = l.children.filter { case (i, c) => (c.sinkParent || c.sink) && !c.sourceParent } map { case (i, c) => s"$i.${portNames(c.name)}" }
+          val tos = l.children.filter { case (i, c) =>
+            (c.sinkParent || c.sink) && !c.sourceParent }
+            .map { case (i, c) => s"$i.${portNames(c.name)}" }
           val from = s"${portNames(name)}"
           l.copy(cons = l.cons ++ tos.map(t => (t, from)))
         case l => l

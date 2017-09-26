@@ -1,3 +1,5 @@
+// See LICENSE for license details.
+
 package firrtl.graph
 
 import scala.collection.mutable

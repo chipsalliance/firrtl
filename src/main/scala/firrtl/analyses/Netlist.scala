@@ -1,3 +1,5 @@
+// See LICENSE for license details.
+
 package firrtl.analyses
 
 import scala.collection.mutable
@@ -80,8 +82,7 @@ class InstanceGraph(c: Circuit) {
     instances flatMap { i => fullHierarchy(i) }
   }
 
-  /** An Euler Tour representation of the DiGraph
-    */
+  /** An Euler Tour representation of the DiGraph */
   lazy val tour = EulerTour(graph, trueTopInstance)
 
   /** Finds the lowest common ancestor instances for two module names in

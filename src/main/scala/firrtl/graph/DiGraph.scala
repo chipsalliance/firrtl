@@ -1,3 +1,5 @@
+// See LICENSE for license details.
+
 package firrtl.graph
 
 import scala.collection.immutable.{Set, Map, HashSet, HashMap}
@@ -22,10 +24,10 @@ trait DiGraphLike[T] {
 }
 
 /** A class to represent a mutable directed graph with nodes of type T
-  * 
+  *
   * @constructor Create a new graph with the provided edge data
   * @param edges a mutable.MultiMap[T,T] of edge data
-  * 
+  *
   * For the edge data MultiMap, the values associated with each vertex
   * u in the graph are the vertices with inedges from u
   */
@@ -72,10 +74,10 @@ object DiGraph {
 /**
   * A class to represent an immutable directed graph with nodes of
   * type T
-  * 
+  *
   * @constructor Create a new graph with the provided edge data
   * @param edges a Map[T,Set[T]] of edge data
-  * 
+  *
   * For the edge data Map, the value associated with each vertex u in
   * the graph is a Set[T] of nodes where for each node v in the set,
   * the directed edge (u,v) exists in the graph.
@@ -93,19 +95,19 @@ class DiGraph[T] (val edges: Map[T, Set[T]]) extends DiGraphLike[T] {
   def getEdges(v: T) = edges.getOrElse(v, new HashSet[T])
 
   /** Find all sources in the graph
-    * 
+    *
     * @return a Set[T] of source nodes
     */
   def findSources: Set[T] = edges.keySet -- edges.values.flatten.toSet
 
   /** Find all sinks in the graph
-    * 
+    *
     * @return a Set[T] of sink nodes
     */
   def findSinks: Set[T] = reverse.findSources
 
   /** Linearizes (topologically sorts) a DAG
-    * 
+    *
     * @param root the start node
     * @throws CyclicException if the graph is cyclic
     * @return a Map[T,T] from each visited node to its predecessor in the
@@ -143,7 +145,7 @@ class DiGraph[T] (val edges: Map[T, Set[T]]) extends DiGraphLike[T] {
   }
 
   /** Performs breadth-first search on the directed graph
-    * 
+    *
     * @param root the start node
     * @return a Map[T,T] from each visited node to its predecessor in the
     * traversal
@@ -165,14 +167,14 @@ class DiGraph[T] (val edges: Map[T, Set[T]]) extends DiGraphLike[T] {
   }
 
   /** Finds the set of nodes reachable from a particular node
-    * 
+    *
     * @param root the start node
     * @return a Set[T] of nodes reachable from the root
     */
   def reachableFrom(root: T): Set[T] = BFS(root).keys.toSet
 
   /** Finds a path (if one exists) from one node to another
-    * 
+    *
     * @param start the start node
     * @param end the destination node
     * @throws PathNotFoundException
@@ -192,7 +194,7 @@ class DiGraph[T] (val edges: Map[T, Set[T]]) extends DiGraphLike[T] {
   }
 
   /** Finds the strongly connected components in the graph
-    * 
+    *
     * @return a Seq of Seq[T], each containing nodes of an SCC in traversable order
     */
   def findSCCs: Seq[Seq[T]] = {
@@ -260,12 +262,12 @@ class DiGraph[T] (val edges: Map[T, Set[T]]) extends DiGraphLike[T] {
   }
 
   /** Finds all paths starting at a particular node in a DAG
-    * 
+    *
     * WARNING: This is an exponential time algorithm (as any algorithm
     * must be for this problem), but is useful for flattening circuit
     * graph hierarchies. Each path is represented by a Seq[T] of nodes
     * in a traversable order.
-    * 
+    *
     * @param start the node to start at
     * @return a Map[T,Seq[Seq[T]]] where the value associated with v is the Seq of all paths from start to v
     */
@@ -301,7 +303,7 @@ class DiGraph[T] (val edges: Map[T, Set[T]]) extends DiGraphLike[T] {
   /** Return a graph with only a subset of the nodes
     *
     * Any edge including a deleted node will be deleted
-    * 
+    *
     * @param vprime the Set[T] of desired vertices
     * @throws IllegalArgumentException if vprime is not a subset of V
     * @return the subgraph
@@ -316,7 +318,7 @@ class DiGraph[T] (val edges: Map[T, Set[T]]) extends DiGraphLike[T] {
     *
     * Any path between two non-deleted nodes (u,v) that traverses only
     * deleted nodes will be transformed into an edge (u,v).
-    * 
+    *
     * @param vprime the Set[T] of desired vertices
     * @throws IllegalArgumentException if vprime is not a subset of V
     * @return the simplified graph
@@ -330,7 +332,7 @@ class DiGraph[T] (val edges: Map[T, Set[T]]) extends DiGraphLike[T] {
   /** Return a graph with all the nodes of the current graph transformed
     * by a function. Edge connectivity will be the same as the current
     * graph.
-    * 
+    *
     * @param f A function {(T) => Q} that transforms each node
     * @return a transformed DiGraph[Q]
     */
