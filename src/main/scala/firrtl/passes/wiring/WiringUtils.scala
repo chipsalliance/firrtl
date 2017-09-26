@@ -72,9 +72,6 @@ case class Lineage(
     |""".stripMargin
 }
 
-
-
-
 object WiringUtils {
   type ChildrenMap = mutable.HashMap[String, Seq[(String, String)]]
 
@@ -112,20 +109,6 @@ object WiringUtils {
     */
   def getLineage(childrenMap: ChildrenMap, module: String): Lineage =
     Lineage(module, childrenMap(module) map { case (i, m) => (i, getLineage(childrenMap, m)) } )
-
-  /** Sets the sink, sinkParent, source, and sourceParent fields of every
-    *  Lineage in tree
-    */
-  def setFields(sinks: Set[String], source: String)(lin: Lineage): Lineage = lin map setFields(sinks, source) match {
-    case l if sinks.contains(l.name) => l.copy(sink = true)
-    case l =>
-      val src = l.name == source
-      val sinkParent = l.children.foldLeft(false) {
-        case (b, (i, m)) => b || m.sink || m.sinkParent }
-      val sourceParent = if(src) true else l.children.foldLeft(false) {
-        case (b, (i, m)) => b || m.source || m.sourceParent }
-      l.copy(sinkParent=sinkParent, sourceParent=sourceParent, source=src)
-  }
 
   /** Return a map of sink instances to source instances that minimizes
     * distance
@@ -182,79 +165,5 @@ object WiringUtils {
       .filter { case (k, v) => sinkInsts.contains(k) }
       .map    { case (k, v) => (k, v.flatten)        }
       .toMap
-  }
-
-  /** Finds the sharedParent (lowest common ancestor) of lineage top via
-    * breadth first search
-    */
-  def findSharedParent(queue: mutable.Queue[Lineage]): Option[String] = {
-    while (queue.nonEmpty) {
-      val l = queue.dequeue
-      if ((l.sinkParent && l.sourceParent) && (l.children.foldLeft(false) { case (b, (i, m)) => b || (m.sinkParent ^ m.sourceParent) || m.sink || m.source })) {
-        return Some(l.name)
-      }
-      queue ++= l.children.map{ case (i, m) => m }
-    }
-    return None
-  }
-
-  /** Sets the sharedParent of lineage top via pre-order DFS
-    */
-  def setSharedParent(lca: String)(lin: Lineage): Lineage = lin match {
-    case l if l.name == lca => l.copy(sharedParent = true)
-    case l => l.copy(sourceParent=false, sinkParent=false) map setSharedParent(lca)
-  }
-
-  /** Sets the addPort and cons fields of the lineage tree
-    */
-  def setThings(portNames:Map[String, String], compName: String)(lin: Lineage): Lineage = {
-    val funs = Seq(
-      ((l: Lineage) => l map setThings(portNames, compName)),
-      ((l: Lineage) => l match {
-        case Lineage(name, _, _, _, _, _, true, _, _) => //SharedParent
-          l.copy(addPort=Some((portNames(name), DecWire)))
-        case Lineage(name, _, _, _, true, _, _, _, _) => //SourceParent
-          l.copy(addPort=Some((portNames(name), DecOutput)))
-        case Lineage(name, _, _, _, _, true, _, _, _) => //SinkParent
-          l.copy(addPort=Some((portNames(name), DecInput)))
-        case Lineage(name, _, _, true, _, _, _, _, _) => //Sink
-          l.copy(addPort=Some((portNames(name), DecInput)))
-        case l => l
-      }),
-      ((l: Lineage) => l match {
-        case Lineage(name, _, true, _, _, _, _, _, _) => //Source
-          val tos = Seq(s"${portNames(name)}")
-          val from = compName
-          l.copy(cons = l.cons ++ tos.map(t => (t, from)))
-        case Lineage(name, _, _, _, true, _, _, _, _) => //SourceParent
-          val tos = Seq(s"${portNames(name)}")
-          val from = l.children.filter { case (i, c) => c.sourceParent }
-            .map { case (i, c) => s"$i.${portNames(c.name)}" }.head
-          l.copy(cons = l.cons ++ tos.map(t => (t, from)))
-        case l => l
-      }),
-      ((l: Lineage) => l match {
-        case Lineage(name, _, _, _, _, true, _, _, _) => //SinkParent
-          val tos = l.children.filter { case (i, c) =>
-            (c.sinkParent || c.sink) && !c.sourceParent }
-            .map { case (i, c) => s"$i.${portNames(c.name)}" }
-          val from = s"${portNames(name)}"
-          l.copy(cons = l.cons ++ tos.map(t => (t, from)))
-        case l => l
-      })
-    )
-    funs.foldLeft(lin)((l, fun) => fun(l))
-  }
-
-  /** Return a map from module to its lineage in the tree
-    */
-  def pointToLineage(lin: Lineage): Map[String, Lineage] = {
-    val map = mutable.HashMap[String, Lineage]()
-    def onLineage(l: Lineage): Lineage = {
-      map(l.name) = l
-      l map onLineage
-    }
-    onLineage(lin)
-    map.toMap
   }
 }
