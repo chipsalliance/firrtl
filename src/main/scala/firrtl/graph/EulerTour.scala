@@ -2,39 +2,74 @@ package firrtl.graph
 
 import scala.collection.mutable
 
+/** Euler Tour companion object */
+object EulerTour {
+  /** Create an Euler Tour from a `DiGraph[T]` */
+  def apply[T](diGraph: DiGraph[T], start: T): EulerTour[Seq[T]] = {
+    val r = mutable.Map[Seq[T], Int]()
+    val e = mutable.ArrayBuffer[Seq[T]]()
+    val h = mutable.ArrayBuffer[Int]()
+
+    def tour(u: T, parent: Seq[T] = Seq(), height: Int = 0): Unit = {
+      val id = parent :+ u
+      if (!r.contains(id)) { r(id) = e.size }
+      e += id
+      h += height
+      diGraph.getEdges(id.last).toSeq.flatMap( v => {
+        tour(v, id, height + 1)
+        e += id
+        h += height
+      })
+    }
+
+    tour(start)
+    new EulerTour(r.toMap, e, h)
+  }
+}
+
 /** A class that represents an Euler Tour of a directed graph from a
-  * given root. This requires O(n) preprocessing time to generate the
-  * initial Euler Tour.
+  * given root. This requires `O(n)` preprocessing time to generate
+  * the initial Euler Tour.
+  *
+  * @constructor Create a new Euler Tour from the specified data
+  * @param r `Map[T, Int]` of the first instance of a node
+  * @param e The Euler Tour represented as a `Seq[T]`
+  * @param h The depths of the Euler Tour represented as a `Seq[Int]`
   */
-class EulerTour[T](val r: Map[T, Int], val e: Seq[T], val h: Seq[Int]) {
+class EulerTour[T](r: Map[T, Int], e: Seq[T], h: Seq[Int]) {
   private def lg(x: Double): Double = math.log(x) / math.log(2)
 
-  /** Naive Range Minimum Query (RMQ) on an Euler Tour. This uses no
-    * data structures other than the original Euler Tour and is
-    * characterized by
+  /** Range Minimum Query of an Euler Tour using a naive algorithm.
     *
-    * Performance: [Preprocessing, Query] -> [O(1), O(n)]
+    * @param x The first query bound
+    * @param y The second query bound
+    * @return The minimum between the first and second query
+    * @note The order of '''x''' and '''y''' does not matter
+    * @note '''Performance''':
+    *   - preprocessing: `O(1)`
+    *   - query: `O(n)`
     */
-  def rmqNaive(a: T, b: T): T = {
-    val Seq(i, j) = Seq(r(a), r(b)).sorted
+  def rmqNaive(x: T, y: T): T = {
+    val Seq(i, j) = Seq(r(x), r(y)).sorted
     e.zip(h).slice(i, j + 1).minBy(_._2)._1
   }
 
   // n: the length of the Euler cycle
   // m: the size of blocks the Euler cycle is split into
-  val n = h.size
-  val m = math.ceil(lg(n) / 2).toInt
+  private val n = h.size
+  private val m = math.ceil(lg(n) / 2).toInt
 
-  // Split up the tour, h, into blocks of size m. The last block is
-  // padded to be a multiple of m. Then compute the minimum of each
-  // block, a, and the index of that minimum in each block, b.
-  lazy val blocks = (h ++ (1 to (m - n % m))).grouped(m).toArray
-  lazy val a = blocks map (_.min)
-  lazy val b = blocks map (b => b.indexOf(b.min))
+  /** Split up the tour into blocks of size m, padding the last block to
+    * be a multiple of m. Compute the minimum of each block, a, and
+    * the index of that minimum in each block, b.
+    */
+  private lazy val blocks = (h ++ (1 to (m - n % m))).grouped(m).toArray
+  private lazy val a = blocks map (_.min)
+  private lazy val b = blocks map (b => b.indexOf(b.min))
 
-  /** Construct a Sparse Table (ST) of a sequence of integers. This
-    * encodes the minimum index for every power of two range in the
-    * sequence. Data is indexed as: [base, power of 2 range]
+  /** Construct a Sparse Table (ST) representation for the minimum index
+    * of a sequence of integers. Data in the returned array is indexed
+    * as: [base, power of 2 range]
     */
   private def constructSparseTable(x: Seq[Int]): Array[Array[Int]] = {
     val tmp = Array.ofDim[Int](x.size + 1, math.ceil(lg(x.size)).toInt)
@@ -69,15 +104,15 @@ class EulerTour[T](val r: Map[T, Int], val e: Seq[T], val h: Seq[Int]) {
     }
     tmp
   }
-  lazy val st = constructSparseTable(a)
+  private lazy val st = constructSparseTable(a)
 
-  /** Precompute all possible RMQs for an array of size N where each
+  /** Precompute all possible RMQs for an array of size `n where each
     * entry in the range is different from the last by only +-1
     */
   private def constructTableLookups(n: Int): Array[Array[Array[Int]]] = {
-    def sortSeqSeq[T <: Int](a: Seq[T], b: Seq[T]): Boolean = {
-      if (a(0) != b(0)) { a(0) < b(0)                }
-      else              { sortSeqSeq(a.tail, b.tail) }
+    def sortSeqSeq[T <: Int](x: Seq[T], y: Seq[T]): Boolean = {
+      if (x(0) != y(0)) { x(0) < y(0)                }
+      else              { sortSeqSeq(x.tail, y.tail) }
     }
 
     val size = m - 1
@@ -93,10 +128,9 @@ class EulerTour[T](val r: Map[T, Int], val e: Seq[T], val h: Seq[Int]) {
         tmp }).toArray
     out
   }
-  lazy val tables = constructTableLookups(m)
+  private lazy val tables = constructTableLookups(m)
 
-  /** Compute the table index of a given block.
-    */
+  /** Compute the precomputed table index of a given block */
   private def mapBlockToTable(block: Seq[Int]): Int = {
     var index = 0
     var power = block.size - 2
@@ -107,29 +141,46 @@ class EulerTour[T](val r: Map[T, Int], val e: Seq[T], val h: Seq[Int]) {
     index
   }
 
-  /** Precompute a mapping of all blocks to table indices.
+  /** Precompute a mapping of all blocks to their precomputed RMQ table
+    * indices
     */
   private def mapBlocksToTables(blocks: Seq[Seq[Int]]): Array[Int] = {
     val out = blocks.map(mapBlockToTable(_)).toArray
     out
   }
-  lazy val tableIdx = mapBlocksToTables(blocks)
+  private lazy val tableIdx = mapBlocksToTables(blocks)
 
-  /** Berkman--Vishkin RMQ with simplifications of
-    * Bender--Farach-Colton.
+  /** Range Minimum Query using the Berkman--Vishkin algorithm with the
+    * simplifications of Bender--Farach-Colton.
     *
-    * Performance: [Preprocessing, Query] -> [O(n), O(1)]
+    * @param x The first query bound
+    * @param y The second query bound
+    * @return The minimum between the first and second query
+    * @note The order of '''x''' and '''y''' does not matter
+    * @note '''Performance''':
+    *   - preprocessing: `O(n)`
+    *   - query: `O(1)`
     */
   def rmqBV(x: T, y: T): T = {
     val Seq(i, j) = Seq(r(x), r(y)).sorted
 
+    // Compute block and word indices
     val (block_i, block_j) = (i / m, j / m)
     val (word_i,  word_j)  = (i % m, j % m)
 
-    // Three possible scenarios:
-    //   * i and j are in the same block    -> one lookup
-    //   * i and j are in adjacent blocks   -> two table lookups
-    //   * i and j have blocks between them -> two table lookups, two ST lookups
+    /** Up to four possible minimum indices are then computed based on the
+      * following conditions:
+      *   1. `i` and `j` are in the same block:
+      *     - one precomputed RMQ from `i` to `j`
+      *   2. `i` and `j` are in adjacent blocks:
+      *     - one precomputed RMQ from `i` to the end of its block
+      *     - one precomputed RMQ from `j` to the beginning of its block
+      *   3. `i` and `j` have blocks between them:
+      *     - one precomputed RMQ from `i` to the end of its block
+      *     - one precomputed RMQ from `j` to the beginning of its block
+      *     - two sparse table lookups to fully cover all blocks
+      *       between `i` and `j`
+      */
     val minIndices = (block_i, block_j) match {
       case (bi, bj) if (block_i == block_j) =>
         val min_i = block_i * m + tables(tableIdx(block_i))(word_i)(word_j)
@@ -151,36 +202,21 @@ class EulerTour[T](val r: Map[T, Int], val e: Seq[T], val h: Seq[Int]) {
           (min_0, min_1) }
         Seq(min_i, min_between_l, min_between_r, min_j)
     }
+
+    // Return the minimum of all possible minimum indices
     e(minIndices.minBy(h(_)))
   }
 
-  /** Outward facing RMQ that may map to a naive or performant
-    * implementation
+  /** Range Minimum Query of the Euler Tour.
+    *
+    * Use this for typical queries.
+    *
+    * @param x The first query bound
+    * @param y The second query bound
+    * @return The minimum between the first and second query
+    * @note This currently maps to `rmqBV`, but may choose to map to
+    * either `rmqBV` or `rmqNaive`
+    * @note The order of '''x''' and '''y''' does not matter
     */
   def rmq(x: T, y: T): T = rmqBV(x, y)
-}
-
-/** Euler Tour companion object
-  */
-object EulerTour {
-  def apply[T](diGraph: DiGraph[T], start: T): EulerTour[Seq[T]] = {
-    val r = mutable.Map[Seq[T], Int]()
-    val e = mutable.ArrayBuffer[Seq[T]]()
-    val h = mutable.ArrayBuffer[Int]()
-
-    def tour(u: T, parent: Seq[T] = Seq(), height: Int = 0): Unit = {
-      val id = parent :+ u
-      if (!r.contains(id)) { r(id) = e.size }
-      e += id
-      h += height
-      diGraph.getEdges(id.last).toSeq.flatMap( v => {
-        tour(v, id, height + 1)
-        e += id
-        h += height
-      })
-    }
-
-    tour(start)
-    new EulerTour(r.toMap, e, h)
-  }
 }
