@@ -51,6 +51,10 @@ dir
   | 'output'
   ;
 
+idx
+  : '[' intLit ']'
+  ;
+
 type 
   : 'UInt' ('<' intLit '>')?
   | 'SInt' ('<' intLit '>')?
@@ -58,7 +62,7 @@ type
   | 'Clock'
   | 'Analog' ('<' intLit '>')?
   | '{' field* '}'        // Bundle
-  | type '[' intLit ']'   // Vector
+  | type idx+   // Vector
   ;
 
 field

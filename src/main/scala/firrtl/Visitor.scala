@@ -133,7 +133,8 @@ class Visitor(infoMode: InfoMode) extends FIRRTLBaseVisitor[FirrtlNode] {
           else AnalogType(UnknownWidth)
           case "{" => BundleType(ctx.field.asScala.map(visitField))
         }
-      case typeContext: TypeContext => new VectorType(visitType(ctx.`type`), string2Int(ctx.intLit(0).getText))
+      case typeContext: TypeContext =>
+        ctx.idx.asScala.map(i => string2Int(i.intLit.getText)).foldRight(visitType(ctx.`type`))((a, b) => new VectorType(b, a))
     }
   }
 
