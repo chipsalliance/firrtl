@@ -32,8 +32,9 @@ class EulerTour[T](val r: Map[T, Int], val e: Seq[T], val h: Seq[Int]) {
   lazy val a = blocks map (_.min)
   lazy val b = blocks map (b => b.indexOf(b.min))
 
-  /** Construct a Sparse Table (ST) representation of an array to
-    * facilitate fast RMQ queries.
+  /** Construct a Sparse Table (ST) of a sequence of integers. This
+    * encodes the minimum index for every power of two range in the
+    * sequence. Data is indexed as: [base, power of 2 range]
     */
   private def constructSparseTable(x: Seq[Int]): Array[Array[Int]] = {
     val tmp = Array.ofDim[Int](x.size + 1, math.ceil(lg(x.size)).toInt)
@@ -43,8 +44,8 @@ class EulerTour[T](val r: Map[T, Int], val e: Seq[T], val h: Seq[Int]) {
 
     def tableRecursive(base: Int, size: Int): Int = {
       if (size == 0) {
-        tmp(base)(size) = x(base)
-        x(base)
+        tmp(base)(size) = base
+        base
       } else {
         val (a, b, c) = (base, base + (1 << (size - 1)), size - 1)
 
@@ -54,15 +55,16 @@ class EulerTour[T](val r: Map[T, Int], val e: Seq[T], val h: Seq[Int]) {
         val r = if (tmp(b)(c) != -1) { tmp(b)(c)            }
         else                         { tableRecursive(b, c) }
 
-        val min = if (l < r) l else r
+        val min = if (x(l) < x(r)) l else r
         tmp(base)(size) = min
+        assert(min >= base)
         min
       }
     }
 
     for (i <- (0 to x.size - 1);
       j <- (0 to math.ceil(lg(x.size)).toInt - 1);
-      if i + (1 << j) - 1 < x.size + 1) yield {
+      if i + (1 << j) - 1 < x.size) yield {
       tableRecursive(i, j)
     }
     tmp
@@ -73,13 +75,19 @@ class EulerTour[T](val r: Map[T, Int], val e: Seq[T], val h: Seq[Int]) {
     * entry in the range is different from the last by only +-1
     */
   private def constructTableLookups(n: Int): Array[Array[Array[Int]]] = {
+    def sortSeqSeq[T <: Int](a: Seq[T], b: Seq[T]): Boolean = {
+      if (a(0) != b(0)) { a(0) < b(0)                }
+      else              { sortSeqSeq(a.tail, b.tail) }
+    }
+
     val size = m - 1
     val out = Seq.fill(size)(Seq(-1, 1))
-      .flatten.combinations(m - 1).flatMap(_.permutations)
+      .flatten.combinations(m - 1).flatMap(_.permutations).toList
+      .sortWith(sortSeqSeq)
       .map(_.foldLeft(Seq(0))((h, pm) => (h.head + pm) +: h).reverse)
       .map(a => {
         var tmp = Array.ofDim[Int](m, m)
-        for (i <- 0 to m - 1; j <- i to m - 1) yield {
+        for (i <- 0 to size; j <- i to size) yield {
           val window = a.slice(i, j + 1)
           tmp(i)(j) = window.indexOf(window.min) + i }
         tmp }).toArray
@@ -119,32 +127,31 @@ class EulerTour[T](val r: Map[T, Int], val e: Seq[T], val h: Seq[Int]) {
     val (word_i,  word_j)  = (i % m, j % m)
 
     // Three possible scenarios:
-    //   * i and j are in the same block    -> single table lookup
+    //   * i and j are in the same block    -> one lookup
     //   * i and j are in adjacent blocks   -> two table lookups
-    //   * i and j have blocks between them -> two table lookups, one ST lookup
-    val idx = if (block_j == block_i) {
-      val min_i = block_i * m + tables(tableIdx(block_i))(word_i)(word_j)
-      min_i
-    } else if (block_j - block_i == 1) {
-      val min_i = block_i * m + tables(tableIdx(block_i))(word_i)( m - 1)
-      val min_j = block_j * m + tables(tableIdx(block_j))(     0)(word_j)
+    //   * i and j have blocks between them -> two table lookups, two ST lookups
+    val minIndices = (block_i, block_j) match {
+      case (bi, bj) if (block_i == block_j) =>
+        val min_i = block_i * m + tables(tableIdx(block_i))(word_i)(word_j)
+        Seq(min_i)
+      case (bi, bj) if (block_i == block_j - 1) =>
+        val min_i = block_i * m + tables(tableIdx(block_i))(word_i)( m - 1)
+        val min_j = block_j * m + tables(tableIdx(block_j))(     0)(word_j)
+        Seq(min_i, min_j)
+      case _ =>
+        val min_i = block_i * m + tables(tableIdx(block_i))(word_i)( m - 1)
+        val min_j = block_j * m + tables(tableIdx(block_j))(     0)(word_j)
+        val (min_between_l, min_between_r) = {
+          val range = math.floor(lg(block_j - block_i - 1)).toInt
+          val base_0 = block_i + 1
+          val base_1 = block_j - (1 << range)
 
-      if (h(min_i) < h(min_j)) min_i else min_j
-    } else {
-      val min_i = block_i * m + tables(tableIdx(block_i))(word_i)( m - 1)
-      val min_j = block_j * m + tables(tableIdx(block_j))(     0)(word_j)
-      val (min_between_l, min_between_r) = {
-        val k = math.floor(lg(block_j - block_i - 1)).toInt
-        val m = block_j - (1 << k)
-        val (min_0, min_1) = (h(st(block_i + 1)(k)), h(st(m)(k)))
-        (min_0, min_1) }
-
-      Seq(min_i, min_between_l, min_between_r, min_j)
-        .zip(Seq(h(min_i), h(min_between_l), h(min_between_r), h(min_j)))
-        .minBy(_._2)._1
+          val (idx_0, idx_1) = (st(base_0)(range), st(base_1)(range))
+          val (min_0, min_1) = (b(idx_0) + idx_0 * m, b(idx_1) + idx_1 * m)
+          (min_0, min_1) }
+        Seq(min_i, min_between_l, min_between_r, min_j)
     }
-
-    e(idx)
+    e(minIndices.minBy(h(_)))
   }
 
   /** Outward facing RMQ that may map to a naive or performant
