@@ -6,7 +6,7 @@ import scala.collection.mutable
 
 /** Euler Tour companion object */
 object EulerTour {
-  /** Create an Euler Tour from a `DiGraph[T]` */
+  /** Create an Euler Tour of a `DiGraph[T]` */
   def apply[T](diGraph: DiGraph[T], start: T): EulerTour[Seq[T]] = {
     val r = mutable.Map[Seq[T], Int]()
     val e = mutable.ArrayBuffer[Seq[T]]()
@@ -33,7 +33,7 @@ object EulerTour {
   * given root. This requires `O(n)` preprocessing time to generate
   * the initial Euler Tour.
   *
-  * @constructor Create a new Euler Tour from the specified data
+  * @constructor Create a new `EulerTour` from the specified data
   * @param r `Map[T, Int]` of the first instance of a node
   * @param e The Euler Tour represented as a `Seq[T]`
   * @param h The depths of the Euler Tour represented as a `Seq[Int]`
@@ -56,8 +56,8 @@ class EulerTour[T](r: Map[T, Int], e: Seq[T], h: Seq[Int]) {
     e.zip(h).slice(i, j + 1).minBy(_._2)._1
   }
 
-  // n: the length of the Euler cycle
-  // m: the size of blocks the Euler cycle is split into
+  // n: the length of the Euler Tour
+  // m: the size of blocks the Euler Tour is split into
   private val n = h.size
   private val m = math.ceil(lg(n) / 2).toInt
 

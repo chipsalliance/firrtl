@@ -33,7 +33,7 @@ class Wiring(wiSeq: Seq[WiringInfo]) extends Pass {
     *   - Wires sources up to LCA, sinks down from LCA, and across each LCA
     *
     * @param c The circuit to modify
-    * @param wi A `WiringInfo` object containing source, sink, component, and pin information
+    * @param wi A `[[WiringInfo]]` object containing source, sink, component, and pin information
     * @return The modified circuit
     *
     * @throws WiringException if a sink is equidistant to two sources
