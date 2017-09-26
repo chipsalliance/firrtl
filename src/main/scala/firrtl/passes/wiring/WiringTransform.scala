@@ -35,17 +35,18 @@ object SinkAnnotation {
   }
 }
 
-/** Add pins to modules and wires a signal to them, under the scope of a specified top module
-  * Description:
-  *   Adds a pin to each sink module
-  *   Punches ports up from the source signal to the specified top module
-  *   Punches ports down to each sink module
-  *   Wires the source up and down, connecting to all sink modules
-  * Restrictions:
-  *   - Can only have one source module instance under scope of the specified top
-  *   - All instances of each sink module must be under the scope of the specified top
-  * Notes:
-  *   - No module uniquification occurs (due to imposed restrictions)
+/** Wires Sources to Sinks
+  *
+  * Sinks are wired to their closest source through their lowest
+  * common ancestor (LCA). Verbosely, this modifies the circuit in
+  * the following ways:
+  *   - Adds a pin to each sink module
+  *   - Punches ports up from source signals to the LCA of each sink
+  *   - Punches ports down from LCAs to each sink module
+  *   - Wires sources up to LCA, sinks down from LCA, and across each LCA
+  *
+  * @note No module uniquification occurs (due to imposed restrictions)
+  * @throws WiringException if a sink is equidistant to two sources
   */
 class WiringTransform extends Transform {
   def inputForm = MidForm

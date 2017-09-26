@@ -20,6 +20,7 @@ case object DecInput extends DecKind
 case object DecOutput extends DecKind
 case object DecWire extends DecKind
 
+/** Store of pending wiring information for a Module */
 case class Metadata(
   addPort: Option[(String, DecKind)] = None,
   cons: Seq[(String, String)] = Seq.empty) {
@@ -125,14 +126,23 @@ object WiringUtils {
   }
 
   /** Return a map of sink instances to source instances that minimizes
-    * distance.
+    * distance
+    *
+    * @param sinks `Set[String]` of sink module names
+    * @param source `String` of the source module name
+    * @param i `InstanceGraph` of a `Circuit`
+    * @return `Map` of sink instance names to source instance names
+    * @throws WiringException if a sink is equidistant to two sources
     */
-  def sinksToSources(sinks: Set[String], source: String, i: InstanceGraph): Map[Seq[WDefInstance], Seq[WDefInstance]] = {
+  def sinksToSources(sinks: Set[String], source: String, i: InstanceGraph):
+      Map[Seq[WDefInstance], Seq[WDefInstance]] = {
     val indent = "  "
 
-    val owners = new mutable.HashMap[Seq[WDefInstance], Seq[Seq[WDefInstance]]].withDefaultValue(Seq())
+    val owners = new mutable.HashMap[Seq[WDefInstance], Seq[Seq[WDefInstance]]]
+      .withDefaultValue(Seq())
     val queue = new mutable.Queue[Seq[WDefInstance]]
-    val visited = new mutable.HashMap[Seq[WDefInstance], Boolean].withDefaultValue(false)
+    val visited = new mutable.HashMap[Seq[WDefInstance], Boolean]
+      .withDefaultValue(false)
 
     i.fullHierarchy.keys
       .filter { case WDefInstance(_, _, module, _) => module == source }
@@ -144,15 +154,14 @@ object WiringUtils {
       val u = queue.dequeue
       visited(u) = true
 
-      val allEdges = (i.graph.getEdges(u.last)
+      (i.graph.getEdges(u.last)
         .map(u :+ _)
         .toSeq :+ u.dropRight(1))
         .filter(e => !visited(e) && e.nonEmpty )
-
-      for (v <- allEdges) {
-        owners(v) = owners(v) ++ owners(u)
-        queue.enqueue(v)
-      }
+        .map (v => {
+          owners(v) = owners(v) ++ owners(u)
+          queue.enqueue(v)
+        })
     }
 
     val sinkInsts = i.fullHierarchy.keys
@@ -160,11 +169,7 @@ object WiringUtils {
       .map    { k => i.fullHierarchy(k)                                      }
       .toSeq.flatten
 
-    val t = i.fullHierarchy.keys
-      .filter { case WDefInstance(_, _, module, _) => sinks.contains(module) }
-      .toSeq
-
-    // Check that every sink has a unique owner. The only time that
+    // Check that every sink has one unique owner. The only time that
     // this should fail is if a sink is equidistant to two sources.
     sinkInsts.map( s => {
       if (!owners.contains(s) || owners(s).size > 1) {

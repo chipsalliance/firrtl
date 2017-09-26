@@ -22,25 +22,26 @@ class Wiring(wiSeq: Seq[WiringInfo]) extends Pass {
     wiSeq.foldLeft(c) { (circuit, wi) => wire(circuit, wi) }
   }
 
-  /** Add pins to modules and wires a signal to them
-    * Description:
-    *   Adds a pin to each sink module
-    *   Punches ports up from the source signal to the lowest common ancestor
-    *   Punches ports down to each sink module
-    *   Wires the source up and down, connecting to all sink modules
-    *   Sinks are wired to their closest sink
-    * Restrictions:
-    *   - A sink cannot be equidistant to two sources
-    * Notes:
-    *   - No module uniquification occurs (due to imposed restrictions)
+  /** Wires Sources to Sinks
+    *
+    * Sinks are wired to their closest source through their lowest
+    * common ancestor (LCA). Verbosely, this modifies the circuit in
+    * the following ways:
+    *   - Adds a pin to each sink module
+    *   - Punches ports up from source signals to the LCA of each sink
+    *   - Punches ports down from LCAs to each sink module
+    *   - Wires sources up to LCA, sinks down from LCA, and across each LCA
+    *
+    * @param c The circuit to modify
+    * @param wi A `WiringInfo` object containing source, sink, component, and pin information
+    * @return The modified circuit
+    *
+    * @throws WiringException if a sink is equidistant to two sources
+    * @note No module uniquification occurs (due to imposed restrictions)
     */
   def wire(c: Circuit, wi: WiringInfo): Circuit = {
-    // Split out WiringInfo
-    val source = wi.source
-    val sinks = wi.sinks
-    val compName = wi.comp
-    val pin = wi.pin
-
+    // Split out wiring info
+    val (source, sinks, compName, pin) = (wi.source, wi.sinks, wi.comp, wi.pin)
     val iGraph = new InstanceGraph(c)
 
     // Create valid port names for wiring that have no name conflicts
@@ -55,30 +56,30 @@ class Wiring(wiSeq: Seq[WiringInfo]) extends Pass {
     // Obtain the source component type
     val sourceComponentType = getType(c, source, compName)
 
-    // Determine ownership of sources to sinks by minimum distance
+    // Determine "ownership" of sources to sinks via minimum distance
     val owners = sinksToSources(sinks, source, iGraph)
 
-    // Determine port and connection modifications (Metadata) for all
-    // sink--source pairs
+    // Determine port and pending modifications (Metadata) for all
+    // sink--source ownership pairs
     val meta = new mutable.HashMap[String, Metadata].withDefaultValue(Metadata())
     owners.map { case (sink, source) =>
       val lca = iGraph.lowestCommonAncestor(sink, source)
 
-      // [Sink, ..., LCA] metadata
+      // Compute metadata along Sink to LCA paths
       sink.drop(lca.size - 1).sliding(2).toList.reverse.map {
         case Seq(WDefInstance(_,_,pm,_), WDefInstance(_,ci,cm,_)) =>
           val to = s"$ci.${portNames(cm)}"
           val from = s"${portNames(pm)}"
           meta(pm) = meta(pm).copy(
             addPort = Some((portNames(pm), DecWire)),
-            cons    = (meta(pm).cons :+ (to, from)).distinct
+            cons = (meta(pm).cons :+ (to, from)).distinct
           )
           meta(cm) = meta(cm).copy(
             addPort = Some((portNames(cm), DecInput))
           )
       }
 
-      // Source metadata
+      // Compute metadata for Sources
       source.last match { case WDefInstance(_, name, module, _) =>
         val to = s"${portNames(module)}"
         val from = compName
@@ -87,13 +88,13 @@ class Wiring(wiSeq: Seq[WiringInfo]) extends Pass {
         )
       }
 
-      // [Source, ..., LCA] metadata
+      // Compute metadata along Source to LCA path
       source.drop(lca.size - 1).sliding(2).toList.reverse.map {
         case Seq(WDefInstance(_,_,pm,_), WDefInstance(_,ci,cm,_)) => {
           val to = s"${portNames(pm)}"
           val from = s"$ci.${portNames(cm)}"
           meta(pm) = meta(pm).copy(
-            cons    = (meta(pm).cons :+ (to, from)).distinct
+            cons = (meta(pm).cons :+ (to, from)).distinct
           )
           meta(cm) = meta(cm).copy(
             addPort = Some((portNames(cm), DecOutput))
@@ -104,13 +105,13 @@ class Wiring(wiSeq: Seq[WiringInfo]) extends Pass {
           val to = s"$ci.${portNames(cm)}"
           val from = s"${portNames(pm)}"
           meta(pm) = meta(pm).copy(
-            cons    = (meta(pm).cons :+ (to, from)).distinct
+            cons = (meta(pm).cons :+ (to, from)).distinct
           )
         }
       }
     }
 
-    // Return new circuit with correct wiring
+    // Return new circuit with correct wiring by applying all metadata
     val cx = c.copy(modules = c.modules map onModule(meta.toMap, sourceComponentType))
 
     // Replace inserted IR nodes with WIR nodes
