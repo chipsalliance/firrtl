@@ -247,7 +247,7 @@ class WiringTests extends FirrtlFlatSpec {
     val retC = wiringPass.run(c)
     (parse(retC.serialize).serialize) should be (parse(check).serialize)
   }
-  "Wiring from A.clock to X, with 2 A's, and A as top" should "work" in {
+  "Wiring from A.clock to X, with 2 A's" should "work" in {
     val sinks = Set("X")
     val sas = WiringInfo("A", "clock", sinks, "pin")
     val input =
@@ -291,7 +291,7 @@ class WiringTests extends FirrtlFlatSpec {
     val retC = wiringPass.run(c)
     (parse(retC.serialize).serialize) should be (parse(check).serialize)
   }
-  "Wiring from A.clock to X, with 2 A's, and A as top, but Top instantiates X" should "error" in {
+  "Wiring from A.clock to X, with 2 A's, but Top instantiates X (Top.X has indeterminate source ownership)" should "error" in {
     val sinks = Set("X")
     val sas = WiringInfo("A", "clock", sinks, "pin")
     val input =
@@ -395,50 +395,5 @@ class WiringTests extends FirrtlFlatSpec {
     val wiringXForm = new WiringTransform()
     val retC = wiringXForm.execute(CircuitState(c, LowForm, Some(AnnotationMap(Seq(source, sink))), None)).circuit
     (parse(retC.serialize).serialize) should be (parse(check).serialize)
-  }
-
-  "Wiring top equivalency" should "work" in {
-    val sinks = Set("X")
-    val topTop = WiringInfo("C", "r", sinks, "pin")
-    val topA = WiringInfo("C", "r", sinks, "pin")
-    val input =
-      """circuit Top :
-        |  module Top :
-        |    input clock: Clock
-        |    inst a of A
-        |    a.clock <= clock
-        |  module A :
-        |    input clock: Clock
-        |    inst b of B
-        |    b.clock <= clock
-        |    inst x of X
-        |    x.clock <= clock
-        |    inst d of D
-        |    d.clock <= clock
-        |  module B :
-        |    input clock: Clock
-        |    inst c of C
-        |    c.clock <= clock
-        |    inst d of D
-        |    d.clock <= clock
-        |  module C :
-        |    input clock: Clock
-        |    reg r: UInt<5>, clock
-        |  module D :
-        |    input clock: Clock
-        |    inst x1 of X
-        |    x1.clock <= clock
-        |    inst x2 of X
-        |    x2.clock <= clock
-        |  extmodule X :
-        |    input clock: Clock
-        |""".stripMargin
-    val c = passes.foldLeft(parse(input)) {
-      (c: Circuit, p: Pass) => p.run(c)
-    }
-    val wireTop = new Wiring(Seq(topTop))
-    val wireA = new Wiring(Seq(topA))
-    val (retTop, retA) = (wireTop.run(c), wireA.run(c))
-    (parse(retTop.serialize).serialize) should be (parse(retA.serialize).serialize)
   }
 }
