@@ -113,8 +113,8 @@ object WiringUtils {
   /** Return a map of sink instances to source instances that minimizes
     * distance
     *
-    * @param sinks `Set[String]` of sink module names
-    * @param source `String` of the source module name
+    * @param sinks `Seq[Named]` sink modules
+    * @param source `Named` source module
     * @param i `InstanceGraph` of a `Circuit`
     * @return `Map` of sink instance names to source instance names
     * @throws WiringException if a sink is equidistant to two sources
@@ -170,8 +170,8 @@ object WiringUtils {
 
   def namedName(n: Named): String = {
     n match {
-      case ModuleName(modName, _)                   => modName
-      case ComponentName(_, ModuleName(modName, _)) => modName
+      case ModuleName(m, _)                   => m
+      case ComponentName(_, ModuleName(m, _)) => m
       case _ => throw new
           WiringException("WiringTransform can only wire to Modules or Components")
     }

@@ -157,7 +157,6 @@ class WiringTests extends FirrtlFlatSpec {
         |    x2.clock <= clock
         |  module X :
         |    input clock: Clock
-        |    reg r: UInt<5>, clock
         |""".stripMargin
     val check =
       """circuit Top :
@@ -203,7 +202,98 @@ class WiringTests extends FirrtlFlatSpec {
         |  module X :
         |    input clock: Clock
         |    input pin: UInt<5>
+        |""".stripMargin
+    val c = passes.foldLeft(parse(input)) {
+      (c: Circuit, p: Pass) => p.run(c)
+    }
+    val wiringPass = new Wiring(Seq(sas))
+    val retC = wiringPass.run(c)
+    (parse(retC.serialize).serialize) should be (parse(check).serialize)
+  }
+
+  "Wiring from r to module X, component (wire) s" should "work" in {
+    val sinks = Seq(ComponentName("s", ModuleName("X", CircuitName("Top"))))
+    val source = ComponentName("r", ModuleName("C", CircuitName("Top")))
+    val sas = WiringInfo(source, sinks, "pin")
+    val input =
+      """circuit Top :
+        |  module Top :
+        |    input clock: Clock
+        |    inst a of A
+        |    a.clock <= clock
+        |  module A :
+        |    input clock: Clock
+        |    inst b of B
+        |    b.clock <= clock
+        |    inst x of X
+        |    x.clock <= clock
+        |    inst d of D
+        |    d.clock <= clock
+        |  module B :
+        |    input clock: Clock
+        |    inst c of C
+        |    c.clock <= clock
+        |    inst d of D
+        |    d.clock <= clock
+        |  module C :
+        |    input clock: Clock
         |    reg r: UInt<5>, clock
+        |  module D :
+        |    input clock: Clock
+        |    inst x1 of X
+        |    x1.clock <= clock
+        |    inst x2 of X
+        |    x2.clock <= clock
+        |  module X :
+        |    input clock: Clock
+        |    wire s: UInt<5>
+        |""".stripMargin
+    val check =
+      """circuit Top :
+        |  module Top :
+        |    input clock: Clock
+        |    inst a of A
+        |    a.clock <= clock
+        |  module A :
+        |    input clock: Clock
+        |    inst b of B
+        |    b.clock <= clock
+        |    inst x of X
+        |    x.clock <= clock
+        |    inst d of D
+        |    d.clock <= clock
+        |    wire r: UInt<5>
+        |    d.r <= r
+        |    r <= b.r
+        |    x.pin <= r
+        |  module B :
+        |    input clock: Clock
+        |    output r: UInt<5>
+        |    inst c of C
+        |    c.clock <= clock
+        |    inst d of D
+        |    d.clock <= clock
+        |    r <= c.r_0
+        |    d.r <= r
+        |  module C :
+        |    input clock: Clock
+        |    output r_0: UInt<5>
+        |    reg r: UInt<5>, clock
+        |    r_0 <= r
+        |  module D :
+        |    input clock: Clock
+        |    input r: UInt<5>
+        |    inst x1 of X
+        |    x1.clock <= clock
+        |    inst x2 of X
+        |    x2.clock <= clock
+        |    x1.pin <= r
+        |    x2.pin <= r
+        |  module X :
+        |    input clock: Clock
+        |    input pin: UInt<5>
+        |    wire s: UInt<5>
+        |    s <= pin
         |""".stripMargin
     val c = passes.foldLeft(parse(input)) {
       (c: Circuit, p: Pass) => p.run(c)

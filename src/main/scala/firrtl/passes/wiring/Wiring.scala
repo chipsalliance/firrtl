@@ -55,6 +55,12 @@ class Wiring(wiSeq: Seq[WiringInfo]) extends Pass {
 
     // Obtain the source component type
     val sourceComponentType = getType(c, source, compName)
+    val sinkComponents = sinks
+      .foldLeft(Map.empty[String, String]) { (map, m) =>
+        map ++ { m match {
+          case ComponentName(c, ModuleName(m, _)) => Map(m -> c)
+          case _ => Map()
+        }}}
 
     // Determine "ownership" of sources to sinks via minimum distance
     val owners = sinksToSources(sinks, source, iGraph)
@@ -79,7 +85,18 @@ class Wiring(wiSeq: Seq[WiringInfo]) extends Pass {
           )
       }
 
-      // Compute metadata for Sources
+      // Compute metadata for the Sink
+      sink.last match { case WDefInstance(_, name, module, _) =>
+        if (sinkComponents.contains(module)) {
+          val to = sinkComponents(module)
+          val from = s"${portNames(module)}"
+          meta(module) = meta(module).copy(
+            cons = Seq((to, from))
+          )
+        }
+      }
+
+      // Compute metadata for the Source
       source.last match { case WDefInstance(_, name, module, _) =>
         val to = s"${portNames(module)}"
         val from = compName
