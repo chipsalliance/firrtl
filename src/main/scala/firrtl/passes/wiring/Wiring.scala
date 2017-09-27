@@ -15,7 +15,7 @@ import WiringUtils._
 
 case class WiringException(msg: String) extends PassException(msg)
 
-case class WiringInfo(source: String, comp: String, sinks: Set[String], pin: String)
+case class WiringInfo(source: Named, sinks: Set[String], pin: String)
 
 class Wiring(wiSeq: Seq[WiringInfo]) extends Pass {
   def run(c: Circuit): Circuit = {
@@ -41,7 +41,7 @@ class Wiring(wiSeq: Seq[WiringInfo]) extends Pass {
     */
   def wire(c: Circuit, wi: WiringInfo): Circuit = {
     // Split out wiring info
-    val (source, sinks, compName, pin) = (wi.source, wi.sinks, wi.comp, wi.pin)
+    val (ComponentName(compName, ModuleName(source,_)), sinks, pin) = (wi.source, wi.sinks, wi.pin)
     val iGraph = new InstanceGraph(c)
 
     // Create valid port names for wiring that have no name conflicts

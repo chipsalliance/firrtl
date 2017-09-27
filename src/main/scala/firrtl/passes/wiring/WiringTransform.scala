@@ -26,10 +26,10 @@ object SourceAnnotation {
 /** A module, e.g. ExtModule etc., that should add the input pin
   */
 object SinkAnnotation {
-  def apply(target: ModuleName, pin: String): Annotation = Annotation(target, classOf[WiringTransform], s"sink $pin")
+  def apply(target: Named, pin: String): Annotation = Annotation(target, classOf[WiringTransform], s"sink $pin")
 
   private val matcher = "sink (.+)".r
-  def unapply(a: Annotation): Option[(ModuleName, String)] = a match {
+  def unapply(a: Annotation): Option[(Named, String)] = a match {
     case Annotation(ModuleName(n, c), _, matcher(pin)) => Some((ModuleName(n, c), pin))
     case _ => None
   }
@@ -60,20 +60,18 @@ class WiringTransform extends Transform {
     case Nil => state
     case p =>
       val sinks = mutable.HashMap[String, Set[String]]()
-      val sources = mutable.HashMap[String, String]()
-      val comp = mutable.HashMap[String, String]()
+      val sources = mutable.HashMap[String, Named]()
       p.foreach {
         case SinkAnnotation(m, pin) =>
           sinks(pin) = sinks.getOrElse(pin, Set.empty) + m.name
         case SourceAnnotation(c, pin) =>
-          sources(pin) = c.module.name
-          comp(pin) = c.name
+          sources(pin) = c
       }
-      (sources.size, sinks.size, comp.size) match {
-        case (0, p, 0) => state
-        case (s, p, c) if (p > 0) & (s == c) =>
+      (sources.size, sinks.size) match {
+        case (0, p) => state
+        case (s, p) if (p > 0) =>
           val wis = sources.foldLeft(Seq[WiringInfo]()) { case (seq, (pin, top)) =>
-            seq :+ WiringInfo(sources(pin), comp(pin), sinks(pin), pin)
+            seq :+ WiringInfo(sources(pin), sinks(pin), pin)
           }
           transforms(wis).foldLeft(state) { (in, xform) => xform.runTransform(in) }
         case _ => error("Wrong number of sources, tops, or sinks!")
