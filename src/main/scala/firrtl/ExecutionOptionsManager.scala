@@ -18,8 +18,25 @@ import scala.collection.Seq
 trait ComposableOptions
 
 abstract class HasParser(applicationName: String) {
-  final val parser: OptionParser[Unit] = new OptionParser[Unit](applicationName) {}
-}
+  final val parser = new OptionParser[Unit](applicationName) {
+    var terminateOnExit = true
+    override def terminate(exitState: Either[String, Unit]): Unit = {
+      if(terminateOnExit) sys.exit(0)
+    }
+  }
+
+  /**
+    * By default scopt calls sys.exit when --help is in options, this defeats that
+    */
+  def doNotExitOnHelp(): Unit = {
+    parser.terminateOnExit = false
+  }
+  /**
+    * By default scopt calls sys.exit when --help is in options, this un-defeats doNotExitOnHelp
+    */
+  def exitOnHelp(): Unit = {
+    parser.terminateOnExit = true
+  }}
 
 /**
   * Most of the chisel toolchain components require a topName which defines a circuit or a device under test.
@@ -34,7 +51,9 @@ case class CommonOptions(
     globalLogLevel:    LogLevel.Value = LogLevel.None,
     logToFile:         Boolean        = false,
     logClassNames:     Boolean        = false,
-    classLogLevels: Map[String, LogLevel.Value] = Map.empty) extends ComposableOptions {
+    classLogLevels: Map[String, LogLevel.Value] = Map.empty,
+    programArgs:    Seq[String]                 = Seq.empty
+) extends ComposableOptions {
 
   def getLogFileName(optionsManager: ExecutionOptionsManager): String = {
     if(topName.isEmpty) {
@@ -126,6 +145,10 @@ trait HasCommonOptions {
     .text(s"shows class names and log level in logging output, useful for target --class-log-level")
 
   parser.help("help").text("prints this usage text")
+
+  parser.arg[String]("<arg>...").unbounded().optional().action( (x, c) =>
+    commonOptions = commonOptions.copy(programArgs = commonOptions.programArgs :+ x) ).text("optional unbounded args")
+
 }
 
 /** Firrtl output configuration specified by [[FirrtlExecutionOptions]]
