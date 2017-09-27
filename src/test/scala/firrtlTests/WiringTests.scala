@@ -34,7 +34,7 @@ class WiringTests extends FirrtlFlatSpec {
   )
 
   "Wiring from r to extmodule X" should "work" in {
-    val sinks = Set("X")
+    val sinks = Seq(ModuleName("X", CircuitName("Top")))
     val source = ComponentName("r", ModuleName("C", CircuitName("Top")))
     val sas = WiringInfo(source, sinks, "pin")
     val input =
@@ -123,7 +123,7 @@ class WiringTests extends FirrtlFlatSpec {
   }
 
   "Wiring from r to module X" should "work" in {
-    val sinks = Set("X")
+    val sinks = Seq(ModuleName("X", CircuitName("Top")))
     val source = ComponentName("r", ModuleName("C", CircuitName("Top")))
     val sas = WiringInfo(source, sinks, "pin")
     val input =
@@ -214,7 +214,7 @@ class WiringTests extends FirrtlFlatSpec {
   }
 
   "Wiring from r.x to extmodule X" should "work" in {
-    val sinks = Set("X")
+    val sinks = Seq(ModuleName("X", CircuitName("Top")))
     val source = ComponentName("r.x", ModuleName("A", CircuitName("Top")))
     val sas = WiringInfo(source, sinks, "pin")
     val input =
@@ -257,7 +257,7 @@ class WiringTests extends FirrtlFlatSpec {
     (parse(retC.serialize).serialize) should be (parse(check).serialize)
   }
   "Wiring from clock to extmodule X" should "work" in {
-    val sinks = Set("X")
+    val sinks = Seq(ModuleName("X", CircuitName("Top")))
     val source = ComponentName("clock", ModuleName("A", CircuitName("Top")))
     val sas = WiringInfo(source, sinks, "pin")
     val input =
@@ -298,7 +298,7 @@ class WiringTests extends FirrtlFlatSpec {
     (parse(retC.serialize).serialize) should be (parse(check).serialize)
   }
   "Two sources" should "work" in {
-    val sinks = Set("X")
+    val sinks = Seq(ModuleName("X", CircuitName("Top")))
     val source = ComponentName("clock", ModuleName("A", CircuitName("Top")))
     val sas = WiringInfo(source, sinks, "pin")
     val input =
@@ -343,7 +343,7 @@ class WiringTests extends FirrtlFlatSpec {
     (parse(retC.serialize).serialize) should be (parse(check).serialize)
   }
   "Wiring from A.clock to extmodule X, with 2 A's" should "work" in {
-    val sinks = Set("X")
+    val sinks = Seq(ModuleName("X", CircuitName("Top")))
     val source = ComponentName("clock", ModuleName("A", CircuitName("Top")))
     val sas = WiringInfo(source, sinks, "pin")
     val input =
@@ -388,7 +388,7 @@ class WiringTests extends FirrtlFlatSpec {
     (parse(retC.serialize).serialize) should be (parse(check).serialize)
   }
   "Wiring from A.clock to extmodule X, with 2 A's, but Top instantiates X (Top.X has indeterminate source ownership)" should "error" in {
-    val sinks = Set("X")
+    val sinks = Seq(ModuleName("X", CircuitName("Top")))
     val source = ComponentName("clock", ModuleName("A", CircuitName("Top")))
     val sas = WiringInfo(source, sinks, "pin")
     val input =
@@ -417,7 +417,7 @@ class WiringTests extends FirrtlFlatSpec {
     }
   }
   "Wiring from A.r[a] to extmodule X" should "work" in {
-    val sinks = Set("X")
+    val sinks = Seq(ModuleName("X", CircuitName("Top")))
     val source = ComponentName("r[a]", ModuleName("A", CircuitName("Top")))
     val sas = WiringInfo(source, sinks, "pin")
     val input =

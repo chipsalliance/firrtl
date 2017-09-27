@@ -15,7 +15,7 @@ import WiringUtils._
 
 case class WiringException(msg: String) extends PassException(msg)
 
-case class WiringInfo(source: Named, sinks: Set[String], pin: String)
+case class WiringInfo(source: Named, sinks: Seq[Named], pin: String)
 
 class Wiring(wiSeq: Seq[WiringInfo]) extends Pass {
   def run(c: Circuit): Circuit = {
@@ -48,7 +48,7 @@ class Wiring(wiSeq: Seq[WiringInfo]) extends Pass {
     val portNames = c.modules.foldLeft(Map.empty[String, String]) { (map, m) =>
       map + (m.name -> {
         val ns = Namespace(m)
-        if(sinks.contains(m.name)) ns.newName(pin)
+        if(sinks.filter(namedName(_) == m.name).nonEmpty) ns.newName(pin)
         else ns.newName(tokenize(compName) filterNot ("[]." contains _) mkString "_")
       })
     }

@@ -119,7 +119,7 @@ object WiringUtils {
     * @return `Map` of sink instance names to source instance names
     * @throws WiringException if a sink is equidistant to two sources
     */
-  def sinksToSources(sinks: Set[String], source: String, i: InstanceGraph):
+  def sinksToSources(sinks: Seq[Named], source: String, i: InstanceGraph):
       Map[Seq[WDefInstance], Seq[WDefInstance]] = {
     val indent = "  "
 
@@ -150,7 +150,8 @@ object WiringUtils {
     }
 
     val sinkInsts = i.fullHierarchy.keys
-      .filter { case WDefInstance(_, _, module, _) => sinks.contains(module) }
+      .filter { case WDefInstance(_, _, module, _) =>
+        sinks.map(namedName(_)).contains(module) }
       .map    { k => i.fullHierarchy(k)                                      }
       .toSeq.flatten
 
@@ -165,5 +166,14 @@ object WiringUtils {
       .filter { case (k, v) => sinkInsts.contains(k) }
       .map    { case (k, v) => (k, v.flatten)        }
       .toMap
+  }
+
+  def namedName(n: Named): String = {
+    n match {
+      case ModuleName(modName, _)                   => modName
+      case ComponentName(_, ModuleName(modName, _)) => modName
+      case _ => throw new
+          WiringException("WiringTransform can only wire to Modules or Components")
+    }
   }
 }

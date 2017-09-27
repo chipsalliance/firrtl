@@ -59,11 +59,11 @@ class WiringTransform extends Transform {
   def execute(state: CircuitState): CircuitState = getMyAnnotations(state) match {
     case Nil => state
     case p =>
-      val sinks = mutable.HashMap[String, Set[String]]()
+      val sinks = mutable.HashMap[String, Seq[Named]]()
       val sources = mutable.HashMap[String, Named]()
       p.foreach {
         case SinkAnnotation(m, pin) =>
-          sinks(pin) = sinks.getOrElse(pin, Set.empty) + m.name
+          sinks(pin) = sinks.getOrElse(pin, Seq.empty) :+ m
         case SourceAnnotation(c, pin) =>
           sources(pin) = c
       }
