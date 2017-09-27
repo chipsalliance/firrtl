@@ -31,6 +31,7 @@ object SinkAnnotation {
   private val matcher = "sink (.+)".r
   def unapply(a: Annotation): Option[(Named, String)] = a match {
     case Annotation(ModuleName(n, c), _, matcher(pin)) => Some((ModuleName(n, c), pin))
+    case Annotation(ComponentName(n, m), _, matcher(pin)) => Some((ComponentName(n, m), pin))
     case _ => None
   }
 }
