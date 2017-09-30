@@ -93,7 +93,7 @@ class ConstantPropagation extends Transform {
     }
   }
 
-  private def foldComparison(e: DoPrim) = {
+  private def foldComparison(e: DoPrim)(implicit _mod: Module, _stmt: Statement) = {
     def foldIfZeroedArg(x: Expression): Expression = {
       def isUInt(e: Expression): Boolean = e.tpe match {
         case UIntType(_) => true
@@ -136,6 +136,7 @@ class ConstantPropagation extends Transform {
         def >= (that: Range) = this.min >= that.max
         def < (that: Range) = this.max < that.min
         def <= (that: Range) = this.max <= that.min
+        def isLit: Boolean = this.min == this.max
       }
       def range(e: Expression): Range = e match {
         case UIntLiteral(value, _) => Range(value, value)
@@ -156,7 +157,7 @@ class ConstantPropagation extends Transform {
         case ex: DoPrim =>
           def r0 = range(ex.args.head)
           def r1 = range(ex.args(1))
-          ex.op match {
+          val res = ex.op match {
             // Always true
             case Lt  if r0 < r1 => one
             case Leq if r0 <= r1 => one
@@ -173,13 +174,19 @@ class ConstantPropagation extends Transform {
             case Neq if r0 === r1 => zero
             case _ => ex
           }
+          if (res == one || res == zero) {
+            if (!r0.isLit || !r1.isLit) {
+              println(s"Error in ${_mod.name} at ${_stmt.serialize}")
+            }
+          }
+          res
         case ex => ex
       }
     }
     foldIfZeroedArg(foldIfOutsideRange(e))
   }
 
-  private def constPropPrim(e: DoPrim): Expression = e.op match {
+  private def constPropPrim(e: DoPrim)(implicit _mod: Module, _stmt: Statement): Expression = e.op match {
     case Shl => foldShiftLeft(e)
     case Shr => foldShiftRight(e)
     case Cat => foldConcat(e)
@@ -317,7 +324,7 @@ class ConstantPropagation extends Transform {
       case other => other map backPropStmt
     }
 
-    def constPropExpression(e: Expression): Expression = {
+    def constPropExpression(e: Expression)(implicit _mod: Module, _stmt: Statement): Expression = {
       val old = e map constPropExpression
       val propagated = old match {
         case p: DoPrim => constPropPrim(p)
@@ -346,6 +353,8 @@ class ConstantPropagation extends Transform {
     }
 
     def constPropStmt(s: Statement): Statement = {
+      implicit val _mod = m
+      implicit val _stmt = s
       val stmtx = s map constPropStmt map constPropExpression
       stmtx match {
         case x: DefNode if !dontTouches.contains(x.name) => propagateRef(x.name, x.value)
