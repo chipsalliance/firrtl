@@ -174,11 +174,11 @@ class ConstantPropagation extends Transform {
             case Neq if r0 === r1 => zero
             case _ => ex
           }
-          if (res == one || res == zero) {
-            if (!r0.isLit || !r1.isLit) {
-              println(s"Error in ${_mod.name} at ${_stmt.serialize}")
-            }
-          }
+          //if (res == one || res == zero) {
+          //  if (!r0.isLit || !r1.isLit) {
+          //    println(s"Error in ${_mod.name} at ${_stmt.serialize}")
+          //  }
+          //}
           res
         case ex => ex
       }
@@ -229,12 +229,14 @@ class ConstantPropagation extends Transform {
     case _ => e
   }
 
-  private def constPropMuxCond(m: Mux) = m.cond match {
-    case UIntLiteral(c, _) => pad(if (c == BigInt(1)) m.tval else m.fval, m.tpe)
+  private def constPropMuxCond(m: Mux)(implicit _mod: Module, _stmt: Statement) = m.cond match {
+    case UIntLiteral(c, _) =>
+      println(s"Error in ${_mod.name} at ${_stmt.serialize}")
+      pad(if (c == BigInt(1)) m.tval else m.fval, m.tpe)
     case _ => m
   }
 
-  private def constPropMux(m: Mux): Expression = (m.tval, m.fval) match {
+  private def constPropMux(m: Mux)(implicit _mod: Module, _stmt: Statement): Expression = (m.tval, m.fval) match {
     case _ if m.tval == m.fval => m.tval
     case (t: UIntLiteral, f: UIntLiteral) =>
       if (t.value == BigInt(1) && f.value == BigInt(0) && bitWidth(m.tpe) == BigInt(1)) m.cond
