@@ -75,7 +75,7 @@ utils/bin/firrtl --help // Returns usage string
 
 ##### Citing Firrtl
 
-If you use Firrtl in a paper, please cite the following technical report, located here:
+If you use Firrtl in a paper, please cite the following technical report:
 https://www2.eecs.berkeley.edu/Pubs/TechRpts/2016/EECS-2016-9.html
 ```
 @techreport{Li:EECS-2016-9,
