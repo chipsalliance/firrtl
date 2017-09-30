@@ -12,7 +12,7 @@ import logger.Logger
 import Parser.{IgnoreInfo, InfoMode}
 import annotations._
 import firrtl.annotations.AnnotationYamlProtocol._
-import firrtl.transforms.{BlackBoxSourceHelper, BlackBoxTargetDir}
+import firrtl.transforms._
 import Utils.throwInternalError
 
 
@@ -39,6 +39,7 @@ import Utils.throwInternalError
   */
 
 object Driver {
+  //noinspection ScalaDeprecation
   // Compiles circuit. First parses a circuit from an input file,
   //  executes all compiler passes, and writes result to an output
   //  file.
@@ -112,91 +113,109 @@ object Driver {
       optionsManager.firrtlOptions = optionsManager.firrtlOptions.copy(
         annotations = firrtlConfig.annotations ++ targetDirAnno)
     }
+
+    // Output Annotations
+    val outputAnnos = firrtlConfig.getEmitterAnnos(optionsManager)
+
+    val globalAnnos = Seq(TargetDirAnnotation(optionsManager.targetDirName)) ++
+      (if (firrtlConfig.dontCheckCombLoops) Seq(DontCheckCombLoopsAnnotation()) else Seq()) ++
+      (if (firrtlConfig.noDCE) Seq(NoDCEAnnotation()) else Seq())
+
+    optionsManager.firrtlOptions = optionsManager.firrtlOptions.copy(
+      annotations = firrtlConfig.annotations ++ outputAnnos ++ globalAnnos)
+
   }
 
   /**
     * Run the firrtl compiler using the provided option
     *
     * @param optionsManager the desired flags to the compiler
-    * @return a FirrtlExectionResult indicating success or failure, provide access to emitted data on success
+    * @return a FirrtlExecutionResult indicating success or failure, provide access to emitted data on success
     *         for downstream tools as desired
     */
+  //scalastyle:off cyclomatic.complexity method.length
   def execute(optionsManager: ExecutionOptionsManager with HasFirrtlOptions): FirrtlExecutionResult = {
     def firrtlConfig = optionsManager.firrtlOptions
 
-    Logger.setOptions(optionsManager)
-
-    val firrtlSource = firrtlConfig.firrtlSource match {
-      case Some(text) => text.split("\n").toIterator
-      case None       =>
-        if(optionsManager.topName.isEmpty && firrtlConfig.inputFileNameOverride.isEmpty) {
-          val message = "either top-name or input-file-override must be set"
-          dramaticError(message)
-          return FirrtlExecutionFailure(message)
-        }
-        if(
-          optionsManager.topName.isEmpty &&
-            firrtlConfig.inputFileNameOverride.nonEmpty &&
-            firrtlConfig.outputFileNameOverride.isEmpty) {
-          val message = "inputFileName set but neither top-name or output-file-override is set"
-          dramaticError(message)
-          return FirrtlExecutionFailure(message)
-        }
-        val inputFileName = firrtlConfig.getInputFileName(optionsManager)
-        try {
-          io.Source.fromFile(inputFileName).getLines()
-        }
-        catch {
-          case _: FileNotFoundException =>
-            val message = s"Input file $inputFileName not found"
+    Logger.makeScope(optionsManager) {
+      val firrtlSource = firrtlConfig.firrtlSource match {
+        case Some(text) => text.split("\n").toIterator
+        case None =>
+          if (optionsManager.topName.isEmpty && firrtlConfig.inputFileNameOverride.isEmpty) {
+            val message = "either top-name or input-file-override must be set"
             dramaticError(message)
             return FirrtlExecutionFailure(message)
           }
-        }
+          if (
+            optionsManager.topName.isEmpty &&
+              firrtlConfig.inputFileNameOverride.nonEmpty &&
+              firrtlConfig.outputFileNameOverride.isEmpty) {
+            val message = "inputFileName set but neither top-name or output-file-override is set"
+            dramaticError(message)
+            return FirrtlExecutionFailure(message)
+          }
+          val inputFileName = firrtlConfig.getInputFileName(optionsManager)
+          try {
+            io.Source.fromFile(inputFileName).getLines()
+          }
+          catch {
+            case _: FileNotFoundException =>
+              val message = s"Input file $inputFileName not found"
+              dramaticError(message)
+              return FirrtlExecutionFailure(message)
+          }
+      }
 
-    loadAnnotations(optionsManager)
+      loadAnnotations(optionsManager)
 
-    val parsedInput = Parser.parse(firrtlSource, firrtlConfig.infoMode)
+      val parsedInput = Parser.parse(firrtlSource, firrtlConfig.infoMode)
 
-    // Does this need to be before calling compiler?
-    optionsManager.makeTargetDir()
+      // Does this need to be before calling compiler?
+      optionsManager.makeTargetDir()
 
-    // Output Annotations
-    val outputAnnos = firrtlConfig.getEmitterAnnos(optionsManager)
+      val finalState = firrtlConfig.compiler.compile(
+        CircuitState(parsedInput,
+                     ChirrtlForm,
+                     Some(AnnotationMap(firrtlConfig.annotations))),
+        firrtlConfig.customTransforms
+      )
 
-    // Should these and outputAnnos be moved to loadAnnotations?
-    val globalAnnos = Seq(TargetDirAnnotation(optionsManager.targetDirName))
-
-    val finalState = firrtlConfig.compiler.compile(
-      CircuitState(parsedInput,
-                   ChirrtlForm,
-                   Some(AnnotationMap(firrtlConfig.annotations ++ outputAnnos ++ globalAnnos))),
-      firrtlConfig.customTransforms
-    )
-
-    // Do emission
-    // Note: Single emission target assumption is baked in here
-    // Note: FirrtlExecutionSuccess emitted is only used if we're emitting the whole Circuit
-    val emittedRes = firrtlConfig.getOutputConfig(optionsManager) match {
-      case SingleFile(filename) =>
-        val emitted = finalState.getEmittedCircuit
-        val outputFile = new java.io.PrintWriter(filename)
-        outputFile.write(emitted.value)
-        outputFile.close()
-        emitted.value
-      case OneFilePerModule(dirName) =>
-        val emittedModules = finalState.emittedComponents collect { case x: EmittedModule => x }
-        if (emittedModules.isEmpty) throwInternalError // There should be something
-        emittedModules.foreach { case module =>
-          val filename = optionsManager.getBuildFileName(firrtlConfig.outputSuffix, s"$dirName/${module.name}")
+      // Do emission
+      // Note: Single emission target assumption is baked in here
+      // Note: FirrtlExecutionSuccess emitted is only used if we're emitting the whole Circuit
+      val emittedRes = firrtlConfig.getOutputConfig(optionsManager) match {
+        case SingleFile(filename) =>
+          val emitted = finalState.getEmittedCircuit
           val outputFile = new java.io.PrintWriter(filename)
-          outputFile.write(module.value)
+          outputFile.write(emitted.value)
           outputFile.close()
-        }
-        "" // Should we return something different here?
-    }
+          emitted.value
+        case OneFilePerModule(dirName) =>
+          val emittedModules = finalState.emittedComponents collect { case x: EmittedModule => x }
+          if (emittedModules.isEmpty) throwInternalError // There should be something
+          emittedModules.foreach { case module =>
+            val filename = optionsManager.getBuildFileName(firrtlConfig.outputSuffix, s"$dirName/${module.name}")
+            val outputFile = new java.io.PrintWriter(filename)
+            outputFile.write(module.value)
+            outputFile.close()
+          }
+          "" // Should we return something different here?
+      }
 
-    FirrtlExecutionSuccess(firrtlConfig.compilerName, emittedRes)
+      // If set, emit final annotations to a file
+      optionsManager.firrtlOptions.outputAnnotationFileName match {
+        case "" =>
+        case file =>
+          val filename = optionsManager.getBuildFileName("anno", file)
+          val outputFile = new java.io.PrintWriter(filename)
+          finalState.annotations.map {
+            case annos => outputFile.write(annos.annotations.mkString("\n"))
+          }
+          outputFile.close()
+      }
+
+      FirrtlExecutionSuccess(firrtlConfig.compilerName, emittedRes)
+    }
   }
 
   /**
@@ -295,7 +314,7 @@ object FileUtils {
   def isCommandAvailable(cmd: String): Boolean = {
     // Eat any output.
     val sb = new StringBuffer
-    val ioToDevNull = BasicIO(false, sb, None)
+    val ioToDevNull = BasicIO(withIn = false, sb, None)
 
     Seq("bash", "-c", "which %s".format(cmd)).run(ioToDevNull).exitValue == 0
   }

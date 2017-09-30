@@ -62,7 +62,7 @@ class InoutVerilogSpec extends FirrtlFlatSpec {
         |  module A:
         |    input an: Analog<3>
         |  module B:
-        |    input an: Analog<3> """.stripMargin
+        |    input an: Analog<3>""".stripMargin
     val check =
      """module Attaching(
        |);
@@ -70,16 +70,19 @@ class InoutVerilogSpec extends FirrtlFlatSpec {
        |  A a (
        |    .an(_GEN_0)
        |  );
-       |  A b (
+       |  B b (
        |    .an(_GEN_0)
        |  );
        |endmodule
        |module A(
        |  inout  [2:0] an
        |);
+       |module B(
+       |  inout  [2:0] an
+       |);
        |endmodule
        |""".stripMargin.split("\n") map normalized
-    executeTest(input, check, compiler)
+    executeTest(input, check, compiler, Seq(dontTouch("A.an"), dontDedup("A")))
   }
 
   it should "attach a wire source" in {
@@ -101,7 +104,7 @@ class InoutVerilogSpec extends FirrtlFlatSpec {
         |  );
         |endmodule
         |""".stripMargin.split("\n") map normalized
-    executeTest(input, check, compiler)
+    executeTest(input, check, compiler, Seq(dontTouch("Attaching.x")))
   }
 
   it should "attach multiple sources" in {
@@ -126,7 +129,7 @@ class InoutVerilogSpec extends FirrtlFlatSpec {
         |    assign a2 = x;
         |    assign a1 = a2;
         |    assign a2 = a1;
-        |  `elseif verilator
+        |  `elsif verilator
         |    `error "Verilator does not support alias and thus cannot arbirarily connect bidirectional wires and ports"
         |  `else
         |    alias x = a1 = a2;
@@ -144,7 +147,7 @@ class InoutVerilogSpec extends FirrtlFlatSpec {
          |    input foo : { b : UInt<3>, a : Analog<3> }
          |    output bar : { b : UInt<3>, a : Analog<3> }
          |    bar <- foo""".stripMargin
-    // Omitting `ifdef SYNTHESIS and `elseif verilator since it's tested above
+    // Omitting `ifdef SYNTHESIS and `elsif verilator since it's tested above
     val check =
       """module Attaching(
         |  input  [2:0] foo_b,

@@ -4,7 +4,7 @@ package tutorial
 package lesson1
 
 // Compiler Infrastructure
-import firrtl.{Transform, LowForm, CircuitState}
+import firrtl.{Transform, LowForm, CircuitState, Utils}
 // Firrtl IR classes
 import firrtl.ir.{Circuit, DefModule, Statement, Expression, Mux}
 // Map functions
@@ -12,7 +12,7 @@ import firrtl.Mappers._
 // Scala's mutable collections
 import scala.collection.mutable
 
-/** Ledger tracks [[Circuit]] statistics
+/** Ledger tracks [[firrtl.ir.Circuit]] statistics
   *
   * In this lesson, we want to count the number of muxes in each
   *  module in our design.
@@ -31,7 +31,7 @@ class Ledger {
     case Some(name) => moduleMuxMap(name) = moduleMuxMap.getOrElse(name, 0) + 1
   }
   def getModuleName: String = moduleName match {
-    case None => error("Module name not defined in Ledger!")
+    case None => Utils.error("Module name not defined in Ledger!")
     case Some(name) => name
   }
   def setModuleName(myName: String): Unit = {
@@ -47,7 +47,7 @@ class Ledger {
 
 /** AnalyzeCircuit Transform
   *
-  * Walks [[ir.Circuit]], and records the number of muxes it finds, per module.
+  * Walks [[firrtl.ir.Circuit]], and records the number of muxes it finds, per module.
   *
   * While some compiler frameworks operate on graphs, we represent a Firrtl
   * circuit using a tree representation:
