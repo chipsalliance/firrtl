@@ -8,7 +8,7 @@ import firrtl.Parser.IgnoreInfo
 import firrtl.passes._
 import firrtl.transforms._
 
-class ConstantPropagationSpec extends FirrtlFlatSpec {
+abstract class ConstantPropagationSpec extends FirrtlFlatSpec {
   val transforms = Seq(
       ToWorkingIR,
       ResolveKinds,
@@ -360,26 +360,7 @@ class ConstantPropagationSingleModule extends ConstantPropagationSpec {
    }
 
    // =============================
-   "The rule 10 == 10" should " always be true" in {
-      val input =
-"""circuit Top :
-  module Top :
-    input x : UInt<3>
-    output y : UInt<1>
-    y <= eq(UInt(10),UInt(10))
-"""
-      val check =
-"""circuit Top :
-  module Top :
-    input x : UInt<3>
-    output y : UInt<1>
-    y <= UInt<1>(1)
-"""
-      (parse(exec(input))) should be (parse(check))
-   }
-
-   // =============================
-   "The rule x == z " should " not be true even if they have the same number of bits" in {
+   "The rule x == z" should "not be const propped even if they have the same number of bits" in {
       val input =
 """circuit Top :
   module Top :
@@ -399,22 +380,6 @@ class ConstantPropagationSingleModule extends ConstantPropagationSpec {
       (parse(exec(input))) should be (parse(check))
    }
 
-   // =============================
-   "The rule 10 != 10 " should " always be false" in {
-      val input =
-"""circuit Top :
-  module Top :
-    output y : UInt<1>
-    y <= neq(UInt(10),UInt(10))
-"""
-      val check =
-"""circuit Top :
-  module Top :
-    output y : UInt<1>
-    y <= UInt(0)
-"""
-      (parse(exec(input))) should be (parse(check))
-   }
    // =============================
    "The rule 1 >= 3 " should " always be false" in {
       val input =
@@ -508,6 +473,65 @@ class ConstantPropagationSingleModule extends ConstantPropagationSpec {
     y <= UInt<1>(0)
 """
       (parse(exec(input))) should be (parse(check))
+   }
+
+   /** Checks that performing the op on the args results in res
+     * Inputs x and y are Option widths, if None then no input
+     */
+   private def simpleConstPropCheck(op: String,
+                                    args: Seq[String],
+                                    res: String,
+                                    x: Option[Int] = None,
+                                    y: Option[Int] = None) = {
+      require(args.size == 2)
+      val inputs = x.map(w => s"input x : UInt<$w>").getOrElse("") +
+                   y.map(w => s"\n    input y : UInt<$w>").getOrElse("")
+      val inputPrefix =
+s"""circuit Top :
+  module Top :
+    $inputs
+    output z : UInt<1>
+"""
+      val stmts = Seq(args, args.reverse).map(_.mkString(s"    z <= $op(", ",", ")\n"))
+      val check =
+s"""circuit Top :
+  module Top :
+    $inputs
+    output z : UInt<1>
+    z <= $res
+"""
+      for (stmt <- stmts) {
+        val input = inputPrefix + stmt
+        (parse(exec(input)).serialize) should be (parse(check).serialize)
+      }
+   }
+
+   // =============================
+   "10 == 10" should "be true" in {
+     simpleConstPropCheck("eq", Seq("UInt(10)", "UInt(10)"), "UInt(1)")
+   }
+   "9 == 10" should "be false" in {
+     simpleConstPropCheck("eq", Seq("UInt(9)", "UInt(10)"), "UInt(0)")
+   }
+   "10 != 10" should "be false" in {
+     simpleConstPropCheck("neq", Seq("UInt(10)", "UInt(10)"), "UInt(0)")
+   }
+   "9 != 10" should "be true" in {
+     simpleConstPropCheck("neq", Seq("UInt(9)", "UInt(10)"), "UInt(1)")
+   }
+   "UInt<1> == 1" should "be UInt<1>" in {
+     simpleConstPropCheck("eq", Seq("x", "UInt(1)"), "x", x = Some(1))
+   }
+   "UInt<1> != 1" should "be UInt<1>" in {
+     simpleConstPropCheck("neq", Seq("x", "UInt(0)"), "x", x = Some(1))
+   }
+
+   "UInt<3> == 8" should "be false" in {
+     simpleConstPropCheck("eq", Seq("x", "UInt(8)"), "UInt<1>(0)", x = Some(3))
+   }
+
+   "UInt<3> != 8" should "be true" in {
+     simpleConstPropCheck("neq", Seq("x", "UInt(8)"), "UInt<1>(1)", x = Some(3))
    }
 
    // =============================

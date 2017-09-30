@@ -68,22 +68,6 @@ class ConstantPropagation extends Transform {
     }
   }
 
-  object FoldEqual extends FoldLogicalOp {
-    def fold(c1: Literal, c2: Literal) = UIntLiteral(if (c1.value == c2.value) 1 else 0, IntWidth(1))
-    def simplify(e: Expression, lhs: Literal, rhs: Expression) = lhs match {
-      case UIntLiteral(v, IntWidth(w)) if v == BigInt(1) && w == BigInt(1) && bitWidth(rhs.tpe) == BigInt(1) => rhs
-      case _ => e
-    }
-  }
-
-  object FoldNotEqual extends FoldLogicalOp {
-    def fold(c1: Literal, c2: Literal) = UIntLiteral(if (c1.value != c2.value) 1 else 0, IntWidth(1))
-    def simplify(e: Expression, lhs: Literal, rhs: Expression) = lhs match {
-      case UIntLiteral(v, IntWidth(w)) if v == BigInt(0) && w == BigInt(1) && bitWidth(rhs.tpe) == BigInt(1) => rhs
-      case _ => e
-    }
-  }
-
   private def foldConcat(e: DoPrim) = (e.args.head, e.args(1)) match {
     case (UIntLiteral(xv, IntWidth(xw)), UIntLiteral(yv, IntWidth(yw))) => UIntLiteral(xv << yw.toInt | yv, IntWidth(xw + yw))
     case _ => e
@@ -115,9 +99,13 @@ class ConstantPropagation extends Transform {
         case UIntType(_) => true
         case _ => false
       }
+      def isBool(e: Expression): Boolean = e.tpe == Utils.BoolType
       def isZero(e: Expression) = e match {
-          case UIntLiteral(value, _) => value == BigInt(0)
-          case SIntLiteral(value, _) => value == BigInt(0)
+          case lit: Literal => (lit.value == BigInt(0))
+          case _ => false
+        }
+      def isOne(e: Expression) = e match {
+          case lit: Literal => (lit.value == BigInt(1))
           case _ => false
         }
       x match {
@@ -125,6 +113,10 @@ class ConstantPropagation extends Transform {
         case DoPrim(Leq, Seq(a,b),_,_) if isZero(a) && isUInt(b) => one
         case DoPrim(Gt,  Seq(a,b),_,_) if isZero(a) && isUInt(b) => zero
         case DoPrim(Geq, Seq(a,b),_,_) if isUInt(a) && isZero(b) => one
+        case DoPrim(Eq, Seq(a,b),_,_) if isBool(a) && isOne(b) => a
+        case DoPrim(Eq, Seq(a,b),_,_) if isBool(b) && isOne(a) => b
+        case DoPrim(Neq, Seq(a,b),_,_) if isBool(a) && isZero(b) => a
+        case DoPrim(Neq, Seq(a,b),_,_) if isBool(b) && isZero(a) => b
         case ex => ex
       }
     }
@@ -137,6 +129,9 @@ class ConstantPropagation extends Transform {
             .sliding(2,1)
             .map(x => x.head == x(1))
             .reduce(_ && _)
+        def =/= (that: Range) =
+          (this.min == this.max) && (that.min == that.max) && (this.min != that.min)
+        def nonOverlapping(that: Range) = (this < that || this > that)
         def > (that: Range) = this.min > that.max
         def >= (that: Range) = this.min >= that.max
         def < (that: Range) = this.max < that.min
@@ -167,11 +162,15 @@ class ConstantPropagation extends Transform {
             case Leq if r0 <= r1 => one
             case Gt  if r0 > r1 => one
             case Geq if r0 >= r1 => one
+            case Eq if r0 === r1 => one
+            case Neq if r0 nonOverlapping r1 => one
             // Always false
             case Lt  if r0 >= r1 => zero
             case Leq if r0 > r1 => zero
             case Gt  if r0 <= r1 => zero
             case Geq if r0 < r1 => zero
+            case Eq if r0 nonOverlapping r1 => zero
+            case Neq if r0 === r1 => zero
             case _ => ex
           }
         case ex => ex
@@ -187,9 +186,7 @@ class ConstantPropagation extends Transform {
     case And => FoldAND(e)
     case Or => FoldOR(e)
     case Xor => FoldXOR(e)
-    case Eq => FoldEqual(e)
-    case Neq => FoldNotEqual(e)
-    case (Lt | Leq | Gt | Geq) => foldComparison(e)
+    case (Eq | Neq | Lt | Leq | Gt | Geq) => foldComparison(e)
     case Not => e.args.head match {
       case UIntLiteral(v, IntWidth(w)) => UIntLiteral(v ^ ((BigInt(1) << w.toInt) - 1), IntWidth(w))
       case _ => e
