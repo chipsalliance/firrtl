@@ -20,6 +20,10 @@ env:
     VERILATOR_ROOT=$INSTALL_DIR
     PATH=$PATH:$VERILATOR_ROOT/bin:$TRAVIS_BUILD_DIR/utils/bin
 
+stages:
+  - compile
+  - test
+
 jobs:
   include:
     - stage: compile
