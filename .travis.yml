@@ -22,7 +22,7 @@ env:
 
 jobs:
   include:
-    - stage: prepare cache
+    - stage: compile
       script:
         - bash .install_verilator.sh
         - verilator --version
