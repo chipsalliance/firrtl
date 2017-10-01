@@ -145,7 +145,8 @@ class ReplSeqMem extends Transform {
           else error("Input configuration file does not exist!")
         }
         val outConfigFile = new ConfWriter(outputConfig)
-        transforms(inConfigFile, outConfigFile).foldLeft(state) { (in, xform) => xform.runTransform(in) }
+        val ret = transforms(inConfigFile, outConfigFile).foldLeft(state) { (in, xform) => xform.runTransform(in) }
+        CircuitState(ret.circuit, outputForm, ret.annotations, ret.renames)
       case _ => error("Unexpected transform annotation")
     }
   }
