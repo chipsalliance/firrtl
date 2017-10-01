@@ -34,8 +34,4 @@ jobs:
         - bash .run_chisel_tests.sh
     - stage: test
       script:
-        - echo "TRAVIS_COMMIT = $TRAVIS_COMMIT"
-        - echo "TRAVIS_PULL_REQUEST = $TRAVIS_PULL_REQUEST"
-        - echo "TRAVIS_BRANCH = $TRAVIS_BRANCH"
-        - echo "TRAVIS_PULL_REQUEST_BRANCH = $TRAVIS_PULL_REQUEST_BRANCH"
-        - echo "TRAVIS_PULL_REQUEST_SHA = $TRAVIS_PULL_REQUEST_SHA"
+        - bash .run_formal_checks.sh
