@@ -5,10 +5,14 @@ package annotations
 
 import net.jcazevedo.moultingyaml._
 import firrtl.annotations.AnnotationYamlProtocol._
+import logger.LazyLogging
 
 case class AnnotationException(message: String) extends Exception(message)
 
-final case class Annotation(target: Named, transform: Class[_ <: Transform], value: String) {
+final case class Annotation(
+    target: Named,
+    transform: Class[_ <: Transform],
+    value: String) extends LazyLogging {
   val targetString: String = target.serialize
   val transformClass: String = transform.getName
 
@@ -30,6 +34,13 @@ final case class Annotation(target: Named, transform: Class[_ <: Transform], val
   def update(tosOpt: Option[Seq[Named]]): Seq[Annotation] = tosOpt match {
     case None => List(this)
     case Some(tos) =>
+      // Trace logging
+      this match {
+        case TraceAnnotation(_)  =>
+          val range = if (tos.isEmpty) "DELETED" else tos.map(_.serialize).mkString(", ")
+          logger.warn(s"${target.serialize} -> $range")
+        case _ =>
+      }
       check(target, tos, this)
       propagate(target, tos, duplicate)
   }

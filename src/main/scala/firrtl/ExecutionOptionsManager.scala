@@ -10,6 +10,7 @@ import logger.LogLevel
 import scopt.OptionParser
 
 import scala.collection.Seq
+import scala.util.{Try, Success, Failure}
 
 /**
   * Use this trait to define an options class that can add its private command line options to a externally
@@ -460,6 +461,21 @@ trait HasFirrtlOptions {
     }.text {
       "Do NOT run dead code elimination"
     }
+
+  parser.opt[String]("trace")
+    .unbounded()
+    .valueName("<circuit>.<module>.<signal>")
+    .validate { arg =>
+      TraceAnnotation.parse(arg) match {
+        case Success(_) => parser.success
+        case Failure(e) => parser.failure(e.getMessage)
+      }
+    }
+    .foreach { arg =>
+      firrtlOptions = firrtlOptions.copy(
+        annotations = firrtlOptions.annotations :+ TraceAnnotation.parse(arg).get
+      )
+    }.text("Trace a given signal")
 
   parser.note("")
 }
