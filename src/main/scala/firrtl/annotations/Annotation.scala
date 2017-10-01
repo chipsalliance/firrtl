@@ -21,9 +21,17 @@ final case class Annotation(target: Named, transform: Class[_ <: Transform], val
     s"Annotation(${target.serialize},${transform.getCanonicalName},$value)"
   }
 
-  def update(tos: Seq[Named]): Seq[Annotation] = {
-    check(target, tos, this)
-    propagate(target, tos, duplicate)
+  /** Remap annotation to new targets
+    * If None, no renaming, return this annotation
+    * If empty, annotation is deleted
+    * If nonempty, create new annotations from tos
+    */
+  // TODO Should update even be called if there is no renaming?
+  def update(tosOpt: Option[Seq[Named]]): Seq[Annotation] = tosOpt match {
+    case None => List(this)
+    case Some(tos) =>
+      check(target, tos, this)
+      propagate(target, tos, duplicate)
   }
   def propagate(from: Named, tos: Seq[Named], dup: Named=>Annotation): Seq[Annotation] = tos.map(dup(_))
   def check(from: Named, tos: Seq[Named], which: Annotation): Unit = {}

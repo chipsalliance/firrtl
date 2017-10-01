@@ -242,7 +242,7 @@ abstract class Transform extends LazyLogging {
     val renames = renameOpt.getOrElse(RenameMap()).renameMap
     for {
       anno <- newAnnotations.toSeq
-      newAnno <- anno.update(renames.getOrElse(anno.target, Seq(anno.target)))
+      newAnno <- anno.update(renames.get(anno.target))
     } yield newAnno
   }
 }
