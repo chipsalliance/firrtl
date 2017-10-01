@@ -21,17 +21,20 @@ env:
     PATH=$PATH:$VERILATOR_ROOT/bin:$TRAVIS_BUILD_DIR/utils/bin
 
 stages:
-  - compile
+  - prepare cache
   - test
 
 jobs:
   include:
-    - stage: compile
+    - stage: prepare cache
       script:
         - bash .install_verilator.sh
         - verilator --version
         - bash .install_yosys.sh
         - yosys -V
+      scala:
+        - 2.11.11
+        - 2.12.3
     - stage: test
       script:
         - sbt clean assembly publish-local
