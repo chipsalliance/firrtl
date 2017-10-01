@@ -20,14 +20,14 @@ env:
     VERILATOR_ROOT=$INSTALL_DIR
     PATH=$PATH:$VERILATOR_ROOT/bin:$TRAVIS_BUILD_DIR/utils/bin
 
-before_script:
-  - bash .install_verilator.sh
-  - verilator --version
-  - bash .install_yosys.sh
-  - yosys -V
-
 jobs:
   include:
+    - stage: prepare cache
+      script:
+        - bash .install_verilator.sh
+        - verilator --version
+        - bash .install_yosys.sh
+        - yosys -V
     - stage: test
       script:
         - sbt clean assembly publish-local
