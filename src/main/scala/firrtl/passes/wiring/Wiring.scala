@@ -37,7 +37,6 @@ class Wiring(wiSeq: Seq[WiringInfo]) extends Pass {
     * @return The modified circuit
     *
     * @throws WiringException if a sink is equidistant to two sources
-    * @note No module uniquification occurs (due to imposed restrictions)
     */
   def wire(c: Circuit, wi: WiringInfo): Circuit = {
     // Split out wiring info

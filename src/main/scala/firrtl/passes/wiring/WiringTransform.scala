@@ -11,7 +11,7 @@ import scala.collection.mutable
 import firrtl.annotations._
 import WiringUtils._
 
-/** A component, e.g. register etc. Must be declared only once under the TopAnnotation
+/** A Source Component
   */
 object SourceAnnotation {
   def apply(target: ComponentName, pin: String): Annotation = Annotation(target, classOf[WiringTransform], s"source $pin")
@@ -23,7 +23,7 @@ object SourceAnnotation {
   }
 }
 
-/** A module, e.g. ExtModule etc., that should add the input pin
+/** A Sink Module or Component
   */
 object SinkAnnotation {
   def apply(target: Named, pin: String): Annotation = Annotation(target, classOf[WiringTransform], s"sink $pin")
@@ -46,7 +46,6 @@ object SinkAnnotation {
   *   - Punches ports down from LCAs to each sink module
   *   - Wires sources up to LCA, sinks down from LCA, and across each LCA
   *
-  * @note No module uniquification occurs (due to imposed restrictions)
   * @throws WiringException if a sink is equidistant to two sources
   */
 class WiringTransform extends Transform {
@@ -67,11 +66,11 @@ class WiringTransform extends Transform {
       (sources.size, sinks.size) match {
         case (0, p) => state
         case (s, p) if (p > 0) =>
-          val wis = sources.foldLeft(Seq[WiringInfo]()) { case (seq, (pin, top)) =>
-            seq :+ WiringInfo(sources(pin), sinks(pin), pin)
+          val wis = sources.foldLeft(Seq[WiringInfo]()) { case (seq, (pin, source)) =>
+            seq :+ WiringInfo(source, sinks(pin), pin)
           }
           transforms(wis).foldLeft(state) { (in, xform) => xform.runTransform(in) }
-        case _ => error("Wrong number of sources, tops, or sinks!")
+        case _ => error("Wrong number of sources or sinks!")
       }
   }
 }
