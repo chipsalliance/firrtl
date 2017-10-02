@@ -83,6 +83,8 @@ class Wiring(wiSeq: Seq[WiringInfo]) extends Pass {
           meta(cm) = meta(cm).copy(
             addPort = Some((portNames(cm), DecInput))
           )
+        case _ =>
+          throw new WiringException("Unexpectedly short path from LCA to sink")
       }
 
       // Compute metadata for the Sink
@@ -146,10 +148,9 @@ class Wiring(wiSeq: Seq[WiringInfo]) extends Pass {
         l.addPort match {
           case None =>
           case Some((s, dt)) => dt match {
-            case DecInput => ports += Port(NoInfo, s, Input, t)
+            case DecInput  => ports += Port(NoInfo, s, Input, t)
             case DecOutput => ports += Port(NoInfo, s, Output, t)
-            case DecWire =>
-              stmts += DefWire(NoInfo, s, t)
+            case DecWire   => stmts += DefWire(NoInfo, s, t)
           }
         }
         stmts ++= (l.cons map { case ((l, r)) =>

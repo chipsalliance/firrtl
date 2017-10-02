@@ -33,7 +33,7 @@ class WiringTests extends FirrtlFlatSpec {
     InferWidths
   )
 
-  "Wiring from r to extmodule X" should "work" in {
+  "wiring from r to extmodule X" should "work" in {
     val sinks = Seq(ModuleName("X", CircuitName("Top")))
     val source = ComponentName("r", ModuleName("C", CircuitName("Top")))
     val sas = WiringInfo(source, sinks, "pin")
@@ -552,7 +552,7 @@ class WiringTests extends FirrtlFlatSpec {
     (parse(retC.serialize).serialize) should be (parse(check).serialize)
   }
 
-  "Wiring via annotations" should "work" in {
+  "Wiring via annotations (sink module)" should "work" in {
     val source = SourceAnnotation(ComponentName("r", ModuleName("Top", CircuitName("Top"))), "pin")
     val sink = SinkAnnotation(ModuleName("X", CircuitName("Top")), "pin")
     val input =

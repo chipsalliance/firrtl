@@ -51,12 +51,8 @@ object SinkAnnotation {
   */
 class WiringTransform extends Transform {
   def inputForm = MidForm
-  def outputForm = MidForm
-  def transforms(wis: Seq[WiringInfo]) =
-    Seq(new Wiring(wis),
-        InferTypes,
-        ResolveKinds,
-        ResolveGenders)
+  def outputForm = HighForm
+  def transforms(wis: Seq[WiringInfo]) = Seq(new Wiring(wis))
   def execute(state: CircuitState): CircuitState = getMyAnnotations(state) match {
     case Nil => state
     case p =>
