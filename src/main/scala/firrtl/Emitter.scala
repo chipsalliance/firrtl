@@ -292,7 +292,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
        case Div => Seq(cast_if(a0), " / ", cast_if(a1))
        case Rem => Seq(cast_if(a0), " % ", cast_if(a1))
        case Lt => Seq(cast_if(a0), " < ", cast_if(a1))
-       case Leq => Seq(cast_if(a0), " <= ", cast_if(a1))
+       case Leq => Seq(cast_if(a0), " < ", cast_if(a1))
        case Gt => Seq(cast_if(a0), " > ", cast_if(a1))
        case Geq => Seq(cast_if(a0), " >= ", cast_if(a1))
        case Eq => Seq(cast_if(a0), " == ", cast_if(a1))
