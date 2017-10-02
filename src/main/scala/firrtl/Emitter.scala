@@ -552,7 +552,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
           declare("wire",sx.name,sx.tpe)
           sx
         case sx: DefRegister =>
-          declare("reg", sx.name, sx.tpe)
+          declare("reg ", sx.name, sx.tpe)
           val e = wref(sx.name, sx.tpe)
           update_and_reset(e, sx.clock, sx.reset, sx.init)
           initialize(e)
