@@ -79,6 +79,7 @@ object CheckHighForm extends Pass {
         case Bits =>
           correctNum(Option(1), 2)
         case Andr | Orr | Xorr | Neg =>
+          // Is this wrong?!?!?!? TODO(azidar)
           correctNum(None,0)
       }
     }

@@ -97,7 +97,7 @@ class RemoveComponents extends Pass {
       val (sx, ex) = removeExpressionComponents(modNS)(value)
       val (nodeMod, nodeDec, exps) = makeModule(info, name, "WIRE", value.tpe, 1)
       newModules += nodeMod
-      Block(Seq(sx, nodeDec, Connect(info, WSubField(WRef(name, ex.tpe, InstanceKind, FEMALE), "in", UnknownType, MALE), ex)))
+      Block(Seq(sx, nodeDec, Connect(info, exps(0), ex)))
     case Connect(info, loc, expr) =>
       val (dc, locx) = removeExpressionComponents(modNS)(loc)
       val (sx, ex) = removeExpressionComponents(modNS)(expr)
@@ -140,11 +140,23 @@ class RemoveComponents extends Pass {
           Connect(NoInfo, exps(1), tVal),
           Connect(NoInfo, exps(2), fVal)))
         exps(3)
-      //case DoPrim(op, args, const, tpe) =>
-      //  val (mx, sx, ex) = makeModule(modNS)(NoInfo, op.toString, op.toString, tpe, 3)
-      //  newModules += mx
-      //  stmts += sx
-      //  ex
+      case d@DoPrim(op, args, const, tpe) => d
+      /*
+        val nInputs = op match {
+          case Add | Sub | Mul | Div | Rem | Lt | Leq | Gt | Geq |
+               Eq | Neq | Dshl | Dshr | And | Or | Xor | Cat => 2
+          case AsUInt | AsSInt | AsClock | Cvt | Neq | Not => 1
+          case AsFixedPoint | Pad | Shl | Shr | Head | Tail | BPShl | BPShr | BPSet => 2
+          case Bits => 3
+          case Andr | Orr | Xorr | Neg => 1
+        }
+        val (mx, sx, exps) = makeModule(modNS)(NoInfo, modNS.getName(op.toString), op.toString, tpe, nInputs)
+        stmts += sx
+        (args ++ (const.map(SInt(_)))).zipWithIndex.foreach { (index, input) =>
+          stmts += Connect(NoInfo, exps(index), input)
+        }
+        exps.last
+      */
       case other => other
     }
     val newExp = onExp(e)
