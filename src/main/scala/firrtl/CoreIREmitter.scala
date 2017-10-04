@@ -55,7 +55,6 @@ class RemoveComponents extends Pass {
     case m@Module(info, name, ports, body) =>
       val modNS = Namespace(m)
       val stmts = removeStatementDecs(modNS)(body)
-      //ExtModule(info, name, ports, name, Nil)
       Module(info, name, ports, Utils.squashEmpty(stmts))
   }
   private def removeStatementDecs(modNS: Namespace)(s: Statement): Statement = s match {
