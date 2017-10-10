@@ -31,7 +31,13 @@ class RemoveIntervals extends Pass {
   private def replaceModuleInterval(m: DefModule): DefModule = m map replaceStmtInterval map replacePortInterval
   private def replaceStmtInterval(s: Statement): Statement = s map replaceTypeInterval map replaceStmtInterval map replaceExprInterval
   private def replaceExprInterval(e: Expression): Expression = e map replaceExprInterval match {
-    case DoPrim(AsInterval, args, consts, tpe) => DoPrim(AsSInt, args, Seq.empty, tpe)
+    case DoPrim(AsInterval, Seq(a1), _, tpe) => 
+      a1.tpe match {
+        case UIntType(IntWidth(w)) =>
+          val padResult = DoPrim(Pad, Seq(a1), Seq(w + 1), UIntType(IntWidth(w + 1)))
+          DoPrim(AsSInt, Seq(padResult), Seq.empty, UnknownType)
+        case _ => DoPrim(AsSInt, Seq(a1), Seq.empty, UnknownType)
+      }
     case DoPrim(BPShl, args, consts, tpe) => DoPrim(Shl, args, consts, tpe)
     case DoPrim(BPShr, args, consts, tpe) => DoPrim(Shr, args, consts, tpe)
     case DoPrim(Clip, Seq(a1, a2), Nil, tpe: IntervalType) =>
