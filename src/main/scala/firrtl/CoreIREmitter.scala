@@ -115,7 +115,7 @@ class RemoveComponents extends Pass {
     case EmptyStmt => EmptyStmt
     case m: DefMemory => sys.error("DefMemory not implemented yet!")
     case r: DefRegister => r
-      val (rx, sx, ports) = makeModule(NoInfo, modNS.newName("reg"), "REG", r.tpe, 4)
+      val (rx, sx, ports) = makeModule(NoInfo, r.name, "REG", r.tpe, 4)
       val input :: clock :: reset :: initValue :: _ :: Nil = ports
       newModules += rx
       Block(Seq(sx,
