@@ -15,12 +15,12 @@ class ConstraintSolver {
   def addGeq(big: Any, small: Any): Unit = (big, small) match {
     case (IsVar(name), other: IsConstrainable) => add(GEQ(name, other))
     case (IsVar(name), other: IntWidth) => add(GEQ(name, Implicits.width2constraint(other)))
-    case (IsKnown(u), IsKnown(l)) if l > u => println(s"BAD! L: $l, U: $u")
+    case (IsKnown(u), IsKnown(l)) if l > u => println(s"addGeq BAD! L: $l, U: $u")
     case _ =>
   }
   def addLeq(small: Any, big: Any): Unit = (small, big) match {
     case (IsVar(name), other: IsConstrainable) => add(LEQ(name, other))
-    case (IsKnown(l), IsKnown(u)) if u < l => println("BAD! L: $l, U: $u")
+    case (IsKnown(l), IsKnown(u)) if u < l => println(s"addLeq BAD! L: $l, U: $u")
     case _ =>
   }
   def get(b: Any): Option[IsKnown] = {
