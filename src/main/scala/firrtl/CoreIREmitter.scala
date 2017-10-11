@@ -2,24 +2,16 @@
 
 package firrtl
 
-import com.typesafe.scalalogging.LazyLogging
-import java.nio.file.{Paths, Files}
-import java.io.{Reader, Writer}
+import java.io.Writer
 
 import scala.collection.mutable
-import scala.sys.process._
-import scala.io.Source
 
 import firrtl.ir._
 import firrtl.passes._
-import firrtl.annotations._
 import firrtl.Mappers._
-import firrtl.PrimOps._
-import firrtl.WrappedExpression._
 import Utils._
 import MemPortUtils.{memPortField, memType}
 // Datastructures
-import scala.collection.mutable.{ArrayBuffer, LinkedHashMap, HashSet}
 
 
 //noinspection ScalaStyle
@@ -114,9 +106,9 @@ class RemoveComponents extends Pass {
     case i: WDefInstance => i
     case EmptyStmt => EmptyStmt
     case m: DefMemory => sys.error("DefMemory not implemented yet!")
-    case r: DefRegister => r
+    case r: DefRegister =>
       val (rx, sx, ports) = makeModule(NoInfo, r.name, "REG", r.tpe, 4)
-      val input :: clock :: reset :: initValue :: _ :: Nil = ports
+      val input :: clock :: reset :: initValue :: tail = ports
       newModules += rx
       Block(Seq(sx,
         Connect(NoInfo, clock, r.clock),
