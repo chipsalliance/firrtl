@@ -1,25 +1,20 @@
+// See LICENSE for license details.
+
 package firrtl
 
-import com.typesafe.scalalogging.LazyLogging
-import java.nio.file.{Paths, Files}
-import java.io.{Reader, Writer}
+import java.io.Writer
 
 import scala.collection.mutable
-import scala.sys.process._
-import scala.io.Source
 
 import firrtl.ir._
 import firrtl.passes._
-import firrtl.annotations._
 import firrtl.Mappers._
-import firrtl.PrimOps._
-import firrtl.WrappedExpression._
 import Utils._
 import MemPortUtils.{memPortField, memType}
 // Datastructures
-import scala.collection.mutable.{ArrayBuffer, LinkedHashMap, HashSet}
 
 
+//noinspection ScalaStyle
 class RemoveComponents extends Pass {
 
   /* Contains the module namespace of this circuit
@@ -52,9 +47,15 @@ class RemoveComponents extends Pass {
    *
    * Looks into and updates namespace.
    */
-  def makeModule(info: Info, name: String, moduleName: String, tpe: Type, nInputs: Int): (DefModule, Statement, Seq[Expression]) = {
+  def makeModule(
+                  info: Info,
+                  name: String,
+                  moduleName: String,
+                  tpe: Type,
+                  nInputs: Int
+                ): (DefModule, Statement, Seq[Expression]) = {
     def stripType(t: Type): Type = t match {
-      case g: GroundType => UIntType(UnknownWidth)
+      case _: GroundType => UIntType(UnknownWidth)
       case other => other map stripType
     }
     val inPorts = nInputs match {
@@ -86,7 +87,7 @@ class RemoveComponents extends Pass {
    * Requires a module's internal namespace modNS, in case we need to generate a temporary node.
    * Populates newModules and namespace.
    *
-   * Note that wires and nodes are replaced with isntances, but their references are not fixed until
+   * Note that wires and nodes are replaced with instances, but their references are not fixed until
    */
   private def removeStatementDecs(modNS: Namespace)(s: Statement): Statement = s match {
     case DefWire(info, name, tpe) =>
@@ -97,7 +98,7 @@ class RemoveComponents extends Pass {
       val (sx, ex) = removeExpressionComponents(modNS)(value)
       val (nodeMod, nodeDec, exps) = makeModule(info, name, "WIRE", value.tpe, 1)
       newModules += nodeMod
-      Block(Seq(sx, nodeDec, Connect(info, exps(0), ex)))
+      Block(Seq(sx, nodeDec, Connect(info, exps.head, ex)))
     case Connect(info, loc, expr) =>
       val (dc, locx) = removeExpressionComponents(modNS)(loc)
       val (sx, ex) = removeExpressionComponents(modNS)(expr)
@@ -105,7 +106,15 @@ class RemoveComponents extends Pass {
     case i: WDefInstance => i
     case EmptyStmt => EmptyStmt
     case m: DefMemory => sys.error("DefMemory not implemented yet!")
-    case r: DefRegister => r
+    case r: DefRegister =>
+      val (rx, sx, ports) = makeModule(NoInfo, r.name, "REG", r.tpe, 4)
+      val input :: clock :: reset :: initValue :: tail = ports
+      newModules += rx
+      Block(Seq(sx,
+        Connect(NoInfo, clock, r.clock),
+        Connect(NoInfo, reset, r.reset),
+        Connect(NoInfo, initValue, r.init)
+      ))
     case i: IsInvalid => sys.error("IsInvalid not implemented yet!")
     case a: Attach => sys.error("Attach not implemented yet!")
     case a: Stop => sys.error("Stop not implemented yet!")
@@ -114,16 +123,17 @@ class RemoveComponents extends Pass {
   }
 
   /* Takes an expression and rips out components into instance declarations.
-   * Returns a reference to the output of the expreesion, as well as a sequence of statements
+   * Returns a reference to the output of the expression, as well as a sequence of statements
    *   containing all nested expression's new declarations and connections
    * Requires a module's internal namespace modNS, in case we need to generate a temporary node.
    * Populates newModules and namespace.
    */
   private def removeExpressionComponents(modNS: Namespace)(e: Expression): (Statement, Expression) = {
     val stmts = mutable.ArrayBuffer[Statement]()
+    //noinspection ScalaStyle
     /* Recursive walk on Expression
-     * Fixes references to wires and nodes to use .in and .out
-     */
+         * Fixes references to wires and nodes to use .in and .out
+         */
     def onExp(e: Expression): Expression = e map onExp match {
       case WRef(name, tpe, WireKind|RegKind, FEMALE) =>
         WSubField(WRef(name, tpe, InstanceKind, FEMALE), "in", UnknownType, MALE)
@@ -136,7 +146,7 @@ class RemoveComponents extends Pass {
         val (mx, sx, exps) = makeModule(NoInfo, modNS.newName("mux"), "MUX", tpe, 3)
         newModules += mx
         stmts += Block(Seq(sx,
-          Connect(NoInfo, exps(0), p),
+          Connect(NoInfo, exps.head, p),
           Connect(NoInfo, exps(1), tVal),
           Connect(NoInfo, exps(2), fVal)))
         exps(3)
@@ -176,10 +186,10 @@ class RemoveComponents extends Pass {
  *  is unknown or in flux.
  */
 class CoreIREmitter extends SeqTransform with Emitter {
-  def inputForm = MidForm
-  def outputForm = MidForm
+  def inputForm: CircuitForm = MidForm
+  def outputForm: CircuitForm = MidForm
 
-  def transforms = Seq(
+  def transforms: Seq[Transform] = Seq(
     // TODO(azidar): Add pass to fix modules whose names conflict with default coreir modules
     new RemoveComponents()
   )
