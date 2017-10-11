@@ -112,7 +112,7 @@ class RemoveIntervals extends Pass {
       DoPrim(o, args.map { a => fixBP(maxBP)(a) }, consts, t)
     case Mux(cond, tval, fval, t: IntervalType) =>
       val maxBP = Seq(tval, fval).map(_.tpe).collect { case IntervalType(_, _, p) => p }.reduce(_ max _)
-      Mux(cond, fixBP(maxBP)(tval), fixBP(maxBP)(tval), t)
+      Mux(cond, fixBP(maxBP)(tval), fixBP(maxBP)(fval), t)
     case other => other
   }
   private def fixBP(p: Width)(e: Expression): Expression = (p, e.tpe) match {
