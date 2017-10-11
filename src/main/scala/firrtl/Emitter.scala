@@ -197,9 +197,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
   def stringify(param: Param): String = param match {
     case IntParam(name, value) => s".$name($value)"
     case DoubleParam(name, value) => s".$name($value)"
-    case StringParam(name, value) =>
-      val strx = "\"" + VerilogStringLitHandler.escape(value) + "\""
-      s".${name}($strx)"
+    case StringParam(name, value) => s".${name}(${value.verilogEscape})"
     case RawStringParam(name, value) => s".$name($value)"
   }
   def stringify(tpe: GroundType): String = tpe match {
@@ -516,9 +514,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
       def stop(ret: Int): Seq[Any] = Seq(if (ret == 0) "$finish;" else "$fatal;")
 
       def printf(str: StringLit, args: Seq[Expression]): Seq[Any] = {
-        val q = '"'.toString
-	val strx = s"""$q${VerilogStringLitHandler escape str}$q""" +:
-                  (args flatMap (Seq("," , _)))
+        val strx = str.verilogEscape +: args.flatMap(Seq(",",_))
         Seq("$fwrite(32'h80000002,", strx, ");")
       }
 
@@ -533,11 +529,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
           (dir, tpe) match {
             case (_, AnalogType(_)) => "inout " // padded to length of output
             case (Input, _) => "input "
-            case (Output, _) =>
-              // Assign to the Port
-              val ex = WRef(name, tpe, PortKind, FEMALE)
-              assign(ex, netlist(ex))
-              "output"
+            case (Output, _) => "output"
           }
         }
         // Turn types into strings, all ports must be GroundTypes
@@ -553,13 +545,11 @@ class VerilogEmitter extends SeqTransform with Emitter {
       }
 
       def build_streams(s: Statement): Statement = s map build_streams match {
+        case sx @ Connect(info, loc @ WRef(_, _, PortKind | WireKind | InstanceKind, _), expr) =>
+          assign(loc, expr)
+          sx
         case sx: DefWire =>
           declare("wire",sx.name,sx.tpe)
-          val e = wref(sx.name,sx.tpe)
-          netlist get e match {
-            case Some(n) => assign(e,n)
-            case None =>
-          }
           sx
         case sx: DefRegister =>
           declare("reg", sx.name, sx.tpe)
@@ -567,17 +557,20 @@ class VerilogEmitter extends SeqTransform with Emitter {
           update_and_reset(e, sx.clock, sx.reset, sx.init)
           initialize(e)
           sx
-        case sx: IsInvalid =>
-          val wref = netlist(sx.expr) match { case e: WRef => e }
+        case sx @ IsInvalid(info, expr) =>
+          val wref = netlist(expr) match { case e: WRef => e }
           declare("reg", wref.name, sx.expr.tpe)
           initialize(wref)
+          kind(expr) match {
+            case PortKind | WireKind | InstanceKind => assign(expr, netlist(expr))
+            case _ =>
+          }
           sx
         case sx: DefNode =>
           declare("wire", sx.name, sx.value.tpe)
           assign(WRef(sx.name, sx.value.tpe, NodeKind, MALE), sx.value)
           sx
         case sx: Stop =>
-          val errorString = StringLit(s"${sx.ret}\n".getBytes)
           simulate(sx.clk, sx.en, stop(sx.ret), Some("STOP_COND"))
           sx
         case sx: Print =>
