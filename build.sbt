@@ -48,6 +48,8 @@ def javacOptionsVersion(scalaVersion: String): Seq[String] = {
   }
 }
 
+resolvers += "Typesafe Repo" at "http://repo.typesafe.com/typesafe/releases/"
+
 javacOptions ++= javacOptionsVersion(scalaVersion.value)
 
 libraryDependencies += "org.scala-lang" % "scala-reflect" % scalaVersion.value
@@ -63,6 +65,8 @@ libraryDependencies += "org.scalacheck" %% "scalacheck" % "1.13.4" % "test"
 libraryDependencies += "com.github.scopt" %% "scopt" % "3.6.0"
 
 libraryDependencies += "net.jcazevedo" %% "moultingyaml" % "0.4.0"
+
+libraryDependencies += "com.typesafe.play" %% "play-json" % "2.5.0"
 
 // Assembly
 
