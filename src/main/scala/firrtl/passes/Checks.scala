@@ -70,7 +70,7 @@ object CheckHighForm extends Pass {
 
       e.op match {
         case Add | Sub | Mul | Div | Rem | Lt | Leq | Gt | Geq |
-             Eq | Neq | Dshl | Dshr | And | Or | Xor | Cat =>
+             Eq | Neq | Dshl | Dshr | And | Or | Xor | Cat | Wrap | Clip =>
           correctNum(Option(2), 0)
         case AsUInt | AsSInt | AsClock | Cvt | Neq | Not =>
           correctNum(Option(1), 0)
@@ -320,7 +320,7 @@ object CheckTypes extends Pass {
       e.op match {
         case AsUInt | AsSInt | AsClock | AsFixedPoint | AsInterval =>
         case Dshl | Dshr => checkAllTypes(Seq(e.args(1)), true, false, false, false, false); checkAllTypes(Seq(e.args(0)), true, true, false, true, true)
-        case Add | Sub | Mul => checkAllTypes(e.args, true, true, false, true, true)
+        case Add | Sub | Mul | Wrap | Clip => checkAllTypes(e.args, true, true, false, true, true)
         case Lt | Leq | Gt | Geq | Eq | Neq => checkAllTypes(e.args, true, true, false, true, true)
         case Shl | Shr | Cat | Bits | Head | Tail => checkAllTypes(e.args, true, true, false, true, true)
         case Pad => checkAllTypes(e.args, true, true, false, true, false)
