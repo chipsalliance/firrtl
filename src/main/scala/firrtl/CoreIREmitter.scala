@@ -10,9 +10,8 @@ import firrtl.Utils.{create_exps, error}
 import firrtl.ir._
 import firrtl.passes._
 
-import play.api.libs.json.Json._
 import play.api.libs.json._
-import coreir.json.TypeWrites._
+import coreir.json.CoreIRWrites._
 import scala.collection.mutable
 // Datastructures
 
@@ -140,6 +139,32 @@ class RemoveComponents extends Pass {
     case b: Block => b map removeStatementDecs(modNS)
   }
 
+  def rewriteExpressions(e: Expression): Expression = {
+    val rewritten = e match {
+      case DoPrim(Tail, Seq(DoPrim(Add, Seq(in0, in1), Nil, _)), Seq(const), tpe) if const == 1 =>
+        DoPrim(Addw, Seq(in0, in1), Nil, tpe)
+      case DoPrim(Tail, Seq(DoPrim(Sub, Seq(in0, in1), Nil, _)), Seq(const), tpe) if const == 1 =>
+        DoPrim(Subw, Seq(in0, in1), Nil, tpe)
+      case DoPrim(Tail, Seq(x), Seq(const), tpe@UIntType(IntWidth(width))) =>
+        DoPrim(Bits, Seq(x), Seq(width - 1, 0), tpe)
+      case DoPrim(Head, Seq(x), Seq(const), tpe) => x.tpe match {
+        case GroundType(IntWidth(width)) => DoPrim(Bits, Seq(x), Seq(width - 1, width - 1 - const), tpe)
+        case _ => error("Shouldn't be here")
+      }
+      case other => other
+    }
+    rewritten map rewriteExpressions
+  }
+
+  def getOpName(op: PrimOp): String = op match {
+    case Addw => "add"
+    case Add => error("Unsupported?")
+    case Subw => "sub"
+    case Sub => error("Unsupported?")
+    case Bits => "slice"
+    case other => other.toString()
+  }
+
   /* Takes an expression and rips out components into instance declarations.
    * Returns a reference to the output of the expression, as well as a sequence of statements
    *   containing all nested expression's new declarations and connections
@@ -161,6 +186,8 @@ class RemoveComponents extends Pass {
         WSubIndex(in, 3, UnknownType, MALE)
       case WRef(name, tpe, WireKind|NodeKind|RegKind, MALE)   =>
         WSubField(WRef(name, tpe, InstanceKind, MALE), "out", UnknownType, FEMALE)
+      case WRef(name, tpe, PortKind, _) =>
+        WSubField(WRef("self", UnknownType, PortKind, FEMALE), name, UnknownType, MALE)
       case w: WRef => w
       case w: WSubField => w
       case w: WSubIndex => w
@@ -174,7 +201,7 @@ class RemoveComponents extends Pass {
         exps(3)
       case d@DoPrim(op, args, const, tpe) =>
         val nInputs = op match {
-          case Add | Sub | Mul | Div | Rem | Lt | Leq | Gt | Geq |
+          case Add | Addw | Sub | Subw | Mul | Div | Rem | Lt | Leq | Gt | Geq |
                Eq | Neq | Dshl | Dshr | And | Or | Xor | Cat => 2
           case AsUInt | AsSInt | AsClock | Cvt | Neq | Not => 1
           case AsFixedPoint | Pad | Shl | Shr | Head | Tail | BPShl | BPShr | BPSet => 2
@@ -182,8 +209,8 @@ class RemoveComponents extends Pass {
           case Andr | Orr | Xorr | Neg => 1
         }
         val nConsts = const.length
-        assert(nConsts == 0)
-        val (mx, sx, exps) = makeModule(NoInfo, modNS.newName(op.toString), op.toString, s"coreir.${op.toString().toLowerCase()}", tpe, nInputs)
+        //assert(nConsts == 0)
+        val (mx, sx, exps) = makeModule(NoInfo, modNS.newName(op.toString), op.toString, s"coreir.${getOpName(op)}", tpe, nInputs)
         stmts += sx
         newModules += mx
         (args ++ (const.map(SIntLiteral(_, UnknownWidth)))).zipWithIndex.foreach { case ((input, index)) =>
@@ -192,7 +219,7 @@ class RemoveComponents extends Pass {
         exps.last
       case other => other
     }
-    val newExp = onExp(e)
+    val newExp = onExp(rewriteExpressions(e))
     (Block(stmts), newExp)
   }
 }
@@ -242,9 +269,9 @@ class CoreIREmitter extends SeqTransform with Emitter {
         case (map, module) => map + (module.name -> module)
     }
     /* Per module instances */
-    val instances = mutable.HashMap[String, Set[WDefInstance]]()
+    val instances = mutable.HashMap[String, Seq[WDefInstance]]()
     /* Per module connections */
-    val connections = mutable.HashMap[String, Set[Connect]]()
+    val connections = mutable.HashMap[String, Seq[Connect]]()
 
     /* Populate instances and connections */
     circuit.modules.foreach {
@@ -254,10 +281,10 @@ class CoreIREmitter extends SeqTransform with Emitter {
           def onStmt(s: Statement): Statement = s match {
             case Block(_) => s map onStmt
             case i: WDefInstance =>
-              instances(thisModule) = instances.getOrElse(thisModule, Set.empty[WDefInstance]) + i
+              instances(thisModule) = instances.getOrElse(thisModule, Seq.empty[WDefInstance]) ++ Seq(i)
               i
             case c: Connect =>
-              connections(thisModule) = connections.getOrElse(thisModule, Set.empty[Connect]) + c
+              connections(thisModule) = connections.getOrElse(thisModule, Seq.empty[Connect]) ++ Seq(c)
               c
           }
 
@@ -268,26 +295,25 @@ class CoreIREmitter extends SeqTransform with Emitter {
     /* Emit json */
     val newModuleMap = circuit.modules.flatMap(m => convertModule(m, instances.toMap, connections.toMap, modules).map(Seq(_)).getOrElse(Nil)).toMap
     val namespace = new coreir.ir.Namespace(None, None, Some(newModuleMap), None)
-
-    val tpe = coreir.ir.Record(Map("a" -> coreir.ir.Array(16, coreir.ir.Bit()), "b" -> coreir.ir.Array(16, coreir.ir.Bit())))
-    val x = Json.toJson(tpe)
-    println(x)
-    val out: JsValue = Json.toJson(namespace)
-    writer.write(Json.prettyPrint(out))
+    val top = new coreir.ir.Top(Map(("global" -> namespace)), new coreir.ir.NamedRef("global", circuit.main))
+    val out: JsValue = Json.toJson(top)
+    val pretty = Json.prettyPrint(out)
+    println(pretty)
+    writer.write(pretty)
   }
 
   def convert(c: Connect): coreir.ir.Connection = {
-    def getSeq(s: String): Seq[String] = s.split("""\]\.""").flatMap(_.split("""\[""")).flatMap(_.split("""\."""))
+    def getSeq(s: String): Seq[String] = s.split("""\]\.""").flatMap(_.split("""\[""")).flatMap(_.split("""\.""")).flatMap(_.split("""\]"""))
     val left  = new coreir.ir.Wireable(getSeq(c.loc.serialize))
     val right = new coreir.ir.Wireable(getSeq(c.expr.serialize))
-    new coreir.ir.Connection(left, right)
+    new coreir.ir.Connection(right, left)
   }
 
   def convert(i: WDefInstance, modules: Map[String, DefModule]): (String, coreir.ir.Instance) = {
     modules(i.module) match {
       case e@ExtModule(_, name, ports, defname, params) =>
         val (genRef, genArgs) = getGens(e)
-        val optGenArgs = if(genArgs.isEmpty) None else Some(genArgs)
+        val optGenArgs = if(genArgs.values.isEmpty) None else Some(genArgs)
         (i.name, new coreir.ir.Instance(genRef, optGenArgs, None, None))
       case Module(_, name, ports, body) =>
         (i.name, new coreir.ir.Instance(None, None, Some(coreir.ir.NamedRef("global", name)), None))
@@ -295,8 +321,8 @@ class CoreIREmitter extends SeqTransform with Emitter {
   }
 
   def convertModule(m: DefModule,
-                    instances: Map[String, Set[WDefInstance]],
-                    connections: Map[String, Set[Connect]],
+                    instances: Map[String, Seq[WDefInstance]],
+                    connections: Map[String, Seq[Connect]],
                     modules: Map[String, DefModule]
                    ): Option[(String, coreir.ir.Module)] = m match {
     case e@ExtModule(_, name, ports, defname, params) =>
@@ -347,8 +373,8 @@ class CoreIREmitter extends SeqTransform with Emitter {
     sinkFlips(false)(tpe)
   }
 
-  def getGens(m: ExtModule): (Option[coreir.ir.NamedRef], Seq[coreir.ir.Arg]) = {
-    m.params.foldLeft((None: Option[coreir.ir.NamedRef], Seq.empty[coreir.ir.Arg])) {
+  def getGens(m: ExtModule): (Option[coreir.ir.NamedRef], coreir.ir.Values) = {
+    val (genref, genargmap) = m.params.foldLeft((None: Option[coreir.ir.NamedRef], Map.empty[String, coreir.ir.Value])) {
       case ((ref, args), param) => param match {
         case RawStringParam("genref", value) =>
           println(param)
@@ -357,10 +383,11 @@ class CoreIREmitter extends SeqTransform with Emitter {
           val h = splitted.head
           val l = splitted.last
           (Some(coreir.ir.NamedRef(h, l)), args)
-        case RawStringParam(argName, value) => (ref, args ++ Seq(coreir.ir.Arg(coreir.ir.ValueString(), value)))
-        case IntParam(argName, value) => (ref, args ++ Seq(coreir.ir.Arg(coreir.ir.ValueInt(), value.toString())))
+        case RawStringParam(argName, value) => (ref, args + (argName -> coreir.ir.Const(coreir.ir.ValueString(), value)))
+        case IntParam(argName, value) => (ref, args + (argName -> coreir.ir.Const(coreir.ir.ValueInt(), value.toString())))
         case _ => (ref, args)
       }
     }
+    (genref, new coreir.ir.Values(genargmap))
   }
 }

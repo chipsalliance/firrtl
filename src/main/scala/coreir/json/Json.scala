@@ -6,7 +6,15 @@ import play.api.libs.json._
 
 import scala.collection.mutable
 
-object TypeWrites {
+object CoreIRWrites {
+  implicit  val TopWrites: Writes[Top] = new Writes[Top] {
+    def writes(o: Top) = JsObject(
+      Seq(
+        ("top" -> NamedRefWrites.writes(o.top)),
+        ("namespaces" -> JsObject(o.namespaces.map(x => (x._1 -> NamespaceWrites.writes(x._2)))))
+      )
+    )
+  }
 
   implicit  val NamespaceWrites: Writes[Namespace] = new Writes[Namespace] {
     def writes(ns: Namespace) = {
@@ -71,7 +79,7 @@ object TypeWrites {
       val list = mutable.ArrayBuffer[(String, JsValue)]()
       list += ("type" -> AllTypeWrites.writes(t.tpe))
       if(t.modParams.isDefined) list += ("modparams" -> ParamsWrites.writes(t.modParams.get))
-      if(t.defaultModArgs.isDefined) list += ("defaultmodargs" -> JsArray(t.defaultModArgs.get.map(ValueWrites.writes(_))))
+      if(t.defaultModArgs.isDefined) list += ("defaultmodargs" -> ValuesWrites.writes(t.defaultModArgs.get))
       if(t.instances.isDefined) list += ("instances" -> JsObject(t.instances.get.map(x => (x._1, InstanceWrites.writes(x._2)))))
       if(t.connections.isDefined) list += ("connections" -> JsArray(t.connections.get.map(x => ConnectionWrites.writes(x))))
       JsObject(list.toSeq)
@@ -92,9 +100,9 @@ object TypeWrites {
     def writes(t: Instance) = {
       val list = mutable.ArrayBuffer[(String, JsValue)]()
       if(t.genRef.isDefined) list += ("genref" -> NamedRefWrites.writes(t.genRef.get))
-      if(t.genArgs.isDefined) list += ("genargs" -> JsArray(t.genArgs.get.map(ValueWrites.writes(_))))
+      if(t.genArgs.isDefined) list += ("genargs" -> ValuesWrites.writes(t.genArgs.get))
       if(t.modRef.isDefined) list += ("modref" -> NamedRefWrites.writes(t.modRef.get))
-      if(t.modArgs.isDefined) list += ("modargs" -> JsArray(t.modArgs.get.map(ValueWrites.writes(_))))
+      if(t.modArgs.isDefined) list += ("modargs" -> ValuesWrites.writes(t.modArgs.get))
       JsObject(list.toSeq)
     }
   }
@@ -109,7 +117,7 @@ object TypeWrites {
   }
 
   implicit  val WireableWrites: Writes[Wireable] = new Writes[Wireable] {
-    def writes(t: Wireable) = JsString(t.names.mkString(","))
+    def writes(t: Wireable) = JsString(t.names.mkString("."))
   }
 
   implicit  val ValueTypeWrites: Writes[ValueType] = new Writes[ValueType] {
@@ -148,6 +156,20 @@ object TypeWrites {
     }
   }
 
+  /*
+  implicit  val ValueWrites: Writes[Value] = new Writes[Value] {
+    def writes(o: Value) = {
+      val value = o.valueType match {
+        case t: ValueInt => JsNumber(o.value.toInt)
+        case t: ValueString => JsString(o.value)
+        case _ => error("Unsupported valuetype?")
+      }
+
+      JsArray(Seq(ValueTypeWrites.writes(o.valueType), value))
+    }
+  }
+  */
+
   implicit  val ValueWrites: Writes[Value] = new Writes[Value] {
     def writes(o: Value) =  o match {
       case t: Arg => ArgWrites.writes(t)
@@ -160,12 +182,23 @@ object TypeWrites {
   }
 
   implicit  val ConstWrites: Writes[Const] = new Writes[Const] {
-    def writes(o: Const) = JsArray(Seq(ValueTypeWrites.writes(o.valueType), JsString(o.value)))
+    def writes(o: Const) = {
+      val value = o.valueType match {
+        case t: ValueInt => JsNumber(o.value.toInt)
+        case t: ValueString => JsString(o.value)
+        case _ => error("Unsupported valuetype?")
+      }
+      JsArray(Seq(ValueTypeWrites.writes(o.valueType), value))
+    }
+  }
+
+  implicit  val ValuesWrites: Writes[Values] = new Writes[Values] {
+    def writes(o: Values) = JsObject(o.values.map(x => (x._1 -> ValueWrites.writes(x._2))))
   }
 }
 
 object CoreIRJson extends App {
-  import TypeWrites._
+  import CoreIRWrites._
   val tpe = Record(Map("a" -> Array(16, Bit()), "b" -> Array(16, Bit())))
   val x = Json.toJson(tpe)
   println(x)

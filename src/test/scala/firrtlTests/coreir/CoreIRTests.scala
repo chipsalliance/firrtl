@@ -1,13 +1,9 @@
 package firrtlTests.coreir
 
-import java.io._
-
-import org.scalatest._
-import org.scalatest.prop._
-import firrtl.{ChirrtlForm, CircuitState, CoreIRCompiler, Parser}
-import firrtl.ir.Circuit
-import firrtl.passes.{CheckGenders, CheckHighForm, CheckTypes, CheckWidths, InferTypes, InferWidths, Pass, PassExceptions, ResolveGenders, ResolveKinds, ToWorkingIR}
+import firrtl.{ChirrtlForm, CircuitState, CoreIRCompiler}
 import firrtlTests.FirrtlFlatSpec
+
+import play.api.libs.json._
 
 class CoreIRTests extends FirrtlFlatSpec {
   "Fixed types" should "infer add correctly" in {
@@ -16,7 +12,7 @@ class CoreIRTests extends FirrtlFlatSpec {
           |  module add4:
           |    input in: UInt<16>[4]
           |    output out: UInt<16>
-          |    out <= add(add(in[0], in[1]), add(in[2], in[3]))
+          |    out <= tail(add(tail(add(in[0], in[1]), 1), tail(add(in[2], in[3]), 1)), 1)
           |    """.stripMargin
     val check =
       s"""{
@@ -30,27 +26,27 @@ class CoreIRTests extends FirrtlFlatSpec {
          |            "out": ["Array",16,"Bit"]
          |          }],
          |          "instances": {
-         |            "i00": {
+         |            "addw": {
          |              "genref": "coreir.add",
          |              "genargs": {"width":["Int", 16]}
          |            },
-         |            "i01": {
+         |            "addw_0": {
          |              "genref": "coreir.add",
          |              "genargs": {"width":["Int", 16]}
          |            },
-         |            "i1": {
+         |            "addw_1": {
          |              "genref": "coreir.add",
          |              "genargs": {"width":["Int", 16]}
          |            }
          |          },
          |          "connections": [
-         |            ["self.in.0","i00.in0"],
-         |            ["self.in.1","i00.in1"],
-         |            ["self.in.2","i01.in0"],
-         |            ["self.in.3","i01.in1"],
-         |            ["i00.out","i1.in0"],
-         |            ["i01.out","i1.in1"],
-         |            ["i1.out","self.out"]
+         |            ["self.in.0","addw.in0"],
+         |            ["self.in.1","addw.in1"],
+         |            ["self.in.2","addw_0.in0"],
+         |            ["self.in.3","addw_0.in1"],
+         |            ["addw.out","addw_1.in0"],
+         |            ["addw_0.out","addw_1.in1"],
+         |            ["addw_1.out","self.out"]
          |          ]
          |        }
          |      }
@@ -64,7 +60,7 @@ class CoreIRTests extends FirrtlFlatSpec {
     val res = lowerer.compileAndEmit(CircuitState(parse(input), ChirrtlForm))
 
     val output = res.getEmittedCircuit.value
-    output should be (check)
+    Json.parse(output) should be (Json.parse(check))
   }
 
 }

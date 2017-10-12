@@ -1,5 +1,7 @@
 package coreir.ir
 
+case class Top(namespaces: Map[String, Namespace], top: NamedRef)
+
 /* Namespace={
  * "namedtypes"? : {<name>: NamedType, ...}
  * "namedtypegens"? : {<name>: NamedTypeGen, ...}
@@ -46,7 +48,7 @@ case class NamedTypeGen(flippedName: Option[String], genparams: Parameters)
  */
 case class Module(tpe: Type,
                   modParams: Option[Parameters],
-                  defaultModArgs: Option[Seq[Value]],
+                  defaultModArgs: Option[Values],
                   instances: Option[Map[String, Instance]],
                   connections: Option[Seq[Connection]])
 
@@ -69,9 +71,9 @@ case class Generator(typegen: NamedRef,
  * }
  */
 case class Instance(genRef: Option[NamedRef],
-                    genArgs: Option[Seq[Value]],
+                    genArgs: Option[Values],
                     modRef: Option[NamedRef],
-                    modArgs: Option[Seq[Value]])
+                    modArgs: Option[Values])
 
 /*
 Connection = [Wireable, Wireable]
@@ -112,9 +114,13 @@ case class Parameters(params: Map[String, ValueType])
  *
  * Const = [ValueType, <Val>]
  */
+
 class Value()
 case class Arg(valueType: ValueType, field: String) extends Value
 case class Const(valueType: ValueType, value: String) extends Value
+/*
+case class Value(valueType: ValueType, value: String)
+*/
 
 /* Values = {<field>:Value,...} */
 case class Values(values: Map[String, Value])
