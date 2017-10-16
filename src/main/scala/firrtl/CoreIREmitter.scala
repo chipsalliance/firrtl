@@ -116,6 +116,17 @@ class RemoveComponents extends Pass {
           Port(info, "in0", Input, tpe),
           Port(info, "in1", Input, tpe)
         )
+      case 2 if (moduleName == "REG") =>
+        Seq(
+          Port(info, "in", Input, tpe),
+          Port(info, "clk", Input, ClockType)
+        )
+      case 3 if (moduleName == "REG") =>
+        Seq(
+          Port(info, "in", Input, tpe),
+          Port(info, "clk", Input, ClockType),
+          Port(info, "clear", Input, UIntType(IntWidth(1)))
+        )
       case x if x > 1 => Range(0, x).map(n => Port(info, s"in$n", Input, tpe))
     }
     val outPorts = Seq(Port(info, "out", Output, tpe))
@@ -130,6 +141,7 @@ class RemoveComponents extends Pass {
       value match {
         case v: String => RawStringParam(name, v)
         case i: Int => IntParam(name, i)
+        case i: Boolean => BooleanParam(name, i)
         case (size: Int, num: Int) => BitVectorParam(name, size, num)
       }
     }.toSeq
@@ -186,17 +198,43 @@ class RemoveComponents extends Pass {
     case EmptyStmt => EmptyStmt
     case m: DefMemory => sys.error("DefMemory not implemented yet!")
     case r: DefRegister =>
-      val (rx, sx, ports) =
-        makeModule(NoInfo, r.name, "REG", r.tpe, 4,
-          Map("width" -> bitWidth(r.tpe).toInt, "genref" -> "mantle.reg")
+      val nInputs = r.reset match {
+        case x: Literal => 2
+        case _ => 3
+      }
+      val (initValue, hasReset) = r.init match {
+        case x: Literal => (x.value.toInt, true)
+        case other if nInputs == 2 => (0, false)
+        case other => error(s"Non-literal reg init is not supported: $other")
+      }
+      val (rx, sx, exps) =
+        makeModule(NoInfo, r.name, "REG", r.tpe, nInputs,
+          Map(
+            "width" -> bitWidth(r.tpe).toInt,
+            "genref" -> "mantle.reg",
+            "has_clr" -> hasReset,
+            "has_en" -> false,
+            "has_rst" -> false,
+            "width" -> bitWidth(r.tpe).toInt,
+            "modArg init" -> (bitWidth(r.tpe).toInt, initValue)
+          )
         )
-      val input :: clock :: reset :: initValue :: tail = ports
       newModules += rx
-      Block(Seq(sx,
-        Connect(NoInfo, clock, r.clock),
-        Connect(NoInfo, reset, r.reset),
-        Connect(NoInfo, initValue, r.init)
-      ))
+      val (clkstmts, clkexp) = removeExpressionComponents(modNS)(r.clock)
+      if (nInputs == 3) {
+        val in :: clock :: reset :: out :: Nil = exps
+        val (resetstmts, resetexp) = removeExpressionComponents(modNS)(r.reset)
+        Block(Seq(sx, clkstmts, resetstmts,
+          Connect(NoInfo, clock, clkexp),
+          Connect(NoInfo, reset, resetexp)
+        ))
+      } else {
+        val in :: clock :: out :: Nil = exps
+        val (clkstmts, clkexp) = removeExpressionComponents(modNS)(r.clock)
+        Block(Seq(sx, clkstmts,
+          Connect(NoInfo, clock, clkexp)
+        ))
+      }
     case i: IsInvalid => sys.error("IsInvalid not implemented yet!")
     case a: Attach => sys.error("Attach not implemented yet!")
     case a: Stop => sys.error("Stop not implemented yet!")
@@ -222,8 +260,7 @@ class RemoveComponents extends Pass {
         WSubField(WRef(name, tpe, InstanceKind, FEMALE), "in", UnknownType, MALE)
       case WRef(name, tpe, RegKind, FEMALE) =>
         val regRef = WRef(name, tpe, InstanceKind, FEMALE)
-        val in = WSubField(regRef, "in", UnknownType, MALE)
-        WSubIndex(in, 3, UnknownType, MALE)
+        WSubField(regRef, "in", UnknownType, MALE)
       case WRef(name, tpe, WireKind|NodeKind|RegKind, MALE)   =>
         WSubField(WRef(name, tpe, InstanceKind, MALE), "out", UnknownType, FEMALE)
       case WRef(name, tpe, PortKind, _) =>
@@ -263,6 +300,7 @@ class RemoveComponents extends Pass {
               case Addw => "add"
               case Subw => "sub"
               case Bits => "slice"
+              case And | Or | Xor | Not => op.toString()
               case other => error(s"Unsupported op: $op")
             }
             Map("width" -> bitWidth(tpe).toInt, "genref" -> s"coreir.$opName")
@@ -409,8 +447,8 @@ class CoreIREmitter extends SeqTransform with Emitter {
                    ): Option[(String, coreir.ir.Module)] = m match {
     case e@ExtModule(_, name, ports, defname, params) =>
       val (genRef, genArgs, modArgs) = getGens(e)
-      if(genRef.isDefined && genRef.get.namespaceName != "coreir") {
-        error(s"Don't support blackboxes yet: $name")
+      if(genRef.isDefined && (genRef.get.namespaceName != "coreir" && genRef.get.namespaceName != "mantle")) {
+        error(s"Don't support blackboxes yet: $name in ${genRef.get.namespaceName}")
       }
       None
     case m@Module(_, name, ports, body) =>
@@ -420,8 +458,8 @@ class CoreIREmitter extends SeqTransform with Emitter {
   }
 
   def getBits(in: Boolean)(t: GroundType): coreir.ir.Type = t match {
-    case ClockType if in => coreir.ir.BitIn()
-    case ClockType if !in => coreir.ir.Bit()
+    case ClockType if in => coreir.ir.Named(coreir.ir.NamedRef("coreir", "clkIn"), None)
+    case ClockType if !in => coreir.ir.Named(coreir.ir.NamedRef("coreir", "clk"), None)
     case AnalogType(_) => error("Analog types not supported")
     case GroundType(IntWidth(w)) if in => coreir.ir.Array(w.toInt, coreir.ir.BitIn())
     case GroundType(IntWidth(w)) if !in => coreir.ir.Array(w.toInt, coreir.ir.Bit())
@@ -461,6 +499,8 @@ class CoreIREmitter extends SeqTransform with Emitter {
         coreir.ir.Const(coreir.ir.ValueString(), value)
       case IntParam(argName, value) =>
         coreir.ir.Const(coreir.ir.ValueInt(), value.toString())
+      case BooleanParam(argName, value) =>
+        coreir.ir.Const(coreir.ir.ValueBool(), value.toString())
       case BitVectorParam(argName, size, value) =>
         coreir.ir.Const(coreir.ir.ValueBitVector(size), value.toString())
     }

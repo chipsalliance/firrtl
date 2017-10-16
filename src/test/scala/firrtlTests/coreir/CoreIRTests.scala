@@ -280,4 +280,226 @@ class CoreIRTests extends FirrtlFlatSpec {
     val output = res.getEmittedCircuit.value
     Json.parse(output) should be (Json.parse(check))
   }
+
+  "And, or, xor, not" should "emit CoreIR correctly" in {
+    val input =
+      s"""circuit addconst:
+         |  module addconst:
+         |    input a: UInt<16>
+         |    input b: UInt<16>
+         |    input c: UInt<16>
+         |    output out: UInt<16>
+         |    out <= not(xor(and(a, b), or(b, c)))
+         |    """.stripMargin
+    val check =
+      s"""{
+         |  "top": "global.addconst",
+         |  "namespaces": {
+         |    "global": {
+         |      "modules": {
+         |        "addconst": {
+         |          "type": ["Record",{
+         |            "a": ["Array",16,"BitIn"],
+         |            "b": ["Array",16,"BitIn"],
+         |            "c": ["Array",16,"BitIn"],
+         |            "out": ["Array",16,"Bit"]
+         |          }],
+         |          "instances": {
+         |            "and": {
+         |              "genref": "coreir.and",
+         |              "genargs": {"width":["Int", 16]}
+         |            },
+         |            "or": {
+         |              "genref": "coreir.or",
+         |              "genargs": {"width":["Int", 16]}
+         |            },
+         |            "xor": {
+         |              "genref": "coreir.xor",
+         |              "genargs": {"width":["Int", 16]}
+         |            },
+         |            "not": {
+         |              "genref": "coreir.not",
+         |              "genargs": {"width":["Int", 16]}
+         |            }
+         |          },
+         |          "connections": [
+         |            ["self.a","and.in0"],
+         |            ["self.b","and.in1"],
+         |            ["self.b","or.in0"],
+         |            ["self.c","or.in1"],
+         |            ["and.out","xor.in0"],
+         |            ["or.out","xor.in1"],
+         |            ["xor.out","not.in"],
+         |            ["not.out","self.out"]
+         |          ]
+         |        }
+         |      }
+         |    }
+         |  }
+         |}
+       """.stripMargin
+
+    val lowerer = new CoreIRCompiler()
+    val res = lowerer.compileAndEmit(CircuitState(parse(input), ChirrtlForm))
+    val output = res.getEmittedCircuit.value
+    Json.parse(output) should be (Json.parse(check))
+  }
+
+  "Register" should "emit CoreIR correctly" in {
+    val input =
+      s"""circuit addconst:
+         |  module addconst:
+         |    input in: UInt<16>
+         |    input clk: Clock
+         |    output out: UInt<16>
+         |    reg r: UInt<16>, clk
+         |    r <= in
+         |    out <= r
+         |    """.stripMargin
+    val check =
+      s"""{
+         |  "top": "global.addconst",
+         |  "namespaces": {
+         |    "global": {
+         |      "modules": {
+         |        "addconst": {
+         |          "type": ["Record",{
+         |            "in": ["Array",16,"BitIn"],
+         |            "clk": ["Named","coreir.clkIn"],
+         |            "out": ["Array",16,"Bit"]
+         |          }],
+         |          "instances": {
+         |            "r": {
+         |              "genref": "mantle.reg",
+         |              "genargs":{"has_en":["Bool",false], "has_rst":["Bool",false], "width":["Int",16], "has_clr":["Bool",false]},
+         |              "modargs":{"init":[["BitVector",16],0]}
+         |            }
+         |          },
+         |          "connections": [
+         |            ["self.clk","r.clk"],
+         |            ["r.out","self.out"],
+         |            ["self.in","r.in"]
+         |          ]
+         |        }
+         |      }
+         |    }
+         |  }
+         |}
+       """.stripMargin
+
+    val lowerer = new CoreIRCompiler()
+    val res = lowerer.compileAndEmit(CircuitState(parse(input), ChirrtlForm))
+    val output = res.getEmittedCircuit.value
+    Json.parse(output) should be (Json.parse(check))
+  }
+
+  "Register with reset" should "emit CoreIR correctly" in {
+    val input =
+      s"""circuit addconst:
+         |  module addconst:
+         |    input in: UInt<16>
+         |    input clk: Clock
+         |    input reset: UInt<1>
+         |    output out: UInt<16>
+         |    reg r: UInt<16>, clk with: (reset => (reset, UInt<16>(0)))
+         |    r <= in
+         |    out <= r
+         |    """.stripMargin
+    val check =
+      s"""{
+         |  "top": "global.addconst",
+         |  "namespaces": {
+         |    "global": {
+         |      "modules": {
+         |        "addconst": {
+         |          "type": ["Record",{
+         |            "in": ["Array",16,"BitIn"],
+         |            "clk": ["Named","coreir.clkIn"],
+         |            "reset": ["Array",1,"BitIn"],
+         |            "out": ["Array",16,"Bit"]
+         |          }],
+         |          "instances": {
+         |            "r": {
+         |              "genref": "mantle.reg",
+         |              "genargs":{"has_en":["Bool",false], "has_rst":["Bool",false], "width":["Int",16], "has_clr":["Bool",true]},
+         |              "modargs":{"init":[["BitVector",16],0]}
+         |            }
+         |          },
+         |          "connections": [
+         |            ["self.clk","r.clk"],
+         |            ["self.reset","r.clear"],
+         |            ["r.out","self.out"],
+         |            ["self.in","r.in"]
+         |          ]
+         |        }
+         |      }
+         |    }
+         |  }
+         |}
+       """.stripMargin
+
+    val lowerer = new CoreIRCompiler()
+    val res = lowerer.compileAndEmit(CircuitState(parse(input), ChirrtlForm))
+    val output = res.getEmittedCircuit.value
+    Json.parse(output) should be (Json.parse(check))
+  }
+
+  "Unsigned comparison operators" should "emit CoreIR correctly" in {
+    val input =
+      s"""circuit addconst:
+         |  module addconst:
+         |    input a: UInt<16>
+         |    input b: UInt<16>
+         |    output out0: UInt<16>
+         |    output out1: UInt<16>
+         |    output out2: UInt<16>
+         |    output out3: UInt<16>
+         |    output out4: UInt<16>
+         |    out0 <= eq(a, b)
+         |    out0 <= lt(a, b)
+         |    out0 <= lte(a, b)
+         |    out0 <= gt(a, b)
+         |    out0 <= gte(a, b)
+         |    """.stripMargin
+    val check =
+      s"""{
+         |  "top": "global.addconst",
+         |  "namespaces": {
+         |    "global": {
+         |      "modules": {
+         |        "addconst": {
+         |          "type": ["Record",{
+         |            "a": ["Array",16,"BitIn"],
+         |            "b": ["Array",16,"BitIn"],
+         |            "out0": ["Array",16,"Bit"],
+         |            "out1": ["Array",16,"Bit"],
+         |            "out2": ["Array",16,"Bit"],
+         |            "out3": ["Array",16,"Bit"],
+         |            "out4": ["Array",16,"Bit"]
+         |          }],
+         |          "instances": {
+         |            "r": {
+         |              "genref": "mantle.reg",
+         |              "genargs":{"has_en":["Bool",false], "has_rst":["Bool",false], "width":["Int",16], "has_clr":["Bool",true]},
+         |              "modargs":{"init":[["BitVector",16],0]}
+         |            }
+         |          },
+         |          "connections": [
+         |            ["self.clk","r.clk"],
+         |            ["self.reset","r.clear"],
+         |            ["r.out","self.out"],
+         |            ["self.in","r.in"]
+         |          ]
+         |        }
+         |      }
+         |    }
+         |  }
+         |}
+       """.stripMargin
+
+    val lowerer = new CoreIRCompiler()
+    val res = lowerer.compileAndEmit(CircuitState(parse(input), ChirrtlForm))
+    val output = res.getEmittedCircuit.value
+    Json.parse(output) should be (Json.parse(check))
+  }
 }

@@ -33,6 +33,7 @@ object CoreIRWrites {
       case t: BitIn => BitInWrites.writes(t)
       case t: Array => ArrayWrites.writes(t)
       case t: Record => RecordWrites.writes(t)
+      case t: Named => NamedWrites.writes(t)
       //case _ => throw new RuntimeException("Unsupported Type.")
     }
   }
@@ -53,6 +54,17 @@ object CoreIRWrites {
     def writes(t: Record) = {
       val JsFields = t.fields.map { x => (x._1, AllTypeWrites.writes(x._2)) }.toSeq
       Json.arr(JsString("Record"), JsObject(JsFields) )
+    }
+  }
+
+  implicit  val NamedWrites:Writes[Named] = new Writes[Named] {
+    def writes(t: Named) = {
+       // ["Named",NamedRef, Args?]
+      val list = mutable.ArrayBuffer[JsValue]()
+      list += JsString("Named")
+      list += NamedRefWrites.writes(t.named)
+      if(t.args.isDefined) list ++= t.args.get.map(ArgWrites.writes)
+      JsArray(list)
     }
   }
 
@@ -125,6 +137,7 @@ object CoreIRWrites {
       case t: ValueInt => ValueIntWrites.writes(t)
       case t: ValueBitVector => ValueBitVectorWrites.writes(t)
       case t: ValueString => ValueStringWrites.writes(t)
+      case t: ValueBool => ValueBoolWrites.writes(t)
       case t: CoreIRType => CoreIRTypeWrites.writes(t)
       //case _ => throw new RuntimeException("Unsupported Type.")
     }
@@ -186,8 +199,8 @@ object CoreIRWrites {
       val value = o.valueType match {
         case t: ValueInt => JsNumber(o.value.toInt)
         case t: ValueString => JsString(o.value)
-        case t: ValueString => JsString(o.value)
         case t: ValueBitVector => JsNumber(o.value.toInt)
+        case t: ValueBool => JsBoolean(o.value.toBoolean)
         case _ => error(s"Unsupported ${o.valueType}")
       }
       JsArray(Seq(ValueTypeWrites.writes(o.valueType), value))

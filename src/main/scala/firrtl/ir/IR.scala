@@ -491,11 +491,18 @@ case class RawStringParam(name: String, value: String) extends Param {
   override def serialize: String = super.serialize + s"'$value'"
 }
 
-/** Array Parameter
+/** BitVector Parameter
   * Not legal for Verilog, necessary for CoreIR
   */
 case class BitVectorParam(name: String, size: Int, value: Int) extends Param {
   override def serialize: String = super.serialize + s"[$size, $value]"
+}
+
+/** Boolean Parameter
+  * Not legal for Verilog, necessary for CoreIR
+  */
+case class BooleanParam(name: String, value: Boolean) extends Param {
+  override def serialize: String = super.serialize + value
 }
 
 /** Base class for modules */
