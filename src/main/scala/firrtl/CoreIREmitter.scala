@@ -16,6 +16,55 @@ import scala.collection.mutable
 // Datastructures
 
 
+class RewriteComponents extends Pass {
+  override val inputForm = MidForm
+  override val outputForm = MidForm
+
+  def run(c: Circuit): Circuit = {
+    c map rewriteModule
+  }
+
+  /* Rewrite expressions to use CoreIR primops */
+  def rewriteModule(m: DefModule): DefModule = m map rewriteStmt
+  def rewriteStmt(s: Statement): Statement = s map rewriteStmt map rewriteExpressions
+  def rewriteExpressions(e: Expression): Expression = {
+    val rewritten = e match {
+      case DoPrim(Tail, Seq(x), Seq(const), tpe@UIntType(IntWidth(width))) =>
+        DoPrim(Bits, Seq(x), Seq(width - 1, 0), tpe)
+      case DoPrim(Head, Seq(x), Seq(const), tpe) => x.tpe match {
+        case GroundType(IntWidth(width)) => DoPrim(Bits, Seq(x), Seq(width - 1, width - 1 - const), tpe)
+        case _ => error("Shouldn't be here")
+      }
+      case DoPrim(Pad, Seq(x), Seq(const), tpe: UIntType) =>
+        val xWidth = bitWidth(x.tpe)
+        if(const > xWidth) {
+          DoPrim(Cat, Seq(UIntLiteral(0, IntWidth(const - xWidth)), x), Nil, tpe)
+        } else if(const > xWidth) {
+          DoPrim(Bits, Seq(x), Seq(const - 1, 0), tpe)
+        } else {
+          x
+        }
+      case DoPrim(Pad, Seq(x), Seq(const), tpe: SIntType) =>
+        val xWidth = bitWidth(x.tpe)
+        val newExp = if(const > xWidth) {
+          DoPrim(Cat, Seq(UIntLiteral(0, IntWidth(const - xWidth)), x), Nil, tpe)
+          val msb = DoPrim(Bits, Seq(x), Seq(xWidth, xWidth), UnknownType)
+          Range(0, (const - xWidth).toInt).foldLeft(x) { case (exp, _) =>
+            DoPrim(Cat, Seq(msb, exp), Nil, UnknownType)
+          }
+        } else if(const > xWidth) {
+          DoPrim(Bits, Seq(x), Seq(const - 1, 0), tpe)
+        } else {
+          x
+        }
+        DoPrim(AsSInt, Seq(newExp), Nil, UnknownType)
+      case other => other
+    }
+    rewritten map rewriteExpressions
+  }
+
+}
+
 //noinspection ScalaStyle
 class RemoveComponents extends Pass {
   override val inputForm = MidForm
@@ -54,16 +103,10 @@ class RemoveComponents extends Pass {
                   info: Info,
                   name: String,
                   moduleName: String,
-                  ref: String,
                   tpe: Type,
-                  nInputs: Int
+                  nInputs: Int,
+                  args: Map[String, Any]
                 ): (DefModule, Statement, Seq[Expression]) = {
-    /*
-    def stripType(t: Type): Type = t match {
-      case _: GroundType => UIntType(UnknownWidth)
-      case other => other map stripType
-    }
-    */
     val inPorts = nInputs match {
       case 0 => Nil
       case 1 => Seq(Port(info, "in", Input, tpe))
@@ -83,7 +126,19 @@ class RemoveComponents extends Pass {
       case GroundType(_) => error("Don't support non-inferred types")
       case _ => error("Don't support bundled types")
     }
-    val mod = ExtModule(info, thisModName, inPorts ++ outPorts, moduleName, Seq(IntParam("width", width), RawStringParam("genref", ref)))
+    val allArgs = args.map { case (name, value) =>
+      value match {
+        case v: String => RawStringParam(name, v)
+        case i: Int => IntParam(name, i)
+        case (size: Int, num: Int) => BitVectorParam(name, size, num)
+      }
+    }.toSeq
+    val mod = ExtModule(info,
+      thisModName,
+      inPorts ++ outPorts,
+      moduleName,
+      allArgs
+    )
     val inst = WDefInstance(info, instName, thisModName, tpe)
     val exps = create_exps(WRef(instName, Utils.module_type(mod), InstanceKind, MALE))
     (mod, inst, exps)
@@ -108,12 +163,19 @@ class RemoveComponents extends Pass {
    */
   private def removeStatementDecs(modNS: Namespace)(s: Statement): Statement = s match {
     case DefWire(info, name, tpe) =>
-      val (mx, sx, exps) = makeModule(info, name, "WIRE", "coreir.wire", tpe, 1)
+      val (mx, sx, exps) =
+        makeModule(info, name, "WIRE", tpe, 1,
+          Map("width" -> bitWidth(tpe).toInt, "genref" -> "coreir.wire")
+        )
       newModules += mx
       sx
     case DefNode(info, name, value) =>
       val (sx, ex) = removeExpressionComponents(modNS)(value)
-      val (nodeMod, nodeDec, exps) = makeModule(info, name, "WIRE", "coreir.wire", value.tpe, 1)
+      val (nodeMod, nodeDec, exps) =
+        makeModule(info, name, "WIRE", value.tpe, 1,
+          Map("width" -> bitWidth(value.tpe).toInt, "genref" -> "coreir.wire")
+        )
+      //Seq(IntParam("width", width), RawStringParam("genref", ref))
       newModules += nodeMod
       Block(Seq(sx, nodeDec, Connect(info, exps.head, ex)))
     case Connect(info, loc, expr) =>
@@ -124,7 +186,10 @@ class RemoveComponents extends Pass {
     case EmptyStmt => EmptyStmt
     case m: DefMemory => sys.error("DefMemory not implemented yet!")
     case r: DefRegister =>
-      val (rx, sx, ports) = makeModule(NoInfo, r.name, "REG", "mantle.reg", r.tpe, 4)
+      val (rx, sx, ports) =
+        makeModule(NoInfo, r.name, "REG", r.tpe, 4,
+          Map("width" -> bitWidth(r.tpe).toInt, "genref" -> "mantle.reg")
+        )
       val input :: clock :: reset :: initValue :: tail = ports
       newModules += rx
       Block(Seq(sx,
@@ -139,31 +204,6 @@ class RemoveComponents extends Pass {
     case b: Block => b map removeStatementDecs(modNS)
   }
 
-  def rewriteExpressions(e: Expression): Expression = {
-    val rewritten = e match {
-      case DoPrim(Tail, Seq(DoPrim(Add, Seq(in0, in1), Nil, _)), Seq(const), tpe) if const == 1 =>
-        DoPrim(Addw, Seq(in0, in1), Nil, tpe)
-      case DoPrim(Tail, Seq(DoPrim(Sub, Seq(in0, in1), Nil, _)), Seq(const), tpe) if const == 1 =>
-        DoPrim(Subw, Seq(in0, in1), Nil, tpe)
-      case DoPrim(Tail, Seq(x), Seq(const), tpe@UIntType(IntWidth(width))) =>
-        DoPrim(Bits, Seq(x), Seq(width - 1, 0), tpe)
-      case DoPrim(Head, Seq(x), Seq(const), tpe) => x.tpe match {
-        case GroundType(IntWidth(width)) => DoPrim(Bits, Seq(x), Seq(width - 1, width - 1 - const), tpe)
-        case _ => error("Shouldn't be here")
-      }
-      case other => other
-    }
-    rewritten map rewriteExpressions
-  }
-
-  def getOpName(op: PrimOp): String = op match {
-    case Addw => "add"
-    case Add => error("Unsupported?")
-    case Subw => "sub"
-    case Sub => error("Unsupported?")
-    case Bits => "slice"
-    case other => other.toString()
-  }
 
   /* Takes an expression and rips out components into instance declarations.
    * Returns a reference to the output of the expression, as well as a sequence of statements
@@ -192,7 +232,10 @@ class RemoveComponents extends Pass {
       case w: WSubField => w
       case w: WSubIndex => w
       case Mux(p, tVal, fVal, tpe) =>
-        val (mx, sx, exps) = makeModule(NoInfo, modNS.newName("mux"), "MUX", "coreir.mux", tpe, 3)
+        val (mx, sx, exps) =
+          makeModule(NoInfo, modNS.newName("mux"), "MUX", tpe, 3,
+            Map("width" -> bitWidth(tpe).toInt, "genref" -> "coreir.mux")
+          )
         newModules += mx
         stmts += Block(Seq(sx,
           Connect(NoInfo, exps.head, p),
@@ -200,27 +243,62 @@ class RemoveComponents extends Pass {
           Connect(NoInfo, exps(2), fVal)))
         exps(3)
       case d@DoPrim(op, args, const, tpe) =>
-        val nInputs = op match {
-          case Add | Addw | Sub | Subw | Mul | Div | Rem | Lt | Leq | Gt | Geq |
-               Eq | Neq | Dshl | Dshr | And | Or | Xor | Cat => 2
-          case AsUInt | AsSInt | AsClock | Cvt | Neq | Not => 1
-          case AsFixedPoint | Pad | Shl | Shr | Head | Tail | BPShl | BPShr | BPSet => 2
-          case Bits => 3
-          case Andr | Orr | Xorr | Neg => 1
-        }
+        val nInputs = args.length
         val nConsts = const.length
-        //assert(nConsts == 0)
-        val (mx, sx, exps) = makeModule(NoInfo, modNS.newName(op.toString), op.toString, s"coreir.${getOpName(op)}", tpe, nInputs)
+
+        val argMap = op match {
+          case Bits =>
+            Map("width" -> bitWidth(tpe).toInt, "genref" -> s"coreir.slice",
+              "low" -> const(1).toInt,
+              "hi" -> (const(0).toInt + 1)
+            )
+          case Cat =>
+            Map(
+              "width0" -> bitWidth(args(0).tpe).toInt,
+              "width1" -> bitWidth(args(1).tpe).toInt,
+              "genref" -> s"coreir.cat"
+            )
+          case _ =>
+            val opName = op match {
+              case Addw => "add"
+              case Subw => "sub"
+              case Bits => "slice"
+              case other => error(s"Unsupported op: $op")
+            }
+            Map("width" -> bitWidth(tpe).toInt, "genref" -> s"coreir.$opName")
+        }
+        val (mx, sx, exps) =
+          makeModule(NoInfo, modNS.newName(op.toString), op.toString, tpe, nInputs, argMap)
+
         stmts += sx
         newModules += mx
         (args ++ (const.map(SIntLiteral(_, UnknownWidth)))).zipWithIndex.foreach { case ((input, index)) =>
           stmts += Connect(NoInfo, exps(index), input)
         }
         exps.last
+      case u@UIntLiteral(value, IntWidth(width)) =>
+        val (mx, sx, exps) =
+          makeModule(NoInfo, modNS.newName(s"uint$value"), s"uint$value", u.tpe, 0,
+            Map("width" -> bitWidth(u.tpe).toInt, "genref" -> "coreir.const", "modArg value" -> (width.toInt, value.toInt))
+          )
+        stmts += sx
+        newModules += mx
+        exps.last
       case other => other
     }
     val newExp = onExp(rewriteExpressions(e))
     (Block(stmts), newExp)
+  }
+
+  def rewriteExpressions(e: Expression): Expression = {
+    val rewritten = e match {
+      case DoPrim(Bits, Seq(DoPrim(Add, Seq(in0, in1), Nil, xtpe)), Seq(hi, lo), tpe) if hi == bitWidth(xtpe) - 2 && lo == 0 =>
+        DoPrim(Addw, Seq(in0, in1), Nil, tpe)
+      case DoPrim(Bits, Seq(DoPrim(Sub, Seq(in0, in1), Nil, xtpe)), Seq(hi, lo), tpe) if hi == bitWidth(xtpe) - 2 && lo == 0 =>
+        DoPrim(Subw, Seq(in0, in1), Nil, tpe)
+      case other => other
+    }
+    rewritten map rewriteExpressions
   }
 }
 
@@ -241,6 +319,8 @@ class CoreIREmitter extends SeqTransform with Emitter {
 
   def transforms: Seq[Transform] = Seq(
     // TODO(azidar): Add pass to fix modules whose names conflict with default coreir modules
+    new RewriteComponents(),
+    InferTypes,
     new RemoveComponents()
   )
 
@@ -312,9 +392,10 @@ class CoreIREmitter extends SeqTransform with Emitter {
   def convert(i: WDefInstance, modules: Map[String, DefModule]): (String, coreir.ir.Instance) = {
     modules(i.module) match {
       case e@ExtModule(_, name, ports, defname, params) =>
-        val (genRef, genArgs) = getGens(e)
+        val (genRef, genArgs, modArgs) = getGens(e)
         val optGenArgs = if(genArgs.values.isEmpty) None else Some(genArgs)
-        (i.name, new coreir.ir.Instance(genRef, optGenArgs, None, None))
+        val optModArgs = if(modArgs.values.isEmpty) None else Some(modArgs)
+        (i.name, new coreir.ir.Instance(genRef, optGenArgs, None, optModArgs))
       case Module(_, name, ports, body) =>
         (i.name, new coreir.ir.Instance(None, None, Some(coreir.ir.NamedRef("global", name)), None))
     }
@@ -326,7 +407,7 @@ class CoreIREmitter extends SeqTransform with Emitter {
                     modules: Map[String, DefModule]
                    ): Option[(String, coreir.ir.Module)] = m match {
     case e@ExtModule(_, name, ports, defname, params) =>
-      val (genRef, genArgs) = getGens(e)
+      val (genRef, genArgs, modArgs) = getGens(e)
       if(genRef.isDefined && genRef.get.namespaceName != "coreir") {
         error(s"Don't support blackboxes yet: $name")
       }
@@ -356,7 +437,7 @@ class CoreIREmitter extends SeqTransform with Emitter {
           case (false, Flip) => true
         }
         (f.tpe) match {
-          case g: GroundType => (f.name, getBits(in)(g))
+          case g: GroundType => (f.name, getBits(newIn)(g))
           case other => (f.name, sinkFlips(newIn)(other))
         }
       }.toMap
@@ -373,21 +454,28 @@ class CoreIREmitter extends SeqTransform with Emitter {
     sinkFlips(false)(tpe)
   }
 
-  def getGens(m: ExtModule): (Option[coreir.ir.NamedRef], coreir.ir.Values) = {
-    val (genref, genargmap) = m.params.foldLeft((None: Option[coreir.ir.NamedRef], Map.empty[String, coreir.ir.Value])) {
-      case ((ref, args), param) => param match {
-        case RawStringParam("genref", value) =>
-          println(param)
-          val splitted = value.split('.')
-          println(splitted)
-          val h = splitted.head
-          val l = splitted.last
-          (Some(coreir.ir.NamedRef(h, l)), args)
-        case RawStringParam(argName, value) => (ref, args + (argName -> coreir.ir.Const(coreir.ir.ValueString(), value)))
-        case IntParam(argName, value) => (ref, args + (argName -> coreir.ir.Const(coreir.ir.ValueInt(), value.toString())))
-        case _ => (ref, args)
-      }
+  def getGens(m: ExtModule): (Option[coreir.ir.NamedRef], coreir.ir.Values, coreir.ir.Values) = {
+    def param2value(param: Param): coreir.ir.Value = param match {
+      case RawStringParam(argName, value) if argName.split(" ").head == "modArg" =>
+        coreir.ir.Const(coreir.ir.ValueString(), value)
+      case IntParam(argName, value) =>
+        coreir.ir.Const(coreir.ir.ValueInt(), value.toString())
+      case BitVectorParam(argName, size, value) =>
+        coreir.ir.Const(coreir.ir.ValueBitVector(size), value.toString())
     }
-    (genref, new coreir.ir.Values(genargmap))
+    val (genref, genargmap, modargmap) =
+      m.params.foldLeft(
+        (None: Option[coreir.ir.NamedRef], Map.empty[String, coreir.ir.Value], Map.empty[String, coreir.ir.Value])
+      ) {
+        case ((ref, gargs, margs), param) => param.name.split(" ").toSeq match {
+          case Seq("modArg", name: String) => (ref, gargs, margs + (name -> param2value(param)))
+          case Seq("genref") =>
+            val splitted = param.asInstanceOf[RawStringParam].value.split('.')
+            (Some(coreir.ir.NamedRef(splitted.head, splitted.last)), gargs, margs)
+          case Seq(name: String) =>
+            (ref, gargs + (name -> param2value(param)), margs)
+        }
+    }
+    (genref, new coreir.ir.Values(genargmap), new coreir.ir.Values(modargmap))
   }
 }

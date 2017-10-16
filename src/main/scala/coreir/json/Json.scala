@@ -186,7 +186,9 @@ object CoreIRWrites {
       val value = o.valueType match {
         case t: ValueInt => JsNumber(o.value.toInt)
         case t: ValueString => JsString(o.value)
-        case _ => error("Unsupported valuetype?")
+        case t: ValueString => JsString(o.value)
+        case t: ValueBitVector => JsNumber(o.value.toInt)
+        case _ => error(s"Unsupported ${o.valueType}")
       }
       JsArray(Seq(ValueTypeWrites.writes(o.valueType), value))
     }

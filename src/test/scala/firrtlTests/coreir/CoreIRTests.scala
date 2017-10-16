@@ -6,7 +6,7 @@ import firrtlTests.FirrtlFlatSpec
 import play.api.libs.json._
 
 class CoreIRTests extends FirrtlFlatSpec {
-  "Fixed types" should "infer add correctly" in {
+  "4-bit add" should "emit CoreIR correctly" in {
     val input =
       s"""circuit add4:
           |  module add4:
@@ -59,6 +59,116 @@ class CoreIRTests extends FirrtlFlatSpec {
 
     val res = lowerer.compileAndEmit(CircuitState(parse(input), ChirrtlForm))
 
+    val output = res.getEmittedCircuit.value
+    Json.parse(output) should be (Json.parse(check))
+  }
+
+  "Constant add" should "emit CoreIR correctly" in {
+    val input =
+      s"""circuit addconst:
+         |  module addconst:
+         |    input in: UInt<1>
+         |    output out: UInt<1>
+         |    out <= tail(add(in, UInt(1)), 1)
+         |    """.stripMargin
+    val check =
+      s"""{
+         |  "top": "global.addconst",
+         |  "namespaces": {
+         |    "global": {
+         |      "modules": {
+         |        "addconst": {
+         |          "type": ["Record",{
+         |            "in": ["Array",1,"BitIn"],
+         |            "out": ["Array",1,"Bit"]
+         |          }],
+         |          "instances": {
+         |            "uint1":{
+         |              "genref": "coreir.const",
+         |              "genargs": {"width":["Int", 1]},
+         |              "modargs": {"value":[["BitVector", 1], 1]}
+         |            },
+         |            "addw": {
+         |              "genref": "coreir.add",
+         |              "genargs": {"width":["Int", 1]}
+         |            }
+         |          },
+         |          "connections": [
+         |            ["self.in","addw.in0"],
+         |            ["uint1.out","addw.in1"],
+         |            ["addw.out","self.out"]
+         |          ]
+         |        }
+         |      }
+         |    }
+         |  }
+         |}
+       """.stripMargin
+
+    val lowerer = new CoreIRCompiler()
+    val res = lowerer.compileAndEmit(CircuitState(parse(input), ChirrtlForm))
+    val output = res.getEmittedCircuit.value
+    Json.parse(output) should be (Json.parse(check))
+  }
+
+  "Padded constant add" should "emit CoreIR correctly" in {
+    val input =
+      s"""circuit addconst:
+         |  module addconst:
+         |    input in: UInt<16>
+         |    output out: UInt<16>
+         |    out <= tail(add(in, pad(UInt(1), 16)), 1)
+         |    """.stripMargin
+    val check =
+      s"""{
+         |  "top": "global.addconst",
+         |  "namespaces": {
+         |    "global": {
+         |      "modules": {
+         |        "addconst": {
+         |          "type": ["Record",{
+         |            "in": ["Array",16,"BitIn"],
+         |            "out": ["Array",16,"Bit"]
+         |          }],
+         |          "instances": {
+         |            "uint0": {
+         |              "genref": "coreir.const",
+         |              "genargs": {"width":["Int", 15]},
+         |              "modargs": {"value":[["BitVector", 15], 0]}
+         |            },
+         |            "uint1":{
+         |              "genref": "coreir.const",
+         |              "genargs": {"width":["Int", 1]},
+         |              "modargs": {"value":[["BitVector", 1], 1]}
+         |            },
+         |            "cat": {
+         |              "genref": "coreir.cat",
+         |              "genargs": {
+         |                "width0":["Int", 15],
+         |                "width1":["Int", 1]
+         |              }
+         |            },
+         |            "addw": {
+         |              "genref": "coreir.add",
+         |              "genargs": {"width":["Int", 16]}
+         |            }
+         |          },
+         |          "connections": [
+         |            ["uint0.out","cat.in0"],
+         |            ["uint1.out","cat.in1"],
+         |            ["self.in","addw.in0"],
+         |            ["cat.out","addw.in1"],
+         |            ["addw.out","self.out"]
+         |          ]
+         |        }
+         |      }
+         |    }
+         |  }
+         |}
+       """.stripMargin
+
+    val lowerer = new CoreIRCompiler()
+    val res = lowerer.compileAndEmit(CircuitState(parse(input), ChirrtlForm))
     val output = res.getEmittedCircuit.value
     Json.parse(output) should be (Json.parse(check))
   }

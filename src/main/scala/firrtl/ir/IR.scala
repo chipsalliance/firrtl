@@ -491,6 +491,13 @@ case class RawStringParam(name: String, value: String) extends Param {
   override def serialize: String = super.serialize + s"'$value'"
 }
 
+/** Array Parameter
+  * Not legal for Verilog, necessary for CoreIR
+  */
+case class BitVectorParam(name: String, size: Int, value: Int) extends Param {
+  override def serialize: String = super.serialize + s"[$size, $value]"
+}
+
 /** Base class for modules */
 abstract class DefModule extends FirrtlNode with IsDeclaration {
   val info : Info
