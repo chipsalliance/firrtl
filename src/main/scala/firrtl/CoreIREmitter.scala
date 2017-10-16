@@ -135,7 +135,7 @@ class RemoveComponents extends Pass {
     val width = tpe match {
       case GroundType(IntWidth(n)) => n
       case GroundType(_) => error("Don't support non-inferred types")
-      case _ => error("Don't support bundled types")
+      case _ => error(s"Don't support bundled types: $tpe, $instName, $moduleName")
     }
     val allArgs = args.map { case (name, value) =>
       value match {
@@ -257,14 +257,14 @@ class RemoveComponents extends Pass {
          */
     def onExp(e: Expression): Expression = e map onExp match {
       case WRef(name, tpe, WireKind, FEMALE) =>
-        WSubField(WRef(name, tpe, InstanceKind, FEMALE), "in", UnknownType, MALE)
+        WSubField(WRef(name, tpe, InstanceKind, FEMALE), "in", tpe, MALE)
       case WRef(name, tpe, RegKind, FEMALE) =>
         val regRef = WRef(name, tpe, InstanceKind, FEMALE)
         WSubField(regRef, "in", UnknownType, MALE)
       case WRef(name, tpe, WireKind|NodeKind|RegKind, MALE)   =>
-        WSubField(WRef(name, tpe, InstanceKind, MALE), "out", UnknownType, FEMALE)
+        WSubField(WRef(name, tpe, InstanceKind, MALE), "out", tpe, FEMALE)
       case WRef(name, tpe, PortKind, _) =>
-        WSubField(WRef("self", UnknownType, PortKind, FEMALE), name, UnknownType, MALE)
+        WSubField(WRef("self", UnknownType, PortKind, FEMALE), name, tpe, MALE)
       case w: WRef => w
       case w: WSubField => w
       case w: WSubIndex => w
@@ -275,7 +275,7 @@ class RemoveComponents extends Pass {
           )
         newModules += mx
         stmts += Block(Seq(sx,
-          Connect(NoInfo, exps.head, p),
+          Connect(NoInfo, exps.head, WSubIndex(p, 0, UnknownType, MALE)),
           Connect(NoInfo, exps(1), tVal),
           Connect(NoInfo, exps(2), fVal)))
         exps(3)
@@ -285,23 +285,24 @@ class RemoveComponents extends Pass {
 
         val argMap = op match {
           case Bits =>
-            Map("width" -> bitWidth(tpe).toInt, "genref" -> s"coreir.slice",
-              "low" -> const(1).toInt,
+            Map("width" -> bitWidth(args(0).tpe).toInt, "genref" -> s"coreir.slice",
+              "lo" -> const(1).toInt,
               "hi" -> (const(0).toInt + 1)
             )
           case Cat =>
             Map(
               "width0" -> bitWidth(args(0).tpe).toInt,
               "width1" -> bitWidth(args(1).tpe).toInt,
-              "genref" -> s"coreir.cat"
+              "genref" -> s"coreir.concat"
             )
           case _ =>
-            val opName = op match {
-              case Addw => "add"
-              case Subw => "sub"
-              case Bits => "slice"
-              case And | Or | Xor | Not => op.toString()
-              case other => error(s"Unsupported op: $op")
+            val opName = (op, args(0).tpe, args(1).tpe) match {
+              case (Addw, _, _) => "add"
+              case (Subw, _, _) => "sub"
+              case (And | Or | Xor | Not, _, _) => op.toString()
+              case (Gt | Lt, _: UIntType, _: UIntType) => "u" + op.toString()
+              case (Geq | Leq, _: UIntType, _: UIntType) => "u" + op.toString().slice(0, 2)
+              case (other, _, _) => error(s"Unsupported op: $op")
             }
             Map("width" -> bitWidth(tpe).toInt, "genref" -> s"coreir.$opName")
         }
@@ -431,10 +432,10 @@ class CoreIREmitter extends SeqTransform with Emitter {
   def convert(i: WDefInstance, modules: Map[String, DefModule]): (String, coreir.ir.Instance) = {
     modules(i.module) match {
       case e@ExtModule(_, name, ports, defname, params) =>
-        val (genRef, genArgs, modArgs) = getGens(e)
+        val (genRef, genArgs, modRef, modArgs) = getGens(e)
         val optGenArgs = if(genArgs.values.isEmpty) None else Some(genArgs)
         val optModArgs = if(modArgs.values.isEmpty) None else Some(modArgs)
-        (i.name, new coreir.ir.Instance(genRef, optGenArgs, None, optModArgs))
+        (i.name, new coreir.ir.Instance(genRef, optGenArgs, modRef, optModArgs))
       case Module(_, name, ports, body) =>
         (i.name, new coreir.ir.Instance(None, None, Some(coreir.ir.NamedRef("global", name)), None))
     }
@@ -446,15 +447,19 @@ class CoreIREmitter extends SeqTransform with Emitter {
                     modules: Map[String, DefModule]
                    ): Option[(String, coreir.ir.Module)] = m match {
     case e@ExtModule(_, name, ports, defname, params) =>
-      val (genRef, genArgs, modArgs) = getGens(e)
-      if(genRef.isDefined && (genRef.get.namespaceName != "coreir" && genRef.get.namespaceName != "mantle")) {
+      val (genRef, genArgs, modRef, modArgs) = getGens(e)
+      val defaults = Seq("coreir", "corebit", "mantle")
+      if(genRef.isDefined && (!defaults.contains(genRef.get.namespaceName))) {
         error(s"Don't support blackboxes yet: $name in ${genRef.get.namespaceName}")
       }
       None
     case m@Module(_, name, ports, body) =>
-      val insts = instances(name).map(i => convert(i, modules)).toMap
+      val instsOpt = instances.get(name) match {
+        case None => None
+        case Some(_) => Some(instances(name).map(i => convert(i, modules)).toMap)
+      }
       val cons  = connections(name).map(convert(_)).toSeq
-      Some((name, new coreir.ir.Module(convertType(Utils.module_type(m)), None, None, Some(insts), Some(cons))))
+      Some((name, new coreir.ir.Module(convertType(Utils.module_type(m)), None, None, instsOpt, Some(cons))))
   }
 
   def getBits(in: Boolean)(t: GroundType): coreir.ir.Type = t match {
@@ -493,7 +498,7 @@ class CoreIREmitter extends SeqTransform with Emitter {
     sinkFlips(false)(tpe)
   }
 
-  def getGens(m: ExtModule): (Option[coreir.ir.NamedRef], coreir.ir.Values, coreir.ir.Values) = {
+  def getGens(m: ExtModule): (Option[coreir.ir.NamedRef], coreir.ir.Values, Option[coreir.ir.NamedRef], coreir.ir.Values) = {
     def param2value(param: Param): coreir.ir.Value = param match {
       case RawStringParam(argName, value) if argName.split(" ").head == "modArg" =>
         coreir.ir.Const(coreir.ir.ValueString(), value)
@@ -504,19 +509,23 @@ class CoreIREmitter extends SeqTransform with Emitter {
       case BitVectorParam(argName, size, value) =>
         coreir.ir.Const(coreir.ir.ValueBitVector(size), value.toString())
     }
-    val (genref, genargmap, modargmap) =
+    val (genref, genargmap, modref, modargmap) =
       m.params.foldLeft(
-        (None: Option[coreir.ir.NamedRef], Map.empty[String, coreir.ir.Value], Map.empty[String, coreir.ir.Value])
+        (None: Option[coreir.ir.NamedRef], Map.empty[String, coreir.ir.Value], None: Option[coreir.ir.NamedRef], Map.empty[String, coreir.ir.Value])
       ) {
-        case ((ref, gargs, margs), param) => param.name.split(" ").toSeq match {
-          case Seq("modArg", name: String) => (ref, gargs, margs + (name -> param2value(param)))
+        case ((ref, gargs, mref, margs), param) => param.name.split(" ").toSeq match {
+          case Seq("modArg", name: String) =>
+            (ref, gargs, mref, margs + (name -> param2value(param)))
           case Seq("genref") =>
             val splitted = param.asInstanceOf[RawStringParam].value.split('.')
-            (Some(coreir.ir.NamedRef(splitted.head, splitted.last)), gargs, margs)
+            (Some(coreir.ir.NamedRef(splitted.head, splitted.last)), gargs, mref, margs)
+          case Seq("modref") =>
+            val splitted = param.asInstanceOf[RawStringParam].value.split('.')
+            (ref, gargs, Some(coreir.ir.NamedRef(splitted.head, splitted.last)), margs)
           case Seq(name: String) =>
-            (ref, gargs + (name -> param2value(param)), margs)
+            (ref, gargs + (name -> param2value(param)), mref, margs)
         }
     }
-    (genref, new coreir.ir.Values(genargmap), new coreir.ir.Values(modargmap))
+    (genref, new coreir.ir.Values(genargmap), modref, new coreir.ir.Values(modargmap))
   }
 }

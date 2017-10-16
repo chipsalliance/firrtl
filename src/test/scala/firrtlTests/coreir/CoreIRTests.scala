@@ -450,11 +450,11 @@ class CoreIRTests extends FirrtlFlatSpec {
          |  module addconst:
          |    input a: UInt<16>
          |    input b: UInt<16>
-         |    output out0: UInt<16>
-         |    output out1: UInt<16>
-         |    output out2: UInt<16>
-         |    output out3: UInt<16>
-         |    output out4: UInt<16>
+         |    output out0: UInt<1>
+         |    output out1: UInt<1>
+         |    output out2: UInt<1>
+         |    output out3: UInt<1>
+         |    output out4: UInt<1>
          |    out0 <= eq(a, b)
          |    out0 <= lt(a, b)
          |    out0 <= lte(a, b)
@@ -471,24 +471,47 @@ class CoreIRTests extends FirrtlFlatSpec {
          |          "type": ["Record",{
          |            "a": ["Array",16,"BitIn"],
          |            "b": ["Array",16,"BitIn"],
-         |            "out0": ["Array",16,"Bit"],
+         |            "out1": ["Array",16,"Bit"],
          |            "out1": ["Array",16,"Bit"],
          |            "out2": ["Array",16,"Bit"],
          |            "out3": ["Array",16,"Bit"],
          |            "out4": ["Array",16,"Bit"]
          |          }],
          |          "instances": {
-         |            "r": {
-         |              "genref": "mantle.reg",
-         |              "genargs":{"has_en":["Bool",false], "has_rst":["Bool",false], "width":["Int",16], "has_clr":["Bool",true]},
-         |              "modargs":{"init":[["BitVector",16],0]}
-         |            }
+         |            "eq": {
+         |              "genref": "coreir.eq",
+         |              "genargs": {"width":["Int", 16]}
+         |            },
+         |            "lt": {
+         |              "genref": "coreir.ult",
+         |              "genargs": {"width":["Int", 16]}
+         |            },
+         |            "leq": {
+         |              "genref": "coreir.ule",
+         |              "genargs": {"width":["Int", 16]}
+         |            },
+         |            "gt": {
+         |              "genref": "coreir.ugt",
+         |              "genargs": {"width":["Int", 16]}
+         |            },
+         |            "geq": {
+         |              "genref": "coreir.uge",
+         |              "genargs": {"width":["Int", 16]}
+         |            },
          |          },
          |          "connections": [
-         |            ["self.clk","r.clk"],
-         |            ["self.reset","r.clear"],
-         |            ["r.out","self.out"],
-         |            ["self.in","r.in"]
+         |            ["self.a","eq.in0"],
+         |            ["self.b","eq.in1"],
+         |            ["eq.out", "self.out0"],
+         |            ["self.a","eq.in0"],
+         |            ["self.b","eq.in1"],
+         |            ["eq.out", "self.out0"],
+         |            ["self.a","eq.in0"],
+         |            ["self.b","eq.in1"],
+         |            ["eq.out", "self.out0"],
+         |            ["self.a","eq.in0"],
+         |            ["self.b","eq.in1"],
+         |            ["eq.out", "self.out0"],
          |          ]
          |        }
          |      }
