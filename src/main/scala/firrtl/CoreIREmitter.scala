@@ -272,7 +272,7 @@ class RemoveComponents extends Pass {
 
         stmts += sx
         newModules += mx
-        (args ++ (const.map(SIntLiteral(_, UnknownWidth)))).zipWithIndex.foreach { case ((input, index)) =>
+        args.zipWithIndex.foreach { case ((input, index)) =>
           stmts += Connect(NoInfo, exps(index), input)
         }
         exps.last
@@ -319,6 +319,7 @@ class CoreIREmitter extends SeqTransform with Emitter {
 
   def transforms: Seq[Transform] = Seq(
     // TODO(azidar): Add pass to fix modules whose names conflict with default coreir modules
+    PadWidths,
     new RewriteComponents(),
     InferTypes,
     new RemoveComponents()
