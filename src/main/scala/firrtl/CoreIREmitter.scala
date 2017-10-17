@@ -315,8 +315,13 @@ class RemoveComponents extends Pass {
             }
             Map("width" -> bitWidth(args(0).tpe).toInt, "genref" -> s"coreir.$opName")
         }
+        val name = if(modNS.tryName(op.toString + "_0")) {
+          modNS.newName(op.toString)
+        } else {
+          modNS.newName(op.toString + "_0")
+        }
         val (mx, sx, exps) =
-          makeModule(NoInfo, modNS.newName(op.toString), op.toString, tpe, nInputs, argMap)
+          makeModule(NoInfo, name, op.toString, tpe, nInputs, argMap)
 
         stmts += sx
         newModules += mx
