@@ -271,8 +271,8 @@ class RemoveComponents extends Pass {
         newModules += mx
         stmts += Block(Seq(sx,
           Connect(NoInfo, exps.head, WSubIndex(p, 0, UnknownType, MALE)),
-          Connect(NoInfo, exps(1), tVal),
-          Connect(NoInfo, exps(2), fVal)))
+          Connect(NoInfo, exps(1), fVal),
+          Connect(NoInfo, exps(2), tVal)))
         exps(3)
       case d@DoPrim(op, args, const, tpe) =>
         val nInputs = args.length
