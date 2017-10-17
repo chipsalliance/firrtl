@@ -125,18 +125,13 @@ class RemoveComponents extends Pass {
         Seq(
           Port(info, "in", Input, tpe),
           Port(info, "clk", Input, ClockType),
-          Port(info, "clear", Input, UIntType(IntWidth(1)))
+          Port(info, "clr", Input, UIntType(IntWidth(1)))
         )
       case x if x > 1 => Range(0, x).map(n => Port(info, s"in$n", Input, tpe))
     }
     val outPorts = Seq(Port(info, "out", Output, tpe))
     val instName = name
     val thisModName = namespace.newName(moduleName)
-    val width = tpe match {
-      case GroundType(IntWidth(n)) => n
-      case GroundType(_) => error("Don't support non-inferred types")
-      case _ => error(s"Don't support bundled types: $tpe, $instName, $moduleName")
-    }
     val allArgs = args.map { case (name, value) =>
       value match {
         case v: String => RawStringParam(name, v)
@@ -296,15 +291,29 @@ class RemoveComponents extends Pass {
               "genref" -> s"coreir.concat"
             )
           case _ =>
-            val opName = (op, args(0).tpe, args(1).tpe) match {
-              case (Addw, _, _) => "add"
-              case (Subw, _, _) => "sub"
-              case (And | Or | Xor | Not, _, _) => op.toString()
-              case (Gt | Lt, _: UIntType, _: UIntType) => "u" + op.toString()
-              case (Geq | Leq, _: UIntType, _: UIntType) => "u" + op.toString().slice(0, 2)
-              case (other, _, _) => error(s"Unsupported op: $op")
+            val opName = op match {
+              case Addw => "add"
+              case Subw => "sub"
+              case And | Or | Xor | Not | Eq => op.toString()
+              case Gt | Lt =>
+                (args(0).tpe, args(1).tpe) match {
+                  case (_: UIntType, _: UIntType) => "u" + op.toString()
+                  case (_: SIntType, _: SIntType) => "s" + op.toString()
+                }
+              case Geq | Leq =>
+                (args(0).tpe, args(1).tpe) match {
+                  case (_: UIntType, _: UIntType) => "u" + op.toString().slice(0, 2)
+                  case (_: SIntType, _: SIntType) => "s" + op.toString().slice(0, 2)
+                }
+              case Dshl => "shl"
+              case Dshr => args.head.tpe match {
+                case u: UIntType => "lshr"
+                case s: SIntType => "ashr"
+                case other => error(s"Unsupported input type for Dshr: $other")
+              }
+              case other => error(s"Unsupported op: $op")
             }
-            Map("width" -> bitWidth(tpe).toInt, "genref" -> s"coreir.$opName")
+            Map("width" -> bitWidth(args(0).tpe).toInt, "genref" -> s"coreir.$opName")
         }
         val (mx, sx, exps) =
           makeModule(NoInfo, modNS.newName(op.toString), op.toString, tpe, nInputs, argMap)
@@ -335,6 +344,12 @@ class RemoveComponents extends Pass {
         DoPrim(Addw, Seq(in0, in1), Nil, tpe)
       case DoPrim(Bits, Seq(DoPrim(Sub, Seq(in0, in1), Nil, xtpe)), Seq(hi, lo), tpe) if hi == bitWidth(xtpe) - 2 && lo == 0 =>
         DoPrim(Subw, Seq(in0, in1), Nil, tpe)
+      case DoPrim(Shl, Seq(x), Seq(const), tpe) if const == 0 => x
+      case DoPrim(Shl, Seq(x), Seq(const), tpe@GroundType(IntWidth(width))) if const > 0 =>
+        val uint = UIntLiteral(0, IntWidth(const))
+        DoPrim(Dshl, Seq(DoPrim(Cat, Seq(uint, x), Nil, tpe), UIntLiteral(const, IntWidth(width))), Nil, tpe)
+      case DoPrim(Shr, Seq(x), Seq(const), tpe@GroundType(IntWidth(width))) =>
+        DoPrim(Bits, Seq(DoPrim(Dshr, Seq(x, UIntLiteral(const, IntWidth(width))), Nil, x.tpe)), Seq(width - 1, 0), tpe)
       case other => other
     }
     rewritten map rewriteExpressions
@@ -358,7 +373,8 @@ class CoreIREmitter extends SeqTransform with Emitter {
 
   def transforms: Seq[Transform] = Seq(
     // TODO(azidar): Add pass to fix modules whose names conflict with default coreir modules
-    PadWidths,
+    passes.VerilogRename,
+    NormalPadWidths,
     new RewriteComponents(),
     InferTypes,
     new RemoveComponents()
@@ -528,4 +544,60 @@ class CoreIREmitter extends SeqTransform with Emitter {
     }
     (genref, new coreir.ir.Values(genargmap), modref, new coreir.ir.Values(modargmap))
   }
+}
+
+object NormalPadWidths extends Pass {
+  private def width(t: Type): Int = bitWidth(t).toInt
+  private def width(e: Expression): Int = width(e.tpe)
+  // Returns an expression with the correct integer width
+  private def fixup(i: Int)(e: Expression) = {
+    def tx = e.tpe match {
+      case t: UIntType => UIntType(IntWidth(i))
+      case t: SIntType => SIntType(IntWidth(i))
+      // default case should never be reached
+    }
+    width(e) match {
+      case j if i > j => DoPrim(Pad, Seq(e), Seq(i), tx)
+      case j if i < j =>
+        val e2 = DoPrim(Bits, Seq(e), Seq(i - 1, 0), UIntType(IntWidth(i)))
+        // Bit Select always returns UInt, cast if selecting from SInt
+        e.tpe match {
+          case UIntType(_) => e2
+          case SIntType(_) => DoPrim(AsSInt, Seq(e2), Seq.empty, SIntType(IntWidth(i)))
+        }
+      case _ => e
+    }
+  }
+
+  // Recursive, updates expression so children exp's have correct widths
+  private def onExp(e: Expression): Expression = e map onExp match {
+    case Mux(cond, tval, fval, tpe) =>
+      Mux(cond, fixup(width(tpe))(tval), fixup(width(tpe))(fval), tpe)
+    case ex: ValidIf => ex copy (value = fixup(width(ex.tpe))(ex.value))
+    case ex: DoPrim => ex.op match {
+      case Lt | Leq | Gt | Geq | Eq | Neq | Not | And | Or | Xor |
+           Add | Sub | Mul | Div | Rem | Shr =>
+        // sensitive ops
+        ex map fixup((ex.args map width foldLeft 0)(math.max))
+      //case Dshl =>
+      //  // special case as args aren't all same width
+      //  ex copy (op = Dshlw, args = Seq(fixup(width(ex.tpe))(ex.args.head), ex.args(1)))
+      //case Shl =>
+      //  // special case as arg should be same width as result
+      //  ex copy (op = Shlw, args = Seq(fixup(width(ex.tpe))(ex.args.head)))
+      case _ => ex
+    }
+    case ex => ex
+  }
+
+  // Recursive. Fixes assignments and register initialization widths
+  private def onStmt(s: Statement): Statement = s map onExp match {
+    case sx: Connect =>
+      sx copy (expr = fixup(width(sx.loc))(sx.expr))
+    case sx: DefRegister =>
+      sx copy (init = fixup(width(sx.tpe))(sx.init))
+    case sx => sx map onStmt
+  }
+
+  def run(c: Circuit): Circuit = c copy (modules = c.modules map (_ map onStmt))
 }

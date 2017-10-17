@@ -143,5 +143,5 @@ class VerilogCompiler extends Compiler {
 /** Emits Verilog */
 class CoreIRCompiler extends Compiler {
   def emitter = new CoreIREmitter
-  def transforms: Seq[Transform] = getLoweringTransforms(ChirrtlForm, MidForm)
+  def transforms: Seq[Transform] = getLoweringTransforms(ChirrtlForm, LowForm)
 }

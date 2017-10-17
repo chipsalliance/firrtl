@@ -142,7 +142,7 @@ class CoreIRTests extends FirrtlFlatSpec {
          |              "modargs": {"value":[["BitVector", 1], 1]}
          |            },
          |            "cat": {
-         |              "genref": "coreir.cat",
+         |              "genref": "coreir.concat",
          |              "genargs": {
          |                "width0":["Int", 15],
          |                "width1":["Int", 1]
@@ -204,7 +204,7 @@ class CoreIRTests extends FirrtlFlatSpec {
          |              "modargs": {"value":[["BitVector", 1], 1]}
          |            },
          |            "cat": {
-         |              "genref": "coreir.cat",
+         |              "genref": "coreir.concat",
          |              "genargs": {
          |                "width0":["Int", 15],
          |                "width1":["Int", 1]
@@ -258,8 +258,8 @@ class CoreIRTests extends FirrtlFlatSpec {
          |            "bits": {
          |              "genref": "coreir.slice",
          |              "genargs": {
-         |                "width":["Int", 5],
-         |                "low":["Int", 9],
+         |                "width":["Int", 16],
+         |                "lo":["Int", 9],
          |                "hi":["Int", 14]
          |              }
          |            }
@@ -456,10 +456,10 @@ class CoreIRTests extends FirrtlFlatSpec {
          |    output out3: UInt<1>
          |    output out4: UInt<1>
          |    out0 <= eq(a, b)
-         |    out0 <= lt(a, b)
-         |    out0 <= lte(a, b)
-         |    out0 <= gt(a, b)
-         |    out0 <= gte(a, b)
+         |    out1 <= lt(a, b)
+         |    out2 <= leq(a, b)
+         |    out3 <= gt(a, b)
+         |    out4 <= geq(a, b)
          |    """.stripMargin
     val check =
       s"""{
@@ -469,49 +469,199 @@ class CoreIRTests extends FirrtlFlatSpec {
          |      "modules": {
          |        "addconst": {
          |          "type": ["Record",{
+         |            "out2": ["Array",1,"Bit"],
          |            "a": ["Array",16,"BitIn"],
+         |            "out3": ["Array",1,"Bit"],
+         |            "out0": ["Array",1,"Bit"],
          |            "b": ["Array",16,"BitIn"],
-         |            "out1": ["Array",16,"Bit"],
-         |            "out1": ["Array",16,"Bit"],
-         |            "out2": ["Array",16,"Bit"],
-         |            "out3": ["Array",16,"Bit"],
-         |            "out4": ["Array",16,"Bit"]
+         |            "out4": ["Array",1,"Bit"],
+         |            "out1": ["Array",1,"Bit"]
          |          }],
          |          "instances": {
-         |            "eq": {
-         |              "genref": "coreir.eq",
-         |              "genargs": {"width":["Int", 16]}
-         |            },
-         |            "lt": {
-         |              "genref": "coreir.ult",
-         |              "genargs": {"width":["Int", 16]}
-         |            },
          |            "leq": {
          |              "genref": "coreir.ule",
-         |              "genargs": {"width":["Int", 16]}
-         |            },
-         |            "gt": {
-         |              "genref": "coreir.ugt",
          |              "genargs": {"width":["Int", 16]}
          |            },
          |            "geq": {
          |              "genref": "coreir.uge",
          |              "genargs": {"width":["Int", 16]}
          |            },
+         |            "lt": {
+         |              "genref": "coreir.ult",
+         |              "genargs": {"width":["Int", 16]}
+         |            },
+         |            "gt": {
+         |              "genref": "coreir.ugt",
+         |              "genargs": {"width":["Int", 16]}
+         |            },
+         |            "eq": {
+         |              "genref": "coreir.eq",
+         |              "genargs": {"width":["Int", 16]}
+         |            }
          |          },
          |          "connections": [
          |            ["self.a","eq.in0"],
          |            ["self.b","eq.in1"],
          |            ["eq.out", "self.out0"],
+         |            ["self.a","lt.in0"],
+         |            ["self.b","lt.in1"],
+         |            ["lt.out", "self.out1"],
+         |            ["self.a","leq.in0"],
+         |            ["self.b","leq.in1"],
+         |            ["leq.out", "self.out2"],
+         |            ["self.a","gt.in0"],
+         |            ["self.b","gt.in1"],
+         |            ["gt.out", "self.out3"],
+         |            ["self.a","geq.in0"],
+         |            ["self.b","geq.in1"],
+         |            ["geq.out", "self.out4"]
+         |          ]
+         |        }
+         |      }
+         |    }
+         |  }
+         |}
+       """.stripMargin
+
+    val lowerer = new CoreIRCompiler()
+    val res = lowerer.compileAndEmit(CircuitState(parse(input), ChirrtlForm))
+    val output = res.getEmittedCircuit.value
+    Json.parse(output) should be (Json.parse(check))
+  }
+
+  "Signed comparison operators" should "emit CoreIR correctly" in {
+    val input =
+      s"""circuit addconst:
+         |  module addconst:
+         |    input a: SInt<16>
+         |    input b: SInt<16>
+         |    output out0: UInt<1>
+         |    output out1: UInt<1>
+         |    output out2: UInt<1>
+         |    output out3: UInt<1>
+         |    output out4: UInt<1>
+         |    out0 <= eq(a, b)
+         |    out1 <= lt(a, b)
+         |    out2 <= leq(a, b)
+         |    out3 <= gt(a, b)
+         |    out4 <= geq(a, b)
+         |    """.stripMargin
+    val check =
+      s"""{
+         |  "top": "global.addconst",
+         |  "namespaces": {
+         |    "global": {
+         |      "modules": {
+         |        "addconst": {
+         |          "type": ["Record",{
+         |            "out2": ["Array",1,"Bit"],
+         |            "a": ["Array",16,"BitIn"],
+         |            "out3": ["Array",1,"Bit"],
+         |            "out0": ["Array",1,"Bit"],
+         |            "b": ["Array",16,"BitIn"],
+         |            "out4": ["Array",1,"Bit"],
+         |            "out1": ["Array",1,"Bit"]
+         |          }],
+         |          "instances": {
+         |            "leq": {
+         |              "genref": "coreir.sle",
+         |              "genargs": {"width":["Int", 16]}
+         |            },
+         |            "geq": {
+         |              "genref": "coreir.sge",
+         |              "genargs": {"width":["Int", 16]}
+         |            },
+         |            "lt": {
+         |              "genref": "coreir.slt",
+         |              "genargs": {"width":["Int", 16]}
+         |            },
+         |            "gt": {
+         |              "genref": "coreir.sgt",
+         |              "genargs": {"width":["Int", 16]}
+         |            },
+         |            "eq": {
+         |              "genref": "coreir.eq",
+         |              "genargs": {"width":["Int", 16]}
+         |            }
+         |          },
+         |          "connections": [
          |            ["self.a","eq.in0"],
          |            ["self.b","eq.in1"],
          |            ["eq.out", "self.out0"],
-         |            ["self.a","eq.in0"],
-         |            ["self.b","eq.in1"],
-         |            ["eq.out", "self.out0"],
-         |            ["self.a","eq.in0"],
-         |            ["self.b","eq.in1"],
-         |            ["eq.out", "self.out0"],
+         |            ["self.a","lt.in0"],
+         |            ["self.b","lt.in1"],
+         |            ["lt.out", "self.out1"],
+         |            ["self.a","leq.in0"],
+         |            ["self.b","leq.in1"],
+         |            ["leq.out", "self.out2"],
+         |            ["self.a","gt.in0"],
+         |            ["self.b","gt.in1"],
+         |            ["gt.out", "self.out3"],
+         |            ["self.a","geq.in0"],
+         |            ["self.b","geq.in1"],
+         |            ["geq.out", "self.out4"]
+         |          ]
+         |        }
+         |      }
+         |    }
+         |  }
+         |}
+       """.stripMargin
+
+    val lowerer = new CoreIRCompiler()
+    val res = lowerer.compileAndEmit(CircuitState(parse(input), ChirrtlForm))
+    val output = res.getEmittedCircuit.value
+    Json.parse(output) should be (Json.parse(check))
+  }
+
+  "Constant left shifts" should "emit CoreIR correctly" in {
+    val input =
+      s"""circuit addconst:
+         |  module addconst:
+         |    input in: UInt<5>
+         |    output out: UInt<10>
+         |    out <= shl(in, 5)
+         |    """.stripMargin
+    val check =
+      s"""{
+         |  "top": "global.addconst",
+         |  "namespaces": {
+         |    "global": {
+         |      "modules": {
+         |        "addconst": {
+         |          "type": ["Record",{
+         |            "in": ["Array",5,"BitIn"],
+         |            "out": ["Array",10,"Bit"]
+         |          }],
+         |          "instances": {
+         |            "uint0": {
+         |              "genref": "coreir.const",
+         |              "genargs": {"width":["Int", 5]},
+         |              "modargs": {"value":[["BitVector", 5], 0]}
+         |            },
+         |            "cat": {
+         |              "genref": "coreir.concat",
+         |              "genargs": {
+         |                "width0":["Int", 5],
+         |                "width1":["Int", 5]
+         |              }
+         |            },
+         |            "uint5": {
+         |              "genref": "coreir.const",
+         |              "genargs": {"width":["Int", 10]},
+         |              "modargs": {"value":[["BitVector", 10], 5]}
+         |            },
+         |            "dshl": {
+         |              "genref": "coreir.shl",
+         |              "genargs": { "width":["Int", 10] }
+         |            }
+         |          },
+         |          "connections": [
+         |            ["uint0.out","cat.in0"],
+         |            ["self.in","cat.in1"],
+         |            ["cat.out","dshl.in0"],
+         |            ["uint5.out","dshl.in1"],
+         |            ["dshl.out","self.out"]
          |          ]
          |        }
          |      }

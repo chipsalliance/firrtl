@@ -210,7 +210,7 @@ case class FirrtlExecutionOptions(
 
   def outputSuffix: String = {
     compilerName match {
-      case "coreir"    => "coreir.fir"
+      case "coreir"    => "json"
       case "verilog"   => "v"
       case "low"       => "lo.fir"
       case "high"      => "hi.fir"
