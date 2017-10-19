@@ -264,14 +264,14 @@ object PrimOps extends LazyLogging {
         case _: UIntType => UIntType(IsAdd(w1, c1))
         case _: SIntType => SIntType(IsAdd(w1, c1))
         case _: FixedType => FixedType(IsAdd(w1,c1), p1)
-        case IntervalType(l, u, p) => IntervalType(IsMul(l, Closed(BigDecimal(c1.width))), IsMul(u, Closed(BigDecimal(c1.width))), p)
+        case IntervalType(l, u, p) => IntervalType(IsMul(l, Closed(BigDecimal(Math.pow(2, o1.toDouble)))), IsMul(u, Closed(BigDecimal(Math.pow(2, o1.toDouble)))), p)
         case _ => UnknownType
       }
       case Shr => t1 match {
         case _: UIntType => UIntType(IsMax(IsAdd(w1, IsNeg(c1)), IntWidth(1)))
         case _: SIntType => SIntType(IsMax(IsAdd(w1, IsNeg(c1)), IntWidth(1)))
         case _: FixedType => FixedType(IsMax(IsMax(IsAdd(w1, IsNeg(c1)), IntWidth(1)), p1), p1)
-        case IntervalType(l, u, p) => IntervalType(IsMul(l, Closed(BigDecimal(1/c1.width))), IsMul(u, Closed(BigDecimal(1/c1.width))), p)
+        case IntervalType(l, u, p) => IntervalType(IsMul(l, Closed(BigDecimal(Math.pow(2, -o1.toDouble)))), IsMul(u, Closed(BigDecimal(Math.pow(2, -o1.toDouble)))), p)
         case _ => UnknownType
       }
       case Dshl => t1 match {
