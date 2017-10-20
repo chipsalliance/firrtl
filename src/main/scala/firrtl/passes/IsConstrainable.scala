@@ -45,6 +45,8 @@ trait IsConstrainable {
     case (_: IsKnown, _)              => sys.error("Shouldn't be here")
     case (_: IsAdd, x)                => IsAdd(x:_*)
     case (_: IsMul, x)                => IsMul(x:_*)
+    case (_: IsFloor, x) if x.size != 1 => sys.error("Shouldn't be here")
+    case (_: IsFloor, x)                => IsFloor(x.head)
     case (_: IsNeg, x) if x.size != 1 => sys.error("Shouldn't be here")
     case (_: IsNeg, x)                => IsNeg(x.head)
     case (_: IsPow, x) if x.size != 1 => sys.error("Shouldn't be here")
@@ -106,6 +108,7 @@ trait IsKnown extends IsConstrainable {
   def min(that: IsKnown): IsKnown
   def neg: IsKnown
   def pow: IsKnown
+  def floor: IsKnown
 
   // Unnecessary members
   def map(f: IsConstrainable=>IsConstrainable): IsConstrainable = this
@@ -140,6 +143,21 @@ case class IsNeg(child: IsConstrainable) extends IsConstrainable {
   }
   def map(f: IsConstrainable=>IsConstrainable): IsConstrainable = IsNeg(f(child))
   def serialize: String = "(-" + child.serialize + ")"
+}
+case class IsFloor(child: IsConstrainable) extends IsConstrainable {
+  override def reduce(): IsConstrainable = child match {
+    case k: IsKnown => k.floor
+    case x: IsAdd => IsAdd(x.children.map { b => IsFloor(b).reduce }:_*).reduce
+    case x: IsMul => IsMul(x.children.map { b => IsFloor(b).reduce }:_*).reduce
+    case x: IsNeg => x.child
+    case x: IsPow => this
+    case x: IsMax => IsMin(x.children.map {b => IsFloor(b).reduce }:_*).reduce
+    case x: IsMin => IsMax(x.children.map {b => IsFloor(b).reduce }:_*).reduce
+    case x: IsVar => this
+    case _ => this
+  }
+  def map(f: IsConstrainable=>IsConstrainable): IsConstrainable = IsFloor(f(child))
+  def serialize: String = "floor(" + child.serialize + ")"
 }
 case class IsPow(child: IsConstrainable) extends IsConstrainable {
   override def reduce(): IsConstrainable = child match {

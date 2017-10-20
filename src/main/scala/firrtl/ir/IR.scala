@@ -428,6 +428,7 @@ case class Open(value: BigDecimal) extends IsKnown with Bound {
   def min(that: IsKnown): IsKnown = if(value < that.value) this else that
   def max(that: IsKnown): IsKnown = if(value > that.value) this else that
   def neg: IsKnown = Open(-value)
+  def floor: IsKnown = Open(value.setScale(0, BigDecimal.RoundingMode.FLOOR)) 
   def pow: IsKnown = if(value.isBinaryDouble) Open(Math.pow(2, value.toDouble)) else sys.error("Shouldn't be here")
 }
 case class Closed(value: BigDecimal) extends IsKnown with Bound {
@@ -444,6 +445,7 @@ case class Closed(value: BigDecimal) extends IsKnown with Bound {
   def min(that: IsKnown): IsKnown = if(value <= that.value) this else that
   def max(that: IsKnown): IsKnown = if(value >= that.value) this else that
   def neg: IsKnown = Closed(-value)
+  def floor: IsKnown = Closed(value.setScale(0, BigDecimal.RoundingMode.FLOOR))
   def pow: IsKnown = if(value.isBinaryDouble) Closed(Math.pow(2, value.toDouble)) else sys.error("Shouldn't be here")
 }
 
