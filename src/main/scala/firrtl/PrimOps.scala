@@ -4,7 +4,7 @@ package firrtl
 
 import firrtl.ir._
 import firrtl.Utils.{min, max, pow_minus_one}
-import passes.{IsMul, IsAdd, IsNeg, IsPow, IsMax, IsMin, IsConstrainable}
+import passes.{IsMul, IsAdd, IsNeg, IsPow, IsMax, IsMin, IsFloor, IsConstrainable}
 
 import com.typesafe.scalalogging.LazyLogging
 import Implicits.{constraint2bound, constraint2width, width2constraint}
@@ -249,6 +249,7 @@ object PrimOps extends LazyLogging {
         case _: FixedType    => IntervalType(Closed(BigDecimal(o1)/Math.pow(2, o3.toDouble).toInt), Closed(BigDecimal(o2)/Math.pow(2, o3.toDouble).toInt), IntWidth(o3))
         case ClockType       => IntervalType(Closed(BigDecimal(o1)/Math.pow(2, o3.toDouble).toInt), Closed(BigDecimal(o2)/Math.pow(2, o3.toDouble).toInt), IntWidth(o3))
         case _: AnalogType   => IntervalType(Closed(BigDecimal(o1)/Math.pow(2, o3.toDouble).toInt), Closed(BigDecimal(o2)/Math.pow(2, o3.toDouble).toInt), IntWidth(o3))
+        // Chisel shifts up and rounds first.
         case _: IntervalType => IntervalType(Closed(BigDecimal(o1)/Math.pow(2, o3.toDouble).toInt), Closed(BigDecimal(o2)/Math.pow(2, o3.toDouble).toInt), IntWidth(o3))
         case _ => UnknownType
       }
@@ -271,7 +272,15 @@ object PrimOps extends LazyLogging {
         case _: UIntType => UIntType(IsMax(IsAdd(w1, IsNeg(c1)), IntWidth(1)))
         case _: SIntType => SIntType(IsMax(IsAdd(w1, IsNeg(c1)), IntWidth(1)))
         case _: FixedType => FixedType(IsMax(IsMax(IsAdd(w1, IsNeg(c1)), IntWidth(1)), p1), p1)
-        case IntervalType(l, u, p) => IntervalType(IsMul(l, Closed(BigDecimal(Math.pow(2, -o1.toDouble)))), IsMul(u, Closed(BigDecimal(Math.pow(2, -o1.toDouble)))), p)
+        case IntervalType(l, u, p) => 
+          val shiftMul = Closed(BigDecimal(Math.pow(2, -o1.toDouble)))
+          // BP is inferred at this point
+          val bpRes = Closed(BigDecimal(Math.pow(2, -p.get.toDouble)))
+          val bpResInv = Closed(BigDecimal(Math.pow(2, p.get.toDouble)))
+          val newL = IsMul(IsFloor(IsMul(IsMul(l, shiftMul), bpResInv)), bpRes)
+          val newU = IsMul(IsFloor(IsMul(IsMul(u, shiftMul), bpResInv)), bpRes)
+          // BP doesn't grow
+          IntervalType(newL, newU, p)
         case _ => UnknownType
       }
       case Dshl => t1 match {

@@ -86,11 +86,7 @@ class RemoveIntervals extends Pass {
   }
   private def replacePortInterval(p: Port): Port = p map replaceTypeInterval
   private def replaceTypeInterval(t: Type): Type = t match {
-    // If fractional width is known ahead of time and it is larger than the # of bits needed to represent the full range, 
-    // still use the provided fractional width. Otherwise, if you're aligning the smallest negative number representable with, say, 5
-    // fractional bits to an output with 12 fractional bits -- but only the 7 LSBs are significant and therefore used, in the process of aligning, you could be
-    // eliminating the sign bit.
-    case i@IntervalType(l: IsKnown, u: IsKnown, p: IntWidth) => SIntType(if (i.width.get > (p.width)) i.width else IntWidth(p.width + 1))
+    case i@IntervalType(l: IsKnown, u: IsKnown, p: IntWidth) => SIntType(i.width)
     case i: IntervalType => sys.error(s"Shouldn't be here: $i")
     case v => v map replaceTypeInterval
   }
