@@ -41,8 +41,10 @@ class RemoveIntervals extends Pass {
     case DoPrim(BPShl, args, consts, tpe) => DoPrim(Shl, args, consts, tpe)
     case DoPrim(BPShr, args, consts, tpe) => DoPrim(Shr, args, consts, tpe)
     case DoPrim(Clip, Seq(a1, a2), Nil, tpe: IntervalType) =>
+      // Output interval (pre-calculated)
       val clipLo = tpe.minAdjusted
       val clipHi = tpe.maxAdjusted
+      // Input interval
       val (inLow, inHigh) = a1.tpe match {
         case t2: IntervalType => (t2.minAdjusted, t2.maxAdjusted)
         case _ => sys.error("Shouldn't be here")
@@ -50,6 +52,7 @@ class RemoveIntervals extends Pass {
       val gtOpt = clipHi >= inHigh
       val ltOpt = clipLo <= inLow
       (gtOpt, ltOpt) match {
+        // input range within output range -> no optimization
         case (true, true)  => a1
         case (true, false) => Mux(Lt(a1, clipLo.S), clipLo.S, a1)
         case (false, true) => Mux(Gt(a1, clipHi.S), clipHi.S, a1)
@@ -70,15 +73,16 @@ class RemoveIntervals extends Pass {
         }
         // If (max input) - (max wrap) + (min wrap) is less then (maxwrap), we can optimize when (max input > max wrap)
         val range = wrapHi - wrapLo
-        val gtOpt = Sub(a1, (range + 1).S)
         val ltOpt = Add(a1, (range + 1).S)
+        val gtOpt = Sub(a1, (range + 1).S)
+        // [Angie]: This is dangerous. Would rather throw compilation error right now than allow "Rem" without the user explicitly including it.        
         val default = Add(Rem(Sub(a1, wrapLo.S), Sub(wrapHi.S, wrapLo.S)), wrapLo.S)
-        (wrapHi >= inHi, wrapLo <= inLo, inHi - range  <= wrapHi, inLo + range >= wrapLo) match {
+        (wrapHi >= inHi, wrapLo <= inLo, (inHi - range - 1) <= wrapHi, (inLo + range + 1) >= wrapLo) match {
           case (true, true, _, _)         => a1
           case (true, false, _, true)     => Mux(Lt(a1, wrapLo.S), ltOpt, a1)
           case (false, true, true, _)     => Mux(Gt(a1, wrapHi.S), gtOpt, a1)
           case (false, false, true, true) => Mux(Gt(a1, wrapHi.S), gtOpt, Mux(Lt(a1, wrapLo.S), ltOpt, a1))
-          case _                          => default
+          case _                          => sys.error("Wraps with remainder currently unsupported.") // default
         }
       case _ => sys.error("Shouldn't be here")
     }
@@ -125,5 +129,3 @@ class RemoveIntervals extends Pass {
   }
 
 }
-
-// vim: set ts=4 sw=4 et:
