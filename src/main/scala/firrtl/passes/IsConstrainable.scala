@@ -136,6 +136,7 @@ case class IsNeg(child: IsConstrainable) extends IsConstrainable {
     case x: IsMul => IsMul(x.children.map { b => IsNeg(b).reduce }:_*).reduce
     case x: IsNeg => x.child
     case x: IsPow => this
+    // -[max(a, b)] -> min[-a, -b]
     case x: IsMax => IsMin(x.children.map {b => IsNeg(b).reduce }:_*).reduce
     case x: IsMin => IsMax(x.children.map {b => IsNeg(b).reduce }:_*).reduce
     case x: IsVar => this
@@ -144,28 +145,15 @@ case class IsNeg(child: IsConstrainable) extends IsConstrainable {
   def map(f: IsConstrainable=>IsConstrainable): IsConstrainable = IsNeg(f(child))
   def serialize: String = "(-" + child.serialize + ")"
 }
-case class IsFloor(child: IsConstrainable) extends IsConstrainable {
-  override def reduce(): IsConstrainable = child match {
-    case k: IsKnown => k.floor
-    case x: IsAdd => IsAdd(x.children.map { b => IsFloor(b).reduce }:_*).reduce
-    case x: IsMul => IsMul(x.children.map { b => IsFloor(b).reduce }:_*).reduce
-    case x: IsNeg => x.child
-    case x: IsPow => this
-    case x: IsMax => IsMin(x.children.map {b => IsFloor(b).reduce }:_*).reduce
-    case x: IsMin => IsMax(x.children.map {b => IsFloor(b).reduce }:_*).reduce
-    case x: IsVar => this
-    case _ => this
-  }
-  def map(f: IsConstrainable=>IsConstrainable): IsConstrainable = IsFloor(f(child))
-  def serialize: String = "floor(" + child.serialize + ")"
-}
 case class IsPow(child: IsConstrainable) extends IsConstrainable {
   override def reduce(): IsConstrainable = child match {
     case k: IsKnown => k.pow
+    // 2^(a + b) -> 2^a * 2^b
     case x: IsAdd => IsMul(x.children.map { b => IsPow(b).reduce }:_*).reduce
     case x: IsMul => this
-    case x: IsNeg => x.child
-    case x: IsPow => IsPow(IsMul(Closed(2), x.child))
+    case x: IsNeg => this
+    case x: IsPow => this
+    // 2^(max(a, b)) -> max(2^a, 2^b) since two is always positive, so a, b control magnitude
     case x: IsMax => IsMax(x.children.map {b => IsPow(b).reduce }:_*).reduce
     case x: IsMin => IsMin(x.children.map {b => IsPow(b).reduce }:_*).reduce
     case x: IsVar => this
@@ -196,4 +184,22 @@ object IsVar {
     case i: IsVar => Some(i.name)
     case _ => None
   }
+}
+case class IsFloor(child: IsConstrainable) extends IsConstrainable {
+  override def reduce(): IsConstrainable = child match {
+    case k: IsKnown => k.floor
+    case x: IsAdd => this
+    case x: IsMul => this
+    case x: IsNeg => this
+    case x: IsPow => this
+    // floor(max(a, b)) -> max(floor(a), floor(b))
+    case x: IsMax => IsMax(x.children.map {b => IsFloor(b).reduce }:_*).reduce
+    case x: IsMin => IsMin(x.children.map {b => IsFloor(b).reduce }:_*).reduce
+    case x: IsVar => this
+    // floor(floor(x)) -> floor(x)
+    case x: IsFloor => x
+    case _ => this
+  }
+  def map(f: IsConstrainable=>IsConstrainable): IsConstrainable = IsFloor(f(child))
+  def serialize: String = "floor(" + child.serialize + ")"
 }
