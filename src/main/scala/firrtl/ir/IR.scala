@@ -506,8 +506,8 @@ case class IntervalType(lower: Bound, upper: Bound, point: Width) extends Ground
   lazy val prec = 1/Math.pow(2, point.get.toDouble)
   lazy val min = lower.optimize match {
     case Open(a) => (a / prec) match {
-      case x if trim(x).isWhole => a + prec // add precision for open lower bound
-      case x => x.setScale(0, CEILING) * prec
+      case x if trim(x).isWhole => a + prec // add precision for open lower bound i.e. (-4 -> [3 for bp = 0
+      case x => x.setScale(0, CEILING) * prec // Deal with unreprsentable bound representations (finite BP) -- new closed form l > original l
     }
     //case Closed(a) => (a / prec).setScale(0, FLOOR) * prec
     case Closed(a) => (a / prec).setScale(0, CEILING) * prec
@@ -527,11 +527,6 @@ case class IntervalType(lower: Bound, upper: Bound, point: Width) extends Ground
   lazy val maxAdjusted = max * Math.pow(2, point.get.toDouble) match {
     case x if trim(x).isWhole => x.toBigInt
     case x => sys.error(s"MaxAdjusted should be a whole number: $x")
-  }
-  lazy val range: Option[Seq[BigDecimal]] = (lower, upper, point) match {
-    case (l: IsKnown, u: IsKnown, p: IntWidth) =>
-      if(min > max) Some(Nil) else Some(Range.BigDecimal(min, max + prec, prec))
-    case _ => None
   }
   lazy val width: Width = (point, lower, upper) match {
     case (IntWidth(i), l: IsKnown, u: IsKnown) =>
@@ -568,8 +563,15 @@ case class IntervalType(lower: Bound, upper: Bound, point: Width) extends Ground
       IntWidth(Math.max(Utils.getSIntWidth(resizedMin.toBigInt), Utils.getSIntWidth(resizedMax.toBigInt)))
     case _ => UnknownWidth
   }
+
+  lazy val range: Option[Seq[BigDecimal]] = (lower, upper, point) match {
+    case (l: IsKnown, u: IsKnown, p: IntWidth) =>
+      if(min > max) Some(Nil) else Some(Range.BigDecimal(min, max, prec))
+    case _ => None
+  }
   def mapWidth(f: Width => Width): Type = this.copy(point = f(point))
 }
+
 case class BundleType(fields: Seq[Field]) extends AggregateType {
   def serialize: String = "{ " + (fields map (_.serialize) mkString ", ") + "}"
   def mapType(f: Type => Type): Type =
