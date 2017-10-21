@@ -60,10 +60,11 @@ object CheckWidths extends Pass {
 
     def check_width_t(info: Info, mname: String, name: String)(t: Type): Type =
       t map check_width_t(info, mname, name) map check_width_w(info, mname, name, t) match {
+        //Supports when l = u (if closed)
+        case i@IntervalType(Closed(l), Closed(u), IntWidth(_)) if l <= u => i
         case i:IntervalType if i.range == Some(Nil) =>
           errors append new InvalidRange(info, mname, name, t)
           i
-        case i@IntervalType(Closed(l), Closed(u), IntWidth(_)) if l <= u => i
         case i@IntervalType(KnownBound(l), KnownBound(u), IntWidth(p)) if l >= u =>
           errors append new InvalidRange(info, mname, name, t)
           i
