@@ -197,6 +197,3 @@ object IsVar {
     case _ => None
   }
 }
-
-
-// vim: set ts=4 sw=4 et:

@@ -268,6 +268,8 @@ object PrimOps extends LazyLogging {
         case IntervalType(l, u, p) => IntervalType(IsMul(l, Closed(BigDecimal(Math.pow(2, o1.toDouble)))), IsMul(u, Closed(BigDecimal(Math.pow(2, o1.toDouble)))), p)
         case _ => UnknownType
       }
+      // Bit ops (not "math" friendly -- doesn't track precision)
+      // aaa.bbb -> a.aab
       case Shr => t1 match {
         case _: UIntType => UIntType(IsMax(IsAdd(w1, IsNeg(c1)), IntWidth(1)))
         case _: SIntType => SIntType(IsMax(IsAdd(w1, IsNeg(c1)), IntWidth(1)))
@@ -287,13 +289,22 @@ object PrimOps extends LazyLogging {
         case _: UIntType => UIntType(IsAdd(w1, IsAdd(IsPow(w2), Closed(-1))))
         case _: SIntType => SIntType(IsAdd(w1, IsAdd(IsPow(w2), Closed(-1))))
         case _: FixedType => FixedType(IsAdd(w1, IsAdd(IsPow(w2), Closed(-1))), p1)
-        case IntervalType(l, u, p) => IntervalType(IsMul(l, IsAdd(IsPow(w2), Closed(-1))), IsMul(u, IsAdd(IsPow(w2), Closed(-1))), p)
+        case IntervalType(l, u, p) => 
+          val maxShiftAmt = IsAdd(IsPow(w2), Closed(-1))
+          val shiftMul = IsPow(maxShiftAmt)
+          // Magnitude matters! i.e. if l is negative, shifting by the largest amount makes the outcome more negative
+          // whereas if l is positive, shifting by the largest amount makes the outcome more positive (in this case, the lower bound is the previous l)
+          val newL = IsMin(l, IsMul(l, shiftMul))
+          val newU = IsMax(u, IsMul(u, shiftMul))
+          // BP doesn't grow
+          IntervalType(newL, newU, p)
         case _ => UnknownType
       }
       case Dshr => t1 match {
         case _: UIntType => UIntType(w1)
         case _: SIntType => SIntType(w1)
         case _: FixedType => FixedType(w1, p1)
+        // Decreasing magnitude -- don't need more bits
         case IntervalType(l, u, p) => IntervalType(l, u, p)
         case _ => UnknownType
       }
@@ -352,21 +363,43 @@ object PrimOps extends LazyLogging {
         case (_: UIntType | _: SIntType | _: FixedType | _: IntervalType) => UIntType(IsAdd(w1, IsNeg(c1)))
         case _ => UnknownType
       }
+      // aaa.bbb -> aaa.bbb00
       case BPShl => t1 match {
         case _: FixedType => FixedType(IsAdd(w1,c1), IsAdd(p1, c1))
+        // Keeps the same exact value, but adds more precision for the future i.e. aaa.bbb -> aaa.bbb00
         case IntervalType(l, u, p) => IntervalType(l, u, IsAdd(p, c1))
         case _ => UnknownType
       }
+      // Decrease precision aaa.bbb -> aaa.b
       case BPShr => t1 match {
         case _: FixedType => FixedType(IsAdd(w1,IsNeg(c1)), IsAdd(p1, IsNeg(c1)))
-        case IntervalType(l, u, p) => IntervalType(l, u, IsAdd(p, IsNeg(c1)))
+        case IntervalType(l, u, p) => 
+          val shiftMul = Closed(BigDecimal(Math.pow(2, -o1.toDouble)))
+          // BP is inferred at this point
+          // newBPRes is the only difference in calculating bpshr from shr
+          // y = floor(x * 2^(-amt + bp)) gets rid of precision --> y * 2^(-bp + amt) 
+          // without amt, same op as shr
+          val newBPRes = Closed(BigDecimal(Math.pow(2, -p.get.toDouble + o1.toDouble)))
+          val bpResInv = Closed(BigDecimal(Math.pow(2, p.get.toDouble)))
+          val newL = IsMul(IsFloor(IsMul(IsMul(l, shiftMul), bpResInv)), newBPRes)
+          val newU = IsMul(IsFloor(IsMul(IsMul(u, shiftMul), bpResInv)), newBPRes)
+          // BP doesn't grow
+          IntervalType(newL, newU, IsAdd(p, IsNeg(c1)))
         case _ => UnknownType
       }
+      // aaa.bbb -> aaa.bb
+      // Expand or shrink precision to
       case BPSet => t1 match {
         case _: FixedType => FixedType(IsAdd(c1, IsAdd(w1, IsNeg(p1))), c1)
-        case IntervalType(l, u, p) => IntervalType(l, u, c1)
+        case IntervalType(l, u, p) => 
+          val newBPResInv = Closed(BigDecimal(Math.pow(2, o1.toDouble)))
+          val newBPRes = Closed(BigDecimal(Math.pow(2, -o1.toDouble)))
+          val newL = IsMul(IsFloor(IsMul(l, newBPResInv)), newBPRes)
+          val newU = IsMul(IsFloor(IsMul(u, newBPResInv)), newBPRes)
+          IntervalType(newL, newU, c1)
         case _ => UnknownType
       }
+      // = override range
       case Wrap => (t1, t2) match {
         case (IntervalType(l1, u1, p1), IntervalType(l2, u2, _)) => IntervalType(l2, u2, p1)
         case (IntervalType(l1, u1, p1), _: SIntType) => IntervalType(IsNeg(IsPow(IsAdd(w2, Closed(-1)))), IsAdd(IsPow(IsAdd(w2, Closed(-1))), Closed(-1)), p1)
@@ -376,7 +409,7 @@ object PrimOps extends LazyLogging {
       case Clip => (t1, t2) match {
         case (IntervalType(l1, u1, p1), IntervalType(l2, u2, _)) => IntervalType(IsMax(l1, l2), IsMin(u1, u2), p1)
         case (IntervalType(l1, u1, p1), _: SIntType) => IntervalType(IsMax(IsNeg(IsPow(IsAdd(w2, Closed(-1)))), l1), IsMin(IsAdd(IsPow(IsAdd(w2, Closed(-1))), Closed(-1)), u1), p1)
-        case (IntervalType(l1, u1, p1), _: UIntType) => IntervalType(Closed(0), IsMin(u1, IsAdd(IsPow(w2), Closed(-1))), p1)
+        case (IntervalType(l1, u1, p1), _: UIntType) => IntervalType(IsMax(Closed(0), l1), IsMin(u1, IsAdd(IsPow(w2), Closed(-1))), p1)
         case _ => UnknownType
       }
     })
