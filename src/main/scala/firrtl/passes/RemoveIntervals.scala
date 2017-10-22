@@ -75,6 +75,7 @@ class RemoveIntervals extends Pass {
           case (true, true, _, _)         => a1
           case (true, false, _, true)     => Mux(Lt(a1, wrapLo.S), ltOpt, a1)
           case (false, true, true, _)     => Mux(Gt(a1, wrapHi.S), gtOpt, a1)
+          // Note: inHi - range - 1 = wrapHi can't be true when inLo + range + 1 = wrapLo (i.e. simultaneous extreme cases don't work)
           case (false, false, true, true) => Mux(Gt(a1, wrapHi.S), gtOpt, Mux(Lt(a1, wrapLo.S), ltOpt, a1))
           case _                          => sys.error("Wraps with remainder currently unsupported.") // default
         }
