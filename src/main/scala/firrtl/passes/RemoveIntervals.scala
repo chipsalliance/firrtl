@@ -69,15 +69,38 @@ class RemoveIntervals extends Pass {
         val range = wrapHi - wrapLo
         val ltOpt = Add(a1, (range + 1).S)
         val gtOpt = Sub(a1, (range + 1).S)
-        // [Angie]: This is dangerous. Would rather throw compilation error right now than allow "Rem" without the user explicitly including it.        
+        // [Angie]: This is dangerous. Would rather throw compilation error right now than allow "Rem" without the user explicitly including it.   
+        // If x < wl
+        // output: wh - (wl - x) + 1 AKA x + r + 1
+        // worst case: wh - (wl - xl) + 1 = wl   
+        // -> xl + wr + 1 = wl
+        // If x > wh
+        // output: wl + (x - wh) - 1 AKA x - r - 1
+        // worst case: wl + (xh - wh) - 1 = wh
+        // -> xh - wr - 1 = wh
         val default = Add(Rem(Sub(a1, wrapLo.S), Sub(wrapHi.S, wrapLo.S)), wrapLo.S)
         (wrapHi >= inHi, wrapLo <= inLo, (inHi - range - 1) <= wrapHi, (inLo + range + 1) >= wrapLo) match {
-          case (true, true, _, _)         => a1
-          case (true, false, _, true)     => Mux(Lt(a1, wrapLo.S), ltOpt, a1)
-          case (false, true, true, _)     => Mux(Gt(a1, wrapHi.S), gtOpt, a1)
+          case (true, true, _, _) => 
+            // println("Clip Opt: Full")
+            a1
+          case (true, _, _, true) => 
+            // println("Clip Opt: Lt")
+            Mux(Lt(a1, wrapLo.S), ltOpt, a1)
+          case (_, true, true, _) => 
+            // println("Clip Opt: Gt")
+            Mux(Gt(a1, wrapHi.S), gtOpt, a1)
           // Note: inHi - range - 1 = wrapHi can't be true when inLo + range + 1 = wrapLo (i.e. simultaneous extreme cases don't work)
-          case (false, false, true, true) => Mux(Gt(a1, wrapHi.S), gtOpt, Mux(Lt(a1, wrapLo.S), ltOpt, a1))
-          case _                          => sys.error("Wraps with remainder currently unsupported.") // default
+          case (_, _, true, true) =>
+            // println("Clip Opt: None")
+            Mux(Gt(a1, wrapHi.S), gtOpt, Mux(Lt(a1, wrapLo.S), ltOpt, a1))
+          case _                          => 
+            println(
+              s" wrapHi >= inHi: ${wrapHi >= inHi} ; " +
+              s"wrapLo <= inLo: ${wrapLo <= inLo} ; " + 
+              s"(inHi - range - 1) <= wrapHi: ${(inHi - range - 1) <= wrapHi} ; " + 
+              s"(inLo + range + 1) >= wrapLo: ${(inLo + range + 1) >= wrapLo}"
+            )                       
+            sys.error(s"Wraps with remainder currently unsupported. in: $inLo , $inHi ; out: $wrapLo , $wrapHi") // default
         }
       case _ => sys.error("Shouldn't be here")
     }
