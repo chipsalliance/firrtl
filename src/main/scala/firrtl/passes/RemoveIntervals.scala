@@ -34,7 +34,7 @@ class RemoveIntervals extends Pass {
     case DoPrim(AsInterval, Seq(a1), _, tpe) => DoPrim(AsSInt, Seq(a1), Seq.empty, tpe)
     case DoPrim(BPShl, args, consts, tpe) => DoPrim(Shl, args, consts, tpe)
     case DoPrim(BPShr, args, consts, tpe) => DoPrim(Shr, args, consts, tpe)
-    case DoPrim(Clip, Seq(a1, a2), Nil, tpe: IntervalType) =>
+    case DoPrim(Clip, Seq(a1, _), Nil, tpe: IntervalType) =>
       // Output interval (pre-calculated)
       val clipLo = tpe.minAdjusted
       val clipHi = tpe.maxAdjusted
@@ -54,11 +54,13 @@ class RemoveIntervals extends Pass {
       }
     case DoPrim(Wrap, Seq(a1, a2), Nil, tpe: IntervalType) => a2.tpe match {
       // If a2 type is SInt, wrap around width
-      case SIntType(IntWidth(w)) => AsSInt(Bits(a1, w - 1, 0))
+      // TODO: (chick) add this back in after working through Chisel details
+      // case SIntType(IntWidth(w)) => AsSInt(Bits(a1, w - 1, 0))
       // If a2 type is Interval wrap around range. If UInt, wrap around width
-      case _: IntervalType | _: UIntType =>
-        val (wrapLo, wrapHi) = a2.tpe match {
-          case UIntType(IntWidth(w))     => (BigInt(0), BigInt((Math.pow(2, w.toDouble) - 1).toInt))
+      case t: IntervalType => //| _: UIntType => // TODO
+        // Need to match binary points before getting *adjusted!
+        val (wrapLo, wrapHi) = t.copy(point = tpe.point) match {
+          //case UIntType(IntWidth(w))     => (BigInt(0), BigInt((Math.pow(2, w.toDouble) - 1).toInt)) // TODO
           case t: IntervalType => (t.minAdjusted, t.maxAdjusted)
         }
         val (inLo, inHi) = a1.tpe match {
