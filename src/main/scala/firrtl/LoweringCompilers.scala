@@ -11,7 +11,7 @@ class ChirrtlToHighFirrtl extends CoreTransform {
   def inputForm = ChirrtlForm
   def outputForm = HighForm
   def transforms = Seq(
-    passes.CheckChirrtl,
+    passes.CheckHighForm,
     passes.CInferTypes,
     passes.CInferMDir,
     passes.RemoveCHIRRTL)
@@ -42,7 +42,9 @@ class ResolveAndCheck extends CoreTransform {
     passes.InferTypes,
     passes.ResolveGenders,
     passes.CheckGenders,
-    passes.InferWidths,
+    new passes.InferBinaryPoints(),
+    new passes.TrimIntervals(),
+    new passes.InferWidths(),
     passes.CheckWidths)
 }
 
@@ -65,8 +67,9 @@ class HighFirrtlToMiddleFirrtl extends CoreTransform {
     passes.InferTypes,
     passes.CheckTypes,
     passes.ResolveGenders,
-    passes.InferWidths,
+    new passes.InferWidths(),
     passes.CheckWidths,
+    new passes.RemoveIntervals(),
     passes.ConvertFixedToSInt,
     passes.ZeroWidth)
 }
@@ -83,7 +86,7 @@ class MiddleFirrtlToLowFirrtl extends CoreTransform {
     passes.ResolveKinds,
     passes.InferTypes,
     passes.ResolveGenders,
-    passes.InferWidths,
+    new passes.InferWidths(),
     passes.Legalize,
     new firrtl.transforms.RemoveReset,
     new firrtl.transforms.CheckCombLoops)

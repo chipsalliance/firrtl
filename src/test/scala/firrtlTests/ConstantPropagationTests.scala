@@ -9,12 +9,12 @@ import firrtl.passes._
 import firrtl.transforms._
 
 class ConstantPropagationSpec extends FirrtlFlatSpec {
-  val transforms = Seq(
+  def transforms = Seq(
       ToWorkingIR,
       ResolveKinds,
       InferTypes,
       ResolveGenders,
-      InferWidths,
+      new InferWidths(),
       new ConstantPropagation)
   protected def exec(input: String) = {
     transforms.foldLeft(CircuitState(parse(input), UnknownForm)) {

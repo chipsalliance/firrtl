@@ -27,7 +27,7 @@ class ClockListTests extends FirrtlFlatSpec {
     ResolveKinds,
     InferTypes,
     ResolveGenders,
-    InferWidths
+    new InferWidths()
   )
 
   "Getting clock list" should "work" in {

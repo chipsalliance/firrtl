@@ -3,7 +3,10 @@
 package firrtl
 package ir
 
-import Utils.indent
+import Utils.{indent, trim, dec2string}
+import scala.math.BigDecimal.RoundingMode._
+import scala.collection.mutable
+import passes.{IsConstrainable, IsKnown, IsVar}
 
 /** Intermediate Representation */
 abstract class FirrtlNode {
@@ -90,6 +93,28 @@ object StringLit {
   */
 abstract class PrimOp extends FirrtlNode {
   def serialize: String = this.toString
+  def apply(args: Any*): DoPrim = {
+    val groups = args.groupBy {
+      case x: Expression => "exp"
+      case x: BigInt => "int"
+      case x: Int => "int"
+      case other => "other"
+    }
+    val exprs = groups.getOrElse("exp", Nil).collect {
+      case e: Expression => e
+    }
+    val consts = groups.getOrElse("int", Nil).map {
+      _ match {
+        case i: BigInt => i
+        case i: Int => BigInt(i)
+      }
+    }
+    groups.get("other") match {
+      case None =>
+      case Some(x) => sys.error(s"Shouldn't be here: $x")
+    }
+    DoPrim(this, exprs, consts, UnknownType)
+  }
 }
 
 abstract class Expression extends FirrtlNode {
@@ -123,7 +148,7 @@ case class SubAccess(expr: Expression, index: Expression, tpe: Type) extends Exp
   def mapType(f: Type => Type): Expression = this.copy(tpe = f(tpe))
   def mapWidth(f: Width => Width): Expression = this
 }
-case class Mux(cond: Expression, tval: Expression, fval: Expression, tpe: Type) extends Expression {
+case class Mux(cond: Expression, tval: Expression, fval: Expression, tpe: Type = UnknownType) extends Expression {
   def serialize: String = s"mux(${cond.serialize}, ${tval.serialize}, ${fval.serialize})"
   def mapExpr(f: Expression => Expression): Expression = Mux(f(cond), f(tval), f(fval), tpe)
   def mapType(f: Type => Type): Expression = this.copy(tpe = f(tpe))
@@ -341,6 +366,7 @@ abstract class Width extends FirrtlNode {
     case (a: IntWidth, b: IntWidth) => IntWidth(a.width min b.width)
     case _ => UnknownWidth
   }
+  def get: BigInt = sys.error(s"Cannot call get on $this!")
 }
 /** Positive Integer Bit Width of a [[GroundType]] */
 object IntWidth {
@@ -376,9 +402,18 @@ class IntWidth(val width: BigInt) extends Width with Product {
     case 0 => width
     case _ => throw new IndexOutOfBoundsException
   }
+  override def get: BigInt = width
 }
 case object UnknownWidth extends Width {
   def serialize: String = ""
+}
+case class CalcWidth(arg: IsConstrainable) extends Width with IsConstrainable {
+  def serialize: String = s"calcw(${arg.serialize})"
+  def map(f: IsConstrainable=>IsConstrainable): IsConstrainable = f(arg)
+  override def reduce(): IsConstrainable = arg
+}
+case class VarWidth(name: String) extends Width with IsVar {
+  override def serialize: String = s"<$name>"
 }
 
 /** Orientation of [[Field]] */
@@ -395,6 +430,64 @@ case class Field(name: String, flip: Orientation, tpe: Type) extends FirrtlNode 
   def serialize: String = flip.serialize + name + " : " + tpe.serialize
 }
 
+
+/** Bounds of [[IntervalType]] */
+
+trait Bound extends IsConstrainable {
+  def serialize: String
+}
+case object UnknownBound extends Bound {
+  def serialize: String = "?"
+  def map(f: IsConstrainable=>IsConstrainable): IsConstrainable = this
+}
+case class CalcBound(arg: IsConstrainable) extends Bound {
+  def serialize: String = s"calcb(${arg.serialize})"
+  def map(f: IsConstrainable=>IsConstrainable): IsConstrainable = f(arg)
+  override def reduce(): IsConstrainable = arg
+}
+case class VarBound(name: String) extends IsVar with Bound
+object KnownBound {
+  def unapply(b: IsConstrainable): Option[BigDecimal] = b match {
+    case k: IsKnown => Some(k.value)
+    case _ => None
+  }
+  def unapply(b: Bound): Option[BigDecimal] = b match {
+    case k: IsKnown => Some(k.value)
+    case _ => None
+  }
+}
+case class Open(value: BigDecimal) extends IsKnown with Bound {
+  def serialize = s"o($value)"
+  def +(that: IsKnown): IsKnown = Open(value + that.value)
+  def *(that: IsKnown): IsKnown = that match {
+    case Closed(x) if x == 0 => Closed(x)
+    case _ => Open(value * that.value)
+  }
+  def min(that: IsKnown): IsKnown = if(value < that.value) this else that
+  def max(that: IsKnown): IsKnown = if(value > that.value) this else that
+  def neg: IsKnown = Open(-value)
+  def floor: IsKnown = Open(value.setScale(0, BigDecimal.RoundingMode.FLOOR)) 
+  def pow: IsKnown = if(value.isBinaryDouble) Open(Math.pow(2, value.toDouble)) else sys.error("Shouldn't be here")
+}
+case class Closed(value: BigDecimal) extends IsKnown with Bound {
+  def serialize = s"c($value)"
+  def +(that: IsKnown): IsKnown = that match {
+    case Open(x) => Open(value + x)
+    case Closed(x) => Closed(value + x)
+  }
+  def *(that: IsKnown): IsKnown = that match {
+    case IsKnown(x) if value == 0 => Closed(0)
+    case Open(x) => Open(value * x)
+    case Closed(x) => Closed(value * x)
+  }
+  def min(that: IsKnown): IsKnown = if(value <= that.value) this else that
+  def max(that: IsKnown): IsKnown = if(value >= that.value) this else that
+  def neg: IsKnown = Closed(-value)
+  def floor: IsKnown = Closed(value.setScale(0, BigDecimal.RoundingMode.FLOOR))
+  def pow: IsKnown = if(value.isBinaryDouble) Closed(Math.pow(2, value.toDouble)) else sys.error("Shouldn't be here")
+}
+
+/** Types of [[FirrtlNode]] */
 abstract class Type extends FirrtlNode {
   def mapType(f: Type => Type): Type
   def mapWidth(f: Width => Width): Type
@@ -424,6 +517,99 @@ case class FixedType(width: Width, point: Width) extends GroundType {
   }
   def mapWidth(f: Width => Width): Type = FixedType(f(width), f(point))
 }
+case class IntervalType(lower: Bound, upper: Bound, point: Width) extends GroundType {
+  override def serialize: String = {
+    val lowerString = lower match {
+      case Open(l)      => s"(${dec2string(l)}, "
+      case Closed(l)    => s"[${dec2string(l)}, "
+      case UnknownBound => s"[?, "
+      case _  => s"[?, "
+    }
+    val upperString = upper match {
+      case Open(u)      => s"${dec2string(u)})"
+      case Closed(u)    => s"${dec2string(u)}]"
+      case UnknownBound => s"?]"
+      case _  => s"?]"
+    }
+    val bounds = (lower, upper) match {
+      case (k1: IsKnown, k2: IsKnown) => lowerString + upperString
+      case _ => ""
+    }
+    val pointString = point match {
+      case IntWidth(i)  => "." + i.toString
+      case _ => ""
+    }
+    "Interval" + bounds + pointString
+  }
+  lazy val prec = 1/Math.pow(2, point.get.toDouble)
+  lazy val min = lower.optimize match {
+    case Open(a) => (a / prec) match {
+      case x if trim(x).isWhole => a + prec // add precision for open lower bound i.e. (-4 -> [3 for bp = 0
+      case x => x.setScale(0, CEILING) * prec // Deal with unreprsentable bound representations (finite BP) -- new closed form l > original l
+    }
+    //case Closed(a) => (a / prec).setScale(0, FLOOR) * prec
+    case Closed(a) => (a / prec).setScale(0, CEILING) * prec
+  }
+  lazy val max = upper.optimize match {
+    case Open(a) => (a / prec) match {
+      case x if trim(x).isWhole => a - prec // subtract precision for open upper bound
+      case x => x.setScale(0, FLOOR) * prec
+    }
+    //case Closed(a) => (a / prec).setScale(0, CEILING) * prec
+    case Closed(a) => (a / prec).setScale(0, FLOOR) * prec
+  }
+  lazy val minAdjusted = min * Math.pow(2, point.get.toDouble) match {
+    case x if trim(x).isWhole => x.toBigInt
+    case x => sys.error(s"MinAdjusted should be a whole number: $x")
+  }
+  lazy val maxAdjusted = max * Math.pow(2, point.get.toDouble) match {
+    case x if trim(x).isWhole => x.toBigInt
+    case x => sys.error(s"MaxAdjusted should be a whole number: $x")
+  }
+  lazy val width: Width = (point, lower, upper) match {
+    case (IntWidth(i), l: IsKnown, u: IsKnown) =>
+      def resize(value: BigDecimal): BigDecimal = value * Math.pow(2, i.toInt)
+      val resizedMin = l match {
+        case Open(x) => resize(x) match {
+          case v if trim(v).isWhole => v + 1
+          case v => v.setScale(0, CEILING)
+        }
+        case Closed(x) => resize(x) match {
+          case v if trim(v).isWhole => v
+          //case v => v.setScale(0, FLOOR)
+          case v => v.setScale(0, CEILING)
+        }
+      }
+      val resizedMax = u match {
+        case Open(x) => resize(x) match {
+          case v if trim(v).isWhole => v - 1
+          case v => v.setScale(0, FLOOR)
+        }
+        case Closed(x) => resize(x) match {
+          case v if trim(v).isWhole => v
+          //case v => v.setScale(0, CEILING)
+          case v => v.setScale(0, FLOOR)
+        }
+      }
+      //val r = range
+      //println(r)
+      //if(r.get.size > 0) {
+      //  val rh = resize(r.get.head)
+      //  val rl = resize(r.get.last)
+      //  assert(rh == resizedMin && rl == resizedMax, s"Min of $this, $r: $rh != $resizedMin\nMax of $this, $r: $rl != $resizedMax")
+      //}
+      IntWidth(Math.max(Utils.getSIntWidth(resizedMin.toBigInt), Utils.getSIntWidth(resizedMax.toBigInt)))
+    case _ => UnknownWidth
+  }
+
+  lazy val range: Option[Seq[BigDecimal]] = (lower, upper, point) match {
+    case (l: IsKnown, u: IsKnown, p: IntWidth) =>
+      if(min > max) Some(Nil) else Some(Range.BigDecimal(min, max, prec))
+    case _ => None
+  }
+  def mapWidth(f: Width => Width): Type = this.copy(point = f(point))
+}
+
 case class BundleType(fields: Seq[Field]) extends AggregateType {
   def serialize: String = "{ " + (fields map (_.serialize) mkString ", ") + "}"
   def mapType(f: Type => Type): Type =
@@ -464,6 +650,7 @@ case class Port(
     direction: Direction,
     tpe: Type) extends FirrtlNode with IsDeclaration {
   def serialize: String = s"${direction.serialize} $name : ${tpe.serialize}" + info.serialize
+  def mapType(f: Type => Type): Port = Port(info, name, direction, f(tpe))
 }
 
 /** Parameters for external modules */

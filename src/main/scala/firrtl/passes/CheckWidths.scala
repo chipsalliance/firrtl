@@ -11,9 +11,13 @@ import firrtl.Utils._
 object CheckWidths extends Pass {
   /** The maximum allowed width for any circuit element */
   val MaxWidth = 1000000
-  val DshlMaxWidth = ceilLog2(MaxWidth + 1)
-  class UninferredWidth (info: Info, mname: String) extends PassException(
-    s"$info : [module $mname]  Uninferred width.")
+  val DshlMaxWidth = getUIntWidth(MaxWidth + 1)
+  class UninferredWidth (info: Info, mname: String, name: String, t: Type) extends PassException(
+    s"$info : [module $mname]  Component $name has an Uninferred width: ${t.serialize}")
+  class UninferredBound (info: Info, mname: String, name: String, t: Type, bound: String) extends PassException(
+    s"$info : [module $mname]  Component $name has an uninferred $bound bound: ${t.serialize}.")
+  class InvalidRange (info: Info, mname: String, name: String, t: Type) extends PassException(
+    s"$info : [module $mname]  Component $name has an invalid range: ${t.serialize}.")
   class WidthTooSmall(info: Info, mname: String, b: BigInt) extends PassException(
     s"$info : [module $mname]  Width too small for constant $b.")
   class WidthTooBig(info: Info, mname: String, b: BigInt) extends PassException(
@@ -22,8 +26,8 @@ object CheckWidths extends Pass {
     s"$info : [module $mname]  Width of dshl shift amount cannot be larger than $DshlMaxWidth bits.")
   class NegWidthException(info:Info, mname: String) extends PassException(
     s"$info: [module $mname] Width cannot be negative or zero.")
-  class BitsWidthException(info: Info, mname: String, hi: BigInt, width: BigInt) extends PassException(
-    s"$info: [module $mname] High bit $hi in bits operator is larger than input width $width.")
+  class BitsWidthException(info: Info, mname: String, hi: BigInt, width: BigInt, exp: String) extends PassException(
+    s"$info: [module $mname] High bit $hi in bits operator is larger than input width $width in $exp.")
   class HeadWidthException(info: Info, mname: String, n: BigInt, width: BigInt) extends PassException(
     s"$info: [module $mname] Parameter $n in head operator is larger than input width $width.")
   class TailWidthException(info: Info, mname: String, n: BigInt, width: BigInt) extends PassException(
@@ -34,15 +38,16 @@ object CheckWidths extends Pass {
   def run(c: Circuit): Circuit = {
     val errors = new Errors()
 
-    def check_width_w(info: Info, mname: String)(w: Width): Width = {
-      w match {
-        case IntWidth(width) if width >= MaxWidth =>
+    def check_width_w(info: Info, mname: String, name: String, t: Type)(w: Width): Width = {
+      (w, t) match {
+        case (IntWidth(width), _) if width >= MaxWidth =>
           errors.append(new WidthTooBig(info, mname, width))
-        case w: IntWidth if w.width >= 0 =>
-        case _: IntWidth =>
+        case (w: IntWidth, f: FixedType) if (w.width < 0 && w.width == f.width) =>
           errors append new NegWidthException(info, mname)
-        case _ =>
-          errors append new UninferredWidth(info, mname)
+        case (w: IntWidth, f: IntervalType) if (w.width < 0) =>
+          errors append new NegWidthException(info, mname)
+        case (_: IntWidth, _) =>
+        case _ => errors append new UninferredWidth(info, mname, name, t)
       }
       w
     }
@@ -53,8 +58,29 @@ object CheckWidths extends Pass {
       case _ => println(tpe); throwInternalError
     }
 
-    def check_width_t(info: Info, mname: String)(t: Type): Type =
-      t map check_width_t(info, mname) map check_width_w(info, mname)
+    def check_width_t(info: Info, mname: String, name: String)(t: Type): Type =
+      t map check_width_t(info, mname, name) map check_width_w(info, mname, name, t) match {
+        //Supports when l = u (if closed)
+        case i@IntervalType(Closed(l), Closed(u), IntWidth(_)) if l <= u => i
+        case i:IntervalType if i.range == Some(Nil) =>
+          errors append new InvalidRange(info, mname, name, t)
+          i
+        case i@IntervalType(KnownBound(l), KnownBound(u), IntWidth(p)) if l >= u =>
+          errors append new InvalidRange(info, mname, name, t)
+          i
+        case i@IntervalType(KnownBound(_), KnownBound(_), IntWidth(_)) => i
+        case i@IntervalType(_: IsKnown, _, _) =>
+          errors append new UninferredBound(info, mname, name, t, "upper")
+          i
+        case i@IntervalType(_, _: IsKnown, _) =>
+          errors append new UninferredBound(info, mname, name, t, "lower")
+          i
+        case i@IntervalType(_, _, _) =>
+          errors append new UninferredBound(info, mname, name, t, "lower")
+          errors append new UninferredBound(info, mname, name, t, "upper")
+          i
+        case other => other
+      }
 
     def check_width_e(info: Info, mname: String)(e: Expression): Expression = {
       e match {
@@ -69,7 +95,7 @@ object CheckWidths extends Pass {
           case _ =>
         }
         case DoPrim(Bits, Seq(a), Seq(hi, lo), _) if (hasWidth(a.tpe) && bitWidth(a.tpe) <= hi) =>
-          errors append new BitsWidthException(info, mname, hi, bitWidth(a.tpe))
+          errors append new BitsWidthException(info, mname, hi, bitWidth(a.tpe), e.serialize)
         case DoPrim(Head, Seq(a), Seq(n), _) if (hasWidth(a.tpe) && bitWidth(a.tpe) < n) =>
           errors append new HeadWidthException(info, mname, n, bitWidth(a.tpe))
         case DoPrim(Tail, Seq(a), Seq(n), _) if (hasWidth(a.tpe) && bitWidth(a.tpe) <= n) =>
@@ -78,14 +104,14 @@ object CheckWidths extends Pass {
           errors append new DshlTooBig(info, mname)
         case _ =>
       }
-      //e map check_width_t(info, mname) map check_width_e(info, mname)
       e map check_width_e(info, mname)
     }
 
 
     def check_width_s(minfo: Info, mname: String)(s: Statement): Statement = {
       val info = get_info(s) match { case NoInfo => minfo case x => x }
-      s map check_width_e(info, mname) map check_width_s(info, mname) map check_width_t(info, mname) match {
+      val name = s match { case i: IsDeclaration => i.name case _ => "" }
+      s map check_width_e(info, mname) map check_width_s(info, mname) map check_width_t(info, mname, name) match {
         case Attach(infox, exprs) =>
           exprs.tail.foreach ( e =>
             if (bitWidth(e.tpe) != bitWidth(exprs.head.tpe))
@@ -102,7 +128,7 @@ object CheckWidths extends Pass {
       }
     }
 
-    def check_width_p(minfo: Info, mname: String)(p: Port): Port = p.copy(tpe =  check_width_t(p.info, mname)(p.tpe))
+    def check_width_p(minfo: Info, mname: String)(p: Port): Port = p.copy(tpe =  check_width_t(p.info, mname, p.name)(p.tpe))
 
     def check_width_m(m: DefModule) {
       m map check_width_p(m.info, m.name) map check_width_s(m.info, m.name)

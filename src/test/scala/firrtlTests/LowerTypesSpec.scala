@@ -12,7 +12,7 @@ import firrtl.transforms._
 import firrtl._
 
 class LowerTypesSpec extends FirrtlFlatSpec {
-  private val transforms = Seq(
+  private def transforms = Seq(
     ToWorkingIR,
     CheckHighForm,
     ResolveKinds,
@@ -20,7 +20,7 @@ class LowerTypesSpec extends FirrtlFlatSpec {
     CheckTypes,
     ResolveGenders,
     CheckGenders,
-    InferWidths,
+    new InferWidths(),
     CheckWidths,
     PullMuxes,
     ExpandConnects,
@@ -32,7 +32,7 @@ class LowerTypesSpec extends FirrtlFlatSpec {
     ResolveKinds,
     InferTypes,
     ResolveGenders,
-    InferWidths,
+    new InferWidths(),
     LowerTypes)
 
   private def executeTest(input: String, expected: Seq[String]) = {

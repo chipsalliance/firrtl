@@ -55,6 +55,7 @@ type
   : 'UInt' ('<' intLit '>')?
   | 'SInt' ('<' intLit '>')?
   | 'Fixed' ('<' intLit '>')? ('<' '<' intLit '>' '>')?
+  | 'Interval' (lowerBound boundValue boundValue upperBound)? ('.' intLit)?
   | 'Clock'
   | 'Analog' ('<' intLit '>')?
   | '{' field* '}'        // Bundle
@@ -190,6 +191,23 @@ intLit
   | HexLit
   ;
 
+lowerBound
+  : '['
+  | '('
+  ;
+
+upperBound
+  : ']'
+  | ')'
+  ;
+
+boundValue
+  : '?'
+  | DoubleLit
+  | UnsignedInt
+  | SignedInt
+  ;
+
 // Keywords that are also legal ids
 keywordAsId
   : 'circuit'
@@ -276,6 +294,9 @@ primop
   | 'bpshl('
   | 'bpshr('
   | 'bpset('
+  | 'asInterval('
+  | 'wrap('
+  | 'clip('
   ;
 
 /*------------------------------------------------------------------

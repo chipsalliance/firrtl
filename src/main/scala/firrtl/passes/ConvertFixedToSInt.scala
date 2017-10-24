@@ -19,7 +19,7 @@ object ConvertFixedToSInt extends Pass {
       } else if (point - p < 0) {
         DoPrim(Shr, Seq(e), Seq(p - point), UnknownType)
       } else e
-    case FixedType(w, p) => error("Shouldn't be here")
+    case FixedType(w, p) => error(s"Shouldn't be here: ${e.tpe}")
     case _ => e
   }
   def calcPoint(es: Seq[Expression]): BigInt =
