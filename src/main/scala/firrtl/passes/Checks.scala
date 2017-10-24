@@ -73,8 +73,10 @@ object CheckHighForm extends Pass {
       }
 
       e.op match {
+        case Wrap =>
+          correctNum(Option(2), 1)
         case Add | Sub | Mul | Div | Rem | Lt | Leq | Gt | Geq |
-             Eq | Neq | Dshl | Dshr | And | Or | Xor | Cat | Wrap | Clip =>
+             Eq | Neq | Dshl | Dshr | And | Or | Xor | Cat | Clip =>
           correctNum(Option(2), 0)
         case AsUInt | AsSInt | AsClock | Cvt | Neq | Not =>
           correctNum(Option(1), 0)
