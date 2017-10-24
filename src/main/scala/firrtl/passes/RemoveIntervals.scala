@@ -52,7 +52,7 @@ class RemoveIntervals extends Pass {
         case (false, true) => Mux(Gt(a1, clipHi.S), clipHi.S, a1)
         case _             => Mux(Gt(a1, clipHi.S), clipHi.S, Mux(Lt(a1, clipLo.S), clipLo.S, a1))
       }
-    case DoPrim(Wrap, Seq(a1, a2), Nil, tpe: IntervalType) => a2.tpe match {
+    case DoPrim(Wrap, Seq(a1, a2), Seq(nonFunctional), tpe: IntervalType) => a2.tpe match {
       // If a2 type is SInt, wrap around width
       // TODO: (chick) add this back in after working through Chisel details
       // case SIntType(IntWidth(w)) => AsSInt(Bits(a1, w - 1, 0))
@@ -81,18 +81,21 @@ class RemoveIntervals extends Pass {
         // worst case: wl + (xh - wh) - 1 = wh
         // -> xh - wr - 1 = wh
         val default = Add(Rem(Sub(a1, wrapLo.S), Sub(wrapHi.S, wrapLo.S)), wrapLo.S)
-        (wrapHi >= inHi, wrapLo <= inLo, (inHi - range - 1) <= wrapHi, (inLo + range + 1) >= wrapLo) match {
-          case (true, true, _, _) => 
+        (wrapHi >= inHi, wrapLo <= inLo, (inHi - range - 1) <= wrapHi, (inLo + range + 1) >= wrapLo, nonFunctional == 1) match {
+          case(_, _, _, _, true) =>
+            // Using wrap for dual purpose: reassign interval w/o adding mux
+            a1
+          case (true, true, _, _, false) => 
             // println("Clip Opt: Full")
             a1
-          case (true, _, _, true) => 
+          case (true, _, _, true, false) => 
             // println("Clip Opt: Lt")
             Mux(Lt(a1, wrapLo.S), ltOpt, a1)
-          case (_, true, true, _) => 
+          case (_, true, true, _, false) => 
             // println("Clip Opt: Gt")
             Mux(Gt(a1, wrapHi.S), gtOpt, a1)
           // Note: inHi - range - 1 = wrapHi can't be true when inLo + range + 1 = wrapLo (i.e. simultaneous extreme cases don't work)
-          case (_, _, true, true) =>
+          case (_, _, true, true, false) =>
             // println("Clip Opt: None")
             Mux(Gt(a1, wrapHi.S), gtOpt, Mux(Lt(a1, wrapLo.S), ltOpt, a1))
           case _                          => 
