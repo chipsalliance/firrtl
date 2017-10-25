@@ -33,9 +33,9 @@ object EulerTour {
   * given root. This requires `O(n)` preprocessing time to generate
   * the initial Euler Tour.
   *
-  * @constructor Create a new `EulerTour` from the specified data
-  * @param r `Map[T, Int]` of the first instance of a node
-  * @param e The Euler Tour represented as a `Seq[T]`
+  * @constructor Create a new EulerTour from the specified data
+  * @param r A map of a node to its first index
+  * @param e A representation of the EulerTour as a `Seq[T]`
   * @param h The depths of the Euler Tour represented as a `Seq[Int]`
   */
 class EulerTour[T](r: Map[T, Int], e: Seq[T], h: Seq[Int]) {

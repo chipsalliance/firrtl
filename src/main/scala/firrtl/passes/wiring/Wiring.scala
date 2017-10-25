@@ -33,7 +33,7 @@ class Wiring(wiSeq: Seq[WiringInfo]) extends Pass {
     *   - Wires sources up to LCA, sinks down from LCA, and across each LCA
     *
     * @param c The circuit to modify
-    * @param wi A `[[WiringInfo]]` object containing source, sink, component, and pin information
+    * @param wi A WiringInfo object containing source, sink, component, and pin information
     * @return The modified circuit
     *
     * @throws WiringException if a sink is equidistant to two sources
@@ -162,55 +162,6 @@ class Wiring(wiSeq: Seq[WiringInfo]) extends Pass {
           case Module(i, n, ps, s) => Module(i, n, ps ++ ports, Block(Seq(s) ++ stmts))
           case ExtModule(i, n, ps, dn, p) => ExtModule(i, n, ps ++ ports, dn, p)
         }
-    }
-  }
-
-  /** Returns the type of the component specified
-    */
-  private def getType(c: Circuit, module: String, comp: String) = {
-    def getRoot(e: Expression): String = e match {
-      case r: Reference => r.name
-      case i: SubIndex => getRoot(i.expr)
-      case a: SubAccess => getRoot(a.expr)
-      case f: SubField => getRoot(f.expr)
-    }
-    val eComp = toExp(comp)
-    val root = getRoot(eComp)
-    var tpe: Option[Type] = None
-    def getType(s: Statement): Statement = s match {
-      case DefRegister(_, n, t, _, _, _) if n == root =>
-        tpe = Some(t)
-        s
-      case DefWire(_, n, t) if n == root =>
-        tpe = Some(t)
-        s
-      case WDefInstance(_, n, m, t) if n == root =>
-        tpe = Some(t)
-        s
-      case DefNode(_, n, e) if n == root =>
-        tpe = Some(e.tpe)
-        s
-      case sx: DefMemory if sx.name == root =>
-        tpe = Some(MemPortUtils.memType(sx))
-        sx
-      case sx => sx map getType
-    }
-    val m = c.modules find (_.name == module) getOrElse error(s"Must have a module named $module")
-    tpe = m.ports find (_.name == root) map (_.tpe)
-    m match {
-      case Module(i, n, ps, b) => getType(b)
-      case e: ExtModule =>
-    }
-    tpe match {
-      case None => error(s"Didn't find $comp in $module!")
-      case Some(t) =>
-        def setType(e: Expression): Expression = e map setType match {
-          case ex: Reference => ex.copy(tpe = t)
-          case ex: SubField => ex.copy(tpe = field_type(ex.expr.tpe, ex.name))
-          case ex: SubIndex => ex.copy(tpe = sub_type(ex.expr.tpe))
-          case ex: SubAccess => ex.copy(tpe = sub_type(ex.expr.tpe))
-        }
-        setType(eComp).tpe
     }
   }
 }

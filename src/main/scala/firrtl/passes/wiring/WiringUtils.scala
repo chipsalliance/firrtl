@@ -9,6 +9,7 @@ import firrtl.Utils._
 import firrtl.Mappers._
 import scala.collection.mutable
 import firrtl.annotations._
+import firrtl.annotations.AnnotationUtils._
 import firrtl.analyses.InstanceGraph
 import firrtl.graph.DiGraph
 import WiringUtils._
@@ -113,10 +114,10 @@ object WiringUtils {
   /** Return a map of sink instances to source instances that minimizes
     * distance
     *
-    * @param sinks `Seq[Named]` sink modules
-    * @param source `Named` source module
-    * @param i `InstanceGraph` of a `Circuit`
-    * @return `Map` of sink instance names to source instance names
+    * @param sinks a sequence of sink modules
+    * @param source the source module
+    * @param i a graph representing a circuit
+    * @return a map of sink instance names to source instance names
     * @throws WiringException if a sink is equidistant to two sources
     */
   def sinksToSources(sinks: Seq[Named], source: String, i: InstanceGraph):
@@ -174,6 +175,63 @@ object WiringUtils {
       case ComponentName(_, ModuleName(m, _)) => m
       case _ => throw new
           WiringException("WiringTransform can only wire to Modules or Components")
+    }
+  }
+
+  /** Determine the Type of a specific component
+    *
+    * @param c the circuit containing the target module
+    * @param module the module containing the target component
+    * @param comp the target component
+    * @return the component's type
+    * @throws WiringException if the module is not contained in the circuit
+    * @throws WiringException if the component is not contained in the module
+    */
+  def getType(c: Circuit, module: String, comp: String): Type = {
+    def getRoot(e: Expression): String = e match {
+      case r: Reference => r.name
+      case i: SubIndex => getRoot(i.expr)
+      case a: SubAccess => getRoot(a.expr)
+      case f: SubField => getRoot(f.expr)
+    }
+    val eComp = toExp(comp)
+    val root = getRoot(eComp)
+    var tpe: Option[Type] = None
+    def getType(s: Statement): Statement = s match {
+      case DefRegister(_, n, t, _, _, _) if n == root =>
+        tpe = Some(t)
+        s
+      case DefWire(_, n, t) if n == root =>
+        tpe = Some(t)
+        s
+      case WDefInstance(_, n, _, t) if n == root =>
+        tpe = Some(t)
+        s
+      case DefNode(_, n, e) if n == root =>
+        tpe = Some(e.tpe)
+        s
+      case sx: DefMemory if sx.name == root =>
+        tpe = Some(MemPortUtils.memType(sx))
+        sx
+      case sx => sx map getType
+    }
+    val m = c.modules find (_.name == module) getOrElse {
+      throw new WiringException(s"Must have a module named $module") }
+    tpe = m.ports find (_.name == root) map (_.tpe)
+    m match {
+      case Module(i, n, ps, b) => getType(b)
+      case e: ExtModule =>
+    }
+    tpe match {
+      case None => throw new WiringException(s"Didn't find $comp in $module!")
+      case Some(t) =>
+        def setType(e: Expression): Expression = e map setType match {
+          case ex: Reference => ex.copy(tpe = t)
+          case ex: SubField => ex.copy(tpe = field_type(ex.expr.tpe, ex.name))
+          case ex: SubIndex => ex.copy(tpe = sub_type(ex.expr.tpe))
+          case ex: SubAccess => ex.copy(tpe = sub_type(ex.expr.tpe))
+        }
+        setType(eComp).tpe
     }
   }
 }
