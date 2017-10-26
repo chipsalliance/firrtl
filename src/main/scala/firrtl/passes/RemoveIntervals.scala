@@ -9,6 +9,7 @@ import firrtl._
 import firrtl.Mappers._
 import firrtl.Utils.{sub_type, module_type, field_type, max, error, getUIntWidth}
 import Implicits.{int2WInt, bigint2WInt}
+import Implicits.{constraint2bound, constraint2width, width2constraint}
 
 /** Replaces IntervalType with SIntType, three AST walks:
   * 1) Align binary points
@@ -24,7 +25,8 @@ import Implicits.{int2WInt, bigint2WInt}
 class RemoveIntervals extends Pass {
   def run(c: Circuit): Circuit = {
     val alignedCircuit = c map alignModuleBP
-    val replacedCircuit = alignedCircuit map replaceModuleInterval
+    val wiredCircuit = alignedCircuit map makeWireModule
+    val replacedCircuit = wiredCircuit map replaceModuleInterval
     InferTypes.run(replacedCircuit)
   }
   /* Replace interval types */
@@ -149,6 +151,17 @@ class RemoveIntervals extends Pass {
     case (IntWidth(desired), IntervalType(l, u, IntWidth(current))) if desired < current  =>
       DoPrim(BPShr, Seq(e), Seq(current - desired), IntervalType(l, u, IntWidth(desired)))
     case x => sys.error(s"Shouldn't be here: $x")
+  }
+
+  private def makeWireModule(m: DefModule): DefModule = m map makeWireStmt
+  private def makeWireStmt(s: Statement): Statement = s match {
+    case DefNode(info, name, value) => value.tpe match {
+      case IntervalType(l, u, p) =>
+        val newType = IntervalType(l.optimize(), u.optimize(), p)
+        Block(Seq(DefWire(info, name, newType), Connect(info, WRef(name, newType, WireKind, FEMALE), value)))
+      case other => s
+    }
+    case other => other map makeWireStmt
   }
 
 }
