@@ -60,6 +60,9 @@ class InferBinaryPoints extends Pass {
         }
       }
       pc
+    case r: DefRegister =>
+      addTypeConstraints(r.tpe, r.init.tpe)
+      r
     case x => x map addStmtConstraints
   }
   private def fixWidth(w: Width): Width = constraintSolver.get(w) match {

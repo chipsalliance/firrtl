@@ -558,11 +558,11 @@ case class IntervalType(lower: Bound, upper: Bound, point: Width) extends Ground
     //case Closed(a) => (a / prec).setScale(0, CEILING) * prec
     case Closed(a) => (a / prec).setScale(0, FLOOR) * prec
   }
-  lazy val minAdjusted = min * Math.pow(2, point.get.toDouble) match {
+  lazy val minAdjusted = min * BigDecimal(1 << point.get.toInt) match {
     case x if trim(x).isWhole => x.toBigInt
     case x => sys.error(s"MinAdjusted should be a whole number: $x")
   }
-  lazy val maxAdjusted = max * Math.pow(2, point.get.toDouble) match {
+  lazy val maxAdjusted = max * BigDecimal(1 << point.get.toInt) match {
     case x if trim(x).isWhole => x.toBigInt
     case x => sys.error(s"MaxAdjusted should be a whole number: $x")
   }
