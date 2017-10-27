@@ -614,8 +614,8 @@ case class IntervalType(lower: Bound, upper: Bound, point: Width) extends Ground
         }
         case Closed(x) => resize(x) match {
           case v if trim(v).isWhole => v
-          //case v => v.setScale(0, FLOOR)
-          case v => v.setScale(0, CEILING)
+          case v => v.setScale(0, FLOOR)
+          //case v => v.setScale(0, CEILING)
         }
       }
       val resizedMax = u match {
@@ -625,8 +625,8 @@ case class IntervalType(lower: Bound, upper: Bound, point: Width) extends Ground
         }
         case Closed(x) => resize(x) match {
           case v if trim(v).isWhole => v
-          //case v => v.setScale(0, CEILING)
-          case v => v.setScale(0, FLOOR)
+          case v => v.setScale(0, CEILING)
+          //case v => v.setScale(0, FLOOR)
         }
       }
       //val r = range
