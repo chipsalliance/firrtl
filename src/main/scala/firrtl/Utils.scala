@@ -158,10 +158,7 @@ object Utils extends LazyLogging {
   def indent(str: String) = str replaceAllLiterally ("\n", "\n  ")
 
   implicit def toWrappedExpression (x:Expression): WrappedExpression = new WrappedExpression(x)
-  def getSIntWidth(s: BigInt): Int = s match {
-    case v if v >= 0 => (2 * v).bitLength
-    case v           => ((-2 * v) - 1).bitLength
-  }
+  def getSIntWidth(s: BigInt): Int = s.bitLength + 1
   def getUIntWidth(u: BigInt): Int = u.bitLength
   private val zdec1 = """([+\-]?[0-9]\d*)(\.[0-9]*[1-9])(0*)""".r
   private val zdec2 = """([+\-]?[0-9]\d*)(\.0*)""".r
