@@ -71,7 +71,7 @@ class TrimIntervals extends Pass {
       val shiftAmt = current - desired
       val shiftGain = BigDecimal(1 << shiftAmt.toInt)
       val shiftMul = Closed(BigDecimal(1) / shiftGain)
-      val bpGain = BigDecimal(1 << p.get.toInt)
+      val bpGain = BigDecimal(1 << current.toInt)
       // BP is inferred at this point
       // y = floor(x * 2^(-amt + bp)) gets rid of precision --> y * 2^(-bp + amt) 
       val newBPRes = Closed(shiftGain / bpGain)
