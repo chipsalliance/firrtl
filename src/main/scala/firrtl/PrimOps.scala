@@ -244,13 +244,13 @@ object PrimOps extends LazyLogging {
         case _ => UnknownType
       }
       case AsInterval => t1 match {
-        case _: UIntType     => IntervalType(Closed(BigDecimal(o1)/Math.pow(2, o3.toDouble).toInt), Closed(BigDecimal(o2)/Math.pow(2, o3.toDouble).toInt), IntWidth(o3))
-        case _: SIntType     => IntervalType(Closed(BigDecimal(o1)/Math.pow(2, o3.toDouble).toInt), Closed(BigDecimal(o2)/Math.pow(2, o3.toDouble).toInt), IntWidth(o3))
-        case _: FixedType    => IntervalType(Closed(BigDecimal(o1)/Math.pow(2, o3.toDouble).toInt), Closed(BigDecimal(o2)/Math.pow(2, o3.toDouble).toInt), IntWidth(o3))
-        case ClockType       => IntervalType(Closed(BigDecimal(o1)/Math.pow(2, o3.toDouble).toInt), Closed(BigDecimal(o2)/Math.pow(2, o3.toDouble).toInt), IntWidth(o3))
-        case _: AnalogType   => IntervalType(Closed(BigDecimal(o1)/Math.pow(2, o3.toDouble).toInt), Closed(BigDecimal(o2)/Math.pow(2, o3.toDouble).toInt), IntWidth(o3))
+        case _: UIntType     => IntervalType(Closed(BigDecimal(o1)/BigDecimal(1 << o3.toInt)), Closed(BigDecimal(o2)/BigDecimal(1 << o3.toInt)), IntWidth(o3))
+        case _: SIntType     => IntervalType(Closed(BigDecimal(o1)/BigDecimal(1 << o3.toInt)), Closed(BigDecimal(o2)/BigDecimal(1 << o3.toInt)), IntWidth(o3))
+        case _: FixedType    => IntervalType(Closed(BigDecimal(o1)/BigDecimal(1 << o3.toInt)), Closed(BigDecimal(o2)/BigDecimal(1 << o3.toInt)), IntWidth(o3))
+        case ClockType       => IntervalType(Closed(BigDecimal(o1)/BigDecimal(1 << o3.toInt)), Closed(BigDecimal(o2)/BigDecimal(1 << o3.toInt)), IntWidth(o3))
+        case _: AnalogType   => IntervalType(Closed(BigDecimal(o1)/BigDecimal(1 << o3.toInt)), Closed(BigDecimal(o2)/BigDecimal(1 << o3.toInt)), IntWidth(o3))
         // Chisel shifts up and rounds first.
-        case _: IntervalType => IntervalType(Closed(BigDecimal(o1)/Math.pow(2, o3.toDouble).toInt), Closed(BigDecimal(o2)/Math.pow(2, o3.toDouble).toInt), IntWidth(o3))
+        case _: IntervalType => IntervalType(Closed(BigDecimal(o1)/BigDecimal(1 << o3.toInt)), Closed(BigDecimal(o2)/BigDecimal(1 << o3.toInt)), IntWidth(o3))
         case _ => UnknownType
       }
       case AsClock => t1 match {
@@ -265,7 +265,7 @@ object PrimOps extends LazyLogging {
         case _: UIntType => UIntType(IsAdd(w1, c1))
         case _: SIntType => SIntType(IsAdd(w1, c1))
         case _: FixedType => FixedType(IsAdd(w1,c1), p1)
-        case IntervalType(l, u, p) => IntervalType(IsMul(l, Closed(BigDecimal(Math.pow(2, o1.toDouble)))), IsMul(u, Closed(BigDecimal(Math.pow(2, o1.toDouble)))), p)
+        case IntervalType(l, u, p) => IntervalType(IsMul(l, Closed(BigDecimal(1 << o1.toInt))), IsMul(u, Closed(BigDecimal(1 << o1.toInt))), p)
         case _ => UnknownType
       }
       // Bit ops (not "math" friendly -- doesn't track precision)
@@ -275,10 +275,10 @@ object PrimOps extends LazyLogging {
         case _: SIntType => SIntType(IsMax(IsAdd(w1, IsNeg(c1)), IntWidth(1)))
         case _: FixedType => FixedType(IsMax(IsMax(IsAdd(w1, IsNeg(c1)), IntWidth(1)), p1), p1)
         case IntervalType(l, u, p) => 
-          val shiftMul = Closed(BigDecimal(Math.pow(2, -o1.toDouble)))
+          val shiftMul = Closed(BigDecimal(1) / BigDecimal(1 << o1.toInt))
           // BP is inferred at this point
-          val bpRes = Closed(BigDecimal(Math.pow(2, -p.get.toDouble)))
-          val bpResInv = Closed(BigDecimal(Math.pow(2, p.get.toDouble)))
+          val bpRes = Closed(BigDecimal(1) / BigDecimal(1 << p.get.toInt))
+          val bpResInv = Closed(BigDecimal(1 << p.get.toInt))
           val newL = IsMul(IsFloor(IsMul(IsMul(l, shiftMul), bpResInv)), bpRes)
           val newU = IsMul(IsFloor(IsMul(IsMul(u, shiftMul), bpResInv)), bpRes)
           // BP doesn't grow
@@ -374,13 +374,13 @@ object PrimOps extends LazyLogging {
       case BPShr => t1 match {
         case _: FixedType => FixedType(IsAdd(w1,IsNeg(c1)), IsAdd(p1, IsNeg(c1)))
         case IntervalType(l, u, p) => 
-          val shiftMul = Closed(BigDecimal(Math.pow(2, -o1.toDouble)))
+          val shiftMul = Closed(BigDecimal(1) / BigDecimal(1 << o1.toInt))
           // BP is inferred at this point
           // newBPRes is the only difference in calculating bpshr from shr
           // y = floor(x * 2^(-amt + bp)) gets rid of precision --> y * 2^(-bp + amt) 
           // without amt, same op as shr
-          val newBPRes = Closed(BigDecimal(Math.pow(2, -p.get.toDouble + o1.toDouble)))
-          val bpResInv = Closed(BigDecimal(Math.pow(2, p.get.toDouble)))
+          val newBPRes = Closed(BigDecimal(1 << o1.toInt) / BigDecimal(1 << p.get.toInt))
+          val bpResInv = Closed(BigDecimal(1 << p.get.toInt))
           val newL = IsMul(IsFloor(IsMul(IsMul(l, shiftMul), bpResInv)), newBPRes)
           val newU = IsMul(IsFloor(IsMul(IsMul(u, shiftMul), bpResInv)), newBPRes)
           // BP doesn't grow
@@ -392,8 +392,8 @@ object PrimOps extends LazyLogging {
       case BPSet => t1 match {
         case _: FixedType => FixedType(IsAdd(c1, IsAdd(w1, IsNeg(p1))), c1)
         case IntervalType(l, u, p) => 
-          val newBPResInv = Closed(BigDecimal(Math.pow(2, o1.toDouble)))
-          val newBPRes = Closed(BigDecimal(Math.pow(2, -o1.toDouble)))
+          val newBPResInv = Closed(BigDecimal(1 << o1.toInt))
+          val newBPRes = Closed(BigDecimal(1) / BigDecimal(1 << o1.toInt))
           val newL = IsMul(IsFloor(IsMul(l, newBPResInv)), newBPRes)
           val newU = IsMul(IsFloor(IsMul(u, newBPResInv)), newBPRes)
           IntervalType(newL, newU, c1)
