@@ -68,7 +68,17 @@ class TrimIntervals extends Pass {
     case (IntWidth(desired), IntervalType(l, u, IntWidth(current))) if desired > current  =>
       DoPrim(BPShl, Seq(e), Seq(desired - current), IntervalType(l, u, IntWidth(desired)))
     case (IntWidth(desired), IntervalType(l, u, IntWidth(current))) if desired < current  =>
-      DoPrim(BPShr, Seq(e), Seq(current - desired), IntervalType(UnknownBound, UnknownBound, IntWidth(desired)))
+      val shiftAmt = current - desired
+      val shiftGain = BigDecimal(1 << shiftAmt.toInt)
+      val shiftMul = Closed(BigDecimal(1) / shiftGain)
+      val bpGain = BigDecimal(1 << p.get.toInt)
+      // BP is inferred at this point
+      // y = floor(x * 2^(-amt + bp)) gets rid of precision --> y * 2^(-bp + amt) 
+      val newBPRes = Closed(shiftGain / bpGain)
+      val bpResInv = Closed(bpGain)
+      val newL = IsMul(IsFloor(IsMul(IsMul(l, shiftMul), bpResInv)), newBPRes)
+      val newU = IsMul(IsFloor(IsMul(IsMul(u, shiftMul), bpResInv)), newBPRes)
+      DoPrim(BPShr, Seq(e), Seq(current - desired), IntervalType(CalcBound(newL), CalcBound(newU), IntWidth(desired)))
     case x => sys.error(s"Shouldn't be here: $x")
   }
 }
