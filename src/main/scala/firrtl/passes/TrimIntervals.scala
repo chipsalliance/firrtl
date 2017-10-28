@@ -23,7 +23,10 @@ import Implicits.{int2WInt, bigint2WInt}
   */
 class TrimIntervals extends Pass {
   def run(c: Circuit): Circuit = {
-    InferTypes.run(c map replaceModuleInterval)
+    // Open -> closed
+    val firstPass = InferTypes.run(c map replaceModuleInterval)
+    // Align binary points and adjust range accordingly (loss of precision changes range)
+    firstPass map alignModuleBP
   }
   /* Replace interval types */
   private def replaceModuleInterval(m: DefModule): DefModule = m map replaceStmtInterval map replacePortInterval
@@ -33,6 +36,40 @@ class TrimIntervals extends Pass {
     case i@IntervalType(l: IsKnown, u: IsKnown, IntWidth(p)) => IntervalType(Closed(i.min), Closed(i.max), IntWidth(p))
     case i: IntervalType => i
     case v => v map replaceTypeInterval
+  }
+
+  // TODO: (angie/adam) Permanently move align binary point here (instead of in RemoveIntervals?)
+  /* Align interval binary points -- BINARY POINT ALIGNMENT AFFECTS RANGE INFERENCE! */
+  private def alignModuleBP(m: DefModule): DefModule = m map alignStmtBP
+  private def alignStmtBP(s: Statement): Statement = s map alignExpBP match {
+    case c@Connect(info, loc, expr) => loc.tpe match {
+      case IntervalType(_, _, p) => Connect(info, loc, fixBP(p)(expr))
+      case _ => c
+    }
+    case c@PartialConnect(info, loc, expr) => loc.tpe match {
+      case IntervalType(_, _, p) => PartialConnect(info, loc, fixBP(p)(expr))
+      case _ => c
+    }
+    case other => other map alignStmtBP
+  }
+  private val opsToFix = Seq(Add, Sub, Lt, Leq, Gt, Geq, Eq, Neq, Wrap, Clip) //Mul does not need to be fixed
+  private def alignExpBP(e: Expression): Expression = e map alignExpBP match {
+    case DoPrim(BPSet, Seq(arg), Seq(const), tpe: IntervalType) => fixBP(IntWidth(const))(arg)
+    case DoPrim(o, args, consts, t) if opsToFix.contains(o) && (args.map(_.tpe).collect { case x: IntervalType => x }).size == args.size =>
+      val maxBP = args.map(_.tpe).collect { case IntervalType(_, _, p) => p }.reduce(_ max _)
+      DoPrim(o, args.map { a => fixBP(maxBP)(a) }, consts, t)
+    case Mux(cond, tval, fval, t: IntervalType) =>
+      val maxBP = Seq(tval, fval).map(_.tpe).collect { case IntervalType(_, _, p) => p }.reduce(_ max _)
+      Mux(cond, fixBP(maxBP)(tval), fixBP(maxBP)(fval), t)
+    case other => other
+  }
+  private def fixBP(p: Width)(e: Expression): Expression = (p, e.tpe) match {
+    case (IntWidth(desired), IntervalType(l, u, IntWidth(current))) if desired == current => e
+    case (IntWidth(desired), IntervalType(l, u, IntWidth(current))) if desired > current  =>
+      DoPrim(BPShl, Seq(e), Seq(desired - current), IntervalType(l, u, IntWidth(desired)))
+    case (IntWidth(desired), IntervalType(l, u, IntWidth(current))) if desired < current  =>
+      DoPrim(BPShr, Seq(e), Seq(current - desired), IntervalType(UnknownBound, UnknownBound, IntWidth(desired)))
+    case x => sys.error(s"Shouldn't be here: $x")
   }
 }
 
