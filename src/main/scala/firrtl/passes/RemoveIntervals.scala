@@ -153,6 +153,7 @@ class RemoveIntervals extends Pass {
     case x => sys.error(s"Shouldn't be here: $x")
   }
 
+  // TODO: (adam) better way to assign correct widths to wires?
   private def makeWireModule(m: DefModule): DefModule = m map makeWireStmt
   private def makeWireStmt(s: Statement): Statement = s match {
     case DefNode(info, name, value) => value.tpe match {
