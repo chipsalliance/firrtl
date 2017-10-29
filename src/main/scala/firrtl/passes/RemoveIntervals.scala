@@ -95,7 +95,7 @@ class RemoveIntervals extends Pass {
             val max2 = a2tpe.max * BigDecimal(1 << a1tpe.point.get.toInt)
             val maxOpt2 = max2.setScale(0, CEILING).toBigInt
             val w2 = Seq(minOpt2.bitLength, maxOpt2.bitLength).max + 1
-            val w1 = a1tpe.width.get
+            val w1 = Seq(a1tpe.minAdjusted.bitLength, a1tpe.maxAdjusted.bitLength).max + 1
             if (w1 < w2) 
               a1
             else {
