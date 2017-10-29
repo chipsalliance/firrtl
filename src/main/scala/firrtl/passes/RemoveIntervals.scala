@@ -10,6 +10,7 @@ import firrtl.Mappers._
 import firrtl.Utils.{sub_type, module_type, field_type, max, error, getUIntWidth}
 import Implicits.{int2WInt, bigint2WInt}
 import Implicits.{constraint2bound, constraint2width, width2constraint}
+import scala.math.BigDecimal.RoundingMode._
 
 /** Replaces IntervalType with SIntType, three AST walks:
   * 1) Align binary points
@@ -86,7 +87,21 @@ class RemoveIntervals extends Pass {
         (wrapHi >= inHi, wrapLo <= inLo, (inHi - range - 1) <= wrapHi, (inLo + range + 1) >= wrapLo, c1 > 0) match {
           case(_, _, _, _, true) =>
             // Using wrap for dual purpose: (conditional) reassign interval w/o adding mux
-            a1
+            val a2tpe = a2.tpe.asInstanceOf[IntervalType]
+            val a1tpe = a1.tpe.asInstanceOf[IntervalType]
+            val min2 = a2tpe.min * BigDecimal(1 << a1tpe.point.get.toInt)
+            // Conservative
+            val minOpt2 = min2.setScale(0, FLOOR).toBigInt
+            val max2 = a2tpe.max * BigDecimal(1 << a1tpe.point.get.toInt)
+            val maxOpt2 = max2.setScale(0, CEILING).toBigInt
+            val w2 = Seq(minOpt2.bitLength, maxOpt2.bitLength).max + 1
+            val w1 = a1tpe.width.get
+            if (w1 < w2) 
+              a1
+            else {
+              val bits = DoPrim(Bits, Seq(a1), Seq(w2 - 1, 0), UIntType(IntWidth(w2)))
+              DoPrim(AsSInt, Seq(bits), Seq.empty, SIntType(IntWidth(w2)))
+            }
           case (true, true, _, _, false) => 
             // println("Clip Opt: Full")
             a1
