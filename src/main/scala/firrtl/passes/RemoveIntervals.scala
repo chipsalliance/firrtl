@@ -89,10 +89,10 @@ class RemoveIntervals extends Pass {
             // Using wrap for dual purpose: (conditional) reassign interval w/o adding mux
             val a2tpe = a2.tpe.asInstanceOf[IntervalType]
             val a1tpe = a1.tpe.asInstanceOf[IntervalType]
-            val min2 = a2tpe.min * BigDecimal(1 << a1tpe.point.get.toInt)
+            val min2 = a2tpe.min * BigDecimal(BigInt(1) << a1tpe.point.get.toInt)
             // Conservative
             val minOpt2 = min2.setScale(0, FLOOR).toBigInt
-            val max2 = a2tpe.max * BigDecimal(1 << a1tpe.point.get.toInt)
+            val max2 = a2tpe.max * BigDecimal(BigInt(1) << a1tpe.point.get.toInt)
             val maxOpt2 = max2.setScale(0, CEILING).toBigInt
             val w2 = Seq(minOpt2.bitLength, maxOpt2.bitLength).max + 1
             val w1 = Seq(a1tpe.minAdjusted.bitLength, a1tpe.maxAdjusted.bitLength).max + 1

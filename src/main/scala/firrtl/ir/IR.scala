@@ -429,7 +429,7 @@ case class Open(value: BigDecimal) extends IsKnown with Bound {
   def max(that: IsKnown): IsKnown = if(value > that.value) this else that
   def neg: IsKnown = Open(-value)
   def floor: IsKnown = Open(value.setScale(0, BigDecimal.RoundingMode.FLOOR)) 
-  def pow: IsKnown = if(value.isBinaryDouble) Open(1 << value.toInt) else sys.error("Shouldn't be here")
+  def pow: IsKnown = if(value.isBinaryDouble) Open(BigDecimal(BigInt(1) << value.toInt)) else sys.error("Shouldn't be here")
 }
 case class Closed(value: BigDecimal) extends IsKnown with Bound {
   def serialize = s"c($value)"
@@ -446,7 +446,7 @@ case class Closed(value: BigDecimal) extends IsKnown with Bound {
   def max(that: IsKnown): IsKnown = if(value >= that.value) this else that
   def neg: IsKnown = Closed(-value)
   def floor: IsKnown = Closed(value.setScale(0, BigDecimal.RoundingMode.FLOOR))
-  def pow: IsKnown = if(value.isBinaryDouble) Closed(1 << value.toInt) else sys.error("Shouldn't be here")
+  def pow: IsKnown = if(value.isBinaryDouble) Closed(BigDecimal(BigInt(1) << value.toInt)) else sys.error("Shouldn't be here")
 }
 
 /** Types of [[FirrtlNode]] */
@@ -503,7 +503,7 @@ case class IntervalType(lower: Bound, upper: Bound, point: Width) extends Ground
     }
     "Interval" + bounds + pointString
   }
-  lazy val prec = BigDecimal(1) / BigDecimal(1 << point.get.toInt)
+  lazy val prec = BigDecimal(1) / BigDecimal(BigInt(1) << point.get.toInt)
   lazy val min = lower.optimize match {
     case Open(a) => (a / prec) match {
       case x if trim(x).isWhole => a + prec // add precision for open lower bound i.e. (-4 -> [3 for bp = 0
@@ -520,17 +520,17 @@ case class IntervalType(lower: Bound, upper: Bound, point: Width) extends Ground
     //case Closed(a) => (a / prec).setScale(0, CEILING) * prec
     case Closed(a) => (a / prec).setScale(0, FLOOR) * prec
   }
-  lazy val minAdjusted = min * BigDecimal(1 << point.get.toInt) match {
+  lazy val minAdjusted = min * BigDecimal(BigInt(1) << point.get.toInt) match {
     case x if trim(x).isWhole | x.doubleValue == 0.0 => x.toBigInt
     case x => sys.error(s"MinAdjusted should be a whole number: $x. Min is $min. BP is ${point.get.toInt}. Precision is $prec. Lower is ${lower}.")
   }
-  lazy val maxAdjusted = max * BigDecimal(1 << point.get.toInt) match {
+  lazy val maxAdjusted = max * BigDecimal(BigInt(1) << point.get.toInt) match {
     case x if trim(x).isWhole => x.toBigInt
     case x => sys.error(s"MaxAdjusted should be a whole number: $x")
   }
   lazy val width: Width = (point, lower, upper) match {
     case (IntWidth(i), l: IsKnown, u: IsKnown) =>
-      def resize(value: BigDecimal): BigDecimal = value * BigDecimal(1 << i.toInt)
+      def resize(value: BigDecimal): BigDecimal = value * BigDecimal(BigInt(1) << i.toInt)
       val resizedMin = l match {
         case Open(x) => resize(x) match {
           case v if trim(v).isWhole => v + 1
