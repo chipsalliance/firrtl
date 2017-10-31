@@ -133,7 +133,7 @@ case class IsNeg(child: IsConstrainable) extends IsConstrainable {
   override def reduce(): IsConstrainable = child match {
     case k: IsKnown => k.neg
     case x: IsAdd => IsAdd(x.children.map { b => IsNeg(b).reduce }:_*).reduce
-    case x: IsMul => IsMul(x.children.map { b => IsNeg(b).reduce }:_*).reduce
+    case x: IsMul => IsMul(Seq(IsNeg(x.children.head).reduce()) ++ x.children.tail:_*).reduce()
     case x: IsNeg => x.child
     case x: IsPow => this
     // -[max(a, b)] -> min[-a, -b]
