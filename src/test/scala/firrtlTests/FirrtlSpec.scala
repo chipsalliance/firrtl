@@ -11,6 +11,7 @@ import org.scalatest.prop._
 import scala.io.Source
 
 import firrtl._
+import firrtl.ir._
 import firrtl.Parser.UseInfo
 import firrtl.annotations._
 import firrtl.transforms.{DontTouchAnnotation, NoDedupAnnotation}
@@ -119,9 +120,72 @@ trait FirrtlMatchers extends Matchers {
   }
 }
 
+object FirrtlCheckers {
+  implicit class TestingFunctionsOnCircuitState(val state: CircuitState) extends AnyVal {
+    def search(pf: PartialFunction[Any, Boolean]): Boolean = state.circuit.search(pf)
+  }
+  implicit class TestingFunctionsOnCircuit(val circuit: Circuit) extends AnyVal {
+    def search(pf: PartialFunction[Any, Boolean]): Boolean = {
+      val f = pf.lift
+      def rec(node: Any): Boolean = {
+        f(node) match {
+          // If the partial function is defined on this node, return its result
+          case Some(res) => res
+          // Otherwise keep digging
+          case None =>
+            require(node.isInstanceOf[Product] || !node.isInstanceOf[FirrtlNode],
+                    "Error! Unexpected FirrtlNode that does not implement Product!")
+            val iter = node match {
+              case p: Product => p.productIterator
+              case i: Iterable[Any] => i.iterator
+              case _ => Iterator.empty
+            }
+            iter.foldLeft(false) {
+              case (res, elt) => if (res) res else rec(elt)
+            }
+        }
+      }
+      rec(circuit)
+    }
+  }
+}
+
 abstract class FirrtlPropSpec extends PropSpec with PropertyChecks with FirrtlRunners with LazyLogging
 
 abstract class FirrtlFlatSpec extends FlatSpec with FirrtlRunners with FirrtlMatchers with LazyLogging
+
+// Who tests the testers?
+class TestFirrtlFlatSpec extends FirrtlFlatSpec {
+  import FirrtlCheckers._
+
+  val c = parse("""
+    |circuit Test:
+    |  module Test :
+    |    input in : UInt<8>
+    |    output out : UInt<8>
+    |    out <= in
+    |""".stripMargin)
+  val state = CircuitState(c, ChirrtlForm)
+
+  behavior of "Search"
+
+  it should "be supported on Circuit" in {
+    assert(c search {
+      case Connect(_, Reference("out",_), Reference("in",_)) => true
+    })
+  }
+  it should "be supported on CircuitStates" in {
+    assert(state search {
+      case Connect(_, Reference("out",_), Reference("in",_)) => true
+    })
+  }
+  it should "be supported on the results of compilers" in {
+    val compiler = new LowFirrtlCompiler
+    assert(compiler.compile(state, List.empty) search {
+      case Connect(_, WRef("out",_,_,_), WRef("in",_,_,_)) => true
+    })
+  }
+}
 
 /** Super class for execution driven Firrtl tests */
 abstract class ExecutionTest(name: String, dir: String, vFiles: Seq[String] = Seq.empty) extends FirrtlPropSpec {
