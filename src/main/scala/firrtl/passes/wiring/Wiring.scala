@@ -144,22 +144,23 @@ class Wiring(wiSeq: Seq[WiringInfo]) extends Pass {
     map.get(m.name) match {
       case None => m
       case Some(l) =>
-        val stmts = mutable.ArrayBuffer[Statement]()
+        val defines = mutable.ArrayBuffer[Statement]()
+        val connects = mutable.ArrayBuffer[Statement]()
         val ports = mutable.ArrayBuffer[Port]()
         l.addPort match {
           case None =>
           case Some((s, dt)) => dt match {
             case DecInput  => ports += Port(NoInfo, s, Input, t)
             case DecOutput => ports += Port(NoInfo, s, Output, t)
-            case DecWire   => stmts += DefWire(NoInfo, s, t)
+            case DecWire   => defines += DefWire(NoInfo, s, t)
           }
         }
-        stmts ++= (l.cons map { case ((l, r)) =>
+        connects ++= (l.cons map { case ((l, r)) =>
           Connect(NoInfo, toExp(l), toExp(r))
         })
-        def onStmt(s: Statement): Statement = Block(Seq(s) ++ stmts)
         m match {
-          case Module(i, n, ps, s) => Module(i, n, ps ++ ports, Block(Seq(s) ++ stmts))
+          case Module(i, n, ps, s) => Module(i, n, ps ++ ports,
+            Block(defines ++ Seq(s) ++ connects))
           case ExtModule(i, n, ps, dn, p) => ExtModule(i, n, ps ++ ports, dn, p)
         }
     }

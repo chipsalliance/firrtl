@@ -77,13 +77,13 @@ class WiringTests extends FirrtlFlatSpec {
         |    a.clock <= clock
         |  module A :
         |    input clock: Clock
+        |    wire r: UInt<5>
         |    inst b of B
         |    b.clock <= clock
         |    inst x of X
         |    x.clock <= clock
         |    inst d of D
         |    d.clock <= clock
-        |    wire r: UInt<5>
         |    d.r <= r
         |    r <= b.r
         |    x.pin <= r
@@ -166,13 +166,13 @@ class WiringTests extends FirrtlFlatSpec {
         |    a.clock <= clock
         |  module A :
         |    input clock: Clock
+        |    wire r: UInt<5>
         |    inst b of B
         |    b.clock <= clock
         |    inst x of X
         |    x.clock <= clock
         |    inst d of D
         |    d.clock <= clock
-        |    wire r: UInt<5>
         |    d.r <= r
         |    r <= b.r
         |    x.pin <= r
@@ -256,13 +256,13 @@ class WiringTests extends FirrtlFlatSpec {
         |    a.clock <= clock
         |  module A :
         |    input clock: Clock
+        |    wire r: UInt<5>
         |    inst b of B
         |    b.clock <= clock
         |    inst x of X
         |    x.clock <= clock
         |    inst d of D
         |    d.clock <= clock
-        |    wire r: UInt<5>
         |    d.r <= r
         |    r <= b.r
         |    x.pin <= r
@@ -329,10 +329,10 @@ class WiringTests extends FirrtlFlatSpec {
         |    a.clock <= clock
         |  module A :
         |    input clock: Clock
+        |    wire r_x: UInt<5>
         |    reg r: {x: UInt<5>}, clock
         |    inst x of X
         |    x.clock <= clock
-        |    wire r_x: UInt<5>
         |    r_x <= r.x
         |    x.pin <= r_x
         |  extmodule X :
@@ -371,9 +371,9 @@ class WiringTests extends FirrtlFlatSpec {
         |    a.clock <= clock
         |  module A :
         |    input clock: Clock
+        |    wire clock_0: Clock
         |    inst x of X
         |    x.clock <= clock
-        |    wire clock_0: Clock
         |    clock_0 <= clock
         |    x.pin <= clock_0
         |  extmodule X :
@@ -416,9 +416,9 @@ class WiringTests extends FirrtlFlatSpec {
         |    a2.clock <= clock
         |  module A :
         |    input clock: Clock
+        |    wire clock_0: Clock
         |    inst x of X
         |    x.clock <= clock
-        |    wire clock_0: Clock
         |    clock_0 <= clock
         |    x.pin <= clock_0
         |  extmodule X :
@@ -461,9 +461,9 @@ class WiringTests extends FirrtlFlatSpec {
         |    a2.clock <= clock
         |  module A :
         |    input clock: Clock
+        |    wire clock_0: Clock
         |    inst x of X
         |    x.clock <= clock
-        |    wire clock_0: Clock
         |    clock_0 <= clock
         |    x.pin <= clock_0
         |  extmodule X :
@@ -533,11 +533,11 @@ class WiringTests extends FirrtlFlatSpec {
         |    a.clock <= clock
         |  module A :
         |    input clock: Clock
+        |    wire r_a: UInt<2>
         |    reg r: UInt<2>[5], clock
         |    node a = UInt(5)
         |    inst x of X
         |    x.clock <= clock
-        |    wire r_a: UInt<2>
         |    r_a <= r[a]
         |    x.pin <= r_a
         |  extmodule X :
@@ -568,10 +568,11 @@ class WiringTests extends FirrtlFlatSpec {
       """circuit Top :
         |  module Top :
         |    input clk: Clock
+        |    wire r_0 : UInt<5>
         |    inst x of X
         |    reg r: UInt<5>, clk
-        |    wire r_0 : UInt<5>
         |    r_0 <= r
+        |    r <= r
         |    x.pin <= r_0
         |  extmodule X :
         |    input clk: Clock
@@ -602,10 +603,11 @@ class WiringTests extends FirrtlFlatSpec {
       """circuit Top :
         |  module Top :
         |    input clk: Clock
+        |    wire r_0 : UInt<5>
         |    inst x of X
         |    reg r: UInt<5>, clk
-        |    wire r_0 : UInt<5>
         |    r_0 <= r
+        |    r <= r
         |    x.pin <= r_0
         |  module X :
         |    input clk: Clock
