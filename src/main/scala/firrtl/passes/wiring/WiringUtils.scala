@@ -144,10 +144,10 @@ object WiringUtils {
         .map(u :+ _)
         .toSeq :+ u.dropRight(1))
         .filter(e => !visited(e) && e.nonEmpty )
-        .map (v => {
+        .map{ v =>
           owners(v) = owners(v) ++ owners(u)
           queue.enqueue(v)
-        })
+        }
     }
 
     val sinkInsts = i.fullHierarchy.keys
@@ -158,10 +158,10 @@ object WiringUtils {
 
     // Check that every sink has one unique owner. The only time that
     // this should fail is if a sink is equidistant to two sources.
-    sinkInsts.map( s => {
+    sinkInsts.map { s =>
       if (!owners.contains(s) || owners(s).size > 1) {
         throw new WiringException(s"Unable to determine source mapping for sink '${s.map(_.name)}'") }
-    })
+    }
 
     owners
       .filter { case (k, v) => sinkInsts.contains(k) }

@@ -17,7 +17,7 @@ object EulerTour {
       r.getOrElseUpdate(id, e.size)
       e += id
       h += height
-      diGraph.getEdges(id.last).foreach{ v =>
+      diGraph.getEdges(id.last).foreach { v =>
         tour(v, id, height + 1)
         e += id
         h += height
@@ -122,12 +122,12 @@ class EulerTour[T](r: Map[T, Int], e: Seq[T], h: Seq[Int]) {
       .flatten.combinations(m - 1).flatMap(_.permutations).toList
       .sortWith(sortSeqSeq)
       .map(_.foldLeft(Seq(0))((h, pm) => (h.head + pm) +: h).reverse)
-      .map(a => {
+      .map{ a =>
         var tmp = Array.ofDim[Int](m, m)
         for (i <- 0 to size; j <- i to size) yield {
           val window = a.slice(i, j + 1)
           tmp(i)(j) = window.indexOf(window.min) + i }
-        tmp }).toArray
+        tmp }.toArray
     out
   }
   private lazy val tables = constructTableLookups(m)
