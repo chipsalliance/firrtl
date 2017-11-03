@@ -29,9 +29,9 @@ case class Metadata(
   override def toString: String = serialize("")
 
   def serialize(tab: String): String = s"""
-$tab addPort: $addPort
-$tab cons: $cons
-"""
+   |$tab addPort: $addPort
+   |$tab cons: $cons
+   |""".stripMargin
 }
 
 /** A lineage tree representing the instance hierarchy in a design
