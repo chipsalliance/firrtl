@@ -97,15 +97,6 @@ object WiringUtils {
     childrenMap
   }
 
-  /** Counts the number of instances of a module declared under a top module
-    */
-  def countInstances(childrenMap: ChildrenMap, top: String, module: String): Int = {
-    if (top == module) { 1 }
-    else { childrenMap(top).foldLeft(0) { case (count, (i, child)) =>
-      count + countInstances(childrenMap, child, module) }
-    }
-  }
-
   /** Returns a module's lineage, containing all children lineages as well
     */
   def getLineage(childrenMap: ChildrenMap, module: String): Lineage =
