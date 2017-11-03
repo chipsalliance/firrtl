@@ -100,8 +100,8 @@ class EulerTour[T](r: Map[T, Int], e: Seq[T], h: Seq[Int]) {
     }
 
     for (i <- (0 to x.size - 1);
-      j <- (0 to math.ceil(lg(x.size)).toInt - 1);
-      if i + (1 << j) - 1 < x.size) yield {
+         j <- (0 to math.ceil(lg(x.size)).toInt - 1);
+         if i + (1 << j) - 1 < x.size) {
       tableRecursive(i, j)
     }
     tmp
