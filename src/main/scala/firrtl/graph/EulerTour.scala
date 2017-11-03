@@ -113,8 +113,7 @@ class EulerTour[T](r: Map[T, Int], e: Seq[T], h: Seq[Int]) {
     */
   private def constructTableLookups(n: Int): Array[Array[Array[Int]]] = {
     def sortSeqSeq[T <: Int](x: Seq[T], y: Seq[T]): Boolean = {
-      if (x(0) != y(0)) { x(0) < y(0)                }
-      else              { sortSeqSeq(x.tail, y.tail) }
+      if (x(0) != y(0)) x(0) < y(0) else sortSeqSeq(x.tail, y.tail)
     }
 
     val size = m - 1
