@@ -12,7 +12,7 @@ object EulerTour {
     val e = mutable.ArrayBuffer[Seq[T]]()
     val h = mutable.ArrayBuffer[Int]()
 
-    def tour(u: T, parent: Seq[T] = Seq(), height: Int = 0): Unit = {
+    def tour(u: T, parent: Vector[T], height: Int): Unit = {
       val id = parent :+ u
       if (!r.contains(id)) { r(id) = e.size }
       e += id
@@ -24,7 +24,7 @@ object EulerTour {
       })
     }
 
-    tour(start)
+    tour(start, Vector.empty, 0)
     new EulerTour(r.toMap, e, h)
   }
 }
