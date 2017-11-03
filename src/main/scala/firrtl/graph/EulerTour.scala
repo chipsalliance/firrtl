@@ -17,11 +17,11 @@ object EulerTour {
       r.getOrElseUpdate(id, e.size)
       e += id
       h += height
-      diGraph.getEdges(id.last).toSeq.flatMap( v => {
+      diGraph.getEdges(id.last).foreach{ v =>
         tour(v, id, height + 1)
         e += id
         h += height
-      })
+      }
     }
 
     tour(start, Vector.empty, 0)
