@@ -14,7 +14,7 @@ object EulerTour {
 
     def tour(u: T, parent: Vector[T], height: Int): Unit = {
       val id = parent :+ u
-      if (!r.contains(id)) { r(id) = e.size }
+      r.getOrElseUpdate(id, e.size)
       e += id
       h += height
       diGraph.getEdges(id.last).toSeq.flatMap( v => {
