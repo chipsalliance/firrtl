@@ -18,7 +18,8 @@ import firrtl.Mappers._
   */
 class InstanceGraph(c: Circuit) {
 
-  private def collectInstances(insts: mutable.Set[WDefInstance])(s: Statement): Statement = s match {
+  private def collectInstances(insts: mutable.Set[WDefInstance])
+                              (s: Statement): Statement = s match {
     case i: WDefInstance =>
       insts += i
       i
@@ -89,8 +90,7 @@ class InstanceGraph(c: Circuit) {
     * a design
     */
   def lowestCommonAncestor(moduleA: Seq[WDefInstance],
-    moduleB: Seq[WDefInstance]):
-      Seq[WDefInstance] = {
+                           moduleB: Seq[WDefInstance]): Seq[WDefInstance] = {
     tour.rmq(moduleA, moduleB)
   }
 }
