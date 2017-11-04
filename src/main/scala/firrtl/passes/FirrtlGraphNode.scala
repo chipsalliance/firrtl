@@ -137,3 +137,14 @@ class IsInvalidGraphNode(val info: Info) extends StatementGraphNode {
   var expr: Option[ExpressionGraphNode] = None
   def neighbors = expr.toList
 }
+
+object getGraphNode {
+  def apply[T](pointer: Option[T]): T = {
+    pointer.getOrElse(
+      throw new Exception(
+        s"InsertWrapperModules pass encountered unexpectedly unconnected "
+        + s"graph node pointer"
+      )
+    )
+  }
+}
