@@ -38,6 +38,12 @@ trait IsConstrainable {
     kids.toSeq
   }
   def optimize(): IsConstrainable = map(_.optimize()).reduce()
+  def optimizePrint(tab: String = ""): IsConstrainable = {
+    println(tab + "Start: " + this.serialize)
+    val ret = map(_.optimizePrint(tab + "\t")).reduce()
+    println(tab + "End: " + ret.serialize)
+    ret
+  }
   def op(b1: IsKnown, b2: IsKnown): IsConstrainable = sys.error("Shouldn't be here")
   def gen(children: Seq[IsConstrainable]): IsConstrainable = (this, children) match {
     case (_: IsVar, Nil)              => this
@@ -57,6 +63,10 @@ trait IsConstrainable {
     case (_, Nil)                     => sys.error("Shouldn't be here")
     case _                            => sys.error("Shouldn't be here")
   }
+  def genericOp(b1: IsConstrainable, b2: IsConstrainable): IsConstrainable = (b1, b2) match {
+    case (k1: IsKnown, k2: IsKnown) => op(k1, k2)
+    case _ => sys.error("Shouldn't be here")
+  }
   def reduce(): IsConstrainable = {
     val newBounds = children.flatMap{ 
       _ match {
@@ -69,10 +79,6 @@ trait IsConstrainable {
       case x: IsMax   => "max"
       case x: IsMin   => "min"
       case x             => "other"
-    }
-    def genericOp(b1: IsConstrainable, b2: IsConstrainable): IsConstrainable = (b1, b2) match {
-      case (k1: IsKnown, k2: IsKnown) => op(k1, k2)
-      case _ => sys.error("Shouldn't be here")
     }
     val known = groups.get("known") match {
       case None => Nil
@@ -126,6 +132,33 @@ case class IsAdd(override val children: IsConstrainable*) extends IsConstrainabl
 }
 case class IsMul(override val children: IsConstrainable*) extends IsConstrainable {
   override def op(b1: IsKnown, b2: IsKnown): IsConstrainable = b1 * b2
+  override def reduce(): IsConstrainable = {
+    val newBounds = children.flatMap{
+      _ match {
+        case a if a.getClass == this.getClass => a.children
+        case x => Seq(x)
+      }
+    }
+    val groups = newBounds.groupBy {
+      case x: IsKnown => "known"
+      case x          => "other"
+    }
+    val known = groups.get("known") match {
+      case None => Nil
+      case Some(seq) => Seq(seq.reduce(genericOp))
+    }
+    val others = groups.get("other") match {
+      case None => Nil
+      case Some(seq) => seq
+    }
+    (known, others) match {
+      case (Nil, Nil) => this
+      case (_, _) if known.size + others.size == 1 => (known ++ others).head
+      case (_, _) =>
+        val args = known ++ others
+        args.slice(2, args.size).foldLeft(IsMul(args(0), args(1))) { case (m, a) => IsMul(m, a) }
+    }
+  }
   def map(f: IsConstrainable=>IsConstrainable): IsConstrainable = IsMul(children.map(f):_*)
   def serialize: String = "(" + children.map(_.serialize).mkString(" * ") + ")"
 }
