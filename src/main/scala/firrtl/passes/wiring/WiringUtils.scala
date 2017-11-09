@@ -121,11 +121,14 @@ object WiringUtils {
     val visited = new mutable.HashMap[Seq[WDefInstance], Boolean]
       .withDefaultValue(false)
 
-    i.fullHierarchy.keys
-      .filter { case WDefInstance(_, _, module, _) => module == source }
-      .map    { k => i.fullHierarchy(k)
-        .map  { l => queue.enqueue(l)
-                     owners(l) = Seq(l)                                }}
+    i.fullHierarchy.keys.filter { case WDefInstance(_,_,m,_) => m == source }
+      .foreach( i.fullHierarchy(_)
+                 .foreach { l =>
+                   queue.enqueue(l)
+                   owners(l) = Seq(l)
+                 }
+      )
+
 
     while (queue.nonEmpty) {
       val u = queue.dequeue
@@ -143,7 +146,7 @@ object WiringUtils {
 
     val sinkInsts = i.fullHierarchy.keys
       .filter { case WDefInstance(_, _, module, _) =>
-        sinks.map(namedName(_)).contains(module) }
+        sinks.map(moduleName(_)).contains(module) }
       .map    { k => i.fullHierarchy(k)                                      }
       .toSeq.flatten
 
@@ -155,12 +158,12 @@ object WiringUtils {
     }
 
     owners
-      .filter { case (k, v) => sinkInsts.contains(k) }
+      .filter { case (k, _) => sinkInsts.contains(k) }
       .map    { case (k, v) => (k, v.flatten)        }
       .toMap
   }
 
-  def namedName(n: Named): String = {
+  def moduleName(n: Named): String = {
     n match {
       case ModuleName(m, _)                   => m
       case ComponentName(_, ModuleName(m, _)) => m

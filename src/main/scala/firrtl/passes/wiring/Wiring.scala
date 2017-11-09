@@ -47,7 +47,7 @@ class Wiring(wiSeq: Seq[WiringInfo]) extends Pass {
     val portNames = c.modules.foldLeft(Map.empty[String, String]) { (map, m) =>
       map + (m.name -> {
         val ns = Namespace(m)
-        if(sinks.filter(namedName(_) == m.name).nonEmpty) ns.newName(pin)
+        if (sinks.exists(moduleName(_) == m.name)) ns.newName(pin)
         else ns.newName(tokenize(compName) filterNot ("[]." contains _) mkString "_")
       })
     }
@@ -55,11 +55,7 @@ class Wiring(wiSeq: Seq[WiringInfo]) extends Pass {
     // Obtain the source component type
     val sourceComponentType = getType(c, source, compName)
     val sinkComponents = sinks
-      .foldLeft(Map.empty[String, String]) { (map, m) =>
-        map ++ { m match {
-          case ComponentName(c, ModuleName(m, _)) => Map(m -> c)
-          case _ => Map()
-        }}}
+      .collect { case ComponentName(c, ModuleName(m, _)) => m -> c }.toMap
 
     // Determine "ownership" of sources to sinks via minimum distance
     val owners = sinksToSources(sinks, source, iGraph)
