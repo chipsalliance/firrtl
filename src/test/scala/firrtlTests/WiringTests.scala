@@ -210,7 +210,6 @@ class WiringTests extends FirrtlFlatSpec {
     val retC = wiringPass.run(c)
     (parse(retC.serialize).serialize) should be (parse(check).serialize)
   }
-
   "Wiring from r to module X, component (wire) s" should "work" in {
     val sinks = Seq(ComponentName("s", ModuleName("X", CircuitName("Top"))))
     val source = ComponentName("r", ModuleName("C", CircuitName("Top")))
@@ -338,6 +337,52 @@ class WiringTests extends FirrtlFlatSpec {
         |  extmodule X :
         |    input clock: Clock
         |    input pin: UInt<5>
+        |""".stripMargin
+    val c = passes.foldLeft(parse(input)) {
+      (c: Circuit, p: Pass) => p.run(c)
+    }
+    val wiringPass = new Wiring(Seq(sas))
+    val retC = wiringPass.run(c)
+    (parse(retC.serialize).serialize) should be (parse(check).serialize)
+  }
+  "Wiring from r to module X, component (wire) s, source under sink" should "work" in {
+    val sinks = Seq(ComponentName("s", ModuleName("A", CircuitName("Top"))))
+    val source = ComponentName("r", ModuleName("X", CircuitName("Top")))
+    val sas = WiringInfo(source, sinks, "pin")
+    val input =
+      """circuit Top :
+        |  module Top :
+        |    input clock: Clock
+        |    inst a of A
+        |    a.clock <= clock
+        |  module A :
+        |    input clock: Clock
+        |    wire s: UInt<5>
+        |    inst x of X
+        |    x.clock <= clock
+        |  module X :
+        |    input clock: Clock
+        |    reg r: UInt<5>, clock
+        |""".stripMargin
+    val check =
+      """circuit Top :
+        |  module Top :
+        |    input clock: Clock
+        |    inst a of A
+        |    a.clock <= clock
+        |  module A :
+        |    input clock: Clock
+        |    wire pin: UInt<5>
+        |    wire s: UInt<5>
+        |    inst x of X
+        |    x.clock <= clock
+        |    s <= pin
+        |    pin <= x.r_0
+        |  module X :
+        |    input clock: Clock
+        |    output r_0: UInt<5>
+        |    reg r: UInt<5>, clock
+        |    r_0 <= r
         |""".stripMargin
     val c = passes.foldLeft(parse(input)) {
       (c: Circuit, p: Pass) => p.run(c)

@@ -82,11 +82,14 @@ class Wiring(wiSeq: Seq[WiringInfo]) extends Pass {
           meta(cm) = meta(cm).copy(
             addPort = Some((portNames(cm), DecInput))
           )
-        case _ => throw new WiringException(
-          s"""|Unexpectedly short path from LCA to sink
-              |  - possible reason: source is a sink submodule
-              |  - LCA: ${lca.map(_.name)}
-              |  - sink: ${sink.map(_.name)}""".stripMargin)
+        case Seq(WDefInstance(_,_,pm,_)) =>
+          val WDefInstance(_,ci,cm,_) = source.drop(lca.size).head
+          val to = s"${portNames(pm)}"
+          val from = s"$ci.${portNames(cm)}"
+          meta(pm) = meta(pm).copy(
+            addPort = Some((portNames(pm), DecWire)),
+            cons = (meta(pm).cons :+ (to, from)).distinct
+          )
       }
 
       // Compute metadata for the Sink
