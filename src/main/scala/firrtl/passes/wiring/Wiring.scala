@@ -19,38 +19,65 @@ case class WiringInfo(source: Named, sinks: Seq[Named], pin: String)
 
 class Wiring(wiSeq: Seq[WiringInfo]) extends Pass {
   def run(c: Circuit): Circuit = {
-    wiSeq.foldLeft(c) { (circuit, wi) => wire(circuit, wi) }
+    val updates = analyze(c, wiSeq)
+
+    updates.foldLeft(c){ case (circuit, (u, t)) => wire(circuit, u, t) }
   }
 
-  /** Wires Sources to Sinks
+  /** Converts multiple units of wiring information to module modifications
     *
-    * Sinks are wired to their closest source through their lowest
-    * common ancestor (LCA). Verbosely, this modifies the circuit in
-    * the following ways:
-    *   - Adds a pin to each sink module
-    *   - Punches ports up from source signals to the LCA of each sink
-    *   - Punches ports down from LCAs to each sink module
-    *   - Wires sources up to LCA, sinks down from LCA, and across each LCA
-    *
-    * @param c The circuit to modify
-    * @param wi A WiringInfo object containing source, sink, component, and pin information
-    * @return The modified circuit
-    *
-    * @throws WiringException if a sink is equidistant to two sources
+    * @param c a [[Circuit]]
+    * @param wiSeq a sequence of wiring information
     */
-  def wire(c: Circuit, wi: WiringInfo): Circuit = {
-    // Split out wiring info
-    val (ComponentName(compName, ModuleName(source,_)), sinks, pin) = (wi.source, wi.sinks, wi.pin)
-    val iGraph = new InstanceGraph(c)
+  private def analyze(c: Circuit, wiSeq: Seq[WiringInfo]):
+      Seq[(Map[String, Modifications], Type)] = {
+    val zipped: Seq[(String, String, Seq[Named], String)] = wiSeq
+      .map( wi => (wi.source, wi.sinks, wi.pin) match {
+             case (ComponentName(compName, ModuleName(source,_)), sinks, pin) =>
+               (compName, source, sinks, pin)
+           })
 
-    // Create valid port names for wiring that have no name conflicts
-    val portNames = c.modules.foldLeft(Map.empty[String, String]) { (map, m) =>
-      map + (m.name -> {
-        val ns = Namespace(m)
-        if (sinks.exists(moduleName(_) == m.name)) ns.newName(pin)
-        else ns.newName(tokenize(compName) filterNot ("[]." contains _) mkString "_")
-      })
+    val portNames = mutable.Seq.fill(zipped.size)(Map[String, String]())
+    c.modules.foreach{ m =>
+      val ns = Namespace(m)
+      zipped.zipWithIndex.foreach{ case ((c, so, si, p), i) =>
+        portNames(i) = portNames(i) +
+        (m.name -> {
+           if (si.exists(moduleName(_) == m.name)) ns.newName(p)
+           else ns.newName(tokenize(c) filterNot ("[]." contains _) mkString "_")
+         })
+      }
     }
+
+    val (timeIGraph, iGraph) = firrtl.Utils.time { new InstanceGraph(c) }
+    logger.info(s"[info]     time(iGraph): $timeIGraph")
+
+    val (timeMillis, x) = firrtl.Utils.time {
+      zipped.zip(portNames).map{ case((comp, so, si, _), pn) =>
+        computeModifications(c, iGraph, comp, so, si, pn) } }
+    logger.info(s"[info]   time(computeModifications): $timeMillis")
+    x
+  }
+
+  /** Converts a single unit of wiring information to module modifications
+    *
+    * @param c the circuit that will be modified
+    * @param iGraph an InstanceGraph representation of the circuit
+    * @param compName the name of a component
+    * @param source the name of the source component
+    * @param sinks a list of sink components/modules that the source
+    * should be connected to
+    * @param portNames a mapping of module names to new ports/wires
+    * that should be generated if needed
+    *
+    * @return a tuple of a map of module names to modifications and
+    * the determined type of the component
+    */
+  private def computeModifications(c: Circuit, iGraph: InstanceGraph,
+                                   compName: String, source: String,
+                                   sinks: Seq[Named],
+                                   portNames: Map[String, String]):
+      (Map[String, Modifications], Type) = {
 
     // Obtain the source component type
     val sourceComponentType = getType(c, source, compName)
@@ -60,10 +87,11 @@ class Wiring(wiSeq: Seq[WiringInfo]) extends Pass {
     // Determine "ownership" of sources to sinks via minimum distance
     val owners = sinksToSources(sinks, source, iGraph)
 
-    // Determine port and pending modifications (Metadata) for all
-    // sink--source ownership pairs
-    val meta = new mutable.HashMap[String, Metadata].withDefaultValue(Metadata())
-    owners.map { case (sink, source) =>
+    // Determine port and pending modifications for all sink--source
+    // ownership pairs
+    val meta = new mutable.HashMap[String, Modifications]
+      .withDefaultValue(Modifications())
+    owners.foreach { case (sink, source) =>
       val lca = iGraph.lowestCommonAncestor(sink, source)
 
       // Compute metadata along Sink to LCA paths
@@ -130,9 +158,27 @@ class Wiring(wiSeq: Seq[WiringInfo]) extends Pass {
         }
       }
     }
+    (meta.toMap, sourceComponentType)
+  }
 
-    // Return new circuit with correct wiring by applying all metadata
-    val cx = c.copy(modules = c.modules map onModule(meta.toMap, sourceComponentType))
+  /** Wires Sources to Sinks
+    *
+    * Sinks are wired to their closest source through their lowest
+    * common ancestor (LCA). Verbosely, this modifies the circuit in
+    * the following ways:
+    *   - Adds a pin to each sink module
+    *   - Punches ports up from source signals to the LCA of each sink
+    *   - Punches ports down from LCAs to each sink module
+    *   - Wires sources up to LCA, sinks down from LCA, and across each LCA
+    *
+    * @param c The circuit to modify
+    * @param wi A WiringInfo object containing source, sink, component, and pin information
+    * @return The modified circuit
+    *
+    * @throws WiringException if a sink is equidistant to two sources
+    */
+  def wire(c: Circuit, meta: Map[String, Modifications], tpe: Type): Circuit = {
+    val cx = c.copy(modules = c.modules map onModule(meta, tpe))
 
     // Replace inserted IR nodes with WIR nodes
     ToWorkingIR.run(cx)
@@ -140,7 +186,7 @@ class Wiring(wiSeq: Seq[WiringInfo]) extends Pass {
 
   /** Return new module with correct wiring
     */
-  private def onModule(map: Map[String, Metadata], t: Type)(m: DefModule) = {
+  private def onModule(map: Map[String, Modifications], t: Type)(m: DefModule) = {
     map.get(m.name) match {
       case None => m
       case Some(l) =>

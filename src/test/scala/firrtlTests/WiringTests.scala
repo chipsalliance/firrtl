@@ -121,7 +121,6 @@ class WiringTests extends FirrtlFlatSpec {
     val retC = wiringPass.run(c)
     (parse(retC.serialize).serialize) should be (parse(check).serialize)
   }
-
   "Wiring from r to module X" should "work" in {
     val sinks = Seq(ModuleName("X", CircuitName("Top")))
     val source = ComponentName("r", ModuleName("C", CircuitName("Top")))

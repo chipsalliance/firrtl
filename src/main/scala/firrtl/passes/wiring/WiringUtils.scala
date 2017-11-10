@@ -22,7 +22,7 @@ case object DecOutput extends DecKind
 case object DecWire extends DecKind
 
 /** Store of pending wiring information for a Module */
-case class Metadata(
+case class Modifications(
   addPort: Option[(String, DecKind)] = None,
   cons: Seq[(String, String)] = Seq.empty) {
 
@@ -113,10 +113,8 @@ object WiringUtils {
     */
   def sinksToSources(sinks: Seq[Named], source: String, i: InstanceGraph):
       Map[Seq[WDefInstance], Seq[WDefInstance]] = {
-    val indent = "  "
-
-    val owners = new mutable.HashMap[Seq[WDefInstance], Seq[Seq[WDefInstance]]]
-      .withDefaultValue(Seq())
+    val owners = new mutable.HashMap[Seq[WDefInstance], Array[Seq[WDefInstance]]]
+      .withDefaultValue(Array())
     val queue = new mutable.Queue[Seq[WDefInstance]]
     val visited = new mutable.HashMap[Seq[WDefInstance], Boolean]
       .withDefaultValue(false)
@@ -125,41 +123,51 @@ object WiringUtils {
       .foreach( i.fullHierarchy(_)
                  .foreach { l =>
                    queue.enqueue(l)
-                   owners(l) = Seq(l)
+                   owners(l) = Array(l)
                  }
       )
-
-
-    while (queue.nonEmpty) {
-      val u = queue.dequeue
-      visited(u) = true
-
-      (i.graph.getEdges(u.last)
-        .map(u :+ _)
-        .toSeq :+ u.dropRight(1))
-        .filter(e => !visited(e) && e.nonEmpty )
-        .map{ v =>
-          owners(v) = owners(v) ++ owners(u)
-          queue.enqueue(v)
-        }
-    }
 
     val sinkInsts = i.fullHierarchy.keys
       .filter { case WDefInstance(_, _, module, _) =>
         sinks.map(moduleName(_)).contains(module) }
-      .map    { k => i.fullHierarchy(k)                                      }
-      .toSeq.flatten
+      .flatMap { k => i.fullHierarchy(k)          }
+      .toSet
 
-    // Check that every sink has one unique owner. The only time that
-    // this should fail is if a sink is equidistant to two sources.
-    sinkInsts.map { s =>
-      if (!owners.contains(s) || owners(s).size > 1) {
-        throw new WiringException(s"Unable to determine source mapping for sink '${s.map(_.name)}'") }
+    /** If we're lucky and there is only one source, then that source owns
+      * all sinks. If we're unlucky, we need to do a full (slow) BFS
+      * to figure out who owns what. Currently, the BFS is not
+      * performant.
+      */
+    if (queue.size == 1) {
+      val u = queue.dequeue
+      sinkInsts.foreach { v => owners(v) = Array(u) }
+    } else {
+      while (queue.nonEmpty) {
+        val u = queue.dequeue
+        visited(u) = true
+
+        val edges = (i.graph.getEdges(u.last).map(u :+ _).toArray :+ u.dropRight(1))
+
+        edges.toArray
+          .filter( e => !visited(e) && e.nonEmpty )
+          .map{ v =>
+            owners(v) = owners(v) ++ owners(u)
+            queue.enqueue(v)
+          }
+      }
+
+      // Check that every sink has one unique owner. The only time that
+      // this should fail is if a sink is equidistant to two sources.
+      sinkInsts.foreach { s =>
+        if (!owners.contains(s) || owners(s).size > 1) {
+          throw new WiringException(
+            s"Unable to determine source mapping for sink '${s.map(_.name)}'") }
+      }
     }
 
     owners
       .filter { case (k, _) => sinkInsts.contains(k) }
-      .map    { case (k, v) => (k, v.flatten)        }
+      .map    { case (k, v) => (k, v.flatten.toSeq)  }
       .toMap
   }
 
