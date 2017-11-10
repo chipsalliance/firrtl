@@ -596,7 +596,6 @@ class WiringTests extends FirrtlFlatSpec {
     val retC = wiringPass.run(c)
     (parse(retC.serialize).serialize) should be (parse(check).serialize)
   }
-
   "Wiring via annotations (sink module)" should "work" in {
     val source = SourceAnnotation(ComponentName("r", ModuleName("Top", CircuitName("Top"))), "pin")
     val sink = SinkAnnotation(ModuleName("X", CircuitName("Top")), "pin")
@@ -665,6 +664,65 @@ class WiringTests extends FirrtlFlatSpec {
     }
     val wiringXForm = new WiringTransform()
     val retC = wiringXForm.execute(CircuitState(c, LowForm, Some(AnnotationMap(Seq(source, sink))), None)).circuit
+    (parse(retC.serialize).serialize) should be (parse(check).serialize)
+  }
+  "Wiring from r.x to extmodule X and extmodule Y" should "work" in {
+    val sinkX = Seq(ModuleName("X", CircuitName("Top")))
+    val sourceX = ComponentName("r.x", ModuleName("A", CircuitName("Top")))
+    val sinkY = Seq(ModuleName("Y", CircuitName("Top")))
+    val sourceY = ComponentName("r.x", ModuleName("A", CircuitName("Top")))
+    val wiSeq = Seq(
+      WiringInfo(sourceX, sinkX, "pin"),
+      WiringInfo(sourceY, sinkY, "pin"))
+    val input =
+      """circuit Top :
+        |  module Top :
+        |    input clock: Clock
+        |    inst a of A
+        |    a.clock <= clock
+        |  module A :
+        |    input clock: Clock
+        |    reg r : {x: UInt<5>}, clock
+        |    inst x of X
+        |    x.clock <= clock
+        |    inst y of Y
+        |    y.clock <= clock
+        |  extmodule X :
+        |    input clock: Clock
+        |  extmodule Y :
+        |    input clock: Clock
+        |""".stripMargin
+    val check =
+      """circuit Top :
+        |  module Top :
+        |    input clock: Clock
+        |    inst a of A
+        |    a.clock <= clock
+        |  module A :
+        |    input clock: Clock
+        |    wire r_x_0: UInt<5>
+        |    wire r_x: UInt<5>
+        |    reg r: {x: UInt<5>}, clock
+        |    inst x of X
+        |    x.clock <= clock
+        |    inst y of Y
+        |    y.clock <= clock
+        |    r_x <= r.x
+        |    x.pin <= r_x
+        |    r_x_0 <= r.x
+        |    y.pin <= r_x_0
+        |  extmodule X :
+        |    input clock: Clock
+        |    input pin: UInt<5>
+        |  extmodule Y :
+        |    input clock: Clock
+        |    input pin: UInt<5>
+        |""".stripMargin
+    val c = passes.foldLeft(parse(input)) {
+      (c: Circuit, p: Pass) => p.run(c)
+    }
+    val wiringPass = new Wiring(wiSeq)
+    val retC = wiringPass.run(c)
     (parse(retC.serialize).serialize) should be (parse(check).serialize)
   }
 }
