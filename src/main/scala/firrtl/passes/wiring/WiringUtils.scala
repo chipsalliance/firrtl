@@ -23,13 +23,13 @@ case object DecWire extends DecKind
 
 /** Store of pending wiring information for a Module */
 case class Modifications(
-  addPort: Option[(String, DecKind)] = None,
+  addPortOrWire: Option[(String, DecKind)] = None,
   cons: Seq[(String, String)] = Seq.empty) {
 
   override def toString: String = serialize("")
 
   def serialize(tab: String): String = s"""
-   |$tab addPort: $addPort
+   |$tab addPortOrWire: $addPortOrWire
    |$tab cons: $cons
    |""".stripMargin
 }
@@ -111,7 +111,9 @@ object WiringUtils {
     * @return a map of sink instance names to source instance names
     * @throws WiringException if a sink is equidistant to two sources
     */
-  def sinksToSources(sinks: Seq[Named], source: String, i: InstanceGraph):
+  def sinksToSources(sinks: Seq[Named],
+                     source: String,
+                     i: InstanceGraph):
       Map[Seq[WDefInstance], Seq[WDefInstance]] = {
     val owners = new mutable.HashMap[Seq[WDefInstance], Array[Seq[WDefInstance]]]
       .withDefaultValue(Array())
@@ -129,7 +131,7 @@ object WiringUtils {
 
     val sinkInsts = i.fullHierarchy.keys
       .filter { case WDefInstance(_, _, module, _) =>
-        sinks.map(moduleName(_)).contains(module) }
+        sinks.map(getModuleName(_)).contains(module) }
       .flatMap { k => i.fullHierarchy(k)          }
       .toSet
 
@@ -137,6 +139,12 @@ object WiringUtils {
       * all sinks. If we're unlucky, we need to do a full (slow) BFS
       * to figure out who owns what. Currently, the BFS is not
       * performant.
+      *
+      * [todo] The performance of this will need to be improved.
+      * Possible directions are that if we're purely source-under-sink
+      * or sink-under-source, then ownership is trivially a mapping
+      * down/up. Ownership seems to require a BFS if we have
+      * sources/sinks not under sinks/sources.
       */
     if (queue.size == 1) {
       val u = queue.dequeue
@@ -148,6 +156,7 @@ object WiringUtils {
 
         val edges = (i.graph.getEdges(u.last).map(u :+ _).toArray :+ u.dropRight(1))
 
+        // [todo] This is the critical section
         edges.toArray
           .filter( e => !visited(e) && e.nonEmpty )
           .map{ v =>
@@ -171,12 +180,13 @@ object WiringUtils {
       .toMap
   }
 
-  def moduleName(n: Named): String = {
+  /** Helper script to extract a module name from a named Module or Component */
+  def getModuleName(n: Named): String = {
     n match {
       case ModuleName(m, _)                   => m
       case ComponentName(_, ModuleName(m, _)) => m
-      case _ => throw new
-          WiringException("WiringTransform can only wire to Modules or Components")
+      case _ => throw new WiringException(
+        "Only Components or Modules have an associated Module name")
     }
   }
 
@@ -186,8 +196,8 @@ object WiringUtils {
     * @param module the module containing the target component
     * @param comp the target component
     * @return the component's type
-    * @throws WiringException if the module is not contained in the circuit
-    * @throws WiringException if the component is not contained in the module
+    * @throws WiringException if the module is not contained in the
+    * circuit or if the component is not contained in the module
     */
   def getType(c: Circuit, module: String, comp: String): Type = {
     def getRoot(e: Expression): String = e match {
