@@ -115,8 +115,8 @@ object WiringUtils {
                      source: String,
                      i: InstanceGraph):
       Map[Seq[WDefInstance], Seq[WDefInstance]] = {
-    val owners = new mutable.HashMap[Seq[WDefInstance], Seq[Seq[WDefInstance]]]
-      .withDefaultValue(List())
+    val owners = new mutable.HashMap[Seq[WDefInstance], Vector[Seq[WDefInstance]]]
+      .withDefaultValue(Vector())
     val queue = new mutable.Queue[Seq[WDefInstance]]
     val visited = new mutable.HashMap[Seq[WDefInstance], Boolean]
       .withDefaultValue(false)
@@ -125,7 +125,7 @@ object WiringUtils {
       .foreach( i.fullHierarchy(_)
                  .foreach { l =>
                    queue.enqueue(l)
-                   owners(l) = Array(l)
+                   owners(l) = Vector(l)
                  }
       )
 
@@ -148,18 +148,18 @@ object WiringUtils {
       */
     if (queue.size == 1) {
       val u = queue.dequeue
-      sinkInsts.foreach { v => owners(v) = Array(u) }
+      sinkInsts.foreach { v => owners(v) = Vector(u) }
     } else {
       while (queue.nonEmpty) {
         val u = queue.dequeue
         visited(u) = true
 
-        val edges = (i.graph.getEdges(u.last).map(u :+ _).toArray :+ u.dropRight(1))
+        val edges = (i.graph.getEdges(u.last).map(u :+ _).toVector :+ u.dropRight(1))
 
         // [todo] This is the critical section
-        edges.toArray
+        edges
           .filter( e => !visited(e) && e.nonEmpty )
-          .map{ v =>
+          .foreach{ v =>
             owners(v) = owners(v) ++ owners(u)
             queue.enqueue(v)
           }
