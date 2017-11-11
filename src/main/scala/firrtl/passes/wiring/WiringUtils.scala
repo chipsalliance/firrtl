@@ -115,8 +115,8 @@ object WiringUtils {
                      source: String,
                      i: InstanceGraph):
       Map[Seq[WDefInstance], Seq[WDefInstance]] = {
-    val owners = new mutable.HashMap[Seq[WDefInstance], Array[Seq[WDefInstance]]]
-      .withDefaultValue(Array())
+    val owners = new mutable.HashMap[Seq[WDefInstance], Seq[Seq[WDefInstance]]]
+      .withDefaultValue(List())
     val queue = new mutable.Queue[Seq[WDefInstance]]
     val visited = new mutable.HashMap[Seq[WDefInstance], Boolean]
       .withDefaultValue(false)
@@ -175,9 +175,7 @@ object WiringUtils {
     }
 
     owners
-      .filter { case (k, _) => sinkInsts.contains(k) }
-      .map    { case (k, v) => (k, v.flatten.toSeq)  }
-      .toMap
+      .collect { case (k, v) if sinkInsts.contains(k) => (k, v.flatten) }.toMap
   }
 
   /** Helper script to extract a module name from a named Module or Component */
