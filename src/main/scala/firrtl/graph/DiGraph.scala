@@ -2,103 +2,62 @@
 
 package firrtl.graph
 
-import scala.collection.immutable.{Set, Map, HashSet, HashMap}
+import scala.collection.{Set, Map}
 import scala.collection.mutable
-import scala.collection.mutable.MultiMap
-
-/** Represents common behavior of all directed graphs */
-trait DiGraphLike[T] {
-  /** Check whether the graph contains vertex v */
-  def contains(v: T): Boolean
-
-  /** Get all vertices in the graph
-    * @return a Set[T] of all vertices in the graph
-    */
-  def getVertices: collection.Set[T]
-
-  /** Get all edges of a node
-    * @param v the specified node
-    * @return a Set[T] of all vertices that v has edges to
-    */
-  def getEdges(v: T): collection.Set[T]
-}
-
-/** A class to represent a mutable directed graph with nodes of type T
-  *
-  * @constructor Create a new graph with the provided edge data
-  * @param edges a mutable.MultiMap[T,T] of edge data
-  *
-  * For the edge data MultiMap, the values associated with each vertex
-  * u in the graph are the vertices with inedges from u
-  */
-class MutableDiGraph[T](
-  private[graph] val edgeData: MultiMap[T,T] =
-    new mutable.HashMap[T, mutable.Set[T]] with MultiMap[T, T]) extends DiGraphLike[T] {
-
-  // Inherited methods from DiGraphLike
-  def contains(v: T) = edgeData.contains(v)
-  def getVertices = edgeData.keySet
-  def getEdges(v: T) = edgeData(v)
-
-  /** Add vertex v to the graph
-    * @return v, the added vertex
-    */
-  def addVertex(v: T): T = {
-    edgeData.getOrElseUpdate(v,new mutable.HashSet[T])
-    v
-  }
-
-  /** Add edge (u,v) to the graph */
-  def addEdge(u: T, v: T) = {
-    // Add v to keys to maintain invariant that all vertices are keys
-    // of edge data
-    edgeData.getOrElseUpdate(v, new mutable.HashSet[T])
-    edgeData.addBinding(u,v)
-  }
-}
+import scala.collection.mutable.{LinkedHashSet, LinkedHashMap}
 
 /** A companion to create immutable DiGraphs from mutable data */
 object DiGraph {
   /** Create a DiGraph from a MutableDigraph, representing the same graph */
-  def apply[T](mdg: MutableDiGraph[T]): DiGraph[T] =
-    new DiGraph((mdg.edgeData mapValues { _.toSet }).toMap[T, Set[T]])
-
-  /** Create a DiGraph from a MultiMap[T] of edge data */
-  def apply[T](edgeData: MultiMap[T,T]): DiGraph[T] =
-    new DiGraph((edgeData mapValues { _.toSet }).toMap[T, Set[T]])
+  def apply[T](mdg: MutableDiGraph[T]): DiGraph[T] = mdg
 
   /** Create a DiGraph from a Map[T,Set[T]] of edge data */
-  def apply[T](edgeData: Map[T,Set[T]]) = new DiGraph(edgeData)
+  def apply[T](edgeData: Map[T,Set[T]]): DiGraph[T] = {
+    val edgeDataCopy = new LinkedHashMap[T, LinkedHashSet[T]]
+    for ((k, v) <- edgeData) {
+      edgeDataCopy(k) = new LinkedHashSet[T]
+    }
+    for ((k, v) <- edgeData) {
+      for (n <- v) {
+        require(edgeDataCopy.contains(n))
+        edgeDataCopy(k) += n
+      }
+    }
+    new DiGraph(edgeDataCopy)
+  }
 }
 
-/**
-  * A class to represent an immutable directed graph with nodes of
-  * type T
-  *
-  * @constructor Create a new graph with the provided edge data
-  * @param edges a Map[T,Set[T]] of edge data
-  *
-  * For the edge data Map, the value associated with each vertex u in
-  * the graph is a Set[T] of nodes where for each node v in the set,
-  * the directed edge (u,v) exists in the graph.
-  */
-class DiGraph[T] (val edges: Map[T, Set[T]]) extends DiGraphLike[T] {
+/** Represents common behavior of all directed graphs */
+class DiGraph[T] private[graph] (private[graph] val edges: LinkedHashMap[T, LinkedHashSet[T]]) {
 
   /** An exception that is raised when an assumed DAG has a cycle */
   class CyclicException extends Exception("No valid linearization for cyclic graph")
   /** An exception that is raised when attempting to find an unreachable node */
   class PathNotFoundException extends Exception("Unreachable node")
 
-  // Inherited methods from DiGraphLike
-  def contains(v: T) = edges.contains(v)
-  def getVertices = edges.keySet
-  def getEdges(v: T) = edges.getOrElse(v, new HashSet[T])
+
+  /** Check whether the graph contains vertex v */
+  def contains(v: T): Boolean = edges.contains(v)
+
+  /** Get all vertices in the graph
+    * @return a Set[T] of all vertices in the graph
+    */
+  // The pattern of mapping map pairs to keys maintains LinkedHashMap ordering
+  def getVertices: Set[T] = new LinkedHashSet ++ edges.map({ case (k, _) => k })
+
+  /** Get all edges of a node
+    * @param v the specified node
+    * @return a Set[T] of all vertices that v has edges to
+    */
+  def getEdges(v: T): Set[T] = edges.getOrElse(v, Set.empty)
+
+  def getEdgeMap: Map[T, Set[T]] = edges
 
   /** Find all sources in the graph
     *
     * @return a Set[T] of source nodes
     */
-  def findSources: Set[T] = edges.keySet -- edges.values.flatten.toSet
+  def findSources: Set[T] = getVertices -- edges.values.flatten.toSet
 
   /** Find all sinks in the graph
     *
@@ -117,8 +76,8 @@ class DiGraph[T] (val edges: Map[T, Set[T]]) extends DiGraphLike[T] {
     // permanently marked nodes are implicitly held in order
     val order = new mutable.ArrayBuffer[T]
     // invariant: no intersection between unmarked and tempMarked
-    val unmarked = new mutable.HashSet[T]
-    val tempMarked = new mutable.HashSet[T]
+    val unmarked = new LinkedHashSet[T]
+    val tempMarked = new LinkedHashSet[T]
 
     def visit(n: T): Unit = {
       if (tempMarked.contains(n)) {
@@ -151,7 +110,7 @@ class DiGraph[T] (val edges: Map[T, Set[T]]) extends DiGraphLike[T] {
     * traversal
     */
   def BFS(root: T): Map[T,T] = {
-    val prev = new mutable.HashMap[T,T]
+    val prev = new LinkedHashMap[T,T]
     val queue = new mutable.Queue[T]
     queue.enqueue(root)
     while (!queue.isEmpty) {
@@ -163,7 +122,7 @@ class DiGraph[T] (val edges: Map[T, Set[T]]) extends DiGraphLike[T] {
         }
       }
     }
-    prev.toMap
+    prev
   }
 
   /** Finds the set of nodes reachable from a particular node
@@ -171,7 +130,7 @@ class DiGraph[T] (val edges: Map[T, Set[T]]) extends DiGraphLike[T] {
     * @param root the start node
     * @return a Set[T] of nodes reachable from the root
     */
-  def reachableFrom(root: T): Set[T] = BFS(root).keys.toSet
+  def reachableFrom(root: T): LinkedHashSet[T] = new LinkedHashSet[T] ++ BFS(root).map({ case (k, v) => k })
 
   /** Finds a path (if one exists) from one node to another
     *
@@ -200,9 +159,9 @@ class DiGraph[T] (val edges: Map[T, Set[T]]) extends DiGraphLike[T] {
   def findSCCs: Seq[Seq[T]] = {
     var counter: BigInt = 0
     val stack = new mutable.Stack[T]
-    val onstack = new mutable.HashSet[T]
-    val indices = new mutable.HashMap[T, BigInt]
-    val lowlinks = new mutable.HashMap[T, BigInt]
+    val onstack = new LinkedHashSet[T]
+    val indices = new LinkedHashMap[T, BigInt]
+    val lowlinks = new LinkedHashMap[T, BigInt]
     val sccs = new mutable.ArrayBuffer[Seq[T]]
 
     /*
@@ -273,31 +232,41 @@ class DiGraph[T] (val edges: Map[T, Set[T]]) extends DiGraphLike[T] {
     */
   def pathsInDAG(start: T): Map[T,Seq[Seq[T]]] = {
     // paths(v) holds the set of paths from start to v
-    val paths = new mutable.HashMap[T,mutable.Set[Seq[T]]] with mutable.MultiMap[T,Seq[T]]
+    val paths = new LinkedHashMap[T, mutable.Set[Seq[T]]]
     val queue = new mutable.Queue[T]
     val reachable = reachableFrom(start)
-    paths.addBinding(start,Seq(start))
+    def addBinding(n: T, p: Seq[T]): Unit = {
+      paths.getOrElseUpdate(n, new LinkedHashSet[Seq[T]]) += p
+    }
+    addBinding(start,Seq(start))
     queue += start
     queue ++= linearize.filter(reachable.contains(_))
     while (!queue.isEmpty) {
       val current = queue.dequeue
       for (v <- getEdges(current)) {
         for (p <- paths(current)) {
-          paths.addBinding(v, p :+ v)
+          addBinding(v, p :+ v)
         }
       }
     }
-      (paths map { case (k,v) => (k,v.toSeq) }).toMap
+    paths.map({ case (k,v) => (k,v.toSeq) })
   }
 
   /** Returns a graph with all edges reversed */
   def reverse: DiGraph[T] = {
     val mdg = new MutableDiGraph[T]
-    edges.foreach { case (u, edges) =>
-      mdg.addVertex(u)
+    edges.foreach({ case (u, edges) => mdg.addVertex(u) })
+    edges.foreach({ case (u, edges) =>
       edges.foreach(v => mdg.addEdge(v,u))
-    }
+    })
     DiGraph(mdg)
+  }
+
+  private def filterEdges(vprime: Set[T]): LinkedHashMap[T, LinkedHashSet[T]] = {
+    def filterNodeSet(s: LinkedHashSet[T]): LinkedHashSet[T] = s.filter({ case (k) => vprime.contains(k) })
+    def filterAdjacencyLists(m: LinkedHashMap[T, LinkedHashSet[T]]): LinkedHashMap[T, LinkedHashSet[T]] = m.map({ case (k, v) => (k, filterNodeSet(v)) })
+    var eprime: LinkedHashMap[T, LinkedHashSet[T]] = edges.filter({ case (k, v) => vprime.contains(k) })
+    filterAdjacencyLists(eprime)
   }
 
   /** Return a graph with only a subset of the nodes
@@ -310,14 +279,13 @@ class DiGraph[T] (val edges: Map[T, Set[T]]) extends DiGraphLike[T] {
     */
   def subgraph(vprime: Set[T]): DiGraph[T] = {
     require(vprime.subsetOf(edges.keySet))
-    val eprime = vprime.map(v => (v,getEdges(v) & vprime)).toMap
-    new DiGraph(eprime)
+    new DiGraph(filterEdges(vprime))
   }
 
-  /** Return a graph with only a subset of the nodes
+  /** Return a simplified connectivity graph with only a subset of the nodes
     *
-    * Any path between two non-deleted nodes (u,v) that traverses only
-    * deleted nodes will be transformed into an edge (u,v).
+    * Any path between two non-deleted nodes (u,v) in the original graph will be
+    * transformed into an edge (u,v).
     *
     * @param vprime the Set[T] of desired vertices
     * @throws IllegalArgumentException if vprime is not a subset of V
@@ -325,8 +293,8 @@ class DiGraph[T] (val edges: Map[T, Set[T]]) extends DiGraphLike[T] {
     */
   def simplify(vprime: Set[T]): DiGraph[T] = {
     require(vprime.subsetOf(edges.keySet))
-    val eprime = vprime.map( v => (v,reachableFrom(v) & (vprime-v)) ).toMap
-    new DiGraph(eprime)
+    val pathEdges = vprime.map( v => (v, reachableFrom(v) & (vprime-v)) )
+    new DiGraph(new LinkedHashMap[T, LinkedHashSet[T]] ++ pathEdges)
   }
 
   /** Return a graph with all the nodes of the current graph transformed
@@ -337,7 +305,45 @@ class DiGraph[T] (val edges: Map[T, Set[T]]) extends DiGraphLike[T] {
     * @return a transformed DiGraph[Q]
     */
   def transformNodes[Q](f: (T) => Q): DiGraph[Q] = {
-    val eprime = edges.map({ case (k,v) => (f(k),v.map(f(_))) })
+    val eprime = edges.map({ case (k, v) => (f(k), v.map(f(_))) })
     new DiGraph(eprime)
+  }
+}
+
+class MutableDiGraph[T] extends DiGraph[T](new LinkedHashMap[T, LinkedHashSet[T]]) {
+  /** Add vertex v to the graph
+    * @return v, the added vertex
+    */
+  def addVertex(v: T): T = {
+    edges.getOrElseUpdate(v, new LinkedHashSet[T])
+    v
+  }
+
+  /** Add edge (u,v) to the graph.
+    * @throws IllegalArgumentException if u and/or v is not in the graph
+    */
+  def addEdge(u: T, v: T): Unit = {
+    require(contains(u))
+    require(contains(v))
+    edges(u) += v
+  }
+
+  /** Add edge (u,v) to the graph, adding u and/or v if they are not
+    * already in the graph.
+    */
+  def addPairWithEdge(u: T, v: T): Unit = {
+    edges.getOrElseUpdate(v, new LinkedHashSet[T])
+    edges.getOrElseUpdate(u, new LinkedHashSet[T]) += v
+  }
+
+  /** Add edge (u,v) to the graph if and only if both u and v are in
+    * the graph prior to calling addEdgeIfValid.
+    */
+  def addEdgeIfValid(u: T, v: T): Boolean = {
+    val valid = contains(u) && contains(v)
+    if (contains(u) && contains(v)) {
+      edges(u) += v
+    }
+    valid
   }
 }

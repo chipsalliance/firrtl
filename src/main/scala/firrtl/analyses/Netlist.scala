@@ -50,6 +50,7 @@ class InstanceGraph(c: Circuit) {
       for (child <- childInstances(current.module)) {
         if (!instanceGraph.contains(child)) {
           instanceQueue.enqueue(child)
+          instanceGraph.addVertex(child)
         }
         instanceGraph.addEdge(current,child)
       }
