@@ -29,7 +29,7 @@ class Wiring(wiSeq: Seq[WiringInfo]) extends Pass {
   def run(c: Circuit): Circuit = analyze(c)
     .foldLeft(c){
       case (cx, (tpe, modsMap)) => cx.copy(
-        modules = cx.modules map onModule(modsMap, tpe)) }
+        modules = cx.modules map onModule(tpe, modsMap)) }
 
   /** Converts multiple units of wiring information to module modifications */
   private def analyze(c: Circuit): Seq[(Type, Map[String, Modifications])] = {
@@ -160,7 +160,7 @@ class Wiring(wiSeq: Seq[WiringInfo]) extends Pass {
   }
 
   /** Apply modifications to a module */
-  private def onModule(map: Map[String, Modifications], t: Type)(m: DefModule) = {
+  private def onModule(t: Type, map: Map[String, Modifications])(m: DefModule) = {
     map.get(m.name) match {
       case None => m
       case Some(l) =>
