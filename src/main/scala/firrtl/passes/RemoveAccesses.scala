@@ -84,7 +84,7 @@ object RemoveAccesses extends Pass {
       val namespace = Namespace(m)
       def onStmt(s: Statement): Statement = {
         def create_temp(e: Expression): (Statement, Expression) = {
-          val n = namespace.newTemp
+          val n = namespace.newName(niceName(e))
           (DefWire(get_info(s), n, e.tpe), WRef(n, e.tpe, kind(e), gender(e)))
         }
 

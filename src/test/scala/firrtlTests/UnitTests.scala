@@ -222,16 +222,16 @@ class UnitTests extends FirrtlFlatSpec {
      //TODO(azidar): I realize this is brittle, but unfortunately there
      //  isn't a better way to test this pass
      val check = Seq(
-       """wire _GEN_0 : { a : UInt<8>}""",
-       """_GEN_0.a <= table[0].a""",
+       """wire _table_1 : { a : UInt<8>}""",
+       """_table_1.a is invalid""",
        """when UInt<1>("h1") :""",
-       """_GEN_0.a <= table[1].a""",
-       """wire _GEN_1 : UInt<8>""",
-       """when eq(UInt<1>("h0"), _GEN_0.a) :""",
-       """otherTable[0].a <= _GEN_1""",
-       """when eq(UInt<1>("h1"), _GEN_0.a) :""",
-       """otherTable[1].a <= _GEN_1""",
-       """_GEN_1 <= UInt<1>("h0")"""
+       """_table_1.a <= table[1].a""",
+       """wire _otherTable_table_1_a_a : UInt<8>""",
+       """when eq(UInt<1>("h0"), _table_1.a) :""",
+       """otherTable[0].a <= _otherTable_table_1_a_a""",
+       """when eq(UInt<1>("h1"), _table_1.a) :""",
+       """otherTable[1].a <= _otherTable_table_1_a_a""",
+       """_otherTable_table_1_a_a <= UInt<1>("h0")"""
      )
      executeTest(input, check, passes)
   }
@@ -411,15 +411,15 @@ class UnitTests extends FirrtlFlatSpec {
     val ut2 = UIntType(IntWidth(BigInt(2)))
     val ut1 = UIntType(IntWidth(BigInt(1)))
 
-    val mgen = WRef("_GEN_0", ut16, WireKind, MALE)
-    val fgen = WRef("_GEN_0", ut16, WireKind, FEMALE)
+    val mgen = WRef("_array_index", ut16, WireKind, MALE)
+    val fgen = WRef("_array_index", ut16, WireKind, FEMALE)
     val index = WRef("index", ut2, PortKind, MALE)
     val out = WRef("out", ut16, PortKind, FEMALE)
 
     def eq(e1: Expression, e2: Expression): Expression = DoPrim(PrimOps.Eq, Seq(e1, e2), Nil, ut1)
     def array(v: Int): Expression = WSubIndex(WRef("array", VectorType(ut16, 3), WireKind, MALE), v, ut16, MALE)
 
-    result should containTree { case DefWire(_, "_GEN_0", `ut16`) => true }
+    result should containTree { case DefWire(_, "_array_index", `ut16`) => true }
     result should containTree { case IsInvalid(_, `fgen`) => true }
 
     val eq0 = eq(u(0), index)
