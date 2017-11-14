@@ -331,8 +331,8 @@ class WiringTests extends FirrtlFlatSpec {
         |    reg r: {x: UInt<5>}, clock
         |    inst x of X
         |    x.clock <= clock
-        |    r_x <= r.x
         |    x.pin <= r_x
+        |    r_x <= r.x
         |  extmodule X :
         |    input clock: Clock
         |    input pin: UInt<5>
@@ -375,13 +375,49 @@ class WiringTests extends FirrtlFlatSpec {
         |    wire s: UInt<5>
         |    inst x of X
         |    x.clock <= clock
-        |    s <= pin
         |    pin <= x.r_0
+        |    s <= pin
         |  module X :
         |    input clock: Clock
         |    output r_0: UInt<5>
         |    reg r: UInt<5>, clock
         |    r_0 <= r
+        |""".stripMargin
+    val c = passes.foldLeft(parse(input)) {
+      (c: Circuit, p: Pass) => p.run(c)
+    }
+    val wiringPass = new Wiring(Seq(sas))
+    val retC = wiringPass.run(c)
+    (parse(retC.serialize).serialize) should be (parse(check).serialize)
+  }
+  "Wiring within a module" should "work" in {
+    val sinks = Seq(ComponentName("s", ModuleName("A", CircuitName("Top"))))
+    val source = ComponentName("r", ModuleName("A", CircuitName("Top")))
+    val sas = WiringInfo(source, sinks, "pin")
+    val input =
+      """circuit Top :
+        |  module Top :
+        |    input clock: Clock
+        |    inst a of A
+        |    a.clock <= clock
+        |  module A :
+        |    input clock: Clock
+        |    wire s: UInt<5>
+        |    reg r: UInt<5>, clock
+        |""".stripMargin
+    val check =
+      """circuit Top :
+        |  module Top :
+        |    input clock: Clock
+        |    inst a of A
+        |    a.clock <= clock
+        |  module A :
+        |    input clock: Clock
+        |    wire pin: UInt<5>
+        |    wire s: UInt<5>
+        |    reg r: UInt<5>, clock
+        |    s <= pin
+        |    pin <= r
         |""".stripMargin
     val c = passes.foldLeft(parse(input)) {
       (c: Circuit, p: Pass) => p.run(c)
@@ -418,8 +454,8 @@ class WiringTests extends FirrtlFlatSpec {
         |    wire clock_0: Clock
         |    inst x of X
         |    x.clock <= clock
-        |    clock_0 <= clock
         |    x.pin <= clock_0
+        |    clock_0 <= clock
         |  extmodule X :
         |    input clock: Clock
         |    input pin: Clock
@@ -463,8 +499,8 @@ class WiringTests extends FirrtlFlatSpec {
         |    wire clock_0: Clock
         |    inst x of X
         |    x.clock <= clock
-        |    clock_0 <= clock
         |    x.pin <= clock_0
+        |    clock_0 <= clock
         |  extmodule X :
         |    input clock: Clock
         |    input pin: Clock
@@ -508,8 +544,8 @@ class WiringTests extends FirrtlFlatSpec {
         |    wire clock_0: Clock
         |    inst x of X
         |    x.clock <= clock
-        |    clock_0 <= clock
         |    x.pin <= clock_0
+        |    clock_0 <= clock
         |  extmodule X :
         |    input clock: Clock
         |    input pin: Clock
@@ -582,8 +618,8 @@ class WiringTests extends FirrtlFlatSpec {
         |    node a = UInt(5)
         |    inst x of X
         |    x.clock <= clock
-        |    r_a <= r[a]
         |    x.pin <= r_a
+        |    r_a <= r[a]
         |  extmodule X :
         |    input clock: Clock
         |    input pin: UInt<2>
@@ -706,10 +742,10 @@ class WiringTests extends FirrtlFlatSpec {
         |    x.clock <= clock
         |    inst y of Y
         |    y.clock <= clock
-        |    r_x <= r.x
         |    x.pin <= r_x
-        |    r_x_0 <= r.x
+        |    r_x <= r.x
         |    y.pin <= r_x_0
+        |    r_x_0 <= r.x
         |  extmodule X :
         |    input clock: Clock
         |    input pin: UInt<5>

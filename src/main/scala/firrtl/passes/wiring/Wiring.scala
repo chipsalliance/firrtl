@@ -104,13 +104,20 @@ class Wiring(wiSeq: Seq[WiringInfo]) extends Pass {
           )
         // Case where the sink is the LCA
         case Seq(WDefInstance(_,_,pm,_)) =>
-          val WDefInstance(_,ci,cm,_) = source.drop(lca.size).head
-          val to = s"${portNames(pm)}"
-          val from = s"$ci.${portNames(cm)}"
-          meta(pm) = meta(pm).copy(
-            addPortOrWire = Some((portNames(pm), DecWire)),
-            cons = (meta(pm).cons :+ (to, from)).distinct
-          )
+          // Case where the source is also the LCA
+          if (source.drop(lca.size).isEmpty) {
+            meta(pm) = meta(pm).copy (
+              addPortOrWire = Some((portNames(pm), DecWire))
+            )
+          } else {
+            val WDefInstance(_,ci,cm,_) = source.drop(lca.size).head
+            val to = s"${portNames(pm)}"
+            val from = s"$ci.${portNames(cm)}"
+            meta(pm) = meta(pm).copy(
+              addPortOrWire = Some((portNames(pm), DecWire)),
+              cons = (meta(pm).cons :+ (to, from)).distinct
+            )
+          }
       }
 
       // Compute metadata for the Sink
@@ -119,7 +126,7 @@ class Wiring(wiSeq: Seq[WiringInfo]) extends Pass {
           val to = sinkComponents(m)
           val from = s"${portNames(m)}"
           meta(m) = meta(m).copy(
-            cons = Seq((to, from))
+            cons = (meta(m).cons :+ (to, from)).distinct
           )
         }
       }
@@ -129,7 +136,7 @@ class Wiring(wiSeq: Seq[WiringInfo]) extends Pass {
         val to = s"${portNames(m)}"
         val from = compName
         meta(m) = meta(m).copy(
-          cons = Seq((to, from))
+          cons = (meta(m).cons :+ (to, from)).distinct
         )
       }
 
@@ -147,12 +154,17 @@ class Wiring(wiSeq: Seq[WiringInfo]) extends Pass {
         }
         // Case where the source is the LCA
         case Seq(WDefInstance(_,_,pm,_)) => {
-          val WDefInstance(_,ci,cm,_) = sink.drop(lca.size).head
-          val to = s"$ci.${portNames(cm)}"
-          val from = s"${portNames(pm)}"
-          meta(pm) = meta(pm).copy(
-            cons = (meta(pm).cons :+ (to, from)).distinct
-          )
+          // Case where the sink is also the LCA. We do nothing here,
+          // as we've created the connecting wire above
+          if (sink.drop(lca.size).isEmpty) {
+          } else {
+            val WDefInstance(_,ci,cm,_) = sink.drop(lca.size).head
+            val to = s"$ci.${portNames(cm)}"
+            val from = s"${portNames(pm)}"
+            meta(pm) = meta(pm).copy(
+              cons = (meta(pm).cons :+ (to, from)).distinct
+            )
+          }
         }
       }
     }
