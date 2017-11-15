@@ -179,7 +179,6 @@ case class FirrtlExecutionOptions(
     annotations:            List[Annotation] = List.empty,
     annotationFileNameOverride: String = "",
     outputAnnotationFileName: String = "",
-    forceAppendAnnoFile:    Boolean = false,
     emitOneFilePerModule:   Boolean = false,
     dontCheckCombLoops:     Boolean = false,
     noDCE:                  Boolean = false)
@@ -316,10 +315,9 @@ trait HasFirrtlOptions {
 
   parser.opt[Unit]("force-append-anno-file")
     .abbr("ffaaf")
+    .hidden()
     .foreach { _ =>
-      firrtlOptions = firrtlOptions.copy(forceAppendAnnoFile = true)
-    }.text {
-      "use this to force appending annotation file to annotations being passed in through optionsManager"
+      println("Warning: force-append-anno-file is deprecated and will soon be removed")
     }
 
   parser.opt[String]("output-annotation-file")
