@@ -1,4 +1,4 @@
-package firrtl.passes
+package firrtl.altIR
 import firrtl.ir._
 import scala.collection.mutable
 
