@@ -212,7 +212,7 @@ object Driver {
           val filename = optionsManager.getBuildFileName("anno", file)
           val outputFile = new java.io.PrintWriter(filename)
           finalState.annotations.map {
-            case annos => outputFile.write(annos.annotations.mkString("\n"))
+            case annos => outputFile.write(annos.annotations.toYaml.prettyPrint)
           }
           outputFile.close()
       }
