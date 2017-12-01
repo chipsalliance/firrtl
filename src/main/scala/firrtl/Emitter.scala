@@ -12,7 +12,7 @@ import scala.io.Source
 
 import firrtl.ir._
 import firrtl.passes._
-import firrtl.transforms.FlattenRegUpdate
+import firrtl.transforms.{DeadCodeElimination, FlattenRegUpdate}
 import firrtl.annotations._
 import firrtl.Mappers._
 import firrtl.PrimOps._
@@ -715,6 +715,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
 
   def transforms = Seq(
     new FlattenRegUpdate,
+    new DeadCodeElimination,
     passes.VerilogModulusCleanup,
     passes.VerilogWrap,
     passes.VerilogRename,
