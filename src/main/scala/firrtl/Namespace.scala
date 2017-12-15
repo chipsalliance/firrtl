@@ -41,7 +41,7 @@ class Namespace private {
 }
 
 /* TODO(azidar): Make Namespace return unique names that will not conflict with expanded
- * names after LowerTypes (like the Uniquify pass).
+ * names after LowerTypes expands names (like the Uniquify pass).
  */
 object Namespace {
   // Initializes a namespace from a Module
