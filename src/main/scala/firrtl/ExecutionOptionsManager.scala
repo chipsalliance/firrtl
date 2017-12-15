@@ -172,7 +172,7 @@ case class FirrtlExecutionOptions(
     inputFileNameOverride:  String = "",
     outputFileNameOverride: String = "",
     compilerName:           String = "verilog",
-    infoModeName:           String = "append",
+    infoModeName:           String = "use",
     inferRW:                Seq[String] = Seq.empty,
     firrtlSource:           Option[String] = None,
     customTransforms:       Seq[Transform] = List.empty,
