@@ -37,14 +37,14 @@ class DiGraphTests extends FirrtlFlatSpec {
 
   acyclicGraph.path("a","e") should not be empty
 
-  an [acyclicGraph.PathNotFoundException] should be thrownBy acyclicGraph.path("e","a")
+  an [PathNotFoundException] should be thrownBy acyclicGraph.path("e","a")
 
   acyclicGraph.linearize.head should equal ("a")
 
-  a [cyclicGraph.CyclicException] should be thrownBy cyclicGraph.linearize
+  a [CyclicException] should be thrownBy cyclicGraph.linearize
 
-  acyclicGraph.reverse.edges should equal (reversedAcyclicGraph.edges)
+  acyclicGraph.reverse.getEdgeMap should equal (reversedAcyclicGraph.getEdgeMap)
 
-  degenerateGraph.edges should equal (degenerateGraph.reverse.edges)
+  degenerateGraph.getEdgeMap should equal (degenerateGraph.reverse.getEdgeMap)
 
 }
