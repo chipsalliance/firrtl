@@ -60,9 +60,8 @@ class DCETests extends FirrtlFlatSpec {
         |  module Top :
         |    input x : UInt<1>
         |    output z : UInt<1>
-        |    wire a : UInt<1>
-        |    z <= x
-        |    a <= x""".stripMargin
+        |    node a = x
+        |    z <= x""".stripMargin
     exec(input, check, Seq(dontTouch("Top.a")))
   }
   "Unread register" should "be deleted" in {
@@ -109,6 +108,8 @@ class DCETests extends FirrtlFlatSpec {
         |    input x : UInt<1>
         |    input y : UInt<1>
         |    output z : UInt<1>
+        |    x is invalid
+        |    y is invalid
         |    z <= x
         |  module Top :
         |    input x : UInt<1>
