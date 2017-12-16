@@ -8,6 +8,9 @@ fi
 
 DUT=$1
 
+echo "TRAVIS_COMMIT_MESSAGE"
+echo $TRAVIS_COMMIT_MESSAGE
+
 # Run formal check only for PRs
 if [ $TRAVIS_PULL_REQUEST = "false" ]; then
     echo "Not a pull request, no formal check"
