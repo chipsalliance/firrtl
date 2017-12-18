@@ -89,31 +89,52 @@ object Driver {
     println("-"*78 + Console.RESET)
   }
 
-  /**
-    * Load annotation file based on options
-    * @param optionsManager use optionsManager config to load annotation file if it exists
-    *                       update the firrtlOptions with new annotations if it does
+  /** Load annotations from specified files and options
+    *
+    * @param optionsManager use optionsManager config to load annotation files
+    * @return Annotations read from files
     */
-  def loadAnnotations(optionsManager: ExecutionOptionsManager with HasFirrtlOptions): Unit = {
+  def loadAnnotations(
+      optionsManager: ExecutionOptionsManager with HasFirrtlOptions
+  ): Seq[Annotation] = {
+    val firrtlConfig = optionsManager.firrtlOptions
 
-    val annotationFileName = firrtlConfig.getAnnotationFileName(optionsManager)
-    val annotationFile = new File(annotationFileName)
-    if (annotationFile.exists) {
-      val annotationsYaml = io.Source.fromFile(annotationFile).getLines().mkString("\n").parseYaml
-      val annotationArray = annotationsYaml.convertTo[Array[Annotation]]
-      optionsManager.firrtlOptions = firrtlConfig.copy(annotations = firrtlConfig.annotations ++ annotationArray)
+    if (firrtlConfig.annotationFileNameOverride.nonEmpty) {
+      val msg = "annotationFileNameOverride is deprecated! " +
+                "Use annotationFileNames"
+      Driver.dramaticWarning(msg)
     }
 
-    if(firrtlConfig.annotations.nonEmpty) {
-      val targetDirAnno = List(Annotation(
-        CircuitName("All"),
-        classOf[BlackBoxSourceHelper],
-        BlackBoxTargetDir(optionsManager.targetDirName).serialize
-      ))
-
-      optionsManager.firrtlOptions = optionsManager.firrtlOptions.copy(
-        annotations = firrtlConfig.annotations ++ targetDirAnno)
+    val oldAnnoFileName = firrtlConfig.getAnnotationFileName(optionsManager)
+    val oldAnnoFile = new File(oldAnnoFileName)
+    if (oldAnnoFile.exists) {
+      val msg = "Implicit .anno file from top-name is deprecated! " +
+                "Use explicit -faf option or annotationFileNames"
+      Driver.dramaticWarning(msg)
     }
+
+    val annoFiles =
+      if (oldAnnoFile.exists) oldAnnoFileName +: firrtlConfig.annotationFileNames
+      else firrtlConfig.annotationFileNames
+
+    val loadedAnnos = annoFiles.flatMap { filename =>
+      val file = new File(filename)
+      if (!file.exists) {
+        throw new FileNotFoundException(s"Annotation file $filename not found!")
+      }
+      val yaml = io.Source.fromFile(file).getLines().mkString("\n").parseYaml
+      yaml.convertTo[List[LegacyAnnotation]]
+
+    }
+
+    val targetDirAnno =
+      if (firrtlConfig.annotations.nonEmpty) {
+        List(Annotation(
+          CircuitName("All"),
+          classOf[BlackBoxSourceHelper],
+          BlackBoxTargetDir(optionsManager.targetDirName).serialize
+        ))
+      } else List()
 
     // Output Annotations
     val outputAnnos = firrtlConfig.getEmitterAnnos(optionsManager)
@@ -122,9 +143,7 @@ object Driver {
       (if (firrtlConfig.dontCheckCombLoops) Seq(DontCheckCombLoopsAnnotation()) else Seq()) ++
       (if (firrtlConfig.noDCE) Seq(NoDCEAnnotation()) else Seq())
 
-    optionsManager.firrtlOptions = optionsManager.firrtlOptions.copy(
-      annotations = firrtlConfig.annotations ++ outputAnnos ++ globalAnnos)
-
+    targetDirAnno ++ outputAnnos ++ globalAnnos ++ loadedAnnos
   }
 
   /**
@@ -167,7 +186,7 @@ object Driver {
           }
       }
 
-      loadAnnotations(optionsManager)
+      val annos = loadAnnotations(optionsManager)
 
       val parsedInput = Parser.parse(firrtlSource, firrtlConfig.infoMode)
 
@@ -177,7 +196,7 @@ object Driver {
       val finalState = firrtlConfig.compiler.compile(
         CircuitState(parsedInput,
                      ChirrtlForm,
-                     Some(AnnotationMap(firrtlConfig.annotations))),
+                     Some(AnnotationMap(annos))),
         firrtlConfig.customTransforms
       )
 
@@ -209,8 +228,8 @@ object Driver {
         case file =>
           val filename = optionsManager.getBuildFileName("anno", file)
           val outputFile = new java.io.PrintWriter(filename)
-          finalState.annotations.map {
-            case annos => outputFile.write(annos.annotations.mkString("\n"))
+          finalState.annotations.foreach { annos =>
+            outputFile.write(annos.annotations.prettyPrint)
           }
           outputFile.close()
       }

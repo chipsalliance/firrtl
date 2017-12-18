@@ -35,14 +35,8 @@ trait AnnotationSpec extends LowTransformSpec {
 }
 
 
-/**
- * Tests for Annotation Permissibility and Tenacity
- *
- * WARNING(izraelevitz): Not a complete suite of tests, requires the LowerTypes
- * pass and ConstProp pass to correctly populate its RenameMap before Strict, Rigid, Firm,
- * Unstable, Fickle, and Insistent can be tested.
- */
-class AnnotationTests extends AnnotationSpec with Matchers {
+/** Old tests for Legacy Annotations */
+class LegacyAnnotationTests extends AnnotationSpec with Matchers {
   def getAMap(a: Annotation): Option[AnnotationMap] = Some(AnnotationMap(Seq(a)))
   def getAMap(as: Seq[Annotation]): Option[AnnotationMap] = Some(AnnotationMap(as))
   def anno(s: String, value: String ="this is a value", mod: String = "Top"): Annotation =
@@ -61,10 +55,10 @@ class AnnotationTests extends AnnotationSpec with Matchers {
     execute(input, ta, Seq(ta))
   }
 
-  "Annotations" should "be readable from file" in {
+  "LegacyAnnotations" should "be readable from file" in {
     val annotationStream = getClass.getResourceAsStream("/annotations/SampleAnnotations.anno")
     val annotationsYaml = scala.io.Source.fromInputStream(annotationStream).getLines().mkString("\n").parseYaml
-    val annotationArray = annotationsYaml.convertTo[Array[Annotation]]
+    val annotationArray = annotationsYaml.convertTo[Array[LegacyAnnotation]]
     annotationArray.length should be (9)
     annotationArray(0).targetString should be ("ModC")
     annotationArray(7).transformClass should be ("firrtl.passes.InlineInstances")
@@ -72,7 +66,7 @@ class AnnotationTests extends AnnotationSpec with Matchers {
     annotationArray(7).value should be (expectedValue)
   }
 
-  "Badly formatted serializations" should "return reasonable error messages" in {
+  "Badly formatted LegacyAnnotation serializations" should "return reasonable error messages" in {
     var badYaml =
       """
         |- transformClass: firrtl.passes.InlineInstances
@@ -81,7 +75,7 @@ class AnnotationTests extends AnnotationSpec with Matchers {
       """.stripMargin.parseYaml
 
     var thrown = intercept[Exception] {
-      badYaml.convertTo[Array[Annotation]]
+      badYaml.convertTo[Array[LegacyAnnotation]]
     }
     thrown.getMessage should include ("Illegal component name")
 
@@ -93,18 +87,18 @@ class AnnotationTests extends AnnotationSpec with Matchers {
       """.stripMargin.parseYaml
 
     thrown = intercept[Exception] {
-      badYaml.convertTo[Array[Annotation]]
+      badYaml.convertTo[Array[LegacyAnnotation]]
     }
     thrown.getMessage should include ("Illegal circuit name")
   }
 
-  "Round tripping annotations through text file" should "preserve annotations" in {
-    val annos: Array[Annotation] = Seq(
+  "Round tripping legacy annotations through text file" should "preserve annotations" in {
+    val annos: Array[LegacyAnnotation] = Seq(
       InlineAnnotation(CircuitName("fox")),
       InlineAnnotation(ModuleName("dog", CircuitName("bear"))),
       InlineAnnotation(ComponentName("chocolate", ModuleName("like", CircuitName("i")))),
       PinAnnotation(CircuitName("Pinniped"), Seq("sea-lion", "monk-seal"))
-    ).toArray
+    ).toArray.map(_.asInstanceOf[LegacyAnnotation])
 
     val annoFile = new File("temp-anno")
     val writer = new FileWriter(annoFile)
@@ -114,7 +108,7 @@ class AnnotationTests extends AnnotationSpec with Matchers {
     val yaml = io.Source.fromFile(annoFile).getLines().mkString("\n").parseYaml
     annoFile.delete()
 
-    val readAnnos = yaml.convertTo[Array[Annotation]]
+    val readAnnos = yaml.convertTo[Array[LegacyAnnotation]]
 
     annos.zip(readAnnos).foreach { case (beforeAnno, afterAnno) =>
       beforeAnno.targetString should be (afterAnno.targetString)
@@ -126,7 +120,7 @@ class AnnotationTests extends AnnotationSpec with Matchers {
     }
   }
 
-  "Deleting annotations" should "create a DeletedAnnotation" in {
+  "Deleting legacy annotations" should "create a DeletedAnnotation" in {
     val compiler = new VerilogCompiler
     val input =
      """circuit Top :
@@ -149,6 +143,7 @@ class AnnotationTests extends AnnotationSpec with Matchers {
     val deleted = result.deletedAnnotations
     exception.str should be (s"No EmittedCircuit found! Did you delete any annotations?\n$deleted")
   }
+
   "Renaming" should "propagate in Lowering of memories" in {
     val compiler = new VerilogCompiler
     // Uncomment to help debugging failing tests
@@ -497,3 +492,4 @@ class AnnotationTests extends AnnotationSpec with Matchers {
     resultAnno should not contain (manno("Child_1"))
   }
 }
+

@@ -101,8 +101,8 @@ final class RenameMap private () {
  * Container of all annotations for a Firrtl compiler.
  */
 case class AnnotationMap(annotations: Seq[Annotation]) {
-  def get(id: Class[_]): Seq[Annotation] = annotations.filter(a => a.transform == id)
-  def get(named: Named): Seq[Annotation] = annotations.filter(n => n == named)
+  def get(id: Class[_ <: Transform]): Seq[Annotation] = annotations.filter(a => a.targets(id))
+  def get(named: Named): Seq[Annotation] = annotations.filter(a => a.targets(named))
 }
 
 /** Current State of the Circuit
@@ -139,8 +139,7 @@ case class CircuitState(
   }
   def deletedAnnotations: Seq[Annotation] = {
     val deletedOpt = annotations map (_.annotations collect {
-      case DeletedAnnotation(xformName, anno) =>
-        DeletedAnnotation(xformName, anno)
+      case anno @ DeletedAnnotation(_,_) => anno
     })
     deletedOpt.getOrElse(Seq.empty)
   }
@@ -272,7 +271,8 @@ abstract class Transform extends LazyLogging {
       val resSet = resAnno.getOrElse(AnnotationMap(Seq.empty)).annotations.toSet
       val deleted = (inSet -- resSet).map {
         case DeletedAnnotation(xFormName, delAnno) => DeletedAnnotation(s"$xFormName+$name", delAnno)
-        case anno => DeletedAnnotation(name, anno)
+        case anno: LegacyAnnotation => DeletedAnnotation(name, anno)
+        case _ => error("Need to implemented Deleted for arbitrary annotations!")
       }
       val created = resSet -- inSet
       val unchanged = resSet & inSet
@@ -283,7 +283,7 @@ abstract class Transform extends LazyLogging {
     val renames = renameOpt.getOrElse(RenameMap())
     for {
       anno <- newAnnotations.toSeq
-      newAnno <- anno.update(renames.get(anno.target).getOrElse(Seq(anno.target)))
+      newAnno <- anno.update(renames)
     } yield newAnno
   }
 }

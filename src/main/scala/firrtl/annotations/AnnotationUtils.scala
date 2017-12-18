@@ -10,8 +10,8 @@ import firrtl.ir._
 import firrtl.Utils.error
 
 object AnnotationUtils {
-  def toYaml(a: Annotation): String = a.toYaml.prettyPrint
-  def fromYaml(s: String): Annotation = s.parseYaml.convertTo[Annotation]
+  def toYaml(a: LegacyAnnotation): String = a.toYaml.prettyPrint
+  def fromYaml(s: String): LegacyAnnotation = s.parseYaml.convertTo[LegacyAnnotation]
 
   /** Returns true if a valid Module name */
   val SerializedModuleName = """([a-zA-Z_][a-zA-Z_0-9~!@#$%^*\-+=?/]*)""".r

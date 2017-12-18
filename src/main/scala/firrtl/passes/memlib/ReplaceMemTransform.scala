@@ -137,16 +137,14 @@ class ReplSeqMem extends Transform {
 
   def execute(state: CircuitState): CircuitState = getMyAnnotations(state) match {
     case Nil => state // Do nothing if there are no annotations
-    case p => (p.collectFirst { case a if (a.target == CircuitName(state.circuit.main)) => a }) match {
-      case Some(ReplSeqMemAnnotation(target, inputFileName, outputConfig)) =>
-        val inConfigFile = {
-          if (inputFileName.isEmpty) None 
-          else if (new File(inputFileName).exists) Some(new YamlFileReader(inputFileName))
-          else error("Input configuration file does not exist!")
-        }
-        val outConfigFile = new ConfWriter(outputConfig)
-        transforms(inConfigFile, outConfigFile).foldLeft(state) { (in, xform) => xform.runTransform(in) }
-      case _ => error("Unexpected transform annotation")
-    }
+    case Seq(ReplSeqMemAnnotation(CircuitName(state.circuit.main), inputFileName, outputConfig)) =>
+      val inConfigFile = {
+        if (inputFileName.isEmpty) None
+        else if (new File(inputFileName).exists) Some(new YamlFileReader(inputFileName))
+        else error("Input configuration file does not exist!")
+      }
+      val outConfigFile = new ConfWriter(outputConfig)
+      transforms(inConfigFile, outConfigFile).foldLeft(state) { (in, xform) => xform.runTransform(in) }
+    case _ => error("Unexpected transform annotation")
   }
 }

@@ -5,7 +5,7 @@ package firrtl.transforms
 import java.io.{File, FileNotFoundException, FileOutputStream, PrintWriter}
 
 import firrtl._
-import firrtl.annotations.{Annotation, ModuleName}
+import firrtl.annotations.{Annotation, LegacyAnnotation, ModuleName}
 
 import scala.collection.mutable.ArrayBuffer
 
@@ -76,7 +76,8 @@ class BlackBoxSourceHelper extends firrtl.Transform {
     * @return
     */
   def getSources(annos: Seq[Annotation]): Seq[BlackBoxSource] = {
-    annos.flatMap { anno => BlackBoxSource.parse(anno.value) }
+    annos.collect { case anno: LegacyAnnotation => BlackBoxSource.parse(anno.value) }
+      .flatten
       .flatMap {
         case BlackBoxTargetDir(dest) =>
           targetDir = new File(dest)

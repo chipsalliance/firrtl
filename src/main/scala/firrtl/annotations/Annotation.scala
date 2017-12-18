@@ -8,9 +8,39 @@ import firrtl.annotations.AnnotationYamlProtocol._
 
 case class AnnotationException(message: String) extends Exception(message)
 
-final case class Annotation(target: Named, transform: Class[_ <: Transform], value: String) {
+// TODO
+//   - Should Annotations be able to "target" multiple named things?
+//   - Should Annotations be able to "target" multiple transforms?
+trait Annotation {
+  def update(renames: RenameMap): Seq[Annotation]
+  // TODO This is probably not the right API
+  def targets(named: Named): Boolean
+  def targets(transform: Class[_ <: Transform]): Boolean
+
+  /**
+    * This serialize is basically a pretty printer, actual serialization is handled by
+    * AnnotationYamlProtocol
+    * @return a nicer string than the raw case class default
+    */
+  def serialize: String
+}
+
+object Annotation {
+  def apply(target: Named, transform: Class[_ <: Transform], value: String) =
+    LegacyAnnotation(target, transform, value)
+  def unapply(a: LegacyAnnotation): Option[(Named, Class[_ <: Transform], String)] =
+    Some((a.target, a.transform, a.value))
+}
+
+final case class LegacyAnnotation(
+    target: Named,
+    transform: Class[_ <: Transform],
+    value: String) extends Annotation {
   val targetString: String = target.serialize
   val transformClass: String = transform.getName
+
+  def targets(named: Named): Boolean = named == target
+  def targets(transform: Class[_ <: Transform]): Boolean = transform == this.transform
 
   /**
     * This serialize is basically a pretty printer, actual serialization is handled by
@@ -20,6 +50,9 @@ final case class Annotation(target: Named, transform: Class[_ <: Transform], val
   def serialize: String = {
     s"Annotation(${target.serialize},${transform.getCanonicalName},$value)"
   }
+
+  def update(renames: RenameMap): Seq[Annotation] =
+    renames.renameMap.get(target).map(update).getOrElse(Seq(this))
 
   def update(tos: Seq[Named]): Seq[Annotation] = {
     check(target, tos, this)
@@ -31,11 +64,11 @@ final case class Annotation(target: Named, transform: Class[_ <: Transform], val
 }
 
 object DeletedAnnotation {
-  def apply(xFormName: String, anno: Annotation): Annotation =
+  def apply(xFormName: String, anno: LegacyAnnotation): Annotation =
     Annotation(anno.target, classOf[Transform], s"""DELETED by $xFormName\n${AnnotationUtils.toYaml(anno)}""")
 
   private val deletedRegex = """(?s)DELETED by ([^\n]*)\n(.*)""".r
-  def unapply(a: Annotation): Option[(String, Annotation)] = a match {
+  def unapply(a: Annotation): Option[(String, LegacyAnnotation)] = a match {
     case Annotation(named, t, deletedRegex(xFormName, annoString)) if t == classOf[Transform] =>
       Some((xFormName, AnnotationUtils.fromYaml(annoString)))
     case _ => None
