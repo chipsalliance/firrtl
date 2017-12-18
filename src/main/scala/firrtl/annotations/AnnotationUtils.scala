@@ -3,15 +3,76 @@
 package firrtl
 package annotations
 
+import org.json4s._
+import org.json4s.native.JsonMethods._
+import org.json4s.native.Serialization
+import org.json4s.native.Serialization.{read, write, writePretty}
+
 import net.jcazevedo.moultingyaml._
 import firrtl.annotations.AnnotationYamlProtocol._
 
 import firrtl.ir._
 import firrtl.Utils.error
 
+//finalState.annotations.map { annos =>
+//  val tags = annos.annotations.map(_.getClass).distinct
+//  implicit val formats = AnnotationUtils.jsonFormat(tags)
+//  outputFile.write(writePretty(annos.annotations))
+//}
+
+//if (annotationFileName.endsWith(".anno")) {
+//  val annotationsYaml = io.Source.fromFile(annotationFile).getLines().mkString("\n").parseYaml
+//  val annotationArray = annotationsYaml.convertTo[Array[LegacyAnnotation]]
+//  optionsManager.firrtlOptions = firrtlConfig.copy(annotations = firrtlConfig.annotations ++ annotationArray)
+//} else if (annotationFileName.endsWith(".json")) {
+//  import org.json4s._
+//  import org.json4s.native.JsonMethods.parse
+//  val text = io.Source.fromFile(annotationFile).getLines().mkString("\n")
+//  val parsed = parse(text)
+//  val annos = parsed match { case JArray(objs) => objs }
+//  val classes = annos.map({ case JObject(("class", JString(c)) :: tail) => c }).distinct
+//  val loaded = classes.map(Class.forName(_).asInstanceOf[Class[_ <: Annotation]])
+//  implicit val formats = AnnotationUtils.jsonFormat(loaded)
+//  println(read[List[Annotation]](text))
+//}
+
+// TODO move to another file
+class ClassSerializer extends CustomSerializer[Class[_ <: Transform]](format => (
+  {
+    case JString(s) => Class.forName(s).asInstanceOf[Class[_ <: Transform]]
+  },
+  {
+    case x: Class[_] => JString(x.getName)
+  }
+))
+class NamedSerializer extends CustomSerializer[Named](format => (
+  {
+    case JString(s) => NamedSerializer.toNamed(s)
+  },
+  {
+    case named: Named => JString(named.serialize)
+  }
+))
+object NamedSerializer {
+  def toNamed(string: String): Named = string.split("""\.""", -1).toSeq match {
+    case Seq(c) => CircuitName(c)
+    case Seq(c, m) => ModuleName(m, CircuitName(c))
+    case Nil => Utils.error("BAD")
+    case s =>
+      val componentString = s.drop(2).mkString(".")
+      ComponentName(componentString, ModuleName(s.tail.head, CircuitName(s.head)))
+  }
+}
+
 object AnnotationUtils {
   def toYaml(a: LegacyAnnotation): String = a.toYaml.prettyPrint
   def fromYaml(s: String): LegacyAnnotation = s.parseYaml.convertTo[LegacyAnnotation]
+
+  /** Construct Json formatter for annotations */
+  def jsonFormat(tags: Seq[Class[_ <: Annotation]]) = {
+    Serialization.formats(FullTypeHints(tags.toList)).withTypeHintFieldName("class") +
+      new ClassSerializer + new NamedSerializer
+  }
 
   /** Returns true if a valid Module name */
   val SerializedModuleName = """([a-zA-Z_][a-zA-Z_0-9~!@#$%^*\-+=?/]*)""".r

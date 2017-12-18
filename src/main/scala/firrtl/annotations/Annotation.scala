@@ -52,7 +52,7 @@ final case class LegacyAnnotation(
   }
 
   def update(renames: RenameMap): Seq[Annotation] =
-    renames.renameMap.get(target).map(update).getOrElse(Seq(this))
+    renames.get(target).map(update).getOrElse(Seq(this))
 
   def update(tos: Seq[Named]): Seq[Annotation] = {
     check(target, tos, this)
