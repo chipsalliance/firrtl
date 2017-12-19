@@ -2,7 +2,7 @@
 
 package firrtlTests
 
-import java.io.{File, FileNotFoundException, FileOutputStream}
+import java.io.File
 import org.scalatest.{FreeSpec, Matchers}
 
 import firrtl.passes.InlineInstances
@@ -57,7 +57,7 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
     "options include by default a list of strings that are returned in commonOptions.programArgs" in {
       val optionsManager = new ExecutionOptionsManager("test")
 
-      optionsManager.parse(Array("--top-name", "dog", "fox", "tardigrade", "stomatopod")) should be (true)
+      optionsManager.parse(Array("--top-name", "dog", "fox", "0tardigrade", "stomatopod")) should be (true)
       println(s"programArgs ${optionsManager.commonOptions.programArgs}")
       optionsManager.commonOptions.programArgs.length should be (3)
       optionsManager.commonOptions.programArgs should be ("fox" :: "tardigrade" :: "stomatopod" :: Nil)
@@ -161,7 +161,7 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
     optionsManager.firrtlOptions.annotations.length should be (0)
     val annos = Driver.loadAnnotations(optionsManager)
     annos.length should be (12) // 9 from circuit plus 3 general purpose
-    annos.filter(_.transformClass == "firrtl.passes.InlineInstances").size should be (9)
+    annos.count(_.transformClass == "firrtl.passes.InlineInstances") should be (9)
     annoFile.delete()
   }
 
@@ -178,7 +178,7 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
     optionsManager.firrtlOptions.annotations.length should be (0)
     val annos = Driver.loadAnnotations(optionsManager)
     annos.length should be (12) // 9 from circuit plus 3 general purpose
-    annos.filter(_.transformClass == "firrtl.passes.InlineInstances").size should be (9)
+    annos.count(_.transformClass == "firrtl.passes.InlineInstances") should be (9)
     annotationsTestFile.delete()
   }
 
@@ -195,7 +195,7 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
     optionsManager.firrtlOptions.annotations.length should be (0)
     val annos = Driver.loadAnnotations(optionsManager)
     annos.length should be (21) // 18 from files plus 3 general purpose
-    annos.filter(_.transformClass == "firrtl.passes.InlineInstances").size should be (18)
+    annos.count(_.transformClass == "firrtl.passes.InlineInstances") should be (18)
     annotationsTestFile.delete()
   }
 

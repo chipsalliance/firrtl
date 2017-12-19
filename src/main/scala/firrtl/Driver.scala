@@ -94,17 +94,19 @@ object Driver {
     * @param optionsManager use optionsManager config to load annotation files
     * @return Annotations read from files
     */
+  //scalastyle:off cyclomatic.complexity method.length
   def loadAnnotations(
       optionsManager: ExecutionOptionsManager with HasFirrtlOptions
   ): Seq[Annotation] = {
     val firrtlConfig = optionsManager.firrtlOptions
 
+    //noinspection ScalaDeprecation
     val oldAnnoFileName = firrtlConfig.getAnnotationFileName(optionsManager)
-    val oldAnnoFile = (new File(oldAnnoFileName)).getCanonicalFile()
+    val oldAnnoFile = new File(oldAnnoFileName).getCanonicalFile
 
     val (annoFiles, usingImplicitAnnoFile) = {
       val afs = firrtlConfig.annotationFileNames.map { x =>
-        (new File(x)).getCanonicalFile()
+        new File(x).getCanonicalFile
       }
       // Implicit anno file could be included explicitly, only include it and
       // warn if it's not also explicit
@@ -216,7 +218,7 @@ object Driver {
         case OneFilePerModule(dirName) =>
           val emittedModules = finalState.emittedComponents collect { case x: EmittedModule => x }
           if (emittedModules.isEmpty) throwInternalError // There should be something
-          emittedModules.foreach { case module =>
+          emittedModules.foreach { module =>
             val filename = optionsManager.getBuildFileName(firrtlConfig.outputSuffix, s"$dirName/${module.name}")
             val outputFile = new java.io.PrintWriter(filename)
             outputFile.write(module.value)
@@ -231,8 +233,8 @@ object Driver {
         case file =>
           val filename = optionsManager.getBuildFileName("anno", file)
           val outputFile = new java.io.PrintWriter(filename)
-          finalState.annotations.map {
-            case annos => outputFile.write(annos.annotations.toYaml.prettyPrint)
+          finalState.annotations.foreach {
+            finalAnnos => outputFile.write(finalAnnos.annotations.toYaml.prettyPrint)
           }
           outputFile.close()
       }
