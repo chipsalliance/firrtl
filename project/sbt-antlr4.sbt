@@ -1,1 +1,3 @@
-addSbtPlugin("com.simplytyped" % "sbt-antlr4" % "0.8.0")
+resolvers += Resolver.url("bintray-simplytyped", url("http://dl.bintray.com/simplytyped/sbt-plugins"))(Resolver.ivyStylePatterns)
+
+addSbtPlugin("com.simplytyped" % "sbt-antlr4" % "0.7.12")
