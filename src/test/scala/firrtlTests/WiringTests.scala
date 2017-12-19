@@ -426,6 +426,46 @@ class WiringTests extends FirrtlFlatSpec {
     val retC = wiringPass.run(c)
     (parse(retC.serialize).serialize) should be (parse(check).serialize)
   }
+  "Multi-sink same module" should "work" in {
+    val sinks = Seq(ComponentName("s", ModuleName("A", CircuitName("Top"))),
+                    ComponentName("t", ModuleName("A", CircuitName("Top"))))
+    val source = ComponentName("r", ModuleName("A", CircuitName("Top")))
+    val sas = WiringInfo(source, sinks, "pin")
+    val input =
+      """circuit Top :
+        |  module Top :
+        |    input clock: Clock
+        |    inst a of A
+        |    a.clock <= clock
+        |  module A :
+        |    input clock: Clock
+        |    wire s: UInt<5>
+        |    wire t: UInt<5>
+        |    reg r: UInt<5>, clock
+        |""".stripMargin
+    val check =
+      """circuit Top :
+        |  module Top :
+        |    input clock: Clock
+        |    inst a of A
+        |    a.clock <= clock
+        |  module A :
+        |    input clock: Clock
+        |    wire pin: UInt<5>
+        |    wire s: UInt<5>
+        |    wire t: UInt<5>
+        |    reg r: UInt<5>, clock
+        |    t <= pin
+        |    s <= pin
+        |    pin <= r
+        |""".stripMargin
+    val c = passes.foldLeft(parse(input)) {
+      (c: Circuit, p: Pass) => p.run(c)
+    }
+    val wiringPass = new Wiring(Seq(sas))
+    val retC = wiringPass.run(c)
+    (parse(retC.serialize).serialize) should be (parse(check).serialize)
+  }
   "Wiring from clock to extmodule X" should "work" in {
     val sinks = Seq(ModuleName("X", CircuitName("Top")))
     val source = ComponentName("clock", ModuleName("A", CircuitName("Top")))
