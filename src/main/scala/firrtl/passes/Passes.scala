@@ -198,6 +198,15 @@ object Legalize extends Pass {
       e
     }
   }
+  private def legalizeShiftLeft(e: DoPrim): Expression = {
+    require(e.op == Shl)
+    val amount = e.consts.head.toInt
+    if (amount < 0) {
+      error(s"Argument $amount < 0 for Primop Shift Left")
+     } else {
+      e
+    }
+  }
   private def legalizeBits(expr: DoPrim): Expression = {
     lazy val (hi, low) = (expr.consts.head, expr.consts(1))
     lazy val mask = (BigInt(1) << (hi - low + 1).toInt) - 1
@@ -235,6 +244,7 @@ object Legalize extends Pass {
     def legalizeE(expr: Expression): Expression = expr map legalizeE match {
       case prim: DoPrim => prim.op match {
         case Shr => legalizeShiftRight(prim)
+        case Shl => legalizeShiftLeft(prim)
         case Pad => legalizePad(prim)
         case Bits => legalizeBits(prim)
         case _ => prim
