@@ -87,6 +87,7 @@ class FlattenTests extends LowTransformSpec {
           |    b <= i2$b
           |    i1$a <= a
           |    i2$a <= tmp
+          |    tmp <= i1$b
           |  module Inline1 :
           |    input a : UInt<32>
           |    output b : UInt<32>
