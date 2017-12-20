@@ -57,7 +57,7 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
     "options include by default a list of strings that are returned in commonOptions.programArgs" in {
       val optionsManager = new ExecutionOptionsManager("test")
 
-      optionsManager.parse(Array("--top-name", "dog", "fox", "0tardigrade", "stomatopod")) should be (true)
+      optionsManager.parse(Array("--top-name", "dog", "fox", "tardigrade", "stomatopod")) should be (true)
       println(s"programArgs ${optionsManager.commonOptions.programArgs}")
       optionsManager.commonOptions.programArgs.length should be (3)
       optionsManager.commonOptions.programArgs should be ("fox" :: "tardigrade" :: "stomatopod" :: Nil)
