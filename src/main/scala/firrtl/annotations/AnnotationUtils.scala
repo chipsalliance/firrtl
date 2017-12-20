@@ -43,9 +43,8 @@ object AnnotationUtils {
 
   def toNamed(s: String): Named = tokenize(s) match {
     case Seq(n) => CircuitName(n)
-    case Seq(c, m) => ModuleName(m, CircuitName(c))
-    case Seq(c, m) => ModuleName(m, CircuitName(c))
-    case Seq(c, m, x) => ComponentName(x, ModuleName(m, CircuitName(c)))
+    case Seq(c, ".", m) => ModuleName(m, CircuitName(c))
+    case Seq(c, ".", m, ".", x) => ComponentName(x, ModuleName(m, CircuitName(c)))
   }
 
   /** Given a serialized component/subcomponent reference, subindex, subaccess,
