@@ -242,24 +242,25 @@ class CheckSpec extends FlatSpec with Matchers {
     }
   }
 
-  "shl by negative amount" should "result in an error" in {
-    val passes = Seq(
-      ToWorkingIR,
-      CheckHighForm
-    )
-    val amount = -1
-    val input =
-      s"""circuit Unit :
-         |  module Unit :
-         |    input x: UInt<3>
-         |    output z: UInt
-         |    z <= shl(x, $amount)""".stripMargin
-    val exception = intercept[PassException] {
-      passes.foldLeft(Parser.parse(input.split("\n").toIterator)) {
-        (c: Circuit, p: Pass) => p.run(c)
+  for (op <- List("shl", "shr")) {
+    s"$op by negative amount" should "result in an error" in {
+      val passes = Seq(
+        ToWorkingIR,
+        CheckHighForm
+      )
+      val amount = -1
+      val input =
+        s"""circuit Unit :
+           |  module Unit :
+           |    input x: UInt<3>
+           |    output z: UInt
+           |    z <= $op(x, $amount)""".stripMargin
+      val exception = intercept[PassException] {
+        passes.foldLeft(Parser.parse(input.split("\n").toIterator)) {
+          (c: Circuit, p: Pass) => p.run(c)
+        }
       }
+      exception.getMessage should include (s"Primop $op argument $amount < 0")
     }
-    exception.getMessage should include (s"Primop shl argument $amount < 0")
   }
-
 }
