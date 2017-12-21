@@ -55,4 +55,23 @@ class CheckInitializationSpec extends FirrtlFlatSpec {
       }
     }
   }
+  // This is special for 1.0.x
+  // https://github.com/freechipsproject/firrtl/pull/706 fixed a serious bug and started enforcing
+  // initialization checks on submodule ports. This is API-change-esque because code that used to
+  // compile no longer does. Instead for 1.0.x, Firrtl will just implicitly mark all submodule
+  // inputs as invalid so code still compiles.
+  "Missing assignment to submodule port" should "NOT trigger a PassException in 1.0.x" in {
+    val input =
+      """circuit Test :
+        |  module Child :
+        |    input in : UInt<32>
+        |  module Test :
+        |    input p : UInt<1>
+        |    inst c of Child
+        |    when p :
+        |      c.in <= UInt(1)""".stripMargin
+    passes.foldLeft(parse(input)) {
+      (c: Circuit, p: Pass) => p.run(c)
+    }
+  }
 }

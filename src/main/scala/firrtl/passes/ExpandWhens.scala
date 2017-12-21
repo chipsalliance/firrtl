@@ -31,6 +31,23 @@ object ExpandWhens extends Pass {
   // Defaults ideally would be immutable.Map but conversion from mutable.LinkedHashMap to mutable.Map is VERY slow
   type Defaults = Seq[mutable.Map[WrappedExpression, Expression]]
 
+  // Helper for 1.0.x to warn if submodule ports aren't properly invalidated
+  // See https://github.com/freechipsproject/firrtl/pull/712
+  private case object WAutoInvalid extends Expression {
+    def tpe = UnknownType
+    def serialize: String = "INVALID"
+    def mapExpr(f: Expression => Expression): Expression = this
+    def mapType(f: Type => Type): Expression = this
+    def mapWidth(f: Width => Width): Expression = this
+  }
+  private def warnAutoInvalid(expr: Expression)(m: Module, lvalue: WrappedExpression): Expression = expr match {
+    case WAutoInvalid =>
+      logger.error(s"Warning: [module ${m.name}] ${lvalue.e1.serialize} is not fully initialized. " +
+                    "This will be an error in the next major release")
+      WInvalid
+    case other => other
+  }
+
   // ========== Expand When Utilz ==========
   private def getFemaleRefs(n: String, t: Type, g: Gender): Seq[Expression] = {
     def getGender(t: Type, i: Int, g: Gender): Gender = times(g, get_flip(t, i, Default))
@@ -47,7 +64,7 @@ object ExpandWhens extends Pass {
   }
   private def expandNetlist(netlist: Netlist, attached: Set[WrappedExpression]) =
     netlist map {
-      case (k, WInvalid) => // Remove IsInvalids on attached Analog types
+      case (k, WInvalid | WAutoInvalid) => // Remove IsInvalids on attached Analog types
         if (attached.contains(k)) EmptyStmt else IsInvalid(NoInfo, k.e1)
       case (k, v) => Connect(NoInfo, k.e1, v)
     }
@@ -103,11 +120,15 @@ object ExpandWhens extends Pass {
                       defaults: Defaults,
                       p: Expression)
                       (s: Statement): Statement = s match {
+        case stmt @ (_: DefNode | EmptyStmt) => stmt
         case w: DefWire =>
           netlist ++= (getFemaleRefs(w.name, w.tpe, BIGENDER) map (ref => we(ref) -> WVoid))
           w
         case w: DefMemory =>
           netlist ++= (getFemaleRefs(w.name, MemPortUtils.memType(w), MALE) map (ref => we(ref) -> WVoid))
+          w
+        case w: WDefInstance =>
+          netlist ++= (getFemaleRefs(w.name, w.tpe, MALE).map(ref => we(ref) -> WAutoInvalid))
           w
         case r: DefRegister =>
           netlist ++= (getFemaleRefs(r.name, r.tpe, BIGENDER) map (ref => we(ref) -> ref))
@@ -137,8 +158,8 @@ object ExpandWhens extends Pass {
             }
             val res = default match {
               case Some(defaultValue) =>
-                val trueValue = conseqNetlist getOrElse (lvalue, defaultValue)
-                val falseValue = altNetlist getOrElse (lvalue, defaultValue)
+                val trueValue = warnAutoInvalid(conseqNetlist.getOrElse(lvalue, defaultValue))(m, lvalue)
+                val falseValue = warnAutoInvalid(altNetlist.getOrElse(lvalue, defaultValue))(m, lvalue)
                 (trueValue, falseValue) match {
                   case (WInvalid, WInvalid) => WInvalid
                   case (WInvalid, fv) => ValidIf(NOT(sx.pred), fv, fv.tpe)
@@ -173,7 +194,8 @@ object ExpandWhens extends Pass {
         case sx: Stop =>
           simlist += (if (weq(p, one)) sx else Stop(sx.info, sx.ret, sx.clk, AND(p, sx.en)))
           EmptyStmt
-        case sx => sx map expandWhens(netlist, defaults, p)
+        case block: Block => block map expandWhens(netlist, defaults, p)
+        case _ => throwInternalError
       }
       val netlist = new Netlist
       // Add ports to netlist
