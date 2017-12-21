@@ -43,8 +43,8 @@ class InlineInstances extends Transform {
 
    def execute(state: CircuitState): CircuitState = {
      // TODO Add error check for more than one annotation for inlining
-     // TODO Propagate other annotations
-     getMyAnnotations(state) match {
+     val annos = state.annotations.collect { case a @ InlineAnnotation(_) => a }
+     annos match {
        case Nil => CircuitState(state.circuit, state.form)
        case myAnnotations =>
          val (modNames, instNames) = collectAnns(state.circuit, myAnnotations)
@@ -92,7 +92,7 @@ class InlineInstances extends Transform {
    }
 
 
-  def run(c: Circuit, modsToInline: Set[ModuleName], instsToInline: Set[ComponentName], annos: Option[AnnotationMap]): CircuitState = {
+  def run(c: Circuit, modsToInline: Set[ModuleName], instsToInline: Set[ComponentName], annos: AnnotationSeq): CircuitState = {
     def getInstancesOf(c: Circuit, modules: Set[String]): Set[String] =
       c.modules.foldLeft(Set[String]()) { (set, d) =>
         d match {

@@ -135,12 +135,13 @@ class ReplSeqMem extends Transform {
         new SimpleMidTransform(ResolveKinds),
         new SimpleMidTransform(ResolveGenders))
 
-  def execute(state: CircuitState): CircuitState = getMyAnnotations(state) match {
-    case Nil => state // Do nothing if there are no annotations
-    case p => (p.collectFirst { case a if (a.target == CircuitName(state.circuit.main)) => a }) match {
-      case Some(ReplSeqMemAnnotation(target, inputFileName, outputConfig)) =>
+  def execute(state: CircuitState): CircuitState = {
+    val annos = state.annotations.collect { case a @ ReplSeqMemAnnotation(_) => a }
+    annos match {
+      case Nil => state // Do nothing if there are no annotations
+      case Seq(ReplSeqMemAnnotation(CircuitName(state.circuit.main), inputFileName, outputConfig)) =>
         val inConfigFile = {
-          if (inputFileName.isEmpty) None 
+          if (inputFileName.isEmpty) None
           else if (new File(inputFileName).exists) Some(new YamlFileReader(inputFileName))
           else error("Input configuration file does not exist!")
         }

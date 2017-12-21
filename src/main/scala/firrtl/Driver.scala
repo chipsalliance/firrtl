@@ -5,6 +5,7 @@ package firrtl
 import scala.collection._
 import scala.io.Source
 import scala.sys.process.{BasicIO,stringSeqToProcess}
+import scala.util.{Try, Success, Failure}
 import java.io.{File, FileNotFoundException}
 
 import net.jcazevedo.moultingyaml._
@@ -102,9 +103,21 @@ object Driver {
       if (!file.exists) {
         throw new FileNotFoundException(s"Annotation file $file not found!")
       }
-      val yaml = io.Source.fromFile(file).getLines().mkString("\n").parseYaml
-      yaml.convertTo[List[Annotation]]
-
+      // Try new protocol first
+      JsonProtocol.deserializeTry(file).getOrElse {
+        val annos = Try {
+          val yaml = io.Source.fromFile(file).getLines().mkString("\n").parseYaml
+          yaml.convertTo[List[LegacyAnnotation]]
+        }
+        annos match {
+          case Success(result) =>
+            val msg = s"$file is a YAML file!\n" +
+                      (" "*9) + "YAML Annotation files are deprecated! Use JSON"
+            Driver.dramaticWarning(msg)
+            result
+          case Failure(_) => throw new InvalidAnnotationFileException(file.toString)
+        }
+      }
     }
 
     val targetDirAnno =
@@ -204,11 +217,9 @@ object Driver {
       optionsManager.firrtlOptions.outputAnnotationFileName match {
         case "" =>
         case file =>
-          val filename = optionsManager.getBuildFileName("anno", file)
+          val filename = optionsManager.getBuildFileName("anno.json", file)
           val outputFile = new java.io.PrintWriter(filename)
-          finalState.annotations.foreach {
-            finalAnnos => outputFile.write(finalAnnos.annotations.toYaml.prettyPrint)
-          }
+          outputFile.write(JsonProtocol.serialize(finalState.annotations))
           outputFile.close()
       }
 

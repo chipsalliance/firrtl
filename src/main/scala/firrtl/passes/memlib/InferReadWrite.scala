@@ -159,10 +159,13 @@ class InferReadWrite extends Transform with SeqTransformBased {
     ResolveKinds,
     ResolveGenders
   )
-  def execute(state: CircuitState): CircuitState = getMyAnnotations(state) match {
-    case Nil => state
-    case Seq(InferReadWriteAnnotation(CircuitName(state.circuit.main))) =>
-      val ret = runTransforms(state)
-      CircuitState(ret.circuit, outputForm, ret.annotations, ret.renames)
+  def execute(state: CircuitState): CircuitState = {
+    val annos = state.annotations.collect { case a @ InferReadWriteAnnotation(_) => a }
+    annos match {
+      case Seq() => state
+      case Seq(InferReadWriteAnnotation(CircuitName(state.circuit.main))) =>
+        val ret = runTransforms(state)
+        CircuitState(ret.circuit, outputForm, ret.annotations, ret.renames)
+    }
   }
 }

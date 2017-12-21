@@ -9,6 +9,7 @@ import firrtl.passes.InlineInstances
 import firrtl.passes.memlib.{InferReadWrite, ReplSeqMem}
 import firrtl.transforms.BlackBoxSourceHelper
 import firrtl._
+import firrtl.annotations._
 import firrtl.util.BackendCompilationUtilities
 
 //noinspection ScalaStyle
@@ -117,7 +118,7 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
 
         val firrtlOptions = optionsManager.firrtlOptions
         firrtlOptions.annotations.length should be (3)
-        firrtlOptions.annotations.foreach { annotation =>
+        firrtlOptions.annotations.foreach { case annotation: LegacyAnnotation =>
           annotation.transform shouldBe classOf[InlineInstances]
         }
       }
@@ -130,7 +131,7 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
 
         val firrtlOptions = optionsManager.firrtlOptions
         firrtlOptions.annotations.length should be (1)
-        firrtlOptions.annotations.foreach { annotation =>
+        firrtlOptions.annotations.foreach { case annotation: LegacyAnnotation =>
           annotation.transform shouldBe classOf[InferReadWrite]
         }
       }
@@ -143,7 +144,7 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
 
         val firrtlOptions = optionsManager.firrtlOptions
         firrtlOptions.annotations.length should be (1)
-        firrtlOptions.annotations.foreach { annotation =>
+        firrtlOptions.annotations.foreach { case annotation: LegacyAnnotation =>
           annotation.transform shouldBe classOf[ReplSeqMem]
         }
       }
@@ -161,7 +162,8 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
     optionsManager.firrtlOptions.annotations.length should be (0)
     val annos = Driver.loadAnnotations(optionsManager)
     annos.length should be (12) // 9 from circuit plus 3 general purpose
-    annos.count(_.transformClass == "firrtl.passes.InlineInstances") should be (9)
+    annos.collect { case a: LegacyAnnotation => a }
+         .count(_.transformClass == "firrtl.passes.InlineInstances") should be (9)
     annoFile.delete()
   }
 
@@ -178,7 +180,8 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
     optionsManager.firrtlOptions.annotations.length should be (0)
     val annos = Driver.loadAnnotations(optionsManager)
     annos.length should be (12) // 9 from circuit plus 3 general purpose
-    annos.count(_.transformClass == "firrtl.passes.InlineInstances") should be (9)
+    annos.collect { case a: LegacyAnnotation => a }
+         .count(_.transformClass == "firrtl.passes.InlineInstances") should be (9)
     annotationsTestFile.delete()
   }
 
@@ -195,7 +198,8 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
     optionsManager.firrtlOptions.annotations.length should be (0)
     val annos = Driver.loadAnnotations(optionsManager)
     annos.length should be (21) // 18 from files plus 3 general purpose
-    annos.count(_.transformClass == "firrtl.passes.InlineInstances") should be (18)
+    annos.collect { case a: LegacyAnnotation => a }
+         .count(_.transformClass == "firrtl.passes.InlineInstances") should be (18)
     annotationsTestFile.delete()
   }
 
@@ -213,7 +217,9 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
     val firrtlOptions = optionsManager.firrtlOptions
     firrtlOptions.annotations.length should be (1) // infer-rw
 
-    val anns = Driver.loadAnnotations(optionsManager).groupBy(_.transform)
+    val anns = Driver.loadAnnotations(optionsManager)
+                     .collect { case a: LegacyAnnotation => a }
+                     .groupBy(_.transform)
     anns(classOf[BlackBoxSourceHelper]).length should be (1) // built in to loadAnnotations
     anns(classOf[InferReadWrite]).length should be (1) // --infer-rw
     anns(classOf[InlineInstances]).length should be (9) // annotations file

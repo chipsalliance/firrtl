@@ -140,7 +140,7 @@ sealed abstract class FirrtlEmitter(form: CircuitForm) extends Transform with Em
   }
 
   override def execute(state: CircuitState): CircuitState = {
-    val newAnnos = getMyAnnotations(state).flatMap {
+    val newAnnos = state.annotations.flatMap {
       case EmitCircuitAnnotation() =>
         Seq(EmittedFirrtlCircuitAnnotation.apply(
               EmittedFirrtlCircuit(state.circuit.main, state.circuit.serialize)))
@@ -148,11 +148,7 @@ sealed abstract class FirrtlEmitter(form: CircuitForm) extends Transform with Em
         emitAllModules(state.circuit) map (EmittedFirrtlModuleAnnotation(_))
       case _ => Seq()
     }
-    val annos = newAnnos ++ (state.annotations match {
-      case None => Seq.empty
-      case Some(a) => a.annotations
-    })
-    state.copy(annotations = Some(AnnotationMap(annos)))
+    state.copy(annotations = newAnnos ++ state.annotations)
   }
 
   // Old style, deprecated
@@ -742,7 +738,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
   }
 
   override def execute(state: CircuitState): CircuitState = {
-    val newAnnos = getMyAnnotations(state).flatMap {
+    val newAnnos = state.annotations.flatMap {
       case EmitCircuitAnnotation() =>
         val writer = new java.io.StringWriter
         emit(state, writer)
@@ -761,10 +757,6 @@ class VerilogEmitter extends SeqTransform with Emitter {
         }
       case _ => Seq()
     }
-    val annos = newAnnos ++ (state.annotations match {
-      case None => Seq.empty
-      case Some(a) => a.annotations
-    })
-    state.copy(annotations = Some(AnnotationMap(annos)))
+    state.copy(annotations = newAnnos ++ state.annotations)
   }
 }

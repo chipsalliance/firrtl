@@ -68,20 +68,21 @@ class WiringTransform extends Transform {
         InferTypes,
         ResolveKinds,
         ResolveGenders)
-  def execute(state: CircuitState): CircuitState = getMyAnnotations(state) match {
-    case Nil => state
-    case p => 
+  def execute(state: CircuitState): CircuitState = state.annotations match {
+    case Seq() => state
+    case p =>
       val sinks = mutable.HashMap[String, Set[String]]()
       val sources = mutable.HashMap[String, String]()
       val tops = mutable.HashMap[String, String]()
       val comp = mutable.HashMap[String, String]()
-      p.foreach { 
+      p.foreach {
         case SinkAnnotation(m, pin) =>
           sinks(pin) = sinks.getOrElse(pin, Set.empty) + m.name
         case SourceAnnotation(c, pin) =>
           sources(pin) = c.module.name
           comp(pin) = c.name
         case TopAnnotation(m, pin) => tops(pin) = m.name
+        case _ => // do nothing
       }
       (sources.size, tops.size, sinks.size, comp.size) match {
         case (0, 0, p, 0) => state

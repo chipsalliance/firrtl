@@ -149,7 +149,7 @@ class DedupModules extends Transform {
   }
 
   def execute(state: CircuitState): CircuitState = {
-    val noDedups = getMyAnnotations(state).collect { case NoDedupAnnotation(ModuleName(m, c)) => m }
+    val noDedups = state.annotations.collect { case NoDedupAnnotation(ModuleName(m, c)) => m }
     val (newC, renameMap) = run(state.circuit, noDedups)
     state.copy(circuit = newC, renames = Some(renameMap))
   }

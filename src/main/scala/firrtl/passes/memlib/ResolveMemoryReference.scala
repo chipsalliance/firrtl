@@ -46,10 +46,8 @@ class ResolveMemoryReference extends Transform {
     c copy (modules = c.modules map (m => m map updateMemStmts(m.name, uniqueMems, noDeDupeMems)))
   }
   def execute(state: CircuitState): CircuitState = {
-    val noDedups = getMyAnnotations(state) match {
-      case Nil => Seq.empty
-      case annos =>
-        annos.collect { case NoDedupMemAnnotation(ComponentName(cn, _)) => cn }
+    val noDedups = state.annotations.collect {
+      case NoDedupMemAnnotation(ComponentName(cn, _)) => cn
     }
     state.copy(circuit=run(state.circuit, noDedups))
   }

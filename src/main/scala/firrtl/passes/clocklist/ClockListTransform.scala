@@ -64,13 +64,16 @@ class ClockListTransform extends Transform {
   def outputForm = LowForm
   def passSeq(top: String, writer: Writer): Seq[Pass] =
     Seq(new ClockList(top, writer))
-  def execute(state: CircuitState): CircuitState = getMyAnnotations(state) match {
-    case Seq(ClockListAnnotation(ModuleName(top, CircuitName(state.circuit.main)), out)) => 
-      val outputFile = new PrintWriter(out)
-      val newC = (new ClockList(top, outputFile)).run(state.circuit)
-      outputFile.close()
-      CircuitState(newC, state.form, state.annotations)
-    case Nil => state
-    case seq => error(s"Found illegal clock list annotation(s): $seq")
+  def execute(state: CircuitState): CircuitState = {
+    val annos = state.annotations.collect { case a @ ClockListAnnotation(_,_) => a }
+    annos match {
+      case Seq(ClockListAnnotation(ModuleName(top, CircuitName(state.circuit.main)), out)) =>
+        val outputFile = new PrintWriter(out)
+        val newC = (new ClockList(top, outputFile)).run(state.circuit)
+        outputFile.close()
+        CircuitState(newC, state.form, state.annotations)
+      case Nil => state
+      case seq => error(s"Found illegal clock list annotation(s): $seq")
+    }
   }
 }

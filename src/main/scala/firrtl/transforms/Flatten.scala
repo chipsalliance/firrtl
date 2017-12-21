@@ -107,7 +107,8 @@ class Flatten extends Transform {
    }
    
    override def execute(state: CircuitState): CircuitState = {
-     getMyAnnotations(state) match {
+     val annos = state.annotations.collect { case a @ FlattenAnnotation(_) => a }
+     annos match {
        case Nil => CircuitState(state.circuit, state.form)
        case myAnnotations =>
          val c = state.circuit

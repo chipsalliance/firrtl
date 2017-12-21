@@ -30,19 +30,13 @@ trait AnnotationSpec extends LowTransformSpec {
   }
   def execute(input: String, check: Annotation, annotations: Seq[Annotation]): Unit = {
     val cr = compile(CircuitState(parse(input), ChirrtlForm, Some(AnnotationMap(annotations))), Seq.empty)
-    cr.annotations.get.annotations should contain (check)
+    cr.annotations.toSeq should contain (check)
   }
 }
 
 
-/**
- * Tests for Annotation Permissibility and Tenacity
- *
- * WARNING(izraelevitz): Not a complete suite of tests, requires the LowerTypes
- * pass and ConstProp pass to correctly populate its RenameMap before Strict, Rigid, Firm,
- * Unstable, Fickle, and Insistent can be tested.
- */
-class AnnotationTests extends AnnotationSpec with Matchers {
+/** Old tests for Legacy Annotations */
+class LegacyAnnotationTests extends AnnotationSpec with Matchers {
   def getAMap(a: Annotation): Option[AnnotationMap] = Some(AnnotationMap(Seq(a)))
   def getAMap(as: Seq[Annotation]): Option[AnnotationMap] = Some(AnnotationMap(as))
   def anno(s: String, value: String ="this is a value", mod: String = "Top"): Annotation =
@@ -61,10 +55,10 @@ class AnnotationTests extends AnnotationSpec with Matchers {
     execute(input, ta, Seq(ta))
   }
 
-  "Annotations" should "be readable from file" in {
+  "LegacyAnnotations" should "be readable from file" in {
     val annotationStream = getClass.getResourceAsStream("/annotations/SampleAnnotations.anno")
     val annotationsYaml = scala.io.Source.fromInputStream(annotationStream).getLines().mkString("\n").parseYaml
-    val annotationArray = annotationsYaml.convertTo[Array[Annotation]]
+    val annotationArray = annotationsYaml.convertTo[Array[LegacyAnnotation]]
     annotationArray.length should be (9)
     annotationArray(0).targetString should be ("ModC")
     annotationArray(7).transformClass should be ("firrtl.passes.InlineInstances")
@@ -72,7 +66,7 @@ class AnnotationTests extends AnnotationSpec with Matchers {
     annotationArray(7).value should be (expectedValue)
   }
 
-  "Badly formatted serializations" should "return reasonable error messages" in {
+  "Badly formatted LegacyAnnotation serializations" should "return reasonable error messages" in {
     var badYaml =
       """
         |- transformClass: firrtl.passes.InlineInstances
@@ -81,7 +75,7 @@ class AnnotationTests extends AnnotationSpec with Matchers {
       """.stripMargin.parseYaml
 
     var thrown = intercept[Exception] {
-      badYaml.convertTo[Array[Annotation]]
+      badYaml.convertTo[Array[LegacyAnnotation]]
     }
     thrown.getMessage should include ("Illegal component name")
 
@@ -93,18 +87,18 @@ class AnnotationTests extends AnnotationSpec with Matchers {
       """.stripMargin.parseYaml
 
     thrown = intercept[Exception] {
-      badYaml.convertTo[Array[Annotation]]
+      badYaml.convertTo[Array[LegacyAnnotation]]
     }
     thrown.getMessage should include ("Illegal circuit name")
   }
 
-  "Round tripping annotations through text file" should "preserve annotations" in {
-    val annos: Array[Annotation] = Seq(
+  "Round tripping legacy annotations through text file" should "preserve annotations" in {
+    val annos: Array[LegacyAnnotation] = Seq(
       InlineAnnotation(CircuitName("fox")),
       InlineAnnotation(ModuleName("dog", CircuitName("bear"))),
       InlineAnnotation(ComponentName("chocolate", ModuleName("like", CircuitName("i")))),
       PinAnnotation(CircuitName("Pinniped"), Seq("sea-lion", "monk-seal"))
-    ).toArray
+    ).toArray.map(_.asInstanceOf[LegacyAnnotation])
 
     val annoFile = new File("temp-anno")
     val writer = new FileWriter(annoFile)
@@ -114,7 +108,7 @@ class AnnotationTests extends AnnotationSpec with Matchers {
     val yaml = io.Source.fromFile(annoFile).getLines().mkString("\n").parseYaml
     annoFile.delete()
 
-    val readAnnos = yaml.convertTo[Array[Annotation]]
+    val readAnnos = yaml.convertTo[Array[LegacyAnnotation]]
 
     annos.zip(readAnnos).foreach { case (beforeAnno, afterAnno) =>
       beforeAnno.targetString should be (afterAnno.targetString)
@@ -126,7 +120,7 @@ class AnnotationTests extends AnnotationSpec with Matchers {
     }
   }
 
-  "Deleting annotations" should "create a DeletedAnnotation" in {
+  "Deleting legacy annotations" should "create a DeletedAnnotation" in {
     val compiler = new VerilogCompiler
     val input =
      """circuit Top :
@@ -136,11 +130,11 @@ class AnnotationTests extends AnnotationSpec with Matchers {
     class DeletingTransform extends Transform {
       val inputForm = LowForm
       val outputForm = LowForm
-      def execute(state: CircuitState) = state.copy(annotations = None)
+      def execute(state: CircuitState) = state.copy(annotations = Seq())
     }
     val inlineAnn = InlineAnnotation(CircuitName("Top"))
     val result = compiler.compile(CircuitState(parse(input), ChirrtlForm, getAMap(inlineAnn)), Seq(new DeletingTransform))
-    result.annotations.get.annotations.head should matchPattern {
+    result.annotations.head should matchPattern {
       case DeletedAnnotation(x, inlineAnn) =>
     }
     val exception = (intercept[FIRRTLException] {
@@ -149,6 +143,7 @@ class AnnotationTests extends AnnotationSpec with Matchers {
     val deleted = result.deletedAnnotations
     exception.str should be (s"No EmittedCircuit found! Did you delete any annotations?\n$deleted")
   }
+
   "Renaming" should "propagate in Lowering of memories" in {
     val compiler = new VerilogCompiler
     // Uncomment to help debugging failing tests
@@ -171,7 +166,7 @@ class AnnotationTests extends AnnotationSpec with Matchers {
     val annos = Seq(anno("m.r.data.b", "sub"), anno("m.r.data", "all"), anno("m", "mem"),
                     dontTouch("Top.m"))
     val result = compiler.compile(CircuitState(parse(input), ChirrtlForm, getAMap(annos)), Nil)
-    val resultAnno = result.annotations.get.annotations
+    val resultAnno = result.annotations.toSeq
     resultAnno should contain (anno("m_a", "mem"))
     resultAnno should contain (anno("m_b_0", "mem"))
     resultAnno should contain (anno("m_b_1", "mem"))
@@ -196,7 +191,7 @@ class AnnotationTests extends AnnotationSpec with Matchers {
         |""".stripMargin
     val annos = Seq(anno("r.b", "sub"), anno("r", "all"), anno("m", "mem"), dontTouch("Top.m"))
     val result = compiler.compile(CircuitState(parse(input), ChirrtlForm, getAMap(annos)), Nil)
-    val resultAnno = result.annotations.get.annotations
+    val resultAnno = result.annotations.toSeq
     resultAnno should contain (anno("m_a", "mem"))
     resultAnno should contain (anno("m_b_0", "mem"))
     resultAnno should contain (anno("m_b_1", "mem"))
@@ -226,7 +221,7 @@ class AnnotationTests extends AnnotationSpec with Matchers {
     val annos = Seq(anno("zero"), anno("x.a"), anno("x.b"), anno("y[0]"), anno("y[1]"),
                     anno("y[2]"), dontTouch("Top.x"))
     val result = compiler.compile(CircuitState(parse(input), ChirrtlForm, getAMap(annos)), Nil)
-    val resultAnno = result.annotations.get.annotations
+    val resultAnno = result.annotations.toSeq
     resultAnno should contain (anno("x_a"))
     resultAnno should not contain (anno("zero"))
     resultAnno should not contain (anno("x.a"))
@@ -268,7 +263,7 @@ class AnnotationTests extends AnnotationSpec with Matchers {
       dontTouch("Top.r"), dontTouch("Top.w")
     )
     val result = compiler.compile(CircuitState(parse(input), ChirrtlForm, getAMap(annos)), Nil)
-    val resultAnno = result.annotations.get.annotations
+    val resultAnno = result.annotations.toSeq
     resultAnno should not contain (anno("in.a"))
     resultAnno should not contain (anno("in.b[0]"))
     resultAnno should not contain (anno("in.b[1]"))
@@ -322,7 +317,7 @@ class AnnotationTests extends AnnotationSpec with Matchers {
     val annos = Seq(anno("in"), anno("out"), anno("w"), anno("n"), anno("r"), dontTouch("Top.r"),
                     dontTouch("Top.w"))
     val result = compiler.compile(CircuitState(parse(input), ChirrtlForm, getAMap(annos)), Nil)
-    val resultAnno = result.annotations.get.annotations
+    val resultAnno = result.annotations.toSeq
     resultAnno should contain (anno("in_a"))
     resultAnno should contain (anno("in_b_0"))
     resultAnno should contain (anno("in_b_1"))
@@ -358,7 +353,7 @@ class AnnotationTests extends AnnotationSpec with Matchers {
     val annos = Seq(anno("in.b"), anno("out.b"), anno("w.b"), anno("n.b"), anno("r.b"),
                     dontTouch("Top.r"), dontTouch("Top.w"))
     val result = compiler.compile(CircuitState(parse(input), ChirrtlForm, getAMap(annos)), Nil)
-    val resultAnno = result.annotations.get.annotations
+    val resultAnno = result.annotations.toSeq
     resultAnno should contain (anno("in_b_0"))
     resultAnno should contain (anno("in_b_1"))
     resultAnno should contain (anno("out_b_0"))
@@ -389,7 +384,7 @@ class AnnotationTests extends AnnotationSpec with Matchers {
       anno("n.a"), anno("n.b[0]"), anno("n.b[1]")
     )
     val result = compiler.compile(CircuitState(parse(input), ChirrtlForm, getAMap(annos)), Nil)
-    val resultAnno = result.annotations.get.annotations
+    val resultAnno = result.annotations.toSeq
     resultAnno should not contain (anno("in.a"))
     resultAnno should not contain (anno("in.b[0]"))
     resultAnno should not contain (anno("in.b[1]"))
@@ -441,14 +436,14 @@ class AnnotationTests extends AnnotationSpec with Matchers {
     val result = compiler.compile(CircuitState(parse(input), ChirrtlForm, getAMap(annos)), Nil)
     /* Uncomment to help debug
     println(result.circuit.serialize)
-    result.annotations.get.annotations.foreach{ a =>
+    result.annotations.foreach{ a =>
       a match {
         case DeletedAnnotation(xform, anno) => println(s"$xform deleted: ${a.target}")
         case Annotation(target, _, _) => println(s"not deleted: $target")
       }
     }
     */
-    val resultAnno = result.annotations.get.annotations
+    val resultAnno = result.annotations.toSeq
 
     resultAnno should contain (manno("Top"))
     resultAnno should contain (anno("foo", mod = "Top"))
@@ -489,7 +484,7 @@ class AnnotationTests extends AnnotationSpec with Matchers {
       anno("x", mod = "Child"), anno("y", mod = "Child_1"), manno("Child"), manno("Child_1")
     )
     val result = compiler.compile(CircuitState(parse(input), ChirrtlForm, getAMap(annos)), Nil)
-    val resultAnno = result.annotations.get.annotations
+    val resultAnno = result.annotations.toSeq
     resultAnno should contain (anno("x", mod = "Child"))
     resultAnno should contain (anno("y", mod = "Child"))
     resultAnno should contain (manno("Child"))
@@ -503,3 +498,4 @@ class AnnotationTests extends AnnotationSpec with Matchers {
     require(x == y)
   }
 }
+

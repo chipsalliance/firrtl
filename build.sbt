@@ -64,6 +64,8 @@ libraryDependencies += "com.github.scopt" %% "scopt" % "3.6.0"
 
 libraryDependencies += "net.jcazevedo" %% "moultingyaml" % "0.4.0"
 
+libraryDependencies += "org.json4s" %% "json4s-native" % "3.5.3"
+
 // Assembly
 
 assemblyJarName in assembly := "firrtl.jar"

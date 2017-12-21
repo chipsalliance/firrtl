@@ -220,7 +220,7 @@ class CheckCombLoops extends Transform {
   }
 
   def execute(state: CircuitState): CircuitState = {
-    val dontRun = getMyAnnotations(state).collectFirst {
+    val dontRun = state.annotations.collectFirst {
       case DontCheckCombLoopsAnnotation() => true
     }.getOrElse(false)
     if (dontRun) {
