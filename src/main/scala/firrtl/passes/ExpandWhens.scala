@@ -103,15 +103,11 @@ object ExpandWhens extends Pass {
                       defaults: Defaults,
                       p: Expression)
                       (s: Statement): Statement = s match {
-        case stmt @ (_: DefNode | EmptyStmt) => stmt
         case w: DefWire =>
           netlist ++= (getFemaleRefs(w.name, w.tpe, BIGENDER) map (ref => we(ref) -> WVoid))
           w
         case w: DefMemory =>
           netlist ++= (getFemaleRefs(w.name, MemPortUtils.memType(w), MALE) map (ref => we(ref) -> WVoid))
-          w
-        case w: WDefInstance =>
-          netlist ++= (getFemaleRefs(w.name, w.tpe, MALE).map(ref => we(ref) -> WVoid))
           w
         case r: DefRegister =>
           netlist ++= (getFemaleRefs(r.name, r.tpe, BIGENDER) map (ref => we(ref) -> ref))
@@ -177,8 +173,7 @@ object ExpandWhens extends Pass {
         case sx: Stop =>
           simlist += (if (weq(p, one)) sx else Stop(sx.info, sx.ret, sx.clk, AND(p, sx.en)))
           EmptyStmt
-        case block: Block => block map expandWhens(netlist, defaults, p)
-        case _ => throwInternalError
+        case sx => sx map expandWhens(netlist, defaults, p)
       }
       val netlist = new Netlist
       // Add ports to netlist

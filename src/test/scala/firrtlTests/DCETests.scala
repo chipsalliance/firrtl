@@ -117,7 +117,6 @@ class DCETests extends FirrtlFlatSpec {
         |    output z : UInt<1>
         |    inst sub of Sub
         |    sub.x <= x
-        |    sub.y is invalid
         |    z <= sub.z""".stripMargin
     val check =
       """circuit Top :
