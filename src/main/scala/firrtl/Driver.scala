@@ -39,33 +39,6 @@ import Utils.throwInternalError
   */
 
 object Driver {
-  //noinspection ScalaDeprecation
-  // Compiles circuit. First parses a circuit from an input file,
-  //  executes all compiler passes, and writes result to an output
-  //  file.
-  @deprecated("Please use execute", "firrtl 1.0")
-  def compile(
-      input: String,
-      output: String,
-      compiler: Compiler,
-      infoMode: InfoMode = IgnoreInfo,
-      customTransforms: Seq[Transform] = Seq.empty,
-      annotations: AnnotationMap = AnnotationMap(Seq.empty)
-  ): String = {
-    val parsedInput = Parser.parse(Source.fromFile(input).getLines(), infoMode)
-    val outputBuffer = new java.io.CharArrayWriter
-    compiler.compile(
-      CircuitState(parsedInput, ChirrtlForm, Some(annotations)),
-      outputBuffer,
-      customTransforms)
-
-    val outputFile = new java.io.PrintWriter(output)
-    val outputString = outputBuffer.toString
-    outputFile.write(outputString)
-    outputFile.close()
-    outputString
-  }
-
   /** Print a warning message
     *
     * @param message error message
