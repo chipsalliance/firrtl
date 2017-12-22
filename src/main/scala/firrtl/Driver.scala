@@ -185,9 +185,7 @@ object Driver {
       optionsManager.makeTargetDir()
 
       val finalState = firrtlConfig.compiler.compile(
-        CircuitState(parsedInput,
-                     ChirrtlForm,
-                     Some(AnnotationMap(annos))),
+        CircuitState(parsedInput, ChirrtlForm, annos),
         firrtlConfig.customTransforms
       )
 

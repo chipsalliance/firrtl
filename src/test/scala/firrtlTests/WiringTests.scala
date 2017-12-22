@@ -376,7 +376,7 @@ class WiringTests extends FirrtlFlatSpec {
       (c: Circuit, p: Pass) => p.run(c)
     }
     val wiringXForm = new WiringTransform()
-    val retC = wiringXForm.execute(CircuitState(c, LowForm, Some(AnnotationMap(Seq(source, sink, top))), None)).circuit
+    val retC = wiringXForm.execute(CircuitState(c, LowForm, Seq(source, sink, top))).circuit
     (parse(retC.serialize).serialize) should be (parse(check).serialize)
   }
 }

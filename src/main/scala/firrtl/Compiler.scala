@@ -97,11 +97,7 @@ final class RenameMap private () {
   }.mkString("\n")
 }
 
-/**
- * Container of all annotations for a Firrtl compiler.
- */
-@deprecated("Use AnnotationSeq", "1.1")
-case class AnnotationMap(annotations: Seq[Annotation])
+/** Container of all annotations for a Firrtl compiler */
 class AnnotationSeq private (private[firrtl] val underlying: List[Annotation]) {
   def toSeq: Seq[Annotation] = underlying.toSeq
 }
@@ -148,14 +144,6 @@ object CircuitState {
   def apply(circuit: Circuit, form: CircuitForm): CircuitState = apply(circuit, form, Seq())
   def apply(circuit: Circuit, form: CircuitForm, annotations: AnnotationSeq) =
     new CircuitState(circuit, form, annotations, None)
-  @deprecated("Use AnnotationSeq", "1.1")
-  def apply(circuit: Circuit,
-            form: CircuitForm,
-            annotations: Option[AnnotationMap] = None,
-            renames: Option[RenameMap] = None) = {
-    val annos = annotations.map(_.annotations).getOrElse(List.empty)
-    new CircuitState(circuit, form, annos, renames)
-  }
 }
 
 /** Current form of the Firrtl Circuit
