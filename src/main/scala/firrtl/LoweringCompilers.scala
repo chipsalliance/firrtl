@@ -64,6 +64,7 @@ class HighFirrtlToMiddleFirrtl extends CoreTransform {
     passes.CheckInitialization,
     passes.ResolveKinds,
     passes.InferTypes,
+    new passes.memlib.OptimizeClockMux,
     passes.CheckTypes,
     passes.ResolveGenders,
     passes.InferWidths,

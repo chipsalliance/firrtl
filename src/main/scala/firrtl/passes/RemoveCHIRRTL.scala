@@ -4,11 +4,11 @@ package firrtl.passes
 
 // Datastructures
 import scala.collection.mutable.ArrayBuffer
-
 import firrtl._
 import firrtl.ir._
 import firrtl.Utils._
 import firrtl.Mappers._
+import firrtl.PrimOps.AsClock
 
 case class MPort(name: String, clk: Expression)
 case class MPorts(readers: ArrayBuffer[MPort], writers: ArrayBuffer[MPort], readwriters: ArrayBuffer[MPort])
@@ -77,7 +77,7 @@ object RemoveCHIRRTL extends Transform {
       val tdata = sx.tpe
       def set_poison(vec: Seq[MPort]) = vec flatMap (r => Seq(
         IsInvalid(sx.info, SubField(SubField(Reference(sx.name, ut), r.name, ut), "addr", taddr)),
-        IsInvalid(sx.info, SubField(SubField(Reference(sx.name, ut), r.name, ut), "clk", ClockType))
+        Connect(sx.info, SubField(SubField(Reference(sx.name, ut), r.name, ut), "clk", ClockType), DoPrim(AsClock, Seq(UIntLiteral(0, IntWidth(1))), Nil, ClockType))
       ))
       def set_enable(vec: Seq[MPort], en: String) = vec map (r =>
         Connect(sx.info, SubField(SubField(Reference(sx.name, ut), r.name, ut), en, BoolType), zero)
