@@ -2,10 +2,13 @@
 
 package firrtl.passes
 
+import scala.collection.mutable
+
 import firrtl._
 import firrtl.ir._
 import firrtl.Utils._
 import firrtl.Mappers._
+
 
 object CheckChirrtl extends Pass {
   type NameSet = collection.mutable.HashSet[String]
@@ -30,6 +33,9 @@ object CheckChirrtl extends Pass {
     s"$info: [module $mname] Memory size cannot be negative or zero.")
   class NoTopModuleException(info: Info, name: String) extends PassException(
     s"$info: A single module must be named $name.")
+  class IllegalLocalClock(info: Info, mem: String, port: String, clocks: Set[String]) extends PassException(
+    s"$info: Memory $mem with port $port cannot have a locally declared clock: $clocks.")
+
 
   // TODO FIXME
   // - Do we need to check for uniquness on port names?
@@ -87,7 +93,7 @@ object CheckChirrtl extends Pass {
       name 
     }
 
-    def checkChirrtlS(minfo: Info, mname: String, names: NameSet)(s: Statement): Statement = {
+    def checkChirrtlS(minfo: Info, mname: String, names: NameSet, clocks: Clocks)(s: Statement): Statement = {
       val info = get_info(s) match {case NoInfo => minfo case x => x}
       s map checkName(info, mname, names) match {
         case sx: DefMemory =>
@@ -97,11 +103,29 @@ object CheckChirrtl extends Pass {
           errors append new ModuleNotDefinedException(info, mname, sx.module)
         case sx: Connect => checkValidLoc(info, mname, sx.loc)
         case sx: PartialConnect => checkValidLoc(info, mname, sx.loc)
+        case m@CDefMemory(_, mem, tpe, depth, _) =>
+          if (hasFlip(tpe)) errors append new MemWithFlipException(info, mname, mem)
+          if (depth <= 0) errors append new NegMemSizeException(info, mname)
+
+          val bads = mutable.HashMap[(Info, String), Set[String]]()
+          def findRefs(i: Info, n: String)(e: Expression): Expression = e match {
+            case Reference(clock, _) if !names(clock) =>
+              bads((i, n)) = bads.getOrElse((i, n), Set.empty[String]) + clock
+              e
+            case _ => e map findRefs(i, n)
+          }
+          clocks.getOrElse(mem, Set.empty[Expression]).map {
+            case ((info: Info, port: String, expr: Expression)) => findRefs(info, port)(expr)
+          }
+          bads.foreach { case ((info, port), clocks) =>
+            errors.append(new IllegalLocalClock(info, mem, port, clocks))
+          }
+          m
         case _ => // Do Nothing
       }
       (s map checkChirrtlT(info, mname)
          map checkChirrtlE(info, mname, names)
-         map checkChirrtlS(info, mname, names))
+         map checkChirrtlS(info, mname, names, clocks))
     }
 
     def checkChirrtlP(mname: String, names: NameSet)(p: Port): Port = {
@@ -113,8 +137,9 @@ object CheckChirrtl extends Pass {
 
     def checkChirrtlM(m: DefModule) {
       val names = new NameSet
+      val clocks = memClocks(m)
       (m map checkChirrtlP(m.name, names)
-         map checkChirrtlS(m.info, m.name, names))
+         map checkChirrtlS(m.info, m.name, names, clocks))
     }
     
     c.modules foreach checkChirrtlM
@@ -124,5 +149,18 @@ object CheckChirrtl extends Pass {
     }
     errors.trigger()
     c
+  }
+
+  type Clocks = mutable.HashMap[String, Set[(Info, String, Expression)]]
+  def memClocks(m: DefModule): Clocks = {
+    val clocks = new Clocks()
+    def onStmt(s: Statement): Statement = s match {
+      case c@CDefMPort(info, name, _, mem, Seq(addr, clock), _) =>
+        clocks(mem) = clocks.getOrElse(mem, Set.empty[(Info, String, Expression)]) + ((info, name, clock))
+        c
+      case _ => s map onStmt
+    }
+    m map onStmt
+    clocks
   }
 }

@@ -31,7 +31,6 @@ object ExpandWhens extends Pass {
   // Defaults ideally would be immutable.Map but conversion from mutable.LinkedHashMap to mutable.Map is VERY slow
   type Defaults = Seq[mutable.Map[WrappedExpression, Expression]]
 
-  // ========== Expand When Utilz ==========
   private def getFemaleRefs(n: String, t: Type, g: Gender): Seq[Expression] = {
     def getGender(t: Type, i: Int, g: Gender): Gender = times(g, get_flip(t, i, Default))
     val exps = create_exps(WRef(n, t, ExpKind, g))
@@ -147,6 +146,8 @@ object ExpandWhens extends Pass {
                   case (WInvalid, WInvalid) => WInvalid
                   case (WInvalid, fv) => ValidIf(NOT(sx.pred), fv, fv.tpe)
                   case (tv, WInvalid) => ValidIf(sx.pred, tv, tv.tpe)
+                //case (WInvalid, fv) => if(lvalue.e1.tpe == ClockType) fv else ValidIf(NOT(sx.pred), fv, fv.tpe)
+                //case (tv, WInvalid) => if(lvalue.e1.tpe == ClockType) tv else ValidIf(sx.pred, tv, tv.tpe)
                   case (tv, fv) => Mux(sx.pred, tv, fv, mux_type_and_widths(tv, fv))
                 }
               case None =>

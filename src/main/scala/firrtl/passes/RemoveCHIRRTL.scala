@@ -23,6 +23,7 @@ object RemoveCHIRRTL extends Transform {
   type MPortTypeMap = collection.mutable.LinkedHashMap[String, Type]
   type DataRefMap = collection.mutable.LinkedHashMap[String, DataRef]
   type AddrMap = collection.mutable.HashMap[String, Expression]
+  type ClockMap = collection.mutable.HashMap[String, Seq[Statement]]
 
   def create_all_exps(ex: Expression): Seq[Expression] = ex.tpe match {
     case _: GroundType => Seq(ex)
@@ -70,14 +71,14 @@ object RemoveCHIRRTL extends Transform {
   }
 
   def collect_refs(mports: MPortMap, smems: SeqMemSet, types: MPortTypeMap,
-      refs: DataRefMap, raddrs: AddrMap, renames: RenameMap)(s: Statement): Statement = s match {
+      refs: DataRefMap, raddrs: AddrMap, clocks: ClockMap, renames: RenameMap)(s: Statement): Statement = s match {
     case sx: CDefMemory =>
       types(sx.name) = sx.tpe
       val taddr = UIntType(IntWidth(1 max ceilLog2(sx.size)))
       val tdata = sx.tpe
       def set_poison(vec: Seq[MPort]) = vec flatMap (r => Seq(
-        IsInvalid(sx.info, SubField(SubField(Reference(sx.name, ut), r.name, ut), "addr", taddr)),
-        IsInvalid(sx.info, SubField(SubField(Reference(sx.name, ut), r.name, ut), "clk", ClockType))
+        IsInvalid(sx.info, SubField(SubField(Reference(sx.name, ut), r.name, ut), "addr", taddr))
+        //IsInvalid(sx.info, SubField(SubField(Reference(sx.name, ut), r.name, ut), "clk", ClockType))
       ))
       def set_enable(vec: Seq[MPort], en: String) = vec map (r =>
         Connect(sx.info, SubField(SubField(Reference(sx.name, ut), r.name, ut), en, BoolType), zero)
@@ -151,11 +152,12 @@ object RemoveCHIRRTL extends Transform {
           }
         case MInfer => // do nothing if it's not being used
       }
+      val clkAssignments = (clks map (x => Connect(sx.info, SubField(SubField(Reference(sx.mem, ut), sx.name, ut), x, ut), sx.exps(1))))
+      clocks(sx.mem) = clocks.getOrElse(sx.mem, Nil) ++ clkAssignments
       Block(
         (addrs map (x => Connect(sx.info, SubField(SubField(Reference(sx.mem, ut), sx.name, ut), x, ut), sx.exps.head))) ++
-        (clks map (x => Connect(sx.info, SubField(SubField(Reference(sx.mem, ut), sx.name, ut), x, ut), sx.exps(1)))) ++
         (ens map (x => Connect(sx.info,SubField(SubField(Reference(sx.mem,ut), sx.name, ut), x, ut), one))))
-    case sx => sx map collect_refs(mports, smems, types, refs, raddrs, renames)
+    case sx => sx map collect_refs(mports, smems, types, refs, raddrs, clocks, renames)
   }
 
   def get_mask(refs: DataRefMap)(e: Expression): Expression =
@@ -167,7 +169,7 @@ object RemoveCHIRRTL extends Transform {
       case ex => ex
     }
 
-  def remove_chirrtl_s(refs: DataRefMap, raddrs: AddrMap)(s: Statement): Statement = {
+  def remove_chirrtl_s(refs: DataRefMap, raddrs: AddrMap, clocks: ClockMap)(s: Statement): Statement = {
     var has_write_mport = false
     var has_readwrite_mport: Option[Expression] = None
     var has_read_mport: Option[Expression] = None
@@ -194,6 +196,8 @@ object RemoveCHIRRTL extends Transform {
       case ex => ex map remove_chirrtl_e(g)
    }
    s match {
+      case m: DefMemory if clocks.contains(m.name) =>
+        Block(m +: clocks(m.name))
       case DefNode(info, name, value) =>
         val valuex = remove_chirrtl_e(MALE)(value)
         val sx = DefNode(info, name, valuex)
@@ -240,7 +244,7 @@ object RemoveCHIRRTL extends Transform {
           }
         }
         if (stmts.isEmpty) sx else Block(sx +: stmts)
-      case sx => sx map remove_chirrtl_s(refs, raddrs) map remove_chirrtl_e(MALE)
+      case sx => sx map remove_chirrtl_s(refs, raddrs, clocks) map remove_chirrtl_e(MALE)
     }
   }
 
@@ -250,10 +254,11 @@ object RemoveCHIRRTL extends Transform {
     val types = new MPortTypeMap
     val refs = new DataRefMap
     val raddrs = new AddrMap
+    val clocks = new ClockMap
     renames.setModule(m.name)
     (m map collect_smems_and_mports(mports, smems)
-       map collect_refs(mports, smems, types, refs, raddrs, renames)
-       map remove_chirrtl_s(refs, raddrs))
+       map collect_refs(mports, smems, types, refs, raddrs, clocks, renames)
+       map remove_chirrtl_s(refs, raddrs, clocks))
   }
 
   def execute(state: CircuitState): CircuitState = {
