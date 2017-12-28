@@ -5,8 +5,7 @@ import firrtl._
 import firrtl.ir._
 import firrtl.passes.Pass
 import firrtl.Mappers._
-import firrtl.PrimOps.AsClock
-import firrtl.WrappedExpression.weq
+import firrtl.Utils.inline
 
 class OptimizeClockMux extends Pass {
   def run(c: Circuit): Circuit = c map onModule
@@ -20,10 +19,14 @@ class OptimizeClockMux extends Pass {
   /** Optimizes away memory port clocks who are muxed on the same enable */
   def optimize(s: Statement): Statement = {
     val memEnables = new MemInfo()
-    //val memClocks = new MemInfo()
+    val nodeMap = new mutable.HashMap[String, Expression]()
+
     def analyze(s: Statement): Statement = s match {
       case x@Connect(_, loc@WSubField(WSubField(WRef(mem, _, MemKind, _), p, _, _), "en", _, _), expr) =>
         memEnables((mem, p)) = expr
+        x
+      case x@DefNode(_, name, value) =>
+        nodeMap(name) = value
         x
       case other => other map analyze
     }
@@ -33,13 +36,19 @@ class OptimizeClockMux extends Pass {
 
     /** Replaces clock mux with clock signal, if enables match */
     def fixup(s: Statement): Statement = s match {
-      case x@Connect(_, loc  @ WSubField(WSubField(WRef(mem, _, MemKind, _), p, _, _), "clk", _, _),
-                        expr @ Mux(cond, clock, DoPrim(AsClock, Seq(UIntLiteral(`zero`, _)), _, _), _)
-                    ) =>
-        val constProp = new transforms.ConstantPropagation()
-        val optEnable = constProp.optimize(memEnables((mem, p)))
-        val optCond = constProp.optimize(cond)
-        if(weq(optEnable, optCond)) Connect(x.info, loc, clock) else x
+      case x@Connect(_, loc  @ WSubField(WSubField(WRef(mem, _, MemKind, _), p, _, _), "clk", _, _), expr) =>
+        val optClkExpr = inline(nodeMap)(expr)
+        val optEnable = inline(nodeMap)(memEnables((mem, p)))
+        val difference = Utils.diff(optClkExpr, optEnable)
+        val clocksWhenEnableNotZero = difference.foldLeft(Set.empty[Expression]) { case (set, (clkExpr, enable)) =>
+          enable match {
+            case UIntLiteral(v, _) if v == BigInt(0) => set
+            case other => set + clkExpr
+          }
+        }
+        if(clocksWhenEnableNotZero.size == 1)
+          Connect(x.info, loc, clocksWhenEnableNotZero.head)
+        else x
       case other => other map fixup
     }
 

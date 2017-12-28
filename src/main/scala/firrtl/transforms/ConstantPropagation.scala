@@ -252,6 +252,7 @@ class ConstantPropagation extends Transform {
   private def betterName(a: String, b: String): Boolean = (a.head != '_') && (b.head == '_')
 
   def optimize(e: Expression): Expression = constPropExpression(new NodeMap(), Map.empty[String, String], Map.empty[String, Map[String, Literal]])(e)
+  def optimize(e: Expression, nodeMap: NodeMap): Expression = constPropExpression(nodeMap, Map.empty[String, String], Map.empty[String, Map[String, Literal]])(e)
   private def constPropExpression(nodeMap: NodeMap, instMap: Map[String, String], constSubOutputs: Map[String, Map[String, Literal]])(e: Expression): Expression = {
     val old = e map constPropExpression(nodeMap, instMap, constSubOutputs)
     val propagated = old match {
@@ -267,9 +268,6 @@ class ConstantPropagation extends Transform {
     }
     propagated
   }
-
-  /** Maps node name to value */
-  type NodeMap = mutable.HashMap[String, Expression]
 
   /** Constant propagate a Module
     *

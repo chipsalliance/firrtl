@@ -159,7 +159,6 @@ circuit foo :
         """.stripMargin
     val annotationMap = AnnotationMap(Nil)
     val res = (new LowFirrtlCompiler).compile(CircuitState(parse(input), ChirrtlForm, Some(annotationMap)), Nil).circuit
-    println(res.serialize)
     assert(res search {
       case Connect(_, WSubField(WSubField(WRef("stack_mem", _, _, _), "_T_35",_, _), "clk", _, _), WRef("clock", _, _, _)) => true
       case Connect(_, WSubField(WSubField(WRef("stack_mem", _, _, _), "_T_17",_, _), "clk", _, _), WRef("clock", _, _, _)) => true
@@ -187,7 +186,7 @@ circuit foo :
     })
   }
 
-  "Mem local clock port assignment" should "trigger and error" in {
+  "Mem local clock port assignment" should "be ok" in {
     val input =
       """circuit foo :
         |  module foo :
@@ -203,12 +202,13 @@ circuit foo :
         |      out <= bar
         |""".stripMargin
     val annotationMap = AnnotationMap(Nil)
+    val res = new LowFirrtlCompiler().compile(CircuitState(parse(input), ChirrtlForm, Some(annotationMap)), Nil).circuit
+    assert(res search {
+      case Connect(_, WSubField(WSubField(WRef("mem", _, _, _), "bar",_, _), "clk", _, _), WRef("clock", _, _, _)) => true
+    })
 
-    intercept[CheckChirrtl.IllegalLocalClock] {
-      (new LowFirrtlCompiler).compile(CircuitState(parse(input), ChirrtlForm, Some(annotationMap)), Nil).circuit
-    }
   }
-  "Mem local nested clock port assignment" should "trigger an error" in {
+  "Mem local nested clock port assignment" should "be ok" in {
     val input =
       """circuit foo :
         |  module foo :
@@ -225,9 +225,10 @@ circuit foo :
         |""".stripMargin
     val annotationMap = AnnotationMap(Nil)
 
-    intercept[CheckChirrtl.IllegalLocalClock] {
-      (new LowFirrtlCompiler).compile(CircuitState(parse(input), ChirrtlForm, Some(annotationMap)), Nil).circuit
-    }
+    val res = new LowFirrtlCompiler().compile(CircuitState(parse(input), ChirrtlForm, Some(annotationMap)), Nil).circuit
+    assert(res search {
+      case Connect(_, WSubField(WSubField(WRef("mem", _, _, _), "bar",_, _), "clk", _, _), DoPrim(AsClock, Seq(WRef("clock", _, _, _)), Nil, _)) => true
+    })
   }
   "Mem non-local nested clock port assignment" should "be ok" in {
     val input =
