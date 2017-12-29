@@ -16,12 +16,27 @@ class DiGraphTests extends FirrtlFlatSpec {
     "d" -> Set("e"),
     "e" -> Set.empty[String]))
 
+  val reversedAcyclicGraph = DiGraph(Map(
+    "a" -> Set.empty[String],
+    "b" -> Set("a"),
+    "c" -> Set("a"),
+    "d" -> Set("b", "c"),
+    "e" -> Set("d")))
+
   val cyclicGraph = DiGraph(Map(
     "a" -> Set("b","c"),
     "b" -> Set("d"),
     "c" -> Set("d"),
     "d" -> Set("a")))
 
+  val tupleGraph = DiGraph(Map(
+    ("a", 0) -> Set(("b", 2)),
+    ("a", 1) -> Set(("c", 3)),
+    ("b", 2) -> Set.empty[(String, Int)],
+    ("c", 3) -> Set.empty[(String, Int)]
+  ))
+
+  val degenerateGraph = DiGraph(Map("a" -> Set.empty[String]))
 
   acyclicGraph.findSCCs.filter(_.length > 1) shouldBe empty
 
@@ -29,10 +44,18 @@ class DiGraphTests extends FirrtlFlatSpec {
 
   acyclicGraph.path("a","e") should not be empty
 
-  an [acyclicGraph.PathNotFoundException] should be thrownBy acyclicGraph.path("e","a")
+  an [PathNotFoundException] should be thrownBy acyclicGraph.path("e","a")
 
   acyclicGraph.linearize.head should equal ("a")
 
-  a [cyclicGraph.CyclicException] should be thrownBy cyclicGraph.linearize
+  a [CyclicException] should be thrownBy cyclicGraph.linearize
+
+  acyclicGraph.reverse.getEdgeMap should equal (reversedAcyclicGraph.getEdgeMap)
+
+  degenerateGraph.getEdgeMap should equal (degenerateGraph.reverse.getEdgeMap)
+
+  "transformNodes" should "combine vertices that collide, not drop them" in {
+    tupleGraph.transformNodes(_._1).getEdgeMap should contain ("a" -> Set("b", "c"))
+  }
 
 }

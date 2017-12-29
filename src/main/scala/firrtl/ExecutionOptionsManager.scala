@@ -18,8 +18,25 @@ import scala.collection.Seq
 trait ComposableOptions
 
 abstract class HasParser(applicationName: String) {
-  final val parser: OptionParser[Unit] = new OptionParser[Unit](applicationName) {}
-}
+  final val parser = new OptionParser[Unit](applicationName) {
+    var terminateOnExit = true
+    override def terminate(exitState: Either[String, Unit]): Unit = {
+      if(terminateOnExit) sys.exit(0)
+    }
+  }
+
+  /**
+    * By default scopt calls sys.exit when --help is in options, this defeats that
+    */
+  def doNotExitOnHelp(): Unit = {
+    parser.terminateOnExit = false
+  }
+  /**
+    * By default scopt calls sys.exit when --help is in options, this un-defeats doNotExitOnHelp
+    */
+  def exitOnHelp(): Unit = {
+    parser.terminateOnExit = true
+  }}
 
 /**
   * Most of the chisel toolchain components require a topName which defines a circuit or a device under test.
@@ -29,12 +46,14 @@ abstract class HasParser(applicationName: String) {
   * circuit and then set the topName from that if it has not already been set.
   */
 case class CommonOptions(
-    topName:        String         = "",
-    targetDirName:  String         = ".",
-    globalLogLevel: LogLevel.Value = LogLevel.Error,
-    logToFile:      Boolean        = false,
-    logClassNames:  Boolean        = false,
-    classLogLevels: Map[String, LogLevel.Value] = Map.empty) extends ComposableOptions {
+    topName:           String         = "",
+    targetDirName:     String         = ".",
+    globalLogLevel:    LogLevel.Value = LogLevel.None,
+    logToFile:         Boolean        = false,
+    logClassNames:     Boolean        = false,
+    classLogLevels: Map[String, LogLevel.Value] = Map.empty,
+    programArgs:    Seq[String]                 = Seq.empty
+) extends ComposableOptions {
 
   def getLogFileName(optionsManager: ExecutionOptionsManager): String = {
     if(topName.isEmpty) {
@@ -126,6 +145,10 @@ trait HasCommonOptions {
     .text(s"shows class names and log level in logging output, useful for target --class-log-level")
 
   parser.help("help").text("prints this usage text")
+
+  parser.arg[String]("<arg>...").unbounded().optional().action( (x, c) =>
+    commonOptions = commonOptions.copy(programArgs = commonOptions.programArgs :+ x) ).text("optional unbounded args")
+
 }
 
 /** Firrtl output configuration specified by [[FirrtlExecutionOptions]]
@@ -155,8 +178,11 @@ case class FirrtlExecutionOptions(
     customTransforms:       Seq[Transform] = List.empty,
     annotations:            List[Annotation] = List.empty,
     annotationFileNameOverride: String = "",
+    outputAnnotationFileName: String = "",
     forceAppendAnnoFile:    Boolean = false,
-    emitOneFilePerModule:   Boolean = false)
+    emitOneFilePerModule:   Boolean = false,
+    dontCheckCombLoops:     Boolean = false,
+    noDCE:                  Boolean = false)
   extends ComposableOptions {
 
   require(!(emitOneFilePerModule && outputFileNameOverride.nonEmpty),
@@ -178,12 +204,14 @@ case class FirrtlExecutionOptions(
       case "low"       => new LowFirrtlCompiler()
       case "middle"    => new MiddleFirrtlCompiler()
       case "verilog"   => new VerilogCompiler()
+      case "sverilog"  => new VerilogCompiler()
     }
   }
 
   def outputSuffix: String = {
     compilerName match {
       case "verilog"   => "v"
+      case "sverilog"  => "sv"
       case "low"       => "lo.fir"
       case "high"      => "hi.fir"
       case "middle"    => "mid.fir"
@@ -233,6 +261,7 @@ case class FirrtlExecutionOptions(
       case "middle" => classOf[MiddleFirrtlEmitter]
       case "low" => classOf[LowFirrtlEmitter]
       case "verilog" => classOf[VerilogEmitter]
+      case "sverilog" => classOf[VerilogEmitter]
     }
     getOutputConfig(optionsManager) match {
       case SingleFile(_) => Seq(EmitCircuitAnnotation(emitter))
@@ -281,8 +310,8 @@ trait HasFirrtlOptions {
 
   parser.opt[String]("annotation-file")
     .abbr("faf")
-    .valueName ("<output>").
-    foreach { x =>
+    .valueName ("<input-anno-file>")
+    .foreach { x =>
       firrtlOptions = firrtlOptions.copy(annotationFileNameOverride = x)
     }.text {
     "use this to override the default annotation file name, default is empty"
@@ -296,14 +325,23 @@ trait HasFirrtlOptions {
       "use this to force appending annotation file to annotations being passed in through optionsManager"
     }
 
+  parser.opt[String]("output-annotation-file")
+    .abbr("foaf")
+    .valueName ("<output-anno-file>")
+    .foreach { x =>
+      firrtlOptions = firrtlOptions.copy(outputAnnotationFileName = x)
+    }.text {
+    "use this to set the annotation output file"
+  }
+
   parser.opt[String]("compiler")
     .abbr("X")
-    .valueName ("<high|middle|low|verilog>")
+    .valueName ("<high|middle|low|verilog|sverilog>")
     .foreach { x =>
       firrtlOptions = firrtlOptions.copy(compilerName = x)
     }
     .validate { x =>
-      if (Array("high", "middle", "low", "verilog").contains(x.toLowerCase)) parser.success
+      if (Array("high", "middle", "low", "verilog", "sverilog").contains(x.toLowerCase)) parser.success
       else parser.failure(s"$x not a legal compiler")
     }.text {
       s"compiler to use, default is ${firrtlOptions.compilerName}"
@@ -412,6 +450,20 @@ trait HasFirrtlOptions {
       "Emit each module to its own file in the target directory."
     }
 
+  parser.opt[Unit]("no-check-comb-loops")
+    .foreach { _ =>
+      firrtlOptions = firrtlOptions.copy(dontCheckCombLoops = true)
+    }.text {
+      "Do NOT check for combinational loops (not recommended)"
+    }
+
+  parser.opt[Unit]("no-dce")
+    .foreach { _ =>
+      firrtlOptions = firrtlOptions.copy(noDCE = true)
+    }.text {
+      "Do NOT run dead code elimination"
+    }
+
   parser.note("")
 }
 
@@ -421,7 +473,7 @@ sealed trait FirrtlExecutionResult
   * Indicates a successful execution of the firrtl compiler, returning the compiled result and
   * the type of compile
   *
-  * @param emitType  The name of the compiler used, currently "high", "middle", "low", or "verilog"
+  * @param emitType  The name of the compiler used, currently "high", "middle", "low", "verilog", or "sverilog"
   * @param emitted   The emitted result of compilation
   */
 case class FirrtlExecutionSuccess(emitType: String, emitted: String) extends FirrtlExecutionResult
@@ -505,7 +557,8 @@ class ExecutionOptionsManager(val applicationName: String) extends HasParser(app
       val dottedSuffix = if(suffix.startsWith(".")) suffix else s".$suffix"
       if(baseName.endsWith(dottedSuffix)) "" else dottedSuffix
     }
-
+    val path = directoryName + baseName.split("/").dropRight(1).mkString("/")
+    FileUtils.makeDirectory(path)
     s"$directoryName$baseName$normalizedSuffix"
   }
 }

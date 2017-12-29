@@ -49,6 +49,8 @@ object CheckHighForm extends Pass {
     s"$info: [module $mname] Has instance loop $loop")
   class NoTopModuleException(info: Info, name: String) extends PassException(
     s"$info: A single module must be named $name.")
+  class NegArgException(info: Info, mname: String, op: String, value: Int) extends PassException(
+    s"$info: [module $mname] Primop $op argument $value < 0.")
 
   // TODO FIXME
   // - Do we need to check for uniquness on port names?
@@ -74,8 +76,14 @@ object CheckHighForm extends Pass {
           correctNum(Option(2), 0)
         case AsUInt | AsSInt | AsClock | Cvt | Neq | Not =>
           correctNum(Option(1), 0)
-        case AsFixedPoint | Pad | Shl | Shr | Head | Tail | BPShl | BPShr | BPSet =>
+        case AsFixedPoint | Pad | Head | Tail | BPShl | BPShr | BPSet =>
           correctNum(Option(1), 1)
+        case Shl | Shr =>
+          correctNum(Option(1), 1)
+          val amount = e.consts.head.toInt
+          if (amount < 0) {
+            errors.append(new NegArgException(info, mname, e.op.toString, amount))
+          }
         case Bits =>
           correctNum(Option(1), 2)
         case Andr | Orr | Xorr | Neg =>
@@ -85,7 +93,7 @@ object CheckHighForm extends Pass {
 
     def checkFstring(info: Info, mname: String, s: StringLit, i: Int) {
       val validFormats = "bdxc"
-      val (percent, npercents) = (s.array foldLeft (false, 0)){
+      val (percent, npercents) = s.string.foldLeft((false, 0)) {
         case ((percentx, n), b) if percentx && (validFormats contains b) =>
           (false, n + 1)
         case ((percentx, n), b) if percentx && b != '%' =>

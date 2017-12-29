@@ -5,8 +5,11 @@ package firrtlTests
 import firrtl._
 import firrtl.ir._
 import firrtl.passes._
+import firrtl.transforms._
 import firrtl.Mappers._
 import annotations._
+import java.io.File
+import java.nio.file.Paths
 
 class CheckCombLoopsSpec extends SimpleTransformSpec {
 
@@ -19,6 +22,31 @@ class CheckCombLoopsSpec extends SimpleTransformSpec {
     new HighFirrtlToMiddleFirrtl,
     new MiddleFirrtlToLowFirrtl
   )
+
+  "Loop-free circuit" should "not throw an exception" in {
+    val input = """circuit hasnoloops :
+                   |  module thru :
+                   |    input in1 : UInt<1>
+                   |    input in2 : UInt<1>
+                   |    output out1 : UInt<1>
+                   |    output out2 : UInt<1>
+                   |    out1 <= in1
+                   |    out2 <= in2
+                   |  module hasnoloops :
+                   |    input clk : Clock
+                   |    input a : UInt<1>
+                   |    output b : UInt<1>
+                   |    wire x : UInt<1>
+                   |    inst inner of thru
+                   |    inner.in1 <= a
+                   |    x <= inner.out1
+                   |    inner.in2 <= x
+                   |    b <= inner.out2
+                   |""".stripMargin
+
+    val writer = new java.io.StringWriter
+    compile(CircuitState(parse(input), ChirrtlForm, None), writer)
+  }
 
   "Simple combinational loop" should "throw an exception" in {
     val input = """circuit hasloops :
@@ -146,5 +174,22 @@ class CheckCombLoopsSpec extends SimpleTransformSpec {
       compile(CircuitState(parse(input), ChirrtlForm, None), writer)
     }
   }
+}
 
+class CheckCombLoopsCommandLineSpec extends FirrtlFlatSpec {
+
+  val testDir = createTestDirectory("CombLoopChecker")
+  val inputFile = Paths.get(getClass.getResource("/features/HasLoops.fir").toURI()).toFile()
+  val outFile = new File(testDir, "HasLoops.v")
+  val args = Array("-i", inputFile.getAbsolutePath, "-o", outFile.getAbsolutePath, "-X", "verilog")
+
+  "Combinational loops detection" should "run by default" in {
+    a [CheckCombLoops.CombLoopException] should be thrownBy {
+      firrtl.Driver.execute(args)
+    }
+  }
+
+  it should "not run when given --no-check-comb-loops option" in {
+    firrtl.Driver.execute(args :+ "--no-check-comb-loops")
+  }
 }

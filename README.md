@@ -1,5 +1,5 @@
 # Firrtl
-[![Build Status](https://travis-ci.org/ucb-bar/firrtl.svg?branch=master)](https://travis-ci.org/ucb-bar/firrtl)
+[![Build Status](https://travis-ci.org/freechipsproject/firrtl.svg?branch=master)](https://travis-ci.org/freechipsproject/firrtl)
 #### Flexible Internal Representation for RTL
 
  Firrtl is an intermediate representation (IR) for digital circuits designed as a platform for writing circuit-level transformations.
@@ -73,3 +73,18 @@ utils/bin/firrtl -i regress/rocket.fir -o regress/rocket.v -X verilog // Compile
 utils/bin/firrtl --help // Returns usage string
 ```
 
+##### Citing Firrtl
+
+If you use Firrtl in a paper, please cite the following technical report:
+https://www2.eecs.berkeley.edu/Pubs/TechRpts/2016/EECS-2016-9.html
+```
+@techreport{Li:EECS-2016-9,
+    Author = {Li, Patrick S. and Izraelevitz, Adam M. and Bachrach, Jonathan},
+    Title = {Specification for the FIRRTL Language},
+    Institution = {EECS Department, University of California, Berkeley},
+    Year = {2016},
+    Month = {Feb},
+    URL = {http://www2.eecs.berkeley.edu/Pubs/TechRpts/2016/EECS-2016-9.html},
+    Number = {UCB/EECS-2016-9}
+}
+```

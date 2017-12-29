@@ -9,6 +9,9 @@ import firrtl.transforms._
 import firrtl.annotations._
 import firrtl.passes.memlib.SimpleTransform
 
+import java.io.File
+import java.nio.file.Paths
+
 class DCETests extends FirrtlFlatSpec {
   // Not using executeTest because it is for positive testing, we need to check that stuff got
   // deleted
@@ -57,9 +60,8 @@ class DCETests extends FirrtlFlatSpec {
         |  module Top :
         |    input x : UInt<1>
         |    output z : UInt<1>
-        |    wire a : UInt<1>
-        |    z <= x
-        |    a <= x""".stripMargin
+        |    node a = x
+        |    z <= x""".stripMargin
     exec(input, check, Seq(dontTouch("Top.a")))
   }
   "Unread register" should "be deleted" in {
@@ -106,6 +108,8 @@ class DCETests extends FirrtlFlatSpec {
         |    input x : UInt<1>
         |    input y : UInt<1>
         |    output z : UInt<1>
+        |    x is invalid
+        |    y is invalid
         |    z <= x
         |  module Top :
         |    input x : UInt<1>
@@ -113,6 +117,7 @@ class DCETests extends FirrtlFlatSpec {
         |    output z : UInt<1>
         |    inst sub of Sub
         |    sub.x <= x
+        |    sub.y is invalid
         |    z <= sub.z""".stripMargin
     val check =
       """circuit Top :
@@ -254,6 +259,29 @@ class DCETests extends FirrtlFlatSpec {
         |    z <= x""".stripMargin
     exec(input, check)
   }
+  "Extmodule with only inputs" should "NOT be deleted by default" in {
+    val input =
+      """circuit Top :
+        |  extmodule InputsOnly :
+        |    input x : UInt<1>
+        |  module Top :
+        |    input x : UInt<1>
+        |    output z : UInt<1>
+        |    inst ext of InputsOnly
+        |    ext.x <= x
+        |    z <= x""".stripMargin
+    val check =
+      """circuit Top :
+        |  extmodule InputsOnly :
+        |    input x : UInt<1>
+        |  module Top :
+        |    input x : UInt<1>
+        |    output z : UInt<1>
+        |    inst ext of InputsOnly
+        |    ext.x <= x
+        |    z <= x""".stripMargin
+    exec(input, check)
+  }
   "Globally dead extmodule marked optimizable" should "be deleted" in {
     val input =
       """circuit Top :
@@ -362,5 +390,29 @@ class DCETests extends FirrtlFlatSpec {
         |    skip
         |    z <= foo.z""".stripMargin
     exec(input, check)
+  }
+}
+
+class DCECommandLineSpec extends FirrtlFlatSpec {
+
+  val testDir = createTestDirectory("dce")
+  val inputFile = Paths.get(getClass.getResource("/features/HasDeadCode.fir").toURI()).toFile()
+  val outFile = new File(testDir, "HasDeadCode.v")
+  val args = Array("-i", inputFile.getAbsolutePath, "-o", outFile.getAbsolutePath, "-X", "verilog")
+
+  "Dead Code Elimination" should "run by default" in {
+    firrtl.Driver.execute(args) match {
+      case FirrtlExecutionSuccess(_, verilog) =>
+        verilog should not include regex ("wire +a;")
+      case _ => fail("Unexpected compilation failure")
+    }
+  }
+
+  it should "not run when given --no-dce option" in {
+    firrtl.Driver.execute(args :+ "--no-dce") match {
+      case FirrtlExecutionSuccess(_, verilog) =>
+        verilog should include regex ("wire +a;")
+      case _ => fail("Unexpected compilation failure")
+    }
   }
 }
