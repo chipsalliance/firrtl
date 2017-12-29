@@ -85,4 +85,46 @@ class WidthSpec extends FirrtlFlatSpec {
       executeTest(input, Nil, passes)
     }
   }
+
+  "Add of UInt<2> and SInt<2>" should "return SInt<4>" in {
+    val passes = Seq(
+      ToWorkingIR,
+      CheckHighForm,
+      ResolveKinds,
+      InferTypes,
+      CheckTypes,
+      InferWidths)
+    val input =
+      """circuit Unit :
+        |  module Unit :
+        |    input x: UInt<2>
+        |    input y: SInt<2>
+        |    output z: SInt
+        |    z <= add(x, y)""".stripMargin
+    val check = Seq( "output z : SInt<4>")
+    intercept[PassExceptions] {
+      executeTest(input, check, passes)
+    }
+  }
+
+  "SInt<2> - UInt<3>" should "return SInt<5>" in {
+    val passes = Seq(
+      ToWorkingIR,
+      CheckHighForm,
+      ResolveKinds,
+      InferTypes,
+      CheckTypes,
+      InferWidths)
+    val input =
+      """circuit Unit :
+        |  module Unit :
+        |    input x: UInt<3>
+        |    input y: SInt<2>
+        |    output z: SInt
+        |    z <= sub(y, x)""".stripMargin
+    val check = Seq( "output z : SInt<5>")
+    intercept[PassExceptions] {
+      executeTest(input, check, passes)
+    }
+  }
 }

@@ -98,7 +98,7 @@ object CheckHighForm extends Pass {
       if (npercents != i) errors.append(new BadPrintfIncorrectNumException(info, mname))
     }
 
-    def checkValidLoc(info: Info, mname: String, e: Expression) = e match {
+    def checkValidLoc(info: Info, mname: String, e: Expression): Unit = e match {
       case _: UIntLiteral | _: SIntLiteral | _: DoPrim =>
         errors.append(new InvalidLOCException(info, mname))
       case _ => // Do Nothing
@@ -280,9 +280,9 @@ object CheckTypes extends Pass {
       case tx: BundleType => tx.fields forall (x => x.flip == Default && passive(x.tpe))
       case tx => true
     }
-    def check_types_primop(info: Info, mname: String, e: DoPrim) {
-      def checkAllTypes(exprs: Seq[Expression], okUInt: Boolean, okSInt: Boolean, okClock: Boolean, okFix: Boolean) = {
-        (exprs.foldLeft((false, false, false, false)) {
+    def check_types_primop(info: Info, mname: String, e: DoPrim): Unit = {
+      def checkAllTypes(exprs: Seq[Expression], okUInt: Boolean, okSInt: Boolean, okClock: Boolean, okFix: Boolean): Unit = {
+        exprs.foldLeft((false, false, false, false)) {
           case ((isUInt, isSInt, isClock, isFix), expr) => expr.tpe match {
             case u: UIntType  => (true, isSInt, isClock, isFix)
             case s: SIntType  => (isUInt, true, isClock, isFix)
@@ -293,7 +293,7 @@ object CheckTypes extends Pass {
               (isUInt, isSInt, isClock, isFix)
             case _ => throwInternalError
           }
-        }) match {
+        } match {
           //   (UInt,  SInt,  Clock, Fixed)
           case (isAll, false, false, false) if isAll == okUInt  =>
           case (false, isAll, false, false) if isAll == okSInt  =>
@@ -304,11 +304,18 @@ object CheckTypes extends Pass {
       }
       e.op match {
         case AsUInt | AsSInt | AsClock | AsFixedPoint =>
-        case Dshl | Dshr => checkAllTypes(Seq(e.args(1)), true, false, false, false); checkAllTypes(Seq(e.args(0)), true, true, false, true)
-        case Add | Sub | Mul | Lt | Leq | Gt | Geq | Eq | Neq => checkAllTypes(e.args, true, true, false, true)
-        case Pad | Shl | Shr | Cat | Bits | Head | Tail => checkAllTypes(e.args, true, true, false, true)
-        case BPShl | BPShr | BPSet => checkAllTypes(e.args, false, false, false, true)
-        case _ => checkAllTypes(e.args, true, true, false, false)
+          // All types are ok
+        case Dshl | Dshr =>
+          checkAllTypes(Seq(e.args.head), okUInt=true, okSInt=true,  okClock=false, okFix=true)
+          checkAllTypes(Seq(e.args(1)),   okUInt=true, okSInt=false, okClock=false, okFix=false)
+        case Add | Sub | Mul | Lt | Leq | Gt | Geq | Eq | Neq =>
+          checkAllTypes(e.args, okUInt=true, okSInt=true, okClock=false, okFix=true)
+        case Pad | Shl | Shr | Cat | Bits | Head | Tail =>
+          checkAllTypes(e.args, okUInt=true, okSInt=true, okClock=false, okFix=true)
+        case BPShl | BPShr | BPSet =>
+          checkAllTypes(e.args, okUInt=false, okSInt=false, okClock=false, okFix=true)
+        case _ =>
+          checkAllTypes(e.args, okUInt=true, okSInt=true, okClock=false, okFix=false)
       }
     }
 
@@ -381,7 +388,7 @@ object CheckTypes extends Pass {
           )
         case (t1: VectorType, t2: VectorType) =>
           bulk_equals(t1.tpe, t2.tpe, flip1, flip2)
-        case (t1, t2) => false
+        case (_, _) => false
       }
     }
 
