@@ -77,7 +77,7 @@ object RemoveCHIRRTL extends Transform {
       val tdata = sx.tpe
       def set_poison(vec: Seq[MPort]) = vec flatMap (r => Seq(
         IsInvalid(sx.info, SubField(SubField(Reference(sx.name, ut), r.name, ut), "addr", taddr)),
-        Connect(sx.info, SubField(SubField(Reference(sx.name, ut), r.name, ut), "clk", ClockType), DoPrim(AsClock, Seq(UIntLiteral(0, IntWidth(1))), Nil, ClockType))
+        IsInvalid(sx.info, SubField(SubField(Reference(sx.name, ut), r.name, ut), "clk", ClockType))
       ))
       def set_enable(vec: Seq[MPort], en: String) = vec map (r =>
         Connect(sx.info, SubField(SubField(Reference(sx.name, ut), r.name, ut), en, BoolType), zero)

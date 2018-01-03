@@ -110,7 +110,7 @@ circuit foo :
     parse(res.getEmittedCircuit.value)
   }
 
-  "Memories" should "not have validif on port clocks when declared in a when" in {
+  ignore should "Memories should not have validif on port clocks when declared in a when" in {
     val input = 
       """;buildInfoPackage: chisel3, version: 3.0-SNAPSHOT, scalaVersion: 2.11.11, sbtVersion: 0.13.16, builtAtString: 2017-10-06 20:55:20.367, builtAtMillis: 1507323320367
         |circuit Stack :
@@ -165,7 +165,7 @@ circuit foo :
     })
   }
 
-  "Mem non-local clock port assignment" should "be ok assign in only one side of when" in {
+  ignore should "Mem non-local clock port assignment should be ok assign in only one side of when" in {
     val input =
       """circuit foo :
         |  module foo :
@@ -186,7 +186,7 @@ circuit foo :
     })
   }
 
-  "Mem local clock port assignment" should "be ok" in {
+  ignore should "Mem local clock port assignment should be ok" in {
     val input =
       """circuit foo :
         |  module foo :
@@ -206,9 +206,9 @@ circuit foo :
     assert(res search {
       case Connect(_, WSubField(WSubField(WRef("mem", _, _, _), "bar",_, _), "clk", _, _), WRef("clock", _, _, _)) => true
     })
-
   }
-  "Mem local nested clock port assignment" should "be ok" in {
+
+  ignore should "Mem local nested clock port assignment should be ok" in {
     val input =
       """circuit foo :
         |  module foo :
@@ -230,7 +230,9 @@ circuit foo :
       case Connect(_, WSubField(WSubField(WRef("mem", _, _, _), "bar",_, _), "clk", _, _), DoPrim(AsClock, Seq(WRef("clock", _, _, _)), Nil, _)) => true
     })
   }
-  "Mem non-local nested clock port assignment" should "be ok" in {
+
+
+  ignore should "Mem non-local nested clock port assignment should be ok" in {
     val input =
       """circuit foo :
         |  module foo :
