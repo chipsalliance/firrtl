@@ -32,7 +32,9 @@ def scalacOptionsVersion(scalaVersion: String): Seq[String] = {
   }
 }
 
-scalacOptions := scalacOptionsVersion(scalaVersion.value)
+scalacOptions := scalacOptionsVersion(scalaVersion.value) ++ Seq(
+  "-deprecation"
+)
 
 def javacOptionsVersion(scalaVersion: String): Seq[String] = {
   Seq() ++ {
