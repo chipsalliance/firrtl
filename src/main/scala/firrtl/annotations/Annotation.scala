@@ -28,12 +28,15 @@ trait SingleTargetAnnotation extends Annotation {
 }
 
 object Annotation {
+  @deprecated("This returns a LegacyAnnotation, use an explicit Annotation type", "1.1")
   def apply(target: Named, transform: Class[_ <: Transform], value: String) =
     LegacyAnnotation(target, transform, value)
+  @deprecated("This uses LegacyAnnotation, use an explicit Annotation type", "1.1")
   def unapply(a: LegacyAnnotation): Option[(Named, Class[_ <: Transform], String)] =
     Some((a.target, a.transform, a.value))
 }
 
+@deprecated("Use an explicit Annotation type", "1.1")
 final case class LegacyAnnotation(
     target: Named,
     transform: Class[_ <: Transform],
