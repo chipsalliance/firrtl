@@ -177,13 +177,13 @@ case class FirrtlExecutionOptions(
     firrtlSource:           Option[String] = None,
     customTransforms:       Seq[Transform] = List.empty,
     annotations:            List[Annotation] = List.empty,
-    annotationFileNames:    List[String] = List.empty,
     annotationFileNameOverride: String = "",
     outputAnnotationFileName: String = "",
     emitOneFilePerModule:   Boolean = false,
     dontCheckCombLoops:     Boolean = false,
-    noDCE:                  Boolean = false)
-  extends ComposableOptions {
+    noDCE:                  Boolean = false,
+    annotationFileNames:    List[String] = List.empty)
+extends ComposableOptions {
 
   require(!(emitOneFilePerModule && outputFileNameOverride.nonEmpty),
     "Cannot both specify the output filename and emit one file per module!!!")
