@@ -20,27 +20,56 @@ trait Annotation {
   def serialize: String = this.toString
 }
 
-trait SingleTargetAnnotation extends Annotation {
-  def target: Named
+/** If an Annotation does not target any [[Named]] thing in the circuit, then all updates just
+  * return the Annotation itself
+  */
+trait NoTargetAnnotation extends Annotation {
+  def update(renames: RenameMap) = Seq(this)
+}
+
+/** An Annotation that targets a single [[Named]] thing */
+trait SingleTargetAnnotation[T <: Named] extends Annotation {
+  val target: T
+
+  /** Create another instance of this Annotation */
+  def duplicate(n: T): Annotation
+
+  // This mess of @unchecked and try-catch is working around the fact that T is unknown due to type
+  // erasure. We cannot that newTarget is of type T, but a CastClassException will be thrown upon
+  // invoking duplicate if newTarget cannot be cast to T (only possible in the concrete subclass)
   def update(renames: RenameMap): Seq[Annotation] =
-    renames.get(target).map(_.map(duplicate)).getOrElse(List(this))
-  def duplicate(n: Named): Annotation
+    renames.get(target).map(_.map(newT => (newT: @unchecked) match {
+      case newTarget: T @unchecked =>
+        try {
+          duplicate(newTarget)
+        } catch {
+          case _: java.lang.ClassCastException =>
+          val msg = s"${this.getClass.getName} target ${target.getClass.getName} " +
+            s"cannot be renamed to ${newTarget.getClass}"
+          throw AnnotationException(msg)
+        }
+    })).getOrElse(List(this))
+}
+
+trait SingleStringAnnotation extends NoTargetAnnotation {
+  def value: String
 }
 
 object Annotation {
   @deprecated("This returns a LegacyAnnotation, use an explicit Annotation type", "1.1")
   def apply(target: Named, transform: Class[_ <: Transform], value: String) =
-    LegacyAnnotation(target, transform, value)
+    new LegacyAnnotation(target, transform, value)
   @deprecated("This uses LegacyAnnotation, use an explicit Annotation type", "1.1")
   def unapply(a: LegacyAnnotation): Option[(Named, Class[_ <: Transform], String)] =
     Some((a.target, a.transform, a.value))
 }
 
-@deprecated("Use an explicit Annotation type", "1.1")
-final case class LegacyAnnotation(
+// Constructor is private so that we can still construct these internally without deprecation
+// warnings
+final case class LegacyAnnotation private[firrtl] (
     target: Named,
     transform: Class[_ <: Transform],
-    value: String) extends SingleTargetAnnotation {
+    value: String) extends SingleTargetAnnotation[Named] {
   val targetString: String = target.serialize
   val transformClass: String = transform.getName
 
@@ -62,34 +91,13 @@ final case class LegacyAnnotation(
   }
   def propagate(from: Named, tos: Seq[Named], dup: Named=>Annotation): Seq[Annotation] = tos.map(dup(_))
   def check(from: Named, tos: Seq[Named], which: Annotation): Unit = {}
-  def duplicate(n: Named) = Annotation(n, transform, value)
+  def duplicate(n: Named) = new LegacyAnnotation(n, transform, value)
 }
 
-object DeletedAnnotation {
-  def apply(xFormName: String, anno: LegacyAnnotation): Annotation =
-    Annotation(anno.target, classOf[Transform], s"""DELETED by $xFormName\n${AnnotationUtils.toYaml(anno)}""")
+// Private so that LegacyAnnotation can only be constructed via deprecated Annotation.apply
+private object LegacyAnnotation
 
-  private val deletedRegex = """(?s)DELETED by ([^\n]*)\n(.*)""".r
-  def unapply(a: Annotation): Option[(String, LegacyAnnotation)] = a match {
-    case Annotation(named, t, deletedRegex(xFormName, annoString)) if t == classOf[Transform] =>
-      Some((xFormName, AnnotationUtils.fromYaml(annoString)))
-    case _ => None
-  }
-}
-
-/** Parent class to create global annotations
-  *
-  * These annotations are Circuit-level and available to every transform
-  */
-abstract class GlobalCircuitAnnotation {
-  private lazy val marker = this.getClass.getName
-  def apply(value: String): Annotation =
-    Annotation(CircuitTopName, classOf[Transform], s"$marker:$value")
-  def unapply(a: Annotation): Option[String] = a match {
-    // Assumes transform is already filtered appropriately
-    case Annotation(CircuitTopName, _, str) if str.startsWith(marker) =>
-      Some(str.stripPrefix(s"$marker:"))
-    case _ => None
-  }
+case class DeletedAnnotation(xFormName: String, anno: Annotation) extends NoTargetAnnotation {
+  override def serialize: String = s"""DELETED by $xFormName\n${anno.serialize}"""
 }
 

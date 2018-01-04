@@ -22,6 +22,6 @@ class CreateMemoryAnnotations(reader: Option[YamlFileReader]) extends Transform 
         val source = SourceAnnotation(ComponentName(config.source.name, ModuleName(config.source.module, cN)), config.pin.name)
         (annos ++ Seq(top, source), pins :+ config.pin.name)
       }
-      state.copy(annotations = PinAnnotation(cN, pins.toSeq) +: as)
+      state.copy(annotations = PinAnnotation(pins.toSeq) +: as)
   }
 }

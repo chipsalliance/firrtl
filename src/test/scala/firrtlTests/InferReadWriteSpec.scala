@@ -71,7 +71,7 @@ circuit sram6t :
       T_5 <= io.wdata
 """.stripMargin
 
-    val annos = Seq(memlib.InferReadWriteAnnotation("sram6t"))
+    val annos = Seq(memlib.InferReadWriteAnnotation)
     val res = compileAndEmit(CircuitState(parse(input), ChirrtlForm, annos))
     // Check correctness of firrtl
     parse(res.getEmittedCircuit.value)
@@ -102,7 +102,7 @@ circuit sram6t :
       io.dataOut <= _T_22
 """.stripMargin
 
-    val annos = Seq(memlib.InferReadWriteAnnotation("sram6t"))
+    val annos = Seq(memlib.InferReadWriteAnnotation)
     val res = compileAndEmit(CircuitState(parse(input), ChirrtlForm, annos))
     // Check correctness of firrtl
     parse(res.getEmittedCircuit.value)
@@ -133,7 +133,7 @@ circuit sram6t :
       T_5 <= io.wdata
 """.stripMargin
 
-    val annos = Seq(memlib.InferReadWriteAnnotation("sram6t"))
+    val annos = Seq(memlib.InferReadWriteAnnotation)
     intercept[InferReadWriteCheckException] {
       compileAndEmit(CircuitState(parse(input), ChirrtlForm, annos))
     }

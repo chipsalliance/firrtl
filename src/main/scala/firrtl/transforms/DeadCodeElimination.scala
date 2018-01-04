@@ -326,7 +326,7 @@ class DeadCodeElimination extends Transform {
     val doTouchExtMods: Seq[String] = state.annotations.collect {
       case OptimizableExtModuleAnnotation(ModuleName(name, _)) => name
     }
-    val noDCE = state.annotations.collectFirst { case NoDCEAnnotation() => true }.getOrElse(false)
+    val noDCE = state.annotations.contains(NoDCEAnnotation)
     if (noDCE) {
       logger.info("Skipping DCE")
       state

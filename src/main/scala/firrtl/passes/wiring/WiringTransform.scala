@@ -11,41 +11,24 @@ import scala.collection.mutable
 import firrtl.annotations._
 import WiringUtils._
 
-/** A component, e.g. register etc. Must be declared only once under the TopAnnotation
-  */
-object SourceAnnotation {
-  def apply(target: ComponentName, pin: String): Annotation = Annotation(target, classOf[WiringTransform], s"source $pin")
-
-  private val matcher = "source (.+)".r
-  def unapply(a: Annotation): Option[(ComponentName, String)] = a match {
-    case Annotation(ComponentName(n, m), _, matcher(pin)) => Some((ComponentName(n, m), pin))
-    case _ => None
-  }
+/** A component, e.g. register etc. Must be declared only once under the TopAnnotation */
+case class SourceAnnotation(target: ComponentName, pin: String) extends
+    SingleTargetAnnotation[ComponentName] {
+  def duplicate(n: ComponentName) = this.copy(target = n)
 }
 
-/** A module, e.g. ExtModule etc., that should add the input pin
-  */
-object SinkAnnotation {
-  def apply(target: ModuleName, pin: String): Annotation = Annotation(target, classOf[WiringTransform], s"sink $pin")
-
-  private val matcher = "sink (.+)".r
-  def unapply(a: Annotation): Option[(ModuleName, String)] = a match {
-    case Annotation(ModuleName(n, c), _, matcher(pin)) => Some((ModuleName(n, c), pin))
-    case _ => None
-  }
+/** A module, e.g. ExtModule etc., that should add the input pin */
+case class SinkAnnotation(target: ModuleName, pin: String) extends
+    SingleTargetAnnotation[ModuleName] {
+  def duplicate(n: ModuleName) = this.copy(target = n)
 }
 
 /** A module under which all sink module must be declared, and there is only
   * one source component
   */
-object TopAnnotation {
-  def apply(target: ModuleName, pin: String): Annotation = Annotation(target, classOf[WiringTransform], s"top $pin")
-
-  private val matcher = "top (.+)".r
-  def unapply(a: Annotation): Option[(ModuleName, String)] = a match {
-    case Annotation(ModuleName(n, c), _, matcher(pin)) => Some((ModuleName(n, c), pin))
-    case _ => None
-  }
+case class TopAnnotation(target: ModuleName, pin: String) extends
+    SingleTargetAnnotation[ModuleName] {
+  def duplicate(n: ModuleName) = this.copy(target = n)
 }
 
 /** Add pins to modules and wires a signal to them, under the scope of a specified top module

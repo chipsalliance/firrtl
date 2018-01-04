@@ -5,9 +5,14 @@ package firrtlTests
 import java.io.File
 import org.scalatest.{FreeSpec, Matchers}
 
-import firrtl.passes.InlineInstances
-import firrtl.passes.memlib.{InferReadWrite, ReplSeqMem}
-import firrtl.transforms.BlackBoxSourceHelper
+import firrtl.passes.{InlineAnnotation, InlineInstances}
+import firrtl.passes.memlib.{
+  InferReadWrite,
+  InferReadWriteAnnotation,
+  ReplSeqMem,
+  ReplSeqMemAnnotation
+}
+import firrtl.transforms.BlackBoxTargetDirAnno
 import firrtl._
 import firrtl.annotations._
 import firrtl.util.BackendCompilationUtilities
@@ -118,9 +123,7 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
 
         val firrtlOptions = optionsManager.firrtlOptions
         firrtlOptions.annotations.length should be (3)
-        firrtlOptions.annotations.foreach { case annotation: LegacyAnnotation =>
-          annotation.transform shouldBe classOf[InlineInstances]
-        }
+        firrtlOptions.annotations.foreach(_ shouldBe an [InlineAnnotation])
       }
       "infer-rw annotation" in {
         val optionsManager = new ExecutionOptionsManager("test") with HasFirrtlOptions
@@ -131,9 +134,7 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
 
         val firrtlOptions = optionsManager.firrtlOptions
         firrtlOptions.annotations.length should be (1)
-        firrtlOptions.annotations.foreach { case annotation: LegacyAnnotation =>
-          annotation.transform shouldBe classOf[InferReadWrite]
-        }
+        firrtlOptions.annotations.head should be (InferReadWriteAnnotation)
       }
       "repl-seq-mem annotation" in {
         val optionsManager = new ExecutionOptionsManager("test") with HasFirrtlOptions
@@ -144,8 +145,8 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
 
         val firrtlOptions = optionsManager.firrtlOptions
         firrtlOptions.annotations.length should be (1)
-        firrtlOptions.annotations.foreach { case annotation: LegacyAnnotation =>
-          annotation.transform shouldBe classOf[ReplSeqMem]
+        firrtlOptions.annotations.head should matchPattern {
+          case ReplSeqMemAnnotation("infile1", "outfile1") =>
         }
       }
     }
@@ -186,7 +187,7 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
   }
 
   "Annotations can be read from multiple files" in {
-    val filename = "SampleAnnotations.anno"
+    val filename = "SampleAnnotations.anno.json"
     val optionsManager = new ExecutionOptionsManager("test") with HasFirrtlOptions {
       commonOptions = commonOptions.copy(topName = "a.fir")
       firrtlOptions = firrtlOptions.copy(
@@ -198,8 +199,7 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
     optionsManager.firrtlOptions.annotations.length should be (0)
     val annos = Driver.loadAnnotations(optionsManager)
     annos.length should be (21) // 18 from files plus 3 general purpose
-    annos.collect { case a: LegacyAnnotation => a }
-         .count(_.transformClass == "firrtl.passes.InlineInstances") should be (18)
+    annos.count(_.isInstanceOf[InlineAnnotation]) should be (18)
     annotationsTestFile.delete()
   }
 
@@ -212,17 +212,15 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
       Array("--infer-rw", "circuit", "-faf", annoFile.toString)
     ) should be (true)
 
-    copyResourceToFile("/annotations/SampleAnnotations.anno", annoFile)
+    copyResourceToFile("/annotations/SampleAnnotations.anno.json", annoFile)
 
     val firrtlOptions = optionsManager.firrtlOptions
     firrtlOptions.annotations.length should be (1) // infer-rw
 
     val anns = Driver.loadAnnotations(optionsManager)
-                     .collect { case a: LegacyAnnotation => a }
-                     .groupBy(_.transform)
-    anns(classOf[BlackBoxSourceHelper]).length should be (1) // built in to loadAnnotations
-    anns(classOf[InferReadWrite]).length should be (1) // --infer-rw
-    anns(classOf[InlineInstances]).length should be (9) // annotations file
+    anns should contain (BlackBoxTargetDirAnno(".")) // built in to loadAnnotations
+    anns should contain (InferReadWriteAnnotation)  // --infer-rw
+    anns.collect { case a: InlineAnnotation => a }.length should be (9)  // annotations file
 
     annoFile.delete()
   }

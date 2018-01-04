@@ -8,15 +8,9 @@ import AnalysisUtils.eqMems
 import firrtl.Mappers._
 import firrtl.annotations._
 
-/** A component, e.g. register etc. Must be declared only once under the TopAnnotation
-  */
-object NoDedupMemAnnotation {
-  def apply(target: ComponentName): Annotation = Annotation(target, classOf[ResolveMemoryReference], s"nodedupmem!")
-
-  def unapply(a: Annotation): Option[ComponentName] = a match {
-    case Annotation(ComponentName(n, mn), _, "nodedupmem!") => Some(ComponentName(n, mn))
-    case _ => None
-  }
+/** A component, e.g. register etc. Must be declared only once under the TopAnnotation */
+case class NoDedupMemAnnotation(target: ComponentName) extends SingleTargetAnnotation[ComponentName] {
+  def duplicate(n: ComponentName) = NoDedupMemAnnotation(n)
 }
 
 /** Resolves annotation ref to memories that exactly match (except name) another memory

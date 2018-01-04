@@ -63,7 +63,7 @@ circuit Top :
     io2.commit_entry.bits.info <- R1
 """.stripMargin
     val confLoc = "ReplSeqMemTests.confTEMP"
-    val annos = Seq(ReplSeqMemAnnotation("-c:Top:-o:"+confLoc))
+    val annos = Seq(ReplSeqMemAnnotation.parse("-c:Top:-o:"+confLoc))
     val res = compileAndEmit(CircuitState(parse(input), ChirrtlForm, annos))
     // Check correctness of firrtl
     println(res.annotations)
@@ -86,7 +86,7 @@ circuit Top :
         write mport T_155 = mem[p_address], clock
 """.stripMargin
     val confLoc = "ReplSeqMemTests.confTEMP"
-    val annos = Seq(ReplSeqMemAnnotation("-c:Top:-o:"+confLoc))
+    val annos = Seq(ReplSeqMemAnnotation.parse("-c:Top:-o:"+confLoc))
     val res = compileAndEmit(CircuitState(parse(input), ChirrtlForm, annos))
     // Check correctness of firrtl
     parse(res.getEmittedCircuit.value)
@@ -111,7 +111,7 @@ circuit CustomMemory :
       skip 
 """.stripMargin
     val confLoc = "ReplSeqMemTests.confTEMP"
-    val annos = Seq(ReplSeqMemAnnotation("-c:CustomMemory:-o:"+confLoc))
+    val annos = Seq(ReplSeqMemAnnotation.parse("-c:CustomMemory:-o:"+confLoc))
     val res = compileAndEmit(CircuitState(parse(input), ChirrtlForm, annos))
     // Check correctness of firrtl
     parse(res.getEmittedCircuit.value)
@@ -136,7 +136,7 @@ circuit CustomMemory :
       skip 
 """.stripMargin
     val confLoc = "ReplSeqMemTests.confTEMP"
-    val annos = Seq(ReplSeqMemAnnotation("-c:CustomMemory:-o:"+confLoc))
+    val annos = Seq(ReplSeqMemAnnotation.parse("-c:CustomMemory:-o:"+confLoc))
     val res = compileAndEmit(CircuitState(parse(input), ChirrtlForm, annos))
     // Check correctness of firrtl
     parse(res.getEmittedCircuit.value)
@@ -210,7 +210,7 @@ circuit CustomMemory :
 """
     val confLoc = "ReplSeqMemTests.confTEMP"
     val annos = Seq(
-      ReplSeqMemAnnotation("-c:CustomMemory:-o:"+confLoc),
+      ReplSeqMemAnnotation.parse("-c:CustomMemory:-o:"+confLoc),
       NoDedupMemAnnotation(ComponentName("mem_0", ModuleName("CustomMemory",CircuitName("CustomMemory")))))
     val res = compileAndEmit(CircuitState(parse(input), ChirrtlForm, annos))
     // Check correctness of firrtl
@@ -250,7 +250,7 @@ circuit CustomMemory :
 """
     val confLoc = "ReplSeqMemTests.confTEMP"
     val annos = Seq(
-      ReplSeqMemAnnotation("-c:CustomMemory:-o:"+confLoc),
+      ReplSeqMemAnnotation.parse("-c:CustomMemory:-o:"+confLoc),
       NoDedupMemAnnotation(ComponentName("mem_1", ModuleName("CustomMemory",CircuitName("CustomMemory")))))
     val res = compileAndEmit(CircuitState(parse(input), ChirrtlForm, annos))
     // Check correctness of firrtl
@@ -285,7 +285,7 @@ circuit CustomMemory :
       skip
 """
     val confLoc = "ReplSeqMemTests.confTEMP"
-    val annos = Seq(ReplSeqMemAnnotation("-c:CustomMemory:-o:"+confLoc))
+    val annos = Seq(ReplSeqMemAnnotation.parse("-c:CustomMemory:-o:"+confLoc))
     val res = compileAndEmit(CircuitState(parse(input), ChirrtlForm, annos))
     // Check correctness of firrtl
     val circuit = parse(res.getEmittedCircuit.value)

@@ -131,14 +131,9 @@ case class CircuitState(
   }
   /** Helper function for extracting emitted components from annotations */
   def emittedComponents: Seq[EmittedComponent] =
-    annotations.collect {
-      case EmittedCircuitAnnotation(x) => x
-      case EmittedModuleAnnotation(x) => x
-    }
+    annotations.collect { case emitted: EmittedAnnotation[_] => emitted.value }
   def deletedAnnotations: Seq[Annotation] =
-    annotations.collect {
-      case anno @ DeletedAnnotation(_,_) => anno
-    }
+    annotations.collect { case anno: DeletedAnnotation => anno }
 }
 object CircuitState {
   def apply(circuit: Circuit, form: CircuitForm): CircuitState = apply(circuit, form, Seq())
@@ -264,8 +259,7 @@ abstract class Transform extends LazyLogging {
       val resSet = resAnno.toSet
       val deleted = (inSet -- resSet).map {
         case DeletedAnnotation(xFormName, delAnno) => DeletedAnnotation(s"$xFormName+$name", delAnno)
-        case anno: LegacyAnnotation => DeletedAnnotation(name, anno)
-        case _ => error("Need to implemented Deleted for arbitrary annotations!")
+        case anno => DeletedAnnotation(name, anno)
       }
       val created = resSet -- inSet
       val unchanged = resSet & inSet

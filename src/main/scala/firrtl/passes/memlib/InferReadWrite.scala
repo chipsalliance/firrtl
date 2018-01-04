@@ -13,15 +13,7 @@ import firrtl.passes.memlib.AnalysisUtils.{Connects, getConnects, getOrigin}
 import WrappedExpression.weq
 import annotations._
 
-object InferReadWriteAnnotation {
-  def apply(t: String) = Annotation(CircuitName(t), classOf[InferReadWrite], "")
-  def apply(target: CircuitName) = Annotation(target, classOf[InferReadWrite], "")
-  def unapply(a: Annotation): Option[(CircuitName)] = a match {
-    case Annotation(CircuitName(t), transform, "") if transform == classOf[InferReadWrite] =>
-      Some(CircuitName(t))
-    case _ => None
-  }
-}
+case object InferReadWriteAnnotation extends NoTargetAnnotation
 
 // This pass examine the enable signals of the read & write ports of memories
 // whose readLatency is greater than 1 (usually SeqMem in Chisel).
@@ -160,12 +152,12 @@ class InferReadWrite extends Transform with SeqTransformBased {
     ResolveGenders
   )
   def execute(state: CircuitState): CircuitState = {
-    val annos = state.annotations.collect { case a @ InferReadWriteAnnotation(_) => a }
-    annos match {
-      case Seq() => state
-      case Seq(InferReadWriteAnnotation(CircuitName(state.circuit.main))) =>
-        val ret = runTransforms(state)
-        CircuitState(ret.circuit, outputForm, ret.annotations, ret.renames)
+    val runTransform = state.annotations.contains(InferReadWriteAnnotation)
+    if (runTransform) {
+      val ret = runTransforms(state)
+      CircuitState(ret.circuit, outputForm, ret.annotations, ret.renames)
+    } else {
+      state
     }
   }
 }

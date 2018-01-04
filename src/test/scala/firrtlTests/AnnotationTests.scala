@@ -35,12 +35,19 @@ trait AnnotationSpec extends LowTransformSpec {
 }
 
 
-/** Old tests for Legacy Annotations */
-class LegacyAnnotationTests extends AnnotationSpec with Matchers {
-  def anno(s: String, value: String ="this is a value", mod: String = "Top"): Annotation =
-    Annotation(ComponentName(s, ModuleName(mod, CircuitName("Top"))), classOf[Transform], value)
-  def manno(mod: String): Annotation =
-    Annotation(ModuleName(mod, CircuitName("Top")), classOf[Transform], "some value")
+class AnnotationTests extends AnnotationSpec with Matchers {
+  // Helper annotations
+  case class SimpleAnno(target: ComponentName, value: String) extends
+      SingleTargetAnnotation[ComponentName] {
+    def duplicate(n: ComponentName) = this.copy(target = n)
+  }
+  case class ModuleAnno(target: ModuleName) extends SingleTargetAnnotation[ModuleName] {
+    def duplicate(n: ModuleName) = this.copy(target = n)
+  }
+  // Helper functions to construct annotations
+  def anno(s: String, value: String ="this is a value", mod: String = "Top"): SimpleAnno =
+    SimpleAnno(ComponentName(s, ModuleName(mod, CircuitName("Top"))), value)
+  def manno(mod: String): Annotation = ModuleAnno(ModuleName(mod, CircuitName("Top")))
 
   "Loose and Sticky annotation on a node" should "pass through" in {
     val input: String =
@@ -90,35 +97,28 @@ class LegacyAnnotationTests extends AnnotationSpec with Matchers {
     thrown.getMessage should include ("Illegal circuit name")
   }
 
-  "Round tripping legacy annotations through text file" should "preserve annotations" in {
-    val annos: Array[LegacyAnnotation] = Seq(
+  "Round tripping annotations through text file" should "preserve annotations" in {
+    val annos: Array[Annotation] = Seq(
       InlineAnnotation(CircuitName("fox")),
       InlineAnnotation(ModuleName("dog", CircuitName("bear"))),
       InlineAnnotation(ComponentName("chocolate", ModuleName("like", CircuitName("i")))),
-      PinAnnotation(CircuitName("Pinniped"), Seq("sea-lion", "monk-seal"))
-    ).toArray.map(_.asInstanceOf[LegacyAnnotation])
+      PinAnnotation(Seq("sea-lion", "monk-seal"))
+    ).toArray
 
     val annoFile = new File("temp-anno")
     val writer = new FileWriter(annoFile)
-    writer.write(annos.toYaml.prettyPrint)
+    writer.write(JsonProtocol.serialize(annos))
     writer.close()
 
-    val yaml = io.Source.fromFile(annoFile).getLines().mkString("\n").parseYaml
+    val text = io.Source.fromFile(annoFile).getLines().mkString("\n")
     annoFile.delete()
 
-    val readAnnos = yaml.convertTo[Array[LegacyAnnotation]]
+    val readAnnos = JsonProtocol.deserializeTry(text).get
 
-    annos.zip(readAnnos).foreach { case (beforeAnno, afterAnno) =>
-      beforeAnno.targetString should be (afterAnno.targetString)
-      beforeAnno.target should be (afterAnno.target)
-      beforeAnno.transformClass should be (afterAnno.transformClass)
-      beforeAnno.transform should be (afterAnno.transform)
-
-      beforeAnno should be (afterAnno)
-    }
+    annos should be (readAnnos)
   }
 
-  "Deleting legacy annotations" should "create a DeletedAnnotation" in {
+  "Deleting annotations" should "create a DeletedAnnotation" in {
     val compiler = new VerilogCompiler
     val input =
      """circuit Top :
@@ -130,10 +130,13 @@ class LegacyAnnotationTests extends AnnotationSpec with Matchers {
       val outputForm = LowForm
       def execute(state: CircuitState) = state.copy(annotations = Seq())
     }
+    val transform = new DeletingTransform
+    val tname = transform.name
     val inlineAnn = InlineAnnotation(CircuitName("Top"))
-    val result = compiler.compile(CircuitState(parse(input), ChirrtlForm, Seq(inlineAnn)), Seq(new DeletingTransform))
+    val result = compiler.compile(CircuitState(parse(input), ChirrtlForm, Seq(inlineAnn)), Seq(transform))
+    println(result.annotations.head)
     result.annotations.head should matchPattern {
-      case DeletedAnnotation(x, inlineAnn) =>
+      case DeletedAnnotation(`tname`, `inlineAnn`) =>
     }
     val exception = (intercept[FIRRTLException] {
       result.getEmittedCircuit
@@ -178,7 +181,6 @@ class LegacyAnnotationTests extends AnnotationSpec with Matchers {
   }
   "Renaming" should "propagate in RemoveChirrtl and Lowering of memories" in {
     val compiler = new VerilogCompiler
-    Logger.setClassLogLevels(Map(compiler.getClass.getName -> LogLevel.Debug))
     val input =
      """circuit Top :
         |  module Top :

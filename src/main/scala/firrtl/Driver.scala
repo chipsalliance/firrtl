@@ -120,19 +120,14 @@ object Driver {
       }
     }
 
-    val targetDirAnno =
-      List(Annotation(
-        CircuitName("All"),
-        classOf[BlackBoxSourceHelper],
-        BlackBoxTargetDir(optionsManager.targetDirName).serialize
-      ))
+    val targetDirAnno = List(BlackBoxTargetDirAnno(optionsManager.targetDirName))
 
     // Output Annotations
     val outputAnnos = firrtlConfig.getEmitterAnnos(optionsManager)
 
     val globalAnnos = Seq(TargetDirAnnotation(optionsManager.targetDirName)) ++
-      (if (firrtlConfig.dontCheckCombLoops) Seq(DontCheckCombLoopsAnnotation()) else Seq()) ++
-      (if (firrtlConfig.noDCE) Seq(NoDCEAnnotation()) else Seq())
+      (if (firrtlConfig.dontCheckCombLoops) Seq(DontCheckCombLoopsAnnotation) else Seq()) ++
+      (if (firrtlConfig.noDCE) Seq(NoDCEAnnotation) else Seq())
 
     targetDirAnno ++ outputAnnos ++ globalAnnos ++ firrtlConfig.annotations ++ loadedAnnos
   }
