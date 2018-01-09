@@ -675,28 +675,30 @@ class WiringTests extends FirrtlFlatSpec {
     val source = SourceAnnotation(ComponentName("r", ModuleName("Top", CircuitName("Top"))), "pin")
     val sink = SinkAnnotation(ModuleName("X", CircuitName("Top")), "pin")
     val input =
-      """circuit Top :
-        |  module Top :
-        |    input clk: Clock
-        |    inst x of X
-        |    reg r: UInt<5>, clk
-        |  extmodule X :
-        |    input clk: Clock
-        |""".stripMargin
+      """|circuit Top :
+         |  module Top :
+         |    input clk: Clock
+         |    inst x of X
+         |    x.clk <= clk
+         |    reg r: UInt<5>, clk
+         |  extmodule X :
+         |    input clk: Clock
+         |""".stripMargin
     val check =
-      """circuit Top :
-        |  module Top :
-        |    input clk: Clock
-        |    wire r_0 : UInt<5>
-        |    inst x of X
-        |    reg r: UInt<5>, clk
-        |    r_0 <= r
-        |    r <= r
-        |    x.pin <= r_0
-        |  extmodule X :
-        |    input clk: Clock
-        |    input pin: UInt<5>
-        |""".stripMargin
+      """|circuit Top :
+         |  module Top :
+         |    input clk: Clock
+         |    wire r_0 : UInt<5>
+         |    inst x of X
+         |    reg r: UInt<5>, clk
+         |    r_0 <= r
+         |    x.clk <= clk
+         |    r <= r
+         |    x.pin <= r_0
+         |  extmodule X :
+         |    input clk: Clock
+         |    input pin: UInt<5>
+         |""".stripMargin
     val c = passes.foldLeft(parse(input)) {
       (c: Circuit, p: Pass) => p.run(c)
     }
@@ -709,31 +711,33 @@ class WiringTests extends FirrtlFlatSpec {
     val source = SourceAnnotation(ComponentName("r", ModuleName("Top", CircuitName("Top"))), "pin")
     val sink = SinkAnnotation(ComponentName("s", ModuleName("X", CircuitName("Top"))), "pin")
     val input =
-      """circuit Top :
-        |  module Top :
-        |    input clk: Clock
-        |    inst x of X
-        |    reg r: UInt<5>, clk
-        |  module X :
-        |    input clk: Clock
-        |    wire s: UInt<5>
-        |""".stripMargin
+      """|circuit Top :
+         |  module Top :
+         |    input clk: Clock
+         |    inst x of X
+         |    x.clk <= clk
+         |    reg r: UInt<5>, clk
+         |  module X :
+         |    input clk: Clock
+         |    wire s: UInt<5>
+         |""".stripMargin
     val check =
-      """circuit Top :
-        |  module Top :
-        |    input clk: Clock
-        |    wire r_0 : UInt<5>
-        |    inst x of X
-        |    reg r: UInt<5>, clk
-        |    r_0 <= r
-        |    r <= r
-        |    x.pin <= r_0
-        |  module X :
-        |    input clk: Clock
-        |    input pin: UInt<5>
-        |    wire s: UInt<5>
-        |    s <= pin
-        |""".stripMargin
+      """|circuit Top :
+         |  module Top :
+         |    input clk: Clock
+         |    wire r_0 : UInt<5>
+         |    inst x of X
+         |    reg r: UInt<5>, clk
+         |    r_0 <= r
+         |    x.clk <= clk
+         |    r <= r
+         |    x.pin <= r_0
+         |  module X :
+         |    input clk: Clock
+         |    input pin: UInt<5>
+         |    wire s: UInt<5>
+         |    s <= pin
+         |""".stripMargin
     val c = passes.foldLeft(parse(input)) {
       (c: Circuit, p: Pass) => p.run(c)
     }
