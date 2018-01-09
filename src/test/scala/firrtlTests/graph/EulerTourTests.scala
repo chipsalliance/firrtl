@@ -20,16 +20,17 @@ class EulerTourTests extends FirrtlFlatSpec {
   val instances = graph.pathsInDAG(top).values.flatten
   val tour = EulerTour(graph, top)
 
-  "Equivalency of Berkman--Vishkin and naive range minimum queries" should "work" in {
+  it should "show equivalency of Berkman--Vishkin and naive RMQs" in {
     instances.toSeq.combinations(2).toList.map { case Seq(a, b) =>
       tour.rmqNaive(a, b) should be (tour.rmqBV(a, b))
     }
   }
 
-  "Range Minimum Query of self" should "work" in {
-    instances.toSeq.map { case a =>
-      tour.rmqNaive(a, a) should be (a)
-      tour.rmqBV(a, a) should be (a)
-    }
+  it should "determine naive RMQs of itself correctly" in {
+    instances.toSeq.map { case a => tour.rmqNaive(a, a) should be (a) }
+  }
+
+  it should "determine Berkman--Vishkin RMQs of itself correctly" in {
+    instances.toSeq.map { case a => tour.rmqNaive(a, a) should be (a) }
   }
 }
