@@ -704,8 +704,8 @@ class WiringTests extends FirrtlFlatSpec {
          |    reg r: UInt<5>, clk
          |    r_0 <= r
          |    x.clk <= clk
-         |    r <= r
          |    x.pin <= r_0
+         |    r <= r
          |  extmodule X :
          |    input clk: Clock
          |    input pin: UInt<5>
@@ -741,14 +741,68 @@ class WiringTests extends FirrtlFlatSpec {
          |    reg r: UInt<5>, clk
          |    r_0 <= r
          |    x.clk <= clk
-         |    r <= r
          |    x.pin <= r_0
+         |    r <= r
          |  module X :
          |    input clk: Clock
          |    input pin: UInt<5>
          |    wire s: UInt<5>
          |    s <= pin
          |""".stripMargin
+    val c = passes.foldLeft(parse(input)) {
+      (c: Circuit, p: Pass) => p.run(c)
+    }
+    val wiringXForm = new WiringTransform()
+    val retC = wiringXForm.execute(CircuitState(c, LowForm, Some(AnnotationMap(Seq(source, sink))), None)).circuit
+    (parse(retC.serialize).serialize) should be (parse(check).serialize)
+  }
+
+  it should "wire using annotations with Aggregate source" in {
+    val source = SourceAnnotation(ComponentName("bundle", ModuleName("A", CircuitName("Top"))), "pin")
+    val sink = SinkAnnotation(ModuleName("B", CircuitName("Top")), "pin")
+    val input =
+      """|circuit Top :
+         |  module Top :
+         |    input clock : Clock
+         |    inst a of A
+         |    inst b of B
+         |    a.clock <= clock
+         |    b.clock <= clock
+         |  module A :
+         |    input clock : Clock
+         |    wire bundle : {x : UInt<1>, y: UInt<1>, z: {zz : UInt<1>} }
+         |    bundle is invalid
+         |  module B :
+         |    input clock : Clock""".stripMargin
+    val check =
+      """|circuit Top :
+         |  module Top :
+         |    input clock : Clock
+         |    wire bundle : {x : UInt<1>, y: UInt<1>, z: {zz : UInt<1>} }
+         |    inst a of A
+         |    inst b of B
+         |    bundle.x <= a.bundle_0.x
+         |    bundle.y <= a.bundle_0.y
+         |    bundle.z.zz <= a.bundle_0.z.zz
+         |    a.clock <= clock
+         |    b.clock <= clock
+         |    b.pin.x <= bundle.x
+         |    b.pin.y <= bundle.y
+         |    b.pin.z.zz <= bundle.z.zz
+         |  module A :
+         |    input clock : Clock
+         |    output bundle_0 : {x : UInt<1>, y: UInt<1>, z: {zz : UInt<1>} }
+         |    wire bundle : {x : UInt<1>, y: UInt<1>, z: {zz : UInt<1>} }
+         |    bundle_0.x <= bundle.x
+         |    bundle_0.y <= bundle.y
+         |    bundle_0.z.zz <= bundle.z.zz
+         |    bundle.x is invalid
+         |    bundle.y is invalid
+         |    bundle.z.zz is invalid
+         |  module B :
+         |    input clock : Clock
+         |    input pin : {x : UInt<1>, y: UInt<1>, z: {zz : UInt<1>} }
+         |    skip""".stripMargin
     val c = passes.foldLeft(parse(input)) {
       (c: Circuit, p: Pass) => p.run(c)
     }

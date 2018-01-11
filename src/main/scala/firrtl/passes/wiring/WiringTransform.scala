@@ -63,8 +63,11 @@ class WiringTransform extends Transform {
   private def transforms(w: Seq[WiringInfo]): Seq[Transform] = Seq(
     new Wiring(w),
     ToWorkingIR,
+    InferTypes,
+    ExpandConnects,
     Uniquify,
     ExpandWhens,
+    CheckInitialization,
     InferTypes,
     ResolveKinds,
     ResolveGenders
