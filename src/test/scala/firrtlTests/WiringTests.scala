@@ -701,11 +701,10 @@ class WiringTests extends FirrtlFlatSpec {
          |    input clk: Clock
          |    wire r_0 : UInt<5>
          |    inst x of X
-         |    reg r: UInt<5>, clk
-         |    r_0 <= r
          |    x.clk <= clk
+         |    reg r: UInt<5>, clk
          |    x.pin <= r_0
-         |    r <= r
+         |    r_0 <= r
          |  extmodule X :
          |    input clk: Clock
          |    input pin: UInt<5>
@@ -714,7 +713,7 @@ class WiringTests extends FirrtlFlatSpec {
       (c: Circuit, p: Pass) => p.run(c)
     }
     val wiringXForm = new WiringTransform()
-    val retC = wiringXForm.execute(CircuitState(c, LowForm, Some(AnnotationMap(Seq(source, sink))), None)).circuit
+    val retC = wiringXForm.execute(CircuitState(c, MidForm, Some(AnnotationMap(Seq(source, sink))), None)).circuit
     (parse(retC.serialize).serialize) should be (parse(check).serialize)
   }
 
@@ -738,11 +737,10 @@ class WiringTests extends FirrtlFlatSpec {
          |    input clk: Clock
          |    wire r_0 : UInt<5>
          |    inst x of X
-         |    reg r: UInt<5>, clk
-         |    r_0 <= r
          |    x.clk <= clk
+         |    reg r: UInt<5>, clk
          |    x.pin <= r_0
-         |    r <= r
+         |    r_0 <= r
          |  module X :
          |    input clk: Clock
          |    input pin: UInt<5>
@@ -753,7 +751,7 @@ class WiringTests extends FirrtlFlatSpec {
       (c: Circuit, p: Pass) => p.run(c)
     }
     val wiringXForm = new WiringTransform()
-    val retC = wiringXForm.execute(CircuitState(c, LowForm, Some(AnnotationMap(Seq(source, sink))), None)).circuit
+    val retC = wiringXForm.execute(CircuitState(c, MidForm, Some(AnnotationMap(Seq(source, sink))), None)).circuit
     (parse(retC.serialize).serialize) should be (parse(check).serialize)
   }
 
@@ -781,33 +779,25 @@ class WiringTests extends FirrtlFlatSpec {
          |    wire bundle : {x : UInt<1>, y: UInt<1>, z: {zz : UInt<1>} }
          |    inst a of A
          |    inst b of B
-         |    bundle.x <= a.bundle_0.x
-         |    bundle.y <= a.bundle_0.y
-         |    bundle.z.zz <= a.bundle_0.z.zz
          |    a.clock <= clock
          |    b.clock <= clock
-         |    b.pin.x <= bundle.x
-         |    b.pin.y <= bundle.y
-         |    b.pin.z.zz <= bundle.z.zz
+         |    b.pin <= bundle
+         |    bundle <= a.bundle_0
          |  module A :
          |    input clock : Clock
          |    output bundle_0 : {x : UInt<1>, y: UInt<1>, z: {zz : UInt<1>} }
          |    wire bundle : {x : UInt<1>, y: UInt<1>, z: {zz : UInt<1>} }
-         |    bundle_0.x <= bundle.x
-         |    bundle_0.y <= bundle.y
-         |    bundle_0.z.zz <= bundle.z.zz
-         |    bundle.x is invalid
-         |    bundle.y is invalid
-         |    bundle.z.zz is invalid
+         |    bundle is invalid
+         |    bundle_0 <= bundle
          |  module B :
          |    input clock : Clock
-         |    input pin : {x : UInt<1>, y: UInt<1>, z: {zz : UInt<1>} }
-         |    skip""".stripMargin
+         |    input pin : {x : UInt<1>, y: UInt<1>, z: {zz : UInt<1>} }"""
+        .stripMargin
     val c = passes.foldLeft(parse(input)) {
       (c: Circuit, p: Pass) => p.run(c)
     }
     val wiringXForm = new WiringTransform()
-    val retC = wiringXForm.execute(CircuitState(c, LowForm, Some(AnnotationMap(Seq(source, sink))), None)).circuit
+    val retC = wiringXForm.execute(CircuitState(c, MidForm, Some(AnnotationMap(Seq(source, sink))), None)).circuit
     (parse(retC.serialize).serialize) should be (parse(check).serialize)
   }
 
