@@ -5,6 +5,20 @@ package annotations
 
 import firrtl.ir.Expression
 import AnnotationUtils.{validModuleName, validComponentName, toExp}
+import com.trueaccord.scalapb.TypeMapper
+
+// How can we seal named but still provide a "LazyName" but also make it so that
+// it's not onerous on transform writers to deal with LazyName
+sealed trait AbstractNamed
+
+trait NamedPB extends Product {
+  def serialize: String = {
+    this.productIterator.map {
+      case named: NamedPB => named.serialize
+      case other => other.toString
+    }.reverse.mkString(".")
+  }
+}
 
 /**
  * Named classes associate an annotation with a component in a Firrtl circuit
@@ -12,6 +26,10 @@ import AnnotationUtils.{validModuleName, validComponentName, toExp}
 sealed trait Named {
   def name: String
   def serialize: String
+}
+object Named {
+  implicit val protoTypeMapper = TypeMapper(AnnotationUtils.toNamed)(_.serialize)
+  //implicit val typeMapper = TypeMapper(Seconds.apply)(_.v)
 }
 
 /** Name referring to the top of the circuit */

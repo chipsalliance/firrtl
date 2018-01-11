@@ -1,0 +1,14 @@
+
+syntax = "proto2";
+
+import "scalapb/scalapb.proto";
+
+package firrtl.annotations;
+
+message CircuitNamePB {
+  required string name = 1;
+}
+message ModuleNamePB {
+  required string name = 1;
+  required CircuitNamePB circuit = 2;
+}

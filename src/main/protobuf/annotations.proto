@@ -1,0 +1,11 @@
+
+syntax = "proto3";
+
+import "scalapb/scalapb.proto";
+
+package firrtl.annotations;
+
+message ExampleAnno {
+  //option (scalapb.message).extends = "firrtl.annotations.Annotation";
+  string target = 1 [(scalapb.field).type = "firrtl.annotations.Named"];
+}

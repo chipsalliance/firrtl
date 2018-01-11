@@ -88,6 +88,14 @@ antlr4PackageName in Antlr4 := Option("firrtl.antlr")
 
 antlr4Version in Antlr4 := "4.7"
 
+// ScalaPB
+PB.targets in Compile := Seq(
+  scalapb.gen(flatPackage = true) -> (sourceManaged in Compile).value
+)
+
+libraryDependencies += "com.trueaccord.scalapb" %% "scalapb-runtime" %
+  com.trueaccord.scalapb.compiler.Version.scalapbVersion % "protobuf"
+
 // ScalaDoc
 
 enablePlugins(ScalaUnidocPlugin)
