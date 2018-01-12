@@ -49,6 +49,7 @@ object AnnotationUtils {
   }
 
   def toNamed(s: String): Named = tokenize(s) match {
+    case Seq(n) if ConstName.canBuildFrom(n) => ConstName(BigInt(n))
     case Seq(n) => CircuitName(n)
     case Seq(c, ".", m) => ModuleName(m, CircuitName(c))
     case Seq(c, ".", m, ".", x) => ComponentName(x, ModuleName(m, CircuitName(c)))

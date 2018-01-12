@@ -10,7 +10,6 @@ import AnnotationUtils.{validModuleName, validComponentName, toExp}
  * Named classes associate an annotation with a component in a Firrtl circuit
  */
 sealed trait Named {
-  def name: String
   def serialize: String
 }
 
@@ -34,4 +33,15 @@ final case class ComponentName(name: String, module: ModuleName) extends Named {
   if(!validComponentName(name)) throw AnnotationException(s"Illegal component name: $name")
   def expr: Expression = toExp(name)
   def serialize: String = module.serialize + "." + name
+}
+/** Used for indicating that a named thing has become a constant */
+case class ConstName(value: BigInt) extends Named {
+	def serialize = value.toString
+}
+object ConstName {
+	private val Regex = """(-?\d+)""".r
+	def canBuildFrom(str: String): Boolean = str match {
+		case Regex(_) => true
+		case _ => false
+	}
 }

@@ -29,15 +29,33 @@ object JsonProtocol {
     { case JString(s) => Class.forName(s).asInstanceOf[Class[_ <: Transform]] },
     { case x: Class[_] => JString(x.getName) }
   ))
+  // TODO Reduce boilerplate?
   class NamedSerializer extends CustomSerializer[Named](format => (
     { case JString(s) => AnnotationUtils.toNamed(s) },
     { case named: Named => JString(named.serialize) }
+  ))
+  class CircuitNameSerializer extends CustomSerializer[CircuitName](format => (
+    { case JString(s) => AnnotationUtils.toNamed(s).asInstanceOf[CircuitName] },
+    { case named: CircuitName => JString(named.serialize) }
+  ))
+  class ModuleNameSerializer extends CustomSerializer[ModuleName](format => (
+    { case JString(s) => AnnotationUtils.toNamed(s).asInstanceOf[ModuleName] },
+    { case named: ModuleName => JString(named.serialize) }
+  ))
+  class ComponentNameSerializer extends CustomSerializer[ComponentName](format => (
+    { case JString(s) => AnnotationUtils.toNamed(s).asInstanceOf[ComponentName] },
+    { case named: ComponentName => JString(named.serialize) }
+  ))
+  class ConstNameSerializer extends CustomSerializer[ConstName](format => (
+    { case JString(s) => AnnotationUtils.toNamed(s).asInstanceOf[ConstName] },
+    { case named: ConstName => JString(named.serialize) }
   ))
 
   /** Construct Json formatter for annotations */
   def jsonFormat(tags: Seq[Class[_ <: Annotation]]) = {
     Serialization.formats(FullTypeHints(tags.toList)).withTypeHintFieldName("class") +
-      new TransformClassSerializer + new NamedSerializer
+      new TransformClassSerializer + new NamedSerializer + new CircuitNameSerializer +
+      new ModuleNameSerializer + new ComponentNameSerializer + new ConstNameSerializer
   }
 
   /** Serialize annotations to a String for emission */
