@@ -34,22 +34,13 @@ trait AnnotationSpec extends LowTransformSpec {
   }
 }
 
+// Abstract but with lots of tests defined so that we can use the same tests
+// for Legacy and newer Annotations
+abstract class AnnotationTests extends AnnotationSpec with Matchers {
+  def anno(s: String, value: String ="this is a value", mod: String = "Top"): Annotation
+  def manno(mod: String): Annotation
 
-class AnnotationTests extends AnnotationSpec with Matchers {
-  // Helper annotations
-  case class SimpleAnno(target: ComponentName, value: String) extends
-      SingleTargetAnnotation[ComponentName] {
-    def duplicate(n: ComponentName) = this.copy(target = n)
-  }
-  case class ModuleAnno(target: ModuleName) extends SingleTargetAnnotation[ModuleName] {
-    def duplicate(n: ModuleName) = this.copy(target = n)
-  }
-  // Helper functions to construct annotations
-  def anno(s: String, value: String ="this is a value", mod: String = "Top"): SimpleAnno =
-    SimpleAnno(ComponentName(s, ModuleName(mod, CircuitName("Top"))), value)
-  def manno(mod: String): Annotation = ModuleAnno(ModuleName(mod, CircuitName("Top")))
-
-  "Loose and Sticky annotation on a node" should "pass through" in {
+  "Annotation on a node" should "pass through" in {
     val input: String =
       """circuit Top :
          |  module Top :
@@ -58,64 +49,6 @@ class AnnotationTests extends AnnotationSpec with Matchers {
          |    node c = b""".stripMargin
     val ta = anno("c", "")
     execute(input, ta, Seq(ta))
-  }
-
-  "LegacyAnnotations" should "be readable from file" in {
-    val annotationStream = getClass.getResourceAsStream("/annotations/SampleAnnotations.anno")
-    val annotationsYaml = scala.io.Source.fromInputStream(annotationStream).getLines().mkString("\n").parseYaml
-    val annotationArray = annotationsYaml.convertTo[Array[LegacyAnnotation]]
-    annotationArray.length should be (9)
-    annotationArray(0).targetString should be ("ModC")
-    annotationArray(7).transformClass should be ("firrtl.passes.InlineInstances")
-    val expectedValue = "TopOfDiamond\nWith\nSome new lines"
-    annotationArray(7).value should be (expectedValue)
-  }
-
-  "Badly formatted LegacyAnnotation serializations" should "return reasonable error messages" in {
-    var badYaml =
-      """
-        |- transformClass: firrtl.passes.InlineInstances
-        |  targetString: circuit.module..
-        |  value: ModC.this params 16 32
-      """.stripMargin.parseYaml
-
-    var thrown = intercept[Exception] {
-      badYaml.convertTo[Array[LegacyAnnotation]]
-    }
-    thrown.getMessage should include ("Illegal component name")
-
-    badYaml =
-      """
-        |- transformClass: firrtl.passes.InlineInstances
-        |  targetString: .circuit.module.component
-        |  value: ModC.this params 16 32
-      """.stripMargin.parseYaml
-
-    thrown = intercept[Exception] {
-      badYaml.convertTo[Array[LegacyAnnotation]]
-    }
-    thrown.getMessage should include ("Illegal circuit name")
-  }
-
-  "Round tripping annotations through text file" should "preserve annotations" in {
-    val annos: Array[Annotation] = Seq(
-      InlineAnnotation(CircuitName("fox")),
-      InlineAnnotation(ModuleName("dog", CircuitName("bear"))),
-      InlineAnnotation(ComponentName("chocolate", ModuleName("like", CircuitName("i")))),
-      PinAnnotation(Seq("sea-lion", "monk-seal"))
-    ).toArray
-
-    val annoFile = new File("temp-anno")
-    val writer = new FileWriter(annoFile)
-    writer.write(JsonProtocol.serialize(annos))
-    writer.close()
-
-    val text = io.Source.fromFile(annoFile).getLines().mkString("\n")
-    annoFile.delete()
-
-    val readAnnos = JsonProtocol.deserializeTry(text).get
-
-    annos should be (readAnnos)
   }
 
   "Deleting annotations" should "create a DeletedAnnotation" in {
@@ -499,3 +432,82 @@ class AnnotationTests extends AnnotationSpec with Matchers {
   }
 }
 
+class LegacyAnnotationTests extends AnnotationTests {
+  def anno(s: String, value: String ="this is a value", mod: String = "Top"): Annotation =
+    Annotation(ComponentName(s, ModuleName(mod, CircuitName("Top"))), classOf[Transform], value)
+  def manno(mod: String): Annotation =
+    Annotation(ModuleName(mod, CircuitName("Top")), classOf[Transform], "some value")
+
+  "LegacyAnnotations" should "be readable from file" in {
+    val annotationStream = getClass.getResourceAsStream("/annotations/SampleAnnotations.anno")
+    val annotationsYaml = scala.io.Source.fromInputStream(annotationStream).getLines().mkString("\n").parseYaml
+    val annotationArray = annotationsYaml.convertTo[Array[LegacyAnnotation]]
+    annotationArray.length should be (9)
+    annotationArray(0).targetString should be ("ModC")
+    annotationArray(7).transformClass should be ("firrtl.passes.InlineInstances")
+    val expectedValue = "TopOfDiamond\nWith\nSome new lines"
+    annotationArray(7).value should be (expectedValue)
+  }
+
+  "Badly formatted LegacyAnnotation serializations" should "return reasonable error messages" in {
+    var badYaml =
+      """
+        |- transformClass: firrtl.passes.InlineInstances
+        |  targetString: circuit.module..
+        |  value: ModC.this params 16 32
+      """.stripMargin.parseYaml
+
+    var thrown = intercept[Exception] {
+      badYaml.convertTo[Array[LegacyAnnotation]]
+    }
+    thrown.getMessage should include ("Illegal component name")
+
+    badYaml =
+      """
+        |- transformClass: firrtl.passes.InlineInstances
+        |  targetString: .circuit.module.component
+        |  value: ModC.this params 16 32
+      """.stripMargin.parseYaml
+
+    thrown = intercept[Exception] {
+      badYaml.convertTo[Array[LegacyAnnotation]]
+    }
+    thrown.getMessage should include ("Illegal circuit name")
+  }
+}
+
+class JsonAnnotationTests extends AnnotationTests {
+  // Helper annotations
+  case class SimpleAnno(target: ComponentName, value: String) extends
+      SingleTargetAnnotation[ComponentName] {
+    def duplicate(n: ComponentName) = this.copy(target = n)
+  }
+  case class ModuleAnno(target: ModuleName) extends SingleTargetAnnotation[ModuleName] {
+    def duplicate(n: ModuleName) = this.copy(target = n)
+  }
+
+  def anno(s: String, value: String ="this is a value", mod: String = "Top"): SimpleAnno =
+    SimpleAnno(ComponentName(s, ModuleName(mod, CircuitName("Top"))), value)
+  def manno(mod: String): Annotation = ModuleAnno(ModuleName(mod, CircuitName("Top")))
+
+  "Round tripping annotations through text file" should "preserve annotations" in {
+    val annos: Array[Annotation] = Seq(
+      InlineAnnotation(CircuitName("fox")),
+      InlineAnnotation(ModuleName("dog", CircuitName("bear"))),
+      InlineAnnotation(ComponentName("chocolate", ModuleName("like", CircuitName("i")))),
+      PinAnnotation(Seq("sea-lion", "monk-seal"))
+    ).toArray
+
+    val annoFile = new File("temp-anno")
+    val writer = new FileWriter(annoFile)
+    writer.write(JsonProtocol.serialize(annos))
+    writer.close()
+
+    val text = io.Source.fromFile(annoFile).getLines().mkString("\n")
+    annoFile.delete()
+
+    val readAnnos = JsonProtocol.deserializeTry(text).get
+
+    annos should be (readAnnos)
+  }
+}
