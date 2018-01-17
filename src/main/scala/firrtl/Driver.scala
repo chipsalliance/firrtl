@@ -66,6 +66,17 @@ object Driver {
     outputString
   }
 
+  /** Print a warning message
+    *
+    * @param message error message
+    */
+  //scalastyle:off regex
+  def dramaticWarning(message: String): Unit = {
+    println(Console.YELLOW + "-"*78)
+    println(s"Warning: $message")
+    println("-"*78 + Console.RESET)
+  }
+
   /**
     * print the message in red
     *
@@ -78,41 +89,57 @@ object Driver {
     println("-"*78 + Console.RESET)
   }
 
-  /**
-    * Load annotation file based on options
-    * @param optionsManager use optionsManager config to load annotation file if it exists
-    *                       update the firrtlOptions with new annotations if it does
+  /** Load annotations from specified files and options
+    *
+    * @param optionsManager use optionsManager config to load annotation files
+    * @return Annotations read from files
     */
-  def loadAnnotations(optionsManager: ExecutionOptionsManager with HasFirrtlOptions): Unit = {
-    /*
-     If firrtlAnnotations in the firrtlOptions are nonEmpty then these will be the annotations
-     used by firrtl.
-     To use the file annotations make sure that the annotations in the firrtlOptions are empty
-     The annotation file if needed is found via
-     s"$targetDirName/$topName.anno" or s"$annotationFileNameOverride.anno"
-    */
-    def firrtlConfig = optionsManager.firrtlOptions
+  //scalastyle:off cyclomatic.complexity method.length
+  def loadAnnotations(
+      optionsManager: ExecutionOptionsManager with HasFirrtlOptions
+  ): Seq[Annotation] = {
+    val firrtlConfig = optionsManager.firrtlOptions
 
-    if (firrtlConfig.annotations.isEmpty || firrtlConfig.forceAppendAnnoFile) {
-      val annotationFileName = firrtlConfig.getAnnotationFileName(optionsManager)
-      val annotationFile = new File(annotationFileName)
-      if (annotationFile.exists) {
-        val annotationsYaml = io.Source.fromFile(annotationFile).getLines().mkString("\n").parseYaml
-        val annotationArray = annotationsYaml.convertTo[Array[Annotation]]
-        optionsManager.firrtlOptions = firrtlConfig.copy(annotations = firrtlConfig.annotations ++ annotationArray)
+    //noinspection ScalaDeprecation
+    val oldAnnoFileName = firrtlConfig.getAnnotationFileName(optionsManager)
+    val oldAnnoFile = new File(oldAnnoFileName).getCanonicalFile
+
+    val (annoFiles, usingImplicitAnnoFile) = {
+      val afs = firrtlConfig.annotationFileNames.map { x =>
+        new File(x).getCanonicalFile
       }
+      // Implicit anno file could be included explicitly, only include it and
+      // warn if it's not also explicit
+      val use = oldAnnoFile.exists && !afs.contains(oldAnnoFile)
+      if (use) (oldAnnoFile +: afs, true) else (afs, false)
     }
 
-    if(firrtlConfig.annotations.nonEmpty) {
-      val targetDirAnno = List(Annotation(
+    // Warnings to get people to change to drop old API
+    if (firrtlConfig.annotationFileNameOverride.nonEmpty) {
+      val msg = "annotationFileNameOverride is deprecated! " +
+                "Use annotationFileNames"
+      Driver.dramaticWarning(msg)
+    } else if (usingImplicitAnnoFile) {
+      val msg = "Implicit .anno file from top-name is deprecated!\n" +
+             (" "*9) + "Use explicit -faf option or annotationFileNames"
+      Driver.dramaticWarning(msg)
+    }
+
+    val loadedAnnos = annoFiles.flatMap { file =>
+      if (!file.exists) {
+        throw new FileNotFoundException(s"Annotation file $file not found!")
+      }
+      val yaml = io.Source.fromFile(file).getLines().mkString("\n").parseYaml
+      yaml.convertTo[List[Annotation]]
+
+    }
+
+    val targetDirAnno =
+      List(Annotation(
         CircuitName("All"),
         classOf[BlackBoxSourceHelper],
         BlackBoxTargetDir(optionsManager.targetDirName).serialize
       ))
-
-      optionsManager.firrtlOptions = optionsManager.firrtlOptions.copy(
-        annotations = firrtlConfig.annotations ++ targetDirAnno)
-    }
 
     // Output Annotations
     val outputAnnos = firrtlConfig.getEmitterAnnos(optionsManager)
@@ -121,9 +148,7 @@ object Driver {
       (if (firrtlConfig.dontCheckCombLoops) Seq(DontCheckCombLoopsAnnotation()) else Seq()) ++
       (if (firrtlConfig.noDCE) Seq(NoDCEAnnotation()) else Seq())
 
-    optionsManager.firrtlOptions = optionsManager.firrtlOptions.copy(
-      annotations = firrtlConfig.annotations ++ outputAnnos ++ globalAnnos)
-
+    targetDirAnno ++ outputAnnos ++ globalAnnos ++ firrtlConfig.annotations ++ loadedAnnos
   }
 
   /**
@@ -166,7 +191,7 @@ object Driver {
           }
       }
 
-      loadAnnotations(optionsManager)
+      val annos = loadAnnotations(optionsManager)
 
       val parsedInput = Parser.parse(firrtlSource, firrtlConfig.infoMode)
 
@@ -176,7 +201,7 @@ object Driver {
       val finalState = firrtlConfig.compiler.compile(
         CircuitState(parsedInput,
                      ChirrtlForm,
-                     Some(AnnotationMap(firrtlConfig.annotations))),
+                     Some(AnnotationMap(annos))),
         firrtlConfig.customTransforms
       )
 
@@ -193,7 +218,7 @@ object Driver {
         case OneFilePerModule(dirName) =>
           val emittedModules = finalState.emittedComponents collect { case x: EmittedModule => x }
           if (emittedModules.isEmpty) throwInternalError // There should be something
-          emittedModules.foreach { case module =>
+          emittedModules.foreach { module =>
             val filename = optionsManager.getBuildFileName(firrtlConfig.outputSuffix, s"$dirName/${module.name}")
             val outputFile = new java.io.PrintWriter(filename)
             outputFile.write(module.value)
@@ -208,8 +233,8 @@ object Driver {
         case file =>
           val filename = optionsManager.getBuildFileName("anno", file)
           val outputFile = new java.io.PrintWriter(filename)
-          finalState.annotations.map {
-            case annos => outputFile.write(annos.annotations.mkString("\n"))
+          finalState.annotations.foreach {
+            finalAnnos => outputFile.write(finalAnnos.annotations.toYaml.prettyPrint)
           }
           outputFile.close()
       }
@@ -319,6 +344,6 @@ object FileUtils {
     Seq("bash", "-c", "which %s".format(cmd)).run(ioToDevNull).exitValue == 0
   }
 
-  /** isVCSAvailable - flag indicating vcs is available (for Verilog compilation and testing. */
+  /** Flag indicating if vcs is available (for Verilog compilation and testing). */
   lazy val isVCSAvailable: Boolean = isCommandAvailable("vcs")
 }
