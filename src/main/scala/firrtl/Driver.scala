@@ -172,16 +172,22 @@ object Driver {
           }
       }
 
-      val annos = loadAnnotations(optionsManager)
+      val annoMap = loadAnnotations(optionsManager).groupBy(_.isInstanceOf[RunTransformAnnotation])
+      val transforms = annoMap.getOrElse(true, List.empty).distinct.map {
+        case RunTransformAnnotation(transformClass) => transformClass.newInstance()
+      }
+      val annos = annoMap.getOrElse(false, List.empty)
 
       val parsedInput = Parser.parse(firrtlSource, firrtlConfig.infoMode)
 
       // Does this need to be before calling compiler?
       optionsManager.makeTargetDir()
 
+      val customTransforms = firrtlConfig.customTransforms ++ transforms
+
       val finalState = firrtlConfig.compiler.compile(
         CircuitState(parsedInput, ChirrtlForm, annos),
-        firrtlConfig.customTransforms
+        customTransforms
       )
 
       // Do emission

@@ -17,6 +17,17 @@ import firrtl._
 import firrtl.annotations._
 import firrtl.util.BackendCompilationUtilities
 
+class ExceptingTransform extends Transform {
+  def inputForm = HighForm
+  def outputForm = HighForm
+  def execute(state: CircuitState): CircuitState = {
+    throw new ExceptingTransform.CustomException("I ran!")
+  }
+}
+object ExceptingTransform {
+  case class CustomException(msg: String) extends Exception
+}
+
 //noinspection ScalaStyle
 class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities {
   "CommonOptions are some simple options available across the chisel3 ecosystem" - {
@@ -297,6 +308,25 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
       FileUtils.deleteDirectoryHierarchy("wolf") should be (false)
       FileUtils.deleteDirectoryHierarchy("dog") should be (true)
       dir.exists() should be (false)
+    }
+  }
+
+  "Custom Transforms" - {
+    "should run if specified with a RunTranformAnnotation" in {
+      val dummyFirrtl = """
+        |circuit Test :
+        |  module Test :
+        |    output out : UInt
+        |    out <= UInt(1)""".stripMargin
+      val optionsManager = new ExecutionOptionsManager("CustomTransforms") with HasFirrtlOptions {
+        firrtlOptions = firrtlOptions.copy(
+          annotations = firrtlOptions.annotations :+ RunTransformAnnotation(classOf[ExceptingTransform]),
+          firrtlSource = Some(dummyFirrtl)
+        )
+      }
+      an [ExceptingTransform.CustomException] shouldBe thrownBy {
+        Driver.execute(optionsManager)
+      }
     }
   }
 }
