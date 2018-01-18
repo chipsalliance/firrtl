@@ -34,14 +34,3 @@ final case class ComponentName(name: String, module: ModuleName) extends Named {
   def expr: Expression = toExp(name)
   def serialize: String = module.serialize + "." + name
 }
-/** Used for indicating that a named thing has become a constant */
-case class ConstName(value: BigInt) extends Named {
-	def serialize = value.toString
-}
-object ConstName {
-	private val Regex = """(-?\d+)""".r
-	def canBuildFrom(str: String): Boolean = str match {
-		case Regex(_) => true
-		case _ => false
-	}
-}

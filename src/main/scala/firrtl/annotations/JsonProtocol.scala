@@ -46,16 +46,12 @@ object JsonProtocol {
     { case JString(s) => AnnotationUtils.toNamed(s).asInstanceOf[ComponentName] },
     { case named: ComponentName => JString(named.serialize) }
   ))
-  class ConstNameSerializer extends CustomSerializer[ConstName](format => (
-    { case JString(s) => AnnotationUtils.toNamed(s).asInstanceOf[ConstName] },
-    { case named: ConstName => JString(named.serialize) }
-  ))
 
   /** Construct Json formatter for annotations */
   def jsonFormat(tags: Seq[Class[_ <: Annotation]]) = {
     Serialization.formats(FullTypeHints(tags.toList)).withTypeHintFieldName("class") +
       new TransformClassSerializer + new NamedSerializer + new CircuitNameSerializer +
-      new ModuleNameSerializer + new ComponentNameSerializer + new ConstNameSerializer
+      new ModuleNameSerializer + new ComponentNameSerializer
   }
 
   /** Serialize annotations to a String for emission */
