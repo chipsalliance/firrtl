@@ -218,6 +218,18 @@ abstract class Transform extends LazyLogging {
     */
   protected def execute(state: CircuitState): CircuitState
 
+  /** Convenience method to get annotations relevant to this Transform
+    *
+    * @param state The [[CircuitState]] form which to extract annotations
+    * @return A collection of annotations
+    */
+  @deprecated("Just collect the actual Annotation types the transform wants", "1.1")
+  final def getMyAnnotations(state: CircuitState): Seq[Annotation] = {
+    val msg = "getMyAnnotations is deprecated, use collect and match on concrete types"
+    Driver.dramaticWarning(msg)
+    state.annotations.collect { case a: LegacyAnnotation if a.transform == this.getClass => a }
+  }
+
   /** Perform the transform and update annotations.
     *
     * @param state Input Firrtl AST
