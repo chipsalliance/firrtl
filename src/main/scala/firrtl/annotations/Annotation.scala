@@ -95,7 +95,83 @@ final case class LegacyAnnotation private[firrtl] (
 }
 
 // Private so that LegacyAnnotation can only be constructed via deprecated Annotation.apply
-private object LegacyAnnotation
+private[firrtl] object LegacyAnnotation {
+  // ***** Everything below here is to help people migrate off of old annotations *****
+  def errorIllegalAnno(name: String) =
+    throw new Exception(s"Old-style annotations that look like $name are no longer supported")
+
+  private val OldDeletedRegex = """(?s)DELETED by ([^\n]*)\n(.*)""".r
+  private val PinsRegex = "pins:(.*)".r
+  private val SourceRegex = "source (.+)".r
+  private val SinkRegex = "sink (.+)".r
+  private val TopRegex = "top (.+)".r
+
+  import firrtl.transforms._
+  import firrtl.passes._
+  import firrtl.passes.memlib._
+  import firrtl.passes.wiring._
+  import firrtl.passes.clocklist._
+  // Attempt to convert common Annotations and error on the rest of old-style build-in annotations
+  def convertLegacyAnno(anno: LegacyAnnotation): Annotation = anno match {
+    // All old-style Emitter annotations are illegal
+    case LegacyAnnotation(_,_,"emitCircuit") => errorIllegalAnno("EmitCircuitAnnotation")
+    case LegacyAnnotation(_,_,"emitAllModules") => errorIllegalAnno("EmitAllModulesAnnotation")
+    case LegacyAnnotation(_,_,value) if value.startsWith("emittedFirrtlCircuit") =>
+      errorIllegalAnno("EmittedFirrtlCircuitAnnotation")
+    case LegacyAnnotation(_,_,value) if value.startsWith("emittedFirrtlModule") =>
+      errorIllegalAnno("EmittedFirrtlModuleAnnotation")
+    case LegacyAnnotation(_,_,value) if value.startsWith("emittedVerilogCircuit") =>
+      errorIllegalAnno("EmittedVerilogCircuitAnnotation")
+    case LegacyAnnotation(_,_,value) if value.startsWith("emittedVerilogModule") =>
+      errorIllegalAnno("EmittedVerilogModuleAnnotation")
+    // People shouldn't be trying to pass deleted annotations to Firrtl
+    case LegacyAnnotation(_,_,OldDeletedRegex(_,_)) => errorIllegalAnno("DeletedAnnotation")
+    // Some annotations we'll try to support
+    case LegacyAnnotation(named, t, _) if t == classOf[InlineInstances] => InlineAnnotation(named)
+    case LegacyAnnotation(n: ModuleName, t, outputConfig) if t == classOf[ClockListTransform] =>
+      ClockListAnnotation(n, outputConfig)
+    case LegacyAnnotation(CircuitName(_), transform, "") if transform == classOf[InferReadWrite] =>
+      InferReadWriteAnnotation
+    case LegacyAnnotation(_,_,PinsRegex(pins)) => PinAnnotation(pins.split(" "))
+    case LegacyAnnotation(_, t, value) if t == classOf[ReplSeqMem] =>
+      val args = value.split(" ")
+      require(args.size == 2, "Something went wrong, stop using legacy ReplSeqMemAnnotation")
+      ReplSeqMemAnnotation(args(0), args(1))
+    case LegacyAnnotation(c: ComponentName, _, "nodedupmem!") => NoDedupMemAnnotation(c)
+    case LegacyAnnotation(c: ComponentName, _, SourceRegex(pin)) => SourceAnnotation(c, pin)
+    case LegacyAnnotation(m: ModuleName, _, SinkRegex(pin)) => SinkAnnotation(m, pin)
+    case LegacyAnnotation(m: ModuleName, _, TopRegex(pin)) => TopAnnotation(m, pin)
+    case LegacyAnnotation(m: ModuleName, t, text) if t == classOf[BlackBoxSourceHelper] =>
+      text.split("\n", 3).toList match {
+        case "resource" :: id ::  _ => BlackBoxResourceAnno(id)
+        case "inline" :: name :: text :: _ => BlackBoxInlineAnno(name, text)
+        case "targetDir" :: targetDir :: _ => BlackBoxTargetDirAnno(targetDir)
+        case _ => errorIllegalAnno("BlackBoxSourceAnnotation")
+      }
+    case LegacyAnnotation(_, transform, "noDCE!") if transform == classOf[DeadCodeElimination] =>
+      NoDCEAnnotation
+    case LegacyAnnotation(c: ComponentName, _, "DONTtouch!") => DontTouchAnnotation(c)
+    case LegacyAnnotation(c: ModuleName, _, "optimizableExtModule!") =>
+      OptimizableExtModuleAnnotation(c)
+    case other => other
+  }
+  def convertLegacyAnnos(annos: Seq[Annotation]): Seq[Annotation] = {
+    var warned: Boolean = false
+    annos.map {
+      case legacy: LegacyAnnotation =>
+        val annox = convertLegacyAnno(legacy)
+        if (!warned && (annox ne legacy)) {
+          val msg = s"A LegacyAnnotation was automatically converted. " +
+            "This functionality will soon be removed." +
+            (" "*9) + "Please migrate to new annotations."
+          Driver.dramaticWarning(msg)
+          warned = true
+        }
+        annox
+      case other => other
+    }
+  }
+}
 
 /** Tells [[firrtl.Driver]] to instantiate an instance of a [[firrtl.Transform]]
   *

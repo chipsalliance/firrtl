@@ -129,7 +129,9 @@ object Driver {
       (if (firrtlConfig.dontCheckCombLoops) Seq(DontCheckCombLoopsAnnotation) else Seq()) ++
       (if (firrtlConfig.noDCE) Seq(NoDCEAnnotation) else Seq())
 
-    targetDirAnno ++ outputAnnos ++ globalAnnos ++ firrtlConfig.annotations ++ loadedAnnos
+    val annos = targetDirAnno ++ outputAnnos ++ globalAnnos ++
+                firrtlConfig.annotations ++ loadedAnnos
+    LegacyAnnotation.convertLegacyAnnos(annos)
   }
 
   /**
