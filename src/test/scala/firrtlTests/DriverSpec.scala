@@ -222,6 +222,7 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
       InferReadWriteAnnotation,
       ReplSeqMemAnnotation("input", "output"),
       NoDedupMemAnnotation(compname),
+      NoDedupAnnotation(mname),
       SourceAnnotation(compname, "pin"),
       SinkAnnotation(compname, "pin"),
       BlackBoxResourceAnno(mname, "resource"),

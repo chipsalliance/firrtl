@@ -13,6 +13,9 @@
 - targetString: foo.bar.x
   transformClass: firrtl.passes.memlib.ResolveMemoryReference
   value: nodedupmem!
+- targetString: foo.bar
+  transformClass: firrtl.transforms.DedupModules
+  value: nodedup!
 - targetString: foo.bar.x
   transformClass: firrtl.passes.wiring.WiringTransform
   value: source pin

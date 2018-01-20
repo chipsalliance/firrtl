@@ -136,7 +136,10 @@ private[firrtl] object LegacyAnnotation {
       val args = value.split(" ")
       require(args.size == 2, "Something went wrong, stop using legacy ReplSeqMemAnnotation")
       ReplSeqMemAnnotation(args(0), args(1))
-    case LegacyAnnotation(c: ComponentName, _, "nodedupmem!") => NoDedupMemAnnotation(c)
+    case LegacyAnnotation(c: ComponentName, transform, "nodedupmem!")
+      if transform == classOf[ResolveMemoryReference] => NoDedupMemAnnotation(c)
+    case LegacyAnnotation(m: ModuleName, transform, "nodedup!")
+      if transform == classOf[DedupModules] => NoDedupAnnotation(m)
     case LegacyAnnotation(c: ComponentName, _, SourceRegex(pin)) => SourceAnnotation(c, pin)
     case LegacyAnnotation(n, _, SinkRegex(pin)) => SinkAnnotation(n, pin)
     case LegacyAnnotation(m: ModuleName, t, text) if t == classOf[BlackBoxSourceHelper] =>
