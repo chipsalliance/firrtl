@@ -104,7 +104,6 @@ private[firrtl] object LegacyAnnotation {
   private val PinsRegex = "pins:(.*)".r
   private val SourceRegex = "source (.+)".r
   private val SinkRegex = "sink (.+)".r
-  private val TopRegex = "top (.+)".r
 
   import firrtl.transforms._
   import firrtl.passes._
@@ -140,7 +139,6 @@ private[firrtl] object LegacyAnnotation {
     case LegacyAnnotation(c: ComponentName, _, "nodedupmem!") => NoDedupMemAnnotation(c)
     case LegacyAnnotation(c: ComponentName, _, SourceRegex(pin)) => SourceAnnotation(c, pin)
     case LegacyAnnotation(m: ModuleName, _, SinkRegex(pin)) => SinkAnnotation(m, pin)
-    case LegacyAnnotation(m: ModuleName, _, TopRegex(pin)) => TopAnnotation(m, pin)
     case LegacyAnnotation(m: ModuleName, t, text) if t == classOf[BlackBoxSourceHelper] =>
       text.split("\n", 3).toList match {
         case "resource" :: id ::  _ => BlackBoxResourceAnno(id)
