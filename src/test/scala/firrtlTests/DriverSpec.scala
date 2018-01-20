@@ -195,6 +195,47 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
     annotationsTestFile.delete()
   }
 
+  // Deprecated
+  "Supported LegacyAnnotations will be converted automagically" in {
+    val testDir = createTestDirectory("test")
+    val annoFilename = "LegacyAnnotations.anno"
+    val annotationsTestFile =  new File(testDir, annoFilename)
+    val optionsManager = new ExecutionOptionsManager("test") with HasFirrtlOptions {
+      commonOptions = commonOptions.copy(topName = "test", targetDirName = testDir.toString)
+      firrtlOptions = firrtlOptions.copy(
+        annotationFileNames = List(annotationsTestFile.toString)
+      )
+    }
+    copyResourceToFile(s"/annotations/$annoFilename", annotationsTestFile)
+    val annos = Driver.loadAnnotations(optionsManager)
+
+    val cname = CircuitName("foo")
+    val mname = ModuleName("bar", cname)
+    val compname = ComponentName("x", mname)
+    import firrtl.passes.clocklist._
+    import firrtl.passes.memlib._
+    import firrtl.passes.wiring._
+    import firrtl.transforms._
+    val expected = List(
+      InlineAnnotation(cname),
+      ClockListAnnotation(mname, "output"),
+      InferReadWriteAnnotation,
+      ReplSeqMemAnnotation("input", "output"),
+      NoDedupMemAnnotation(compname),
+      SourceAnnotation(compname, "pin"),
+      SinkAnnotation(compname, "pin"),
+      BlackBoxResourceAnno(mname, "resource"),
+      BlackBoxInlineAnno(mname, "name", "text"),
+      BlackBoxTargetDirAnno("targetdir"),
+      NoDCEAnnotation,
+      DontTouchAnnotation(compname),
+      OptimizableExtModuleAnnotation(mname)
+    )
+    for (e <- expected) {
+      annos should contain (e)
+    }
+  }
+
   "Annotations can be read from multiple files" in {
     val filename = "SampleAnnotations.anno.json"
     val optionsManager = new ExecutionOptionsManager("test") with HasFirrtlOptions {

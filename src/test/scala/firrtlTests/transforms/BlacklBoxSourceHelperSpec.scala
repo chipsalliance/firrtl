@@ -53,7 +53,7 @@ class BlacklBoxSourceHelperTransformSpec extends LowTransformSpec {
 
     val annos = Seq(
       BlackBoxTargetDirAnno("test_run_dir"),
-      BlackBoxResourceAnno("/blackboxes/AdderExtModule.v")
+      BlackBoxResourceAnno(moduleName, "/blackboxes/AdderExtModule.v")
     )
 
     execute(input, output, annos)

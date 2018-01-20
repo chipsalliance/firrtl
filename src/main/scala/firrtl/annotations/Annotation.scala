@@ -138,11 +138,11 @@ private[firrtl] object LegacyAnnotation {
       ReplSeqMemAnnotation(args(0), args(1))
     case LegacyAnnotation(c: ComponentName, _, "nodedupmem!") => NoDedupMemAnnotation(c)
     case LegacyAnnotation(c: ComponentName, _, SourceRegex(pin)) => SourceAnnotation(c, pin)
-    case LegacyAnnotation(m: ModuleName, _, SinkRegex(pin)) => SinkAnnotation(m, pin)
+    case LegacyAnnotation(n, _, SinkRegex(pin)) => SinkAnnotation(n, pin)
     case LegacyAnnotation(m: ModuleName, t, text) if t == classOf[BlackBoxSourceHelper] =>
       text.split("\n", 3).toList match {
-        case "resource" :: id ::  _ => BlackBoxResourceAnno(id)
-        case "inline" :: name :: text :: _ => BlackBoxInlineAnno(name, text)
+        case "resource" :: id ::  _ => BlackBoxResourceAnno(m, id)
+        case "inline" :: name :: text :: _ => BlackBoxInlineAnno(m, name, text)
         case "targetDir" :: targetDir :: _ => BlackBoxTargetDirAnno(targetDir)
         case _ => errorIllegalAnno("BlackBoxSourceAnnotation")
       }

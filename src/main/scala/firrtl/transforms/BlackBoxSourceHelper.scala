@@ -10,17 +10,22 @@ import firrtl.annotations._
 
 import scala.collection.mutable.ArrayBuffer
 
-sealed trait BlackBoxHelperAnno extends NoTargetAnnotation
+sealed trait BlackBoxHelperAnno extends Annotation
 
-case class BlackBoxTargetDirAnno(targetDir: String) extends BlackBoxHelperAnno {
+case class BlackBoxTargetDirAnno(targetDir: String) extends BlackBoxHelperAnno
+    with NoTargetAnnotation {
   override def serialize: String = s"targetDir\n$targetDir"
 }
 
-case class BlackBoxResourceAnno(resourceId: String) extends BlackBoxHelperAnno {
+case class BlackBoxResourceAnno(target: ModuleName, resourceId: String) extends BlackBoxHelperAnno
+    with SingleTargetAnnotation[ModuleName] {
+  def duplicate(n: ModuleName) = this.copy(target = n)
   override def serialize: String = s"resource\n$resourceId"
 }
 
-case class BlackBoxInlineAnno(name: String, text: String) extends BlackBoxHelperAnno {
+case class BlackBoxInlineAnno(target: ModuleName, name: String, text: String) extends BlackBoxHelperAnno
+    with SingleTargetAnnotation[ModuleName] {
+  def duplicate(n: ModuleName) = this.copy(target = n)
   override def serialize: String = s"inline\n$name\n$text"
 }
 
@@ -45,8 +50,8 @@ class BlackBoxSourceHelper extends firrtl.Transform {
   def collectAnnos(annos: Seq[Annotation]): (Set[BlackBoxHelperAnno], File) =
     annos.foldLeft((Set.empty[BlackBoxHelperAnno], DefaultTargetDir)) {
       case ((acc, tdir), anno) => anno match {
-        case BlackBoxTargetDirAnno(target) =>
-          val targetDir = new File(target)
+        case BlackBoxTargetDirAnno(dir) =>
+          val targetDir = new File(dir)
           if (!targetDir.exists()) { FileUtils.makeDirectory(targetDir.getAbsolutePath) }
           (acc, targetDir)
         case a: BlackBoxHelperAnno => (acc + a, tdir)
@@ -64,12 +69,12 @@ class BlackBoxSourceHelper extends firrtl.Transform {
     val (annos, targetDir) = collectAnnos(state.annotations)
     val fileList = annos.foldLeft(List.empty[String]) {
       case (fileList, anno) => anno match {
-        case BlackBoxResourceAnno(resourceId) =>
+        case BlackBoxResourceAnno(_, resourceId) =>
           val name = resourceId.split("/").last
           val outFile = new File(targetDir, name)
           BlackBoxSourceHelper.copyResourceToFile(resourceId,outFile)
           outFile.getAbsolutePath +: fileList
-        case BlackBoxInlineAnno(name, text) =>
+        case BlackBoxInlineAnno(_, name, text) =>
           val outFile = new File(targetDir, name)
           val writer = new PrintWriter(outFile)
           writer.write(text)
