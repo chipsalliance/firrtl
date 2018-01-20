@@ -2,7 +2,7 @@
 
 package firrtlTests
 
-import java.io.File
+import java.io.{File, FileWriter}
 import org.scalatest.{FreeSpec, Matchers}
 
 import firrtl.passes.{InlineAnnotation, InlineInstances}
@@ -233,6 +233,35 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
     )
     for (e <- expected) {
       annos should contain (e)
+    }
+  }
+
+  // Deprecated
+  "UNsupported LegacyAnnotations should throw errors" in {
+    val testDir = createTestDirectory("test")
+    val annoFilename = "InvalidLegacyAnnotations.anno"
+    val annotationsTestFile =  new File(testDir, annoFilename)
+    copyResourceToFile(s"/annotations/$annoFilename", annotationsTestFile)
+
+    import net.jcazevedo.moultingyaml._
+    val text = io.Source.fromFile(annotationsTestFile).mkString
+    val yamlAnnos = text.parseYaml match { case YamlArray(xs) => xs }
+
+    // Since each one should error, emit each one to an anno file and try to read it
+    for ((anno, i) <- yamlAnnos.zipWithIndex) {
+      val annoFile = new File(testDir, s"anno_$i.anno")
+      val fw = new FileWriter(annoFile)
+      fw.write(YamlArray(anno).prettyPrint)
+      fw.close()
+      val optionsManager = new ExecutionOptionsManager("test") with HasFirrtlOptions {
+        commonOptions = commonOptions.copy(topName = "test", targetDirName = testDir.toString)
+        firrtlOptions = firrtlOptions.copy(
+          annotationFileNames = List(annoFile.toString)
+        )
+      }
+      (the [Exception] thrownBy {
+        Driver.loadAnnotations(optionsManager)
+      }).getMessage should include ("Old-style annotations")
     }
   }
 
