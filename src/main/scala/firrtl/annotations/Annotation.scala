@@ -159,9 +159,8 @@ private[firrtl] object LegacyAnnotation {
       case legacy: LegacyAnnotation =>
         val annox = convertLegacyAnno(legacy)
         if (!warned && (annox ne legacy)) {
-          val msg = s"A LegacyAnnotation was automatically converted. " +
-            "This functionality will soon be removed." +
-            (" "*9) + "Please migrate to new annotations."
+          val msg = s"A LegacyAnnotation was automatically converted.\n" + (" "*9) +
+            "This functionality will soon be removed. Please migrate to new annotations."
           Driver.dramaticWarning(msg)
           warned = true
         }

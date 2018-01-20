@@ -174,8 +174,7 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
     optionsManager.firrtlOptions.annotations.length should be (0)
     val annos = Driver.loadAnnotations(optionsManager)
     annos.length should be (12) // 9 from circuit plus 3 general purpose
-    annos.collect { case a: LegacyAnnotation => a }
-         .count(_.transformClass == "firrtl.passes.InlineInstances") should be (9)
+    annos.count(_.isInstanceOf[InlineAnnotation]) should be (9)
     annoFile.delete()
   }
 
@@ -192,8 +191,7 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
     optionsManager.firrtlOptions.annotations.length should be (0)
     val annos = Driver.loadAnnotations(optionsManager)
     annos.length should be (12) // 9 from circuit plus 3 general purpose
-    annos.collect { case a: LegacyAnnotation => a }
-         .count(_.transformClass == "firrtl.passes.InlineInstances") should be (9)
+    annos.count(_.isInstanceOf[InlineAnnotation]) should be (9)
     annotationsTestFile.delete()
   }
 
