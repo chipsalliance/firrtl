@@ -37,7 +37,7 @@ scalacOptions := scalacOptionsVersion(scalaVersion.value)
 def javacOptionsVersion(scalaVersion: String): Seq[String] = {
   Seq() ++ {
     // Scala 2.12 requires Java 8, but we continue to generate
-    //  Java 7 compatible code until we need Java 8 features
+    //  Java 7 compatible code until we need Java 8 elements
     //  for compatibility with old clients.
     CrossVersion.partialVersion(scalaVersion) match {
       case Some((2, scalaMajor: Int)) if scalaMajor < 12 =>
