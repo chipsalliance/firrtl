@@ -1,4 +1,6 @@
 # Firrtl
+
+[![Join the chat at https://gitter.im/freechipsproject/firrtl](https://badges.gitter.im/freechipsproject/firrtl.svg)](https://gitter.im/freechipsproject/firrtl?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 [![Build Status](https://travis-ci.org/freechipsproject/firrtl.svg?branch=master)](https://travis-ci.org/freechipsproject/firrtl)
 #### Flexible Internal Representation for RTL
 
@@ -32,6 +34,7 @@ sbt assembly
 
 #### Other Tools
 * Firrtl syntax highlighting for Vim users: https://github.com/azidar/firrtl-syntax
+* Firrtl mode for Emacs users: https://github.com/ibm/firrtl-mode
 * Chisel3, an embedded hardware DSL that generates Firrtl: https://github.com/ucb-bar/chisel3
 * Firrtl Interpreter: https://github.com/ucb-bar/firrtl-interpreter
 * Yosys Verilog-to-Firrtl Front-end: https://github.com/cliffordwolf/yosys
