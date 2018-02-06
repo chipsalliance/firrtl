@@ -13,7 +13,9 @@ import scala.collection.Seq
 
 /**
   * Use this trait to define an options class that can add its private command line options to a externally
-  * declared parser
+  * declared parser.
+  * '''NOTE''' In all derived trait/classes, if you intend on maintaining backwards compatibility,
+  *  be sure to add new options at the end of the current ones and don't remove any existing ones.
   */
 trait ComposableOptions
 
@@ -179,11 +181,11 @@ case class FirrtlExecutionOptions(
     annotations:            List[Annotation] = List.empty,
     annotationFileNameOverride: String = "",
     outputAnnotationFileName: String = "",
-    forceAppendAnnoFile:    Boolean = false,
     emitOneFilePerModule:   Boolean = false,
     dontCheckCombLoops:     Boolean = false,
-    noDCE:                  Boolean = false)
-  extends ComposableOptions {
+    noDCE:                  Boolean = false,
+    annotationFileNames:    List[String] = List.empty)
+extends ComposableOptions {
 
   require(!(emitOneFilePerModule && outputFileNameOverride.nonEmpty),
     "Cannot both specify the output filename and emit one file per module!!!")
@@ -204,12 +206,14 @@ case class FirrtlExecutionOptions(
       case "low"       => new LowFirrtlCompiler()
       case "middle"    => new MiddleFirrtlCompiler()
       case "verilog"   => new VerilogCompiler()
+      case "sverilog"  => new VerilogCompiler()
     }
   }
 
   def outputSuffix: String = {
     compilerName match {
       case "verilog"   => "v"
+      case "sverilog"  => "sv"
       case "low"       => "lo.fir"
       case "high"      => "hi.fir"
       case "middle"    => "mid.fir"
@@ -259,6 +263,7 @@ case class FirrtlExecutionOptions(
       case "middle" => classOf[MiddleFirrtlEmitter]
       case "low" => classOf[LowFirrtlEmitter]
       case "verilog" => classOf[VerilogEmitter]
+      case "sverilog" => classOf[VerilogEmitter]
     }
     getOutputConfig(optionsManager) match {
       case SingleFile(_) => Seq(EmitCircuitAnnotation(emitter))
@@ -271,6 +276,7 @@ case class FirrtlExecutionOptions(
     * @param optionsManager this is needed to access build function and its common options
     * @return
     */
+  @deprecated("Use FirrtlOptions.annotationFileNames instead", "1.1")
   def getAnnotationFileName(optionsManager: ExecutionOptionsManager): String = {
     optionsManager.getBuildFileName("anno", annotationFileNameOverride)
   }
@@ -307,19 +313,20 @@ trait HasFirrtlOptions {
 
   parser.opt[String]("annotation-file")
     .abbr("faf")
-    .valueName ("<input-anno-file>")
+    .unbounded()
+    .valueName("<input-anno-file>")
     .foreach { x =>
-      firrtlOptions = firrtlOptions.copy(annotationFileNameOverride = x)
-    }.text {
-    "use this to override the default annotation file name, default is empty"
-  }
+      val annoFiles = x +: firrtlOptions.annotationFileNames
+      firrtlOptions = firrtlOptions.copy(annotationFileNames = annoFiles)
+    }.text("Used to specify annotation files (can appear multiple times)")
 
   parser.opt[Unit]("force-append-anno-file")
     .abbr("ffaaf")
+    .hidden()
     .foreach { _ =>
-      firrtlOptions = firrtlOptions.copy(forceAppendAnnoFile = true)
-    }.text {
-      "use this to force appending annotation file to annotations being passed in through optionsManager"
+      val msg = "force-append-anno-file is deprecated and will soon be removed\n" +
+                (" "*9) + "(It does not do anything anymore)"
+      Driver.dramaticWarning(msg)
     }
 
   parser.opt[String]("output-annotation-file")
@@ -333,12 +340,12 @@ trait HasFirrtlOptions {
 
   parser.opt[String]("compiler")
     .abbr("X")
-    .valueName ("<high|middle|low|verilog>")
+    .valueName ("<high|middle|low|verilog|sverilog>")
     .foreach { x =>
       firrtlOptions = firrtlOptions.copy(compilerName = x)
     }
     .validate { x =>
-      if (Array("high", "middle", "low", "verilog").contains(x.toLowerCase)) parser.success
+      if (Array("high", "middle", "low", "verilog", "sverilog").contains(x.toLowerCase)) parser.success
       else parser.failure(s"$x not a legal compiler")
     }.text {
       s"compiler to use, default is ${firrtlOptions.compilerName}"
@@ -470,7 +477,7 @@ sealed trait FirrtlExecutionResult
   * Indicates a successful execution of the firrtl compiler, returning the compiled result and
   * the type of compile
   *
-  * @param emitType  The name of the compiler used, currently "high", "middle", "low", or "verilog"
+  * @param emitType  The name of the compiler used, currently "high", "middle", "low", "verilog", or "sverilog"
   * @param emitted   The emitted result of compilation
   */
 case class FirrtlExecutionSuccess(emitType: String, emitted: String) extends FirrtlExecutionResult
@@ -554,7 +561,8 @@ class ExecutionOptionsManager(val applicationName: String) extends HasParser(app
       val dottedSuffix = if(suffix.startsWith(".")) suffix else s".$suffix"
       if(baseName.endsWith(dottedSuffix)) "" else dottedSuffix
     }
-
+    val path = directoryName + baseName.split("/").dropRight(1).mkString("/")
+    FileUtils.makeDirectory(path)
     s"$directoryName$baseName$normalizedSuffix"
   }
 }
