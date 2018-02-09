@@ -90,8 +90,7 @@ object CheckHighForm extends Pass {
           correctNum(Option(1), 2)
           val (msb, lsb) = (e.consts(0).toInt, e.consts(1).toInt)
           if (lsb > msb) {
-            errors.append(
-              new LsbLargerThanMsbException(info, mname, e.op.toString, lsb, msb))
+            errors.append(new LsbLargerThanMsbException(info, mname, e.op.toString, lsb, msb))
           }
         case Andr | Orr | Xorr | Neg =>
           correctNum(None,0)
