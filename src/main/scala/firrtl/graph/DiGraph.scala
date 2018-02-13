@@ -308,6 +308,19 @@ class DiGraph[T] private[graph] (private[graph] val edges: LinkedHashMap[T, Link
     edges.foreach({ case (k, v) => eprime(f(k)) ++= v.map(f(_)) })
     new DiGraph(eprime)
   }
+
+  /** Graph sum of `this` and `that`
+    *
+    * @param that a second DiGraph[T]
+    * @return a DiGraph[T] containing all vertices and edges of each graph
+    */
+  def +(that: DiGraph[T]): DiGraph[T] = {
+    val (us, them) = (this.getEdgeMap, that.getEdgeMap)
+    val x = (us.keys ++ them.keys)
+      .map( k => k -> (us.getOrElse(k, Set()) ++ them.getOrElse(k, Set())) )
+      .toMap
+    DiGraph(x)
+  }
 }
 
 class MutableDiGraph[T] extends DiGraph[T](new LinkedHashMap[T, LinkedHashSet[T]]) {
