@@ -4,39 +4,40 @@ import java.io._
 import org.scalatest._
 import org.scalatest.prop._
 import org.scalatest.Matchers._
+import collection.mutable.{LinkedHashMap, LinkedHashSet}
 import firrtl.graph._
 import firrtlTests._
 
 class DiGraphTests extends FirrtlFlatSpec {
 
-  val acyclicGraph = DiGraph(Map(
-    "a" -> Set("b","c"),
-    "b" -> Set("d"),
-    "c" -> Set("d"),
-    "d" -> Set("e"),
+  val acyclicGraph = DiGraph(LinkedHashMap(
+    "a" -> LinkedHashSet("b","c"),
+    "b" -> LinkedHashSet("d"),
+    "c" -> LinkedHashSet("d"),
+    "d" -> LinkedHashSet("e"),
     "e" -> Set.empty[String]))
 
-  val reversedAcyclicGraph = DiGraph(Map(
+  val reversedAcyclicGraph = DiGraph(LinkedHashMap(
     "a" -> Set.empty[String],
-    "b" -> Set("a"),
-    "c" -> Set("a"),
-    "d" -> Set("b", "c"),
-    "e" -> Set("d")))
+    "b" -> LinkedHashSet("a"),
+    "c" -> LinkedHashSet("a"),
+    "d" -> LinkedHashSet("b", "c"),
+    "e" -> LinkedHashSet("d")))
 
-  val cyclicGraph = DiGraph(Map(
-    "a" -> Set("b","c"),
-    "b" -> Set("d"),
-    "c" -> Set("d"),
-    "d" -> Set("a")))
+  val cyclicGraph = DiGraph(LinkedHashMap(
+    "a" -> LinkedHashSet("b","c"),
+    "b" -> LinkedHashSet("d"),
+    "c" -> LinkedHashSet("d"),
+    "d" -> LinkedHashSet("a")))
 
-  val tupleGraph = DiGraph(Map(
-    ("a", 0) -> Set(("b", 2)),
-    ("a", 1) -> Set(("c", 3)),
+  val tupleGraph = DiGraph(LinkedHashMap(
+    ("a", 0) -> LinkedHashSet(("b", 2)),
+    ("a", 1) -> LinkedHashSet(("c", 3)),
     ("b", 2) -> Set.empty[(String, Int)],
     ("c", 3) -> Set.empty[(String, Int)]
   ))
 
-  val degenerateGraph = DiGraph(Map("a" -> Set.empty[String]))
+  val degenerateGraph = DiGraph(LinkedHashMap("a" -> Set.empty[String]))
 
   acyclicGraph.findSCCs.filter(_.length > 1) shouldBe empty
 
@@ -58,18 +59,24 @@ class DiGraphTests extends FirrtlFlatSpec {
     tupleGraph.transformNodes(_._1).getEdgeMap should contain ("a" -> Set("b", "c"))
   }
 
-  "Graph summation" should "work" in {
-    val first = acyclicGraph.subgraph(Set("a", "b", "c"))
-    val second = acyclicGraph.subgraph(Set("b", "c", "d", "e"))
+  def equalOrder[T](x: DiGraph[T], y: DiGraph[T]): Boolean = x
+    .getEdgeMap
+    .zip(y.getEdgeMap)
+    .map{ case (k, v) => k == v }
+    .reduce(_ && _)
 
-    (first + second).getEdgeMap should equal (acyclicGraph.getEdgeMap)
+  "Graph summation" should "be order-wise equivalent to original" in {
+    val first = acyclicGraph.subgraph(LinkedHashSet("a", "b", "c"))
+    val second = acyclicGraph.subgraph(LinkedHashSet("b", "c", "d", "e"))
+
+    equalOrder(first + second, acyclicGraph) shouldBe true
   }
 
   it should "be idempotent" in {
-    val first = acyclicGraph.subgraph(Set("a", "b", "c"))
-    val second = acyclicGraph.subgraph(Set("b", "c", "d", "e"))
+    val first = acyclicGraph.subgraph(LinkedHashSet("a", "b", "c"))
+    val second = acyclicGraph.subgraph(LinkedHashSet("b", "c", "d", "e"))
 
-    (first + second + second + second).getEdgeMap should equal (acyclicGraph.getEdgeMap)
+    equalOrder(first + second + second + second, acyclicGraph) shouldBe true
   }
 
 }
