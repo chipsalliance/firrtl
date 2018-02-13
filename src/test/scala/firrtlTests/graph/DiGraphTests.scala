@@ -58,4 +58,7 @@ class DiGraphTests extends FirrtlFlatSpec {
     tupleGraph.transformNodes(_._1).getEdgeMap should contain ("a" -> Set("b", "c"))
   }
 
+  "a cyclic graph" should "not report its root node during a BFS" in {
+    cyclicGraph.BFS("a").keys should not contain "a"
+  }
 }
