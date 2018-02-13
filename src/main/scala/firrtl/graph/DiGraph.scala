@@ -115,7 +115,7 @@ class DiGraph[T] private[graph] (private[graph] val edges: LinkedHashMap[T, Link
     while (!queue.isEmpty) {
       val u = queue.dequeue
       for (v <- getEdges(u)) {
-        if (!prev.contains(v)) {
+        if (!prev.contains(v) && v != root) {
           prev(v) = u
           queue.enqueue(v)
         }
