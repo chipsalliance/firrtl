@@ -59,7 +59,6 @@ class DiGraphTests extends FirrtlFlatSpec {
   }
 
   "a cyclic graph" should "not report its root node during a BFS" in {
-    println(cyclicGraph.BFS("a"))
     cyclicGraph.BFS("a").keys should not contain "a"
   }
 }
