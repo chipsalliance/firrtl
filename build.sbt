@@ -8,11 +8,11 @@ enablePlugins(GhpagesPlugin)
 
 enablePlugins(BuildInfoPlugin)
 
+ChiselProjectDependenciesPlugin.chiselProjectSettings
+
 ChiselProjectDependenciesPlugin.chiselBuildInfoSettings
 
 git.remoteRepo := "git@github.com:freechipsproject/firrtl.git"
-
-ChiselProjectDependenciesPlugin.chiselProjectSettings
 
 // Firrtl code
 
