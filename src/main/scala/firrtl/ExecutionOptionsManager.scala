@@ -13,7 +13,9 @@ import scala.collection.Seq
 
 /**
   * Use this trait to define an options class that can add its private command line options to a externally
-  * declared parser
+  * declared parser.
+  * '''NOTE''' In all derived trait/classes, if you intend on maintaining backwards compatibility,
+  *  be sure to add new options at the end of the current ones and don't remove any existing ones.
   */
 trait ComposableOptions
 
@@ -179,11 +181,11 @@ case class FirrtlExecutionOptions(
     annotations:            List[Annotation] = List.empty,
     annotationFileNameOverride: String = "",
     outputAnnotationFileName: String = "",
-    forceAppendAnnoFile:    Boolean = false,
     emitOneFilePerModule:   Boolean = false,
     dontCheckCombLoops:     Boolean = false,
-    noDCE:                  Boolean = false)
-  extends ComposableOptions {
+    noDCE:                  Boolean = false,
+    annotationFileNames:    List[String] = List.empty)
+extends ComposableOptions {
 
   require(!(emitOneFilePerModule && outputFileNameOverride.nonEmpty),
     "Cannot both specify the output filename and emit one file per module!!!")
@@ -274,6 +276,7 @@ case class FirrtlExecutionOptions(
     * @param optionsManager this is needed to access build function and its common options
     * @return
     */
+  @deprecated("Use FirrtlOptions.annotationFileNames instead", "1.1")
   def getAnnotationFileName(optionsManager: ExecutionOptionsManager): String = {
     optionsManager.getBuildFileName("anno", annotationFileNameOverride)
   }
@@ -310,19 +313,20 @@ trait HasFirrtlOptions {
 
   parser.opt[String]("annotation-file")
     .abbr("faf")
-    .valueName ("<input-anno-file>")
+    .unbounded()
+    .valueName("<input-anno-file>")
     .foreach { x =>
-      firrtlOptions = firrtlOptions.copy(annotationFileNameOverride = x)
-    }.text {
-    "use this to override the default annotation file name, default is empty"
-  }
+      val annoFiles = x +: firrtlOptions.annotationFileNames
+      firrtlOptions = firrtlOptions.copy(annotationFileNames = annoFiles)
+    }.text("Used to specify annotation files (can appear multiple times)")
 
   parser.opt[Unit]("force-append-anno-file")
     .abbr("ffaaf")
+    .hidden()
     .foreach { _ =>
-      firrtlOptions = firrtlOptions.copy(forceAppendAnnoFile = true)
-    }.text {
-      "use this to force appending annotation file to annotations being passed in through optionsManager"
+      val msg = "force-append-anno-file is deprecated and will soon be removed\n" +
+                (" "*9) + "(It does not do anything anymore)"
+      Driver.dramaticWarning(msg)
     }
 
   parser.opt[String]("output-annotation-file")
