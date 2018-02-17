@@ -1,6 +1,7 @@
 language: scala
 scala:
-  - 2.11
+  - 2.11.12
+  - 2.12.4
 sudo: false
 
 cache:
@@ -19,14 +20,24 @@ env:
     VERILATOR_ROOT=$INSTALL_DIR
     PATH=$PATH:$VERILATOR_ROOT/bin:$TRAVIS_BUILD_DIR/utils/bin
 
-install:
-  # Install Verilator (if not found in cache)
+before_script:
   - bash .install_verilator.sh
-
-script:
-  # FIRRTL Tests
   - verilator --version
-  - cd $TRAVIS_BUILD_DIR
-  - sbt clean test assembly publish-local
-  # Chisel 3 Tests
-  - bash .run_chisel_tests.sh
+  - bash .install_yosys.sh
+  - yosys -V
+
+jobs:
+  include:
+    - stage: test
+      script:
+        - sbt clean assembly publishLocal
+        - bash .run_chisel_tests.sh
+    - stage: test
+      script:
+        - ./.run_formal_checks.sh RocketCore
+    - stage: test
+      script:
+        - ./.run_formal_checks.sh FPU
+    - stage: test
+      script:
+        - ./.run_formal_checks.sh ICache

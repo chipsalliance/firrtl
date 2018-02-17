@@ -179,6 +179,7 @@ object Utils extends LazyLogging {
     }
     error("Internal Error! %sPlease file an issue at https://github.com/ucb-bar/firrtl/issues".format(string), throwable)
   }
+
   private[firrtl] def time[R](block: => R): (Double, R) = {
     val t0 = System.nanoTime()
     val result = block
@@ -188,7 +189,7 @@ object Utils extends LazyLogging {
   }
 
   /** Removes all [[firrtl.ir.EmptyStmt]] statements and condenses
-   * [[firrtl.ir.Block]] statements.
+    * [[firrtl.ir.Block]] statements.
     */
   def squashEmpty(s: Statement): Statement = s map squashEmpty match {
     case Block(stmts) =>
@@ -199,6 +200,31 @@ object Utils extends LazyLogging {
         case _ => Block(newStmts)
       }
     case sx => sx
+  }
+
+  /** Provide a nice name to create a temporary **/
+  def niceName(e: Expression): String = niceName(1)(e)
+  def niceName(depth: Int)(e: Expression): String = {
+    e match {
+      case WRef(name, _, _, _) if name(0) == '_' => name
+      case WRef(name, _, _, _) => "_" + name
+      case WSubAccess(expr, index, _, _) if depth <= 0 => niceName(depth)(expr)
+      case WSubAccess(expr, index, _, _) => niceName(depth)(expr) + niceName(depth - 1)(index)
+      case WSubField(expr, field, _, _) => niceName(depth)(expr) + "_" + field
+      case WSubIndex(expr, index, _, _) => niceName(depth)(expr) + "_" + index
+      case Reference(name, _) if name(0) == '_' => name
+      case Reference(name, _) => "_" + name
+      case SubAccess(expr, index,  _) if depth <= 0 => niceName(depth)(expr)
+      case SubAccess(expr, index,  _) => niceName(depth)(expr) + niceName(depth - 1)(index)
+      case SubField(expr, field, _) => niceName(depth)(expr) + "_" + field
+      case SubIndex(expr, index, _) => niceName(depth)(expr) + "_" + index
+      case DoPrim(op, args, consts, _) if depth <= 0 => "_" + op
+      case DoPrim(op, args, consts, _) => "_" + op + (args.map(niceName(depth - 1)) ++ consts.map("_" + _)).mkString("")
+      case Mux(cond, tval, fval, _) if depth <= 0 => "_mux"
+      case Mux(cond, tval, fval, _) => "_mux" + Seq(cond, tval, fval).map(niceName(depth - 1)).mkString("")
+      case UIntLiteral(value, _) => "_" + value
+      case SIntLiteral(value, _) => "_" + value
+    }
   }
 
   /** Indent the results of [[ir.FirrtlNode.serialize]] */
@@ -259,12 +285,12 @@ object Utils extends LazyLogging {
   
    def get_point (e:Expression) : Int = e match {
      case (e: WRef) => 0
-     case (e: WSubField) => e.exp.tpe match {case b: BundleType =>
+     case (e: WSubField) => e.expr.tpe match {case b: BundleType =>
        (b.fields takeWhile (_.name != e.name) foldLeft 0)(
          (point, f) => point + get_size(f.tpe))
     }
     case (e: WSubIndex) => e.value * get_size(e.tpe)
-    case (e: WSubAccess) => get_point(e.exp)
+    case (e: WSubAccess) => get_point(e.expr)
   }
 
   /** Returns true if t, or any subtype, contains a flipped field
@@ -449,7 +475,6 @@ object Utils extends LazyLogging {
             ilen + get_size(t1x.tpe), jlen + get_size(t2x.tpe))
         }._1
       case (ClockType, ClockType) => if (flip1 == flip2) Seq((0, 0)) else Nil
-      case (AnalogType(w1), AnalogType(w2)) => Nil
       case _ => throwInternalError(Some(s"get_valid_points: shouldn't be here - ($t1, $t2)"))
     }
   }
@@ -525,9 +550,9 @@ object Utils extends LazyLogging {
 // =========== ACCESSORS =========
   def kind(e: Expression): Kind = e match {
     case ex: WRef => ex.kind
-    case ex: WSubField => kind(ex.exp)
-    case ex: WSubIndex => kind(ex.exp)
-    case ex: WSubAccess => kind(ex.exp)
+    case ex: WSubField => kind(ex.expr)
+    case ex: WSubIndex => kind(ex.expr)
+    case ex: WSubAccess => kind(ex.expr)
     case ex => ExpKind
   }
   def gender(e: Expression): Gender = e match {
@@ -579,10 +604,10 @@ object Utils extends LazyLogging {
   def splitRef(e: Expression): (WRef, Expression) = e match {
     case e: WRef => (e, EmptyExpression)
     case e: WSubIndex =>
-      val (root, tail) = splitRef(e.exp)
+      val (root, tail) = splitRef(e.expr)
       (root, WSubIndex(tail, e.value, e.tpe, e.gender))
     case e: WSubField =>
-      val (root, tail) = splitRef(e.exp)
+      val (root, tail) = splitRef(e.expr)
       tail match {
         case EmptyExpression => (root, WRef(e.name, e.tpe, root.kind, e.gender))
         case exp => (root, WSubField(tail, e.name, e.tpe, e.gender))
@@ -590,13 +615,13 @@ object Utils extends LazyLogging {
   }
 
   /** Adds a root reference to some SubField/SubIndex chain */
-  def mergeRef(root: WRef, body: Expression): Expression = body match {
+  def mergeRef(root: Expression, body: Expression): Expression = body match {
     case e: WRef =>
       WSubField(root, e.name, e.tpe, e.gender)
     case e: WSubIndex =>
-      WSubIndex(mergeRef(root, e.exp), e.value, e.tpe, e.gender)
+      WSubIndex(mergeRef(root, e.expr), e.value, e.tpe, e.gender)
     case e: WSubField =>
-      WSubField(mergeRef(root, e.exp), e.name, e.tpe, e.gender)
+      WSubField(mergeRef(root, e.expr), e.name, e.tpe, e.gender)
     case EmptyExpression => root
   }
 
@@ -637,7 +662,7 @@ object Utils extends LazyLogging {
             }
         }
         rootDecl
-      case e => error(s"getDeclaration does not support Expressions of type ${e.getClass}")
+      case e => Utils.error(s"getDeclaration does not support Expressions of type ${e.getClass}")
     }
   }
 
@@ -648,7 +673,7 @@ object Utils extends LazyLogging {
     "before", "begin", "bind", "bins", "binsof", "bit", "break",
     "buf", "bufif0", "bufif1", "byte",
 
-    "case", "casex", "casez", "cell", "chandle", "class", "clocking",
+    "case", "casex", "casez", "cell", "chandle", "checker", "class", "clocking",
     "cmos", "config", "const", "constraint", "context", "continue",
     "cover", "covergroup", "coverpoint", "cross",
 

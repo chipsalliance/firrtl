@@ -49,6 +49,10 @@ object CheckHighForm extends Pass {
     s"$info: [module $mname] Has instance loop $loop")
   class NoTopModuleException(info: Info, name: String) extends PassException(
     s"$info: A single module must be named $name.")
+  class NegArgException(info: Info, mname: String, op: String, value: Int) extends PassException(
+    s"$info: [module $mname] Primop $op argument $value < 0.")
+  class LsbLargerThanMsb(info: Info, mname: String, op: String, lsb: Int, msb: Int) extends PassException(
+    s"$info: [module $mname] Primop $op lsb $lsb > $msb.")
 
   // TODO FIXME
   // - Do we need to check for uniquness on port names?
@@ -61,11 +65,11 @@ object CheckHighForm extends Pass {
       def correctNum(ne: Option[Int], nc: Int) {
         ne match {
           case Some(i) if e.args.length != i =>
-            errors append new IncorrectNumArgsException(info, mname, e.op.toString, i)
+            errors.append(new IncorrectNumArgsException(info, mname, e.op.toString, i))
           case _ => // Do Nothing
         }
         if (e.consts.length != nc)
-          errors append new IncorrectNumConstsException(info, mname, e.op.toString, nc)
+          errors.append(new IncorrectNumConstsException(info, mname, e.op.toString, nc))
       }
 
       e.op match {
@@ -74,10 +78,20 @@ object CheckHighForm extends Pass {
           correctNum(Option(2), 0)
         case AsUInt | AsSInt | AsClock | Cvt | Neq | Not =>
           correctNum(Option(1), 0)
-        case AsFixedPoint | Pad | Shl | Shr | Head | Tail | BPShl | BPShr | BPSet =>
+        case AsFixedPoint | Pad | Head | Tail | BPShl | BPShr | BPSet =>
           correctNum(Option(1), 1)
+        case Shl | Shr =>
+          correctNum(Option(1), 1)
+          val amount = e.consts.head.toInt
+          if (amount < 0) {
+            errors.append(new NegArgException(info, mname, e.op.toString, amount))
+          }
         case Bits =>
           correctNum(Option(1), 2)
+          val (msb, lsb) = (e.consts(0).toInt, e.consts(1).toInt)
+          if (lsb > msb) {
+            errors.append(new LsbLargerThanMsb(info, mname, e.op.toString, lsb, msb))
+          }
         case Andr | Orr | Xorr | Neg =>
           correctNum(None,0)
       }
@@ -85,29 +99,29 @@ object CheckHighForm extends Pass {
 
     def checkFstring(info: Info, mname: String, s: StringLit, i: Int) {
       val validFormats = "bdxc"
-      val (percent, npercents) = (s.array foldLeft (false, 0)){
+      val (percent, npercents) = s.string.foldLeft((false, 0)) {
         case ((percentx, n), b) if percentx && (validFormats contains b) =>
           (false, n + 1)
         case ((percentx, n), b) if percentx && b != '%' =>
-          errors append new BadPrintfException(info, mname, b.toChar)
+          errors.append(new BadPrintfException(info, mname, b.toChar))
           (false, n)
         case ((percentx, n), b) =>
           (if (b == '%') !percentx else false /* %% -> percentx = false */, n)
       }
-      if (percent) errors append new BadPrintfTrailingException(info, mname)
-      if (npercents != i) errors append new BadPrintfIncorrectNumException(info, mname)
+      if (percent) errors.append(new BadPrintfTrailingException(info, mname))
+      if (npercents != i) errors.append(new BadPrintfIncorrectNumException(info, mname))
     }
 
     def checkValidLoc(info: Info, mname: String, e: Expression) = e match {
       case _: UIntLiteral | _: SIntLiteral | _: DoPrim =>
-        errors append new InvalidLOCException(info, mname)
+        errors.append(new InvalidLOCException(info, mname))
       case _ => // Do Nothing
     }
 
     def checkHighFormW(info: Info, mname: String)(w: Width): Width = {
       w match {
         case wx: IntWidth if wx.width < 0 =>
-          errors append new NegWidthException(info, mname)
+          errors.append(new NegWidthException(info, mname))
         case wx => // Do nothing
       }
       w
@@ -115,8 +129,8 @@ object CheckHighForm extends Pass {
 
     def checkHighFormT(info: Info, mname: String)(t: Type): Type =
       t map checkHighFormT(info, mname) match {
-        case tx: VectorType if tx.size < 0 => 
-          errors append new NegVecSizeException(info, mname)
+        case tx: VectorType if tx.size < 0 =>
+          errors.append(new NegVecSizeException(info, mname))
           t
         case _ => t map checkHighFormW(info, mname)
       }
@@ -124,7 +138,7 @@ object CheckHighForm extends Pass {
     def validSubexp(info: Info, mname: String)(e: Expression): Expression = {
       e match {
         case _: WRef | _: WSubField | _: WSubIndex | _: WSubAccess | _: Mux | _: ValidIf => // No error
-        case _ => errors append new InvalidAccessException(info, mname)
+        case _ => errors.append(new InvalidAccessException(info, mname))
       }
       e
     }
@@ -132,12 +146,12 @@ object CheckHighForm extends Pass {
     def checkHighFormE(info: Info, mname: String, names: NameSet)(e: Expression): Expression = {
       e match {
         case ex: WRef if !names(ex.name) =>
-          errors append new UndeclaredReferenceException(info, mname, ex.name)
+          errors.append(new UndeclaredReferenceException(info, mname, ex.name))
         case ex: UIntLiteral if ex.value < 0 =>
-          errors append new NegUIntException(info, mname)
+          errors.append(new NegUIntException(info, mname))
         case ex: DoPrim => checkHighFormPrimop(info, mname, ex)
         case _: WRef | _: UIntLiteral | _: Mux | _: ValidIf =>
-        case ex: WSubAccess => validSubexp(info, mname)(ex.exp)
+        case ex: WSubAccess => validSubexp(info, mname)(ex.expr)
         case ex => ex map validSubexp(info, mname)
       }
       (e map checkHighFormW(info, mname)
@@ -147,7 +161,7 @@ object CheckHighForm extends Pass {
 
     def checkName(info: Info, mname: String, names: NameSet)(name: String): String = {
       if (names(name))
-        errors append new NotUniqueException(info, mname, name)
+        errors.append(new NotUniqueException(info, mname, name))
       names += name
       name
     }
@@ -157,16 +171,16 @@ object CheckHighForm extends Pass {
       s map checkName(info, mname, names) match {
         case sx: DefMemory =>
           if (hasFlip(sx.dataType))
-            errors append new MemWithFlipException(info, mname, sx.name)
+            errors.append(new MemWithFlipException(info, mname, sx.name))
           if (sx.depth <= 0)
-            errors append new NegMemSizeException(info, mname)
+            errors.append(new NegMemSizeException(info, mname))
         case sx: WDefInstance =>
           if (!moduleNames(sx.module))
-            errors append new ModuleNotDefinedException(info, mname, sx.module)
+            errors.append(new ModuleNotDefinedException(info, mname, sx.module))
           // Check to see if a recursive module instantiation has occured
           val childToParent = moduleGraph add (mname, sx.module)
           if (childToParent.nonEmpty)
-            errors append new InstanceLoop(info, mname, childToParent mkString "->")
+            errors.append(new InstanceLoop(info, mname, childToParent mkString "->"))
         case sx: Connect => checkValidLoc(info, mname, sx.loc)
         case sx: PartialConnect => checkValidLoc(info, mname, sx.loc)
         case sx: Print => checkFstring(info, mname, sx.string, sx.args.length)
@@ -189,11 +203,11 @@ object CheckHighForm extends Pass {
       (m map checkHighFormP(m.name, names)
          map checkHighFormS(m.info, m.name, names))
     }
-    
+
     c.modules foreach checkHighFormM
     c.modules count (_.name == c.main) match {
       case 1 =>
-      case _ => errors append new NoTopModuleException(c.info, c.main)
+      case _ => errors.append(new NoTopModuleException(c.info, c.main))
     }
     errors.trigger()
     c
@@ -225,6 +239,8 @@ object CheckTypes extends Pass {
     s"$info: [module $mname]  Printf arguments must be either UIntType or SIntType.")
   class ReqClk(info: Info, mname: String) extends PassException(
     s"$info: [module $mname]  Requires a clock typed signal.")
+  class RegReqClk(info: Info, mname: String, name: String) extends PassException(
+    s"$info: [module $mname]  Register $name requires a clock typed signal.")
   class EnNotUInt(info: Info, mname: String) extends PassException(
     s"$info: [module $mname]  Enable must be a UIntType typed signal.")
   class PredNotUInt(info: Info, mname: String) extends PassException(
@@ -258,11 +274,13 @@ object CheckTypes extends Pass {
     s"$info: [module $mname]  Cannot declare a reg, node, or memory with an Analog type: $decName.")
   class IllegalAttachExp(info: Info, mname: String, expName: String) extends PassException(
     s"$info: [module $mname]  Attach expression must be an port, wire, or port of instance: $expName.")
+  class IllegalResetType(info: Info, mname: String, exp: String) extends PassException(
+    s"$info: [module $mname]  Register resets must have type UInt<1>: $exp.")
 
   //;---------------- Helper Functions --------------
   def ut: UIntType = UIntType(UnknownWidth)
   def st: SIntType = SIntType(UnknownWidth)
-   
+
   def run (c:Circuit) : Circuit = {
     val errors = new Errors()
 
@@ -275,7 +293,7 @@ object CheckTypes extends Pass {
     def check_types_primop(info: Info, mname: String, e: DoPrim) {
       def all_same_type (ls:Seq[Expression]) {
         if (ls exists (x => wt(ls.head.tpe) != wt(e.tpe)))
-          errors append new OpNotAllSameType(info, mname, e.op.serialize)
+          errors.append(new OpNotAllSameType(info, mname, e.op.serialize))
       }
       def allUSC(ls: Seq[Expression]) {
         val error = ls.foldLeft(false)((error, x) => x.tpe match {
@@ -295,7 +313,7 @@ object CheckTypes extends Pass {
         if (ls exists (x => x.tpe match {
           case _: UIntType | _: SIntType => false
           case _ => true
-        })) errors append new OpNotGround(info, mname, e.op.serialize)
+        })) errors.append(new OpNotGround(info, mname, e.op.serialize))
       }
       def allF(ls: Seq[Expression]) {
         val error = ls.foldLeft(false)((error, x) => x.tpe match {
@@ -304,9 +322,9 @@ object CheckTypes extends Pass {
         })
         if (error) errors.append(new OpNotGround(info, mname, e.op.serialize))
       }
-      def strictFix(ls: Seq[Expression]) = 
+      def strictFix(ls: Seq[Expression]) =
         ls.filter(!_.tpe.isInstanceOf[FixedType]).size match {
-          case 0 => 
+          case 0 =>
           case x if(x == ls.size) =>
           case x => errors.append(new OpNoMixFix(info, mname, e.op.serialize))
         }
@@ -314,13 +332,13 @@ object CheckTypes extends Pass {
         if (ls exists (x => x.tpe match {
           case _: UIntType => false
           case _ => true
-        })) errors append new OpNotAllUInt(info, mname, e.op.serialize)
+        })) errors.append(new OpNotAllUInt(info, mname, e.op.serialize))
       }
       def is_uint (x:Expression) {
         if (x.tpe match {
           case _: UIntType => false
           case _ => true
-        }) errors append new OpNotUInt(info, mname, e.op.serialize, x.serialize)
+        }) errors.append(new OpNotUInt(info, mname, e.op.serialize, x.serialize))
       }
       e.op match {
         case AsUInt | AsSInt | AsFixedPoint =>
@@ -336,47 +354,47 @@ object CheckTypes extends Pass {
 
     def check_types_e(info:Info, mname: String)(e: Expression): Expression = {
       e match {
-        case (e: WSubField) => e.exp.tpe match {
+        case (e: WSubField) => e.expr.tpe match {
           case (t: BundleType) => t.fields find (_.name == e.name) match {
             case Some(_) =>
-            case None => errors append new SubfieldNotInBundle(info, mname, e.name)
+            case None => errors.append(new SubfieldNotInBundle(info, mname, e.name))
           }
-          case _ => errors append new SubfieldOnNonBundle(info, mname, e.name)
+          case _ => errors.append(new SubfieldOnNonBundle(info, mname, e.name))
         }
-        case (e: WSubIndex) => e.exp.tpe match {
+        case (e: WSubIndex) => e.expr.tpe match {
           case (t: VectorType) if e.value < t.size =>
           case (t: VectorType) =>
-            errors append new IndexTooLarge(info, mname, e.value)
+            errors.append(new IndexTooLarge(info, mname, e.value))
           case _ =>
-            errors append new IndexOnNonVector(info, mname)
+            errors.append(new IndexOnNonVector(info, mname))
         }
         case (e: WSubAccess) =>
-          e.exp.tpe match {
+          e.expr.tpe match {
             case _: VectorType =>
-            case _ => errors append new IndexOnNonVector(info, mname)
+            case _ => errors.append(new IndexOnNonVector(info, mname))
           }
           e.index.tpe match {
             case _: UIntType =>
-            case _ => errors append new AccessIndexNotUInt(info, mname)
+            case _ => errors.append(new AccessIndexNotUInt(info, mname))
           }
         case (e: DoPrim) => check_types_primop(info, mname, e)
         case (e: Mux) =>
           if (wt(e.tval.tpe) != wt(e.fval.tpe))
-            errors append new MuxSameType(info, mname)
+            errors.append(new MuxSameType(info, mname))
           if (!passive(e.tpe))
-            errors append new MuxPassiveTypes(info, mname)
+            errors.append(new MuxPassiveTypes(info, mname))
           e.cond.tpe match {
             case _: UIntType =>
-            case _ => errors append new MuxCondUInt(info, mname)
+            case _ => errors.append(new MuxCondUInt(info, mname))
           }
           if ((e.tval.tpe == ClockType) || (e.fval.tpe == ClockType))
             errors.append(new MuxClock(info, mname))
         case (e: ValidIf) =>
           if (!passive(e.tpe))
-            errors append new ValidIfPassiveTypes(info, mname)
+            errors.append(new ValidIfPassiveTypes(info, mname))
           e.cond.tpe match {
             case _: UIntType =>
-            case _ => errors append new ValidIfCondUInt(info, mname)
+            case _ => errors.append(new ValidIfCondUInt(info, mname))
           }
         case _ =>
       }
@@ -411,19 +429,28 @@ object CheckTypes extends Pass {
       val info = get_info(s) match { case NoInfo => minfo case x => x }
       s match {
         case sx: Connect if wt(sx.loc.tpe) != wt(sx.expr.tpe) =>
-          errors append new InvalidConnect(info, mname, sx.loc.serialize, sx.expr.serialize)
+          errors.append(new InvalidConnect(info, mname, sx.loc.serialize, sx.expr.serialize))
         case sx: PartialConnect if !bulk_equals(sx.loc.tpe, sx.expr.tpe, Default, Default) =>
-          errors append new InvalidConnect(info, mname, sx.loc.serialize, sx.expr.serialize)
-        case sx: DefRegister => sx.tpe match {
-          case AnalogType(w) => errors append new IllegalAnalogDeclaration(info, mname, sx.name)
-          case t if wt(sx.tpe) != wt(sx.init.tpe) => errors append new InvalidRegInit(info, mname)
-          case t =>
-        }
+          errors.append(new InvalidConnect(info, mname, sx.loc.serialize, sx.expr.serialize))
+        case sx: DefRegister =>
+          sx.tpe match {
+            case AnalogType(_) => errors.append(new IllegalAnalogDeclaration(info, mname, sx.name))
+            case t if wt(sx.tpe) != wt(sx.init.tpe) => errors.append(new InvalidRegInit(info, mname))
+            case t =>
+          }
+          sx.reset.tpe match {
+            case UIntType(IntWidth(w)) if w == 1 =>
+            case UIntType(UnknownWidth) => // cannot catch here, though width may ultimately be wrong
+            case _ => errors.append(new IllegalResetType(info, mname, sx.name))
+          }
+          if (sx.clock.tpe != ClockType) {
+            errors.append(new RegReqClk(info, mname, sx.name))
+          }
         case sx: Conditionally if wt(sx.pred.tpe) != wt(ut) =>
-          errors append new PredNotUInt(info, mname)
+          errors.append(new PredNotUInt(info, mname))
         case sx: DefNode => sx.value.tpe match {
-          case AnalogType(w) => errors append new IllegalAnalogDeclaration(info, mname, sx.name)
-          case t if !passive(sx.value.tpe) => errors append new NodePassiveType(info, mname)
+          case AnalogType(w) => errors.append(new IllegalAnalogDeclaration(info, mname, sx.name))
+          case t if !passive(sx.value.tpe) => errors.append(new NodePassiveType(info, mname))
           case t =>
         }
         case sx: Attach =>
@@ -438,15 +465,15 @@ object CheckTypes extends Pass {
             }
           }
         case sx: Stop =>
-          if (wt(sx.clk.tpe) != wt(ClockType)) errors append new ReqClk(info, mname)
-          if (wt(sx.en.tpe) != wt(ut)) errors append new EnNotUInt(info, mname)
+          if (wt(sx.clk.tpe) != wt(ClockType)) errors.append(new ReqClk(info, mname))
+          if (wt(sx.en.tpe) != wt(ut)) errors.append(new EnNotUInt(info, mname))
         case sx: Print =>
           if (sx.args exists (x => wt(x.tpe) != wt(ut) && wt(x.tpe) != wt(st)))
-            errors append new PrintfArgNotGround(info, mname)
-          if (wt(sx.clk.tpe) != wt(ClockType)) errors append new ReqClk(info, mname)
-          if (wt(sx.en.tpe) != wt(ut)) errors append new EnNotUInt(info, mname)
+            errors.append(new PrintfArgNotGround(info, mname))
+          if (wt(sx.clk.tpe) != wt(ClockType)) errors.append(new ReqClk(info, mname))
+          if (wt(sx.en.tpe) != wt(ut)) errors.append(new EnNotUInt(info, mname))
         case sx: DefMemory => sx.dataType match {
-          case AnalogType(w) => errors append new IllegalAnalogDeclaration(info, mname, sx.name)
+          case AnalogType(w) => errors.append(new IllegalAnalogDeclaration(info, mname, sx.name))
           case t =>
         }
         case _ =>
@@ -469,20 +496,20 @@ object CheckGenders extends Pass {
     case UNKNOWNGENDER => "unknown"
     case BIGENDER => "sourceOrSink"
   }
-   
+
   class WrongGender(info:Info, mname: String, expr: String, wrong: Gender, right: Gender) extends PassException(
     s"$info: [module $mname]  Expression $expr is used as a $wrong but can only be used as a $right.")
-   
+
   def run (c:Circuit): Circuit = {
     val errors = new Errors()
 
     def get_gender(e: Expression, genders: GenderMap): Gender = e match {
       case (e: WRef) => genders(e.name)
-      case (e: WSubIndex) => get_gender(e.exp, genders)
-      case (e: WSubAccess) => get_gender(e.exp, genders)
-      case (e: WSubField) => e.exp.tpe match {case t: BundleType =>
+      case (e: WSubIndex) => get_gender(e.expr, genders)
+      case (e: WSubAccess) => get_gender(e.expr, genders)
+      case (e: WSubField) => e.expr.tpe match {case t: BundleType =>
         val f = (t.fields find (_.name == e.name)).get
-        times(get_gender(e.exp, genders), f.flip)
+        times(get_gender(e.expr, genders), f.flip)
       }
       case _ => MALE
     }
@@ -502,17 +529,17 @@ object CheckGenders extends Pass {
       val gender = get_gender(e,genders)
       (gender, desired) match {
         case (MALE, FEMALE) =>
-          errors append new WrongGender(info, mname, e.serialize, desired, gender)
+          errors.append(new WrongGender(info, mname, e.serialize, desired, gender))
         case (FEMALE, MALE) => kind(e) match {
           case PortKind | InstanceKind if !flip_q(e.tpe) => // OK!
           case _ =>
-            errors append new WrongGender(info, mname, e.serialize, desired, gender)
+            errors.append(new WrongGender(info, mname, e.serialize, desired, gender))
         }
         case _ =>
       }
       e
    }
-   
+
     def check_genders_e (info:Info, mname: String, genders: GenderMap)(e:Expression): Expression = {
       e match {
         case e: Mux => e map check_gender(info, mname, genders, MALE)
@@ -521,7 +548,7 @@ object CheckGenders extends Pass {
       }
       e map check_genders_e(info, mname, genders)
     }
-        
+
     def check_genders_s(minfo: Info, mname: String, genders: GenderMap)(s: Statement): Statement = {
       val info = get_info(s) match { case NoInfo => minfo case x => x }
       s match {
@@ -551,7 +578,7 @@ object CheckGenders extends Pass {
       }
       s map check_genders_e(info, mname, genders) map check_genders_s(minfo, mname, genders)
     }
-   
+
     for (m <- c.modules) {
       val genders = new GenderMap
       genders ++= (m.ports map (p => p.name -> to_gender(p.direction)))

@@ -11,39 +11,40 @@ import firrtl.ir._
 import firrtl.Parser.IgnoreInfo
 
 class ExpandWhensSpec extends FirrtlFlatSpec {
-  private def executeTest(input: String, check: String, passes: Seq[Pass], expected: Boolean) = {
-    val c = passes.foldLeft(Parser.parse(input.split("\n").toIterator)) {
-      (c: Circuit, p: Pass) => p.run(c)
+  private val transforms = Seq(
+    ToWorkingIR,
+    CheckHighForm,
+    ResolveKinds,
+    InferTypes,
+    CheckTypes,
+    Uniquify,
+    ResolveKinds,
+    InferTypes,
+    ResolveGenders,
+    CheckGenders,
+    InferWidths,
+    CheckWidths,
+    PullMuxes,
+    ExpandConnects,
+    RemoveAccesses,
+    ExpandWhens)
+  private def executeTest(input: String, check: String, expected: Boolean) = {
+    val circuit = Parser.parse(input.split("\n").toIterator)
+    val result = transforms.foldLeft(CircuitState(circuit, UnknownForm)) {
+      (c: CircuitState, p: Transform) => p.runTransform(c)
     }
+    val c = result.circuit
     val lines = c.serialize.split("\n") map normalized
-    println(c.serialize)
 
-    if(expected) {
+    if (expected) {
       c.serialize.contains(check) should be (true)
     } else {
-      lines foreach { l => l.contains(check) should be (false) }
+      lines.foreach(_.contains(check) should be (false))
     }
   }
   "Expand Whens" should "not emit INVALID" in {
-    val passes = Seq(
-      ToWorkingIR,
-      CheckHighForm,
-      ResolveKinds,
-      InferTypes,
-      CheckTypes,
-      Uniquify,
-      ResolveKinds,
-      InferTypes,
-      ResolveGenders,
-      CheckGenders,
-      InferWidths,
-      CheckWidths,
-      PullMuxes,
-      ExpandConnects,
-      RemoveAccesses,
-      ExpandWhens)
     val input =
-  """|circuit Tester : 
+  """|circuit Tester :
      |  module Tester :
      |    input p : UInt<1>
      |    when p :
@@ -51,28 +52,11 @@ class ExpandWhensSpec extends FirrtlFlatSpec {
      |      a is invalid
      |      a.b <= UInt<64>("h04000000000000000")""".stripMargin
     val check = "INVALID"
-    executeTest(input, check, passes, false)
+    executeTest(input, check, false)
   }
-  "Expand Whens" should "void unwritten memory fields" in {
-    val passes = Seq(
-      ToWorkingIR,
-      CheckHighForm,
-      ResolveKinds,
-      InferTypes,
-      CheckTypes,
-      Uniquify,
-      ResolveKinds,
-      InferTypes,
-      ResolveGenders,
-      CheckGenders,
-      InferWidths,
-      CheckWidths,
-      PullMuxes,
-      ExpandConnects,
-      RemoveAccesses,
-      ExpandWhens)
+  it should "void unwritten memory fields" in {
     val input =
-  """|circuit Tester : 
+  """|circuit Tester :
      |  module Tester :
      |    input clk : Clock
      |    mem memory:
@@ -92,7 +76,67 @@ class ExpandWhensSpec extends FirrtlFlatSpec {
      |    memory.w0.clk <= clk
      |    """.stripMargin
     val check = "VOID"
-    executeTest(input, check, passes, true)
+    executeTest(input, check, true)
+  }
+  it should "replace 'is invalid' with validif for wires that have a connection" in {
+    val input =
+      """|circuit Tester :
+         |  module Tester :
+         |    input p : UInt<1>
+         |    output out : UInt
+         |    wire w : UInt<32>
+         |    w is invalid
+         |    out <= w
+         |    when p :
+         |      w <= UInt(123)
+         """.stripMargin
+    val check = "validif(p"
+    executeTest(input, check, true)
+  }
+  it should "leave 'is invalid' for wires that don't have a connection" in {
+    val input =
+      """|circuit Tester :
+         |  module Tester :
+         |    input p : UInt<1>
+         |    output out : UInt
+         |    wire w : UInt<32>
+         |    w is invalid
+         |    out <= w
+         """.stripMargin
+    val check = "w is invalid"
+    executeTest(input, check, true)
+  }
+  it should "delete 'is invalid' for attached Analog wires" in {
+    val input =
+      """|circuit Tester :
+         |  extmodule Child :
+         |    input bus : Analog<32>
+         |  module Tester :
+         |    input bus : Analog<32>
+         |    inst c of Child
+         |    wire w : Analog<32>
+         |    attach (w, bus)
+         |    attach (w, c.bus)
+         |    w is invalid
+         """.stripMargin
+    val check = "w is invalid"
+    executeTest(input, check, false)
+  }
+  it should "correctly handle submodule inputs" in {
+    val input =
+      """circuit Test :
+        |  module Child :
+        |    input in : UInt<32>
+        |  module Test :
+        |    input in : UInt<32>[2]
+        |    input p : UInt<1>
+        |    inst c of Child
+        |    when p :
+        |      c.in <= in[0]
+        |    else :
+        |      c.in <= in[1]""".stripMargin
+    val check = "mux(p, in[0], in[1])"
+    executeTest(input, check, true)
   }
 }
 

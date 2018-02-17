@@ -27,6 +27,7 @@ class ParserSpec extends FirrtlFlatSpec {
     val prelude = Seq("circuit top :", "  module top :")
     val reg = "    reg r : UInt<32>, clock"
     val reset = "reset => (radReset, UInt(\"hdeadbeef\"))"
+    val finfo = "@[Reg.scala:33:10]"
   }
 
   private object KeywordTests {
@@ -77,6 +78,16 @@ class ParserSpec extends FirrtlFlatSpec {
     firrtl.Parser.parse((prelude :+ s"${reg} with :\n      (${reset})"))
   }
 
+  it should "allow source locators with same-line reset" in {
+    import RegTests._
+    firrtl.Parser.parse((prelude :+ s"${reg} with : (${reset}) $finfo" :+ "    wire a : UInt"))
+  }
+
+  it should "allow source locators with multi-line reset" in {
+    import RegTests._
+    firrtl.Parser.parse((prelude :+ s"${reg} with :\n      (${reset}) $finfo"))
+  }
+
   // ********** Keywords **********
   "Keywords" should "be allowed as Ids" in {
     import KeywordTests._
@@ -103,7 +114,8 @@ class ParserSpec extends FirrtlFlatSpec {
       |    in.0.1 <= in.0.0
       |    in2.4.23.bar.123 <= in2.4.23.foo
       """.stripMargin
-    firrtl.Parser.parse(input split "\n")
+    val c = firrtl.Parser.parse(input)
+    firrtl.Parser.parse(c.serialize)
   }
 
   // ********** Doubles as parameters **********
@@ -112,7 +124,6 @@ class ParserSpec extends FirrtlFlatSpec {
     val signs = Seq("", "+", "-")
     val tests = "0.0" +: (signs flatMap (s => nums map (n => s + n)))
     for (test <- tests) {
-      println(s"Trying $test")
       val input = s"""
         |circuit Test :
         |  extmodule Ext :
@@ -125,8 +136,26 @@ class ParserSpec extends FirrtlFlatSpec {
         |    input foo : UInt<32>
         |    output bar : UInt<32>
         """.stripMargin
-      firrtl.Parser.parse(input split "\n")
+      val c = firrtl.Parser.parse(input)
+      firrtl.Parser.parse(c.serialize)
     }
+  }
+
+  "Strings" should "be legal parameters for extmodules" in {
+    val input = s"""
+      |circuit Test :
+      |  extmodule Ext :
+      |    input foo : UInt<32>
+      |
+      |    defname = MyExtModule
+      |    parameter STR = "hello=%d"
+      |
+      |  module Test :
+      |    input foo : UInt<32>
+      |    output bar : UInt<32>
+      """.stripMargin
+    val c = firrtl.Parser.parse(input)
+    firrtl.Parser.parse(c.serialize)
   }
 }
 

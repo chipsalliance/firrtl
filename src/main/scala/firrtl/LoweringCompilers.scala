@@ -6,7 +6,6 @@ sealed abstract class CoreTransform extends SeqTransform
 
 /** This transforms "CHIRRTL", the chisel3 IR, to "Firrtl". Note the resulting
   * circuit has only IR nodes, not WIR.
-  * TODO(izraelevitz): Create RenameMap from RemoveCHIRRTL
   */
 class ChirrtlToHighFirrtl extends CoreTransform {
   def inputForm = ChirrtlForm
@@ -60,6 +59,7 @@ class HighFirrtlToMiddleFirrtl extends CoreTransform {
     passes.ReplaceAccesses,
     passes.ExpandConnects,
     passes.RemoveAccesses,
+    passes.Uniquify,
     passes.ExpandWhens,
     passes.CheckInitialization,
     passes.ResolveKinds,
@@ -75,7 +75,6 @@ class HighFirrtlToMiddleFirrtl extends CoreTransform {
 /** Expands all aggregate types into many ground-typed components. Must
   * accept a well-formed graph of only middle Firrtl features.
   * Operates on working IR nodes.
-  * TODO(izraelevitz): Create RenameMap from RemoveCHIRRTL
   */
 class MiddleFirrtlToLowFirrtl extends CoreTransform {
   def inputForm = MidForm
@@ -87,7 +86,9 @@ class MiddleFirrtlToLowFirrtl extends CoreTransform {
     passes.ResolveGenders,
     passes.InferWidths,
     passes.Legalize,
-    passes.CheckCombLoops)
+    new firrtl.transforms.RemoveReset,
+    new firrtl.transforms.CheckCombLoops,
+    new firrtl.transforms.RemoveWires)
 }
 
 /** Runs a series of optimization passes on LowFirrtl
@@ -99,15 +100,15 @@ class LowFirrtlOptimization extends CoreTransform {
   def outputForm = LowForm
   def transforms = Seq(
     passes.RemoveValidIf,
-    passes.ConstProp,
+    new firrtl.transforms.ConstantPropagation,
     passes.PadWidths,
-    passes.ConstProp,
+    new firrtl.transforms.ConstantPropagation,
     passes.Legalize,
     passes.memlib.VerilogMemDelays, // TODO move to Verilog emitter
-    passes.ConstProp,
+    new firrtl.transforms.ConstantPropagation,
     passes.SplitExpressions,
     passes.CommonSubexpressionElimination,
-    passes.DeadCodeElimination)
+    new firrtl.transforms.DeadCodeElimination)
 }
 
 
