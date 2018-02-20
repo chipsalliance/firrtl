@@ -220,7 +220,7 @@ object Driver {
         case file =>
           val filename = optionsManager.getBuildFileName("anno.json", file)
           val outputFile = new java.io.PrintWriter(filename)
-          outputFile.write(JsonProtocol.serialize(finalState.annotations))
+          outputFile.write(JsonProtocol.serialize(finalState.metadata.annotations))
           outputFile.close()
       }
 

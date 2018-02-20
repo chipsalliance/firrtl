@@ -107,6 +107,6 @@ object ZeroWidth extends Transform {
     val renames = RenameMap()
     renames.setCircuit(c.main)
     val result = InferTypes.run(c.copy(modules = c.modules map onModule(renames)))
-    CircuitState(result, outputForm, state.annotations, Some(renames))
+    CircuitState(result, outputForm, state.metadata.copy(renames = Some(renames)))
   }
 }

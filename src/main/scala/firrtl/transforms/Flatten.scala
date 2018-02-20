@@ -102,7 +102,7 @@ class Flatten extends Transform {
    }
    
    override def execute(state: CircuitState): CircuitState = {
-     val annos = state.annotations.collect { case a @ FlattenAnnotation(_) => a }
+     val annos = state.metadata.annotations.collect { case a @ FlattenAnnotation(_) => a }
      annos match {
        case Nil => CircuitState(state.circuit, state.form)
        case myAnnotations =>
@@ -110,7 +110,7 @@ class Flatten extends Transform {
          val (modNames, instNames) = collectAnns(state.circuit, myAnnotations)
          // take incoming annotation and produce annotations for InlineInstances, i.e. traverse circuit down to find all instances to inline
          val (newc, modsToInline) = duplicateSubCircuitsFromAnno(state.circuit, modNames, instNames)
-         inlineTransform.run(newc, modsToInline.toSet, Set.empty[ComponentName], state.annotations)
+         inlineTransform.run(newc, modsToInline.toSet, Set.empty[ComponentName], state.metadata.annotations)
      }
    }
 }

@@ -97,7 +97,8 @@ Optional Arguments:
 class SimpleTransform(p: Pass, form: CircuitForm) extends Transform {
   def inputForm = form
   def outputForm = form
-  def execute(state: CircuitState): CircuitState = CircuitState(p.run(state.circuit), state.form, state.annotations)
+  def execute(state: CircuitState): CircuitState =
+    CircuitState(p.run(state.circuit), state.form, Metadata(state.metadata.annotations))
 }
 
 class SimpleMidTransform(p: Pass) extends SimpleTransform(p, MidForm)
@@ -123,7 +124,7 @@ class ReplSeqMem extends Transform {
         new SimpleMidTransform(ResolveGenders))
 
   def execute(state: CircuitState): CircuitState = {
-    val annos = state.annotations.collect { case a: ReplSeqMemAnnotation => a }
+    val annos = state.metadata.annotations.collect { case a: ReplSeqMemAnnotation => a }
     annos match {
       case Nil => state // Do nothing if there are no annotations
       case Seq(ReplSeqMemAnnotation(inputFileName, outputConfig)) =>

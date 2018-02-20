@@ -30,7 +30,7 @@ trait AnnotationSpec extends LowTransformSpec {
   }
   def execute(input: String, check: Annotation, annotations: Seq[Annotation]): Unit = {
     val cr = compile(CircuitState(parse(input), ChirrtlForm, annotations), Seq.empty)
-    cr.annotations.toSeq should contain (check)
+    cr.metadata.annotations.toSeq should contain (check)
   }
 }
 
@@ -61,14 +61,13 @@ abstract class AnnotationTests extends AnnotationSpec with Matchers {
     class DeletingTransform extends Transform {
       val inputForm = LowForm
       val outputForm = LowForm
-      def execute(state: CircuitState) = state.copy(annotations = Seq())
+      def execute(state: CircuitState) = state.copy(metadata = Metadata(Seq()))
     }
     val transform = new DeletingTransform
     val tname = transform.name
     val inlineAnn = InlineAnnotation(CircuitName("Top"))
     val result = compiler.compile(CircuitState(parse(input), ChirrtlForm, Seq(inlineAnn)), Seq(transform))
-    println(result.annotations.head)
-    result.annotations.head should matchPattern {
+    result.metadata.annotations.head should matchPattern {
       case DeletedAnnotation(`tname`, `inlineAnn`) =>
     }
     val exception = (intercept[FIRRTLException] {
@@ -100,7 +99,7 @@ abstract class AnnotationTests extends AnnotationSpec with Matchers {
     val annos = Seq(anno("m.r.data.b", "sub"), anno("m.r.data", "all"), anno("m", "mem"),
                     dontTouch("Top.m"))
     val result = compiler.compile(CircuitState(parse(input), ChirrtlForm, annos), Nil)
-    val resultAnno = result.annotations.toSeq
+    val resultAnno = result.metadata.annotations
     resultAnno should contain (anno("m_a", "mem"))
     resultAnno should contain (anno("m_b_0", "mem"))
     resultAnno should contain (anno("m_b_1", "mem"))
@@ -124,7 +123,7 @@ abstract class AnnotationTests extends AnnotationSpec with Matchers {
         |""".stripMargin
     val annos = Seq(anno("r.b", "sub"), anno("r", "all"), anno("m", "mem"), dontTouch("Top.m"))
     val result = compiler.compile(CircuitState(parse(input), ChirrtlForm, annos), Nil)
-    val resultAnno = result.annotations.toSeq
+    val resultAnno = result.metadata.annotations
     resultAnno should contain (anno("m_a", "mem"))
     resultAnno should contain (anno("m_b_0", "mem"))
     resultAnno should contain (anno("m_b_1", "mem"))
@@ -154,7 +153,7 @@ abstract class AnnotationTests extends AnnotationSpec with Matchers {
     val annos = Seq(anno("zero"), anno("x.a"), anno("x.b"), anno("y[0]"), anno("y[1]"),
                     anno("y[2]"), dontTouch("Top.x"))
     val result = compiler.compile(CircuitState(parse(input), ChirrtlForm, annos), Nil)
-    val resultAnno = result.annotations.toSeq
+    val resultAnno = result.metadata.annotations
     resultAnno should contain (anno("x_a"))
     resultAnno should not contain (anno("zero"))
     resultAnno should not contain (anno("x.a"))
@@ -196,7 +195,7 @@ abstract class AnnotationTests extends AnnotationSpec with Matchers {
       dontTouch("Top.r"), dontTouch("Top.w")
     )
     val result = compiler.compile(CircuitState(parse(input), ChirrtlForm, annos), Nil)
-    val resultAnno = result.annotations.toSeq
+    val resultAnno = result.metadata.annotations
     resultAnno should not contain (anno("in.a"))
     resultAnno should not contain (anno("in.b[0]"))
     resultAnno should not contain (anno("in.b[1]"))
@@ -250,7 +249,7 @@ abstract class AnnotationTests extends AnnotationSpec with Matchers {
     val annos = Seq(anno("in"), anno("out"), anno("w"), anno("n"), anno("r"), dontTouch("Top.r"),
                     dontTouch("Top.w"))
     val result = compiler.compile(CircuitState(parse(input), ChirrtlForm, annos), Nil)
-    val resultAnno = result.annotations.toSeq
+    val resultAnno = result.metadata.annotations
     resultAnno should contain (anno("in_a"))
     resultAnno should contain (anno("in_b_0"))
     resultAnno should contain (anno("in_b_1"))
@@ -286,7 +285,7 @@ abstract class AnnotationTests extends AnnotationSpec with Matchers {
     val annos = Seq(anno("in.b"), anno("out.b"), anno("w.b"), anno("n.b"), anno("r.b"),
                     dontTouch("Top.r"), dontTouch("Top.w"))
     val result = compiler.compile(CircuitState(parse(input), ChirrtlForm, annos), Nil)
-    val resultAnno = result.annotations.toSeq
+    val resultAnno = result.metadata.annotations
     resultAnno should contain (anno("in_b_0"))
     resultAnno should contain (anno("in_b_1"))
     resultAnno should contain (anno("out_b_0"))
@@ -317,7 +316,7 @@ abstract class AnnotationTests extends AnnotationSpec with Matchers {
       anno("n.a"), anno("n.b[0]"), anno("n.b[1]")
     )
     val result = compiler.compile(CircuitState(parse(input), ChirrtlForm, annos), Nil)
-    val resultAnno = result.annotations.toSeq
+    val resultAnno = result.metadata.annotations
     resultAnno should not contain (anno("in.a"))
     resultAnno should not contain (anno("in.b[0]"))
     resultAnno should not contain (anno("in.b[1]"))
@@ -376,7 +375,7 @@ abstract class AnnotationTests extends AnnotationSpec with Matchers {
       }
     }
     */
-    val resultAnno = result.annotations.toSeq
+    val resultAnno = result.metadata.annotations
 
     resultAnno should contain (manno("Top"))
     resultAnno should contain (anno("foo", mod = "Top"))
@@ -417,7 +416,7 @@ abstract class AnnotationTests extends AnnotationSpec with Matchers {
       anno("x", mod = "Child"), anno("y", mod = "Child_1"), manno("Child"), manno("Child_1")
     )
     val result = compiler.compile(CircuitState(parse(input), ChirrtlForm, annos), Nil)
-    val resultAnno = result.annotations.toSeq
+    val resultAnno = result.metadata.annotations
     resultAnno should contain (anno("x", mod = "Child"))
     resultAnno should contain (anno("y", mod = "Child"))
     resultAnno should contain (manno("Child"))

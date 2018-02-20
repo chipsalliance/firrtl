@@ -66,7 +66,7 @@ class BlackBoxSourceHelper extends firrtl.Transform {
     * @return A transformed Firrtl AST
     */
   override def execute(state: CircuitState): CircuitState = {
-    val (annos, targetDir) = collectAnnos(state.annotations)
+    val (annos, targetDir) = collectAnnos(state.metadata.annotations)
     val fileList = annos.foldLeft(List.empty[String]) {
       case (fileList, anno) => anno match {
         case BlackBoxResourceAnno(_, resourceId) =>

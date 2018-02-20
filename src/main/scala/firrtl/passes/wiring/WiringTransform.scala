@@ -49,7 +49,7 @@ class WiringTransform extends Transform {
     ToWorkingIR
   )
   def execute(state: CircuitState): CircuitState = {
-    val annos = state.annotations.collect {
+    val annos = state.metadata.annotations.collect {
       case a @ (_: SinkAnnotation | _: SourceAnnotation) => a
     }
     annos match {

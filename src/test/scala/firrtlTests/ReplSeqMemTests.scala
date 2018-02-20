@@ -66,7 +66,6 @@ circuit Top :
     val annos = Seq(ReplSeqMemAnnotation.parse("-c:Top:-o:"+confLoc))
     val res = compileAndEmit(CircuitState(parse(input), ChirrtlForm, annos))
     // Check correctness of firrtl
-    println(res.annotations)
     parse(res.getEmittedCircuit.value)
     (new java.io.File(confLoc)).delete()
   }

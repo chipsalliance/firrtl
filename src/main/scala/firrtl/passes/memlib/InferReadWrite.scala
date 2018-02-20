@@ -152,10 +152,10 @@ class InferReadWrite extends Transform with SeqTransformBased {
     ResolveGenders
   )
   def execute(state: CircuitState): CircuitState = {
-    val runTransform = state.annotations.contains(InferReadWriteAnnotation)
+    val runTransform = state.metadata.annotations.contains(InferReadWriteAnnotation)
     if (runTransform) {
       val ret = runTransforms(state)
-      CircuitState(ret.circuit, outputForm, ret.annotations, ret.renames)
+      CircuitState(ret.circuit, outputForm, ret.metadata)
     } else {
       state
     }

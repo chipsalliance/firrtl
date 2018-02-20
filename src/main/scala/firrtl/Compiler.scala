@@ -105,20 +105,28 @@ object AnnotationSeq {
   def apply(xs: Seq[Annotation]) = new AnnotationSeq(xs.toList)
 }
 
+/** Metadata associated with a Firrtl circuit
+  *
+  * @param annotations The current collection of [[firrtl.annotations.Annotation Annotation]]
+  * @param renames A map of [[firrtl.annotations.Named Named]] things that have been renamed.
+  *        Generally only a return value from [[Transform]]s
+  */
+case class Metadata(annotations: Seq[Annotation], renames: Option[RenameMap])
+object Metadata {
+  def apply(annotations: Seq[Annotation]) = new Metadata(annotations, None)
+}
+
 /** Current State of the Circuit
   *
   * @constructor Creates a CircuitState object
   * @param circuit The current state of the Firrtl AST
   * @param form The current form of the circuit
-  * @param annotations The current collection of [[firrtl.annotations.Annotation Annotation]]
-  * @param renames A map of [[firrtl.annotations.Named Named]] things that have been renamed.
-  *   Generally only a return value from [[Transform]]s
+  * @param metadata Holds auxiliary information related to the circuit
   */
 case class CircuitState(
     circuit: Circuit,
     form: CircuitForm,
-    annotations: AnnotationSeq,
-    renames: Option[RenameMap]) {
+    metadata: Metadata) {
 
   /** Helper for getting just an emitted circuit */
   def emittedCircuitOption: Option[EmittedCircuit] =
@@ -131,14 +139,22 @@ case class CircuitState(
   }
   /** Helper function for extracting emitted components from annotations */
   def emittedComponents: Seq[EmittedComponent] =
-    annotations.collect { case emitted: EmittedAnnotation[_] => emitted.value }
+    metadata.annotations.collect { case emitted: EmittedAnnotation[_] => emitted.value }
   def deletedAnnotations: Seq[Annotation] =
-    annotations.collect { case anno: DeletedAnnotation => anno }
+    metadata.annotations.collect { case anno: DeletedAnnotation => anno }
 }
 object CircuitState {
-  def apply(circuit: Circuit, form: CircuitForm): CircuitState = apply(circuit, form, Seq())
+  def apply(circuit: Circuit, form: CircuitForm): CircuitState =
+    new CircuitState(circuit, form, Metadata(Seq.empty))
+  @deprecated("Switch to constructing Metadata", "1.1")
   def apply(circuit: Circuit, form: CircuitForm, annotations: AnnotationSeq) =
-    new CircuitState(circuit, form, annotations, None)
+    new CircuitState(circuit, form, Metadata(annotations))
+  @deprecated("Switch to constructing Metadata", "1.1")
+  def apply(circuit: Circuit,
+            form: CircuitForm,
+            annotations: AnnotationSeq,
+            renames: Option[RenameMap]) =
+    new CircuitState(circuit, form, Metadata(annotations, renames))
 }
 
 /** Current form of the Firrtl Circuit
@@ -227,7 +243,9 @@ abstract class Transform extends LazyLogging {
   final def getMyAnnotations(state: CircuitState): Seq[Annotation] = {
     val msg = "getMyAnnotations is deprecated, use collect and match on concrete types"
     Driver.dramaticWarning(msg)
-    state.annotations.collect { case a: LegacyAnnotation if a.transform == this.getClass => a }
+    state.metadata.annotations.collect {
+      case a: LegacyAnnotation if a.transform == this.getClass => a
+    }
   }
 
   /** Perform the transform and update annotations.
@@ -243,7 +261,10 @@ abstract class Transform extends LazyLogging {
     logger.info(s"""----------------------------${"-" * name.size}---------\n""")
     logger.info(f"Time: $timeMillis%.1f ms")
 
-    val remappedAnnotations = propagateAnnotations(state.annotations, result.annotations, result.renames)
+    val remappedAnnotations = {
+      val rmd = result.metadata
+      propagateAnnotations(state.metadata.annotations, rmd.annotations, rmd.renames)
+    }
 
     logger.info(s"Form: ${result.form}")
     logger.debug(s"Annotations:")
@@ -301,7 +322,7 @@ abstract class SeqTransform extends Transform with SeqTransformBased {
       s"[$name]: Input form must be lower or equal to $inputForm. Got ${state.form}")
     */
     val ret = runTransforms(state)
-    CircuitState(ret.circuit, outputForm, ret.annotations, ret.renames)
+    CircuitState(ret.circuit, outputForm, ret.metadata)
   }
 }
 
@@ -436,7 +457,8 @@ trait Compiler extends LazyLogging {
   def compileAndEmit(state: CircuitState,
                      customTransforms: Seq[Transform] = Seq.empty): CircuitState = {
     val emitAnno = EmitCircuitAnnotation(emitter.getClass)
-    compile(state.copy(annotations = emitAnno +: state.annotations), customTransforms)
+    val md = state.metadata.copy(annotations = emitAnno +: state.metadata.annotations)
+    compile(state.copy(metadata = md), customTransforms)
   }
 
   /** Perform compilation

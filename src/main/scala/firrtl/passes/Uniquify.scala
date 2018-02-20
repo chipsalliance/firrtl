@@ -370,7 +370,7 @@ object Uniquify extends Transform {
 
     sinfo = c.info
     val result = Circuit(c.info, c.modules map uniquifyPorts(renames) map uniquifyModule(renames), c.main)
-    CircuitState(result, outputForm, state.annotations, Some(renames))
+    CircuitState(result, outputForm, state.metadata.copy(renames = Some(renames)))
   }
 }
 

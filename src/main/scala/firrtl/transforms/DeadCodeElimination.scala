@@ -316,17 +316,17 @@ class DeadCodeElimination extends Transform {
     // Preserve original module order
     val newCircuit = c.copy(modules = c.modules.flatMap(m => modulesxMap.get(m.name)))
 
-    state.copy(circuit = newCircuit, renames = Some(renames))
+    state.copy(circuit = newCircuit, metadata = state.metadata.copy(renames = Some(renames)))
   }
 
   def execute(state: CircuitState): CircuitState = {
-    val dontTouches: Seq[LogicNode] = state.annotations.collect {
+    val dontTouches: Seq[LogicNode] = state.metadata.annotations.collect {
       case DontTouchAnnotation(component) => LogicNode(component)
     }
-    val doTouchExtMods: Seq[String] = state.annotations.collect {
+    val doTouchExtMods: Seq[String] = state.metadata.annotations.collect {
       case OptimizableExtModuleAnnotation(ModuleName(name, _)) => name
     }
-    val noDCE = state.annotations.contains(NoDCEAnnotation)
+    val noDCE = state.metadata.annotations.contains(NoDCEAnnotation)
     if (noDCE) {
       logger.info("Skipping DCE")
       state
