@@ -27,7 +27,7 @@ trait Pass extends Transform {
         error(s"[$name]: Input form must be lower or equal to $inputForm. Got ${state.form}")
       case _ => run(state.circuit)
     }
-    CircuitState(result, outputForm, state.annotations, state.renames)
+    CircuitState(result, outputForm, state.metadata)
   }
 }
 

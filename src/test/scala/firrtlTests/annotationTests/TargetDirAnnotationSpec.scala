@@ -14,7 +14,7 @@ class FindTargetDirTransform(expected: String) extends Transform {
   var run = false
   def execute(state: CircuitState): CircuitState = {
     run = true
-    state.annotations.collectFirst {
+    state.metadata.annotations.collectFirst {
       case TargetDirAnnotation(expected) =>
         foundTargetDir = true
     }

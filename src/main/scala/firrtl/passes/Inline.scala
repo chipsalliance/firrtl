@@ -38,9 +38,9 @@ class InlineInstances extends Transform {
 
    def execute(state: CircuitState): CircuitState = {
      // TODO Add error check for more than one annotation for inlining
-     val (modNames, instNames) = collectAnns(state.circuit, state.annotations)
+     val (modNames, instNames) = collectAnns(state.circuit, state.metadata.annotations)
      if (modNames.nonEmpty || instNames.nonEmpty) {
-       run(state.circuit, modNames, instNames, state.annotations)
+       run(state.circuit, modNames, instNames, state.metadata.annotations)
      } else {
        state
      }

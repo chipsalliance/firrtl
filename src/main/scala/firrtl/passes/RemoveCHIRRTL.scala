@@ -261,6 +261,6 @@ object RemoveCHIRRTL extends Transform {
     val renames = RenameMap()
     renames.setCircuit(c.main)
     val result = c copy (modules = c.modules map remove_chirrtl_m(renames))
-    CircuitState(result, outputForm, state.annotations, Some(renames))
+    CircuitState(result, outputForm, state.metadata.copy(renames = Some(renames)))
   }
 }

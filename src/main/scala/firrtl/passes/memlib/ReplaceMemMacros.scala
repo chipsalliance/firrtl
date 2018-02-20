@@ -210,7 +210,7 @@ class ReplaceMemMacros(writer: ConfWriter) extends Transform {
     val modules = c.modules map updateMemMods(namespace, nameMap, memMods)
     // print conf
     writer.serialize()
-    val pannos = state.annotations.collect { case a: PinAnnotation => a }
+    val pannos = state.metadata.annotations.collect { case a: PinAnnotation => a }
     val pins = pannos match {
       case Seq() => Nil
       case Seq(PinAnnotation(pins)) => pins
@@ -220,7 +220,7 @@ class ReplaceMemMacros(writer: ConfWriter) extends Transform {
       seq ++ memMods.collect {
         case m: ExtModule => SinkAnnotation(ModuleName(m.name, CircuitName(c.main)), pin)
       }
-    } ++ state.annotations
-    CircuitState(c.copy(modules = modules ++ memMods), inputForm, annos)
+    } ++ state.metadata.annotations
+    CircuitState(c.copy(modules = modules ++ memMods), inputForm, Metadata(annos))
   }
 }

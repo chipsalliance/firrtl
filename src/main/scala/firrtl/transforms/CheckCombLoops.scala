@@ -212,13 +212,13 @@ class CheckCombLoops extends Transform {
   }
 
   def execute(state: CircuitState): CircuitState = {
-    val dontRun = state.annotations.contains(DontCheckCombLoopsAnnotation)
+    val dontRun = state.metadata.annotations.contains(DontCheckCombLoopsAnnotation)
     if (dontRun) {
       logger.warn("Skipping Combinational Loop Detection")
       state
     } else {
       val result = run(state.circuit)
-      CircuitState(result, outputForm, state.annotations, state.renames)
+      CircuitState(result, outputForm, state.metadata)
     }
   }
 }
