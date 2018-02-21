@@ -86,7 +86,7 @@ class WidthSpec extends FirrtlFlatSpec {
     }
   }
 
-  "Add of UInt<2> and SInt<2>" should "return SInt<4>" in {
+  "Add of UInt<2> and SInt<2>" should "error" in {
     val passes = Seq(
       ToWorkingIR,
       CheckHighForm,
@@ -107,7 +107,7 @@ class WidthSpec extends FirrtlFlatSpec {
     }
   }
 
-  "SInt<2> - UInt<3>" should "return SInt<5>" in {
+  "SInt<2> - UInt<3>" should "error" in {
     val passes = Seq(
       ToWorkingIR,
       CheckHighForm,

@@ -313,7 +313,7 @@ object CheckTypes extends Pass {
           case (false, isAll, false, false) if isAll == okSInt  =>
           case (false, false, isAll, false) if isAll == okClock =>
           case (false, false, false, isAll) if isAll == okFix   =>
-          case x => println(x); errors.append(new OpNotCorrectType(info, mname, e.op.serialize, exprs.map(_.tpe.serialize)))
+          case x => errors.append(new OpNotCorrectType(info, mname, e.op.serialize, exprs.map(_.tpe.serialize)))
         }
       }
       e.op match {
