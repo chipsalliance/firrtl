@@ -338,7 +338,7 @@ class ConstantPropagation extends Transform {
           case node: DefNode => node.copy(name = newName)
           case wire: DefWire => wire.copy(name = newName)
           case reg: DefRegister => reg.copy(name = newName)
-          case other => throwInternalError
+          case other => throwInternalError()
         }
       case other => other map backPropStmt
     }
