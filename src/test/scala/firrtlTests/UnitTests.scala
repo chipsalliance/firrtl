@@ -325,7 +325,7 @@ class UnitTests extends FirrtlFlatSpec {
         |    when sel :
         |      clock3 <= clock2
         |""".stripMargin
-    intercept[EmitterException] { // Both MuxClock and InvalidConnect are thrown
+    intercept[EmitterException] {
       compileToVerilog(input)
     }
   }
