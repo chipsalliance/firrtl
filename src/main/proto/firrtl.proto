@@ -1,8 +1,9 @@
 syntax = "proto3";
 
-package hardware.chips.chisel3;
+package firrtl;
 
-option java_package = "hardware.chips.chisel3.firrtl";
+option java_package = "firrtl";
+option java_outer_classname = "FirrtlProtos";
 
 message Firrtl {
   repeated Circuit circuit = 1;
@@ -148,46 +149,6 @@ message Firrtl {
       Expression en = 4;
     }
 
-    message InlineVerilog {
-      // Required.
-      repeated InlineVerilogPiece pieces = 1;
-
-      message InlineVerilogPiece {
-        oneof contents {
-          string literal = 1;
-          Expression expression = 2;
-        }
-      }
-    }
-
-    message Assert {
-      // Required.
-      Expression clk = 1;
-      // Required.
-      Expression reset = 2;
-      // Required.
-      Expression condition = 3;
-      // Required.
-      string label = 4;
-      // Required.
-      bytes message = 5;
-      repeated Expression message_arg = 6;
-      // Required.
-      string error_level = 7;
-      // Required.
-      bool ignore_unknowns = 8;
-    }
-
-    message Cover {
-
-      // Required.
-      Expression condition = 1;
-      // Required.
-      string label = 2;
-      Expression clock = 3;
-      Expression reset = 4;
-    }
-
     message Skip {
       // Empty
     }
@@ -245,9 +206,6 @@ message Firrtl {
       When when = 7;
       Stop stop = 8;
       Printf printf = 10;
-      InlineVerilog inline_verilog = 11;
-      Assert assert = 12;
-      Cover cover = 13;
       Skip skip = 14;
       Connect connect = 15;
       PartialConnect partial_connect = 16;
@@ -279,7 +237,7 @@ message Firrtl {
       // Empty.
     }
 
-    message RecordType {
+    message BundleType {
       message Field {
         // Required.
         bool is_flipped = 1;
@@ -364,15 +322,6 @@ message Firrtl {
       Expression f_value = 3;
     }
 
-    message ExtractBits {
-      // Required.
-      Expression target = 2;
-      // Required
-      IntegerLiteral msb = 3;
-      // Required
-      IntegerLiteral lsb = 4;
-    }
-
     message SubField {
       // Required.
       Expression expression = 1;
@@ -426,6 +375,7 @@ message Firrtl {
         OP_CONVERT = 27;
         OP_AS_UINT = 28;
         OP_AS_SINT = 29;
+        OP_EXTRACT_BITS = 30;
       }
 
       // Required.
