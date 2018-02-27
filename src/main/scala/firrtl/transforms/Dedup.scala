@@ -136,6 +136,7 @@ class DedupModules extends Transform {
 
     val cname = CircuitName(c.main)
     val renameMap = RenameMap(dedupMap.map { case (from, to) =>
+      logger.debug(s"[Dedup] $from -> $to")
       ModuleName(from, cname) -> List(ModuleName(to, cname))
     })
 
