@@ -379,23 +379,4 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
       dir.exists() should be (false)
     }
   }
-
-  "Custom Transforms" - {
-    "should run if specified with a RunTranformAnnotation" in {
-      val dummyFirrtl = """
-        |circuit Test :
-        |  module Test :
-        |    output out : UInt
-        |    out <= UInt(1)""".stripMargin
-      val optionsManager = new ExecutionOptionsManager("CustomTransforms") with HasFirrtlOptions {
-        firrtlOptions = firrtlOptions.copy(
-          annotations = firrtlOptions.annotations :+ RunTransformAnnotation(classOf[ExceptingTransform]),
-          firrtlSource = Some(dummyFirrtl)
-        )
-      }
-      an [ExceptingTransform.CustomException] shouldBe thrownBy {
-        Driver.execute(optionsManager)
-      }
-    }
-  }
 }

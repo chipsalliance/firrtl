@@ -193,22 +193,16 @@ object Driver {
 
       // Wrap compilation in a try/catch to present Scala MatchErrors in a more user-friendly format.
       try {
-        val annoMap = getAnnotations(optionsManager).groupBy(_.isInstanceOf[RunTransformAnnotation])
-        val transforms = annoMap.getOrElse(true, List.empty).distinct.map {
-          case RunTransformAnnotation(transformClass) => transformClass.newInstance()
-        }
-        val annos = annoMap.getOrElse(false, List.empty)
+        val annos = getAnnotations(optionsManager)
 
         val parsedInput = Parser.parse(firrtlSource, firrtlConfig.infoMode)
 
         // Does this need to be before calling compiler?
         optionsManager.makeTargetDir()
 
-        val customTransforms = firrtlConfig.customTransforms ++ transforms
-
         maybeFinalState = Some(firrtlConfig.compiler.compile(
           CircuitState(parsedInput, ChirrtlForm, annos),
-          customTransforms
+          firrtlConfig.customTransforms
         ))
       }
       catch {

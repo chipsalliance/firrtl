@@ -173,13 +173,6 @@ private[firrtl] object LegacyAnnotation {
   }
 }
 
-/** Tells [[firrtl.Driver]] to instantiate an instance of a [[firrtl.Transform]]
-  *
-  * No matter how many RunTransformAnnotations point to a given transform, each annotated transform
-  * will only be instantiated once.
-  */
-case class RunTransformAnnotation(transform: Class[_ <: Transform]) extends NoTargetAnnotation
-
 case class DeletedAnnotation(xFormName: String, anno: Annotation) extends NoTargetAnnotation {
   override def serialize: String = s"""DELETED by $xFormName\n${anno.serialize}"""
 }
