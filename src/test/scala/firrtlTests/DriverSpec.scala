@@ -172,7 +172,7 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
     val annoFile =  new File(optionsManager.commonOptions.targetDirName, top + ".anno")
     copyResourceToFile("/annotations/SampleAnnotations.anno", annoFile)
     optionsManager.firrtlOptions.annotations.length should be (0)
-    val annos = Driver.loadAnnotations(optionsManager)
+    val annos = Driver.getAnnotations(optionsManager)
     annos.length should be (12) // 9 from circuit plus 3 general purpose
     annos.count(_.isInstanceOf[InlineAnnotation]) should be (9)
     annoFile.delete()
@@ -189,7 +189,7 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
     val annotationsTestFile =  new File(optionsManager.commonOptions.targetDirName, optionsManager.firrtlOptions.annotationFileNameOverride + ".anno")
     copyResourceToFile("/annotations/SampleAnnotations.anno", annotationsTestFile)
     optionsManager.firrtlOptions.annotations.length should be (0)
-    val annos = Driver.loadAnnotations(optionsManager)
+    val annos = Driver.getAnnotations(optionsManager)
     annos.length should be (12) // 9 from circuit plus 3 general purpose
     annos.count(_.isInstanceOf[InlineAnnotation]) should be (9)
     annotationsTestFile.delete()
@@ -207,7 +207,7 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
       )
     }
     copyResourceToFile(s"/annotations/$annoFilename", annotationsTestFile)
-    val annos = Driver.loadAnnotations(optionsManager)
+    val annos = Driver.getAnnotations(optionsManager)
 
     val cname = CircuitName("foo")
     val mname = ModuleName("bar", cname)
@@ -261,7 +261,7 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
         )
       }
       (the [Exception] thrownBy {
-        Driver.loadAnnotations(optionsManager)
+        Driver.getAnnotations(optionsManager)
       }).getMessage should include ("Old-style annotations")
     }
   }
@@ -277,7 +277,7 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
     val annotationsTestFile = new File(optionsManager.commonOptions.targetDirName, filename)
     copyResourceToFile(s"/annotations/$filename", annotationsTestFile)
     optionsManager.firrtlOptions.annotations.length should be (0)
-    val annos = Driver.loadAnnotations(optionsManager)
+    val annos = Driver.getAnnotations(optionsManager)
     annos.length should be (21) // 18 from files plus 3 general purpose
     annos.count(_.isInstanceOf[InlineAnnotation]) should be (18)
     annotationsTestFile.delete()
@@ -297,8 +297,8 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
     val firrtlOptions = optionsManager.firrtlOptions
     firrtlOptions.annotations.length should be (1) // infer-rw
 
-    val anns = Driver.loadAnnotations(optionsManager)
-    anns should contain (BlackBoxTargetDirAnno(".")) // built in to loadAnnotations
+    val anns = Driver.getAnnotations(optionsManager)
+    anns should contain (BlackBoxTargetDirAnno(".")) // built in to getAnnotations
     anns should contain (InferReadWriteAnnotation)  // --infer-rw
     anns.collect { case a: InlineAnnotation => a }.length should be (9)  // annotations file
 

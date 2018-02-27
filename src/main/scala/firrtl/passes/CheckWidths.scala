@@ -22,8 +22,8 @@ object CheckWidths extends Pass {
     s"$info : [module $mname]  Width of dshl shift amount cannot be larger than $DshlMaxWidth bits.")
   class NegWidthException(info:Info, mname: String) extends PassException(
     s"$info: [module $mname] Width cannot be negative or zero.")
-  class BitsWidthException(info: Info, mname: String, hi: BigInt, width: BigInt) extends PassException(
-    s"$info: [module $mname] High bit $hi in bits operator is larger than input width $width.")
+  class BitsWidthException(info: Info, mname: String, hi: BigInt, width: BigInt, exp: String) extends PassException(
+    s"$info: [module $mname] High bit $hi in bits operator is larger than input width $width in $exp.")
   class HeadWidthException(info: Info, mname: String, n: BigInt, width: BigInt) extends PassException(
     s"$info: [module $mname] Parameter $n in head operator is larger than input width $width.")
   class TailWidthException(info: Info, mname: String, n: BigInt, width: BigInt) extends PassException(
@@ -50,7 +50,7 @@ object CheckWidths extends Pass {
     def hasWidth(tpe: Type): Boolean = tpe match {
       case GroundType(IntWidth(w)) => true
       case GroundType(_) => false
-      case _ => println(tpe); throwInternalError
+      case _ => throwInternalError(Some(s"hasWidth - $tpe"))
     }
 
     def check_width_t(info: Info, mname: String)(t: Type): Type =
@@ -69,7 +69,7 @@ object CheckWidths extends Pass {
           case _ =>
         }
         case DoPrim(Bits, Seq(a), Seq(hi, lo), _) if (hasWidth(a.tpe) && bitWidth(a.tpe) <= hi) =>
-          errors append new BitsWidthException(info, mname, hi, bitWidth(a.tpe))
+          errors append new BitsWidthException(info, mname, hi, bitWidth(a.tpe), e.serialize)
         case DoPrim(Head, Seq(a), Seq(n), _) if (hasWidth(a.tpe) && bitWidth(a.tpe) < n) =>
           errors append new HeadWidthException(info, mname, n, bitWidth(a.tpe))
         case DoPrim(Tail, Seq(a), Seq(n), _) if (hasWidth(a.tpe) && bitWidth(a.tpe) <= n) =>

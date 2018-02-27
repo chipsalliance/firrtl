@@ -80,7 +80,7 @@ class BlackBoxSourceHelper extends firrtl.Transform {
           writer.write(text)
           writer.close()
           outFile.getAbsolutePath +: fileList
-        case _ => throwInternalError
+        case _ => throwInternalError()
       }
     }
     // If we have BlackBoxes, generate the helper file.

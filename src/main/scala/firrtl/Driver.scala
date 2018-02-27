@@ -6,6 +6,7 @@ import scala.collection._
 import scala.io.Source
 import scala.sys.process.{BasicIO,stringSeqToProcess}
 import scala.util.{Try, Success, Failure}
+import scala.util.control.ControlThrowable
 import java.io.{File, FileNotFoundException}
 
 import net.jcazevedo.moultingyaml._
@@ -13,8 +14,9 @@ import logger.Logger
 import Parser.{IgnoreInfo, InfoMode}
 import annotations._
 import firrtl.annotations.AnnotationYamlProtocol._
+import firrtl.passes.PassException
 import firrtl.transforms._
-import Utils.throwInternalError
+import firrtl.Utils.throwInternalError
 
 
 /**
@@ -63,13 +65,26 @@ object Driver {
     println("-"*78 + Console.RESET)
   }
 
-  /** Load annotations from specified files and options
+  /** Load annotation file based on options
+    * @param optionsManager use optionsManager config to load annotation file if it exists
+    *                       update the firrtlOptions with new annotations if it does
+    */
+  @deprecated("Use side-effect free getAnnotation instead", "1.1")
+  def loadAnnotations(optionsManager: ExecutionOptionsManager with HasFirrtlOptions): Unit = {
+    val msg = "Driver.loadAnnotations is deprecated, use Driver.getAnnotations instead"
+    Driver.dramaticWarning(msg)
+    optionsManager.firrtlOptions = optionsManager.firrtlOptions.copy(
+      annotations = Driver.getAnnotations(optionsManager).toList
+    )
+  }
+
+  /** Get annotations from specified files and options
     *
     * @param optionsManager use optionsManager config to load annotation files
     * @return Annotations read from files
     */
   //scalastyle:off cyclomatic.complexity method.length
-  def loadAnnotations(
+  def getAnnotations(
       optionsManager: ExecutionOptionsManager with HasFirrtlOptions
   ): Seq[Annotation] = {
     val firrtlConfig = optionsManager.firrtlOptions
@@ -174,23 +189,38 @@ object Driver {
           }
       }
 
-      val annoMap = loadAnnotations(optionsManager).groupBy(_.isInstanceOf[RunTransformAnnotation])
-      val transforms = annoMap.getOrElse(true, List.empty).distinct.map {
-        case RunTransformAnnotation(transformClass) => transformClass.newInstance()
+      var maybeFinalState: Option[CircuitState] = None
+
+      // Wrap compilation in a try/catch to present Scala MatchErrors in a more user-friendly format.
+      try {
+        val annoMap = getAnnotations(optionsManager).groupBy(_.isInstanceOf[RunTransformAnnotation])
+        val transforms = annoMap.getOrElse(true, List.empty).distinct.map {
+          case RunTransformAnnotation(transformClass) => transformClass.newInstance()
+        }
+        val annos = annoMap.getOrElse(false, List.empty)
+
+        val parsedInput = Parser.parse(firrtlSource, firrtlConfig.infoMode)
+
+        // Does this need to be before calling compiler?
+        optionsManager.makeTargetDir()
+
+        val customTransforms = firrtlConfig.customTransforms ++ transforms
+
+        maybeFinalState = Some(firrtlConfig.compiler.compile(
+          CircuitState(parsedInput, ChirrtlForm, annos),
+          customTransforms
+        ))
       }
-      val annos = annoMap.getOrElse(false, List.empty)
+      catch {
+        // Rethrow the exceptions which are expected or due to the runtime environment (out of memory, stack overflow)
+        case p: ControlThrowable => throw p
+        case p: PassException  => throw p
+        case p: FIRRTLException => throw p
+        // Treat remaining exceptions as internal errors.
+        case e: Exception => throwInternalError(exception = Some(e))
+      }
 
-      val parsedInput = Parser.parse(firrtlSource, firrtlConfig.infoMode)
-
-      // Does this need to be before calling compiler?
-      optionsManager.makeTargetDir()
-
-      val customTransforms = firrtlConfig.customTransforms ++ transforms
-
-      val finalState = firrtlConfig.compiler.compile(
-        CircuitState(parsedInput, ChirrtlForm, annos),
-        customTransforms
-      )
+      val finalState = maybeFinalState.get
 
       // Do emission
       // Note: Single emission target assumption is baked in here
@@ -204,7 +234,7 @@ object Driver {
           emitted.value
         case OneFilePerModule(dirName) =>
           val emittedModules = finalState.emittedComponents collect { case x: EmittedModule => x }
-          if (emittedModules.isEmpty) throwInternalError // There should be something
+          if (emittedModules.isEmpty) throwInternalError() // There should be something
           emittedModules.foreach { module =>
             val filename = optionsManager.getBuildFileName(firrtlConfig.outputSuffix, s"$dirName/${module.name}")
             val outputFile = new java.io.PrintWriter(filename)
@@ -246,7 +276,7 @@ object Driver {
           optionsManager.showUsageAsError()
           failure
         case result =>
-          throw new Exception(s"Error: Unknown Firrtl Execution result $result")
+          throwInternalError(Some(s"Error: Unknown Firrtl Execution result $result"))
       }
     }
     else {
