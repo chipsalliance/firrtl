@@ -1,6 +1,6 @@
 set -e
 # Skip chisel tests if the commit message says to
-if cat $TRAVIS_COMMIT_MESSAGE | grep '\[skip chisel tests\]'; then
+if echo $TRAVIS_COMMIT_MESSAGE | grep '\[skip chisel tests\]'; then
   exit 0
 else
   git clone https://github.com/ucb-bar/chisel3.git
