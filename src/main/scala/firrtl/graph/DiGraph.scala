@@ -75,8 +75,8 @@ class DiGraph[T] private[graph] (private[graph] val edges: LinkedHashMap[T, Link
     // permanently marked nodes are implicitly held in order
     val order = new mutable.ArrayBuffer[T]
     // invariant: no intersection between unmarked and tempMarked
-    val unmarked = new LinkedHashSet[T]
-    val tempMarked = new LinkedHashSet[T]
+    val unmarked = new mutable.LinkedHashSet[T]
+    val tempMarked = new mutable.LinkedHashSet[T]
 
     def visit(n: T): Unit = {
       if (tempMarked.contains(n)) {
@@ -85,7 +85,7 @@ class DiGraph[T] private[graph] (private[graph] val edges: LinkedHashMap[T, Link
       if (unmarked.contains(n)) {
         tempMarked += n
         unmarked -= n
-        for (m <- getEdges(n)) {
+        for (m <- getEdges(n).toSeq.reverse) {
           visit(m)
         }
         tempMarked -= n
@@ -94,7 +94,7 @@ class DiGraph[T] private[graph] (private[graph] val edges: LinkedHashMap[T, Link
     }
 
     unmarked ++= getVertices
-    while (!unmarked.isEmpty) {
+    while (unmarked.nonEmpty) {
       visit(unmarked.head)
     }
 
