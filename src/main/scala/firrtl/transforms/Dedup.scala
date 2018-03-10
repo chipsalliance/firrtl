@@ -5,8 +5,9 @@ package transforms
 
 import firrtl.ir._
 import firrtl.Mappers._
+import firrtl.analyses.InstanceGraph
 import firrtl.annotations._
-import firrtl.passes.PassException
+import firrtl.passes.InferTypes
 
 // Datastructures
 import scala.collection.mutable
@@ -18,134 +19,241 @@ case class NoDedupAnnotation(target: ModuleName) extends SingleTargetAnnotation[
   def duplicate(n: ModuleName) = NoDedupAnnotation(n)
 }
 
-// Only use on legal Firrtl. Specifically, the restriction of
-//  instance loops must have been checked, or else this pass can
-//  infinitely recurse
+/** Only use on legal Firrtl.
+  *
+  * Specifically, the restriction of instance loops must have been checked, or else this pass can
+  *  infinitely recurse
+  */
 class DedupModules extends Transform {
-  def inputForm = HighForm
-  def outputForm = HighForm
-  // Orders the modules of a circuit from leaves to root
-  // A module will appear *after* all modules it instantiates
-  private def buildModuleOrder(c: Circuit): Seq[String] = {
-    val moduleOrder = mutable.ArrayBuffer.empty[String]
-    def hasInstance(b: Statement): Boolean = {
-      var has = false
-      def onStmt(s: Statement): Statement = s map onStmt match {
-        case DefInstance(i, n, m) =>
-          if(!(moduleOrder contains m)) has = true
-          s
-        case WDefInstance(i, n, m, t) =>
-          if(!(moduleOrder contains m)) has = true
-          s
-        case _ => s
-      }
-      onStmt(b)
-      has
-    }
-    def addModule(m: DefModule): DefModule = m match {
-      case Module(info, n, ps, b) =>
-        if (!hasInstance(b)) moduleOrder += m.name
-        m
-      case e: ExtModule =>
-        moduleOrder += m.name
-        m
-      case _ => m
-    }
+  def inputForm: CircuitForm = HighForm
+  def outputForm: CircuitForm = HighForm
 
-    while ((moduleOrder.size < c.modules.size)) {
-      c.modules.foreach(m => if (!moduleOrder.contains(m.name)) addModule(m))
-    }
-    moduleOrder
-  }
-
-  // Finds duplicate Modules
-  // Also changes DefInstances to instantiate the deduplicated module
-  // Returns (Deduped Module name -> Seq of identical modules,
-  //          Deuplicate Module name -> deduped module name)
-  private def findDups(
-      moduleOrder: Seq[String],
-      moduleMap: Map[String, DefModule],
-      noDedups: Seq[String]): (Map[String, Seq[DefModule]], Map[String, String]) = {
-    // Module body -> Module name
-    val dedupModules = mutable.HashMap.empty[String, String]
-    // Old module name -> dup module name
-    val dedupMap = mutable.HashMap.empty[String, String]
-    // Deduplicated module name -> all identical modules
-    val oldModuleMap = mutable.HashMap.empty[String, Seq[DefModule]]
-
-    def onModule(m: DefModule): Unit = {
-      def fixInstance(s: Statement): Statement = s map fixInstance match {
-        case DefInstance(i, n, m) => DefInstance(i, n, dedupMap.getOrElse(m, m))
-        case WDefInstance(i, n, m, t) => WDefInstance(i, n, dedupMap.getOrElse(m, m), t)
-        case x => x
-      }
-      def removeInfo(stmt: Statement): Statement = stmt map removeInfo match {
-        case sx: HasInfo => sx match {
-          case s: DefWire => s.copy(info = NoInfo)
-          case s: DefNode => s.copy(info = NoInfo)
-          case s: DefRegister => s.copy(info = NoInfo)
-          case s: DefInstance => s.copy(info = NoInfo)
-          case s: WDefInstance => s.copy(info = NoInfo)
-          case s: DefMemory => s.copy(info = NoInfo)
-          case s: Connect => s.copy(info = NoInfo)
-          case s: PartialConnect => s.copy(info = NoInfo)
-          case s: IsInvalid => s.copy(info = NoInfo)
-          case s: Attach => s.copy(info = NoInfo)
-          case s: Stop => s.copy(info = NoInfo)
-          case s: Print => s.copy(info = NoInfo)
-          case s: Conditionally => s.copy(info = NoInfo)
-        }
-        case sx => sx
-      }
-      def removePortInfo(p: Port): Port = p.copy(info = NoInfo)
-
-
-      val mx = m map fixInstance
-      val mxx = (mx map removeInfo) map removePortInfo
-
-      // If shouldn't dedup, just make it fail to be the same to any other modules
-      val unique = if (!noDedups.contains(mxx.name)) "" else mxx.name
-
-      val string = mxx match {
-        case Module(i, n, ps, b) =>
-          ps.map(_.serialize).mkString + b.serialize + unique
-        case ExtModule(i, n, ps, dn, p) =>
-          ps.map(_.serialize).mkString + dn + p.map(_.serialize).mkString + unique
-      }
-      dedupModules.get(string) match {
-        case Some(dupname) =>
-          dedupMap(mx.name) = dupname
-          oldModuleMap(dupname) = oldModuleMap(dupname) :+ mx
-        case None =>
-          dedupModules(string) = mx.name
-          oldModuleMap(mx.name) = Seq(mx)
-      }
-    }
-    moduleOrder.foreach(n => onModule(moduleMap(n)))
-    (oldModuleMap.toMap, dedupMap.toMap)
-  }
-
-  def run(c: Circuit, noDedups: Seq[String]): (Circuit, RenameMap) = {
-    val moduleOrder = buildModuleOrder(c)
-    val moduleMap = c.modules.map(m => m.name -> m).toMap
-
-    val (oldModuleMap, dedupMap) = findDups(moduleOrder, moduleMap, noDedups)
-
-    // Use old module list to preserve ordering
-    val dedupedModules = c.modules.flatMap(m => oldModuleMap.get(m.name).map(_.head))
-
-    val cname = CircuitName(c.main)
-    val renameMap = RenameMap(dedupMap.map { case (from, to) =>
-      logger.debug(s"[Dedup] $from -> $to")
-      ModuleName(from, cname) -> List(ModuleName(to, cname))
-    })
-
-    (c.copy(modules = dedupedModules), renameMap)
-  }
-
+  /**
+    * Deduplicate a Circuit
+    * @param state Input Firrtl AST
+    * @return A transformed Firrtl AST
+    */
   def execute(state: CircuitState): CircuitState = {
     val noDedups = state.annotations.collect { case NoDedupAnnotation(ModuleName(m, c)) => m }
     val (newC, renameMap) = run(state.circuit, noDedups)
     state.copy(circuit = newC, renames = Some(renameMap))
   }
+
+  /**
+    * Deduplicates a circuit, and records renaming
+    * @param c Circuit to dedup
+    * @param noDedups Modules not to dedup
+    * @return Deduped Circuit and corresponding RenameMap
+    */
+  def run(c: Circuit, noDedups: Seq[String]): (Circuit, RenameMap) = {
+    // Map of module name to module
+    val moduleMap = c.modules.map(m => m.name -> m).toMap
+
+    // Order of modules, from leaf to top
+    val moduleOrder = new InstanceGraph(c).moduleOrder.map(_.name).reverse
+
+    // RenameMap
+    val renameMap = RenameMap()
+    renameMap.setCircuit(c.main)
+
+    // Maps module name to corresponding dedup module
+    val dedupMap = DedupModules.deduplicate(moduleOrder, moduleMap, noDedups.toSet, renameMap)
+
+    // Use old module list to preserve ordering
+    val dedupedModules = c.modules.map(m => dedupMap(m.name)).distinct
+
+    val cname = CircuitName(c.main)
+    renameMap.addMap(dedupMap.map { case (from, to) =>
+      logger.debug(s"[Dedup] $from -> $to")
+      ModuleName(from, cname) -> List(ModuleName(to.name, cname))
+    })
+
+    (InferTypes.run(c.copy(modules = dedupedModules)), renameMap)
+  }
+}
+
+/**
+  * Utility functions for [[DedupModules]]
+  */
+object DedupModules {
+  /**
+    * Change's a module's internal signal names, types, infos, and modules.
+    * Populates renameMap.
+    * @param rename Function to rename a signal. Called on declaration and references.
+    * @param retype Function to retype a signal. Called on declaration, references, and subfields
+    * @param reinfo Function to re-info a statement
+    * @param renameModule Function to rename an instance's module
+    * @param renameMap Updates renameMap to keep track of signal name changes
+    * @param module Module to change internals
+    * @return Changed Module
+    */
+  def changeInternals(rename: String=>String,
+                      retype: String=>Type=>Type,
+                      reinfo: Info=>Info,
+                      renameModule: String=>String,
+                      renameMap: RenameMap
+                     )(module: DefModule): DefModule = {
+    def onPort(p: Port): Port = Port(reinfo(p.info), rename(p.name), p.direction, retype(p.name)(p.tpe))
+    def onExp(e: Expression): Expression = e match {
+      case WRef(n, t, k, g) =>
+        val finalExpr = WRef(rename(n), retype(n)(t), k, g)
+        renameMap.rename(n, finalExpr.name)
+        finalExpr
+      case WSubField(expr, n, tpe, kind) =>
+        val fieldIndex = expr.tpe.asInstanceOf[BundleType].fields.indexWhere(f => f.name == n)
+        val newExpr = onExp(expr)
+        val newField = newExpr.tpe.asInstanceOf[BundleType].fields(fieldIndex)
+        val finalExpr = WSubField(newExpr, newField.name, newField.tpe, kind)
+        renameMap.rename(e.serialize, finalExpr.serialize)
+        finalExpr
+      case other => other map onExp
+    }
+    def onStmt(s: Statement): Statement = s match {
+      case WDefInstance(i, n, m, t) =>
+        val w = WDefInstance(reinfo(i), rename(n), renameModule(m), retype(n)(t))
+        renameMap.rename(n, w.name)
+        w
+      case DefInstance(i, n, m) =>
+        val d = DefInstance(reinfo(i), rename(n), renameModule(m))
+        renameMap.rename(n, d.name)
+        d
+      case h: IsDeclaration => h map rename map retype(h.name) map onExp map reinfo
+      case other => other map reinfo map onExp map onStmt
+    }
+    renameMap.setModule(module.name)
+    val finalModule = module match {
+      case m: Module => m map onPort map onStmt
+      case other => other
+    }
+    renameMap.setModule("")
+    finalModule
+  }
+
+  /**
+    * Turns a module into a name-agnostic module
+    * @param module module to change
+    * @param renameMap RenameMap to record signal name changes
+    * @return name-agnostic module
+    */
+  def agnostify(module: DefModule, renameMap: RenameMap): DefModule = {
+    val namespace = Namespace()
+    val nameMap = mutable.HashMap[String, String]()
+    val typeMap = mutable.HashMap[String, Type]()
+    def rename(name: String): String = {
+      if(nameMap.contains(name)) nameMap(name) else {
+        val newName = namespace.newTemp
+        nameMap(name) = newName
+        newName
+      }
+    }
+    def retype(name: String)(tpe: Type): Type = {
+      if(typeMap.contains(name)) typeMap(name) else {
+        def onType(tpe: Type): Type = tpe map onType match {
+          case BundleType(fields) => BundleType(fields.map(f => Field(rename(f.name), f.flip, f.tpe)))
+          case other => other
+        }
+        val newType = onType(tpe)
+        typeMap(name) = newType
+        newType
+      }
+    }
+    changeInternals(rename, retype, {i: Info => NoInfo}, {n: String => n}, renameMap)(module)
+  }
+
+  /** Dedup a module's instances based on dedup map
+    *
+    * Will fixes up module if deduped instance's ports are differently named
+    *
+    * @param module Module who's instances will be deduped
+    * @param dedupMap Map of module name to deduped module
+    * @return fixed up module deduped instances
+    */
+  def dedupInstances(module: DefModule, dedupMap: Map[String, DefModule], renameMap: RenameMap): DefModule = {
+
+    // If black box, return it (it has no instances)
+    if(module.isInstanceOf[ExtModule]) return module
+
+
+    // Get all instances to know what to rename in the module
+    val instances = mutable.Set[WDefInstance]()
+    InstanceGraph.collectInstances(instances)(module.asInstanceOf[Module].body)
+    val instanceModuleMap = instances.map(i => i.name -> i.module).toMap
+    val moduleNames = instances.map(_.module)
+
+    // Define rename functions
+    def renameModule(name: String): String = dedupMap(name).name
+    val typeMap = mutable.HashMap[String, Type]()
+    def retype(name: String)(tpe: Type): Type = {
+      if(typeMap.contains(name)) typeMap(name) else {
+        if (instanceModuleMap.contains(name)) {
+          val newType = Utils.module_type(dedupMap(instanceModuleMap(name)))
+          typeMap(name) = newType
+          newType
+        } else tpe
+      }
+    }
+
+    // Change module internals
+    changeInternals({n => n}, retype, {i => i}, renameModule, renameMap)(module)
+  }
+
+  /**
+    * Deduplicate
+    * @param moduleOrder order from leaf to top of modules
+    * @param moduleMap maps original module name to original module
+    * @param noDedups list of modules to not dedup
+    * @return Map of original Module name -> Deduped Module
+    */
+  def deduplicate(moduleOrder: Seq[String],
+               moduleMap: Map[String, DefModule],
+               noDedups: Set[String],
+               renameMap: RenameMap): Map[String, DefModule] = {
+
+    // Maps a module's tag to its deduplicated module's name
+    val tag2duplicate = mutable.HashMap.empty[String, String]
+
+    // Maps a module's name to its deduplicate module
+    val dedupMap = mutable.HashMap.empty[String, DefModule]
+
+    // Build dedupMap
+    moduleOrder.foreach { moduleName =>
+      // Get original module
+      val originalModule = moduleMap(moduleName)
+
+      // Replace instance references to new deduped modules
+      val fixedModule = DedupModules.dedupInstances(originalModule, dedupMap.toMap, renameMap)
+
+      if(noDedups.contains(fixedModule.name)) {
+        // Don't dedup. Set dedup module to be the same as fixed module
+        dedupMap(fixedModule.name) = fixedModule
+      } else { // Try to dedup
+
+        // Build name-agnostic module
+        val agnosticRenameMap = RenameMap()
+        val agnosticModule = DedupModules.agnostify(fixedModule, agnosticRenameMap)
+
+        // Build tag
+        val tag = agnosticModule match {
+          case Module(i, n, ps, b) =>
+            ps.map(_.serialize).mkString + b.serialize
+          case ExtModule(i, n, ps, dn, p) =>
+            ps.map(_.serialize).mkString + dn + p.map(_.serialize).mkString
+        }
+
+        // Check deduplication
+        if(tag2duplicate.contains(tag)) {
+          // Set fixedModule's dedup to be the tag's dedup
+          dedupMap(fixedModule.name) = dedupMap(tag2duplicate(tag))
+        } else {
+          // Set fixedModule's dedup to be itself
+          tag2duplicate(tag) = fixedModule.name
+          dedupMap(fixedModule.name) = fixedModule
+        }
+      }
+    }
+
+    // Return dedupMap
+    dedupMap.toMap
+  }
+
 }
