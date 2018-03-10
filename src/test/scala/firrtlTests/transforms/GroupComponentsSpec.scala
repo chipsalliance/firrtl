@@ -20,7 +20,7 @@ class GroupComponentsSpec extends LowTransformSpec {
         |    out <= r
       """.stripMargin
     val groups = Seq(
-      GroupAnnotation(Set(topComp("r")), "MyReg", "rInst", Some("_OUT"), Some("_IN"))
+      GroupAnnotation(Seq(topComp("r")), "MyReg", "rInst", Some("_OUT"), Some("_IN"))
     )
     val check =
      s"""circuit Top :
@@ -69,8 +69,8 @@ class GroupComponentsSpec extends LowTransformSpec {
          |    out <= UInt(2)
       """.stripMargin
     val groups = Seq(
-      GroupAnnotation(Set(topComp("c1a"), topComp("c2a")/*, topComp("asum")*/), "A", "cA", Some("_OUT"), Some("_IN")),
-      GroupAnnotation(Set(topComp("c1b"), topComp("c2b")/*, topComp("bsum")*/), "B", "cB", Some("_OUT"), Some("_IN"))
+      GroupAnnotation(Seq(topComp("c1a"), topComp("c2a")/*, topComp("asum")*/), "A", "cA", Some("_OUT"), Some("_IN")),
+      GroupAnnotation(Seq(topComp("c1b"), topComp("c2b")/*, topComp("bsum")*/), "B", "cB", Some("_OUT"), Some("_IN"))
     )
     val check =
       s"""circuit Top :

@@ -11,7 +11,7 @@ import firrtl.graph.{DiGraph, MutableDiGraph}
 import scala.collection.mutable
 
 
-case class GroupAnnotation(components: Set[ComponentName], newModule: String, newInstance: String, outputSuffix: Option[String] = None, inputSuffix: Option[String]) extends Annotation {
+case class GroupAnnotation(components: Seq[ComponentName], newModule: String, newInstance: String, outputSuffix: Option[String] = None, inputSuffix: Option[String]) extends Annotation {
   if(components.nonEmpty) {
     require(components.forall(_.module == components.head.module), "All components must be in the same module.")
     require(components.forall(!_.name.contains('.')), "No components can be a subcomponent.")
@@ -53,7 +53,7 @@ class GroupComponents extends firrtl.Transform {
     val namespace = Namespace(m)
     val groupRoots = groups.map(_.components.map(_.name))
     val totalSum = groupRoots.foldLeft(0){(total, set) => total + set.size}
-    val union = groupRoots.foldLeft(Set.empty[String]){(all, set) => all.union(set)}
+    val union = groupRoots.foldLeft(Set.empty[String]){(all, set) => all.union(set.toSet)}
 
     require(groupRoots.forall{_.forall{namespace.contains}}, "All names should be in this module")
     require(totalSum == union.size, "No name can be in more than one group")
