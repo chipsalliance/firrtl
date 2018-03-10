@@ -18,22 +18,13 @@ import firrtl.Mappers._
   */
 class InstanceGraph(c: Circuit) {
 
-  private def collectInstances(insts: mutable.Set[WDefInstance])
-                              (s: Statement): Statement = s match {
-    case i: WDefInstance =>
-      insts += i
-      i
-    case _ =>
-      s map collectInstances(insts)
-  }
-
   private val moduleMap = c.modules.map({m => (m.name,m) }).toMap
   private val instantiated = new mutable.HashSet[String]
   private val childInstances =
     new mutable.HashMap[String,mutable.Set[WDefInstance]]
   for (m <- c.modules) {
     childInstances(m.name) = new mutable.HashSet[WDefInstance]
-    m map collectInstances(childInstances(m.name))
+    m map InstanceGraph.collectInstances(childInstances(m.name))
     instantiated ++= childInstances(m.name).map(i => i.module)
   }
 
@@ -93,5 +84,31 @@ class InstanceGraph(c: Circuit) {
   def lowestCommonAncestor(moduleA: Seq[WDefInstance],
                            moduleB: Seq[WDefInstance]): Seq[WDefInstance] = {
     tour.rmq(moduleA, moduleB)
+  }
+
+  /**
+    * Module order from highest module to leaf module
+    * @return sequence of modules in order from top to leaf
+    */
+  def moduleOrder: Seq[DefModule] = {
+    graph.transformNodes(_.module).linearize.map(moduleMap(_))
+  }
+}
+
+object InstanceGraph {
+
+  /** Returns all WDefInstances in a Statement
+    *
+    * @param insts mutable datastructure to append to
+    * @param s statement to descend
+    * @return
+    */
+  def collectInstances(insts: mutable.Set[WDefInstance])
+                      (s: Statement): Statement = s match {
+    case i: WDefInstance =>
+      insts += i
+      i
+    case _ =>
+      s map collectInstances(insts)
   }
 }
