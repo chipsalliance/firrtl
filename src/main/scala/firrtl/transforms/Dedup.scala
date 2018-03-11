@@ -7,7 +7,7 @@ import firrtl.ir._
 import firrtl.Mappers._
 import firrtl.analyses.InstanceGraph
 import firrtl.annotations._
-import firrtl.passes.InferTypes
+import firrtl.passes.{InferTypes, MemPortUtils}
 
 // Datastructures
 import scala.collection.mutable
@@ -83,59 +83,66 @@ object DedupModules {
     * @param retype Function to retype a signal. Called on declaration, references, and subfields
     * @param reinfo Function to re-info a statement
     * @param renameModule Function to rename an instance's module
-    * @param renameMap Updates renameMap to keep track of signal name changes
     * @param module Module to change internals
     * @return Changed Module
     */
   def changeInternals(rename: String=>String,
                       retype: String=>Type=>Type,
                       reinfo: Info=>Info,
-                      renameModule: String=>String,
-                      renameMap: RenameMap
+                      renameModule: String=>String
                      )(module: DefModule): DefModule = {
     def onPort(p: Port): Port = Port(reinfo(p.info), rename(p.name), p.direction, retype(p.name)(p.tpe))
     def onExp(e: Expression): Expression = e match {
-      case WRef(n, t, k, g) =>
-        val finalExpr = WRef(rename(n), retype(n)(t), k, g)
-        renameMap.rename(n, finalExpr.name)
-        finalExpr
+      case WRef(n, t, k, g) => WRef(rename(n), retype(n)(t), k, g)
       case WSubField(expr, n, tpe, kind) =>
         val fieldIndex = expr.tpe.asInstanceOf[BundleType].fields.indexWhere(f => f.name == n)
         val newExpr = onExp(expr)
         val newField = newExpr.tpe.asInstanceOf[BundleType].fields(fieldIndex)
         val finalExpr = WSubField(newExpr, newField.name, newField.tpe, kind)
-        renameMap.rename(e.serialize, finalExpr.serialize)
+        //TODO: renameMap.rename(e.serialize, finalExpr.serialize)
         finalExpr
       case other => other map onExp
     }
     def onStmt(s: Statement): Statement = s match {
-      case WDefInstance(i, n, m, t) =>
-        val w = WDefInstance(reinfo(i), rename(n), renameModule(m), retype(n)(t))
-        renameMap.rename(n, w.name)
-        w
-      case DefInstance(i, n, m) =>
-        val d = DefInstance(reinfo(i), rename(n), renameModule(m))
-        renameMap.rename(n, d.name)
-        d
+      case WDefInstance(i, n, m, t) => WDefInstance(reinfo(i), rename(n), renameModule(m), retype(n)(t))
+      case DefInstance(i, n, m) => DefInstance(reinfo(i), rename(n), renameModule(m))
+      case d: DefMemory =>
+        val oldType = MemPortUtils.memType(d)
+        val newType = retype(d.name)(oldType)
+        val index = oldType
+          .asInstanceOf[BundleType].fields.headOption
+          .map(_.tpe.asInstanceOf[BundleType].fields.indexWhere(
+            {
+              case Field("data", _, _) => true
+              case Field("wdata", _, _) => true
+              case Field("rdata", _, _) => true
+              case _ => false
+            }))
+        val newDataType = if(index.nonEmpty) {
+          //If index nonempty, then there exists a port
+          val i = index.get
+          newType.asInstanceOf[BundleType].fields.head.tpe.asInstanceOf[BundleType].fields(i).tpe
+        } else {
+          //If index is empty, this mem has no ports, and so we don't need to record the dataType
+          retype(d.name + ";&*^$")(d.dataType)
+        }
+        d.copy(dataType = newDataType) map rename map reinfo
       case h: IsDeclaration => h map rename map retype(h.name) map onExp map reinfo
       case other => other map reinfo map onExp map onStmt
     }
-    renameMap.setModule(module.name)
     val finalModule = module match {
       case m: Module => m map onPort map onStmt
       case other => other
     }
-    renameMap.setModule("")
     finalModule
   }
 
   /**
     * Turns a module into a name-agnostic module
     * @param module module to change
-    * @param renameMap RenameMap to record signal name changes
     * @return name-agnostic module
     */
-  def agnostify(module: DefModule, renameMap: RenameMap): DefModule = {
+  def agnostify(module: DefModule): DefModule = {
     val namespace = Namespace()
     val nameMap = mutable.HashMap[String, String]()
     val typeMap = mutable.HashMap[String, Type]()
@@ -157,7 +164,7 @@ object DedupModules {
         newType
       }
     }
-    changeInternals(rename, retype, {i: Info => NoInfo}, {n: String => n}, renameMap)(module)
+    changeInternals(rename, retype, {i: Info => NoInfo}, {n: String => n})(module)
   }
 
   /** Dedup a module's instances based on dedup map
@@ -181,20 +188,26 @@ object DedupModules {
     val moduleNames = instances.map(_.module)
 
     // Define rename functions
-    def renameModule(name: String): String = dedupMap(name).name
+    def renameModule(name: String): String = {
+      dedupMap(name).name
+    }
     val typeMap = mutable.HashMap[String, Type]()
     def retype(name: String)(tpe: Type): Type = {
       if(typeMap.contains(name)) typeMap(name) else {
         if (instanceModuleMap.contains(name)) {
           val newType = Utils.module_type(dedupMap(instanceModuleMap(name)))
           typeMap(name) = newType
+          getAffectedExpressions(WRef(name, tpe)).zip(getAffectedExpressions(WRef(name, newType))).foreach { case (old, nuu) =>
+            renameMap.rename(old.serialize, nuu.serialize)
+          }
           newType
         } else tpe
       }
     }
 
+    renameMap.setModule(module.name)
     // Change module internals
-    changeInternals({n => n}, retype, {i => i}, renameModule, renameMap)(module)
+    changeInternals({n => n}, retype, {i => i}, renameModule)(module)
   }
 
   /**
@@ -229,8 +242,7 @@ object DedupModules {
       } else { // Try to dedup
 
         // Build name-agnostic module
-        val agnosticRenameMap = RenameMap()
-        val agnosticModule = DedupModules.agnostify(fixedModule, agnosticRenameMap)
+        val agnosticModule = DedupModules.agnostify(fixedModule)
 
         // Build tag
         val tag = agnosticModule match {
@@ -256,4 +268,19 @@ object DedupModules {
     dedupMap.toMap
   }
 
+  def getAffectedExpressions(root: Expression): Seq[Expression] = {
+    val all = mutable.ArrayBuffer[Expression]()
+
+    def onExp(expr: Expression): Unit = {
+      expr.tpe match {
+        case g: GroundType =>
+        case b: BundleType => b.fields.foreach { f => onExp(WSubField(expr, f.name, f.tpe)) }
+        case v: VectorType => (0 until v.size).foreach { i => onExp(WSubIndex(expr, i, v.tpe, UNKNOWNGENDER)) }
+      }
+      all += expr
+    }
+
+    onExp(root)
+    all
+  }
 }
