@@ -2,16 +2,11 @@
 
 package firrtlTests
 
-import java.io.{File, FileWriter}
-import org.scalatest.{FreeSpec, Matchers}
+import java.io.{File, FileWriter, PrintWriter}
 
+import org.scalatest.{FreeSpec, Matchers}
 import firrtl.passes.{InlineAnnotation, InlineInstances}
-import firrtl.passes.memlib.{
-  InferReadWrite,
-  InferReadWriteAnnotation,
-  ReplSeqMem,
-  ReplSeqMemAnnotation
-}
+import firrtl.passes.memlib.{InferReadWrite, InferReadWriteAnnotation, ReplSeqMem, ReplSeqMemAnnotation}
 import firrtl.transforms.BlackBoxTargetDirAnno
 import firrtl._
 import firrtl.annotations._
@@ -70,6 +65,60 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
         dir.exists() should be (true)
         FileUtils.deleteDirectoryHierarchy("a") should be (true)
       }
+    }
+    "Directory will be cleared if it already exists" in {
+      var dir = new java.io.File("a/b/c")
+      if (dir.exists()) {
+        dir.delete()
+      }
+      val optionsManager = new ExecutionOptionsManager("test")
+      optionsManager.parse(Array("--top-name", "dog", "--target-dir", "a/b/c")) should be(true)
+      val commonOptions = optionsManager.commonOptions
+
+      commonOptions.topName should be("dog")
+      commonOptions.targetDirName should be("a/b/c")
+
+      optionsManager.makeTargetDir() should be(true)
+
+      val junkFile = new File("a/b/c/junk-file")
+      val junkWriter = new PrintWriter(junkFile)
+      junkWriter.println(s"this is a junk file")
+      junkWriter.close()
+
+      optionsManager.makeTargetDir() should be(true)
+
+      junkFile.exists() should be (false)
+
+      dir = new java.io.File("a/b/c")
+      dir.exists() should be(true)
+      FileUtils.deleteDirectoryHierarchy("a") should be(true)
+    }
+    "Use --preserve-target-dir or commonOptions.preserveTargetDir) preserve directory if it already exists" in {
+      var dir = new java.io.File("a/b/c")
+      if (dir.exists()) {
+        dir.delete()
+      }
+      val optionsManager = new ExecutionOptionsManager("test")
+      optionsManager.parse(Array("--top-name", "dog", "--target-dir", "a/b/c")) should be(true)
+      val commonOptions = optionsManager.commonOptions
+
+      commonOptions.topName should be("dog")
+      commonOptions.targetDirName should be("a/b/c")
+
+      optionsManager.makeTargetDir() should be(true)
+
+      val junkFile = new File("a/b/c/junk-file")
+      val junkWriter = new PrintWriter(junkFile)
+      junkWriter.println(s"this is a junk file")
+      junkWriter.close()
+
+      optionsManager.makeTargetDir() should be(true)
+
+      junkFile.exists() should be (false)
+
+      dir = new java.io.File("a/b/c")
+      dir.exists() should be(true)
+      FileUtils.deleteDirectoryHierarchy("a") should be(true)
     }
     "options include by default a list of strings that are returned in commonOptions.programArgs" in {
       val optionsManager = new ExecutionOptionsManager("test")
@@ -201,7 +250,7 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
     val annoFilename = "LegacyAnnotations.anno"
     val annotationsTestFile =  new File(testDir, annoFilename)
     val optionsManager = new ExecutionOptionsManager("test") with HasFirrtlOptions {
-      commonOptions = commonOptions.copy(topName = "test", targetDirName = testDir.toString)
+      commonOptions = commonOptions.copy(topName = "test", targetDirName = testDir.toString, preserveTargetDir = true)
       firrtlOptions = firrtlOptions.copy(
         annotationFileNames = List(annotationsTestFile.toString)
       )
@@ -255,7 +304,7 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
       fw.write(YamlArray(anno).prettyPrint)
       fw.close()
       val optionsManager = new ExecutionOptionsManager("test") with HasFirrtlOptions {
-        commonOptions = commonOptions.copy(topName = "test", targetDirName = testDir.toString)
+        commonOptions = commonOptions.copy(topName = "test", targetDirName = testDir.toString, preserveTargetDir = true)
         firrtlOptions = firrtlOptions.copy(
           annotationFileNames = List(annoFile.toString)
         )

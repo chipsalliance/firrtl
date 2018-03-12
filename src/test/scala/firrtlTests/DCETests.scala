@@ -398,7 +398,8 @@ class DCECommandLineSpec extends FirrtlFlatSpec {
   val testDir = createTestDirectory("dce")
   val inputFile = Paths.get(getClass.getResource("/features/HasDeadCode.fir").toURI()).toFile()
   val outFile = new File(testDir, "HasDeadCode.v")
-  val args = Array("-i", inputFile.getAbsolutePath, "-o", outFile.getAbsolutePath, "-X", "verilog")
+  val args = Array("-i", inputFile.getAbsolutePath, "-o", outFile.getAbsolutePath, "-X", "verilog",
+    "--preserve-target-dir")
 
   "Dead Code Elimination" should "run by default" in {
     firrtl.Driver.execute(args) match {

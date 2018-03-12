@@ -22,12 +22,13 @@ class GCDSplitEmissionExecutionTest extends FirrtlFlatSpec {
     copyResourceToFile(s"/integration/$top.fir", sourceFile)
 
     val optionsManager = new ExecutionOptionsManager("GCDTesterSplitEmission") with HasFirrtlOptions {
-      commonOptions = CommonOptions(topName = top, targetDirName = testDir.getPath)
+      commonOptions = CommonOptions(topName = top, targetDirName = testDir.getPath, preserveTargetDir = true)
       firrtlOptions = FirrtlExecutionOptions(
                         inputFileNameOverride = sourceFile.getPath,
                         compilerName = "verilog",
                         infoModeName = "ignore",
-                        emitOneFilePerModule = true)
+                        emitOneFilePerModule = true
+      )
     }
     firrtl.Driver.execute(optionsManager)
 

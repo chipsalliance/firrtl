@@ -4,10 +4,11 @@ package firrtl
 
 import scala.collection._
 import scala.io.Source
-import scala.sys.process.{BasicIO,stringSeqToProcess}
-import scala.util.{Try, Success, Failure}
+import scala.sys.process.{BasicIO, stringSeqToProcess}
+import scala.util.{Failure, Success, Try}
 import scala.util.control.ControlThrowable
 import java.io.{File, FileNotFoundException}
+import java.nio.file.Files
 
 import net.jcazevedo.moultingyaml._
 import logger.Logger
@@ -303,6 +304,18 @@ object FileUtils {
     else {
       dirFile.mkdirs()
     }
+  }
+
+  def isSameFile(file1: File, file2: File): Boolean = {
+    file1.exists() && file2.exists() && Files.isSameFile(file1.toPath, file2.toPath)
+  }
+
+  def isRoot(file: File): Boolean = {
+    isSameFile(file, new File("/"))
+  }
+
+  def isWorkingDirectory(file: File): Boolean = {
+    isSameFile(file, new File("."))
   }
 
   /**

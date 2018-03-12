@@ -2,11 +2,13 @@
 
 package firrtl
 
+import java.io.File
+
 import firrtl.annotations._
 import firrtl.Parser._
 import firrtl.passes.memlib.{InferReadWriteAnnotation, ReplSeqMemAnnotation}
 import firrtl.passes.clocklist.ClockListAnnotation
-import logger.LogLevel
+import _root_.logger.LogLevel
 import scopt.OptionParser
 
 import scala.collection.Seq
@@ -54,7 +56,8 @@ case class CommonOptions(
     logToFile:         Boolean        = false,
     logClassNames:     Boolean        = false,
     classLogLevels: Map[String, LogLevel.Value] = Map.empty,
-    programArgs:    Seq[String]                 = Seq.empty
+    programArgs:    Seq[String]                 = Seq.empty,
+    preserveTargetDir: Boolean                  = false
 ) extends ComposableOptions {
 
   def getLogFileName(optionsManager: ExecutionOptionsManager): String = {
@@ -90,6 +93,14 @@ trait HasCommonOptions {
       commonOptions = commonOptions.copy(targetDirName = x)
     }
     .text(s"This options defines a work directory for intermediate files, default is ${commonOptions.targetDirName}")
+
+
+  parser.opt[Unit]("preserve-target-dir")
+    .abbr("ptd")
+    .foreach { _ =>
+      commonOptions = commonOptions.copy(preserveTargetDir = true)
+    }
+    .text(s"by default, when a target-dir is re-used all files are purged, this disables that")
 
   parser.opt[String]("log-level")
     .abbr("ll").valueName("<Error|Warn|Info|Debug|Trace>")
@@ -507,6 +518,16 @@ class ExecutionOptionsManager(val applicationName: String) extends HasParser(app
     * @return true if directory exists
     */
   def makeTargetDir(): Boolean = {
+    val dir = new File(commonOptions.targetDirName)
+    if(
+      commonOptions.targetDirName.nonEmpty &&
+              ! commonOptions.preserveTargetDir &&
+              dir.isDirectory &&
+              ! FileUtils.isRoot(dir) &&
+              ! FileUtils.isWorkingDirectory(dir)
+    ) {
+      FileUtils.deleteDirectoryHierarchy(commonOptions.targetDirName)
+    }
     FileUtils.makeDirectory(commonOptions.targetDirName)
   }
 
@@ -543,8 +564,6 @@ class ExecutionOptionsManager(val applicationName: String) extends HasParser(app
     * @return
     */
   def getBuildFileName(suffix: String, fileNameOverride: String = ""): String = {
-    makeTargetDir()
-
     val baseName = if(fileNameOverride.nonEmpty) fileNameOverride else topName
     val directoryName = {
       if(fileNameOverride.nonEmpty) {
