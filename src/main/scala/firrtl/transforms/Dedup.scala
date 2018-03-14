@@ -197,8 +197,8 @@ object DedupModules {
         if (instanceModuleMap.contains(name)) {
           val newType = Utils.module_type(dedupMap(instanceModuleMap(name)))
           typeMap(name) = newType
-          getAffectedExpressions(WRef(name, tpe)).zip(getAffectedExpressions(WRef(name, newType))).foreach { case (old, nuu) =>
-            renameMap.rename(old.serialize, nuu.serialize)
+          getAffectedExpressions(WRef(name, tpe)).zip(getAffectedExpressions(WRef(name, newType))).foreach {
+            case (old, nuu) => renameMap.rename(old.serialize, nuu.serialize)
           }
           newType
         } else tpe

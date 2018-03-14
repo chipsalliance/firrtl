@@ -78,6 +78,73 @@ class GroupComponentsSpec extends LowTransformSpec {
          |    output out: UInt<16>
          |    inst cA of A
          |    inst cB of B
+         |    node asum = add(cA.c1a_out_OUT, cA.c2a_out_OUT)
+         |    node bsum = add(cB.c1b_out_OUT, cB.c2b_out_OUT)
+         |    out <= add(asum, bsum)
+         |  module A :
+         |    output c1a_out_OUT: UInt<8>
+         |    output c2a_out_OUT: UInt<8>
+         |    inst c1a of Const1A
+         |    inst c2a of Const2A
+         |    c1a_out_OUT <= c1a.out
+         |    c2a_out_OUT <= c2a.out
+         |  module B :
+         |    output c1b_out_OUT: UInt<8>
+         |    output c2b_out_OUT: UInt<8>
+         |    inst c1b of Const1B
+         |    inst c2b of Const2B
+         |    c1b_out_OUT <= c1b.out
+         |    c2b_out_OUT <= c2b.out
+         |  module Const1A :
+         |    output out: UInt<8>
+         |    out <= UInt(1)
+         |  module Const2A :
+         |    output out: UInt<8>
+         |    out <= UInt(2)
+         |  module Const1B :
+         |    output out: UInt<8>
+         |    out <= UInt(1)
+         |  module Const2B :
+         |    output out: UInt<8>
+         |    out <= UInt(2)
+      """.stripMargin
+    execute(input, check, groups)
+  }
+  "The two sets of instances" should "be grouped with their nodes" in {
+    val input =
+      s"""circuit $top :
+         |  module $top :
+         |    output out: UInt<16>
+         |    inst c1a of Const1A
+         |    inst c2a of Const2A
+         |    inst c1b of Const1B
+         |    inst c2b of Const2B
+         |    node asum = add(c1a.out, c2a.out)
+         |    node bsum = add(c1b.out, c2b.out)
+         |    out <= add(asum, bsum)
+         |  module Const1A :
+         |    output out: UInt<8>
+         |    out <= UInt(1)
+         |  module Const2A :
+         |    output out: UInt<8>
+         |    out <= UInt(2)
+         |  module Const1B :
+         |    output out: UInt<8>
+         |    out <= UInt(1)
+         |  module Const2B :
+         |    output out: UInt<8>
+         |    out <= UInt(2)
+      """.stripMargin
+    val groups = Seq(
+      GroupAnnotation(Seq(topComp("c1a"), topComp("c2a"), topComp("asum")), "A", "cA", Some("_OUT"), Some("_IN")),
+      GroupAnnotation(Seq(topComp("c1b"), topComp("c2b"), topComp("bsum")), "B", "cB", Some("_OUT"), Some("_IN"))
+    )
+    val check =
+      s"""circuit Top :
+         |  module $top :
+         |    output out: UInt<16>
+         |    inst cA of A
+         |    inst cB of B
          |    out <= add(cA.asum_OUT, cB.bsum_OUT)
          |  module A :
          |    output asum_OUT: UInt<9>
@@ -107,4 +174,79 @@ class GroupComponentsSpec extends LowTransformSpec {
     execute(input, check, groups)
   }
 
+  "The two sets of instances" should "be grouped with one not grouped" in {
+    val input =
+      s"""circuit $top :
+         |  module $top :
+         |    output out: UInt<16>
+         |    inst c1a of Const1A
+         |    inst c2a of Const2A
+         |    inst c1b of Const1B
+         |    inst c2b of Const2B
+         |    node asum = add(c1a.out, c2a.out)
+         |    node bsum = add(c1b.out, c2b.out)
+         |    inst pass of PassThrough
+         |    pass.in <= add(asum, bsum)
+         |    out <= pass.out
+         |  module Const1A :
+         |    output out: UInt<8>
+         |    out <= UInt(1)
+         |  module Const2A :
+         |    output out: UInt<8>
+         |    out <= UInt(2)
+         |  module Const1B :
+         |    output out: UInt<8>
+         |    out <= UInt(1)
+         |  module Const2B :
+         |    output out: UInt<8>
+         |    out <= UInt(2)
+         |  module PassThrough :
+         |    input in: UInt
+         |    output out: UInt
+         |    out <= in
+      """.stripMargin
+    val groups = Seq(
+      GroupAnnotation(Seq(topComp("c1a"), topComp("c2a"), topComp("asum")), "A", "cA", Some("_OUT"), Some("_IN")),
+      GroupAnnotation(Seq(topComp("c1b"), topComp("c2b"), topComp("bsum")), "B", "cB", Some("_OUT"), Some("_IN"))
+    )
+    val check =
+      s"""circuit Top :
+         |  module $top :
+         |    output out: UInt<16>
+         |    inst cA of A
+         |    inst cB of B
+         |    inst pass of PassThrough
+         |    out <= pass.out
+         |    pass.in <= add(cA.asum_OUT, cB.bsum_OUT)
+         |  module A :
+         |    output asum_OUT: UInt<9>
+         |    inst c1a of Const1A
+         |    inst c2a of Const2A
+         |    node asum = add(c1a.out, c2a.out)
+         |    asum_OUT <= asum
+         |  module B :
+         |    output bsum_OUT: UInt<9>
+         |    inst c1b of Const1B
+         |    inst c2b of Const2B
+         |    node bsum = add(c1b.out, c2b.out)
+         |    bsum_OUT <= bsum
+         |  module Const1A :
+         |    output out: UInt<8>
+         |    out <= UInt(1)
+         |  module Const2A :
+         |    output out: UInt<8>
+         |    out <= UInt(2)
+         |  module Const1B :
+         |    output out: UInt<8>
+         |    out <= UInt(1)
+         |  module Const2B :
+         |    output out: UInt<8>
+         |    out <= UInt(2)
+         |  module PassThrough :
+         |    input in: UInt<10>
+         |    output out: UInt<10>
+         |    out <= in
+      """.stripMargin
+    execute(input, check, groups)
+  }
 }

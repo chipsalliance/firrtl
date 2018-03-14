@@ -4,7 +4,7 @@ import firrtl._
 import firrtl.Mappers._
 import firrtl.ir._
 import firrtl.annotations.{Annotation, ComponentName}
-import firrtl.passes.{LowerTypes, MemPortUtils}
+import firrtl.passes.{InferTypes, LowerTypes, MemPortUtils}
 import firrtl.Utils.{kind, throwInternalError}
 import firrtl.graph.{DiGraph, MutableDiGraph}
 
@@ -30,8 +30,8 @@ case class GroupAnnotation(components: Seq[ComponentName], newModule: String, ne
 class GroupComponents extends firrtl.Transform {
   type MSet[T] = mutable.Set[T]
 
-  def inputForm: CircuitForm = LowForm
-  def outputForm: CircuitForm = LowForm
+  def inputForm: CircuitForm = MidForm
+  def outputForm: CircuitForm = MidForm
 
   override def execute(state: CircuitState): CircuitState = {
     println(state.circuit.serialize)
@@ -46,7 +46,9 @@ class GroupComponents extends firrtl.Transform {
     }
     val cs = state.copy(circuit = state.circuit.copy(modules = newModules))
     println(cs.circuit.serialize)
-    cs
+    val csx = new DedupModules().execute(InferTypes.execute(cs))
+    println(cs.circuit.serialize)
+    csx
   }
 
   def groupModule(m: Module, groups: Seq[GroupAnnotation], mnamespace: Namespace): Seq[Module] = {
@@ -63,18 +65,21 @@ class GroupComponents extends firrtl.Transform {
 
     // Name groupRoots by first element
     //val byGroup: Map[String, MSet[String]] = groupRoots.collect{case set => set.head -> mutable.Set(set.toSeq:_*)}.toMap
+
+    val topKV = ("", mutable.Set(""))
     val annos = groups.collect{case g:GroupAnnotation => g.components.head.name -> g}.toMap
-    val byGroup: Map[String, MSet[String]] = groups.collect{case GroupAnnotation(set, module, instance, _, _) => set.head.name -> mutable.Set(set.map(_.name).toSeq:_*)}.toMap
+    val byGroup: Map[String, MSet[String]] = groups.collect{case GroupAnnotation(set, module, instance, _, _) => set.head.name -> mutable.Set(set.map(_.name).toSeq:_*)}.toMap + topKV
     val groupModule: Map[String, String] = groups.map(a => a.components.head.name -> mnamespace.newName(a.newModule)).toMap
     val groupInstance: Map[String, String] = groups.map(a => a.components.head.name -> namespace.newName(a.newInstance)).toMap
 
     // Build set of components not in set
     val notSet = byGroup.map { case (key, value) => key -> union.diff(value) }
 
+
     // Get all dependencies between components
     val (deps, drives) = getBiDirectionalComponentConnectivity(m)
-    println(deps.getEdgeMap)
-    println(drives.getEdgeMap)
+    //println(deps.getEdgeMap)
+    //println(drives.getEdgeMap)
 
     // For each node not in the set, which group can reach it
     val reachableNodes = new mutable.HashMap[String, MSet[String]]()
@@ -94,8 +99,11 @@ class GroupComponents extends firrtl.Transform {
     reachableNodes.foreach { case (node, membership) =>
       if(membership.size == 1) {
         byGroup(membership.head) += node
+      } else {
+        byGroup("") += node
       }
     }
+    //println(byGroup)
 
     // Per group, find edges that cross group border
     val crossings = new mutable.HashMap[String, MSet[(String, String)]]
@@ -135,84 +143,100 @@ class GroupComponents extends firrtl.Transform {
       groupPortNames(group) = new mutable.HashMap[String, String]()
     }
 
-    def fixEdgesOfGroupedSink(group: String, added: mutable.ArrayBuffer[Statement])(e: Expression): Expression = e match {
-      case w@WRef(source, tpe, kind, gender) =>
-        byNode.get(source) match {
-          // case 1: source in the same group as sink
-          case Some(`group`) => w //do nothing
-          // case 2: source in different group
-          case Some(other) =>
-            // Add port to other's Module
-            val otherPortName = groupPortNames(other).getOrElseUpdate(source, groupNamespace(other).newName(source + annos(other).outputSuffix.getOrElse("")))
-            groupPorts(other) += Port(NoInfo, otherPortName, Output, tpe)
-
-            // Add connection in other's Module from source to its port
-            groupStatements(other) += Connect(NoInfo, WRef(otherPortName), w)
-
-            // Add port to group's Module
-            val groupPortName = groupPortNames(group).getOrElseUpdate(source, groupNamespace(group).newName(source + annos(group).inputSuffix.getOrElse("")))
-            groupPorts(other) += Port(NoInfo, groupPortName, Output, tpe)
-
-            // Add connection in Top from other's port to group's port
-            val groupInst = groupInstance(group)
-            val otherInst = groupInstance(other)
-            added += Connect(NoInfo, WSubField(WRef(groupInst), groupPortName), WSubField(WRef(otherInst), otherPortName))
-
-            // Return WRef with new kind (its inside the group Module now)
-            WRef(groupPortName, tpe, PortKind, MALE)
-
-          // case 3: source in top
-          case None =>
-            // Add port to group's Module
-            val groupPortName = groupPortNames(group).getOrElseUpdate(source, groupNamespace(group).newName(source + annos(group).inputSuffix.getOrElse("")))
-            groupPorts(group) += Port(NoInfo, groupPortName, Input, tpe)
-
-            // Add connection in Top to group's Module port
-            added += Connect(NoInfo, WSubField(WRef(groupInstance(group)), groupPortName), WRef(source))
-
-            // Return WRef with new kind (its inside the group Module now)
-            WRef(groupPortName, tpe, PortKind, MALE)
-
-        }
-      case other => other map fixEdgesOfGroupedSink(group, added)
+    def addPort(group: String, exp: Expression, d: Direction): String = {
+      val source = LowerTypes.loweredName(exp)
+      val portNames = groupPortNames(group)
+      val suffix = d match {
+        case Output => annos(group).outputSuffix.getOrElse("")
+        case Input => annos(group).inputSuffix.getOrElse("")
+      }
+      val newName = groupNamespace(group).newName(source + suffix)
+      val portName = portNames.getOrElseUpdate(source, newName)
+      groupPorts(group) += Port(NoInfo, portName, d, exp.tpe)
+      portName
     }
 
-    def fixEdgesOfTopSink(e: Expression): Expression = e match {
-      // case 1: source is in a group
-      case w@WRef(source, tpe, kind, gender) if byNode.contains(source) =>
-        // Get the name of source's group
-        val other = byNode(source)
+    def punchSignalOut(group: String, exp: Expression): String = {
+      val portName = addPort(group, exp, Output)
+      groupStatements(group) += Connect(NoInfo, WRef(portName), exp)
+      portName
+    }
 
-        // Add port to other's Module
-        val otherPortName = groupPortNames(other).getOrElseUpdate(source, groupNamespace(other).newName(source + annos(other).outputSuffix.getOrElse("")))
-        groupPorts(other) += Port(NoInfo, otherPortName, Output, tpe)
+    def inGroupFixExps(group: String, added: mutable.ArrayBuffer[Statement])(e: Expression): Expression = e match {
+      case _: Literal => e
+      case _: DoPrim | _: Mux | _: ValidIf => e map inGroupFixExps(group, added)
+      case otherExp: Expression =>
+        val wref = getWRef(otherExp)
+        val source = wref.name
+        byNode.get(source) match {
+          // case 1: source in the same group as sink
+          case Some(`group`) => otherExp //do nothing
 
-        // Add connection in other's Module from source to its port
-        groupStatements(other) += Connect(NoInfo, WRef(otherPortName), w)
+          // case 2: source in top
+          case Some("") =>
+            // Add port to group's Module
+            val toPort = addPort(group, otherExp, Input)
 
-        // Return WSubField (its inside the top Module still)
-        WSubField(WRef(groupInstance(other)), otherPortName)
-      case other => other map fixEdgesOfTopSink
+            // Add connection in Top to group's Module port
+            added += Connect(NoInfo, WSubField(WRef(groupInstance(group)), toPort), otherExp)
+
+            // Return WRef with new kind (its inside the group Module now)
+            WRef(toPort, otherExp.tpe, PortKind, MALE)
+
+          // case 3: source in different group
+          case Some(otherGroup) =>
+            // Add port to otherGroup's Module
+            val fromPort = punchSignalOut(otherGroup, otherExp)
+            val toPort = addPort(group, otherExp, Input)
+
+            // Add connection in Top from otherGroup's port to group's port
+            val groupInst = groupInstance(group)
+            val otherInst = groupInstance(otherGroup)
+            added += Connect(NoInfo, WSubField(WRef(groupInst), toPort), WSubField(WRef(otherInst), fromPort))
+
+            // Return WRef with new kind (its inside the group Module now)
+            WRef(toPort, otherExp.tpe, PortKind, MALE)
+
+
+        }
+    }
+
+    def inTopFixExps(e: Expression): Expression = e match {
+      case _: DoPrim|_: Mux|_: ValidIf => e map inTopFixExps
+      case otherExp: Expression =>
+        val wref = getWRef(otherExp)
+        if(byNode(wref.name) != "") {
+          // Get the name of source's group
+          val otherGroup = byNode(wref.name)
+
+          // Add port to otherGroup's Module
+          val otherPortName = punchSignalOut(otherGroup, otherExp)
+
+          // Return WSubField (its inside the top Module still)
+          WSubField(WRef(groupInstance(otherGroup)), otherPortName)
+
+        } else otherExp
     }
 
     def onStmt(s: Statement): Statement = {
       s match {
         // Sink is in a group
-        case r: IsDeclaration if byNode.contains(r.name) =>
+        case r: IsDeclaration if byNode(r.name) != "" =>
           //
           val topStmts = mutable.ArrayBuffer[Statement]()
           val group = byNode(r.name)
-          groupStatements(group) += r mapExpr fixEdgesOfGroupedSink(group, topStmts)
+          groupStatements(group) += r mapExpr inGroupFixExps(group, topStmts)
           Block(topStmts)
-        case c: Connect if byNode.contains(getWRef(c.loc).name) =>
+        case c: Connect if byNode(getWRef(c.loc).name) != "" =>
           // Sink is in a group
           val topStmts = mutable.ArrayBuffer[Statement]()
           val group = byNode(getWRef(c.loc).name)
-          groupStatements(group) += Connect(c.info, c.loc, fixEdgesOfGroupedSink(group, topStmts)(c.expr))
+          groupStatements(group) += Connect(c.info, c.loc, inGroupFixExps(group, topStmts)(c.expr))
           Block(topStmts)
+        // TODO Attach if all are in a group?
         case _: IsDeclaration|_: Connect|_: Attach =>
           // Sink is in Top
-          val ret = s mapExpr fixEdgesOfTopSink
+          val ret = s mapExpr inTopFixExps
           ret
         case other => other map onStmt
       }
@@ -223,7 +247,7 @@ class GroupComponents extends firrtl.Transform {
     val newTopBody = Block(groupModule.map{case (g, m) => WDefInstance(NoInfo, groupInstance(g), m, UnknownType)}.toSeq ++ Seq(onStmt(m.body)))
     val finalTopBody = Block(Utils.squashEmpty(newTopBody).asInstanceOf[Block].stmts.distinct)
 
-    val newModules = byGroup.keys.map { group =>
+    val newModules = byGroup.keys.filter(_ != "") map { group =>
       Module(NoInfo, groupModule(group), groupPorts(group).distinct, Block(groupStatements(group).distinct))
     }
     Set(m.copy(body = finalTopBody)) ++ newModules
@@ -238,15 +262,15 @@ class GroupComponents extends firrtl.Transform {
   }
 
   def getBiDirectionalComponentConnectivity(m: Module): (MutableDiGraph[String], MutableDiGraph[String]) = {
-    val blacklist = m.ports.map(_.name).toSet
+    //val blacklist = m.ports.map(_.name).toSet
     val colorGraph = new MutableDiGraph[String]
     val driveGraph = new MutableDiGraph[String]
     val simNamespace = Namespace()
     val simulations = new mutable.HashMap[String, Statement]
     def onExpr(sink: WRef)(e: Expression): Expression = e match {
-      case w@WRef(name, _, _, _) if !blacklist.contains(name) && !blacklist.contains(sink.name) =>
-        println(blacklist)
-        println(name)
+      case w@WRef(name, _, _, _) => //if !blacklist.contains(name) && !blacklist.contains(sink.name) =>
+        //println(blacklist)
+        //println(name)
         colorGraph.addPairWithEdge(sink.name, name)
         colorGraph.addPairWithEdge(name, sink.name)
         driveGraph.addPairWithEdge(name, sink.name)
@@ -274,6 +298,10 @@ class GroupComponents extends firrtl.Transform {
     }
 
     onStmt(m.body)
+    m.ports.foreach { p =>
+      colorGraph.addPairWithEdge("", p.name)
+      colorGraph.addPairWithEdge(p.name, "")
+    }
     (colorGraph, driveGraph)
   }
 }
