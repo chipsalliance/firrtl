@@ -249,4 +249,42 @@ class GroupComponentsSpec extends LowTransformSpec {
       """.stripMargin
     execute(input, check, groups)
   }
+
+  "The two sets of instances" should "be grouped with a connection between them" in {
+    val input =
+      s"""circuit $top :
+         |  module $top :
+         |    input in: UInt<16>
+         |    output out: UInt<16>
+         |    node first = in
+         |    node second = not(first)
+         |    out <= second
+      """.stripMargin
+    val groups = Seq(
+      GroupAnnotation(Seq(topComp("first")), "First", "first"),
+      GroupAnnotation(Seq(topComp("second")), "Second", "second")
+    )
+    val check =
+      s"""circuit $top :
+         |  module $top :
+         |    input in: UInt<16>
+         |    output out: UInt<16>
+         |    inst first_0 of First
+         |    inst second_0 of Second
+         |    first_0.in <= in
+         |    second_0.first <= first_0.first_0
+         |    out <= second_0.second_0
+         |  module First :
+         |    input in: UInt<16>
+         |    output first_0: UInt<16>
+         |    node first = in
+         |    first_0 <= first
+         |  module Second :
+         |    input first: UInt<16>
+         |    output second_0: UInt<16>
+         |    node second = not(first)
+         |    second_0 <= second
+      """.stripMargin
+    execute(input, check, groups)
+  }
 }

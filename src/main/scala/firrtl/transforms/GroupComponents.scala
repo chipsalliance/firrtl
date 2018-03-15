@@ -11,7 +11,7 @@ import firrtl.graph.{DiGraph, MutableDiGraph}
 import scala.collection.mutable
 
 
-case class GroupAnnotation(components: Seq[ComponentName], newModule: String, newInstance: String, outputSuffix: Option[String] = None, inputSuffix: Option[String]) extends Annotation {
+case class GroupAnnotation(components: Seq[ComponentName], newModule: String, newInstance: String, outputSuffix: Option[String] = None, inputSuffix: Option[String] = None) extends Annotation {
   if(components.nonEmpty) {
     require(components.forall(_.module == components.head.module), "All components must be in the same module.")
     require(components.forall(!_.name.contains('.')), "No components can be a subcomponent.")
@@ -24,6 +24,15 @@ case class GroupAnnotation(components: Seq[ComponentName], newModule: String, ne
       case c: ComponentName => c
     }
     Seq(GroupAnnotation(newComponents, newModule, newInstance, outputSuffix, inputSuffix))
+  }
+}
+
+class GroupAndDedup extends GroupComponents {
+  override def execute(state: CircuitState): CircuitState = {
+    val cs = super.execute(state)
+    val csx = new DedupModules().execute(cs)
+    println(cs.circuit.serialize)
+    csx
   }
 }
 
@@ -45,8 +54,7 @@ class GroupComponents extends firrtl.Transform {
       case other => Seq(other)
     }
     val cs = state.copy(circuit = state.circuit.copy(modules = newModules))
-    println(cs.circuit.serialize)
-    val csx = new DedupModules().execute(InferTypes.execute(cs))
+    val csx = InferTypes.execute(cs)
     println(cs.circuit.serialize)
     csx
   }
