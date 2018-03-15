@@ -11,7 +11,7 @@
 
  For a detailed description of Firrtl's intermediate representation, see the document "Specification of the Firrtl Language" located in [spec/spec.pdf](https://github.com/ucb-bar/firrtl/blob/master/spec/spec.pdf).
 
-#### Wiki's and Tutorials
+#### Wiki Pages and Tutorials
 
 Useful information is on our wiki, located here:
 * https://github.com/ucb-bar/firrtl/wiki
