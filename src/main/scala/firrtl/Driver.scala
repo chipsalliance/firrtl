@@ -119,20 +119,7 @@ object Driver {
         throw new FileNotFoundException(s"Annotation file $file not found!")
       }
       // Try new protocol first
-      JsonProtocol.deserializeTry(file).getOrElse {
-        val annos = Try {
-          val yaml = io.Source.fromFile(file).getLines().mkString("\n").parseYaml
-          yaml.convertTo[List[LegacyAnnotation]]
-        }
-        annos match {
-          case Success(result) =>
-            val msg = s"$file is a YAML file!\n" +
-                      (" "*9) + "YAML Annotation files are deprecated! Use JSON"
-            Driver.dramaticWarning(msg)
-            result
-          case Failure(_) => throw new InvalidAnnotationFileException(file.toString)
-        }
-      }
+      JsonProtocol.deserialize(file)
     }
 
     val targetDirAnno = List(BlackBoxTargetDirAnno(optionsManager.targetDirName))
@@ -211,7 +198,7 @@ object Driver {
         case p: PassException  => throw p
         case p: FIRRTLException => throw p
         // Treat remaining exceptions as internal errors.
-        case e: Exception => throwInternalError(exception = Some(e))
+        case e: Exception => throw e
       }
 
       val finalState = maybeFinalState.get
