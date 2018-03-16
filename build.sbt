@@ -14,7 +14,7 @@ organization := "edu.berkeley.cs"
 
 name := "firrtl"
 
-version := "1.1-SNAPSHOT"
+version := "1.2-SNAPSHOT"
 
 scalaVersion := "2.11.12"
 
@@ -32,7 +32,9 @@ def scalacOptionsVersion(scalaVersion: String): Seq[String] = {
   }
 }
 
-scalacOptions := scalacOptionsVersion(scalaVersion.value)
+scalacOptions := scalacOptionsVersion(scalaVersion.value) ++ Seq(
+  "-deprecation"
+)
 
 def javacOptionsVersion(scalaVersion: String): Seq[String] = {
   Seq() ++ {
@@ -63,6 +65,8 @@ libraryDependencies += "org.scalacheck" %% "scalacheck" % "1.13.4" % "test"
 libraryDependencies += "com.github.scopt" %% "scopt" % "3.6.0"
 
 libraryDependencies += "net.jcazevedo" %% "moultingyaml" % "0.4.0"
+
+libraryDependencies += "org.json4s" %% "json4s-native" % "3.5.3"
 
 // Assembly
 

@@ -3,15 +3,22 @@
 package firrtl
 package annotations
 
+import org.json4s._
+import org.json4s.native.JsonMethods._
+import org.json4s.native.Serialization
+import org.json4s.native.Serialization.{read, write, writePretty}
+
 import net.jcazevedo.moultingyaml._
 import firrtl.annotations.AnnotationYamlProtocol._
 
 import firrtl.ir._
 import firrtl.Utils.error
 
+class InvalidAnnotationFileException(msg: String) extends FIRRTLException(msg)
+
 object AnnotationUtils {
-  def toYaml(a: Annotation): String = a.toYaml.prettyPrint
-  def fromYaml(s: String): Annotation = s.parseYaml.convertTo[Annotation]
+  def toYaml(a: LegacyAnnotation): String = a.toYaml.prettyPrint
+  def fromYaml(s: String): LegacyAnnotation = s.parseYaml.convertTo[LegacyAnnotation]
 
   /** Returns true if a valid Module name */
   val SerializedModuleName = """([a-zA-Z_][a-zA-Z_0-9~!@#$%^*\-+=?/]*)""".r
@@ -41,10 +48,10 @@ object AnnotationUtils {
     case None => Seq(s)
   }
 
-  def toNamed(s: String): Named = tokenize(s) match {
-    case Seq(n) => CircuitName(n)
-    case Seq(c, ".", m) => ModuleName(m, CircuitName(c))
-    case Seq(c, ".", m, ".", x) => ComponentName(x, ModuleName(m, CircuitName(c)))
+  def toNamed(s: String): Named = s.split("\\.", 3) match {
+    case Array(n) => CircuitName(n)
+    case Array(c, m) => ModuleName(m, CircuitName(c))
+    case Array(c, m, x) => ComponentName(x, ModuleName(m, CircuitName(c)))
   }
 
   /** Given a serialized component/subcomponent reference, subindex, subaccess,
