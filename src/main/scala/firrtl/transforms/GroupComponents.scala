@@ -122,7 +122,7 @@ class GroupComponents extends firrtl.Transform {
       crossings(head) = edges
     }
 
-    applyGrouping(m, namespace, groupOrder, byGroup, crossings, groupModule, groupInstance, annos).toSeq
+    applyGrouping(m, namespace, groupOrder, byGroup, crossings, groupModule, groupInstance, annos)
   }
 
   def applyGrouping( m: Module,
@@ -133,7 +133,7 @@ class GroupComponents extends firrtl.Transform {
                      groupModule: Map[String, String],
                      groupInstance: Map[String, String],
                      annos: Map[String, GroupAnnotation]
-                   ): Set[Module] = {
+                   ): Seq[Module] = {
     // Maps node to group
     val byNode = mutable.HashMap[String, String]()
     byGroup.foreach { case (group, nodes) =>
@@ -260,7 +260,7 @@ class GroupComponents extends firrtl.Transform {
     val newModules = groupOrder.filter(_ != "") map { group =>
       Module(NoInfo, groupModule(group), groupPorts(group).distinct, Block(groupStatements(group).distinct))
     }
-    Set(m.copy(body = finalTopBody)) ++ newModules
+    Seq(m.copy(body = finalTopBody)) ++ newModules
   }
 
   def getWRef(e: Expression): WRef = e match {
