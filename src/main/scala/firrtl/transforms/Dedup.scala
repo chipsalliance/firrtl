@@ -46,18 +46,13 @@ class DedupModules extends Transform {
     * @return Deduped Circuit and corresponding RenameMap
     */
   def run(c: Circuit, noDedups: Seq[String]): (Circuit, RenameMap) = {
-    // Map of module name to module
-    val moduleMap = c.modules.map(m => m.name -> m).toMap
-
-    // Order of modules, from leaf to top
-    val moduleOrder = new InstanceGraph(c).moduleOrder.map(_.name).reverse
 
     // RenameMap
     val renameMap = RenameMap()
     renameMap.setCircuit(c.main)
 
     // Maps module name to corresponding dedup module
-    val dedupMap = DedupModules.deduplicate(moduleOrder, moduleMap, noDedups.toSet, renameMap)
+    val dedupMap = DedupModules.deduplicate(c, noDedups.toSet, renameMap)
 
     // Use old module list to preserve ordering
     val dedupedModules = c.modules.map(m => dedupMap(m.name)).distinct
@@ -144,7 +139,7 @@ object DedupModules {
     * @param module module to change
     * @return name-agnostic module
     */
-  def agnostify(module: DefModule): DefModule = {
+  def agnostify(module: DefModule, name2tag: mutable.HashMap[String, String], tag2name: mutable.HashMap[String, String]): DefModule = {
     val namespace = Namespace()
     val nameMap = mutable.HashMap[String, String]()
     val typeMap = mutable.HashMap[String, Type]()
@@ -166,21 +161,22 @@ object DedupModules {
         newType
       }
     }
-    changeInternals(rename, retype, {i: Info => NoInfo}, {n: String => n})(module)
+    def remodule(name: String): String = tag2name(name2tag(name))
+    changeInternals(rename, retype, {i: Info => NoInfo}, remodule)(module)
   }
 
   /** Dedup a module's instances based on dedup map
     *
     * Will fixes up module if deduped instance's ports are differently named
     *
-    * @param module Module who's instances will be deduped
-    * @param tag2module Map of module name to its tag. Not mutated in this function.
-    * @param name2tag Map of module name to its tag, if its been deduped. Not mutated in this function.
-    * @param name2module Map of module name to its tag, if it hasn't been deduped. Not mutated in this function.
+    * @param moduleName Module name who's instances will be deduped
+    * @param moduleMap Map of module name to its original module
+    * @param name2name Map of module name to the module deduping it. Not mutated in this function.
     * @param renameMap Will be modified to keep track of renames in this function
     * @return fixed up module deduped instances
     */
-  def dedupInstances(module: DefModule, tag2module: mutable.Map[String, DefModule], name2tag: mutable.Map[String, String], name2module: mutable.Map[String, DefModule], renameMap: RenameMap): DefModule = {
+  def dedupInstances(moduleName: String, moduleMap: Map[String, DefModule], name2name: mutable.Map[String, String], renameMap: RenameMap): DefModule = {
+    val module = moduleMap(moduleName)
 
     // If black box, return it (it has no instances)
     if(module.isInstanceOf[ExtModule]) return module
@@ -193,7 +189,7 @@ object DedupModules {
     val moduleNames = instances.map(_.module)
 
     def getNewModule(old: String): DefModule = {
-      name2module.getOrElse(old, tag2module(name2tag(old)))
+      moduleMap(name2name(old))
     }
     // Define rename functions
     def renameModule(name: String): String = getNewModule(name).name
@@ -218,46 +214,49 @@ object DedupModules {
 
   /**
     * Deduplicate
-    * @param moduleOrder order from leaf to top of modules
-    * @param moduleMap maps original module name to original module
+    * @param circuit Circuit
     * @param noDedups list of modules to not dedup
+    * @param renameMap rename map to populate when deduping
     * @return Map of original Module name -> Deduped Module
     */
-  def deduplicate(moduleOrder: Seq[String],
-               moduleMap: Map[String, DefModule],
-               noDedups: Set[String],
-               renameMap: RenameMap): Map[String, DefModule] = {
+  def deduplicate(circuit: Circuit,
+                  noDedups: Set[String],
+                  renameMap: RenameMap): Map[String, DefModule] = {
+
+    // Order of modules, from leaf to top
+    val moduleLinearization = new InstanceGraph(circuit).moduleOrder.map(_.name).reverse
+
+    // Maps module name to original module
+    val moduleMap = circuit.modules.map(m => m.name -> m).toMap
 
     // Maps a module's tag to its deduplicated module
-    val tag2module = mutable.HashMap.empty[String, DefModule]
+    val tag2name = mutable.HashMap.empty[String, String]
 
     // Maps a module's name to its tag
     val name2tag = mutable.HashMap.empty[String, String]
 
-    // Maps a module's name to its deduplicated module
-    val name2module = mutable.HashMap.empty[String, DefModule]
-
-    // Holds the final set of modules we use as duplicates
-    val templateModules = mutable.HashSet.empty[String]
+    // Maps a tag to all matching module names
+    val tag2all =  mutable.HashMap.empty[String, mutable.Set[String]]
 
     // Build dedupMap
-    moduleOrder.foreach { moduleName =>
+    moduleLinearization.foreach { moduleName =>
       // Get original module
       val originalModule = moduleMap(moduleName)
 
       // Replace instance references to new deduped modules
       val dontcare = RenameMap()
       dontcare.setCircuit("dontcare")
-      val fixedModule = DedupModules.dedupInstances(originalModule, tag2module, name2tag, name2module, dontcare)
+      //val fixedModule = DedupModules.dedupInstances(originalModule, tag2module, name2tag, name2module, dontcare)
 
-      if(noDedups.contains(fixedModule.name)) {
+      if(noDedups.contains(originalModule.name)) {
         // Don't dedup. Set dedup module to be the same as fixed module
-        name2module(fixedModule.name) = fixedModule
-        templateModules += fixedModule.name
+        name2tag(originalModule.name) = originalModule.name
+        tag2name(originalModule.name) = originalModule.name
+        //templateModules += originalModule.name
       } else { // Try to dedup
 
         // Build name-agnostic module
-        val agnosticModule = DedupModules.agnostify(fixedModule)
+        val agnosticModule = DedupModules.agnostify(originalModule, name2tag, tag2name)
 
         // Build tag
         val tag = md5Hash(agnosticModule match {
@@ -268,21 +267,34 @@ object DedupModules {
         })
 
         // Match old module name to its tag
-        name2tag(fixedModule.name) = tag
-        // Set tag's module to be the most recent matching module
-        if(tag2module.contains(tag)) {
-          templateModules -= tag2module(tag).name
-          templateModules += fixedModule.name
+        name2tag(originalModule.name) = tag
+
+        // Set tag's module to be the first matching module
+        if(!tag2name.contains(tag)) {
+          tag2name(tag) = originalModule.name
+          tag2all(tag) = mutable.Set(originalModule.name)
         } else {
-          templateModules += fixedModule.name
+          tag2all(tag) += originalModule.name
         }
-        tag2module(tag) = fixedModule
       }
     }
-    // Build RenameMap
-    name2tag.map{case (name, tag) => name -> DedupModules.dedupInstances(moduleMap(name), tag2module, name2tag, name2module, renameMap)}
 
-    (name2tag.map{case (name, tag) => name -> tag2module(tag)} ++ name2module).toMap
+
+    // Set tag2name to be the best dedup module name
+    val moduleIndex = circuit.modules.zipWithIndex.map{case (m, i) => m.name -> i}.toMap
+    def order(l: String, r: String): String = if(moduleIndex(l) < moduleIndex(r)) l else r
+    tag2all.foreach { case (tag, all) => tag2name(tag) = all.reduce(order)}
+
+    // Create map from original to dedup name
+    val name2name = name2tag.map{case (name, tag) => name -> tag2name(tag)}
+
+    // Build Remap for modules with deduped module references
+    val tag2module = tag2name.map { case (tag, name) => tag -> DedupModules.dedupInstances(name, moduleMap, name2name, renameMap) }
+
+    // Build map from original name to corresponding deduped module
+    val name2module = name2tag.map {case (name, tag) => name -> tag2module(tag)}
+
+    name2module.toMap
   }
 
   def getAffectedExpressions(root: Expression): Seq[Expression] = {

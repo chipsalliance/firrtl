@@ -91,8 +91,7 @@ class InstanceGraph(c: Circuit) {
     * @return sequence of modules in order from top to leaf
     */
   def moduleOrder: Seq[DefModule] = {
-    val indexMap = c.modules.zipWithIndex.map{case (m, i) => m.name -> i}.toMap
-    graph.transformNodes(_.module).orderedLinearize((l: String, r: String) => -indexMap(l).compareTo(indexMap(r))).map(moduleMap(_))
+    graph.transformNodes(_.module).linearize.map(moduleMap(_))
   }
 }
 
