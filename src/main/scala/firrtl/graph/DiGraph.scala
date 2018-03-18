@@ -91,7 +91,8 @@ class DiGraph[T] private[graph] (private[graph] val edges: LinkedHashMap[T, Link
     val childRegistry = new mutable.HashMap[T, mutable.Set[T]]
 
     // Frontier of possible nodes to pick in linearization. Priority set by comp.
-    implicit object MyOrdering extends Ordering[T] { override def compare(x: T, y: T): Int = comp(x, y) }
+    // Comp is negated because we are building the order in reverse
+    implicit object MyOrdering extends Ordering[T] { override def compare(x: T, y: T): Int = -comp(x, y) }
     val frontier = new mutable.PriorityQueue[T]()(MyOrdering)
 
     // Nodes added to the frontier, to ensure no duplicates are added

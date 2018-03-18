@@ -81,7 +81,8 @@ class DiGraphTests extends FirrtlFlatSpec {
   }
 
   it should "order the linearization" in {
-    val orderedLinearization = weirdAcyclicGraph.orderedLinearize({(l: String, r: String) => l.compareTo(r)})
+    // If we want "a" before "b", should negate compareTo (as "a" is less than "b")
+    val orderedLinearization = weirdAcyclicGraph.orderedLinearize({(l: String, r: String) => -l.compareTo(r)})
     orderedLinearization should be(Seq("a", "b", "c", "d", "x", "e"))
   }
 
@@ -90,6 +91,5 @@ class DiGraphTests extends FirrtlFlatSpec {
       cyclicGraph.orderedLinearize({(l: String, r: String) => l.compareTo(r)})
     )
   }
-
 
 }

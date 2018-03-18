@@ -104,7 +104,9 @@ object DedupModules {
       case other => other map onExp
     }
     def onStmt(s: Statement): Statement = s match {
-      case WDefInstance(i, n, m, t) => WDefInstance(reinfo(i), rename(n), renameModule(m), retype(n)(t))
+      case WDefInstance(i, n, m, t) =>
+        val newmod = renameModule(m)
+        WDefInstance(reinfo(i), rename(n), newmod, retype(n)(t))
       case DefInstance(i, n, m) => DefInstance(reinfo(i), rename(n), renameModule(m))
       case d: DefMemory =>
         val oldType = MemPortUtils.memType(d)
@@ -235,39 +237,52 @@ object DedupModules {
     // Maps a module's name to its deduplicated module
     val name2module = mutable.HashMap.empty[String, DefModule]
 
+    // Holds the final set of modules we use as duplicates
+    val templateModules = mutable.HashSet.empty[String]
+
     // Build dedupMap
     moduleOrder.foreach { moduleName =>
       // Get original module
       val originalModule = moduleMap(moduleName)
 
       // Replace instance references to new deduped modules
-      val fixedModule = DedupModules.dedupInstances(originalModule, tag2module, name2tag, name2module, renameMap)
+      val dontcare = RenameMap()
+      dontcare.setCircuit("dontcare")
+      val fixedModule = DedupModules.dedupInstances(originalModule, tag2module, name2tag, name2module, dontcare)
 
       if(noDedups.contains(fixedModule.name)) {
         // Don't dedup. Set dedup module to be the same as fixed module
         name2module(fixedModule.name) = fixedModule
+        templateModules += fixedModule.name
       } else { // Try to dedup
 
         // Build name-agnostic module
         val agnosticModule = DedupModules.agnostify(fixedModule)
 
         // Build tag
-        val tag = agnosticModule match {
+        val tag = md5Hash(agnosticModule match {
           case Module(i, n, ps, b) =>
             ps.map(_.serialize).mkString + b.serialize
           case ExtModule(i, n, ps, dn, p) =>
             ps.map(_.serialize).mkString + dn + p.map(_.serialize).mkString
-        }
+        })
 
         // Match old module name to its tag
         name2tag(fixedModule.name) = tag
         // Set tag's module to be the most recent matching module
+        if(tag2module.contains(tag)) {
+          templateModules -= tag2module(tag).name
+          templateModules += fixedModule.name
+        } else {
+          templateModules += fixedModule.name
+        }
         tag2module(tag) = fixedModule
       }
     }
-    (name2module ++ {
-      name2tag.map{case (name, tag) => name -> tag2module(tag)}
-    }).toMap
+    // Build RenameMap
+    name2tag.map{case (name, tag) => name -> DedupModules.dedupInstances(moduleMap(name), tag2module, name2tag, name2module, renameMap)}
+
+    (name2tag.map{case (name, tag) => name -> tag2module(tag)} ++ name2module).toMap
   }
 
   def getAffectedExpressions(root: Expression): Seq[Expression] = {
@@ -284,5 +299,9 @@ object DedupModules {
 
     onExp(root)
     all
+  }
+
+  def md5Hash(text: String) : String = {
+    java.security.MessageDigest.getInstance("MD5").digest(text.getBytes()).map(0xFF & _).map { "%02x".format(_) }.foldLeft(""){_ + _}
   }
 }
