@@ -36,6 +36,14 @@ class DiGraphTests extends FirrtlFlatSpec {
     ("c", 3) -> Set.empty[(String, Int)]
   ))
 
+  val weirdAcyclicGraph = DiGraph(Map(
+    "a" -> Set("b","c"),
+    "b" -> Set("d"),
+    "d" -> Set("e"),
+    "c" -> Set("x"),
+    "x" -> Set("e"),
+    "e" -> Set.empty[String]))
+
   val degenerateGraph = DiGraph(Map("a" -> Set.empty[String]))
 
   acyclicGraph.findSCCs.filter(_.length > 1) shouldBe empty
@@ -71,5 +79,17 @@ class DiGraphTests extends FirrtlFlatSpec {
 
     (first + second + second + second).getEdgeMap should equal (acyclicGraph.getEdgeMap)
   }
+
+  it should "order the linearization" in {
+    val orderedLinearization = weirdAcyclicGraph.orderedLinearize({(l: String, r: String) => l.compareTo(r)})
+    orderedLinearization should be(Seq("a", "b", "c", "d", "x", "e"))
+  }
+
+  it should "error when cyclic" in {
+    assertThrows[CyclicException](
+      cyclicGraph.orderedLinearize({(l: String, r: String) => l.compareTo(r)})
+    )
+  }
+
 
 }

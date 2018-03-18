@@ -31,7 +31,6 @@ class GroupAndDedup extends GroupComponents {
   override def execute(state: CircuitState): CircuitState = {
     val cs = super.execute(state)
     val csx = new DedupModules().execute(cs)
-    println(cs.circuit.serialize)
     csx
   }
 }

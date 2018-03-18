@@ -171,6 +171,42 @@ class DedupModuleTests extends HighTransformSpec {
      finalState.annotations.collect{case d: DummyAnnotation => d}.head should be(DummyAnnotation(ComponentName("a2.x", mname)))
 
   }
+  "The module A and B" should "be deduped with the first module in order" in {
+    val input =
+      """circuit Top :
+        |  module Top :
+        |    inst a1 of A
+        |    inst a2 of A_
+        |  module A :
+        |    output x: UInt<1>
+        |    inst b of B_
+        |    x <= b.x
+        |  module A_ :
+        |    output x: UInt<1>
+        |    inst b of B
+        |    x <= b.x
+        |  module B :
+        |    output x: UInt<1>
+        |    x <= UInt(1)
+        |  module B_ :
+        |    output x: UInt<1>
+        |    x <= UInt(1)
+      """.stripMargin
+    val check =
+      """circuit Top :
+        |  module Top :
+        |    inst a1 of A
+        |    inst a2 of A
+        |  module A :
+        |    output x: UInt<1>
+        |    inst b of B
+        |    x <= b.x
+        |  module B :
+        |    output x: UInt<1>
+        |    x <= UInt(1)
+      """.stripMargin
+    execute(input, check, Seq.empty)
+  }
 }
 
 // Execution driven tests for inlining modules

@@ -35,7 +35,7 @@ class InstanceGraph(c: Circuit) {
   uninstantiated.foreach({ subTop =>
     val topInstance = WDefInstance(subTop,subTop)
     instanceQueue.enqueue(topInstance)
-    while (!instanceQueue.isEmpty) {
+    while (instanceQueue.nonEmpty) {
       val current = instanceQueue.dequeue
       instanceGraph.addVertex(current)
       for (child <- childInstances(current.module)) {
@@ -61,14 +61,14 @@ class InstanceGraph(c: Circuit) {
   /** A list of absolute paths (each represented by a Seq of instances)
     * of all module instances in the Circuit.
     */
-  lazy val fullHierarchy = graph.pathsInDAG(trueTopInstance)
+  lazy val fullHierarchy: collection.Map[WDefInstance,Seq[Seq[WDefInstance]]] = graph.pathsInDAG(trueTopInstance)
 
   /** Finds the absolute paths (each represented by a Seq of instances
     * representing the chain of hierarchy) of all instances of a
     * particular module.
     *
     * @param module the name of the selected module
-    * @return a Seq[Seq[WDefInstance]] of absolute instance paths
+    * @return a Seq[ Seq[WDefInstance] ] of absolute instance paths
     */
   def findInstancesInHierarchy(module: String): Seq[Seq[WDefInstance]] = {
     val instances = graph.getVertices.filter(_.module == module).toSeq
@@ -91,7 +91,8 @@ class InstanceGraph(c: Circuit) {
     * @return sequence of modules in order from top to leaf
     */
   def moduleOrder: Seq[DefModule] = {
-    graph.transformNodes(_.module).linearize.map(moduleMap(_))
+    val indexMap = c.modules.zipWithIndex.map{case (m, i) => m.name -> i}.toMap
+    graph.transformNodes(_.module).orderedLinearize((l: String, r: String) => -indexMap(l).compareTo(indexMap(r))).map(moduleMap(_))
   }
 }
 

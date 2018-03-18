@@ -66,7 +66,87 @@ class DiGraph[T] private[graph] (private[graph] val edges: LinkedHashMap[T, Link
 
   /** Linearizes (topologically sorts) a DAG
     *
-    * @param root the start node
+    * The result sign of comp has the following meaning:
+    *
+    *  - negative if x < y
+    *  - positive if x > y
+    *  - zero otherwise (if x == y)
+    *
+    * @param comp Used to order linearizations when multiple partial orderings exist.
+    * @throws CyclicException if the graph is cyclic
+    * @return the linearization of the graph according to comp
+    */
+  def orderedLinearize(comp: (T, T) => Int): Seq[T] = {
+    // Call linearize to check acyclic requirement
+    // TODO(azidar): make this faster? I'm not sure how to easily check cyclicity with given algorithm
+    linearize
+
+    // A BFS queue
+    val bfs = new mutable.ArrayBuffer[T]
+
+    // Per node, who are its parents
+    val parentRegistry = new mutable.HashMap[T, mutable.Set[T]]
+
+    // Per node, contains unprocessed children
+    val childRegistry = new mutable.HashMap[T, mutable.Set[T]]
+
+    // Frontier of possible nodes to pick in linearization. Priority set by comp.
+    implicit object MyOrdering extends Ordering[T] { override def compare(x: T, y: T): Int = comp(x, y) }
+    val frontier = new mutable.PriorityQueue[T]()(MyOrdering)
+
+    // Nodes added to the frontier, to ensure no duplicates are added
+    val added = new mutable.HashSet[T]
+
+    // All nodes not yet visited by BFS
+    val unmarked = new mutable.LinkedHashSet[T]
+    unmarked ++= getVertices
+
+    // Do BFS, populating parentRegistry and childRegistry
+    // Also add leaf nodes to frontier (and added)
+    while(unmarked.nonEmpty) {
+      bfs += unmarked.head
+      while(bfs.nonEmpty) {
+        val n = bfs.remove(0)
+        unmarked -= n
+        val children = getEdges(n)
+        if(children.isEmpty && !added.contains(n)){
+          frontier += n
+          added += n
+        } else {
+          for(c <- children) {
+            parentRegistry.getOrElseUpdate(c, mutable.Set.empty[T]) += n
+            childRegistry.getOrElseUpdate(n, mutable.Set.empty[T]) += c
+            bfs += c
+          }
+        }
+      }
+    }
+
+    // Contains the linearization in reverse order
+    val reversedOrder = new mutable.ArrayBuffer[T]
+
+    // Visit highest priority frontier nodes
+    // Add it to reversedOrder, update childRegistry, and add nodes who's children have all been added to frontier
+    while(frontier.nonEmpty) {
+      val n = frontier.dequeue()
+      reversedOrder += n
+      val parents = parentRegistry.getOrElse(n, Set.empty[T])
+      for(p <- parents) {
+        val creg = childRegistry(p)
+        creg -= n
+        if(creg.isEmpty && !added.contains(p)) {
+          frontier += p
+          added += p
+        }
+      }
+    }
+
+    // Reverse reversedOrder for top-to-bottom linearization
+    reversedOrder.reverse
+  }
+
+  /** Linearizes (topologically sorts) a DAG
+    *
     * @throws CyclicException if the graph is cyclic
     * @return a Map[T,T] from each visited node to its predecessor in the
     * traversal

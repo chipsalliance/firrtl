@@ -64,7 +64,7 @@ class DedupModules extends Transform {
 
     val cname = CircuitName(c.main)
     renameMap.addMap(dedupMap.map { case (from, to) =>
-      logger.debug(s"[Dedup] $from -> $to")
+      logger.debug(s"[Dedup] $from -> ${to.name}")
       ModuleName(from, cname) -> List(ModuleName(to.name, cname))
     })
 
@@ -172,10 +172,13 @@ object DedupModules {
     * Will fixes up module if deduped instance's ports are differently named
     *
     * @param module Module who's instances will be deduped
-    * @param dedupMap Map of module name to deduped module
+    * @param tag2module Map of module name to its tag. Not mutated in this function.
+    * @param name2tag Map of module name to its tag, if its been deduped. Not mutated in this function.
+    * @param name2module Map of module name to its tag, if it hasn't been deduped. Not mutated in this function.
+    * @param renameMap Will be modified to keep track of renames in this function
     * @return fixed up module deduped instances
     */
-  def dedupInstances(module: DefModule, dedupMap: Map[String, DefModule], renameMap: RenameMap): DefModule = {
+  def dedupInstances(module: DefModule, tag2module: mutable.Map[String, DefModule], name2tag: mutable.Map[String, String], name2module: mutable.Map[String, DefModule], renameMap: RenameMap): DefModule = {
 
     // If black box, return it (it has no instances)
     if(module.isInstanceOf[ExtModule]) return module
@@ -187,15 +190,16 @@ object DedupModules {
     val instanceModuleMap = instances.map(i => i.name -> i.module).toMap
     val moduleNames = instances.map(_.module)
 
-    // Define rename functions
-    def renameModule(name: String): String = {
-      dedupMap(name).name
+    def getNewModule(old: String): DefModule = {
+      name2module.getOrElse(old, tag2module(name2tag(old)))
     }
+    // Define rename functions
+    def renameModule(name: String): String = getNewModule(name).name
     val typeMap = mutable.HashMap[String, Type]()
     def retype(name: String)(tpe: Type): Type = {
       if(typeMap.contains(name)) typeMap(name) else {
         if (instanceModuleMap.contains(name)) {
-          val newType = Utils.module_type(dedupMap(instanceModuleMap(name)))
+          val newType = Utils.module_type(getNewModule(instanceModuleMap(name)))
           typeMap(name) = newType
           getAffectedExpressions(WRef(name, tpe)).zip(getAffectedExpressions(WRef(name, newType))).foreach {
             case (old, nuu) => renameMap.rename(old.serialize, nuu.serialize)
@@ -222,11 +226,14 @@ object DedupModules {
                noDedups: Set[String],
                renameMap: RenameMap): Map[String, DefModule] = {
 
-    // Maps a module's tag to its deduplicated module's name
-    val tag2duplicate = mutable.HashMap.empty[String, String]
+    // Maps a module's tag to its deduplicated module
+    val tag2module = mutable.HashMap.empty[String, DefModule]
 
-    // Maps a module's name to its deduplicate module
-    val dedupMap = mutable.HashMap.empty[String, DefModule]
+    // Maps a module's name to its tag
+    val name2tag = mutable.HashMap.empty[String, String]
+
+    // Maps a module's name to its deduplicated module
+    val name2module = mutable.HashMap.empty[String, DefModule]
 
     // Build dedupMap
     moduleOrder.foreach { moduleName =>
@@ -234,11 +241,11 @@ object DedupModules {
       val originalModule = moduleMap(moduleName)
 
       // Replace instance references to new deduped modules
-      val fixedModule = DedupModules.dedupInstances(originalModule, dedupMap.toMap, renameMap)
+      val fixedModule = DedupModules.dedupInstances(originalModule, tag2module, name2tag, name2module, renameMap)
 
       if(noDedups.contains(fixedModule.name)) {
         // Don't dedup. Set dedup module to be the same as fixed module
-        dedupMap(fixedModule.name) = fixedModule
+        name2module(fixedModule.name) = fixedModule
       } else { // Try to dedup
 
         // Build name-agnostic module
@@ -252,20 +259,15 @@ object DedupModules {
             ps.map(_.serialize).mkString + dn + p.map(_.serialize).mkString
         }
 
-        // Check deduplication
-        if(tag2duplicate.contains(tag)) {
-          // Set fixedModule's dedup to be the tag's dedup
-          dedupMap(fixedModule.name) = dedupMap(tag2duplicate(tag))
-        } else {
-          // Set fixedModule's dedup to be itself
-          tag2duplicate(tag) = fixedModule.name
-          dedupMap(fixedModule.name) = fixedModule
-        }
+        // Match old module name to its tag
+        name2tag(fixedModule.name) = tag
+        // Set tag's module to be the most recent matching module
+        tag2module(tag) = fixedModule
       }
     }
-
-    // Return dedupMap
-    dedupMap.toMap
+    (name2module ++ {
+      name2tag.map{case (name, tag) => name -> tag2module(tag)}
+    }).toMap
   }
 
   def getAffectedExpressions(root: Expression): Seq[Expression] = {
