@@ -74,6 +74,7 @@ class GroupComponents extends firrtl.Transform {
     //val byGroup: Map[String, MSet[String]] = groupRoots.collect{case set => set.head -> mutable.Set(set.toSeq:_*)}.toMap
 
     val topKV = ("", mutable.Set(""))
+    val groupOrder = groups.collect{case g:GroupAnnotation => g.components.head.name}
     val annos = groups.collect{case g:GroupAnnotation => g.components.head.name -> g}.toMap
     val byGroup: Map[String, MSet[String]] = groups.collect{case GroupAnnotation(set, module, instance, _, _) => set.head.name -> mutable.Set(set.map(_.name).toSeq:_*)}.toMap + topKV
     val groupModule: Map[String, String] = groups.map(a => a.components.head.name -> mnamespace.newName(a.newModule)).toMap
@@ -121,11 +122,12 @@ class GroupComponents extends firrtl.Transform {
       crossings(head) = edges
     }
 
-    applyGrouping(m, namespace, byGroup, crossings, groupModule, groupInstance, annos).toSeq
+    applyGrouping(m, namespace, groupOrder, byGroup, crossings, groupModule, groupInstance, annos).toSeq
   }
 
   def applyGrouping( m: Module,
                      namespace: Namespace,
+                     groupOrder: Seq[String],
                      byGroup: Map[String, MSet[String]],
                      crossings: mutable.Map[String, MSet[(String, String)]],
                      groupModule: Map[String, String],
@@ -251,10 +253,11 @@ class GroupComponents extends firrtl.Transform {
 
 
     // Build datastructures
-    val newTopBody = Block(groupModule.map{case (g, m) => WDefInstance(NoInfo, groupInstance(g), m, UnknownType)}.toSeq ++ Seq(onStmt(m.body)))
+    //val newTopBody = Block(groupModule.map{case (g, m) => WDefInstance(NoInfo, groupInstance(g), m, UnknownType)}.toSeq ++ Seq(onStmt(m.body)))
+    val newTopBody = Block(groupOrder.map(g => WDefInstance(NoInfo, groupInstance(g), groupModule(g), UnknownType)) ++ Seq(onStmt(m.body)))
     val finalTopBody = Block(Utils.squashEmpty(newTopBody).asInstanceOf[Block].stmts.distinct)
 
-    val newModules = byGroup.keys.filter(_ != "") map { group =>
+    val newModules = groupOrder.filter(_ != "") map { group =>
       Module(NoInfo, groupModule(group), groupPorts(group).distinct, Block(groupStatements(group).distinct))
     }
     Set(m.copy(body = finalTopBody)) ++ newModules
