@@ -72,10 +72,7 @@ object Driver {
   @deprecated("Use side-effect free getAnnotation instead", "1.1")
   def loadAnnotations(optionsManager: ExecutionOptionsManager with HasFirrtlOptions): Unit = {
     val msg = "Driver.loadAnnotations is deprecated, use Driver.getAnnotations instead"
-    Driver.dramaticWarning(msg)
-    optionsManager.firrtlOptions = optionsManager.firrtlOptions.copy(
-      annotations = Driver.getAnnotations(optionsManager).toList
-    )
+    Driver.dramaticError(msg)
   }
 
   /** Get annotations from specified files and options
@@ -281,21 +278,16 @@ object Driver {
     * @return
     */
   def execute(args: Array[String]): FirrtlExecutionResult = {
-    val optionsManager = new ExecutionOptionsManager("firrtl") with HasFirrtlOptions
+    val optionsManager = new ExecutionOptionsManager("firrtl", args) with HasFirrtlOptions
 
-    if(optionsManager.parse(args)) {
-      execute(optionsManager) match {
-        case success: FirrtlExecutionSuccess =>
-          success
-        case failure: FirrtlExecutionFailure =>
-          optionsManager.showUsageAsError()
-          failure
-        case result =>
-          throwInternalError(s"Error: Unknown Firrtl Execution result $result")
-      }
-    }
-    else {
-      FirrtlExecutionFailure("Could not parser command line options")
+    execute(optionsManager) match {
+      case success: FirrtlExecutionSuccess =>
+        success
+      case failure: FirrtlExecutionFailure =>
+        optionsManager.showUsageAsError()
+        failure
+      case result =>
+        FirrtlExecutionFailure("Could not parser command line options")
     }
   }
 

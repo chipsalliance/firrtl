@@ -12,6 +12,7 @@ import MemPortUtils.memPortField
 import firrtl.passes.memlib.AnalysisUtils.{Connects, getConnects, getOrigin}
 import WrappedExpression.weq
 import annotations._
+import scopt.OptionParser
 
 case object InferReadWriteAnnotation extends NoTargetAnnotation
 
@@ -72,10 +73,10 @@ object InferReadWritePass extends Pass {
 
   def replaceStmt(repl: Netlist)(s: Statement): Statement =
     s map replaceStmt(repl) map replaceExp(repl) match {
-      case Connect(_, EmptyExpression, _) => EmptyStmt 
+      case Connect(_, EmptyExpression, _) => EmptyStmt
       case sx => sx
     }
-    
+
   def inferReadWriteStmt(connects: Connects,
                          repl: Netlist,
                          stmts: Statements)

@@ -5,6 +5,8 @@ package annotations
 
 import net.jcazevedo.moultingyaml._
 import firrtl.annotations.AnnotationYamlProtocol._
+import firrtl.ComposableAnnotationOptions
+import scopt.OptionParser
 
 case class AnnotationException(message: String) extends Exception(message)
 
@@ -176,4 +178,3 @@ private[firrtl] object LegacyAnnotation {
 case class DeletedAnnotation(xFormName: String, anno: Annotation) extends NoTargetAnnotation {
   override def serialize: String = s"""DELETED by $xFormName\n${anno.serialize}"""
 }
-

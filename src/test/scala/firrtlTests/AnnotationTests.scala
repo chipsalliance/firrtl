@@ -519,13 +519,10 @@ class JsonAnnotationTests extends AnnotationTests with BackendCompilationUtiliti
       w.close()
     }
 
-    new ExecutionOptionsManager("annos") with HasFirrtlOptions {
-      commonOptions = CommonOptions(targetDirName = testDir.getPath)
-      firrtlOptions = FirrtlExecutionOptions(
-        firrtlSource = Some(source),
-        annotationFileNames = List(annoFile.getPath)
-      )
-    }
+    new ExecutionOptionsManager("annos", Array(
+                                  "--target-dir", testDir.getPath,
+                                  "--firrtl-source", source,
+                                  "--annotation-files", annoFile.getPath)) with HasFirrtlOptions
   }
 
   "Annotation file not found" should "give a reasonable error message" in {

@@ -29,6 +29,15 @@ import scala.util.DynamicVariable
   */
 object LogLevel extends Enumeration {
   val Error, Warn, Info, Debug, Trace, None = Value
+
+  def apply(s: String): LogLevel.Value = s.toLowerCase match {
+    case "error" => LogLevel.Error
+    case "warn"  => LogLevel.Warn
+    case "info"  => LogLevel.Info
+    case "debug" => LogLevel.Debug
+    case "trace" => LogLevel.Trace
+    case level => throw new Exception("Unknown LogLevel '$level'")
+  }
 }
 
 /**
@@ -139,13 +148,8 @@ object Logger {
     * @return
     */
   def makeScope[A](args: Array[String] = Array.empty)(codeBlock: => A): A = {
-    val executionOptionsManager = new ExecutionOptionsManager("logger")
-    if(executionOptionsManager.parse(args)) {
-      makeScope(executionOptionsManager)(codeBlock)
-    }
-    else {
-      throw new Exception(s"logger invoke failed to parse args ${args.mkString(", ")}")
-    }
+    val executionOptionsManager = new ExecutionOptionsManager("logger", args)
+    makeScope(executionOptionsManager)(codeBlock)
   }
 
 

@@ -21,13 +21,14 @@ class GCDSplitEmissionExecutionTest extends FirrtlFlatSpec {
     val sourceFile = new File(testDir, s"$top.fir")
     copyResourceToFile(s"/integration/$top.fir", sourceFile)
 
-    val optionsManager = new ExecutionOptionsManager("GCDTesterSplitEmission") with HasFirrtlOptions {
-      commonOptions = CommonOptions(topName = top, targetDirName = testDir.getPath)
-      firrtlOptions = FirrtlExecutionOptions(
-                        inputFileNameOverride = sourceFile.getPath,
-                        compilerName = "verilog",
-                        infoModeName = "ignore",
-                        emitOneFilePerModule = true)
+    val optionsManager = new ExecutionOptionsManager(
+      "GCDTesterSplitEmission",
+      Array("--top-name", top,
+            "--target-dir", testDir.getPath,
+            "--input-file", sourceFile.getPath,
+            "--compiler", "verilog",
+            "--info-mode", "ignore",
+            "--split-modules") ) with HasFirrtlOptions {
     }
     firrtl.Driver.execute(optionsManager)
 
@@ -52,4 +53,3 @@ class RobCompilationTest extends CompilationTest("Rob", "/regress")
 class RocketCoreCompilationTest extends CompilationTest("RocketCore", "/regress")
 class ICacheCompilationTest extends CompilationTest("ICache", "/regress")
 class FPUCompilationTest extends CompilationTest("FPU", "/regress")
-
