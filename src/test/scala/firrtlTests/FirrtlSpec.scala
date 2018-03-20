@@ -43,7 +43,7 @@ trait FirrtlRunners extends BackendCompilationUtilities {
     copyResourceToFile(s"${srcDir}/${prefix}.fir", new File(testDir, s"${prefix}.fir"))
 
     val optionsManager = new ExecutionOptionsManager(prefix) with HasFirrtlOptions {
-      commonOptions = CommonOptions(topName = prefix, targetDirName = testDir.getPath, preserveTargetDir = true)
+      commonOptions = CommonOptions(topName = prefix, targetDirName = testDir.getPath)
       firrtlOptions = FirrtlExecutionOptions(
                         infoModeName = "ignore",
                         customTransforms = customTransforms,

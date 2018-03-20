@@ -181,7 +181,7 @@ class CheckCombLoopsCommandLineSpec extends FirrtlFlatSpec {
   val testDir = createTestDirectory("CombLoopChecker")
   val inputFile = Paths.get(getClass.getResource("/features/HasLoops.fir").toURI()).toFile()
   val outFile = new File(testDir, "HasLoops.v")
-  val args = Array("-i", inputFile.getAbsolutePath, "-o", outFile.getAbsolutePath, "-X", "verilog", "-ptd")
+  val args = Array("-i", inputFile.getAbsolutePath, "-o", outFile.getAbsolutePath, "-X", "verilog")
 
   "Combinational loops detection" should "run by default" in {
     a [CheckCombLoops.CombLoopException] should be thrownBy {

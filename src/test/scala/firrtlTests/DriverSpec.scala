@@ -66,7 +66,7 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
         FileUtils.deleteDirectoryHierarchy("a") should be (true)
       }
     }
-    "Directory will be cleared if it already exists" in {
+    "makeTargetDir retains files by default when directory already exists" in {
       var dir = new java.io.File("a/b/c")
       if (dir.exists()) {
         dir.delete()
@@ -80,7 +80,34 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
 
       optionsManager.makeTargetDir() should be(true)
 
-      val junkFile = new File("a/b/c/junk-file")
+      val junkFile = new File("a/b/c/junk-file.junk")
+      val junkWriter = new PrintWriter(junkFile)
+      junkWriter.println(s"this is a junk file")
+      junkWriter.close()
+
+      optionsManager.makeTargetDir() should be(true)
+
+      junkFile.exists() should be (true)
+
+      dir = new java.io.File("a/b/c")
+      dir.exists() should be(true)
+      FileUtils.deleteDirectoryHierarchy("a") should be(true)
+    }
+    "use clearTargetSuffixes to delete files with desired suffix" in {
+      var dir = new java.io.File("a/b/c")
+      if (dir.exists()) {
+        dir.delete()
+      }
+      val optionsManager = new ExecutionOptionsManager("test")
+      optionsManager.parse(Array("--top-name", "dog", "--target-dir", "a/b/c", "--clear-file-suffixes", ".junk")) should be(true)
+      val commonOptions = optionsManager.commonOptions
+
+      commonOptions.topName should be("dog")
+      commonOptions.targetDirName should be("a/b/c")
+
+      optionsManager.makeTargetDir() should be(true)
+
+      val junkFile = new File("a/b/c/junk-file.junk")
       val junkWriter = new PrintWriter(junkFile)
       junkWriter.println(s"this is a junk file")
       junkWriter.close()
@@ -93,13 +120,20 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
       dir.exists() should be(true)
       FileUtils.deleteDirectoryHierarchy("a") should be(true)
     }
-    "Use --preserve-target-dir or commonOptions.preserveTargetDir) preserve directory if it already exists" in {
+    "multiple can be used clearTargetSuffixes to delete files with desired suffixes" in {
       var dir = new java.io.File("a/b/c")
       if (dir.exists()) {
         dir.delete()
       }
       val optionsManager = new ExecutionOptionsManager("test")
-      optionsManager.parse(Array("--top-name", "dog", "--target-dir", "a/b/c")) should be(true)
+      optionsManager.parse(
+        Array(
+          "--top-name", "dog",
+          "--target-dir", "a/b/c",
+          "--clear-file-suffixes", ".junk",
+          "--clear-file-suffixes", ".junk1"
+        )
+      ) should be(true)
       val commonOptions = optionsManager.commonOptions
 
       commonOptions.topName should be("dog")
@@ -107,14 +141,20 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
 
       optionsManager.makeTargetDir() should be(true)
 
-      val junkFile = new File("a/b/c/junk-file")
+      val junkFile = new File("a/b/c/junk-file.junk")
       val junkWriter = new PrintWriter(junkFile)
       junkWriter.println(s"this is a junk file")
       junkWriter.close()
 
+      val junkFile1 = new File("a/b/c/junk-file.junk1")
+      val junkWriter1 = new PrintWriter(junkFile1)
+      junkWriter1.println(s"this is a junk1 file")
+      junkWriter1.close()
+
       optionsManager.makeTargetDir() should be(true)
 
       junkFile.exists() should be (false)
+      junkFile1.exists() should be (false)
 
       dir = new java.io.File("a/b/c")
       dir.exists() should be(true)
@@ -250,7 +290,7 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
     val annoFilename = "LegacyAnnotations.anno"
     val annotationsTestFile =  new File(testDir, annoFilename)
     val optionsManager = new ExecutionOptionsManager("test") with HasFirrtlOptions {
-      commonOptions = commonOptions.copy(topName = "test", targetDirName = testDir.toString, preserveTargetDir = true)
+      commonOptions = commonOptions.copy(topName = "test", targetDirName = testDir.toString)
       firrtlOptions = firrtlOptions.copy(
         annotationFileNames = List(annotationsTestFile.toString)
       )
@@ -304,7 +344,7 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
       fw.write(YamlArray(anno).prettyPrint)
       fw.close()
       val optionsManager = new ExecutionOptionsManager("test") with HasFirrtlOptions {
-        commonOptions = commonOptions.copy(topName = "test", targetDirName = testDir.toString, preserveTargetDir = true)
+        commonOptions = commonOptions.copy(topName = "test", targetDirName = testDir.toString)
         firrtlOptions = firrtlOptions.copy(
           annotationFileNames = List(annoFile.toString)
         )

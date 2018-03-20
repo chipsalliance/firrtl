@@ -57,7 +57,7 @@ case class CommonOptions(
     logClassNames:     Boolean        = false,
     classLogLevels: Map[String, LogLevel.Value] = Map.empty,
     programArgs:    Seq[String]                 = Seq.empty,
-    preserveTargetDir: Boolean                  = false
+    clearTargetSuffixes : List[String]          = Nil
 ) extends ComposableOptions {
 
   def getLogFileName(optionsManager: ExecutionOptionsManager): String = {
@@ -95,12 +95,13 @@ trait HasCommonOptions {
     .text(s"This options defines a work directory for intermediate files, default is ${commonOptions.targetDirName}")
 
 
-  parser.opt[Unit]("preserve-target-dir")
-    .abbr("ptd")
-    .foreach { _ =>
-      commonOptions = commonOptions.copy(preserveTargetDir = true)
+  parser.opt[String]("clear-file-suffixes")
+    .abbr("cfs")
+    .unbounded()
+    .foreach { x =>
+      commonOptions = commonOptions.copy(clearTargetSuffixes = x :: commonOptions.clearTargetSuffixes)
     }
-    .text(s"by default, when a target-dir is re-used all files are purged, this disables that")
+    .text(s"by re-using a target-dir, delete all files with specified suffix, (can be repeated)")
 
   parser.opt[String]("log-level")
     .abbr("ll").valueName("<Error|Warn|Info|Debug|Trace>")
@@ -519,14 +520,13 @@ class ExecutionOptionsManager(val applicationName: String) extends HasParser(app
     */
   def makeTargetDir(): Boolean = {
     val dir = new File(commonOptions.targetDirName)
-    if(
-      commonOptions.targetDirName.nonEmpty &&
-              ! commonOptions.preserveTargetDir &&
-              dir.isDirectory &&
-              ! FileUtils.isRoot(dir) &&
-              ! FileUtils.isWorkingDirectory(dir)
-    ) {
-      FileUtils.deleteDirectoryHierarchy(commonOptions.targetDirName)
+    if(dir.isDirectory) {
+      commonOptions.clearTargetSuffixes.foreach { suffix =>
+        dir
+          .listFiles
+          .filter { file => file.getAbsolutePath.endsWith(suffix) }
+          .foreach { file => file.delete() }
+      }
     }
     FileUtils.makeDirectory(commonOptions.targetDirName)
   }
