@@ -1,4 +1,6 @@
 # Firrtl
+
+[![Join the chat at https://gitter.im/freechipsproject/firrtl](https://badges.gitter.im/freechipsproject/firrtl.svg)](https://gitter.im/freechipsproject/firrtl?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 [![Build Status](https://travis-ci.org/freechipsproject/firrtl.svg?branch=master)](https://travis-ci.org/freechipsproject/firrtl)
 #### Flexible Internal Representation for RTL
 
@@ -9,9 +11,7 @@
 
  For a detailed description of Firrtl's intermediate representation, see the document "Specification of the Firrtl Language" located in [spec/spec.pdf](https://github.com/ucb-bar/firrtl/blob/master/spec/spec.pdf).
 
- This repository is in ALPHA VERSION, so many things may change in the coming months.
-
-#### Wiki's and Tutorials
+#### Wiki Pages and Tutorials
 
 Useful information is on our wiki, located here:
 * https://github.com/ucb-bar/firrtl/wiki
@@ -32,12 +32,13 @@ sbt assembly
 
 #### Other Tools
 * Firrtl syntax highlighting for Vim users: https://github.com/azidar/firrtl-syntax
+* Firrtl mode for Emacs users: https://github.com/ibm/firrtl-mode
 * Chisel3, an embedded hardware DSL that generates Firrtl: https://github.com/ucb-bar/chisel3
 * Firrtl Interpreter: https://github.com/ucb-bar/firrtl-interpreter
 * Yosys Verilog-to-Firrtl Front-end: https://github.com/cliffordwolf/yosys
 
 #### Installation Instructions
-*Disclaimer*: This project is in alpha, so there is no guarantee anything works. The installation instructions should work for OSX/Linux machines.
+*Disclaimer*: The installation instructions should work for OSX/Linux machines. Other environments may not be tested.
 
 ##### Prerequisites
  1. If not already installed, install [verilator](http://www.veripool.org/projects/verilator/wiki/Installing) (Requires at least v3.886)

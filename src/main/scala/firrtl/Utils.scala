@@ -12,6 +12,20 @@ import scala.collection.mutable.{StringBuilder, ArrayBuffer, LinkedHashMap, Hash
 import java.io.PrintWriter
 import logger.LazyLogging
 
+object FIRRTLException {
+  def defaultMessage(message: String, cause: Throwable) = {
+    if (message != null) {
+      message
+    } else if (cause != null) {
+      cause.toString
+    } else {
+      null
+    }
+  }
+}
+class FIRRTLException(val str: String, cause: Throwable = null)
+  extends RuntimeException(FIRRTLException.defaultMessage(str, cause), cause)
+
 object seqCat {
   def apply(args: Seq[Expression]): Expression = args.length match {
     case 0 => Utils.error("Empty Seq passed to seqcat")
@@ -29,7 +43,7 @@ object seqCat {
 object toBits {
   def apply(e: Expression): Expression = e match {
     case ex @ (_: WRef | _: WSubField | _: WSubIndex) => hiercat(ex)
-    case t => Utils.error("Invalid operand expression for toBits!")
+    case t => Utils.error(s"Invalid operand expression for toBits: $e")
   }
   private def hiercat(e: Expression): Expression = e.tpe match {
     case t: VectorType => seqCat((0 until t.size).reverse map (i =>
@@ -37,14 +51,14 @@ object toBits {
     case t: BundleType => seqCat(t.fields map (f =>
       hiercat(WSubField(e, f.name, f.tpe, UNKNOWNGENDER))))
     case t: GroundType => DoPrim(AsUInt, Seq(e), Seq.empty, UnknownType)
-    case t => Utils.error("Unknown type encountered in toBits!")
+    case t => Utils.error(s"Unknown type encountered in toBits: $e")
   }
 }
 
 object getWidth {
   def apply(t: Type): Width = t match {
     case t: GroundType => t.width
-    case _ => Utils.error("No width!")
+    case _ => Utils.error(s"No width: $t")
   }
   def apply(e: Expression): Width = apply(e.tpe)
 }
@@ -55,7 +69,7 @@ object bitWidth {
     case t: VectorType => t.size * bitWidth(t.tpe)
     case t: BundleType => t.fields.map(f => bitWidth(f.tpe)).foldLeft(BigInt(0))(_+_)
     case GroundType(IntWidth(width)) => width
-    case t => Utils.error("Unknown type encountered in bitWidth!")
+    case t => Utils.error(s"Unknown type encountered in bitWidth: $dt")
   }
 }
 
@@ -112,7 +126,7 @@ object fromBits {
           (tmpOffset, stmts ++ substmts)
       }
       case t: GroundType => getPartGround(lhs, t, rhs, offset)
-      case t => Utils.error("Unknown type encountered in fromBits!")
+      case t => Utils.error(s"Unknown type encountered in fromBits: $lhst")
     }
 }
 
@@ -125,11 +139,47 @@ object flattenType {
   def apply(t: Type) = UIntType(IntWidth(bitWidth(t)))
 }
 
-class FIRRTLException(val str: String) extends Exception(str)
-
 object Utils extends LazyLogging {
-  def throwInternalError =
-    error("Internal Error! Please file an issue at https://github.com/ucb-bar/firrtl/issues")
+  /** Unwind the causal chain until we hit the initial exception (which may be the first).
+    *
+    * @param maybeException - possible exception triggering the error,
+    * @param first - true if we want the first (eldest) exception in the chain,
+    * @return first or last Throwable in the chain.
+    */
+  def getThrowable(maybeException: Option[Throwable], first: Boolean): Throwable = {
+    maybeException match {
+      case Some(e: Throwable) => {
+        val t = e.getCause
+        if (t != null) {
+          if (first) {
+            getThrowable(Some(t), first)
+          } else {
+            t
+          }
+        } else {
+          e
+        }
+      }
+      case None | null => null
+    }
+  }
+
+  /** Throw an internal error, possibly due to an exception.
+    *
+    * @param message - possible string to emit,
+    * @param exception - possible exception triggering the error.
+   */
+  def throwInternalError(message: Option[String] = None, exception: Option[Exception] = None) = {
+    // We'll get the first exception in the chain, keeping it intact.
+    val first = true
+    val throwable = getThrowable(exception, true)
+    val string: String = message match {
+      case Some(s: String) => s + "\n"
+      case _ => ""
+    }
+    error("Internal Error! %sPlease file an issue at https://github.com/ucb-bar/firrtl/issues".format(string), throwable)
+  }
+
   private[firrtl] def time[R](block: => R): (Double, R) = {
     val t0 = System.nanoTime()
     val result = block
@@ -139,7 +189,7 @@ object Utils extends LazyLogging {
   }
 
   /** Removes all [[firrtl.ir.EmptyStmt]] statements and condenses
-   * [[firrtl.ir.Block]] statements.
+    * [[firrtl.ir.Block]] statements.
     */
   def squashEmpty(s: Statement): Statement = s map squashEmpty match {
     case Block(stmts) =>
@@ -151,6 +201,35 @@ object Utils extends LazyLogging {
       }
     case sx => sx
   }
+
+  /** Provide a nice name to create a temporary **/
+  def niceName(e: Expression): String = niceName(1)(e)
+  def niceName(depth: Int)(e: Expression): String = {
+    e match {
+      case WRef(name, _, _, _) if name(0) == '_' => name
+      case WRef(name, _, _, _) => "_" + name
+      case WSubAccess(expr, index, _, _) if depth <= 0 => niceName(depth)(expr)
+      case WSubAccess(expr, index, _, _) => niceName(depth)(expr) + niceName(depth - 1)(index)
+      case WSubField(expr, field, _, _) => niceName(depth)(expr) + "_" + field
+      case WSubIndex(expr, index, _, _) => niceName(depth)(expr) + "_" + index
+      case Reference(name, _) if name(0) == '_' => name
+      case Reference(name, _) => "_" + name
+      case SubAccess(expr, index,  _) if depth <= 0 => niceName(depth)(expr)
+      case SubAccess(expr, index,  _) => niceName(depth)(expr) + niceName(depth - 1)(index)
+      case SubField(expr, field, _) => niceName(depth)(expr) + "_" + field
+      case SubIndex(expr, index, _) => niceName(depth)(expr) + "_" + index
+      case DoPrim(op, args, consts, _) if depth <= 0 => "_" + op
+      case DoPrim(op, args, consts, _) => "_" + op + (args.map(niceName(depth - 1)) ++ consts.map("_" + _)).mkString("")
+      case Mux(cond, tval, fval, _) if depth <= 0 => "_mux"
+      case Mux(cond, tval, fval, _) => "_mux" + Seq(cond, tval, fval).map(niceName(depth - 1)).mkString("")
+      case UIntLiteral(value, _) => "_" + value
+      case SIntLiteral(value, _) => "_" + value
+    }
+  }
+  /** Maps node name to value */
+  type NodeMap = mutable.HashMap[String, Expression]
+
+  def isTemp(str: String): Boolean = str.head == '_'
 
   /** Indent the results of [[ir.FirrtlNode.serialize]] */
   def indent(str: String) = str replaceAllLiterally ("\n", "\n  ")
@@ -184,7 +263,7 @@ object Utils extends LazyLogging {
     }
   }
    def get_flip(t: Type, i: Int, f: Orientation): Orientation = {
-     if (i >= get_size(t)) error("Shouldn't be here")
+     if (i >= get_size(t)) throwInternalError(Some(s"get_flip: shouldn't be here - $i >= get_size($t)"))
      t match {
        case (_: GroundType) => f
        case (tx: BundleType) =>
@@ -231,88 +310,45 @@ object Utils extends LazyLogging {
     case _ => false
   }
 
-//============== TYPES ================
-//<<<<<<< HEAD
-//   def mux_type (e1:Expression,e2:Expression) : Type = mux_type(tpe(e1),tpe(e2))
-//   def mux_type (t1:Type,t2:Type) : Type = {
-//      if (wt(t1) == wt(t2)) {
-//         (t1,t2) match { 
-//            case (t1:UIntType,t2:UIntType) => UIntType(UnknownWidth)
-//            case (t1:SIntType,t2:SIntType) => SIntType(UnknownWidth)
-//            case (t1:FixedType,t2:FixedType) => FixedType(UnknownWidth, UnknownWidth)
-//            case (t1:VectorType,t2:VectorType) => VectorType(mux_type(t1.tpe,t2.tpe),t1.size)
-//            case (t1:BundleType,t2:BundleType) => 
-//               BundleType((t1.fields,t2.fields).zipped.map((f1,f2) => {
-//                  Field(f1.name,f1.flip,mux_type(f1.tpe,f2.tpe))
-//               }))
-//         }
-//      } else UnknownType
-//   }
-//   def mux_type_and_widths (e1:Expression,e2:Expression) : Type = mux_type_and_widths(tpe(e1),tpe(e2))
-//   def PLUS (w1:Width,w2:Width) : Width = (w1, w2) match {
-//     case (IntWidth(i), IntWidth(j)) => IntWidth(i + j)
-//     case _ => PlusWidth(w1,w2)
-//   }
-//   def MAX (w1:Width,w2:Width) : Width = (w1, w2) match {
-//     case (IntWidth(i), IntWidth(j)) => IntWidth(max(i,j))
-//     case _ => MaxWidth(Seq(w1,w2))
-//   }
-//   def MINUS (w1:Width,w2:Width) : Width = (w1, w2) match {
-//     case (IntWidth(i), IntWidth(j)) => IntWidth(i - j)
-//     case _ => MinusWidth(w1,w2)
-//   }
-//   def POW (w1:Width) : Width = w1 match {
-//     case IntWidth(i) => IntWidth(pow_minus_one(BigInt(2), i))
-//     case _ => ExpWidth(w1)
-//   }
-//   def MIN (w1:Width,w2:Width) : Width = (w1, w2) match {
-//     case (IntWidth(i), IntWidth(j)) => IntWidth(min(i,j))
-//     case _ => MinWidth(Seq(w1,w2))
-//   }
-//   def mux_type_and_widths (t1:Type,t2:Type) : Type = {
-//      def wmax (w1:Width,w2:Width) : Width = {
-//         (w1,w2) match {
-//            case (w1:IntWidth,w2:IntWidth) => IntWidth(w1.width.max(w2.width))
-//            case (w1,w2) => MaxWidth(Seq(w1,w2))
-//         }
-//      }
-//      val wt1 = new WrappedType(t1)
-//      val wt2 = new WrappedType(t2)
-//      if (wt1 == wt2) {
-//         (t1,t2) match {
-//            case (t1:UIntType,t2:UIntType) => UIntType(wmax(t1.width,t2.width))
-//            case (t1:SIntType,t2:SIntType) => SIntType(wmax(t1.width,t2.width))
-//            case (FixedType(w1, p1), FixedType(w2, p2)) =>
-//              FixedType(PLUS(MAX(p1, p2),MAX(MINUS(w1, p1), MINUS(w2, p2))), MAX(p1, p2))
-//            case (t1:VectorType,t2:VectorType) => VectorType(mux_type_and_widths(t1.tpe,t2.tpe),t1.size)
-//            case (t1:BundleType,t2:BundleType) => BundleType((t1.fields zip t2.fields).map{case (f1, f2) => Field(f1.name,f1.flip,mux_type_and_widths(f1.tpe,f2.tpe))})
-//         }
-//      } else UnknownType
-//   }
-//   def module_type (m:DefModule) : Type = {
-//      BundleType(m.ports.map(p => p.toField))
-//   }
-//   def sub_type (v:Type) : Type = {
-//      v match {
-//         case v:VectorType => v.tpe
-//         case v => UnknownType
-//      }
-//   }
-//   def field_type (v:Type,s:String) : Type = {
-//      v match {
-//         case v:BundleType => {
-//            val ft = v.fields.find(p => p.name == s)
-//            ft match {
-//               case ft:Some[Field] => ft.get.tpe
-//               case ft => UnknownType
-//            }
-//         }
-//         case v => UnknownType
-//      }
-//   }
-//=======
+  /** Returns children Expressions of e */
+  def getKids(e: Expression): Seq[Expression] = {
+    val kids = mutable.ArrayBuffer[Expression]()
+    def addKids(e: Expression): Expression = {
+      kids += e
+      e
+    }
+    e map addKids
+    kids
+  }
+
+  /** Walks two expression trees and returns a sequence of tuples of where they differ */
+  def diff(e1: Expression, e2: Expression): Seq[(Expression, Expression)] = {
+    if(weq(e1, e2)) Nil
+    else {
+      val (e1Kids, e2Kids) = (getKids(e1), getKids(e2))
+
+      if(e1Kids == Nil || e2Kids == Nil || e1Kids.size != e2Kids.size) Seq((e1, e2))
+      else {
+        e1Kids.zip(e2Kids).flatMap { case (e1k, e2k) => diff(e1k, e2k) }
+      }
+    }
+  }
+
+  /** Returns an inlined expression (replacing node references with values),
+    * stopping on a stopping condition or until the reference is not a node
+    */
+  def inline(nodeMap: NodeMap, stop: String => Boolean = {x: String => false})(e: Expression): Expression = {
+    def onExp(e: Expression): Expression = e map onExp match {
+      case Reference(name, _) if nodeMap.contains(name) && !stop(name) => onExp(nodeMap(name))
+      case WRef(name, _, _, _) if nodeMap.contains(name) && !stop(name) => onExp(nodeMap(name))
+      case other => other
+    }
+    onExp(e)
+  }
+
   def mux_type(e1: Expression, e2: Expression): Type = mux_type(e1.tpe, e2.tpe)
   def mux_type(t1: Type, t2: Type): Type = (t1, t2) match {
+    case (ClockType, ClockType) => ClockType
     case (t1: UIntType, t2: UIntType) => UIntType(UnknownWidth)
     case (t1: SIntType, t2: SIntType) => SIntType(UnknownWidth)
     case (t1: FixedType, t2: FixedType) => FixedType(UnknownWidth, UnknownWidth)
@@ -330,6 +366,7 @@ object Utils extends LazyLogging {
       case (w1x, w2x) => MaxWidth(Seq(w1x, w2x))
     }
     (t1, t2) match {
+      case (ClockType, ClockType) => ClockType
       case (t1x: UIntType, t2x: UIntType) => UIntType(wmax(t1x.width, t2x.width))
       case (t1x: SIntType, t2x: SIntType) => SIntType(wmax(t1x.width, t2x.width))
       case (FixedType(w1, p1), FixedType(w2, p2)) =>
@@ -357,10 +394,9 @@ object Utils extends LazyLogging {
     }
     case vx => UnknownType
   }
-//>>>>>>> e54fb610c6bf0a7fe5c9c0f0e0b3acbb3728cfd0
    
 // =================================
-  def error(str: String) = throw new FIRRTLException(str)
+  def error(str: String, cause: Throwable = null) = throw new FIRRTLException(str, cause)
 
 //// =============== EXPANSION FUNCTIONS ================
   def get_size(t: Type): Int = t match {
@@ -400,7 +436,7 @@ object Utils extends LazyLogging {
             ilen + get_size(t1x.tpe), jlen + get_size(t2x.tpe))
         }._1
       case (ClockType, ClockType) => if (flip1 == flip2) Seq((0, 0)) else Nil
-      case _ => Utils.error("shouldn't be here")
+      case _ => throwInternalError(Some(s"get_valid_points: shouldn't be here - ($t1, $t2)"))
     }
   }
 
@@ -446,9 +482,9 @@ object Utils extends LazyLogging {
   def get_field(v: Type, s: String): Field = v match {
     case vx: BundleType => vx.fields find (_.name == s) match {
       case Some(ft) => ft
-      case None => Utils.error("Shouldn't be here")
+      case None => throwInternalError(Some(s"get_field: shouldn't be here - $v.$s"))
     }
-    case vx => Utils.error("Shouldn't be here")
+    case vx => throwInternalError(Some(s"get_field: shouldn't be here - $v"))
   }
 
   def times(flip: Orientation, d: Direction): Direction = times(flip, d)
@@ -491,7 +527,7 @@ object Utils extends LazyLogging {
     case ex: Mux => MALE
     case ex: ValidIf => MALE
     case WInvalid => MALE
-    case ex => println(ex); error("Shouldn't be here")
+    case ex => throwInternalError(Some(s"gender: shouldn't be here - $e"))
   }
   def get_gender(s: Statement): Gender = s match {
     case sx: DefWire => BIGENDER
@@ -598,7 +634,7 @@ object Utils extends LazyLogging {
     "before", "begin", "bind", "bins", "binsof", "bit", "break",
     "buf", "bufif0", "bufif1", "byte",
 
-    "case", "casex", "casez", "cell", "chandle", "class", "clocking",
+    "case", "casex", "casez", "cell", "chandle", "checker", "class", "clocking",
     "cmos", "config", "const", "constraint", "context", "continue",
     "cover", "covergroup", "coverpoint", "cross",
 

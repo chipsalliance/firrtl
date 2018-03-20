@@ -22,15 +22,7 @@ object CheckCombLoops {
 
 }
 
-object DontCheckCombLoopsAnnotation {
-  private val marker = "DontCheckCombLoops!"
-  private val transform = classOf[CheckCombLoops]
-  def apply(): Annotation = Annotation(CircuitTopName, transform, marker)
-  def unapply(a: Annotation): Boolean = a match {
-    case Annotation(_, targetXform, value) if targetXform == transform && value == marker => true
-    case _ => false
-  }
-}
+case object DontCheckCombLoopsAnnotation extends NoTargetAnnotation
 
 /** Finds and detects combinational logic loops in a circuit, if any
   * exist. Returns the input circuit with no modifications.
@@ -71,9 +63,9 @@ class CheckCombLoops extends Transform {
           memport.expr match {
             case memref: WRef =>
               LogicNode(s.name,Some(memref.name),Some(memport.name))
-            case _ => throwInternalError
+            case _ => throwInternalError(Some(s"toLogicNode: unrecognized subsubfield expression - $memport"))
           }
-        case _ => throwInternalError
+        case _ => throwInternalError(Some(s"toLogicNode: unrecognized subfield expression - $s"))
       }
   }
 
@@ -220,9 +212,7 @@ class CheckCombLoops extends Transform {
   }
 
   def execute(state: CircuitState): CircuitState = {
-    val dontRun = getMyAnnotations(state).collectFirst {
-      case DontCheckCombLoopsAnnotation() => true
-    }.getOrElse(false)
+    val dontRun = state.annotations.contains(DontCheckCombLoopsAnnotation)
     if (dontRun) {
       logger.warn("Skipping Combinational Loop Detection")
       state

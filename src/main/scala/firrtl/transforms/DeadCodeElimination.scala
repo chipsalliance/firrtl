@@ -63,7 +63,7 @@ class DeadCodeElimination extends Transform {
         case ref @ (_: WRef | _: WSubField) => refs += ref
         case nested @ (_: Mux | _: DoPrim | _: ValidIf) => nested map rec
         case ignore @ (_: Literal) => // Do nothing
-        case unexpected => throwInternalError
+        case unexpected => throwInternalError()
       }
       e
     }
@@ -136,7 +136,7 @@ class DeadCodeElimination extends Transform {
     // Add all ports as vertices
     mod.ports.foreach {
       case Port(_, name, _, _: GroundType) => depGraph.addVertex(LogicNode(mod.name, name))
-      case other => throwInternalError
+      case other => throwInternalError()
     }
     onStmt(mod.body)
   }
@@ -180,6 +180,24 @@ class DeadCodeElimination extends Transform {
                              moduleMap: collection.Map[String, DefModule],
                              renames: RenameMap)
                             (mod: DefModule): Option[DefModule] = {
+    // For log-level debug
+    def deleteMsg(decl: IsDeclaration): String = {
+      val tpe = decl match {
+        case _: DefNode => "node"
+        case _: DefRegister => "reg"
+        case _: DefWire => "wire"
+        case _: Port => "port"
+        case _: DefMemory => "mem"
+        case (_: DefInstance | _: WDefInstance) => "inst"
+        case _: Module => "module"
+        case _: ExtModule => "extmodule"
+      }
+      val ref = decl match {
+        case (_: Module | _: ExtModule) => mod.name
+        case _ => s"${mod.name}.${decl.name}"
+      }
+      s"[DCE] $tpe $ref"
+    }
     def getDeps(expr: Expression): Seq[LogicNode] = getDepsImpl(mod.name, instMap)(expr)
 
     var emptyBody = true
@@ -191,12 +209,14 @@ class DeadCodeElimination extends Transform {
           moduleMap.get(inst.module) match {
             case Some(instMod) => inst.copy(tpe = Utils.module_type(instMod))
             case None =>
+              logger.debug(deleteMsg(inst))
               renames.delete(inst.name)
               EmptyStmt
           }
         case decl: IsDeclaration =>
           val node = LogicNode(mod.name, decl.name)
           if (deadNodes.contains(node)) {
+            logger.debug(deleteMsg(decl))
             renames.delete(decl.name)
             EmptyStmt
           }
@@ -221,16 +241,27 @@ class DeadCodeElimination extends Transform {
     }
 
     val (deadPorts, portsx) = mod.ports.partition(p => deadNodes.contains(LogicNode(mod.name, p.name)))
-    deadPorts.foreach(p => renames.delete(p.name))
+    deadPorts.foreach { p =>
+      logger.debug(deleteMsg(p))
+      renames.delete(p.name)
+    }
 
     mod match {
       case Module(info, name, _, body) =>
         val bodyx = onStmt(body)
-        if (emptyBody && portsx.isEmpty) None else Some(Module(info, name, portsx, bodyx))
+        if (emptyBody && portsx.isEmpty) {
+          logger.debug(deleteMsg(mod))
+          None
+        } else {
+          Some(Module(info, name, portsx, bodyx))
+        }
       case ext: ExtModule =>
-        if (portsx.isEmpty) None
+        if (portsx.isEmpty) {
+          logger.debug(deleteMsg(mod))
+          None
+        }
         else {
-          if (ext.ports != portsx) throwInternalError // Sanity check
+          if (ext.ports != portsx) throwInternalError() // Sanity check
           Some(ext.copy(ports = portsx))
         }
     }
@@ -289,23 +320,14 @@ class DeadCodeElimination extends Transform {
   }
 
   def execute(state: CircuitState): CircuitState = {
-    val (dontTouches: Seq[LogicNode], doTouchExtMods: Seq[String], noDCE: Option[Boolean]) =
-      state.annotations match {
-        case Some(aMap) =>
-          // TODO Do with single walk over annotations
-          val dontTouches = aMap.annotations.collect {
-            case DontTouchAnnotation(component) => LogicNode(component)
-          }
-          val optExtMods = aMap.annotations.collect {
-            case OptimizableExtModuleAnnotation(ModuleName(name, _)) => name
-          }
-          val noDCE = aMap.annotations.collectFirst {
-            case NoDCEAnnotation() => true
-          }
-          (dontTouches, optExtMods, noDCE)
-        case None => (Seq.empty, Seq.empty, None)
-      }
-    if (noDCE.getOrElse(false)) {
+    val dontTouches: Seq[LogicNode] = state.annotations.collect {
+      case DontTouchAnnotation(component) => LogicNode(component)
+    }
+    val doTouchExtMods: Seq[String] = state.annotations.collect {
+      case OptimizableExtModuleAnnotation(ModuleName(name, _)) => name
+    }
+    val noDCE = state.annotations.contains(NoDCEAnnotation)
+    if (noDCE) {
       logger.info("Skipping DCE")
       state
     } else {

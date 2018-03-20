@@ -1,3 +1,5 @@
+// See LICENSE for license details.
+
 package firrtl.graph
 
 import scala.collection.{Set, Map}
@@ -302,10 +304,21 @@ class DiGraph[T] private[graph] (private[graph] val edges: LinkedHashMap[T, Link
     * @return a transformed DiGraph[Q]
     */
   def transformNodes[Q](f: (T) => Q): DiGraph[Q] = {
-    val eprime = edges.map({ case (k, v) => (f(k), v.map(f(_))) })
+    val eprime = edges.map({ case (k, _) => (f(k), new LinkedHashSet[Q]) })
+    edges.foreach({ case (k, v) => eprime(f(k)) ++= v.map(f(_)) })
     new DiGraph(eprime)
   }
 
+  /** Graph sum of `this` and `that`
+    *
+    * @param that a second DiGraph[T]
+    * @return a DiGraph[T] containing all vertices and edges of each graph
+    */
+  def +(that: DiGraph[T]): DiGraph[T] = {
+    val eprime = edges.clone
+    that.edges.map({ case (k, v) => eprime.getOrElseUpdate(k, new LinkedHashSet[T]) ++= v })
+    new DiGraph(eprime)
+  }
 }
 
 class MutableDiGraph[T] extends DiGraph[T](new LinkedHashMap[T, LinkedHashSet[T]]) {

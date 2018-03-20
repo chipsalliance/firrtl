@@ -14,7 +14,7 @@ organization := "edu.berkeley.cs"
 
 name := "firrtl"
 
-version := "1.1-SNAPSHOT"
+version := "1.2-SNAPSHOT"
 
 scalaVersion := "2.11.12"
 
@@ -26,13 +26,15 @@ def scalacOptionsVersion(scalaVersion: String): Seq[String] = {
     //  switch to support our anonymous Bundle definitions:
     //  https://github.com/scala/bug/issues/10047
     CrossVersion.partialVersion(scalaVersion) match {
-      case Some((2, scalaMajor: Int)) if scalaMajor < 12 => Seq()
+      case Some((2, scalaMajor: Long)) if scalaMajor < 12 => Seq()
       case _ => Seq("-Xsource:2.11")
     }
   }
 }
 
-scalacOptions := scalacOptionsVersion(scalaVersion.value)
+scalacOptions := scalacOptionsVersion(scalaVersion.value) ++ Seq(
+  "-deprecation"
+)
 
 def javacOptionsVersion(scalaVersion: String): Seq[String] = {
   Seq() ++ {
@@ -40,7 +42,7 @@ def javacOptionsVersion(scalaVersion: String): Seq[String] = {
     //  Java 7 compatible code until we need Java 8 features
     //  for compatibility with old clients.
     CrossVersion.partialVersion(scalaVersion) match {
-      case Some((2, scalaMajor: Int)) if scalaMajor < 12 =>
+      case Some((2, scalaMajor: Long)) if scalaMajor < 12 =>
         Seq("-source", "1.7", "-target", "1.7")
       case _ =>
         Seq("-source", "1.8", "-target", "1.8")
@@ -64,6 +66,8 @@ libraryDependencies += "com.github.scopt" %% "scopt" % "3.6.0"
 
 libraryDependencies += "net.jcazevedo" %% "moultingyaml" % "0.4.0"
 
+libraryDependencies += "org.json4s" %% "json4s-native" % "3.5.3"
+
 // Assembly
 
 assemblyJarName in assembly := "firrtl.jar"
@@ -74,7 +78,7 @@ assemblyOutputPath in assembly := file("./utils/bin/firrtl.jar")
 
 // ANTLRv4
 
-antlr4Settings
+enablePlugins(Antlr4Plugin)
 
 antlr4GenVisitor in Antlr4 := true // default = false
 
@@ -83,6 +87,41 @@ antlr4GenListener in Antlr4 := false // default = true
 antlr4PackageName in Antlr4 := Option("firrtl.antlr")
 
 antlr4Version in Antlr4 := "4.7"
+
+publishMavenStyle := true
+publishArtifact in Test := false
+pomIncludeRepository := { x => false }
+// Don't add 'scm' elements if we have a git.remoteRepo definition.
+pomExtra := <url>http://chisel.eecs.berkeley.edu/</url>
+  <licenses>
+    <license>
+      <name>BSD-style</name>
+      <url>http://www.opensource.org/licenses/bsd-license.php</url>
+      <distribution>repo</distribution>
+    </license>
+  </licenses>
+  <developers>
+    <developer>
+      <id>jackbackrack</id>
+      <name>Jonathan Bachrach</name>
+      <url>http://www.eecs.berkeley.edu/~jrb/</url>
+    </developer>
+  </developers>
+
+publishTo := {
+  val v = version.value
+  val nexus = "https://oss.sonatype.org/"
+  if (v.trim.endsWith("SNAPSHOT")) {
+    Some("snapshots" at nexus + "content/repositories/snapshots")
+  } else {
+    Some("releases" at nexus + "service/local/staging/deploy/maven2")
+  }
+}
+
+resolvers ++= Seq(
+  Resolver.sonatypeRepo("snapshots"),
+  Resolver.sonatypeRepo("releases")
+)
 
 // ScalaDoc
 

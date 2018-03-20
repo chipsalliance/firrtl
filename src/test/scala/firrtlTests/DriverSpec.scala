@@ -2,14 +2,31 @@
 
 package firrtlTests
 
-import java.io.{File, FileNotFoundException, FileOutputStream}
+import java.io.{File, FileWriter}
 import org.scalatest.{FreeSpec, Matchers}
 
-import firrtl.passes.InlineInstances
-import firrtl.passes.memlib.{InferReadWrite, ReplSeqMem}
-import firrtl.transforms.BlackBoxSourceHelper
+import firrtl.passes.{InlineAnnotation, InlineInstances}
+import firrtl.passes.memlib.{
+  InferReadWrite,
+  InferReadWriteAnnotation,
+  ReplSeqMem,
+  ReplSeqMemAnnotation
+}
+import firrtl.transforms.BlackBoxTargetDirAnno
 import firrtl._
+import firrtl.annotations._
 import firrtl.util.BackendCompilationUtilities
+
+class ExceptingTransform extends Transform {
+  def inputForm = HighForm
+  def outputForm = HighForm
+  def execute(state: CircuitState): CircuitState = {
+    throw new ExceptingTransform.CustomException("I ran!")
+  }
+}
+object ExceptingTransform {
+  case class CustomException(msg: String) extends Exception
+}
 
 //noinspection ScalaStyle
 class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities {
@@ -117,9 +134,7 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
 
         val firrtlOptions = optionsManager.firrtlOptions
         firrtlOptions.annotations.length should be (3)
-        firrtlOptions.annotations.foreach { annotation =>
-          annotation.transform shouldBe classOf[InlineInstances]
-        }
+        firrtlOptions.annotations.foreach(_ shouldBe an [InlineAnnotation])
       }
       "infer-rw annotation" in {
         val optionsManager = new ExecutionOptionsManager("test") with HasFirrtlOptions
@@ -130,9 +145,7 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
 
         val firrtlOptions = optionsManager.firrtlOptions
         firrtlOptions.annotations.length should be (1)
-        firrtlOptions.annotations.foreach { annotation =>
-          annotation.transform shouldBe classOf[InferReadWrite]
-        }
+        firrtlOptions.annotations.head should be (InferReadWriteAnnotation)
       }
       "repl-seq-mem annotation" in {
         val optionsManager = new ExecutionOptionsManager("test") with HasFirrtlOptions
@@ -143,14 +156,30 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
 
         val firrtlOptions = optionsManager.firrtlOptions
         firrtlOptions.annotations.length should be (1)
-        firrtlOptions.annotations.foreach { annotation =>
-          annotation.transform shouldBe classOf[ReplSeqMem]
+        firrtlOptions.annotations.head should matchPattern {
+          case ReplSeqMemAnnotation("infile1", "outfile1") =>
         }
       }
     }
   }
 
-  "Annotations can be read from a file" in {
+  // Deprecated
+  "Annotations can be read implicitly from the name of the circuit" in {
+    val top = "foo"
+    val optionsManager = new ExecutionOptionsManager("test") with HasFirrtlOptions {
+      commonOptions = commonOptions.copy(topName = top)
+    }
+    val annoFile =  new File(optionsManager.commonOptions.targetDirName, top + ".anno")
+    copyResourceToFile("/annotations/SampleAnnotations.anno", annoFile)
+    optionsManager.firrtlOptions.annotations.length should be (0)
+    val annos = Driver.getAnnotations(optionsManager)
+    annos.length should be (12) // 9 from circuit plus 3 general purpose
+    annos.count(_.isInstanceOf[InlineAnnotation]) should be (9)
+    annoFile.delete()
+  }
+
+  // Deprecated
+  "Annotations can be read using annotationFileNameOverride" in {
     val optionsManager = new ExecutionOptionsManager("test") with HasFirrtlOptions {
       commonOptions = commonOptions.copy(topName = "a.fir")
       firrtlOptions = firrtlOptions.copy(
@@ -160,10 +189,97 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
     val annotationsTestFile =  new File(optionsManager.commonOptions.targetDirName, optionsManager.firrtlOptions.annotationFileNameOverride + ".anno")
     copyResourceToFile("/annotations/SampleAnnotations.anno", annotationsTestFile)
     optionsManager.firrtlOptions.annotations.length should be (0)
-    Driver.loadAnnotations(optionsManager)
-    optionsManager.firrtlOptions.annotations.length should be (12) // 9 from circuit plus 3 general purpose
+    val annos = Driver.getAnnotations(optionsManager)
+    annos.length should be (12) // 9 from circuit plus 3 general purpose
+    annos.count(_.isInstanceOf[InlineAnnotation]) should be (9)
+    annotationsTestFile.delete()
+  }
 
-    optionsManager.firrtlOptions.annotations.head.transformClass should be ("firrtl.passes.InlineInstances")
+  // Deprecated
+  "Supported LegacyAnnotations will be converted automagically" in {
+    val testDir = createTestDirectory("test")
+    val annoFilename = "LegacyAnnotations.anno"
+    val annotationsTestFile =  new File(testDir, annoFilename)
+    val optionsManager = new ExecutionOptionsManager("test") with HasFirrtlOptions {
+      commonOptions = commonOptions.copy(topName = "test", targetDirName = testDir.toString)
+      firrtlOptions = firrtlOptions.copy(
+        annotationFileNames = List(annotationsTestFile.toString)
+      )
+    }
+    copyResourceToFile(s"/annotations/$annoFilename", annotationsTestFile)
+    val annos = Driver.getAnnotations(optionsManager)
+
+    val cname = CircuitName("foo")
+    val mname = ModuleName("bar", cname)
+    val compname = ComponentName("x", mname)
+    import firrtl.passes.clocklist._
+    import firrtl.passes.memlib._
+    import firrtl.passes.wiring._
+    import firrtl.transforms._
+    val expected = List(
+      InlineAnnotation(cname),
+      ClockListAnnotation(mname, "output"),
+      InferReadWriteAnnotation,
+      ReplSeqMemAnnotation("input", "output"),
+      NoDedupMemAnnotation(compname),
+      NoDedupAnnotation(mname),
+      SourceAnnotation(compname, "pin"),
+      SinkAnnotation(compname, "pin"),
+      BlackBoxResourceAnno(mname, "resource"),
+      BlackBoxInlineAnno(mname, "name", "text"),
+      BlackBoxTargetDirAnno("targetdir"),
+      NoDCEAnnotation,
+      DontTouchAnnotation(compname),
+      OptimizableExtModuleAnnotation(mname)
+    )
+    for (e <- expected) {
+      annos should contain (e)
+    }
+  }
+
+  // Deprecated
+  "UNsupported LegacyAnnotations should throw errors" in {
+    val testDir = createTestDirectory("test")
+    val annoFilename = "InvalidLegacyAnnotations.anno"
+    val annotationsTestFile =  new File(testDir, annoFilename)
+    copyResourceToFile(s"/annotations/$annoFilename", annotationsTestFile)
+
+    import net.jcazevedo.moultingyaml._
+    val text = io.Source.fromFile(annotationsTestFile).mkString
+    val yamlAnnos = text.parseYaml match { case YamlArray(xs) => xs }
+
+    // Since each one should error, emit each one to an anno file and try to read it
+    for ((anno, i) <- yamlAnnos.zipWithIndex) {
+      val annoFile = new File(testDir, s"anno_$i.anno")
+      val fw = new FileWriter(annoFile)
+      fw.write(YamlArray(anno).prettyPrint)
+      fw.close()
+      val optionsManager = new ExecutionOptionsManager("test") with HasFirrtlOptions {
+        commonOptions = commonOptions.copy(topName = "test", targetDirName = testDir.toString)
+        firrtlOptions = firrtlOptions.copy(
+          annotationFileNames = List(annoFile.toString)
+        )
+      }
+      (the [Exception] thrownBy {
+        Driver.getAnnotations(optionsManager)
+      }).getMessage should include ("Old-style annotations")
+    }
+  }
+
+  "Annotations can be read from multiple files" in {
+    val filename = "SampleAnnotations.anno.json"
+    val optionsManager = new ExecutionOptionsManager("test") with HasFirrtlOptions {
+      commonOptions = commonOptions.copy(topName = "a.fir")
+      firrtlOptions = firrtlOptions.copy(
+        annotationFileNames = List.fill(2)(filename) // just read the safe file twice
+      )
+    }
+    val annotationsTestFile = new File(optionsManager.commonOptions.targetDirName, filename)
+    copyResourceToFile(s"/annotations/$filename", annotationsTestFile)
+    optionsManager.firrtlOptions.annotations.length should be (0)
+    val annos = Driver.getAnnotations(optionsManager)
+    annos.length should be (21) // 18 from files plus 3 general purpose
+    annos.count(_.isInstanceOf[InlineAnnotation]) should be (18)
     annotationsTestFile.delete()
   }
 
@@ -173,20 +289,18 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
     val annoFile = new File(targetDir, "annotations.anno")
 
     optionsManager.parse(
-      Array("--infer-rw", "circuit", "-faf", annoFile.toString, "-ffaaf")
+      Array("--infer-rw", "circuit", "-faf", annoFile.toString)
     ) should be (true)
 
-    copyResourceToFile("/annotations/SampleAnnotations.anno", annoFile)
+    copyResourceToFile("/annotations/SampleAnnotations.anno.json", annoFile)
 
     val firrtlOptions = optionsManager.firrtlOptions
     firrtlOptions.annotations.length should be (1) // infer-rw
 
-    Driver.loadAnnotations(optionsManager)
-
-    val anns = optionsManager.firrtlOptions.annotations.groupBy(_.transform)
-    anns(classOf[BlackBoxSourceHelper]).length should be (1) // built in to loadAnnotations
-    anns(classOf[InferReadWrite]).length should be (1) // --infer-rw
-    anns(classOf[InlineInstances]).length should be (9) // annotations file
+    val anns = Driver.getAnnotations(optionsManager)
+    anns should contain (BlackBoxTargetDirAnno(".")) // built in to getAnnotations
+    anns should contain (InferReadWriteAnnotation)  // --infer-rw
+    anns.collect { case a: InlineAnnotation => a }.length should be (9)  // annotations file
 
     annoFile.delete()
   }
@@ -241,7 +355,12 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
                                                  emitOneFilePerModule = true)
         }
 
-        firrtl.Driver.execute(manager)
+        firrtl.Driver.execute(manager) match {
+          case success: FirrtlExecutionSuccess =>
+            success.circuitState.annotations.length should be > (0)
+          case _ =>
+
+        }
 
         for (name <- expectedOutputFileNames) {
           val file = new File(name)

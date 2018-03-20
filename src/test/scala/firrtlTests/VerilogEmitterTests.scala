@@ -120,4 +120,23 @@ class VerilogEmitterSpec extends FirrtlFlatSpec {
       lines should contain (c)
     }
   }
+  "AsClock" should "emit correctly" in {
+    val compiler = new VerilogCompiler
+    val input =
+      """circuit Test :
+        |  module Test :
+        |    input in : UInt<1>
+        |    output out : Clock
+        |    out <= asClock(in)
+        |""".stripMargin
+    val check =
+      """module Test(
+        |  input   in,
+        |  output  out
+        |);
+        |  assign out = in;
+        |endmodule
+        |""".stripMargin.split("\n") map normalized
+    executeTest(input, check, compiler)
+  }
 }
