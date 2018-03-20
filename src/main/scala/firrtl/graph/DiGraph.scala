@@ -112,6 +112,7 @@ class DiGraph[T] private[graph] (private[graph] val edges: LinkedHashMap[T, Link
   /** Performs breadth-first search on the directed graph, with a blacklist of nodes
     *
     * @param root the start node
+    * @param blacklist list of nodes to stop searching, if encountered
     * @return a Map[T,T] from each visited node to its predecessor in the
     * traversal
     */
@@ -141,6 +142,7 @@ class DiGraph[T] private[graph] (private[graph] val edges: LinkedHashMap[T, Link
   /** Finds the set of nodes reachable from a particular node, with a blacklist
     *
     * @param root the start node
+    * @param blacklist list of nodes to stop searching, if encountered
     * @return a Set[T] of nodes reachable from the root
     */
   def reachableFrom(root: T, blacklist: Set[T]): LinkedHashSet[T] = new LinkedHashSet[T] ++ BFS(root, blacklist).map({ case (k, v) => k })

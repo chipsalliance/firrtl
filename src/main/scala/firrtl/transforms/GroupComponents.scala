@@ -223,7 +223,7 @@ class GroupComponents extends firrtl.Transform {
 
     // Given the sink is in the parent module, tidy up source references belonging to groups
     def inTopFixExps(e: Expression): Expression = e match {
-      case _: DoPrim|_: Mux|_: ValidIf => e map inTopFixExps
+      case _: DoPrim | _: Mux | _: ValidIf => e map inTopFixExps
       case otherExp: Expression =>
         val wref = getWRef(otherExp)
         if(byNode(wref.name) != "") {
@@ -254,7 +254,7 @@ class GroupComponents extends firrtl.Transform {
           groupStatements(group) += Connect(c.info, c.loc, inGroupFixExps(group, topStmts)(c.expr))
           Block(topStmts)
         // TODO Attach if all are in a group?
-        case _: IsDeclaration|_: Connect|_: Attach =>
+        case _: IsDeclaration | _: Connect | _: Attach =>
           // Sink is in Top
           val ret = s mapExpr inTopFixExps
           ret
@@ -292,7 +292,7 @@ class GroupComponents extends firrtl.Transform {
     val simNamespace = Namespace()
     val simulations = new mutable.HashMap[String, Statement]
     def onExpr(sink: WRef)(e: Expression): Expression = e match {
-      case w@WRef(name, _, _, _) =>
+      case w @ WRef(name, _, _, _) =>
         bidirGraph.addPairWithEdge(sink.name, name)
         bidirGraph.addPairWithEdge(name, sink.name)
         w
@@ -305,11 +305,11 @@ class GroupComponents extends firrtl.Transform {
         exprs.tail map onExpr(getWRef(exprs.head))
       case Connect(_, loc, expr) =>
         onExpr(getWRef(loc))(expr)
-      case q@Stop(_,_, clk, en) =>
+      case q @ Stop(_,_, clk, en) =>
         val simName = simNamespace.newTemp
         simulations(simName) = q
         Seq(clk, en) map onExpr(WRef(simName))
-      case q@Print(_, _, args, clk, en) =>
+      case q @ Print(_, _, args, clk, en) =>
         val simName = simNamespace.newTemp
         simulations(simName) = q
         (args :+ clk :+ en) map onExpr(WRef(simName))
