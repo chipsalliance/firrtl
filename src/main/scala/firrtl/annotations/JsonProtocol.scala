@@ -13,18 +13,6 @@ import firrtl.ir._
 import firrtl.Utils.error
 
 object JsonProtocol {
-
-  // Helper for error messages
-  private def prettifyJsonInput(in: JsonInput): String = {
-    def defaultToString(base: String, obj: Any): String = s"$base@${obj.hashCode.toHexString}"
-    in match {
-      case FileInput(file) => file.toString
-      case StringInput(o) => defaultToString("String", o)
-      case ReaderInput(o) => defaultToString("Reader", o)
-      case StreamInput(o) => defaultToString("Stream", o)
-    }
-  }
-
   class TransformClassSerializer extends CustomSerializer[Class[_ <: Transform]](format => (
     { case JString(s) => Class.forName(s).asInstanceOf[Class[_ <: Transform]] },
     { case x: Class[_] => JString(x.getName) }
@@ -66,16 +54,15 @@ object JsonProtocol {
   def deserialize(in: JsonInput): Seq[Annotation] = deserializeTry(in).get
 
   def deserializeTry(in: JsonInput): Try[Seq[Annotation]] = Try({
-    def throwError() = throw new InvalidAnnotationFileException(prettifyJsonInput(in))
     val parsed = parse(in)
     val annos = parsed match {
       case JArray(objs) => objs
-      case _ => throwError()
+      case _ => throw new InvalidAnnotationJSONException("Unknown Error")
     }
     // Gather classes so we can deserialize arbitrary Annotations
     val classes = annos.map({
       case JObject(("class", JString(c)) :: tail) => c
-      case _ => throwError()
+      case obj => throw new InvalidAnnotationJSONException(s"Expected field 'class' not found! $obj")
     }).distinct
     val loaded = classes.map(Class.forName(_).asInstanceOf[Class[_ <: Annotation]])
     implicit val formats = jsonFormat(loaded)
@@ -84,5 +71,13 @@ object JsonProtocol {
     // Translate some generic errors to specific ones
     case e: java.lang.ClassNotFoundException =>
       Failure(new AnnotationClassNotFoundException(e.getMessage))
+    case e: org.json4s.ParserUtil.ParseException =>
+      Failure(new InvalidAnnotationJSONException(e.getMessage))
+  }.recoverWith { // If the input is a file, wrap in InvalidAnnotationFileException
+    case e => in match {
+      case FileInput(file) =>
+        Failure(new InvalidAnnotationFileException(file, e))
+      case _ => Failure(e)
+    }
   }
 }

@@ -16,11 +16,13 @@ import firrtl.annotations.AnnotationYamlProtocol._
 import firrtl.ir._
 import firrtl.Utils.error
 
-class InvalidAnnotationFileException(msg: String) extends FIRRTLException(msg)
-class AnnotationFileNotFoundException(file: File) extends FIRRTLException(
+case class InvalidAnnotationFileException(file: File, cause: Throwable = null)
+  extends FIRRTLException(s"$file, see cause below", cause)
+case class InvalidAnnotationJSONException(msg: String) extends FIRRTLException(msg)
+case class AnnotationFileNotFoundException(file: File) extends FIRRTLException(
   s"Annotation file $file not found!"
 )
-class AnnotationClassNotFoundException(className: String) extends FIRRTLException(
+case class AnnotationClassNotFoundException(className: String) extends FIRRTLException(
   s"Annotation class $className not found! Please check spelling and classpath"
 )
 

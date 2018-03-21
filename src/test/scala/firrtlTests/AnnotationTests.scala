@@ -557,8 +557,23 @@ class JsonAnnotationTests extends AnnotationTests with BackendCompilationUtiliti
       |] """.stripMargin
     val manager = setupManager(Some(anno))
 
-    an [AnnotationClassNotFoundException] shouldBe thrownBy {
-      Driver.execute(manager)
+    the [Exception] thrownBy Driver.execute(manager) should matchPattern {
+      case InvalidAnnotationFileException(_, _: AnnotationClassNotFoundException) =>
+    }
+  }
+
+  "Malformed annotation file" should "give a reasonable error message" in {
+    val anno = """
+      |[
+      |  {
+      |    "class":
+      |    "target":"test.test.y"
+      |  }
+      |] """.stripMargin
+    val manager = setupManager(Some(anno))
+
+    the [Exception] thrownBy Driver.execute(manager) should matchPattern {
+      case InvalidAnnotationFileException(_, _: InvalidAnnotationJSONException) =>
     }
   }
 }
