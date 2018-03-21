@@ -135,7 +135,7 @@ class DedupModuleTests extends HighTransformSpec {
           """.stripMargin
      execute(input, check, Seq(dontDedup("A")))
   }
-  "The module A and A_" should "be deduped even with different port names and info" in {
+  "The module A and A_" should "be deduped even with different port names and info, and annotations should remap" in {
      val input =
         """circuit Top :
           |  module Top :
@@ -168,7 +168,7 @@ class DedupModuleTests extends HighTransformSpec {
      val mname = ModuleName("Top", CircuitName("Top"))
      val finalState = execute(input, check, Seq(DummyAnnotation(ComponentName("a2.y", mname))))
 
-     finalState.annotations.collect{case d: DummyAnnotation => d}.head should be(DummyAnnotation(ComponentName("a2.x", mname)))
+     finalState.annotations.collect({ case d: DummyAnnotation => d }).head should be(DummyAnnotation(ComponentName("a2.x", mname)))
 
   }
   "The module A and B" should "be deduped with the first module in order" in {

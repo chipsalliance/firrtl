@@ -84,7 +84,7 @@ class DiGraph[T] private[graph] (private[graph] val edges: LinkedHashMap[T, Link
       if (unmarked.contains(n)) {
         tempMarked += n
         unmarked -= n
-        for (m <- getEdges(n).toSeq.reverse) {
+        for (m <- getEdges(n)) {
           visit(m)
         }
         tempMarked -= n

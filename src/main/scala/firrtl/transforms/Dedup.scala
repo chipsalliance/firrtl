@@ -73,7 +73,6 @@ class DedupModules extends Transform {
 object DedupModules {
   /**
     * Change's a module's internal signal names, types, infos, and modules.
-    * Populates renameMap.
     * @param rename Function to rename a signal. Called on declaration and references.
     * @param retype Function to retype a signal. Called on declaration, references, and subfields
     * @param reinfo Function to re-info a statement
@@ -110,18 +109,18 @@ object DedupModules {
           .asInstanceOf[BundleType].fields.headOption
           .map(_.tpe.asInstanceOf[BundleType].fields.indexWhere(
             {
-              case Field("data", _, _) => true
-              case Field("wdata", _, _) => true
-              case Field("rdata", _, _) => true
+              case Field("data" | "wdata" | "rdata", _, _) => true
               case _ => false
             }))
-        val newDataType = if(index.nonEmpty) {
-          //If index nonempty, then there exists a port
-          val i = index.get
-          newType.asInstanceOf[BundleType].fields.head.tpe.asInstanceOf[BundleType].fields(i).tpe
-        } else {
-          //If index is empty, this mem has no ports, and so we don't need to record the dataType
-          retype(d.name + ";&*^$")(d.dataType)
+        val newDataType = index match {
+          case Some(i) =>
+            //If index nonempty, then there exists a port
+            newType.asInstanceOf[BundleType].fields.head.tpe.asInstanceOf[BundleType].fields(i).tpe
+          case None =>
+            //If index is empty, this mem has no ports, and so we don't need to record the dataType
+            // Thus, call retype with an illegal name, so we can retype the memory's datatype, but not
+            // associate it with the type of the memory (as the memory type is different than the datatype)
+            retype(d.name + ";&*^$")(d.dataType)
         }
         d.copy(dataType = newDataType) map rename map reinfo
       case h: IsDeclaration => h map rename map retype(h.name) map onExp map reinfo
@@ -144,14 +143,14 @@ object DedupModules {
     val nameMap = mutable.HashMap[String, String]()
     val typeMap = mutable.HashMap[String, Type]()
     def rename(name: String): String = {
-      if(nameMap.contains(name)) nameMap(name) else {
+      if (nameMap.contains(name)) nameMap(name) else {
         val newName = namespace.newTemp
         nameMap(name) = newName
         newName
       }
     }
     def retype(name: String)(tpe: Type): Type = {
-      if(typeMap.contains(name)) typeMap(name) else {
+      if (typeMap.contains(name)) typeMap(name) else {
         def onType(tpe: Type): Type = tpe map onType match {
           case BundleType(fields) => BundleType(fields.map(f => Field(rename(f.name), f.flip, f.tpe)))
           case other => other
@@ -179,7 +178,7 @@ object DedupModules {
     val module = moduleMap(moduleName)
 
     // If black box, return it (it has no instances)
-    if(module.isInstanceOf[ExtModule]) return module
+    if (module.isInstanceOf[ExtModule]) return module
 
 
     // Get all instances to know what to rename in the module
@@ -195,7 +194,7 @@ object DedupModules {
     def renameModule(name: String): String = getNewModule(name).name
     val typeMap = mutable.HashMap[String, Type]()
     def retype(name: String)(tpe: Type): Type = {
-      if(typeMap.contains(name)) typeMap(name) else {
+      if (typeMap.contains(name)) typeMap(name) else {
         if (instanceModuleMap.contains(name)) {
           val newType = Utils.module_type(getNewModule(instanceModuleMap(name)))
           typeMap(name) = newType
@@ -248,7 +247,7 @@ object DedupModules {
       dontcare.setCircuit("dontcare")
       //val fixedModule = DedupModules.dedupInstances(originalModule, tag2module, name2tag, name2module, dontcare)
 
-      if(noDedups.contains(originalModule.name)) {
+      if (noDedups.contains(originalModule.name)) {
         // Don't dedup. Set dedup module to be the same as fixed module
         name2tag(originalModule.name) = originalModule.name
         tag2name(originalModule.name) = originalModule.name
@@ -259,18 +258,18 @@ object DedupModules {
         val agnosticModule = DedupModules.agnostify(originalModule, name2tag, tag2name)
 
         // Build tag
-        val tag = md5Hash(agnosticModule match {
+        val tag = (agnosticModule match {
           case Module(i, n, ps, b) =>
             ps.map(_.serialize).mkString + b.serialize
           case ExtModule(i, n, ps, dn, p) =>
             ps.map(_.serialize).mkString + dn + p.map(_.serialize).mkString
-        })
+        }).hashCode().toString
 
         // Match old module name to its tag
         name2tag(originalModule.name) = tag
 
         // Set tag's module to be the first matching module
-        if(!tag2name.contains(tag)) {
+        if (!tag2name.contains(tag)) {
           tag2name(tag) = originalModule.name
           tag2all(tag) = mutable.Set(originalModule.name)
         } else {
@@ -282,17 +281,17 @@ object DedupModules {
 
     // Set tag2name to be the best dedup module name
     val moduleIndex = circuit.modules.zipWithIndex.map{case (m, i) => m.name -> i}.toMap
-    def order(l: String, r: String): String = if(moduleIndex(l) < moduleIndex(r)) l else r
+    def order(l: String, r: String): String = if (moduleIndex(l) < moduleIndex(r)) l else r
     tag2all.foreach { case (tag, all) => tag2name(tag) = all.reduce(order)}
 
     // Create map from original to dedup name
-    val name2name = name2tag.map{case (name, tag) => name -> tag2name(tag)}
+    val name2name = name2tag.map({ case (name, tag) => name -> tag2name(tag) })
 
     // Build Remap for modules with deduped module references
-    val tag2module = tag2name.map { case (tag, name) => tag -> DedupModules.dedupInstances(name, moduleMap, name2name, renameMap) }
+    val tag2module = tag2name.map({ case (tag, name) => tag -> DedupModules.dedupInstances(name, moduleMap, name2name, renameMap) })
 
     // Build map from original name to corresponding deduped module
-    val name2module = name2tag.map {case (name, tag) => name -> tag2module(tag)}
+    val name2module = name2tag.map({ case (name, tag) => name -> tag2module(tag) })
 
     name2module.toMap
   }
@@ -302,7 +301,7 @@ object DedupModules {
 
     def onExp(expr: Expression): Unit = {
       expr.tpe match {
-        case g: GroundType =>
+        case _: GroundType =>
         case b: BundleType => b.fields.foreach { f => onExp(WSubField(expr, f.name, f.tpe)) }
         case v: VectorType => (0 until v.size).foreach { i => onExp(WSubIndex(expr, i, v.tpe, UNKNOWNGENDER)) }
       }
@@ -311,9 +310,5 @@ object DedupModules {
 
     onExp(root)
     all
-  }
-
-  def md5Hash(text: String) : String = {
-    java.security.MessageDigest.getInstance("MD5").digest(text.getBytes()).map(0xFF & _).map { "%02x".format(_) }.foldLeft(""){_ + _}
   }
 }

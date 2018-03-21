@@ -53,7 +53,7 @@ class GroupComponents extends firrtl.Transform {
 
   override def execute(state: CircuitState): CircuitState = {
     val groups = state.annotations.collect {case g: GroupAnnotation => g}
-    val module2group = groups.groupBy{_.currentModule}
+    val module2group = groups.groupBy(_.currentModule)
     val mnamespace = Namespace(state.circuit)
     val newModules = state.circuit.modules.flatMap {
       case m: Module if module2group.contains(m.name) =>
@@ -69,7 +69,7 @@ class GroupComponents extends firrtl.Transform {
   def groupModule(m: Module, groups: Seq[GroupAnnotation], mnamespace: Namespace): Seq[Module] = {
     val namespace = Namespace(m)
     val groupRoots = groups.map(_.components.map(_.name))
-    val totalSum = groupRoots.foldLeft(0){(total, set) => total + set.size}
+    val totalSum = groupRoots.map(_.size).sum
     val union = groupRoots.foldLeft(Set.empty[String]){(all, set) => all.union(set.toSet)}
 
     require(groupRoots.forall{_.forall{namespace.contains}}, "All names should be in this module")
@@ -78,12 +78,14 @@ class GroupComponents extends firrtl.Transform {
 
 
     // Order of groups, according to their label. The label is the first root in the group
-    val labelOrder = groups.collect{case g:GroupAnnotation => g.components.head.name}
+    val labelOrder = groups.collect({ case g: GroupAnnotation => g.components.head.name })
 
     // Annotations, by label
-    val label2annotation = groups.collect{case g:GroupAnnotation => g.components.head.name -> g}.toMap
+    val label2annotation = groups.collect({ case g: GroupAnnotation => g.components.head.name -> g }).toMap
 
     // Group roots, by label
+    // The label "" indicates the original module, and components belonging to that group will remain
+    //   in the original module (not get moved into a new module)
     val label2group: Map[String, MSet[String]] = groups.collect{
       case GroupAnnotation(set, module, instance, _, _) => set.head.name -> mutable.Set(set.map(_.name):_*)
     }.toMap + ("" -> mutable.Set(""))
@@ -267,6 +269,7 @@ class GroupComponents extends firrtl.Transform {
     val newTopBody = Block(labelOrder.map(g => WDefInstance(NoInfo, label2instance(g), label2module(g), UnknownType)) ++ Seq(onStmt(m.body)))
     val finalTopBody = Block(Utils.squashEmpty(newTopBody).asInstanceOf[Block].stmts.distinct)
 
+    // For all group labels (not including the original module label), return a new Module.
     val newModules = labelOrder.filter(_ != "") map { group =>
       Module(NoInfo, label2module(group), groupPorts(group).distinct, Block(groupStatements(group).distinct))
     }
@@ -331,9 +334,12 @@ class GroupComponents extends firrtl.Transform {
   * Splits a module into multiple modules by grouping its components via [[GroupAnnotation]]'s
   * Tries to deduplicate the resulting circuit
   */
-class GroupAndDedup extends GroupComponents {
+class GroupAndDedup extends Transform {
+  def inputForm: CircuitForm = MidForm
+  def outputForm: CircuitForm = MidForm
+
   override def execute(state: CircuitState): CircuitState = {
-    val cs = super.execute(state)
+    val cs = new GroupComponents().execute(state)
     val csx = new DedupModules().execute(cs)
     csx
   }
