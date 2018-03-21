@@ -3,6 +3,8 @@
 package firrtl
 package annotations
 
+import java.io.File
+
 import org.json4s._
 import org.json4s.native.JsonMethods._
 import org.json4s.native.Serialization
@@ -15,6 +17,9 @@ import firrtl.ir._
 import firrtl.Utils.error
 
 class InvalidAnnotationFileException(msg: String) extends FIRRTLException(msg)
+class AnnotationFileNotFoundException(file: File) extends FIRRTLException(
+  s"Annotation file $file not found!"
+)
 
 object AnnotationUtils {
   def toYaml(a: LegacyAnnotation): String = a.toYaml.prettyPrint

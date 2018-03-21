@@ -116,7 +116,7 @@ object Driver {
 
     val loadedAnnos = annoFiles.flatMap { file =>
       if (!file.exists) {
-        throw new FileNotFoundException(s"Annotation file $file not found!")
+        throw new AnnotationFileNotFoundException(file)
       }
       // Try new protocol first
       JsonProtocol.deserializeTry(file).recoverWith { case jsonException =>
