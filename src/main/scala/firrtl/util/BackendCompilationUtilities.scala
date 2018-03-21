@@ -8,7 +8,36 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 
 import scala.sys.process.{ProcessBuilder, ProcessLogger, _}
- 
+import scala.io.Source._
+import BackendCompilationUtilities._
+
+object BackendCompilationUtilities {
+
+  import com.sun.javafx.PlatformUtil
+  object OSVersion extends Enumeration {
+    type OSVersion = Value
+    val Unrecognized, Linux, MacOS, Unix, Windows = Value
+  }
+  import OSVersion._
+  val osVersion: OSVersion = {
+    if (PlatformUtil.isWindows)
+      Windows
+    else if (PlatformUtil.isLinux)
+      Linux
+    else if (PlatformUtil.isMac)
+      MacOS
+    else if (PlatformUtil.isUnix)
+      Unix
+    else
+      Unrecognized
+  }
+  val sharedLibraryExtension = osVersion match {
+    case MacOS => "dylib"
+    case Windows => "dll"
+    case _ => ".so"
+  }
+}
+
 trait BackendCompilationUtilities {
   /** Parent directory for tests */
   lazy val TestDirectory = new File("test_run_dir")
@@ -126,6 +155,49 @@ trait BackendCompilationUtilities {
 
   def cppToExe(prefix: String, dir: File): ProcessBuilder =
     Seq("make", "-C", dir.toString, "-j", "-f", s"V$prefix.mk", s"V$prefix")
+
+  def cppToLib(prefix: String, dir: File, shimPieces: Seq[String], extraObjects: Seq[String] = Seq.empty): ProcessBuilder = {
+    // Add a shared library rule to the make file.
+    val inputMakefile = new File(dir, s"V$prefix.mk")
+    val outputMakefile = new File(dir, s"V$prefix.so.mk")
+    val out = new java.io.BufferedWriter( new java.io.FileWriter(outputMakefile))
+    val makeBuffer = new collection.mutable.ArrayBuffer[String](2)
+    val lineMatch = """^### Link rules\.\.\..*"""
+    val exeLine = """^(\w+):(.*)""".r
+    var collectLines = -1
+    // Add ".o" to the shim pieces.
+    val shimObjects = shimPieces.map(s => s + ".o")
+    val shimDependencies = shimObjects.mkString(" ")
+    val extraDependencies = extraObjects.mkString(" ")
+    implicit class Regex(sc: StringContext) {
+      def r = new scala.util.matching.Regex(sc.parts.mkString, sc.parts.tail.map(_ => "x"): _*)
+    }
+    for (line <- fromFile(inputMakefile).getLines()) {
+      // Grab the first two lines following the '### Link rules... (from --exe)' line
+      if (collectLines >= 0 && collectLines < 2 && !line.isEmpty) {
+        makeBuffer += line
+        collectLines += 1
+      }
+      if (line.matches(lineMatch)) {
+        collectLines = 0
+      }
+      out.write(line + "\n")
+    }
+    out.write("")
+    // Add lines to cover generic cpp compilation
+    out.write("LIBS += -lc++\n")
+    out.write(extraDependencies + ": %.o : %.cpp\n\techo $(PATH)\n\t$(CXX) -I$(JAVA_HOME)/include/darwin -I$(JAVA_HOME)/include $(CXXFLAGS) $(CPPFLAGS) $(OPT_FAST) -c -o $@ $<\n")
+    makeBuffer(0) match { case r"""^(\w+)${target}:(.*)${dependencies}""" =>
+        out.write(s"${target}.${sharedLibraryExtension}: ${dependencies} ${extraDependencies}\n")
+    }
+    makeBuffer(1) match { case r"""^(.+)${preLDFLAGS} \$$\(LDFLAGS\) (.*)${postLDFLAGS}""" =>
+      out.write(s"${preLDFLAGS} -shared $$(LDFLAGS) ${postLDFLAGS}\n")
+      out.write(s"${shimPieces.head}.${sharedLibraryExtension}: ${shimDependencies}\n")
+      out.write(s"${preLDFLAGS} -shared $$(LDFLAGS) ${postLDFLAGS}\n")
+    }
+    out.close()
+    Seq("make", "-C", dir.toString, "-j", "-f", outputMakefile.getName, s"${shimPieces.head}.${sharedLibraryExtension}", s"V${prefix}.${sharedLibraryExtension}")
+  }
 
   def executeExpectingFailure(
                                prefix: String,
