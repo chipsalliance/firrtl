@@ -20,6 +20,9 @@ class InvalidAnnotationFileException(msg: String) extends FIRRTLException(msg)
 class AnnotationFileNotFoundException(file: File) extends FIRRTLException(
   s"Annotation file $file not found!"
 )
+class AnnotationClassNotFoundException(className: String) extends FIRRTLException(
+  s"Annotation class $className not found! Please check spelling and classpath"
+)
 
 object AnnotationUtils {
   def toYaml(a: LegacyAnnotation): String = a.toYaml.prettyPrint

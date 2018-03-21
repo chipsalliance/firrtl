@@ -2,7 +2,7 @@
 package firrtl
 package annotations
 
-import scala.util.Try
+import scala.util.{Try, Failure}
 
 import org.json4s._
 import org.json4s.native.JsonMethods._
@@ -80,5 +80,9 @@ object JsonProtocol {
     val loaded = classes.map(Class.forName(_).asInstanceOf[Class[_ <: Annotation]])
     implicit val formats = jsonFormat(loaded)
     read[List[Annotation]](in)
-  })
+  }).recoverWith {
+    // Translate some generic errors to specific ones
+    case e: java.lang.ClassNotFoundException =>
+      Failure(new AnnotationClassNotFoundException(e.getMessage))
+  }
 }

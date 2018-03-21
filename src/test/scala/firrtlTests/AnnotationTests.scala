@@ -546,4 +546,19 @@ class JsonAnnotationTests extends AnnotationTests with BackendCompilationUtiliti
       Driver.execute(manager)
     }
   }
+
+  "Annotation class not found" should "give a reasonable error message" in {
+    val anno = """
+      |[
+      |  {
+      |    "class":"ThisClassDoesNotExist",
+      |    "target":"test.test.y"
+      |  }
+      |] """.stripMargin
+    val manager = setupManager(Some(anno))
+
+    an [AnnotationClassNotFoundException] shouldBe thrownBy {
+      Driver.execute(manager)
+    }
+  }
 }
