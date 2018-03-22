@@ -576,4 +576,19 @@ class JsonAnnotationTests extends AnnotationTests with BackendCompilationUtiliti
       case InvalidAnnotationFileException(_, _: InvalidAnnotationJSONException) =>
     }
   }
+
+  "Non-array annotation file" should "give a reasonable error message" in {
+    val anno = """
+      |{
+      |  "class":"firrtl.transforms.DontTouchAnnotation",
+      |  "target":"test.test.y"
+      |}
+      |""".stripMargin
+    val manager = setupManager(Some(anno))
+
+    the [Exception] thrownBy Driver.execute(manager) should matchPattern {
+      case InvalidAnnotationFileException(_, InvalidAnnotationJSONException(msg))
+        if msg.contains("JObject") =>
+    }
+  }
 }
