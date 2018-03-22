@@ -9,19 +9,19 @@ import firrtl.Utils._
 
 import scala.collection.mutable
 
-/** Flatten register update
-  *
-  * This transform flattens register updates into a single expression on the rhs of connection to
-  * the register
-  */
-// TODO Preserve source locators
-class FlattenRegUpdate extends Transform {
-  def inputForm = MidForm
-  def outputForm = MidForm
+object FlattenRegUpdate {
 
+  /** Mapping from references to the [[Expression]]s that drive them */
   type Netlist = mutable.HashMap[WrappedExpression, Expression]
 
-  private def buildNetlist(mod: Module): Netlist = {
+  /** Build a [[Netlist]] from a Module's connections and Nodes
+    *
+    * This assumes [[LowForm]]
+    *
+    * @param mod [[Module]] from which to build a [[Netlist]]
+    * @return [[Netlist]] of the module's connections and nodes
+    */
+  def buildNetlist(mod: Module): Netlist = {
     val netlist = new Netlist()
     def onStmt(stmt: Statement): Statement = {
       stmt.map(onStmt) match {
@@ -38,7 +38,15 @@ class FlattenRegUpdate extends Transform {
     netlist
   }
 
-  private def flattenReg(mod: Module): Module = {
+  /** Flatten Register Updates
+    *
+    * Constructs nested mux trees (up to a certain arbitrary threshold) for register updates. This
+    * can result in dead code that this function does NOT remove.
+    *
+    * @param mod [[Module]] to transform
+    * @return [[Module]] with register updates flattened
+    */
+  def flattenReg(mod: Module): Module = {
     // We want to flatten Mux trees for reg updates into if-trees for
     // improved QoR for conditional updates.  However, unbounded recursion
     // would take exponential time, so don't redundantly flatten the same
@@ -87,9 +95,21 @@ class FlattenRegUpdate extends Transform {
     mod.copy(body = Block(bodyx +: regUpdates))
   }
 
+}
+
+/** Flatten register update
+  *
+  * This transform flattens register updates into a single expression on the rhs of connection to
+  * the register
+  */
+// TODO Preserve source locators
+class FlattenRegUpdate extends Transform {
+  def inputForm = MidForm
+  def outputForm = MidForm
+
   def execute(state: CircuitState): CircuitState = {
     val modulesx = state.circuit.modules.map {
-      case mod: Module => flattenReg(mod)
+      case mod: Module => FlattenRegUpdate.flattenReg(mod)
       case ext: ExtModule => ext
     }
     state.copy(circuit = state.circuit.copy(modules = modulesx))
