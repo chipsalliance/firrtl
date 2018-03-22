@@ -950,4 +950,25 @@ class ConstantPropagationIntegrationSpec extends LowTransformSpec {
           |    z <= UInt<8>("hb")""".stripMargin
     execute(input, check, Seq.empty)
   }
+
+  "Connections to a node reference" should "be replaced with the rhs of that node" in {
+      val input =
+        """circuit Top :
+          |  module Top :
+          |    input a : UInt<8>
+          |    input b : UInt<8>
+          |    input c : UInt<1>
+          |    output z : UInt<8>
+          |    node x = mux(c, a, b)
+          |    z <= x""".stripMargin
+      val check =
+        """circuit Top :
+          |  module Top :
+          |    input a : UInt<8>
+          |    input b : UInt<8>
+          |    input c : UInt<1>
+          |    output z : UInt<8>
+          |    z <= mux(c, a, b)""".stripMargin
+    execute(input, check, Seq.empty)
+  }
 }
