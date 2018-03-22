@@ -5,7 +5,7 @@ package firrtl.util
 import java.io._
 import java.nio.file.Files
 import java.text.SimpleDateFormat
-import java.util.Calendar
+import java.util.{Calendar, Locale}
 
 import scala.sys.process.{ProcessBuilder, ProcessLogger, _}
 import scala.io.Source._
@@ -13,12 +13,20 @@ import BackendCompilationUtilities._
 
 object BackendCompilationUtilities {
 
-  import com.sun.javafx.PlatformUtil
   object OSVersion extends Enumeration {
     type OSVersion = Value
     val Unrecognized, Linux, MacOS, Unix, Windows = Value
   }
   import OSVersion._
+  // The following is borrowed from com.sun.javafx.PlatformUtil to avoid having to install javafx on non-Oracle JVMs.
+  //  import com.sun.javafx.PlatformUtil
+  object PlatformUtil {
+    val os: String = System.getProperty("os.name").toLowerCase(Locale.ENGLISH)
+    def isWindows = os.startsWith("windows")
+    def isLinux = os.startsWith("linux")
+    def isMac = os.startsWith("mac")
+    def isUnix = os.startsWith("unix") || os.startsWith("sunos")
+  }
   val osVersion: OSVersion = {
     if (PlatformUtil.isWindows)
       Windows
