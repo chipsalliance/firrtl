@@ -120,6 +120,16 @@ class VerilogEmitterSpec extends FirrtlFlatSpec {
       lines should contain (c)
     }
   }
+  "The Verilog Emitter" should "support Modules with no ports" in {
+    val compiler = new VerilogCompiler
+    val input =
+      """circuit Test :
+        |  module Test :
+        |    wire x : UInt<32>
+        |    x <= UInt(0)
+      """.stripMargin
+    compiler.compile(CircuitState(parse(input), ChirrtlForm), new java.io.StringWriter)
+  }
   "AsClock" should "emit correctly" in {
     val compiler = new VerilogCompiler
     val input =
