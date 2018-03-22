@@ -34,10 +34,10 @@ jobs:
         - bash .run_chisel_tests.sh
     - stage: test
       script:
-        - ./.run_formal_checks.sh RocketCore
+        - travis_wait ./.run_formal_checks.sh RocketCore
     - stage: test
       script:
-        - ./.run_formal_checks.sh FPU
+        - travis_wait ./.run_formal_checks.sh FPU
     - stage: test
       script:
-        - ./.run_formal_checks.sh ICache
+        - travis_wait ./.run_formal_checks.sh ICache
