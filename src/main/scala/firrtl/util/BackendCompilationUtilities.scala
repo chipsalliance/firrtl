@@ -45,7 +45,7 @@ object BackendCompilationUtilities {
   val sharedLibraryExtension: String = osVersion match {
     case MacOS => "dylib"
     case Windows => "dll"
-    case _ => ".so"
+    case _ => "so"
   }
   /**
     * The include paths required to compile JNI C code.
@@ -231,8 +231,8 @@ trait BackendCompilationUtilities {
     // Add lines to cover generic cpp compilation
     val JNI_CPPFLAGS = includePathsJNI.map("-I" + _.toString).mkString(" ")
     out.write("LIBS += -lc++\n")
-    out.write(s"JNI_CPPFLAGS = ${JNI_CPPFLAGS}\n")
-    out.write(extraDependencies + ": %.o : %.cpp\n\techo $(PATH)\n\t$(CXX) $(JNI_CPPFLAGS) $(CXXFLAGS) $(CPPFLAGS) $(OPT_FAST) -c -o $@ $<\n")
+    out.write(s"CXXFLAGS += ${JNI_CPPFLAGS}\n")
+    out.write(extraDependencies + ": %.o : %.cpp\n\techo $(PATH)\n\t$(CXX) $(CXXFLAGS) $(CPPFLAGS) $(OPT_FAST) -c -o $@ $<\n")
     makeBuffer(0) match { case r"""^(\w+)${target}:(.*)${dependencies}""" =>
         out.write(s"${target}.${sharedLibraryExtension}: ${dependencies} ${extraDependencies}\n")
     }
