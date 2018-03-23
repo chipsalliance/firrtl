@@ -59,6 +59,12 @@ object BackendCompilationUtilities {
       // We don't know what the rest require at the moment.
     case _ => "-shared"
   }
+  /** Extra libraries to be loaded with a shared library.
+    *
+    */
+  val sharedLibraryLibraries: String = osVersion match {
+    case _ => ""
+  }
   /**
     * The include paths required to compile JNI C code.
     * This can be turned into C/C++ flags via something like:
@@ -242,7 +248,7 @@ trait BackendCompilationUtilities {
     out.write("")
     // Add lines to cover generic cpp compilation
     val JNI_CPPFLAGS = includePathsJNI.map("-I" + _.toString).mkString(" ")
-    out.write("LIBS += -lc++\n")
+    out.write(s"LIBS += ${sharedLibraryLibraries}\n")
     out.write(s"CXXFLAGS += ${JNI_CPPFLAGS} ${sharedLibraryFlags}\n")
     out.write(extraDependencies + ": %.o : %.cpp\n\techo $(PATH)\n\t$(CXX) $(CXXFLAGS) $(CPPFLAGS) $(OPT_FAST) -c -o $@ $<\n")
     makeBuffer(0) match { case r"""^(\w+)${target}:(.*)${dependencies}""" =>
