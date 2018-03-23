@@ -3,7 +3,7 @@
 package firrtl.util
 
 import java.io._
-import java.nio.file.Files
+import java.nio.file.{Files, Path}
 import java.text.SimpleDateFormat
 import java.util.{Calendar, Locale}
 
@@ -15,17 +15,18 @@ object BackendCompilationUtilities {
 
   object OSVersion extends Enumeration {
     type OSVersion = Value
-    val Unrecognized, Linux, MacOS, Unix, Windows = Value
+    val Unrecognized, Linux, MacOS, Unix, Windows, SunOS = Value
   }
   import OSVersion._
   // The following is borrowed from com.sun.javafx.PlatformUtil to avoid having to install javafx on non-Oracle JVMs.
   //  import com.sun.javafx.PlatformUtil
   object PlatformUtil {
     val os: String = System.getProperty("os.name").toLowerCase(Locale.ENGLISH)
-    def isWindows = os.startsWith("windows")
-    def isLinux = os.startsWith("linux")
-    def isMac = os.startsWith("mac")
-    def isUnix = os.startsWith("unix") || os.startsWith("sunos")
+    def isWindows: Boolean = os.startsWith("windows")
+    def isLinux: Boolean = os.startsWith("linux")
+    def isMac: Boolean = os.startsWith("mac")
+    def isSun: Boolean = os.startsWith("sunos")
+    def isUnix: Boolean = os.startsWith("unix")
   }
   val osVersion: OSVersion = {
     if (PlatformUtil.isWindows)
@@ -34,15 +35,50 @@ object BackendCompilationUtilities {
       Linux
     else if (PlatformUtil.isMac)
       MacOS
+    else if (PlatformUtil.isSun)
+      SunOS
     else if (PlatformUtil.isUnix)
       Unix
     else
       Unrecognized
   }
-  val sharedLibraryExtension = osVersion match {
+  val sharedLibraryExtension: String = osVersion match {
     case MacOS => "dylib"
     case Windows => "dll"
     case _ => ".so"
+  }
+  /**
+    * The include paths required to compile JNI C code.
+    * This can be turned into C/C++ flags via something like:
+    * includePathsJNI.map("-I" + _.toString).mkString(" ")
+    * @return Seq[Path]
+    */
+  lazy val includePathsJNI: Seq[Path] = {
+    val javaHome = System.getProperty("java.home")
+    // Find the OS-specific sub-directory (and any others)
+    val includeDir = new File(new File(javaHome).getParentFile, "include")
+    val subDirs = if (includeDir.exists() && includeDir.isDirectory) {
+      includeDir.listFiles.filter(_.isDirectory).map(_.toPath).toSeq
+    } else {
+      Seq[Path]()
+    }
+    // Sort any sub-directories so the OS-specific one comes first.
+    val subDirOS = osVersion match {
+      case Windows => "windows"
+      case Linux => "linux"
+      case MacOS => "darwin"
+      case SunOS => "sunos"
+      case _ => ""
+    }
+    def sortByOSSubDir(a: Path, b: Path): Boolean = {
+      if (a.endsWith(subDirOS))
+        true
+      else if (b.endsWith(subDirOS))
+        false
+      else
+        a.toString <= b.toString
+    }
+    Seq(includeDir.toPath) ++ (subDirs sortWith sortByOSSubDir)
   }
 }
 
@@ -193,8 +229,10 @@ trait BackendCompilationUtilities {
     }
     out.write("")
     // Add lines to cover generic cpp compilation
+    val JNI_CPPFLAGS = includePathsJNI.map("-I" + _.toString).mkString(" ")
     out.write("LIBS += -lc++\n")
-    out.write(extraDependencies + ": %.o : %.cpp\n\techo $(PATH)\n\t$(CXX) -I$(JAVA_HOME)/include/darwin -I$(JAVA_HOME)/include $(CXXFLAGS) $(CPPFLAGS) $(OPT_FAST) -c -o $@ $<\n")
+    out.write(s"JNI_CPPFLAGS = ${JNI_CPPFLAGS}\n")
+    out.write(extraDependencies + ": %.o : %.cpp\n\techo $(PATH)\n\t$(CXX) $(JNI_CPPFLAGS) $(CXXFLAGS) $(CPPFLAGS) $(OPT_FAST) -c -o $@ $<\n")
     makeBuffer(0) match { case r"""^(\w+)${target}:(.*)${dependencies}""" =>
         out.write(s"${target}.${sharedLibraryExtension}: ${dependencies} ${extraDependencies}\n")
     }
