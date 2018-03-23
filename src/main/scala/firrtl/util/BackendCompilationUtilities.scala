@@ -260,6 +260,11 @@ trait BackendCompilationUtilities {
       out.write(s"${preLDFLAGS} ${sharedLibraryFlags} $$(LDFLAGS) ${postLDFLAGS}\n")
     }
     out.close()
+    // Ensure .o files are recompiled with the correct flags.
+    val objFiles = new File(dir.toString).listFiles.filter(_.getName.endsWith(".o"))
+    for (file <- objFiles) {
+      file.delete()
+    }
     Seq("make", "-C", dir.toString, "-j", "-f", outputMakefile.getName, s"${shimPieces.head}.${sharedLibraryExtension}", s"V${prefix}.${sharedLibraryExtension}")
   }
 
