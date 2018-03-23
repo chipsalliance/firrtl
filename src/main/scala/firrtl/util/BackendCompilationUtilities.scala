@@ -42,10 +42,22 @@ object BackendCompilationUtilities {
     else
       Unrecognized
   }
+  /** The file extension for shared libraries.
+    *
+    */
   val sharedLibraryExtension: String = osVersion match {
     case MacOS => "dylib"
     case Windows => "dll"
     case _ => "so"
+  }
+  /** Extra CFLAGS required to generate a shared library.
+    *
+    */
+  val sharedLibraryFlags: String = osVersion match {
+    case MacOS => "-shared"
+    case Linux => "-fPIC -shared"
+      // We don't know what the rest require at the moment.
+    case _ => "-shared"
   }
   /**
     * The include paths required to compile JNI C code.
@@ -231,15 +243,15 @@ trait BackendCompilationUtilities {
     // Add lines to cover generic cpp compilation
     val JNI_CPPFLAGS = includePathsJNI.map("-I" + _.toString).mkString(" ")
     out.write("LIBS += -lc++\n")
-    out.write(s"CXXFLAGS += ${JNI_CPPFLAGS}\n")
+    out.write(s"CXXFLAGS += ${JNI_CPPFLAGS} ${sharedLibraryFlags}\n")
     out.write(extraDependencies + ": %.o : %.cpp\n\techo $(PATH)\n\t$(CXX) $(CXXFLAGS) $(CPPFLAGS) $(OPT_FAST) -c -o $@ $<\n")
     makeBuffer(0) match { case r"""^(\w+)${target}:(.*)${dependencies}""" =>
         out.write(s"${target}.${sharedLibraryExtension}: ${dependencies} ${extraDependencies}\n")
     }
     makeBuffer(1) match { case r"""^(.+)${preLDFLAGS} \$$\(LDFLAGS\) (.*)${postLDFLAGS}""" =>
-      out.write(s"${preLDFLAGS} -shared $$(LDFLAGS) ${postLDFLAGS}\n")
+      out.write(s"${preLDFLAGS} ${sharedLibraryFlags} $$(LDFLAGS) ${postLDFLAGS}\n")
       out.write(s"${shimPieces.head}.${sharedLibraryExtension}: ${shimDependencies}\n")
-      out.write(s"${preLDFLAGS} -shared $$(LDFLAGS) ${postLDFLAGS}\n")
+      out.write(s"${preLDFLAGS} ${sharedLibraryFlags} $$(LDFLAGS) ${postLDFLAGS}\n")
     }
     out.close()
     Seq("make", "-C", dir.toString, "-j", "-f", outputMakefile.getName, s"${shimPieces.head}.${sharedLibraryExtension}", s"V${prefix}.${sharedLibraryExtension}")
