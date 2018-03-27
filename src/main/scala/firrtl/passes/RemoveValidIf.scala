@@ -9,22 +9,29 @@ import WrappedExpression.weq
 
 /** Remove ValidIf and replace IsInvalid with a connection to zero */
 object RemoveValidIf extends Pass {
+
+  val UIntZero = Utils.zero
+  val SIntZero = SIntLiteral(BigInt(0), IntWidth(1))
+  val ClockZero = DoPrim(PrimOps.AsClock, Seq(UIntZero), Seq.empty, ClockType)
+  val FixedZero = FixedLiteral(BigInt(0), IntWidth(1), IntWidth(0))
+
+  /** Returns an [[Expression]] equal to zero for a given [[GroundType]]
+    * @note Accepts [[Type]] but dyanmically expects [[GroundType]]
+    */
+  def getGroundZero(tpe: Type): Expression = tpe match {
+    case _: UIntType => UIntZero
+    case _: SIntType => SIntZero
+    case ClockType => ClockZero
+    case _: FixedType => FixedZero
+    case other => throwInternalError(Some(s"Unexpected type $other"))
+  }
+
   // Recursive. Removes ValidIfs
   private def onExp(e: Expression): Expression = {
     e map onExp match {
       case ValidIf(_, value, _) => value
       case x => x
     }
-  }
-  private val UIntZero = Utils.zero
-  private val SIntZero = SIntLiteral(BigInt(0), IntWidth(1))
-  private val ClockZero = DoPrim(PrimOps.AsClock, Seq(UIntZero), Seq.empty, UIntZero.tpe)
-
-  private def getGroundZero(tpe: Type): Expression = tpe match {
-    case _: UIntType => UIntZero
-    case _: SIntType => SIntZero
-    case ClockType => ClockZero
-    case other => throwInternalError()
   }
 
   // Recursive. Replaces IsInvalid with connecting zero
