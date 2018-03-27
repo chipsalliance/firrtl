@@ -428,15 +428,7 @@ trait HasFirrtlOptions {
    *  universe.typeOf[annotations.ProvidesOptions].typeSymbol.asClass.knownDirectSubclasses
    *  .foreach( anno => firrtlOptions = anno.provideOptions(parser, firrtlOptions) ) */
 
-  parser
-    .opt[String]("infer-rw")
-    .abbr("firw")
-    .valueName ("<circuit>")
-    .action( (x, c) => c.copy(
-              annotations = c.annotations :+ passes.memlib.InferReadWriteAnnotation,
-              customTransforms = c.customTransforms :+ new passes.memlib.InferReadWrite) )
-    .maxOccurs(1)
-    .text("Enable readwrite port inference for the target circuit")
+  passes.memlib.InferReadWriteAnnotation.provideOptions(parser)
 
   parser.opt[String]("repl-seq-mem")
     .abbr("frsq")

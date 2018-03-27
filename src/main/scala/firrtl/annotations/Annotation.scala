@@ -10,6 +10,10 @@ import scopt.OptionParser
 
 case class AnnotationException(message: String) extends Exception(message)
 
+trait ProvidesOptions {
+  def provideOptions: (OptionParser[ComposableAnnotationOptions]) => Unit
+}
+
 /** Base type of auxiliary information */
 trait Annotation {
   /** Update the target based on how signals are renamed */
