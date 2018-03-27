@@ -3,6 +3,7 @@
 package firrtlTests
 
 import firrtl.RenameMap
+import firrtl.FIRRTLException
 import firrtl.annotations.{
   CircuitName,
   ModuleName,
@@ -11,9 +12,12 @@ import firrtl.annotations.{
 
 class RenameMapSpec extends FirrtlFlatSpec {
   val cir = CircuitName("Top")
+  val cir2 = CircuitName("Pot")
   val modA = ModuleName("A", cir)
+  val modA2 = ModuleName("A", cir2)
   val modB = ModuleName("B", cir)
   val foo = ComponentName("foo", modA)
+  val foo2 = ComponentName("foo", modA2)
   val bar = ComponentName("bar", modA)
   val fizz = ComponentName("fizz", modA)
   val fooB = ComponentName("foo", modB)
@@ -70,5 +74,56 @@ class RenameMapSpec extends FirrtlFlatSpec {
     renames.rename(modA, modB)
     renames.rename(foo, bar)
     renames.get(foo) should be (Some(Seq(barB)))
+  }
+
+  it should "rename modules if their circuit is renamed" in {
+    val renames = RenameMap()
+    renames.rename(cir, cir2)
+    renames.get(modA) should be (Some(Seq(modA2)))
+  }
+
+  it should "rename components if their circuit is renamed" in {
+    val renames = RenameMap()
+    renames.rename(cir, cir2)
+    renames.get(foo) should be (Some(Seq(foo2)))
+  }
+
+  it should "error if a component is renamed to a module or circuit" in {
+    a [FIRRTLException] shouldBe thrownBy {
+      val renames = RenameMap()
+      renames.rename(foo, cir)
+      renames.get(foo)
+    }
+    a [FIRRTLException] shouldBe thrownBy {
+      val renames = RenameMap()
+      renames.rename(foo, modA)
+      renames.get(foo)
+    }
+  }
+
+  it should "error if a module is renamed to a component or circuit" in {
+    a [FIRRTLException] shouldBe thrownBy {
+      val renames = RenameMap()
+      renames.rename(modA, foo)
+      renames.get(modA)
+    }
+    a [FIRRTLException] shouldBe thrownBy {
+      val renames = RenameMap()
+      renames.rename(modA, cir)
+      renames.get(modA)
+    }
+  }
+
+  it should "error if a circuit is renamed to a component or module" in {
+    a [FIRRTLException] shouldBe thrownBy {
+      val renames = RenameMap()
+      renames.rename(cir, foo)
+      renames.get(cir)
+    }
+    a [FIRRTLException] shouldBe thrownBy {
+      val renames = RenameMap()
+      renames.rename(cir, modA)
+      renames.get(cir)
+    }
   }
 }
