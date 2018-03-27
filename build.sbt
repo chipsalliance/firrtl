@@ -68,6 +68,8 @@ libraryDependencies += "net.jcazevedo" %% "moultingyaml" % "0.4.0"
 
 libraryDependencies += "org.json4s" %% "json4s-native" % "3.5.3"
 
+libraryDependencies += "org.clapper" %% "classutil" % "1.1.2"
+
 // Assembly
 
 assemblyJarName in assembly := "firrtl.jar"

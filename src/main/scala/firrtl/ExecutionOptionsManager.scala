@@ -12,6 +12,10 @@ import scopt.OptionParser
 
 import scala.collection.Seq
 
+import org.clapper.classutil.ClassFinder
+import java.net.URLClassLoader
+import java.io.File
+
 final case class ComposableAnnotationOptions( annotations: AnnotationSeq = List.empty,
                                               customTransforms: Seq[Transform] = List.empty )
 
@@ -423,12 +427,7 @@ trait HasFirrtlOptions {
     .text(
       """Inline one or more module (comma separated, no spaces) module looks like "MyModule" or "MyModule.myinstance""")
 
-  /* [todo] Switch to reflection... */
-  /* import scala.reflect.runtime.universe
-   *  universe.typeOf[annotations.ProvidesOptions].typeSymbol.asClass.knownDirectSubclasses
-   *  .foreach( anno => firrtlOptions = anno.provideOptions(parser, firrtlOptions) ) */
-
-  passes.memlib.InferReadWriteAnnotation.provideOptions(parser)
+  ExecutionUtils.generateAnnotationOptions(parser)
 
   parser.opt[String]("repl-seq-mem")
     .abbr("frsq")
@@ -566,5 +565,31 @@ class ExecutionOptionsManager(val applicationName: String, args: Array[String] =
     val path = directoryName + baseName.split("/").dropRight(1).mkString("/")
     FileUtils.makeDirectory(path)
     s"$directoryName$baseName$normalizedSuffix"
+  }
+}
+
+object ExecutionUtils {
+
+  /** Generate options from annotations
+    *
+    * This looks through every Annotation which mixes in
+    * [[ProvidesOptions]]. It then grabs their companion objects and calls
+    * the [[provideOptions]] method to add scopt parsing for their
+    * provided options.
+    *
+    * @todo: to prevent inordinate slowdown, this ignores classes in the
+    * ".ivy2" directory. We need a better solution of what to search. */
+  def generateAnnotationOptions(parser: OptionParser[ComposableAnnotationOptions]): Unit = {
+    val files = getClass.getClassLoader.asInstanceOf[URLClassLoader].getURLs
+      .filterNot(_.toString.contains(".ivy2"))
+      .map(x => new File(x.getFile))
+    val finder = ClassFinder(files)
+    val classes = finder.getClasses
+    val annotationsWithOptions = ClassFinder.concreteSubclasses(classOf[annotations.ProvidesOptions], classes).toList
+    annotationsWithOptions.map( name => Class.forName(name.toString)
+                                 .getField("MODULE$")
+                                 .get(null)
+                                 .asInstanceOf[Annotation with ProvidesOptions]
+                                 .provideOptions(parser) )
   }
 }
