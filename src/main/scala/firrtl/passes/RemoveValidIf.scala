@@ -40,11 +40,6 @@ object RemoveValidIf extends Pass {
       case _: AnalogType => EmptyStmt
       case tpe => Connect(info, loc, getGroundZero(tpe))
     }
-    // Register connected to itself (since reset has been made explicit) is a register with no reset
-    // and no connections, connect it to zero (to be constant propped later)
-    case Connect(info, lref: WRef, rref: WRef) if weq(lref, rref) =>
-      // We can't have an Analog reg so just get a zero
-      Connect(info, lref, getGroundZero(lref.tpe))
     case other => other
   }
 
