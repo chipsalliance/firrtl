@@ -144,3 +144,4 @@ scalacOptions in Compile in doc ++= Seq(
 ) ++ scalacOptionsVersion(scalaVersion.value)
 
 Test / fork := true
+parallelExecution in Test := false

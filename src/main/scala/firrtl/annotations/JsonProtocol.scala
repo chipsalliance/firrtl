@@ -77,7 +77,14 @@ object JsonProtocol {
   }.recoverWith { // If the input is a file, wrap in InvalidAnnotationFileException
     case e => in match {
       case FileInput(file) =>
-        Failure(new InvalidAnnotationFileException(file, e))
+        /* This occurs during scopt parsing, however, scopt will only print the
+         * first error message and does not properly deal with nested
+         * exceptions. Hence, the better processing below of wrapping the
+         * annotation with an [[InvalidAnnotationFileException]] is
+         * currently disabled for improved user understanding of the
+         * error. */
+        /* Failure(new InvalidAnnotationFileException(file, e)) */
+        Failure(e)
       case _ => Failure(e)
     }
   }

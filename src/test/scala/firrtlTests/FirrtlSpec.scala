@@ -55,7 +55,7 @@ trait FirrtlRunners extends BackendCompilationUtilities {
       Array("--top-name", prefix,
             "--target-dir", testDir.getPath,
             "--info-mode", "ignore") ++ argTransform ++
-        Array("--annotation-files", s"$testDir/$prefix.anno.json") ) with HasFirrtlOptions
+        Array("--annotation-file", s"$testDir/$prefix.anno.json") ) with HasFirrtlOptions
     firrtl.Driver.execute(optionsManager)
 
     testDir

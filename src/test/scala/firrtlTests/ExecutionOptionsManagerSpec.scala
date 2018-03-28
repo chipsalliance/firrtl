@@ -8,16 +8,16 @@ import org.scalatest.{Matchers, FreeSpec}
 class ExecutionOptionsManagerSpec extends FreeSpec with Matchers {
   "ExecutionOptionsManager is a container for one more more ComposableOptions Block" - {
     "It has a default CommonOptionsBlock" in {
-      val manager = new ExecutionOptionsManager("test")
-      manager.commonOptions.targetDirName should be (".")
+      val manager = new ExecutionOptionsManager("test", Array("--top-name", "null"))
+      manager.firrtlOptions.targetDirName should be (".")
     }
     "But can override defaults like this" in {
       val manager = new ExecutionOptionsManager(
         "test",
         Array("--top-name", "dog"))
-      manager.commonOptions shouldBe a [CommonOptions]
-      manager.topName should be ("dog")
-      manager.commonOptions.topName should be ("dog")
+      manager.firrtlOptions shouldBe a [FirrtlOptions]
+      manager.topName should be (Some("dog"))
+      manager.firrtlOptions.topName should be (Some("dog"))
     }
     "multiple composable blocks should be separable" in {
       val manager = new ExecutionOptionsManager(
@@ -25,8 +25,8 @@ class ExecutionOptionsManagerSpec extends FreeSpec with Matchers {
         Array("--top-name", "spoon",
               "--input-file", "fork") ) with HasFirrtlOptions
 
-      manager.firrtlOptions.inputFileNameOverride should be ("fork")
-      manager.commonOptions.topName should be ("spoon")
+      manager.firrtlOptions.inputFileNameOverride should be (Some("fork"))
+      manager.firrtlOptions.topName should be (Some("spoon"))
     }
   }
 }

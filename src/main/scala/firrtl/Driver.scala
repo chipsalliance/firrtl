@@ -70,80 +70,19 @@ object Driver {
     *                       update the firrtlOptions with new annotations if it does
     */
   @deprecated("Use side-effect free getAnnotation instead", "1.1")
-  def loadAnnotations(optionsManager: ExecutionOptionsManager with HasFirrtlOptions): Unit = {
+  def loadAnnotations(optionsManager: ExecutionOptionsManager): Unit = {
     val msg = "Driver.loadAnnotations is deprecated, use Driver.getAnnotations instead"
     Driver.dramaticError(msg)
   }
 
-  /** Get annotations from specified files and options
+ /** Get annotations from specified files and options
     *
     * @param optionsManager use optionsManager config to load annotation files
     * @return Annotations read from files
     */
   //scalastyle:off cyclomatic.complexity method.length
   def getAnnotations(
-      optionsManager: ExecutionOptionsManager with HasFirrtlOptions
-  ): Seq[Annotation] = {
-    val firrtlConfig = optionsManager.firrtlOptions
-
-    //noinspection ScalaDeprecation
-    val oldAnnoFileName = firrtlConfig.getAnnotationFileName(optionsManager)
-    val oldAnnoFile = new File(oldAnnoFileName).getCanonicalFile
-
-    val (annoFiles, usingImplicitAnnoFile) = {
-      val afs = firrtlConfig.annotationFileNames.map { x =>
-        new File(x).getCanonicalFile
-      }
-      // Implicit anno file could be included explicitly, only include it and
-      // warn if it's not also explicit
-      val use = oldAnnoFile.exists && !afs.contains(oldAnnoFile)
-      if (use) (oldAnnoFile +: afs, true) else (afs, false)
-    }
-
-    // Warnings to get people to change to drop old API
-    if (firrtlConfig.annotationFileNameOverride.nonEmpty) {
-      val msg = "annotationFileNameOverride is deprecated! " +
-                "Use annotationFileNames"
-      Driver.dramaticWarning(msg)
-    } else if (usingImplicitAnnoFile) {
-      val msg = "Implicit .anno file from top-name is deprecated!\n" +
-             (" "*9) + "Use explicit -faf option or annotationFileNames"
-      Driver.dramaticWarning(msg)
-    }
-
-    val loadedAnnos = annoFiles.flatMap { file =>
-      if (!file.exists) {
-        throw new AnnotationFileNotFoundException(file)
-      }
-      // Try new protocol first
-      JsonProtocol.deserializeTry(file).recoverWith { case jsonException =>
-        // Try old protocol if new one fails
-        Try {
-          val yaml = io.Source.fromFile(file).getLines().mkString("\n").parseYaml
-          val result = yaml.convertTo[List[LegacyAnnotation]]
-          val msg = s"$file is a YAML file!\n" +
-                    (" "*9) + "YAML Annotation files are deprecated! Use JSON"
-          Driver.dramaticWarning(msg)
-          result
-        }.orElse { // Propagate original JsonProtocol exception if YAML also fails
-          Failure(jsonException)
-        }
-      }.get
-    }
-
-    val targetDirAnno = List(BlackBoxTargetDirAnno(optionsManager.targetDirName))
-
-    // Output Annotations
-    val outputAnnos = firrtlConfig.getEmitterAnnos(optionsManager)
-
-    val globalAnnos = Seq(TargetDirAnnotation(optionsManager.targetDirName)) ++
-      (if (firrtlConfig.dontCheckCombLoops) Seq(DontCheckCombLoopsAnnotation) else Seq()) ++
-      (if (firrtlConfig.noDCE) Seq(NoDCEAnnotation) else Seq())
-
-    val annos = targetDirAnno ++ outputAnnos ++ globalAnnos ++
-                firrtlConfig.annotations ++ loadedAnnos
-    LegacyAnnotation.convertLegacyAnnos(annos)
-  }
+    optionsManager: ExecutionOptionsManager): Seq[Annotation] = optionsManager.firrtlOptions.annotations
 
   // Useful for handling erros in the options
   case class OptionsException(msg: String) extends Exception(msg)
@@ -166,7 +105,9 @@ object Driver {
         throw new OptionsException(msg)
       }
       firrtlConfig.firrtlCircuit.getOrElse {
-        val source = firrtlConfig.firrtlSource.map(_.split("\n").toIterator).getOrElse {
+        val source = firrtlConfig.firrtlSource match {
+          case Some(text) => text.split("\n").toIterator
+          case None =>
           if (optionsManager.topName.isEmpty && firrtlConfig.inputFileNameOverride.isEmpty) {
             val message = "either top-name or input-file-override must be set"
             throw new OptionsException(message)
@@ -215,13 +156,11 @@ object Driver {
           case Failure(e) => throw e
         }
 
-        val annos = getAnnotations(optionsManager)
-
         // Does this need to be before calling compiler?
         optionsManager.makeTargetDir()
 
         firrtlConfig.compiler.compile(
-          CircuitState(circuit, ChirrtlForm, annos),
+          CircuitState(circuit, ChirrtlForm, firrtlConfig.annotations),
           firrtlConfig.customTransforms
         )
       }
@@ -248,7 +187,7 @@ object Driver {
           val emittedModules = finalState.emittedComponents collect { case x: EmittedModule => x }
           if (emittedModules.isEmpty) throwInternalError() // There should be something
           emittedModules.foreach { module =>
-            val filename = optionsManager.getBuildFileName(firrtlConfig.outputSuffix, s"$dirName/${module.name}")
+            val filename = optionsManager.getBuildFileName(firrtlConfig.outputSuffix, Some(s"$dirName/${module.name}"))
             val outputFile = new java.io.PrintWriter(filename)
             outputFile.write(module.value)
             outputFile.close()
@@ -258,7 +197,7 @@ object Driver {
 
       // If set, emit final annotations to a file
       optionsManager.firrtlOptions.outputAnnotationFileName match {
-        case "" =>
+        case None =>
         case file =>
           val filename = optionsManager.getBuildFileName("anno.json", file)
           val outputFile = new java.io.PrintWriter(filename)
@@ -278,7 +217,7 @@ object Driver {
     * @return
     */
   def execute(args: Array[String]): FirrtlExecutionResult = {
-    val optionsManager = new ExecutionOptionsManager("firrtl", args) with HasFirrtlOptions
+    val optionsManager = new ExecutionOptionsManager("firrtl", args)
 
     execute(optionsManager) match {
       case success: FirrtlExecutionSuccess =>

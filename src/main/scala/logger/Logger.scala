@@ -147,6 +147,7 @@ object Logger {
     * @tparam A   return type of codeBlock
     * @return
     */
+  @deprecated("Pass an explicit options manager via makeScope(ExecutionOptionsManager)", "1.2.0")
   def makeScope[A](args: Array[String] = Array.empty)(codeBlock: => A): A = {
     val executionOptionsManager = new ExecutionOptionsManager("logger", args)
     makeScope(executionOptionsManager)(codeBlock)
@@ -337,19 +338,19 @@ object Logger {
     * @param optionsManager manager
     */
   def setOptions(optionsManager: ExecutionOptionsManager): Unit = {
-    val commonOptions = optionsManager.commonOptions
-    state.globalLevel = (state.globalLevel, commonOptions.globalLogLevel) match {
+    val options = optionsManager.firrtlOptions
+    state.globalLevel = (state.globalLevel, options.globalLogLevel) match {
       case (LogLevel.None, LogLevel.None) => LogLevel.None
       case (x, LogLevel.None) => x
       case (LogLevel.None, x) => x
       case (_, x) => x
       case _ => LogLevel.Error
     }
-    setClassLogLevels(commonOptions.classLogLevels)
-    if(commonOptions.logToFile) {
-      setOutput(commonOptions.getLogFileName(optionsManager))
+    setClassLogLevels(options.classLogLevels)
+    if(options.logToFile) {
+      setOutput(options.getLogFileName(optionsManager))
     }
-    state.logClassNames = commonOptions.logClassNames
+    state.logClassNames = options.logClassNames
   }
 }
 

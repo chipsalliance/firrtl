@@ -30,24 +30,32 @@ object ExceptingTransform {
 
 //noinspection ScalaStyle
 class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities {
+  /* Default annotations that appear in any circuit */
+  val defaultAnnotations: Set[Annotation] = Set(
+    TargetDirAnnotation("."),
+    BlackBoxTargetDirAnno("."),
+    LogLevelAnnotation(logger.LogLevel.None),
+    CompilerNameAnnotation("verilog"),
+    EmitterAnnotation(classOf[VerilogEmitter]) )
+
   "CommonOptions are some simple options available across the chisel3 ecosystem" - {
     "CommonOption provide an scopt implementation of an OptionParser" - {
       "Options can be set from an Array[String] as is passed into a main" - {
         "With no arguments default values come out" in {
-          val optionsManager = new ExecutionOptionsManager("test")
+          val optionsManager = new ExecutionOptionsManager("test", Array("--top-name", "null"))
 
-          val commonOptions = optionsManager.commonOptions
-          commonOptions.topName should be("")
-          commonOptions.targetDirName should be(".")
+          val firrtlOptions = optionsManager.firrtlOptions
+          firrtlOptions.topName should be(Some("null"))
+          firrtlOptions.targetDirName should be(".")
         }
         "top name and target can be set" in {
           val optionsManager = new ExecutionOptionsManager(
             "test",
             Array("--top-name", "dog", "--target-dir", "a/b/c") )
-          val commonOptions = optionsManager.commonOptions
+          val firrtlOptions = optionsManager.firrtlOptions
 
-          commonOptions.topName should be("dog")
-          commonOptions.targetDirName should be("a/b/c")
+          firrtlOptions.topName should be(Some("dog"))
+          firrtlOptions.targetDirName should be("a/b/c")
 
           optionsManager.getBuildFileName(".fir") should be("a/b/c/dog.fir")
           optionsManager.getBuildFileName("fir") should be("a/b/c/dog.fir")
@@ -61,10 +69,10 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
         val optionsManager = new ExecutionOptionsManager(
           "test",
           Array("--top-name", "dog", "--target-dir", "a/b/c") )
-        val commonOptions = optionsManager.commonOptions
+        val firrtlOptions = optionsManager.firrtlOptions
 
-        commonOptions.topName should be ("dog")
-        commonOptions.targetDirName should be ("a/b/c")
+        firrtlOptions.topName should be (Some("dog"))
+        firrtlOptions.targetDirName should be ("a/b/c")
 
         optionsManager.makeTargetDir() should be (true)
         dir = new java.io.File("a/b/c")
@@ -72,36 +80,37 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
         FileUtils.deleteDirectoryHierarchy("a") should be (true)
       }
     }
-    "options include by default a list of strings that are returned in commonOptions.programArgs" in {
+    "options include by default a list of strings that are returned in firrtlOptions.programArgs" in {
       val optionsManager = new ExecutionOptionsManager(
         "test",
         Array("--top-name", "dog", "fox", "tardigrade", "stomatopod") )
 
-      println(s"programArgs ${optionsManager.commonOptions.programArgs}")
-      optionsManager.commonOptions.programArgs.length should be (3)
-      optionsManager.commonOptions.programArgs should be ("fox" :: "tardigrade" :: "stomatopod" :: Nil)
+      println(s"programArgs ${optionsManager.firrtlOptions.programArgs}")
+      optionsManager.firrtlOptions.programArgs.length should be (3)
+      optionsManager.firrtlOptions.programArgs should be ("fox" :: "tardigrade" :: "stomatopod" :: Nil)
 
       val optionsManager2 = new ExecutionOptionsManager(
         "test2",
-        Array("dog", "stomatopod") )
-      println(s"programArgs ${optionsManager2.commonOptions.programArgs}")
-      optionsManager2.commonOptions.programArgs.length should be (2)
-      optionsManager2.commonOptions.programArgs should be ("dog" :: "stomatopod" :: Nil)
+        Array("dog", "stomatopod", "--top-name", "null") )
+      println(s"programArgs ${optionsManager2.firrtlOptions.programArgs}")
+      optionsManager2.firrtlOptions.programArgs.length should be (2)
+      optionsManager2.firrtlOptions.programArgs should be ("dog" :: "stomatopod" :: Nil)
 
       val optionsManager3 = new ExecutionOptionsManager(
         "test3",
         Array("fox", "--top-name", "dog", "tardigrade", "stomatopod") )
 
-      println(s"programArgs ${optionsManager3.commonOptions.programArgs}")
-      optionsManager3.commonOptions.programArgs.length should be (3)
-      optionsManager3.commonOptions.programArgs should be ("fox" :: "tardigrade" :: "stomatopod" :: Nil)
+      println(s"programArgs ${optionsManager3.firrtlOptions.programArgs}")
+      optionsManager3.firrtlOptions.programArgs.length should be (3)
+      optionsManager3.firrtlOptions.programArgs should be ("fox" :: "tardigrade" :: "stomatopod" :: Nil)
 
     }
   }
+
   "FirrtlOptions holds option information for the firrtl compiler" - {
     "It includes a CommonOptions" in {
-      val optionsManager = new ExecutionOptionsManager("test")
-      optionsManager.commonOptions.targetDirName should be (".")
+      val optionsManager = new ExecutionOptionsManager("test", Array("--top-name", "null"))
+      optionsManager.firrtlOptions.targetDirName should be (".")
     }
     "It provides input and output file names based on target" in {
       val optionsManager = new ExecutionOptionsManager(
@@ -127,33 +136,39 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
     }
     "various annotations can be created from command line, currently:" - {
       "inline annotation" in {
+        val inlines = List("module", "module.submodule", "module.submodule.instance")
         val optionsManager = new ExecutionOptionsManager(
           "test",
-          Array("--inline", "module,module.submodule,module.submodule.instance") ) with HasFirrtlOptions
+          Array("--top-name", "null", "--inline") :+ inlines.mkString(",") ) with HasFirrtlOptions
 
         val firrtlOptions = optionsManager.firrtlOptions
-        firrtlOptions.annotations.length should be (3)
-        firrtlOptions.annotations.foreach(_ shouldBe an [InlineAnnotation])
+        val addedAnnotations = inlines.map(i => InlineAnnotation(AnnotationUtils.toNamed(i))).toSet
+        val expectedAnnotations = defaultAnnotations ++ addedAnnotations ++ Set(TopNameAnnotation("null"))
+
+        // The `+1` comes from the `--top-name`
+        firrtlOptions.annotations.length should be (defaultAnnotations.size + inlines.size + 1)
+        firrtlOptions.annotations.toSet should be (expectedAnnotations)
       }
       "infer-rw annotation" in {
-        val optionsManager = new ExecutionOptionsManager(
-          "test",
-          Array("--infer-rw", "circuit") ) with HasFirrtlOptions
+        val args = Array(Array("--top-name", "null"), Array("--infer-rw", "circuit"))
+        val optionsManager = new ExecutionOptionsManager("test", args.flatMap(x => x) ) with HasFirrtlOptions
 
         val firrtlOptions = optionsManager.firrtlOptions
-        firrtlOptions.annotations.length should be (1)
-        firrtlOptions.annotations.head should be (InferReadWriteAnnotation)
+        firrtlOptions.annotations.length should be (defaultAnnotations.size + args.size)
+
+        val expectedAnnotations = defaultAnnotations ++ Set(InferReadWriteAnnotation, TopNameAnnotation("null"))
+        firrtlOptions.annotations.toSet should be (expectedAnnotations)
       }
       "repl-seq-mem annotation" in {
-        val optionsManager = new ExecutionOptionsManager(
-          "test",
-          Array("--repl-seq-mem", "-c:circuit1:-i:infile1:-o:outfile1") ) with HasFirrtlOptions
+        val args = Array(Array("--top-name", "null"), Array("--repl-seq-mem", "-c:circuit1:-i:infile1:-o:outfile1"))
+        val optionsManager = new ExecutionOptionsManager("test", args.flatMap(x => x)) with HasFirrtlOptions
 
         val firrtlOptions = optionsManager.firrtlOptions
-        firrtlOptions.annotations.length should be (1)
-        firrtlOptions.annotations.head should matchPattern {
-          case ReplSeqMemAnnotation("infile1", "outfile1") =>
-        }
+        firrtlOptions.annotations.length should be (defaultAnnotations.size + args.size)
+
+        val expectedAnnotations = defaultAnnotations ++ Set(ReplSeqMemAnnotation("infile1", "outfile1"),
+                                                            TopNameAnnotation("null"))
+        firrtlOptions.annotations.toSet should be (expectedAnnotations)
       }
     }
   }
@@ -161,45 +176,33 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
   // Deprecated
   "Annotations can be read implicitly from the name of the circuit" in {
     val top = "foo"
-    val optionsManager = new ExecutionOptionsManager(
-      "test",
-      Array("--top-name", top) ) with HasFirrtlOptions {
-    }
-    val annoFile =  new File(optionsManager.commonOptions.targetDirName, top + ".anno")
+    val annoFile =  new File(top + ".anno")
     copyResourceToFile("/annotations/SampleAnnotations.anno", annoFile)
-    optionsManager.firrtlOptions.annotations.length should be (1)
-    val annos = Driver.getAnnotations(optionsManager)
-    annos.length should be (13) // 9 from circuit plus 3 general purpose
+    val args = Array(Array("--top-name", top))
+    val optionsManager = new ExecutionOptionsManager("test", args.flatMap(x=>x)) with HasFirrtlOptions
+
+    import net.jcazevedo.moultingyaml._
+    val text = io.Source.fromFile(annoFile).mkString
+    val annosInFile = text.parseYaml match { case YamlArray(xs) => xs }
+
+    // The `+1` comes from the fact that we found an implicit annotation file
+    val annos = optionsManager.firrtlOptions.annotations
+    annos.length should be (annosInFile.size + args.size + defaultAnnotations.size + 1)
     annos.count(_.isInstanceOf[InlineAnnotation]) should be (9)
     annoFile.delete()
   }
 
   // Deprecated
-  "Annotations can be read using annotationFileNameOverride" in {
-    val optionsManager = new ExecutionOptionsManager(
-      "test",
-      Array("--top-name", "a.fir",
-            "--annotation-file", "SampleAnnotations")) with HasFirrtlOptions {
-    }
-    val annotationsTestFile =  new File(optionsManager.commonOptions.targetDirName, optionsManager.firrtlOptions.annotationFileNameOverride + ".anno")
-    copyResourceToFile("/annotations/SampleAnnotations.anno", annotationsTestFile)
-    optionsManager.firrtlOptions.annotations.length should be (2)
-    val annos = Driver.getAnnotations(optionsManager)
-    annos.length should be (14) // 9 from circuit plus 3 general purpose
-    annos.count(_.isInstanceOf[InlineAnnotation]) should be (9)
-    annotationsTestFile.delete()
-  }
-
-  // Deprecated
   "Supported LegacyAnnotations will be converted automagically" in {
     val testDir = createTestDirectory("test")
+    println(testDir)
     val annoFilename = "LegacyAnnotations.anno"
     val annotationsTestFile =  new File(testDir, annoFilename)
     val optionsManager = new ExecutionOptionsManager(
       "test",
       Array("--top-name", "test",
             "--target-dir", testDir.toString,
-            "--annotation-files", annotationsTestFile.toString)) with HasFirrtlOptions {
+            "--annotation-file", annotationsTestFile.toString)) with HasFirrtlOptions {
     }
     copyResourceToFile(s"/annotations/$annoFilename", annotationsTestFile)
     val annos = Driver.getAnnotations(optionsManager)
@@ -253,7 +256,7 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
         "test",
         Array("--top-name", "test",
               "--target-dir", testDir.toString,
-              "--annotation-files", annoFile.toString) ) with HasFirrtlOptions
+              "--annotation-file", annoFile.toString) ) with HasFirrtlOptions
       (the [Exception] thrownBy {
         Driver.getAnnotations(optionsManager)
       }).getMessage should include ("Old-style annotations")
@@ -261,33 +264,57 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
   }
 
   "Annotations can be read from multiple files" in {
+    val filenames = Seq("SampleAnnotations1.anno.json", "SampleAnnotations2.anno.json")
+    filenames.foreach(f => copyResourceToFile(s"/annotations/SampleAnnotations.anno.json", new File(f)))
+    val args = Array(Array("--top-name", "a.fir")) ++ filenames.map(f => Array("--annotation-file", f))
+    val optionsManager = new ExecutionOptionsManager("test", args.flatMap(x=>x)) with HasFirrtlOptions
+
+    import net.jcazevedo.moultingyaml._
+    val annosInFile = io.Source.fromFile(filenames(0)).mkString
+      .parseYaml match { case YamlArray(xs) => xs }
+
+    val annos = optionsManager.firrtlOptions.annotations
+    annos.length should be (defaultAnnotations.size + args.size + annosInFile.size * 2)
+    annos.count(_.isInstanceOf[InlineAnnotation]) should be (annosInFile.size * 2)
+
+    filenames.foreach(f => new File(f).delete())
+  }
+
+  "Annotations won't be read from the same file twice" in {
     val filename = "SampleAnnotations.anno.json"
-    val optionsManager = new ExecutionOptionsManager(
-      "test",
-      Array("--top-name", "a.fir",
-            "--annotation-files", List.fill(2)(filename).mkString(",")) ) with HasFirrtlOptions
-    val annotationsTestFile = new File(optionsManager.commonOptions.targetDirName, filename)
-    copyResourceToFile(s"/annotations/$filename", annotationsTestFile)
-    optionsManager.firrtlOptions.annotations.length should be (3)
-    val annos = Driver.getAnnotations(optionsManager)
-    annos.length should be (24) // 18 from files plus 3 general purpose
-    annos.count(_.isInstanceOf[InlineAnnotation]) should be (18)
-    annotationsTestFile.delete()
+    copyResourceToFile(s"/annotations/$filename", new File(filename))
+    val args = Array(Array("--top-name", "a.fir")) ++
+      List.fill(2)(filename).map(f => Array("--annotation-file", f))
+    val optionsManager = new ExecutionOptionsManager("test", args.flatMap(x=>x)) with HasFirrtlOptions
+
+    import net.jcazevedo.moultingyaml._
+    val annosInFile = io.Source.fromFile(filename).mkString
+      .parseYaml match { case YamlArray(xs) => xs }
+
+    val annos = optionsManager.firrtlOptions.annotations
+    annos.length should be (defaultAnnotations.size + args.size + annosInFile.size)
+    annos.count(_.isInstanceOf[InlineAnnotation]) should be (annosInFile.size)
+
+    new File(filename).delete()
   }
 
   "Annotations can be created from the command line and read from a file at the same time" in {
     // [todo] You shouldn't have to specify the explicit type here...
-    val optionsManager = new ExecutionOptionsManager(
-      "test",
-      Array("--infer-rw", "circuit",
-            "-faf", "annotations.anno") ) with HasFirrtlOptions
 
     val annoFile = new File("annotations.anno")
-
     copyResourceToFile("/annotations/SampleAnnotations.anno.json", annoFile)
+    val args = Array( Array("--top-name", "null"),
+                      Array("--infer-rw", "circuit"),
+                      Array("-faf", annoFile.toString) )
+
+    val optionsManager = new ExecutionOptionsManager(
+      "test",
+      args.flatMap(x => x) ) with HasFirrtlOptions
+
+    val annosInFile = JsonProtocol.deserialize(annoFile)
 
     val firrtlOptions = optionsManager.firrtlOptions
-    firrtlOptions.annotations.length should be (2) // infer-rw
+    firrtlOptions.annotations.length should be (defaultAnnotations.size + annosInFile.size + args.size) // infer-rw
 
     val anns = Driver.getAnnotations(optionsManager)
     anns should contain (BlackBoxTargetDirAnno(".")) // built in to getAnnotations
@@ -322,8 +349,7 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
       ).foreach { case (compilerName, expectedOutputFileName) =>
           val manager = new ExecutionOptionsManager(
             "test",
-            Array("--top-name", "Top",
-                  "--firrtl-source", input,
+            Array("--firrtl-source", input,
                   "--compiler", compilerName) ) with HasFirrtlOptions
 
         firrtl.Driver.execute(manager)
@@ -343,8 +369,7 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
         println(s"$compilerName -> $expectedOutputFileNames")
           val manager = new ExecutionOptionsManager(
             "test",
-            Array("--top-name", "Top",
-                  "--firrtl-source", input,
+            Array("--firrtl-source", input,
                   "--compiler", compilerName,
                   "--split-modules") ) with HasFirrtlOptions
 

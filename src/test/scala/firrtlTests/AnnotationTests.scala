@@ -525,15 +525,20 @@ class JsonAnnotationTests extends AnnotationTests with BackendCompilationUtiliti
                                   "--annotation-files", annoFile.getPath)) with HasFirrtlOptions
   }
 
-  "Annotation file not found" should "give a reasonable error message" in {
+  /* We throw better exceptions than we're checking for, e.g., an
+   * [[AnnotationFileNotFoundException]] is thrown if the annotation file
+   * isn't found. However, scopt swallows exceptions and returns an
+   * Option[T]. We pick this up and return a [[FIRRTLException]] on None,
+   * but there's no way to get at the actual root exception. */
+  behavior of "Reasonable error messages"
+
+  it should "print for 'Annotation File Not Found' condition" in {
     val manager = setupManager(None)
 
-    an [AnnotationFileNotFoundException] shouldBe thrownBy {
-      Driver.execute(manager)
-    }
+    a [FIRRTLException] shouldBe thrownBy { Driver.execute(manager) }
   }
 
-  "Annotation class not found" should "give a reasonable error message" in {
+  it should "print for 'Annotation Class Not Found' condition" in {
     val anno = """
       |[
       |  {
@@ -543,12 +548,10 @@ class JsonAnnotationTests extends AnnotationTests with BackendCompilationUtiliti
       |] """.stripMargin
     val manager = setupManager(Some(anno))
 
-    the [Exception] thrownBy Driver.execute(manager) should matchPattern {
-      case InvalidAnnotationFileException(_, _: AnnotationClassNotFoundException) =>
-    }
+    a [FIRRTLException] shouldBe thrownBy { Driver.execute(manager) }
   }
 
-  "Malformed annotation file" should "give a reasonable error message" in {
+  it should "print for 'Malformed Annotation File' condition" in {
     val anno = """
       |[
       |  {
@@ -558,12 +561,10 @@ class JsonAnnotationTests extends AnnotationTests with BackendCompilationUtiliti
       |] """.stripMargin
     val manager = setupManager(Some(anno))
 
-    the [Exception] thrownBy Driver.execute(manager) should matchPattern {
-      case InvalidAnnotationFileException(_, _: InvalidAnnotationJSONException) =>
-    }
+    a [FIRRTLException] shouldBe thrownBy { Driver.execute(manager) }
   }
 
-  "Non-array annotation file" should "give a reasonable error message" in {
+  it should "print for 'Non-Array Annotation File' condition" in {
     val anno = """
       |{
       |  "class":"firrtl.transforms.DontTouchAnnotation",
@@ -572,9 +573,6 @@ class JsonAnnotationTests extends AnnotationTests with BackendCompilationUtiliti
       |""".stripMargin
     val manager = setupManager(Some(anno))
 
-    the [Exception] thrownBy Driver.execute(manager) should matchPattern {
-      case InvalidAnnotationFileException(_, InvalidAnnotationJSONException(msg))
-        if msg.contains("JObject") =>
-    }
+    a [FIRRTLException] shouldBe thrownBy { Driver.execute(manager) }
   }
 }

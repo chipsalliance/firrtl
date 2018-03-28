@@ -12,6 +12,9 @@ import firrtl.annotations._  // Note that wildcard imports are not great....
 import firrtl.ir.Circuit
 import firrtl.Utils.{error, throwInternalError}
 
+/** Run a stringly-typed Transform */
+case class RunFirrtlTransformAnnotation(value: String) extends SingleStringAnnotation
+
 object RenameMap {
   def apply(map: Map[Named, Seq[Named]]) = {
     val rm = new RenameMap
@@ -141,11 +144,12 @@ case class CircuitState(
   def emittedCircuitOption: Option[EmittedCircuit] =
     emittedComponents collectFirst { case x: EmittedCircuit => x }
   /** Helper for getting an [[EmittedCircuit]] when it is known to exist */
-  def getEmittedCircuit: EmittedCircuit = emittedCircuitOption match {
+  def getEmittedCircuit: EmittedCircuit = {
+    emittedCircuitOption match {
     case Some(emittedCircuit) => emittedCircuit
     case None =>
       throw new FIRRTLException(s"No EmittedCircuit found! Did you delete any annotations?\n$deletedAnnotations")
-  }
+  }}
   /** Helper function for extracting emitted components from annotations */
   def emittedComponents: Seq[EmittedComponent] =
     annotations.collect { case emitted: EmittedAnnotation[_] => emitted.value }
@@ -452,7 +456,7 @@ trait Compiler extends LazyLogging {
     */
   def compileAndEmit(state: CircuitState,
                      customTransforms: Seq[Transform] = Seq.empty): CircuitState = {
-    val emitAnno = EmitCircuitAnnotation(emitter.getClass)
+    val emitAnno = EmitterAnnotation(emitter.getClass)
     compile(state.copy(annotations = emitAnno +: state.annotations), customTransforms)
   }
 

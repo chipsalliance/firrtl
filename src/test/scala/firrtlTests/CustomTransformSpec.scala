@@ -14,7 +14,7 @@ class ReplaceExtModuleTransform extends Transform {
   def inputForm = LowForm
   def outputForm = HighForm
 
-  def execute(state: CircuitState): CircuitState = state
+  def execute(state: CircuitState): CircuitState = {state
     .annotations
     .collect{ case a: ReplaceExtModuleAnnotation => a }
     .foldLeft(state){
@@ -22,6 +22,7 @@ class ReplaceExtModuleTransform extends Transform {
         val circuit = Parser.parse(circuitString)
         val module = circuit.modules.find(_.name == circuit.main).get
         state.copy(circuit = run(module)(state.circuit)) } }
+  }
 
   def run(module: DefModule)(c: Circuit): Circuit = c.copy(
     modules = c.modules map {
@@ -34,9 +35,8 @@ class ReplaceExtModuleTransform extends Transform {
 class CustomTransformSpec extends FirrtlFlatSpec {
   behavior of "Custom Transforms"
 
-  they should "be able to introduce high firrtl" in {
-    // Simple module
-    val delayModuleString = """
+  // Simple module
+  val delayModuleString = """
       |circuit Delay :
       |  module Delay :
       |    input clock : Clock
@@ -52,9 +52,18 @@ class CustomTransformSpec extends FirrtlFlatSpec {
       |    b <= r
       |""".stripMargin
 
+  they should "be able to introduce high firrtl" in {
     runFirrtlTest("CustomTransform", "/features",
                   customTransforms = List(new ReplaceExtModuleTransform),
                   annotations = AnnotationSeq(
                     List(ReplaceExtModuleAnnotation(delayModuleString))))
+  }
+
+  they should "be able to be run from an annotation" in {
+    runFirrtlTest("CustomTransform", "/features",
+                  customTransforms = List.empty,
+                  annotations = AnnotationSeq(
+                    List(ReplaceExtModuleAnnotation(delayModuleString),
+                         RunFirrtlTransformAnnotation("firrtlTests.ReplaceExtModuleTransform"))))
   }
 }
