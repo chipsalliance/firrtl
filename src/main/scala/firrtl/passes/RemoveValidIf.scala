@@ -23,7 +23,7 @@ object RemoveValidIf extends Pass {
     case _: SIntType => SIntZero
     case ClockType => ClockZero
     case _: FixedType => FixedZero
-    case other => throwInternalError(Some(s"Unexpected type $other"))
+    case other => throwInternalError(s"Unexpected type $other")
   }
 
   // Recursive. Removes ValidIfs
