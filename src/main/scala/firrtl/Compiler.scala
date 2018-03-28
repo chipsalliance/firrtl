@@ -76,7 +76,8 @@ final class RenameMap private () {
   def get(key: Named): Option[Seq[Named]] = key match {
     case c: ComponentName => this.get(c)
     case m: ModuleName => this.get(m)
-    case c: CircuitName => this.get(c)
+    // The CircuitName version returns Option[CircuitName]
+    case c: CircuitName => this.get(c).map(Seq(_))
   }
 
   // Mutable helpers
