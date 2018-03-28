@@ -29,27 +29,23 @@ final class RenameMap private () {
   private val underlying = mutable.HashMap[Named, Seq[Named]]()
 
   /** Get renames of a [[CircuitName]]
-    * @note A [[CircuitName]] can only be renamed to one-or-more [[CircuitName]]s
+    * @note A [[CircuitName]] can only be renamed to a single [[CircuitName]]
     */
-  def get(key: CircuitName): Option[Seq[CircuitName]] = underlying.get(key).map {
-    names => names.map {
-      case c: CircuitName => c
-      case other => error(s"Unsupported rename of $key to $other!")
-    }
+  def get(key: CircuitName): Option[CircuitName] = underlying.get(key).map {
+    case Seq(c: CircuitName) => c
+    case other => error(s"Unsupported Circuit rename to $other!")
   }
   /** Get renames of a [[ModuleName]]
     * @note A [[ModuleName]] can only be renamed to one-or-more [[ModuleName]]s
     */
   def get(key: ModuleName): Option[Seq[ModuleName]] = {
     def nestedRename(m: ModuleName): Option[Seq[ModuleName]] =
-      this.get(m.circuit).map { circuits =>
-        circuits.map(cname => ModuleName(m.name, cname))
-      }
+      this.get(m.circuit).map(cname => Seq(ModuleName(m.name, cname)))
     underlying.get(key) match {
       case Some(names) => Some(names.flatMap {
         case m: ModuleName =>
           nestedRename(m).getOrElse(Seq(m))
-        case other => error(s"Unsupported rename of $key to $other")
+        case other => error(s"Unsupported Module rename of $key to $other")
       })
       case None => nestedRename(key)
     }
@@ -66,7 +62,7 @@ final class RenameMap private () {
       case Some(names) => Some(names.flatMap {
         case c: ComponentName =>
           nestedRename(c).getOrElse(Seq(c))
-        case other => error(s"Unsupported rename of $key to $other")
+        case other => error(s"Unsupported Component rename of $key to $other")
       })
       case None => nestedRename(key)
     }
