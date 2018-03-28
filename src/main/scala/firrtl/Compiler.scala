@@ -6,6 +6,7 @@ import logger._
 import java.io.Writer
 import annotations._
 import scala.collection.mutable
+import scopt.OptionParser
 
 import firrtl.annotations._  // Note that wildcard imports are not great....
 import firrtl.ir.Circuit
@@ -478,3 +479,7 @@ trait Compiler extends LazyLogging {
 
 }
 
+trait ProvidesOptions {
+  self: Transform =>
+  def provideOptions: (OptionParser[ComposableAnnotationOptions]) => Unit
+}

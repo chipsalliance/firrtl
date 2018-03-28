@@ -14,6 +14,7 @@ import Utils._
 import memlib.AnalysisUtils._
 import memlib._
 import Mappers._
+import scopt.OptionParser
 
 case class ClockListAnnotation(target: ModuleName, outputConfig: String) extends
     SingleTargetAnnotation[ModuleName] {
@@ -54,7 +55,7 @@ Usage:
   }
 }
 
-class ClockListTransform extends Transform {
+class ClockListTransform extends Transform with ProvidesOptions {
   def inputForm = LowForm
   def outputForm = LowForm
   def passSeq(top: String, writer: Writer): Seq[Pass] =
@@ -71,4 +72,13 @@ class ClockListTransform extends Transform {
       case seq => error(s"Found illegal clock list annotation(s): $seq")
     }
   }
+  def provideOptions = (parser: OptionParser[ComposableAnnotationOptions]) => parser
+    .opt[String]("list-clocks")
+    .abbr("clks")
+    .valueName ("-c:<circuit>:-m:<module>:-o:<filename>")
+    .action( (x, c) => c.copy(
+              annotations = c.annotations :+ passes.clocklist.ClockListAnnotation.parse(x),
+              customTransforms = c.customTransforms :+ new passes.clocklist.ClockListTransform) )
+    .maxOccurs(1)
+    .text("List which signal drives each clock of every descendent of specified module")
 }

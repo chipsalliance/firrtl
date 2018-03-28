@@ -14,17 +14,7 @@ import WrappedExpression.weq
 import annotations._
 import scopt.OptionParser
 
-case object InferReadWriteAnnotation extends NoTargetAnnotation with ProvidesOptions {
-  def provideOptions = (parser: OptionParser[ComposableAnnotationOptions]) => parser
-    .opt[String]("infer-rw")
-    .abbr("firw")
-    .valueName ("<circuit>")
-    .action( (x, c) => c.copy(
-              annotations = c.annotations :+ InferReadWriteAnnotation,
-              customTransforms = c.customTransforms :+ new InferReadWrite) )
-    .maxOccurs(1)
-    .text("Enable readwrite port inference for the target circuit")
-}
+case object InferReadWriteAnnotation extends NoTargetAnnotation
 
 // This pass examine the enable signals of the read & write ports of memories
 // whose readLatency is greater than 1 (usually SeqMem in Chisel).
@@ -152,7 +142,7 @@ object InferReadWritePass extends Pass {
 
 // Transform input: Middle Firrtl. Called after "HighFirrtlToMidleFirrtl"
 // To use this transform, circuit name should be annotated with its TransId.
-class InferReadWrite extends Transform with SeqTransformBased {
+class InferReadWrite extends Transform with SeqTransformBased with ProvidesOptions {
   def inputForm = MidForm
   def outputForm = MidForm
   def transforms = Seq(
@@ -171,4 +161,13 @@ class InferReadWrite extends Transform with SeqTransformBased {
       state
     }
   }
+  def provideOptions = (parser: OptionParser[ComposableAnnotationOptions]) => parser
+    .opt[String]("infer-rw")
+    .abbr("firw")
+    .valueName ("<circuit>")
+    .action( (x, c) => c.copy(
+              annotations = c.annotations :+ InferReadWriteAnnotation,
+              customTransforms = c.customTransforms :+ new InferReadWrite) )
+    .maxOccurs(1)
+    .text("Enable readwrite port inference for the target circuit")
 }

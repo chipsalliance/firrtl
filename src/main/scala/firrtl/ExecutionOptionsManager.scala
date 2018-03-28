@@ -103,7 +103,7 @@ trait HasCommonOptions {
       }
     }
 
-  parser.note("common options")
+  parser.note("Common Options")
 
   parser.opt[String]("top-name")
     .abbr("tn")
@@ -327,7 +327,7 @@ trait HasFirrtlOptions {
     .copy( customTransforms = options.customTransforms,
            annotations = options.annotations.toList )
 
-  parser.note("firrtl options")
+  parser.note("FIRRTL Compiler Options")
 
   parser.opt[String]("input-file")
     .abbr("i")
@@ -349,7 +349,7 @@ trait HasFirrtlOptions {
     .valueName("<input-anno-file>")
     .action( (x, c) => c.copy(annotations = c.annotations :+ InputAnnotationFileAnnotation(x)) )
     .maxOccurs(1)
-    .text("Used to specify annotation files (can appear multiple times)")
+    .text("Used to specify annotation file")
 
   parser.opt[Unit]("force-append-anno-file")
     .abbr("ffaaf")
@@ -408,45 +408,6 @@ trait HasFirrtlOptions {
                                       })) )
     .text("runs these custom transforms during compilation.")
 
-  parser.opt[Seq[String]]("inline")
-    .abbr("fil")
-    .valueName ("<circuit>[.<module>[.<instance>]][,..],")
-    .action( (x, c) => {
-              val newAnnotations = x.map { value =>
-                value.split('.') match {
-                  case Array(circuit) =>
-                    passes.InlineAnnotation(CircuitName(circuit))
-                  case Array(circuit, module) =>
-                    passes.InlineAnnotation(ModuleName(module, CircuitName(circuit)))
-                  case Array(circuit, module, inst) =>
-                    passes.InlineAnnotation(ComponentName(inst, ModuleName(module, CircuitName(circuit))))
-                }
-              }
-              c.copy(annotations = c.annotations ++ newAnnotations,
-                     customTransforms = c.customTransforms :+ new passes.InlineInstances) })
-    .text(
-      """Inline one or more module (comma separated, no spaces) module looks like "MyModule" or "MyModule.myinstance""")
-
-  ExecutionUtils.generateAnnotationOptions(parser)
-
-  parser.opt[String]("repl-seq-mem")
-    .abbr("frsq")
-    .valueName ("-c:<circuit>:-i:<filename>:-o:<filename>")
-    .action( (x, c) => c.copy(
-              annotations = c.annotations :+ passes.memlib.ReplSeqMemAnnotation.parse(x),
-              customTransforms = c.customTransforms :+ new passes.memlib.ReplSeqMem) )
-    .maxOccurs(1)
-    .text("Replace sequential memories with blackboxes + configuration file")
-
-  parser.opt[String]("list-clocks")
-    .abbr("clks")
-    .valueName ("-c:<circuit>:-m:<module>:-o:<filename>")
-    .action( (x, c) => c.copy(
-              annotations = c.annotations :+ passes.clocklist.ClockListAnnotation.parse(x),
-              customTransforms = c.customTransforms :+ new passes.clocklist.ClockListTransform) )
-    .maxOccurs(1)
-    .text("List which signal drives each clock of every descendent of specified module")
-
   parser.opt[Unit]("split-modules")
     .abbr("fsm")
     .action( (x, c) => c.copy(annotations = c.annotations :+ EmitOneFilePerModuleAnnotation()) )
@@ -467,6 +428,8 @@ trait HasFirrtlOptions {
     .action( (x, c) => c.copy(annotations = c.annotations ++ x.map(AnnotationFileNamesAnnotation(_))) )
     .text("List of annotation files")
 
+  parser.note("FIRRTL Transform Options")
+  ExecutionUtils.generateAnnotationOptions(parser)
   parser.note("")
 
   /*
@@ -569,13 +532,11 @@ class ExecutionOptionsManager(val applicationName: String, args: Array[String] =
 }
 
 object ExecutionUtils {
-
-  /** Generate options from annotations
+  /** Generate options from transforms that expose them
     *
-    * This looks through every Annotation which mixes in
-    * [[ProvidesOptions]]. It then grabs their companion objects and calls
-    * the [[provideOptions]] method to add scopt parsing for their
-    * provided options.
+    * This looks through every class which mixes in [[ProvidesOptions]]
+    * and calls their [[provideOptions]] method to generate scopt parsing
+    * callbacks.
     *
     * @todo: to prevent inordinate slowdown, this ignores classes in the
     * ".ivy2" directory. We need a better solution of what to search. */
@@ -585,11 +546,10 @@ object ExecutionUtils {
       .map(x => new File(x.getFile))
     val finder = ClassFinder(files)
     val classes = finder.getClasses
-    val annotationsWithOptions = ClassFinder.concreteSubclasses(classOf[annotations.ProvidesOptions], classes).toList
+    val annotationsWithOptions = ClassFinder.concreteSubclasses(classOf[ProvidesOptions], classes).toList
     annotationsWithOptions.map( name => Class.forName(name.toString)
-                                 .getField("MODULE$")
-                                 .get(null)
-                                 .asInstanceOf[Annotation with ProvidesOptions]
+                                 .asInstanceOf[Class[_ <: Transform with ProvidesOptions]]
+                                 .newInstance()
                                  .provideOptions(parser) )
   }
 }

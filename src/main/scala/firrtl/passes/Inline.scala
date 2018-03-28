@@ -6,6 +6,7 @@ package passes
 import firrtl.ir._
 import firrtl.Mappers._
 import firrtl.annotations._
+import scopt.OptionParser
 
 // Datastructures
 import scala.collection.mutable
@@ -18,7 +19,7 @@ case class InlineAnnotation(target: Named) extends SingleTargetAnnotation[Named]
 // Only use on legal Firrtl. Specifically, the restriction of
 //  instance loops must have been checked, or else this pass can
 //  infinitely recurse
-class InlineInstances extends Transform {
+class InlineInstances extends Transform with ProvidesOptions {
    def inputForm = LowForm
    def outputForm = LowForm
    val inlineDelim = "$"
@@ -134,11 +135,31 @@ class InlineInstances extends Transform {
       case sx => sx map appendRefPrefix(prefix, currentModule) map onStmt(prefix, currentModule) map appendNamePrefix(prefix)
     }
 
-    val flatCircuit = c.copy(modules = c.modules.flatMap { 
+    val flatCircuit = c.copy(modules = c.modules.flatMap {
       case m if flatModules.contains(m.name) => None
-      case m => 
+      case m =>
         Some(m map onStmt("", m.name))
     })
     CircuitState(flatCircuit, LowForm, annos, None)
   }
+
+  def provideOptions = (parser: OptionParser[ComposableAnnotationOptions]) => parser
+    .opt[Seq[String]]("inline")
+    .abbr("fil")
+    .valueName ("<circuit>[.<module>[.<instance>]][,..],")
+    .action( (x, c) => {
+              val newAnnotations = x.map { value =>
+                value.split('.') match {
+                  case Array(circuit) =>
+                    InlineAnnotation(CircuitName(circuit))
+                  case Array(circuit, module) =>
+                    InlineAnnotation(ModuleName(module, CircuitName(circuit)))
+                  case Array(circuit, module, inst) =>
+                    InlineAnnotation(ComponentName(inst, ModuleName(module, CircuitName(circuit))))
+                }
+              }
+              c.copy(annotations = c.annotations ++ newAnnotations,
+                     customTransforms = c.customTransforms :+ new InlineInstances) })
+    .text(
+      """Inline one or more module (comma separated, no spaces) module looks like "MyModule" or "MyModule.myinstance""")
 }

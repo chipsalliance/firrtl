@@ -10,6 +10,7 @@ import AnalysisUtils._
 import Utils.error
 import java.io.{File, CharArrayWriter, PrintWriter}
 import wiring._
+import scopt.OptionParser
 
 sealed trait PassOption
 case object InputConfigFileName extends PassOption
@@ -19,11 +20,11 @@ case object PassModuleName extends PassOption
 
 object PassConfigUtil {
   type PassOptionMap = Map[PassOption, String]
- 
+
   def getPassOptions(t: String, usage: String = "") = {
     // can't use space to delimit sub arguments (otherwise, Driver.scala will throw error)
     val passArgList = t.split(":").toList
-    
+
     def nextPassOption(map: PassOptionMap, list: List[String]): PassOptionMap = {
       list match {
         case Nil => map
@@ -103,7 +104,7 @@ class SimpleTransform(p: Pass, form: CircuitForm) extends Transform {
 class SimpleMidTransform(p: Pass) extends SimpleTransform(p, MidForm)
 
 // SimpleRun instead of PassBased because of the arguments to passSeq
-class ReplSeqMem extends Transform {
+class ReplSeqMem extends Transform with ProvidesOptions {
   def inputForm = MidForm
   def outputForm = MidForm
   def transforms(inConfigFile: Option[YamlFileReader], outConfigFile: ConfWriter): Seq[Transform] =
@@ -137,4 +138,15 @@ class ReplSeqMem extends Transform {
       case _ => error("Unexpected transform annotation")
     }
   }
+
+  def provideOptions = (parser: OptionParser[ComposableAnnotationOptions]) => parser
+    .opt[String]("repl-seq-mem")
+    .abbr("frsq")
+    .valueName ("-c:<circuit>:-i:<filename>:-o:<filename>")
+    .action( (x, c) => c.copy(
+              annotations = c.annotations :+ passes.memlib.ReplSeqMemAnnotation.parse(x),
+              customTransforms = c.customTransforms :+ new passes.memlib.ReplSeqMem) )
+    .maxOccurs(1)
+    .text("Replace sequential memories with blackboxes + configuration file")
+
 }
