@@ -90,7 +90,7 @@ class RenameMapSpec extends FirrtlFlatSpec {
     renames.get(foo) should be (Some(Seq(foo2)))
   }
 
-  // Renaming from to all of the tos at once should error
+  // Renaming `from` to each of the `tos` at the same time should error
   case class BadRename(from: Named, tos: Seq[Named])
   val badRenames =
     Seq(BadRename(foo, Seq(cir)),
