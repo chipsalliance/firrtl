@@ -2,17 +2,63 @@
 
 package firrtl.passes
 
-import scala.collection.mutable
 import firrtl.PrimOps._
 import firrtl.ir._
 import firrtl._
 import firrtl.Mappers._
-import firrtl.Utils.throwInternalError
 
+/**
+  * Transform that replaces zero width mems before running the ZeroWidth transform.
+  * Dealing with mems is a bit tricky for that pass because the address, en, clk ports
+  * of the memory are not width zero even if data is.
+  *
+  * This pass replaces memories with a DefWire() bundle that contains the address, en,
+  * clk, and data fields implemented as zero width wires. Running the ZeroWidth
+  * transform afterwards will remove these dangling references properly.
+  *
+  * This pass is private because it should only be run by the ZeroWidth transform
+  */
+private object ZeroWidthMemRemove extends Transform {
+  import firrtl.passes.ZeroWidth.removeZero
+
+  def inputForm: CircuitForm = UnknownForm
+  def outputForm: CircuitForm = UnknownForm
+  private def makeEmptyMemBundle(name: String): Field =
+    Field(name, Flip, BundleType(Seq(
+      Field("addr", Default, UIntType(IntWidth(0))),
+      Field("en",   Default, UIntType(IntWidth(0))),
+      Field("clk",  Default, UIntType(IntWidth(0))),
+      Field("data", Flip,    UIntType(IntWidth(0)))
+    )))
+
+  private def onEmptyMemStmt(s: Statement): Statement = s match {
+    case d@DefMemory(info, name, tpe, _, _, _, rs, ws, rws, _) => removeZero(tpe) match {
+      case None =>
+        DefWire(info, name, BundleType(
+          rs.map(r => makeEmptyMemBundle(r)) ++
+          ws.map(w => makeEmptyMemBundle(w)) ++
+          rws.map(rw => makeEmptyMemBundle(rw))
+        ))
+      case Some(_) => d
+    }
+    case sx => sx map onEmptyMemStmt
+  }
+  private def onModule(m: DefModule): DefModule = {
+    m match {
+      case ext: ExtModule => ext
+      case in: Module => in.copy(body = onEmptyMemStmt(in.body))
+    }
+  }
+  def execute(state: CircuitState): CircuitState = {
+    val c = state.circuit
+    val result = c.copy(modules = c.modules map onModule)
+    state.copy(circuit = result)
+  }
+}
 
 object ZeroWidth extends Transform {
-  def inputForm = UnknownForm
-  def outputForm = UnknownForm
+  def inputForm: CircuitForm = UnknownForm
+  def outputForm: CircuitForm = UnknownForm
   private val ZERO = BigInt(0)
   private def getRemoved(x: IsDeclaration): Seq[String] = {
     var removedNames: Seq[String] = Seq.empty
@@ -28,7 +74,7 @@ object ZeroWidth extends Transform {
     }
     removedNames
   }
-  private def removeZero(t: Type): Option[Type] = t match {
+  private[passes] def removeZero(t: Type): Option[Type] = t match {
     case GroundType(IntWidth(ZERO)) => None
     case BundleType(fields) =>
       fields map (f => (f, removeZero(f.tpe))) collect {
@@ -61,18 +107,26 @@ object ZeroWidth extends Transform {
     }
   }
   private def onStmt(renames: RenameMap)(s: Statement): Statement = s match {
-    case (_: DefWire| _: DefRegister| _: DefMemory) =>
-      // List all removed expression names, and delete them from renames
-      renames.delete(getRemoved(s.asInstanceOf[IsDeclaration]))
-      // Create new types without zero-width wires
-      var removed = false
-      def applyRemoveZero(t: Type): Type = removeZero(t) match {
-        case None => removed = true; t
-        case Some(tx) => tx
+    case d@DefWire(info, name, tpe) =>
+      renames.delete(getRemoved(d))
+      removeZero(tpe) match {
+        case None => EmptyStmt
+        case Some(t) => DefWire(info, name, t)
       }
-      val sxx = (s map onExp) map applyRemoveZero
-      // Return new declaration
-      if(removed) EmptyStmt else sxx
+    case d@DefRegister(info, name, tpe, clock, reset, init) =>
+      renames.delete(getRemoved(d))
+      removeZero(tpe) match {
+        case None => EmptyStmt
+        case Some(t) =>
+         DefRegister(info, name, t, onExp(clock), onExp(reset), onExp(init))
+      }
+    case d@DefMemory(info, name, tpe, depth, wLatency, rLatency, rs, ws, rws, ruw) =>
+      renames.delete(getRemoved(d))
+      removeZero(tpe) match {
+        case None =>
+          Utils.throwInternalError(Some(s"private pass ZeroWidthMemRemove should have removed this memory: $d"))
+        case Some(t) => DefMemory(info, name, t, depth, wLatency, rLatency, rs, ws, rws, ruw)
+      }
     case Connect(info, loc, exp) => removeZero(loc.tpe) match {
       case None => EmptyStmt
       case Some(t) => Connect(info, loc, onExp(exp))
@@ -85,7 +139,7 @@ object ZeroWidth extends Transform {
       case None => EmptyStmt
       case Some(t) => DefNode(info, name, onExp(value))
     }
-    case sx => sx map onStmt(renames)
+    case sx => sx map onStmt(renames) map onExp
   }
   private def onModule(renames: RenameMap)(m: DefModule): DefModule = {
     renames.setModule(m.name)
@@ -103,10 +157,12 @@ object ZeroWidth extends Transform {
     }
   }
   def execute(state: CircuitState): CircuitState = {
-    val c = state.circuit
+    // run ZeroWidthMemRemove transform first to remove zero-width memories
+    // then run InferTypes to update widths for addr, en, clk, etc
+    val c = InferTypes.run(ZeroWidthMemRemove.runTransform(state).circuit)
     val renames = RenameMap()
     renames.setCircuit(c.main)
-    val result = InferTypes.run(c.copy(modules = c.modules map onModule(renames)))
+    val result = c.copy(modules = c.modules map onModule(renames))
     CircuitState(result, outputForm, state.annotations, Some(renames))
   }
 }
