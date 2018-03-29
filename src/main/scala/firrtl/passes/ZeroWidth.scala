@@ -124,7 +124,7 @@ object ZeroWidth extends Transform {
       renames.delete(getRemoved(d))
       removeZero(tpe) match {
         case None =>
-          Utils.throwInternalError(Some(s"private pass ZeroWidthMemRemove should have removed this memory: $d"))
+          Utils.throwInternalError(s"private pass ZeroWidthMemRemove should have removed this memory: $d")
         case Some(t) => DefMemory(info, name, t, depth, wLatency, rLatency, rs, ws, rws, ruw)
       }
     case Connect(info, loc, exp) => removeZero(loc.tpe) match {
