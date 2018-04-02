@@ -262,7 +262,6 @@ trait HasFirrtlOptions {
     val options4: FirrtlOptions = options3
       .collect{ case opt: FirrtlOption => opt }
       .foldLeft(FirrtlOptions(
-                  customTransforms = ExecutionUtils.annotationsToTransforms(options3),
                   annotations = options3.toList)){
         case (old, x) => x match {
           case InputFileAnnotation(f) => old.copy(inputFileNameOverride = Some(f))
@@ -282,7 +281,8 @@ trait HasFirrtlOptions {
           case _: LogClassNamesAnnotation => old.copy(logClassNames = true)
           case ProgramArgsAnnotation(s) => old.copy(programArgs = old.programArgs :+ s)
             // [todo] this is a kludge, the transform should really be extracted here
-          case t: RunFirrtlTransformAnnotation => old
+          case RunFirrtlTransformAnnotation(x) => old.copy(
+            customTransforms = old.customTransforms :+ Class.forName(x).asInstanceOf[Class[_<:Transform]].newInstance())
         }
       }
 
@@ -601,11 +601,6 @@ object ExecutionUtils {
 
   /** [todo] Add scaladoc */
   def readAnnotationsFromFile(filename: String): List[Annotation] = readAnnotationsFromFile(List(filename))
-
-  def annotationsToTransforms(annotations: Seq[Annotation]): Seq[Transform] = annotations
-    .collect{ case RunFirrtlTransformAnnotation(name) => name }
-    .distinct
-    .map(Class.forName(_).asInstanceOf[Class[_ <: Transform]].newInstance())
 
   /** Utilities that collect "early" information about options before
     * [[FirrtlOptions]] are available. These operate directly on
