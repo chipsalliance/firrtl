@@ -184,19 +184,18 @@ trait BackendCompilationUtilities {
     val blackBoxVerilogList = {
       val list_file = new File(dir, firrtl.transforms.BlackBoxSourceHelper.FileListName)
       if(list_file.exists()) {
-        Seq("-f", list_file.getAbsolutePath)
+        Seq("-f", list_file.getAbsolutePath.replace('\\', '/'))
       }
       else {
         Seq.empty[String]
       }
     }
-
     val command = Seq(
       "verilator",
-      "--cc", s"${dir.getAbsolutePath}/$dutFile.v"
+      "--cc", s"${dir.getAbsolutePath.replace('\\', '/')}/$dutFile.v"
     ) ++
       blackBoxVerilogList ++
-      vSources.flatMap(file => Seq("-v", file.getAbsolutePath)) ++
+      vSources.flatMap(file => Seq("-v", file.getAbsolutePath.replace('\\', '/'))) ++
       Seq("--assert",
         "-Wno-fatal",
         "-Wno-WIDTH",
@@ -205,21 +204,42 @@ trait BackendCompilationUtilities {
         "-O1",
         "--top-module", topModule,
         "+define+TOP_TYPE=V" + dutFile,
-        s"+define+PRINTF_COND=!$topModule.reset",
-        s"+define+STOP_COND=!$topModule.reset",
+        s"+define+PRINTF_COND='!$topModule.reset'",
+        s"+define+STOP_COND='!$topModule.reset'",
         "-CFLAGS",
-        s"""-Wno-undefined-bool-conversion -O1 -DTOP_TYPE=V$dutFile -DVL_USER_FINISH -include V$dutFile.h""",
-        "-Mdir", dir.getAbsolutePath,
-        "--exe", cppHarness.getAbsolutePath)
-    System.out.println(s"${command.mkString(" ")}") // scalastyle:ignore regex
-    command
+        s"'-Wno-undefined-bool-conversion -O1 -DTOP_TYPE=V$dutFile -DVL_USER_FINISH -include V$dutFile.h'",
+        "-Mdir", dir.getAbsolutePath.replace('\\', '/'),
+        "--exe", cppHarness.getAbsolutePath.replace('\\', '/'))
+
+    val commandString = command.mkString(" ")
+    System.out.println(s"${commandString}") // scalastyle:ignore regex
+    if (osVersion == OSVersion.Windows) {
+        val bashFile = new File(dir, s"${dutFile}.sh")
+        val bashWriter = new FileWriter(bashFile)
+	bashWriter.write("printenv;" + commandString)
+	bashWriter.close()
+	Seq("cmd", "/c", "\"", "set", "&&", "bash", bashFile.getPath.replace('\\', '/'), "\"")
+    } else {
+        command
+    }
   }
 
-  def cppToExe(prefix: String, dir: File): ProcessBuilder =
-    Seq("make", "-C", dir.toString, "-j", "-f", s"V$prefix.mk", s"V$prefix")
+  def cppToExe(prefix: String, dir: File): ProcessBuilder = {
+    val commandSeq = Seq("make", "-C", dir.toString, "-j", "-f", s"V$prefix.mk", s"V$prefix")
+    if (osVersion == OSVersion.Windows) {
+        val commandString = commandSeq.mkString(" ")
+        val bashFile = new File(dir, s"M${prefix}.mk.sh")
+        val bashWriter = new FileWriter(bashFile)
+	bashWriter.write("printenv;" + commandString)
+	bashWriter.close()
+	Seq("cmd", "/c", "\"", "set", "&&", "bash", bashFile.getPath.replace('\\', '/'), "\"")
+    } else {
+        commandSeq
+    }
+  }
 
   def cppToLib(prefix: String, dir: File, shimPieces: Seq[String], extraObjects: Seq[String] = Seq.empty): ProcessBuilder = {
-    // Add a shared library rule to the make file.
+    // Add a shared library rule to the Makefile.
     val inputMakefile = new File(dir, s"V$prefix.mk")
     val outputMakefile = new File(dir, s"V$prefix.so.mk")
     val out = new java.io.BufferedWriter( new java.io.FileWriter(outputMakefile))
@@ -265,7 +285,17 @@ trait BackendCompilationUtilities {
     for (file <- objFiles) {
       file.delete()
     }
-    Seq("make", "-C", dir.toString, "-j", "-f", outputMakefile.getName, s"${shimPieces.head}.${sharedLibraryExtension}", s"V${prefix}.${sharedLibraryExtension}")
+    val commandSeq = Seq("make", "-C", dir.toString, "-j", "-f", outputMakefile.getName, s"${shimPieces.head}.${sharedLibraryExtension}", s"V${prefix}.${sharedLibraryExtension}")
+    if (osVersion == OSVersion.Windows) {
+        val commandString = commandSeq.mkString(" ")
+        val bashFile = new File(dir, s"${outputMakefile.getName}.make.sh")
+        val bashWriter = new FileWriter(bashFile)
+	bashWriter.write("printenv;" + commandString)
+	bashWriter.close()
+	Seq("cmd", "/c", "\"", "set", "&&", "bash", bashFile.getPath.replace('\\', '/'), "\"")
+    } else {
+        commandSeq
+    }
   }
 
   def executeExpectingFailure(
