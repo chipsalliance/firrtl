@@ -139,13 +139,12 @@ class ReplSeqMem extends Transform with ProvidesOptions {
     }
   }
 
-  def provideOptions = (parser: OptionParser[ComposableAnnotationOptions]) => parser
+  def provideOptions = (parser: OptionParser[AnnotationSeq]) => parser
     .opt[String]("repl-seq-mem")
     .abbr("frsq")
     .valueName ("-c:<circuit>:-i:<filename>:-o:<filename>")
-    .action( (x, c) => c.copy(
-              annotations = c.annotations :+ passes.memlib.ReplSeqMemAnnotation.parse(x),
-              customTransforms = c.customTransforms :+ new passes.memlib.ReplSeqMem) )
+    .action( (x, c) => c ++ Seq(passes.memlib.ReplSeqMemAnnotation.parse(x),
+                                RunFirrtlTransformAnnotation(new ReplSeqMem().getClass.getName)) )
     .maxOccurs(1)
     .text("Replace sequential memories with blackboxes + configuration file")
 

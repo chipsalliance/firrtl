@@ -137,16 +137,16 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
     "various annotations can be created from command line, currently:" - {
       "inline annotation" in {
         val inlines = List("module", "module.submodule", "module.submodule.instance")
-        val optionsManager = new ExecutionOptionsManager(
-          "test",
-          Array("--top-name", "null", "--inline") :+ inlines.mkString(",") ) with HasFirrtlOptions
+        val args = Array(Array("--top-name", "null"), Array("--inline", inlines.mkString(",")))
+        val optionsManager = new ExecutionOptionsManager("test", args.flatMap(x=>x)) with HasFirrtlOptions
 
         val firrtlOptions = optionsManager.firrtlOptions
         val addedAnnotations = inlines.map(i => InlineAnnotation(AnnotationUtils.toNamed(i))).toSet
-        val expectedAnnotations = defaultAnnotations ++ addedAnnotations ++ Set(TopNameAnnotation("null"))
+        val expectedAnnotations = defaultAnnotations ++ addedAnnotations ++
+          Set(TopNameAnnotation("null"), RunFirrtlTransformAnnotation(new InlineInstances().getClass.getName))
 
-        // The `+1` comes from the `--top-name`
-        firrtlOptions.annotations.length should be (defaultAnnotations.size + inlines.size + 1)
+        // The `+1` comes from the run transform annotation
+        firrtlOptions.annotations.length should be (defaultAnnotations.size + inlines.size + args.dropRight(1).size + 1)
         firrtlOptions.annotations.toSet should be (expectedAnnotations)
       }
       "infer-rw annotation" in {
@@ -154,9 +154,12 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
         val optionsManager = new ExecutionOptionsManager("test", args.flatMap(x => x) ) with HasFirrtlOptions
 
         val firrtlOptions = optionsManager.firrtlOptions
-        firrtlOptions.annotations.length should be (defaultAnnotations.size + args.size)
+        // The `+` comes from the run firrtl transform annotation
+        firrtlOptions.annotations.length should be (defaultAnnotations.size + args.size + 1)
 
-        val expectedAnnotations = defaultAnnotations ++ Set(InferReadWriteAnnotation, TopNameAnnotation("null"))
+        val expectedAnnotations = defaultAnnotations ++
+          Set(InferReadWriteAnnotation, TopNameAnnotation("null"),
+              RunFirrtlTransformAnnotation(new InferReadWrite().getClass.getName))
         firrtlOptions.annotations.toSet should be (expectedAnnotations)
       }
       "repl-seq-mem annotation" in {
@@ -164,10 +167,12 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
         val optionsManager = new ExecutionOptionsManager("test", args.flatMap(x => x)) with HasFirrtlOptions
 
         val firrtlOptions = optionsManager.firrtlOptions
-        firrtlOptions.annotations.length should be (defaultAnnotations.size + args.size)
+        // The `+1 comes from the run firrtl transform annotation
+        firrtlOptions.annotations.length should be (defaultAnnotations.size + args.size + 1)
 
-        val expectedAnnotations = defaultAnnotations ++ Set(ReplSeqMemAnnotation("infile1", "outfile1"),
-                                                            TopNameAnnotation("null"))
+        val expectedAnnotations = defaultAnnotations ++
+          Set(ReplSeqMemAnnotation("infile1", "outfile1"),TopNameAnnotation("null"),
+              RunFirrtlTransformAnnotation(new ReplSeqMem().getClass.getName))
         firrtlOptions.annotations.toSet should be (expectedAnnotations)
       }
     }
@@ -314,7 +319,8 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
     val annosInFile = JsonProtocol.deserialize(annoFile)
 
     val firrtlOptions = optionsManager.firrtlOptions
-    firrtlOptions.annotations.length should be (defaultAnnotations.size + annosInFile.size + args.size) // infer-rw
+    // The `+1` comes from the run firrtl transform annotation
+    firrtlOptions.annotations.length should be (defaultAnnotations.size + annosInFile.size + args.size + 1)
 
     val anns = Driver.getAnnotations(optionsManager)
     anns should contain (BlackBoxTargetDirAnno(".")) // built in to getAnnotations

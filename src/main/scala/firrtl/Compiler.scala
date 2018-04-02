@@ -12,9 +12,6 @@ import firrtl.annotations._  // Note that wildcard imports are not great....
 import firrtl.ir.Circuit
 import firrtl.Utils.{error, throwInternalError}
 
-/** Run a stringly-typed Transform */
-case class RunFirrtlTransformAnnotation(value: String) extends SingleStringAnnotation
-
 object RenameMap {
   def apply(map: Map[Named, Seq[Named]]) = {
     val rm = new RenameMap
@@ -485,5 +482,5 @@ trait Compiler extends LazyLogging {
 
 trait ProvidesOptions {
   self: Transform =>
-  def provideOptions: (OptionParser[ComposableAnnotationOptions]) => Unit
+  def provideOptions: (OptionParser[AnnotationSeq]) => Unit
 }

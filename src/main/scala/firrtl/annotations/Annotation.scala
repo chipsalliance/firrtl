@@ -5,7 +5,6 @@ package annotations
 
 import net.jcazevedo.moultingyaml._
 import firrtl.annotations.AnnotationYamlProtocol._
-import firrtl.ComposableAnnotationOptions
 import scopt.OptionParser
 
 case class AnnotationException(message: String) extends Exception(message)

@@ -143,7 +143,7 @@ class InlineInstances extends Transform with ProvidesOptions {
     CircuitState(flatCircuit, LowForm, annos, None)
   }
 
-  def provideOptions = (parser: OptionParser[ComposableAnnotationOptions]) => parser
+  def provideOptions = (parser: OptionParser[AnnotationSeq]) => parser
     .opt[Seq[String]]("inline")
     .abbr("fil")
     .valueName ("<circuit>[.<module>[.<instance>]][,..],")
@@ -158,8 +158,7 @@ class InlineInstances extends Transform with ProvidesOptions {
                     InlineAnnotation(ComponentName(inst, ModuleName(module, CircuitName(circuit))))
                 }
               }
-              c.copy(annotations = c.annotations ++ newAnnotations,
-                     customTransforms = c.customTransforms :+ new InlineInstances) })
+              c ++ newAnnotations :+ RunFirrtlTransformAnnotation(new InlineInstances().getClass.getName) } )
     .text(
       """Inline one or more module (comma separated, no spaces) module looks like "MyModule" or "MyModule.myinstance""")
 }

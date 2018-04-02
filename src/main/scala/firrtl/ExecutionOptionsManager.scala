@@ -19,9 +19,6 @@ import java.io.File
 import net.jcazevedo.moultingyaml._
 import firrtl.annotations.AnnotationYamlProtocol._
 
-final case class ComposableAnnotationOptions( annotations: AnnotationSeq = List.empty,
-                                              customTransforms: Seq[Transform] = List.empty )
-
 /**
   * Use this trait to define an options class that can add its private command line options to a externally
   * declared parser.
@@ -31,7 +28,7 @@ final case class ComposableAnnotationOptions( annotations: AnnotationSeq = List.
 trait ComposableOptions
 
 class HasParser(applicationName: String) {
-  final val parser = new OptionParser[ComposableAnnotationOptions](applicationName) {
+  final val parser = new OptionParser[AnnotationSeq](applicationName) {
     var terminateOnExit = true
     override def terminate(exitState: Either[String, Unit]): Unit = {
       if(terminateOnExit) sys.exit(0)
@@ -176,13 +173,14 @@ case class InfoModeAnnotation(value: String) extends SingleStringAnnotation with
 case class FirrtlSourceAnnotation(value: String) extends SingleStringAnnotation with FirrtlOption
 case class InputAnnotationFileAnnotation(file: String) extends NoTargetAnnotation with FirrtlOption
 case class CompilerNameAnnotation(value: String) extends SingleStringAnnotation with FirrtlOption
+case class RunFirrtlTransformAnnotation(value: String) extends SingleStringAnnotation with FirrtlOption
 
 trait HasFirrtlOptions {
   self: ExecutionOptionsManager =>
 
   lazy val firrtlOptions = {
     println("---------------------------------------- options")
-    options.annotations.foreach( x => println(s"[info]  - $x") )
+    options.foreach( x => println(s"[info]  - $x") )
 
     /** Set default annotations */
     def addDefaults(annotations: AnnotationSeq): AnnotationSeq = {
@@ -201,10 +199,10 @@ trait HasFirrtlOptions {
         (if (addTopName)     Seq(TopNameAnnotation(ExecutionUtils.Early.topName(annotations))) else Seq() )
     }
 
-    val options1 = options.copy(annotations = addDefaults(options.annotations))
+    val options1: AnnotationSeq = addDefaults(options)
 
     println("---------------------------------------- options1 (with defaults)")
-    options1.annotations.foreach( x => println(s"[info]  - $x") )
+    options1.foreach( x => println(s"[info]  - $x") )
 
     /** Add the implicit annotaiton file annotation if such a file exists */
     def addImplicitAnnotations(annotations: AnnotationSeq): AnnotationSeq = annotations.toList ++ (
@@ -222,10 +220,10 @@ trait HasFirrtlOptions {
             }
         } )
 
-    val options2 = options1.copy(annotations = addImplicitAnnotations(options1.annotations))
+    val options2: AnnotationSeq = addImplicitAnnotations(options1)
 
     // println("---------------------------------------- options2 (with implicit annotation file)")
-    // options2.annotations.foreach( x => println(s"[info]  - $x") )
+    // options2.foreach( x => println(s"[info]  - $x") )
 
     /* Pull in whatever the user tells us to from files until we can't find
      * any more. Remember what we've already imported to prevent a
@@ -245,10 +243,10 @@ trait HasFirrtlOptions {
                    Seq(a)
                })
 
-    val options3 = options2.copy(annotations = getIncludes(options2.annotations))
+    val options3: AnnotationSeq = getIncludes(options2)
 
     // println("---------------------------------------- options3 (with all annotation files included)")
-    // options3.annotations.foreach( x => println(s"[info]  - $x") )
+    // options3.foreach( x => println(s"[info]  - $x") )
 
     def getEmitterAnnotations(compiler: String): Seq[Annotation] = {
       val emitter = compiler match {
@@ -261,11 +259,11 @@ trait HasFirrtlOptions {
       Seq(EmitterAnnotation(emitter))
     }
 
-    val options4 = options3.annotations
+    val options4: FirrtlOptions = options3
       .collect{ case opt: FirrtlOption => opt }
       .foldLeft(FirrtlOptions(
-                  customTransforms = options3.customTransforms ++ ExecutionUtils.annotationsToTransforms(options3.annotations),
-                  annotations = options3.annotations.toList)){
+                  customTransforms = ExecutionUtils.annotationsToTransforms(options3),
+                  annotations = options3.toList)){
         case (old, x) => x match {
           case InputFileAnnotation(f) => old.copy(inputFileNameOverride = Some(f))
           case OutputFileAnnotation(f) => old.copy(outputFileNameOverride = Some(f))
@@ -283,13 +281,15 @@ trait HasFirrtlOptions {
           case _: LogToFileAnnotation => old.copy(logToFile = true)
           case _: LogClassNamesAnnotation => old.copy(logClassNames = true)
           case ProgramArgsAnnotation(s) => old.copy(programArgs = old.programArgs :+ s)
+            // [todo] this is a kludge, the transform should really be extracted here
+          case t: RunFirrtlTransformAnnotation => old
         }
       }
 
     // println("---------------------------------------- options4 (with annotations converted to transforms)")
-    // options4.annotations.foreach( x => println(s"[info]  - $x") )
+    // options4.foreach( x => println(s"[info]  - $x") )
 
-    val options5 = options4.copy(annotations = LegacyAnnotation.convertLegacyAnnos(options4.annotations).toList)
+    val options5: FirrtlOptions = options4.copy(annotations = LegacyAnnotation.convertLegacyAnnos(options4.annotations).toList)
 
     println("---------------------------------------- options5 (converting LegacyAnnotations)")
     options5.annotations.foreach( x => println(s"[info]  - $x") )
@@ -302,21 +302,21 @@ trait HasFirrtlOptions {
   parser.opt[String]("top-name")
     .abbr("tn")
     .valueName("<top-level-circuit-name>")
-    .action( (x, c) => c.copy(annotations = c.annotations :+ TopNameAnnotation(x)) )
+    .action( (x, c) => c :+ TopNameAnnotation(x) )
     .maxOccurs(1)
     .text("This options defines the top level circuit, defaults to dut when possible")
 
   parser.opt[String]("target-dir")
     .abbr("td")
     .valueName("<target-directory>")
-    .action( (x, c) => c.copy(annotations = c.annotations ++ Seq(TargetDirAnnotation(x), BlackBoxTargetDirAnno(x)) ) )
+    .action( (x, c) => c ++ Seq(TargetDirAnnotation(x), BlackBoxTargetDirAnno(x)) )
     .maxOccurs(1)
     .text(s"This options defines a work directory for intermediate files and blackboxes, default is ${FirrtlOptions().targetDirName}")
 
   parser.opt[String]("log-level")
     .abbr("ll")
     .valueName("<Error|Warn|Info|Debug|Trace>")
-    .action( (x, c) => c.copy(annotations = c.annotations :+ LogLevelAnnotation(LogLevel(x))) )
+    .action( (x, c) => c :+ LogLevelAnnotation(LogLevel(x)) )
     .validate( x =>
       if (Array("error", "warn", "info", "debug", "trace").contains(x.toLowerCase)) parser.success
       else parser.failure(s"$x bad value must be one of error|warn|info|debug|trace") )
@@ -326,31 +326,29 @@ trait HasFirrtlOptions {
   parser.opt[Seq[String]]("class-log-level")
     .abbr("cll")
     .valueName("<FullClassName:[Error|Warn|Info|Debug|Trace]>[,...]")
-    .action( (x, c) => {
-              val annosx = x.map { y =>
+    .action( (x, c) => c ++ (x.map { y =>
                 val className :: levelName :: _ = y.split(":").toList
                 val level = LogLevel(levelName)
-                ClassLogLevelAnnotation(className, level) }
-              c.copy(annotations = c.annotations ++ annosx) } )
+                ClassLogLevelAnnotation(className, level) }) )
     .maxOccurs(1)
     .text(s"This options defines a work directory for intermediate files, default is ${FirrtlOptions().targetDirName}")
 
   parser.opt[Unit]("log-to-file")
     .abbr("ltf")
-    .action( (x, c) => c.copy(annotations = c.annotations :+ LogToFileAnnotation()) )
+    .action( (x, c) => c :+ LogToFileAnnotation() )
     .maxOccurs(1)
     .text(s"default logs to stdout, this flags writes to topName.log or firrtl.log if no topName")
 
   parser.opt[Unit]("log-class-names")
     .abbr("lcn")
-    .action( (x, c) => c.copy(annotations = c.annotations :+ LogClassNamesAnnotation()) )
+    .action( (x, c) => c :+ LogClassNamesAnnotation() )
     .maxOccurs(1)
     .text(s"shows class names and log level in logging output, useful for target --class-log-level")
 
   parser.arg[String]("<arg>...")
     .unbounded()
     .optional()
-    .action( (x, c) => c.copy(annotations = c.annotations :+ ProgramArgsAnnotation(x)) )
+    .action( (x, c) => c :+ ProgramArgsAnnotation(x) )
     .text("optional unbounded args")
 
   parser.note("FIRRTL Compiler Options")
@@ -358,14 +356,14 @@ trait HasFirrtlOptions {
   parser.opt[String]("input-file")
     .abbr("i")
     .valueName ("<firrtl-source>")
-    .action( (x, c) => c.copy(annotations = c.annotations :+ InputFileAnnotation(x)) )
+    .action( (x, c) => c :+ InputFileAnnotation(x) )
     .maxOccurs(1)
     .text("use this to override the default input file name, default is empty")
 
   parser.opt[String]("output-file")
     .abbr("o")
     .valueName("<output>")
-    .action( (x, c) => c.copy(annotations = c.annotations :+ OutputFileAnnotation(x)) )
+    .action( (x, c) => c :+ OutputFileAnnotation(x) )
     .maxOccurs(1)
     .text("use this to override the default output file name, default is empty")
 
@@ -374,7 +372,7 @@ trait HasFirrtlOptions {
     .abbr("faf")
     .unbounded()
     .valueName("<input-anno-file>")
-    .action( (x, c) => c.copy(annotations = c.annotations :+ InputAnnotationFileAnnotation(x)) )
+    .action( (x, c) => c :+ InputAnnotationFileAnnotation(x) )
     .text("Used to specify annotation file")
 
   parser.opt[Unit]("force-append-anno-file")
@@ -388,14 +386,14 @@ trait HasFirrtlOptions {
   parser.opt[String]("output-annotation-file")
     .abbr("foaf")
     .valueName ("<output-anno-file>")
-    .action( (x, c) => c.copy(annotations = c.annotations :+ OutputAnnotationFileAnnotation(x)) )
+    .action( (x, c) => c :+ OutputAnnotationFileAnnotation(x) )
     .maxOccurs(1)
     .text("use this to set the annotation output file")
 
   parser.opt[String]("compiler")
     .abbr("X")
     .valueName ("<high|middle|low|verilog|sverilog>")
-    .action( (x, c) => c.copy(annotations = c.annotations :+ CompilerNameAnnotation(x)) )
+    .action( (x, c) => c :+ CompilerNameAnnotation(x) )
     .maxOccurs(1)
     .validate { x =>
       if (Array("high", "middle", "low", "verilog", "sverilog").contains(x.toLowerCase)) parser.success
@@ -404,7 +402,7 @@ trait HasFirrtlOptions {
 
   parser.opt[String]("info-mode")
     .valueName ("<ignore|use|gen|append>")
-    .action( (x, c) => c.copy(annotations = c.annotations :+ InfoModeAnnotation(x.toLowerCase)) )
+    .action( (x, c) => c :+ InfoModeAnnotation(x.toLowerCase) )
     .maxOccurs(1)
     .validate( x =>
       if (Array("ignore", "use", "gen", "append").contains(x.toLowerCase)) parser.success
@@ -413,7 +411,7 @@ trait HasFirrtlOptions {
 
   parser.opt[String]("firrtl-source")
     .valueName ("A FIRRTL string")
-    .action( (x, c) => c.copy(annotations = c.annotations :+ FirrtlSourceAnnotation(x)) )
+    .action( (x, c) => c :+ FirrtlSourceAnnotation(x) )
     .maxOccurs(1)
     .text(s"A FIRRTL circuit as a string")
 
@@ -428,25 +426,22 @@ trait HasFirrtlOptions {
                     case e: InstantiationException => throw new FIRRTLException(s"Unable to create instance of Transform $x (is this an anonymous class?)", e)
                     case e: Throwable => throw new FIRRTLException(s"Unknown error when instantiating class $x", e) } )
                 parser.success } )
-    .action( (x, c) => c.copy(customTransforms = c.customTransforms ++
-                                x.map( xx => {
-                                        Class.forName(xx).asInstanceOf[Class[_ <: Transform]].newInstance()
-                                      })) )
+    .action( (x, c) => c ++ x.map(RunFirrtlTransformAnnotation(_)) )
     .text("runs these custom transforms during compilation.")
 
   parser.opt[Unit]("split-modules")
     .abbr("fsm")
-    .action( (x, c) => c.copy(annotations = c.annotations :+ EmitOneFilePerModuleAnnotation) )
+    .action( (x, c) => c :+ EmitOneFilePerModuleAnnotation )
     .maxOccurs(1)
     .text ("Emit each module to its own file in the target directory.")
 
   parser.opt[Unit]("no-check-comb-loops")
-    .action( (x, c) => c.copy(annotations = c.annotations :+ DontCheckCombLoopsAnnotation) )
+    .action( (x, c) => c :+ DontCheckCombLoopsAnnotation )
     .maxOccurs(1)
     .text("Do NOT check for combinational loops (not recommended)")
 
   parser.opt[Unit]("no-dce")
-    .action( (x, c) => c.copy(annotations = c.annotations :+ NoDCEAnnotation) )
+    .action( (x, c) => c :+ NoDCEAnnotation )
     .maxOccurs(1)
     .text("Do NOT run dead code elimination")
 
@@ -457,7 +452,7 @@ trait HasFirrtlOptions {
 
   parser.checkConfig{ c =>
     var Seq(hasTopName, hasInputFile, hasOneFilePerModule, hasOutputFile, hasFirrtlSource) = Seq.fill(5)(false)
-    c.annotations.foreach(
+    c.foreach(
       _ match {
         case TopNameAnnotation(_)           => hasTopName          = true
         case InputFileAnnotation(_)         => hasInputFile        = true
@@ -519,8 +514,8 @@ case class FirrtlExecutionFailure(message: String) extends FirrtlExecutionResult
 class ExecutionOptionsManager(val applicationName: String, args: Array[String])
     extends HasParser(applicationName) with HasFirrtlOptions {
 
-  lazy val options: ComposableAnnotationOptions = parser
-    .parse(args, ComposableAnnotationOptions())
+  lazy val options: AnnotationSeq = parser
+    .parse(args, AnnotationSeq(Seq.empty))
     .getOrElse(throw new FIRRTLException("Failed to parse command line options"))
 
   lazy val topName: Option[String] = firrtlOptions.topName
@@ -570,7 +565,7 @@ object ExecutionUtils {
     *
     * @todo: to prevent inordinate slowdown, this ignores classes in the
     * ".ivy2" directory. We need a better solution of what to search. */
-  def generateAnnotationOptions(parser: OptionParser[ComposableAnnotationOptions]): Unit = {
+  def generateAnnotationOptions(parser: OptionParser[AnnotationSeq]): Unit = {
     val files = getClass.getClassLoader.asInstanceOf[URLClassLoader].getURLs
       .filterNot(_.toString.contains(".ivy2"))
       .map(x => new File(x.getFile))

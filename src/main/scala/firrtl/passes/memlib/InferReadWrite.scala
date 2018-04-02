@@ -161,13 +161,12 @@ class InferReadWrite extends Transform with SeqTransformBased with ProvidesOptio
       state
     }
   }
-  def provideOptions = (parser: OptionParser[ComposableAnnotationOptions]) => parser
+  def provideOptions = (parser: OptionParser[AnnotationSeq]) => parser
     .opt[String]("infer-rw")
     .abbr("firw")
     .valueName ("<circuit>")
-    .action( (x, c) => c.copy(
-              annotations = c.annotations :+ InferReadWriteAnnotation,
-              customTransforms = c.customTransforms :+ new InferReadWrite) )
+    .action( (x, c) => c ++ Seq(InferReadWriteAnnotation,
+                                RunFirrtlTransformAnnotation(new InferReadWrite().getClass.getName)) )
     .maxOccurs(1)
     .text("Enable readwrite port inference for the target circuit")
 }
