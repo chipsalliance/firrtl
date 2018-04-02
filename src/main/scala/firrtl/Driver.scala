@@ -217,16 +217,17 @@ object Driver {
     * @return
     */
   def execute(args: Array[String]): FirrtlExecutionResult = {
-    val optionsManager = new ExecutionOptionsManager("firrtl", args)
-
-    execute(optionsManager) match {
-      case success: FirrtlExecutionSuccess =>
-        success
-      case failure: FirrtlExecutionFailure =>
-        optionsManager.showUsageAsError()
-        failure
-      case result =>
-        FirrtlExecutionFailure("Could not parser command line options")
+    try {
+      val optionsManager = new ExecutionOptionsManager("firrtl", args)
+      execute(optionsManager) match {
+        case success: FirrtlExecutionSuccess =>
+          success
+        case failure: FirrtlExecutionFailure =>
+          optionsManager.showUsageAsError()
+          failure
+      }
+    } catch {
+      case e: FIRRTLException => FirrtlExecutionFailure("Failed to parse command line arguments")
     }
   }
 

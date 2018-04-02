@@ -15,6 +15,7 @@ import firrtl.annotations._
 import firrtl.Utils.throwInternalError
 import firrtl.graph.{MutableDiGraph,DiGraph}
 import firrtl.analyses.InstanceGraph
+import scopt.OptionParser
 
 object CheckCombLoops {
   class CombLoopException(info: Info, mname: String, cycle: Seq[String]) extends PassException(
@@ -26,7 +27,7 @@ case object DontCheckCombLoopsAnnotation extends NoTargetAnnotation
 
 /** Finds and detects combinational logic loops in a circuit, if any
   * exist. Returns the input circuit with no modifications.
-  * 
+  *
   * @throws CombLoopException if a loop is found
   * @note Input form: Low FIRRTL
   * @note Output form: Low FIRRTL (identity transform)
@@ -34,7 +35,7 @@ case object DontCheckCombLoopsAnnotation extends NoTargetAnnotation
   * @note The pass cannot find loops that pass through ExtModules
   * @note The pass will throw exceptions on "false paths"
   */
-class CheckCombLoops extends Transform {
+class CheckCombLoops extends Transform with ProvidesOptions {
   def inputForm = LowForm
   def outputForm = LowForm
 
@@ -121,7 +122,7 @@ class CheckCombLoops extends Transform {
   private def expandInstancePaths(
     m: String,
     moduleGraphs: mutable.Map[String,DiGraph[LogicNode]],
-    moduleDeps: Map[String, Map[String,String]], 
+    moduleDeps: Map[String, Map[String,String]],
     prefix: Seq[String],
     path: Seq[LogicNode]): Seq[String] = {
     def absNodeName(prefix: Seq[String], n: LogicNode) =
@@ -165,16 +166,16 @@ class CheckCombLoops extends Transform {
    * module is converted to a netlist and analyzed locally, with its
    * subinstances represented by trivial, simplified subgraphs. The
    * overall outline of the process is:
-   * 
+   *
    * 1. Create a graph of module instance dependances
 
    * 2. Linearize this acyclic graph
-   * 
+   *
    * 3. Generate a local netlist; replace any instances with
    * simplified subgraphs representing connectivity of their IOs
-   * 
+   *
    * 4. Check for nontrivial strongly connected components
-   * 
+   *
    * 5. Create a reduced representation of the netlist with only the
    * module IOs as nodes, where output X (which must be a ground type,
    * as only low FIRRTL is supported) will have an edge to input Y if
@@ -221,4 +222,10 @@ class CheckCombLoops extends Transform {
       CircuitState(result, outputForm, state.annotations, state.renames)
     }
   }
+
+  def provideOptions = (parser: OptionParser[AnnotationSeq]) => parser
+    .opt[Unit]("no-check-comb-loops")
+    .action( (x, c) => c :+ DontCheckCombLoopsAnnotation )
+    .maxOccurs(1)
+    .text("Do NOT check for combinational loops (not recommended)")
 }

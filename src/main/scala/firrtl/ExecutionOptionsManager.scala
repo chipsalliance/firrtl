@@ -179,8 +179,8 @@ trait HasFirrtlOptions {
   self: ExecutionOptionsManager =>
 
   lazy val firrtlOptions = {
-    println("---------------------------------------- options")
-    options.foreach( x => println(s"[info]  - $x") )
+    // println("---------------------------------------- options")
+    // options.foreach( x => println(s"[info]  - $x") )
 
     /** Set default annotations */
     def addDefaults(annotations: AnnotationSeq): AnnotationSeq = {
@@ -201,8 +201,8 @@ trait HasFirrtlOptions {
 
     val options1: AnnotationSeq = addDefaults(options)
 
-    println("---------------------------------------- options1 (with defaults)")
-    options1.foreach( x => println(s"[info]  - $x") )
+    // println("---------------------------------------- options1 (with defaults)")
+    // options1.foreach( x => println(s"[info]  - $x") )
 
     /** Add the implicit annotaiton file annotation if such a file exists */
     def addImplicitAnnotations(annotations: AnnotationSeq): AnnotationSeq = annotations.toList ++ (
@@ -259,31 +259,38 @@ trait HasFirrtlOptions {
       Seq(EmitterAnnotation(emitter))
     }
 
+    val nonFirrtlOptionsAnnotations = options3.filter{
+      case opt: FirrtlOption => false
+      case _ => true }
+
     val options4: FirrtlOptions = options3
       .collect{ case opt: FirrtlOption => opt }
-      .foldLeft(FirrtlOptions(
-                  annotations = options3.toList)){
-        case (old, x) => x match {
-          case InputFileAnnotation(f) => old.copy(inputFileNameOverride = Some(f))
-          case OutputFileAnnotation(f) => old.copy(outputFileNameOverride = Some(f))
-          case OutputAnnotationFileAnnotation(f) => old.copy(outputAnnotationFileName = Some(f))
-          case InfoModeAnnotation(i) => old.copy(infoModeName = i)
-          case FirrtlSourceAnnotation(s) => old.copy(firrtlSource = Some(s))
-          case EmitOneFilePerModuleAnnotation => old.copy(emitOneFilePerModule = true)
-          case InputAnnotationFileAnnotation(f) => old
-          case CompilerNameAnnotation(c) => old.copy(compilerName = c,
-                                                     annotations = old.annotations ++ getEmitterAnnotations(c))
-          case TopNameAnnotation(name) => old.copy(topName = Some(name))
-          case TargetDirAnnotation(dir) => old.copy(targetDirName = dir)
-          case LogLevelAnnotation(level) => old.copy(globalLogLevel = level)
-          case ClassLogLevelAnnotation(name, level) => old.copy(classLogLevels = old.classLogLevels ++ Map(name -> level))
-          case _: LogToFileAnnotation => old.copy(logToFile = true)
-          case _: LogClassNamesAnnotation => old.copy(logClassNames = true)
-          case ProgramArgsAnnotation(s) => old.copy(programArgs = old.programArgs :+ s)
+      .foldLeft(FirrtlOptions(annotations = nonFirrtlOptionsAnnotations.toList)){
+        case (old, x) =>
+          val processed = x match {
+            case InputFileAnnotation(f) => old.copy(inputFileNameOverride = Some(f))
+            case OutputFileAnnotation(f) => old.copy(outputFileNameOverride = Some(f))
+            case OutputAnnotationFileAnnotation(f) => old.copy(outputAnnotationFileName = Some(f))
+            case InfoModeAnnotation(i) => old.copy(infoModeName = i)
+            case FirrtlSourceAnnotation(s) => old.copy(firrtlSource = Some(s))
+            case EmitOneFilePerModuleAnnotation => old.copy(emitOneFilePerModule = true)
+            case InputAnnotationFileAnnotation(f) => old
+            case CompilerNameAnnotation(c) => old.copy(compilerName = c,
+                                                       annotations = old.annotations ++ getEmitterAnnotations(c))
+            case TopNameAnnotation(name) => old.copy(topName = Some(name))
+            case TargetDirAnnotation(dir) => old.copy(targetDirName = dir)
+            case LogLevelAnnotation(level) => old.copy(globalLogLevel = level)
+            case ClassLogLevelAnnotation(name, level) => old.copy(classLogLevels = old.classLogLevels ++ Map(name -> level))
+            case _: LogToFileAnnotation => old.copy(logToFile = true)
+            case _: LogClassNamesAnnotation => old.copy(logClassNames = true)
+            case ProgramArgsAnnotation(s) => old.copy(programArgs = old.programArgs :+ s)
             // [todo] this is a kludge, the transform should really be extracted here
-          case RunFirrtlTransformAnnotation(x) => old.copy(
-            customTransforms = old.customTransforms :+ Class.forName(x).asInstanceOf[Class[_<:Transform]].newInstance())
-        }
+            case RunFirrtlTransformAnnotation(x) => old.copy(
+              customTransforms = old.customTransforms :+ Class.forName(x).asInstanceOf[Class[_<:Transform]].newInstance())
+          }
+          // [todo] Delete FirrtlOptions annotations here
+          processed
+            .copy(annotations = processed.annotations :+ x)
       }
 
     // println("---------------------------------------- options4 (with annotations converted to transforms)")
@@ -351,6 +358,8 @@ trait HasFirrtlOptions {
     .action( (x, c) => c :+ ProgramArgsAnnotation(x) )
     .text("optional unbounded args")
 
+  parser.help("help").text("prints this usage text")
+
   parser.note("FIRRTL Compiler Options")
 
   parser.opt[String]("input-file")
@@ -367,7 +376,6 @@ trait HasFirrtlOptions {
     .maxOccurs(1)
     .text("use this to override the default output file name, default is empty")
 
-  /* [todo] deprecated */
   parser.opt[String]("annotation-file")
     .abbr("faf")
     .unbounded()
@@ -435,20 +443,8 @@ trait HasFirrtlOptions {
     .maxOccurs(1)
     .text ("Emit each module to its own file in the target directory.")
 
-  parser.opt[Unit]("no-check-comb-loops")
-    .action( (x, c) => c :+ DontCheckCombLoopsAnnotation )
-    .maxOccurs(1)
-    .text("Do NOT check for combinational loops (not recommended)")
-
-  parser.opt[Unit]("no-dce")
-    .action( (x, c) => c :+ NoDCEAnnotation )
-    .maxOccurs(1)
-    .text("Do NOT run dead code elimination")
-
   parser.note("FIRRTL Transform Options")
   ExecutionUtils.generateAnnotationOptions(parser)
-
-  parser.help("help").text("prints this usage text")
 
   parser.checkConfig{ c =>
     var Seq(hasTopName, hasInputFile, hasOneFilePerModule, hasOutputFile, hasFirrtlSource) = Seq.fill(5)(false)
@@ -514,7 +510,7 @@ case class FirrtlExecutionFailure(message: String) extends FirrtlExecutionResult
 class ExecutionOptionsManager(val applicationName: String, args: Array[String])
     extends HasParser(applicationName) with HasFirrtlOptions {
 
-  lazy val options: AnnotationSeq = parser
+  val options: AnnotationSeq = parser
     .parse(args, AnnotationSeq(Seq.empty))
     .getOrElse(throw new FIRRTLException("Failed to parse command line options"))
 
