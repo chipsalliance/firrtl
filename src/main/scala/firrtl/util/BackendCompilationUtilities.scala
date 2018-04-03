@@ -3,7 +3,7 @@
 package firrtl.util
 
 import java.io._
-import java.nio.file.{Files, Path}
+import java.nio.file.{Files, Path, Paths}
 import java.text.SimpleDateFormat
 import java.util.{Calendar, Locale}
 
@@ -59,6 +59,7 @@ object BackendCompilationUtilities {
       // We don't know what the rest require at the moment.
     case _ => "-shared"
   }
+
   /** Extra libraries to be loaded with a shared library.
     *
     */
@@ -68,17 +69,17 @@ object BackendCompilationUtilities {
   /**
     * The include paths required to compile JNI C code.
     * This can be turned into C/C++ flags via something like:
-    * includePathsJNI.map("-I" + _.toString).mkString(" ")
-    * @return Seq[Path]
+    * includePathsJNI.map("-I" + _).mkString(" ")
+    * @return Seq[String]
     */
-  lazy val includePathsJNI: Seq[Path] = {
+  lazy val includePathsJNI: Seq[String] = {
     val javaHome = System.getProperty("java.home")
     // Find the OS-specific sub-directory (and any others)
     val includeDir = new File(new File(javaHome).getParentFile, "include")
     val subDirs = if (includeDir.exists() && includeDir.isDirectory) {
-      includeDir.listFiles.filter(_.isDirectory).map(_.toPath).toSeq
+      includeDir.listFiles.filter(_.isDirectory).map(f => getPosixCompatibleAbsolutePath(f.getAbsolutePath)).toSeq
     } else {
-      Seq[Path]()
+      Seq[String]()
     }
     // Sort any sub-directories so the OS-specific one comes first.
     val subDirOS = osVersion match {
@@ -88,7 +89,7 @@ object BackendCompilationUtilities {
       case SunOS => "sunos"
       case _ => ""
     }
-    def sortByOSSubDir(a: Path, b: Path): Boolean = {
+    def sortByOSSubDir(a: String, b: String): Boolean = {
       if (a.endsWith(subDirOS))
         true
       else if (b.endsWith(subDirOS))
@@ -96,7 +97,7 @@ object BackendCompilationUtilities {
       else
         a.toString <= b.toString
     }
-    Seq(includeDir.toPath) ++ (subDirs sortWith sortByOSSubDir)
+    Seq(getPosixCompatibleAbsolutePath(includeDir.getAbsolutePath)) ++ (subDirs sortWith sortByOSSubDir)
   }
 
   /** A function to generate Posix compatible paths.
@@ -228,9 +229,9 @@ trait BackendCompilationUtilities {
     if (osVersion == OSVersion.Windows) {
       val bashFile = new File(dir, s"${dutFile}.sh")
       val bashWriter = new FileWriter(bashFile)
-    	bashWriter.write("printenv;" + commandString)
+    	bashWriter.write(commandString)
     	bashWriter.close()
-    	Seq("cmd", "/c", "\"", "set", "&&", "bash", getPosixCompatibleAbsolutePath(bashFile.getPath), "\"")
+    	Seq("cmd", "/c", "\"", "bash", getPosixCompatibleAbsolutePath(bashFile.getPath), "\"")
     } else {
       command
     }
@@ -242,9 +243,9 @@ trait BackendCompilationUtilities {
       val commandString = commandSeq.mkString(" ")
       val bashFile = new File(dir, s"M${prefix}.mk.sh")
       val bashWriter = new FileWriter(bashFile)
-	    bashWriter.write("printenv;" + commandString)
+	    bashWriter.write(commandString)
 	    bashWriter.close()
-	    Seq("cmd", "/c", "\"", "set", "&&", "bash", getPosixCompatibleAbsolutePath(bashFile.getPath), "\"")
+	    Seq("cmd", "/c", "\"", "bash", getPosixCompatibleAbsolutePath(bashFile.getPath), "\"")
     } else {
       commandSeq
     }
@@ -279,7 +280,7 @@ trait BackendCompilationUtilities {
     }
     out.write("")
     // Add lines to cover generic cpp compilation
-    val JNI_CPPFLAGS = includePathsJNI.map("-I" + _.toString).mkString(" ")
+    val JNI_CPPFLAGS = includePathsJNI.map("-I\"" + _ + "\"").mkString(" ")
     out.write(s"LIBS += ${sharedLibraryLibraries}\n")
     out.write(s"CXXFLAGS += ${JNI_CPPFLAGS} ${sharedLibraryFlags}\n")
     out.write(extraDependencies + ": %.o : %.cpp\n\techo $(PATH)\n\t$(CXX) $(CXXFLAGS) $(CPPFLAGS) $(OPT_FAST) -c -o $@ $<\n")
@@ -302,9 +303,9 @@ trait BackendCompilationUtilities {
       val commandString = commandSeq.mkString(" ")
       val bashFile = new File(dir, s"${outputMakefile.getName}.make.sh")
       val bashWriter = new FileWriter(bashFile)
-	    bashWriter.write("printenv;" + commandString)
+	    bashWriter.write(commandString)
 	    bashWriter.close()
-	    Seq("cmd", "/c", "\"", "set", "&&", "bash", getPosixCompatibleAbsolutePath(bashFile.getPath), "\"")
+	    Seq("cmd", "/c", "\"", "bash", getPosixCompatibleAbsolutePath(bashFile.getPath), "\"")
     } else {
       commandSeq
     }
