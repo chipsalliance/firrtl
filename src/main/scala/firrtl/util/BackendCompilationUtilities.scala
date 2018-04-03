@@ -98,6 +98,17 @@ object BackendCompilationUtilities {
     }
     Seq(includeDir.toPath) ++ (subDirs sortWith sortByOSSubDir)
   }
+
+  /** A function to generate Posix compatible paths.
+    * @param path - a string possibly containing Windows path delimiters,
+    * @return - a string with '/' delimiters.
+    */
+  def getPosixCompatibleAbsolutePath(path: String): String = {
+    if (osVersion == Windows)
+      path.replace('\\', '/')
+    else
+      path
+  }
 }
 
 trait BackendCompilationUtilities {
@@ -184,18 +195,19 @@ trait BackendCompilationUtilities {
     val blackBoxVerilogList = {
       val list_file = new File(dir, firrtl.transforms.BlackBoxSourceHelper.FileListName)
       if(list_file.exists()) {
-        Seq("-f", list_file.getAbsolutePath.replace('\\', '/'))
+        Seq("-f", getPosixCompatibleAbsolutePath(list_file.getAbsolutePath))
       }
       else {
         Seq.empty[String]
       }
     }
+    val quoteDelimiter = if (osVersion == OSVersion.Windows) "'" else ""
     val command = Seq(
       "verilator",
-      "--cc", s"${dir.getAbsolutePath.replace('\\', '/')}/$dutFile.v"
+      "--cc", s"${getPosixCompatibleAbsolutePath(dir.getAbsolutePath)}/$dutFile.v"
     ) ++
       blackBoxVerilogList ++
-      vSources.flatMap(file => Seq("-v", file.getAbsolutePath.replace('\\', '/'))) ++
+      vSources.flatMap(file => Seq("-v", getPosixCompatibleAbsolutePath(file.getAbsolutePath))) ++
       Seq("--assert",
         "-Wno-fatal",
         "-Wno-WIDTH",
@@ -207,34 +219,34 @@ trait BackendCompilationUtilities {
         s"+define+PRINTF_COND='!$topModule.reset'",
         s"+define+STOP_COND='!$topModule.reset'",
         "-CFLAGS",
-        s"'-Wno-undefined-bool-conversion -O1 -DTOP_TYPE=V$dutFile -DVL_USER_FINISH -include V$dutFile.h'",
-        "-Mdir", dir.getAbsolutePath.replace('\\', '/'),
-        "--exe", cppHarness.getAbsolutePath.replace('\\', '/'))
+        s"""${quoteDelimiter}-Wno-undefined-bool-conversion -O1 -DTOP_TYPE=V$dutFile -DVL_USER_FINISH -include V$dutFile.h${quoteDelimiter}""",
+        "-Mdir", getPosixCompatibleAbsolutePath(dir.getAbsolutePath),
+        "--exe", getPosixCompatibleAbsolutePath(cppHarness.getAbsolutePath))
 
     val commandString = command.mkString(" ")
     System.out.println(s"${commandString}") // scalastyle:ignore regex
     if (osVersion == OSVersion.Windows) {
-        val bashFile = new File(dir, s"${dutFile}.sh")
-        val bashWriter = new FileWriter(bashFile)
-	bashWriter.write("printenv;" + commandString)
-	bashWriter.close()
-	Seq("cmd", "/c", "\"", "set", "&&", "bash", bashFile.getPath.replace('\\', '/'), "\"")
+      val bashFile = new File(dir, s"${dutFile}.sh")
+      val bashWriter = new FileWriter(bashFile)
+    	bashWriter.write("printenv;" + commandString)
+    	bashWriter.close()
+    	Seq("cmd", "/c", "\"", "set", "&&", "bash", getPosixCompatibleAbsolutePath(bashFile.getPath), "\"")
     } else {
-        command
+      command
     }
   }
 
   def cppToExe(prefix: String, dir: File): ProcessBuilder = {
     val commandSeq = Seq("make", "-C", dir.toString, "-j", "-f", s"V$prefix.mk", s"V$prefix")
     if (osVersion == OSVersion.Windows) {
-        val commandString = commandSeq.mkString(" ")
-        val bashFile = new File(dir, s"M${prefix}.mk.sh")
-        val bashWriter = new FileWriter(bashFile)
-	bashWriter.write("printenv;" + commandString)
-	bashWriter.close()
-	Seq("cmd", "/c", "\"", "set", "&&", "bash", bashFile.getPath.replace('\\', '/'), "\"")
+      val commandString = commandSeq.mkString(" ")
+      val bashFile = new File(dir, s"M${prefix}.mk.sh")
+      val bashWriter = new FileWriter(bashFile)
+	    bashWriter.write("printenv;" + commandString)
+	    bashWriter.close()
+	    Seq("cmd", "/c", "\"", "set", "&&", "bash", getPosixCompatibleAbsolutePath(bashFile.getPath), "\"")
     } else {
-        commandSeq
+      commandSeq
     }
   }
 
@@ -287,14 +299,14 @@ trait BackendCompilationUtilities {
     }
     val commandSeq = Seq("make", "-C", dir.toString, "-j", "-f", outputMakefile.getName, s"${shimPieces.head}.${sharedLibraryExtension}", s"V${prefix}.${sharedLibraryExtension}")
     if (osVersion == OSVersion.Windows) {
-        val commandString = commandSeq.mkString(" ")
-        val bashFile = new File(dir, s"${outputMakefile.getName}.make.sh")
-        val bashWriter = new FileWriter(bashFile)
-	bashWriter.write("printenv;" + commandString)
-	bashWriter.close()
-	Seq("cmd", "/c", "\"", "set", "&&", "bash", bashFile.getPath.replace('\\', '/'), "\"")
+      val commandString = commandSeq.mkString(" ")
+      val bashFile = new File(dir, s"${outputMakefile.getName}.make.sh")
+      val bashWriter = new FileWriter(bashFile)
+	    bashWriter.write("printenv;" + commandString)
+	    bashWriter.close()
+	    Seq("cmd", "/c", "\"", "set", "&&", "bash", getPosixCompatibleAbsolutePath(bashFile.getPath), "\"")
     } else {
-        commandSeq
+      commandSeq
     }
   }
 
