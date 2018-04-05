@@ -3,7 +3,7 @@
 package firrtl.util
 
 import java.io._
-import java.nio.file.{Files, Path}
+import java.nio.file.{Files, Path, Paths}
 import java.text.SimpleDateFormat
 import java.util.{Calendar, Locale}
 
@@ -59,6 +59,7 @@ object BackendCompilationUtilities {
       // We don't know what the rest require at the moment.
     case _ => "-shared"
   }
+
   /** Extra libraries to be loaded with a shared library.
     *
     */
@@ -68,17 +69,17 @@ object BackendCompilationUtilities {
   /**
     * The include paths required to compile JNI C code.
     * This can be turned into C/C++ flags via something like:
-    * includePathsJNI.map("-I" + _.toString).mkString(" ")
-    * @return Seq[Path]
+    * includePathsJNI.map("-I" + _).mkString(" ")
+    * @return Seq[String]
     */
-  lazy val includePathsJNI: Seq[Path] = {
+  lazy val includePathsJNI: Seq[String] = {
     val javaHome = System.getProperty("java.home")
     // Find the OS-specific sub-directory (and any others)
     val includeDir = new File(new File(javaHome).getParentFile, "include")
     val subDirs = if (includeDir.exists() && includeDir.isDirectory) {
-      includeDir.listFiles.filter(_.isDirectory).map(_.toPath).toSeq
+      includeDir.listFiles.filter(_.isDirectory).map(f => getPosixCompatibleAbsolutePath(f.getAbsolutePath)).toSeq
     } else {
-      Seq[Path]()
+      Seq[String]()
     }
     // Sort any sub-directories so the OS-specific one comes first.
     val subDirOS = osVersion match {
@@ -88,7 +89,7 @@ object BackendCompilationUtilities {
       case SunOS => "sunos"
       case _ => ""
     }
-    def sortByOSSubDir(a: Path, b: Path): Boolean = {
+    def sortByOSSubDir(a: String, b: String): Boolean = {
       if (a.endsWith(subDirOS))
         true
       else if (b.endsWith(subDirOS))
@@ -96,7 +97,18 @@ object BackendCompilationUtilities {
       else
         a.toString <= b.toString
     }
-    Seq(includeDir.toPath) ++ (subDirs sortWith sortByOSSubDir)
+    Seq(getPosixCompatibleAbsolutePath(includeDir.getAbsolutePath)) ++ (subDirs sortWith sortByOSSubDir)
+  }
+
+  /** A function to generate Posix compatible paths.
+    * @param path - a string possibly containing Windows path delimiters,
+    * @return - a string with '/' delimiters.
+    */
+  def getPosixCompatibleAbsolutePath(path: String): String = {
+    if (osVersion == Windows)
+      path.replace('\\', '/')
+    else
+      path
   }
 }
 
@@ -184,19 +196,19 @@ trait BackendCompilationUtilities {
     val blackBoxVerilogList = {
       val list_file = new File(dir, firrtl.transforms.BlackBoxSourceHelper.FileListName)
       if(list_file.exists()) {
-        Seq("-f", list_file.getAbsolutePath)
+        Seq("-f", getPosixCompatibleAbsolutePath(list_file.getAbsolutePath))
       }
       else {
         Seq.empty[String]
       }
     }
-
+    val quoteDelimiter = if (osVersion == OSVersion.Windows) "'" else ""
     val command = Seq(
       "verilator",
-      "--cc", s"${dir.getAbsolutePath}/$dutFile.v"
+      "--cc", s"${getPosixCompatibleAbsolutePath(dir.getAbsolutePath)}/$dutFile.v"
     ) ++
       blackBoxVerilogList ++
-      vSources.flatMap(file => Seq("-v", file.getAbsolutePath)) ++
+      vSources.flatMap(file => Seq("-v", getPosixCompatibleAbsolutePath(file.getAbsolutePath))) ++
       Seq("--assert",
         "-Wno-fatal",
         "-Wno-WIDTH",
@@ -205,21 +217,42 @@ trait BackendCompilationUtilities {
         "-O1",
         "--top-module", topModule,
         "+define+TOP_TYPE=V" + dutFile,
-        s"+define+PRINTF_COND=!$topModule.reset",
-        s"+define+STOP_COND=!$topModule.reset",
+        s"+define+PRINTF_COND='!$topModule.reset'",
+        s"+define+STOP_COND='!$topModule.reset'",
         "-CFLAGS",
-        s"""-Wno-undefined-bool-conversion -O1 -DTOP_TYPE=V$dutFile -DVL_USER_FINISH -include V$dutFile.h""",
-        "-Mdir", dir.getAbsolutePath,
-        "--exe", cppHarness.getAbsolutePath)
-    System.out.println(s"${command.mkString(" ")}") // scalastyle:ignore regex
-    command
+        s"""${quoteDelimiter}-Wno-undefined-bool-conversion -O1 -DTOP_TYPE=V$dutFile -DVL_USER_FINISH -include V$dutFile.h${quoteDelimiter}""",
+        "-Mdir", getPosixCompatibleAbsolutePath(dir.getAbsolutePath),
+        "--exe", getPosixCompatibleAbsolutePath(cppHarness.getAbsolutePath))
+
+    val commandString = command.mkString(" ")
+    System.out.println(s"${commandString}") // scalastyle:ignore regex
+    if (osVersion == OSVersion.Windows) {
+      val bashFile = new File(dir, s"${dutFile}.sh")
+      val bashWriter = new FileWriter(bashFile)
+    	bashWriter.write(commandString)
+    	bashWriter.close()
+    	Seq("cmd", "/c", "\"", "bash", getPosixCompatibleAbsolutePath(bashFile.getPath), "\"")
+    } else {
+      command
+    }
   }
 
-  def cppToExe(prefix: String, dir: File): ProcessBuilder =
-    Seq("make", "-C", dir.toString, "-j", "-f", s"V$prefix.mk", s"V$prefix")
+  def cppToExe(prefix: String, dir: File): ProcessBuilder = {
+    val commandSeq = Seq("make", "-C", dir.toString, "-j", "-f", s"V$prefix.mk", s"V$prefix")
+    if (osVersion == OSVersion.Windows) {
+      val commandString = commandSeq.mkString(" ")
+      val bashFile = new File(dir, s"M${prefix}.mk.sh")
+      val bashWriter = new FileWriter(bashFile)
+	    bashWriter.write(commandString)
+	    bashWriter.close()
+	    Seq("cmd", "/c", "\"", "bash", getPosixCompatibleAbsolutePath(bashFile.getPath), "\"")
+    } else {
+      commandSeq
+    }
+  }
 
   def cppToLib(prefix: String, dir: File, shimPieces: Seq[String], extraObjects: Seq[String] = Seq.empty): ProcessBuilder = {
-    // Add a shared library rule to the make file.
+    // Add a shared library rule to the Makefile.
     val inputMakefile = new File(dir, s"V$prefix.mk")
     val outputMakefile = new File(dir, s"V$prefix.so.mk")
     val out = new java.io.BufferedWriter( new java.io.FileWriter(outputMakefile))
@@ -247,7 +280,7 @@ trait BackendCompilationUtilities {
     }
     out.write("")
     // Add lines to cover generic cpp compilation
-    val JNI_CPPFLAGS = includePathsJNI.map("-I" + _.toString).mkString(" ")
+    val JNI_CPPFLAGS = includePathsJNI.map("-I\"" + _ + "\"").mkString(" ")
     out.write(s"LIBS += ${sharedLibraryLibraries}\n")
     out.write(s"CXXFLAGS += ${JNI_CPPFLAGS} ${sharedLibraryFlags}\n")
     out.write(extraDependencies + ": %.o : %.cpp\n\techo $(PATH)\n\t$(CXX) $(CXXFLAGS) $(CPPFLAGS) $(OPT_FAST) -c -o $@ $<\n")
@@ -265,7 +298,17 @@ trait BackendCompilationUtilities {
     for (file <- objFiles) {
       file.delete()
     }
-    Seq("make", "-C", dir.toString, "-j", "-f", outputMakefile.getName, s"${shimPieces.head}.${sharedLibraryExtension}", s"V${prefix}.${sharedLibraryExtension}")
+    val commandSeq = Seq("make", "-C", dir.toString, "-j", "-f", outputMakefile.getName, s"${shimPieces.head}.${sharedLibraryExtension}", s"V${prefix}.${sharedLibraryExtension}")
+    if (osVersion == OSVersion.Windows) {
+      val commandString = commandSeq.mkString(" ")
+      val bashFile = new File(dir, s"${outputMakefile.getName}.make.sh")
+      val bashWriter = new FileWriter(bashFile)
+	    bashWriter.write(commandString)
+	    bashWriter.close()
+	    Seq("cmd", "/c", "\"", "bash", getPosixCompatibleAbsolutePath(bashFile.getPath), "\"")
+    } else {
+      commandSeq
+    }
   }
 
   def executeExpectingFailure(
