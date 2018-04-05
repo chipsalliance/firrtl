@@ -77,7 +77,7 @@ object BackendCompilationUtilities {
     // Find the OS-specific sub-directory (and any others)
     val includeDir = new File(new File(javaHome).getParentFile, "include")
     val subDirs = if (includeDir.exists() && includeDir.isDirectory) {
-      includeDir.listFiles.filter(_.isDirectory).map(f => getPosixCompatibleAbsolutePath(f.getAbsolutePath)).toSeq
+      includeDir.listFiles.filter(_.isDirectory).map(f => getPosixCompatiblePath(f.getAbsolutePath)).toSeq
     } else {
       Seq[String]()
     }
@@ -97,14 +97,14 @@ object BackendCompilationUtilities {
       else
         a.toString <= b.toString
     }
-    Seq(getPosixCompatibleAbsolutePath(includeDir.getAbsolutePath)) ++ (subDirs sortWith sortByOSSubDir)
+    Seq(getPosixCompatiblePath(includeDir.getAbsolutePath)) ++ (subDirs sortWith sortByOSSubDir)
   }
 
   /** A function to generate Posix compatible paths.
     * @param path - a string possibly containing Windows path delimiters,
     * @return - a string with '/' delimiters.
     */
-  def getPosixCompatibleAbsolutePath(path: String): String = {
+  def getPosixCompatiblePath(path: String): String = {
     if (osVersion == Windows)
       path.replace('\\', '/')
     else
@@ -196,7 +196,7 @@ trait BackendCompilationUtilities {
     val blackBoxVerilogList = {
       val list_file = new File(dir, firrtl.transforms.BlackBoxSourceHelper.FileListName)
       if(list_file.exists()) {
-        Seq("-f", getPosixCompatibleAbsolutePath(list_file.getAbsolutePath))
+        Seq("-f", getPosixCompatiblePath(list_file.getAbsolutePath))
       }
       else {
         Seq.empty[String]
@@ -207,10 +207,10 @@ trait BackendCompilationUtilities {
     val quoteDelimiter = if (osVersion == OSVersion.Windows) "'" else ""
     val command = Seq(
       "verilator",
-      "--cc", s"${getPosixCompatibleAbsolutePath(dir.getAbsolutePath)}/$dutFile.v"
+      "--cc", s"${getPosixCompatiblePath(dir.getAbsolutePath)}/$dutFile.v"
     ) ++
       blackBoxVerilogList ++
-      vSources.flatMap(file => Seq("-v", getPosixCompatibleAbsolutePath(file.getAbsolutePath))) ++
+      vSources.flatMap(file => Seq("-v", getPosixCompatiblePath(file.getAbsolutePath))) ++
       Seq("--assert",
         "-Wno-fatal",
         "-Wno-WIDTH",
@@ -223,8 +223,8 @@ trait BackendCompilationUtilities {
         s"+define+STOP_COND='!$topModule.reset'",
         "-CFLAGS",
         s"""${quoteDelimiter}-Wno-undefined-bool-conversion -O1 -DTOP_TYPE=V$dutFile -DVL_USER_FINISH -include V$dutFile.h${quoteDelimiter}""",
-        "-Mdir", getPosixCompatibleAbsolutePath(dir.getAbsolutePath),
-        "--exe", getPosixCompatibleAbsolutePath(cppHarness.getAbsolutePath))
+        "-Mdir", getPosixCompatiblePath(dir.getAbsolutePath),
+        "--exe", getPosixCompatiblePath(cppHarness.getAbsolutePath))
 
     val commandString = command.mkString(" ")
     System.out.println(s"${commandString}") // scalastyle:ignore regex
@@ -237,14 +237,14 @@ trait BackendCompilationUtilities {
       val bashWriter = new FileWriter(bashFile)
     	bashWriter.write(commandString)
     	bashWriter.close()
-    	Seq("cmd", "/c", "\"", "bash", getPosixCompatibleAbsolutePath(bashFile.getPath), "\"")
+    	Seq("cmd", "/c", "\"", "bash", getPosixCompatiblePath(bashFile.getPath), "\"")
     } else {
       command
     }
   }
 
   def cppToExe(prefix: String, dir: File): ProcessBuilder = {
-    val commandSeq = Seq("make", "-C", getPosixCompatibleAbsolutePath(dir.toString), "-j", "-f", s"V$prefix.mk", s"V$prefix")
+    val commandSeq = Seq("make", "-C", getPosixCompatiblePath(dir.toString), "-j", "-f", s"V$prefix.mk", s"V$prefix")
     // If we're on Windows, put this in a script and return the command required to invoke it.
     // In principle, we should be able to invoke bash directly with the rest of the command as arguments,
     //  but we seem to lose most of our environment variables (notably PATH) if we don't go through this
@@ -255,7 +255,7 @@ trait BackendCompilationUtilities {
       val bashWriter = new FileWriter(bashFile)
 	    bashWriter.write(commandString)
 	    bashWriter.close()
-	    Seq("cmd", "/c", "\"", "bash", getPosixCompatibleAbsolutePath(bashFile.getPath), "\"")
+	    Seq("cmd", "/c", "\"", "bash", getPosixCompatiblePath(bashFile.getPath), "\"")
     } else {
       commandSeq
     }
@@ -336,7 +336,7 @@ trait BackendCompilationUtilities {
       val bashWriter = new FileWriter(bashFile)
 	    bashWriter.write(commandString)
 	    bashWriter.close()
-	    Seq("cmd", "/c", "\"", "bash", getPosixCompatibleAbsolutePath(bashFile.getPath), "\"")
+	    Seq("cmd", "/c", "\"", "bash", getPosixCompatiblePath(bashFile.getPath), "\"")
     } else {
       commandSeq
     }
