@@ -202,6 +202,8 @@ trait BackendCompilationUtilities {
         Seq.empty[String]
       }
     }
+
+    // On Windows, we need to quote multi-word arguments. This is handled by exec (and isn't required) on UNIX-like systems.
     val quoteDelimiter = if (osVersion == OSVersion.Windows) "'" else ""
     val command = Seq(
       "verilator",
@@ -226,6 +228,10 @@ trait BackendCompilationUtilities {
 
     val commandString = command.mkString(" ")
     System.out.println(s"${commandString}") // scalastyle:ignore regex
+    // If we're on Windows, put this in a script and return the command required to invoke it.
+    // In principle, we should be able to invoke bash directly with the rest of the command as arguments,
+    //  but we seem to lose most of our environment variables (notably PATH) if we don't go through this
+    //  two-step dance.
     if (osVersion == OSVersion.Windows) {
       val bashFile = new File(dir, s"${dutFile}.sh")
       val bashWriter = new FileWriter(bashFile)
@@ -239,6 +245,10 @@ trait BackendCompilationUtilities {
 
   def cppToExe(prefix: String, dir: File): ProcessBuilder = {
     val commandSeq = Seq("make", "-C", dir.toString, "-j", "-f", s"V$prefix.mk", s"V$prefix")
+    // If we're on Windows, put this in a script and return the command required to invoke it.
+    // In principle, we should be able to invoke bash directly with the rest of the command as arguments,
+    //  but we seem to lose most of our environment variables (notably PATH) if we don't go through this
+    //  two-step dance.
     if (osVersion == OSVersion.Windows) {
       val commandString = commandSeq.mkString(" ")
       val bashFile = new File(dir, s"M${prefix}.mk.sh")
@@ -251,12 +261,27 @@ trait BackendCompilationUtilities {
     }
   }
 
+  /** system/shell commands to build a shared library suitable for run-time loading.
+    * We assume verilator has already run and generated a <prefix>.mk file.
+    * We'll copy and edit it to add rules for building a shared library.
+    * We'll use JNI to access the code in the library.
+    * Since JAVA has no mechanism to unload JNI code, we'll actually do this in two parts:
+    *  - load the shim JNI/C++ code which is dut-independent and will persist for this Java session,
+    *  - load the dut-specific C++ code using the system level dlopen()/dlclose() API (with suitable wrappers on Windows)
+    * This allows us to unload the dut-specific code once we've finished testing it.
+    * @param prefix - this is typically the dut name and will be used to prefix generated files
+    * @param dir - the directory in which to generate files and run make
+    * @param shimPieces - source files (without a .c or .cpp or .c++ extension) required for the JNI/C++/dlopen shim
+    * @param extraObjects - any extra object files required for the shared library.
+    * @return - a ProcessBuilder object suitable for constructing the shared library.
+    */
   def cppToLib(prefix: String, dir: File, shimPieces: Seq[String], extraObjects: Seq[String] = Seq.empty): ProcessBuilder = {
-    // Add a shared library rule to the Makefile.
+    // Add a shared library rule to a copy of the Makefile.
     val inputMakefile = new File(dir, s"V$prefix.mk")
     val outputMakefile = new File(dir, s"V$prefix.so.mk")
     val out = new java.io.BufferedWriter( new java.io.FileWriter(outputMakefile))
     val makeBuffer = new collection.mutable.ArrayBuffer[String](2)
+    // The following depends on the format of Verilator .mk files.
     val lineMatch = """^### Link rules\.\.\..*"""
     val exeLine = """^(\w+):(.*)""".r
     var collectLines = -1
@@ -284,6 +309,8 @@ trait BackendCompilationUtilities {
     out.write(s"LIBS += ${sharedLibraryLibraries}\n")
     out.write(s"CXXFLAGS += ${JNI_CPPFLAGS} ${sharedLibraryFlags}\n")
     out.write(extraDependencies + ": %.o : %.cpp\n\techo $(PATH)\n\t$(CXX) $(CXXFLAGS) $(CPPFLAGS) $(OPT_FAST) -c -o $@ $<\n")
+
+    // Add lines to build the shared libary and the JNI/C++/dlopen shim.
     makeBuffer(0) match { case r"""^(\w+)${target}:(.*)${dependencies}""" =>
         out.write(s"${target}.${sharedLibraryExtension}: ${dependencies} ${extraDependencies}\n")
     }
@@ -293,13 +320,17 @@ trait BackendCompilationUtilities {
       out.write(s"${preLDFLAGS} ${sharedLibraryFlags} $$(LDFLAGS) ${postLDFLAGS}\n")
     }
     out.close()
-    // Ensure .o files are recompiled with the correct flags.
+    // Ensure .o files are recompiled with the correct flags by deleting any existing ones.
     val objFiles = new File(dir.toString).listFiles.filter(_.getName.endsWith(".o"))
     for (file <- objFiles) {
       file.delete()
     }
     val commandSeq = Seq("make", "-C", dir.toString, "-j", "-f", outputMakefile.getName, s"${shimPieces.head}.${sharedLibraryExtension}", s"V${prefix}.${sharedLibraryExtension}")
     if (osVersion == OSVersion.Windows) {
+      // If we're on Windows, put this in a script and return the command required to invoke it.
+      // In principle, we should be able to invoke bash directly with the rest of the command as arguments,
+      //  but we seem to lose most of our environment variables (notably PATH) if we don't go through this
+      //  two-step dance.
       val commandString = commandSeq.mkString(" ")
       val bashFile = new File(dir, s"${outputMakefile.getName}.make.sh")
       val bashWriter = new FileWriter(bashFile)
