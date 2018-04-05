@@ -238,7 +238,7 @@ trait BackendCompilationUtilities {
   }
 
   def cppToExe(prefix: String, dir: File): ProcessBuilder = {
-    val commandSeq = Seq("make", "-C", dir.toString, "-j", "-f", s"V$prefix.mk", s"V$prefix")
+    val commandSeq = Seq("make", "-C", getPosixCompatibleAbsolutePath(dir.toString), "-j", "-f", s"V$prefix.mk", s"V$prefix")
     if (osVersion == OSVersion.Windows) {
       val commandString = commandSeq.mkString(" ")
       val bashFile = new File(dir, s"M${prefix}.mk.sh")
