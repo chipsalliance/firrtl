@@ -244,7 +244,7 @@ trait BackendCompilationUtilities {
   }
 
   def cppToExe(prefix: String, dir: File): ProcessBuilder = {
-    val commandSeq = Seq("make", "-C", dir.toString, "-j", "-f", s"V$prefix.mk", s"V$prefix")
+    val commandSeq = Seq("make", "-C", getPosixCompatibleAbsolutePath(dir.toString), "-j", "-f", s"V$prefix.mk", s"V$prefix")
     // If we're on Windows, put this in a script and return the command required to invoke it.
     // In principle, we should be able to invoke bash directly with the rest of the command as arguments,
     //  but we seem to lose most of our environment variables (notably PATH) if we don't go through this
