@@ -109,38 +109,37 @@ trait HasFirrtlOptions {
            LegacyAnnotation.convertLegacyAnnos(_) )
 
     val preprocessedAnnotations: AnnotationSeq = annotationTransforms
-      .foldLeft(options){ case (old, tx) => tx(old) }
+      .foldLeft(options)( (old, tx) => tx(old) )
 
     val (firrtlAnnos, nonFirrtlAnnos) = preprocessedAnnotations.partition{
       case opt: FirrtlOption => true
       case _                 => false }
 
     firrtlAnnos
-      .foldLeft(FirrtlOptions(annotations = nonFirrtlAnnos.toList)){
-        case (old, x) =>
-          val processed = x match {
-            case InputFileAnnotation(f) => old.copy(inputFileNameOverride = Some(f))
-            case OutputFileAnnotation(f) => old.copy(outputFileNameOverride = Some(f))
-            case OutputAnnotationFileAnnotation(f) => old.copy(outputAnnotationFileName = Some(f))
-            case InfoModeAnnotation(i) => old.copy(infoModeName = i)
-            case FirrtlSourceAnnotation(s) => old.copy(firrtlSource = Some(s))
-            case EmitOneFilePerModuleAnnotation => old.copy(emitOneFilePerModule = true)
-            case InputAnnotationFileAnnotation(f) => old
-            case CompilerNameAnnotation(c) => old.copy(compilerName = c,
-                                                       annotations = old.annotations ++ getEmitterAnnotations(c))
-            case TopNameAnnotation(name) => old.copy(topName = Some(name))
-            case TargetDirAnnotation(dir) => old.copy(targetDirName = dir)
-            case LogLevelAnnotation(level) => old.copy(globalLogLevel = level)
-            case ClassLogLevelAnnotation(name, level) => old.copy(classLogLevels = old.classLogLevels ++ Map(name -> level))
-            case LogToFileAnnotation => old.copy(logToFile = true)
-            case LogClassNamesAnnotation => old.copy(logClassNames = true)
-            case ProgramArgsAnnotation(s) => old.copy(programArgs = old.programArgs :+ s)
-            case RunFirrtlTransformAnnotation(x) => old.copy(
-              customTransforms = old.customTransforms :+ Class.forName(x).asInstanceOf[Class[_<:Transform]].newInstance())
-          }
-          // [todo] Delete FirrtlOptions annotations here
-          processed
-            .copy(annotations = processed.annotations :+ x)
+      .foldLeft(FirrtlOptions(annotations = nonFirrtlAnnos.toList)){ (old, x) =>
+        val processed = x match {
+          case InputFileAnnotation(f) => old.copy(inputFileNameOverride = Some(f))
+          case OutputFileAnnotation(f) => old.copy(outputFileNameOverride = Some(f))
+          case OutputAnnotationFileAnnotation(f) => old.copy(outputAnnotationFileName = Some(f))
+          case InfoModeAnnotation(i) => old.copy(infoModeName = i)
+          case FirrtlSourceAnnotation(s) => old.copy(firrtlSource = Some(s))
+          case EmitOneFilePerModuleAnnotation => old.copy(emitOneFilePerModule = true)
+          case InputAnnotationFileAnnotation(f) => old
+          case CompilerNameAnnotation(c) => old.copy(compilerName = c,
+                                                     annotations = old.annotations ++ getEmitterAnnotations(c))
+          case TopNameAnnotation(name) => old.copy(topName = Some(name))
+          case TargetDirAnnotation(dir) => old.copy(targetDirName = dir)
+          case LogLevelAnnotation(level) => old.copy(globalLogLevel = level)
+          case ClassLogLevelAnnotation(name, level) => old.copy(classLogLevels = old.classLogLevels ++ Map(name -> level))
+          case LogToFileAnnotation => old.copy(logToFile = true)
+          case LogClassNamesAnnotation => old.copy(logClassNames = true)
+          case ProgramArgsAnnotation(s) => old.copy(programArgs = old.programArgs :+ s)
+          case RunFirrtlTransformAnnotation(x) => old.copy(
+            customTransforms = old.customTransforms :+ Class.forName(x).asInstanceOf[Class[_<:Transform]].newInstance())
+        }
+        // [todo] Delete FirrtlOptions annotations here
+        processed
+          .copy(annotations = processed.annotations :+ x)
       }
   }
 
