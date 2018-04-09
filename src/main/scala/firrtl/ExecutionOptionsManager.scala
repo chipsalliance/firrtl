@@ -14,15 +14,17 @@ import java.io.File
 import net.jcazevedo.moultingyaml._
 import firrtl.annotations.AnnotationYamlProtocol._
 
-/**
-  * Use this trait to define an options class that can add its private command line options to a externally
-  * declared parser.
-  * '''NOTE''' In all derived trait/classes, if you intend on maintaining backwards compatibility,
-  *  be sure to add new options at the end of the current ones and don't remove any existing ones.
+/** A store of command line options as an [[AnnotationSeq]]
+  *
+  * @param applicationName  The name shown in the usage
+  * @param args Command line arguments to process
+  * @param annotations Initial options to start with
   */
-trait ComposableOptions
+class ExecutionOptionsManager(
+  val applicationName: String,
+  args: Array[String],
+  annotations: AnnotationSeq = AnnotationSeq(Seq.empty)) {
 
-sealed class HasParser(val applicationName: String) {
   final val parser = new OptionParser[AnnotationSeq](applicationName) {
     var terminateOnExit = true
     override def terminate(exitState: Either[String, Unit]): Unit = {
@@ -47,18 +49,6 @@ sealed class HasParser(val applicationName: String) {
     * Show usage and exit
     */
   def showUsageAsError(): Unit = parser.showUsageAsError()
-}
-
-/** A store of command line options as an [[AnnotationSeq]]
-  *
-  * @param applicationName  The name shown in the usage
-  * @param args Command line arguments to process
-  * @param annotations Initial options to start with
-  */
-class ExecutionOptionsManager(
-  applicationName: String,
-  args: Array[String],
-  annotations: AnnotationSeq = AnnotationSeq(Seq.empty)) extends HasParser(applicationName) {
 
   lazy val options: AnnotationSeq = parser
     .parse(args, annotations)

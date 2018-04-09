@@ -42,12 +42,15 @@ trait HasFirrtlOptions {
 
     /** Set default annotations */
     def addDefaults(annotations: AnnotationSeq): AnnotationSeq = {
-      val addTargetDir   = annotations.collect{ case a: TargetDirAnnotation    => a }.isEmpty
-      val addBlackBoxDir = annotations.collect{ case a: BlackBoxTargetDirAnno  => a }.isEmpty
-      val addLogLevel    = annotations.collect{ case a: LogLevelAnnotation     => a }.isEmpty
-      val addCompiler    = annotations.collect{ case a: CompilerNameAnnotation => a }.isEmpty
-      val addTopName     = annotations.collect{ case a: TopNameAnnotation      => a }.isEmpty
-      // The EmitterAnnotation is a derivative of the Compiler and is added in later
+      var Seq(addTargetDir, addBlackBoxDir, addLogLevel, addCompiler, addTopName) = Seq.fill(5)(true)
+      annotations.collect{ case a: FirrtlOption => a }.map{
+        case _: TargetDirAnnotation    => addTargetDir   = false
+        case _: BlackBoxTargetDirAnno  => addBlackBoxDir = false
+        case _: LogLevelAnnotation     => addLogLevel    = false
+        case _: CompilerNameAnnotation => addCompiler    = false
+        case _: TopNameAnnotation      => addTopName     = false
+        case _ =>
+      }
 
       annotations ++
         (if (addTargetDir)   Seq(TargetDirAnnotation(FirrtlOptions().targetDirName))           else Seq() ) ++
@@ -402,8 +405,7 @@ case class FirrtlOptions(
   firrtlSource:             Option[String]              = None,
   annotations:              List[Annotation]            = List.empty,
   emitOneFilePerModule:     Boolean                     = false,
-  annotationFileNames:      List[String]                = List.empty)
-extends ComposableOptions {
+  annotationFileNames:      List[String]                = List.empty) {
 
   require(!(emitOneFilePerModule && outputFileNameOverride.nonEmpty),
           "Cannot both specify the output filename and emit one file per module!!!")
