@@ -5,15 +5,16 @@ package firrtl
 import firrtl.annotations._
 import firrtl.Parser._
 import firrtl.ir.Circuit
-import firrtl.transforms.{BlackBoxTargetDirAnno, DontCheckCombLoopsAnnotation, NoDCEAnnotation}
+import firrtl.transforms.{
+  BlackBoxTargetDirAnno,
+  DontCheckCombLoopsAnnotation,
+  NoDCEAnnotation}
 import logger.LogLevel
 import scopt.OptionParser
 
 import scala.collection.Seq
 import scala.util.{Try, Failure}
 
-import org.clapper.classutil.ClassFinder
-import java.net.URLClassLoader
 import java.io.File
 
 import net.jcazevedo.moultingyaml._
@@ -444,7 +445,13 @@ trait HasFirrtlOptions {
     .text ("Emit each module to its own file in the target directory.")
 
   parser.note("FIRRTL Transform Options")
-  ExecutionUtils.generateAnnotationOptions(parser)
+  Seq( transforms.DeadCodeElimination,
+       transforms.CheckCombLoops,
+       passes.InlineInstances,
+       passes.memlib.InferReadWrite,
+       passes.memlib.ReplSeqMem,
+       passes.clocklist.ClockListTransform )
+    .map(_.provideOptions(parser))
 
   parser.checkConfig{ c =>
     var Seq(hasTopName, hasInputFile, hasOneFilePerModule, hasOutputFile, hasFirrtlSource) = Seq.fill(5)(false)
@@ -553,27 +560,6 @@ class ExecutionOptionsManager(val applicationName: String, args: Array[String])
 }
 
 object ExecutionUtils {
-  /** Generate options from transforms that expose them
-    *
-    * This looks through every class which mixes in [[ProvidesOptions]]
-    * and calls their [[provideOptions]] method to generate scopt parsing
-    * callbacks.
-    *
-    * @todo: to prevent inordinate slowdown, this ignores classes in the
-    * ".ivy2" directory. We need a better solution of what to search. */
-  def generateAnnotationOptions(parser: OptionParser[AnnotationSeq]): Unit = {
-    val files = getClass.getClassLoader.asInstanceOf[URLClassLoader].getURLs
-      .filterNot(_.toString.contains(".ivy2"))
-      .map(x => new File(x.getFile))
-    val finder = ClassFinder(files)
-    val classes = finder.getClasses
-    val annotationsWithOptions = ClassFinder.concreteSubclasses(classOf[ProvidesOptions], classes).toList
-    annotationsWithOptions.map( name => Class.forName(name.toString)
-                                 .asInstanceOf[Class[_ <: Transform with ProvidesOptions]]
-                                 .newInstance()
-                                 .provideOptions(parser) )
-  }
-
   /** [todo] Add scaladoc */
   def readAnnotationsFromFile(fileNames: List[String]): List[Annotation] = fileNames
     .flatMap{ filename =>

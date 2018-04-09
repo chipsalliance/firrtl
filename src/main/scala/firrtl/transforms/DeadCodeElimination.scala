@@ -32,7 +32,7 @@ import java.io.{File, FileWriter}
   * circumstances of their instantiation in their parent module, they will still not be removed. To
   * remove such modules, use the [[NoDedupAnnotation]] to prevent deduplication.
   */
-class DeadCodeElimination extends Transform with ProvidesOptions {
+class DeadCodeElimination extends Transform {
   def inputForm = LowForm
   def outputForm = LowForm
 
@@ -337,7 +337,9 @@ class DeadCodeElimination extends Transform with ProvidesOptions {
       run(state, dontTouches, doTouchExtMods.toSet)
     }
   }
+}
 
+object DeadCodeElimination extends ProvidesOptions {
   def provideOptions = (parser: OptionParser[AnnotationSeq]) => parser
     .opt[Unit]("no-dce")
     .action( (x, c) => c :+ NoDCEAnnotation )

@@ -55,7 +55,7 @@ Usage:
   }
 }
 
-class ClockListTransform extends Transform with ProvidesOptions {
+class ClockListTransform extends Transform {
   def inputForm = LowForm
   def outputForm = LowForm
   def passSeq(top: String, writer: Writer): Seq[Pass] =
@@ -72,6 +72,9 @@ class ClockListTransform extends Transform with ProvidesOptions {
       case seq => error(s"Found illegal clock list annotation(s): $seq")
     }
   }
+}
+
+object ClockListTransform extends ProvidesOptions {
   def provideOptions = (parser: OptionParser[AnnotationSeq]) => parser
     .opt[String]("list-clocks")
     .abbr("clks")

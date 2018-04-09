@@ -142,7 +142,7 @@ object InferReadWritePass extends Pass {
 
 // Transform input: Middle Firrtl. Called after "HighFirrtlToMidleFirrtl"
 // To use this transform, circuit name should be annotated with its TransId.
-class InferReadWrite extends Transform with SeqTransformBased with ProvidesOptions {
+class InferReadWrite extends Transform with SeqTransformBased {
   def inputForm = MidForm
   def outputForm = MidForm
   def transforms = Seq(
@@ -161,6 +161,9 @@ class InferReadWrite extends Transform with SeqTransformBased with ProvidesOptio
       state
     }
   }
+}
+
+object InferReadWrite extends ProvidesOptions {
   def provideOptions = (parser: OptionParser[AnnotationSeq]) => parser
     .opt[String]("infer-rw")
     .abbr("firw")

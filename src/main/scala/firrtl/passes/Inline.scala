@@ -19,7 +19,7 @@ case class InlineAnnotation(target: Named) extends SingleTargetAnnotation[Named]
 // Only use on legal Firrtl. Specifically, the restriction of
 //  instance loops must have been checked, or else this pass can
 //  infinitely recurse
-class InlineInstances extends Transform with ProvidesOptions {
+class InlineInstances extends Transform {
    def inputForm = LowForm
    def outputForm = LowForm
    val inlineDelim = "$"
@@ -142,7 +142,9 @@ class InlineInstances extends Transform with ProvidesOptions {
     })
     CircuitState(flatCircuit, LowForm, annos, None)
   }
+}
 
+object InlineInstances extends ProvidesOptions {
   def provideOptions = (parser: OptionParser[AnnotationSeq]) => parser
     .opt[Seq[String]]("inline")
     .abbr("fil")

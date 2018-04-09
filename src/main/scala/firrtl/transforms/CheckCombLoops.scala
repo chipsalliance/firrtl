@@ -17,10 +17,15 @@ import firrtl.graph.{MutableDiGraph,DiGraph}
 import firrtl.analyses.InstanceGraph
 import scopt.OptionParser
 
-object CheckCombLoops {
+object CheckCombLoops extends ProvidesOptions {
   class CombLoopException(info: Info, mname: String, cycle: Seq[String]) extends PassException(
     s"$info: [module $mname] Combinational loop detected:\n" + cycle.mkString("\n"))
 
+  def provideOptions = (parser: OptionParser[AnnotationSeq]) => parser
+    .opt[Unit]("no-check-comb-loops")
+    .action( (x, c) => c :+ DontCheckCombLoopsAnnotation )
+    .maxOccurs(1)
+    .text("Do NOT check for combinational loops (not recommended)")
 }
 
 case object DontCheckCombLoopsAnnotation extends NoTargetAnnotation
@@ -35,7 +40,7 @@ case object DontCheckCombLoopsAnnotation extends NoTargetAnnotation
   * @note The pass cannot find loops that pass through ExtModules
   * @note The pass will throw exceptions on "false paths"
   */
-class CheckCombLoops extends Transform with ProvidesOptions {
+class CheckCombLoops extends Transform {
   def inputForm = LowForm
   def outputForm = LowForm
 
@@ -222,10 +227,4 @@ class CheckCombLoops extends Transform with ProvidesOptions {
       CircuitState(result, outputForm, state.annotations, state.renames)
     }
   }
-
-  def provideOptions = (parser: OptionParser[AnnotationSeq]) => parser
-    .opt[Unit]("no-check-comb-loops")
-    .action( (x, c) => c :+ DontCheckCombLoopsAnnotation )
-    .maxOccurs(1)
-    .text("Do NOT check for combinational loops (not recommended)")
 }

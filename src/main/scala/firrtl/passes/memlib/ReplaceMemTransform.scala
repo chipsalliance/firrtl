@@ -104,7 +104,7 @@ class SimpleTransform(p: Pass, form: CircuitForm) extends Transform {
 class SimpleMidTransform(p: Pass) extends SimpleTransform(p, MidForm)
 
 // SimpleRun instead of PassBased because of the arguments to passSeq
-class ReplSeqMem extends Transform with ProvidesOptions {
+class ReplSeqMem extends Transform {
   def inputForm = MidForm
   def outputForm = MidForm
   def transforms(inConfigFile: Option[YamlFileReader], outConfigFile: ConfWriter): Seq[Transform] =
@@ -138,7 +138,9 @@ class ReplSeqMem extends Transform with ProvidesOptions {
       case _ => error("Unexpected transform annotation")
     }
   }
+}
 
+object ReplSeqMem extends ProvidesOptions {
   def provideOptions = (parser: OptionParser[AnnotationSeq]) => parser
     .opt[String]("repl-seq-mem")
     .abbr("frsq")
@@ -147,5 +149,4 @@ class ReplSeqMem extends Transform with ProvidesOptions {
                                 RunFirrtlTransformAnnotation(new ReplSeqMem().getClass.getName)) )
     .maxOccurs(1)
     .text("Replace sequential memories with blackboxes + configuration file")
-
 }

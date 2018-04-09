@@ -481,6 +481,5 @@ trait Compiler extends LazyLogging {
 }
 
 trait ProvidesOptions {
-  self: Transform =>
   def provideOptions: (OptionParser[AnnotationSeq]) => Unit
 }
