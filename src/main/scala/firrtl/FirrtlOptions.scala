@@ -36,97 +36,87 @@ case class RunFirrtlTransformAnnotation(value: String) extends SingleStringAnnot
 trait HasFirrtlOptions {
   self: ExecutionOptionsManager =>
 
+  /** Add the implicit annotaiton file annotation if such a file exists */
+  private def addImplicitAnnotationFile(annos: Seq[Annotation]): Seq[Annotation] = annos.toList ++ (
+    annos.collectFirst{ case a: InputAnnotationFileAnnotation => a } match {
+      case Some(_) => List()
+      case None =>
+        val file = ExecutionUtils.Early.targetDir(annos) + "/" +
+          ExecutionUtils.Early.topName(annos) + ".anno"
+        if (new File(file).exists) {
+          Driver.dramaticWarning(
+            s"Implicit reading of the annotation file is deprecated! Use an explict --annotation-file argument.")
+          List(InputAnnotationFileAnnotation(file))
+        } else {
+          List()
+        }
+    } )
+
+  /* Pull in whatever the user tells us to from files until we can't find
+   * any more. Remember what we've already imported to prevent a
+   * loop. */
+  private var includeGuard = Set[String]()
+  private def getIncludes(annos: Seq[Annotation]): Seq[Annotation] = annos
+    .flatMap( _ match {
+               case a: InputAnnotationFileAnnotation =>
+                 if (includeGuard.contains(a.file)) {
+                   Driver.dramaticWarning("Tried to import the same annotation file twice! (Did you include it twice?)")
+                   List(DeletedAnnotation("HasFirrtlOptions", a))
+                 } else {
+                   includeGuard += a.file
+                   List(DeletedAnnotation("HasFirrtlOptions", a)) ++ getIncludes(ExecutionUtils.readAnnotationsFromFile(a.file))
+                 }
+               case x => List(x)
+             })
+
+  /** Add any missing default annotations */
+  private def addDefaults(annos: Seq[Annotation]): Seq[Annotation] = {
+    var Seq(addTargetDir, addBlackBoxDir, addLogLevel, addCompiler, addTopName) = Seq.fill(5)(true)
+    annos.collect{ case a: FirrtlOption => a }.map{
+      case _: TargetDirAnnotation    => addTargetDir   = false
+      case _: BlackBoxTargetDirAnno  => addBlackBoxDir = false
+      case _: LogLevelAnnotation     => addLogLevel    = false
+      case _: CompilerNameAnnotation => addCompiler    = false
+      case _: TopNameAnnotation      => addTopName     = false
+      case _ =>
+    }
+
+    annos ++
+      (if (addTargetDir)   Seq(TargetDirAnnotation(FirrtlOptions().targetDirName))           else Seq() ) ++
+      (if (addBlackBoxDir) Seq(BlackBoxTargetDirAnno(FirrtlOptions().targetDirName))         else Seq() ) ++
+      (if (addLogLevel)    Seq(LogLevelAnnotation(FirrtlOptions().globalLogLevel))           else Seq() ) ++
+      (if (addCompiler)    Seq(CompilerNameAnnotation(FirrtlOptions().compilerName))         else Seq() ) ++
+      (if (addTopName)     Seq(TopNameAnnotation(ExecutionUtils.Early.topName(annos))) else Seq() )
+  }
+
+  /** Convert an emitter to an annotation */
+  private def getEmitterAnnotations(compiler: String): Seq[Annotation] = {
+    val emitter = compiler match {
+      case "high"      => classOf[HighFirrtlEmitter]
+      case "low"       => classOf[LowFirrtlEmitter]
+      case "middle"    => classOf[MiddleFirrtlEmitter]
+      case "verilog"   => classOf[VerilogEmitter]
+      case "sverilog"  => classOf[SystemVerilogEmitter]
+    }
+    Seq(EmitterAnnotation(emitter))
+  }
+
   lazy val firrtlOptions: FirrtlOptions = {
-    // println("---------------------------------------- options")
-    // options.foreach( x => println(s"[info]  - $x") )
+    val annotationTransforms: Seq[Seq[Annotation] => Seq[Annotation]] =
+      Seq( addImplicitAnnotationFile(_),
+           getIncludes(_),
+           addDefaults(_),
+           LegacyAnnotation.convertLegacyAnnos(_) )
 
-    /** Set default annotations */
-    def addDefaults(annotations: AnnotationSeq): AnnotationSeq = {
-      var Seq(addTargetDir, addBlackBoxDir, addLogLevel, addCompiler, addTopName) = Seq.fill(5)(true)
-      annotations.collect{ case a: FirrtlOption => a }.map{
-        case _: TargetDirAnnotation    => addTargetDir   = false
-        case _: BlackBoxTargetDirAnno  => addBlackBoxDir = false
-        case _: LogLevelAnnotation     => addLogLevel    = false
-        case _: CompilerNameAnnotation => addCompiler    = false
-        case _: TopNameAnnotation      => addTopName     = false
-        case _ =>
-      }
+    val preprocessedAnnotations: AnnotationSeq = annotationTransforms
+      .foldLeft(options){ case (old, tx) => tx(old) }
 
-      annotations ++
-        (if (addTargetDir)   Seq(TargetDirAnnotation(FirrtlOptions().targetDirName))           else Seq() ) ++
-        (if (addBlackBoxDir) Seq(BlackBoxTargetDirAnno(FirrtlOptions().targetDirName))         else Seq() ) ++
-        (if (addLogLevel)    Seq(LogLevelAnnotation(FirrtlOptions().globalLogLevel))           else Seq() ) ++
-        (if (addCompiler)    Seq(CompilerNameAnnotation(FirrtlOptions().compilerName))         else Seq() ) ++
-        (if (addTopName)     Seq(TopNameAnnotation(ExecutionUtils.Early.topName(annotations))) else Seq() )
-    }
+    val (firrtlAnnos, nonFirrtlAnnos) = preprocessedAnnotations.partition{
+      case opt: FirrtlOption => true
+      case _                 => false }
 
-    val options1: AnnotationSeq = addDefaults(options)
-
-    // println("---------------------------------------- options1 (with defaults)")
-    // options1.foreach( x => println(s"[info]  - $x") )
-
-    /** Add the implicit annotaiton file annotation if such a file exists */
-    def addImplicitAnnotations(annotations: AnnotationSeq): AnnotationSeq = annotations.toList ++ (
-        annotations.collectFirst{ case a: InputAnnotationFileAnnotation => a } match {
-          case Some(_) => List()
-          case None =>
-            val file = ExecutionUtils.Early.targetDir(annotations) + "/" +
-              ExecutionUtils.Early.topName(annotations) + ".anno"
-            if (new File(file).exists) {
-              Driver.dramaticWarning(
-                s"Implicit reading of the annotation file is deprecated! Use an explict --annotation-file argument.")
-              List(InputAnnotationFileAnnotation(file))
-            } else {
-              List()
-            }
-        } )
-
-    val options2: AnnotationSeq = addImplicitAnnotations(options1)
-
-    // println("---------------------------------------- options2 (with implicit annotation file)")
-    // options2.foreach( x => println(s"[info]  - $x") )
-
-    /* Pull in whatever the user tells us to from files until we can't find
-     * any more. Remember what we've already imported to prevent a
-     * loop. */
-    var includeGuard = Set[String]()
-    def getIncludes(annotations: AnnotationSeq): Seq[Annotation] = annotations
-      .flatMap( _ match {
-                 case a: InputAnnotationFileAnnotation =>
-                   if (includeGuard.contains(a.file)) {
-                     Driver.dramaticWarning("Tried to import the same annotation file twice! (Did you include it twice?)")
-                     Seq(DeletedAnnotation("HasFirrtlOptions", a))
-                   } else {
-                     includeGuard += a.file
-                     Seq(DeletedAnnotation("HasFirrtlOptions", a)) ++ getIncludes(ExecutionUtils.readAnnotationsFromFile(a.file))
-                   }
-                 case a: Annotation =>
-                   Seq(a)
-               })
-
-    val options3: AnnotationSeq = getIncludes(options2)
-
-    // println("---------------------------------------- options3 (with all annotation files included)")
-    // options3.foreach( x => println(s"[info]  - $x") )
-
-    def getEmitterAnnotations(compiler: String): Seq[Annotation] = {
-      val emitter = compiler match {
-        case "high"      => classOf[HighFirrtlEmitter]
-        case "low"       => classOf[LowFirrtlEmitter]
-        case "middle"    => classOf[MiddleFirrtlEmitter]
-        case "verilog"   => classOf[VerilogEmitter]
-        case "sverilog"  => classOf[SystemVerilogEmitter]
-      }
-      Seq(EmitterAnnotation(emitter))
-    }
-
-    val nonFirrtlOptionsAnnotations = options3.filter{
-      case opt: FirrtlOption => false
-      case _ => true }
-
-    val options4: FirrtlOptions = options3
-      .collect{ case opt: FirrtlOption => opt }
-      .foldLeft(FirrtlOptions(annotations = nonFirrtlOptionsAnnotations.toList)){
+    firrtlAnnos
+      .foldLeft(FirrtlOptions(annotations = nonFirrtlAnnos.toList)){
         case (old, x) =>
           val processed = x match {
             case InputFileAnnotation(f) => old.copy(inputFileNameOverride = Some(f))
@@ -145,7 +135,6 @@ trait HasFirrtlOptions {
             case LogToFileAnnotation => old.copy(logToFile = true)
             case LogClassNamesAnnotation => old.copy(logClassNames = true)
             case ProgramArgsAnnotation(s) => old.copy(programArgs = old.programArgs :+ s)
-            // [todo] this is a kludge, the transform should really be extracted here
             case RunFirrtlTransformAnnotation(x) => old.copy(
               customTransforms = old.customTransforms :+ Class.forName(x).asInstanceOf[Class[_<:Transform]].newInstance())
           }
@@ -153,16 +142,6 @@ trait HasFirrtlOptions {
           processed
             .copy(annotations = processed.annotations :+ x)
       }
-
-    // println("---------------------------------------- options4 (with annotations converted to transforms)")
-    // options4.foreach( x => println(s"[info]  - $x") )
-
-    val options5: FirrtlOptions = options4.copy(annotations = LegacyAnnotation.convertLegacyAnnos(options4.annotations).toList)
-
-    println("---------------------------------------- options5 (converting LegacyAnnotations)")
-    options5.annotations.foreach( x => println(s"[info]  - $x") )
-
-    options5
   }
 
   lazy val topName: Option[String] = firrtlOptions.topName

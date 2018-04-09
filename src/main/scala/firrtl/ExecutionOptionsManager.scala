@@ -126,10 +126,6 @@ object ExecutionUtils {
         case InputFileAnnotation(file)       => inputFileName = Some(file)
         case FirrtlSourceAnnotation(circuit) => firrtlSource  = Some(circuit)
         case _ => }
-      println(s"[info] top-name candidates:")
-      println(s"[info]   - topName: $topName")
-      println(s"[info]   - inputFileName: $inputFileName")
-      println(s"[info]   - topName: $firrtlSource")
       topName.getOrElse {
         val circuit: String = if (inputFileName.nonEmpty) {
           io.Source.fromFile(inputFileName.get).getLines().mkString("\n")
