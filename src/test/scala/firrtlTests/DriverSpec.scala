@@ -42,7 +42,7 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
     "CommonOption provide an scopt implementation of an OptionParser" - {
       "Options can be set from an Array[String] as is passed into a main" - {
         "With no arguments default values come out" in {
-          val optionsManager = new ExecutionOptionsManager("test", Array("--top-name", "null"))
+          val optionsManager = new ExecutionOptionsManager("test", Array("--top-name", "null")) with HasFirrtlOptions
 
           val firrtlOptions = optionsManager.firrtlOptions
           firrtlOptions.topName should be(Some("null"))
@@ -51,7 +51,7 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
         "top name and target can be set" in {
           val optionsManager = new ExecutionOptionsManager(
             "test",
-            Array("--top-name", "dog", "--target-dir", "a/b/c") )
+            Array("--top-name", "dog", "--target-dir", "a/b/c") ) with HasFirrtlOptions
           val firrtlOptions = optionsManager.firrtlOptions
 
           firrtlOptions.topName should be(Some("dog"))
@@ -68,7 +68,7 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
         }
         val optionsManager = new ExecutionOptionsManager(
           "test",
-          Array("--top-name", "dog", "--target-dir", "a/b/c") )
+          Array("--top-name", "dog", "--target-dir", "a/b/c") ) with HasFirrtlOptions
         val firrtlOptions = optionsManager.firrtlOptions
 
         firrtlOptions.topName should be (Some("dog"))
@@ -83,7 +83,7 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
     "options include by default a list of strings that are returned in firrtlOptions.programArgs" in {
       val optionsManager = new ExecutionOptionsManager(
         "test",
-        Array("--top-name", "dog", "fox", "tardigrade", "stomatopod") )
+        Array("--top-name", "dog", "fox", "tardigrade", "stomatopod") ) with HasFirrtlOptions
 
       println(s"programArgs ${optionsManager.firrtlOptions.programArgs}")
       optionsManager.firrtlOptions.programArgs.length should be (3)
@@ -91,14 +91,14 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
 
       val optionsManager2 = new ExecutionOptionsManager(
         "test2",
-        Array("dog", "stomatopod", "--top-name", "null") )
+        Array("dog", "stomatopod", "--top-name", "null") ) with HasFirrtlOptions
       println(s"programArgs ${optionsManager2.firrtlOptions.programArgs}")
       optionsManager2.firrtlOptions.programArgs.length should be (2)
       optionsManager2.firrtlOptions.programArgs should be ("dog" :: "stomatopod" :: Nil)
 
       val optionsManager3 = new ExecutionOptionsManager(
         "test3",
-        Array("fox", "--top-name", "dog", "tardigrade", "stomatopod") )
+        Array("fox", "--top-name", "dog", "tardigrade", "stomatopod") ) with HasFirrtlOptions
 
       println(s"programArgs ${optionsManager3.firrtlOptions.programArgs}")
       optionsManager3.firrtlOptions.programArgs.length should be (3)
@@ -109,7 +109,7 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
 
   "FirrtlOptions holds option information for the firrtl compiler" - {
     "It includes a CommonOptions" in {
-      val optionsManager = new ExecutionOptionsManager("test", Array("--top-name", "null"))
+      val optionsManager = new ExecutionOptionsManager("test", Array("--top-name", "null")) with HasFirrtlOptions
       optionsManager.firrtlOptions.targetDirName should be (".")
     }
     "It provides input and output file names based on target" in {

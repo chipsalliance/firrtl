@@ -8,13 +8,13 @@ import org.scalatest.{Matchers, FreeSpec}
 class ExecutionOptionsManagerSpec extends FreeSpec with Matchers {
   "ExecutionOptionsManager is a container for one more more ComposableOptions Block" - {
     "It has a default CommonOptionsBlock" in {
-      val manager = new ExecutionOptionsManager("test", Array("--top-name", "null"))
+      val manager = new ExecutionOptionsManager("test", Array("--top-name", "null")) with HasFirrtlOptions
       manager.firrtlOptions.targetDirName should be (".")
     }
     "But can override defaults like this" in {
       val manager = new ExecutionOptionsManager(
         "test",
-        Array("--top-name", "dog"))
+        Array("--top-name", "dog")) with HasFirrtlOptions
       manager.firrtlOptions shouldBe a [FirrtlOptions]
       manager.topName should be (Some("dog"))
       manager.firrtlOptions.topName should be (Some("dog"))

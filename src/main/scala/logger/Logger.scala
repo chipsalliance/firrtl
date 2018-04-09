@@ -4,7 +4,9 @@ package logger
 
 import java.io.{ByteArrayOutputStream, File, FileOutputStream, PrintStream}
 
-import firrtl.ExecutionOptionsManager
+import firrtl.{
+  ExecutionOptionsManager,
+  HasFirrtlOptions }
 
 import scala.util.DynamicVariable
 
@@ -120,7 +122,7 @@ object Logger {
     * @tparam A       The return type of codeBlock
     * @return         Whatever block returns
     */
-  def makeScope[A](manager: ExecutionOptionsManager)(codeBlock: => A): A = {
+  def makeScope[A](manager: ExecutionOptionsManager with HasFirrtlOptions)(codeBlock: => A): A = {
     val runState: LoggerState = {
       val newRunState = updatableLoggerState.value.getOrElse(new LoggerState)
       if(newRunState.fromInvoke) {
@@ -149,7 +151,7 @@ object Logger {
     */
   @deprecated("Pass an explicit options manager via makeScope(ExecutionOptionsManager)", "1.2.0")
   def makeScope[A](args: Array[String] = Array.empty)(codeBlock: => A): A = {
-    val executionOptionsManager = new ExecutionOptionsManager("logger", args)
+    val executionOptionsManager = new ExecutionOptionsManager("logger", args) with HasFirrtlOptions
     makeScope(executionOptionsManager)(codeBlock)
   }
 
@@ -337,7 +339,7 @@ object Logger {
     * from the command line via an options manager
     * @param optionsManager manager
     */
-  def setOptions(optionsManager: ExecutionOptionsManager): Unit = {
+  def setOptions(optionsManager: ExecutionOptionsManager with HasFirrtlOptions): Unit = {
     val options = optionsManager.firrtlOptions
     state.globalLevel = (state.globalLevel, options.globalLogLevel) match {
       case (LogLevel.None, LogLevel.None) => LogLevel.None

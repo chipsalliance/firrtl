@@ -82,7 +82,7 @@ object Driver {
     */
   //scalastyle:off cyclomatic.complexity method.length
   def getAnnotations(
-    optionsManager: ExecutionOptionsManager): Seq[Annotation] = optionsManager.firrtlOptions.annotations
+    optionsManager: ExecutionOptionsManager with HasFirrtlOptions): Seq[Annotation] = optionsManager.firrtlOptions.annotations
 
   // Useful for handling erros in the options
   case class OptionsException(msg: String) extends Exception(msg)
@@ -218,7 +218,7 @@ object Driver {
     */
   def execute(args: Array[String]): FirrtlExecutionResult = {
     try {
-      val optionsManager = new ExecutionOptionsManager("firrtl", args)
+      val optionsManager = new ExecutionOptionsManager("firrtl", args) with HasFirrtlOptions
       execute(optionsManager) match {
         case success: FirrtlExecutionSuccess =>
           success
