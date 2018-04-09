@@ -61,10 +61,10 @@ trait HasFirrtlOptions {
                case a: InputAnnotationFileAnnotation =>
                  if (includeGuard.contains(a.file)) {
                    Driver.dramaticWarning("Tried to import the same annotation file twice! (Did you include it twice?)")
-                   List(DeletedAnnotation("HasFirrtlOptions", a))
+                   List(DeletedAnnotation(applicationName, a))
                  } else {
                    includeGuard += a.file
-                   List(DeletedAnnotation("HasFirrtlOptions", a)) ++ getIncludes(ExecutionUtils.readAnnotationsFromFile(a.file))
+                   List(DeletedAnnotation(applicationName, a)) ++ getIncludes(ExecutionUtils.readAnnotationsFromFile(a.file))
                  }
                case x => List(x)
              })
