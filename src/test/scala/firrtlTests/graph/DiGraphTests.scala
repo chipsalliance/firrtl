@@ -98,4 +98,16 @@ class DiGraphTests extends FirrtlFlatSpec {
     (first + second + second + second).getEdgeMap should equal (acyclicGraph.getEdgeMap)
   }
 
+  "linearize" should "not cause a stack overflow on very large graphs" in {
+    // Graph of 0 -> 1, 1 -> 2, etc.
+    val N = 10000
+    val edges = (1 to N).zipWithIndex.map({ case (n, idx) => idx -> Set(n)}).toMap
+    val bigGraph = DiGraph(edges + (N -> Set.empty[Int]))
+    bigGraph.linearize should be (0 to N)
+  }
+
+  it should "work on multi-rooted graphs" in {
+    val graph = DiGraph(Map("a" -> Set[String](), "b" -> Set[String]()))
+    graph.linearize.toSet should be (graph.getVertices)
+  }
 }

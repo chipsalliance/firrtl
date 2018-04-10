@@ -25,7 +25,7 @@ object DiGraph {
     }
     for ((k, v) <- edgeData) {
       for (n <- v) {
-        require(edgeDataCopy.contains(n))
+        require(edgeDataCopy.contains(n), s"Does not contain $n")
         edgeDataCopy(k) += n
       }
     }
@@ -71,34 +71,42 @@ class DiGraph[T] private[graph] (private[graph] val edges: LinkedHashMap[T, Link
     * traversal
     */
   def linearize: Seq[T] = {
-    // permanently marked nodes are implicitly held in order
-    val order = new mutable.ArrayBuffer[T]
-    // invariant: no intersection between unmarked and tempMarked
-    val unmarked = new mutable.LinkedHashSet[T]
-    val tempMarked = new mutable.LinkedHashSet[T]
-
-    def visit(n: T): Unit = {
-      if (tempMarked.contains(n)) {
-        throw new CyclicException(n)
+    // Kahn's algorithm
+    // Calculate all in degrees, linked because it affects initial toVisit order
+    val inDegree = mutable.LinkedHashMap[T, Int]()
+    for ((u, vs) <- edges) {
+      inDegree.getOrElseUpdate(u, 0) // ensure each vertex has a degree
+      for (v <- vs) {
+        inDegree(v) = inDegree.getOrElse(v, 0) + 1
       }
-      if (unmarked.contains(n)) {
-        tempMarked += n
-        unmarked -= n
-        for (m <- getEdges(n)) {
-          visit(m)
+    }
+    // Find nodes with in degree == 0
+    val toVisit = mutable.Queue[T]()
+    for ((v, c) <- inDegree) {
+      if (c == 0) {
+        toVisit.enqueue(v)
+      }
+    }
+    // Delete nodes with degree 0 from inDegree
+    inDegree --= toVisit
+    // Iteratively visit each node and decrement degrees of neighbors
+    val order = mutable.ArrayBuffer[T]()
+    while (toVisit.nonEmpty) {
+      val n = toVisit.dequeue()
+      order += n
+      for (v <- getEdges(n)) {
+        val degree = inDegree(v) - 1
+        if (degree == 0) {
+          toVisit.enqueue(v)
+          inDegree -= v
+        } else {
+          inDegree(v) = degree
         }
-        tempMarked -= n
-        order.append(n)
       }
     }
-
-    unmarked ++= getVertices
-    while (unmarked.nonEmpty) {
-      visit(unmarked.head)
-    }
-
-    // visited nodes are in post-traversal order, so must be reversed
-    order.reverse.toSeq
+    // Check that everything was visited (no cycles)
+    inDegree.headOption.foreach(x => throw new CyclicException(x._1))
+    order
   }
 
   /** Performs breadth-first search on the directed graph
