@@ -113,8 +113,7 @@ object BlackBoxSourceHelper {
 
   def writeFileList(files: Set[File], targetDir: File) {
     if (files.nonEmpty) {
-      val text = files.map { fileName => s"-v $fileName" }.mkString("\n")
-      writeTextToFile(text, new File(targetDir, fileListName))
+      writeTextToFile(files.mkString("\n"), new File(targetDir, fileListName))
     }
   }
 
