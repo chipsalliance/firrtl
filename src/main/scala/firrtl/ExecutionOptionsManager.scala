@@ -53,18 +53,6 @@ class ExecutionOptionsManager(
   lazy val options: AnnotationSeq = parser
     .parse(args, annotations)
     .getOrElse(throw new FIRRTLException("Failed to parse command line options"))
-
-  /** Make a copy of an [[ExecutionOptionsManager]]
-    *
-    * @param applicationName The name of the application, defaults to current name
-    * @param args Command line arguments to process, defaults to none
-    * @param annotations Initial options to use, defaults to what was already parsed
-    * @return A new [[ExecutionOptionsManager]]
-    */
-  def copy(applicationName: String = applicationName,
-           args: Array[String] = Array.empty,
-           annotations: AnnotationSeq = options): ExecutionOptionsManager =
-    new ExecutionOptionsManager(applicationName, args, annotations)
 }
 
 object ExecutionUtils {
