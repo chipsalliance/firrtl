@@ -87,26 +87,13 @@ class BlackBoxSourceHelper extends firrtl.Transform {
       file
     }
 
-    val fileList = resourceFiles ++ inlineFiles
-
-    // If we have BlackBoxes, generate the helper file.
-    // If we don't, make sure it doesn't exist or we'll confuse downstream processing
-    //  that triggers behavior on the existence of the file
-    val helperFile = new File(targetDir, BlackBoxSourceHelper.FileListName)
-    if (fileList.nonEmpty) {
-      val writer = new PrintWriter(helperFile)
-      writer.write(fileList.map { fileName => s"-v $fileName" }.mkString("\n"))
-      writer.close()
-    } else {
-      helperFile.delete()
-    }
+    BlackBoxSourceHelper.writeFileList(resourceFiles ++ inlineFiles, targetDir)
 
     state
   }
 }
 
 object BlackBoxSourceHelper {
-  val FileListName = "black_box_verilog_files.f"
   /**
     * finds the named resource and writes into the directory
     * @param name the name of the resource
@@ -120,6 +107,15 @@ object BlackBoxSourceHelper {
     val out = new FileOutputStream(file)
     Iterator.continually(in.read).takeWhile(-1 != _).foreach(out.write)
     out.close()
+  }
+
+  val fileListName = "black_box_verilog_files.f"
+
+  def writeFileList(files: Set[File], targetDir: File) {
+    if (files.nonEmpty) {
+      val text = files.map { fileName => s"-v $fileName" }.mkString("\n")
+      writeTextToFile(text, new File(targetDir, fileListName))
+    }
   }
 
   def writeTextToFile(text: String, file: File) {
