@@ -67,22 +67,28 @@ class BlackBoxSourceHelper extends firrtl.Transform {
     */
   override def execute(state: CircuitState): CircuitState = {
     val (annos, targetDir) = collectAnnos(state.annotations)
-    val fileList = annos.foldLeft(List.empty[String]) {
-      case (fileList, anno) => anno match {
-        case BlackBoxResourceAnno(_, resourceId) =>
-          val name = resourceId.split("/").last
-          val outFile = new File(targetDir, name)
-          BlackBoxSourceHelper.copyResourceToFile(resourceId,outFile)
-          outFile.getAbsolutePath +: fileList
-        case BlackBoxInlineAnno(_, name, text) =>
-          val outFile = new File(targetDir, name)
-          val writer = new PrintWriter(outFile)
-          writer.write(text)
-          writer.close()
-          outFile.getAbsolutePath +: fileList
-        case _ => throwInternalError()
-      }
+
+    val resourceFiles: Set[File] = annos.collect {
+      case BlackBoxResourceAnno(_, resourceId) =>
+        val name = resourceId.split("/").last
+        val outFile = new File(targetDir, name)
+        (resourceId, outFile)
+    }.toSet[(String, File)].map { case (res, file) =>
+      BlackBoxSourceHelper.copyResourceToFile(res, file)
+      file
     }
+
+    val inlineFiles: Set[File] = annos.collect {
+      case BlackBoxInlineAnno(_, name, text) =>
+        val outFile = new File(targetDir, name)
+        (text, outFile)
+    }.toSet[(String, File)].map { case (text, file) =>
+      BlackBoxSourceHelper.writeTextToFile(text, file)
+      file
+    }
+
+    val fileList = resourceFiles ++ inlineFiles
+
     // If we have BlackBoxes, generate the helper file.
     // If we don't, make sure it doesn't exist or we'll confuse downstream processing
     //  that triggers behavior on the existence of the file
@@ -116,4 +122,9 @@ object BlackBoxSourceHelper {
     out.close()
   }
 
+  def writeTextToFile(text: String, file: File) {
+    val out = new PrintWriter(file)
+    out.write(text)
+    out.close()
+  }
 }
