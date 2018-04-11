@@ -75,7 +75,7 @@ sealed abstract class FirrtlEmitter(form: CircuitForm) extends Transform with Em
         case WDefInstance(_, _, name, _) =>
           modules += map(name)
           stmt
-        case _: WDefInstanceConnector => throwInternalError(Some(s"unrecognized statement: $stmt"))
+        case _: WDefInstanceConnector => throwInternalError(s"unrecognized statement: $stmt")
         case other => other map onStmt
       }
       onStmt(mod.body)
@@ -142,7 +142,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
       case (e: WSubField) => remove_root(e)
       case (_: WRef) => WRef(ex.name, ex.tpe, InstanceKind, UNKNOWNGENDER)
     }
-    case _ => throwInternalError(Some(s"shouldn't be here: remove_root($ex)"))
+    case _ => throwInternalError(s"shouldn't be here: remove_root($ex)")
   }
   /** Turn Params into Verilog Strings */
   def stringify(param: Param): String = param match {
@@ -156,7 +156,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
       val wx = bitWidth(tpe) - 1
       if (wx > 0) s"[$wx:0]" else ""
     case ClockType => ""
-    case _ => throwInternalError(Some(s"trying to write unsupported type in the Verilog Emitter: $tpe"))
+    case _ => throwInternalError(s"trying to write unsupported type in the Verilog Emitter: $tpe")
   }
   def emit(x: Any)(implicit w: Writer) { emit(x, 0) }
   def emit(x: Any, top: Int)(implicit w: Writer) {
@@ -165,7 +165,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
       case (t: SIntType) => Seq("$signed(",e,")")
       case ClockType => e
       case AnalogType(_) => e
-      case _ => throwInternalError(Some(s"unrecognized cast: $e"))
+      case _ => throwInternalError(s"unrecognized cast: $e")
     }
     x match {
       case (e: DoPrim) => emit(op_stream(e), top + 1)
@@ -195,7 +195,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
       case (s: Seq[Any]) =>
         s foreach (emit(_, top + 1))
         if (top == 0) w write "\n"
-      case x => throwInternalError(Some(s"trying to emit unsupported operator: $x"))
+      case x => throwInternalError(s"trying to emit unsupported operator: $x")
     }
   }
 
@@ -209,7 +209,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
          case '-' => s"-$width'sh${stringLiteral.tail}"
          case _ => s"$width'sh${stringLiteral}"
        })
-     case _ => throwInternalError(Some(s"attempt to print unrecognized expression: $e"))
+     case _ => throwInternalError(s"attempt to print unrecognized expression: $e")
    }
 
    def op_stream(doprim: DoPrim): Seq[Any] = {
@@ -222,19 +222,19 @@ class VerilogEmitter extends SeqTransform with Emitter {
          case Some(_) => e.tpe match {
            case (_: SIntType) => Seq("$signed(", e, ")")
            case (_: UIntType) => Seq("$signed({1'b0,", e, "})")
-           case _ => throwInternalError(Some(s"unrecognized type: $e"))
+           case _ => throwInternalError(s"unrecognized type: $e")
          }
        }
      }
      def cast(e: Expression): Any = doprim.tpe match {
        case (t: UIntType) => e
        case (t: SIntType) => Seq("$signed(",e,")")
-       case _ => throwInternalError(Some(s"cast - unrecognized type: $e"))
+       case _ => throwInternalError(s"cast - unrecognized type: $e")
      }
      def cast_as(e: Expression): Any = e.tpe match {
        case (t: UIntType) => e
        case (t: SIntType) => Seq("$signed(",e,")")
-       case _ => throwInternalError(Some(s"cast_as - unrecognized type: $e"))
+       case _ => throwInternalError(s"cast_as - unrecognized type: $e")
      }
      def a0: Expression = doprim.args.head
      def a1: Expression = doprim.args(1)
