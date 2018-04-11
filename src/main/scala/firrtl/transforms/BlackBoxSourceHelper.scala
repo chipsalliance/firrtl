@@ -8,7 +8,7 @@ import firrtl._
 import firrtl.Utils.throwInternalError
 import firrtl.annotations._
 
-import scala.collection.mutable.ArrayBuffer
+import scala.collection.immutable.ListSet
 
 sealed trait BlackBoxHelperAnno extends Annotation
 
@@ -47,8 +47,8 @@ class BlackBoxSourceHelper extends firrtl.Transform {
     * @param annos a list of generic annotations for this transform
     * @return BlackBoxHelperAnnos and target directory
     */
-  def collectAnnos(annos: Seq[Annotation]): (Set[BlackBoxHelperAnno], File) =
-    annos.foldLeft((Set.empty[BlackBoxHelperAnno], DefaultTargetDir)) {
+  def collectAnnos(annos: Seq[Annotation]): (ListSet[BlackBoxHelperAnno], File) =
+    annos.foldLeft((ListSet.empty[BlackBoxHelperAnno], DefaultTargetDir)) {
       case ((acc, tdir), anno) => anno match {
         case BlackBoxTargetDirAnno(dir) =>
           val targetDir = new File(dir)
@@ -68,7 +68,7 @@ class BlackBoxSourceHelper extends firrtl.Transform {
   override def execute(state: CircuitState): CircuitState = {
     val (annos, targetDir) = collectAnnos(state.annotations)
 
-    val resourceFiles: Set[File] = annos.collect {
+    val resourceFiles: ListSet[File] = annos.collect {
       case BlackBoxResourceAnno(_, resourceId) =>
         val name = resourceId.split("/").last
         val outFile = new File(targetDir, name)
@@ -78,7 +78,7 @@ class BlackBoxSourceHelper extends firrtl.Transform {
       file
     }
 
-    val inlineFiles: Set[File] = annos.collect {
+    val inlineFiles: ListSet[File] = annos.collect {
       case BlackBoxInlineAnno(_, name, text) =>
         val outFile = new File(targetDir, name)
         (text, outFile)
@@ -111,7 +111,7 @@ object BlackBoxSourceHelper {
 
   val fileListName = "firrtl_black_box_resource_files.f"
 
-  def writeFileList(files: Set[File], targetDir: File) {
+  def writeFileList(files: ListSet[File], targetDir: File) {
     if (files.nonEmpty) {
       writeTextToFile(files.mkString("\n"), new File(targetDir, fileListName))
     }
