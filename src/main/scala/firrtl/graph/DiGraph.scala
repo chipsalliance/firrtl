@@ -71,42 +71,42 @@ class DiGraph[T] private[graph] (private[graph] val edges: LinkedHashMap[T, Link
     * traversal
     */
   def linearize: Seq[T] = {
-    // Kahn's algorithm
-    // Calculate all in degrees, linked because it affects initial toVisit order
-    val inDegree = mutable.LinkedHashMap[T, Int]()
-    for ((u, vs) <- edges) {
-      inDegree.getOrElseUpdate(u, 0) // ensure each vertex has a degree
-      for (v <- vs) {
-        inDegree(v) = inDegree.getOrElse(v, 0) + 1
-      }
-    }
-    // Find nodes with in degree == 0
-    val toVisit = mutable.Queue[T]()
-    for ((v, c) <- inDegree) {
-      if (c == 0) {
-        toVisit.enqueue(v)
-      }
-    }
-    // Delete nodes with degree 0 from inDegree
-    inDegree --= toVisit
-    // Iteratively visit each node and decrement degrees of neighbors
-    val order = mutable.ArrayBuffer[T]()
-    while (toVisit.nonEmpty) {
-      val n = toVisit.dequeue()
-      order += n
-      for (v <- getEdges(n)) {
-        val degree = inDegree(v) - 1
-        if (degree == 0) {
-          toVisit.enqueue(v)
-          inDegree -= v
+    // permanently marked nodes are implicitly held in order
+    val order = new mutable.ArrayBuffer[T]
+    // invariant: no intersection between unmarked and tempMarked
+    val unmarked = new mutable.LinkedHashSet[T]
+    val tempMarked = new mutable.LinkedHashSet[T]
+
+    case class LinearizeFrame[T](v: T, expanded: Boolean)
+    val callStack = mutable.Stack[LinearizeFrame[T]]()
+
+    unmarked ++= getVertices
+    while (unmarked.nonEmpty) {
+      callStack.push(LinearizeFrame(unmarked.head, false))
+      while (callStack.nonEmpty) {
+        val LinearizeFrame(n, expanded) = callStack.pop()
+        if (!expanded) {
+          if (tempMarked.contains(n)) {
+            throw new CyclicException(n)
+          }
+          if (unmarked.contains(n)) {
+            tempMarked += n
+            unmarked -= n
+            callStack.push(LinearizeFrame(n, true))
+            // We want to visit the first edge first (so push it last)
+            for (m <- edges.getOrElse(n, Set.empty).toSeq.reverse) {
+              callStack.push(LinearizeFrame(m, false))
+            }
+          }
         } else {
-          inDegree(v) = degree
+          tempMarked -= n
+          order.append(n)
         }
       }
     }
-    // Check that everything was visited (no cycles)
-    inDegree.headOption.foreach(x => throw new CyclicException(x._1))
-    order
+
+    // visited nodes are in post-traversal order, so must be reversed
+    order.reverse.toSeq
   }
 
   /** Performs breadth-first search on the directed graph

@@ -42,9 +42,9 @@ class RemoveWires extends Transform {
   private def getOrderedNodes(
       netlist: mutable.LinkedHashMap[WrappedExpression, (Expression, Info)]): Try[Seq[DefNode]] = {
     val digraph = new MutableDiGraph[WrappedExpression]
-    for ((source, (expr, _)) <- netlist) {
-      digraph.addVertex(source)
-      for (sink <- extractNodeWireRefs(expr)) {
+    for ((sink, (expr, _)) <- netlist) {
+      digraph.addVertex(sink)
+      for (source <- extractNodeWireRefs(expr)) {
         digraph.addPairWithEdge(sink, source)
       }
     }
@@ -53,7 +53,7 @@ class RemoveWires extends Transform {
     // a MUCH better job of preserving the logic order as expressed by the designer
     // See RemoveWireTests for illustration
     Try {
-      val ordered = digraph.linearize
+      val ordered = digraph.linearize.reverse
       ordered.map { key =>
         val WRef(name, _,_,_) = key.e1
         val (rhs, info) = netlist(key)
