@@ -69,20 +69,17 @@ object Driver {
     * @param optionsManager use optionsManager config to load annotation file if it exists
     *                       update the firrtlOptions with new annotations if it does
     */
-  @deprecated("Use side-effect free getAnnotation instead", "1.1")
-  def loadAnnotations(optionsManager: ExecutionOptionsManager): Unit = {
-    val msg = "Driver.loadAnnotations is deprecated, use Driver.getAnnotations instead"
-    Driver.dramaticError(msg)
-  }
+  @deprecated("This has no effect and is unnecessary due to ExecutionOptionsManager immutability", "1.1.0")
+  def loadAnnotations(optionsManager: ExecutionOptionsManager): Unit =
+    Driver.dramaticWarning("Driver.loadAnnotations doesn't do anything, use Driver.getAnnotations instead")
 
  /** Get annotations from specified files and options
     *
     * @param optionsManager use optionsManager config to load annotation files
     * @return Annotations read from files
     */
-  //scalastyle:off cyclomatic.complexity method.length
-  def getAnnotations(
-    optionsManager: ExecutionOptionsManager with HasFirrtlOptions): Seq[Annotation] = optionsManager.firrtlOptions.annotations
+  def getAnnotations(optionsManager: ExecutionOptionsManager with HasFirrtlOptions): Seq[Annotation] =
+    optionsManager.firrtlOptions.annotations
 
   // Useful for handling erros in the options
   case class OptionsException(msg: String) extends Exception(msg)
@@ -122,8 +119,7 @@ object Driver {
           val inputFileName = firrtlConfig.getInputFileName(optionsManager)
           try {
             io.Source.fromFile(inputFileName).getLines()
-          }
-          catch {
+          } catch {
             case _: FileNotFoundException =>
               val message = s"Input file $inputFileName not found"
               throw new OptionsException(message)
@@ -166,9 +162,7 @@ object Driver {
       }
       catch {
         // Rethrow the exceptions which are expected or due to the runtime environment (out of memory, stack overflow)
-        case p: ControlThrowable => throw p
-        case p: PassException  => throw p
-        case p: FIRRTLException => throw p
+        case p @ (_: ControlThrowable | _: PassException | _: FIRRTLException)  => throw p
         // Treat remaining exceptions as internal errors.
         case e: Exception => throwInternalError(exception = Some(e))
       }
@@ -176,7 +170,7 @@ object Driver {
       // Do emission
       // Note: Single emission target assumption is baked in here
       // Note: FirrtlExecutionSuccess emitted is only used if we're emitting the whole Circuit
-      val emittedRes = firrtlConfig.getOutputConfig(optionsManager) match {
+      val emittedRes = firrtlOptions.getOutputConfig(optionsManager) match {
         case SingleFile(filename) =>
           val emitted = finalState.getEmittedCircuit
           val outputFile = new java.io.PrintWriter(filename)
@@ -187,7 +181,7 @@ object Driver {
           val emittedModules = finalState.emittedComponents collect { case x: EmittedModule => x }
           if (emittedModules.isEmpty) throwInternalError() // There should be something
           emittedModules.foreach { module =>
-            val filename = optionsManager.getBuildFileName(firrtlConfig.outputSuffix, Some(s"$dirName/${module.name}"))
+            val filename = optionsManager.getBuildFileName(firrtlOptions.outputSuffix, Some(s"$dirName/${module.name}"))
             val outputFile = new java.io.PrintWriter(filename)
             outputFile.write(module.value)
             outputFile.close()
@@ -205,7 +199,7 @@ object Driver {
           outputFile.close()
       }
 
-      FirrtlExecutionSuccess(firrtlConfig.compilerName, emittedRes, finalState)
+      FirrtlExecutionSuccess(firrtlOptions.compilerName, emittedRes, finalState)
     }
   }
 
