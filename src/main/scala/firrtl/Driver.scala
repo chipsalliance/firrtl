@@ -18,14 +18,19 @@ import firrtl.passes.PassException
 import firrtl.transforms._
 import firrtl.Utils.throwInternalError
 
-
 /**
   * The Driver enables invocation of the FIRRTL compiler using command
-  * line arguments ([[Array[String]]]) or an [[ExecutionOptionsManager]].
-  * Both approaches are equivalent.
+  * line arguments ([[String]] or [[Array[String]]]) or an
+  * [[ExecutionOptionsManager]]. Both approaches are equivalent.
   *
-  * Using command line arguments:
   * @example
+  * Invocation using a command line argument string:
+  * {{{
+  * val args = "--top-name MyTopModule --compiler verilog"
+  * Driver.execute(args)
+  * }}}
+  *
+  * Invocation using explicit command line arguments:
   * {{{
   * val args = Array(
   *   "--top-name",  "MyTopModule", // The name of the top module
@@ -33,13 +38,12 @@ import firrtl.Utils.throwInternalError
   * Driver.execute(args)
   * }}}
   *
-  * Using an [[ExecutionOptionsManager]]:
-  * @example
+  * Invocation using an [[ExecutionOptionsManager]]:
   * {{{
-  * val optionsManager = new ExecutionOptionsManager("firrtl")
-  * optionsManager.register(
-  *     FirrtlExecutionOptionsKey ->
-  *     new FirrtlExecutionOptions(topName = "Dummy", compilerName = "verilog"))
+  * val args = Array(
+  *   "--top-name",  "MyTopModule", // The name of the top module
+  *   " --compiler", "verilog" )    // The compiler to use
+  * val optionsManager = new ExecutionOptionsManager("firrtl", args)
   * firrtl.Driver.execute(optionsManager)
   * }}}
   *
@@ -218,7 +222,6 @@ object Driver {
     *
     * @param args command line arguments
     * @return the result of running the FIRRTL compiler
-    * @note This is a thin wrapper around [[Driver.execute(optionsManager: ExecutionOptionsManager with HasFirrtlOptions)]]
     */
   def execute(args: Array[String]): FirrtlExecutionResult = {
     try {
@@ -243,7 +246,6 @@ object Driver {
     *
     * @param args command line arguments
     * @return the result of running the FIRRTL compiler
-    * @note This is a thin wrapper around [[Driver.execute(args: Array[String])]]
     */
   def execute(args: String): FirrtlExecutionResult = {
     // Split the string by whitespace, treating doubly quoted arguments as
