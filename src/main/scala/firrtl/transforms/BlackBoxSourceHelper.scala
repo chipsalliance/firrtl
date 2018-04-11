@@ -73,7 +73,7 @@ class BlackBoxSourceHelper extends firrtl.Transform {
         val name = resourceId.split("/").last
         val outFile = new File(targetDir, name)
         (resourceId, outFile)
-    }.toSet[(String, File)].map { case (res, file) =>
+    }.map { case (res, file) =>
       BlackBoxSourceHelper.copyResourceToFile(res, file)
       file
     }
@@ -82,7 +82,7 @@ class BlackBoxSourceHelper extends firrtl.Transform {
       case BlackBoxInlineAnno(_, name, text) =>
         val outFile = new File(targetDir, name)
         (text, outFile)
-    }.toSet[(String, File)].map { case (text, file) =>
+    }.map { case (text, file) =>
       BlackBoxSourceHelper.writeTextToFile(text, file)
       file
     }
