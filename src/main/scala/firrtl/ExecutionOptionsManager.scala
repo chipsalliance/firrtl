@@ -8,7 +8,7 @@ import firrtl.annotations.{
   AnnotationFileNotFoundException,
   JsonProtocol }
 
-import scopt.OptionParser
+import scopt.{OptionParser, OptionDef, Zero}
 import scala.util.{Try, Failure}
 import java.io.File
 import net.jcazevedo.moultingyaml._
@@ -29,6 +29,18 @@ class ExecutionOptionsManager(
     var terminateOnExit = true
     override def terminate(exitState: Either[String, Unit]): Unit = {
       if(terminateOnExit) sys.exit(0)
+    }
+
+    /* Adds a check during parsing that no long or short options conflict */
+    override def parse(args: Seq[String], init: AnnotationSeq): Option[AnnotationSeq] = {
+      val longDuplicates = options.map(_.name).groupBy(identity).collect{ case (k, v) if v.size > 1 && k != "" => k }
+      val shortDuplicates = options.map(_.shortOpt).flatten.groupBy(identity).collect{ case (k, v) if v.size > 1 => k }
+      def boilerplate(x: String, y: String) = s"""Found duplicate $x "$y" (did your custom Transform or OptionsManager add this?)"""
+      if (longDuplicates.nonEmpty)
+        throw new FIRRTLException(boilerplate("long option", longDuplicates.map("--" + _).mkString(",")))
+      if (shortDuplicates.nonEmpty)
+        throw new FIRRTLException(boilerplate("short option", shortDuplicates.map("-" + _).mkString(",")))
+      super.parse(args, init)
     }
   }
 

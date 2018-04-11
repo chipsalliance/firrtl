@@ -5,6 +5,18 @@ package firrtlTests
 import firrtl._
 import org.scalatest.{Matchers, FreeSpec}
 
+trait HasDuplicateLongOption {
+  self: ExecutionOptionsManager =>
+  parser.opt[String]("top-name")
+    .abbr("herp")
+}
+
+trait HasDuplicateShortOption {
+  self: ExecutionOptionsManager =>
+  parser.opt[String]("very-unique-long-option")
+    .abbr("tn")
+}
+
 class ExecutionOptionsManagerSpec extends FreeSpec with Matchers {
   "ExecutionOptionsManager is a container for one more more ComposableOptions Block" - {
     "It has a default CommonOptionsBlock" in {
@@ -27,6 +39,20 @@ class ExecutionOptionsManagerSpec extends FreeSpec with Matchers {
 
       manager.firrtlOptions.inputFileNameOverride should be (Some("fork"))
       manager.firrtlOptions.topName should be (Some("spoon"))
+    }
+    "duplicate long options should be detected" in {
+      val manager = new ExecutionOptionsManager(
+        "test",
+        Array("--top-name", "spoon",
+              "--input-file", "fork") ) with HasFirrtlOptions with HasDuplicateLongOption
+      a [FIRRTLException] should be thrownBy (manager.options)
+    }
+    "duplicate short options should be detected" in {
+      val manager = new ExecutionOptionsManager(
+        "test",
+        Array("--top-name", "spoon",
+              "--input-file", "fork") ) with HasFirrtlOptions with HasDuplicateShortOption
+      a [FIRRTLException] should be thrownBy (manager.options)
     }
   }
 }

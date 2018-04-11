@@ -337,7 +337,7 @@ trait HasFirrtlOptions {
         case FirrtlSourceAnnotation(_)      => hasFirrtlSource     = true
         case _                              =>                            })
     if (!(hasTopName || hasInputFile || hasFirrtlSource))
-      parser.failure("At least one of --top-name, --input-file, or --has-firrtl-source must be specified")
+      parser.failure("At least one of --top-name, --input-file, or --firrtl-source must be specified")
     else if (hasInputFile && hasFirrtlSource)
       parser.failure("Only one of --input-file or --firrtl-source may be specified")
     else if (hasOneFilePerModule && hasOutputFile)
