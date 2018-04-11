@@ -20,29 +20,36 @@ import firrtl.Utils.throwInternalError
 
 
 /**
-  * The driver provides methods to access the firrtl compiler.
-  * Invoke the compiler with either a FirrtlExecutionOption
+  * The Driver enables invocation of the FIRRTL compiler using command
+  * line arguments ([[Array[String]]]) or an [[ExecutionOptionsManager]].
+  * Both approaches are equivalent.
   *
+  * Using command line arguments:
   * @example
-  *          {{{
-  *          val optionsManager = new ExecutionOptionsManager("firrtl")
-  *          optionsManager.register(
-  *              FirrtlExecutionOptionsKey ->
-  *              new FirrtlExecutionOptions(topName = "Dummy", compilerName = "verilog"))
-  *          firrtl.Driver.execute(optionsManager)
-  *          }}}
-  *  or a series of command line arguments
+  * {{{
+  * val args = Array(
+  *   "--top-name",  "MyTopModule", // The name of the top module
+  *   " --compiler", "verilog" )    // The compiler to use
+  * Driver.execute(args)
+  * }}}
+  *
+  * Using an [[ExecutionOptionsManager]]:
   * @example
-  *          {{{
-  *          firrtl.Driver.execute(Array("--top-name Dummy --compiler verilog".split(" +"))
-  *          }}}
-  * each approach has its own endearing aspects
+  * {{{
+  * val optionsManager = new ExecutionOptionsManager("firrtl")
+  * optionsManager.register(
+  *     FirrtlExecutionOptionsKey ->
+  *     new FirrtlExecutionOptions(topName = "Dummy", compilerName = "verilog"))
+  * firrtl.Driver.execute(optionsManager)
+  * }}}
+  *
   * @see firrtlTests/DriverSpec.scala in the test directory for a lot more examples
   * @see [[CompilerUtils.mergeTransforms]] to see how customTransformations are inserted
   */
 
 object Driver {
-  /** Print a warning message
+  /**
+    * Print a warning message (in yellow)
     *
     * @param message error message
     */
@@ -54,9 +61,10 @@ object Driver {
   }
 
   /**
-    * print the message in red
+    * Print an error message (in red)
     *
     * @param message error message
+    * @note This does not stop the Driver.
     */
   //scalastyle:off regex
   def dramaticError(message: String): Unit = {
@@ -65,15 +73,18 @@ object Driver {
     println("-"*78 + Console.RESET)
   }
 
-  /** Load annotation file based on options
+  /**
+    * Load annotations from an [[ExecutionOptionsManager]]
+    *
     * @param optionsManager use optionsManager config to load annotation file if it exists
     *                       update the firrtlOptions with new annotations if it does
     */
   @deprecated("This has no effect and is unnecessary due to ExecutionOptionsManager immutability", "1.1.0")
-  def loadAnnotations(optionsManager: ExecutionOptionsManager): Unit =
+  def loadAnnotations(optionsManager: ExecutionOptionsManager with HasFirrtlOptions): Unit =
     Driver.dramaticWarning("Driver.loadAnnotations doesn't do anything, use Driver.getAnnotations instead")
 
- /** Get annotations from specified files and options
+  /**
+    * Extract the annotations from an [[ExecutionOptionsManager]]
     *
     * @param optionsManager use optionsManager config to load annotation files
     * @return Annotations read from files
@@ -131,11 +142,10 @@ object Driver {
   }
 
   /**
-    * Run the firrtl compiler using the provided option
+    * Run the FIRRTL compiler using the provided [[ExecutionOptionsManager]]
     *
     * @param optionsManager the desired flags to the compiler
-    * @return a FirrtlExecutionResult indicating success or failure, provide access to emitted data on success
-    *         for downstream tools as desired
+    * @return the result of running the FIRRTL compiler
     */
   //scalastyle:off cyclomatic.complexity method.length
   def execute(optionsManager: ExecutionOptionsManager with HasFirrtlOptions): FirrtlExecutionResult = {
@@ -190,7 +200,7 @@ object Driver {
       }
 
       // If set, emit final annotations to a file
-      optionsManager.firrtlOptions.outputAnnotationFileName match {
+      firrtlOptions.outputAnnotationFileName match {
         case None =>
         case file =>
           val filename = optionsManager.getBuildFileName("anno.json", file)
@@ -204,11 +214,11 @@ object Driver {
   }
 
   /**
-    * this is a wrapper for execute that builds the options from a standard command line args,
-    * for example, like strings passed to main()
+    * Run the FIRRTL compiler using provided command line arguments
     *
-    * @param args  an Array of string s containing legal arguments
-    * @return
+    * @param args command line arguments
+    * @return the result of running the FIRRTL compiler
+    * @note This is a thin wrapper around [[Driver.execute(optionsManager: ExecutionOptionsManager with HasFirrtlOptions)]]
     */
   def execute(args: Array[String]): FirrtlExecutionResult = {
     try {
