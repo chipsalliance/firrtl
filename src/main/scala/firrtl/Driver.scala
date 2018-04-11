@@ -235,6 +235,25 @@ object Driver {
     }
   }
 
+  /**
+    * Run the FIRRTL compiler using provided command line arguments
+    *
+    * Command line options are split by whitespace. Use a double quote to
+    * escape options that contain spaces, e.g., --firrtl-source "Circuit:..."
+    *
+    * @param args command line arguments
+    * @return the result of running the FIRRTL compiler
+    * @note This is a thin wrapper around [[Driver.execute(args: Array[String])]]
+    */
+  def execute(args: String): FirrtlExecutionResult = {
+    // Split the string by whitespace, treating doubly quoted arguments as
+    // one option, then removing any leading or trailing double quotes.
+    val argsx: Array[String] = args
+      .split(" +(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)")
+      .map(s => s.stripPrefix("\"").stripSuffix("\""))
+    execute(argsx)
+  }
+
   def main(args: Array[String]): Unit = {
     execute(args)
   }

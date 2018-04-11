@@ -372,18 +372,12 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
         "middle" -> Seq("./Top.mid.fir", "./Child.mid.fir"),
         "verilog" -> Seq("./Top.v", "./Child.v")
       ).foreach { case (compilerName, expectedOutputFileNames) =>
-        println(s"$compilerName -> $expectedOutputFileNames")
-          val manager = new ExecutionOptionsManager(
-            "test",
-            Array("--firrtl-source", input,
-                  "--compiler", compilerName,
-                  "--split-modules") ) with HasFirrtlOptions
+          val args: String = s"""--firrtl-source "$input" --compiler $compilerName --split-modules"""
 
-        firrtl.Driver.execute(manager) match {
-          case success: FirrtlExecutionSuccess =>
-            success.circuitState.annotations.length should be > (0)
-          case _ =>
-
+          firrtl.Driver.execute(args) match {
+            case success: FirrtlExecutionSuccess =>
+              success.circuitState.annotations.length should be > (0)
+            case _ =>
         }
 
         for (name <- expectedOutputFileNames) {
