@@ -7,7 +7,7 @@ import scala.collection.mutable
 import scala.collection.mutable.{LinkedHashSet, LinkedHashMap}
 
 /** An exception that is raised when an assumed DAG has a cycle */
-class CyclicException extends Exception("No valid linearization for cyclic graph")
+class CyclicException(val node: Any) extends Exception(s"No valid linearization for cyclic graph, found at $node")
 
 /** An exception that is raised when attempting to find an unreachable node */
 class PathNotFoundException extends Exception("Unreachable node")
@@ -25,7 +25,7 @@ object DiGraph {
     }
     for ((k, v) <- edgeData) {
       for (n <- v) {
-        require(edgeDataCopy.contains(n))
+        require(edgeDataCopy.contains(n), s"Does not contain $n")
         edgeDataCopy(k) += n
       }
     }
@@ -77,24 +77,32 @@ class DiGraph[T] private[graph] (private[graph] val edges: LinkedHashMap[T, Link
     val unmarked = new mutable.LinkedHashSet[T]
     val tempMarked = new mutable.LinkedHashSet[T]
 
-    def visit(n: T): Unit = {
-      if (tempMarked.contains(n)) {
-        throw new CyclicException
-      }
-      if (unmarked.contains(n)) {
-        tempMarked += n
-        unmarked -= n
-        for (m <- getEdges(n)) {
-          visit(m)
-        }
-        tempMarked -= n
-        order.append(n)
-      }
-    }
+    case class LinearizeFrame[T](v: T, expanded: Boolean)
+    val callStack = mutable.Stack[LinearizeFrame[T]]()
 
     unmarked ++= getVertices
     while (unmarked.nonEmpty) {
-      visit(unmarked.head)
+      callStack.push(LinearizeFrame(unmarked.head, false))
+      while (callStack.nonEmpty) {
+        val LinearizeFrame(n, expanded) = callStack.pop()
+        if (!expanded) {
+          if (tempMarked.contains(n)) {
+            throw new CyclicException(n)
+          }
+          if (unmarked.contains(n)) {
+            tempMarked += n
+            unmarked -= n
+            callStack.push(LinearizeFrame(n, true))
+            // We want to visit the first edge first (so push it last)
+            for (m <- edges.getOrElse(n, Set.empty).toSeq.reverse) {
+              callStack.push(LinearizeFrame(m, false))
+            }
+          }
+        } else {
+          tempMarked -= n
+          order.append(n)
+        }
+      }
     }
 
     // visited nodes are in post-traversal order, so must be reversed
