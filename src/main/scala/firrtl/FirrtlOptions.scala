@@ -339,11 +339,9 @@ trait HasFirrtlOptions {
     if (!(hasTopName || hasInputFile || hasFirrtlSource))
       parser.failure("At least one of --top-name, --input-file, or --firrtl-source must be specified")
     else if (hasInputFile && hasFirrtlSource)
-      parser.failure("Only one of --input-file or --firrtl-source may be specified")
+      parser.failure("Only one of --input-file or --firrtl-source may be specified (not both!)")
     else if (hasOneFilePerModule && hasOutputFile)
       parser.failure("Output override (--output-file) is incompatible with one file per module (--split-modules)")
-    else if (hasInputFile && hasFirrtlSource)
-      parser.failure("Specify one of --input-file or --firrtl-source (not both!)")
     else
       parser.success
   }
