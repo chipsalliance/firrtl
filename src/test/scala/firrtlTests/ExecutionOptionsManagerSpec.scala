@@ -3,6 +3,7 @@
 package firrtlTests
 
 import firrtl._
+import logger.LogLevel
 import org.scalatest.{Matchers, FreeSpec}
 
 trait HasDuplicateLongOption {
@@ -18,10 +19,31 @@ trait HasDuplicateShortOption {
 }
 
 class ExecutionOptionsManagerSpec extends FreeSpec with Matchers {
-  "ExecutionOptionsManager is a container for one more more ComposableOptions Block" - {
-    "It has a default CommonOptionsBlock" in {
-      val manager = new ExecutionOptionsManager("test", Array("--top-name", "null")) with HasFirrtlOptions
-      manager.firrtlOptions.targetDirName should be (".")
+  "ExecutionOptionsManager is a container for all command line options" - {
+    "It has default FIRRTL Options" in {
+      val f = (new ExecutionOptionsManager("test", Array("--top-name", "null")) with HasFirrtlOptions)
+        .firrtlOptions
+      // This is explicitly enumerated (as opposed to being compared to
+      // FirrtlOptions) is to catch changes in FirrtlOptions that a
+      // developer may make, requiring that they also change this test.
+      f.targetDirName should be (".")
+      f.globalLogLevel should be (LogLevel.None)
+      f.logToFile should be (false)
+      f.outputFileNameOverride should be (None)
+      f.outputAnnotationFileName should be (None)
+      f.compilerName should be ("verilog")
+      f.infoModeName should be ("append")
+      f.customTransforms should be (List.empty)
+      f.firrtlSource should be (None)
+      f.annotations should be (
+        List(firrtl.transforms.BlackBoxTargetDirAnno("."),
+             TopNameAnnotation("null"),
+             TargetDirAnnotation("."),
+             LogLevelAnnotation(LogLevel.None),
+             EmitterAnnotation(classOf[VerilogEmitter]),
+             CompilerNameAnnotation("verilog") ))
+      f.emitOneFilePerModule should be (false)
+      f.annotationFileNames should be (List.empty)
     }
     "But can override defaults like this" in {
       val manager = new ExecutionOptionsManager(
