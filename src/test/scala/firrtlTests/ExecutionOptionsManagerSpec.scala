@@ -28,8 +28,9 @@ class ExecutionOptionsManagerSpec extends FreeSpec with Matchers {
         val f = (new ExecutionOptionsManager("test", Array("--top-name", "null")) with HasFirrtlOptions)
           .firrtlOptions
         // This is explicitly enumerated (as opposed to being compared to
-        // FirrtlOptions) is to catch changes in FirrtlOptions that a
-        // developer may make, requiring that they also change this test.
+        // FirrtlExecutionOptions()) to catch changes in
+        // FirrtlExecutionOptions that a developer may make, requiring
+        // that they also change this test.
         f.targetDirName should be (".")
         f.globalLogLevel should be (LogLevel.None)
         f.logToFile should be (false)
@@ -53,7 +54,7 @@ class ExecutionOptionsManagerSpec extends FreeSpec with Matchers {
         val f = (new ExecutionOptionsManager("test",
                                              Array("--top-name", "dog")) with HasFirrtlOptions)
           .firrtlOptions
-        f shouldBe a [FirrtlOptions]
+        f shouldBe a [FirrtlExecutionOptions]
         f.topName should be (Some("dog"))
       }
       "should be able to set different Top Module Name and Input File" in {

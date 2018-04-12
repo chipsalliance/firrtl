@@ -84,10 +84,10 @@ trait HasFirrtlOptions {
     }
 
     annos ++
-      (if (addTargetDir)   Seq(TargetDirAnnotation(FirrtlOptions().targetDirName))           else Seq() ) ++
-      (if (addBlackBoxDir) Seq(BlackBoxTargetDirAnno(FirrtlOptions().targetDirName))         else Seq() ) ++
-      (if (addLogLevel)    Seq(LogLevelAnnotation(FirrtlOptions().globalLogLevel))           else Seq() ) ++
-      (if (addCompiler)    Seq(CompilerNameAnnotation(FirrtlOptions().compilerName))         else Seq() ) ++
+      (if (addTargetDir)   Seq(TargetDirAnnotation(FirrtlExecutionOptions().targetDirName))           else Seq() ) ++
+      (if (addBlackBoxDir) Seq(BlackBoxTargetDirAnno(FirrtlExecutionOptions().targetDirName))         else Seq() ) ++
+      (if (addLogLevel)    Seq(LogLevelAnnotation(FirrtlExecutionOptions().globalLogLevel))           else Seq() ) ++
+      (if (addCompiler)    Seq(CompilerNameAnnotation(FirrtlExecutionOptions().compilerName))         else Seq() ) ++
       (if (addTopName)     Seq(TopNameAnnotation(ExecutionUtils.Early.topName(annos))) else Seq() )
   }
 
@@ -103,7 +103,7 @@ trait HasFirrtlOptions {
     Seq(EmitterAnnotation(emitter))
   }
 
-  lazy val firrtlOptions: FirrtlOptions = {
+  lazy val firrtlOptions: FirrtlExecutionOptions = {
     val annotationTransforms: Seq[Seq[Annotation] => Seq[Annotation]] =
       Seq( addImplicitAnnotationFile(_),
            getIncludes(_),
@@ -118,7 +118,7 @@ trait HasFirrtlOptions {
       case _                 => false }
 
     firrtlAnnos
-      .foldLeft(FirrtlOptions(annotations = nonFirrtlAnnos.toList)){ (old, x) =>
+      .foldLeft(FirrtlExecutionOptions(annotations = nonFirrtlAnnos.toList)){ (old, x) =>
         val processed = x match {
           case InputFileAnnotation(f) => old.copy(inputFileNameOverride = Some(f))
           case OutputFileAnnotation(f) => old.copy(outputFileNameOverride = Some(f))
@@ -139,7 +139,7 @@ trait HasFirrtlOptions {
           case RunFirrtlTransformAnnotation(x) => old.copy(
             customTransforms = old.customTransforms :+ Class.forName(x).asInstanceOf[Class[_<:Transform]].newInstance())
         }
-        // [todo] Delete FirrtlOptions annotations here
+        // [todo] Delete FirrtlExecutionOptions annotations here
         processed
           .copy(annotations = processed.annotations :+ x)
       }
@@ -233,7 +233,7 @@ trait HasFirrtlOptions {
     .valueName("<target-directory>")
     .action( (x, c) => c ++ Seq(TargetDirAnnotation(x), BlackBoxTargetDirAnno(x)) )
     .maxOccurs(1)
-    .text(s"This options defines a work directory for intermediate files and blackboxes, default is ${FirrtlOptions().targetDirName}")
+    .text(s"This options defines a work directory for intermediate files and blackboxes, default is ${FirrtlExecutionOptions().targetDirName}")
 
   parser.opt[String]("log-level")
     .abbr("ll")
@@ -243,7 +243,7 @@ trait HasFirrtlOptions {
       if (Array("error", "warn", "info", "debug", "trace").contains(x.toLowerCase)) parser.success
       else parser.failure(s"$x bad value must be one of error|warn|info|debug|trace") )
     .maxOccurs(1)
-    .text(s"This options defines a work directory for intermediate files, default is ${FirrtlOptions().targetDirName}")
+    .text(s"This options defines a work directory for intermediate files, default is ${FirrtlExecutionOptions().targetDirName}")
 
   parser.opt[Seq[String]]("class-log-level")
     .abbr("cll")
@@ -253,7 +253,7 @@ trait HasFirrtlOptions {
                 val level = LogLevel(levelName)
                 ClassLogLevelAnnotation(className, level) }) )
     .maxOccurs(1)
-    .text(s"This options defines a work directory for intermediate files, default is ${FirrtlOptions().targetDirName}")
+    .text(s"This options defines a work directory for intermediate files, default is ${FirrtlExecutionOptions().targetDirName}")
 
   parser.opt[Unit]("log-to-file")
     .abbr("ltf")
@@ -330,7 +330,7 @@ trait HasFirrtlOptions {
     .validate( x =>
       if (Array("ignore", "use", "gen", "append").contains(x.toLowerCase)) parser.success
       else parser.failure(s"$x bad value must be one of ignore|use|gen|append"))
-    .text(s"specifies the source info handling, default is ${FirrtlOptions().infoModeName}")
+    .text(s"specifies the source info handling, default is ${FirrtlExecutionOptions().infoModeName}")
 
   parser.opt[String]("firrtl-source")
     .valueName ("A FIRRTL string")
@@ -388,10 +388,10 @@ trait HasFirrtlOptions {
   }
 }
 
-/** Firrtl output configuration specified by [[FirrtlOptions]]
+/** Firrtl output configuration specified by [[FirrtlExecutionOptions]]
   *
   * Derived from the fields of the execution options
-  * @see [[FirrtlOptions.getOutputConfig]]
+  * @see [[FirrtlExecutionOptions.getOutputConfig]]
   */
 sealed abstract class OutputConfig
 final case class SingleFile(targetFile: String) extends OutputConfig
@@ -405,7 +405,7 @@ final case class OneFilePerModule(targetDir: String) extends OutputConfig
   * @param compilerName           which compiler to use
   * @param annotations            annotations to pass to compiler
   */
-final case class FirrtlOptions(
+final case class FirrtlExecutionOptions(
   topName:                  Option[String]              = None,
   targetDirName:            String                      = ".",
   globalLogLevel:           LogLevel.Value              = LogLevel.None,

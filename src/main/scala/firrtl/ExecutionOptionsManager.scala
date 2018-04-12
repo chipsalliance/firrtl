@@ -93,7 +93,7 @@ object ExecutionUtils {
   def readAnnotationsFromFile(filename: String): List[Annotation] = readAnnotationsFromFile(List(filename))
 
   /** Utilities that collect "early" information about options before
-    * [[FirrtlOptions]] are available. These operate directly on
+    * [[FirrtlExecutionOptions]] are available. These operate directly on
     * annotations and are safe to use while constructing
     * [[ComposableOptions]]. */
   object Early {
@@ -108,7 +108,7 @@ object ExecutionUtils {
     def targetDir(annotations: Seq[Annotation]): String = annotations
       .reverse
       .collectFirst{ case TargetDirAnnotation(dir) => dir }
-      .getOrElse(FirrtlOptions().targetDirName)
+      .getOrElse(FirrtlExecutionOptions().targetDirName)
 
     /** Determine the top name using the following precedence:
       *   1) --top-name
