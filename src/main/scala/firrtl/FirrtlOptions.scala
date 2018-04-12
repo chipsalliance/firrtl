@@ -15,6 +15,8 @@ import firrtl.transforms.{
 import logger.LogLevel
 import java.io.File
 
+// [todo] This should be sealed, but the situatation with the emitter
+// annotation needs to be cleared up first
 trait FirrtlOption
 case class TopNameAnnotation(value: String) extends SingleStringAnnotation with FirrtlOption
 case class TargetDirAnnotation(value: String) extends SingleStringAnnotation with FirrtlOption
@@ -143,13 +145,18 @@ trait HasFirrtlOptions {
       }
   }
 
-  lazy val topName: Option[String] = firrtlOptions.topName
-  lazy val targetDirName: String = firrtlOptions.targetDirName
+  def topName(): Option[String] = firrtlOptions.topName
+  def targetDirName(): String = firrtlOptions.targetDirName
 
+  /**
+    * Create the specified Target Directory (--target-dir)
+    *
+    * @return whether or not the directory was created
+    */
   def makeTargetDir(): Boolean = FileUtils.makeDirectory(targetDirName)
 
   /**
-    * return a file based on targetDir, topName and suffix
+    * Return a file based on targetDir, topName and suffix
     * Will not add the suffix if the topName already ends with that suffix
     *
     * @param suffix suffix to add, removes . if present
@@ -177,6 +184,40 @@ trait HasFirrtlOptions {
     FileUtils.makeDirectory(path)
     s"$directoryName$baseName$normalizedSuffix"
   }
+
+  /**
+    * Return a filename of form "topName.log"
+    *
+    * @return the filename
+    */
+  def getLogFileName(): String = getBuildFileName("log")
+
+  /**
+    * build the input file name, taking overriding parameters
+    *
+    * @param optionsManager this is needed to access build function and its common options
+    * @return a properly constructed input file name
+    */
+  def getInputFileName(): String = getBuildFileName("fir", firrtlOptions.inputFileNameOverride)
+
+  /** Get the user-specified [[OutputConfig]]
+    *
+    * @param optionsManager this is needed to access build function and its common options
+    * @return the output configuration
+    */
+  def getOutputConfig(): OutputConfig =
+    if (firrtlOptions.emitOneFilePerModule)
+      OneFilePerModule(targetDirName)
+    else
+      SingleFile(getBuildFileName(firrtlOptions.outputSuffix, firrtlOptions.outputFileNameOverride))
+  /** Get the user-specified targetFile assuming [[OutputConfig]] is [[SingleFile]]
+    *
+    * @param optionsManager this is needed to access build function and its common options
+    * @return the targetFile as a String
+    */
+  def getTargetFile(): String = getOutputConfig match {
+    case SingleFile(targetFile) => targetFile
+    case _                      => throw new Exception("OutputConfig is not SingleFile!") }
 
   parser.note("Common Options")
 
@@ -364,7 +405,7 @@ final case class OneFilePerModule(targetDir: String) extends OutputConfig
   * @param compilerName           which compiler to use
   * @param annotations            annotations to pass to compiler
   */
-case class FirrtlOptions(
+final case class FirrtlOptions(
   topName:                  Option[String]              = None,
   targetDirName:            String                      = ".",
   globalLogLevel:           LogLevel.Value              = LogLevel.None,
@@ -383,15 +424,7 @@ case class FirrtlOptions(
   emitOneFilePerModule:     Boolean                     = false,
   annotationFileNames:      List[String]                = List.empty) {
 
-  def getLogFileName(optionsManager: ExecutionOptionsManager with HasFirrtlOptions): String = {
-    if(topName.isEmpty) {
-      optionsManager.getBuildFileName("log", Some("firrtl"))
-    } else {
-      optionsManager.getBuildFileName("log")
-    }
-  }
-
-  def infoMode: Parser.InfoMode = {
+  def infoMode(): Parser.InfoMode = {
     infoModeName match {
       case "use"    => Parser.UseInfo
       case "ignore" => Parser.IgnoreInfo
@@ -401,7 +434,7 @@ case class FirrtlOptions(
     }
   }
 
-  def compiler: Compiler = compilerName match {
+  def compiler(): Compiler = compilerName match {
     case "high"      => new HighFirrtlCompiler()
     case "low"       => new LowFirrtlCompiler()
     case "middle"    => new MiddleFirrtlCompiler()
@@ -409,7 +442,7 @@ case class FirrtlOptions(
     case "sverilog"  => new SystemVerilogCompiler()
   }
 
-  def outputSuffix: String = compilerName match {
+  def outputSuffix(): String = compilerName match {
     case "verilog"   => "v"
     case "sverilog"  => "sv"
     case "low"       => "lo.fir"
@@ -425,6 +458,7 @@ case class FirrtlOptions(
     * @param optionsManager this is needed to access build function and its common options
     * @return a properly constructed input file name
     */
+  @deprecated("Use ExecutionOptionsManager.getInputFileName", "3.2.0")
   def getInputFileName(optionsManager: ExecutionOptionsManager with HasFirrtlOptions ): String = {
     optionsManager.getBuildFileName("fir", inputFileNameOverride)
   }
@@ -433,6 +467,7 @@ case class FirrtlOptions(
     * @param optionsManager this is needed to access build function and its common options
     * @return the output configuration
     */
+  @deprecated("Use ExecutionOptionsManager.getOutputConfig", "3.2.0")
   def getOutputConfig(optionsManager: ExecutionOptionsManager with HasFirrtlOptions): OutputConfig = {
     if (emitOneFilePerModule) OneFilePerModule(optionsManager.targetDirName)
     else SingleFile(optionsManager.getBuildFileName(outputSuffix, outputFileNameOverride))
@@ -442,6 +477,7 @@ case class FirrtlOptions(
     * @param optionsManager this is needed to access build function and its common options
     * @return the targetFile as a String
     */
+  @deprecated("Use ExecutionOptionsManager.getTargetFile", "3.2.0")
   def getTargetFile(optionsManager: ExecutionOptionsManager with HasFirrtlOptions): String = {
     getOutputConfig(optionsManager) match {
       case SingleFile(targetFile) => targetFile

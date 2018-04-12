@@ -184,7 +184,7 @@ object Driver {
       // Do emission
       // Note: Single emission target assumption is baked in here
       // Note: FirrtlExecutionSuccess emitted is only used if we're emitting the whole Circuit
-      val emittedRes = firrtlOptions.getOutputConfig(optionsManager) match {
+      val emittedRes = optionsManager.getOutputConfig match {
         case SingleFile(filename) =>
           val emitted = finalState.getEmittedCircuit
           val outputFile = new java.io.PrintWriter(filename)

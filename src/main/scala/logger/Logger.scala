@@ -349,9 +349,8 @@ object Logger {
       case _ => LogLevel.Error
     }
     setClassLogLevels(options.classLogLevels)
-    if(options.logToFile) {
-      setOutput(options.getLogFileName(optionsManager))
-    }
+    if(options.logToFile)
+      setOutput(optionsManager.getLogFileName)
     state.logClassNames = options.logClassNames
   }
 }
