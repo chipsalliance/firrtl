@@ -383,9 +383,6 @@ case class FirrtlOptions(
   emitOneFilePerModule:     Boolean                     = false,
   annotationFileNames:      List[String]                = List.empty) {
 
-  require(!(emitOneFilePerModule && outputFileNameOverride.nonEmpty),
-          "Cannot both specify the output filename and emit one file per module!!!")
-
   def getLogFileName(optionsManager: ExecutionOptionsManager with HasFirrtlOptions): String = {
     if(topName.isEmpty) {
       optionsManager.getBuildFileName("log", Some("firrtl"))
