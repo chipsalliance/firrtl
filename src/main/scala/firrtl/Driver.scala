@@ -20,7 +20,7 @@ import firrtl.Utils.throwInternalError
 
 /**
   * The Driver enables invocation of the FIRRTL compiler using command
-  * line arguments ([[String]] or [[Array[String]]]) or an
+  * line arguments ([[scala.String]] or [[Array[String]]]) or an
   * [[ExecutionOptionsManager]]. Both approaches are equivalent.
   *
   * @example

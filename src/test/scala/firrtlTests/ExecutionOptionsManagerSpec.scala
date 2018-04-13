@@ -48,7 +48,6 @@ class ExecutionOptionsManagerSpec extends FreeSpec with Matchers {
                EmitterAnnotation(classOf[VerilogEmitter]),
                CompilerNameAnnotation("verilog") ))
         f.emitOneFilePerModule should be (false)
-        f.annotationFileNames should be (List.empty)
       }
       "should be able to override the Top Module Name" in {
         val f = (new ExecutionOptionsManager("test",

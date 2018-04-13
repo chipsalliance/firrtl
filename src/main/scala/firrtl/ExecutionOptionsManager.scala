@@ -44,21 +44,18 @@ class ExecutionOptionsManager(
     }
   }
 
-  /**
-    * By default scopt calls sys.exit when --help is in options, this defeats that
+  /** By default scopt calls sys.exit when --help is in options, this defeats that
     */
   def doNotExitOnHelp(): Unit = {
     parser.terminateOnExit = false
   }
-  /**
-    * By default scopt calls sys.exit when --help is in options, this un-defeats doNotExitOnHelp
+  /** By default scopt calls sys.exit when --help is in options, this un-defeats doNotExitOnHelp
     */
   def exitOnHelp(): Unit = {
     parser.terminateOnExit = true
   }
 
-  /**
-    * Show usage and exit
+  /** Show usage and exit
     */
   def showUsageAsError(): Unit = parser.showUsageAsError()
 
@@ -68,7 +65,7 @@ class ExecutionOptionsManager(
 }
 
 object ExecutionUtils {
-  /** [todo] Add scaladoc */
+  /** todo] Add scaladoc */
   def readAnnotationsFromFile(fileNames: List[String]): List[Annotation] = fileNames
     .flatMap{ filename =>
       val file = new File(filename).getCanonicalFile
@@ -89,18 +86,18 @@ object ExecutionUtils {
       }.get
     }
 
-  /** [todo] Add scaladoc */
+  /** todo] Add scaladoc */
   def readAnnotationsFromFile(filename: String): List[Annotation] = readAnnotationsFromFile(List(filename))
 
   /** Utilities that collect "early" information about options before
     * [[FirrtlExecutionOptions]] are available. These operate directly on
     * annotations and are safe to use while constructing
-    * [[ComposableOptions]]. */
+    * [[FirrtlExecutionOptions]]. */
   object Early {
 
     /** Determine the target directory with the following precedence:
       *   1) From --target-dir
-      *   2) From the default supplied by [[CommonOptions]]
+      *   2) From the default supplied by [[FirrtlExecutionOptions]]
       *
       *  @param annotations input annotations to extract targetDir from
       *  @return the target directory
@@ -108,7 +105,7 @@ object ExecutionUtils {
     def targetDir(annotations: Seq[Annotation]): String = annotations
       .reverse
       .collectFirst{ case TargetDirAnnotation(dir) => dir }
-      .getOrElse(FirrtlExecutionOptions().targetDirName)
+      .getOrElse(new FirrtlExecutionOptions().targetDirName)
 
     /** Determine the top name using the following precedence:
       *   1) --top-name
