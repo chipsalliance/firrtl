@@ -50,7 +50,11 @@ class ExecutionOptionsManager(
   /** Show usage and exit */
   def showUsageAsError(): Unit = parser.showUsageAsError()
 
-  /** The [[AnnotationSeq]] generated from command line arguments */
+  /** The [[AnnotationSeq]] generated from command line arguments
+    *
+    * This requires lazy evaluation as subclasses will mixin new command
+    * line options via methods of [[ExecutionOptionsManager.parser]]
+    */
   lazy val options: AnnotationSeq = parser
     .parse(args, annotations)
     .getOrElse(throw new FIRRTLException("Failed to parse command line options"))

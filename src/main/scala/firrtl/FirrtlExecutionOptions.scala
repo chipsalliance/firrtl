@@ -20,7 +20,8 @@ import net.jcazevedo.moultingyaml._
 import firrtl.annotations.AnnotationYamlProtocol._
 import scala.util.{Try, Failure}
 
-/** Indicates that a subclass is an [[annotations.Annotation]] with an option consummable by [[HasFirrtlExecutionOptions]]
+/** Indicates that a subclass is an [[annotations.Annotation]] with an
+  * option consummable by [[HasFirrtlExecutionOptions]]
   *
   * This must be mixed into a subclass of [[annotations.Annotation]]
   */
@@ -138,78 +139,17 @@ case class RunFirrtlTransformAnnotation(value: String) extends SingleStringAnnot
 trait HasFirrtlExecutionOptions {
   self: ExecutionOptionsManager =>
 
-  /* Add the implicit annotaiton file annotation if such a file exists */
-  private def addImplicitAnnotationFile(annos: Seq[Annotation]): Seq[Annotation] = annos.toList ++ (
-    annos.collectFirst{ case a: InputAnnotationFileAnnotation => a } match {
-      case Some(_) => List()
-      case None =>
-        val file = FirrtlExecutionUtils.targetDir(annos) + "/" +
-          FirrtlExecutionUtils.topName(annos) + ".anno"
-        if (new File(file).exists) {
-          Driver.dramaticWarning(
-            s"Implicit reading of the annotation file is deprecated! Use an explict --annotation-file argument.")
-          List(InputAnnotationFileAnnotation(file))
-        } else {
-          List()
-        }
-    } )
-
-  /* Pull in whatever the user tells us to from files until we can't find
-   * any more. Remember what we've already imported to prevent a
-   * loop. */
-  private var includeGuard = Set[String]()
-  private def getIncludes(annos: Seq[Annotation]): Seq[Annotation] = annos
-    .flatMap( _ match {
-               case a: InputAnnotationFileAnnotation =>
-                 if (includeGuard.contains(a.value)) {
-                   Driver.dramaticWarning("Tried to import the same annotation file twice! (Did you include it twice?)")
-                   List(DeletedAnnotation(applicationName, a))
-                 } else {
-                   includeGuard += a.value
-                   List(DeletedAnnotation(applicationName, a)) ++
-                     getIncludes(FirrtlExecutionUtils.readAnnotationsFromFile(a.value))
-                 }
-               case x => List(x)
-             })
-
-  /* Add any missing default annotations */
-  private def addDefaults(annos: Seq[Annotation]): Seq[Annotation] = { //scalastyle:off cyclomatic.complexity
-    var Seq(addTargetDir, addBlackBoxDir, addLogLevel, addCompiler, addTopName) = Seq.fill(5)(true) //scalastyle:ignore
-    annos.collect{ case a: FirrtlOption => a }.map{
-      case _: TargetDirAnnotation    => addTargetDir   = false
-      case _: BlackBoxTargetDirAnno  => addBlackBoxDir = false
-      case _: LogLevelAnnotation     => addLogLevel    = false
-      case _: CompilerNameAnnotation => addCompiler    = false
-      case _: TopNameAnnotation      => addTopName     = false
-      case _ =>
-    }
-
-    annos ++
-      (if (addTargetDir)   Seq(TargetDirAnnotation(FirrtlExecutionOptions().targetDirName))   else Seq() ) ++
-      (if (addBlackBoxDir) Seq(BlackBoxTargetDirAnno(FirrtlExecutionOptions().targetDirName)) else Seq() ) ++
-      (if (addLogLevel)    Seq(LogLevelAnnotation(FirrtlExecutionOptions().globalLogLevel))   else Seq() ) ++
-      (if (addCompiler)    Seq(CompilerNameAnnotation(FirrtlExecutionOptions().compilerName)) else Seq() ) ++
-      (if (addTopName)     Seq(TopNameAnnotation(FirrtlExecutionUtils.topName(annos)))        else Seq() )
-  } //scalastyle:on cyclomatic.complexity
-
-  /* Convert an emitter to an annotation */
-  private def getEmitterAnnotations(compiler: String): Seq[Annotation] = {
-    val emitter = compiler match {
-      case "high"      => classOf[HighFirrtlEmitter]
-      case "low"       => classOf[LowFirrtlEmitter]
-      case "middle"    => classOf[MiddleFirrtlEmitter]
-      case "verilog"   => classOf[VerilogEmitter]
-      case "sverilog"  => classOf[SystemVerilogEmitter]
-    }
-    Seq(EmitterAnnotation(emitter))
-  }
-
-  /** A [[FirrtlExecutionOptions]] generated from all command line options (subclasses of [[FirrtlOption]]) */
+  /** A [[FirrtlExecutionOptions]] generated from all command line options
+    * (subclasses of [[FirrtlOption]])
+    *
+    * This is lazily evaluated as it depends on the collection of all
+    * command line options into [[ExecutionOptionsManager.options]]
+    */
   lazy val firrtlOptions: FirrtlExecutionOptions = {
     val annotationTransforms: Seq[Seq[Annotation] => Seq[Annotation]] =
-      Seq( addImplicitAnnotationFile(_),
+      Seq( FirrtlExecutionUtils.addImplicitAnnotationFile(_),
            getIncludes(_),
-           addDefaults(_),
+           FirrtlExecutionUtils.addDefaults(_),
            LegacyAnnotation.convertLegacyAnnos(_) )
 
     val preprocessedAnnotations: AnnotationSeq = annotationTransforms
@@ -230,7 +170,8 @@ trait HasFirrtlExecutionOptions {
           case EmitOneFilePerModuleAnnotation    => c.copy(emitOneFilePerModule = true)
           case InputAnnotationFileAnnotation(f)  => c
           case CompilerNameAnnotation(cx)        => c.copy(compilerName = cx,
-                                                           annotations = c.annotations ++ getEmitterAnnotations(cx))
+                                                           annotations = c.annotations :+
+                                                             FirrtlExecutionUtils.getEmitterAnnotation(cx))
           case TopNameAnnotation(n)              => c.copy(topName = Some(n))
           case TargetDirAnnotation(d)            => c.copy(targetDirName = d)
           case LogLevelAnnotation(l)             => c.copy(globalLogLevel = l)
@@ -247,20 +188,40 @@ trait HasFirrtlExecutionOptions {
       }
   }
 
+  /* Pull in whatever the user tells us to from files until we can't find
+   * any more. Remember what we've already imported to prevent a
+   * loop. */
+  var includeGuard = Set[String]()
+  def getIncludes(annos: Seq[Annotation]): Seq[Annotation] = annos
+    .flatMap( _ match {
+               case a: InputAnnotationFileAnnotation =>
+                 if (includeGuard.contains(a.value)) {
+                   Driver.dramaticWarning("Tried to import the same annotation file twice! (Did you include it twice?)")
+                   Seq(DeletedAnnotation(applicationName, a))
+                 } else {
+                   includeGuard += a.value
+                   Seq(DeletedAnnotation(applicationName, a)) ++
+                     getIncludes(FirrtlExecutionUtils.readAnnotationsFromFile(a.value))
+                 }
+               case x => Seq(x)
+             })
+
   /** Return the name of the top module */
+  @deprecated("Use firrtlOptions.topName.get", "3.2.0")
   def topName(): String = firrtlOptions.topName.get
 
   /** Return the name of the target directory */
+  @deprecated("Use firrtlOptions.tagetDirName", "3.2.0")
   def targetDirName(): String = firrtlOptions.targetDirName
 
   /** Create the specified Target Directory (--target-dir)
     *
     * @return true if successful, false if not
     */
-  def makeTargetDir(): Boolean = FileUtils.makeDirectory(targetDirName)
+  def makeTargetDir(): Boolean = FileUtils.makeDirectory(firrtlOptions.targetDirName)
 
-  /** Return a file based on targetDir, topName and suffix Will not add the
-    * suffix if the topName already ends with that suffix
+  /** Return a file based on targetDir, topName and suffix. Will not add the
+    * suffix if the topName already ends with that suffix.
     *
     * @param suffix suffix to add, removes . if present
     * @param fileNameOverride this will override the topName if nonEmpty, when using this targetDir is ignored
@@ -269,14 +230,14 @@ trait HasFirrtlExecutionOptions {
   def getBuildFileName(suffix: String, fileNameOverride: Option[String] = None): String = {
     makeTargetDir()
 
-    val baseName: String = fileNameOverride.getOrElse(topName)
+    val baseName: String = fileNameOverride.getOrElse(firrtlOptions.topName.get)
     val baseNameIsFullPath: Boolean = baseName.startsWith("./") || baseName.startsWith("/")
     val directoryName: String = if (fileNameOverride.nonEmpty || baseNameIsFullPath) {
       ""
-    } else if (targetDirName.endsWith("/")) {
-      targetDirName
+    } else if (firrtlOptions.targetDirName.endsWith("/")) {
+      firrtlOptions.targetDirName
     } else {
-      targetDirName + "/"
+      firrtlOptions.targetDirName + "/"
     }
     val normalizedSuffix: String = {
       val dottedSuffix = if(suffix.startsWith(".")) suffix else s".$suffix"
@@ -296,26 +257,23 @@ trait HasFirrtlExecutionOptions {
 
   /** Build the input file name, taking overriding parameters
     *
-    * @param optionsManager this is needed to access build function and its common options
     * @return a properly constructed input file name
     */
   def getInputFileName(): String = getBuildFileName("fir", firrtlOptions.inputFileNameOverride)
 
   /** Get the user-specified [[OutputConfig]]
     *
-    * @param optionsManager this is needed to access build function and its common options
     * @return the output configuration
     */
   def getOutputConfig(): OutputConfig =
     if (firrtlOptions.emitOneFilePerModule) {
-      OneFilePerModule(targetDirName)
+      OneFilePerModule(firrtlOptions.targetDirName)
     } else {
       SingleFile(getBuildFileName(firrtlOptions.outputSuffix, firrtlOptions.outputFileNameOverride))
     }
 
   /** Get the user-specified targetFile assuming [[OutputConfig]] is [[SingleFile]]
     *
-    * @param optionsManager this is needed to access build function and its common options
     * @return the targetFile as a String
     */
   def getTargetFile(): String = getOutputConfig match {
@@ -509,8 +467,8 @@ final case class OneFilePerModule(targetDir: String) extends OutputConfig
 /** Internal options used to control the FIRRTL compiler
   *
   * @param topName the name of the top module
-  * @param targetDirName name of the target directory (default ".")
-  * @param globalLogLevel the verbosity of logging
+  * @param targetDirName name of the target directory (default: ".")
+  * @param globalLogLevel the verbosity of logging (default: [[logger.LogLevel.None]])
   * @param classLogLevels the individual verbosity of logging for specific classes
   * @param logToFile if true, log to a file
   * @param logClassNames indicates logging verbosity on a class-by-class basis
@@ -519,8 +477,8 @@ final case class OneFilePerModule(targetDir: String) extends OutputConfig
   * @param outputFileNameOverride output file, default: `targetDir/topName.SUFFIX` with `SUFFIX`
   *                               as determined by the compiler
   * @param outputAnnotationFileName the output annotation filename, default: `targetDir/topName.anno`
-  * @param compilerName which compiler to use
-  * @param infoModeName the policy for generating [[firrtl.ir.Info]] when processing FIRRTL
+  * @param compilerName which compiler to use (default: "verilog")
+  * @param infoModeName the policy for generating [[firrtl.ir.Info]] when processing FIRRTL (default: "append")
   * @param customTransforms any custom [[Transform]] to run
   * @param firrtlSource explicit input FIRRTL as a [[scala.String]]
   * @param annotations a sequence of [[annotations.Annotation]] passed to the compiler
@@ -650,9 +608,9 @@ case class FirrtlExecutionFailure(message: String) extends FirrtlExecutionResult
 
 /** Utilities that help with processing FIRRTL options */
 object FirrtlExecutionUtils {
-  /** Determine the target directory with the following precedence:
-    *   1) From --target-dir
-    *   2) From the default supplied by [[FirrtlExecutionOptions]]
+  /** Determine the target directory with the following precedence (highest to lowest):
+    *  - Explicitly from the user-specified `--target-dir`
+    *  - Implicitly from the default of [[FirrtlExecutionOptions.targetDirName]]
     *
     * @param annotations input annotations to extract targetDir from
     * @return the target directory
@@ -663,14 +621,14 @@ object FirrtlExecutionUtils {
     .collectFirst{ case TargetDirAnnotation(dir) => dir }
     .getOrElse(new FirrtlExecutionOptions().targetDirName)
 
-  /** Determine the top name using the following precedence:
-    *   1) --top-name
-    *   2) From the circuit "main" of --input-file
-    *   3) From the circuit "main" of --firrtl-source
+  /** Determine the top name using the following precedence (highest to lowest):
+    *  - Explicitly from the user-specified `--top-name`
+    *  - Implicitly from the top module ([[ir.Circuit.main]]) of `--input-file`
+    *  - Implicitly from the top module ([[ir.Circuit.main]]) of `--firrtl-source`
     *
     * @param annotations annotations to extract topName from
     * @return top module
-    * @note --input-file and --firrtl-source are mutually exclusive
+    * @note `--input-file` and `--firrtl-source` are mutually exclusive
     * @note this is safe to use before [[HasFirrtlExecutionOptions.firrtlOptions]] is set
     */
   def topName(annotations: Seq[Annotation]): String = {
@@ -690,25 +648,86 @@ object FirrtlExecutionUtils {
     }
   }
 
-  def readAnnotationsFromFile(fileNames: List[String]): List[Annotation] = fileNames
-    .flatMap{ filename =>
-      val file = new File(filename).getCanonicalFile
-      // [todo] Check for implicit annotation file usage
-      if (!file.exists) { throw new AnnotationFileNotFoundException(file) }
-      JsonProtocol.deserializeTry(file).recoverWith { case jsonException =>
-        // Try old protocol if new one fails
-        Try {
-          val yaml = io.Source.fromFile(file).getLines().mkString("\n").parseYaml
-          val result = yaml.convertTo[List[LegacyAnnotation]]
-          val msg = s"$file is a YAML file!\n" + (" "*9) + "YAML Annotation files are deprecated! Use JSON"
-          Driver.dramaticWarning(msg)
-          result
-        }.orElse { // Propagate original JsonProtocol exception if YAML also fails
-          Failure(jsonException)
+  /** Read all [[annotations.Annotation]] from a file in JSON or YAML format
+    *
+    * @param filename a JSON or YAML file of [[annotations.Annotation]]
+    * @throws annotations.AnnotationFileNotFoundException if the file does not exist
+    */
+  def readAnnotationsFromFile(filename: String): Seq[Annotation] = {
+    val file = new File(filename).getCanonicalFile
+    if (!file.exists) { throw new AnnotationFileNotFoundException(file) }
+    JsonProtocol.deserializeTry(file).recoverWith { case jsonException =>
+      // Try old protocol if new one fails
+      Try {
+        val yaml = io.Source.fromFile(file).getLines().mkString("\n").parseYaml
+        val result = yaml.convertTo[List[LegacyAnnotation]]
+        val msg = s"$file is a YAML file!\n" + (" "*9) + "YAML Annotation files are deprecated! Use JSON"
+        Driver.dramaticWarning(msg)
+        result
+      }.orElse { // Propagate original JsonProtocol exception if YAML also fails
+        Failure(jsonException)
+      }
+    }.get
+  }
+
+  /** Add the implicit annotation file if no [[InputAnnotationFileAnnotation]] is present
+    *
+    * @param annos annotations that may contain an [[InputAnnotationFileAnnotation]]
+    * @return a sequence of annotations that includes an [[InputAnnotationFileAnnotation]]
+    * @note The implicit annotation file is in `targetDir/topName.anno`
+    */
+  def addImplicitAnnotationFile(annos: Seq[Annotation]): Seq[Annotation] = annos.toList ++ (
+    annos.collectFirst{ case a: InputAnnotationFileAnnotation => a } match {
+      case Some(_) => List()
+      case None =>
+        val file = FirrtlExecutionUtils.targetDir(annos) + "/" +
+          FirrtlExecutionUtils.topName(annos) + ".anno"
+        if (new File(file).exists) {
+          Driver.dramaticWarning(
+            s"Implicit reading of the annotation file is deprecated! Use an explict --annotation-file argument.")
+          List(InputAnnotationFileAnnotation(file))
+        } else {
+          List()
         }
-      }.get
+    } )
+
+  /** Append any missing default annotations to an annotation sequence
+    *
+    * @param annos annotation sequence to examine
+    * @return the annotation sequence with default annotations added
+    */
+  def addDefaults(annos: Seq[Annotation]): Seq[Annotation] = { //scalastyle:off cyclomatic.complexity
+    var Seq(addTargetDir, addBlackBoxDir, addLogLevel, addCompiler, addTopName) = Seq.fill(5)(true) //scalastyle:ignore
+    annos.collect{ case a: FirrtlOption => a }.map{
+      case _: TargetDirAnnotation    => addTargetDir   = false
+      case _: BlackBoxTargetDirAnno  => addBlackBoxDir = false
+      case _: LogLevelAnnotation     => addLogLevel    = false
+      case _: CompilerNameAnnotation => addCompiler    = false
+      case _: TopNameAnnotation      => addTopName     = false
+      case _ =>
     }
 
-  /** todo] Add scaladoc */
-  def readAnnotationsFromFile(filename: String): List[Annotation] = readAnnotationsFromFile(List(filename))
+    annos ++
+      (if (addTargetDir)   Seq(TargetDirAnnotation(FirrtlExecutionOptions().targetDirName))   else Seq() ) ++
+      (if (addBlackBoxDir) Seq(BlackBoxTargetDirAnno(FirrtlExecutionOptions().targetDirName)) else Seq() ) ++
+      (if (addLogLevel)    Seq(LogLevelAnnotation(FirrtlExecutionOptions().globalLogLevel))   else Seq() ) ++
+      (if (addCompiler)    Seq(CompilerNameAnnotation(FirrtlExecutionOptions().compilerName)) else Seq() ) ++
+      (if (addTopName)     Seq(TopNameAnnotation(FirrtlExecutionUtils.topName(annos)))        else Seq() )
+  } //scalastyle:on cyclomatic.complexity
+
+  /** Convert a string to an [[EmitterAnnotation]]
+    *
+    * @param compiler a compiler name
+    * @return the corresponding [[EmitterAnnotation]]
+    */
+  def getEmitterAnnotation(compiler: String): EmitterAnnotation = {
+    val emitter = compiler match {
+      case "high"      => classOf[HighFirrtlEmitter]
+      case "low"       => classOf[LowFirrtlEmitter]
+      case "middle"    => classOf[MiddleFirrtlEmitter]
+      case "verilog"   => classOf[VerilogEmitter]
+      case "sverilog"  => classOf[SystemVerilogEmitter]
+    }
+    EmitterAnnotation(emitter)
+  }
 }
