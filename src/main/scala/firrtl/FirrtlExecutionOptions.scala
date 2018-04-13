@@ -7,13 +7,18 @@ import firrtl.annotations.{
   DeletedAnnotation,
   SingleStringAnnotation,
   NoTargetAnnotation,
-  LegacyAnnotation }
+  LegacyAnnotation,
+  AnnotationFileNotFoundException,
+  JsonProtocol }
 import firrtl.transforms.{
   BlackBoxTargetDirAnno,
   DontCheckCombLoopsAnnotation,
   NoDCEAnnotation }
 import logger.LogLevel
 import java.io.File
+import net.jcazevedo.moultingyaml._
+import firrtl.annotations.AnnotationYamlProtocol._
+import scala.util.{Try, Failure}
 
 /** Indicates that a subclass is an [[annotations.Annotation]] with an option consummable by [[HasFirrtlExecutionOptions]]
   *
@@ -138,8 +143,8 @@ trait HasFirrtlExecutionOptions {
     annos.collectFirst{ case a: InputAnnotationFileAnnotation => a } match {
       case Some(_) => List()
       case None =>
-        val file = ExecutionUtils.Early.targetDir(annos) + "/" +
-          ExecutionUtils.Early.topName(annos) + ".anno"
+        val file = FirrtlExecutionUtils.targetDir(annos) + "/" +
+          FirrtlExecutionUtils.topName(annos) + ".anno"
         if (new File(file).exists) {
           Driver.dramaticWarning(
             s"Implicit reading of the annotation file is deprecated! Use an explict --annotation-file argument.")
@@ -162,7 +167,7 @@ trait HasFirrtlExecutionOptions {
                  } else {
                    includeGuard += a.value
                    List(DeletedAnnotation(applicationName, a)) ++
-                     getIncludes(ExecutionUtils.readAnnotationsFromFile(a.value))
+                     getIncludes(FirrtlExecutionUtils.readAnnotationsFromFile(a.value))
                  }
                case x => List(x)
              })
@@ -184,7 +189,7 @@ trait HasFirrtlExecutionOptions {
       (if (addBlackBoxDir) Seq(BlackBoxTargetDirAnno(FirrtlExecutionOptions().targetDirName)) else Seq() ) ++
       (if (addLogLevel)    Seq(LogLevelAnnotation(FirrtlExecutionOptions().globalLogLevel))   else Seq() ) ++
       (if (addCompiler)    Seq(CompilerNameAnnotation(FirrtlExecutionOptions().compilerName)) else Seq() ) ++
-      (if (addTopName)     Seq(TopNameAnnotation(ExecutionUtils.Early.topName(annos)))        else Seq() )
+      (if (addTopName)     Seq(TopNameAnnotation(FirrtlExecutionUtils.topName(annos)))        else Seq() )
   } //scalastyle:on cyclomatic.complexity
 
   /* Convert an emitter to an annotation */
@@ -642,3 +647,68 @@ class FirrtlExecutionSuccess(
   * @param message some kind of hint as to what went wrong.
   */
 case class FirrtlExecutionFailure(message: String) extends FirrtlExecutionResult
+
+/** Utilities that help with processing FIRRTL options */
+object FirrtlExecutionUtils {
+  /** Determine the target directory with the following precedence:
+    *   1) From --target-dir
+    *   2) From the default supplied by [[FirrtlExecutionOptions]]
+    *
+    * @param annotations input annotations to extract targetDir from
+    * @return the target directory
+    * @note this is safe to use before [[HasFirrtlExecutionOptions.firrtlOptions]] is set
+    */
+  def targetDir(annotations: Seq[Annotation]): String = annotations
+    .reverse
+    .collectFirst{ case TargetDirAnnotation(dir) => dir }
+    .getOrElse(new FirrtlExecutionOptions().targetDirName)
+
+  /** Determine the top name using the following precedence:
+    *   1) --top-name
+    *   2) From the circuit "main" of --input-file
+    *   3) From the circuit "main" of --firrtl-source
+    *
+    * @param annotations annotations to extract topName from
+    * @return top module
+    * @note --input-file and --firrtl-source are mutually exclusive
+    * @note this is safe to use before [[HasFirrtlExecutionOptions.firrtlOptions]] is set
+    */
+  def topName(annotations: Seq[Annotation]): String = {
+    var Seq(topName, inputFileName, firrtlSource) = Seq.fill(3)(None: Option[String]) //scalastyle:ignore
+    annotations.foreach{
+      case TopNameAnnotation(name)         => topName       = Some(name)
+      case InputFileAnnotation(file)       => inputFileName = Some(file)
+      case FirrtlSourceAnnotation(circuit) => firrtlSource  = Some(circuit)
+      case _ => }
+    topName.getOrElse {
+      val circuit: String = if (inputFileName.nonEmpty) {
+        io.Source.fromFile(inputFileName.get).getLines().mkString("\n")
+      } else {
+        firrtlSource.get
+      }
+      Parser.parse(circuit).main
+    }
+  }
+
+  def readAnnotationsFromFile(fileNames: List[String]): List[Annotation] = fileNames
+    .flatMap{ filename =>
+      val file = new File(filename).getCanonicalFile
+      // [todo] Check for implicit annotation file usage
+      if (!file.exists) { throw new AnnotationFileNotFoundException(file) }
+      JsonProtocol.deserializeTry(file).recoverWith { case jsonException =>
+        // Try old protocol if new one fails
+        Try {
+          val yaml = io.Source.fromFile(file).getLines().mkString("\n").parseYaml
+          val result = yaml.convertTo[List[LegacyAnnotation]]
+          val msg = s"$file is a YAML file!\n" + (" "*9) + "YAML Annotation files are deprecated! Use JSON"
+          Driver.dramaticWarning(msg)
+          result
+        }.orElse { // Propagate original JsonProtocol exception if YAML also fails
+          Failure(jsonException)
+        }
+      }.get
+    }
+
+  /** todo] Add scaladoc */
+  def readAnnotationsFromFile(filename: String): List[Annotation] = readAnnotationsFromFile(List(filename))
+}
