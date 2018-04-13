@@ -130,7 +130,7 @@ Note that a module definition does {\em not} indicate that the module will be ph
 Externally defined modules consist of a given name, and a list of ports, whose types and names must match its external definition.
 
 \begin{verbatim}
-module MyExternalModule :
+extmodule MyExternalModule :
    input foo: UInt
    output bar: UInt
    output baz: SInt
@@ -1237,7 +1237,7 @@ The divide operation divides \vv{num} by \vv{den}, truncating the fractional por
 {\ttfamily
 \begin{tabular}{ |c|c|c|c|c|c| }   
   \opheader 
-mod & (num,den) & () & (UInt,UInt) & UInt & min(w\ts{num},w\ts{den})\\
+rem & (num,den) & () & (UInt,UInt) & UInt & min(w\ts{num},w\ts{den})\\
                    &&& (UInt,SInt) & UInt & min(w\ts{num},w\ts{den})\\
                    &&& (SInt,UInt) & SInt & min(w\ts{num},w\ts{den}+1)\\
                    &&& (SInt,SInt) & SInt & min(w\ts{num},w\ts{den})\\
@@ -1247,7 +1247,7 @@ mod & (num,den) & () & (UInt,UInt) & UInt & min(w\ts{num},w\ts{den})\\
 \end{figure}
 The modulus operation yields the remainder from dividing \vv{num} by \vv{den}, keeping the sign of the numerator. Together with the divide operator, the modulus operator satisfies the relationship below:
 \begin{verbatim}
-num = add(mul(den,div(num,den)),mod(num,den))}
+num = add(mul(den,div(num,den)),rem(num,den))}
 \end{verbatim}
 
 \subsection{Comparison Operations}
@@ -1355,16 +1355,18 @@ The shift left operation concatenates \vv{n} zero bits to the least significant 
 \begin{figure}[H]
 { \fontsize{10pt}{1.10em}\selectfont
 {\ttfamily
-\begin{tabular}{ |c|c|c|c|c|c| }   
-  \opheader 
-shr & (e) & (n) & (UInt) & UInt & w\ts{e}-n\\
-              &&& (SInt) & SInt & w\ts{e}-n\\
+\begin{tabular}{ |c|c|c|c|c|c| }
+  \opheader
+shr & (e) & (n) & (UInt) & UInt & max(1, w\ts{e}-n)\\
+              &&& (SInt) & SInt & max(1, w\ts{e}-n)\\
  \hline
 \end{tabular}
 }}
 \end{figure}
 
-The shift right operation truncates the least significant \vv{n} bits from \vv{e}. \vv{n} must be non-negative and strictly less than the bit width of \vv{e}.
+The shift right operation truncates the least significant \vv{n} bits from \vv{e}.
+If \vv{n} is greater than or equal to the bit-width of \vv{e}, the resulting value will be zero for unsigned types and the sign bit for signed types.
+\vv{n} must be non-negative.
 
 \subsection{Dynamic Shift Left Operation}
 

@@ -8,7 +8,6 @@ import firrtl.ir._
 import annotations._
 import Utils.error
 import java.io.{File, CharArrayWriter, PrintWriter, Writer}
-import wiring.WiringUtils.{getChildrenMap, countInstances, ChildrenMap, getLineage}
 import wiring.Lineage
 import ClockListUtils._
 import Utils._
@@ -16,29 +15,34 @@ import memlib.AnalysisUtils._
 import memlib._
 import Mappers._
 
+case class ClockListAnnotation(target: ModuleName, outputConfig: String) extends
+    SingleTargetAnnotation[ModuleName] {
+  def duplicate(n: ModuleName) = ClockListAnnotation(n, outputConfig)
+}
+
 object ClockListAnnotation {
-  def apply(t: String): Annotation = {
+  def parse(t: String): ClockListAnnotation = {
     val usage = """
 [Optional] ClockList
   List which signal drives each clock of every descendent of specified module
 
-Usage: 
+Usage:
   --list-clocks -c:<circuit>:-m:<module>:-o:<filename>
   *** Note: sub-arguments to --list-clocks should be delimited by : and not white space!
-"""    
-  
+"""
+
     //Parse pass options
     val passOptions = PassConfigUtil.getPassOptions(t, usage)
     val outputConfig = passOptions.getOrElse(
-      OutputConfigFileName, 
+      OutputConfigFileName,
       error("No output config file provided for ClockList!" + usage)
     )
     val passCircuit = passOptions.getOrElse(
-      PassCircuitName, 
+      PassCircuitName,
       error("No circuit name specified for ClockList!" + usage)
     )
     val passModule = passOptions.getOrElse(
-      PassModuleName, 
+      PassModuleName,
       error("No module name specified for ClockList!" + usage)
     )
     passOptions.get(InputConfigFileName) match {
@@ -46,16 +50,7 @@ Usage:
       case None =>
     }
     val target = ModuleName(passModule, CircuitName(passCircuit))
-    Annotation(target, classOf[ClockListTransform], outputConfig)
-  }
-
-  def apply(target: ModuleName, outputConfig: String): Annotation =
-    Annotation(target, classOf[ClockListTransform], outputConfig)
-
-  def unapply(a: Annotation): Option[(ModuleName, String)] = a match {
-    case Annotation(ModuleName(m, c), t, outputConfig) if t == classOf[ClockListTransform] =>
-      Some((ModuleName(m, c), outputConfig))
-    case _ => None
+    ClockListAnnotation(target, outputConfig)
   }
 }
 
@@ -64,13 +59,16 @@ class ClockListTransform extends Transform {
   def outputForm = LowForm
   def passSeq(top: String, writer: Writer): Seq[Pass] =
     Seq(new ClockList(top, writer))
-  def execute(state: CircuitState): CircuitState = getMyAnnotations(state) match {
-    case Seq(ClockListAnnotation(ModuleName(top, CircuitName(state.circuit.main)), out)) => 
-      val outputFile = new PrintWriter(out)
-      val newC = (new ClockList(top, outputFile)).run(state.circuit)
-      outputFile.close()
-      CircuitState(newC, state.form, state.annotations)
-    case Nil => state
-    case seq => error(s"Found illegal clock list annotation(s): $seq")
+  def execute(state: CircuitState): CircuitState = {
+    val annos = state.annotations.collect { case a: ClockListAnnotation => a }
+    annos match {
+      case Seq(ClockListAnnotation(ModuleName(top, CircuitName(state.circuit.main)), out)) =>
+        val outputFile = new PrintWriter(out)
+        val newC = (new ClockList(top, outputFile)).run(state.circuit)
+        outputFile.close()
+        CircuitState(newC, state.form, state.annotations)
+      case Nil => state
+      case seq => error(s"Found illegal clock list annotation(s): $seq")
+    }
   }
 }

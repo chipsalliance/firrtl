@@ -1,5 +1,7 @@
 # Firrtl
-[![Build Status](https://travis-ci.org/ucb-bar/firrtl.svg?branch=master)](https://travis-ci.org/ucb-bar/firrtl)
+
+[![Join the chat at https://gitter.im/freechipsproject/firrtl](https://badges.gitter.im/freechipsproject/firrtl.svg)](https://gitter.im/freechipsproject/firrtl?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+[![Build Status](https://travis-ci.org/freechipsproject/firrtl.svg?branch=master)](https://travis-ci.org/freechipsproject/firrtl)
 #### Flexible Internal Representation for RTL
 
  Firrtl is an intermediate representation (IR) for digital circuits designed as a platform for writing circuit-level transformations.
@@ -9,9 +11,7 @@
 
  For a detailed description of Firrtl's intermediate representation, see the document "Specification of the Firrtl Language" located in [spec/spec.pdf](https://github.com/ucb-bar/firrtl/blob/master/spec/spec.pdf).
 
- This repository is in ALPHA VERSION, so many things may change in the coming months.
-
-#### Wiki's and Tutorials
+#### Wiki Pages and Tutorials
 
 Useful information is on our wiki, located here:
 * https://github.com/ucb-bar/firrtl/wiki
@@ -32,12 +32,13 @@ sbt assembly
 
 #### Other Tools
 * Firrtl syntax highlighting for Vim users: https://github.com/azidar/firrtl-syntax
+* Firrtl mode for Emacs users: https://github.com/ibm/firrtl-mode
 * Chisel3, an embedded hardware DSL that generates Firrtl: https://github.com/ucb-bar/chisel3
 * Firrtl Interpreter: https://github.com/ucb-bar/firrtl-interpreter
 * Yosys Verilog-to-Firrtl Front-end: https://github.com/cliffordwolf/yosys
 
 #### Installation Instructions
-*Disclaimer*: This project is in alpha, so there is no guarantee anything works. The installation instructions should work for OSX/Linux machines.
+*Disclaimer*: The installation instructions should work for OSX/Linux machines. Other environments may not be tested.
 
 ##### Prerequisites
  1. If not already installed, install [verilator](http://www.veripool.org/projects/verilator/wiki/Installing) (Requires at least v3.886)
@@ -73,3 +74,18 @@ utils/bin/firrtl -i regress/rocket.fir -o regress/rocket.v -X verilog // Compile
 utils/bin/firrtl --help // Returns usage string
 ```
 
+##### Citing Firrtl
+
+If you use Firrtl in a paper, please cite the following technical report:
+https://www2.eecs.berkeley.edu/Pubs/TechRpts/2016/EECS-2016-9.html
+```
+@techreport{Li:EECS-2016-9,
+    Author = {Li, Patrick S. and Izraelevitz, Adam M. and Bachrach, Jonathan},
+    Title = {Specification for the FIRRTL Language},
+    Institution = {EECS Department, University of California, Berkeley},
+    Year = {2016},
+    Month = {Feb},
+    URL = {http://www2.eecs.berkeley.edu/Pubs/TechRpts/2016/EECS-2016-9.html},
+    Number = {UCB/EECS-2016-9}
+}
+```

@@ -91,7 +91,7 @@ trait BackendCompilationUtilities {
     val topModule = dutFile
 
     val blackBoxVerilogList = {
-      val list_file = new File(dir, firrtl.transforms.BlackBoxSourceHelper.FileListName)
+      val list_file = new File(dir, firrtl.transforms.BlackBoxSourceHelper.fileListName)
       if(list_file.exists()) {
         Seq("-f", list_file.getAbsolutePath)
       }
@@ -102,7 +102,7 @@ trait BackendCompilationUtilities {
 
     val command = Seq(
       "verilator",
-      "--cc", s"$dutFile.v"
+      "--cc", s"${dir.getAbsolutePath}/$dutFile.v"
     ) ++
       blackBoxVerilogList ++
       vSources.flatMap(file => Seq("-v", file.getAbsolutePath)) ++

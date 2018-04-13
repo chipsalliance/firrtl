@@ -7,7 +7,6 @@ import firrtl.PrimOps._
 import firrtl.ir._
 import firrtl._
 import firrtl.Mappers._
-import firrtl.Utils.throwInternalError
 
 
 object ZeroWidth extends Transform {
@@ -40,15 +39,25 @@ object ZeroWidth extends Transform {
     case VectorType(t, size) => removeZero(t) map (VectorType(_, size))
     case x => Some(x)
   }
-  private def onExp(e: Expression): Expression = removeZero(e.tpe) match {
-    case None => e.tpe match {
-      case UIntType(x) => UIntLiteral(ZERO, IntWidth(BigInt(1)))
-      case SIntType(x) => SIntLiteral(ZERO, IntWidth(BigInt(1)))
-      case _ => throwInternalError
+  private def onExp(e: Expression): Expression = e match {
+    case DoPrim(Cat, args, consts, tpe) =>
+      val nonZeros = args.flatMap { x =>
+        x.tpe match {
+          case UIntType(IntWidth(ZERO)) => Seq.empty[Expression]
+          case SIntType(IntWidth(ZERO)) => Seq.empty[Expression]
+          case other => Seq(x)
+        }
+      }
+      nonZeros match {
+        case Nil => UIntLiteral(ZERO, IntWidth(BigInt(1)))
+        case Seq(x) => x
+        case seq => DoPrim(Cat, seq, consts, tpe) map onExp
+      }
+    case other => other.tpe match {
+      case UIntType(IntWidth(ZERO)) => UIntLiteral(ZERO, IntWidth(BigInt(1)))
+      case SIntType(IntWidth(ZERO)) => SIntLiteral(ZERO, IntWidth(BigInt(1)))
+      case _ => e map onExp
     }
-    case Some(t) => 
-      def replaceType(x: Type): Type = t
-      (e map replaceType) map onExp
   }
   private def onStmt(renames: RenameMap)(s: Statement): Statement = s match {
     case (_: DefWire| _: DefRegister| _: DefMemory) =>

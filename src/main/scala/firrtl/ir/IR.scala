@@ -34,9 +34,22 @@ case class MultiInfo(infos: Seq[Info]) extends Info {
     case MultiInfo(seq) => seq flatMap collectStringLits
     case NoInfo => Seq.empty
   }
-  override def toString: String =
-    collectStringLits(this).map(_.serialize).mkString(" @[", " ", "]")
+  override def toString: String = {
+    val parts = collectStringLits(this)
+    if (parts.nonEmpty) parts.map(_.serialize).mkString(" @[", " ", "]")
+    else ""
+  }
   def ++(that: Info): Info = MultiInfo(Seq(this, that))
+}
+object MultiInfo {
+  def apply(infos: Info*) = {
+    val infosx = infos.filterNot(_ == NoInfo)
+    infosx.size match {
+      case 0 => NoInfo
+      case 1 => infosx.head
+      case _ => new MultiInfo(infosx)
+    }
+  }
 }
 
 trait HasName {
@@ -47,8 +60,46 @@ trait HasInfo {
 }
 trait IsDeclaration extends HasName with HasInfo
 
-case class StringLit(array: Array[Byte]) extends FirrtlNode {
-  def serialize: String = FIRRTLStringLitHandler.escape(this)
+case class StringLit(string: String) extends FirrtlNode {
+  /** Returns an escaped and quoted String */
+  def escape: String = {
+    import scala.reflect.runtime.universe._
+    Literal(Constant(string)).toString
+  }
+  def serialize: String = {
+    val str = escape
+    str.slice(1, str.size - 1)
+  }
+  /** Format the string for Verilog */
+  def verilogFormat: StringLit = {
+    StringLit(string.replaceAll("%x", "%h"))
+  }
+  /** Returns an escaped and quoted String */
+  def verilogEscape: String = {
+    // normalize to turn things like ö into o
+    import java.text.Normalizer
+    val normalized = Normalizer.normalize(string, Normalizer.Form.NFD)
+    val ascii = normalized flatMap StringLit.toASCII
+    ascii.mkString("\"", "", "\"")
+  }
+}
+object StringLit {
+  /** Maps characters to ASCII for Verilog emission */
+  private def toASCII(char: Char): List[Char] = char match {
+    case nonASCII if !nonASCII.isValidByte => List('?')
+    case '"' => List('\\', '"')
+    case '\\' => List('\\', '\\')
+    case c if c >= ' ' && c <= '~' => List(c)
+    case '\n' => List('\\', 'n')
+    case '\t' => List('\\', 't')
+    case _ => List('?')
+  }
+
+  /** Create a StringLit from a raw parsed String */
+  def unescape(raw: String): StringLit = {
+    val str = StringContext.processEscapes(raw)
+    StringLit(str)
+  }
 }
 
 /** Primitive Operation
@@ -143,6 +194,7 @@ abstract class Statement extends FirrtlNode {
   def mapExpr(f: Expression => Expression): Statement
   def mapType(f: Type => Type): Statement
   def mapString(f: String => String): Statement
+  def mapInfo(f: Info => Info): Statement
 }
 case class DefWire(info: Info, name: String, tpe: Type) extends Statement with IsDeclaration {
   def serialize: String = s"wire $name : ${tpe.serialize}" + info.serialize
@@ -150,6 +202,7 @@ case class DefWire(info: Info, name: String, tpe: Type) extends Statement with I
   def mapExpr(f: Expression => Expression): Statement = this
   def mapType(f: Type => Type): Statement = DefWire(info, name, f(tpe))
   def mapString(f: String => String): Statement = DefWire(info, f(name), tpe)
+  def mapInfo(f: Info => Info): Statement = this.copy(info = f(info))
 }
 case class DefRegister(
     info: Info,
@@ -166,6 +219,7 @@ case class DefRegister(
     DefRegister(info, name, tpe, f(clock), f(reset), f(init))
   def mapType(f: Type => Type): Statement = this.copy(tpe = f(tpe))
   def mapString(f: String => String): Statement = this.copy(name = f(name))
+  def mapInfo(f: Info => Info): Statement = this.copy(info = f(info))
 
 }
 case class DefInstance(info: Info, name: String, module: String) extends Statement with IsDeclaration {
@@ -174,6 +228,7 @@ case class DefInstance(info: Info, name: String, module: String) extends Stateme
   def mapExpr(f: Expression => Expression): Statement = this
   def mapType(f: Type => Type): Statement = this
   def mapString(f: String => String): Statement = DefInstance(info, f(name), module)
+  def mapInfo(f: Info => Info): Statement = this.copy(info = f(info))
 }
 case class DefMemory(
     info: Info,
@@ -202,6 +257,7 @@ case class DefMemory(
   def mapExpr(f: Expression => Expression): Statement = this
   def mapType(f: Type => Type): Statement = this.copy(dataType = f(dataType))
   def mapString(f: String => String): Statement = this.copy(name = f(name))
+  def mapInfo(f: Info => Info): Statement = this.copy(info = f(info))
 }
 case class DefNode(info: Info, name: String, value: Expression) extends Statement with IsDeclaration {
   def serialize: String = s"node $name = ${value.serialize}" + info.serialize
@@ -209,6 +265,7 @@ case class DefNode(info: Info, name: String, value: Expression) extends Statemen
   def mapExpr(f: Expression => Expression): Statement = DefNode(info, name, f(value))
   def mapType(f: Type => Type): Statement = this
   def mapString(f: String => String): Statement = DefNode(info, f(name), value)
+  def mapInfo(f: Info => Info): Statement = this.copy(info = f(info))
 }
 case class Conditionally(
     info: Info,
@@ -224,6 +281,7 @@ case class Conditionally(
   def mapExpr(f: Expression => Expression): Statement = Conditionally(info, f(pred), conseq, alt)
   def mapType(f: Type => Type): Statement = this
   def mapString(f: String => String): Statement = this
+  def mapInfo(f: Info => Info): Statement = this.copy(info = f(info))
 }
 case class Block(stmts: Seq[Statement]) extends Statement {
   def serialize: String = stmts map (_.serialize) mkString "\n"
@@ -231,6 +289,7 @@ case class Block(stmts: Seq[Statement]) extends Statement {
   def mapExpr(f: Expression => Expression): Statement = this
   def mapType(f: Type => Type): Statement = this
   def mapString(f: String => String): Statement = this
+  def mapInfo(f: Info => Info): Statement = this
 }
 case class PartialConnect(info: Info, loc: Expression, expr: Expression) extends Statement with HasInfo {
   def serialize: String =  s"${loc.serialize} <- ${expr.serialize}" + info.serialize
@@ -238,6 +297,7 @@ case class PartialConnect(info: Info, loc: Expression, expr: Expression) extends
   def mapExpr(f: Expression => Expression): Statement = PartialConnect(info, f(loc), f(expr))
   def mapType(f: Type => Type): Statement = this
   def mapString(f: String => String): Statement = this
+  def mapInfo(f: Info => Info): Statement = this.copy(info = f(info))
 }
 case class Connect(info: Info, loc: Expression, expr: Expression) extends Statement with HasInfo {
   def serialize: String =  s"${loc.serialize} <= ${expr.serialize}" + info.serialize
@@ -245,6 +305,7 @@ case class Connect(info: Info, loc: Expression, expr: Expression) extends Statem
   def mapExpr(f: Expression => Expression): Statement = Connect(info, f(loc), f(expr))
   def mapType(f: Type => Type): Statement = this
   def mapString(f: String => String): Statement = this
+  def mapInfo(f: Info => Info): Statement = this.copy(info = f(info))
 }
 case class IsInvalid(info: Info, expr: Expression) extends Statement with HasInfo {
   def serialize: String =  s"${expr.serialize} is invalid" + info.serialize
@@ -252,6 +313,7 @@ case class IsInvalid(info: Info, expr: Expression) extends Statement with HasInf
   def mapExpr(f: Expression => Expression): Statement = IsInvalid(info, f(expr))
   def mapType(f: Type => Type): Statement = this
   def mapString(f: String => String): Statement = this
+  def mapInfo(f: Info => Info): Statement = this.copy(info = f(info))
 }
 case class Attach(info: Info, exprs: Seq[Expression]) extends Statement with HasInfo {
   def serialize: String = "attach " + exprs.map(_.serialize).mkString("(", ", ", ")")
@@ -259,6 +321,7 @@ case class Attach(info: Info, exprs: Seq[Expression]) extends Statement with Has
   def mapExpr(f: Expression => Expression): Statement = Attach(info, exprs map f)
   def mapType(f: Type => Type): Statement = this
   def mapString(f: String => String): Statement = this
+  def mapInfo(f: Info => Info): Statement = this.copy(info = f(info))
 }
 case class Stop(info: Info, ret: Int, clk: Expression, en: Expression) extends Statement with HasInfo {
   def serialize: String = s"stop(${clk.serialize}, ${en.serialize}, $ret)" + info.serialize
@@ -266,6 +329,7 @@ case class Stop(info: Info, ret: Int, clk: Expression, en: Expression) extends S
   def mapExpr(f: Expression => Expression): Statement = Stop(info, ret, f(clk), f(en))
   def mapType(f: Type => Type): Statement = this
   def mapString(f: String => String): Statement = this
+  def mapInfo(f: Info => Info): Statement = this.copy(info = f(info))
 }
 case class Print(
     info: Info,
@@ -274,7 +338,7 @@ case class Print(
     clk: Expression,
     en: Expression) extends Statement with HasInfo {
   def serialize: String = {
-    val strs = Seq(clk.serialize, en.serialize, "\"" + string.serialize + "\"") ++
+    val strs = Seq(clk.serialize, en.serialize, string.escape) ++
                (args map (_.serialize))
     "printf(" + (strs mkString ", ") + ")" + info.serialize
   }
@@ -282,6 +346,7 @@ case class Print(
   def mapExpr(f: Expression => Expression): Statement = Print(info, string, args map f, f(clk), f(en))
   def mapType(f: Type => Type): Statement = this
   def mapString(f: String => String): Statement = this
+  def mapInfo(f: Info => Info): Statement = this.copy(info = f(info))
 }
 case object EmptyStmt extends Statement {
   def serialize: String = "skip"
@@ -289,6 +354,7 @@ case object EmptyStmt extends Statement {
   def mapExpr(f: Expression => Expression): Statement = this
   def mapType(f: Type => Type): Statement = this
   def mapString(f: String => String): Statement = this
+  def mapInfo(f: Info => Info): Statement = this
 }
 
 abstract class Width extends FirrtlNode {
@@ -448,7 +514,7 @@ case class DoubleParam(name: String, value: Double) extends Param {
 }
 /** String Parameter */
 case class StringParam(name: String, value: StringLit) extends Param {
-  override def serialize: String = super.serialize + value.serialize
+  override def serialize: String = super.serialize + value.escape
 }
 /** Raw String Parameter
   * Useful for Verilog type parameters
@@ -468,6 +534,7 @@ abstract class DefModule extends FirrtlNode with IsDeclaration {
   def mapStmt(f: Statement => Statement): DefModule
   def mapPort(f: Port => Port): DefModule
   def mapString(f: String => String): DefModule
+  def mapInfo(f: Info => Info): DefModule
 }
 /** Internal Module
   *
@@ -478,6 +545,7 @@ case class Module(info: Info, name: String, ports: Seq[Port], body: Statement) e
   def mapStmt(f: Statement => Statement): DefModule = this.copy(body = f(body))
   def mapPort(f: Port => Port): DefModule = this.copy(ports = ports map f)
   def mapString(f: String => String): DefModule = this.copy(name = f(name))
+  def mapInfo(f: Info => Info): DefModule = this.copy(f(info))
 }
 /** External Module
   *
@@ -495,6 +563,7 @@ case class ExtModule(
   def mapStmt(f: Statement => Statement): DefModule = this
   def mapPort(f: Port => Port): DefModule = this.copy(ports = ports map f)
   def mapString(f: String => String): DefModule = this.copy(name = f(name))
+  def mapInfo(f: Info => Info): DefModule = this.copy(f(info))
 }
 
 case class Circuit(info: Info, modules: Seq[DefModule], main: String) extends FirrtlNode with HasInfo {
@@ -503,4 +572,5 @@ case class Circuit(info: Info, modules: Seq[DefModule], main: String) extends Fi
     (modules map ("\n" + _.serialize) map indent mkString "\n") + "\n"
   def mapModule(f: DefModule => DefModule): Circuit = this.copy(modules = modules map f)
   def mapString(f: String => String): Circuit = this.copy(main = f(main))
+  def mapInfo(f: Info => Info): Circuit = this.copy(f(info))
 }

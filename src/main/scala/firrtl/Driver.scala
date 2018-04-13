@@ -5,6 +5,8 @@ package firrtl
 import scala.collection._
 import scala.io.Source
 import scala.sys.process.{BasicIO,stringSeqToProcess}
+import scala.util.{Try, Success, Failure}
+import scala.util.control.ControlThrowable
 import java.io.{File, FileNotFoundException}
 
 import net.jcazevedo.moultingyaml._
@@ -12,8 +14,9 @@ import logger.Logger
 import Parser.{IgnoreInfo, InfoMode}
 import annotations._
 import firrtl.annotations.AnnotationYamlProtocol._
-import firrtl.transforms.{BlackBoxSourceHelper, BlackBoxTargetDir}
-import Utils.throwInternalError
+import firrtl.passes.PassException
+import firrtl.transforms._
+import firrtl.Utils.throwInternalError
 
 
 /**
@@ -39,31 +42,15 @@ import Utils.throwInternalError
   */
 
 object Driver {
-  //noinspection ScalaDeprecation
-  // Compiles circuit. First parses a circuit from an input file,
-  //  executes all compiler passes, and writes result to an output
-  //  file.
-  @deprecated("Please use execute", "firrtl 1.0")
-  def compile(
-      input: String,
-      output: String,
-      compiler: Compiler,
-      infoMode: InfoMode = IgnoreInfo,
-      customTransforms: Seq[Transform] = Seq.empty,
-      annotations: AnnotationMap = AnnotationMap(Seq.empty)
-  ): String = {
-    val parsedInput = Parser.parse(Source.fromFile(input).getLines(), infoMode)
-    val outputBuffer = new java.io.CharArrayWriter
-    compiler.compile(
-      CircuitState(parsedInput, ChirrtlForm, Some(annotations)),
-      outputBuffer,
-      customTransforms)
-
-    val outputFile = new java.io.PrintWriter(output)
-    val outputString = outputBuffer.toString
-    outputFile.write(outputString)
-    outputFile.close()
-    outputString
+  /** Print a warning message
+    *
+    * @param message error message
+    */
+  //scalastyle:off regex
+  def dramaticWarning(message: String): Unit = {
+    println(Console.YELLOW + "-"*78)
+    println(s"Warning: $message")
+    println("-"*78 + Console.RESET)
   }
 
   /**
@@ -78,41 +65,87 @@ object Driver {
     println("-"*78 + Console.RESET)
   }
 
-  /**
-    * Load annotation file based on options
+  /** Load annotation file based on options
     * @param optionsManager use optionsManager config to load annotation file if it exists
     *                       update the firrtlOptions with new annotations if it does
     */
+  @deprecated("Use side-effect free getAnnotation instead", "1.1")
   def loadAnnotations(optionsManager: ExecutionOptionsManager with HasFirrtlOptions): Unit = {
-    /*
-     If firrtlAnnotations in the firrtlOptions are nonEmpty then these will be the annotations
-     used by firrtl.
-     To use the file annotations make sure that the annotations in the firrtlOptions are empty
-     The annotation file if needed is found via
-     s"$targetDirName/$topName.anno" or s"$annotationFileNameOverride.anno"
+    val msg = "Driver.loadAnnotations is deprecated, use Driver.getAnnotations instead"
+    Driver.dramaticWarning(msg)
+    optionsManager.firrtlOptions = optionsManager.firrtlOptions.copy(
+      annotations = Driver.getAnnotations(optionsManager).toList
+    )
+  }
+
+  /** Get annotations from specified files and options
+    *
+    * @param optionsManager use optionsManager config to load annotation files
+    * @return Annotations read from files
     */
-    def firrtlConfig = optionsManager.firrtlOptions
+  //scalastyle:off cyclomatic.complexity method.length
+  def getAnnotations(
+      optionsManager: ExecutionOptionsManager with HasFirrtlOptions
+  ): Seq[Annotation] = {
+    val firrtlConfig = optionsManager.firrtlOptions
 
-    if (firrtlConfig.annotations.isEmpty || firrtlConfig.forceAppendAnnoFile) {
-      val annotationFileName = firrtlConfig.getAnnotationFileName(optionsManager)
-      val annotationFile = new File(annotationFileName)
-      if (annotationFile.exists) {
-        val annotationsYaml = io.Source.fromFile(annotationFile).getLines().mkString("\n").parseYaml
-        val annotationArray = annotationsYaml.convertTo[Array[Annotation]]
-        optionsManager.firrtlOptions = firrtlConfig.copy(annotations = firrtlConfig.annotations ++ annotationArray)
+    //noinspection ScalaDeprecation
+    val oldAnnoFileName = firrtlConfig.getAnnotationFileName(optionsManager)
+    val oldAnnoFile = new File(oldAnnoFileName).getCanonicalFile
+
+    val (annoFiles, usingImplicitAnnoFile) = {
+      val afs = firrtlConfig.annotationFileNames.map { x =>
+        new File(x).getCanonicalFile
       }
+      // Implicit anno file could be included explicitly, only include it and
+      // warn if it's not also explicit
+      val use = oldAnnoFile.exists && !afs.contains(oldAnnoFile)
+      if (use) (oldAnnoFile +: afs, true) else (afs, false)
     }
 
-    if(firrtlConfig.annotations.nonEmpty) {
-      val targetDirAnno = List(Annotation(
-        CircuitName("All"),
-        classOf[BlackBoxSourceHelper],
-        BlackBoxTargetDir(optionsManager.targetDirName).serialize
-      ))
-
-      optionsManager.firrtlOptions = optionsManager.firrtlOptions.copy(
-        annotations = firrtlConfig.annotations ++ targetDirAnno)
+    // Warnings to get people to change to drop old API
+    if (firrtlConfig.annotationFileNameOverride.nonEmpty) {
+      val msg = "annotationFileNameOverride is deprecated! " +
+                "Use annotationFileNames"
+      Driver.dramaticWarning(msg)
+    } else if (usingImplicitAnnoFile) {
+      val msg = "Implicit .anno file from top-name is deprecated!\n" +
+             (" "*9) + "Use explicit -faf option or annotationFileNames"
+      Driver.dramaticWarning(msg)
     }
+
+    val loadedAnnos = annoFiles.flatMap { file =>
+      if (!file.exists) {
+        throw new AnnotationFileNotFoundException(file)
+      }
+      // Try new protocol first
+      JsonProtocol.deserializeTry(file).recoverWith { case jsonException =>
+        // Try old protocol if new one fails
+        Try {
+          val yaml = io.Source.fromFile(file).getLines().mkString("\n").parseYaml
+          val result = yaml.convertTo[List[LegacyAnnotation]]
+          val msg = s"$file is a YAML file!\n" +
+                    (" "*9) + "YAML Annotation files are deprecated! Use JSON"
+          Driver.dramaticWarning(msg)
+          result
+        }.orElse { // Propagate original JsonProtocol exception if YAML also fails
+          Failure(jsonException)
+        }
+      }.get
+    }
+
+    val targetDirAnno = List(BlackBoxTargetDirAnno(optionsManager.targetDirName))
+
+    // Output Annotations
+    val outputAnnos = firrtlConfig.getEmitterAnnos(optionsManager)
+
+    val globalAnnos = Seq(TargetDirAnnotation(optionsManager.targetDirName)) ++
+      (if (firrtlConfig.dontCheckCombLoops) Seq(DontCheckCombLoopsAnnotation) else Seq()) ++
+      (if (firrtlConfig.noDCE) Seq(NoDCEAnnotation) else Seq())
+
+    val annos = targetDirAnno ++ outputAnnos ++ globalAnnos ++
+                firrtlConfig.annotations ++ loadedAnnos
+    LegacyAnnotation.convertLegacyAnnos(annos)
   }
 
   /**
@@ -155,49 +188,66 @@ object Driver {
           }
       }
 
-      loadAnnotations(optionsManager)
+      var maybeFinalState: Option[CircuitState] = None
 
-      val parsedInput = Parser.parse(firrtlSource, firrtlConfig.infoMode)
+      // Wrap compilation in a try/catch to present Scala MatchErrors in a more user-friendly format.
+      try {
+        val annos = getAnnotations(optionsManager)
 
-      // Does this need to be before calling compiler?
-      optionsManager.makeTargetDir()
+        val parsedInput = Parser.parse(firrtlSource, firrtlConfig.infoMode)
 
-      // Output Annotations
-      val outputAnnos = firrtlConfig.getEmitterAnnos(optionsManager)
+        // Does this need to be before calling compiler?
+        optionsManager.makeTargetDir()
 
-    // Should these and outputAnnos be moved to loadAnnotations?
-    val globalAnnos = Seq(TargetDirAnnotation(optionsManager.targetDirName))
+        maybeFinalState = Some(firrtlConfig.compiler.compile(
+          CircuitState(parsedInput, ChirrtlForm, annos),
+          firrtlConfig.customTransforms
+        ))
+      }
+      catch {
+        // Rethrow the exceptions which are expected or due to the runtime environment (out of memory, stack overflow)
+        case p: ControlThrowable => throw p
+        case p: PassException  => throw p
+        case p: FIRRTLException => throw p
+        // Treat remaining exceptions as internal errors.
+        case e: Exception => throwInternalError(exception = Some(e))
+      }
 
-    val finalState = firrtlConfig.compiler.compile(
-      CircuitState(parsedInput,
-                   ChirrtlForm,
-                   Some(AnnotationMap(firrtlConfig.annotations ++ outputAnnos ++ globalAnnos))),
-      firrtlConfig.customTransforms
-    )
+      val finalState = maybeFinalState.get
 
-    // Do emission
-    // Note: Single emission target assumption is baked in here
-    // Note: FirrtlExecutionSuccess emitted is only used if we're emitting the whole Circuit
-    val emittedRes = firrtlConfig.getOutputConfig(optionsManager) match {
-      case SingleFile(filename) =>
-        val emitted = finalState.getEmittedCircuit
-        val outputFile = new java.io.PrintWriter(filename)
-        outputFile.write(emitted.value)
-        outputFile.close()
-        emitted.value
-      case OneFilePerModule(dirName) =>
-        val emittedModules = finalState.emittedComponents collect { case x: EmittedModule => x }
-        if (emittedModules.isEmpty) throwInternalError // There should be something
-        emittedModules.foreach { case module =>
-          val filename = optionsManager.getBuildFileName(firrtlConfig.outputSuffix, s"$dirName/${module.name}")
+      // Do emission
+      // Note: Single emission target assumption is baked in here
+      // Note: FirrtlExecutionSuccess emitted is only used if we're emitting the whole Circuit
+      val emittedRes = firrtlConfig.getOutputConfig(optionsManager) match {
+        case SingleFile(filename) =>
+          val emitted = finalState.getEmittedCircuit
           val outputFile = new java.io.PrintWriter(filename)
-          outputFile.write(module.value)
+          outputFile.write(emitted.value)
           outputFile.close()
-        }
-        "" // Should we return something different here?
-    }
+          emitted.value
+        case OneFilePerModule(dirName) =>
+          val emittedModules = finalState.emittedComponents collect { case x: EmittedModule => x }
+          if (emittedModules.isEmpty) throwInternalError() // There should be something
+          emittedModules.foreach { module =>
+            val filename = optionsManager.getBuildFileName(firrtlConfig.outputSuffix, s"$dirName/${module.name}")
+            val outputFile = new java.io.PrintWriter(filename)
+            outputFile.write(module.value)
+            outputFile.close()
+          }
+          "" // Should we return something different here?
+      }
 
-      FirrtlExecutionSuccess(firrtlConfig.compilerName, emittedRes)
+      // If set, emit final annotations to a file
+      optionsManager.firrtlOptions.outputAnnotationFileName match {
+        case "" =>
+        case file =>
+          val filename = optionsManager.getBuildFileName("anno.json", file)
+          val outputFile = new java.io.PrintWriter(filename)
+          outputFile.write(JsonProtocol.serialize(finalState.annotations))
+          outputFile.close()
+      }
+
+      FirrtlExecutionSuccess(firrtlConfig.compilerName, emittedRes, finalState)
     }
   }
 
@@ -219,7 +269,7 @@ object Driver {
           optionsManager.showUsageAsError()
           failure
         case result =>
-          throw new Exception(s"Error: Unknown Firrtl Execution result $result")
+          throwInternalError(s"Error: Unknown Firrtl Execution result $result")
       }
     }
     else {
@@ -302,6 +352,6 @@ object FileUtils {
     Seq("bash", "-c", "which %s".format(cmd)).run(ioToDevNull).exitValue == 0
   }
 
-  /** isVCSAvailable - flag indicating vcs is available (for Verilog compilation and testing. */
+  /** Flag indicating if vcs is available (for Verilog compilation and testing). */
   lazy val isVCSAvailable: Boolean = isCommandAvailable("vcs")
 }

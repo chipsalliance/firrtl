@@ -9,6 +9,9 @@ import firrtl.transforms._
 import firrtl.annotations._
 import firrtl.passes.memlib.SimpleTransform
 
+import java.io.File
+import java.nio.file.Paths
+
 class DCETests extends FirrtlFlatSpec {
   // Not using executeTest because it is for positive testing, we need to check that stuff got
   // deleted
@@ -17,7 +20,7 @@ class DCETests extends FirrtlFlatSpec {
     new SimpleTransform(RemoveEmpty, LowForm)
   )
   private def exec(input: String, check: String, annos: Seq[Annotation] = List.empty): Unit = {
-    val state = CircuitState(parse(input), ChirrtlForm, Some(AnnotationMap(annos)))
+    val state = CircuitState(parse(input), ChirrtlForm, annos)
     val finalState = (new LowFirrtlCompiler).compileAndEmit(state, customTransforms)
     val res = finalState.getEmittedCircuit.value
     // Convert to sets for comparison
@@ -57,9 +60,8 @@ class DCETests extends FirrtlFlatSpec {
         |  module Top :
         |    input x : UInt<1>
         |    output z : UInt<1>
-        |    wire a : UInt<1>
-        |    z <= x
-        |    a <= x""".stripMargin
+        |    node a = x
+        |    z <= x""".stripMargin
     exec(input, check, Seq(dontTouch("Top.a")))
   }
   "Unread register" should "be deleted" in {
@@ -106,6 +108,8 @@ class DCETests extends FirrtlFlatSpec {
         |    input x : UInt<1>
         |    input y : UInt<1>
         |    output z : UInt<1>
+        |    x is invalid
+        |    y is invalid
         |    z <= x
         |  module Top :
         |    input x : UInt<1>
@@ -113,6 +117,7 @@ class DCETests extends FirrtlFlatSpec {
         |    output z : UInt<1>
         |    inst sub of Sub
         |    sub.x <= x
+        |    sub.y is invalid
         |    z <= sub.z""".stripMargin
     val check =
       """circuit Top :
@@ -385,5 +390,52 @@ class DCETests extends FirrtlFlatSpec {
         |    skip
         |    z <= foo.z""".stripMargin
     exec(input, check)
+  }
+
+  "Emitted Verilog" should "not contain dead \"register update\" code" in {
+    val input = parse(
+      """circuit test :
+        |  module test :
+        |    input clock : Clock
+        |    input a : UInt<1>
+        |    input x : UInt<8>
+        |    output z : UInt<8>
+        |    reg r : UInt, clock
+        |    when a :
+        |      r <= x
+        |    z <= r""".stripMargin
+    )
+
+    val state = CircuitState(input, ChirrtlForm)
+    val result = (new VerilogCompiler).compileAndEmit(state, List.empty)
+    val verilog = result.getEmittedCircuit.value
+    // Check that mux is removed!
+    verilog shouldNot include regex ("""a \? x : r;""")
+    // Check for register update
+    verilog should include regex ("""(?m)if \(a\) begin\n\s*r <= x;\s*end""")
+  }
+}
+
+class DCECommandLineSpec extends FirrtlFlatSpec {
+
+  val testDir = createTestDirectory("dce")
+  val inputFile = Paths.get(getClass.getResource("/features/HasDeadCode.fir").toURI()).toFile()
+  val outFile = new File(testDir, "HasDeadCode.v")
+  val args = Array("-i", inputFile.getAbsolutePath, "-o", outFile.getAbsolutePath, "-X", "verilog")
+
+  "Dead Code Elimination" should "run by default" in {
+    firrtl.Driver.execute(args) match {
+      case FirrtlExecutionSuccess(_, verilog) =>
+        verilog should not include regex ("wire +a;")
+      case _ => fail("Unexpected compilation failure")
+    }
+  }
+
+  it should "not run when given --no-dce option" in {
+    firrtl.Driver.execute(args :+ "--no-dce") match {
+      case FirrtlExecutionSuccess(_, verilog) =>
+        verilog should include regex ("wire +a;")
+      case _ => fail("Unexpected compilation failure")
+    }
   }
 }
