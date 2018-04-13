@@ -207,11 +207,11 @@ trait HasFirrtlExecutionOptions {
              })
 
   /** Return the name of the top module */
-  @deprecated("Use firrtlOptions.topName.get", "3.2.0")
+  @deprecated("Use firrtlOptions.topName.get", "1.2.0")
   def topName(): String = firrtlOptions.topName.get
 
   /** Return the name of the target directory */
-  @deprecated("Use firrtlOptions.tagetDirName", "3.2.0")
+  @deprecated("Use firrtlOptions.tagetDirName", "1.2.0")
   def targetDirName(): String = firrtlOptions.targetDirName
 
   /** Create the specified Target Directory (--target-dir)
@@ -538,7 +538,7 @@ final case class FirrtlExecutionOptions(
     * @param optionsManager this is needed to access build function and its common options
     * @return a properly constructed input file name
     */
-  @deprecated("Use ExecutionOptionsManager.getInputFileName", "3.2.0")
+  @deprecated("Use ExecutionOptionsManager.getInputFileName", "1.2.0")
   def getInputFileName(optionsManager: ExecutionOptionsManager with HasFirrtlExecutionOptions ): String =
     optionsManager.getBuildFileName("fir", inputFileNameOverride)
   /** Get the user-specified [[OutputConfig]]
@@ -546,7 +546,7 @@ final case class FirrtlExecutionOptions(
     * @param optionsManager this is needed to access build function and its common options
     * @return the output configuration
     */
-  @deprecated("Use ExecutionOptionsManager.getOutputConfig", "3.2.0")
+  @deprecated("Use ExecutionOptionsManager.getOutputConfig", "1.2.0")
   def getOutputConfig(optionsManager: ExecutionOptionsManager with HasFirrtlExecutionOptions): OutputConfig =
     if (emitOneFilePerModule) { OneFilePerModule(optionsManager.targetDirName)                                    }
     else                      { SingleFile(optionsManager.getBuildFileName(outputSuffix, outputFileNameOverride)) }
@@ -556,7 +556,7 @@ final case class FirrtlExecutionOptions(
     * @param optionsManager this is needed to access build function and its common options
     * @return the targetFile as a String
     */
-  @deprecated("Use ExecutionOptionsManager.getTargetFile", "3.2.0")
+  @deprecated("Use ExecutionOptionsManager.getTargetFile", "1.2.0")
   def getTargetFile(optionsManager: ExecutionOptionsManager with HasFirrtlExecutionOptions): String =
     getOutputConfig(optionsManager) match {
       case SingleFile(targetFile) => targetFile
