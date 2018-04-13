@@ -329,6 +329,20 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
 
     annoFile.delete()
   }
+  "An annotation file is equivalent to command line options" in {
+    val annoFile = new File("annotations.anno")
+    val importedAnnoFile = new File("annotations-imported.anno")
+    copyResourceToFile("/annotations/AnnotationsAsOptions.anno.json", annoFile)
+    copyResourceToFile("/annotations/SampleAnnotations.anno.json", importedAnnoFile)
+    val args = Array("--annotation-file", annoFile.toString)
+    val optionsManager = new ExecutionOptionsManager("test", args) with HasFirrtlExecutionOptions
+
+    val annosInFile = JsonProtocol.deserialize(annoFile) ++ JsonProtocol.deserialize(importedAnnoFile)
+    optionsManager.firrtlOptions.annotations.length should be (defaultAnnotations.size + annosInFile.size + 1)
+
+    annoFile.delete()
+    importedAnnoFile.delete()
+  }
 
   "Circuits are emitted on properly" - {
     val input =

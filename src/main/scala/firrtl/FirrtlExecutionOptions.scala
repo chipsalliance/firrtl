@@ -733,7 +733,7 @@ object FirrtlExecutionUtils {
     if (tn.isEmpty && inF.isEmpty && inS.isEmpty) {
       throw new FIRRTLException(
         s"""|Unable to determine FIRRTL source to read. None of the following were found:
-            |    - a top module name (-tn, --top-name, TopNameAnnotation)
+            |    - a top module name: -tn, --top-name,      TopNameAnnotation
             |    - an input file:     -i,  --input-file,    InputFileAnnotation
             |    - FIRRTL source:          --firrtl-source, FirrtlSourceAnnotation""".stripMargin )}
     if (inF.size + inS.size > 1) {
