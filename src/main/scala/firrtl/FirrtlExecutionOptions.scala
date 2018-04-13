@@ -150,7 +150,8 @@ trait HasFirrtlExecutionOptions {
       Seq( FirrtlExecutionUtils.addImplicitAnnotationFile(_),
            getIncludes(_),
            FirrtlExecutionUtils.addDefaults(_),
-           LegacyAnnotation.convertLegacyAnnos(_) )
+           LegacyAnnotation.convertLegacyAnnos(_),
+           FirrtlExecutionUtils.checkAnnotations(_) )
 
     val preprocessedAnnotations: AnnotationSeq = annotationTransforms
       .foldLeft(options)( (old, tx) => tx(old) )
@@ -432,27 +433,6 @@ trait HasFirrtlExecutionOptions {
        passes.memlib.ReplSeqMem,
        passes.clocklist.ClockListTransform )
     .map(_.provideOptions(parser))
-
-  parser.checkConfig{ c =>
-    var Seq(hasTopName, hasInputFile, hasOFPM, hasOutputFile, hasFirrtlSource) = Seq.fill(5)(false) //scalastyle:ignore
-    c.foreach(
-      _ match {
-        case TopNameAnnotation(_)           => hasTopName      = true
-        case InputFileAnnotation(_)         => hasInputFile    = true
-        case EmitOneFilePerModuleAnnotation => hasOFPM         = true
-        case OutputFileAnnotation(_)        => hasOutputFile   = true
-        case FirrtlSourceAnnotation(_)      => hasFirrtlSource = true
-        case _                              =>                        })
-    if (!(hasTopName || hasInputFile || hasFirrtlSource)) {
-      parser.failure("At least one of --top-name, --input-file, or --firrtl-source must be specified")
-    } else if (hasInputFile && hasFirrtlSource) {
-      parser.failure("Only one of --input-file or --firrtl-source may be specified (not both!)")
-    } else if (hasOFPM && hasOutputFile) {
-      parser.failure("Output override (--output-file) is incompatible with one file per module (--split-modules)")
-    } else {
-      parser.success
-    }
-  }
 }
 
 /** Firrtl output configuration specified by [[FirrtlExecutionOptions]]
@@ -509,7 +489,7 @@ final case class FirrtlExecutionOptions(
       case "ignore" => Parser.IgnoreInfo
       case "gen"    => Parser.GenInfo(inputFileNameOverride.getOrElse("[not defined]"))
       case "append" => Parser.AppendInfo(inputFileNameOverride.getOrElse("[not defined]"))
-      case other    => Parser.UseInfo
+      case _        => Parser.UseInfo
     }
   }
 
@@ -524,13 +504,12 @@ final case class FirrtlExecutionOptions(
 
   /** Return the output file suffix */
   def outputSuffix(): String = compilerName match {
-    case "verilog"   => "v"
-    case "sverilog"  => "sv"
-    case "low"       => "lo.fir"
-    case "high"      => "hi.fir"
-    case "middle"    => "mid.fir"
-    case _ =>
-      throw new Exception(s"Illegal compiler name $compilerName")
+    case "verilog"  => "v"
+    case "sverilog" => "sv"
+    case "low"      => "lo.fir"
+    case "high"     => "hi.fir"
+    case "middle"   => "mid.fir"
+    case _          => throw new Exception(s"Illegal compiler name $compilerName")
   }
 
   /** Build the input file name, taking overriding parameters
@@ -560,7 +539,7 @@ final case class FirrtlExecutionOptions(
   def getTargetFile(optionsManager: ExecutionOptionsManager with HasFirrtlExecutionOptions): String =
     getOutputConfig(optionsManager) match {
       case SingleFile(targetFile) => targetFile
-      case other => throw new Exception("OutputConfig is not SingleFile!") }
+      case _                      => throw new Exception("OutputConfig is not SingleFile!") }
 }
 
 /** A result of running the FIRRTL compiler */
@@ -627,24 +606,25 @@ object FirrtlExecutionUtils {
     *  - Implicitly from the top module ([[ir.Circuit.main]]) of `--firrtl-source`
     *
     * @param annotations annotations to extract topName from
-    * @return top module
+    * @return the top module _if it can be determined_
     * @note `--input-file` and `--firrtl-source` are mutually exclusive
     * @note this is safe to use before [[HasFirrtlExecutionOptions.firrtlOptions]] is set
     */
-  def topName(annotations: Seq[Annotation]): String = {
+  def topName(annotations: Seq[Annotation]): Option[String] = {
     var Seq(topName, inputFileName, firrtlSource) = Seq.fill(3)(None: Option[String]) //scalastyle:ignore
     annotations.foreach{
       case TopNameAnnotation(name)         => topName       = Some(name)
       case InputFileAnnotation(file)       => inputFileName = Some(file)
       case FirrtlSourceAnnotation(circuit) => firrtlSource  = Some(circuit)
       case _ => }
-    topName.getOrElse {
-      val circuit: String = if (inputFileName.nonEmpty) {
-        io.Source.fromFile(inputFileName.get).getLines().mkString("\n")
+    topName.orElse {
+      if (inputFileName.nonEmpty) {
+        Some(io.Source.fromFile(inputFileName.get).getLines().mkString("\n"))
+      } else if (firrtlSource.nonEmpty) {
+        Some(Parser.parse(firrtlSource.get).main)
       } else {
-        firrtlSource.get
+        None
       }
-      Parser.parse(circuit).main
     }
   }
 
@@ -676,20 +656,21 @@ object FirrtlExecutionUtils {
     * @return a sequence of annotations that includes an [[InputAnnotationFileAnnotation]]
     * @note The implicit annotation file is in `targetDir/topName.anno`
     */
-  def addImplicitAnnotationFile(annos: Seq[Annotation]): Seq[Annotation] = annos.toList ++ (
-    annos.collectFirst{ case a: InputAnnotationFileAnnotation => a } match {
-      case Some(_) => List()
-      case None =>
-        val file = FirrtlExecutionUtils.targetDir(annos) + "/" +
-          FirrtlExecutionUtils.topName(annos) + ".anno"
-        if (new File(file).exists) {
-          Driver.dramaticWarning(
-            s"Implicit reading of the annotation file is deprecated! Use an explict --annotation-file argument.")
-          List(InputAnnotationFileAnnotation(file))
-        } else {
-          List()
-        }
-    } )
+  def addImplicitAnnotationFile(annos: Seq[Annotation]): Seq[Annotation] = annos
+    .collectFirst{ case a: InputAnnotationFileAnnotation => a } match {
+      case Some(_) => annos
+      case None => FirrtlExecutionUtils.topName(annos) match {
+        case Some(n) =>
+          val filename = FirrtlExecutionUtils.targetDir(annos) + "/" + n + ".anno"
+          if (new File(filename).exists) {
+            Driver.dramaticWarning(
+              s"Implicit reading of the annotation file is deprecated! Use an explict --annotation-file argument.")
+            annos :+ InputAnnotationFileAnnotation(filename)
+          } else {
+            annos
+          }
+        case None => annos
+      } }
 
   /** Append any missing default annotations to an annotation sequence
     *
@@ -697,22 +678,25 @@ object FirrtlExecutionUtils {
     * @return the annotation sequence with default annotations added
     */
   def addDefaults(annos: Seq[Annotation]): Seq[Annotation] = { //scalastyle:off cyclomatic.complexity
-    var Seq(addTargetDir, addBlackBoxDir, addLogLevel, addCompiler, addTopName) = Seq.fill(5)(true) //scalastyle:ignore
+    var Seq(td, bb, ll, c, tn) = Seq.fill(5)(true) //scalastyle:ignore
     annos.collect{ case a: FirrtlOption => a }.map{
-      case _: TargetDirAnnotation    => addTargetDir   = false
-      case _: BlackBoxTargetDirAnno  => addBlackBoxDir = false
-      case _: LogLevelAnnotation     => addLogLevel    = false
-      case _: CompilerNameAnnotation => addCompiler    = false
-      case _: TopNameAnnotation      => addTopName     = false
+      case _: TargetDirAnnotation    => td = false
+      case _: BlackBoxTargetDirAnno  => bb = false
+      case _: LogLevelAnnotation     => ll = false
+      case _: CompilerNameAnnotation => c  = false
+      case _: TopNameAnnotation      => tn = false
       case _ =>
     }
 
+    // [todo] Once the implicit annotation file is deprecated, this complexity decreases
+    val default = FirrtlExecutionOptions()
+    val name = FirrtlExecutionUtils.topName(annos)
     annos ++
-      (if (addTargetDir)   Seq(TargetDirAnnotation(FirrtlExecutionOptions().targetDirName))   else Seq() ) ++
-      (if (addBlackBoxDir) Seq(BlackBoxTargetDirAnno(FirrtlExecutionOptions().targetDirName)) else Seq() ) ++
-      (if (addLogLevel)    Seq(LogLevelAnnotation(FirrtlExecutionOptions().globalLogLevel))   else Seq() ) ++
-      (if (addCompiler)    Seq(CompilerNameAnnotation(FirrtlExecutionOptions().compilerName)) else Seq() ) ++
-      (if (addTopName)     Seq(TopNameAnnotation(FirrtlExecutionUtils.topName(annos)))        else Seq() )
+      (if (td)                 Seq(TargetDirAnnotation(default.targetDirName))   else Seq() ) ++
+      (if (bb)                 Seq(BlackBoxTargetDirAnno(default.targetDirName)) else Seq() ) ++
+      (if (ll)                 Seq(LogLevelAnnotation(default.globalLogLevel))   else Seq() ) ++
+      (if (c)                  Seq(CompilerNameAnnotation(default.compilerName)) else Seq() ) ++
+      (if (tn & name.nonEmpty) Seq(TopNameAnnotation(name.get))                  else Seq() )
   } //scalastyle:on cyclomatic.complexity
 
   /** Convert a string to an [[EmitterAnnotation]]
@@ -729,5 +713,40 @@ object FirrtlExecutionUtils {
       case "sverilog"  => classOf[SystemVerilogEmitter]
     }
     EmitterAnnotation(emitter)
+  }
+
+  /** Determine if an annotations are sane
+    *
+    * @param annos a sequence of [[Annotation]]
+    * @return true if all checks pass
+    */
+  def checkAnnotations(annos: Seq[Annotation]): Seq[Annotation] = {
+    val Seq(tn, inF, inS, ofpm, outF) = Seq.fill(5)(collection.mutable.ListBuffer[Annotation]())
+    annos.foreach(
+      _ match {
+        case a: TopNameAnnotation                   => tn   += a
+        case a: InputFileAnnotation                 => inF  += a
+        case a: FirrtlSourceAnnotation              => inS  += a
+        case a: EmitOneFilePerModuleAnnotation.type => ofpm += a
+        case a: OutputFileAnnotation                => outF += a
+        case _                                      =>           })
+    if (tn.isEmpty && inF.isEmpty && inS.isEmpty) {
+      throw new FIRRTLException(
+        s"""|Unable to determine FIRRTL source to read. None of the following were found:
+            |    - a top module name (-tn, --top-name, TopNameAnnotation)
+            |    - an input file:     -i,  --input-file,    InputFileAnnotation
+            |    - FIRRTL source:          --firrtl-source, FirrtlSourceAnnotation""".stripMargin )}
+    if (inF.size + inS.size > 1) {
+      throw new FIRRTLException(
+        s"""|Multiply defined input FIRRTL sources. More than one of the following was found:
+            |    - an input file (${inF.size} times): -i, --input-file, InputFileAnnotation
+            |    - FIRRTL source (${inS.size} times):     --firrtl-source, FirrtlSourceAnnotation""".stripMargin )}
+    if (ofpm.nonEmpty && outF.nonEmpty) {
+      throw new FIRRTLException(
+        s"""|Output file is incompatible with one file per module, but multiples were found:
+            |    - explicit output file (${outF.size} times): -o,   --output-file,   OutputFileAnnotation
+            |    - one file per module (${ofpm.size} times):  -fsm, --split-modules, EmitOneFilePerModuleAnnotation"""
+          .stripMargin )}
+    annos
   }
 }
