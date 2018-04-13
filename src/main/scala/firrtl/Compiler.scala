@@ -141,12 +141,11 @@ case class CircuitState(
   def emittedCircuitOption: Option[EmittedCircuit] =
     emittedComponents collectFirst { case x: EmittedCircuit => x }
   /** Helper for getting an [[EmittedCircuit]] when it is known to exist */
-  def getEmittedCircuit: EmittedCircuit = {
-    emittedCircuitOption match {
+  def getEmittedCircuit: EmittedCircuit = emittedCircuitOption match {
     case Some(emittedCircuit) => emittedCircuit
     case None =>
       throw new FIRRTLException(s"No EmittedCircuit found! Did you delete any annotations?\n$deletedAnnotations")
-  }}
+  }
   /** Helper function for extracting emitted components from annotations */
   def emittedComponents: Seq[EmittedComponent] =
     annotations.collect { case emitted: EmittedAnnotation[_] => emitted.value }

@@ -25,53 +25,49 @@ class ExecutionOptionsManager(
   args: Array[String],
   annotations: AnnotationSeq = AnnotationSeq(Seq.empty)) {
 
+  /** An [[scopt.OptionParser]] used by subclasses of [[ExecutionOptionsManager]] */
   final val parser = new OptionParser[AnnotationSeq](applicationName) {
     var terminateOnExit = true
     override def terminate(exitState: Either[String, Unit]): Unit = {
       if(terminateOnExit) sys.exit(0)
     }
 
-    /* Adds a check during parsing that no long or short options conflict */
+    /* Check that no long or short option declarations are duplicated */
     override def parse(args: Seq[String], init: AnnotationSeq): Option[AnnotationSeq] = {
-      val longDuplicates = options.map(_.name).groupBy(identity).collect{ case (k, v) if v.size > 1 && k != "" => k }
-      val shortDuplicates = options.map(_.shortOpt).flatten.groupBy(identity).collect{ case (k, v) if v.size > 1 => k }
-      def boilerplate(x: String, y: String) = s"""Found duplicate $x "$y" (did your custom Transform or OptionsManager add this?)"""
-      if (longDuplicates.nonEmpty)
-        throw new FIRRTLException(boilerplate("long option", longDuplicates.map("--" + _).mkString(",")))
-      if (shortDuplicates.nonEmpty)
-        throw new FIRRTLException(boilerplate("short option", shortDuplicates.map("-" + _).mkString(",")))
+      val longDups = options.map(_.name).groupBy(identity).collect{ case (k, v) if v.size > 1 && k != "" => k }
+      val shortDups = options.map(_.shortOpt).flatten.groupBy(identity).collect{ case (k, v) if v.size > 1 => k }
+      def msg(x: String, y: String) = s"""Duplicate $x "$y" (did your custom Transform or OptionsManager add this?)"""
+      if (longDups.nonEmpty)  { throw new FIRRTLException(msg("long option", shortDups.map("--" + _).mkString(","))) }
+      if (shortDups.nonEmpty) { throw new FIRRTLException(msg("short option", shortDups.map("-" + _).mkString(","))) }
       super.parse(args, init)
     }
   }
 
-  /** By default scopt calls sys.exit when --help is in options, this defeats that
-    */
+  /** By default scopt calls sys.exit when --help is in options, this defeats that */
   def doNotExitOnHelp(): Unit = {
     parser.terminateOnExit = false
   }
-  /** By default scopt calls sys.exit when --help is in options, this un-defeats doNotExitOnHelp
-    */
+  /** By default scopt calls sys.exit when --help is in options, this un-defeats doNotExitOnHelp */
   def exitOnHelp(): Unit = {
     parser.terminateOnExit = true
   }
 
-  /** Show usage and exit
-    */
+  /** Show usage and exit */
   def showUsageAsError(): Unit = parser.showUsageAsError()
 
+  /** The [[AnnotationSeq]] generated from command line arguments */
   lazy val options: AnnotationSeq = parser
     .parse(args, annotations)
     .getOrElse(throw new FIRRTLException("Failed to parse command line options"))
 }
 
 object ExecutionUtils {
-  /** todo] Add scaladoc */
+  /** [todo] Add scaladoc */
   def readAnnotationsFromFile(fileNames: List[String]): List[Annotation] = fileNames
     .flatMap{ filename =>
       val file = new File(filename).getCanonicalFile
       // [todo] Check for implicit annotation file usage
-      if (!file.exists)
-        throw new AnnotationFileNotFoundException(file)
+      if (!file.exists) { throw new AnnotationFileNotFoundException(file) }
       JsonProtocol.deserializeTry(file).recoverWith { case jsonException =>
         // Try old protocol if new one fails
         Try {
@@ -117,7 +113,7 @@ object ExecutionUtils {
       * @note --input-file and --firrtl-source are mutually exclusive
       */
     def topName(annotations: Seq[Annotation]): String = {
-      var Seq(topName, inputFileName, firrtlSource) = Seq.fill(3)(None: Option[String])
+      var Seq(topName, inputFileName, firrtlSource) = Seq.fill(3)(None: Option[String]) //scalastyle:ignore
       annotations.foreach{
         case TopNameAnnotation(name)         => topName       = Some(name)
         case InputFileAnnotation(file)       => inputFileName = Some(file)
