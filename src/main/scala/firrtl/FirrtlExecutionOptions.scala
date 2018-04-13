@@ -717,7 +717,7 @@ object FirrtlExecutionUtils {
 
   /** Determine if an annotations are sane
     *
-    * @param annos a sequence of [[Annotation]]
+    * @param annos a sequence of [[annotation.Annotation]]
     * @return true if all checks pass
     */
   def checkAnnotations(annos: Seq[Annotation]): Seq[Annotation] = {
