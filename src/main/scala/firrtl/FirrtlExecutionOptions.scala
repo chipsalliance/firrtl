@@ -15,7 +15,7 @@ import firrtl.transforms.{
 import logger.LogLevel
 import java.io.File
 
-/** Indicates that a subclass is an [[annotations.Annotation]] with an option consummable by [[HasFirrtlOptions]]
+/** Indicates that a subclass is an [[annotations.Annotation]] with an option consummable by [[HasFirrtlExecutionOptions]]
   *
   * This must be mixed into a subclass of [[annotations.Annotation]]
   */
@@ -130,7 +130,7 @@ case class CompilerNameAnnotation(value: String = "verilog") extends SingleStrin
   */
 case class RunFirrtlTransformAnnotation(value: String) extends SingleStringAnnotation with FirrtlOption
 
-trait HasFirrtlOptions {
+trait HasFirrtlExecutionOptions {
   self: ExecutionOptionsManager =>
 
   /* Add the implicit annotaiton file annotation if such a file exists */
@@ -576,7 +576,7 @@ final case class FirrtlExecutionOptions(
     * @return a properly constructed input file name
     */
   @deprecated("Use ExecutionOptionsManager.getInputFileName", "3.2.0")
-  def getInputFileName(optionsManager: ExecutionOptionsManager with HasFirrtlOptions ): String =
+  def getInputFileName(optionsManager: ExecutionOptionsManager with HasFirrtlExecutionOptions ): String =
     optionsManager.getBuildFileName("fir", inputFileNameOverride)
   /** Get the user-specified [[OutputConfig]]
     *
@@ -584,7 +584,7 @@ final case class FirrtlExecutionOptions(
     * @return the output configuration
     */
   @deprecated("Use ExecutionOptionsManager.getOutputConfig", "3.2.0")
-  def getOutputConfig(optionsManager: ExecutionOptionsManager with HasFirrtlOptions): OutputConfig =
+  def getOutputConfig(optionsManager: ExecutionOptionsManager with HasFirrtlExecutionOptions): OutputConfig =
     if (emitOneFilePerModule) { OneFilePerModule(optionsManager.targetDirName)                                    }
     else                      { SingleFile(optionsManager.getBuildFileName(outputSuffix, outputFileNameOverride)) }
 
@@ -594,7 +594,7 @@ final case class FirrtlExecutionOptions(
     * @return the targetFile as a String
     */
   @deprecated("Use ExecutionOptionsManager.getTargetFile", "3.2.0")
-  def getTargetFile(optionsManager: ExecutionOptionsManager with HasFirrtlOptions): String =
+  def getTargetFile(optionsManager: ExecutionOptionsManager with HasFirrtlExecutionOptions): String =
     getOutputConfig(optionsManager) match {
       case SingleFile(targetFile) => targetFile
       case other => throw new Exception("OutputConfig is not SingleFile!") }

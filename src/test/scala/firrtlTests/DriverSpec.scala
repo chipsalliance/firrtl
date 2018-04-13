@@ -42,7 +42,7 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
     "CommonOption provide an scopt implementation of an OptionParser" - {
       "Options can be set from an Array[String] as is passed into a main" - {
         "With no arguments default values come out" in {
-          val optionsManager = new ExecutionOptionsManager("test", Array("--top-name", "null")) with HasFirrtlOptions
+          val optionsManager = new ExecutionOptionsManager("test", Array("--top-name", "null")) with HasFirrtlExecutionOptions
 
           val firrtlOptions = optionsManager.firrtlOptions
           firrtlOptions.topName should be(Some("null"))
@@ -51,7 +51,7 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
         "top name and target can be set" in {
           val optionsManager = new ExecutionOptionsManager(
             "test",
-            Array("--top-name", "dog", "--target-dir", "a/b/c") ) with HasFirrtlOptions
+            Array("--top-name", "dog", "--target-dir", "a/b/c") ) with HasFirrtlExecutionOptions
           val firrtlOptions = optionsManager.firrtlOptions
 
           firrtlOptions.topName should be(Some("dog"))
@@ -68,7 +68,7 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
         }
         val optionsManager = new ExecutionOptionsManager(
           "test",
-          Array("--top-name", "dog", "--target-dir", "a/b/c") ) with HasFirrtlOptions
+          Array("--top-name", "dog", "--target-dir", "a/b/c") ) with HasFirrtlExecutionOptions
         val firrtlOptions = optionsManager.firrtlOptions
 
         firrtlOptions.topName should be (Some("dog"))
@@ -83,7 +83,7 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
     "options include by default a list of strings that are returned in firrtlOptions.programArgs" in {
       val optionsManager = new ExecutionOptionsManager(
         "test",
-        Array("--top-name", "dog", "fox", "tardigrade", "stomatopod") ) with HasFirrtlOptions
+        Array("--top-name", "dog", "fox", "tardigrade", "stomatopod") ) with HasFirrtlExecutionOptions
 
       println(s"programArgs ${optionsManager.firrtlOptions.programArgs}")
       optionsManager.firrtlOptions.programArgs.length should be (3)
@@ -91,14 +91,14 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
 
       val optionsManager2 = new ExecutionOptionsManager(
         "test2",
-        Array("dog", "stomatopod", "--top-name", "null") ) with HasFirrtlOptions
+        Array("dog", "stomatopod", "--top-name", "null") ) with HasFirrtlExecutionOptions
       println(s"programArgs ${optionsManager2.firrtlOptions.programArgs}")
       optionsManager2.firrtlOptions.programArgs.length should be (2)
       optionsManager2.firrtlOptions.programArgs should be ("dog" :: "stomatopod" :: Nil)
 
       val optionsManager3 = new ExecutionOptionsManager(
         "test3",
-        Array("fox", "--top-name", "dog", "tardigrade", "stomatopod") ) with HasFirrtlOptions
+        Array("fox", "--top-name", "dog", "tardigrade", "stomatopod") ) with HasFirrtlExecutionOptions
 
       println(s"programArgs ${optionsManager3.firrtlOptions.programArgs}")
       optionsManager3.firrtlOptions.programArgs.length should be (3)
@@ -109,13 +109,13 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
 
   "FirrtlOptions holds option information for the firrtl compiler" - {
     "It includes a CommonOptions" in {
-      val optionsManager = new ExecutionOptionsManager("test", Array("--top-name", "null")) with HasFirrtlOptions
+      val optionsManager = new ExecutionOptionsManager("test", Array("--top-name", "null")) with HasFirrtlExecutionOptions
       optionsManager.firrtlOptions.targetDirName should be (".")
     }
     "It provides input and output file names based on target" in {
       val optionsManager = new ExecutionOptionsManager(
         "test",
-        Array("--top-name", "cat") ) with HasFirrtlOptions
+        Array("--top-name", "cat") ) with HasFirrtlExecutionOptions
 
       val firrtlOptions = optionsManager.firrtlOptions
       val inputFileName = optionsManager.getBuildFileName("fir", firrtlOptions.inputFileNameOverride)
@@ -126,7 +126,7 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
     "input and output file names can be overridden, overrides do not use targetDir" in {
       val optionsManager = new ExecutionOptionsManager(
         "test",
-        Array("--top-name", "cat", "-i", "./bob.fir", "-o", "carol.v") ) with HasFirrtlOptions
+        Array("--top-name", "cat", "-i", "./bob.fir", "-o", "carol.v") ) with HasFirrtlExecutionOptions
 
       val firrtlOptions = optionsManager.firrtlOptions
       val inputFileName = optionsManager.getBuildFileName("fir", firrtlOptions.inputFileNameOverride)
@@ -138,7 +138,7 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
       "inline annotation" in {
         val inlines = List("module", "module.submodule", "module.submodule.instance")
         val args = Array(Array("--top-name", "null"), Array("--inline", inlines.mkString(",")))
-        val optionsManager = new ExecutionOptionsManager("test", args.flatMap(x=>x)) with HasFirrtlOptions
+        val optionsManager = new ExecutionOptionsManager("test", args.flatMap(x=>x)) with HasFirrtlExecutionOptions
 
         val firrtlOptions = optionsManager.firrtlOptions
         val addedAnnotations = inlines.map(i => InlineAnnotation(AnnotationUtils.toNamed(i))).toSet
@@ -151,7 +151,7 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
       }
       "infer-rw annotation" in {
         val args = Array(Array("--top-name", "null"), Array("--infer-rw", "circuit"))
-        val optionsManager = new ExecutionOptionsManager("test", args.flatMap(x => x) ) with HasFirrtlOptions
+        val optionsManager = new ExecutionOptionsManager("test", args.flatMap(x => x) ) with HasFirrtlExecutionOptions
 
         val firrtlOptions = optionsManager.firrtlOptions
         // The `+` comes from the run firrtl transform annotation
@@ -164,7 +164,7 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
       }
       "repl-seq-mem annotation" in {
         val args = Array(Array("--top-name", "null"), Array("--repl-seq-mem", "-c:circuit1:-i:infile1:-o:outfile1"))
-        val optionsManager = new ExecutionOptionsManager("test", args.flatMap(x => x)) with HasFirrtlOptions
+        val optionsManager = new ExecutionOptionsManager("test", args.flatMap(x => x)) with HasFirrtlExecutionOptions
 
         val firrtlOptions = optionsManager.firrtlOptions
         // The `+1 comes from the run firrtl transform annotation
@@ -184,7 +184,7 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
     val annoFile =  new File(top + ".anno")
     copyResourceToFile("/annotations/SampleAnnotations.anno", annoFile)
     val args = Array(Array("--top-name", top))
-    val optionsManager = new ExecutionOptionsManager("test", args.flatMap(x=>x)) with HasFirrtlOptions
+    val optionsManager = new ExecutionOptionsManager("test", args.flatMap(x=>x)) with HasFirrtlExecutionOptions
 
     import net.jcazevedo.moultingyaml._
     val text = io.Source.fromFile(annoFile).mkString
@@ -207,7 +207,7 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
       "test",
       Array("--top-name", "test",
             "--target-dir", testDir.toString,
-            "--annotation-file", annotationsTestFile.toString)) with HasFirrtlOptions {
+            "--annotation-file", annotationsTestFile.toString)) with HasFirrtlExecutionOptions {
     }
     copyResourceToFile(s"/annotations/$annoFilename", annotationsTestFile)
     val annos = Driver.getAnnotations(optionsManager)
@@ -261,7 +261,7 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
         "test",
         Array("--top-name", "test",
               "--target-dir", testDir.toString,
-              "--annotation-file", annoFile.toString) ) with HasFirrtlOptions
+              "--annotation-file", annoFile.toString) ) with HasFirrtlExecutionOptions
       (the [Exception] thrownBy {
         Driver.getAnnotations(optionsManager)
       }).getMessage should include ("Old-style annotations")
@@ -272,7 +272,7 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
     val filenames = Seq("SampleAnnotations1.anno.json", "SampleAnnotations2.anno.json")
     filenames.foreach(f => copyResourceToFile(s"/annotations/SampleAnnotations.anno.json", new File(f)))
     val args = Array(Array("--top-name", "a.fir")) ++ filenames.map(f => Array("--annotation-file", f))
-    val optionsManager = new ExecutionOptionsManager("test", args.flatMap(x=>x)) with HasFirrtlOptions
+    val optionsManager = new ExecutionOptionsManager("test", args.flatMap(x=>x)) with HasFirrtlExecutionOptions
 
     import net.jcazevedo.moultingyaml._
     val annosInFile = io.Source.fromFile(filenames(0)).mkString
@@ -290,7 +290,7 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
     copyResourceToFile(s"/annotations/$filename", new File(filename))
     val args = Array(Array("--top-name", "a.fir")) ++
       List.fill(2)(filename).map(f => Array("--annotation-file", f))
-    val optionsManager = new ExecutionOptionsManager("test", args.flatMap(x=>x)) with HasFirrtlOptions
+    val optionsManager = new ExecutionOptionsManager("test", args.flatMap(x=>x)) with HasFirrtlExecutionOptions
 
     import net.jcazevedo.moultingyaml._
     val annosInFile = io.Source.fromFile(filename).mkString
@@ -314,7 +314,7 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
 
     val optionsManager = new ExecutionOptionsManager(
       "test",
-      args.flatMap(x => x) ) with HasFirrtlOptions
+      args.flatMap(x => x) ) with HasFirrtlExecutionOptions
 
     val annosInFile = JsonProtocol.deserialize(annoFile)
 
@@ -356,7 +356,7 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
           val manager = new ExecutionOptionsManager(
             "test",
             Array("--firrtl-source", input,
-                  "--compiler", compilerName) ) with HasFirrtlOptions
+                  "--compiler", compilerName) ) with HasFirrtlExecutionOptions
 
         firrtl.Driver.execute(manager)
 

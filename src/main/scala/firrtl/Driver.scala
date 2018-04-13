@@ -84,7 +84,7 @@ object Driver {
     *                       update the firrtlOptions with new annotations if it does
     */
   @deprecated("This has no effect and is unnecessary due to ExecutionOptionsManager immutability", "1.1.0")
-  def loadAnnotations(optionsManager: ExecutionOptionsManager with HasFirrtlOptions): Unit =
+  def loadAnnotations(optionsManager: ExecutionOptionsManager with HasFirrtlExecutionOptions): Unit =
     Driver.dramaticWarning("Driver.loadAnnotations doesn't do anything, use Driver.getAnnotations instead")
 
   /**
@@ -93,7 +93,7 @@ object Driver {
     * @param optionsManager use optionsManager config to load annotation files
     * @return Annotations read from files
     */
-  def getAnnotations(optionsManager: ExecutionOptionsManager with HasFirrtlOptions): Seq[Annotation] =
+  def getAnnotations(optionsManager: ExecutionOptionsManager with HasFirrtlExecutionOptions): Seq[Annotation] =
     optionsManager.firrtlOptions.annotations
 
   // Useful for handling erros in the options
@@ -103,7 +103,7 @@ object Driver {
     *
     * Handles the myriad of ways it can be specified
     */
-  def getCircuit(optionsManager: ExecutionOptionsManager with HasFirrtlOptions): Try[ir.Circuit] = {
+  def getCircuit(optionsManager: ExecutionOptionsManager with HasFirrtlExecutionOptions): Try[ir.Circuit] = {
     val firrtlConfig = optionsManager.firrtlOptions
     Try {
       // Check that only one "override" is used
@@ -225,7 +225,7 @@ object Driver {
     */
   def execute(args: Array[String]): FirrtlExecutionResult = {
     try {
-      val optionsManager = new ExecutionOptionsManager("firrtl", args) with HasFirrtlOptions
+      val optionsManager = new ExecutionOptionsManager("firrtl", args) with HasFirrtlExecutionOptions
       execute(optionsManager) match {
         case success: FirrtlExecutionSuccess =>
           success

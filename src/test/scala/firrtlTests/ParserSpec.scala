@@ -166,7 +166,7 @@ class ParserSpec extends FirrtlFlatSpec {
       |""".stripMargin
     val manager = new ExecutionOptionsManager(
       "test",
-      Array("--firrtl-source", input)) with HasFirrtlOptions {
+      Array("--firrtl-source", input)) with HasFirrtlExecutionOptions {
     }
     a [SyntaxErrorsException] shouldBe thrownBy {
       Driver.execute(manager)

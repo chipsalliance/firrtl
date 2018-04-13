@@ -2,7 +2,7 @@
 
 package loggertests
 
-import firrtl.{ExecutionOptionsManager, HasFirrtlOptions}
+import firrtl.{ExecutionOptionsManager, HasFirrtlExecutionOptions}
 import logger.Logger.OutputCaptor
 import logger.{LazyLogging, LogLevel, Logger}
 import org.scalatest.{FreeSpec, Matchers, OneInstancePerTest}
@@ -36,7 +36,7 @@ class LogsInfo3 extends LazyLogging {
   }
 }
 class LoggerSpec extends FreeSpec with Matchers with OneInstancePerTest with LazyLogging {
-  val dummyOptionsManager = new ExecutionOptionsManager("dummy", Array("--top-name", "null")) with HasFirrtlOptions
+  val dummyOptionsManager = new ExecutionOptionsManager("dummy", Array("--top-name", "null")) with HasFirrtlExecutionOptions
   "Logger is a simple but powerful logging system" - {
     "Following tests show how global level can control logging" - {
       "only error shows up by default" in {

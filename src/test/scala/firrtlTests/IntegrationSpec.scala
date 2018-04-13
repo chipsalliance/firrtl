@@ -28,7 +28,7 @@ class GCDSplitEmissionExecutionTest extends FirrtlFlatSpec {
             "--input-file", sourceFile.getPath,
             "--compiler", "verilog",
             "--info-mode", "ignore",
-            "--split-modules") ) with HasFirrtlOptions {
+            "--split-modules") ) with HasFirrtlExecutionOptions {
     }
     firrtl.Driver.execute(optionsManager)
 

@@ -29,7 +29,7 @@ class InternalErrorSpec extends FreeSpec with Matchers with BackendCompilationUt
         "test",
         Array("--top-name", "Dummy",
               "--firrtl-source", input,
-              "--compiler", "low") ) with HasFirrtlOptions {
+              "--compiler", "low") ) with HasFirrtlExecutionOptions {
       }
       exception = intercept[FIRRTLException] {
         firrtl.Driver.execute(manager)

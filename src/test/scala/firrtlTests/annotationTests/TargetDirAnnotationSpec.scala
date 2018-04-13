@@ -52,7 +52,7 @@ class TargetDirAnnotationSpec extends FirrtlFlatSpec {
             "--top-name", "Top",
             "--compiler", "high",
             "--firrtl-source", input,
-            "--custom-transforms", "firrtlTests.annotationTests.FindTargetDirTransform") ) with HasFirrtlOptions
+            "--custom-transforms", "firrtlTests.annotationTests.FindTargetDirTransform") ) with HasFirrtlExecutionOptions
     implicit val annos = Driver.execute(optionsManager) match {
       case success: FirrtlExecutionSuccess => success.circuitState.annotations
       case _ => throw new Exception("Driver failed to run to completion") }

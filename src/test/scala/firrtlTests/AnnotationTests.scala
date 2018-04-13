@@ -522,7 +522,7 @@ class JsonAnnotationTests extends AnnotationTests with BackendCompilationUtiliti
     new ExecutionOptionsManager("annos", Array(
                                   "--target-dir", testDir.getPath,
                                   "--firrtl-source", source,
-                                  "--annotation-file", annoFile.getPath)) with HasFirrtlOptions
+                                  "--annotation-file", annoFile.getPath)) with HasFirrtlExecutionOptions
   }
 
   /* We throw better exceptions than we're checking for, e.g., an
