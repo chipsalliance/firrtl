@@ -7,6 +7,8 @@ import java.nio.file.Files
 import java.text.SimpleDateFormat
 import java.util.Calendar
 
+import firrtl.FirrtlExecutionOptions
+
 import scala.sys.process.{ProcessBuilder, ProcessLogger, _}
  
 trait BackendCompilationUtilities {
@@ -86,7 +88,8 @@ trait BackendCompilationUtilities {
                     dutFile: String,
                     dir: File,
                     vSources: Seq[File],
-                    cppHarness: File
+                    cppHarness: File,
+                    firrtlOptions : FirrtlExecutionOptions = new FirrtlExecutionOptions
                   ): ProcessBuilder = {
     val topModule = dutFile
 
@@ -109,8 +112,10 @@ trait BackendCompilationUtilities {
       Seq("--assert",
         "-Wno-fatal",
         "-Wno-WIDTH",
-        "-Wno-STMTDLY",
-        "--trace",
+        "-Wno-STMTDLY"
+      ) ++
+      { if(firrtlOptions.suppressVerilatorVCD) { Seq.empty } else { Seq("--trace")} } ++
+      Seq(
         "-O1",
         "--top-module", topModule,
         "+define+TOP_TYPE=V" + dutFile,
