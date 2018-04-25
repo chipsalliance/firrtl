@@ -2,8 +2,9 @@
 
 package firrtlTests
 
-import firrtl.{AnnotationSeq, ChirrtlForm, LowFirrtlCompiler, Parser}
+import firrtl._
 import firrtl.passes.memlib.VerilogMemDelays
+import firrtl.passes.CheckHighForm
 import org.scalatest.{FreeSpec, Matchers}
 
 class VerilogMemDelaySpec extends FreeSpec with Matchers {
@@ -13,10 +14,9 @@ class VerilogMemDelaySpec extends FreeSpec with Matchers {
         |circuit Test :
         |  module Test :
         |    input clock : Clock
-        |    input a : UInt<1>
-        |    input b : UInt<1>
-        |    input select : UInt<1>
-        |    output c : UInt<1>
+        |    input addr : UInt<5>
+        |    input mask : { a : UInt<1>, b: UInt<1> }[2]
+        |    output out : { a : UInt<8>, b : UInt<8>}[2]
         |    mem m :
         |      data-type => { a : UInt<8>, b : UInt<8>}[2]
         |      depth => 32
@@ -26,28 +26,27 @@ class VerilogMemDelaySpec extends FreeSpec with Matchers {
         |      writer => write
         |    m.read.clk <= clock
         |    m.read.en <= UInt<1>(1)
-        |    m.read.addr is invalid
-        |    node x = m.read.data
-        |    node y = m.read.data[0].b
+        |    m.read.addr <= addr
+        |    out <= m.read.data
         |
         |    m.write.clk <= clock
-        |    m.write.en <= UInt<1>(0)
-        |    m.write.mask is invalid
-        |    m.write.addr is invalid
+        |    m.write.en <= UInt<1>(1)
+        |    m.write.mask <= mask
+        |    m.write.addr <= addr
         |    wire w : { a : UInt<8>, b : UInt<8>}[2]
         |    w[0].a <= UInt<4>(2)
         |    w[0].b <= UInt<4>(3)
         |    w[1].a <= UInt<4>(4)
         |    w[1].b <= UInt<4>(5)
         |    m.write.data <= w
-        |    c <= a
       """.stripMargin
 
     val circuit = Parser.parse(input)
     val compiler = new LowFirrtlCompiler
 
-    val compileResult = compiler.compileAndEmit(firrtl.CircuitState(circuit, ChirrtlForm, AnnotationSeq(Seq.empty)))
-    val circuit2 = VerilogMemDelays.run(compileResult.circuit)
-    circuit2.serialize.length > 0 should be (true)
+    val result = compiler.compile(CircuitState(circuit, ChirrtlForm), Seq.empty)
+    val result2 = VerilogMemDelays.run(result.circuit)
+    CheckHighForm.run(result2)
+    //result.circuit.serialize.length > 0 should be (true)
   }
 }
