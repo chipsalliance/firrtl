@@ -138,7 +138,7 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
       "inline annotation" in {
         val inlines = List("module", "module.submodule", "module.submodule.instance")
         val args = Array(Array("--top-name", "null"), Array("--inline", inlines.mkString(",")))
-        val optionsManager = new ExecutionOptionsManager("test", args.flatMap(x=>x)) with HasFirrtlExecutionOptions
+        val optionsManager = new ExecutionOptionsManager("test", args.flatten) with HasFirrtlExecutionOptions
 
         val firrtlOptions = optionsManager.firrtlOptions
         val addedAnnotations = inlines.map(i => InlineAnnotation(AnnotationUtils.toNamed(i))).toSet
@@ -151,7 +151,7 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
       }
       "infer-rw annotation" in {
         val args = Array(Array("--top-name", "null"), Array("--infer-rw", "circuit"))
-        val optionsManager = new ExecutionOptionsManager("test", args.flatMap(x => x) ) with HasFirrtlExecutionOptions
+        val optionsManager = new ExecutionOptionsManager("test", args.flatten) with HasFirrtlExecutionOptions
 
         val firrtlOptions = optionsManager.firrtlOptions
         // The `+` comes from the run firrtl transform annotation
@@ -164,7 +164,7 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
       }
       "repl-seq-mem annotation" in {
         val args = Array(Array("--top-name", "null"), Array("--repl-seq-mem", "-c:circuit1:-i:infile1:-o:outfile1"))
-        val optionsManager = new ExecutionOptionsManager("test", args.flatMap(x => x)) with HasFirrtlExecutionOptions
+        val optionsManager = new ExecutionOptionsManager("test", args.flatten) with HasFirrtlExecutionOptions
 
         val firrtlOptions = optionsManager.firrtlOptions
         // The `+1 comes from the run firrtl transform annotation
@@ -184,7 +184,7 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
     val annoFile =  new File(top + ".anno")
     copyResourceToFile("/annotations/SampleAnnotations.anno", annoFile)
     val args = Array(Array("--top-name", top))
-    val optionsManager = new ExecutionOptionsManager("test", args.flatMap(x=>x)) with HasFirrtlExecutionOptions
+    val optionsManager = new ExecutionOptionsManager("test", args.flatten) with HasFirrtlExecutionOptions
 
     import net.jcazevedo.moultingyaml._
     val text = io.Source.fromFile(annoFile).mkString
@@ -272,7 +272,7 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
     val filenames = Seq("SampleAnnotations1.anno.json", "SampleAnnotations2.anno.json")
     filenames.foreach(f => copyResourceToFile(s"/annotations/SampleAnnotations.anno.json", new File(f)))
     val args = Array(Array("--top-name", "a.fir")) ++ filenames.map(f => Array("--annotation-file", f))
-    val optionsManager = new ExecutionOptionsManager("test", args.flatMap(x=>x)) with HasFirrtlExecutionOptions
+    val optionsManager = new ExecutionOptionsManager("test", args.flatten) with HasFirrtlExecutionOptions
 
     import net.jcazevedo.moultingyaml._
     val annosInFile = io.Source.fromFile(filenames(0)).mkString
@@ -290,7 +290,7 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
     copyResourceToFile(s"/annotations/$filename", new File(filename))
     val args = Array(Array("--top-name", "a.fir")) ++
       List.fill(2)(filename).map(f => Array("--annotation-file", f))
-    val optionsManager = new ExecutionOptionsManager("test", args.flatMap(x=>x)) with HasFirrtlExecutionOptions
+    val optionsManager = new ExecutionOptionsManager("test", args.flatten) with HasFirrtlExecutionOptions
 
     import net.jcazevedo.moultingyaml._
     val annosInFile = io.Source.fromFile(filename).mkString
@@ -314,7 +314,7 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
 
     val optionsManager = new ExecutionOptionsManager(
       "test",
-      args.flatMap(x => x) ) with HasFirrtlExecutionOptions
+      args.flatten ) with HasFirrtlExecutionOptions
 
     val annosInFile = JsonProtocol.deserialize(annoFile)
 

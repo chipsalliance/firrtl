@@ -192,20 +192,20 @@ trait HasFirrtlExecutionOptions {
   /* Pull in whatever the user tells us to from files until we can't find
    * any more. Remember what we've already imported to prevent a
    * loop. */
-  var includeGuard = Set[String]()
-  def getIncludes(annos: Seq[Annotation]): Seq[Annotation] = annos
-    .flatMap( _ match {
-               case a: InputAnnotationFileAnnotation =>
-                 if (includeGuard.contains(a.value)) {
-                   Driver.dramaticWarning("Tried to import the same annotation file twice! (Did you include it twice?)")
-                   Seq(DeletedAnnotation(applicationName, a))
-                 } else {
-                   includeGuard += a.value
-                   Seq(DeletedAnnotation(applicationName, a)) ++
-                     getIncludes(FirrtlExecutionUtils.readAnnotationsFromFile(a.value))
-                 }
-               case x => Seq(x)
-             })
+  private var includeGuard = Set[String]()
+  private def getIncludes(annos: Seq[Annotation]): Seq[Annotation] = annos
+    .flatMap {
+      case a: InputAnnotationFileAnnotation =>
+        if (includeGuard.contains(a.value)) {
+          Driver.dramaticWarning("Tried to import the same annotation file twice! (Did you include it twice?)")
+          Seq(DeletedAnnotation(applicationName, a))
+        } else {
+          includeGuard += a.value
+          Seq(DeletedAnnotation(applicationName, a)) ++
+            getIncludes(FirrtlExecutionUtils.readAnnotationsFromFile(a.value))
+        }
+      case x => Seq(x)
+    }
 
   /** Return the name of the top module */
   @deprecated("Use firrtlOptions.topName.get", "1.2.0")
