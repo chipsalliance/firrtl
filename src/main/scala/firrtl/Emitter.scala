@@ -93,14 +93,18 @@ sealed abstract class FirrtlEmitter(form: CircuitForm) extends Transform with Em
   }
 
   override def execute(state: CircuitState): CircuitState = {
-    val annos = state.annotations.collect{ case a: EmitAnnotation => a }
-    val oneFilePerModule = annos.contains(EmitOneFilePerModuleAnnotation)
-    val newAnnos = annos.collect{ case a: EmitterAnnotation => a }
-      .flatMap {
-        case _ if oneFilePerModule => emitAllModules(state.circuit) map (EmittedFirrtlModuleAnnotation(_))
-        case _ => Seq(EmittedFirrtlCircuitAnnotation.apply(EmittedFirrtlCircuit(state.circuit.main, state.circuit.serialize)))
-      }
-    state.copy(annotations = newAnnos ++ state.annotations)
+    val (e, other) = state.annotations.partition{
+      case a: EmitterAnnotation if a.emitter == this.getClass => true
+      case _ => false }
+    val ex = e.flatMap { a =>
+      DeletedAnnotation(name, a) +: (
+        if (other.contains(EmitOneFilePerModuleAnnotation)) {
+          emitAllModules(state.circuit) map (EmittedFirrtlModuleAnnotation(_))
+        } else {
+          Seq(EmittedFirrtlCircuitAnnotation.apply(EmittedFirrtlCircuit(state.circuit.main, state.circuit.serialize)))
+        })
+    }
+    state.copy(annotations = other ++ ex)
   }
 
   // Old style, deprecated
