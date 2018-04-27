@@ -283,18 +283,25 @@ trait HasFirrtlExecutionOptions {
 
   parser.note("Common Options")
 
+  /* [Note 1] Any validation related to these options is removed here. Since
+   * we need to check annotations anyway, arguments here are purposefully
+   * marked as `unbounded` and no validation checking occurs (except that
+   * which is related to ensuring that a command line string is validly
+   * converted to some type, e.g., --log-level). All of the actual option
+   * validation happens when the annotations are processed in
+   * [[FirrtlExecutionUtils.checkAnnotations]]. */
   parser.opt[String]("top-name")
     .abbr("tn")
     .valueName("<top-level-circuit-name>")
     .action( (x, c) => c :+ TopNameAnnotation(x) )
-    .maxOccurs(1)
+    .unbounded() // See [Note 1]
     .text("This options defines the top level circuit, defaults to dut when possible")
 
   parser.opt[String]("target-dir")
     .abbr("td")
     .valueName("<target-directory>")
     .action( (x, c) => c ++ Seq(TargetDirAnnotation(x), BlackBoxTargetDirAnno(x)) )
-    .maxOccurs(1)
+    .unbounded() // See [Note 1]
     .text(s"Work directory for intermediate files/blackboxes, default is ${FirrtlExecutionOptions().targetDirName}")
 
   parser.opt[String]("log-level")
@@ -305,29 +312,29 @@ trait HasFirrtlExecutionOptions {
       lazy val msg = s"$x bad value must be one of error|warn|info|debug|trace"
       if (Array("error", "warn", "info", "debug", "trace").contains(x.toLowerCase)) { parser.success      }
       else                                                                          { parser.failure(msg) }}
-    .maxOccurs(1)
+    .unbounded() // See [Note 1]
     .text(s"Sets the verbosity level of logging, default is ${FirrtlExecutionOptions().globalLogLevel}")
 
   parser.opt[Seq[String]]("class-log-level")
     .abbr("cll")
     .valueName("<FullClassName:[Error|Warn|Info|Debug|Trace]>[,...]")
     .action( (x, c) => c ++ (x.map { y =>
-                val className :: levelName :: _ = y.split(":").toList
-                val level = LogLevel(levelName)
-                ClassLogLevelAnnotation(className, level) }) )
-    .maxOccurs(1)
+                               val className :: levelName :: _ = y.split(":").toList
+                               val level = LogLevel(levelName)
+                               ClassLogLevelAnnotation(className, level) }) )
+    .unbounded() // This can actually occur any number of times safely
     .text(s"This defines per-class verbosity of logging")
 
   parser.opt[Unit]("log-to-file")
     .abbr("ltf")
     .action( (x, c) => c :+ LogToFileAnnotation )
-    .maxOccurs(1)
+    .unbounded()
     .text(s"default logs to stdout, this flags writes to topName.log or firrtl.log if no topName")
 
   parser.opt[Unit]("log-class-names")
     .abbr("lcn")
     .action( (x, c) => c :+ LogClassNamesAnnotation )
-    .maxOccurs(1)
+    .unbounded()
     .text(s"shows class names and log level in logging output, useful for target --class-log-level")
 
   parser.arg[String]("<arg>...")
@@ -344,14 +351,14 @@ trait HasFirrtlExecutionOptions {
     .abbr("i")
     .valueName ("<firrtl-source>")
     .action( (x, c) => c :+ InputFileAnnotation(x) )
-    .maxOccurs(1)
+    .unbounded() // See [Note 1]
     .text("use this to override the default input file name, default is empty")
 
   parser.opt[String]("output-file")
     .abbr("o")
     .valueName("<output>")
     .action( (x, c) => c :+ OutputFileAnnotation(x) )
-    .maxOccurs(1)
+    .unbounded()
     .text("use this to override the default output file name, default is empty")
 
   parser.opt[String]("annotation-file")
@@ -364,6 +371,7 @@ trait HasFirrtlExecutionOptions {
   parser.opt[Unit]("force-append-anno-file")
     .abbr("ffaaf")
     .hidden()
+    .unbounded()
     .action{ (x, c) =>
       val msg = "force-append-anno-file is deprecated\n" + (" "*9) + "(It does not do anything anymore)"
       Driver.dramaticWarning(msg)
@@ -373,34 +381,26 @@ trait HasFirrtlExecutionOptions {
     .abbr("foaf")
     .valueName ("<output-anno-file>")
     .action( (x, c) => c :+ OutputAnnotationFileAnnotation(x) )
-    .maxOccurs(1)
+    .unbounded() // See [Note 1]
     .text("use this to set the annotation output file")
 
   parser.opt[String]("compiler")
     .abbr("X")
     .valueName ("<high|middle|low|verilog|sverilog>")
     .action( (x, c) => c :+ CompilerNameAnnotation(x) )
-    .maxOccurs(1)
-    .validate { x =>
-      lazy val msg = s"$x not a legal compiler"
-      if (Array("high", "middle", "low", "verilog", "sverilog").contains(x.toLowerCase)) { parser.success      }
-      else                                                                               { parser.failure(msg) }}
+    .unbounded() // See [Note 1]
     .text(s"compiler to use, default is 'verilog'")
 
   parser.opt[String]("info-mode")
     .valueName ("<ignore|use|gen|append>")
     .action( (x, c) => c :+ InfoModeAnnotation(x.toLowerCase) )
-    .maxOccurs(1)
-    .validate{ x =>
-      lazy val msg = s"$x bad value must be one of ignore|use|gen|append"
-      if (Array("ignore", "use", "gen", "append").contains(x.toLowerCase)) { parser.success      }
-      else                                                                 { parser.failure(msg) }}
+    .unbounded() // See [Note 1]
     .text(s"specifies the source info handling, default is ${FirrtlExecutionOptions().infoModeName}")
 
   parser.opt[String]("firrtl-source")
     .valueName ("A FIRRTL string")
     .action( (x, c) => c :+ FirrtlSourceAnnotation(x) )
-    .maxOccurs(1)
+    .unbounded() // See [Note 1]
     .text(s"A FIRRTL circuit as a string")
 
   parser.opt[Seq[String]]("custom-transforms")
@@ -417,12 +417,13 @@ trait HasFirrtlExecutionOptions {
                     case e: Throwable => throw new FIRRTLException(s"Unknown error when instantiating class $x", e) } )
                 parser.success } )
     .action( (x, c) => c ++ x.map(RunFirrtlTransformAnnotation(_)) )
+    .unbounded()
     .text("runs these custom transforms during compilation.")
 
   parser.opt[Unit]("split-modules")
     .abbr("fsm")
     .action( (x, c) => c :+ EmitOneFilePerModuleAnnotation )
-    .maxOccurs(1)
+    .unbounded()
     .text ("Emit each module to its own file in the target directory.")
 
   parser.note("FIRRTL Transform Options")
@@ -596,7 +597,6 @@ object FirrtlExecutionUtils {
     * @note this is safe to use before [[HasFirrtlExecutionOptions.firrtlOptions]] is set
     */
   def targetDir(annotations: Seq[Annotation]): String = annotations
-    .reverse
     .collectFirst{ case TargetDirAnnotation(dir) => dir }
     .getOrElse(new FirrtlExecutionOptions().targetDirName)
 
@@ -721,7 +721,8 @@ object FirrtlExecutionUtils {
     * @return true if all checks pass
     */
   def checkAnnotations(annos: Seq[Annotation]): Seq[Annotation] = {
-    val Seq(tn, inF, inS, ofpm, outF) = Seq.fill(5)(collection.mutable.ListBuffer[Annotation]())
+    val Seq(tn, inF, inS, ofpm, outF, td, ll, i, foaf, comp, info) =
+      Seq.fill(11)(collection.mutable.ListBuffer[Annotation]())
     annos.foreach(
       _ match {
         case a: TopNameAnnotation                   => tn   += a
@@ -729,6 +730,11 @@ object FirrtlExecutionUtils {
         case a: FirrtlSourceAnnotation              => inS  += a
         case a: EmitOneFilePerModuleAnnotation.type => ofpm += a
         case a: OutputFileAnnotation                => outF += a
+        case a: TargetDirAnnotation                 => td   += a
+        case a: LogLevelAnnotation                  => ll   += a
+        case a: OutputAnnotationFileAnnotation      => foaf += a
+        case a: CompilerNameAnnotation              => comp += a
+        case a: InfoModeAnnotation                  => info += a
         case _                                      =>           })
     if (tn.isEmpty && inF.isEmpty && inS.isEmpty) {
       throw new FIRRTLException(
@@ -747,6 +753,51 @@ object FirrtlExecutionUtils {
             |    - explicit output file (${outF.size} times): -o,   --output-file,   OutputFileAnnotation
             |    - one file per module (${ofpm.size} times):  -fsm, --split-modules, EmitOneFilePerModuleAnnotation"""
           .stripMargin )}
+    if (outF.size > 1) {
+      val x = outF.map{ case OutputFileAnnotation(x) => x }
+      throw new FIRRTLException(
+        s"""|No more than one output file can be specified, but found '${x.mkString(", ")}' specified via:
+            |    - option or annotation: -o, --output-file, OutputFileAnnotation""".stripMargin) }
+    if (tn.size != 1) {
+      val n = tn.map{ case TopNameAnnotation(x) => x }
+      throw new FIRRTLException(
+        s"""|Exactly one top name must be determinable, but found `${n.mkString(", ")}` specified via:
+            |    - explicit top name: -tn, --top-name, TopNameAnnotation
+            |    - fallback implicit determination from input file or input firrtl source""".stripMargin) }
+    if (td.size != 1) {
+      val d = td.map{ case TargetDirAnnotation(x) => x }
+      throw new FIRRTLException(
+        s"""|Exactly one target directory must be specified/determinable, but found `${d.mkString(", ")}` specified via:
+            |    - explicit target directory: -td, --target-dir, TargetDirAnnotation
+            |    - fallback default value""".stripMargin )}
+    if (ll.size > 1) {
+      val l = ll.map{ case LogLevelAnnotation(x) => x }
+      throw new FIRRTLException(
+        s"""|At most one log level can be specified, but found '${l.mkString(", ")}' specified via:
+            |    - an option or annotation: -ll, --log-level, LogLevelAnnotation""".stripMargin )}
+    if (foaf.size > 1) {
+      val x = foaf.map{ case OutputAnnotationFileAnnotation(x) => x }
+      throw new FIRRTLException(
+        s"""|At most one output annotation file can be specified, but found '${x.mkString(", ")}' specified via:
+            |    - an option or annotation: -foaf, --output-annotation-file, OutputAnnotationFileAnnotation"""
+          .stripMargin )}
+    comp.foreach{ case CompilerNameAnnotation(x) =>
+      if (!Set("high", "middle", "low", "verilog", "sverilog").contains(x)) {
+        throw new FIRRTLException(s"Unknown compiler '$x' (did you misspell it?)") }}
+    if (comp.size > 1) {
+      val x = comp.map{ case CompilerNameAnnotation(x) => x }
+      throw new FIRRTLException(
+        s"""|FIRRTL currently only supports one target compiler, but found '${x.mkString(", ")}' specified via:
+            |    - an option or annotation: -X, --compiler, CompilerNameAnnotation""".stripMargin )}
+    info.foreach{ case InfoModeAnnotation(x) =>
+      if (!(Set("ignore", "use", "gen", "append").contains(x))) {
+        throw new FIRRTLException(s"Unknown info mode '$x' (did you misspell it?)") }}
+    if (info.size > 1) {
+      val x = info.map{ case InfoModeAnnotation(x) => x }
+      throw new FIRRTLException(
+        s"""|Only one info mode may be specified, but found '${x.mkString(", ")}' specified via:
+            |    - an option or annotation: --info-mode, InfoModeAnnotation""".stripMargin )}
+
     annos
   }
 }

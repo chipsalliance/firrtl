@@ -3,6 +3,7 @@
 package firrtlTests
 
 import firrtl._
+import firrtl.annotations.Annotation
 import logger.LogLevel
 import org.scalatest.{Matchers, FreeSpec}
 
@@ -64,18 +65,59 @@ class ExecutionOptionsManagerSpec extends FreeSpec with Matchers {
       }
     }
     "when constructed insanely" - {
+      def shouldExceptOnOptionsOrAnnotations(name: String, args: Array[String], annotations: Seq[Annotation]) {
+        name - {
+          "via command line options" in {
+            val m = new ExecutionOptionsManager("t", Array("-tn", "foo") ++ args) with HasFirrtlExecutionOptions
+            a [FIRRTLException] should be thrownBy (m.firrtlOptions) }
+          "via annotations" in {
+            val m = new ExecutionOptionsManager("t", Array("-tn", "foo"), annotations) with HasFirrtlExecutionOptions
+            a [FIRRTLException] should be thrownBy (m.firrtlOptions) }}}
+
+      shouldExceptOnOptionsOrAnnotations("should fail when --input-file and --firrtl-source are both specified",
+                                         Array("--input-file", "foo", "--firrtl-source", "Circuit:"),
+                                         Seq(InputFileAnnotation("bar"), FirrtlSourceAnnotation("Circuit")))
+      shouldExceptOnOptionsOrAnnotations("should fail with multiple input files",
+                                         Array("--input-file", "foo", "-i", "bar"),
+                                         Seq(InputFileAnnotation("baz"), InputFileAnnotation("qux")))
+      shouldExceptOnOptionsOrAnnotations("should fail with multiple firrtl sources",
+                                         Array("--firrtl-source", "Circuit:", "--firrtl-source", "Circuit:"),
+                                         Seq(FirrtlSourceAnnotation("Circuit"), FirrtlSourceAnnotation("Circuit")))
+      shouldExceptOnOptionsOrAnnotations("should fail with multiple output files",
+                                         Array("--output-file", "foo", "--output-file", "bar"),
+                                         Seq(OutputFileAnnotation("foo"), OutputFileAnnotation("bar")))
+      shouldExceptOnOptionsOrAnnotations("should fail when --output-file and --split-modules are both specified",
+                                         Array("--output-file", "o", "--split-modules"),
+                                         Seq(OutputFileAnnotation("foo"), EmitOneFilePerModuleAnnotation))
+      shouldExceptOnOptionsOrAnnotations("should fail with multiple target directories",
+                                         Array("-td", "foo", "--target-dir", "bar"),
+                                         Seq(TargetDirAnnotation("foo"), TargetDirAnnotation("bar")))
+      shouldExceptOnOptionsOrAnnotations("should fail with multiple top names",
+                                         Array("-tn", "bar"),
+                                         Seq(TopNameAnnotation("foo"), TopNameAnnotation("foo")))
+      shouldExceptOnOptionsOrAnnotations("should fail with multiple log levels",
+                                         Array("--log-level", "Info", "-ll", "debug"),
+                                         Seq(LogLevelAnnotation(LogLevel.Info), LogLevelAnnotation(LogLevel.Info)))
+      shouldExceptOnOptionsOrAnnotations("should fail with multiple output annotation files",
+                                         Array("-foaf", "foo", "--output-annotation-file", "bar"),
+                                         Seq(OutputAnnotationFileAnnotation("foo"),
+                                             OutputAnnotationFileAnnotation("bar") ))
+      shouldExceptOnOptionsOrAnnotations("should fail on an unknown compiler",
+                                         Array("-X", "VHDL"),
+                                         Seq(CompilerNameAnnotation("VHDL")))
+      shouldExceptOnOptionsOrAnnotations("should fail on multiple compilers",
+                                         Array("-X", "verilog", "--compiler", "sverilog"),
+                                         Seq(CompilerNameAnnotation("Verilog"), CompilerNameAnnotation("SVerilog")))
+      shouldExceptOnOptionsOrAnnotations("should fail on invalid info mode",
+                                         Array("--info-mode", "foo"),
+                                         Seq(InfoModeAnnotation("foo")))
+      shouldExceptOnOptionsOrAnnotations("should fail on multiple info modes",
+                                         Array("--info-mode", "use", "--info-mode", "gen"),
+                                         Seq(InfoModeAnnotation("use"), InfoModeAnnotation("gen")))
+
+
       "should fail when input file is not explicit or implicit" in {
         val m = new ExecutionOptionsManager("test", Array[String]()) with HasFirrtlExecutionOptions
-        a [FIRRTLException] should be thrownBy (m.firrtlOptions)
-      }
-      "should fail when --input-file and --firrtl-source are both specified" in {
-        val badArgs = args ++ Array("--firrtl-source", "Circuit:")
-        val m = new ExecutionOptionsManager("test", badArgs) with HasFirrtlExecutionOptions
-        a [FIRRTLException] should be thrownBy (m.firrtlOptions)
-      }
-      "should fail when --output-file and --split-modules are both specified" in {
-        val badArgs = args ++ Array("--output-file", "o", "--split-modules")
-        val m = new ExecutionOptionsManager("test", badArgs) with HasFirrtlExecutionOptions
         a [FIRRTLException] should be thrownBy (m.firrtlOptions)
       }
       "should fail on duplicate long options" in {
