@@ -27,7 +27,8 @@ class GCDSplitEmissionExecutionTest extends FirrtlFlatSpec {
                         inputFileNameOverride = sourceFile.getPath,
                         compilerName = "verilog",
                         infoModeName = "ignore",
-                        emitOneFilePerModule = true)
+                        emitOneFilePerModule = true
+      )
     }
     firrtl.Driver.execute(optionsManager)
 

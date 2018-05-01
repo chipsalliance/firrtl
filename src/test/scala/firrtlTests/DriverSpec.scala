@@ -2,16 +2,11 @@
 
 package firrtlTests
 
-import java.io.{File, FileWriter}
-import org.scalatest.{FreeSpec, Matchers}
+import java.io.{File, FileWriter, PrintWriter}
 
+import org.scalatest.{FreeSpec, Matchers}
 import firrtl.passes.{InlineAnnotation, InlineInstances}
-import firrtl.passes.memlib.{
-  InferReadWrite,
-  InferReadWriteAnnotation,
-  ReplSeqMem,
-  ReplSeqMemAnnotation
-}
+import firrtl.passes.memlib.{InferReadWrite, InferReadWriteAnnotation, ReplSeqMem, ReplSeqMemAnnotation}
 import firrtl.transforms.BlackBoxTargetDirAnno
 import firrtl._
 import firrtl.annotations._
@@ -70,6 +65,100 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
         dir.exists() should be (true)
         FileUtils.deleteDirectoryHierarchy("a") should be (true)
       }
+    }
+    "makeTargetDir retains files by default when directory already exists" in {
+      var dir = new java.io.File("a/b/c")
+      if (dir.exists()) {
+        dir.delete()
+      }
+      val optionsManager = new ExecutionOptionsManager("test")
+      optionsManager.parse(Array("--top-name", "dog", "--target-dir", "a/b/c")) should be(true)
+      val commonOptions = optionsManager.commonOptions
+
+      commonOptions.topName should be("dog")
+      commonOptions.targetDirName should be("a/b/c")
+
+      optionsManager.makeTargetDir() should be(true)
+
+      val junkFile = new File("a/b/c/junk-file.junk")
+      val junkWriter = new PrintWriter(junkFile)
+      junkWriter.println(s"this is a junk file")
+      junkWriter.close()
+
+      optionsManager.makeTargetDir() should be(true)
+
+      junkFile.exists() should be (true)
+
+      dir = new java.io.File("a/b/c")
+      dir.exists() should be(true)
+      FileUtils.deleteDirectoryHierarchy("a") should be(true)
+    }
+    "use clearTargetSuffixes to delete files with desired suffix" in {
+      var dir = new java.io.File("a/b/c")
+      if (dir.exists()) {
+        dir.delete()
+      }
+      val optionsManager = new ExecutionOptionsManager("test")
+      optionsManager.parse(Array("--top-name", "dog", "--target-dir", "a/b/c", "--clear-file-suffixes", ".junk")) should be(true)
+      val commonOptions = optionsManager.commonOptions
+
+      commonOptions.topName should be("dog")
+      commonOptions.targetDirName should be("a/b/c")
+
+      optionsManager.makeTargetDir() should be(true)
+
+      val junkFile = new File("a/b/c/junk-file.junk")
+      val junkWriter = new PrintWriter(junkFile)
+      junkWriter.println(s"this is a junk file")
+      junkWriter.close()
+
+      optionsManager.makeTargetDir() should be(true)
+
+      junkFile.exists() should be (false)
+
+      dir = new java.io.File("a/b/c")
+      dir.exists() should be(true)
+      FileUtils.deleteDirectoryHierarchy("a") should be(true)
+    }
+    "multiple can be used clearTargetSuffixes to delete files with desired suffixes" in {
+      var dir = new java.io.File("a/b/c")
+      if (dir.exists()) {
+        dir.delete()
+      }
+      val optionsManager = new ExecutionOptionsManager("test")
+      optionsManager.parse(
+        Array(
+          "--top-name", "dog",
+          "--target-dir", "a/b/c",
+          "--clear-file-suffixes", ".junk",
+          "--clear-file-suffixes", ".junk1"
+        )
+      ) should be(true)
+      val commonOptions = optionsManager.commonOptions
+
+      commonOptions.topName should be("dog")
+      commonOptions.targetDirName should be("a/b/c")
+
+      optionsManager.makeTargetDir() should be(true)
+
+      val junkFile = new File("a/b/c/junk-file.junk")
+      val junkWriter = new PrintWriter(junkFile)
+      junkWriter.println(s"this is a junk file")
+      junkWriter.close()
+
+      val junkFile1 = new File("a/b/c/junk-file.junk1")
+      val junkWriter1 = new PrintWriter(junkFile1)
+      junkWriter1.println(s"this is a junk1 file")
+      junkWriter1.close()
+
+      optionsManager.makeTargetDir() should be(true)
+
+      junkFile.exists() should be (false)
+      junkFile1.exists() should be (false)
+
+      dir = new java.io.File("a/b/c")
+      dir.exists() should be(true)
+      FileUtils.deleteDirectoryHierarchy("a") should be(true)
     }
     "options include by default a list of strings that are returned in commonOptions.programArgs" in {
       val optionsManager = new ExecutionOptionsManager("test")
