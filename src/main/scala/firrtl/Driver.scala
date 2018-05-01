@@ -20,15 +20,8 @@ import firrtl.Utils.throwInternalError
 
 /**
   * The Driver enables invocation of the FIRRTL compiler using command
-  * line arguments ([[scala.String]] or [[Array[String]]]) or an
-  * [[ExecutionOptionsManager]]. All approaches are equivalent.
-  *
-  * @example
-  * Invocation using a command line argument string:
-  * {{{
-  * val args = "--top-name MyTopModule --compiler verilog"
-  * Driver.execute(args)
-  * }}}
+  * line arguments (an [[Array[String]]]) or an
+  * [[ExecutionOptionsManager]]. Both approaches are equivalent.
   *
   * Invocation using explicit command line arguments:
   * {{{
@@ -236,24 +229,6 @@ object Driver {
     } catch {
       case e: FIRRTLException => FirrtlExecutionFailure("Failed to parse command line arguments")
     }
-  }
-
-  /**
-    * Run the FIRRTL compiler using provided command line arguments
-    *
-    * Command line options are split by whitespace. Use a double quote to
-    * escape options that contain spaces, e.g., --firrtl-source "Circuit:..."
-    *
-    * @param args command line arguments
-    * @return the result of running the FIRRTL compiler
-    */
-  def execute(args: String): FirrtlExecutionResult = {
-    // Split the string by whitespace, treating doubly quoted arguments as
-    // one option, then removing any leading or trailing double quotes.
-    val argsx: Array[String] = args
-      .split(" +(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)")
-      .map(s => s.stripPrefix("\"").stripSuffix("\""))
-    execute(argsx)
   }
 
   def main(args: Array[String]): Unit = {
