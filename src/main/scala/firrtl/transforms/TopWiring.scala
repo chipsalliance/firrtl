@@ -133,12 +133,10 @@ class TopWiringTransform extends Transform {
     // Map of component name to relative instance paths that result in a debug wire
     val sourcemods: mutable.Map[String, Seq[(ComponentName, Type, Boolean, InstPath)]] =
       mutable.Map(sSourcesModNames.map(_ -> Seq()): _*)
-      //mutable.Map(sSourcesModNames.map(_ -> Seq(ComponentName,UnknownType,false,Seq[String]())): _*)
 
     state.circuit.modules.foreach { m => m map getSourceTypes(sSourcesNames, sourcemods, ModuleName(m.name, CircuitName(state.circuit.main)) , state) }
     state.circuit.modules.foreach { m => m.ports.foreach { p => Seq(p) map getSourceTypesPorts(sSourcesNames, sourcemods, ModuleName(m.name, CircuitName(state.circuit.main)) , state) }}
 
-    // TODO make this code more clear
     for (mod <- topSort) {
       val seqChildren: Seq[(ComponentName,Type,Boolean,InstPath)] = cMap(mod.name).flatMap { case (inst, module) => 
         sourcemods.get(module).map( _.map { case (a,b,c,path) => (a,b,c, inst +: path)})
@@ -155,9 +153,9 @@ class TopWiringTransform extends Transform {
 
   /** Process a given DefModule
     *
-    * For Modules that contain or are in the parent hierarchy to modules containing SeqMems
-    * 1. Add ports for each SeqMem this module is parent to
-    * 2. Connect these ports to ports of instances that are parents to some number of SeqMems
+    * For Modules that contain or are in the parent hierarchy to modules containing target wires
+    * 1. Add ports for each target wire this module is parent to
+    * 2. Connect these ports to ports of instances that are parents to some number of target wires
     */
   // TODO Make code more clear
   private def onModule(prefix: String, sources: Map[String, Seq[(ComponentName, Type, Boolean, InstPath)]])
@@ -229,7 +227,6 @@ class TopWiringTransform extends Transform {
       case Some(prefix) =>
         // Do actual work of this transform
         val sources = getSourcesMap(state)
-        //val prefix = s"topwiring_"
         val modulesx = state.circuit.modules map onModule(prefix,sources)
         val newCircuit = state.circuit.copy(modules = modulesx)
         val fixedCircuit = fixupCircuit(newCircuit)
