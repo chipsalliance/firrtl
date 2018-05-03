@@ -16,7 +16,7 @@ import collection.mutable
 import firrtl.passes.wiring._
 
 /** Annotation for optional output files **/
-case class TopWiringOutputFilesAnnotation(dirname: String, outputfunction: (String,String,Seq[((ComponentName, Type, Boolean, Seq[String]), Int)], CircuitState) => CircuitState) extends NoTargetAnnotation
+case class TopWiringOutputFilesAnnotation(dirName: String, outputFunction: (String,String,Seq[((ComponentName, Type, Boolean, Seq[String]), Int)], CircuitState) => CircuitState) extends NoTargetAnnotation
 
 /** Annotation for a prefix that will be added to all the port names that are punched out to the top level **/
 case class TopWiringPrefixAnnotation(prefix: String) extends NoTargetAnnotation
@@ -43,22 +43,12 @@ class TopWiringTransform extends Transform {
   /** Get the names of the targets that need to be wired */
 
   private def getSourceNames(state: CircuitState): Seq[ComponentName] = {
-    val annos = state.annotations.collect {
-      case a @ (_: TopWiringAnnotation) => a
-    }
-    annos match {
-      case p => p.map { case TopWiringAnnotation(srcname) => srcname }
-    }
+    state.annotations.collect { case TopWiringAnnotation(srcname) => srcname }
   }
 
 
   private def getSourceModNames(state: CircuitState): Seq[String] = {
-    val annos = state.annotations.collect {
-      case a @ (_: TopWiringAnnotation) => a
-    }
-    annos match {
-      case p => p.map { case TopWiringAnnotation(ComponentName(_,ModuleName(srcmodname, _))) => srcmodname }
-    }
+    state.annotations.collect { case TopWiringAnnotation(ComponentName(_,ModuleName(srcmodname, _))) => srcmodname }
   }
 
 
@@ -72,7 +62,7 @@ class TopWiringTransform extends Transform {
             case d: DefNode => (false, d.value.tpe)
             case d: DefRegister => (false, d.tpe)
             case d: Port => (true, d.tpe)
-            case _ => sys.error(s"Cannot wire this type of declaration! ${w.serialize}")
+            case _ => throw new Exception(s"Cannot wire this type of declaration! ${w.serialize}")
           }
           val name = w.name
           sourceMap.get(currentmodule.name) match {
@@ -95,7 +85,7 @@ class TopWiringTransform extends Transform {
       if (sourceList.contains(ComponentName(w.name, currentmodule))) {
           val (isport, tpe) = w match {
             case d: Port => (true, d.tpe)
-            case _ => sys.error(s"Cannot wire this type of declaration! ${w.serialize}")
+            case _ => throw new Exception(s"Cannot wire this type of declaration! ${w.serialize}")
           }
           val name = w.name
           sourceMap.get(currentmodule.name) match {
@@ -220,8 +210,8 @@ class TopWiringTransform extends Transform {
 
   def execute(state: CircuitState): CircuitState = {
 
-    lazy val outputTuple: Option[(String, (String,String,Seq[((ComponentName, Type, Boolean, InstPath), Int)], CircuitState) => CircuitState)] = state.annotations.collectFirst { case TopWiringOutputFilesAnnotation(td,of) => (td, of) }
-    lazy val prfix: Option[String] = state.annotations.collectFirst { case TopWiringPrefixAnnotation(pr) => pr }
+    val outputTuple: Option[(String, (String,String,Seq[((ComponentName, Type, Boolean, InstPath), Int)], CircuitState) => CircuitState)] = state.annotations.collectFirst { case TopWiringOutputFilesAnnotation(td,of) => (td, of) }
+    val prfix: Option[String] = state.annotations.collectFirst { case TopWiringPrefixAnnotation(pr) => pr }
     
     prfix match {
       case Some(prefix) =>
