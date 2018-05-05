@@ -189,20 +189,6 @@ class TopWiringTransform extends Transform {
      state  
   }
 
-  def TopWiringTestOutputFilesFunction(dir: String, mapping: Seq[((ComponentName, Type, Boolean, InstPath, String), Int)], state: CircuitState): CircuitState = {
-     val testOutputFile = new PrintWriter(new File(dir, "TopWiringOutputTest.txt" )) 
-     mapping map {
-          case ((_, tpe, _, path,prefix), index) => {
-            val portwidth = tpe match { case GroundType(IntWidth(w)) => w }
-            val portnum = index
-            val portname = prefix + path.mkString("_")
-            testOutputFile.append(s"new top level port $portnum : $portname, with width $portwidth \n")
-          }
-     }
-     testOutputFile.close()
-     state 
-  }
-
 
   def execute(state: CircuitState): CircuitState = {
 
