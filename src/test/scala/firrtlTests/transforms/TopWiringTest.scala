@@ -28,14 +28,14 @@ import firrtl.transform.TopWiring._
  */
 class TopWiringTests extends LowTransformSpec {
 
-   def TopWiringDummyOutputFilesFunction(prefix: String, dir: String, mapping: Seq[((ComponentName, Type, Boolean, Seq[String]), Int)], state: CircuitState): CircuitState = {
+   def TopWiringDummyOutputFilesFunction(dir: String, mapping: Seq[((ComponentName, Type, Boolean, Seq[String], String), Int)], state: CircuitState): CircuitState = {
      state
    }
 
-   def TopWiringTestOutputFilesFunction(prefix: String, dir: String, mapping: Seq[((ComponentName, Type, Boolean, Seq[String]), Int)], state: CircuitState): CircuitState = {
+   def TopWiringTestOutputFilesFunction(dir: String, mapping: Seq[((ComponentName, Type, Boolean, Seq[String], String), Int)], state: CircuitState): CircuitState = {
      val testOutputFile = new PrintWriter(new File(dir, "TopWiringOutputTest.txt" ))
      mapping map {
-          case ((_, tpe, _, path), index) => {
+          case ((_, tpe, _, path, prefix), index) => {
             val portwidth = tpe match { case GroundType(IntWidth(w)) => w }
             val portnum = index
             val portname = prefix + path.mkString("_")
@@ -68,8 +68,7 @@ class TopWiringTests extends LowTransformSpec {
            |    output x: UInt<1>
            |    x <= UInt(0)
            """.stripMargin
-      val topwiringannos = Seq(TopWiringAnnotation(ComponentName(s"x", ModuleName(s"C", CircuitName(s"Top")))),
-                         TopWiringPrefixAnnotation(s"topwiring_"),
+      val topwiringannos = Seq(TopWiringAnnotation(ComponentName(s"x", ModuleName(s"C", CircuitName(s"Top"))), s"topwiring_"),
                          TopWiringOutputFilesAnnotation(s"/tmp", TopWiringTestOutputFilesFunction)) 
       val check =
          """circuit Top :
@@ -124,8 +123,7 @@ class TopWiringTests extends LowTransformSpec {
            |    output x: UInt<1>
            |    x <= UInt(0)
            """.stripMargin
-      val topwiringannos = Seq(TopWiringAnnotation(ComponentName(s"x", ModuleName(s"C", CircuitName(s"Top")))),
-                         TopWiringPrefixAnnotation(s"topwiring_"),
+      val topwiringannos = Seq(TopWiringAnnotation(ComponentName(s"x", ModuleName(s"C", CircuitName(s"Top"))), s"topwiring_"),
                          TopWiringOutputFilesAnnotation(s"/tmp", TopWiringTestOutputFilesFunction))
       val check =
          """circuit Top :
