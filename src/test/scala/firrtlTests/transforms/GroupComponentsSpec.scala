@@ -4,7 +4,7 @@ package transforms
 import firrtl.annotations.{CircuitName, ComponentName, ModuleName}
 import firrtl.transforms.{GroupAnnotation, GroupComponents}
 
-class GroupComponentsSpec extends LowTransformSpec {
+class GroupComponentsSpec extends MiddleTransformSpec with FirrtlRunners {
   def transform = new GroupComponents()
   val top = "Top"
   def topComp(name: String): ComponentName = ComponentName(name, ModuleName(top, CircuitName(top)))
@@ -284,6 +284,33 @@ class GroupComponentsSpec extends LowTransformSpec {
          |    output second_0: UInt<16>
          |    node second = not(first)
          |    second_0 <= second
+      """.stripMargin
+    execute(input, check, groups)
+  }
+
+  "Aggregate-typed components" should "be grouped with a connection between them" in {
+    val input =
+      s"""circuit $top :
+         |  module $top :
+         |    output out: UInt<16>
+         |    wire first: UInt<16>
+         |    first is invalid
+         |    out <= first
+      """.stripMargin
+    val groups = Seq(
+      GroupAnnotation(Seq(topComp("first")), "First", "first")
+    )
+    val check =
+      s"""circuit $top :
+         |  module $top :
+         |    output out: UInt<16>
+         |    inst first_0 of First
+         |    out <= first_0.first_0
+         |  module First :
+         |    output first_0: UInt<16>
+         |    wire first: UInt<16>
+         |    first_0 <= first
+         |    first is invalid
       """.stripMargin
     execute(input, check, groups)
   }

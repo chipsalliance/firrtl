@@ -62,7 +62,7 @@ class GroupComponents extends firrtl.Transform {
       case other => Seq(other)
     }
     val cs = state.copy(circuit = state.circuit.copy(modules = newModules))
-    val csx = InferTypes.execute(cs)
+    val csx = (new ResolveAndCheck()).execute(cs)
     csx
   }
 
@@ -249,14 +249,19 @@ class GroupComponents extends firrtl.Transform {
           val group = byNode(r.name)
           groupStatements(group) += r mapExpr inGroupFixExps(group, topStmts)
           Block(topStmts)
+        case i: IsInvalid if byNode(getWRef(i.expr).name) != "" =>
+          val topStmts = mutable.ArrayBuffer[Statement]()
+          val group = byNode(getWRef(i.expr).name)
+          groupStatements(group) += IsInvalid(i.info, inGroupFixExps(group, topStmts)(i.expr))
+          if(topStmts.isEmpty) EmptyStmt else Block(topStmts)
         case c: Connect if byNode(getWRef(c.loc).name) != "" =>
           // Sink is in a group
           val topStmts = mutable.ArrayBuffer[Statement]()
           val group = byNode(getWRef(c.loc).name)
           groupStatements(group) += Connect(c.info, c.loc, inGroupFixExps(group, topStmts)(c.expr))
-          Block(topStmts)
+          if(topStmts.isEmpty) EmptyStmt else Block(topStmts)
         // TODO Attach if all are in a group?
-        case _: IsDeclaration | _: Connect | _: Attach =>
+        case _: IsDeclaration | _: Connect | _: Attach | _: IsInvalid =>
           // Sink is in Top
           val ret = s mapExpr inTopFixExps
           ret
