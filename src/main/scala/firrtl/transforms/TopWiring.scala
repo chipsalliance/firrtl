@@ -13,8 +13,6 @@ import java.io._
 import scala.io.Source
 import collection.mutable
 
-import firrtl.passes.wiring._
-
 /** Annotation for optional output files **/
 case class TopWiringOutputFilesAnnotation(dirName: String, outputFunction: (String,Seq[((ComponentName, Type, Boolean, Seq[String],String), Int)], CircuitState) => CircuitState) extends NoTargetAnnotation
 
@@ -109,12 +107,9 @@ class TopWiringTransform extends Transform {
     val sSourcesModNames = getSourceModNames(state)
     val sSourcesNames = getSourceNames(state)
      
-
-    val cMap = WiringUtils.getChildrenMap(state.circuit).toMap
-    //val digraph = DiGraph(cMap.mapValues(v => v.map(_._2).toSet))
-    //val topSort = digraph.linearize.reverse
-    //previous 2 line replaced by the following single line
-    val topSort = (new firrtl.analyses.InstanceGraph(state.circuit)).moduleOrder.reverse
+    val instGraph = new firrtl.analyses.InstanceGraph(state.circuit)
+    val cMap = instGraph.getChildrenInstances.map{ case (m, wdis) => (m -> wdis.map{ case wdi => (wdi.name, wdi.module) }.toSeq) }.toMap
+    val topSort = instGraph.moduleOrder.reverse
 
     // Map of component name to relative instance paths that result in a debug wire
     val sourcemods: mutable.Map[String, Seq[(ComponentName, Type, Boolean, InstPath, String)]] =
@@ -237,7 +232,6 @@ class TopWiringTransform extends Transform {
     case None => state 
     }
     // fin.
-    println(fixedCircuit.serialize)
     state.copy(circuit = fixedCircuit)
   }
 }
