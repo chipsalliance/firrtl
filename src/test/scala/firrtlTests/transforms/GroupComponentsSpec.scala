@@ -288,7 +288,7 @@ class GroupComponentsSpec extends MiddleTransformSpec with FirrtlRunners {
     execute(input, check, groups)
   }
 
-  "Aggregate-typed components" should "be grouped with a connection between them" in {
+  "IsInvalid components" should "be grouped" in {
     val input =
       s"""circuit $top :
          |  module $top :
@@ -310,6 +310,31 @@ class GroupComponentsSpec extends MiddleTransformSpec with FirrtlRunners {
          |    output first_0: UInt<16>
          |    wire first: UInt<16>
          |    first_0 <= first
+         |    first is invalid
+      """.stripMargin
+    execute(input, check, groups)
+  }
+
+  "IsInvalid components that are never read" should "be grouped" in {
+    val input =
+      s"""circuit $top :
+         |  module $top :
+         |    wire first: UInt<16>
+         |    first is invalid
+         |    wire second: UInt<16>
+         |    second is invalid
+      """.stripMargin
+    val groups = Seq(
+      GroupAnnotation(Seq(topComp("first")), "First", "first")
+    )
+    val check =
+      s"""circuit $top :
+         |  module $top :
+         |    inst first_0 of First
+         |    wire second: UInt<16>
+         |    second is invalid
+         |  module First :
+         |    wire first: UInt<16>
          |    first is invalid
       """.stripMargin
     execute(input, check, groups)

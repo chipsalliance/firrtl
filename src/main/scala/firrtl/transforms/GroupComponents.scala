@@ -232,7 +232,7 @@ class GroupComponents extends firrtl.Transform {
       case _: DoPrim | _: Mux | _: ValidIf => e map inTopFixExps
       case otherExp: Expression =>
         val wref = getWRef(otherExp)
-        if(byNode(wref.name) != "") {
+        if(byNode.getOrElse(wref.name, "") != "") {
           // Get the name of source's group
           val otherGroup = byNode(wref.name)
 
@@ -248,12 +248,12 @@ class GroupComponents extends firrtl.Transform {
     def onStmt(s: Statement): Statement = {
       s match {
         // Sink is in a group
-        case r: IsDeclaration if byNode(r.name) != "" =>
+        case r: IsDeclaration if byNode.getOrElse(r.name, "") != "" =>
           val topStmts = mutable.ArrayBuffer[Statement]()
           val group = byNode(r.name)
           groupStatements(group) += r mapExpr inGroupFixExps(group, topStmts)
           Block(topStmts)
-        case i: IsInvalid if byNode(getWRef(i.expr).name) != "" =>
+        case i: IsInvalid if byNode.getOrElse(getWRef(i.expr).name, "") != "" =>
           val topStmts = mutable.ArrayBuffer[Statement]()
           val group = byNode(getWRef(i.expr).name)
           groupStatements(group) += IsInvalid(i.info, inGroupFixExps(group, topStmts)(i.expr))
@@ -276,7 +276,10 @@ class GroupComponents extends firrtl.Transform {
 
     // Build datastructures
     val newTopBody = Block(labelOrder.map(g => WDefInstance(NoInfo, label2instance(g), label2module(g), UnknownType)) ++ Seq(onStmt(m.body)))
-    val finalTopBody = Block(Utils.squashEmpty(newTopBody).asInstanceOf[Block].stmts.distinct)
+    val finalTopBody = Utils.squashEmpty(newTopBody) match {
+      case Block(stmts) => Block(stmts.distinct)
+      case other => other
+    }
 
     // For all group labels (not including the original module label), return a new Module.
     val newModules = labelOrder.filter(_ != "") map { group =>
