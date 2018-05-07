@@ -144,25 +144,51 @@ class TopWiringTransform extends Transform {
     * 2. Connect these ports to ports of instances that are parents to some number of target wires
     */
   // TODO Make code more clear
-  private def onModule(sources: Map[String, Seq[(ComponentName, Type, Boolean, InstPath, String)]])
+  private def onModule(sources: Map[String, Seq[(ComponentName, Type, Boolean, InstPath, String)]], portnamesmap : mutable.Map[String,String], instgraph : firrtl.analyses.InstanceGraph, namespacemap : Map[String, Namespace])
                       (module: DefModule): DefModule = {
+    val namespace = namespacemap(module.name) 
     sources.get(module.name) match {
-      case Some(p) => 
-        val newPorts = p.map{ case (ComponentName(cname,_), tpe, _ , path, prefix) => Port(NoInfo, prefix + path.mkString("_"), Output, tpe)}
-        
+      case Some(p) =>
+        val newPorts = p.map{ case (ComponentName(cname,_), tpe, _ , path, prefix) => {  
+              val newportname = portnamesmap.get(prefix + path.mkString("_")) match {
+                case Some(pn) => pn
+                 case None => {
+                    val npn = namespace.newName(prefix + path.mkString("_"))
+                    portnamesmap(prefix + path.mkString("_")) = npn
+                    npn
+                 } 
+              }  
+              Port(NoInfo, newportname, Output, tpe) 
+        } } 
 
         // Add connections to Module
         module match {
           case m: Module =>
             val connections: Seq[Connect] = p.map { case (ComponentName(cname,_), _, _ , path, prefix) =>
-                val modRef = WRef(prefix + path.mkString("_"))
+                val modRef = portnamesmap.get(prefix + path.mkString("_")) match {
+                       case Some(pn) => WRef(pn)
+                       case None => {
+                          portnamesmap(prefix + path.mkString("_")) = namespace.newName(prefix + path.mkString("_"))
+                          WRef(portnamesmap(prefix + path.mkString("_")))
+                       }
+                }
                 path.size match {
                    case 1 => {
                        val leafRef = WRef(path.head.mkString("_"))
                        Connect(NoInfo, modRef, leafRef)
                    }
                    case _ =>  {
-                       val instRef = WSubField(WRef(path.head), prefix + path.tail.mkString("_"))
+                       val instportname =  portnamesmap.get(prefix + path.tail.mkString("_")) match {
+                           case Some(ipn) => ipn
+                           case None => {
+                             val instmod = instgraph.getChildrenInstances(module.name).collectFirst {
+                                 case wdi if wdi.name == path.head => wdi.module}.get
+                             val instnamespace = namespacemap(instmod)
+                             portnamesmap(prefix + path.tail.mkString("_")) = instnamespace.newName(prefix + path.tail.mkString("_"))
+                             portnamesmap(prefix + path.tail.mkString("_"))
+                           }
+                       } 
+                       val instRef = WSubField(WRef(path.head), instportname)
                        Connect(NoInfo, modRef, instRef)
                   }
                 }
@@ -194,9 +220,13 @@ class TopWiringTransform extends Transform {
 
     val outputTuple: Option[(String,(String,Seq[((ComponentName, Type, Boolean, InstPath, String), Int)], CircuitState) => CircuitState)] = state.annotations.collectFirst { case TopWiringOutputFilesAnnotation(td,of) => (td, of) }
     
-    // Do actual work of this transform
+    // Do actual work of this transformi
+    val top=state.circuit.modules.collectFirst{case m: Module if m.name==state.circuit.main => m}.get
     val sources = getSourcesMap(state)
-    val modulesx = state.circuit.modules map onModule(sources)
+    val portnamesmap : mutable.Map[String,String] = mutable.Map()
+    val instgraph = new firrtl.analyses.InstanceGraph(state.circuit)
+    val namespacemap = state.circuit.modules.map{ case m => (m.name -> Namespace(m)) }.toMap 
+    val modulesx = state.circuit.modules map onModule(sources, portnamesmap, instgraph, namespacemap)
     val newCircuit = state.circuit.copy(modules = modulesx)
     val fixedCircuit = fixupCircuit(newCircuit)
     val mappings = sources(state.circuit.main).zipWithIndex
@@ -207,6 +237,7 @@ class TopWiringTransform extends Transform {
     case None => state 
     }
     // fin.
+    println(fixedCircuit.serialize)
     state.copy(circuit = fixedCircuit)
   }
 }

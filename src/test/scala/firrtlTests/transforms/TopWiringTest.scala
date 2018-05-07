@@ -162,4 +162,64 @@ class TopWiringTests extends LowTransformSpec {
            """.stripMargin
       execute(input, check, topwiringannos)
    }
+
+   "The signal x in module C" should "be connected to Top port with topwiring prefix and outputfile in /tmp, after name colission" in {
+      val input =
+         """circuit Top :
+           |  module Top :
+           |    inst a1 of A
+           |    inst a2 of A_
+           |    wire topwiring_a1_b1_c1_x : UInt<1>
+           |    topwiring_a1_b1_c1_x <= UInt(0)
+           |  module A :
+           |    output x: UInt<1>
+           |    x <= UInt(1)
+           |    inst b1 of B
+           |    wire topwiring_b1_c1_x : UInt<1>
+           |    topwiring_b1_c1_x <= UInt(0)
+           |  module A_ :
+           |    output x: UInt<1>
+           |    x <= UInt(1)
+           |  module B :
+           |    output x: UInt<1>
+           |    x <= UInt(1)
+           |    inst c1 of C
+           |  module C:
+           |    output x: UInt<1>
+           |    x <= UInt(0)
+           """.stripMargin
+      val topwiringannos = Seq(TopWiringAnnotation(ComponentName(s"x", ModuleName(s"C", CircuitName(s"Top"))), s"topwiring_"),
+                         TopWiringOutputFilesAnnotation(s"/tmp", TopWiringTestOutputFilesFunction)) 
+      val check =
+         """circuit Top :
+           |  module Top :
+           |    output topwiring_a1_b1_c1_x_0: UInt<1>
+           |    inst a1 of A
+           |    inst a2 of A_
+           |    node topwiring_a1_b1_c1_x = UInt<1>("h0")
+           |    topwiring_a1_b1_c1_x_0 <= a1.topwiring_b1_c1_x_0
+           |  module A :
+           |    output x: UInt<1>
+           |    output topwiring_b1_c1_x_0: UInt<1>
+           |    inst b1 of B
+           |    node topwiring_b1_c1_x = UInt<1>("h0")
+           |    x <= UInt(1)
+           |    topwiring_b1_c1_x_0 <= b1.topwiring_c1_x
+           |  module A_ :
+	   |    output x: UInt<1>
+           |    x <= UInt(1)
+           |  module B :
+           |    output x: UInt<1>
+           |    output topwiring_c1_x: UInt<1>
+           |    inst c1 of C
+           |    x <= UInt(1)
+           |    topwiring_c1_x <= c1.topwiring_x
+           |  module C:
+           |    output x: UInt<1>
+           |    output topwiring_x: UInt<1>
+           |    x <= UInt(0)
+           |    topwiring_x <= x
+           """.stripMargin
+      execute(input, check, topwiringannos)
+   }
 }
