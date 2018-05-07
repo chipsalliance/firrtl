@@ -222,4 +222,57 @@ class TopWiringTests extends LowTransformSpec {
            """.stripMargin
       execute(input, check, topwiringannos)
    }
+
+   "The signal x in module C" should "be connected to Top port with topwiring prefix and no output function" in {
+      val input =
+         """circuit Top :
+           |  module Top :
+           |    inst a1 of A
+           |    inst a2 of A_
+           |  module A :
+           |    output x: UInt<1>
+           |    x <= UInt(1)
+           |    inst b1 of B
+           |  module A_ :
+           |    output x: UInt<1>
+           |    x <= UInt(1)
+           |  module B :
+           |    output x: UInt<1>
+           |    x <= UInt(1)
+           |    inst c1 of C
+           |  module C:
+           |    output x: UInt<1>
+           |    x <= UInt(0)
+           """.stripMargin
+      val topwiringannos = Seq(TopWiringAnnotation(ComponentName(s"x", ModuleName(s"C", CircuitName(s"Top"))), s"topwiring_"))
+      val check =
+         """circuit Top :
+           |  module Top :
+           |    output topwiring_a1_b1_c1_x: UInt<1>
+           |    inst a1 of A
+           |    inst a2 of A_
+           |    topwiring_a1_b1_c1_x <= a1.topwiring_b1_c1_x
+           |  module A :
+           |    output x: UInt<1>
+           |    output topwiring_b1_c1_x: UInt<1>
+           |    inst b1 of B
+           |    x <= UInt(1)
+           |    topwiring_b1_c1_x <= b1.topwiring_c1_x
+           |  module A_ :
+	   |    output x: UInt<1>
+           |    x <= UInt(1)
+           |  module B :
+           |    output x: UInt<1>
+           |    output topwiring_c1_x: UInt<1>
+           |    inst c1 of C
+           |    x <= UInt(1)
+           |    topwiring_c1_x <= c1.topwiring_x
+           |  module C:
+           |    output x: UInt<1>
+           |    output topwiring_x: UInt<1>
+           |    x <= UInt(0)
+           |    topwiring_x <= x
+           """.stripMargin
+      execute(input, check, topwiringannos)
+   }
 }

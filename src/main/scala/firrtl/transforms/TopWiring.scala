@@ -4,7 +4,11 @@ package TopWiring
 
 import firrtl._
 import firrtl.ir._
-import firrtl.passes._
+import firrtl.passes.{Pass,
+      InferTypes,
+      ResolveKinds,
+      ResolveGenders
+      }
 import firrtl.annotations._
 import firrtl.Mappers._
 import firrtl.graph._
@@ -213,9 +217,10 @@ class TopWiringTransform extends Transform {
 
   def execute(state: CircuitState): CircuitState = {
 
-    val outputTuple: Option[(String,(String,Seq[((ComponentName, Type, Boolean, InstPath, String), Int)], CircuitState) => CircuitState)] = state.annotations.collectFirst { case TopWiringOutputFilesAnnotation(td,of) => (td, of) }
+    val outputTuples: Seq[(String,(String,Seq[((ComponentName, Type, Boolean, InstPath, String), Int)], CircuitState) => CircuitState)] = state.annotations.collect { 
+        case TopWiringOutputFilesAnnotation(td,of) => (td, of) }
     
-    // Do actual work of this transformi
+    // Do actual work of this transform
     val top=state.circuit.modules.collectFirst{case m: Module if m.name==state.circuit.main => m}.get
     val sources = getSourcesMap(state)
     val portnamesmap : mutable.Map[String,String] = mutable.Map()
@@ -226,11 +231,7 @@ class TopWiringTransform extends Transform {
     val fixedCircuit = fixupCircuit(newCircuit)
     val mappings = sources(state.circuit.main).zipWithIndex
     //Generate output files based on the mapping.
-    outputTuple match {
-    case Some((dir, outputfunction)) =>
-        outputfunction(dir, mappings, state)
-    case None => state 
-    }
+    outputTuples.map { case (dir, outputfunction) => outputfunction(dir, mappings, state) }
     // fin.
     state.copy(circuit = fixedCircuit)
   }
