@@ -28,15 +28,17 @@ class ExpandWhensSpec extends FirrtlFlatSpec {
     ExpandConnects,
     RemoveAccesses,
     ExpandWhens)
-  private def run(input: String): String = {
-    val circuit = Parser.parse(input.split("\n").toIterator)
+
+  private def run(input: String): Circuit = {
+    val circuit = parse(input)
     val result = transforms.foldLeft(CircuitState(circuit, UnknownForm)) {
       (c: CircuitState, p: Transform) => p.runTransform(c)
     }
-    result.circuit.serialize
+    result.circuit
   }
   private def executeTest(input: String, check: String, expected: Boolean) = {
-    val emitted = run(input)
+    val c = run(input)
+    val emitted = c.serialize
     val lines = emitted.split("\n") map normalized
 
     if (expected) {
@@ -154,7 +156,7 @@ class ExpandWhensSpec extends FirrtlFlatSpec {
         |    attach (a[2], b[2])
         |    attach (a[3], b[3])
         |""".stripMargin
-    run(input) should be(input)
+    parse(run(input).serialize).serialize should be(parse(input).serialize)
   }
 }
 
