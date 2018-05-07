@@ -226,7 +226,7 @@ object ExpandWhens extends Pass {
       }
       attachMap ++= acc.exprs.map(e => (we(e) -> acc))
     }
-    attachMap.values.toList.distinct.map(acc => Attach(NoInfo, acc.exprs))
+    attachMap.values.toList.distinct.sorted.map(acc => Attach(NoInfo, acc.exprs))
   }
   // Searches nested scopes of defaults for lvalue
   // defaults uses mutable Map because we are searching LinkedHashMaps and conversion to immutable is VERY slow
