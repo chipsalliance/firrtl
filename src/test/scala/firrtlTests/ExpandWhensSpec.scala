@@ -28,16 +28,19 @@ class ExpandWhensSpec extends FirrtlFlatSpec {
     ExpandConnects,
     RemoveAccesses,
     ExpandWhens)
-  private def executeTest(input: String, check: String, expected: Boolean) = {
+  private def run(input: String): String = {
     val circuit = Parser.parse(input.split("\n").toIterator)
     val result = transforms.foldLeft(CircuitState(circuit, UnknownForm)) {
       (c: CircuitState, p: Transform) => p.runTransform(c)
     }
-    val c = result.circuit
-    val lines = c.serialize.split("\n") map normalized
+    result.circuit.serialize
+  }
+  private def executeTest(input: String, check: String, expected: Boolean) = {
+    val emitted = run(input)
+    val lines = emitted.split("\n") map normalized
 
     if (expected) {
-      c.serialize.contains(check) should be (true)
+      emitted.contains(check) should be (true)
     } else {
       lines.foreach(_.contains(check) should be (false))
     }
@@ -137,6 +140,21 @@ class ExpandWhensSpec extends FirrtlFlatSpec {
         |      c.in <= in[1]""".stripMargin
     val check = "mux(p, in[0], in[1])"
     executeTest(input, check, true)
+  }
+  it should "emit attaches in fixed order" in {
+    val input =
+      """circuit Test :
+        |  module Test :
+        |    input a : Analog<32>[4]
+        |    input b : Analog<32>[4]
+        |
+        |    skip
+        |    attach (a[0], b[0])
+        |    attach (a[1], b[1])
+        |    attach (a[2], b[2])
+        |    attach (a[3], b[3])
+        |""".stripMargin
+    run(input) should be(input)
   }
 }
 
