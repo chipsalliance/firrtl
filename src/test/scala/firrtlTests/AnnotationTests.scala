@@ -44,12 +44,33 @@ abstract class AnnotationTests extends AnnotationSpec with Matchers {
   "Annotation on a node" should "pass through" in {
     val input: String =
       """circuit Top :
-         |  module Top :
-         |    input a : UInt<1>[2]
-         |    input b : UInt<1>
-         |    node c = b""".stripMargin
+        |  module Top :
+        |    input a : UInt<1>[2]
+        |    input b : UInt<1>
+        |    node c = b""".stripMargin
     val ta = anno("c", "")
     execute(input, ta, Seq(ta))
+  }
+
+  "Annotations in a given order" should "remain in that order" in {
+    val compiler = new VerilogCompiler
+    val input: String =
+      """circuit Top :
+        |  module Top :
+        |    input a : {x: UInt<1>}
+        |    output c : UInt<1>
+        |    c <= not(a.x)""".stripMargin
+    def makeAnnoSeq(name: String): Seq[Annotation] = {
+      (0 until 5).map(i => anno(name, i.toString))
+    }
+    val annos = makeAnnoSeq("a.x")
+    val checkAnnos = makeAnnoSeq("a_x")
+    val result = compiler.compile(CircuitState(parse(input), ChirrtlForm, annos), Nil)
+    val resultAnno = result.annotations.toSeq
+    checkAnnos.map(resultAnno.indexOf).reduceLeft{ (prev, curr) =>
+      (prev < curr) should be(true)
+      curr
+    }
   }
 
   "Deleting annotations" should "create a DeletedAnnotation" in {
