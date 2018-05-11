@@ -347,7 +347,7 @@ class ConstantPropagation extends Transform {
     // When propagating a reference, check if we want to keep the name that would be deleted
     def propagateRef(lname: String, value: Expression): Unit = {
       value match {
-        case WRef(rname,_,_,_) if betterName(lname, rname) && !swapMap.contains(rname) =>
+        case WRef(rname,_,kind,_) if betterName(lname, rname) && !swapMap.contains(rname) && kind != PortKind =>
           assert(!swapMap.contains(lname)) // <- Shouldn't be possible because lname is either a
           // node declaration or the single connection to a wire or register
           swapMap += (lname -> rname, rname -> lname)
@@ -358,6 +358,7 @@ class ConstantPropagation extends Transform {
 
     def constPropStmt(s: Statement): Statement = {
       val stmtx = s map constPropStmt map constPropExpression(nodeMap, instMap, constSubOutputs)
+      // Record things that should be propagated
       stmtx match {
         case x: DefNode if !dontTouches.contains(x.name) => propagateRef(x.name, x.value)
         case Connect(_, WRef(wname, wtpe, WireKind, _), expr: Literal) if !dontTouches.contains(wname) =>
@@ -377,6 +378,9 @@ class ConstantPropagation extends Transform {
             nodeMap(lname) = constPropExpression(nodeMap, instMap, constSubOutputs)(pad(fval, ltpe))
           case Mux(_, tval: Literal, fval: WRef, _) if weq(lref, fval) =>
             nodeMap(lname) = constPropExpression(nodeMap, instMap, constSubOutputs)(pad(tval, ltpe))
+          case WRef(`lname`, _,_,_) => // If a register is connected to itself, propagate zero
+            val zero = passes.RemoveValidIf.getGroundZero(ltpe)
+            nodeMap(lname) = constPropExpression(nodeMap, instMap, constSubOutputs)(pad(zero, ltpe))
           case _ =>
         }
         // Mark instance inputs connected to a constant
@@ -387,7 +391,13 @@ class ConstantPropagation extends Transform {
           portsMap(port) = paddedLit +: portsMap.getOrElse(port, List.empty)
         case _ =>
       }
-      stmtx
+      // Actually transform some statements
+      stmtx match {
+        // Propagate connections to references
+        case Connect(info, lhs, rref @ WRef(rname, _, NodeKind, _)) if !dontTouches.contains(rname) =>
+          Connect(info, lhs, nodeMap(rname))
+        case other => other
+      }
     }
 
     val modx = m.copy(body = backPropStmt(constPropStmt(m.body)))

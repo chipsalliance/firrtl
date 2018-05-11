@@ -3,6 +3,8 @@
 package firrtl
 package annotations
 
+import java.io.File
+
 import org.json4s._
 import org.json4s.native.JsonMethods._
 import org.json4s.native.Serialization
@@ -14,7 +16,15 @@ import firrtl.annotations.AnnotationYamlProtocol._
 import firrtl.ir._
 import firrtl.Utils.error
 
-class InvalidAnnotationFileException(msg: String) extends Exception(msg)
+case class InvalidAnnotationFileException(file: File, cause: Throwable = null)
+  extends FIRRTLException(s"$file, see cause below", cause)
+case class InvalidAnnotationJSONException(msg: String) extends FIRRTLException(msg)
+case class AnnotationFileNotFoundException(file: File) extends FIRRTLException(
+  s"Annotation file $file not found!"
+)
+case class AnnotationClassNotFoundException(className: String) extends FIRRTLException(
+  s"Annotation class $className not found! Please check spelling and classpath"
+)
 
 object AnnotationUtils {
   def toYaml(a: LegacyAnnotation): String = a.toYaml.prettyPrint
@@ -48,10 +58,10 @@ object AnnotationUtils {
     case None => Seq(s)
   }
 
-  def toNamed(s: String): Named = tokenize(s) match {
-    case Seq(n) => CircuitName(n)
-    case Seq(c, ".", m) => ModuleName(m, CircuitName(c))
-    case Seq(c, ".", m, ".", x) => ComponentName(x, ModuleName(m, CircuitName(c)))
+  def toNamed(s: String): Named = s.split("\\.", 3) match {
+    case Array(n) => CircuitName(n)
+    case Array(c, m) => ModuleName(m, CircuitName(c))
+    case Array(c, m, x) => ComponentName(x, ModuleName(m, CircuitName(c)))
   }
 
   /** Given a serialized component/subcomponent reference, subindex, subaccess,

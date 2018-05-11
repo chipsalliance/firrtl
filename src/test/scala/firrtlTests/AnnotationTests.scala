@@ -10,6 +10,7 @@ import firrtl._
 import firrtl.transforms.OptimizableExtModuleAnnotation
 import firrtl.passes.InlineAnnotation
 import firrtl.passes.memlib.PinAnnotation
+import firrtl.util.BackendCompilationUtilities
 import firrtl.transforms.DontTouchAnnotation
 import net.jcazevedo.moultingyaml._
 import org.scalatest.Matchers
@@ -179,8 +180,7 @@ abstract class AnnotationTests extends AnnotationSpec with Matchers {
         |    output out: {a: UInt<3>, b: UInt<3>[2]}
         |    wire w: {a: UInt<3>, b: UInt<3>[2]}
         |    w is invalid
-        |    node n = mux(pred, in, w)
-        |    out <= n
+        |    out <= mux(pred, in, w)
         |    reg r: {a: UInt<3>, b: UInt<3>[2]}, clk
         |    cmem mem: {a: UInt<3>, b: UInt<3>[2]}[8]
         |    write mport write = mem[pred], clk
@@ -190,7 +190,6 @@ abstract class AnnotationTests extends AnnotationSpec with Matchers {
       anno("in.a"), anno("in.b[0]"), anno("in.b[1]"),
       anno("out.a"), anno("out.b[0]"), anno("out.b[1]"),
       anno("w.a"), anno("w.b[0]"), anno("w.b[1]"),
-      anno("n.a"), anno("n.b[0]"), anno("n.b[1]"),
       anno("r.a"), anno("r.b[0]"), anno("r.b[1]"),
       anno("write.a"), anno("write.b[0]"), anno("write.b[1]"),
       dontTouch("Top.r"), dontTouch("Top.w")
@@ -221,9 +220,6 @@ abstract class AnnotationTests extends AnnotationSpec with Matchers {
     resultAnno should contain (anno("w_a"))
     resultAnno should contain (anno("w_b_0"))
     resultAnno should contain (anno("w_b_1"))
-    resultAnno should contain (anno("n_a"))
-    resultAnno should contain (anno("n_b_0"))
-    resultAnno should contain (anno("n_b_1"))
     resultAnno should contain (anno("r_a"))
     resultAnno should contain (anno("r_b_0"))
     resultAnno should contain (anno("r_b_1"))
@@ -243,11 +239,10 @@ abstract class AnnotationTests extends AnnotationSpec with Matchers {
         |    output out: {a: UInt<3>, b: UInt<3>[2]}
         |    wire w: {a: UInt<3>, b: UInt<3>[2]}
         |    w is invalid
-        |    node n = mux(pred, in, w)
-        |    out <= n
+        |    out <= mux(pred, in, w)
         |    reg r: {a: UInt<3>, b: UInt<3>[2]}, clk
         |""".stripMargin
-    val annos = Seq(anno("in"), anno("out"), anno("w"), anno("n"), anno("r"), dontTouch("Top.r"),
+    val annos = Seq(anno("in"), anno("out"), anno("w"), anno("r"), dontTouch("Top.r"),
                     dontTouch("Top.w"))
     val result = compiler.compile(CircuitState(parse(input), ChirrtlForm, annos), Nil)
     val resultAnno = result.annotations.toSeq
@@ -260,9 +255,6 @@ abstract class AnnotationTests extends AnnotationSpec with Matchers {
     resultAnno should contain (anno("w_a"))
     resultAnno should contain (anno("w_b_0"))
     resultAnno should contain (anno("w_b_1"))
-    resultAnno should contain (anno("n_a"))
-    resultAnno should contain (anno("n_b_0"))
-    resultAnno should contain (anno("n_b_1"))
     resultAnno should contain (anno("r_a"))
     resultAnno should contain (anno("r_b_0"))
     resultAnno should contain (anno("r_b_1"))
@@ -283,7 +275,7 @@ abstract class AnnotationTests extends AnnotationSpec with Matchers {
         |    out <= n
         |    reg r: {a: UInt<3>, b: UInt<3>[2]}, clk
         |""".stripMargin
-    val annos = Seq(anno("in.b"), anno("out.b"), anno("w.b"), anno("n.b"), anno("r.b"),
+    val annos = Seq(anno("in.b"), anno("out.b"), anno("w.b"), anno("r.b"),
                     dontTouch("Top.r"), dontTouch("Top.w"))
     val result = compiler.compile(CircuitState(parse(input), ChirrtlForm, annos), Nil)
     val resultAnno = result.annotations.toSeq
@@ -293,8 +285,6 @@ abstract class AnnotationTests extends AnnotationSpec with Matchers {
     resultAnno should contain (anno("out_b_1"))
     resultAnno should contain (anno("w_b_0"))
     resultAnno should contain (anno("w_b_1"))
-    resultAnno should contain (anno("n_b_0"))
-    resultAnno should contain (anno("n_b_1"))
     resultAnno should contain (anno("r_b_0"))
     resultAnno should contain (anno("r_b_1"))
   }
@@ -476,7 +466,7 @@ class LegacyAnnotationTests extends AnnotationTests {
   }
 }
 
-class JsonAnnotationTests extends AnnotationTests {
+class JsonAnnotationTests extends AnnotationTests with BackendCompilationUtilities {
   // Helper annotations
   case class SimpleAnno(target: ComponentName, value: String) extends
       SingleTargetAnnotation[ComponentName] {
@@ -495,6 +485,7 @@ class JsonAnnotationTests extends AnnotationTests {
       InlineAnnotation(CircuitName("fox")),
       InlineAnnotation(ModuleName("dog", CircuitName("bear"))),
       InlineAnnotation(ComponentName("chocolate", ModuleName("like", CircuitName("i")))),
+      InlineAnnotation(ComponentName("chocolate.frog", ModuleName("like", CircuitName("i")))),
       PinAnnotation(Seq("sea-lion", "monk-seal"))
     ).toArray
 
@@ -509,5 +500,84 @@ class JsonAnnotationTests extends AnnotationTests {
     val readAnnos = JsonProtocol.deserializeTry(text).get
 
     annos should be (readAnnos)
+  }
+
+  private def setupManager(annoFileText: Option[String]) = {
+    val source = """
+      |circuit test :
+      |  module test :
+      |    input x : UInt<1>
+      |    output z : UInt<1>
+      |    z <= x
+      |    node y = x""".stripMargin
+    val testDir = createTestDirectory(this.getClass.getSimpleName)
+    val annoFile = new File(testDir, "anno.json")
+
+    annoFileText.foreach { text =>
+      val w = new FileWriter(annoFile)
+      w.write(text)
+      w.close()
+    }
+
+    new ExecutionOptionsManager("annos") with HasFirrtlOptions {
+      commonOptions = CommonOptions(targetDirName = testDir.getPath)
+      firrtlOptions = FirrtlExecutionOptions(
+        firrtlSource = Some(source),
+        annotationFileNames = List(annoFile.getPath)
+      )
+    }
+  }
+
+  "Annotation file not found" should "give a reasonable error message" in {
+    val manager = setupManager(None)
+
+    an [AnnotationFileNotFoundException] shouldBe thrownBy {
+      Driver.execute(manager)
+    }
+  }
+
+  "Annotation class not found" should "give a reasonable error message" in {
+    val anno = """
+      |[
+      |  {
+      |    "class":"ThisClassDoesNotExist",
+      |    "target":"test.test.y"
+      |  }
+      |] """.stripMargin
+    val manager = setupManager(Some(anno))
+
+    the [Exception] thrownBy Driver.execute(manager) should matchPattern {
+      case InvalidAnnotationFileException(_, _: AnnotationClassNotFoundException) =>
+    }
+  }
+
+  "Malformed annotation file" should "give a reasonable error message" in {
+    val anno = """
+      |[
+      |  {
+      |    "class":
+      |    "target":"test.test.y"
+      |  }
+      |] """.stripMargin
+    val manager = setupManager(Some(anno))
+
+    the [Exception] thrownBy Driver.execute(manager) should matchPattern {
+      case InvalidAnnotationFileException(_, _: InvalidAnnotationJSONException) =>
+    }
+  }
+
+  "Non-array annotation file" should "give a reasonable error message" in {
+    val anno = """
+      |{
+      |  "class":"firrtl.transforms.DontTouchAnnotation",
+      |  "target":"test.test.y"
+      |}
+      |""".stripMargin
+    val manager = setupManager(Some(anno))
+
+    the [Exception] thrownBy Driver.execute(manager) should matchPattern {
+      case InvalidAnnotationFileException(_, InvalidAnnotationJSONException(msg))
+        if msg.contains("JObject") =>
+    }
   }
 }
