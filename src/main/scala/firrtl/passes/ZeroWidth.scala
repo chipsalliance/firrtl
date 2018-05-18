@@ -20,7 +20,7 @@ object ZeroWidth extends Transform {
     )))
 
   private def onEmptyMemStmt(s: Statement): Statement = s match {
-    case d@DefMemory(info, name, tpe, _, _, _, rs, ws, rws, _) => removeZero(tpe) match {
+    case d @ DefMemory(info, name, tpe, _, _, _, rs, ws, rws, _) => removeZero(tpe) match {
       case None =>
         DefWire(info, name, BundleType(
           rs.map(r => makeEmptyMemBundle(r)) ++
@@ -103,25 +103,25 @@ object ZeroWidth extends Transform {
     }
   }
   private def onStmt(renames: RenameMap)(s: Statement): Statement = s match {
-    case d@DefWire(info, name, tpe) =>
+    case d @ DefWire(info, name, tpe) =>
       renames.delete(getRemoved(d))
       removeZero(tpe) match {
         case None => EmptyStmt
         case Some(t) => DefWire(info, name, t)
       }
-    case d@DefRegister(info, name, tpe, clock, reset, init) =>
+    case d @ DefRegister(info, name, tpe, clock, reset, init) =>
       renames.delete(getRemoved(d))
       removeZero(tpe) match {
         case None => EmptyStmt
         case Some(t) =>
          DefRegister(info, name, t, onExp(clock), onExp(reset), onExp(init))
       }
-    case d@DefMemory(info, name, tpe, depth, wLatency, rLatency, rs, ws, rws, ruw) =>
+    case d: DefMemory =>
       renames.delete(getRemoved(d))
-      removeZero(tpe) match {
+      removeZero(d.dataType) match {
         case None =>
           Utils.throwInternalError(s"private pass ZeroWidthMemRemove should have removed this memory: $d")
-        case Some(t) => DefMemory(info, name, t, depth, wLatency, rLatency, rs, ws, rws, ruw)
+        case Some(t) => d
       }
     case Connect(info, loc, exp) => removeZero(loc.tpe) match {
       case None => EmptyStmt
