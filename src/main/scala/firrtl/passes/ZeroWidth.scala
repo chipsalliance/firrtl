@@ -121,7 +121,7 @@ object ZeroWidth extends Transform {
       removeZero(d.dataType) match {
         case None =>
           Utils.throwInternalError(s"private pass ZeroWidthMemRemove should have removed this memory: $d")
-        case Some(t) => d
+        case Some(t) => d.copy(dataType = t)
       }
     case Connect(info, loc, exp) => removeZero(loc.tpe) match {
       case None => EmptyStmt
