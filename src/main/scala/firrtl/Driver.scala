@@ -158,14 +158,14 @@ object Driver {
   def getCircuit(optionsManager: ExecutionOptionsManager with HasFirrtlOptions): Try[ir.Circuit] = {
     val firrtlConfig = optionsManager.firrtlOptions
     Try {
-      // Check that only "override" is used
+      // Check that only one "override" is used
       val circuitSources = Map(
         "firrtlSource" -> firrtlConfig.firrtlSource.isDefined,
         "firrtlCircuit" -> firrtlConfig.firrtlCircuit.isDefined,
         "inputFileNameOverride" -> firrtlConfig.inputFileNameOverride.nonEmpty)
       if (circuitSources.values.count(x => x) > 1) {
         val msg = circuitSources.collect { case (s, true) => s }.mkString(" and ") +
-          "are set, only 1 can be set at a time!"
+          " are set, only 1 can be set at a time!"
         throw new OptionsException(msg)
       }
       firrtlConfig.firrtlCircuit.getOrElse {
