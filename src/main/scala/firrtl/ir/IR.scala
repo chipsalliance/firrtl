@@ -159,12 +159,27 @@ case class UIntLiteral(value: BigInt, width: Width) extends Literal {
   def mapType(f: Type => Type): Expression = this
   def mapWidth(f: Width => Width): Expression = UIntLiteral(value, f(width))
 }
+object UIntLiteral {
+  def minWidth(value: BigInt): Width = IntWidth(math.max(value.bitLength, 1))
+  def apply(value: BigInt): UIntLiteral = new UIntLiteral(value, minWidth(value))
+}
 case class SIntLiteral(value: BigInt, width: Width) extends Literal {
   def tpe = SIntType(width)
   def serialize = s"""SInt${width.serialize}("h""" + value.toString(16)+ """")"""
   def mapExpr(f: Expression => Expression): Expression = this
   def mapType(f: Type => Type): Expression = this
   def mapWidth(f: Width => Width): Expression = SIntLiteral(value, f(width))
+}
+object SIntLiteral {
+  // To calculate bitwidth of negative number,
+  //  1) negate number and subtract one to get the maximum positive value.
+  //  2) get bitwidth of max positive number
+  //  3) add one to account for the signed representation
+  def minWidth(value: BigInt): Width = {
+    val w = if (value < 0) (value.abs - BigInt(1)).bitLength + 1 else value.bitLength + 1
+    IntWidth(w)
+  }
+  def apply(value: BigInt): SIntLiteral = new SIntLiteral(value, minWidth(value))
 }
 case class FixedLiteral(value: BigInt, width: Width, point: Width) extends Literal {
   def tpe = FixedType(width, point)
