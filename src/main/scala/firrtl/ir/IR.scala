@@ -171,14 +171,7 @@ case class SIntLiteral(value: BigInt, width: Width) extends Literal {
   def mapWidth(f: Width => Width): Expression = SIntLiteral(value, f(width))
 }
 object SIntLiteral {
-  // To calculate bitwidth of negative number,
-  //  1) negate number and subtract one to get the maximum positive value.
-  //  2) get bitwidth of max positive number
-  //  3) add one to account for the signed representation
-  def minWidth(value: BigInt): Width = {
-    val w = if (value < 0) (value.abs - BigInt(1)).bitLength + 1 else value.bitLength + 1
-    IntWidth(w)
-  }
+  def minWidth(value: BigInt): Width = IntWidth(value.bitLength + 1)
   def apply(value: BigInt): SIntLiteral = new SIntLiteral(value, minWidth(value))
 }
 case class FixedLiteral(value: BigInt, width: Width, point: Width) extends Literal {
