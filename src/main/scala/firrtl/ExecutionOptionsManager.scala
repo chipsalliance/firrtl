@@ -4,6 +4,7 @@ package firrtl
 
 import firrtl.annotations._
 import firrtl.Parser._
+import firrtl.ir.Circuit
 import firrtl.passes.memlib.{InferReadWriteAnnotation, ReplSeqMemAnnotation}
 import firrtl.passes.clocklist.ClockListAnnotation
 import logger.LogLevel
@@ -185,6 +186,7 @@ case class FirrtlExecutionOptions(
     dontCheckCombLoops:     Boolean = false,
     noDCE:                  Boolean = false,
     annotationFileNames:    List[String] = List.empty,
+    firrtlCircuit:          Option[Circuit] = None,
     suppressVerilatorVCD:   Boolean = false
 )
 extends ComposableOptions {
