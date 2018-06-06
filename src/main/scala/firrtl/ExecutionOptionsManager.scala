@@ -184,8 +184,7 @@ case class FirrtlExecutionOptions(
     emitOneFilePerModule:   Boolean = false,
     dontCheckCombLoops:     Boolean = false,
     noDCE:                  Boolean = false,
-    annotationFileNames:    List[String] = List.empty,
-    suppressVerilatorVCD:   Boolean = false
+    annotationFileNames:    List[String] = List.empty
 )
 extends ComposableOptions {
 
@@ -468,14 +467,6 @@ trait HasFirrtlOptions {
       firrtlOptions = firrtlOptions.copy(noDCE = true)
     }.text {
       "Do NOT run dead code elimination"
-    }
-
-  parser.opt[Unit]("suppress-verilator-vcd")
-    .abbr("svv")
-    .foreach { _ =>
-      firrtlOptions = firrtlOptions.copy(suppressVerilatorVCD = true)
-    }.text {
-      "Turn off VCD generation by verilator backend"
     }
 
   parser.note("")

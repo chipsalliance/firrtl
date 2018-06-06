@@ -85,12 +85,13 @@ trait BackendCompilationUtilities {
     * @param cppHarness C++ testharness to compile/link against
     */
   def verilogToCpp(
-                    dutFile: String,
-                    dir: File,
-                    vSources: Seq[File],
-                    cppHarness: File,
-                    firrtlOptions : FirrtlExecutionOptions = new FirrtlExecutionOptions
-                  ): ProcessBuilder = {
+    dutFile: String,
+    dir: File,
+    vSources: Seq[File],
+    cppHarness: File,
+    suppressVcd: Boolean = false
+  ): ProcessBuilder = {
+
     val topModule = dutFile
 
     val blackBoxVerilogList = {
@@ -114,7 +115,7 @@ trait BackendCompilationUtilities {
         "-Wno-WIDTH",
         "-Wno-STMTDLY"
       ) ++
-      { if(firrtlOptions.suppressVerilatorVCD) { Seq.empty } else { Seq("--trace")} } ++
+      { if(suppressVcd) { Seq.empty } else { Seq("--trace")} } ++
       Seq(
         "-O1",
         "--top-module", topModule,
