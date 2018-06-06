@@ -212,7 +212,7 @@ class ConstantPropagation extends Transform {
     case Pad => e.args.head match {
       case UIntLiteral(v, IntWidth(w)) => UIntLiteral(v, IntWidth(e.consts.head max w))
       case SIntLiteral(v, IntWidth(w)) => SIntLiteral(v, IntWidth(e.consts.head max w))
-      case _ if bitWidth(e.args.head.tpe) == e.consts.head => e.args.head
+      case _ if bitWidth(e.args.head.tpe) >= e.consts.head => e.args.head
       case _ => e
     }
     case Bits => e.args.head match {
@@ -347,7 +347,7 @@ class ConstantPropagation extends Transform {
     // When propagating a reference, check if we want to keep the name that would be deleted
     def propagateRef(lname: String, value: Expression): Unit = {
       value match {
-        case WRef(rname,_,_,_) if betterName(lname, rname) && !swapMap.contains(rname) =>
+        case WRef(rname,_,kind,_) if betterName(lname, rname) && !swapMap.contains(rname) && kind != PortKind =>
           assert(!swapMap.contains(lname)) // <- Shouldn't be possible because lname is either a
           // node declaration or the single connection to a wire or register
           swapMap += (lname -> rname, rname -> lname)
