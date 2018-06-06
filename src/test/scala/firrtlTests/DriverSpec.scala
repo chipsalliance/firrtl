@@ -436,14 +436,13 @@ class VcdSuppressionSpec extends FirrtlFlatSpec {
     val prefix = "ZeroPortMem"
 
     def testIfVcdCreated(suppress: Boolean): Unit = {
-      val optionsManager = new ExecutionOptionsManager("test") with HasFirrtlOptions {
-        firrtlOptions = firrtlOptions.copy(suppressVerilatorVCD = suppress)
-      }
+      val optionsManager = new ExecutionOptionsManager("test") with HasFirrtlOptions
+
       val testDir = compileFirrtlTest(prefix, "/features", Seq.empty, Seq.empty)
       val harness = new File(testDir, s"top.cpp")
       copyResourceToFile(cppHarnessResourceName, harness)
 
-      verilogToCpp(prefix, testDir, Seq.empty, harness, optionsManager.firrtlOptions).!
+      verilogToCpp(prefix, testDir, Seq.empty, harness, suppress).!
       cppToExe(prefix, testDir).!
 
       assert(executeExpectingSuccess(prefix, testDir))

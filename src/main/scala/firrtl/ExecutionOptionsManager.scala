@@ -185,7 +185,7 @@ case class FirrtlExecutionOptions(
     emitOneFilePerModule:   Boolean = false,
     dontCheckCombLoops:     Boolean = false,
     noDCE:                  Boolean = false,
-    annotationFileNames:    List[String] = List.empty
+    annotationFileNames:    List[String] = List.empty,
     firrtlCircuit:          Option[Circuit] = None
 )
 extends ComposableOptions {
