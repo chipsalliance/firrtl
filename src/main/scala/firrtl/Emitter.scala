@@ -12,7 +12,7 @@ import scala.io.Source
 
 import firrtl.ir._
 import firrtl.passes._
-import firrtl.transforms.{DeadCodeElimination, FlattenRegUpdate}
+import firrtl.transforms._
 import firrtl.annotations._
 import firrtl.Mappers._
 import firrtl.PrimOps._
@@ -264,7 +264,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
        case Pad =>
          val w = bitWidth(a0.tpe)
          val diff = c0 - w
-         if (w == BigInt(0)) Seq(a0)
+         if (w == BigInt(0) || diff <= 0) Seq(a0)
          else doprim.tpe match {
            // Either sign extend or zero extend.
            // If width == BigInt(1), don't extract bit
@@ -659,10 +659,10 @@ class VerilogEmitter extends SeqTransform with Emitter {
 
   /** Preamble for every emitted Verilog file */
   def transforms = Seq(
+    new ReplaceTruncatingArithmetic,
     new FlattenRegUpdate,
     new DeadCodeElimination,
     passes.VerilogModulusCleanup,
-    passes.VerilogWrap,
     passes.VerilogRename,
     passes.VerilogPrep)
 
