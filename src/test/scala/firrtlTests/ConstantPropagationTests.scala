@@ -893,6 +893,23 @@ class ConstantPropagationIntegrationSpec extends LowTransformSpec {
     execute(input, check, Seq.empty)
   }
 
+  it should "remove pads if the width is <= the width of the argument" in {
+    def input(w: Int) =
+     s"""circuit Top :
+        |  module Top :
+        |    input x : UInt<8>
+        |    output z : UInt<8>
+        |    z <= pad(x, $w)""".stripMargin
+    val check =
+      """circuit Top :
+        |  module Top :
+        |    input x : UInt<8>
+        |    output z : UInt<8>
+        |    z <= x""".stripMargin
+    execute(input(6), check, Seq.empty)
+    execute(input(8), check, Seq.empty)
+  }
+
 
   "Registers with no reset or connections" should "be replaced with constant zero" in {
       val input =
@@ -1028,6 +1045,23 @@ class ConstantPropagationIntegrationSpec extends LowTransformSpec {
           |    output a : UInt<8>
           |    a <= UInt<8>(0)
           |""".stripMargin
+    execute(input, check, Seq.empty)
+  }
+
+  "Temporary named port" should "not be declared as a node" in {
+    val input =
+      """circuit Top :
+        |  module Top :
+        |    input _T_61 : UInt<1>
+        |    output z : UInt<1>
+        |    node a = _T_61
+        |    z <= a""".stripMargin
+    val check =
+      """circuit Top :
+        |  module Top :
+        |    input _T_61 : UInt<1>
+        |    output z : UInt<1>
+        |    z <= _T_61""".stripMargin
     execute(input, check, Seq.empty)
   }
 }
