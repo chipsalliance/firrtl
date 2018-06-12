@@ -55,7 +55,21 @@ class ExecutionOptionsManager(
     * This requires lazy evaluation as subclasses will mixin new command
     * line options via methods of [[ExecutionOptionsManager.parser]]
     */
-  lazy val options: AnnotationSeq = parser
+  lazy final implicit val options: AnnotationSeq = parser
     .parse(args, annotations)
     .getOrElse(throw new FIRRTLException("Failed to parse command line options"))
+}
+
+trait MoreOptions { this: ExecutionOptionsManager =>
+  def newOptions(p: OptionParser[AnnotationSeq]): Unit
+  newOptions(parser)
+}
+
+trait OptionsView[T] {
+  def view(implicit options: AnnotationSeq): Option[T]
+}
+
+trait Viewer {
+  implicit val options: AnnotationSeq
+  def view[T](implicit optionsView: OptionsView[T]) = optionsView.view
 }
