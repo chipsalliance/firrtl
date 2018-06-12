@@ -16,12 +16,12 @@ class DoPrimVerilog extends FirrtlFlatSpec {
   "Xorr" should "emit correctly" in {
     val compiler = new VerilogCompiler
     val input =
-      """circuit Xorr : 
-        |  module Xorr : 
+      """circuit Xorr :
+        |  module Xorr :
         |    input a: UInt<4>
         |    output b: UInt<1>
         |    b <= xorr(a)""".stripMargin
-    val check = 
+    val check =
       """module Xorr(
         |  input  [3:0] a,
         |  output  b
@@ -34,12 +34,12 @@ class DoPrimVerilog extends FirrtlFlatSpec {
   "Andr" should "emit correctly" in {
     val compiler = new VerilogCompiler
     val input =
-      """circuit Andr : 
-        |  module Andr : 
+      """circuit Andr :
+        |  module Andr :
         |    input a: UInt<4>
         |    output b: UInt<1>
         |    b <= andr(a)""".stripMargin
-    val check = 
+    val check =
       """module Andr(
         |  input  [3:0] a,
         |  output  b
@@ -52,12 +52,12 @@ class DoPrimVerilog extends FirrtlFlatSpec {
   "Orr" should "emit correctly" in {
     val compiler = new VerilogCompiler
     val input =
-      """circuit Orr : 
-        |  module Orr : 
+      """circuit Orr :
+        |  module Orr :
         |    input a: UInt<4>
         |    output b: UInt<1>
         |    b <= orr(a)""".stripMargin
-    val check = 
+    val check =
       """module Orr(
         |  input  [3:0] a,
         |  output  b
@@ -78,8 +78,8 @@ class DoPrimVerilog extends FirrtlFlatSpec {
         |""".stripMargin
     val check =
       """module Test(
-        |  input  [7:0] in, 
-        |  output  out 
+        |  input  [7:0] in,
+        |  output  out
         |);
         |  wire [7:0] _GEN_0;
         |  assign out = _GEN_0[0];
@@ -167,7 +167,7 @@ class VerilogEmitterSpec extends FirrtlFlatSpec {
          |""".stripMargin
     for (w <- Seq(6, 8)) {
       val circuit = passes.foldLeft(parse(input(w))) { case (c, p) => p.run(c) }
-      val state = CircuitState(circuit, LowForm, Seq(EmitCircuitAnnotation(classOf[VerilogEmitter])))
+      val state = CircuitState(circuit, LowForm, Seq(EmitterAnnotation(classOf[VerilogEmitter])))
       val emitter = new VerilogEmitter
       val result = emitter.execute(state)
       result should containLine ("assign out = in;")

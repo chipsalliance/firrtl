@@ -11,7 +11,6 @@ import firrtl.Mappers._
 import firrtl.WrappedExpression._
 import firrtl.Utils.{throwInternalError, toWrappedExpression, kind}
 import firrtl.MemoizedHash._
-import firrtl.transforms.NoDCEAnnotation
 import scopt.OptionParser
 
 import collection.mutable

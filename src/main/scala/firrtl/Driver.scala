@@ -98,36 +98,36 @@ object Driver {
     *
     * Handles the myriad of ways it can be specified
     */
-  def getCircuit(optionsManager: ExecutionOptionsManager with HasFirrtlExecutionOptions): Try[ir.Circuit] = {
+  def getCircuit(implicit optionsManager: ExecutionOptionsManager with HasFirrtlExecutionOptions): Try[ir.Circuit] = {
     val firrtlOptions = view[FirrtlExecutionOptions].getOrElse{
       throw new FIRRTLException("Unable to determine FIRRTL options for provided command line options and annotations") }
     Try {
       // Check that only one "override" is used
       val circuitSources = Map(
-        "firrtlSource" -> firrtlConfig.firrtlSource.isDefined,
-        "firrtlCircuit" -> firrtlConfig.firrtlCircuit.isDefined,
-        "inputFileNameOverride" -> firrtlConfig.inputFileNameOverride.nonEmpty)
+        "firrtlSource" -> firrtlOptions.firrtlSource.isDefined,
+        "firrtlCircuit" -> firrtlOptions.firrtlCircuit.isDefined,
+        "inputFileNameOverride" -> firrtlOptions.inputFileNameOverride.nonEmpty)
       if (circuitSources.values.count(x => x) > 1) {
         val msg = circuitSources.collect { case (s, true) => s }.mkString(" and ") +
           " are set, only 1 can be set at a time!"
         throw new OptionsException(msg)
       }
-      firrtlConfig.firrtlCircuit.getOrElse {
-        val source = firrtlConfig.firrtlSource match {
+      firrtlOptions.firrtlCircuit.getOrElse {
+        val source = firrtlOptions.firrtlSource match {
           case Some(text) => text.split("\n").toIterator
           case None =>
-          if (optionsManager.topName.isEmpty && firrtlConfig.inputFileNameOverride.isEmpty) {
+          if (optionsManager.topName.isEmpty && firrtlOptions.inputFileNameOverride.isEmpty) {
             val message = "either top-name or input-file-override must be set"
             throw new OptionsException(message)
           }
           if (
             optionsManager.topName.isEmpty &&
-              firrtlConfig.inputFileNameOverride.nonEmpty &&
-              firrtlConfig.outputFileNameOverride.isEmpty) {
+              firrtlOptions.inputFileNameOverride.nonEmpty &&
+              firrtlOptions.outputFileNameOverride.isEmpty) {
             val message = "inputFileName set but neither top-name or output-file-override is set"
             throw new OptionsException(message)
           }
-          val inputFileName = firrtlConfig.getInputFileName(optionsManager)
+          val inputFileName = firrtlOptions.getInputFileName(optionsManager)
           try {
             io.Source.fromFile(inputFileName).getLines()
           } catch {
@@ -136,7 +136,7 @@ object Driver {
               throw new OptionsException(message)
           }
         }
-        Parser.parse(source, firrtlConfig.infoMode)
+        Parser.parse(source, firrtlOptions.infoMode)
       }
     }
   }
@@ -148,8 +148,9 @@ object Driver {
     * @return the result of running the FIRRTL compiler
     */
   //scalastyle:off cyclomatic.complexity method.length
-  def execute(optionsManager: ExecutionOptionsManager with HasFirrtlOptions): FirrtlExecutionResult = {
-    def firrtlConfig = optionsManager.firrtlOptions
+  def execute(implicit optionsManager: ExecutionOptionsManager with HasFirrtlExecutionOptions): FirrtlExecutionResult = {
+    val firrtlOptions = view[FirrtlExecutionOptions].getOrElse{
+      throw new FIRRTLException("Unable to determine FIRRTL options for provided command line options and annotations") }
 
     Logger.makeScope(optionsManager) {
       // Wrap compilation in a try/catch to present Scala MatchErrors in a more user-friendly format.
@@ -165,9 +166,9 @@ object Driver {
         // Does this need to be before calling compiler?
         optionsManager.makeTargetDir()
 
-        firrtlConfig.compiler.compile(
-          CircuitState(circuit, ChirrtlForm, firrtlConfig.annotations),
-          firrtlConfig.customTransforms
+        firrtlOptions.compiler.compile(
+          CircuitState(circuit, ChirrtlForm, firrtlOptions.annotations),
+          firrtlOptions.customTransforms
         )
       }
       catch {

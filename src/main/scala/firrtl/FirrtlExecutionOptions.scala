@@ -2,9 +2,9 @@
 
 package firrtl
 
+import firrtl.ir.Circuit
 import firrtl.annotations.{
   Annotation,
-  SingleStringAnnotation,
   NoTargetAnnotation,
   LegacyAnnotation,
   AnnotationFileNotFoundException,
@@ -32,7 +32,7 @@ trait FirrtlOption { this: Annotation => }
   *  - set on the command line with `-tn/--top-name`
   * @param value top module name
   */
-case class TopNameAnnotation(value: String) extends SingleStringAnnotation with FirrtlOption
+case class TopNameAnnotation(value: String) extends NoTargetAnnotation with FirrtlOption
 
 /** Holds the name of the target directory
   *  - maps to [[FirrtlExecutionOptions.targetDirName]]
@@ -40,7 +40,7 @@ case class TopNameAnnotation(value: String) extends SingleStringAnnotation with 
   *  - if unset, a [[TargetDirAnnotation]] will be generated with the
   * @param value target directory name
   */
-case class TargetDirAnnotation(value: String = ".") extends SingleStringAnnotation with FirrtlOption
+case class TargetDirAnnotation(value: String = ".") extends NoTargetAnnotation with FirrtlOption
 
 /** Describes the verbosity of information to log
   *  - maps to [[FirrtlExecutionOptions.globalLogLevel]]
@@ -48,7 +48,7 @@ case class TargetDirAnnotation(value: String = ".") extends SingleStringAnnotati
   *  - if unset, a [[LogLevelAnnotation]] with the default log level will be emitted
   * @param level the level of logging
   */
-case class LogLevelAnnotation(level: LogLevel.Value = LogLevel.None) extends SingleStringAnnotation with FirrtlOption {
+case class LogLevelAnnotation(level: LogLevel.Value = LogLevel.None) extends NoTargetAnnotation with FirrtlOption {
   val value = level.toString }
 
 /** Describes a mapping of a class to a specific log level
@@ -76,7 +76,7 @@ case object LogClassNamesAnnotation extends NoTargetAnnotation with FirrtlOption
   *  - set with any trailing option on the command line
   * @param value one [[scala.String]] argument
   */
-case class ProgramArgsAnnotation(value: String) extends SingleStringAnnotation with FirrtlOption
+case class ProgramArgsAnnotation(value: String) extends NoTargetAnnotation with FirrtlOption
 
 /** An explicit input FIRRTL file to read
   *  - maps to [[FirrtlExecutionOptions.inputFileNameOverride]]
@@ -84,42 +84,42 @@ case class ProgramArgsAnnotation(value: String) extends SingleStringAnnotation w
   *  - If unset, an [[InputFileAnnotation]] with the default input file __will not be generated__
   * @param value input filename
   */
-case class InputFileAnnotation(value: String) extends SingleStringAnnotation with FirrtlOption
+case class InputFileAnnotation(value: String) extends NoTargetAnnotation with FirrtlOption
 
 /** An explicit output file the emitter will write to
   *   - maps to [[FirrtlExecutionOptions.outputFileNameOverride]]
   *   - set with `-o/--output-file`
   *  @param value output filename
   */
-case class OutputFileAnnotation(value: String) extends SingleStringAnnotation with FirrtlOption
+case class OutputFileAnnotation(value: String) extends NoTargetAnnotation with FirrtlOption
 
 /** An explicit output _annotation_ file to write to
   *  - maps to [[FirrtlExecutionOptions.outputAnnotationFileName]]
   *  - set with `-foaf/--output-annotation-file`
   * @param value output annotation filename
   */
-case class OutputAnnotationFileAnnotation(value: String) extends SingleStringAnnotation with FirrtlOption
+case class OutputAnnotationFileAnnotation(value: String) extends NoTargetAnnotation with FirrtlOption
 
 /** Sets the info mode style
   *  - maps to [[FirrtlExecutionOptions.infoModeName]]
   *  - set with `--info-mode`
   * @param value info mode name
   */
-case class InfoModeAnnotation(value: String = "append") extends SingleStringAnnotation with FirrtlOption
+case class InfoModeAnnotation(value: String = "append") extends NoTargetAnnotation with FirrtlOption
 
 /** Holds a [[scala.String]] containing FIRRTL source to read as input
   *  - maps to [[FirrtlExecutionOptions.firrtlSource]]
   *  - set with `--firrtl-source`
   * @param value FIRRTL source as a [[scala.String]]
   */
-case class FirrtlSourceAnnotation(value: String) extends SingleStringAnnotation with FirrtlOption
+case class FirrtlSourceAnnotation(value: String) extends NoTargetAnnotation with FirrtlOption
 
 /** Holds a filename containing one or more [[annotations.Annotation]] to be read
   *  - this is not stored in [[FirrtlExecutionOptions]]
   *  - set with `-faf/--annotation-file`
   * @param value input annotation filename
   */
-case class InputAnnotationFileAnnotation(value: String) extends SingleStringAnnotation with FirrtlOption
+case class InputAnnotationFileAnnotation(value: String) extends NoTargetAnnotation with FirrtlOption
 
 /** Holds the name of the compiler to run
   *  - maps to [[FirrtlExecutionOptions.compilerName]]
@@ -127,14 +127,19 @@ case class InputAnnotationFileAnnotation(value: String) extends SingleStringAnno
   *  - If unset, a [[CompilerNameAnnotation]] with the default compiler ("verilog") __will be generated__
   * @param value compiler name
   */
-case class CompilerNameAnnotation(value: String = "verilog") extends SingleStringAnnotation with FirrtlOption
+case class CompilerNameAnnotation(value: String = "verilog") extends NoTargetAnnotation with FirrtlOption
 
 /** Holds the unambiguous class name of a [[Transform]] to run
   *  - will be append to [[FirrtlExecutionOptions.customTransforms]]
   *  - set with `-fct/--custom-transforms`
   * @param value the full class name of the transform
   */
-case class RunFirrtlTransformAnnotation(value: String) extends SingleStringAnnotation with FirrtlOption
+case class RunFirrtlTransformAnnotation(value: String) extends NoTargetAnnotation with FirrtlOption
+
+/** Holds a FIRRTL [[Circuit]]
+  * @param value a circuit
+  */
+case class FirrtlCircuitAnnotation(value: Circuit) extends NoTargetAnnotation with FirrtlOption
 
 object FirrtlViewer {
   implicit object FirrtlOptionsView extends OptionsView[FirrtlExecutionOptions] {
@@ -247,7 +252,8 @@ final case class FirrtlExecutionOptions(
   customTransforms:         Seq[Transform]              = List.empty,
   firrtlSource:             Option[String]              = None,
   annotations:              List[Annotation]            = List.empty,
-  emitOneFilePerModule:     Boolean                     = false) {
+  emitOneFilePerModule:     Boolean                     = false,
+  firrtlCircuit:            Option[Circuit]             = None) {
 
   /** Return the info mode */
   def infoMode(): Parser.InfoMode = {
