@@ -136,7 +136,7 @@ case class CompilerNameAnnotation(value: String = "verilog") extends SingleStrin
   */
 case class RunFirrtlTransformAnnotation(value: String) extends SingleStringAnnotation with FirrtlOption
 
-trait FirrtlViewer extends Viewer {
+object FirrtlViewer {
   implicit object FirrtlOptionsView extends OptionsView[FirrtlExecutionOptions] {
     def view(implicit options: AnnotationSeq): Option[FirrtlExecutionOptions] = {
       /* Pull in whatever the user tells us to from files until we can't find
@@ -568,7 +568,11 @@ object FirrtlExecutionUtils {
   }
 }
 
-trait HasFirrtlExecutionOptions extends MoreOptions with FirrtlViewer { this: ExecutionOptionsManager =>
+import firrtl.Viewer._
+
+trait HasFirrtlExecutionOptions extends MoreOptions { this: ExecutionOptionsManager =>
+  import firrtl.FirrtlViewer._
+
   @deprecated("Use view[FirrtlExecutionOptions]", "1.2.0")
   def firrtlOptions: FirrtlExecutionOptions = view[FirrtlExecutionOptions].get
 

@@ -17,6 +17,8 @@ import firrtl.annotations.AnnotationYamlProtocol._
 import firrtl.passes.PassException
 import firrtl.transforms._
 import firrtl.Utils.throwInternalError
+import firrtl.Viewer._
+import firrtl.FirrtlViewer._
 
 /**
   * The Driver enables invocation of the FIRRTL compiler using command
@@ -97,7 +99,8 @@ object Driver {
     * Handles the myriad of ways it can be specified
     */
   def getCircuit(optionsManager: ExecutionOptionsManager with HasFirrtlExecutionOptions): Try[ir.Circuit] = {
-    val firrtlConfig = optionsManager.firrtlOptions
+    val firrtlOptions = view[FirrtlExecutionOptions].getOrElse{
+      throw new FIRRTLException("Unable to determine FIRRTL options for provided command line options and annotations") }
     Try {
       // Check that only one "override" is used
       val circuitSources = Map(
