@@ -574,9 +574,8 @@ object FirrtlExecutionUtils {
   }
 }
 
-import firrtl.Viewer._
-
-trait HasFirrtlExecutionOptions extends MoreOptions { this: ExecutionOptionsManager =>
+trait HasFirrtlExecutionOptions { this: ExecutionOptionsManager =>
+  import firrtl.Viewer._
   import firrtl.FirrtlViewer._
 
   @deprecated("Use view[FirrtlExecutionOptions]", "1.2.0")
@@ -657,159 +656,157 @@ trait HasFirrtlExecutionOptions extends MoreOptions { this: ExecutionOptionsMana
     case _                      => throw new Exception("OutputConfig is not SingleFile!") }
 
 
-  def newOptions(p: OptionParser[AnnotationSeq]): Unit = {
-    p.note("Common Options")
+  parser.note("Common Options")
 
-    /* [Note 1] Any validation related to these options is removed here. Since
-     * we need to check annotations anyway, arguments here are purposefully
-     * marked as `unbounded` and no validation checking occurs (except that
-     * which is related to ensuring that a command line string is validly
-     * converted to some type, e.g., --log-level). All of the actual option
-     * validation happens when the annotations are processed in
-     * [[FirrtlExecutionUtils.checkAnnotations]]. */
-    p.opt[String]("top-name")
-      .abbr("tn")
-      .valueName("<top-level-circuit-name>")
-      .action( (x, c) => c :+ TopNameAnnotation(x) )
-      .unbounded() // See [Note 1]
-      .text("This options defines the top level circuit, defaults to dut when possible")
+  /* [Note 1] Any validation related to these options is removed here. Since
+   * we need to check annotations anyway, arguments here are purposefully
+   * marked as `unbounded` and no validation checking occurs (except that
+   * which is related to ensuring that a command line string is validly
+   * converted to some type, e.g., --log-level). All of the actual option
+   * validation happens when the annotations are processed in
+   * [[FirrtlExecutionUtils.checkAnnotations]]. */
+  parser.opt[String]("top-name")
+    .abbr("tn")
+    .valueName("<top-level-circuit-name>")
+    .action( (x, c) => c :+ TopNameAnnotation(x) )
+    .unbounded() // See [Note 1]
+    .text("This options defines the top level circuit, defaults to dut when possible")
 
-    p.opt[String]("target-dir")
-      .abbr("td")
-      .valueName("<target-directory>")
-      .action( (x, c) => c ++ Seq(TargetDirAnnotation(x), BlackBoxTargetDirAnno(x)) )
-      .unbounded() // See [Note 1]
-      .text(s"Work directory for intermediate files/blackboxes, default is ${FirrtlExecutionOptions().targetDirName}")
+  parser.opt[String]("target-dir")
+    .abbr("td")
+    .valueName("<target-directory>")
+    .action( (x, c) => c ++ Seq(TargetDirAnnotation(x), BlackBoxTargetDirAnno(x)) )
+    .unbounded() // See [Note 1]
+    .text(s"Work directory for intermediate files/blackboxes, default is ${FirrtlExecutionOptions().targetDirName}")
 
-    p.opt[String]("log-level")
-      .abbr("ll")
-      .valueName("<Error|Warn|Info|Debug|Trace>")
-      .action( (x, c) => c :+ LogLevelAnnotation(LogLevel(x)) )
-      .validate{ x =>
-        lazy val msg = s"$x bad value must be one of error|warn|info|debug|trace"
-        if (Array("error", "warn", "info", "debug", "trace").contains(x.toLowerCase)) { p.success      }
-        else                                                                          { p.failure(msg) }}
-      .unbounded() // See [Note 1]
-      .text(s"Sets the verbosity level of logging, default is ${FirrtlExecutionOptions().globalLogLevel}")
+  parser.opt[String]("log-level")
+    .abbr("ll")
+    .valueName("<Error|Warn|Info|Debug|Trace>")
+    .action( (x, c) => c :+ LogLevelAnnotation(LogLevel(x)) )
+    .validate{ x =>
+      lazy val msg = s"$x bad value must be one of error|warn|info|debug|trace"
+      if (Array("error", "warn", "info", "debug", "trace").contains(x.toLowerCase)) { parser.success      }
+      else                                                                          { parser.failure(msg) }}
+    .unbounded() // See [Note 1]
+    .text(s"Sets the verbosity level of logging, default is ${FirrtlExecutionOptions().globalLogLevel}")
 
-    p.opt[Seq[String]]("class-log-level")
-      .abbr("cll")
-      .valueName("<FullClassName:[Error|Warn|Info|Debug|Trace]>[,...]")
-      .action( (x, c) => c ++ (x.map { y =>
-                                 val className :: levelName :: _ = y.split(":").toList
-                                 val level = LogLevel(levelName)
-                                 ClassLogLevelAnnotation(className, level) }) )
-      .unbounded() // This can actually occur any number of times safely
-      .text(s"This defines per-class verbosity of logging")
+  parser.opt[Seq[String]]("class-log-level")
+    .abbr("cll")
+    .valueName("<FullClassName:[Error|Warn|Info|Debug|Trace]>[,...]")
+    .action( (x, c) => c ++ (x.map { y =>
+                               val className :: levelName :: _ = y.split(":").toList
+                               val level = LogLevel(levelName)
+                               ClassLogLevelAnnotation(className, level) }) )
+    .unbounded() // This can actually occur any number of times safely
+    .text(s"This defines per-class verbosity of logging")
 
-    p.opt[Unit]("log-to-file")
-      .abbr("ltf")
-      .action( (x, c) => c :+ LogToFileAnnotation )
-      .unbounded()
-      .text(s"default logs to stdout, this flags writes to topName.log or firrtl.log if no topName")
+  parser.opt[Unit]("log-to-file")
+    .abbr("ltf")
+    .action( (x, c) => c :+ LogToFileAnnotation )
+    .unbounded()
+    .text(s"default logs to stdout, this flags writes to topName.log or firrtl.log if no topName")
 
-    p.opt[Unit]("log-class-names")
-      .abbr("lcn")
-      .action( (x, c) => c :+ LogClassNamesAnnotation )
-      .unbounded()
-      .text(s"shows class names and log level in logging output, useful for target --class-log-level")
+  parser.opt[Unit]("log-class-names")
+    .abbr("lcn")
+    .action( (x, c) => c :+ LogClassNamesAnnotation )
+    .unbounded()
+    .text(s"shows class names and log level in logging output, useful for target --class-log-level")
 
-    p.arg[String]("<arg>...")
-      .unbounded()
-      .optional()
-      .action( (x, c) => c :+ ProgramArgsAnnotation(x) )
-      .text("optional unbounded args")
+  parser.arg[String]("<arg>...")
+    .unbounded()
+    .optional()
+    .action( (x, c) => c :+ ProgramArgsAnnotation(x) )
+    .text("optional unbounded args")
 
-    p.help("help").text("prints this usage text")
+  parser.help("help").text("prints this usage text")
 
-    p.note("FIRRTL Compiler Options")
+  parser.note("FIRRTL Compiler Options")
 
-    p.opt[String]("input-file")
-      .abbr("i")
-      .valueName ("<firrtl-source>")
-      .action( (x, c) => c :+ InputFileAnnotation(x) )
-      .unbounded() // See [Note 1]
-      .text("use this to override the default input file name, default is empty")
+  parser.opt[String]("input-file")
+    .abbr("i")
+    .valueName ("<firrtl-source>")
+    .action( (x, c) => c :+ InputFileAnnotation(x) )
+    .unbounded() // See [Note 1]
+    .text("use this to override the default input file name, default is empty")
 
-    p.opt[String]("output-file")
-      .abbr("o")
-      .valueName("<output>")
-      .action( (x, c) => c :+ OutputFileAnnotation(x) )
-      .unbounded()
-      .text("use this to override the default output file name, default is empty")
+  parser.opt[String]("output-file")
+    .abbr("o")
+    .valueName("<output>")
+    .action( (x, c) => c :+ OutputFileAnnotation(x) )
+    .unbounded()
+    .text("use this to override the default output file name, default is empty")
 
-    p.opt[String]("annotation-file")
-      .abbr("faf")
-      .unbounded()
-      .valueName("<input-anno-file>")
-      .action( (x, c) => c :+ InputAnnotationFileAnnotation(x) )
-      .text("Used to specify annotation file")
+  parser.opt[String]("annotation-file")
+    .abbr("faf")
+    .unbounded()
+    .valueName("<input-anno-file>")
+    .action( (x, c) => c :+ InputAnnotationFileAnnotation(x) )
+    .text("Used to specify annotation file")
 
-    p.opt[Unit]("force-append-anno-file")
-      .abbr("ffaaf")
-      .hidden()
-      .unbounded()
-      .action{ (x, c) =>
-        val msg = "force-append-anno-file is deprecated\n" + (" "*9) + "(It does not do anything anymore)"
-        Driver.dramaticWarning(msg)
-        c }
+  parser.opt[Unit]("force-append-anno-file")
+    .abbr("ffaaf")
+    .hidden()
+    .unbounded()
+    .action{ (x, c) =>
+      val msg = "force-append-anno-file is deprecated\n" + (" "*9) + "(It does not do anything anymore)"
+      Driver.dramaticWarning(msg)
+      c }
 
-    p.opt[String]("output-annotation-file")
-      .abbr("foaf")
-      .valueName ("<output-anno-file>")
-      .action( (x, c) => c :+ OutputAnnotationFileAnnotation(x) )
-      .unbounded() // See [Note 1]
-      .text("use this to set the annotation output file")
+  parser.opt[String]("output-annotation-file")
+    .abbr("foaf")
+    .valueName ("<output-anno-file>")
+    .action( (x, c) => c :+ OutputAnnotationFileAnnotation(x) )
+    .unbounded() // See [Note 1]
+    .text("use this to set the annotation output file")
 
-    p.opt[String]("compiler")
-      .abbr("X")
-      .valueName ("<high|middle|low|verilog|sverilog>")
-      .action( (x, c) => c :+ CompilerNameAnnotation(x) )
-      .unbounded() // See [Note 1]
-      .text(s"compiler to use, default is 'verilog'")
+  parser.opt[String]("compiler")
+    .abbr("X")
+    .valueName ("<high|middle|low|verilog|sverilog>")
+    .action( (x, c) => c :+ CompilerNameAnnotation(x) )
+    .unbounded() // See [Note 1]
+    .text(s"compiler to use, default is 'verilog'")
 
-    p.opt[String]("info-mode")
-      .valueName ("<ignore|use|gen|append>")
-      .action( (x, c) => c :+ InfoModeAnnotation(x.toLowerCase) )
-      .unbounded() // See [Note 1]
-      .text(s"specifies the source info handling, default is ${FirrtlExecutionOptions().infoModeName}")
+  parser.opt[String]("info-mode")
+    .valueName ("<ignore|use|gen|append>")
+    .action( (x, c) => c :+ InfoModeAnnotation(x.toLowerCase) )
+    .unbounded() // See [Note 1]
+    .text(s"specifies the source info handling, default is ${FirrtlExecutionOptions().infoModeName}")
 
-    p.opt[String]("firrtl-source")
-      .valueName ("A FIRRTL string")
-      .action( (x, c) => c :+ FirrtlSourceAnnotation(x) )
-      .unbounded() // See [Note 1]
-      .text(s"A FIRRTL circuit as a string")
+  parser.opt[String]("firrtl-source")
+    .valueName ("A FIRRTL string")
+    .action( (x, c) => c :+ FirrtlSourceAnnotation(x) )
+    .unbounded() // See [Note 1]
+    .text(s"A FIRRTL circuit as a string")
 
-    p.opt[Seq[String]]("custom-transforms")
-      .abbr("fct")
-      .valueName ("<package>.<class>")
-      .validate( x => {
-                  x.map(x =>
-                    try { Class.forName(x).asInstanceOf[Class[_ <: Transform]].newInstance() }
-                    catch {
-                      case e: ClassNotFoundException => throw new FIRRTLException(
-                        s"Unable to locate custom transform $x (did you misspell it?)", e)
-                      case e: InstantiationException => throw new FIRRTLException(
-                        s"Unable to create instance of Transform $x (is this an anonymous class?)", e)
-                      case e: Throwable => throw new FIRRTLException(s"Unknown error when instantiating class $x", e) } )
-                  p.success } )
-      .action( (x, c) => c ++ x.map(RunFirrtlTransformAnnotation(_)) )
-      .unbounded()
-      .text("runs these custom transforms during compilation.")
+  parser.opt[Seq[String]]("custom-transforms")
+    .abbr("fct")
+    .valueName ("<package>.<class>")
+    .validate( x => {
+                x.map(x =>
+                  try { Class.forName(x).asInstanceOf[Class[_ <: Transform]].newInstance() }
+                  catch {
+                    case e: ClassNotFoundException => throw new FIRRTLException(
+                      s"Unable to locate custom transform $x (did you misspell it?)", e)
+                    case e: InstantiationException => throw new FIRRTLException(
+                      s"Unable to create instance of Transform $x (is this an anonymous class?)", e)
+                    case e: Throwable => throw new FIRRTLException(s"Unknown error when instantiating class $x", e) } )
+                parser.success } )
+    .action( (x, c) => c ++ x.map(RunFirrtlTransformAnnotation(_)) )
+    .unbounded()
+    .text("runs these custom transforms during compilation.")
 
-    p.opt[Unit]("split-modules")
-      .abbr("fsm")
-      .action( (x, c) => c :+ EmitOneFilePerModuleAnnotation )
-      .unbounded()
-      .text ("Emit each module to its own file in the target directory.")
+  parser.opt[Unit]("split-modules")
+    .abbr("fsm")
+    .action( (x, c) => c :+ EmitOneFilePerModuleAnnotation )
+    .unbounded()
+    .text ("Emit each module to its own file in the target directory.")
 
-    p.note("FIRRTL Transform Options")
-    Seq( transforms.DeadCodeElimination,
-         transforms.CheckCombLoops,
-         passes.InlineInstances,
-         passes.memlib.InferReadWrite,
-         passes.memlib.ReplSeqMem,
-         passes.clocklist.ClockListTransform )
-      .map(_.provideOptions(parser))
-  }
+  parser.note("FIRRTL Transform Options")
+  Seq( transforms.DeadCodeElimination,
+       transforms.CheckCombLoops,
+       passes.InlineInstances,
+       passes.memlib.InferReadWrite,
+       passes.memlib.ReplSeqMem,
+       passes.clocklist.ClockListTransform )
+    .map(_.provideOptions(parser))
 }

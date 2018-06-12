@@ -60,11 +60,6 @@ class ExecutionOptionsManager(
     .getOrElse(throw new FIRRTLException("Failed to parse command line options"))
 }
 
-trait MoreOptions { this: ExecutionOptionsManager =>
-  def newOptions(p: OptionParser[AnnotationSeq]): Unit
-  newOptions(parser)
-}
-
 trait OptionsView[T] {
   def view(implicit options: AnnotationSeq): Option[T]
 }
