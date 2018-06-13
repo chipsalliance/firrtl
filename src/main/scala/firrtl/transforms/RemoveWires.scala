@@ -72,16 +72,22 @@ class RemoveWires extends Transform {
     // Info at definition of wires for combining into node
     val wireInfo = mutable.HashMap.empty[WrappedExpression, Info]
 
+    def isRemovableWireType(tpe: Type): Boolean = tpe match {
+      case ClockType => false
+      case AnalogType(_) => false
+      case _ => true
+    }
+
     def onStmt(stmt: Statement): Statement = {
       stmt match {
         case DefNode(info, name, expr) =>
           netlist(we(WRef(name))) = (expr, info)
-        case wire: DefWire if !wire.tpe.isInstanceOf[AnalogType] => // Remove all non-Analog wires
+        case wire: DefWire if isRemovableWireType(wire.tpe) => // Remove all non-Analog wires
           wireInfo(WRef(wire)) = wire.info
         case decl: IsDeclaration => // Keep all declarations except for nodes and non-Analog wires
           decls += decl
         case con @ Connect(cinfo, lhs, rhs) => kind(lhs) match {
-          case WireKind =>
+          case WireKind if isRemovableWireType(lhs.tpe) =>
             // Be sure to pad the rhs since nodes get their type from the rhs
             val paddedRhs = ConstantPropagation.pad(rhs, lhs.tpe)
             val dinfo = wireInfo(lhs)
@@ -90,7 +96,7 @@ class RemoveWires extends Transform {
         }
         case invalid @ IsInvalid(info, expr) =>
           kind(expr) match {
-            case WireKind =>
+            case WireKind if isRemovableWireType(expr.tpe) =>
               val width = expr.tpe match { case GroundType(width) => width } // LowFirrtl
               netlist(we(expr)) = (ValidIf(Utils.zero, UIntLiteral(BigInt(0), width), expr.tpe), info)
             case _ => otherStmts += invalid

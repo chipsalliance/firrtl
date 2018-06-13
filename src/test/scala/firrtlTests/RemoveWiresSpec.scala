@@ -120,4 +120,19 @@ class RemoveWiresSpec extends FirrtlFlatSpec {
           "node y = not(b)")
     )
   }
+
+  it should "not break clock wires in emitted Low FIRRTL" in {
+    // Compiling the output of compilation lets us check its legality
+    val compiledOnce = compileBody(s"""
+      |input ext_clock : Clock
+      |input in : UInt<1>
+      |output out : UInt<1>
+      |wire int_clock : Clock
+      |reg r : UInt<1>, int_clock
+      |int_clock <= ext_clock
+      |r <= in
+      |out <= r""".stripMargin
+    )
+    val compiledTwice = compile(compiledOnce.emittedCircuitOption.get.value)
+  }
 }
