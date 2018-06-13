@@ -41,7 +41,7 @@ class RemoveWires extends Transform {
   // Transform netlist into DefNodes
   private def getOrderedNodes(
     netlist: mutable.LinkedHashMap[WrappedExpression, (Expression, Info)],
-    regInfo: Map[WrappedExpression, DefRegister]): Try[Seq[Statement]] = {
+    regInfo: mutable.Map[WrappedExpression, DefRegister]): Try[Seq[Statement]] = {
     val digraph = new MutableDiGraph[WrappedExpression]
     for ((sink, (expr, _)) <- netlist) {
       digraph.addVertex(sink)
@@ -116,7 +116,7 @@ class RemoveWires extends Transform {
     m match {
       case mod @ Module(info, name, ports, body) =>
         onStmt(body)
-        getOrderedNodes(netlist, regInfo.toMap) match {
+        getOrderedNodes(netlist, regInfo) match {
           case Success(logic) =>
             Module(info, name, ports, Block(decls ++ logic ++ otherStmts))
           // If we hit a CyclicException, just abort removing wires
