@@ -68,6 +68,8 @@ libraryDependencies += "net.jcazevedo" %% "moultingyaml" % "0.4.0"
 
 libraryDependencies += "org.json4s" %% "json4s-native" % "3.5.3"
 
+libraryDependencies += "de.danielbechler" % "java-object-diff" % "0.95"
+
 // Assembly
 
 assemblyJarName in assembly := "firrtl.jar"

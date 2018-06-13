@@ -28,6 +28,14 @@ trait FirrtlRunners extends BackendCompilationUtilities {
     val res = compiler.compileAndEmit(CircuitState(circuit, HighForm, annotations))
     res.getEmittedCircuit.value
   }
+  def readFromFile(prefix: String, srcDir: String): Iterator[String] = {
+    //val optionsManager = new ExecutionOptionsManager(prefix) with HasFirrtlOptions {
+    //  commonOptions = CommonOptions(topName = prefix, targetDirName = srcDir)
+    //  firrtlOptions = FirrtlExecutionOptions( infoModeName = "ignore")
+    //}
+    //Driver.getCircuit(optionsManager).get
+    io.Source.fromFile(srcDir+"/"+prefix+".fir").getLines
+  }
   /** Compile a Firrtl file
     *
     * @param prefix is the name of the Firrtl file without path or file extension

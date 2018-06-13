@@ -59,10 +59,10 @@ object InferTypes extends Pass {
       case sx => sx map infer_types_s(types) map infer_types_e(types)
     }
 
-    def infer_types_p(types: TypeMap)(p: Port): Port = {
+    def infer_types_p(types: TypeMap)(p: DefPort): DefPort = {
       val t = remove_unknowns(p.tpe)
       types(p.name) = t
-      p copy (tpe = t)
+      Port(p.info, p.name, p.direction, t)
     }
 
     def infer_types(m: DefModule): DefModule = {
@@ -120,7 +120,7 @@ object CInferTypes extends Pass {
       case sx => sx map infer_types_s(types) map infer_types_e(types)
     }
 
-    def infer_types_p(types: TypeMap)(p: Port): Port = {
+    def infer_types_p(types: TypeMap)(p: DefPort): DefPort = {
       types(p.name) = p.tpe
       p
     }

@@ -98,7 +98,7 @@ class TopWiringTransform extends Transform {
     */
   private def getSourceTypesPorts(sourceList: Map[ComponentName, String], sourceMap: mutable.Map[String,
                           Seq[(ComponentName, Type, Boolean, InstPath, String)]],
-                          currentmodule: ModuleName, state: CircuitState)(s: Port): CircuitState = s match {
+                          currentmodule: ModuleName, state: CircuitState)(s: DefPort): CircuitState = s match {
     // If target port, add name and size to to sourceMap
     case w: IsDeclaration =>
       if (sourceList.keys.toSeq.contains(ComponentName(w.name, currentmodule))) {
@@ -141,8 +141,8 @@ class TopWiringTransform extends Transform {
     state.circuit.modules.foreach { m => m map
       getSourceTypes(sSourcesNames, sourcemods, ModuleName(m.name, CircuitName(state.circuit.main)) , state) }
     state.circuit.modules.foreach { m => m.ports.foreach {
-       p => Seq(p) map
-          getSourceTypesPorts(sSourcesNames, sourcemods, ModuleName(m.name, CircuitName(state.circuit.main)) , state) }}
+       p =>
+          getSourceTypesPorts(sSourcesNames, sourcemods, ModuleName(m.name, CircuitName(state.circuit.main)) , state)(p) }}
 
     for (mod <- topSort) {
       val seqChildren: Seq[(ComponentName,Type,Boolean,InstPath,String)] = cMap(mod.name).flatMap {

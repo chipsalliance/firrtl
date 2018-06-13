@@ -102,7 +102,7 @@ object CheckWidths extends Pass {
       }
     }
 
-    def check_width_p(minfo: Info, mname: String)(p: Port): Port = p.copy(tpe =  check_width_t(p.info, mname)(p.tpe))
+    def check_width_p(minfo: Info, mname: String)(p: DefPort): DefPort = Port(p.info, p.name, p.direction, check_width_t(p.info, mname)(p.tpe))
 
     def check_width_m(m: DefModule) {
       m map check_width_p(m.info, m.name) map check_width_s(m.info, m.name)

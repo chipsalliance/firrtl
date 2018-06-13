@@ -191,7 +191,7 @@ object CheckHighForm extends Pass {
          map checkHighFormS(minfo, mname, names))
     }
 
-    def checkHighFormP(mname: String, names: NameSet)(p: Port): Port = {
+    def checkHighFormP(mname: String, names: NameSet)(p: DefPort): DefPort = {
       names += p.name
       (p.tpe map checkHighFormT(p.info, mname)
              map checkHighFormW(p.info, mname))

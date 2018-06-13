@@ -10,7 +10,7 @@ import Utils.throwInternalError
 object ResolveKinds extends Pass {
   type KindMap = collection.mutable.LinkedHashMap[String, Kind]
 
-  def find_port(kinds: KindMap)(p: Port): Port = {
+  def find_port(kinds: KindMap)(p: DefPort): DefPort = {
     kinds(p.name) = PortKind ; p
   }
 

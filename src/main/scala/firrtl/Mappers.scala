@@ -92,7 +92,7 @@ object Mappers {
     implicit def forStmt(f: Statement => Statement): ModuleMagnet = new ModuleMagnet {
       override def map(module: DefModule): DefModule = module mapStmt f
     }
-    implicit def forPorts(f: Port => Port): ModuleMagnet = new ModuleMagnet {
+    implicit def forPorts(f: DefPort => DefPort): ModuleMagnet = new ModuleMagnet {
       override def map(module: DefModule): DefModule = module mapPort f
     }
     implicit def forString(f: String => String): ModuleMagnet = new ModuleMagnet {

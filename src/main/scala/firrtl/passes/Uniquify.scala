@@ -345,7 +345,7 @@ object Uniquify extends Transform {
 
     def uniquifyPorts(renames: RenameMap)(m: DefModule): DefModule = {
       renames.setModule(m.name)
-      def uniquifyPorts(ports: Seq[Port]): Seq[Port] = {
+      def uniquifyPorts(ports: Seq[DefPort]): Seq[DefPort] = {
         val portsType = BundleType(ports map {
           case Port(_, name, dir, tpe) => Field(name, to_flip(dir), tpe)
         })

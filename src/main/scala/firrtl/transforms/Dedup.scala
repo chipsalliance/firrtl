@@ -85,7 +85,7 @@ object DedupModules {
                       reinfo: Info=>Info,
                       renameModule: String=>String
                      )(module: DefModule): DefModule = {
-    def onPort(p: Port): Port = Port(reinfo(p.info), rename(p.name), p.direction, retype(p.name)(p.tpe))
+    def onPort(p: DefPort): DefPort = Port(reinfo(p.info), rename(p.name), p.direction, retype(p.name)(p.tpe))
     def onExp(e: Expression): Expression = e match {
       case WRef(n, t, k, g) => WRef(rename(n), retype(n)(t), k, g)
       case WSubField(expr, n, tpe, kind) =>

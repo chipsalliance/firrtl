@@ -264,8 +264,8 @@ object VerilogRename extends Pass {
   def verilogRenameS(s: Statement): Statement =
     s map verilogRenameS map verilogRenameE map verilogRenameN
 
-  def verilogRenameP(p: Port): Port =
-    p copy (name = verilogRenameN(p.name))
+  def verilogRenameP(p: DefPort): DefPort =
+    Port(p.info, verilogRenameN(p.name), p.direction, p.tpe)
 
   def run(c: Circuit): Circuit =
     c copy (modules = c.modules map (_ map verilogRenameP map verilogRenameS))

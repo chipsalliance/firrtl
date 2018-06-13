@@ -104,7 +104,7 @@ object CheckChirrtl extends Pass {
          map checkChirrtlS(info, mname, names))
     }
 
-    def checkChirrtlP(mname: String, names: NameSet)(p: Port): Port = {
+    def checkChirrtlP(mname: String, names: NameSet)(p: DefPort): DefPort = {
       names += p.name
       (p.tpe map checkChirrtlT(p.info, mname)
              map checkChirrtlW(p.info, mname))

@@ -6,11 +6,11 @@ package ir
 import Utils.indent
 
 /** Intermediate Representation */
-abstract class FirrtlNode {
+trait FirrtlNode {
   def serialize: String
 }
 
-abstract class Info extends FirrtlNode {
+trait Info extends FirrtlNode {
   // default implementation
   def serialize: String = this.toString
   def ++(that: Info): Info
@@ -107,7 +107,7 @@ abstract class PrimOp extends FirrtlNode {
   def serialize: String = this.toString
 }
 
-abstract class Expression extends FirrtlNode {
+trait Expression extends FirrtlNode {
   def tpe: Type
   def mapExpr(f: Expression => Expression): Expression
   def mapType(f: Type => Type): Expression
@@ -186,7 +186,7 @@ case class DoPrim(op: PrimOp, args: Seq[Expression], consts: Seq[BigInt], tpe: T
   def mapWidth(f: Width => Width): Expression = this
 }
 
-abstract class Statement extends FirrtlNode {
+trait Statement extends FirrtlNode {
   def mapStmt(f: Statement => Statement): Statement
   def mapExpr(f: Expression => Expression): Statement
   def mapType(f: Type => Type): Statement
@@ -425,7 +425,7 @@ case class Field(name: String, flip: Orientation, tpe: Type) extends FirrtlNode 
   def serialize: String = flip.serialize + name + " : " + tpe.serialize
 }
 
-abstract class Type extends FirrtlNode {
+trait Type extends FirrtlNode {
   def mapType(f: Type => Type): Type
   def mapWidth(f: Width => Width): Type
 }
@@ -488,12 +488,24 @@ case object Output extends Direction {
 }
 
 /** [[DefModule]] Port */
+trait DefPort extends FirrtlNode with IsDeclaration {
+  val info: Info
+  val name: String
+  val direction: Direction
+  val tpe: Type
+  def mapType(f: Type => Type): DefPort
+  def mapString(f: String => String): DefPort
+  def mapInfo(f: Info => Info): DefPort
+}
 case class Port(
     info: Info,
     name: String,
     direction: Direction,
-    tpe: Type) extends FirrtlNode with IsDeclaration {
+    tpe: Type) extends DefPort {
   def serialize: String = s"${direction.serialize} $name : ${tpe.serialize}" + info.serialize
+  def mapType(f: Type => Type): DefPort = this.copy(tpe = f(tpe))
+  def mapString(f: String => String): DefPort = this.copy(name = f(name))
+  def mapInfo(f: Info => Info): DefPort = this.copy(info = f(info))
 }
 
 /** Parameters for external modules */
@@ -525,11 +537,11 @@ case class RawStringParam(name: String, value: String) extends Param {
 abstract class DefModule extends FirrtlNode with IsDeclaration {
   val info : Info
   val name : String
-  val ports : Seq[Port]
+  val ports : Seq[DefPort]
   protected def serializeHeader(tpe: String): String =
     s"$tpe $name :${info.serialize}${indent(ports.map("\n" + _.serialize).mkString)}\n"
   def mapStmt(f: Statement => Statement): DefModule
-  def mapPort(f: Port => Port): DefModule
+  def mapPort(f: DefPort => DefPort): DefModule
   def mapString(f: String => String): DefModule
   def mapInfo(f: Info => Info): DefModule
 }
@@ -537,10 +549,10 @@ abstract class DefModule extends FirrtlNode with IsDeclaration {
   *
   * An instantiable hardware block
   */
-case class Module(info: Info, name: String, ports: Seq[Port], body: Statement) extends DefModule {
+case class Module(info: Info, name: String, ports: Seq[DefPort], body: Statement) extends DefModule {
   def serialize: String = serializeHeader("module") + indent("\n" + body.serialize)
   def mapStmt(f: Statement => Statement): DefModule = this.copy(body = f(body))
-  def mapPort(f: Port => Port): DefModule = this.copy(ports = ports map f)
+  def mapPort(f: DefPort => DefPort): DefModule = this.copy(ports = ports map f)
   def mapString(f: String => String): DefModule = this.copy(name = f(name))
   def mapInfo(f: Info => Info): DefModule = this.copy(f(info))
 }
@@ -552,13 +564,13 @@ case class Module(info: Info, name: String, ports: Seq[Port], body: Statement) e
 case class ExtModule(
     info: Info,
     name: String,
-    ports: Seq[Port],
+    ports: Seq[DefPort],
     defname: String,
     params: Seq[Param]) extends DefModule {
   def serialize: String = serializeHeader("extmodule") +
     indent(s"\ndefname = $defname\n" + params.map(_.serialize).mkString("\n"))
   def mapStmt(f: Statement => Statement): DefModule = this
-  def mapPort(f: Port => Port): DefModule = this.copy(ports = ports map f)
+  def mapPort(f: DefPort => DefPort): DefModule = this.copy(ports = ports map f)
   def mapString(f: String => String): DefModule = this.copy(name = f(name))
   def mapInfo(f: Info => Info): DefModule = this.copy(f(info))
 }
