@@ -262,7 +262,7 @@ final case class FirrtlExecutionOptions(
       case "ignore" => Parser.IgnoreInfo
       case "gen"    => Parser.GenInfo(inputFileNameOverride.getOrElse("[not defined]"))
       case "append" => Parser.AppendInfo(inputFileNameOverride.getOrElse("[not defined]"))
-      case _        => Parser.UseInfo
+      case _        => throw new Exception(s"Illegale info mode name $infoModeName")
     }
   }
 
@@ -273,6 +273,7 @@ final case class FirrtlExecutionOptions(
     case "middle"    => new MiddleFirrtlCompiler()
     case "verilog"   => new VerilogCompiler()
     case "sverilog"  => new SystemVerilogCompiler()
+    case _           => throw new Exception(s"Illegal compiler name $compilerName")
   }
 
   /** Return the output file suffix */
