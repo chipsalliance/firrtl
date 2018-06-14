@@ -3,6 +3,7 @@
 package firrtlTests
 
 import firrtl._
+import firrtl.options.ExecutionOptionsManager
 import org.scalatest._
 import org.scalatest.prop._
 

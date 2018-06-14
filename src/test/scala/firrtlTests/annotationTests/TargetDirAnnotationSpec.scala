@@ -6,6 +6,7 @@ package annotationTests
 import firrtlTests._
 import firrtl._
 import firrtl.annotations.{Annotation, NoTargetAnnotation, SingleStringAnnotation}
+import firrtl.options.ExecutionOptionsManager
 
 /** Annotation emitted if [[FindTargetDirTransform]] runs */
 case class FlockOfSeagullsAnnotation() extends NoTargetAnnotation

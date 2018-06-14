@@ -17,13 +17,14 @@ import firrtl.annotations.AnnotationYamlProtocol._
 import firrtl.passes.PassException
 import firrtl.transforms._
 import firrtl.Utils.throwInternalError
-import firrtl.Viewer._
+import firrtl.options.ExecutionOptionsManager
+import firrtl.options.Viewer._
 import firrtl.FirrtlViewer._
 
 /**
   * The Driver enables invocation of the FIRRTL compiler using command
   * line arguments (an [[Array[String]]]) or an
-  * [[ExecutionOptionsManager]]. Both approaches are equivalent.
+  * [[options.ExecutionOptionsManager]]. Both approaches are equivalent.
   *
   * Invocation using explicit command line arguments:
   * {{{
@@ -33,7 +34,7 @@ import firrtl.FirrtlViewer._
   * Driver.execute(args)
   * }}}
   *
-  * Invocation using an [[ExecutionOptionsManager]]:
+  * Invocation using an [[options.ExecutionOptionsManager]]:
   * {{{
   * val args = Array(
   *   "--top-name",  "MyTopModule", // The name of the top module
@@ -73,7 +74,7 @@ object Driver {
   }
 
   /**
-    * Load annotations from an [[ExecutionOptionsManager]]
+    * Load annotations from an [[options.ExecutionOptionsManager]]
     *
     * @param optionsManager use optionsManager config to load annotation file if it exists
     *                       update the firrtlOptions with new annotations if it does

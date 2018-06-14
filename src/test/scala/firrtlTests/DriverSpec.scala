@@ -16,6 +16,7 @@ import firrtl.transforms.BlackBoxTargetDirAnno
 import firrtl._
 import firrtl.annotations._
 import firrtl.util.BackendCompilationUtilities
+import firrtl.options.ExecutionOptionsManager
 
 class ExceptingTransform extends Transform {
   def inputForm = HighForm

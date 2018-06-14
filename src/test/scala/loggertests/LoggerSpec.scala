@@ -2,7 +2,8 @@
 
 package loggertests
 
-import firrtl.{ExecutionOptionsManager, HasFirrtlExecutionOptions}
+import firrtl.HasFirrtlExecutionOptions
+import firrtl.options.ExecutionOptionsManager
 import logger.Logger.OutputCaptor
 import logger.{LazyLogging, LogLevel, Logger}
 import org.scalatest.{FreeSpec, Matchers, OneInstancePerTest}

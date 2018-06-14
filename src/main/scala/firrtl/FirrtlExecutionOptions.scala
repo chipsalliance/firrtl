@@ -13,6 +13,7 @@ import firrtl.transforms.{
   BlackBoxTargetDirAnno,
   DontCheckCombLoopsAnnotation,
   NoDCEAnnotation }
+import firrtl.options.{OptionsView, ExecutionOptionsManager}
 import logger.LogLevel
 import java.io.File
 import net.jcazevedo.moultingyaml._
@@ -576,7 +577,7 @@ object FirrtlExecutionUtils {
 }
 
 trait HasFirrtlExecutionOptions { this: ExecutionOptionsManager =>
-  import firrtl.Viewer._
+  import firrtl.options.Viewer._
   import firrtl.FirrtlViewer._
 
   @deprecated("Use view[FirrtlExecutionOptions]", "1.2.0")

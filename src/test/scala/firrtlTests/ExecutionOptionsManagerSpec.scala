@@ -3,6 +3,7 @@
 package firrtlTests
 
 import firrtl._
+import firrtl.options.ExecutionOptionsManager
 import firrtl.annotations.Annotation
 import logger.LogLevel
 import org.scalatest.{Matchers, FreeSpec}

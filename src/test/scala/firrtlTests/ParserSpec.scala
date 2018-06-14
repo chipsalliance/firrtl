@@ -4,6 +4,7 @@ package firrtlTests
 
 import org.scalatest._
 import firrtl._
+import firrtl.options.ExecutionOptionsManager
 import org.scalacheck.Gen
 import org.scalacheck.Prop.forAll
 

@@ -4,9 +4,8 @@ package logger
 
 import java.io.{ByteArrayOutputStream, File, FileOutputStream, PrintStream}
 
-import firrtl.{
-  ExecutionOptionsManager,
-  HasFirrtlExecutionOptions }
+import firrtl.HasFirrtlExecutionOptions
+import firrtl.options.ExecutionOptionsManager
 
 import scala.util.DynamicVariable
 
@@ -14,7 +13,7 @@ import scala.util.DynamicVariable
   * This provides a facility for a log4scala* type logging system.  Why did we write our own?  Because
   * the canned ones are just to darned hard to turn on, particularly when embedded in a distribution.
   * This one can be turned on programmatically or with the options exposed in the [[firrtl.CommonOptions]]
-  * and [[ExecutionOptionsManager]] API's in firrtl.
+  * and [[options.ExecutionOptionsManager]] API's in firrtl.
   * There are 4 main options.
   *  * a simple global option to turn on all in scope (and across threads, might want to fix this)
   *  * turn on specific levels for specific fully qualified class names

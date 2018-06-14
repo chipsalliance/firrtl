@@ -16,6 +16,7 @@ import firrtl.Parser.UseInfo
 import firrtl.annotations._
 import firrtl.transforms.{DontTouchAnnotation, NoDedupAnnotation}
 import firrtl.util.BackendCompilationUtilities
+import firrtl.options.ExecutionOptionsManager
 
 trait FirrtlRunners extends BackendCompilationUtilities {
 

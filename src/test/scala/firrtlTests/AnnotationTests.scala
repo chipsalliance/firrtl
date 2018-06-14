@@ -12,6 +12,7 @@ import firrtl.passes.InlineAnnotation
 import firrtl.passes.memlib.PinAnnotation
 import firrtl.util.BackendCompilationUtilities
 import firrtl.transforms.DontTouchAnnotation
+import firrtl.options.ExecutionOptionsManager
 import net.jcazevedo.moultingyaml._
 import org.scalatest.Matchers
 import logger._
