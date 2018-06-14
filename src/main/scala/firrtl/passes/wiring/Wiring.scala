@@ -107,16 +107,17 @@ class Wiring(wiSeq: Seq[WiringInfo]) extends Pass {
         // Case where the sink is the LCA
         case Seq(WDefInstance(_,_,pm,_)) =>
           // Case where the source is also the LCA
+          val tpe = if (sinkComponents.contains(pm)) DecWire else DecOutput
           if (source.drop(lca.size).isEmpty) {
             meta(pm) = meta(pm).copy (
-              addPortOrWire = Some((portNames(pm), DecWire))
+              addPortOrWire = Some((portNames(pm), tpe))
             )
           } else {
             val WDefInstance(_,ci,cm,_) = source.drop(lca.size).head
             val to = s"${portNames(pm)}"
             val from = s"$ci.${portNames(cm)}"
             meta(pm) = meta(pm).copy(
-              addPortOrWire = Some((portNames(pm), DecWire)),
+              addPortOrWire = Some((portNames(pm), tpe)),
               cons = (meta(pm).cons :+ (to, from)).distinct
             )
           }
@@ -182,9 +183,8 @@ class Wiring(wiSeq: Seq[WiringInfo]) extends Pass {
         val defines = mutable.ArrayBuffer[Statement]()
         val connects = mutable.ArrayBuffer[Statement]()
         val ports = mutable.ArrayBuffer[Port]()
-        l.addPortOrWire match {
-          case None =>
-          case Some((s, dt)) => dt match {
+        l.addPortOrWire.foreach{ case (s, dt) =>
+          dt match {
             case DecInput  => ports += Port(NoInfo, s, Input, t)
             case DecOutput => ports += Port(NoInfo, s, Output, t)
             case DecWire   => defines += DefWire(NoInfo, s, t)
