@@ -75,7 +75,7 @@ class ClockListTransform extends Transform {
 }
 
 object ClockListTransform extends ProvidesOptions {
-  def provideOptions = (parser: OptionParser[AnnotationSeq]) => parser
+  def provideOptions(parser: OptionParser[AnnotationSeq]): Unit = parser
     .opt[String]("list-clocks")
     .abbr("clks")
     .valueName ("-c:<circuit>:-m:<module>:-o:<filename>")

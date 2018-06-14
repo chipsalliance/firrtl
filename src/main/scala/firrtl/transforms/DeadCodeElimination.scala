@@ -339,7 +339,7 @@ class DeadCodeElimination extends Transform {
 }
 
 object DeadCodeElimination extends ProvidesOptions {
-  def provideOptions = (parser: OptionParser[AnnotationSeq]) => parser
+  def provideOptions(parser: OptionParser[AnnotationSeq]): Unit = parser
     .opt[Unit]("no-dce")
     .action( (x, c) => c :+ NoDCEAnnotation )
     .maxOccurs(1)

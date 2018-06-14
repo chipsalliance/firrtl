@@ -164,7 +164,7 @@ class InferReadWrite extends Transform with SeqTransformBased {
 }
 
 object InferReadWrite extends ProvidesOptions {
-  def provideOptions = (parser: OptionParser[AnnotationSeq]) => parser
+  def provideOptions(parser: OptionParser[AnnotationSeq]): Unit = parser
     .opt[String]("infer-rw")
     .abbr("firw")
     .valueName ("<circuit>")

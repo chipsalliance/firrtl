@@ -21,7 +21,7 @@ object CheckCombLoops extends ProvidesOptions {
   class CombLoopException(info: Info, mname: String, cycle: Seq[String]) extends PassException(
     s"$info: [module $mname] Combinational loop detected:\n" + cycle.mkString("\n"))
 
-  def provideOptions = (parser: OptionParser[AnnotationSeq]) => parser
+  def provideOptions(parser: OptionParser[AnnotationSeq]): Unit = parser
     .opt[Unit]("no-check-comb-loops")
     .action( (x, c) => c :+ DontCheckCombLoopsAnnotation )
     .maxOccurs(1)

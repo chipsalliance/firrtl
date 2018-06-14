@@ -141,7 +141,7 @@ class ReplSeqMem extends Transform {
 }
 
 object ReplSeqMem extends ProvidesOptions {
-  def provideOptions = (parser: OptionParser[AnnotationSeq]) => parser
+  def provideOptions(parser: OptionParser[AnnotationSeq]): Unit = parser
     .opt[String]("repl-seq-mem")
     .abbr("frsq")
     .valueName ("-c:<circuit>:-i:<filename>:-o:<filename>")

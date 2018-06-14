@@ -145,7 +145,7 @@ class InlineInstances extends Transform {
 }
 
 object InlineInstances extends ProvidesOptions {
-  def provideOptions = (parser: OptionParser[AnnotationSeq]) => parser
+  def provideOptions(parser: OptionParser[AnnotationSeq]): Unit = parser
     .opt[Seq[String]]("inline")
     .abbr("fil")
     .valueName ("<circuit>[.<module>[.<instance>]][,..],")
