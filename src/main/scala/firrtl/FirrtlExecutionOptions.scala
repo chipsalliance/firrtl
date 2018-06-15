@@ -25,7 +25,7 @@ object FirrtlViewer {
       var includeGuard = Set[String]()
       def getIncludes(annos: Seq[Annotation]): Seq[Annotation] = annos
         .flatMap {
-          case a @ InputAnnotationFileAnnotation(Some(value)) =>
+          case a @ InputAnnotationFileAnnotation(value) =>
             if (includeGuard.contains(value)) {
               Driver.dramaticWarning("Tried to import the same annotation file twice! (Did you include it twice?)")
               Seq(a)
@@ -53,24 +53,24 @@ object FirrtlViewer {
       val x = firrtlAnnos
         .foldLeft(FirrtlExecutionOptions(annotations = nonFirrtlAnnos.toList)){ (c, x) =>
           val processed = x match {
-            case InputFileAnnotation(Some(f))            => c.copy(inputFileNameOverride = Some(f))
-            case OutputFileAnnotation(Some(f))           => c.copy(outputFileNameOverride = Some(f))
-            case OutputAnnotationFileAnnotation(Some(f)) => c.copy(outputAnnotationFileName = Some(f))
-            case InfoModeAnnotation(i)                   => c.copy(infoModeName = i)
-            case FirrtlSourceAnnotation(Some(s))         => c.copy(firrtlSource = Some(s))
-            case EmitOneFilePerModuleAnnotation          => c.copy(emitOneFilePerModule = true)
-            case InputAnnotationFileAnnotation(Some(f))  => c
-            case CompilerNameAnnotation(cx)              => c.copy(compilerName = cx,
+            case InputFileAnnotation(f)            => c.copy(inputFileNameOverride = Some(f))
+            case OutputFileAnnotation(f)           => c.copy(outputFileNameOverride = Some(f))
+            case OutputAnnotationFileAnnotation(f) => c.copy(outputAnnotationFileName = Some(f))
+            case InfoModeAnnotation(i)             => c.copy(infoModeName = i)
+            case FirrtlSourceAnnotation(s)         => c.copy(firrtlSource = Some(s))
+            case EmitOneFilePerModuleAnnotation    => c.copy(emitOneFilePerModule = true)
+            case InputAnnotationFileAnnotation(f)  => c
+            case CompilerNameAnnotation(cx)        => c.copy(compilerName = cx,
                                                              annotations = c.annotations :+
                                                                FirrtlExecutionUtils.getEmitterAnnotation(cx))
-            case TopNameAnnotation(n)                    => c.copy(topName = n)
-            case TargetDirAnnotation(d)                  => c.copy(targetDirName = d)
-            case LogLevelAnnotation(l)                   => c.copy(globalLogLevel = l)
-            case ClassLogLevelAnnotation(Some((n, l)))   => c.copy(classLogLevels = c.classLogLevels ++ Map(n -> l))
-            case LogToFileAnnotation                     => c.copy(logToFile = true)
-            case LogClassNamesAnnotation                 => c.copy(logClassNames = true)
-            case ProgramArgsAnnotation(Some(s))          => c.copy(programArgs = c.programArgs :+ s)
-            case RunFirrtlTransformAnnotation(Some(x))   => c.copy(
+            case TopNameAnnotation(n)              => c.copy(topName = Some(n))
+            case TargetDirAnnotation(d)            => c.copy(targetDirName = d)
+            case LogLevelAnnotation(l)             => c.copy(globalLogLevel = l)
+            case ClassLogLevelAnnotation(n, l)     => c.copy(classLogLevels = c.classLogLevels ++ Map(n -> l))
+            case LogToFileAnnotation               => c.copy(logToFile = true)
+            case LogClassNamesAnnotation           => c.copy(logClassNames = true)
+            case ProgramArgsAnnotation(s)          => c.copy(programArgs = c.programArgs :+ s)
+            case RunFirrtlTransformAnnotation(x)   => c.copy(
               customTransforms = c.customTransforms :+ Class.forName(x).asInstanceOf[Class[_<:Transform]].newInstance())
           }
           // [todo] Delete FirrtlExecutionOptions annotations here
@@ -112,20 +112,20 @@ final case class OneFilePerModule(targetDir: String) extends OutputConfig
   * @param emitOneFilePerModule enables one-file-per-module output in the [[Emitter]]
   */
 final case class FirrtlExecutionOptions(
-  topName:                  Option[String]              = TopNameAnnotation().topName,
+  topName:                  Option[String]              = None,
   targetDirName:            String                      = TargetDirAnnotation().targetDirName,
   globalLogLevel:           LogLevel.Value              = LogLevelAnnotation().globalLogLevel,
   classLogLevels:           Map[String, LogLevel.Value] = Map.empty,
   logToFile:                Boolean                     = false,
   logClassNames:            Boolean                     = false,
   programArgs:              Seq[String]                 = Seq.empty,
-  inputFileNameOverride:    Option[String]              = InputFileAnnotation().value,
-  outputFileNameOverride:   Option[String]              = OutputFileAnnotation().value,
-  outputAnnotationFileName: Option[String]              = OutputAnnotationFileAnnotation().value,
+  inputFileNameOverride:    Option[String]              = None,
+  outputFileNameOverride:   Option[String]              = None,
+  outputAnnotationFileName: Option[String]              = None,
   compilerName:             String                      = CompilerNameAnnotation().value,
   infoModeName:             String                      = InfoModeAnnotation().value,
   customTransforms:         Seq[Transform]              = List.empty,
-  firrtlSource:             Option[String]              = FirrtlSourceAnnotation().value,
+  firrtlSource:             Option[String]              = None,
   annotations:              List[Annotation]            = List.empty,
   emitOneFilePerModule:     Boolean                     = false,
   firrtlCircuit:            Option[Circuit]             = None) {
@@ -261,9 +261,9 @@ object FirrtlExecutionUtils {
   def topName(annotations: Seq[Annotation]): Option[String] = {
     var Seq(topName, inputFileName, firrtlSource) = Seq.fill(3)(None: Option[String]) //scalastyle:ignore
     annotations.foreach{
-      case TopNameAnnotation(Some(name))         => topName       = Some(name)
-      case InputFileAnnotation(Some(file))       => inputFileName = Some(file)
-      case FirrtlSourceAnnotation(Some(circuit)) => firrtlSource  = Some(circuit)
+      case TopNameAnnotation(name)         => topName       = Some(name)
+      case InputFileAnnotation(file)       => inputFileName = Some(file)
+      case FirrtlSourceAnnotation(circuit) => firrtlSource  = Some(circuit)
       case _ => }
     topName.orElse {
       if (inputFileName.nonEmpty) {
@@ -332,7 +332,7 @@ object FirrtlExecutionUtils {
       case _: BlackBoxTargetDirAnno     => bb = false
       case _: LogLevelAnnotation        => ll = false
       case _: CompilerNameAnnotation    => c  = false
-      case TopNameAnnotation(Some(_))   => tn = false
+      case _: TopNameAnnotation         => tn = false
       case _ =>
     }
 
@@ -344,7 +344,7 @@ object FirrtlExecutionUtils {
       (if (bb)                 Seq(BlackBoxTargetDirAnno(default.targetDirName)) else Seq() ) ++
       (if (ll)                 Seq(LogLevelAnnotation(default.globalLogLevel))   else Seq() ) ++
       (if (c)                  Seq(CompilerNameAnnotation(default.compilerName)) else Seq() ) ++
-      (if (tn & name.nonEmpty) Seq(TopNameAnnotation(Some(name.get)))            else Seq() )
+      (if (tn & name.nonEmpty) Seq(TopNameAnnotation(name.get))                  else Seq() )
   } //scalastyle:on cyclomatic.complexity
 
   /** Convert a string to an [[EmitterAnnotation]]
@@ -373,16 +373,16 @@ object FirrtlExecutionUtils {
       Seq.fill(11)(collection.mutable.ListBuffer[Annotation]())
     annos.foreach(
       _ match {
-        case a @ TopNameAnnotation(Some(_))              => tn   += a
-        case a @ InputFileAnnotation(Some(_))            => inF  += a
-        case a @ FirrtlSourceAnnotation(Some(_))         => inS  += a
-        case a: EmitOneFilePerModuleAnnotation.type      => ofpm += a
-        case a @ OutputFileAnnotation(Some(_))           => outF += a
-        case a: TargetDirAnnotation                      => td   += a
-        case a: LogLevelAnnotation                       => ll   += a
-        case a @ OutputAnnotationFileAnnotation(Some(_)) => foaf += a
-        case a: CompilerNameAnnotation                   => comp += a
-        case a: InfoModeAnnotation                       => info += a
+        case a: TopNameAnnotation                   => tn   += a
+        case a: InputFileAnnotation                 => inF  += a
+        case a: FirrtlSourceAnnotation              => inS  += a
+        case a: EmitOneFilePerModuleAnnotation.type => ofpm += a
+        case a: OutputFileAnnotation                => outF += a
+        case a: TargetDirAnnotation                 => td   += a
+        case a: LogLevelAnnotation                  => ll   += a
+        case a: OutputAnnotationFileAnnotation      => foaf += a
+        case a: CompilerNameAnnotation              => comp += a
+        case a: InfoModeAnnotation                  => info += a
         case _                                      =>           })
     if (tn.isEmpty && inF.isEmpty && inS.isEmpty) {
       throw new FIRRTLException(
@@ -407,7 +407,7 @@ object FirrtlExecutionUtils {
         s"""|No more than one output file can be specified, but found '${x.mkString(", ")}' specified via:
             |    - option or annotation: -o, --output-file, OutputFileAnnotation""".stripMargin) }
     if (tn.size != 1) {
-      val n = tn.map{ case TopNameAnnotation(Some(x)) => x }
+      val n = tn.map{ case TopNameAnnotation(x) => x }
       throw new FIRRTLException(
         s"""|Exactly one top name must be determinable, but found `${n.mkString(", ")}` specified via:
             |    - explicit top name: -tn, --top-name, TopNameAnnotation

@@ -160,7 +160,7 @@ object InlineInstances extends ProvidesOptions {
                     InlineAnnotation(ComponentName(inst, ModuleName(module, CircuitName(circuit))))
                 }
               }
-              c ++ newAnnotations :+ RunFirrtlTransformAnnotation(Some(new InlineInstances().getClass.getName)) } )
+              c ++ newAnnotations :+ RunFirrtlTransformAnnotation(new InlineInstances().getClass.getName) } )
     .text(
       """Inline one or more module (comma separated, no spaces) module looks like "MyModule" or "MyModule.myinstance""")
 }

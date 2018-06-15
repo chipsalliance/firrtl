@@ -20,17 +20,17 @@ sealed trait FirrtlOption extends HasScoptOptions
   *  - set on the command line with `-tn/--top-name`
   * @param value top module name
   */
-case class TopNameAnnotation(topName: Option[String] = None) extends NoTargetAnnotation with FirrtlOption {
+case class TopNameAnnotation(topName: String) extends NoTargetAnnotation with FirrtlOption {
   def addOptions(implicit p: OptionParser[AnnotationSeq]): Unit = p.opt[String]("top-name")
     .abbr("tn")
     .valueName("<top-level-circuit-name>")
-    .action( (x, c) => c :+ TopNameAnnotation(Some(x)) )
+    .action( (x, c) => c :+ TopNameAnnotation(x) )
     .unbounded() // See [Note 1]
     .text("This options defines the top level circuit, defaults to dut when possible")
 }
 
 object TopNameAnnotation {
-  def apply(topName: String): TopNameAnnotation = TopNameAnnotation(Some(topName))
+  private [firrtl] def apply(): TopNameAnnotation = TopNameAnnotation(topName = "")
 }
 
 /** Holds the name of the target directory
@@ -75,7 +75,7 @@ case class LogLevelAnnotation(globalLogLevel: LogLevel.Value = LogLevel.None) ex
   * @param name the class name to log
   * @param level the verbosity level
   */
-case class ClassLogLevelAnnotation(mapping: Option[(String, LogLevel.Value)] = None) extends NoTargetAnnotation
+case class ClassLogLevelAnnotation(className: String, level: LogLevel.Value) extends NoTargetAnnotation
     with FirrtlOption {
   def addOptions(implicit p: OptionParser[AnnotationSeq]): Unit = p.opt[Seq[String]]("class-log-level")
     .abbr("cll")
@@ -83,9 +83,13 @@ case class ClassLogLevelAnnotation(mapping: Option[(String, LogLevel.Value)] = N
     .action( (x, c) => c ++ (x.map { y =>
                                val className :: levelName :: _ = y.split(":").toList
                                val level = LogLevel(levelName)
-                               ClassLogLevelAnnotation(Some((className, level))) }) )
+                               ClassLogLevelAnnotation(className, level) }) )
     .unbounded() // This can actually occur any number of times safely
     .text(s"This defines per-class verbosity of logging")
+}
+
+object ClassLogLevelAnnotation {
+  private [firrtl] def apply(): ClassLogLevelAnnotation = ClassLogLevelAnnotation("", LogLevel.None)
 }
 
 /** Enables logging to a file (as opposed to STDOUT)
@@ -117,12 +121,16 @@ case object LogClassNamesAnnotation extends NoTargetAnnotation with FirrtlOption
   *  - set with any trailing option on the command line
   * @param value one [[scala.String]] argument
   */
-case class ProgramArgsAnnotation(value: Option[String] = None) extends NoTargetAnnotation with FirrtlOption {
+case class ProgramArgsAnnotation(value: String) extends NoTargetAnnotation with FirrtlOption {
   def addOptions(implicit p: OptionParser[AnnotationSeq]): Unit = p.arg[String]("<arg>...")
     .unbounded()
     .optional()
-    .action( (x, c) => c :+ ProgramArgsAnnotation(Some(x)) )
+    .action( (x, c) => c :+ ProgramArgsAnnotation(x) )
     .text("optional unbounded args")
+}
+
+object ProgramArgsAnnotation {
+  private [firrtl] def apply(): ProgramArgsAnnotation = ProgramArgsAnnotation("")
 }
 
 /** An explicit input FIRRTL file to read
@@ -131,17 +139,17 @@ case class ProgramArgsAnnotation(value: Option[String] = None) extends NoTargetA
   *  - If unset, an [[InputFileAnnotation]] with the default input file __will not be generated__
   * @param value input filename
   */
-case class InputFileAnnotation(value: Option[String] = None) extends NoTargetAnnotation with FirrtlOption {
+case class InputFileAnnotation(value: String) extends NoTargetAnnotation with FirrtlOption {
   def addOptions(implicit p: OptionParser[AnnotationSeq]): Unit = p.opt[String]("input-file")
     .abbr("i")
     .valueName ("<firrtl-source>")
-    .action( (x, c) => c :+ InputFileAnnotation(Some(x)) )
+    .action( (x, c) => c :+ InputFileAnnotation(x) )
     .unbounded() // See [Note 1]
     .text("use this to override the default input file name, default is empty")
 }
 
 object InputFileAnnotation {
-  def apply(value: String): InputFileAnnotation = InputFileAnnotation(Some(value))
+  private [firrtl] def apply(): InputFileAnnotation = InputFileAnnotation("")
 }
 
 /** An explicit output file the emitter will write to
@@ -149,17 +157,17 @@ object InputFileAnnotation {
   *   - set with `-o/--output-file`
   *  @param value output filename
   */
-case class OutputFileAnnotation(value: Option[String] = None) extends NoTargetAnnotation with FirrtlOption {
+case class OutputFileAnnotation(value: String) extends NoTargetAnnotation with FirrtlOption {
   def addOptions(implicit p: OptionParser[AnnotationSeq]): Unit = p.opt[String]("output-file")
     .abbr("o")
     .valueName("<output>")
-    .action( (x, c) => c :+ OutputFileAnnotation(Some(x)) )
+    .action( (x, c) => c :+ OutputFileAnnotation(x) )
     .unbounded()
     .text("use this to override the default output file name, default is empty")
 }
 
 object OutputFileAnnotation {
-  def apply(value: String): OutputFileAnnotation = OutputFileAnnotation(Some(value))
+  private [firrtl] def apply(): OutputFileAnnotation = OutputFileAnnotation("")
 }
 
 /** An explicit output _annotation_ file to write to
@@ -167,17 +175,17 @@ object OutputFileAnnotation {
   *  - set with `-foaf/--output-annotation-file`
   * @param value output annotation filename
   */
-case class OutputAnnotationFileAnnotation(value: Option[String] = None) extends NoTargetAnnotation with FirrtlOption {
+case class OutputAnnotationFileAnnotation(value: String) extends NoTargetAnnotation with FirrtlOption {
   def addOptions(implicit p: OptionParser[AnnotationSeq]): Unit = p.opt[String]("output-annotation-file")
     .abbr("foaf")
     .valueName ("<output-anno-file>")
-    .action( (x, c) => c :+ OutputAnnotationFileAnnotation(Some(x)) )
+    .action( (x, c) => c :+ OutputAnnotationFileAnnotation(x) )
     .unbounded() // See [Note 1]
     .text("use this to set the annotation output file")
 }
 
 object OutputAnnotationFileAnnotation {
-  def apply(value: String): OutputAnnotationFileAnnotation = OutputAnnotationFileAnnotation(Some(value))
+  private [firrtl] def apply(): OutputAnnotationFileAnnotation = OutputAnnotationFileAnnotation("")
 }
 
 /** Sets the info mode style
@@ -198,16 +206,16 @@ case class InfoModeAnnotation(value: String = "append") extends NoTargetAnnotati
   *  - set with `--firrtl-source`
   * @param value FIRRTL source as a [[scala.String]]
   */
-case class FirrtlSourceAnnotation(value: Option[String] = None) extends NoTargetAnnotation with FirrtlOption {
+case class FirrtlSourceAnnotation(value: String) extends NoTargetAnnotation with FirrtlOption {
   def addOptions(implicit p: OptionParser[AnnotationSeq]): Unit = p.opt[String]("firrtl-source")
     .valueName ("A FIRRTL string")
-    .action( (x, c) => c :+ FirrtlSourceAnnotation(Some(x)) )
+    .action( (x, c) => c :+ FirrtlSourceAnnotation(x) )
     .unbounded() // See [Note 1]
     .text(s"A FIRRTL circuit as a string")
 }
 
 object FirrtlSourceAnnotation {
-  def apply(value: String): FirrtlSourceAnnotation = FirrtlSourceAnnotation(Some(value))
+  private [firrtl] def apply(): FirrtlSourceAnnotation = FirrtlSourceAnnotation("")
 }
 
 /**  Indicates that an emitted circuit (FIRRTL, Verilog, etc.) will be one file per module
@@ -227,7 +235,7 @@ case object EmitOneFilePerModuleAnnotation extends NoTargetAnnotation with Firrt
   *  - set with `-faf/--annotation-file`
   * @param value input annotation filename
   */
-case class InputAnnotationFileAnnotation(value: Option[String] = None) extends NoTargetAnnotation with FirrtlOption {
+case class InputAnnotationFileAnnotation(value: String) extends NoTargetAnnotation with FirrtlOption {
   def addOptions(implicit p: OptionParser[AnnotationSeq]): Unit = p.opt[String]("annotation-file")
     .abbr("faf")
     .unbounded()
@@ -237,7 +245,7 @@ case class InputAnnotationFileAnnotation(value: Option[String] = None) extends N
 }
 
 object InputAnnotationFileAnnotation {
-  def apply(value: String): InputAnnotationFileAnnotation = InputAnnotationFileAnnotation(Some(value))
+  private [firrtl] def apply(): InputAnnotationFileAnnotation = InputAnnotationFileAnnotation("")
 }
 
 /** Holds the name of the compiler to run
@@ -260,7 +268,7 @@ case class CompilerNameAnnotation(value: String = "verilog") extends NoTargetAnn
   *  - set with `-fct/--custom-transforms`
   * @param value the full class name of the transform
   */
-case class RunFirrtlTransformAnnotation(value: Option[String] = None) extends NoTargetAnnotation with FirrtlOption {
+case class RunFirrtlTransformAnnotation(value: String) extends NoTargetAnnotation with FirrtlOption {
   def addOptions(implicit p: OptionParser[AnnotationSeq]): Unit = p.opt[Seq[String]]("custom-transforms")
     .abbr("fct")
     .valueName ("<package>.<class>")
@@ -274,18 +282,18 @@ case class RunFirrtlTransformAnnotation(value: Option[String] = None) extends No
                       s"Unable to create instance of Transform $x (is this an anonymous class?)", e)
                     case e: Throwable => throw new FIRRTLException(s"Unknown error when instantiating class $x", e) } )
                 p.success } )
-    .action( (x, c) => c ++ x.map(xx => RunFirrtlTransformAnnotation(Some(xx))) )
+    .action( (x, c) => c ++ x.map(RunFirrtlTransformAnnotation(_)) )
     .unbounded()
     .text("runs these custom transforms during compilation.")
 }
 
 object RunFirrtlTransformAnnotation {
-  def apply(value: String): RunFirrtlTransformAnnotation = RunFirrtlTransformAnnotation(Some(value))
+  private [firrtl] def apply(): RunFirrtlTransformAnnotation = RunFirrtlTransformAnnotation("")
 }
 
 /** Holds a FIRRTL [[Circuit]]
   * @param value a circuit
   */
-case class FirrtlCircuitAnnotation(value: Option[Circuit] = None) extends NoTargetAnnotation with FirrtlOption {
+case class FirrtlCircuitAnnotation(value: Circuit) extends NoTargetAnnotation with FirrtlOption {
   def addOptions(implicit p: OptionParser[AnnotationSeq]): Unit = Unit
 }
