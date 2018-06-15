@@ -26,14 +26,27 @@ import scopt.OptionParser
   *
   * This must be mixed into a subclass of [[annotations.Annotation]]
   */
-sealed trait FirrtlOption { this: Annotation => }
+sealed trait FirrtlOption { this: Annotation =>
+  def addOptions(implicit p: OptionParser[AnnotationSeq]): Unit = Unit
+}
 
 /** Holds the name of the top module
   *  - maps to [[FirrtlExecutionOptions.topName]]
   *  - set on the command line with `-tn/--top-name`
   * @param value top module name
   */
-case class TopNameAnnotation(value: String) extends NoTargetAnnotation with FirrtlOption
+case class TopNameAnnotation(topName: Option[String] = None) extends NoTargetAnnotation with FirrtlOption {
+  override def addOptions(implicit p: OptionParser[AnnotationSeq]): Unit = p.opt[String]("top-name")
+    .abbr("tn")
+    .valueName("<top-level-circuit-name>")
+    .action( (x, c) => c :+ TopNameAnnotation(Some(x)) )
+    .unbounded() // See [Note 1]
+    .text("This options defines the top level circuit, defaults to dut when possible")
+}
+
+object TopNameAnnotation {
+  def apply(topName: String): TopNameAnnotation = TopNameAnnotation(Some(topName))
+}
 
 /** Holds the name of the target directory
   *  - maps to [[FirrtlExecutionOptions.targetDirName]]
@@ -195,7 +208,7 @@ object FirrtlViewer {
             case CompilerNameAnnotation(cx)        => c.copy(compilerName = cx,
                                                              annotations = c.annotations :+
                                                                FirrtlExecutionUtils.getEmitterAnnotation(cx))
-            case TopNameAnnotation(n)              => c.copy(topName = Some(n))
+            case TopNameAnnotation(n)              => c.copy(topName = n)
             case TargetDirAnnotation(d)            => c.copy(targetDirName = d)
             case LogLevelAnnotation(l)             => c.copy(globalLogLevel = l)
             case ClassLogLevelAnnotation(n, l)     => c.copy(classLogLevels = c.classLogLevels ++ Map(n -> l))
@@ -244,7 +257,7 @@ final case class OneFilePerModule(targetDir: String) extends OutputConfig
   * @param emitOneFilePerModule enables one-file-per-module output in the [[Emitter]]
   */
 final case class FirrtlExecutionOptions(
-  topName:                  Option[String]              = None,
+  topName:                  Option[String]              = TopNameAnnotation().topName,
   targetDirName:            String                      = ".",
   globalLogLevel:           LogLevel.Value              = LogLevel.None,
   classLogLevels:           Map[String, LogLevel.Value] = Map.empty,
@@ -393,7 +406,7 @@ object FirrtlExecutionUtils {
   def topName(annotations: Seq[Annotation]): Option[String] = {
     var Seq(topName, inputFileName, firrtlSource) = Seq.fill(3)(None: Option[String]) //scalastyle:ignore
     annotations.foreach{
-      case TopNameAnnotation(name)         => topName       = Some(name)
+      case TopNameAnnotation(Some(name))   => topName       = Some(name)
       case InputFileAnnotation(file)       => inputFileName = Some(file)
       case FirrtlSourceAnnotation(circuit) => firrtlSource  = Some(circuit)
       case _ => }
@@ -460,11 +473,11 @@ object FirrtlExecutionUtils {
   def addDefaults(annos: Seq[Annotation]): Seq[Annotation] = { //scalastyle:off cyclomatic.complexity
     var Seq(td, bb, ll, c, tn) = Seq.fill(5)(true) //scalastyle:ignore
     annos.collect{ case a: FirrtlOption => a }.map{
-      case _: TargetDirAnnotation    => td = false
-      case _: BlackBoxTargetDirAnno  => bb = false
-      case _: LogLevelAnnotation     => ll = false
-      case _: CompilerNameAnnotation => c  = false
-      case _: TopNameAnnotation      => tn = false
+      case _: TargetDirAnnotation       => td = false
+      case _: BlackBoxTargetDirAnno     => bb = false
+      case _: LogLevelAnnotation        => ll = false
+      case _: CompilerNameAnnotation    => c  = false
+      case TopNameAnnotation(Some(_))   => tn = false
       case _ =>
     }
 
@@ -476,7 +489,7 @@ object FirrtlExecutionUtils {
       (if (bb)                 Seq(BlackBoxTargetDirAnno(default.targetDirName)) else Seq() ) ++
       (if (ll)                 Seq(LogLevelAnnotation(default.globalLogLevel))   else Seq() ) ++
       (if (c)                  Seq(CompilerNameAnnotation(default.compilerName)) else Seq() ) ++
-      (if (tn & name.nonEmpty) Seq(TopNameAnnotation(name.get))                  else Seq() )
+      (if (tn & name.nonEmpty) Seq(TopNameAnnotation(Some(name.get)))            else Seq() )
   } //scalastyle:on cyclomatic.complexity
 
   /** Convert a string to an [[EmitterAnnotation]]
@@ -505,7 +518,7 @@ object FirrtlExecutionUtils {
       Seq.fill(11)(collection.mutable.ListBuffer[Annotation]())
     annos.foreach(
       _ match {
-        case a: TopNameAnnotation                   => tn   += a
+        case a @ TopNameAnnotation(Some(_))         => tn   += a
         case a: InputFileAnnotation                 => inF  += a
         case a: FirrtlSourceAnnotation              => inS  += a
         case a: EmitOneFilePerModuleAnnotation.type => ofpm += a
@@ -539,7 +552,7 @@ object FirrtlExecutionUtils {
         s"""|No more than one output file can be specified, but found '${x.mkString(", ")}' specified via:
             |    - option or annotation: -o, --output-file, OutputFileAnnotation""".stripMargin) }
     if (tn.size != 1) {
-      val n = tn.map{ case TopNameAnnotation(x) => x }
+      val n = tn.map{ case TopNameAnnotation(Some(x)) => x }
       throw new FIRRTLException(
         s"""|Exactly one top name must be determinable, but found `${n.mkString(", ")}` specified via:
             |    - explicit top name: -tn, --top-name, TopNameAnnotation
@@ -673,12 +686,7 @@ trait HasFirrtlExecutionOptions { this: ExecutionOptionsManager =>
    * converted to some type, e.g., --log-level). All of the actual option
    * validation happens when the annotations are processed in
    * [[FirrtlExecutionUtils.checkAnnotations]]. */
-  parser.opt[String]("top-name")
-    .abbr("tn")
-    .valueName("<top-level-circuit-name>")
-    .action( (x, c) => c :+ TopNameAnnotation(x) )
-    .unbounded() // See [Note 1]
-    .text("This options defines the top level circuit, defaults to dut when possible")
+  TopNameAnnotation().addOptions
 
   parser.opt[String]("target-dir")
     .abbr("td")

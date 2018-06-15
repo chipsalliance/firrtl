@@ -16,7 +16,7 @@ class ExecutionOptionsManager(
   annotations: AnnotationSeq = AnnotationSeq(Seq.empty)) {
 
   /** Command line argument parser ([[scopt.OptionParser]]) with modifications */
-  final val parser = new AugmentedOptionParser(applicationName)
+  implicit final val parser = new AugmentedOptionParser(applicationName)
 
   /** By default scopt calls sys.exit when --help is in options, this defeats that */
   def doNotExitOnHelp(): Unit = {
