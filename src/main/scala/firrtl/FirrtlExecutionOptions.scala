@@ -26,7 +26,7 @@ import scopt.OptionParser
   *
   * This must be mixed into a subclass of [[annotations.Annotation]]
   */
-trait FirrtlOption { this: Annotation => }
+sealed trait FirrtlOption { this: Annotation => }
 
 /** Holds the name of the top module
   *  - maps to [[FirrtlExecutionOptions.topName]]
@@ -114,6 +114,12 @@ case class InfoModeAnnotation(value: String = "append") extends NoTargetAnnotati
   * @param value FIRRTL source as a [[scala.String]]
   */
 case class FirrtlSourceAnnotation(value: String) extends NoTargetAnnotation with FirrtlOption
+
+/**  Indicates that an emitted circuit (FIRRTL, Verilog, etc.) will be one file per module
+  *   - maps to [[FirrtlExecutionOptions.emitOneFilePerModule]]
+  *   - set with `--split-modules`
+  */
+case object EmitOneFilePerModuleAnnotation extends NoTargetAnnotation with FirrtlOption
 
 /** Holds a filename containing one or more [[annotations.Annotation]] to be read
   *  - this is not stored in [[FirrtlExecutionOptions]]

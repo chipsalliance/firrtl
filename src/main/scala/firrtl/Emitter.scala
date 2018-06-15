@@ -26,7 +26,6 @@ case class EmitterException(message: String) extends PassException(message)
 
 sealed trait EmitAnnotation extends NoTargetAnnotation
 case class EmitterAnnotation(emitter: Class[_ <: Emitter]) extends EmitAnnotation
-case object EmitOneFilePerModuleAnnotation extends EmitAnnotation with FirrtlOption
 
 // ***** Annotations for results of emission *****
 sealed abstract class EmittedComponent {
@@ -676,9 +675,8 @@ class VerilogEmitter extends SeqTransform with Emitter {
   }
 
   override def execute(state: CircuitState): CircuitState = {
-    val annos = state.annotations.collect{ case a: EmitAnnotation => a }
-    val oneFilePerModule = annos.collect{ case a: EmitOneFilePerModuleAnnotation.type => a }.nonEmpty
-    val newAnnos = annos.collect{ case a: EmitterAnnotation => a }.flatMap{
+    val oneFilePerModule = state.annotations.collect{ case a: EmitOneFilePerModuleAnnotation.type => a }.nonEmpty
+    val newAnnos = state.annotations.collect{ case a: EmitterAnnotation => a }.flatMap{
       case _ if oneFilePerModule =>
         val circuit = runTransforms(state).circuit
         val moduleMap = circuit.modules.map(m => m.name -> m).toMap
