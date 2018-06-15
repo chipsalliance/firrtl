@@ -11,7 +11,7 @@ import firrtl.options.ExecutionOptionsManager
 /** Annotation emitted if [[FindTargetDirTransform]] runs */
 case class FlockOfSeagullsAnnotation() extends NoTargetAnnotation
 /** Annotation emitted with the target dir [[FindTargetDirTransform]] finds */
-case class FoundTargetDirAnnotation(value: String) extends SingleStringAnnotation
+case class FoundTargetDirAnnotation(value: String) extends NoTargetAnnotation
 
 /** Looks for [[TargetDirAnnotation]] */
 class FindTargetDirTransform extends Transform {

@@ -57,6 +57,10 @@ trait SingleStringAnnotation extends NoTargetAnnotation {
   def value: String
 }
 
+trait HasScoptOptions extends Annotation {
+  def addOptions(implicit p: OptionParser[AnnotationSeq]): Unit
+}
+
 object Annotation {
   @deprecated("This returns a LegacyAnnotation, use an explicit Annotation type", "1.1")
   def apply(target: Named, transform: Class[_ <: Transform], value: String) =
