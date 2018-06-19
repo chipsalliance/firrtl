@@ -369,8 +369,8 @@ object FirrtlExecutionUtils {
     * @return true if all checks pass
     */
   def checkAnnotations(annos: Seq[Annotation]): Seq[Annotation] = {
-    val Seq(tn, inF, inS, ofpm, outF, td, ll, i, foaf, comp, info) =
-      Seq.fill(11)(collection.mutable.ListBuffer[Annotation]())
+    val Seq(tn, inF, inS, ofpm, outF, td, ll, i, foaf, comp, info, c) =
+      Seq.fill(12)(collection.mutable.ListBuffer[Annotation]())
     annos.foreach(
       _ match {
         case a: TopNameAnnotation                   => tn   += a
@@ -383,6 +383,7 @@ object FirrtlExecutionUtils {
         case a: OutputAnnotationFileAnnotation      => foaf += a
         case a: CompilerNameAnnotation              => comp += a
         case a: InfoModeAnnotation                  => info += a
+        case a: FirrtlCircuitAnnotation             => c    += a
         case _                                      =>           })
     if (tn.isEmpty && inF.isEmpty && inS.isEmpty) {
       throw new FIRRTLException(
@@ -390,11 +391,12 @@ object FirrtlExecutionUtils {
             |    - a top module name: -tn, --top-name,      TopNameAnnotation
             |    - an input file:     -i,  --input-file,    InputFileAnnotation
             |    - FIRRTL source:          --firrtl-source, FirrtlSourceAnnotation""".stripMargin )}
-    if (inF.size + inS.size > 1) {
+    if (inF.size + inS.size + c.size > 1) {
       throw new FIRRTLException(
         s"""|Multiply defined input FIRRTL sources. More than one of the following was found:
-            |    - an input file (${inF.size} times): -i, --input-file, InputFileAnnotation
-            |    - FIRRTL source (${inS.size} times):     --firrtl-source, FirrtlSourceAnnotation""".stripMargin )}
+            |    - an input file (${inF.size} times): -i, --input-file,    InputFileAnnotation
+            |    - FIRRTL source (${inS.size} times):     --firrtl-source, FirrtlSourceAnnotation
+            |    - a FIRRTL circuit (${c.size} times):                     FirrtlCircuitAnnotation""".stripMargin )}
     if (ofpm.nonEmpty && outF.nonEmpty) {
       throw new FIRRTLException(
         s"""|Output file is incompatible with one file per module, but multiples were found:

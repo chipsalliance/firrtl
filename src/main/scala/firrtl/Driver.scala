@@ -103,31 +103,10 @@ object Driver {
     val firrtlOptions = view[FirrtlExecutionOptions].getOrElse{
       throw new FIRRTLException("Unable to determine FIRRTL options for provided command line options and annotations") }
     Try {
-      // Check that only one "override" is used
-      val circuitSources = Map(
-        "firrtlSource" -> firrtlOptions.firrtlSource.isDefined,
-        "firrtlCircuit" -> firrtlOptions.firrtlCircuit.isDefined,
-        "inputFileNameOverride" -> firrtlOptions.inputFileNameOverride.nonEmpty)
-      if (circuitSources.values.count(x => x) > 1) {
-        val msg = circuitSources.collect { case (s, true) => s }.mkString(" and ") +
-          " are set, only 1 can be set at a time!"
-        throw new OptionsException(msg)
-      }
       firrtlOptions.firrtlCircuit.getOrElse {
         val source = firrtlOptions.firrtlSource match {
           case Some(text) => text.split("\n").toIterator
           case None =>
-          if (optionsManager.topName.isEmpty && firrtlOptions.inputFileNameOverride.isEmpty) {
-            val message = "either top-name or input-file-override must be set"
-            throw new OptionsException(message)
-          }
-          if (
-            optionsManager.topName.isEmpty &&
-              firrtlOptions.inputFileNameOverride.nonEmpty &&
-              firrtlOptions.outputFileNameOverride.isEmpty) {
-            val message = "inputFileName set but neither top-name or output-file-override is set"
-            throw new OptionsException(message)
-          }
           val inputFileName = firrtlOptions.getInputFileName(optionsManager)
           try {
             io.Source.fromFile(inputFileName).getLines()
