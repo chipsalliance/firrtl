@@ -103,20 +103,19 @@ object Driver {
     val firrtlOptions = view[FirrtlExecutionOptions].getOrElse{
       throw new FIRRTLException("Unable to determine FIRRTL options for provided command line options and annotations") }
     Try {
+      // Check that only one "override" is used
       firrtlOptions.firrtlCircuit.getOrElse {
-        val source = firrtlOptions.firrtlSource match {
-          case Some(text) => text.split("\n").toIterator
-          case None =>
+        firrtlOptions.firrtlSource.map(x => Parser.parseString(x, firrtlOptions.infoMode)).getOrElse {
           val inputFileName = firrtlOptions.getInputFileName(optionsManager)
           try {
-            io.Source.fromFile(inputFileName).getLines()
-          } catch {
+            Parser.parseFile(inputFileName, firrtlOptions.infoMode)
+          }
+          catch {
             case _: FileNotFoundException =>
               val message = s"Input file $inputFileName not found"
               throw new OptionsException(message)
           }
         }
-        Parser.parse(source, firrtlOptions.infoMode)
       }
     }
   }
