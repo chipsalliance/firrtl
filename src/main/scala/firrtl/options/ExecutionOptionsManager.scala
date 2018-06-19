@@ -3,6 +3,7 @@
 package firrtl.options
 
 import firrtl.{AnnotationSeq, FIRRTLException}
+import scopt.OptionParser
 
 /** A store of command line options as an [[AnnotationSeq]]
   *
@@ -16,7 +17,9 @@ class ExecutionOptionsManager(
   annotations: AnnotationSeq = AnnotationSeq(Seq.empty)) {
 
   /** Command line argument parser ([[scopt.OptionParser]]) with modifications */
-  implicit final val parser = new AugmentedOptionParser(applicationName)
+  implicit final val parser = new OptionParser[AnnotationSeq](applicationName)
+      with TerminateOnExit[AnnotationSeq]
+      with DuplicateHandling[AnnotationSeq]
 
   /** By default scopt calls sys.exit when --help is in options, this defeats that */
   def doNotExitOnHelp(): Unit = {
