@@ -250,31 +250,21 @@ object FirrtlExecutionUtils {
 
   /** Determine the top name using the following precedence (highest to lowest):
     *  - Explicitly from the user-specified `--top-name`
-    *  - Implicitly from the top module ([[ir.Circuit.main]]) of `--input-file`
-    *  - Implicitly from the top module ([[ir.Circuit.main]]) of `--firrtl-source`
+    *  - Implicitly from the top module ([[ir.Circuit.main]]) of [[FirrtlCircuitAnnotation]]
+    *  - Implicitly from the top module ([[ir.Circuit.main]]) of `--firrtl-source`/[[FirrtlSourceAnnotation]]
+    *  - Implicitly from the top module ([[ir.Circuit.main]]) of `--input-file`/[[InputFileAnnotation]]
     *
     * @param annotations annotations to extract topName from
     * @return the top module _if it can be determined_
-    * @note `--input-file` and `--firrtl-source` are mutually exclusive
+    * @note [[FirrtlCircuitAnnotation]], [[FirrtlSourceAnnotation]], and [[InputFileAnnotation]]
     * @note this is safe to use before [[HasFirrtlExecutionOptions.firrtlOptions]] is set
     */
-  def topName(annotations: Seq[Annotation]): Option[String] = {
-    var Seq(topName, inputFileName, firrtlSource) = Seq.fill(3)(None: Option[String]) //scalastyle:ignore
-    annotations.foreach{
-      case TopNameAnnotation(name)         => topName       = Some(name)
-      case InputFileAnnotation(file)       => inputFileName = Some(file)
-      case FirrtlSourceAnnotation(circuit) => firrtlSource  = Some(circuit)
-      case _ => }
-    topName.orElse {
-      if (inputFileName.nonEmpty) {
-        Some(io.Source.fromFile(inputFileName.get).getLines().mkString("\n"))
-      } else if (firrtlSource.nonEmpty) {
-        Some(Parser.parse(firrtlSource.get).main)
-      } else {
-        None
-      }
-    }
-  }
+  def topName(annotations: Seq[Annotation]): Option[String] =
+    annotations.collectFirst{ case TopNameAnnotation(n) => n }.orElse(
+      annotations.collectFirst{ case FirrtlCircuitAnnotation(c) => c.main }.orElse(
+        annotations.collectFirst{ case FirrtlSourceAnnotation(s) => Parser.parse(s).main }.orElse(
+          annotations.collectFirst{ case InputFileAnnotation(f) =>
+            Parser.parse(io.Source.fromFile(f).getLines().mkString("\n")).main } )))
 
   /** Read all [[annotations.Annotation]] from a file in JSON or YAML format
     *
