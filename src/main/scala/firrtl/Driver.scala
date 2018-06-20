@@ -116,23 +116,22 @@ object Driver {
 
     val loadedAnnos = annoFiles.flatMap { file =>
       if (!file.exists) {
-        throw new FileNotFoundException(s"Annotation file $file not found!")
+        throw new AnnotationFileNotFoundException(file)
       }
       // Try new protocol first
-      JsonProtocol.deserializeTry(file).getOrElse {
-        val annos = Try {
+      JsonProtocol.deserializeTry(file).recoverWith { case jsonException =>
+        // Try old protocol if new one fails
+        Try {
           val yaml = io.Source.fromFile(file).getLines().mkString("\n").parseYaml
-          yaml.convertTo[List[LegacyAnnotation]]
+          val result = yaml.convertTo[List[LegacyAnnotation]]
+          val msg = s"$file is a YAML file!\n" +
+                    (" "*9) + "YAML Annotation files are deprecated! Use JSON"
+          Driver.dramaticWarning(msg)
+          result
+        }.orElse { // Propagate original JsonProtocol exception if YAML also fails
+          Failure(jsonException)
         }
-        annos match {
-          case Success(result) =>
-            val msg = s"$file is a YAML file!\n" +
-                      (" "*9) + "YAML Annotation files are deprecated! Use JSON"
-            Driver.dramaticWarning(msg)
-            result
-          case Failure(_) => throw new InvalidAnnotationFileException(file.toString)
-        }
-      }
+      }.get
     }
 
     val targetDirAnno = List(BlackBoxTargetDirAnno(optionsManager.targetDirName))
@@ -149,6 +148,53 @@ object Driver {
     LegacyAnnotation.convertLegacyAnnos(annos)
   }
 
+  // Useful for handling erros in the options
+  case class OptionsException(msg: String) extends Exception(msg)
+
+  /** Get the Circuit from the compile options
+    *
+    * Handles the myriad of ways it can be specified
+    */
+  def getCircuit(optionsManager: ExecutionOptionsManager with HasFirrtlOptions): Try[ir.Circuit] = {
+    val firrtlConfig = optionsManager.firrtlOptions
+    Try {
+      // Check that only one "override" is used
+      val circuitSources = Map(
+        "firrtlSource" -> firrtlConfig.firrtlSource.isDefined,
+        "firrtlCircuit" -> firrtlConfig.firrtlCircuit.isDefined,
+        "inputFileNameOverride" -> firrtlConfig.inputFileNameOverride.nonEmpty)
+      if (circuitSources.values.count(x => x) > 1) {
+        val msg = circuitSources.collect { case (s, true) => s }.mkString(" and ") +
+          " are set, only 1 can be set at a time!"
+        throw new OptionsException(msg)
+      }
+      firrtlConfig.firrtlCircuit.getOrElse {
+        firrtlConfig.firrtlSource.map(x => Parser.parseString(x, firrtlConfig.infoMode)).getOrElse {
+          if (optionsManager.topName.isEmpty && firrtlConfig.inputFileNameOverride.isEmpty) {
+            val message = "either top-name or input-file-override must be set"
+            throw new OptionsException(message)
+          }
+          if (
+            optionsManager.topName.isEmpty &&
+              firrtlConfig.inputFileNameOverride.nonEmpty &&
+              firrtlConfig.outputFileNameOverride.isEmpty) {
+            val message = "inputFileName set but neither top-name or output-file-override is set"
+            throw new OptionsException(message)
+          }
+          val inputFileName = firrtlConfig.getInputFileName(optionsManager)
+          try {
+            Parser.parseFile(inputFileName, firrtlConfig.infoMode)
+          }
+          catch {
+            case _: FileNotFoundException =>
+              val message = s"Input file $inputFileName not found"
+              throw new OptionsException(message)
+          }
+        }
+      }
+    }
+  }
+
   /**
     * Run the firrtl compiler using the provided option
     *
@@ -161,49 +207,25 @@ object Driver {
     def firrtlConfig = optionsManager.firrtlOptions
 
     Logger.makeScope(optionsManager) {
-      val firrtlSource = firrtlConfig.firrtlSource match {
-        case Some(text) => text.split("\n").toIterator
-        case None =>
-          if (optionsManager.topName.isEmpty && firrtlConfig.inputFileNameOverride.isEmpty) {
-            val message = "either top-name or input-file-override must be set"
-            dramaticError(message)
-            return FirrtlExecutionFailure(message)
-          }
-          if (
-            optionsManager.topName.isEmpty &&
-              firrtlConfig.inputFileNameOverride.nonEmpty &&
-              firrtlConfig.outputFileNameOverride.isEmpty) {
-            val message = "inputFileName set but neither top-name or output-file-override is set"
-            dramaticError(message)
-            return FirrtlExecutionFailure(message)
-          }
-          val inputFileName = firrtlConfig.getInputFileName(optionsManager)
-          try {
-            io.Source.fromFile(inputFileName).getLines()
-          }
-          catch {
-            case _: FileNotFoundException =>
-              val message = s"Input file $inputFileName not found"
-              dramaticError(message)
-              return FirrtlExecutionFailure(message)
-          }
-      }
-
-      var maybeFinalState: Option[CircuitState] = None
-
       // Wrap compilation in a try/catch to present Scala MatchErrors in a more user-friendly format.
-      try {
-        val annos = getAnnotations(optionsManager)
+      val finalState = try {
+        val circuit = getCircuit(optionsManager) match {
+          case Success(c) => c
+          case Failure(OptionsException(msg)) =>
+            dramaticError(msg)
+            return FirrtlExecutionFailure(msg)
+          case Failure(e) => throw e
+        }
 
-        val parsedInput = Parser.parse(firrtlSource, firrtlConfig.infoMode)
+        val annos = getAnnotations(optionsManager)
 
         // Does this need to be before calling compiler?
         optionsManager.makeTargetDir()
 
-        maybeFinalState = Some(firrtlConfig.compiler.compile(
-          CircuitState(parsedInput, ChirrtlForm, annos),
+        firrtlConfig.compiler.compile(
+          CircuitState(circuit, ChirrtlForm, annos),
           firrtlConfig.customTransforms
-        ))
+        )
       }
       catch {
         // Rethrow the exceptions which are expected or due to the runtime environment (out of memory, stack overflow)
@@ -213,8 +235,6 @@ object Driver {
         // Treat remaining exceptions as internal errors.
         case e: Exception => throwInternalError(exception = Some(e))
       }
-
-      val finalState = maybeFinalState.get
 
       // Do emission
       // Note: Single emission target assumption is baked in here
@@ -248,7 +268,7 @@ object Driver {
           outputFile.close()
       }
 
-      FirrtlExecutionSuccess(firrtlConfig.compilerName, emittedRes)
+      FirrtlExecutionSuccess(firrtlConfig.compilerName, emittedRes, finalState)
     }
   }
 
@@ -340,19 +360,36 @@ object FileUtils {
     }
   }
 
-  /** Indicate if an external command (executable) is available.
+  /** Indicate if an external command (executable) is available (from the current PATH).
     *
-    * @param cmd the command/executable
-    * @return true if ```cmd``` is found in PATH.
+    * @param cmd the command/executable plus any arguments to the command as a Seq().
+    * @return true if ```cmd <args>``` returns a 0 exit status.
     */
-  def isCommandAvailable(cmd: String): Boolean = {
+  def isCommandAvailable(cmd: Seq[String]): Boolean = {
     // Eat any output.
     val sb = new StringBuffer
     val ioToDevNull = BasicIO(withIn = false, sb, None)
 
-    Seq("bash", "-c", "which %s".format(cmd)).run(ioToDevNull).exitValue == 0
+    try {
+      cmd.run(ioToDevNull).exitValue == 0
+    } catch {
+      case e: Throwable => false
+    }
   }
 
-  /** Flag indicating if vcs is available (for Verilog compilation and testing). */
-  lazy val isVCSAvailable: Boolean = isCommandAvailable("vcs")
+  /** Indicate if an external command (executable) is available (from the current PATH).
+    *
+    * @param cmd the command/executable (without any arguments).
+    * @return true if ```cmd``` returns a 0 exit status.
+    */
+  def isCommandAvailable(cmd:String): Boolean = {
+    isCommandAvailable(Seq(cmd))
+  }
+
+  /** Flag indicating if vcs is available (for Verilog compilation and testing).
+    * We used to use a bash command (`which ...`) to determine this, but this is problematic on Windows (issue #807).
+    * Instead we try to run the executable itself (with innocuous arguments) and interpret any errors/exceptions
+    *  as an indication that the executable is unavailable.
+    */
+  lazy val isVCSAvailable: Boolean = isCommandAvailable(Seq("vcs",  "-platform"))
 }

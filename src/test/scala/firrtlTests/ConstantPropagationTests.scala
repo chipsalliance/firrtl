@@ -543,7 +543,7 @@ class ConstantPropagationSingleModule extends ConstantPropagationSpec {
     output z : UInt<1>
     node _T_1 = and(x, y)
     node n = _T_1
-    z <= n
+    z <= and(n, x)
 """
       val check =
 """circuit Top :
@@ -553,7 +553,7 @@ class ConstantPropagationSingleModule extends ConstantPropagationSpec {
     output z : UInt<1>
     node n = and(x, y)
     node _T_1 = n
-    z <= n
+    z <= and(n, x)
 """
       (parse(exec(input))) should be (parse(check))
    }
@@ -663,7 +663,7 @@ class ConstantPropagationSingleModule extends ConstantPropagationSpec {
     wire hit : UInt<1>
     node _T_1 = or(x, y)
     node _T_2 = _T_1
-    hit <= _T_1
+    hit <= or(x, y)
     z <= hit
 """
       (parse(exec(input))) should be (parse(check))
@@ -893,6 +893,23 @@ class ConstantPropagationIntegrationSpec extends LowTransformSpec {
     execute(input, check, Seq.empty)
   }
 
+  it should "remove pads if the width is <= the width of the argument" in {
+    def input(w: Int) =
+     s"""circuit Top :
+        |  module Top :
+        |    input x : UInt<8>
+        |    output z : UInt<8>
+        |    z <= pad(x, $w)""".stripMargin
+    val check =
+      """circuit Top :
+        |  module Top :
+        |    input x : UInt<8>
+        |    output z : UInt<8>
+        |    z <= x""".stripMargin
+    execute(input(6), check, Seq.empty)
+    execute(input(8), check, Seq.empty)
+  }
+
 
   "Registers with no reset or connections" should "be replaced with constant zero" in {
       val input =
@@ -967,6 +984,84 @@ class ConstantPropagationIntegrationSpec extends LowTransformSpec {
           |    input reset : UInt<1>
           |    output z : UInt<8>
           |    z <= UInt<8>("hb")""".stripMargin
+    execute(input, check, Seq.empty)
+  }
+
+  "Connections to a node reference" should "be replaced with the rhs of that node" in {
+      val input =
+        """circuit Top :
+          |  module Top :
+          |    input a : UInt<8>
+          |    input b : UInt<8>
+          |    input c : UInt<1>
+          |    output z : UInt<8>
+          |    node x = mux(c, a, b)
+          |    z <= x""".stripMargin
+      val check =
+        """circuit Top :
+          |  module Top :
+          |    input a : UInt<8>
+          |    input b : UInt<8>
+          |    input c : UInt<1>
+          |    output z : UInt<8>
+          |    z <= mux(c, a, b)""".stripMargin
+    execute(input, check, Seq.empty)
+  }
+
+  "Registers connected only to themselves" should "be replaced with zero" in {
+      val input =
+        """circuit Top :
+          |  module Top :
+          |    input clock : Clock
+          |    output a : UInt<8>
+          |    reg ra : UInt<8>, clock
+          |    ra <= ra
+          |    a <= ra
+          |""".stripMargin
+      val check =
+        """circuit Top :
+          |  module Top :
+          |    input clock : Clock
+          |    output a : UInt<8>
+          |    a <= UInt<8>(0)
+          |""".stripMargin
+    execute(input, check, Seq.empty)
+  }
+
+  "Registers connected only to themselves from constant propagation" should "be replaced with zero" in {
+      val input =
+        """circuit Top :
+          |  module Top :
+          |    input clock : Clock
+          |    output a : UInt<8>
+          |    reg ra : UInt<8>, clock
+          |    ra <= or(ra, UInt(0))
+          |    a <= ra
+          |""".stripMargin
+      val check =
+        """circuit Top :
+          |  module Top :
+          |    input clock : Clock
+          |    output a : UInt<8>
+          |    a <= UInt<8>(0)
+          |""".stripMargin
+    execute(input, check, Seq.empty)
+  }
+
+  "Temporary named port" should "not be declared as a node" in {
+    val input =
+      """circuit Top :
+        |  module Top :
+        |    input _T_61 : UInt<1>
+        |    output z : UInt<1>
+        |    node a = _T_61
+        |    z <= a""".stripMargin
+    val check =
+      """circuit Top :
+        |  module Top :
+        |    input _T_61 : UInt<1>
+        |    output z : UInt<1>
+        |    z <= _T_61""".stripMargin
     execute(input, check, Seq.empty)
   }
 }

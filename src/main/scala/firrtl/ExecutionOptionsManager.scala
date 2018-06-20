@@ -4,6 +4,7 @@ package firrtl
 
 import firrtl.annotations._
 import firrtl.Parser._
+import firrtl.ir.Circuit
 import firrtl.passes.memlib.{InferReadWriteAnnotation, ReplSeqMemAnnotation}
 import firrtl.passes.clocklist.ClockListAnnotation
 import logger.LogLevel
@@ -68,7 +69,7 @@ case class CommonOptions(
 }
 
 /** Annotation that contains the [[CommonOptions]] target directory */
-case class TargetDirAnnotation(value: String) extends SingleStringAnnotation
+case class TargetDirAnnotation(value: String) extends NoTargetAnnotation
 
 trait HasCommonOptions {
   self: ExecutionOptionsManager =>
@@ -184,7 +185,9 @@ case class FirrtlExecutionOptions(
     emitOneFilePerModule:   Boolean = false,
     dontCheckCombLoops:     Boolean = false,
     noDCE:                  Boolean = false,
-    annotationFileNames:    List[String] = List.empty)
+    annotationFileNames:    List[String] = List.empty,
+    firrtlCircuit:          Option[Circuit] = None
+)
 extends ComposableOptions {
 
   require(!(emitOneFilePerModule && outputFileNameOverride.nonEmpty),
@@ -473,6 +476,18 @@ trait HasFirrtlOptions {
 
 sealed trait FirrtlExecutionResult
 
+object FirrtlExecutionSuccess {
+  def apply(
+    emitType    : String,
+    emitted     : String,
+    circuitState: CircuitState
+  ): FirrtlExecutionSuccess = new FirrtlExecutionSuccess(emitType, emitted, circuitState)
+
+
+  def unapply(arg: FirrtlExecutionSuccess): Option[(String, String)] = {
+    Some((arg.emitType, arg.emitted))
+  }
+}
 /**
   * Indicates a successful execution of the firrtl compiler, returning the compiled result and
   * the type of compile
@@ -480,7 +495,11 @@ sealed trait FirrtlExecutionResult
   * @param emitType  The name of the compiler used, currently "high", "middle", "low", "verilog", or "sverilog"
   * @param emitted   The emitted result of compilation
   */
-case class FirrtlExecutionSuccess(emitType: String, emitted: String) extends FirrtlExecutionResult
+class FirrtlExecutionSuccess(
+  val emitType: String,
+  val emitted : String,
+  val circuitState: CircuitState
+) extends FirrtlExecutionResult
 
 /**
   * The firrtl compilation failed.

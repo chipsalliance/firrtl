@@ -11,9 +11,7 @@
 
  For a detailed description of Firrtl's intermediate representation, see the document "Specification of the Firrtl Language" located in [spec/spec.pdf](https://github.com/ucb-bar/firrtl/blob/master/spec/spec.pdf).
 
- This repository is in ALPHA VERSION, so many things may change in the coming months.
-
-#### Wiki's and Tutorials
+#### Wiki Pages and Tutorials
 
 Useful information is on our wiki, located here:
 * https://github.com/ucb-bar/firrtl/wiki
@@ -40,7 +38,7 @@ sbt assembly
 * Yosys Verilog-to-Firrtl Front-end: https://github.com/cliffordwolf/yosys
 
 #### Installation Instructions
-*Disclaimer*: This project is in alpha, so there is no guarantee anything works. The installation instructions should work for OSX/Linux machines.
+*Disclaimer*: The installation instructions should work for OSX/Linux machines. Other environments may not be tested.
 
 ##### Prerequisites
  1. If not already installed, install [verilator](http://www.veripool.org/projects/verilator/wiki/Installing) (Requires at least v3.886)
@@ -48,7 +46,7 @@ sbt assembly
 
 ##### Installation
  1. Clone the repository:
-    ```git clone https://github.com/ucb-bar/firrtl.git && cd firrtl```
+    ```git clone https://github.com/freechipsproject/firrtl.git && cd firrtl```
  1. Compile firrtl: ```sbt compile```
  1. Run tests: ```sbt test```
  1. Build executable (`utils/bin/firrtl`): ```sbt assembly```

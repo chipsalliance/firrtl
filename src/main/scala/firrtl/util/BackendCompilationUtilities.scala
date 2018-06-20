@@ -7,6 +7,8 @@ import java.nio.file.Files
 import java.text.SimpleDateFormat
 import java.util.Calendar
 
+import firrtl.FirrtlExecutionOptions
+
 import scala.sys.process.{ProcessBuilder, ProcessLogger, _}
  
 trait BackendCompilationUtilities {
@@ -83,15 +85,17 @@ trait BackendCompilationUtilities {
     * @param cppHarness C++ testharness to compile/link against
     */
   def verilogToCpp(
-                    dutFile: String,
-                    dir: File,
-                    vSources: Seq[File],
-                    cppHarness: File
-                  ): ProcessBuilder = {
+    dutFile: String,
+    dir: File,
+    vSources: Seq[File],
+    cppHarness: File,
+    suppressVcd: Boolean = false
+  ): ProcessBuilder = {
+
     val topModule = dutFile
 
     val blackBoxVerilogList = {
-      val list_file = new File(dir, firrtl.transforms.BlackBoxSourceHelper.FileListName)
+      val list_file = new File(dir, firrtl.transforms.BlackBoxSourceHelper.fileListName)
       if(list_file.exists()) {
         Seq("-f", list_file.getAbsolutePath)
       }
@@ -109,8 +113,10 @@ trait BackendCompilationUtilities {
       Seq("--assert",
         "-Wno-fatal",
         "-Wno-WIDTH",
-        "-Wno-STMTDLY",
-        "--trace",
+        "-Wno-STMTDLY"
+      ) ++
+      { if(suppressVcd) { Seq.empty } else { Seq("--trace")} } ++
+      Seq(
         "-O1",
         "--top-module", topModule,
         "+define+TOP_TYPE=V" + dutFile,
