@@ -17,34 +17,6 @@ class ReplaceTruncatingArithmeticSpec extends FirrtlFlatSpec {
     compile(str)
   }
 
-  "Truncting addition" should "be inferred and emitted in Verilog" in {
-    val result = compileBody(s"""
-      |input x : UInt<8>
-      |input y : UInt<8>
-      |output z : UInt<8>
-      |z <= tail(add(x, y), 1)""".stripMargin
-    )
-    result should containLine (s"assign z = x + y;")
-  }
-  it should "be inferred and emitted in Verilog even with an intermediate node" in {
-    val result = compileBody(s"""
-      |input x : UInt<8>
-      |input y : UInt<8>
-      |output z : UInt<8>
-      |node n = add(x, y)
-      |z <= tail(n, 1)""".stripMargin
-    )
-    result should containLine (s"assign z = x + y;")
-  }
-  "Truncting subtraction" should "be inferred and emitted in Verilog" in {
-    val result = compileBody(s"""
-      |input x : UInt<8>
-      |input y : UInt<8>
-      |output z : UInt<8>
-      |z <= tail(sub(x, y), 1)""".stripMargin
-    )
-    result should containLine (s"assign z = x - y;")
-  }
   "Tailing more than 1" should "not result in a truncating operator" in {
     val result = compileBody(s"""
       |input x : UInt<8>
