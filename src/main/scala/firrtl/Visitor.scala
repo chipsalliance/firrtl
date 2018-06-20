@@ -284,6 +284,9 @@ class Visitor(infoMode: InfoMode) extends FIRRTLBaseVisitor[FirrtlNode] {
     }
   }
 
+  // TODO
+  // - Add mux
+  // - Add validif
   private def visitExp[FirrtlNode](ctx: FIRRTLParser.ExpContext): Expression = {
     val ctx_exp = ctx.exp.asScala
     if (ctx.getChildCount == 1)
@@ -291,24 +294,32 @@ class Visitor(infoMode: InfoMode) extends FIRRTLBaseVisitor[FirrtlNode] {
     else
       ctx.getChild(0).getText match {
         case "UInt" =>
-          if (ctx.getChildCount > 4) {
-            val width = IntWidth(string2BigInt(ctx.intLit(0).getText))
-            val value = string2BigInt(ctx.intLit(1).getText)
-            UIntLiteral(value, width)
-          } else {
-            val value = string2BigInt(ctx.intLit(0).getText)
-            UIntLiteral(value)
-          }
+          // This could be better
+          val (width, value) =
+            if (ctx.getChildCount > 4)
+              (IntWidth(string2BigInt(ctx.intLit(0).getText)), string2BigInt(ctx.intLit(1).getText))
+            else {
+              val bigint = string2BigInt(ctx.intLit(0).getText)
+              (IntWidth(BigInt(scala.math.max(bigint.bitLength, 1))), bigint)
+            }
+          UIntLiteral(value, width)
         case "SInt" =>
-          if (ctx.getChildCount > 4) {
-            val width = string2BigInt(ctx.intLit(0).getText)
-            val value = string2BigInt(ctx.intLit(1).getText)
-            SIntLiteral(value, IntWidth(width))
-          } else {
-            val str = ctx.intLit(0).getText
-            val value = string2BigInt(str)
-            SIntLiteral(value)
-          }
+          val (width, value) =
+            if (ctx.getChildCount > 4) {
+              val width = string2BigInt(ctx.intLit(0).getText)
+              val value = string2BigInt(ctx.intLit(1).getText)
+              (IntWidth(width), value)
+            } else {
+              val str = ctx.intLit(0).getText
+              val value = string2BigInt(str)
+              // To calculate bitwidth of negative number,
+              //  1) negate number and subtract one to get the maximum positive value.
+              //  2) get bitwidth of max positive number
+              //  3) add one to account for the signed representation
+              val width = if (value < 0) (value.abs - BigInt(1)).bitLength + 1 else value.bitLength + 1
+              (IntWidth(BigInt(width)), value)
+            }
+          SIntLiteral(value, width)
         case "validif(" => ValidIf(visitExp(ctx_exp(0)), visitExp(ctx_exp(1)), UnknownType)
         case "mux(" => Mux(visitExp(ctx_exp(0)), visitExp(ctx_exp(1)), visitExp(ctx_exp(2)), UnknownType)
         case _ =>

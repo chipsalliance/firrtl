@@ -405,7 +405,7 @@ class UnitTests extends FirrtlFlatSpec {
 
     val result = execute(input, passes)
 
-    def u(value: Int) = UIntLiteral(BigInt(value))
+    def u(value: Int) = UIntLiteral(BigInt(value), IntWidth(scala.math.max(BigInt(value).bitLength, 1)))
 
     val ut16 = UIntType(IntWidth(BigInt(16)))
     val ut2 = UIntType(IntWidth(BigInt(2)))
