@@ -151,7 +151,7 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
         firrtlOptions.annotations.toSet should be (expectedAnnotations)
       }
       "infer-rw annotation" in {
-        val args = Array(Array("--top-name", "null"), Array("--infer-rw", "circuit"))
+        val args = Array(Array("--top-name", "null"), Array("--infer-rw"))
         val optionsManager = new ExecutionOptionsManager("test", args.flatten) with HasFirrtlExecutionOptions
 
         val firrtlOptions = optionsManager.firrtlOptions
@@ -310,7 +310,7 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
     val annoFile = new File("annotations.anno")
     copyResourceToFile("/annotations/SampleAnnotations.anno.json", annoFile)
     val args = Array( Array("--top-name", "null"),
-                      Array("--infer-rw", "circuit"),
+                      Array("--infer-rw"),
                       Array("-faf", annoFile.toString) )
 
     val optionsManager = new ExecutionOptionsManager(

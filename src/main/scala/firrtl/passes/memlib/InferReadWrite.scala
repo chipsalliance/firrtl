@@ -165,10 +165,10 @@ class InferReadWrite extends Transform with SeqTransformBased {
 
 object InferReadWrite extends ProvidesOptions {
   def provideOptions(parser: OptionParser[AnnotationSeq]): Unit = parser
-    .opt[String]("infer-rw")
+    .opt[Unit]("infer-rw")
     .abbr("firw")
     .valueName ("<circuit>")
-    .action( (x, c) => c ++ Seq(InferReadWriteAnnotation,
+    .action( (_, c) => c ++ Seq(InferReadWriteAnnotation,
                                 RunFirrtlTransformAnnotation(new InferReadWrite().getClass.getName)) )
     .maxOccurs(1)
     .text("Enable readwrite port inference for the target circuit")
