@@ -231,7 +231,7 @@ class InlineInstancesTests extends LowTransformSpec {
       """|circuit Top:
          |  module Top:
          |    inst foo of Foo
-         |    node foo_ = UInt<1>("h0")
+         |    node foo_foo = UInt<1>("h0")
          |    node foo__bar = UInt<1>("h0")
          |  module Foo:
          |    inst bar of Bar
@@ -246,7 +246,7 @@ class InlineInstancesTests extends LowTransformSpec {
          |    node foo___bar_bar = UInt<1>("h0")
          |    inst foo___baz of Bar
          |    node foo___foo = UInt<1>("h0")
-         |    node foo_ = UInt<1>("h0")
+         |    node foo_foo = UInt<1>("h0")
          |    node foo__bar = UInt<1>("h0")
          |  module Bar:
          |    node bar = UInt<1>("h0")
