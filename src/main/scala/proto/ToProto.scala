@@ -55,6 +55,20 @@ object ToProto {
       .setValue(value.toString)
   }
 
+  def convert(info: ir.Info): Firrtl.SourceInfo.Builder = {
+    val ib = Firrtl.SourceInfo.newBuilder()
+    info match {
+      case ir.NoInfo =>
+        ib.setNone(Firrtl.SourceInfo.None.newBuilder)
+      case ir.FileInfo(ir.StringLit(text)) =>
+        ib.setText(text)
+      // TODO properly implement MultiInfo
+      case ir.MultiInfo(infos) =>
+        val x = if (infos.nonEmpty) infos.head else ir.NoInfo
+        convert(x)
+    }
+  }
+
   def convert(expr: ir.Expression): Firrtl.Expression.Builder = {
     val eb = Firrtl.Expression.newBuilder()
     expr match {
@@ -123,17 +137,17 @@ object ToProto {
       case other =>
         val sb = Firrtl.Statement.newBuilder()
         other match {
-          case ir.DefNode(info, name, expr) =>
+          case ir.DefNode(_, name, expr) =>
             val nb = Firrtl.Statement.Node.newBuilder()
               .setId(name)
               .setExpression(convert(expr))
             sb.setNode(nb)
-          case ir.DefWire(info, name, tpe) =>
+          case ir.DefWire(_, name, tpe) =>
             val wb = Firrtl.Statement.Wire.newBuilder()
               .setId(name)
               .setType(convert(tpe))
             sb.setWire(wb)
-          case ir.DefRegister(info, name, tpe, clock, reset, init) =>
+          case ir.DefRegister(_, name, tpe, clock, reset, init) =>
             val rb = Firrtl.Statement.Register.newBuilder()
               .setId(name)
               .setType(convert(tpe))
@@ -141,22 +155,22 @@ object ToProto {
               .setReset(convert(reset))
               .setInit(convert(init))
             sb.setRegister(rb)
-          case ir.DefInstance(info, name, module) =>
+          case ir.DefInstance(_, name, module) =>
             val ib = Firrtl.Statement.Instance.newBuilder()
               .setId(name)
               .setModuleId(module)
             sb.setInstance(ib)
-          case ir.Connect(info, loc, expr) =>
+          case ir.Connect(_, loc, expr) =>
             val cb = Firrtl.Statement.Connect.newBuilder()
               .setLocation(convert(loc))
               .setExpression(convert(expr))
             sb.setConnect(cb)
-          case ir.PartialConnect(info, loc, expr) =>
+          case ir.PartialConnect(_, loc, expr) =>
             val cb = Firrtl.Statement.PartialConnect.newBuilder()
               .setLocation(convert(loc))
               .setExpression(convert(expr))
             sb.setPartialConnect(cb)
-          case ir.Conditionally(info, pred, conseq, alt) =>
+          case ir.Conditionally(_, pred, conseq, alt) =>
             val cs = convert(conseq)
             val as = convert(alt)
             val wb = Firrtl.Statement.When.newBuilder()
@@ -164,24 +178,24 @@ object ToProto {
             cs.foreach(wb.addConsequent(_))
             as.foreach(wb.addOtherwise(_))
             sb.setWhen(wb)
-          case ir.Print(info, string, args, clk, en) =>
+          case ir.Print(_, string, args, clk, en) =>
             val pb = Firrtl.Statement.Printf.newBuilder()
               .setValue(string.string)
               .setClk(convert(clk))
               .setEn(convert(en))
             args.foreach(a => pb.addArg(convert(a)))
             sb.setPrintf(pb)
-          case ir.Stop(info, ret, clk, en) =>
+          case ir.Stop(_, ret, clk, en) =>
             val stopb = Firrtl.Statement.Stop.newBuilder()
               .setReturnValue(ret)
               .setClk(convert(clk))
               .setEn(convert(en))
             sb.setStop(stopb)
-          case ir.IsInvalid(info, expr) =>
+          case ir.IsInvalid(_, expr) =>
             val ib = Firrtl.Statement.IsInvalid.newBuilder()
               .setExpression(convert(expr))
             sb.setIsInvalid(ib)
-          case m @ ir.DefMemory(info, name, dtype, depth, wlat, rlat, rs, ws, rws, ruw) =>
+          case m @ ir.DefMemory(_, name, dtype, depth, wlat, rlat, rs, ws, rws, ruw) =>
             val mem = Firrtl.Statement.Memory.newBuilder()
               .setId(name)
               .setType(convert(dtype))
@@ -192,14 +206,14 @@ object ToProto {
             mem.addAllWriterId(ws.asJava)
             mem.addAllReadwriterId(rws.asJava)
             sb.setMemory(mem)
-          case CDefMemory(info, name, tpe, size, seq) =>
+          case CDefMemory(_, name, tpe, size, seq) =>
             val tpeb = convert(ir.VectorType(tpe, size))
             val mb = Firrtl.Statement.CMemory.newBuilder()
               .setId(name)
               .setType(tpeb)
               .setSyncRead(seq)
             sb.setCmemory(mb)
-          case CDefMPort(info, name, _, mem, exprs, dir) =>
+          case CDefMPort(_, name, _, mem, exprs, dir) =>
             val pb = Firrtl.Statement.MemoryPort.newBuilder()
               .setId(name)
               .setMemoryId(mem)
@@ -207,6 +221,10 @@ object ToProto {
               .setExpression(convert(exprs(1)))
               .setDirection(convert(dir))
             sb.setMemoryPort(pb)
+        }
+        stmt match {
+          case hasInfo: ir.HasInfo => sb.setSourceInfo(convert(hasInfo.info))
+          case _ => // Do nothing
         }
         Seq(sb)
     }

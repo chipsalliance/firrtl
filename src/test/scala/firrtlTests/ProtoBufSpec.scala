@@ -19,18 +19,16 @@ class ProtoBufSpec extends FirrtlFlatSpec {
     FirrtlResourceTest("GCDTester", "/integration"),
     FirrtlResourceTest("RightShiftTester", "/integration"),
     FirrtlResourceTest("MemTester", "/integration"),
-    FirrtlResourceTest("PipeTester", "/integration")
-    // TODO Info
-    //FirrtlResourceTest("Rob", "/regress"),
-    //FirrtlResourceTest("RocketCore", "/regress"),
-    //FirrtlResourceTest("ICache", "/regress"),
-    //FirrtlResourceTest("FPU", "/regress")
+    FirrtlResourceTest("PipeTester", "/integration"),
+    FirrtlResourceTest("Rob", "/regress"),
+    FirrtlResourceTest("RocketCore", "/regress"),
+    FirrtlResourceTest("ICache", "/regress"),
+    FirrtlResourceTest("FPU", "/regress")
   )
 
   /** Helper to make circuits that are the same appear the same */
   def canonicalize(circuit: Circuit): Circuit = {
     def onModule(mod: DefModule) = mod.map(Utils.squashEmpty)
-
     circuit.map(onModule)
   }
 
@@ -59,6 +57,4 @@ class ProtoBufSpec extends FirrtlFlatSpec {
     val slit = ir.SIntLiteral(-123, ir.UnknownWidth)
     FromProto.convert(ToProto.convert(slit).build) should equal (slit)
   }
-
-
 }

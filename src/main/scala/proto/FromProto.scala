@@ -18,6 +18,18 @@ object FromProto {
     case multiple => ir.Block(multiple)
   }
 
+  def convert(info: Firrtl.SourceInfo): ir.Info =
+    info.getSourceInfoCase.getNumber match {
+      case Firrtl.SourceInfo.POSITION_FIELD_NUMBER =>
+        val pos = info.getPosition
+        val str = s"${pos.getFilename} ${pos.getLine}:${pos.getColumn}"
+        ir.FileInfo(ir.StringLit(str))
+      case Firrtl.SourceInfo.TEXT_FIELD_NUMBER =>
+        ir.FileInfo(ir.StringLit(info.getText))
+      // NONE_FIELD_NUMBER or anything else
+      case _ => ir.NoInfo
+    }
+
   val convert: Map[Firrtl.Expression.PrimOp.Op, ir.PrimOp] =
     ToProto.convert.map { case (k, v) => v -> k }
 
@@ -63,34 +75,34 @@ object FromProto {
     else if (expr.hasMux) convert(expr.getMux)
     else throw new Exception(s"Got $expr")
 
-  def convert(con: Firrtl.Statement.Connect): ir.Connect =
-    ir.Connect(ir.NoInfo, convert(con.getLocation), convert(con.getExpression))
+  def convert(con: Firrtl.Statement.Connect, info: Firrtl.SourceInfo): ir.Connect =
+    ir.Connect(convert(info), convert(con.getLocation), convert(con.getExpression))
 
-  def convert(con: Firrtl.Statement.PartialConnect): ir.PartialConnect =
-    ir.PartialConnect(ir.NoInfo, convert(con.getLocation), convert(con.getExpression))
+  def convert(con: Firrtl.Statement.PartialConnect, info: Firrtl.SourceInfo): ir.PartialConnect =
+    ir.PartialConnect(convert(info), convert(con.getLocation), convert(con.getExpression))
 
-  def convert(wire: Firrtl.Statement.Wire): ir.DefWire =
-    ir.DefWire(ir.NoInfo, wire.getId, convert(wire.getType))
+  def convert(wire: Firrtl.Statement.Wire, info: Firrtl.SourceInfo): ir.DefWire =
+    ir.DefWire(convert(info), wire.getId, convert(wire.getType))
 
-  def convert(reg: Firrtl.Statement.Register): ir.DefRegister =
-    ir.DefRegister(ir.NoInfo, reg.getId, convert(reg.getType), convert(reg.getClock),
+  def convert(reg: Firrtl.Statement.Register, info: Firrtl.SourceInfo): ir.DefRegister =
+    ir.DefRegister(convert(info), reg.getId, convert(reg.getType), convert(reg.getClock),
                    convert(reg.getReset), convert(reg.getInit))
 
-  def convert(node: Firrtl.Statement.Node): ir.DefNode =
-    ir.DefNode(ir.NoInfo, node.getId, convert(node.getExpression))
+  def convert(node: Firrtl.Statement.Node, info: Firrtl.SourceInfo): ir.DefNode =
+    ir.DefNode(convert(info), node.getId, convert(node.getExpression))
 
-  def convert(inst: Firrtl.Statement.Instance): ir.DefInstance =
-    ir.DefInstance(ir.NoInfo, inst.getId, inst.getModuleId)
+  def convert(inst: Firrtl.Statement.Instance, info: Firrtl.SourceInfo): ir.DefInstance =
+    ir.DefInstance(convert(info), inst.getId, inst.getModuleId)
 
-  def convert(when: Firrtl.Statement.When): ir.Conditionally = {
+  def convert(when: Firrtl.Statement.When, info: Firrtl.SourceInfo): ir.Conditionally = {
     val conseq = compressStmts(when.getConsequentList.asScala.map(convert(_)))
     val alt = compressStmts(when.getOtherwiseList.asScala.map(convert(_)))
-    ir.Conditionally(ir.NoInfo, convert(when.getPredicate), conseq, alt)
+    ir.Conditionally(convert(info), convert(when.getPredicate), conseq, alt)
   }
 
-  def convert(cmem: Firrtl.Statement.CMemory): ir.Statement = {
+  def convert(cmem: Firrtl.Statement.CMemory, info: Firrtl.SourceInfo): ir.Statement = {
     val vtpe = convert(cmem.getType)
-    CDefMemory(ir.NoInfo, cmem.getId, vtpe.tpe, vtpe.size, cmem.getSyncRead)
+    CDefMemory(convert(info), cmem.getId, vtpe.tpe, vtpe.size, cmem.getSyncRead)
   }
 
   import Firrtl.Statement.MemoryPort.Direction._
@@ -101,44 +113,52 @@ object FromProto {
     case MEMORY_PORT_DIRECTION_READ_WRITE => MReadWrite
   }
 
-  def convert(port: Firrtl.Statement.MemoryPort): CDefMPort = {
+  def convert(port: Firrtl.Statement.MemoryPort, info: Firrtl.SourceInfo): CDefMPort = {
     val exprs = Seq(convert(port.getMemoryIndex), convert(port.getExpression))
-    CDefMPort(ir.NoInfo, port.getId, ir.UnknownType, port.getMemoryId, exprs, convert(port.getDirection))
+    CDefMPort(convert(info), port.getId, ir.UnknownType, port.getMemoryId, exprs, convert(port.getDirection))
   }
 
-  def convert(printf: Firrtl.Statement.Printf): ir.Print = {
+  def convert(printf: Firrtl.Statement.Printf, info: Firrtl.SourceInfo): ir.Print = {
     val args = printf.getArgList.asScala.map(convert(_))
     val str = ir.StringLit(printf.getValue)
-    ir.Print(ir.NoInfo, str, args, convert(printf.getClk), convert(printf.getEn))
+    ir.Print(convert(info), str, args, convert(printf.getClk), convert(printf.getEn))
   }
 
-  def convert(stop: Firrtl.Statement.Stop): ir.Stop =
-    ir.Stop(ir.NoInfo, stop.getReturnValue, convert(stop.getClk), convert(stop.getEn))
+  def convert(stop: Firrtl.Statement.Stop, info: Firrtl.SourceInfo): ir.Stop =
+    ir.Stop(convert(info), stop.getReturnValue, convert(stop.getClk), convert(stop.getEn))
 
-  def convert(mem: Firrtl.Statement.Memory): ir.DefMemory = {
+  def convert(mem: Firrtl.Statement.Memory, info: Firrtl.SourceInfo): ir.DefMemory = {
     val dtype = convert(mem.getType)
     val rs = mem.getReaderIdList.asScala
     val ws = mem.getWriterIdList.asScala
     val rws = mem.getReadwriterIdList.asScala
-    ir.DefMemory(ir.NoInfo, mem.getId, dtype, mem.getDepth, mem.getWriteLatency, mem.getReadLatency,
+    ir.DefMemory(convert(info), mem.getId, dtype, mem.getDepth, mem.getWriteLatency, mem.getReadLatency,
                  rs, ws, rws, None)
   }
 
-  def convert(stmt: Firrtl.Statement): ir.Statement =
-    if (stmt.hasNode) convert(stmt.getNode)
-    else if (stmt.hasConnect) convert(stmt.getConnect)
-    else if (stmt.hasPartialConnect) convert(stmt.getPartialConnect)
-    else if (stmt.hasWire) convert(stmt.getWire)
-    else if (stmt.hasRegister) convert(stmt.getRegister)
-    else if (stmt.hasWhen) convert(stmt.getWhen)
-    else if (stmt.hasInstance) convert(stmt.getInstance)
-    else if (stmt.hasPrintf) convert(stmt.getPrintf)
-    else if (stmt.hasStop) convert(stmt.getStop)
-    else if (stmt.hasMemory) convert(stmt.getMemory)
-    else if (stmt.hasIsInvalid) ir.IsInvalid(ir.NoInfo, convert(stmt.getIsInvalid.getExpression))
-    else if (stmt.hasCmemory) convert(stmt.getCmemory)
-    else if (stmt.hasMemoryPort) convert(stmt.getMemoryPort)
-    else throw new Exception(s"Got $stmt")
+  def convert(stmt: Firrtl.Statement): ir.Statement = {
+    import Firrtl.Statement._
+    val info = stmt.getSourceInfo
+    stmt.getStatementCase.getNumber match {
+      case NODE_FIELD_NUMBER => convert(stmt.getNode, info)
+      case CONNECT_FIELD_NUMBER => convert(stmt.getConnect, info)
+      case PARTIAL_CONNECT_FIELD_NUMBER => convert(stmt.getPartialConnect, info)
+      case WIRE_FIELD_NUMBER => convert(stmt.getWire, info)
+      case REGISTER_FIELD_NUMBER => convert(stmt.getRegister, info)
+      case WHEN_FIELD_NUMBER => convert(stmt.getWhen, info)
+      case INSTANCE_FIELD_NUMBER => convert(stmt.getInstance, info)
+      case PRINTF_FIELD_NUMBER => convert(stmt.getPrintf, info)
+      case STOP_FIELD_NUMBER => convert(stmt.getStop, info)
+      case MEMORY_FIELD_NUMBER => convert(stmt.getMemory, info)
+      case IS_INVALID_FIELD_NUMBER =>
+        ir.IsInvalid(convert(info), convert(stmt.getIsInvalid.getExpression))
+      case CMEMORY_FIELD_NUMBER => convert(stmt.getCmemory, info)
+      case MEMORY_PORT_FIELD_NUMBER => convert(stmt.getMemoryPort, info)
+      case unknown =>
+        val msg = s"Cannot deserialize unexpected Proto Statement $unknown"
+        throw ProtoDeserializationException(msg)
+    }
+  }
 
 
   def convert(width: Firrtl.Width): ir.Width = {

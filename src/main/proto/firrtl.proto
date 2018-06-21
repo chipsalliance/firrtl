@@ -34,6 +34,7 @@ message Firrtl {
     oneof source_info {
       None none = 1;
       Position position = 2;
+      string text = 3;
     }
   }
 
