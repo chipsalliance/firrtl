@@ -70,8 +70,8 @@ class ClockListTests extends FirrtlFlatSpec {
         |    output clk2: Clock
         |    output clk3: Clock
         |""".stripMargin
-    val check = 
-  """Sourcelist: List(h$clkGen$clk1, h$clkGen$clk2, h$clkGen$clk3, clock) 
+    val check =
+  """Sourcelist: List(h$clkGen$clk1, h$clkGen$clk2, h$clkGen$clk3, clock)
     |Good Origin of clock is clock
     |Good Origin of h.clock is h$clkGen.clk1
     |Good Origin of h$b.clock is h$clkGen.clk2
@@ -102,8 +102,8 @@ class ClockListTests extends FirrtlFlatSpec {
         |    input clock: Clock
         |    reg r: UInt<5>, clock
         |""".stripMargin
-    val check = 
-  """Sourcelist: List(clock, clkB) 
+    val check =
+  """Sourcelist: List(clock, clkB)
     |Good Origin of clock is clock
     |Good Origin of b.clock is clkB
     |Good Origin of b$c.clock is clock
@@ -137,7 +137,7 @@ class ClockListTests extends FirrtlFlatSpec {
         |    input clock: Clock
         |""".stripMargin
     val check =
-  """Sourcelist: List(clock, clkC) 
+  """Sourcelist: List(clock, clkC)
     |Good Origin of clock is clock
     |Good Origin of c.clock is clkC
     |""".stripMargin

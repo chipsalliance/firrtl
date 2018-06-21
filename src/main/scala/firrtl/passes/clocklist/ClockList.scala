@@ -34,7 +34,7 @@ class ClockList(top: String, writer: Writer) extends Pass {
     // Clock sources must be blackbox outputs and top's clock
     val partialSourceList = getSourceList(moduleMap)(lineages)
     val sourceList = partialSourceList ++ moduleMap(top).ports.collect{ case Port(i, n, Input, ClockType) => n }
-    writer.append(s"Sourcelist: $sourceList \n")
+    writer.append(s"Sourcelist: $sourceList\n")
 
     // Remove everything from the circuit, unless it has a clock type
     // This simplifies the circuit drastically so InlineInstances doesn't take forever.
@@ -42,7 +42,7 @@ class ClockList(top: String, writer: Writer) extends Pass {
 
     // Inline the clock-only circuit up to the specified top module
     val modulesToInline = (c.modules.collect { case Module(_, n, _, _) if n != top => ModuleName(n, CircuitName(c.main)) }).toSet
-    val inlineTransform = new InlineInstances
+    val inlineTransform = new InlineInstances{ override val inlineDelim = "$" }
     val inlinedCircuit = inlineTransform.run(onlyClockCircuit, modulesToInline, Set(), Seq()).circuit
     val topModule = inlinedCircuit.modules.find(_.name == top).getOrElse(throwInternalError("no top module"))
 
