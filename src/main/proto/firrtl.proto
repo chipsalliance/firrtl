@@ -100,6 +100,7 @@ message Firrtl {
       uint32 read_latency = 5;
       repeated string reader_id = 6;
       repeated string writer_id = 7;
+      repeated string readwriter_id = 8;
     }
 
     message CMemory {
@@ -107,6 +108,8 @@ message Firrtl {
       string id = 1;
       // Required.
       Type.VectorType type = 2;
+      // Required.
+      bool sync_read = 3;
     }
 
     message Instance {
@@ -141,7 +144,7 @@ message Firrtl {
 
     message Printf {
       // Required.
-      bytes value = 1;
+      string value = 1;
       repeated Expression arg = 2;
       // Required.
       Expression clk = 3;
@@ -261,7 +264,7 @@ message Firrtl {
       UIntType uint_type = 2;
       SIntType sint_type = 3;
       ClockType clock_type = 4;
-      RecordType record_type = 5;
+      BundleType bundle_type = 5;
       VectorType vector_type = 6;
     }
   }
@@ -390,7 +393,7 @@ message Firrtl {
       UIntLiteral uint_literal = 2;
       SIntLiteral sint_literal = 3;
       ValidIf valid_if = 4;
-      ExtractBits extract_bits = 5;
+      //ExtractBits extract_bits = 5;
       Mux mux = 6;
       SubField sub_field = 7;
       SubIndex sub_index = 8;
