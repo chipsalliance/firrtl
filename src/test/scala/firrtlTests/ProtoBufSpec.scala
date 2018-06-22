@@ -2,6 +2,8 @@
 
 package firrtlTests
 
+import java.io.ByteArrayInputStream
+
 import firrtl.FirrtlProtos.Firrtl
 import firrtl._
 import firrtl.ir._
@@ -26,19 +28,24 @@ class ProtoBufSpec extends FirrtlFlatSpec {
     FirrtlResourceTest("FPU", "/regress")
   )
 
-  /** Helper to make circuits that are the same appear the same */
-  def canonicalize(circuit: Circuit): Circuit = {
-    def onModule(mod: DefModule) = mod.map(Utils.squashEmpty)
-    circuit.map(onModule)
-  }
-
   for (FirrtlResourceTest(name, dir) <- firrtlResourceTests) {
     s"$name" should "work with Protobuf serialization and deserialization" in {
       val stream = getClass.getResourceAsStream(s"$dir/$name.fir")
       val circuit = parse(scala.io.Source.fromInputStream(stream).getLines.mkString("\n"))
+
+      // Test ToProto and FromProto
       val protobuf = proto.ToProto.convert(circuit)
-      val circuit2 = proto.FromProto.convert(protobuf)
-      canonicalize(circuit).serialize should equal(canonicalize(circuit2).serialize)
+      val pcircuit = proto.FromProto.convert(protobuf)
+      canonicalize(circuit).serialize should equal(canonicalize(pcircuit).serialize)
+
+      // Test ProtoBuf generated serialization and deserialization
+      val ostream = new java.io.ByteArrayOutputStream()
+      protobuf.writeTo(ostream)
+      val istream = new java.io.ByteArrayInputStream(ostream.toByteArray)
+      val cistream = com.google.protobuf.CodedInputStream.newInstance(istream)
+      cistream.setRecursionLimit(Integer.MAX_VALUE)
+      val protobuf2 = firrtl.FirrtlProtos.Firrtl.parseFrom(cistream)
+      protobuf2 should equal (protobuf)
     }
   }
 

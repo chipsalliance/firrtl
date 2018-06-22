@@ -3,15 +3,36 @@
 package firrtl
 package proto
 
+import java.io.{File, FileInputStream, InputStream}
+
 import collection.JavaConverters._
-
 import FirrtlProtos._
+import com.google.protobuf.CodedInputStream
 
-case class ProtoDeserializationException(msg: String) extends FIRRTLException(msg)
-
-// TODO Change requires to handled exceptions
 object FromProto {
 
+  /** Deserialize ProtoBuf representation of [[ir.Circuit]]
+    *
+    * @param filename Name of file containing ProtoBuf representation
+    * @return Deserialized FIRRTL Circuit
+    */
+  def fromFile(filename: String): ir.Circuit = {
+    fromInputStream(new FileInputStream(new File(filename)))
+  }
+
+  /** Deserialize ProtoBuf representation of [[ir.Circuit]]
+    *
+    * @param is InputStream containing ProtoBuf representation
+    * @return Deserialized FIRRTL Circuit
+    */
+  def fromInputStream(is: InputStream): ir.Circuit = {
+    val cistream = CodedInputStream.newInstance(is)
+    cistream.setRecursionLimit(Integer.MAX_VALUE) // Disable recursion depth check
+    val pb = firrtl.FirrtlProtos.Firrtl.parseFrom(cistream)
+    proto.FromProto.convert(pb)
+  }
+
+  // Convert from ProtoBuf message repeated Statements to FIRRRTL Block
   private def compressStmts(stmts: Seq[ir.Statement]): ir.Statement = stmts match {
     case Seq() => ir.EmptyStmt
     case Seq(stmt) => stmt
