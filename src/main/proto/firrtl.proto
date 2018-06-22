@@ -1,3 +1,6 @@
+// See LICENSE for license details.
+// See LICENSE.SiFive for license details.
+
 syntax = "proto3";
 
 package firrtl;
