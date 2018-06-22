@@ -36,6 +36,8 @@ object FromProto {
   def convert(literal: Firrtl.Expression.IntegerLiteral): BigInt =
     BigInt(literal.getValue)
 
+  def convert(bigint: Firrtl.BigInt): BigInt = BigInt(bigint.getValue.toByteArray)
+
   def convert(uint: Firrtl.Expression.UIntLiteral): ir.UIntLiteral = {
     val width = if (uint.hasWidth) convert(uint.getWidth) else ir.UnknownWidth
     ir.UIntLiteral(convert(uint.getValue), width)
@@ -44,6 +46,12 @@ object FromProto {
   def convert(sint: Firrtl.Expression.SIntLiteral): ir.SIntLiteral = {
     val width = if (sint.hasWidth) convert(sint.getWidth) else ir.UnknownWidth
     ir.SIntLiteral(convert(sint.getValue), width)
+  }
+
+  def convert(fixed: Firrtl.Expression.FixedLiteral): ir.FixedLiteral = {
+    val width = if (fixed.hasWidth) convert(fixed.getWidth) else ir.UnknownWidth
+    val point = if (fixed.hasPoint) convert(fixed.getPoint) else ir.UnknownWidth
+    ir.FixedLiteral(convert(fixed.getValue), width, point)
   }
 
   def convert(subfield: Firrtl.Expression.SubField): ir.SubField =
@@ -64,16 +72,20 @@ object FromProto {
   def convert(mux: Firrtl.Expression.Mux): ir.Mux =
     ir.Mux(convert(mux.getCondition), convert(mux.getTValue), convert(mux.getFValue), ir.UnknownType)
 
-  def convert(expr: Firrtl.Expression): ir.Expression =
-    if (expr.hasReference) ir.Reference(expr.getReference.getId, ir.UnknownType)
-    else if (expr.hasSubField) convert(expr.getSubField)
-    else if (expr.hasSubIndex) convert(expr.getSubIndex)
-    else if (expr.hasSubAccess) convert(expr.getSubAccess)
-    else if (expr.hasUintLiteral) convert(expr.getUintLiteral)
-    else if (expr.hasSintLiteral) convert(expr.getSintLiteral)
-    else if (expr.hasPrimOp) convert(expr.getPrimOp)
-    else if (expr.hasMux) convert(expr.getMux)
-    else throw new Exception(s"Got $expr")
+  def convert(expr: Firrtl.Expression): ir.Expression = {
+    import Firrtl.Expression._
+    expr.getExpressionCase.getNumber match {
+      case REFERENCE_FIELD_NUMBER => ir.Reference(expr.getReference.getId, ir.UnknownType)
+      case SUB_FIELD_FIELD_NUMBER => convert(expr.getSubField)
+      case SUB_INDEX_FIELD_NUMBER => convert(expr.getSubIndex)
+      case SUB_ACCESS_FIELD_NUMBER => convert(expr.getSubAccess)
+      case UINT_LITERAL_FIELD_NUMBER => convert(expr.getUintLiteral)
+      case SINT_LITERAL_FIELD_NUMBER => convert(expr.getSintLiteral)
+      case FIXED_LITERAL_FIELD_NUMBER => convert(expr.getFixedLiteral)
+      case PRIM_OP_FIELD_NUMBER => convert(expr.getPrimOp)
+      case MUX_FIELD_NUMBER => convert(expr.getMux)
+    }
+  }
 
   def convert(con: Firrtl.Statement.Connect, info: Firrtl.SourceInfo): ir.Connect =
     ir.Connect(convert(info), convert(con.getLocation), convert(con.getExpression))
@@ -136,6 +148,11 @@ object FromProto {
                  rs, ws, rws, None)
   }
 
+  def convert(attach: Firrtl.Statement.Attach, info: Firrtl.SourceInfo): ir.Attach = {
+    val exprs = attach.getExpressionList.asScala.map(convert(_))
+    ir.Attach(convert(info), exprs)
+  }
+
   def convert(stmt: Firrtl.Statement): ir.Statement = {
     import Firrtl.Statement._
     val info = stmt.getSourceInfo
@@ -154,26 +171,37 @@ object FromProto {
         ir.IsInvalid(convert(info), convert(stmt.getIsInvalid.getExpression))
       case CMEMORY_FIELD_NUMBER => convert(stmt.getCmemory, info)
       case MEMORY_PORT_FIELD_NUMBER => convert(stmt.getMemoryPort, info)
-      case unknown =>
-        val msg = s"Cannot deserialize unexpected Proto Statement $unknown"
-        throw ProtoDeserializationException(msg)
+      case ATTACH_FIELD_NUMBER => convert(stmt.getAttach, info)
     }
   }
 
-
-  def convert(width: Firrtl.Width): ir.Width = {
-    if (width.isInitialized) ir.IntWidth(width.getValue)
-    else ir.UnknownWidth
-  }
+  /** Converts ProtoBuf width to FIRRTL width
+    *
+    * @note Checks for UnknownWidth must be done on the parent object
+    * @param width ProtoBuf width representation
+    * @return IntWidth equivalent of the ProtoBuf width, default is 0
+    */
+  def convert(width: Firrtl.Width): ir.IntWidth = ir.IntWidth(width.getValue)
 
   def convert(ut: Firrtl.Type.UIntType): ir.UIntType = {
     val w = if (ut.hasWidth) convert(ut.getWidth) else ir.UnknownWidth
     ir.UIntType(w)
   }
   
-  def convert(ut: Firrtl.Type.SIntType): ir.SIntType = {
-    val w = if (ut.hasWidth) convert(ut.getWidth) else ir.UnknownWidth
+  def convert(st: Firrtl.Type.SIntType): ir.SIntType = {
+    val w = if (st.hasWidth) convert(st.getWidth) else ir.UnknownWidth
     ir.SIntType(w)
+  }
+
+  def convert(fixed: Firrtl.Type.FixedType): ir.FixedType = {
+    val w = if (fixed.hasWidth) convert(fixed.getWidth) else ir.UnknownWidth
+    val p = if (fixed.hasPoint) convert(fixed.getPoint) else ir.UnknownWidth
+    ir.FixedType(w, p)
+  }
+
+  def convert(analog: Firrtl.Type.AnalogType): ir.AnalogType = {
+    val w = if (analog.hasWidth) convert(analog.getWidth) else ir.UnknownWidth
+    ir.AnalogType(w)
   }
 
   def convert(field: Firrtl.Type.BundleType.Field): ir.Field = {
@@ -185,20 +213,23 @@ object FromProto {
     ir.VectorType(convert(vtpe.getType), vtpe.getSize)
 
   def convert(tpe: Firrtl.Type): ir.Type = {
-    if (tpe.hasUintType) convert(tpe.getUintType)
-    else if (tpe.hasSintType) convert(tpe.getSintType)
-    else if (tpe.hasClockType) ir.ClockType
-    else if (tpe.hasBundleType) ir.BundleType(tpe.getBundleType.getFieldList.asScala.map(convert(_)))
-    else if (tpe.hasVectorType) convert(tpe.getVectorType)
-    else throw new Exception("deleteme")
+    import Firrtl.Type._
+    tpe.getTypeCase.getNumber match {
+      case UINT_TYPE_FIELD_NUMBER => convert(tpe.getUintType)
+      case SINT_TYPE_FIELD_NUMBER => convert(tpe.getSintType)
+      case FIXED_TYPE_FIELD_NUMBER => convert(tpe.getFixedType)
+      case CLOCK_TYPE_FIELD_NUMBER => ir.ClockType
+      case ANALOG_TYPE_FIELD_NUMBER => convert(tpe.getAnalogType)
+      case BUNDLE_TYPE_FIELD_NUMBER =>
+        ir.BundleType(tpe.getBundleType.getFieldList.asScala.map(convert(_)))
+      case VECTOR_TYPE_FIELD_NUMBER => convert(tpe.getVectorType)
+    }
   }
 
   def convert(dir: Firrtl.Port.Direction): ir.Direction = {
     dir match {
       case Firrtl.Port.Direction.PORT_DIRECTION_IN => ir.Input
       case Firrtl.Port.Direction.PORT_DIRECTION_OUT => ir.Output
-      case unknown =>
-        throw ProtoDeserializationException(s"Direction must be Input or Output, got $unknown")
     }
   }
 
@@ -206,6 +237,17 @@ object FromProto {
     val dir = convert(port.getDirection)
     val tpe = convert(port.getType)
     ir.Port(ir.NoInfo, port.getId, dir, tpe)
+  }
+
+  def convert(param: Firrtl.Module.ExternalModule.Parameter): ir.Param = {
+    import Firrtl.Module.ExternalModule.Parameter._
+    val name = param.getId
+    param.getValueCase.getNumber match {
+      case INTEGER_FIELD_NUMBER => ir.IntParam(name, convert(param.getInteger))
+      case DOUBLE_FIELD_NUMBER => ir.DoubleParam(name, param.getDouble)
+      case STRING_FIELD_NUMBER => ir.StringParam(name, ir.StringLit(param.getString))
+      case RAW_STRING_FIELD_NUMBER => ir.RawStringParam(name, param.getRawString)
+    }
   }
 
   def convert(module: Firrtl.Module.UserModule): ir.Module = {
@@ -218,7 +260,9 @@ object FromProto {
   def convert(module: Firrtl.Module.ExternalModule): ir.ExtModule = {
     val name = module.getId
     val ports = module.getPortList.asScala.map(convert(_))
-    ir.ExtModule(ir.NoInfo, name, ports, name, Seq.empty)
+    val defname = module.getDefinedName
+    val params = module.getParameterList.asScala.map(convert(_))
+    ir.ExtModule(ir.NoInfo, name, ports, defname, params)
   }
 
   def convert(module: Firrtl.Module): ir.DefModule =

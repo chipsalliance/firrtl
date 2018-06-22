@@ -26,7 +26,8 @@ object ToProto {
     Pad -> Op.OP_PAD,
     AsUInt -> Op.OP_AS_UINT,
     AsSInt -> Op.OP_AS_SINT,
-    //AsClock ->
+    AsClock -> Op.OP_AS_CLOCK,
+    AsFixedPoint -> Op.OP_AS_FIXED_POINT,
     Shl -> Op.OP_SHIFT_LEFT,
     Shr -> Op.OP_SHIFT_RIGHT,
     Dshl -> Op.OP_DYNAMIC_SHIFT_LEFT,
@@ -37,22 +38,26 @@ object ToProto {
     And -> Op.OP_BIT_AND,
     Or -> Op.OP_BIT_OR,
     Xor -> Op.OP_BIT_XOR,
-    //Andr
-    //Orr ->
+    Andr -> Op.OP_AND_REDUCE,
+    Orr -> Op.OP_OR_REDUCE,
     Xorr -> Op.OP_XOR_REDUCE,
     Cat -> Op.OP_CONCAT,
     Bits -> Op.OP_EXTRACT_BITS,
     Head -> Op.OP_HEAD,
-    Tail -> Op.OP_TAIL
-    //AsFixedPoint ->
-    //BPShl ->
-    //BPShr ->
-    //BPSet ->
+    Tail -> Op.OP_TAIL,
+    BPShl -> Op.OP_SHIFT_BINARY_POINT_LEFT,
+    BPShr -> Op.OP_SHIFT_BINARY_POINT_RIGHT,
+    BPSet -> Op.OP_SET_BINARY_POINT
   )
 
-  def convert(value: BigInt): Firrtl.Expression.IntegerLiteral.Builder = {
+  def convertToIntegerLiteral(value: BigInt): Firrtl.Expression.IntegerLiteral.Builder = {
     Firrtl.Expression.IntegerLiteral.newBuilder()
       .setValue(value.toString)
+  }
+
+  def convertToBigInt(value: BigInt): Firrtl.BigInt.Builder = {
+    Firrtl.BigInt.newBuilder()
+      .setValue(com.google.protobuf.ByteString.copyFrom(value.toByteArray))
   }
 
   def convert(info: ir.Info): Firrtl.SourceInfo.Builder = {
@@ -72,10 +77,6 @@ object ToProto {
   def convert(expr: ir.Expression): Firrtl.Expression.Builder = {
     val eb = Firrtl.Expression.newBuilder()
     expr match {
-      case WRef(name, tpe, _, _) =>
-        val rb = Firrtl.Expression.Reference.newBuilder()
-          .setId(name)
-        eb.setReference(rb)
       case ir.Reference(name, tpe) =>
         val rb = Firrtl.Expression.Reference.newBuilder()
           .setId(name)
@@ -88,7 +89,7 @@ object ToProto {
       case ir.SubIndex(expr, value, tpe) =>
         val sb = Firrtl.Expression.SubIndex.newBuilder()
           .setExpression(convert(expr))
-          .setIndex(convert(value))
+          .setIndex(convertToIntegerLiteral(value))
         eb.setSubIndex(sb)
       case ir.SubAccess(expr, index, tpe) =>
         val sb = Firrtl.Expression.SubAccess.newBuilder()
@@ -97,18 +98,24 @@ object ToProto {
         eb.setSubAccess(sb)
       case ir.UIntLiteral(value, width) =>
         val ub = Firrtl.Expression.UIntLiteral.newBuilder()
-          .setValue(convert(value))
+          .setValue(convertToIntegerLiteral(value))
         convert(width).foreach(ub.setWidth(_))
         eb.setUintLiteral(ub)
       case ir.SIntLiteral(value, width) =>
         val sb = Firrtl.Expression.SIntLiteral.newBuilder()
-          .setValue(convert(value))
+          .setValue(convertToIntegerLiteral(value))
         convert(width).foreach(sb.setWidth(_))
         eb.setSintLiteral(sb)
+      case ir.FixedLiteral(value, width, point) =>
+        val fb = Firrtl.Expression.FixedLiteral.newBuilder()
+          .setValue(convertToBigInt(value))
+        convert(width).foreach(fb.setWidth(_))
+        convert(point).foreach(fb.setPoint(_))
+        eb.setFixedLiteral(fb)
       case ir.DoPrim(op, args, consts, tpe) =>
         val db = Firrtl.Expression.PrimOp.newBuilder()
           .setOp(convert(op))
-        consts.foreach(c => db.addConst(convert(c)))
+        consts.foreach(c => db.addConst(convertToIntegerLiteral(c)))
         args.foreach(a => db.addArg(convert(a)))
         eb.setPrimOp(db)
       case ir.Mux(cond, tval, fval, tpe) =>
@@ -221,6 +228,10 @@ object ToProto {
               .setExpression(convert(exprs(1)))
               .setDirection(convert(dir))
             sb.setMemoryPort(pb)
+          case ir.Attach(_, exprs) =>
+            val ab = Firrtl.Statement.Attach.newBuilder()
+            exprs.foreach(e => ab.addExpression(convert(e)))
+            sb.setAttach(ab)
         }
         stmt match {
           case hasInfo: ir.HasInfo => sb.setSourceInfo(convert(hasInfo.info))
@@ -265,9 +276,18 @@ object ToProto {
         val st = Firrtl.Type.SIntType.newBuilder()
         convert(width).foreach(st.setWidth(_))
         tb.setSintType(st)
+      case ir.FixedType(width, point) =>
+        val ft = Firrtl.Type.FixedType.newBuilder()
+        convert(width).foreach(ft.setWidth(_))
+        convert(point).foreach(ft.setPoint(_))
+        tb.setFixedType(ft)
       case ir.ClockType =>
         val ct = Firrtl.Type.ClockType.newBuilder()
         tb.setClockType(ct)
+      case ir.AnalogType(width) =>
+        val at = Firrtl.Type.AnalogType.newBuilder()
+          convert(width).foreach(at.setWidth(_))
+        tb.setAnalogType(at)
       case ir.BundleType(fields) =>
         val bt = Firrtl.Type.BundleType.newBuilder()
         fields.foreach(f => bt.addField(convert(f)))
@@ -275,8 +295,6 @@ object ToProto {
       case vtpe: ir.VectorType =>
         val vtb = convert(vtpe)
         tb.setVectorType(vtb)
-      case ir.UnknownType =>
-        tb.clearType()
     }
   }
 
@@ -290,6 +308,22 @@ object ToProto {
       .setId(port.name)
       .setDirection(convert(port.direction))
       .setType(convert(port.tpe))
+  }
+
+  def convert(param: ir.Param): Firrtl.Module.ExternalModule.Parameter.Builder = {
+    import Firrtl.Module.ExternalModule._
+    val pb = Parameter.newBuilder()
+      .setId(param.name)
+    param match {
+      case ir.IntParam(_, value) =>
+        pb.setInteger(convertToBigInt(value))
+      case ir.DoubleParam(_, value) =>
+        pb.setDouble(value)
+      case ir.StringParam(_, ir.StringLit(value)) =>
+        pb.setString(value)
+      case ir.RawStringParam(_, value) =>
+        pb.setRawString(value)
+    }
   }
 
   def convert(module: ir.DefModule): Firrtl.Module.Builder = {
@@ -306,6 +340,10 @@ object ToProto {
       case ext: ir.ExtModule =>
         val eb = Firrtl.Module.ExternalModule.newBuilder()
           .setId(ext.name)
+          .setDefinedName(ext.defname)
+        ports.foreach(eb.addPort(_))
+        val params = ext.params.map(convert(_))
+        params.foreach(eb.addParameter(_))
         b.setExternalModule(eb)
     }
   }

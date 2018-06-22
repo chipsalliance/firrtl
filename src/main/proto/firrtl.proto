@@ -38,6 +38,11 @@ message Firrtl {
     }
   }
 
+  message BigInt {
+    // 2's complement binary representation
+    bytes value = 1;
+  }
+
   message Top {
     // Required.
     string name = 1;
@@ -50,9 +55,20 @@ message Firrtl {
 
   message Module {
     message ExternalModule {
+      message Parameter {
+        string id = 1;
+        oneof value {
+          BigInt integer = 2;
+          double double = 3;
+          string string = 4;
+          string raw_string = 5;
+        }
+      }
       // Required.
       string id = 1;
       repeated Port port = 2;
+      string defined_name = 3;
+      repeated Parameter parameter = 4;
     }
 
     message UserModule {
@@ -199,6 +215,10 @@ message Firrtl {
       Expression expression = 5;
     }
 
+    message Attach {
+      repeated Expression expression = 1;
+    }
+
     // Required.
     oneof statement {
       Wire wire = 1;
@@ -215,6 +235,7 @@ message Firrtl {
       PartialConnect partial_connect = 16;
       IsInvalid is_invalid = 17;
       MemoryPort memory_port = 18;
+      Attach attach = 20;
     }
 
     SourceInfo source_info = 19;
@@ -260,6 +281,15 @@ message Firrtl {
       uint32 size = 2;
     }
 
+    message FixedType {
+      Width width = 1;
+      Width point = 2;
+    }
+
+    message AnalogType {
+      Width width = 3;
+    }
+
     // Required.
     oneof type {
       UIntType uint_type = 2;
@@ -267,6 +297,8 @@ message Firrtl {
       ClockType clock_type = 4;
       BundleType bundle_type = 5;
       VectorType vector_type = 6;
+      FixedType fixed_type = 7;
+      AnalogType analog_type = 8;
     }
   }
 
@@ -308,6 +340,12 @@ message Firrtl {
       // Required.
       IntegerLiteral value = 1;
       Width width = 2;
+    }
+
+    message FixedLiteral {
+      BigInt value = 1;
+      Width width = 2;
+      Width point = 3;
     }
 
     message ValidIf {
@@ -380,6 +418,13 @@ message Firrtl {
         OP_AS_UINT = 28;
         OP_AS_SINT = 29;
         OP_EXTRACT_BITS = 30;
+        OP_AS_CLOCK = 31;
+        OP_AS_FIXED_POINT = 32;
+        OP_AND_REDUCE = 33;
+        OP_OR_REDUCE = 34;
+        OP_SHIFT_BINARY_POINT_LEFT = 35;
+        OP_SHIFT_BINARY_POINT_RIGHT = 36;
+        OP_SET_BINARY_POINT = 37;
       }
 
       // Required.
@@ -388,11 +433,14 @@ message Firrtl {
       repeated IntegerLiteral const = 3;
     }
 
+    reserved 5;
+
     // Required.
     oneof expression {
       Reference reference = 1;
       UIntLiteral uint_literal = 2;
       SIntLiteral sint_literal = 3;
+      FixedLiteral fixed_literal = 11;
       ValidIf valid_if = 4;
       //ExtractBits extract_bits = 5;
       Mux mux = 6;
