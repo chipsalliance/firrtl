@@ -140,5 +140,5 @@ class LowFirrtlCompiler extends Compiler {
 class VerilogCompiler extends Compiler {
   def emitter = new VerilogEmitter
   def transforms: Seq[Transform] = getLoweringTransforms(ChirrtlForm, LowForm) ++
-    Seq(new LowFirrtlOptimization, new BlackBoxSourceHelper)
+    Seq(new LowFirrtlOptimization)
 }
