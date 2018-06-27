@@ -3,13 +3,64 @@
 package firrtl
 package proto
 
+import java.io.{BufferedOutputStream, OutputStream}
+
 import FirrtlProtos._
 import Firrtl.Expression.PrimOp.Op
+import com.google.protobuf.{CodedOutputStream, WireFormat}
 import firrtl.PrimOps._
 
 import scala.collection.JavaConverters._
 
 object ToProto {
+
+
+  /** Serialize a FIRRTL Circuit to an Output Stream as a ProtoBuf message
+    *
+    * @param ostream Output stream that will be written
+    * @param circuit The Circuit to serialize
+    */
+  def writeToStream(ostream: OutputStream, circuit: ir.Circuit): Unit = {
+    writeToStreamFast(ostream, circuit.info, circuit.modules.map(() => _), circuit.main)
+  }
+
+  /** Serialized a deconstructed Circuit with lazy Modules
+    *
+    * This serializer allows intermediate objects to be garbage collected during serialization
+    * to save time and memory
+    *
+    * @param ostream Output stream that will be written
+    * @param info Info of Circuit
+    * @param modules Functions to generate Modules lazily
+    * @param main Top-level module of the Circuit
+    */
+  // Note this function is sensitive to changes to the Firrtl and Circuit protobuf message definitions
+  def writeToStreamFast(
+    ostream: OutputStream,
+    info: ir.Info, modules: Seq[() => ir.DefModule],
+    main: String
+  ): Unit = {
+    val costream = CodedOutputStream.newInstance(ostream)
+
+    // Write each module for the circuit
+    val ostreamInner = new java.io.ByteArrayOutputStream()
+    val costreamInner = CodedOutputStream.newInstance(ostreamInner)
+    for (mod <- modules) {
+      costreamInner.writeMessage(Firrtl.Circuit.MODULE_FIELD_NUMBER, convert(mod()).build)
+    }
+    val top = Firrtl.Top.newBuilder().setName(main).build
+    costreamInner.writeMessage(Firrtl.Circuit.TOP_FIELD_NUMBER, top)
+
+    // Write Circuit header first
+    costream.writeTag(Firrtl.CIRCUIT_FIELD_NUMBER, WireFormat.WIRETYPE_LENGTH_DELIMITED)
+    costream.writeUInt32NoTag(costreamInner.getTotalBytesWritten)
+    costream.flush()
+
+    // Write Modules
+    costreamInner.flush()
+    ostreamInner.writeTo(ostream)
+    ostreamInner.flush()
+  }
 
   val convert: Map[ir.PrimOp, Op] = Map(
     Add -> Op.OP_ADD,

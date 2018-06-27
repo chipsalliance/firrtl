@@ -2,7 +2,7 @@
 
 package firrtlTests
 
-import java.io.ByteArrayInputStream
+import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 
 import firrtl.FirrtlProtos.Firrtl
 import firrtl._
@@ -46,6 +46,11 @@ class ProtoBufSpec extends FirrtlFlatSpec {
       cistream.setRecursionLimit(Integer.MAX_VALUE)
       val protobuf2 = firrtl.FirrtlProtos.Firrtl.parseFrom(cistream)
       protobuf2 should equal (protobuf)
+
+      // Test that our faster serialization matches generated serialization
+      val ostream2 = new java.io.ByteArrayOutputStream
+      proto.ToProto.writeToStream(ostream2, circuit)
+      ostream2.toByteArray.toList should equal (ostream.toByteArray.toList)
     }
   }
 
