@@ -37,7 +37,8 @@ object ToProto {
   // Note this function is sensitive to changes to the Firrtl and Circuit protobuf message definitions
   def writeToStreamFast(
     ostream: OutputStream,
-    info: ir.Info, modules: Seq[() => ir.DefModule],
+    info: ir.Info,
+    modules: Seq[() => ir.DefModule],
     main: String
   ): Unit = {
     val costream = CodedOutputStream.newInstance(ostream)
