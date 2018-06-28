@@ -139,7 +139,7 @@ object FromProto {
   }
 
   import Firrtl.Statement.MemoryPort.Direction._
-  def convert(mportdir: Firrtl.Statement.MemoryPort.Direction) = mportdir match {
+  def convert(mportdir: Firrtl.Statement.MemoryPort.Direction): MPortDir = mportdir match {
     case MEMORY_PORT_DIRECTION_INFER => MInfer
     case MEMORY_PORT_DIRECTION_READ => MRead
     case MEMORY_PORT_DIRECTION_WRITE => MWrite
