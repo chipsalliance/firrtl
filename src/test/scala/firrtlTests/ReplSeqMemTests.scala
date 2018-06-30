@@ -381,5 +381,4 @@ circuit CustomMemory :
 }
 
 // TODO: make more checks
-// readwrite vs. no readwrite
 // conf
