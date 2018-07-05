@@ -10,15 +10,6 @@ module Lib.Scala where
 import Java hiding (Iterable)
 import Prelude hiding (Traversable)
 
-data Any    = Any    @scala.Any    deriving Class
-data AnyVal = AnyVal @scala.AnyVal deriving Class
-data Unit   = Unit   @scala.Unit   deriving Class
-
-type instance Inherits AnyVal = '[Any]
-type instance Inherits Unit   = '[AnyVal]
-
-foreign import java unsafe "@new" unit :: Unit
-
 data Function1 t r = Function1 (@scala.Function1 t r)
     deriving Class
 
