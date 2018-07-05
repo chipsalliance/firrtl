@@ -46,6 +46,7 @@ test_run_dir
 .cache
 .history
 .lib/
+dist/
 dist/*
 target/
 lib_managed/
