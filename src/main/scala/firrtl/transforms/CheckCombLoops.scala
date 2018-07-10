@@ -228,13 +228,13 @@ class CheckCombLoops extends Transform {
       }
     }
     val MN = ModuleName(c.main, CircuitName(c.main))
-    val annos = simplifiedModuleGraphs(c.main).getEdgeMap.toSeq.filter( _._2.nonEmpty ).map { edge =>
-      val sink = ComponentName(edge._1.name, MN)
-      val sources = edge._2.map(x => ComponentName(x.name, MN))
+    val annos = simplifiedModuleGraphs(c.main).getEdgeMap.collect { case (from, tos) if tos.nonEmpty =>
+      val sink = ComponentName(from.name, MN)
+      val sources = tos.map(x => ComponentName(x.name, MN))
       CombinationalPath(sink, sources.toSeq)
     }
     errors.trigger()
-    (c, annos)
+    (c, annos.toSeq)
   }
 
   def execute(state: CircuitState): CircuitState = {
