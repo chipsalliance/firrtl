@@ -26,16 +26,8 @@ case object DontCheckCombLoopsAnnotation extends NoTargetAnnotation
 
 case class CombinationalPath(sink: ComponentName, sources: Seq[ComponentName]) extends Annotation {
   override def update(renames: RenameMap): Seq[Annotation] = {
-    val newSources = sources.flatMap { s =>
-      renames.get(s) match {
-        case None => Seq(s)
-        case Some(seq) => seq.collect{case c: ComponentName => c}
-      }
-    }
-    val newSinks = renames.get(sink) match {
-      case None => Seq(sink)
-      case Some(seq) => seq.collect{case c: ComponentName => c}
-    }
+    val newSources = sources.flatMap { s => renames.get(s).getOrElse(Seq(s)) }
+    val newSinks = renames.get(sink).getOrElse(Seq(sink))
     newSinks.map(snk => CombinationalPath(snk, newSources))
   }
 }
@@ -227,10 +219,10 @@ class CheckCombLoops extends Transform {
         errors.append(new CombLoopException(m.info, m.name, expandedCycle))
       }
     }
-    val MN = ModuleName(c.main, CircuitName(c.main))
+    val mn = ModuleName(c.main, CircuitName(c.main))
     val annos = simplifiedModuleGraphs(c.main).getEdgeMap.collect { case (from, tos) if tos.nonEmpty =>
-      val sink = ComponentName(from.name, MN)
-      val sources = tos.map(x => ComponentName(x.name, MN))
+      val sink = ComponentName(from.name, mn)
+      val sources = tos.map(x => ComponentName(x.name, mn))
       CombinationalPath(sink, sources.toSeq)
     }
     errors.trigger()

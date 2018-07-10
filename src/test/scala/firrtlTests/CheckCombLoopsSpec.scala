@@ -215,7 +215,7 @@ class CheckCombLoopsSpec extends SimpleTransformSpec {
     val cs = compile(CircuitState(parse(input), ChirrtlForm), writer)
     val mn = ModuleName("hasnoloops", CircuitName("hasnoloops"))
     cs.annotations.collect {
-      case c@CombinationalPath(ComponentName("b", `mn`), Seq(ComponentName("a", `mn`))) => c
+      case c @ CombinationalPath(ComponentName("b", `mn`), Seq(ComponentName("a", `mn`))) => c
     }.nonEmpty should be (true)
   }
 }
