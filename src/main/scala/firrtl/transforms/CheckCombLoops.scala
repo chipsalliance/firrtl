@@ -24,6 +24,22 @@ object CheckCombLoops {
 
 case object DontCheckCombLoopsAnnotation extends NoTargetAnnotation
 
+case class CombinationalPath(sink: ComponentName, sources: Seq[ComponentName]) extends Annotation {
+  override def update(renames: RenameMap): Seq[Annotation] = {
+    val newSources = sources.flatMap { s =>
+      renames.get(s) match {
+        case None => Seq(s)
+        case Some(seq) => seq.collect{case c: ComponentName => c}
+      }
+    }
+    val newSinks = renames.get(sink) match {
+      case None => Seq(sink)
+      case Some(seq) => seq.collect{case c: ComponentName => c}
+    }
+    newSinks.map(snk => CombinationalPath(snk, newSources))
+  }
+}
+
 /** Finds and detects combinational logic loops in a circuit, if any
   * exist. Returns the input circuit with no modifications.
   * 
@@ -181,7 +197,7 @@ class CheckCombLoops extends Transform {
    * and only if it combinationally depends on input Y. Associate this
    * reduced graph with the module for future use.
    */
-  private def run(c: Circuit): Circuit = {
+  private def run(c: Circuit): (Circuit, Seq[Annotation]) = {
     val errors = new Errors()
     /* TODO(magyar): deal with exmodules! No pass warnings currently
      *  exist. Maybe warn when iterating through modules.
@@ -211,8 +227,14 @@ class CheckCombLoops extends Transform {
         errors.append(new CombLoopException(m.info, m.name, expandedCycle))
       }
     }
+    val MN = ModuleName(c.main, CircuitName(c.main))
+    val annos = simplifiedModuleGraphs(c.main).getEdgeMap.toSeq.filter( _._2.nonEmpty ).map { edge =>
+      val sink = ComponentName(edge._1.name, MN)
+      val sources = edge._2.map(x => ComponentName(x.name, MN))
+      CombinationalPath(sink, sources.toSeq)
+    }
     errors.trigger()
-    c
+    (c, annos)
   }
 
   def execute(state: CircuitState): CircuitState = {
@@ -221,8 +243,8 @@ class CheckCombLoops extends Transform {
       logger.warn("Skipping Combinational Loop Detection")
       state
     } else {
-      val result = run(state.circuit)
-      CircuitState(result, outputForm, state.annotations, state.renames)
+      val (result, annos) = run(state.circuit)
+      CircuitState(result, outputForm, state.annotations ++ annos, state.renames)
     }
   }
 }
