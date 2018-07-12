@@ -5,6 +5,7 @@ package clocklist
 
 import firrtl._
 import firrtl.ir._
+import firrtl.options.RegisteredTransform
 import annotations._
 import Utils.error
 import java.io.{File, CharArrayWriter, PrintWriter, Writer}
@@ -55,11 +56,22 @@ Usage:
   }
 }
 
-class ClockListTransform extends Transform {
+class ClockListTransform extends Transform with RegisteredTransform {
   def inputForm = LowForm
   def outputForm = LowForm
+
+  def addOptions(parser: OptionParser[AnnotationSeq]): Unit = parser
+    .opt[String]("list-clocks")
+    .abbr("clks")
+    .valueName ("-c:<circuit>:-m:<module>:-o:<filename>")
+    .action( (x, c) => c ++ Seq(passes.clocklist.ClockListAnnotation.parse(x),
+                                RunFirrtlTransformAnnotation(new ClockListTransform().getClass.getName)) )
+    .maxOccurs(1)
+    .text("List which signal drives each clock of every descendent of specified module")
+
   def passSeq(top: String, writer: Writer): Seq[Pass] =
     Seq(new ClockList(top, writer))
+
   def execute(state: CircuitState): CircuitState = {
     val annos = state.annotations.collect { case a: ClockListAnnotation => a }
     annos match {
@@ -72,15 +84,4 @@ class ClockListTransform extends Transform {
       case seq => error(s"Found illegal clock list annotation(s): $seq")
     }
   }
-}
-
-object ClockListTransform extends ProvidesOptions {
-  def provideOptions(parser: OptionParser[AnnotationSeq]): Unit = parser
-    .opt[String]("list-clocks")
-    .abbr("clks")
-    .valueName ("-c:<circuit>:-m:<module>:-o:<filename>")
-    .action( (x, c) => c ++ Seq(passes.clocklist.ClockListAnnotation.parse(x),
-                                RunFirrtlTransformAnnotation(new ClockListTransform().getClass.getName)) )
-    .maxOccurs(1)
-    .text("List which signal drives each clock of every descendent of specified module")
 }

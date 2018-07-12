@@ -9,12 +9,13 @@ import firrtl.annotations.{
   AnnotationFileNotFoundException,
   JsonProtocol }
 import firrtl.transforms.BlackBoxTargetDirAnno
-import firrtl.options.{OptionsView, ExecutionOptionsManager}
+import firrtl.options.{OptionsView, ExecutionOptionsManager, RegisteredLibrary}
 import logger.LogLevel
 import java.io.File
 import net.jcazevedo.moultingyaml._
 import firrtl.annotations.AnnotationYamlProtocol._
 import scala.util.{Try, Failure}
+import scopt.OptionParser
 
 object FirrtlViewer {
   implicit object FirrtlOptionsView extends OptionsView[FirrtlExecutionOptions] {
@@ -551,7 +552,7 @@ trait HasFirrtlExecutionOptions { this: ExecutionOptionsManager =>
        LogToFileAnnotation,
        LogClassNamesAnnotation,
        ProgramArgsAnnotation() )
-    .map(_.addOptions)
+    .map(_.addOptions(parser))
 
   parser.help("help").text("prints this usage text")
 
@@ -565,7 +566,7 @@ trait HasFirrtlExecutionOptions { this: ExecutionOptionsManager =>
        InputAnnotationFileAnnotation(),
        CompilerNameAnnotation(),
        RunFirrtlTransformAnnotation() )
-    .map(_.addOptions)
+    .map(_.addOptions(parser))
 
   parser.opt[Unit]("force-append-anno-file")
     .abbr("ffaaf")
@@ -575,13 +576,4 @@ trait HasFirrtlExecutionOptions { this: ExecutionOptionsManager =>
       val msg = "force-append-anno-file is deprecated\n" + (" "*9) + "(It does not do anything anymore)"
       Driver.dramaticWarning(msg)
       c }
-
-  parser.note("FIRRTL Transform Options")
-  Seq( transforms.DeadCodeElimination,
-       transforms.CheckCombLoops,
-       passes.InlineInstances,
-       passes.memlib.InferReadWrite,
-       passes.memlib.ReplSeqMem,
-       passes.clocklist.ClockListTransform )
-    .map(_.provideOptions(parser))
 }

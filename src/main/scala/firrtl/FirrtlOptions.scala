@@ -3,8 +3,9 @@
 package firrtl
 
 import firrtl.ir.Circuit
-import firrtl.annotations.{NoTargetAnnotation, HasScoptOptions}
+import firrtl.annotations.NoTargetAnnotation
 import firrtl.transforms.BlackBoxTargetDirAnno
+import firrtl.options.HasScoptOptions
 import logger.LogLevel
 import scopt.OptionParser
 
@@ -21,7 +22,7 @@ sealed trait FirrtlOption extends HasScoptOptions
   * @param value top module name
   */
 case class TopNameAnnotation(topName: String) extends NoTargetAnnotation with FirrtlOption {
-  def addOptions(implicit p: OptionParser[AnnotationSeq]): Unit = p.opt[String]("top-name")
+  def addOptions(p: OptionParser[AnnotationSeq]): Unit = p.opt[String]("top-name")
     .abbr("tn")
     .valueName("<top-level-circuit-name>")
     .action( (x, c) => c :+ TopNameAnnotation(x) )
@@ -40,7 +41,7 @@ object TopNameAnnotation {
   * @param value target directory name
   */
 case class TargetDirAnnotation(targetDirName: String = ".") extends NoTargetAnnotation with FirrtlOption {
-  def addOptions(implicit p: OptionParser[AnnotationSeq]): Unit = p.opt[String]("target-dir")
+  def addOptions(p: OptionParser[AnnotationSeq]): Unit = p.opt[String]("target-dir")
     .abbr("td")
     .valueName("<target-directory>")
     .action( (x, c) => c ++ Seq(TargetDirAnnotation(x), BlackBoxTargetDirAnno(x)) )
@@ -57,7 +58,7 @@ case class TargetDirAnnotation(targetDirName: String = ".") extends NoTargetAnno
 case class LogLevelAnnotation(globalLogLevel: LogLevel.Value = LogLevel.None) extends NoTargetAnnotation with FirrtlOption {
   val value = globalLogLevel.toString
 
-  def addOptions(implicit p: OptionParser[AnnotationSeq]): Unit = p.opt[String]("log-level")
+  def addOptions(p: OptionParser[AnnotationSeq]): Unit = p.opt[String]("log-level")
     .abbr("ll")
     .valueName("<Error|Warn|Info|Debug|Trace>")
     .action( (x, c) => c :+ LogLevelAnnotation(LogLevel(x)) )
@@ -77,7 +78,7 @@ case class LogLevelAnnotation(globalLogLevel: LogLevel.Value = LogLevel.None) ex
   */
 case class ClassLogLevelAnnotation(className: String, level: LogLevel.Value) extends NoTargetAnnotation
     with FirrtlOption {
-  def addOptions(implicit p: OptionParser[AnnotationSeq]): Unit = p.opt[Seq[String]]("class-log-level")
+  def addOptions(p: OptionParser[AnnotationSeq]): Unit = p.opt[Seq[String]]("class-log-level")
     .abbr("cll")
     .valueName("<FullClassName:[Error|Warn|Info|Debug|Trace]>[,...]")
     .action( (x, c) => c ++ (x.map { y =>
@@ -97,7 +98,7 @@ object ClassLogLevelAnnotation {
   *  - enabled with `-ltf/--log-to-file`
   */
 case object LogToFileAnnotation extends NoTargetAnnotation with FirrtlOption {
-  def addOptions(implicit p: OptionParser[AnnotationSeq]): Unit = p.opt[Unit]("log-to-file")
+  def addOptions(p: OptionParser[AnnotationSeq]): Unit = p.opt[Unit]("log-to-file")
     .abbr("ltf")
     .action( (x, c) => c :+ LogToFileAnnotation )
     .unbounded()
@@ -109,7 +110,7 @@ case object LogToFileAnnotation extends NoTargetAnnotation with FirrtlOption {
   *  - enabled with `-lcn/--log-class-names`
   */
 case object LogClassNamesAnnotation extends NoTargetAnnotation with FirrtlOption {
-  def addOptions(implicit p: OptionParser[AnnotationSeq]): Unit = p.opt[Unit]("log-class-names")
+  def addOptions(p: OptionParser[AnnotationSeq]): Unit = p.opt[Unit]("log-class-names")
     .abbr("lcn")
     .action( (x, c) => c :+ LogClassNamesAnnotation )
     .unbounded()
@@ -122,7 +123,7 @@ case object LogClassNamesAnnotation extends NoTargetAnnotation with FirrtlOption
   * @param value one [[scala.String]] argument
   */
 case class ProgramArgsAnnotation(value: String) extends NoTargetAnnotation with FirrtlOption {
-  def addOptions(implicit p: OptionParser[AnnotationSeq]): Unit = p.arg[String]("<arg>...")
+  def addOptions(p: OptionParser[AnnotationSeq]): Unit = p.arg[String]("<arg>...")
     .unbounded()
     .optional()
     .action( (x, c) => c :+ ProgramArgsAnnotation(x) )
@@ -140,7 +141,7 @@ object ProgramArgsAnnotation {
   * @param value input filename
   */
 case class InputFileAnnotation(value: String) extends NoTargetAnnotation with FirrtlOption {
-  def addOptions(implicit p: OptionParser[AnnotationSeq]): Unit = p.opt[String]("input-file")
+  def addOptions(p: OptionParser[AnnotationSeq]): Unit = p.opt[String]("input-file")
     .abbr("i")
     .valueName ("<firrtl-source>")
     .action( (x, c) => c :+ InputFileAnnotation(x) )
@@ -158,7 +159,7 @@ object InputFileAnnotation {
   *  @param value output filename
   */
 case class OutputFileAnnotation(value: String) extends NoTargetAnnotation with FirrtlOption {
-  def addOptions(implicit p: OptionParser[AnnotationSeq]): Unit = p.opt[String]("output-file")
+  def addOptions(p: OptionParser[AnnotationSeq]): Unit = p.opt[String]("output-file")
     .abbr("o")
     .valueName("<output>")
     .action( (x, c) => c :+ OutputFileAnnotation(x) )
@@ -176,7 +177,7 @@ object OutputFileAnnotation {
   * @param value output annotation filename
   */
 case class OutputAnnotationFileAnnotation(value: String) extends NoTargetAnnotation with FirrtlOption {
-  def addOptions(implicit p: OptionParser[AnnotationSeq]): Unit = p.opt[String]("output-annotation-file")
+  def addOptions(p: OptionParser[AnnotationSeq]): Unit = p.opt[String]("output-annotation-file")
     .abbr("foaf")
     .valueName ("<output-anno-file>")
     .action( (x, c) => c :+ OutputAnnotationFileAnnotation(x) )
@@ -194,7 +195,7 @@ object OutputAnnotationFileAnnotation {
   * @param value info mode name
   */
 case class InfoModeAnnotation(value: String = "append") extends NoTargetAnnotation with FirrtlOption {
-  def addOptions(implicit p: OptionParser[AnnotationSeq]): Unit = p.opt[String]("info-mode")
+  def addOptions(p: OptionParser[AnnotationSeq]): Unit = p.opt[String]("info-mode")
     .valueName ("<ignore|use|gen|append>")
     .action( (x, c) => c :+ InfoModeAnnotation(x.toLowerCase) )
     .unbounded() // See [Note 1]
@@ -207,7 +208,7 @@ case class InfoModeAnnotation(value: String = "append") extends NoTargetAnnotati
   * @param value FIRRTL source as a [[scala.String]]
   */
 case class FirrtlSourceAnnotation(value: String) extends NoTargetAnnotation with FirrtlOption {
-  def addOptions(implicit p: OptionParser[AnnotationSeq]): Unit = p.opt[String]("firrtl-source")
+  def addOptions(p: OptionParser[AnnotationSeq]): Unit = p.opt[String]("firrtl-source")
     .valueName ("A FIRRTL string")
     .action( (x, c) => c :+ FirrtlSourceAnnotation(x) )
     .unbounded() // See [Note 1]
@@ -223,7 +224,7 @@ object FirrtlSourceAnnotation {
   *   - set with `--split-modules`
   */
 case object EmitOneFilePerModuleAnnotation extends NoTargetAnnotation with FirrtlOption {
-  def addOptions(implicit p: OptionParser[AnnotationSeq]): Unit = p.opt[Unit]("split-modules")
+  def addOptions(p: OptionParser[AnnotationSeq]): Unit = p.opt[Unit]("split-modules")
     .abbr("fsm")
     .action( (x, c) => c :+ EmitOneFilePerModuleAnnotation )
     .unbounded()
@@ -236,7 +237,7 @@ case object EmitOneFilePerModuleAnnotation extends NoTargetAnnotation with Firrt
   * @param value input annotation filename
   */
 case class InputAnnotationFileAnnotation(value: String) extends NoTargetAnnotation with FirrtlOption {
-  def addOptions(implicit p: OptionParser[AnnotationSeq]): Unit = p.opt[String]("annotation-file")
+  def addOptions(p: OptionParser[AnnotationSeq]): Unit = p.opt[String]("annotation-file")
     .abbr("faf")
     .unbounded()
     .valueName("<input-anno-file>")
@@ -255,7 +256,7 @@ object InputAnnotationFileAnnotation {
   * @param value compiler name
   */
 case class CompilerNameAnnotation(value: String = "verilog") extends NoTargetAnnotation with FirrtlOption {
-  def addOptions(implicit p: OptionParser[AnnotationSeq]): Unit = p.opt[String]("compiler")
+  def addOptions(p: OptionParser[AnnotationSeq]): Unit = p.opt[String]("compiler")
     .abbr("X")
     .valueName ("<high|middle|low|verilog|sverilog>")
     .action( (x, c) => c :+ CompilerNameAnnotation(x) )
@@ -269,7 +270,7 @@ case class CompilerNameAnnotation(value: String = "verilog") extends NoTargetAnn
   * @param value the full class name of the transform
   */
 case class RunFirrtlTransformAnnotation(value: String) extends NoTargetAnnotation with FirrtlOption {
-  def addOptions(implicit p: OptionParser[AnnotationSeq]): Unit = p.opt[Seq[String]]("custom-transforms")
+  def addOptions(p: OptionParser[AnnotationSeq]): Unit = p.opt[Seq[String]]("custom-transforms")
     .abbr("fct")
     .valueName ("<package>.<class>")
     .validate( x => {
@@ -295,5 +296,5 @@ object RunFirrtlTransformAnnotation {
   * @param value a circuit
   */
 case class FirrtlCircuitAnnotation(value: Circuit) extends NoTargetAnnotation with FirrtlOption {
-  def addOptions(implicit p: OptionParser[AnnotationSeq]): Unit = Unit
+  def addOptions(p: OptionParser[AnnotationSeq]): Unit = Unit
 }

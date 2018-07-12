@@ -11,6 +11,7 @@ import firrtl.Mappers._
 import firrtl.WrappedExpression._
 import firrtl.Utils.{throwInternalError, toWrappedExpression, kind}
 import firrtl.MemoizedHash._
+import firrtl.options.RegisteredTransform
 import scopt.OptionParser
 
 import collection.mutable
@@ -31,9 +32,15 @@ import java.io.{File, FileWriter}
   * circumstances of their instantiation in their parent module, they will still not be removed. To
   * remove such modules, use the [[NoDedupAnnotation]] to prevent deduplication.
   */
-class DeadCodeElimination extends Transform {
+class DeadCodeElimination extends Transform with RegisteredTransform {
   def inputForm = LowForm
   def outputForm = LowForm
+
+  def addOptions(parser: OptionParser[AnnotationSeq]): Unit = parser
+    .opt[Unit]("no-dce")
+    .action( (x, c) => c :+ NoDCEAnnotation )
+    .maxOccurs(1)
+    .text("Do NOT run dead code elimination")
 
   /** Based on LogicNode ins CheckCombLoops, currently kind of faking it */
   private type LogicNode = MemoizedHash[WrappedExpression]
@@ -336,12 +343,4 @@ class DeadCodeElimination extends Transform {
       run(state, dontTouches, doTouchExtMods.toSet)
     }
   }
-}
-
-object DeadCodeElimination extends ProvidesOptions {
-  def provideOptions(parser: OptionParser[AnnotationSeq]): Unit = parser
-    .opt[Unit]("no-dce")
-    .action( (x, c) => c :+ NoDCEAnnotation )
-    .maxOccurs(1)
-    .text("Do NOT run dead code elimination")
 }

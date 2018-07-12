@@ -6,6 +6,7 @@ package passes
 import firrtl.ir._
 import firrtl.Mappers._
 import firrtl.annotations._
+import firrtl.options.RegisteredTransform
 import scopt.OptionParser
 
 // Datastructures
@@ -19,10 +20,29 @@ case class InlineAnnotation(target: Named) extends SingleTargetAnnotation[Named]
 // Only use on legal Firrtl. Specifically, the restriction of
 //  instance loops must have been checked, or else this pass can
 //  infinitely recurse
-class InlineInstances extends Transform {
+class InlineInstances extends Transform with RegisteredTransform {
    def inputForm = LowForm
    def outputForm = LowForm
    val inlineDelim = "$"
+
+  def addOptions(parser: OptionParser[AnnotationSeq]): Unit = parser
+    .opt[Seq[String]]("inline")
+    .abbr("fil")
+    .valueName ("<circuit>[.<module>[.<instance>]][,..],")
+    .action( (x, c) => {
+              val newAnnotations = x.map { value =>
+                value.split('.') match {
+                  case Array(circuit) =>
+                    InlineAnnotation(CircuitName(circuit))
+                  case Array(circuit, module) =>
+                    InlineAnnotation(ModuleName(module, CircuitName(circuit)))
+                  case Array(circuit, module, inst) =>
+                    InlineAnnotation(ComponentName(inst, ModuleName(module, CircuitName(circuit))))
+                }
+              }
+              c ++ newAnnotations :+ RunFirrtlTransformAnnotation(new InlineInstances().getClass.getName) } )
+    .text(
+      """Inline one or more module (comma separated, no spaces) module looks like "MyModule" or "MyModule.myinstance""")
 
    private def collectAnns(circuit: Circuit, anns: Iterable[Annotation]): (Set[ModuleName], Set[ComponentName]) =
      anns.foldLeft(Set.empty[ModuleName], Set.empty[ComponentName]) {
@@ -142,25 +162,4 @@ class InlineInstances extends Transform {
     })
     CircuitState(flatCircuit, LowForm, annos, None)
   }
-}
-
-object InlineInstances extends ProvidesOptions {
-  def provideOptions(parser: OptionParser[AnnotationSeq]): Unit = parser
-    .opt[Seq[String]]("inline")
-    .abbr("fil")
-    .valueName ("<circuit>[.<module>[.<instance>]][,..],")
-    .action( (x, c) => {
-              val newAnnotations = x.map { value =>
-                value.split('.') match {
-                  case Array(circuit) =>
-                    InlineAnnotation(CircuitName(circuit))
-                  case Array(circuit, module) =>
-                    InlineAnnotation(ModuleName(module, CircuitName(circuit)))
-                  case Array(circuit, module, inst) =>
-                    InlineAnnotation(ComponentName(inst, ModuleName(module, CircuitName(circuit))))
-                }
-              }
-              c ++ newAnnotations :+ RunFirrtlTransformAnnotation(new InlineInstances().getClass.getName) } )
-    .text(
-      """Inline one or more module (comma separated, no spaces) module looks like "MyModule" or "MyModule.myinstance""")
 }

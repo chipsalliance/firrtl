@@ -478,8 +478,3 @@ trait Compiler extends LazyLogging {
   }
 
 }
-
-/** Mixin that indicates a class wants to define command line options */
-trait ProvidesOptions {
-  def provideOptions(parser: OptionParser[AnnotationSeq]): Unit
-}
