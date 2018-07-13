@@ -4,8 +4,8 @@ package firrtl
 
 import scala.collection._
 import scala.io.Source
-import scala.sys.process.{BasicIO,stringSeqToProcess}
-import scala.util.{Try, Success, Failure}
+import scala.sys.process.{BasicIO, ProcessLogger, stringSeqToProcess}
+import scala.util.{Failure, Success, Try}
 import scala.util.control.ControlThrowable
 import java.io.{File, FileNotFoundException}
 
@@ -148,6 +148,67 @@ object Driver {
     LegacyAnnotation.convertLegacyAnnos(annos)
   }
 
+  private sealed trait FileExtension
+  private case object FirrtlFile extends FileExtension
+  private case object ProtoBufFile extends FileExtension
+
+  private def getFileExtension(filename: String): FileExtension =
+    filename.drop(filename.lastIndexOf('.')) match {
+      case ".pb" => ProtoBufFile
+      case _ => FirrtlFile // Default to FIRRTL File
+    }
+
+  // Useful for handling erros in the options
+  case class OptionsException(msg: String) extends Exception(msg)
+
+  /** Get the Circuit from the compile options
+    *
+    * Handles the myriad of ways it can be specified
+    */
+  def getCircuit(optionsManager: ExecutionOptionsManager with HasFirrtlOptions): Try[ir.Circuit] = {
+    val firrtlConfig = optionsManager.firrtlOptions
+    Try {
+      // Check that only one "override" is used
+      val circuitSources = Map(
+        "firrtlSource" -> firrtlConfig.firrtlSource.isDefined,
+        "firrtlCircuit" -> firrtlConfig.firrtlCircuit.isDefined,
+        "inputFileNameOverride" -> firrtlConfig.inputFileNameOverride.nonEmpty)
+      if (circuitSources.values.count(x => x) > 1) {
+        val msg = circuitSources.collect { case (s, true) => s }.mkString(" and ") +
+          " are set, only 1 can be set at a time!"
+        throw new OptionsException(msg)
+      }
+      firrtlConfig.firrtlCircuit.getOrElse {
+        firrtlConfig.firrtlSource.map(x => Parser.parseString(x, firrtlConfig.infoMode)).getOrElse {
+          if (optionsManager.topName.isEmpty && firrtlConfig.inputFileNameOverride.isEmpty) {
+            val message = "either top-name or input-file-override must be set"
+            throw new OptionsException(message)
+          }
+          if (
+            optionsManager.topName.isEmpty &&
+              firrtlConfig.inputFileNameOverride.nonEmpty &&
+              firrtlConfig.outputFileNameOverride.isEmpty) {
+            val message = "inputFileName set but neither top-name or output-file-override is set"
+            throw new OptionsException(message)
+          }
+          val inputFileName = firrtlConfig.getInputFileName(optionsManager)
+          try {
+            // TODO What does InfoMode mean to ProtoBuf?
+            getFileExtension(inputFileName) match {
+              case ProtoBufFile => proto.FromProto.fromFile(inputFileName)
+              case FirrtlFile => Parser.parseFile(inputFileName, firrtlConfig.infoMode)
+            }
+          }
+          catch {
+            case _: FileNotFoundException =>
+              val message = s"Input file $inputFileName not found"
+              throw new OptionsException(message)
+          }
+        }
+      }
+    }
+  }
+
   /**
     * Run the firrtl compiler using the provided option
     *
@@ -160,49 +221,25 @@ object Driver {
     def firrtlConfig = optionsManager.firrtlOptions
 
     Logger.makeScope(optionsManager) {
-      val firrtlSource = firrtlConfig.firrtlSource match {
-        case Some(text) => text.split("\n").toIterator
-        case None =>
-          if (optionsManager.topName.isEmpty && firrtlConfig.inputFileNameOverride.isEmpty) {
-            val message = "either top-name or input-file-override must be set"
-            dramaticError(message)
-            return FirrtlExecutionFailure(message)
-          }
-          if (
-            optionsManager.topName.isEmpty &&
-              firrtlConfig.inputFileNameOverride.nonEmpty &&
-              firrtlConfig.outputFileNameOverride.isEmpty) {
-            val message = "inputFileName set but neither top-name or output-file-override is set"
-            dramaticError(message)
-            return FirrtlExecutionFailure(message)
-          }
-          val inputFileName = firrtlConfig.getInputFileName(optionsManager)
-          try {
-            io.Source.fromFile(inputFileName).getLines()
-          }
-          catch {
-            case _: FileNotFoundException =>
-              val message = s"Input file $inputFileName not found"
-              dramaticError(message)
-              return FirrtlExecutionFailure(message)
-          }
-      }
-
-      var maybeFinalState: Option[CircuitState] = None
-
       // Wrap compilation in a try/catch to present Scala MatchErrors in a more user-friendly format.
-      try {
-        val annos = getAnnotations(optionsManager)
+      val finalState = try {
+        val circuit = getCircuit(optionsManager) match {
+          case Success(c) => c
+          case Failure(OptionsException(msg)) =>
+            dramaticError(msg)
+            return FirrtlExecutionFailure(msg)
+          case Failure(e) => throw e
+        }
 
-        val parsedInput = Parser.parse(firrtlSource, firrtlConfig.infoMode)
+        val annos = getAnnotations(optionsManager)
 
         // Does this need to be before calling compiler?
         optionsManager.makeTargetDir()
 
-        maybeFinalState = Some(firrtlConfig.compiler.compile(
-          CircuitState(parsedInput, ChirrtlForm, annos),
+        firrtlConfig.compiler.compile(
+          CircuitState(circuit, ChirrtlForm, annos),
           firrtlConfig.customTransforms
-        ))
+        )
       }
       catch {
         // Rethrow the exceptions which are expected or due to the runtime environment (out of memory, stack overflow)
@@ -212,8 +249,6 @@ object Driver {
         // Treat remaining exceptions as internal errors.
         case e: Exception => throwInternalError(exception = Some(e))
       }
-
-      val finalState = maybeFinalState.get
 
       // Do emission
       // Note: Single emission target assumption is baked in here
@@ -347,7 +382,7 @@ object FileUtils {
   def isCommandAvailable(cmd: Seq[String]): Boolean = {
     // Eat any output.
     val sb = new StringBuffer
-    val ioToDevNull = BasicIO(withIn = false, sb, None)
+    val ioToDevNull = BasicIO(withIn = false, ProcessLogger(line => sb.append(line)))
 
     try {
       cmd.run(ioToDevNull).exitValue == 0
