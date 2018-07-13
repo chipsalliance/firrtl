@@ -6,10 +6,10 @@ import firrtl.AnnotationSeq
 
 /** Type class defining a "view" of an [[AnnotationSeq]] */
 trait OptionsView[T] {
-  def view(implicit options: AnnotationSeq): Option[T]
+  def view(options: AnnotationSeq): Option[T]
 }
 
 /** A shim to manage multiple "views" of an [[AnnotationSeq]] */
 object Viewer {
-  def view[T](implicit optionsView: OptionsView[T], options: AnnotationSeq): Option[T] = optionsView.view
+  def view[T](options: AnnotationSeq)(implicit optionsView: OptionsView[T]): Option[T] = optionsView.view(options)
 }

@@ -153,8 +153,7 @@ object Logger {
   @deprecated("Pass an explicit options manager via makeScope(ExecutionOptionsManager)", "1.2.0")
   def makeScope[A](args: Array[String] = Array.empty)(codeBlock: => A): A = {
     val optionsManager = new ExecutionOptionsManager("logger") with HasFirrtlExecutionOptions
-    implicit val annotation = optionsManager.parse(args)
-    makeScope(view[FirrtlExecutionOptions].get)(codeBlock)
+    makeScope(view[FirrtlExecutionOptions](optionsManager.parse(args)).get)(codeBlock)
   }
 
   /**

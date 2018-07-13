@@ -42,8 +42,7 @@ class LoggerSpec extends FreeSpec with Matchers with OneInstancePerTest with Laz
 
   def argsToOptions(args: Array[String]): FirrtlExecutionOptions = {
     val optionsManager = new ExecutionOptionsManager("test") with HasFirrtlExecutionOptions
-    implicit val annotation = optionsManager.parse(args)
-    view[FirrtlExecutionOptions].get
+    view[FirrtlExecutionOptions](optionsManager.parse(args)).get
   }
 
   val dummyOptions = argsToOptions(Array("--top-name", "null"))

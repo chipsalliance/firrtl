@@ -40,8 +40,7 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
 
   def argsToOptions(args: Array[String]): FirrtlExecutionOptions = {
     val optionsManager = new ExecutionOptionsManager("test") with HasFirrtlExecutionOptions
-    implicit val annotation = optionsManager.parse(args)
-    view[FirrtlExecutionOptions].get
+    view[FirrtlExecutionOptions](optionsManager.parse(args)).get
   }
 
   "CommonOptions are some simple options available across the chisel3 ecosystem" - {

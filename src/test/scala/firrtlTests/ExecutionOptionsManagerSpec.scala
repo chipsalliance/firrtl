@@ -28,8 +28,7 @@ class ExecutionOptionsManagerSpec extends FreeSpec with Matchers {
 
   def argsToOptions(args: Array[String], initAnnos: AnnotationSeq = Seq.empty): FirrtlExecutionOptions = {
     val optionsManager = new ExecutionOptionsManager("test") with HasFirrtlExecutionOptions
-    implicit val annotation = optionsManager.parse(args, initAnnos)
-    view[FirrtlExecutionOptions].get
+    view[FirrtlExecutionOptions](optionsManager.parse(args, initAnnos)).get
   }
 
   "ExecutionOptionsManager with HasFirrtlExecutionOptions" - {

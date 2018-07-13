@@ -19,7 +19,7 @@ import scopt.OptionParser
 
 object FirrtlViewer {
   implicit object FirrtlOptionsView extends OptionsView[FirrtlExecutionOptions] {
-    def view(implicit options: AnnotationSeq): Option[FirrtlExecutionOptions] = {
+    def view(options: AnnotationSeq): Option[FirrtlExecutionOptions] = {
       /* Pull in whatever the user tells us to from files until we can't find
        * any more. Remember what we've already imported to prevent a
        * loop. */

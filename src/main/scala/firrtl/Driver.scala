@@ -47,8 +47,7 @@ import firrtl.FirrtlViewer._
   */
 
 object Driver {
-  private val optionsManager = new ExecutionOptionsManager("firrtl") with HasFirrtlExecutionOptions
-  private implicit var annotations: AnnotationSeq = Seq.empty
+  val optionsManager = new ExecutionOptionsManager("firrtl") with HasFirrtlExecutionOptions
 
   /**
     * Print a warning message (in yellow)
@@ -75,18 +74,8 @@ object Driver {
     println("-"*78 + Console.RESET)
   }
 
-  /**
-    * Load annotations from an [[options.ExecutionOptionsManager]]
-    *
-    * @param optionsManager use optionsManager config to load annotation file if it exists
-    *                       update the firrtlOptions with new annotations if it does
-    */
-  @deprecated("This has no effect and is unnecessary due to ExecutionOptionsManager immutability", "1.1.0")
-  def loadAnnotations(optionsManager: ExecutionOptionsManager with HasFirrtlExecutionOptions): Unit =
-    Driver.dramaticWarning("Driver.loadAnnotations doesn't do anything, use Driver.getAnnotations instead")
-
-  def execute(): FirrtlExecutionResult = {
-    val firrtlOptions = view[FirrtlExecutionOptions].getOrElse{
+  private def execute(annotations: AnnotationSeq): FirrtlExecutionResult = {
+    val firrtlOptions = view[FirrtlExecutionOptions](annotations).getOrElse{
       throw new FIRRTLException("Unable to determine FIRRTL options for provided command line options and annotations") }
 
     Logger.makeScope(firrtlOptions) {
@@ -158,10 +147,9 @@ object Driver {
     * @param args command line arguments
     * @return the result of running the FIRRTL compiler
     */
-  def execute(args: Array[String]): FirrtlExecutionResult = {
+  def execute(args: Array[String], initAnnos: AnnotationSeq = Seq.empty): FirrtlExecutionResult = {
     try {
-      annotations = optionsManager.parse(args)
-      execute() match {
+      execute(optionsManager.parse(args, initAnnos)) match {
         case success: FirrtlExecutionSuccess => success
         case failure: FirrtlExecutionFailure =>
           optionsManager.showUsageAsError()
