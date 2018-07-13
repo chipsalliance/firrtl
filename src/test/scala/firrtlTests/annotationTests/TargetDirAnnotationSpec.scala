@@ -47,14 +47,12 @@ class TargetDirAnnotationSpec extends FirrtlFlatSpec {
     .collectFirst{ case FoundTargetDirAnnotation(a) => a }
 
   it should "be available as an annotation when using execution options" in {
-    val optionsManager = new ExecutionOptionsManager(
-      "TargetDir",
-      Array("--target-dir", targetDir,
-            "--top-name", "Top",
-            "--compiler", "high",
-            "--firrtl-source", input,
-            "--custom-transforms", "firrtlTests.annotationTests.FindTargetDirTransform") ) with HasFirrtlExecutionOptions
-    implicit val annos = Driver.execute(optionsManager) match {
+    val args = Array("--target-dir", targetDir,
+                     "--top-name", "Top",
+                     "--compiler", "high",
+                     "--firrtl-source", input,
+                     "--custom-transforms", "firrtlTests.annotationTests.FindTargetDirTransform")
+    implicit val annos = Driver.execute(args) match {
       case success: FirrtlExecutionSuccess => success.circuitState.annotations
       case _ => throw new Exception("Driver failed to run to completion") }
 

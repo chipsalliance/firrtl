@@ -161,17 +161,11 @@ class ParserSpec extends FirrtlFlatSpec {
 
   "Parsing errors" should "be reported as normal exceptions" in {
     val input = s"""
-      |circuit Test
+      |circuit Test SYNTAX_ERROR
       |  module Test :
-
       |""".stripMargin
-    val manager = new ExecutionOptionsManager(
-      "test",
-      Array("--firrtl-source", input)) with HasFirrtlExecutionOptions {
-    }
-    a [SyntaxErrorsException] shouldBe thrownBy {
-      Driver.execute(manager)
-    }
+
+    a [SyntaxErrorsException] shouldBe thrownBy { Driver.execute(Array("--firrtl-source", input)) }
   }
 }
 

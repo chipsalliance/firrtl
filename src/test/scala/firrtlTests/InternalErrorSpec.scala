@@ -26,15 +26,10 @@ class InternalErrorSpec extends FreeSpec with Matchers with BackendCompilationUt
 
     var exception: Exception = null
     "should throw a FIRRTLException" in {
-      val manager = new ExecutionOptionsManager(
-        "test",
-        Array("--top-name", "Dummy",
-              "--firrtl-source", input,
-              "--compiler", "low") ) with HasFirrtlExecutionOptions {
-      }
-      exception = intercept[FIRRTLException] {
-        firrtl.Driver.execute(manager)
-      }
+      val args = Array("--top-name", "Dummy",
+                       "--firrtl-source", input,
+                       "--compiler", "low")
+      exception = intercept[FIRRTLException] { firrtl.Driver.execute(args) }
     }
 
     "should contain the expected string" in {

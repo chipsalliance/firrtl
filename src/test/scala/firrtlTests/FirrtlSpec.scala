@@ -51,13 +51,11 @@ trait FirrtlRunners extends BackendCompilationUtilities {
         Array("--custom-transforms") ++ customTransforms.map(_.getClass.getName)
       else
         Array("")
-    val optionsManager = new ExecutionOptionsManager(
-      prefix,
-      Array("--top-name", prefix,
+    val args = Array("--top-name", prefix,
             "--target-dir", testDir.getPath,
             "--info-mode", "ignore") ++ argTransform ++
-        Array("--annotation-file", s"$testDir/$prefix.anno.json") ) with HasFirrtlExecutionOptions
-    firrtl.Driver.execute(optionsManager)
+        Array("--annotation-file", s"$testDir/$prefix.anno.json")
+    firrtl.Driver.execute(args)
 
     testDir
   }

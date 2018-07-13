@@ -548,7 +548,7 @@ class JsonAnnotationTests extends AnnotationTests with BackendCompilationUtiliti
     annos should be (readAnnos)
   }
 
-  private def setupManager(annoFileText: Option[String]) = {
+  private def setupManager(annoFileText: Option[String]): Array[String] = {
     val source = """
       |circuit test :
       |  module test :
@@ -565,10 +565,10 @@ class JsonAnnotationTests extends AnnotationTests with BackendCompilationUtiliti
       w.close()
     }
 
-    new ExecutionOptionsManager("annos", Array(
-                                  "--target-dir", testDir.getPath,
-                                  "--firrtl-source", source,
-                                  "--annotation-file", annoFile.getPath)) with HasFirrtlExecutionOptions
+
+    Array( "--target-dir", testDir.getPath,
+           "--firrtl-source", source,
+           "--annotation-file", annoFile.getPath)
   }
 
   /* We throw better exceptions than we're checking for, e.g., an
@@ -579,9 +579,9 @@ class JsonAnnotationTests extends AnnotationTests with BackendCompilationUtiliti
   behavior of "Reasonable error messages"
 
   it should "print for 'Annotation File Not Found' condition" in {
-    val manager = setupManager(None)
+    val args = setupManager(None)
 
-    a [FIRRTLException] shouldBe thrownBy { Driver.execute(manager) }
+    a [FIRRTLException] shouldBe thrownBy { Driver.execute(args) }
   }
 
   it should "print for 'Annotation Class Not Found' condition" in {
@@ -592,9 +592,9 @@ class JsonAnnotationTests extends AnnotationTests with BackendCompilationUtiliti
       |    "target":"test.test.y"
       |  }
       |] """.stripMargin
-    val manager = setupManager(Some(anno))
+    val args = setupManager(Some(anno))
 
-    a [FIRRTLException] shouldBe thrownBy { Driver.execute(manager) }
+    a [FIRRTLException] shouldBe thrownBy { Driver.execute(args) }
   }
 
   it should "print for 'Malformed Annotation File' condition" in {
@@ -605,9 +605,9 @@ class JsonAnnotationTests extends AnnotationTests with BackendCompilationUtiliti
       |    "target":"test.test.y"
       |  }
       |] """.stripMargin
-    val manager = setupManager(Some(anno))
+    val args = setupManager(Some(anno))
 
-    a [FIRRTLException] shouldBe thrownBy { Driver.execute(manager) }
+    a [FIRRTLException] shouldBe thrownBy { Driver.execute(args) }
   }
 
   it should "print for 'Non-Array Annotation File' condition" in {
@@ -617,8 +617,8 @@ class JsonAnnotationTests extends AnnotationTests with BackendCompilationUtiliti
       |  "target":"test.test.y"
       |}
       |""".stripMargin
-    val manager = setupManager(Some(anno))
+    val args = setupManager(Some(anno))
 
-    a [FIRRTLException] shouldBe thrownBy { Driver.execute(manager) }
+    a [FIRRTLException] shouldBe thrownBy { Driver.execute(args) }
   }
 }

@@ -5,6 +5,8 @@ package firrtlTests
 import firrtl._
 import firrtl.options.ExecutionOptionsManager
 import firrtl.annotations.Annotation
+import firrtl.options.Viewer._
+import firrtl.FirrtlViewer._
 import logger.LogLevel
 import org.scalatest.{Matchers, FreeSpec}
 
@@ -24,11 +26,16 @@ class ExecutionOptionsManagerSpec extends FreeSpec with Matchers {
   val args = Array("--top-name", "spoon",
                    "--input-file", "fork")
 
+  def argsToOptions(args: Array[String], initAnnos: AnnotationSeq = Seq.empty): FirrtlExecutionOptions = {
+    val optionsManager = new ExecutionOptionsManager("test") with HasFirrtlExecutionOptions
+    implicit val annotation = optionsManager.parse(args, initAnnos)
+    view[FirrtlExecutionOptions].get
+  }
+
   "ExecutionOptionsManager with HasFirrtlExecutionOptions" - {
     "when constructed sanely" - {
       "should have default FIRRTL options" in {
-        val f = (new ExecutionOptionsManager("test", Array("--top-name", "null")) with HasFirrtlExecutionOptions)
-          .firrtlOptions
+        val f = argsToOptions(Array("--top-name", "null"))
         // This is explicitly enumerated (as opposed to being compared to
         // FirrtlExecutionOptions()) to catch changes in
         // FirrtlExecutionOptions that a developer may make, requiring
@@ -52,15 +59,12 @@ class ExecutionOptionsManagerSpec extends FreeSpec with Matchers {
         f.emitOneFilePerModule should be (false)
       }
       "should be able to override the Top Module Name" in {
-        val f = (new ExecutionOptionsManager("test",
-                                             Array("--top-name", "dog")) with HasFirrtlExecutionOptions)
-          .firrtlOptions
+        val f = argsToOptions(Array("--top-name", "dog"))
         f shouldBe a [FirrtlExecutionOptions]
         f.topName should be (Some("dog"))
       }
       "should be able to set different Top Module Name and Input File" in {
-        val f = (new ExecutionOptionsManager("test", args) with HasFirrtlExecutionOptions)
-          .firrtlOptions
+        val f = argsToOptions(args)
         f.inputFileNameOverride should be (Some("fork"))
         f.topName should be (Some("spoon"))
       }
@@ -69,11 +73,9 @@ class ExecutionOptionsManagerSpec extends FreeSpec with Matchers {
       def shouldExceptOnOptionsOrAnnotations(name: String, args: Array[String], annotations: Seq[Annotation]) {
         name - {
           "via command line options" in {
-            val m = new ExecutionOptionsManager("t", Array("-tn", "foo") ++ args) with HasFirrtlExecutionOptions
-            a [FIRRTLException] should be thrownBy (m.firrtlOptions) }
+            a [FIRRTLException] should be thrownBy (argsToOptions(Array("-tn", "foo") ++ args)) }
           "via annotations" in {
-            val m = new ExecutionOptionsManager("t", Array("-tn", "foo"), annotations) with HasFirrtlExecutionOptions
-            a [FIRRTLException] should be thrownBy (m.firrtlOptions) }}}
+            a [FIRRTLException] should be thrownBy (argsToOptions(Array("-tn", "foo"), annotations)) }}}
 
       shouldExceptOnOptionsOrAnnotations("should fail when --input-file and --firrtl-source are both specified",
                                          Array("--input-file", "foo", "--firrtl-source", "Circuit:"),
@@ -118,16 +120,15 @@ class ExecutionOptionsManagerSpec extends FreeSpec with Matchers {
 
 
       "should fail when input file is not explicit or implicit" in {
-        val m = new ExecutionOptionsManager("test", Array[String]()) with HasFirrtlExecutionOptions
-        a [FIRRTLException] should be thrownBy (m.firrtlOptions)
+        a [FIRRTLException] should be thrownBy (argsToOptions(Array[String]()))
       }
       "should fail on duplicate long options" in {
-        val m = new ExecutionOptionsManager("test", args) with HasFirrtlExecutionOptions with HasDuplicateLongOption
-        a [FIRRTLException] should be thrownBy (m.firrtlOptions)
+        val m = new ExecutionOptionsManager("test") with HasFirrtlExecutionOptions with HasDuplicateLongOption
+        a [FIRRTLException] should be thrownBy (m.parse(args))
       }
       "should fail on duplicate short options" in {
-        val m = new ExecutionOptionsManager("test", args) with HasFirrtlExecutionOptions with HasDuplicateShortOption
-        a [FIRRTLException] should be thrownBy (m.firrtlOptions)
+        val m = new ExecutionOptionsManager("test") with HasFirrtlExecutionOptions with HasDuplicateShortOption
+        a [FIRRTLException] should be thrownBy (m.parse(args))
       }
     }
   }

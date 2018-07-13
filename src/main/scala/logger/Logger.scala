@@ -4,8 +4,10 @@ package logger
 
 import java.io.{ByteArrayOutputStream, File, FileOutputStream, PrintStream}
 
-import firrtl.HasFirrtlExecutionOptions
+import firrtl.{FirrtlExecutionOptions, HasFirrtlExecutionOptions}
 import firrtl.options.ExecutionOptionsManager
+import firrtl.options.Viewer._
+import firrtl.FirrtlViewer._
 
 import scala.util.DynamicVariable
 
@@ -121,7 +123,7 @@ object Logger {
     * @tparam A       The return type of codeBlock
     * @return         Whatever block returns
     */
-  def makeScope[A](manager: ExecutionOptionsManager with HasFirrtlExecutionOptions)(codeBlock: => A): A = {
+  def makeScope[A](options: FirrtlExecutionOptions)(codeBlock: => A): A = {
     val runState: LoggerState = {
       val newRunState = updatableLoggerState.value.getOrElse(new LoggerState)
       if(newRunState.fromInvoke) {
@@ -135,7 +137,7 @@ object Logger {
     }
 
     updatableLoggerState.withValue(Some(runState)) {
-      setOptions(manager)
+      setOptions(options)
       codeBlock
     }
   }
@@ -150,10 +152,10 @@ object Logger {
     */
   @deprecated("Pass an explicit options manager via makeScope(ExecutionOptionsManager)", "1.2.0")
   def makeScope[A](args: Array[String] = Array.empty)(codeBlock: => A): A = {
-    val executionOptionsManager = new ExecutionOptionsManager("logger", args) with HasFirrtlExecutionOptions
-    makeScope(executionOptionsManager)(codeBlock)
+    val optionsManager = new ExecutionOptionsManager("logger") with HasFirrtlExecutionOptions
+    implicit val annotation = optionsManager.parse(args)
+    makeScope(view[FirrtlExecutionOptions].get)(codeBlock)
   }
-
 
   /**
     * Used to test whether a given log statement should generate some logging output.
@@ -338,8 +340,7 @@ object Logger {
     * from the command line via an options manager
     * @param optionsManager manager
     */
-  def setOptions(optionsManager: ExecutionOptionsManager with HasFirrtlExecutionOptions): Unit = {
-    val options = optionsManager.firrtlOptions
+  def setOptions(options: FirrtlExecutionOptions): Unit = {
     state.globalLevel = (state.globalLevel, options.globalLogLevel) match {
       case (LogLevel.None, LogLevel.None) => LogLevel.None
       case (x, LogLevel.None) => x
@@ -349,7 +350,7 @@ object Logger {
     }
     setClassLogLevels(options.classLogLevels)
     if(options.logToFile) {
-      setOutput(optionsManager.getLogFileName)
+      setOutput(options.getLogFileName)
     }
     state.logClassNames = options.logClassNames
   }

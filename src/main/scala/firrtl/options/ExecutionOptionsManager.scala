@@ -6,19 +6,18 @@ import firrtl.{AnnotationSeq, FIRRTLException}
 import scopt.OptionParser
 import java.util.ServiceLoader
 
+// Useful for handling erros in the options
+case class OptionsException(msg: String) extends Exception(msg)
+
 /** A store of command line options as an [[AnnotationSeq]]
   *
   * @param applicationName  The name shown in the usage
   * @param args Command line arguments to process
   * @param annotations Initial options to start with
   */
-class ExecutionOptionsManager(
-  val applicationName: String,
-  args: Array[String],
-  annotations: AnnotationSeq = AnnotationSeq(Seq.empty)) {
-
+class ExecutionOptionsManager(val applicationName: String) {
   /** Command line argument parser ([[scopt.OptionParser]]) with modifications */
-  implicit final val parser = new OptionParser[AnnotationSeq](applicationName)
+  final val parser = new OptionParser[AnnotationSeq](applicationName)
       with TerminateOnExit[AnnotationSeq]
       with DuplicateHandling[AnnotationSeq]
 
@@ -26,6 +25,7 @@ class ExecutionOptionsManager(
   def doNotExitOnHelp(): Unit = {
     parser.terminateOnExit = false
   }
+
   /** By default scopt calls sys.exit when --help is in options, this un-defeats doNotExitOnHelp */
   def exitOnHelp(): Unit = {
     parser.terminateOnExit = true
@@ -36,7 +36,7 @@ class ExecutionOptionsManager(
 
   /* Mechanism to collect the options of  */
   private var registeredLibraries = scala.collection.mutable.ArrayBuffer[RegisteredLibrary]()
-  private def addRegisteredOptions(): Unit = {
+  lazy val addRegisteredOptions: Unit = {
     val iter = ServiceLoader.load(classOf[RegisteredLibrary]).iterator()
     while (iter.hasNext) {
       val lib = iter.next()
@@ -48,7 +48,7 @@ class ExecutionOptionsManager(
 
   /* Mechanism to collect the options of individual transforms */
   private var registeredTransforms = scala.collection.mutable.ArrayBuffer[RegisteredTransform]()
-  private def addTransformOptions(): Unit = {
+  lazy val addTransformOptions: Unit = {
     val iter = ServiceLoader.load(classOf[RegisteredTransform]).iterator()
     parser.note("FIRRTL Transform Options")
     while (iter.hasNext) {
@@ -63,11 +63,11 @@ class ExecutionOptionsManager(
     * This requires lazy evaluation as subclasses will mixin new command
     * line options via methods of [[ExecutionOptionsManager.parser]]
     */
-  lazy implicit final val options: AnnotationSeq = {
+  def parse(args: Array[String], initAnnos: AnnotationSeq = Seq.empty): AnnotationSeq = {
     addTransformOptions
     addRegisteredOptions
     parser
-      .parse(args, annotations)
+      .parse(args, initAnnos)
       .getOrElse(throw new FIRRTLException("Failed to parse command line options"))
   }
 
@@ -82,5 +82,4 @@ class ExecutionOptionsManager(
                   |  - ${registeredTransforms.map(_.getClass.getName).mkString("\n  - ")}""".stripMargin)
       c
     }
-
 }

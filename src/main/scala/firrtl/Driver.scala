@@ -7,17 +7,16 @@ import scala.io.Source
 import scala.sys.process.{BasicIO, ProcessLogger, stringSeqToProcess}
 import scala.util.{Failure, Success, Try}
 import scala.util.control.ControlThrowable
-import java.io.{File, FileNotFoundException}
+import java.io.File
 
 import net.jcazevedo.moultingyaml._
 import logger.Logger
-import Parser.{IgnoreInfo, InfoMode}
 import annotations._
 import firrtl.annotations.AnnotationYamlProtocol._
 import firrtl.passes.{PassException, PassExceptions}
 import firrtl.transforms._
 import firrtl.Utils.throwInternalError
-import firrtl.options.ExecutionOptionsManager
+import firrtl.options.{ExecutionOptionsManager, OptionsException}
 import firrtl.options.Viewer._
 import firrtl.FirrtlViewer._
 
@@ -48,6 +47,9 @@ import firrtl.FirrtlViewer._
   */
 
 object Driver {
+  private val optionsManager = new ExecutionOptionsManager("firrtl") with HasFirrtlExecutionOptions
+  private implicit var annotations: AnnotationSeq = Seq.empty
+
   /**
     * Print a warning message (in yellow)
     *
@@ -83,62 +85,14 @@ object Driver {
   def loadAnnotations(optionsManager: ExecutionOptionsManager with HasFirrtlExecutionOptions): Unit =
     Driver.dramaticWarning("Driver.loadAnnotations doesn't do anything, use Driver.getAnnotations instead")
 
-  /**
-    * Extract the annotations from an [[ExecutionOptionsManager]]
-    *
-    * @param optionsManager use optionsManager config to load annotation files
-    * @return Annotations read from files
-    */
-  def getAnnotations(optionsManager: ExecutionOptionsManager with HasFirrtlExecutionOptions): Seq[Annotation] =
-    optionsManager.firrtlOptions.annotations
-
-  // Useful for handling erros in the options
-  case class OptionsException(msg: String) extends Exception(msg)
-
-  /** Get the Circuit from the compile options
-    *
-    * Handles the myriad of ways it can be specified
-    */
-  def getCircuit(implicit optionsManager: ExecutionOptionsManager with HasFirrtlExecutionOptions): Try[ir.Circuit] = {
-    val firrtlOptions = view[FirrtlExecutionOptions].getOrElse{
-      throw new FIRRTLException("Unable to determine FIRRTL options for provided command line options and annotations") }
-    Try {
-      // Check that only one "override" is used
-      firrtlOptions.firrtlCircuit.getOrElse {
-        firrtlOptions.firrtlSource.map(x => Parser.parseString(x, firrtlOptions.infoMode)).getOrElse {
-          val inputFileName = firrtlOptions.getInputFileName(optionsManager)
-          try {
-            // TODO What does InfoMode mean to ProtoBuf?
-            FirrtlExecutionUtils.getFileExtension(inputFileName) match {
-              case ProtoBufFile => proto.FromProto.fromFile(inputFileName)
-              case FirrtlFile => Parser.parseFile(inputFileName, firrtlOptions.infoMode)
-            }
-          }
-          catch {
-            case _: FileNotFoundException =>
-              val message = s"Input file $inputFileName not found"
-              throw new OptionsException(message)
-          }
-        }
-      }
-    }
-  }
-
-  /**
-    * Run the FIRRTL compiler using the provided [[ExecutionOptionsManager]]
-    *
-    * @param optionsManager the desired flags to the compiler
-    * @return the result of running the FIRRTL compiler
-    */
-  //scalastyle:off cyclomatic.complexity method.length
-  def execute(implicit optionsManager: ExecutionOptionsManager with HasFirrtlExecutionOptions): FirrtlExecutionResult = {
+  def execute(): FirrtlExecutionResult = {
     val firrtlOptions = view[FirrtlExecutionOptions].getOrElse{
       throw new FIRRTLException("Unable to determine FIRRTL options for provided command line options and annotations") }
 
-    Logger.makeScope(optionsManager) {
+    Logger.makeScope(firrtlOptions) {
       // Wrap compilation in a try/catch to present Scala MatchErrors in a more user-friendly format.
       val finalState = try {
-        val circuit = getCircuit(optionsManager) match {
+        val circuit = firrtlOptions.getCircuit match {
           case Success(c) => c
           case Failure(OptionsException(msg)) =>
             dramaticError(msg)
@@ -147,7 +101,7 @@ object Driver {
         }
 
         // Does this need to be before calling compiler?
-        optionsManager.makeTargetDir()
+        firrtlOptions.makeTargetDir
 
         firrtlOptions.compiler.compile(
           CircuitState(circuit, ChirrtlForm, firrtlOptions.annotations),
@@ -156,7 +110,8 @@ object Driver {
       }
       catch {
         // Rethrow the exceptions which are expected or due to the runtime environment (out of memory, stack overflow)
-        case p @ (_: ControlThrowable | _: PassException | _: PassExceptions | _: FIRRTLException)  => throw p
+        case p @ (_: ControlThrowable | _: PassException | _: PassExceptions | _: FIRRTLException) =>
+          throw p
         // Treat remaining exceptions as internal errors.
         case e: Exception => throwInternalError(exception = Some(e))
       }
@@ -164,7 +119,7 @@ object Driver {
       // Do emission
       // Note: Single emission target assumption is baked in here
       // Note: FirrtlExecutionSuccess emitted is only used if we're emitting the whole Circuit
-      val emittedRes = optionsManager.getOutputConfig match {
+      val emittedRes = firrtlOptions.getOutputConfig match {
         case SingleFile(filename) =>
           val emitted = finalState.getEmittedCircuit
           val outputFile = new java.io.PrintWriter(filename)
@@ -175,7 +130,7 @@ object Driver {
           val emittedModules = finalState.emittedComponents collect { case x: EmittedModule => x }
           if (emittedModules.isEmpty) throwInternalError() // There should be something
           emittedModules.foreach { module =>
-            val filename = optionsManager.getBuildFileName(firrtlOptions.outputSuffix, Some(s"$dirName/${module.name}"))
+            val filename = firrtlOptions.getBuildFileName(firrtlOptions.outputSuffix, Some(s"$dirName/${module.name}"))
             val outputFile = new java.io.PrintWriter(filename)
             outputFile.write(module.value)
             outputFile.close()
@@ -187,7 +142,7 @@ object Driver {
       firrtlOptions.outputAnnotationFileName match {
         case None =>
         case file =>
-          val filename = optionsManager.getBuildFileName("anno.json", file)
+          val filename = firrtlOptions.getBuildFileName("anno.json", file)
           val outputFile = new java.io.PrintWriter(filename)
           outputFile.write(JsonProtocol.serialize(finalState.annotations))
           outputFile.close()
@@ -205,16 +160,15 @@ object Driver {
     */
   def execute(args: Array[String]): FirrtlExecutionResult = {
     try {
-      val optionsManager = new ExecutionOptionsManager("firrtl", args) with HasFirrtlExecutionOptions
-      execute(optionsManager) match {
-        case success: FirrtlExecutionSuccess =>
-          success
+      annotations = optionsManager.parse(args)
+      execute() match {
+        case success: FirrtlExecutionSuccess => success
         case failure: FirrtlExecutionFailure =>
           optionsManager.showUsageAsError()
           failure
       }
     } catch {
-      case e: FIRRTLException => FirrtlExecutionFailure("Failed to parse command line arguments")
+      case e: FIRRTLException => throw e
     }
   }
 

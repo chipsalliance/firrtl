@@ -9,9 +9,9 @@ import firrtl.annotations.{
   AnnotationFileNotFoundException,
   JsonProtocol }
 import firrtl.transforms.BlackBoxTargetDirAnno
-import firrtl.options.{OptionsView, ExecutionOptionsManager, RegisteredLibrary}
+import firrtl.options.{OptionsView, ExecutionOptionsManager, RegisteredLibrary, OptionsException}
 import logger.LogLevel
-import java.io.File
+import java.io.{File, FileNotFoundException}
 import net.jcazevedo.moultingyaml._
 import firrtl.annotations.AnnotationYamlProtocol._
 import scala.util.{Try, Failure}
@@ -131,6 +131,77 @@ final case class FirrtlExecutionOptions(
   emitOneFilePerModule:     Boolean                     = false,
   firrtlCircuit:            Option[Circuit]             = None) {
 
+  /** Build the input file name, taking overriding parameters
+    *
+    * @param optionsManager this is needed to access build function and its common options
+    * @return a properly constructed input file name
+    */
+  def getInputFileName( ): String = inputFileNameOverride.getOrElse(getBuildFileName("fir"))
+
+  /** Get the user-specified [[OutputConfig]]
+    *
+    * @param optionsManager this is needed to access build function and its common options
+    * @return the output configuration
+    */
+  def getOutputConfig(): OutputConfig =
+    if (emitOneFilePerModule) { OneFilePerModule(targetDirName)                                    }
+    else                      { SingleFile(getBuildFileName(outputSuffix, outputFileNameOverride)) }
+
+  /** Get the user-specified targetFile assuming [[OutputConfig]] is [[SingleFile]]
+    *
+    * @param optionsManager this is needed to access build function and its common options
+    * @return the targetFile as a String
+    */
+  def getTargetFile(): String = getOutputConfig() match {
+    case SingleFile(targetFile) => targetFile
+    case _                      => throw new Exception("OutputConfig is not SingleFile!") }
+
+  def makeTargetDir(): Boolean = FileUtils.makeDirectory(targetDirName)
+
+  def getBuildFileName(suffix: String, fileNameOverride: Option[String] = None): String = {
+    makeTargetDir
+
+    val baseName: String = fileNameOverride.getOrElse(topName.get)
+    val baseNameIsFullPath: Boolean = baseName.startsWith("./") || baseName.startsWith("/")
+    val directoryName: String =
+      if (fileNameOverride.nonEmpty || baseNameIsFullPath) { ""                  }
+      else if (targetDirName.endsWith("/"))                { targetDirName       }
+      else                                                 { targetDirName + "/" }
+    val normalizedSuffix: String = {
+      val dottedSuffix = if(suffix.startsWith(".")) suffix else s".$suffix"
+      if(baseName.endsWith(dottedSuffix)) "" else dottedSuffix
+    }
+    val path: String = directoryName + baseName.split("/").dropRight(1).mkString("/")
+
+    FileUtils.makeDirectory(path)
+    s"$directoryName$baseName$normalizedSuffix"
+  }
+
+  def getLogFileName(): String = getBuildFileName("log")
+
+  def getCircuit(): Try[ir.Circuit] = {
+    Try {
+      // Check that only one "override" is used
+      firrtlCircuit.getOrElse {
+        firrtlSource.map(x => Parser.parseString(x, infoMode)).getOrElse {
+          val inputFileName = getInputFileName
+          try {
+            // TODO What does InfoMode mean to ProtoBuf?
+            FirrtlExecutionUtils.getFileExtension(inputFileName) match {
+              case ProtoBufFile => proto.FromProto.fromFile(inputFileName)
+              case FirrtlFile => Parser.parseFile(inputFileName, infoMode)
+            }
+          }
+          catch {
+            case _: FileNotFoundException =>
+              val message = s"Input file $inputFileName not found"
+              throw new OptionsException(message)
+          }
+        }
+      }
+    }
+  }
+
   /** Return the info mode */
   def infoMode(): Parser.InfoMode = {
     infoModeName match {
@@ -161,36 +232,6 @@ final case class FirrtlExecutionOptions(
     case "middle"   => "mid.fir"
     case _          => throw new Exception(s"Illegal compiler name $compilerName")
   }
-
-  /** Build the input file name, taking overriding parameters
-    *
-    * @param optionsManager this is needed to access build function and its common options
-    * @return a properly constructed input file name
-    */
-  @deprecated("Use ExecutionOptionsManager.getInputFileName", "1.2.0")
-  def getInputFileName(optionsManager: ExecutionOptionsManager with HasFirrtlExecutionOptions ): String =
-    inputFileNameOverride.getOrElse(optionsManager.getBuildFileName("fir"))
-
-  /** Get the user-specified [[OutputConfig]]
-    *
-    * @param optionsManager this is needed to access build function and its common options
-    * @return the output configuration
-    */
-  @deprecated("Use ExecutionOptionsManager.getOutputConfig", "1.2.0")
-  def getOutputConfig(optionsManager: ExecutionOptionsManager with HasFirrtlExecutionOptions): OutputConfig =
-    if (emitOneFilePerModule) { OneFilePerModule(optionsManager.targetDirName)                                    }
-    else                      { SingleFile(optionsManager.getBuildFileName(outputSuffix, outputFileNameOverride)) }
-
-  /** Get the user-specified targetFile assuming [[OutputConfig]] is [[SingleFile]]
-    *
-    * @param optionsManager this is needed to access build function and its common options
-    * @return the targetFile as a String
-    */
-  @deprecated("Use ExecutionOptionsManager.getTargetFile", "1.2.0")
-  def getTargetFile(optionsManager: ExecutionOptionsManager with HasFirrtlExecutionOptions): String =
-    getOutputConfig(optionsManager) match {
-      case SingleFile(targetFile) => targetFile
-      case _                      => throw new Exception("OutputConfig is not SingleFile!") }
 }
 
 /** A result of running the FIRRTL compiler */
@@ -458,84 +499,6 @@ object FirrtlExecutionUtils {
 trait HasFirrtlExecutionOptions { this: ExecutionOptionsManager =>
   import firrtl.options.Viewer._
   import firrtl.FirrtlViewer._
-
-  @deprecated("Use view[FirrtlExecutionOptions]", "1.2.0")
-  def firrtlOptions: FirrtlExecutionOptions = view[FirrtlExecutionOptions].get
-
-  /** Return the name of the top module */
-  @deprecated("Use view[FirrtlExecutionOptions].get.topName.get", "1.2.0")
-  def topName(): String = firrtlOptions.topName.get
-
-  /** Return the name of the target directory */
-  @deprecated("Use view[FirrtlExecutionOptions].get.tagetDirName", "1.2.0")
-  def targetDirName(): String = firrtlOptions.targetDirName
-
-  /** Create the specified Target Directory (--target-dir)
-    *
-    * @return true if successful, false if not
-    */
-  def makeTargetDir(): Boolean = FileUtils.makeDirectory(firrtlOptions.targetDirName)
-
-  /** Return a file based on targetDir, topName and suffix. Will not add the
-    * suffix if the topName already ends with that suffix.
-    *
-    * @param suffix suffix to add, removes . if present
-    * @param fileNameOverride this will override the topName if nonEmpty, when using this targetDir is ignored
-    * @return
-    */
-  def getBuildFileName(suffix: String, fileNameOverride: Option[String] = None): String = {
-    makeTargetDir()
-
-    val baseName: String = fileNameOverride.getOrElse(firrtlOptions.topName.get)
-    val baseNameIsFullPath: Boolean = baseName.startsWith("./") || baseName.startsWith("/")
-    val directoryName: String = if (fileNameOverride.nonEmpty || baseNameIsFullPath) {
-      ""
-    } else if (firrtlOptions.targetDirName.endsWith("/")) {
-      firrtlOptions.targetDirName
-    } else {
-      firrtlOptions.targetDirName + "/"
-    }
-    val normalizedSuffix: String = {
-      val dottedSuffix = if(suffix.startsWith(".")) suffix else s".$suffix"
-      if(baseName.endsWith(dottedSuffix)) "" else dottedSuffix
-    }
-    val path: String = directoryName + baseName.split("/").dropRight(1).mkString("/")
-
-    FileUtils.makeDirectory(path)
-    s"$directoryName$baseName$normalizedSuffix"
-  }
-
-  /** Return a filename of form "topName.log"
-    *
-    * @return the filename
-    */
-  def getLogFileName(): String = getBuildFileName("log")
-
-  /** Build the input file name, taking overriding parameters
-    *
-    * @return a properly constructed input file name
-    */
-  def getInputFileName(): String = getBuildFileName("fir", firrtlOptions.inputFileNameOverride)
-
-  /** Get the user-specified [[OutputConfig]]
-    *
-    * @return the output configuration
-    */
-  def getOutputConfig(): OutputConfig =
-    if (firrtlOptions.emitOneFilePerModule) {
-      OneFilePerModule(firrtlOptions.targetDirName)
-    } else {
-      SingleFile(getBuildFileName(firrtlOptions.outputSuffix, firrtlOptions.outputFileNameOverride))
-    }
-
-  /** Get the user-specified targetFile assuming [[OutputConfig]] is [[SingleFile]]
-    *
-    * @return the targetFile as a String
-    */
-  def getTargetFile(): String = getOutputConfig match {
-    case SingleFile(targetFile) => targetFile
-    case _                      => throw new Exception("OutputConfig is not SingleFile!") }
-
 
   parser.note("Common Options")
   /* [Note 1] Any validation related to these options is removed here. Since

@@ -11,8 +11,5 @@ trait OptionsView[T] {
 
 /** A shim to manage multiple "views" of an [[AnnotationSeq]] */
 object Viewer {
-  /** Implicit conversion to extract the [[AnnotationSeq]] from an [[ExecutionOptionsManager] */
-  implicit def extractAnnotations(implicit m: ExecutionOptionsManager): AnnotationSeq = m.options
-
   def view[T](implicit optionsView: OptionsView[T], options: AnnotationSeq): Option[T] = optionsView.view
 }
