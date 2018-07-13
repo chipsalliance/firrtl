@@ -168,7 +168,8 @@ final case class FirrtlExecutionOptions(
     */
   @deprecated("Use ExecutionOptionsManager.getInputFileName", "1.2.0")
   def getInputFileName(optionsManager: ExecutionOptionsManager with HasFirrtlExecutionOptions ): String =
-    optionsManager.getBuildFileName("fir", inputFileNameOverride)
+    inputFileNameOverride.getOrElse(optionsManager.getBuildFileName("fir"))
+
   /** Get the user-specified [[OutputConfig]]
     *
     * @param optionsManager this is needed to access build function and its common options
@@ -234,6 +235,10 @@ class FirrtlExecutionSuccess(
   */
 case class FirrtlExecutionFailure(message: String) extends FirrtlExecutionResult
 
+private[firrtl] sealed trait FileExtension
+private[firrtl] case object FirrtlFile extends FileExtension
+private[firrtl] case object ProtoBufFile extends FileExtension
+
 /** Utilities that help with processing FIRRTL options */
 object FirrtlExecutionUtils {
   /** Determine the target directory with the following precedence (highest to lowest):
@@ -247,6 +252,11 @@ object FirrtlExecutionUtils {
   def targetDir(annotations: Seq[Annotation]): String = annotations
     .collectFirst{ case TargetDirAnnotation(dir) => dir }
     .getOrElse(new FirrtlExecutionOptions().targetDirName)
+
+  private[firrtl] def getFileExtension(file: String): FileExtension = file.drop(file.lastIndexOf('.')) match {
+    case ".pb" => ProtoBufFile
+    case _     => FirrtlFile
+  }
 
   /** Determine the top name using the following precedence (highest to lowest):
     *  - Explicitly from the user-specified `--top-name`
@@ -264,7 +274,9 @@ object FirrtlExecutionUtils {
       annotations.collectFirst{ case FirrtlCircuitAnnotation(c) => c.main }.orElse(
         annotations.collectFirst{ case FirrtlSourceAnnotation(s) => Parser.parse(s).main }.orElse(
           annotations.collectFirst{ case InputFileAnnotation(f) =>
-            Parser.parse(io.Source.fromFile(f).getLines().mkString("\n")).main } )))
+            getFileExtension(f) match {
+              case ProtoBufFile => proto.FromProto.fromFile(f).main
+              case FirrtlFile   => Parser.parse(io.Source.fromFile(f).getLines().mkString("\n")).main } } )))
 
   /** Read all [[annotations.Annotation]] from a file in JSON or YAML format
     *
