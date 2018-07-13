@@ -46,33 +46,8 @@ import firrtl.FirrtlViewer._
   * @see [[CompilerUtils.mergeTransforms]] to see how customTransformations are inserted
   */
 
-object Driver {
+object Driver extends firrtl.options.Driver {
   val optionsManager = new ExecutionOptionsManager("firrtl") with HasFirrtlExecutionOptions
-
-  /**
-    * Print a warning message (in yellow)
-    *
-    * @param message error message
-    */
-  //scalastyle:off regex
-  def dramaticWarning(message: String): Unit = {
-    println(Console.YELLOW + "-"*78)
-    println(s"Warning: $message")
-    println("-"*78 + Console.RESET)
-  }
-
-  /**
-    * Print an error message (in red)
-    *
-    * @param message error message
-    * @note This does not stop the Driver.
-    */
-  //scalastyle:off regex
-  def dramaticError(message: String): Unit = {
-    println(Console.RED + "-"*78)
-    println(s"Error: $message")
-    println("-"*78 + Console.RESET)
-  }
 
   private def execute(annotations: AnnotationSeq): FirrtlExecutionResult = {
     val firrtlOptions = view[FirrtlExecutionOptions](annotations).getOrElse{
@@ -158,10 +133,6 @@ object Driver {
     } catch {
       case e: FIRRTLException => throw e
     }
-  }
-
-  def main(args: Array[String]): Unit = {
-    execute(args)
   }
 }
 

@@ -9,7 +9,7 @@ import firrtl.annotations.{
   AnnotationFileNotFoundException,
   JsonProtocol }
 import firrtl.transforms.BlackBoxTargetDirAnno
-import firrtl.options.{OptionsView, ExecutionOptionsManager, RegisteredLibrary, OptionsException}
+import firrtl.options.{OptionsView, ExecutionOptionsManager, RegisteredLibrary, OptionsException, DriverExecutionResult}
 import logger.LogLevel
 import java.io.{File, FileNotFoundException}
 import net.jcazevedo.moultingyaml._
@@ -235,7 +235,7 @@ final case class FirrtlExecutionOptions(
 }
 
 /** A result of running the FIRRTL compiler */
-sealed trait FirrtlExecutionResult
+sealed trait FirrtlExecutionResult extends DriverExecutionResult
 
 /** A successful result from running the FIRRTL compiler */
 object FirrtlExecutionSuccess {
