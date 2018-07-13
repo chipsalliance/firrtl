@@ -2,10 +2,10 @@
 
 package firrtl.options
 
-import firrtl.FIRRTLException
+import firrtl.{FIRRTLException, AnnotationSeq}
 import scopt.OptionParser
 
-trait TerminateOnExit[T] { this: OptionParser[T] =>
+trait TerminateOnExit { this: OptionParser[_] =>
   var terminateOnExit = true
   override def terminate(exitState: Either[String, Unit]): Unit =
     if (terminateOnExit) sys.exit(0)
@@ -15,9 +15,9 @@ trait TerminateOnExit[T] { this: OptionParser[T] =>
   *
   * @param name the name of the application
   */
-trait DuplicateHandling[T] extends OptionParser[T] {
+trait DuplicateHandling extends OptionParser[AnnotationSeq] {
   /* Check that no long or short option declarations are duplicated */
-  override def parse(args: Seq[String], init: T): Option[T] = {
+  override def parse(args: Seq[String], init: AnnotationSeq): Option[AnnotationSeq] = {
     val longDups = options.map(_.name).groupBy(identity).collect{ case (k, v) if v.size > 1 && k != "" => k }
     val shortDups = options.map(_.shortOpt).flatten.groupBy(identity).collect{ case (k, v) if v.size > 1 => k }
     def msg(x: String, y: String) = s"""Duplicate $x "$y" (did your custom Transform or OptionsManager add this?)"""

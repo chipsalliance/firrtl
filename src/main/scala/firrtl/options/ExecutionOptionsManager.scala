@@ -17,9 +17,7 @@ case class OptionsException(msg: String) extends Exception(msg)
   */
 class ExecutionOptionsManager(val applicationName: String) {
   /** Command line argument parser ([[scopt.OptionParser]]) with modifications */
-  final val parser = new OptionParser[AnnotationSeq](applicationName)
-      with TerminateOnExit[AnnotationSeq]
-      with DuplicateHandling[AnnotationSeq]
+  final val parser = new OptionParser[AnnotationSeq](applicationName) with TerminateOnExit with DuplicateHandling
 
   /** By default scopt calls sys.exit when --help is in options, this defeats that */
   def doNotExitOnHelp(): Unit = {
