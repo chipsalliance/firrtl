@@ -73,6 +73,7 @@ object FirrtlViewer {
                                                                FirrtlExecutionUtils.getEmitterAnnotation(cx))
             case RunFirrtlTransformAnnotation(x)   => c.copy(
               customTransforms = c.customTransforms :+ Class.forName(x).asInstanceOf[Class[_<:Transform]].newInstance())
+            case FirrtlCircuitAnnotation(cir)      => c.copy(firrtlCircuit = Some(cir))
           }
           // [todo] Delete FirrtlExecutionOptions annotations here
           processed
