@@ -54,6 +54,13 @@ object FirrtlViewer {
       val x = firrtlAnnos
         .foldLeft(FirrtlExecutionOptions(annotations = nonFirrtlAnnos.toList)){ (c, x) =>
           val processed = x match {
+            case TopNameAnnotation(n)              => c.copy(topName = Some(n))
+            case TargetDirAnnotation(d)            => c.copy(targetDirName = d)
+            case LogLevelAnnotation(l)             => c.copy(globalLogLevel = l)
+            case ClassLogLevelAnnotation(n, l)     => c.copy(classLogLevels = c.classLogLevels ++ Map(n -> l))
+            case LogToFileAnnotation               => c.copy(logToFile = true)
+            case LogClassNamesAnnotation           => c.copy(logClassNames = true)
+            case ProgramArgsAnnotation(s)          => c.copy(programArgs = c.programArgs :+ s)
             case InputFileAnnotation(f)            => c.copy(inputFileNameOverride = Some(f))
             case OutputFileAnnotation(f)           => c.copy(outputFileNameOverride = Some(f))
             case OutputAnnotationFileAnnotation(f) => c.copy(outputAnnotationFileName = Some(f))
@@ -64,13 +71,6 @@ object FirrtlViewer {
             case CompilerNameAnnotation(cx)        => c.copy(compilerName = cx,
                                                              annotations = c.annotations :+
                                                                FirrtlExecutionUtils.getEmitterAnnotation(cx))
-            case TopNameAnnotation(n)              => c.copy(topName = Some(n))
-            case TargetDirAnnotation(d)            => c.copy(targetDirName = d)
-            case LogLevelAnnotation(l)             => c.copy(globalLogLevel = l)
-            case ClassLogLevelAnnotation(n, l)     => c.copy(classLogLevels = c.classLogLevels ++ Map(n -> l))
-            case LogToFileAnnotation               => c.copy(logToFile = true)
-            case LogClassNamesAnnotation           => c.copy(logClassNames = true)
-            case ProgramArgsAnnotation(s)          => c.copy(programArgs = c.programArgs :+ s)
             case RunFirrtlTransformAnnotation(x)   => c.copy(
               customTransforms = c.customTransforms :+ Class.forName(x).asInstanceOf[Class[_<:Transform]].newInstance())
           }
@@ -136,7 +136,7 @@ final case class FirrtlExecutionOptions(
     * @param optionsManager this is needed to access build function and its common options
     * @return a properly constructed input file name
     */
-  def getInputFileName( ): String = inputFileNameOverride.getOrElse(getBuildFileName("fir"))
+  def getInputFileName(): String = inputFileNameOverride.getOrElse(getBuildFileName("fir"))
 
   /** Get the user-specified [[OutputConfig]]
     *
