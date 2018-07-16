@@ -123,7 +123,7 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
 
         val addedAnnotations = inlines.map(i => InlineAnnotation(AnnotationUtils.toNamed(i))).toSet
         val expectedAnnotations = defaultAnnotations ++ addedAnnotations ++
-          Set(TopNameAnnotation("null"), RunFirrtlTransformAnnotation(new InlineInstances().getClass.getName))
+          Set(TopNameAnnotation("null"), RunFirrtlTransformAnnotation(classOf[InlineInstances]))
 
         // The `+1` comes from the run transform annotation
         firrtlOptions.annotations.length should be (defaultAnnotations.size + inlines.size + args.dropRight(1).size + 1)
@@ -137,7 +137,7 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
 
         val expectedAnnotations = defaultAnnotations ++
           Set(InferReadWriteAnnotation, TopNameAnnotation("null"),
-              RunFirrtlTransformAnnotation(new InferReadWrite().getClass.getName))
+              RunFirrtlTransformAnnotation(classOf[InferReadWrite]))
         firrtlOptions.annotations.toSet should be (expectedAnnotations)
       }
       "repl-seq-mem annotation" in {
@@ -149,7 +149,7 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
 
         val expectedAnnotations = defaultAnnotations ++
           Set(ReplSeqMemAnnotation("infile1", "outfile1"),TopNameAnnotation("null"),
-              RunFirrtlTransformAnnotation(new ReplSeqMem().getClass.getName))
+              RunFirrtlTransformAnnotation(classOf[ReplSeqMem]))
         firrtlOptions.annotations.toSet should be (expectedAnnotations)
       }
     }

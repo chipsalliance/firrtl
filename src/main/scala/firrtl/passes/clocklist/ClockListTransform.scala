@@ -65,7 +65,7 @@ class ClockListTransform extends Transform with RegisteredTransform {
     .abbr("clks")
     .valueName ("-c:<circuit>:-m:<module>:-o:<filename>")
     .action( (x, c) => c ++ Seq(passes.clocklist.ClockListAnnotation.parse(x),
-                                RunFirrtlTransformAnnotation(new ClockListTransform().getClass.getName)) )
+                                RunFirrtlTransformAnnotation(classOf[ClockListTransform])) )
     .maxOccurs(1)
     .text("List which signal drives each clock of every descendent of specified module")
 

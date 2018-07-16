@@ -64,6 +64,6 @@ class CustomTransformSpec extends FirrtlFlatSpec {
                   customTransforms = List.empty,
                   annotations = AnnotationSeq(
                     List(ReplaceExtModuleAnnotation(delayModuleString),
-                         RunFirrtlTransformAnnotation("firrtlTests.ReplaceExtModuleTransform"))))
+                         RunFirrtlTransformAnnotation(classOf[firrtlTests.ReplaceExtModuleTransform]))))
   }
 }

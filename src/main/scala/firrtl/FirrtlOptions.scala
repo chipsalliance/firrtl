@@ -269,27 +269,29 @@ case class CompilerNameAnnotation(value: String = "verilog") extends NoTargetAnn
   *  - set with `-fct/--custom-transforms`
   * @param value the full class name of the transform
   */
-case class RunFirrtlTransformAnnotation(value: String) extends NoTargetAnnotation with FirrtlOption {
+case class RunFirrtlTransformAnnotation(transform: Class[_ <: Transform]) extends NoTargetAnnotation with FirrtlOption {
   def addOptions(p: OptionParser[AnnotationSeq]): Unit = p.opt[Seq[String]]("custom-transforms")
     .abbr("fct")
     .valueName ("<package>.<class>")
     .validate( x => {
-                x.map(x =>
-                  try { Class.forName(x).asInstanceOf[Class[_ <: Transform]].newInstance() }
+                x.map(txName =>
+                  try { Class.forName(txName).asInstanceOf[Class[_ <: Transform]].newInstance() }
                   catch {
                     case e: ClassNotFoundException => throw new FIRRTLException(
-                      s"Unable to locate custom transform $x (did you misspell it?)", e)
+                      s"Unable to locate custom transform $txName (did you misspell it?)", e)
                     case e: InstantiationException => throw new FIRRTLException(
-                      s"Unable to create instance of Transform $x (is this an anonymous class?)", e)
-                    case e: Throwable => throw new FIRRTLException(s"Unknown error when instantiating class $x", e) } )
+                      s"Unable to create instance of Transform $txName (is this an anonymous class?)", e)
+                    case e: Throwable => throw new FIRRTLException(
+                      s"Unknown error when instantiating class $txName", e) } )
                 p.success } )
-    .action( (x, c) => c ++ x.map(RunFirrtlTransformAnnotation(_)) )
+    .action( (x, c) => c ++ x.map(txName =>
+              RunFirrtlTransformAnnotation(Class.forName(txName).asInstanceOf[Class[_ <: Transform]])) )
     .unbounded()
     .text("runs these custom transforms during compilation.")
 }
 
 object RunFirrtlTransformAnnotation {
-  private [firrtl] def apply(): RunFirrtlTransformAnnotation = RunFirrtlTransformAnnotation("")
+  private [firrtl] def apply(): RunFirrtlTransformAnnotation = RunFirrtlTransformAnnotation(classOf[Transform])
 }
 
 /** Holds a FIRRTL [[Circuit]]

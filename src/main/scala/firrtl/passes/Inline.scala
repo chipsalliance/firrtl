@@ -40,7 +40,7 @@ class InlineInstances extends Transform with RegisteredTransform {
                     InlineAnnotation(ComponentName(inst, ModuleName(module, CircuitName(circuit))))
                 }
               }
-              c ++ newAnnotations :+ RunFirrtlTransformAnnotation(new InlineInstances().getClass.getName) } )
+              c ++ newAnnotations :+ RunFirrtlTransformAnnotation(classOf[InlineInstances]) } )
     .text(
       """Inline one or more module (comma separated, no spaces) module looks like "MyModule" or "MyModule.myinstance""")
 

@@ -153,8 +153,7 @@ class InferReadWrite extends Transform with SeqTransformBased with HasScoptOptio
     .opt[Unit]("infer-rw")
     .abbr("firw")
     .valueName ("<circuit>")
-    .action( (_, c) => c ++ Seq(InferReadWriteAnnotation,
-                                RunFirrtlTransformAnnotation(new InferReadWrite().getClass.getName)) )
+    .action( (_, c) => c ++ Seq(InferReadWriteAnnotation, RunFirrtlTransformAnnotation(classOf[InferReadWrite])) )
     .maxOccurs(1)
     .text("Enable readwrite port inference for the target circuit")
 

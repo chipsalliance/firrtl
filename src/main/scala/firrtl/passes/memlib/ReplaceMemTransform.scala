@@ -114,7 +114,7 @@ class ReplSeqMem extends Transform with HasScoptOptions {
     .abbr("frsq")
     .valueName ("-c:<circuit>:-i:<filename>:-o:<filename>")
     .action( (x, c) => c ++ Seq(passes.memlib.ReplSeqMemAnnotation.parse(x),
-                                RunFirrtlTransformAnnotation(new ReplSeqMem().getClass.getName)) )
+                                RunFirrtlTransformAnnotation(classOf[ReplSeqMem])) )
     .maxOccurs(1)
     .text("Replace sequential memories with blackboxes + configuration file")
 
