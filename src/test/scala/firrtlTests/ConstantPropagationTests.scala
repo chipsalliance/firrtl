@@ -1065,3 +1065,21 @@ class ConstantPropagationIntegrationSpec extends LowTransformSpec {
     execute(input, check, Seq.empty)
   }
 }
+
+
+class ConstantPropagationPropSpec extends FirrtlPropSpec {
+  private val srcDir = "/constant_propagation_tests"
+  private val transforms = Seq(new ConstantPropagation)
+
+  property(s"propagate expressions added with zero") {
+    firrtlEquivalenceTest("SimpleAddZero", srcDir, transforms)
+  }
+
+  property(s"propagate constants added together") {
+    firrtlEquivalenceTest("SimpleAddLiterals", srcDir, transforms)
+  }
+
+  property(s"addition propagation calculates correct widths") {
+    firrtlEquivalenceTest("WidthsAddZero", srcDir, transforms)
+  }
+}

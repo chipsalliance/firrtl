@@ -152,4 +152,49 @@ trait BackendCompilationUtilities {
   def executeExpectingSuccess(prefix: String, dir: File): Boolean = {
     !executeExpectingFailure(prefix, dir)
   }
+
+
+  def yosysExpectSuccess(prefix: String,
+                         customDir: File,
+                         referenceDir: File,
+                         referenceTop: String,
+                         testDir: File,
+                         resets: Seq[(Int, String, Int)] = Seq.empty): Boolean = {
+    !yosysExpectFailure(prefix, customDir, referenceDir, referenceTop, testDir, resets)
+  }
+
+  def yosysExpectFailure(prefix: String,
+                         customDir: File,
+                         referenceDir: File,
+                         referenceTop: String,
+                         testDir: File,
+                         resets: Seq[(Int, String, Int)] = Seq.empty,
+                         assertionMsg: String = ""): Boolean = {
+
+    val customTop = prefix
+    val setSignals = resets.map(_._2).toSet[String].map(s => s"-set in_$s 0").mkString(" ")
+    val setAtSignals = resets.map {
+      case (timestep, signal, value) => s"-set-at $timestep in_$signal $value"
+    }.mkString(" ")
+    val yosysScript =
+      s"""read_verilog ${customDir.getAbsolutePath}/$prefix.v
+          |read_verilog ${referenceDir.getAbsolutePath}/$prefix.v
+          |prep; proc; opt; memory
+          |miter -equiv -flatten $customTop $referenceTop miter
+          |hierarchy -top miter
+          |sat -verify -tempinduct -prove trigger 0 $setSignals $setAtSignals -seq 1 miter"""
+        .stripMargin
+
+    val resultFile = testDir.getAbsolutePath + "/yosys_results"
+    val command = Seq("echo", yosysScript) #| "yosys" #> new File(resultFile)
+
+    var triggered = false
+    val assertionMessageSupplied = assertionMsg != ""
+    val e = command !
+      ProcessLogger(line => {
+        triggered = triggered || (assertionMessageSupplied && line.contains(assertionMsg))
+        System.out.println(line) // scalastyle:ignore regex
+      })
+    triggered || (e != 0 && (e != 134 || !assertionMessageSupplied))
+  }
 }

@@ -5,21 +5,101 @@ package firrtlTests
 import java.io._
 
 import com.typesafe.scalalogging.LazyLogging
+
 import scala.sys.process._
 import org.scalatest._
 import org.scalatest.prop._
-import scala.io.Source
 
+import scala.io.Source
 import firrtl._
 import firrtl.ir._
 import firrtl.Parser.UseInfo
+import firrtl.analyses.InstanceGraph
 import firrtl.annotations._
 import firrtl.transforms.{DontTouchAnnotation, NoDedupAnnotation}
 import firrtl.util.BackendCompilationUtilities
 
+import scala.collection.mutable
+
 trait FirrtlRunners extends BackendCompilationUtilities {
 
   val cppHarnessResourceName: String = "/firrtl/testTop.cpp"
+
+  /** Rename Modules
+    *
+    * using namespace created by GetNamespace, create unique names for modules
+    */
+  private class RenameModules(namespace: Namespace, newTopName: String) extends Transform {
+    def inputForm: LowForm.type = LowForm
+    def outputForm: LowForm.type = LowForm
+
+    def collectNameMapping(namespace: Namespace, moduleNameMap: mutable.HashMap[String, String])
+                          (mod: DefModule): Unit = {
+      val newName = namespace.newName(mod.name)
+      moduleNameMap.put(mod.name, newName)
+    }
+
+    def onStmt(moduleNameMap: mutable.HashMap[String, String])
+              (stmt: Statement): Statement = stmt match {
+      case inst: WDefInstance if moduleNameMap.contains(inst.module) => inst.copy(module = moduleNameMap(inst.module))
+      case other => other.mapStmt(onStmt(moduleNameMap))
+    }
+
+    def execute(state: CircuitState): CircuitState = {
+      val moduleOrder = new InstanceGraph(state.circuit).moduleOrder.reverse
+      val nameMappings = new mutable.HashMap[String, String]()
+      moduleOrder.foreach(collectNameMapping(namespace, nameMappings))
+
+      val modulesx = state.circuit.modules.map {
+        case mod: Module if mod.name == state.circuit.main => mod.copy(name = newTopName).mapStmt(onStmt(nameMappings))
+        case mod: Module => mod.mapStmt(onStmt(nameMappings)).mapString(nameMappings)
+        case ext: ExtModule => ext
+      }
+
+      val newState = state.copy(circuit = state.circuit.copy(modules = modulesx, main = newTopName))
+      newState
+    }
+  }
+
+  /** Create a namespace with this circuit
+    *
+    * namespace is used by RenameModules to get unique names
+    */
+  private class GetNamespace extends Transform {
+    var namespace: Option[Namespace] = Option.empty
+    var newTopName: Option[String] = Option.empty
+
+    def inputForm: LowForm.type = LowForm
+    def outputForm: LowForm.type = LowForm
+
+    def execute(state: CircuitState): CircuitState = {
+      namespace = Some(Namespace(state.circuit))
+      newTopName = namespace.map(_.newName(state.circuit.main))
+      state
+    }
+  }
+  /** Check equivalence of Firrtl transforms using yosys
+    *
+    * @param prefix is the name of the Firrtl file without path or file extension
+    * @param srcDir directory where all Resources for this test are located
+    * @param customAnnotations Optional Firrtl annotations
+    * @param resets tell yosys which signals to set for SAT, format is (timestep, signal, value)
+    */
+  def firrtlEquivalenceTest(prefix: String,
+                            srcDir: String,
+                            customTransforms: Seq[Transform] = Seq.empty,
+                            customAnnotations: AnnotationSeq = Seq.empty,
+                            resets: Seq[(Int, String, Int)] = Seq.empty): Unit = {
+    val getNamespace = new GetNamespace
+    val customDir = compileFirrtlTest(prefix, srcDir, customTransforms :+ getNamespace, customAnnotations)
+
+    val referenceTop = getNamespace.newTopName.get
+    val renameModules = new RenameModules(getNamespace.namespace.get, referenceTop)
+    val referenceDir = compileFirrtlTest(prefix, srcDir, Seq(renameModules))
+
+    val testDir = createTestDirectory(prefix + "_equivalence_test")
+    assert(yosysExpectSuccess(prefix, customDir, referenceDir, referenceTop, testDir, resets))
+  }
 
   /** Compiles input Firrtl to Verilog */
   def compileToVerilog(input: String, annotations: AnnotationSeq = Seq.empty): String = {
@@ -248,5 +328,12 @@ abstract class CompilationTest(name: String, dir: String) extends FirrtlPropSpec
     compileFirrtlTest(name, dir)
   }
 }
-
-
+/** Super class for equivalence driven Firrtl tests */
+abstract class EquivalenceTest(name: String,
+                               dir: String,
+                               customTransforms: Seq[Transform],
+                               resets: Seq[(Int, String, Int)] = Seq.empty) extends FirrtlPropSpec {
+  property(s"$name with custom transforms should be equivalent to $name without transforms") {
+    firrtlEquivalenceTest(name, dir, customTransforms, resets = resets)
+  }
+}
