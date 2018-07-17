@@ -9,9 +9,9 @@ trait DriverExecutionResult
 abstract class Driver {
   val optionsManager: ExecutionOptionsManager
 
-  def execute(args: Array[String], initialAnnotations: AnnotationSeq = Seq.empty): DriverExecutionResult
+  def execute(args: Array[String], initialAnnotations: AnnotationSeq): DriverExecutionResult
 
-  def main(args: Array[String]): Unit = execute(args)
+  def main(args: Array[String]): Unit = execute(args, Seq.empty)
 
   /**
     * Print a warning message (in yellow)
