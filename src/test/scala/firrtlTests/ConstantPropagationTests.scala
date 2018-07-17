@@ -1072,14 +1072,18 @@ class ConstantPropagationPropSpec extends FirrtlPropSpec {
   private val transforms = Seq(new ConstantPropagation)
 
   property(s"propagate expressions added with zero") {
-    firrtlEquivalenceTest("SimpleAddZero", srcDir, transforms)
+    firrtlEquivalenceTest("AddZero", srcDir, transforms)
   }
 
   property(s"propagate constants added together") {
-    firrtlEquivalenceTest("SimpleAddLiterals", srcDir, transforms)
+    firrtlEquivalenceTest("AddLiterals", srcDir, transforms)
   }
 
-  property(s"addition propagation calculates correct widths") {
-    firrtlEquivalenceTest("WidthsAddZero", srcDir, transforms)
+  property(s"UInt addition propagation calculates correct widths") {
+    firrtlEquivalenceTest("WidthsAddUInt", srcDir, transforms)
+  }
+
+  property(s"SInt addition propagation calculates correct widths") {
+    firrtlEquivalenceTest("WidthsAddSInt", srcDir, transforms)
   }
 }

@@ -45,7 +45,10 @@ class ConstantPropagation extends Transform {
   }
 
   object FoldADD extends FoldLogicalOp {
-    def fold(c1: Literal, c2: Literal) = UIntLiteral(c1.value + c2.value, c1.width max c2.width + IntWidth(1))
+    def fold(c1: Literal, c2: Literal) = (c1, c2) match {
+      case (_: UIntLiteral, _: UIntLiteral) => UIntLiteral(c1.value + c2.value, (c1.width max c2.width) + IntWidth(1))
+      case (_: SIntLiteral, _: SIntLiteral) => SIntLiteral(c1.value + c2.value, (c1.width max c2.width) + IntWidth(1))
+    }
     def simplify(e: Expression, lhs: Literal, rhs: Expression) = lhs match {
       case UIntLiteral(v, w) if v == BigInt(0) => rhs.mapWidth(_ max w + IntWidth(1))
       case SIntLiteral(v, w) if v == BigInt(0) => rhs.mapWidth(_ max w + IntWidth(1))
