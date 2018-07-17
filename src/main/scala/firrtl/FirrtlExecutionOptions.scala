@@ -24,7 +24,7 @@ object FirrtlViewer {
        * any more. Remember what we've already imported to prevent a
        * loop. */
       var includeGuard = Set[String]()
-      def getIncludes(annos: Seq[Annotation]): Seq[Annotation] = annos
+      def getIncludes(annos: AnnotationSeq): AnnotationSeq = annos
         .flatMap {
           case a @ InputAnnotationFileAnnotation(value) =>
             if (includeGuard.contains(value)) {
@@ -37,7 +37,7 @@ object FirrtlViewer {
           case x => Seq(x)
         }
 
-      val annotationTransforms: Seq[Seq[Annotation] => Seq[Annotation]] =
+      val annotationTransforms: Seq[AnnotationSeq => AnnotationSeq] =
         Seq( FirrtlExecutionUtils.addImplicitAnnotationFile(_),
              getIncludes(_),
              FirrtlExecutionUtils.addDefaults(_),
@@ -291,7 +291,7 @@ object FirrtlExecutionUtils {
     * @return the target directory
     * @note this is safe to use before [[HasFirrtlExecutionOptions.firrtlOptions]] is set
     */
-  def targetDir(annotations: Seq[Annotation]): String = annotations
+  def targetDir(annotations: AnnotationSeq): String = annotations
     .collectFirst{ case TargetDirAnnotation(dir) => dir }
     .getOrElse(new FirrtlExecutionOptions().targetDirName)
 
@@ -311,7 +311,7 @@ object FirrtlExecutionUtils {
     * @note [[FirrtlCircuitAnnotation]], [[FirrtlSourceAnnotation]], and [[InputFileAnnotation]]
     * @note this is safe to use before [[HasFirrtlExecutionOptions.firrtlOptions]] is set
     */
-  def topName(annotations: Seq[Annotation]): Option[String] =
+  def topName(annotations: AnnotationSeq): Option[String] =
     annotations.collectFirst{ case TopNameAnnotation(n) => n }.orElse(
       annotations.collectFirst{ case FirrtlCircuitAnnotation(c) => c.main }.orElse(
         annotations.collectFirst{ case FirrtlSourceAnnotation(s) => Parser.parse(s).main }.orElse(
@@ -325,7 +325,7 @@ object FirrtlExecutionUtils {
     * @param filename a JSON or YAML file of [[annotations.Annotation]]
     * @throws annotations.AnnotationFileNotFoundException if the file does not exist
     */
-  def readAnnotationsFromFile(filename: String): Seq[Annotation] = {
+  def readAnnotationsFromFile(filename: String): AnnotationSeq = {
     val file = new File(filename).getCanonicalFile
     if (!file.exists) { throw new AnnotationFileNotFoundException(file) }
     JsonProtocol.deserializeTry(file).recoverWith { case jsonException =>
@@ -348,7 +348,7 @@ object FirrtlExecutionUtils {
     * @return a sequence of annotations that includes an [[InputAnnotationFileAnnotation]]
     * @note The implicit annotation file is in `targetDir/topName.anno`
     */
-  def addImplicitAnnotationFile(annos: Seq[Annotation]): Seq[Annotation] = annos
+  def addImplicitAnnotationFile(annos: AnnotationSeq): AnnotationSeq = annos
     .collectFirst{ case a: InputAnnotationFileAnnotation => a } match {
       case Some(_) => annos
       case None => FirrtlExecutionUtils.topName(annos) match {
@@ -369,7 +369,7 @@ object FirrtlExecutionUtils {
     * @param annos annotation sequence to examine
     * @return the annotation sequence with default annotations added
     */
-  def addDefaults(annos: Seq[Annotation]): Seq[Annotation] = { //scalastyle:off cyclomatic.complexity
+  def addDefaults(annos: AnnotationSeq): AnnotationSeq = { //scalastyle:off cyclomatic.complexity
     var Seq(td, bb, ll, c, tn) = Seq.fill(5)(true) //scalastyle:ignore
     annos.collect{ case a: FirrtlOption => a }.map{
       case _: TargetDirAnnotation       => td = false
@@ -412,7 +412,7 @@ object FirrtlExecutionUtils {
     * @param annos a sequence of [[annotation.Annotation]]
     * @return true if all checks pass
     */
-  def checkAnnotations(annos: Seq[Annotation]): Seq[Annotation] = {
+  def checkAnnotations(annos: AnnotationSeq): AnnotationSeq = {
     val Seq(tn, inF, inS, ofpm, outF, td, ll, i, foaf, comp, info, c) =
       Seq.fill(12)(collection.mutable.ListBuffer[Annotation]())
     annos.foreach(
