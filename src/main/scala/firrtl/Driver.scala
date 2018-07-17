@@ -4,8 +4,8 @@ package firrtl
 
 import scala.collection._
 import scala.io.Source
-import scala.sys.process.{BasicIO,stringSeqToProcess}
-import scala.util.{Try, Success, Failure}
+import scala.sys.process.{BasicIO, ProcessLogger, stringSeqToProcess}
+import scala.util.{Failure, Success, Try}
 import scala.util.control.ControlThrowable
 import java.io.{File, FileNotFoundException}
 
@@ -14,7 +14,7 @@ import logger.Logger
 import Parser.{IgnoreInfo, InfoMode}
 import annotations._
 import firrtl.annotations.AnnotationYamlProtocol._
-import firrtl.passes.PassException
+import firrtl.passes.{PassException, PassExceptions}
 import firrtl.transforms._
 import firrtl.Utils.throwInternalError
 
@@ -148,6 +148,16 @@ object Driver {
     LegacyAnnotation.convertLegacyAnnos(annos)
   }
 
+  private sealed trait FileExtension
+  private case object FirrtlFile extends FileExtension
+  private case object ProtoBufFile extends FileExtension
+
+  private def getFileExtension(filename: String): FileExtension =
+    filename.drop(filename.lastIndexOf('.')) match {
+      case ".pb" => ProtoBufFile
+      case _ => FirrtlFile // Default to FIRRTL File
+    }
+
   // Useful for handling erros in the options
   case class OptionsException(msg: String) extends Exception(msg)
 
@@ -183,7 +193,11 @@ object Driver {
           }
           val inputFileName = firrtlConfig.getInputFileName(optionsManager)
           try {
-            Parser.parseFile(inputFileName, firrtlConfig.infoMode)
+            // TODO What does InfoMode mean to ProtoBuf?
+            getFileExtension(inputFileName) match {
+              case ProtoBufFile => proto.FromProto.fromFile(inputFileName)
+              case FirrtlFile => Parser.parseFile(inputFileName, firrtlConfig.infoMode)
+            }
           }
           catch {
             case _: FileNotFoundException =>
@@ -230,8 +244,9 @@ object Driver {
       catch {
         // Rethrow the exceptions which are expected or due to the runtime environment (out of memory, stack overflow)
         case p: ControlThrowable => throw p
-        case p: PassException  => throw p
-        case p: FIRRTLException => throw p
+        case p: PassException    => throw p
+        case p: PassExceptions   => throw p
+        case p: FIRRTLException  => throw p
         // Treat remaining exceptions as internal errors.
         case e: Exception => throwInternalError(exception = Some(e))
       }
@@ -368,7 +383,7 @@ object FileUtils {
   def isCommandAvailable(cmd: Seq[String]): Boolean = {
     // Eat any output.
     val sb = new StringBuffer
-    val ioToDevNull = BasicIO(withIn = false, sb, None)
+    val ioToDevNull = BasicIO(withIn = false, ProcessLogger(line => sb.append(line)))
 
     try {
       cmd.run(ioToDevNull).exitValue == 0

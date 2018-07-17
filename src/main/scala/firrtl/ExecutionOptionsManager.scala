@@ -225,14 +225,15 @@ extends ComposableOptions {
     }
   }
 
-  /**
-    * build the input file name, taking overriding parameters
+  /** Get the name of the input file
     *
+    * @note Does not implicitly add a file extension to the input file
     * @param optionsManager this is needed to access build function and its common options
     * @return a properly constructed input file name
     */
   def getInputFileName(optionsManager: ExecutionOptionsManager): String = {
-    optionsManager.getBuildFileName("fir", inputFileNameOverride)
+    if (inputFileNameOverride.nonEmpty) inputFileNameOverride
+    else optionsManager.getBuildFileName("fir", inputFileNameOverride)
   }
   /** Get the user-specified [[OutputConfig]]
     *
@@ -406,9 +407,8 @@ trait HasFirrtlOptions {
       """Inline one or more module (comma separated, no spaces) module looks like "MyModule" or "MyModule.myinstance"""
     }
 
-  parser.opt[String]("infer-rw")
+  parser.opt[Unit]("infer-rw")
     .abbr("firw")
-    .valueName ("<circuit>")
     .foreach { x =>
       firrtlOptions = firrtlOptions.copy(
         annotations = firrtlOptions.annotations :+ InferReadWriteAnnotation,
@@ -585,4 +585,3 @@ class ExecutionOptionsManager(val applicationName: String) extends HasParser(app
     s"$directoryName$baseName$normalizedSuffix"
   }
 }
-

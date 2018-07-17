@@ -55,13 +55,31 @@ object ZeroWidth extends Transform {
     state.copy(circuit = result)
   }
 
+  // This is slightly different and specialized version of create_exps, TODO unify?
+  private def findRemovable(expr: => Expression, tpe: Type): Seq[Expression] = tpe match {
+    case GroundType(width) => width match {
+      case IntWidth(ZERO) => List(expr)
+      case _ => List.empty
+    }
+    case BundleType(fields) =>
+      if (fields.isEmpty) List(expr)
+      else fields.flatMap(f => findRemovable(WSubField(expr, f.name, f.tpe, MALE), f.tpe))
+    case VectorType(vtpe, size) =>
+      if (size == 0) List(expr)
+      else { // Only invoke findRemovable multiple times if a zero-width element is found
+        val es0 = findRemovable(WSubIndex(expr, 0, vtpe, MALE), vtpe)
+        if (es0.isEmpty) es0
+        else {
+          es0 ++ (1 until size).flatMap(i => findRemovable(WSubIndex(expr, i, vtpe, MALE), vtpe))
+        }
+      }
+  }
+
   private val ZERO = BigInt(0)
   private def getRemoved(x: IsDeclaration): Seq[String] = {
     var removedNames: Seq[String] = Seq.empty
     def onType(name: String)(t: Type): Type = {
-      removedNames = Utils.create_exps(name, t) map {e => (e, e.tpe)} collect {
-        case (e, GroundType(IntWidth(ZERO))) => e.serialize
-      }
+      removedNames = findRemovable(WRef(name), t).map(_.serialize)
       t
     }
     x match {

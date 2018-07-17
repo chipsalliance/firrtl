@@ -68,6 +68,17 @@ libraryDependencies += "net.jcazevedo" %% "moultingyaml" % "0.4.0"
 
 libraryDependencies += "org.json4s" %% "json4s-native" % "3.5.3"
 
+// Java PB
+
+enablePlugins(ProtobufPlugin)
+
+sourceDirectory in ProtobufConfig := baseDirectory.value / "src" / "main" / "proto"
+
+protobufRunProtoc in ProtobufConfig := (args =>
+  com.github.os72.protocjar.Protoc.runProtoc("-v351" +: args.toArray))
+
+javaSource in ProtobufConfig := (sourceManaged in Compile).value
+
 // Assembly
 
 assemblyJarName in assembly := "firrtl.jar"
@@ -86,7 +97,9 @@ antlr4GenListener in Antlr4 := false // default = true
 
 antlr4PackageName in Antlr4 := Option("firrtl.antlr")
 
-antlr4Version in Antlr4 := "4.7"
+antlr4Version in Antlr4 := "4.7.1"
+
+javaSource in Antlr4 := (sourceManaged in Compile).value
 
 publishMavenStyle := true
 publishArtifact in Test := false
