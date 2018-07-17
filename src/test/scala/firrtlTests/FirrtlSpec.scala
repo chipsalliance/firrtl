@@ -13,7 +13,7 @@ import org.scalatest.prop._
 import scala.io.Source
 import firrtl._
 import firrtl.ir._
-import firrtl.Parser.UseInfo
+import firrtl.Parser.{IgnoreInfo, UseInfo}
 import firrtl.analyses.InstanceGraph
 import firrtl.annotations._
 import firrtl.transforms.{DontTouchAnnotation, NoDedupAnnotation}
@@ -91,15 +91,34 @@ trait FirrtlRunners extends BackendCompilationUtilities {
                             customTransforms: Seq[Transform] = Seq.empty,
                             customAnnotations: AnnotationSeq = Seq.empty,
                             resets: Seq[(Int, String, Int)] = Seq.empty): Unit = {
+    val testDir = createTestDirectory(prefix + "_equivalence_test")
+    copyResourceToFile(s"${srcDir}/${prefix}.fir", new File(testDir, s"${prefix}.fir"))
+
+    val customFile = new PrintWriter(s"${testDir.getAbsolutePath}/$prefix.v")
     val getNamespace = new GetNamespace
-    val customDir = compileFirrtlTest(prefix, srcDir, customTransforms :+ getNamespace, customAnnotations, compilerName = "minVerilog")
+    val customVerilog = compileMinVerilog(s"${testDir.getAbsolutePath}/$prefix.fir",
+      getNamespace +: customTransforms,
+      customAnnotations)
+    customFile.write(customVerilog)
+    customFile.close()
 
     val referenceTop = getNamespace.newTopName.get
-    val renameModules = new RenameModules(getNamespace.namespace.get, referenceTop)
-    val referenceDir = compileFirrtlTest(prefix, srcDir, Seq(renameModules), compilerName = "minVerilog")
+    val referenceFile = new PrintWriter(s"${testDir.getAbsolutePath}/$referenceTop.v")
+    val referenceVerilog = compileMinVerilog(s"${testDir.getAbsolutePath}/$prefix.fir",
+      new RenameModules(getNamespace.namespace.get, referenceTop) +: customTransforms,
+      customAnnotations)
+    referenceFile.write(referenceVerilog)
+    referenceFile.close()
 
-    val testDir = createTestDirectory(prefix + "_equivalence_test")
-    assert(yosysExpectSuccess(prefix, customDir, referenceDir, referenceTop, testDir, resets))
+    assert(yosysExpectSuccess(prefix, referenceTop, testDir, resets))
+  }
+
+
+  private def compileMinVerilog(fileName: String, transforms: Seq[Transform] = Seq.empty, annotations: AnnotationSeq = Seq.empty): String = {
+    val circuit = Parser.parseFile(fileName, IgnoreInfo)
+    val compiler = new MinimumVerilogCompiler
+    val res = compiler.compileAndEmit(CircuitState(circuit, HighForm, annotations), transforms)
+    res.getEmittedCircuit.value
   }
 
   /** Compiles input Firrtl to Verilog */
@@ -119,8 +138,7 @@ trait FirrtlRunners extends BackendCompilationUtilities {
       prefix: String,
       srcDir: String,
       customTransforms: Seq[Transform] = Seq.empty,
-      annotations: AnnotationSeq = Seq.empty,
-      compilerName: String = "verilog"): File = {
+      annotations: AnnotationSeq = Seq.empty): File = {
     val testDir = createTestDirectory(prefix)
     copyResourceToFile(s"${srcDir}/${prefix}.fir", new File(testDir, s"${prefix}.fir"))
 
@@ -129,8 +147,7 @@ trait FirrtlRunners extends BackendCompilationUtilities {
       firrtlOptions = FirrtlExecutionOptions(
                         infoModeName = "ignore",
                         customTransforms = customTransforms,
-                        annotations = annotations.toList,
-                        compilerName = compilerName)
+                        annotations = annotations.toList)
     }
     firrtl.Driver.execute(optionsManager)
 
