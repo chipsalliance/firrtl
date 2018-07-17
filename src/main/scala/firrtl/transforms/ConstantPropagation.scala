@@ -32,7 +32,7 @@ class ConstantPropagation extends Transform {
 
   private def asUInt(e: Expression, t: Type) = DoPrim(AsUInt, Seq(e), Seq(), t)
 
-  trait FoldLogicalOp {
+  trait FoldCommutativeOp {
     def fold(c1: Literal, c2: Literal): Expression
     def simplify(e: Expression, lhs: Literal, rhs: Expression): Expression
 
@@ -44,7 +44,7 @@ class ConstantPropagation extends Transform {
     }
   }
 
-  object FoldADD extends FoldLogicalOp {
+  object FoldADD extends FoldCommutativeOp {
     def fold(c1: Literal, c2: Literal) = (c1, c2) match {
       case (_: UIntLiteral, _: UIntLiteral) => UIntLiteral(c1.value + c2.value, (c1.width max c2.width) + IntWidth(1))
       case (_: SIntLiteral, _: SIntLiteral) => SIntLiteral(c1.value + c2.value, (c1.width max c2.width) + IntWidth(1))
@@ -56,7 +56,7 @@ class ConstantPropagation extends Transform {
     }
   }
 
-  object FoldAND extends FoldLogicalOp {
+  object FoldAND extends FoldCommutativeOp {
     def fold(c1: Literal, c2: Literal) = UIntLiteral(c1.value & c2.value, c1.width max c2.width)
     def simplify(e: Expression, lhs: Literal, rhs: Expression) = lhs match {
       case UIntLiteral(v, w) if v == BigInt(0) => UIntLiteral(0, w)
@@ -66,7 +66,7 @@ class ConstantPropagation extends Transform {
     }
   }
 
-  object FoldOR extends FoldLogicalOp {
+  object FoldOR extends FoldCommutativeOp {
     def fold(c1: Literal, c2: Literal) = UIntLiteral(c1.value | c2.value, c1.width max c2.width)
     def simplify(e: Expression, lhs: Literal, rhs: Expression) = lhs match {
       case UIntLiteral(v, _) if v == BigInt(0) => rhs
@@ -76,7 +76,7 @@ class ConstantPropagation extends Transform {
     }
   }
 
-  object FoldXOR extends FoldLogicalOp {
+  object FoldXOR extends FoldCommutativeOp {
     def fold(c1: Literal, c2: Literal) = UIntLiteral(c1.value ^ c2.value, c1.width max c2.width)
     def simplify(e: Expression, lhs: Literal, rhs: Expression) = lhs match {
       case UIntLiteral(v, _) if v == BigInt(0) => rhs
@@ -85,7 +85,7 @@ class ConstantPropagation extends Transform {
     }
   }
 
-  object FoldEqual extends FoldLogicalOp {
+  object FoldEqual extends FoldCommutativeOp {
     def fold(c1: Literal, c2: Literal) = UIntLiteral(if (c1.value == c2.value) 1 else 0, IntWidth(1))
     def simplify(e: Expression, lhs: Literal, rhs: Expression) = lhs match {
       case UIntLiteral(v, IntWidth(w)) if v == BigInt(1) && w == BigInt(1) && bitWidth(rhs.tpe) == BigInt(1) => rhs
@@ -93,7 +93,7 @@ class ConstantPropagation extends Transform {
     }
   }
 
-  object FoldNotEqual extends FoldLogicalOp {
+  object FoldNotEqual extends FoldCommutativeOp {
     def fold(c1: Literal, c2: Literal) = UIntLiteral(if (c1.value != c2.value) 1 else 0, IntWidth(1))
     def simplify(e: Expression, lhs: Literal, rhs: Expression) = lhs match {
       case UIntLiteral(v, IntWidth(w)) if v == BigInt(0) && w == BigInt(1) && bitWidth(rhs.tpe) == BigInt(1) => rhs
