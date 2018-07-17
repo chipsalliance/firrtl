@@ -78,6 +78,7 @@ trait FirrtlRunners extends BackendCompilationUtilities {
       state
     }
   }
+
   /** Check equivalence of Firrtl transforms using yosys
     *
     * @param prefix is the name of the Firrtl file without path or file extension
@@ -91,11 +92,11 @@ trait FirrtlRunners extends BackendCompilationUtilities {
                             customAnnotations: AnnotationSeq = Seq.empty,
                             resets: Seq[(Int, String, Int)] = Seq.empty): Unit = {
     val getNamespace = new GetNamespace
-    val customDir = compileFirrtlTest(prefix, srcDir, customTransforms :+ getNamespace, customAnnotations)
+    val customDir = compileFirrtlTest(prefix, srcDir, customTransforms :+ getNamespace, customAnnotations, compilerName = "minVerilog")
 
     val referenceTop = getNamespace.newTopName.get
     val renameModules = new RenameModules(getNamespace.namespace.get, referenceTop)
-    val referenceDir = compileFirrtlTest(prefix, srcDir, Seq(renameModules))
+    val referenceDir = compileFirrtlTest(prefix, srcDir, Seq(renameModules), compilerName = "minVerilog")
 
     val testDir = createTestDirectory(prefix + "_equivalence_test")
     assert(yosysExpectSuccess(prefix, customDir, referenceDir, referenceTop, testDir, resets))
@@ -118,7 +119,8 @@ trait FirrtlRunners extends BackendCompilationUtilities {
       prefix: String,
       srcDir: String,
       customTransforms: Seq[Transform] = Seq.empty,
-      annotations: AnnotationSeq = Seq.empty): File = {
+      annotations: AnnotationSeq = Seq.empty,
+      compilerName: String = "verilog"): File = {
     val testDir = createTestDirectory(prefix)
     copyResourceToFile(s"${srcDir}/${prefix}.fir", new File(testDir, s"${prefix}.fir"))
 
@@ -127,7 +129,8 @@ trait FirrtlRunners extends BackendCompilationUtilities {
       firrtlOptions = FirrtlExecutionOptions(
                         infoModeName = "ignore",
                         customTransforms = customTransforms,
-                        annotations = annotations.toList)
+                        annotations = annotations.toList,
+                        compilerName = compilerName)
     }
     firrtl.Driver.execute(optionsManager)
 

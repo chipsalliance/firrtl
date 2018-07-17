@@ -209,6 +209,7 @@ extends ComposableOptions {
       case "low"       => new LowFirrtlCompiler()
       case "middle"    => new MiddleFirrtlCompiler()
       case "verilog"   => new VerilogCompiler()
+      case "minVerilog"   => new MinimumVerilogCompiler()
       case "sverilog"  => new VerilogCompiler()
     }
   }
@@ -216,6 +217,7 @@ extends ComposableOptions {
   def outputSuffix: String = {
     compilerName match {
       case "verilog"   => "v"
+      case "minVerilog"   => "v"
       case "sverilog"  => "sv"
       case "low"       => "lo.fir"
       case "high"      => "hi.fir"
@@ -267,6 +269,7 @@ extends ComposableOptions {
       case "middle" => classOf[MiddleFirrtlEmitter]
       case "low" => classOf[LowFirrtlEmitter]
       case "verilog" => classOf[VerilogEmitter]
+      case "minVerilog" => classOf[VerilogEmitter]
       case "sverilog" => classOf[VerilogEmitter]
     }
     getOutputConfig(optionsManager) match {
