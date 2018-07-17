@@ -148,16 +148,6 @@ object Driver {
     LegacyAnnotation.convertLegacyAnnos(annos)
   }
 
-  private sealed trait FileExtension
-  private case object FirrtlFile extends FileExtension
-  private case object ProtoBufFile extends FileExtension
-
-  private def getFileExtension(filename: String): FileExtension =
-    filename.drop(filename.lastIndexOf('.')) match {
-      case ".pb" => ProtoBufFile
-      case _ => FirrtlFile // Default to FIRRTL File
-    }
-
   // Useful for handling erros in the options
   case class OptionsException(msg: String) extends Exception(msg)
 
@@ -193,11 +183,7 @@ object Driver {
           }
           val inputFileName = firrtlConfig.getInputFileName(optionsManager)
           try {
-            // TODO What does InfoMode mean to ProtoBuf?
-            getFileExtension(inputFileName) match {
-              case ProtoBufFile => proto.FromProto.fromFile(inputFileName)
-              case FirrtlFile => Parser.parseFile(inputFileName, firrtlConfig.infoMode)
-            }
+            Parser.parseFile(inputFileName, firrtlConfig.infoMode)
           }
           catch {
             case _: FileNotFoundException =>

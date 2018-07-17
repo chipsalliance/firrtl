@@ -275,7 +275,7 @@ case class CDefMemory(
     name: String,
     tpe: Type,
     size: Int,
-    seq: Boolean) extends Statement with HasInfo {
+    seq: Boolean) extends Statement {
   def serialize: String = (if (seq) "smem" else "cmem") +
     s" $name : ${tpe.serialize} [$size]" + info.serialize
   def mapExpr(f: Expression => Expression): Statement = this
@@ -289,7 +289,7 @@ case class CDefMPort(info: Info,
     tpe: Type,
     mem: String,
     exps: Seq[Expression],
-    direction: MPortDir) extends Statement with HasInfo {
+    direction: MPortDir) extends Statement {
   def serialize: String = {
     val dir = direction.serialize
     s"$dir mport $name = $mem[${exps.head.serialize}], ${exps(1).serialize}" + info.serialize
