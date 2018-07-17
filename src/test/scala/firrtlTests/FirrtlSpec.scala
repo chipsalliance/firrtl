@@ -65,17 +65,21 @@ trait FirrtlRunners extends BackendCompilationUtilities {
     *
     * namespace is used by RenameModules to get unique names
     */
-  private class GetNamespace extends Transform {
+  private class GetNamespace(newTopName: String) extends Transform {
     var namespace: Option[Namespace] = Option.empty
-    var newTopName: Option[String] = Option.empty
 
     def inputForm: LowForm.type = LowForm
     def outputForm: LowForm.type = LowForm
 
     def execute(state: CircuitState): CircuitState = {
       namespace = Some(Namespace(state.circuit))
-      newTopName = namespace.map(_.newName(state.circuit.main))
-      state
+      val oldTop = state.circuit.main
+      val newTop = namespace.get.newName(newTopName)
+      val modulesx = state.circuit.modules.map {
+        case mod: Module if mod.name == oldTop => mod.mapString(_ => newTop)
+      }
+
+      state.copy(circuit = state.circuit.copy(modules = modulesx, main = newTop))
     }
   }
 
@@ -92,29 +96,32 @@ trait FirrtlRunners extends BackendCompilationUtilities {
                             customAnnotations: AnnotationSeq = Seq.empty,
                             resets: Seq[(Int, String, Int)] = Seq.empty): Unit = {
     val testDir = createTestDirectory(prefix + "_equivalence_test")
-    copyResourceToFile(s"${srcDir}/${prefix}.fir", new File(testDir, s"${prefix}.fir"))
+    copyResourceToFile(s"${srcDir}/${prefix}.fir", new File(testDir, s"$prefix.fir"))
 
-    val customFile = new PrintWriter(s"${testDir.getAbsolutePath}/$prefix.v")
-    val getNamespace = new GetNamespace
+    val customTop = s"${prefix}_custom"
+    val customFile = new PrintWriter(s"${testDir.getAbsolutePath}/$customTop.v")
+    val getNamespace = new GetNamespace(customTop)
     val customVerilog = compileMinVerilog(s"${testDir.getAbsolutePath}/$prefix.fir",
       getNamespace +: customTransforms,
       customAnnotations)
     customFile.write(customVerilog)
     customFile.close()
 
-    val referenceTop = getNamespace.newTopName.get
+    val referenceTop = getNamespace.namespace.get.newName(s"${prefix}_reference")
     val referenceFile = new PrintWriter(s"${testDir.getAbsolutePath}/$referenceTop.v")
     val referenceVerilog = compileMinVerilog(s"${testDir.getAbsolutePath}/$prefix.fir",
-      new RenameModules(getNamespace.namespace.get, referenceTop) +: customTransforms,
+      Seq(new RenameModules(getNamespace.namespace.get, referenceTop)),
       customAnnotations)
     referenceFile.write(referenceVerilog)
     referenceFile.close()
 
-    assert(yosysExpectSuccess(prefix, referenceTop, testDir, resets))
+    assert(yosysExpectSuccess(customTop, referenceTop, testDir, resets))
   }
 
 
-  private def compileMinVerilog(fileName: String, transforms: Seq[Transform] = Seq.empty, annotations: AnnotationSeq = Seq.empty): String = {
+  private def compileMinVerilog(fileName: String,
+                                transforms: Seq[Transform] = Seq.empty,
+                                annotations: AnnotationSeq = Seq.empty): String = {
     val circuit = Parser.parseFile(fileName, IgnoreInfo)
     val compiler = new MinimumVerilogCompiler
     val res = compiler.compileAndEmit(CircuitState(circuit, HighForm, annotations), transforms)
