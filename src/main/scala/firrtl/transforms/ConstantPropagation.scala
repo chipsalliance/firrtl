@@ -50,8 +50,8 @@ class ConstantPropagation extends Transform {
       case (_: SIntLiteral, _: SIntLiteral) => SIntLiteral(c1.value + c2.value, (c1.width max c2.width) + IntWidth(1))
     }
     def simplify(e: Expression, lhs: Literal, rhs: Expression) = lhs match {
-      case UIntLiteral(v, w) if v == BigInt(0) => rhs.mapWidth(_ max w + IntWidth(1))
-      case SIntLiteral(v, w) if v == BigInt(0) => rhs.mapWidth(_ max w + IntWidth(1))
+      case UIntLiteral(v, w) if v == BigInt(0) => rhs
+      case SIntLiteral(v, w) if v == BigInt(0) => rhs
       case _ => e
     }
   }

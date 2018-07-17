@@ -205,23 +205,23 @@ extends ComposableOptions {
 
   def compiler: Compiler = {
     compilerName match {
-      case "high"      => new HighFirrtlCompiler()
-      case "low"       => new LowFirrtlCompiler()
-      case "middle"    => new MiddleFirrtlCompiler()
-      case "verilog"   => new VerilogCompiler()
-      case "minVerilog"   => new MinimumVerilogCompiler()
-      case "sverilog"  => new VerilogCompiler()
+      case "high"       => new HighFirrtlCompiler()
+      case "low"        => new LowFirrtlCompiler()
+      case "middle"     => new MiddleFirrtlCompiler()
+      case "verilog"    => new VerilogCompiler()
+      case "minVerilog" => new MinimumVerilogCompiler()
+      case "sverilog"   => new VerilogCompiler()
     }
   }
 
   def outputSuffix: String = {
     compilerName match {
-      case "verilog"   => "v"
-      case "minVerilog"   => "v"
-      case "sverilog"  => "sv"
-      case "low"       => "lo.fir"
-      case "high"      => "hi.fir"
-      case "middle"    => "mid.fir"
+      case "verilog"    => "v"
+      case "minVerilog" => "v"
+      case "sverilog"   => "sv"
+      case "low"        => "lo.fir"
+      case "high"       => "hi.fir"
+      case "middle"     => "mid.fir"
       case _ =>
         throw new Exception(s"Illegal compiler name $compilerName")
     }

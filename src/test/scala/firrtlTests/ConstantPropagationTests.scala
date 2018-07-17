@@ -694,6 +694,46 @@ class ConstantPropagationSingleModule extends ConstantPropagationSpec {
 """
       (parse(exec(input))) should be (parse(check))
     }
+
+   "ConstProp" should "propagate constant addition" in {
+    val input =
+      """circuit Top :
+        |  module Top :
+        |    input x : UInt<5>
+        |    output z : UInt<5>
+        |    node _T_1 = add(UInt<5>("h0"), UInt<5>("h1"))
+        |    node _T_2 = add(_T_1, UInt<5>("h2"))
+        |    z <= add(x, _T_2)
+      """.stripMargin
+    val check =
+      """circuit Top :
+        |  module Top :
+        |    input x : UInt<5>
+        |    output z : UInt<5>
+        |    node _T_1 = UInt<6>("h1")
+        |    node _T_2 = UInt<7>("h3")
+        |    z <= add(x, UInt<7>("h3"))
+      """.stripMargin
+    (parse(exec(input))) should be(parse(check))
+  }
+
+   "ConstProp" should "propagate addition with zero" in {
+    val input =
+      """circuit Top :
+        |  module Top :
+        |    input x : UInt<5>
+        |    output z : UInt<5>
+        |    z <= add(x, UInt<5>("h0"))
+      """.stripMargin
+    val check =
+      """circuit Top :
+        |  module Top :
+        |    input x : UInt<5>
+        |    output z : UInt<5>
+        |    z <= pad(x, 6)
+      """.stripMargin
+    (parse(exec(input))) should be(parse(check))
+  }
 }
 
 // More sophisticated tests of the full compiler
