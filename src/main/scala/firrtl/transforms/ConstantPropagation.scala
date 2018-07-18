@@ -240,6 +240,17 @@ class ConstantPropagation extends Transform {
       }
       case _ => e
     }
+    case Tail => e.args.head match {
+      case lit: Literal =>
+        val hi = (bitWidth(lit.tpe) - e.consts.head).toInt
+        require(hi >= 0)
+        UIntLiteral(lit.value & ((BigInt(1) << (hi + 1)) - 1), getWidth(e.tpe))
+      case x if bitWidth(e.tpe) == bitWidth(x.tpe) => x.tpe match {
+        case t: UIntType => x
+        case _ => asUInt(x, e.tpe)
+      }
+      case _ => e
+    }
     case _ => e
   }
 

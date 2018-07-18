@@ -1107,7 +1107,7 @@ class ConstantPropagationIntegrationSpec extends LowTransformSpec {
 }
 
 
-class ConstantPropagationPropSpec extends FirrtlFlatSpec {
+class ConstantPropagationEquivalenceSpec extends FirrtlFlatSpec {
   private val srcDir = "/constant_propagation_tests"
   private val transforms = Seq(new ConstantPropagation)
 
@@ -1135,21 +1135,6 @@ class ConstantPropagationPropSpec extends FirrtlFlatSpec {
          |    uout <= add(uconst, uin)
          |    node sconst = add(SInt<5>("h1"), SInt<5>("h-1"))
          |    sout <= add(sconst, sin)""".stripMargin
-    firrtlEquivalenceTest(input, transforms)
-  }
-
-  "SInts literals added together" should "be propagated" in {
-    val input =
-      s"""circuit WidthsAddSInt :
-         |  module WidthsAddSInt :
-         |    input in : SInt<3>
-         |    output out1 : UInt<10>
-         |    output out2 : UInt<10>
-         |    wire temp : SInt<5>
-         |    temp <= add(in, SInt<7>("h0"))
-         |    out1 <= cat(temp, temp)
-         |    node const = add(SInt<4>("h1"), SInt<3>("h-2"))
-         |    out2 <= cat(const, const)""".stripMargin
     firrtlEquivalenceTest(input, transforms)
   }
 
@@ -1191,6 +1176,17 @@ class ConstantPropagationPropSpec extends FirrtlFlatSpec {
          |    output y: UInt<7>
          |    node temp = add(x, UInt<9>("h0"))
          |    y <= cat(temp, temp)""".stripMargin
+    firrtlEquivalenceTest(input, transforms)
+  }
+
+  "tail of constants" should "be propagated" in {
+    val input =
+      s"""circuit TailTester :
+         |  module TailTester :
+         |    output out : UInt<1>
+         |    node temp = add(UInt<1>("h00"), UInt<5>("h017"))
+         |    node tail_temp = tail(temp, 1)
+         |    out <= tail_temp""".stripMargin
     firrtlEquivalenceTest(input, transforms)
   }
 }
