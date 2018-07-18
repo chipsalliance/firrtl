@@ -1126,4 +1126,8 @@ class ConstantPropagationPropSpec extends FirrtlPropSpec {
   property(s"SInt addition propagation calculates correct widths") {
     firrtlEquivalenceTest("WidthsAddSInt", srcDir, transforms)
   }
+
+  property(s"addition by zero width constants calculates correct widths") {
+    firrtlEquivalenceTest("ZeroWidthAdd", srcDir, transforms)
+  }
 }

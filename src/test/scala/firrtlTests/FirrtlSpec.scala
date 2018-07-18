@@ -14,9 +14,9 @@ import scala.io.Source
 import firrtl._
 import firrtl.ir._
 import firrtl.Parser.{IgnoreInfo, UseInfo}
-import firrtl.analyses.InstanceGraph
+import firrtl.analyses.{GetNamespace, InstanceGraph}
 import firrtl.annotations._
-import firrtl.transforms.{DontTouchAnnotation, NoDedupAnnotation}
+import firrtl.transforms.{DontTouchAnnotation, ModuleNamespaceAnnotation, NoDedupAnnotation, RenameModules}
 import firrtl.util.BackendCompilationUtilities
 
 import scala.collection.mutable
@@ -25,61 +25,22 @@ trait FirrtlRunners extends BackendCompilationUtilities {
 
   val cppHarnessResourceName: String = "/firrtl/testTop.cpp"
 
-  /** Rename Modules
-    *
-    * using namespace created by GetNamespace, create unique names for modules
-    */
-  private class RenameModules(namespace: Namespace, newTopName: String) extends Transform {
-    def inputForm: LowForm.type = LowForm
-    def outputForm: LowForm.type = LowForm
-
-    def collectNameMapping(namespace: Namespace, moduleNameMap: mutable.HashMap[String, String])
-                          (mod: DefModule): Unit = {
-      val newName = namespace.newName(mod.name)
-      moduleNameMap.put(mod.name, newName)
-    }
-
-    def onStmt(moduleNameMap: mutable.HashMap[String, String])
-              (stmt: Statement): Statement = stmt match {
-      case inst: WDefInstance if moduleNameMap.contains(inst.module) => inst.copy(module = moduleNameMap(inst.module))
-      case other => other.mapStmt(onStmt(moduleNameMap))
-    }
-
-    def execute(state: CircuitState): CircuitState = {
-      val moduleOrder = new InstanceGraph(state.circuit).moduleOrder.reverse
-      val nameMappings = new mutable.HashMap[String, String]()
-      moduleOrder.foreach(collectNameMapping(namespace, nameMappings))
-
-      val modulesx = state.circuit.modules.map {
-        case mod: Module if mod.name == state.circuit.main => mod.copy(name = newTopName).mapStmt(onStmt(nameMappings))
-        case mod: Module => mod.mapStmt(onStmt(nameMappings)).mapString(nameMappings)
-        case ext: ExtModule => ext
-      }
-
-      val newState = state.copy(circuit = state.circuit.copy(modules = modulesx, main = newTopName))
-      newState
-    }
-  }
-
-  /** Create a namespace with this circuit
-    *
-    * namespace is used by RenameModules to get unique names
-    */
-  private class GetNamespace(newTopName: String) extends Transform {
-    var namespace: Option[Namespace] = Option.empty
-
+  private class RenameTop(newTopPrefix: String) extends Transform {
     def inputForm: LowForm.type = LowForm
     def outputForm: LowForm.type = LowForm
 
     def execute(state: CircuitState): CircuitState = {
-      namespace = Some(Namespace(state.circuit))
-      val oldTop = state.circuit.main
-      val newTop = namespace.get.newName(newTopName)
+      val namespace = state.annotations.collectFirst {
+        case m: ModuleNamespaceAnnotation => m
+      }.get.namespace
+
+      val newTopName = namespace.newName(newTopPrefix)
       val modulesx = state.circuit.modules.map {
-        case mod: Module if mod.name == oldTop => mod.mapString(_ => newTop)
+        case mod: Module if mod.name == state.circuit.main => mod.mapString(_ => newTopName)
+        case other => other
       }
 
-      state.copy(circuit = state.circuit.copy(modules = modulesx, main = newTop))
+      state.copy(circuit = state.circuit.copy(main = newTopName, modules = modulesx))
     }
   }
 
@@ -98,21 +59,21 @@ trait FirrtlRunners extends BackendCompilationUtilities {
     val testDir = createTestDirectory(prefix + "_equivalence_test")
     copyResourceToFile(s"${srcDir}/${prefix}.fir", new File(testDir, s"$prefix.fir"))
 
-    val customTop = s"${prefix}_custom"
-    val customFile = new PrintWriter(s"${testDir.getAbsolutePath}/$customTop.v")
-    val getNamespace = new GetNamespace(customTop)
     val customVerilog = compileMinVerilog(s"${testDir.getAbsolutePath}/$prefix.fir",
-      getNamespace +: customTransforms,
+      new GetNamespace +: new RenameTop(s"${prefix}_custom") +: customTransforms,
       customAnnotations)
-    customFile.write(customVerilog)
+    val namespaceAnnotation = customVerilog.annotations.collectFirst { case m: ModuleNamespaceAnnotation => m }.get
+    val customTop = customVerilog.circuit.main
+    val customFile = new PrintWriter(s"${testDir.getAbsolutePath}/$customTop.v")
+    customFile.write(customVerilog.getEmittedCircuit.value)
     customFile.close()
 
-    val referenceTop = getNamespace.namespace.get.newName(s"${prefix}_reference")
-    val referenceFile = new PrintWriter(s"${testDir.getAbsolutePath}/$referenceTop.v")
     val referenceVerilog = compileMinVerilog(s"${testDir.getAbsolutePath}/$prefix.fir",
-      Seq(new RenameModules(getNamespace.namespace.get, referenceTop)),
-      customAnnotations)
-    referenceFile.write(referenceVerilog)
+      Seq(new RenameModules, new RenameTop(s"${prefix}_reference")),
+      Seq(namespaceAnnotation))
+    val referenceTop = referenceVerilog.circuit.main
+    val referenceFile = new PrintWriter(s"${testDir.getAbsolutePath}/$referenceTop.v")
+    referenceFile.write(referenceVerilog.getEmittedCircuit.value)
     referenceFile.close()
 
     assert(yosysExpectSuccess(customTop, referenceTop, testDir, resets))
@@ -121,11 +82,10 @@ trait FirrtlRunners extends BackendCompilationUtilities {
 
   private def compileMinVerilog(fileName: String,
                                 transforms: Seq[Transform] = Seq.empty,
-                                annotations: AnnotationSeq = Seq.empty): String = {
+                                annotations: AnnotationSeq = Seq.empty): CircuitState = {
     val circuit = Parser.parseFile(fileName, IgnoreInfo)
     val compiler = new MinimumVerilogCompiler
-    val res = compiler.compileAndEmit(CircuitState(circuit, HighForm, annotations), transforms)
-    res.getEmittedCircuit.value
+    compiler.compileAndEmit(CircuitState(circuit, HighForm, annotations), transforms)
   }
 
   /** Compiles input Firrtl to Verilog */
