@@ -111,7 +111,7 @@ class LowFirrtlOptimization extends CoreTransform {
     passes.CommonSubexpressionElimination,
     new firrtl.transforms.DeadCodeElimination)
 }
-
+/** Runs runs only the optimization passes needed for Verilog emission */
 class MinimumLowFirrtlOptimization extends CoreTransform {
   def inputForm = LowForm
   def outputForm = LowForm

@@ -1189,4 +1189,15 @@ class ConstantPropagationEquivalenceSpec extends FirrtlFlatSpec {
          |    out <= tail_temp""".stripMargin
     firrtlEquivalenceTest(input, transforms)
   }
+
+  "head of constants" should "be propagated" in {
+    val input =
+      s"""circuit TailTester :
+         |  module TailTester :
+         |    output out : UInt<1>
+         |    node temp = add(UInt<1>("h00"), UInt<5>("h017"))
+         |    node head_temp = head(temp, 3)
+         |    out <= head_temp""".stripMargin
+    firrtlEquivalenceTest(input, transforms)
+  }
 }

@@ -153,7 +153,20 @@ trait BackendCompilationUtilities {
     !executeExpectingFailure(prefix, dir)
   }
 
-
+  /** Creates and runs a Yosys script that creates and runs SAT on a miter
+    * circuit. Returns true if SAT succeeds, false otherwise
+    *
+    * The custom and reference Verilog files must not contain any modules with
+    * the same name otherwise Yosys will not be able to create a miter circuit
+    *
+    * @param customTop    name of the DUT with custom transforms without the .v
+    *                     extension
+    * @param referenceTop name of the DUT without custom transforms without the
+    *                     .v extension
+    * @param testDir      directory containing verilog files
+    * @param resets       signals to set for SAT, format is
+    *                     (timestep, signal, value)
+    */
   def yosysExpectSuccess(customTop: String,
                          referenceTop: String,
                          testDir: File,
@@ -161,6 +174,20 @@ trait BackendCompilationUtilities {
     !yosysExpectFailure(customTop, referenceTop, testDir, resets)
   }
 
+  /** Creates and runs a Yosys script that creates and runs SAT on a miter
+    * circuit. Returns false if SAT succeeds, true otherwise
+    *
+    * The custom and reference Verilog files must not contain any modules with
+    * the same name otherwise Yosys will not be able to create a miter circuit
+    *
+    * @param customTop    name of the DUT with custom transforms without the .v
+    *                     extension
+    * @param referenceTop name of the DUT without custom transforms without the
+    *                     .v extension
+    * @param testDir      directory containing verilog files
+    * @param resets       signals to set for SAT, format is
+    *                     (timestep, signal, value)
+    */
   def yosysExpectFailure(customTop: String,
                          referenceTop: String,
                          testDir: File,
@@ -172,12 +199,13 @@ trait BackendCompilationUtilities {
     }.mkString(" ")
     val scriptFileName = s"${testDir.getAbsolutePath}/yosys_script"
     val yosysScriptWriter = new PrintWriter(scriptFileName)
-    yosysScriptWriter.write(s"""read_verilog ${testDir.getAbsolutePath}/$customTop.v
-          |read_verilog ${testDir.getAbsolutePath}/$referenceTop.v
-          |prep; proc; opt; memory
-          |miter -equiv -flatten $customTop $referenceTop miter
-          |hierarchy -top miter
-          |sat -verify -tempinduct -prove trigger 0 $setSignals $setAtSignals -seq 1 miter"""
+    yosysScriptWriter.write(
+      s"""read_verilog ${testDir.getAbsolutePath}/$customTop.v
+         |read_verilog ${testDir.getAbsolutePath}/$referenceTop.v
+         |prep; proc; opt; memory
+         |miter -equiv -flatten $customTop $referenceTop miter
+         |hierarchy -top miter
+         |sat -verify -tempinduct -prove trigger 0 $setSignals $setAtSignals -seq 1 miter"""
         .stripMargin)
     yosysScriptWriter.close()
 
