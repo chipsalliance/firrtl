@@ -46,46 +46,36 @@ trait FirrtlRunners extends BackendCompilationUtilities {
 
   /** Check equivalence of Firrtl transforms using yosys
     *
-    * @param prefix is the name of the Firrtl file without path or file extension
-    * @param srcDir directory where all Resources for this test are located
+    * @param input string containing Firrtl source
+    * @param customTransforms Firrtl transforms to test for equivalence
     * @param customAnnotations Optional Firrtl annotations
     * @param resets tell yosys which signals to set for SAT, format is (timestep, signal, value)
     */
-  def firrtlEquivalenceTest(prefix: String,
-                            srcDir: String,
+  def firrtlEquivalenceTest(input: String,
                             customTransforms: Seq[Transform] = Seq.empty,
                             customAnnotations: AnnotationSeq = Seq.empty,
                             resets: Seq[(Int, String, Int)] = Seq.empty): Unit = {
+    val circuit = Parser.parse(input.split("\n").toIterator)
+    val compiler = new MinimumVerilogCompiler
+    val prefix = circuit.main
     val testDir = createTestDirectory(prefix + "_equivalence_test")
-    copyResourceToFile(s"${srcDir}/${prefix}.fir", new File(testDir, s"$prefix.fir"))
 
-    val customVerilog = compileMinVerilog(s"${testDir.getAbsolutePath}/$prefix.fir",
-      new GetNamespace +: new RenameTop(s"${prefix}_custom") +: customTransforms,
-      customAnnotations)
+    val customVerilog = compiler.compileAndEmit(CircuitState(circuit, HighForm, customAnnotations),
+      new GetNamespace +: new RenameTop(s"${prefix}_custom") +: customTransforms)
     val namespaceAnnotation = customVerilog.annotations.collectFirst { case m: ModuleNamespaceAnnotation => m }.get
     val customTop = customVerilog.circuit.main
     val customFile = new PrintWriter(s"${testDir.getAbsolutePath}/$customTop.v")
     customFile.write(customVerilog.getEmittedCircuit.value)
     customFile.close()
 
-    val referenceVerilog = compileMinVerilog(s"${testDir.getAbsolutePath}/$prefix.fir",
-      Seq(new RenameModules, new RenameTop(s"${prefix}_reference")),
-      Seq(namespaceAnnotation))
+    val referenceVerilog = compiler.compileAndEmit(CircuitState(circuit, HighForm, Seq(namespaceAnnotation)),
+      Seq(new RenameModules, new RenameTop(s"${prefix}_reference")))
     val referenceTop = referenceVerilog.circuit.main
     val referenceFile = new PrintWriter(s"${testDir.getAbsolutePath}/$referenceTop.v")
     referenceFile.write(referenceVerilog.getEmittedCircuit.value)
     referenceFile.close()
 
     assert(yosysExpectSuccess(customTop, referenceTop, testDir, resets))
-  }
-
-
-  private def compileMinVerilog(fileName: String,
-                                transforms: Seq[Transform] = Seq.empty,
-                                annotations: AnnotationSeq = Seq.empty): CircuitState = {
-    val circuit = Parser.parseFile(fileName, IgnoreInfo)
-    val compiler = new MinimumVerilogCompiler
-    compiler.compileAndEmit(CircuitState(circuit, HighForm, annotations), transforms)
   }
 
   /** Compiles input Firrtl to Verilog */
@@ -313,14 +303,5 @@ abstract class ExecutionTest(name: String, dir: String, vFiles: Seq[String] = Se
 abstract class CompilationTest(name: String, dir: String) extends FirrtlPropSpec {
   property(s"$name should compile correctly") {
     compileFirrtlTest(name, dir)
-  }
-}
-/** Super class for equivalence driven Firrtl tests */
-abstract class EquivalenceTest(name: String,
-                               dir: String,
-                               customTransforms: Seq[Transform],
-                               resets: Seq[(Int, String, Int)] = Seq.empty) extends FirrtlPropSpec {
-  property(s"$name with custom transforms should be equivalent to $name without transforms") {
-    firrtlEquivalenceTest(name, dir, customTransforms, resets = resets)
   }
 }

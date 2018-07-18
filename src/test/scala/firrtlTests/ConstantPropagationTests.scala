@@ -1107,27 +1107,90 @@ class ConstantPropagationIntegrationSpec extends LowTransformSpec {
 }
 
 
-class ConstantPropagationPropSpec extends FirrtlPropSpec {
+class ConstantPropagationPropSpec extends FirrtlFlatSpec {
   private val srcDir = "/constant_propagation_tests"
   private val transforms = Seq(new ConstantPropagation)
 
-  property(s"propagate expressions added with zero") {
-    firrtlEquivalenceTest("AddZero", srcDir, transforms)
+  "anything added to zero" should "be equal to itself" in {
+    val input =
+      s"""circuit AddZero :
+         |  module AddZero :
+         |    input in : UInt<5>
+         |    output out1 : UInt<6>
+         |    output out2 : UInt<6>
+         |    out1 <= add(in, UInt<5>("h0"))
+         |    out2 <= add(UInt<5>("h0"), in)""".stripMargin
+    firrtlEquivalenceTest(input, transforms)
   }
 
-  property(s"propagate constants added together") {
-    firrtlEquivalenceTest("AddLiterals", srcDir, transforms)
+  "constants added together" should "be propagated" in {
+    val input =
+      s"""circuit AddLiterals :
+         |  module AddLiterals :
+         |    input uin : UInt<5>
+         |    input sin : SInt<5>
+         |    output uout : UInt<6>
+         |    output sout : SInt<6>
+         |    node uconst = add(UInt<5>("h1"), UInt<5>("h2"))
+         |    uout <= add(uconst, uin)
+         |    node sconst = add(SInt<5>("h1"), SInt<5>("h-1"))
+         |    sout <= add(sconst, sin)""".stripMargin
+    firrtlEquivalenceTest(input, transforms)
   }
 
-  property(s"UInt addition propagation calculates correct widths") {
-    firrtlEquivalenceTest("WidthsAddUInt", srcDir, transforms)
+  "SInts literals added together" should "be propagated" in {
+    val input =
+      s"""circuit WidthsAddSInt :
+         |  module WidthsAddSInt :
+         |    input in : SInt<3>
+         |    output out1 : UInt<10>
+         |    output out2 : UInt<10>
+         |    wire temp : SInt<5>
+         |    temp <= add(in, SInt<7>("h0"))
+         |    out1 <= cat(temp, temp)
+         |    node const = add(SInt<4>("h1"), SInt<3>("h-2"))
+         |    out2 <= cat(const, const)""".stripMargin
+    firrtlEquivalenceTest(input, transforms)
   }
 
-  property(s"SInt addition propagation calculates correct widths") {
-    firrtlEquivalenceTest("WidthsAddSInt", srcDir, transforms)
+  "UInt addition" should "have the correct widths" in {
+    val input =
+      s"""circuit WidthsAddUInt :
+         |  module WidthsAddUInt :
+         |    input in : UInt<3>
+         |    output out1 : UInt<10>
+         |    output out2 : UInt<10>
+         |    wire temp : UInt<5>
+         |    temp <= add(in, UInt<1>("h0"))
+         |    out1 <= cat(temp, temp)
+         |    node const = add(UInt<4>("h1"), UInt<3>("h2"))
+         |    out2 <= cat(const, const)""".stripMargin
+    firrtlEquivalenceTest(input, transforms)
   }
 
-  property(s"addition by zero width constants calculates correct widths") {
-    firrtlEquivalenceTest("ZeroWidthAdd", srcDir, transforms)
+  "SInt addition" should "have the correct widths" in {
+    val input =
+      s"""circuit WidthsAddSInt :
+         |  module WidthsAddSInt :
+         |    input in : SInt<3>
+         |    output out1 : UInt<10>
+         |    output out2 : UInt<10>
+         |    wire temp : SInt<5>
+         |    temp <= add(in, SInt<7>("h0"))
+         |    out1 <= cat(temp, temp)
+         |    node const = add(SInt<4>("h1"), SInt<3>("h-2"))
+         |    out2 <= cat(const, const)""".stripMargin
+    firrtlEquivalenceTest(input, transforms)
+  }
+
+  "addition by zero width wires" should "have the correct widths" in {
+    val input =
+      s"""circuit ZeroWidthAdd:
+         |  module ZeroWidthAdd:
+         |    input x: UInt<0>
+         |    output y: UInt<7>
+         |    node temp = add(x, UInt<9>("h0"))
+         |    y <= cat(temp, temp)""".stripMargin
+    firrtlEquivalenceTest(input, transforms)
   }
 }
