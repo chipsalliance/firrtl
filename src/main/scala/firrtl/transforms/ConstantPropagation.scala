@@ -17,20 +17,39 @@ import annotation.tailrec
 import collection.mutable
 
 object ConstantPropagation {
+  private def asUInt(e: Expression, t: Type) = DoPrim(AsUInt, Seq(e), Seq(), t)
+
   /** Pads e to the width of t */
   def pad(e: Expression, t: Type) = (bitWidth(e.tpe), bitWidth(t)) match {
     case (we, wt) if we < wt => DoPrim(Pad, Seq(e), Seq(wt), t)
     case (we, wt) if we == wt => e
   }
 
+  def constPropBitExtract(e: DoPrim) = {
+    val arg = e.args.head
+    val (hi, lo) = e.op match {
+      case Bits => (e.consts.head.toInt, e.consts(1).toInt)
+      case Tail => ((bitWidth(arg.tpe) - 1 - e.consts.head).toInt, 0)
+      case Head => ((bitWidth(arg.tpe) - 1).toInt, (bitWidth(arg.tpe) - e.consts.head).toInt)
+    }
+
+    arg match {
+      case lit: Literal =>
+        require(hi >= lo)
+        UIntLiteral((lit.value >> lo) & ((BigInt(1) << (hi - lo + 1)) - 1), getWidth(e.tpe))
+      case x if bitWidth(e.tpe) == bitWidth(x.tpe) => x.tpe match {
+        case t: UIntType => x
+        case _ => asUInt(x, e.tpe)
+      }
+      case _ => e
+    }
+  }
 }
 
 class ConstantPropagation extends Transform {
   import ConstantPropagation._
   def inputForm = LowForm
   def outputForm = LowForm
-
-  private def asUInt(e: Expression, t: Type) = DoPrim(AsUInt, Seq(e), Seq(), t)
 
   trait FoldCommutativeOp {
     def fold(c1: Literal, c2: Literal): Expression
@@ -197,26 +216,6 @@ class ConstantPropagation extends Transform {
     foldIfZeroedArg(foldIfOutsideRange(e))
   }
 
-  private def foldBitExtract(e: DoPrim) = {
-    val arg = e.args.head
-    val (hi, lo) = e.op match {
-      case Bits => (e.consts.head.toInt, e.consts(1).toInt)
-      case Tail => ((bitWidth(arg.tpe) - 1 - e.consts.head).toInt, 0)
-      case Head => ((bitWidth(arg.tpe) - 1).toInt, (bitWidth(arg.tpe) - e.consts.head).toInt)
-    }
-
-    arg match {
-      case lit: Literal =>
-        require(hi >= lo)
-        UIntLiteral((lit.value >> lo) & ((BigInt(1) << (hi - lo + 1)) - 1), getWidth(e.tpe))
-      case x if bitWidth(e.tpe) == bitWidth(x.tpe) => x.tpe match {
-        case t: UIntType => x
-        case _ => asUInt(x, e.tpe)
-      }
-      case _ => e
-    }
-  }
-
   private def constPropPrim(e: DoPrim): Expression = e.op match {
     case Shl => foldShiftLeft(e)
     case Shr => foldShiftRight(e)
@@ -248,7 +247,7 @@ class ConstantPropagation extends Transform {
       case _ if bitWidth(e.args.head.tpe) >= e.consts.head => e.args.head
       case _ => e
     }
-    case (Bits | Head | Tail) => foldBitExtract(e)
+    case (Bits | Head | Tail) => constPropBitExtract(e)
     case _ => e
   }
 
