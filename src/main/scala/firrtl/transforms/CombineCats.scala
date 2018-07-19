@@ -51,8 +51,7 @@ class CombineCats(maxCatLen: Int) extends Transform {
 
   def execute(state: CircuitState): CircuitState = {
     val modulesx = state.circuit.modules.map(CombineCats.onMod(maxCatLen))
-    val newState = state.copy(circuit = state.circuit.copy(modules = modulesx))
-    newState
+    state.copy(circuit = state.circuit.copy(modules = modulesx))
   }
 }
 
