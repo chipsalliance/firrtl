@@ -253,13 +253,13 @@ class VerilogEmitter extends SeqTransform with Emitter {
        case _ => throw EmitterException(s"Can't emit ${e.getClass.getName} as PrimOp argument")
      }
 
-     def catSeq(a0: Expression, a1: Expression): Seq[Any] = {
+     def castCatArgs(a0: Expression, a1: Expression): Seq[Any] = {
        val a0Seq = a0 match {
-         case cat@DoPrim(PrimOps.Cat, args, _, _) => catSeq(args.head, args(1))
+         case cat@DoPrim(PrimOps.Cat, args, _, _) => castCatArgs(args.head, args(1))
          case _ => Seq(cast(a0))
        }
        val a1Seq = a1 match {
-         case cat@DoPrim(PrimOps.Cat, args, _, _) => catSeq(args.head, args(1))
+         case cat@DoPrim(PrimOps.Cat, args, _, _) => castCatArgs(args.head, args(1))
          case _ => Seq(cast(a1))
        }
        a0Seq ++ Seq(",") ++ a1Seq
@@ -320,7 +320,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
        case Andr => Seq("&", cast(a0))
        case Orr => Seq("|", cast(a0))
        case Xorr => Seq("^", cast(a0))
-       case Cat => "{" +: (catSeq(a0, a1) :+ "}")
+       case Cat => "{" +: (castCatArgs(a0, a1) :+ "}")
        // If selecting zeroth bit and single-bit wire, just emit the wire
        case Bits if c0 == 0 && c1 == 0 && bitWidth(a0.tpe) == BigInt(1) => Seq(a0)
        case Bits if c0 == c1 => Seq(a0, "[", c0, "]")
