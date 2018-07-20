@@ -46,8 +46,8 @@ object CombineCats {
   * Operates only on Cat DoPrims that are node values.
   */
 class CombineCats(maxCatLen: Int) extends Transform {
-  def inputForm = LowForm
-  def outputForm = LowForm
+  def inputForm: LowForm.type = LowForm
+  def outputForm: LowForm.type = LowForm
 
   def execute(state: CircuitState): CircuitState = {
     val modulesx = state.circuit.modules.map(CombineCats.onMod(maxCatLen))

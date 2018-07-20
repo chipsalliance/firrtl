@@ -1,13 +1,17 @@
+// See LICENSE for license details.
+
 package firrtlTests.transforms
 
-import firrtl.ir.{DefWire, DoPrim, IntWidth, UIntType}
+import firrtl.PrimOps._
 import firrtl._
+import firrtl.ir.DoPrim
 import firrtl.transforms.CombineCats
 import firrtlTests.FirrtlFlatSpec
 import firrtlTests.FirrtlCheckers._
 
 class CombineCatsSpec extends FirrtlFlatSpec {
-  private val transforms = Seq(new IRToWorkingIR, new CombineCats(12))
+  private val maxCatLen = 12
+  private val transforms = Seq(new IRToWorkingIR, new CombineCats(maxCatLen))
 
   private def execute(input: String, transforms: Seq[Transform]): CircuitState = {
     val c = transforms.foldLeft(CircuitState(parse(input), UnknownForm)) {
@@ -77,15 +81,16 @@ class CombineCatsSpec extends FirrtlFlatSpec {
         |    out <= temp5
         |""".stripMargin
 
-    //val result = transforms.head.execute(CircuitState(parse(input), LowForm))
+    firrtlEquivalenceTest(input, transforms)
     val result = execute(input, transforms)
 
     // temp5 should get cat(cat(cat(in3, in2), cat(in4, in3)), cat(cat(in3, in2), cat(in4, in3)))
-    result should containTree { case DoPrim(PrimOps.Cat, Seq(
-      DoPrim(PrimOps.Cat, Seq(
-        DoPrim(PrimOps.Cat, Seq(WRef("in2", _, _, _), WRef("in1", _, _, _)), _, _),
-        DoPrim(PrimOps.Cat, Seq(WRef("in3", _, _, _), WRef("in2", _, _, _)), _, _)), _, _),
-      DoPrim(PrimOps.Cat, Seq(WRef("in4", _, _, _), WRef("in3", _, _, _)), _, _)), _, _) => true
+    result should containTree {
+      case DoPrim(Cat, Seq(
+        DoPrim(Cat, Seq(
+          DoPrim(Cat, Seq(WRef("in2", _, _, _), WRef("in1", _, _, _)), _, _),
+          DoPrim(Cat, Seq(WRef("in3", _, _, _), WRef("in2", _, _, _)), _, _)), _, _),
+        DoPrim(Cat, Seq(WRef("in4", _, _, _), WRef("in3", _, _, _)), _, _)), _, _) => true
     }
   }
 
@@ -105,28 +110,51 @@ class CombineCatsSpec extends FirrtlFlatSpec {
         |    node temp4 = cat(in5, temp3)
         |    out <= temp4
         |""".stripMargin
+    val transformsMaxCatLen3 = Seq(new IRToWorkingIR, new CombineCats(3))
 
-    //val result = transforms.head.execute(CircuitState(parse(input), LowForm))
-    val result = execute(input, Seq(new IRToWorkingIR, new CombineCats(3)))
+    firrtlEquivalenceTest(input, transformsMaxCatLen3)
+    val result = execute(input, transformsMaxCatLen3)
 
     // should not contain any cat chains greater than 3
     result shouldNot containTree {
-      case DoPrim(PrimOps.Cat, Seq(_,
-        DoPrim(PrimOps.Cat, Seq(_,
-          DoPrim(PrimOps.Cat, _, _, _)), _, _)), _, _) => true
-      case DoPrim(PrimOps.Cat, Seq(_,
-        DoPrim(PrimOps.Cat, Seq(_,
-          DoPrim(PrimOps.Cat, Seq(_,
-           DoPrim(PrimOps.Cat, _, _, _)), _, _)), _, _)), _, _) => true
+      case DoPrim(Cat, Seq(_, DoPrim(Cat, Seq(_, DoPrim(Cat, _, _, _)), _, _)), _, _) => true
+      case DoPrim(Cat, Seq(_, DoPrim(Cat, Seq(_, DoPrim(Cat, Seq(_, DoPrim(Cat, _, _, _)), _, _)), _, _)), _, _) => true
     }
 
     // temp2 should get cat(in3, cat(in2, in1))
     result should containTree {
-      case DoPrim(PrimOps.Cat, Seq(
+      case DoPrim(Cat, Seq(
         WRef("in3", _, _, _),
-        DoPrim(PrimOps.Cat, Seq(
+        DoPrim(Cat, Seq(
           WRef("in2", _, _, _),
           WRef("in1", _, _, _)), _, _)), _, _) => true
+    }
+  }
+
+  "nested nodes that are not cats" should "not be expanded" in {
+    val input =
+      """circuit Test_CombinedCats5 :
+        |  module Test_CombinedCats5 :
+        |    input in1 : UInt<1>
+        |    input in2 : UInt<2>
+        |    input in3 : UInt<3>
+        |    input in4 : UInt<4>
+        |    input in5 : UInt<5>
+        |    output out : UInt<10>
+        |    node temp1 = add(in2, in1)
+        |    node temp2 = cat(in3, temp1)
+        |    node temp3 = sub(in4, temp2)
+        |    node temp4 = cat(in5, temp3)
+        |    out <= temp4
+        |""".stripMargin
+
+    firrtlEquivalenceTest(input, transforms)
+
+    val result = execute(input, transforms)
+    result shouldNot containTree {
+      case DoPrim(Cat, Seq(_, DoPrim(Add, _, _, _)), _, _) => true
+      case DoPrim(Cat, Seq(_, DoPrim(Sub, _, _, _)), _, _) => true
+      case DoPrim(Cat, Seq(_, DoPrim(Cat, Seq(_, DoPrim(Cat, _, _, _)), _, _)), _, _) => true
     }
   }
 }
