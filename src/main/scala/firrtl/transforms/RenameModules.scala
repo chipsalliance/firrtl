@@ -2,18 +2,15 @@
 
 package firrtl.transforms
 
-import firrtl.analyses.InstanceGraph
-import firrtl.annotations.NoTargetAnnotation
+import firrtl.analyses.{InstanceGraph, ModuleNamespaceAnnotation}
 import firrtl.ir._
 import firrtl._
 
 import scala.collection.mutable
 
-case class ModuleNamespaceAnnotation(namespace: Namespace) extends NoTargetAnnotation
-
 /** Rename Modules
   *
-  * using namespace created by GetNamespace, create unique names for modules
+  * using namespace created by [[analyses.GetNamespace]], create unique names for modules
   */
 class RenameModules extends Transform {
   def inputForm: LowForm.type = LowForm

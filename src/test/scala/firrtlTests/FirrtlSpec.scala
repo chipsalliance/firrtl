@@ -14,9 +14,9 @@ import scala.io.Source
 import firrtl._
 import firrtl.ir._
 import firrtl.Parser.{IgnoreInfo, UseInfo}
-import firrtl.analyses.{GetNamespace, InstanceGraph}
+import firrtl.analyses.{GetNamespace, InstanceGraph, ModuleNamespaceAnnotation}
 import firrtl.annotations._
-import firrtl.transforms.{DontTouchAnnotation, ModuleNamespaceAnnotation, NoDedupAnnotation, RenameModules}
+import firrtl.transforms.{DontTouchAnnotation, NoDedupAnnotation, RenameModules}
 import firrtl.util.BackendCompilationUtilities
 
 import scala.collection.mutable
