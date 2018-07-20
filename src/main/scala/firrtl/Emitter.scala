@@ -316,7 +316,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
    }
 
   /**
-    * Gets a reference to a verilog renderer. This is used by the current standard verilog emission proces
+    * Gets a reference to a verilog renderer. This is used by the current standard verilog emission process
     * but allows access to individual portions, in particular, this function can be used to generate
     * the header for a verilog file without generating anything else.
     * @param m         the start module
@@ -685,6 +685,11 @@ class VerilogEmitter extends SeqTransform with Emitter {
       emit(Seq("endmodule"))
     }
 
+    /**
+      * The standard verilog emitter, wraps up everything into the
+      * verilog
+      * @return
+      */
     def emit_verilog(): DefModule = {
 
       build_netlist(m.body)
@@ -694,6 +699,14 @@ class VerilogEmitter extends SeqTransform with Emitter {
       m
     }
 
+    /**
+      * This emits a verilog module that can be bound to a module defined in chisel.
+      * It uses the same machinery as the general emitter in order to insure that
+      * parameters signature is exactly the same as the module being bound to
+      * @param overrideName Override the module name
+      * @param body the body of the bind module
+      * @return A module constructed from the body
+      */
     def emitVerilogBind(overrideName: String, body: String): DefModule = {
       build_netlist(m.body)
       build_ports()
