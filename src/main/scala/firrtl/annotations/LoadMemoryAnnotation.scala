@@ -40,10 +40,10 @@ case class LoadMemoryAnnotation(
     originalMemoryNameOpt match {
       case Some(originalMemoryName) =>
         if(target.name == originalMemoryName) {
-          prefix
+          prefix + suffix
         }
         else {
-          prefix + target.name.drop(originalMemoryName.length)
+          prefix + target.name.drop(originalMemoryName.length) + suffix
         }
       case _ =>
         fileName
