@@ -2,8 +2,10 @@
 
 package firrtl.analyses
 
-import firrtl.transforms.ModuleNamespaceAnnotation
+import firrtl.annotations.NoTargetAnnotation
 import firrtl.{CircuitState, LowForm, Namespace, Transform}
+
+case class ModuleNamespaceAnnotation(namespace: Namespace) extends NoTargetAnnotation
 
 /** Create a namespace with this circuit
   *
