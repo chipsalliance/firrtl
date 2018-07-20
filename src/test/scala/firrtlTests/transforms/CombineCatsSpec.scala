@@ -5,16 +5,16 @@ package firrtlTests.transforms
 import firrtl.PrimOps._
 import firrtl._
 import firrtl.ir.DoPrim
-import firrtl.transforms.CombineCats
+import firrtl.transforms.{CombineCats, MaxCatLenAnnotation}
 import firrtlTests.FirrtlFlatSpec
 import firrtlTests.FirrtlCheckers._
 
 class CombineCatsSpec extends FirrtlFlatSpec {
-  private val maxCatLen = 12
-  private val transforms = Seq(new IRToWorkingIR, new CombineCats(maxCatLen))
+  private val transforms = Seq(new IRToWorkingIR, new CombineCats)
+  private val annotations = Seq(new MaxCatLenAnnotation(12))
 
-  private def execute(input: String, transforms: Seq[Transform]): CircuitState = {
-    val c = transforms.foldLeft(CircuitState(parse(input), UnknownForm)) {
+  private def execute(input: String, transforms: Seq[Transform], annotations: AnnotationSeq): CircuitState = {
+    val c = transforms.foldLeft(CircuitState(parse(input), UnknownForm, annotations)) {
       (c: CircuitState, t: Transform) => t.runTransform(c)
     }.circuit
     CircuitState(c, UnknownForm, Seq(), None)
@@ -31,7 +31,7 @@ class CombineCatsSpec extends FirrtlFlatSpec {
         |    output out : UInt<10>
         |    out <= cat(in4, cat(in3, cat(in2, in1)))
         |""".stripMargin
-    firrtlEquivalenceTest(input, transforms)
+    firrtlEquivalenceTest(input, transforms, annotations)
   }
 
   "circuit2 with combined cats" should "be equivalent to one without" in {
@@ -45,7 +45,7 @@ class CombineCatsSpec extends FirrtlFlatSpec {
         |    output out : UInt<10>
         |    out <= cat(cat(in4, in1), cat(cat(in4, in3), cat(in2, in1)))
         |""".stripMargin
-    firrtlEquivalenceTest(input, transforms)
+    firrtlEquivalenceTest(input, transforms, annotations)
   }
 
   "circuit3 with combined cats" should "be equivalent to one without" in {
@@ -61,7 +61,7 @@ class CombineCatsSpec extends FirrtlFlatSpec {
         |    node temp2 = cat(in4, cat(in3, cat(in2, in1)))
         |    out <= add(temp1, temp2)
         |""".stripMargin
-    firrtlEquivalenceTest(input, transforms)
+    firrtlEquivalenceTest(input, transforms, annotations)
   }
 
   "nested cats" should "be combined" in {
@@ -81,8 +81,8 @@ class CombineCatsSpec extends FirrtlFlatSpec {
         |    out <= temp5
         |""".stripMargin
 
-    firrtlEquivalenceTest(input, transforms)
-    val result = execute(input, transforms)
+    firrtlEquivalenceTest(input, transforms, annotations)
+    val result = execute(input, transforms, Seq.empty)
 
     // temp5 should get cat(cat(cat(in3, in2), cat(in4, in3)), cat(cat(in3, in2), cat(in4, in3)))
     result should containTree {
@@ -110,10 +110,10 @@ class CombineCatsSpec extends FirrtlFlatSpec {
         |    node temp4 = cat(in5, temp3)
         |    out <= temp4
         |""".stripMargin
-    val transformsMaxCatLen3 = Seq(new IRToWorkingIR, new CombineCats(3))
 
-    firrtlEquivalenceTest(input, transformsMaxCatLen3)
-    val result = execute(input, transformsMaxCatLen3)
+    val maxCatLenAnnotation3 = Seq(new MaxCatLenAnnotation(3))
+    firrtlEquivalenceTest(input, transforms, maxCatLenAnnotation3)
+    val result = execute(input, transforms, maxCatLenAnnotation3)
 
     // should not contain any cat chains greater than 3
     result shouldNot containTree {
@@ -148,9 +148,9 @@ class CombineCatsSpec extends FirrtlFlatSpec {
         |    out <= temp4
         |""".stripMargin
 
-    firrtlEquivalenceTest(input, transforms)
+    firrtlEquivalenceTest(input, transforms, annotations)
 
-    val result = execute(input, transforms)
+    val result = execute(input, transforms, Seq.empty)
     result shouldNot containTree {
       case DoPrim(Cat, Seq(_, DoPrim(Add, _, _, _)), _, _) => true
       case DoPrim(Cat, Seq(_, DoPrim(Sub, _, _, _)), _, _) => true
