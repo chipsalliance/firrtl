@@ -77,12 +77,12 @@ trait FirrtlRunners extends BackendCompilationUtilities {
     * @param input string containing Firrtl source
     * @param customTransforms Firrtl transforms to test for equivalence
     * @param customAnnotations Optional Firrtl annotations
-    * @param resets tell yosys which signals to set for SAT, format is (timestep, signal, value)
+    * @param timesteps the maximum number of timesteps to consider
     */
   def firrtlEquivalenceTest(input: String,
                             customTransforms: Seq[Transform] = Seq.empty,
                             customAnnotations: AnnotationSeq = Seq.empty,
-                            resets: Seq[(Int, String, Int)] = Seq.empty): Unit = {
+                            timesteps: Int = 1): Unit = {
     val circuit = Parser.parse(input.split("\n").toIterator)
     val prefix = circuit.main
     val testDir = createTestDirectory(prefix + "_equivalence_test")
@@ -112,7 +112,7 @@ trait FirrtlRunners extends BackendCompilationUtilities {
     val refResult = (new firrtl.stage.FirrtlStage).run(refAnnos)
     val refName = refResult.collectFirst({ case stage.FirrtlCircuitAnnotation(c) => c.main }).getOrElse(refSuggestedName)
 
-    assert(yosysExpectSuccess(customName, refName, testDir, resets))
+    assert(yosysExpectSuccess(customTop, referenceTop, testDir, timesteps))
   }
 
   /** Compiles input Firrtl to Verilog */
