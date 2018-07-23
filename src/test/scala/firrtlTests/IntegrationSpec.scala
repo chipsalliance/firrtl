@@ -52,3 +52,32 @@ class RocketCoreCompilationTest extends CompilationTest("RocketCore", "/regress"
 class ICacheCompilationTest extends CompilationTest("ICache", "/regress")
 class FPUCompilationTest extends CompilationTest("FPU", "/regress")
 class HwachaSequencerCompilationTest extends CompilationTest("HwachaSequencer", "/regress")
+
+abstract class CommonSubexprEliminationEquivTest(name: String, dir: String) extends
+  EquivalenceTest(Seq(new firrtl.transforms.CommonSubexpressionElimination), name, dir)
+abstract class DeadCodeEliminationEquivTest(name: String, dir: String) extends
+  EquivalenceTest(Seq(new firrtl.transforms.DeadCodeElimination), name, dir)
+abstract class ConstantPropagationEquivTest(name: String, dir: String) extends
+  EquivalenceTest(Seq(new firrtl.transforms.ConstantPropagation), name, dir)
+abstract class LowFirrtlOptimizationEquivTest(name: String, dir: String) extends
+  EquivalenceTest(Seq(new LowFirrtlOptimization), name, dir)
+
+class RocketCommonSubexprEliminationTest extends CommonSubexprEliminationEquivTest("RocketCore", "/regress")
+class RocketDeadCodeEliminationTest extends DeadCodeEliminationEquivTest("RocketCore", "/regress")
+class RocketConstantPropagationTest extends ConstantPropagationEquivTest("RocketCore", "/regress")
+class RocketLowFirrtlOptimizationTest extends LowFirrtlOptimizationEquivTest("RocketCore", "/regress")
+
+class FPUCommonSubexprEliminationTest extends CommonSubexprEliminationEquivTest("FPU", "/regress")
+class FPUDeadCodeEliminationTest extends DeadCodeEliminationEquivTest("FPU", "/regress")
+class FPUConstantPropagationTest extends ConstantPropagationEquivTest("FPU", "/regress")
+class FPULowFirrtlOptimizationTest extends LowFirrtlOptimizationEquivTest("FPU", "/regress")
+
+class ICacheCommonSubexprEliminationTest extends CommonSubexprEliminationEquivTest("ICache", "/regress")
+class ICacheDeadCodeEliminationTest extends DeadCodeEliminationEquivTest("ICache", "/regress")
+class ICacheConstantPropagationTest extends ConstantPropagationEquivTest("ICache", "/regress")
+class ICacheLowFirrtlOptimizationTest extends LowFirrtlOptimizationEquivTest("ICache", "/regress")
+
+class RobCommonSubexprEliminationTest extends CommonSubexprEliminationEquivTest("Rob", "/regress")
+class RobDeadCodeEliminationTest extends DeadCodeEliminationEquivTest("Rob", "/regress")
+class RobConstantPropagationTest extends ConstantPropagationEquivTest("Rob", "/regress")
+class RobLowFirrtlOptimizationTest extends LowFirrtlOptimizationEquivTest("Rob", "/regress")
