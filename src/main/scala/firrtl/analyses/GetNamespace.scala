@@ -3,7 +3,7 @@
 package firrtl.analyses
 
 import firrtl.annotations.NoTargetAnnotation
-import firrtl.{CircuitState, LowForm, Namespace, Transform}
+import firrtl.{CircuitForm, CircuitState, LowForm, Namespace, Transform}
 
 case class ModuleNamespaceAnnotation(namespace: Namespace) extends NoTargetAnnotation
 
@@ -12,8 +12,8 @@ case class ModuleNamespaceAnnotation(namespace: Namespace) extends NoTargetAnnot
   * namespace is used by RenameModules to get unique names
   */
 class GetNamespace extends Transform {
-  def inputForm: LowForm.type = LowForm
-  def outputForm: LowForm.type = LowForm
+  def inputForm: CircuitForm = LowForm
+  def outputForm: CircuitForm = LowForm
 
   def execute(state: CircuitState): CircuitState = {
     val namespace = Namespace(state.circuit)
