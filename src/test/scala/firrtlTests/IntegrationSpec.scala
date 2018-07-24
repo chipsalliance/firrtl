@@ -72,11 +72,6 @@ class FPUDeadCodeEliminationTest extends DeadCodeEliminationEquivTest("FPU", "/r
 class FPUConstantPropagationTest extends ConstantPropagationEquivTest("FPU", "/regress")
 class FPULowFirrtlOptimizationTest extends LowFirrtlOptimizationEquivTest("FPU", "/regress")
 
-class ICacheCommonSubexprEliminationTest extends CommonSubexprEliminationEquivTest("ICache", "/regress")
-class ICacheDeadCodeEliminationTest extends DeadCodeEliminationEquivTest("ICache", "/regress")
-class ICacheConstantPropagationTest extends ConstantPropagationEquivTest("ICache", "/regress")
-class ICacheLowFirrtlOptimizationTest extends LowFirrtlOptimizationEquivTest("ICache", "/regress")
-
 class RobCommonSubexprEliminationTest extends CommonSubexprEliminationEquivTest("Rob", "/regress")
 class RobDeadCodeEliminationTest extends DeadCodeEliminationEquivTest("Rob", "/regress")
 class RobConstantPropagationTest extends ConstantPropagationEquivTest("Rob", "/regress")
