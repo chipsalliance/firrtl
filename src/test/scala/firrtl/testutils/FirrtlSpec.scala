@@ -439,10 +439,9 @@ abstract class EquivalenceTest(transforms: Seq[Transform], name: String, dir: St
   }
   val source = scala.io.Source.fromInputStream(in)
   val input = try source.mkString finally source.close()
-  val module = fileName.split('/').last
 
-  s"$module with ${transforms.map(_.name).mkString(", ")}" should
-    s"be equivalent to $module without ${transforms.map(_.name).mkString(", ")}" in {
+  s"$name with ${transforms.map(_.name).mkString(", ")}" should
+    s"be equivalent to $name without ${transforms.map(_.name).mkString(", ")}" in {
     firrtlEquivalenceTest(input, transforms)
   }
 }
