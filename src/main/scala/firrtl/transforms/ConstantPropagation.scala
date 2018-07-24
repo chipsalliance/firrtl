@@ -44,12 +44,6 @@ object ConstantPropagation {
       case _ => e
     }
   }
-}
-
-class ConstantPropagation extends Transform {
-  import ConstantPropagation._
-  def inputForm = LowForm
-  def outputForm = LowForm
 
   trait FoldCommutativeOp {
     def fold(c1: Literal, c2: Literal): Expression
@@ -216,7 +210,7 @@ class ConstantPropagation extends Transform {
     foldIfZeroedArg(foldIfOutsideRange(e))
   }
 
-  private def constPropPrim(e: DoPrim): Expression = e.op match {
+  def constPropPrim(e: DoPrim): Expression = e.op match {
     case Shl => foldShiftLeft(e)
     case Shr => foldShiftRight(e)
     case Cat => foldConcat(e)
@@ -256,7 +250,7 @@ class ConstantPropagation extends Transform {
     case _ => m
   }
 
-  private def constPropMux(m: Mux): Expression = (m.tval, m.fval) match {
+  def constPropMux(m: Mux): Expression = (m.tval, m.fval) match {
     case _ if m.tval == m.fval => m.tval
     case (t: UIntLiteral, f: UIntLiteral) =>
       if (t.value == BigInt(1) && f.value == BigInt(0) && bitWidth(m.tpe) == BigInt(1)) m.cond
@@ -264,13 +258,19 @@ class ConstantPropagation extends Transform {
     case _ => constPropMuxCond(m)
   }
 
-  private def constPropNodeRef(r: WRef, e: Expression) = e match {
+  def constPropNodeRef(r: WRef, e: Expression) = e match {
     case _: UIntLiteral | _: SIntLiteral | _: WRef => e
     case _ => r
   }
 
   // Is "a" a "better name" than "b"?
-  private def betterName(a: String, b: String): Boolean = (a.head != '_') && (b.head == '_')
+  def betterName(a: String, b: String): Boolean = (a.head != '_') && (b.head == '_')
+}
+
+class ConstantPropagation extends Transform {
+  import ConstantPropagation._
+  def inputForm = LowForm
+  def outputForm = LowForm
 
   def optimize(e: Expression): Expression = constPropExpression(new NodeMap(), Map.empty[String, String], Map.empty[String, Map[String, Literal]])(e)
   def optimize(e: Expression, nodeMap: NodeMap): Expression = constPropExpression(nodeMap, Map.empty[String, String], Map.empty[String, Map[String, Literal]])(e)
