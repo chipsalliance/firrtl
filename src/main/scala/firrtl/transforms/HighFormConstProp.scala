@@ -11,6 +11,13 @@ import firrtl.transforms.ConstantPropagation._
 
 import scala.collection.mutable
 
+/** High Firrtl Constant Propagation
+  *
+  * Only propagates nodes that are not marked by DontTouch Annotaions. Unused
+  * nodes are also removed if there is not NoDCEAnnotation. If a node has a
+  * better name than the reference it is bound to, the reference will be
+  * renamed and the node deleted if allowed.
+  */
 class HighFormConstProp extends Transform {
   private def constPropModule(m: Module, dontTouches: Set[String], renames: RenameMap, noDCE: Boolean): Module = {
     renames.setModule(m.name)

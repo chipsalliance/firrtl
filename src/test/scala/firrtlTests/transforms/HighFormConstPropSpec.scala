@@ -6,7 +6,7 @@ import firrtl.PrimOps.Add
 import firrtl._
 import firrtl.annotations.{CircuitName, ComponentName, ModuleName}
 import firrtl.ir._
-import firrtl.transforms.{DontTouchAnnotation, HighFormConstProp}
+import firrtl.transforms.{DontTouchAnnotation, HighFormConstProp, NoDCEAnnotation}
 import firrtlTests.FirrtlFlatSpec
 import firrtlTests.FirrtlCheckers.containTree
 
@@ -101,7 +101,6 @@ class HighFormConstPropSpec extends FirrtlFlatSpec {
         |    out <= temp4
         |""".stripMargin
 
-
     val dontTouches = Seq(
       DontTouchAnnotation(ComponentName("temp1",
         ModuleName("Test_HighFormConstProp3",
@@ -113,21 +112,59 @@ class HighFormConstPropSpec extends FirrtlFlatSpec {
     firrtlEquivalenceTest(input, transforms, dontTouches)
     val result = execute(input, transforms, dontTouches)
 
-    val UInt1 = UIntType(IntWidth(1))
-    val UInt3 = UIntType(IntWidth(3))
-    val UInt4 = UIntType(IntWidth(4))
-    val UInt6 = UIntType(IntWidth(6))
-    val UIntLit2 = UIntLiteral(0, IntWidth(2))
-    val UIntLit5 = UIntLiteral(0, IntWidth(5))
-
     result should containTree {
       case DefNode(_, "temp1", _) => true
     }
-
     result should containTree {
       case DefNode(_, "temp3", _) => true
     }
+
+    val UInt10 = UIntType(IntWidth(10))
+    val UIntLit5 = UIntLiteral(0, IntWidth(5))
+    result should containTree {
+      case Connect(_, WRef("out", UInt10, PortKind, FEMALE), UIntLit5) => true
+    }
   }
 
+  "if there is a NoDCEAnnotation, nodes" should "not be removed" in {
+    val input =
+      """circuit Test_HighFormConstProp4 :
+        |  module Test_HighFormConstProp4 :
+        |    input in1 : UInt<1>
+        |    input in2 : UInt<2>
+        |    input in3 : UInt<3>
+        |    input in4 : UInt<4>
+        |    input in5 : UInt<5>
+        |    output out : UInt<10>
+        |    node temp1 = add(in1, UInt<2>("h0"))
+        |    node temp2 = and(in3, UInt<5>("h0"))
+        |    node temp3 = and(in4, temp2)
+        |    node temp4 = and(UInt<4>("h0"), and(in5, temp3))
+        |    out <= temp4
+        |""".stripMargin
 
+    val noDCEAnnotation = Seq(NoDCEAnnotation)
+
+    firrtlEquivalenceTest(input, transforms, noDCEAnnotation)
+    val result = execute(input, transforms, noDCEAnnotation)
+
+    val UIntLit5 = UIntLiteral(0, IntWidth(5))
+    result should containTree {
+      case DefNode(_, "temp1", _) => true
+    }
+    result should containTree {
+      case DefNode(_, "temp2", UIntLit5) => true
+    }
+    result should containTree {
+      case DefNode(_, "temp3", UIntLit5) => true
+    }
+    result should containTree {
+      case DefNode(_, "temp4", UIntLit5) => true
+    }
+
+    val UInt10 = UIntType(IntWidth(10))
+    result should containTree {
+      case Connect(_, WRef("out", UInt10, PortKind, FEMALE), UIntLit5) => true
+    }
+  }
 }
