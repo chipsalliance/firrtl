@@ -55,7 +55,13 @@ class HighFormConstProp extends Transform {
       case other => other map swapNamesStmt
     }
 
+    def constPropNodeRef(r: WRef, e: Expression) = e match {
+      case _: UIntLiteral | _: SIntLiteral | _: WRef | _:WSubField | _:WSubIndex | _:WSubAccess => e
+      case _ => r
+    }
+
     def constPropExpression(nodeMap: NodeMap)(e: Expression): Expression = {
+
       val old = e map constPropExpression(nodeMap)
       val propagated = old match {
         case p: DoPrim => constPropPrim(p)
@@ -74,26 +80,31 @@ class HighFormConstProp extends Transform {
 
     def constPropStmt(s: Statement): Statement = {
       s.map(constPropStmt).map(constPropExpression(nodeMap)) match {
-        case node: DefNode if dontTouches.contains(node.name) => node
-        // if the rhs is a ref with a worse name then delete this node and rename the rhs to this node's name
-        case x@DefNode(_, lname, ref@WRef(rname, _, kind, _)) if
-        betterName(lname, rname) && kind != PortKind && !swapMap.contains(rname) && !noDCE =>
-          swapMap += (rname -> lname)
-          nodeMap(lname) = nodeMap.getOrElse(rname, ref.copy(name = lname))
-          deleteNode(rname, ref.tpe)
-          EmptyStmt
-        // if the rhs is a ref with a better name then delete this node and propagate the rhs
-        case x@DefNode(_, lname, ref@WRef(rname, _, _, _)) if betterName(rname, lname) && !noDCE =>
-          assert(!swapMap.contains(lname))
-          swapMap += (lname -> rname)
-          nodeMap(lname) = nodeMap.getOrElse(rname, ref.copy(name = rname))
-          deleteNode(lname, ref.tpe)
-          EmptyStmt
-        // if this node is bound to a constant or a ref then delete it and propagate the constant
-        case x@DefNode(_, lname, _: UIntLiteral | _: SIntLiteral | _: WRef) if !noDCE =>
-          nodeMap(lname) = x.value
-          deleteNode(lname, x.value.tpe)
-          EmptyStmt
+        case x@DefNode(_, lname, value) if !noDCE && !dontTouches.contains(lname) =>
+          value match {
+            // if the rhs is a ref with a worse name then delete this node and rename the rhs to this node's name
+            case ref@WRef(rname, _, kind, _) if
+            betterName(lname, rname) && kind != PortKind && !swapMap.contains(rname) =>
+              swapMap += (rname -> lname)
+              nodeMap(lname) = nodeMap.getOrElse(rname, ref.copy(name = lname))
+              deleteNode(rname, ref.tpe)
+              EmptyStmt
+            // if the rhs is a ref with a better name then delete this node and propagate the rhs
+            case ref@WRef(rname, _, _, _) if betterName(rname, lname) =>
+              assert(!swapMap.contains(lname))
+              swapMap += (lname -> rname)
+              nodeMap(lname) = nodeMap.getOrElse(rname, ref.copy(name = rname))
+              deleteNode(lname, ref.tpe)
+              EmptyStmt
+            // if this node is bound to a constant or a ref then delete it and propagate the constant
+            case _: UIntLiteral | _: SIntLiteral | _: WRef | _: WSubField | _: WSubIndex | _: WSubAccess =>
+              nodeMap(lname) = value
+              deleteNode(lname, value.tpe)
+              EmptyStmt
+            case _ =>
+              nodeMap(lname) = value
+              x
+          }
         case x@DefNode(_, lname, value) =>
           nodeMap(lname) = value
           x
@@ -119,8 +130,7 @@ class HighFormConstProp extends Transform {
 
     val noDCE = state.annotations.contains(NoDCEAnnotation)
     val modulesx = state.circuit.modules.map {
-      case m: Module =>
-        constPropModule(m, dontTouchMap.getOrElse(m.name, Set.empty), renamesx, noDCE)
+      case m: Module => constPropModule(m, dontTouchMap.getOrElse(m.name, Set.empty), renamesx, noDCE)
       case e: ExtModule => e
     }
 

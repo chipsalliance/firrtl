@@ -55,6 +55,8 @@ class HighFirrtlToMiddleFirrtl extends CoreTransform {
   def inputForm = HighForm
   def outputForm = MidForm
   def transforms = Seq(
+    passes.ConvertFixedToSInt,
+    new firrtl.transforms.HighFormConstProp,
     passes.PullMuxes,
     passes.ReplaceAccesses,
     passes.ExpandConnects,
@@ -68,7 +70,6 @@ class HighFirrtlToMiddleFirrtl extends CoreTransform {
     passes.ResolveGenders,
     passes.InferWidths,
     passes.CheckWidths,
-    passes.ConvertFixedToSInt,
     passes.ZeroWidth,
     passes.InferTypes)
 }

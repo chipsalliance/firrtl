@@ -52,7 +52,7 @@ class RenameModules extends Transform {
         case ext: ExtModule => ext
       }
 
-      state.copy(circuit = state.circuit.copy(modules = modulesx, main = nameMappings(state.circuit.main)), renames = Some(renamesx))
+      state.copy(circuit = state.circuit.copy(modules = modulesx, main = cname.name), renames = Some(renamesx))
     }
   }
 }

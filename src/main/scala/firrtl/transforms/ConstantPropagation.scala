@@ -258,11 +258,6 @@ object ConstantPropagation {
     case _ => constPropMuxCond(m)
   }
 
-  def constPropNodeRef(r: WRef, e: Expression) = e match {
-    case _: UIntLiteral | _: SIntLiteral | _: WRef => e
-    case _ => r
-  }
-
   // Is "a" a "better name" than "b"?
   def betterName(a: String, b: String): Boolean = (a.head != '_') && (b.head == '_')
 }
@@ -271,6 +266,11 @@ class ConstantPropagation extends Transform {
   import ConstantPropagation._
   def inputForm = LowForm
   def outputForm = LowForm
+
+  private def constPropNodeRef(r: WRef, e: Expression) = e match {
+    case _: UIntLiteral | _: SIntLiteral | _: WRef => e
+    case _ => r
+  }
 
   def optimize(e: Expression): Expression = constPropExpression(new NodeMap(), Map.empty[String, String], Map.empty[String, Map[String, Literal]])(e)
   def optimize(e: Expression, nodeMap: NodeMap): Expression = constPropExpression(nodeMap, Map.empty[String, String], Map.empty[String, Map[String, Literal]])(e)

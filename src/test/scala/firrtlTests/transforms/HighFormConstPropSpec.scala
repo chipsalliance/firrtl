@@ -167,4 +167,62 @@ class HighFormConstPropSpec extends FirrtlFlatSpec {
       case Connect(_, WRef("out", UInt10, PortKind, FEMALE), UIntLit5) => true
     }
   }
+
+  "aggregate references" should "be propagated" in {
+    val input =
+      """circuit Test_HighFormConstProp5 :
+        |  module Test_HighFormConstProp5 :
+        |    input in1 : {a: UInt<1>, b: UInt<4>[4]}
+        |    input select : UInt<2>
+        |    output out : {a: UInt<1>, b: UInt<4>[4]}
+        |    output selected : UInt<4>
+        |
+        |    node _GEN_0 = in1
+        |    out <- _GEN_0
+        |    out.a <= _GEN_0.a
+        |
+        |    node temp1 = in1.b[2]
+        |    selected <= temp1
+        |
+        |    node temp2 = in1.b[select]
+        |    selected <= temp2
+        |""".stripMargin
+
+    firrtlEquivalenceTest(input, transforms, Seq.empty)
+    val result = execute(input, transforms, Seq.empty)
+
+    val BoolType = UIntType(IntWidth(1))
+    val UInt2 = UIntType(IntWidth(2))
+    val UInt4 = UIntType(IntWidth(4))
+    val VecType = VectorType(UIntType(IntWidth(4)), 4)
+    val MyBundleType = BundleType(Seq(
+      Field("a", Default, BoolType),
+      Field("b", Default, VecType)))
+
+    result should containTree {
+      case PartialConnect(_, WRef("out", MyBundleType, PortKind, FEMALE),
+      WRef("in1", MyBundleType, PortKind, MALE)) => true
+    }
+    result should containTree {
+      case Connect(_, WSubField(WRef("out", MyBundleType, PortKind, FEMALE), "a", BoolType, FEMALE),
+      WSubField(WRef("in1", MyBundleType, PortKind, MALE), "a", BoolType, MALE)) => true
+    }
+
+    result should containTree {
+      case Connect(_, WRef("selected", UInt4, PortKind, FEMALE),
+      WSubIndex(WSubField(WRef("in1", MyBundleType, PortKind, MALE), "b", VecType, MALE), 2, UInt4, MALE)) => true
+    }
+
+    result should containTree {
+      case Connect(_, WRef("selected", UInt4, PortKind, FEMALE),
+      WSubAccess(WSubField(WRef("in1", MyBundleType, PortKind, MALE), "b", VecType, MALE),
+      WRef("select", UInt2, PortKind, MALE), UInt4, MALE)) => true
+    }
+
+    result shouldNot containTree {
+      case DefNode(_, "_GEN_0", _) => true
+      case DefNode(_, "temp1", _) => true
+      case DefNode(_, "temp2", _) => true
+    }
+  }
 }
