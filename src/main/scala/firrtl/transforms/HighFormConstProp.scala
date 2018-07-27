@@ -7,14 +7,13 @@ import firrtl.Utils._
 import firrtl._
 import firrtl.annotations._
 import firrtl.ir._
-import firrtl.passes.RemoveEmpty
 import firrtl.transforms.ConstantPropagation._
 
 import scala.collection.mutable
 
 /** High Firrtl Constant Propagation
   *
-  * Only propagates nodes that are not marked by DontTouch Annotaions. Unused
+  * Only propagates nodes that are not marked by DontTouch Annotations. Unused
   * nodes are also removed if there is not NoDCEAnnotation. If a node has a
   * better name than the reference it is bound to, the reference will be
   * renamed and the node deleted if allowed.
@@ -114,7 +113,7 @@ class HighFormConstProp extends Transform {
       }
     }
 
-    m.copy(body = swapNamesStmt(constPropStmt(m.body)))
+    m.copy(body = Utils.squashEmpty(swapNamesStmt(constPropStmt(m.body))))
   }
 
   def inputForm: CircuitForm = HighForm
@@ -136,6 +135,6 @@ class HighFormConstProp extends Transform {
       case e: ExtModule => e
     }
 
-    state.copy(circuit = RemoveEmpty.run(state.circuit.copy(modules = modulesx)), renames = Some(renamesx))
+    state.copy(circuit = state.circuit.copy(modules = modulesx), renames = Some(renamesx))
   }
 }
