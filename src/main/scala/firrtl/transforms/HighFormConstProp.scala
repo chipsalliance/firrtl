@@ -7,6 +7,7 @@ import firrtl.Utils._
 import firrtl._
 import firrtl.annotations._
 import firrtl.ir._
+import firrtl.passes.RemoveEmpty
 import firrtl.transforms.ConstantPropagation._
 
 import scala.collection.mutable
@@ -80,7 +81,8 @@ class HighFormConstProp extends Transform {
 
     def constPropStmt(s: Statement): Statement = {
       s.map(constPropStmt).map(constPropExpression(nodeMap)) match {
-        case x@DefNode(_, lname, value) if !noDCE && !dontTouches.contains(lname) =>
+        case x@DefNode(_, lname, _) if  dontTouches.contains(lname) => x
+        case x@DefNode(_, lname, value) if !noDCE =>
           value match {
             // if the rhs is a ref with a worse name then delete this node and rename the rhs to this node's name
             case ref@WRef(rname, _, kind, _) if
@@ -134,6 +136,6 @@ class HighFormConstProp extends Transform {
       case e: ExtModule => e
     }
 
-    state.copy(circuit = state.circuit.copy(modules = modulesx), renames = Some(renamesx))
+    state.copy(circuit = RemoveEmpty.run(state.circuit.copy(modules = modulesx)), renames = Some(renamesx))
   }
 }

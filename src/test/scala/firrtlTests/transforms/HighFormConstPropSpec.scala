@@ -2,7 +2,6 @@
 
 package firrtlTests.transforms
 
-import firrtl.PrimOps.Add
 import firrtl._
 import firrtl.annotations.{CircuitName, ComponentName, ModuleName}
 import firrtl.ir._
@@ -97,7 +96,7 @@ class HighFormConstPropSpec extends FirrtlFlatSpec {
         |    node temp1 = add(in1, UInt<2>("h0"))
         |    node temp2 = and(in3, UInt<5>("h0"))
         |    node temp3 = and(in4, temp2)
-        |    node temp4 = and(UInt<4>("h0"), and(in5, temp3))
+        |    node temp4 = and(in5, temp3)
         |    out <= temp4
         |""".stripMargin
 
@@ -121,8 +120,10 @@ class HighFormConstPropSpec extends FirrtlFlatSpec {
 
     val UInt10 = UIntType(IntWidth(10))
     val UIntLit5 = UIntLiteral(0, IntWidth(5))
+    val UInt5 = UIntType(IntWidth(5))
     result should containTree {
-      case Connect(_, WRef("out", UInt10, PortKind, FEMALE), UIntLit5) => true
+      case Connect(_, WRef("out", UInt10, PortKind, FEMALE),
+      WRef("temp4", UInt5, NodeKind, MALE)) => true
     }
   }
 
