@@ -283,10 +283,8 @@ abstract class Transform extends LazyLogging {
       resAnno: AnnotationSeq,
       renameOpt: Option[RenameMap]): AnnotationSeq = {
     val newAnnotations = {
-      val inSet = new mutable.LinkedHashSet[Annotation]
-      inSet ++= inAnno
-      val resSet = new mutable.LinkedHashSet[Annotation]
-      resSet ++= resAnno
+      val inSet = mutable.LinkedHashSet() ++ inAnno
+      val resSet = mutable.LinkedHashSet() ++ resAnno
       val deleted = (inSet -- resSet).map {
         case DeletedAnnotation(xFormName, delAnno) => DeletedAnnotation(s"$xFormName+$name", delAnno)
         case anno => DeletedAnnotation(name, anno)
