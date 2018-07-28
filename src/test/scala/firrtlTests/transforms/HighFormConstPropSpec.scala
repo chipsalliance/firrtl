@@ -114,12 +114,12 @@ class HighFormConstPropSpec extends FirrtlFlatSpec {
     result should containTree {
       case DefNode(_, "temp1", _) => true
     }
+    val UIntLit5 = UIntLiteral(0, IntWidth(5))
     result should containTree {
-      case DefNode(_, "temp3", _) => true
+      case DefNode(_, "temp3", UIntLit5) => true
     }
 
     val UInt10 = UIntType(IntWidth(10))
-    val UIntLit5 = UIntLiteral(0, IntWidth(5))
     val UInt5 = UIntType(IntWidth(5))
     result should containTree {
       case Connect(_, WRef("out", UInt10, PortKind, FEMALE),

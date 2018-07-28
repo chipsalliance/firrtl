@@ -1,12 +1,21 @@
 package firrtlTests
 package transforms
 
-import firrtl.annotations.{CircuitName, ComponentName, ModuleName}
-import firrtl.transforms.{GroupAnnotation, GroupComponents}
+import firrtl.AnnotationSeq
+import firrtl.annotations.{CircuitName, ComponentName, JsonProtocol, ModuleName}
+import firrtl.transforms.{DontTouchAnnotation, GroupAnnotation, GroupComponents}
 
 class GroupComponentsSpec extends LowTransformSpec {
   def transform = new GroupComponents()
   val top = "Top"
+
+  def addDontTouchAnnos(annos: AnnotationSeq): AnnotationSeq = {
+    val dontTouches = annos.flatMap {
+      case GroupAnnotation(components, _, _, _, _) => components map { c => DontTouchAnnotation(c)}
+    }
+    dontTouches ++: annos
+  }
+
   def topComp(name: String): ComponentName = ComponentName(name, ModuleName(top, CircuitName(top)))
   "The register r" should "be grouped" in {
     val input =
@@ -40,7 +49,7 @@ class GroupComponentsSpec extends LowTransformSpec {
         |    r_OUT <= r
         |    r <= data_IN
       """.stripMargin
-    execute(input, check, groups)
+    execute(input, check, addDontTouchAnnos(groups))
   }
 
   "The two sets of instances" should "be grouped" in {
@@ -108,7 +117,7 @@ class GroupComponentsSpec extends LowTransformSpec {
          |    output out: UInt<8>
          |    out <= UInt(2)
       """.stripMargin
-    execute(input, check, groups)
+    execute(input, check, addDontTouchAnnos(groups))
   }
   "The two sets of instances" should "be grouped with their nodes" in {
     val input =
@@ -171,7 +180,7 @@ class GroupComponentsSpec extends LowTransformSpec {
          |    output out: UInt<8>
          |    out <= UInt(2)
       """.stripMargin
-    execute(input, check, groups)
+    execute(input, check, addDontTouchAnnos(groups))
   }
 
   "The two sets of instances" should "be grouped with one not grouped" in {
@@ -247,7 +256,7 @@ class GroupComponentsSpec extends LowTransformSpec {
          |    output out: UInt<10>
          |    out <= in
       """.stripMargin
-    execute(input, check, groups)
+    execute(input, check, addDontTouchAnnos(groups))
   }
 
   "The two sets of instances" should "be grouped with a connection between them" in {
@@ -285,6 +294,6 @@ class GroupComponentsSpec extends LowTransformSpec {
          |    node second = not(first)
          |    second_0 <= second
       """.stripMargin
-    execute(input, check, groups)
+    execute(input, check, addDontTouchAnnos(groups))
   }
 }

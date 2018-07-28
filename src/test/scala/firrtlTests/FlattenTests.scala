@@ -9,7 +9,7 @@ import firrtl.ir.Circuit
 import firrtl.Parser
 import firrtl.passes.PassExceptions
 import firrtl.annotations.{Annotation, CircuitName, ComponentName, ModuleName, Named}
-import firrtl.transforms.{FlattenAnnotation, Flatten}
+import firrtl.transforms.{DontTouchAnnotation, Flatten, FlattenAnnotation}
 import logger.{LogLevel, Logger}
 import logger.LogLevel.Debug
 
@@ -91,7 +91,12 @@ class FlattenTests extends LowTransformSpec {
           |    input a : UInt<32>
           |    output b : UInt<32>
           |    b <= a""".stripMargin
-     execute(input, check, Seq(flatten("Top")))
+    val mname = ModuleName("Top", CircuitName("Top"))
+    val dontTouches = Seq(DontTouchAnnotation(ComponentName("i1.a", mname)),
+      DontTouchAnnotation(ComponentName("tmp", mname)),
+      DontTouchAnnotation(ComponentName("i2.a", mname)),
+      DontTouchAnnotation(ComponentName("b", mname)))
+     execute(input, check, flatten("Top") +: dontTouches)
   }
 
   "The module instance i in Top " should "be inlined" in {

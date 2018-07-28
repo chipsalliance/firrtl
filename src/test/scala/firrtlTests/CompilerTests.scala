@@ -2,11 +2,9 @@
 
 package firrtlTests
 
-import org.scalatest.FlatSpec
-import org.scalatest.Matchers
-import org.scalatest.junit.JUnitRunner
-
+import firrtl.annotations.{Annotation, CircuitName, ComponentName, ModuleName}
 import firrtl.ir.Circuit
+import firrtl.transforms.DontTouchAnnotation
 import firrtl.{
   ChirrtlForm,
   CircuitState,
@@ -17,6 +15,7 @@ import firrtl.{
   Parser,
   VerilogCompiler
 }
+import org.scalatest.{FlatSpec, Matchers}
 
 /**
  * An example methodology for testing Firrtl compilers.
@@ -26,12 +25,13 @@ import firrtl.{
  * should be compared against the check string.
  */
 abstract class CompilerSpec extends FlatSpec {
+   def annos: Seq[Annotation] = Seq.empty
    def parse (s: String): Circuit = Parser.parse(s.split("\n").toIterator)
    def compiler: Compiler
    def input: String
    def check: String
    def getOutput: String = {
-     val res = compiler.compileAndEmit(CircuitState(parse(input), ChirrtlForm))
+     val res = compiler.compileAndEmit(CircuitState(parse(input), ChirrtlForm, annos))
      res.getEmittedCircuit.value
    }
 }
@@ -119,6 +119,7 @@ circuit Top :
       "    node x_0 = a_0",
       "    node x_1 = a_1\n\n"
    ).reduce(_ + "\n" + _)
+   override val annos = Seq(DontTouchAnnotation(ComponentName("x", ModuleName("Top", CircuitName("Top")))))
    "A circuit" should "match exactly to its lowered state" in {
       (parse(getOutput)) should be (parse(check))
    }
