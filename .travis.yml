@@ -13,7 +13,7 @@ env:
   global:
     INSTALL_DIR=$TRAVIS_BUILD_DIR/install
     VERILATOR_ROOT=$INSTALL_DIR
-    PATH=$PATH:$VERILATOR_ROOT/bin:$TRAVIS_BUILD_DIR/utils/bin
+    PATH=$PATH:$INSTALL_DIR/bin:$TRAVIS_BUILD_DIR/utils/bin
     SBT_ARGS="-Dsbt.log.noformat=true"
 
 stages:
@@ -35,6 +35,9 @@ jobs:
         - verilator --version
         - bash .install_yosys.sh
         - yosys -V
+        # Workaround for https://github.com/travis-ci/travis-ci/issues/9816
+        - curl -Ls https://git.io/sbt > $INSTALL_DIR/bin/sbt
+        - chmod a+x $INSTALL_DIR/bin/sbt
         - sbt update
     - stage: test
       script:
