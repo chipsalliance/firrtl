@@ -15,6 +15,7 @@ env:
     VERILATOR_ROOT=$INSTALL_DIR
     PATH=$PATH:$INSTALL_DIR/bin:$TRAVIS_BUILD_DIR/utils/bin
     SBT_ARGS="-Dsbt.log.noformat=true"
+    SBT=$INSTALL_DIR/bin/sbt
 
 stages:
   - prepare
@@ -38,20 +39,20 @@ jobs:
         # Workaround for https://github.com/travis-ci/travis-ci/issues/9816
         - curl -Ls https://git.io/sbt > $INSTALL_DIR/bin/sbt
         - chmod a+x $INSTALL_DIR/bin/sbt
-        - sbt update
+        - $SBT update
     - stage: test
       script:
         - verilator --version
-        - sbt ++2.11.12 $SBT_ARGS test
+        - $SBT ++2.11.12 $SBT_ARGS test
     - stage: test
       script:
         - verilator --version
-        - sbt ++2.12.4 $SBT_ARGS test
+        - $SBT ++2.12.4 $SBT_ARGS test
     # For Chisel tests we just use the default version
     - stage: test
       script:
         - verilator --version
-        - sbt $SBT_ARGS clean assembly publishLocal
+        - $SBT $SBT_ARGS clean assembly publishLocal
         - bash .run_chisel_tests.sh
     - stage: test
       script:
