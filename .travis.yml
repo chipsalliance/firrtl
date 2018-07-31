@@ -13,9 +13,8 @@ env:
   global:
     INSTALL_DIR=$TRAVIS_BUILD_DIR/install
     VERILATOR_ROOT=$INSTALL_DIR
-    PATH=$PATH:$INSTALL_DIR/bin:$TRAVIS_BUILD_DIR/utils/bin
+    PATH=$PATH:$VERILATOR_ROOT/bin:$TRAVIS_BUILD_DIR/utils/bin
     SBT_ARGS="-Dsbt.log.noformat=true"
-    SBT=$INSTALL_DIR/bin/sbt
 
 stages:
   - prepare
@@ -36,23 +35,19 @@ jobs:
         - verilator --version
         - bash .install_yosys.sh
         - yosys -V
-        # Workaround for https://github.com/travis-ci/travis-ci/issues/9816
-        - curl -Ls https://git.io/sbt > $INSTALL_DIR/bin/sbt
-        - chmod a+x $INSTALL_DIR/bin/sbt
-        - $SBT update
     - stage: test
       script:
         - verilator --version
-        - $SBT ++2.11.12 $SBT_ARGS test
+        - sbt ++2.11.12 $SBT_ARGS test
     - stage: test
       script:
         - verilator --version
-        - $SBT ++2.12.4 $SBT_ARGS test
+        - sbt ++2.12.4 $SBT_ARGS test
     # For Chisel tests we just use the default version
     - stage: test
       script:
         - verilator --version
-        - $SBT $SBT_ARGS clean assembly publishLocal
+        - sbt $SBT_ARGS clean assembly publishLocal
         - bash .run_chisel_tests.sh
     - stage: test
       script:
