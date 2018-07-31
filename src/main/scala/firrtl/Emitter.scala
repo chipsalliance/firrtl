@@ -180,7 +180,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
       case (e: WSubAccess) => w write s"${LowerTypes.loweredName(e.expr)}[${LowerTypes.loweredName(e.index)}]"
       case (e: WSubIndex) => w write e.serialize
       case (e: Literal) => v_print(e)
-      case (e: VRandom) => w write s"{${e.nWords}{$$random}}"
+      case (e: VRandom) => w write s"{${e.nWords}{`RANDOM}}"
       case (t: GroundType) => w write stringify(t)
       case (t: VectorType) =>
         emit(t.tpe, top + 1)
@@ -663,18 +663,48 @@ class VerilogEmitter extends SeqTransform with Emitter {
         emit(Seq("`ifdef RANDOMIZE_MEM_INIT"))
         emit(Seq("`define RANDOMIZE"))
         emit(Seq("`endif"))
+        emit(Seq("`ifdef VERILATOR")) // Verilator does not support $urandom yet
+        emit(Seq("  `define RANDOM $random"))
+        emit(Seq("`else"))
+        emit(Seq("  `define RANDOM $urandom"))
+        // Default seed generator for $urandom using Jenkins hash
+        // This generator can be overwritten locally using an `ifdef statement;
+        //   the function must be named urandom_seed and take in a string.
+        emit(Seq("  `ifndef URANDOM_SEED"))
+        emit(Seq("    function automatic int unsigned urandom_seed(string instance_path);"))
+        emit(Seq("      int unsigned seed = '0;"))
+        emit(Seq("      foreach (instance_path[idx]) begin"))
+        emit(Seq("        seed += instance_path.getc(idx);"))
+        emit(Seq("        seed += (seed << 10);"))
+        emit(Seq("        seed ^= (seed >> 6);"))
+        emit(Seq("      end"))
+        emit(Seq("      seed += (seed << 3);"))
+        emit(Seq("      seed ^= (seed >> 11);"))
+        emit(Seq("      seed += (seed << 15);"))
+        emit(Seq("      urandom_seed = seed;"))
+        emit(Seq("    endfunction: urandom_seed"))
+        emit(Seq("  `endif"))
+        emit(Seq("`endif"))
         emit(Seq("`ifdef RANDOMIZE"))
         emit(Seq("  integer initvar;"))
         emit(Seq("  initial begin"))
         // This enables test benches to set the random values at time 0.001,
-        //  then start the simulation later
+        //   then start the simulation later
         // Verilator does not support delay statements, so they are omitted.
-        emit(Seq("    `ifndef verilator"))
+        emit(Seq("    `ifndef VERILATOR"))
         emit(Seq("      #0.002 begin end"))
+        // Make seeds rely on provided plusargs:
+        //   +ntb_random_seed in vcs
+        //   -svseed in xcelium
+        emit(Seq("      $srandom(urandom_seed($sformatf(\"%m\")) + $get_initial_random_seed);"))
         emit(Seq("    `endif"))
         for (x <- initials) emit(Seq(tab, x))
         emit(Seq("  end"))
         emit(Seq("`endif // RANDOMIZE"))
+        emit(Seq("`undef RANDOM"))
+        emit(Seq("`ifdef URANDOM_SEED"))
+        emit(Seq("  `undef URANDOM_SEED"))
+        emit(Seq("`endif"))
       }
 
       for (clk_stream <- at_clock if clk_stream._2.nonEmpty) {
