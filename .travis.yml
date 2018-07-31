@@ -37,7 +37,6 @@ jobs:
         - bash .install_yosys.sh
         - yosys -V
         # Workaround for https://github.com/travis-ci/travis-ci/issues/9816
-        - rm -rf $HOME/.ivy2 $HOME/.sbt
         - curl -Ls https://git.io/sbt > $INSTALL_DIR/bin/sbt
         - chmod a+x $INSTALL_DIR/bin/sbt
         - $SBT update
