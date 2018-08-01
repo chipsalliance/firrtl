@@ -5,7 +5,9 @@ import mill.scalalib._
 import mill.scalalib.publish._
 import mill.eval.Evaluator
 
+import $file.BuildInfo
 import $file.CommonBuild
+import $file.Protobuf
 
 // An sbt layout with src in the top directory.
 trait CrossUnRootedSbtModule extends CrossSbtModule {
@@ -89,7 +91,7 @@ object firrtl extends Cross[FirrtlModule](crossVersions: _*) {
   }
 }
 
-class FirrtlModule(val crossScalaVersion: String) extends CommonModule {
+class FirrtlModule(val crossScalaVersion: String) extends CommonModule with BuildInfo.BuildInfo {
   override def artifactName = "firrtl"
 
   override def ivyDeps = Agg(
@@ -98,7 +100,8 @@ class FirrtlModule(val crossScalaVersion: String) extends CommonModule {
     ivy"com.github.scopt::scopt:3.6.0",
     ivy"net.jcazevedo::moultingyaml:0.4.0",
     ivy"org.json4s::json4s-native:3.5.3",
-    ivy"org.antlr:antlr4-runtime:4.7"
+    ivy"org.antlr:antlr4-runtime:4.7",
+    ivy"${Protobuf.ProtobufConfig.ivyDep}"
   )
 
   object test extends Tests {
@@ -109,17 +112,35 @@ class FirrtlModule(val crossScalaVersion: String) extends CommonModule {
     def testFrameworks = Seq("org.scalatest.tools.Framework")
   }
 
+  def antlrSourceRoot = T.sources{ pwd / 'src / 'main / 'antlr4 }
+
   def generateAntlrSources(p: Path, sourcePath: Path) = {
     val antlr = new Antlr4Config(sourcePath)
     antlr.runAntlr(p)
     p
   }
 
-  def antlrSourceRoot = T.sources{ pwd / 'src / 'main / 'antlr4 }
+  def protobufSourceRoot = T.sources{ pwd / 'src / 'main / 'proto }
+
+  def generateProtobufSources(p: Path, sourcePath: Path) = {
+    val protobuf = new Protobuf.ProtobufConfig(sourcePath)
+    protobuf.runProtoc(p)
+    p
+  }
 
   override def generatedSources = T {
-    val sourcePath: Path = antlrSourceRoot().head.path
-    val p = Seq(PathRef(generateAntlrSources(T.ctx().dest, sourcePath)))
-    p
+    val antlrSourcePath: Path = antlrSourceRoot().head.path
+    val antlrSources = Seq(PathRef(generateAntlrSources(T.ctx().dest, antlrSourcePath)))
+    val protobufSourcePath: Path = protobufSourceRoot().head.path
+    val protobufSources = Seq(PathRef(generateProtobufSources(T.ctx().dest, protobufSourcePath)))
+    protobufSources ++ antlrSources
+  }
+
+  override def buildInfoMembers = T {
+    Map[String, String](
+      "buildInfoPackage" -> artifactName(),
+      "version" -> publishVersion(),
+      "scalaVersion" -> scalaVersion()
+    )
   }
 }
