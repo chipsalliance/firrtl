@@ -1112,6 +1112,7 @@ class ConstantPropagationEquivalenceSpec extends FirrtlFlatSpec {
   private val transforms = Seq(new ConstantPropagation)
 
   "anything added to zero" should "be equal to itself" in {
+    assume(firrtl.FileUtils.isYosysAvailable)
     val input =
       s"""circuit AddZero :
          |  module AddZero :
@@ -1124,6 +1125,7 @@ class ConstantPropagationEquivalenceSpec extends FirrtlFlatSpec {
   }
 
   "constants added together" should "be propagated" in {
+    assume(firrtl.FileUtils.isYosysAvailable)
     val input =
       s"""circuit AddLiterals :
          |  module AddLiterals :
@@ -1139,6 +1141,7 @@ class ConstantPropagationEquivalenceSpec extends FirrtlFlatSpec {
   }
 
   "UInt addition" should "have the correct widths" in {
+    assume(firrtl.FileUtils.isYosysAvailable)
     val input =
       s"""circuit WidthsAddUInt :
          |  module WidthsAddUInt :
@@ -1154,6 +1157,7 @@ class ConstantPropagationEquivalenceSpec extends FirrtlFlatSpec {
   }
 
   "SInt addition" should "have the correct widths" in {
+    assume(firrtl.FileUtils.isYosysAvailable)
     val input =
       s"""circuit WidthsAddSInt :
          |  module WidthsAddSInt :
@@ -1169,6 +1173,7 @@ class ConstantPropagationEquivalenceSpec extends FirrtlFlatSpec {
   }
 
   "addition by zero width wires" should "have the correct widths" in {
+    assume(firrtl.FileUtils.isYosysAvailable)
     val input =
       s"""circuit ZeroWidthAdd:
          |  module ZeroWidthAdd:
@@ -1180,6 +1185,7 @@ class ConstantPropagationEquivalenceSpec extends FirrtlFlatSpec {
   }
 
   "tail of constants" should "be propagated" in {
+    assume(firrtl.FileUtils.isYosysAvailable)
     val input =
       s"""circuit TailTester :
          |  module TailTester :
@@ -1191,6 +1197,7 @@ class ConstantPropagationEquivalenceSpec extends FirrtlFlatSpec {
   }
 
   "head of constants" should "be propagated" in {
+    assume(firrtl.FileUtils.isYosysAvailable)
     val input =
       s"""circuit TailTester :
          |  module TailTester :

@@ -407,4 +407,8 @@ object FileUtils {
     *  as an indication that the executable is unavailable.
     */
   lazy val isVCSAvailable: Boolean = isCommandAvailable(Seq("vcs",  "-platform"))
+
+  /** Flag indicating if yosys is available (for equivalence testing).
+    */
+  lazy val isYosysAvailable: Boolean = isCommandAvailable(Seq("yosys",  "-V"))
 }
