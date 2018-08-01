@@ -10,14 +10,22 @@ MILL_BIN ?= $(HOME)/bin/mill
 # The following must correspond with the equivalent definition in build.sc
 ANTLR4_JAR ?= $(HOME)/lib/antlr-4.7.1-complete.jar
 MILL ?= $(MILL_BIN) --color false
+MILL_REMOTE_RELEASE ?= https://github.com/ucbjrl/mill/releases/download/v0.2.6-FDF/mill-0.2.6-FDF
 
 # Ensure the default target is something reasonable.
 default: build
 
-# Fetch mill (if we don't have it.
+# Fetch mill (if we don't have it).
 $(MILL_BIN):
 	$(MKDIR) $(dir $@)
-	$(CURL) -o $@ https://github.com/ucbjrl/mill/releases/download/v0.2.3-FDF/mill-0.2.3-FDF && chmod +x $@
+	@echo $(CURL) --silent --output $@.curl --write-out "%{http_code}" $(MILL_REMOTE_RELEASE)
+	STATUSCODE=$(shell $(CURL) --silent --output $@.curl --write-out "%{http_code}" $(MILL_REMOTE_RELEASE)) && \
+	if test $$STATUSCODE -eq 200; then \
+	  mv $@.curl $@ && chmod +x $@ ;\
+	else \
+	  echo "Can't fetch $(MILL_REMOTE_RELEASE)" && cat $@.curl && echo ;\
+	  false ;\
+	fi
 
 # Fetch antlr4 (if we don't have it.
 $(ANTLR4_JAR):
