@@ -693,10 +693,13 @@ class VerilogEmitter extends SeqTransform with Emitter {
         // Verilator does not support delay statements, so they are omitted.
         emit(Seq("    `ifndef VERILATOR"))
         emit(Seq("      #0.002 begin end"))
-        // Make seeds rely on provided plusargs:
-        //   +ntb_random_seed in vcs
-        //   -svseed in xcelium
-        emit(Seq("      $srandom(urandom_seed($sformatf(\"%m\")) + $get_initial_random_seed);"))
+        // Example to set seed from the command line with the use of $get_initial_random_seed:
+        //   '+define+URANDOM_SEED=\$get_initial_random_seed*urandom_seed\(\$sformatf\(\"%m\"\)\)'
+        emit(Seq("      `ifdef URANDOM_SEED"))
+        emit(Seq("        $srandom(`URANDOM_SEED);"))
+        emit(Seq("      `else"))
+        emit(Seq("        $srandom(urandom_seed($sformatf(\"%m\")));")) // unaffected by command line args
+        emit(Seq("      `endif"))
         emit(Seq("    `endif"))
         for (x <- initials) emit(Seq(tab, x))
         emit(Seq("  end"))
