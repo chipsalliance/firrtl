@@ -39,7 +39,7 @@ jobs:
     - stage: test
       script:
         - verilator --version
-        - sbt ++2.12.6 $SBT_ARGS test
+        - sbt ++2.12.4 $SBT_ARGS test
     - stage: test
       script:
         - verilator --version
