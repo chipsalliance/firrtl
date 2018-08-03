@@ -58,10 +58,11 @@ class DedupModules extends Transform {
     val dedupedModules = c.modules.map(m => dedupMap(m.name)).distinct
 
     val cname = CircuitName(c.main)
-    renameMap.addMap(dedupMap.map { case (from, to) =>
-      logger.debug(s"[Dedup] $from -> ${to.name}")
-      ModuleName(from, cname) -> List(ModuleName(to.name, cname))
-    })
+    val map = dedupMap.map { case (from, to) =>
+        logger.debug(s"[Dedup] $from -> ${to.name}")
+        ModuleName(from, cname) -> List(ModuleName(to.name, cname))
+      }
+    renameMap.addMap(map.map{ case (k: ModuleName, v: List[ModuleName]) => Component.convertNamed2Component(k) -> v.map(Component.convertNamed2Component)})
 
     (InferTypes.run(c.copy(modules = dedupedModules)), renameMap)
   }

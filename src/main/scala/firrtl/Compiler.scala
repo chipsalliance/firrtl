@@ -4,15 +4,17 @@ package firrtl
 
 import logger._
 import java.io.Writer
-import annotations._
-import scala.collection.mutable
 
-import firrtl.annotations._  // Note that wildcard imports are not great....
+import annotations._
+
+import scala.collection.mutable
+import firrtl.annotations._
 import firrtl.ir.Circuit
 import firrtl.Utils.{error, throwInternalError}
+import firrtl.annotations.SubComponent.Ref
 
 object RenameMap {
-  def apply(map: Map[Named, Seq[Named]]) = {
+  def apply(map: Map[Component, Seq[Component]]) = {
     val rm = new RenameMap
     rm.addMap(map)
     rm
@@ -26,59 +28,34 @@ object RenameMap {
   */
 // TODO This should probably be refactored into immutable and mutable versions
 final class RenameMap private () {
-  private val underlying = mutable.HashMap[Named, Seq[Named]]()
+  private val underlying = mutable.HashMap[Component, Seq[Component]]()
 
-  /** Get renames of a [[CircuitName]]
-    * @note A [[CircuitName]] can only be renamed to a single [[CircuitName]]
+  /** Get renames of a [[Component]]
+    * @note A [[Component]] can only be renamed to one-or-more [[Component]]s
     */
-  def get(key: CircuitName): Option[CircuitName] = underlying.get(key).map {
-    case Seq(c: CircuitName) => c
-    case other => error(s"Unsupported Circuit rename to $other!")
-  }
-  /** Get renames of a [[ModuleName]]
-    * @note A [[ModuleName]] can only be renamed to one-or-more [[ModuleName]]s
-    */
-  def get(key: ModuleName): Option[Seq[ModuleName]] = {
-    def nestedRename(m: ModuleName): Option[Seq[ModuleName]] =
-      this.get(m.circuit).map(cname => Seq(ModuleName(m.name, cname)))
-    underlying.get(key) match {
-      case Some(names) => Some(names.flatMap {
-        case m: ModuleName =>
-          nestedRename(m).getOrElse(Seq(m))
-        case other => error(s"Unsupported Module rename of $key to $other")
-      })
-      case None => nestedRename(key)
-    }
-  }
-  /** Get renames of a [[ComponentName]]
-    * @note A [[ComponentName]] can only be renamed to one-or-more [[ComponentName]]s
-    */
-  def get(key: ComponentName): Option[Seq[ComponentName]] = {
-    def nestedRename(c: ComponentName): Option[Seq[ComponentName]] =
-      this.get(c.module).map { modules =>
-        modules.map(mname => ComponentName(c.name, mname))
+  def get(key: Component): Option[Seq[Component]] = {
+    def nestedCircuitRename(c: Component): Option[Seq[Component]] = {
+      underlying.get(c.copy(encapsulatingModule = None, reference = Nil)).map { circuits =>
+        circuits.map(cir => c.copy(circuit = cir.circuit))
       }
+    }
+    def nestedModuleRename(c: Component): Option[Seq[Component]] =
+      this.get(c.copy(reference=Nil)).map { modules =>
+        modules.map(m => c.copy(encapsulatingModule = m.encapsulatingModule))
+      }
+    def nestedRename(c: Component): Option[Seq[Component]] =  {
+      nestedCircuitRename(c).map( renamedCircuits => renamedCircuits.flatMap(nestedModuleRename(_).getOrElse(Nil)) )
+    }
+
     underlying.get(key) match {
       case Some(names) => Some(names.flatMap {
-        case c: ComponentName =>
-          nestedRename(c).getOrElse(Seq(c))
-        case other => error(s"Unsupported Component rename of $key to $other")
+        n => nestedRename(n).getOrElse(Seq(n))
       })
       case None => nestedRename(key)
     }
   }
-  /** Get new names for an old name
-    *
-    * This is analogous to get on standard Scala collection Maps
-    * None indicates the key was not renamed
-    * Empty indicates the name was deleted
-    */
-  def get(key: Named): Option[Seq[Named]] = key match {
-    case c: ComponentName => this.get(c)
-    case m: ModuleName => this.get(m)
-    // The CircuitName version returns Option[CircuitName]
-    case c: CircuitName => this.get(c).map(Seq(_))
-  }
+
+
 
   // Mutable helpers
   private var circuitName: String = ""
@@ -89,24 +66,24 @@ final class RenameMap private () {
     circuitName = s
   def rename(from: String, to: String): Unit = rename(from, Seq(to))
   def rename(from: String, tos: Seq[String]): Unit = {
-    val fromName = ComponentName(from, ModuleName(moduleName, CircuitName(circuitName)))
+    val fromName = Component.convertNamed2Component(ComponentName(from, ModuleName(moduleName, CircuitName(circuitName))))
     val tosName = tos map { to =>
-      ComponentName(to, ModuleName(moduleName, CircuitName(circuitName)))
+      Component.convertNamed2Component(ComponentName(to, ModuleName(moduleName, CircuitName(circuitName))))
     }
     rename(fromName, tosName)
   }
-  def rename(from: Named, to: Named): Unit = rename(from, Seq(to))
-  def rename(from: Named, tos: Seq[Named]): Unit = (from, tos) match {
+  def rename(from: Component, to: Component): Unit = rename(from, Seq(to))
+  def rename(from: Component, tos: Seq[Component]): Unit = (from, tos) match {
     case (x, Seq(y)) if x == y => // TODO is this check expensive in common case?
     case _ =>
       underlying(from) = underlying.getOrElse(from, Seq.empty) ++ tos
   }
   def delete(names: Seq[String]): Unit = names.foreach(delete(_))
   def delete(name: String): Unit =
-    delete(ComponentName(name, ModuleName(moduleName, CircuitName(circuitName))))
-  def delete(name: Named): Unit =
+    delete(Component(Some(circuitName), Some(moduleName), Seq(Ref(name)), None))
+  def delete(name: Component): Unit =
     underlying(name) = Seq.empty
-  def addMap(map: Map[Named, Seq[Named]]) =
+  def addMap(map: Map[Component, Seq[Component]]) =
     underlying ++= map
   def serialize: String = underlying.map { case (k, v) =>
     k.serialize + "=>" + v.map(_.serialize).mkString(", ")

@@ -37,18 +37,20 @@ trait SingleTargetAnnotation[T <: Named] extends Annotation {
   // This mess of @unchecked and try-catch is working around the fact that T is unknown due to type
   // erasure. We cannot that newTarget is of type T, but a CastClassException will be thrown upon
   // invoking duplicate if newTarget cannot be cast to T (only possible in the concrete subclass)
-  def update(renames: RenameMap): Seq[Annotation] =
-    renames.get(target).map(_.map(newT => (newT: @unchecked) match {
+  def update(renames: RenameMap): Seq[Annotation] = {
+    val ret = renames.get(Component.convertNamed2Component(target))
+    ret.map(_.map(newT => Component.convertComponent2Named(newT: @unchecked) match {
       case newTarget: T @unchecked =>
         try {
           duplicate(newTarget)
         } catch {
           case _: java.lang.ClassCastException =>
-          val msg = s"${this.getClass.getName} target ${target.getClass.getName} " +
-            s"cannot be renamed to ${newTarget.getClass}"
-          throw AnnotationException(msg)
+            val msg = s"${this.getClass.getName} target ${target.getClass.getName} " +
+              s"cannot be renamed to ${newTarget.getClass}"
+            throw AnnotationException(msg)
         }
     })).getOrElse(List(this))
+  }
 }
 
 @deprecated("Just extend NoTargetAnnotation", "1.1")
