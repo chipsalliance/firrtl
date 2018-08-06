@@ -670,8 +670,8 @@ class VerilogEmitter extends SeqTransform with Emitter {
         // Default seed generator for $urandom using Jenkins hash
         // This generator can be overwritten locally using an `ifdef statement;
         //   the function must be named urandom_seed and take in a string.
-        emit(Seq("  `ifndef URANDOM_SEED"))
-        emit(Seq("    function automatic int unsigned urandom_seed(string instance_path);"))
+        emit(Seq("  `ifndef PATH_HASH"))
+        emit(Seq("    function automatic int unsigned path_hash(string instance_path);"))
         emit(Seq("      int unsigned seed = '0;"))
         emit(Seq("      foreach (instance_path[idx]) begin"))
         emit(Seq("        seed += instance_path.getc(idx);"))
@@ -682,7 +682,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
         emit(Seq("      seed ^= (seed >> 11);"))
         emit(Seq("      seed += (seed << 15);"))
         emit(Seq("      urandom_seed = seed;"))
-        emit(Seq("    endfunction: urandom_seed"))
+        emit(Seq("    endfunction: path_hash"))
         emit(Seq("  `endif"))
         emit(Seq("`endif"))
         emit(Seq("`ifdef RANDOMIZE"))
@@ -694,20 +694,16 @@ class VerilogEmitter extends SeqTransform with Emitter {
         emit(Seq("    `ifndef VERILATOR"))
         emit(Seq("      #0.002 begin end"))
         // Example to set seed from the command line with the use of $get_initial_random_seed:
-        //   '+define+URANDOM_SEED=\$get_initial_random_seed*urandom_seed\(\$sformatf\(\"%m\"\)\)'
-        emit(Seq("      `ifdef INIT_SEED"))
-        emit(Seq("        $srandom(`INIT_SEED);"))
+        //   '+define+SEED_FCN=\$get_initial_random_seed*path_hash\(\$sformatf\(\"%m\"\)\)'
+        emit(Seq("      `ifdef SEED_FCN"))
+        emit(Seq("        $srandom(`SEED_FCN);"))
         emit(Seq("      `else"))
-        emit(Seq("        $srandom(urandom_seed($sformatf(\"%m\")));")) // unaffected by command line args
+        emit(Seq("        $srandom(path_hash($sformatf(\"%m\")));")) // unaffected by command line args
         emit(Seq("      `endif"))
         emit(Seq("    `endif"))
         for (x <- initials) emit(Seq(tab, x))
         emit(Seq("  end"))
         emit(Seq("`endif // RANDOMIZE"))
-        emit(Seq("`undef RANDOM"))
-        emit(Seq("`ifdef URANDOM_SEED"))
-        emit(Seq("  `undef URANDOM_SEED"))
-        emit(Seq("`endif"))
       }
 
       for (clk_stream <- at_clock if clk_stream._2.nonEmpty) {
