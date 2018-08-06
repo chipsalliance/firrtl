@@ -695,8 +695,8 @@ class VerilogEmitter extends SeqTransform with Emitter {
         emit(Seq("      #0.002 begin end"))
         // Example to set seed from the command line with the use of $get_initial_random_seed:
         //   '+define+URANDOM_SEED=\$get_initial_random_seed*urandom_seed\(\$sformatf\(\"%m\"\)\)'
-        emit(Seq("      `ifdef URANDOM_SEED"))
-        emit(Seq("        $srandom(`URANDOM_SEED);"))
+        emit(Seq("      `ifdef INIT_SEED"))
+        emit(Seq("        $srandom(`INIT_SEED);"))
         emit(Seq("      `else"))
         emit(Seq("        $srandom(urandom_seed($sformatf(\"%m\")));")) // unaffected by command line args
         emit(Seq("      `endif"))
