@@ -664,46 +664,19 @@ class VerilogEmitter extends SeqTransform with Emitter {
         emit(Seq("`define RANDOMIZE"))
         emit(Seq("`endif"))
         emit(Seq("`ifndef RANDOM"))
-        emit(Seq("  `ifdef VERILATOR")) // Verilator does not support $urandom yet
-        emit(Seq("    `define RANDOM $random"))
-        emit(Seq("  `else"))
-        emit(Seq("    `define RANDOM $urandom"))
-        emit(Seq("  `endif"))
-        emit(Seq("`endif"))
-        // Jenkins hash for getting a seed from an instance path
-        // This generator can be overwritten using a `define statement;
-        //   the function must be named path_hash and take in a string.
-        emit(Seq("`ifndef VERILATOR"))
-        emit(Seq("  `ifndef PATH_HASH"))
-        emit(Seq("    function automatic int unsigned path_hash(string instance_path);"))
-        emit(Seq("      int unsigned hash = '0;"))
-        emit(Seq("      foreach (instance_path[idx]) begin"))
-        emit(Seq("        hash += instance_path.getc(idx);"))
-        emit(Seq("        hash += (hash << 10);"))
-        emit(Seq("        hash ^= (hash >> 6);"))
-        emit(Seq("      end"))
-        emit(Seq("      hash += (hash << 3);"))
-        emit(Seq("      hash ^= (hash >> 11);"))
-        emit(Seq("      hash += (hash << 15);"))
-        emit(Seq("      path_hash = hash;"))
-        emit(Seq("    endfunction: path_hash"))
-        emit(Seq("  `endif"))
+        emit(Seq("`define RANDOM $random"))
         emit(Seq("`endif"))
         emit(Seq("`ifdef RANDOMIZE"))
         emit(Seq("  integer initvar;"))
         emit(Seq("  initial begin"))
+        emit(Seq("    `ifdef INIT_RANDOM"))
+        emit(Seq("      `INIT_RANDOM"))
+        emit(Seq("    `endif"))
         // This enables test benches to set the random values at time 0.001,
         //   then start the simulation later
         // Verilator does not support delay statements, so they are omitted.
         emit(Seq("    `ifndef VERILATOR"))
         emit(Seq("      #0.002 begin end"))
-        // Example to set seed from the command line with the use of $get_initial_random_seed:
-        //   '+define+SEED_FCN=\$get_initial_random_seed*path_hash\(\$sformatf\(\"%m\"\)\)'
-        emit(Seq("      `ifdef SEED_FCN"))
-        emit(Seq("        $srandom(`SEED_FCN);"))
-        emit(Seq("      `else"))
-        emit(Seq("        $srandom(path_hash($sformatf(\"%m\")));")) // unaffected by command line args
-        emit(Seq("      `endif"))
         emit(Seq("    `endif"))
         for (x <- initials) emit(Seq(tab, x))
         emit(Seq("  end"))
