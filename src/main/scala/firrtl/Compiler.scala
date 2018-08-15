@@ -81,7 +81,7 @@ final class RenameMap private () {
   }
   def delete(names: Seq[String]): Unit = names.foreach(delete(_))
   def delete(name: String): Unit =
-    delete(Component(Some(circuitName), Some(moduleName), Seq(Ref(name)), None))
+    delete(Component(Some(circuitName), Some(moduleName), Seq(Ref(name))))
   def delete(name: Component): Unit =
     underlying(name) = Seq.empty
   def addMap(map: Map[Component, Seq[Component]]) =

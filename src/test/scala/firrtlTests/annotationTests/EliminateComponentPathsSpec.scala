@@ -6,6 +6,7 @@ import firrtl.analyses.IRLookup
 import firrtl.annotations.transforms.EliminateComponentPaths
 import firrtl.{ChirrtlForm, CircuitState, LowFirrtlCompiler, LowFirrtlOptimization, MiddleFirrtlCompiler}
 import firrtl.annotations.Component
+import firrtl.annotations.analysis.DuplicationHelper
 import firrtl.transforms.DontTouchAnnotation
 import firrtlTests.{FirrtlMatchers, FirrtlPropSpec}
 
@@ -34,9 +35,10 @@ class EliminateComponentPathsSpec extends FirrtlPropSpec with FirrtlMatchers {
       |    m2.i <= m1.o
       |    o <= m2.o
     """.stripMargin
-  val Top = Component(Some("Top"), Some("Top"), Nil, None)
-  val Middle = Component(Some("Top"), Some("Middle"), Nil, None)
-  val Leaf = Component(Some("Top"), Some("Leaf"), Nil, None)
+  println(input)
+  val Top = Component(Some("Top"), Some("Top"), Nil)
+  val Middle = Component(Some("Top"), Some("Middle"), Nil)
+  val Leaf = Component(Some("Top"), Some("Leaf"), Nil)
 
   val Top_m1_l1_a = Top.inst("m1").of("Middle").inst("l1").of("Leaf").ref("a")
   val Top_m2_l1_a = Top.inst("m2").of("Middle").inst("l1").of("Leaf").ref("a")
@@ -46,7 +48,7 @@ class EliminateComponentPathsSpec extends FirrtlPropSpec with FirrtlMatchers {
 
   val inputState = CircuitState(parse(input), ChirrtlForm)
   property("Hierarchical reference should be expanded properly") {
-    val dupMap = new ResolveInstanceComponents.DupMap()
+    val dupMap = new DuplicationHelper()
 
     val outputState = new MiddleFirrtlCompiler().compile(inputState, Nil)
     val iRLookup = IRLookup(outputState)
@@ -54,23 +56,24 @@ class EliminateComponentPathsSpec extends FirrtlPropSpec with FirrtlMatchers {
     val all = Seq(Top_m1_l1_a, Top_m2_l1_a, Middle_l1_a, Middle_l2_a, Leaf_a, Top, Middle, Leaf)
     //val all = Seq(Leaf)
 
-    ResolveInstanceComponents.expandHierarchy(iRLookup, dupMap)(Top_m1_l1_a)
-    ResolveInstanceComponents.expandHierarchy(iRLookup, dupMap)(Top_m2_l1_a)
-    ResolveInstanceComponents.expandHierarchy(iRLookup, dupMap)(Middle_l1_a)
-    //EliminateComponentPaths.expandHierarchy(iRLookup, dupMap)(Middle_l2_a)
-    ResolveInstanceComponents.expandHierarchy(iRLookup, dupMap)(Leaf_a)
-    dupMap.foreach(println)
+    dupMap.expandHierarchy(Top_m1_l1_a)
+    dupMap.expandHierarchy(Top_m2_l1_a)
+    dupMap.expandHierarchy(Middle_l1_a)
+    dupMap.expandHierarchy(Leaf_a)
 
     all.foreach { c =>
-      val cs = ResolveInstanceComponents.remap(dupMap)(c)
+      val cs = dupMap.makePathless(c)
       println(s"""${c.serialize} => \n${cs.map("    " + _.serialize).mkString("\n")}""")
     }
   }
   property("Hierarchical donttouch should be resolved properly") {
-
     val inputState = CircuitState(parse(input), ChirrtlForm, Seq(DontTouchAnnotation(Top_m1_l1_a)))
-    val outputState = new LowFirrtlCompiler().compile(inputState, Seq(new EliminateComponentPaths(), new LowFirrtlOptimization()))
+    println(input)
+    println(Top_m1_l1_a.serialize)
+    val customTransforms = Seq(new EliminateComponentPaths(), new LowFirrtlOptimization())
+    val outputState = new LowFirrtlCompiler().compile(inputState, customTransforms)
     println(outputState.circuit.serialize)
+    println(outputState.annotations.collectFirst{case x: DontTouchAnnotation => x.target}.get.serialize)
   }
 
   property("No name conflicts between old and new modules") { }

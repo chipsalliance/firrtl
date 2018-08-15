@@ -15,10 +15,8 @@ import scala.collection.mutable
   *
   * Can be in various states of completion/resolved:
   *   - Legal: [[SubComponent]]'s in reference are in an order that makes sense
-  *   - Complete: circuit and module are non-empty
-  *   - PathResolved: all instances/modules in a reference with a hierarchical path are explicitly referred to by name
-  *   - ReferenceResolved: all ref/fields/etc. in a reference are explicitly referred to
-  *   - Pathless: reference does not refer to things through an instance hierarchy
+  *   - Complete: circuit and module are non-empty, and all Instance(_) are followed by OfModule(_)
+  *   - Pathless: reference does not refer to things through an instance hierarchy (no Instance(_) or OfModule(_))
   * @param circuit
   * @param module
   * @param reference
@@ -27,21 +25,37 @@ case class Component(circuit: Option[String],
                      module: Option[String],
                      reference: Seq[SubComponent]) extends Named {
 
+  /**
+    * Human-readable serialization
+    * @return
+    */
   def serialize: String = {
     "(" + circuit.getOrElse("*") + "," + module.getOrElse("*") + ")/" + path.map{ case (Instance(i), OfModule(m)) => s"$i:$m/"}.mkString("") + notPath.mkString(" ")
   }
 
+  /**
+    * Returns the module farthest down the instance hierarchy, or the top module if no instance hierarchy
+    * @return
+    */
   def deepestModule: Option[String] = {
     val deepest = reference.reverseIterator.collectFirst { case OfModule(x) => x }
     if(deepest.isEmpty) module else deepest
   }
 
+  /**
+    * Returns the [[SubComponent]]'s after any instance hierarchy, if one exists
+    * @return
+    */
   def notPath: Seq[SubComponent] = {
     reference.dropWhile{ s => s.keyword == "of" || s.keyword == "inst" }
   }
 
+  /**
+    * Returns the instance hierarchy path, if one exists
+    * @return
+    */
   def path: Seq[(Instance, OfModule)] = {
-    require(isLegal)
+    require(isLegal, this)
     val refPath = reference.reverse.dropWhile(_.keyword != "of").reverse
     val path = mutable.ArrayBuffer[(Instance, OfModule)]()
     refPath.grouped(2).foreach{
@@ -52,122 +66,152 @@ case class Component(circuit: Option[String],
     path
   }
 
+  /**
+    * Returns a sequence of paths, each one increasing the instance hierarchy
+    * @return
+    */
   def growingPath: Seq[Seq[(Instance, OfModule)]] = {
     path.reverse.tails.map { p => p.reverse }.toSeq
   }
 
+  /**
+    * Requires the last [[SubComponent]] in reference to be one of the SubComponents keywords
+    * @param default
+    * @param keywords
+    */
   def requireLast(default: Boolean, keywords: String*): Unit = {
     val isOne = if (reference.isEmpty) default else reference.last.is(keywords: _*)
     require(isOne, s"${reference.last} is not one of $keywords")
   }
 
-  def ref(value: String): Component = {
-    requireLast(true, "inst", "of")
-    this.copy(reference = reference :+ Ref(value))
+  /**
+    * Appends a subcomponent to reference, asserts legality
+    * @param sub
+    * @return
+    */
+  def add(sub: SubComponent): Component = {
+    sub match {
+      case _: Instance  => requireLast(true, "inst", "of")
+      case _: OfModule  => requireLast(false, "inst")
+      case _: Ref       => requireLast(true, "inst", "of")
+      case _: Field     => requireLast(true, "ref", "[]", ".", "clock", "init", "reset")
+      case _: Index     => requireLast(true, "ref", "[]", ".", "clock", "init", "reset")
+      case Clock        => requireLast(true, "ref")
+      case Init         => requireLast(true, "ref")
+      case Reset        => requireLast(true, "ref")
+    }
+    this.copy(reference = reference :+ sub)
   }
 
-  def inst(value: String): Component = {
-    requireLast(true, "inst", "of")
-    this.copy(reference = reference :+ Instance(value))
+  /**
+    * Optionally tries to append sub to reference, fails return is not a legal Component
+    * @param sub
+    * @return
+    */
+  def optAdd(sub: SubComponent): Option[Component] = {
+    try{
+      Some(add(sub))
+    } catch {
+      case _: IllegalArgumentException => None
+    }
   }
 
-  def of(value: String): Component = {
-    requireLast(false, "inst")
-    this.copy(reference = reference :+ OfModule(value))
-  }
+  /**
+    * Creates a new Component, appending a ref
+    * @param value
+    * @return
+    */
+  def ref(value: String): Component = add(Ref(value))
 
-  def field(name: String): Component = this.copy(reference = reference :+ Field(name))
+  /**
+    * Creates a new Component, appending an instance
+    * @param value
+    * @return
+    */
+  def inst(value: String): Component = add(Instance(value))
 
-  def index(value: Int): Component = this.copy(reference = reference :+ Index(value))
+  /**
+    * Creates a new Component, appending an ofModule
+    * @param value
+    * @return
+    */
+  def of(value: String): Component = add(OfModule(value))
 
-  def bit(value: Int): Component = this.copy(reference = reference :+ Bit(value))
+  /**
+    * Creates a new Component, appending a field
+    * @param name
+    * @return
+    */
+  def field(name: String): Component = add(Field(name))
 
-  def arg(index: Int): Component = {
-    assert(reference.last.isInstanceOf[Anonymous])
-    this.copy(reference = reference :+ Arg(index))
-  }
+  /**
+    * Creates a new Component, appending an index
+    * @param value
+    * @return
+    */
+  def index(value: Int): Component = add(Index(value))
 
-  def clock: Component = this.copy(reference = reference :+ Clock)
+  /**
+    * Creates a new Component, appending a clock
+    * @return
+    */
+  def clock: Component = add(Clock)
 
-  def init: Component = this.copy(reference = reference :+ Init)
+  /**
+    * Creates a new Component, appending an init
+    * @return
+    */
+  def init: Component = add(Init)
 
-  def reset: Component = this.copy(reference = reference :+ Reset)
-
-  def regs: Component = this.copy(reference = reference :+ Regs)
-
-  val circuitName: String = circuit.getOrElse(Component.emptyString)
-  val moduleName: String = module.getOrElse(Component.emptyString)
-
-
+  /**
+    * Creates a new Component, appending a reset
+    * @return
+    */
+  def reset: Component = add(Reset)
 
   /**
     * Checks whether the component is legal (incomplete is ok)
     * @return
     */
   def isLegal: Boolean = {
-    reference.headOption.forall(_.is("inst", "ref")) && {
-      reference.tails.forall {
-        case x :: Instance(_) :: tail if x.is("of") => true
-        case x :: OfModule(_) :: tail if x.is("inst") => true
-        case x :: Ref(_) :: tail if x.is("of") => true
-        case x :: Field(_) :: tail if x.is("ref", "[]", ".") => true
-        case x :: Index(_) :: tail if x.is("ref", "[]", ".") => true
-        case Nil => true
-        case _ => false
+    try {
+      var comp = this.copy(reference = Nil)
+      for(sub <- reference) {
+        comp = comp.add(sub)
       }
+      true
+    } catch {
+      case _: IllegalArgumentException => false
     }
   }
 
   /**
-    * Checks whether the component is legal and complete, meaning the circuit and module are nonEmpty
+    * Checks whether the component is legal and complete, meaning the circuit and module are nonEmpty and
+    * all Instance(_) are followed by OfModule(_)
     * @return
     */
-  def isComplete: Boolean = circuit.nonEmpty && module.nonEmpty && isLegal
-
-  /**
-    * Checks whether the component path has no selectors/matchers (e.g. refer to names explicitly)
-    * @return
-    */
-  def isPathResolved: Boolean = true
-
-  /**
-    * Checks whether the component reference has no selectors/matchers (e.g. refer to names explicitly)
-    * @return
-    */
-  def isReferenceResolved: Boolean = true
+  def isComplete: Boolean = circuit.nonEmpty && module.nonEmpty && isLegal && reference.tails.forall {
+    case Instance(_) :: OfModule(_) :: tail => true
+    case Instance(_) :: x :: tail => false
+    case x :: OfModule(_) :: tail => false
+    case _ => true
+  }
 
   /**
     * Checks whether the component reference has no instance/ofModule subcomponents
     * @return
     */
-  def isPathless: Boolean = reference.collect {
-    case _: Instance | _: OfModule => true
-  }.isEmpty
+  def isPathless: Boolean = reference.forall {
+    case _: Instance | _: OfModule => false
+    case _ => true
+  }
 }
 
 object Component {
 
-  val emptyString: String = "E@"
+  case class NamedException[N<:Named](c: Component, n: String) extends Exception(s"Cannot convert $c into $n")
+  private def error(c: Component, n: String = "Named") = throw NamedException(c, n)
 
-  def tokenize(s: String): Seq[SubComponent] = if(!s.isEmpty && s.head == '/') {
-    val endKeywordIndex = s.indexWhere(c => c == '@', 1)
-    val keyword = s.slice(1, endKeywordIndex)
-    val endValueIndex = s.indexWhere(c => c == '/', endKeywordIndex + 1) match {
-      case -1 => s.length
-      case i => i
-    }
-    val value = s.slice(endKeywordIndex + 1, endValueIndex)
-    SubComponent.keyword2subcomponent(keyword)(value) +: tokenize(s.substring(endValueIndex))
-  } else Nil
-
-  implicit def string2opt(s: String): Option[String] = if(s == emptyString) None else Some(s)
-
-  private def error(c: Component) = throw new Exception(s"Cannot convert $c into Named")
-  def isOnly(seq: Seq[SubComponent], keywords:String*): Boolean = {
-    seq.map(_.is(keywords:_*)).foldLeft(false)(_ || _) && keywords.nonEmpty
-  }
-
-  private[annotations] val counter = new java.util.concurrent.atomic.AtomicInteger(0)
   implicit def convertComponent2Named(c: Component): Named = {
     (c.circuit, c.module, c.reference) match {
       case (_: Some[String], None, Nil) => convertComponent2CircuitName(c)
@@ -176,6 +220,7 @@ object Component {
       case other => error(c)
     }
   }
+
   implicit def convertComponent2ComponentName(c: Component): ComponentName = {
     val mn = convertComponent2ModuleName(c)
     Seq(c.reference:_*) match {
@@ -187,34 +232,49 @@ object Component {
           case (string, Index(value)) => s"$string[$value]"
         }
         ComponentName(name, mn)
-      case _ => error(c)
+      case _ => error(c, "ComponentName")
     }
   }
   implicit def convertComponent2ModuleName(c: Component): ModuleName = {
-    c.module.map(ModuleName(_, convertComponent2CircuitName(c))).getOrElse(error(c))
+    c.module.map(ModuleName(_, convertComponent2CircuitName(c))).getOrElse(error(c, "ModuleName"))
   }
   implicit def convertComponent2CircuitName(c: Component): CircuitName = {
-    c.circuit.map(CircuitName).getOrElse(error(c))
+    c.circuit.map(CircuitName).getOrElse(error(c, "CircuitName"))
   }
   implicit def convertNamed2Component(n: Named): Component = n match {
-    case CircuitName(x) => Component(Some(x), None, Nil, None)
-    case ModuleName(m, CircuitName(c)) => Component(Some(c), Some(m), Nil, None)
-    case ComponentName(name, ModuleName(m, CircuitName(c))) =>
-      def toSubComps(name: String): Seq[SubComponent] = {
-        val tokens = AnnotationUtils.tokenize(name)
-        val subComps = mutable.ArrayBuffer[SubComponent]()
-        subComps += Ref(tokens.head)
-        if(tokens.tail.nonEmpty) {
-          tokens.tail.zip(tokens.tail.tail).foreach {
-            case (".", value: String) => subComps += Field(value)
-            case ("[", value: String) => subComps += Index(value.toInt)
-            case other =>
-          }
-        }
-        subComps
-      }
-      Component(c, m, toSubComps(name), None)
+    case CircuitName(x) => Component(Some(x), None, Nil)
+    case ModuleName(m, CircuitName(c)) => Component(Some(c), Some(m), Nil)
+    case ComponentName(name, ModuleName(m, CircuitName(c))) => Component(Some(c), Some(m), toSubComps(name))
     case c: Component => c
+  }
+
+  private def tokenize(s: String): Seq[SubComponent] = if(!s.isEmpty && s.head == '/') {
+    val endKeywordIndex = s.indexWhere(c => c == '@', 1)
+    val keyword = s.slice(1, endKeywordIndex)
+    val endValueIndex = s.indexWhere(c => c == '/', endKeywordIndex + 1) match {
+      case -1 => s.length
+      case i => i
+    }
+    val value = s.slice(endKeywordIndex + 1, endValueIndex)
+    SubComponent.keyword2subcomponent(keyword)(value) +: tokenize(s.substring(endValueIndex))
+  } else Nil
+
+  private def toSubComps(name: String): Seq[SubComponent] = {
+    val tokens = AnnotationUtils.tokenize(name)
+    val subComps = mutable.ArrayBuffer[SubComponent]()
+    subComps += Ref(tokens.head)
+    if(tokens.tail.nonEmpty) {
+      tokens.tail.zip(tokens.tail.tail).foreach {
+        case (".", value: String) => subComps += Field(value)
+        case ("[", value: String) => subComps += Index(value.toInt)
+        case other =>
+      }
+    }
+    subComps
+  }
+
+  private def isOnly(seq: Seq[SubComponent], keywords:String*): Boolean = {
+    seq.map(_.is(keywords:_*)).foldLeft(false)(_ || _) && keywords.nonEmpty
   }
 }
 

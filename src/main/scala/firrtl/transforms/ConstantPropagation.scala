@@ -521,7 +521,7 @@ class ConstantPropagation extends Transform {
 
   def execute(state: CircuitState): CircuitState = {
     val dontTouches: Seq[(String, String)] = state.annotations.collect {
-      case DontTouchAnnotation(Component(_, Some(m), Seq(Ref(c)), None)) => m -> c
+      case DontTouchAnnotation(Component(_, Some(m), Seq(Ref(c)))) => m -> c
     }
     // Map from module name to component names
     val dontTouchMap: Map[String, Set[String]] =

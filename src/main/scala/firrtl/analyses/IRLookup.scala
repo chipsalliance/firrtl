@@ -59,7 +59,7 @@ class IRLookup private (c: Circuit) extends Annotation {
   def getDeclaration(comp: Component): IsDeclaration = {
     require(comp.circuit.isDefined && comp.circuit.get == circuitName, s"Must query on matching circuit names!")
     require(comp.module.isDefined && modules.contains(comp.module.get), s"Circuit must contain the module: ${comp.module}")
-    require(comp.isResolved, s"Component $comp must be resolved before a query")
+    require(comp.isComplete, s"Component $comp must be complete before a query")
 
 
     val (finalModule, declaration) = comp.reference.tails.foldLeft((comp.module.get, None: Option[IsDeclaration])) {

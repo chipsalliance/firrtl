@@ -101,7 +101,7 @@ case class DuplicationHelper() {
     * @param c A component
     * @return c rewritten, is a seq because if the c.module has been duplicated, it must now refer to multiple modules
     */
-  def rewriteWithoutPaths(c: Component): Seq[Component] = {
+  def makePathless(c: Component): Seq[Component] = {
     val top = c.module.get
     val path = c.path
     val newTops = getDuplicates(top)
