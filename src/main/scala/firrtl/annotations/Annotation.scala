@@ -6,6 +6,8 @@ package annotations
 import net.jcazevedo.moultingyaml._
 import firrtl.annotations.AnnotationYamlProtocol._
 
+import scala.collection.mutable
+
 case class AnnotationException(message: String) extends Exception(message)
 
 /** Base type of auxiliary information */
@@ -39,17 +41,47 @@ trait SingleTargetAnnotation[T <: Named] extends Annotation {
   // invoking duplicate if newTarget cannot be cast to T (only possible in the concrete subclass)
   def update(renames: RenameMap): Seq[Annotation] = {
     val ret = renames.get(Component.convertNamed2Component(target))
-    ret.map(_.map(newT => Component.convertComponent2Named(newT: @unchecked) match {
-      case newTarget: T @unchecked =>
+    ret.map(_.map(newT => (newT, Component.convertComponent2Named(newT: @unchecked)) match {
+      case (originalTarget: T @unchecked, newTarget: T @unchecked) =>
         try {
           duplicate(newTarget)
-        } catch {
+        }
+        catch {
           case _: java.lang.ClassCastException =>
-            val msg = s"${this.getClass.getName} target ${target.getClass.getName} " +
-              s"cannot be renamed to ${newTarget.getClass}"
-            throw AnnotationException(msg)
+            try {
+              duplicate(originalTarget)
+            }
+            catch {
+              case _: java.lang.ClassCastException =>
+                val msg = s"${this.getClass.getName} target ${target.getClass.getName} " +
+                  s"cannot be renamed to ${newTarget.getClass}"
+                throw AnnotationException(msg)
+            }
         }
     })).getOrElse(List(this))
+  }
+}
+
+trait BrittleAnnotation extends Annotation with Product with Serializable {
+  def targets: Seq[Component]
+  def duplicate(targets: Seq[Component]): BrittleAnnotation
+
+  override def update(renames: RenameMap): Seq[Annotation] = {
+    val errors = mutable.ArrayBuffer[String]()
+    def rename(y: Component): Component = {
+      renames.get(y) match {
+        case Some(Seq(x)) => x
+        case None => y
+        case other =>
+          val msg = s"${this.getClass.getName} target ${y.getClass.getName} " +
+            s"cannot be renamed to $other"
+          errors += msg
+          y
+      }
+    }
+    val newTargets = targets.map(rename)
+    if(errors.nonEmpty) throw AnnotationException(errors.mkString("\n"))
+    Seq(duplicate(newTargets))
   }
 }
 

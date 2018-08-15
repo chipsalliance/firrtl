@@ -35,13 +35,13 @@ final class RenameMap private () {
     */
   def get(key: Component): Option[Seq[Component]] = {
     def nestedCircuitRename(c: Component): Option[Seq[Component]] = {
-      underlying.get(c.copy(encapsulatingModule = None, reference = Nil)).map { circuits =>
+      underlying.get(c.copy(module = None, reference = Nil)).map { circuits =>
         circuits.map(cir => c.copy(circuit = cir.circuit))
       }
     }
     def nestedModuleRename(c: Component): Option[Seq[Component]] =
       this.get(c.copy(reference=Nil)).map { modules =>
-        modules.map(m => c.copy(encapsulatingModule = m.encapsulatingModule))
+        modules.map(m => c.copy(module = m.module))
       }
     def nestedRename(c: Component): Option[Seq[Component]] =  {
       nestedCircuitRename(c).map( renamedCircuits => renamedCircuits.flatMap(nestedModuleRename(_).getOrElse(Nil)) )
@@ -55,6 +55,7 @@ final class RenameMap private () {
     }
   }
 
+  def hasChanges: Boolean = underlying.nonEmpty
 
 
   // Mutable helpers

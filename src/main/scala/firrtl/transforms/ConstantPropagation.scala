@@ -12,6 +12,7 @@ import firrtl.PrimOps._
 import firrtl.graph.DiGraph
 import firrtl.WrappedExpression.weq
 import firrtl.analyses.InstanceGraph
+import firrtl.annotations.SubComponent.Ref
 
 import annotation.tailrec
 import collection.mutable
@@ -520,7 +521,7 @@ class ConstantPropagation extends Transform {
 
   def execute(state: CircuitState): CircuitState = {
     val dontTouches: Seq[(String, String)] = state.annotations.collect {
-      case DontTouchAnnotation(ComponentName(c, ModuleName(m, _))) => m -> c
+      case DontTouchAnnotation(Component(_, Some(m), Seq(Ref(c)), None)) => m -> c
     }
     // Map from module name to component names
     val dontTouchMap: Map[String, Set[String]] =

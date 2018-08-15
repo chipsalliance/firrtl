@@ -135,7 +135,7 @@ class DedupModuleTests extends HighTransformSpec {
           """.stripMargin
      execute(input, check, Seq(dontDedup("A")))
   }
-  "The module A and A_" should "be deduped even with different port names and info, and annotations should remap" in {
+  "The module A and A_" should "be deduped even with different port names and info, and annotations should rewriteWithoutPaths" in {
      val input =
         """circuit Top :
           |  module Top :
