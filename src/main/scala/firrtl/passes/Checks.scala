@@ -311,7 +311,7 @@ object CheckTypes extends Pass {
     }
     def check_types_primop(info: Info, mname: String, e: DoPrim) {
       def checkAllTypes(exprs: Seq[Expression], okUInt: Boolean, okSInt: Boolean, okClock: Boolean, okFix: Boolean, okInterval: Boolean) = {
-        (exprs.foldLeft((false, false, false, false, false)) {
+        exprs.foldLeft((false, false, false, false, false)) {
           case ((isUInt, isSInt, isClock, isFix, isInterval), expr) => expr.tpe match {
             case u: UIntType     => (true,   isSInt, isClock, isFix, isInterval)
             case s: SIntType     => (isUInt, true,   isClock, isFix, isInterval)
@@ -321,10 +321,10 @@ object CheckTypes extends Pass {
             case UnknownType =>
               errors.append(new IllegalUnknownType(info, mname, e.serialize))
               (isUInt, isSInt, isClock, isFix, isInterval)
-            case _ => throwInternalError
+            case other => throwInternalError(s"Illegal Type: ${other.serialize}")
           }
-        }) match {
-          //   (UInt,  SInt,  Clock, Fixed)
+        } match {
+          //   (UInt,  SInt,  Clock, Fixed, Interval)
           case (isAll, false, false, false, false) if isAll == okUInt     =>
           case (false, isAll, false, false, false) if isAll == okSInt     =>
           case (false, false, isAll, false, false) if isAll == okClock    =>
@@ -333,16 +333,23 @@ object CheckTypes extends Pass {
           case x => println(x); errors.append(new OpNotCorrectType(info, mname, e.op.serialize, exprs.map(_.tpe.serialize)))
         }
       }
-      //TODO: Add explicit arg-by-name syntax
       e.op match {
         case AsUInt | AsSInt | AsClock | AsFixedPoint | AsInterval =>
-        case Dshl | Dshr => checkAllTypes(Seq(e.args(1)), true, false, false, false, false); checkAllTypes(Seq(e.args(0)), true, true, false, true, true)
-        case Add | Sub | Mul | Wrap | Clip => checkAllTypes(e.args, true, true, false, true, true)
-        case Lt | Leq | Gt | Geq | Eq | Neq => checkAllTypes(e.args, true, true, false, true, true)
-        case Shl | Shr | Cat | Bits | Head | Tail => checkAllTypes(e.args, true, true, false, true, true)
-        case Pad => checkAllTypes(e.args, true, true, false, true, false)
-        case BPShl | BPShr | BPSet => checkAllTypes(e.args, false, false, false, true, true)
-        case _ => checkAllTypes(e.args, true, true, false, false, false)
+        case Dshl | Dshr =>
+          checkAllTypes(Seq(e.args.head), okUInt = true, okSInt = true, okClock = false, okFix = true, okInterval = true)
+          checkAllTypes(Seq(e.args(1)), okUInt = true, okSInt = false, okClock = false, okFix = false, okInterval = false)
+        case Add | Sub | Mul | Wrap | Clip =>
+          checkAllTypes(e.args, okUInt = true, okSInt = true, okClock = false, okFix = true, okInterval = true)
+        case Lt | Leq | Gt | Geq | Eq | Neq =>
+          checkAllTypes(e.args, okUInt = true, okSInt = true, okClock = false, okFix = true, okInterval = true)
+        case Shl | Shr | Cat | Bits | Head | Tail =>
+          checkAllTypes(e.args, okUInt = true, okSInt = true, okClock = false, okFix = true, okInterval = true)
+        case Pad =>
+          checkAllTypes(e.args, okUInt = true, okSInt = true, okClock = false, okFix = true, okInterval = false)
+        case BPShl | BPShr | BPSet =>
+          checkAllTypes(e.args, okUInt = false, okSInt = false, okClock = false, okFix = true, okInterval = true)
+        case _ =>
+          checkAllTypes(e.args, okUInt = true, okSInt = true, okClock = false, okFix = false, okInterval = false)
       }
     }
 
