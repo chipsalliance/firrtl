@@ -514,7 +514,7 @@ case class Closed(value: BigDecimal) extends IsKnown with Bound {
     case Closed(x) => Closed(value + x)
   }
   def *(that: IsKnown): IsKnown = that match {
-    case IsKnown(x) if value == 0 => Closed(0)
+    case IsKnown(x) if value == BigInt(0) => Closed(0)
     case Open(x) => Open(value * x)
     case Closed(x) => Closed(value * x)
   }
@@ -580,7 +580,7 @@ case class IntervalType(lower: Bound, upper: Bound, point: Width) extends Ground
     "Interval" + bounds + pointString
   }
   lazy val prec = BigDecimal(1) / BigDecimal(BigInt(1) << point.get.toInt)
-  lazy val min = lower.optimize match {
+  lazy val min = lower match {
     case Open(a) => (a / prec) match {
       case x if trim(x).isWhole => a + prec // add precision for open lower bound i.e. (-4 -> [3 for bp = 0
       case x => x.setScale(0, CEILING) * prec // Deal with unreprsentable bound representations (finite BP) -- new closed form l > original l
@@ -588,7 +588,7 @@ case class IntervalType(lower: Bound, upper: Bound, point: Width) extends Ground
     //case Closed(a) => (a / prec).setScale(0, FLOOR) * prec
     case Closed(a) => (a / prec).setScale(0, CEILING) * prec
   }
-  lazy val max = upper.optimize match {
+  lazy val max = upper match {
     case Open(a) => (a / prec) match {
       case x if trim(x).isWhole => a - prec // subtract precision for open upper bound
       case x => x.setScale(0, FLOOR) * prec

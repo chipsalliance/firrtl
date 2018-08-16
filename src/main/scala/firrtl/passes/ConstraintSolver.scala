@@ -58,19 +58,15 @@ class ConstraintSolver {
 
   private def mergeConstraints(constraints: Seq[Constraint]): Seq[Constraint] = {
     val mergedMap = mutable.HashMap[String, Constraint]()
-    constraints.foreach { c =>
-      c match {
-        case c if (c.geq == true)  && mergedMap.contains(c.left) => mergedMap(c.left) = genConst(c.left, IsMax(mergedMap(c.left).right, c.right), true)
-        case c if (c.geq == false) && mergedMap.contains(c.left) => mergedMap(c.left) = genConst(c.left, IsMin(mergedMap(c.left).right, c.right), false)
+    constraints.foreach {
+        case c if c.geq  && mergedMap.contains(c.left) => mergedMap(c.left) = genConst(c.left, IsMax(mergedMap(c.left).right, c.right), true)
+        case c if !c.geq && mergedMap.contains(c.left) => mergedMap(c.left) = genConst(c.left, IsMin(mergedMap(c.left).right, c.right), false)
         case c                                                   => mergedMap(c.left) = c
-      }
     }
     mergedMap.values.toSeq
   }
   private def substitute(h: ConstraintMap)(t: IsConstrainable): IsConstrainable = {
-    val tOptimized = t.optimize()
-    //println(s"tOptimized: $tOptimized")
-    val x = tOptimized map substitute(h)
+    val x = t map substitute(h)
     //println("SDFL:")
     x match {
       case isVar: IsVar => h get isVar.name match {
@@ -78,22 +74,22 @@ class ConstraintSolver {
         case Some((p, geq)) =>
           //println("HERE 2")
           val newT = substitute(h)(p)
-          val newTOptimized = newT.optimize()
+          val newTOptimized = newT//.reduce()
           //println("HERE 3")
           h(isVar.name) = (newTOptimized, geq)
-          newTOptimized
+          newTOptimized//.reduce()
       }
-      case other => other
+      case other => other//.reduce()
     }
   }
 
   private def backwardSubstitution(h: ConstraintMap)(t: IsConstrainable): IsConstrainable = {
-    t map backwardSubstitution(h) match {
+    t match {
       case isVar: IsVar => h.get(isVar.name) match {
-        case None => isVar
         case Some((p, geq)) => p
+        case _ => isVar
       }
-      case other => other
+      case other => (other map backwardSubstitution(h))//.reduce()
     }
   }
 
@@ -104,7 +100,7 @@ class ConstraintSolver {
     case isMin: IsMin => IsMin(isMin.children.filter{ c => !greaterEqThan(name)(c)}:_*)
     case x => x
   }
-  private def greaterEqThan(name: String)(t: IsConstrainable): Boolean = t.optimize() match {
+  private def greaterEqThan(name: String)(t: IsConstrainable): Boolean = t match {
     case isMin: IsMin => isMin.children.map(greaterEqThan(name)).reduce(_ && _)
     case isAdd: IsAdd => isAdd.children match {
       case Seq(isVar: IsVar, isVal: IsKnown) if (isVar.name == name) && (isVal.value >= 0) => true
@@ -125,7 +121,7 @@ class ConstraintSolver {
     case isMax: IsMax => IsMax(isMax.children.filter{c => !lessEqThan(name)(c)}:_*)
     case x => x
   }
-  private def lessEqThan(name: String)(t: IsConstrainable): Boolean = t.optimize() match {
+  private def lessEqThan(name: String)(t: IsConstrainable): Boolean = t/*.optimize()*/ match {
     case isMax: IsMax => isMax.children.map(lessEqThan(name)).reduce(_ && _)
     case isAdd: IsAdd => isAdd.children match {
       case Seq(isVar: IsVar, isVal: IsKnown) if (isVar.name == name) && (isVal.value <= 0) => true
@@ -139,7 +135,7 @@ class ConstraintSolver {
     }
     case isVar: IsVar if isVar.name == name => true
     case isNeg: IsNeg => isNeg.children match {
-      case Seq(isVar: IsVar) if isVar == name => true
+      case Seq(isVar: IsVar) if isVar.name == name => true
       case _ => false
     }
     case _ => false
@@ -169,6 +165,14 @@ class ConstraintSolver {
       }
     }
   }
+  def getDepth(i: IsConstrainable): Int = i.children match {
+    case Nil => 1
+    case other => other.map(getDepth).max + 1
+  }
+  def getSize(i: IsConstrainable): Int = i.children match {
+    case Nil => 1
+    case other => other.map(getSize).sum
+  }
 
   def solve() = {
     // Check that all constraints per name are either geq or leq, but not both
@@ -180,38 +184,83 @@ class ConstraintSolver {
     //println("Unique Constraints!")
     //println(uniqueConstraints.mkString("\n"))
 
-    // Forward solve
-    // Returns a solved list where each constraint undergoes:
-    //  1) Continuous Solving (using triangular solving)
-    //  2) Remove Cycles
-    //  3) Move to solved if not self-recursive
+    /* Forward solve
+     * Returns a solved list where each constraint undergoes:
+     *  1) Continuous Solving (using triangular solving)
+     *  2) Remove Cycles
+     *  3) Move to solved if not self-recursive
+     */
     val forwardConstraintMap = new ConstraintMap
-    val orderedVars = mutable.ArrayBuffer[String]()
-    for (constraint <- uniqueConstraints) {
-      //TODO: Risky if used improperly... need to check whether substitution from a leq to a geq is negated (always).
-      //println(s" Forward solving: $constraint")
-      val subbedRight = substitute(forwardConstraintMap)(constraint.right)
-      //println(s" subbedRight: $subbedRight")
-      val optSubbedRight = subbedRight.optimize()
-      //println(s" optSubbedRight: $subbedRight")
-      val name = constraint.left
-      val finishedRight = removeCycle(name, constraint.geq)(subbedRight)
-      if (!hasVar(name)(finishedRight)) {
-        forwardConstraintMap(name) = (finishedRight, constraint.geq)
-        orderedVars += name
-      }
+    val orderedVars = mutable.HashMap[Int, String]()
+
+    /* Keep track of size of expression to time to optimize */
+    val subMap = mutable.HashMap[Int, (Int, Double)]()
+    val optMap = mutable.HashMap[Int, (Int, Double)]()
+    val rmcMap = mutable.HashMap[Int, (Int, Double)]()
+    def update(map: mutable.HashMap[Int, (Int, Double)], time: Double, size: Int): Unit = {
+      val (n, prev) = map.getOrElse(size, (0, 0.0))
+      map(size) = (n + 1, prev + time)
     }
+
+    //val (total, result) = time {
+      var index = 0
+      for (constraint <- uniqueConstraints) {
+        //TODO: Risky if used improperly... need to check whether substitution from a leq to a geq is negated (always).
+
+        //val (timesub, subbedRight) = time { substitute(forwardConstraintMap)(constraint.right) }
+        val subbedRight = substitute(forwardConstraintMap)(constraint.right)
+        //update(subMap, timesub, getDepth(subbedRight))
+
+
+        //val (timeopt, optSubbedRight) = time { subbedRight.optimize() }
+        val optSubbedRight = subbedRight//.optimize()
+        //update(optMap, timeopt, getDepth(subbedRight))
+
+        val name = constraint.left
+        //val (timermc, finishedRight) = time { removeCycle(name, constraint.geq)(subbedRight)}
+        val finishedRight = removeCycle(name, constraint.geq)(subbedRight)
+        //update(rmcMap, timermc, getDepth(finishedRight))
+        if (!hasVar(name)(finishedRight)) {
+          forwardConstraintMap(name) = (finishedRight, constraint.geq)
+          orderedVars(index) = name
+          index += 1
+        }
+      }
+    //}
+    //println(s"All Together (ms): $total")
+    //println(s"Substitution (ms): ${subMap.valuesIterator.map(_._2).sum}")
+    //println(subMap.keys.toSeq.sorted.map(k => (k, subMap(k))).map { case (k, (n, time)) => s"$k -> $n, $time, ${time/n}"}.mkString("\n"))
+    //println(s"Optimization (ms): ${optMap.valuesIterator.map(_._2).sum}")
+    //println(optMap.keys.toSeq.sorted.map(k => (k, optMap(k))).map { case (k, (n, time)) => s"$k -> $n, $time, ${time/n}"}.mkString("\n"))
+    //println(s"Remove Cycle (ms): ${rmcMap.valuesIterator.map(_._2).sum}")
+    //println(rmcMap.keys.toSeq.sorted.map(k => (k, rmcMap(k))).map { case (k, (n, time)) => s"$k -> $n, $time, ${time/n}"}.mkString("\n"))
     //println("Forward Constraints!")
     //println(forwardConstraintMap.mkString("\n"))
- 
-    // Backwards Solve
-    for (i <- (orderedVars.size - 1) to 0 by -1) {
-      val name = orderedVars(i) // Should visit `orderedVars` backward
-      val (forwardRight, forwardGeq) = forwardConstraintMap(name)
-      val solvedRight = backwardSubstitution(solvedConstraintMap)(forwardRight).optimize()
-      //println("HERE 4")
-      solvedConstraintMap(name) = (solvedRight, forwardGeq)
-    }
+
+    //println(orderedVars.size)
+    val bsubMap = mutable.HashMap[Int, (Int, Double)]()
+    val boptMap = mutable.HashMap[Int, (Int, Double)]()
+    //val (btime, dc) = time {
+      // Backwards Solve
+      for (i <- (orderedVars.size - 1) to 0 by -1) {
+        val name = orderedVars(i) // Should visit `orderedVars` backward
+        val (forwardRight, forwardGeq) = forwardConstraintMap(name)
+        //val (subtime, solvedRight) = time { backwardSubstitution(solvedConstraintMap)(forwardRight) }
+        val solvedRight = backwardSubstitution(solvedConstraintMap)(forwardRight)
+        //val size = getSize(solvedRight)
+        //update(bsubMap, subtime, size)
+        //val (opttime, optSolvedRight) = time { solvedRight.optimize() }
+        val optSolvedRight = solvedRight//.optimize()
+        //update(boptMap, opttime, getDepth(solvedRight))
+        //println("HERE 4")
+        solvedConstraintMap(name) = (optSolvedRight, forwardGeq)
+      }
+    //}
+    //println(s"Backwards Sub: $btime")
+    //println(s"Substitution (ms): ${bsubMap.valuesIterator.map(_._2).sum}")
+    //println(bsubMap.keys.toSeq.sorted.map(k => (k, bsubMap(k))).map { case (k, (n, time)) => s"$k -> $n, $time, ${time/n}"}.mkString("\n"))
+    //println(s"Optimization (ms): ${boptMap.valuesIterator.map(_._2).sum}")
+    //println(boptMap.keys.toSeq.sorted.map(k => (k, boptMap(k))).map { case (k, (n, time)) => s"$k -> $n, $time, ${time/n}"}.mkString("\n"))
   }
 }
 

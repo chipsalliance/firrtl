@@ -116,14 +116,22 @@ class InferWidths extends Pass {
     Port(p.info, p.name, p.direction, fixType(p.tpe))
   } 
   def run (c: Circuit): Circuit = {
-    c.modules foreach (_ map addStmtConstraints)
-    c.modules foreach (_.ports foreach {p => addDecConstraints(p.tpe)})
-    //println("Initial Constraints!\n" + constraintSolver.serializeConstraints)
+    //val (t, result) = time {
+      c.modules foreach (_ map addStmtConstraints)
+      c.modules foreach (_.ports foreach {p => addDecConstraints(p.tpe)})
+      //println("Initial Constraints!\n" + constraintSolver.serializeConstraints)
 
-    constraintSolver.solve()
-    //println("Solved Constraints!\n" + constraintSolver.serializeSolutions)
-    InferTypes.run(c.copy(modules = c.modules map (_
-      map fixPort
-      map fixStmt)))
+      //val (stime, dc) = time {
+        constraintSolver.solve()
+      //}
+      //println(s"Time to solve (ms): $stime")
+      //println("Solved Constraints!\n" + constraintSolver.serializeSolutions)
+      InferTypes.run(c.copy(modules = c.modules map (_
+        map fixPort
+        map fixStmt)))
+
+    //}
+    //println(s"Entire xform (ms): $t")
+    //result
   }
 }

@@ -173,7 +173,7 @@ class RemoveIntervals extends Pass {
   private def makeWireStmt(s: Statement): Statement = s match {
     case DefNode(info, name, value) => value.tpe match {
       case IntervalType(l, u, p) =>
-        val newType = IntervalType(l.optimize(), u.optimize(), p)
+        val newType = IntervalType(l, u, p)
         Block(Seq(DefWire(info, name, newType), Connect(info, WRef(name, newType, WireKind, FEMALE), value)))
       case other => s
     }
