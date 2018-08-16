@@ -4,26 +4,21 @@ package firrtlTests
 
 import firrtl.RenameMap
 import firrtl.FIRRTLException
-import firrtl.annotations.{
-  Named,
-  CircuitName,
-  ModuleName,
-  ComponentName
-}
+import firrtl.annotations._
 
 class RenameMapSpec extends FirrtlFlatSpec {
-  val cir = CircuitName("Top")
-  val cir2 = CircuitName("Pot")
-  val cir3 = CircuitName("Cir3")
-  val modA = ModuleName("A", cir)
-  val modA2 = ModuleName("A", cir2)
-  val modB = ModuleName("B", cir)
-  val foo = ComponentName("foo", modA)
-  val foo2 = ComponentName("foo", modA2)
-  val bar = ComponentName("bar", modA)
-  val fizz = ComponentName("fizz", modA)
-  val fooB = ComponentName("foo", modB)
-  val barB = ComponentName("bar", modB)
+  val cir   = Component(Some("Top"), None, Nil)
+  val cir2  = Component(Some("Pot"), None, Nil)
+  val cir3  = Component(Some("Cir3"), None, Nil)
+  val modA  = cir.module("A")
+  val modA2 = cir2.module("A")
+  val modB = cir.module("B")
+  val foo = modA.ref("foo")
+  val foo2 = modA2.ref("foo")
+  val bar = modA.ref("bar")
+  val fizz = modA.ref("fizz")
+  val fooB = modB.ref("foo")
+  val barB = modB.ref("bar")
 
   behavior of "RenameMap"
 
@@ -103,8 +98,8 @@ class RenameMapSpec extends FirrtlFlatSpec {
        )
   // Run all BadRename tests
   for (BadRename(from, tos) <- badRenames) {
-    val fromN = from.getClass.getSimpleName
-    val tosN = tos.map(_.getClass.getSimpleName).mkString(", ")
+    val fromN = from
+    val tosN = tos.mkString(", ")
     it should s"error if a $fromN is renamed to $tosN" in {
       val renames = RenameMap()
       for (to <- tos) { renames.rename(from, to) }

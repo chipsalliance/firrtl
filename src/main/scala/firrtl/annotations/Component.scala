@@ -117,6 +117,20 @@ case class Component(circuit: Option[String],
   }
 
   /**
+    * Returns a new component with the circuit name
+    * @param value Circuit name
+    * @return
+    */
+  def circuit(value: String): Component = this.copy(circuit = Some(value))
+
+  /**
+    * Returns a new component with the module name
+    * @param value Module name
+    * @return
+    */
+  def module(value: String): Component = this.copy(module = Some(value))
+
+  /**
     * Creates a new Component, appending a ref
     * @param value
     * @return

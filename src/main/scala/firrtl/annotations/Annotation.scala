@@ -40,16 +40,15 @@ trait SingleTargetAnnotation[T <: Named] extends Annotation {
   // erasure. We cannot that newTarget is of type T, but a CastClassException will be thrown upon
   // invoking duplicate if newTarget cannot be cast to T (only possible in the concrete subclass)
   def update(renames: RenameMap): Seq[Annotation] = {
-    val ret = renames.get(Component.convertNamed2Component(target))
-    ret.map(_.map(newT => (newT, Component.convertComponent2Named(newT: @unchecked)) match {
-      case (originalTarget: T @unchecked, newTarget: T @unchecked) =>
-        try {
-          duplicate(newTarget)
-        }
-        catch {
-          case _: java.lang.ClassCastException =>
+    target match {
+      case c: Component =>
+        renames.get(c).map(newTargets => newTargets.map(t => duplicate(t.asInstanceOf[T]))).getOrElse(List(this))
+      case _: Named =>
+        val ret = renames.get(Component.convertNamed2Component(target))
+        ret.map(_.map(newT => Component.convertComponent2Named(newT: @unchecked) match {
+          case newTarget: T @unchecked =>
             try {
-              duplicate(originalTarget)
+              duplicate(newTarget)
             }
             catch {
               case _: java.lang.ClassCastException =>
@@ -57,8 +56,8 @@ trait SingleTargetAnnotation[T <: Named] extends Annotation {
                   s"cannot be renamed to ${newTarget.getClass}"
                 throw AnnotationException(msg)
             }
-        }
-    })).getOrElse(List(this))
+        })).getOrElse(List(this))
+    }
   }
 }
 

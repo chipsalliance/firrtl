@@ -64,13 +64,25 @@ object AnnotationUtils {
     case Array(c, m, x) => ComponentName(x, ModuleName(m, CircuitName(c)))
   }
 
+  def toSubComponents(s: String): Seq[SubComponent] = {
+    import SubComponent._
+    def exp2subcomp(e: ir.Expression): Seq[SubComponent] = e match {
+      case ir.Reference(name, _)      => Seq(Ref(name))
+      case ir.SubField(expr, name, _) => exp2subcomp(expr) :+ Field(name)
+      case ir.SubIndex(expr, idx, _)  => exp2subcomp(expr) :+ Index(idx)
+      case ir.SubAccess(expr, idx, _) => Utils.throwInternalError(s"For string $s, cannot convert a subaccess $e into a Component")
+    }
+    exp2subcomp(toExp(s))
+  }
+
+
   /** Given a serialized component/subcomponent reference, subindex, subaccess,
    *  or subfield, return the corresponding IR expression.
    *  E.g. "foo.bar" becomes SubField(Reference("foo", UnknownType), "bar", UnknownType)
    */
   def toExp(s: String): Expression = {
     def parse(tokens: Seq[String]): Expression = {
-      val DecPattern = """([1-9]\d*)""".r
+      val DecPattern = """([0-9]\d*)""".r
       def findClose(tokens: Seq[String], index: Int, nOpen: Int): Seq[String] = {
         if(index >= tokens.size) {
           Utils.error("Cannot find closing bracket ]")

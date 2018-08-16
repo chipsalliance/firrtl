@@ -9,9 +9,9 @@ import annotations._
 
 import scala.collection.mutable
 import firrtl.annotations._
-import firrtl.ir.Circuit
+import firrtl.ir.{Circuit, Expression}
 import firrtl.Utils.{error, throwInternalError}
-import firrtl.annotations.SubComponent.Ref
+import firrtl.annotations.SubComponent.{Field, Index, Ref}
 
 object RenameMap {
   def apply(map: Map[Component, Seq[Component]]) = {
@@ -34,25 +34,42 @@ final class RenameMap private () {
     * @note A [[Component]] can only be renamed to one-or-more [[Component]]s
     */
   def get(key: Component): Option[Seq[Component]] = {
-    def nestedCircuitRename(c: Component): Option[Seq[Component]] = {
-      underlying.get(c.copy(module = None, reference = Nil)).map { circuits =>
-        circuits.map(cir => c.copy(circuit = cir.circuit))
+    def nestedModuleRename(m: Component): Option[Seq[Component]] = {
+      this.get(m.copy(module = None, reference = Nil)).map(cs => cs.map(c => m.copy(circuit = c.circuit)))
+    }
+    def nestedReferenceRename(r: Component): Option[Seq[Component]] = {
+      this.get(r.copy(reference = Nil)).map(ms => ms.map(m => r.copy(circuit = m.circuit, module = m.module)))
+    }
+    val ret = key match {
+      case Component(Some(_), None, Nil) => underlying.get(key)
+      case Component(Some(_), Some(_), Nil) =>
+        underlying.get(key) match {
+          case Some(names) => Some(names.flatMap { m => nestedModuleRename(m).getOrElse(Seq(m)) } )
+          case None => nestedModuleRename(key)
+        }
+      case Component(Some(_), Some(_), _) =>
+        underlying.get(key) match {
+          case Some(names) => Some(names.flatMap { m => nestedReferenceRename(m).getOrElse(Seq(m)) } )
+          case None => nestedReferenceRename(key)
+        }
+    }
+    val errors = mutable.ArrayBuffer[String]()
+    ret.map { seq =>
+      seq.map { value =>
+        (key, value) match {
+          case (Component(Some(_), None, Nil), Component(Some(_), None, Nil)) =>
+          case (Component(Some(_), Some(_), Nil), Component(Some(_), Some(_), Nil)) =>
+          case (Component(Some(_), Some(_), x), Component(Some(_), Some(_), y)) if x.nonEmpty && y.nonEmpty =>
+          case other => errors += s"Cannot rename from $key to $value!"
+        }
+      }
+      key match {
+        case Component(Some(_), None, Nil) if seq.size > 1 => errors += s"Cannot rename from $key to $seq!"
+        case other =>
       }
     }
-    def nestedModuleRename(c: Component): Option[Seq[Component]] =
-      this.get(c.copy(reference=Nil)).map { modules =>
-        modules.map(m => c.copy(module = m.module))
-      }
-    def nestedRename(c: Component): Option[Seq[Component]] =  {
-      nestedCircuitRename(c).map( renamedCircuits => renamedCircuits.flatMap(nestedModuleRename(_).getOrElse(Nil)) )
-    }
-
-    underlying.get(key) match {
-      case Some(names) => Some(names.flatMap {
-        n => nestedRename(n).getOrElse(Seq(n))
-      })
-      case None => nestedRename(key)
-    }
+    if(errors.nonEmpty) throwInternalError(errors.mkString("\n"))
+    ret
   }
 
   def hasChanges: Boolean = underlying.nonEmpty
@@ -80,8 +97,10 @@ final class RenameMap private () {
       underlying(from) = underlying.getOrElse(from, Seq.empty) ++ tos
   }
   def delete(names: Seq[String]): Unit = names.foreach(delete(_))
-  def delete(name: String): Unit =
-    delete(Component(Some(circuitName), Some(moduleName), Seq(Ref(name))))
+  def delete(name: String): Unit = {
+    delete(Component(Some(circuitName), Some(moduleName), AnnotationUtils.toSubComponents(name)))
+  }
+
   def delete(name: Component): Unit =
     underlying(name) = Seq.empty
   def addMap(map: Map[Component, Seq[Component]]) =
