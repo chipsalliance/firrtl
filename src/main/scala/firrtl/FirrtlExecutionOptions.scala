@@ -383,9 +383,10 @@ object FirrtlExecutionUtils {
     // [todo] Once the implicit annotation file is deprecated, this complexity decreases
     val default = FirrtlExecutionOptions()
     val name = FirrtlExecutionUtils.topName(annos)
+    val targetDir = FirrtlExecutionUtils.targetDir(annos)
     annos ++
-      (if (td)                 Seq(TargetDirAnnotation(default.targetDirName))   else Seq() ) ++
-      (if (bb)                 Seq(BlackBoxTargetDirAnno(default.targetDirName)) else Seq() ) ++
+      (if (td)                 Seq(TargetDirAnnotation(targetDir))               else Seq() ) ++
+      (if (bb)                 Seq(BlackBoxTargetDirAnno(targetDir))             else Seq() ) ++
       (if (ll)                 Seq(LogLevelAnnotation(default.globalLogLevel))   else Seq() ) ++
       (if (c)                  Seq(CompilerNameAnnotation(default.compilerName)) else Seq() ) ++
       (if (tn & name.nonEmpty) Seq(TopNameAnnotation(name.get))                  else Seq() )

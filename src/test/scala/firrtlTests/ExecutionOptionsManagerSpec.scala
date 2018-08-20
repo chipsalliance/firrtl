@@ -67,6 +67,14 @@ class ExecutionOptionsManagerSpec extends FreeSpec with Matchers {
         f.inputFileNameOverride should be (Some("fork"))
         f.topName should be (Some("spoon"))
       }
+      "should set the BlackBoxTargetDirAnno correctly" in {
+        val f = argsToOptions(args ++ Array("--target-dir", "puppo"))
+        info("via options")
+        f.annotations should contain (firrtl.transforms.BlackBoxTargetDirAnno("puppo"))
+        info("via annotations")
+        val g = argsToOptions(args, Seq(TargetDirAnnotation("muttso")))
+        g.annotations should contain (firrtl.transforms.BlackBoxTargetDirAnno("muttso"))
+      }
     }
     "when constructed insanely" - {
       def shouldExceptOnOptionsOrAnnotations(name: String, args: Array[String], annotations: Seq[Annotation]) {

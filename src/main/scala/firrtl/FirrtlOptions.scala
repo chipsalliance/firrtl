@@ -44,7 +44,7 @@ case class TargetDirAnnotation(targetDirName: String = ".") extends NoTargetAnno
   def addOptions(p: OptionParser[AnnotationSeq]): Unit = p.opt[String]("target-dir")
     .abbr("td")
     .valueName("<target-directory>")
-    .action( (x, c) => c ++ Seq(TargetDirAnnotation(x), BlackBoxTargetDirAnno(x)) )
+    .action( (x, c) => c ++ Seq(TargetDirAnnotation(x)) )
     .unbounded() // See [Note 1]
     .text(s"Work directory for intermediate files/blackboxes, default is ${FirrtlExecutionOptions().targetDirName}")
 }
