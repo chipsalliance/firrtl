@@ -3,8 +3,10 @@
 package firrtl
 package annotations
 
-import net.jcazevedo.moultingyaml._
+import firrtl._
 import firrtl.annotations.AnnotationYamlProtocol._
+
+import net.jcazevedo.moultingyaml._
 import scopt.OptionParser
 
 case class AnnotationException(message: String) extends Exception(message)
@@ -26,6 +28,39 @@ trait Annotation {
   */
 trait NoTargetAnnotation extends Annotation {
   def update(renames: RenameMap) = Seq(this)
+}
+
+/** Indicates that this annotation ''cannot'' be serialized to JSON
+  *
+  * This is intended to be used if you have an annotation containing something that json4s cannot handle, e.g., an
+  * anonymous function like `() => Module`. You can optionally override [[toJsonSerializable]] to provide a conversion
+  * of this unserializable annotation to a serializable one. For example, a dut generator like `() => Module` can be
+  * serializable to a circuit via elaboration.
+  *
+  * '''Use this sparingly! If you find yourself using this, you are likely using an anti-pattern that can be better
+  * accomplished with a different approach!'''
+  */
+trait Unserializable extends Annotation {
+  /** A stub method that will be used to serialize this unserializable annotation to another [[Annotation]] that ''can''
+    * be serialized to JSON.
+    *
+    * '''This method must return an annotation that does not subclass [[Unserializable]]!'''
+    *
+    * @note This is not type safe. There may be a better way to do this...
+    * @throw AnnotationException if this method is implemented to return an [[Annotation]] that subclasses this trait
+    */
+  def toJsonSerializable: AnnotationSeq
+
+  /** Do the conversion to an [[Annotation]] that can be serialized to JSON. This will check that the conversion does not
+    * have the [[Unserializable]] trait.
+    */
+  final def _toJsonSerializable: AnnotationSeq = this.toJsonSerializable.flatMap(
+    _ match {
+      case _: Unserializable =>
+        throw new AnnotationException(s"The provided 'toJsonSerializable' method did not remove all 'Unserializable' annotations from '${this.getClass.getName}' (did you implement 'toJsonSerializable' incorrectly?)")
+      case a => Seq(a)
+    }
+  )
 }
 
 /** An Annotation that targets a single [[Named]] thing */

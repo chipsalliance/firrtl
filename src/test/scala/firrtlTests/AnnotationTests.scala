@@ -17,6 +17,9 @@ import net.jcazevedo.moultingyaml._
 import org.scalatest.Matchers
 import logger._
 
+// This cannot be put inside the 'it should' block due to a json4s limitation and odd behavior when performing equality
+case class NonExceptingAnnotation(foo: String) extends NoTargetAnnotation
+
 /**
  * An example methodology for testing Firrtl annotations.
  */
@@ -638,5 +641,28 @@ class JsonAnnotationTests extends AnnotationTests with BackendCompilationUtiliti
          |    node b = c""".stripMargin
     val cr = DoNothingTransform.runTransform(CircuitState(parse(input), ChirrtlForm, annos))
     cr.annotations.toSeq shouldEqual annos
+  }
+
+  behavior of "Unserializable annotations"
+
+  it should "throw an exception for a serializer that subclasses Unserializable" in {
+    case class ExceptingAnnotation(foo: () => String) extends NoTargetAnnotation with Unserializable {
+      def toJsonSerializable: AnnotationSeq = Seq(this)
+    }
+    val annos = Seq(ExceptingAnnotation(() => "foo"))
+
+    (the [AnnotationException] thrownBy { JsonProtocol.serialize(annos) })
+      .getMessage should include ("(did you implement 'toJsonSerializable' incorrectly?)")
+  }
+
+  it should "convert to a serializable annotation" in {
+    case class ExceptingAnnotation(foo: () => String) extends NoTargetAnnotation with Unserializable {
+      def toJsonSerializable: AnnotationSeq = Seq(NonExceptingAnnotation(foo()))
+    }
+    val annos = Seq(ExceptingAnnotation(() => "foo"))
+    val annosx = JsonProtocol.deserialize(JsonProtocol.serialize(annos))
+    val expected = Seq(NonExceptingAnnotation("foo"))
+
+    annosx should be (expected)
   }
 }
