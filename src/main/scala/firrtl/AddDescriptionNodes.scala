@@ -59,7 +59,7 @@ private case class DescribedMod(description: Description,
   * @note should only be used by VerilogEmitter, described nodes will
   *       break other transforms.
   */
-private class AddDescriptionNodes extends Transform {
+class AddDescriptionNodes extends Transform {
   def inputForm = LowForm
   def outputForm = LowForm
 
@@ -92,15 +92,27 @@ private class AddDescriptionNodes extends Transform {
     }
   }
 
-  override def execute(state: CircuitState): CircuitState = {
-    val modMap = state.annotations.collect {
+  def collectMaps(annos: Seq[Annotation]): (Map[String, Seq[String]], Map[String, Map[String, Seq[String]]]) = {
+    val modMap = annos.collect {
       case DescriptionAnnotation(ModuleName(m, CircuitName(c)), desc) => (m, desc)
     }.groupBy(_._1).mapValues(_.map(_._2))
 
-    val compMap = state.annotations.collect {
+    val compMap = annos.collect {
       case DescriptionAnnotation(ComponentName(comp, ModuleName(mod, CircuitName(circ))), desc) =>
         (mod, comp, desc)
     }.groupBy(_._1).mapValues(_.groupBy(_._2).mapValues(_.map(_._3)))
+
+    (modMap, compMap)
+  }
+
+  def executeModule(module: DefModule, annos: Seq[Annotation]): DefModule = {
+    val (modMap, compMap) = collectMaps(annos)
+
+    onModule(modMap, compMap)(module)
+  }
+
+  override def execute(state: CircuitState): CircuitState = {
+    val (modMap, compMap) = collectMaps(state.annotations)
 
     state.copy(circuit = state.circuit.mapModule(onModule(modMap, compMap)))
   }

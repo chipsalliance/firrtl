@@ -334,18 +334,21 @@ class VerilogEmitter extends SeqTransform with Emitter {
     * but allows access to individual portions, in particular, this function can be used to generate
     * the header for a verilog file without generating anything else.
     *
-    * @param d         a description of the start module
-    * @param pds       a map of port name to description
-    * @param m         the start module
-    * @param moduleMap a way of finding other modules
-    * @param writer    where rendering will be placed
-    * @return          the render reference
+    * @param descriptions comments to be emitted
+    * @param m            the start module
+    * @param moduleMap    a way of finding other modules
+    * @param writer       where rendering will be placed
+    * @return             the render reference
     */
-  def getRenderer(d: Description,
-    pds: Map[String, Description],
+  def getRenderer(descriptions: Seq[DescriptionAnnotation],
     m: Module,
     moduleMap: Map[String, DefModule])(implicit writer: Writer): VerilogRender = {
-    new VerilogRender(d, pds, m, moduleMap)(writer)
+    val newMod = new AddDescriptionNodes().executeModule(m, descriptions)
+
+    newMod match {
+      case DescribedMod(d, pds, m: Module) => new VerilogRender(d, pds, m, moduleMap)(writer)
+      case m: Module => new VerilogRender(m, moduleMap)(writer)
+    }
   }
 
   /**
