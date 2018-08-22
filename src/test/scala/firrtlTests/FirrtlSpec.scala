@@ -18,6 +18,7 @@ import firrtl.analyses.{GetNamespace, InstanceGraph, ModuleNamespaceAnnotation}
 import firrtl.annotations._
 import firrtl.transforms.{DontTouchAnnotation, NoDedupAnnotation, RenameModules}
 import firrtl.util.BackendCompilationUtilities
+import firrtl.options.ExecutionOptionsManager
 
 import scala.collection.mutable
 
@@ -97,16 +98,21 @@ trait FirrtlRunners extends BackendCompilationUtilities {
       customTransforms: Seq[Transform] = Seq.empty,
       annotations: AnnotationSeq = Seq.empty): File = {
     val testDir = createTestDirectory(prefix)
+    val annoFile = new FileWriter(s"$testDir/$prefix.anno.json")
+    annoFile.write(JsonProtocol.serialize(annotations.toSeq))
+    annoFile.close()
     copyResourceToFile(s"${srcDir}/${prefix}.fir", new File(testDir, s"${prefix}.fir"))
 
-    val optionsManager = new ExecutionOptionsManager(prefix) with HasFirrtlOptions {
-      commonOptions = CommonOptions(topName = prefix, targetDirName = testDir.getPath)
-      firrtlOptions = FirrtlExecutionOptions(
-                        infoModeName = "ignore",
-                        customTransforms = customTransforms,
-                        annotations = annotations.toList)
-    }
-    firrtl.Driver.execute(optionsManager)
+    val argTransform: Array[String] =
+      if (customTransforms.nonEmpty)
+        Array("--custom-transforms") ++ customTransforms.map(_.getClass.getName)
+      else
+        Array("")
+    val args = Array("--top-name", prefix,
+            "--target-dir", testDir.getPath,
+            "--info-mode", "ignore") ++ argTransform ++
+        Array("--annotation-file", s"$testDir/$prefix.anno.json")
+    firrtl.Driver.execute(args)
 
     testDir
   }
@@ -124,7 +130,7 @@ trait FirrtlRunners extends BackendCompilationUtilities {
       customTransforms: Seq[Transform] = Seq.empty,
       annotations: AnnotationSeq = Seq.empty) = {
     val testDir = compileFirrtlTest(prefix, srcDir, customTransforms, annotations)
-    val harness = new File(testDir, s"top.cpp")
+    val harness = new File(testDir, "top.cpp")
     copyResourceToFile(cppHarnessResourceName, harness)
 
     // Note file copying side effect

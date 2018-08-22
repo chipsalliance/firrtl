@@ -46,9 +46,14 @@ object JsonProtocol {
   def serialize(annos: Seq[Annotation]): String = serializeTry(annos).get
 
   def serializeTry(annos: Seq[Annotation]): Try[String] = {
-    val tags = annos.map(_.getClass).distinct
+    val annosx: Seq[Annotation] = annos.flatMap {
+      case a: Unserializable => a._toJsonSerializable
+      case DeletedAnnotation(_, _: Unserializable) => Seq()
+      case a => Seq(a)
+    }
+    val tags = annosx.map(_.getClass).distinct
     implicit val formats = jsonFormat(tags)
-    Try(writePretty(annos))
+    Try(writePretty(annosx))
   }
 
   def deserialize(in: JsonInput): Seq[Annotation] = deserializeTry(in).get
@@ -77,7 +82,14 @@ object JsonProtocol {
   }.recoverWith { // If the input is a file, wrap in InvalidAnnotationFileException
     case e => in match {
       case FileInput(file) =>
-        Failure(new InvalidAnnotationFileException(file, e))
+        /* This occurs during scopt parsing, however, scopt will only print the
+         * first error message and does not properly deal with nested
+         * exceptions. Hence, the better processing below of wrapping the
+         * annotation with an [[InvalidAnnotationFileException]] is
+         * currently disabled for improved user understanding of the
+         * error. */
+        /* Failure(new InvalidAnnotationFileException(file, e)) */
+        Failure(e)
       case _ => Failure(e)
     }
   }

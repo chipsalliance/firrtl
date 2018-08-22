@@ -2,6 +2,10 @@
 
 package loggertests
 
+import firrtl.{HasFirrtlExecutionOptions, FirrtlExecutionOptions}
+import firrtl.options.ExecutionOptionsManager
+import firrtl.options.Viewer._
+import firrtl.FirrtlViewer._
 import logger.Logger.OutputCaptor
 import logger.{LazyLogging, LogLevel, Logger}
 import org.scalatest.{FreeSpec, Matchers, OneInstancePerTest}
@@ -35,10 +39,17 @@ class LogsInfo3 extends LazyLogging {
   }
 }
 class LoggerSpec extends FreeSpec with Matchers with OneInstancePerTest with LazyLogging {
+
+  def argsToOptions(args: Array[String]): FirrtlExecutionOptions = {
+    val optionsManager = new ExecutionOptionsManager("test") with HasFirrtlExecutionOptions
+    view[FirrtlExecutionOptions](optionsManager.parse(args)).get
+  }
+
+  val dummyOptions = argsToOptions(Array("--top-name", "null"))
   "Logger is a simple but powerful logging system" - {
     "Following tests show how global level can control logging" - {
       "only error shows up by default" in {
-        Logger.makeScope() {
+        Logger.makeScope(dummyOptions) {
           val captor = new OutputCaptor
           Logger.setOutput(captor.printStream)
 
@@ -55,7 +66,7 @@ class LoggerSpec extends FreeSpec with Matchers with OneInstancePerTest with Laz
       }
 
       "setting level to warn will result in error and warn messages" in {
-        Logger.makeScope() {
+        Logger.makeScope(dummyOptions) {
           val captor = new OutputCaptor
           Logger.setOutput(captor.printStream)
           Logger.setLevel(LogLevel.Warn)
@@ -71,7 +82,7 @@ class LoggerSpec extends FreeSpec with Matchers with OneInstancePerTest with Laz
         }
       }
       "setting level to info will result in error, info, and warn messages" in {
-        Logger.makeScope() {
+        Logger.makeScope(dummyOptions) {
           val captor = new OutputCaptor
           Logger.setOutput(captor.printStream)
           Logger.setLevel(LogLevel.Info)
@@ -87,7 +98,7 @@ class LoggerSpec extends FreeSpec with Matchers with OneInstancePerTest with Laz
         }
       }
       "setting level to debug will result in error, info, debug, and warn messages" in {
-        Logger.makeScope() {
+        Logger.makeScope(dummyOptions) {
           val captor = new OutputCaptor
           Logger.setOutput(captor.printStream)
 
@@ -107,7 +118,7 @@ class LoggerSpec extends FreeSpec with Matchers with OneInstancePerTest with Laz
         }
       }
       "setting level to trace will result in error, info, debug, trace, and warn messages" in {
-        Logger.makeScope() {
+        Logger.makeScope(dummyOptions) {
           val captor = new OutputCaptor
           Logger.setOutput(captor.printStream)
 
@@ -130,7 +141,7 @@ class LoggerSpec extends FreeSpec with Matchers with OneInstancePerTest with Laz
     "the following tests show how logging can be controlled by package and class name" - {
       "only capture output by class name" - {
         "capture logging from LogsInfo2" in {
-          Logger.makeScope() {
+          Logger.makeScope(dummyOptions) {
             val captor = new OutputCaptor
             Logger.setOutput(captor.printStream)
 
@@ -148,7 +159,7 @@ class LoggerSpec extends FreeSpec with Matchers with OneInstancePerTest with Laz
           }
         }
         "capture logging from LogsInfo2 using class" in {
-          Logger.makeScope() {
+          Logger.makeScope(dummyOptions) {
             val captor = new OutputCaptor
             Logger.setOutput(captor.printStream)
 
@@ -166,7 +177,7 @@ class LoggerSpec extends FreeSpec with Matchers with OneInstancePerTest with Laz
           }
         }
         "capture logging from LogsInfo3" in {
-          Logger.makeScope() {
+          Logger.makeScope(dummyOptions) {
             val captor = new OutputCaptor
             Logger.setOutput(captor.printStream)
 
@@ -186,7 +197,7 @@ class LoggerSpec extends FreeSpec with Matchers with OneInstancePerTest with Laz
       }
       "log based on package name" - {
         "both log because of package, also showing re-run after change works" in {
-          Logger.makeScope() {
+          Logger.makeScope(dummyOptions) {
             val captor = new OutputCaptor
             Logger.setOutput(captor.printStream)
 
@@ -216,7 +227,7 @@ class LoggerSpec extends FreeSpec with Matchers with OneInstancePerTest with Laz
         }
       }
       "check for false positives" in {
-        Logger.makeScope() {
+        Logger.makeScope(dummyOptions) {
           val captor = new OutputCaptor
           Logger.setOutput(captor.printStream)
 
@@ -234,7 +245,7 @@ class LoggerSpec extends FreeSpec with Matchers with OneInstancePerTest with Laz
         }
       }
       "show that class specific level supercedes global level" in {
-        Logger.makeScope() {
+        Logger.makeScope(dummyOptions) {
           val captor = new OutputCaptor
           Logger.setOutput(captor.printStream)
 
@@ -256,7 +267,8 @@ class LoggerSpec extends FreeSpec with Matchers with OneInstancePerTest with Laz
       "Show logging can be set with command options" in {
         val captor = new Logger.OutputCaptor
 
-        Logger.makeScope(Array("--class-log-level", "loggertests.LogsInfo3:info")) {
+        Logger.makeScope(Array("--top-name", "null",
+                               "--class-log-level", "loggertests.LogsInfo3:info")) {
           Logger.setOutput(captor.printStream)
           val r2 = new LogsInfo2
           val r3 = new LogsInfo3
@@ -270,12 +282,12 @@ class LoggerSpec extends FreeSpec with Matchers with OneInstancePerTest with Laz
         }
       }
       "Show that printstream remains across makeScopes" in {
-        Logger.makeScope() {
+        Logger.makeScope(dummyOptions) {
           val captor = new Logger.OutputCaptor
           Logger.setOutput(captor.printStream)
 
           logger.error("message 1")
-          Logger.makeScope() {
+          Logger.makeScope(dummyOptions) {
             logger.error("message 2")
           }
 
@@ -287,16 +299,16 @@ class LoggerSpec extends FreeSpec with Matchers with OneInstancePerTest with Laz
       "Show that nested makeScopes share same state" in {
         Logger.getGlobalLevel should be (LogLevel.None)
 
-        Logger.makeScope() {
+        Logger.makeScope(dummyOptions) {
           Logger.setLevel(LogLevel.Info)
 
           Logger.getGlobalLevel should be (LogLevel.Info)
 
-          Logger.makeScope() {
+          Logger.makeScope(dummyOptions) {
             Logger.getGlobalLevel should be (LogLevel.Info)
           }
 
-          Logger.makeScope() {
+          Logger.makeScope(dummyOptions) {
             Logger.setLevel(LogLevel.Debug)
             Logger.getGlobalLevel should be (LogLevel.Debug)
           }
@@ -313,7 +325,7 @@ class LoggerSpec extends FreeSpec with Matchers with OneInstancePerTest with Laz
         Logger.setLevel(LogLevel.Warn)
         Logger.getGlobalLevel should be (LogLevel.Warn)
 
-        Logger.makeScope() {
+        Logger.makeScope(dummyOptions) {
           Logger.getGlobalLevel should be (LogLevel.None)
 
           Logger.setLevel(LogLevel.Trace)

@@ -6,13 +6,37 @@ import firrtl.ir.Circuit
 import firrtl._
 import firrtl.passes.Pass
 import firrtl.ir._
+import firrtl.annotations.SingleStringAnnotation
+
+case class ReplaceExtModuleAnnotation(value: String) extends SingleStringAnnotation
+
+class ReplaceExtModuleTransform extends Transform {
+  def inputForm = LowForm
+  def outputForm = HighForm
+
+  def execute(state: CircuitState): CircuitState = {state
+    .annotations
+    .collect{ case a: ReplaceExtModuleAnnotation => a }
+    .foldLeft(state){
+      case (s, ReplaceExtModuleAnnotation(circuitString)) => {
+        val circuit = Parser.parse(circuitString)
+        val module = circuit.modules.find(_.name == circuit.main).get
+        state.copy(circuit = run(module)(state.circuit)) } }
+  }
+
+  def run(module: DefModule)(c: Circuit): Circuit = c.copy(
+    modules = c.modules map {
+      case ExtModule(_, name, _, _, _) if (name == module.name) => module
+      case other => other
+    }
+  )
+}
 
 class CustomTransformSpec extends FirrtlFlatSpec {
   behavior of "Custom Transforms"
 
-  they should "be able to introduce high firrtl" in {
-    // Simple module
-    val delayModuleString = """
+  // Simple module
+  val delayModuleString = """
       |circuit Delay :
       |  module Delay :
       |    input clock : Clock
@@ -27,24 +51,19 @@ class CustomTransformSpec extends FirrtlFlatSpec {
       |      r <= a
       |    b <= r
       |""".stripMargin
-    val delayModuleCircuit = parse(delayModuleString)
-    val delayModule = delayModuleCircuit.modules.find(_.name == delayModuleCircuit.main).get
 
-    class ReplaceExtModuleTransform extends SeqTransform {
-      class ReplaceExtModule extends Pass {
-        def run(c: Circuit): Circuit = c.copy(
-          modules = c.modules map {
-            case ExtModule(_, "Delay", _, _, _) => delayModule
-            case other => other
-          }
-        )
-      }
-      def transforms = Seq(new ReplaceExtModule)
-      def inputForm = LowForm
-      def outputForm = HighForm
-    }
+  they should "be able to introduce high firrtl" in {
+    runFirrtlTest("CustomTransform", "/features",
+                  customTransforms = List(new ReplaceExtModuleTransform),
+                  annotations = AnnotationSeq(
+                    List(ReplaceExtModuleAnnotation(delayModuleString))))
+  }
 
-    runFirrtlTest("CustomTransform", "/features", customTransforms = List(new ReplaceExtModuleTransform))
+  they should "be able to be run from an annotation" in {
+    runFirrtlTest("CustomTransform", "/features",
+                  customTransforms = List.empty,
+                  annotations = AnnotationSeq(
+                    List(ReplaceExtModuleAnnotation(delayModuleString),
+                         RunFirrtlTransformAnnotation(classOf[firrtlTests.ReplaceExtModuleTransform]))))
   }
 }
-

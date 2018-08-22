@@ -6,6 +6,7 @@ import logger._
 import java.io.Writer
 import annotations._
 import scala.collection.mutable
+import scopt.OptionParser
 
 import firrtl.annotations._  // Note that wildcard imports are not great....
 import firrtl.ir.Circuit
@@ -451,7 +452,7 @@ trait Compiler extends LazyLogging {
     */
   def compileAndEmit(state: CircuitState,
                      customTransforms: Seq[Transform] = Seq.empty): CircuitState = {
-    val emitAnno = EmitCircuitAnnotation(emitter.getClass)
+    val emitAnno = EmitterAnnotation(emitter.getClass)
     compile(state.copy(annotations = emitAnno +: state.annotations), customTransforms)
   }
 
@@ -477,4 +478,3 @@ trait Compiler extends LazyLogging {
   }
 
 }
-

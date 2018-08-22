@@ -4,7 +4,10 @@ package logger
 
 import java.io.{ByteArrayOutputStream, File, FileOutputStream, PrintStream}
 
-import firrtl.ExecutionOptionsManager
+import firrtl.{FirrtlExecutionOptions, HasFirrtlExecutionOptions}
+import firrtl.options.ExecutionOptionsManager
+import firrtl.options.Viewer._
+import firrtl.FirrtlViewer._
 
 import scala.util.DynamicVariable
 
@@ -12,7 +15,7 @@ import scala.util.DynamicVariable
   * This provides a facility for a log4scala* type logging system.  Why did we write our own?  Because
   * the canned ones are just to darned hard to turn on, particularly when embedded in a distribution.
   * This one can be turned on programmatically or with the options exposed in the [[firrtl.CommonOptions]]
-  * and [[ExecutionOptionsManager]] API's in firrtl.
+  * and [[options.ExecutionOptionsManager]] API's in firrtl.
   * There are 4 main options.
   *  * a simple global option to turn on all in scope (and across threads, might want to fix this)
   *  * turn on specific levels for specific fully qualified class names
@@ -29,6 +32,15 @@ import scala.util.DynamicVariable
   */
 object LogLevel extends Enumeration {
   val Error, Warn, Info, Debug, Trace, None = Value
+
+  def apply(s: String): LogLevel.Value = s.toLowerCase match {
+    case "error" => LogLevel.Error
+    case "warn"  => LogLevel.Warn
+    case "info"  => LogLevel.Info
+    case "debug" => LogLevel.Debug
+    case "trace" => LogLevel.Trace
+    case level => throw new Exception("Unknown LogLevel '$level'")
+  }
 }
 
 /**
@@ -111,7 +123,7 @@ object Logger {
     * @tparam A       The return type of codeBlock
     * @return         Whatever block returns
     */
-  def makeScope[A](manager: ExecutionOptionsManager)(codeBlock: => A): A = {
+  def makeScope[A](options: FirrtlExecutionOptions)(codeBlock: => A): A = {
     val runState: LoggerState = {
       val newRunState = updatableLoggerState.value.getOrElse(new LoggerState)
       if(newRunState.fromInvoke) {
@@ -125,7 +137,7 @@ object Logger {
     }
 
     updatableLoggerState.withValue(Some(runState)) {
-      setOptions(manager)
+      setOptions(options)
       codeBlock
     }
   }
@@ -138,16 +150,11 @@ object Logger {
     * @tparam A   return type of codeBlock
     * @return
     */
+  @deprecated("Pass an explicit options manager via makeScope(ExecutionOptionsManager)", "1.2.0")
   def makeScope[A](args: Array[String] = Array.empty)(codeBlock: => A): A = {
-    val executionOptionsManager = new ExecutionOptionsManager("logger")
-    if(executionOptionsManager.parse(args)) {
-      makeScope(executionOptionsManager)(codeBlock)
-    }
-    else {
-      throw new Exception(s"logger invoke failed to parse args ${args.mkString(", ")}")
-    }
+    val optionsManager = new ExecutionOptionsManager("logger") with HasFirrtlExecutionOptions
+    makeScope(view[FirrtlExecutionOptions](optionsManager.parse(args)).get)(codeBlock)
   }
-
 
   /**
     * Used to test whether a given log statement should generate some logging output.
@@ -332,20 +339,19 @@ object Logger {
     * from the command line via an options manager
     * @param optionsManager manager
     */
-  def setOptions(optionsManager: ExecutionOptionsManager): Unit = {
-    val commonOptions = optionsManager.commonOptions
-    state.globalLevel = (state.globalLevel, commonOptions.globalLogLevel) match {
+  def setOptions(options: FirrtlExecutionOptions): Unit = {
+    state.globalLevel = (state.globalLevel, options.globalLogLevel) match {
       case (LogLevel.None, LogLevel.None) => LogLevel.None
       case (x, LogLevel.None) => x
       case (LogLevel.None, x) => x
       case (_, x) => x
       case _ => LogLevel.Error
     }
-    setClassLogLevels(commonOptions.classLogLevels)
-    if(commonOptions.logToFile) {
-      setOutput(commonOptions.getLogFileName(optionsManager))
+    setClassLogLevels(options.classLogLevels)
+    if(options.logToFile) {
+      setOutput(options.getLogFileName)
     }
-    state.logClassNames = commonOptions.logClassNames
+    state.logClassNames = options.logClassNames
   }
 }
 

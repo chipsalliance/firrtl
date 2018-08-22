@@ -7,10 +7,8 @@ import java.nio.file.Files
 import java.text.SimpleDateFormat
 import java.util.Calendar
 
-import firrtl.FirrtlExecutionOptions
-
 import scala.sys.process.{ProcessBuilder, ProcessLogger, _}
- 
+
 trait BackendCompilationUtilities {
   /** Parent directory for tests */
   lazy val TestDirectory = new File("test_run_dir")

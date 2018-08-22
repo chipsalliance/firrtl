@@ -1,0 +1,10 @@
+[
+  {
+    "class":"firrtl.TopNameAnnotation",
+    "topName":"dog"
+  },
+  {
+    "class":"firrtl.InputAnnotationFileAnnotation",
+    "value":"annotations-imported.anno"
+  }
+]

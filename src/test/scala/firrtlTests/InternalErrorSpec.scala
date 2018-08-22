@@ -5,6 +5,7 @@ package firrtlTests
 import java.io.File
 
 import firrtl._
+import firrtl.options.ExecutionOptionsManager
 import firrtl.Utils.getThrowable
 import firrtl.util.BackendCompilationUtilities
 import org.scalatest.{FreeSpec, Matchers}
@@ -25,13 +26,10 @@ class InternalErrorSpec extends FreeSpec with Matchers with BackendCompilationUt
 
     var exception: Exception = null
     "should throw a FIRRTLException" in {
-      val manager = new ExecutionOptionsManager("test") with HasFirrtlOptions {
-        commonOptions = CommonOptions(topName = "Dummy")
-        firrtlOptions = FirrtlExecutionOptions(firrtlSource = Some(input), compilerName = "low")
-      }
-      exception = intercept[FIRRTLException] {
-        firrtl.Driver.execute(manager)
-      }
+      val args = Array("--top-name", "Dummy",
+                       "--firrtl-source", input,
+                       "--compiler", "low")
+      exception = intercept[FIRRTLException] { firrtl.Driver.execute(args) }
     }
 
     "should contain the expected string" in {

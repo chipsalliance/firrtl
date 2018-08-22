@@ -24,12 +24,8 @@ import scala.collection.mutable.{ArrayBuffer, LinkedHashMap, HashSet}
 
 case class EmitterException(message: String) extends PassException(message)
 
-// ***** Annotations for telling the Emitters what to emit *****
-sealed trait EmitAnnotation extends NoTargetAnnotation {
-  val emitter: Class[_ <: Emitter]
-}
-case class EmitCircuitAnnotation(emitter: Class[_ <: Emitter]) extends EmitAnnotation
-case class EmitAllModulesAnnotation(emitter: Class[_ <: Emitter]) extends EmitAnnotation
+sealed trait EmitAnnotation extends NoTargetAnnotation
+case class EmitterAnnotation(emitter: Class[_ <: Emitter]) extends EmitAnnotation
 
 // ***** Annotations for results of emission *****
 sealed abstract class EmittedComponent {
@@ -96,15 +92,18 @@ sealed abstract class FirrtlEmitter(form: CircuitForm) extends Transform with Em
   }
 
   override def execute(state: CircuitState): CircuitState = {
-    val newAnnos = state.annotations.flatMap {
-      case EmitCircuitAnnotation(_) =>
-        Seq(EmittedFirrtlCircuitAnnotation.apply(
-              EmittedFirrtlCircuit(state.circuit.main, state.circuit.serialize)))
-      case EmitAllModulesAnnotation(_) =>
-        emitAllModules(state.circuit) map (EmittedFirrtlModuleAnnotation(_))
-      case _ => Seq()
+    val (e, other) = state.annotations.partition{
+      case a: EmitterAnnotation if a.emitter == this.getClass => true
+      case _ => false }
+    val ex = e.flatMap { a =>
+      DeletedAnnotation(name, a) +: (
+        if (other.contains(EmitOneFilePerModuleAnnotation)) {
+          emitAllModules(state.circuit) map (EmittedFirrtlModuleAnnotation(_))
+        } else {
+          Seq(EmittedFirrtlCircuitAnnotation.apply(EmittedFirrtlCircuit(state.circuit.main, state.circuit.serialize)))
+        })
     }
-    state.copy(annotations = newAnnos ++ state.annotations)
+    state.copy(annotations = other ++ ex)
   }
 
   // Old style, deprecated
@@ -753,13 +752,9 @@ class VerilogEmitter extends SeqTransform with Emitter {
   }
 
   override def execute(state: CircuitState): CircuitState = {
-    val newAnnos = state.annotations.flatMap {
-      case EmitCircuitAnnotation(_) =>
-        val writer = new java.io.StringWriter
-        emit(state, writer)
-        Seq(EmittedVerilogCircuitAnnotation(EmittedVerilogCircuit(state.circuit.main, writer.toString)))
-
-      case EmitAllModulesAnnotation(_) =>
+    val oneFilePerModule = state.annotations.collect{ case a: EmitOneFilePerModuleAnnotation.type => a }.nonEmpty
+    val newAnnos = state.annotations.collect{ case a: EmitterAnnotation => a }.flatMap{
+      case _ if oneFilePerModule =>
         val circuit = runTransforms(state).circuit
         val moduleMap = circuit.modules.map(m => m.name -> m).toMap
 
@@ -771,8 +766,16 @@ class VerilogEmitter extends SeqTransform with Emitter {
             Some(EmittedVerilogModuleAnnotation(EmittedVerilogModule(module.name, writer.toString)))
           case _: ExtModule => None
         }
-      case _ => Seq()
+      case _ =>
+        val writer = new java.io.StringWriter
+        emit(state, writer)
+        Seq(EmittedVerilogCircuitAnnotation(EmittedVerilogCircuit(state.circuit.main, writer.toString)))
     }
+
     state.copy(annotations = newAnnos ++ state.annotations)
   }
+}
+
+class SystemVerilogEmitter extends VerilogEmitter {
+  Driver.dramaticWarning("SystemVerilog Emitter is the same as the Verilog Emitter!")
 }
