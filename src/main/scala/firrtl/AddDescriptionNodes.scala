@@ -51,18 +51,13 @@ private case class DescribedMod(description: Description,
   def mapInfo(f: Info => Info): DefModule = this.copy(mod = mod.mapInfo(f))
 }
 
-private case class DescribedCircuit(description: Description, circuit: Circuit) extends FirrtlNode
-    with HasInfo with HasDescription {
-  val info = circuit.info
-  def serialize: String = s"${description.serialize}\n${circuit.serialize}"
-  def mapModule(f: DefModule => DefModule): DescribedCircuit = this.copy(circuit = circuit.mapModule(f))
-  def mapString(f: String => String): DescribedCircuit = this.copy(circuit = circuit.mapString(f))
-  def mapInfo(f: Info => Info): DescribedCircuit = this.copy(circuit = circuit.mapInfo(f))
-}
-
-/** wrap circuit/module/declarations with their respective described nodes
+/** Wraps modules or statements with their respective described nodes.
+  * Descriptions come from [[DescriptionAnnotation]]. Describing a
+  * module or any of its ports will turn it into a [[DescribedMod]].
+  * Describing a Statement will turn it into a [[DescribedStmt]]
   *
-  * @note should only be used by VerilogEmitter, described nodes will break other transforms
+  * @note should only be used by VerilogEmitter, described nodes will
+  *       break other transforms.
   */
 private class AddDescriptionNodes extends Transform {
   def inputForm = LowForm

@@ -319,6 +319,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
     * Gets a reference to a verilog renderer. This is used by the current standard verilog emission process
     * but allows access to individual portions, in particular, this function can be used to generate
     * the header for a verilog file without generating anything else.
+    *
     * @param m         the start module
     * @param moduleMap a way of finding other modules
     * @param writer    where rendering will be placed
@@ -332,11 +333,13 @@ class VerilogEmitter extends SeqTransform with Emitter {
     * Gets a reference to a verilog renderer. This is used by the current standard verilog emission process
     * but allows access to individual portions, in particular, this function can be used to generate
     * the header for a verilog file without generating anything else.
-    * @param description a description of the start module
-    * @param m           the start module
-    * @param moduleMap   a way of finding other modules
-    * @param writer      where rendering will be placed
-    * @return            the render reference
+    *
+    * @param d         a description of the start module
+    * @param pds       a map of port name to description
+    * @param m         the start module
+    * @param moduleMap a way of finding other modules
+    * @param writer    where rendering will be placed
+    * @return          the render reference
     */
   def getRenderer(d: Description,
     pds: Map[String, Description],
@@ -349,9 +352,11 @@ class VerilogEmitter extends SeqTransform with Emitter {
     * Used by getRenderer, it has machinery to produce verilog from IR.
     * Making this a class allows access to particular parts of the verilog emission.
     *
-    * @param m         the start module
-    * @param moduleMap a map of modules so submodules can be discovered
-    * @param writer    where rendered information is placed.
+    * @param description      a description of the start module
+    * @param portDescriptions a map of port name to description
+    * @param m                the start module
+    * @param moduleMap        a map of modules so submodules can be discovered
+    * @param writer           where rendered information is placed.
     */
   class VerilogRender(description: Description,
     portDescriptions: Map[String, Description],
