@@ -46,9 +46,14 @@ object JsonProtocol {
   def serialize(annos: Seq[Annotation]): String = serializeTry(annos).get
 
   def serializeTry(annos: Seq[Annotation]): Try[String] = {
-    val tags = annos.map(_.getClass).distinct
+    val annosx: Seq[Annotation] = annos.flatMap {
+      case a: Unserializable => a._toJsonSerializable
+      case DeletedAnnotation(_, _: Unserializable) => Seq()
+      case a => Seq(a)
+    }
+    val tags = annosx.map(_.getClass).distinct
     implicit val formats = jsonFormat(tags)
-    Try(writePretty(annos))
+    Try(writePretty(annosx))
   }
 
   def deserialize(in: JsonInput): Seq[Annotation] = deserializeTry(in).get
