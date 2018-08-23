@@ -30,9 +30,7 @@ class ResolveMemoryReference extends Transform {
       case _ => false
     }
   }
-  private implicit def wrapMem(x: DefAnnotatedMemory) = new WrappedDefAnnoMemory(x)
-
-  import scala.language.implicitConversions
+  private def wrap(mem: DefAnnotatedMemory) = new WrappedDefAnnoMemory(mem)
 
   // Values are Tuple of Module Name and Memory Instance Name
   private type AnnotatedMemories = collection.mutable.HashMap[WrappedDefAnnoMemory, (String, String)]
@@ -50,11 +48,12 @@ class ResolveMemoryReference extends Transform {
     // If not dedupable, no need to add to existing (since nothing can dedup with it)
     // We just return the DefAnnotatedMemory as is in the default case below
     case m: DefAnnotatedMemory if dedupable(noDedupMap, mname, m.name) =>
-      existingMems.get(m) match {
+      val wrapped = wrap(m)
+      existingMems.get(wrapped) match {
         case proto @ Some(_) =>
           m.copy(memRef = proto)
         case None =>
-          existingMems(m) = (mname, m.name)
+          existingMems(wrapped) = (mname, m.name)
           m
       }
     case s => s.map(updateMemStmts(mname, existingMems, noDedupMap))
