@@ -78,9 +78,8 @@ object AnalysisUtils {
 
   /** Checks whether the two memories are equivalent in all respects except name
     */
-  def eqMems(a: DefAnnotatedMemory, b: DefAnnotatedMemory, noDeDupeMems: Seq[String]): Boolean =
-    a == b.copy(info = a.info, name = a.name, memRef = a.memRef) &&
-    !(noDeDupeMems.contains(a.name) || noDeDupeMems.contains(b.name))
+  def eqMems(a: DefAnnotatedMemory, b: DefAnnotatedMemory): Boolean =
+    a == b.copy(info = a.info, name = a.name, memRef = a.memRef)
 }
 
 /** Determines if a write mask is needed (wmode/en and wmask are equivalent).
