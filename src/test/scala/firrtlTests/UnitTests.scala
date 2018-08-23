@@ -388,7 +388,7 @@ class UnitTests extends FirrtlFlatSpec {
       ResolveKinds,
       InferTypes,
       ResolveGenders,
-      InferWidths,
+      new InferWidths(),
       PullMuxes,
       ExpandConnects,
       RemoveAccesses,

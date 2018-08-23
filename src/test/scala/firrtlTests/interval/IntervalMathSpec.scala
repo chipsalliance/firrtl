@@ -3,7 +3,7 @@
 package firrtlTests.interval
 
 import firrtl.Implicits.constraint2bound
-import firrtl.{CircuitState, ChirrtlForm, LowFirrtlCompiler, Parser, AnnotationMap}
+import firrtl.{CircuitState, ChirrtlForm, LowFirrtlCompiler, Parser}
 import firrtl.ir.{Closed, Open, Bound, IntervalType, IntWidth}
 import firrtl.passes.{IsMin, IsMax, IsMul, IsAdd, IsKnown}
 import scala.math.BigDecimal.RoundingMode._
