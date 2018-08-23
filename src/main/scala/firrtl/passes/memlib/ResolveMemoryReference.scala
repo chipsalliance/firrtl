@@ -4,7 +4,6 @@ package firrtl.passes
 package memlib
 import firrtl._
 import firrtl.ir._
-import AnalysisUtils.eqMems
 import firrtl.Mappers._
 import firrtl.annotations._
 
@@ -19,35 +18,51 @@ class ResolveMemoryReference extends Transform {
   def inputForm = MidForm
   def outputForm = MidForm
 
-  type AnnotatedMemories = collection.mutable.ArrayBuffer[(String, DefAnnotatedMemory)]
+  /** Helper class for determining when two memories are equivalent while igoring
+    * irrelevant details like name and info
+    */
+  private class WrappedDefAnnoMemory(val underlying: DefAnnotatedMemory) {
+    // Remove irrelevant details for comparison
+    private def generic = underlying.copy(info = NoInfo, name = "", memRef = None)
+    override def hashCode: Int = generic.hashCode
+    override def equals(that: Any): Boolean = that match {
+      case mem: WrappedDefAnnoMemory => this.generic == mem.generic
+      case _ => false
+    }
+  }
+  private implicit def wrapMem(x: DefAnnotatedMemory) = new WrappedDefAnnoMemory(x)
 
-  private def found(map: Map[String, Set[String]], key: String, value: String): Boolean =
-    map.get(key).map(_.contains(value)).getOrElse(false)
+  import scala.language.implicitConversions
+
+  // Values are Tuple of Module Name and Memory Instance Name
+  private type AnnotatedMemories = collection.mutable.HashMap[WrappedDefAnnoMemory, (String, String)]
+
+  private def dedupable(noDedups: Map[String, Set[String]], module: String, memory: String): Boolean =
+    noDedups.get(module).map(!_.contains(memory)).getOrElse(true)
 
   /** If a candidate memory is identical except for name to another, add an
     *   annotation that references the name of the other memory.
     */
   def updateMemStmts(mname: String,
-                     uniqueMems: AnnotatedMemories,
+                     existingMems: AnnotatedMemories,
                      noDedupMap: Map[String, Set[String]])
                     (s: Statement): Statement = s match {
-    case m: DefAnnotatedMemory =>
-      uniqueMems.find { case (mname2, m2) =>
-        !found(noDedupMap, mname2, m2.name) &&
-        !found(noDedupMap, mname, m.name) &&
-        eqMems(m2, m)
-      } match {
+    // If not dedupable, no need to add to existing (since nothing can dedup with it)
+    // We just return the DefAnnotatedMemory as is in the default case below
+    case m: DefAnnotatedMemory if dedupable(noDedupMap, mname, m.name) =>
+      existingMems.get(m) match {
+        case proto @ Some(_) =>
+          m.copy(memRef = proto)
         case None =>
-          uniqueMems += (mname -> m)
+          existingMems(m) = (mname, m.name)
           m
-        case Some((module, proto)) => m.copy(memRef = Some(module -> proto.name))
       }
-    case s => s.map(updateMemStmts(mname, uniqueMems, noDedupMap))
+    case s => s.map(updateMemStmts(mname, existingMems, noDedupMap))
   }
 
   def run(c: Circuit, noDedupMap: Map[String, Set[String]]) = {
-    val uniqueMems = new AnnotatedMemories
-    val modulesx = c.modules.map(m => m.map(updateMemStmts(m.name, uniqueMems, noDedupMap)))
+    val existingMems = new AnnotatedMemories
+    val modulesx = c.modules.map(m => m.map(updateMemStmts(m.name, existingMems, noDedupMap)))
     c.copy(modules = modulesx)
   }
   def execute(state: CircuitState): CircuitState = {
