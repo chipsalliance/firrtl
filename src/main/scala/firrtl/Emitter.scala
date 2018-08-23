@@ -624,6 +624,8 @@ class VerilogEmitter extends SeqTransform with Emitter {
           sx
         case sx: WDefInstanceConnector =>
           val (module, params) = moduleMap(sx.module) match {
+            case DescribedMod(_, _, ExtModule(_, _, _, extname, params)) => (extname, params)
+            case DescribedMod(_, _, Module(_, name, _, _)) => (name, Seq.empty)
             case ExtModule(_, _, _, extname, params) => (extname, params)
             case Module(_, name, _, _) => (name, Seq.empty)
           }
@@ -860,7 +862,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
             val renderer = new VerilogRender(module, moduleMap)(writer)
             renderer.emit_verilog()
             Some(EmittedVerilogModuleAnnotation(EmittedVerilogModule(module.name, writer.toString)))
-          case _: ExtModule => None
+          case _ => None
         }
       case _ => Seq()
     }
