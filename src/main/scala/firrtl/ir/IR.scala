@@ -579,7 +579,8 @@ case class IntervalType(lower: Bound, upper: Bound, point: Width) extends Ground
     }
     "Interval" + bounds + pointString
   }
-  lazy val prec = BigDecimal(1) / BigDecimal(BigInt(1) << point.get.toInt)
+  lazy val bp = point.get.toInt
+  lazy val prec = if(bp >= 0) BigDecimal(1) / BigDecimal(BigInt(1) << bp) else BigDecimal(BigInt(1) << -bp)
   lazy val min = lower match {
     case Open(a) => (a / prec) match {
       case x if trim(x).isWhole => a + prec // add precision for open lower bound i.e. (-4 -> [3 for bp = 0

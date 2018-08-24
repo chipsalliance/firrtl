@@ -44,8 +44,8 @@ object CheckWidths extends Pass {
           errors.append(new WidthTooBig(info, mname, width))
         case (w: IntWidth, f: FixedType) if (w.width < 0 && w.width == f.width) =>
           errors append new NegWidthException(info, mname)
-        case (w: IntWidth, f: IntervalType) if (w.width < 0) =>
-          errors append new NegWidthException(info, mname)
+        //case (w: IntWidth, f: IntervalType) if (w.width < 0) =>
+        //  errors append new NegWidthException(info, mname)
         case (_: IntWidth, _) =>
         case _ => errors append new UninferredWidth(info, mname, name, t)
       }

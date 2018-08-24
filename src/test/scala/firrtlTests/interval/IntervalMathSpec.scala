@@ -104,33 +104,34 @@ class IntervalMathSpec extends FirrtlFlatSpec {
                 val bp = IntWidth(bp1.toInt + bp2.toInt)
                 val lv = IsMin(IsMul(min1, min2), IsMul(min1, max2), IsMul(max1, min2), IsMul(max1, max2)).optimize()
                 val uv = IsMax(IsMul(min1, min2), IsMul(min1, max2), IsMul(max1, min2), IsMul(max1, max2)).optimize()
-                assert(varWidth.toInt == IntervalType(lv, uv, bp).width.asInstanceOf[IntWidth].width)
+                assert(varWidth.toInt == IntervalType(lv, uv, bp).width.asInstanceOf[IntWidth].width, "product")
               case DifferencePattern(varWidth)     =>
                 val bp = IntWidth(Math.max(bp1.toInt, bp2.toInt))
                 val lv = min1 + max2.neg
                 val uv = max1 + min2.neg
-                assert(varWidth.toInt == IntervalType(lv, uv, bp).width.asInstanceOf[IntWidth].width)
+                assert(varWidth.toInt == IntervalType(lv, uv, bp).width.asInstanceOf[IntWidth].width, "diff")
               case ShiftLeftPattern(varWidth)     =>
                 val bp = IntWidth(bp1.toInt)
-                val lv = min1 * Closed(3)
-                val uv = max1 * Closed(3)
-                assert(varWidth.toInt == IntervalType(lv, uv, bp).width.asInstanceOf[IntWidth].width)
+                val lv = min1 * Closed(8)
+                val uv = max1 * Closed(8)
+                val it = IntervalType(lv, uv, bp)
+                assert(varWidth.toInt == it.width.asInstanceOf[IntWidth].width, "shl")
               case ShiftRightPattern(varWidth)     =>
                 val bp = IntWidth(bp1.toInt)
                 val lv = min1 * Closed(1/3)
                 val uv = max1 * Closed(1/3)
-                assert(varWidth.toInt == IntervalType(lv, uv, bp).width.asInstanceOf[IntWidth].width)
+                assert(varWidth.toInt == IntervalType(lv, uv, bp).width.asInstanceOf[IntWidth].width, "shr")
               case DShiftLeftPattern(varWidth)     =>
                 val bp = IntWidth(bp1.toInt)
-                val lv = min1 * Closed(7)
-                val uv = max1 * Closed(7)
-                assert(varWidth.toInt == IntervalType(lv, uv, bp).width.asInstanceOf[IntWidth].width)
+                val lv = min1 * Closed(128)
+                val uv = max1 * Closed(128)
+                assert(varWidth.toInt == IntervalType(lv, uv, bp).width.asInstanceOf[IntWidth].width, "dshl")
               case DShiftRightPattern(varWidth)     =>
                 val bp = IntWidth(bp1.toInt)
                 val lv = min1
                 val uv = max1
-                assert(varWidth.toInt == IntervalType(lv, uv, bp).width.asInstanceOf[IntWidth].width)
-              case ComparisonPattern(varWidth) => assert(varWidth.toInt == 1)
+                assert(varWidth.toInt == IntervalType(lv, uv, bp).width.asInstanceOf[IntWidth].width, "dshr")
+              case ComparisonPattern(varWidth) => assert(varWidth.toInt == 1, "==")
               case ArithAssignPattern(varName, operation, args) =>
                 val arg1 = if(IntervalType(getBound(lb1, lv1), getBound(ub1, uv1), IntWidth(bp1)).width == IntWidth(0)) """SInt<1>("h0")""" else "in1"
                 val arg2 = if(IntervalType(getBound(lb2, lv2), getBound(ub2, uv2), IntWidth(bp2)).width == IntWidth(0)) """SInt<1>("h0")""" else "in2"

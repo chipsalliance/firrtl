@@ -136,6 +136,7 @@ object CheckHighForm extends Pass {
         case tx: VectorType if tx.size < 0 =>
           errors.append(new NegVecSizeException(info, mname))
           t
+        case i: IntervalType => i
         case _ => t map checkHighFormW(info, mname)
       }
 
@@ -162,8 +163,8 @@ object CheckHighForm extends Pass {
         case ex: SubAccess => validSubexp(info, mname)(ex.expr)
         case ex => ex map validSubexp(info, mname)
       }
-      (e map checkHighFormW(info, mname)
-         map checkHighFormT(info, mname)
+      (e map checkHighFormW(info, mname + "/" + e.serialize)
+         map checkHighFormT(info, mname + "/" + e.serialize)
          map checkHighFormE(info, mname, names))
     }
 
@@ -208,8 +209,7 @@ object CheckHighForm extends Pass {
 
     def checkHighFormP(mname: String, names: NameSet)(p: Port): Port = {
       names += p.name
-      (p.tpe map checkHighFormT(p.info, mname)
-             map checkHighFormW(p.info, mname))
+      checkHighFormT(p.info, mname)(p.tpe)
       p
     }
 
