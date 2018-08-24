@@ -18,7 +18,7 @@ case class DontTouchAnnotation(target: ComponentName) extends SingleTargetAnnota
 
 object DontTouchAnnotation {
   class DontTouchNotFoundException(module: String, component: String) extends PassException(
-    s"Component marked Don't Touch ($module.$component) not found!\n" +
+    s"Component marked dontTouch ($module.$component) not found!\n" +
     "It was probably accidentally deleted. Please check that your custom transforms are not" +
     "responsible and then file an issue on Github."
   )
