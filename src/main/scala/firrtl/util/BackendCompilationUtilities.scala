@@ -9,7 +9,6 @@ import java.util.Calendar
 
 import firrtl.FirrtlExecutionOptions
 
-import scala.collection.immutable.HashMap
 import scala.sys.process.{ProcessBuilder, ProcessLogger, _}
  
 trait BackendCompilationUtilities {
@@ -113,15 +112,13 @@ trait BackendCompilationUtilities {
 
     // Don't include the same file multiple times.
     // If it's in BlackBoxSourceHelper.fileListName, don't explicitly include it on the command line.
-    // Build a map with absolute file paths as keys to use as a filter to exclude already included additional Verilog sources.
-    val blackBoxHelperFiles: Map[String, Boolean] = {
+    // Build a set of absolute file paths to use as a filter to exclude already included additional Verilog sources.
+    val blackBoxHelperFiles: Set[String] = {
       if(list_file.exists()) {
-        io.Source.fromFile(list_file).getLines.map {
-          line => line -> true
-        }.toMap
+        io.Source.fromFile(list_file).getLines.toSet
       }
       else {
-        Map.empty
+        Set.empty
       }
     }
     val vSourcesFiltered = vSources.filterNot(f => blackBoxHelperFiles.contains(f.getAbsolutePath))
