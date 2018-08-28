@@ -21,7 +21,10 @@ trait BackendCompilationUtilities {
     format.format(now)
   }
 
-  /** Copy the contents of a resource to a destination file.
+  /**
+    * Copy the contents of a resource to a destination file.
+    * @param name the name of the resource
+    * @param file the file to write it into
     */
   def copyResourceToFile(name: String, file: File) {
     val in = getClass.getResourceAsStream(name)
@@ -112,7 +115,7 @@ trait BackendCompilationUtilities {
 
     // Don't include the same file multiple times.
     // If it's in BlackBoxSourceHelper.fileListName, don't explicitly include it on the command line.
-    // Build a set of absolute file paths to use as a filter to exclude already included additional Verilog sources.
+    // Build a set of canonical file paths to use as a filter to exclude already included additional Verilog sources.
     val blackBoxHelperFiles: Set[String] = {
       if(list_file.exists()) {
         io.Source.fromFile(list_file).getLines.toSet
@@ -121,7 +124,7 @@ trait BackendCompilationUtilities {
         Set.empty
       }
     }
-    val vSourcesFiltered = vSources.filterNot(f => blackBoxHelperFiles.contains(f.getAbsolutePath))
+    val vSourcesFiltered = vSources.filterNot(f => blackBoxHelperFiles.contains(f.getCanonicalPath))
     val command = Seq(
       "verilator",
       "--cc", s"${dir.getAbsolutePath}/$dutFile.v"
