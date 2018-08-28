@@ -130,7 +130,7 @@ trait BackendCompilationUtilities {
       "--cc", s"${dir.getAbsolutePath}/$dutFile.v"
     ) ++
       blackBoxVerilogList ++
-      vSourcesFiltered.flatMap(file => Seq("-v", file.getAbsolutePath)) ++
+      vSourcesFiltered.flatMap(file => Seq("-v", file.getCanonicalPath)) ++
       Seq("--assert",
         "-Wno-fatal",
         "-Wno-WIDTH",
