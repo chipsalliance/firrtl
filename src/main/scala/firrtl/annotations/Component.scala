@@ -50,6 +50,13 @@ case class Component(circuit: Option[String],
     reference.dropWhile{ s => s.keyword == "of" || s.keyword == "inst" }
   }
 
+  def justPath: Seq[SubComponent] = {
+    reference.collect {
+      case i: Instance => i
+      case o: OfModule => o
+    }
+  }
+
   /**
     * Returns the instance hierarchy path, if one exists
     * @return
@@ -219,6 +226,10 @@ case class Component(circuit: Option[String],
     case _: Instance | _: OfModule => false
     case _ => true
   }
+
+  def isCircuitName: Boolean = circuit.nonEmpty && module.isEmpty && reference.isEmpty
+  def isModuleName: Boolean = circuit.nonEmpty && module.nonEmpty && reference.isEmpty
+  def isReference: Boolean = circuit.nonEmpty && module.nonEmpty && reference.nonEmpty
 }
 
 object Component {

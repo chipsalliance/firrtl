@@ -4,7 +4,8 @@ package firrtlTests
 package transforms
 
 import firrtl.annotations._
-import firrtl.transforms.{DedupModules}
+import firrtl.annotations.transforms.AutoResolution
+import firrtl.transforms.DedupModules
 
 
 /**
@@ -280,6 +281,189 @@ class DedupModuleTests extends HighTransformSpec {
         |    x <= UInt(1)
       """.stripMargin
     execute(input, check, Seq.empty)
+  }
+
+  "The module A and A_" should "be deduped with fields that sort of match" in {
+    val input =
+      """circuit Top :
+        |  module Top :
+        |    inst a1 of A
+        |    inst a2 of A_
+        |  module A :
+        |    output x: UInt<1>
+        |    wire b: {c: UInt<1>}
+        |    x <= b.c
+        |  module A_ :
+        |    output x: UInt<1>
+        |    wire b: {b: UInt<1>}
+        |    x <= b.b
+      """.stripMargin
+    val check =
+      """circuit Top :
+        |  module Top :
+        |    inst a1 of A
+        |    inst a2 of A
+        |  module A :
+        |    output x: UInt<1>
+        |    wire b: {c: UInt<1>}
+        |    x <= b.c
+      """.stripMargin
+    execute(input, check, Seq.empty)
+  }
+
+  "The module A and A_" should "not be deduped with different annotation targets" in {
+    val input =
+      """circuit Top :
+        |  module Top :
+        |    inst a1 of A
+        |    inst a2 of A_
+        |  module A :
+        |    output x: UInt<1>
+        |    wire b: UInt<1>
+        |    x <= b
+        |  module A_ :
+        |    output x: UInt<1>
+        |    wire b: UInt<1>
+        |    x <= b
+      """.stripMargin
+    val check =
+      """circuit Top :
+        |  module Top :
+        |    inst a1 of A
+        |    inst a2 of A_
+        |  module A :
+        |    output x: UInt<1>
+        |    wire b: UInt<1>
+        |    x <= b
+        |  module A_ :
+        |    output x: UInt<1>
+        |    wire b: UInt<1>
+        |    x <= b
+      """.stripMargin
+    execute(input, check, Seq(dontTouch("A.b")))
+  }
+
+  "The module A and A_" should "be deduped with same annotation targets" in {
+    val input =
+      """circuit Top :
+        |  module Top :
+        |    inst a1 of A
+        |    inst a2 of A_
+        |  module A :
+        |    output x: UInt<1>
+        |    wire b: UInt<1>
+        |    x <= b
+        |  module A_ :
+        |    output x: UInt<1>
+        |    wire b: UInt<1>
+        |    x <= b
+      """.stripMargin
+    val check =
+      """circuit Top :
+        |  module Top :
+        |    inst a1 of A
+        |    inst a2 of A
+        |  module A :
+        |    output x: UInt<1>
+        |    wire b: UInt<1>
+        |    x <= b
+      """.stripMargin
+    execute(input, check, Seq(dontTouch("A.b"), dontTouch("A_.b")))
+  }
+  "The module A and A_" should "be deduped with same annotations with same multi-targets" in {
+    val input =
+      """circuit Top :
+        |  module Top :
+        |    inst a1 of A
+        |    inst a2 of A_
+        |  module A :
+        |    output x: UInt<1>
+        |    inst b of B_
+        |    x <= b.x
+        |  module A_ :
+        |    output x: UInt<1>
+        |    inst b of B
+        |    x <= b.x
+        |  module B :
+        |    output x: UInt<1>
+        |    x <= UInt(1)
+        |  module B_ :
+        |    output x: UInt<1>
+        |    x <= UInt(1)
+      """.stripMargin
+    val check =
+      """circuit Top :
+        |  module Top :
+        |    inst a1 of A
+        |    inst a2 of A
+        |  module A :
+        |    output x: UInt<1>
+        |    inst b of B
+        |    x <= b.x
+        |  module B :
+        |    output x: UInt<1>
+        |    x <= UInt(1)
+      """.stripMargin
+    case class DummyAnnotation(targets: Seq[Component], tag: Int) extends BrittleAnnotation with AutoResolution {
+      override def duplicate(targets: Seq[Component]): BrittleAnnotation = DummyAnnotation(targets, tag)
+    }
+    val Top = Component(Some("Top"), None, Nil)
+    val A = Top.module("A")
+    val B = Top.module("B")
+    val A_ = Top.module("A_")
+    val B_ = Top.module("B_")
+    execute(input, check, Seq(DummyAnnotation(Seq(A, B), 0), DummyAnnotation(Seq(A_, B_), 0)))
+  }
+  "The module A and A_" should "not be deduped with different annotations with same multi-targets" in {
+    val input =
+      """circuit Top :
+        |  module Top :
+        |    inst a1 of A
+        |    inst a2 of A_
+        |  module A :
+        |    output x: UInt<1>
+        |    inst b of B_
+        |    x <= b.x
+        |  module A_ :
+        |    output x: UInt<1>
+        |    inst b of B
+        |    x <= b.x
+        |  module B :
+        |    output x: UInt<1>
+        |    x <= UInt(1)
+        |  module B_ :
+        |    output x: UInt<1>
+        |    x <= UInt(1)
+      """.stripMargin
+    val check =
+      """circuit Top :
+        |  module Top :
+        |    inst a1 of A
+        |    inst a2 of A_
+        |  module A :
+        |    output x: UInt<1>
+        |    inst b of B_
+        |    x <= b.x
+        |  module A_ :
+        |    output x: UInt<1>
+        |    inst b of B
+        |    x <= b.x
+        |  module B :
+        |    output x: UInt<1>
+        |    x <= UInt(1)
+        |  module B_ :
+        |    output x: UInt<1>
+        |    x <= UInt(1)
+      """.stripMargin
+    case class DummyAnnotation(targets: Seq[Component], tag: Int) extends BrittleAnnotation with AutoResolution {
+      override def duplicate(targets: Seq[Component]): BrittleAnnotation = DummyAnnotation(targets, tag)
+    }
+    val Top = Component(Some("Top"), None, Nil)
+    val A = Top.module("A")
+    val B = Top.module("B")
+    val A_ = Top.module("A_")
+    val B_ = Top.module("B_")
+    execute(input, check, Seq(DummyAnnotation(Seq(A, B), 0), DummyAnnotation(Seq(A_, B_), 1)))
   }
 }
 

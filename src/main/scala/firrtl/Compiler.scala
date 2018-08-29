@@ -11,7 +11,7 @@ import scala.collection.mutable
 import firrtl.annotations._
 import firrtl.ir.{Circuit, Expression}
 import firrtl.Utils.{error, throwInternalError}
-import firrtl.annotations.SubComponent.{Field, Index, Ref}
+import firrtl.annotations.SubComponent._
 
 object RenameMap {
   def apply(map: Map[Component, Seq[Component]]) = {
@@ -30,46 +30,68 @@ object RenameMap {
 final class RenameMap private () {
   private val underlying = mutable.HashMap[Component, Seq[Component]]()
 
+  private def recursiveGet(set: mutable.HashSet[Component], errors: mutable.ArrayBuffer[String])(key: Component): Seq[Component] = {
+    val remapped = underlying.getOrElse(key, Seq(key))
+    val isCircuitNames = (key +: remapped).forall(_.isCircuitName)
+    val isModuleNames = (key +: remapped).forall(_.isModuleName)
+    val isReferences = (key +: remapped).forall(_.isReference)
+
+    val checked = if(!(isCircuitNames || isModuleNames || isReferences)) {
+      errors += s"Cannot rename from $key to $remapped!"
+      Seq(key)
+    } else if(key.isCircuitName && remapped.size > 1) {
+      errors += s"Bad rename: $key is in $set"
+      Seq(key)
+    } else remapped
+
+    if(set.contains(key) && !key.isCircuitName) {
+      throwInternalError(s"Bad rename: $key is in $set")
+    }
+
+    set += key
+    val getter = recursiveGet(set, errors)(_)
+    // First, check whole key
+    // If it matches, then
+    val ret = checked.flatMap {
+      case c@Component(Some(_), None, Nil) => Seq(c)
+      case c@Component(Some(_), Some(_), Nil) => getter(c.copy(module = None)).map(_.copy(module = c.module))
+      case c@Component(Some(_), Some(_), seq) if c.notPath.nonEmpty && c.isPathless =>
+        getter(c.copy(reference = Nil)).map(_.copy(reference = c.reference))
+      case c@Component(Some(_), Some(_), seq) if c.notPath.isEmpty =>
+        val (instance, of) = c.path.last
+        // Check ref(i)
+        val deep = if(c.path.size == 1) c.module.get else c.path.drop(1).last._2.value
+        val renamedInstance = getter(c.copy(module = Some(deep), reference = Seq(Ref(instance.value)))).map{ x =>
+          require(x.notPath.size == 1)
+          val newRef = x.reference.last.value.toString
+          x.copy(reference = c.reference.drop(2) ++ Seq(Instance(newRef), of))
+        }
+        // Check of(m)
+        val renamedModule = getter(c.copy(module = Some(of.value), reference = Nil))
+        val renamedOfModule = if(renamedModule.size == 1) {
+          renamedInstance.map(x => x.copy(reference = x.reference.dropRight(1) :+ OfModule(renamedModule.head.module.get)))
+        } else {
+          renamedInstance
+        }
+        // Check parent path
+        renamedOfModule.flatMap(x => if(x.reference.dropRight(2).nonEmpty) getter(x.copy(reference = x.reference.dropRight(2))).map(y => y.copy(reference = y.reference ++ x.reference.takeRight(2))) else Seq(x))
+      case c@Component(Some(_), Some(_), seq) =>
+        val path = c.path
+        val inlined = getter(c.copy(module = Some(path.head._2.value), reference = c.reference.drop(2))).map(x => x.copy(reference = c.reference.take(2) ++ x.reference))
+        inlined.flatMap(x => getter(x.copy(reference = x.justPath)).map(y => y.copy(reference = y.justPath ++ x.notPath)))
+    }
+    set -= key
+    ret
+  }
+
   /** Get renames of a [[Component]]
     * @note A [[Component]] can only be renamed to one-or-more [[Component]]s
     */
   def get(key: Component): Option[Seq[Component]] = {
-    def nestedModuleRename(m: Component): Option[Seq[Component]] = {
-      this.get(m.copy(module = None, reference = Nil)).map(cs => cs.map(c => m.copy(circuit = c.circuit)))
-    }
-    def nestedReferenceRename(r: Component): Option[Seq[Component]] = {
-      this.get(r.copy(reference = Nil)).map(ms => ms.map(m => r.copy(circuit = m.circuit, module = m.module)))
-    }
-    val ret = key match {
-      case Component(Some(_), None, Nil) => underlying.get(key)
-      case Component(Some(_), Some(_), Nil) =>
-        underlying.get(key) match {
-          case Some(names) => Some(names.flatMap { m => nestedModuleRename(m).getOrElse(Seq(m)) } )
-          case None => nestedModuleRename(key)
-        }
-      case Component(Some(_), Some(_), _) =>
-        underlying.get(key) match {
-          case Some(names) => Some(names.flatMap { m => nestedReferenceRename(m).getOrElse(Seq(m)) } )
-          case None => nestedReferenceRename(key)
-        }
-    }
     val errors = mutable.ArrayBuffer[String]()
-    ret.map { seq =>
-      seq.map { value =>
-        (key, value) match {
-          case (Component(Some(_), None, Nil), Component(Some(_), None, Nil)) =>
-          case (Component(Some(_), Some(_), Nil), Component(Some(_), Some(_), Nil)) =>
-          case (Component(Some(_), Some(_), x), Component(Some(_), Some(_), y)) if x.nonEmpty && y.nonEmpty =>
-          case other => errors += s"Cannot rename from $key to $value!"
-        }
-      }
-      key match {
-        case Component(Some(_), None, Nil) if seq.size > 1 => errors += s"Cannot rename from $key to $seq!"
-        case other =>
-      }
-    }
+    val ret = recursiveGet(mutable.HashSet.empty[Component], errors)(key)
     if(errors.nonEmpty) throwInternalError(errors.mkString("\n"))
-    ret
+    if(ret.size == 1 && ret.head == key) None else Some(ret)
   }
 
   def hasChanges: Boolean = underlying.nonEmpty
@@ -90,12 +112,18 @@ final class RenameMap private () {
     }
     rename(fromName, tosName)
   }
-  def rename(from: Component, to: Component): Unit = rename(from, Seq(to))
-  def rename(from: Component, tos: Seq[Component]): Unit = (from, tos) match {
-    case (x, Seq(y)) if x == y => // TODO is this check expensive in common case?
-    case _ =>
-      underlying(from) = underlying.getOrElse(from, Seq.empty) ++ tos
+  def rename(from: Component, to: Component): Unit = {
+    rename(from, Seq(to))
   }
+  def rename(from: Component, tos: Seq[Component]): Unit = {
+    tos.foreach { to => require(to.isPathless || (to.path.size == 1 && to.notPath.isEmpty)) }
+    (from, tos) match {
+      case (x, Seq(y)) if x == y => // TODO is this check expensive in common case?
+      case _ =>
+        underlying(from) = underlying.getOrElse(from, Seq.empty) ++ tos
+    }
+  }
+
   def delete(names: Seq[String]): Unit = names.foreach(delete(_))
   def delete(name: String): Unit = {
     delete(Component(Some(circuitName), Some(moduleName), AnnotationUtils.toSubComponents(name)))

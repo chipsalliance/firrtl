@@ -20,6 +20,11 @@ class RenameMapSpec extends FirrtlFlatSpec {
   val fooB = modB.ref("foo")
   val barB = modB.ref("bar")
 
+  val tmb = cir.module("Top").inst("mid").of("Middle").inst("bot").of("Bottom")
+  val tm2b = cir.module("Top").inst("mid").of("Middle2").inst("bot").of("Bottom")
+  val middle = cir.module("Middle")
+  val middle2 = cir.module("Middle2")
+
   behavior of "RenameMap"
 
   it should "return None if it does not rename something" in {
@@ -83,6 +88,40 @@ class RenameMapSpec extends FirrtlFlatSpec {
     val renames = RenameMap()
     renames.rename(cir, cir2)
     renames.get(foo) should be (Some(Seq(foo2)))
+  }
+
+  it should "rename components if modules in the path are renamed" in {
+    val renames = RenameMap()
+    renames.rename(cir.module("Middle"), cir.module("Middle2"))
+    val from = cir.module("Top").inst("m").of("Middle")
+    val to = cir.module("Top").inst("m").of("Middle2")
+    renames.get(from) should be (Some(Seq(to)))
+  }
+
+  it should "rename components if instance and module in the path are renamed" in {
+    val renames = RenameMap()
+    renames.rename(cir.module("Middle"), cir.module("Middle2"))
+    renames.rename(cir.module("Top").ref("m"), cir.module("Top").ref("m2"))
+    val from = cir.module("Top").inst("m").of("Middle")
+    val to = cir.module("Top").inst("m2").of("Middle2")
+    renames.get(from) should be (Some(Seq(to)))
+  }
+
+  it should "rename components if instance in the path are renamed" in {
+    val renames = RenameMap()
+    renames.rename(cir.module("Top").ref("m"), cir.module("Top").ref("m2"))
+    val from = cir.module("Top").inst("m").of("Middle")
+    val to = cir.module("Top").inst("m2").of("Middle")
+    renames.get(from) should be (Some(Seq(to)))
+  }
+
+  it should "rename components if instance and ofmodule in the path are renamed" in {
+    val renames = RenameMap()
+    renames.rename(cir.module("Top").inst("m").of("Middle"),
+      cir.module("Top").inst("m2").of("Middle2"))
+    val from = cir.module("Top").inst("m").of("Middle")
+    val to = cir.module("Top").inst("m2").of("Middle2")
+    renames.get(from) should be (Some(Seq(to)))
   }
 
   // Renaming `from` to each of the `tos` at the same time should error
