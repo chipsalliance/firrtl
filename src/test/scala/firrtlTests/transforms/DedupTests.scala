@@ -12,6 +12,12 @@ import firrtl.transforms.DedupModules
  * Tests inline instances transformation
  */
 class DedupModuleTests extends HighTransformSpec {
+  case class MultiTargetDummyAnnotation(targets: Seq[Component], tag: Int) extends BrittleAnnotation with AutoResolution {
+    override def duplicate(targets: Seq[Component]): BrittleAnnotation = MultiTargetDummyAnnotation(targets, tag)
+  }
+  case class SingleTargetDummyAnnotation(target: ComponentName) extends SingleTargetAnnotation[ComponentName] {
+    override def duplicate(n: ComponentName): Annotation = SingleTargetDummyAnnotation(n)
+  }
   def transform = new DedupModules
   "The module A" should "be deduped" in {
      val input =
@@ -162,16 +168,12 @@ class DedupModuleTests extends HighTransformSpec {
           |    output x: UInt<1> @[yy 2:2]
           |    x <= UInt(1)
         """.stripMargin
-     case class DummyAnnotation(target: ComponentName) extends SingleTargetAnnotation[ComponentName] {
-       override def duplicate(n: ComponentName): Annotation = DummyAnnotation(n)
-     }
 
      val mname = ModuleName("Top", CircuitName("Top"))
-     val finalState = execute(input, check, Seq(DummyAnnotation(ComponentName("a2.y", mname))))
-
-     finalState.annotations.collect({ case d: DummyAnnotation => d }).head should be(DummyAnnotation(ComponentName("a2.x", mname)))
-
+     val finalState = execute(input, check, Seq(SingleTargetDummyAnnotation(ComponentName("a2.y", mname))))
+     finalState.annotations.collect({ case d: SingleTargetDummyAnnotation => d }).head should be(SingleTargetDummyAnnotation(ComponentName("a2.x", mname)))
   }
+
   "Extmodules" should "with the same defname and parameters should dedup" in {
      val input =
         """circuit Top :
@@ -216,6 +218,7 @@ class DedupModuleTests extends HighTransformSpec {
 
      execute(input, check, Seq.empty)
   }
+
   "Extmodules" should "with the different defname or parameters should NOT dedup" in {
      def mkfir(defnames: (String, String), params: (String, String)) =
        s"""circuit Top :
@@ -411,15 +414,16 @@ class DedupModuleTests extends HighTransformSpec {
         |    output x: UInt<1>
         |    x <= UInt(1)
       """.stripMargin
-    case class DummyAnnotation(targets: Seq[Component], tag: Int) extends BrittleAnnotation with AutoResolution {
-      override def duplicate(targets: Seq[Component]): BrittleAnnotation = DummyAnnotation(targets, tag)
-    }
     val Top = Component(Some("Top"), None, Nil)
     val A = Top.module("A")
     val B = Top.module("B")
     val A_ = Top.module("A_")
     val B_ = Top.module("B_")
-    execute(input, check, Seq(DummyAnnotation(Seq(A, B), 0), DummyAnnotation(Seq(A_, B_), 0)))
+    val annoAB = MultiTargetDummyAnnotation(Seq(A, B), 0)
+    val annoA_B_ = MultiTargetDummyAnnotation(Seq(A_, B_), 0)
+    val cs = execute(input, check, Seq(annoAB, annoA_B_))
+    cs.annotations.toSeq should contain (annoAB)
+    cs.annotations.toSeq should contain (annoA_B_)
   }
   "The module A and A_" should "be deduped with same annotations with same multi-targets, that share roots" in {
     val input =
@@ -455,13 +459,14 @@ class DedupModuleTests extends HighTransformSpec {
         |    output x: UInt<1>
         |    x <= UInt(1)
       """.stripMargin
-    case class DummyAnnotation(targets: Seq[Component], tag: Int) extends BrittleAnnotation with AutoResolution {
-      override def duplicate(targets: Seq[Component]): BrittleAnnotation = DummyAnnotation(targets, tag)
-    }
     val Top = Component(Some("Top"), None, Nil)
     val A = Top.module("A")
     val A_ = Top.module("A_")
-    execute(input, check, Seq(DummyAnnotation(Seq(A, A.inst("b").of("B")), 0), DummyAnnotation(Seq(A_, A_.inst("b").of("B_")), 0)))
+    val annoA = MultiTargetDummyAnnotation(Seq(A, A.inst("b").of("B")), 0)
+    val annoA_ = MultiTargetDummyAnnotation(Seq(A_, A_.inst("b").of("B_")), 0)
+    val cs = execute(input, check, Seq(annoA, annoA_))
+    cs.annotations.toSeq should contain (annoA)
+    cs.annotations.toSeq should not contain (annoA_)
   }
 }
 

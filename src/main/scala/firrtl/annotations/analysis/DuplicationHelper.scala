@@ -2,6 +2,7 @@ package firrtl.annotations.analysis
 
 import firrtl.annotations.{Component, SubComponent}
 import firrtl.annotations.SubComponent.{Instance, OfModule}
+import firrtl.Utils.throwInternalError
 
 import scala.collection.mutable
 
@@ -73,7 +74,7 @@ case class DuplicationHelper() {
         originalOfModule
       case Some(newDupedModules) =>
         newDupedModules.get(newModule) match {
-          case None if newModule != originalModule => error("BAD")
+          case None if newModule != originalModule => throwInternalError("BAD")
           case None => // No duplication, can return originalOfModule
             originalOfModule
           case Some(newDupedModule) =>

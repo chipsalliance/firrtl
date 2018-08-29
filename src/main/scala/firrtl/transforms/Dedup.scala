@@ -175,7 +175,7 @@ object DedupModules {
           val newName = namespace.newTemp
           renameMap.rename(name, newName)
           newName
-        case other => error("Bad")
+        case other => throwInternalError(other.toString)
       }
     }
 
@@ -196,7 +196,7 @@ object DedupModules {
       renameMap.get(top.module(ofModule)) match {
         case Some(Seq(Component(_, Some(ofModuleTag), Nil))) => ofModuleTag
         case None => ofModule
-        case other => error("Bad")
+        case other => throwInternalError(other.toString)
       }
     }
 
