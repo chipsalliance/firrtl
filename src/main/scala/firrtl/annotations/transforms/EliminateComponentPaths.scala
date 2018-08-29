@@ -10,8 +10,7 @@ import firrtl.{CircuitState, MidForm, RenameMap, Transform, WDefInstance}
 import scala.collection.mutable
 
 
-trait AutoResolution {
-  this: Annotation =>
+trait AutoResolution extends Annotation {
   def targets: Seq[Component]
 }
 
