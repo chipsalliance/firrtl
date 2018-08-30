@@ -19,9 +19,8 @@ case class DontTouchAnnotation(target: Target) extends SingleTargetAnnotation[Ta
 
 object DontTouchAnnotation {
   class DontTouchNotFoundException(module: String, component: String) extends PassException(
-    s"Target marked DONT Touch ($module.$component) not found!\n" +
-    "Perhaps it is an aggregate type? Currently only leaf components are supported.\n" +
-    "Otherwise it was probably accidentally deleted. Please check that your custom passes are not" +
+    s"Target marked dontTouch ($module.$component) not found!\n" +
+    "It was probably accidentally deleted. Please check that your custom transforms are not" +
     "responsible and then file an issue on Github."
   )
 
