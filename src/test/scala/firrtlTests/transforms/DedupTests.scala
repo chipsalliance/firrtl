@@ -4,7 +4,6 @@ package firrtlTests
 package transforms
 
 import firrtl.annotations._
-import firrtl.annotations.transforms.AutoResolution
 import firrtl.transforms.DedupModules
 
 
@@ -12,7 +11,7 @@ import firrtl.transforms.DedupModules
  * Tests inline instances transformation
  */
 class DedupModuleTests extends HighTransformSpec {
-  case class MultiTargetDummyAnnotation(targets: Seq[Component], tag: Int) extends BrittleAnnotation with AutoResolution {
+  case class MultiTargetDummyAnnotation(targets: Seq[Component], tag: Int) extends BrittleAnnotation {
     override def duplicate(targets: Seq[Component]): BrittleAnnotation = MultiTargetDummyAnnotation(targets, tag)
   }
   case class SingleTargetDummyAnnotation(target: ComponentName) extends SingleTargetAnnotation[ComponentName] {
@@ -467,6 +466,8 @@ class DedupModuleTests extends HighTransformSpec {
     val cs = execute(input, check, Seq(annoA, annoA_))
     cs.annotations.toSeq should contain (annoA)
     cs.annotations.toSeq should not contain (annoA_)
+    //TODO: Determine semantics
+    //cs.deletedAnnotations.isEmpty should be (false)
   }
 }
 

@@ -11,7 +11,7 @@ import scala.collection.mutable
   * May be too big/heavy weight to build all these hash maps, maybe split into separate Annotations?
   * @param c
   */
-class IRLookup private (c: Circuit) extends Annotation {
+case class IRLookup private (c: Circuit) extends Annotation {
   override def update(renames: RenameMap): Seq[Annotation] = if(renames.hasChanges) Nil else Seq(this)
 
   private val instanceMap = mutable.Map[String, mutable.Map[String, WDefInstance]]()
@@ -138,7 +138,7 @@ class IRLookup private (c: Circuit) extends Annotation {
 }
 
 object IRLookup {
-  def apply(c: Circuit): IRLookup = new IRLookup(c)
+  //def apply(c: Circuit): IRLookup = new IRLookup(c)
   def apply(state: CircuitState): IRLookup = {
     state.annotations.collectFirst{ case x: IRLookup if x.circuitHash == state.circuit.hashCode => x } match {
       case Some(irL) => irL

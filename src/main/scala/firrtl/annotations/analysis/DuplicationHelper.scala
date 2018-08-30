@@ -1,3 +1,5 @@
+// See LICENSE for license details.
+
 package firrtl.annotations.analysis
 
 import firrtl.annotations.{Component, SubComponent}
@@ -10,7 +12,7 @@ import scala.collection.mutable
   * Used by [[firrtl.annotations.transforms.EliminateComponentPaths]] to eliminate component paths
   * Calculates needed modifications to a circuit's module/instance hierarchy
   */
-case class DuplicationHelper() {
+case class DuplicationHelper(existingModules: Set[String]) {
   type InstanceOfModuleMap = mutable.HashMap[Instance, OfModule]
   type ModuleHasInstanceOfModuleMap = mutable.HashMap[String, InstanceOfModuleMap]
   type DupMap = mutable.HashMap[String, ModuleHasInstanceOfModuleMap]
@@ -57,7 +59,16 @@ case class DuplicationHelper() {
     * @return
     */
   def getModuleName(top: String, path: Seq[(Instance, OfModule)]): String = {
-    if(path.isEmpty) top else path.last._2.value + "___" + top + "_" + path.map { case (i, m) => i.value }.mkString("_")
+    if(path.isEmpty) top else {
+      val bestName = path.last._2.value + "___" + top + "_" + path.map { case (i, m) => i.value }.mkString("_")
+      var idx = ""
+      var counter = 0
+      while(existingModules.contains(bestName + idx)) {
+        counter += 1
+        idx = "_" + counter.toString
+      }
+      bestName + idx
+    }
   }
 
   /**

@@ -5,13 +5,15 @@ package annotations
 
 import net.jcazevedo.moultingyaml._
 import firrtl.annotations.AnnotationYamlProtocol._
+import firrtl.Utils.throwInternalError
 
 import scala.collection.mutable
 
 case class AnnotationException(message: String) extends Exception(message)
 
 /** Base type of auxiliary information */
-trait Annotation {
+trait Annotation extends Product {
+
   /** Update the target based on how signals are renamed */
   def update(renames: RenameMap): Seq[Annotation]
 
@@ -20,6 +22,18 @@ trait Annotation {
     * @note In [[logger.LogLevel.Debug]] this is called on every Annotation after every Transform
     */
   def serialize: String = this.toString
+
+  private def extractComponents(ls: scala.collection.Traversable[_]): Seq[Component] = {
+    ls.collect {
+      case c: Component => Seq(c)
+      case ls: scala.collection.Traversable[_] => extractComponents(ls)
+    }.foldRight(Seq.empty[Component])((seq, c) => c ++ seq)
+  }
+
+  def getTargets: Seq[Component] = this match {
+    case p: Product => extractComponents(p.productIterator.toSeq)
+    case other => throwInternalError("Must implement getTargets")
+  }
 }
 
 /** If an Annotation does not target any [[Named]] thing in the circuit, then all updates just

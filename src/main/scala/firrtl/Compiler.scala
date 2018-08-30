@@ -12,6 +12,7 @@ import firrtl.annotations._
 import firrtl.ir.{Circuit, Expression}
 import firrtl.Utils.{error, throwInternalError}
 import firrtl.annotations.SubComponent._
+import firrtl.annotations.transforms.{EliminateComponentPaths, ResolvePaths}
 
 object RenameMap {
   def apply(map: Map[Component, Seq[Component]]) = {
@@ -37,10 +38,14 @@ final class RenameMap private () {
     val isReferences = (key +: remapped).forall(_.isReference)
 
     val checked = if(!(isCircuitNames || isModuleNames || isReferences)) {
-      errors += s"Cannot rename from $key to $remapped!"
+      if(key.isReference && remapped.forall(r => r.isModuleName || r.isReference)) {
+        // Ok to map from references to modules
+      } else {
+        errors += s"Cannot rename from $key to $remapped!"
+      }
       Seq(key)
     } else if(key.isCircuitName && remapped.size > 1) {
-      errors += s"Bad rename: $key is in $set"
+      errors += s"Cannot rename from $key to $remapped!"
       Seq(key)
     } else remapped
 
@@ -170,11 +175,26 @@ case class CircuitState(
     case None =>
       throw new FIRRTLException(s"No EmittedCircuit found! Did you delete any annotations?\n$deletedAnnotations")
   }
+
   /** Helper function for extracting emitted components from annotations */
   def emittedComponents: Seq[EmittedComponent] =
     annotations.collect { case emitted: EmittedAnnotation[_] => emitted.value }
   def deletedAnnotations: Seq[Annotation] =
     annotations.collect { case anno: DeletedAnnotation => anno }
+
+  def resolvePaths(targets: Seq[Component]): CircuitState = {
+    val newCS = new EliminateComponentPaths().runTransform(this.copy(annotations = ResolvePaths(targets) +: annotations ))
+    newCS.copy(form = form)
+  }
+
+  def resolvePathsOf(annoClasses: Class[_]*): CircuitState = {
+    val targets = getAnnotationsOf(annoClasses:_*).flatMap(_.getTargets)
+    if(targets.nonEmpty) resolvePaths(targets) else this
+  }
+
+  def getAnnotationsOf(annoClasses: Class[_]*): AnnotationSeq = {
+    annotations.collect { case a if annoClasses.contains(a.getClass) => a }
+  }
 }
 object CircuitState {
   def apply(circuit: Circuit, form: CircuitForm): CircuitState = apply(circuit, form, Seq())
@@ -271,6 +291,8 @@ abstract class Transform extends LazyLogging {
     state.annotations.collect { case a: LegacyAnnotation if a.transform == this.getClass => a }
   }
 
+  def prepare(state: CircuitState): CircuitState = state
+
   /** Perform the transform and update annotations.
     *
     * @param state Input Firrtl AST
@@ -279,7 +301,7 @@ abstract class Transform extends LazyLogging {
   final def runTransform(state: CircuitState): CircuitState = {
     logger.info(s"======== Starting Transform $name ========")
 
-    val (timeMillis, result) = Utils.time { execute(state) }
+    val (timeMillis, result) = Utils.time { execute(prepare(state)) }
 
     logger.info(s"""----------------------------${"-" * name.size}---------\n""")
     logger.info(f"Time: $timeMillis%.1f ms")
@@ -346,6 +368,16 @@ abstract class SeqTransform extends Transform with SeqTransformBased {
   }
 }
 
+trait ResolvedAnnotationPaths {
+  this: Transform =>
+
+  val annotationClasses: Traversable[Class[_]]
+
+  override def prepare(state: CircuitState): CircuitState = {
+    state.resolvePathsOf(annotationClasses.toSeq:_*)
+  }
+}
+
 /** Defines old API for Emission. Deprecated */
 trait Emitter extends Transform {
   @deprecated("Use emission annotations instead", "firrtl 1.0")
@@ -356,7 +388,7 @@ object CompilerUtils extends LazyLogging {
   /** Generates a sequence of [[Transform]]s to lower a Firrtl circuit
     *
     * @param inputForm [[CircuitForm]] to lower from
-    * @param outputForm [[CircuitForm to lower to
+    * @param outputForm [[CircuitForm]] to lower to
     * @return Sequence of transforms that will lower if outputForm is lower than inputForm
     */
   def getLoweringTransforms(inputForm: CircuitForm, outputForm: CircuitForm): Seq[Transform] = {

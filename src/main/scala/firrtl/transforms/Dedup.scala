@@ -8,7 +8,6 @@ import firrtl.Mappers._
 import firrtl.analyses.InstanceGraph
 import firrtl.annotations.SubComponent.{Instance, OfModule, Ref}
 import firrtl.annotations._
-import firrtl.annotations.transforms.AutoResolution
 import firrtl.passes.{InferTypes, MemPortUtils}
 import firrtl.Utils.throwInternalError
 
@@ -38,7 +37,7 @@ class DedupModules extends Transform {
     */
   def execute(state: CircuitState): CircuitState = {
     val noDedups = state.annotations.collect { case NoDedupAnnotation(ModuleName(m, c)) => m }
-    val (newC, renameMap) = run(state.circuit, noDedups, state.annotations.collect { case a: AutoResolution => a})
+    val (newC, renameMap) = run(state.circuit, noDedups, state.annotations)
     state.copy(circuit = newC, renames = Some(renameMap))
   }
 
@@ -48,7 +47,7 @@ class DedupModules extends Transform {
     * @param noDedups Modules not to dedup
     * @return Deduped Circuit and corresponding RenameMap
     */
-  def run(c: Circuit, noDedups: Seq[String], annos: Seq[AutoResolution]): (Circuit, RenameMap) = {
+  def run(c: Circuit, noDedups: Seq[String], annos: Seq[Annotation]): (Circuit, RenameMap) = {
 
     // RenameMap
     val renameMap = RenameMap()
@@ -259,14 +258,14 @@ object DedupModules {
                   (top: Component,
                    moduleLinearization: Seq[DefModule],
                    noDedups: Set[String],
-                   annotations: Seq[AutoResolution],
+                   annotations: Seq[Annotation],
                    renameMap: RenameMap): Unit = {
     // Build tag2all, name2tag, name2sourceTags
 
-    val module2Annotations = mutable.HashMap.empty[String, mutable.HashSet[AutoResolution]]
+    val module2Annotations = mutable.HashMap.empty[String, mutable.HashSet[Annotation]]
     annotations.foreach { a =>
-      a.targets.foreach { t =>
-        val annos = module2Annotations.getOrElseUpdate(t.module.get, mutable.HashSet.empty[AutoResolution])
+      a.getTargets.foreach { t =>
+        val annos = module2Annotations.getOrElseUpdate(t.module.get, mutable.HashSet.empty[Annotation])
         annos += a
       }
     }
@@ -290,7 +289,7 @@ object DedupModules {
         // Build name-agnostic module
         val agnosticModule = DedupModules.agnostify(top, originalModule, agnosticRename)
         agnosticRename.rename(top.module(originalModule.name), top.module("thisModule"))
-        val agnosticAnnos = module2Annotations.getOrElse(originalModule.name, mutable.HashSet.empty[AutoResolution]).map(_.update(agnosticRename))
+        val agnosticAnnos = module2Annotations.getOrElse(originalModule.name, mutable.HashSet.empty[Annotation]).map(_.update(agnosticRename))
         agnosticRename.delete(top.module(originalModule.name))
 
         // Build tag
@@ -332,16 +331,8 @@ object DedupModules {
     */
   def deduplicate(circuit: Circuit,
                   noDedups: Set[String],
-                  annotations: Seq[AutoResolution],
+                  annotations: Seq[Annotation],
                   renameMap: RenameMap): Map[String, DefModule] = {
-
-
-    val multiTargetMultiModules =
-      annotations.collect {
-        case a if a.targets.nonEmpty && !a.targets.forall(_.module.get == a.targets.head.module.get) => a.targets.map(_.module.get).toSet
-      }.foldLeft(Set.empty[String])((set, m) => set ++ m)
-
-    val allNoDedups = noDedups ++ multiTargetMultiModules
 
     val moduleMap = circuit.modules.map(m => m.name -> m).toMap
     val moduleLinearization = new InstanceGraph(circuit).moduleOrder.map(_.name).reverse.map(moduleMap(_))
@@ -353,7 +344,7 @@ object DedupModules {
 
     val top = Component(Some(circuit.main), None, Nil)
 
-    buildRTLTags(tag2all)(top, moduleLinearization, allNoDedups, annotations, tagMap)
+    buildRTLTags(tag2all)(top, moduleLinearization, noDedups, annotations, tagMap)
 
     // Set tag2name to be the best dedup module name
     val moduleIndex = circuit.modules.zipWithIndex.map{case (m, i) => m.name -> i}.toMap

@@ -3,7 +3,6 @@ package firrtl
 package transforms
 
 import firrtl.annotations._
-import firrtl.annotations.transforms.AutoResolution
 import firrtl.passes.PassException
 
 /** Indicate that DCE should not be run */
@@ -13,7 +12,7 @@ case object NoDCEAnnotation extends NoTargetAnnotation
   *
   * DCE treats the component as a top-level sink of the circuit
   */
-case class DontTouchAnnotation(target: Component) extends SingleTargetAnnotation[Component] with AutoResolution {
+case class DontTouchAnnotation(target: Component) extends SingleTargetAnnotation[Component] {
   def targets = Seq(target)
   def duplicate(n: Component) = this.copy(n)
 }

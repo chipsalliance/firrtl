@@ -1,11 +1,8 @@
 package firrtlTests.annotationTests
 
-import java.io.StringWriter
-
-import firrtl.analyses.IRLookup
 import firrtl.annotations.transforms.EliminateComponentPaths
-import firrtl.{ChirrtlForm, CircuitState, LowFirrtlCompiler, LowFirrtlOptimization, MiddleFirrtlCompiler}
-import firrtl.annotations.Component
+import firrtl.{ChirrtlForm, CircuitForm, CircuitState, LowFirrtlCompiler, LowFirrtlOptimization, LowForm, MiddleFirrtlCompiler, ResolvedAnnotationPaths, Transform}
+import firrtl.annotations.{Annotation, Component, SingleTargetAnnotation}
 import firrtl.annotations.analysis.DuplicationHelper
 import firrtl.transforms.DontTouchAnnotation
 import firrtlTests.{FirrtlMatchers, FirrtlPropSpec}
@@ -48,10 +45,9 @@ class EliminateComponentPathsSpec extends FirrtlPropSpec with FirrtlMatchers {
 
   val inputState = CircuitState(parse(input), ChirrtlForm)
   property("Hierarchical reference should be expanded properly") {
-    val dupMap = new DuplicationHelper()
+    val dupMap = new DuplicationHelper(inputState.circuit.modules.map(_.name).toSet)
 
     val outputState = new MiddleFirrtlCompiler().compile(inputState, Nil)
-    val iRLookup = IRLookup(outputState)
 
     val all = Seq(Top_m1_l1_a, Top_m2_l1_a, Middle_l1_a, Middle_l2_a, Leaf_a, Top, Middle, Leaf)
     //val all = Seq(Leaf)
@@ -76,7 +72,53 @@ class EliminateComponentPathsSpec extends FirrtlPropSpec with FirrtlMatchers {
     println(outputState.annotations.collectFirst{case x: DontTouchAnnotation => x.target}.get.serialize)
   }
 
-  property("No name conflicts between old and new modules") { }
-  property("DupMap is its own class") {}
-  property("") {}
+  property("No name conflicts between old and new modules") {
+    val input =
+      """circuit Top:
+        |  module Middle:
+        |    input i: UInt<1>
+        |    output o: UInt<1>
+        |    o <= i
+        |  module Top:
+        |    input i: UInt<1>
+        |    output o: UInt<1>
+        |    inst m1 of Middle
+        |    inst m2 of Middle
+        |    inst x of Middle___Top_m1
+        |    x.i <= i
+        |    m1.i <= i
+        |    m2.i <= m1.o
+        |    o <= m2.o
+        |  module Middle___Top_m1:
+        |    input i: UInt<1>
+        |    output o: UInt<1>
+        |    o <= i
+        |    node a = i
+      """.stripMargin
+    val checks =
+      """circuit Top :
+        |  module Middle :
+        |  module Top :
+        |  module Middle___Top_m1 :
+        |  module Middle___Top_m1_1 :""".stripMargin.split("\n")
+    case class DummyAnnotation(target: Component) extends SingleTargetAnnotation[Component] {
+      override def duplicate(n: Component): Annotation = DummyAnnotation(target)
+    }
+    class DummyTransform() extends Transform with ResolvedAnnotationPaths {
+      override def inputForm: CircuitForm = LowForm
+      override def outputForm: CircuitForm = LowForm
+
+      override val annotationClasses: Traversable[Class[_]] = Seq(classOf[DummyAnnotation])
+
+      override def execute(state: CircuitState): CircuitState = state
+    }
+    val customTransforms = Seq(new DummyTransform())
+    val Top_m1 = Top.inst("m1").of("Middle")
+    val inputState = CircuitState(parse(input), ChirrtlForm, Seq(DummyAnnotation(Top_m1)))
+    val outputState = new LowFirrtlCompiler().compile(inputState, customTransforms)
+    val outputLines = outputState.circuit.serialize.split("\n")
+    checks.foreach { line =>
+      outputLines should contain (line)
+    }
+  }
 }

@@ -128,7 +128,7 @@ class RenameMapSpec extends FirrtlFlatSpec {
   case class BadRename(from: Named, tos: Seq[Named])
   val badRenames =
     Seq(BadRename(foo, Seq(cir)),
-        BadRename(foo, Seq(modA)),
+        //BadRename(foo, Seq(modA)), TODO: determine semantics!
         BadRename(modA, Seq(foo)),
         BadRename(modA, Seq(cir)),
         BadRename(cir, Seq(foo)),

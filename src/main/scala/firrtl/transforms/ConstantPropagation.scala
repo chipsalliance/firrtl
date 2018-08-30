@@ -47,10 +47,12 @@ object ConstantPropagation {
   }
 }
 
-class ConstantPropagation extends Transform {
+class ConstantPropagation extends Transform with ResolvedAnnotationPaths {
   import ConstantPropagation._
   def inputForm = LowForm
   def outputForm = LowForm
+
+  override val annotationClasses: Traversable[Class[_]] = Seq(classOf[DontTouchAnnotation])
 
   trait FoldCommutativeOp {
     def fold(c1: Literal, c2: Literal): Expression
