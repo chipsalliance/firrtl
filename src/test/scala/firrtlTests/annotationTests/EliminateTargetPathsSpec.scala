@@ -1,6 +1,6 @@
 package firrtlTests.annotationTests
 
-import firrtl.annotations.transforms.EliminateComponentPaths
+import firrtl.annotations.transforms.EliminateTargetPaths
 import firrtl.{ChirrtlForm, CircuitForm, CircuitState, LowFirrtlCompiler, LowFirrtlOptimization, LowForm, MiddleFirrtlCompiler, ResolvedAnnotationPaths, Transform}
 import firrtl.annotations.{Annotation, Target, SingleTargetAnnotation}
 import firrtl.annotations.analysis.DuplicationHelper
@@ -66,7 +66,7 @@ class EliminateTargetPathsSpec extends FirrtlPropSpec with FirrtlMatchers {
     val inputState = CircuitState(parse(input), ChirrtlForm, Seq(DontTouchAnnotation(Top_m1_l1_a)))
     println(input)
     println(Top_m1_l1_a.serialize)
-    val customTransforms = Seq(new EliminateComponentPaths(), new LowFirrtlOptimization())
+    val customTransforms = Seq(new EliminateTargetPaths(), new LowFirrtlOptimization())
     val outputState = new LowFirrtlCompiler().compile(inputState, customTransforms)
     println(outputState.circuit.serialize)
     println(outputState.annotations.collectFirst{case x: DontTouchAnnotation => x.target}.get.serialize)

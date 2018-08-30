@@ -12,7 +12,7 @@ import firrtl.annotations._
 import firrtl.ir.{Circuit, Expression}
 import firrtl.Utils.{error, throwInternalError}
 import firrtl.annotations.TargetToken._
-import firrtl.annotations.transforms.{EliminateComponentPaths, ResolvePaths}
+import firrtl.annotations.transforms.{EliminateTargetPaths, ResolvePaths}
 
 object RenameMap {
   def apply(map: Map[Target, Seq[Target]]) = {
@@ -186,7 +186,7 @@ case class CircuitState(
     annotations.collect { case anno: DeletedAnnotation => anno }
 
   def resolvePaths(targets: Seq[Target]): CircuitState = {
-    val newCS = new EliminateComponentPaths().runTransform(this.copy(annotations = ResolvePaths(targets) +: annotations ))
+    val newCS = new EliminateTargetPaths().runTransform(this.copy(annotations = ResolvePaths(targets) +: annotations ))
     newCS.copy(form = form)
   }
 

@@ -19,7 +19,7 @@ case class ResolvePaths(targets: Seq[Target]) extends Annotation {
   }
 }
 
-class EliminateComponentPaths extends Transform {
+class EliminateTargetPaths extends Transform {
   def inputForm: CircuitForm = HighForm
   def outputForm: CircuitForm = HighForm
 

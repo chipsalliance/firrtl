@@ -9,7 +9,7 @@ import firrtl.Utils.throwInternalError
 import scala.collection.mutable
 
 /**
-  * Used by [[firrtl.annotations.transforms.EliminateComponentPaths]] to eliminate component paths
+  * Used by [[firrtl.annotations.transforms.EliminateTargetPaths]] to eliminate target paths
   * Calculates needed modifications to a circuit's module/instance hierarchy
   */
 case class DuplicationHelper(existingModules: Set[String]) {
