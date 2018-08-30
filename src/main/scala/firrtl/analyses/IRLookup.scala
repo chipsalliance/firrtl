@@ -3,7 +3,7 @@ package firrtl.analyses
 import firrtl.{CircuitState, RenameMap, WDefInstance, WInvalid}
 import firrtl.ir._
 import firrtl.Mappers._
-import firrtl.annotations.{Annotation, Component}
+import firrtl.annotations.{Annotation, Target}
 
 import scala.collection.mutable
 
@@ -33,9 +33,9 @@ case class IRLookup private (c: Circuit) extends Annotation {
   val circuitHash: Int = c.hashCode()
   val circuit: Circuit = c
 
-  import firrtl.annotations.SubComponent._
+  import firrtl.annotations.TargetToken._
 
-  def resolveInstances(comp: Component): Iterable[Component] = {
+  def resolveInstances(comp: Target): Iterable[Target] = {
     require(comp.isLegal)
     if(comp.module.isEmpty)
       modules.keys.flatMap(m => resolveInstances(comp.copy(module = Some(m))))
@@ -56,10 +56,10 @@ case class IRLookup private (c: Circuit) extends Annotation {
     }
   }
 
-  def getDeclaration(comp: Component): IsDeclaration = {
+  def getDeclaration(comp: Target): IsDeclaration = {
     require(comp.circuit.isDefined && comp.circuit.get == circuitName, s"Must query on matching circuit names!")
     require(comp.module.isDefined && modules.contains(comp.module.get), s"Circuit must contain the module: ${comp.module}")
-    require(comp.isComplete, s"Component $comp must be complete before a query")
+    require(comp.isComplete, s"Target $comp must be complete before a query")
 
 
     val (finalModule, declaration) = comp.reference.tails.foldLeft((comp.module.get, None: Option[IsDeclaration])) {

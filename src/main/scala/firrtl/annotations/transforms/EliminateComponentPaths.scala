@@ -3,16 +3,16 @@
 package firrtl.annotations.transforms
 
 import firrtl.Mappers._
-import firrtl.annotations.SubComponent.{Instance, OfModule}
+import firrtl.annotations.TargetToken.{Instance, OfModule}
 import firrtl.annotations.analysis.DuplicationHelper
-import firrtl.annotations.{Annotation, BrittleAnnotation, Component}
+import firrtl.annotations.{Annotation, BrittleAnnotation, Target}
 import firrtl.ir._
 import firrtl.{CircuitForm, CircuitState, HighForm, MidForm, RenameMap, Transform, WDefInstance}
 
 import scala.collection.mutable
 
 
-case class ResolvePaths(targets: Seq[Component]) extends Annotation {
+case class ResolvePaths(targets: Seq[Target]) extends Annotation {
   override def update(renames: RenameMap): Seq[Annotation] = {
     val newTargets = targets.flatMap(t => renames.get(t).getOrElse(Seq(t)))
     Seq(ResolvePaths(newTargets))
@@ -23,7 +23,7 @@ class EliminateComponentPaths extends Transform {
   def inputForm: CircuitForm = HighForm
   def outputForm: CircuitForm = HighForm
 
-  def run(cir: Circuit, targets: Seq[Component]): (Circuit, RenameMap) = {
+  def run(cir: Circuit, targets: Seq[Target]): (Circuit, RenameMap) = {
 
     val dupMap = DuplicationHelper(cir.modules.map(_.name).toSet)
 

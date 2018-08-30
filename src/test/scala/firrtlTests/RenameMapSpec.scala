@@ -7,9 +7,9 @@ import firrtl.FIRRTLException
 import firrtl.annotations._
 
 class RenameMapSpec extends FirrtlFlatSpec {
-  val cir   = Component(Some("Top"), None, Nil)
-  val cir2  = Component(Some("Pot"), None, Nil)
-  val cir3  = Component(Some("Cir3"), None, Nil)
+  val cir   = Target(Some("Top"), None, Nil)
+  val cir2  = Target(Some("Pot"), None, Nil)
+  val cir3  = Target(Some("Cir3"), None, Nil)
   val modA  = cir.module("A")
   val modA2 = cir2.module("A")
   val modB = cir.module("B")

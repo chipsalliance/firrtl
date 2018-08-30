@@ -11,11 +11,11 @@ import scala.collection.mutable
 import firrtl.annotations._
 import firrtl.ir.{Circuit, Expression}
 import firrtl.Utils.{error, throwInternalError}
-import firrtl.annotations.SubComponent._
+import firrtl.annotations.TargetToken._
 import firrtl.annotations.transforms.{EliminateComponentPaths, ResolvePaths}
 
 object RenameMap {
-  def apply(map: Map[Component, Seq[Component]]) = {
+  def apply(map: Map[Target, Seq[Target]]) = {
     val rm = new RenameMap
     rm.addMap(map)
     rm
@@ -29,9 +29,9 @@ object RenameMap {
   */
 // TODO This should probably be refactored into immutable and mutable versions
 final class RenameMap private () {
-  private val underlying = mutable.HashMap[Component, Seq[Component]]()
+  private val underlying = mutable.HashMap[Target, Seq[Target]]()
 
-  private def recursiveGet(set: mutable.HashSet[Component], errors: mutable.ArrayBuffer[String])(key: Component): Seq[Component] = {
+  private def recursiveGet(set: mutable.HashSet[Target], errors: mutable.ArrayBuffer[String])(key: Target): Seq[Target] = {
     val remapped = underlying.getOrElse(key, Seq(key))
     val isCircuitNames = (key +: remapped).forall(_.isCircuitName)
     val isModuleNames = (key +: remapped).forall(_.isModuleName)
@@ -58,11 +58,11 @@ final class RenameMap private () {
     // First, check whole key
     // If it matches, then
     val ret = checked.flatMap {
-      case c@Component(Some(_), None, Nil) => Seq(c)
-      case c@Component(Some(_), Some(_), Nil) => getter(c.copy(module = None)).map(_.copy(module = c.module))
-      case c@Component(Some(_), Some(_), seq) if c.notPath.nonEmpty && c.isPathless =>
+      case c@Target(Some(_), None, Nil) => Seq(c)
+      case c@Target(Some(_), Some(_), Nil) => getter(c.copy(module = None)).map(_.copy(module = c.module))
+      case c@Target(Some(_), Some(_), seq) if c.notPath.nonEmpty && c.isPathless =>
         getter(c.copy(reference = Nil)).map(_.copy(reference = c.reference))
-      case c@Component(Some(_), Some(_), seq) if c.notPath.isEmpty =>
+      case c@Target(Some(_), Some(_), seq) if c.notPath.isEmpty =>
         val (instance, of) = c.path.last
         // Check ref(i)
         val deep = if(c.path.size == 1) c.module.get else c.path.drop(1).last._2.value
@@ -80,7 +80,7 @@ final class RenameMap private () {
         }
         // Check parent path
         renamedOfModule.flatMap(x => if(x.reference.dropRight(2).nonEmpty) getter(x.copy(reference = x.reference.dropRight(2))).map(y => y.copy(reference = y.reference ++ x.reference.takeRight(2))) else Seq(x))
-      case c@Component(Some(_), Some(_), seq) =>
+      case c@Target(Some(_), Some(_), seq) =>
         val path = c.path
         val inlined = getter(c.copy(module = Some(path.head._2.value), reference = c.reference.drop(2))).map(x => x.copy(reference = c.reference.take(2) ++ x.reference))
         inlined.flatMap(x => getter(x.copy(reference = x.justPath)).map(y => y.copy(reference = y.justPath ++ x.notPath)))
@@ -89,12 +89,13 @@ final class RenameMap private () {
     ret
   }
 
-  /** Get renames of a [[Component]]
-    * @note A [[Component]] can only be renamed to one-or-more [[Component]]s
+  /** Get renames of a [[Target]]
+    *
+    * @note A [[Target]] can only be renamed to one-or-more [[Target]]s
     */
-  def get(key: Component): Option[Seq[Component]] = {
+  def get(key: Target): Option[Seq[Target]] = {
     val errors = mutable.ArrayBuffer[String]()
-    val ret = recursiveGet(mutable.HashSet.empty[Component], errors)(key)
+    val ret = recursiveGet(mutable.HashSet.empty[Target], errors)(key)
     if(errors.nonEmpty) throwInternalError(errors.mkString("\n"))
     if(ret.size == 1 && ret.head == key) None else Some(ret)
   }
@@ -111,16 +112,16 @@ final class RenameMap private () {
     circuitName = s
   def rename(from: String, to: String): Unit = rename(from, Seq(to))
   def rename(from: String, tos: Seq[String]): Unit = {
-    val fromName = Component.convertNamed2Component(ComponentName(from, ModuleName(moduleName, CircuitName(circuitName))))
+    val fromName = Target.convertNamed2Target(ComponentName(from, ModuleName(moduleName, CircuitName(circuitName))))
     val tosName = tos map { to =>
-      Component.convertNamed2Component(ComponentName(to, ModuleName(moduleName, CircuitName(circuitName))))
+      Target.convertNamed2Target(ComponentName(to, ModuleName(moduleName, CircuitName(circuitName))))
     }
     rename(fromName, tosName)
   }
-  def rename(from: Component, to: Component): Unit = {
+  def rename(from: Target, to: Target): Unit = {
     rename(from, Seq(to))
   }
-  def rename(from: Component, tos: Seq[Component]): Unit = {
+  def rename(from: Target, tos: Seq[Target]): Unit = {
     tos.foreach { to => require(to.isPathless || (to.path.size == 1 && to.notPath.isEmpty)) }
     (from, tos) match {
       case (x, Seq(y)) if x == y => // TODO is this check expensive in common case?
@@ -131,12 +132,12 @@ final class RenameMap private () {
 
   def delete(names: Seq[String]): Unit = names.foreach(delete(_))
   def delete(name: String): Unit = {
-    delete(Component(Some(circuitName), Some(moduleName), AnnotationUtils.toSubComponents(name)))
+    delete(Target(Some(circuitName), Some(moduleName), AnnotationUtils.toSubComponents(name)))
   }
 
-  def delete(name: Component): Unit =
+  def delete(name: Target): Unit =
     underlying(name) = Seq.empty
-  def addMap(map: Map[Component, Seq[Component]]) =
+  def addMap(map: Map[Target, Seq[Target]]) =
     underlying ++= map
   def serialize: String = underlying.map { case (k, v) =>
     k.serialize + "=>" + v.map(_.serialize).mkString(", ")
@@ -182,7 +183,7 @@ case class CircuitState(
   def deletedAnnotations: Seq[Annotation] =
     annotations.collect { case anno: DeletedAnnotation => anno }
 
-  def resolvePaths(targets: Seq[Component]): CircuitState = {
+  def resolvePaths(targets: Seq[Target]): CircuitState = {
     val newCS = new EliminateComponentPaths().runTransform(this.copy(annotations = ResolvePaths(targets) +: annotations ))
     newCS.copy(form = form)
   }

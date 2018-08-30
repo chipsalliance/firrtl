@@ -64,13 +64,13 @@ object AnnotationUtils {
     case Array(c, m, x) => ComponentName(x, ModuleName(m, CircuitName(c)))
   }
 
-  def toSubComponents(s: String): Seq[SubComponent] = {
-    import SubComponent._
-    def exp2subcomp(e: ir.Expression): Seq[SubComponent] = e match {
+  def toSubComponents(s: String): Seq[TargetToken] = {
+    import TargetToken._
+    def exp2subcomp(e: ir.Expression): Seq[TargetToken] = e match {
       case ir.Reference(name, _)      => Seq(Ref(name))
       case ir.SubField(expr, name, _) => exp2subcomp(expr) :+ Field(name)
       case ir.SubIndex(expr, idx, _)  => exp2subcomp(expr) :+ Index(idx)
-      case ir.SubAccess(expr, idx, _) => Utils.throwInternalError(s"For string $s, cannot convert a subaccess $e into a Component")
+      case ir.SubAccess(expr, idx, _) => Utils.throwInternalError(s"For string $s, cannot convert a subaccess $e into a Target")
     }
     exp2subcomp(toExp(s))
   }

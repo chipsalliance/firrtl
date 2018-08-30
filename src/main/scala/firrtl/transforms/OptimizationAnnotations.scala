@@ -12,14 +12,14 @@ case object NoDCEAnnotation extends NoTargetAnnotation
   *
   * DCE treats the component as a top-level sink of the circuit
   */
-case class DontTouchAnnotation(target: Component) extends SingleTargetAnnotation[Component] {
+case class DontTouchAnnotation(target: Target) extends SingleTargetAnnotation[Target] {
   def targets = Seq(target)
-  def duplicate(n: Component) = this.copy(n)
+  def duplicate(n: Target) = this.copy(n)
 }
 
 object DontTouchAnnotation {
   class DontTouchNotFoundException(module: String, component: String) extends PassException(
-    s"Component marked DONT Touch ($module.$component) not found!\n" +
+    s"Target marked DONT Touch ($module.$component) not found!\n" +
     "Perhaps it is an aggregate type? Currently only leaf components are supported.\n" +
     "Otherwise it was probably accidentally deleted. Please check that your custom passes are not" +
     "responsible and then file an issue on Github."

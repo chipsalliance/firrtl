@@ -2,12 +2,12 @@ package firrtlTests.annotationTests
 
 import firrtl.annotations.transforms.EliminateComponentPaths
 import firrtl.{ChirrtlForm, CircuitForm, CircuitState, LowFirrtlCompiler, LowFirrtlOptimization, LowForm, MiddleFirrtlCompiler, ResolvedAnnotationPaths, Transform}
-import firrtl.annotations.{Annotation, Component, SingleTargetAnnotation}
+import firrtl.annotations.{Annotation, Target, SingleTargetAnnotation}
 import firrtl.annotations.analysis.DuplicationHelper
 import firrtl.transforms.DontTouchAnnotation
 import firrtlTests.{FirrtlMatchers, FirrtlPropSpec}
 
-class EliminateComponentPathsSpec extends FirrtlPropSpec with FirrtlMatchers {
+class EliminateTargetPathsSpec extends FirrtlPropSpec with FirrtlMatchers {
   val input =
     """circuit Top:
       |  module Leaf:
@@ -33,9 +33,9 @@ class EliminateComponentPathsSpec extends FirrtlPropSpec with FirrtlMatchers {
       |    o <= m2.o
     """.stripMargin
   println(input)
-  val Top = Component(Some("Top"), Some("Top"), Nil)
-  val Middle = Component(Some("Top"), Some("Middle"), Nil)
-  val Leaf = Component(Some("Top"), Some("Leaf"), Nil)
+  val Top = Target(Some("Top"), Some("Top"), Nil)
+  val Middle = Target(Some("Top"), Some("Middle"), Nil)
+  val Leaf = Target(Some("Top"), Some("Leaf"), Nil)
 
   val Top_m1_l1_a = Top.inst("m1").of("Middle").inst("l1").of("Leaf").ref("a")
   val Top_m2_l1_a = Top.inst("m2").of("Middle").inst("l1").of("Leaf").ref("a")
@@ -101,8 +101,8 @@ class EliminateComponentPathsSpec extends FirrtlPropSpec with FirrtlMatchers {
         |  module Top :
         |  module Middle___Top_m1 :
         |  module Middle___Top_m1_1 :""".stripMargin.split("\n")
-    case class DummyAnnotation(target: Component) extends SingleTargetAnnotation[Component] {
-      override def duplicate(n: Component): Annotation = DummyAnnotation(target)
+    case class DummyAnnotation(target: Target) extends SingleTargetAnnotation[Target] {
+      override def duplicate(n: Target): Annotation = DummyAnnotation(target)
     }
     class DummyTransform() extends Transform with ResolvedAnnotationPaths {
       override def inputForm: CircuitForm = LowForm

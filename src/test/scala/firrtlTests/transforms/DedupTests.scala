@@ -11,8 +11,8 @@ import firrtl.transforms.DedupModules
  * Tests inline instances transformation
  */
 class DedupModuleTests extends HighTransformSpec {
-  case class MultiTargetDummyAnnotation(targets: Seq[Component], tag: Int) extends BrittleAnnotation {
-    override def duplicate(targets: Seq[Component]): BrittleAnnotation = MultiTargetDummyAnnotation(targets, tag)
+  case class MultiTargetDummyAnnotation(targets: Seq[Target], tag: Int) extends BrittleAnnotation {
+    override def duplicate(targets: Seq[Target]): BrittleAnnotation = MultiTargetDummyAnnotation(targets, tag)
   }
   case class SingleTargetDummyAnnotation(target: ComponentName) extends SingleTargetAnnotation[ComponentName] {
     override def duplicate(n: ComponentName): Annotation = SingleTargetDummyAnnotation(n)
@@ -413,7 +413,7 @@ class DedupModuleTests extends HighTransformSpec {
         |    output x: UInt<1>
         |    x <= UInt(1)
       """.stripMargin
-    val Top = Component(Some("Top"), None, Nil)
+    val Top = Target(Some("Top"), None, Nil)
     val A = Top.module("A")
     val B = Top.module("B")
     val A_ = Top.module("A_")
@@ -458,7 +458,7 @@ class DedupModuleTests extends HighTransformSpec {
         |    output x: UInt<1>
         |    x <= UInt(1)
       """.stripMargin
-    val Top = Component(Some("Top"), None, Nil)
+    val Top = Target(Some("Top"), None, Nil)
     val A = Top.module("A")
     val A_ = Top.module("A_")
     val annoA = MultiTargetDummyAnnotation(Seq(A, A.inst("b").of("B")), 0)

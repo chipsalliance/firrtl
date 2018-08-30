@@ -23,14 +23,14 @@ trait Annotation extends Product {
     */
   def serialize: String = this.toString
 
-  private def extractComponents(ls: scala.collection.Traversable[_]): Seq[Component] = {
+  private def extractComponents(ls: scala.collection.Traversable[_]): Seq[Target] = {
     ls.collect {
-      case c: Component => Seq(c)
+      case c: Target => Seq(c)
       case ls: scala.collection.Traversable[_] => extractComponents(ls)
-    }.foldRight(Seq.empty[Component])((seq, c) => c ++ seq)
+    }.foldRight(Seq.empty[Target])((seq, c) => c ++ seq)
   }
 
-  def getTargets: Seq[Component] = this match {
+  def getTargets: Seq[Target] = this match {
     case p: Product => extractComponents(p.productIterator.toSeq)
     case other => throwInternalError("Must implement getTargets")
   }
@@ -55,11 +55,11 @@ trait SingleTargetAnnotation[T <: Named] extends Annotation {
   // invoking duplicate if newTarget cannot be cast to T (only possible in the concrete subclass)
   def update(renames: RenameMap): Seq[Annotation] = {
     target match {
-      case c: Component =>
+      case c: Target =>
         renames.get(c).map(newTargets => newTargets.map(t => duplicate(t.asInstanceOf[T]))).getOrElse(List(this))
       case _: Named =>
-        val ret = renames.get(Component.convertNamed2Component(target))
-        ret.map(_.map(newT => Component.convertComponent2Named(newT: @unchecked) match {
+        val ret = renames.get(Target.convertNamed2Target(target))
+        ret.map(_.map(newT => Target.convertTarget2Named(newT: @unchecked) match {
           case newTarget: T @unchecked =>
             try {
               duplicate(newTarget)
@@ -76,12 +76,12 @@ trait SingleTargetAnnotation[T <: Named] extends Annotation {
 }
 
 trait BrittleAnnotation extends Annotation with Product with Serializable {
-  def targets: Seq[Component]
-  def duplicate(targets: Seq[Component]): BrittleAnnotation
+  def targets: Seq[Target]
+  def duplicate(targets: Seq[Target]): BrittleAnnotation
 
   override def update(renames: RenameMap): Seq[Annotation] = {
     val errors = mutable.ArrayBuffer[String]()
-    def rename(y: Component): Component = {
+    def rename(y: Target): Target = {
       renames.get(y) match {
         case Some(Seq(x)) => x
         case None => y

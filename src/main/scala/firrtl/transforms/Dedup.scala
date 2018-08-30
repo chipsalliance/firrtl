@@ -6,7 +6,7 @@ package transforms
 import firrtl.ir._
 import firrtl.Mappers._
 import firrtl.analyses.InstanceGraph
-import firrtl.annotations.SubComponent.{Instance, OfModule, Ref}
+import firrtl.annotations.TargetToken.{Instance, OfModule, Ref}
 import firrtl.annotations._
 import firrtl.passes.{InferTypes, MemPortUtils}
 import firrtl.Utils.throwInternalError
@@ -79,7 +79,7 @@ class DedupModules extends Transform {
         logger.debug(s"[Dedup] $from -> ${to.name}")
         ModuleName(from, cname) -> List(ModuleName(to.name, cname))
       }
-    renameMap.addMap(map.map{ case (k: ModuleName, v: List[ModuleName]) => Component.convertNamed2Component(k) -> v.map(Component.convertNamed2Component)})
+    renameMap.addMap(map.map{ case (k: ModuleName, v: List[ModuleName]) => Target.convertNamed2Target(k) -> v.map(Target.convertNamed2Target)})
 
     (InferTypes.run(c.copy(modules = dedupedModules)), renameMap)
   }
@@ -154,7 +154,7 @@ object DedupModules {
     * @param module module to change
     * @return name-agnostic module
     */
-  def agnostify(top: Component,
+  def agnostify(top: Target,
                 module: DefModule,
                 renameMap: RenameMap
                ): DefModule = {
@@ -169,7 +169,7 @@ object DedupModules {
     def rename(name: String): String = {
       val ret = renameMap.get(top.module(module.name).ref(name))
       ret match {
-        case Some(Seq(Component(_, _, Seq(Ref(x))))) => x
+        case Some(Seq(Target(_, _, Seq(Ref(x))))) => x
         case None =>
           val newName = namespace.newTemp
           renameMap.rename(name, newName)
@@ -193,7 +193,7 @@ object DedupModules {
 
     def reOfModule(instance: String, ofModule: String): String = {
       renameMap.get(top.module(ofModule)) match {
-        case Some(Seq(Component(_, Some(ofModuleTag), Nil))) => ofModuleTag
+        case Some(Seq(Target(_, Some(ofModuleTag), Nil))) => ofModuleTag
         case None => ofModule
         case other => throwInternalError(other.toString)
       }
@@ -213,7 +213,7 @@ object DedupModules {
     * @param renameMap Will be modified to keep track of renames in this function
     * @return fixed up module deduped instances
     */
-  def dedupInstances(top: Component, originalModule: String, moduleMap: Map[String, DefModule], name2name: Map[String, String], renameMap: RenameMap): DefModule = {
+  def dedupInstances(top: Target, originalModule: String, moduleMap: Map[String, DefModule], name2name: Map[String, String], renameMap: RenameMap): DefModule = {
     val module = moduleMap(originalModule)
 
     // If black box, return it (it has no instances)
@@ -255,7 +255,7 @@ object DedupModules {
   }
 
   def buildRTLTags(tag2all: mutable.HashMap[String, mutable.HashSet[String]])
-                  (top: Component,
+                  (top: Target,
                    moduleLinearization: Seq[DefModule],
                    noDedups: Set[String],
                    annotations: Seq[Annotation],
@@ -342,7 +342,7 @@ object DedupModules {
 
     val tagMap = RenameMap()
 
-    val top = Component(Some(circuit.main), None, Nil)
+    val top = Target(Some(circuit.main), None, Nil)
 
     buildRTLTags(tag2all)(top, moduleLinearization, noDedups, annotations, tagMap)
 
@@ -357,7 +357,7 @@ object DedupModules {
     // Create map from original to dedup name
     val name2name = moduleMap.keysIterator.map{ originalModule =>
       tagMap.get(top.module(originalModule)) match {
-        case Some(Seq(Component(_, Some(tag), Nil))) => originalModule -> tag2name(tag)
+        case Some(Seq(Target(_, Some(tag), Nil))) => originalModule -> tag2name(tag)
         case None => originalModule -> originalModule
         case other => throwInternalError(other.toString)
       }

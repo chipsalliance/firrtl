@@ -2,8 +2,8 @@
 
 package firrtl.annotations.analysis
 
-import firrtl.annotations.{Component, SubComponent}
-import firrtl.annotations.SubComponent.{Instance, OfModule}
+import firrtl.annotations.{Target, TargetToken}
+import firrtl.annotations.TargetToken.{Instance, OfModule}
 import firrtl.Utils.throwInternalError
 
 import scala.collection.mutable
@@ -23,7 +23,7 @@ case class DuplicationHelper(existingModules: Set[String]) {
     * expressed as a reference in a module (e.g. uniquify/duplicate the instance path in c's reference)
     * @param c An instance-resolved component
     */
-  def expandHierarchy(c: Component): Unit = {
+  def expandHierarchy(c: Target): Unit = {
     require(c.circuit.isDefined)
     require(c.module.isDefined)
     c.growingPath.foreach { p =>
@@ -113,12 +113,12 @@ case class DuplicationHelper(existingModules: Set[String]) {
     * @param c A component
     * @return c rewritten, is a seq because if the c.module has been duplicated, it must now refer to multiple modules
     */
-  def makePathless(c: Component): Seq[Component] = {
+  def makePathless(c: Target): Seq[Target] = {
     val top = c.module.get
     val path = c.path
     val newTops = getDuplicates(top)
     newTops.map { newTop =>
-      val newPath = mutable.ArrayBuffer[SubComponent]()
+      val newPath = mutable.ArrayBuffer[TargetToken]()
       path.foldLeft((top, newTop)) { case ((originalModule, newModule), (instance, ofModule)) =>
         val newOfModule = getNewOfModule(originalModule, newModule, instance, ofModule)
         newPath ++= Seq(instance, newOfModule)
