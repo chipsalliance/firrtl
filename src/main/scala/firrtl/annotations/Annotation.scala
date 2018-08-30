@@ -75,29 +75,6 @@ trait SingleTargetAnnotation[T <: Named] extends Annotation {
   }
 }
 
-trait BrittleAnnotation extends Annotation with Product with Serializable {
-  def targets: Seq[Target]
-  def duplicate(targets: Seq[Target]): BrittleAnnotation
-
-  override def update(renames: RenameMap): Seq[Annotation] = {
-    val errors = mutable.ArrayBuffer[String]()
-    def rename(y: Target): Target = {
-      renames.get(y) match {
-        case Some(Seq(x)) => x
-        case None => y
-        case other =>
-          val msg = s"${this.getClass.getName} target ${y.getClass.getName} " +
-            s"cannot be renamed to $other"
-          errors += msg
-          y
-      }
-    }
-    val newTargets = targets.map(rename)
-    if(errors.nonEmpty) throw AnnotationException(errors.mkString("\n"))
-    Seq(duplicate(newTargets))
-  }
-}
-
 @deprecated("Just extend NoTargetAnnotation", "1.1")
 trait SingleStringAnnotation extends NoTargetAnnotation {
   def value: String

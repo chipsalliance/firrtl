@@ -31,6 +31,8 @@ object RenameMap {
 final class RenameMap private () {
   private val underlying = mutable.HashMap[Target, Seq[Target]]()
 
+  def apply(t: Target): Seq[Target] = get(t).getOrElse(Seq(t))
+
   private def recursiveGet(set: mutable.HashSet[Target], errors: mutable.ArrayBuffer[String])(key: Target): Seq[Target] = {
     val remapped = underlying.getOrElse(key, Seq(key))
     val isCircuitNames = (key +: remapped).forall(_.isCircuitName)

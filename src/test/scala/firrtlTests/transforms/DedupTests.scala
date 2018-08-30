@@ -3,6 +3,7 @@
 package firrtlTests
 package transforms
 
+import firrtl.RenameMap
 import firrtl.annotations._
 import firrtl.transforms.DedupModules
 
@@ -11,8 +12,11 @@ import firrtl.transforms.DedupModules
  * Tests inline instances transformation
  */
 class DedupModuleTests extends HighTransformSpec {
-  case class MultiTargetDummyAnnotation(targets: Seq[Target], tag: Int) extends BrittleAnnotation {
-    override def duplicate(targets: Seq[Target]): BrittleAnnotation = MultiTargetDummyAnnotation(targets, tag)
+  case class MultiTargetDummyAnnotation(targets: Seq[Target], tag: Int) extends Annotation {
+    override def update(renames: RenameMap): Seq[Annotation] = {
+      val newTargets = targets.flatMap(renames(_))
+      Seq(MultiTargetDummyAnnotation(newTargets, tag))
+    }
   }
   case class SingleTargetDummyAnnotation(target: ComponentName) extends SingleTargetAnnotation[ComponentName] {
     override def duplicate(n: ComponentName): Annotation = SingleTargetDummyAnnotation(n)

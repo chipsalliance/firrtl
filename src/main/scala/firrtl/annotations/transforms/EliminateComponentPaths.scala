@@ -5,7 +5,7 @@ package firrtl.annotations.transforms
 import firrtl.Mappers._
 import firrtl.annotations.TargetToken.{Instance, OfModule}
 import firrtl.annotations.analysis.DuplicationHelper
-import firrtl.annotations.{Annotation, BrittleAnnotation, Target}
+import firrtl.annotations.{Annotation, Target}
 import firrtl.ir._
 import firrtl.{CircuitForm, CircuitState, HighForm, MidForm, RenameMap, Transform, WDefInstance}
 
