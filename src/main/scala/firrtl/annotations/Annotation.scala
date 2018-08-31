@@ -56,7 +56,8 @@ trait SingleTargetAnnotation[T <: Named] extends Annotation {
   def update(renames: RenameMap): Seq[Annotation] = {
     target match {
       case c: Target =>
-        renames.get(c).map(newTargets => newTargets.map(t => duplicate(t.asInstanceOf[T]))).getOrElse(List(this))
+        val x = renames.get(c)
+        x.map(newTargets => newTargets.map(t => duplicate(t.asInstanceOf[T]))).getOrElse(List(this))
       case _: Named =>
         val ret = renames.get(Target.convertNamed2Target(target))
         ret.map(_.map(newT => Target.convertTarget2Named(newT: @unchecked) match {

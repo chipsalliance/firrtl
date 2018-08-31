@@ -32,13 +32,15 @@ class EliminateTargetPathsSpec extends FirrtlPropSpec with FirrtlMatchers {
       |    m2.i <= m1.o
       |    o <= m2.o
     """.stripMargin
-  println(input)
+
   val Top = Target(Some("Top"), Some("Top"), Nil)
   val Middle = Target(Some("Top"), Some("Middle"), Nil)
   val Leaf = Target(Some("Top"), Some("Leaf"), Nil)
 
   val Top_m1_l1_a = Top.inst("m1").of("Middle").inst("l1").of("Leaf").ref("a")
   val Top_m2_l1_a = Top.inst("m2").of("Middle").inst("l1").of("Leaf").ref("a")
+  val Top_m1_l2_a = Top.inst("m1").of("Middle").inst("l2").of("Leaf").ref("a")
+  val Top_m2_l2_a = Top.inst("m2").of("Middle").inst("l2").of("Leaf").ref("a")
   val Middle_l1_a = Middle.inst("l1").of("Leaf").ref("a")
   val Middle_l2_a = Middle.inst("l2").of("Leaf").ref("a")
   val Leaf_a = Leaf.ref("a")
@@ -47,29 +49,101 @@ class EliminateTargetPathsSpec extends FirrtlPropSpec with FirrtlMatchers {
   property("Hierarchical reference should be expanded properly") {
     val dupMap = new DuplicationHelper(inputState.circuit.modules.map(_.name).toSet)
 
-    val outputState = new MiddleFirrtlCompiler().compile(inputState, Nil)
 
-    val all = Seq(Top_m1_l1_a, Top_m2_l1_a, Middle_l1_a, Middle_l2_a, Leaf_a, Top, Middle, Leaf)
-    //val all = Seq(Leaf)
-
+    // Only a few instance references
     dupMap.expandHierarchy(Top_m1_l1_a)
     dupMap.expandHierarchy(Top_m2_l1_a)
     dupMap.expandHierarchy(Middle_l1_a)
-    dupMap.expandHierarchy(Leaf_a)
 
-    all.foreach { c =>
-      val cs = dupMap.makePathless(c)
-      println(s"""${c.serialize} => \n${cs.map("    " + _.serialize).mkString("\n")}""")
+    dupMap.makePathless(Top_m1_l1_a).foreach {Set(Top.module("Leaf___Top_m1_l1").ref("a")) should contain (_)}
+    dupMap.makePathless(Top_m2_l1_a).foreach {Set(Top.module("Leaf___Top_m2_l1").ref("a")) should contain (_)}
+    dupMap.makePathless(Top_m1_l2_a).foreach {Set(Leaf_a) should contain (_)}
+    dupMap.makePathless(Top_m2_l2_a).foreach {Set(Leaf_a) should contain (_)}
+    dupMap.makePathless(Middle_l1_a).foreach {Set(
+      Top.module("Leaf___Top_m1_l1").ref("a"),
+      Top.module("Leaf___Top_m2_l1").ref("a"),
+      Top.module("Leaf___Middle_l1").ref("a")
+    ) should contain (_) }
+    dupMap.makePathless(Middle_l2_a).foreach {Set(Leaf_a) should contain (_)}
+    dupMap.makePathless(Leaf_a).foreach {Set(
+      Top.module("Leaf___Top_m1_l1").ref("a"),
+      Top.module("Leaf___Top_m2_l1").ref("a"),
+      Top.module("Leaf___Middle_l1").ref("a"),
+      Leaf_a
+    ) should contain (_)}
+    dupMap.makePathless(Top).foreach {Set(Top) should contain (_)}
+    dupMap.makePathless(Middle).foreach {Set(
+      Top.module("Middle___Top_m1"),
+      Top.module("Middle___Top_m2"),
+      Middle
+    ) should contain (_)}
+    dupMap.makePathless(Leaf).foreach {Set(
+      Top.module("Leaf___Top_m1_l1"),
+      Top.module("Leaf___Top_m2_l1"),
+      Top.module("Leaf___Middle_l1"),
+      Leaf
+    ) should contain (_) }
+
+    val targets = Seq(Top_m1_l1_a, Top_m2_l1_a, Middle_l1_a, Middle_l2_a, Leaf_a, Top, Middle, Leaf)
+    targets.foreach { t =>
+      val newTargets = dupMap.makePathless(t)
+      println(s"""${t.serialize} => \n${newTargets.map("    " + _.serialize).mkString("\n")}""")
     }
   }
+
   property("Hierarchical donttouch should be resolved properly") {
     val inputState = CircuitState(parse(input), ChirrtlForm, Seq(DontTouchAnnotation(Top_m1_l1_a)))
-    println(input)
-    println(Top_m1_l1_a.serialize)
-    val customTransforms = Seq(new EliminateTargetPaths(), new LowFirrtlOptimization())
+    val customTransforms = Seq(new LowFirrtlOptimization())
     val outputState = new LowFirrtlCompiler().compile(inputState, customTransforms)
-    println(outputState.circuit.serialize)
-    println(outputState.annotations.collectFirst{case x: DontTouchAnnotation => x.target}.get.serialize)
+    val check =
+      """circuit Top :
+        |  module Leaf___Top_m1_l1 :
+        |    input i : UInt<1>
+        |    output o : UInt<1>
+        |
+        |    node a = i
+        |    o <= i
+        |
+        |  module Leaf :
+        |    input i : UInt<1>
+        |    output o : UInt<1>
+        |
+        |    skip
+        |    o <= i
+        |
+        |  module Middle___Top_m1 :
+        |    input i : UInt<1>
+        |    output o : UInt<1>
+        |
+        |    inst l1 of Leaf___Top_m1_l1
+        |    inst l2 of Leaf
+        |    o <= l2.o
+        |    l1.i <= i
+        |    l2.i <= l1.o
+        |
+        |  module Middle :
+        |    input i : UInt<1>
+        |    output o : UInt<1>
+        |
+        |    inst l1 of Leaf
+        |    inst l2 of Leaf
+        |    o <= l2.o
+        |    l1.i <= i
+        |    l2.i <= l1.o
+        |
+        |  module Top :
+        |    input i : UInt<1>
+        |    output o : UInt<1>
+        |
+        |    inst m1 of Middle___Top_m1
+        |    inst m2 of Middle
+        |    o <= m2.o
+        |    m1.i <= i
+        |    m2.i <= m1.o
+        |
+      """.stripMargin
+    canonicalize(outputState.circuit).serialize should be (canonicalize(parse(check)).serialize)
+    outputState.annotations.collect{case x: DontTouchAnnotation => x.target} should be (Seq(Top.module("Leaf___Top_m1_l1").ref("a")))
   }
 
   property("No name conflicts between old and new modules") {

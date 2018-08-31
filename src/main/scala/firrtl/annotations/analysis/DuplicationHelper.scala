@@ -19,15 +19,15 @@ case class DuplicationHelper(existingModules: Set[String]) {
   private val dupMap = new DupMap()
 
   /**
-    * Updates internal state to calculate instance hierarchy modifications so c's reference in an instance can be
-    * expressed as a reference in a module (e.g. uniquify/duplicate the instance path in c's reference)
-    * @param c An instance-resolved component
+    * Updates internal state to calculate instance hierarchy modifications so t's reference in an instance can be
+    * expressed as a reference in a module (e.g. uniquify/duplicate the instance path in t's reference)
+    * @param t An instance-resolved component
     */
-  def expandHierarchy(c: Target): Unit = {
-    require(c.circuit.isDefined)
-    require(c.module.isDefined)
-    c.growingPath.foreach { p =>
-      duplicate(c.module.get, p)
+  def expandHierarchy(t: Target): Unit = {
+    require(t.circuit.isDefined)
+    require(t.module.isDefined)
+    t.growingPath.foreach { p =>
+      duplicate(t.module.get, p)
     }
   }
 
@@ -109,13 +109,13 @@ case class DuplicationHelper(existingModules: Set[String]) {
   }
 
   /**
-    * Rewrites c with new module/instance hierarchy calculated after repeated calls to [[expandHierarchy]]
-    * @param c A component
-    * @return c rewritten, is a seq because if the c.module has been duplicated, it must now refer to multiple modules
+    * Rewrites t with new module/instance hierarchy calculated after repeated calls to [[expandHierarchy]]
+    * @param t A target
+    * @return t rewritten, is a seq because if the t.module has been duplicated, it must now refer to multiple modules
     */
-  def makePathless(c: Target): Seq[Target] = {
-    val top = c.module.get
-    val path = c.path
+  def makePathless(t: Target): Seq[Target] = {
+    val top = t.module.get
+    val path = t.path
     val newTops = getDuplicates(top)
     newTops.map { newTop =>
       val newPath = mutable.ArrayBuffer[TargetToken]()
@@ -125,7 +125,7 @@ case class DuplicationHelper(existingModules: Set[String]) {
         (ofModule.value, newOfModule.value)
       }
       val module = if(newPath.nonEmpty) newPath.last.value.toString else newTop
-      c.copy(module = Some(module), reference = c.notPath)
+      t.copy(module = Some(module), reference = t.notPath)
     }.toSeq
   }
 }

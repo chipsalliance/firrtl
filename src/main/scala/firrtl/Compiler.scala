@@ -71,7 +71,7 @@ final class RenameMap private () {
         val renamedInstance = getter(c.copy(module = Some(deep), reference = Seq(Ref(instance.value)))).map{ x =>
           require(x.notPath.size == 1)
           val newRef = x.reference.last.value.toString
-          x.copy(reference = c.reference.drop(2) ++ Seq(Instance(newRef), of))
+          x.copy(reference = c.reference.dropRight(2) ++ Seq(Instance(newRef), of), module = c.module)
         }
         // Check of(m)
         val renamedModule = getter(c.copy(module = Some(of.value), reference = Nil))
@@ -81,11 +81,17 @@ final class RenameMap private () {
           renamedInstance
         }
         // Check parent path
-        renamedOfModule.flatMap(x => if(x.reference.dropRight(2).nonEmpty) getter(x.copy(reference = x.reference.dropRight(2))).map(y => y.copy(reference = y.reference ++ x.reference.takeRight(2))) else Seq(x))
+        renamedOfModule.flatMap(x =>
+          if(x.reference.dropRight(2).nonEmpty)
+            getter(x.copy(reference = x.reference.dropRight(2))).map(y => x.copy(reference = y.reference ++ x.reference.takeRight(2)))
+          else
+            Seq(x)
+        )
       case c@Target(Some(_), Some(_), seq) =>
         val path = c.path
-        val inlined = getter(c.copy(module = Some(path.head._2.value), reference = c.reference.drop(2))).map(x => x.copy(reference = c.reference.take(2) ++ x.reference))
-        inlined.flatMap(x => getter(x.copy(reference = x.justPath)).map(y => y.copy(reference = y.justPath ++ x.notPath)))
+        val inlined = getter(c.copy(module = Some(path.head._2.value), reference = c.reference.drop(2))).map(x => x.copy(module = c.module, reference = c.reference.take(2) ++ x.reference))
+        val ret = inlined.flatMap(x => getter(x.copy(reference = x.justPath)).map(y => y.copy(reference = y.justPath ++ x.notPath)))
+        ret
     }
     set -= key
     ret
