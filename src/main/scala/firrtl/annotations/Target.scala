@@ -222,11 +222,13 @@ case class Target(circuit: Option[String],
     * all Instance(_) are followed by OfModule(_)
     * @return
     */
-  def isComplete: Boolean = circuit.nonEmpty && module.nonEmpty && isLegal && reference.tails.forall {
-    case Instance(_) :: OfModule(_) :: tail => true
-    case Instance(_) :: x :: tail => false
-    case x :: OfModule(_) :: tail => false
-    case _ => true
+  def isComplete: Boolean = {
+    isLegal && (isCircuitName || isModuleName || (isReference && reference.tails.forall {
+      case Instance(_) :: OfModule(_) :: tail => true
+      case Instance(_) :: x :: tail => false
+      case x :: OfModule(_) :: tail => false
+      case _ => true
+    } ))
   }
 
   /**

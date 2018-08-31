@@ -66,8 +66,12 @@ final class RenameMap private () {
       val ret = checked.flatMap {
         case c@Target(Some(_), None, Nil) => Seq(c)
         case c@Target(Some(_), Some(_), Nil) => getter(c.copy(module = None)).map(_.copy(module = c.module))
-        case c@Target(Some(_), Some(_), seq) if c.notPath.nonEmpty && c.isPathless =>
+        case c@Target(Some(_), Some(_), seq) if c.notPath.nonEmpty && c.isPathless && c.reference.size == 1 =>
+          // Is plain reference
           getter(c.copy(reference = Nil)).map(_.copy(reference = c.reference))
+        case c@Target(Some(_), Some(_), seq) if c.notPath.nonEmpty && c.isPathless =>
+          // Is reference with fields/indexes
+          getter(c.copy(reference = c.reference.dropRight(1))).map(x => x.copy(reference = x.reference :+ c.reference.last))
         case c@Target(Some(_), Some(_), seq) if c.notPath.isEmpty =>
           val (instance, of) = c.path.last
           // Check ref(i)
@@ -142,7 +146,11 @@ final class RenameMap private () {
     rename(from, Seq(to))
   }
   def rename(from: Target, tos: Seq[Target]): Unit = {
-    tos.foreach { to => require(to.isPathless || (to.path.size == 1 && to.notPath.isEmpty)) }
+    require(from.isComplete, s"Cannot rename from an incomplete target: $from")
+    tos.foreach { to =>
+      require(to.isPathless || (to.path.size == 1 && to.notPath.isEmpty), s"Cannot rename to a target with a path: $to")
+      require(to.isComplete, s"Cannot rename to an incomplete target: $to")
+    }
     (from, tos) match {
       case (x, Seq(y)) if x == y => // TODO is this check expensive in common case?
       case _ =>

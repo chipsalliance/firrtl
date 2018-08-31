@@ -165,6 +165,24 @@ class RenameMapSpec extends FirrtlFlatSpec {
     }
   }
 
+  it should "rename with multiple renames" in {
+    val renames = RenameMap()
+    val Middle2 = cir.module("Middle2")
+    renames.rename(Middle, Middle2)
+    renames.rename(Middle.ref("l"), Middle.ref("lx"))
+    renames.get(Middle.ref("l")) should be (Some(Seq(Middle2.ref("lx"))))
+  }
+
+  it should "rename with fields" in {
+    val Middle_o = Middle.ref("o")
+    val Middle_i = Middle.ref("i")
+    val Middle_o_f = Middle.ref("o").field("f")
+    val Middle_i_f = Middle.ref("i").field("f")
+    val renames = RenameMap()
+    renames.rename(Middle_o, Middle_i)
+    renames.get(Middle_o_f) should be (Some(Seq(Middle_i_f)))
+  }
+
 
   // Renaming `from` to each of the `tos` at the same time should error
   case class BadRename(from: Named, tos: Seq[Named])
