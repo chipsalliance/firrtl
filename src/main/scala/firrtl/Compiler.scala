@@ -99,9 +99,9 @@ final class RenameMap private () {
       }
       set -= key
       cache(key) = ret
-      if(ret.head != key) {
+      //if(ret.head != key) {
         //println("==" * set.size + (if(ret.size == 1) ret.head.serialize else ret.map(_.serialize)))
-      }
+      //}
       ret
     }
   }
