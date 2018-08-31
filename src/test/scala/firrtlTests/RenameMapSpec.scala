@@ -153,15 +153,15 @@ class RenameMapSpec extends FirrtlFlatSpec {
   }
 
   it should "quickly rename a target with a long path" in {
-    val renames = RenameMap()
-    renames.rename(Top_m_l, Top_m)
-    ('A' until 'Z').foreach { endChar =>
-      val deepTarget = ('A' until endChar).foldLeft(Top) { (t, char) =>
-        t.instOf(char.toLower.toString, char.toString)
+    (0 until 50 by 10).foreach { endIdx =>
+      val renames = RenameMap()
+      renames.rename(Top_m_l, Top_m)
+      val deepTarget = (0 until endIdx).foldLeft(Top) { (t, idx) =>
+        t.instOf("a", "A" + idx)
       }.ref("ref")
       val (millis, rename) = firrtl.Utils.time(renames.get(deepTarget))
-      println(s"${(deepTarget.reference.size - 1)/2} -> $millis")
-      rename should be (None)
+      println(s"${(deepTarget.reference.size - 1) / 2} -> $millis")
+      rename should be(None)
     }
   }
 
