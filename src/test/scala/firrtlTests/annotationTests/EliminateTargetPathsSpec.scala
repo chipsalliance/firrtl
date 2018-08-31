@@ -45,6 +45,19 @@ class EliminateTargetPathsSpec extends FirrtlPropSpec with FirrtlMatchers {
   val Middle_l2_a = Middle.inst("l2").of("Leaf").ref("a")
   val Leaf_a = Leaf.ref("a")
 
+  case class DummyAnnotation(target: Target) extends SingleTargetAnnotation[Target] {
+    override def duplicate(n: Target): Annotation = DummyAnnotation(target)
+  }
+  class DummyTransform() extends Transform with ResolvedAnnotationPaths {
+    override def inputForm: CircuitForm = LowForm
+    override def outputForm: CircuitForm = LowForm
+
+    override val annotationClasses: Traversable[Class[_]] = Seq(classOf[DummyAnnotation])
+
+    override def execute(state: CircuitState): CircuitState = state
+  }
+  val customTransforms = Seq(new DummyTransform())
+
   val inputState = CircuitState(parse(input), ChirrtlForm)
   property("Hierarchical reference should be expanded properly") {
     val dupMap = new DuplicationHelper(inputState.circuit.modules.map(_.name).toSet)
@@ -175,24 +188,55 @@ class EliminateTargetPathsSpec extends FirrtlPropSpec with FirrtlMatchers {
         |  module Top :
         |  module Middle___Top_m1 :
         |  module Middle___Top_m1_1 :""".stripMargin.split("\n")
-    case class DummyAnnotation(target: Target) extends SingleTargetAnnotation[Target] {
-      override def duplicate(n: Target): Annotation = DummyAnnotation(target)
-    }
-    class DummyTransform() extends Transform with ResolvedAnnotationPaths {
-      override def inputForm: CircuitForm = LowForm
-      override def outputForm: CircuitForm = LowForm
-
-      override val annotationClasses: Traversable[Class[_]] = Seq(classOf[DummyAnnotation])
-
-      override def execute(state: CircuitState): CircuitState = state
-    }
-    val customTransforms = Seq(new DummyTransform())
     val Top_m1 = Top.inst("m1").of("Middle")
     val inputState = CircuitState(parse(input), ChirrtlForm, Seq(DummyAnnotation(Top_m1)))
     val outputState = new LowFirrtlCompiler().compile(inputState, customTransforms)
     val outputLines = outputState.circuit.serialize.split("\n")
     checks.foreach { line =>
       outputLines should contain (line)
+    }
+  }
+
+  property("Previously unused modules should remain, but newly unused modules should be eliminated") {
+    val input =
+      """circuit Top:
+        |  module Leaf:
+        |    input i: UInt<1>
+        |    output o: UInt<1>
+        |    o <= i
+        |    node a = i
+        |  module Middle:
+        |    input i: UInt<1>
+        |    output o: UInt<1>
+        |    o <= i
+        |  module Top:
+        |    input i: UInt<1>
+        |    output o: UInt<1>
+        |    inst m1 of Middle
+        |    inst m2 of Middle
+        |    m1.i <= i
+        |    m2.i <= m1.o
+        |    o <= m2.o
+      """.stripMargin
+
+    val checks =
+      """circuit Top :
+        |  module Leaf :
+        |  module Top :
+        |  module Middle___Top_m1 :
+        |  module Middle___Top_m2 :""".stripMargin.split("\n")
+
+    val Top_m1 = Top.inst("m1").of("Middle")
+    val Top_m2 = Top.inst("m2").of("Middle")
+    val inputState = CircuitState(parse(input), ChirrtlForm, Seq(DummyAnnotation(Top_m1), DummyAnnotation(Top_m2)))
+    val outputState = new LowFirrtlCompiler().compile(inputState, customTransforms)
+    val outputLines = outputState.circuit.serialize.split("\n")
+
+    checks.foreach { line =>
+      outputLines should contain (line)
+    }
+    checks.foreach { line =>
+      outputLines should not contain ("  module Middle :")
     }
   }
 }
