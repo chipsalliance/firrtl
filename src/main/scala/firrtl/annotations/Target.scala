@@ -155,6 +155,14 @@ case class Target(circuit: Option[String],
   def inst(value: String): Target = add(Instance(value))
 
   /**
+    * Creates a new Target, appending an instance and ofmodule
+    * @param instance
+    * @param of
+    * @return
+    */
+  def instOf(instance: String, of: String): Target = inst(instance).of(of)
+
+  /**
     * Creates a new Target, appending an ofModule
     * @param value
     * @return

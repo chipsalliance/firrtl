@@ -54,6 +54,7 @@ final class RenameMap private () {
     if(set.contains(key) && !key.isCircuitName) {
       throwInternalError(s"Bad rename: $key is in $set")
     }
+    //println("  " * set.size + key.serialize)
 
     set += key
     val getter = recursiveGet(set, errors)(_)
@@ -67,11 +68,11 @@ final class RenameMap private () {
       case c@Target(Some(_), Some(_), seq) if c.notPath.isEmpty =>
         val (instance, of) = c.path.last
         // Check ref(i)
-        val deep = if(c.path.size == 1) c.module.get else c.path.drop(1).last._2.value
-        val renamedInstance = getter(c.copy(module = Some(deep), reference = Seq(Ref(instance.value)))).map{ x =>
+        val deep = if(c.path.size == 1) c.module.get else c.path.dropRight(1).last._2.value
+        val renamedInstance = getter(c.copy(reference = c.reference.dropRight(2) :+ Ref(instance.value))).map{ x =>
           require(x.notPath.size == 1)
           val newRef = x.reference.last.value.toString
-          x.copy(reference = c.reference.dropRight(2) ++ Seq(Instance(newRef), of), module = c.module)
+          x.copy(reference = x.reference.dropRight(1) ++ Seq(Instance(newRef), of))
         }
         // Check of(m)
         val renamedModule = getter(c.copy(module = Some(of.value), reference = Nil))
@@ -94,6 +95,9 @@ final class RenameMap private () {
         ret
     }
     set -= key
+    if(ret.head != key) {
+      //println("==" * set.size + (if(ret.size == 1) ret.head.serialize else ret.map(_.serialize)))
+    }
     ret
   }
 
@@ -103,9 +107,12 @@ final class RenameMap private () {
     */
   def get(key: Target): Option[Seq[Target]] = {
     val errors = mutable.ArrayBuffer[String]()
-    val ret = recursiveGet(mutable.HashSet.empty[Target], errors)(key)
-    if(errors.nonEmpty) throwInternalError(errors.mkString("\n"))
-    if(ret.size == 1 && ret.head == key) None else Some(ret)
+    //println(underlying.map{case (k, v) => k.serialize -> v.map(_.serialize)})
+    if(hasChanges) {
+      val ret = recursiveGet(mutable.HashSet.empty[Target], errors)(key)
+      if(errors.nonEmpty) throwInternalError(errors.mkString("\n"))
+      if(ret.size == 1 && ret.head == key) None else Some(ret)
+    } else None
   }
 
   def hasChanges: Boolean = underlying.nonEmpty

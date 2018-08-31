@@ -1,7 +1,6 @@
 package firrtlTests.annotationTests
 
-import firrtl.annotations.transforms.EliminateTargetPaths
-import firrtl.{ChirrtlForm, CircuitForm, CircuitState, LowFirrtlCompiler, LowFirrtlOptimization, LowForm, MiddleFirrtlCompiler, ResolvedAnnotationPaths, Transform}
+import firrtl.{ChirrtlForm, CircuitForm, CircuitState, LowFirrtlCompiler, LowFirrtlOptimization, LowForm, ResolvedAnnotationPaths, Transform}
 import firrtl.annotations.{Annotation, Target, SingleTargetAnnotation}
 import firrtl.annotations.analysis.DuplicationHelper
 import firrtl.transforms.DontTouchAnnotation

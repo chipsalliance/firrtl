@@ -58,20 +58,20 @@ class RenameMapSpec extends FirrtlFlatSpec {
     renames.get(foo) should be (None)
   }
 
-  it should "allow components to change module" in {
+  it should "allow targets to change module" in {
     val renames = RenameMap()
     renames.rename(foo, fooB)
     renames.get(foo) should be (Some(Seq(fooB)))
   }
 
-  it should "rename components if their module is renamed" in {
+  it should "rename targets if their module is renamed" in {
     val renames = RenameMap()
     renames.rename(modA, modB)
     renames.get(foo) should be (Some(Seq(fooB)))
     renames.get(bar) should be (Some(Seq(barB)))
   }
 
-  it should "rename renamed components if the module of the target component is renamed" in {
+  it should "rename renamed targets if the module of the target is renamed" in {
     val renames = RenameMap()
     renames.rename(modA, modB)
     renames.rename(foo, bar)
@@ -84,45 +84,87 @@ class RenameMapSpec extends FirrtlFlatSpec {
     renames.get(modA) should be (Some(Seq(modA2)))
   }
 
-  it should "rename components if their circuit is renamed" in {
+  it should "rename targets if their circuit is renamed" in {
     val renames = RenameMap()
     renames.rename(cir, cir2)
     renames.get(foo) should be (Some(Seq(foo2)))
   }
 
-  it should "rename components if modules in the path are renamed" in {
+  val Top = cir.module("Top")
+  val Top_m = Top.inst("m").of("Middle")
+  val Top_m_l = Top_m.inst("l").of("Leaf")
+  val Top_m_l_a = Top_m_l.ref("a")
+  val Top_m_la = Top_m.ref("l").field("a")
+  val Middle = cir.module("Middle")
+  val Middle2 = cir.module("Middle2")
+  val Middle_la = Middle.ref("l").field("a")
+  val Middle_l_a = Middle.inst("l").of("Leaf").ref("a")
+
+  it should "rename targets if modules in the path are renamed" in {
     val renames = RenameMap()
-    renames.rename(cir.module("Middle"), cir.module("Middle2"))
-    val from = cir.module("Top").inst("m").of("Middle")
-    val to = cir.module("Top").inst("m").of("Middle2")
-    renames.get(from) should be (Some(Seq(to)))
+    renames.rename(Middle, Middle2)
+    renames.get(Top_m) should be (Some(Seq(Top.inst("m").of("Middle2"))))
   }
 
-  it should "rename components if instance and module in the path are renamed" in {
+  it should "rename targets if instance and module in the path are renamed" in {
     val renames = RenameMap()
-    renames.rename(cir.module("Middle"), cir.module("Middle2"))
-    renames.rename(cir.module("Top").ref("m"), cir.module("Top").ref("m2"))
-    val from = cir.module("Top").inst("m").of("Middle")
-    val to = cir.module("Top").inst("m2").of("Middle2")
-    renames.get(from) should be (Some(Seq(to)))
+    renames.rename(Middle, Middle2)
+    renames.rename(Top.ref("m"), Top.ref("m2"))
+    renames.get(Top_m) should be (Some(Seq(Top.inst("m2").of("Middle2"))))
   }
 
-  it should "rename components if instance in the path are renamed" in {
+  it should "rename targets if instance in the path are renamed" in {
     val renames = RenameMap()
-    renames.rename(cir.module("Top").ref("m"), cir.module("Top").ref("m2"))
-    val from = cir.module("Top").inst("m").of("Middle")
-    val to = cir.module("Top").inst("m2").of("Middle")
-    renames.get(from) should be (Some(Seq(to)))
+    renames.rename(Top.ref("m"), Top.ref("m2"))
+    renames.get(Top_m) should be (Some(Seq(Top.inst("m2").of("Middle"))))
   }
 
-  it should "rename components if instance and ofmodule in the path are renamed" in {
+  it should "rename targets if instance and ofmodule in the path are renamed" in {
     val renames = RenameMap()
-    renames.rename(cir.module("Top").inst("m").of("Middle"),
-      cir.module("Top").inst("m2").of("Middle2"))
-    val from = cir.module("Top").inst("m").of("Middle")
-    val to = cir.module("Top").inst("m2").of("Middle2")
-    renames.get(from) should be (Some(Seq(to)))
+    val Top_m2 = Top.inst("m2").of("Middle2")
+    renames.rename(Top_m, Top_m2)
+    renames.get(Top_m) should be (Some(Seq(Top_m2)))
   }
+
+  it should "properly do nothing if no remaps" in {
+    val renames = RenameMap()
+    renames.get(Top_m_l_a) should be (None)
+  }
+
+  it should "properly rename if leaf is inlined" in {
+    val renames = RenameMap()
+    renames.rename(Middle_l_a, Middle_la)
+    renames.get(Top_m_l_a) should be (Some(Seq(Top_m_la)))
+  }
+
+  it should "properly rename if middle is inlined" in {
+    val renames = RenameMap()
+    renames.rename(Top_m.ref("l"), Top.ref("m_l"))
+    renames.get(Top_m_l_a) should be (Some(Seq(Top.inst("m_l").of("Leaf").ref("a"))))
+  }
+
+  it should "properly rename if leaf and middle are inlined" in {
+    val renames = RenameMap()
+    val inlined = Top.ref("m_l_a")
+    renames.rename(Top_m_l_a, inlined)
+    renames.rename(Top_m_l, Nil)
+    renames.rename(Top_m, Nil)
+    renames.get(Top_m_l_a) should be (Some(Seq(inlined)))
+  }
+
+  it should "quickly rename a target with a long path" in {
+    val renames = RenameMap()
+    renames.rename(Top_m_l, Top_m)
+    ('A' until 'Z').foreach { endChar =>
+      val deepTarget = ('A' until endChar).foldLeft(Top) { (t, char) =>
+        t.instOf(char.toLower.toString, char.toString)
+      }.ref("ref")
+      val (millis, rename) = firrtl.Utils.time(renames.get(deepTarget))
+      println(s"${(deepTarget.reference.size - 1)/2} -> $millis")
+      rename should be (None)
+    }
+  }
+
 
   // Renaming `from` to each of the `tos` at the same time should error
   case class BadRename(from: Named, tos: Seq[Named])
