@@ -31,28 +31,51 @@ object RenameMap {
 final class RenameMap private () {
   private val underlying = mutable.HashMap[Target, Seq[Target]]()
 
+  private val sensitivity = mutable.HashSet[Target]()
+
+  def recordSensitivity(from: Target, to: Target): Unit = {
+    sensitivity ++= (from.levels.toSet -- to.levels)
+  }
+
   def apply(t: Target): Seq[Target] = get(t).getOrElse(Seq(t))
 
+  /** Recursive Get
+    *
+    *
+    *
+    * @param set
+    * @param cache
+    * @param errors
+    * @param key
+    * @return
+    */
   private def recursiveGet(set: mutable.HashSet[Target], cache: mutable.HashMap[Target, Seq[Target]], errors: mutable.ArrayBuffer[String])(key: Target): Seq[Target] = {
     if(cache.contains(key)) {
       cache(key)
     } else {
+      // First, check whole key
       val remapped = underlying.getOrElse(key, Seq(key))
+
+      // If it matches, then
+      val all = key +: remapped
       val isCircuitNames = (key +: remapped).forall(_.isCircuitName)
       val isModuleNames = (key +: remapped).forall(_.isModuleName)
       val isReferences = (key +: remapped).forall(_.isReference)
 
-      val checked = if(!(isCircuitNames || isModuleNames || isReferences)) {
-        if(key.isReference && remapped.forall(r => r.isModuleName || r.isReference)) {
-          // Ok to map from references to modules
-        } else {
-          errors += s"Cannot rename from $key to $remapped!"
-        }
-        Seq(key)
-      } else if(key.isCircuitName && remapped.size > 1) {
-        errors += s"Cannot rename from $key to $remapped!"
-        Seq(key)
-      } else remapped
+      val checked = remapped
+        // If remapped doesn't share structure of key
+        //if(!(all.forall(_.isCircuitName) || all.forall(_.isModuleName) || all.forall(_.isReference))) {
+        //  // If remapped is
+        //  if(key.isReference && remapped.forall(r => r.isModuleName || r.isReference)) {
+        //    // Ok to map from references to modules
+        //  } else {
+        //    errors += s"Cannot rename from $key to $remapped!"
+        //  }
+        //  Seq(key)
+        //} else if(key.isCircuitName && remapped.size > 1) {
+        //  errors += s"Cannot rename from $key to $remapped!"
+        //  Seq(key)
+        //} else remapped
 
       if(set.contains(key) && !key.isCircuitName) {
         throwInternalError(s"Bad rename: $key is in $set")
@@ -61,51 +84,68 @@ final class RenameMap private () {
 
       set += key
       val getter = recursiveGet(set, cache, errors)(_)
-      // First, check whole key
-      // If it matches, then
       val ret = checked.flatMap {
-        case c@Target(Some(_), None, Nil) => Seq(c)
-        case c@Target(Some(_), Some(_), Nil) => getter(c.copy(module = None)).map(_.copy(module = c.module))
-        case c@Target(Some(_), Some(_), seq) if c.notPath.nonEmpty && c.isPathless && c.reference.size == 1 =>
-          // Is plain reference
-          getter(c.copy(reference = Nil)).map(_.copy(reference = c.reference))
-        case c@Target(Some(_), Some(_), seq) if c.notPath.nonEmpty && c.isPathless =>
-          // Is reference with fields/indexes
-          getter(c.copy(reference = c.reference.dropRight(1))).map(x => x.copy(reference = x.reference :+ c.reference.last))
-        case c@Target(Some(_), Some(_), seq) if c.notPath.isEmpty =>
-          val (instance, of) = c.path.last
-          // Check ref(i)
-          val deep = if(c.path.size == 1) c.module.get else c.path.dropRight(1).last._2.value
-          val renamedInstance = getter(c.copy(reference = c.reference.dropRight(2) :+ Ref(instance.value))).map{ x =>
-            require(x.notPath.size == 1)
-            val newRef = x.reference.last.value.toString
-            x.copy(reference = x.reference.dropRight(1) ++ Seq(Instance(newRef), of))
+
+        /** If t is a CircuitTarget, return it */
+        case t @ CircuitTarget(_) =>
+          Seq(t)
+
+        /** If t is a ModuleTarget, return it, check changes to CircuitTarget */
+        case t @ ModuleTarget(_, module) =>
+          getter(t.circuitTarget).map(_.module(module))
+
+        /** If t is a PathlessComponentTarget with a root reference, check ModuleTarget */
+        case t @ PathlessComponentTarget(_, _, Seq(Ref(r))) =>
+          getter(t.moduleTarget).map(_.ref(r))
+
+        /** If t is a PathlessComponentTarget with fields/indexes, check parent reference */
+        case t @ PathlessComponentTarget(_, _, tokens) =>
+          getter(t.parentReference).map(x => x.add(tokens.last))
+
+        /** If t is an InstanceTarget (has a path) but has no references:
+          * 1) Check whether the reference to the instance has been renamed
+          * 2) Check whether the ofModule of the instance has been renamed (only 1:1 renaming is ok)
+          * 3) Check whether the path to t has been changed
+          * */
+        case t @ InstanceTarget(_, module, path) =>
+          val (instance, of) = path.last
+
+          // 1) Check whether the reference to the instance has been renamed
+          val renamedInstance = getter(t.remove(2).ref(instance.value)).map{
+            case c @ ComponentTarget(_, _, _, Seq(Ref(newRef))) => c.remove(1).instOf(newRef, of.value)
           }
-          // Check of(m)
-          val renamedModule = getter(c.copy(module = Some(of.value), reference = Nil))
-          val renamedOfModule = if(renamedModule.size == 1) {
-            renamedInstance.map(x => x.copy(reference = x.reference.dropRight(1) :+ OfModule(renamedModule.head.module.get)))
-          } else {
-            renamedInstance
+
+          // 2) Check whether the ofModule of the instnace has been renamed
+          // If the module has a 1:1 renaming, it is obvious which module the instance is referring to
+          // If the module has a 1:0 or 1:N renaming, it is unclear how to rename and thus do nothing
+          // TODO: Determine whether these semantics are ok
+          val renamedOfModule = getter(t.circuitTarget.module(of.value)) match {
+            case Seq(ModuleTarget(_, newOfModule)) => renamedInstance.map(_.remove(1).of(newOfModule))
+            case other => renamedInstance
           }
-          // Check parent path
-          renamedOfModule.flatMap(x =>
-            if(x.reference.dropRight(2).nonEmpty)
-              getter(x.copy(reference = x.reference.dropRight(2))).map(y => x.copy(reference = y.reference ++ x.reference.takeRight(2)))
-            else
-              Seq(x)
-          )
-        case c@Target(Some(_), Some(_), seq) =>
-          val path = c.path
-          val inlined = getter(c.copy(module = Some(path.head._2.value), reference = c.reference.drop(2))).map(x => x.copy(module = c.module, reference = c.reference.take(2) ++ x.reference))
-          val ret = inlined.flatMap(x => getter(x.copy(reference = x.justPath)).map(y => y.copy(reference = y.justPath ++ x.notPath)))
+
+          // 3) Check changes to the parent path
+          renamedOfModule.flatMap {
+            case x @ InstanceTarget(_, _, path) =>
+              val (newI, newO) = path.last
+              getter(x.remove(2)).map(_.instOf(newI.value, newO.value))
+            case other => throwInternalError("Bad?")
+          }
+
+        /** If t is a ComponentTarget:
+          * 1) Check child path to reference
+          * 2) Check path to instance containing reference
+          */
+        case t @ ComponentTarget(_, module, path, reference) =>
+          val (i, o) = path.head
+          val inlined = getter(t.stripHierarchy(1)).map { _.addHierarchy(module, i.value) }
+          val ret = inlined.flatMap { x =>
+            if(sensitivity.intersect(x.levels.toSet).nonEmpty) getter(x.pathTarget).map(_.addAll(x.notPath)) else Seq(x)
+          }
           ret
       }
       set -= key
       cache(key) = ret
-      //if(ret.head != key) {
-        //println("==" * set.size + (if(ret.size == 1) ret.head.serialize else ret.map(_.serialize)))
-      //}
       ret
     }
   }
@@ -116,12 +156,13 @@ final class RenameMap private () {
     */
   def get(key: Target): Option[Seq[Target]] = {
     val errors = mutable.ArrayBuffer[String]()
+    require(key.isComplete, "Can only rename a complete target")
     //println(underlying.map{case (k, v) => k.serialize -> v.map(_.serialize)})
-    //if(hasChanges) {
+    if(hasChanges /*&& (circuitsWithChanges.contains(key.circuitOpt.get) || modulesWithChanges.intersect(key.moduleSensitivity).nonEmpty) */) {
       val ret = recursiveGet(mutable.HashSet.empty[Target], mutable.HashMap.empty[Target, Seq[Target]], errors)(key)
       if(errors.nonEmpty) throwInternalError(errors.mkString("\n"))
       if(ret.size == 1 && ret.head == key) None else Some(ret)
-    //} else None
+    } else None
   }
 
   def hasChanges: Boolean = underlying.nonEmpty
@@ -151,9 +192,15 @@ final class RenameMap private () {
       require(to.isPathless || (to.path.size == 1 && to.notPath.isEmpty), s"Cannot rename to a target with a path: $to")
       require(to.isComplete, s"Cannot rename to an incomplete target: $to")
     }
+    def check(from: Target, to: Target)(t: Target): Unit = {
+      require(from != t, s"Cannot rename $from to $to, as it is a circular constraint")
+      t.foreach(check(from, to))
+    }
+    tos.foreach { to => check(from, to)(to) }
     (from, tos) match {
       case (x, Seq(y)) if x == y => // TODO is this check expensive in common case?
       case _ =>
+        tos.foreach{recordSensitivity(from, _)}
         underlying(from) = underlying.getOrElse(from, Seq.empty) ++ tos
     }
   }

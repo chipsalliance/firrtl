@@ -68,7 +68,7 @@ class EliminateTargetPaths extends Transform {
     val renameMap = RenameMap()
 
     targets.foreach { t =>
-      val newTs = dupMap.makePathless(t).filter(c => usedOfModules.contains(c.module.get))
+      val newTs = dupMap.makePathless(t).filter(c => usedOfModules.contains(c.moduleOpt.get))
       renameMap.rename(t, newTs)
     }
 

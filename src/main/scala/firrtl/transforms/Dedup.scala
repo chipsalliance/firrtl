@@ -163,7 +163,7 @@ object DedupModules {
     val namespace = Namespace()
     val typeMap = mutable.HashMap[String, Type]()
 
-    renameMap.setCircuit(top.circuit.get)
+    renameMap.setCircuit(top.circuitOpt.get)
     renameMap.setModule(module.name)
 
     def rename(name: String): String = {
@@ -265,7 +265,7 @@ object DedupModules {
     val module2Annotations = mutable.HashMap.empty[String, mutable.HashSet[Annotation]]
     annotations.foreach { a =>
       a.getTargets.foreach { t =>
-        val annos = module2Annotations.getOrElseUpdate(t.module.get, mutable.HashSet.empty[Annotation])
+        val annos = module2Annotations.getOrElseUpdate(t.moduleOpt.get, mutable.HashSet.empty[Annotation])
         annos += a
       }
     }

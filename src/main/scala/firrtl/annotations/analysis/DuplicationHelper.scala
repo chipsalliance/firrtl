@@ -24,10 +24,10 @@ case class DuplicationHelper(existingModules: Set[String]) {
     * @param t An instance-resolved component
     */
   def expandHierarchy(t: Target): Unit = {
-    require(t.circuit.isDefined)
-    require(t.module.isDefined)
+    require(t.circuitOpt.isDefined)
+    require(t.moduleOpt.isDefined)
     t.growingPath.foreach { p =>
-      duplicate(t.module.get, p)
+      duplicate(t.moduleOpt.get, p)
     }
   }
 
@@ -114,7 +114,7 @@ case class DuplicationHelper(existingModules: Set[String]) {
     * @return t rewritten, is a seq because if the t.module has been duplicated, it must now refer to multiple modules
     */
   def makePathless(t: Target): Seq[Target] = {
-    val top = t.module.get
+    val top = t.moduleOpt.get
     val path = t.path
     val newTops = getDuplicates(top)
     newTops.map { newTop =>
@@ -125,7 +125,7 @@ case class DuplicationHelper(existingModules: Set[String]) {
         (ofModule.value, newOfModule.value)
       }
       val module = if(newPath.nonEmpty) newPath.last.value.toString else newTop
-      t.copy(module = Some(module), reference = t.notPath)
+      t.copy(moduleOpt = Some(module), reference = t.notPath)
     }.toSeq
   }
 }

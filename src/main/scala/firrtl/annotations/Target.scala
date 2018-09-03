@@ -15,15 +15,15 @@ import scala.collection.mutable
   *
   * Can be in various states of completion/resolved:
   *   - Legal: [[TargetToken]]'s in reference are in an order that makes sense
-  *   - Complete: circuit and module are non-empty, and all Instance(_) are followed by OfModule(_)
+  *   - Complete: circuitOpt and moduleOpt are non-empty, and all Instance(_) are followed by OfModule(_)
   *   - Pathless: reference does not refer to things through an instance hierarchy (no Instance(_) or OfModule(_))
   *
-  * @param circuit
-  * @param module
+  * @param circuitOpt
+  * @param moduleOpt
   * @param reference
   */
-case class Target(circuit: Option[String],
-                  module: Option[String],
+case class Target(circuitOpt: Option[String],
+                  moduleOpt: Option[String],
                   reference: Seq[TargetToken]) extends Named {
 
   /**
@@ -31,17 +31,31 @@ case class Target(circuit: Option[String],
     * @return
     */
   def serialize: String = {
-    "(" + circuit.getOrElse("*") + "," + module.getOrElse("*") + ")/" + path.map{ case (Instance(i), OfModule(m)) => s"$i:$m/"}.mkString("") + notPath.mkString(" ")
+    "(" + circuitOpt.getOrElse("*") + "," + moduleOpt.getOrElse("*") + ")/" + path.map{ case (Instance(i), OfModule(m)) => s"$i:$m/"}.mkString("") + notPath.mkString(" ")
   }
 
   /**
-    * Returns the module farthest down the instance hierarchy, or the top module if no instance hierarchy
+    * Returns the deepest module that encapsulates the reference, or if there is no reference,
+    * encapsulates the final instance declaration
     * @return
     */
-  def deepestModule: Option[String] = {
-    val deepest = reference.reverseIterator.collectFirst { case OfModule(x) => x }
-    if(deepest.isEmpty) module else deepest
+  def encapsulatingModule: Option[String] = {
+    if(path.size == 1) moduleOpt else Some(path.dropRight(1).last._2.value)
   }
+
+  def pathlessTarget: Target = {
+    if(path.isEmpty) this else {
+      this.copy(moduleOpt = Some(path.last._2.value), reference = notPath)
+    }
+  }
+
+  def pathTarget: Target = {
+    if(notPath.isEmpty) this else {
+      this.copy(reference = reference.dropRight(notPath.size))
+    }
+  }
+
+  def addAll(seq: Seq[TargetToken]): Target = this.copy(reference = reference ++ seq)
 
   /**
     * Returns the [[TargetToken]]'s after any instance hierarchy, if one exists
@@ -75,6 +89,25 @@ case class Target(circuit: Option[String],
     path
   }
 
+  def pathAsTargets: Seq[Target] = {
+    val targets = mutable.ArrayBuffer[Target]()
+    var m = moduleOpt.get
+    reference.tails.foreach {
+      case (i: Instance) :: (o: OfModule) :: tail =>
+        targets += Target(circuitOpt, Some(m), Seq(i, o))
+        m = o.value
+      case other =>
+    }
+    targets
+  }
+
+  def parentReference: Target = {
+    this.copy(reference = reference.dropRight(1))
+  }
+
+  def circuitTarget: Target = this.copy(moduleOpt = None, reference = Nil)
+  def moduleTarget: Target = this.copy(reference = Nil)
+
   /**
     * Returns a sequence of paths, each one increasing the instance hierarchy
     * @return
@@ -94,8 +127,7 @@ case class Target(circuit: Option[String],
     require(isOne, s"${reference.last} is not one of $keywords")
   }
 
-  /**
-    * Appends a target token to reference, asserts legality
+  /** Appends a target token to reference, asserts legality
     * @param token
     * @return
     */
@@ -112,6 +144,12 @@ case class Target(circuit: Option[String],
     }
     this.copy(reference = reference :+ token)
   }
+
+  /** Removes n number of target tokens from the right side of [[reference]]
+    * @param n
+    * @return
+    */
+  def remove(n: Int): Target = this.copy(reference = reference.dropRight(n))
 
   /**
     * Optionally tries to append token to reference, fails return is not a legal Target
@@ -131,14 +169,14 @@ case class Target(circuit: Option[String],
     * @param value Circuit name
     * @return
     */
-  def circuit(value: String): Target = this.copy(circuit = Some(value))
+  def circuit(value: String): Target = this.copy(circuitOpt = Some(value))
 
   /**
     * Returns a new component with the module name
     * @param value Module name
     * @return
     */
-  def module(value: String): Target = this.copy(module = Some(value))
+  def module(value: String): Target = this.copy(moduleOpt = Some(value))
 
   /**
     * Creates a new Target, appending a ref
@@ -218,7 +256,7 @@ case class Target(circuit: Option[String],
   }
 
   /**
-    * Checks whether the component is legal and complete, meaning the circuit and module are nonEmpty and
+    * Checks whether the component is legal and complete, meaning the circuitOpt and moduleOpt are nonEmpty and
     * all Instance(_) are followed by OfModule(_)
     * @return
     */
@@ -240,9 +278,72 @@ case class Target(circuit: Option[String],
     case _ => true
   }
 
-  def isCircuitName: Boolean = circuit.nonEmpty && module.isEmpty && reference.isEmpty
-  def isModuleName: Boolean = circuit.nonEmpty && module.nonEmpty && reference.isEmpty
-  def isReference: Boolean = circuit.nonEmpty && module.nonEmpty && reference.nonEmpty
+  def levels: Seq[Target] = {
+    val hierarchies = mutable.ArrayBuffer[Target]()
+    if(circuitOpt.nonEmpty) {
+      hierarchies += circuitTarget
+      if(moduleOpt.nonEmpty) {
+        hierarchies += moduleTarget
+        var m = moduleOpt.get
+        path.foreach {
+          case (i: Instance, o: OfModule) =>
+            hierarchies += Target(circuitOpt, Some(m), Seq(i, o))
+            m = o.value
+        }
+        if(notPath.nonEmpty) hierarchies += Target(circuitOpt, Some(m), notPath)
+      }
+    }
+    hierarchies
+  }
+
+  /** Adds another level of instance hierarchy
+    *
+    * Example: Given root=A and instance=b, transforms (Top, B)/c:C -> (Top, A)/b:B/c:C
+    *
+    * @param root
+    * @param instance
+    * @return
+    */
+  def addHierarchy(root: String, instance: String): Target = {
+    this.copy(moduleOpt = Some(root), reference = Seq(Instance(instance), OfModule(moduleOpt.get)) ++ reference)
+  }
+
+  /** Removes n levels of instance hierarchy
+    *
+    * Example: n=1, transforms (Top, A)/b:B/c:C -> (Top, B)/c:C
+    *
+    * @param n
+    * @return
+    */
+  def stripHierarchy(n: Int): Target = {
+    require(path.size >= n, s"Cannot strip $n levels of hierarchy from $this")
+    if(n == 0) this else {
+      val newModule = path(n - 1)._2.value
+      this.copy(moduleOpt = Some(newModule), reference = reference.drop(2*n))
+    }
+  }
+
+  def broaden(): Target = this match {
+    case CircuitTarget(_) => this
+    case ModuleTarget(_, _) => circuitTarget
+    case PathlessComponentTarget(_, _, _) => moduleTarget
+    case InstanceTarget(_, _, _) => this.remove(2)
+    case ComponentTarget(_, _, _, _) => this.remove(notPath.size)
+  }
+
+  def map(f: Target => Target): Target = this match {
+    case CircuitTarget(_) => this
+    case ModuleTarget(_, m) => f(circuitTarget).module(m)
+    case PathlessComponentTarget(_, _, notPath) => f(moduleTarget).addAll(notPath)
+    case InstanceTarget(_, _, _) => f(this.remove(2)).addAll(reference.takeRight(2))
+    case ComponentTarget(_, _, _, notPath) => f(this.remove(notPath.size)).addAll(notPath)
+  }
+
+  def foreach(f: Target => Unit): Unit = if(!isCircuitName) f(broaden())
+
+  def isCircuitName: Boolean = circuitOpt.nonEmpty && moduleOpt.isEmpty && reference.isEmpty
+  def isModuleName: Boolean = circuitOpt.nonEmpty && moduleOpt.nonEmpty && reference.isEmpty
+  def isReference: Boolean = circuitOpt.nonEmpty && moduleOpt.nonEmpty && reference.nonEmpty
 }
 
 object Target {
@@ -251,7 +352,7 @@ object Target {
   private def error(c: Target, n: String = "Named") = throw NamedException(c, n)
 
   implicit def convertTarget2Named(c: Target): Named = {
-    (c.circuit, c.module, c.reference) match {
+    (c.circuitOpt, c.moduleOpt, c.reference) match {
       case (_: Some[String], None, Nil) => convertTarget2CircuitName(c)
       case (_: Some[String], _: Some[String], Nil) => convertTarget2ModuleName(c)
       case (_: Some[String], _: Some[String], _: Seq[TargetToken]) => convertTarget2ComponentName(c)
@@ -274,10 +375,10 @@ object Target {
     }
   }
   implicit def convertTarget2ModuleName(c: Target): ModuleName = {
-    c.module.map(ModuleName(_, convertTarget2CircuitName(c))).getOrElse(error(c, "ModuleName"))
+    c.moduleOpt.map(ModuleName(_, convertTarget2CircuitName(c))).getOrElse(error(c, "ModuleName"))
   }
   implicit def convertTarget2CircuitName(c: Target): CircuitName = {
-    c.circuit.map(CircuitName).getOrElse(error(c, "CircuitName"))
+    c.circuitOpt.map(CircuitName).getOrElse(error(c, "CircuitName"))
   }
   implicit def convertNamed2Target(n: Named): Target = n match {
     case CircuitName(x) => Target(Some(x), None, Nil)
@@ -315,6 +416,55 @@ object Target {
     seq.map(_.is(keywords:_*)).foldLeft(false)(_ || _) && keywords.nonEmpty
   }
 }
+
+object CircuitTarget {
+  def unapply(t: Target): Option[String] = if(t.isCircuitName) t.circuitOpt else None
+  def apply(circuit: String): Target = Target(Some(circuit), None, Nil)
+}
+
+object ModuleTarget {
+  def unapply(t: Target): Option[(String, String)] = if(t.isModuleName) Some((t.circuitOpt.get, t.moduleOpt.get)) else None
+  def apply(circuit: String, module: String): Target = Target(Some(circuit), Some(module), Nil)
+}
+
+object InstanceTarget {
+  def unapply(t: Target): Option[(String, String, Seq[(Instance, OfModule)])] = if(t.isReference && t.notPath.isEmpty) Some((t.circuitOpt.get, t.moduleOpt.get, t.path)) else None
+  def apply(circuit: String, module: String, path: Seq[(Instance, OfModule)]): Target =
+    Target(Some(circuit), Some(module), path.flatMap { case (i, o) => Seq(i, o) } )
+}
+
+object PathlessComponentTarget {
+  def unapply(t: Target): Option[(String, String, Seq[TargetToken])] = if(t.isReference && t.isPathless) Some((t.circuitOpt.get, t.moduleOpt.get, t.reference)) else None
+  //def apply(circuit: String, module: String, references: Seq[TargetToken]): Target = Target(Some(circuit), Some(module), references)
+}
+
+object ComponentTarget {
+  def unapply(t: Target): Option[(String, String, Seq[(Instance, OfModule)], Seq[TargetToken])] = if(t.isReference) Some((t.circuitOpt.get, t.moduleOpt.get, t.path, t.notPath)) else None
+  //def apply(circuit: String, module: String, ): Target = Target(Some(circuit), Some(module), Nil)
+}
+
+/*
+object ComponentTarget {
+  def unapply(t: Target): Option[(String, String, Seq[(Instance, OfModule)], String)] =
+    if(t.isReference && t.notPath.size == 1 && t.notPath.head.isInstanceOf[Ref])
+      Some((t.circuitOpt.get, t.moduleOpt.get, t.path, t.notPath.head.value.toString))
+    else None
+  def apply(circuit: String, module: String, path: Seq[(Instance, OfModule)], ref: String): Target =
+    Target(Some(circuit), Some(module), path.foldRight(Seq[TargetToken](Ref(ref))) {
+      case ((i, o), tail) => i +: (o +: tail)
+    } )
+}
+
+
+
+
+object SubComponentTarget {
+  def unapply(t: Target): Option[(String, String, Seq[TargetToken])] = if(t.isReference && t.isPathless) Some((t.circuitOpt.get, t.moduleOpt.get, t.reference)) else None
+  def apply(circuit: String, module: String): Target = Target(Some(circuit), Some(module), Nil)
+}
+*/
+
+
 
 /**
   * Named classes associate an annotation with a component in a Firrtl circuit
