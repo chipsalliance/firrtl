@@ -283,8 +283,8 @@ abstract class Transform extends LazyLogging {
       resAnno: AnnotationSeq,
       renameOpt: Option[RenameMap]): AnnotationSeq = {
     val newAnnotations = {
-      val inSet = inAnno.toSet
-      val resSet = resAnno.toSet
+      val inSet = mutable.LinkedHashSet() ++ inAnno
+      val resSet = mutable.LinkedHashSet() ++ resAnno
       val deleted = (inSet -- resSet).map {
         case DeletedAnnotation(xFormName, delAnno) => DeletedAnnotation(s"$xFormName+$name", delAnno)
         case anno => DeletedAnnotation(name, anno)
@@ -331,7 +331,7 @@ object CompilerUtils extends LazyLogging {
   /** Generates a sequence of [[Transform]]s to lower a Firrtl circuit
     *
     * @param inputForm [[CircuitForm]] to lower from
-    * @param outputForm [[CircuitForm to lower to
+    * @param outputForm [[CircuitForm]] to lower to
     * @return Sequence of transforms that will lower if outputForm is lower than inputForm
     */
   def getLoweringTransforms(inputForm: CircuitForm, outputForm: CircuitForm): Seq[Transform] = {
