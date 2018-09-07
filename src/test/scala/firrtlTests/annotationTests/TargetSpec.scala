@@ -1,6 +1,6 @@
 package firrtlTests.annotationTests
 
-import firrtl.annotations.Target
+import firrtl.annotations.{ModuleTarget, Target}
 import firrtl.annotations.TargetToken._
 import firrtlTests.FirrtlPropSpec
 
@@ -21,9 +21,9 @@ class TargetSpec extends FirrtlPropSpec {
     check(Target(Some("Top"), Some("Top"), r2))
   }
   property("Should enable creating from API") {
-    val top = Target(Some("Top"), Some("Top"), Nil)
-    val x_reg0_data = top.inst("x").of("X").ref("reg0").field("data")
-    top.inst("x").inst("x")
+    val top = ModuleTarget("Top","Top")
+    val x_reg0_data = top.instOf("x", "X").ref("reg0").field("data")
+    top.instOf("x", "x")
     top.ref("y")
     println(x_reg0_data)
   }

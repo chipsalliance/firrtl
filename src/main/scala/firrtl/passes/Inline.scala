@@ -125,7 +125,7 @@ class InlineInstances extends Transform {
         // Used memoized instance if available
         if (shouldInline) {
           val toInline = moduleMap(moduleName) match {
-            case m: ExtModule => throw new PassException("Cannot inline external module")
+            case m: ExtModule => throw new PassException("Cannot inline external moduleOpt")
             case m: Module => m
           }
           val stmts = toInline.ports.map(p => DefWire(p.info, p.name, p.tpe)) :+ toInline.body

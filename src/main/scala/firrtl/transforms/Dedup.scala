@@ -154,7 +154,7 @@ object DedupModules {
     * @param module module to change
     * @return name-agnostic module
     */
-  def agnostify(top: Target,
+  def agnostify(top: CircuitTarget,
                 module: DefModule,
                 renameMap: RenameMap
                ): DefModule = {
@@ -213,7 +213,7 @@ object DedupModules {
     * @param renameMap Will be modified to keep track of renames in this function
     * @return fixed up module deduped instances
     */
-  def dedupInstances(top: Target, originalModule: String, moduleMap: Map[String, DefModule], name2name: Map[String, String], renameMap: RenameMap): DefModule = {
+  def dedupInstances(top: CircuitTarget, originalModule: String, moduleMap: Map[String, DefModule], name2name: Map[String, String], renameMap: RenameMap): DefModule = {
     val module = moduleMap(originalModule)
 
     // If black box, return it (it has no instances)
@@ -232,7 +232,7 @@ object DedupModules {
     // Define rename functions
     def renameOfModule(instance: String, ofModule: String): String = {
       val newOfModule = name2name(ofModule)
-      renameMap.rename(top.module(originalModule).inst(instance).of(ofModule),top.module(originalModule).inst(instance).of(newOfModule))
+      renameMap.rename(top.module(originalModule).instOf(instance, ofModule),top.module(originalModule).instOf(instance, newOfModule))
       newOfModule
     }
     val typeMap = mutable.HashMap[String, Type]()
@@ -255,7 +255,7 @@ object DedupModules {
   }
 
   def buildRTLTags(tag2all: mutable.HashMap[String, mutable.HashSet[String]])
-                  (top: Target,
+                  (top: CircuitTarget,
                    moduleLinearization: Seq[DefModule],
                    noDedups: Set[String],
                    annotations: Seq[Annotation],
@@ -342,7 +342,7 @@ object DedupModules {
 
     val tagMap = RenameMap()
 
-    val top = Target(Some(circuit.main), None, Nil)
+    val top = CircuitTarget(circuit.main)
 
     buildRTLTags(tag2all)(top, moduleLinearization, noDedups, annotations, tagMap)
 

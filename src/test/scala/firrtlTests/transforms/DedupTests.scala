@@ -417,7 +417,7 @@ class DedupModuleTests extends HighTransformSpec {
         |    output x: UInt<1>
         |    x <= UInt(1)
       """.stripMargin
-    val Top = Target(Some("Top"), None, Nil)
+    val Top = CircuitTarget("Top")
     val A = Top.module("A")
     val B = Top.module("B")
     val A_ = Top.module("A_")
@@ -462,11 +462,11 @@ class DedupModuleTests extends HighTransformSpec {
         |    output x: UInt<1>
         |    x <= UInt(1)
       """.stripMargin
-    val Top = Target(Some("Top"), None, Nil)
+    val Top = CircuitTarget("Top")
     val A = Top.module("A")
     val A_ = Top.module("A_")
-    val annoA = MultiTargetDummyAnnotation(Seq(A, A.inst("b").of("B")), 0)
-    val annoA_ = MultiTargetDummyAnnotation(Seq(A_, A_.inst("b").of("B_")), 0)
+    val annoA = MultiTargetDummyAnnotation(Seq(A, A.instOf("b", "B")), 0)
+    val annoA_ = MultiTargetDummyAnnotation(Seq(A_, A_.instOf("b", "B_")), 0)
     val cs = execute(input, check, Seq(annoA, annoA_))
     cs.annotations.toSeq should contain (annoA)
     cs.annotations.toSeq should not contain (annoA_)

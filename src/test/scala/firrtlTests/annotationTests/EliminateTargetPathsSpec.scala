@@ -1,7 +1,7 @@
 package firrtlTests.annotationTests
 
 import firrtl.{ChirrtlForm, CircuitForm, CircuitState, LowFirrtlCompiler, LowFirrtlOptimization, LowForm, ResolvedAnnotationPaths, Transform}
-import firrtl.annotations.{Annotation, Target, SingleTargetAnnotation}
+import firrtl.annotations._
 import firrtl.annotations.analysis.DuplicationHelper
 import firrtl.transforms.DontTouchAnnotation
 import firrtlTests.{FirrtlMatchers, FirrtlPropSpec}
@@ -32,16 +32,16 @@ class EliminateTargetPathsSpec extends FirrtlPropSpec with FirrtlMatchers {
       |    o <= m2.o
     """.stripMargin
 
-  val Top = Target(Some("Top"), Some("Top"), Nil)
-  val Middle = Target(Some("Top"), Some("Middle"), Nil)
-  val Leaf = Target(Some("Top"), Some("Leaf"), Nil)
+  val Top = ModuleTarget("Top", "Top")
+  val Middle = Top.module("Middle")
+  val Leaf = Top.module("Leaf")
 
-  val Top_m1_l1_a = Top.inst("m1").of("Middle").inst("l1").of("Leaf").ref("a")
-  val Top_m2_l1_a = Top.inst("m2").of("Middle").inst("l1").of("Leaf").ref("a")
-  val Top_m1_l2_a = Top.inst("m1").of("Middle").inst("l2").of("Leaf").ref("a")
-  val Top_m2_l2_a = Top.inst("m2").of("Middle").inst("l2").of("Leaf").ref("a")
-  val Middle_l1_a = Middle.inst("l1").of("Leaf").ref("a")
-  val Middle_l2_a = Middle.inst("l2").of("Leaf").ref("a")
+  val Top_m1_l1_a = Top.instOf("m1", "Middle").instOf("l1", "Leaf").ref("a")
+  val Top_m2_l1_a = Top.instOf("m2", "Middle").instOf("l1", "Leaf").ref("a")
+  val Top_m1_l2_a = Top.instOf("m1", "Middle").instOf("l2", "Leaf").ref("a")
+  val Top_m2_l2_a = Top.instOf("m2", "Middle").instOf("l2", "Leaf").ref("a")
+  val Middle_l1_a = Middle.instOf("l1", "Leaf").ref("a")
+  val Middle_l2_a = Middle.instOf("l2", "Leaf").ref("a")
   val Leaf_a = Leaf.ref("a")
 
   case class DummyAnnotation(target: Target) extends SingleTargetAnnotation[Target] {
@@ -58,7 +58,7 @@ class EliminateTargetPathsSpec extends FirrtlPropSpec with FirrtlMatchers {
   val customTransforms = Seq(new DummyTransform())
 
   val inputState = CircuitState(parse(input), ChirrtlForm)
-  property("Hierarchical reference should be expanded properly") {
+  property("Hierarchical tokens should be expanded properly") {
     val dupMap = new DuplicationHelper(inputState.circuit.modules.map(_.name).toSet)
 
 
@@ -187,7 +187,7 @@ class EliminateTargetPathsSpec extends FirrtlPropSpec with FirrtlMatchers {
         |  module Top :
         |  module Middle___Top_m1 :
         |  module Middle___Top_m1_1 :""".stripMargin.split("\n")
-    val Top_m1 = Top.inst("m1").of("Middle")
+    val Top_m1 = Top.instOf("m1", "Middle")
     val inputState = CircuitState(parse(input), ChirrtlForm, Seq(DummyAnnotation(Top_m1)))
     val outputState = new LowFirrtlCompiler().compile(inputState, customTransforms)
     val outputLines = outputState.circuit.serialize.split("\n")
@@ -225,8 +225,8 @@ class EliminateTargetPathsSpec extends FirrtlPropSpec with FirrtlMatchers {
         |  module Middle___Top_m1 :
         |  module Middle___Top_m2 :""".stripMargin.split("\n")
 
-    val Top_m1 = Top.inst("m1").of("Middle")
-    val Top_m2 = Top.inst("m2").of("Middle")
+    val Top_m1 = Top.instOf("m1", "Middle")
+    val Top_m2 = Top.instOf("m2", "Middle")
     val inputState = CircuitState(parse(input), ChirrtlForm, Seq(DummyAnnotation(Top_m1), DummyAnnotation(Top_m2)))
     val outputState = new LowFirrtlCompiler().compile(inputState, customTransforms)
     val outputLines = outputState.circuit.serialize.split("\n")

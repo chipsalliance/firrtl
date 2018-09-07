@@ -2,7 +2,7 @@
 
 package firrtl.annotations.analysis
 
-import firrtl.annotations.{Target, TargetToken}
+import firrtl.annotations.{CompleteTarget, LocalTarget, TargetToken}
 import firrtl.annotations.TargetToken.{Instance, OfModule}
 import firrtl.Utils.throwInternalError
 
@@ -19,11 +19,11 @@ case class DuplicationHelper(existingModules: Set[String]) {
   private val dupMap = new DupMap()
 
   /**
-    * Updates internal state to calculate instance hierarchy modifications so t's reference in an instance can be
-    * expressed as a reference in a module (e.g. uniquify/duplicate the instance path in t's reference)
+    * Updates internal state to calculate instance hierarchy modifications so t's tokens in an instance can be
+    * expressed as a tokens in a module (e.g. uniquify/duplicate the instance path in t's tokens)
     * @param t An instance-resolved component
     */
-  def expandHierarchy(t: Target): Unit = {
+  def expandHierarchy(t: CompleteTarget): Unit = {
     require(t.circuitOpt.isDefined)
     require(t.moduleOpt.isDefined)
     t.growingPath.foreach { p =>
@@ -113,7 +113,7 @@ case class DuplicationHelper(existingModules: Set[String]) {
     * @param t A target
     * @return t rewritten, is a seq because if the t.module has been duplicated, it must now refer to multiple modules
     */
-  def makePathless(t: Target): Seq[Target] = {
+  def makePathless(t: CompleteTarget): Seq[CompleteTarget] = {
     val top = t.moduleOpt.get
     val path = t.path
     val newTops = getDuplicates(top)
@@ -125,7 +125,7 @@ case class DuplicationHelper(existingModules: Set[String]) {
         (ofModule.value, newOfModule.value)
       }
       val module = if(newPath.nonEmpty) newPath.last.value.toString else newTop
-      t.copy(moduleOpt = Some(module), reference = t.notPath)
+      t.toGenericTarget.copy(moduleOpt = Some(module), tokens = t.notPath).complete
     }.toSeq
   }
 }
