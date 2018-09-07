@@ -836,6 +836,25 @@ class ConstantPropagationIntegrationSpec extends LowTransformSpec {
     execute(input, check, Seq.empty)
   }
 
+  it should "pad zero when constant propping a register replaced with zero" in {
+      val input =
+        """circuit Top :
+          |  module Top :
+          |    input clock : Clock
+          |    output z : UInt<16>
+          |    reg r : UInt<8>, clock
+          |    r <= or(r, UInt(0))
+          |    node n = UInt("hab")
+          |    z <= cat(n, r)""".stripMargin
+      val check =
+        """circuit Top :
+          |  module Top :
+          |    input clock : Clock
+          |    output z : UInt<16>
+          |    z <= UInt<16>("hab00")""".stripMargin
+    execute(input, check, Seq.empty)
+  }
+
   it should "pad constant connections to outputs when propagating" in {
       val input =
         """circuit Top :
@@ -986,6 +1005,63 @@ class ConstantPropagationIntegrationSpec extends LowTransformSpec {
           |    input c : UInt<1>
           |    output z : UInt<8>
           |    z <= mux(c, a, b)""".stripMargin
+    execute(input, check, Seq.empty)
+  }
+
+  "Registers connected only to themselves" should "be replaced with zero" in {
+      val input =
+        """circuit Top :
+          |  module Top :
+          |    input clock : Clock
+          |    output a : UInt<8>
+          |    reg ra : UInt<8>, clock
+          |    ra <= ra
+          |    a <= ra
+          |""".stripMargin
+      val check =
+        """circuit Top :
+          |  module Top :
+          |    input clock : Clock
+          |    output a : UInt<8>
+          |    a <= UInt<8>(0)
+          |""".stripMargin
+    execute(input, check, Seq.empty)
+  }
+
+  "Registers connected only to themselves from constant propagation" should "be replaced with zero" in {
+      val input =
+        """circuit Top :
+          |  module Top :
+          |    input clock : Clock
+          |    output a : UInt<8>
+          |    reg ra : UInt<8>, clock
+          |    ra <= or(ra, UInt(0))
+          |    a <= ra
+          |""".stripMargin
+      val check =
+        """circuit Top :
+          |  module Top :
+          |    input clock : Clock
+          |    output a : UInt<8>
+          |    a <= UInt<8>(0)
+          |""".stripMargin
+    execute(input, check, Seq.empty)
+  }
+
+  "Temporary named port" should "not be declared as a node" in {
+    val input =
+      """circuit Top :
+        |  module Top :
+        |    input _T_61 : UInt<1>
+        |    output z : UInt<1>
+        |    node a = _T_61
+        |    z <= a""".stripMargin
+    val check =
+      """circuit Top :
+        |  module Top :
+        |    input _T_61 : UInt<1>
+        |    output z : UInt<1>
+        |    z <= _T_61""".stripMargin
     execute(input, check, Seq.empty)
   }
 }
