@@ -207,4 +207,223 @@ class VerilogEmitterSpec extends FirrtlFlatSpec {
       result should containLine ("assign out = in;")
     }
   }
+
+  "The verilog emitter" should "offer support for generating bindable forms of modules" in {
+    val emitter = new VerilogEmitter
+    val input =
+      """circuit Test :
+        |  module Test :
+        |    input a : UInt<25000>
+        |    output b : UInt
+        |    input c : UInt<32>
+        |    output d : UInt
+        |    input e : UInt<1>
+        |    input f : Analog<32>
+        |    b <= a
+        |    d <= add(c, e)
+        |""".stripMargin
+    val check =
+      """
+        |module BindsToTest(
+        |  input  [24999:0] a,
+        |  output [24999:0] b,
+        |  input  [31:0]    c,
+        |  output [32:0]    d,
+        |  input            e,
+        |  inout  [31:0]    f
+        |);
+        |
+        |$readmemh("file", memory);
+        |
+        |endmodule""".stripMargin.split("\n")
+
+    // We don't use executeTest because we care about the spacing in the result
+    val writer = new java.io.StringWriter
+
+    val initialState = CircuitState(parse(input), ChirrtlForm)
+    val compiler = new LowFirrtlCompiler()
+
+    val state = compiler.compile(initialState, Seq.empty)
+
+    val moduleMap = state.circuit.modules.map(m => m.name -> m).toMap
+
+    val module = state.circuit.modules.filter(module => module.name == "Test").collectFirst { case m: firrtl.ir.Module => m }.get
+
+    val renderer = emitter.getRenderer(module, moduleMap)(writer)
+
+    renderer.emitVerilogBind("BindsToTest",
+      """
+        |$readmemh("file", memory);
+        |
+        |""".stripMargin)
+    val lines = writer.toString.split("\n")
+
+    val outString = writer.toString
+
+    // This confirms that the module io's were emitted
+    for (c <- check) {
+      lines should contain (c)
+    }
+  }
+
+}
+
+class VerilogDescriptionEmitterSpec extends FirrtlFlatSpec {
+  "Port descriptions" should "emit aligned comments on the line above" in {
+    val compiler = new VerilogCompiler
+    val input =
+      """circuit Test :
+        |  module Test :
+        |    input a : UInt<1>
+        |    input b : UInt<1>
+        |    output c : UInt<1>
+        |    c <= add(a, b)
+        |""".stripMargin
+    val check = Seq(
+      """  /* multi
+        |   * line
+        |   */
+        |  input   a,""".stripMargin,
+      """  // single line
+        |  input   b,""".stripMargin
+    )
+    // We don't use executeTest because we care about the spacing in the result
+    val modName = ModuleName("Test", CircuitName("Test"))
+    val annos = Seq(
+      DescriptionAnnotation(ComponentName("a", modName), "multi\nline"),
+      DescriptionAnnotation(ComponentName("b", modName), "single line"))
+    val finalState = compiler.compileAndEmit(CircuitState(parse(input), ChirrtlForm, annos), Seq.empty)
+    val output = finalState.getEmittedCircuit.value
+    for (c <- check) {
+      assert(output.contains(c))
+    }
+  }
+
+  "Declaration descriptions" should "emit aligned comments on the line above" in {
+    val compiler = new VerilogCompiler
+    val input =
+      """circuit Test :
+        |  module Test :
+        |    input clock : Clock
+        |    input a : UInt<1>
+        |    input b : UInt<1>
+        |    output c : UInt<1>
+        |
+        |    wire d : UInt<1>
+        |    d <= add(a, b)
+        |
+        |    reg e : UInt<1>, clock
+        |    e <= or(a, b)
+        |
+        |    node f = and(a, b)
+        |    c <= add(d, add(e, f))
+        |""".stripMargin
+    val check = Seq(
+      """  /* multi
+        |   * line
+        |   */
+        |  wire  d;""".stripMargin,
+      """  /* multi
+        |   * line
+        |   */
+        |  reg  e;""".stripMargin,
+      """  // single line
+        |  wire  f;""".stripMargin
+    )
+    // We don't use executeTest because we care about the spacing in the result
+    val modName = ModuleName("Test", CircuitName("Test"))
+    val annos = Seq(
+      DescriptionAnnotation(ComponentName("d", modName), "multi\nline"),
+      DescriptionAnnotation(ComponentName("e", modName), "multi\nline"),
+      DescriptionAnnotation(ComponentName("f", modName), "single line"))
+    val finalState = compiler.compileAndEmit(CircuitState(parse(input), ChirrtlForm, annos), Seq.empty)
+    val output = finalState.getEmittedCircuit.value
+    for (c <- check) {
+      assert(output.contains(c))
+    }
+  }
+
+  "Module descriptions" should "emit aligned comments on the line above" in {
+    val compiler = new VerilogCompiler
+    val input =
+      """circuit Test :
+        |  module Test :
+        |    input clock : Clock
+        |    input a : UInt<1>
+        |    input b : UInt<1>
+        |    output c : UInt<1>
+        |
+        |    wire d : UInt<1>
+        |    d <= add(a, b)
+        |
+        |    reg e : UInt<1>, clock
+        |    e <= or(a, b)
+        |
+        |    node f = and(a, b)
+        |    c <= add(d, add(e, f))
+        |""".stripMargin
+    val check = Seq(
+      """/* multi
+        | * line
+        | */
+        |module Test(""".stripMargin
+    )
+    // We don't use executeTest because we care about the spacing in the result
+    val modName = ModuleName("Test", CircuitName("Test"))
+    val annos = Seq(DescriptionAnnotation(modName, "multi\nline"))
+    val finalState = compiler.compileAndEmit(CircuitState(parse(input), ChirrtlForm, annos), Seq.empty)
+    val output = finalState.getEmittedCircuit.value
+    for (c <- check) {
+      assert(output.contains(c))
+    }
+  }
+
+  "Multiple descriptions" should "be combined" in {
+    val compiler = new VerilogCompiler
+    val input =
+      """circuit Test :
+        |  module Test :
+        |    input a : UInt<1>
+        |    input b : UInt<1>
+        |    output c : UInt<1>
+        |
+        |    wire d : UInt<1>
+        |    d <= add(a, b)
+        |
+        |    c <= add(a, d)
+        |""".stripMargin
+    val check = Seq(
+      """/* line1
+        | *
+        | * line2
+        | */
+        |module Test(""".stripMargin,
+      """  /* line3
+        |   *
+        |   * line4
+        |   */
+        |  input   a,""".stripMargin,
+      """  /* line5
+        |   *
+        |   * line6
+        |   */
+        |  wire  d;""".stripMargin
+    )
+    // We don't use executeTest because we care about the spacing in the result
+    val modName = ModuleName("Test", CircuitName("Test"))
+    val annos = Seq(
+      DescriptionAnnotation(modName, "line1"),
+      DescriptionAnnotation(modName, "line2"),
+      DescriptionAnnotation(ComponentName("a", modName), "line3"),
+      DescriptionAnnotation(ComponentName("a", modName), "line4"),
+      DescriptionAnnotation(ComponentName("d", modName), "line5"),
+      DescriptionAnnotation(ComponentName("d", modName), "line6")
+    )
+    val writer = new java.io.StringWriter
+    val finalState = compiler.compileAndEmit(CircuitState(parse(input), ChirrtlForm, annos), Seq.empty)
+    val output = finalState.getEmittedCircuit.value
+    for (c <- check) {
+      assert(output.contains(c))
+    }
+  }
 }

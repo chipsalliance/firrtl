@@ -150,7 +150,7 @@ class LowFirrtlCompiler extends Compiler {
 class VerilogCompiler extends Compiler {
   def emitter = new VerilogEmitter
   def transforms: Seq[Transform] = getLoweringTransforms(ChirrtlForm, LowForm) ++
-    Seq(new LowFirrtlOptimization, new BlackBoxSourceHelper)
+    Seq(new LowFirrtlOptimization)
 }
 
 /** Emits Verilog without optimizations */
@@ -158,4 +158,9 @@ class MinimumVerilogCompiler extends Compiler {
   def emitter = new VerilogEmitter
   def transforms: Seq[Transform] = getLoweringTransforms(ChirrtlForm, LowForm) ++
     Seq(new MinimumLowFirrtlOptimization, new BlackBoxSourceHelper)
+}
+
+/** Currently just an alias for the [[VerilogCompiler]] */
+class SystemVerilogCompiler extends VerilogCompiler {
+  Driver.dramaticWarning("SystemVerilog Compiler behaves the same as the Verilog Compiler!")
 }
