@@ -1,7 +1,7 @@
 // See LICENSE for license details.
 
 package firrtlTests
-package transform
+package transforms
 
 import org.scalatest.FlatSpec
 import org.scalatest.Matchers
@@ -20,7 +20,8 @@ import firrtl.annotations.{
    ComponentName,
    Annotation
 }
-import firrtl.transform.TopWiring._
+import firrtl.transforms.TopWiring._
+
 
 /**
  * Tests TopWiring transformation
@@ -437,6 +438,81 @@ class TopWiringTests extends LowTransformSpec with FirrtlRunners {
            |    output topwiring_x: UInt<1>
            |    x <= UInt(0)
            |    topwiring_x <= x
+           """.stripMargin
+      execute(input, check, topwiringannos)
+   }
+
+   "The signal fullword in module C inst c1 and c2 and signal y in module A_" should 
+   s"be connected to Top port with topwiring and top2wiring prefix and outfile in $testDirName" in {
+      val input =
+         """circuit Top :
+           |  module Top :
+           |    inst a1 of A
+           |    inst a2 of A_
+           |  module A :
+           |    output fullword: UInt<1>
+           |    fullword <= UInt(1)
+           |    inst b1 of B
+           |  module A_ :
+           |    output fullword: UInt<1>
+           |    wire y : UInt<1>
+           |    y <= UInt(1)
+           |    fullword <= UInt(1)
+           |  module B :
+           |    output fullword: UInt<1>
+           |    fullword <= UInt(1)
+           |    inst c1 of C
+           |    inst c2 of C
+           |  module C:
+           |    output fullword: UInt<1>
+           |    fullword <= UInt(0)
+           """.stripMargin
+      val topwiringannos = Seq(TopWiringAnnotation(ComponentName(s"fullword", 
+                                                                 ModuleName(s"C", CircuitName(s"Top"))), 
+                                                   s"topwiring_"),
+                               TopWiringAnnotation(ComponentName(s"y", 
+                                                                 ModuleName(s"A_", CircuitName(s"Top"))), 
+                                                   s"top2wiring_"),
+                         TopWiringOutputFilesAnnotation(testDirName, topWiringTestOutputFilesFunction))
+      val check =
+         """circuit Top :
+           |  module Top :
+           |    output topwiring_a1_b1_c1_fullword: UInt<1>
+           |    output topwiring_a1_b1_c2_fullword: UInt<1>
+           |    output top2wiring_a2_y: UInt<1>
+           |    inst a1 of A
+           |    inst a2 of A_
+           |    topwiring_a1_b1_c1_fullword <= a1.topwiring_b1_c1_fullword
+           |    topwiring_a1_b1_c2_fullword <= a1.topwiring_b1_c2_fullword
+           |    top2wiring_a2_y <= a2.top2wiring_y
+           |  module A :
+           |    output fullword: UInt<1>
+           |    output topwiring_b1_c1_fullword: UInt<1>
+           |    output topwiring_b1_c2_fullword: UInt<1>
+           |    inst b1 of B
+           |    fullword <= UInt(1)
+           |    topwiring_b1_c1_fullword <= b1.topwiring_c1_fullword
+           |    topwiring_b1_c2_fullword <= b1.topwiring_c2_fullword
+           |  module A_ :
+           |    output fullword: UInt<1>
+           |    output top2wiring_y: UInt<1>
+           |    node y = UInt<1>("h1")
+           |    fullword <= UInt(1)
+           |    top2wiring_y <= y
+           |  module B :
+           |    output fullword: UInt<1>
+           |    output topwiring_c1_fullword: UInt<1>
+           |    output topwiring_c2_fullword: UInt<1>
+           |    inst c1 of C
+           |    inst c2 of C
+           |    fullword <= UInt(1)
+           |    topwiring_c1_fullword <= c1.topwiring_fullword
+           |    topwiring_c2_fullword <= c2.topwiring_fullword
+           |  module C:
+           |    output fullword: UInt<1>
+           |    output topwiring_fullword: UInt<1>
+           |    fullword <= UInt(0)
+           |    topwiring_fullword <= fullword
            """.stripMargin
       execute(input, check, topwiringannos)
    }
