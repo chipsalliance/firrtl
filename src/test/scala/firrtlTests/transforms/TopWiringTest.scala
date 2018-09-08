@@ -516,4 +516,28 @@ class TopWiringTests extends LowTransformSpec with FirrtlRunners {
            """.stripMargin
       execute(input, check, topwiringannos)
    }
+
+   "TopWiringTransform" should "do nothing if run without TopWiring* annotations" in {
+     val input = """|circuit Top :
+                    |  module Top :
+                    |    input foo : UInt<1>""".stripMargin
+     val inputFile = {
+       val fileName = s"${testDir.getAbsolutePath}/input-no-sources.fir"
+       val w = new PrintWriter(fileName)
+       w.write(input)
+       w.close()
+       fileName
+     }
+     val args = Array(
+       "--custom-transforms", "firrtl.transforms.TopWiring.TopWiringTransform",
+       "--input-file", inputFile,
+       "--top-name", "Top",
+       "--compiler", "low",
+       "--info-mode", "ignore"
+     )
+     firrtl.Driver.execute(args) match {
+       case FirrtlExecutionSuccess(_, emitted) => parse(emitted) should be (parse(input))
+       case _ => fail
+     }
+   }
 }

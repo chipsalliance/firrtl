@@ -253,19 +253,19 @@ class TopWiringTransform extends Transform {
          case TopWiringOutputFilesAnnotation(td,of) => (td, of) }
     // Do actual work of this transform
     val sources = getSourcesMap(state)
-    if (!(sources.isEmpty)) {
-      val portnamesmap : mutable.Map[String,String] = mutable.Map()
+    val (nstate, nmappings) = if (sources.nonEmpty) {
+      val portnamesmap: mutable.Map[String,String] = mutable.Map()
       val instgraph = new firrtl.analyses.InstanceGraph(state.circuit)
       val namespacemap = state.circuit.modules.map{ case m => (m.name -> Namespace(m)) }.toMap
       val modulesx = state.circuit.modules map onModule(sources, portnamesmap, instgraph, namespacemap)
       val newCircuit = state.circuit.copy(modules = modulesx)
       val fixedCircuit = fixupCircuit(newCircuit)
       val mappings = sources(state.circuit.main).zipWithIndex
-      //Generate output files based on the mapping.
-      outputTuples.map { case (dir, outputfunction) => outputfunction(dir, mappings, state) }
-      // fin.
-      state.copy(circuit = fixedCircuit)
+      (state.copy(circuit = fixedCircuit), mappings)
     }
-    else { state }
+    else { (state, List.empty) }
+    //Generate output files based on the mapping.
+    outputTuples.map { case (dir, outputfunction) => outputfunction(dir, nmappings, nstate) }
+    nstate
   }
 }
