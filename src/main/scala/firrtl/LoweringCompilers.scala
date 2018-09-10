@@ -111,6 +111,15 @@ class LowFirrtlOptimization extends CoreTransform {
     passes.CommonSubexpressionElimination,
     new firrtl.transforms.DeadCodeElimination)
 }
+/** Runs runs only the optimization passes needed for Verilog emission */
+class MinimumLowFirrtlOptimization extends CoreTransform {
+  def inputForm = LowForm
+  def outputForm = LowForm
+  def transforms = Seq(
+    passes.Legalize,
+    passes.memlib.VerilogMemDelays, // TODO move to Verilog emitter
+    passes.SplitExpressions)
+}
 
 
 import CompilerUtils.getLoweringTransforms
@@ -141,4 +150,16 @@ class VerilogCompiler extends Compiler {
   def emitter = new VerilogEmitter
   def transforms: Seq[Transform] = getLoweringTransforms(ChirrtlForm, LowForm) ++
     Seq(new LowFirrtlOptimization, new BlackBoxSourceHelper)
+}
+
+/** Emits Verilog without optimizations */
+class MinimumVerilogCompiler extends Compiler {
+  def emitter = new VerilogEmitter
+  def transforms: Seq[Transform] = getLoweringTransforms(ChirrtlForm, LowForm) ++
+    Seq(new MinimumLowFirrtlOptimization, new BlackBoxSourceHelper)
+}
+
+/** Currently just an alias for the [[VerilogCompiler]] */
+class SystemVerilogCompiler extends VerilogCompiler {
+  Driver.dramaticWarning("SystemVerilog Compiler behaves the same as the Verilog Compiler!")
 }
