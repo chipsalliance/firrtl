@@ -177,7 +177,7 @@ private[firrtl] object LegacyAnnotation {
       }
     case LegacyAnnotation(_, transform, "noDCE!") if transform == classOf[DeadCodeElimination] =>
       NoDCEAnnotation
-    case LegacyAnnotation(c: ComponentName, _, "DONTtouch!") => DontTouchAnnotation(c)
+    case LegacyAnnotation(c: ComponentName, _, "DONTtouch!") => DontTouchAnnotation(c.toTarget)
     case LegacyAnnotation(c: ModuleName, _, "optimizableExtModule!") =>
       OptimizableExtModuleAnnotation(c)
     case other => other

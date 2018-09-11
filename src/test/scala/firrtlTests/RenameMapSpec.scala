@@ -184,13 +184,13 @@ class RenameMapSpec extends FirrtlFlatSpec {
   }
 
   it should "detect circular renames" in {
-    case class BadRename(from: Target, tos: Seq[Target])
+    case class BadRename(from: IsMember, tos: Seq[IsMember])
     val badRenames =
       Seq(
         BadRename(foo, Seq(foo.field("bar"))),
-        BadRename(modA, Seq(foo)),
-        BadRename(cir, Seq(foo)),
-        BadRename(cir, Seq(modA))
+        BadRename(modA, Seq(foo))
+        //BadRename(cir, Seq(foo)),
+        //BadRename(cir, Seq(modA))
       )
     // Run all BadRename tests
     for (BadRename(from, tos) <- badRenames) {
@@ -207,16 +207,16 @@ class RenameMapSpec extends FirrtlFlatSpec {
     }
   }
 
-  it should "be able to rename weird stuff" ignore {
+  it should "be able to rename weird stuff" in {
     // Renaming `from` to each of the `tos` at the same time should be ok
-    case class BadRename(from: Named, tos: Seq[Named])
+    case class BadRename(from: CompleteTarget, tos: Seq[CompleteTarget])
     val badRenames =
-      Seq(BadRename(foo, Seq(cir)),
-        BadRename(foo, Seq(modA)),
-        BadRename(modA, Seq(foo)),
-        BadRename(modA, Seq(cir)),
-        BadRename(cir, Seq(foo)),
-        BadRename(cir, Seq(modA)),
+      Seq(//BadRename(foo, Seq(cir)),
+        BadRename(foo, Seq(modB)),
+        BadRename(modA, Seq(fooB)),
+        //BadRename(modA, Seq(cir)),
+        //BadRename(cir, Seq(foo)),
+        //BadRename(cir, Seq(modA)),
         BadRename(cir, Seq(cir2, cir3))
       )
     // Run all BadRename tests
@@ -225,9 +225,14 @@ class RenameMapSpec extends FirrtlFlatSpec {
       val tosN = tos.mkString(", ")
       //it should s"error if a $fromN is renamed to $tosN" in {
         val renames = RenameMap()
-        for (to <- tos) { renames.rename(from, to) }
+        for (to <- tos) {
+          (from, to) match {
+            case (f: CircuitTarget, t: CircuitTarget) => renames.rename(f, t)
+            case (f: IsMember, t: IsMember) => renames.rename(f, t)
+          }
+        }
         //a [FIRRTLException] shouldBe thrownBy {
-        renames.get(foo)
+        renames.get(from)
         //}
       //}
     }

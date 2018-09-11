@@ -31,15 +31,17 @@ object RenameMap {
 final class RenameMap private () {
   private val underlying = mutable.HashMap[CompleteTarget, Seq[CompleteTarget]]()
 
-  private val sensitivity = mutable.HashSet[CompleteTarget]()
+  private val sensitivity = mutable.HashSet[LocalInstanceTarget]()
 
-  def recordSensitivity(from: CompleteTarget, to: CompleteTarget): Unit = {
+  private val getCache = mutable.HashMap[CompleteTarget, Seq[CompleteTarget]]()
+
+  private def recordSensitivity(from: CompleteTarget, to: CompleteTarget): Unit = {
     val fromSet = from.pathAsTargets.toSet
     val toSet = to.pathAsTargets
     sensitivity ++= (fromSet -- toSet)
   }
 
-  def apply(t: CompleteTarget): Seq[CompleteTarget] = get(t).getOrElse(Seq(t))
+  def apply(t: CompleteTarget): Seq[CompleteTarget] = completeGet(t).getOrElse(Seq(t))
 
   /** Recursive Get
     *
@@ -51,9 +53,11 @@ final class RenameMap private () {
     * @param key
     * @return
     */
-  private def recursiveGet(set: mutable.HashSet[CompleteTarget], cache: mutable.HashMap[CompleteTarget, Seq[CompleteTarget]], errors: mutable.ArrayBuffer[String])(key: CompleteTarget): Seq[CompleteTarget] = {
-    if(cache.contains(key)) {
-      cache(key)
+  private def recursiveGet(set: mutable.HashSet[CompleteTarget],
+                           errors: mutable.ArrayBuffer[String]
+                          )(key: CompleteTarget): Seq[CompleteTarget] = {
+    if(getCache.contains(key)) {
+      getCache(key)
     } else {
       // First, check whole key
       val remapped = underlying.getOrElse(key, Seq(key))
@@ -64,45 +68,34 @@ final class RenameMap private () {
       }
 
       set += key
-      val getter = recursiveGet(set, cache, errors)(_)
+      val getter = recursiveGet(set, errors)(_)
       val ret = remapped.flatMap {
 
         /** If t is a CircuitTarget, return it */
         case t: CircuitTarget => Seq(t)
-        case t@ LocalInstanceTarget(circuit, module, instance, of) =>
-          getter(t.asReference).map {
-            case t2:LocalInstanceTarget => t2
-            case t2@LocalReferenceTarget(c, m, i, Nil) =>
-              val t3 = LocalInstanceTarget(c, m, i, of)
-              val ofModuleTarget = t3.ofModuleTarget
-              getter(ofModuleTarget) match {
-                case Seq(ModuleTarget(newCircuit, newOf)) if newCircuit == t3.circuit => t3.copy(ofModule = newOf)
-                case Seq(`ofModuleTarget`) => t3
-                case other => throwInternalError(s"Illegal rename: ofModule of $t cannot be renamed to $other - must rename $t directly.")
-              }
-
-          }
-        case t: LocalTarget => getter(t.targetParent).map(t.updateParent)
+        case t: ModuleTarget => getter(t.targetParent).map {
+          case CircuitTarget(c) => ModuleTarget(c, t.module)
+        }
 
         /** If t is an InstanceTarget (has a path) but has no references:
           * 1) Check whether the path to t has been changed
           * 2) Check whether the instance has been renamed
           * 3) Check whether the ofModule of the instance has been renamed (only 1:1 renaming is ok)
           * */
-        case t @ InstanceTarget(circuit, module, path, instance, of) =>
+        case t: IsInstance =>
           // We know that t == key, because underlying cannot map to a nonlocal target
           // Prioritize
+          val of = t.ofModule
 
           getter(t.asReference).map {
-            case t2:LocalInstanceTarget => t2
-            case t2:InstanceTarget => t2
+            case t2:IsInstance => t2
             case t2@LocalReferenceTarget(c, m, i, Nil) =>
               val t3 = LocalInstanceTarget(c, m, i, of)
               val ofModuleTarget = t3.ofModuleTarget
               getter(ofModuleTarget) match {
                 case Seq(ModuleTarget(newCircuit, newOf)) if newCircuit == t3.circuit => t3.copy(ofModule = newOf)
                 case Seq(`ofModuleTarget`) => t3
-                case other => throwInternalError(s"Illegal rename: ofModule of $t cannot be renamed to $other - must rename $t directly.")
+                case other => throwInternalError(s"Illegal rename: ofModule of $t is renamed to $other - must rename $t directly.")
               }
             case t2@ReferenceTarget(c, m, p, r, Nil) =>
               val t3 = InstanceTarget(c, m, p, r, of)
@@ -110,7 +103,7 @@ final class RenameMap private () {
               getter(ofModuleTarget) match {
                 case Seq(ModuleTarget(newCircuit, newOf)) if newCircuit == t3.circuit => t3.copy(ofModule = newOf)
                 case Seq(`ofModuleTarget`) => t3
-                case other => throwInternalError(s"Illegal rename: ofModule of $t cannot be renamed to $other - must rename $t directly.")
+                case other => throwInternalError(s"Illegal rename: ofModule of $t is renamed to $other - must rename $t directly.")
               }
             case other => throwInternalError(s"Illegal rename: $t has new instance reference $other")
           }
@@ -119,21 +112,37 @@ final class RenameMap private () {
           * 1) Check child path to tokens
           * 2) Check path to instance containing tokens
           */
-        case t @ ReferenceTarget(circuit, module, path, ref, component) =>
-          val encapsulatingInstance = path.head._1.value
-          val inlined = getter(t.stripHierarchy(1)).map { _.addHierarchy(module, encapsulatingInstance) } // Could be LocalInstance, Instance, LocalRef, Ref
-          val ret = inlined.flatMap { x =>
-            if(sensitivity.intersect(x.pathAsTargets.toSet).isEmpty) Seq(x) else {
-              getter(x.pathTarget).map {
-                case newPath: IsModule => x.setPathTarget(newPath)
-                case other => throwInternalError(s"Illegal rename: path of $t cannot be renamed to $other - must rename $t directly")
+        case t: IsReference =>
+          val ret: Seq[CompleteTarget] = if(t.component.nonEmpty) {
+            val last = t.component.last
+            getter(t.targetParent).map{ x =>
+              (x, last) match {
+                case (t2: IsReference, Field(f)) => t2.field(f)
+                case (t2: IsReference, Index(i)) => t2.index(i)
+                case other => throwInternalError(s"Illegal rename: ${t.targetParent} cannot be renamed to ${other._1} - must rename $t directly")
+              }
+            }
+          } else {
+            if(t.pathAsTargets.nonEmpty && sensitivity.intersect(t.pathAsTargets.toSet).isEmpty) Seq(t) else {
+              getter(t.pathTarget).map {
+                case newPath: IsModule => t.setPathTarget(newPath)
+                case other => throwInternalError(s"Illegal rename: path ${t.pathTarget} of $t cannot be renamed to $other - must rename $t directly")
               }
             }
           }
-          ret
+          ret.flatMap { y =>
+            if (!y.isLocal) {
+              val encapsulatingInstance = y.path.head._1.value
+              getter(y.stripHierarchy(1)).map {
+                _.addHierarchy(y.moduleOpt.get, encapsulatingInstance)
+              }
+            } else {
+              Seq(y)
+            } // Could be LocalInstance, Instance, LocalRef, Ref
+          }
       }
       set -= key
-      cache(key) = ret
+      getCache(key) = ret
       ret
     }
   }
@@ -142,15 +151,19 @@ final class RenameMap private () {
     *
     * @note A [[CompleteTarget]] can only be renamed to one-or-more [[CompleteTarget]]s
     */
-  def get(key: CompleteTarget): Option[Seq[CompleteTarget]] = {
+  private def completeGet(key: CompleteTarget): Option[Seq[CompleteTarget]] = {
     val errors = mutable.ArrayBuffer[String]()
-    //println(underlying.map{case (k, v) => k.serialize -> v.map(_.serialize)})
-    if(hasChanges /*&& (circuitsWithChanges.contains(key.circuitOpt.get) || modulesWithChanges.intersect(key.moduleSensitivity).nonEmpty) */) {
-      val ret = recursiveGet(mutable.HashSet.empty[CompleteTarget], mutable.HashMap.empty[CompleteTarget, Seq[CompleteTarget]], errors)(key)
+    if(hasChanges) {
+      val ret = recursiveGet(mutable.HashSet.empty[CompleteTarget], errors)(key)
       if(errors.nonEmpty) throwInternalError(errors.mkString("\n"))
       if(ret.size == 1 && ret.head == key) None else Some(ret)
     } else None
   }
+
+  def get(key: CircuitTarget): Option[Seq[CircuitTarget]] = completeGet(key).map { _.map { case x: CircuitTarget => x } }
+  def get(key: IsMember): Option[Seq[IsMember]] = completeGet(key).map { _.map { case x: IsMember => x } }
+  //def get(key: IsComponent): Option[Seq[IsLocalComponent]] = completeGet(key).map { _.map { case x: IsLocalComponent => x } }
+  def get(key: CompleteTarget): Option[Seq[CompleteTarget]] = completeGet(key)
 
   def hasChanges: Boolean = underlying.nonEmpty
 
@@ -164,20 +177,21 @@ final class RenameMap private () {
     circuitName = s
   def rename(from: String, to: String): Unit = rename(from, Seq(to))
   def rename(from: String, tos: Seq[String]): Unit = {
-    val fromName = Target.convertNamed2Target(ComponentName(from, ModuleName(moduleName, CircuitName(circuitName))))
-    val tosName = tos map { to =>
-      Target.convertNamed2Target(ComponentName(to, ModuleName(moduleName, CircuitName(circuitName))))
-    }
+    val mn = ModuleName(moduleName, CircuitName(circuitName))
+    val fromName = Target.convertComponentName2IsLocalComponent(ComponentName(from, mn))
+    val tosName = tos map { to => Target.convertComponentName2IsLocalComponent(ComponentName(to, mn)) }
     rename(fromName, tosName)
   }
-  def rename(from: CompleteTarget, to: CompleteTarget): Unit = {
-    rename(from, Seq(to))
-  }
-  def rename(from: CompleteTarget, tos: Seq[CompleteTarget]): Unit = {
-    //require(from.isComplete, s"Cannot rename from an incomplete target: $from")
-    tos.foreach { to =>
-      require(to.isLocal, s"Cannot rename to a target with a path: $to")
-    }
+
+  def rename(from: CircuitTarget, to: CircuitTarget): Unit        = completeRename(from, to)
+  def rename(from: CircuitTarget, tos: Seq[CircuitTarget]): Unit  = completeRename(from, tos)
+  def rename(from: IsMember, to: IsMember): Unit                  = completeRename(from, to)
+  def rename(from: IsMember, tos: Seq[IsMember]): Unit            = completeRename(from, tos)
+  //def rename(from: IsComponent, to: IsLocalComponent): Unit       = completeRename(from, to)
+  //def rename(from: IsComponent, tos: Seq[IsLocalComponent]): Unit = completeRename(from, tos)
+
+  private def completeRename(from: CompleteTarget, to: CompleteTarget): Unit = completeRename(from, Seq(to))
+  private def completeRename(from: CompleteTarget, tos: Seq[CompleteTarget]): Unit = {
     def check(from: CompleteTarget, to: CompleteTarget)(t: CompleteTarget): Unit = {
       require(from != t, s"Cannot rename $from to $to, as it is a circular constraint")
       t match {
@@ -190,19 +204,34 @@ final class RenameMap private () {
       case (x, Seq(y)) if x == y => // TODO is this check expensive in common case?
       case _ =>
         tos.foreach{recordSensitivity(from, _)}
-        underlying(from) = underlying.getOrElse(from, Seq.empty) ++ tos
+        val existing = underlying.getOrElse(from, Seq.empty)
+        val updated = existing ++ tos
+        underlying(from) = updated
+        getCache.clear()
     }
   }
 
   def delete(names: Seq[String]): Unit = names.foreach(delete(_))
+
   def delete(name: String): Unit = {
-    delete(Target(Some(circuitName), Some(moduleName), AnnotationUtils.toSubComponents(name)).complete)
+    Target(Some(circuitName), Some(moduleName), AnnotationUtils.toSubComponents(name)).getComplete match {
+      case Some(t: CircuitTarget) => delete(t)
+      case Some(m: IsMember) => delete(m)
+      case other =>
+    }
   }
 
-  def delete(name: CompleteTarget): Unit =
-    underlying(name) = Seq.empty
+  def delete(name: IsMember): Unit = underlying(name) = Seq.empty
+
+  def delete(name: CircuitTarget): Unit = underlying(name) = Seq.empty
+
   def addMap(map: Map[CompleteTarget, Seq[CompleteTarget]]) =
-    underlying ++= map
+    map.foreach{
+      case kv@(from: IsComponent, tos: Seq[IsLocalMember]) => completeRename(from, tos)
+      case kv@(from: IsModule, tos: Seq[IsLocalMember]) => completeRename(from, tos)
+      case kv@(from: CircuitTarget, tos: Seq[CircuitTarget]) => completeRename(from, tos)
+      case other => throwInternalError(s"Illegal rename: ${other._1} -> ${other._2}")
+    }
   def serialize: String = underlying.map { case (k, v) =>
     k.serialize + "=>" + v.map(_.serialize).mkString(", ")
   }.mkString("\n")

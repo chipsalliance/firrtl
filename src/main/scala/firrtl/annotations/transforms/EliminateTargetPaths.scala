@@ -5,7 +5,7 @@ package firrtl.annotations.transforms
 import firrtl.Mappers._
 import firrtl.annotations.TargetToken.{Instance, OfModule}
 import firrtl.annotations.analysis.DuplicationHelper
-import firrtl.annotations.{Annotation, Target}
+import firrtl.annotations.{Annotation, CompleteTarget, IsMember, Target}
 import firrtl.ir._
 import firrtl.{CircuitForm, CircuitState, HighForm, MidForm, RenameMap, Transform, WDefInstance}
 
@@ -23,7 +23,7 @@ class EliminateTargetPaths extends Transform {
   def inputForm: CircuitForm = HighForm
   def outputForm: CircuitForm = HighForm
 
-  def run(cir: Circuit, targets: Seq[Target]): (Circuit, RenameMap) = {
+  def run(cir: Circuit, targets: Seq[IsMember]): (Circuit, RenameMap) = {
 
     val dupMap = DuplicationHelper(cir.modules.map(_.name).toSet)
 
@@ -80,7 +80,7 @@ class EliminateTargetPaths extends Transform {
 
     val annotations = state.annotations.collect { case a: ResolvePaths => a }
 
-    val targets = annotations.flatMap(_.targets)
+    val targets = annotations.flatMap(_.targets.collect { case x: IsMember => x })
 
     val (newCircuit, renameMap) = run(state.circuit, targets)
 
