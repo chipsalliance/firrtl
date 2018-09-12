@@ -24,7 +24,8 @@ case class DuplicationHelper(existingModules: Set[String]) {
     * @param t An instance-resolved component
     */
   def expandHierarchy(t: IsMember): Unit = {
-    t.growingPath.foreach { p =>
+    val path = if(t.isInstanceOf[IsInstance]) t.asInstanceOf[IsInstance].asPath else t.path
+    path.reverse.tails.map { p => p.reverse }.toSeq.foreach { p =>
       duplicate(t.module, p)
     }
   }
@@ -113,7 +114,7 @@ case class DuplicationHelper(existingModules: Set[String]) {
     */
   def makePathless(t: IsMember): Seq[IsMember] = {
     val top = t.module
-    val path = t.path
+    val path = if(t.isInstanceOf[IsInstance]) t.asInstanceOf[IsInstance].asPath else t.path
     val newTops = getDuplicates(top)
     newTops.map { newTop =>
       val newPath = mutable.ArrayBuffer[TargetToken]()
@@ -125,7 +126,7 @@ case class DuplicationHelper(existingModules: Set[String]) {
       val module = if(newPath.nonEmpty) newPath.last.value.toString else newTop
       t.notPath match {
         case Nil => ModuleTarget(t.circuit, module)
-        //case Instance(i) :: OfModule(m) => TODO
+        case Instance(i) :: OfModule(m) :: Nil => ModuleTarget(t.circuit, module)
         case Ref(r) :: components => LocalReferenceTarget(t.circuit, module, r, components)
       }
 

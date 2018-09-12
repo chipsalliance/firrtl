@@ -153,11 +153,12 @@ final class RenameMap private () {
     */
   private def completeGet(key: CompleteTarget): Option[Seq[CompleteTarget]] = {
     val errors = mutable.ArrayBuffer[String]()
-    if(hasChanges) {
+    val ret = if(hasChanges) {
       val ret = recursiveGet(mutable.HashSet.empty[CompleteTarget], errors)(key)
       if(errors.nonEmpty) throwInternalError(errors.mkString("\n"))
       if(ret.size == 1 && ret.head == key) None else Some(ret)
     } else None
+    ret
   }
 
   def get(key: CircuitTarget): Option[Seq[CircuitTarget]] = completeGet(key).map { _.map { case x: CircuitTarget => x } }
@@ -221,9 +222,13 @@ final class RenameMap private () {
     }
   }
 
-  def delete(name: IsMember): Unit = underlying(name) = Seq.empty
+  def delete(name: IsMember): Unit = {
+    underlying(name) = Seq.empty
+  }
 
-  def delete(name: CircuitTarget): Unit = underlying(name) = Seq.empty
+  def delete(name: CircuitTarget): Unit = {
+    underlying(name) = Seq.empty
+  }
 
   def addMap(map: Map[CompleteTarget, Seq[CompleteTarget]]) =
     map.foreach{

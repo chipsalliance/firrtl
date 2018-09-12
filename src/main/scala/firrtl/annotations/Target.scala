@@ -32,6 +32,7 @@ sealed trait Target extends Named {
     */
   def serialize: String = {
     "(" + circuitOpt.getOrElse("???") + "," + moduleOpt.getOrElse("???") + ")/" + tokens.map {
+      case Ref(r) => r
       case Instance(i) => i
       case OfModule(o) => s":$o/"
       case Field(f) => s".$f"
@@ -597,7 +598,7 @@ sealed trait Named {
 
 @deprecated("Use Target instead, will be removed in 1.3", "1.2")
 final case class CircuitName(name: String) extends Named {
-  if(!validModuleName(name)) throw AnnotationException(s"Illegal circuitOpt name: $name")
+  if(!validModuleName(name)) throw AnnotationException(s"Illegal circuit name: $name")
   def serialize: String = name
   def toTarget: CircuitTarget = CircuitTarget(name)
 }

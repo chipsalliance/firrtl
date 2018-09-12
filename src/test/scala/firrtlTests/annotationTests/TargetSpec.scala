@@ -9,7 +9,7 @@ class TargetSpec extends FirrtlPropSpec {
     val named = Target.convertTarget2Named(comp)
     println(named)
     val comp2 = Target.convertNamed2Target(named)
-    assert(comp == comp2)
+    assert(comp.toGenericTarget.complete == comp2)
   }
   property("Should convert to/from Named") {
     check(Target(Some("Top"), None, Nil))
