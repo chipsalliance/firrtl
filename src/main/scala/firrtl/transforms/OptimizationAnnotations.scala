@@ -13,12 +13,9 @@ case object NoDCEAnnotation extends NoTargetAnnotation
   *
   * DCE treats the component as a top-level sink of the circuit
   */
-case class DontTouchAnnotation(target: IsReference) extends SingleTargetAnnotation[Target] {
+case class DontTouchAnnotation(target: ReferenceTarget) extends SingleTargetAnnotation[ReferenceTarget] {
   def targets = Seq(target)
-  def duplicate(n: Target) = n.getComplete match {
-    case Some(t: IsReference) => this.copy(t)
-    case other => throw new Exception(s"Illegal duplication of DontTouchAnnotation, from $target to $n")
-  }
+  def duplicate(n: ReferenceTarget) = this.copy(n)
 }
 
 object DontTouchAnnotation {

@@ -325,7 +325,7 @@ class DeadCodeElimination extends Transform with ResolvedAnnotationPaths {
 
   def execute(state: CircuitState): CircuitState = {
     val dontTouches: Seq[LogicNode] = state.annotations.collect {
-      case DontTouchAnnotation(component: LocalReferenceTarget) => LogicNode(component)
+      case DontTouchAnnotation(component: ReferenceTarget) if component.isLocal => LogicNode(component)
     }
     val doTouchExtMods: Seq[String] = state.annotations.collect {
       case OptimizableExtModuleAnnotation(ModuleName(name, _)) => name
