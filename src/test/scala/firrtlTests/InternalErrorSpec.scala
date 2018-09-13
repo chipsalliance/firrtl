@@ -20,7 +20,7 @@ class InternalErrorSpec extends FreeSpec with Matchers with BackendCompilationUt
         |    input x : UInt<1>
         |    output y : UInt<1>
         |    output io : { flip in : UInt<16>, out : UInt<16> }
-        |    y <= shr(x, UInt(1)); this should generate an exception in PrimOps.scala:127.
+        |    y <= shr(x, UInt(1)); this should generate an exception in Checks.scala:87.
         |      """.stripMargin
 
     var exception: Exception = null
@@ -40,7 +40,8 @@ class InternalErrorSpec extends FreeSpec with Matchers with BackendCompilationUt
 
     "should contain the name of the file originating the exception in the stack trace" in {
       val first = true
-      assert(getThrowable(Some(exception), first).getStackTrace exists (_.getFileName.contains("PrimOps.scala")))
+      val stackTrace = getThrowable(Some(exception), first).getStackTrace
+      assert(stackTrace exists (_.getFileName.contains("Checks.scala")))
     }
   }
 }

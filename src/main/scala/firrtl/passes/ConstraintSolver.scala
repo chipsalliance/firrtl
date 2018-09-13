@@ -63,7 +63,7 @@ class ConstraintSolver {
         case c if !c.geq && mergedMap.contains(c.left) => mergedMap(c.left) = genConst(c.left, IsMin(mergedMap(c.left).right, c.right), false)
         case c                                                   => mergedMap(c.left) = c
     }
-    mergedMap.values.toSeq
+    mergedMap.values.toList
   }
   private def substitute(h: ConstraintMap)(t: IsConstrainable): IsConstrainable = {
     val x = t map substitute(h)

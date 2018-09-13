@@ -99,7 +99,10 @@ object ToProto {
     Tail -> Op.OP_TAIL,
     BPShl -> Op.OP_SHIFT_BINARY_POINT_LEFT,
     BPShr -> Op.OP_SHIFT_BINARY_POINT_RIGHT,
-    BPSet -> Op.OP_SET_BINARY_POINT
+    BPSet -> Op.OP_SET_BINARY_POINT,
+    AsInterval -> Op.OP_AS_INTERVAL,
+    Wrap -> Op.OP_WRAP,
+    Clip -> Op.OP_CLIP
   )
 
   def convertToIntegerLiteral(value: BigInt): Firrtl.Expression.IntegerLiteral.Builder = {

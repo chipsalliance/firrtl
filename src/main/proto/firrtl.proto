@@ -425,6 +425,9 @@ message Firrtl {
         OP_SHIFT_BINARY_POINT_LEFT = 35;
         OP_SHIFT_BINARY_POINT_RIGHT = 36;
         OP_SET_BINARY_POINT = 37;
+        OP_AS_INTERVAL = 38;
+        OP_WRAP = 39;
+        OP_CLIP = 40;
       }
 
       // Required.

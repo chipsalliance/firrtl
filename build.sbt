@@ -20,6 +20,9 @@ scalaVersion := "2.11.12"
 
 crossScalaVersions := Seq("2.11.12", "2.12.4")
 
+updateConfiguration in updateSbtClassifiers := (updateConfiguration in updateSbtClassifiers).value.withMissingOk(true)
+
+
 def scalacOptionsVersion(scalaVersion: String): Seq[String] = {
   Seq() ++ {
     // If we're building with Scala > 2.11, enable the compile option

@@ -10,7 +10,7 @@ class InfoSpec extends FirrtlFlatSpec {
   def compile(input: String): CircuitState =
     (new VerilogCompiler).compileAndEmit(CircuitState(parse(input), ChirrtlForm), List.empty)
   def compileBody(body: String) = {
-    val str = """
+    def str = """
       |circuit Test :
       |  module Test :
       |""".stripMargin + body.split("\n").mkString("    ", "\n    ", "")
@@ -66,7 +66,7 @@ class InfoSpec extends FirrtlFlatSpec {
     result should containLine (s"assign n = w | x; //$Info3")
   }
 
-  they should "be propagated on memories" in {
+  it should "be propagated on memories" in {
     val result = compileBody(s"""
       |input clock : Clock
       |input addr : UInt<5>
@@ -102,7 +102,7 @@ class InfoSpec extends FirrtlFlatSpec {
     result should containLine (s"m[m_w_addr] <= m_w_data; //$Info1")
   }
 
-  they should "be propagated on instances" in {
+  it should "be propagated on instances" in {
     val result = compile(s"""
       |circuit Test :
       |  module Child :

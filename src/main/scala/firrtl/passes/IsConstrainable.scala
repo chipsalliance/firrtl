@@ -99,6 +99,7 @@ trait IsConstrainable {
     (max, min, known, others) match {
       case (Nil, Nil, Nil, Nil) => this
       case (Nil, Nil, _, _) if known.size + others.size == 1 => (known ++ others).head
+      case (Nil, Nil, _, _) if known ++ others == children => this
       case (Nil, Nil, _, _) => gen(known ++ others)
       case (Seq(x), Nil, _, _) => IsMax(x.children.map { c => gen(Seq(c) ++ known ++ others) }:_*)
       case (Nil, Seq(x), _, _) => IsMin(x.children.map { c => gen(Seq(c) ++ known ++ others) }:_*)
@@ -171,6 +172,7 @@ class IsMul private (override val children: IsConstrainable*) extends IsConstrai
       case (Nil, Nil) => this
       case (_, _) if known.size + others.size == 1 => (known ++ others).head
       case (Seq(Closed(x)), _) if (x == BigDecimal(1)) => if(others.size == 1) others.head else IsMul(others:_*)
+      case _ if known ++ others == children => this
       case _ =>
         val args = known ++ others
         args.slice(2, args.size).foldLeft(IsMul(args(0), args(1))) { case (m, a) => IsMul(m, a) }
@@ -228,9 +230,9 @@ class IsPow private (val child: IsConstrainable) extends IsConstrainable {
 }
 object IsMax {
   def apply(children: IsConstrainable*): IsConstrainable = {
-    if(children.forall(_.isInstanceOf[IsKnown])) {
+    //if(children.forall(_.isInstanceOf[IsKnown])) {
       new IsMax(children:_*).reduce()
-    } else new IsMax(children:_*)
+    //} else new IsMax(children:_*)
   }
 }
 class IsMax private (override val children: IsConstrainable*) extends IsConstrainable {

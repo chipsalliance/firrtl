@@ -14,8 +14,7 @@ class ConstraintSpec extends FlatSpec with Matchers {
     IsMax(Closed(-1), Closed(1)) should be (Closed(1))
     IsNeg(IsMul(Closed(-1), Closed(-2))) should be (Closed(-2))
     val x = IsMin(IsMul(Closed(1), VarCon("a")), Closed(2))
-    println(x.serialize)
-    x should be (IsMin(Closed(2), IsMul(Closed(1), VarCon("a"))))
+    x.children.toSet should be (IsMin(Closed(2), IsMul(Closed(1), VarCon("a"))).children.toSet)
   }
   "IsMul" should "not reduce with min/max" in {
     val isMax = IsMax(VarCon("x"), VarCon("y"))
