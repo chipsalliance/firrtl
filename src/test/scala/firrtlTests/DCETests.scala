@@ -2,7 +2,7 @@
 
 package firrtlTests
 
-import firrtl.ir._
+import firrtl.ir.Circuit
 import firrtl._
 import firrtl.passes._
 import firrtl.transforms._
