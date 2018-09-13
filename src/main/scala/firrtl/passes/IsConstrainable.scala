@@ -141,9 +141,9 @@ class IsAdd private (override val children: IsConstrainable*) extends IsConstrai
 }
 object IsMul {
   def apply(children: IsConstrainable*): IsConstrainable = {
-    if(children.forall(_.isInstanceOf[IsKnown])) {
+    //if(children.forall(_.isInstanceOf[IsKnown])) {
       new IsMul(children:_*).reduce()
-    } else new IsMul(children:_*)
+    //} else new IsMul(children:_*)
   }
 }
 class IsMul private (override val children: IsConstrainable*) extends IsConstrainable {
@@ -170,6 +170,7 @@ class IsMul private (override val children: IsConstrainable*) extends IsConstrai
     (known, others) match {
       case (Nil, Nil) => this
       case (_, _) if known.size + others.size == 1 => (known ++ others).head
+      case (Seq(Closed(x)), _) if (x == BigDecimal(1)) => if(others.size == 1) others.head else IsMul(others:_*)
       case _ =>
         val args = known ++ others
         args.slice(2, args.size).foldLeft(IsMul(args(0), args(1))) { case (m, a) => IsMul(m, a) }
