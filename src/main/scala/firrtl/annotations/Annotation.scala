@@ -30,10 +30,7 @@ trait Annotation extends Product {
     }.foldRight(Seq.empty[Target])((seq, c) => c ++ seq)
   }
 
-  def getTargets: Seq[Target] = this match {
-    case p: Product => extractComponents(p.productIterator.toSeq)
-    case other => throwInternalError("Must implement getTargets")
-  }
+  def getTargets: Seq[Target] = extractComponents(productIterator.toSeq)
 }
 
 /** If an Annotation does not target any [[Named]] thing in the circuit, then all updates just

@@ -129,7 +129,7 @@ class EliminateTargetPaths extends Transform {
     val annotations = state.annotations.collect { case a: ResolvePaths => a }
 
     // Collect targets that are not local
-    val targets = annotations.flatMap(_.targets.collect { case x: IsMember if !x.isLocal => x })
+    val targets = annotations.flatMap(_.targets.collect { case x: IsMember => x })
 
     val (newCircuit, renameMap) = run(state.circuit, targets)
 

@@ -10,8 +10,7 @@ import firrtl.Utils.throwInternalError
 
 import scala.collection.mutable
 
-/**
-  * Refers to something in a FIRRTL [[firrtl.ir.Circuit]]. Used for Annotation targets.
+/** Refers to something in a FIRRTL [[firrtl.ir.Circuit]]. Used for Annotation targets.
   *
   * Can be in various states of completion/resolved:
   *   - Legal: [[TargetToken]]'s in tokens are in an order that makes sense
