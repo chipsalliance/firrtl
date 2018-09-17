@@ -16,7 +16,7 @@ import scala.collection.mutable
   * Can be in various states of completion/resolved:
   *   - Legal: [[TargetToken]]'s in tokens are in an order that makes sense
   *   - Complete: circuitOpt and moduleOpt are non-empty, and all Instance(_) are followed by OfModule(_)
-  *   - Pathless: tokens does not refer to things through an instance hierarchy (no Instance(_) or OfModule(_))
+  *   - Local: tokens does not refer to things through an instance hierarchy (no Instance(_) or OfModule(_) tokens)
   */
 sealed trait Target extends Named {
 
@@ -30,7 +30,7 @@ sealed trait Target extends Named {
   def tokens: Seq[TargetToken]
 
   /** @return Returns a new [[GenericTarget]] with new values */
-  def copy(circuitOpt: Option[String] = circuitOpt, moduleOpt: Option[String] = moduleOpt, tokens: Seq[TargetToken] = tokens) = GenericTarget(circuitOpt, moduleOpt, tokens)
+  def modify(circuitOpt: Option[String] = circuitOpt, moduleOpt: Option[String] = moduleOpt, tokens: Seq[TargetToken] = tokens) = GenericTarget(circuitOpt, moduleOpt, tokens)
 
   /** @return Human-readable serialization */
   def serialize: String = {
@@ -419,6 +419,12 @@ trait IsComponent extends IsMember {
   */
 case class CircuitTarget(circuit: String) extends CompleteTarget {
 
+  /** Creates a [[ModuleTarget]] of provided name and this circuit
+    * @param m
+    * @return
+    */
+  def module(m: String): ModuleTarget = ModuleTarget(circuit, m)
+
   override def circuitOpt: Option[String] = Some(circuit)
 
   override def moduleOpt: Option[String] = None
@@ -431,7 +437,6 @@ case class CircuitTarget(circuit: String) extends CompleteTarget {
     ReferenceTarget(circuit, root, Nil, instance, Nil)
 
   override def setPathTarget(newPath: IsModule): CircuitTarget = throwInternalError(s"Cannot call setPathTarget on $this")
-  def module(m: String): ModuleTarget = ModuleTarget(circuit, m)
 
   override def toNamed: CircuitName = CircuitName(circuit)
 }

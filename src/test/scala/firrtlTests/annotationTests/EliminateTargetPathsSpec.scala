@@ -32,9 +32,10 @@ class EliminateTargetPathsSpec extends FirrtlPropSpec with FirrtlMatchers {
       |    o <= m2.o
     """.stripMargin
 
-  val Top = ModuleTarget("Top", "Top")
-  val Middle = Top.module("Middle")
-  val Leaf = Top.module("Leaf")
+  val TopCircuit = CircuitTarget("Top")
+  val Top = TopCircuit.module("Top")
+  val Middle = TopCircuit.module("Middle")
+  val Leaf = TopCircuit.module("Leaf")
 
   val Top_m1_l1_a = Top.instOf("m1", "Middle").instOf("l1", "Leaf").ref("a")
   val Top_m2_l1_a = Top.instOf("m2", "Middle").instOf("l1", "Leaf").ref("a")
@@ -67,32 +68,32 @@ class EliminateTargetPathsSpec extends FirrtlPropSpec with FirrtlMatchers {
     dupMap.expandHierarchy(Top_m2_l1_a)
     dupMap.expandHierarchy(Middle_l1_a)
 
-    dupMap.makePathless(Top_m1_l1_a).foreach {Set(Top.module("Leaf___Top_m1_l1").ref("a")) should contain (_)}
-    dupMap.makePathless(Top_m2_l1_a).foreach {Set(Top.module("Leaf___Top_m2_l1").ref("a")) should contain (_)}
+    dupMap.makePathless(Top_m1_l1_a).foreach {Set(TopCircuit.module("Leaf___Top_m1_l1").ref("a")) should contain (_)}
+    dupMap.makePathless(Top_m2_l1_a).foreach {Set(TopCircuit.module("Leaf___Top_m2_l1").ref("a")) should contain (_)}
     dupMap.makePathless(Top_m1_l2_a).foreach {Set(Leaf_a) should contain (_)}
     dupMap.makePathless(Top_m2_l2_a).foreach {Set(Leaf_a) should contain (_)}
     dupMap.makePathless(Middle_l1_a).foreach {Set(
-      Top.module("Leaf___Top_m1_l1").ref("a"),
-      Top.module("Leaf___Top_m2_l1").ref("a"),
-      Top.module("Leaf___Middle_l1").ref("a")
+      TopCircuit.module("Leaf___Top_m1_l1").ref("a"),
+      TopCircuit.module("Leaf___Top_m2_l1").ref("a"),
+      TopCircuit.module("Leaf___Middle_l1").ref("a")
     ) should contain (_) }
     dupMap.makePathless(Middle_l2_a).foreach {Set(Leaf_a) should contain (_)}
     dupMap.makePathless(Leaf_a).foreach {Set(
-      Top.module("Leaf___Top_m1_l1").ref("a"),
-      Top.module("Leaf___Top_m2_l1").ref("a"),
-      Top.module("Leaf___Middle_l1").ref("a"),
+      TopCircuit.module("Leaf___Top_m1_l1").ref("a"),
+      TopCircuit.module("Leaf___Top_m2_l1").ref("a"),
+      TopCircuit.module("Leaf___Middle_l1").ref("a"),
       Leaf_a
     ) should contain (_)}
     dupMap.makePathless(Top).foreach {Set(Top) should contain (_)}
     dupMap.makePathless(Middle).foreach {Set(
-      Top.module("Middle___Top_m1"),
-      Top.module("Middle___Top_m2"),
+      TopCircuit.module("Middle___Top_m1"),
+      TopCircuit.module("Middle___Top_m2"),
       Middle
     ) should contain (_)}
     dupMap.makePathless(Leaf).foreach {Set(
-      Top.module("Leaf___Top_m1_l1"),
-      Top.module("Leaf___Top_m2_l1"),
-      Top.module("Leaf___Middle_l1"),
+      TopCircuit.module("Leaf___Top_m1_l1"),
+      TopCircuit.module("Leaf___Top_m2_l1"),
+      TopCircuit.module("Leaf___Middle_l1"),
       Leaf
     ) should contain (_) }
 
@@ -155,7 +156,7 @@ class EliminateTargetPathsSpec extends FirrtlPropSpec with FirrtlMatchers {
         |
       """.stripMargin
     canonicalize(outputState.circuit).serialize should be (canonicalize(parse(check)).serialize)
-    outputState.annotations.collect{case x: DontTouchAnnotation => x.target} should be (Seq(Top.module("Leaf___Top_m1_l1").ref("a")))
+    outputState.annotations.collect{case x: DontTouchAnnotation => x.target} should be (Seq(Top.circuitTarget.module("Leaf___Top_m1_l1").ref("a")))
   }
 
   property("No name conflicts between old and new modules") {
