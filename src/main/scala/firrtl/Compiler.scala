@@ -260,6 +260,10 @@ final class RenameMap private () {
     }
   }
 
+  /** Fully renames from to tos
+    * @param from
+    * @param tos
+    */
   private def completeRename(from: CompleteTarget, tos: Seq[CompleteTarget]): Unit = {
     def check(from: CompleteTarget, to: CompleteTarget)(t: CompleteTarget): Unit = {
       require(from != t, s"Cannot rename $from to $to, as it is a circular constraint")
@@ -270,7 +274,7 @@ final class RenameMap private () {
     }
     tos.foreach { to => if(from != to) check(from, to)(to) }
     (from, tos) match {
-      case (x, Seq(y)) if x == y => // TODO is this check expensive in common case?
+      case (x, Seq(y)) if x == y =>
       case _ =>
         tos.foreach{recordSensitivity(from, _)}
         val existing = underlying.getOrElse(from, Seq.empty)

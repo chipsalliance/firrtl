@@ -8,30 +8,37 @@ import firrtl.Utils.throwInternalError
 
 import scala.collection.mutable
 
-/**
-  * Used by [[firrtl.annotations.transforms.EliminateTargetPaths]] to eliminate target paths
+/** Used by [[firrtl.annotations.transforms.EliminateTargetPaths]] to eliminate target paths
   * Calculates needed modifications to a circuit's module/instance hierarchy
   */
 case class DuplicationHelper(existingModules: Set[String]) {
+  // Maps instances to the module it instantiates (an ofModule)
   type InstanceOfModuleMap = mutable.HashMap[Instance, OfModule]
+
+  // Maps a module to the instance/ofModules it instantiates
   type ModuleHasInstanceOfModuleMap = mutable.HashMap[String, InstanceOfModuleMap]
+
+  // Maps original module names to new duplicated modules and their encapsulated instance/ofModules
   type DupMap = mutable.HashMap[String, ModuleHasInstanceOfModuleMap]
+
+  // Internal state to keep track of how paths duplicate
   private val dupMap = new DupMap()
 
-  /**
-    * Updates internal state to calculate instance hierarchy modifications so t's tokens in an instance can be
+  /** Updates internal state (dupMap) to calculate instance hierarchy modifications so t's tokens in an instance can be
     * expressed as a tokens in a module (e.g. uniquify/duplicate the instance path in t's tokens)
     * @param t An instance-resolved component
     */
   def expandHierarchy(t: IsMember): Unit = {
-    val path = if(t.isInstanceOf[IsModule]) t.asInstanceOf[IsModule].asPath else t.path
+    val path = t match {
+      case m: IsModule => m.asPath
+      case _ => t.path
+    }
     path.reverse.tails.map { p => p.reverse }.toSeq.foreach { p =>
       duplicate(t.module, p)
     }
   }
 
-  /**
-    * Updates dupMap with how original module names map to new duplicated module names
+  /** Updates dupMap with how original module names map to new duplicated module names
     * @param top Root module of a component
     * @param path Path down instance hierarchy of a component
     */
@@ -51,8 +58,7 @@ case class DuplicationHelper(existingModules: Set[String]) {
     originalInstanceModuleToDupedModule.getOrElseUpdate(dupedInstanceModule, new InstanceOfModuleMap())
   }
 
-  /**
-    * Deterministic name-creation of a duplicated module
+  /** Deterministic name-creation of a duplicated module
     * @param top
     * @param path
     * @return
@@ -70,8 +76,7 @@ case class DuplicationHelper(existingModules: Set[String]) {
     }
   }
 
-  /**
-    * Return the duplicated module (formerly originalOfModule) instantiated by instance in newModule (formerly originalModule)
+  /** Return the duplicated module (formerly originalOfModule) instantiated by instance in newModule (formerly originalModule)
     * @param originalModule original encapsulating module
     * @param newModule new name of encapsulating module
     * @param instance instance name being declared in encapsulating module
@@ -98,8 +103,7 @@ case class DuplicationHelper(existingModules: Set[String]) {
     }
   }
 
-  /**
-    * Returns the names of this module's duplicated (including the original name)
+  /** Returns the names of this module's duplicated (including the original name)
     * @param module
     * @return
     */
@@ -107,14 +111,16 @@ case class DuplicationHelper(existingModules: Set[String]) {
     dupMap.get(module).map(_.keys.toSet[String]).getOrElse(Set.empty[String]) ++ Set(module)
   }
 
-  /**
-    * Rewrites t with new module/instance hierarchy calculated after repeated calls to [[expandHierarchy]]
+  /** Rewrites t with new module/instance hierarchy calculated after repeated calls to [[expandHierarchy]]
     * @param t A target
     * @return t rewritten, is a seq because if the t.module has been duplicated, it must now refer to multiple modules
     */
   def makePathless(t: IsMember): Seq[IsMember] = {
     val top = t.module
-    val path = if(t.isInstanceOf[IsModule]) t.asInstanceOf[IsModule].asPath else t.path
+    val path = t match {
+      case m: IsModule => m.asPath
+      case t => t.path
+    }
     val newTops = getDuplicates(top)
     newTops.map { newTop =>
       val newPath = mutable.ArrayBuffer[TargetToken]()
@@ -129,8 +135,6 @@ case class DuplicationHelper(existingModules: Set[String]) {
         case Instance(i) :: OfModule(m) :: Nil => ModuleTarget(t.circuit, module)
         case Ref(r) :: components => ReferenceTarget(t.circuit, module, Nil, r, components)
       }
-
-      //t.toGenericTarget.copy(moduleOpt = Some(module), tokens = t.notPath).complete
     }.toSeq
   }
 }
