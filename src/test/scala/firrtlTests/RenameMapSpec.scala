@@ -4,6 +4,7 @@ package firrtlTests
 
 import firrtl.RenameMap
 import firrtl.FIRRTLException
+import firrtl.RenameMap.IllegalRename
 import firrtl.annotations._
 
 class RenameMapSpec extends FirrtlFlatSpec {
@@ -235,6 +236,58 @@ class RenameMapSpec extends FirrtlFlatSpec {
         renames.get(from)
         //}
       //}
+    }
+  }
+
+  it should "error if a circular rename occurs" in {
+    val renames = RenameMap()
+    val top = CircuitTarget("Top")
+    renames.rename(top.module("A"), top.module("B").instOf("c", "C"))
+    renames.rename(top.module("B"), top.module("A").instOf("c", "C"))
+    a [IllegalRename] shouldBe thrownBy {
+      renames.get(top.module("A"))
+    }
+  }
+
+  it should "not error if a swapping rename occurs" in {
+    val renames = RenameMap()
+    val top = CircuitTarget("Top")
+    renames.rename(top.module("A"), top.module("B"))
+    renames.rename(top.module("B"), top.module("A"))
+    renames.get(top.module("A")) should be (Some(Seq(top.module("B"))))
+    renames.get(top.module("B")) should be (Some(Seq(top.module("A"))))
+  }
+
+  it should "error if a reference is renamed to a module, and then we try to rename the reference's field" in {
+    val renames = RenameMap()
+    val top = CircuitTarget("Top")
+    renames.rename(top.module("A").ref("ref"), top.module("B"))
+    renames.get(top.module("A").ref("ref")) should be(Some(Seq(top.module("B"))))
+    a [IllegalRename] shouldBe thrownBy {
+      renames.get(top.module("A").ref("ref").field("field"))
+    }
+    a [IllegalRename] shouldBe thrownBy {
+      renames.get(top.module("A").instOf("ref", "R"))
+    }
+  }
+
+  it should "error if we rename an instance's ofModule into a non-module" in {
+    val renames = RenameMap()
+    val top = CircuitTarget("Top")
+
+    renames.rename(top.module("C"), top.module("D").ref("x"))
+    a [IllegalRename] shouldBe thrownBy {
+      renames.get(top.module("A").instOf("c", "C"))
+    }
+  }
+
+  it should "error if path is renamed into a non-path" in {
+    val renames = RenameMap()
+    val top = CircuitTarget("Top")
+
+    renames.rename(top.module("E").instOf("f", "F"), top.module("E").ref("g"))
+    a [IllegalRename] shouldBe thrownBy {
+      println(renames.get(top.module("E").instOf("f", "F").ref("g")))
     }
   }
 }
