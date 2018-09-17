@@ -547,6 +547,13 @@ case class ReferenceTarget(circuit: String,
 
 }
 
+/** Points to an instance declaration of a module (termed an ofModule)
+  * @param circuit Encapsulating circuit
+  * @param module Root module (e.g. the base module of this target)
+  * @param path Path through instance/ofModules
+  * @param instance Name of the instance
+  * @param ofModule Name of the instance's module
+  */
 case class InstanceTarget(circuit: String,
                           module: String,
                           override val path: Seq[(Instance, OfModule)],
@@ -596,9 +603,7 @@ case class InstanceTarget(circuit: String,
 }
 
 
-/**
-  * Named classes associate an annotation with a component in a Firrtl circuit
-  */
+/** Named classes associate an annotation with a component in a Firrtl circuit */
 @deprecated("Use Target instead, will be removed in 1.3", "1.2")
 sealed trait Named {
   def serialize: String
