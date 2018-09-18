@@ -3,11 +3,13 @@
 package firrtl.annotations.transforms
 
 import firrtl.Mappers._
+import firrtl.analyses.InstanceGraph
 import firrtl.annotations.TargetToken.{Instance, OfModule}
 import firrtl.annotations.analysis.DuplicationHelper
-import firrtl.annotations.{Annotation, CompleteTarget, IsMember, Target}
+import firrtl.annotations._
 import firrtl.ir._
-import firrtl.{CircuitForm, CircuitState, HighForm, MidForm, RenameMap, Transform, WDefInstance}
+import firrtl.passes.PassException
+import firrtl.{CircuitForm, CircuitState, FIRRTLException, HighForm, MidForm, RenameMap, Transform, WDefInstance}
 
 import scala.collection.mutable
 
@@ -21,6 +23,8 @@ case class ResolvePaths(targets: Seq[CompleteTarget]) extends Annotation {
     Seq(ResolvePaths(newTargets))
   }
 }
+
+case class IllegalPathException(message: String) extends FIRRTLException(message)
 
 /** For a set of non-local targets, modify the instance/module hierarchy of the circuit such that
   * the paths in each non-local target can be removed
@@ -130,6 +134,24 @@ class EliminateTargetPaths extends Transform {
 
     // Collect targets that are not local
     val targets = annotations.flatMap(_.targets.collect { case x: IsMember => x })
+
+    // Check validity of paths in targets
+    val instanceOfModules = new InstanceGraph(state.circuit).getChildrenInstanceOfModule
+    val targetsWithInvalidPaths = mutable.ArrayBuffer[IsMember]()
+    targets.foreach { t =>
+      val path = t match {
+        case m: ModuleTarget => Nil
+        case i: InstanceTarget => i.asPath
+        case r: ReferenceTarget => r.path
+      }
+      path.foldLeft(t.module) { case (module, (inst: Instance, of: OfModule)) =>
+        val childrenOpt = instanceOfModules.get(module)
+        if(childrenOpt.isEmpty || !childrenOpt.get.contains((inst, of)))
+          targetsWithInvalidPaths += t
+        of.value
+      }
+    }
+    if(targetsWithInvalidPaths.nonEmpty) throw IllegalPathException(s"""Some targets have illegal paths that cannot be resolved/eliminated: ${targetsWithInvalidPaths.mkString(",")}""")
 
     val (newCircuit, renameMap) = run(state.circuit, targets)
 

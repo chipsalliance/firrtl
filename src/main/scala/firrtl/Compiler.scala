@@ -541,10 +541,23 @@ abstract class Transform extends LazyLogging {
 
     // For each annotation, rename all annotations.
     val renames = renameOpt.getOrElse(RenameMap())
-    for {
-      anno <- newAnnotations.toSeq
-      newAnno <- anno.update(renames)
-    } yield newAnno
+    val remapped2original = mutable.LinkedHashMap[Annotation, mutable.LinkedHashSet[Annotation]]()
+    val keysOfNote = mutable.LinkedHashSet[Annotation]()
+    val finalAnnotations = newAnnotations.flatMap { anno =>
+      val remappedAnnos = anno.update(renames)
+      remappedAnnos.foreach { remapped =>
+        val set = remapped2original.getOrElseUpdate(remapped, mutable.LinkedHashSet.empty[Annotation])
+        set += anno
+        if(set.size > 1) keysOfNote += remapped
+      }
+      remappedAnnos
+    }.toSeq
+    keysOfNote.foreach { key =>
+      logger.debug(s"""The following original annotations are renamed to the same new annotation.""")
+      logger.debug(s"""Original Annotations:\n  ${remapped2original(key).mkString("\n  ")}""")
+      logger.debug(s"""New Annotation:\n  $key""")
+    }
+    finalAnnotations
   }
 }
 

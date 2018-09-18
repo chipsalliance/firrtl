@@ -145,7 +145,7 @@ class DedupModuleTests extends HighTransformSpec {
           """.stripMargin
      execute(input, check, Seq(dontDedup("A")))
   }
-  "The module A and A_" should "be deduped even with different port names and info, and annotations should rewriteWithoutPaths" in {
+  "The module A and A_" should "be deduped even with different port names and info, and annotations should remapped" in {
      val input =
         """circuit Top :
           |  module Top :
@@ -470,8 +470,7 @@ class DedupModuleTests extends HighTransformSpec {
     val cs = execute(input, check, Seq(annoA, annoA_))
     cs.annotations.toSeq should contain (annoA)
     cs.annotations.toSeq should not contain (annoA_)
-    //TODO: Determine semantics
-    //cs.deletedAnnotations.isEmpty should be (false)
+    cs.deletedAnnotations.isEmpty should be (true)
   }
 }
 

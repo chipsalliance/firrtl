@@ -6,7 +6,6 @@ package annotations
 import firrtl.ir.Expression
 import AnnotationUtils.{toExp, validComponentName, validModuleName}
 import TargetToken._
-import firrtl.Utils.throwInternalError
 
 import scala.collection.mutable
 
@@ -68,9 +67,7 @@ object Target {
 
   def unapply(t: Target): Option[(Option[String], Option[String], Seq[TargetToken])] = Some((t.circuitOpt, t.moduleOpt, t.tokens))
 
-  case class NamedException[N<:Named](c: Target, n: String) extends Exception(s"Cannot convert $c into $n")
-
-  private def error(c: Target, n: String = "Named") = throw NamedException(c, n)
+  case class NamedException(message: String) extends Exception(message)
 
   implicit def convertCircuitTarget2CircuitName(c: CircuitTarget): CircuitName = c.toNamed
   implicit def convertModuleTarget2ModuleName(c: ModuleTarget): ModuleName = c.toNamed
@@ -81,7 +78,7 @@ object Target {
   implicit def convertComponentName2IsLocalComponent(c: ComponentName): ReferenceTarget = {
     toTargetTokens(c.name).toList match {
       case Ref(r) :: components => ReferenceTarget(c.module.circuit.name, c.module.name, Nil, r, components)
-      case other => throw new Exception(s"Cannot convert $c into [[LocalReferenceTarget]]: $other")
+      case other => throw NamedException(s"Cannot convert $c into [[LocalReferenceTarget]]: $other")
     }
   }
   implicit def convertNamed2Target(n: Named): CompleteTarget = n match {
@@ -133,7 +130,7 @@ case class GenericTarget(circuitOpt: Option[String], moduleOpt: Option[String], 
     case Some(c: IsComponent) if c.isLocal => c.toNamed
     case Some(c: ModuleTarget) => c.toNamed
     case Some(c: CircuitTarget) => c.toNamed
-    case other => throwInternalError(s"Cannot convert $this to [[Named]]")
+    case other => throw Target.NamedException(s"Cannot convert $this to [[Named]]")
   }
 
   override def getComplete: Option[CompleteTarget] = {
@@ -302,12 +299,6 @@ trait CompleteTarget extends Target {
     * @return
     */
   def addHierarchy(root: String, instance: String): IsComponent
-
-  /** Resets this target to have a new path
-    * @param newPath
-    * @return
-    */
-  def setPathTarget(newPath: IsModule): CompleteTarget
 }
 
 
@@ -348,6 +339,12 @@ trait IsMember extends CompleteTarget {
         (o, vec :+ InstanceTarget(circuit, m, Nil, i, o))
     }._2
   }
+
+  /** Resets this target to have a new path
+    * @param newPath
+    * @return
+    */
+  def setPathTarget(newPath: IsModule): CompleteTarget
 }
 
 /** References a module-like target (e.g. a [[ModuleTarget]] or an [[InstanceTarget]])
@@ -434,8 +431,6 @@ case class CircuitTarget(circuit: String) extends CompleteTarget {
 
   override def addHierarchy(root: String, instance: String): ReferenceTarget =
     ReferenceTarget(circuit, root, Nil, instance, Nil)
-
-  override def setPathTarget(newPath: IsModule): CircuitTarget = throwInternalError(s"Cannot call setPathTarget on $this")
 
   override def toNamed: CircuitName = CircuitName(circuit)
 }

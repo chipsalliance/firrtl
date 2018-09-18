@@ -3,6 +3,7 @@ package firrtlTests.annotationTests
 import firrtl.{ChirrtlForm, CircuitForm, CircuitState, LowFirrtlCompiler, LowFirrtlOptimization, LowForm, ResolvedAnnotationPaths, Transform}
 import firrtl.annotations._
 import firrtl.annotations.analysis.DuplicationHelper
+import firrtl.annotations.transforms.IllegalPathException
 import firrtl.transforms.DontTouchAnnotation
 import firrtlTests.{FirrtlMatchers, FirrtlPropSpec}
 
@@ -96,12 +97,6 @@ class EliminateTargetPathsSpec extends FirrtlPropSpec with FirrtlMatchers {
       TopCircuit.module("Leaf___Middle_l1"),
       Leaf
     ) should contain (_) }
-
-    val targets = Seq(Top_m1_l1_a, Top_m2_l1_a, Middle_l1_a, Middle_l2_a, Leaf_a, Top, Middle, Leaf)
-    targets.foreach { t =>
-      val newTargets = dupMap.makePathless(t)
-      println(s"""${t.serialize} => \n${newTargets.map("    " + _.serialize).mkString("\n")}""")
-    }
   }
 
   property("Hierarchical donttouch should be resolved properly") {
@@ -237,6 +232,39 @@ class EliminateTargetPathsSpec extends FirrtlPropSpec with FirrtlMatchers {
     }
     checks.foreach { line =>
       outputLines should not contain ("  module Middle :")
+    }
+  }
+
+  property("Paths with incorrect names should error") {
+    val input =
+      """circuit Top:
+        |  module Leaf:
+        |    input i: UInt<1>
+        |    output o: UInt<1>
+        |    o <= i
+        |    node a = i
+        |  module Middle:
+        |    input i: UInt<1>
+        |    output o: UInt<1>
+        |    o <= i
+        |  module Top:
+        |    input i: UInt<1>
+        |    output o: UInt<1>
+        |    inst m1 of Middle
+        |    inst m2 of Middle
+        |    m1.i <= i
+        |    m2.i <= m1.o
+        |    o <= m2.o
+      """.stripMargin
+    intercept[IllegalPathException] {
+      val Top_m1 = Top.instOf("m1", "MiddleX")
+      val inputState = CircuitState(parse(input), ChirrtlForm, Seq(DummyAnnotation(Top_m1)))
+      new LowFirrtlCompiler().compile(inputState, customTransforms)
+    }
+    intercept[IllegalPathException] {
+      val Top_m2 = Top.instOf("x2", "Middle")
+      val inputState = CircuitState(parse(input), ChirrtlForm, Seq(DummyAnnotation(Top_m2)))
+      new LowFirrtlCompiler().compile(inputState, customTransforms)
     }
   }
 }

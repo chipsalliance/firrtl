@@ -15,8 +15,7 @@ import firrtl.Utils.throwInternalError
 import scala.collection.mutable
 
 
-/** A component, e.g. register etc. Must be declared only once under the TopAnnotation
-  */
+/** A component, e.g. register etc. Must be declared only once under the TopAnnotation */
 case class NoDedupAnnotation(target: ModuleName) extends SingleTargetAnnotation[ModuleName] {
   def duplicate(n: ModuleName) = NoDedupAnnotation(n)
 }
@@ -30,8 +29,7 @@ class DedupModules extends Transform {
   def inputForm: CircuitForm = HighForm
   def outputForm: CircuitForm = HighForm
 
-  /**
-    * Deduplicate a Circuit
+  /** Deduplicate a Circuit
     * @param state Input Firrtl AST
     * @return A transformed Firrtl AST
     */
@@ -41,8 +39,7 @@ class DedupModules extends Transform {
     state.copy(circuit = newC, renames = Some(renameMap))
   }
 
-  /**
-    * Deduplicates a circuit, and records renaming
+  /** Deduplicates a circuit, and records renaming
     * @param c Circuit to dedup
     * @param noDedups Modules not to dedup
     * @return Deduped Circuit and corresponding RenameMap
@@ -85,12 +82,10 @@ class DedupModules extends Transform {
   }
 }
 
-/**
-  * Utility functions for [[DedupModules]]
-  */
+/** Utility functions for [[DedupModules]] */
 object DedupModules {
-  /**
-    * Change's a module's internal signal names, types, infos, and modules.
+
+  /** Change's a module's internal signal names, types, infos, and modules.
     * @param rename Function to rename a signal. Called on declaration and references.
     * @param retype Function to retype a signal. Called on declaration, references, and subfields
     * @param reinfo Function to re-info a statement
@@ -149,8 +144,7 @@ object DedupModules {
 
   def uniquifyField(ref: String, depth: Int, field: String): String = ref+depth+field
 
-  /**
-    * Turns a module into a name-agnostic module
+  /** Turns a module into a name-agnostic module
     * @param module module to change
     * @return name-agnostic module
     */
@@ -207,7 +201,8 @@ object DedupModules {
     *
     * Will fixes up module if deduped instance's ports are differently named
     *
-    * @param moduleName Module name who's instances will be deduped
+    * @param top CircuitTarget of circuit
+    * @param originalModule Module name who's instances will be deduped
     * @param moduleMap Map of module name to its original module
     * @param name2name Map of module name to the module deduping it. Not mutated in this function.
     * @param renameMap Will be modified to keep track of renames in this function
@@ -322,8 +317,7 @@ object DedupModules {
     }
   }
 
-  /**
-    * Deduplicate
+  /** Deduplicate
     * @param circuit Circuit
     * @param noDedups list of modules to not dedup
     * @param renameMap rename map to populate when deduping
