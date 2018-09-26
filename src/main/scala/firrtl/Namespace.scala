@@ -39,6 +39,8 @@ class Namespace private {
   }
 
   def newTemp: String = newName(tempNamePrefix)
+
+  def toSet: Set[String] = namespace.toSet
 }
 
 /* TODO(azidar): Make Namespace return unique names that will not conflict with expanded
@@ -79,4 +81,3 @@ object Namespace {
     namespace
   }
 }
-

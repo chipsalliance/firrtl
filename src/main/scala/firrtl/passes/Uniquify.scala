@@ -45,7 +45,7 @@ object Uniquify extends Transform {
   // We don't add an _ in the collision check because elts could be Seq("")
   //   In this case, we're just really checking if prefix itself collides
   @tailrec
-  private def findValidPrefix(
+  private [passes] def findValidPrefix(
       prefix: String,
       elts: Seq[String],
       namespace: collection.mutable.HashSet[String]): String = {
@@ -59,7 +59,7 @@ object Uniquify extends Transform {
   //   eg. foo : { bar : { a, b }[2], c }
   //   => foo, foo bar, foo bar 0, foo bar 1, foo bar 0 a, foo bar 0 b,
   //      foo bar 1 a, foo bar 1 b, foo c
-  private def enumerateNames(tpe: Type): Seq[Seq[String]] = tpe match {
+  private [passes] def enumerateNames(tpe: Type): Seq[Seq[String]] = tpe match {
     case t: BundleType =>
       t.fields flatMap { f =>
         (enumerateNames(f.tpe) map (f.name +: _)) ++ Seq(Seq(f.name))
@@ -258,7 +258,7 @@ object Uniquify extends Transform {
             if (nameMap.contains(sx.name)) {
               val node = nameMap(sx.name)
               val newType = uniquifyNamesType(sx.tpe, node.elts)
-              (Utils.create_exps(sx.name, sx.tpe) zip Utils.create_exps(node.name, newType)) foreach { 
+              (Utils.create_exps(sx.name, sx.tpe) zip Utils.create_exps(node.name, newType)) foreach {
                 case (from, to) => renames.rename(from.serialize, to.serialize)
               }
               DefWire(sx.info, node.name, newType)
@@ -373,4 +373,3 @@ object Uniquify extends Transform {
     CircuitState(result, outputForm, state.annotations, Some(renames))
   }
 }
-

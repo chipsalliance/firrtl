@@ -16,12 +16,12 @@ class DoPrimVerilog extends FirrtlFlatSpec {
   "Xorr" should "emit correctly" in {
     val compiler = new VerilogCompiler
     val input =
-      """circuit Xorr : 
-        |  module Xorr : 
+      """circuit Xorr :
+        |  module Xorr :
         |    input a: UInt<4>
         |    output b: UInt<1>
         |    b <= xorr(a)""".stripMargin
-    val check = 
+    val check =
       """module Xorr(
         |  input  [3:0] a,
         |  output  b
@@ -34,12 +34,12 @@ class DoPrimVerilog extends FirrtlFlatSpec {
   "Andr" should "emit correctly" in {
     val compiler = new VerilogCompiler
     val input =
-      """circuit Andr : 
-        |  module Andr : 
+      """circuit Andr :
+        |  module Andr :
         |    input a: UInt<4>
         |    output b: UInt<1>
         |    b <= andr(a)""".stripMargin
-    val check = 
+    val check =
       """module Andr(
         |  input  [3:0] a,
         |  output  b
@@ -52,12 +52,12 @@ class DoPrimVerilog extends FirrtlFlatSpec {
   "Orr" should "emit correctly" in {
     val compiler = new VerilogCompiler
     val input =
-      """circuit Orr : 
-        |  module Orr : 
+      """circuit Orr :
+        |  module Orr :
         |    input a: UInt<4>
         |    output b: UInt<1>
         |    b <= orr(a)""".stripMargin
-    val check = 
+    val check =
       """module Orr(
         |  input  [3:0] a,
         |  output  b
@@ -78,8 +78,8 @@ class DoPrimVerilog extends FirrtlFlatSpec {
         |""".stripMargin
     val check =
       """module Test(
-        |  input  [7:0] in, 
-        |  output  out 
+        |  input  [7:0] in,
+        |  output  out
         |);
         |  wire [7:0] _GEN_0;
         |  assign out = _GEN_0[0];
@@ -230,6 +230,46 @@ class VerilogEmitterSpec extends FirrtlFlatSpec {
     for (c <- check) {
       lines should contain (c)
     }
+  }
+
+  "Verilog name conflicts" should "be resolved" in {
+    val input =
+      """|circuit parameter:
+         |  module parameter:
+         |    input always: UInt<1>
+         |    output always$: UInt<1>
+         |    inst assign of endmodule
+         |    node always_ = not(always)
+         |    node always__ = and(always_, assign.fork)
+         |    always$ <= always__
+         |  module endmodule:
+         |    output fork: UInt<1>
+         |    node const = add(UInt<4>("h1"), UInt<3>("h2"))
+         |    fork <= const
+         |""".stripMargin
+    val check_firrtl =
+      """|circuit parameter_:
+         |  module parameter_:
+         |    input always___: UInt<1>
+         |    output always$: UInt<1>
+         |    inst assign_ of endmodule_
+         |    node always_ = not(always___)
+         |    node always__ = and(always_, assign_.fork_)
+         |    always$ <= always__
+         |  module endmodule_:
+         |    output fork_: UInt<1>
+         |    node const_ = add(UInt<4>("h1"), UInt<3>("h2"))
+         |    fork_ <= const_
+         |""".stripMargin
+    val state = CircuitState(parse(input), UnknownForm, Seq.empty, None)
+    val output = Seq( ToWorkingIR, ResolveKinds, InferTypes, VerilogRename )
+      .foldLeft(state){ case (c, tx) => tx.runTransform(c) }
+    println(state.circuit.serialize)
+    println(output.circuit.serialize)
+    Seq( CheckHighForm )
+      .foldLeft(output.circuit){ case (c, tx) => tx.run(c) }
+
+    output.circuit.serialize should be (parse(check_firrtl).serialize)
   }
 
 }
