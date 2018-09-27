@@ -9,6 +9,7 @@ import firrtl.WrappedExpression._
 import firrtl.WrappedType._
 import scala.collection.mutable
 import scala.collection.mutable.{StringBuilder, ArrayBuffer, LinkedHashMap, HashMap, HashSet}
+import scala.util.matching.Regex
 import java.io.PrintWriter
 import logger.LazyLogging
 
@@ -699,11 +700,11 @@ object Utils extends LazyLogging {
     * @return the signal name and any prefixes
     */
   def expandPrefixes(name: String, prefixDelim: String = "_"): Seq[String] = {
-    val regex = s"$prefixDelim[A-Za-z\\$$]".r
+    val regex = ("(" + Regex.quote(prefixDelim) + ")+[A-Za-z0-9$]").r
 
     name +: regex
       .findAllMatchIn(name)
-      .map(_.start + 1)
+      .map(_.end - 1)
       .toSeq
       .foldLeft(Seq[String]()){ case (seq, id) => seq :+ name.splitAt(id)._1 }
   }
