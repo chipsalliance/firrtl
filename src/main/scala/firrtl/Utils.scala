@@ -691,6 +691,22 @@ object Utils extends LazyLogging {
     "SYNTHESIS",
     "PRINTF_COND",
     "VCS")
+
+  /** Expand a name into its prefixes, e.g., 'foo_bar__baz' becomes 'Seq[foo_, foo_bar__, foo_bar__baz]'. This can be used
+    * to produce better names when generating prefix unique names.
+    * @param name a signal name
+    * @param prefixDelim a prefix delimiter (default is "_")
+    * @return the signal name and any prefixes
+    */
+  def expandPrefixes(name: String, prefixDelim: String = "_"): Seq[String] = {
+    val regex = s"$prefixDelim[A-Za-z\\$$]".r
+
+    name +: regex
+      .findAllMatchIn(name)
+      .map(_.start + 1)
+      .toSeq
+      .foldLeft(Seq[String]()){ case (seq, id) => seq :+ name.splitAt(id)._1 }
+  }
 }
 
 object MemoizedHash {
