@@ -49,6 +49,33 @@ class BlacklBoxSourceHelperTransformSpec extends LowTransformSpec {
                         |   a1.foo <= x
                       """.stripMargin
 
+  "annotated external modules with absolute path" should "appear in output directory" in {
+
+    val absPath = new java.io.File("src/test/resources/blackboxes/AdderExtModule.v").getCanonicalPath
+    val annos = Seq(
+      BlackBoxTargetDirAnno("test_run_dir"),
+      BlackBoxPathAnno(moduleName, absPath)
+    )
+
+    execute(input, output, annos)
+
+    new java.io.File("test_run_dir/AdderExtModule.v").exists should be (true)
+    new java.io.File(s"test_run_dir/${BlackBoxSourceHelper.fileListName}").exists should be (true)
+  }
+
+  "annotated external modules with relative path" should "appear in output directory" in {
+
+    val annos = Seq(
+      BlackBoxTargetDirAnno("test_run_dir"),
+      BlackBoxPathAnno(moduleName, "src/test/resources/blackboxes/AdderExtModule.v")
+    )
+
+    execute(input, output, annos)
+
+    new java.io.File("test_run_dir/AdderExtModule.v").exists should be (true)
+    new java.io.File(s"test_run_dir/${BlackBoxSourceHelper.fileListName}").exists should be (true)
+  }
+
   "annotated external modules" should "appear in output directory" in {
 
     val annos = Seq(
