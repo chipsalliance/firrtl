@@ -66,7 +66,7 @@ val crossVersions = Seq("2.11.12", "2.12.4")
 
 // Make this available to external tools.
 object firrtl extends Cross[FirrtlModule](crossVersions: _*) {
-  def defaultVersion(ev: Evaluator[Any]) = T.command{
+  def defaultVersion(ev: Evaluator) = T.command{
     println(crossVersions.head)
   }
 
