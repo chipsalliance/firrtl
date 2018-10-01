@@ -62,7 +62,7 @@ case class Antlr4Config(val sourcePath: Path) {
   }
 }
 
-val crossVersions = Seq("2.11.12", "2.12.4")
+val crossVersions = Seq("2.12.4", "2.11.12")
 
 // Make this available to external tools.
 object firrtl extends Cross[FirrtlModule](crossVersions: _*) {
@@ -100,7 +100,7 @@ class FirrtlModule(val crossScalaVersion: String) extends CommonModule with Buil
     ivy"com.github.scopt::scopt:3.6.0",
     ivy"net.jcazevedo::moultingyaml:0.4.0",
     ivy"org.json4s::json4s-native:3.5.3",
-    ivy"org.antlr:antlr4-runtime:4.7",
+    ivy"org.antlr:antlr4-runtime:4.7.1",
     ivy"${Protobuf.ProtobufConfig.ivyDep}"
   )
 
@@ -116,6 +116,7 @@ class FirrtlModule(val crossScalaVersion: String) extends CommonModule with Buil
 
   def generateAntlrSources(p: Path, sourcePath: Path) = {
     val antlr = new Antlr4Config(sourcePath)
+    mkdir! p
     antlr.runAntlr(p)
     p
   }
@@ -124,15 +125,16 @@ class FirrtlModule(val crossScalaVersion: String) extends CommonModule with Buil
 
   def generateProtobufSources(p: Path, sourcePath: Path) = {
     val protobuf = new Protobuf.ProtobufConfig(sourcePath)
+    mkdir! p
     protobuf.runProtoc(p)
     p
   }
 
   override def generatedSources = T {
     val antlrSourcePath: Path = antlrSourceRoot().head.path
-    val antlrSources = Seq(PathRef(generateAntlrSources(T.ctx().dest, antlrSourcePath)))
+    val antlrSources = Seq(PathRef(generateAntlrSources(T.ctx().dest/'antlr, antlrSourcePath)))
     val protobufSourcePath: Path = protobufSourceRoot().head.path
-    val protobufSources = Seq(PathRef(generateProtobufSources(T.ctx().dest, protobufSourcePath)))
+    val protobufSources = Seq(PathRef(generateProtobufSources(T.ctx().dest/'proto, protobufSourcePath)))
     protobufSources ++ antlrSources
   }
 
