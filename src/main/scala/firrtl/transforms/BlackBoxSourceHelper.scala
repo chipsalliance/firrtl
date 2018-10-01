@@ -82,8 +82,8 @@ class BlackBoxSourceHelper extends firrtl.Transform {
         val fromFile = new File(path)
         val toFile = new File(targetDir, fileName)
 
-        val inputStream = new FileInputStream(toFile).getChannel
-        val outputStream = new FileOutputStream(fromFile).getChannel
+        val inputStream = new FileInputStream(fromFile).getChannel
+        val outputStream = new FileOutputStream(toFile).getChannel
         outputStream.transferFrom(inputStream, 0, Long.MaxValue)
 
         toFile
