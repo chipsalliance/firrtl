@@ -2,7 +2,7 @@ import ammonite.ops._
 import ammonite.ops.ImplicitWd._
 import mill._
 import mill.scalalib._
-import $ivy.`com.github.os72:protoc-jar:3.5.1.1`
+import $ivy.`com.github.os72:protoc-jar:3.5.1`
 
 case object ProtobufConfig {
   val version: String = "3.5.0"
