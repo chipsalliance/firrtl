@@ -112,7 +112,7 @@ class FirrtlModule(val crossScalaVersion: String) extends CommonModule with Buil
     def testFrameworks = Seq("org.scalatest.tools.Framework")
   }
 
-  def antlrSourceRoot = T.sources{ pwd / 'src / 'main / 'antlr4 }
+  def antlrSourceRoot = T.sources{ millSourcePath / 'src / 'main / 'antlr4 }
 
   def generateAntlrSources(p: Path, sourcePath: Path) = {
     val antlr = new Antlr4Config(sourcePath)
@@ -121,7 +121,7 @@ class FirrtlModule(val crossScalaVersion: String) extends CommonModule with Buil
     p
   }
 
-  def protobufSourceRoot = T.sources{ pwd / 'src / 'main / 'proto }
+  def protobufSourceRoot = T.sources{ millSourcePath / 'src / 'main / 'proto }
 
   def generateProtobufSources(p: Path, sourcePath: Path) = {
     val protobuf = new Protobuf.ProtobufConfig(sourcePath)
