@@ -17,7 +17,7 @@ import scala.collection.mutable
 
 /** A component, e.g. register etc. Must be declared only once under the TopAnnotation */
 case class NoDedupAnnotation(target: ModuleName) extends SingleTargetAnnotation[ModuleName] {
-  def duplicate(n: ModuleName) = NoDedupAnnotation(n)
+  def duplicate(n: ModuleName): NoDedupAnnotation = NoDedupAnnotation(n)
 }
 
 /** Only use on legal Firrtl.
@@ -73,10 +73,14 @@ class DedupModules extends Transform {
 
     val cname = CircuitName(c.main)
     val map = dedupMap.map { case (from, to) =>
-        logger.debug(s"[Dedup] $from -> ${to.name}")
-        ModuleName(from, cname) -> List(ModuleName(to.name, cname))
+      logger.debug(s"[Dedup] $from -> ${to.name}")
+      ModuleName(from, cname) -> List(ModuleName(to.name, cname))
+    }
+    renameMap.addMap(
+      map.map {
+        case (k: ModuleName, v: List[ModuleName]) => Target.convertNamed2Target(k) -> v.map(Target.convertNamed2Target)
       }
-    renameMap.addMap(map.map{ case (k: ModuleName, v: List[ModuleName]) => Target.convertNamed2Target(k) -> v.map(Target.convertNamed2Target)})
+    )
 
     (InferTypes.run(c.copy(modules = dedupedModules)), renameMap)
   }
@@ -142,7 +146,7 @@ object DedupModules {
     module map onPort map onStmt
   }
 
-  def uniquifyField(ref: String, depth: Int, field: String): String = ref+depth+field
+  def uniquifyField(ref: String, depth: Int, field: String): String = ref + depth + field
 
   /** Turns a module into a name-agnostic module
     * @param module module to change
@@ -174,9 +178,10 @@ object DedupModules {
 
     def retype(name: String)(tpe: Type): Type = {
       if (typeMap.contains(name)) typeMap(name) else {
-        def onType(depth: Int)(tpe: Type): Type = tpe map onType(depth+1) match {
+        def onType(depth: Int)(tpe: Type): Type = tpe map onType(depth + 1) match {
           //TODO bugfix: ref.data.data and ref.datax.data will not rename to the right tags, even if they should be
-          case BundleType(fields) => BundleType(fields.map(f => Field(rename(uniquifyField(name, depth, f.name)), f.flip, f.tpe)))
+          case BundleType(fields) =>
+            BundleType(fields.map(f => Field(rename(uniquifyField(name, depth, f.name)), f.flip, f.tpe)))
           case other => other
         }
         val newType = onType(0)(tpe)
@@ -208,7 +213,11 @@ object DedupModules {
     * @param renameMap Will be modified to keep track of renames in this function
     * @return fixed up module deduped instances
     */
-  def dedupInstances(top: CircuitTarget, originalModule: String, moduleMap: Map[String, DefModule], name2name: Map[String, String], renameMap: RenameMap): DefModule = {
+  def dedupInstances(top: CircuitTarget,
+                     originalModule: String,
+                     moduleMap: Map[String, DefModule],
+                     name2name: Map[String, String],
+                     renameMap: RenameMap): DefModule = {
     val module = moduleMap(originalModule)
 
     // If black box, return it (it has no instances)
@@ -227,7 +236,10 @@ object DedupModules {
     // Define rename functions
     def renameOfModule(instance: String, ofModule: String): String = {
       val newOfModule = name2name(ofModule)
-      renameMap.rename(top.module(originalModule).instOf(instance, ofModule),top.module(originalModule).instOf(instance, newOfModule))
+      renameMap.rename(
+        top.module(originalModule).instOf(instance, ofModule),
+        top.module(originalModule).instOf(instance, newOfModule)
+      )
       newOfModule
     }
     val typeMap = mutable.HashMap[String, Type]()
@@ -240,7 +252,9 @@ object DedupModules {
             case (old, nuu) => renameMap.rename(old.serialize, nuu.serialize)
           }
           newType
-        } else tpe
+        } else {
+          tpe
+        }
       }
     }
 
@@ -249,13 +263,13 @@ object DedupModules {
     changeInternals({n => n}, retype, {i => i}, renameOfModule)(module)
   }
 
+  //scalastyle:off
   def buildRTLTags(tag2all: mutable.HashMap[String, mutable.HashSet[String]])
                   (top: CircuitTarget,
                    moduleLinearization: Seq[DefModule],
                    noDedups: Set[String],
                    annotations: Seq[Annotation],
                    renameMap: RenameMap): Unit = {
-    // Build tag2all, name2tag, name2sourceTags
 
     val module2Annotations = mutable.HashMap.empty[String, mutable.HashSet[Annotation]]
     annotations.foreach { a =>
@@ -268,17 +282,13 @@ object DedupModules {
     val agnosticRename = RenameMap()
 
     moduleLinearization.foreach { originalModule =>
-
       // Replace instance references to new deduped modules
       val dontcare = RenameMap()
       dontcare.setCircuit("dontcare")
-      //val fixedModule = DedupModules.dedupInstances(originalModule, tag2module, name2tag, name2module, dontcare)
-
 
       if (noDedups.contains(originalModule.name)) {
         // Don't dedup. Set dedup module to be the same as fixed module
         tag2all(originalModule.name) = mutable.HashSet(originalModule.name)
-        //templateModules += originalModule.name
       } else { // Try to dedup
 
         // Build name-agnostic module
@@ -289,20 +299,14 @@ object DedupModules {
 
         // Build tag
         val builder = new mutable.ArrayBuffer[Any]()
-        agnosticModule.ports.foreach {
-          builder ++= _.serialize
-        }
-
+        agnosticModule.ports.foreach { builder ++= _.serialize }
         builder ++= agnosticAnnos
 
         agnosticModule match {
-          case Module(i, n, ps, b) =>
-            builder ++= b.serialize
+          case Module(i, n, ps, b) => builder ++= b.serialize
           case ExtModule(i, n, ps, dn, p) =>
             builder ++= dn
-            p.foreach {
-              builder ++= _.serialize
-            }
+            p.foreach { builder ++= _.serialize }
         }
         val tag = builder.hashCode().toString
 
@@ -316,6 +320,7 @@ object DedupModules {
       }
     }
   }
+  //scalastyle:on
 
   /** Deduplicate
     * @param circuit Circuit
@@ -328,8 +333,10 @@ object DedupModules {
                   annotations: Seq[Annotation],
                   renameMap: RenameMap): Map[String, DefModule] = {
 
-    val moduleMap = circuit.modules.map(m => m.name -> m).toMap
-    val moduleLinearization = new InstanceGraph(circuit).moduleOrder.map(_.name).reverse.map(moduleMap(_))
+    val (moduleMap, moduleLinearization) = {
+      val iGraph = new InstanceGraph(circuit)
+      (iGraph.moduleMap, iGraph.moduleOrder.reverse)
+    }
 
     // Maps a tag to all matching module names
     val tag2all = mutable.HashMap.empty[String, mutable.HashSet[String]]

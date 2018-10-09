@@ -12,17 +12,20 @@ import scala.collection.mutable
 import firrtl.annotations._
 import firrtl.ir.{Circuit, Expression}
 import firrtl.Utils.{error, throwInternalError}
-import firrtl.annotations.TargetToken._
+import firrtl.annotations.TargetToken
+import firrtl.annotations.TargetToken.{Field, Index}
 import firrtl.annotations.transforms.{EliminateTargetPaths, ResolvePaths}
 
 object RenameMap {
-  def apply(map: Map[CompleteTarget, Seq[CompleteTarget]]) = {
+  def apply(map: Map[CompleteTarget, Seq[CompleteTarget]]): RenameMap = {
     val rm = new RenameMap
     rm.addMap(map)
     rm
   }
+
+  def apply(): RenameMap = new RenameMap
+
   case class IllegalRename(reason: String) extends Exception(reason)
-  def apply() = new RenameMap
 }
 
 /** Map old names to new names
@@ -39,7 +42,7 @@ final class RenameMap private () {
     */
   def rename(from: CircuitTarget, to: CircuitTarget): Unit = completeRename(from, Seq(to))
 
-  /** Record that the from [[CircuitTarget]] is renamed to sequence of [[CircuitTarget]]s
+  /** Record that the from [[CircuitTarget]] is renamed to another sequence of [[CircuitTarget]]s
     * @param from
     * @param tos
     */
@@ -51,7 +54,7 @@ final class RenameMap private () {
     */
   def rename(from: IsMember, to: IsMember): Unit = completeRename(from, Seq(to))
 
-  /** Record that the from [[IsMember]] is renamed to sequence of [[IsMember]]s
+  /** Record that the from [[IsMember]] is renamed to another sequence of [[IsMember]]s
     * @param from
     * @param tos
     */
@@ -62,15 +65,15 @@ final class RenameMap private () {
     */
   def delete(name: CompleteTarget): Unit = underlying(name) = Seq.empty
 
-  /** Records that the keys in map are renamed to their corresponding value seqs.
-    * Only ([[CircuitTarget]] -> Seq[ [[CircuitTarget]] ]) and ([[IsMember]] -> Seq[ [[IsMember]] ]) key/value pairs are allowed
+  /** Records that the keys in map are also renamed to their corresponding value seqs.
+    * Only ([[CircuitTarget]] -> Seq[ [[CircuitTarget]] ]) and ([[IsMember]] -> Seq[ [[IsMember]] ]) key/value allowed
     * @param map
     */
-  def addMap(map: Map[CompleteTarget, Seq[CompleteTarget]]) =
+  def addMap(map: Map[CompleteTarget, Seq[CompleteTarget]]): Unit =
     map.foreach{
-      case kv@(from: IsComponent, tos: Seq[IsMember]) => completeRename(from, tos)
-      case kv@(from: IsModule, tos: Seq[IsMember]) => completeRename(from, tos)
-      case kv@(from: CircuitTarget, tos: Seq[CircuitTarget]) => completeRename(from, tos)
+      case (from: IsComponent, tos: Seq[IsMember]) => completeRename(from, tos)
+      case (from: IsModule, tos: Seq[IsMember]) => completeRename(from, tos)
+      case (from: CircuitTarget, tos: Seq[CircuitTarget]) => completeRename(from, tos)
       case other => throwInternalError(s"Illegal rename: ${other._1} -> ${other._2}")
     }
 
@@ -84,7 +87,7 @@ final class RenameMap private () {
     * @param key Target referencing the original circuit
     * @return Optionally return sequence of targets that key remaps to
     */
-  def get(key: CircuitTarget): Option[Seq[CircuitTarget]] = completeGet(key).map { _.map { case x: CircuitTarget => x } }
+  def get(key: CircuitTarget): Option[Seq[CircuitTarget]] = completeGet(key).map( _.map { case x: CircuitTarget => x } )
 
   /** Get renames of a [[IsMember]]
     * @param key Target referencing the original member of the circuit
@@ -145,12 +148,14 @@ final class RenameMap private () {
     val errors = mutable.ArrayBuffer[String]()
     val ret = if(hasChanges) {
       val ret = recursiveGet(mutable.LinkedHashSet.empty[CompleteTarget], errors)(key)
-      if(errors.nonEmpty) throw new IllegalRename(errors.mkString("\n"))
-      if(ret.size == 1 && ret.head == key) None else Some(ret)
-    } else None
+      if(errors.nonEmpty) { throw new IllegalRename(errors.mkString("\n")) }
+      if(ret.size == 1 && ret.head == key) { None } else { Some(ret) }
+    } else { None }
     ret
   }
 
+  // scalastyle:off
+  // This function requires a large cyclomatic complexity, and is best naturally expressed as a large function
   /** Recursively renames a target so the returned targets are complete renamed
     * @param set Used to detect circular renames
     * @param errors Used to record illegal renames
@@ -257,8 +262,10 @@ final class RenameMap private () {
 
       // Return result
       ret
+
     }
   }
+  // scalastyle:on
 
   /** Fully renames from to tos
     * @param from
@@ -292,13 +299,13 @@ final class RenameMap private () {
     * @param module
     */
   @deprecated("Use typesafe rename defs instead, this will be removed in 1.3", "1.2")
-  def setModule(module: String) = moduleName = module
+  def setModule(module: String): Unit = moduleName = module
 
   /** Sets mutable state to record current circuit we are visiting
     * @param circuit
     */
   @deprecated("Use typesafe rename defs instead, this will be removed in 1.3", "1.2")
-  def setCircuit(circuit: String) = circuitName = circuit
+  def setCircuit(circuit: String): Unit = circuitName = circuit
 
   /** Records how a reference maps to a new reference
     * @param from
@@ -315,8 +322,8 @@ final class RenameMap private () {
   @deprecated("Use typesafe rename defs instead, this will be removed in 1.3", "1.2")
   def rename(from: String, tos: Seq[String]): Unit = {
     val mn = ModuleName(moduleName, CircuitName(circuitName))
-    val fromName = Target.convertComponentName2IsLocalComponent(ComponentName(from, mn))
-    val tosName = tos map { to => Target.convertComponentName2IsLocalComponent(ComponentName(to, mn)) }
+    val fromName = Target.convertComponentName2ReferenceTarget(ComponentName(from, mn))
+    val tosName = tos map { to => Target.convertComponentName2ReferenceTarget(ComponentName(to, mn)) }
     rename(fromName, tosName)
   }
 
@@ -346,7 +353,7 @@ class AnnotationSeq private (private[firrtl] val underlying: List[Annotation]) {
   def toSeq: Seq[Annotation] = underlying.toSeq
 }
 object AnnotationSeq {
-  def apply(xs: Seq[Annotation]) = new AnnotationSeq(xs.toList)
+  def apply(xs: Seq[Annotation]): AnnotationSeq = new AnnotationSeq(xs.toList)
 }
 
 /** Current State of the Circuit
@@ -380,23 +387,38 @@ case class CircuitState(
   def deletedAnnotations: Seq[Annotation] =
     annotations.collect { case anno: DeletedAnnotation => anno }
 
+  /** Returns a new CircuitState with all targets being resolved.
+    * Paths through instances are replaced with a uniquified final target
+    * Includes modifying the circuit and annotations
+    * @param targets
+    * @return
+    */
   def resolvePaths(targets: Seq[CompleteTarget]): CircuitState = {
     val newCS = new EliminateTargetPaths().runTransform(this.copy(annotations = ResolvePaths(targets) +: annotations ))
     newCS.copy(form = form)
   }
 
+  /** Returns a new CircuitState with the targets of every annotation of a type in annoClasses
+    * @param annoClasses
+    * @return
+    */
   def resolvePathsOf(annoClasses: Class[_]*): CircuitState = {
     val targets = getAnnotationsOf(annoClasses:_*).flatMap(_.getTargets)
     if(targets.nonEmpty) resolvePaths(targets.flatMap{_.getComplete}) else this
   }
 
+  /** Returns all annotations which are of a class in annoClasses
+    * @param annoClasses
+    * @return
+    */
   def getAnnotationsOf(annoClasses: Class[_]*): AnnotationSeq = {
     annotations.collect { case a if annoClasses.contains(a.getClass) => a }
   }
 }
+
 object CircuitState {
   def apply(circuit: Circuit, form: CircuitForm): CircuitState = apply(circuit, form, Seq())
-  def apply(circuit: Circuit, form: CircuitForm, annotations: AnnotationSeq) =
+  def apply(circuit: Circuit, form: CircuitForm, annotations: AnnotationSeq): CircuitState =
     new CircuitState(circuit, form, annotations, None)
 }
 
@@ -413,6 +435,9 @@ sealed abstract class CircuitForm(private val value: Int) extends Ordered[Circui
   // Note that value is used only to allow comparisons
   def compare(that: CircuitForm): Int = this.value - that.value
 }
+
+// scalastyle:off magic.number
+// These magic numbers give an ordering to CircuitForm
 /** Chirrtl Form
   *
   * The form of the circuit emitted by Chisel. Not a true Firrtl form.
@@ -421,7 +446,7 @@ sealed abstract class CircuitForm(private val value: Int) extends Ordered[Circui
   *
   * See [[CDefMemory]] and [[CDefMPort]]
   */
-final case object ChirrtlForm extends CircuitForm(3)
+final case object ChirrtlForm extends CircuitForm(value = 3)
 /** High Form
   *
   * As detailed in the Firrtl specification
@@ -459,6 +484,7 @@ final case object LowForm extends CircuitForm(0)
 final case object UnknownForm extends CircuitForm(-1) {
   override def compare(that: CircuitForm): Int = { sys.error("Illegal to compare UnknownForm"); 0 }
 }
+// scalastyle:on magic.number
 
 /** The basic unit of operating on a Firrtl AST */
 abstract class Transform extends LazyLogging {
@@ -489,6 +515,10 @@ abstract class Transform extends LazyLogging {
     state.annotations.collect { case a: LegacyAnnotation if a.transform == this.getClass => a }
   }
 
+  /** Executes before any transform's execute method
+    * @param state
+    * @return
+    */
   def prepare(state: CircuitState): CircuitState = state
 
   /** Perform the transform and update annotations.
@@ -579,6 +609,9 @@ abstract class SeqTransform extends Transform with SeqTransformBased {
   }
 }
 
+/** Extend for transforms that require resolved targets in their annotations
+  * Ensures all targets in annotations of a class in annotationClasses are resolved before the execute method
+  */
 trait ResolvedAnnotationPaths {
   this: Transform =>
 
@@ -674,8 +707,8 @@ trait Compiler extends LazyLogging {
   def transforms: Seq[Transform]
 
   // Similar to (input|output)Form on [[Transform]] but derived from this Compiler's transforms
-  def inputForm = transforms.head.inputForm
-  def outputForm = transforms.last.outputForm
+  def inputForm: CircuitForm = transforms.head.inputForm
+  def outputForm: CircuitForm = transforms.last.outputForm
 
   private def transformsLegal(xforms: Seq[Transform]): Boolean =
     if (xforms.size < 2) {

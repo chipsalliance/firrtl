@@ -1,19 +1,28 @@
+// See LICENSE for license details.
+
 package firrtl.annotations
 
+/** Building block to represent a [[Target]] of a FIRRTL component */
 sealed trait TargetToken {
   def keyword: String
   def value: Any
+
+  /** Returns whether this token is one of the type of tokens whose keyword is passed as an argument
+    * @param keywords
+    * @return
+    */
   def is(keywords: String*): Boolean = {
     keywords.map { kw =>
+      require(TargetToken.keyword2targettoken.keySet.contains(kw),
+        s"Keyword $kw must be in set ${TargetToken.keyword2targettoken.keys}")
       val lastClass = this.getClass
       lastClass == TargetToken.keyword2targettoken(kw)("0").getClass
     }.reduce(_ || _)
   }
-  //override def toString = s"/$keyword@$value"
 }
 
+/** Object containing all [[TargetToken]] subclasses */
 case object TargetToken {
-  //implicit def string2int(s: String): Int = s.toInt
   case class Instance(value: String)  extends TargetToken { override def keyword: String = "inst" }
   case class OfModule(value: String)  extends TargetToken { override def keyword: String = "of" }
   case class Ref(value: String)       extends TargetToken { override def keyword: String = "ref" }

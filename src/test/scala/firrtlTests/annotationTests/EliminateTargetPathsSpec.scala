@@ -1,6 +1,8 @@
+// See LICENSE for license details.
+
 package firrtlTests.annotationTests
 
-import firrtl.{ChirrtlForm, CircuitForm, CircuitState, LowFirrtlCompiler, LowFirrtlOptimization, LowForm, ResolvedAnnotationPaths, Transform}
+import firrtl._
 import firrtl.annotations._
 import firrtl.annotations.analysis.DuplicationHelper
 import firrtl.annotations.transforms.IllegalPathException
@@ -151,7 +153,9 @@ class EliminateTargetPathsSpec extends FirrtlPropSpec with FirrtlMatchers {
         |
       """.stripMargin
     canonicalize(outputState.circuit).serialize should be (canonicalize(parse(check)).serialize)
-    outputState.annotations.collect{case x: DontTouchAnnotation => x.target} should be (Seq(Top.circuitTarget.module("Leaf___Top_m1_l1").ref("a")))
+    outputState.annotations.collect {
+      case x: DontTouchAnnotation => x.target
+    } should be (Seq(Top.circuitTarget.module("Leaf___Top_m1_l1").ref("a")))
   }
 
   property("No name conflicts between old and new modules") {
@@ -182,7 +186,7 @@ class EliminateTargetPathsSpec extends FirrtlPropSpec with FirrtlMatchers {
         |  module Middle :
         |  module Top :
         |  module Middle___Top_m1 :
-        |  module Middle___Top_m1_1 :""".stripMargin.split("\n")
+        |  module Middle____Top_m1 :""".stripMargin.split("\n")
     val Top_m1 = Top.instOf("m1", "Middle")
     val inputState = CircuitState(parse(input), ChirrtlForm, Seq(DummyAnnotation(Top_m1)))
     val outputState = new LowFirrtlCompiler().compile(inputState, customTransforms)

@@ -28,7 +28,9 @@ sealed trait Target extends Named {
   def tokens: Seq[TargetToken]
 
   /** @return Returns a new [[GenericTarget]] with new values */
-  def modify(circuitOpt: Option[String] = circuitOpt, moduleOpt: Option[String] = moduleOpt, tokens: Seq[TargetToken] = tokens) = GenericTarget(circuitOpt, moduleOpt, tokens)
+  def modify(circuitOpt: Option[String] = circuitOpt,
+             moduleOpt: Option[String] = moduleOpt,
+             tokens: Seq[TargetToken] = tokens): GenericTarget = GenericTarget(circuitOpt, moduleOpt, tokens)
 
   /** @return Human-readable serialization */
   def serialize: String = {
@@ -48,6 +50,7 @@ sealed trait Target extends Named {
   def toGenericTarget: GenericTarget = GenericTarget(circuitOpt, moduleOpt, tokens)
 
   /** @return Converts this [[Target]] into either a [[CircuitName]], [[ModuleName]], or [[ComponentName]] */
+  @deprecated("Use Target instead, will be removed in 1.3", "1.2")
   def toNamed: Named = toGenericTarget.toNamed
 
   /** @return If legal, convert this [[Target]] into a [[CompleteTarget]] */
@@ -63,28 +66,30 @@ sealed trait Target extends Named {
 
 object Target {
 
-  def apply(circuitOpt: Option[String], moduleOpt: Option[String], reference: Seq[TargetToken]) = GenericTarget(circuitOpt, moduleOpt, reference)
+  def apply(circuitOpt: Option[String], moduleOpt: Option[String], reference: Seq[TargetToken]): GenericTarget =
+    GenericTarget(circuitOpt, moduleOpt, reference)
 
-  def unapply(t: Target): Option[(Option[String], Option[String], Seq[TargetToken])] = Some((t.circuitOpt, t.moduleOpt, t.tokens))
+  def unapply(t: Target): Option[(Option[String], Option[String], Seq[TargetToken])] =
+    Some((t.circuitOpt, t.moduleOpt, t.tokens))
 
   case class NamedException(message: String) extends Exception(message)
 
   implicit def convertCircuitTarget2CircuitName(c: CircuitTarget): CircuitName = c.toNamed
   implicit def convertModuleTarget2ModuleName(c: ModuleTarget): ModuleName = c.toNamed
-  implicit def convertLocalComponent2ComponentName(c: IsComponent): ComponentName = c.toNamed
+  implicit def convertIsComponent2ComponentName(c: IsComponent): ComponentName = c.toNamed
   implicit def convertTarget2Named(c: Target): Named = c.toNamed
   implicit def convertCircuitName2CircuitTarget(c: CircuitName): CircuitTarget = CircuitTarget(c.name)
   implicit def convertModuleName2ModuleTarget(c: ModuleName): ModuleTarget = ModuleTarget(c.circuit.name, c.name)
-  implicit def convertComponentName2IsLocalComponent(c: ComponentName): ReferenceTarget = {
+  implicit def convertComponentName2ReferenceTarget(c: ComponentName): ReferenceTarget = {
     toTargetTokens(c.name).toList match {
       case Ref(r) :: components => ReferenceTarget(c.module.circuit.name, c.module.name, Nil, r, components)
-      case other => throw NamedException(s"Cannot convert $c into [[LocalReferenceTarget]]: $other")
+      case other => throw NamedException(s"Cannot convert $c into [[ReferenceTarget]]: $other")
     }
   }
   implicit def convertNamed2Target(n: Named): CompleteTarget = n match {
     case c: CircuitName => convertCircuitName2CircuitTarget(c)
     case m: ModuleName => convertModuleName2ModuleTarget(m)
-    case c: ComponentName => convertComponentName2IsLocalComponent(c)
+    case c: ComponentName => convertComponentName2ReferenceTarget(c)
     case c: GenericTarget => c.complete
     case c: CompleteTarget => c
   }
@@ -122,7 +127,9 @@ object Target {
   * @param moduleOpt Optional module name
   * @param tokens [[TargetToken]]s to represent the target in a circuit and module
   */
-case class GenericTarget(circuitOpt: Option[String], moduleOpt: Option[String], tokens: Seq[TargetToken]) extends Target {
+case class GenericTarget(circuitOpt: Option[String],
+                         moduleOpt: Option[String],
+                         tokens: Seq[TargetToken]) extends Target {
 
   override def toGenericTarget: GenericTarget = this
 
@@ -134,37 +141,20 @@ case class GenericTarget(circuitOpt: Option[String], moduleOpt: Option[String], 
   }
 
   override def getComplete: Option[CompleteTarget] = {
-    if(isLegal) {
-      this match {
-        case GenericTarget(Some(c), None, Nil) => Some(CircuitTarget(c))
-        case GenericTarget(Some(c), Some(m), Nil) => Some(ModuleTarget(c, m))
-        case GenericTarget(Some(c), Some(m), Ref(r) :: component) => Some(ReferenceTarget(c, m, Nil, r, component))
-        case GenericTarget(Some(c), Some(m), Instance(i) :: OfModule(o) :: Nil) => Some(InstanceTarget(c, m, Nil, i, o))
+    if(!isLegal) None else {
+      val target = this match {
+        case GenericTarget(Some(c), None, Nil) => CircuitTarget(c)
+        case GenericTarget(Some(c), Some(m), Nil) => ModuleTarget(c, m)
+        case GenericTarget(Some(c), Some(m), Ref(r) :: component) => ReferenceTarget(c, m, Nil, r, component)
+        case GenericTarget(Some(c), Some(m), Instance(i) :: OfModule(o) :: Nil) => InstanceTarget(c, m, Nil, i, o)
         case GenericTarget(Some(c), Some(m), component) =>
-          val optPath = getPath
-          if(optPath.nonEmpty) {
-            val path = optPath.get
-            val optRef = getRef
-            if(optRef.nonEmpty) {
-              val (r, comps) = optRef.get
-              Some(ReferenceTarget(c, m, path, r, comps))
-            } else {
-              val (i, o) = getInstanceOf.get
-              Some(InstanceTarget(c, m, path, i, o))
-            }
-          } else {
-            val optRef = getRef
-            if(optRef.nonEmpty) {
-              val (r, comps) = optRef.get
-              Some(ReferenceTarget(c, m, Nil, r, comps))
-            } else {
-              val (i, o) = getInstanceOf.get
-              Some(InstanceTarget(c, m, Nil, i, o))
-            }
+          val path = getPath.getOrElse(Nil)
+          (getRef, getInstanceOf) match {
+            case (Some((r, comps)), _) => ReferenceTarget(c, m, path, r, comps)
+            case (None, Some((i, o)))  => InstanceTarget(c, m, path, i, o)
           }
       }
-    } else {
-      None
+      Some(target)
     }
   }
 
@@ -174,7 +164,9 @@ case class GenericTarget(circuitOpt: Option[String], moduleOpt: Option[String], 
   def getPath: Option[Seq[(Instance, OfModule)]] = if(isComplete) {
     val allInstOfs = tokens.grouped(2).collect { case Seq(i: Instance, o:OfModule) => (i, o)}.toSeq
     if(tokens.nonEmpty && tokens.last.isInstanceOf[OfModule]) Some(allInstOfs.dropRight(1)) else Some(allInstOfs)
-  } else None
+  } else {
+    None
+  }
 
   /** Checks if this target is complete and local
     * @return
@@ -190,8 +182,10 @@ case class GenericTarget(circuitOpt: Option[String], moduleOpt: Option[String], 
       case ((r: Some[String], comps), c) => (r, comps :+ c)
       case ((r, v), other) => (None, v)
     }
-    Some((optRef.get, comps))
-  } else None
+    optRef.map(x => (x, comps))
+  } else {
+    None
+  }
 
   /** If complete and an instance target, return the instance and ofmodule
     * @return
@@ -201,7 +195,9 @@ case class GenericTarget(circuitOpt: Option[String], moduleOpt: Option[String], 
       case (instOf, Seq(i: Instance, o: OfModule)) => Some((i.value, o.value))
       case (instOf, _) => None
     }
-  } else None
+  } else {
+    None
+  }
 
   /** Requires the last [[TargetToken]] in tokens to be one of the [[TargetToken]] keywords
     * @param default Return value if tokens is empty
@@ -221,11 +217,11 @@ case class GenericTarget(circuitOpt: Option[String], moduleOpt: Option[String], 
       case _: Instance  => requireLast(true, "inst", "of")
       case _: OfModule  => requireLast(false, "inst")
       case _: Ref       => requireLast(true, "inst", "of")
-      case _: Field     => requireLast(true, "ref", "[]", ".", "clock", "init", "reset")
-      case _: Index     => requireLast(true, "ref", "[]", ".", "clock", "init", "reset")
-      case Clock        => requireLast(true, "ref")
-      case Init         => requireLast(true, "ref")
-      case Reset        => requireLast(true, "ref")
+      case _: Field     => requireLast(true, "ref", "[]", ".", "init", "clock", "reset")
+      case _: Index     => requireLast(true, "ref", "[]", ".", "init", "clock", "reset")
+      case Init         => requireLast(true, "ref", "[]", ".", "init", "clock", "reset")
+      case Clock        => requireLast(true, "ref", "[]", ".", "init", "clock", "reset")
+      case Reset        => requireLast(true, "ref", "[]", ".", "init", "clock", "reset")
     }
     this.copy(tokens = tokens :+ token)
   }
@@ -289,7 +285,7 @@ trait CompleteTarget extends Target {
 
   def getComplete: Option[CompleteTarget] = Some(this)
 
-  /** Checks whether the component tokens has no instance/ofModule subcomponents */
+  /** Whether the target is directly instantiated in its root module */
   def isLocal: Boolean
 
   /** Adds another level of instance hierarchy
@@ -390,7 +386,9 @@ trait IsComponent extends IsMember {
           ComponentName(name, mn)
         case Seq(Instance(name), OfModule(o)) => ComponentName(name, mn)
       }
-    } else throw new Exception(s"Cannot convert $this to [[ComponentName]]")
+    } else {
+      throw new Exception(s"Cannot convert $this to [[ComponentName]]")
+    }
   }
 
   override def justPath: Seq[TargetToken] = path.foldLeft(Vector.empty[TargetToken]) {
@@ -622,5 +620,5 @@ final case class ComponentName(name: String, module: ModuleName) extends Named {
   if(!validComponentName(name)) throw AnnotationException(s"Illegal component name: $name")
   def expr: Expression = toExp(name)
   def serialize: String = module.serialize + "." + name
-  def toTarget: ReferenceTarget = Target.convertComponentName2IsLocalComponent(this)
+  def toTarget: ReferenceTarget = Target.convertComponentName2ReferenceTarget(this)
 }

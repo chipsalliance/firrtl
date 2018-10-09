@@ -64,6 +64,10 @@ object AnnotationUtils {
     case Array(c, m, x) => ComponentName(x, ModuleName(m, CircuitName(c)))
   }
 
+  /** Converts a serialized FIRRTL component into a sequence of target tokens
+    * @param s
+    * @return
+    */
   def toSubComponents(s: String): Seq[TargetToken] = {
     import TargetToken._
     def exp2subcomp(e: ir.Expression): Seq[TargetToken] = e match {

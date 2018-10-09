@@ -2,6 +2,7 @@
 
 package firrtl.annotations.analysis
 
+import firrtl.Namespace
 import firrtl.annotations._
 import firrtl.annotations.TargetToken.{Instance, OfModule, Ref}
 import firrtl.Utils.throwInternalError
@@ -24,6 +25,8 @@ case class DuplicationHelper(existingModules: Set[String]) {
   // Internal state to keep track of how paths duplicate
   private val dupMap = new DupMap()
 
+  private val moduleNamespace = Namespace(existingModules.toSeq)
+
   /** Updates internal state (dupMap) to calculate instance hierarchy modifications so t's tokens in an instance can be
     * expressed as a tokens in a module (e.g. uniquify/duplicate the instance path in t's tokens)
     * @param t An instance-resolved component
@@ -33,9 +36,7 @@ case class DuplicationHelper(existingModules: Set[String]) {
       case m: IsModule => m.asPath
       case _ => t.path
     }
-    path.reverse.tails.map { p => p.reverse }.toSeq.foreach { p =>
-      duplicate(t.module, p)
-    }
+    path.reverse.tails.map { _.reverse }.foreach { duplicate(t.module, _) }
   }
 
   /** Updates dupMap with how original module names map to new duplicated module names
@@ -65,14 +66,10 @@ case class DuplicationHelper(existingModules: Set[String]) {
     */
   def getModuleName(top: String, path: Seq[(Instance, OfModule)]): String = {
     if(path.isEmpty) top else {
-      val bestName = path.last._2.value + "___" + top + "_" + path.map { case (i, m) => i.value }.mkString("_")
-      var idx = ""
-      var counter = 0
-      while(existingModules.contains(bestName + idx)) {
-        counter += 1
-        idx = "_" + counter.toString
-      }
-      bestName + idx
+      val car = path.last._2.value + "___"
+      val cdr = top + "_" + path.map { case (i, m) => i.value }.mkString("_")
+      val ns = mutable.HashSet(existingModules.toSeq: _*)
+      firrtl.passes.Uniquify.findValidPrefix(car, Seq(cdr), ns) + cdr
     }
   }
 
@@ -83,7 +80,10 @@ case class DuplicationHelper(existingModules: Set[String]) {
     * @param originalOfModule original module being instantiated in originalModule
     * @return
     */
-  def getNewOfModule(originalModule: String, newModule: String, instance: Instance, originalOfModule: OfModule): OfModule = {
+  def getNewOfModule(originalModule: String,
+                     newModule: String,
+                     instance: Instance,
+                     originalOfModule: OfModule): OfModule = {
     dupMap.get(originalModule) match {
       case None => // No duplication, can return originalOfModule
         originalOfModule

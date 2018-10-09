@@ -45,7 +45,7 @@ object Uniquify extends Transform {
   // We don't add an _ in the collision check because elts could be Seq("")
   //   In this case, we're just really checking if prefix itself collides
   @tailrec
-  private def findValidPrefix(
+  def findValidPrefix(
       prefix: String,
       elts: Seq[String],
       namespace: collection.mutable.HashSet[String]): String = {
