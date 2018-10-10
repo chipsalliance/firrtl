@@ -76,7 +76,7 @@ class DedupModules extends Transform {
       logger.debug(s"[Dedup] $from -> ${to.name}")
       ModuleName(from, cname) -> List(ModuleName(to.name, cname))
     }
-    renameMap.addMap(
+    renameMap.addAll(
       map.map {
         case (k: ModuleName, v: List[ModuleName]) => Target.convertNamed2Target(k) -> v.map(Target.convertNamed2Target)
       }

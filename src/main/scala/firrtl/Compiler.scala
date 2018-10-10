@@ -19,7 +19,7 @@ import firrtl.annotations.transforms.{EliminateTargetPaths, ResolvePaths}
 object RenameMap {
   def apply(map: collection.Map[CompleteTarget, Seq[CompleteTarget]]): RenameMap = {
     val rm = new RenameMap
-    rm.addMap(map)
+    rm.addAll(map)
     rm
   }
 
@@ -69,13 +69,20 @@ final class RenameMap private () {
     * Only ([[CircuitTarget]] -> Seq[ [[CircuitTarget]] ]) and ([[IsMember]] -> Seq[ [[IsMember]] ]) key/value allowed
     * @param map
     */
-  def addMap(map: collection.Map[CompleteTarget, Seq[CompleteTarget]]): Unit =
+  def addAll(map: collection.Map[CompleteTarget, Seq[CompleteTarget]]): Unit =
     map.foreach{
       case (from: IsComponent, tos: Seq[IsMember]) => completeRename(from, tos)
       case (from: IsModule, tos: Seq[IsMember]) => completeRename(from, tos)
       case (from: CircuitTarget, tos: Seq[CircuitTarget]) => completeRename(from, tos)
       case other => throwInternalError(s"Illegal rename: ${other._1} -> ${other._2}")
     }
+
+  /** Records that the keys in map are also renamed to their corresponding value seqs.
+    * @param map
+    */
+  @deprecated("Use addAll with CompleteTarget instead, this will be removed in 1.3", "1.2")
+  def addMap(map: collection.Map[Named, Seq[Named]]): Unit =
+    addAll(map.map { case (key, values) => (Target.convertNamed2Target(key), values.map(Target.convertNamed2Target)) })
 
   /** Renames a [[CompleteTarget]]
     * @param t target to rename
