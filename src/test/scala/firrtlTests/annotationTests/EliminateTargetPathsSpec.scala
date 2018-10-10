@@ -49,7 +49,7 @@ class EliminateTargetPathsSpec extends FirrtlPropSpec with FirrtlMatchers {
   val Leaf_a = Leaf.ref("a")
 
   case class DummyAnnotation(target: Target) extends SingleTargetAnnotation[Target] {
-    override def duplicate(n: Target): Annotation = DummyAnnotation(target)
+    override def duplicate(n: Target): Annotation = DummyAnnotation(n)
   }
   class DummyTransform() extends Transform with ResolvedAnnotationPaths {
     override def inputForm: CircuitForm = LowForm
@@ -269,6 +269,51 @@ class EliminateTargetPathsSpec extends FirrtlPropSpec with FirrtlMatchers {
       val Top_m2 = Top.instOf("x2", "Middle")
       val inputState = CircuitState(parse(input), ChirrtlForm, Seq(DummyAnnotation(Top_m2)))
       new LowFirrtlCompiler().compile(inputState, customTransforms)
+    }
+  }
+
+  property("No name conflicts between two new modules") {
+    val input =
+      """circuit Top:
+        |  module Top:
+        |    input i: UInt<1>
+        |    output o: UInt<1>
+        |    inst m1 of Middle_
+        |    inst m2 of Middle
+        |    m1.i <= i
+        |    m2.i <= m1.o
+        |    o <= m2.o
+        |  module Middle:
+        |    input i: UInt<1>
+        |    output o: UInt<1>
+        |    inst _l of Leaf
+        |    _l.i <= i
+        |    o <= _l.o
+        |  module Middle_:
+        |    input i: UInt<1>
+        |    output o: UInt<1>
+        |    inst l of Leaf
+        |    l.i <= i
+        |    node x = i
+        |    o <= l.o
+        |  module Leaf:
+        |    input i: UInt<1>
+        |    output o: UInt<1>
+        |    o <= i
+      """.stripMargin
+    val checks =
+      """circuit Top :
+        |  module Middle :
+        |  module Top :
+        |  module Leaf___Middle__l :
+        |  module Leaf____Middle__l :""".stripMargin.split("\n")
+    val Middle_l1 = CircuitTarget("Top").module("Middle").instOf("_l", "Leaf")
+    val Middle_l2 = CircuitTarget("Top").module("Middle_").instOf("l", "Leaf")
+    val inputState = CircuitState(parse(input), ChirrtlForm, Seq(DummyAnnotation(Middle_l1), DummyAnnotation(Middle_l2)))
+    val outputState = new LowFirrtlCompiler().compile(inputState, customTransforms)
+    val outputLines = outputState.circuit.serialize.split("\n")
+    checks.foreach { line =>
+      outputLines should contain (line)
     }
   }
 }

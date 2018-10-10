@@ -269,7 +269,7 @@ object DedupModules {
                    moduleLinearization: Seq[DefModule],
                    noDedups: Set[String],
                    annotations: Seq[Annotation],
-                   renameMap: RenameMap): Unit = {
+                   renameMap: RenameMap): collection.Map[String, RenameMap] = {
 
     val module2Annotations = mutable.HashMap.empty[String, mutable.HashSet[Annotation]]
     annotations.foreach { a =>
@@ -279,7 +279,7 @@ object DedupModules {
       }
     }
 
-    val agnosticRename = RenameMap()
+    val agnosticRenames = mutable.HashMap[String, RenameMap]()
 
     moduleLinearization.foreach { originalModule =>
       // Replace instance references to new deduped modules
@@ -291,10 +291,15 @@ object DedupModules {
         tag2all(originalModule.name) = mutable.HashSet(originalModule.name)
       } else { // Try to dedup
 
+        val agnosticRename = RenameMap()
+        agnosticRenames(originalModule.name) = agnosticRename
+
         // Build name-agnostic module
         val agnosticModule = DedupModules.agnostify(top, originalModule, agnosticRename)
         agnosticRename.rename(top.module(originalModule.name), top.module("thisModule"))
-        val agnosticAnnos = module2Annotations.getOrElse(originalModule.name, mutable.HashSet.empty[Annotation]).map(_.update(agnosticRename))
+        val agnosticAnnos = module2Annotations.getOrElse(
+          originalModule.name, mutable.HashSet.empty[Annotation]
+        ).map(_.update(agnosticRename))
         agnosticRename.delete(top.module(originalModule.name))
 
         // Build tag
@@ -319,6 +324,7 @@ object DedupModules {
         all += originalModule.name
       }
     }
+    agnosticRenames
   }
   //scalastyle:on
 
@@ -345,7 +351,7 @@ object DedupModules {
 
     val top = CircuitTarget(circuit.main)
 
-    buildRTLTags(tag2all)(top, moduleLinearization, noDedups, annotations, tagMap)
+    val agnosticRenames = buildRTLTags(tag2all)(top, moduleLinearization, noDedups, annotations, tagMap)
 
     // Set tag2name to be the best dedup module name
     val moduleIndex = circuit.modules.zipWithIndex.map{case (m, i) => m.name -> i}.toMap
@@ -369,6 +375,18 @@ object DedupModules {
 
     // Build map from original name to corresponding deduped module
     val name2module = tag2all.flatMap({ case (tag, names) => names.map(n => n -> dedupedName2module(tag2name(tag))) })
+
+    val reversedAgnosticRenames = mutable.HashMap[String, RenameMap]()
+    name2module.foreach { case (originalModuleName, dedupedModule) =>
+      if(!reversedAgnosticRenames.contains(dedupedModule.name)) {
+        reversedAgnosticRenames(dedupedModule.name) = agnosticRenames(dedupedModule.name).getReverseRenameMap
+      }
+      agnosticRenames(originalModuleName).keys.foreach { key =>
+        val tag = agnosticRenames(originalModuleName)(key).head
+        val newKey = reversedAgnosticRenames(dedupedModule.name).get(tag).get
+        renameMap.rename(key.asInstanceOf[IsMember], newKey.asInstanceOf[Seq[IsMember]])
+      }
+    }
 
     name2module.toMap
   }

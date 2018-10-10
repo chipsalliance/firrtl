@@ -25,7 +25,7 @@ case class DuplicationHelper(existingModules: Set[String]) {
   // Internal state to keep track of how paths duplicate
   private val dupMap = new DupMap()
 
-  private val moduleNamespace = Namespace(existingModules.toSeq)
+  private val allModules = mutable.HashSet[String]() ++ existingModules
 
   /** Updates internal state (dupMap) to calculate instance hierarchy modifications so t's tokens in an instance can be
     * expressed as a tokens in a module (e.g. uniquify/duplicate the instance path in t's tokens)
@@ -68,8 +68,10 @@ case class DuplicationHelper(existingModules: Set[String]) {
     if(path.isEmpty) top else {
       val car = path.last._2.value + "___"
       val cdr = top + "_" + path.map { case (i, m) => i.value }.mkString("_")
-      val ns = mutable.HashSet(existingModules.toSeq: _*)
-      firrtl.passes.Uniquify.findValidPrefix(car, Seq(cdr), ns) + cdr
+      val ns = mutable.HashSet(allModules.toSeq: _*)
+      val finalName = firrtl.passes.Uniquify.findValidPrefix(car, Seq(cdr), ns) + cdr
+      allModules += finalName
+      finalName
     }
   }
 

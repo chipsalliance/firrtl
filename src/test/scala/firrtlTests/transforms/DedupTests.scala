@@ -472,5 +472,37 @@ class DedupModuleTests extends HighTransformSpec {
     cs.annotations.toSeq should not contain (annoA_)
     cs.deletedAnnotations.isEmpty should be (true)
   }
+  "The deduping module A and A_" should "renamed internal signals that have different names" in {
+    val input =
+      """circuit Top :
+        |  module Top :
+        |    inst a1 of A
+        |    inst a2 of A_
+        |  module A :
+        |    output y: UInt<1>
+        |    y <= UInt(1)
+        |  module A_ :
+        |    output x: UInt<1>
+        |    x <= UInt(1)
+      """.stripMargin
+    val check =
+      """circuit Top :
+        |  module Top :
+        |    inst a1 of A
+        |    inst a2 of A
+        |  module A :
+        |    output y: UInt<1>
+        |    y <= UInt<1>("h1")
+      """.stripMargin
+    val Top = CircuitTarget("Top")
+    val A = Top.module("A")
+    val A_ = Top.module("A_")
+    val annoA = SingleTargetDummyAnnotation(A.ref("y"))
+    val annoA_ = SingleTargetDummyAnnotation(A_.ref("x"))
+    val cs = execute(input, check, Seq(annoA, annoA_))
+    cs.annotations.toSeq should contain (annoA)
+    cs.annotations.toSeq should not contain (SingleTargetDummyAnnotation(A.ref("x")))
+    cs.deletedAnnotations.isEmpty should be (true)
+  }
 }
 

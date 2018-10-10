@@ -17,7 +17,7 @@ import firrtl.annotations.TargetToken.{Field, Index}
 import firrtl.annotations.transforms.{EliminateTargetPaths, ResolvePaths}
 
 object RenameMap {
-  def apply(map: Map[CompleteTarget, Seq[CompleteTarget]]): RenameMap = {
+  def apply(map: collection.Map[CompleteTarget, Seq[CompleteTarget]]): RenameMap = {
     val rm = new RenameMap
     rm.addMap(map)
     rm
@@ -69,7 +69,7 @@ final class RenameMap private () {
     * Only ([[CircuitTarget]] -> Seq[ [[CircuitTarget]] ]) and ([[IsMember]] -> Seq[ [[IsMember]] ]) key/value allowed
     * @param map
     */
-  def addMap(map: Map[CompleteTarget, Seq[CompleteTarget]]): Unit =
+  def addMap(map: collection.Map[CompleteTarget, Seq[CompleteTarget]]): Unit =
     map.foreach{
       case (from: IsComponent, tos: Seq[IsMember]) => completeRename(from, tos)
       case (from: IsModule, tos: Seq[IsMember]) => completeRename(from, tos)
@@ -103,6 +103,18 @@ final class RenameMap private () {
 
   /** @return Whether this [[RenameMap]] has collected any changes */
   def hasChanges: Boolean = underlying.nonEmpty
+
+  def getReverseRenameMap: RenameMap = {
+    val reverseMap = mutable.HashMap[CompleteTarget, Seq[CompleteTarget]]()
+    underlying.keysIterator.foreach{ key =>
+      get(key).get.foreach { v =>
+        reverseMap(v) = key +: reverseMap.getOrElse(v, Nil)
+      }
+    }
+    RenameMap(reverseMap)
+  }
+
+  def keys: Iterator[CompleteTarget] = underlying.keysIterator
 
   /** Serialize the underlying remapping of keys to new targets
     * @return

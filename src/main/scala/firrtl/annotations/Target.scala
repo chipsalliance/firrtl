@@ -62,6 +62,8 @@ sealed trait Target extends Named {
   /** @return Converts this [[Target]] into a [[CompleteTarget]], or if it can't, return original [[Target]] */
   def tryToComplete: Target = getComplete.getOrElse(this)
 
+  /** Whether the target is directly instantiated in its root module */
+  def isLocal: Boolean
 }
 
 object Target {
@@ -158,6 +160,8 @@ case class GenericTarget(circuitOpt: Option[String],
     }
   }
 
+  override def isLocal: Boolean = !(getPath.nonEmpty && getPath.get.nonEmpty)
+
   /** If complete, return this [[GenericTarget]]'s path
     * @return
     */
@@ -167,11 +171,6 @@ case class GenericTarget(circuitOpt: Option[String],
   } else {
     None
   }
-
-  /** Checks if this target is complete and local
-    * @return
-    */
-  def isLocal: Boolean = !(getPath.nonEmpty && getPath.get.nonEmpty)
 
   /** If complete and a reference, return the reference and subcomponents
     * @return
@@ -284,9 +283,6 @@ trait CompleteTarget extends Target {
   def circuitTarget: CircuitTarget = CircuitTarget(circuitOpt.get)
 
   def getComplete: Option[CompleteTarget] = Some(this)
-
-  /** Whether the target is directly instantiated in its root module */
-  def isLocal: Boolean
 
   /** Adds another level of instance hierarchy
     * Example: Given root=A and instance=b, transforms (Top, B)/c:C -> (Top, A)/b:B/c:C
