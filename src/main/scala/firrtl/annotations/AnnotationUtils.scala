@@ -86,7 +86,7 @@ object AnnotationUtils {
    */
   def toExp(s: String): Expression = {
     def parse(tokens: Seq[String]): Expression = {
-      val DecPattern = """([0-9]\d*)""".r
+      val DecPattern = """(\d+)""".r
       def findClose(tokens: Seq[String], index: Int, nOpen: Int): Seq[String] = {
         if(index >= tokens.size) {
           Utils.error("Cannot find closing bracket ]")
