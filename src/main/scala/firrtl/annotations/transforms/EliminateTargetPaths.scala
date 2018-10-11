@@ -23,9 +23,7 @@ case class ResolvePaths(targets: Seq[CompleteTarget]) extends Annotation {
   }
 }
 
-case class IllegalPathException(message: String) extends FIRRTLException(message)
-case class NoSuchPathException(message: String) extends FIRRTLException(message)
-case class CyclicPathException(message: String) extends FIRRTLException(message)
+case class NoSuchTargetException(message: String) extends FIRRTLException(message)
 
 /** For a set of non-local targets, modify the instance/module hierarchy of the circuit such that
   * the paths in each non-local target can be removed
@@ -156,7 +154,7 @@ class EliminateTargetPaths extends Transform {
     }
     if(targetsWithInvalidPaths.nonEmpty) {
       val string = targetsWithInvalidPaths.mkString(",")
-      throw IllegalPathException(s"""Some targets have illegal paths that cannot be resolved/eliminated: $string""")
+      throw NoSuchTargetException(s"""Some targets have illegal paths that cannot be resolved/eliminated: $string""")
     }
 
     val (newCircuit, renameMap) = run(state.circuit, targets)

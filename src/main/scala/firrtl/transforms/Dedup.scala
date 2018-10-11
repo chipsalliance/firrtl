@@ -264,12 +264,28 @@ object DedupModules {
   }
 
   //scalastyle:off
-  def buildRTLTags(tag2all: mutable.HashMap[String, mutable.HashSet[String]])
-                  (top: CircuitTarget,
+  /** Returns
+    *  1) map of tag to all matching module names,
+    *  2) renameMap of module name to tag (agnostic name)
+    *  3) maps module name to agnostic renameMap
+    * @param top CircuitTarget
+    * @param moduleLinearization Sequence of modules from leaf to top
+    * @param noDedups Set of modules to not dedup
+    * @param annotations All annotations to check if annotations are identical
+    * @return
+    */
+  def buildRTLTags(top: CircuitTarget,
                    moduleLinearization: Seq[DefModule],
                    noDedups: Set[String],
                    annotations: Seq[Annotation],
-                   renameMap: RenameMap): collection.Map[String, RenameMap] = {
+                  ): (collection.Map[String, collection.Set[String]], RenameMap, collection.Map[String, RenameMap]) = {
+
+
+    // Maps a module name to its agnostic name
+    val tagMap = RenameMap()
+
+    // Maps a tag to all matching module names
+    val tag2all = mutable.HashMap.empty[String, mutable.HashSet[String]]
 
     val module2Annotations = mutable.HashMap.empty[String, mutable.HashSet[Annotation]]
     annotations.foreach { a =>
@@ -279,6 +295,7 @@ object DedupModules {
       }
     }
 
+    val agnosticModuleMap = RenameMap()
     val agnosticRenames = mutable.HashMap[String, RenameMap]()
 
     moduleLinearization.foreach { originalModule =>
@@ -286,13 +303,13 @@ object DedupModules {
       val dontcare = RenameMap()
       dontcare.setCircuit("dontcare")
 
+      val agnosticRename = RenameMap(agnosticModuleMap.getUnderlying)
+      agnosticRenames(originalModule.name) = agnosticRename
+
       if (noDedups.contains(originalModule.name)) {
         // Don't dedup. Set dedup module to be the same as fixed module
         tag2all(originalModule.name) = mutable.HashSet(originalModule.name)
       } else { // Try to dedup
-
-        val agnosticRename = RenameMap()
-        agnosticRenames(originalModule.name) = agnosticRename
 
         // Build name-agnostic module
         val agnosticModule = DedupModules.agnostify(top, originalModule, agnosticRename)
@@ -317,14 +334,15 @@ object DedupModules {
 
         // Match old module name to its tag
         agnosticRename.rename(top.module(originalModule.name), top.module(tag))
-        renameMap.rename(top.module(originalModule.name), top.module(tag))
+        agnosticModuleMap.rename(top.module(originalModule.name), top.module(tag))
+        tagMap.rename(top.module(originalModule.name), top.module(tag))
 
         // Set tag's module to be the first matching module
         val all = tag2all.getOrElseUpdate(tag, mutable.HashSet.empty[String])
         all += originalModule.name
       }
     }
-    agnosticRenames
+    (tag2all, tagMap, agnosticRenames)
   }
   //scalastyle:on
 
@@ -343,15 +361,9 @@ object DedupModules {
       val iGraph = new InstanceGraph(circuit)
       (iGraph.moduleMap, iGraph.moduleOrder.reverse)
     }
-
-    // Maps a tag to all matching module names
-    val tag2all = mutable.HashMap.empty[String, mutable.HashSet[String]]
-
-    val tagMap = RenameMap()
-
     val top = CircuitTarget(circuit.main)
 
-    val agnosticRenames = buildRTLTags(tag2all)(top, moduleLinearization, noDedups, annotations, tagMap)
+    val (tag2all, tagMap, agnosticRenames) = buildRTLTags(top, moduleLinearization, noDedups, annotations)
 
     // Set tag2name to be the best dedup module name
     val moduleIndex = circuit.modules.zipWithIndex.map{case (m, i) => m.name -> i}.toMap
@@ -382,9 +394,11 @@ object DedupModules {
         reversedAgnosticRenames(dedupedModule.name) = agnosticRenames(dedupedModule.name).getReverseRenameMap
       }
       agnosticRenames(originalModuleName).keys.foreach { key =>
-        val tag = agnosticRenames(originalModuleName)(key).head
-        val newKey = reversedAgnosticRenames(dedupedModule.name).get(tag).get
-        renameMap.rename(key.asInstanceOf[IsMember], newKey.asInstanceOf[Seq[IsMember]])
+        if(key.isInstanceOf[IsComponent]) {
+          val tag = agnosticRenames(originalModuleName)(key).head
+          val newKey = reversedAgnosticRenames(dedupedModule.name).get(tag).get
+          renameMap.rename(key.asInstanceOf[IsMember], newKey.asInstanceOf[Seq[IsMember]])
+        }
       }
     }
 

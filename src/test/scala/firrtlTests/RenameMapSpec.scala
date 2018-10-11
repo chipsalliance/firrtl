@@ -4,7 +4,7 @@ package firrtlTests
 
 import firrtl.RenameMap
 import firrtl.FIRRTLException
-import firrtl.RenameMap.IllegalRename
+import firrtl.RenameMap.{CircularRenameException, IllegalRenameException}
 import firrtl.annotations._
 
 class RenameMapSpec extends FirrtlFlatSpec {
@@ -185,6 +185,14 @@ class RenameMapSpec extends FirrtlFlatSpec {
     renames.get(Middle_o_f) should be (Some(Seq(Middle_i_f)))
   }
 
+  it should "rename instances with same ofModule" in {
+    val Middle_o = Middle.ref("o")
+    val Middle_i = Middle.ref("i")
+    val renames = RenameMap()
+    renames.rename(Middle_o, Middle_i)
+    renames.get(Middle.instOf("o", "O")) should be (Some(Seq(Middle.instOf("i", "O"))))
+  }
+
   it should "detect circular renames" in {
     case class BadRename(from: IsMember, tos: Seq[IsMember])
     val badRenames =
@@ -245,7 +253,7 @@ class RenameMapSpec extends FirrtlFlatSpec {
     val top = CircuitTarget("Top")
     renames.rename(top.module("A"), top.module("B").instOf("c", "C"))
     renames.rename(top.module("B"), top.module("A").instOf("c", "C"))
-    a [IllegalRename] shouldBe thrownBy {
+    a [CircularRenameException] shouldBe thrownBy {
       renames.get(top.module("A"))
     }
   }
@@ -264,10 +272,10 @@ class RenameMapSpec extends FirrtlFlatSpec {
     val top = CircuitTarget("Top")
     renames.rename(top.module("A").ref("ref"), top.module("B"))
     renames.get(top.module("A").ref("ref")) should be(Some(Seq(top.module("B"))))
-    a [IllegalRename] shouldBe thrownBy {
+    a [IllegalRenameException] shouldBe thrownBy {
       renames.get(top.module("A").ref("ref").field("field"))
     }
-    a [IllegalRename] shouldBe thrownBy {
+    a [IllegalRenameException] shouldBe thrownBy {
       renames.get(top.module("A").instOf("ref", "R"))
     }
   }
@@ -277,7 +285,7 @@ class RenameMapSpec extends FirrtlFlatSpec {
     val top = CircuitTarget("Top")
 
     renames.rename(top.module("C"), top.module("D").ref("x"))
-    a [IllegalRename] shouldBe thrownBy {
+    a [IllegalRenameException] shouldBe thrownBy {
       renames.get(top.module("A").instOf("c", "C"))
     }
   }
@@ -288,7 +296,7 @@ class RenameMapSpec extends FirrtlFlatSpec {
 
     renames.rename(top.module("E").instOf("f", "F"), top.module("E").ref("g"))
 
-    a [IllegalRename] shouldBe thrownBy {
+    a [IllegalRenameException] shouldBe thrownBy {
       println(renames.get(top.module("E").instOf("f", "F").ref("g")))
     }
   }

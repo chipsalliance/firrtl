@@ -6,7 +6,7 @@ import logger._
 import java.io.Writer
 
 import annotations._
-import firrtl.RenameMap.IllegalRename
+import firrtl.RenameMap.{CircularRenameException, IllegalRenameException}
 
 import scala.collection.mutable
 import firrtl.annotations._
@@ -25,7 +25,9 @@ object RenameMap {
 
   def apply(): RenameMap = new RenameMap
 
-  case class IllegalRename(reason: String) extends Exception(reason)
+  abstract class RenameTargetException(reason: String) extends Exception(reason)
+  case class IllegalRenameException(reason: String) extends RenameTargetException(reason)
+  case class CircularRenameException(reason: String) extends RenameTargetException(reason)
 }
 
 /** Map old names to new names
@@ -76,6 +78,17 @@ final class RenameMap private () {
       case (from: CircuitTarget, tos: Seq[CircuitTarget]) => completeRename(from, tos)
       case other => throwInternalError(s"Illegal rename: ${other._1} -> ${other._2}")
     }
+
+  /** Create new [[RenameMap]] that merges this and renameMap
+    * @param renameMap
+    * @return
+    */
+  def ++ (renameMap: RenameMap): RenameMap = RenameMap(underlying ++ renameMap.getUnderlying)
+
+  /** Returns the underlying map of rename information
+    * @return
+    */
+  def getUnderlying: collection.Map[CompleteTarget, Seq[CompleteTarget]] = underlying
 
   /** Records that the keys in map are also renamed to their corresponding value seqs.
     * @param map
@@ -167,7 +180,7 @@ final class RenameMap private () {
     val errors = mutable.ArrayBuffer[String]()
     val ret = if(hasChanges) {
       val ret = recursiveGet(mutable.LinkedHashSet.empty[CompleteTarget], errors)(key)
-      if(errors.nonEmpty) { throw new IllegalRename(errors.mkString("\n")) }
+      if(errors.nonEmpty) { throw IllegalRenameException(errors.mkString("\n")) }
       if(ret.size == 1 && ret.head == key) { None } else { Some(ret) }
     } else { None }
     ret
@@ -194,7 +207,7 @@ final class RenameMap private () {
       // If we've seen this key before in recursive calls to parentTargets, then we know a circular renaming
       // mapping has occurred, and no legal name exists
       if(set.contains(key) && !key.isInstanceOf[CircuitTarget]) {
-        throw new IllegalRename(s"Illegal rename: circular renaming is illegal - ${set.mkString(" -> ")}")
+        throw CircularRenameException(s"Illegal rename: circular renaming is illegal - ${set.mkString(" -> ")}")
       }
 
       // Add key to set to detect circular renaming
@@ -226,7 +239,6 @@ final class RenameMap private () {
               val ofModuleTarget = t3.ofModuleTarget
               getter(ofModuleTarget) match {
                 case Seq(ModuleTarget(newCircuit, newOf)) if newCircuit == t3.circuit => t3.copy(ofModule = newOf)
-                case Seq(`ofModuleTarget`) => t3
                 case other =>
                   errors += s"Illegal rename: ofModule of $t is renamed to $other - must rename $t directly."
                   t

@@ -305,6 +305,9 @@ trait IsMember extends CompleteTarget {
   /** @return Returns the instance hierarchy path, if one exists */
   def path: Seq[(Instance, OfModule)]
 
+  /** @return Creates a path, assuming all Instance and OfModules in this [[IsMember]] is used as a path */
+  def asPath: Seq[(Instance, OfModule)]
+
   /** @return Tokens of just this member's path */
   def justPath: Seq[TargetToken]
 
@@ -348,9 +351,6 @@ trait IsModule extends IsMember {
 
   /** @return Creates a new Target, appending an instance and ofmodule */
   def instOf(instance: String, of: String): InstanceTarget
-
-  /** @return Creates a path, assuming this [[IsModule]] is used as a path */
-  def asPath: Seq[(Instance, OfModule)]
 }
 
 /** A component of a FIRRTL Module (e.g. cannot point to a CircuitTarget or ModuleTarget)
@@ -533,6 +533,7 @@ case class ReferenceTarget(circuit: String,
   override def setPathTarget(newPath: IsModule): ReferenceTarget =
     ReferenceTarget(newPath.circuit, newPath.module, newPath.asPath, ref, component)
 
+  override def asPath: Seq[(Instance, OfModule)] = path
 }
 
 /** Points to an instance declaration of a module (termed an ofModule)

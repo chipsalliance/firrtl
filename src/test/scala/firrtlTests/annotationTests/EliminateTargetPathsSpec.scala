@@ -5,7 +5,7 @@ package firrtlTests.annotationTests
 import firrtl._
 import firrtl.annotations._
 import firrtl.annotations.analysis.DuplicationHelper
-import firrtl.annotations.transforms.IllegalPathException
+import firrtl.annotations.transforms.NoSuchTargetException
 import firrtl.transforms.DontTouchAnnotation
 import firrtlTests.{FirrtlMatchers, FirrtlPropSpec}
 
@@ -260,12 +260,12 @@ class EliminateTargetPathsSpec extends FirrtlPropSpec with FirrtlMatchers {
         |    m2.i <= m1.o
         |    o <= m2.o
       """.stripMargin
-    intercept[IllegalPathException] {
+    intercept[NoSuchTargetException] {
       val Top_m1 = Top.instOf("m1", "MiddleX")
       val inputState = CircuitState(parse(input), ChirrtlForm, Seq(DummyAnnotation(Top_m1)))
       new LowFirrtlCompiler().compile(inputState, customTransforms)
     }
-    intercept[IllegalPathException] {
+    intercept[NoSuchTargetException] {
       val Top_m2 = Top.instOf("x2", "Middle")
       val inputState = CircuitState(parse(input), ChirrtlForm, Seq(DummyAnnotation(Top_m2)))
       new LowFirrtlCompiler().compile(inputState, customTransforms)
