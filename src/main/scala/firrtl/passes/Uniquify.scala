@@ -59,7 +59,7 @@ object Uniquify extends Transform {
   //   eg. foo : { bar : { a, b }[2], c }
   //   => foo, foo bar, foo bar 0, foo bar 1, foo bar 0 a, foo bar 0 b,
   //      foo bar 1 a, foo bar 1 b, foo c
-  private def enumerateNames(tpe: Type): Seq[Seq[String]] = tpe match {
+  private [firrtl] def enumerateNames(tpe: Type): Seq[Seq[String]] = tpe match {
     case t: BundleType =>
       t.fields flatMap { f =>
         (enumerateNames(f.tpe) map (f.name +: _)) ++ Seq(Seq(f.name))
