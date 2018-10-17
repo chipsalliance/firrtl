@@ -80,27 +80,16 @@ object Target {
   implicit def convertModuleTarget2ModuleName(c: ModuleTarget): ModuleName = c.toNamed
   implicit def convertIsComponent2ComponentName(c: IsComponent): ComponentName = c.toNamed
   implicit def convertTarget2Named(c: Target): Named = c.toNamed
-  implicit def convertCircuitName2CircuitTarget(c: CircuitName): CircuitTarget = CircuitTarget(c.name)
-  implicit def convertModuleName2ModuleTarget(c: ModuleName): ModuleTarget = ModuleTarget(c.circuit.name, c.name)
-  implicit def convertComponentName2ReferenceTarget(c: ComponentName): ReferenceTarget = {
-    toTargetTokens(c.name).toList match {
-      case Ref(r) :: components => ReferenceTarget(c.module.circuit.name, c.module.name, Nil, r, components)
-      case other => throw NamedException(s"Cannot convert $c into [[ReferenceTarget]]: $other")
-    }
-  }
-  implicit def convertNamed2Target(n: Named): CompleteTarget = n match {
-    case c: CircuitName => convertCircuitName2CircuitTarget(c)
-    case m: ModuleName => convertModuleName2ModuleTarget(m)
-    case c: ComponentName => convertComponentName2ReferenceTarget(c)
-    case c: GenericTarget => c.complete
-    case c: CompleteTarget => c
-  }
+  implicit def convertCircuitName2CircuitTarget(c: CircuitName): CircuitTarget = c.toTarget
+  implicit def convertModuleName2ModuleTarget(c: ModuleName): ModuleTarget = c.toTarget
+  implicit def convertComponentName2ReferenceTarget(c: ComponentName): ReferenceTarget = c.toTarget
+  implicit def convertNamed2Target(n: Named): CompleteTarget = n.toTarget
 
   /** Converts [[ComponentName]]'s name into TargetTokens
     * @param name
     * @return
     */
-  private def toTargetTokens(name: String): Seq[TargetToken] = {
+  def toTargetTokens(name: String): Seq[TargetToken] = {
     val tokens = AnnotationUtils.tokenize(name)
     val subComps = mutable.ArrayBuffer[TargetToken]()
     subComps += Ref(tokens.head)
@@ -141,6 +130,8 @@ case class GenericTarget(circuitOpt: Option[String],
     case Some(c: CircuitTarget) => c.toNamed
     case other => throw Target.NamedException(s"Cannot convert $this to [[Named]]")
   }
+
+  override def toTarget: CompleteTarget = getComplete.get
 
   override def getComplete: Option[CompleteTarget] = {
     if(!isLegal) None else {
@@ -291,6 +282,8 @@ trait CompleteTarget extends Target {
     * @return
     */
   def addHierarchy(root: String, instance: String): IsComponent
+
+  override def toTarget: CompleteTarget = this
 }
 
 
@@ -596,6 +589,7 @@ case class InstanceTarget(circuit: String,
 @deprecated("Use Target instead, will be removed in 1.3", "1.2")
 sealed trait Named {
   def serialize: String
+  def toTarget: CompleteTarget
 }
 
 @deprecated("Use Target instead, will be removed in 1.3", "1.2")
@@ -617,5 +611,10 @@ final case class ComponentName(name: String, module: ModuleName) extends Named {
   if(!validComponentName(name)) throw AnnotationException(s"Illegal component name: $name")
   def expr: Expression = toExp(name)
   def serialize: String = module.serialize + "." + name
-  def toTarget: ReferenceTarget = Target.convertComponentName2ReferenceTarget(this)
+  def toTarget: ReferenceTarget = {
+    Target.toTargetTokens(name).toList match {
+      case Ref(r) :: components => ReferenceTarget(module.circuit.name, module.name, Nil, r, components)
+      case other => throw Target.NamedException(s"Cannot convert $this into [[ReferenceTarget]]: $other")
+    }
+  }
 }

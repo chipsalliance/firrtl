@@ -319,13 +319,10 @@ final class RenameMap private () {
   /* DEPRECATED ACCESSOR/SETTOR METHODS WITH [[Named]] */
 
   @deprecated("Use record with CircuitTarget instead, this will be removed in 1.3", "1.2")
-  def rename(from: CircuitName, to: CircuitName): Unit = record(from, to)
+  def rename(from: Named, to: Named): Unit = rename(from, Seq(to))
 
   @deprecated("Use record with IsMember instead, this will be removed in 1.3", "1.2")
-  def rename(from: ModuleName, to: ModuleName): Unit = record(from, to)
-
-  @deprecated("Use record with IsMember instead, this will be removed in 1.3", "1.2")
-  def rename(from: ModuleName, tos: Seq[ModuleName]): Unit = record(from, tos.map(_.toTarget))
+  def rename(from: Named, tos: Seq[Named]): Unit = recordAll(Map(from.toTarget -> tos.map(_.toTarget)))
 
   @deprecated("Use record with IsMember instead, this will be removed in 1.3", "1.2")
   def rename(from: ComponentName, to: ComponentName): Unit = record(from, to)
