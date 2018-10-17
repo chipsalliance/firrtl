@@ -358,6 +358,13 @@ final class RenameMap private () {
     get(Target.convertComponentName2ReferenceTarget(key)).map(_.collect{ case c: IsComponent => c.toNamed })
   }
 
+  @deprecated("Use get with IsMember instead, this will be removed in 1.3", "1.2")
+  def get(key: Named): Option[Seq[Named]] = key match {
+    case t: CompleteTarget => get(t)
+    case other => get(key.toTarget).map(_.collect{ case c: IsComponent => c.toNamed })
+  }
+
+
   // Mutable helpers - APIs that set these are deprecated!
   private var circuitName: String = ""
   private var moduleName: String = ""
