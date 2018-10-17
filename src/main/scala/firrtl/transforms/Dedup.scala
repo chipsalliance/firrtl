@@ -76,7 +76,7 @@ class DedupModules extends Transform {
       logger.debug(s"[Dedup] $from -> ${to.name}")
       ModuleName(from, cname) -> List(ModuleName(to.name, cname))
     }
-    renameMap.addAll(
+    renameMap.recordAll(
       map.map {
         case (k: ModuleName, v: List[ModuleName]) => Target.convertNamed2Target(k) -> v.map(Target.convertNamed2Target)
       }
@@ -236,7 +236,7 @@ object DedupModules {
     // Define rename functions
     def renameOfModule(instance: String, ofModule: String): String = {
       val newOfModule = name2name(ofModule)
-      renameMap.rename(
+      renameMap.record(
         top.module(originalModule).instOf(instance, ofModule),
         top.module(originalModule).instOf(instance, newOfModule)
       )
@@ -277,7 +277,7 @@ object DedupModules {
   def buildRTLTags(top: CircuitTarget,
                    moduleLinearization: Seq[DefModule],
                    noDedups: Set[String],
-                   annotations: Seq[Annotation],
+                   annotations: Seq[Annotation]
                   ): (collection.Map[String, collection.Set[String]], RenameMap, collection.Map[String, RenameMap]) = {
 
 
@@ -313,7 +313,7 @@ object DedupModules {
 
         // Build name-agnostic module
         val agnosticModule = DedupModules.agnostify(top, originalModule, agnosticRename)
-        agnosticRename.rename(top.module(originalModule.name), top.module("thisModule"))
+        agnosticRename.record(top.module(originalModule.name), top.module("thisModule"))
         val agnosticAnnos = module2Annotations.getOrElse(
           originalModule.name, mutable.HashSet.empty[Annotation]
         ).map(_.update(agnosticRename))
@@ -333,9 +333,9 @@ object DedupModules {
         val tag = builder.hashCode().toString
 
         // Match old module name to its tag
-        agnosticRename.rename(top.module(originalModule.name), top.module(tag))
-        agnosticModuleMap.rename(top.module(originalModule.name), top.module(tag))
-        tagMap.rename(top.module(originalModule.name), top.module(tag))
+        agnosticRename.record(top.module(originalModule.name), top.module(tag))
+        agnosticModuleMap.record(top.module(originalModule.name), top.module(tag))
+        tagMap.record(top.module(originalModule.name), top.module(tag))
 
         // Set tag's module to be the first matching module
         val all = tag2all.getOrElseUpdate(tag, mutable.HashSet.empty[String])
@@ -396,8 +396,8 @@ object DedupModules {
       agnosticRenames(originalModuleName).keys.foreach { key =>
         if(key.isInstanceOf[IsComponent]) {
           val tag = agnosticRenames(originalModuleName)(key).head
-          val newKey = reversedAgnosticRenames(dedupedModule.name).get(tag).get
-          renameMap.rename(key.asInstanceOf[IsMember], newKey.asInstanceOf[Seq[IsMember]])
+          val newKey = reversedAgnosticRenames(dedupedModule.name).apply(tag)
+          renameMap.record(key.asInstanceOf[IsMember], newKey.asInstanceOf[Seq[IsMember]])
         }
       }
     }
