@@ -53,21 +53,6 @@ class DedupModules extends Transform {
     // Maps module name to corresponding dedup module
     val dedupMap = DedupModules.deduplicate(c, noDedups.toSet, annos, renameMap)
 
-    /*
-    Time to think about how dedup works
-    Example 1:
-    A_ -> A
-    Annos: A_, A
-    Should not dedup
-
-    Depends on Annotation type. If A_ and A share the exact same annotation, then is it ok to dedup?
-    Wire(A_/a, A_/b)
-    Wire(A/a, A/b) ok
-
-    Wire(A_/a, A_/b:B_/c)
-    Wire(A/a, A/b:B/c) ok
-    * */
-
     // Use old module list to preserve ordering
     val dedupedModules = c.modules.map(m => dedupMap(m.name)).distinct
 
@@ -303,7 +288,7 @@ object DedupModules {
       val dontcare = RenameMap()
       dontcare.setCircuit("dontcare")
 
-      val agnosticRename = RenameMap(agnosticModuleMap.getUnderlying)
+      val agnosticRename = RenameMap.create(agnosticModuleMap.getUnderlying)
       agnosticRenames(originalModule.name) = agnosticRename
 
       if (noDedups.contains(originalModule.name)) {
