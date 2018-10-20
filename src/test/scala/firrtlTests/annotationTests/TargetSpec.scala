@@ -2,7 +2,7 @@
 
 package firrtlTests.annotationTests
 
-import firrtl.annotations.{ModuleTarget, Target}
+import firrtl.annotations.{CircuitTarget, GenericTarget, ModuleTarget, Target}
 import firrtl.annotations.TargetToken._
 import firrtlTests.FirrtlPropSpec
 
@@ -28,6 +28,16 @@ class TargetSpec extends FirrtlPropSpec {
     top.instOf("x", "x")
     top.ref("y")
     println(x_reg0_data)
+  }
+  property("Should serialize and deserialize") {
+    val circuit = CircuitTarget("Circuit")
+    val top = circuit.module("Top")
+    val targets: Seq[Target] =
+      Seq(circuit, top, top.instOf("i", "I"), top.ref("r"),
+        top.ref("r").index(1).field("hi").clock, GenericTarget(None, None, Seq(Ref("r"))))
+    targets.foreach { t =>
+      assert(Target.deserialize(t.serialize) == t, s"$t does not properly serialize/deserialize")
+    }
   }
 }
 

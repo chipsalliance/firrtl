@@ -34,16 +34,25 @@ sealed trait Target extends Named {
 
   /** @return Human-readable serialization */
   def serialize: String = {
-    "(" + circuitOpt.getOrElse("???") + "," + moduleOpt.getOrElse("???") + ")/" + tokens.map {
-      case Ref(r) => r
-      case Instance(i) => i
-      case OfModule(o) => s":$o/"
+    val circuitString = "~" + circuitOpt.getOrElse("???")
+    val moduleString = "|" + moduleOpt.getOrElse("???")
+    val tokensString = tokens.map {
+      case Ref(r) => s">$r"
+      case Instance(i) => s"/$i"
+      case OfModule(o) => s":$o"
       case Field(f) => s".$f"
       case Index(v) => s"[$v]"
       case Clock => s"@clock"
       case Reset => s"@reset"
       case Init => s"@init"
     }.mkString("")
+    if(moduleOpt.isEmpty && tokens.isEmpty) {
+      circuitString
+    } else if(tokens.isEmpty) {
+      circuitString + moduleString
+    } else {
+      circuitString + moduleString + tokensString
+    }
   }
 
   /** @return Converts this [[Target]] into a [[GenericTarget]] */
@@ -111,6 +120,29 @@ object Target {
   def isOnly(seq: Seq[TargetToken], keywords:String*): Boolean = {
     seq.map(_.is(keywords:_*)).foldLeft(false)(_ || _) && keywords.nonEmpty
   }
+
+  /** @return [[Target]] from human-readable serialization */
+  def deserialize(s: String): Target = {
+    val regex = """(?=[~|>/:.\[@])"""
+    s.split(regex).foldLeft(GenericTarget(None, None, Nil)) { (t, tokenString) =>
+      val value = tokenString.tail
+      tokenString(0) match {
+        case '~' if t.circuitOpt.isEmpty && t.moduleOpt.isEmpty && t.tokens.isEmpty =>
+          if(value == "???") t else t.copy(circuitOpt = Some(value))
+        case '|' if t.moduleOpt.isEmpty && t.tokens.isEmpty =>
+          if(value == "???") t else t.copy(moduleOpt = Some(value))
+        case '/' => t.add(Instance(value))
+        case ':' => t.add(OfModule(value))
+        case '>' => t.add(Ref(value))
+        case '.' => t.add(Field(value))
+        case '[' if value.dropRight(1).toInt >= 0 => t.add(Index(value.dropRight(1).toInt))
+        case '@' if value == "clock" => t.add(Clock)
+        case '@' if value == "init" => t.add(Init)
+        case '@' if value == "reset" => t.add(Reset)
+        case other => throw NamedException(s"Cannot deserialize Target: $s")
+      }
+    }.tryToComplete
+  }
 }
 
 /** Represents incomplete or non-standard [[Target]]s
@@ -134,7 +166,7 @@ case class GenericTarget(circuitOpt: Option[String],
   override def toTarget: CompleteTarget = getComplete.get
 
   override def getComplete: Option[CompleteTarget] = {
-    if(!isLegal) None else {
+    if(!isComplete) None else {
       val target = this match {
         case GenericTarget(Some(c), None, Nil) => CircuitTarget(c)
         case GenericTarget(Some(c), Some(m), Nil) => ModuleTarget(c, m)
