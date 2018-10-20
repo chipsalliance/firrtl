@@ -30,7 +30,7 @@ sealed trait Target extends Named {
   /** @return Returns a new [[GenericTarget]] with new values */
   def modify(circuitOpt: Option[String] = circuitOpt,
              moduleOpt: Option[String] = moduleOpt,
-             tokens: Seq[TargetToken] = tokens): GenericTarget = GenericTarget(circuitOpt, moduleOpt, tokens)
+             tokens: Seq[TargetToken] = tokens): GenericTarget = GenericTarget(circuitOpt, moduleOpt, tokens.toVector)
 
   /** @return Human-readable serialization */
   def serialize: String = {
@@ -56,7 +56,7 @@ sealed trait Target extends Named {
   }
 
   /** @return Converts this [[Target]] into a [[GenericTarget]] */
-  def toGenericTarget: GenericTarget = GenericTarget(circuitOpt, moduleOpt, tokens)
+  def toGenericTarget: GenericTarget = GenericTarget(circuitOpt, moduleOpt, tokens.toVector)
 
   /** @return Converts this [[Target]] into either a [[CircuitName]], [[ModuleName]], or [[ComponentName]] */
   @deprecated("Use Target instead, will be removed in 1.3", "1.2")
@@ -78,7 +78,7 @@ sealed trait Target extends Named {
 object Target {
 
   def apply(circuitOpt: Option[String], moduleOpt: Option[String], reference: Seq[TargetToken]): GenericTarget =
-    GenericTarget(circuitOpt, moduleOpt, reference)
+    GenericTarget(circuitOpt, moduleOpt, reference.toVector)
 
   def unapply(t: Target): Option[(Option[String], Option[String], Seq[TargetToken])] =
     Some((t.circuitOpt, t.moduleOpt, t.tokens))
@@ -124,7 +124,7 @@ object Target {
   /** @return [[Target]] from human-readable serialization */
   def deserialize(s: String): Target = {
     val regex = """(?=[~|>/:.\[@])"""
-    s.split(regex).foldLeft(GenericTarget(None, None, Nil)) { (t, tokenString) =>
+    s.split(regex).foldLeft(GenericTarget(None, None, Vector.empty)) { (t, tokenString) =>
       val value = tokenString.tail
       tokenString(0) match {
         case '~' if t.circuitOpt.isEmpty && t.moduleOpt.isEmpty && t.tokens.isEmpty =>
@@ -152,7 +152,7 @@ object Target {
   */
 case class GenericTarget(circuitOpt: Option[String],
                          moduleOpt: Option[String],
-                         tokens: Seq[TargetToken]) extends Target {
+                         tokens: Vector[TargetToken]) extends Target {
 
   override def toGenericTarget: GenericTarget = this
 
@@ -168,10 +168,10 @@ case class GenericTarget(circuitOpt: Option[String],
   override def getComplete: Option[CompleteTarget] = {
     if(!isComplete) None else {
       val target = this match {
-        case GenericTarget(Some(c), None, Nil) => CircuitTarget(c)
-        case GenericTarget(Some(c), Some(m), Nil) => ModuleTarget(c, m)
-        case GenericTarget(Some(c), Some(m), Ref(r) :: component) => ReferenceTarget(c, m, Nil, r, component)
-        case GenericTarget(Some(c), Some(m), Instance(i) :: OfModule(o) :: Nil) => InstanceTarget(c, m, Nil, i, o)
+        case GenericTarget(Some(c), None, Vector()) => CircuitTarget(c)
+        case GenericTarget(Some(c), Some(m), Vector()) => ModuleTarget(c, m)
+        case GenericTarget(Some(c), Some(m), Ref(r) +: component) => ReferenceTarget(c, m, Nil, r, component)
+        case GenericTarget(Some(c), Some(m), Instance(i) +: OfModule(o) +: Vector()) => InstanceTarget(c, m, Nil, i, o)
         case GenericTarget(Some(c), Some(m), component) =>
           val path = getPath.getOrElse(Nil)
           (getRef, getInstanceOf) match {
@@ -265,7 +265,7 @@ case class GenericTarget(circuitOpt: Option[String],
     */
   def isLegal: Boolean = {
     try {
-      var comp: GenericTarget = this.copy(tokens = Nil)
+      var comp: GenericTarget = this.copy(tokens = Vector.empty)
       for(token <- tokens) {
         comp = comp.add(token)
       }
@@ -281,9 +281,9 @@ case class GenericTarget(circuitOpt: Option[String],
     */
   def isComplete: Boolean = {
     isLegal && (isCircuitTarget || isModuleTarget || (isComponentTarget && tokens.tails.forall {
-      case Instance(_) :: OfModule(_) :: tail => true
-      case Instance(_) :: x :: tail => false
-      case x :: OfModule(_) :: tail => false
+      case Instance(_) +: OfModule(_) +: tail => true
+      case Instance(_) +: x +: tail => false
+      case x +: OfModule(_) +: tail => false
       case _ => true
     } ))
   }
