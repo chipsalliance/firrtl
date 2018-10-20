@@ -27,9 +27,6 @@ object DontTouchAnnotation {
 
   def errorNotFound(module: String, component: String) =
     throw new DontTouchNotFoundException(module, component)
-
-  def unapply(d: DontTouchAnnotation): Option[ComponentName] = Some(d.target.toNamed)
-  def apply(n: ComponentName): DontTouchAnnotation = DontTouchAnnotation(n.toTarget)
 }
 
 /** An [[firrtl.ir.ExtModule]] that can be optimized
