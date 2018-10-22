@@ -316,4 +316,42 @@ class EliminateTargetPathsSpec extends FirrtlPropSpec with FirrtlMatchers {
       outputLines should contain (line)
     }
   }
+
+  property("Keep annotations of modules not instantiated") {
+    val input =
+      """circuit Top:
+        |  module Top:
+        |    input i: UInt<1>
+        |    output o: UInt<1>
+        |    inst m1 of Middle
+        |    inst m2 of Middle
+        |    m1.i <= i
+        |    m2.i <= m1.o
+        |    o <= m2.o
+        |  module Middle:
+        |    input i: UInt<1>
+        |    output o: UInt<1>
+        |    inst _l of Leaf
+        |    _l.i <= i
+        |    o <= _l.o
+        |  module Middle_:
+        |    input i: UInt<1>
+        |    output o: UInt<1>
+        |    o <= UInt(0)
+        |  module Leaf:
+        |    input i: UInt<1>
+        |    output o: UInt<1>
+        |    o <= i
+      """.stripMargin
+    val checks =
+      """circuit Top :
+        |  module Middle_ :""".stripMargin.split("\n")
+    val Middle_ = CircuitTarget("Top").module("Middle_").ref("i")
+    val inputState = CircuitState(parse(input), ChirrtlForm, Seq(DontTouchAnnotation(Middle_)))
+    val outputState = new VerilogCompiler().compile(inputState, customTransforms)
+    val outputLines = outputState.circuit.serialize.split("\n")
+    checks.foreach { line =>
+      outputLines should contain (line)
+    }
+  }
 }

@@ -120,8 +120,11 @@ class EliminateTargetPaths extends Transform {
 
     // Foreach target, calculate the pathless version and only rename targets that are instantiated
     targets.foreach { t =>
-      val newTs = dupMap.makePathless(t).filter(c => newUsedOfModules.contains(c.moduleOpt.get))
-      renameMap.record(t, newTs)
+      val newTsx = dupMap.makePathless(t)
+      val newTs = newTsx.filter(c => newUsedOfModules.contains(c.moduleOpt.get))
+      if(newTs.nonEmpty) {
+        renameMap.record(t, newTs)
+      }
     }
 
     // Return modified circuit and associated renameMap
