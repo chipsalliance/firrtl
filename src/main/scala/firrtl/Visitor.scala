@@ -92,7 +92,7 @@ class Visitor(infoMode: InfoMode) extends FIRRTLBaseVisitor[FirrtlNode] {
       case (int, null, null, null) => IntParam(name, string2BigInt(int.getText))
       case (null, str, null, null) => StringParam(name, visitStringLit(str))
       case (null, null, dbl, null) => DoubleParam(name, dbl.getText.toDouble)
-      case (null, null, null, raw) => RawStringParam(name, raw.getText.tail.init) // Remove "\'"s
+      case (null, null, null, raw) => RawStringParam(name, raw.getText.tail.init.replace("\\'", "'")) // Remove "\'"s
       case _ => throwInternalError(s"visiting impossible parameter ${ctx.getText}")
     }
   }
@@ -144,10 +144,10 @@ class Visitor(infoMode: InfoMode) extends FIRRTLBaseVisitor[FirrtlNode] {
   }
 
   private def visitBlock[FirrtlNode](ctx: FIRRTLParser.ModuleBlockContext): Statement =
-    Block(ctx.simple_stmt().asScala.map(_.stmt).filter(_ != null).map(visitStmt))
+    Block(ctx.simple_stmt().asScala.flatMap(x => Option(x.stmt).map(visitStmt)))
 
   private def visitSuite[FirrtlNode](ctx: FIRRTLParser.SuiteContext): Statement =
-    Block(ctx.simple_stmt().asScala.map(_.stmt).filter(_ != null).map(visitStmt))
+    Block(ctx.simple_stmt().asScala.flatMap(x => Option(x.stmt).map(visitStmt)))
 
 
   // Memories are fairly complicated to translate thus have a dedicated method

@@ -179,7 +179,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
       case (e: WSubAccess) => w write s"${LowerTypes.loweredName(e.expr)}[${LowerTypes.loweredName(e.index)}]"
       case (e: WSubIndex) => w write e.serialize
       case (e: Literal) => v_print(e)
-      case (e: VRandom) => w write s"{${e.nWords}{$$random}}"
+      case (e: VRandom) => w write s"{${e.nWords}{`RANDOM}}"
       case (t: GroundType) => w write stringify(t)
       case (t: VectorType) =>
         emit(t.tpe, top + 1)
@@ -263,7 +263,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
        case Pad =>
          val w = bitWidth(a0.tpe)
          val diff = c0 - w
-         if (w == BigInt(0)) Seq(a0)
+         if (w == BigInt(0) || diff <= 0) Seq(a0)
          else doprim.tpe match {
            // Either sign extend or zero extend.
            // If width == BigInt(1), don't extract bit
@@ -655,14 +655,25 @@ class VerilogEmitter extends SeqTransform with Emitter {
           emit(Seq("`ifdef RANDOMIZE_MEM_INIT"))
           emit(Seq("`define RANDOMIZE"))
           emit(Seq("`endif"))
+          emit(Seq("`ifndef RANDOM"))
+          emit(Seq("`define RANDOM $random"))
+          emit(Seq("`endif"))
           emit(Seq("`ifdef RANDOMIZE"))
           emit(Seq("  integer initvar;"))
           emit(Seq("  initial begin"))
-          // This enables test benches to set the random values at time 0.001,
-          //  then start the simulation later
+          emit(Seq("    `ifdef INIT_RANDOM"))
+          emit(Seq("      `INIT_RANDOM"))
+          emit(Seq("    `endif"))
+          // This enables testbenches to seed the random values at some time
+          // before `RANDOMIZE_DELAY (or the legacy value 0.002 if
+          // `RANDOMIZE_DELAY is not defined).
           // Verilator does not support delay statements, so they are omitted.
-          emit(Seq("    `ifndef verilator"))
-          emit(Seq("      #0.002 begin end"))
+          emit(Seq("    `ifndef VERILATOR"))
+          emit(Seq("      `ifdef RANDOMIZE_DELAY"))
+          emit(Seq("        #`RANDOMIZE_DELAY begin end"))
+          emit(Seq("      `else"))
+          emit(Seq("        #0.002 begin end"))
+          emit(Seq("      `endif"))
           emit(Seq("    `endif"))
           for (x <- initials) emit(Seq(tab, x))
           emit(Seq("  end"))
@@ -687,7 +698,6 @@ class VerilogEmitter extends SeqTransform with Emitter {
   /** Preamble for every emitted Verilog file */
   def transforms = Seq(
     passes.VerilogModulusCleanup,
-    passes.VerilogWrap,
     passes.VerilogRename,
     passes.VerilogPrep)
 
