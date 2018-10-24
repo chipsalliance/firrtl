@@ -2,7 +2,7 @@
 
 package firrtl.transforms
 
-import java.io.{File, FileNotFoundException, FileOutputStream, PrintWriter}
+import java.io.{File, FileNotFoundException, FileInputStream, FileOutputStream, PrintWriter}
 
 import firrtl._
 import firrtl.Utils.throwInternalError
@@ -28,6 +28,19 @@ case class BlackBoxInlineAnno(target: ModuleName, name: String, text: String) ex
   def duplicate(n: ModuleName) = this.copy(target = n)
   override def serialize: String = s"inline\n$name\n$text"
 }
+
+case class BlackBoxPathAnno(target: ModuleName, path: String) extends BlackBoxHelperAnno
+    with SingleTargetAnnotation[ModuleName] {
+  def duplicate(n: ModuleName) = this.copy(target = n)
+  override def serialize: String = s"path\n$path"
+}
+
+/** Exception indicating that a blackbox wasn't found
+  * @param fileName the name of the BlackBox file (only used for error message generation)
+  * @param e an underlying exception that generated this
+  */
+class BlackBoxNotFoundException(fileName: String, e: Throwable = null) extends FIRRTLException(
+  s"BlackBox '$fileName' not found. Did you misspell it? Is it in src/{main,test}/resources?", e)
 
 /** Handle source for Verilog ExtModules (BlackBoxes)
   *
@@ -64,6 +77,7 @@ class BlackBoxSourceHelper extends firrtl.Transform {
     * @note the state is not changed by this transform
     * @param state Input Firrtl AST
     * @return A transformed Firrtl AST
+    * @throws BlackBoxNotFoundException if a Verilog source cannot be found
     */
   override def execute(state: CircuitState): CircuitState = {
     val (annos, targetDir) = collectAnnos(state.annotations)
@@ -71,6 +85,16 @@ class BlackBoxSourceHelper extends firrtl.Transform {
     val resourceFiles: ListSet[File] = annos.collect {
       case BlackBoxResourceAnno(_, resourceId) =>
         BlackBoxSourceHelper.writeResourceToDirectory(resourceId, targetDir)
+      case BlackBoxPathAnno(_, path) =>
+        val fileName = path.split("/").last
+        val fromFile = new File(path)
+        val toFile = new File(targetDir, fileName)
+
+        val inputStream = BlackBoxSourceHelper.safeFile(fromFile.toString)(new FileInputStream(fromFile).getChannel)
+        val outputStream = new FileOutputStream(toFile).getChannel
+        outputStream.transferFrom(inputStream, 0, Long.MaxValue)
+
+        toFile
     }
 
     val inlineFiles: ListSet[File] = annos.collect {
@@ -89,6 +113,16 @@ class BlackBoxSourceHelper extends firrtl.Transform {
 }
 
 object BlackBoxSourceHelper {
+  /** Safely access a file converting [[FileNotFoundException]]s and [[NullPointerException]]s into
+    * [[BlackBoxNotFoundException]]s
+    * @param fileName the name of the file to be accessed (only used for error message generation)
+    * @param code some code to run
+    */
+  private def safeFile[A](fileName: String)(code: => A) = try { code } catch {
+    case e@ (_: FileNotFoundException | _: NullPointerException) => throw new BlackBoxNotFoundException(fileName, e)
+    case t: Throwable                                            => throw t
+  }
+
   /**
     * finds the named resource and writes into the directory
     * @param name the name of the resource
@@ -106,14 +140,12 @@ object BlackBoxSourceHelper {
     * finds the named resource and writes into the directory
     * @param name the name of the resource
     * @param file the file to write it into
+    * @throws BlackBoxNotFoundException if the requested resource does not exist
     */
   def copyResourceToFile(name: String, file: File) {
     val in = getClass.getResourceAsStream(name)
-    if (in == null) {
-      throw new FileNotFoundException(s"Resource '$name'")
-    }
     val out = new FileOutputStream(file)
-    Iterator.continually(in.read).takeWhile(-1 != _).foreach(out.write)
+    safeFile(name)(Iterator.continually(in.read).takeWhile(-1 != _).foreach(out.write))
     out.close()
   }
 
