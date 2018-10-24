@@ -136,9 +136,9 @@ case class DuplicationHelper(existingModules: Set[String]) {
       }
       val module = if(newPath.nonEmpty) newPath.last.value.toString else newTop
       t.notPath match {
-        case Nil => ModuleTarget(t.circuit, module)
-        case Instance(i) :: OfModule(m) :: Nil => ModuleTarget(t.circuit, module)
-        case Ref(r) :: components => ReferenceTarget(t.circuit, module, Nil, r, components)
+        case Seq() => ModuleTarget(t.circuit, module)
+        case Instance(i) +: OfModule(m) +: Seq() => ModuleTarget(t.circuit, module)
+        case Ref(r) +: components => ReferenceTarget(t.circuit, module, Nil, r, components)
       }
     }.toSeq
   }
