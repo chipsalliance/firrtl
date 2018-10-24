@@ -186,7 +186,7 @@ abstract class Transform extends LazyLogging {
     * @param state
     * @return
     */
-  def prepare(state: CircuitState): CircuitState = state
+  private[firrtl] def prepare(state: CircuitState): CircuitState = state
 
   /** Perform the transform and update annotations.
     *
