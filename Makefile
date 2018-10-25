@@ -37,4 +37,7 @@ jenkins-build:	clean
 	$(SBT) $(SBT_FLAGS) scalastyle coverage test
 	$(SBT) $(SBT_FLAGS) coverageReport
 
+jack-bug:
+	$(SBT) "runMain firrtl.Driver -i test.fir -o out.v -X verilog -fct firrtl.passes.InlineInstances -faf test.anno.json"
+
 .PHONY: build clean regress build-scala test-scala

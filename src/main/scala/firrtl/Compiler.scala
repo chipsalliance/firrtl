@@ -188,6 +188,26 @@ abstract class Transform extends LazyLogging {
     */
   private[firrtl] def prepare(state: CircuitState): CircuitState = state
 
+  private def checkRefs(state: CircuitState): Unit = {
+    import firrtl.ir._
+    import firrtl.Mappers._
+    def onModule(mod: DefModule): DefModule = {
+      def error(ref: String, stmt: Statement) =
+        throw new Exception(s"'.' Found in $ref in:\n ${stmt.serialize}")
+      def onExpr(stmt: Statement)(expr: Expression): Expression = {
+        expr.map(onExpr(stmt)) match {
+          case ref: WRef if ref.name.contains('.') => error(ref.name, stmt)
+          case ref: Reference if ref.name.contains('.') => error(ref.name, stmt)
+          case _ =>
+        }
+        expr
+      }
+      def onStmt(stmt: Statement): Statement = stmt.map(onStmt).map(onExpr(stmt))
+      mod.map(onStmt)
+    }
+    state.circuit.modules.map(onModule)
+  }
+
   /** Perform the transform and update annotations.
     *
     * @param state Input Firrtl AST
@@ -197,6 +217,8 @@ abstract class Transform extends LazyLogging {
     logger.info(s"======== Starting Transform $name ========")
 
     val (timeMillis, result) = Utils.time { execute(prepare(state)) }
+    println(s"Checking $name")
+    checkRefs(result)
 
     logger.info(s"""----------------------------${"-" * name.size}---------\n""")
     logger.info(f"Time: $timeMillis%.1f ms")
