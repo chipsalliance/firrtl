@@ -101,6 +101,9 @@ object DedupModules {
       case other => other map onExp
     }
     def onStmt(s: Statement): Statement = s match {
+      case DefNode(info, name, value) =>
+        if(renameExps) DefNode(reinfo(info), rename(name), onExp(value))
+        else DefNode(reinfo(info), rename(name), value)
       case WDefInstance(i, n, m, t) =>
         val newmod = renameOfModule(n, m)
         WDefInstance(reinfo(i), rename(n), newmod, retype(n)(t))
@@ -150,20 +153,16 @@ object DedupModules {
 
     val namespace = Namespace()
     val typeMap = mutable.HashMap[String, Type]()
+    val nameMap = mutable.HashMap[String, String]()
 
-    renameMap.setCircuit(top.circuitOpt.get)
-    renameMap.setModule(module.name)
+    val mod = top.module(module.name)
 
     def rename(name: String): String = {
-      val ret = renameMap.get(top.module(module.name).ref(name))
-      ret match {
-        case Some(Seq(Target(_, _, Seq(Ref(x))))) => x
-        case None =>
-          val newName = namespace.newTemp
-          renameMap.rename(name, newName)
-          newName
-        case other => throwInternalError(other.toString)
-      }
+      nameMap.getOrElseUpdate(name, {
+        val newName = namespace.newTemp
+        renameMap.record(mod.ref(name), mod.ref(newName))
+        newName
+      })
     }
 
     def retype(name: String)(tpe: Type): Type = {
@@ -313,14 +312,12 @@ object DedupModules {
       builder.hashCode()
     }
 
-    val agnosticModuleMap = RenameMap()
+    val agnosticRename = RenameMap()
 
     moduleLinearization.foreach { originalModule =>
       // Replace instance references to new deduped modules
       val dontcare = RenameMap()
       dontcare.setCircuit("dontcare")
-
-      val agnosticRename = RenameMap.create(agnosticModuleMap.getUnderlying)
 
       if (noDedups.contains(originalModule.name)) {
         // Don't dedup. Set dedup module to be the same as fixed module
@@ -350,7 +347,6 @@ object DedupModules {
 
         // Match old module name to its tag
         agnosticRename.record(top.module(originalModule.name), top.module(tag))
-        agnosticModuleMap.record(top.module(originalModule.name), top.module(tag))
         tagMap.record(top.module(originalModule.name), top.module(tag))
 
         // Set tag's module to be the first matching module
