@@ -8,7 +8,7 @@ cache:
     $INSTALL_DIR
 
 git:
-  depth: 10
+  depth: 128
 
 env:
   global:
