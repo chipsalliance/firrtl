@@ -207,18 +207,6 @@ class WrappedWidth (val w: Width) {
   }
 }
 
-trait Constraint
-class WGeq(val loc: Width, val exp: Width) extends Constraint {
-  override def toString = {
-    val wloc = new WrappedWidth(loc)
-    val wexp = new WrappedWidth(exp)
-    wloc.toString + " >= " + wexp.toString
-  }
-}
-object WGeq {
-  def apply(loc: Width, exp: Width) = new WGeq(loc, exp)
-}
-
 abstract class MPortDir extends FirrtlNode
 case object MInfer extends MPortDir {
   def serialize: String = "infer"

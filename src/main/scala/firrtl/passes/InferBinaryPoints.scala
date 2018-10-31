@@ -5,12 +5,12 @@ package firrtl.passes
 // Datastructures
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.immutable.ListMap
-
 import firrtl._
 import firrtl.ir._
 import firrtl.Utils._
 import firrtl.Mappers._
 import firrtl.Implicits.{constraint2width, width2constraint}
+import firrtl.constraint.ConstraintSolver
 
 class InferBinaryPoints extends Pass {
   private val constraintSolver = new ConstraintSolver()

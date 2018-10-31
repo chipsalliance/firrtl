@@ -7,8 +7,9 @@ import firrtl.PrimOps._
 import firrtl.ir._
 import firrtl._
 import firrtl.Mappers._
-import firrtl.Utils.{sub_type, module_type, field_type, max, error, getUIntWidth}
-import Implicits.{int2WInt, bigint2WInt}
+import firrtl.Utils.{error, field_type, getUIntWidth, max, module_type, sub_type}
+import Implicits.{bigint2WInt, int2WInt}
+import firrtl.constraint.{IsFloor, IsKnown, IsMul}
 
 /** Replaces IntervalType with SIntType, three AST walks:
   * 1) Align binary points

@@ -3,11 +3,12 @@
 package firrtlTests.interval
 
 import firrtl.Implicits.constraint2bound
-import firrtl.{CircuitState, ChirrtlForm, LowFirrtlCompiler, Parser}
-import firrtl.ir.{Closed, Open, Bound, IntervalType, IntWidth}
-import firrtl.passes.{IsMin, IsMax, IsMul, IsAdd, IsKnown}
+import firrtl.{ChirrtlForm, CircuitState, LowFirrtlCompiler, Parser}
+import firrtl.ir._
+
 import scala.math.BigDecimal.RoundingMode._
 import firrtl.Parser.IgnoreInfo
+import firrtl.constraint._
 import firrtlTests.FirrtlFlatSpec
 
 class IntervalMathSpec extends FirrtlFlatSpec {
@@ -98,12 +99,12 @@ class IntervalMathSpec extends FirrtlFlatSpec {
             line match {
               case SumPattern(varWidth)     =>
                 val bp = IntWidth(Math.max(bp1.toInt, bp2.toInt))
-                val it = IntervalType(IsAdd(min1, min2).optimize(), IsAdd(max1, max2).optimize(), bp)
+                val it = IntervalType(IsAdd(min1, min2), IsAdd(max1, max2), bp)
                 assert(varWidth.toInt == it.width.asInstanceOf[IntWidth].width, s"$line,${it.range}")
               case ProductPattern(varWidth)     =>
                 val bp = IntWidth(bp1.toInt + bp2.toInt)
-                val lv = IsMin(IsMul(min1, min2), IsMul(min1, max2), IsMul(max1, min2), IsMul(max1, max2)).optimize()
-                val uv = IsMax(IsMul(min1, min2), IsMul(min1, max2), IsMul(max1, min2), IsMul(max1, max2)).optimize()
+                val lv = IsMin(IsMul(min1, min2), IsMul(min1, max2), IsMul(max1, min2), IsMul(max1, max2))
+                val uv = IsMax(IsMul(min1, min2), IsMul(min1, max2), IsMul(max1, min2), IsMul(max1, max2))
                 assert(varWidth.toInt == IntervalType(lv, uv, bp).width.asInstanceOf[IntWidth].width, "product")
               case DifferencePattern(varWidth)     =>
                 val bp = IntWidth(Math.max(bp1.toInt, bp2.toInt))

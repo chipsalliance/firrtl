@@ -7,9 +7,11 @@ import firrtl.PrimOps._
 import firrtl.ir._
 import firrtl._
 import firrtl.Mappers._
-import firrtl.Utils.{sub_type, module_type, field_type, max, error, getUIntWidth}
-import Implicits.{int2WInt, bigint2WInt}
+import firrtl.Utils.{error, field_type, getUIntWidth, max, module_type, sub_type}
+import Implicits.{bigint2WInt, int2WInt}
 import Implicits.{constraint2bound, constraint2width, width2constraint}
+import firrtl.constraint.IsKnown
+
 import scala.math.BigDecimal.RoundingMode._
 
 /** Replaces IntervalType with SIntType, three AST walks:
@@ -55,7 +57,25 @@ class RemoveIntervals extends Pass {
         case (false, true) => Mux(Gt(a1, clipHi.S), clipHi.S, a1)
         case _             => Mux(Gt(a1, clipHi.S), clipHi.S, Mux(Lt(a1, clipLo.S), clipLo.S, a1))
       }
-    case DoPrim(Wrap, Seq(a1, a2), Seq(c1), tpe: IntervalType) => a2.tpe match {
+
+    case DoPrim(AsOther, Seq(a1, a2), Nil, tpe: IntervalType) =>
+      // Using (conditional) reassign interval w/o adding mux
+      val a2tpe = a2.tpe.asInstanceOf[IntervalType]
+      val a1tpe = a1.tpe.asInstanceOf[IntervalType]
+      val min2 = a2tpe.min * BigDecimal(BigInt(1) << a1tpe.point.get.toInt)
+      // Conservative
+      val minOpt2 = min2.setScale(0, FLOOR).toBigInt
+      val max2 = a2tpe.max * BigDecimal(BigInt(1) << a1tpe.point.get.toInt)
+      val maxOpt2 = max2.setScale(0, CEILING).toBigInt
+      val w2 = Seq(minOpt2.bitLength, maxOpt2.bitLength).max + 1
+      val w1 = Seq(a1tpe.minAdjusted.bitLength, a1tpe.maxAdjusted.bitLength).max + 1
+      if (w1 < w2)
+        a1
+      else {
+        val bits = DoPrim(Bits, Seq(a1), Seq(w2 - 1, 0), UIntType(IntWidth(w2)))
+        DoPrim(AsSInt, Seq(bits), Seq.empty, SIntType(IntWidth(w2)))
+      }
+    case DoPrim(Wrap, Seq(a1, a2), Nil, tpe: IntervalType) => a2.tpe match {
       // If a2 type is SInt, wrap around width
       // TODO: (chick) add this back in after working through Chisel details
       // case SIntType(IntWidth(w)) => AsSInt(Bits(a1, w - 1, 0))
@@ -84,35 +104,18 @@ class RemoveIntervals extends Pass {
         // worst case: wl + (xh - wh) - 1 = wh
         // -> xh - wr - 1 = wh
         val default = Add(Rem(Sub(a1, wrapLo.S), Sub(wrapHi.S, wrapLo.S)), wrapLo.S)
-        (wrapHi >= inHi, wrapLo <= inLo, (inHi - range - 1) <= wrapHi, (inLo + range + 1) >= wrapLo, c1 > 0) match {
-          case(_, _, _, _, true) =>
-            // Using wrap for dual purpose: (conditional) reassign interval w/o adding mux
-            val a2tpe = a2.tpe.asInstanceOf[IntervalType]
-            val a1tpe = a1.tpe.asInstanceOf[IntervalType]
-            val min2 = a2tpe.min * BigDecimal(BigInt(1) << a1tpe.point.get.toInt)
-            // Conservative
-            val minOpt2 = min2.setScale(0, FLOOR).toBigInt
-            val max2 = a2tpe.max * BigDecimal(BigInt(1) << a1tpe.point.get.toInt)
-            val maxOpt2 = max2.setScale(0, CEILING).toBigInt
-            val w2 = Seq(minOpt2.bitLength, maxOpt2.bitLength).max + 1
-            val w1 = Seq(a1tpe.minAdjusted.bitLength, a1tpe.maxAdjusted.bitLength).max + 1
-            if (w1 < w2) 
-              a1
-            else {
-              val bits = DoPrim(Bits, Seq(a1), Seq(w2 - 1, 0), UIntType(IntWidth(w2)))
-              DoPrim(AsSInt, Seq(bits), Seq.empty, SIntType(IntWidth(w2)))
-            }
-          case (true, true, _, _, false) => 
+        (wrapHi >= inHi, wrapLo <= inLo, (inHi - range - 1) <= wrapHi, (inLo + range + 1) >= wrapLo) match {
+          case (true, true, _, _) =>
             // println("Clip Opt: Full")
             a1
-          case (true, _, _, true, false) => 
+          case (true, _, _, true) =>
             // println("Clip Opt: Lt")
             Mux(Lt(a1, wrapLo.S), ltOpt, a1)
-          case (_, true, true, _, false) => 
+          case (_, true, true, _) =>
             // println("Clip Opt: Gt")
             Mux(Gt(a1, wrapHi.S), gtOpt, a1)
           // Note: inHi - range - 1 = wrapHi can't be true when inLo + range + 1 = wrapLo (i.e. simultaneous extreme cases don't work)
-          case (_, _, true, true, false) =>
+          case (_, _, true, true) =>
             // println("Clip Opt: None")
             Mux(Gt(a1, wrapHi.S), gtOpt, Mux(Lt(a1, wrapLo.S), ltOpt, a1))
           case _                          => 

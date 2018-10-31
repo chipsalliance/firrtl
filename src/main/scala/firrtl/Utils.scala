@@ -7,13 +7,15 @@ import firrtl.PrimOps._
 import firrtl.Mappers._
 import firrtl.WrappedExpression._
 import firrtl.WrappedType._
+
 import scala.collection.mutable
-import scala.collection.mutable.{StringBuilder, ArrayBuffer, LinkedHashMap, HashMap, HashSet}
+import scala.collection.mutable.{ArrayBuffer, HashMap, HashSet, LinkedHashMap, StringBuilder}
 import scala.util.matching.Regex
 import java.io.PrintWriter
-import logger.LazyLogging
-import passes.{IsMax, IsMin}
-import Implicits.{constraint2width, width2constraint, constraint2bound}
+
+import _root_.logger.LazyLogging
+import Implicits.{constraint2bound, constraint2width, width2constraint}
+import firrtl.constraint.{IsMax, IsMin}
 
 object FIRRTLException {
   def defaultMessage(message: String, cause: Throwable) = {
@@ -237,13 +239,11 @@ object Utils extends LazyLogging {
   implicit def toWrappedExpression (x:Expression): WrappedExpression = new WrappedExpression(x)
   def getSIntWidth(s: BigInt): Int = s.bitLength + 1
   def getUIntWidth(u: BigInt): Int = u.bitLength
-  private val zdec1 = """([+\-]?[0-9]\d*)(\.[0-9]*[1-9])(0*)""".r
-  private val zdec2 = """([+\-]?[0-9]\d*)(\.0*)""".r
-  private val dec = """([+\-]?[0-9]\d*)(\.[0-9]\d*)""".r
-  private val int = """([+\-]?[0-9]\d*)""".r
+  private val Zdec1 = """([+\-]?\d+)(\.[0-9]*[1-9])(0*)""".r
+  private val Zdec2 = """([+\-]?\d+)(\.0*)""".r
   def dec2string(v: BigDecimal): String = v.toString match {
-    case zdec1(x, y, z) => x + y
-    case zdec2(x, y) => x
+    case Zdec1(x, y, z) => x + y
+    case Zdec2(x, y) => x
     case other => other
   }
   def trim(v: BigDecimal): BigDecimal = BigDecimal(dec2string(v))
@@ -383,7 +383,7 @@ object Utils extends LazyLogging {
       case (FixedType(w1, p1), FixedType(w2, p2)) =>
         FixedType(PLUS(MAX(p1, p2),MAX(MINUS(w1, p1), MINUS(w2, p2))), MAX(p1, p2))
       case (IntervalType(l1, u1, p1), IntervalType(l2, u2, p2)) =>
-        IntervalType(IsMin(l1, l2), IsMax(u1, u2), MAX(p1, p2))
+        IntervalType(IsMin(l1, l2), constraint.IsMax(u1, u2), MAX(p1, p2))
       case (t1x: VectorType, t2x: VectorType) => VectorType(
         mux_type_and_widths(t1x.tpe, t2x.tpe), t1x.size)
       case (t1x: BundleType, t2x: BundleType) => BundleType(t1x.fields zip t2x.fields map {

@@ -3,10 +3,11 @@
 package firrtl
 package ir
 
-import Utils.{indent, trim, dec2string}
+import Utils.{dec2string, indent, trim}
+import firrtl.constraint.{Constraint, IsKnown, IsVar}
+
 import scala.math.BigDecimal.RoundingMode._
 import scala.collection.mutable
-import passes.{IsConstrainable, IsKnown, IsVar}
 
 /** Intermediate Representation */
 abstract class FirrtlNode {
@@ -445,10 +446,10 @@ class IntWidth(val width: BigInt) extends Width with Product {
 case object UnknownWidth extends Width {
   def serialize: String = ""
 }
-case class CalcWidth(arg: IsConstrainable) extends Width with IsConstrainable {
+case class CalcWidth(arg: Constraint) extends Width with Constraint {
   def serialize: String = s"calcw(${arg.serialize})"
-  def map(f: IsConstrainable=>IsConstrainable): IsConstrainable = f(arg)
-  override def reduce(): IsConstrainable = arg
+  def map(f: Constraint=>Constraint): Constraint = f(arg)
+  override def reduce(): Constraint = arg
 }
 case class VarWidth(name: String) extends Width with IsVar {
   override def serialize: String = s"<$name>"
@@ -471,21 +472,21 @@ case class Field(name: String, flip: Orientation, tpe: Type) extends FirrtlNode 
 
 /** Bounds of [[IntervalType]] */
 
-trait Bound extends IsConstrainable {
+trait Bound extends Constraint {
   def serialize: String
 }
 case object UnknownBound extends Bound {
   def serialize: String = "?"
-  def map(f: IsConstrainable=>IsConstrainable): IsConstrainable = this
+  def map(f: Constraint=>Constraint): Constraint = this
 }
-case class CalcBound(arg: IsConstrainable) extends Bound {
+case class CalcBound(arg: Constraint) extends Bound {
   def serialize: String = s"calcb(${arg.serialize})"
-  def map(f: IsConstrainable=>IsConstrainable): IsConstrainable = f(arg)
-  override def reduce(): IsConstrainable = arg
+  def map(f: Constraint=>Constraint): Constraint = f(arg)
+  override def reduce(): Constraint = arg
 }
 case class VarBound(name: String) extends IsVar with Bound
 object KnownBound {
-  def unapply(b: IsConstrainable): Option[BigDecimal] = b match {
+  def unapply(b: Constraint): Option[BigDecimal] = b match {
     case k: IsKnown => Some(k.value)
     case _ => None
   }

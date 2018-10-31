@@ -202,11 +202,11 @@ class IntervalSpec extends FirrtlFlatSpec {
         |    output clip5: Interval
         |    output clip6: Interval
         |    output clip7: Interval
-        |    wrap3 <= wrap(in1, asInterval(s, -2, 4, 0), 0)
-        |    wrap4 <= wrap(in1, asInterval(s, -1, 1, 0), 0)
-        |    wrap5 <= wrap(in1, asInterval(s, -4, 4, 0), 0)
-        |    wrap6 <= wrap(in1, asInterval(s, -1, 7, 0), 0)
-        |    wrap7 <= wrap(in1, asInterval(s, -4, 7, 0), 0)
+        |    wrap3 <= wrap(in1, asInterval(s, -2, 4, 0))
+        |    wrap4 <= wrap(in1, asInterval(s, -1, 1, 0))
+        |    wrap5 <= wrap(in1, asInterval(s, -4, 4, 0))
+        |    wrap6 <= wrap(in1, asInterval(s, -1, 7, 0))
+        |    wrap7 <= wrap(in1, asInterval(s, -4, 7, 0))
         |    clip3 <= clip(in1, asInterval(s, -2, 4, 0))
         |    clip4 <= clip(in1, asInterval(s, -1, 1, 0))
         |    clip5 <= clip(in1, asInterval(s, -4, 4, 0))
@@ -257,10 +257,10 @@ class IntervalSpec extends FirrtlFlatSpec {
         |    output clip5: Interval
         |    output clip6: Interval
         |    output clip7: Interval
-        |    wrap3 <= wrap(in1, asInterval(s, -2, 4, 0), 0)
-        |    wrap5 <= wrap(in1, asInterval(s, -4, 4, 0), 0)
-        |    wrap6 <= wrap(in1, asInterval(s, -1, 7, 0), 0)
-        |    wrap7 <= wrap(in1, asInterval(s, -4, 7, 0), 0)
+        |    wrap3 <= wrap(in1, asInterval(s, -2, 4, 0))
+        |    wrap5 <= wrap(in1, asInterval(s, -4, 4, 0))
+        |    wrap6 <= wrap(in1, asInterval(s, -1, 7, 0))
+        |    wrap7 <= wrap(in1, asInterval(s, -4, 7, 0))
         |    clip3 <= clip(in1, asInterval(s, -2, 4, 0))
         |    clip4 <= clip(in1, asInterval(s, -1, 1, 0))
         |    clip5 <= clip(in1, asInterval(s, -4, 4, 0))
@@ -292,7 +292,7 @@ class IntervalSpec extends FirrtlFlatSpec {
         |    input  in1:   Interval[-3, 5].1
         |    output wrap1: Interval
         |    output clip1: Interval
-        |    wrap1 <= wrap(in1, asInterval(s, -2, 2, 0), 0)
+        |    wrap1 <= wrap(in1, asInterval(s, -2, 2, 0))
         |    clip1 <= clip(in1, asInterval(s, -2, 2, 0))
         |    """.stripMargin
     val check = s"""

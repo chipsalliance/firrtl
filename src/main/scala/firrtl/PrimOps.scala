@@ -3,11 +3,11 @@
 package firrtl
 
 import firrtl.ir._
-import firrtl.Utils.{min, max, pow_minus_one}
-import passes.{IsMul, IsAdd, IsNeg, IsPow, IsMax, IsMin, IsFloor, IsConstrainable}
-
+import firrtl.Utils.{max, min, pow_minus_one}
+import passes._
 import com.typesafe.scalalogging.LazyLogging
 import Implicits.{constraint2bound, constraint2width, width2constraint}
+import firrtl.constraint._
 
 /** Definitions and Utility functions for [[ir.PrimOp]]s */
 object PrimOps extends LazyLogging {
@@ -85,6 +85,8 @@ object PrimOps extends LazyLogging {
   case object AsFixedPoint extends PrimOp { override def toString = "asFixedPoint" }
   /** Interpret as Interval (closed lower bound, closed upper bound, binary point) **/
   case object AsInterval extends PrimOp { override def toString = "asInterval" }
+  /** Interpret first argument as type and width of second **/
+  case object AsOther extends PrimOp { override def toString = "as" }
   /** Wrap First Operand Around Range/Width of Second Operand **/
   case object Wrap extends PrimOp { override def toString = "wrap" }
   /** Clip First Operand At Range/Width of Second Operand **/
@@ -92,7 +94,8 @@ object PrimOps extends LazyLogging {
 
   private lazy val builtinPrimOps: Seq[PrimOp] =
     Seq(Add, Sub, Mul, Div, Rem, Lt, Leq, Gt, Geq, Eq, Neq, Pad, AsUInt, AsSInt, AsInterval, AsClock, Shl, Shr,
-        Dshl, Dshr, Neg, Cvt, Not, And, Or, Xor, Andr, Orr, Xorr, Cat, Bits, Head, Tail, AsFixedPoint, BPShl, BPShr, BPSet, Wrap, Clip)
+        Dshl, Dshr, Neg, Cvt, Not, And, Or, Xor, Andr, Orr, Xorr, Cat, Bits, Head, Tail, AsFixedPoint, BPShl, BPShr,
+        BPSet, Wrap, Clip, AsOther)
   private lazy val strToPrimOp: Map[String, PrimOp] = builtinPrimOps.map { case op : PrimOp=> op.toString -> op }.toMap
 
   /** Seq of String representations of [[ir.PrimOp]]s */
@@ -101,14 +104,14 @@ object PrimOps extends LazyLogging {
   def fromString(op: String): PrimOp = strToPrimOp(op)
 
   // Width Constraint Functions
-  def PLUS(w1: Width, w2: Width): IsConstrainable = IsAdd(w1, w2)
-  def MAX(w1: Width, w2: Width): IsConstrainable = IsMax(w1, w2)
-  def MINUS(w1: Width, w2: Width): IsConstrainable = IsAdd(w1, IsNeg(w2))
+  def PLUS(w1: Width, w2: Width): Constraint = IsAdd(w1, w2)
+  def MAX(w1: Width, w2: Width): Constraint = IsMax(w1, w2)
+  def MINUS(w1: Width, w2: Width): Constraint = IsAdd(w1, IsNeg(w2))
   //def POW (w1:Width) : Width = w1 match {
   //  case IntWidth(i) => IntWidth(pow_minus_one(BigInt(2), i))
   //  case _ => ExpWidth(w1)
   //}
-  def MIN(w1: Width, w2: Width): IsConstrainable = IsMin(w1, w2)
+  def MIN(w1: Width, w2: Width): Constraint = IsMin(w1, w2)
 
   def set_primop_type(e: DoPrim): DoPrim = {
     def t1 = e.args.head.tpe
@@ -136,14 +139,14 @@ object PrimOps extends LazyLogging {
         case (_: UIntType, _: UIntType) => UIntType(IsAdd(IsMax(w1, w2), IntWidth(1)))
         case (_: SIntType, _: SIntType) => SIntType(IsAdd(IsMax(w1, w2), IntWidth(1)))
         case (_: FixedType, _: FixedType) => FixedType(IsAdd(IsAdd(IsMax(p1, p2), IsMax(IsAdd(w1, IsNeg(p1)), IsAdd(w2, IsNeg(p2)))), IntWidth(1)), IsMax(p1, p2))
-        case (IntervalType(l1, u1, p1), IntervalType(l2, u2, p2)) => IntervalType(IsAdd(l1, l2), IsAdd(u1, u2), IsMax(p1, p2))
+        case (IntervalType(l1, u1, p1), IntervalType(l2, u2, p2)) => IntervalType(constraint.IsAdd(l1, l2), constraint.IsAdd(u1, u2), IsMax(p1, p2))
         case _ => UnknownType
       }
       case Sub => (t1, t2) match {
         case (_: UIntType, _: UIntType) => UIntType(IsAdd(IsMax(w1, w2), IntWidth(1)))
         case (_: SIntType, _: SIntType) => SIntType(IsAdd(IsMax(w1, w2), IntWidth(1)))
         case (_: FixedType, _: FixedType) => FixedType(IsAdd(IsAdd(IsMax(p1, p2),IsMax(IsAdd(w1, IsNeg(p1)), IsAdd(w2, IsNeg(p2)))),IntWidth(1)), IsMax(p1, p2))
-        case (IntervalType(l1, u1, p1), IntervalType(l2, u2, p2)) => IntervalType(IsAdd(l1, IsNeg(u2)), IsAdd(u1, IsNeg(l2)), IsMax(p1, p2))
+        case (IntervalType(l1, u1, p1), IntervalType(l2, u2, p2)) => IntervalType(constraint.IsAdd(l1, constraint.IsNeg(u2)), constraint.IsAdd(u1, constraint.IsNeg(l2)), IsMax(p1, p2))
         case _ => UnknownType
       }
       case Mul => (t1, t2) match {
@@ -152,8 +155,8 @@ object PrimOps extends LazyLogging {
         case (_: FixedType, _: FixedType) => FixedType(IsAdd(w1, w2), IsAdd(p1, p2))
         case (IntervalType(l1, u1, p1), IntervalType(l2, u2, p2)) =>
           IntervalType(
-            IsMin(IsMul(l1, l2), IsMul(l1, u2), IsMul(u1, l2), IsMul(u1, u2)),
-            IsMax(IsMul(l1, l2), IsMul(l1, u2), IsMul(u1, l2), IsMul(u1, u2)),
+            IsMin(IsMul(l1, l2), constraint.IsMul(l1, u2), constraint.IsMul(u1, l2), constraint.IsMul(u1, u2)),
+            IsMax(constraint.IsMul(l1, l2), constraint.IsMul(l1, u2), constraint.IsMul(u1, l2), constraint.IsMul(u1, u2)),
             IsAdd(p1, p2)
           )
         case _ => UnknownType
@@ -261,11 +264,19 @@ object PrimOps extends LazyLogging {
         case _: IntervalType => ClockType
         case _ => UnknownType
       }
+      case AsOther => (t1, t2) match {
+        case (_: UIntType, _: UIntType) => t2
+        case (_: SIntType, _: SIntType) => t2
+        case (_: FixedType, _: FixedType) => t2
+        case (ClockType, ClockType) => t2
+        case (_: IntervalType, _: IntervalType) => t2
+        case _ => UnknownType
+      }
       case Shl => t1 match {
         case _: UIntType => UIntType(IsAdd(w1, c1))
         case _: SIntType => SIntType(IsAdd(w1, c1))
         case _: FixedType => FixedType(IsAdd(w1,c1), p1)
-        case IntervalType(l, u, p) => IntervalType(IsMul(l, Closed(BigDecimal(BigInt(1) << o1.toInt))), IsMul(u, Closed(BigDecimal(BigInt(1) << o1.toInt))), p)
+        case IntervalType(l, u, p) => IntervalType(constraint.IsMul(l, Closed(BigDecimal(BigInt(1) << o1.toInt))), constraint.IsMul(u, Closed(BigDecimal(BigInt(1) << o1.toInt))), p)
         case _ => UnknownType
       }
       // Bit ops (not "math" friendly -- doesn't track precision)
@@ -279,23 +290,23 @@ object PrimOps extends LazyLogging {
           // BP is inferred at this point
           val bpRes = Closed(BigDecimal(1) / BigDecimal(BigInt(1) << p.get.toInt))
           val bpResInv = Closed(BigDecimal(BigInt(1) << p.get.toInt))
-          val newL = IsMul(IsFloor(IsMul(IsMul(l, shiftMul), bpResInv)), bpRes)
-          val newU = IsMul(IsFloor(IsMul(IsMul(u, shiftMul), bpResInv)), bpRes)
+          val newL = constraint.IsMul(IsFloor(constraint.IsMul(constraint.IsMul(l, shiftMul), bpResInv)), bpRes)
+          val newU = constraint.IsMul(IsFloor(constraint.IsMul(constraint.IsMul(u, shiftMul), bpResInv)), bpRes)
           // BP doesn't grow
           IntervalType(newL, newU, p)
         case _ => UnknownType
       }
       case Dshl => t1 match {
-        case _: UIntType => UIntType(IsAdd(w1, IsAdd(IsPow(w2), Closed(-1))))
-        case _: SIntType => SIntType(IsAdd(w1, IsAdd(IsPow(w2), Closed(-1))))
-        case _: FixedType => FixedType(IsAdd(w1, IsAdd(IsPow(w2), Closed(-1))), p1)
+        case _: UIntType => UIntType(IsAdd(w1, constraint.IsAdd(IsPow(w2), Closed(-1))))
+        case _: SIntType => SIntType(IsAdd(w1, constraint.IsAdd(IsPow(w2), Closed(-1))))
+        case _: FixedType => FixedType(IsAdd(w1, constraint.IsAdd(IsPow(w2), Closed(-1))), p1)
         case IntervalType(l, u, p) => 
-          val maxShiftAmt = IsAdd(IsPow(w2), Closed(-1))
+          val maxShiftAmt = constraint.IsAdd(IsPow(w2), Closed(-1))
           val shiftMul = IsPow(maxShiftAmt)
           // Magnitude matters! i.e. if l is negative, shifting by the largest amount makes the outcome more negative
           // whereas if l is positive, shifting by the largest amount makes the outcome more positive (in this case, the lower bound is the previous l)
-          val newL = IsMin(l, IsMul(l, shiftMul))
-          val newU = IsMax(u, IsMul(u, shiftMul))
+          val newL = constraint.IsMin(l, constraint.IsMul(l, shiftMul))
+          val newU = constraint.IsMax(u, constraint.IsMul(u, shiftMul))
           // BP doesn't grow
           IntervalType(newL, newU, p)
         case _ => UnknownType
@@ -381,8 +392,8 @@ object PrimOps extends LazyLogging {
           // without amt, same op as shr
           val newBPRes = Closed(BigDecimal(BigInt(1) << o1.toInt) / BigDecimal(BigInt(1) << p.get.toInt))
           val bpResInv = Closed(BigDecimal(BigInt(1) << p.get.toInt))
-          val newL = IsMul(IsFloor(IsMul(IsMul(l, shiftMul), bpResInv)), newBPRes)
-          val newU = IsMul(IsFloor(IsMul(IsMul(u, shiftMul), bpResInv)), newBPRes)
+          val newL = constraint.IsMul(IsFloor(constraint.IsMul(constraint.IsMul(l, shiftMul), bpResInv)), newBPRes)
+          val newU = constraint.IsMul(IsFloor(constraint.IsMul(constraint.IsMul(u, shiftMul), bpResInv)), newBPRes)
           // BP doesn't grow
           IntervalType(newL, newU, IsAdd(p, IsNeg(c1)))
         case _ => UnknownType
@@ -394,23 +405,23 @@ object PrimOps extends LazyLogging {
         case IntervalType(l, u, p) => 
           val newBPResInv = Closed(BigDecimal(BigInt(1) << o1.toInt))
           val newBPRes = Closed(BigDecimal(1) / BigDecimal(BigInt(1) << o1.toInt))
-          val newL = IsMul(IsFloor(IsMul(l, newBPResInv)), newBPRes)
-          val newU = IsMul(IsFloor(IsMul(u, newBPResInv)), newBPRes)
+          val newL = constraint.IsMul(IsFloor(constraint.IsMul(l, newBPResInv)), newBPRes)
+          val newU = constraint.IsMul(IsFloor(constraint.IsMul(u, newBPResInv)), newBPRes)
           IntervalType(newL, newU, c1)
         case _ => UnknownType
       }
       // = override range
       case Wrap => (t1, t2) match {
-        case (IntervalType(l1, u1, p1), IntervalType(l2, u2, _)) if c1 != 2 => IntervalType(l2, u2, p1)
+        case (IntervalType(l1, u1, p1), IntervalType(l2, u2, _)) => IntervalType(l2, u2, p1)
         // Conditionally reassign interval -- only if new bounds don't exceed previous bounds
         // TODO: (angie) -- maybe this should ride on clip instead?
-        case (IntervalType(l1, u1, p1), IntervalType(l2, u2, _)) if c1 == 2 => IntervalType(IsMax(l1, l2), IsMin(u1, u2), p1)
+        case (IntervalType(l1, u1, p1), IntervalType(l2, u2, _)) if c1 == 2 => IntervalType(constraint.IsMax(l1, l2), constraint.IsMin(u1, u2), p1)
         //case (IntervalType(l1, u1, p1), _: SIntType) => IntervalType(IsNeg(IsPow(IsAdd(w2, Closed(-1)))), IsAdd(IsPow(IsAdd(w2, Closed(-1))), Closed(-1)), p1)
         //case (IntervalType(l1, u1, p1), _: UIntType) => IntervalType(Closed(0), IsAdd(IsPow(w2), Closed(-1)), p1)
         case _ => UnknownType
       }
       case Clip => (t1, t2) match {
-        case (IntervalType(l1, u1, p1), IntervalType(l2, u2, _)) => IntervalType(IsMax(l1, l2), IsMin(u1, u2), p1)
+        case (IntervalType(l1, u1, p1), IntervalType(l2, u2, _)) => IntervalType(constraint.IsMax(l1, l2), constraint.IsMin(u1, u2), p1)
         //case (IntervalType(l1, u1, p1), _: SIntType) => IntervalType(IsMax(IsNeg(IsPow(IsAdd(w2, Closed(-1)))), l1), IsMin(IsAdd(IsPow(IsAdd(w2, Closed(-1))), Closed(-1)), u1), p1)
         //case (IntervalType(l1, u1, p1), _: UIntType) => IntervalType(IsMax(Closed(0), l1), IsMin(u1, IsAdd(IsPow(w2), Closed(-1))), p1)
         case _ => UnknownType

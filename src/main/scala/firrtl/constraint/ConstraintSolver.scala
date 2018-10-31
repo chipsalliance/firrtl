@@ -1,25 +1,27 @@
 // See LICENSE for license details.
 
-package firrtl.passes
+package firrtl.constraint
 
 // Datastructures
-import scala.collection.mutable
-import scala.collection.immutable.ListMap
-
 import firrtl._
 import firrtl.ir._
-import firrtl.Utils._
-import firrtl.Mappers._
+import firrtl.passes.{_}
 
+import scala.collection.mutable
+
+/** Constraint Solver
+  *
+  * Used for computing [[Width]] and [[Bound]] constraints
+  */
 class ConstraintSolver {
   def addGeq(big: Any, small: Any): Unit = (big, small) match {
-    case (IsVar(name), other: IsConstrainable) => add(GEQ(name, other))
-    case (IsVar(name), other: IntWidth) => add(GEQ(name, Implicits.width2constraint(other)))
+    case (IsVar(name), other: Constraint) => add(GreaterOrEqual(name, other))
+    case (IsVar(name), other: IntWidth) => add(GreaterOrEqual(name, Implicits.width2constraint(other)))
     case (IsKnown(u), IsKnown(l)) if l > u => sys.error(s"addGeq BAD! L: $l, U: $u")
     case _ =>
   }
   def addLeq(small: Any, big: Any): Unit = (small, big) match {
-    case (IsVar(name), other: IsConstrainable) => add(LEQ(name, other))
+    case (IsVar(name), other: Constraint) => add(LesserOrEqual(name, other))
     case (IsKnown(l), IsKnown(u)) if u < l => sys.error(s"addLeq BAD! L: $l, U: $u")
     case _ =>
   }
@@ -37,17 +39,17 @@ class ConstraintSolver {
   }
 
   /** Internal State and Accessors */
-  private def genConst(left: String, right: IsConstrainable, geq: Boolean): Constraint = geq match {
-    case true => GEQ(left, right)
-    case false => LEQ(left, right)
+  private def genConst(left: String, right: Constraint, geq: Boolean): Inequality = geq match {
+    case true => GreaterOrEqual(left, right)
+    case false => LesserOrEqual(left, right)
   }
   // initial constraints
-  val constraints = mutable.ArrayBuffer[Constraint]()
-  def add(c: Constraint) = constraints += c
+  val constraints = mutable.ArrayBuffer[Inequality]()
+  def add(c: Inequality) = constraints += c
   def serializeConstraints: String = constraints.mkString("\n")
 
   // solved constraints
-  type ConstraintMap = mutable.HashMap[String, (IsConstrainable, Boolean)]
+  type ConstraintMap = mutable.HashMap[String, (Constraint, Boolean)]
   val solvedConstraintMap = new ConstraintMap()
   def serializeSolutions: String = solvedConstraintMap.map{
     case (k, (v, true))  => s"$k >= ${v.serialize}"
@@ -56,8 +58,8 @@ class ConstraintSolver {
 
   /** Constraint Solver */
 
-  private def mergeConstraints(constraints: Seq[Constraint]): Seq[Constraint] = {
-    val mergedMap = mutable.HashMap[String, Constraint]()
+  private def mergeConstraints(constraints: Seq[Inequality]): Seq[Inequality] = {
+    val mergedMap = mutable.HashMap[String, Inequality]()
     constraints.foreach {
         case c if c.geq  && mergedMap.contains(c.left) => mergedMap(c.left) = genConst(c.left, IsMax(mergedMap(c.left).right, c.right), true)
         case c if !c.geq && mergedMap.contains(c.left) => mergedMap(c.left) = genConst(c.left, IsMin(mergedMap(c.left).right, c.right), false)
@@ -65,12 +67,12 @@ class ConstraintSolver {
     }
     mergedMap.values.toList
   }
-  private def substitute(h: ConstraintMap)(t: IsConstrainable): IsConstrainable = {
+  private def substitute(h: ConstraintMap)(t: Constraint): Constraint = {
     val x = t map substitute(h)
     //println("SDFL:")
     x match {
       case isVar: IsVar => h get isVar.name match {
-        case None => isVar.asInstanceOf[IsConstrainable]
+        case None => isVar.asInstanceOf[Constraint]
         case Some((p, geq)) =>
           //println("HERE 2")
           val newT = substitute(h)(p)
@@ -83,7 +85,7 @@ class ConstraintSolver {
     }
   }
 
-  private def backwardSubstitution(h: ConstraintMap)(t: IsConstrainable): IsConstrainable = {
+  private def backwardSubstitution(h: ConstraintMap)(t: Constraint): Constraint = {
     t match {
       case isVar: IsVar => h.get(isVar.name) match {
         case Some((p, geq)) => p
@@ -93,14 +95,14 @@ class ConstraintSolver {
     }
   }
 
-  private def removeCycle(n: String, geq: Boolean)(t: IsConstrainable): IsConstrainable = if(geq) removeGeqCycle(n)(t) else removeLeqCycle(n)(t)
+  private def removeCycle(n: String, geq: Boolean)(t: Constraint): Constraint = if(geq) removeGeqCycle(n)(t) else removeLeqCycle(n)(t)
 
-  private def removeLeqCycle(name: String)(t: IsConstrainable): IsConstrainable = t match {
+  private def removeLeqCycle(name: String)(t: Constraint): Constraint = t match {
     case x if greaterEqThan(name)(x) => VarCon(name)
     case isMin: IsMin => IsMin(isMin.children.filter{ c => !greaterEqThan(name)(c)}:_*)
     case x => x
   }
-  private def greaterEqThan(name: String)(t: IsConstrainable): Boolean = t match {
+  private def greaterEqThan(name: String)(t: Constraint): Boolean = t match {
     case isMin: IsMin => isMin.children.map(greaterEqThan(name)).reduce(_ && _)
     case isAdd: IsAdd => isAdd.children match {
       case Seq(isVar: IsVar, isVal: IsKnown) if (isVar.name == name) && (isVal.value >= 0) => true
@@ -116,12 +118,12 @@ class ConstraintSolver {
     case _ => false
   }
 
-  private def removeGeqCycle(name: String)(t: IsConstrainable): IsConstrainable = t match {
+  private def removeGeqCycle(name: String)(t: Constraint): Constraint = t match {
     case x if lessEqThan(name)(x) => VarCon(name)
     case isMax: IsMax => IsMax(isMax.children.filter{c => !lessEqThan(name)(c)}:_*)
     case x => x
   }
-  private def lessEqThan(name: String)(t: IsConstrainable): Boolean = t/*.optimize()*/ match {
+  private def lessEqThan(name: String)(t: Constraint): Boolean = t/*.optimize()*/ match {
     case isMax: IsMax => isMax.children.map(lessEqThan(name)).reduce(_ && _)
     case isAdd: IsAdd => isAdd.children match {
       case Seq(isVar: IsVar, isVal: IsKnown) if (isVar.name == name) && (isVal.value <= 0) => true
@@ -141,9 +143,9 @@ class ConstraintSolver {
     case _ => false
   }
 
-  private def hasVar(n: String)(t: IsConstrainable): Boolean = {
+  private def hasVar(n: String)(t: Constraint): Boolean = {
     var has = false
-    def rec(t: IsConstrainable): IsConstrainable = {
+    def rec(t: Constraint): Constraint = {
       t match {
         case isVar: IsVar if isVar.name == n => has = true
         case _ =>
@@ -153,9 +155,9 @@ class ConstraintSolver {
     rec(t)
     has
   }
-  def check(): Seq[Constraint] = {
-    val checkMap = new mutable.HashMap[String, Constraint]()
-    constraints.foldLeft(Seq[Constraint]()) { (seq, c) =>
+  def check(): Seq[Inequality] = {
+    val checkMap = new mutable.HashMap[String, Inequality]()
+    constraints.foldLeft(Seq[Inequality]()) { (seq, c) =>
       checkMap.get(c.left) match {
         case None =>
           checkMap(c.left) = c
@@ -165,11 +167,11 @@ class ConstraintSolver {
       }
     }
   }
-  def getDepth(i: IsConstrainable): Int = i.children match {
+  def getDepth(i: Constraint): Int = i.children match {
     case Nil => 1
     case other => other.map(getDepth).max + 1
   }
-  def getSize(i: IsConstrainable): Int = i.children match {
+  def getSize(i: Constraint): Int = i.children match {
     case Nil => 1
     case other => other.map(getSize).sum
   }
