@@ -8,7 +8,7 @@ cache:
     $INSTALL_DIR
 
 git:
-  depth: 128
+  depth: 10
 
 env:
   global:
@@ -16,6 +16,11 @@ env:
     VERILATOR_ROOT=$INSTALL_DIR
     PATH=$PATH:$VERILATOR_ROOT/bin:$TRAVIS_BUILD_DIR/utils/bin
     SBT_ARGS="-Dsbt.log.noformat=true"
+
+before_script:
+  - OLDEST_SHARED=`git log --format=%H --no-merges $TRAVIS_COMMIT_RANGE | tail -n1`
+  - OLDEST_COMMIT=`git log --format=%H | tail -n1`
+  - if [ $OLDEST_SHARED == $OLDEST_COMMIT ]; then git fetch --unshallow; fi
 
 stages:
   - prepare
