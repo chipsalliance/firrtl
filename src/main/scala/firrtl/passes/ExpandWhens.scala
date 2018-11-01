@@ -46,9 +46,9 @@ object ExpandWhens extends Pass {
   type Netlist = mutable.LinkedHashMap[WrappedExpression, Expression]
 
   /** Collects Info data serialized names for nodes, aggregating into MultiInfo when necessary */
-  class InfoMap extends mutable.HashMap[String, Info] {
-    override def default(key: String): Info = {
-      val x = NoInfo
+  class InfoMap extends mutable.HashMap[String, mutable.LinkedHashSet[Info]] {
+    override def default(key: String): mutable.LinkedHashSet[Info] = {
+      val x = new mutable.LinkedHashSet[Info]
       this(key) = x
       x
     }
@@ -78,15 +78,6 @@ object ExpandWhens extends Pass {
     lazy val attaches = mutable.ArrayBuffer.empty[Attach]
 
     val infoMap: InfoMap = new InfoMap
-
-    /**
-      * Adds into into map, aggregates info into MultiInfo where necessary
-      * @param key  serialized name of node
-      * @param info info being recorded
-      */
-    def saveInfo(key: String, info: Info): Unit = {
-      infoMap(key) = infoMap(key) ++ info
-    }
 
     /** Removes connections/attaches from the statement
       * Mutates namespace, simlist, nodes, attaches
@@ -119,7 +110,7 @@ object ExpandWhens extends Pass {
         r
       // For value assignments, update netlist/attaches and return EmptyStmt
       case c: Connect =>
-        saveInfo(c.loc.serialize, c.info)
+        infoMap(c.loc.serialize) += c.info
         netlist(c.loc) = c.expr
         EmptyStmt
       case c: IsInvalid =>
@@ -226,7 +217,12 @@ object ExpandWhens extends Pass {
       case (k, WInvalid) => // Remove IsInvalids on attached Analog types
         if (attached.contains(k)) EmptyStmt else IsInvalid(NoInfo, k.e1)
       case (k, v) =>
-        val info = sourceInfoMap(k.e1.serialize)
+        val infoSet = sourceInfoMap(k.e1.serialize)
+        val info = infoSet.size match {
+          case 0 => NoInfo
+          case 1 => infoSet.head
+          case _ => MultiInfo(infoSet.toSeq)
+        }
         Connect(info, k.e1, v)
     }
 
