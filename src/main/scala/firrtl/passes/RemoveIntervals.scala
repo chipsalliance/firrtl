@@ -58,7 +58,7 @@ class RemoveIntervals extends Pass {
         case _             => Mux(Gt(a1, clipHi.S), clipHi.S, Mux(Lt(a1, clipLo.S), clipLo.S, a1))
       }
 
-    case DoPrim(AsOther, Seq(a1, a2), Nil, tpe: IntervalType) =>
+    case DoPrim(Squeeze, Seq(a1, a2), Nil, tpe: IntervalType) =>
       // Using (conditional) reassign interval w/o adding mux
       val a2tpe = a2.tpe.asInstanceOf[IntervalType]
       val a1tpe = a1.tpe.asInstanceOf[IntervalType]

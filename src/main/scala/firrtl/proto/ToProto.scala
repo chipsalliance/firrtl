@@ -101,7 +101,7 @@ object ToProto {
     BPShr -> Op.OP_SHIFT_BINARY_POINT_RIGHT,
     BPSet -> Op.OP_SET_BINARY_POINT,
     AsInterval -> Op.OP_AS_INTERVAL,
-    AsOther -> Op.OP_AS_OTHER,
+    Squeeze -> Op.OP_SQUEEZE,
     Wrap -> Op.OP_WRAP,
     Clip -> Op.OP_CLIP
   )

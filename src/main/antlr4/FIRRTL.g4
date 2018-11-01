@@ -275,7 +275,6 @@ primop
   | 'asClock('
   | 'asFixedPoint('
   | 'asInterval('
-  | 'as('
   | 'shl('
   | 'shr('
   | 'dshl('
@@ -298,6 +297,7 @@ primop
   | 'bpset('
   | 'wrap('
   | 'clip('
+  | 'squeeze('
   ;
 
 /*------------------------------------------------------------------

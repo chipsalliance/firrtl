@@ -428,7 +428,7 @@ message Firrtl {
         OP_AS_INTERVAL = 38;
         OP_WRAP = 39;
         OP_CLIP = 40;
-        OP_AS_OTHER = 41;
+        OP_SQUEEZE = 41;
       }
 
       // Required.

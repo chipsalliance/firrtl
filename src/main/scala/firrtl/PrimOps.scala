@@ -83,8 +83,8 @@ object PrimOps extends LazyLogging {
   case object AsFixedPoint extends PrimOp { override def toString = "asFixedPoint" }
   /** Interpret as Interval (closed lower bound, closed upper bound, binary point) **/
   case object AsInterval extends PrimOp { override def toString = "asInterval" }
-  /** Interpret first argument as type and width of second **/
-  case object AsOther extends PrimOp { override def toString = "as" }
+  /** Try to fit the first argument into the type of the smaller argument **/
+  case object Squeeze extends PrimOp { override def toString = "squeeze" }
   /** Wrap First Operand Around Range/Width of Second Operand **/
   case object Wrap extends PrimOp { override def toString = "wrap" }
   /** Clip First Operand At Range/Width of Second Operand **/
@@ -93,7 +93,7 @@ object PrimOps extends LazyLogging {
   private lazy val builtinPrimOps: Seq[PrimOp] =
     Seq(Add, Sub, Mul, Div, Rem, Lt, Leq, Gt, Geq, Eq, Neq, Pad, AsUInt, AsSInt, AsInterval, AsClock, Shl, Shr,
         Dshl, Dshr, Neg, Cvt, Not, And, Or, Xor, Andr, Orr, Xorr, Cat, Bits, Head, Tail, AsFixedPoint, BPShl, BPShr,
-        BPSet, Wrap, Clip, AsOther)
+        BPSet, Wrap, Clip, Squeeze)
   private lazy val strToPrimOp: Map[String, PrimOp] = builtinPrimOps.map { case op : PrimOp=> op.toString -> op }.toMap
 
   /** Seq of String representations of [[ir.PrimOp]]s */
@@ -258,7 +258,7 @@ object PrimOps extends LazyLogging {
         case _: IntervalType => ClockType
         case _ => UnknownType
       }
-      case AsOther => (t1, t2) match {
+      case Squeeze => (t1, t2) match {
         case (_: UIntType, _: UIntType) => t2
         case (_: SIntType, _: SIntType) => t2
         case (_: FixedType, _: FixedType) => t2
