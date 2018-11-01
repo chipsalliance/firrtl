@@ -3,8 +3,6 @@
 package firrtl
 
 import firrtl.ir._
-import firrtl.Utils.{max, min, pow_minus_one}
-import passes._
 import com.typesafe.scalalogging.LazyLogging
 import Implicits.{constraint2bound, constraint2width, width2constraint}
 import firrtl.constraint._
@@ -107,10 +105,6 @@ object PrimOps extends LazyLogging {
   def PLUS(w1: Width, w2: Width): Constraint = IsAdd(w1, w2)
   def MAX(w1: Width, w2: Width): Constraint = IsMax(w1, w2)
   def MINUS(w1: Width, w2: Width): Constraint = IsAdd(w1, IsNeg(w2))
-  //def POW (w1:Width) : Width = w1 match {
-  //  case IntWidth(i) => IntWidth(pow_minus_one(BigInt(2), i))
-  //  case _ => ExpWidth(w1)
-  //}
   def MIN(w1: Width, w2: Width): Constraint = IsMin(w1, w2)
 
   def set_primop_type(e: DoPrim): DoPrim = {

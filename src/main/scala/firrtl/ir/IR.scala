@@ -478,6 +478,7 @@ trait Bound extends Constraint {
 case object UnknownBound extends Bound {
   def serialize: String = "?"
   def map(f: Constraint=>Constraint): Constraint = this
+  override def reduce(): Constraint = this
 }
 case class CalcBound(arg: Constraint) extends Bound {
   def serialize: String = s"calcb(${arg.serialize})"
