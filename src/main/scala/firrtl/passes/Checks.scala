@@ -336,8 +336,10 @@ object CheckTypes extends Pass {
         case Dshl | Dshr =>
           checkAllTypes(Seq(e.args.head), okUInt = true, okSInt = true, okClock = false, okFix = true, okInterval = true)
           checkAllTypes(Seq(e.args(1)), okUInt = true, okSInt = false, okClock = false, okFix = false, okInterval = false)
-        case Add | Sub | Mul | Wrap | Clip | Squeeze =>
+        case Add | Sub | Mul =>
           checkAllTypes(e.args, okUInt = true, okSInt = true, okClock = false, okFix = true, okInterval = true)
+        case Wrap | Clip | Squeeze =>
+          checkAllTypes(e.args, okUInt = false, okSInt = false, okClock = false, okFix = false, okInterval = true)
         case Lt | Leq | Gt | Geq | Eq | Neq =>
           checkAllTypes(e.args, okUInt = true, okSInt = true, okClock = false, okFix = true, okInterval = true)
         case Shl | Shr | Cat | Bits | Head | Tail =>

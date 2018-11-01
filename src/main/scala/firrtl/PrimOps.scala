@@ -258,14 +258,6 @@ object PrimOps extends LazyLogging {
         case _: IntervalType => ClockType
         case _ => UnknownType
       }
-      case Squeeze => (t1, t2) match {
-        case (_: UIntType, _: UIntType) => t2
-        case (_: SIntType, _: SIntType) => t2
-        case (_: FixedType, _: FixedType) => t2
-        case (ClockType, ClockType) => t2
-        case (_: IntervalType, _: IntervalType) => t2
-        case _ => UnknownType
-      }
       case Shl => t1 match {
         case _: UIntType => UIntType(IsAdd(w1, c1))
         case _: SIntType => SIntType(IsAdd(w1, c1))
@@ -404,12 +396,8 @@ object PrimOps extends LazyLogging {
           IntervalType(newL, newU, c1)
         case _ => UnknownType
       }
-      // = override range
       case Wrap => (t1, t2) match {
         case (IntervalType(l1, u1, p1), IntervalType(l2, u2, _)) => IntervalType(l2, u2, p1)
-        // Conditionally reassign interval -- only if new bounds don't exceed previous bounds
-        // TODO: (angie) -- maybe this should ride on clip instead?
-        case (IntervalType(l1, u1, p1), IntervalType(l2, u2, _)) if c1 == 2 => IntervalType(constraint.IsMax(l1, l2), constraint.IsMin(u1, u2), p1)
         //case (IntervalType(l1, u1, p1), _: SIntType) => IntervalType(IsNeg(IsPow(IsAdd(w2, Closed(-1)))), IsAdd(IsPow(IsAdd(w2, Closed(-1))), Closed(-1)), p1)
         //case (IntervalType(l1, u1, p1), _: UIntType) => IntervalType(Closed(0), IsAdd(IsPow(w2), Closed(-1)), p1)
         case _ => UnknownType
@@ -418,6 +406,10 @@ object PrimOps extends LazyLogging {
         case (IntervalType(l1, u1, p1), IntervalType(l2, u2, _)) => IntervalType(constraint.IsMax(l1, l2), constraint.IsMin(u1, u2), p1)
         //case (IntervalType(l1, u1, p1), _: SIntType) => IntervalType(IsMax(IsNeg(IsPow(IsAdd(w2, Closed(-1)))), l1), IsMin(IsAdd(IsPow(IsAdd(w2, Closed(-1))), Closed(-1)), u1), p1)
         //case (IntervalType(l1, u1, p1), _: UIntType) => IntervalType(IsMax(Closed(0), l1), IsMin(u1, IsAdd(IsPow(w2), Closed(-1))), p1)
+        case _ => UnknownType
+      }
+      case Squeeze => (t1, t2) match {
+        case (IntervalType(l1, u1, p1), IntervalType(l2, u2, _)) => IntervalType(constraint.IsMax(l1, l2), constraint.IsMin(u1, u2), p1)
         case _ => UnknownType
       }
     })

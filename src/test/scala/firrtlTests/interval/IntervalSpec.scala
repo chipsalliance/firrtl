@@ -332,4 +332,86 @@ class IntervalSpec extends FirrtlFlatSpec {
         """.stripMargin
     executeTest(input, check.split("\n") map normalized, passes)
   }
+  "Interval types" should "implement squeeze properly" in {
+    val passes = Seq(ToWorkingIR, new ResolveAndCheck)
+    val input =
+      s"""circuit Unit :
+         |  module Unit :
+         |    input min: Interval[-1, 4].1
+         |    input max: Interval[-3, 5].1
+         |    input left: Interval[-3, 3].1
+         |    input right: Interval[0, 5].1
+         |    input off: Interval[-1, 4].2
+         |    output minMax: Interval
+         |    output maxMin: Interval
+         |    output minLeft: Interval
+         |    output leftMin: Interval
+         |    output minRight: Interval
+         |    output rightMin: Interval
+         |    output minOff: Interval
+         |    output offMin: Interval
+         |
+         |    minMax <= squeeze(min, max)
+         |    maxMin <= squeeze(max, min)
+         |    minLeft <= squeeze(min, left)
+         |    leftMin <= squeeze(left, min)
+         |    minRight <= squeeze(min, right)
+         |    rightMin <= squeeze(right, min)
+         |    minOff <= squeeze(min, off)
+         |    offMin <= squeeze(off, min)
+         |    """.stripMargin
+    val check =
+      s"""
+         |    output minMax : Interval[-1, 4].1
+         |    output maxMin : Interval[-1, 4].1
+         |    output minLeft : Interval[-1, 3].1
+         |    output leftMin : Interval[-1, 3].1
+         |    output minRight : Interval[0, 4].1
+         |    output rightMin : Interval[0, 4].1
+         |    output minOff : Interval[-1, 4].1
+         |    output offMin : Interval[-1, 4].2
+        """.stripMargin
+    executeTest(input, check.split("\n") map normalized, passes)
+  }
+  "Interval types" should "lower squeeze properly" in {
+    val passes = Seq(ToWorkingIR, new ResolveAndCheck, new RemoveIntervals)
+    val input =
+      s"""circuit Unit :
+         |  module Unit :
+         |    input min: Interval[-1, 4].1
+         |    input max: Interval[-3, 5].1
+         |    input left: Interval[-3, 3].1
+         |    input right: Interval[0, 5].1
+         |    input off: Interval[-1, 4].2
+         |    output minMax: Interval
+         |    output maxMin: Interval
+         |    output minLeft: Interval
+         |    output leftMin: Interval
+         |    output minRight: Interval
+         |    output rightMin: Interval
+         |    output minOff: Interval
+         |    output offMin: Interval
+         |
+         |    minMax <= squeeze(min, max)
+         |    maxMin <= squeeze(max, min)
+         |    minLeft <= squeeze(min, left)
+         |    leftMin <= squeeze(left, min)
+         |    minRight <= squeeze(min, right)
+         |    rightMin <= squeeze(right, min)
+         |    minOff <= squeeze(min, off)
+         |    offMin <= squeeze(off, min)
+         |    """.stripMargin
+    val check =
+      s"""
+         |    minMax <= asSInt(bits(min, 4, 0))
+         |    maxMin <= asSInt(bits(max, 4, 0))
+         |    minLeft <= asSInt(bits(min, 3, 0))
+         |    leftMin <= left
+         |    minRight <= asSInt(bits(min, 4, 0))
+         |    rightMin <= asSInt(bits(right, 4, 0))
+         |    minOff <= asSInt(bits(min, 4, 0))
+         |    offMin <= asSInt(bits(off, 5, 0))
+        """.stripMargin
+    executeTest(input, check.split("\n") map normalized, passes)
+  }
 }
