@@ -83,7 +83,6 @@ class InferWidths extends Pass {
        addTypeConstraints(r.tpe, r.init.tpe)
        r
     case a@Attach(_, exprs) =>
-      // All widths must be equal
       val widths = exprs map (e => getWidth(e.tpe))
       val maxWidth = IsMax(widths.map(width2constraint):_*)
       widths.foreach { w =>
@@ -114,24 +113,14 @@ class InferWidths extends Pass {
   private def fixStmt(s: Statement): Statement = s map fixStmt map fixType
   private def fixPort(p: Port): Port = {
     Port(p.info, p.name, p.direction, fixType(p.tpe))
-  } 
+  }
+
   def run (c: Circuit): Circuit = {
-    //val (t, result) = time {
-      c.modules foreach (_ map addStmtConstraints)
-      c.modules foreach (_.ports foreach {p => addDecConstraints(p.tpe)})
-      //println("Initial Constraints!\n" + constraintSolver.serializeConstraints)
-
-      //val (stime, dc) = time {
-        constraintSolver.solve()
-      //}
-      //println(s"Time to solve (ms): $stime")
-      //println("Solved Constraints!\n" + constraintSolver.serializeSolutions)
-      InferTypes.run(c.copy(modules = c.modules map (_
-        map fixPort
-        map fixStmt)))
-
-    //}
-    //println(s"Entire xform (ms): $t")
-    //result
+    c.modules foreach (_ map addStmtConstraints)
+    c.modules foreach (_.ports foreach {p => addDecConstraints(p.tpe)})
+      constraintSolver.solve()
+    InferTypes.run(c.copy(modules = c.modules map (_
+      map fixPort
+      map fixStmt)))
   }
 }
