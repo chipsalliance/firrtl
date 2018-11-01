@@ -85,7 +85,8 @@ object DedupModules {
   def changeInternals(rename: String=>String,
                       retype: String=>Type=>Type,
                       reinfo: Info=>Info,
-                      renameOfModule: (String, String)=>String
+                      renameOfModule: (String, String)=>String,
+                      renameExps: Boolean = true
                      )(module: DefModule): DefModule = {
     def onPort(p: Port): Port = Port(reinfo(p.info), rename(p.name), p.direction, retype(p.name)(p.tpe))
     def onExp(e: Expression): Expression = e match {
@@ -100,6 +101,9 @@ object DedupModules {
       case other => other map onExp
     }
     def onStmt(s: Statement): Statement = s match {
+      case DefNode(info, name, value) =>
+        if(renameExps) DefNode(reinfo(info), rename(name), onExp(value))
+        else DefNode(reinfo(info), rename(name), value)
       case WDefInstance(i, n, m, t) =>
         val newmod = renameOfModule(n, m)
         WDefInstance(reinfo(i), rename(n), newmod, retype(n)(t))
@@ -125,8 +129,12 @@ object DedupModules {
             retype(d.name + ";&*^$")(d.dataType)
         }
         d.copy(dataType = newDataType) map rename map reinfo
-      case h: IsDeclaration => h map rename map retype(h.name) map onExp map reinfo
-      case other => other map reinfo map onExp map onStmt
+      case h: IsDeclaration =>
+        val temp = h map rename map retype(h.name) map reinfo
+        if(renameExps) temp map onExp else temp
+      case other =>
+        val temp = other map reinfo map onStmt
+        if(renameExps) temp map onExp else temp
     }
     module map onPort map onStmt
   }
@@ -145,20 +153,16 @@ object DedupModules {
 
     val namespace = Namespace()
     val typeMap = mutable.HashMap[String, Type]()
+    val nameMap = mutable.HashMap[String, String]()
 
-    renameMap.setCircuit(top.circuitOpt.get)
-    renameMap.setModule(module.name)
+    val mod = top.module(module.name)
 
     def rename(name: String): String = {
-      val ret = renameMap.get(top.module(module.name).ref(name))
-      ret match {
-        case Some(Seq(Target(_, _, Seq(Ref(x))))) => x
-        case None =>
-          val newName = namespace.newTemp
-          renameMap.rename(name, newName)
-          newName
-        case other => throwInternalError(other.toString)
-      }
+      nameMap.getOrElseUpdate(name, {
+        val newName = namespace.newTemp
+        renameMap.record(mod.ref(name), mod.ref(newName))
+        newName
+      })
     }
 
     def retype(name: String)(tpe: Type): Type = {
@@ -263,7 +267,7 @@ object DedupModules {
                    moduleLinearization: Seq[DefModule],
                    noDedups: Set[String],
                    annotations: Seq[Annotation]
-                  ): (collection.Map[String, collection.Set[String]], RenameMap, collection.Map[String, RenameMap]) = {
+                  ): (collection.Map[String, collection.Set[String]], RenameMap) = {
 
 
     // Maps a module name to its agnostic name
@@ -279,17 +283,41 @@ object DedupModules {
         annos += a
       }
     }
+    def fastSerializedHash(s: Statement): Int ={
+      def serialize(builder: StringBuilder, nindent: Int)(s: Statement): Unit = s match {
+        case Block(stmts) => stmts.map {
+          val x = serialize(builder, nindent)(_)
+          builder ++= "\n"
+          x
+        }
+        case Conditionally(info, pred, conseq, alt) =>
+          builder ++= ("  " * nindent)
+          builder ++= s"when ${pred.serialize} :"
+          builder ++= info.serialize
+          serialize(builder, nindent + 1)(conseq)
+          builder ++= "\n" + ("  " * nindent)
+          builder ++= "else :\n"
+          serialize(builder, nindent + 1)(alt)
+        case Print(info, string, args, clk, en) =>
+          builder ++= ("  " * nindent)
+          val strs = Seq(clk.serialize, en.serialize, string.string) ++
+            (args map (_.serialize))
+          builder ++= "printf(" + (strs mkString ", ") + ")" + info.serialize
+        case other: Statement =>
+          builder ++= ("  " * nindent)
+          builder ++= other.serialize
+      }
+      val builder = new mutable.StringBuilder()
+      serialize(builder, 0)(s)
+      builder.hashCode()
+    }
 
-    val agnosticModuleMap = RenameMap()
-    val agnosticRenames = mutable.HashMap[String, RenameMap]()
+    val agnosticRename = RenameMap()
 
     moduleLinearization.foreach { originalModule =>
       // Replace instance references to new deduped modules
       val dontcare = RenameMap()
       dontcare.setCircuit("dontcare")
-
-      val agnosticRename = RenameMap.create(agnosticModuleMap.getUnderlying)
-      agnosticRenames(originalModule.name) = agnosticRename
 
       if (noDedups.contains(originalModule.name)) {
         // Don't dedup. Set dedup module to be the same as fixed module
@@ -310,7 +338,7 @@ object DedupModules {
         builder ++= agnosticAnnos
 
         agnosticModule match {
-          case Module(i, n, ps, b) => builder ++= b.serialize
+          case Module(i, n, ps, b) => builder ++= fastSerializedHash(b).toString()//.serialize
           case ExtModule(i, n, ps, dn, p) =>
             builder ++= dn
             p.foreach { builder ++= _.serialize }
@@ -319,7 +347,6 @@ object DedupModules {
 
         // Match old module name to its tag
         agnosticRename.record(top.module(originalModule.name), top.module(tag))
-        agnosticModuleMap.record(top.module(originalModule.name), top.module(tag))
         tagMap.record(top.module(originalModule.name), top.module(tag))
 
         // Set tag's module to be the first matching module
@@ -327,7 +354,7 @@ object DedupModules {
         all += originalModule.name
       }
     }
-    (tag2all, tagMap, agnosticRenames)
+    (tag2all, tagMap)
   }
   //scalastyle:on
 
@@ -348,7 +375,7 @@ object DedupModules {
     }
     val top = CircuitTarget(circuit.main)
 
-    val (tag2all, tagMap, agnosticRenames) = buildRTLTags(top, moduleLinearization, noDedups, annotations)
+    val (tag2all, tagMap) = buildRTLTags(top, moduleLinearization, noDedups, annotations)
 
     // Set tag2name to be the best dedup module name
     val moduleIndex = circuit.modules.zipWithIndex.map{case (m, i) => m.name -> i}.toMap
@@ -373,21 +400,41 @@ object DedupModules {
     // Build map from original name to corresponding deduped module
     val name2module = tag2all.flatMap({ case (tag, names) => names.map(n => n -> dedupedName2module(tag2name(tag))) })
 
-    val reversedAgnosticRenames = mutable.HashMap[String, RenameMap]()
-    name2module.foreach { case (originalModuleName, dedupedModule) =>
-      if(!reversedAgnosticRenames.contains(dedupedModule.name)) {
-        reversedAgnosticRenames(dedupedModule.name) = agnosticRenames(dedupedModule.name).getReverseRenameMap
-      }
-      agnosticRenames(originalModuleName).keys.foreach { key =>
-        if(key.isInstanceOf[IsComponent]) {
-          val tag = agnosticRenames(originalModuleName)(key).head
-          val newKey = reversedAgnosticRenames(dedupedModule.name).apply(tag)
-          renameMap.record(key.asInstanceOf[IsMember], newKey.asInstanceOf[Seq[IsMember]])
-        }
+    // Build renameMap
+    val indexedTargets = mutable.HashMap[String, IndexedSeq[ReferenceTarget]]()
+    name2module.foreach { case (originalName, depModule) =>
+      if(originalName != depModule.name) {
+        val toSeq = indexedTargets.getOrElseUpdate(depModule.name, computeIndexedNames(circuit.main, depModule))
+        val fromSeq = computeIndexedNames(circuit.main, moduleMap(originalName))
+        computeRenameMap(fromSeq, toSeq, renameMap)
       }
     }
 
     name2module.toMap
+  }
+
+  def computeIndexedNames(main: String, m: DefModule): IndexedSeq[ReferenceTarget] = {
+    val refs = mutable.ArrayBuffer[ReferenceTarget]()
+    def rename(name: String): String = name
+
+    def retype(name: String)(tpe: Type): Type = {
+      val exps = Utils.expandRef(WRef(name, tpe, ExpKind, UNKNOWNGENDER))
+      refs ++= exps.map(Utils.toTarget(main, m.name))
+      tpe
+    }
+
+    changeInternals(rename, retype, {i => i}, {(x, y) => x}, renameExps = false)(m)
+    refs
+  }
+
+  def computeRenameMap(originalNames: IndexedSeq[ReferenceTarget],
+                       dedupedNames: IndexedSeq[ReferenceTarget],
+                       renameMap: RenameMap): Unit = {
+
+    originalNames.zip(dedupedNames).foreach {
+      case (o, d) => if (o.component != d.component || o.ref != d.ref) renameMap.record(o, d)
+    }
+
   }
 
   def getAffectedExpressions(root: Expression): Seq[Expression] = {
