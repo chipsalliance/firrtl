@@ -154,6 +154,22 @@ abstract class Literal extends Expression {
   val value: BigInt
   val width: Width
 }
+case class BundleLiteral(lits: Seq[(String, Literal)]) extends Literal {
+  val value = lits.map({ case (_, lit) => (lit.value, lit.width) }).foldLeft(BigInt(0)) { case (prev, (v, IntWidth(w))) =>
+    (prev << w.toInt) + v
+  }
+  val width = lits.map(_._2.width).reduce(_ + _)
+  def tpe = BundleType(lits.map { case (name, lit) =>
+    Field(name = name, flip = Default, tpe = lit.tpe)
+  })
+  def serialize =
+    "{ " + (lits.map({ case (n, v) =>
+      s"$n : ${v.serialize}"
+    }) mkString ", ") + " }"
+  def mapExpr(f: Expression => Expression): Expression = this
+  def mapType(f: Type => Type): Expression = this
+  def mapWidth(f: Width => Width): Expression = this
+}
 case class UIntLiteral(value: BigInt, width: Width) extends Literal {
   def tpe = UIntType(width)
   def serialize = s"""UInt${width.serialize}("h""" + value.toString(16)+ """")"""

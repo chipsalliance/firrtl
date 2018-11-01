@@ -168,7 +168,7 @@ object Uniquify extends Transform {
         val (subExp, subMap) = rec(e.expr, m)
         val index = uniquifyNamesExp(e.index, map)
         (WSubAccess(subExp, index, e.tpe, e.gender), subMap)
-      case (_: UIntLiteral | _: SIntLiteral) => (exp, m)
+      case (_: UIntLiteral | _: SIntLiteral | _: BundleLiteral) => (exp, m)
       case (_: Mux | _: ValidIf | _: DoPrim) =>
         (exp map ((e: Expression) => uniquifyNamesExp(e, map)), m)
     }
@@ -247,7 +247,7 @@ object Uniquify extends Transform {
           uniquifyNamesExp(e, nameMap.toMap)
         case e: Mux => e map uniquifyExp
         case e: ValidIf => e map uniquifyExp
-        case (_: UIntLiteral | _: SIntLiteral) => e
+        case (_: UIntLiteral | _: SIntLiteral | _: BundleLiteral) => e
         case e: DoPrim => e map uniquifyExp
       }
 

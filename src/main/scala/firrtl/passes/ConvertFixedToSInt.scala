@@ -55,6 +55,7 @@ object ConvertFixedToSInt extends Pass {
           newExp map updateExpType
         case e: UIntLiteral => e
         case e: SIntLiteral => e
+        case e: BundleLiteral => e
         case _ => e map updateExpType match {
           case ValidIf(cond, value, tpe) => ValidIf(cond, value, value.tpe)
           case WRef(name, tpe, k, g) => WRef(name, types(name), k, g)

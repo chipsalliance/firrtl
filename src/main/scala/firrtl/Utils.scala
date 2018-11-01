@@ -562,6 +562,7 @@ object Utils extends LazyLogging {
     case ex: DoPrim => MALE
     case ex: UIntLiteral => MALE
     case ex: SIntLiteral => MALE
+    case ex: BundleLiteral => MALE
     case ex: Mux => MALE
     case ex: ValidIf => MALE
     case WInvalid => MALE

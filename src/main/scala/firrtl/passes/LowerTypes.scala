@@ -139,6 +139,8 @@ object LowerTypes extends Transform {
   def lowerTypesExp(memDataTypeMap: MemDataTypeMap,
       info: Info, mname: String)(e: Expression): Expression = e match {
     case e: WRef => e
+    case WSubFieldLiteral(lit) =>
+      lowerTypesExp(memDataTypeMap, info, mname)(lit)
     case (_: WSubField | _: WSubIndex) => kind(e) match {
       case InstanceKind =>
         val (root, tail) = splitRef(e)
@@ -156,7 +158,7 @@ object LowerTypes extends Transform {
     case e: Mux => e map lowerTypesExp(memDataTypeMap, info, mname)
     case e: ValidIf => e map lowerTypesExp(memDataTypeMap, info, mname)
     case e: DoPrim => e map lowerTypesExp(memDataTypeMap, info, mname)
-    case e @ (_: UIntLiteral | _: SIntLiteral) => e
+    case e @ (_: UIntLiteral | _: SIntLiteral | _: BundleLiteral) => e
   }
   def lowerTypesStmt(memDataTypeMap: MemDataTypeMap,
       minfo: Info, mname: String, renames: RenameMap)(s: Statement): Statement = {

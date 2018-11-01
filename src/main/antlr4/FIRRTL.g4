@@ -61,6 +61,10 @@ type
   | type '[' intLit ']'   // Vector
   ;
 
+litField
+  : fieldId ':' exp
+  ;
+
 field
   : 'flip'? fieldId ':' type
   ;
@@ -170,6 +174,7 @@ exp
   | 'mux(' exp exp exp ')'
   | 'validif(' exp exp ')'
   | primop exp* intLit*  ')'
+  | '{' litField* '}'
   ;
 
 id

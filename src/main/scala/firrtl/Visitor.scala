@@ -138,6 +138,16 @@ class Visitor(infoMode: InfoMode) extends FIRRTLBaseVisitor[FirrtlNode] {
     }
   }
 
+  private def visitLitField[FirrtlNode](ctx: FIRRTLParser.LitFieldContext): (String, Literal) = {
+    val expr = visitExp(ctx.exp) match {
+      case u: UIntLiteral => u
+      case s: SIntLiteral => s
+      case b: BundleLiteral => b
+      case _ => throw new ParserException(s"Illegal expression in bundle literal at ${ctx.exp}")
+    }
+    (ctx.fieldId.getText, expr)
+  }
+
   private def visitField[FirrtlNode](ctx: FIRRTLParser.FieldContext): Field = {
     val flip = if (ctx.getChild(0).getText == "flip") Flip else Default
     Field(ctx.fieldId.getText, flip, visitType(ctx.`type`))
@@ -311,6 +321,8 @@ class Visitor(infoMode: InfoMode) extends FIRRTLBaseVisitor[FirrtlNode] {
           }
         case "validif(" => ValidIf(visitExp(ctx_exp(0)), visitExp(ctx_exp(1)), UnknownType)
         case "mux(" => Mux(visitExp(ctx_exp(0)), visitExp(ctx_exp(1)), visitExp(ctx_exp(2)), UnknownType)
+        case "{" =>
+          BundleLiteral(ctx.litField.asScala.map(visitLitField))
         case _ =>
           ctx.getChild(1).getText match {
             case "." =>

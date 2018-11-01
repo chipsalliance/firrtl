@@ -31,7 +31,7 @@ object InferTypes extends Pass {
         case e: DoPrim => PrimOps.set_primop_type(e)
         case e: Mux => e copy (tpe = mux_type_and_widths(e.tval, e.fval))
         case e: ValidIf => e copy (tpe = e.value.tpe)
-        case e @ (_: UIntLiteral | _: SIntLiteral) => e
+        case e @ (_: UIntLiteral | _: SIntLiteral | _: BundleLiteral) => e
       }
 
     def infer_types_s(types: TypeMap)(s: Statement): Statement = s match {
@@ -90,7 +90,7 @@ object CInferTypes extends Pass {
          case (e: DoPrim) => PrimOps.set_primop_type(e)
          case (e: Mux) => e copy (tpe = mux_type(e.tval, e.fval))
          case (e: ValidIf) => e copy (tpe = e.value.tpe)
-         case e @ (_: UIntLiteral | _: SIntLiteral) => e
+         case e @ (_: UIntLiteral | _: SIntLiteral | _: BundleLiteral) => e
       }
 
     def infer_types_s(types: TypeMap)(s: Statement): Statement = s match {

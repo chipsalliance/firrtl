@@ -75,6 +75,17 @@ object FromProto {
     ir.FixedLiteral(convert(fixed.getValue), width, point)
   }
 
+  def convert(fixed: Firrtl.Expression.BundleLiteral.LiteralField): (String, ir.Literal) = {
+    val value = convert(fixed.getValue)
+    value match {
+      case l: ir.Literal => (fixed.getName, l)
+    }
+  }
+
+  def convert(fixed: Firrtl.Expression.BundleLiteral): ir.BundleLiteral = {
+    ir.BundleLiteral(fixed.getFieldList.asScala.map(convert(_)))
+  }
+
   def convert(subfield: Firrtl.Expression.SubField): ir.SubField =
     ir.SubField(convert(subfield.getExpression), subfield.getField, ir.UnknownType)
 
@@ -103,6 +114,7 @@ object FromProto {
       case UINT_LITERAL_FIELD_NUMBER => convert(expr.getUintLiteral)
       case SINT_LITERAL_FIELD_NUMBER => convert(expr.getSintLiteral)
       case FIXED_LITERAL_FIELD_NUMBER => convert(expr.getFixedLiteral)
+      case BUNDLE_LITERAL_FIELD_NUMBER => convert(expr.getBundleLiteral)
       case PRIM_OP_FIELD_NUMBER => convert(expr.getPrimOp)
       case MUX_FIELD_NUMBER => convert(expr.getMux)
     }

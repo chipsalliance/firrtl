@@ -88,6 +88,41 @@ class UnitTests extends FirrtlFlatSpec {
     }
   }
 
+  "Connecting bundle literals" should "work" in {
+    val passes = Seq(
+      ToWorkingIR,
+      CheckHighForm,
+      ResolveKinds,
+      InferTypes,
+      CheckTypes,
+      ExpandConnects,
+      LowerTypes,
+    )
+    val input =
+     """circuit Unit :
+       |  module Unit :
+       |    output x : { a: { b: UInt<32> } }
+       |    x <= { a: { b: UInt<32>("h5") } }
+       |    """.stripMargin
+    val check =
+     """circuit Unit :
+       |  module Unit :
+       |    output x : { a: { b: UInt<32> } }
+       |    x.a.b <= UInt<32>("h5")
+       |    """.stripMargin
+    val iResult = passes.foldLeft(CircuitState(parse(input), UnknownForm)) {
+      (c: CircuitState, p: Transform) => p.runTransform(c)
+    }
+    val cResult = passes.foldLeft(CircuitState(parse(check), UnknownForm)) {
+      (c: CircuitState, p: Transform) => p.runTransform(c)
+    }
+    val iWriter = new StringWriter()
+    (new HighFirrtlEmitter).emit(iResult, iWriter)
+    val cWriter = new StringWriter()
+    (new HighFirrtlEmitter).emit(cResult, cWriter)
+    (parse(iWriter.toString())) should be (parse(cWriter.toString()))
+  }
+
   "Partial connection two bundle types whose relative flips don't match but leaf node directions do" should "connect correctly" in {
     val passes = Seq(
       ToWorkingIR,

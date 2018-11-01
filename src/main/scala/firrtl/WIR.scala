@@ -49,6 +49,15 @@ object WSubField {
   def apply(expr: Expression, n: String): WSubField = new WSubField(expr, n, field_type(expr.tpe, n), UNKNOWNGENDER)
   def apply(expr: Expression, name: String, tpe: Type): WSubField = new WSubField(expr, name, tpe, UNKNOWNGENDER)
 }
+object WSubFieldLiteral {
+  def unapply(ws: WSubField): Option[Literal] = ws match {
+    case WSubField(BundleLiteral(lits), name, _, _) =>
+      lits.collectFirst({ case (n, value) if n == name => value })
+    case WSubField(WSubFieldLiteral(BundleLiteral(lits)), name, _, _) =>
+      lits.collectFirst({ case (n, value) if n == name => value })
+    case _ => None
+  }
+}
 case class WSubIndex(expr: Expression, value: Int, tpe: Type, gender: Gender) extends Expression {
   def serialize: String = s"${expr.serialize}[$value]"
   def mapExpr(f: Expression => Expression): Expression = this.copy(expr = f(expr))
