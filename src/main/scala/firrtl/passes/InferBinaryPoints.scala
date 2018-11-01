@@ -2,14 +2,9 @@
 
 package firrtl.passes
 
-// Datastructures
-import scala.collection.mutable.ArrayBuffer
-import scala.collection.immutable.ListMap
-import firrtl._
 import firrtl.ir._
 import firrtl.Utils._
 import firrtl.Mappers._
-import firrtl.Implicits.{constraint2width, width2constraint}
 import firrtl.constraint.ConstraintSolver
 
 class InferBinaryPoints extends Pass {
@@ -33,6 +28,7 @@ class InferBinaryPoints extends Pass {
         }
       }
     case (t1: VectorType, t2: VectorType) => addTypeConstraints(t1.tpe, t2.tpe)
+    case other => throwInternalError(s"Illegal compiler state: cannot constraint different types - $other")
   }
   private def addDecConstraints(t: Type): Type = t map addDecConstraints
   private def addStmtConstraints(s: Statement): Statement = s map addDecConstraints match {
@@ -92,10 +88,7 @@ class InferBinaryPoints extends Pass {
   def run (c: Circuit): Circuit = {
     c.modules foreach (_ map addStmtConstraints)
     c.modules foreach (_.ports foreach {p => addDecConstraints(p.tpe)})
-    //println("Initial Constraints!\n" + constraintSolver.serializeConstraints)
-
     constraintSolver.solve()
-    //println("Solved Constraints!\n" + constraintSolver.serializeSolutions)
     InferTypes.run(c.copy(modules = c.modules map (_
       map fixPort
       map fixStmt)))

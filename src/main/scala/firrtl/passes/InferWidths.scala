@@ -3,14 +3,18 @@
 package firrtl.passes
 
 // Datastructures
-import scala.collection.mutable.ArrayBuffer
-import scala.collection.immutable.ListMap
 import firrtl._
 import firrtl.ir._
 import firrtl.Utils._
 import firrtl.Mappers._
-import firrtl.Implicits.{constraint2width, width2constraint}
+import firrtl.Implicits.width2constraint
 import firrtl.constraint.{ConstraintSolver, IsMax}
+
+object InferWidths {
+  def apply(): InferWidths = new InferWidths()
+  def run(c: Circuit): Circuit = new InferWidths().run(c)
+  def execute(state: CircuitState): CircuitState = new InferWidths().execute(state)
+}
 
 class InferWidths extends Pass {
   private val constraintSolver = new ConstraintSolver()
@@ -45,15 +49,7 @@ class InferWidths extends Pass {
       m
     case other => other
   }
-  private def addDecConstraints(t: Type): Type = t match {
-    case IntervalType(l, u, p) =>
-      // constraintSolver.addGeq(u, l)
-      t
-    case FixedType(w, p) =>
-      t
-    case _ => t map addDecConstraints
-  }
-  private def addStmtConstraints(s: Statement): Statement = s map addDecConstraints map addExpConstraints match {
+  private def addStmtConstraints(s: Statement): Statement = s map addExpConstraints match {
     case c: Connect =>
       val n = get_size(c.loc.tpe)
       val locs = create_exps(c.loc)
@@ -117,7 +113,6 @@ class InferWidths extends Pass {
 
   def run (c: Circuit): Circuit = {
     c.modules foreach (_ map addStmtConstraints)
-    c.modules foreach (_.ports foreach {p => addDecConstraints(p.tpe)})
       constraintSolver.solve()
     InferTypes.run(c.copy(modules = c.modules map (_
       map fixPort
