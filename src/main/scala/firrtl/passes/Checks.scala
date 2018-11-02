@@ -8,6 +8,7 @@ import firrtl.PrimOps._
 import firrtl.Utils._
 import firrtl.Mappers._
 import firrtl.WrappedType._
+import firrtl.constraint.{Constraint, IsKnown}
 
 object CheckHighForm extends Pass {
   type NameSet = collection.mutable.HashSet[String]
@@ -244,8 +245,9 @@ object CheckTypes extends Pass {
     s"$info: [module $mname]  Index is not of UIntType.")
   class EnableNotUInt(info: Info, mname: String) extends PassException(
     s"$info: [module $mname]  Enable is not of UIntType.")
-  class InvalidConnect(info: Info, mname: String, lhs: Expression, rhs: Expression) extends PassException(
-    s"$info: [module $mname]  Type mismatch. Cannot connect ${lhs.serialize}: ${lhs.tpe.serialize} to ${rhs.serialize}: ${rhs.tpe.serialize}.")
+  class InvalidConnect(info: Info, stmt: Statement, mname: String, lhs: Expression, rhs: Expression) extends PassException(
+    s"""$info: [module $mname]  Type mismatch in "${stmt.serialize}".""" +
+    s" Cannot connect (${rhs.serialize}) of type (${rhs.tpe.serialize}) to (${lhs.serialize}) of type (${lhs.tpe.serialize}).")
   class InvalidRegInit(info: Info, mname: String) extends PassException(
     s"$info: [module $mname]  Type of init must match type of DefRegister.")
   class PrintfArgNotGround(info: Info, mname: String) extends PassException(
@@ -400,37 +402,61 @@ object CheckTypes extends Pass {
       e map check_types_e(info, mname)
     }
 
-    def bulk_equals(t1: Type, t2: Type, flip1: Orientation, flip2: Orientation): Boolean = {
-      //;println_all(["Inside with t1:" t1 ",t2:" t2 ",f1:" flip1 ",f2:" flip2])
-      (t1, t2) match {
-        case (ClockType, ClockType) => flip1 == flip2
-        case (_: UIntType, _: UIntType) => flip1 == flip2
-        case (_: SIntType, _: SIntType) => flip1 == flip2
-        case (_: FixedType, _: FixedType) => flip1 == flip2
-        case (_: AnalogType, _: AnalogType) => true
-        case (t1: BundleType, t2: BundleType) =>
-          val t1_fields = (t1.fields foldLeft Map[String, (Type, Orientation)]())(
-            (map, f1) => map + (f1.name -> (f1.tpe, f1.flip)))
-          t2.fields forall (f2 =>
-            t1_fields get f2.name match {
-              case None => true
-              case Some((f1_tpe, f1_flip)) =>
-                bulk_equals(f1_tpe, f2.tpe, times(flip1, f1_flip), times(flip2, f2.flip))
-            }
-          )
-        case (t1: VectorType, t2: VectorType) =>
-          bulk_equals(t1.tpe, t2.tpe, flip1, flip2)
-        case (_, _) => false
-      }
+    def fits(bigger: Constraint, smaller: Constraint): Boolean = (bigger, smaller) match {
+      case (IsKnown(v1), IsKnown(v2)) if v1 < v2 => false
+      case _ => true
+    }
+
+    def partialConnectOk(t1: Type, t2: Type, flip1: Orientation, flip2: Orientation): Boolean = (t1, t2) match {
+      case (ClockType, ClockType) => flip1 == flip2
+      case (_: UIntType, _: UIntType) => flip1 == flip2
+      case (_: SIntType, _: SIntType) => flip1 == flip2
+      case (_: FixedType, _: FixedType) => flip1 == flip2
+      case (i1: IntervalType, i2: IntervalType) if flip1 == flip2 =>
+        import Implicits.width2constraint
+        fits(i2.lower, i1.lower) && fits(i1.upper, i2.upper) && fits(i1.point, i2.point)
+      case (_: AnalogType, _: AnalogType) => true
+      case (t1: BundleType, t2: BundleType) =>
+        val t1_fields = (t1.fields foldLeft Map[String, (Type, Orientation)]())(
+          (map, f1) => map + (f1.name -> (f1.tpe, f1.flip)))
+        t2.fields forall (f2 =>
+          t1_fields get f2.name match {
+            case None => true
+            case Some((f1_tpe, f1_flip)) =>
+              partialConnectOk(f1_tpe, f2.tpe, times(flip1, f1_flip), times(flip2, f2.flip))
+          }
+        )
+      case (t1: VectorType, t2: VectorType) =>
+        partialConnectOk(t1.tpe, t2.tpe, flip1, flip2)
+      case (_, _) => false
+    }
+
+    def connectOk(t1: Type, t2: Type): Boolean = (t1, t2) match {
+      case (_: UIntType, _: UIntType) => true
+      case (_: SIntType, _: SIntType) => true
+      case (ClockType, ClockType) => true
+      case (_: FixedType, _: FixedType) => true
+      case (i1: IntervalType, i2: IntervalType) =>
+        import Implicits.width2constraint
+        fits(i2.lower, i1.lower) && fits(i1.upper, i2.upper) && fits(i1.point, i2.point)
+      case (_: AnalogType, _: AnalogType) => false
+      case (t1: VectorType, t2: VectorType) => t1.size == t2.size && connectOk(t1.tpe, t2.tpe)
+      case (t1: BundleType, t2: BundleType) =>
+        val zippedFields = t1.fields zip t2.fields
+        val fieldsOk = zippedFields forall {case (f1, f2) =>
+          f1.flip == f2.flip && f1.name == f2.name && connectOk(f1.tpe, f2.tpe)
+        }
+        fieldsOk && t1.fields.size == t2.fields.size
+      case _ => false
     }
 
     def check_types_s(minfo: Info, mname: String)(s: Statement): Statement = {
       val info = get_info(s) match { case NoInfo => minfo case x => x }
       s match {
-        case sx: Connect if wt(sx.loc.tpe) != wt(sx.expr.tpe) =>
-          errors.append(new InvalidConnect(info, mname, sx.loc, sx.expr))
-        case sx: PartialConnect if !bulk_equals(sx.loc.tpe, sx.expr.tpe, Default, Default) =>
-          errors.append(new InvalidConnect(info, mname, sx.loc, sx.expr))
+        case sx: Connect if !connectOk(sx.loc.tpe, sx.expr.tpe) =>
+          errors.append(new InvalidConnect(info, sx, mname, sx.loc, sx.expr))
+        case sx: PartialConnect if !partialConnectOk(sx.loc.tpe, sx.expr.tpe, Default, Default) =>
+          errors.append(new InvalidConnect(info, sx, mname, sx.loc, sx.expr))
         case sx: DefRegister =>
           sx.tpe match {
             case AnalogType(_) => errors.append(new IllegalAnalogDeclaration(info, mname, sx.name))

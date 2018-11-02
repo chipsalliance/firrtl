@@ -2,10 +2,12 @@ package firrtlTests
 package interval
 
 import java.io._
+
 import firrtl._
 import firrtl.ir.Circuit
 import firrtl.passes._
 import firrtl.Parser.IgnoreInfo
+import firrtl.passes.CheckTypes.InvalidConnect
 
 class IntervalSpec extends FirrtlFlatSpec {
   private def executeTest(input: String, expected: Seq[String], passes: Seq[Transform]) = {
@@ -413,5 +415,31 @@ class IntervalSpec extends FirrtlFlatSpec {
          |    offMin <= asSInt(bits(off, 5, 0))
         """.stripMargin
     executeTest(input, check.split("\n") map normalized, passes)
+  }
+  "Assigning a larger interval to a smaller interval" should "error!" in {
+    val passes = Seq(ToWorkingIR, new ResolveAndCheck, new RemoveIntervals)
+    val input =
+      s"""circuit Unit :
+         |  module Unit :
+         |    input in: Interval[1, 4].1
+         |    output out: Interval[2, 3].1
+         |    out <= in
+         |    """.stripMargin
+    intercept[InvalidConnect]{
+      executeTest(input, Nil, passes)
+    }
+  }
+  "Assigning a more precise interval to a less precise interval" should "error!" in {
+    val passes = Seq(ToWorkingIR, new ResolveAndCheck, new RemoveIntervals)
+    val input =
+      s"""circuit Unit :
+         |  module Unit :
+         |    input in: Interval[2, 3].3
+         |    output out: Interval[2, 3].1
+         |    out <= in
+         |    """.stripMargin
+    intercept[InvalidConnect]{
+      executeTest(input, Nil, passes)
+    }
   }
 }
