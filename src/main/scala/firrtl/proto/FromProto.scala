@@ -86,6 +86,10 @@ object FromProto {
     ir.BundleLiteral(fixed.getFieldList.asScala.map(convert(_)))
   }
 
+  def convert(fixed: Firrtl.Expression.VectorExpression): ir.VectorExpression = {
+    ir.VectorExpression(fixed.getExpList.asScala.map(convert(_)), ir.UnknownType)
+  }
+
   def convert(subfield: Firrtl.Expression.SubField): ir.SubField =
     ir.SubField(convert(subfield.getExpression), subfield.getField, ir.UnknownType)
 
@@ -115,6 +119,7 @@ object FromProto {
       case SINT_LITERAL_FIELD_NUMBER => convert(expr.getSintLiteral)
       case FIXED_LITERAL_FIELD_NUMBER => convert(expr.getFixedLiteral)
       case BUNDLE_LITERAL_FIELD_NUMBER => convert(expr.getBundleLiteral)
+      case VECTOR_EXPRESSION_FIELD_NUMBER => convert(expr.getVectorExpression)
       case PRIM_OP_FIELD_NUMBER => convert(expr.getPrimOp)
       case MUX_FIELD_NUMBER => convert(expr.getMux)
     }

@@ -323,16 +323,6 @@ message Firrtl {
       string id = 1;
     }
 
-    message BundleLiteral {
-      message LiteralField {
-        // Required
-        string name = 1;
-        // Required
-        Expression value = 2;
-      }
-      repeated LiteralField field = 1;
-    }
-
     message IntegerLiteral {
       // Base 10 value. May begin with a sign (+|-). Only zero can begin with a
       // '0'.
@@ -356,6 +346,20 @@ message Firrtl {
       BigInt value = 1;
       Width width = 2;
       Width point = 3;
+    }
+
+    message BundleLiteral {
+      message LiteralField {
+        // Required
+        string name = 1;
+        // Required
+        Expression value = 2;
+      }
+      repeated LiteralField field = 1;
+    }
+
+    message VectorExpression {
+      repeated Expression exp = 1;
     }
 
     message ValidIf {
@@ -452,6 +456,7 @@ message Firrtl {
       SIntLiteral sint_literal = 3;
       FixedLiteral fixed_literal = 11;
       BundleLiteral bundle_literal = 12;
+      VectorExpression vector_expression = 13;
       ValidIf valid_if = 4;
       //ExtractBits extract_bits = 5;
       Mux mux = 6;

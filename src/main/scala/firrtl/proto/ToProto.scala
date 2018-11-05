@@ -173,6 +173,13 @@ object ToProto {
           bb.addField(fb)
         })
         eb.setBundleLiteral(bb)
+      case ir.VectorExpression(exps, _) =>
+        val bb = Firrtl.Expression.VectorExpression.newBuilder()
+        exps.foreach({ case e =>
+          bb.addExp(convert(e))
+        })
+
+        eb.setVectorExpression(bb)
       case ir.DoPrim(op, args, consts, _) =>
         val db = Firrtl.Expression.PrimOp.newBuilder()
           .setOp(convert(op))

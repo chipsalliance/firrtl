@@ -229,4 +229,18 @@ class ParserPropSpec extends FirrtlPropSpec {
       }
     }
   }
+  property("Vector expressions should be OK") {
+    forAll (identifier, uintValues) { case (id, uval) =>
+      whenever(id.nonEmpty) {
+        val entries = (0 until 6).map(x => "UInt(\"h" + (x + uval).toHexString + "\")")
+        val input = s"""
+          |circuit Test :
+          |  module Test :
+          |    output $id : UInt<32>[6]
+          |    $id <= [${entries.mkString(", ")}]
+          |""".stripMargin
+        firrtl.Parser.parse(input split "\n")
+      }
+    }
+  }
 }

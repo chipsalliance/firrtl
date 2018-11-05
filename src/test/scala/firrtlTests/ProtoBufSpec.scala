@@ -133,6 +133,12 @@ class ProtoBufSpec extends FirrtlFlatSpec {
     FromProto.convert(ToProto.convert(blit).build) should equal (blit)
   }
 
+  it should "support Vector Expressions" in {
+    val ulits = for (i <- 0 until 10) yield ir.UIntLiteral(i + 3, ir.UnknownWidth)
+    val ve = VectorExpression(ulits, ir.UnknownType)
+    FromProto.convert(ToProto.convert(ve).build) should equal (ve)
+  }
+
   it should "support Analog and Attach" in {
     val analog = ir.AnalogType(IntWidth(8))
     FromProto.convert(ToProto.convert(analog).build) should equal (analog)
