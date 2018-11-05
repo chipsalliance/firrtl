@@ -694,6 +694,46 @@ class ConstantPropagationSingleModule extends ConstantPropagationSpec {
 """
       (parse(exec(input))) should be (parse(check))
     }
+
+   "ConstProp" should "propagate constant addition" in {
+    val input =
+      """circuit Top :
+        |  module Top :
+        |    input x : UInt<5>
+        |    output z : UInt<5>
+        |    node _T_1 = add(UInt<5>("h0"), UInt<5>("h1"))
+        |    node _T_2 = add(_T_1, UInt<5>("h2"))
+        |    z <= add(x, _T_2)
+      """.stripMargin
+    val check =
+      """circuit Top :
+        |  module Top :
+        |    input x : UInt<5>
+        |    output z : UInt<5>
+        |    node _T_1 = UInt<6>("h1")
+        |    node _T_2 = UInt<7>("h3")
+        |    z <= add(x, UInt<7>("h3"))
+      """.stripMargin
+    (parse(exec(input))) should be(parse(check))
+  }
+
+   "ConstProp" should "propagate addition with zero" in {
+    val input =
+      """circuit Top :
+        |  module Top :
+        |    input x : UInt<5>
+        |    output z : UInt<5>
+        |    z <= add(x, UInt<5>("h0"))
+      """.stripMargin
+    val check =
+      """circuit Top :
+        |  module Top :
+        |    input x : UInt<5>
+        |    output z : UInt<5>
+        |    z <= pad(x, 6)
+      """.stripMargin
+    (parse(exec(input))) should be(parse(check))
+  }
 }
 
 // More sophisticated tests of the full compiler
@@ -893,6 +933,23 @@ class ConstantPropagationIntegrationSpec extends LowTransformSpec {
     execute(input, check, Seq.empty)
   }
 
+  it should "remove pads if the width is <= the width of the argument" in {
+    def input(w: Int) =
+     s"""circuit Top :
+        |  module Top :
+        |    input x : UInt<8>
+        |    output z : UInt<8>
+        |    z <= pad(x, $w)""".stripMargin
+    val check =
+      """circuit Top :
+        |  module Top :
+        |    input x : UInt<8>
+        |    output z : UInt<8>
+        |    z <= x""".stripMargin
+    execute(input(6), check, Seq.empty)
+    execute(input(8), check, Seq.empty)
+  }
+
 
   "Registers with no reset or connections" should "be replaced with constant zero" in {
       val input =
@@ -1029,5 +1086,118 @@ class ConstantPropagationIntegrationSpec extends LowTransformSpec {
           |    a <= UInt<8>(0)
           |""".stripMargin
     execute(input, check, Seq.empty)
+  }
+
+  "Temporary named port" should "not be declared as a node" in {
+    val input =
+      """circuit Top :
+        |  module Top :
+        |    input _T_61 : UInt<1>
+        |    output z : UInt<1>
+        |    node a = _T_61
+        |    z <= a""".stripMargin
+    val check =
+      """circuit Top :
+        |  module Top :
+        |    input _T_61 : UInt<1>
+        |    output z : UInt<1>
+        |    z <= _T_61""".stripMargin
+    execute(input, check, Seq.empty)
+  }
+}
+
+
+class ConstantPropagationEquivalenceSpec extends FirrtlFlatSpec {
+  private val srcDir = "/constant_propagation_tests"
+  private val transforms = Seq(new ConstantPropagation)
+
+  "anything added to zero" should "be equal to itself" in {
+    val input =
+      s"""circuit AddZero :
+         |  module AddZero :
+         |    input in : UInt<5>
+         |    output out1 : UInt<6>
+         |    output out2 : UInt<6>
+         |    out1 <= add(in, UInt<5>("h0"))
+         |    out2 <= add(UInt<5>("h0"), in)""".stripMargin
+    firrtlEquivalenceTest(input, transforms)
+  }
+
+  "constants added together" should "be propagated" in {
+    val input =
+      s"""circuit AddLiterals :
+         |  module AddLiterals :
+         |    input uin : UInt<5>
+         |    input sin : SInt<5>
+         |    output uout : UInt<6>
+         |    output sout : SInt<6>
+         |    node uconst = add(UInt<5>("h1"), UInt<5>("h2"))
+         |    uout <= add(uconst, uin)
+         |    node sconst = add(SInt<5>("h1"), SInt<5>("h-1"))
+         |    sout <= add(sconst, sin)""".stripMargin
+    firrtlEquivalenceTest(input, transforms)
+  }
+
+  "UInt addition" should "have the correct widths" in {
+    val input =
+      s"""circuit WidthsAddUInt :
+         |  module WidthsAddUInt :
+         |    input in : UInt<3>
+         |    output out1 : UInt<10>
+         |    output out2 : UInt<10>
+         |    wire temp : UInt<5>
+         |    temp <= add(in, UInt<1>("h0"))
+         |    out1 <= cat(temp, temp)
+         |    node const = add(UInt<4>("h1"), UInt<3>("h2"))
+         |    out2 <= cat(const, const)""".stripMargin
+    firrtlEquivalenceTest(input, transforms)
+  }
+
+  "SInt addition" should "have the correct widths" in {
+    val input =
+      s"""circuit WidthsAddSInt :
+         |  module WidthsAddSInt :
+         |    input in : SInt<3>
+         |    output out1 : UInt<10>
+         |    output out2 : UInt<10>
+         |    wire temp : SInt<5>
+         |    temp <= add(in, SInt<7>("h0"))
+         |    out1 <= cat(temp, temp)
+         |    node const = add(SInt<4>("h1"), SInt<3>("h-2"))
+         |    out2 <= cat(const, const)""".stripMargin
+    firrtlEquivalenceTest(input, transforms)
+  }
+
+  "addition by zero width wires" should "have the correct widths" in {
+    val input =
+      s"""circuit ZeroWidthAdd:
+         |  module ZeroWidthAdd:
+         |    input x: UInt<0>
+         |    output y: UInt<7>
+         |    node temp = add(x, UInt<9>("h0"))
+         |    y <= cat(temp, temp)""".stripMargin
+    firrtlEquivalenceTest(input, transforms)
+  }
+
+  "tail of constants" should "be propagated" in {
+    val input =
+      s"""circuit TailTester :
+         |  module TailTester :
+         |    output out : UInt<1>
+         |    node temp = add(UInt<1>("h00"), UInt<5>("h017"))
+         |    node tail_temp = tail(temp, 1)
+         |    out <= tail_temp""".stripMargin
+    firrtlEquivalenceTest(input, transforms)
+  }
+
+  "head of constants" should "be propagated" in {
+    val input =
+      s"""circuit TailTester :
+         |  module TailTester :
+         |    output out : UInt<1>
+         |    node temp = add(UInt<1>("h00"), UInt<5>("h017"))
+         |    node head_temp = head(temp, 3)
+         |    out <= head_temp""".stripMargin
+    firrtlEquivalenceTest(input, transforms)
   }
 }
