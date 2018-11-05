@@ -54,7 +54,7 @@ sbt assembly
     * **Note:** You can add `utils/bin` to your path to call firrtl from other processes
  1. Publish this version locally in order to satisfy other tool chain library dependencies:
 ```
-sbt publish-local
+sbt publishLocal
 ```
 >Note that if the version of SBT installed is the [1.x](https://github.com/freechipsproject/rocket-chip/issues/1385#issuecomment-385280345), this command `sbt publish-local` should be changed to `sbt publishLocal`.
 
