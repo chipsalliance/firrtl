@@ -148,6 +148,7 @@ class DiGraph[T] private[graph] (private[graph] val edges: LinkedHashMap[T, Link
     * @return a Map[T,T] from each visited node to its predecessor in the
     * traversal
     */
+  /*
   def BFS(root: T, blacklist: Set[T]): Map[T,T] = {
     val prev = new mutable.LinkedHashMap[T,T]
     val queue = new mutable.Queue[T]
@@ -162,6 +163,31 @@ class DiGraph[T] private[graph] (private[graph] val edges: LinkedHashMap[T, Link
       }
     }
     prev
+  }
+  */
+
+  def BFS(root: T, blacklist: Set[T]): Map[T,T] = {
+    val prev = new mutable.LinkedHashMap[T,T]
+    def shouldVisit(from: T, to: T): Boolean = {
+      val should = !prev.contains(to) && !blacklist.contains(to)
+      if(should) { prev(to) = from }
+      should
+    }
+    BFS(root, getEdges, shouldVisit, prev)
+  }
+
+  def BFS(root: T, getEdges: T => Set[T], shouldVisit: (T, T) => Boolean, getResult: => Map[T, T]): Map[T, T] = {
+    val queue = new mutable.Queue[T]
+    queue.enqueue(root)
+    while (queue.nonEmpty) {
+      val u = queue.dequeue
+      for (v <- getEdges(u)) {
+        if (shouldVisit(u, v)) {
+          queue.enqueue(v)
+        }
+      }
+    }
+    getResult
   }
 
   /** Finds the set of nodes reachable from a particular node. The `root` node is *not* included in the
