@@ -56,7 +56,6 @@ sbt assembly
 ```
 sbt publishLocal
 ```
->Note that if the version of SBT installed is the [1.x](https://github.com/freechipsproject/rocket-chip/issues/1385#issuecomment-385280345), this command `sbt publish-local` should be changed to `sbt publishLocal`.
 
 ##### Useful sbt Tips
  1. Run a single test suite:
