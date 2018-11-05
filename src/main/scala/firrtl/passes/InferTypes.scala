@@ -31,6 +31,10 @@ object InferTypes extends Pass {
         case e: DoPrim => PrimOps.set_primop_type(e)
         case e: Mux => e copy (tpe = mux_type_and_widths(e.tval, e.fval))
         case e: ValidIf => e copy (tpe = e.value.tpe)
+        case e: VectorExpression => e copy (tpe = VectorType(
+          e.exprs.map(_.tpe).reduce[Type](mux_type_and_widths),
+          e.exprs.length
+        ))
         case e @ (_: UIntLiteral | _: SIntLiteral | _: BundleLiteral) => e
       }
 
@@ -90,6 +94,10 @@ object CInferTypes extends Pass {
          case (e: DoPrim) => PrimOps.set_primop_type(e)
          case (e: Mux) => e copy (tpe = mux_type(e.tval, e.fval))
          case (e: ValidIf) => e copy (tpe = e.value.tpe)
+         case e: VectorExpression => e copy (tpe = VectorType(
+           e.exprs.map(_.tpe).reduce[Type](mux_type),
+           e.exprs.length
+         ))
          case e @ (_: UIntLiteral | _: SIntLiteral | _: BundleLiteral) => e
       }
 

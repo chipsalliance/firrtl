@@ -323,6 +323,8 @@ class Visitor(infoMode: InfoMode) extends FIRRTLBaseVisitor[FirrtlNode] {
         case "mux(" => Mux(visitExp(ctx_exp(0)), visitExp(ctx_exp(1)), visitExp(ctx_exp(2)), UnknownType)
         case "{" =>
           BundleLiteral(ctx.litField.asScala.map(visitLitField))
+        case "[" =>
+          VectorExpression(ctx.exp.asScala.map(visitExp), UnknownType)
         case _ =>
           ctx.getChild(1).getText match {
             case "." =>

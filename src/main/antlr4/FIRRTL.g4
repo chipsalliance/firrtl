@@ -174,7 +174,8 @@ exp
   | 'mux(' exp exp exp ')'
   | 'validif(' exp exp ')'
   | primop exp* intLit*  ')'
-  | '{' litField* '}'
+  | '{' litField* '}' // Bundle Literal
+  | '[' exp* ']' // Vector Literal
   ;
 
 id

@@ -408,7 +408,7 @@ object CheckTypes extends Pass {
       val info = get_info(s) match { case NoInfo => minfo case x => x }
       s match {
         case sx: Connect if wt(sx.loc.tpe) != wt(sx.expr.tpe) =>
-          errors.append(new InvalidConnect(info, mname, sx.loc.serialize, sx.expr.serialize))
+          errors.append(new InvalidConnect(info, mname, s"${sx.loc.serialize} (${sx.loc.tpe.serialize})", s"${sx.expr.serialize} (${sx.expr.tpe.serialize})"))
         case sx: PartialConnect if !bulk_equals(sx.loc.tpe, sx.expr.tpe, Default, Default) =>
           errors.append(new InvalidConnect(info, mname, sx.loc.serialize, sx.expr.serialize))
         case sx: DefRegister =>

@@ -154,22 +154,6 @@ abstract class Literal extends Expression {
   val value: BigInt
   val width: Width
 }
-case class BundleLiteral(lits: Seq[(String, Literal)]) extends Literal {
-  val value = lits.map({ case (_, lit) => (lit.value, lit.width) }).foldLeft(BigInt(0)) { case (prev, (v, IntWidth(w))) =>
-    (prev << w.toInt) + v
-  }
-  val width = lits.map(_._2.width).reduce(_ + _)
-  def tpe = BundleType(lits.map { case (name, lit) =>
-    Field(name = name, flip = Default, tpe = lit.tpe)
-  })
-  def serialize =
-    "{ " + (lits.map({ case (n, v) =>
-      s"$n : ${v.serialize}"
-    }) mkString ", ") + " }"
-  def mapExpr(f: Expression => Expression): Expression = this
-  def mapType(f: Type => Type): Expression = this
-  def mapWidth(f: Width => Width): Expression = this
-}
 case class UIntLiteral(value: BigInt, width: Width) extends Literal {
   def tpe = UIntType(width)
   def serialize = s"""UInt${width.serialize}("h""" + value.toString(16)+ """")"""
@@ -201,6 +185,36 @@ case class FixedLiteral(value: BigInt, width: Width, point: Width) extends Liter
   def mapExpr(f: Expression => Expression): Expression = this
   def mapType(f: Type => Type): Expression = this
   def mapWidth(f: Width => Width): Expression = FixedLiteral(value, f(width), f(point))
+}
+case class BundleLiteral(lits: Seq[(String, Literal)]) extends Literal {
+  val value = lits.map({ case (_, lit) => (lit.value, lit.width) }).foldLeft(BigInt(0)) { case (prev, (v, IntWidth(w))) =>
+    (prev << w.toInt) + v
+  }
+  val width = lits.map(_._2.width).reduce(_ + _)
+  def tpe = BundleType(lits.map { case (name, lit) =>
+    Field(name = name, flip = Default, tpe = lit.tpe)
+  })
+  def serialize =
+    "{ " + (lits.map({ case (n, v) =>
+      s"$n : ${v.serialize}"
+    }) mkString ", ") + " }"
+  def mapExpr(f: Expression => Expression): Expression = this
+  def mapType(f: Type => Type): Expression = this
+  def mapWidth(f: Width => Width): Expression = this
+}
+case class VectorExpression(exprs: Seq[Expression], tpe: Type) extends Expression {
+  // val value = lits.map(x => (x.value, x.width)).foldLeft(BigInt(0)) { case (prev, (v, IntWidth(w))) =>
+  //   (prev << w.toInt) + v
+  // }
+  // val width = lits.map(_.width).reduce(_ + _)
+  def serialize =
+    "[" + exprs.map(_.serialize).mkString(", ") + "]" // TODO type annotation
+  def mapExpr(f: Expression => Expression): Expression = // this
+    VectorExpression(exprs.map(_ mapExpr f), tpe)
+  def mapType(f: Type => Type): Expression = // this
+    VectorExpression(exprs.map(_ mapType f), tpe)
+  def mapWidth(f: Width => Width): Expression = // this
+    VectorExpression(exprs.map(_ mapWidth f), tpe)
 }
 case class DoPrim(op: PrimOp, args: Seq[Expression], consts: Seq[BigInt], tpe: Type) extends Expression {
   def serialize: String = op.serialize + "(" +
