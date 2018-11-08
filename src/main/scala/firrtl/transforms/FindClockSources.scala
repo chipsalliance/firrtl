@@ -4,7 +4,7 @@ package firrtl.transforms
 
 import firrtl.PrimOps.AsClock
 import firrtl.analyses.{CircuitGraph, IRLookup, InstanceViewedGraph, OpToken}
-import firrtl.annotations.TargetToken.{Clock, Instance, OfModule}
+import firrtl.annotations.TargetToken._
 import firrtl.annotations._
 import firrtl.graph.{DiGraph, DiGraphLike}
 import firrtl.{CircuitForm, CircuitState, FEMALE, MALE, MidForm, PortKind, RegKind, RenameMap, Transform, Utils, WRef}
@@ -30,29 +30,35 @@ class ClockSourceFinder(digraph: DiGraph[Target],
 
   private val clockSources = mutable.ArrayBuffer[Target]()
 
+  def isReg(t: Target): Boolean = {
+    t.tryToComplete match {
+      case rt: ReferenceTarget if !rt.isClock && !rt.isInit && !rt.isReset && irLookup.kind(t) == RegKind => true
+      case other => false
+    }
+  }
 
   override def getEdges(v: Target): collection.Set[Target] = {
     val instanceEdges = super.getEdges(v)
-    instanceEdges.flatMap { i =>
-      (i, v) match {
-        case (rt@ ReferenceTarget(c, m, Nil, _, _), _)
-          if irLookup.kind(rt) == PortKind && irLookup.gender(rt) == MALE && irLookup.tpe(rt) == ClockType && !rt.isClock =>
-          clockSources += rt
-          Seq()
-        case (rt: ReferenceTarget, _)
-          if extModuleNames.contains(rt.encapsulatingModule) && astClockOutputs.contains(rt.pathlessTarget) =>
-          clockSources += rt
-          Seq()
-        case (ct@GenericTarget(_, _, tokens), _)
-          if tokens.last.isInstanceOf[OpToken] && tokens.last.asInstanceOf[OpToken].op == "asClock" =>
-          clockSources += ct
-          Seq()
-        case (rt: ReferenceTarget, e: Expression)
-          if Utils.kind(e) == RegKind && rt.tokens.last != Clock =>
-          Seq()
-        case other => Seq(i)
-      }
+    val ret = instanceEdges.flatMap {
+      case rt@ ReferenceTarget(c, m, Nil, _, _)
+        if irLookup.kind(rt) == PortKind && irLookup.gender(rt) == MALE && irLookup.tpe(rt) == ClockType && !rt.isClock =>
+        clockSources += rt
+        Seq()
+      case rt: ReferenceTarget
+        if extModuleNames.contains(rt.encapsulatingModule) && irLookup.tpe(rt) == ClockType && irLookup.gender(rt) == FEMALE =>
+        clockSources += rt
+        Seq()
+      case ct@GenericTarget(_, _, tokens)
+        if tokens.last.isInstanceOf[OpToken] && tokens.last.asInstanceOf[OpToken].op == "asClock" =>
+        clockSources += ct
+        Seq()
+      case rt: ReferenceTarget
+        if isReg(v) && (rt.tokens.last != Clock) =>
+        Seq()
+      case other =>
+        Seq(other)
     }
+    ret
     /*
       ((i, irLookup(i)), vIR) match {
         case ((rt@ ReferenceTarget(c, m, Nil, _, _), e: Expression), _)
