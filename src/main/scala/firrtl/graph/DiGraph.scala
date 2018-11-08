@@ -33,9 +33,15 @@ object DiGraph {
   }
 }
 
+class BFSResult() {
+
+}
+
 /** Represents common behavior of all directed graphs */
 trait DiGraphLike[T] {
   private[graph] val edges: LinkedHashMap[T, LinkedHashSet[T]]
+
+  private[graph] val prev: LinkedHashMap[T, T]
 
   /** Check whether the graph contains vertex v */
   def contains(v: T): Boolean = edges.contains(v)
@@ -151,9 +157,10 @@ trait DiGraphLike[T] {
     * @return a Map[T,T] from each visited node to its predecessor in the
     * traversal
     */
-  /*
-  def BFS(root: T, blacklist: Set[T]): Map[T,T] = {
-    val prev = new mutable.LinkedHashMap[T,T]
+  def BFS(root: T,
+          blacklist: Set[T],
+          customGetEdges: Option[T => Set[T]] = None
+         ): Map[T,T] = {
     val queue = new mutable.Queue[T]
     queue.enqueue(root)
     while (queue.nonEmpty) {
@@ -167,31 +174,30 @@ trait DiGraphLike[T] {
     }
     prev
   }
-  */
 
-  def BFS(root: T, blacklist: Set[T]): Map[T,T] = {
-    val prev = new mutable.LinkedHashMap[T,T]
-    def shouldVisit(from: T, to: T): Boolean = {
-      val should = !prev.contains(to) && !blacklist.contains(to)
-      if(should) { prev(to) = from }
-      should
-    }
-    BFS(root, getEdges, shouldVisit, prev)
-  }
+  //def BFS(root: T, blacklist: Set[T]): Map[T,T] = {
+  //  val prev = new mutable.LinkedHashMap[T,T]
+  //  def shouldVisit(from: T, to: T): Boolean = {
+  //    val should = !prev.contains(to) && !blacklist.contains(to)
+  //    if(should) { prev(to) = from }
+  //    should
+  //  }
+  //  BFS(root, getEdges, shouldVisit, prev)
+  //}
 
-  def BFS(root: T, getEdges: T => Set[T], shouldVisit: (T, T) => Boolean, getResult: => Map[T, T]): Map[T, T] = {
-    val queue = new mutable.Queue[T]
-    queue.enqueue(root)
-    while (queue.nonEmpty) {
-      val u = queue.dequeue
-      for (v <- getEdges(u)) {
-        if (shouldVisit(u, v)) {
-          queue.enqueue(v)
-        }
-      }
-    }
-    getResult
-  }
+  //def BFS(root: T, getEdges: T => Set[T], shouldVisit: (T, T) => Boolean, getResult: => Map[T, T]): Map[T, T] = {
+  //  val queue = new mutable.Queue[T]
+  //  queue.enqueue(root)
+  //  while (queue.nonEmpty) {
+  //    val u = queue.dequeue
+  //    for (v <- getEdges(u)) {
+  //      if (shouldVisit(u, v)) {
+  //        queue.enqueue(v)
+  //      }
+  //    }
+  //  }
+  //  getResult
+  //}
 
   /** Finds the set of nodes reachable from a particular node. The `root` node is *not* included in the
     * returned set unless it is possible to reach `root` along a non-trivial path beginning at
@@ -413,7 +419,9 @@ trait DiGraphLike[T] {
   }
 }
 
-class DiGraph[T] private[graph] (private[graph] val edges: LinkedHashMap[T, LinkedHashSet[T]]) extends DiGraphLike[T]
+class DiGraph[T] private[graph](private[graph] val edges: mutable.LinkedHashMap[T, mutable.LinkedHashSet[T]]) extends DiGraphLike[T] {
+  override val prev = new mutable.LinkedHashMap[T, T]()
+}
 
 class MutableDiGraph[T] extends DiGraph[T](new LinkedHashMap[T, LinkedHashSet[T]]) {
   /** Add vertex v to the graph
@@ -453,6 +461,7 @@ class MutableDiGraph[T] extends DiGraph[T](new LinkedHashMap[T, LinkedHashSet[T]
   }
 }
 
+
 // Method behaviors that must change from MutableDigraph
 //   * override contains, getVertices, getEdges, getEdgeMap
 //   * change findsources use of edges.values.flatten.toSet
@@ -462,7 +471,7 @@ class MutableDiGraph[T] extends DiGraph[T](new LinkedHashMap[T, LinkedHashSet[T]
 class EdgeDataDigraph[T, ET](val defaultData: ET) extends MutableDiGraph[T] {
 
   // Even though this is redundant, it is desirable to maintain separate edges and edgeData data structures, 
-  val edgeData = new LinkedHashMap[T, LinkedHashMap[T, ET]]
+  val edgeData = new LinkedHashMap[T, LinkedHashMap[T, ET]]()
 
   class DiGraphView private (viewFunc: (ET) => Boolean) extends DiGraph[T](edges) {
     /** Get all edges of a node that are part of this view

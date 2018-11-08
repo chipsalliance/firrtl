@@ -151,11 +151,11 @@ object Target {
 
   /** Checks if seq only contains [[TargetToken]]'s with select keywords
     * @param seq
-    * @param keywords
+    * @param tokenClasses
     * @return
     */
-  def isOnly(seq: Seq[TargetToken], keywords:String*): Boolean = {
-    seq.map(_.is(keywords:_*)).foldLeft(false)(_ || _) && keywords.nonEmpty
+  def isOnly(seq: Seq[TargetToken], tokenClasses: Set[Class[_ <: TargetToken]]): Boolean = {
+    seq.map(t => tokenClasses.contains(t.getClass())).foldLeft(false)(_ || _) && tokenClasses.nonEmpty
   }
 
   /** @return [[Target]] from human-readable serialization */
@@ -217,23 +217,31 @@ case class GenericTarget(circuitOpt: Option[String],
 
   override def getComplete: Option[CompleteTarget] = {
     if(!isComplete) None else {
-      val target = this match {
-        case GenericTarget(Some(c), None, Vector()) => CircuitTarget(c)
-        case GenericTarget(Some(c), Some(m), Vector()) => ModuleTarget(c, m)
-        case GenericTarget(Some(c), Some(m), Ref(r) +: component) => ReferenceTarget(c, m, Nil, r, component)
-        case GenericTarget(Some(c), Some(m), Instance(i) +: OfModule(o) +: Vector()) => InstanceTarget(c, m, Nil, i, o)
+      this match {
+        case GenericTarget(Some(c), None, Vector()) => Some(CircuitTarget(c))
+        case GenericTarget(Some(c), Some(m), Vector()) => Some(ModuleTarget(c, m))
+        case GenericTarget(Some(c), Some(m), Ref(r) +: component) => Some(ReferenceTarget(c, m, Nil, r, component))
+        case GenericTarget(Some(c), Some(m), Instance(i) +: OfModule(o) +: Vector()) =>
+          Some(InstanceTarget(c, m, Nil, i, o))
         case GenericTarget(Some(c), Some(m), component) =>
           val path = getPath.getOrElse(Nil)
           (getRef, getInstanceOf) match {
-            case (Some((r, comps)), _) => ReferenceTarget(c, m, path, r, comps)
-            case (None, Some((i, o)))  => InstanceTarget(c, m, path, i, o)
+            case (Some((r, comps)), _) => Some(ReferenceTarget(c, m, path, r, comps))
+            case (None, Some((i, o)))  => Some(InstanceTarget(c, m, path, i, o))
+            case (None, None) => None
           }
       }
-      Some(target)
     }
   }
 
   override def isLocal: Boolean = !(getPath.nonEmpty && getPath.get.nonEmpty)
+
+  def pathTokens: Vector[TargetToken] = if(isComplete){
+    tokens.collect {
+      case i: Instance => i
+      case o: OfModule => o
+    }
+  } else Vector.empty[TargetToken]
 
   /** If complete, return this [[GenericTarget]]'s path
     * @return
@@ -275,25 +283,21 @@ case class GenericTarget(circuitOpt: Option[String],
     * @param default Return value if tokens is empty
     * @param keywords
     */
-  private def requireLast(default: Boolean, keywords: String*): Unit = {
-    val isOne = if (tokens.isEmpty) default else tokens.last.is(keywords: _*)
-    require(isOne, s"${tokens.last} is not one of $keywords")
-  }
+  //private def requireLast(default: Boolean, keywords: String*): Unit = {
+  //  val isOne = if (tokens.isEmpty) default else tokens.last.is(keywords: _*)
+  //  require(isOne, s"${tokens.last} is not one of $keywords")
+  //}
 
   /** Appends a target token to tokens, asserts legality
     * @param token
     * @return
     */
   def add(token: TargetToken): GenericTarget = {
-    token match {
-      case _: Instance  => requireLast(true, "inst", "of")
-      case _: OfModule  => requireLast(false, "inst")
-      case _: Ref       => requireLast(true, "inst", "of")
-      case _: Field     => requireLast(true, "ref", "[]", ".", "init", "clock", "reset")
-      case _: Index     => requireLast(true, "ref", "[]", ".", "init", "clock", "reset")
-      case Init         => requireLast(true, "ref", "[]", ".", "init", "clock", "reset")
-      case Clock        => requireLast(true, "ref", "[]", ".", "init", "clock", "reset")
-      case Reset        => requireLast(true, "ref", "[]", ".", "init", "clock", "reset")
+    if(tokens.isEmpty) {
+      require(token.canBeAfter(None), "")
+    } else {
+      val currentEnd = tokens.last
+      require(token.canBeAfter(Some(currentEnd)), "")
     }
     this.copy(tokens = tokens :+ token)
   }
@@ -452,7 +456,7 @@ trait IsComponent extends IsMember {
       val mn = ModuleName(module, CircuitName(circuit))
       Seq(tokens:_*) match {
         case Seq(Ref(name)) => ComponentName(name, mn)
-        case Ref(_) :: tail if Target.isOnly(tail, ".", "[]") =>
+        case Ref(_) :: tail if Target.isOnly(tail, Set(classOf[Field], classOf[Index])) =>
           val name = tokens.foldLeft(""){
             case ("", Ref(name)) => name
             case (string, Field(value)) => s"$string.$value"
@@ -631,6 +635,12 @@ case class ReferenceTarget(circuit: String,
     ReferenceTarget(newPath.circuit, newPath.module, newPath.asPath, ref, component)
 
   override def asPath: Seq[(Instance, OfModule)] = path
+
+  def isClock: Boolean = tokens.last == Clock
+
+  def isInit: Boolean = tokens.last == Init
+
+  def isReset: Boolean = tokens.last == Reset
 }
 
 /** Points to an instance declaration of a module (termed an ofModule)
