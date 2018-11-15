@@ -205,6 +205,7 @@ object CircuitGraph {
             mdg.addEdge(l, r)
             mdg.addEdge(r, l)
           }
+        case EmptyStmt =>
       }
       stmt
     }
@@ -237,7 +238,7 @@ class IRLookup(private val declarations: collection.Map[Target, FirrtlNode]) {
   private val tpeCache = mutable.HashMap[Target, Type]()
   private val exprCache = mutable.HashMap[(Target, Gender), Expression]()
 
-  def getASTRef(t: Target): Target = getReferenceTarget(getPathlessTarget(t))
+  def getASTRef(t: Target): Target = Target.getReferenceTarget(Target.getPathlessTarget(t))
 
   def gender(t: Target): Gender = {
     val pathless = getASTRef(t)
@@ -339,39 +340,7 @@ class IRLookup(private val declarations: collection.Map[Target, FirrtlNode]) {
     }
   }
 
-
-
-
-      //TODO error if UNKNOWN but exprCache is missing (compiler bug)
-      //TODO error if BIGENDER but here (user bug)
-  private def setBiGender(e: Expression): Expression = e match {
-    case w: WRef => w.copy(gender = BIGENDER)
-    case w: WSubField => w.copy(gender = BIGENDER).map(setBiGender)
-    case w: WSubIndex => w.copy(gender = BIGENDER).map(setBiGender)
-    case other => sys.error(s"Unexpected expression: $other")
-  }
-
   def declaration(t: Target): FirrtlNode = declarations(getASTRef(t))
 
-  def getPathlessTarget(t: Target): Target = {
-    t.tryToComplete match {
-      case c: CircuitTarget => c
-      case m: IsMember => m.pathlessTarget
-      case t: GenericTarget if t.isLegal =>
-        val newTokens = t.tokens.dropWhile(x => x.isInstanceOf[Instance] || x.isInstanceOf[OfModule])
-        GenericTarget(t.circuitOpt, t.moduleOpt, newTokens)
-      case other => sys.error(s"Can't make $other pathless!")
-    }
-  }
-
-  def getReferenceTarget(t: Target): Target = {
-    (t.toGenericTarget match {
-      case t: GenericTarget if t.isLegal =>
-        val newTokens = t.tokens.reverse.dropWhile(x => !x.isInstanceOf[Ref]).reverse
-        GenericTarget(t.circuitOpt, t.moduleOpt, newTokens)
-      case other => sys.error(s"Can't make $other pathless!")
-    }).tryToComplete
-
-  }
 }
 

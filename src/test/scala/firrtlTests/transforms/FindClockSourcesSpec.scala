@@ -73,6 +73,7 @@ class FindClockSourcesSpec extends AnnotationSpec {
         |""".stripMargin
 
 
+    //TODO(azidar): check this
     execute(input, Nil, Nil, Nil)
   }
 
@@ -139,6 +140,58 @@ class FindClockSourcesSpec extends AnnotationSpec {
     execute(input, clockSources, notClockSources, Nil)
   }
 
+  "Clock source search" should "go through child instances" in {
+    val input =
+      """circuit Test:
+        |  module Test :
+        |    input in : UInt<8>
+        |    input clk: Clock
+        |    output out0 : UInt<8>
+        |    inst cm of ClockModule
+        |    cm.clk <= clk
+        |    reg r0: UInt<8>, cm.clkOut
+        |    r0 <= in
+        |    out0 <= r0
+        |  module ClockModule:
+        |    input clk: Clock
+        |    output clkOut: Clock
+        |    clkOut <= clk
+        |""".stripMargin
+
+    val C = CircuitTarget("Test")
+    val Test = C.module("Test")
+    val out = Test.ref("out")
+    val clockSources = Seq( ClockSource(Seq(Test.ref("out0")), Test.ref("clk"), None) )
+
+    execute(input, clockSources, Nil, Nil)
+  }
+
+  "Clock source search" should "go through parent instances" in {
+    val input =
+      """circuit Test:
+        |  module Test :
+        |    input in : UInt<8>
+        |    input clk: Clock
+        |    output out0 : UInt<8>
+        |    inst cm of ClockModule
+        |    cm.clk <= clk
+        |    reg r0: UInt<8>, cm.clkOut
+        |    r0 <= in
+        |    out0 <= r0
+        |  module ClockModule:
+        |    input clk: Clock
+        |    output clkOut: Clock
+        |    clkOut <= clk
+        |""".stripMargin
+
+    val C = CircuitTarget("Test")
+    val Test = C.module("Test")
+    val out = Test.ref("out")
+    val clockSources = Seq( ClockSource(Seq(Test.ref("out0")), Test.ref("clk"), None) )
+
+    execute(input, clockSources, Nil, Nil)
+  }
+  // Check clock sources through instance hierarchy
   // Check bundled registers
 
 }
