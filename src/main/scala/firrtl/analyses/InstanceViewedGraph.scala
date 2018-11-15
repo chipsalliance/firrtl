@@ -18,12 +18,13 @@ class InstanceViewedGraph(digraph: DiGraph[Target]) extends DiGraphLike[Target] 
     val pathTokens = genT.pathTokens
     val (parentModule, astModule) = pathTokens match {
       case Seq() => (None, genT.moduleOpt.get)
-      case Seq(i, OfModule(o)) => (genT.moduleOpt.get, o)
+      case Seq(i, OfModule(o)) => (genT.moduleOpt, o)
       case seq if seq.size > 2 && seq.size % 2 == 0 =>
         val reversed = seq.reverse
         (Some(reversed(2).value), reversed.head.value)
     }
-    super.getEdges(v).map { t =>
+    val pathlessEdges = super.getEdges(Target.getPathlessTarget(v))
+    pathlessEdges.map { t =>
       val genE = t.toGenericTarget
       genE match {
         // In same instance
