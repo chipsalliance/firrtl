@@ -74,6 +74,20 @@ object CircuitGraph {
     case _: Width => sys.error("Unsupported!")
   }
 
+  def allTargets(r: ReferenceTarget, t: Type): Seq[ReferenceTarget] = t match {
+    case _: GroundType => Vector(r)
+    case VectorType(tpe, size) => r +: (0 until size).flatMap { i => allTargets(r.index(i), tpe) }
+    case BundleType(fields) => r +: fields.flatMap { f => allTargets(r.field(f.name), f.tpe)}
+    case other => sys.error(s"Error! Unexpected type $other")
+  }
+
+  def leafTargets(r: ReferenceTarget, t: Type): Seq[ReferenceTarget] = t match {
+    case _: GroundType => Vector(r)
+    case VectorType(tpe, size) => (0 until size).flatMap { i => leafTargets(r.index(i), tpe) }
+    case BundleType(fields) => fields.flatMap { f => leafTargets(r.field(f.name), f.tpe)}
+    case other => sys.error(s"Error! Unexpected type $other")
+  }
+
 
   /**
     * @param m
@@ -155,11 +169,31 @@ object CircuitGraph {
       val regKidTargets = Seq(clockTarget, resetTarget, initTarget)
       val regKids = Seq(d.clock, d.reset, d.init)
 
-      regKids.zip(regKidTargets).foreach { case (kid, target) =>
-        addLabeledVertex(target, d)
-        mdg.addEdge(target, regTarget)
-        buildExpression(m, tagger, target)(kid)
+      // Build clock expression
+      mdg.addVertex(clockTarget)
+      buildExpression(m, tagger, clockTarget)(d.clock)
+
+      // Build reset expression
+      mdg.addVertex(resetTarget)
+      buildExpression(m, tagger, resetTarget)(d.reset)
+
+      // Connect each subTarget to the corresponding init subTarget
+      val allRegTargets = leafTargets(regTarget, d.tpe)
+      val allInitTargets = leafTargets(initTarget, d.tpe).zip(Utils.create_exps(d.init))
+      allRegTargets.zip(allInitTargets).foreach { case (r, (i, e)) =>
+        mdg.addVertex(i)
+        mdg.addVertex(r)
+        mdg.addEdge(clockTarget, r)
+        mdg.addEdge(resetTarget, r)
+        mdg.addEdge(i, r)
+        buildExpression(m, tagger, i)(e)
       }
+
+      //regKids.zip(regKidTargets).foreach { case (kid, target) =>
+      //  addLabeledVertex(target, d)
+      //  mdg.addEdge(target, regTarget)
+      //  buildExpression(m, tagger, target)(kid)
+      //}
     }
 
     def buildStatement(m: ModuleTarget, tagger: Tagger)(stmt: Statement): Statement = {
@@ -174,6 +208,7 @@ object CircuitGraph {
 
         case c: Connect =>
           val sinkTarget = toTarget(m, c.loc, tagger)
+          mdg.addVertex(sinkTarget)
           buildExpression(m, tagger, sinkTarget)(c.expr)
 
         case WDefInstance(_, name, ofModule, tpe) =>

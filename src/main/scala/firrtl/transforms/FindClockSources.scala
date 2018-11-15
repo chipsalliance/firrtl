@@ -28,7 +28,7 @@ class ClockSourceFinder(digraph: DiGraph[Target],
     case _ => Seq()
   }.toSet
 
-  private val clockSources = mutable.ArrayBuffer[Target]()
+  private val clockMap = mutable.HashMap[Target, Set[Target]]()
 
   def isReg(t: Target): Boolean = {
     t.tryToComplete match {
@@ -38,19 +38,33 @@ class ClockSourceFinder(digraph: DiGraph[Target],
   }
 
   override def getEdges(v: Target): collection.Set[Target] = {
+    def recordClock(clock: Target): Unit = recordClocks(Set(clock))
+    def recordClocks(clocks: Set[Target]): Unit = {
+      val nodePath = new mutable.ArrayBuffer[Target]()
+      nodePath += v
+      while (prev.contains(nodePath.last)) {
+        clockMap(nodePath.last) = clockMap.getOrElse(nodePath.last, Set.empty[Target]) ++ clocks
+        nodePath += prev(nodePath.last)
+      }
+      clockMap(nodePath.last) = clockMap.getOrElse(nodePath.last, Set.empty[Target]) ++ clocks
+    }
+
     val instanceEdges = super.getEdges(v)
     val ret = instanceEdges.flatMap {
+      case x if clockMap.contains(x) =>
+        recordClocks(clockMap(x))
+        Seq()
       case rt@ ReferenceTarget(c, m, Nil, _, _)
         if irLookup.kind(rt) == PortKind && irLookup.gender(rt) == MALE && irLookup.tpe(rt) == ClockType && !rt.isClock =>
-        clockSources += rt
+        recordClock(rt)
         Seq()
       case rt: ReferenceTarget
         if extModuleNames.contains(rt.encapsulatingModule) && irLookup.tpe(rt) == ClockType && irLookup.gender(rt) == FEMALE =>
-        clockSources += rt
+        recordClock(rt)
         Seq()
       case ct@GenericTarget(_, _, tokens)
         if tokens.last.isInstanceOf[OpToken] && tokens.last.asInstanceOf[OpToken].op == "asClock" =>
-        clockSources += ct
+        recordClock(ct)
         Seq()
       case rt: ReferenceTarget
         if isReg(v) && (rt.tokens.last != Clock) =>
@@ -82,10 +96,8 @@ class ClockSourceFinder(digraph: DiGraph[Target],
   }
 
   def getClockSource(t: Target): Seq[Target] = {
-    clockSources.clear()
     BFS(t)
-    val finalSources = clockSources.toList
-    clockSources.clear()
+    val finalSources = clockMap(t).toList
     finalSources
   }
 }

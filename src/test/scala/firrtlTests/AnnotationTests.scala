@@ -17,7 +17,26 @@ import org.scalatest.Matchers
 /**
  * An example methodology for testing Firrtl annotations.
  */
-trait AnnotationSpec extends LowTransformSpec {
+trait LowAnnotationSpec extends LowTransformSpec {
+  // Dummy transform
+  def transform = new ResolveAndCheck
+
+  // Check if Annotation Exception is thrown
+  override def failingexecute(input: String, annotations: Seq[Annotation]): Exception = {
+    intercept[AnnotationException] {
+      compile(CircuitState(parse(input), ChirrtlForm, annotations), Seq.empty)
+    }
+  }
+  def execute(input: String, check: Annotation, annotations: Seq[Annotation]): Unit = {
+    val cr = compile(CircuitState(parse(input), ChirrtlForm, annotations), Seq.empty)
+    cr.annotations.toSeq should contain (check)
+  }
+}
+
+/**
+  * An example methodology for testing Firrtl annotations.
+  */
+trait MiddleAnnotationSpec extends MiddleTransformSpec {
   // Dummy transform
   def transform = new ResolveAndCheck
 
@@ -35,7 +54,7 @@ trait AnnotationSpec extends LowTransformSpec {
 
 // Abstract but with lots of tests defined so that we can use the same tests
 // for Legacy and newer Annotations
-abstract class AnnotationTests extends AnnotationSpec with Matchers {
+abstract class AnnotationTests extends LowAnnotationSpec with Matchers {
   def anno(s: String, value: String ="this is a value", mod: String = "Top"): Annotation
   def manno(mod: String): Annotation
 
