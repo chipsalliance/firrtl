@@ -3,6 +3,7 @@
 package firrtlTests
 
 import java.io._
+
 import org.scalatest._
 import org.scalatest.prop._
 import firrtl._
@@ -11,6 +12,7 @@ import firrtl.ir.Circuit
 import firrtl.passes._
 import firrtl.Parser.IgnoreInfo
 import FirrtlCheckers._
+import firrtl.transforms.CombineCats
 
 class DoPrimVerilog extends FirrtlFlatSpec {
   "Xorr" should "emit correctly" in {
@@ -87,6 +89,38 @@ class DoPrimVerilog extends FirrtlFlatSpec {
         |endmodule
         |""".stripMargin.split("\n") map normalized
     executeTest(input, check, compiler)
+  }
+  "nested cats" should "emit correctly" in {
+    val compiler = new MinimumVerilogCompiler
+    val input =
+      """circuit Test :
+        |  module Test :
+        |    input in1 : UInt<1>
+        |    input in2 : UInt<2>
+        |    input in3 : UInt<3>
+        |    input in4 : UInt<4>
+        |    output out : UInt<10>
+        |    out <= cat(in4, cat(in3, cat(in2, in1)))
+        |""".stripMargin
+    val check =
+      """module Test(
+        |  input  in1,
+        |  input  [1:0] in2,
+        |  input  [2:0] in3,
+        |  input  [3:0] in4,
+        |  output [9:0] out
+        |);
+        |  wire [5:0] _GEN_1;
+        |  assign out = {in4,_GEN_1};
+        |  assign _GEN_1 = {in3,in2,in1};
+        |endmodule
+        |""".stripMargin.split("\n") map normalized
+
+    val finalState = compiler.compileAndEmit(CircuitState(parse(input), ChirrtlForm), Seq(new CombineCats()))
+    val lines = finalState.getEmittedCircuit.value split "\n" map normalized
+    for (e <- check) {
+      lines should contain (e)
+    }
   }
 }
 
