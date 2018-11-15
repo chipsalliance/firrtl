@@ -161,14 +161,15 @@ trait DiGraphLike[T] {
           blacklist: Set[T],
           customGetEdges: Option[T => Set[T]] = None
          ): Map[T,T] = {
-    val queue = new mutable.Queue[T]
-    queue.enqueue(root)
-    while (queue.nonEmpty) {
-      val u = queue.dequeue
+
+    val bfsQueue = new mutable.Queue[T]
+    bfsQueue.enqueue(root)
+    while (bfsQueue.nonEmpty) {
+      val u = bfsQueue.dequeue
       for (v <- getEdges(u)) {
         if (!prev.contains(v) && !blacklist.contains(v)) {
           prev(v) = u
-          queue.enqueue(v)
+          bfsQueue.enqueue(v)
         }
       }
     }
