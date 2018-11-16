@@ -118,6 +118,8 @@ trait DiGraphLike[T] {
     order.reverse.toSeq
   }
 
+  def clearPrev(): Unit = prev.clear()
+
   /** Performs breadth-first search on the directed graph
     *
     * @param root the start node
@@ -138,6 +140,7 @@ trait DiGraphLike[T] {
           customGetEdges: Option[T => Set[T]] = None
          ): Map[T,T] = {
 
+    clearPrev()
     val bfsQueue = new mutable.Queue[T]
     bfsQueue.enqueue(root)
     while (bfsQueue.nonEmpty) {

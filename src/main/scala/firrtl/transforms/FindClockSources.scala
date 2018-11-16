@@ -17,6 +17,8 @@ class ClockSourceFinder(digraph: DiGraph[Target],
                         irLookup: IRLookup) extends InstanceViewedGraph(digraph) {
   override val prev = new mutable.LinkedHashMap[Target, Target]()
 
+  override def clearPrev(): Unit = Unit
+
   val circuitTarget = CircuitTarget(circuit.main)
   val extModuleNames = circuit.modules.collect { case e: ExtModule => e.name }.toSet
   val astClockOutputs = circuit.modules.flatMap {
