@@ -6,6 +6,7 @@ import firrtl.Mappers._
 import firrtl.Utils._
 import firrtl._
 import firrtl.annotations._
+import firrtl.annotations.TargetToken.Ref
 import firrtl.ir._
 import firrtl.transforms.ConstantPropagation._
 
@@ -18,7 +19,10 @@ import scala.collection.mutable
   * better name than the reference it is bound to, the reference will be
   * renamed and the node deleted if allowed.
   */
-class HighFormConstProp extends Transform {
+class HighFormConstProp extends Transform with ResolvedAnnotationPaths {
+
+  override val annotationClasses: Traversable[Class[_]] = Seq(classOf[DontTouchAnnotation])
+
   private def constPropModule(m: Module, dontTouches: Set[String], renames: RenameMap, noDCE: Boolean): Module = {
     renames.setModule(m.name)
     val nodeMap = new NodeMap()
@@ -35,7 +39,7 @@ class HighFormConstProp extends Transform {
     }
 
     def swapNamesExpr(e: Expression): Expression = e map swapNamesExpr match {
-      case ref@WRef(rname, _, _, _) if swapMap.contains(rname) => ref.copy(name = swapMap(rname))
+      case ref @ WRef(rname, _, _, _) if swapMap.contains(rname) => ref.copy(name = swapMap(rname))
       case other => other
     }
 
@@ -66,7 +70,7 @@ class HighFormConstProp extends Transform {
       val propagated = old match {
         case p: DoPrim => constPropPrim(p)
         case m: Mux => constPropMux(m)
-        case ref@WRef(rname, _, _, _) if nodeMap.contains(rname) => constPropNodeRef(ref, nodeMap(rname))
+        case ref @ WRef(rname, _, _, _) if nodeMap.contains(rname) => constPropNodeRef(ref, nodeMap(rname))
         case x => x
       }
 
@@ -80,18 +84,18 @@ class HighFormConstProp extends Transform {
 
     def constPropStmt(s: Statement): Statement = {
       s.map(constPropStmt).map(constPropExpression(nodeMap)) match {
-        case x@DefNode(_, lname, _) if  dontTouches.contains(lname) => x
-        case x@DefNode(_, lname, value) if !noDCE =>
+        case x @ DefNode(_, lname, _) if  dontTouches.contains(lname) => x
+        case x @ DefNode(_, lname, value) if !noDCE =>
           value match {
             // if the rhs is a ref with a worse name then delete this node and rename the rhs to this node's name
-            case ref@WRef(rname, _, kind, _) if
+            case ref @ WRef(rname, _, kind, _) if
             betterName(lname, rname) && kind != PortKind && !swapMap.contains(rname) =>
               swapMap += (rname -> lname)
               nodeMap(lname) = nodeMap.getOrElse(rname, ref.copy(name = lname))
               deleteNode(rname, ref.tpe)
               EmptyStmt
             // if the rhs is a ref with a better name then delete this node and propagate the rhs
-            case ref@WRef(rname, _, _, _) if betterName(rname, lname) =>
+            case ref @ WRef(rname, _, _, _) if betterName(rname, lname) =>
               assert(!swapMap.contains(lname))
               swapMap += (lname -> rname)
               nodeMap(lname) = nodeMap.getOrElse(rname, ref.copy(name = rname))
@@ -106,7 +110,7 @@ class HighFormConstProp extends Transform {
               nodeMap(lname) = value
               x
           }
-        case x@DefNode(_, lname, value) =>
+        case x @ DefNode(_, lname, value) =>
           nodeMap(lname) = value
           x
         case other => other
@@ -121,7 +125,7 @@ class HighFormConstProp extends Transform {
 
   def execute(state: CircuitState): CircuitState = {
     val dontTouches: Seq[(String, String)] = state.annotations.collect {
-      case DontTouchAnnotation(ComponentName(c, ModuleName(m, _))) => m -> c
+      case DontTouchAnnotation(Target(_, Some(m), Seq(Ref(c)))) => m -> c
     }
     // Map from module name to component names
     val dontTouchMap: Map[String, Set[String]] = dontTouches.groupBy(_._1)
