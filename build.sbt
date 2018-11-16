@@ -134,7 +134,6 @@ publishTo := {
 }
 
 resolvers ++= Seq(
-  Resolver.file("ivy-local", file(Path.userHome.absolutePath + "/.ivy2/local")),
   Resolver.sonatypeRepo("snapshots"),
   Resolver.sonatypeRepo("releases")
 )
