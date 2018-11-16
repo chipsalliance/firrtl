@@ -6,7 +6,7 @@ import firrtl._
 import firrtl.ir._
 import firrtl.Mappers._
 import FirrtlCheckers._
-import firrtl.annotations.{CircuitName, ComponentName, ModuleName}
+import firrtl.annotations.ReferenceTarget
 import firrtl.transforms.DontTouchAnnotation
 
 import collection.mutable
@@ -76,10 +76,9 @@ class RemoveWiresSpec extends FirrtlFlatSpec {
   }
 
   it should "order nodes in a legal, flow-forward way" in {
-    val mname = ModuleName(top, CircuitName(top))
-    val dontTouches = Seq(DontTouchAnnotation(ComponentName("w", mname)),
-      DontTouchAnnotation(ComponentName("x", mname)),
-      DontTouchAnnotation(ComponentName("y", mname)))
+    val dontTouches = Seq(DontTouchAnnotation(ReferenceTarget(top, top, Seq.empty, "w", Seq.empty)),
+      DontTouchAnnotation(ReferenceTarget(top, top, Seq.empty, "x", Seq.empty)),
+      DontTouchAnnotation(ReferenceTarget(top, top, Seq.empty, "y", Seq.empty)))
     val result = compileBody(s"""
       |input a : UInt<8>
       |output b : UInt<8>

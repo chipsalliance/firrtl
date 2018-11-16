@@ -37,13 +37,13 @@ trait FirrtlRunners extends BackendCompilationUtilities {
       val newTopName = namespace.newName(newTopPrefix)
 
       val renamesx = RenameMap()
-      val cname = CircuitName(newTopName)
-      val oldCname = CircuitName(state.circuit.main)
+      val cname = CircuitTarget(newTopName)
+      val oldCname = CircuitTarget(state.circuit.main)
       renamesx.rename(oldCname, cname)
 
       val modulesx = state.circuit.modules.map {
         case mod: Module if mod.name == state.circuit.main =>
-          renamesx.rename(ModuleName(mod.name, oldCname), ModuleName(newTopName, cname))
+          renamesx.rename(ModuleTarget(mod.name, mod.name), ModuleTarget(newTopName, newTopName))
           mod.mapString(_ => newTopName)
         case other => other
       }

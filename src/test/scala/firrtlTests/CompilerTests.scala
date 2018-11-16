@@ -2,7 +2,7 @@
 
 package firrtlTests
 
-import firrtl.annotations.{Annotation, CircuitName, ComponentName, ModuleName}
+import firrtl.annotations.{Annotation, ReferenceTarget}
 import firrtl.ir.Circuit
 import firrtl.transforms.DontTouchAnnotation
 import firrtl.{
@@ -119,7 +119,7 @@ circuit Top :
       "    node x_0 = a_0",
       "    node x_1 = a_1\n\n"
    ).reduce(_ + "\n" + _)
-   override val annos = Seq(DontTouchAnnotation(ComponentName("x", ModuleName("Top", CircuitName("Top")))))
+   override val annos = Seq(DontTouchAnnotation(ReferenceTarget("Top", "Top", Seq.empty, "x", Seq.empty)))
    "A circuit" should "match exactly to its lowered state" in {
       (parse(getOutput)) should be (parse(check))
    }
