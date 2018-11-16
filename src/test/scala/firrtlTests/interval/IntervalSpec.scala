@@ -442,4 +442,32 @@ class IntervalSpec extends FirrtlFlatSpec {
       executeTest(input, Nil, passes)
     }
   }
+  "Chick's example" should "work" in {
+    val input =
+      s"""circuit IntervalChainedSubTester :
+         |  module IntervalChainedSubTester :
+         |    input clock : Clock
+         |    input reset : UInt<1>
+         |    node _GEN_0 = sub(SInt<6>("h11"), SInt<6>("h2")) @[IntervalSpec.scala 337:26 IntervalSpec.scala 337:26]
+         |    node _GEN_1 = bits(_GEN_0, 4, 0) @[IntervalSpec.scala 337:26 IntervalSpec.scala 337:26]
+         |    node intervalResult = asSInt(_GEN_1) @[IntervalSpec.scala 337:26 IntervalSpec.scala 337:26]
+         |    skip
+         |    node _T_1 = asUInt(intervalResult) @[IntervalSpec.scala 338:50]
+         |    skip
+         |    node _T_3 = eq(reset, UInt<1>("h0")) @[IntervalSpec.scala 338:9]
+         |    node _T_4 = eq(intervalResult, SInt<5>("hf")) @[IntervalSpec.scala 339:25]
+         |    skip
+         |    node _T_6 = or(_T_4, reset) @[IntervalSpec.scala 339:9]
+         |    node _T_7 = eq(_T_6, UInt<1>("h0")) @[IntervalSpec.scala 339:9]
+         |    skip
+         |    skip
+         |    printf(clock, _T_3, "Interval result: %d", _T_1) @[IntervalSpec.scala 338:9]
+         |    printf(clock, _T_7, "Assertion failed    at IntervalSpec.scala:339 assert(intervalResult === 15.I)") @[IntervalSpec.scala 339:9]
+         |    stop(clock, _T_7, 1) @[IntervalSpec.scala 339:9]
+         |    stop(clock, _T_3, 0) @[IntervalSpec.scala 340:7]
+         |
+       """.stripMargin
+    val verilog = compileToVerilog(input)
+    println(verilog)
+  }
 }
