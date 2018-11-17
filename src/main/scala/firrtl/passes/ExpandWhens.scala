@@ -46,9 +46,9 @@ object ExpandWhens extends Pass {
   type Netlist = mutable.LinkedHashMap[WrappedExpression, Expression]
 
   /** Collects Info data serialized names for nodes, aggregating into MultiInfo when necessary */
-  class InfoMap extends mutable.HashMap[String, Info] {
-    override def default(key: String): Info = {
-      val x = NoInfo
+  class InfoMap extends mutable.HashMap[String, List[Info]] {
+    override def default(key: String): List[Info] = {
+      val x = Nil
       this(key) = x
       x
     }
@@ -85,7 +85,7 @@ object ExpandWhens extends Pass {
       * @param info info being recorded
       */
     def saveInfo(key: String, info: Info): Unit = {
-      infoMap(key) = infoMap(key) ++ info
+      infoMap(key) = info +: infoMap(key)
     }
 
     /** Removes connections/attaches from the statement
@@ -225,7 +225,11 @@ object ExpandWhens extends Pass {
       case (k, WInvalid) => // Remove IsInvalids on attached Analog types
         if (attached.contains(k)) EmptyStmt else IsInvalid(NoInfo, k.e1)
       case (k, v) =>
-        val info = sourceInfoMap(k.e1.serialize)
+        val info = sourceInfoMap(k.e1.serialize) match {
+          case Nil => NoInfo
+          case List(one) => one
+          case many => MultiInfo(many.distinct.reverse)
+        }
         Connect(info, k.e1, v)
     }
 
