@@ -168,16 +168,19 @@ class RemoveKeywordCollisions(keywords: Set[String]) extends Transform {
     implicit val scope: Option[ModuleName] = Some(ModuleName(m.name, circuit))
     implicit val r: RenameMap = renames
     implicit val mType: ModuleType = modType
-    mType += (m.name -> onType(Utils.module_type(m)))
 
     // Store local renames of refs to instances to their renamed modules. This is needed when renaming port connections
     // on subfields where only the local instance name is available.
     implicit val iToM: mutable.Map[ComponentName, ModuleName] = mutable.Map.empty
 
-    m
+    val mx = m
       .map(onPort)
       .map(onStatement)
       .map(onName(_: String)(renames, moduleNamespace, Some(circuit)))
+
+    // Must happen after renaming the name and ports of the module itself
+    mType += (mx.name -> onType(Utils.module_type(mx)))
+    mx
   }
 
   /** Fix any Verilog keyword collisions in a [[firrtl.ir Circuit]]
