@@ -1,109 +1,108 @@
 package firrtl.traversals
 
-import firrtl.HasMapWidth
 import firrtl.ir._
 
 object Foreachers {
 
   // ********** Stmt Mappers **********
-  private trait StmtMagnet {
+  private trait StmtForMagnet {
     def foreach(stmt: Statement): Unit
   }
-  private object StmtMagnet {
-    implicit def forStmt(f: Statement => Unit): StmtMagnet = new StmtMagnet {
+  private object StmtForMagnet {
+    implicit def forStmt(f: Statement => Unit): StmtForMagnet = new StmtForMagnet {
       override def foreach(stmt: Statement): Unit = stmt foreachStmt f
     }
-    implicit def forExp(f: Expression => Unit): StmtMagnet = new StmtMagnet {
+    implicit def forExp(f: Expression => Unit): StmtForMagnet = new StmtForMagnet {
       override def foreach(stmt: Statement): Unit = stmt foreachExpr f
     }
-    implicit def forType(f: Type => Unit): StmtMagnet = new StmtMagnet {
+    implicit def forType(f: Type => Unit): StmtForMagnet = new StmtForMagnet {
       override def foreach(stmt: Statement) : Unit = stmt foreachType f
     }
-    implicit def forString(f: String => Unit): StmtMagnet = new StmtMagnet {
+    implicit def forString(f: String => Unit): StmtForMagnet = new StmtForMagnet {
       override def foreach(stmt: Statement): Unit = stmt foreachString f
     }
-    implicit def forInfo(f: Info => Unit): StmtMagnet = new StmtMagnet {
+    implicit def forInfo(f: Info => Unit): StmtForMagnet = new StmtForMagnet {
       override def foreach(stmt: Statement): Unit = stmt foreachInfo f
     }
   }
   implicit class StmtForeach(val _stmt: Statement) extends AnyVal {
-    // Using implicit types to allow overloading of function type to foreach, see StmtMagnet above
-    def foreach[T](f: T => Unit)(implicit magnet: (T => Unit) => StmtMagnet): Unit = magnet(f).foreach(_stmt)
+    // Using implicit types to allow overloading of function type to foreach, see StmtForMagnet above
+    def foreach[T](f: T => Unit)(implicit magnet: (T => Unit) => StmtForMagnet): Unit = magnet(f).foreach(_stmt)
   }
 
   // ********** Expression Mappers **********
-  private trait ExprMagnet {
+  private trait ExprForMagnet {
     def foreach(expr: Expression): Unit
   }
-  private object ExprMagnet {
-    implicit def forExpr(f: Expression => Unit): ExprMagnet = new ExprMagnet {
+  private object ExprForMagnet {
+    implicit def forExpr(f: Expression => Unit): ExprForMagnet = new ExprForMagnet {
       override def foreach(expr: Expression): Unit = expr foreachExpr f
     }
-    implicit def forType(f: Type => Unit): ExprMagnet = new ExprMagnet {
+    implicit def forType(f: Type => Unit): ExprForMagnet = new ExprForMagnet {
       override def foreach(expr: Expression): Unit = expr foreachType f
     }
-    implicit def forWidth(f: Width => Unit): ExprMagnet = new ExprMagnet {
+    implicit def forWidth(f: Width => Unit): ExprForMagnet = new ExprForMagnet {
       override def foreach(expr: Expression): Unit = expr foreachWidth f
     }
   }
-  implicit class ExprMap(val _expr: Expression) extends AnyVal {
-    def foreach[T](f: T => Unit)(implicit magnet: (T => Unit) => ExprMagnet): Unit = magnet(f).foreach(_expr)
+  implicit class ExprForeach(val _expr: Expression) extends AnyVal {
+    def foreach[T](f: T => Unit)(implicit magnet: (T => Unit) => ExprForMagnet): Unit = magnet(f).foreach(_expr)
   }
 
   // ********** Type Mappers **********
-  private trait TypeMagnet {
+  private trait TypeForMagnet {
     def foreach(tpe: Type): Unit
   }
-  private object TypeMagnet {
-    implicit def forType(f: Type => Unit): TypeMagnet = new TypeMagnet {
+  private object TypeForMagnet {
+    implicit def forType(f: Type => Unit): TypeForMagnet = new TypeForMagnet {
       override def foreach(tpe: Type): Unit = tpe foreachType f
     }
-    implicit def forWidth(f: Width => Unit): TypeMagnet = new TypeMagnet {
+    implicit def forWidth(f: Width => Unit): TypeForMagnet = new TypeForMagnet {
       override def foreach(tpe: Type): Unit = tpe foreachWidth f
     }
   }
-  implicit class TypeMap(val _tpe: Type) extends AnyVal {
-    def foreach[T](f: T => Unit)(implicit magnet: (T => Unit) => TypeMagnet): Unit = magnet(f).foreach(_tpe)
+  implicit class TypeForeach(val _tpe: Type) extends AnyVal {
+    def foreach[T](f: T => Unit)(implicit magnet: (T => Unit) => TypeForMagnet): Unit = magnet(f).foreach(_tpe)
   }
 
   // ********** Module Mappers **********
-  private trait ModuleMagnet {
+  private trait ModuleForMagnet {
     def foreach(module: DefModule): Unit
   }
-  private object ModuleMagnet {
-    implicit def forStmt(f: Statement => Unit): ModuleMagnet = new ModuleMagnet {
+  private object ModuleForMagnet {
+    implicit def forStmt(f: Statement => Unit): ModuleForMagnet = new ModuleForMagnet {
       override def foreach(module: DefModule): Unit = module foreachStmt f
     }
-    implicit def forPorts(f: Port => Unit): ModuleMagnet = new ModuleMagnet {
+    implicit def forPorts(f: Port => Unit): ModuleForMagnet = new ModuleForMagnet {
       override def foreach(module: DefModule): Unit = module foreachPort f
     }
-    implicit def forString(f: String => Unit): ModuleMagnet = new ModuleMagnet {
+    implicit def forString(f: String => Unit): ModuleForMagnet = new ModuleForMagnet {
       override def foreach(module: DefModule): Unit = module foreachString f
     }
-    implicit def forInfo(f: Info => Unit): ModuleMagnet = new ModuleMagnet {
+    implicit def forInfo(f: Info => Unit): ModuleForMagnet = new ModuleForMagnet {
       override def foreach(module: DefModule): Unit = module foreachInfo f
     }
   }
-  implicit class ModuleMap(val _module: DefModule) extends AnyVal {
-    def foreach[T](f: T => Unit)(implicit magnet: (T => Unit) => ModuleMagnet): Unit = magnet(f).foreach(_module)
+  implicit class ModuleForeach(val _module: DefModule) extends AnyVal {
+    def foreach[T](f: T => Unit)(implicit magnet: (T => Unit) => ModuleForMagnet): Unit = magnet(f).foreach(_module)
   }
 
   // ********** Circuit Mappers **********
-  private trait CircuitMagnet {
+  private trait CircuitForMagnet {
     def foreach(module: Circuit): Unit
   }
-  private object CircuitMagnet {
-    implicit def forModules(f: DefModule => Unit): CircuitMagnet = new CircuitMagnet {
+  private object CircuitForMagnet {
+    implicit def forModules(f: DefModule => Unit): CircuitForMagnet = new CircuitForMagnet {
       override def foreach(circuit: Circuit): Unit = circuit foreachModule f
     }
-    implicit def forString(f: String => Unit): CircuitMagnet = new CircuitMagnet {
+    implicit def forString(f: String => Unit): CircuitForMagnet = new CircuitForMagnet {
       override def foreach(circuit: Circuit): Unit = circuit foreachString f
     }
-    implicit def forInfo(f: Info => Unit): CircuitMagnet = new CircuitMagnet {
+    implicit def forInfo(f: Info => Unit): CircuitForMagnet = new CircuitForMagnet {
       override def foreach(circuit: Circuit): Unit = circuit foreachInfo f
     }
   }
-  implicit class CircuitMap(val _circuit: Circuit) extends AnyVal {
-    def foreach[T](f: T => Unit)(implicit magnet: (T => Unit) => CircuitMagnet): Unit = magnet(f).foreach(_circuit)
+  implicit class CircuitForeach(val _circuit: Circuit) extends AnyVal {
+    def foreach[T](f: T => Unit)(implicit magnet: (T => Unit) => CircuitForMagnet): Unit = magnet(f).foreach(_circuit)
   }
 }
