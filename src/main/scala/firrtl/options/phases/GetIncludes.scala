@@ -5,7 +5,7 @@ package firrtl.options.phases
 import net.jcazevedo.moultingyaml._
 
 import firrtl.AnnotationSeq
-import firrtl.annotations.{AnnotationFileNotFoundException, DeletedAnnotation, JsonProtocol, LegacyAnnotation}
+import firrtl.annotations.{AnnotationFileNotFoundException, JsonProtocol, LegacyAnnotation}
 import firrtl.annotations.AnnotationYamlProtocol._
 import firrtl.options.{InputAnnotationFileAnnotation, Phase, StageUtils}
 
@@ -46,15 +46,14 @@ object GetIncludes extends Phase {
     */
   private def getIncludes(includeGuard: mutable.Set[String] = mutable.Set())
                          (annos: AnnotationSeq): AnnotationSeq = {
-    val phaseName = this.getClass.getName
     annos.flatMap {
       case a @ InputAnnotationFileAnnotation(value) =>
         if (includeGuard.contains(value)) {
-          StageUtils.dramaticWarning("Tried to import the same annotation file twice! (Did you include it twice?)")
-          Seq(DeletedAnnotation(phaseName, a))
+          StageUtils.dramaticWarning(s"Annotation file ($value) already included! (Did you include it more than once?)")
+          None
         } else {
           includeGuard += value
-          DeletedAnnotation(phaseName, a) +: getIncludes(includeGuard)(readAnnotationsFromFile(value))
+          getIncludes(includeGuard)(readAnnotationsFromFile(value))
         }
       case x => Seq(x)
     }

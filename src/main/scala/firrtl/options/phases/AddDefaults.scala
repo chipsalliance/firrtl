@@ -13,11 +13,7 @@ import firrtl.options.{Phase, StageOption, TargetDirAnnotation}
 object AddDefaults extends Phase {
 
   def transform(annotations: AnnotationSeq): AnnotationSeq = {
-    var td = true
-    annotations.collect { case a: StageOption => a }.map {
-      case _: TargetDirAnnotation => td = false
-      case _ =>
-    }
+    val td = annotations.collectFirst{ case a: TargetDirAnnotation => a}.isEmpty
 
     (if (td) Seq(TargetDirAnnotation()) else Seq()) ++
       annotations
