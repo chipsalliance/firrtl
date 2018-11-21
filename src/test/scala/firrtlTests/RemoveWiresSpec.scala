@@ -40,6 +40,24 @@ class RemoveWiresSpec extends FirrtlFlatSpec {
     (nodes, wires)
   }
 
+  def orderedNames(circuit: Circuit): Seq[String] = {
+    require(circuit.modules.size == 1)
+    val names = mutable.ArrayBuffer.empty[String]
+    def onStmt(stmt: Statement): Statement = {
+      stmt map onStmt match {
+        case reg: DefRegister => names += reg.name
+        case wire: DefWire => names += wire.name
+        case node: DefNode => names += node.name
+        case _ =>
+      }
+      stmt
+    }
+    circuit.modules.head match {
+      case Module(_,_,_, body) => onStmt(body)
+    }
+    names
+  }
+
   "Remove Wires" should "turn wires and their single connect into nodes" in {
     val result = compileBody(s"""
       |input a : UInt<8>
@@ -119,5 +137,32 @@ class RemoveWiresSpec extends FirrtlFlatSpec {
       Seq("node x = not(a)",
           "node y = not(b)")
     )
+  }
+
+  it should "work for multiple clocks" in {
+    val result = compileBody(
+      s"""|input clock: Clock
+          |reg a : UInt<1>, clock
+          |node clock2 = asClock(a)
+          |reg b : UInt<1>, clock2
+          |""".stripMargin
+    )
+    val names = orderedNames(result.circuit)
+    names should be (Seq("a", "clock2", "b"))
+  }
+
+  it should "order registers correctly" in {
+    val result = compileBody(s"""
+      |input clock : Clock
+      |input a : UInt<8>
+      |output c : UInt<8>
+      |wire w : UInt<8>
+      |node n = tail(add(w, UInt(1)), 1)
+      |reg r : UInt<8>, clock
+      |w <= tail(add(r, a), 1)
+      |c <= n""".stripMargin
+    )
+    // Check declaration before use is maintained
+    passes.CheckHighForm.execute(result)
   }
 }

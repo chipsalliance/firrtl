@@ -35,6 +35,8 @@ object WRef {
   def apply(wire: DefWire): WRef = new WRef(wire.name, wire.tpe, WireKind, UNKNOWNGENDER)
   /** Creates a WRef from a Register */
   def apply(reg: DefRegister): WRef = new WRef(reg.name, reg.tpe, RegKind, UNKNOWNGENDER)
+  /** Creates a WRef from a Node */
+  def apply(node: DefNode): WRef = new WRef(node.name, node.value.tpe, NodeKind, MALE)
   def apply(n: String, t: Type = UnknownType, k: Kind = ExpKind): WRef = new WRef(n, t, k, UNKNOWNGENDER)
 }
 case class WSubField(expr: Expression, name: String, tpe: Type, gender: Gender) extends Expression {
@@ -275,7 +277,7 @@ case class CDefMemory(
     name: String,
     tpe: Type,
     size: Int,
-    seq: Boolean) extends Statement {
+    seq: Boolean) extends Statement with HasInfo {
   def serialize: String = (if (seq) "smem" else "cmem") +
     s" $name : ${tpe.serialize} [$size]" + info.serialize
   def mapExpr(f: Expression => Expression): Statement = this
@@ -289,7 +291,7 @@ case class CDefMPort(info: Info,
     tpe: Type,
     mem: String,
     exps: Seq[Expression],
-    direction: MPortDir) extends Statement {
+    direction: MPortDir) extends Statement with HasInfo {
   def serialize: String = {
     val dir = direction.serialize
     s"$dir mport $name = $mem[${exps.head.serialize}], ${exps(1).serialize}" + info.serialize

@@ -15,6 +15,8 @@ import firrtl.annotations._
 import firrtl.Utils.throwInternalError
 import firrtl.graph.{MutableDiGraph,DiGraph}
 import firrtl.analyses.InstanceGraph
+import firrtl.options.RegisteredTransform
+import scopt.OptionParser
 
 object CheckCombLoops {
   class CombLoopException(info: Info, mname: String, cycle: Seq[String]) extends PassException(
@@ -23,6 +25,14 @@ object CheckCombLoops {
 }
 
 case object DontCheckCombLoopsAnnotation extends NoTargetAnnotation
+
+case class CombinationalPath(sink: ComponentName, sources: Seq[ComponentName]) extends Annotation {
+  override def update(renames: RenameMap): Seq[Annotation] = {
+    val newSources: Seq[IsComponent] = sources.flatMap { s => renames.get(s).getOrElse(Seq(s.toTarget)) }.collect {case x: IsComponent if x.isLocal => x}
+    val newSinks = renames.get(sink).getOrElse(Seq(sink.toTarget)).collect { case x: IsComponent if x.isLocal => x}
+    newSinks.map(snk => CombinationalPath(snk.toNamed, newSources.map(_.toNamed)))
+  }
+}
 
 /** Finds and detects combinational logic loops in a circuit, if any
   * exist. Returns the input circuit with no modifications.
@@ -34,11 +44,17 @@ case object DontCheckCombLoopsAnnotation extends NoTargetAnnotation
   * @note The pass cannot find loops that pass through ExtModules
   * @note The pass will throw exceptions on "false paths"
   */
-class CheckCombLoops extends Transform {
+class CheckCombLoops extends Transform with RegisteredTransform {
   def inputForm = LowForm
   def outputForm = LowForm
 
   import CheckCombLoops._
+
+  def addOptions(parser: OptionParser[AnnotationSeq]): Unit = parser
+    .opt[Unit]("no-check-comb-loops")
+    .action( (x, c) => c :+ DontCheckCombLoopsAnnotation )
+    .maxOccurs(1)
+    .text("Do NOT check for combinational loops (not recommended)")
 
   /*
    * A case class that represents a net in the circuit. This is
@@ -181,7 +197,7 @@ class CheckCombLoops extends Transform {
    * and only if it combinationally depends on input Y. Associate this
    * reduced graph with the module for future use.
    */
-  private def run(c: Circuit): Circuit = {
+  private def run(c: Circuit): (Circuit, Seq[Annotation]) = {
     val errors = new Errors()
     /* TODO(magyar): deal with exmodules! No pass warnings currently
      *  exist. Maybe warn when iterating through modules.
@@ -199,16 +215,26 @@ class CheckCombLoops extends Transform {
       val moduleGraph = DiGraph(internalDeps)
       moduleGraphs(m.name) = moduleGraph
       simplifiedModuleGraphs(m.name) = moduleGraphs(m.name).simplify((m.ports map { p => LogicNode(p.name) }).toSet)
-      for (scc <- moduleGraphs(m.name).findSCCs.filter(_.length > 1)) {
-        val sccSubgraph = moduleGraphs(m.name).subgraph(scc.toSet)
+      // Find combinational nodes with self-edges; this is *NOT* the same as length-1 SCCs!
+      for (unitLoopNode <- moduleGraph.getVertices.filter(v => moduleGraph.getEdges(v).contains(v))) {
+        errors.append(new CombLoopException(m.info, m.name, Seq(unitLoopNode.name)))
+      }
+      for (scc <- moduleGraph.findSCCs.filter(_.length > 1)) {
+        val sccSubgraph = moduleGraph.subgraph(scc.toSet)
         val cycle = findCycleInSCC(sccSubgraph)
         (cycle zip cycle.tail).foreach({ case (a,b) => require(moduleGraph.getEdges(a).contains(b)) })
         val expandedCycle = expandInstancePaths(m.name, moduleGraphs, moduleDeps, Seq(m.name), cycle.reverse)
         errors.append(new CombLoopException(m.info, m.name, expandedCycle))
       }
     }
+    val mn = ModuleName(c.main, CircuitName(c.main))
+    val annos = simplifiedModuleGraphs(c.main).getEdgeMap.collect { case (from, tos) if tos.nonEmpty =>
+      val sink = ComponentName(from.name, mn)
+      val sources = tos.map(x => ComponentName(x.name, mn))
+      CombinationalPath(sink, sources.toSeq)
+    }
     errors.trigger()
-    c
+    (c, annos.toSeq)
   }
 
   def execute(state: CircuitState): CircuitState = {
@@ -217,8 +243,8 @@ class CheckCombLoops extends Transform {
       logger.warn("Skipping Combinational Loop Detection")
       state
     } else {
-      val result = run(state.circuit)
-      CircuitState(result, outputForm, state.annotations, state.renames)
+      val (result, annos) = run(state.circuit)
+      CircuitState(result, outputForm, state.annotations ++ annos, state.renames)
     }
   }
 }

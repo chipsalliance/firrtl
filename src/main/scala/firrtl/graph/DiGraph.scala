@@ -162,9 +162,19 @@ class DiGraph[T] private[graph] (private[graph] val edges: LinkedHashMap[T, Link
     * @throws PathNotFoundException
     * @return a Seq[T] of nodes defining an arbitrary valid path
     */
-  def path(start: T, end: T): Seq[T] = {
+  def path(start: T, end: T): Seq[T] = path(start, end, Set.empty[T])
+  
+  /** Finds a path (if one exists) from one node to another, with a blacklist
+    *
+    * @param start the start node
+    * @param end the destination node
+    * @param blacklist list of nodes which break path, if encountered
+    * @throws PathNotFoundException
+    * @return a Seq[T] of nodes defining an arbitrary valid path
+    */
+  def path(start: T, end: T, blacklist: Set[T]): Seq[T] = {
     val nodePath = new mutable.ArrayBuffer[T]
-    val prev = BFS(start)
+    val prev = BFS(start, blacklist)
     nodePath += end
     while (nodePath.last != start && prev.contains(nodePath.last)) {
       nodePath += prev(nodePath.last)
@@ -253,7 +263,7 @@ class DiGraph[T] private[graph] (private[graph] val edges: LinkedHashMap[T, Link
     * @param start the node to start at
     * @return a Map[T,Seq[Seq[T]]] where the value associated with v is the Seq of all paths from start to v
     */
-  def pathsInDAG(start: T): Map[T,Seq[Seq[T]]] = {
+  def pathsInDAG(start: T): LinkedHashMap[T,Seq[Seq[T]]] = {
     // paths(v) holds the set of paths from start to v
     val paths = new LinkedHashMap[T, mutable.Set[Seq[T]]]
     val queue = new mutable.Queue[T]
