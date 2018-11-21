@@ -19,6 +19,9 @@ import firrtl.PrimOps._
 import firrtl.WrappedExpression._
 import Utils._
 import MemPortUtils.{memPortField, memType}
+import firrtl.options.{HasScoptOptions, StageUtils, PhaseException}
+import firrtl.stage.RunFirrtlTransformAnnotation
+import scopt.OptionParser
 // Datastructures
 import scala.collection.mutable.{ArrayBuffer, LinkedHashMap, HashSet}
 
@@ -31,17 +34,70 @@ sealed trait EmitAnnotation extends NoTargetAnnotation {
 case class EmitCircuitAnnotation(emitter: Class[_ <: Emitter]) extends EmitAnnotation
 case class EmitAllModulesAnnotation(emitter: Class[_ <: Emitter]) extends EmitAnnotation
 
+object EmitCircuitAnnotation extends HasScoptOptions {
+  def addOptions(p: OptionParser[AnnotationSeq]): Unit = p
+    .opt[String]("emit-circuit")
+    .abbr("E")
+    .valueName("<chirrtl|high|middle|low|verilog|sverilog>")
+    .unbounded()
+    .action{ (x, c) =>
+      val xx = x match {
+        case "chirrtl"  => Seq(RunFirrtlTransformAnnotation(new ChirrtlEmitter),
+                               EmitCircuitAnnotation(classOf[ChirrtlEmitter]))
+        case "high"     => Seq(RunFirrtlTransformAnnotation(new HighFirrtlEmitter),
+                               EmitCircuitAnnotation(classOf[HighFirrtlEmitter]))
+        case "middle"   => Seq(RunFirrtlTransformAnnotation(new MiddleFirrtlEmitter),
+                               EmitCircuitAnnotation(classOf[MiddleFirrtlEmitter]))
+        case "low"      => Seq(RunFirrtlTransformAnnotation(new LowFirrtlEmitter),
+                               EmitCircuitAnnotation(classOf[LowFirrtlEmitter]))
+        case "verilog"  => Seq(RunFirrtlTransformAnnotation(new VerilogEmitter),
+                               EmitCircuitAnnotation(classOf[VerilogEmitter]))
+        case "sverilog" => Seq(RunFirrtlTransformAnnotation(new SystemVerilogEmitter),
+                               EmitCircuitAnnotation(classOf[SystemVerilogEmitter]))
+        case _          => throw new PhaseException(s"Unknown emitter '$x'! (Did you misspell it?)")
+      }
+      xx ++ c }
+    .text("Run the specified circuit emitter (all modules in one file)")
+}
+
+object EmitAllModulesAnnotation extends HasScoptOptions {
+  def addOptions(p: OptionParser[AnnotationSeq]): Unit = p
+    .opt[String]("emit-modules")
+    .abbr("e")
+    .valueName("<none|high|middle|low|verilog|sverilog>")
+    .unbounded()
+    .action{ (x, c) =>
+      val xx = x match {
+        case "chirrtl"  => Seq(RunFirrtlTransformAnnotation(new ChirrtlEmitter),
+                               EmitAllModulesAnnotation(classOf[ChirrtlEmitter]))
+        case "high"     => Seq(RunFirrtlTransformAnnotation(new HighFirrtlEmitter),
+                               EmitAllModulesAnnotation(classOf[HighFirrtlEmitter]))
+        case "middle"   => Seq(RunFirrtlTransformAnnotation(new MiddleFirrtlEmitter),
+                               EmitAllModulesAnnotation(classOf[MiddleFirrtlEmitter]))
+        case "low"      => Seq(RunFirrtlTransformAnnotation(new LowFirrtlEmitter),
+                               EmitAllModulesAnnotation(classOf[LowFirrtlEmitter]))
+        case "verilog"  => Seq(RunFirrtlTransformAnnotation(new VerilogEmitter),
+                               EmitAllModulesAnnotation(classOf[VerilogEmitter]))
+        case "sverilog" => Seq(RunFirrtlTransformAnnotation(new SystemVerilogEmitter),
+                               EmitAllModulesAnnotation(classOf[SystemVerilogEmitter]))
+        case _          => throw new PhaseException(s"Unknown emitter '$x'! (Did you misspell it?)")
+      }
+      xx ++ c }
+    .text("Run the specified module emitter (one file per module)")
+}
+
 // ***** Annotations for results of emission *****
 sealed abstract class EmittedComponent {
   def name: String
   def value: String
+  def outputSuffix: String
 }
 sealed abstract class EmittedCircuit extends EmittedComponent
-final case class EmittedFirrtlCircuit(name: String, value: String) extends EmittedCircuit
-final case class EmittedVerilogCircuit(name: String, value: String) extends EmittedCircuit
+final case class EmittedFirrtlCircuit(name: String, value: String, outputSuffix: String) extends EmittedCircuit
+final case class EmittedVerilogCircuit(name: String, value: String, outputSuffix: String) extends EmittedCircuit
 sealed abstract class EmittedModule extends EmittedComponent
-final case class EmittedFirrtlModule(name: String, value: String) extends EmittedModule
-final case class EmittedVerilogModule(name: String, value: String) extends EmittedModule
+final case class EmittedFirrtlModule(name: String, value: String, outputSuffix: String) extends EmittedModule
+final case class EmittedVerilogModule(name: String, value: String, outputSuffix: String) extends EmittedModule
 
 /** Traits for Annotations containing emitted components */
 sealed trait EmittedAnnotation[T <: EmittedComponent] extends NoTargetAnnotation {
@@ -63,6 +119,8 @@ case class EmittedVerilogModuleAnnotation(value: EmittedVerilogModule)
 sealed abstract class FirrtlEmitter(form: CircuitForm) extends Transform with Emitter {
   def inputForm = form
   def outputForm = form
+
+  val outputSuffix: String = form.outputSuffix
 
   private def emitAllModules(circuit: Circuit): Seq[EmittedFirrtlModule] = {
     // For a given module, returns a Seq of all modules instantited inside of it
@@ -87,15 +145,15 @@ sealed abstract class FirrtlEmitter(form: CircuitForm) extends Transform with Em
         case ext: ExtModule => ext
       }
       val newCircuit = Circuit(m.info, extModules :+ m, m.name)
-      EmittedFirrtlModule(m.name, newCircuit.serialize)
+      EmittedFirrtlModule(m.name, newCircuit.serialize, outputSuffix)
     }
   }
 
   override def execute(state: CircuitState): CircuitState = {
     val newAnnos = state.annotations.flatMap {
       case EmitCircuitAnnotation(_) =>
-        Seq(EmittedFirrtlCircuitAnnotation.apply(
-              EmittedFirrtlCircuit(state.circuit.main, state.circuit.serialize)))
+        Seq(EmittedFirrtlCircuitAnnotation(
+              EmittedFirrtlCircuit(state.circuit.main, state.circuit.serialize, outputSuffix)))
       case EmitAllModulesAnnotation(_) =>
         emitAllModules(state.circuit) map (EmittedFirrtlModuleAnnotation(_))
       case _ => Seq()
@@ -129,6 +187,7 @@ case class VRandom(width: BigInt) extends Expression {
 class VerilogEmitter extends SeqTransform with Emitter {
   def inputForm = LowForm
   def outputForm = LowForm
+  val outputSuffix = ".v"
   val tab = "  "
   def AND(e1: WrappedExpression, e2: WrappedExpression): Expression = {
     if (e1 == e2) e1.e1
@@ -859,7 +918,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
       case EmitCircuitAnnotation(_) =>
         val writer = new java.io.StringWriter
         emit(state, writer)
-        Seq(EmittedVerilogCircuitAnnotation(EmittedVerilogCircuit(state.circuit.main, writer.toString)))
+        Seq(EmittedVerilogCircuitAnnotation(EmittedVerilogCircuit(state.circuit.main, writer.toString, outputSuffix)))
 
       case EmitAllModulesAnnotation(_) =>
         val circuit = runTransforms(state).circuit
@@ -870,16 +929,22 @@ class VerilogEmitter extends SeqTransform with Emitter {
             val writer = new java.io.StringWriter
             val renderer = new VerilogRender(d, pds, module, moduleMap)(writer)
             renderer.emit_verilog()
-            Some(EmittedVerilogModuleAnnotation(EmittedVerilogModule(module.name, writer.toString)))
+            Some(EmittedVerilogModuleAnnotation(EmittedVerilogModule(module.name, writer.toString, outputSuffix)))
           case module: Module =>
             val writer = new java.io.StringWriter
             val renderer = new VerilogRender(module, moduleMap)(writer)
             renderer.emit_verilog()
-            Some(EmittedVerilogModuleAnnotation(EmittedVerilogModule(module.name, writer.toString)))
+            Some(EmittedVerilogModuleAnnotation(EmittedVerilogModule(module.name, writer.toString, outputSuffix)))
           case _ => None
         }
       case _ => Seq()
     }
     state.copy(annotations = newAnnos ++ state.annotations)
   }
+}
+
+class SystemVerilogEmitter extends VerilogEmitter {
+  StageUtils.dramaticWarning("SystemVerilog Emitter is the same as the Verilog Emitter!")
+
+  override val outputSuffix: String = ".sv"
 }

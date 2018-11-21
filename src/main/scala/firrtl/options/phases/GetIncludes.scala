@@ -46,15 +46,14 @@ object GetIncludes extends Phase {
     */
   private def getIncludes(includeGuard: mutable.Set[String] = mutable.Set())
                          (annos: AnnotationSeq): AnnotationSeq = {
-    val phaseName = this.getClass.getName
     annos.flatMap {
       case a @ InputAnnotationFileAnnotation(value) =>
         if (includeGuard.contains(value)) {
-          StageUtils.dramaticWarning("Tried to import the same annotation file twice! (Did you include it twice?)")
-          Seq(DeletedAnnotation(phaseName, a))
+          StageUtils.dramaticWarning(s"Annotation file ($value) already included! (Did you include it more than once?)")
+          Seq(DeletedAnnotation(name, a))
         } else {
           includeGuard += value
-          DeletedAnnotation(phaseName, a) +: getIncludes(includeGuard)(readAnnotationsFromFile(value))
+          DeletedAnnotation(name, a) +: getIncludes(includeGuard)(readAnnotationsFromFile(value))
         }
       case x => Seq(x)
     }

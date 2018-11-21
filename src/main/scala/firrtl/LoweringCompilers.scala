@@ -3,6 +3,7 @@
 package firrtl
 
 import firrtl.transforms.IdentityTransform
+import firrtl.options.StageUtils
 
 sealed abstract class CoreTransform extends SeqTransform
 
@@ -173,5 +174,6 @@ class MinimumVerilogCompiler extends Compiler {
 
 /** Currently just an alias for the [[VerilogCompiler]] */
 class SystemVerilogCompiler extends VerilogCompiler {
-  Driver.dramaticWarning("SystemVerilog Compiler behaves the same as the Verilog Compiler!")
+  override def emitter = new SystemVerilogEmitter
+  StageUtils.dramaticWarning("SystemVerilog Compiler behaves the same as the Verilog Compiler!")
 }
