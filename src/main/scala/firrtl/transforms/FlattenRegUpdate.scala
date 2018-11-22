@@ -54,25 +54,32 @@ object FlattenRegUpdate {
     // The threshold is empirical but ample.
     val flattenThreshold = 4
     val numTimesFlattened = mutable.HashMap[Mux, Int]()
-    def canFlatten(m: Mux): Boolean = {
-      val n = numTimesFlattened.getOrElse(m, 0)
-      numTimesFlattened(m) = n + 1
-      n < flattenThreshold
+    // While deep mux trees are still linear, they can lead to indecipherable Verilog
+    // This limit is ergonomic but should have no effect on QoR
+    val flattenDepth = 4
+    def canFlatten(d: Int, m: Mux): Boolean = {
+      if (d < flattenDepth) {
+        val n = numTimesFlattened.getOrElse(m, 0)
+        numTimesFlattened(m) = n + 1
+        n < flattenThreshold
+      } else {
+        false
+      }
     }
 
     val regUpdates = mutable.ArrayBuffer.empty[Connect]
     val netlist = buildNetlist(mod)
 
-    def constructRegUpdate(e: Expression): Expression = {
+    def constructRegUpdate(e: Expression, depth: Int): Expression = {
       // Only walk netlist for nodes and wires, NOT registers or other state
       val expr = kind(e) match {
         case NodeKind | WireKind => netlist.getOrElse(e, e)
         case _ => e
       }
       expr match {
-        case mux: Mux if canFlatten(mux) =>
-          val tvalx = constructRegUpdate(mux.tval)
-          val fvalx = constructRegUpdate(mux.fval)
+        case mux: Mux if canFlatten(depth, mux) =>
+          val tvalx = constructRegUpdate(mux.tval, depth + 1)
+          val fvalx = constructRegUpdate(mux.fval, depth + 1)
           mux.copy(tval = tvalx, fval = fvalx)
         // Return the original expression to end flattening
         case _ => e
@@ -83,7 +90,7 @@ object FlattenRegUpdate {
       case reg @ DefRegister(_, rname, _,_, resetCond, _) =>
         assert(resetCond == Utils.zero, "Register reset should have already been made explicit!")
         val ref = WRef(reg)
-        val update = Connect(NoInfo, ref, constructRegUpdate(netlist.getOrElse(ref, ref)))
+        val update = Connect(NoInfo, ref, constructRegUpdate(netlist.getOrElse(ref, ref), 0))
         regUpdates += update
         reg
       // Remove connections to Registers so we preserve LowFirrtl single-connection semantics
