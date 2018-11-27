@@ -108,6 +108,7 @@ class LowFirrtlOptimization extends CoreTransform {
     passes.memlib.VerilogMemDelays, // TODO move to Verilog emitter
     new firrtl.transforms.ConstantPropagation,
     passes.SplitExpressions,
+    new firrtl.transforms.CombineCats,
     passes.CommonSubexpressionElimination,
     new firrtl.transforms.DeadCodeElimination)
 }
@@ -124,6 +125,15 @@ class MinimumLowFirrtlOptimization extends CoreTransform {
 
 import CompilerUtils.getLoweringTransforms
 import firrtl.transforms.BlackBoxSourceHelper
+
+/** Emits input circuit with no changes
+  *
+  * Primarily useful for changing between .fir and .pb serialized formats
+  */
+class NoneCompiler extends Compiler {
+  def emitter = new ChirrtlEmitter
+  def transforms: Seq[Transform] = Seq.empty
+}
 
 /** Emits input circuit
   * Will replace Chirrtl constructs with Firrtl
