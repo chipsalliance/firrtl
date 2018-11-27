@@ -22,6 +22,30 @@ class WidthSpec extends FirrtlFlatSpec {
     }
   }
 
+  case class LiteralWidthCheck(lit: BigInt, uIntWidth: Option[BigInt], sIntWidth: BigInt)
+  val litChecks = Seq(
+    LiteralWidthCheck(-4, None, 3),
+    LiteralWidthCheck(-3, None, 3),
+    LiteralWidthCheck(-2, None, 2),
+    LiteralWidthCheck(-1, None, 1),
+    LiteralWidthCheck(0, Some(1), 1), // TODO https://github.com/freechipsproject/firrtl/pull/530
+    LiteralWidthCheck(1, Some(1), 2),
+    LiteralWidthCheck(2, Some(2), 3),
+    LiteralWidthCheck(3, Some(2), 3),
+    LiteralWidthCheck(4, Some(3), 4)
+  )
+  for (LiteralWidthCheck(lit, uwo, sw) <- litChecks) {
+    import firrtl.ir.{UIntLiteral, SIntLiteral, IntWidth}
+    s"$lit" should s"have signed width $sw" in {
+      SIntLiteral(lit).width should equal (IntWidth(sw))
+    }
+    uwo.foreach { uw =>
+      it should s"have unsigned width $uw" in {
+        UIntLiteral(lit).width should equal (IntWidth(uw))
+      }
+    }
+  }
+
   "Dshl by 20 bits" should "result in an error" in {
     val passes = Seq(
       ToWorkingIR,
@@ -29,6 +53,7 @@ class WidthSpec extends FirrtlFlatSpec {
       ResolveKinds,
       InferTypes,
       CheckTypes,
+      ResolveGenders,
       InferWidths,
       CheckWidths)
     val input =
@@ -51,6 +76,7 @@ class WidthSpec extends FirrtlFlatSpec {
       ResolveKinds,
       InferTypes,
       CheckTypes,
+      ResolveGenders,
       InferWidths,
       CheckWidths)
     val input =
@@ -69,6 +95,7 @@ class WidthSpec extends FirrtlFlatSpec {
       ResolveKinds,
       InferTypes,
       CheckTypes,
+      ResolveGenders,
       InferWidths,
       CheckWidths)
     val input =
@@ -93,6 +120,7 @@ class WidthSpec extends FirrtlFlatSpec {
       ResolveKinds,
       InferTypes,
       CheckTypes,
+      ResolveGenders,
       InferWidths)
     val input =
       """circuit Unit :
@@ -114,6 +142,7 @@ class WidthSpec extends FirrtlFlatSpec {
       ResolveKinds,
       InferTypes,
       CheckTypes,
+      ResolveGenders,
       InferWidths)
     val input =
       """circuit Unit :
@@ -126,5 +155,30 @@ class WidthSpec extends FirrtlFlatSpec {
     intercept[PassExceptions] {
       executeTest(input, check, passes)
     }
+  }
+
+  behavior of "CheckWidths.UniferredWidth"
+
+  it should "provide a good error message with a full target if a user forgets an assign" in {
+    val passes = Seq(
+      ToWorkingIR,
+      ResolveKinds,
+      InferTypes,
+      CheckTypes,
+      ResolveGenders,
+      InferWidths,
+      CheckWidths)
+    val input =
+      """|circuit Foo :
+         |  module Foo :
+         |    input clock : Clock
+         |    inst bar of Bar
+         |  module Bar :
+         |    wire a: { b : UInt<1>, c : { d : UInt<1>, e : UInt } }
+         |""".stripMargin
+    val msg = intercept[CheckWidths.UninferredWidth] { executeTest(input, Nil, passes) }
+      .getMessage should include ("""|    circuit Foo:
+                                     |    └── module Bar:
+                                     |        └── a.c.e""".stripMargin)
   }
 }

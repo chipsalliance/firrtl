@@ -21,7 +21,8 @@ case object NoInfo extends Info {
 }
 case class FileInfo(info: StringLit) extends Info {
   override def toString: String = " @[" + info.serialize + "]"
-  def ++(that: Info): Info = MultiInfo(Seq(this, that))
+  //scalastyle:off method.name
+  def ++(that: Info): Info = if (that == NoInfo) this else MultiInfo(Seq(this, that))
 }
 case class MultiInfo(infos: Seq[Info]) extends Info {
   private def collectStringLits(info: Info): Seq[StringLit] = info match {
@@ -34,7 +35,8 @@ case class MultiInfo(infos: Seq[Info]) extends Info {
     if (parts.nonEmpty) parts.map(_.serialize).mkString(" @[", " ", "]")
     else ""
   }
-  def ++(that: Info): Info = MultiInfo(Seq(this, that))
+  //scalastyle:off method.name
+  def ++(that: Info): Info = if (that == NoInfo) this else MultiInfo(infos :+ that)
 }
 object MultiInfo {
   def apply(infos: Info*) = {
@@ -183,6 +185,10 @@ case class UIntLiteral(value: BigInt, width: Width) extends Literal {
   def foreachType(f: Type => Unit): Unit = Unit
   def foreachWidth(f: Width => Unit): Unit = f(width)
 }
+object UIntLiteral {
+  def minWidth(value: BigInt): Width = IntWidth(math.max(value.bitLength, 1))
+  def apply(value: BigInt): UIntLiteral = new UIntLiteral(value, minWidth(value))
+}
 case class SIntLiteral(value: BigInt, width: Width) extends Literal {
   def tpe = SIntType(width)
   def serialize = s"""SInt${width.serialize}("h""" + value.toString(16)+ """")"""
@@ -192,6 +198,10 @@ case class SIntLiteral(value: BigInt, width: Width) extends Literal {
   def foreachExpr(f: Expression => Unit): Unit = Unit
   def foreachType(f: Type => Unit): Unit = Unit
   def foreachWidth(f: Width => Unit): Unit = f(width)
+}
+object SIntLiteral {
+  def minWidth(value: BigInt): Width = IntWidth(value.bitLength + 1)
+  def apply(value: BigInt): SIntLiteral = new SIntLiteral(value, minWidth(value))
 }
 case class FixedLiteral(value: BigInt, width: Width, point: Width) extends Literal {
   def tpe = FixedType(width, point)
@@ -636,7 +646,7 @@ case class StringParam(name: String, value: StringLit) extends Param {
   * @note Firrtl doesn't guarantee anything about this String being legal in any backend
   */
 case class RawStringParam(name: String, value: String) extends Param {
-  override def serialize: String = super.serialize + s"'$value'"
+  override def serialize: String = super.serialize + s"'${value.replace("'", "\\'")}'"
 }
 
 /** Base class for modules */

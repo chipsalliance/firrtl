@@ -41,13 +41,13 @@ object InferWidths extends Pass {
       case wx => wx
     }
     def collectMinMax(w: Width): Width = w map collectMinMax match {
-      case MinWidth(args) => MinWidth(unique((args.foldLeft(Seq[Width]())) {
-        case (res, wxx: MinWidth) => res ++ wxx.args
-        case (res, wxx) => res :+ wxx
+      case MinWidth(args) => MinWidth(unique(args.foldLeft(List[Width]()) {
+        case (res, wxx: MinWidth) => wxx.args ++: res
+        case (res, wxx) => wxx +: res
       }))
-      case MaxWidth(args) => MaxWidth(unique((args.foldLeft(Seq[Width]())) {
-        case (res, wxx: MaxWidth) => res ++ wxx.args
-        case (res, wxx) => res :+ wxx
+      case MaxWidth(args) => MaxWidth(unique(args.foldLeft(List[Width]()) {
+        case (res, wxx: MaxWidth) => wxx.args ++: res
+        case (res, wxx) => wxx +: res
       }))
       case wx => wx
     }
@@ -263,12 +263,12 @@ object InferWidths extends Pass {
           val n = get_size(s.loc.tpe)
           val locs = create_exps(s.loc)
           val exps = create_exps(s.expr)
-          v ++= ((locs zip exps).zipWithIndex flatMap {case ((locx, expx), i) =>
-            get_flip(s.loc.tpe, i, Default) match {
+          v ++= locs.zip(exps).flatMap { case (locx, expx) =>
+            to_flip(gender(locx)) match {
               case Default => get_constraints_t(locx.tpe, expx.tpe)//WGeq(getWidth(locx), getWidth(expx))
               case Flip => get_constraints_t(expx.tpe, locx.tpe)//WGeq(getWidth(expx), getWidth(locx))
             }
-          })
+          }
         case (s: PartialConnect) =>
           val ls = get_valid_points(s.loc.tpe, s.expr.tpe, Default, Default)
           val locs = create_exps(s.loc)
@@ -276,7 +276,7 @@ object InferWidths extends Pass {
           v ++= (ls flatMap {case (x, y) =>
             val locx = locs(x)
             val expx = exps(y)
-            get_flip(s.loc.tpe, x, Default) match {
+            to_flip(gender(locx)) match {
               case Default => get_constraints_t(locx.tpe, expx.tpe)//WGeq(getWidth(locx), getWidth(expx))
               case Flip => get_constraints_t(expx.tpe, locx.tpe)//WGeq(getWidth(expx), getWidth(locx))
             }

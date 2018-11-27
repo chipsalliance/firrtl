@@ -55,8 +55,6 @@ object CheckHighForm extends Pass {
   class LsbLargerThanMsbException(info: Info, mname: String, op: String, lsb: Int, msb: Int) extends PassException(
     s"$info: [module $mname] Primop $op lsb $lsb > $msb.")
 
-  // TODO FIXME
-  // - Do we need to check for uniquness on port names?
   def run(c: Circuit): Circuit = {
     val errors = new Errors()
     val moduleGraph = new ModuleGraph
@@ -190,6 +188,8 @@ object CheckHighForm extends Pass {
     }
 
     def checkHighFormP(mname: String, names: NameSet)(p: Port): Unit = {
+      if (names(p.name))
+        errors.append(new NotUniqueException(NoInfo, mname, p.name))
       names += p.name
       p.tpe foreach checkHighFormT(p.info, mname)
       p.tpe foreach checkHighFormW(p.info, mname)

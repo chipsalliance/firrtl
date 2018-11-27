@@ -7,10 +7,14 @@ import firrtl.PrimOps._
 import firrtl.Mappers._
 import firrtl.WrappedExpression._
 import firrtl.WrappedType._
+
 import scala.collection.mutable
-import scala.collection.mutable.{StringBuilder, ArrayBuffer, LinkedHashMap, HashMap, HashSet}
+import scala.collection.mutable.{ArrayBuffer, HashMap, HashSet, LinkedHashMap, StringBuilder}
+import scala.util.matching.Regex
 import java.io.PrintWriter
-import logger.LazyLogging
+
+import firrtl.annotations.{ReferenceTarget, TargetToken}
+import _root_.logger.LazyLogging
 
 object FIRRTLException {
   def defaultMessage(message: String, cause: Throwable) = {
@@ -177,7 +181,7 @@ object Utils extends LazyLogging {
     error("Internal Error! %sPlease file an issue at https://github.com/ucb-bar/firrtl/issues".format(string), throwable)
   }
 
-  private[firrtl] def time[R](block: => R): (Double, R) = {
+  def time[R](block: => R): (Double, R) = {
     val t0 = System.nanoTime()
     val result = block
     val t1 = System.nanoTime()
@@ -237,9 +241,8 @@ object Utils extends LazyLogging {
   def min(a: BigInt, b: BigInt): BigInt = if (a >= b) b else a
   def pow_minus_one(a: BigInt, b: BigInt): BigInt = a.pow(b.toInt) - 1
   val BoolType = UIntType(IntWidth(1))
-  val one  = UIntLiteral(BigInt(1), IntWidth(1))
-  val zero = UIntLiteral(BigInt(0), IntWidth(1))
-  def uint(i: BigInt): UIntLiteral = UIntLiteral(i, IntWidth(1 max i.bitLength))
+  val one  = UIntLiteral(1)
+  val zero = UIntLiteral(0)
 
   def create_exps(n: String, t: Type): Seq[Expression] =
     create_exps(WRef(n, t, ExpKind, UNKNOWNGENDER))
@@ -253,12 +256,51 @@ object Utils extends LazyLogging {
     case ex: ValidIf => create_exps(ex.value) map (e1 => ValidIf(ex.cond, e1, e1.tpe))
     case ex => ex.tpe match {
       case (_: GroundType) => Seq(ex)
-      case (t: BundleType) => (t.fields foldLeft Seq[Expression]())((exps, f) =>
+      case t: BundleType =>
+        t.fields.flatMap(f => create_exps(WSubField(ex, f.name, f.tpe,times(gender(ex), f.flip))))
+      case t: VectorType => (0 until t.size).flatMap(i => create_exps(WSubIndex(ex, i, t.tpe,gender(ex))))
+    }
+  }
+
+  /** Like create_exps, but returns intermediate Expressions as well
+    * @param e
+    * @return
+    */
+  def expandRef(e: Expression): Seq[Expression] = e match {
+    case ex: Mux =>
+      val e1s = expandRef(ex.tval)
+      val e2s = expandRef(ex.fval)
+      e1s zip e2s map {case (e1, e2) =>
+        Mux(ex.cond, e1, e2, mux_type_and_widths(e1, e2))
+      }
+    case ex: ValidIf => expandRef(ex.value) map (e1 => ValidIf(ex.cond, e1, e1.tpe))
+    case ex => ex.tpe match {
+      case (_: GroundType) => Seq(ex)
+      case (t: BundleType) => (t.fields foldLeft Seq[Expression](ex))((exps, f) =>
         exps ++ create_exps(WSubField(ex, f.name, f.tpe,times(gender(ex), f.flip))))
-      case (t: VectorType) => (0 until t.size foldLeft Seq[Expression]())((exps, i) =>
+      case (t: VectorType) => (0 until t.size foldLeft Seq[Expression](ex))((exps, i) =>
         exps ++ create_exps(WSubIndex(ex, i, t.tpe,gender(ex))))
     }
   }
+  def toTarget(main: String, module: String)(expression: Expression): ReferenceTarget = {
+    val tokens = mutable.ArrayBuffer[TargetToken]()
+    var ref = "???"
+    def onExp(expr: Expression): Expression = {
+      expr map onExp match {
+        case e: WRef => ref = e.name
+        case e: Reference => tokens += TargetToken.Ref(e.name)
+        case e: WSubField => tokens += TargetToken.Field(e.name)
+        case e: SubField => tokens += TargetToken.Field(e.name)
+        case e: WSubIndex => tokens += TargetToken.Index(e.value)
+        case e: SubIndex => tokens += TargetToken.Index(e.value)
+        case other => throwInternalError("Cannot call Utils.toTarget on non-referencing expression")
+      }
+      expr
+    }
+    onExp(expression)
+    ReferenceTarget(main, module, Nil, ref, tokens)
+  }
+   @deprecated("get_flip is fundamentally slow, use to_flip(gender(expr))", "1.2")
    def get_flip(t: Type, i: Int, f: Orientation): Orientation = {
      if (i >= get_size(t)) throwInternalError(s"get_flip: shouldn't be here - $i >= get_size($t)")
      t match {
@@ -377,7 +419,7 @@ object Utils extends LazyLogging {
     }
   }
 
-  def module_type(m: DefModule): Type = BundleType(m.ports map {
+  def module_type(m: DefModule): BundleType = BundleType(m.ports map {
     case Port(_, name, dir, tpe) => Field(name, to_flip(dir), tpe)
   })
   def sub_type(v: Type): Type = v match {
@@ -692,6 +734,22 @@ object Utils extends LazyLogging {
     "SYNTHESIS",
     "PRINTF_COND",
     "VCS")
+
+  /** Expand a name into its prefixes, e.g., 'foo_bar__baz' becomes 'Seq[foo_, foo_bar__, foo_bar__baz]'. This can be used
+    * to produce better names when generating prefix unique names.
+    * @param name a signal name
+    * @param prefixDelim a prefix delimiter (default is "_")
+    * @return the signal name and any prefixes
+    */
+  def expandPrefixes(name: String, prefixDelim: String = "_"): Seq[String] = {
+    val regex = ("(" + Regex.quote(prefixDelim) + ")+[A-Za-z0-9$]").r
+
+    name +: regex
+      .findAllMatchIn(name)
+      .map(_.end - 1)
+      .toSeq
+      .foldLeft(Seq[String]()){ case (seq, id) => seq :+ name.splitAt(id)._1 }
+  }
 }
 
 object MemoizedHash {

@@ -3,12 +3,12 @@
 package firrtl.passes
 
 import com.typesafe.scalalogging.LazyLogging
-
 import firrtl._
 import firrtl.ir._
 import firrtl.Utils._
 import firrtl.Mappers._
 import firrtl.PrimOps._
+import firrtl.transforms.ConstantPropagation
 
 import scala.collection.mutable
 
@@ -125,13 +125,13 @@ object ExpandConnects extends Pass {
           case sx: DefMemory => genders(sx.name) = MALE; sx
           case sx: DefNode => genders(sx.name) = MALE; sx
           case sx: IsInvalid =>
-            val invalids = (create_exps(sx.expr) foldLeft Seq[Statement]())(
-               (invalids,  expx) => gender(set_gender(expx)) match {
-                  case BIGENDER => invalids :+ IsInvalid(sx.info, expx)
-                  case FEMALE => invalids :+ IsInvalid(sx.info, expx)
-                  case _ => invalids
+            val invalids = create_exps(sx.expr).flatMap { case expx =>
+               gender(set_gender(expx)) match {
+                  case BIGENDER => Some(IsInvalid(sx.info, expx))
+                  case FEMALE => Some(IsInvalid(sx.info, expx))
+                  case _ => None
                }
-            )
+            }
             invalids.size match {
                case 0 => EmptyStmt
                case 1 => invalids.head
@@ -140,8 +140,8 @@ object ExpandConnects extends Pass {
           case sx: Connect =>
             val locs = create_exps(sx.loc)
             val exps = create_exps(sx.expr)
-            Block((locs zip exps).zipWithIndex map {case ((locx, expx), i) =>
-               get_flip(sx.loc.tpe, i, Default) match {
+            Block(locs.zip(exps).map { case (locx, expx) =>
+               to_flip(gender(locx)) match {
                   case Default => Connect(sx.info, locx, expx)
                   case Flip => Connect(sx.info, expx, locx)
                }
@@ -154,7 +154,7 @@ object ExpandConnects extends Pass {
               locs(x).tpe match {
                 case AnalogType(_) => Attach(sx.info, Seq(locs(x), exps(y)))
                 case _ =>
-                  get_flip(sx.loc.tpe, x, Default) match {
+                  to_flip(gender(locs(x))) match {
                     case Default => Connect(sx.info, locs(x), exps(y))
                     case Flip => Connect(sx.info, exps(y), locs(x))
                   }
@@ -198,14 +198,9 @@ object Legalize extends Pass {
       e
     }
   }
-  private def legalizeBits(expr: DoPrim): Expression = {
-    lazy val (hi, low) = (expr.consts.head, expr.consts(1))
-    lazy val mask = (BigInt(1) << (hi - low + 1).toInt) - 1
-    lazy val width = IntWidth(hi - low + 1)
+  private def legalizeBitExtract(expr: DoPrim): Expression = {
     expr.args.head match {
-      case UIntLiteral(value, _) => UIntLiteral((value >> low.toInt) & mask, width)
-      case SIntLiteral(value, _) => SIntLiteral((value >> low.toInt) & mask, width)
-      //case FixedLiteral
+      case _: UIntLiteral | _: SIntLiteral => ConstantPropagation.constPropBitExtract(expr)
       case _ => expr
     }
   }
@@ -236,7 +231,7 @@ object Legalize extends Pass {
       case prim: DoPrim => prim.op match {
         case Shr => legalizeShiftRight(prim)
         case Pad => legalizePad(prim)
-        case Bits => legalizeBits(prim)
+        case Bits | Head | Tail => legalizeBitExtract(prim)
         case _ => prim
       }
       case e => e // respect pre-order traversal
@@ -250,51 +245,6 @@ object Legalize extends Pass {
     }
     c copy (modules = c.modules map (_ map legalizeS))
   }
-}
-
-object VerilogWrap extends Pass {
-  def vWrapE(e: Expression): Expression = e map vWrapE match {
-    case e: DoPrim => e.op match {
-      case Tail => e.args.head match {
-        case e0: DoPrim => e0.op match {
-          case Add => DoPrim(Addw, e0.args, Nil, e.tpe)
-          case Sub => DoPrim(Subw, e0.args, Nil, e.tpe)
-          case _ => e
-        }
-        case _ => e
-      }
-      case _ => e
-    }
-    case _ => e
-  }
-  def vWrapS(s: Statement): Statement = {
-    s map vWrapS map vWrapE match {
-      case sx: Print => sx.copy(string = sx.string.verilogFormat)
-      case sx => sx
-    }
-  }
-
-  def run(c: Circuit): Circuit =
-    c copy (modules = c.modules map (_ map vWrapS))
-}
-
-object VerilogRename extends Pass {
-  def verilogRenameN(n: String): String =
-    if (v_keywords(n)) "%s$".format(n) else n
-
-  def verilogRenameE(e: Expression): Expression = e match {
-    case ex: WRef => ex copy (name = verilogRenameN(ex.name))
-    case ex => ex map verilogRenameE
-  }
-
-  def verilogRenameS(s: Statement): Statement =
-    s map verilogRenameS map verilogRenameE map verilogRenameN
-
-  def verilogRenameP(p: Port): Port =
-    p copy (name = verilogRenameN(p.name))
-
-  def run(c: Circuit): Circuit =
-    c copy (modules = c.modules map (_ map verilogRenameP map verilogRenameS))
 }
 
 /** Makes changes to the Firrtl AST to make Verilog emission easier
