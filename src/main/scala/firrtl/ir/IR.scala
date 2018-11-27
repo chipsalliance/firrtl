@@ -214,7 +214,7 @@ case class FixedLiteral(value: BigInt, width: Width, point: Width) extends Liter
   def mapWidth(f: Width => Width): Expression = FixedLiteral(value, f(width), f(point))
   def foreachExpr(f: Expression => Unit): Unit = Unit
   def foreachType(f: Type => Unit): Unit = Unit
-  def foreachWidth(f: Width => Unit): Unit = f(width)
+  def foreachWidth(f: Width => Unit): Unit = { f(width); f(point) }
 }
 case class DoPrim(op: PrimOp, args: Seq[Expression], consts: Seq[BigInt], tpe: Type) extends Expression {
   def serialize: String = op.serialize + "(" +
