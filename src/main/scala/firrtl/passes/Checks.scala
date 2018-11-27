@@ -157,11 +157,10 @@ object CheckHighForm extends Pass {
       e foreach checkHighFormE(info, mname, names)
     }
 
-    def checkName(info: Info, mname: String, names: NameSet)(name: String): String = {
+    def checkName(info: Info, mname: String, names: NameSet)(name: String): Unit = {
       if (names(name))
         errors.append(new NotUniqueException(info, mname, name))
       names += name
-      name
     }
 
     def checkHighFormS(minfo: Info, mname: String, names: NameSet)(s: Statement): Unit = {
@@ -503,7 +502,7 @@ object CheckGenders extends Pass {
       flip_rec(t, Default)
     }
 
-    def check_gender(info:Info, mname: String, genders: GenderMap, desired: Gender)(e:Expression): Expression = {
+    def check_gender(info:Info, mname: String, genders: GenderMap, desired: Gender)(e:Expression): Unit = {
       val gender = get_gender(e,genders)
       (gender, desired) match {
         case (MALE, FEMALE) =>
@@ -515,19 +514,18 @@ object CheckGenders extends Pass {
         }
         case _ =>
       }
-      e
    }
 
-    def check_genders_e (info:Info, mname: String, genders: GenderMap)(e:Expression): Expression = {
+    def check_genders_e (info:Info, mname: String, genders: GenderMap)(e:Expression): Unit = {
       e match {
-        case e: Mux => e map check_gender(info, mname, genders, MALE)
-        case e: DoPrim => e.args map check_gender(info, mname, genders, MALE)
+        case e: Mux => e foreach check_gender(info, mname, genders, MALE)
+        case e: DoPrim => e.args foreach check_gender(info, mname, genders, MALE)
         case _ =>
       }
-      e map check_genders_e(info, mname, genders)
+      e foreach check_genders_e(info, mname, genders)
     }
 
-    def check_genders_s(minfo: Info, mname: String, genders: GenderMap)(s: Statement): Statement = {
+    def check_genders_s(minfo: Info, mname: String, genders: GenderMap)(s: Statement): Unit = {
       val info = get_info(s) match { case NoInfo => minfo case x => x }
       s match {
         case (s: DefWire) => genders(s.name) = BIGENDER
@@ -554,13 +552,14 @@ object CheckGenders extends Pass {
           check_gender(info, mname, genders, MALE)(s.clk)
         case _ =>
       }
-      s map check_genders_e(info, mname, genders) map check_genders_s(minfo, mname, genders)
+      s foreach check_genders_e(info, mname, genders)
+      s foreach check_genders_s(minfo, mname, genders)
     }
 
     for (m <- c.modules) {
       val genders = new GenderMap
       genders ++= (m.ports map (p => p.name -> to_gender(p.direction)))
-      m map check_genders_s(m.info, m.name, genders)
+      m foreach check_genders_s(m.info, m.name, genders)
     }
     errors.trigger()
     c

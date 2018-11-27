@@ -5,7 +5,7 @@ package firrtl.passes
 import firrtl._
 import firrtl.ir._
 import firrtl.PrimOps._
-import firrtl.Mappers._
+import firrtl.traversals.Foreachers._
 import firrtl.Utils._
 
 object CheckWidths extends Pass {
@@ -34,7 +34,7 @@ object CheckWidths extends Pass {
   def run(c: Circuit): Circuit = {
     val errors = new Errors()
 
-    def check_width_w(info: Info, mname: String)(w: Width): Width = {
+    def check_width_w(info: Info, mname: String)(w: Width): Unit = {
       w match {
         case IntWidth(width) if width >= MaxWidth =>
           errors.append(new WidthTooBig(info, mname, width))
@@ -44,7 +44,6 @@ object CheckWidths extends Pass {
         case _ =>
           errors append new UninferredWidth(info, mname)
       }
-      w
     }
 
     def hasWidth(tpe: Type): Boolean = tpe match {
@@ -53,10 +52,12 @@ object CheckWidths extends Pass {
       case _ => throwInternalError(s"hasWidth - $tpe")
     }
 
-    def check_width_t(info: Info, mname: String)(t: Type): Type =
-      t map check_width_t(info, mname) map check_width_w(info, mname)
+    def check_width_t(info: Info, mname: String)(t: Type): Unit = {
+      t foreach check_width_t(info, mname)
+      t foreach check_width_w(info, mname)
+    }
 
-    def check_width_e(info: Info, mname: String)(e: Expression): Expression = {
+    def check_width_e(info: Info, mname: String)(e: Expression): Unit = {
       e match {
         case e: UIntLiteral => e.width match {
           case w: IntWidth if math.max(1, e.value.bitLength) > w.width =>
@@ -78,34 +79,35 @@ object CheckWidths extends Pass {
           errors append new DshlTooBig(info, mname)
         case _ =>
       }
-      //e map check_width_t(info, mname) map check_width_e(info, mname)
-      e map check_width_e(info, mname)
+      e foreach check_width_e(info, mname)
     }
 
 
-    def check_width_s(minfo: Info, mname: String)(s: Statement): Statement = {
+    def check_width_s(minfo: Info, mname: String)(s: Statement): Unit = {
       val info = get_info(s) match { case NoInfo => minfo case x => x }
-      s map check_width_e(info, mname) map check_width_s(info, mname) map check_width_t(info, mname) match {
+      s foreach check_width_e(info, mname)
+      s foreach check_width_s(info, mname)
+      s foreach check_width_t(info, mname)
+      s match {
         case Attach(infox, exprs) =>
           exprs.tail.foreach ( e =>
             if (bitWidth(e.tpe) != bitWidth(exprs.head.tpe))
               errors.append(new AttachWidthsNotEqual(infox, mname, e.serialize, exprs.head.serialize))
           )
-          s
         case sx: DefRegister =>
           sx.reset.tpe match {
             case UIntType(IntWidth(w)) if w == 1 =>
             case _ => errors.append(new CheckTypes.IllegalResetType(info, mname, sx.name))
           }
-          s
-        case _ => s
+        case _ =>
       }
     }
 
-    def check_width_p(minfo: Info, mname: String)(p: Port): Port = p.copy(tpe =  check_width_t(p.info, mname)(p.tpe))
+    def check_width_p(minfo: Info, mname: String)(p: Port): Unit = check_width_t(p.info, mname)(p.tpe)
 
     def check_width_m(m: DefModule) {
-      m map check_width_p(m.info, m.name) map check_width_s(m.info, m.name)
+      m foreach check_width_p(m.info, m.name)
+      m foreach check_width_s(m.info, m.name)
     }
 
     c.modules foreach check_width_m
