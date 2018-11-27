@@ -131,7 +131,7 @@ import firrtl.transforms.BlackBoxSourceHelper
   * Primarily useful for changing between .fir and .pb serialized formats
   */
 class NoneCompiler extends Compiler {
-  def emitter = new HighFirrtlEmitter
+  def emitter = new ChirrtlEmitter
   def transforms: Seq[Transform] = Seq.empty
 }
 

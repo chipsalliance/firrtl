@@ -262,7 +262,7 @@ extends ComposableOptions {
   def getEmitterAnnos(optionsManager: ExecutionOptionsManager): Seq[Annotation] = {
     // TODO should this be a public function?
     val emitter = compilerName match {
-      case "none" => classOf[HighFirrtlEmitter]
+      case "none" => classOf[ChirrtlEmitter]
       case "high" => classOf[HighFirrtlEmitter]
       case "middle" => classOf[MiddleFirrtlEmitter]
       case "low" => classOf[LowFirrtlEmitter]
