@@ -8,7 +8,6 @@ import firrtl.PrimOps._
 import firrtl.traversals.Foreachers._
 import firrtl.Utils._
 import firrtl.annotations.{CircuitTarget, ModuleTarget, Target, TargetToken}
-import firrtl.passes.CheckHighForm.CheckTypes
 
 object CheckWidths extends Pass {
   /** The maximum allowed width for any circuit element */
