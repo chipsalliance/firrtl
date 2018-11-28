@@ -131,7 +131,7 @@ class IRLookup(private val declarations: collection.Map[Target, FirrtlNode]) {
     */
   private def updateExpr(mt: ModuleTarget, ref: Expression): Unit = {
     Utils.expandRef(ref).foreach { e =>
-      val target = CircuitGraph.toTarget(mt, e, new Tagger())
+      val target = CircuitGraph.asTarget(mt, new TokenTagger())(e)
       exprCache((target, Utils.gender(e))) = e
     }
   }

@@ -41,8 +41,6 @@ class BFSResult() {
 trait DiGraphLike[T] {
   private[graph] val edges: LinkedHashMap[T, LinkedHashSet[T]]
 
-  private[graph] val prev: LinkedHashMap[T, T]
-
   /** Check whether the graph contains vertex v */
   def contains(v: T): Boolean = edges.contains(v)
 
@@ -57,7 +55,7 @@ trait DiGraphLike[T] {
     * @param v the specified node
     * @return a Set[T] of all vertices that v has edges to
     */
-  def getEdges(v: T): Set[T] = edges.getOrElse(v, Set.empty)
+  def getEdges(v: T, prevOpt: Option[collection.Map[T, T]] = None): Set[T] = edges.getOrElse(v, Set.empty)
 
   def getEdgeMap: Map[T, Set[T]] = edges
 
@@ -118,8 +116,6 @@ trait DiGraphLike[T] {
     order.reverse.toSeq
   }
 
-  def clearPrev(): Unit = prev.clear()
-
   /** Performs breadth-first search on the directed graph
     *
     * @param root the start node
@@ -135,17 +131,15 @@ trait DiGraphLike[T] {
     * @return a Map[T,T] from each visited node to its predecessor in the
     * traversal
     */
-  def BFS(root: T,
-          blacklist: Set[T],
-          customGetEdges: Option[T => Set[T]] = None
-         ): Map[T,T] = {
+  def BFS(root: T, blacklist: Set[T]): Map[T,T] = {
 
-    clearPrev()
+    val prev = new LinkedHashMap[T, T]()
+
     val bfsQueue = new mutable.Queue[T]
     bfsQueue.enqueue(root)
     while (bfsQueue.nonEmpty) {
       val u = bfsQueue.dequeue
-      for (v <- getEdges(u)) {
+      for (v <- getEdges(u, Some(prev))) {
         if (!prev.contains(v) && !blacklist.contains(v)) {
           prev(v) = u
           bfsQueue.enqueue(v)
@@ -154,30 +148,6 @@ trait DiGraphLike[T] {
     }
     prev
   }
-
-  //def BFS(root: T, blacklist: Set[T]): Map[T,T] = {
-  //  val prev = new mutable.LinkedHashMap[T,T]
-  //  def shouldVisit(from: T, to: T): Boolean = {
-  //    val should = !prev.contains(to) && !blacklist.contains(to)
-  //    if(should) { prev(to) = from }
-  //    should
-  //  }
-  //  BFS(root, getEdges, shouldVisit, prev)
-  //}
-
-  //def BFS(root: T, getEdges: T => Set[T], shouldVisit: (T, T) => Boolean, getResult: => Map[T, T]): Map[T, T] = {
-  //  val queue = new mutable.Queue[T]
-  //  queue.enqueue(root)
-  //  while (queue.nonEmpty) {
-  //    val u = queue.dequeue
-  //    for (v <- getEdges(u)) {
-  //      if (shouldVisit(u, v)) {
-  //        queue.enqueue(v)
-  //      }
-  //    }
-  //  }
-  //  getResult
-  //}
 
   /** Finds the set of nodes reachable from a particular node
     *
@@ -395,7 +365,6 @@ trait DiGraphLike[T] {
 }
 
 class DiGraph[T] private[graph](private[graph] val edges: mutable.LinkedHashMap[T, mutable.LinkedHashSet[T]]) extends DiGraphLike[T] {
-  override val prev = new mutable.LinkedHashMap[T, T]()
 }
 
 class MutableDiGraph[T] extends DiGraph[T](new LinkedHashMap[T, LinkedHashSet[T]]) {
@@ -443,69 +412,69 @@ class MutableDiGraph[T] extends DiGraph[T](new LinkedHashMap[T, LinkedHashSet[T]
 //   * change linearize use of edges.getOrElse(n, Set.empty).toSeq.reverse
 //   * override reverse, filteredges
 
-class EdgeDataDigraph[T, ET](val defaultData: ET) extends MutableDiGraph[T] {
-
-  // Even though this is redundant, it is desirable to maintain separate edges and edgeData data structures, 
-  val edgeData = new LinkedHashMap[T, LinkedHashMap[T, ET]]()
-
-  class DiGraphView private (viewFunc: (ET) => Boolean) extends DiGraph[T](edges) {
-    /** Get all edges of a node that are part of this view
-      * @param v the specified node
-      * @return a Set[T] of all vertices that v has edges to in this view
-      */
-    // TODO: reduce number of times this gets iterated through
-    override def getEdges(v: T): Set[T] = {
-      val edSet = EdgeDataDigraph.this.edgeData(v)
-      EdgeDataDigraph.this.getEdges(v).filter(e => viewFunc(edSet(e)))
-    }
-  }
-
-  /** Add edge (u, v) with edge data d to the graph.
-    * @throws IllegalArgumentException if u and/or v is not in the graph
-    */
-  def labeledEdge(u: T, v: T, d: ET): Unit = {
-    addEdge(u, v)
-    edgeData(u)(v) = d
-  }
-
-  /** Add vertex v to the graph
-    * @return v, the added vertex
-    */
-  override def addVertex(v: T): T = {
-    edges.getOrElseUpdate(v, new LinkedHashSet[T])
-    edgeData.getOrElseUpdate(v, new LinkedHashMap[T, ET])
-    v
-  }
-
-  /** Add edge (u,v) to the graph.
-    * @throws IllegalArgumentException if u and/or v is not in the graph
-    */
-  override def addEdge(u: T, v: T): Unit = {
-    require(contains(u))
-    require(contains(v))
-    edges(u) += v
-    edgeData(u)(v) = defaultData
-  }
-
-  /** Add edge (u,v) to the graph, adding u and/or v if they are not
-    * already in the graph.
-    */
-  override def addPairWithEdge(u: T, v: T): Unit = {
-    edges.getOrElseUpdate(v, new LinkedHashSet[T])
-    edges.getOrElseUpdate(u, new LinkedHashSet[T]) += v
-    edgeData.getOrElseUpdate(v, new LinkedHashMap[T, ET])
-    edgeData.getOrElseUpdate(u, new LinkedHashMap[T, ET]) += (v -> defaultData)
-  }
-
-  /** Add edge (u,v) to the graph if and only if both u and v are in
-    * the graph prior to calling addEdgeIfValid.
-    */
-  override def addEdgeIfValid(u: T, v: T): Boolean = {
-    val valid = contains(u) && contains(v)
-    if (contains(u) && contains(v)) {
-      edges(u) += v
-      edgeData.getOrElseUpdate(u, new LinkedHashMap[T, ET]) += (v -> defaultData)
-    }
-    valid
-  }
-}
+//class EdgeDataDigraph[T, ET](val defaultData: ET) extends MutableDiGraph[T] {
+//
+//  // Even though this is redundant, it is desirable to maintain separate edges and edgeData data structures,
+//  val edgeData = new LinkedHashMap[T, LinkedHashMap[T, ET]]()
+//
+//  class DiGraphView private (viewFunc: (ET) => Boolean) extends DiGraph[T](edges) {
+//    /** Get all edges of a node that are part of this view
+//      * @param v the specified node
+//      * @return a Set[T] of all vertices that v has edges to in this view
+//      */
+//    // TODO: reduce number of times this gets iterated through
+//    override def getEdges(v: T): Set[T] = {
+//      val edSet = EdgeDataDigraph.this.edgeData(v)
+//      EdgeDataDigraph.this.getEdges(v).filter(e => viewFunc(edSet(e)))
+//    }
+//  }
+//
+//  /** Add edge (u, v) with edge data d to the graph.
+//    * @throws IllegalArgumentException if u and/or v is not in the graph
+//    */
+//  def labeledEdge(u: T, v: T, d: ET): Unit = {
+//    addEdge(u, v)
+//    edgeData(u)(v) = d
+//  }
+//
+//  /** Add vertex v to the graph
+//    * @return v, the added vertex
+//    */
+//  override def addVertex(v: T): T = {
+//    edges.getOrElseUpdate(v, new LinkedHashSet[T])
+//    edgeData.getOrElseUpdate(v, new LinkedHashMap[T, ET])
+//    v
+//  }
+//
+//  /** Add edge (u,v) to the graph.
+//    * @throws IllegalArgumentException if u and/or v is not in the graph
+//    */
+//  override def addEdge(u: T, v: T): Unit = {
+//    require(contains(u))
+//    require(contains(v))
+//    edges(u) += v
+//    edgeData(u)(v) = defaultData
+//  }
+//
+//  /** Add edge (u,v) to the graph, adding u and/or v if they are not
+//    * already in the graph.
+//    */
+//  override def addPairWithEdge(u: T, v: T): Unit = {
+//    edges.getOrElseUpdate(v, new LinkedHashSet[T])
+//    edges.getOrElseUpdate(u, new LinkedHashSet[T]) += v
+//    edgeData.getOrElseUpdate(v, new LinkedHashMap[T, ET])
+//    edgeData.getOrElseUpdate(u, new LinkedHashMap[T, ET]) += (v -> defaultData)
+//  }
+//
+//  /** Add edge (u,v) to the graph if and only if both u and v are in
+//    * the graph prior to calling addEdgeIfValid.
+//    */
+//  override def addEdgeIfValid(u: T, v: T): Boolean = {
+//    val valid = contains(u) && contains(v)
+//    if (contains(u) && contains(v)) {
+//      edges(u) += v
+//      edgeData.getOrElseUpdate(u, new LinkedHashMap[T, ET]) += (v -> defaultData)
+//    }
+//    valid
+//  }
+//}

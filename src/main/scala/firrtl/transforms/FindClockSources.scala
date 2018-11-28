@@ -15,9 +15,6 @@ import scala.collection.mutable
 class ClockSourceFinder(digraph: DiGraph[Target],
                         circuit: Circuit,
                         irLookup: IRLookup) extends InstanceViewedGraph(digraph) {
-  override val prev = new mutable.LinkedHashMap[Target, Target]()
-
-  override def clearPrev(): Unit = Unit
 
   val circuitTarget = CircuitTarget(circuit.main)
   val extModuleNames = circuit.modules.collect { case e: ExtModule => e.name }.toSet
@@ -39,11 +36,12 @@ class ClockSourceFinder(digraph: DiGraph[Target],
     }
   }
 
-  override def getEdges(v: Target): collection.Set[Target] = {
+  override def getEdges(v: Target, prevOpt: Option[collection.Map[Target, Target]]): collection.Set[Target] = {
     def recordClock(clock: Target): Unit = recordClocks(Set(clock))
     def recordClocks(clocks: Set[Target]): Unit = {
       val nodePath = new mutable.ArrayBuffer[Target]()
       nodePath += v
+      val prev = prevOpt.get
       while (prev.contains(nodePath.last)) {
         clockMap(nodePath.last) = clockMap.getOrElse(nodePath.last, Set.empty[Target]) ++ clocks
         nodePath += prev(nodePath.last)
@@ -144,7 +142,7 @@ class FindClockSources() extends Transform {
   }
 
   def findTopClockSources(circuit: Circuit): collection.Map[Target, Seq[ReferenceTarget]] = {
-    val (circuitGraph, irLookup) = firrtl.analyses.CircuitGraph.buildCircuitGraph(circuit)
+    val (circuitGraph, irLookup) = firrtl.analyses.CircuitGraph(circuit)
     val clockSourceFinder = new ClockSourceFinder(circuitGraph.reverse, circuit, irLookup)
 
     val topModule = circuit.modules.collectFirst { case m if m.name == circuit.main => m }.get

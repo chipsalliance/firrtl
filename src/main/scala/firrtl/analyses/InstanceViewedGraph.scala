@@ -10,9 +10,8 @@ import scala.collection.mutable
 
 class InstanceViewedGraph(digraph: DiGraph[Target]) extends DiGraphLike[Target] {
   override val edges = digraph.getEdgeMap.asInstanceOf[mutable.LinkedHashMap[Target, mutable.LinkedHashSet[Target]]]
-  override val prev = new mutable.LinkedHashMap[Target, Target]()
 
-  override def getEdges(v: Target): collection.Set[Target] = {
+  override def getEdges(v: Target, prevOpt: Option[collection.Map[Target, Target]] = None): collection.Set[Target] = {
     val genT = v.toGenericTarget
     val circuitOpt = genT.circuitOpt
     val pathTokens = genT.pathTokens
