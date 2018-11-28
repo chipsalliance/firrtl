@@ -2,78 +2,54 @@
 
 package firrtl.analyses
 
-import firrtl.annotations.TargetToken._
 import firrtl.annotations._
 import firrtl.graph.{DiGraph, MutableDiGraph}
 import firrtl.ir._
 import firrtl.Mappers._
-import firrtl.{BIGENDER, ExpKind, FEMALE, Gender, InstanceKind, Kind, MALE, PortKind, RegKind, UNKNOWNGENDER, Utils, WDefInstance, WRef, WSubField, WSubIndex, WireKind}
+import firrtl.{FEMALE, InstanceKind, MALE, PortKind, Utils, WDefInstance, WRef, WSubField, WSubIndex}
 
 import scala.collection.mutable
 
-trait UnnamedToken extends CustomToken {
-  override def checkWhitelistedFollower(follower: TargetToken): Boolean = false
-
-  override def checkWhitelistedLeader(leader: TargetToken): Boolean = false
-
-  override def canBeAfter(optT: Option[TargetToken]): Boolean = optT match {
-    case None => true
-    case Some(_: OfModule) => true
-    case Some(other: CustomToken) => other.checkWhitelistedFollower(this)
-    case _ => false
-  }
-
-  val tag: Int// = UnnamedToken.counter.getAndIncrement()
-}
-
-class Tagger {
-  private val counterMap = mutable.HashMap[String, Int]()
-  def getTag(label: String): Int = {
-    val tag = counterMap.getOrElse(label, 0)
-    counterMap(label) = tag + 1
-    tag
-  }
-}
-
-case class PrintToken(tag: Int) extends UnnamedToken { override val value: String = tag.toString }
-
-case class StopToken(tag: Int) extends UnnamedToken { override val value: String = tag.toString }
-
-case class OpToken(op: String, tag: Int) extends UnnamedToken { override val value: String = op + "$" + tag }
-
-case class LitToken(literal: BigInt, tag: Int) extends UnnamedToken { override val value: String = Int.toString }
-
-
-//trait Label
-//
-//case class IRLabel(ir: FirrtlNode) extends Label
-
 object CircuitGraph {
 
-  def toTarget(m: ModuleTarget, f: FirrtlNode, tagger: Tagger): Target = f match {
-    case s: Statement => s match {
-      case d: IsDeclaration => m.ref(d.name)
-      case _: Stop => m.toGenericTarget.add(StopToken(tagger.getTag("stop")))
-      case _: Print => m.toGenericTarget.add(PrintToken(tagger.getTag("print")))
-      case _ => sys.error(s"Unsupported: $s")
-    }
-    case e: Expression => e match {
-      case l: Literal => m.toGenericTarget.add(LitToken(l.value, tagger.getTag(l.value.toString)))
-      case w: WRef => m.ref(w.name)
-      case r: Reference => m.ref(r.name)
-      case w: WSubIndex => toTarget(m, w.expr, tagger).asInstanceOf[ReferenceTarget].index(w.value)
-      case s: SubIndex => toTarget(m, s.expr, tagger).asInstanceOf[ReferenceTarget].index(s.value)
-      case w: WSubField => toTarget(m, w.expr, tagger).asInstanceOf[ReferenceTarget].field(w.name)
-      case s: SubField => toTarget(m, s.expr, tagger).asInstanceOf[ReferenceTarget].field(s.name)
-      case d: DoPrim => m.toGenericTarget.add(OpToken(d.op.serialize, tagger.getTag(d.op.serialize)))
-      case _: Mux => m.toGenericTarget.add(OpToken("mux", tagger.getTag("mux")))
-      case _: ValidIf => m.toGenericTarget.add(OpToken("validif", tagger.getTag("validif")))
-      case other => sys.error(s"Unsupported: $other")
-    }
-    case _: Type => sys.error("Unsupported!")
-    case _: Width => sys.error("Unsupported!")
+  /** Returns a [[DiGraph]] of [[Target]] and corresponding [[IRLookup]]
+    *
+    * Represents the directed connectivity of a FIRRTL circuit
+    * @param circuit
+    * @return
+    */
+  def apply(circuit: Circuit): (DiGraph[Target], IRLookup) = buildCircuitGraph(circuit)
+
+  /** Within a module, given an [[Expression]] inside a module, return a corresponding [[Target]]
+    * @param m Target of module containing the expression
+    * @param tagger Used to uniquely identify unnamed targets, e.g. primops
+    * @param e
+    * @return
+    */
+  def asTarget(m: ModuleTarget, tagger: TokenTagger)(e: Expression): Target = e match {
+    case l: Literal => m.toGenericTarget.add(LitToken(l.value, tagger.getTag(l.value.toString)))
+    case w: WRef => m.ref(w.name)
+    case r: Reference => m.ref(r.name)
+    case w: WSubIndex => asTarget(m, tagger)(w.expr).asInstanceOf[ReferenceTarget].index(w.value)
+    case s: SubIndex => asTarget(m, tagger)(s.expr).asInstanceOf[ReferenceTarget].index(s.value)
+    case w: WSubField => asTarget(m, tagger)(w.expr).asInstanceOf[ReferenceTarget].field(w.name)
+    case s: SubField => asTarget(m, tagger)(s.expr).asInstanceOf[ReferenceTarget].field(s.name)
+    case d: DoPrim => m.toGenericTarget.add(OpToken(d.op.serialize, tagger.getTag(d.op.serialize)))
+    case _: Mux => m.toGenericTarget.add(OpToken("mux", tagger.getTag("mux")))
+    case _: ValidIf => m.toGenericTarget.add(OpToken("validif", tagger.getTag("validif")))
+    case other => sys.error(s"Unsupported: $other")
   }
 
+  /** Returns a target to each sub-component, including intermediate subcomponents
+    * E.g.
+    *   Given:
+    *     A ReferenceTarget of ~Top|Module>ref and a type of {foo: {bar: UInt}}
+    *   Return:
+    *     Seq(~Top|Module>ref, ~Top|Module>ref.foo, ~Top|Module>ref.foo.bar)
+    * @param r
+    * @param t
+    * @return
+    */
   def allTargets(r: ReferenceTarget, t: Type): Seq[ReferenceTarget] = t match {
     case _: GroundType => Vector(r)
     case VectorType(tpe, size) => r +: (0 until size).flatMap { i => allTargets(r.index(i), tpe) }
@@ -81,6 +57,16 @@ object CircuitGraph {
     case other => sys.error(s"Error! Unexpected type $other")
   }
 
+  /** Returns a target to each sub-component, excluding intermediate subcomponents
+    * E.g.
+    *   Given:
+    *     A ReferenceTarget of ~Top|Module>ref and a type of {foo: {bar: UInt}}
+    *   Return:
+    *     Seq(~Top|Module>ref.foo.bar)
+    * @param r
+    * @param t
+    * @return
+    */
   def leafTargets(r: ReferenceTarget, t: Type): Seq[ReferenceTarget] = t match {
     case _: GroundType => Vector(r)
     case VectorType(tpe, size) => (0 until size).flatMap { i => leafTargets(r.index(i), tpe) }
@@ -89,7 +75,7 @@ object CircuitGraph {
   }
 
 
-  /**
+  /** Returns target and type of each module port
     * @param m
     * @param module
     * @return Returns ((inputs, outputs))
@@ -102,13 +88,13 @@ object CircuitGraph {
       case Port(_, name, Input, tpe) => Utils.create_exps(WRef(name, tpe, PortKind, FEMALE))
     }.foldLeft((Vector.empty[(ReferenceTarget, Type)], Vector.empty[(ReferenceTarget, Type)])) {
       case ((inputs, outputs), e) if Utils.gender(e) == MALE =>
-        (inputs, outputs :+ (CircuitGraph.toTarget(m, e, new Tagger()).asInstanceOf[ReferenceTarget], e.tpe))
+        (inputs, outputs :+ (CircuitGraph.asTarget(m, new TokenTagger())(e).asInstanceOf[ReferenceTarget], e.tpe))
       case ((inputs, outputs), e) =>
-        (inputs :+ (CircuitGraph.toTarget(m, e, new Tagger()).asInstanceOf[ReferenceTarget], e.tpe), outputs)
+        (inputs :+ (CircuitGraph.asTarget(m, new TokenTagger())(e).asInstanceOf[ReferenceTarget], e.tpe), outputs)
     }
   }
 
-  def buildCircuitGraph(circuit: Circuit): (DiGraph[Target], IRLookup) = {
+  private def buildCircuitGraph(circuit: Circuit): (DiGraph[Target], IRLookup) = {
     val mdg = new MutableDiGraph[Target]()
     val declarations = mutable.LinkedHashMap[Target, FirrtlNode]()
     val circuitTarget = CircuitTarget(circuit.main)
@@ -128,7 +114,7 @@ object CircuitGraph {
     def buildModule(c: CircuitTarget)(module: DefModule): DefModule = {
       val m = c.module(module.name)
       addLabeledVertex(m, module)
-      module map buildPort(m, module) map buildStatement(m, new Tagger())
+      module map buildPort(m, module) map buildStatement(m, new TokenTagger())
     }
 
     def buildPort(m: ModuleTarget, module: DefModule)(port: Port): Port = {
@@ -137,7 +123,7 @@ object CircuitGraph {
       port
     }
 
-    def buildInstance(m: ModuleTarget, tagger: Tagger, name: String, ofModule: String, tpe: Type): Unit = {
+    def buildInstance(m: ModuleTarget, tagger: TokenTagger, name: String, ofModule: String, tpe: Type): Unit = {
 
       val instTarget = m.instOf(name, ofModule)
       val instPorts = Utils.create_exps(WRef(name, tpe, InstanceKind, FEMALE))
@@ -151,8 +137,8 @@ object CircuitGraph {
       val o = m.circuitTarget.module(ofModule)
       instPorts.zip(modulePorts).foreach { x =>
         val (instExp, modExp) = x
-        val it = toTarget(m, instExp, tagger)
-        val mt = toTarget(o, modExp, tagger)
+        val it = asTarget(m, tagger)(instExp)
+        val mt = asTarget(o, tagger)(modExp)
         (Utils.gender(instExp), Utils.gender(modExp)) match {
           case (MALE, FEMALE) => mdg.addPairWithEdge(it, mt)
           case (FEMALE, MALE) => mdg.addPairWithEdge(mt, it)
@@ -161,7 +147,7 @@ object CircuitGraph {
       }
     }
 
-    def buildRegister(m: ModuleTarget, tagger: Tagger, d: DefRegister): Unit = {
+    def buildRegister(m: ModuleTarget, tagger: TokenTagger, d: DefRegister): Unit = {
       val regTarget = m.ref(d.name)
       val clockTarget = regTarget.clock
       val resetTarget = regTarget.reset
@@ -188,15 +174,9 @@ object CircuitGraph {
         mdg.addEdge(i, r)
         buildExpression(m, tagger, i)(e)
       }
-
-      //regKids.zip(regKidTargets).foreach { case (kid, target) =>
-      //  addLabeledVertex(target, d)
-      //  mdg.addEdge(target, regTarget)
-      //  buildExpression(m, tagger, target)(kid)
-      //}
     }
 
-    def buildStatement(m: ModuleTarget, tagger: Tagger)(stmt: Statement): Statement = {
+    def buildStatement(m: ModuleTarget, tagger: TokenTagger)(stmt: Statement): Statement = {
       stmt match {
         case d: DefWire =>
           addLabeledVertex(m.ref(d.name), stmt)
@@ -207,7 +187,7 @@ object CircuitGraph {
           buildExpression(m, tagger, sinkTarget)(d.value)
 
         case c: Connect =>
-          val sinkTarget = toTarget(m, c.loc, tagger)
+          val sinkTarget = asTarget(m, tagger)(c.loc)
           mdg.addVertex(sinkTarget)
           buildExpression(m, tagger, sinkTarget)(c.expr)
 
@@ -232,7 +212,7 @@ object CircuitGraph {
 
         case a: Attach =>
           val attachTargets = a.exprs.map{ r =>
-            val at = toTarget(m, r, tagger)
+            val at = asTarget(m, tagger)(r)
             addLabeledVertex(at, r)
             at
           }
@@ -245,9 +225,9 @@ object CircuitGraph {
       stmt
     }
 
-    def buildExpression(m: ModuleTarget, tagger: Tagger, sinkTarget: Target)(expr: Expression): Expression = {
+    def buildExpression(m: ModuleTarget, tagger: TokenTagger, sinkTarget: Target)(expr: Expression): Expression = {
       require(expr.tpe.isInstanceOf[GroundType], "Expression must be a Ground Type. Must be on Middle FIRRTL.")
-      val sourceTarget = toTarget(m, expr, tagger)
+      val sourceTarget = asTarget(m, tagger)(expr)
       mdg.addVertex(sourceTarget)
       mdg.addEdge(sourceTarget, sinkTarget)
       expr match {
