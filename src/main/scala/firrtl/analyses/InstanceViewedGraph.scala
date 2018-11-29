@@ -3,7 +3,7 @@
 package firrtl.analyses
 
 import firrtl.annotations.{GenericTarget, ReferenceTarget, Target}
-import firrtl.annotations.TargetToken.{Instance, OfModule}
+import firrtl.annotations.TargetToken.{Instance, OfModule, Ref, Field}
 import firrtl.graph.{DiGraph, DiGraphLike}
 
 import scala.collection.mutable
@@ -23,22 +23,28 @@ class InstanceViewedGraph(digraph: DiGraph[Target]) extends DiGraphLike[Target] 
         (Some(reversed(2).value), reversed.head.value)
     }
     val pathlessEdges = super.getEdges(Target.getPathlessTarget(v))
-    pathlessEdges.map { t =>
+    pathlessEdges.flatMap { t =>
       val genE = t.toGenericTarget
       genE match {
         // In same instance
         case GenericTarget(`circuitOpt`, Some(`astModule`), tokens) =>
-          GenericTarget(circuitOpt, genT.moduleOpt, pathTokens ++ tokens).tryToComplete
+          Seq(GenericTarget(circuitOpt, genT.moduleOpt, pathTokens ++ tokens).tryToComplete)
 
         // In parent instance
-        case  GenericTarget(`circuitOpt`, `parentModule`, tokens) =>
-          GenericTarget(circuitOpt, genT.moduleOpt, pathTokens.dropRight(2) ++ tokens).tryToComplete
+        case GenericTarget(`circuitOpt`, `parentModule`, tokens) =>
+          Seq(GenericTarget(circuitOpt, genT.moduleOpt, pathTokens.dropRight(2) ++ tokens).tryToComplete)
 
-        // In child instance
-        case  GenericTarget(`circuitOpt`, Some(childModule), tokens) =>
-          val inst = v.complete.asInstanceOf[ReferenceTarget]
-          val newPath = pathTokens ++ Seq(Instance(inst.ref), OfModule(childModule))
-          GenericTarget(circuitOpt, genT.moduleOpt, newPath ++ tokens).tryToComplete
+        case GenericTarget(`circuitOpt`, Some(otherModule), tokens) =>
+          (genT.tokens, tokens) match {
+            // In parent but instantiates root module
+            case (Ref(modPort) +: modRest, Ref(inst) +: Field(instPort) +: instRest) if modPort == instPort && modRest == instRest =>  Nil
+
+            // In child instance
+            case (Ref(inst) +: Field(instPort) +: instRest, Ref(modPort) +: modRest,) if modPort == instPort && modRest == instRest =>
+              val inst = v.complete.asInstanceOf[ReferenceTarget]
+              val newPath = pathTokens ++ Seq(Instance(inst.ref), OfModule(otherModule))
+              Seq(GenericTarget(circuitOpt, genT.moduleOpt, newPath ++ tokens).tryToComplete)
+          }
       }
     }
   }
