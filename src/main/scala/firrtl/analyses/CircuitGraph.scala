@@ -3,12 +3,55 @@
 package firrtl.analyses
 
 import firrtl.annotations._
-import firrtl.graph.{DiGraph, MutableDiGraph}
+import firrtl.graph.{DiGraph, DiGraphLike, MutableDiGraph}
 import firrtl.ir._
 import firrtl.Mappers._
+import firrtl.annotations.TargetToken
 import firrtl.{FEMALE, InstanceKind, MALE, PortKind, Utils, WDefInstance, WRef, WSubField, WSubIndex}
 
 import scala.collection.mutable
+
+class CircuitGraph private (circuit: Circuit, digraph: DiGraph[Target], val irLookup: IRLookup) extends DiGraphLike[Target] {
+  override val edges = digraph.getEdgeMap.asInstanceOf[mutable.LinkedHashMap[Target, mutable.LinkedHashSet[Target]]]
+
+  override def getEdges(v: Target, prevOpt: Option[collection.Map[Target, Target]] = None): collection.Set[Target] = {
+    val genT = v.toGenericTarget
+    val circuitOpt = genT.circuitOpt
+    val pathTokens = genT.pathTokens
+    val (parentModule, astModule) = pathTokens match {
+      case Seq() => (None, genT.moduleOpt.get)
+      case Seq(i, TargetToken.OfModule(o)) => (genT.moduleOpt, o)
+      case seq if seq.size > 2 && seq.size % 2 == 0 =>
+        val reversed = seq.reverse
+        (Some(reversed(2).value), reversed.head.value)
+    }
+    val pathlessEdges = super.getEdges(Target.getPathlessTarget(v))
+    pathlessEdges.flatMap { t =>
+      val genE = t.toGenericTarget
+      genE match {
+        // In same instance
+        case GenericTarget(`circuitOpt`, Some(`astModule`), tokens) =>
+          Seq(GenericTarget(circuitOpt, genT.moduleOpt, pathTokens ++ tokens).tryToComplete)
+
+        // In parent instance
+        case GenericTarget(`circuitOpt`, `parentModule`, tokens) =>
+          Seq(GenericTarget(circuitOpt, genT.moduleOpt, pathTokens.dropRight(2) ++ tokens).tryToComplete)
+
+        case GenericTarget(`circuitOpt`, Some(otherModule), tokens) =>
+          (genT.tokens, tokens) match {
+            // In parent but instantiates root module
+            case (TargetToken.Ref(modPort) +: modRest, TargetToken.Ref(inst) +: TargetToken.Field(instPort) +: instRest) if modPort == instPort && modRest == instRest =>  Nil
+
+            // In child instance
+            case (TargetToken.Ref(inst) +: TargetToken.Field(instPort) +: instRest, TargetToken.Ref(modPort) +: modRest,) if modPort == instPort && modRest == instRest =>
+              val inst = v.complete.asInstanceOf[ReferenceTarget]
+              val newPath = pathTokens ++ Seq(TargetToken.Instance(inst.ref), TargetToken.OfModule(otherModule))
+              Seq(GenericTarget(circuitOpt, genT.moduleOpt, newPath ++ tokens).tryToComplete)
+          }
+      }
+    }
+  }
+}
 
 object CircuitGraph {
 
@@ -18,7 +61,7 @@ object CircuitGraph {
     * @param circuit
     * @return
     */
-  def apply(circuit: Circuit): (DiGraph[Target], IRLookup) = buildCircuitGraph(circuit)
+  def apply(circuit: Circuit): CircuitGraph = buildCircuitGraph(circuit)
 
   /** Within a module, given an [[Expression]] inside a module, return a corresponding [[Target]]
     * @param m Target of module containing the expression
@@ -94,7 +137,7 @@ object CircuitGraph {
     }
   }
 
-  private def buildCircuitGraph(circuit: Circuit): (DiGraph[Target], IRLookup) = {
+  private def buildCircuitGraph(circuit: Circuit): CircuitGraph = {
     val mdg = new MutableDiGraph[Target]()
     val declarations = mutable.LinkedHashMap[Target, FirrtlNode]()
     val circuitTarget = CircuitTarget(circuit.main)
@@ -239,7 +282,7 @@ object CircuitGraph {
       expr
     }
 
-    (DiGraph(mdg), new IRLookup(declarations))
+    new CircuitGraph(circuit, DiGraph(mdg), new IRLookup(declarations))
   }
 }
 

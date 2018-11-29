@@ -125,6 +125,12 @@ class IRLookup(private val declarations: collection.Map[Target, FirrtlNode]) {
     */
   def declaration(t: Target): FirrtlNode = declarations(asLocalRef(t))
 
+  /** Returns whether a target is contained in this IRLookup
+    * @param t
+    * @return
+    */
+  def contains(t: Target): Boolean = declarations.contains(asLocalRef(t))
+
   /** Updates expression cache with expression
     * @param mt
     * @param ref

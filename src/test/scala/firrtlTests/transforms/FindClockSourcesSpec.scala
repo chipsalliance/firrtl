@@ -309,5 +309,7 @@ class FindClockSourcesSpec extends MiddleAnnotationSpec {
   }
 
   // Memories
+  // Check renaming module target of asClock target
+  // Check cache works of topological sorting of modules for all signals
 }
 
