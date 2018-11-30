@@ -33,10 +33,6 @@ object DiGraph {
   }
 }
 
-class BFSResult() {
-
-}
-
 /** Represents common behavior of all directed graphs */
 trait DiGraphLike[T] {
   private[graph] val edges: LinkedHashMap[T, LinkedHashSet[T]]
