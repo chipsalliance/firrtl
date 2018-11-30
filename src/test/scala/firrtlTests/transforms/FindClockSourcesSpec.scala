@@ -3,13 +3,13 @@
 package firrtlTests.transforms
 
 import firrtl.{ChirrtlForm, CircuitState}
-import firrtl.transforms.{ClockSource, FindClockSources, GroupAnnotation, GroupComponents}
+import firrtl.transforms._
 import firrtl.annotations._
 import firrtlTests.MiddleAnnotationSpec
 
 
 class FindClockSourcesSpec extends MiddleAnnotationSpec {
-  def execute(input: String, checks: Seq[Annotation], notChecks: Seq[Annotation], annotations: Seq[Annotation]): Unit = {
+  def execute(input: String, annotations: Seq[Annotation], checks: Seq[Annotation], notChecks: Seq[Annotation]): Unit = {
     val cr = compile(CircuitState(parse(input), ChirrtlForm, annotations), Seq(new FindClockSources()))
     checks.foreach { c =>
       cr.annotations.toSeq should contain (c)
@@ -108,12 +108,14 @@ class FindClockSourcesSpec extends MiddleAnnotationSpec {
     val Test = C.module("Test")
     val out = Test.ref("out")
     val clockSources = Seq(
-      ClockSource(Seq(Test.ref("out0")), Test.ref("clk"), None),
-      ClockSource(Seq(Test.ref("out1")), Test, Some("asClock$0")),
-      ClockSource(Seq(Test.ref("out2")), Test.instOf("clkdiv", "CLKDIV").ref("clkOut"), None)
+      ClockSources(Map(
+        Test.ref("out0") -> Set((Test.ref("clk"), None)),
+        Test.ref("out1") -> Set((Test, Some("asClock$0"))),
+        Test.ref("out2") -> Set((Test.instOf("clkdiv", "CLKDIV").ref("clkOut"), None))
+      ))
     )
 
-    execute(input, clockSources, Nil, Nil)
+    execute(input, Seq(GetClockSources(Seq(Test))), clockSources, Nil)
   }
 
   "Clock source search" should "not pass through registers" in {
@@ -134,10 +136,10 @@ class FindClockSourcesSpec extends MiddleAnnotationSpec {
     val C = CircuitTarget("Test")
     val Test = C.module("Test")
     val out = Test.ref("out")
-    val clockSources = Seq( ClockSource(Seq(Test.ref("out0")), Test.ref("clk"), None) )
-    val notClockSources = Seq( ClockSource(Seq(Test.ref("out0")), Test, Some("asClock$0")) )
+    val clockSources = Seq(ClockSources(Map(Test.ref("out0") -> Set((Test.ref("clk"), None)))))
+    val notClockSources = Seq(ClockSources(Map(Test.ref("out0") -> Set((Test, Some("asClock$0"))))))
 
-    execute(input, clockSources, notClockSources, Nil)
+    execute(input, Seq(GetClockSources(Seq(Test))), clockSources, notClockSources)
   }
 
   "Clock source search" should "go through child instances" in {
@@ -161,9 +163,9 @@ class FindClockSourcesSpec extends MiddleAnnotationSpec {
     val C = CircuitTarget("Test")
     val Test = C.module("Test")
     val out = Test.ref("out")
-    val clockSources = Seq( ClockSource(Seq(Test.ref("out0")), Test.ref("clk"), None) )
+    val clockSources = Seq(ClockSources(Map(Test.ref("out0") -> Set((Test.ref("clk"), None)))))
 
-    execute(input, clockSources, Nil, Nil)
+    execute(input, Seq(GetClockSources(Seq(Test))), clockSources, Nil)
   }
 
   "Clock source search" should "go through parent instances" in {
@@ -187,9 +189,9 @@ class FindClockSourcesSpec extends MiddleAnnotationSpec {
     val C = CircuitTarget("Test")
     val Test = C.module("Test")
     val out = Test.ref("out")
-    val clockSources = Seq( ClockSource(Seq(Test.ref("out0")), Test.ref("clk"), None) )
+    val clockSources = Seq(ClockSources(Map(Test.ref("out0") -> Set((Test.ref("clk"), None)))))
 
-    execute(input, clockSources, Nil, Nil)
+    execute(input, Seq(GetClockSources(Seq(Test))), clockSources, Nil)
   }
 
   "Clocks of aggregate registers" should "still work" in {
@@ -217,12 +219,13 @@ class FindClockSourcesSpec extends MiddleAnnotationSpec {
     val C = CircuitTarget("Test")
     val Test = C.module("Test")
     val out = Test.ref("out")
-    val clockSources = Seq( ClockSource(Seq(
-      Test.ref("out0"),
-      Test.ref("out1"),
-      Test.ref("out2")), Test.ref("clk"), None) )
+    val clockSources = Seq(ClockSources(Map(
+      Test.ref("out0") -> Set((Test.ref("clk"), None)),
+      Test.ref("out1") -> Set((Test.ref("clk"), None)),
+      Test.ref("out2") -> Set((Test.ref("clk"), None))
+    )))
 
-    execute(input, clockSources, Nil, Nil)
+    execute(input, Seq(GetClockSources(Seq(Test))), clockSources, Nil)
   }
 
   "Clocks of aggregate wires" should "still work" in {
@@ -248,12 +251,12 @@ class FindClockSourcesSpec extends MiddleAnnotationSpec {
     val C = CircuitTarget("Test")
     val Test = C.module("Test")
     val out = Test.ref("out")
-    val clockSources = Seq(
-      ClockSource(Seq( Test.ref("out0")), Test.ref("clk0"), None),
-      ClockSource(Seq( Test.ref("out1")), Test.ref("clk1"), None)
-    )
+    val clockSources = Seq(ClockSources(Map(
+      Test.ref("out0") -> Set((Test.ref("clk0"), None)),
+      Test.ref("out1") -> Set((Test.ref("clk1"), None))
+    )))
 
-    execute(input, clockSources, Nil, Nil)
+    execute(input, Seq(GetClockSources(Seq(Test))), clockSources, Nil)
   }
 
   "Outputs of aggregate wires" should "still work" in {
@@ -275,12 +278,12 @@ class FindClockSourcesSpec extends MiddleAnnotationSpec {
     val C = CircuitTarget("Test")
     val Test = C.module("Test")
     val out = Test.ref("out")
-    val clockSources = Seq(
-      ClockSource(Seq( Test.ref("out").field("f0")), Test.ref("clk0"), None),
-      ClockSource(Seq( Test.ref("out").field("f1")), Test.ref("clk1"), None)
-    )
+    val clockSources = Seq(ClockSources(Map(
+      Test.ref("out").field("f0") -> Set((Test.ref("clk0"), None)),
+      Test.ref("out").field("f1") -> Set((Test.ref("clk1"), None))
+    )))
 
-    execute(input, clockSources, Nil, Nil)
+    execute(input, Seq(GetClockSources(Seq(Test))), clockSources, Nil)
   }
 
 
@@ -300,16 +303,16 @@ class FindClockSourcesSpec extends MiddleAnnotationSpec {
     val C = CircuitTarget("Test")
     val Test = C.module("Test")
     val out = Test.ref("out")
-    val clockSources = Seq(
-      ClockSource(Seq( Test.ref("out")), Test.ref("clk0"), None),
-      ClockSource(Seq( Test.ref("out")), Test.ref("clk1"), None)
-    )
+    val clockSources = Seq(ClockSources(Map(
+      Test.ref("out") -> Set((Test.ref("clk0"), None), (Test.ref("clk1"), None))
+    )))
 
-    execute(input, clockSources, Nil, Nil)
+    execute(input, Seq(GetClockSources(Seq(Test))), clockSources, Nil)
   }
 
   // Memories
   // Check renaming module target of asClock target
   // Check cache works of topological sorting of modules for all signals
+  // Check all IRLookup functions
 }
 

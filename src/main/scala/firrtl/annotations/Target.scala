@@ -662,6 +662,12 @@ case class InstanceTarget(circuit: String,
   /** @return a [[ModuleTarget]] referring to declaration of this ofModule */
   def ofModuleTarget: ModuleTarget = ModuleTarget(circuit, ofModule)
 
+  /** @return a [[ReferenceTarget]] referring to given reference within this instance */
+  def addReference(rt: ReferenceTarget): ReferenceTarget = {
+    require(rt.module == ofModule)
+    ReferenceTarget(circuit, module, asPath, rt.ref, rt.component)
+  }
+
   override def circuitOpt: Option[String] = Some(circuit)
 
   override def moduleOpt: Option[String] = Some(module)
