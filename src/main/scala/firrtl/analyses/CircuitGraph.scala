@@ -11,7 +11,7 @@ import firrtl.{FEMALE, InstanceKind, MALE, PortKind, Utils, WDefInstance, WRef, 
 
 import scala.collection.mutable
 
-class CircuitGraph private (circuit: Circuit, digraph: DiGraph[Target], val irLookup: IRLookup) extends DiGraphLike[Target] {
+class CircuitGraph protected (val circuit: Circuit, val digraph: DiGraph[Target], val irLookup: IRLookup) extends DiGraphLike[Target] {
   override val edges = digraph.getEdgeMap.asInstanceOf[mutable.LinkedHashMap[Target, mutable.LinkedHashSet[Target]]]
 
   override def getEdges(v: Target, prevOpt: Option[collection.Map[Target, Target]] = None): collection.Set[Target] = {
@@ -43,7 +43,7 @@ class CircuitGraph private (circuit: Circuit, digraph: DiGraph[Target], val irLo
             case (TargetToken.Ref(modPort) +: modRest, TargetToken.Ref(inst) +: TargetToken.Field(instPort) +: instRest) if modPort == instPort && modRest == instRest =>  Nil
 
             // In child instance
-            case (TargetToken.Ref(inst) +: TargetToken.Field(instPort) +: instRest, TargetToken.Ref(modPort) +: modRest,) if modPort == instPort && modRest == instRest =>
+            case (TargetToken.Ref(inst) +: TargetToken.Field(instPort) +: instRest, TargetToken.Ref(modPort) +: modRest) if modPort == instPort && modRest == instRest =>
               val inst = v.complete.asInstanceOf[ReferenceTarget]
               val newPath = pathTokens ++ Seq(TargetToken.Instance(inst.ref), TargetToken.OfModule(otherModule))
               Seq(GenericTarget(circuitOpt, genT.moduleOpt, newPath ++ tokens).tryToComplete)
@@ -83,59 +83,6 @@ object CircuitGraph {
     case other => sys.error(s"Unsupported: $other")
   }
 
-  /** Returns a target to each sub-component, including intermediate subcomponents
-    * E.g.
-    *   Given:
-    *     A ReferenceTarget of ~Top|Module>ref and a type of {foo: {bar: UInt}}
-    *   Return:
-    *     Seq(~Top|Module>ref, ~Top|Module>ref.foo, ~Top|Module>ref.foo.bar)
-    * @param r
-    * @param t
-    * @return
-    */
-  def allTargets(r: ReferenceTarget, t: Type): Seq[ReferenceTarget] = t match {
-    case _: GroundType => Vector(r)
-    case VectorType(tpe, size) => r +: (0 until size).flatMap { i => allTargets(r.index(i), tpe) }
-    case BundleType(fields) => r +: fields.flatMap { f => allTargets(r.field(f.name), f.tpe)}
-    case other => sys.error(s"Error! Unexpected type $other")
-  }
-
-  /** Returns a target to each sub-component, excluding intermediate subcomponents
-    * E.g.
-    *   Given:
-    *     A ReferenceTarget of ~Top|Module>ref and a type of {foo: {bar: UInt}}
-    *   Return:
-    *     Seq(~Top|Module>ref.foo.bar)
-    * @param r
-    * @param t
-    * @return
-    */
-  def leafTargets(r: ReferenceTarget, t: Type): Seq[ReferenceTarget] = t match {
-    case _: GroundType => Vector(r)
-    case VectorType(tpe, size) => (0 until size).flatMap { i => leafTargets(r.index(i), tpe) }
-    case BundleType(fields) => fields.flatMap { f => leafTargets(r.field(f.name), f.tpe)}
-    case other => sys.error(s"Error! Unexpected type $other")
-  }
-
-
-  /** Returns target and type of each module port
-    * @param m
-    * @param module
-    * @return Returns ((inputs, outputs))
-    */
-  def modulePortTargets(m: ModuleTarget,
-                        module: DefModule
-                       ): (Seq[(ReferenceTarget, Type)], Seq[(ReferenceTarget, Type)]) = {
-    module.ports.flatMap {
-      case Port(_, name, Output, tpe) => Utils.create_exps(WRef(name, tpe, PortKind, MALE))
-      case Port(_, name, Input, tpe) => Utils.create_exps(WRef(name, tpe, PortKind, FEMALE))
-    }.foldLeft((Vector.empty[(ReferenceTarget, Type)], Vector.empty[(ReferenceTarget, Type)])) {
-      case ((inputs, outputs), e) if Utils.gender(e) == MALE =>
-        (inputs, outputs :+ (CircuitGraph.asTarget(m, new TokenTagger())(e).asInstanceOf[ReferenceTarget], e.tpe))
-      case ((inputs, outputs), e) =>
-        (inputs :+ (CircuitGraph.asTarget(m, new TokenTagger())(e).asInstanceOf[ReferenceTarget], e.tpe), outputs)
-    }
-  }
 
   private def buildCircuitGraph(circuit: Circuit): CircuitGraph = {
     val mdg = new MutableDiGraph[Target]()
@@ -207,8 +154,8 @@ object CircuitGraph {
       buildExpression(m, tagger, resetTarget)(d.reset)
 
       // Connect each subTarget to the corresponding init subTarget
-      val allRegTargets = leafTargets(regTarget, d.tpe)
-      val allInitTargets = leafTargets(initTarget, d.tpe).zip(Utils.create_exps(d.init))
+      val allRegTargets = IRLookup.leafTargets(regTarget, d.tpe)
+      val allInitTargets = IRLookup.leafTargets(initTarget, d.tpe).zip(Utils.create_exps(d.init))
       allRegTargets.zip(allInitTargets).foreach { case (r, (i, e)) =>
         mdg.addVertex(i)
         mdg.addVertex(r)

@@ -364,8 +364,7 @@ trait DiGraphLike[T] {
   }
 }
 
-class DiGraph[T] private[graph](private[graph] val edges: mutable.LinkedHashMap[T, mutable.LinkedHashSet[T]]) extends DiGraphLike[T] {
-}
+class DiGraph[T] private[graph](private[graph] val edges: mutable.LinkedHashMap[T, mutable.LinkedHashSet[T]]) extends DiGraphLike[T]
 
 class MutableDiGraph[T] extends DiGraph[T](new LinkedHashMap[T, LinkedHashSet[T]]) {
   /** Add vertex v to the graph

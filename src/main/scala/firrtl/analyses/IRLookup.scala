@@ -5,10 +5,24 @@ package firrtl.analyses
 import firrtl.annotations.TargetToken._
 import firrtl.annotations._
 import firrtl.ir._
-import firrtl.{BIGENDER, FEMALE, Gender, MALE, UNKNOWNGENDER}
-import firrtl.{ExpKind, InstanceKind, Kind, PortKind, RegKind, Utils, WDefInstance, WRef, WireKind}
+import firrtl.{BIGENDER, ExpKind, FEMALE, Gender, InstanceKind, Kind, MALE, PortKind, RegKind, UNKNOWNGENDER, Utils, WDefInstance, WRef, WSubField, WSubIndex, WireKind}
 
 import scala.collection.mutable
+
+object IRLookup {
+  def leafTargets(r: ReferenceTarget, tpe: Type): Seq[ReferenceTarget] = tpe match {
+    case _: GroundType => Vector(r)
+    case VectorType(t, size) => (0 until size).flatMap { i => leafTargets(r.index(i), t) }
+    case BundleType(fields) => fields.flatMap { f => leafTargets(r.field(f.name), f.tpe)}
+    case other => sys.error(s"Error! Unexpected type $other")
+  }
+  def allTargets(r: GenericTarget, tpe: Type): Seq[GenericTarget] = tpe match {
+    case _: GroundType => Vector(r)
+    case VectorType(t, size) => r +: (0 until size).flatMap { i => allTargets(r.add(Index(i)), t) }
+    case BundleType(fields) => r +: fields.flatMap { f => allTargets(r.add(TargetToken.Field(f.name)), f.tpe)}
+    case other => sys.error(s"Error! Unexpected type $other")
+  }
+}
 
 /** Handy lookup for obtaining AST information about a given Target
   * @param declarations Maps references (not subreferences) to declarations
@@ -32,7 +46,7 @@ class IRLookup(private val declarations: collection.Map[Target, FirrtlNode]) {
     * @return
     */
   def gender(t: Target): Gender = {
-    val pathless = asLocalRef(t)
+    val pathless = Target.getPathlessTarget(t)
     require(t.moduleOpt.nonEmpty)
     if(genderCache.contains(pathless)) return genderCache(pathless)
     val gender = Utils.gender(expr(pathless))
@@ -45,7 +59,7 @@ class IRLookup(private val declarations: collection.Map[Target, FirrtlNode]) {
     * @return
     */
   def kind(t: Target): Kind = {
-    val pathless = asLocalRef(t)
+    val pathless = Target.getPathlessTarget(t)
     require(t.moduleOpt.nonEmpty)
     if(kindCache.contains(pathless)) return kindCache(pathless)
 
@@ -59,7 +73,7 @@ class IRLookup(private val declarations: collection.Map[Target, FirrtlNode]) {
     * @return
     */
   def tpe(t: Target): Type = {
-    val pathless = asLocalRef(t)
+    val pathless = Target.getPathlessTarget(t)
     require(t.moduleOpt.nonEmpty)
     if(tpeCache.contains(pathless)) return tpeCache(pathless)
 
@@ -74,14 +88,14 @@ class IRLookup(private val declarations: collection.Map[Target, FirrtlNode]) {
     * @return
     */
   def expr(t: Target, gender: Gender = UNKNOWNGENDER): Expression = {
-    val pathless = asLocalRef(t)
+    val pathless = Target.getPathlessTarget(t)
     require(t.moduleOpt.nonEmpty)
 
     inCache(pathless, gender) match {
       case Some(e) => e
       case None =>
         val mt = pathless.circuitTarget.module(pathless.moduleOpt.get)
-        declarations(pathless) match {
+        declarations(asLocalRef(t)) match {
           case e: Expression =>
             require(e.tpe.isInstanceOf[GroundType])
             exprCache.getOrElseUpdate((pathless, Utils.gender(e)), e)
@@ -98,9 +112,9 @@ class IRLookup(private val declarations: collection.Map[Target, FirrtlNode]) {
               updateExpr(mt, WRef(w.name, w.tpe, WireKind, BIGENDER))
             case r: DefRegister if pathless.tokens.last == Clock =>
               exprCache((pathless, MALE)) = r.clock
-            case r: DefRegister if pathless.tokens.last == Init =>
-              //TODO(azidar): expand init field in case register is aggregate type?
+            case r: DefRegister if pathless.tokens.isDefinedAt(1) && pathless.tokens(1) == Init =>
               exprCache((pathless, MALE)) = r.init
+              updateExpr(pathless.toGenericTarget, r.init)
             case r: DefRegister if pathless.tokens.last == Reset =>
               exprCache((pathless, MALE)) = r.reset
             case r: DefRegister =>
@@ -125,6 +139,55 @@ class IRLookup(private val declarations: collection.Map[Target, FirrtlNode]) {
     */
   def declaration(t: Target): FirrtlNode = declarations(asLocalRef(t))
 
+  /** Returns the references to the module's ports
+    * @param mt
+    */
+  def ports(mt: ModuleTarget): Seq[ReferenceTarget] = {
+    declaration(mt).asInstanceOf[DefModule].ports.map { p => mt.ref(p.name) }
+  }
+
+  /** Returns a target to each sub-component, including intermediate subcomponents
+    * E.g.
+    *   Given:
+    *     A ReferenceTarget of ~Top|Module>ref and a type of {foo: {bar: UInt}}
+    *   Return:
+    *     Seq(~Top|Module>ref, ~Top|Module>ref.foo, ~Top|Module>ref.foo.bar)
+    * @param r
+    * @return
+    */
+  def allTargets(r: ReferenceTarget): Seq[ReferenceTarget] =
+    IRLookup.allTargets(r.toGenericTarget, tpe(r)).map(_.complete).asInstanceOf[Seq[ReferenceTarget]]
+
+  /** Returns a target to each sub-component, excluding intermediate subcomponents
+    * E.g.
+    *   Given:
+    *     A ReferenceTarget of ~Top|Module>ref and a type of {foo: {bar: UInt}}
+    *   Return:
+    *     Seq(~Top|Module>ref.foo.bar)
+    * @param r
+    * @return
+    */
+  def leafTargets(r: ReferenceTarget): Seq[ReferenceTarget] = IRLookup.leafTargets(r, tpe(r))
+
+  /** Returns target and type of each module port
+    * @param m
+    * @param module
+    * @return Returns ((inputs, outputs))
+    */
+  def moduleLeafPortTargets(m: ModuleTarget,
+                            module: DefModule
+                           ): (Seq[(ReferenceTarget, Type)], Seq[(ReferenceTarget, Type)]) = {
+    module.ports.flatMap {
+      case Port(_, name, Output, tpe) => Utils.create_exps(WRef(name, tpe, PortKind, MALE))
+      case Port(_, name, Input, tpe) => Utils.create_exps(WRef(name, tpe, PortKind, FEMALE))
+    }.foldLeft((Vector.empty[(ReferenceTarget, Type)], Vector.empty[(ReferenceTarget, Type)])) {
+      case ((inputs, outputs), e) if Utils.gender(e) == MALE =>
+        (inputs, outputs :+ (CircuitGraph.asTarget(m, new TokenTagger())(e).asInstanceOf[ReferenceTarget], e.tpe))
+      case ((inputs, outputs), e) =>
+        (inputs :+ (CircuitGraph.asTarget(m, new TokenTagger())(e).asInstanceOf[ReferenceTarget], e.tpe), outputs)
+    }
+  }
+
   /** Returns whether a target is contained in this IRLookup
     * @param t
     * @return
@@ -139,6 +202,21 @@ class IRLookup(private val declarations: collection.Map[Target, FirrtlNode]) {
     Utils.expandRef(ref).foreach { e =>
       val target = CircuitGraph.asTarget(mt, new TokenTagger())(e)
       exprCache((target, Utils.gender(e))) = e
+    }
+  }
+
+  private def updateExpr(gt: GenericTarget, e: Expression): Unit = {
+    val g = Utils.gender(e)
+    e.tpe match {
+      case _: GroundType =>
+        exprCache((gt.tryToComplete, g)) = e
+      case VectorType(t, size) =>
+        exprCache((gt.tryToComplete, g)) = e
+        (0 until size).foreach { i => updateExpr(gt.add(Index(i)), WSubIndex(e, i, t, g)) }
+      case BundleType(fields) =>
+        exprCache((gt.tryToComplete, g)) = e
+        fields.foreach { f => updateExpr(gt.add(TargetToken.Field(f.name)), WSubField(e, f.name, f.tpe, Utils.times(g, f.flip))) }
+      case other => sys.error(s"Error! Unexpected type $other")
     }
   }
 
