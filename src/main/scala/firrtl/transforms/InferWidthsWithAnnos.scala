@@ -21,9 +21,11 @@ case class WidthGeqConstraintAnnotation(loc: ReferenceTarget, exp: ReferenceTarg
   }
 }
 
-object InferWidthsWithAnnos extends Transform {
+object InferWidthsWithAnnos extends Transform with ResolvedAnnotationPaths {
   def inputForm: CircuitForm = UnknownForm
   def outputForm: CircuitForm = UnknownForm
+
+  val annotationClasses = Seq(classOf[WidthGeqConstraintAnnotation])
 
   def execute(state: CircuitState): CircuitState = {
     val circuitName = state.circuit.main
