@@ -54,7 +54,11 @@ class DedupModules extends Transform {
     val dedupMap = DedupModules.deduplicate(c, noDedups.toSet, annos, renameMap)
 
     // Use old module list to preserve ordering
-    val dedupedModules = c.modules.map(m => dedupMap(m.name)).distinct
+    val (dedupedModules, _) = c.modules.foldLeft((List.empty[DefModule], Set.empty[String])) {
+      case ((acc, seen), m) =>
+        val modx = dedupMap(m.name)
+        if (seen(modx.name)) (acc, seen) else (modx +: acc, seen + modx.name)
+    }
 
     val cname = CircuitName(c.main)
     val map = dedupMap.map { case (from, to) =>
@@ -67,7 +71,7 @@ class DedupModules extends Transform {
       }
     )
 
-    (InferTypes.run(c.copy(modules = dedupedModules)), renameMap)
+    (InferTypes.run(c.copy(modules = dedupedModules.reverse)), renameMap)
   }
 }
 
