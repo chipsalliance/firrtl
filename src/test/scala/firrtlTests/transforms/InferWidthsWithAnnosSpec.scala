@@ -47,7 +47,6 @@ class InferWidthsWithAnnosSpec extends FirrtlFlatSpec {
         |
         |  module B :
         |    wire x: UInt<3>
-        |    x <= UInt(0)
         |
         |  module A :
         |    wire y: UInt""".stripMargin
@@ -81,7 +80,6 @@ class InferWidthsWithAnnosSpec extends FirrtlFlatSpec {
         |
         |  module B :
         |    wire x: UInt<3>
-        |    x <= UInt(0)
         |
         |  module A :
         |    wire y: UInt""".stripMargin
@@ -94,7 +92,6 @@ class InferWidthsWithAnnosSpec extends FirrtlFlatSpec {
         |
         |  module B :
         |    wire x: UInt<3>
-        |    x <= UInt(0)
         |
         |  module A :
         |    wire y: UInt<3>""".stripMargin
@@ -126,9 +123,6 @@ class InferWidthsWithAnnosSpec extends FirrtlFlatSpec {
         |
         |  module B :
         |    wire bundle : {x : UInt<1>, y: UInt<2>, z: {zz : UInt<3>} }
-        |    bundle.x <= UInt(0)
-        |    bundle.y <= UInt(0)
-        |    bundle.z.zz <= UInt(0)
         |
         |  module A :
         |    wire bundle : {x : UInt, y: UInt, z: {zz : UInt} }""".stripMargin
@@ -141,14 +135,11 @@ class InferWidthsWithAnnosSpec extends FirrtlFlatSpec {
         |
         |  module B :
         |    wire bundle : {x : UInt<1>, y: UInt<2>, z: {zz : UInt<3>} }
-        |    bundle.x <= UInt(0)
-        |    bundle.y <= UInt(0)
-        |    bundle.z.zz <= UInt(0)
         |
         |  module A :
         |    wire bundle : {x : UInt<1>, y: UInt<2>, z: {zz : UInt<3>} }""".stripMargin
 
-    // A.y should have same width as B.x
+    // elements of A.bundle should have same width as B.bundle
     executeTest(input, output, transforms, annos)
   }
 
