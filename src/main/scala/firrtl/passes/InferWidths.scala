@@ -220,25 +220,27 @@ object InferWidths extends Pass {
     }
     b
   }
-     
-  def run (c: Circuit): Circuit = {
-    val v = ArrayBuffer[WGeq]()
 
-    def get_constraints_t(t1: Type, t2: Type): Seq[WGeq] = (t1,t2) match {
-      case (t1: UIntType, t2: UIntType) => Seq(WGeq(t1.width, t2.width))
-      case (t1: SIntType, t2: SIntType) => Seq(WGeq(t1.width, t2.width))
-      case (ClockType, ClockType) => Nil
-      case (FixedType(w1, p1), FixedType(w2, p2)) => Seq(WGeq(w1,w2), WGeq(p1,p2))
-      case (AnalogType(w1), AnalogType(w2)) => Seq(WGeq(w1,w2), WGeq(w2,w1))
-      case (t1: BundleType, t2: BundleType) =>
-        (t1.fields zip t2.fields foldLeft Seq[WGeq]()){case (res, (f1, f2)) =>
-          res ++ (f1.flip match {
-            case Default => get_constraints_t(f1.tpe, f2.tpe)
-            case Flip => get_constraints_t(f2.tpe, f1.tpe)
-          })
-        }
-      case (t1: VectorType, t2: VectorType) => get_constraints_t(t1.tpe, t2.tpe)
-    }
+  def get_constraints_t(t1: Type, t2: Type): Seq[WGeq] = (t1,t2) match {
+    case (t1: UIntType, t2: UIntType) => Seq(WGeq(t1.width, t2.width))
+    case (t1: SIntType, t2: SIntType) => Seq(WGeq(t1.width, t2.width))
+    case (ClockType, ClockType) => Nil
+    case (FixedType(w1, p1), FixedType(w2, p2)) => Seq(WGeq(w1,w2), WGeq(p1,p2))
+    case (AnalogType(w1), AnalogType(w2)) => Seq(WGeq(w1,w2), WGeq(w2,w1))
+    case (t1: BundleType, t2: BundleType) =>
+      (t1.fields zip t2.fields foldLeft Seq[WGeq]()){case (res, (f1, f2)) =>
+        res ++ (f1.flip match {
+          case Default => get_constraints_t(f1.tpe, f2.tpe)
+          case Flip => get_constraints_t(f2.tpe, f1.tpe)
+        })
+      }
+    case (t1: VectorType, t2: VectorType) => get_constraints_t(t1.tpe, t2.tpe)
+  }
+
+  def run(c: Circuit): Circuit = runWithExtraConstraints(c, Nil)
+
+  def runWithExtraConstraints(c: Circuit, extra: Seq[WGeq]): Circuit = {
+    val v = ArrayBuffer[WGeq]() ++ extra
 
     def get_constraints_e(e: Expression): Unit = {
       e match {
@@ -360,8 +362,8 @@ object InferWidths extends Pass {
 
     def reduce_var_widths_p(p: Port): Port = {
       Port(p.info, p.name, p.direction, reduce_var_widths_t(p.tpe))
-    } 
-  
+    }
+
     InferTypes.run(c.copy(modules = c.modules map (_
       map reduce_var_widths_p
       map reduce_var_widths_s)))
