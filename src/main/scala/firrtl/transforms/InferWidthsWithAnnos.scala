@@ -74,7 +74,7 @@ object InferWidthsWithAnnos extends Transform with ResolvedAnnotationPaths {
         val expBaseType = typeMap(anno.exp.copy(component = Seq.empty))
         val expType = getComponentType(expBaseType, anno.exp.component)
 
-        InferWidths.get_constraints_t(locType, expType) ++ InferWidths.get_constraints_t(expType, locType)
+        InferWidths.get_constraints_t(locType, expType)
       case other => Seq.empty
     }
 
