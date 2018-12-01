@@ -24,7 +24,6 @@ class InferWidthsWithAnnosSpec extends FirrtlFlatSpec {
     }
     val resLines = end.circuit.serialize.split("\n") map normalized
     val checkLines = parse(check).serialize.split("\n") map normalized
-    println(end.circuit.serialize)
 
     resLines should be (checkLines)
   }
