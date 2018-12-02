@@ -44,7 +44,7 @@ object InferWidthsWithAnnos extends Transform with ResolvedAnnotationPaths {
       }
     }
 
-    def getDeclTypes(modName: String)(stmt: Statement): Statement = {
+    def getDeclTypes(modName: String)(stmt: Statement): Unit = {
       val pairOpt = stmt match {
         case w: DefWire => Some(w.name -> w.tpe)
         case r: DefRegister => Some(r.name -> r.tpe)
@@ -56,14 +56,14 @@ object InferWidthsWithAnnos extends Transform with ResolvedAnnotationPaths {
       pairOpt.foreach { case (ref, tpe) =>
         typeMap += (ReferenceTarget(circuitName, modName, Nil, ref, Nil) -> tpe)
       }
-      stmt.mapStmt(getDeclTypes(modName))
+      stmt.foreachStmt(getDeclTypes(modName))
     }
 
     state.circuit.modules.foreach { mod =>
       mod.ports.foreach { port =>
         typeMap += (ReferenceTarget(circuitName, mod.name, Nil, port.name, Nil) -> port.tpe)
       }
-      mod.mapStmt(getDeclTypes(mod.name))
+      mod.foreachStmt(getDeclTypes(mod.name))
     }
 
     val extraConstraints = state.annotations.flatMap {
