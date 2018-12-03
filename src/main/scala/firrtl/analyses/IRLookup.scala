@@ -94,7 +94,7 @@ class IRLookup(private val declarations: collection.Map[Target, FirrtlNode]) {
     */
   def expr(t: Target, gender: Gender = UNKNOWNGENDER): Expression = {
     val pathless = Target.getPathlessTarget(t)
-    require(t.moduleOpt.nonEmpty)
+    require(t.moduleOpt.nonEmpty && t.circuitOpt.nonEmpty)
 
     inCache(pathless, gender) match {
       case Some(e) => e
