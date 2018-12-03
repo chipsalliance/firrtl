@@ -5,11 +5,16 @@ package firrtl.analyses
 import firrtl.annotations.TargetToken._
 import firrtl.annotations._
 import firrtl.ir._
-import firrtl.{BIGENDER, ExpKind, FEMALE, Gender, InstanceKind, Kind, MALE, PortKind, RegKind, UNKNOWNGENDER, Utils, WDefInstance, WRef, WSubField, WSubIndex, WireKind}
+import firrtl.passes.MemPortUtils
+import firrtl.{BIGENDER, ExpKind, FEMALE, Gender, InstanceKind, Kind, MALE, MemKind, PortKind, RegKind, UNKNOWNGENDER, Utils, WDefInstance, WRef, WSubField, WSubIndex, WireKind}
 
 import scala.collection.mutable
 
 object IRLookup {
+  def leafTargets(t: Target, tpe: Type): Seq[Target] =
+    leafTargets(ReferenceTarget("", "", Nil, "", Vector.empty[TargetToken]), tpe) map { r =>
+      GenericTarget(t.circuitOpt, t.moduleOpt, t.tokens.toVector ++ r.component).tryToComplete
+    }
   def leafTargets(r: ReferenceTarget, tpe: Type): Seq[ReferenceTarget] = tpe match {
     case _: GroundType => Vector(r)
     case VectorType(t, size) => (0 until size).flatMap { i => leafTargets(r.index(i), t) }
@@ -94,7 +99,7 @@ class IRLookup(private val declarations: collection.Map[Target, FirrtlNode]) {
     inCache(pathless, gender) match {
       case Some(e) => e
       case None =>
-        val mt = pathless.circuitTarget.module(pathless.moduleOpt.get)
+        val mt = CircuitTarget(pathless.circuitOpt.get).module(pathless.moduleOpt.get)
         declarations(asLocalRef(t)) match {
           case e: Expression =>
             require(e.tpe.isInstanceOf[GroundType])
@@ -121,8 +126,10 @@ class IRLookup(private val declarations: collection.Map[Target, FirrtlNode]) {
               updateExpr(mt, WRef(r.name, r.tpe, RegKind, MALE))
               updateExpr(mt, WRef(r.name, r.tpe, RegKind, FEMALE))
               updateExpr(mt, WRef(r.name, r.tpe, RegKind, BIGENDER))
-            case m: DefMemory => sys.error("Will support memories soon!")
-            case other => sys.error(s"Cannot call expr with: $other")
+            case m: DefMemory =>
+              updateExpr(mt, WRef(m.name, MemPortUtils.memType(m), MemKind, MALE))
+            case other =>
+              sys.error(s"Cannot call expr with: $t, given declaration $other")
           }
         }
     }

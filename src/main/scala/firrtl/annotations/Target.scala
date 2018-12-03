@@ -193,6 +193,34 @@ object Target {
     case b: InstanceTarget  => b.ofModuleTarget
     case b: ReferenceTarget => b.pathlessTarget.moduleTarget
   }
+
+  def getPathlessTarget(t: Target): Target = {
+    t.tryToComplete match {
+      case c: CircuitTarget => c
+      case m: IsMember => m.pathlessTarget
+      case t: GenericTarget if t.isLegal =>
+        val newTokens = t.tokens.dropWhile(x => x.isInstanceOf[Instance] || x.isInstanceOf[OfModule])
+        GenericTarget(t.circuitOpt, t.moduleOpt, newTokens)
+      case other => sys.error(s"Can't make $other pathless!")
+    }
+  }
+
+  def getReferenceTarget(t: Target): Target = {
+    (t.toGenericTarget match {
+      case t: GenericTarget if t.isLegal =>
+        val newTokens = t.tokens.reverse.dropWhile({
+          case x: Field => true
+          case x: Index => true
+          case Clock => true
+          case Init => true
+          case Reset => true
+          case other => false
+        }).reverse
+        GenericTarget(t.circuitOpt, t.moduleOpt, newTokens)
+      case other => sys.error(s"Can't make $other pathless!")
+    }).tryToComplete
+
+  }
 }
 
 /** Represents incomplete or non-standard [[Target]]s

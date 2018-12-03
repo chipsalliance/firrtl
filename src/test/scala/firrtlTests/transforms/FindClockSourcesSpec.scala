@@ -2,13 +2,91 @@
 
 package firrtlTests.transforms
 
+import firrtl.annotations.TargetToken.Field
 import firrtl.{ChirrtlForm, CircuitState}
 import firrtl.transforms._
 import firrtl.annotations._
 import firrtlTests.MiddleAnnotationSpec
 
 
-class FindClockSourcesSpec extends MiddleAnnotationSpec {
+trait MemStuff {
+  def commonFields: Seq[String] = Seq("clk", "en", "addr")
+  def readerTargets(rt: ReferenceTarget): Seq[ReferenceTarget] = {
+    (commonFields ++ Seq("data")).map(rt.field)
+  }
+  def writerTargets(rt: ReferenceTarget): Seq[ReferenceTarget] = {
+    (commonFields ++ Seq("data", "mask")).map(rt.field)
+  }
+  def readwriterTargets(rt: ReferenceTarget): Seq[ReferenceTarget] = {
+    (commonFields ++ Seq("wdata", "wmask", "wmode", "rdata")).map(rt.field)
+  }
+  def makeInput(readLatency: Int) =
+    s"""circuit Test:
+      |  module Test :
+      |    input in : UInt<8>
+      |    input clk: Clock[3]
+      |    input dataClk: Clock
+      |    input mode: UInt<1>
+      |    output out : UInt<8>[2]
+      |    mem m:
+      |      data-type => UInt<8>
+      |      reader => r
+      |      writer => w
+      |      readwriter => rw
+      |      depth => 2
+      |      write-latency => 1
+      |      read-latency => ${readLatency}
+      |
+      |    reg addr: UInt<1>, dataClk
+      |    reg en: UInt<1>, dataClk
+      |    reg indata: UInt<8>, dataClk
+      |
+      |    m.r.clk <= clk[0]
+      |    m.r.en <= en
+      |    m.r.addr <= addr
+      |    out[0] <= m.r.data
+      |
+      |    m.w.clk <= clk[1]
+      |    m.w.en <= en
+      |    m.w.addr <= addr
+      |    m.w.data <= indata
+      |    m.w.mask <= en
+      |
+      |    m.rw.clk <= clk[2]
+      |    m.rw.en <= en
+      |    m.rw.addr <= addr
+      |    m.rw.wdata <= indata
+      |    m.rw.wmask <= en
+      |    m.rw.wmode <= en
+      |    out[1] <= m.rw.rdata
+      |""".stripMargin
+
+  val C = CircuitTarget("Test")
+  val Test = C.module("Test")
+  val Mem = Test.ref("m")
+  val Reader = Mem.field("r")
+  val Writer = Mem.field("w")
+  val Readwriter = Mem.field("rw")
+  val allSignals = readerTargets(Reader) ++ writerTargets(Writer) ++ readwriterTargets(Readwriter)
+}
+
+class FindClockSourcesSpec extends MiddleAnnotationSpec with MemStuff {
+  def execute(input: String, annotations: Seq[Annotation], check: ClockSources, notCheck: Option[ClockSources]): Unit = {
+    val cr = compile(CircuitState(parse(input), ChirrtlForm, annotations), Seq(new FindClockSources()))
+    val signalToClocks = cr.annotations.flatMap {
+      case c: ClockSources => c.signalToClocks
+      case _ => Nil
+    }.toMap
+    check.signalToClocks.foreach { c =>
+      signalToClocks should contain(c)
+    }
+    if(notCheck.nonEmpty) {
+      notCheck.get.signalToClocks.foreach { c =>
+        signalToClocks shouldNot contain(c)
+      }
+    }
+  }
+
   def execute(input: String, annotations: Seq[Annotation], checks: Seq[Annotation], notChecks: Seq[Annotation]): Unit = {
     val cr = compile(CircuitState(parse(input), ChirrtlForm, annotations), Seq(new FindClockSources()))
     checks.foreach { c =>
@@ -286,7 +364,6 @@ class FindClockSourcesSpec extends MiddleAnnotationSpec {
     execute(input, Seq(GetClockSources(Seq(Test))), clockSources, Nil)
   }
 
-
   "Multiple clock sources" should "be detected" in {
     val input =
       """circuit Test:
@@ -310,8 +387,46 @@ class FindClockSourcesSpec extends MiddleAnnotationSpec {
     execute(input, Seq(GetClockSources(Seq(Test))), clockSources, Nil)
   }
 
-  // Memories
-  // Check renaming module target of asClock target
+  "Female mem port fields" should "just follow back to source" in {
+    val input = makeInput(0)
+
+    // Solutions
+    val clockSources: Map[ReferenceTarget, Set[(IsMember, Option[String])]] =
+      Map(
+        Reader.field("clk") -> Set((Test.ref("clk").index(0).asInstanceOf[IsMember], Option.empty[String])),
+        Writer.field("clk") -> Set((Test.ref("clk").index(1).asInstanceOf[IsMember], Option.empty[String])),
+        Readwriter.field("clk") -> Set((Test.ref("clk").index(2).asInstanceOf[IsMember], Option.empty[String]))
+      ) ++ allSignals.collect {
+        case sig if sig.tokens.last != Field("clk") =>
+          sig -> Set((Test.ref("dataClk").asInstanceOf[IsMember], Option.empty[String]))
+      }
+
+    execute(
+      input,
+      Seq(GetClockSources(allSignals)),
+      ClockSources(clockSources),
+      None
+    )
+  }
+
+  "Data read from sequential memories" should "return clock domain of read/readwrite's enable and address" in {
+    val input = makeInput(1)
+
+    // Solutions
+    val clockSources: Map[ReferenceTarget, Set[(IsMember, Option[String])]] =
+      Map(
+        Reader.field("data") -> Set((Test.ref("clk").index(0).asInstanceOf[IsMember], Option.empty[String])),
+        Readwriter.field("rdata") -> Set((Test.ref("clk").index(2).asInstanceOf[IsMember], Option.empty[String]))
+      )
+
+    execute(input, Seq(GetClockSources(allSignals)), ClockSources(clockSources), None )
+
+  }
+
+  "Constant signals" should "be represented as such" in { }
+  "Signals combinationally linked to inputs" should "be correctly worked" in { }
+
+  // Check bundled nodes
   // Check cache works of topological sorting of modules for all signals
   // Check all IRLookup functions
 }
