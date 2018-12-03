@@ -423,8 +423,95 @@ class FindClockSourcesSpec extends MiddleAnnotationSpec with MemStuff {
 
   }
 
-  "Constant signals" should "be represented as such" in { }
-  "Signals combinationally linked to inputs" should "be correctly worked" in { }
+  "Constant signals" should "be represented as such" in {
+    val input =
+      """circuit Test:
+        |  module Test :
+        |    output out: UInt<8>
+        |    out <= UInt(1)
+        |""".stripMargin
+
+    val C = CircuitTarget("Test")
+    val Test = C.module("Test")
+    val out = Test.ref("out")
+    val clockSources = Seq(ClockSources(Map(
+      Test.ref("out") -> Set()
+    )))
+
+    execute(input, Seq(GetClockSources(Seq(out))), clockSources, Nil)
+  }
+
+  "Signals combinationally linked to inputs" should "be correctly worked" in {
+    val input =
+      """circuit Test:
+        |  module Test :
+        |    input clk: Clock
+        |    output out: UInt<8>
+        |    reg r: UInt<8>, clk
+        |    inst child of Child
+        |    child.in <= r
+        |    out <= child.out
+        |  module Child :
+        |    input in: UInt<8>
+        |    output out: UInt<8>
+        |    out <= in
+        |""".stripMargin
+
+    val C = CircuitTarget("Test")
+    val Test = C.module("Test")
+    val Child = C.module("Child")
+    val out = Test.ref("out")
+    val clockSources = ClockSources(Map(
+      Child.ref("out") -> Set((Child.ref("in"), None)),
+      Test.ref("out") -> Set((Test.ref("clk"), None))
+    ))
+    execute(input, Seq(GetClockSources(Seq(Child, Test))), clockSources, None)
+  }
+
+  "Caching of topological sorting of modules" should "work" in {
+    def mkChild(n: Int): String =
+      s"""  module Child${n} :
+         |    input in: UInt<8>
+         |    output out: UInt<8>
+         |    inst c1 of Child${n+1}
+         |    inst c2 of Child${n+1}
+         |    c1.in <= in
+         |    c2.in <= c1.out
+         |    out <= c2.out
+       """.stripMargin
+    def mkLeaf(n: Int): String =
+      s"""  module Child${n} :
+         |    input in: UInt<8>
+         |    output out: UInt<8>
+         |    out <= in
+       """.stripMargin
+
+    (2 until 13 by 2).foreach { n =>
+      val input = new StringBuilder()
+      input ++=
+        """circuit Child0:
+          |""".stripMargin
+      println(s"Depth of $n:")
+      (0 until n).foreach { i => input ++= mkChild(i); input ++= "\n" }
+      input ++= mkLeaf(n)
+
+      val C = CircuitTarget("Child0")
+      val Child0 = C.module("Child0")
+      val clockSources = ClockSources(Map(
+        Child0.ref("out") -> Set((Child0.ref("in"), None))
+      ))
+      val (timeWithCaching, dc2) = firrtl.Utils.time {
+        execute(input.toString(), Seq(GetClockSources((0 to n).map(i => C.module(s"Child${i}")))), clockSources, None)
+      }
+      println(s"\tWith caching: $timeWithCaching")
+      val (timeNoCaching, dc) = firrtl.Utils.time{
+        execute(input.toString(), Seq(GetClockSources(Seq(Child0.ref("out")))), clockSources, None)
+      }
+      println(s"\tNo caching: $timeNoCaching")
+    }
+  }
+
+
 
   // Check bundled nodes
   // Check cache works of topological sorting of modules for all signals

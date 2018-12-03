@@ -39,7 +39,7 @@ class CircuitGraph protected (val circuit: Circuit, val digraph: DiGraph[Target]
           Seq(GenericTarget(circuitOpt, genT.moduleOpt, pathTokens.dropRight(2) ++ tokens).tryToComplete)
 
         case GenericTarget(`circuitOpt`, Some(otherModule), tokens) =>
-          (genT.tokens, tokens) match {
+          (Target.getPathlessTarget(genT).tokens, tokens) match {
             // In parent but instantiates root module
             case (TargetToken.Ref(modPort) +: modRest, TargetToken.Ref(inst) +: TargetToken.Field(instPort) +: instRest) if modPort == instPort && modRest == instRest =>  Nil
 
