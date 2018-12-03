@@ -5,7 +5,7 @@ package firrtl.transforms
 import firrtl.analyses._
 import firrtl.annotations.TargetToken._
 import firrtl.annotations._
-import firrtl.{CircuitForm, CircuitState, FEMALE, MALE, MidForm, PortKind, RegKind, RenameMap, Transform}
+import firrtl.{CircuitForm, CircuitState, FEMALE, MALE, MemKind, MidForm, PortKind, RegKind, RenameMap, Transform}
 import firrtl.ir._
 
 import scala.collection.mutable
@@ -148,13 +148,18 @@ class ClockSourceFinder(graph: CircuitGraph) extends CircuitGraph(graph.circuit,
     )
 
     val tpe = irLookup.tpe(t)
-    require(
-      tpe.isInstanceOf[GroundType],
-      s"Cannot compute clock source of\n${t.prettyPrint()}\nwith type ${tpe.serialize}!"
-    )
+    //require(
+    //  tpe.isInstanceOf[GroundType],
+    //  s"Cannot compute clock source of\n${t.prettyPrint()}\nwith type ${tpe.serialize}!"
+    //)
 
-    BFS(t)
-    val finalSources = clockMap.getOrElse(t, mutable.HashSet.empty[Target])
+    val finalSources = mutable.HashSet.empty[Target]
+    IRLookup.leafTargets(t, tpe).foreach { x =>
+      BFS(x)
+      finalSources ++= clockMap.getOrElse(x, mutable.HashSet.empty[Target])
+    }
+
+    //val finalSources = clockMap.getOrElse(t, mutable.HashSet.empty[Target])
     finalSources.toSet
   }
 
@@ -192,7 +197,24 @@ class ClockSourceFinder(graph: CircuitGraph) extends CircuitGraph(graph.circuit,
 
     val instanceEdges = super.getEdges(v)
 
-    val shortCutEdges = instanceEdges.flatMap {
+    val filteredEdges = instanceEdges.flatMap {
+      case rt: ReferenceTarget
+        if irLookup.kind(v) == MemKind && irLookup.gender(v) == MALE =>
+          (irLookup.declaration(v).asInstanceOf[DefMemory].readLatency, rt.component.last.value) match {
+            case (0, "clk") => Seq()
+            case (0, _) => Seq(rt)
+            case (_, "clk") => Seq(rt)
+            case (_, _) => Seq()
+          }
+      // Is a Register, filter non-clock outgoing edges
+      case rt: ReferenceTarget
+        if isReg(v) && (rt.tokens.last != Clock) =>
+        Seq()
+      case other =>
+        Seq(other)
+    }
+
+    val shortCutEdges = filteredEdges.flatMap {
       // If seen node before, record clock and end
       case x if clockMap.contains(x) =>
         recordClocks(clockMap(x))
@@ -204,20 +226,20 @@ class ClockSourceFinder(graph: CircuitGraph) extends CircuitGraph(graph.circuit,
     }
 
     val ret = shortCutEdges.flatMap {
+      // Top-level Input Clock Port
       case rt@ ReferenceTarget(c, m, Nil, _, _)
         if irLookup.kind(rt) == PortKind && irLookup.gender(rt) == MALE && irLookup.tpe(rt) == ClockType && !rt.isClock =>
         recordClock(rt)
         Seq()
+      // Black-box Output Clock Port
       case rt: ReferenceTarget
         if extModuleNames.contains(rt.encapsulatingModule) && irLookup.tpe(rt) == ClockType && irLookup.gender(rt) == FEMALE =>
         recordClock(rt)
         Seq()
+      // AsClock Expression
       case ct@GenericTarget(_, _, tokens)
         if tokens.last.isInstanceOf[OpToken] && tokens.last.asInstanceOf[OpToken].op == "asClock" =>
         recordClock(ct)
-        Seq()
-      case rt: ReferenceTarget
-        if isReg(v) && (rt.tokens.last != Clock) =>
         Seq()
       case other =>
         Seq(other)

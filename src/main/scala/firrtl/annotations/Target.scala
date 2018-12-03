@@ -184,7 +184,14 @@ object Target {
   def getReferenceTarget(t: Target): Target = {
     (t.toGenericTarget match {
       case t: GenericTarget if t.isLegal =>
-        val newTokens = t.tokens.reverse.dropWhile(x => !x.isInstanceOf[Ref]).reverse
+        val newTokens = t.tokens.reverse.dropWhile({
+          case x: Field => true
+          case x: Index => true
+          case Clock => true
+          case Init => true
+          case Reset => true
+          case other => false
+        }).reverse
         GenericTarget(t.circuitOpt, t.moduleOpt, newTokens)
       case other => sys.error(s"Can't make $other pathless!")
     }).tryToComplete

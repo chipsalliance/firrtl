@@ -7,6 +7,7 @@ import firrtl.graph.{DiGraph, DiGraphLike, MutableDiGraph}
 import firrtl.ir._
 import firrtl.Mappers._
 import firrtl.annotations.TargetToken
+import firrtl.passes.MemPortUtils
 import firrtl.{FEMALE, InstanceKind, MALE, PortKind, Utils, WDefInstance, WRef, WSubField, WSubIndex}
 
 import scala.collection.mutable
@@ -137,6 +138,32 @@ object CircuitGraph {
       }
     }
 
+    def buildMemory(mt: ModuleTarget, d: DefMemory): Unit = {
+      val readers = d.readers.toSet
+      val writers = d.writers.toSet
+      val readwriters = d.readwriters.toSet
+      val mem = mt.ref(d.name)
+      MemPortUtils.memType(d).fields.foreach {
+        case Field(name, flip, tpe: BundleType) if readers.contains(name) || readwriters.contains(name) =>
+          val port = mem.field(name)
+          val sources = Seq(
+            port.field("clk"),
+            port.field("en"),
+            port.field("addr")
+          ) ++ (if(readwriters.contains(name)) Seq(port.field("wmode")) else Nil)
+
+          val data = if(readers.contains(name)) port.field("data") else port.field("rdata")
+          val sinks = IRLookup.leafTargets(data, d.dataType)
+
+          sources.foreach { mdg.addVertex }
+          sinks.foreach { sink =>
+            mdg.addVertex(sink)
+            sources.foreach { source => mdg.addEdge(source, sink) }
+          }
+        case other =>
+      }
+    }
+
     def buildRegister(m: ModuleTarget, tagger: TokenTagger, d: DefRegister): Unit = {
       val regTarget = m.ref(d.name)
       val clockTarget = regTarget.clock
@@ -193,8 +220,9 @@ object CircuitGraph {
           addLabeledVertex(m.ref(d.name), d)
           buildRegister(m, tagger, d)
 
-        //TODO(azidar): Support memories
-        case d: DefMemory => sys.error("To be supported soon!!")
+        case d: DefMemory =>
+          addLabeledVertex(m.ref(d.name), d)
+          buildMemory(m, d)
 
         case s: Conditionally => sys.error("Unsupported! Only works on Middle Firrtl")
 
