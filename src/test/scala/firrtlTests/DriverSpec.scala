@@ -215,6 +215,7 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
       firrtlOptions = firrtlOptions.copy(firrtlSource = Some(input))
     }
     val annoFile = new File(optionsManager.commonOptions.targetDirName, top + ".anno")
+    val vFile = new File(optionsManager.commonOptions.targetDirName, top + ".v")
     "Using Driver.getAnnotations" in {
       copyResourceToFile("/annotations/SampleAnnotations.anno", annoFile)
       optionsManager.firrtlOptions.annotations.length should be(0)
@@ -222,6 +223,7 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
       annos.length should be(12) // 9 from circuit plus 3 general purpose
       annos.count(_.isInstanceOf[InlineAnnotation]) should be(9)
       annoFile.delete()
+      vFile.delete()
     }
     "Using Driver.execute" in {
       copyResourceToFile("/annotations/SampleAnnotations.anno", annoFile)
@@ -231,6 +233,7 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
           annos.count(_.isInstanceOf[InlineAnnotation]) should be(9)
       }
       annoFile.delete()
+      vFile.delete()
     }
   }
 
@@ -381,14 +384,16 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
 
     "To a single file with file extension depending on the compiler by default" in {
       Seq(
-        "none" -> "./Top.fir",
-        "low" -> "./Top.lo.fir",
-        "high" -> "./Top.hi.fir",
-        "middle" -> "./Top.mid.fir",
-        "verilog" -> "./Top.v"
+        "none" -> "./Foo.fir",
+        "low" -> "./Foo.lo.fir",
+        "high" -> "./Foo.hi.fir",
+        "middle" -> "./Foo.mid.fir",
+        "verilog" -> "./Foo.v",
+        "sverilog" -> "./Foo.sv"
       ).foreach { case (compilerName, expectedOutputFileName) =>
+        info(s"$compilerName -> $expectedOutputFileName")
         val manager = new ExecutionOptionsManager("test") with HasFirrtlOptions {
-          commonOptions = CommonOptions(topName = "Top")
+          commonOptions = CommonOptions(topName = "Foo")
           firrtlOptions = FirrtlExecutionOptions(firrtlSource = Some(input), compilerName = compilerName)
         }
 
@@ -405,11 +410,11 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
         "low" -> Seq("./Top.lo.fir", "./Child.lo.fir"),
         "high" -> Seq("./Top.hi.fir", "./Child.hi.fir"),
         "middle" -> Seq("./Top.mid.fir", "./Child.mid.fir"),
-        "verilog" -> Seq("./Top.v", "./Child.v")
+        "verilog" -> Seq("./Top.v", "./Child.v"),
+        "sverilog" -> Seq("./Top.sv", "./Child.sv")
       ).foreach { case (compilerName, expectedOutputFileNames) =>
-        println(s"$compilerName -> $expectedOutputFileNames")
+        info(s"$compilerName -> $expectedOutputFileNames")
         val manager = new ExecutionOptionsManager("test") with HasFirrtlOptions {
-          commonOptions = CommonOptions(topName = "Top")
           firrtlOptions = FirrtlExecutionOptions(firrtlSource = Some(input),
             compilerName = compilerName,
             emitOneFilePerModule = true)
@@ -418,8 +423,8 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
         firrtl.Driver.execute(manager) match {
           case success: FirrtlExecutionSuccess =>
             success.circuitState.annotations.length should be > (0)
-          case _ =>
-
+          case failure: FirrtlExecutionFailure =>
+            fail(s"Got a FirrtlExecutionFailure! Expected FirrtlExecutionSuccess. Full message:\n${failure.message}")
         }
 
         for (name <- expectedOutputFileNames) {
