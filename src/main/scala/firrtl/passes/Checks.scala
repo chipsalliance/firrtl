@@ -135,7 +135,8 @@ object CheckHighForm extends Pass {
 
     def validSubexp(info: Info, mname: String)(e: Expression): Expression = {
       e match {
-        case _: WRef | _: WSubField | _: WSubIndex | _: WSubAccess | _: Mux | _: ValidIf => // No error
+        case _: WRef | _: WSubField | _: WSubIndex | _: WSubAccess | _: Mux | _: ValidIf | 
+          _: BundleLiteral | _: VectorExpression => // No error
         case _ => errors.append(new InvalidAccessException(info, mname))
       }
       e
@@ -302,10 +303,11 @@ object CheckTypes extends Pass {
             case s: SIntType  => (isUInt, true, isClock, isFix)
             case ClockType    => (isUInt, isSInt, true, isFix)
             case f: FixedType => (isUInt, isSInt, isClock, true)
+            case _: BundleType | _: VectorType => (isUInt, isSInt, isClock, isFix) // ignore until lowered
             case UnknownType =>
               errors.append(new IllegalUnknownType(info, mname, e.serialize))
               (isUInt, isSInt, isClock, isFix)
-            case other => throwInternalError(s"Illegal Type: ${other.serialize}")
+            case other => throwInternalError(s"Illegal Type: ${other.serialize} (for DoPrim ${e.serialize})")
           }
         } match {
           //   (UInt,  SInt,  Clock, Fixed)

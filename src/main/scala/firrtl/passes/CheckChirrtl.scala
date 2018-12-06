@@ -59,7 +59,7 @@ object CheckChirrtl extends Pass {
     def validSubexp(info: Info, mname: String)(e: Expression): Expression = {
       e match {
         case _: Reference | _: SubField | _: SubIndex | _: SubAccess |
-             _: Mux | _: ValidIf => // No error
+             _: Mux | _: ValidIf | _: BundleLiteral | _: VectorExpression => // No error
         case _ => errors append new InvalidAccessException(info, mname)
       }
       e

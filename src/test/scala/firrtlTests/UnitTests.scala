@@ -102,14 +102,18 @@ class UnitTests extends FirrtlFlatSpec {
      """circuit Unit :
        |  module Unit :
        |    output x : { a: { b: UInt<32> }, c: UInt<32> }
+       |    output y : UInt<32>
        |    x <= { a: { b: UInt<32>("h5") }, c: UInt<32>("h6") }
+       |    y <= { a: { b: UInt<32>("h5") }, c: UInt<32>("h6") }.a.b
        |    """.stripMargin
     val check =
      """circuit Unit :
        |  module Unit :
        |    output x : { a: { b: UInt<32> }, c: UInt<32> }
+       |    output y : UInt<32>
        |    x.a.b <= UInt<32>("h5")
        |    x.c <= UInt<32>("h6")
+       |    y <= { a: { b: UInt<32>("h5") }, c: UInt<32>("h6") }.a.b
        |    """.stripMargin
     val iResult = passes.foldLeft(CircuitState(parse(input), UnknownForm)) {
       (c: CircuitState, p: Transform) => p.runTransform(c)
