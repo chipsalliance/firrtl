@@ -10,6 +10,7 @@ import firrtl.passes._
 import firrtl.passes.wiring.{WiringTransform, SourceAnnotation, SinkAnnotation}
 import firrtl.ir.Circuit
 import firrtl.annotations._
+import firrtl.annotations.TargetToken.{Field, Index}
 import firrtl.transforms.{WidthGeqConstraintAnnotation, InferWidthsWithAnnos}
 
 
@@ -100,7 +101,7 @@ class InferWidthsWithAnnosSpec extends FirrtlFlatSpec {
     executeTest(input, output, transforms, annos)
   }
 
-  "InferWidthsWithAnnos" should "work with aggregates" in {
+  "InferWidthsWithAnnos" should "work with token paths" in {
     val transforms = Seq(
       ToWorkingIR,
       CheckHighForm,
@@ -111,9 +112,17 @@ class InferWidthsWithAnnosSpec extends FirrtlFlatSpec {
       InferWidthsWithAnnos,
       CheckWidths)
 
-    val annos = Seq(WidthGeqConstraintAnnotation(
-      ReferenceTarget("Top", "A", Nil, "bundle", Nil),
-      ReferenceTarget("Top", "B", Nil, "bundle", Nil)))
+    val tokenLists = Seq(
+      Seq(Field("x")),
+      Seq(Field("y"), Index(0), Field("yy")),
+      Seq(Field("y"), Index(1), Field("yy"))
+    )
+
+    val annos = tokenLists.map { tokens =>
+      WidthGeqConstraintAnnotation(
+        ReferenceTarget("Top", "A", Nil, "bundle", tokens),
+        ReferenceTarget("Top", "B", Nil, "bundle", tokens))
+    }
 
     val input =
       """circuit Top :
@@ -122,10 +131,10 @@ class InferWidthsWithAnnosSpec extends FirrtlFlatSpec {
         |    inst a of A
         |
         |  module B :
-        |    wire bundle : {x : UInt<1>, y: UInt<2>, z: {zz : UInt<3>} }
+        |    wire bundle : {x : UInt<1>, y: {yy : UInt<3>}[2] }
         |
         |  module A :
-        |    wire bundle : {x : UInt, y: UInt, z: {zz : UInt} }""".stripMargin
+        |    wire bundle : {x : UInt, y: {yy : UInt}[2] }""".stripMargin
 
     val output =
       """circuit Top :
@@ -134,10 +143,10 @@ class InferWidthsWithAnnosSpec extends FirrtlFlatSpec {
         |    inst a of A
         |
         |  module B :
-        |    wire bundle : {x : UInt<1>, y: UInt<2>, z: {zz : UInt<3>} }
+        |    wire bundle : {x : UInt<1>, y: {yy : UInt<3>}[2] }
         |
         |  module A :
-        |    wire bundle : {x : UInt<1>, y: UInt<2>, z: {zz : UInt<3>} }""".stripMargin
+        |    wire bundle : {x : UInt<1>, y: {yy : UInt<3>}[2] }""".stripMargin
 
     // elements of A.bundle should have same width as B.bundle
     executeTest(input, output, transforms, annos)
@@ -160,40 +169,51 @@ class InferWidthsWithAnnosSpec extends FirrtlFlatSpec {
     val sinkTarget = ComponentName("bundle", ModuleName("B", CircuitName("Top")))
     val sink = SinkAnnotation(sinkTarget, "pin")
 
-    val wgeq = WidthGeqConstraintAnnotation(sinkTarget, sourceTarget)
+    val tokenLists = Seq(
+      Seq(Field("x")),
+      Seq(Field("y"), Index(0), Field("yy")),
+      Seq(Field("y"), Index(1), Field("yy"))
+    )
+
+    val wgeqAnnos = tokenLists.map { tokens =>
+      WidthGeqConstraintAnnotation(
+        ReferenceTarget("Top", "A", Nil, "bundle", tokens),
+        ReferenceTarget("Top", "B", Nil, "bundle", tokens))
+    }
+
     val failAnnos = Seq(source, sink)
-    val successAnnos = wgeq +: failAnnos
+    val successAnnos = wgeqAnnos ++: failAnnos
 
     val input =
-      """|circuit Top :
-         |  module Top :
-         |    inst a of A
-         |    inst b of B
-         |
-         |  module A :
-         |    wire bundle : {x : UInt<1>, y: UInt<2>, z: {zz : UInt<3>} }
-         |
-         |  module B :
-         |    wire bundle : {x : UInt, y: UInt, z: {zz : UInt} }""".stripMargin
+      """circuit Top :
+        |  module Top :
+        |    inst b of B
+        |    inst a of A
+        |
+        |  module B :
+        |    wire bundle : {x : UInt<1>, y: {yy : UInt<3>}[2] }
+        |
+        |  module A :
+        |    wire bundle : {x : UInt, y: {yy : UInt}[2] }""".stripMargin
 
     val output =
-      """|circuit Top :
-         |  module Top :
-         |    wire bundle : {x : UInt<1>, y: UInt<2>, z: {zz : UInt<3>} }
-         |    inst a of A
-         |    inst b of B
-         |    b.pin <= bundle
-         |    bundle <= a.bundle_0
-         |
-         |  module A :
-         |    output bundle_0 : {x : UInt<1>, y: UInt<2>, z: {zz : UInt<3>} }
-         |    wire bundle : {x : UInt<1>, y: UInt<2>, z: {zz : UInt<3>} }
-         |    bundle_0 <= bundle
-         |
-         |  module B :
-         |    input pin : {x : UInt<1>, y: UInt<2>, z: {zz : UInt<3>} }
-         |    wire bundle : {x : UInt<1>, y: UInt<2>, z: {zz : UInt<3>} }
-         |    bundle <= pin"""
+      """circuit Top :
+        |  module Top :
+        |    wire bundle : {x : UInt<1>, y: {yy : UInt<3>}[2] }
+        |    inst b of B
+        |    inst a of A
+        |    b.pin <= bundle
+        |    bundle <= a.bundle_0
+        |
+        |  module B :
+        |    input pin : {x : UInt<1>, y: {yy : UInt<3>}[2] }
+        |    wire bundle : {x : UInt<1>, y: {yy : UInt<3>}[2] }
+        |    bundle <= pin
+        |
+        |  module A :
+        |    output bundle_0 : {x : UInt<1>, y: {yy : UInt<3>}[2] }
+        |    wire bundle : {x : UInt<1>, y: {yy : UInt<3>}[2] }
+        |    bundle_0 <= bundle"""
         .stripMargin
 
     // should fail without extra constraint annos due to UninferredWidths
@@ -202,7 +222,7 @@ class InferWidthsWithAnnosSpec extends FirrtlFlatSpec {
     }.exceptions.reverse
 
     val msg = exceptions.head.toString
-    assert(msg.contains(s"3 errors detected!"))
+    assert(msg.contains(s"2 errors detected!"))
     assert(exceptions.tail.forall(_.isInstanceOf[CheckWidths.UninferredWidth]))
 
     // should pass with extra constraints

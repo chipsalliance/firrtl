@@ -10,13 +10,20 @@ import firrtl.passes.{InferWidths, MemPortUtils}
 
 case class WidthGeqConstraintAnnotation(loc: ReferenceTarget, exp: ReferenceTarget) extends Annotation {
   def update(renameMap: RenameMap): Seq[WidthGeqConstraintAnnotation] = {
-    (renameMap.get(loc), renameMap.get(exp)) match {
-      case (None, None) => Seq(this)
-      case (Some(locs), Some(exps)) if locs.size == exps.size =>
-        locs.zip(exps).map {
-          case (l: ReferenceTarget, e: ReferenceTarget) => WidthGeqConstraintAnnotation(l, e)
-        }.toSeq
-      case other => throw new Exception("Unable to update WidthGeqConstraintAnnotation!")
+    val newLoc :: newExp :: Nil = Seq(loc, exp).map { target =>
+      renameMap.get(target) match {
+        case None => Some(target)
+        case Some(Seq()) => None
+        case Some(Seq(one)) => Some(one)
+        case Some(many) =>
+          throw new Exception(s"Target below is an AggregateType, which " +
+            "is not supported by WidthGeqConstraintAnnotation\n" + target.prettyPrint())
+      }
+    }
+
+    (newLoc, newExp) match {
+      case (Some(l: ReferenceTarget), Some(e: ReferenceTarget)) => Seq(WidthGeqConstraintAnnotation(l, e))
+      case _ => Seq.empty
     }
   }
 }
@@ -68,11 +75,16 @@ object InferWidthsWithAnnos extends Transform with ResolvedAnnotationPaths {
 
     val extraConstraints = state.annotations.flatMap {
       case anno: WidthGeqConstraintAnnotation if anno.loc.isLocal && anno.exp.isLocal  =>
-        val locBaseType = typeMap(anno.loc.copy(component = Seq.empty))
-        val locType = getComponentType(locBaseType, anno.loc.component)
+        val locType :: expType :: Nil = Seq(anno.loc, anno.exp) map { target =>
+          val baseType = typeMap(target.copy(component = Seq.empty))
+          val leafType = getComponentType(baseType, target.component)
+          if (leafType.isInstanceOf[AggregateType]) {
+            throw new Exception(s"Target below is an AggregateType, which " +
+              "is not supported by WidthGeqConstraintAnnotation\n" + anno.loc.prettyPrint())
+          }
 
-        val expBaseType = typeMap(anno.exp.copy(component = Seq.empty))
-        val expType = getComponentType(expBaseType, anno.exp.component)
+          leafType
+        }
 
         InferWidths.get_constraints_t(locType, expType)
       case other => Seq.empty
