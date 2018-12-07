@@ -7,6 +7,7 @@ import firrtl.graph.{DiGraph, DiGraphLike, MutableDiGraph}
 import firrtl.ir._
 import firrtl.Mappers._
 import firrtl.annotations.TargetToken
+import firrtl.annotations.TargetToken.{Instance, OfModule}
 import firrtl.passes.MemPortUtils
 import firrtl.{FEMALE, InstanceKind, MALE, PortKind, Utils, WDefInstance, WRef, WSubField, WSubIndex}
 
@@ -14,6 +15,14 @@ import scala.collection.mutable
 
 class CircuitGraph protected (val circuit: Circuit, val digraph: DiGraph[Target], val irLookup: IRLookup) extends DiGraphLike[Target] {
   override val edges = digraph.getEdgeMap.asInstanceOf[mutable.LinkedHashMap[Target, mutable.LinkedHashSet[Target]]]
+
+  private val path = mutable.ArrayBuffer[(Instance, OfModule)]()
+
+  def inSameInstance(from: Target, to: Target): Boolean = from.moduleOpt == to.moduleOpt && from.moduleOpt.nonEmpty
+
+  def inParentInstance(from: Target, to: Target): Boolean = to.moduleOpt.nonEmpty && to.moduleOpt.get == path.last._2.value
+
+  def inChildInstance(from: InstanceTarget, to: Target): Boolean = to.moduleOpt.isDefined && to.moduleOpt.get == from.ofModule
 
   override def getEdges(v: Target, prevOpt: Option[collection.Map[Target, Target]] = None): collection.Set[Target] = {
     val genT = v.toGenericTarget
