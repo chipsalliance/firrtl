@@ -414,6 +414,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
     val attachSynAssigns = ArrayBuffer.empty[Seq[Any]]
     val attachAliases = ArrayBuffer.empty[Seq[Any]]
     val at_clock = mutable.LinkedHashMap[Expression, ArrayBuffer[Seq[Any]]]()
+    val at_clock_reg = ArrayBuffer.empty[(Expression,Seq[Seq[Any]])]
     val initials = ArrayBuffer[Seq[Any]]()
     val simulates = ArrayBuffer[Seq[Any]]()
 
@@ -473,7 +474,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
         }
       }
 
-      at_clock.getOrElseUpdate(clk, ArrayBuffer[Seq[Any]]()) ++= addUpdate(netlist(r), "")
+      at_clock_reg += ((clk, addUpdate(netlist(r), "")))
     }
 
     def update(e: Expression, value: Expression, clk: Expression, en: Expression, info: Info) = {
@@ -783,6 +784,22 @@ class VerilogEmitter extends SeqTransform with Emitter {
       for (clk_stream <- at_clock if clk_stream._2.nonEmpty) {
         emit(Seq(tab, "always @(posedge ", clk_stream._1, ") begin"))
         for (x <- clk_stream._2) emit(Seq(tab, tab, x))
+        emit(Seq(tab, "end"))
+      }
+      for ((clk, body) <- at_clock_reg if body.nonEmpty) {
+        val first_wref = body.flatMap{x => x}.find(n => n match { case _: WRef => true; case _ => false })
+        if (first_wref match { case Some(WRef(name, _, _, _)) if name == "reset" => true; case _ => false }) {
+          emit(Seq("`ifdef ASYNC_POS_RESET"))
+          emit(Seq(tab, "always @(posedge ", clk, " or posedge reset) begin"))
+          emit(Seq("`elsif ASYNC_NEG_RESET"))
+          emit(Seq(tab, "always @(posedge ", clk, " or negedge reset) begin"))
+          emit(Seq("`else"))
+          emit(Seq(tab, "always @(posedge ", clk, ") begin"))
+          emit(Seq("`endif"))
+        } else {
+          emit(Seq(tab, "always @(posedge ", clk, ") begin"))
+        }
+        for (x <- body) emit(Seq(tab, tab, x))
         emit(Seq(tab, "end"))
       }
       emit(Seq("endmodule"))
