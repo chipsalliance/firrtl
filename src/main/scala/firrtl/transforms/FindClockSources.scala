@@ -226,7 +226,7 @@ class ClockSourceFinder(graph: CircuitGraph) extends CircuitGraph(graph.circuit,
     }
 
     val ret = shortCutEdges.flatMap {
-      // Top-level Input Clock Port
+      // Top-level Input Port
       // Must check if not isClock because expression that is in the clock port of reg could be a port
       case rt@ ReferenceTarget(c, m, Nil, _, _)
         if irLookup.kind(rt) == PortKind && irLookup.gender(rt) == MALE && !rt.isClock =>

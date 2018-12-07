@@ -500,14 +500,16 @@ class FindClockSourcesSpec extends MiddleAnnotationSpec with MemStuff {
       val clockSources = ClockSources(Map(
         Child0.ref("out") -> Set((Child0.ref("in"), None))
       ))
+      print(s"\tWith caching: ")
       val (timeWithCaching, dc2) = firrtl.Utils.time {
         execute(input.toString(), Seq(GetClockSources((0 to n).map(i => C.module(s"Child${i}")))), clockSources, None)
       }
-      println(s"\tWith caching: $timeWithCaching")
+      //println(s"\tWith caching: $timeWithCaching")
+      print(s"\tNo caching: ")
       val (timeNoCaching, dc) = firrtl.Utils.time{
         execute(input.toString(), Seq(GetClockSources(Seq(Child0.ref("out")))), clockSources, None)
       }
-      println(s"\tNo caching: $timeNoCaching")
+      //println(s"\tNo caching: $timeNoCaching")
     }
   }
 
