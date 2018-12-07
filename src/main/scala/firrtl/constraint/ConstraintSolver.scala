@@ -17,6 +17,21 @@ import scala.collection.mutable
   */
 class ConstraintSolver {
 
+  /** Initial, mutable constraint list, with function to add the constraint */
+  private val constraints = mutable.ArrayBuffer[Inequality]()
+
+  /** Solved constraints */
+  type ConstraintMap = mutable.HashMap[String, (Constraint, Boolean)]
+  private val solvedConstraintMap = new ConstraintMap()
+
+
+  /** Clear all previously recorded/solved constraints */
+  def clear(): Unit = {
+    constraints.clear()
+    solvedConstraintMap.clear()
+  }
+
+
   /** Updates internal list of inequalities with a new [[GreaterOrEqual]]
     * @param big The larger constraint, must be either known or a variable
     * @param small The smaller constraint
@@ -54,6 +69,9 @@ class ConstraintSolver {
     }
   }
 
+  private def add(c: Inequality) = constraints += c
+
+
   /** Creates an Inequality given a variable name, constraint, and whether its >= or <=
     * @param left
     * @param right
@@ -65,16 +83,8 @@ class ConstraintSolver {
     case false => LesserOrEqual(left, right)
   }
 
-  /** Initial, mutable constraint list, with function to add the constraint */
-  val constraints = mutable.ArrayBuffer[Inequality]()
-  private def add(c: Inequality) = constraints += c
-
   /** For debugging, can serialize the initial constraints */
   def serializeConstraints: String = constraints.mkString("\n")
-
-  /** Solved constraints */
-  type ConstraintMap = mutable.HashMap[String, (Constraint, Boolean)]
-  val solvedConstraintMap = new ConstraintMap()
 
   /** For debugging, can serialize the solved constraints */
   def serializeSolutions: String = solvedConstraintMap.map{

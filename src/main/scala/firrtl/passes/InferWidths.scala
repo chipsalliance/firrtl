@@ -16,6 +16,28 @@ object InferWidths {
   def execute(state: CircuitState): CircuitState = new InferWidths().execute(state)
 }
 
+/** Infers the widths of all signals with unknown widths
+  *
+  * Is a global width inference algorithm
+  * - Instances of the same module with unknown input port widths will be assigned the
+  *   largest width of all assignments to each of its instance ports
+  * - If you don't want the global inference behavior, then be sure to define all your input widths
+  *
+  * Infers the smallest width is larger than all assigned widths to a signal
+  * - Note that this means that dummy assignments that are overwritten by last-connect-semantics
+  *   can still influence width inference
+  * - E.g.
+  *   wire x: UInt
+  *   x <= UInt<5>(15)
+  *   x <= UInt<1>(1)
+  *
+  *   Since width inference occurs before lowering, it infers x's width to be 5 but with an assignment of UInt(1):
+  *
+  *   wire x: UInt<5>
+  *   x <= UInt<1>(1)
+  *
+  * Uses firrtl.constraint package to infer widths
+  */
 class InferWidths extends Pass {
   private val constraintSolver = new ConstraintSolver()
 
@@ -113,9 +135,11 @@ class InferWidths extends Pass {
 
   def run (c: Circuit): Circuit = {
     c.modules foreach (_ map addStmtConstraints)
-      constraintSolver.solve()
-    InferTypes.run(c.copy(modules = c.modules map (_
+    constraintSolver.solve()
+    val ret = InferTypes.run(c.copy(modules = c.modules map (_
       map fixPort
       map fixStmt)))
+    constraintSolver.clear()
+    ret
   }
 }
