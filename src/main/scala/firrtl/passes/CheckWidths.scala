@@ -5,10 +5,10 @@ package firrtl.passes
 import firrtl._
 import firrtl.ir._
 import firrtl.PrimOps._
-import firrtl.Mappers._
+import firrtl.traversals.Foreachers._
 import firrtl.Utils._
 import firrtl.constraint.IsKnown
-import firrtl.annotations.{Target, TargetToken, CircuitTarget, ModuleTarget}
+import firrtl.annotations.{CircuitTarget, ModuleTarget, Target, TargetToken}
 
 object CheckWidths extends Pass {
   /** The maximum allowed width for any circuit element */
@@ -43,7 +43,7 @@ object CheckWidths extends Pass {
   def run(c: Circuit): Circuit = {
     val errors = new Errors()
 
-    def check_width_w(info: Info, target: Target, t: Type)(w: Width): Width = {
+    def check_width_w(info: Info, target: Target, t: Type)(w: Width): Unit = {
       (w, t) match {
         case (IntWidth(width), _) if width >= MaxWidth =>
           errors.append(new WidthTooBig(info, target.serialize, width))
@@ -53,7 +53,6 @@ object CheckWidths extends Pass {
         case _ =>
           errors append new UninferredWidth(info, target.prettyPrint("    "))
       }
-      w
     }
 
     def hasWidth(tpe: Type): Boolean = tpe match {
@@ -62,7 +61,7 @@ object CheckWidths extends Pass {
       case _ => throwInternalError(s"hasWidth - $tpe")
     }
 
-    def check_width_t(info: Info, target: Target)(t: Type): Type = {
+    def check_width_t(info: Info, target: Target)(t: Type): Unit = {
       t match {
         case tt: BundleType => tt.fields.foreach(check_width_f(info, target))
         //Supports when l = u (if closed)
@@ -86,13 +85,13 @@ object CheckWidths extends Pass {
           i
         case other => other
       }
-      t map check_width_w(info, target, t)
+      t foreach check_width_w(info, target, t)
     }
 
-    def check_width_f(info: Info, target: Target)(f: Field): Field = f
-      .copy(tpe = check_width_t(info, target.modify(tokens = target.tokens :+ TargetToken.Field(f.name)))(f.tpe))
+    def check_width_f(info: Info, target: Target)(f: Field): Unit =
+      check_width_t(info, target.modify(tokens = target.tokens :+ TargetToken.Field(f.name)))(f.tpe)
 
-    def check_width_e(info: Info, target: Target)(e: Expression): Expression = {
+    def check_width_e(info: Info, target: Target)(e: Expression): Unit = {
       e match {
         case e: UIntLiteral => e.width match {
           case w: IntWidth if math.max(1, e.value.bitLength) > w.width =>
@@ -114,34 +113,36 @@ object CheckWidths extends Pass {
           errors append new DshlTooBig(info, target.serialize)
         case _ =>
       }
-      e map check_width_e(info, target)
+      e foreach check_width_e(info, target)
     }
 
 
-    def check_width_s(minfo: Info, target: ModuleTarget)(s: Statement): Statement = {
+    def check_width_s(minfo: Info, target: ModuleTarget)(s: Statement): Unit = {
       val info = get_info(s) match { case NoInfo => minfo case x => x }
       val subRef = s match { case sx: HasName => target.ref(sx.name) case _ => target }
-      s map check_width_e(info, target) map check_width_s(info, target) map check_width_t(info, subRef) match {
+      s foreach check_width_e(info, target)
+      s foreach check_width_s(info, target)
+      s foreach check_width_t(info, subRef)
+      s match {
         case Attach(infox, exprs) =>
           exprs.tail.foreach ( e =>
             if (bitWidth(e.tpe) != bitWidth(exprs.head.tpe))
               errors.append(new AttachWidthsNotEqual(infox, target.serialize, e.serialize, exprs.head.serialize))
           )
-          s
         case sx: DefRegister =>
           sx.reset.tpe match {
             case UIntType(IntWidth(w)) if w == 1 =>
             case _ => errors.append(new CheckTypes.IllegalResetType(info, target.serialize, sx.name))
           }
-          s
-        case _ => s
+        case _ =>
       }
     }
 
-    def check_width_p(minfo: Info, target: ModuleTarget)(p: Port): Port = p.copy(tpe =  check_width_t(p.info, target)(p.tpe))
+    def check_width_p(minfo: Info, target: ModuleTarget)(p: Port): Unit = check_width_t(p.info, target)(p.tpe)
 
     def check_width_m(circuit: CircuitTarget)(m: DefModule) {
-      m map check_width_p(m.info, circuit.module(m.name)) map check_width_s(m.info, circuit.module(m.name))
+      m foreach check_width_p(m.info, circuit.module(m.name))
+      m foreach check_width_s(m.info, circuit.module(m.name))
     }
 
     c.modules foreach check_width_m(CircuitTarget(c.main))
