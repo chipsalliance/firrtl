@@ -7,12 +7,38 @@ import scala.collection.mutable.ArrayBuffer
 import scala.collection.immutable.ListMap
 
 import firrtl._
+import firrtl.annotations.{Annotation, ReferenceTarget, TargetToken}
 import firrtl.ir._
 import firrtl.Utils._
 import firrtl.Mappers._
 import firrtl.traversals.Foreachers._
 
-object InferWidths extends Pass {
+case class WidthGeqConstraintAnnotation(loc: ReferenceTarget, exp: ReferenceTarget) extends Annotation {
+  def update(renameMap: RenameMap): Seq[WidthGeqConstraintAnnotation] = {
+    val newLoc :: newExp :: Nil = Seq(loc, exp).map { target =>
+      renameMap.get(target) match {
+        case None => Some(target)
+        case Some(Seq()) => None
+        case Some(Seq(one)) => Some(one)
+        case Some(many) =>
+          throw new Exception(s"Target below is an AggregateType, which " +
+            "is not supported by WidthGeqConstraintAnnotation\n" + target.prettyPrint())
+      }
+    }
+
+    (newLoc, newExp) match {
+      case (Some(l: ReferenceTarget), Some(e: ReferenceTarget)) => Seq(WidthGeqConstraintAnnotation(l, e))
+      case _ => Seq.empty
+    }
+  }
+}
+
+class InferWidths extends Transform with ResolvedAnnotationPaths {
+  def inputForm: CircuitForm = UnknownForm
+  def outputForm: CircuitForm = UnknownForm
+
+  val annotationClasses = Seq(classOf[WidthGeqConstraintAnnotation])
+
   type ConstraintMap = collection.mutable.LinkedHashMap[String, Width]
 
   def solve_constraints(l: Seq[WGeq]): ConstraintMap = {
@@ -237,9 +263,7 @@ object InferWidths extends Pass {
     case (t1: VectorType, t2: VectorType) => get_constraints_t(t1.tpe, t2.tpe)
   }
 
-  def run(c: Circuit): Circuit = runWithExtraConstraints(c, Nil)
-
-  def runWithExtraConstraints(c: Circuit, extra: Seq[WGeq]): Circuit = {
+  def run(c: Circuit, extra: Seq[WGeq]): Circuit = {
     val v = ArrayBuffer[WGeq]() ++ extra
 
     def get_constraints_e(e: Expression): Unit = {
@@ -367,5 +391,51 @@ object InferWidths extends Pass {
     InferTypes.run(c.copy(modules = c.modules map (_
       map reduce_var_widths_p
       map reduce_var_widths_s)))
+  }
+
+  def execute(state: CircuitState): CircuitState = {
+    val circuitName = state.circuit.main
+    val typeMap = new collection.mutable.HashMap[ReferenceTarget, Type]
+
+    def getDeclTypes(modName: String)(stmt: Statement): Unit = {
+      val pairOpt = stmt match {
+        case w: DefWire => Some(w.name -> w.tpe)
+        case r: DefRegister => Some(r.name -> r.tpe)
+        case n: DefNode => Some(n.name -> n.value.tpe)
+        case i: WDefInstance => Some(i.name -> i.tpe)
+        case m: DefMemory => Some(m.name -> MemPortUtils.memType(m))
+        case other => None
+      }
+      pairOpt.foreach { case (ref, tpe) =>
+        typeMap += (ReferenceTarget(circuitName, modName, Nil, ref, Nil) -> tpe)
+      }
+      stmt.foreachStmt(getDeclTypes(modName))
+    }
+
+    state.circuit.modules.foreach { mod =>
+      mod.ports.foreach { port =>
+        typeMap += (ReferenceTarget(circuitName, mod.name, Nil, port.name, Nil) -> port.tpe)
+      }
+      mod.foreachStmt(getDeclTypes(mod.name))
+    }
+
+    val extraConstraints = state.annotations.flatMap {
+      case anno: WidthGeqConstraintAnnotation if anno.loc.isLocal && anno.exp.isLocal  =>
+        val locType :: expType :: Nil = Seq(anno.loc, anno.exp) map { target =>
+          val baseType = typeMap(target.copy(component = Seq.empty))
+          val leafType = target.componentType(baseType)
+          if (leafType.isInstanceOf[AggregateType]) {
+            throw new Exception(s"Target below is an AggregateType, which " +
+              "is not supported by WidthGeqConstraintAnnotation\n" + anno.loc.prettyPrint())
+          }
+
+          leafType
+        }
+
+        get_constraints_t(locType, expType)
+      case other => Seq.empty
+    }
+
+    state.copy(circuit = run(state.circuit, extraConstraints))
   }
 }

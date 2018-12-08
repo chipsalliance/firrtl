@@ -11,7 +11,6 @@ import firrtl.passes.wiring.{WiringTransform, SourceAnnotation, SinkAnnotation}
 import firrtl.ir.Circuit
 import firrtl.annotations._
 import firrtl.annotations.TargetToken.{Field, Index}
-import firrtl.transforms.{WidthGeqConstraintAnnotation, InferWidthsWithAnnos}
 
 
 class InferWidthsWithAnnosSpec extends FirrtlFlatSpec {
@@ -37,7 +36,7 @@ class InferWidthsWithAnnosSpec extends FirrtlFlatSpec {
       InferTypes,
       CheckTypes,
       ResolveGenders,
-      InferWidthsWithAnnos,
+      new InferWidths,
       CheckWidths)
 
     val input =
@@ -66,7 +65,7 @@ class InferWidthsWithAnnosSpec extends FirrtlFlatSpec {
       InferTypes,
       CheckTypes,
       ResolveGenders,
-      InferWidthsWithAnnos,
+      new InferWidths,
       CheckWidths)
 
     val annos = Seq(WidthGeqConstraintAnnotation(
@@ -109,7 +108,7 @@ class InferWidthsWithAnnosSpec extends FirrtlFlatSpec {
       InferTypes,
       CheckTypes,
       ResolveGenders,
-      InferWidthsWithAnnos,
+      new InferWidths,
       CheckWidths)
 
     val tokenLists = Seq(
@@ -158,7 +157,7 @@ class InferWidthsWithAnnosSpec extends FirrtlFlatSpec {
       ResolveKinds,
       InferTypes,
       ResolveGenders,
-      InferWidthsWithAnnos,
+      new InferWidths,
       CheckWidths,
       new WiringTransform,
       new ResolveAndCheck
