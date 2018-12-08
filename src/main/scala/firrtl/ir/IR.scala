@@ -695,75 +695,58 @@ case class IntervalType(lower: Bound, upper: Bound, point: Width) extends Ground
     }
     "Interval" + bounds + pointString
   }
-  lazy val bp = point.get.toInt
-  lazy val prec = if(bp >= 0) BigDecimal(1) / BigDecimal(BigInt(1) << bp) else BigDecimal(BigInt(1) << -bp)
-  lazy val min = lower match {
-    case Open(a) => (a / prec) match {
-      case x if trim(x).isWhole => a + prec // add precision for open lower bound i.e. (-4 -> [3 for bp = 0
-      case x => x.setScale(0, CEILING) * prec // Deal with unreprsentable bound representations (finite BP) -- new closed form l > original l
-    }
-    //case Closed(a) => (a / prec).setScale(0, FLOOR) * prec
-    case Closed(a) => (a / prec).setScale(0, CEILING) * prec
+
+  private lazy val bp = point.get.toInt
+  private def precision: Option[BigDecimal] = point match {
+    case IntWidth(width) =>
+      val bp = width.toInt
+      if(bp >= 0) Some(BigDecimal(1) / BigDecimal(BigInt(1) << bp)) else Some(BigDecimal(BigInt(1) << -bp))
+    case other => None
   }
-  lazy val max = upper match {
-    case Open(a) => (a / prec) match {
-      case x if trim(x).isWhole => a - prec // subtract precision for open upper bound
-      case x => x.setScale(0, FLOOR) * prec
+
+  def min: Option[BigDecimal] = (lower, precision) match {
+    case (Open(a), Some(prec))  => a / prec match {
+      case x if trim(x).isWhole => Some(a + prec) // add precision for open lower bound i.e. (-4 -> [3 for bp = 0
+      case x => Some(x.setScale(0, CEILING) * prec) // Deal with unrepresentable bound representations (finite BP) -- new closed form l > original l
     }
-    //case Closed(a) => (a / prec).setScale(0, CEILING) * prec
-    case Closed(a) => (a / prec).setScale(0, FLOOR) * prec
+    case (Closed(a), Some(prec)) => Some((a / prec).setScale(0, CEILING) * prec)
+    case other => None
   }
-  lazy val minAdjusted = min * BigDecimal(BigInt(1) << point.get.toInt) match {
+
+  def max: Option[BigDecimal] = (upper, precision) match {
+    case (Open(a), Some(prec)) => a / prec match {
+      case x if trim(x).isWhole => Some(a - prec) // subtract precision for open upper bound
+      case x => Some(x.setScale(0, FLOOR) * prec)
+    }
+    case (Closed(a), Some(prec)) => Some((a / prec).setScale(0, FLOOR) * prec)
+  }
+
+  def minAdjusted: Option[BigInt] = min.map(_ * BigDecimal(BigInt(1) << point.get.toInt) match {
     case x if trim(x).isWhole | x.doubleValue == 0.0 => x.toBigInt
-    case x => sys.error(s"MinAdjusted should be a whole number: $x. Min is $min. BP is ${point.get.toInt}. Precision is $prec. Lower is ${lower}.")
-  }
-  lazy val maxAdjusted = max * BigDecimal(BigInt(1) << point.get.toInt) match {
+    case x => sys.error(s"MinAdjusted should be a whole number: $x. Min is $min. BP is ${point.get.toInt}. Precision is $precision. Lower is ${lower}.")
+  })
+
+  def maxAdjusted: Option[BigInt] = max.map(_ * BigDecimal(BigInt(1) << point.get.toInt) match {
     case x if trim(x).isWhole => x.toBigInt
     case x => sys.error(s"MaxAdjusted should be a whole number: $x")
-  }
+  })
+
+  /** If bounds are known, calculates the width, otherwise returns UnknownWidth */
   lazy val width: Width = (point, lower, upper) match {
     case (IntWidth(i), l: IsKnown, u: IsKnown) =>
-      def resize(value: BigDecimal): BigDecimal = value * BigDecimal(BigInt(1) << i.toInt)
-      val resizedMin = l match {
-        case Open(x) => resize(x) match {
-          case v if trim(v).isWhole => v + 1
-          case v => v.setScale(0, CEILING)
-        }
-        case Closed(x) => resize(x) match {
-          case v if trim(v).isWhole => v
-          case v => v.setScale(0, FLOOR)
-          //case v => v.setScale(0, CEILING)
-        }
-      }
-      val resizedMax = u match {
-        case Open(x) => resize(x) match {
-          case v if trim(v).isWhole => v - 1
-          case v => v.setScale(0, FLOOR)
-        }
-        case Closed(x) => resize(x) match {
-          case v if trim(v).isWhole => v
-          case v => v.setScale(0, CEILING)
-          //case v => v.setScale(0, FLOOR)
-        }
-      }
-      //val r = range
-      //println(r)
-      //if(r.get.size > 0) {
-      //  val rh = resize(r.get.head)
-      //  val rl = resize(r.get.last)
-      //  assert(rh == resizedMin && rl == resizedMax, s"Min of $this, $r: $rh != $resizedMin\nMax of $this, $r: $rl != $resizedMax")
-      //}
-      IntWidth(Math.max(Utils.getSIntWidth(resizedMin.toBigInt), Utils.getSIntWidth(resizedMax.toBigInt)))
+      IntWidth(Math.max(Utils.getSIntWidth(minAdjusted.get), Utils.getSIntWidth(maxAdjusted.get)))
     case _ => UnknownWidth
   }
 
+  /** If bounds are known, returns a sequence of all possible values inside this interval */
   lazy val range: Option[Seq[BigDecimal]] = (lower, upper, point) match {
     case (l: IsKnown, u: IsKnown, p: IntWidth) =>
-      if(min > max) Some(Nil) else Some(Range.BigDecimal(min, max, prec))
+      if(min.get > max.get) Some(Nil) else Some(Range.BigDecimal(min.get, max.get, precision.get))
     case _ => None
   }
-  def mapWidth(f: Width => Width): Type = this.copy(point = f(point))
-  def foreachWidth(f: Width => Unit): Unit = f(point)
+
+  override def mapWidth(f: Width => Width): Type = this.copy(point = f(point))
+  override def foreachWidth(f: Width => Unit): Unit = f(point)
 }
 
 case class BundleType(fields: Seq[Field]) extends AggregateType {

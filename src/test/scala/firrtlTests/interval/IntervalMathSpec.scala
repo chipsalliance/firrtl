@@ -91,10 +91,10 @@ class IntervalMathSpec extends FirrtlFlatSpec {
           val lowerer = new LowFirrtlCompiler
           val res = lowerer.compileAndEmit(CircuitState(parse(input), ChirrtlForm))
           val output = res.getEmittedCircuit.value split "\n"
-          val min1 = Closed(it1.min)
-          val max1 = Closed(it1.max)
-          val min2 = Closed(it2.min)
-          val max2 = Closed(it2.max)
+          val min1 = Closed(it1.min.get)
+          val max1 = Closed(it1.max.get)
+          val min2 = Closed(it2.min.get)
+          val max2 = Closed(it2.max.get)
           for (line <- output) {
             line match {
               case SumPattern(varWidth)     =>

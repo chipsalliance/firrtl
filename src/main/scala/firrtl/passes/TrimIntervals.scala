@@ -38,7 +38,8 @@ class TrimIntervals extends Pass {
   private def replacePortInterval(p: Port): Port = p map replaceTypeInterval
 
   private def replaceTypeInterval(t: Type): Type = t match {
-    case i@IntervalType(l: IsKnown, u: IsKnown, IntWidth(p)) => IntervalType(Closed(i.min), Closed(i.max), IntWidth(p))
+    case i@IntervalType(l: IsKnown, u: IsKnown, IntWidth(p)) =>
+      IntervalType(Closed(i.min.get), Closed(i.max.get), IntWidth(p))
     case i: IntervalType => i
     case v => v map replaceTypeInterval
   }

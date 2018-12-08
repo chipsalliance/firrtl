@@ -31,7 +31,7 @@ import scala.math.BigDecimal.RoundingMode._
 class RemoveIntervals extends Pass {
 
   def run(c: Circuit): Circuit = {
-    val alignedCircuit = c// map alignModuleBP
+    val alignedCircuit = c
     val wiredCircuit = alignedCircuit map makeWireModule
     val replacedCircuit = wiredCircuit map replaceModuleInterval
     InferTypes.run(replacedCircuit)
@@ -48,11 +48,11 @@ class RemoveIntervals extends Pass {
     case DoPrim(BPShr, args, consts, tpe) => DoPrim(Shr, args, consts, tpe)
     case DoPrim(Clip, Seq(a1, _), Nil, tpe: IntervalType) =>
       // Output interval (pre-calculated)
-      val clipLo = tpe.minAdjusted
-      val clipHi = tpe.maxAdjusted
+      val clipLo = tpe.minAdjusted.get
+      val clipHi = tpe.maxAdjusted.get
       // Input interval
       val (inLow, inHigh) = a1.tpe match {
-        case t2: IntervalType => (t2.minAdjusted, t2.maxAdjusted)
+        case t2: IntervalType => (t2.minAdjusted.get, t2.maxAdjusted.get)
         case _ => sys.error("Shouldn't be here")
       }
       val gtOpt = clipHi >= inHigh
@@ -69,13 +69,13 @@ class RemoveIntervals extends Pass {
       // Using (conditional) reassign interval w/o adding mux
       val a2tpe = a2.tpe.asInstanceOf[IntervalType]
       val a1tpe = a1.tpe.asInstanceOf[IntervalType]
-      val min2 = a2tpe.min * BigDecimal(BigInt(1) << a1tpe.point.get.toInt)
+      val min2 = a2tpe.min.get * BigDecimal(BigInt(1) << a1tpe.point.get.toInt)
       // Conservative
       val minOpt2 = min2.setScale(0, FLOOR).toBigInt
-      val max2 = a2tpe.max * BigDecimal(BigInt(1) << a1tpe.point.get.toInt)
+      val max2 = a2tpe.max.get * BigDecimal(BigInt(1) << a1tpe.point.get.toInt)
       val maxOpt2 = max2.setScale(0, CEILING).toBigInt
       val w2 = Seq(minOpt2.bitLength, maxOpt2.bitLength).max + 1
-      val w1 = Seq(a1tpe.minAdjusted.bitLength, a1tpe.maxAdjusted.bitLength).max + 1
+      val w1 = Seq(a1tpe.minAdjusted.get.bitLength, a1tpe.maxAdjusted.get.bitLength).max + 1
       if (w1 < w2)
         a1
       else {
@@ -87,11 +87,11 @@ class RemoveIntervals extends Pass {
       case t: IntervalType =>
         // Need to match binary points before getting *adjusted!
         val (wrapLo, wrapHi) = t.copy(point = tpe.point) match {
-          case t: IntervalType => (t.minAdjusted, t.maxAdjusted)
+          case t: IntervalType => (t.minAdjusted.get, t.maxAdjusted.get)
           case _ => Utils.throwInternalError(s"Illegal AST state: cannot have $e not have an IntervalType")
         }
         val (inLo, inHi) = a1.tpe match {
-          case t2: IntervalType => (t2.minAdjusted, t2.maxAdjusted)
+          case t2: IntervalType => (t2.minAdjusted.get, t2.maxAdjusted.get)
           case _ => sys.error("Shouldn't be here")
         }
         // If (max input) - (max wrap) + (min wrap) is less then (maxwrap), we can optimize when (max input > max wrap)
@@ -135,50 +135,6 @@ class RemoveIntervals extends Pass {
     case i: IntervalType => sys.error(s"Shouldn't be here: $i")
     case v => v map replaceTypeInterval
   }
-
-
-
-  /**** Align Interval Binary Points ****/
-
-  /*
-  private def alignModuleBP(m: DefModule): DefModule = m map alignStmtBP
-
-  private def alignStmtBP(s: Statement): Statement = s map alignExpBP match {
-    case c@Connect(info, loc, expr) => loc.tpe match {
-      case IntervalType(_, _, p) => Connect(info, loc, fixBP(p)(expr))
-      case _ => c
-    }
-    case c@PartialConnect(info, loc, expr) => loc.tpe match {
-      case IntervalType(_, _, p) => PartialConnect(info, loc, fixBP(p)(expr))
-      case _ => c
-    }
-    case other => other map alignStmtBP
-  }
-
-  private val opsToFix = Seq(Add, Sub, Lt, Leq, Gt, Geq, Eq, Neq, Wrap, Clip) //Mul does not need to be fixed
-
-  private def alignExpBP(e: Expression): Expression = e map alignExpBP match {
-    case DoPrim(BPSet, Seq(arg), Seq(const), tpe: IntervalType) => fixBP(IntWidth(const))(arg)
-    case DoPrim(o, args, consts, t) if opsToFix.contains(o) &&
-      (args.map(_.tpe).collect { case x: IntervalType => x }).size == args.size =>
-      val maxBP = args.map(_.tpe).collect { case IntervalType(_, _, p) => p }.reduce(_ max _)
-      DoPrim(o, args.map { a => fixBP(maxBP)(a) }, consts, t)
-    case Mux(cond, tval, fval, t: IntervalType) =>
-      val maxBP = Seq(tval, fval).map(_.tpe).collect { case IntervalType(_, _, p) => p }.reduce(_ max _)
-      Mux(cond, fixBP(maxBP)(tval), fixBP(maxBP)(fval), t)
-    case other => other
-  }
-
-  private def fixBP(p: Width)(e: Expression): Expression = (p, e.tpe) match {
-    case (IntWidth(desired), IntervalType(l, u, IntWidth(current))) if desired == current => e
-    case (IntWidth(desired), IntervalType(l, u, IntWidth(current))) if desired > current  =>
-      DoPrim(BPShl, Seq(e), Seq(desired - current), IntervalType(l, u, IntWidth(desired)))
-    case (IntWidth(desired), IntervalType(l, u, IntWidth(current))) if desired < current  =>
-      DoPrim(BPShr, Seq(e), Seq(current - desired), IntervalType(l, u, IntWidth(desired)))
-    case x => sys.error(s"Shouldn't be here: $x")
-  }
-  */
-
 
   /** Replace Interval Nodes with Interval Wires
     *
