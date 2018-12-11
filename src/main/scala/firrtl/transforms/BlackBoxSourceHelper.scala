@@ -151,7 +151,7 @@ object BlackBoxSourceHelper {
     out.close()
   }
 
-  val fileListName = "firrtl_black_box_resource_files.f"
+  val fileListName = "black_box_verilog_files.f"
 
   def writeFileList(files: ListSet[File], targetDir: File) {
     if (files.nonEmpty) {
