@@ -109,6 +109,7 @@ object StringLit {
   */
 abstract class PrimOp extends FirrtlNode {
   def serialize: String = this.toString
+  def propagateType(e: DoPrim): Type = UnknownType
   def apply(args: Any*): DoPrim = {
     val groups = args.groupBy {
       case x: Expression => "exp"
@@ -556,6 +557,7 @@ case object UnknownWidth extends Width {
 case class CalcWidth(arg: Constraint) extends Width with Constraint {
   def serialize: String = s"calcw(${arg.serialize})"
   def map(f: Constraint=>Constraint): Constraint = f(arg)
+  val children = Seq(arg)
   override def reduce(): Constraint = arg
 }
 case class VarWidth(name: String) extends Width with IsVar {
@@ -586,11 +588,13 @@ case object UnknownBound extends Bound {
   def serialize: String = "?"
   def map(f: Constraint=>Constraint): Constraint = this
   override def reduce(): Constraint = this
+  val children = Nil
 }
 case class CalcBound(arg: Constraint) extends Bound {
   def serialize: String = s"calcb(${arg.serialize})"
   def map(f: Constraint=>Constraint): Constraint = f(arg)
   override def reduce(): Constraint = arg
+  val children = Seq(arg)
 }
 case class VarBound(name: String) extends IsVar with Bound
 object KnownBound {

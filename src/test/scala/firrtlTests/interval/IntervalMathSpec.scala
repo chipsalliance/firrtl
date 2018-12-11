@@ -103,8 +103,8 @@ class IntervalMathSpec extends FirrtlFlatSpec {
                 assert(varWidth.toInt == it.width.asInstanceOf[IntWidth].width, s"$line,${it.range}")
               case ProductPattern(varWidth)     =>
                 val bp = IntWidth(bp1.toInt + bp2.toInt)
-                val lv = IsMin(IsMul(min1, min2), IsMul(min1, max2), IsMul(max1, min2), IsMul(max1, max2))
-                val uv = IsMax(IsMul(min1, min2), IsMul(min1, max2), IsMul(max1, min2), IsMul(max1, max2))
+                val lv = IsMin(Seq(IsMul(min1, min2), IsMul(min1, max2), IsMul(max1, min2), IsMul(max1, max2)))
+                val uv = IsMax(Seq(IsMul(min1, min2), IsMul(min1, max2), IsMul(max1, min2), IsMul(max1, max2)))
                 assert(varWidth.toInt == IntervalType(lv, uv, bp).width.asInstanceOf[IntWidth].width, "product")
               case DifferencePattern(varWidth)     =>
                 val bp = IntWidth(Math.max(bp1.toInt, bp2.toInt))

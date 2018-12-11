@@ -142,7 +142,20 @@ case class WDefInstanceConnector(
 }
 
 // Resultant width is the same as the maximum input width
-case object Addw extends PrimOp { override def toString = "addw" }
+case object Addw extends PrimOp {
+  override def toString = "addw"
+  import constraint._
+  import PrimOps._
+  import Implicits.{constraint2bound, constraint2width, width2constraint}
+
+  override def propagateType(e: DoPrim): Type = {
+    (e.args(0).tpe, e.args(1).tpe) match {
+      case (_: UIntType, _: UIntType) => UIntType(IsMax(w1(e), w2(e)))
+      case (_: SIntType, _: SIntType) => SIntType(IsMax(w1(e), w2(e)))
+      case _ => UnknownType
+    }
+  }
+}
 // Resultant width is the same as the maximum input width
 case object Subw extends PrimOp { override def toString = "subw" }
 // Resultant width is the same as input argument width

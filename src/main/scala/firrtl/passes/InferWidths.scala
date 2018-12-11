@@ -102,7 +102,7 @@ class InferWidths extends Pass {
        r
     case a@Attach(_, exprs) =>
       val widths = exprs map (e => getWidth(e.tpe))
-      val maxWidth = IsMax(widths.map(width2constraint):_*)
+      val maxWidth = IsMax(widths.map(width2constraint))
       widths.foreach { w =>
         constraintSolver.addGeq(w, maxWidth)
       }

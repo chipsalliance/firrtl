@@ -185,7 +185,7 @@ class ConstraintSolver {
     */
   private def removeLeqCycle(name: String)(constraint: Constraint): Constraint = constraint match {
     case x if greaterEqThan(name)(x) => VarCon(name)
-    case isMin: IsMin => IsMin(isMin.children.filter{ c => !greaterEqThan(name)(c)}:_*)
+    case isMin: IsMin => IsMin(isMin.children.filter{ c => !greaterEqThan(name)(c)})
     case x => x
   }
 
@@ -196,7 +196,7 @@ class ConstraintSolver {
     */
   private def removeGeqCycle(name: String)(constraint: Constraint): Constraint = constraint match {
     case x if lessEqThan(name)(x) => VarCon(name)
-    case isMax: IsMax => IsMax(isMax.children.filter{c => !lessEqThan(name)(c)}:_*)
+    case isMax: IsMax => IsMax(isMax.children.filter{c => !lessEqThan(name)(c)})
     case x => x
   }
 
@@ -229,8 +229,8 @@ class ConstraintSolver {
       case _ => false
     }
     case isVar: IsVar if isVar.name == name => true
-    case isNeg: IsNeg => isNeg.getChildren match {
-      case Seq(isVar: IsVar) if isVar.name == name => true
+    case isNeg: IsNeg => isNeg.child match {
+      case isVar: IsVar if isVar.name == name => true
       case _ => false
     }
     case _ => false
