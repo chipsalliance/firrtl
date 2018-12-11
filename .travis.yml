@@ -1,4 +1,10 @@
+os:
+  - linux
+  - osx
+#  - windows
 language: scala
+scala:
+    - 2.12.4
 sudo: false
 
 cache:
@@ -22,6 +28,12 @@ before_script:
   - OLDEST_COMMIT=`git log --format=%H | tail -n1`
   - if [ $OLDEST_SHARED == $OLDEST_COMMIT ]; then git fetch --unshallow; fi
 
+before_install:
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew update          ; fi
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install gawk bison; fi
+  - bash .install_verilator.sh
+  - bash .install_yosys.sh
+
 stages:
   - prepare
   - test
@@ -37,9 +49,7 @@ jobs:
     # same script
     - stage: prepare
       script:
-        - bash .install_verilator.sh
         - verilator --version
-        - bash .install_yosys.sh
         - yosys -V
     - stage: test
       script:
