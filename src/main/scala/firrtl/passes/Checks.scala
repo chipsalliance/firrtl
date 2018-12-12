@@ -467,6 +467,9 @@ object CheckTypes extends Pass {
             case UIntType(UnknownWidth) => // cannot catch here, though width may ultimately be wrong
             case _ => errors.append(new IllegalResetType(info, mname, sx.name))
           }
+          if(!connectOk(sx.tpe, sx.init.tpe)) {
+            errors.append(new CheckTypes.InvalidConnect(info, sx, mname, WRef(sx), sx.init))
+          }
           if (sx.clock.tpe != ClockType) {
             errors.append(new RegReqClk(info, mname, sx.name))
           }
