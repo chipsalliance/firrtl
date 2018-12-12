@@ -293,6 +293,32 @@ object CheckTypes extends Pass {
     s"$info: [module $mname]  Uninferred type: $exp."
   )
 
+  def fits(bigger: Constraint, smaller: Constraint): Boolean = (bigger, smaller) match {
+    case (IsKnown(v1), IsKnown(v2)) if v1 < v2 => false
+    case _ => true
+  }
+
+
+  def connectOk(left: Type, right: Type): Boolean = (left, right) match {
+    case (_: UIntType, _: UIntType) => true
+    case (_: SIntType, _: SIntType) => true
+    case (ClockType, ClockType) => true
+    case (_: FixedType, _: FixedType) => true
+    case (i1: IntervalType, i2: IntervalType) =>
+      import Implicits.width2constraint
+      fits(i2.lower, i1.lower) && fits(i1.upper, i2.upper) && fits(i1.point, i2.point)
+    case (_: AnalogType, _: AnalogType) => false
+    case (t1: VectorType, t2: VectorType) => t1.size == t2.size && connectOk(t1.tpe, t2.tpe)
+    case (t1: BundleType, t2: BundleType) =>
+      val zippedFields = t1.fields zip t2.fields
+      val fieldsOk = zippedFields forall {case (f1, f2) =>
+        f1.flip == f2.flip && f1.name == f2.name && connectOk(f1.tpe, f2.tpe)
+      }
+      fieldsOk && t1.fields.size == t2.fields.size
+    case _ => false
+  }
+
+
   //;---------------- Helper Functions --------------
   def ut: UIntType = UIntType(UnknownWidth)
   def st: SIntType = SIntType(UnknownWidth)
@@ -399,11 +425,6 @@ object CheckTypes extends Pass {
       e foreach check_types_e(info, mname)
     }
 
-    def fits(bigger: Constraint, smaller: Constraint): Boolean = (bigger, smaller) match {
-      case (IsKnown(v1), IsKnown(v2)) if v1 < v2 => false
-      case _ => true
-    }
-
     def partialConnectOk(t1: Type, t2: Type, flip1: Orientation, flip2: Orientation): Boolean = (t1, t2) match {
       case (ClockType, ClockType) => flip1 == flip2
       case (_: UIntType, _: UIntType) => flip1 == flip2
@@ -426,25 +447,6 @@ object CheckTypes extends Pass {
       case (t1: VectorType, t2: VectorType) =>
         partialConnectOk(t1.tpe, t2.tpe, flip1, flip2)
       case (_, _) => false
-    }
-
-    def connectOk(t1: Type, t2: Type): Boolean = (t1, t2) match {
-      case (_: UIntType, _: UIntType) => true
-      case (_: SIntType, _: SIntType) => true
-      case (ClockType, ClockType) => true
-      case (_: FixedType, _: FixedType) => true
-      case (i1: IntervalType, i2: IntervalType) =>
-        import Implicits.width2constraint
-        fits(i2.lower, i1.lower) && fits(i1.upper, i2.upper) && fits(i1.point, i2.point)
-      case (_: AnalogType, _: AnalogType) => false
-      case (t1: VectorType, t2: VectorType) => t1.size == t2.size && connectOk(t1.tpe, t2.tpe)
-      case (t1: BundleType, t2: BundleType) =>
-        val zippedFields = t1.fields zip t2.fields
-        val fieldsOk = zippedFields forall {case (f1, f2) =>
-          f1.flip == f2.flip && f1.name == f2.name && connectOk(f1.tpe, f2.tpe)
-        }
-        fieldsOk && t1.fields.size == t2.fields.size
-      case _ => false
     }
 
     def check_types_s(minfo: Info, mname: String)(s: Statement): Unit = {

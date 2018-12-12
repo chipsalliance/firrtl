@@ -134,6 +134,9 @@ object CheckWidths extends Pass {
             case UIntType(IntWidth(w)) if w == 1 =>
             case _ => errors.append(new CheckTypes.IllegalResetType(info, target.serialize, sx.name))
           }
+          if(!CheckTypes.connectOk(sx.tpe, sx.init.tpe)) {
+            errors.append(new CheckTypes.InvalidConnect(info, sx, target.module, WRef(sx), sx.init))
+          }
         case _ =>
       }
     }
