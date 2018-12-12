@@ -109,12 +109,12 @@ object Target {
     case s: ir.SubIndex => asTarget(m)(s.expr).index(s.value)
     case w: WSubField => asTarget(m)(w.expr).field(w.name)
     case s: ir.SubField => asTarget(m)(s.expr).field(s.name)
-    case w: WSubAccess => asTarget(m)(w.expr).field("@access")
-    case s: ir.SubAccess => asTarget(m)(s.expr).field("@access")
-    case d: DoPrim => m.ref("@" + d.op.serialize)
-    case d: Mux => m.ref("@mux")
-    case d: ValidIf => m.ref("@validif")
-    case d: Literal => m.ref("@" + d.value)
+    case w: WSubAccess => asTarget(m)(w.expr).field("@" + w.index.serialize)
+    case s: ir.SubAccess => asTarget(m)(s.expr).field("@" + s.index.serialize)
+    case d: DoPrim => m.ref("@" + d.serialize)
+    case d: Mux => m.ref("@" + d.serialize)
+    case d: ValidIf => m.ref("@" + d.serialize)
+    case d: Literal => m.ref("@" + d.serialize)
     case other => sys.error(s"Unsupported: $other")
   }
 
