@@ -3,7 +3,7 @@
 package firrtl
 package annotations
 
-import firrtl.ir.Expression
+import firrtl.ir.{Field => _, _}
 import AnnotationUtils.{toExp, validComponentName, validModuleName}
 import TargetToken._
 
@@ -102,6 +102,21 @@ sealed trait Target extends Named {
 }
 
 object Target {
+  def asTarget(m: ModuleTarget)(e: Expression): ReferenceTarget = e match {
+    case w: WRef => m.ref(w.name)
+    case r: ir.Reference => m.ref(r.name)
+    case w: WSubIndex => asTarget(m)(w.expr).index(w.value)
+    case s: ir.SubIndex => asTarget(m)(s.expr).index(s.value)
+    case w: WSubField => asTarget(m)(w.expr).field(w.name)
+    case s: ir.SubField => asTarget(m)(s.expr).field(s.name)
+    case w: WSubAccess => asTarget(m)(w.expr).field("@access")
+    case s: ir.SubAccess => asTarget(m)(s.expr).field("@access")
+    case d: DoPrim => m.ref("@" + d.op.serialize)
+    case d: Mux => m.ref("@mux")
+    case d: ValidIf => m.ref("@validif")
+    case d: Literal => m.ref("@" + d.value)
+    case other => sys.error(s"Unsupported: $other")
+  }
 
   def apply(circuitOpt: Option[String], moduleOpt: Option[String], reference: Seq[TargetToken]): GenericTarget =
     GenericTarget(circuitOpt, moduleOpt, reference.toVector)

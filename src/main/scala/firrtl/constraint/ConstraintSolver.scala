@@ -5,6 +5,7 @@ package firrtl.constraint
 import firrtl._
 import firrtl.ir._
 import firrtl.Utils.throwInternalError
+import firrtl.annotations.ReferenceTarget
 
 import scala.collection.mutable
 
@@ -36,10 +37,10 @@ class ConstraintSolver {
     * @param big The larger constraint, must be either known or a variable
     * @param small The smaller constraint
     */
-  def addGeq(big: Any, small: Any): Unit = (big, small) match {
+  def addGeq(r1: String, r2: String)(big: Any, small: Any): Unit = (big, small) match {
     case (IsVar(name), other: Constraint) => add(GreaterOrEqual(name, other))
     case (IsVar(name), other: IntWidth) => add(GreaterOrEqual(name, Implicits.width2constraint(other)))
-    case (IsKnown(u), IsKnown(l)) if l > u => throwInternalError(s"Illegal call of addGeq: $u is not >= to $l")
+    case (IsKnown(u), IsKnown(l)) if l > u => throwInternalError(s"Illegal call of addGeq when fitting $r2 into $r1: $u is not >= to $l")
     case _ =>
   }
 
@@ -47,9 +48,9 @@ class ConstraintSolver {
     * @param small The smaller constraint, must be either known or a variable
     * @param big The larger constraint
     */
-  def addLeq(small: Any, big: Any): Unit = (small, big) match {
+  def addLeq(r1: String, r2: String)(small: Any, big: Any): Unit = (small, big) match {
     case (IsVar(name), other: Constraint) => add(LesserOrEqual(name, other))
-    case (IsKnown(l), IsKnown(u)) if u < l => throwInternalError(s"Illegal call of addLeq: $l is not <= to $u")
+    case (IsKnown(l), IsKnown(u)) if u < l => throwInternalError(s"Illegal call of addLeq when fitting $r2 into $r1: $l is not <= to $u")
     case _ =>
   }
 

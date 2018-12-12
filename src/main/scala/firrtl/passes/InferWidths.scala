@@ -8,6 +8,7 @@ import firrtl.ir._
 import firrtl.Utils._
 import firrtl.Mappers._
 import firrtl.Implicits.width2constraint
+import firrtl.annotations.{CircuitTarget, ModuleTarget, ReferenceTarget, Target}
 import firrtl.constraint.{ConstraintSolver, IsMax}
 
 object InferWidths {
@@ -41,45 +42,45 @@ object InferWidths {
 class InferWidths extends Pass {
   private val constraintSolver = new ConstraintSolver()
 
-  private def addTypeConstraints(t1: Type, t2: Type): Unit = (t1,t2) match {
-    case (UIntType(w1), UIntType(w2)) => constraintSolver.addGeq(w1, w2)
-    case (SIntType(w1), SIntType(w2)) => constraintSolver.addGeq(w1, w2)
+  private def addTypeConstraints(r1: ReferenceTarget, r2: ReferenceTarget)(t1: Type, t2: Type): Unit = (t1,t2) match {
+    case (UIntType(w1), UIntType(w2)) => constraintSolver.addGeq(r1.prettyPrint(""), r2.prettyPrint(""))(w1, w2)
+    case (SIntType(w1), SIntType(w2)) => constraintSolver.addGeq(r1.prettyPrint(""), r2.prettyPrint(""))(w1, w2)
     case (ClockType, ClockType) =>
     case (FixedType(w1, p1), FixedType(w2, p2)) =>
-      constraintSolver.addGeq(p1, p2)
-      constraintSolver.addGeq(w1, w2)
+      constraintSolver.addGeq(r1.prettyPrint(""), r2.prettyPrint(""))(p1, p2)
+      constraintSolver.addGeq(r1.prettyPrint(""), r2.prettyPrint(""))(w1, w2)
     case (IntervalType(l1, u1, p1), IntervalType(l2, u2, p2)) =>
-      constraintSolver.addGeq(p1, p2)
-      constraintSolver.addLeq(l1, l2)
-      constraintSolver.addGeq(u1, u2)
+      constraintSolver.addGeq(r1.prettyPrint(""), r2.prettyPrint(""))(p1, p2)
+      constraintSolver.addLeq(r1.prettyPrint(""), r2.prettyPrint(""))(l1, l2)
+      constraintSolver.addGeq(r1.prettyPrint(""), r2.prettyPrint(""))(u1, u2)
     case (AnalogType(w1), AnalogType(w2)) =>
-      constraintSolver.addGeq(w1, w2)
-      constraintSolver.addGeq(w2, w1)
+      constraintSolver.addGeq(r1.prettyPrint(""), r2.prettyPrint(""))(w1, w2)
+      constraintSolver.addGeq(r1.prettyPrint(""), r2.prettyPrint(""))(w2, w1)
     case (t1: BundleType, t2: BundleType) =>
       (t1.fields zip t2.fields) foreach { case (f1, f2) =>
         (f1.flip, f2.flip) match {
-          case (Default, Default) => addTypeConstraints(f1.tpe, f2.tpe)
-          case (Flip, Flip) => addTypeConstraints(f2.tpe, f1.tpe)
+          case (Default, Default) => addTypeConstraints(r1.field(f1.name), r2.field(f2.name))(f1.tpe, f2.tpe)
+          case (Flip, Flip) => addTypeConstraints(r2.field(f2.name), r1.field(f1.name))(f2.tpe, f1.tpe)
           case _ => sys.error("Shouldn't be here")
         }
       }
-    case (t1: VectorType, t2: VectorType) => addTypeConstraints(t1.tpe, t2.tpe)
+    case (t1: VectorType, t2: VectorType) => addTypeConstraints(r1.index(0), r2.index(0))(t1.tpe, t2.tpe)
   }
   private def addExpConstraints(e: Expression): Expression = e map addExpConstraints match {
     case m@Mux(p, tVal, fVal, t) =>
-      constraintSolver.addGeq(getWidth(p), Closed(1))
+      constraintSolver.addGeq("mux predicate", "1.W")(getWidth(p), Closed(1))
       m
     case other => other
   }
-  private def addStmtConstraints(s: Statement): Statement = s map addExpConstraints match {
+  private def addStmtConstraints(mt: ModuleTarget)(s: Statement): Statement = s map addExpConstraints match {
     case c: Connect =>
       val n = get_size(c.loc.tpe)
       val locs = create_exps(c.loc)
       val exps = create_exps(c.expr)
       (locs zip exps).zipWithIndex foreach { case ((loc, exp), i) =>
         get_flip(c.loc.tpe, i, Default) match {
-          case Default => addTypeConstraints(loc.tpe, exp.tpe)
-          case Flip => addTypeConstraints(exp.tpe, loc.tpe)
+          case Default => addTypeConstraints(Target.asTarget(mt)(loc), Target.asTarget(mt)(exp))(loc.tpe, exp.tpe)
+          case Flip => addTypeConstraints(Target.asTarget(mt)(exp), Target.asTarget(mt)(loc))(exp.tpe, loc.tpe)
         }
       }
       c
@@ -91,26 +92,26 @@ class InferWidths extends Pass {
         val loc = locs(x)
         val exp = exps(y)
         get_flip(pc.loc.tpe, x, Default) match {
-          case Default => addTypeConstraints(loc.tpe, exp.tpe)
-          case Flip => addTypeConstraints(exp.tpe, loc.tpe)
+          case Default => addTypeConstraints(Target.asTarget(mt)(loc), Target.asTarget(mt)(exp))(loc.tpe, exp.tpe)
+          case Flip => addTypeConstraints(Target.asTarget(mt)(exp), Target.asTarget(mt)(loc))(exp.tpe, loc.tpe)
         }
       }
       pc
     case r: DefRegister =>
-       addTypeConstraints(r.reset.tpe, UIntType(IntWidth(1)))
-       addTypeConstraints(r.tpe, r.init.tpe)
+       addTypeConstraints(Target.asTarget(mt)(r.reset), mt.ref("1"))(r.reset.tpe, UIntType(IntWidth(1)))
+       addTypeConstraints(mt.ref(r.name), Target.asTarget(mt)(r.init))(r.tpe, r.init.tpe)
        r
     case a@Attach(_, exprs) =>
-      val widths = exprs map (e => getWidth(e.tpe))
-      val maxWidth = IsMax(widths.map(width2constraint))
-      widths.foreach { w =>
-        constraintSolver.addGeq(w, maxWidth)
+      val widths = exprs map (e => (e, getWidth(e.tpe)))
+      val maxWidth = IsMax(widths.map(x => width2constraint(x._2)))
+      widths.foreach { case (e, w) =>
+        constraintSolver.addGeq(Target.asTarget(mt)(e).prettyPrint(""), mt.ref(a.serialize).prettyPrint(""))(w, maxWidth)
       }
       a
     case c: Conditionally =>
-       addTypeConstraints(c.pred.tpe, UIntType(IntWidth(1)))
-       c map addStmtConstraints
-    case x => x map addStmtConstraints
+       addTypeConstraints(Target.asTarget(mt)(c.pred), mt.ref("1.W"))(c.pred.tpe, UIntType(IntWidth(1)))
+       c map addStmtConstraints(mt)
+    case x => x map addStmtConstraints(mt)
   }
   private def fixWidth(w: Width): Width = constraintSolver.get(w) match {
     case Some(Closed(x)) if trim(x).isWhole => IntWidth(x.toBigInt)
@@ -134,7 +135,8 @@ class InferWidths extends Pass {
   }
 
   def run (c: Circuit): Circuit = {
-    c.modules foreach (_ map addStmtConstraints)
+    val ct = CircuitTarget(c.main)
+    c.modules foreach ( m => m map addStmtConstraints(ct.module(m.name)))
     constraintSolver.solve()
     val ret = InferTypes.run(c.copy(modules = c.modules map (_
       map fixPort
