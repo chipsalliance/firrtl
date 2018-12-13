@@ -9,6 +9,7 @@ import firrtl.WrappedExpression._
 import firrtl.WrappedType._
 import scala.collection.mutable
 import scala.collection.mutable.{StringBuilder, ArrayBuffer, LinkedHashMap, HashMap, HashSet}
+import scala.util.matching.Regex
 import java.io.PrintWriter
 import logger.LazyLogging
 
@@ -237,9 +238,8 @@ object Utils extends LazyLogging {
   def min(a: BigInt, b: BigInt): BigInt = if (a >= b) b else a
   def pow_minus_one(a: BigInt, b: BigInt): BigInt = a.pow(b.toInt) - 1
   val BoolType = UIntType(IntWidth(1))
-  val one  = UIntLiteral(BigInt(1), IntWidth(1))
-  val zero = UIntLiteral(BigInt(0), IntWidth(1))
-  def uint(i: BigInt): UIntLiteral = UIntLiteral(i, IntWidth(1 max i.bitLength))
+  val one  = UIntLiteral(1)
+  val zero = UIntLiteral(0)
 
   def create_exps(n: String, t: Type): Seq[Expression] =
     create_exps(WRef(n, t, ExpKind, UNKNOWNGENDER))
@@ -692,6 +692,22 @@ object Utils extends LazyLogging {
     "SYNTHESIS",
     "PRINTF_COND",
     "VCS")
+
+  /** Expand a name into its prefixes, e.g., 'foo_bar__baz' becomes 'Seq[foo_, foo_bar__, foo_bar__baz]'. This can be used
+    * to produce better names when generating prefix unique names.
+    * @param name a signal name
+    * @param prefixDelim a prefix delimiter (default is "_")
+    * @return the signal name and any prefixes
+    */
+  def expandPrefixes(name: String, prefixDelim: String = "_"): Seq[String] = {
+    val regex = ("(" + Regex.quote(prefixDelim) + ")+[A-Za-z0-9$]").r
+
+    name +: regex
+      .findAllMatchIn(name)
+      .map(_.end - 1)
+      .toSeq
+      .foldLeft(Seq[String]()){ case (seq, id) => seq :+ name.splitAt(id)._1 }
+  }
 }
 
 object MemoizedHash {

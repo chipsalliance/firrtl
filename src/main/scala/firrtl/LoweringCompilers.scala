@@ -108,6 +108,7 @@ class LowFirrtlOptimization extends CoreTransform {
     passes.memlib.VerilogMemDelays, // TODO move to Verilog emitter
     new firrtl.transforms.ConstantPropagation,
     passes.SplitExpressions,
+    new firrtl.transforms.CombineCats,
     passes.CommonSubexpressionElimination,
     new firrtl.transforms.DeadCodeElimination)
 }
@@ -149,7 +150,7 @@ class LowFirrtlCompiler extends Compiler {
 class VerilogCompiler extends Compiler {
   def emitter = new VerilogEmitter
   def transforms: Seq[Transform] = getLoweringTransforms(ChirrtlForm, LowForm) ++
-    Seq(new LowFirrtlOptimization, new BlackBoxSourceHelper)
+    Seq(new LowFirrtlOptimization)
 }
 
 /** Emits Verilog without optimizations */

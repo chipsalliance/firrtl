@@ -16,9 +16,9 @@ name := "firrtl"
 
 version := "1.1-SNAPSHOT"
 
-scalaVersion := "2.11.12"
+scalaVersion := "2.12.4"
 
-crossScalaVersions := Seq("2.11.12", "2.12.4")
+crossScalaVersions := Seq("2.12.4", "2.11.12")
 
 def scalacOptionsVersion(scalaVersion: String): Seq[String] = {
   Seq() ++ {
@@ -62,7 +62,7 @@ libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.1" % "test"
 
 libraryDependencies += "org.scalacheck" %% "scalacheck" % "1.13.4" % "test"
 
-libraryDependencies += "com.github.scopt" %% "scopt" % "3.6.0"
+libraryDependencies += "com.github.scopt" %% "scopt" % "3.7.0"
 
 libraryDependencies += "net.jcazevedo" %% "moultingyaml" % "0.4.0"
 
@@ -86,7 +86,9 @@ antlr4GenListener in Antlr4 := false // default = true
 
 antlr4PackageName in Antlr4 := Option("firrtl.antlr")
 
-antlr4Version in Antlr4 := "4.7"
+antlr4Version in Antlr4 := "4.7.1"
+
+javaSource in Antlr4 := (sourceManaged in Compile).value
 
 publishMavenStyle := true
 publishArtifact in Test := false
