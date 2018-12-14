@@ -2,12 +2,8 @@
 
 package firrtl.graph
 
-import java.io._
-import org.scalatest._
-import org.scalatest.prop._
 import org.scalatest.Matchers._
-import firrtl.graph._
-import firrtl._
+import firrtl.FirrtlFlatSpec
 
 class DiGraphTests extends FirrtlFlatSpec {
 

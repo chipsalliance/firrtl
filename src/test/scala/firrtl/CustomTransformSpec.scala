@@ -3,7 +3,6 @@
 package firrtl
 
 import firrtl.ir.Circuit
-import firrtl._
 import firrtl.passes.Pass
 import firrtl.ir._
 

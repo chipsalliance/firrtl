@@ -1,12 +1,9 @@
 // See LICENSE for license details.
 
-package firrtl
-package transforms
+package firrtl.transforms
 
-import firrtl.RenameMap
+import firrtl.{HighTransformSpec, RenameMap}
 import firrtl.annotations._
-import firrtl.transforms.DedupModules
-
 
 /**
  * Tests inline instances transformation
@@ -533,4 +530,3 @@ class DedupModuleTests extends HighTransformSpec {
     cs.deletedAnnotations.isEmpty should be (true)
   }
 }
-

@@ -2,7 +2,6 @@
 
 package firrtl
 
-import firrtl._
 import firrtl.CompilerUtils.mergeTransforms
 
 class CompilerUtilsSpec extends FirrtlFlatSpec {

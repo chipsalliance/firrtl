@@ -2,7 +2,6 @@
 
 package firrtl
 
-import firrtl._
 import org.scalatest.{Matchers, FreeSpec}
 
 class ExecutionOptionsManagerSpec extends FreeSpec with Matchers {

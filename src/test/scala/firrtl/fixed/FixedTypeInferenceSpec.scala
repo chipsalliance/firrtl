@@ -4,10 +4,8 @@ package firrtl
 package fixed
 
 import java.io._
-import firrtl._
 import firrtl.ir.Circuit
 import firrtl.passes._
-import firrtl.Parser.IgnoreInfo
 
 class FixedTypeInferenceSpec extends FirrtlFlatSpec {
   private def executeTest(input: String, expected: Seq[String], passes: Seq[Pass]) = {

@@ -5,10 +5,8 @@ package firrtl
 import java.io._
 import org.scalatest._
 import org.scalatest.prop._
-import firrtl._
 import firrtl.passes._
 import firrtl.ir._
-import firrtl.Parser.IgnoreInfo
 
 class ExpandWhensSpec extends FirrtlFlatSpec {
   private val transforms = Seq(

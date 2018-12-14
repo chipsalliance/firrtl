@@ -2,18 +2,17 @@
 
 package firrtl
 
-import java.io._
+import java.io.{File, PrintWriter}
 
 import com.typesafe.scalalogging.LazyLogging
 
 import scala.sys.process._
+import scala.io.Source
+
 import org.scalatest._
 import org.scalatest.prop._
 
-import scala.io.Source
-import firrtl._
 import firrtl.ir._
-import firrtl.Parser.{IgnoreInfo, UseInfo}
 import firrtl.analyses.{GetNamespace, InstanceGraph, ModuleNamespaceAnnotation}
 import firrtl.annotations._
 import firrtl.transforms.{DontTouchAnnotation, NoDedupAnnotation, RenameModules}
@@ -167,7 +166,7 @@ trait FirrtlMatchers extends Matchers {
     def onModule(mod: DefModule) = mod.map(firrtl.Utils.squashEmpty)
     circuit.map(onModule)
   }
-  def parse(str: String) = Parser.parse(str.split("\n").toIterator, UseInfo)
+  def parse(str: String) = Parser.parse(str.split("\n").toIterator, Parser.UseInfo)
   /** Helper for executing tests
     * compiler will be run on input then emitted result will each be split into
     * lines and normalized.

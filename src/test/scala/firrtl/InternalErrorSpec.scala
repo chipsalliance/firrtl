@@ -4,7 +4,6 @@ package firrtl
 
 import java.io.File
 
-import firrtl._
 import firrtl.Utils.getThrowable
 import firrtl.util.BackendCompilationUtilities
 import org.scalatest.{FreeSpec, Matchers}

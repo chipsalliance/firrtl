@@ -1,14 +1,15 @@
 package firrtl.analyses
 
 import java.io._
+
 import org.scalatest._
 import org.scalatest.prop._
 import org.scalatest.Matchers._
+
+import firrtl.FirrtlFlatSpec
 import firrtl.analyses.InstanceGraph
 import firrtl.graph.DiGraph
-import firrtl.Parser.parse
-import firrtl.passes._
-import firrtl._
+import firrtl.passes.ToWorkingIR
 
 class InstanceGraphTests extends FirrtlFlatSpec {
   private def getEdgeSet(graph: DiGraph[String]): collection.Map[String, collection.Set[String]] = {

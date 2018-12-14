@@ -3,7 +3,6 @@
 package firrtl.annotations
 
 import firrtl._
-import firrtl._
 import firrtl.stage.TargetDirAnnotation
 
 /** Looks for [[TargetDirAnnotation]] */

@@ -2,8 +2,6 @@
 
 package firrtl
 
-import firrtl.Namespace
-
 class NamespaceSpec extends FirrtlFlatSpec {
 
   "A Namespace" should "not allow collisions" in {

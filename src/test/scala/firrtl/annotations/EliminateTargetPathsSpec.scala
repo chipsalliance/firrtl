@@ -3,7 +3,6 @@
 package firrtl.annotations
 
 import firrtl._
-import firrtl.annotations._
 import firrtl.annotations.analysis.DuplicationHelper
 import firrtl.annotations.transforms.NoSuchTargetException
 import firrtl.transforms.DontTouchAnnotation

@@ -2,7 +2,6 @@
 
 package firrtl
 
-import firrtl._
 import firrtl.passes.memlib.VerilogMemDelays
 import firrtl.passes.CheckHighForm
 import org.scalatest.{FreeSpec, Matchers}

@@ -5,7 +5,6 @@ package firrtl
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 
 import firrtl.FirrtlProtos.Firrtl
-import firrtl._
 import firrtl.ir._
 
 class ProtoBufSpec extends FirrtlFlatSpec {

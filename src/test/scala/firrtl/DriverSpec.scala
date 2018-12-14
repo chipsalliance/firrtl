@@ -8,7 +8,6 @@ import org.scalatest.{FreeSpec, Matchers}
 import firrtl.passes.{InlineAnnotation, InlineInstances}
 import firrtl.passes.memlib.{InferReadWrite, InferReadWriteAnnotation, ReplSeqMem, ReplSeqMemAnnotation}
 import firrtl.transforms.BlackBoxTargetDirAnno
-import firrtl._
 import firrtl.annotations._
 import firrtl.util.BackendCompilationUtilities
 

@@ -1,7 +1,6 @@
 // See LICENSE for license details.
 
-package firrtl
-package transforms
+package firrtl.transforms
 
 import org.scalatest.FlatSpec
 import org.scalatest.Matchers
@@ -11,7 +10,6 @@ import java.io._
 
 import firrtl._
 import firrtl.ir.{Circuit, Type, GroundType, IntWidth}
-import firrtl.Parser
 import firrtl.passes.PassExceptions
 import firrtl.annotations.{
    Named,

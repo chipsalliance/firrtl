@@ -2,7 +2,6 @@
 
 package firrtl
 
-import firrtl._
 import org.scalatest._
 import org.scalatest.prop._
 

@@ -2,8 +2,6 @@
 
 package firrtl
 
-import firrtl.RenameMap
-import firrtl.FIRRTLException
 import firrtl.RenameMap.{CircularRenameException, IllegalRenameException}
 import firrtl.annotations._
 

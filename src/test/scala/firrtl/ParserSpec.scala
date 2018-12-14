@@ -3,7 +3,6 @@
 package firrtl
 
 import org.scalatest._
-import firrtl._
 import org.scalacheck.Gen
 import org.scalacheck.Prop.forAll
 

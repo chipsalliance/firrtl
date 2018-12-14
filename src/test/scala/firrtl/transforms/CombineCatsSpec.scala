@@ -5,7 +5,6 @@ package firrtl.transforms
 import firrtl.PrimOps._
 import firrtl._
 import firrtl.ir.DoPrim
-import firrtl.transforms.{CombineCats, MaxCatLenAnnotation}
 import firrtl.FirrtlFlatSpec
 import firrtl.FirrtlCheckers._
 

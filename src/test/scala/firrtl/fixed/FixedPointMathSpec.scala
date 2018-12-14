@@ -3,7 +3,6 @@
 package firrtl.fixed
 
 import firrtl.{CircuitState, ChirrtlForm, LowFirrtlCompiler, Parser}
-import firrtl.Parser.IgnoreInfo
 import firrtl.FirrtlFlatSpec
 
 class FixedPointMathSpec extends FirrtlFlatSpec {

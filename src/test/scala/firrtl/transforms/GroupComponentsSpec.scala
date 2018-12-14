@@ -1,8 +1,9 @@
-package firrtl
-package transforms
+// See LICENSE for license details.
 
+package firrtl.transforms
+
+import firrtl.LowTransformSpec
 import firrtl.annotations.{CircuitName, ComponentName, ModuleName}
-import firrtl.transforms.{GroupAnnotation, GroupComponents}
 
 class GroupComponentsSpec extends LowTransformSpec {
   def transform = new GroupComponents()

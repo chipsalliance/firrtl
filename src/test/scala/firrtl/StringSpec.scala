@@ -2,7 +2,6 @@
 
 package firrtl
 
-import firrtl._
 import firrtl.ir.StringLit
 
 import java.io._

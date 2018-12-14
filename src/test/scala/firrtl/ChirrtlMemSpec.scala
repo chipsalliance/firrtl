@@ -2,7 +2,6 @@
 
 package firrtl
 
-import firrtl._
 import firrtl.ir._
 import firrtl.passes._
 import firrtl.transforms._

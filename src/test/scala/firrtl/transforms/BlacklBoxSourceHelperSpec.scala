@@ -3,7 +3,6 @@
 package firrtl.transforms
 
 import firrtl.annotations.{Annotation, CircuitName, ModuleName}
-import firrtl.transforms._
 import firrtl.{FIRRTLException, Transform, VerilogCompiler, VerilogEmitter}
 import firrtl.{HighTransformSpec, LowTransformSpec}
 import org.scalacheck.Test.Failed

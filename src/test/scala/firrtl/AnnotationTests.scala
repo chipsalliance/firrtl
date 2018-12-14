@@ -6,7 +6,6 @@ import java.io.{File, FileWriter, Writer}
 
 import firrtl.annotations.AnnotationYamlProtocol._
 import firrtl.annotations._
-import firrtl._
 import firrtl.transforms.OptimizableExtModuleAnnotation
 import firrtl.passes.InlineAnnotation
 import firrtl.passes.memlib.PinAnnotation
