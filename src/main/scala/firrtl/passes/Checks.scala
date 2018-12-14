@@ -460,15 +460,14 @@ object CheckTypes extends Pass {
           sx.tpe match {
             case AnalogType(_) => errors.append(new IllegalAnalogDeclaration(info, mname, sx.name))
             case t if wt(sx.tpe) != wt(sx.init.tpe) => errors.append(new InvalidRegInit(info, mname))
+            case t if !connectOk(sx.tpe, sx.init.tpe) =>
+              errors.append(new CheckTypes.InvalidConnect(info, sx, mname, WRef(sx), sx.init))
             case t =>
           }
           sx.reset.tpe match {
             case UIntType(IntWidth(w)) if w == 1 =>
             case UIntType(UnknownWidth) => // cannot catch here, though width may ultimately be wrong
             case _ => errors.append(new IllegalResetType(info, mname, sx.name))
-          }
-          if(!connectOk(sx.tpe, sx.init.tpe)) {
-            errors.append(new CheckTypes.InvalidConnect(info, sx, mname, WRef(sx), sx.init))
           }
           if (sx.clock.tpe != ClockType) {
             errors.append(new RegReqClk(info, mname, sx.name))
