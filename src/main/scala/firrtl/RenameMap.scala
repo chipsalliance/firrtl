@@ -246,7 +246,7 @@ final class RenameMap private () {
           * 2) Check ReferenceTarget with one layer stripped from its path hierarchy (i.e. a new root module)
           */
         case t: ReferenceTarget =>
-          val ret: Seq[CompleteTarget] = if(t.component.nonEmpty) {
+          val ret: Seq[CompleteTarget] = if(t.component.nonEmpty && t.isLocal) {
             val last = t.component.last
             getter(t.targetParent).map{ x =>
               (x, last) match {

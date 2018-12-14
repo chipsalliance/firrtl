@@ -300,4 +300,30 @@ class RenameMapSpec extends FirrtlFlatSpec {
       println(renames.get(top.module("E").instOf("f", "F").ref("g")))
     }
   }
+
+  it should "rename reference targets with paths and target tokens" in {
+    val cir = CircuitTarget("Top")
+    val modTop = cir.module("Top")
+    val modA = cir.module("A")
+
+    val aggregate = modA.ref("agg")
+    val subField1 = aggregate.field("field1")
+    val subField2 = aggregate.field("field2")
+
+    val lowered1 = aggregate.copy(ref = "agg_field1")
+    val lowered2 = aggregate.copy(ref = "agg_field2")
+
+    // simulating LowerTypes transform
+    val renames = RenameMap()
+    renames.record(subField1, lowered1)
+    renames.record(subField2, lowered2)
+    renames.record(aggregate, Seq(lowered1, lowered2))
+
+    val path = modTop.instOf("b", "B").instOf("a", "A")
+    val testRef = subField1.setPathTarget(path)
+
+    renames.get(testRef) should be {
+      Some(Seq(testRef.copy(ref = "agg_field1", component = Nil)))
+    }
+  }
 }
