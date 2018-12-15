@@ -2,9 +2,8 @@
 
 package firrtl.graph
 
-import scala.collection.{Set, Map}
-import scala.collection.mutable
-import scala.collection.mutable.{LinkedHashSet, LinkedHashMap}
+import scala.collection.{Map, Set, mutable}
+import scala.collection.mutable.{LinkedHashMap, LinkedHashSet}
 
 /** An exception that is raised when an assumed DAG has a cycle */
 class CyclicException(val node: Any) extends Exception(s"No valid linearization for cyclic graph, found at $node")
@@ -131,7 +130,32 @@ trait DiGraphLike[T] {
 
     val prev = new LinkedHashMap[T, T]()
 
-    val bfsQueue = new mutable.Queue[T]
+    val bfsQueue = new mutable.Queue[T]()
+    bfsQueue.enqueue(root)
+    while (bfsQueue.nonEmpty) {
+      val u = bfsQueue.dequeue
+      for (v <- getEdges(u, Some(prev))) {
+        if (!prev.contains(v) && !blacklist.contains(v)) {
+          prev(v) = u
+          bfsQueue.enqueue(v)
+        }
+      }
+    }
+    prev
+  }
+
+  /** Performs breadth-first search on the directed graph, with a blacklist of nodes
+    *
+    * @param root the start node
+    * @param blacklist list of nodes to stop searching, if encountered
+    * @return a Map[T,T] from each visited node to its predecessor in the
+    * traversal
+    */
+  def prioritySearch(root: T, blacklist: Set[T])(implicit ordering: Ordering[T]): Map[T,T] = {
+
+    val prev = new LinkedHashMap[T, T]()
+
+    val bfsQueue = new mutable.PriorityQueue[T]()(ordering)
     bfsQueue.enqueue(root)
     while (bfsQueue.nonEmpty) {
       val u = bfsQueue.dequeue
@@ -399,7 +423,6 @@ class MutableDiGraph[T] extends DiGraph[T](new LinkedHashMap[T, LinkedHashSet[T]
     valid
   }
 }
-
 
 // Method behaviors that must change from MutableDigraph
 //   * override contains, getVertices, getEdges, getEdgeMap

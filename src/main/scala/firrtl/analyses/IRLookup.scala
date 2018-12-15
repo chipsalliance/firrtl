@@ -32,26 +32,27 @@ object IRLookup {
 /** Handy lookup for obtaining AST information about a given Target
   * @param declarations Maps references (not subreferences) to declarations
   */
-class IRLookup(private val declarations: collection.Map[Target, FirrtlNode]) {
+class IRLookup(private val declarations: collection.Map[ReferenceTarget, FirrtlNode],
+               private val modules: collection.Map[ModuleTarget, DefModule]) {
 
-  private val genderCache = mutable.HashMap[Target, Gender]()
-  private val kindCache = mutable.HashMap[Target, Kind]()
-  private val tpeCache = mutable.HashMap[Target, Type]()
-  private val exprCache = mutable.HashMap[(Target, Gender), Expression]()
+  private val genderCache = mutable.HashMap[ReferenceTarget, Gender]()
+  private val kindCache = mutable.HashMap[ReferenceTarget, Kind]()
+  private val tpeCache = mutable.HashMap[ReferenceTarget, Type]()
+  private val exprCache = mutable.HashMap[(ReferenceTarget, Gender), Expression]()
 
   /** Returns the target converted to its local reference
     * E.g. Given ~Top|MyModule/inst:Other>foo.bar, returns ~Top|Other>foo
     * @param t
     * @return
     */
-  def asLocalRef(t: Target): Target = Target.getReferenceTarget(Target.getPathlessTarget(t))
+  def asLocalRef(t: ReferenceTarget): ReferenceTarget = t.pathlessTarget.copy(component = Nil)
 
   /** Returns the gender of t
     * @param t
     * @return
     */
-  def gender(t: Target): Gender = {
-    val pathless = Target.getPathlessTarget(t)
+  def gender(t: ReferenceTarget): Gender = {
+    val pathless = t.pathlessTarget
     require(t.moduleOpt.nonEmpty)
     if(genderCache.contains(pathless)) return genderCache(pathless)
     val gender = Utils.gender(expr(pathless))
@@ -63,8 +64,8 @@ class IRLookup(private val declarations: collection.Map[Target, FirrtlNode]) {
     * @param t
     * @return
     */
-  def kind(t: Target): Kind = {
-    val pathless = Target.getPathlessTarget(t)
+  def kind(t: ReferenceTarget): Kind = {
+    val pathless = t.pathlessTarget
     require(t.moduleOpt.nonEmpty)
     if(kindCache.contains(pathless)) return kindCache(pathless)
 
@@ -77,8 +78,8 @@ class IRLookup(private val declarations: collection.Map[Target, FirrtlNode]) {
     * @param t
     * @return
     */
-  def tpe(t: Target): Type = {
-    val pathless = Target.getPathlessTarget(t)
+  def tpe(t: ReferenceTarget): Type = {
+    val pathless = t.pathlessTarget
     require(t.moduleOpt.nonEmpty)
     if(tpeCache.contains(pathless)) return tpeCache(pathless)
 
@@ -92,8 +93,8 @@ class IRLookup(private val declarations: collection.Map[Target, FirrtlNode]) {
     * @param gender
     * @return
     */
-  def expr(t: Target, gender: Gender = UNKNOWNGENDER): Expression = {
-    val pathless = Target.getPathlessTarget(t)
+  def expr(t: ReferenceTarget, gender: Gender = UNKNOWNGENDER): Expression = {
+    val pathless = t.pathlessTarget
     require(t.moduleOpt.nonEmpty && t.circuitOpt.nonEmpty)
 
     inCache(pathless, gender) match {
@@ -119,7 +120,7 @@ class IRLookup(private val declarations: collection.Map[Target, FirrtlNode]) {
               exprCache((pathless, MALE)) = r.clock
             case r: DefRegister if pathless.tokens.isDefinedAt(1) && pathless.tokens(1) == Init =>
               exprCache((pathless, MALE)) = r.init
-              updateExpr(pathless.toGenericTarget, r.init)
+              updateExpr(pathless, r.init)
             case r: DefRegister if pathless.tokens.last == Reset =>
               exprCache((pathless, MALE)) = r.reset
             case r: DefRegister =>
@@ -144,13 +145,13 @@ class IRLookup(private val declarations: collection.Map[Target, FirrtlNode]) {
     * @param t
     * @return
     */
-  def declaration(t: Target): FirrtlNode = declarations(asLocalRef(t))
+  def declaration(t: ReferenceTarget): FirrtlNode = declarations(asLocalRef(t))
 
   /** Returns the references to the module's ports
     * @param mt
     */
   def ports(mt: ModuleTarget): Seq[ReferenceTarget] = {
-    declaration(mt).asInstanceOf[DefModule].ports.map { p => mt.ref(p.name) }
+    modules(mt).ports.map { p => mt.ref(p.name) }
   }
 
   /** Returns a target to each sub-component, including intermediate subcomponents
@@ -199,7 +200,7 @@ class IRLookup(private val declarations: collection.Map[Target, FirrtlNode]) {
     * @param t
     * @return
     */
-  def contains(t: Target): Boolean = declarations.contains(asLocalRef(t))
+  def contains(t: ReferenceTarget): Boolean = declarations.contains(asLocalRef(t))
 
   /** Updates expression cache with expression
     * @param mt
@@ -212,17 +213,17 @@ class IRLookup(private val declarations: collection.Map[Target, FirrtlNode]) {
     }
   }
 
-  private def updateExpr(gt: GenericTarget, e: Expression): Unit = {
+  private def updateExpr(gt: ReferenceTarget, e: Expression): Unit = {
     val g = Utils.gender(e)
     e.tpe match {
       case _: GroundType =>
-        exprCache((gt.tryToComplete, g)) = e
+        exprCache((gt, g)) = e
       case VectorType(t, size) =>
-        exprCache((gt.tryToComplete, g)) = e
-        (0 until size).foreach { i => updateExpr(gt.add(Index(i)), WSubIndex(e, i, t, g)) }
+        exprCache((gt, g)) = e
+        (0 until size).foreach { i => updateExpr(gt.index(i), WSubIndex(e, i, t, g)) }
       case BundleType(fields) =>
-        exprCache((gt.tryToComplete, g)) = e
-        fields.foreach { f => updateExpr(gt.add(TargetToken.Field(f.name)), WSubField(e, f.name, f.tpe, Utils.times(g, f.flip))) }
+        exprCache((gt, g)) = e
+        fields.foreach { f => updateExpr(gt.field(f.name), WSubField(e, f.name, f.tpe, Utils.times(g, f.flip))) }
       case other => sys.error(s"Error! Unexpected type $other")
     }
   }
@@ -232,7 +233,7 @@ class IRLookup(private val declarations: collection.Map[Target, FirrtlNode]) {
     * @param gender
     * @return
     */
-  private def inCache(pathless: Target, gender: Gender): Option[Expression] = {
+  private def inCache(pathless: ReferenceTarget, gender: Gender): Option[Expression] = {
     (gender,
       exprCache.contains((pathless, MALE)),
       exprCache.contains((pathless, FEMALE)),

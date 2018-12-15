@@ -188,7 +188,7 @@ class FindClockSourcesSpec extends MiddleAnnotationSpec with MemStuff {
     val clockSources = Seq(
       ClockSources(Map(
         Test.ref("out0") -> Set((Test.ref("clk"), None)),
-        Test.ref("out1") -> Set((Test, Some("asClock$0"))),
+        Test.ref("out1") -> Set((Test, Some("@asClock#0"))),
         Test.ref("out2") -> Set((Test.instOf("clkdiv", "CLKDIV").ref("clkOut"), None))
       ))
     )
@@ -215,7 +215,7 @@ class FindClockSourcesSpec extends MiddleAnnotationSpec with MemStuff {
     val Test = C.module("Test")
     val out = Test.ref("out")
     val clockSources = Seq(ClockSources(Map(Test.ref("out0") -> Set((Test.ref("clk"), None)))))
-    val notClockSources = Seq(ClockSources(Map(Test.ref("out0") -> Set((Test, Some("asClock$0"))))))
+    val notClockSources = Seq(ClockSources(Map(Test.ref("out0") -> Set((Test, Some("@asClock#0"))))))
 
     execute(input, Seq(GetClockSources(Seq(Test))), clockSources, notClockSources)
   }
@@ -483,15 +483,16 @@ class FindClockSourcesSpec extends MiddleAnnotationSpec with MemStuff {
       s"""  module Child${n} :
          |    input in: UInt<8>
          |    output out: UInt<8>
-         |    out <= in
+         |    wire middle: UInt<8>
+         |    middle <= in
+         |    out <= middle
        """.stripMargin
 
-    (2 until 13 by 2).foreach { n =>
+    (2 until 23 by 2).foreach { n =>
       val input = new StringBuilder()
       input ++=
         """circuit Child0:
           |""".stripMargin
-      println(s"Depth of $n:")
       (0 until n).foreach { i => input ++= mkChild(i); input ++= "\n" }
       input ++= mkLeaf(n)
 
@@ -500,23 +501,74 @@ class FindClockSourcesSpec extends MiddleAnnotationSpec with MemStuff {
       val clockSources = ClockSources(Map(
         Child0.ref("out") -> Set((Child0.ref("in"), None))
       ))
-      print(s"\tWith caching: ")
+      print(s"Depth $n with explicit caching: ")
       val (timeWithCaching, dc2) = firrtl.Utils.time {
         execute(input.toString(), Seq(GetClockSources((0 to n).map(i => C.module(s"Child${i}")))), clockSources, None)
       }
-      //println(s"\tWith caching: $timeWithCaching")
-      print(s"\tNo caching: ")
+
+      print(s"Depth $n with implicit caching: ")
       val (timeNoCaching, dc) = firrtl.Utils.time{
         execute(input.toString(), Seq(GetClockSources(Seq(Child0.ref("out")))), clockSources, None)
       }
-      //println(s"\tNo caching: $timeNoCaching")
     }
   }
 
+  "Caching" should "work with short cut connectivity that requires priority queue" in {
+    val input =
+      """circuit Test:
+        |  module Test :
+        |    input clk1: Clock
+        |    input clk2: Clock
+        |    output out: UInt<8>
+        |    reg r1: UInt<8>, clk1
+        |    reg r2: UInt<8>, clk2
+        |    inst child1 of Child
+        |    inst child2 of Child
+        |    child1.in1 <= r1
+        |    child1.in2 <= r2
+        |    child2.in1 <= child1.out
+        |    child2.in2 <= UInt(1)
+        |    out <= child2.out
+        |  module Child :
+        |    input in1: UInt<8>
+        |    input in2: UInt<8>
+        |    output out: UInt<8>
+        |    node t0 = in2
+        |    node t1 = t0
+        |    node t2 = t1
+        |    node t3 = t2
+        |    out <= and(in1, t3)
+        |""".stripMargin
 
+    val C = CircuitTarget("Test")
+    val Test = C.module("Test")
+    val Child = C.module("Child")
+    val out = Test.ref("out")
+    val clockSources = ClockSources(Map(
+      Test.ref("out") -> Set((Test.ref("clk1"), None), (Test.ref("clk2"), None))
+    ))
+    execute(input, Seq(GetClockSources(Seq(Test.ref("out")))), clockSources, None)
+  }
+
+  "Clock source of combinational logic" should "return its top-level inputs" in {
+    val input =
+      """circuit Test:
+        |  module Test :
+        |    input in1: UInt<8>
+        |    input in2: UInt<8>
+        |    output out: UInt<8>
+        |    out <= and(in1, in2)
+        |""".stripMargin
+
+    val C = CircuitTarget("Test")
+    val Test = C.module("Test")
+    val clockSources = ClockSources(Map(
+      Test.ref("out") -> Set((Test.ref("in1"), None), (Test.ref("in2"), None))
+    ))
+    execute(input, Seq(GetClockSources(Seq(Test.ref("out")))), clockSources, None)
+  }
 
   // Check bundled nodes
-  // Check cache works of topological sorting of modules for all signals
   // Check all IRLookup functions
 }
 
