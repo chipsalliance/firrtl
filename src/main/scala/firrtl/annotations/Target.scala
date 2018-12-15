@@ -99,6 +99,15 @@ sealed trait Target extends Named {
 
   /** Whether the target is directly instantiated in its root module */
   def isLocal: Boolean
+
+  /** Share root module */
+  def sharedRoot(other: Target): Boolean = this.moduleOpt == other.moduleOpt && other.moduleOpt.nonEmpty
+
+  /** Checks whether this is inside of other */
+  def encapsulatedBy(other: IsModule): Boolean = this.moduleOpt.contains(other.encapsulatingModule)
+
+  /** @return Returns the instance hierarchy path, if one exists */
+  def path: Seq[(Instance, OfModule)]
 }
 
 object Target {
@@ -219,7 +228,6 @@ object Target {
         GenericTarget(t.circuitOpt, t.moduleOpt, newTokens)
       case other => sys.error(s"Can't make $other pathless!")
     }).tryToComplete
-
   }
 }
 
@@ -264,12 +272,11 @@ case class GenericTarget(circuitOpt: Option[String],
 
   override def isLocal: Boolean = !(getPath.nonEmpty && getPath.get.nonEmpty)
 
-  def pathTokens: Vector[TargetToken] = if(isComplete){
-    tokens.collect {
-      case i: Instance => i
-      case o: OfModule => o
+  def path: Vector[(Instance, OfModule)] = if(isComplete){
+    tokens.zip(tokens.tail).collect {
+      case (i: Instance, o: OfModule) => (i, o)
     }
-  } else Vector.empty[TargetToken]
+  } else Vector.empty[(Instance, OfModule)]
 
   /** If complete, return this [[GenericTarget]]'s path
     * @return
@@ -374,6 +381,14 @@ case class GenericTarget(circuitOpt: Option[String],
   def isCircuitTarget: Boolean = circuitOpt.nonEmpty && moduleOpt.isEmpty && tokens.isEmpty
   def isModuleTarget: Boolean = circuitOpt.nonEmpty && moduleOpt.nonEmpty && tokens.isEmpty
   def isComponentTarget: Boolean = circuitOpt.nonEmpty && moduleOpt.nonEmpty && tokens.nonEmpty
+
+  lazy val (parentModule: Option[String], astModule: Option[String]) = path match {
+    case Seq() => (None, moduleOpt)
+    case Seq((i, OfModule(o))) => (moduleOpt, Some(o))
+    case seq if seq.size > 1 =>
+      val reversed = seq.reverse
+      (Some(reversed(1)._2.value), Some(reversed(0)._2.value))
+  }
 }
 
 /** Concretely points to a FIRRTL target, no generic selectors
@@ -400,7 +415,7 @@ trait CompleteTarget extends Target {
   override def toTarget: CompleteTarget = this
 
   // Very useful for debugging, I (@azidar) think this is reasonable
-  override def toString = serialize
+  override def toString: String = serialize
 }
 
 
@@ -449,6 +464,9 @@ trait IsMember extends CompleteTarget {
     * @return
     */
   def setPathTarget(newPath: IsModule): CompleteTarget
+
+  /** @return The [[ModuleTarget]] of the module that directly contains this component */
+  def encapsulatingModule: String = if(path.isEmpty) module else path.last._2.value
 }
 
 /** References a module-like target (e.g. a [[ModuleTarget]] or an [[InstanceTarget]])
@@ -467,10 +485,6 @@ trait IsModule extends IsMember {
 /** A component of a FIRRTL Module (e.g. cannot point to a CircuitTarget or ModuleTarget)
   */
 trait IsComponent extends IsMember {
-
-  /** @return The [[ModuleTarget]] of the module that directly contains this component */
-  def encapsulatingModule: String = if(path.isEmpty) module else path.last._2.value
-
   /** Removes n levels of instance hierarchy
     *
     * Example: n=1, transforms (Top, A)/b:B/c:C -> (Top, B)/c:C
@@ -536,6 +550,8 @@ case class CircuitTarget(circuit: String) extends CompleteTarget {
 
   override def addHierarchy(root: String, instance: String): ReferenceTarget =
     ReferenceTarget(circuit, root, Nil, instance, Nil)
+
+  override def path = Seq()
 
   override def toNamed: CircuitName = CircuitName(circuit)
 }
@@ -635,7 +651,7 @@ case class ReferenceTarget(circuit: String,
 
   override def moduleOpt: Option[String] = Some(module)
 
-  override def targetParent: CompleteTarget = component match {
+  override def targetParent: IsMember = component match {
     case Nil =>
       if(path.isEmpty) moduleTarget else {
         val (i, o) = path.last
@@ -669,6 +685,8 @@ case class ReferenceTarget(circuit: String,
   def isInit: Boolean = tokens.last == Init
 
   def isReset: Boolean = tokens.last == Reset
+
+  def noComponents: ReferenceTarget = this.copy(component = Nil)
 }
 
 /** Points to an instance declaration of a module (termed an ofModule)

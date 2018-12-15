@@ -13,53 +13,80 @@ import firrtl.{FEMALE, InstanceKind, MALE, PortKind, Utils, WDefInstance, WRef, 
 
 import scala.collection.mutable
 
-class CircuitGraph protected (val circuit: Circuit, val digraph: DiGraph[Target], val irLookup: IRLookup) extends DiGraphLike[Target] {
-  override val edges = digraph.getEdgeMap.asInstanceOf[mutable.LinkedHashMap[Target, mutable.LinkedHashSet[Target]]]
+class CircuitGraph protected (val circuit: Circuit, val digraph: DiGraph[ReferenceTarget], val irLookup: IRLookup) extends DiGraphLike[ReferenceTarget] {
+  override val edges = digraph.getEdgeMap.asInstanceOf[mutable.LinkedHashMap[ReferenceTarget, mutable.LinkedHashSet[ReferenceTarget]]]
 
-  private val path = mutable.ArrayBuffer[(Instance, OfModule)]()
+  val portConnectivityStack: mutable.HashMap[ReferenceTarget, List[ReferenceTarget]] =
+    mutable.HashMap.empty[ReferenceTarget, List[ReferenceTarget]]
 
-  def inSameInstance(from: Target, to: Target): Boolean = from.moduleOpt == to.moduleOpt && from.moduleOpt.nonEmpty
+  val portShortCuts: mutable.HashMap[ReferenceTarget, mutable.HashSet[ReferenceTarget]] =
+    mutable.HashMap.empty[ReferenceTarget, mutable.HashSet[ReferenceTarget]]
 
-  def inParentInstance(from: Target, to: Target): Boolean = to.moduleOpt.nonEmpty && to.moduleOpt.get == path.last._2.value
-
-  def inChildInstance(from: InstanceTarget, to: Target): Boolean = to.moduleOpt.isDefined && to.moduleOpt.get == from.ofModule
-
-  override def getEdges(v: Target, prevOpt: Option[collection.Map[Target, Target]] = None): collection.Set[Target] = {
-    val genT = v.toGenericTarget
-    val circuitOpt = genT.circuitOpt
-    val pathTokens = genT.pathTokens
-    val (parentModule, astModule) = pathTokens match {
-      case Seq() => (None, genT.moduleOpt.get)
-      case Seq(i, TargetToken.OfModule(o)) => (genT.moduleOpt, o)
-      case seq if seq.size > 2 && seq.size % 2 == 0 =>
-        val reversed = seq.reverse
-        (Some(reversed(2).value), reversed.head.value)
-    }
-    val pathlessEdges = super.getEdges(Target.getPathlessTarget(v))
-    pathlessEdges.flatMap { t =>
-      val genE = t.toGenericTarget
-      genE match {
-        // In same instance
-        case GenericTarget(`circuitOpt`, Some(`astModule`), tokens) =>
-          Seq(GenericTarget(circuitOpt, genT.moduleOpt, pathTokens ++ tokens).tryToComplete)
-
-        // In parent instance
-        case GenericTarget(`circuitOpt`, `parentModule`, tokens) =>
-          Seq(GenericTarget(circuitOpt, genT.moduleOpt, pathTokens.dropRight(2) ++ tokens).tryToComplete)
-
-        case GenericTarget(`circuitOpt`, Some(otherModule), tokens) =>
-          (Target.getPathlessTarget(genT).tokens, tokens) match {
-            // In parent but instantiates root module
-            case (TargetToken.Ref(modPort) +: modRest, TargetToken.Ref(inst) +: TargetToken.Field(instPort) +: instRest) if modPort == instPort && modRest == instRest =>  Nil
-
-            // In child instance
-            case (TargetToken.Ref(inst) +: TargetToken.Field(instPort) +: instRest, TargetToken.Ref(modPort) +: modRest) if modPort == instPort && modRest == instRest =>
-              val inst = v.complete.asInstanceOf[ReferenceTarget]
-              val newPath = pathTokens ++ Seq(TargetToken.Instance(inst.ref), TargetToken.OfModule(otherModule))
-              Seq(GenericTarget(circuitOpt, genT.moduleOpt, newPath ++ tokens).tryToComplete)
-          }
+  def getShortCutEdges(source: ReferenceTarget, edges: collection.Set[ReferenceTarget]): collection.Set[ReferenceTarget] = {
+    edges.flatMap { e =>
+      portShortCuts.get(e.pathlessTarget) match {
+        case None => Seq(e)
+        case Some(set) => set.map{x => x.setPathTarget(e.pathTarget)}
       }
     }
+  }
+
+  override def getEdges(source: ReferenceTarget, prevOpt: Option[collection.Map[ReferenceTarget, ReferenceTarget]] = None): collection.Set[ReferenceTarget] = {
+    val localSource = source.pathlessTarget
+    val pathlessEdges = super.getEdges(localSource)
+    val ret = pathlessEdges.flatMap {
+      case e@ReferenceTarget(c, m, Seq(), r, component) =>
+        source match {
+          // If e is in the same instance, then they must share the same encapsulating module
+          case x if x.encapsulatingModule == m =>
+            val localE = e.pathlessTarget
+            portConnectivityStack(localE) = portConnectivityStack.getOrElse(localSource, Nil)
+            Set[ReferenceTarget](e.setPathTarget(x.pathTarget))
+          // If e is in a parent instance, then source's parent of its encapsulating module must be e's module
+          case it@ReferenceTarget(`c`, _, path, _, _)
+            if it.path.nonEmpty &&
+              it.noComponents.targetParent.asInstanceOf[InstanceTarget].encapsulatingModule == m &&
+              r == it.path.last._1.value =>
+            val currentStack = portConnectivityStack.getOrElse(localSource, Nil)
+            val localE = e.pathlessTarget
+            if(currentStack.nonEmpty && currentStack.head.module == localE.module) {
+              // Exiting back to parent module
+              // Update shortcut path from entrance from parent to new exit to parent
+              val instancePort = currentStack.head
+              val modulePort = ReferenceTarget(
+                localSource.circuit,
+                localSource.module,
+                Nil,
+                instancePort.component.head.value.toString,
+                instancePort.component.tail
+              )
+              val destinations = portShortCuts.getOrElse(modulePort, mutable.HashSet.empty[ReferenceTarget])
+              portShortCuts(modulePort) = destinations + localSource
+              // Remove entrace from parent from stack
+              portConnectivityStack(localE) = currentStack.tail
+            } else {
+              // Exiting to parent, but had unresolved trip through child, so don't update shortcut
+              // TODO think about this more....
+              portConnectivityStack(localE) = localSource +: currentStack
+            }
+            Set[ReferenceTarget](e.setPathTarget(it.targetParent.asInstanceOf[IsComponent].pathTarget))
+          case _ =>
+            source match {
+              // If e is in a child instance, then source must be referencing an instance port
+              case ReferenceTarget(_, top, path, instance, TargetToken.Field(port) +: comps) if port == r && comps == component =>
+                val localE = e.pathlessTarget
+                portConnectivityStack(localE) = localSource +: portConnectivityStack.getOrElse(localSource, Nil)
+                val x = e.setPathTarget(source.pathTarget.instOf(instance, m))
+                Set[ReferenceTarget](x)
+              // If e is in a parent instance who's instantiating source's root module, then e must be referencing an instance port
+              case ReferenceTarget(_, top, Seq(), port, comps) if port == component.head.value && comps == component.tail =>
+                Set[ReferenceTarget]()
+              case other =>
+                Set[ReferenceTarget]()
+            }
+        }
+    }
+    ret
   }
 }
 
@@ -73,47 +100,49 @@ object CircuitGraph {
     */
   def apply(circuit: Circuit): CircuitGraph = buildCircuitGraph(circuit)
 
+  def isAsClock(t: ReferenceTarget): Boolean = t.ref.length >= 9 && t.ref.substring(0, 9) == "@asClock#"
+
   /** Within a module, given an [[Expression]] inside a module, return a corresponding [[Target]]
     * @param m Target of module containing the expression
     * @param tagger Used to uniquely identify unnamed targets, e.g. primops
     * @param e
     * @return
     */
-  def asTarget(m: ModuleTarget, tagger: TokenTagger)(e: Expression): Target = e match {
-    case l: Literal => m.toGenericTarget.add(LitToken(l.value, tagger.getTag(l.value.toString)))
+  def asTarget(m: ModuleTarget, tagger: TokenTagger)(e: Expression): ReferenceTarget = e match {
+    case l: Literal => m.ref("@" + l.value + "#" + tagger.getTag(l.value.toString))
     case w: WRef => m.ref(w.name)
     case r: Reference => m.ref(r.name)
-    case w: WSubIndex => asTarget(m, tagger)(w.expr).asInstanceOf[ReferenceTarget].index(w.value)
-    case s: SubIndex => asTarget(m, tagger)(s.expr).asInstanceOf[ReferenceTarget].index(s.value)
-    case w: WSubField => asTarget(m, tagger)(w.expr).asInstanceOf[ReferenceTarget].field(w.name)
-    case s: SubField => asTarget(m, tagger)(s.expr).asInstanceOf[ReferenceTarget].field(s.name)
-    case d: DoPrim => m.toGenericTarget.add(OpToken(d.op.serialize, tagger.getTag(d.op.serialize)))
-    case _: Mux => m.toGenericTarget.add(OpToken("mux", tagger.getTag("mux")))
-    case _: ValidIf => m.toGenericTarget.add(OpToken("validif", tagger.getTag("validif")))
+    case w: WSubIndex => asTarget(m, tagger)(w.expr).index(w.value)
+    case s: SubIndex => asTarget(m, tagger)(s.expr).index(s.value)
+    case w: WSubField => asTarget(m, tagger)(w.expr).field(w.name)
+    case s: SubField => asTarget(m, tagger)(s.expr).field(s.name)
+    case d: DoPrim => m.ref("@" + d.op.serialize + "#" + tagger.getTag(d.op.serialize))
+    case _: Mux => m.ref("@mux" + "#" + tagger.getTag("mux"))
+    case _: ValidIf => m.ref("@validif" + "#" + tagger.getTag("validif"))
     case other => sys.error(s"Unsupported: $other")
   }
 
 
   private def buildCircuitGraph(circuit: Circuit): CircuitGraph = {
-    val mdg = new MutableDiGraph[Target]()
-    val declarations = mutable.LinkedHashMap[Target, FirrtlNode]()
+    val mdg = new MutableDiGraph[ReferenceTarget]()
+    val declarations = mutable.LinkedHashMap[ReferenceTarget, FirrtlNode]()
     val circuitTarget = CircuitTarget(circuit.main)
     val moduleTypes = circuit.modules.map { m => m.name -> firrtl.Utils.module_type(m) }.toMap
-    val moduleMap = circuit.modules.map { m => m.name -> m }.toMap
+    val moduleMap = circuit.modules.map { m => circuitTarget.module(m.name) -> m }.toMap
     val top = circuitTarget.module(circuit.main)
 
     circuit map buildModule(circuitTarget)
 
     def emptySet[T]: mutable.LinkedHashSet[T] = mutable.LinkedHashSet.empty[T]
 
-    def addLabeledVertex(v: Target, f: FirrtlNode): Unit = {
+    def addLabeledVertex(v: ReferenceTarget, f: FirrtlNode): Unit = {
       mdg.addVertex(v)
       declarations(v) = f
     }
 
     def buildModule(c: CircuitTarget)(module: DefModule): DefModule = {
       val m = c.module(module.name)
-      addLabeledVertex(m, module)
+      //addLabeledVertex(m, module)
       module map buildPort(m, module) map buildStatement(m, new TokenTagger())
     }
 
@@ -252,7 +281,7 @@ object CircuitGraph {
       stmt
     }
 
-    def buildExpression(m: ModuleTarget, tagger: TokenTagger, sinkTarget: Target)(expr: Expression): Expression = {
+    def buildExpression(m: ModuleTarget, tagger: TokenTagger, sinkTarget: ReferenceTarget)(expr: Expression): Expression = {
       require(expr.tpe.isInstanceOf[GroundType], "Expression must be a Ground Type. Must be on Middle FIRRTL.")
       val sourceTarget = asTarget(m, tagger)(expr)
       mdg.addVertex(sourceTarget)
@@ -266,7 +295,7 @@ object CircuitGraph {
       expr
     }
 
-    new CircuitGraph(circuit, DiGraph(mdg), new IRLookup(declarations))
+    new CircuitGraph(circuit, DiGraph(mdg), new IRLookup(declarations, moduleMap))
   }
 }
 
