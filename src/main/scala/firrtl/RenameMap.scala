@@ -179,6 +179,50 @@ final class RenameMap private () {
     ret
   }
 
+
+  /** Checks for renames of only the component portion of a [[ReferenceTarget]]
+    * @param set Used to detect circular renames
+    * @param errors Used to record illegal renames
+    * @param key Target to rename
+    * @return Renamed targets
+    */
+  private def componentGet(set: mutable.LinkedHashSet[ReferenceTarget],
+    errors: mutable.ArrayBuffer[String]
+  )(key: ReferenceTarget): Seq[ReferenceTarget] = {
+    if (set.contains(key)) {
+      throw CircularRenameException(s"Illegal rename: circular renaming is illegal - ${set.mkString(" -> ")}")
+    }
+    set += key
+
+    val getter = componentGet(set, errors)(_)
+    val renamed = underlying.get(key).map { keys =>
+      keys.flatMap {
+        case t: ReferenceTarget => getter(t)
+        case other =>
+          errors += s"Illegal rename: ReferenceTarget $key is renamed to $other - must rename $key directly."
+          None
+      }
+    }
+
+    if (renamed.isEmpty && key.component.nonEmpty) {
+      val last = key.component.last
+      val parent = key.copy(component = key.component.dropRight(1))
+      getter(parent).map { x =>
+        (x, last) match {
+          case (t2: ReferenceTarget, Field(f)) => t2.field(f)
+          case (t2: ReferenceTarget, Index(i)) => t2.index(i)
+          case other =>
+            errors += s"Illegal rename: ${key.targetParent} cannot be renamed to ${other._1} - must rename $key directly"
+            key
+        }
+      }
+    } else if (renamed.isEmpty) {
+      Seq(key)
+    } else {
+      renamed.get
+    }
+  }
+
   // scalastyle:off
   // This function requires a large cyclomatic complexity, and is best naturally expressed as a large function
   /** Recursively renames a target so the returned targets are complete renamed
@@ -246,18 +290,8 @@ final class RenameMap private () {
           * 2) Check ReferenceTarget with one layer stripped from its path hierarchy (i.e. a new root module)
           */
         case t: ReferenceTarget =>
-          val ret: Seq[CompleteTarget] = if(t.component.nonEmpty && t.isLocal) {
-            val last = t.component.last
-            getter(t.targetParent).map{ x =>
-              (x, last) match {
-                case (t2: ReferenceTarget, Field(f)) => t2.field(f)
-                case (t2: ReferenceTarget, Index(i)) => t2.index(i)
-                case other =>
-                  errors += s"Illegal rename: ${t.targetParent} cannot be renamed to ${other._1} - must rename $t directly"
-                  t
-              }
-            }
-          } else {
+          val renamedComponent = componentGet(mutable.LinkedHashSet.empty[ReferenceTarget], errors)(t)
+          val ret: Seq[CompleteTarget] = renamedComponent.flatMap { t =>
             val pathTargets = sensitivity.empty ++ (t.pathAsTargets ++ t.pathAsTargets.map(_.asReference))
             if(t.pathAsTargets.nonEmpty && sensitivity.intersect(pathTargets).isEmpty) Seq(t) else {
               getter(t.pathTarget).map {

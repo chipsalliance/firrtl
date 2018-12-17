@@ -301,7 +301,7 @@ class RenameMapSpec extends FirrtlFlatSpec {
     }
   }
 
-  it should "rename reference targets with paths and target tokens" in {
+  it should "rename reference targets with paths if their corresponding pathless target are renamed" in {
     val cir = CircuitTarget("Top")
     val modTop = cir.module("Top")
     val modA = cir.module("A")
@@ -320,10 +320,147 @@ class RenameMapSpec extends FirrtlFlatSpec {
     renames.record(aggregate, Seq(lowered1, lowered2))
 
     val path = modTop.instOf("b", "B").instOf("a", "A")
-    val testRef = subField1.setPathTarget(path)
+    val testRef1 = subField1.setPathTarget(path)
 
+    renames.get(testRef1) should be {
+      Some(Seq(testRef1.copy(ref = "agg_field1", component = Nil)))
+    }
+  }
+
+  it should "properly rename reference targets with the same paths" in {
+    val cir = CircuitTarget("Top")
+    val modTop = cir.module("Top")
+    val modA = cir.module("A")
+
+    val path = modTop.instOf("b", "B").instOf("a", "A")
+    val oldAgg = modA.ref("oldAgg").setPathTarget(path)
+    val newAgg = modA.ref("newAgg").setPathTarget(path)
+
+    val renames = RenameMap()
+    renames.record(oldAgg, newAgg)
+
+    val testRef = oldAgg.field("field")
     renames.get(testRef) should be {
-      Some(Seq(testRef.copy(ref = "agg_field1", component = Nil)))
+      Some(Seq(testRef.copy(ref = newAgg.ref)))
+    }
+  }
+
+  it should "properly rename reference targets with partially matching paths" in {
+    val cir = CircuitTarget("Top")
+    val modTop = cir.module("Top")
+    val modA = cir.module("A")
+    val modB = cir.module("B")
+
+    val path = modB.instOf("a", "A")
+    val oldRef = modA.ref("oldRef").setPathTarget(path)
+    val newRef = modA.ref("newRef").setPathTarget(path)
+
+    val renames = RenameMap()
+    renames.record(oldRef, newRef)
+
+    val testRef = oldRef.addHierarchy("B", "b")
+    renames.get(testRef) should be {
+      Some(Seq(newRef.addHierarchy("B", "b")))
+    }
+  }
+
+  it should "properly rename reference targets with partially matching paths and partially matching target tokens" in {
+    val cir = CircuitTarget("Top")
+    val modTop = cir.module("Top")
+    val modA = cir.module("A")
+    val modB = cir.module("B")
+
+    val path = modB.instOf("a", "A")
+    val oldAgg = modA.ref("oldAgg").setPathTarget(path).field("field1")
+    val newAgg = modA.ref("newAgg").setPathTarget(path)
+
+    val renames = RenameMap()
+    renames.record(oldAgg, newAgg)
+
+    val testRef = oldAgg.addHierarchy("B", "b").field("field2")
+    renames.get(testRef) should be {
+      Some(Seq(newAgg.addHierarchy("B", "b").field("field2")))
+    }
+  }
+
+  it should "rename targets with multiple renames starting from most specific to least specific" in {
+    val cir = CircuitTarget("Top")
+    val modTop = cir.module("Top")
+    val modA = cir.module("A")
+    val modB = cir.module("B")
+    val modC = cir.module("C")
+
+    // from: ~Top|A/b:B/c:C>ref.f1.f2.f3
+    // to: ~Top|A/b:B/c:C>ref.f1.f2.f333
+    // renamed first because it is an exact match
+    val from1 = modA
+      .instOf("b", "B")
+      .instOf("c", "C")
+      .ref("ref")
+      .field("f1")
+      .field("f2")
+      .field("f3")
+    val to1 = modA
+      .instOf("b", "B")
+      .instOf("c", "C")
+      .ref("ref")
+      .field("f1")
+      .field("f2")
+      .field("f33")
+
+    // from: ~Top|A/b:B/c:C>ref.f1.f2
+    // to: ~Top|A/b:B/c:C>ref.f1
+    // renamed second because it is a parent target
+    val from2 = modA
+      .instOf("b", "B")
+      .instOf("c", "C")
+      .ref("ref")
+      .field("f1")
+      .field("f2")
+    val to2   = modA
+      .instOf("b", "B")
+      .instOf("c", "C")
+      .ref("ref")
+      .field("f1")
+      .field("f22")
+
+    // from: ~Top|B/c:C>ref.f1
+    // to: ~Top|B/c:C>ref.f11
+    // renamed third because it has a smaller hierarchy
+    val from3 = modB
+      .instOf("c", "C")
+      .ref("ref")
+      .field("f1")
+      .field("f22")
+      .field("f33")
+    val to3   = modB
+      .instOf("c", "C")
+      .ref("ref")
+      .field("f11")
+      .field("f22")
+      .field("f33")
+
+    // from: ~Top|C>ref
+    // to: ~Top|C>refref
+    // renamed last because it has no path
+    val from4 = modC.ref("ref")
+    val to4   = modC.ref("refref")
+
+    val renames = RenameMap()
+    renames.record(from1, to1)
+    renames.record(from2, to2)
+    renames.record(from3, to3)
+    renames.record(from4, to4)
+
+    renames.get(from1) should be {
+      Some(Seq(modA
+        .instOf("b", "B")
+        .instOf("c", "C")
+        .ref("refref")
+        .field("f11")
+        .field("f22")
+        .field("f33")
+      ))
     }
   }
 }
