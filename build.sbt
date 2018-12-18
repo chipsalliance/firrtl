@@ -14,11 +14,11 @@ organization := "edu.berkeley.cs"
 
 name := "firrtl"
 
-version := "1.1-SNAPSHOT"
+version := "1.2-SNAPSHOT"
 
-scalaVersion := "2.11.12"
+scalaVersion := "2.12.7"
 
-crossScalaVersions := Seq("2.11.12", "2.12.4")
+crossScalaVersions := Seq("2.12.7", "2.11.12")
 
 def scalacOptionsVersion(scalaVersion: String): Seq[String] = {
   Seq() ++ {
@@ -32,7 +32,9 @@ def scalacOptionsVersion(scalaVersion: String): Seq[String] = {
   }
 }
 
-scalacOptions := scalacOptionsVersion(scalaVersion.value)
+scalacOptions := scalacOptionsVersion(scalaVersion.value) ++ Seq(
+  "-deprecation"
+)
 
 def javacOptionsVersion(scalaVersion: String): Seq[String] = {
   Seq() ++ {
@@ -52,17 +54,35 @@ javacOptions ++= javacOptionsVersion(scalaVersion.value)
 
 libraryDependencies += "org.scala-lang" % "scala-reflect" % scalaVersion.value
 
-libraryDependencies += "com.typesafe.scala-logging" %% "scala-logging" % "3.7.2"
+libraryDependencies += "com.typesafe.scala-logging" %% "scala-logging" % "3.9.0"
 
 libraryDependencies += "ch.qos.logback" % "logback-classic" % "1.2.3"
 
-libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.1" % "test"
+// sbt 1.2.6 fails with `Symbol 'term org.junit' is missing from the classpath`
+// when compiling tests under 2.11.12
+// An explicit dependency on junit seems to alleviate this.
+libraryDependencies += "junit" % "junit" % "4.12" % "test"
 
-libraryDependencies += "org.scalacheck" %% "scalacheck" % "1.13.4" % "test"
+libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.5" % "test"
 
-libraryDependencies += "com.github.scopt" %% "scopt" % "3.6.0"
+libraryDependencies += "org.scalacheck" %% "scalacheck" % "1.14.0" % "test"
+
+libraryDependencies += "com.github.scopt" %% "scopt" % "3.7.0"
 
 libraryDependencies += "net.jcazevedo" %% "moultingyaml" % "0.4.0"
+
+libraryDependencies += "org.json4s" %% "json4s-native" % "3.6.1"
+
+// Java PB
+
+enablePlugins(ProtobufPlugin)
+
+sourceDirectory in ProtobufConfig := baseDirectory.value / "src" / "main" / "proto"
+
+protobufRunProtoc in ProtobufConfig := (args =>
+  com.github.os72.protocjar.Protoc.runProtoc("-v351" +: args.toArray))
+
+javaSource in ProtobufConfig := (sourceManaged in Compile).value
 
 // Assembly
 
@@ -82,7 +102,44 @@ antlr4GenListener in Antlr4 := false // default = true
 
 antlr4PackageName in Antlr4 := Option("firrtl.antlr")
 
-antlr4Version in Antlr4 := "4.7"
+antlr4Version in Antlr4 := "4.7.1"
+
+javaSource in Antlr4 := (sourceManaged in Compile).value
+
+publishMavenStyle := true
+publishArtifact in Test := false
+pomIncludeRepository := { x => false }
+// Don't add 'scm' elements if we have a git.remoteRepo definition.
+pomExtra := <url>http://chisel.eecs.berkeley.edu/</url>
+  <licenses>
+    <license>
+      <name>BSD-style</name>
+      <url>http://www.opensource.org/licenses/bsd-license.php</url>
+      <distribution>repo</distribution>
+    </license>
+  </licenses>
+  <developers>
+    <developer>
+      <id>jackbackrack</id>
+      <name>Jonathan Bachrach</name>
+      <url>http://www.eecs.berkeley.edu/~jrb/</url>
+    </developer>
+  </developers>
+
+publishTo := {
+  val v = version.value
+  val nexus = "https://oss.sonatype.org/"
+  if (v.trim.endsWith("SNAPSHOT")) {
+    Some("snapshots" at nexus + "content/repositories/snapshots")
+  } else {
+    Some("releases" at nexus + "service/local/staging/deploy/maven2")
+  }
+}
+
+resolvers ++= Seq(
+  Resolver.sonatypeRepo("snapshots"),
+  Resolver.sonatypeRepo("releases")
+)
 
 // ScalaDoc
 

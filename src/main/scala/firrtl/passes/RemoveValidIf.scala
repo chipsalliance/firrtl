@@ -9,6 +9,23 @@ import WrappedExpression.weq
 
 /** Remove ValidIf and replace IsInvalid with a connection to zero */
 object RemoveValidIf extends Pass {
+
+  val UIntZero = Utils.zero
+  val SIntZero = SIntLiteral(BigInt(0), IntWidth(1))
+  val ClockZero = DoPrim(PrimOps.AsClock, Seq(UIntZero), Seq.empty, ClockType)
+  val FixedZero = FixedLiteral(BigInt(0), IntWidth(1), IntWidth(0))
+
+  /** Returns an [[Expression]] equal to zero for a given [[GroundType]]
+    * @note Accepts [[Type]] but dyanmically expects [[GroundType]]
+    */
+  def getGroundZero(tpe: Type): Expression = tpe match {
+    case _: UIntType => UIntZero
+    case _: SIntType => SIntZero
+    case ClockType => ClockZero
+    case _: FixedType => FixedZero
+    case other => throwInternalError(s"Unexpected type $other")
+  }
+
   // Recursive. Removes ValidIfs
   private def onExp(e: Expression): Expression = {
     e map onExp match {
@@ -16,28 +33,13 @@ object RemoveValidIf extends Pass {
       case x => x
     }
   }
-  private val UIntZero = Utils.zero
-  private val SIntZero = SIntLiteral(BigInt(0), IntWidth(1))
-  private val ClockZero = DoPrim(PrimOps.AsClock, Seq(UIntZero), Seq.empty, UIntZero.tpe)
-
-  private def getGroundZero(tpe: Type): Expression = tpe match {
-    case _: UIntType => UIntZero
-    case _: SIntType => SIntZero
-    case ClockType => ClockZero
-    case other => throwInternalError
-  }
 
   // Recursive. Replaces IsInvalid with connecting zero
   private def onStmt(s: Statement): Statement = s map onStmt map onExp match {
     case invalid @ IsInvalid(info, loc) => loc.tpe match {
-      case _: AnalogType => invalid // Unclear what we should do, can't remove or we emit invalid Firrtl
+      case _: AnalogType => EmptyStmt
       case tpe => Connect(info, loc, getGroundZero(tpe))
     }
-    // Register connected to itself (since reset has been made explicit) is a register with no reset
-    // and no connections, connect it to zero (to be constant propped later)
-    case Connect(info, lref: WRef, rref: WRef) if weq(lref, rref) =>
-      // We can't have an Analog reg so just get a zero
-      Connect(info, lref, getGroundZero(lref.tpe))
     case other => other
   }
 

@@ -12,27 +12,49 @@ import firrtl.PrimOps._
 import firrtl.graph.DiGraph
 import firrtl.WrappedExpression.weq
 import firrtl.analyses.InstanceGraph
+import firrtl.annotations.TargetToken.Ref
 
 import annotation.tailrec
 import collection.mutable
 
 object ConstantPropagation {
+  private def asUInt(e: Expression, t: Type) = DoPrim(AsUInt, Seq(e), Seq(), t)
+
   /** Pads e to the width of t */
   def pad(e: Expression, t: Type) = (bitWidth(e.tpe), bitWidth(t)) match {
     case (we, wt) if we < wt => DoPrim(Pad, Seq(e), Seq(wt), t)
     case (we, wt) if we == wt => e
   }
 
+  def constPropBitExtract(e: DoPrim) = {
+    val arg = e.args.head
+    val (hi, lo) = e.op match {
+      case Bits => (e.consts.head.toInt, e.consts(1).toInt)
+      case Tail => ((bitWidth(arg.tpe) - 1 - e.consts.head).toInt, 0)
+      case Head => ((bitWidth(arg.tpe) - 1).toInt, (bitWidth(arg.tpe) - e.consts.head).toInt)
+    }
+
+    arg match {
+      case lit: Literal =>
+        require(hi >= lo)
+        UIntLiteral((lit.value >> lo) & ((BigInt(1) << (hi - lo + 1)) - 1), getWidth(e.tpe))
+      case x if bitWidth(e.tpe) == bitWidth(x.tpe) => x.tpe match {
+        case t: UIntType => x
+        case _ => asUInt(x, e.tpe)
+      }
+      case _ => e
+    }
+  }
 }
 
-class ConstantPropagation extends Transform {
+class ConstantPropagation extends Transform with ResolvedAnnotationPaths {
   import ConstantPropagation._
   def inputForm = LowForm
   def outputForm = LowForm
 
-  private def asUInt(e: Expression, t: Type) = DoPrim(AsUInt, Seq(e), Seq(), t)
+  override val annotationClasses: Traversable[Class[_]] = Seq(classOf[DontTouchAnnotation])
 
-  trait FoldLogicalOp {
+  trait FoldCommutativeOp {
     def fold(c1: Literal, c2: Literal): Expression
     def simplify(e: Expression, lhs: Literal, rhs: Expression): Expression
 
@@ -44,7 +66,19 @@ class ConstantPropagation extends Transform {
     }
   }
 
-  object FoldAND extends FoldLogicalOp {
+  object FoldADD extends FoldCommutativeOp {
+    def fold(c1: Literal, c2: Literal) = (c1, c2) match {
+      case (_: UIntLiteral, _: UIntLiteral) => UIntLiteral(c1.value + c2.value, (c1.width max c2.width) + IntWidth(1))
+      case (_: SIntLiteral, _: SIntLiteral) => SIntLiteral(c1.value + c2.value, (c1.width max c2.width) + IntWidth(1))
+    }
+    def simplify(e: Expression, lhs: Literal, rhs: Expression) = lhs match {
+      case UIntLiteral(v, w) if v == BigInt(0) => rhs
+      case SIntLiteral(v, w) if v == BigInt(0) => rhs
+      case _ => e
+    }
+  }
+
+  object FoldAND extends FoldCommutativeOp {
     def fold(c1: Literal, c2: Literal) = UIntLiteral(c1.value & c2.value, c1.width max c2.width)
     def simplify(e: Expression, lhs: Literal, rhs: Expression) = lhs match {
       case UIntLiteral(v, w) if v == BigInt(0) => UIntLiteral(0, w)
@@ -54,7 +88,7 @@ class ConstantPropagation extends Transform {
     }
   }
 
-  object FoldOR extends FoldLogicalOp {
+  object FoldOR extends FoldCommutativeOp {
     def fold(c1: Literal, c2: Literal) = UIntLiteral(c1.value | c2.value, c1.width max c2.width)
     def simplify(e: Expression, lhs: Literal, rhs: Expression) = lhs match {
       case UIntLiteral(v, _) if v == BigInt(0) => rhs
@@ -64,7 +98,7 @@ class ConstantPropagation extends Transform {
     }
   }
 
-  object FoldXOR extends FoldLogicalOp {
+  object FoldXOR extends FoldCommutativeOp {
     def fold(c1: Literal, c2: Literal) = UIntLiteral(c1.value ^ c2.value, c1.width max c2.width)
     def simplify(e: Expression, lhs: Literal, rhs: Expression) = lhs match {
       case UIntLiteral(v, _) if v == BigInt(0) => rhs
@@ -73,7 +107,7 @@ class ConstantPropagation extends Transform {
     }
   }
 
-  object FoldEqual extends FoldLogicalOp {
+  object FoldEqual extends FoldCommutativeOp {
     def fold(c1: Literal, c2: Literal) = UIntLiteral(if (c1.value == c2.value) 1 else 0, IntWidth(1))
     def simplify(e: Expression, lhs: Literal, rhs: Expression) = lhs match {
       case UIntLiteral(v, IntWidth(w)) if v == BigInt(1) && w == BigInt(1) && bitWidth(rhs.tpe) == BigInt(1) => rhs
@@ -81,7 +115,7 @@ class ConstantPropagation extends Transform {
     }
   }
 
-  object FoldNotEqual extends FoldLogicalOp {
+  object FoldNotEqual extends FoldCommutativeOp {
     def fold(c1: Literal, c2: Literal) = UIntLiteral(if (c1.value != c2.value) 1 else 0, IntWidth(1))
     def simplify(e: Expression, lhs: Literal, rhs: Expression) = lhs match {
       case UIntLiteral(v, IntWidth(w)) if v == BigInt(0) && w == BigInt(1) && bitWidth(rhs.tpe) == BigInt(1) => rhs
@@ -189,6 +223,7 @@ class ConstantPropagation extends Transform {
     case Shl => foldShiftLeft(e)
     case Shr => foldShiftRight(e)
     case Cat => foldConcat(e)
+    case Add => FoldADD(e)
     case And => FoldAND(e)
     case Or => FoldOR(e)
     case Xor => FoldXOR(e)
@@ -212,21 +247,10 @@ class ConstantPropagation extends Transform {
     case Pad => e.args.head match {
       case UIntLiteral(v, IntWidth(w)) => UIntLiteral(v, IntWidth(e.consts.head max w))
       case SIntLiteral(v, IntWidth(w)) => SIntLiteral(v, IntWidth(e.consts.head max w))
-      case _ if bitWidth(e.args.head.tpe) == e.consts.head => e.args.head
+      case _ if bitWidth(e.args.head.tpe) >= e.consts.head => e.args.head
       case _ => e
     }
-    case Bits => e.args.head match {
-      case lit: Literal =>
-        val hi = e.consts.head.toInt
-        val lo = e.consts(1).toInt
-        require(hi >= lo)
-        UIntLiteral((lit.value >> lo) & ((BigInt(1) << (hi - lo + 1)) - 1), getWidth(e.tpe))
-      case x if bitWidth(e.tpe) == bitWidth(x.tpe) => x.tpe match {
-        case t: UIntType => x
-        case _ => asUInt(x, e.tpe)
-      }
-      case _ => e
-    }
+    case (Bits | Head | Tail) => constPropBitExtract(e)
     case _ => e
   }
 
@@ -250,6 +274,24 @@ class ConstantPropagation extends Transform {
 
   // Is "a" a "better name" than "b"?
   private def betterName(a: String, b: String): Boolean = (a.head != '_') && (b.head == '_')
+
+  def optimize(e: Expression): Expression = constPropExpression(new NodeMap(), Map.empty[String, String], Map.empty[String, Map[String, Literal]])(e)
+  def optimize(e: Expression, nodeMap: NodeMap): Expression = constPropExpression(nodeMap, Map.empty[String, String], Map.empty[String, Map[String, Literal]])(e)
+  private def constPropExpression(nodeMap: NodeMap, instMap: Map[String, String], constSubOutputs: Map[String, Map[String, Literal]])(e: Expression): Expression = {
+    val old = e map constPropExpression(nodeMap, instMap, constSubOutputs)
+    val propagated = old match {
+      case p: DoPrim => constPropPrim(p)
+      case m: Mux => constPropMux(m)
+      case ref @ WRef(rname, _,_, MALE) if nodeMap.contains(rname) =>
+        constPropNodeRef(ref, nodeMap(rname))
+      case ref @ WSubField(WRef(inst, _, InstanceKind, _), pname, _, MALE) =>
+        val module = instMap(inst)
+        // Check constSubOutputs to see if the submodule is driving a constant
+        constSubOutputs.get(module).flatMap(_.get(pname)).getOrElse(ref)
+      case x => x
+    }
+    propagated
+  }
 
   /** Constant propagate a Module
     *
@@ -279,7 +321,7 @@ class ConstantPropagation extends Transform {
     ): (Module, Map[String, Literal], Map[String, Map[String, Seq[Literal]]]) = {
 
     var nPropagated = 0L
-    val nodeMap = mutable.HashMap.empty[String, Expression]
+    val nodeMap = new NodeMap()
     // For cases where we are trying to constprop a bad name over a good one, we swap their names
     // during the second pass
     val swapMap = mutable.HashMap.empty[String, String]
@@ -320,31 +362,16 @@ class ConstantPropagation extends Transform {
           case node: DefNode => node.copy(name = newName)
           case wire: DefWire => wire.copy(name = newName)
           case reg: DefRegister => reg.copy(name = newName)
-          case other => throwInternalError
+          case other => throwInternalError()
         }
       case other => other map backPropStmt
     }
 
-    def constPropExpression(e: Expression): Expression = {
-      val old = e map constPropExpression
-      val propagated = old match {
-        case p: DoPrim => constPropPrim(p)
-        case m: Mux => constPropMux(m)
-        case ref @ WRef(rname, _,_, MALE) if nodeMap.contains(rname) =>
-          constPropNodeRef(ref, nodeMap(rname))
-        case ref @ WSubField(WRef(inst, _, InstanceKind, _), pname, _, MALE) =>
-          val module = instMap(inst)
-          // Check constSubOutputs to see if the submodule is driving a constant
-          constSubOutputs.get(module).flatMap(_.get(pname)).getOrElse(ref)
-        case x => x
-      }
-      propagated
-    }
 
     // When propagating a reference, check if we want to keep the name that would be deleted
     def propagateRef(lname: String, value: Expression): Unit = {
       value match {
-        case WRef(rname,_,_,_) if betterName(lname, rname) && !swapMap.contains(rname) =>
+        case WRef(rname,_,kind,_) if betterName(lname, rname) && !swapMap.contains(rname) && kind != PortKind =>
           assert(!swapMap.contains(lname)) // <- Shouldn't be possible because lname is either a
           // node declaration or the single connection to a wire or register
           swapMap += (lname -> rname, rname -> lname)
@@ -354,37 +381,50 @@ class ConstantPropagation extends Transform {
     }
 
     def constPropStmt(s: Statement): Statement = {
-      val stmtx = s map constPropStmt map constPropExpression
+      val stmtx = s map constPropStmt map constPropExpression(nodeMap, instMap, constSubOutputs)
+      // Record things that should be propagated
       stmtx match {
         case x: DefNode if !dontTouches.contains(x.name) => propagateRef(x.name, x.value)
         case Connect(_, WRef(wname, wtpe, WireKind, _), expr: Literal) if !dontTouches.contains(wname) =>
-          val exprx = constPropExpression(pad(expr, wtpe))
+          val exprx = constPropExpression(nodeMap, instMap, constSubOutputs)(pad(expr, wtpe))
           propagateRef(wname, exprx)
         // Record constants driving outputs
         case Connect(_, WRef(pname, ptpe, PortKind, _), lit: Literal) if !dontTouches.contains(pname) =>
-          val paddedLit = constPropExpression(pad(lit, ptpe)).asInstanceOf[Literal]
+          val paddedLit = constPropExpression(nodeMap, instMap, constSubOutputs)(pad(lit, ptpe)).asInstanceOf[Literal]
           constOutputs(pname) = paddedLit
         // Const prop registers that are fed only a constant or a mux between and constant and the
         // register itself
         // This requires that reset has been made explicit
-        case Connect(_, lref @ WRef(lname, ltpe, RegKind, _), expr) => expr match {
+        case Connect(_, lref @ WRef(lname, ltpe, RegKind, _), expr) if !dontTouches.contains(lname) => expr match {
           case lit: Literal =>
-            nodeMap(lname) = constPropExpression(pad(lit, ltpe))
+            nodeMap(lname) = constPropExpression(nodeMap, instMap, constSubOutputs)(pad(lit, ltpe))
           case Mux(_, tval: WRef, fval: Literal, _) if weq(lref, tval) =>
-            nodeMap(lname) = constPropExpression(pad(fval, ltpe))
+            nodeMap(lname) = constPropExpression(nodeMap, instMap, constSubOutputs)(pad(fval, ltpe))
           case Mux(_, tval: Literal, fval: WRef, _) if weq(lref, fval) =>
-            nodeMap(lname) = constPropExpression(pad(tval, ltpe))
+            nodeMap(lname) = constPropExpression(nodeMap, instMap, constSubOutputs)(pad(tval, ltpe))
+          case WRef(`lname`, _,_,_) => // If a register is connected to itself, propagate zero
+            val zero = passes.RemoveValidIf.getGroundZero(ltpe)
+            nodeMap(lname) = constPropExpression(nodeMap, instMap, constSubOutputs)(pad(zero, ltpe))
           case _ =>
         }
         // Mark instance inputs connected to a constant
         case Connect(_, lref @ WSubField(WRef(inst, _, InstanceKind, _), port, ptpe, _), lit: Literal) =>
-          val paddedLit = constPropExpression(pad(lit, ptpe)).asInstanceOf[Literal]
+          val paddedLit = constPropExpression(nodeMap, instMap, constSubOutputs)(pad(lit, ptpe)).asInstanceOf[Literal]
           val module = instMap(inst)
           val portsMap = constSubInputs.getOrElseUpdate(module, mutable.HashMap.empty)
           portsMap(port) = paddedLit +: portsMap.getOrElse(port, List.empty)
         case _ =>
       }
-      stmtx
+      // Actually transform some statements
+      stmtx match {
+        // Propagate connections to references
+        case Connect(info, lhs, rref @ WRef(rname, _, NodeKind, _)) if !dontTouches.contains(rname) =>
+          Connect(info, lhs, nodeMap(rname))
+        // If an Attach has at least 1 port, any wires are redundant and can be removed
+        case Attach(info, exprs) if exprs.exists(kind(_) == PortKind) =>
+          Attach(info, exprs.filterNot(kind(_) == WireKind))
+        case other => other
+      }
     }
 
     val modx = m.copy(body = backPropStmt(constPropStmt(m.body)))
@@ -407,8 +447,13 @@ class ConstantPropagation extends Transform {
       mod.module -> children.map(i => i.name -> i.module).toMap
     })
 
-    // Module name to number of instances
-    val instCount: Map[String, Int] = iGraph.getVertices.groupBy(_.module).mapValues(_.size)
+    // This is a *relative* instance count, ie. how many there are when you visit each Module once
+    // (even if it is instantiated multiple times)
+    val instCount: Map[String, Int] = iGraph.getEdgeMap.foldLeft(Map(c.main -> 1)) {
+      case (cs, (_, values)) => values.foldLeft(cs) {
+        case (counts, value) => counts.updated(value.module, counts.getOrElse(value.module, 0) + 1)
+      }
+    }
 
     // DiGraph using Module names as nodes, destination of edge is a parent Module
     val parentGraph: DiGraph[String] = iGraph.reverse.transformNodes(_.module)
@@ -477,11 +522,8 @@ class ConstantPropagation extends Transform {
   }
 
   def execute(state: CircuitState): CircuitState = {
-    val dontTouches: Seq[(String, String)] = state.annotations match {
-      case Some(aMap) => aMap.annotations.collect {
-        case DontTouchAnnotation(ComponentName(c, ModuleName(m, _))) => m -> c
-      }
-      case None => Seq.empty
+    val dontTouches: Seq[(String, String)] = state.annotations.collect {
+      case DontTouchAnnotation(Target(_, Some(m), Seq(Ref(c)))) => m -> c
     }
     // Map from module name to component names
     val dontTouchMap: Map[String, Set[String]] =

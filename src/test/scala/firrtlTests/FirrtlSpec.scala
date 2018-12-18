@@ -5,27 +5,87 @@ package firrtlTests
 import java.io._
 
 import com.typesafe.scalalogging.LazyLogging
+
 import scala.sys.process._
 import org.scalatest._
 import org.scalatest.prop._
-import scala.io.Source
 
+import scala.io.Source
 import firrtl._
 import firrtl.ir._
-import firrtl.Parser.UseInfo
+import firrtl.Parser.{IgnoreInfo, UseInfo}
+import firrtl.analyses.{GetNamespace, InstanceGraph, ModuleNamespaceAnnotation}
 import firrtl.annotations._
-import firrtl.transforms.{DontTouchAnnotation, NoDedupAnnotation}
+import firrtl.transforms.{DontTouchAnnotation, NoDedupAnnotation, RenameModules}
 import firrtl.util.BackendCompilationUtilities
+
+import scala.collection.mutable
 
 trait FirrtlRunners extends BackendCompilationUtilities {
 
   val cppHarnessResourceName: String = "/firrtl/testTop.cpp"
 
+  private class RenameTop(newTopPrefix: String) extends Transform {
+    def inputForm: LowForm.type = LowForm
+    def outputForm: LowForm.type = LowForm
+
+    def execute(state: CircuitState): CircuitState = {
+      val namespace = state.annotations.collectFirst {
+        case m: ModuleNamespaceAnnotation => m
+      }.get.namespace
+
+      val newTopName = namespace.newName(newTopPrefix)
+      val modulesx = state.circuit.modules.map {
+        case mod: Module if mod.name == state.circuit.main => mod.mapString(_ => newTopName)
+        case other => other
+      }
+
+      state.copy(circuit = state.circuit.copy(main = newTopName, modules = modulesx))
+    }
+  }
+
+  /** Check equivalence of Firrtl transforms using yosys
+    *
+    * @param input string containing Firrtl source
+    * @param customTransforms Firrtl transforms to test for equivalence
+    * @param customAnnotations Optional Firrtl annotations
+    * @param resets tell yosys which signals to set for SAT, format is (timestep, signal, value)
+    */
+  def firrtlEquivalenceTest(input: String,
+                            customTransforms: Seq[Transform] = Seq.empty,
+                            customAnnotations: AnnotationSeq = Seq.empty,
+                            resets: Seq[(Int, String, Int)] = Seq.empty): Unit = {
+    val circuit = Parser.parse(input.split("\n").toIterator)
+    val compiler = new MinimumVerilogCompiler
+    val prefix = circuit.main
+    val testDir = createTestDirectory(prefix + "_equivalence_test")
+    val firrtlWriter = new PrintWriter(s"${testDir.getAbsolutePath}/$prefix.fir")
+    firrtlWriter.write(input)
+    firrtlWriter.close()
+
+    val customVerilog = compiler.compileAndEmit(CircuitState(circuit, HighForm, customAnnotations),
+      new GetNamespace +: new RenameTop(s"${prefix}_custom") +: customTransforms)
+    val namespaceAnnotation = customVerilog.annotations.collectFirst { case m: ModuleNamespaceAnnotation => m }.get
+    val customTop = customVerilog.circuit.main
+    val customFile = new PrintWriter(s"${testDir.getAbsolutePath}/$customTop.v")
+    customFile.write(customVerilog.getEmittedCircuit.value)
+    customFile.close()
+
+    val referenceVerilog = compiler.compileAndEmit(CircuitState(circuit, HighForm, Seq(namespaceAnnotation)),
+      Seq(new RenameModules, new RenameTop(s"${prefix}_reference")))
+    val referenceTop = referenceVerilog.circuit.main
+    val referenceFile = new PrintWriter(s"${testDir.getAbsolutePath}/$referenceTop.v")
+    referenceFile.write(referenceVerilog.getEmittedCircuit.value)
+    referenceFile.close()
+
+    assert(yosysExpectSuccess(customTop, referenceTop, testDir, resets))
+  }
+
   /** Compiles input Firrtl to Verilog */
-  def compileToVerilog(input: String, annotations: AnnotationMap = AnnotationMap(Seq.empty)): String = {
+  def compileToVerilog(input: String, annotations: AnnotationSeq = Seq.empty): String = {
     val circuit = Parser.parse(input.split("\n").toIterator)
     val compiler = new VerilogCompiler
-    val res = compiler.compileAndEmit(CircuitState(circuit, HighForm, Some(annotations)))
+    val res = compiler.compileAndEmit(CircuitState(circuit, HighForm, annotations))
     res.getEmittedCircuit.value
   }
   /** Compile a Firrtl file
@@ -38,7 +98,7 @@ trait FirrtlRunners extends BackendCompilationUtilities {
       prefix: String,
       srcDir: String,
       customTransforms: Seq[Transform] = Seq.empty,
-      annotations: AnnotationMap = new AnnotationMap(Seq.empty)): File = {
+      annotations: AnnotationSeq = Seq.empty): File = {
     val testDir = createTestDirectory(prefix)
     copyResourceToFile(s"${srcDir}/${prefix}.fir", new File(testDir, s"${prefix}.fir"))
 
@@ -47,7 +107,7 @@ trait FirrtlRunners extends BackendCompilationUtilities {
       firrtlOptions = FirrtlExecutionOptions(
                         infoModeName = "ignore",
                         customTransforms = customTransforms,
-                        annotations = annotations.annotations.toList)
+                        annotations = annotations.toList)
     }
     firrtl.Driver.execute(optionsManager)
 
@@ -65,7 +125,7 @@ trait FirrtlRunners extends BackendCompilationUtilities {
       srcDir: String,
       verilogPrefixes: Seq[String] = Seq.empty,
       customTransforms: Seq[Transform] = Seq.empty,
-      annotations: AnnotationMap = new AnnotationMap(Seq.empty)) = {
+      annotations: AnnotationSeq = Seq.empty) = {
     val testDir = compileFirrtlTest(prefix, srcDir, customTransforms, annotations)
     val harness = new File(testDir, s"top.cpp")
     copyResourceToFile(cppHarnessResourceName, harness)
@@ -101,6 +161,12 @@ trait FirrtlMatchers extends Matchers {
     require(!s.contains("\n"))
     s.replaceAll("\\s+", " ").trim
   }
+  /** Helper to make circuits that are the same appear the same */
+  def canonicalize(circuit: Circuit): Circuit = {
+    import firrtl.Mappers._
+    def onModule(mod: DefModule) = mod.map(firrtl.Utils.squashEmpty)
+    circuit.map(onModule)
+  }
   def parse(str: String) = Parser.parse(str.split("\n").toIterator, UseInfo)
   /** Helper for executing tests
     * compiler will be run on input then emitted result will each be split into
@@ -111,8 +177,7 @@ trait FirrtlMatchers extends Matchers {
       expected: Seq[String],
       compiler: Compiler,
       annotations: Seq[Annotation] = Seq.empty) = {
-    val annoMap = AnnotationMap(annotations)
-    val finalState = compiler.compileAndEmit(CircuitState(parse(input), ChirrtlForm, Some(annoMap)))
+    val finalState = compiler.compileAndEmit(CircuitState(parse(input), ChirrtlForm, annotations))
     val lines = finalState.getEmittedCircuit.value split "\n" map normalized
     for (e <- expected) {
       lines should contain (e)
@@ -243,5 +308,3 @@ abstract class CompilationTest(name: String, dir: String) extends FirrtlPropSpec
     compileFirrtlTest(name, dir)
   }
 }
-
-

@@ -10,11 +10,13 @@ import annotation.tailrec
 import firrtl._
 import firrtl.ir._
 import firrtl.passes.{Errors, PassException}
-import firrtl.Mappers._
+import firrtl.traversals.Foreachers._
 import firrtl.annotations._
 import firrtl.Utils.throwInternalError
 import firrtl.graph.{MutableDiGraph,DiGraph}
 import firrtl.analyses.InstanceGraph
+import firrtl.options.RegisteredTransform
+import scopt.OptionParser
 
 object CheckCombLoops {
   class CombLoopException(info: Info, mname: String, cycle: Seq[String]) extends PassException(
@@ -22,13 +24,13 @@ object CheckCombLoops {
 
 }
 
-object DontCheckCombLoopsAnnotation {
-  private val marker = "DontCheckCombLoops!"
-  private val transform = classOf[CheckCombLoops]
-  def apply(): Annotation = Annotation(CircuitTopName, transform, marker)
-  def unapply(a: Annotation): Boolean = a match {
-    case Annotation(_, targetXform, value) if targetXform == transform && value == marker => true
-    case _ => false
+case object DontCheckCombLoopsAnnotation extends NoTargetAnnotation
+
+case class CombinationalPath(sink: ComponentName, sources: Seq[ComponentName]) extends Annotation {
+  override def update(renames: RenameMap): Seq[Annotation] = {
+    val newSources: Seq[IsComponent] = sources.flatMap { s => renames.get(s).getOrElse(Seq(s.toTarget)) }.collect {case x: IsComponent if x.isLocal => x}
+    val newSinks = renames.get(sink).getOrElse(Seq(sink.toTarget)).collect { case x: IsComponent if x.isLocal => x}
+    newSinks.map(snk => CombinationalPath(snk.toNamed, newSources.map(_.toNamed)))
   }
 }
 
@@ -42,11 +44,17 @@ object DontCheckCombLoopsAnnotation {
   * @note The pass cannot find loops that pass through ExtModules
   * @note The pass will throw exceptions on "false paths"
   */
-class CheckCombLoops extends Transform {
+class CheckCombLoops extends Transform with RegisteredTransform {
   def inputForm = LowForm
   def outputForm = LowForm
 
   import CheckCombLoops._
+
+  def addOptions(parser: OptionParser[AnnotationSeq]): Unit = parser
+    .opt[Unit]("no-check-comb-loops")
+    .action( (x, c) => c :+ DontCheckCombLoopsAnnotation )
+    .maxOccurs(1)
+    .text("Do NOT check for combinational loops (not recommended)")
 
   /*
    * A case class that represents a net in the circuit. This is
@@ -71,28 +79,22 @@ class CheckCombLoops extends Transform {
           memport.expr match {
             case memref: WRef =>
               LogicNode(s.name,Some(memref.name),Some(memport.name))
-            case _ => throwInternalError
+            case _ => throwInternalError(s"toLogicNode: unrecognized subsubfield expression - $memport")
           }
-        case _ => throwInternalError
+        case _ => throwInternalError(s"toLogicNode: unrecognized subfield expression - $s")
       }
   }
 
 
-  private def getExprDeps(deps: MutableDiGraph[LogicNode], v: LogicNode)(e: Expression): Expression = e match {
-    case r: WRef =>
-      deps.addEdgeIfValid(v, toLogicNode(r))
-      r
-    case s: WSubField =>
-      deps.addEdgeIfValid(v, toLogicNode(s))
-      s
-    case _ =>
-      e map getExprDeps(deps, v)
+  private def getExprDeps(deps: MutableDiGraph[LogicNode], v: LogicNode)(e: Expression): Unit = e match {
+    case r: WRef => deps.addEdgeIfValid(v, toLogicNode(r))
+    case s: WSubField => deps.addEdgeIfValid(v, toLogicNode(s))
+    case _ => e.foreach(getExprDeps(deps, v))
   }
 
   private def getStmtDeps(
     simplifiedModules: mutable.Map[String,DiGraph[LogicNode]],
-    deps: MutableDiGraph[LogicNode])(s: Statement): Statement = {
-    s match {
+    deps: MutableDiGraph[LogicNode])(s: Statement): Unit = s match {
       case Connect(_,loc,expr) =>
         val lhs = toLogicNode(loc)
         if (deps.contains(lhs)) {
@@ -115,9 +117,7 @@ class CheckCombLoops extends Transform {
         iGraph.getVertices.foreach(deps.addVertex(_))
         iGraph.getVertices.foreach({ v => iGraph.getEdges(v).foreach { deps.addEdge(v,_) } })
       case _ =>
-        s map getStmtDeps(simplifiedModules,deps)
-    }
-    s
+        s.foreach(getStmtDeps(simplifiedModules,deps))
   }
 
   /*
@@ -189,7 +189,7 @@ class CheckCombLoops extends Transform {
    * and only if it combinationally depends on input Y. Associate this
    * reduced graph with the module for future use.
    */
-  private def run(c: Circuit): Circuit = {
+  private def run(c: Circuit): (Circuit, Seq[Annotation]) = {
     val errors = new Errors()
     /* TODO(magyar): deal with exmodules! No pass warnings currently
      *  exist. Maybe warn when iterating through modules.
@@ -203,32 +203,40 @@ class CheckCombLoops extends Transform {
     for (m <- topoSortedModules) {
       val internalDeps = new MutableDiGraph[LogicNode]
       m.ports.foreach({ p => internalDeps.addVertex(LogicNode(p.name)) })
-      m map getStmtDeps(simplifiedModuleGraphs, internalDeps)
+      m.foreach(getStmtDeps(simplifiedModuleGraphs, internalDeps))
       val moduleGraph = DiGraph(internalDeps)
       moduleGraphs(m.name) = moduleGraph
       simplifiedModuleGraphs(m.name) = moduleGraphs(m.name).simplify((m.ports map { p => LogicNode(p.name) }).toSet)
-      for (scc <- moduleGraphs(m.name).findSCCs.filter(_.length > 1)) {
-        val sccSubgraph = moduleGraphs(m.name).subgraph(scc.toSet)
+      // Find combinational nodes with self-edges; this is *NOT* the same as length-1 SCCs!
+      for (unitLoopNode <- moduleGraph.getVertices.filter(v => moduleGraph.getEdges(v).contains(v))) {
+        errors.append(new CombLoopException(m.info, m.name, Seq(unitLoopNode.name)))
+      }
+      for (scc <- moduleGraph.findSCCs.filter(_.length > 1)) {
+        val sccSubgraph = moduleGraph.subgraph(scc.toSet)
         val cycle = findCycleInSCC(sccSubgraph)
         (cycle zip cycle.tail).foreach({ case (a,b) => require(moduleGraph.getEdges(a).contains(b)) })
         val expandedCycle = expandInstancePaths(m.name, moduleGraphs, moduleDeps, Seq(m.name), cycle.reverse)
         errors.append(new CombLoopException(m.info, m.name, expandedCycle))
       }
     }
+    val mn = ModuleName(c.main, CircuitName(c.main))
+    val annos = simplifiedModuleGraphs(c.main).getEdgeMap.collect { case (from, tos) if tos.nonEmpty =>
+      val sink = ComponentName(from.name, mn)
+      val sources = tos.map(x => ComponentName(x.name, mn))
+      CombinationalPath(sink, sources.toSeq)
+    }
     errors.trigger()
-    c
+    (c, annos.toSeq)
   }
 
   def execute(state: CircuitState): CircuitState = {
-    val dontRun = getMyAnnotations(state).collectFirst {
-      case DontCheckCombLoopsAnnotation() => true
-    }.getOrElse(false)
+    val dontRun = state.annotations.contains(DontCheckCombLoopsAnnotation)
     if (dontRun) {
       logger.warn("Skipping Combinational Loop Detection")
       state
     } else {
-      val result = run(state.circuit)
-      CircuitState(result, outputForm, state.annotations, state.renames)
+      val (result, annos) = run(state.circuit)
+      CircuitState(result, outputForm, state.annotations ++ annos, state.renames)
     }
   }
 }

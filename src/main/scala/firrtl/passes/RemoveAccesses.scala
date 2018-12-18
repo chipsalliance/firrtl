@@ -54,7 +54,7 @@ object RemoveAccesses extends Pass {
       ls.zipWithIndex map {case (l, i) =>
         val c = (i / stride) % wrap
         val basex = l.base
-        val guardx = AND(l.guard,EQV(uint(c),e.index))
+        val guardx = AND(l.guard,EQV(UIntLiteral(c),e.index))
         Location(basex,guardx)
       }
   }
@@ -95,7 +95,7 @@ object RemoveAccesses extends Pass {
           case (_:WSubAccess| _: WSubField| _: WSubIndex| _: WRef) if hasAccess(e) =>
             val rs = getLocations(e)
             rs find (x => x.guard != one) match {
-              case None => error("Shouldn't be here")
+              case None => throwInternalError(s"removeMale: shouldn't be here - $e")
               case Some(_) =>
                 val (wire, temp) = create_temp(e)
                 val temps = create_exps(temp)

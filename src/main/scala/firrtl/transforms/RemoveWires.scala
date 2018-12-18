@@ -22,13 +22,13 @@ class RemoveWires extends Transform {
   def inputForm = LowForm
   def outputForm = LowForm
 
-  // Extract all expressions that are references to a Wire or Node
+  // Extract all expressions that are references to a Node, Wire, or Reg
   // Since we are operating on LowForm, they can only be WRefs
-  private def extractNodeWireRefs(expr: Expression): Seq[WRef] = {
+  private def extractNodeWireRegRefs(expr: Expression): Seq[WRef] = {
     val refs = mutable.ArrayBuffer.empty[WRef]
     def rec(e: Expression): Expression = {
       e match {
-        case ref @ WRef(_,_, WireKind | NodeKind, _) => refs += ref
+        case ref @ WRef(_,_, WireKind | NodeKind | RegKind, _) => refs += ref
         case nested @ (_: Mux | _: DoPrim | _: ValidIf) => nested map rec
         case _ => // Do nothing
       }
@@ -40,11 +40,12 @@ class RemoveWires extends Transform {
 
   // Transform netlist into DefNodes
   private def getOrderedNodes(
-      netlist: mutable.LinkedHashMap[WrappedExpression, (Expression, Info)]): Try[Seq[DefNode]] = {
+    netlist: mutable.LinkedHashMap[WrappedExpression, (Expression, Info)],
+    regInfo: mutable.Map[WrappedExpression, DefRegister]): Try[Seq[Statement]] = {
     val digraph = new MutableDiGraph[WrappedExpression]
     for ((sink, (expr, _)) <- netlist) {
       digraph.addVertex(sink)
-      for (source <- extractNodeWireRefs(expr)) {
+      for (source <- extractNodeWireRegRefs(expr)) {
         digraph.addPairWithEdge(sink, source)
       }
     }
@@ -55,9 +56,12 @@ class RemoveWires extends Transform {
     Try {
       val ordered = digraph.linearize.reverse
       ordered.map { key =>
-        val WRef(name, _,_,_) = key.e1
+        val WRef(name, _, kind, _) = key.e1
         val (rhs, info) = netlist(key)
-        DefNode(info, name, rhs)
+        kind match {
+          case RegKind => regInfo(key)
+          case WireKind | NodeKind => DefNode(info, name, rhs)
+        }
       }
     }
   }
@@ -71,13 +75,18 @@ class RemoveWires extends Transform {
     val netlist = mutable.LinkedHashMap.empty[WrappedExpression, (Expression, Info)]
     // Info at definition of wires for combining into node
     val wireInfo = mutable.HashMap.empty[WrappedExpression, Info]
+    // Additional info about registers
+    val regInfo = mutable.HashMap.empty[WrappedExpression, DefRegister]
 
     def onStmt(stmt: Statement): Statement = {
       stmt match {
-        case DefNode(info, name, expr) =>
-          netlist(we(WRef(name))) = (expr, info)
+        case node: DefNode =>
+          netlist(we(WRef(node))) = (node.value, node.info)
         case wire: DefWire if !wire.tpe.isInstanceOf[AnalogType] => // Remove all non-Analog wires
           wireInfo(WRef(wire)) = wire.info
+        case reg: DefRegister =>
+          regInfo(we(WRef(reg))) = reg
+          netlist(we(WRef(reg))) = (reg.clock, reg.info)
         case decl: IsDeclaration => // Keep all declarations except for nodes and non-Analog wires
           decls += decl
         case con @ Connect(cinfo, lhs, rhs) => kind(lhs) match {
@@ -99,7 +108,7 @@ class RemoveWires extends Transform {
           otherStmts += other
         case EmptyStmt => // Dont bother keeping EmptyStmts around
         case block: Block => block map onStmt
-        case _ => throwInternalError
+        case _ => throwInternalError()
       }
       stmt
     }
@@ -107,13 +116,14 @@ class RemoveWires extends Transform {
     m match {
       case mod @ Module(info, name, ports, body) =>
         onStmt(body)
-        getOrderedNodes(netlist) match {
+        getOrderedNodes(netlist, regInfo) match {
           case Success(logic) =>
             Module(info, name, ports, Block(decls ++ logic ++ otherStmts))
           // If we hit a CyclicException, just abort removing wires
-          case Failure(_: CyclicException) =>
+          case Failure(c: CyclicException) =>
+            val problematicNode = c.node
             logger.warn(s"Cycle found in module $name, " +
-              "wires will not be removed which can prevent optimizations!")
+              s"wires will not be removed which can prevent optimizations! Problem node: $problematicNode")
             mod
           case Failure(other) => throw other
         }

@@ -30,4 +30,10 @@ case class DefAnnotatedMemory(
   def toMem = DefMemory(info, name, dataType, depth,
     writeLatency, readLatency, readers, writers,
     readwriters, readUnderWrite)
+  def mapInfo(f: Info => Info): Statement = this.copy(info = f(info))
+  def foreachStmt(f: Statement => Unit): Unit = Unit
+  def foreachExpr(f: Expression => Unit): Unit = Unit
+  def foreachType(f: Type => Unit): Unit = f(dataType)
+  def foreachString(f: String => Unit): Unit = f(name)
+  def foreachInfo(f: Info => Unit): Unit = f(info)
 }

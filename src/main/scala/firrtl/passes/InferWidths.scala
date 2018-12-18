@@ -10,6 +10,7 @@ import firrtl._
 import firrtl.ir._
 import firrtl.Utils._
 import firrtl.Mappers._
+import firrtl.traversals.Foreachers._
 
 object InferWidths extends Pass {
   type ConstraintMap = collection.mutable.LinkedHashMap[String, Width]
@@ -41,13 +42,13 @@ object InferWidths extends Pass {
       case wx => wx
     }
     def collectMinMax(w: Width): Width = w map collectMinMax match {
-      case MinWidth(args) => MinWidth(unique((args.foldLeft(Seq[Width]())) {
-        case (res, wxx: MinWidth) => res ++ wxx.args
-        case (res, wxx) => res :+ wxx
+      case MinWidth(args) => MinWidth(unique(args.foldLeft(List[Width]()) {
+        case (res, wxx: MinWidth) => wxx.args ++: res
+        case (res, wxx) => wxx +: res
       }))
-      case MaxWidth(args) => MaxWidth(unique((args.foldLeft(Seq[Width]())) {
-        case (res, wxx: MaxWidth) => res ++ wxx.args
-        case (res, wxx) => res :+ wxx
+      case MaxWidth(args) => MaxWidth(unique(args.foldLeft(List[Width]()) {
+        case (res, wxx: MaxWidth) => wxx.args ++: res
+        case (res, wxx) => wxx +: res
       }))
       case wx => wx
     }
@@ -239,7 +240,7 @@ object InferWidths extends Pass {
       case (t1: VectorType, t2: VectorType) => get_constraints_t(t1.tpe, t2.tpe)
     }
 
-    def get_constraints_e(e: Expression): Expression = {
+    def get_constraints_e(e: Expression): Unit = {
       e match {
         case (e: Mux) => v ++= Seq(
           WGeq(getWidth(e.cond), IntWidth(1)),
@@ -247,7 +248,7 @@ object InferWidths extends Pass {
         )
         case _ =>
       }
-      e map get_constraints_e
+      e.foreach(get_constraints_e)
     }
 
     def get_constraints_declared_type (t: Type): Type = t match {
@@ -257,18 +258,18 @@ object InferWidths extends Pass {
       case _ => t map get_constraints_declared_type
     }
 
-    def get_constraints_s(s: Statement): Statement = {
+    def get_constraints_s(s: Statement): Unit = {
       s map get_constraints_declared_type match {
         case (s: Connect) =>
           val n = get_size(s.loc.tpe)
           val locs = create_exps(s.loc)
           val exps = create_exps(s.expr)
-          v ++= ((locs zip exps).zipWithIndex flatMap {case ((locx, expx), i) =>
-            get_flip(s.loc.tpe, i, Default) match {
+          v ++= locs.zip(exps).flatMap { case (locx, expx) =>
+            to_flip(gender(locx)) match {
               case Default => get_constraints_t(locx.tpe, expx.tpe)//WGeq(getWidth(locx), getWidth(expx))
               case Flip => get_constraints_t(expx.tpe, locx.tpe)//WGeq(getWidth(expx), getWidth(locx))
             }
-          })
+          }
         case (s: PartialConnect) =>
           val ls = get_valid_points(s.loc.tpe, s.expr.tpe, Default, Default)
           val locs = create_exps(s.loc)
@@ -276,7 +277,7 @@ object InferWidths extends Pass {
           v ++= (ls flatMap {case (x, y) =>
             val locx = locs(x)
             val expx = exps(y)
-            get_flip(s.loc.tpe, x, Default) match {
+            to_flip(gender(locx)) match {
               case Default => get_constraints_t(locx.tpe, expx.tpe)//WGeq(getWidth(locx), getWidth(expx))
               case Flip => get_constraints_t(expx.tpe, locx.tpe)//WGeq(getWidth(expx), getWidth(locx))
             }
@@ -294,11 +295,12 @@ object InferWidths extends Pass {
           v ++= widths.tail map (WGeq(widths.head, _))
         case _ =>
       }
-      s map get_constraints_e map get_constraints_s
+      s.foreach(get_constraints_e)
+      s.foreach(get_constraints_s)
     }
 
-    c.modules foreach (_ map get_constraints_s)
-    c.modules foreach (_.ports foreach {p => get_constraints_declared_type(p.tpe)})
+    c.modules.foreach(_.foreach(get_constraints_s))
+    c.modules.foreach(_.ports.foreach({p => get_constraints_declared_type(p.tpe)}))
 
     //println("======== ALL CONSTRAINTS ========")
     //for(x <- v) println(x)
@@ -333,7 +335,7 @@ object InferWidths extends Pass {
         case wx: MinusWidth => map2(solve(wx.arg1), solve(wx.arg2), {_ - _})
         case wx: ExpWidth => map2(Some(BigInt(2)), solve(wx.arg1), pow_minus_one)
         case wx: IntWidth => Some(wx.width)
-        case wx => println(wx); error("Shouldn't be here"); None;
+        case wx => throwInternalError(s"solve: shouldn't be here - %$wx")
       }
 
       solve(w) match {

@@ -24,7 +24,7 @@ class UnitTests extends FirrtlFlatSpec {
     val c = transforms.foldLeft(CircuitState(parse(input), UnknownForm)) {
       (c: CircuitState, t: Transform) => t.runTransform(c)
     }.circuit
-    CircuitState(c, UnknownForm, None, None)
+    CircuitState(c, UnknownForm, Seq(), None)
   }
 
   "Pull muxes" should "not be exponential in runtime" in {
@@ -95,6 +95,7 @@ class UnitTests extends FirrtlFlatSpec {
       ResolveKinds,
       InferTypes,
       CheckTypes,
+      ResolveGenders,
       ExpandConnects)
     val input =
      """circuit Unit :
@@ -313,7 +314,7 @@ class UnitTests extends FirrtlFlatSpec {
     }
   }
 
-  "Conditional conection of clocks" should "throw an exception" in {
+  "Conditional connection of clocks" should "throw an exception" in {
     val input =
       """circuit Unit :
         |  module Unit :
@@ -325,7 +326,7 @@ class UnitTests extends FirrtlFlatSpec {
         |    when sel :
         |      clock3 <= clock2
         |""".stripMargin
-    intercept[PassExceptions] { // Both MuxClock and InvalidConnect are thrown
+    intercept[EmitterException] {
       compileToVerilog(input)
     }
   }
@@ -405,7 +406,7 @@ class UnitTests extends FirrtlFlatSpec {
 
     val result = execute(input, passes)
 
-    def u(value: Int) = UIntLiteral(BigInt(value), IntWidth(scala.math.max(BigInt(value).bitLength, 1)))
+    def u(value: Int) = UIntLiteral(BigInt(value))
 
     val ut16 = UIntType(IntWidth(BigInt(16)))
     val ut2 = UIntType(IntWidth(BigInt(2)))

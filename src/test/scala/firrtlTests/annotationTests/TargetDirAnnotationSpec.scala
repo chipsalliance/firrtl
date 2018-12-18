@@ -5,6 +5,7 @@ package annotationTests
 
 import firrtlTests._
 import firrtl._
+import firrtl.stage.TargetDirAnnotation
 
 /** Looks for [[TargetDirAnnotation]] */
 class FindTargetDirTransform(expected: String) extends Transform {
@@ -14,11 +15,9 @@ class FindTargetDirTransform(expected: String) extends Transform {
   var run = false
   def execute(state: CircuitState): CircuitState = {
     run = true
-    state.annotations.foreach { aMap =>
-      aMap.annotations.collectFirst {
-        case TargetDirAnnotation(expected) =>
-          foundTargetDir = true
-      }
+    state.annotations.collectFirst {
+      case TargetDirAnnotation(expected) =>
+        foundTargetDir = true
     }
     state
   }

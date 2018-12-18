@@ -1,3 +1,5 @@
+// See LICENSE for license details.
+
 package firrtl.graph
 
 import scala.collection.{Set, Map}
@@ -5,7 +7,7 @@ import scala.collection.mutable
 import scala.collection.mutable.{LinkedHashSet, LinkedHashMap}
 
 /** An exception that is raised when an assumed DAG has a cycle */
-class CyclicException extends Exception("No valid linearization for cyclic graph")
+class CyclicException(val node: Any) extends Exception(s"No valid linearization for cyclic graph, found at $node")
 
 /** An exception that is raised when attempting to find an unreachable node */
 class PathNotFoundException extends Exception("Unreachable node")
@@ -23,7 +25,7 @@ object DiGraph {
     }
     for ((k, v) <- edgeData) {
       for (n <- v) {
-        require(edgeDataCopy.contains(n))
+        require(edgeDataCopy.contains(n), s"Does not contain $n")
         edgeDataCopy(k) += n
       }
     }
@@ -64,7 +66,6 @@ class DiGraph[T] private[graph] (private[graph] val edges: LinkedHashMap[T, Link
 
   /** Linearizes (topologically sorts) a DAG
     *
-    * @param root the start node
     * @throws CyclicException if the graph is cyclic
     * @return a Map[T,T] from each visited node to its predecessor in the
     * traversal
@@ -73,27 +74,35 @@ class DiGraph[T] private[graph] (private[graph] val edges: LinkedHashMap[T, Link
     // permanently marked nodes are implicitly held in order
     val order = new mutable.ArrayBuffer[T]
     // invariant: no intersection between unmarked and tempMarked
-    val unmarked = new LinkedHashSet[T]
-    val tempMarked = new LinkedHashSet[T]
+    val unmarked = new mutable.LinkedHashSet[T]
+    val tempMarked = new mutable.LinkedHashSet[T]
 
-    def visit(n: T): Unit = {
-      if (tempMarked.contains(n)) {
-        throw new CyclicException
-      }
-      if (unmarked.contains(n)) {
-        tempMarked += n
-        unmarked -= n
-        for (m <- getEdges(n)) {
-          visit(m)
-        }
-        tempMarked -= n
-        order.append(n)
-      }
-    }
+    case class LinearizeFrame[T](v: T, expanded: Boolean)
+    val callStack = mutable.Stack[LinearizeFrame[T]]()
 
     unmarked ++= getVertices
-    while (!unmarked.isEmpty) {
-      visit(unmarked.head)
+    while (unmarked.nonEmpty) {
+      callStack.push(LinearizeFrame(unmarked.head, false))
+      while (callStack.nonEmpty) {
+        val LinearizeFrame(n, expanded) = callStack.pop()
+        if (!expanded) {
+          if (tempMarked.contains(n)) {
+            throw new CyclicException(n)
+          }
+          if (unmarked.contains(n)) {
+            tempMarked += n
+            unmarked -= n
+            callStack.push(LinearizeFrame(n, true))
+            // We want to visit the first edge first (so push it last)
+            for (m <- edges.getOrElse(n, Set.empty).toSeq.reverse) {
+              callStack.push(LinearizeFrame(m, false))
+            }
+          }
+        } else {
+          tempMarked -= n
+          order.append(n)
+        }
+      }
     }
 
     // visited nodes are in post-traversal order, so must be reversed
@@ -106,14 +115,23 @@ class DiGraph[T] private[graph] (private[graph] val edges: LinkedHashMap[T, Link
     * @return a Map[T,T] from each visited node to its predecessor in the
     * traversal
     */
-  def BFS(root: T): Map[T,T] = {
-    val prev = new LinkedHashMap[T,T]
+  def BFS(root: T): Map[T,T] = BFS(root, Set.empty[T])
+
+  /** Performs breadth-first search on the directed graph, with a blacklist of nodes
+    *
+    * @param root the start node
+    * @param blacklist list of nodes to stop searching, if encountered
+    * @return a Map[T,T] from each visited node to its predecessor in the
+    * traversal
+    */
+  def BFS(root: T, blacklist: Set[T]): Map[T,T] = {
+    val prev = new mutable.LinkedHashMap[T,T]
     val queue = new mutable.Queue[T]
     queue.enqueue(root)
-    while (!queue.isEmpty) {
+    while (queue.nonEmpty) {
       val u = queue.dequeue
       for (v <- getEdges(u)) {
-        if (!prev.contains(v)) {
+        if (!prev.contains(v) && !blacklist.contains(v)) {
           prev(v) = u
           queue.enqueue(v)
         }
@@ -127,7 +145,15 @@ class DiGraph[T] private[graph] (private[graph] val edges: LinkedHashMap[T, Link
     * @param root the start node
     * @return a Set[T] of nodes reachable from the root
     */
-  def reachableFrom(root: T): LinkedHashSet[T] = new LinkedHashSet[T] ++ BFS(root).map({ case (k, v) => k })
+  def reachableFrom(root: T): LinkedHashSet[T] = reachableFrom(root, Set.empty[T])
+
+  /** Finds the set of nodes reachable from a particular node, with a blacklist
+    *
+    * @param root the start node
+    * @param blacklist list of nodes to stop searching, if encountered
+    * @return a Set[T] of nodes reachable from the root
+    */
+  def reachableFrom(root: T, blacklist: Set[T]): LinkedHashSet[T] = new LinkedHashSet[T] ++ BFS(root, blacklist).map({ case (k, v) => k })
 
   /** Finds a path (if one exists) from one node to another
     *
@@ -136,9 +162,19 @@ class DiGraph[T] private[graph] (private[graph] val edges: LinkedHashMap[T, Link
     * @throws PathNotFoundException
     * @return a Seq[T] of nodes defining an arbitrary valid path
     */
-  def path(start: T, end: T): Seq[T] = {
+  def path(start: T, end: T): Seq[T] = path(start, end, Set.empty[T])
+  
+  /** Finds a path (if one exists) from one node to another, with a blacklist
+    *
+    * @param start the start node
+    * @param end the destination node
+    * @param blacklist list of nodes which break path, if encountered
+    * @throws PathNotFoundException
+    * @return a Seq[T] of nodes defining an arbitrary valid path
+    */
+  def path(start: T, end: T, blacklist: Set[T]): Seq[T] = {
     val nodePath = new mutable.ArrayBuffer[T]
-    val prev = BFS(start)
+    val prev = BFS(start, blacklist)
     nodePath += end
     while (nodePath.last != start && prev.contains(nodePath.last)) {
       nodePath += prev(nodePath.last)
@@ -227,7 +263,7 @@ class DiGraph[T] private[graph] (private[graph] val edges: LinkedHashMap[T, Link
     * @param start the node to start at
     * @return a Map[T,Seq[Seq[T]]] where the value associated with v is the Seq of all paths from start to v
     */
-  def pathsInDAG(start: T): Map[T,Seq[Seq[T]]] = {
+  def pathsInDAG(start: T): LinkedHashMap[T,Seq[Seq[T]]] = {
     // paths(v) holds the set of paths from start to v
     val paths = new LinkedHashMap[T, mutable.Set[Seq[T]]]
     val queue = new mutable.Queue[T]
@@ -307,6 +343,16 @@ class DiGraph[T] private[graph] (private[graph] val edges: LinkedHashMap[T, Link
     new DiGraph(eprime)
   }
 
+  /** Graph sum of `this` and `that`
+    *
+    * @param that a second DiGraph[T]
+    * @return a DiGraph[T] containing all vertices and edges of each graph
+    */
+  def +(that: DiGraph[T]): DiGraph[T] = {
+    val eprime = edges.map({ case (k, v) => (k, v.clone) })
+    that.edges.foreach({ case (k, v) => eprime.getOrElseUpdate(k, new LinkedHashSet[T]) ++= v })
+    new DiGraph(eprime)
+  }
 }
 
 class MutableDiGraph[T] extends DiGraph[T](new LinkedHashMap[T, LinkedHashSet[T]]) {
