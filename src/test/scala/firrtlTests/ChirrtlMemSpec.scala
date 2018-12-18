@@ -119,10 +119,10 @@ circuit foo :
          |    node _T_10 = bits(io.in, 1, 0)
          |    read mport _T_11 = m[_T_10], clock
          |    io.out <= _T_11""".stripMargin
-    assertThrows[PassException] {
-      (new LowFirrtlCompiler).compile(CircuitState(parse(input), ChirrtlForm), Seq()).circuit
-    }
 
+    intercept[PassException]{
+      (new LowFirrtlCompiler).compile(CircuitState(parse(input), ChirrtlForm), Seq()).circuit
+    }.getMessage should startWith ("Undefined memory m referenced by mport _T_11")
   }
 
   ignore should "Memories should not have validif on port clocks when declared in a when" in {
