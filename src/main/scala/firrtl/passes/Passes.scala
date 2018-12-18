@@ -125,13 +125,13 @@ object ExpandConnects extends Pass {
           case sx: DefMemory => genders(sx.name) = MALE; sx
           case sx: DefNode => genders(sx.name) = MALE; sx
           case sx: IsInvalid =>
-            val invalids = (create_exps(sx.expr) foldLeft Seq[Statement]())(
-               (invalids,  expx) => gender(set_gender(expx)) match {
-                  case BIGENDER => invalids :+ IsInvalid(sx.info, expx)
-                  case FEMALE => invalids :+ IsInvalid(sx.info, expx)
-                  case _ => invalids
+            val invalids = create_exps(sx.expr).flatMap { case expx =>
+               gender(set_gender(expx)) match {
+                  case BIGENDER => Some(IsInvalid(sx.info, expx))
+                  case FEMALE => Some(IsInvalid(sx.info, expx))
+                  case _ => None
                }
-            )
+            }
             invalids.size match {
                case 0 => EmptyStmt
                case 1 => invalids.head
@@ -140,8 +140,8 @@ object ExpandConnects extends Pass {
           case sx: Connect =>
             val locs = create_exps(sx.loc)
             val exps = create_exps(sx.expr)
-            Block((locs zip exps).zipWithIndex map {case ((locx, expx), i) =>
-               get_flip(sx.loc.tpe, i, Default) match {
+            Block(locs.zip(exps).map { case (locx, expx) =>
+               to_flip(gender(locx)) match {
                   case Default => Connect(sx.info, locx, expx)
                   case Flip => Connect(sx.info, expx, locx)
                }
@@ -154,7 +154,7 @@ object ExpandConnects extends Pass {
               locs(x).tpe match {
                 case AnalogType(_) => Attach(sx.info, Seq(locs(x), exps(y)))
                 case _ =>
-                  get_flip(sx.loc.tpe, x, Default) match {
+                  to_flip(gender(locs(x))) match {
                     case Default => Connect(sx.info, locs(x), exps(y))
                     case Flip => Connect(sx.info, exps(y), locs(x))
                   }
@@ -245,25 +245,6 @@ object Legalize extends Pass {
     }
     c copy (modules = c.modules map (_ map legalizeS))
   }
-}
-
-object VerilogRename extends Pass {
-  def verilogRenameN(n: String): String =
-    if (v_keywords(n)) "%s$".format(n) else n
-
-  def verilogRenameE(e: Expression): Expression = e match {
-    case ex: WRef => ex copy (name = verilogRenameN(ex.name))
-    case ex => ex map verilogRenameE
-  }
-
-  def verilogRenameS(s: Statement): Statement =
-    s map verilogRenameS map verilogRenameE map verilogRenameN
-
-  def verilogRenameP(p: Port): Port =
-    p copy (name = verilogRenameN(p.name))
-
-  def run(c: Circuit): Circuit =
-    c copy (modules = c.modules map (_ map verilogRenameP map verilogRenameS))
 }
 
 /** Makes changes to the Firrtl AST to make Verilog emission easier

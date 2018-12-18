@@ -62,7 +62,7 @@ case class Antlr4Config(val sourcePath: Path) {
   }
 }
 
-val crossVersions = Seq("2.12.4", "2.11.12")
+val crossVersions = Seq("2.12.7", "2.11.12")
 
 // Make this available to external tools.
 object firrtl extends Cross[FirrtlModule](crossVersions: _*) {
@@ -95,19 +95,23 @@ class FirrtlModule(val crossScalaVersion: String) extends CommonModule with Buil
   override def artifactName = "firrtl"
 
   override def ivyDeps = Agg(
-    ivy"com.typesafe.scala-logging::scala-logging:3.7.2",
+    ivy"com.typesafe.scala-logging::scala-logging:3.9.0",
     ivy"ch.qos.logback:logback-classic:1.2.3",
-    ivy"com.github.scopt::scopt:3.6.0",
+    ivy"com.github.scopt::scopt:3.7.0",
     ivy"net.jcazevedo::moultingyaml:0.4.0",
-    ivy"org.json4s::json4s-native:3.5.3",
+    ivy"org.json4s::json4s-native:3.6.1",
     ivy"org.antlr:antlr4-runtime:4.7.1",
     ivy"${Protobuf.ProtobufConfig.ivyDep}"
   )
 
   object test extends Tests {
     override def ivyDeps = Agg(
-      ivy"org.scalatest::scalatest:3.0.1",
-      ivy"org.scalacheck::scalacheck:1.13.4"
+// sbt 1.2.6 fails with `Symbol 'term org.junit' is missing from the classpath`
+// when compiling tests under 2.11.12
+// An explicit dependency on junit seems to alleviate this.
+      ivy"junit:junit:4.12",
+      ivy"org.scalatest::scalatest:3.0.5",
+      ivy"org.scalacheck::scalacheck:1.14.0"
     )
     def testFrameworks = Seq("org.scalatest.tools.Framework")
   }

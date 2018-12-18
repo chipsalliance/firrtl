@@ -10,7 +10,7 @@ MILL_BIN ?= $(HOME)/bin/mill
 # The following must correspond with the equivalent definition in build.sc
 ANTLR4_JAR ?= $(HOME)/lib/antlr-4.7.1-complete.jar
 MILL ?= $(MILL_BIN) --color false
-MILL_REMOTE_RELEASE ?= https://github.com/ucbjrl/mill/releases/download/v0.2.6-FDF/mill-0.2.6-FDF
+MILL_REMOTE_RELEASE ?= https://github.com/ucbjrl/mill/releases/download/v0.2.6-FDF/mill-0.3.4-FDF
 
 # Ensure the default target is something reasonable.
 default: build
@@ -66,8 +66,13 @@ scala_jar ?= $(install_dir)/firrtl.jar
 scala_src := $(shell find src -type f \( -name "*.scala" -o -path "*/resources/*" \))
 
 clean:
+	$(MAKE) -C $(root_dir)/spec clean
 	rm -f $(install_dir)/firrtl.jar
 	$(SBT) "clean"
+
+.PHONY : specification
+specification:
+	$(MAKE) -C $(root_dir)/spec all
 
 build:	build-scala
 
