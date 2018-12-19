@@ -186,11 +186,10 @@ final class RenameMap private () {
     * @param key Target to rename
     * @return Renamed targets
     */
-  private def componentGet(errors: mutable.ArrayBuffer[String])(key: ReferenceTarget): Seq[ReferenceTarget] = {
+  private def componentGet(errors: mutable.ArrayBuffer[String])(key: ReferenceTarget): Seq[CompleteTarget] = {
     val parentsSet = mutable.LinkedHashSet.empty[ReferenceTarget]
-    val hierarchiesSet = mutable.LinkedHashSet.empty[ReferenceTarget]
 
-    def traverseTokens(key: ReferenceTarget): Seq[ReferenceTarget] = {
+    def traverseTokens(key: ReferenceTarget): Seq[CompleteTarget] = {
       if(parentsSet.contains(key)) {
         throw CircularRenameException(s"Illegal rename: circular renaming is illegal - ${parentsSet.mkString(" -> ")}")
       }
@@ -200,32 +199,27 @@ final class RenameMap private () {
         case t: ReferenceTarget if t.component.nonEmpty =>
           val last = t.component.last
           val parent = t.copy(component = t.component.dropRight(1))
-          underlying.getOrElse(parent, Seq(parent)).flatMap { x =>
+          traverseTokens(parent).flatMap { x =>
             (x, last) match {
-              case (t2: ReferenceTarget, Field(f)) => traverseTokens(t2).map(_.field(f))
-              case (t2: ReferenceTarget, Index(i)) => traverseTokens(t2).map(_.index(i))
+              case (t2: ReferenceTarget, Field(f)) => Some(t2.field(f))
+              case (t2: ReferenceTarget, Index(i)) => Some(t2.index(i))
               case other =>
                 errors += s"Illegal rename: ${key.targetParent} cannot be renamed to ${other._1} - must rename $key directly"
-                Seq.empty
+                None
             }
           }
-        case t: ReferenceTarget => Seq(t)
+        case other => Seq(other)
       }
     }
 
-    def traverseHierarchy(key: ReferenceTarget): Seq[ReferenceTarget] = {
-      if(hierarchiesSet.contains(key)) {
-        throw CircularRenameException(s"Illegal rename: circular renaming is illegal - ${hierarchiesSet.mkString(" -> ")}")
-      }
-      hierarchiesSet += key
+    def traverseHierarchy(key: ReferenceTarget): Seq[CompleteTarget] = {
       key match {
+        case t: ReferenceTarget if underlying.contains(t) => underlying(t)
         case t: ReferenceTarget if !t.isLocal =>
           val encapsulatingInstance = t.path.head._1.value
           val stripped = t.stripHierarchy(1)
-          underlying.getOrElse(stripped, traverseHierarchy(stripped)).flatMap {
-            case y: ReferenceTarget =>
-              Some(y.addHierarchy(t.moduleOpt.get, encapsulatingInstance))
-            case other => None
+          traverseHierarchy(stripped).map {
+            _.addHierarchy(t.moduleOpt.get, encapsulatingInstance)
           }
         case t: ReferenceTarget => Seq(t)
       }
@@ -250,7 +244,10 @@ final class RenameMap private () {
     } else {
       // First, check if whole key is remapped
       // Note that remapped could hold stale parent targets that require renaming
-      val remapped = underlying.getOrElse(key, Seq(key))
+      val remapped = key match {
+        case r: ReferenceTarget => componentGet(errors)(r)
+        case _ => underlying.getOrElse(key, Seq(key))
+      }
 
       // If we've seen this key before in recursive calls to parentTargets, then we know a circular renaming
       // mapping has occurred, and no legal name exists
@@ -301,19 +298,15 @@ final class RenameMap private () {
           * 2) Check ReferenceTarget with one layer stripped from its path hierarchy (i.e. a new root module)
           */
         case t: ReferenceTarget =>
-          val renamedComponent = componentGet(errors)(t)
-          val ret: Seq[CompleteTarget] = renamedComponent.flatMap { t =>
-            val pathTargets = sensitivity.empty ++ (t.pathAsTargets ++ t.pathAsTargets.map(_.asReference))
-            if(t.pathAsTargets.nonEmpty && sensitivity.intersect(pathTargets).isEmpty) Seq(t) else {
-              getter(t.pathTarget).map {
-                case newPath: IsModule => t.setPathTarget(newPath)
-                case other =>
-                  errors += s"Illegal rename: path ${t.pathTarget} of $t cannot be renamed to $other - must rename $t directly"
-                  t
-              }
+          val pathTargets = sensitivity.empty ++ (t.pathAsTargets ++ t.pathAsTargets.map(_.asReference))
+          if(t.pathAsTargets.nonEmpty && sensitivity.intersect(pathTargets).isEmpty) Seq(t) else {
+            getter(t.pathTarget).map {
+              case newPath: IsModule => t.setPathTarget(newPath)
+              case other =>
+                errors += s"Illegal rename: path ${t.pathTarget} of $t cannot be renamed to $other - must rename $t directly"
+                t
             }
           }
-          ret
       }
 
       // Remove key from set as visiting the same key twice is ok, as long as its not during the same recursive call
