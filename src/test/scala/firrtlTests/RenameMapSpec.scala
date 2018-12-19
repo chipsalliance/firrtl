@@ -327,21 +327,22 @@ class RenameMapSpec extends FirrtlFlatSpec {
     }
   }
 
+  // ~Top|Module/i1:I1>foo.field, where rename map contains ~Top|Module/i1:I1>foo -> ~Top|Module/i1:I1>bar.
   it should "properly rename reference targets with the same paths" in {
     val cir = CircuitTarget("Top")
     val modTop = cir.module("Top")
-    val modA = cir.module("A")
+    val mod = cir.module("Module")
 
-    val path = modTop.instOf("b", "B").instOf("a", "A")
-    val oldAgg = modA.ref("oldAgg").setPathTarget(path)
-    val newAgg = modA.ref("newAgg").setPathTarget(path)
+    val path = mod.instOf("i1", "I1")
+    val oldAgg = mod.ref("foo").setPathTarget(path)
+    val newAgg = mod.ref("bar").setPathTarget(path)
 
     val renames = RenameMap()
     renames.record(oldAgg, newAgg)
 
     val testRef = oldAgg.field("field")
     renames.get(testRef) should be {
-      Some(Seq(testRef.copy(ref = newAgg.ref)))
+      Some(Seq(newAgg.field("field")))
     }
   }
 
@@ -431,14 +432,10 @@ class RenameMapSpec extends FirrtlFlatSpec {
       .instOf("c", "C")
       .ref("ref")
       .field("f1")
-      .field("f22")
-      .field("f33")
     val to3   = modB
       .instOf("c", "C")
       .ref("ref")
       .field("f11")
-      .field("f22")
-      .field("f33")
 
     // from: ~Top|C>ref
     // to: ~Top|C>refref
