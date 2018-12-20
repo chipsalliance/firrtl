@@ -228,9 +228,27 @@ case class BundleLiteral(lits: Seq[(String, Literal)]) extends Literal {
     "{ " + (lits.map({ case (n, v) =>
       s"$n : ${v.serialize}"
     }) mkString ", ") + " }"
-  def mapExpr(f: Expression => Expression): Expression = this
-  def mapType(f: Type => Type): Expression = this
-  def mapWidth(f: Width => Width): Expression = this
+  def foreachExpr(f: Expression => Unit): Unit = lits.foreach { case (_, l) => l foreachExpr f }
+  def foreachType(f: Type => Unit): Unit = lits.foreach { case (_, l) => l foreachType f }
+  def foreachWidth(f: Width => Unit): Unit = lits.foreach { case (_, l) => l foreachWidth f }
+  def mapExpr(f: Expression => Expression): Expression = BundleLiteral(lits.map { case (s, l) =>
+    l mapExpr f match {
+      case lit: Literal => (s, lit)
+      case _ => throw new Exception("Oh no!")
+    }
+  })
+  def mapType(f: Type => Type): Expression = BundleLiteral(lits.map { case (s, l) =>
+    l mapType f match {
+      case lit: Literal => (s, lit)
+      case _ => throw new Exception("Oh no!")
+    }
+  })
+  def mapWidth(f: Width => Width): Expression = BundleLiteral(lits.map { case (s, l) =>
+    l mapWidth f match {
+      case lit: Literal => (s, lit)
+      case _ => throw new Exception("Oh no!")
+    }
+  })
 }
 case class VectorExpression(exprs: Seq[Expression], tpe: Type) extends Expression {
   // val value = lits.map(x => (x.value, x.width)).foldLeft(BigInt(0)) { case (prev, (v, IntWidth(w))) =>
@@ -239,11 +257,14 @@ case class VectorExpression(exprs: Seq[Expression], tpe: Type) extends Expressio
   // val width = lits.map(_.width).reduce(_ + _)
   def serialize =
     "[" + exprs.map(_.serialize).mkString(", ") + "]" // TODO type annotation
-  def mapExpr(f: Expression => Expression): Expression = // this
+  def foreachExpr(f: Expression => Unit): Unit = exprs.foreach(_ foreachExpr f)
+  def foreachType(f: Type => Unit): Unit = exprs.foreach(_ foreachType f)
+  def foreachWidth(f: Width => Unit): Unit = exprs.foreach(_ foreachWidth f)
+  def mapExpr(f: Expression => Expression): Expression =
     VectorExpression(exprs.map(_ mapExpr f), tpe)
-  def mapType(f: Type => Type): Expression = // this
+  def mapType(f: Type => Type): Expression =
     VectorExpression(exprs.map(_ mapType f), tpe)
-  def mapWidth(f: Width => Width): Expression = // this
+  def mapWidth(f: Width => Width): Expression =
     VectorExpression(exprs.map(_ mapWidth f), tpe)
 }
 case class DoPrim(op: PrimOp, args: Seq[Expression], consts: Seq[BigInt], tpe: Type) extends Expression {
