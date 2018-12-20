@@ -10,11 +10,13 @@ import annotation.tailrec
 import firrtl._
 import firrtl.ir._
 import firrtl.passes.{Errors, PassException}
-import firrtl.Mappers._
+import firrtl.traversals.Foreachers._
 import firrtl.annotations._
 import firrtl.Utils.throwInternalError
 import firrtl.graph.{MutableDiGraph,DiGraph}
 import firrtl.analyses.InstanceGraph
+import firrtl.options.RegisteredTransform
+import scopt.OptionParser
 
 object CheckCombLoops {
   class CombLoopException(info: Info, mname: String, cycle: Seq[String]) extends PassException(
@@ -42,11 +44,17 @@ case class CombinationalPath(sink: ComponentName, sources: Seq[ComponentName]) e
   * @note The pass cannot find loops that pass through ExtModules
   * @note The pass will throw exceptions on "false paths"
   */
-class CheckCombLoops extends Transform {
+class CheckCombLoops extends Transform with RegisteredTransform {
   def inputForm = LowForm
   def outputForm = LowForm
 
   import CheckCombLoops._
+
+  def addOptions(parser: OptionParser[AnnotationSeq]): Unit = parser
+    .opt[Unit]("no-check-comb-loops")
+    .action( (x, c) => c :+ DontCheckCombLoopsAnnotation )
+    .maxOccurs(1)
+    .text("Do NOT check for combinational loops (not recommended)")
 
   /*
    * A case class that represents a net in the circuit. This is
@@ -78,21 +86,15 @@ class CheckCombLoops extends Transform {
   }
 
 
-  private def getExprDeps(deps: MutableDiGraph[LogicNode], v: LogicNode)(e: Expression): Expression = e match {
-    case r: WRef =>
-      deps.addEdgeIfValid(v, toLogicNode(r))
-      r
-    case s: WSubField =>
-      deps.addEdgeIfValid(v, toLogicNode(s))
-      s
-    case _ =>
-      e map getExprDeps(deps, v)
+  private def getExprDeps(deps: MutableDiGraph[LogicNode], v: LogicNode)(e: Expression): Unit = e match {
+    case r: WRef => deps.addEdgeIfValid(v, toLogicNode(r))
+    case s: WSubField => deps.addEdgeIfValid(v, toLogicNode(s))
+    case _ => e.foreach(getExprDeps(deps, v))
   }
 
   private def getStmtDeps(
     simplifiedModules: mutable.Map[String,DiGraph[LogicNode]],
-    deps: MutableDiGraph[LogicNode])(s: Statement): Statement = {
-    s match {
+    deps: MutableDiGraph[LogicNode])(s: Statement): Unit = s match {
       case Connect(_,loc,expr) =>
         val lhs = toLogicNode(loc)
         if (deps.contains(lhs)) {
@@ -115,9 +117,7 @@ class CheckCombLoops extends Transform {
         iGraph.getVertices.foreach(deps.addVertex(_))
         iGraph.getVertices.foreach({ v => iGraph.getEdges(v).foreach { deps.addEdge(v,_) } })
       case _ =>
-        s map getStmtDeps(simplifiedModules,deps)
-    }
-    s
+        s.foreach(getStmtDeps(simplifiedModules,deps))
   }
 
   /*
@@ -203,7 +203,7 @@ class CheckCombLoops extends Transform {
     for (m <- topoSortedModules) {
       val internalDeps = new MutableDiGraph[LogicNode]
       m.ports.foreach({ p => internalDeps.addVertex(LogicNode(p.name)) })
-      m map getStmtDeps(simplifiedModuleGraphs, internalDeps)
+      m.foreach(getStmtDeps(simplifiedModuleGraphs, internalDeps))
       val moduleGraph = DiGraph(internalDeps)
       moduleGraphs(m.name) = moduleGraph
       simplifiedModuleGraphs(m.name) = moduleGraphs(m.name).simplify((m.ports map { p => LogicNode(p.name) }).toSet)

@@ -7,6 +7,9 @@ import firrtl.ir._
 import firrtl.Mappers._
 import firrtl.annotations._
 import firrtl.analyses.InstanceGraph
+import firrtl.stage.RunFirrtlTransformAnnotation
+import firrtl.options.RegisteredTransform
+import scopt.OptionParser
 
 // Datastructures
 import scala.collection.mutable
@@ -20,10 +23,29 @@ case class InlineAnnotation(target: Named) extends SingleTargetAnnotation[Named]
   * @note Only use on legal Firrtl. Specifically, the restriction of instance loops must have been checked, or else this
   * pass can infinitely recurse.
   */
-class InlineInstances extends Transform {
+class InlineInstances extends Transform with RegisteredTransform {
    def inputForm = LowForm
    def outputForm = LowForm
    private [firrtl] val inlineDelim: String = "_"
+
+  def addOptions(parser: OptionParser[AnnotationSeq]): Unit = parser
+    .opt[Seq[String]]("inline")
+    .abbr("fil")
+    .valueName ("<circuit>[.<module>[.<instance>]][,..],")
+    .action( (x, c) => {
+              val newAnnotations = x.map { value =>
+                value.split('.') match {
+                  case Array(circuit) =>
+                    InlineAnnotation(CircuitName(circuit))
+                  case Array(circuit, module) =>
+                    InlineAnnotation(ModuleName(module, CircuitName(circuit)))
+                  case Array(circuit, module, inst) =>
+                    InlineAnnotation(ComponentName(inst, ModuleName(module, CircuitName(circuit))))
+                }
+              }
+              c ++ newAnnotations :+ RunFirrtlTransformAnnotation(new InlineInstances) } )
+    .text(
+      """Inline one or more module (comma separated, no spaces) module looks like "MyModule" or "MyModule.myinstance""")
 
    private def collectAnns(circuit: Circuit, anns: Iterable[Annotation]): (Set[ModuleName], Set[ComponentName]) =
      anns.foldLeft(Set.empty[ModuleName], Set.empty[ComponentName]) {
@@ -128,18 +150,18 @@ class InlineInstances extends Transform {
         val port = ComponentName(s"$ref.$field", currentModule)
         val inst = ComponentName(s"$ref", currentModule)
         (renames.get(port), renames.get(inst)) match {
-          case (Some(p :: Nil), _)              =>
+          case (Some(Seq(p)), _)              =>
             p.toTarget match {
               case ReferenceTarget(_, _, Seq(), r, Seq(TargetToken.Field(f))) => wsf.copy(expr = wr.copy(name = r), name = f)
               case ReferenceTarget(_, _, Seq(), r, Seq()) => WRef(r, tpe, WireKind, gen)
             }
-          case (None,           Some(i :: Nil)) => wsf.map(appendRefPrefix(currentModule, renames))
+          case (None,           Some(Seq(i))) => wsf.map(appendRefPrefix(currentModule, renames))
           case (None,           None)           => wsf
         }
       case wr@ WRef(name, _, _, _) =>
         val comp = ComponentName(name, currentModule)
         renames.get(comp).orElse(Some(Seq(comp))) match {
-          case Some(car :: Nil) => wr.copy(name=car.name)
+          case Some(Seq(car)) => wr.copy(name=car.name)
           case c@ Some(_)       => throw new PassException(
             s"Inlining found mlutiple renames for ref $comp -> $c. This should be impossible...")
         }
