@@ -49,7 +49,7 @@ abstract class AnnotationTests extends AnnotationSpec with Matchers {
          |    input b : UInt<1>
          |    node c = b""".stripMargin
     val ta = anno("c", "")
-    execute(input, ta, Seq(ta))
+    execute(input, ta, Seq(ta, DontTouchAnnotation(ReferenceTarget("Top", "Top", Seq.empty, "c", Seq.empty))))
   }
 
   "Deleting annotations" should "create a DeletedAnnotation" in {

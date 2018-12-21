@@ -8,7 +8,8 @@ import org.scalatest.junit.JUnitRunner
 import firrtl.ir.Circuit
 import firrtl.Parser
 import firrtl.passes.PassExceptions
-import firrtl.annotations.{Annotation, CircuitName, ComponentName, ModuleName, Named}
+import firrtl.annotations.{Annotation, CircuitName, ComponentName, ModuleName, Named, ReferenceTarget}
+import firrtl.transforms.DontTouchAnnotation
 import firrtl.passes.{InlineAnnotation, InlineInstances}
 import logger.{LogLevel, Logger}
 import logger.LogLevel.Debug
@@ -25,6 +26,9 @@ class InlineInstancesTests extends LowTransformSpec {
 		val name = if (parts.size == 1) modName
 							 else ComponentName(parts.tail.mkString("."), modName)
     InlineAnnotation(name)
+        }
+  def dontTouch(mod: String, ref: String): DontTouchAnnotation = {
+    DontTouchAnnotation(ReferenceTarget("Top", mod, Seq.empty, ref, Seq.empty))
   }
    // Set this to debug, this will apply to all tests
    // Logger.setLevel(this.getClass, Debug)
@@ -223,7 +227,7 @@ class InlineInstancesTests extends LowTransformSpec {
          |  module Bar:
          |    node bar = UInt<1>("h0")
          |""".stripMargin
-    execute(input, check, Seq(inline("Foo"), inline("Foo.bar")))
+    execute(input, check, Seq(inline("Foo"), inline("Foo.bar"), dontTouch("Foo", "foo"), dontTouch("Bar", "bar")))
   }
 
   "An inlined module" should "NOT be prefix unique" in {
@@ -243,7 +247,11 @@ class InlineInstancesTests extends LowTransformSpec {
          |    node a_foo = UInt<1>("h0")
          |    node a__bar = UInt<1>("h0")
          |""".stripMargin
-    execute(input, check, Seq(inline("A")))
+    val dontTouches = Seq(dontTouch("Top", "a_bar"),
+      dontTouch("Top", "a_foo"),
+      dontTouch("Top", "a__bar"),
+      dontTouch("A", "bar"))
+    execute(input, check, inline("A") +: dontTouches)
   }
 
   /* This test is mutually exclusive with the above */
@@ -292,7 +300,13 @@ class InlineInstancesTests extends LowTransformSpec {
          |  module Bar:
          |    node bar = UInt<1>("h0")
          |""".stripMargin
-    execute(input, check, Seq(inline("Foo"), inline("Foo.bar")))
+    val dontTouches = Seq(dontTouch("Top", "foo__bar_bar"),
+      dontTouch("Top", "foo__foo"),
+      dontTouch("Top", "foo_"),
+      dontTouch("Top", "foo__bar"),
+      dontTouch("Foo", "foo"),
+      dontTouch("Bar", "bar"))
+    execute(input, check, inline("Foo") +: inline("Foo.bar") +: dontTouches)
   }
 
    // ---- Errors ----

@@ -6,18 +6,21 @@ import firrtl._
 import firrtl.ir._
 import firrtl.Mappers._
 import FirrtlCheckers._
+import firrtl.annotations.ReferenceTarget
+import firrtl.transforms.DontTouchAnnotation
 
 import collection.mutable
 
 class RemoveWiresSpec extends FirrtlFlatSpec {
-  def compile(input: String): CircuitState =
-    (new LowFirrtlCompiler).compileAndEmit(CircuitState(parse(input), ChirrtlForm), List.empty)
-  def compileBody(body: String) = {
-    val str = """
-      |circuit Test :
-      |  module Test :
+  val top = "Test"
+  def compile(input: String, annos: AnnotationSeq = Seq.empty): CircuitState =
+    (new LowFirrtlCompiler).compileAndEmit(CircuitState(parse(input), ChirrtlForm, annos), List.empty)
+  def compileBody(body: String, annos: AnnotationSeq = Seq.empty) = {
+    val str = s"""
+      |circuit $top :
+      |  module $top :
       |""".stripMargin + body.split("\n").mkString("    ", "\n    ", "")
-    compile(str)
+    compile(str, annos)
   }
 
   def getNodesAndWires(circuit: Circuit): (Seq[DefNode], Seq[DefWire]) = {
@@ -73,6 +76,9 @@ class RemoveWiresSpec extends FirrtlFlatSpec {
   }
 
   it should "order nodes in a legal, flow-forward way" in {
+    val dontTouches = Seq(DontTouchAnnotation(ReferenceTarget(top, top, Seq.empty, "w", Seq.empty)),
+      DontTouchAnnotation(ReferenceTarget(top, top, Seq.empty, "x", Seq.empty)),
+      DontTouchAnnotation(ReferenceTarget(top, top, Seq.empty, "y", Seq.empty)))
     val result = compileBody(s"""
       |input a : UInt<8>
       |output b : UInt<8>
@@ -81,8 +87,8 @@ class RemoveWiresSpec extends FirrtlFlatSpec {
       |node y = x
       |x <= w
       |w <= a
-      |b <= y""".stripMargin
-    )
+      |b <= y""".stripMargin,
+      dontTouches)
     val (nodes, wires) = getNodesAndWires(result.circuit)
     wires.size should be (0)
     nodes.map(_.serialize) should be (

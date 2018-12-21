@@ -5,6 +5,7 @@ package firrtl.transforms
 import firrtl.analyses.{InstanceGraph, ModuleNamespaceAnnotation}
 import firrtl.ir._
 import firrtl._
+import firrtl.annotations.{CircuitName, ModuleName}
 
 import scala.collection.mutable
 
@@ -39,12 +40,19 @@ class RenameModules extends Transform {
       val nameMappings = new mutable.HashMap[String, String]()
       moduleOrder.foreach(collectNameMapping(namespace.get, nameMappings))
 
+      val renamesx = RenameMap()
+      val cname = CircuitName(nameMappings(state.circuit.main))
+      val oldCname = CircuitName(state.circuit.main)
+      renamesx.rename(oldCname, cname)
+
       val modulesx = state.circuit.modules.map {
-        case mod: Module => mod.mapStmt(onStmt(nameMappings)).mapString(nameMappings)
+        case mod: Module =>
+          renamesx.rename(ModuleName(mod.name, oldCname), ModuleName(nameMappings(mod.name), cname))
+          mod.mapStmt(onStmt(nameMappings)).mapString(nameMappings)
         case ext: ExtModule => ext
       }
 
-      state.copy(circuit = state.circuit.copy(modules = modulesx, main = nameMappings(state.circuit.main)))
+      state.copy(circuit = state.circuit.copy(modules = modulesx, main = cname.name), renames = Some(renamesx))
     }
   }
 }

@@ -35,12 +35,21 @@ trait FirrtlRunners extends BackendCompilationUtilities {
       }.get.namespace
 
       val newTopName = namespace.newName(newTopPrefix)
+
+      val renamesx = RenameMap()
+      val cname = CircuitTarget(newTopName)
+      val oldCname = CircuitTarget(state.circuit.main)
+      renamesx.rename(oldCname, cname)
+
       val modulesx = state.circuit.modules.map {
-        case mod: Module if mod.name == state.circuit.main => mod.mapString(_ => newTopName)
+        case mod: Module if mod.name == state.circuit.main =>
+          renamesx.rename(ModuleTarget(mod.name, mod.name), ModuleTarget(newTopName, newTopName))
+          mod.mapString(_ => newTopName)
         case other => other
       }
 
-      state.copy(circuit = state.circuit.copy(main = newTopName, modules = modulesx))
+
+      state.copy(circuit = state.circuit.copy(main = newTopName, modules = modulesx), renames = Some(renamesx))
     }
   }
 
