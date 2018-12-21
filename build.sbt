@@ -4,10 +4,6 @@
 
 enablePlugins(SiteScaladocPlugin)
 
-enablePlugins(GhpagesPlugin)
-
-git.remoteRepo := "git@github.com:freechipsproject/firrtl.git"
-
 // Firrtl code
 
 organization := "edu.berkeley.cs"
