@@ -11,29 +11,15 @@ import firrtl.{BIGENDER, ExpKind, FEMALE, Gender, InstanceKind, Kind, MALE, MemK
 import scala.collection.mutable
 
 object IRLookup {
-  def leafTargets(t: Target, tpe: Type): Seq[Target] =
-    leafTargets(ReferenceTarget("", "", Nil, "", Vector.empty[TargetToken]), tpe) map { r =>
-      GenericTarget(t.circuitOpt, t.moduleOpt, t.tokens.toVector ++ r.component).tryToComplete
-    }
-  def leafTargets(r: ReferenceTarget, tpe: Type): Seq[ReferenceTarget] = tpe match {
-    case _: GroundType => Vector(r)
-    case VectorType(t, size) => (0 until size).flatMap { i => leafTargets(r.index(i), t) }
-    case BundleType(fields) => fields.flatMap { f => leafTargets(r.field(f.name), f.tpe)}
-    case other => sys.error(s"Error! Unexpected type $other")
-  }
-  def allTargets(r: GenericTarget, tpe: Type): Seq[GenericTarget] = tpe match {
-    case _: GroundType => Vector(r)
-    case VectorType(t, size) => r +: (0 until size).flatMap { i => allTargets(r.add(Index(i)), t) }
-    case BundleType(fields) => r +: fields.flatMap { f => allTargets(r.add(TargetToken.Field(f.name)), f.tpe)}
-    case other => sys.error(s"Error! Unexpected type $other")
-  }
+  def apply(circuit: Circuit): IRLookup = CircuitGraph(circuit).irLookup
 }
 
 /** Handy lookup for obtaining AST information about a given Target
   * @param declarations Maps references (not subreferences) to declarations
+  * @param modules Maps module targets to modules
   */
-class IRLookup(private val declarations: collection.Map[ReferenceTarget, FirrtlNode],
-               private val modules: collection.Map[ModuleTarget, DefModule]) {
+class IRLookup private[analyses] ( private val declarations: collection.Map[ReferenceTarget, FirrtlNode],
+                                   private val modules: collection.Map[ModuleTarget, DefModule]) {
 
   private val genderCache = mutable.HashMap[ReferenceTarget, Gender]()
   private val kindCache = mutable.HashMap[ReferenceTarget, Kind]()
@@ -163,8 +149,7 @@ class IRLookup(private val declarations: collection.Map[ReferenceTarget, FirrtlN
     * @param r
     * @return
     */
-  def allTargets(r: ReferenceTarget): Seq[ReferenceTarget] =
-    IRLookup.allTargets(r.toGenericTarget, tpe(r)).map(_.complete).asInstanceOf[Seq[ReferenceTarget]]
+  def allTargets(r: ReferenceTarget): Seq[ReferenceTarget] = r.allSubTargets(tpe(r))
 
   /** Returns a target to each sub-component, excluding intermediate subcomponents
     * E.g.
@@ -175,7 +160,7 @@ class IRLookup(private val declarations: collection.Map[ReferenceTarget, FirrtlN
     * @param r
     * @return
     */
-  def leafTargets(r: ReferenceTarget): Seq[ReferenceTarget] = IRLookup.leafTargets(r, tpe(r))
+  def leafTargets(r: ReferenceTarget): Seq[ReferenceTarget] = r.leafSubTargets(tpe(r))
 
   /** Returns target and type of each module port
     * @param m
@@ -207,7 +192,8 @@ class IRLookup(private val declarations: collection.Map[ReferenceTarget, FirrtlN
     * @param ref
     */
   private def updateExpr(mt: ModuleTarget, ref: Expression): Unit = {
-    Utils.expandRef(ref).foreach { e =>
+    val refs = Utils.expandRef(ref)
+    refs.foreach { e =>
       val target = CircuitGraph.asTarget(mt, new TokenTagger())(e)
       exprCache((target, Utils.gender(e))) = e
     }

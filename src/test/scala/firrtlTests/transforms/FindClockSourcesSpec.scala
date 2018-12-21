@@ -568,7 +568,66 @@ class FindClockSourcesSpec extends MiddleAnnotationSpec with MemStuff {
     execute(input, Seq(GetClockSources(Seq(Test.ref("out")))), clockSources, None)
   }
 
-  // Check bundled nodes
-  // Check all IRLookup functions
+  "Nonlocal clock sources" should "be collected" in {
+    val input =
+      """circuit Test:
+        |  module Test :
+        |    input in : UInt<8>
+        |    output out : UInt<8>
+        |    inst child of Child
+        |    child.in <= in
+        |    out <= child.out
+        |  module Child:
+        |    input in : UInt<8>
+        |    output out : UInt<8>
+        |    reg r1: UInt<8>, asClock(UInt(1))
+        |    r1 <= in
+        |    out <= r1
+        |""".stripMargin
+
+    val C = CircuitTarget("Test")
+    val Test = C.module("Test")
+    val clockSources = Seq(
+      ClockSources(Map(
+        Test.ref("out") -> Set((Test.instOf("child", "Child"), Some("@asClock#0")))
+      ))
+    )
+
+    execute(input, Seq(GetClockSources(Seq(Test))), clockSources, Nil)
+  }
+
+  "Clock sources" should "travel through aggregate-typed nodes" in {
+    val input =
+      """circuit Test:
+        |  module Test :
+        |    input in : UInt<8>
+        |    input clk1: Clock
+        |    input clk2: Clock
+        |    output out1 : UInt<8>
+        |    output out2 : UInt<8>
+        |    reg r1: UInt<8>, clk1
+        |    reg r2: UInt<8>, clk2
+        |    r1 <= in
+        |    r2 <= in
+        |    wire x: {a: UInt<8>, b: UInt<8>}
+        |    x.a <= r1
+        |    x.b <= r2
+        |    node y = x
+        |    node z = y
+        |    out1 <= z.a
+        |    out2 <= z.b
+        |""".stripMargin
+
+    val C = CircuitTarget("Test")
+    val Test = C.module("Test")
+    val clockSources = Seq(
+      ClockSources(Map(
+        Test.ref("out1") -> Set((Test.ref("clk1"), None)),
+        Test.ref("out2") -> Set((Test.ref("clk2"), None))
+      ))
+    )
+
+    execute(input, Seq(GetClockSources(Seq(Test))), clockSources, Nil)
+  }
 }
 

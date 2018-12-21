@@ -6,14 +6,31 @@ import firrtl.ir._
 import firrtl.PrimOps._
 import firrtl.Mappers._
 import firrtl.WrappedExpression._
+import firrtl.WrappedType._
 
 import scala.collection.mutable
+import scala.collection.mutable.{ArrayBuffer, HashMap, HashSet, LinkedHashMap, StringBuilder}
 import scala.util.matching.Regex
+import java.io.PrintWriter
 
 import Implicits.{constraint2bound, constraint2width, width2constraint}
 import firrtl.constraint.{IsMax, IsMin}
 import firrtl.annotations.{ReferenceTarget, TargetToken}
 import _root_.logger.LazyLogging
+
+object FIRRTLException {
+  def defaultMessage(message: String, cause: Throwable) = {
+    if (message != null) {
+      message
+    } else if (cause != null) {
+      cause.toString
+    } else {
+      null
+    }
+  }
+}
+class FIRRTLException(val str: String, cause: Throwable = null)
+  extends RuntimeException(FIRRTLException.defaultMessage(str, cause), cause)
 
 object seqCat {
   def apply(args: Seq[Expression]): Expression = args.length match {

@@ -687,6 +687,20 @@ case class ReferenceTarget(circuit: String,
   def isReset: Boolean = tokens.last == Reset
 
   def noComponents: ReferenceTarget = this.copy(component = Nil)
+
+  def leafSubTargets(tpe: firrtl.ir.Type): Seq[ReferenceTarget] = tpe match {
+    case _: firrtl.ir.GroundType => Vector(this)
+    case firrtl.ir.VectorType(t, size) => (0 until size).flatMap { i => index(i).leafSubTargets(t) }
+    case firrtl.ir.BundleType(fields) => fields.flatMap { f => field(f.name).leafSubTargets(f.tpe)}
+    case other => sys.error(s"Error! Unexpected type $other")
+  }
+
+  def allSubTargets(tpe: firrtl.ir.Type): Seq[ReferenceTarget] = tpe match {
+    case _: firrtl.ir.GroundType => Vector(this)
+    case firrtl.ir.VectorType(t, size) => this +: (0 until size).flatMap { i => index(i).allSubTargets(t) }
+    case firrtl.ir.BundleType(fields) => this +: fields.flatMap { f => field(f.name).allSubTargets(f.tpe)}
+    case other => sys.error(s"Error! Unexpected type $other")
+  }
 }
 
 /** Points to an instance declaration of a module (termed an ofModule)
