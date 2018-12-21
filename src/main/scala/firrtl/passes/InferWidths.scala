@@ -412,21 +412,24 @@ class InferWidths extends Transform with ResolvedAnnotationPaths {
       stmt.foreachStmt(getDeclTypes(modName))
     }
 
-    state.circuit.modules.foreach { mod =>
-      mod.ports.foreach { port =>
-        typeMap += (ReferenceTarget(circuitName, mod.name, Nil, port.name, Nil) -> port.tpe)
+    if (state.annotations.exists(_.isInstanceOf[WidthGeqConstraintAnnotation])) {
+      state.circuit.modules.foreach { mod =>
+        mod.ports.foreach { port =>
+          typeMap += (ReferenceTarget(circuitName, mod.name, Nil, port.name, Nil) -> port.tpe)
+        }
+        mod.foreachStmt(getDeclTypes(mod.name))
       }
-      mod.foreachStmt(getDeclTypes(mod.name))
     }
 
     val extraConstraints = state.annotations.flatMap {
       case anno: WidthGeqConstraintAnnotation if anno.loc.isLocal && anno.exp.isLocal  =>
         val locType :: expType :: Nil = Seq(anno.loc, anno.exp) map { target =>
-          val baseType = typeMap(target.copy(component = Seq.empty))
+          val baseType = typeMap.getOrElse(target.copy(component = Seq.empty),
+            throw new Exception(s"Target below from WidthGeqConstraintAnnotation was not found\n" + target.prettyPrint()))
           val leafType = target.componentType(baseType)
           if (leafType.isInstanceOf[AggregateType]) {
             throw new Exception(s"Target below is an AggregateType, which " +
-              "is not supported by WidthGeqConstraintAnnotation\n" + anno.loc.prettyPrint())
+              "is not supported by WidthGeqConstraintAnnotation\n" + target.prettyPrint())
           }
 
           leafType
