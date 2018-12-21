@@ -36,7 +36,7 @@ class FindClockSources() extends Transform {
       val finder = new ClockSourceFinder(CircuitGraph(state.circuit))
       val signalToClockSources = finder.getClockSource(targets).map { case (signal, sources) =>
         signal -> sources.map {
-          case c: ReferenceTarget if CircuitGraph.isAsClock(c) => (c.moduleTarget: IsMember, Some(c.ref))
+          case c: ReferenceTarget if CircuitGraph.isAsClock(c) => (c.pathTarget: IsMember, Some(c.ref))
           case c: ReferenceTarget => (c, None)
         }
       }
@@ -117,7 +117,8 @@ class ClockSourceFinder(graph: CircuitGraph) extends CircuitGraph(graph.circuit,
       t match {
         case it: InstanceTarget =>
           val lit = it.asReference.pathlessTarget
-          val inputTargets = irLookup.leafTargets(lit).collect {
+
+          val inputTargets = lit.leafSubTargets(irLookup.tpe(lit)).collect {
             case r if irLookup.gender(r) == FEMALE => r
           }
           inputTargets.foldLeft(map){ (m, inTarget) =>
@@ -152,7 +153,7 @@ class ClockSourceFinder(graph: CircuitGraph) extends CircuitGraph(graph.circuit,
     //)
 
     val finalSources = mutable.HashSet.empty[ReferenceTarget]
-    IRLookup.leafTargets(t, tpe).foreach { x =>
+    t.leafSubTargets(tpe).foreach { x =>
       prioritySearch(x, Set.empty[ReferenceTarget])(
         new Ordering[ReferenceTarget]{
           override def compare(x: ReferenceTarget, y: ReferenceTarget): Int = x.path.size - y.path.size
@@ -217,57 +218,65 @@ class ClockSourceFinder(graph: CircuitGraph) extends CircuitGraph(graph.circuit,
     * @param prevOpt
     * @return a Set[T] of all vertices that source has edges to
     */
-  override def getEdges(source: ReferenceTarget, prevOpt: Option[collection.Map[ReferenceTarget, ReferenceTarget]]): collection.Set[ReferenceTarget] = {
+  override def getEdges(source: ReferenceTarget,
+                        prevOpt: Option[collection.Map[ReferenceTarget, ReferenceTarget]]
+                       ): collection.Set[ReferenceTarget] = {
 
     val superEdges = super.getEdges(source)
 
     val instanceEdges = super.getShortCutEdges(source, superEdges)
 
     val filteredEdges = instanceEdges.flatMap {
+
       // If is is a combinational read-memory, return non-clock signals, otherwise return only clock signals
-      case rt: ReferenceTarget
-        if irLookup.kind(source) == MemKind && irLookup.gender(source) == MALE =>
+      case rt: ReferenceTarget if irLookup.kind(source) == MemKind && irLookup.gender(source) == MALE =>
           (irLookup.declaration(source).asInstanceOf[DefMemory].readLatency, rt.component.last.value) match {
             case (0, "clk") => Seq()
             case (0, _) => Seq(rt)
             case (_, "clk") => Seq(rt)
             case (_, _) => Seq()
           }
+
       // Is a Register, filter non-clock outgoing edges
-      case rt: ReferenceTarget
-        if isReg(source) && (rt.tokens.last != Clock) =>
-        Seq()
+      case rt: ReferenceTarget if isReg(source) && (rt.tokens.last != Clock) => Seq()
+
       case other => Seq(other)
     }
 
     val shortCutEdges = filteredEdges.flatMap {
+
       // If seen node before, record clock and end
       case e if clockMap.contains(e) =>
         recordClocks(source, prevOpt)(clockMap(e))
         Seq()
+
       // If seen node before but with child root, return clock sources with added hierarchy
       case e: ReferenceTarget if e.path.nonEmpty && clockMap.contains(e.stripHierarchy(1)) =>
         clockMap(e.stripHierarchy(1)).map(_.addHierarchy(e.module, e.path.head._1.value))
-      // If source is exiting to parent, record clock source for AST module but also return
+
       case e => Seq(e)
     }
 
     val ret = shortCutEdges.flatMap {
+
       // Top-level Input Port
       // Must check if not isClock because expression that is in the clock port of reg could be a port
       case rt@ ReferenceTarget(c, m, Nil, _, _)
         if irLookup.kind(rt) == PortKind && irLookup.gender(rt) == MALE && !rt.isClock =>
         recordClock(source, prevOpt)(rt)
         Seq()
+
       // Black-box Output Clock Port
       case rt: ReferenceTarget
         if extModuleNames.contains(rt.encapsulatingModule) && irLookup.tpe(rt) == ClockType && irLookup.gender(rt) == FEMALE =>
         recordClock(source, prevOpt)(rt)
         Seq()
+
       // AsClock Expression
       case ct if CircuitGraph.isAsClock(ct) =>
         recordClock(source, prevOpt)(ct)
         Seq()
+
       case other => Seq(other)
     }
 

@@ -9,7 +9,7 @@ import firrtl.Mappers._
 import firrtl.annotations.TargetToken
 import firrtl.annotations.TargetToken.{Instance, OfModule}
 import firrtl.passes.MemPortUtils
-import firrtl.{FEMALE, InstanceKind, MALE, PortKind, Utils, WDefInstance, WRef, WSubField, WSubIndex}
+import firrtl.{FEMALE, InstanceKind, MALE, PortKind, Utils, WDefInstance, WInvalid, WRef, WSubField, WSubIndex}
 
 import scala.collection.mutable
 
@@ -119,6 +119,7 @@ object CircuitGraph {
     case d: DoPrim => m.ref("@" + d.op.serialize + "#" + tagger.getTag(d.op.serialize))
     case _: Mux => m.ref("@mux" + "#" + tagger.getTag("mux"))
     case _: ValidIf => m.ref("@validif" + "#" + tagger.getTag("validif"))
+    case WInvalid => m.ref("@invalid#" + tagger.getTag("invalid"))
     case other => sys.error(s"Unsupported: $other")
   }
 
@@ -191,7 +192,7 @@ object CircuitGraph {
           ) ++ (if(readwriters.contains(name)) Seq(port.field("wmode")) else Nil)
 
           val data = if(readers.contains(name)) port.field("data") else port.field("rdata")
-          val sinks = IRLookup.leafTargets(data, d.dataType)
+          val sinks = data.leafSubTargets(d.dataType)
 
           sources.foreach { mdg.addVertex }
           sinks.foreach { sink =>
@@ -219,8 +220,8 @@ object CircuitGraph {
       buildExpression(m, tagger, resetTarget)(d.reset)
 
       // Connect each subTarget to the corresponding init subTarget
-      val allRegTargets = IRLookup.leafTargets(regTarget, d.tpe)
-      val allInitTargets = IRLookup.leafTargets(initTarget, d.tpe).zip(Utils.create_exps(d.init))
+      val allRegTargets = regTarget.leafSubTargets(d.tpe)
+      val allInitTargets = initTarget.leafSubTargets(d.tpe).zip(Utils.create_exps(d.init))
       allRegTargets.zip(allInitTargets).foreach { case (r, (i, e)) =>
         mdg.addVertex(i)
         mdg.addVertex(r)
@@ -239,12 +240,25 @@ object CircuitGraph {
         case d: DefNode =>
           val sinkTarget = m.ref(d.name)
           addLabeledVertex(sinkTarget, stmt)
-          buildExpression(m, tagger, sinkTarget)(d.value)
+          val nodeTargets = sinkTarget.leafSubTargets(d.value.tpe)
+          nodeTargets.zip(Utils.create_exps(d.value)).foreach { case (n, e) =>
+            mdg.addVertex(n)
+            buildExpression(m, tagger, n)(e)
+          }
 
         case c: Connect =>
           val sinkTarget = asTarget(m, tagger)(c.loc)
           mdg.addVertex(sinkTarget)
           buildExpression(m, tagger, sinkTarget)(c.expr)
+
+        case i: IsInvalid =>
+          val sourceTarget = asTarget(m, tagger)(WInvalid)
+          mdg.addVertex(sourceTarget)
+          val sinkTarget = asTarget(m, tagger)(i.expr)
+          sinkTarget.allSubTargets(i.expr.tpe).foreach { st =>
+            mdg.addVertex(st)
+            mdg.addEdge(sourceTarget, st)
+          }
 
         case WDefInstance(_, name, ofModule, tpe) =>
           addLabeledVertex(m.ref(name), stmt)
@@ -269,7 +283,8 @@ object CircuitGraph {
         case a: Attach =>
           val attachTargets = a.exprs.map{ r =>
             val at = asTarget(m, tagger)(r)
-            addLabeledVertex(at, r)
+            //addLabeledVertex(at, r)
+            mdg.addVertex(at)
             at
           }
           attachTargets.combinations(2).foreach { case Seq(l, r) =>
