@@ -34,7 +34,7 @@ class MemSpec extends FirrtlPropSpec {
       InferTypes,
       CheckTypes,
       ExpandConnects,
-      LowerTypes,
+      LowerTypes
     )
     val input =
      """circuit Unit :
@@ -106,7 +106,7 @@ class MemSpec extends FirrtlPropSpec {
       CheckTypes,
       ReplaceAccesses,
       ExpandConnects,
-      LowerTypes,
+      LowerTypes
     )
     val input =
      """circuit Unit :
@@ -193,7 +193,7 @@ class MemSpec extends FirrtlPropSpec {
       CheckTypes,
       ReplaceAccesses,
       ExpandConnects,
-      LowerTypes,
+      LowerTypes
     )
     val input =
      """circuit Unit :

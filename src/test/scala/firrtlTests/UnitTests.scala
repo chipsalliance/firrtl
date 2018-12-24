@@ -97,7 +97,7 @@ class UnitTests extends FirrtlFlatSpec {
       InferTypes,
       CheckTypes,
       ExpandConnects,
-      LowerTypes,
+      LowerTypes
     )
     val input =
      """circuit Unit :
@@ -138,7 +138,7 @@ class UnitTests extends FirrtlFlatSpec {
       InferTypes,
       CheckTypes,
       ExpandConnects,
-      LowerTypes,
+      LowerTypes
     )
     val input =
      """circuit Unit :

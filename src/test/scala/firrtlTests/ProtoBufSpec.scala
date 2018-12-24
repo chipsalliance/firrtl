@@ -127,7 +127,7 @@ class ProtoBufSpec extends FirrtlFlatSpec {
     FromProto.convert(ToProto.convert(flit).build) should equal (flit)
     val blit = ir.BundleLiteral(Seq(
       ("a", ulit),
-      ("b", ir.BundleLiteral(Seq( ("c", slit), ("d", flit)))),
+      ("b", ir.BundleLiteral(Seq( ("c", slit), ("d", flit))))
     ))
     FromProto.convert(ToProto.convert(blit).build) should equal (blit)
   }
