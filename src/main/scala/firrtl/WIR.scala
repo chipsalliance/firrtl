@@ -55,12 +55,16 @@ object WSubField {
   def apply(expr: Expression, n: String): WSubField = new WSubField(expr, n, field_type(expr.tpe, n), UNKNOWNGENDER)
   def apply(expr: Expression, name: String, tpe: Type): WSubField = new WSubField(expr, name, tpe, UNKNOWNGENDER)
 }
-object WSubFieldLiteral {
-  def unapply(ws: WSubField): Option[Literal] = ws match {
+object WSubLiteral {
+  def unapply(w: Expression): Option[Expression] = w match {
     case WSubField(BundleLiteral(lits), name, _, _) =>
       lits.collectFirst({ case (n, value) if n == name => value })
-    case WSubField(WSubFieldLiteral(BundleLiteral(lits)), name, _, _) =>
+    case WSubField(WSubLiteral(BundleLiteral(lits)), name, _, _) =>
       lits.collectFirst({ case (n, value) if n == name => value })
+    case WSubIndex(VectorExpression(exprs, _), index, _, _) =>
+      exprs.lift(index)
+    case WSubIndex(WSubLiteral(VectorExpression(exprs, _)), index, _, _) =>
+      exprs.lift(index)
     case _ => None
   }
 }

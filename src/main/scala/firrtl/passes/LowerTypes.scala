@@ -138,9 +138,9 @@ object LowerTypes extends Transform {
 
   def lowerTypesExp(memDataTypeMap: MemDataTypeMap,
       info: Info, mname: String)(e: Expression): Expression = e match {
-    case e @ (_: WRef | _: UIntLiteral | _: SIntLiteral | _: BundleLiteral) => e
-    case WSubFieldLiteral(lit) =>
-      lowerTypesExp(memDataTypeMap, info, mname)(lit)
+    case e @ (_: WRef | _: UIntLiteral | _: SIntLiteral | _: BundleLiteral | _: VectorExpression) => e
+    case WSubLiteral(exp) =>
+      lowerTypesExp(memDataTypeMap, info, mname)(exp)
     case WSubIndex(ve: VectorExpression, index, _, _) => ve.exprs(index)
     case e @ (_: WSubField | _: WSubIndex) => kind(e) match {
       case InstanceKind =>

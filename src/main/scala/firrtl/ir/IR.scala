@@ -8,6 +8,7 @@ import Utils.indent
 /** Intermediate Representation */
 abstract class FirrtlNode {
   def serialize: String
+  override def toString = serialize
 }
 
 abstract class Info extends FirrtlNode {
