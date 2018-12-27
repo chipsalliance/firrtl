@@ -16,7 +16,7 @@ import firrtl.ir._
 import firrtl.Parser.{IgnoreInfo, UseInfo}
 import firrtl.analyses.{GetNamespace, InstanceGraph, ModuleNamespaceAnnotation}
 import firrtl.annotations._
-import firrtl.transforms.{DontTouchAnnotation, NoDedupAnnotation, RenameModules}
+import firrtl.transforms.{DontTouchAnnotation, LoadMemoryAnnotation, NoDedupAnnotation, RenameModules}
 import firrtl.util.BackendCompilationUtilities
 
 import scala.collection.mutable
@@ -153,6 +153,9 @@ trait FirrtlMatchers extends Matchers {
   def dontDedup(mod: String): Annotation = {
     require(mod.split('.').size == 1, "Can only specify a Module, not a component or instance")
     NoDedupAnnotation(ModuleName(mod, CircuitName("Top")))
+  }
+  def loadMemoryFromFile(mem: String, fileName: String): Annotation = {
+    LoadMemoryAnnotation(ComponentName(mem, ModuleName("Top", CircuitName("Top"))), fileName)
   }
   // Replace all whitespace with a single space and remove leading and
   //   trailing whitespace
