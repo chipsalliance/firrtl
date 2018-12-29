@@ -35,6 +35,10 @@ class TokenTagger {
     counterMap(label) = tag + 1
     tag
   }
+
+  def getRef(label: String): String = {
+    "@" + label + "#" + getTag(label)
+  }
 }
 
 case class PrintToken(tag: Int) extends UnnamedToken { override val value: String = tag.toString }

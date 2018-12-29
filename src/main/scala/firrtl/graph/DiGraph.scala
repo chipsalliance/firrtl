@@ -78,6 +78,7 @@ trait DiGraphLike[T] {
     // invariant: no intersection between unmarked and tempMarked
     val unmarked = new mutable.LinkedHashSet[T]
     val tempMarked = new mutable.LinkedHashSet[T]
+    val finished = new mutable.LinkedHashSet[T]
 
     case class LinearizeFrame[T](v: T, expanded: Boolean)
     val callStack = mutable.Stack[LinearizeFrame[T]]()
@@ -89,6 +90,7 @@ trait DiGraphLike[T] {
         val LinearizeFrame(n, expanded) = callStack.pop()
         if (!expanded) {
           if (tempMarked.contains(n)) {
+            println(tempMarked.toSeq)
             throw new CyclicException(n)
           }
           if (unmarked.contains(n)) {
@@ -97,11 +99,15 @@ trait DiGraphLike[T] {
             callStack.push(LinearizeFrame(n, true))
             // We want to visit the first edge first (so push it last)
             for (m <- getEdges(n).toSeq.reverse) {
+              if(!unmarked.contains(m) && !tempMarked.contains(m) && !finished.contains(m)){
+                unmarked += m
+              }
               callStack.push(LinearizeFrame(m, false))
             }
           }
         } else {
           tempMarked -= n
+          finished += n
           order.append(n)
         }
       }
@@ -131,31 +137,6 @@ trait DiGraphLike[T] {
     val prev = new LinkedHashMap[T, T]()
 
     val bfsQueue = new mutable.Queue[T]()
-    bfsQueue.enqueue(root)
-    while (bfsQueue.nonEmpty) {
-      val u = bfsQueue.dequeue
-      for (v <- getEdges(u, Some(prev))) {
-        if (!prev.contains(v) && !blacklist.contains(v)) {
-          prev(v) = u
-          bfsQueue.enqueue(v)
-        }
-      }
-    }
-    prev
-  }
-
-  /** Performs breadth-first search on the directed graph, with a blacklist of nodes
-    *
-    * @param root the start node
-    * @param blacklist list of nodes to stop searching, if encountered
-    * @return a Map[T,T] from each visited node to its predecessor in the
-    * traversal
-    */
-  def prioritySearch(root: T, blacklist: Set[T])(implicit ordering: Ordering[T]): Map[T,T] = {
-
-    val prev = new LinkedHashMap[T, T]()
-
-    val bfsQueue = new mutable.PriorityQueue[T]()(ordering)
     bfsQueue.enqueue(root)
     while (bfsQueue.nonEmpty) {
       val u = bfsQueue.dequeue

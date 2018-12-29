@@ -6,25 +6,29 @@ import firrtl.annotations.TargetToken._
 import firrtl.annotations._
 import firrtl.ir._
 import firrtl.passes.MemPortUtils
-import firrtl.{BIGENDER, ExpKind, FEMALE, Gender, InstanceKind, Kind, MALE, MemKind, PortKind, RegKind, UNKNOWNGENDER, Utils, WDefInstance, WRef, WSubField, WSubIndex, WireKind}
+import firrtl.{BIGENDER, ExpKind, FEMALE, Gender, InstanceKind, Kind, MALE, MemKind, PortKind, RegKind, UNKNOWNGENDER, Utils, WDefInstance, WInvalid, WRef, WSubField, WSubIndex, WireKind}
 
 import scala.collection.mutable
 
 object IRLookup {
-  def apply(circuit: Circuit): IRLookup = CircuitGraph(circuit).irLookup
+  def apply(circuit: Circuit): IRLookup = ConnectionGraph(circuit).irLookup
 }
 
 /** Handy lookup for obtaining AST information about a given Target
   * @param declarations Maps references (not subreferences) to declarations
   * @param modules Maps module targets to modules
   */
-class IRLookup private[analyses] ( private val declarations: collection.Map[ReferenceTarget, FirrtlNode],
-                                   private val modules: collection.Map[ModuleTarget, DefModule]) {
+class IRLookup private[analyses] ( private val declarations: mutable.LinkedHashMap[ModuleTarget, mutable.LinkedHashMap[ReferenceTarget, FirrtlNode]],
+                                   private val modules: Map[ModuleTarget, DefModule]) {
 
   private val genderCache = mutable.HashMap[ReferenceTarget, Gender]()
   private val kindCache = mutable.HashMap[ReferenceTarget, Kind]()
   private val tpeCache = mutable.HashMap[ReferenceTarget, Type]()
   private val exprCache = mutable.HashMap[(ReferenceTarget, Gender), Expression]()
+
+  private val refCache = mutable.HashMap[ModuleTarget, mutable.LinkedHashMap[Kind, mutable.ArrayBuffer[ReferenceTarget]]]()
+
+
 
   /** Returns the target converted to its local reference
     * E.g. Given ~Top|MyModule/inst:Other>foo.bar, returns ~Top|Other>foo
@@ -87,7 +91,7 @@ class IRLookup private[analyses] ( private val declarations: collection.Map[Refe
       case Some(e) => e
       case None =>
         val mt = CircuitTarget(pathless.circuitOpt.get).module(pathless.moduleOpt.get)
-        declarations(asLocalRef(t)) match {
+        declarations(t.moduleTarget)(asLocalRef(t)) match {
           case e: Expression =>
             require(e.tpe.isInstanceOf[GroundType])
             exprCache.getOrElseUpdate((pathless, Utils.gender(e)), e)
@@ -118,6 +122,8 @@ class IRLookup private[analyses] ( private val declarations: collection.Map[Refe
             case other =>
               sys.error(s"Cannot call expr with: $t, given declaration $other")
           }
+          case x: IsInvalid =>
+            exprCache((pathless, MALE)) = WInvalid
         }
     }
 
@@ -127,11 +133,34 @@ class IRLookup private[analyses] ( private val declarations: collection.Map[Refe
     }
   }
 
+  private def updateRefs(kind: Kind, rt: ReferenceTarget): Unit = {
+    val kindMap = refCache.getOrElseUpdate(rt.moduleTarget, mutable.LinkedHashMap.empty[Kind, mutable.ArrayBuffer[ReferenceTarget]])
+    kindMap.getOrElseUpdate(kind, mutable.ArrayBuffer.empty[ReferenceTarget]) += rt
+  }
+
+  def references(moduleTarget: ModuleTarget, kind: Kind): Seq[ReferenceTarget] = {
+    if(refCache.contains(moduleTarget) && refCache(moduleTarget).contains(kind)) refCache(moduleTarget)(kind)
+    else {
+      modules(moduleTarget)
+      declarations(moduleTarget).foreach {
+        case (rt, ir: DefRegister) => updateRefs(RegKind, rt)
+        case (rt, ir: DefWire) => updateRefs(WireKind, rt)
+        case (rt, ir: DefNode) => updateRefs(ExpKind, rt)
+        case (rt, ir: DefMemory) => updateRefs(MemKind, rt)
+        case (rt, ir: DefInstance) => updateRefs(InstanceKind, rt)
+        case (rt, ir: WDefInstance) => updateRefs(InstanceKind, rt)
+        case (rt, ir: Port) => updateRefs(PortKind, rt)
+        case _ =>
+      }
+      refCache.get(moduleTarget).map(_.getOrElse(kind, Seq.empty[ReferenceTarget])).getOrElse(Seq.empty[ReferenceTarget])
+    }
+  }
+
   /** Returns the statement containing the declaration of the target
     * @param t
     * @return
     */
-  def declaration(t: ReferenceTarget): FirrtlNode = declarations(asLocalRef(t))
+  def declaration(t: ReferenceTarget): FirrtlNode = declarations(t.moduleTarget)(asLocalRef(t))
 
   /** Returns the references to the module's ports
     * @param mt
@@ -175,9 +204,9 @@ class IRLookup private[analyses] ( private val declarations: collection.Map[Refe
       case Port(_, name, Input, tpe) => Utils.create_exps(WRef(name, tpe, PortKind, FEMALE))
     }.foldLeft((Vector.empty[(ReferenceTarget, Type)], Vector.empty[(ReferenceTarget, Type)])) {
       case ((inputs, outputs), e) if Utils.gender(e) == MALE =>
-        (inputs, outputs :+ (CircuitGraph.asTarget(m, new TokenTagger())(e).asInstanceOf[ReferenceTarget], e.tpe))
+        (inputs, outputs :+ (ConnectionGraph.asTarget(m, new TokenTagger())(e).asInstanceOf[ReferenceTarget], e.tpe))
       case ((inputs, outputs), e) =>
-        (inputs :+ (CircuitGraph.asTarget(m, new TokenTagger())(e).asInstanceOf[ReferenceTarget], e.tpe), outputs)
+        (inputs :+ (ConnectionGraph.asTarget(m, new TokenTagger())(e).asInstanceOf[ReferenceTarget], e.tpe), outputs)
     }
   }
 
@@ -185,7 +214,8 @@ class IRLookup private[analyses] ( private val declarations: collection.Map[Refe
     * @param t
     * @return
     */
-  def contains(t: ReferenceTarget): Boolean = declarations.contains(asLocalRef(t))
+  def contains(t: ReferenceTarget): Boolean =
+    declarations.contains(t.moduleTarget) && declarations(t.moduleTarget).contains(asLocalRef(t))
 
   /** Updates expression cache with expression
     * @param mt
@@ -194,7 +224,7 @@ class IRLookup private[analyses] ( private val declarations: collection.Map[Refe
   private def updateExpr(mt: ModuleTarget, ref: Expression): Unit = {
     val refs = Utils.expandRef(ref)
     refs.foreach { e =>
-      val target = CircuitGraph.asTarget(mt, new TokenTagger())(e)
+      val target = ConnectionGraph.asTarget(mt, new TokenTagger())(e)
       exprCache((target, Utils.gender(e))) = e
     }
   }

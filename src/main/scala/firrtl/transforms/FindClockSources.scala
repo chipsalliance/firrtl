@@ -28,19 +28,18 @@ class FindClockSources() extends Transform {
 
   override def execute(state: CircuitState): CircuitState = {
 
-    val targets = state.annotations.flatMap {
-      case GetClockSources(targets) => targets
+    val targets = mutable.ArrayBuffer.empty[CompleteTarget]
+    val signalsToClocks = mutable.HashMap.empty[ReferenceTarget, Set[ReferenceTarget]]
+    state.annotations.foreach {
+      case GetClockSources(ts) => targets ++= ts
+      case cs: ClockSources => signalsToClocks ++= cs.signalsToClockRefs
+      case other =>
     }
 
     if(targets.nonEmpty) {
-      val finder = new ClockSourceFinder(CircuitGraph(state.circuit))
-      val signalToClockSources = finder.getClockSource(targets).map { case (signal, sources) =>
-        signal -> sources.map {
-          case c: ReferenceTarget if CircuitGraph.isAsClock(c) => (c.pathTarget: IsMember, Some(c.ref))
-          case c: ReferenceTarget => (c, None)
-        }
-      }
-      state.copy(annotations = ClockSources(signalToClockSources) +: state.annotations)
+      val finder = new ClockSourceFinder(ConnectionGraph(state.circuit), signalsToClocks.toMap)
+      val clockSources = ClockSources.buildFromRefs(finder.getClockSource(targets))
+      state.copy(annotations = clockSources +: state.annotations)
     } else {
       state
     }
@@ -54,6 +53,18 @@ case class GetClockSources(targets: Seq[CompleteTarget]) extends Annotation {
   override def update(renames: RenameMap): Seq[Annotation] = {
     val newTargets = targets.flatMap(renames(_))
     Seq(GetClockSources(newTargets))
+  }
+}
+
+object ClockSources {
+  def buildFromRefs(signalToClockRefs: Map[ReferenceTarget, Set[ReferenceTarget]]): ClockSources = {
+    val signalToClockSources = signalToClockRefs.map { case (signal, sources) =>
+      signal -> sources.map {
+        case c: ReferenceTarget if ConnectionGraph.isAsClock(c) => (c.pathTarget: IsMember, Some(c.ref))
+        case c: ReferenceTarget => (c, None)
+      }
+    }
+    ClockSources(signalToClockSources)
   }
 }
 
@@ -78,11 +89,37 @@ case class ClockSources(signalToClocks: Map[ReferenceTarget, Set[(IsMember, Opti
     }
     Seq(ClockSources(newSignalToClocks))
   }
+
+  def clockToSignals: Map[Option[(IsMember, Option[String])], Seq[ReferenceTarget]] =
+    signalToClocks.foldLeft(Map.empty[Option[(IsMember, Option[String])], Seq[ReferenceTarget]]){
+      case (map, (signal, clocks)) if clocks.nonEmpty => clocks.foldLeft(map){ (m, clock) =>
+        map + (Some(clock) -> (signal +: map.getOrElse(Some(clock), Nil)))
+      }
+      case (map, (signal, clocks)) if clocks.isEmpty =>
+        map + (None -> (signal +: map.getOrElse(None, Nil)))
+    }
+
+  def prettyPrint: String =
+    clockToSignals.map {
+      case (Some((ref: ReferenceTarget, None)), seq) => "Clock Domain " + ref.toString + "\n\t" + seq.mkString("\n\t") + "\n"
+      case (Some((mod: IsModule, Some(x))), seq) => "Clock Domain " + mod.ref(x) + "\n\t" + seq.mkString("\n\t") + "\n"
+      case (None, seq) => "No Clock Domain" + "\n\t" + seq.mkString("\n\t") + "\n"
+    }.mkString("\n")
+
+  def signalsToClockRefs: Map[ReferenceTarget, Set[ReferenceTarget]] =
+    signalToClocks.map {
+      case (signal, seq) => signal -> seq.map {
+        case (ref: ReferenceTarget, None) => ref
+        case (mod: IsModule, Some(x: String)) => mod.ref(x)
+      }
+    }
 }
 
 
 /** Instance-Viewed Graph to find clock sources of signals */
-class ClockSourceFinder(graph: CircuitGraph) extends CircuitGraph(graph.circuit, graph.digraph.reverse, graph.irLookup) {
+class ClockSourceFinder(graph: ConnectionGraph,
+                        signalToClocks: Map[ReferenceTarget, Set[ReferenceTarget]] = Map.empty
+                       ) extends ConnectionGraph(graph.circuit, graph.digraph.reverse, graph.irLookup) {
 
   /** Finds clock sources of specific signals
     *
@@ -96,24 +133,12 @@ class ClockSourceFinder(graph: CircuitGraph) extends CircuitGraph(graph.circuit,
     * @return
     */
   def getClockSource(targets: Seq[CompleteTarget]): Map[ReferenceTarget, Set[ReferenceTarget]] = {
-    val memberTargets: Seq[IsMember] = targets.flatMap {
-      case ct: CircuitTarget => graph.circuit.modules.map(m => ct.module(m.name))
-      case other: IsMember => Seq(other)
+    val memberTargets: Seq[IsMember] = targets.map {
+      case ct: CircuitTarget => ct.module(ct.circuit)
+      case other: IsMember => other
     }.distinct
 
-    val moduleOrder = new InstanceGraph(circuit).moduleOrder.zipWithIndex.map {
-      case (m, i) => m.name -> i
-    }.toMap
-
-    val topoTargets = memberTargets.sortWith { (t0, t1) =>
-      (t0, t1) match {
-        case (x: CircuitTarget, _) => false
-        case (_, x: CircuitTarget) => true
-        case (x: IsMember, y: IsMember) => moduleOrder(x.module) > moduleOrder(y.module)
-      }
-    }
-
-    val ret = topoTargets.foldLeft(Map.empty[ReferenceTarget, Set[ReferenceTarget]]) { (map, t) =>
+    val ret = memberTargets.foldLeft(Map.empty[ReferenceTarget, Set[ReferenceTarget]]) { (map, t) =>
       t match {
         case it: InstanceTarget =>
           val lit = it.asReference.pathlessTarget
@@ -147,22 +172,12 @@ class ClockSourceFinder(graph: CircuitGraph) extends CircuitGraph(graph.circuit,
     )
 
     val tpe = irLookup.tpe(t)
-    //require(
-    //  tpe.isInstanceOf[GroundType],
-    //  s"Cannot compute clock source of\n${t.prettyPrint()}\nwith type ${tpe.serialize}!"
-    //)
 
     val finalSources = mutable.HashSet.empty[ReferenceTarget]
     t.leafSubTargets(tpe).foreach { x =>
-      prioritySearch(x, Set.empty[ReferenceTarget])(
-        new Ordering[ReferenceTarget]{
-          override def compare(x: ReferenceTarget, y: ReferenceTarget): Int = x.path.size - y.path.size
-        }
-      )
+      BFS(x, Set.empty[ReferenceTarget])
       finalSources ++= clockMap.getOrElse(x, mutable.HashSet.empty[ReferenceTarget])
     }
-
-    //val finalSources = clockMap.getOrElse(t, mutable.HashSet.empty[ReferenceTarget])
     finalSources.toSet
   }
 
@@ -170,6 +185,9 @@ class ClockSourceFinder(graph: CircuitGraph) extends CircuitGraph(graph.circuit,
 
   // Maps signal to set of clock sources it is synchronized with
   private val clockMap = mutable.HashMap[ReferenceTarget, mutable.HashSet[ReferenceTarget]]()
+  signalToClocks.foreach { case (signal, clocks) =>
+    clockMap.getOrElseUpdate(signal, mutable.HashSet.empty[ReferenceTarget]) ++= clocks
+  }
 
   // Utility function to determine if a target is a register
   private def isReg(t: ReferenceTarget): Boolean = {
@@ -179,11 +197,10 @@ class ClockSourceFinder(graph: CircuitGraph) extends CircuitGraph(graph.circuit,
     }
   }
 
-  private def update(node: ReferenceTarget, clocks: Iterable[ReferenceTarget]): Unit =
-    clockMap.getOrElseUpdate(node, mutable.HashSet.empty[ReferenceTarget]) ++= clocks
-
   private def recordClock(source: ReferenceTarget, prevOpt: Option[collection.Map[ReferenceTarget, ReferenceTarget]])
-                         (clock: ReferenceTarget): Unit = recordClocks(source, prevOpt)(Set(clock))
+                         (clock: ReferenceTarget): Unit = {
+    recordClocks(source, prevOpt)(Set(clock))
+  }
 
   private def recordClocks(source: ReferenceTarget, prevOpt: Option[collection.Map[ReferenceTarget, ReferenceTarget]])
                           (clocks: collection.Set[ReferenceTarget]): Unit = {
@@ -204,7 +221,8 @@ class ClockSourceFinder(graph: CircuitGraph) extends CircuitGraph(graph.circuit,
     while (prev.contains(nodePath.last)) {
       val x = nodePath.last
       perModuleClocks.get(x.encapsulatingModule) match {
-        case Some(clks) => update(x.pathlessTarget, clks)
+        case Some(clks) =>
+          clockMap.getOrElseUpdate(x.pathlessTarget, mutable.HashSet.empty[ReferenceTarget]) ++= clks
         case None =>
       }
       nodePath += prev(nodePath.last)
@@ -221,65 +239,56 @@ class ClockSourceFinder(graph: CircuitGraph) extends CircuitGraph(graph.circuit,
   override def getEdges(source: ReferenceTarget,
                         prevOpt: Option[collection.Map[ReferenceTarget, ReferenceTarget]]
                        ): collection.Set[ReferenceTarget] = {
-
-    val superEdges = super.getEdges(source)
-
-    val instanceEdges = super.getShortCutEdges(source, superEdges)
-
-    val filteredEdges = instanceEdges.flatMap {
-
-      // If is is a combinational read-memory, return non-clock signals, otherwise return only clock signals
-      case rt: ReferenceTarget if irLookup.kind(source) == MemKind && irLookup.gender(source) == MALE =>
-          (irLookup.declaration(source).asInstanceOf[DefMemory].readLatency, rt.component.last.value) match {
-            case (0, "clk") => Seq()
-            case (0, _) => Seq(rt)
-            case (_, "clk") => Seq(rt)
-            case (_, _) => Seq()
-          }
-
-      // Is a Register, filter non-clock outgoing edges
-      case rt: ReferenceTarget if isReg(source) && (rt.tokens.last != Clock) => Seq()
-
-      case other => Seq(other)
-    }
-
-    val shortCutEdges = filteredEdges.flatMap {
+    source match {
 
       // If seen node before, record clock and end
       case e if clockMap.contains(e) =>
-        recordClocks(source, prevOpt)(clockMap(e))
-        Seq()
-
-      // If seen node before but with child root, return clock sources with added hierarchy
-      case e: ReferenceTarget if e.path.nonEmpty && clockMap.contains(e.stripHierarchy(1)) =>
-        clockMap(e.stripHierarchy(1)).map(_.addHierarchy(e.module, e.path.head._1.value))
-
-      case e => Seq(e)
-    }
-
-    val ret = shortCutEdges.flatMap {
+        recordClocks(e, prevOpt)(clockMap(e))
+        Set()
 
       // Top-level Input Port
       // Must check if not isClock because expression that is in the clock port of reg could be a port
       case rt@ ReferenceTarget(c, m, Nil, _, _)
         if irLookup.kind(rt) == PortKind && irLookup.gender(rt) == MALE && !rt.isClock =>
         recordClock(source, prevOpt)(rt)
-        Seq()
+        Set()
 
       // Black-box Output Clock Port
       case rt: ReferenceTarget
         if extModuleNames.contains(rt.encapsulatingModule) && irLookup.tpe(rt) == ClockType && irLookup.gender(rt) == FEMALE =>
         recordClock(source, prevOpt)(rt)
-        Seq()
+        Set()
 
       // AsClock Expression
-      case ct if CircuitGraph.isAsClock(ct) =>
+      case ct if ConnectionGraph.isAsClock(ct) =>
         recordClock(source, prevOpt)(ct)
-        Seq()
+        Set()
 
-      case other => Seq(other)
+      case nonClockSource =>
+
+        val superEdges = super.getEdges(nonClockSource)
+
+        //val instanceEdges = getShortCutEdges(nonClockSource, superEdges)
+
+        val filteredEdges = superEdges.flatMap {
+
+          // If is is a combinational read-memory, return non-clock signals, otherwise return only clock signals
+          case rt: ReferenceTarget if irLookup.kind(nonClockSource) == MemKind && irLookup.gender(nonClockSource) == MALE =>
+            (irLookup.declaration(nonClockSource).asInstanceOf[DefMemory].readLatency, rt.component.last.value) match {
+              case (0, "clk") => Seq()
+              case (0, _) => Seq(rt)
+              case (_, "clk") => Seq(rt)
+              case (_, _) => Seq()
+            }
+
+          // Is a Register, filter non-clock outgoing edges
+          case rt: ReferenceTarget if isReg(nonClockSource) && (rt.tokens.last != Clock) => Seq()
+
+          case other => Seq(other)
+        }
+
+        filteredEdges.toSet
+
     }
-
-    ret
   }
 }

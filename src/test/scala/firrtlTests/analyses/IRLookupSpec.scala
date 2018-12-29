@@ -9,8 +9,6 @@ import firrtlTests.FirrtlFlatSpec
 import firrtlTests.transforms.MemStuff
 
 class IRLookupSpec extends FirrtlFlatSpec with MemStuff {
-  def toMiddleFIRRTL(circuit: Circuit): Circuit =
-    new MiddleFirrtlCompiler().compile(CircuitState(circuit, ChirrtlForm), Nil).circuit
 
   "IRLookup" should "return declarations" in {
     val input =

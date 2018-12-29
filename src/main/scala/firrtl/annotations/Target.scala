@@ -441,6 +441,8 @@ trait IsMember extends CompleteTarget {
 
   /** @return The [[ModuleTarget]] of the module that directly contains this component */
   def encapsulatingModule: String = if(path.isEmpty) module else path.last._2.value
+
+  def leafModule: String
 }
 
 /** References a module-like target (e.g. a [[ModuleTarget]] or an [[InstanceTarget]])
@@ -566,6 +568,8 @@ case class ModuleTarget(circuit: String, module: String) extends IsModule {
   override def setPathTarget(newPath: IsModule): IsModule = newPath
 
   override def toNamed: ModuleName = ModuleName(module, CircuitName(circuit))
+
+  override def leafModule: String = module
 }
 
 /** Target pointing to a declared named component in a [[firrtl.ir.DefModule]]
@@ -656,6 +660,8 @@ case class ReferenceTarget(circuit: String,
     case firrtl.ir.BundleType(fields) => this +: fields.flatMap { f => field(f.name).allSubTargets(f.tpe)}
     case other => sys.error(s"Error! Unexpected type $other")
   }
+
+  override def leafModule: String = encapsulatingModule
 }
 
 /** Points to an instance declaration of a module (termed an ofModule)
@@ -717,6 +723,8 @@ case class InstanceTarget(circuit: String,
 
   override def setPathTarget(newPath: IsModule): InstanceTarget =
     InstanceTarget(newPath.circuit, newPath.module, newPath.asPath, instance, ofModule)
+
+  override def leafModule: String = ofModule
 }
 
 
