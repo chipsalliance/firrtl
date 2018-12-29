@@ -13,6 +13,17 @@ import firrtl.{FEMALE, InstanceKind, MALE, PortKind, Utils, WDefInstance, WInval
 import scala.collection.mutable
 
 class ConnectionGraph protected(val circuit: Circuit, val digraph: DiGraph[ReferenceTarget], val irLookup: IRLookup) extends DiGraphLike[ReferenceTarget] {
+  override val edges =
+    digraph.getEdgeMap.asInstanceOf[mutable.LinkedHashMap[ReferenceTarget, mutable.LinkedHashSet[ReferenceTarget]]]
+
+  val portConnectivityStack: mutable.HashMap[ReferenceTarget, List[ReferenceTarget]] =
+    mutable.HashMap.empty[ReferenceTarget, List[ReferenceTarget]]
+
+  val portShortCuts: mutable.HashMap[ReferenceTarget, mutable.HashSet[ReferenceTarget]] =
+    mutable.HashMap.empty[ReferenceTarget, mutable.HashSet[ReferenceTarget]]
+
+  def reverseConnectionGraph: ConnectionGraph = new ConnectionGraph(circuit, digraph.reverse, irLookup)
+
   override def BFS(root: ReferenceTarget, blacklist: collection.Set[ReferenceTarget]): collection.Map[ReferenceTarget, ReferenceTarget] = {
 
     val prev = new mutable.LinkedHashMap[ReferenceTarget, ReferenceTarget]()
@@ -37,17 +48,6 @@ class ConnectionGraph protected(val circuit: Circuit, val digraph: DiGraph[Refer
 
     prev
   }
-
-  override val edges =
-    digraph.getEdgeMap.asInstanceOf[mutable.LinkedHashMap[ReferenceTarget, mutable.LinkedHashSet[ReferenceTarget]]]
-
-  val portConnectivityStack: mutable.HashMap[ReferenceTarget, List[ReferenceTarget]] =
-    mutable.HashMap.empty[ReferenceTarget, List[ReferenceTarget]]
-
-  val portShortCuts: mutable.HashMap[ReferenceTarget, mutable.HashSet[ReferenceTarget]] =
-    mutable.HashMap.empty[ReferenceTarget, mutable.HashSet[ReferenceTarget]]
-
-  def reverseConnectionGraph: ConnectionGraph = new ConnectionGraph(circuit, digraph.reverse, irLookup)
 
   override def getEdges(source: ReferenceTarget, prevOpt: Option[collection.Map[ReferenceTarget, ReferenceTarget]] = None): collection.Set[ReferenceTarget] = {
     import ConnectionGraph._
