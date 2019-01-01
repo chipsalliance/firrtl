@@ -2,13 +2,14 @@
 
 package firrtlTests.transforms
 
-import firrtl.analyses.{CircuitGraph, ConnectionGraph}
+import firrtl.analyses.CircuitGraph
 import firrtl.annotations.TargetToken.Field
 import firrtl.{ChirrtlForm, CircuitState, RegKind}
 import firrtl.transforms._
 import firrtl.annotations._
 import firrtlTests.{FirrtlRunners, MiddleAnnotationSpec}
 import firrtl.ir.UIntLiteral
+import firrtl.transforms.clockfinder.{ClockSources, ClockFinderTransform, GetClockSources}
 
 
 trait MemStuff {
@@ -72,9 +73,30 @@ trait MemStuff {
   val allSignals = readerTargets(Reader) ++ writerTargets(Writer) ++ readwriterTargets(Readwriter)
 }
 
-class FindClockSourcesSpec extends MiddleAnnotationSpec with MemStuff with FirrtlRunners {
+trait DeepHierarchyStuff {
+  def mkChild(n: Int): String =
+    s"""  module Child${n} :
+       |    input in: UInt<8>
+       |    output out: UInt<8>
+       |    inst c1 of Child${n+1}
+       |    inst c2 of Child${n+1}
+       |    c1.in <= in
+       |    c2.in <= c1.out
+       |    out <= c2.out
+       """.stripMargin
+  def mkLeaf(n: Int): String =
+    s"""  module Child${n} :
+       |    input in: UInt<8>
+       |    output out: UInt<8>
+       |    wire middle: UInt<8>
+       |    middle <= in
+       |    out <= middle
+       """.stripMargin
+}
+
+class ClockFinderTransformSpec extends MiddleAnnotationSpec with MemStuff with FirrtlRunners with DeepHierarchyStuff {
   def execute(input: String, annotations: Seq[Annotation], check: ClockSources, notCheck: Option[ClockSources]): Unit = {
-    val cr = compile(CircuitState(parse(input), ChirrtlForm, annotations), Seq(new FindClockSources()))
+    val cr = compile(CircuitState(parse(input), ChirrtlForm, annotations), Seq(new ClockFinderTransform()))
     val signalToClocks = cr.annotations.flatMap {
       case c: ClockSources => c.signalToClocks
       case _ => Nil
@@ -90,7 +112,7 @@ class FindClockSourcesSpec extends MiddleAnnotationSpec with MemStuff with Firrt
   }
 
   def execute(input: String, annotations: Seq[Annotation], checks: Seq[Annotation], notChecks: Seq[Annotation]): Unit = {
-    val cr = compile(CircuitState(parse(input), ChirrtlForm, annotations), Seq(new FindClockSources()))
+    val cr = compile(CircuitState(parse(input), ChirrtlForm, annotations), Seq(new ClockFinderTransform()))
     checks.foreach { c =>
       cr.annotations.toSeq should contain (c)
     }
@@ -413,24 +435,6 @@ class FindClockSourcesSpec extends MiddleAnnotationSpec with MemStuff with Firrt
   }
 
   "Caching of topological sorting of modules" should "work" in {
-    def mkChild(n: Int): String =
-      s"""  module Child${n} :
-         |    input in: UInt<8>
-         |    output out: UInt<8>
-         |    inst c1 of Child${n+1}
-         |    inst c2 of Child${n+1}
-         |    c1.in <= in
-         |    c2.in <= c1.out
-         |    out <= c2.out
-       """.stripMargin
-    def mkLeaf(n: Int): String =
-      s"""  module Child${n} :
-         |    input in: UInt<8>
-         |    output out: UInt<8>
-         |    wire middle: UInt<8>
-         |    middle <= in
-         |    out <= middle
-       """.stripMargin
 
     (2 until 23 by 2).foreach { n =>
       val input = new StringBuilder()
@@ -617,10 +621,10 @@ class FindClockSourcesSpec extends MiddleAnnotationSpec with MemStuff with Firrt
     val Test = C.module("Test")
     val clockSources = Seq(
       ClockSources(Map(
-        Test.ref("in") -> Set((Test.ref("clk"), None)),
-        Test.ref("x") -> Set((Test.ref("clk"), None)),
         Test.ref("out1") -> Set((Test.ref("clk"), None)),
-        Test.ref("out2") -> Set((Test.ref("clk"), None))
+        Test.ref("out2") -> Set((Test.ref("clk"), None)),
+        Test.ref("in") -> Set((Test.ref("clk"), None)),
+        Test.ref("x") -> Set((Test.ref("clk"), None))
       ))
     )
     val annotations =
@@ -632,65 +636,6 @@ class FindClockSourcesSpec extends MiddleAnnotationSpec with MemStuff with Firrt
     execute(input, annotations, clockSources, Nil)
   }
 
-  it should "find register-register clock domain crossings" in {
-
-    val C = CircuitTarget("Test")
-    val Test = C.module("Test")
-    val input =
-      """circuit Test:
-        |  module Test:
-        |    input in: UInt<8>
-        |    input reset: UInt<1>
-        |    input clk1: Clock
-        |    input clk2: Clock
-        |    output out: UInt<8>
-        |    reg r1: UInt<8>, clk1 with:
-        |      (reset => (UInt(0), UInt(0)))
-        |    reg r2: UInt<8>, clk2 with:
-        |      (reset => (UInt(0), r2))
-        |    node x = in
-        |    r1 <= x
-        |    inst c1 of Child
-        |    inst c2 of Child
-        |    c1.in <= r1
-        |    c2.in <= c1.out
-        |    r2 <= c2.out
-        |    out <= r2
-        |  module Child:
-        |    input in: UInt<8>
-        |    output out: UInt<8>
-        |    node y = in
-        |    out <= y
-      """.stripMargin
-
-    val circuit = toMiddleFIRRTL(parse(input))
-    val circuitGraph = CircuitGraph(circuit)
-    val finder = new ClockSourceFinder(circuitGraph.connectionGraph, Map(Test.ref("in") -> Set(Test.ref("clk1"))))
-
-    val clocks = circuitGraph.deepReferences(ModuleTarget("Test", "Test"), RegKind).foreach { reg =>
-      val sinkClock = finder.getClockSource(reg)
-      val fanIns = if(circuitGraph.irLookup.expr(reg.reset) == UIntLiteral(0)) {
-        circuitGraph.fanInSignals(reg).filter(r => !(r.isClock || r.isReset || r.isInit))
-      } else {
-        circuitGraph.fanInSignals(reg).filter(r => !r.isClock)
-      }
-      val sourceClock = fanIns.flatMap(finder.getClockSource)
-
-
-      if(sinkClock != sourceClock) {
-        println(s"Illegal Clock Crossing Detected at register $reg!")
-        println(s"Register $reg clock domain is $sinkClock via:")
-        sinkClock.foreach { c =>
-          println(circuitGraph.prettyPrintPath(circuitGraph.path(c, reg), "\t"))
-        }
-        println(s"Register $reg input clock domain is $sourceClock via:")
-        sourceClock.foreach { c =>
-          println(circuitGraph.prettyPrintPath(circuitGraph.path(c, reg), "\t"))
-        }
-      }
-    }
-  }
-
   "Clock sources" should "work on large circuits" in {
     val regress = Seq("RocketCore", "FPU", "ICache", "Rob")
     for(design <- regress) {
@@ -698,7 +643,7 @@ class FindClockSourcesSpec extends MiddleAnnotationSpec with MemStuff with Firrt
       val finalState = executeFirrtlTest(
         design,
         "/regress",
-        Seq(new FindClockSources),
+        Seq(new ClockFinderTransform),
         Seq(GetClockSources(Seq(CircuitTarget(design))))
       )
       val clockSources = finalState.annotations.collectFirst{
