@@ -174,11 +174,11 @@ class ConnectionGraph protected(val circuit: Circuit, val digraph: DiGraph[Refer
       path.head +: path.sliding(2).flatMap {
         case Seq(from, to) =>
           getShortCut(from) match {
-            case Some(set) if set.contains(to) && soFar.contains(from) =>
-              soFar += from
+            case Some(set) if set.contains(to) && soFar.contains(from.pathlessTarget) =>
+              soFar += from.pathlessTarget
               Seq(from.pathTarget.ref("..."), to)
             case other =>
-              soFar += from
+              soFar += from.pathlessTarget
               Seq(to)
           }
       }.toSeq
