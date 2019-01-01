@@ -165,13 +165,42 @@ class ConnectionGraph protected(val circuit: Circuit, val digraph: DiGraph[Refer
     * @return a Seq[T] of nodes defining an arbitrary valid path
     */
   override def path(start: ReferenceTarget, end: ReferenceTarget, blacklist: collection.Set[ReferenceTarget]): Seq[ReferenceTarget] = {
-    start +: super.path(start, end, blacklist).sliding(2).flatMap {
-      case Seq(from, to) =>
-        getShortCut(from) match {
-          case Some(set) if set.contains(to) => Seq(from.pathTarget.ref("..."), to)
-          case other => Seq(to)
-        }
-    }.toSeq
+    insertShortCuts(super.path(start, end, blacklist))
+  }
+
+  private def insertShortCuts(path: Seq[ReferenceTarget]): Seq[ReferenceTarget] = {
+    val soFar = mutable.HashSet[ReferenceTarget]()
+    if(path.size > 1) {
+      path.head +: path.sliding(2).flatMap {
+        case Seq(from, to) =>
+          getShortCut(from) match {
+            case Some(set) if set.contains(to) && soFar.contains(from) =>
+              soFar += from
+              Seq(from.pathTarget.ref("..."), to)
+            case other =>
+              soFar += from
+              Seq(to)
+          }
+      }.toSeq
+    } else path
+  }
+
+  /** Finds all paths starting at a particular node in a DAG
+    *
+    * WARNING: This is an exponential time algorithm (as any algorithm
+    * must be for this problem), but is useful for flattening circuit
+    * graph hierarchies. Each path is represented by a Seq[T] of nodes
+    * in a traversable order.
+    *
+    * @param start the node to start at
+    * @return a Map[T,Seq[Seq[T]]] where the value associated with v is the Seq of all paths from start to v
+    */
+  override def pathsInDAG(start: ReferenceTarget): mutable.LinkedHashMap[ReferenceTarget,Seq[Seq[ReferenceTarget]]] = {
+    val linkedMap = super.pathsInDAG(start)
+    linkedMap.keysIterator.foreach { key =>
+      linkedMap(key) = linkedMap(key).map(insertShortCuts)
+    }
+    linkedMap
   }
 
   override def findSCCs: Seq[Seq[ReferenceTarget]] = Utils.throwInternalError("Cannot call findSCCs on ConnectionGraph")
