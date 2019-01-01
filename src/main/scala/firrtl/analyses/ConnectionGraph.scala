@@ -3,7 +3,7 @@
 package firrtl.analyses
 
 import firrtl.annotations._
-import firrtl.graph.{DiGraph, DiGraphLike, MutableDiGraph}
+import firrtl.graph.{DiGraph, DiGraphLike, MutableDiGraph, PathNotFoundException}
 import firrtl.ir._
 import firrtl.Mappers._
 import firrtl.annotations.TargetToken
@@ -16,13 +16,59 @@ class ConnectionGraph protected(val circuit: Circuit, val digraph: DiGraph[Refer
   override val edges =
     digraph.getEdgeMap.asInstanceOf[mutable.LinkedHashMap[ReferenceTarget, mutable.LinkedHashSet[ReferenceTarget]]]
 
-  val portConnectivityStack: mutable.HashMap[ReferenceTarget, List[ReferenceTarget]] =
+  private val portConnectivityStack: mutable.HashMap[ReferenceTarget, List[ReferenceTarget]] =
     mutable.HashMap.empty[ReferenceTarget, List[ReferenceTarget]]
 
-  val portShortCuts: mutable.HashMap[ReferenceTarget, mutable.HashSet[ReferenceTarget]] =
+  private val foundShortCuts: mutable.HashMap[ReferenceTarget, mutable.HashSet[ReferenceTarget]] =
     mutable.HashMap.empty[ReferenceTarget, mutable.HashSet[ReferenceTarget]]
 
+  private val bfsShortCuts: mutable.HashMap[ReferenceTarget, mutable.HashSet[ReferenceTarget]] =
+    mutable.HashMap.empty[ReferenceTarget, mutable.HashSet[ReferenceTarget]]
+
+  def hasShortCut(target: ReferenceTarget): Boolean = getShortCut(target).nonEmpty
+
+  def getShortCut(target: ReferenceTarget): Option[Set[ReferenceTarget]] =
+    foundShortCuts.get(target.pathlessTarget).map(set => set.map(_.setPathTarget(target.pathTarget)).toSet)
+
+  def shortCut(target: ReferenceTarget): Set[ReferenceTarget] = getShortCut(target).get
+
   def reverseConnectionGraph: ConnectionGraph = new ConnectionGraph(circuit, digraph.reverse, irLookup)
+
+  protected def tagPath(destination: ReferenceTarget,
+                      prev: collection.Map[ReferenceTarget, ReferenceTarget],
+                      tag: ReferenceTarget,
+                      tagMap: mutable.LinkedHashMap[ReferenceTarget, mutable.HashSet[ReferenceTarget]]): Unit = {
+    tagPath(destination, prev, Set(tag), tagMap)
+  }
+
+  protected def tagPath(destination: ReferenceTarget,
+                      prev: collection.Map[ReferenceTarget, ReferenceTarget],
+                      tags: collection.Set[ReferenceTarget],
+                      tagMap: mutable.LinkedHashMap[ReferenceTarget, mutable.HashSet[ReferenceTarget]]): Unit = {
+    val perModuleTags = mutable.HashMap[String, mutable.HashSet[ReferenceTarget]]()
+
+    def updatePerModuleTags(tag: ReferenceTarget): Unit = {
+      perModuleTags.getOrElseUpdate(tag.module, mutable.HashSet.empty[ReferenceTarget]) += tag
+      if(tag.path.nonEmpty) {
+        updatePerModuleTags(tag.stripHierarchy(1))
+      }
+    }
+
+    tags.foreach { tag => updatePerModuleTags(tag) }
+
+    val nodePath = new mutable.ArrayBuffer[ReferenceTarget]()
+    nodePath += destination
+    while (prev.contains(nodePath.last)) {
+      val x = nodePath.last
+      perModuleTags.get(x.encapsulatingModule) match {
+        case Some(tags) =>
+          tagMap.getOrElseUpdate(x.pathlessTarget, mutable.HashSet.empty[ReferenceTarget]) ++= tags
+        case None =>
+      }
+      nodePath += prev(nodePath.last)
+    }
+    tagMap.getOrElseUpdate(nodePath.last, mutable.HashSet.empty[ReferenceTarget]) ++= tags
+  }
 
   override def BFS(root: ReferenceTarget, blacklist: collection.Set[ReferenceTarget]): collection.Map[ReferenceTarget, ReferenceTarget] = {
 
@@ -46,6 +92,10 @@ class ConnectionGraph protected(val circuit: Circuit, val digraph: DiGraph[Refer
       }
     }
 
+    foundShortCuts ++= bfsShortCuts
+    bfsShortCuts.clear()
+    portConnectivityStack.clear()
+
     prev
   }
 
@@ -54,7 +104,7 @@ class ConnectionGraph protected(val circuit: Circuit, val digraph: DiGraph[Refer
 
     val localSource = source.pathlessTarget
 
-    portShortCuts.get(localSource) match {
+    bfsShortCuts.get(localSource) match {
       case Some(set) => set.map{x => x.setPathTarget(source.pathTarget)}
       case None =>
 
@@ -79,8 +129,8 @@ class ConnectionGraph protected(val circuit: Circuit, val digraph: DiGraph[Refer
                 instancePort.component.head.value.toString,
                 instancePort.component.tail
               )
-              val destinations = portShortCuts.getOrElse(modulePort, mutable.HashSet.empty[ReferenceTarget])
-              portShortCuts(modulePort) = destinations + localSource
+              val destinations = bfsShortCuts.getOrElse(modulePort, mutable.HashSet.empty[ReferenceTarget])
+              bfsShortCuts(modulePort) = destinations + localSource
               // Remove entrance from parent from stack
               portConnectivityStack(localSink) = currentStack.tail
             } else {
@@ -104,6 +154,24 @@ class ConnectionGraph protected(val circuit: Circuit, val digraph: DiGraph[Refer
         ret
     }
 
+  }
+
+  /** Finds a path (if one exists) from one node to another, with a blacklist
+    *
+    * @param start the start node
+    * @param end the destination node
+    * @param blacklist list of nodes which break path, if encountered
+    * @throws PathNotFoundException
+    * @return a Seq[T] of nodes defining an arbitrary valid path
+    */
+  override def path(start: ReferenceTarget, end: ReferenceTarget, blacklist: collection.Set[ReferenceTarget]): Seq[ReferenceTarget] = {
+    start +: super.path(start, end, blacklist).sliding(2).flatMap {
+      case Seq(from, to) =>
+        getShortCut(from) match {
+          case Some(set) if set.contains(to) => Seq(from.pathTarget.ref("..."), to)
+          case other => Seq(to)
+        }
+    }.toSeq
   }
 
   override def findSCCs: Seq[Seq[ReferenceTarget]] = Utils.throwInternalError("Cannot call findSCCs on ConnectionGraph")

@@ -105,6 +105,7 @@ trait DiGraphLike[T] {
     // invariant: no intersection between unmarked and tempMarked
     val unmarked = new mutable.LinkedHashSet[T]
     val tempMarked = new mutable.LinkedHashSet[T]
+    val finished = new mutable.LinkedHashSet[T]
 
     case class LinearizeFrame[A](v: A, expanded: Boolean)
     val callStack = mutable.Stack[LinearizeFrame[T]]()
@@ -116,6 +117,7 @@ trait DiGraphLike[T] {
         val LinearizeFrame(n, expanded) = callStack.pop()
         if (!expanded) {
           if (tempMarked.contains(n)) {
+            println(tempMarked.toSeq)
             throw new CyclicException(n)
           }
           if (unmarked.contains(n)) {
@@ -124,11 +126,15 @@ trait DiGraphLike[T] {
             callStack.push(LinearizeFrame(n, true))
             // We want to visit the first edge first (so push it last)
             for (m <- getEdges(n).toSeq.reverse) {
+              if(!unmarked.contains(m) && !tempMarked.contains(m) && !finished.contains(m)){
+                unmarked += m
+              }
               callStack.push(LinearizeFrame(m, false))
             }
           }
         } else {
           tempMarked -= n
+          finished += n
           order.append(n)
         }
       }

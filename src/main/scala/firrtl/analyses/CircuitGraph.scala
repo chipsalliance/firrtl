@@ -7,6 +7,10 @@ import firrtl.ir.Circuit
 
 object CircuitGraph {
   def apply(circuit: Circuit): CircuitGraph = new CircuitGraph(ConnectionGraph(circuit))
+  def prettyPrintPath(path: Seq[ReferenceTarget], tab: String = ""): String = {
+    tab + path.mkString(s"\n$tab")
+  }
+
 }
 
 class CircuitGraph private[analyses] (val connectionGraph: ConnectionGraph) {
@@ -21,6 +25,8 @@ class CircuitGraph private[analyses] (val connectionGraph: ConnectionGraph) {
 
   lazy val moduleChildren = instanceGraph.getChildrenInstanceOfModule
 
+  val main = ModuleTarget(circuit.main, circuit.main)
+
   def fanOutSignals(source: ReferenceTarget): Set[ReferenceTarget] = connectionGraph.getEdges(source, None).toSet
 
   def fanInSignals(sink: ReferenceTarget): Set[ReferenceTarget] = reverseConnectionGraph.getEdges(sink, None).toSet
@@ -32,17 +38,7 @@ class CircuitGraph private[analyses] (val connectionGraph: ConnectionGraph) {
   }
 
   def path(source: ReferenceTarget, sink: ReferenceTarget): Seq[ReferenceTarget] =
-    source +: connectionGraph.path(source, sink).sliding(2).flatMap {
-      case Seq(from, to) =>
-        connectionGraph.portShortCuts.get(from.pathlessTarget) match {
-          case Some(set) if set.contains(to.pathlessTarget) => Seq(from.pathTarget.ref("..."), to)
-          case other => Seq(to)
-        }
-    }.toSeq
-
-  def prettyPrintPath(path: Seq[ReferenceTarget], tab: String = ""): String = {
-    tab + path.mkString(s"\n$tab")
-  }
+    connectionGraph.path(source, sink)
 
   def localReferences(path: IsModule, kind: Kind): Seq[ReferenceTarget] = {
     val leafModule = path.leafModule
