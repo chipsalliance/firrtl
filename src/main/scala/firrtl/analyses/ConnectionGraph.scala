@@ -16,22 +16,100 @@ class ConnectionGraph protected(val circuit: Circuit, val digraph: DiGraph[Refer
   override val edges =
     digraph.getEdgeMap.asInstanceOf[mutable.LinkedHashMap[ReferenceTarget, mutable.LinkedHashSet[ReferenceTarget]]]
 
+  /** Used by BFS to map each visited node to the list of instance inputs visited thus far
+    *
+    * When BFS descends into a child instance, the child instance port is prepended to the list
+    * When BFS ascends into a parent instance, the head of the list is removed
+    * In essence, the list is a stack that you push when descending, and pop when ascending
+    *
+    * Because the search is BFS not DFS, we must record the state of the stack for each edge node, so
+    * when that edge node is finally visited, we know the state of the stack
+    *
+    * For example:
+    * circuit Top:
+    *   module Top:
+    *     input in: UInt
+    *     output out: UInt
+    *     inst a of A
+    *     a.in <= in
+    *     out <= a.out
+    *   module A:
+    *     input in: UInt
+    *     output out: UInt
+    *     inst b of B
+    *     b.in <= in
+    *     out <= b.out
+    *   module B:
+    *     input in: UInt
+    *     output out: UInt
+    *     out <= in
+    *
+    * We perform BFS starting at Top>in
+    *  Node                ConnectivityStack
+    *  Top>in              List()
+    *  Top>a.in            List()
+    *  Top/a:A>in          List(Top>a.in)
+    *  Top/a:A>b.in        List(Top>a.in)
+    *  Top/a:A/b:B/in      List(Top/a:A>b.in, Top>a.in)
+    *  Top/a:A/b:B/out     List(Top/a:A>b.in, Top>a.in)
+    *  Top/a:A>b.out       List(Top>a.in)
+    *  Top/a:A>out         List(Top>a.in)
+    *  Top>a.out           List()
+    *  Top>out             List()
+    * when we reach Top/a:A>in the stack is List
+    */
   private val portConnectivityStack: mutable.HashMap[ReferenceTarget, List[ReferenceTarget]] =
     mutable.HashMap.empty[ReferenceTarget, List[ReferenceTarget]]
 
-  private val foundShortCuts: mutable.HashMap[ReferenceTarget, mutable.HashSet[ReferenceTarget]] =
-    mutable.HashMap.empty[ReferenceTarget, mutable.HashSet[ReferenceTarget]]
-
+  /** Records connectivities found while BFS is executing, from a module's source port to sink ports of a module
+    *
+    * All keys and values are local references.
+    *
+    * A BFS search will first query this map. If the query fails, then it continues and populates the map. If the query
+    *   succeeds, then the BFS shortcuts with the values provided by the query.
+    *
+    * Because this BFS implementation uses a priority queue which prioritizes exploring deeper instances first, a
+    *   successful query during BFS will only occur after all paths which leave the module from that reference have
+    *   already been searched.
+    */
   private val bfsShortCuts: mutable.HashMap[ReferenceTarget, mutable.HashSet[ReferenceTarget]] =
     mutable.HashMap.empty[ReferenceTarget, mutable.HashSet[ReferenceTarget]]
 
+  /** Records connectivities found after BFS is completed, from a module's source port to sink ports of a module
+    *
+    * All keys and values are local references.
+    *
+    * If its keys contain a reference, then the value will be complete, in that all paths from the reference out of
+    *   the module will have been explored
+    *
+    * For example, if Top>in connects to Top>out1 and Top>out2, then foundShortCuts(Top>in) will contain
+    *   Set(Top>out1, Top>out2), not Set(Top>out1) or Set(Top>out2)
+    */
+  private val foundShortCuts: mutable.HashMap[ReferenceTarget, mutable.HashSet[ReferenceTarget]] =
+    mutable.HashMap.empty[ReferenceTarget, mutable.HashSet[ReferenceTarget]]
+
+  /** Returns whether a previous BFS search has found a shortcut out of a module, starting from target
+    * @param target
+    * @return
+    */
   def hasShortCut(target: ReferenceTarget): Boolean = getShortCut(target).nonEmpty
 
+  /** Optionally returns the shortcut a previous BFS search may have found out of a module, starting from target
+    * @param target
+    * @return
+    */
   def getShortCut(target: ReferenceTarget): Option[Set[ReferenceTarget]] =
     foundShortCuts.get(target.pathlessTarget).map(set => set.map(_.setPathTarget(target.pathTarget)).toSet)
 
+  /** Returns the shortcut a previous BFS search may have found out of a module, starting from target
+    * @param target
+    * @return
+    */
   def shortCut(target: ReferenceTarget): Set[ReferenceTarget] = getShortCut(target).get
 
+  /** Returns a new, reversed connection graph where edges point from sinks to sources
+    * @return
+    */
   def reverseConnectionGraph: ConnectionGraph = new ConnectionGraph(circuit, digraph.reverse, irLookup)
 
   protected def tagPath(destination: ReferenceTarget,
