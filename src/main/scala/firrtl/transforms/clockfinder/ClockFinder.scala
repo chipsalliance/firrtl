@@ -18,7 +18,7 @@ object ClockFinder {
       s"Illegal Clock Crossing Detected at register $reg!\n" +
         clockPaths.map { path =>
           s"From Clock ${path.head}:\n" +
-          CircuitGraph.prettyPrintPath(path, "\t")
+          CircuitGraph.prettyToString(path, "\t")
         }.mkString("\n")
     }
   }
