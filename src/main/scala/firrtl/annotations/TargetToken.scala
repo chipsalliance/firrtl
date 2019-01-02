@@ -4,56 +4,43 @@ package firrtl.annotations
 
 /** Building block to represent a [[Target]] of a FIRRTL component */
 sealed trait TargetToken {
+  def keyword: String
   def value: Any
-  def canBeAfter(optT: Option[TargetToken]): Boolean
-}
 
-trait SubTargetToken extends TargetToken {
-  import TargetToken._
-  override def canBeAfter(optT: Option[TargetToken]): Boolean = optT match {
-    case Some(_: Ref) => true
-    case Some(_: Index) => true
-    case Some(_: Field) => true
-    case Some(Clock) => true
-    case Some(Init) => true
-    case Some(Reset) => true
-    case Some(other: CustomToken) => other.checkWhitelistedFollower(this)
-    case None => false
+  /** Returns whether this token is one of the type of tokens whose keyword is passed as an argument
+    * @param keywords
+    * @return
+    */
+  def is(keywords: String*): Boolean = {
+    keywords.map { kw =>
+      require(TargetToken.keyword2targettoken.keySet.contains(kw),
+        s"Keyword $kw must be in set ${TargetToken.keyword2targettoken.keys}")
+      val lastClass = this.getClass
+      lastClass == TargetToken.keyword2targettoken(kw)("0").getClass
+    }.reduce(_ || _)
   }
 }
 
-/** Object containing all core [[TargetToken]] subclasses */
+/** Object containing all [[TargetToken]] subclasses */
 case object TargetToken {
-  case class Instance(value: String) extends TargetToken {
-    override def canBeAfter(optT: Option[TargetToken]): Boolean = optT match {
-      case None => true
-      case Some(_: OfModule) => true
-      case Some(other: CustomToken) => other.checkWhitelistedFollower(this)
-    }
-  }
-  case class OfModule(value: String) extends TargetToken {
-    override def canBeAfter(optT: Option[TargetToken]): Boolean = optT match {
-      case None => false
-      case Some(_: Instance) => true
-      case Some(other: CustomToken) => other.checkWhitelistedFollower(this)
-    }
-  }
-  case class Ref(value: String) extends TargetToken {
-    override def canBeAfter(optT: Option[TargetToken]): Boolean = optT match {
-      case None => true
-      case Some(_: Instance) => true
-      case Some(_: OfModule) => true
-      case Some(other: CustomToken) => other.checkWhitelistedFollower(this)
-    }
-  }
-  case class Index(value: Int) extends SubTargetToken
-  case class Field(value: String) extends SubTargetToken
-  case object Clock extends SubTargetToken { val value = "" }
-  case object Init extends SubTargetToken { val value = "" }
-  case object Reset extends SubTargetToken { val value = "" }
-  abstract class CustomToken extends TargetToken {
-    def checkWhitelistedFollower(follower: TargetToken): Boolean
-    def checkWhitelistedLeader(leader: TargetToken): Boolean
-  }
+  case class Instance(value: String)  extends TargetToken { override def keyword: String = "inst" }
+  case class OfModule(value: String)  extends TargetToken { override def keyword: String = "of" }
+  case class Ref(value: String)       extends TargetToken { override def keyword: String = "ref" }
+  case class Index(value: Int)        extends TargetToken { override def keyword: String = "[]" }
+  case class Field(value: String)     extends TargetToken { override def keyword: String = "." }
+  case object Clock                   extends TargetToken { override def keyword: String = "clock"; val value = "" }
+  case object Init                    extends TargetToken { override def keyword: String = "init";  val value = "" }
+  case object Reset                   extends TargetToken { override def keyword: String = "reset"; val value = "" }
+
+  val keyword2targettoken = Map(
+    "inst" -> ((value: String) => Instance(value)),
+    "of" -> ((value: String) => OfModule(value)),
+    "ref" -> ((value: String) => Ref(value)),
+    "[]" -> ((value: String) => Index(value.toInt)),
+    "." -> ((value: String) => Field(value)),
+    "clock" -> ((value: String) => Clock),
+    "init" -> ((value: String) => Init),
+    "reset" -> ((value: String) => Reset)
+  )
 }
 
