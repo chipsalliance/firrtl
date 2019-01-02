@@ -160,11 +160,11 @@ object Target {
 
   /** Checks if seq only contains [[TargetToken]]'s with select keywords
     * @param seq
-    * @param tokenClasses
+    * @param keywords
     * @return
     */
-  def isOnly(seq: Seq[TargetToken], tokenClasses: Set[Class[_ <: TargetToken]]): Boolean = {
-    seq.map(t => tokenClasses.contains(t.getClass())).foldLeft(false)(_ || _) && tokenClasses.nonEmpty
+  def isOnly(seq: Seq[TargetToken], keywords:String*): Boolean = {
+    seq.map(_.is(keywords:_*)).foldLeft(false)(_ || _) && keywords.nonEmpty
   }
 
   /** @return [[Target]] from human-readable serialization */
@@ -318,21 +318,25 @@ case class GenericTarget(circuitOpt: Option[String],
     * @param default Return value if tokens is empty
     * @param keywords
     */
-  //private def requireLast(default: Boolean, keywords: String*): Unit = {
-  //  val isOne = if (tokens.isEmpty) default else tokens.last.is(keywords: _*)
-  //  require(isOne, s"${tokens.last} is not one of $keywords")
-  //}
+  private def requireLast(default: Boolean, keywords: String*): Unit = {
+    val isOne = if (tokens.isEmpty) default else tokens.last.is(keywords: _*)
+    require(isOne, s"${tokens.last} is not one of $keywords")
+  }
 
   /** Appends a target token to tokens, asserts legality
     * @param token
     * @return
     */
   def add(token: TargetToken): GenericTarget = {
-    if(tokens.isEmpty) {
-      require(token.canBeAfter(None), "")
-    } else {
-      val currentEnd = tokens.last
-      require(token.canBeAfter(Some(currentEnd)), "")
+    token match {
+      case _: Instance  => requireLast(true, "inst", "of")
+      case _: OfModule  => requireLast(false, "inst")
+      case _: Ref       => requireLast(true, "inst", "of")
+      case _: Field     => requireLast(true, "ref", "[]", ".", "init", "clock", "reset")
+      case _: Index     => requireLast(true, "ref", "[]", ".", "init", "clock", "reset")
+      case Init         => requireLast(true, "ref", "[]", ".", "init", "clock", "reset")
+      case Clock        => requireLast(true, "ref", "[]", ".", "init", "clock", "reset")
+      case Reset        => requireLast(true, "ref", "[]", ".", "init", "clock", "reset")
     }
     this.copy(tokens = tokens :+ token)
   }
@@ -500,7 +504,7 @@ trait IsComponent extends IsMember {
       val mn = ModuleName(module, CircuitName(circuit))
       Seq(tokens:_*) match {
         case Seq(Ref(name)) => ComponentName(name, mn)
-        case Ref(_) :: tail if Target.isOnly(tail, Set(classOf[Field], classOf[Index])) =>
+        case Ref(_) :: tail if Target.isOnly(tail, ".", "[]") =>
           val name = tokens.foldLeft(""){
             case ("", Ref(name)) => name
             case (string, Field(value)) => s"$string.$value"
