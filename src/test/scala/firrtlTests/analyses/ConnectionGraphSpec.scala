@@ -1,3 +1,5 @@
+// See LICENSE for license details.
+
 package firrtlTests.analyses
 
 import firrtl.analyses.ConnectionGraph
