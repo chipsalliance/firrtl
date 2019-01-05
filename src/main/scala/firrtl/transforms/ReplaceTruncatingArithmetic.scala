@@ -2,6 +2,7 @@ package firrtl
 package transforms
 
 import firrtl.ir._
+import firrtl.analyses._
 import firrtl.Mappers._
 import firrtl.PrimOps._
 import firrtl.WrappedExpression._
@@ -10,46 +11,40 @@ import scala.collection.mutable
 
 object ReplaceTruncatingArithmetic {
 
-  /** Mapping from references to the [[Expression]]s that drive them */
-  type Netlist = mutable.HashMap[WrappedExpression, Expression]
-
   private val SeqBIOne = Seq(BigInt(1))
 
   /** Replaces truncating arithmetic in an Expression
     *
-    * @param netlist a '''mutable''' HashMap mapping references to [[DefNode]]s to their connected
-    * [[Expression]]s. It is '''not''' mutated in this function
     * @param expr the Expression being transformed
     * @return Returns expr with truncating arithmetic replaced
     */
-  def onExpr(netlist: Netlist)(expr: Expression): Expression =
-    expr.map(onExpr(netlist)) match {
+  def onExpr(main: String, mod: String, lookup: IRLookup)(expr: Expression): Expression =
+    expr.map(onExpr(main, mod, lookup)) match {
       case orig @ DoPrim(Tail, Seq(e), SeqBIOne, tailtpe) =>
-        netlist.getOrElse(we(e), e) match {
-          case DoPrim(Add, args, cs, _) => DoPrim(Addw, args, cs, tailtpe)
-          case DoPrim(Sub, args, cs, _) => DoPrim(Subw, args, cs, tailtpe)
-          case _ => orig // Not a candidate
+        e match {
+          case ref: WRef =>
+            val target = Utils.toTarget(main, mod)(ref)
+            lookup.declaration(target) match {
+              case DefNode(_,_, DoPrim(Add, args, cs, _)) => DoPrim(Addw, args, cs, tailtpe)
+              case DefNode(_,_, DoPrim(Sub, args, cs, _)) => DoPrim(Subw, args, cs, tailtpe)
+              case _ => orig // Not a candidate
+            }
+          case other => other
         }
-      case other => other // Not a candidate
+      case other => other
     }
 
   /** Replaces truncating arithmetic in a Statement
     *
-    * @param netlist a '''mutable''' HashMap mapping references to [[DefNode]]s to their connected
-    * [[Expression]]s. This function '''will''' mutate it if stmt contains a [[DefNode]]
     * @param stmt the Statement being searched for nodes and transformed
     * @return Returns stmt with truncating arithmetic replaced
     */
-  def onStmt(netlist: Netlist)(stmt: Statement): Statement =
-    stmt.map(onStmt(netlist)).map(onExpr(netlist)) match {
-      case node @ DefNode(_, name, value) =>
-        netlist(we(WRef(name))) = value
-        node
-      case other => other
-    }
+  def onStmt(main: String, mod: String, lookup: IRLookup)(stmt: Statement): Statement =
+    stmt.map(onStmt(main, mod, lookup)).map(onExpr(main, mod, lookup))
 
   /** Replaces truncating arithmetic in a Module */
-  def onMod(mod: DefModule): DefModule = mod.map(onStmt(new Netlist))
+  def onMod(main: String, lookup: IRLookup)(mod: DefModule): DefModule =
+    mod.map(onStmt(main, mod.name, lookup))
 }
 
 /** Replaces non-expanding arithmetic
@@ -66,7 +61,8 @@ class ReplaceTruncatingArithmetic extends Transform {
   def outputForm = LowForm
 
   def execute(state: CircuitState): CircuitState = {
-    val modulesx = state.circuit.modules.map(ReplaceTruncatingArithmetic.onMod(_))
+    val lookup = IRLookup(state.circuit)
+    val modulesx = state.circuit.modules.map(ReplaceTruncatingArithmetic.onMod(state.circuit.main, lookup))
     state.copy(circuit = state.circuit.copy(modules = modulesx))
   }
 }
