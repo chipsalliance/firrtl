@@ -3,7 +3,7 @@
 package firrtl.transforms.clockfinder
 
 import firrtl.{FEMALE, MALE, MemKind, PortKind, RegKind}
-import firrtl.analyses.{CircuitGraph, ConnectionGraph}
+import firrtl.analyses.{CircuitGraph, ConnectionGraph, InstanceGraph}
 import firrtl.annotations.TargetToken.Clock
 import firrtl.annotations._
 import firrtl.ir.{ClockType, DefMemory, ExtModule, UIntLiteral}
@@ -82,7 +82,19 @@ class ClockFinder(reverseGraph: ConnectionGraph,
       case other: IsMember => other
     }.distinct
 
-    val ret = memberTargets.foldLeft(Map.empty[ReferenceTarget, Set[ReferenceTarget]]) { (map, t) =>
+    val moduleOrder = new InstanceGraph(circuit).moduleOrder.zipWithIndex.map {
+      case (m, i) => m.name -> i
+    }.toMap
+
+    val topoTargets = memberTargets.sortWith { (t0, t1) =>
+      (t0, t1) match {
+        case (x: CircuitTarget, _) => false
+        case (_, x: CircuitTarget) => true
+        case (x: IsMember, y: IsMember) => moduleOrder(x.module) > moduleOrder(y.module)
+      }
+    }
+
+    val ret = topoTargets.foldLeft(Map.empty[ReferenceTarget, Set[ReferenceTarget]]) { (map, t) =>
       t match {
         case it: InstanceTarget =>
           val lit = it.asReference.pathlessTarget
@@ -162,21 +174,26 @@ class ClockFinder(reverseGraph: ConnectionGraph,
       // Must check if not isClock because expression that is in the clock port of reg could be a port
       case rt@ ReferenceTarget(c, m, Nil, _, _)
         if irLookup.kind(rt) == PortKind && irLookup.gender(rt) == MALE && !rt.isClock =>
-        tagPath(node, prev, rt, clockMap)
+        tagPath(rt, prev, Set(rt), clockMap)
         Set()
 
       // Black-box Output Clock Port
       case rt: ReferenceTarget
         if extModuleNames.contains(rt.encapsulatingModule) && irLookup.tpe(rt) == ClockType && irLookup.gender(rt) == FEMALE =>
-        tagPath(node, prev, rt, clockMap)
+        tagPath(rt, prev, Set(rt), clockMap)
         Set()
 
       // AsClock Expression
       case rt if ConnectionGraph.isAsClock(rt) =>
-        tagPath(node, prev, rt, clockMap)
+        tagPath(rt, prev, Set(rt), clockMap)
         Set()
 
       case nonClockSource =>
+
+        // Input Port
+        //if(irLookup.kind(nonClockSource) == PortKind && irLookup.gender(nonClockSource) == MALE && !nonClockSource.isClock) {
+        //  tagPath(node, prev, Set(node.pathlessTarget), clockMap)
+        //}
 
         val superEdges = super.getEdges(nonClockSource)
 

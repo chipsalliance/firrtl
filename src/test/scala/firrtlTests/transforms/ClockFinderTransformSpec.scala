@@ -272,6 +272,40 @@ class ClockFinderTransformSpec extends MiddleAnnotationSpec with MemStuff with F
     execute(input, Seq(GetClockSources(Seq(Test))), clockSources, Nil)
   }
 
+  "Clocks of different hierarchies" should "still work" in {
+    val input =
+      """circuit Test:
+        |  module Test :
+        |    input in : UInt<8>
+        |    input clk: Clock
+        |    output out : UInt<8>
+        |    inst cm of ClockModule
+        |    cm.in <= in
+        |    cm.clk <= clk
+        |    out <= cm.out
+        |  module ClockModule:
+        |    input clk: Clock
+        |    input in: UInt<8>
+        |    output out: UInt<8>
+        |    reg r1: UInt<8>, clk
+        |    reg r2: UInt<8>, asClock(UInt(1))
+        |    r1 <= in
+        |    r2 <= in
+        |    out <= and(r1, r2)
+        |""".stripMargin
+
+    val C = CircuitTarget("Test")
+    val Test = C.module("Test")
+    val ClockModule = C.module("ClockModule")
+    val out = Test.ref("out")
+    val clockSources = Seq(ClockSources(Map(
+      Test.ref("out") -> Set((Test.ref("clk"), None), (Test.instOf("cm", "ClockModule"), Some("@asClock#0"))),
+      ClockModule.ref("out") -> Set((ClockModule.ref("clk"), None), (ClockModule, Some("@asClock#0")))
+    )))
+
+    execute(input, Seq(GetClockSources(Seq(Test, ClockModule))), clockSources, Nil)
+  }
+
   "Clocks of aggregate wires" should "still work" in {
     val input =
       """circuit Test:
