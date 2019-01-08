@@ -12,7 +12,9 @@ import firrtl.{FEMALE, InstanceKind, MALE, PortKind, Utils, WDefInstance, WInval
 
 import scala.collection.mutable
 
-class ConnectionGraph protected(val circuit: Circuit, val digraph: DiGraph[ReferenceTarget], val irLookup: IRLookup) extends DiGraphLike[ReferenceTarget] {
+class ConnectionGraph protected(val circuit: Circuit,
+                                val digraph: DiGraph[ReferenceTarget],
+                                val irLookup: IRLookup) extends DiGraphLike[ReferenceTarget] {
   override val edges =
     digraph.getEdgeMap.asInstanceOf[mutable.LinkedHashMap[ReferenceTarget, mutable.LinkedHashSet[ReferenceTarget]]]
 
@@ -112,40 +114,86 @@ class ConnectionGraph protected(val circuit: Circuit, val digraph: DiGraph[Refer
     */
   def reverseConnectionGraph: ConnectionGraph = new ConnectionGraph(circuit, digraph.reverse, irLookup)
 
-  protected def tagPath(destination: ReferenceTarget,
-                      prev: collection.Map[ReferenceTarget, ReferenceTarget],
-                      tag: ReferenceTarget,
-                      tagMap: mutable.LinkedHashMap[ReferenceTarget, mutable.HashSet[ReferenceTarget]]): Unit = {
-    tagPath(destination, prev, Set(tag), tagMap)
-  }
-
+  /** For each node in the path from the search start until the destination, update tagMap with the provided tags
+    *
+    * Tags should be rooted in the same  be non-local, e.g. Top/a:A>clk is ok.
+    * All values in tagMap will share their key's root module
+    * TagMap will also contain more local versions of the key/values pair, if they are legal (see example)
+    *
+    * For example, if we are tagging node Top/a:A>x with Set(Top/a:A>clk, Top>clk) :
+    *   TagMap:
+    *   Key         Value
+    *   Top/a:A>x   Set(Top/a:A>clk, Top>clk)
+    *   A>x         Set(A>clk)
+    * @param destination
+    * @param prev
+    * @param tags
+    * @param tagMap
+    */
   protected def tagPath(destination: ReferenceTarget,
                       prev: collection.Map[ReferenceTarget, ReferenceTarget],
                       tags: collection.Set[ReferenceTarget],
                       tagMap: mutable.LinkedHashMap[ReferenceTarget, mutable.HashSet[ReferenceTarget]]): Unit = {
+
+    val modules = (tags.map(_.module) + destination.module)
+    require(modules.size == 1, s"All tags ($tags) and nodes ($destination) in the path must share their root module ($modules)")
+
     val perModuleTags = mutable.HashMap[String, mutable.HashSet[ReferenceTarget]]()
-
-    def updatePerModuleTags(tag: ReferenceTarget): Unit = {
-      perModuleTags.getOrElseUpdate(tag.module, mutable.HashSet.empty[ReferenceTarget]) += tag
-      if(tag.path.nonEmpty) {
-        updatePerModuleTags(tag.stripHierarchy(1))
-      }
-    }
-
-    tags.foreach { tag => updatePerModuleTags(tag) }
+    tags.foreach { tag => updatePerModuleTags(tag, perModuleTags) }
 
     val nodePath = new mutable.ArrayBuffer[ReferenceTarget]()
     nodePath += destination
     while (prev.contains(nodePath.last)) {
-      val x = nodePath.last
-      perModuleTags.get(x.encapsulatingModule) match {
-        case Some(tags) =>
-          tagMap.getOrElseUpdate(x.pathlessTarget, mutable.HashSet.empty[ReferenceTarget]) ++= tags
-        case None =>
-      }
+      tag(nodePath.last, perModuleTags, tagMap)
       nodePath += prev(nodePath.last)
     }
-    tagMap.getOrElseUpdate(nodePath.last, mutable.HashSet.empty[ReferenceTarget]) ++= tags
+    tag(nodePath.last, perModuleTags, tagMap)
+  }
+
+  /** Update tagMap with the provided tags for node
+    *
+    * Tags should be rooted in the same  be non-local, e.g. Top/a:A>clk is ok.
+    * All values in tagMap will share their key's root module
+    * TagMap will also contain more local versions of the key/values pair, if they are legal (see example)
+    *
+    * For example, if we are tagging node Top/a:A>x with Set(Top/a:A>clk, Top>clk) :
+    *   TagMap:
+    *   Key         Value
+    *   Top/a:A>x   Set(Top/a:A>clk, Top>clk)
+    *   A>x         Set(A>clk)
+    * @param node
+    * @param tags
+    * @param tagMap
+    */
+  protected def tagNode(node: ReferenceTarget,
+                        tags: collection.Set[ReferenceTarget],
+                        tagMap: mutable.LinkedHashMap[ReferenceTarget, mutable.HashSet[ReferenceTarget]]): Unit = {
+    //require((tags.map(_.module) ++ node.module).size == 1, "All tags and nodes in the path must share their root module")
+    val perModuleTags = mutable.HashMap[String, mutable.HashSet[ReferenceTarget]]()
+    tags.foreach { tag => updatePerModuleTags(tag, perModuleTags) }
+    tag(node, perModuleTags, tagMap)
+  }
+
+  /** Tags a single node
+    * @param node
+    * @param perModuleTags
+    * @param tagMap
+    */
+  protected def tag(node: ReferenceTarget,
+                    perModuleTags: collection.Map[String, collection.Set[ReferenceTarget]],
+                    tagMap: mutable.LinkedHashMap[ReferenceTarget, mutable.HashSet[ReferenceTarget]]): Unit = {
+    perModuleTags.get(node.encapsulatingModule) match {
+      case Some(tags) =>
+        tagMap.getOrElseUpdate(node.pathlessTarget, mutable.HashSet.empty[ReferenceTarget]) ++= tags
+      case None =>
+    }
+  }
+
+  private def updatePerModuleTags(tag: ReferenceTarget, perModuleTags: mutable.HashMap[String, mutable.HashSet[ReferenceTarget]]): Unit = {
+    perModuleTags.getOrElseUpdate(tag.module, mutable.HashSet.empty[ReferenceTarget]) += tag
+    if(tag.path.nonEmpty) {
+      updatePerModuleTags(tag.stripHierarchy(1), perModuleTags)
+    }
   }
 
   override def BFS(root: ReferenceTarget, blacklist: collection.Set[ReferenceTarget]): collection.Map[ReferenceTarget, ReferenceTarget] = {
