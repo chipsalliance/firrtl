@@ -2,7 +2,7 @@ package firrtlTests.analyses
 
 import firrtl.PrimOps.AsUInt
 import firrtl.analyses.IRLookup
-import firrtl.annotations.{ ModuleTarget, ReferenceTarget}
+import firrtl.annotations.{ModuleTarget, ReferenceTarget}
 import firrtl._
 import firrtl.ir._
 import firrtlTests.FirrtlFlatSpec
@@ -80,6 +80,14 @@ class IRLookupSpec extends FirrtlFlatSpec with MemStuff {
     val inst = WDefInstance(NoInfo, "child", "Child", BundleType(Seq(Field("out", Default, uint8))))
     irLookup.declaration(Test.ref("child")) shouldBe inst
     irLookup.declaration(Test.ref("child").field("out")) shouldBe inst
+    irLookup.declaration(Test.instOf("child", "Child").ref("out")) shouldBe Port(NoInfo, "out", Output, uint8)
+
+    intercept[IllegalArgumentException]{ irLookup.declaration(Test.instOf("child", "Child").ref("missing")) }
+    intercept[IllegalArgumentException]{ irLookup.declaration(Test.instOf("child", "Missing").ref("out")) }
+    intercept[IllegalArgumentException]{ irLookup.declaration(Test.instOf("missing", "Child").ref("out")) }
+    intercept[IllegalArgumentException]{ irLookup.declaration(Test.ref("missing")) }
+    intercept[IllegalArgumentException]{ irLookup.declaration(Test.ref("out").field("c")) }
+    intercept[IllegalArgumentException]{ irLookup.declaration(Test.instOf("child", "Child").ref("out").field("missing")) }
   }
 
   "IRLookup" should "return mem declarations" in {

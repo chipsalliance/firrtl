@@ -43,7 +43,6 @@ class IRLookup private[analyses] ( private val declarations: mutable.LinkedHashM
     */
   def gender(t: ReferenceTarget): Gender = {
     val pathless = t.pathlessTarget
-    require(t.moduleOpt.nonEmpty)
     if(genderCache.contains(pathless)) return genderCache(pathless)
     val gender = Utils.gender(expr(pathless))
     genderCache(pathless) = gender
@@ -56,7 +55,6 @@ class IRLookup private[analyses] ( private val declarations: mutable.LinkedHashM
     */
   def kind(t: ReferenceTarget): Kind = {
     val pathless = t.pathlessTarget
-    require(t.moduleOpt.nonEmpty)
     if(kindCache.contains(pathless)) return kindCache(pathless)
 
     val kind = Utils.kind(expr(pathless))
@@ -70,12 +68,71 @@ class IRLookup private[analyses] ( private val declarations: mutable.LinkedHashM
     */
   def tpe(t: ReferenceTarget): Type = {
     val pathless = t.pathlessTarget
-    require(t.moduleOpt.nonEmpty)
     if(tpeCache.contains(pathless)) return tpeCache(pathless)
 
     val tpe = expr(pathless).tpe
     tpeCache(pathless) = tpe
     tpe
+  }
+
+  /** Returns Some(e) if expression exists, None if it does not
+    *
+    * It can return None for many reasons, including
+    *  - declaration is missing
+    *  - gender is wrong
+    *  - component is wrong
+    *
+    * @param t
+    * @param gender
+    * @return
+    */
+  def getExpr(t: ReferenceTarget, gender: Gender): Option[Expression] = {
+    val pathless = t.pathlessTarget
+
+    inCache(pathless, gender) match {
+      case Some(e) => e
+      case None =>
+        val mt = pathless.moduleTarget
+        val emt = t.encapsulatingModuleTarget
+        if(declarations.contains(emt) && declarations(emt).contains(asLocalRef(t))){
+          declarations(emt)(asLocalRef(t)) match {
+            case e: Expression =>
+              require(e.tpe.isInstanceOf[GroundType])
+              exprCache.getOrElseUpdate((pathless, Utils.gender(e)), e)
+            case d: IsDeclaration => d match {
+              case n: DefNode =>
+                updateExpr(mt, WRef(n.name, n.value.tpe, ExpKind, MALE))
+              case p: Port =>
+                updateExpr(mt, WRef(p.name, p.tpe, PortKind, Utils.get_gender(p)))
+              case w: WDefInstance =>
+                updateExpr(mt, WRef(w.name, w.tpe, InstanceKind, MALE))
+              case w: DefWire =>
+                updateExpr(mt, WRef(w.name, w.tpe, WireKind, MALE))
+                updateExpr(mt, WRef(w.name, w.tpe, WireKind, FEMALE))
+                updateExpr(mt, WRef(w.name, w.tpe, WireKind, BIGENDER))
+              case r: DefRegister if pathless.tokens.last == Clock =>
+                exprCache((pathless, MALE)) = r.clock
+              case r: DefRegister if pathless.tokens.isDefinedAt(1) && pathless.tokens(1) == Init =>
+                exprCache((pathless, MALE)) = r.init
+                updateExpr(pathless, r.init)
+              case r: DefRegister if pathless.tokens.last == Reset =>
+                exprCache((pathless, MALE)) = r.reset
+              case r: DefRegister =>
+                updateExpr(mt, WRef(r.name, r.tpe, RegKind, MALE))
+                updateExpr(mt, WRef(r.name, r.tpe, RegKind, FEMALE))
+                updateExpr(mt, WRef(r.name, r.tpe, RegKind, BIGENDER))
+              case m: DefMemory =>
+                updateExpr(mt, WRef(m.name, MemPortUtils.memType(m), MemKind, MALE))
+              case other =>
+                sys.error(s"Cannot call expr with: $t, given declaration $other")
+            }
+            case x: IsInvalid =>
+              exprCache((pathless, MALE)) = WInvalid
+          }
+        } else None
+    }
+
+    inCache(pathless, gender)
   }
 
   /** Returns an expression corresponding to the target
@@ -84,52 +141,12 @@ class IRLookup private[analyses] ( private val declarations: mutable.LinkedHashM
     * @return
     */
   def expr(t: ReferenceTarget, gender: Gender = UNKNOWNGENDER): Expression = {
-    val pathless = t.pathlessTarget
-    require(t.moduleOpt.nonEmpty && t.circuitOpt.nonEmpty)
-
-    inCache(pathless, gender) match {
+    require(contains(t), s"Cannot find\n${t.prettyPrint()}\nin circuit!")
+    getExpr(t, gender) match {
       case Some(e) => e
       case None =>
-        val mt = CircuitTarget(pathless.circuitOpt.get).module(pathless.moduleOpt.get)
-        declarations(t.moduleTarget)(asLocalRef(t)) match {
-          case e: Expression =>
-            require(e.tpe.isInstanceOf[GroundType])
-            exprCache.getOrElseUpdate((pathless, Utils.gender(e)), e)
-          case d: IsDeclaration => d match {
-            case n: DefNode =>
-              updateExpr(mt, WRef(n.name, n.value.tpe, ExpKind, MALE))
-            case p: Port =>
-              updateExpr(mt, WRef(p.name, p.tpe, PortKind, Utils.get_gender(p)))
-            case w: WDefInstance =>
-              updateExpr(mt, WRef(w.name, w.tpe, InstanceKind, MALE))
-            case w: DefWire =>
-              updateExpr(mt, WRef(w.name, w.tpe, WireKind, MALE))
-              updateExpr(mt, WRef(w.name, w.tpe, WireKind, FEMALE))
-              updateExpr(mt, WRef(w.name, w.tpe, WireKind, BIGENDER))
-            case r: DefRegister if pathless.tokens.last == Clock =>
-              exprCache((pathless, MALE)) = r.clock
-            case r: DefRegister if pathless.tokens.isDefinedAt(1) && pathless.tokens(1) == Init =>
-              exprCache((pathless, MALE)) = r.init
-              updateExpr(pathless, r.init)
-            case r: DefRegister if pathless.tokens.last == Reset =>
-              exprCache((pathless, MALE)) = r.reset
-            case r: DefRegister =>
-              updateExpr(mt, WRef(r.name, r.tpe, RegKind, MALE))
-              updateExpr(mt, WRef(r.name, r.tpe, RegKind, FEMALE))
-              updateExpr(mt, WRef(r.name, r.tpe, RegKind, BIGENDER))
-            case m: DefMemory =>
-              updateExpr(mt, WRef(m.name, MemPortUtils.memType(m), MemKind, MALE))
-            case other =>
-              sys.error(s"Cannot call expr with: $t, given declaration $other")
-          }
-          case x: IsInvalid =>
-            exprCache((pathless, MALE)) = WInvalid
-        }
-    }
-
-    inCache(pathless, gender) match {
-      case Some(e) => e
-      case None => sys.error(s"Illegal gender $gender with target $t")
+        require(getExpr(t.pathlessTarget, UNKNOWNGENDER).isEmpty, s"Illegal gender $gender with target $t")
+        sys.error("")
     }
   }
 
@@ -139,6 +156,7 @@ class IRLookup private[analyses] ( private val declarations: mutable.LinkedHashM
   }
 
   def references(moduleTarget: ModuleTarget, kind: Kind): Seq[ReferenceTarget] = {
+    require(contains(moduleTarget), s"Cannot find\n${moduleTarget.prettyPrint()}\nin circuit!")
     if(refCache.contains(moduleTarget) && refCache(moduleTarget).contains(kind)) refCache(moduleTarget)(kind)
     else {
       modules(moduleTarget)
@@ -160,12 +178,16 @@ class IRLookup private[analyses] ( private val declarations: mutable.LinkedHashM
     * @param t
     * @return
     */
-  def declaration(t: ReferenceTarget): FirrtlNode = declarations(t.moduleTarget)(asLocalRef(t))
+  def declaration(t: ReferenceTarget): FirrtlNode = {
+    require(contains(t), s"Cannot find\n${t.prettyPrint()}\nin circuit!")
+    declarations(t.encapsulatingModuleTarget)(asLocalRef(t))
+  }
 
   /** Returns the references to the module's ports
     * @param mt
     */
   def ports(mt: ModuleTarget): Seq[ReferenceTarget] = {
+    require(contains(mt), s"Cannot find\n${mt.prettyPrint()}\nin circuit!")
     modules(mt).ports.map { p => mt.ref(p.name) }
   }
 
@@ -210,12 +232,42 @@ class IRLookup private[analyses] ( private val declarations: mutable.LinkedHashM
     }
   }
 
-  /** Returns whether a target is contained in this IRLookup
+  /** Returns whether a ReferenceTarget is contained in this IRLookup
     * @param t
     * @return
     */
-  def contains(t: ReferenceTarget): Boolean =
-    declarations.contains(t.moduleTarget) && declarations(t.moduleTarget).contains(asLocalRef(t))
+  def contains(t: ReferenceTarget): Boolean = {
+    validPath(t.pathTarget) &&
+      declarations.contains(t.encapsulatingModuleTarget) &&
+      declarations(t.encapsulatingModuleTarget).contains(asLocalRef(t)) &&
+      getExpr(t, UNKNOWNGENDER).nonEmpty
+  }
+
+  /** Returns whether a ModuleTarget or InstanceTarget is contained in this IRLookup
+    * @param mt
+    * @return
+    */
+  def contains(mt: IsModule): Boolean = validPath(mt)
+
+  /** Returns whether a given IsModule is valid, given the circuit's module/instance hierarchy
+    * @param t
+    * @return
+    */
+  def validPath(t: IsModule): Boolean = {
+    t match {
+      case m: ModuleTarget => declarations.contains(m)
+      case i: InstanceTarget =>
+        val all = i.pathAsTargets :+ i.encapsulatingModuleTarget.instOf(i.instance, i.ofModule)
+        all.map { x =>
+          declarations.contains(x.moduleTarget) && declarations(x.moduleTarget).contains(x.asReference) &&
+            (declarations(x.moduleTarget)(x.asReference) match {
+              case DefInstance(_, _, of) if of == x.ofModule => validPath(x.ofModuleTarget)
+              case WDefInstance(_, _, of, _) if of == x.ofModule => validPath(x.ofModuleTarget)
+              case _ => false
+            })
+        }.reduce(_ && _)
+    }
+  }
 
   /** Updates expression cache with expression
     * @param mt
@@ -229,6 +281,10 @@ class IRLookup private[analyses] ( private val declarations: mutable.LinkedHashM
     }
   }
 
+  /** Updates expression cache with expression
+    * @param gt
+    * @param e
+    */
   private def updateExpr(gt: ReferenceTarget, e: Expression): Unit = {
     val g = Utils.gender(e)
     e.tpe match {

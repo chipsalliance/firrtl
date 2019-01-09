@@ -114,9 +114,26 @@ class ConnectionGraph protected(val circuit: Circuit,
     */
   def reverseConnectionGraph: ConnectionGraph = new ConnectionGraph(circuit, digraph.reverse, irLookup)
 
+  def getTag(node: ReferenceTarget,
+             tagMap: mutable.LinkedHashMap[(String, ReferenceTarget), mutable.HashSet[ReferenceTarget]]
+            ): Option[collection.Set[ReferenceTarget]] = {
+    def recGetTag(root: String,
+                  node: ReferenceTarget,
+                  tagMap: mutable.LinkedHashMap[(String, ReferenceTarget), mutable.HashSet[ReferenceTarget]]
+                 ): Option[collection.Set[ReferenceTarget]] = {
+      tagMap.get(root, node) match {
+        case Some(set) => Some(set)
+        case None if node.path.isEmpty => None
+        case None => recGetTag(root, node.stripHierarchy(1), tagMap).map(_.map(_.addHierarchy(node.module, node.path.head._1.value)))
+      }
+    }
+    val ret = recGetTag(node.module, node, tagMap)
+    ret
+  }
+
   /** For each node in the path from the search start until the destination, update tagMap with the provided tags
     *
-    * Tags should be rooted in the same  be non-local, e.g. Top/a:A>clk is ok.
+    * Tags should be rooted in the same module its ok to be non-local, e.g. Top/a:A>clk is ok.
     * All values in tagMap will share their key's root module
     * TagMap will also contain more local versions of the key/values pair, if they are legal (see example)
     *
@@ -131,11 +148,11 @@ class ConnectionGraph protected(val circuit: Circuit,
     * @param tagMap
     */
   protected def tagPath(destination: ReferenceTarget,
-                      prev: collection.Map[ReferenceTarget, ReferenceTarget],
-                      tags: collection.Set[ReferenceTarget],
-                      tagMap: mutable.LinkedHashMap[ReferenceTarget, mutable.HashSet[ReferenceTarget]]): Unit = {
+                        prev: collection.Map[ReferenceTarget, ReferenceTarget],
+                        tags: collection.Set[ReferenceTarget],
+                        tagMap: mutable.LinkedHashMap[(String, ReferenceTarget), mutable.HashSet[ReferenceTarget]]): Unit = {
 
-    val modules = (tags.map(_.module) + destination.module)
+    val modules = tags.map(_.module) + destination.module
     require(modules.size == 1, s"All tags ($tags) and nodes ($destination) in the path must share their root module ($modules)")
 
     val perModuleTags = mutable.HashMap[String, mutable.HashSet[ReferenceTarget]]()
@@ -144,10 +161,10 @@ class ConnectionGraph protected(val circuit: Circuit,
     val nodePath = new mutable.ArrayBuffer[ReferenceTarget]()
     nodePath += destination
     while (prev.contains(nodePath.last)) {
-      tag(nodePath.last, perModuleTags, tagMap)
+      setTag(nodePath.last, perModuleTags, tagMap)
       nodePath += prev(nodePath.last)
     }
-    tag(nodePath.last, perModuleTags, tagMap)
+    setTag(nodePath.last, perModuleTags, tagMap)
   }
 
   /** Update tagMap with the provided tags for node
@@ -167,11 +184,11 @@ class ConnectionGraph protected(val circuit: Circuit,
     */
   protected def tagNode(node: ReferenceTarget,
                         tags: collection.Set[ReferenceTarget],
-                        tagMap: mutable.LinkedHashMap[ReferenceTarget, mutable.HashSet[ReferenceTarget]]): Unit = {
+                        tagMap: mutable.LinkedHashMap[(String, ReferenceTarget), mutable.HashSet[ReferenceTarget]]): Unit = {
     //require((tags.map(_.module) ++ node.module).size == 1, "All tags and nodes in the path must share their root module")
     val perModuleTags = mutable.HashMap[String, mutable.HashSet[ReferenceTarget]]()
     tags.foreach { tag => updatePerModuleTags(tag, perModuleTags) }
-    tag(node, perModuleTags, tagMap)
+    setTag(node, perModuleTags, tagMap)
   }
 
   /** Tags a single node
@@ -179,14 +196,23 @@ class ConnectionGraph protected(val circuit: Circuit,
     * @param perModuleTags
     * @param tagMap
     */
-  protected def tag(node: ReferenceTarget,
-                    perModuleTags: collection.Map[String, collection.Set[ReferenceTarget]],
-                    tagMap: mutable.LinkedHashMap[ReferenceTarget, mutable.HashSet[ReferenceTarget]]): Unit = {
-    perModuleTags.get(node.encapsulatingModule) match {
-      case Some(tags) =>
-        tagMap.getOrElseUpdate(node.pathlessTarget, mutable.HashSet.empty[ReferenceTarget]) ++= tags
-      case None =>
+  private def setTag(node: ReferenceTarget,
+                  perModuleTags: collection.Map[String, collection.Set[ReferenceTarget]],
+                  tagMap: mutable.LinkedHashMap[(String, ReferenceTarget), mutable.HashSet[ReferenceTarget]]): Unit = {
+    def recSetTag(root: String,
+                  node: ReferenceTarget,
+                  perModuleTags: collection.Map[String, collection.Set[ReferenceTarget]],
+                  tagMap: mutable.LinkedHashMap[(String, ReferenceTarget), mutable.HashSet[ReferenceTarget]]): Unit = {
+      perModuleTags.get(node.module) match {
+        case Some(tags) =>
+          tagMap.getOrElseUpdate((root, node), mutable.HashSet.empty[ReferenceTarget]) ++= tags
+        case None =>
+      }
+      if (node.path.nonEmpty) {
+        recSetTag(root, node.stripHierarchy(1), perModuleTags, tagMap)
+      }
     }
+    recSetTag(node.module, node, perModuleTags, tagMap)
   }
 
   private def updatePerModuleTags(tag: ReferenceTarget, perModuleTags: mutable.HashMap[String, mutable.HashSet[ReferenceTarget]]): Unit = {
