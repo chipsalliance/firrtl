@@ -94,7 +94,7 @@ class ClockFinder(reverseGraph: ConnectionGraph,
       }
     }
 
-    val ret = topoTargets.foldLeft(Map.empty[ReferenceTarget, Set[ReferenceTarget]]) { (map, t) =>
+    val ret = memberTargets.foldLeft(Map.empty[ReferenceTarget, Set[ReferenceTarget]]) { (map, t) =>
       t match {
         case it: InstanceTarget =>
           val lit = it.asReference.pathlessTarget
@@ -132,7 +132,8 @@ class ClockFinder(reverseGraph: ConnectionGraph,
     val finalSources = mutable.HashSet.empty[ReferenceTarget]
     t.leafSubTargets(tpe).foreach { x =>
       BFS(x, Set.empty[ReferenceTarget])
-      finalSources ++= clockMap.getOrElse(x, mutable.HashSet.empty[ReferenceTarget])
+
+      finalSources ++= getTag(x, clockMap).getOrElse(mutable.HashSet.empty[ReferenceTarget])
     }
     finalSources.toSet
   }
@@ -140,10 +141,7 @@ class ClockFinder(reverseGraph: ConnectionGraph,
   private val extModuleNames = circuit.modules.collect { case e: ExtModule => e.name }.toSet
 
   // Maps signal to set of clock sources it is synchronized with
-  private val clockMap = mutable.LinkedHashMap[ReferenceTarget, mutable.HashSet[ReferenceTarget]]()
-  signalToClocks.foreach { case (signal, clocks) =>
-    clockMap.getOrElseUpdate(signal, mutable.HashSet.empty[ReferenceTarget]) ++= clocks
-  }
+  private val clockMap = mutable.LinkedHashMap[(String, ReferenceTarget), mutable.HashSet[ReferenceTarget]]()
 
   // Utility function to determine if a target is a register
   private def isReg(t: ReferenceTarget): Boolean = {
@@ -152,6 +150,7 @@ class ClockFinder(reverseGraph: ConnectionGraph,
       case other => false
     }
   }
+
 
   /** Returns instance-viewed combinational-edges or reg-to-clock edges
     * Ends early if visiting a node that was previously visited in another BFS
@@ -164,10 +163,14 @@ class ClockFinder(reverseGraph: ConnectionGraph,
                        ): collection.Set[ReferenceTarget] = {
     val prev = prevOpt.get
     node match {
+      // If known clock relationship, tagPath
+      case rt if signalToClocks.contains(rt) =>
+        tagPath(rt, prev, signalToClocks(rt), clockMap)
+        Set()
 
-      // If seen node before, record clock and end
-      case rt if clockMap.contains(rt) =>
-        tagPath(rt, prev, clockMap(rt), clockMap)
+      // If cached result, record clock and end. Exclude cached top-level signals as input port could be a new result
+      case rt if getTag(rt, clockMap).nonEmpty =>
+        tagPath(rt, prev, getTag(rt, clockMap).get, clockMap)
         Set()
 
       // Top-level Input Port
@@ -189,11 +192,6 @@ class ClockFinder(reverseGraph: ConnectionGraph,
         Set()
 
       case nonClockSource =>
-
-        // Input Port
-        //if(irLookup.kind(nonClockSource) == PortKind && irLookup.gender(nonClockSource) == MALE && !nonClockSource.isClock) {
-        //  tagPath(node, prev, Set(node.pathlessTarget), clockMap)
-        //}
 
         val superEdges = super.getEdges(nonClockSource)
 

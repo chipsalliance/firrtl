@@ -472,6 +472,8 @@ trait IsMember extends CompleteTarget {
   /** @return The [[ModuleTarget]] of the module that directly contains this component */
   def encapsulatingModule: String = if(path.isEmpty) module else path.last._2.value
 
+  def encapsulatingModuleTarget: ModuleTarget = ModuleTarget(circuit, encapsulatingModule)
+
   def leafModule: String
 }
 

@@ -306,6 +306,83 @@ class ClockFinderTransformSpec extends MiddleAnnotationSpec with MemStuff with F
     execute(input, Seq(GetClockSources(Seq(Test, ClockModule))), clockSources, Nil)
   }
 
+  "Clocks of different hierarchies with pathed reference" should "still work" in {
+    val input =
+      """circuit Test:
+        |  module Test :
+        |    input in : UInt<8>
+        |    input clk: Clock
+        |    output out : UInt<8>
+        |    inst cm of ClockModule
+        |    cm.in <= in
+        |    cm.clk <= clk
+        |    out <= cm.out
+        |  module ClockModule:
+        |    input clk: Clock
+        |    input in: UInt<8>
+        |    output out: UInt<8>
+        |    inst cm2 of ClockModule2
+        |    cm2.in <= in
+        |    cm2.clk <= clk
+        |    out <= cm2.out
+        |  module ClockModule2:
+        |    input clk: Clock
+        |    input in: UInt<8>
+        |    output out: UInt<8>
+        |    reg r1: UInt<8>, clk
+        |    reg r2: UInt<8>, asClock(UInt(1))
+        |    r1 <= in
+        |    r2 <= in
+        |    out <= and(r1, r2)
+        |""".stripMargin
+
+    val C = CircuitTarget("Test")
+    val Test = C.module("Test")
+    val ClockModule = C.module("ClockModule")
+    val out = Test.ref("out")
+    val clockSources = Seq(ClockSources(Map(
+      Test.ref("out") -> Set((Test.ref("clk"), None), (Test.instOf("cm", "ClockModule").instOf("cm2", "ClockModule2"), Some("@asClock#0"))),
+      ClockModule.instOf("cm2", "ClockModule2").ref("r1") -> Set((ClockModule.ref("clk"), None))
+    )))
+
+    execute(input, Seq(GetClockSources(Seq(Test, ClockModule.instOf("cm2", "ClockModule2").ref("r1")))), clockSources, Nil)
+  }
+
+  "Signals with clock sources from multiple duplicate instances" should "still work" in {
+    val input =
+      """circuit Test:
+        |  module Test :
+        |    input in : UInt<8>
+        |    output out : UInt<8>
+        |    inst cm1 of ClockModule
+        |    inst cm2 of ClockModule
+        |    cm1.in <= in
+        |    cm1.in2 <= UInt(0)
+        |    cm2.in <= in
+        |    cm2.in2 <= UInt(0)
+        |    out <= and(cm1.out, cm2.out)
+        |  module ClockModule:
+        |    input in: UInt<8>
+        |    input in2: UInt<8>
+        |    output out: UInt<8>
+        |    reg r: UInt<8>, asClock(UInt(1))
+        |    r <= in
+        |    out <= and(r, in2)
+        |""".stripMargin
+
+    val C = CircuitTarget("Test")
+    val Test = C.module("Test")
+    val ClockModule = C.module("ClockModule")
+    val out = Test.ref("out")
+    val clockSources = Seq(ClockSources(Map(
+      Test.ref("out") ->
+        Set((Test.instOf("cm1", "ClockModule"), Some("@asClock#0")),
+          (Test.instOf("cm2", "ClockModule"), Some("@asClock#0")))
+    )))
+
+    execute(input, Seq(GetClockSources(Seq(Test))), clockSources, Nil)
+  }
+
   "Clocks of aggregate wires" should "still work" in {
     val input =
       """circuit Test:
