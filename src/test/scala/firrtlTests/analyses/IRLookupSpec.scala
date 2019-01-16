@@ -8,6 +8,8 @@ import firrtl.ir._
 import firrtlTests.FirrtlFlatSpec
 import firrtlTests.transforms.MemStuff
 
+import scala.reflect.internal.MissingRequirementError
+
 class IRLookupSpec extends FirrtlFlatSpec with MemStuff {
 
   "IRLookup" should "return declarations" in {

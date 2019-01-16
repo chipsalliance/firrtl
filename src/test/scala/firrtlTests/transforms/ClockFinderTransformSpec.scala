@@ -306,6 +306,40 @@ class ClockFinderTransformSpec extends MiddleAnnotationSpec with MemStuff with F
     execute(input, Seq(GetClockSources(Seq(Test, ClockModule))), clockSources, Nil)
   }
 
+  "Clocks of different hierarchies with many paths" should "still work" in {
+    val input =
+      """circuit Test:
+        |  module Test :
+        |    input in : UInt<8>
+        |    input clk: Clock
+        |    output out : UInt<8>
+        |    inst cm of ClockModule
+        |    cm.in <= in
+        |    cm.clk <= clk
+        |    out <= cm.out
+        |  module ClockModule:
+        |    input clk: Clock
+        |    input in: UInt<8>
+        |    output out: UInt<8>
+        |    reg r1: UInt<8>, clk
+        |    reg r2: UInt<8>, asClock(UInt(1))
+        |    r1 <= in
+        |    r2 <= in
+        |    out <= and(r1, r2)
+        |""".stripMargin
+
+    val C = CircuitTarget("Test")
+    val Test = C.module("Test")
+    val ClockModule = C.module("ClockModule")
+    val out = Test.ref("out")
+    val clockSources = Seq(ClockSources(Map(
+      Test.ref("out") -> Set((Test.ref("clk"), None), (Test.instOf("cm", "ClockModule"), Some("@asClock#0"))),
+      ClockModule.ref("out") -> Set((ClockModule.ref("clk"), None), (ClockModule, Some("@asClock#0")))
+    )))
+
+    execute(input, Seq(GetClockSources(Seq(Test, ClockModule))), clockSources, Nil)
+  }
+
   "Clocks of different hierarchies with pathed reference" should "still work" in {
     val input =
       """circuit Test:
@@ -377,7 +411,8 @@ class ClockFinderTransformSpec extends MiddleAnnotationSpec with MemStuff with F
     val clockSources = Seq(ClockSources(Map(
       Test.ref("out") ->
         Set((Test.instOf("cm1", "ClockModule"), Some("@asClock#0")),
-          (Test.instOf("cm2", "ClockModule"), Some("@asClock#0")))
+          (Test.instOf("cm2", "ClockModule"), Some("@asClock#0")),
+          (Test.ref("@literal"), None))
     )))
 
     execute(input, Seq(GetClockSources(Seq(Test))), clockSources, Nil)
@@ -512,7 +547,7 @@ class ClockFinderTransformSpec extends MiddleAnnotationSpec with MemStuff with F
     val Test = C.module("Test")
     val out = Test.ref("out")
     val clockSources = Seq(ClockSources(Map(
-      Test.ref("out") -> Set()
+      Test.ref("out") -> Set((Test.ref("@literal"), None))
     )))
 
     execute(input, Seq(GetClockSources(Seq(out))), clockSources, Nil)
@@ -604,7 +639,11 @@ class ClockFinderTransformSpec extends MiddleAnnotationSpec with MemStuff with F
     val Child = C.module("Child")
     val out = Test.ref("out")
     val clockSources = ClockSources(Map(
-      Test.ref("out") -> Set((Test.ref("clk1"), None), (Test.ref("clk2"), None))
+      Test.ref("out") -> Set(
+        (Test.ref("clk1"), None),
+        (Test.ref("clk2"), None),
+        (Test.ref("@literal"), None)
+      )
     ))
     execute(input, Seq(GetClockSources(Seq(Test.ref("out")))), clockSources, None)
   }
@@ -741,6 +780,36 @@ class ClockFinderTransformSpec extends MiddleAnnotationSpec with MemStuff with F
     val annotations =
       Seq(
         GetClockSources(clockSources.head.signalToClocks.keys.toSeq),
+        ClockSources.buildFromRefs(Map(Test.ref("in") -> Set(Test.ref("clk"))))
+      )
+
+    execute(input, annotations, clockSources, Nil)
+  }
+
+  "Clock sources" should "work with unknown top API" in {
+    val input =
+      """circuit Test:
+        |  module Test :
+        |    input in : UInt<8>
+        |    input clk: Clock
+        |    output out1 : UInt<8>
+        |    output out2 : UInt<8>
+        |    out1 <= in
+        |    node x = in
+        |    out2 <= x
+        |""".stripMargin
+
+    val C = CircuitTarget("Test")
+    val Test = C.module("Test")
+    val clockSources = Seq(
+      ClockSources(Map(
+        Test.ref("out1") -> Set((Test.ref("clk"), None)),
+        Test.ref("out2") -> Set((Test.ref("clk"), None))
+      ))
+    )
+    val annotations =
+      Seq(
+        GetClockSources(Nil, true),
         ClockSources.buildFromRefs(Map(Test.ref("in") -> Set(Test.ref("clk"))))
       )
 

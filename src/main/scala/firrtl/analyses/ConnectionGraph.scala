@@ -289,7 +289,7 @@ class ConnectionGraph protected(val circuit: Circuit,
               // Exiting to parent, but had unresolved trip through child, so don't update shortcut
               portConnectivityStack(localSink) = localSource +: currentStack
             }
-            Set[ReferenceTarget](localSink.setPathTarget(source.targetParent.asInstanceOf[IsComponent].pathTarget))
+            Set[ReferenceTarget](localSink.setPathTarget(source.noComponents.targetParent.asInstanceOf[IsComponent].pathTarget))
 
           case localSink if enteringChildInstance(source)(localSink) =>
             portConnectivityStack(localSink) = localSource +: portConnectivityStack.getOrElse(localSource, Nil)
@@ -370,6 +370,15 @@ object ConnectionGraph {
 
   def isAsClock(t: ReferenceTarget): Boolean = t.ref.length >= 9 && t.ref.substring(0, 9) == "@asClock#"
 
+  def isInvalid(t: ReferenceTarget): Boolean = t.ref.length >= 9 && t.ref.substring(0, 9) == "@invalid#"
+
+  def isLiteral(t: ReferenceTarget): Boolean = {
+    t.ref match {
+      case TokenTagger.literalRegex(value) => true
+      case _ => false
+    }
+  }
+
   /** Within a module, given an [[Expression]] inside a module, return a corresponding [[Target]]
     * @param m Target of module containing the expression
     * @param tagger Used to uniquely identify unnamed targets, e.g. primops
@@ -398,15 +407,20 @@ object ConnectionGraph {
   }
 
   def enteringParentInstance(source: ReferenceTarget)(localSink: ReferenceTarget): Boolean = {
-    source.path.nonEmpty &&
-      source.noComponents.targetParent.asInstanceOf[InstanceTarget].encapsulatingModule == localSink.module &&
-      localSink.ref == source.path.last._1.value
+    val b1 = source.path.nonEmpty
+    def b2 = source.noComponents.targetParent.asInstanceOf[InstanceTarget].encapsulatingModule == localSink.module
+    def b3 = localSink.ref == source.path.last._1.value
+    if(localSink.module == "AXI4Buffer_1" && localSink.ref == "Queue_1") {
+      println(s"$source -> $localSink")
+      println(s"$b1 $b2 $b3")
+    }
+    b1 && b2 && b3
   }
 
   def enteringNonParentInstance(source: ReferenceTarget)(localSink: ReferenceTarget): Boolean = {
     source.path.nonEmpty &&
-      source.noComponents.targetParent.asInstanceOf[InstanceTarget].encapsulatingModule == localSink.module &&
-      localSink.ref != source.path.last._1.value
+      (source.noComponents.targetParent.asInstanceOf[InstanceTarget].encapsulatingModule != localSink.module ||
+      localSink.ref != source.path.last._1.value)
   }
 
   def enteringChildInstance(source: ReferenceTarget)(localSink: ReferenceTarget): Boolean = source match {

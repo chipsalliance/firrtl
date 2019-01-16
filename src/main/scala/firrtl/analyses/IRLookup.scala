@@ -340,3 +340,6 @@ class TokenTagger {
   }
 }
 
+object TokenTagger {
+  val literalRegex = "@([-]?[0-9]+)#[0-9]+".r
+}

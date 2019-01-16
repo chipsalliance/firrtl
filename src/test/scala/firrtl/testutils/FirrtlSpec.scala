@@ -136,16 +136,19 @@ trait FirrtlRunners extends BackendCompilationUtilities {
                          prefix: String,
                          srcDir: String,
                          customTransforms: Seq[Transform] = Seq.empty,
-                         annotations: AnnotationSeq = Seq.empty): CircuitState = {
+                         annotations: AnnotationSeq = Seq.empty
+                       ): CircuitState = {
     val testDir = createTestDirectory(prefix)
-    copyResourceToFile(s"${srcDir}/${prefix}.fir", new File(testDir, s"${prefix}.fir"))
+    //copyResourceToFile(s"${srcDir}/${prefix}.fir", new File(testDir, s"${prefix}.fir"))
+    linkResourceToFile(s"${srcDir}/${prefix}.fir", new File(testDir, s"${prefix}.fir"))
 
     val optionsManager = new ExecutionOptionsManager(prefix) with HasFirrtlOptions {
-      commonOptions = CommonOptions(topName = prefix, targetDirName = testDir.getPath)
+      commonOptions = CommonOptions(topName = prefix, targetDirName = testDir.getPath, globalLogLevel= logger.LogLevel.Info)
       firrtlOptions = FirrtlExecutionOptions(
         infoModeName = "ignore",
         customTransforms = customTransforms,
-        annotations = annotations.toList)
+        annotations = annotations.toList
+      )
     }
     firrtl.Driver.execute(optionsManager) match {
       case f: FirrtlExecutionSuccess => f.circuitState

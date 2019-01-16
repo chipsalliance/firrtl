@@ -40,27 +40,38 @@ case class ClockSources(signalToClocks: Map[ReferenceTarget, Set[(IsMember, Opti
     Seq(ClockSources(newSignalToClocks))
   }
 
-  def clockToSignals: Map[Option[(IsMember, Option[String])], Seq[ReferenceTarget]] =
+  lazy val clockToSignals: Map[Option[(IsMember, Option[String])], Seq[ReferenceTarget]] =
     signalToClocks.foldLeft(Map.empty[Option[(IsMember, Option[String])], Seq[ReferenceTarget]]){
       case (map, (signal, clocks)) if clocks.nonEmpty => clocks.foldLeft(map){ (m, clock) =>
-        map + (Some(clock) -> (signal +: map.getOrElse(Some(clock), Nil)))
+        m + (Some(clock) -> (signal +: m.getOrElse(Some(clock), Nil)))
       }
       case (map, (signal, clocks)) if clocks.isEmpty =>
         map + (None -> (signal +: map.getOrElse(None, Nil)))
     }
 
-  def prettyPrint: String =
-    clockToSignals.map {
-      case (Some((ref: ReferenceTarget, None)), seq) => "Clock Domain " + ref.toString + "\n\t" + seq.mkString("\n\t") + "\n"
-      case (Some((mod: IsModule, Some(x))), seq) => "Clock Domain " + mod.ref(x) + "\n\t" + seq.mkString("\n\t") + "\n"
-      case (None, seq) => "No Clock Domain" + "\n\t" + seq.mkString("\n\t") + "\n"
-    }.mkString("\n")
-
-  def signalsToClockRefs: Map[ReferenceTarget, Set[ReferenceTarget]] =
+  lazy val signalsToClockRefs: Map[ReferenceTarget, Set[ReferenceTarget]] =
     signalToClocks.map {
       case (signal, seq) => signal -> seq.map {
         case (ref: ReferenceTarget, None) => ref
         case (mod: IsModule, Some(x: String)) => mod.ref(x)
       }
     }
+
+  lazy val clockRefsToSignals: Map[Set[ReferenceTarget], Seq[ReferenceTarget]] =
+    signalsToClockRefs.foldLeft(Map.empty[Set[ReferenceTarget], Seq[ReferenceTarget]]){
+      case (map, (signal, clocks)) => map + (clocks -> (signal +: map.getOrElse(clocks, Nil)))
+    }
+
+  def prettyPrint: String = {
+
+    clockRefsToSignals.map {
+      case (clks, signals) =>
+        "Clock Domain(\n\t" +
+          clks.toSeq.map(_.toString).sorted.mkString("\n\t") +
+          "\n) with signals (\n\t" +
+          signals.map(_.toString).sorted.mkString("\n\t") +
+          "\n)\n"
+    }.mkString("\n")
+  }
+
 }

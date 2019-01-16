@@ -9,9 +9,9 @@ import firrtl.annotations.{Annotation, CompleteTarget}
   *
   * @param targets
   */
-case class GetClockSources(targets: Seq[CompleteTarget]) extends Annotation {
+case class GetClockSources(targets: Seq[CompleteTarget], top: Boolean = false) extends Annotation {
   override def update(renames: RenameMap): Seq[Annotation] = {
     val newTargets = targets.flatMap(renames(_))
-    Seq(GetClockSources(newTargets))
+    Seq(GetClockSources(newTargets, top))
   }
 }
