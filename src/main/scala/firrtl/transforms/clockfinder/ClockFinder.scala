@@ -31,32 +31,32 @@ object ClockFinder {
       finder.getClockSource(targets)
     }
 
-    def findClockCrossings(whitelistedRegs: Set[ReferenceTarget] = Set.empty,
-                           signalToClocks: Map[ReferenceTarget, Set[ReferenceTarget]] = Map.empty
-                          ): Seq[IllegalClockCrossing] = {
+def findClockCrossings(whitelistedRegs: Set[ReferenceTarget] = Set.empty,
+                       signalToClocks: Map[ReferenceTarget, Set[ReferenceTarget]] = Map.empty
+                      ): Seq[IllegalClockCrossing] = {
 
-      val finder = new ClockFinder(circuitGraph.reverseConnectionGraph, signalToClocks)
+  val finder = new ClockFinder(circuitGraph.reverseConnectionGraph, signalToClocks)
 
-      circuitGraph.deepReferences(circuitGraph.main, RegKind).flatMap { reg =>
-        if(!whitelistedRegs.contains(reg)) {
-          val sinkClocks = finder.getClockSource(reg)
+  circuitGraph.deepReferences(RegKind).flatMap { reg =>
+    if(!whitelistedRegs.contains(reg)) {
+      val sinkClocks = finder.getClockSource(reg)
 
-          val fanIns = if(circuitGraph.irLookup.expr(reg.reset) == UIntLiteral(0)) {
-            circuitGraph.fanInSignals(reg).filter(r => !(r.isClock || r.isReset || r.isInit))
-          } else {
-            circuitGraph.fanInSignals(reg).filter(r => !r.isClock)
-          }
-
-          val sourceClocks = fanIns.flatMap(finder.getClockSource)
-
-          if(sinkClocks != sourceClocks) {
-            Set(IllegalClockCrossing(reg, (sinkClocks.toSeq ++ sourceClocks).map { c => circuitGraph.path(c, reg)}))
-          } else {
-            Set.empty[IllegalClockCrossing]
-          }
-        } else Set.empty[IllegalClockCrossing]
+      val fanIns = if(circuitGraph.irLookup.expr(reg.reset) == UIntLiteral(0)) {
+        circuitGraph.fanInSignals(reg).filter(r => !(r.isClock || r.isReset || r.isInit))
+      } else {
+        circuitGraph.fanInSignals(reg).filter(r => !r.isClock)
       }
-    }.toList
+
+      val sourceClocks = fanIns.flatMap(finder.getClockSource)
+
+      if(sinkClocks != sourceClocks) {
+        Set(IllegalClockCrossing(reg, (sinkClocks.toSeq ++ sourceClocks).map { c => circuitGraph.path(c, reg)}))
+      } else {
+        Set.empty[IllegalClockCrossing]
+      }
+    } else Set.empty[IllegalClockCrossing]
+  }
+}.toList
   }
 }
 
@@ -182,13 +182,28 @@ class ClockFinder(reverseGraph: ConnectionGraph,
 
       // Black-box Output Clock Port
       case rt: ReferenceTarget
-        if extModuleNames.contains(rt.encapsulatingModule) && irLookup.tpe(rt) == ClockType && irLookup.gender(rt) == FEMALE =>
+        if extModuleNames.contains(rt.encapsulatingModule) /*&& irLookup.tpe(rt) == ClockType*/ && irLookup.gender(rt) == FEMALE =>
         tagPath(rt, prev, Set(rt), clockMap)
         Set()
 
       // AsClock Expression
       case rt if ConnectionGraph.isAsClock(rt) =>
         tagPath(rt, prev, Set(rt), clockMap)
+        Set()
+
+      // WInvalid Expression
+      case rt if ConnectionGraph.isInvalid(rt) =>
+        tagPath(rt, prev, Set(rt.moduleTarget.ref("@invalid")), clockMap)
+        Set()
+
+      // WInvalid Expression
+      case rt if ConnectionGraph.isInvalid(rt) =>
+        tagPath(rt, prev, Set(rt.moduleTarget.ref("@invalid")), clockMap)
+        Set()
+
+      // Literal Expression
+      case rt if ConnectionGraph.isLiteral(rt) =>
+        tagPath(rt, prev, Set(rt.moduleTarget.ref("@literal")), clockMap)
         Set()
 
       case nonClockSource =>

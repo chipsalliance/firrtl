@@ -105,16 +105,16 @@ class CircuitGraph private[analyses] (val connectionGraph: ConnectionGraph) {
 
   /** Return a reference to all nodes of given kind, contained in the referenced module/instance or any child instance
     * Path can be either a module, or an instance
-    * @param path
     * @param kind
+    * @param path
     * @return
     */
-  def deepReferences(path: IsModule, kind: Kind): Seq[ReferenceTarget] = {
+  def deepReferences(kind: Kind, path: IsModule = ModuleTarget(circuit.main, circuit.main)): Seq[ReferenceTarget] = {
     val leafModule = path.leafModule
     val children = moduleChildren(leafModule)
     val localRefs = localReferences(path, kind)
     localRefs ++ children.flatMap {
-      case (Instance(inst), OfModule(ofModule)) => deepReferences(path.instOf(inst, ofModule), kind)
+      case (Instance(inst), OfModule(ofModule)) => deepReferences(kind, path.instOf(inst, ofModule))
     }
   }
 
