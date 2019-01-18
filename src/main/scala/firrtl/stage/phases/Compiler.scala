@@ -83,7 +83,7 @@ object Compiler extends Phase with Translator[AnnotationSeq, Seq[CompilerRun]] {
       Seq( FirrtlCircuitAnnotation(bb.stateOut.get.circuit),
            DeletedAnnotation(name, FirrtlCircuitAnnotation(bb.stateIn.circuit)),
            DeletedAnnotation(name, CompilerAnnotation(bb.compiler.get)) ) ++
-        bb.transforms.map(t => DeletedAnnotation(name, RunFirrtlTransformAnnotation(t))) ++
+        bb.transforms.reverse.map(t => DeletedAnnotation(name, RunFirrtlTransformAnnotation(t))) ++
         bb.stateOut.get.annotations }
 
   /** Run the FIRRTL compiler some number of times. If more than one run is specified, a parallel collection will be
@@ -94,7 +94,7 @@ object Compiler extends Phase with Translator[AnnotationSeq, Seq[CompilerRun]] {
       val statex = c
         .compiler
         .getOrElse { throw new PhasePrerequisiteException("No compiler specified!") }
-        .compile(c.stateIn, c.transforms)
+        .compile(c.stateIn, c.transforms.reverse)
       c.copy(stateOut = Some(statex))
     }
 
