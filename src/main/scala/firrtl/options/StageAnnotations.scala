@@ -25,7 +25,7 @@ object TargetDirAnnotation extends HasScoptOptions {
   def addOptions(p: OptionParser[AnnotationSeq]): Unit = p.opt[String]("target-dir")
     .abbr("td")
     .valueName("<target-directory>")
-    .action( (x, c) => c ++ Seq(TargetDirAnnotation(x)) )
+    .action( (x, c) => TargetDirAnnotation(x) +: c )
     .unbounded() // See [Note 1]
     .text(s"Work directory for intermediate files/blackboxes, default is '.' (current directory)")
 }
@@ -40,7 +40,7 @@ object ProgramArgsAnnotation extends HasScoptOptions {
   def addOptions(p: OptionParser[AnnotationSeq]): Unit = p.arg[String]("<arg>...")
     .unbounded()
     .optional()
-    .action( (x, c) => c :+ ProgramArgsAnnotation(x) )
+    .action( (x, c) => ProgramArgsAnnotation(x) +: c )
     .text("optional unbounded args")
 }
 
@@ -56,7 +56,7 @@ object InputAnnotationFileAnnotation extends HasScoptOptions {
     .abbr("faf")
     .unbounded()
     .valueName("<input-anno-file>")
-    .action( (x, c) => c :+ InputAnnotationFileAnnotation(x) )
+    .action( (x, c) => InputAnnotationFileAnnotation(x) +: c )
     .text("Used to specify annotation file")
 }
 
@@ -70,7 +70,7 @@ object OutputAnnotationFileAnnotation extends HasScoptOptions {
   def addOptions(p: OptionParser[AnnotationSeq]): Unit = p.opt[String]("output-annotation-file")
     .abbr("foaf")
     .valueName ("<output-anno-file>")
-    .action( (x, c) => c :+ OutputAnnotationFileAnnotation(x) )
+    .action( (x, c) => OutputAnnotationFileAnnotation(x) +: c )
     .unbounded()
     .text("use this to set the annotation output file")
 }

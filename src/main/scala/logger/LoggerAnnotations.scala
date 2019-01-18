@@ -22,7 +22,7 @@ object LogLevelAnnotation extends HasScoptOptions {
   def addOptions(p: OptionParser[AnnotationSeq]): Unit = p.opt[String]("log-level")
     .abbr("ll")
     .valueName("<Error|Warn|Info|Debug|Trace>")
-    .action( (x, c) => c :+ LogLevelAnnotation(LogLevel(x)) )
+    .action( (x, c) => LogLevelAnnotation(LogLevel(x)) +: c )
     .validate{ x =>
       lazy val msg = s"$x bad value must be one of error|warn|info|debug|trace"
       if (Array("error", "warn", "info", "debug", "trace").contains(x.toLowerCase)) { p.success      }
@@ -42,10 +42,10 @@ object ClassLogLevelAnnotation extends HasScoptOptions {
   def addOptions(p: OptionParser[AnnotationSeq]): Unit = p.opt[Seq[String]]("class-log-level")
     .abbr("cll")
     .valueName("<FullClassName:[Error|Warn|Info|Debug|Trace]>[,...]")
-    .action( (x, c) => c ++ (x.map { y =>
-                               val className :: levelName :: _ = y.split(":").toList
-                               val level = LogLevel(levelName)
-                               ClassLogLevelAnnotation(className, level) }) )
+    .action( (x, c) => (x.map { y =>
+                          val className :: levelName :: _ = y.split(":").toList
+                          val level = LogLevel(levelName)
+                          ClassLogLevelAnnotation(className, level) }) ++ c )
     .unbounded()
     .text(s"This defines per-class verbosity of logging")
 }
@@ -63,11 +63,11 @@ object LogFileAnnotation extends HasScoptOptions {
       .abbr("ltf")
       .action{ (_, c) =>
         StageUtils.dramaticWarning("-ltf/--log-to-file is deprecated, use an explicit --log-file")
-        c :+ LogFileAnnotation(None) }
+        LogFileAnnotation(None) +: c }
       .unbounded()
       .text(s"DEPRECATED: flags writes to topName.log or firrtl.log if no topName")
     p.opt[String]("log-file")
-      .action( (x, c) => c :+ LogFileAnnotation(Some(x)) )
+      .action( (x, c) => LogFileAnnotation(Some(x)) +: c )
       .unbounded()
       .text(s"log to the specified file")
   }
@@ -79,7 +79,7 @@ object LogFileAnnotation extends HasScoptOptions {
 case object LogClassNamesAnnotation extends NoTargetAnnotation with LoggerOption with HasScoptOptions {
   def addOptions(p: OptionParser[AnnotationSeq]): Unit = p.opt[Unit]("log-class-names")
     .abbr("lcn")
-    .action( (x, c) => c :+ LogClassNamesAnnotation )
+    .action( (x, c) => LogClassNamesAnnotation +: c )
     .unbounded()
     .text(s"shows class names and log level in logging output, useful for target --class-log-level")
 }

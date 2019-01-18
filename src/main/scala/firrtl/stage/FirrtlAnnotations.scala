@@ -53,7 +53,7 @@ object FirrtlFileAnnotation extends HasScoptOptions {
   def addOptions(p: OptionParser[AnnotationSeq]): Unit = p.opt[String]("input-file")
     .abbr("i")
     .valueName ("<firrtl-source>")
-    .action( (x, c) => c :+ FirrtlFileAnnotation(x) )
+    .action( (x, c) => FirrtlFileAnnotation(x) +: c )
     .unbounded()
     .text("use this to override the default input file name, default is empty")
 }
@@ -68,7 +68,7 @@ object OutputFileAnnotation extends HasScoptOptions {
   def addOptions(p: OptionParser[AnnotationSeq]): Unit = p.opt[String]("output-file")
     .abbr("o")
     .valueName("<output>")
-    .action( (x, c) => c :+ OutputFileAnnotation(x) )
+    .action( (x, c) => OutputFileAnnotation(x) +: c )
     .unbounded()
     .text("use this to override the default output file name, default is empty")
 }
@@ -100,7 +100,7 @@ case class InfoModeAnnotation(modeName: String = "use") extends NoTargetAnnotati
 object InfoModeAnnotation extends HasScoptOptions {
   def addOptions(p: OptionParser[AnnotationSeq]): Unit = p.opt[String]("info-mode")
     .valueName ("<ignore|use|gen|append>")
-    .action( (x, c) => c :+ InfoModeAnnotation(x) )
+    .action( (x, c) => InfoModeAnnotation(x) +: c )
     .unbounded()
     .text(s"specifies the source info handling, default is ${apply().modeName}")
 }
@@ -119,7 +119,7 @@ case class FirrtlSourceAnnotation(source: String) extends NoTargetAnnotation wit
 object FirrtlSourceAnnotation extends HasScoptOptions {
   def addOptions(p: OptionParser[AnnotationSeq]): Unit = p.opt[String]("firrtl-source")
     .valueName ("A FIRRTL string")
-    .action( (x, c) => c :+ FirrtlSourceAnnotation(x) )
+    .action( (x, c) => FirrtlSourceAnnotation(x) +: c )
     .unbounded()
     .text(s"A FIRRTL circuit as a string")
 }
@@ -176,8 +176,9 @@ object RunFirrtlTransformAnnotation extends HasScoptOptions {
                     case e: Throwable => throw new OptionsException(
                       s"Unknown error when instantiating class $txName", e) } )
                 p.success } )
-    .action( (x, c) => c ++ x.map(txName =>
-              RunFirrtlTransformAnnotation(Class.forName(txName).asInstanceOf[Class[_ <: Transform]].newInstance())) )
+    .action( (x, c) =>
+      x.map(txName =>
+        RunFirrtlTransformAnnotation(Class.forName(txName).asInstanceOf[Class[_ <: Transform]].newInstance())) ++ c )
     .unbounded()
     .text("runs these custom transforms during compilation.")
 }

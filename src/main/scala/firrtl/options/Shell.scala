@@ -53,8 +53,9 @@ class Shell(val applicationName: String) {
     registeredTransforms
     registeredLibraries
     parser
-      .parse(args, initAnnos)
+      .parse(args, initAnnos.reverse)
       .getOrElse(throw new OptionsException("Failed to parse command line options", new IllegalArgumentException))
+      .reverse
   }
 
   parser.note("Shell Options")
