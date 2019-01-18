@@ -282,7 +282,7 @@ object Uniquify extends Transform {
               (Utils.create_exps(sx.name, sx.tpe) zip Utils.create_exps(node.name, newType)) foreach {
                 case (from, to) => renames.rename(from.serialize, to.serialize)
               }
-              DefRegister(sx.info, node.name, newType, sx.clock, sx.reset, sx.init)
+              sx.copy(name = node.name, tpe = newType)
             } else {
               sx
             }

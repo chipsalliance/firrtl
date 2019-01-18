@@ -57,7 +57,7 @@ class InfoSpec extends FirrtlFlatSpec {
       |r <= or(n, r)
       |y <= r""".stripMargin
     )
-    result should containTree { case DefRegister(Info1, "r", _,_,_,_) => true }
+    result should containTree { case DefRegister(Info1, "r", _,_,_,_,_) => true }
     result should containLine (s"reg [7:0] r; //$Info1")
     result should containTree { case DefNode(Info2, "w", _) => true }
     result should containLine (s"wire [7:0] w; //$Info2") // Node "w" declaration in Verilog

@@ -5,6 +5,7 @@ package transforms
 
 import firrtl.ir._
 import firrtl.Mappers._
+import firrtl.annotations._
 
 import scala.collection.mutable
 
@@ -22,10 +23,18 @@ class RemoveReset extends Transform {
     val resets = mutable.HashMap.empty[String, Reset]
     def onStmt(stmt: Statement): Statement = {
       stmt match {
-        case reg @ DefRegister(_, rname, _, _, reset, init) if reset != Utils.zero =>
+        case reg @ DefRegister(_, rname, _, _, reset, init, _) if reset != Utils.zero =>
           // Add register reset to map
-          resets(rname) = Reset(reset, init)
-          reg.copy(reset = Utils.zero, init = WRef(reg))
+          var useInitAsPreset = false
+          for (anno <- reg.annos) {
+            anno match {
+              case reo : RegisterEmissionOptions => 
+                useInitAsPreset = reo.useInitAsPreset
+            }
+          }
+          if (!useInitAsPreset)
+            resets(rname) = Reset(reset, init)
+          reg.copy(reset = Utils.zero)
         case Connect(info, ref @ WRef(rname, _, RegKind, _), expr) if resets.contains(rname) =>
           val reset = resets(rname)
           val muxType = Utils.mux_type_and_widths(reset.value, expr)

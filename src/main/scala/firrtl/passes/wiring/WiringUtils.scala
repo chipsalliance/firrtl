@@ -211,7 +211,7 @@ object WiringUtils {
     val root = getRoot(eComp)
     var tpe: Option[Type] = None
     def getType(s: Statement): Statement = s match {
-      case DefRegister(_, n, t, _, _, _) if n == root =>
+      case DefRegister(_, n, t, _, _, _, _) if n == root =>
         tpe = Some(t)
         s
       case DefWire(_, n, t) if n == root =>

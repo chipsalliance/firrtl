@@ -466,7 +466,7 @@ abstract class AnnotationTests extends AnnotationSpec with Matchers {
 }
 
 class LegacyAnnotationTests extends AnnotationTests {
-  def anno(s: String, value: String ="this is a value", mod: String = "Top"): Annotation =
+  def anno(s: String, value: String = "this is a value", mod: String = "Top"): Annotation =
     Annotation(ComponentName(s, ModuleName(mod, CircuitName("Top"))), classOf[Transform], value)
   def manno(mod: String): Annotation =
     Annotation(ModuleName(mod, CircuitName("Top")), classOf[Transform], "some value")

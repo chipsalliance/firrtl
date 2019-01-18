@@ -206,7 +206,7 @@ object ToProto {
               .setId(name)
               .setType(convert(tpe))
             sb.setWire(wb)
-          case ir.DefRegister(_, name, tpe, clock, reset, init) =>
+          case ir.DefRegister(_, name, tpe, clock, reset, init, _) =>
             val rb = Firrtl.Statement.Register.newBuilder()
               .setId(name)
               .setType(convert(tpe))

@@ -99,7 +99,7 @@ class DeadCodeElimination extends Transform with ResolvedAnnotationPaths with Re
     def getDeps(expr: Expression): Seq[LogicNode] = getDepsImpl(mod.name, instMap)(expr)
 
     def onStmt(stmt: Statement): Unit = stmt match {
-      case DefRegister(_, name, _, clock, reset, init) =>
+      case DefRegister(_, name, _, clock, reset, init, _) =>
         val node = LogicNode(mod.name, name)
         depGraph.addVertex(node)
         Seq(clock, reset, init).flatMap(getDeps(_)).foreach(ref => depGraph.addPairWithEdge(node, ref))

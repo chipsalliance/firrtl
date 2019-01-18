@@ -417,6 +417,13 @@ class VerilogEmitter extends SeqTransform with Emitter {
     val initials = ArrayBuffer[Seq[Any]]()
     val simulates = ArrayBuffer[Seq[Any]]()
 
+    def declare(b: String, n: String, t: Type, info: Info, preset: Expression) = t match {
+      case tx: VectorType =>
+        declares += Seq(b, " ", tx.tpe, " ", n, " [0:", tx.size - 1, "] = ", preset, ";", info)
+      case tx =>
+        declares += Seq(b, " ", tx, " ", n, " = ", preset, ";", info)
+    }
+
     def declare(b: String, n: String, t: Type, info: Info) = t match {
       case tx: VectorType =>
         declares += Seq(b, " ", tx.tpe, " ", n, " [0:", tx.size - 1, "];", info)
@@ -613,10 +620,23 @@ class VerilogEmitter extends SeqTransform with Emitter {
         case sx: DefWire =>
           declare("wire", sx.name, sx.tpe, sx.info)
         case sx: DefRegister =>
-          declare("reg", sx.name, sx.tpe, sx.info)
+          var useInitAsPreset = false
+          var disableRandomization = false
+          for (anno <- sx.annos) {
+            anno match {
+              case reo : RegisterEmissionOptions =>
+                useInitAsPreset = reo.useInitAsPreset
+                disableRandomization = reo.disableRandomization
+            }
+          }
+          if (useInitAsPreset)
+            declare("reg", sx.name, sx.tpe, sx.info, sx.init)
+          else
+            declare("reg", sx.name, sx.tpe, sx.info)
           val e = wref(sx.name, sx.tpe)
           regUpdate(e, sx.clock)
-          initialize(e)
+          if (!disableRandomization)
+            initialize(e)
         case sx: DefNode =>
           declare("wire", sx.name, sx.value.tpe, sx.info)
           assign(WRef(sx.name, sx.value.tpe, NodeKind, MALE), sx.value, sx.info)

@@ -64,10 +64,10 @@ object ConvertFixedToSInt extends Pass {
         }
       }
       def updateStmtType(s: Statement): Statement = s match {
-        case DefRegister(info, name, tpe, clock, reset, init) =>
-          val newType = toSIntType(tpe)
-          types(name) = newType
-          DefRegister(info, name, newType, clock, reset, init) map updateExpType
+        case sx: DefRegister =>
+          val newType = toSIntType(sx.tpe)
+          types(sx.name) = newType
+          sx.copy(tpe = newType) map updateExpType
         case DefWire(info, name, tpe) =>
           val newType = toSIntType(tpe)
           types(name) = newType

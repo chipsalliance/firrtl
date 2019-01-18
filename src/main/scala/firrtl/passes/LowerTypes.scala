@@ -182,7 +182,7 @@ object LowerTypes extends Transform {
           val clock = lowerTypesExp(memDataTypeMap, info, mname)(sx.clock)
           val reset = lowerTypesExp(memDataTypeMap, info, mname)(sx.reset)
           Block((es zip names) zip inits map { case ((e, n), i) =>
-            DefRegister(sx.info, n, e.tpe, clock, reset, i)
+            sx.copy(name=n, tpe=e.tpe, clock=clock, reset=reset, init=i)
           })
       }
       // Could instead just save the type of each Module as it gets processed

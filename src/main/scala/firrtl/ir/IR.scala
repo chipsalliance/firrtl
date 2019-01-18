@@ -4,9 +4,10 @@ package firrtl
 package ir
 
 import Utils.indent
+import firrtl.annotations.Annotation
 
 /** Intermediate Representation */
-abstract class FirrtlNode {
+abstract class FirrtlNode(val annos : List[Annotation] = List()) {
   def serialize: String
 }
 
@@ -227,7 +228,7 @@ case class DoPrim(op: PrimOp, args: Seq[Expression], consts: Seq[BigInt], tpe: T
   def foreachWidth(f: Width => Unit): Unit = Unit
 }
 
-abstract class Statement extends FirrtlNode {
+abstract class Statement(annos : List[Annotation] = List()) extends FirrtlNode(annos) {
   def mapStmt(f: Statement => Statement): Statement
   def mapExpr(f: Expression => Expression): Statement
   def mapType(f: Type => Type): Statement
@@ -258,13 +259,14 @@ case class DefRegister(
     tpe: Type,
     clock: Expression,
     reset: Expression,
-    init: Expression) extends Statement with IsDeclaration {
+    init: Expression,
+    override val annos : List[Annotation] = List()) extends Statement(annos) with IsDeclaration {
   def serialize: String =
     s"reg $name : ${tpe.serialize}, ${clock.serialize} with :" +
     indent("\n" + s"reset => (${reset.serialize}, ${init.serialize})" + info.serialize)
   def mapStmt(f: Statement => Statement): Statement = this
   def mapExpr(f: Expression => Expression): Statement =
-    DefRegister(info, name, tpe, f(clock), f(reset), f(init))
+    this.copy(clock = f(clock), reset = f(reset), init = f(init))
   def mapType(f: Type => Type): Statement = this.copy(tpe = f(tpe))
   def mapString(f: String => String): Statement = this.copy(name = f(name))
   def mapInfo(f: Info => Info): Statement = this.copy(info = f(info))
