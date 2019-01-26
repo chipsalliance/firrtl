@@ -5,7 +5,7 @@ package firrtl.transforms
 import java.io.{File, FileNotFoundException, FileInputStream, FileOutputStream, PrintWriter}
 
 import firrtl._
-import firrtl.Utils.throwInternalError
+import firrtl.util.FileUtils
 import firrtl.annotations._
 
 import scala.collection.immutable.ListSet
