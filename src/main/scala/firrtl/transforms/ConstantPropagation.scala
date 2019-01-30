@@ -415,18 +415,25 @@ class ConstantPropagation extends Transform with ResolvedAnnotationPaths {
         // Const prop registers that are fed only a constant or a mux between and constant and the
         // register itself
         // This requires that reset has been made explicit
-        case Connect(_, lref @ WRef(lname, ltpe, RegKind, _), expr) if !dontTouches.contains(lname) => expr match {
-          case lit: Literal =>
-            nodeMap(lname) = constPropExpression(nodeMap, instMap, constSubOutputs)(pad(lit, ltpe))
-          case Mux(_, tval: WRef, fval: Literal, _) if weq(lref, tval) =>
-            nodeMap(lname) = constPropExpression(nodeMap, instMap, constSubOutputs)(pad(fval, ltpe))
-          case Mux(_, tval: Literal, fval: WRef, _) if weq(lref, fval) =>
-            nodeMap(lname) = constPropExpression(nodeMap, instMap, constSubOutputs)(pad(tval, ltpe))
-          case WRef(`lname`, _,_,_) => // If a register is connected to itself, propagate zero
-            val zero = passes.RemoveValidIf.getGroundZero(ltpe)
-            nodeMap(lname) = constPropExpression(nodeMap, instMap, constSubOutputs)(pad(zero, ltpe))
-          case _ =>
-        }
+        case Connect(_, lref @ WRef(lname, ltpe, RegKind, _), rhs) if !dontTouches.contains(lname) =>
+          def compatibleConstants(a: Option[Expression], b: Option[Expression]): Option[Expression] = (a, b) match {
+            case (Some(wr: WRef), Some(x)) if weq(lref, wr) => Some(x)
+            case (Some(x), Some(wr: WRef)) if weq(lref, wr) => Some(x)
+            case (x, y) if (x == y) => x
+            case _ => None
+          }
+          def regConstant(e: Expression): Option[Expression] = e match {
+            case lit: Literal => Some(pad(lit, ltpe))
+            case WRef(regName, _, RegKind, _) if (regName == lname) => Some(e)
+            case WRef(nodeName, _, NodeKind, _) => nodeMap.get(nodeName).flatMap(regConstant(_))
+            case Mux(_, tval, fval, _) => compatibleConstants(regConstant(tval), regConstant(fval))
+            case _ => None
+          }
+          def cpExp(e: Expression) = constPropExpression(nodeMap, instMap, constSubOutputs)(e)
+          regConstant(rhs).foreach {
+            case wr: WRef => nodeMap(lname) = cpExp(pad(passes.RemoveValidIf.getGroundZero(ltpe), ltpe))
+            case e => nodeMap(lname) = cpExp(e)
+          }
         // Mark instance inputs connected to a constant
         case Connect(_, lref @ WSubField(WRef(inst, _, InstanceKind, _), port, ptpe, _), lit: Literal) =>
           val paddedLit = constPropExpression(nodeMap, instMap, constSubOutputs)(pad(lit, ptpe)).asInstanceOf[Literal]
