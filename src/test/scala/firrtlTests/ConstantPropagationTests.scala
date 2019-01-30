@@ -1022,6 +1022,7 @@ class ConstantPropagationIntegrationSpec extends LowTransformSpec {
           |  module Top :
           |    input clock : Clock
           |    input reset : UInt<1>
+          |    input cond : UInt<1>
           |    output z : UInt<8>
           |    z <= UInt<8>("hb")""".stripMargin
     execute(input, check, Seq.empty)
