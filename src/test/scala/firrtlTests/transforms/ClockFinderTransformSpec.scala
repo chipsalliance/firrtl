@@ -864,5 +864,13 @@ class ClockFinderTransformSpec extends MiddleAnnotationSpec with MemStuff with F
       println(clockSources.prettyPrint)
     }
   }
+
+  "GetClockSources" should "be serializable and deserializable" in {
+    val annos = List(GetClockSources(Seq(CircuitTarget("Top"))))
+    val ser = JsonProtocol.serialize(annos)
+    val deser = JsonProtocol.deserialize(ser)
+    deser should equal (annos)
+
+  }
 }
 
