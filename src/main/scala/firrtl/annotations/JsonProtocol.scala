@@ -51,6 +51,10 @@ object JsonProtocol {
     { case JString(s) => Target.deserialize(s) },
     { case named: Target => JString(named.serialize) }
   ))
+  class CompleteTargetSerializer extends CustomSerializer[CompleteTarget](format => (
+    { case JString(s) => Target.deserialize(s).asInstanceOf[CompleteTarget] },
+    { case named: CompleteTarget => JString(named.serialize) }
+  ))
   class GenericTargetSerializer extends CustomSerializer[GenericTarget](format => (
     { case JString(s) => Target.deserialize(s).asInstanceOf[GenericTarget] },
     { case named: GenericTarget => JString(named.serialize) }
@@ -77,8 +81,9 @@ object JsonProtocol {
     Serialization.formats(FullTypeHints(tags.toList)).withTypeHintFieldName("class") +
       new TransformClassSerializer + new NamedSerializer + new CircuitNameSerializer +
       new ModuleNameSerializer + new ComponentNameSerializer + new TargetSerializer +
-      new GenericTargetSerializer + new CircuitTargetSerializer + new ModuleTargetSerializer +
-      new InstanceTargetSerializer + new ReferenceTargetSerializer + new TransformSerializer
+      new CompleteTargetSerializer + new GenericTargetSerializer + new CircuitTargetSerializer +
+      new ModuleTargetSerializer + new InstanceTargetSerializer + new ReferenceTargetSerializer +
+      new TransformSerializer
   }
 
   /** Serialize annotations to a String for emission */
