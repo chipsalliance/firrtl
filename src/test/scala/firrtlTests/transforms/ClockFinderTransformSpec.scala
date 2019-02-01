@@ -4,12 +4,12 @@ package firrtlTests.transforms
 
 import firrtl.analyses.CircuitGraph
 import firrtl.annotations.TargetToken.Field
-import firrtl.{ChirrtlForm, CircuitState, RegKind}
+import firrtl.{ChirrtlForm, CircuitState, MiddleFirrtlToLowFirrtl, RegKind}
 import firrtl.transforms._
 import firrtl.annotations._
 import firrtlTests.{FirrtlRunners, MiddleAnnotationSpec}
 import firrtl.ir.UIntLiteral
-import firrtl.transforms.clockfinder.{ClockSources, ClockFinderTransform, GetClockSources}
+import firrtl.transforms.clockfinder.{ClockFinderTransform, ClockSources, GetClockSources}
 
 
 trait MemStuff {
@@ -814,6 +814,36 @@ class ClockFinderTransformSpec extends MiddleAnnotationSpec with MemStuff with F
       )
 
     execute(input, annotations, clockSources, Nil)
+  }
+
+  "Clock sources" should "work with bundle clock source" in {
+    val input =
+      """circuit Test:
+        |  module Test :
+        |    input in : UInt<8>
+        |    input clk: {c1: Clock}
+        |    output out1 : UInt<8>
+        |    out1 <= in
+        |""".stripMargin
+
+    val C = CircuitTarget("Test")
+    val Test = C.module("Test")
+    val clockSources = Seq(
+      ClockSources(Map(
+        Test.ref("out1") -> Set((Test.ref("clk_c1"), None))
+      ))
+    )
+    val annotations =
+      Seq(
+        GetClockSources(Nil, true),
+        ClockSources.buildFromRefs(Map(Test.ref("in") -> Set(Test.ref("clk").field("c1"))))
+      )
+
+    val cr = compile(CircuitState(parse(input), ChirrtlForm, annotations), Seq(new ClockFinderTransform()))
+    val ret = (new MiddleFirrtlToLowFirrtl).runTransform(cr)
+    clockSources.foreach { c =>
+      ret.annotations.toSeq should contain (c)
+    }
   }
 
   "Clock sources" should "work on large circuits" in {
