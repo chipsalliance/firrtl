@@ -412,21 +412,27 @@ class ConstantPropagation extends Transform with ResolvedAnnotationPaths {
         case Connect(_, WRef(pname, ptpe, PortKind, _), lit: Literal) if !dontTouches.contains(pname) =>
           val paddedLit = constPropExpression(nodeMap, instMap, constSubOutputs)(pad(lit, ptpe)).asInstanceOf[Literal]
           constOutputs(pname) = paddedLit
-        // Const prop registers that are fed only a constant or a mux between and constant and the
-        // register itself
+        // Const prop registers that are driven by a mux tree containing only instances of one constant or self-assigns
         // This requires that reset has been made explicit
         case Connect(_, lref @ WRef(lname, ltpe, RegKind, _), rhs) if !dontTouches.contains(lname) =>
-          def compatibleConstants(a: Option[Expression], b: Option[Expression]): Option[Expression] = (a, b) match {
-            case (Some(wr: WRef), Some(x)) if weq(lref, wr) => Some(x)
-            case (Some(x), Some(wr: WRef)) if weq(lref, wr) => Some(x)
-            case (x, y) if (x == y) => x
-            case _ => None
-          }
+          /** Checks if an RHS expression e of a register assignment is convertible to a constant assignment.
+            * Here, this means that e must be 1) a literal, 2) a self-connect, or 3) a mux tree of cases (1) and (2).
+            * In case (3), it also recursively checks that the two mux cases are convertible to constants and
+            * uses pattern matching on the returned options to check that they are convertible to the *same* constant.
+            * When encountering a node reference, it expands the node by to its RHS assignment and recurses.
+            *
+            * @return an option containing the literal or self-connect that e is convertible to, if any
+            */
           def regConstant(e: Expression): Option[Expression] = e match {
             case lit: Literal => Some(pad(lit, ltpe))
             case WRef(regName, _, RegKind, _) if (regName == lname) => Some(e)
             case WRef(nodeName, _, NodeKind, _) => nodeMap.get(nodeName).flatMap(regConstant(_))
-            case Mux(_, tval, fval, _) => compatibleConstants(regConstant(tval), regConstant(fval))
+            case Mux(_, tval, fval, _) => (regConstant(tval), regConstant(fval)) match {
+              case (Some(wr: WRef), Some(x)) if weq(lref, wr) => Some(x) // Mux(_, selfassign, <constRHSCandidate>)
+              case (Some(x), Some(wr: WRef)) if weq(lref, wr) => Some(x) // Mux(_, <constRHSCandidate>, selfassign)
+              case (x, y) if (x == y) => x                               // No-op mux
+              case _ => None                                             // At least one case not constant-convertible
+            }
             case _ => None
           }
           def cpExp(e: Expression) = constPropExpression(nodeMap, instMap, constSubOutputs)(e)
