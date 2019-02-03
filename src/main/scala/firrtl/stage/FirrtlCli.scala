@@ -17,7 +17,8 @@ trait FirrtlCli { this: Shell =>
        CompilerAnnotation,
        RunFirrtlTransformAnnotation,
        firrtl.EmitCircuitAnnotation,
-       firrtl.EmitAllModulesAnnotation,
-       phases.DriverCompatibility.TopNameAnnotation )
+       firrtl.EmitAllModulesAnnotation )
     .map(_.addOptions(parser))
+
+  phases.DriverCompatibility.TopNameAnnotation.addOptions(parser)
 }
