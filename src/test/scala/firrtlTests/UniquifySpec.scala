@@ -287,7 +287,7 @@ class UniquifySpec extends FirrtlFlatSpec {
 
   it should "quickly rename deep bundles" in {
     val depth = 500
-    // We use a fixed time to determine if this test passed or failed.
+    // We previously used a fixed time to determine if this test passed or failed.
     // This test would pass under normal conditions, but would fail during coverage tests.
     // Instead of using a fixed time, we run the test once (with a rename depth of 1), and record the time,
     //  then run it again with a depth of 500 and verify that the difference is below a fixed threshold.
