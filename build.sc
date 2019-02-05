@@ -44,11 +44,15 @@ trait CommonModule extends CrossUnRootedSbtModule with PublishModule {
 // Generic antlr4 configuration.
 // This could be simpler, but I'm trying to keep some compatibility with the sbt plugin.
 case class Antlr4Config(val sourcePath: Path) {
-  val ANTLR4_JAR = (home / 'lib / "antlr-4.7.1-complete.jar").toString
+  val antlr4Version: String = "4.7.1"
+  val ANTLR4_JAR = (pwd / s"antlr-${antlr4Version}-complete.jar").toString
+  if (!new java.io.File(ANTLR4_JAR).exists) {
+    println("Downloading ANTLR4 .jar")
+    %%("wget", s"https://www.antlr.org/download/antlr-${antlr4Version}-complete.jar", "-O", ANTLR4_JAR)
+  }
   val antlr4GenVisitor: Boolean = true
   val antlr4GenListener: Boolean = false
   val antlr4PackageName: Option[String] = Some("firrtl.antlr")
-  val antlr4Version: String = "4.7"
 
   val listenerArg: String = if (antlr4GenListener) "-listener" else "-no-listener"
   val visitorArg: String = if (antlr4GenVisitor) "-visitor" else "-no-visitor"
