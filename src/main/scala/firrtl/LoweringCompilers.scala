@@ -2,6 +2,8 @@
 
 package firrtl
 
+import firrtl.transforms.IdentityTransform
+
 sealed abstract class CoreTransform extends SeqTransform
 
 /** This transforms "CHIRRTL", the chisel3 IR, to "Firrtl". Note the resulting
@@ -117,6 +119,7 @@ class MinimumLowFirrtlOptimization extends CoreTransform {
   def inputForm = LowForm
   def outputForm = LowForm
   def transforms = Seq(
+    passes.RemoveValidIf,
     passes.Legalize,
     passes.memlib.VerilogMemDelays, // TODO move to Verilog emitter
     passes.SplitExpressions)
@@ -132,7 +135,7 @@ import firrtl.transforms.BlackBoxSourceHelper
   */
 class NoneCompiler extends Compiler {
   def emitter = new ChirrtlEmitter
-  def transforms: Seq[Transform] = Seq.empty
+  def transforms: Seq[Transform] = Seq(new IdentityTransform(ChirrtlForm))
 }
 
 /** Emits input circuit
@@ -164,9 +167,9 @@ class VerilogCompiler extends Compiler {
 
 /** Emits Verilog without optimizations */
 class MinimumVerilogCompiler extends Compiler {
-  def emitter = new VerilogEmitter
+  def emitter = new MinimumVerilogEmitter
   def transforms: Seq[Transform] = getLoweringTransforms(ChirrtlForm, LowForm) ++
-    Seq(new MinimumLowFirrtlOptimization, new BlackBoxSourceHelper)
+    Seq(new MinimumLowFirrtlOptimization)
 }
 
 /** Currently just an alias for the [[VerilogCompiler]] */
