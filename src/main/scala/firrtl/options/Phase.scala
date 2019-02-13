@@ -7,8 +7,6 @@ import firrtl.annotations.DeletedAnnotation
 
 import logger.LazyLogging
 
-import scala.collection.mutable
-
 /** A polymorphic mathematical transform
   * @tparam A the transformed type
   */
@@ -25,12 +23,46 @@ trait TransformLike[A] extends LazyLogging {
 
 }
 
+/** Additional methods that define dependencies between [[TransformLike]]s
+  * @tparam A some [[TransformLike]]
+  */
+trait DependencyAPI[A <: DependencyAPI[A]] {
+
+  /** All `A` that must run before this `A` */
+  def prerequisites: Set[Class[A]] = Set.empty
+
+  /** All [[Phase]]s that must run ''after'' this [[Phase]].
+    *
+    * ''This is a means of prerequisite injection into some other [[Phase]].'' Normally a [[Phase]] will define its own
+    * prerequisites. This is a fallback approach for the narrow situation of an external library [[Phase]] needing to
+    * run before some other [[Phase]] where that other [[Phase]] does not know about the [[Phase]] added by the library.
+    * As dependents and prerequisites are two ways of expressing the same thing, a user should always use a prerequisite
+    * first and fallback to specifying dependents if needed.
+    */
+  def dependents: Set[Class[A]] = Set.empty
+
+  /** A function that, given some other [[Phase]], will return true if this [[Phase]] invalidates the other [[Phase]]. By
+    * default, this invalidates everything.
+    * @note Can a [[Phase]] ever invalidate itself?
+    */
+  def invalidates(a: A): Boolean = true
+
+  /** Helper method to return the underlying class */
+  final def asClass: Class[A] = this.getClass.asInstanceOf[Class[A]]
+
+  /** Implicit conversion that allows for terser specification of [[DependencyAPI.prerequisites prerequisites]] and
+    * [[DependencyAPI.dependents dependents]].
+    */
+  implicit def classHelper(a: Class[_ <: A]): Class[A] = a.asInstanceOf[Class[A]]
+
+}
+
 /** A mathematical transformation of an [[AnnotationSeq]].
   *
   * A [[Phase]] forms one unit in the Chisel/FIRRTL Hardware Compiler Framework (HCF). The HCF is built from a sequence
   * of [[Phase]]s applied to an [[AnnotationSeq]]. Note that a [[Phase]] may consist of multiple phases internally.
   */
-abstract class Phase extends TransformLike[AnnotationSeq] {
+trait Phase extends TransformLike[AnnotationSeq] with DependencyAPI[Phase] {
 
   /** The name of this [[Phase]]. This will be used to generate debug/error messages or when deleting annotations. This
     * will default to the `simpleName` of the class.
@@ -49,7 +81,7 @@ abstract class Phase extends TransformLike[AnnotationSeq] {
   * @tparam A the type of the [[TransformLike]]
   * @tparam B the internal type
   */
-trait Translator[A, B] { this: TransformLike[A] =>
+trait Translator[A, B] extends TransformLike[A] {
 
   /** A method converting type `A` into type `B`
     * @param an object of type `A`
@@ -71,6 +103,6 @@ trait Translator[A, B] { this: TransformLike[A] =>
 
   /** Convert the input object to the internal type, transform the internal type, and convert back to the original type
     */
-  final def transform(a: A): A = internalTransform(a)
+  override final def transform(a: A): A = bToA(internalTransform(aToB(a)))
 
 }
