@@ -7,8 +7,6 @@ import firrtl.annotations.DeletedAnnotation
 
 import logger.LazyLogging
 
-import scala.collection.mutable
-
 /** A polymorphic mathematical transform
   * @tparam A the transformed type
   */
@@ -25,12 +23,38 @@ trait TransformLike[A] extends LazyLogging {
 
 }
 
+trait DependencyAPI { this: Phase =>
+
+  /** All [[Phase]]s that must run before this [[Phase]] */
+  def prerequisites: Set[Phase] = Set.empty
+
+  /** All [[Phase]]s that must run ''after'' this [[Phase]].
+    *
+    * ''This is a means of prerequisite injection into some other [[Phase]].'' Normally a [[Phase]] will define its own
+    * prerequisites. This is a fallback approach for the narrow situation of an external library [[Phase]] needing to
+    * run before some other [[Phase]] where that other [[Phase]] does not know about the [[Phase]] added by the library.
+    * As dependents and prerequisites are two ways of expressing the same thing, a user should always use a prerequisite
+    * first and fallback to specifying dependents if needed.
+    */
+  def dependents: Set[Phase] = Set.empty
+
+  /** A function that, given some other [[Phase]], will return [[true]] if this [[Phase]] invalidates the other [[Phase]].
+    * By default, this invalidates everything except itself, i.e., this is a set that does not contain this [[Phase]].
+    * @note Can a [[Phase]] ever invalidate itself?
+    */
+  def invalidates(phase: Phase): Boolean = phase match {
+    case _: this.type => false
+    case _ => true
+  }
+
+}
+
 /** A mathematical transformation of an [[AnnotationSeq]].
   *
   * A [[Phase]] forms one unit in the Chisel/FIRRTL Hardware Compiler Framework (HCF). The HCF is built from a sequence
   * of [[Phase]]s applied to an [[AnnotationSeq]]. Note that a [[Phase]] may consist of multiple phases internally.
   */
-abstract class Phase extends TransformLike[AnnotationSeq] {
+abstract class Phase extends TransformLike[AnnotationSeq] with DependencyAPI {
 
   /** The name of this [[Phase]]. This will be used to generate debug/error messages or when deleting annotations. This
     * will default to the `simpleName` of the class.
