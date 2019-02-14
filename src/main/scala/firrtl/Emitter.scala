@@ -420,6 +420,16 @@ class VerilogEmitter extends SeqTransform with Emitter {
     // but Formality doesn't allow more than 1 statement inside async reset always blocks
     val asyncResetAlwaysBlocks = mutable.ArrayBuffer[(Expression, Expression, Seq[Any])]()
     val initials = ArrayBuffer[Seq[Any]]()
+    // In Verilog, async reset registers are expressed using always blocks of the form:
+    // always @(posedge clock or posedge reset) begin
+    //   if (reset) ...
+    // There is a fundamental mismatch between this representation which treats async reset
+    // registers as edge-triggered when in reality they are level-triggered.
+    // This can result in silicon-simulation mismatch in the case where async reset is held high
+    // upon power on with no clock, then async reset is dropped before the clock starts. In this
+    // circumstance, the async reset register will be randomized in simulation instead of being
+    // reset. To fix this, we need extra initial block logic for async reset registers
+    val asyncInitials = ArrayBuffer[Seq[Any]]()
     val simulates = ArrayBuffer[Seq[Any]]()
 
     def declare(b: String, n: String, t: Type, info: Info) = t match {
@@ -509,10 +519,17 @@ class VerilogEmitter extends SeqTransform with Emitter {
       Seq(nx, "[", bitWidth(t) - 1, ":0]")
     }
 
-    def initialize(e: Expression) = {
+    def initialize(e: Expression, reset: Expression, init: Expression) = {
       initials += Seq("`ifdef RANDOMIZE_REG_INIT")
       initials += Seq(e, " = ", rand_string(e.tpe), ";")
       initials += Seq("`endif // RANDOMIZE_REG_INIT")
+      reset.tpe match {
+        case AsyncResetType =>
+          asyncInitials += Seq("if (", reset, ") begin")
+          asyncInitials += Seq(tab, e, " = ", init, ";")
+          asyncInitials += Seq("end")
+        case _ => // do nothing
+      }
     }
 
     def initialize_mem(s: DefMemory) {
@@ -628,7 +645,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
           declare("reg", sx.name, sx.tpe, sx.info)
           val e = wref(sx.name, sx.tpe)
           regUpdate(e, sx.clock, sx.reset, sx.init)
-          initialize(e)
+          initialize(e, sx.reset, sx.init)
         case sx: DefNode =>
           declare("wire", sx.name, sx.value.tpe, sx.info)
           assign(WRef(sx.name, sx.value.tpe, NodeKind, MALE), sx.value, sx.info)
@@ -770,9 +787,11 @@ class VerilogEmitter extends SeqTransform with Emitter {
         emit(Seq("`ifndef RANDOM"))
         emit(Seq("`define RANDOM $random"))
         emit(Seq("`endif"))
-        emit(Seq("`ifdef RANDOMIZE"))
+        emit(Seq("`ifdef RANDOMIZE_MEM_INIT"))
         emit(Seq("  integer initvar;"))
-        emit(Seq("  initial begin"))
+        emit(Seq("`endif"))
+        emit(Seq("initial begin"))
+        emit(Seq("  `ifdef RANDOMIZE"))
         emit(Seq("    `ifdef INIT_RANDOM"))
         emit(Seq("      `INIT_RANDOM"))
         emit(Seq("    `endif"))
@@ -788,8 +807,9 @@ class VerilogEmitter extends SeqTransform with Emitter {
         emit(Seq("      `endif"))
         emit(Seq("    `endif"))
         for (x <- initials) emit(Seq(tab, x))
-        emit(Seq("  end"))
-        emit(Seq("`endif // RANDOMIZE"))
+        emit(Seq("  `endif // RANDOMIZE"))
+        for (x <- asyncInitials) emit(Seq(tab, x))
+        emit(Seq("end"))
       }
 
       for ((clk, content) <- noResetAlwaysBlocks if content.nonEmpty) {
