@@ -7,6 +7,8 @@ import java.nio.file.Files
 import java.text.SimpleDateFormat
 import java.util.Calendar
 
+import firrtl.FirrtlExecutionOptions
+
 import scala.sys.process.{ProcessBuilder, ProcessLogger, _}
  
 trait BackendCompilationUtilities {
@@ -19,7 +21,10 @@ trait BackendCompilationUtilities {
     format.format(now)
   }
 
-  /** Copy the contents of a resource to a destination file.
+  /**
+    * Copy the contents of a resource to a destination file.
+    * @param name the name of the resource
+    * @param file the file to write it into
     */
   def copyResourceToFile(name: String, file: File) {
     val in = getClass.getResourceAsStream(name)
@@ -77,21 +82,29 @@ trait BackendCompilationUtilities {
     * all the files which are not included elsewhere. If multiple ones exist,
     * the compilation will fail.
     *
+    * If the file BlackBoxSourceHelper.fileListName exists in the output directory,
+    * it contains a list of source files to be included. Filter out any files in the vSources
+    * sequence that are in this file so we don't include the same file multiple times.
+    * This complication is an attempt to work-around the fact that clients used to have to
+    * explicitly include additional Verilog sources. Now, more of that is automatic.
+    *
     * @param dutFile name of the DUT .v without the .v extension
     * @param dir output directory
     * @param vSources list of additional Verilog sources to compile
     * @param cppHarness C++ testharness to compile/link against
     */
   def verilogToCpp(
-                    dutFile: String,
-                    dir: File,
-                    vSources: Seq[File],
-                    cppHarness: File
-                  ): ProcessBuilder = {
+    dutFile: String,
+    dir: File,
+    vSources: Seq[File],
+    cppHarness: File,
+    suppressVcd: Boolean = false
+  ): ProcessBuilder = {
+
     val topModule = dutFile
 
+    val list_file = new File(dir, firrtl.transforms.BlackBoxSourceHelper.fileListName)
     val blackBoxVerilogList = {
-      val list_file = new File(dir, firrtl.transforms.BlackBoxSourceHelper.FileListName)
       if(list_file.exists()) {
         Seq("-f", list_file.getAbsolutePath)
       }
@@ -100,17 +113,31 @@ trait BackendCompilationUtilities {
       }
     }
 
+    // Don't include the same file multiple times.
+    // If it's in BlackBoxSourceHelper.fileListName, don't explicitly include it on the command line.
+    // Build a set of canonical file paths to use as a filter to exclude already included additional Verilog sources.
+    val blackBoxHelperFiles: Set[String] = {
+      if(list_file.exists()) {
+        io.Source.fromFile(list_file).getLines.toSet
+      }
+      else {
+        Set.empty
+      }
+    }
+    val vSourcesFiltered = vSources.filterNot(f => blackBoxHelperFiles.contains(f.getCanonicalPath))
     val command = Seq(
       "verilator",
-      "--cc", s"$dutFile.v"
+      "--cc", s"${dir.getAbsolutePath}/$dutFile.v"
     ) ++
       blackBoxVerilogList ++
-      vSources.flatMap(file => Seq("-v", file.getAbsolutePath)) ++
+      vSourcesFiltered.flatMap(file => Seq("-v", file.getCanonicalPath)) ++
       Seq("--assert",
         "-Wno-fatal",
         "-Wno-WIDTH",
-        "-Wno-STMTDLY",
-        "--trace",
+        "-Wno-STMTDLY"
+      ) ++
+      { if(suppressVcd) { Seq.empty } else { Seq("--trace")} } ++
+      Seq(
         "-O1",
         "--top-module", topModule,
         "+define+TOP_TYPE=V" + dutFile,
@@ -145,5 +172,66 @@ trait BackendCompilationUtilities {
 
   def executeExpectingSuccess(prefix: String, dir: File): Boolean = {
     !executeExpectingFailure(prefix, dir)
+  }
+
+  /** Creates and runs a Yosys script that creates and runs SAT on a miter
+    * circuit. Returns true if SAT succeeds, false otherwise
+    *
+    * The custom and reference Verilog files must not contain any modules with
+    * the same name otherwise Yosys will not be able to create a miter circuit
+    *
+    * @param customTop    name of the DUT with custom transforms without the .v
+    *                     extension
+    * @param referenceTop name of the DUT without custom transforms without the
+    *                     .v extension
+    * @param testDir      directory containing verilog files
+    * @param resets       signals to set for SAT, format is
+    *                     (timestep, signal, value)
+    */
+  def yosysExpectSuccess(customTop: String,
+                         referenceTop: String,
+                         testDir: File,
+                         resets: Seq[(Int, String, Int)] = Seq.empty): Boolean = {
+    !yosysExpectFailure(customTop, referenceTop, testDir, resets)
+  }
+
+  /** Creates and runs a Yosys script that creates and runs SAT on a miter
+    * circuit. Returns false if SAT succeeds, true otherwise
+    *
+    * The custom and reference Verilog files must not contain any modules with
+    * the same name otherwise Yosys will not be able to create a miter circuit
+    *
+    * @param customTop    name of the DUT with custom transforms without the .v
+    *                     extension
+    * @param referenceTop name of the DUT without custom transforms without the
+    *                     .v extension
+    * @param testDir      directory containing verilog files
+    * @param resets       signals to set for SAT, format is
+    *                     (timestep, signal, value)
+    */
+  def yosysExpectFailure(customTop: String,
+                         referenceTop: String,
+                         testDir: File,
+                         resets: Seq[(Int, String, Int)] = Seq.empty): Boolean = {
+
+    val setSignals = resets.map(_._2).toSet[String].map(s => s"-set in_$s 0").mkString(" ")
+    val setAtSignals = resets.map {
+      case (timestep, signal, value) => s"-set-at $timestep in_$signal $value"
+    }.mkString(" ")
+    val scriptFileName = s"${testDir.getAbsolutePath}/yosys_script"
+    val yosysScriptWriter = new PrintWriter(scriptFileName)
+    yosysScriptWriter.write(
+      s"""read_verilog ${testDir.getAbsolutePath}/$customTop.v
+         |read_verilog ${testDir.getAbsolutePath}/$referenceTop.v
+         |prep; proc; opt; memory
+         |miter -equiv -flatten $customTop $referenceTop miter
+         |hierarchy -top miter
+         |sat -verify -tempinduct -prove trigger 0 $setSignals $setAtSignals -seq 1 miter"""
+        .stripMargin)
+    yosysScriptWriter.close()
+
+    val resultFileName = testDir.getAbsolutePath + "/yosys_results"
+    val command = s"yosys -s $scriptFileName" #> new File(resultFileName)
+    command.! != 0
   }
 }

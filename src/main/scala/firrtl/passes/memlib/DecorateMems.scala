@@ -16,12 +16,11 @@ class CreateMemoryAnnotations(reader: Option[YamlFileReader]) extends Transform 
       import CustomYAMLProtocol._
       val configs = r.parse[Config]
       val cN = CircuitName(state.circuit.main)
-      val oldAnnos = state.annotations.getOrElse(AnnotationMap(Seq.empty)).annotations
+      val oldAnnos = state.annotations
       val (as, pins) = configs.foldLeft((oldAnnos, Seq.empty[String])) { case ((annos, pins), config) =>
-        val top = TopAnnotation(ModuleName(config.top.name, cN), config.pin.name)
         val source = SourceAnnotation(ComponentName(config.source.name, ModuleName(config.source.module, cN)), config.pin.name)
-        (annos ++ Seq(top, source), pins :+ config.pin.name)
+        (annos, pins :+ config.pin.name)
       }
-      state.copy(annotations = Some(AnnotationMap(as :+ PinAnnotation(cN, pins.toSeq))))
+      state.copy(annotations = PinAnnotation(pins.toSeq) +: as)
   }
 }

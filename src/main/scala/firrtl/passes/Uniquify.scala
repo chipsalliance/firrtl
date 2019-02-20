@@ -3,13 +3,15 @@
 package firrtl.passes
 
 import com.typesafe.scalalogging.LazyLogging
-import scala.annotation.tailrec
 
+import scala.annotation.tailrec
 import firrtl._
 import firrtl.ir._
 import firrtl.Utils._
 import firrtl.Mappers._
 import MemPortUtils.memType
+
+import scala.collection.mutable
 
 /** Resolve name collisions that would occur in [[LowerTypes]]
   *
@@ -31,10 +33,12 @@ import MemPortUtils.memType
   *      there WOULD be collisions in references a[0] and a_0 so we still have
   *      to rename a
   */
-object Uniquify extends Pass {
+object Uniquify extends Transform {
+  def inputForm = UnknownForm
+  def outputForm = UnknownForm
   private case class UniquifyException(msg: String) extends FIRRTLException(msg)
   private def error(msg: String)(implicit sinfo: Info, mname: String) =
-    throw new UniquifyException(s"$sinfo: [module $mname] $msg")
+    throw new UniquifyException(s"$sinfo: [moduleOpt $mname] $msg")
 
   // For creation of rename map
   private case class NameMapNode(name: String, elts: Map[String, NameMapNode])
@@ -43,7 +47,7 @@ object Uniquify extends Pass {
   // We don't add an _ in the collision check because elts could be Seq("")
   //   In this case, we're just really checking if prefix itself collides
   @tailrec
-  private def findValidPrefix(
+  def findValidPrefix(
       prefix: String,
       elts: Seq[String],
       namespace: collection.mutable.HashSet[String]): String = {
@@ -57,7 +61,7 @@ object Uniquify extends Pass {
   //   eg. foo : { bar : { a, b }[2], c }
   //   => foo, foo bar, foo bar 0, foo bar 1, foo bar 0 a, foo bar 0 b,
   //      foo bar 1 a, foo bar 1 b, foo c
-  private def enumerateNames(tpe: Type): Seq[Seq[String]] = tpe match {
+  private [firrtl] def enumerateNames(tpe: Type): Seq[Seq[String]] = tpe match {
     case t: BundleType =>
       t.fields flatMap { f =>
         (enumerateNames(f.tpe) map (f.name +: _)) ++ Seq(Seq(f.name))
@@ -76,38 +80,45 @@ object Uniquify extends Pass {
       t: BundleType,
       namespace: collection.mutable.HashSet[String])
       (implicit sinfo: Info, mname: String): BundleType = {
-    def recUniquifyNames(t: Type, namespace: collection.mutable.HashSet[String]): Type = t match {
+    def recUniquifyNames(t: Type, namespace: collection.mutable.HashSet[String]): (Type, Seq[String]) = t match {
       case tx: BundleType =>
         // First add everything
-        val newFields = tx.fields map { f =>
+        val newFieldsAndElts = tx.fields map { f =>
           val newName = findValidPrefix(f.name, Seq(""), namespace)
           namespace += newName
           Field(newName, f.flip, f.tpe)
         } map { f => f.tpe match {
-          case _: GroundType => f
+          case _: GroundType => (f, Seq[String](f.name))
           case _ =>
-            val tpe = recUniquifyNames(f.tpe, collection.mutable.HashSet())
-            val elts = enumerateNames(tpe)
+            val (tpe, eltsx) = recUniquifyNames(f.tpe, collection.mutable.HashSet())
             // Need leading _ for findValidPrefix, it doesn't add _ for checks
-            val eltsNames = elts map (e => "_" + LowerTypes.loweredName(e))
+            val eltsNames: Seq[String] = eltsx map (e => "_" + e)
             val prefix = findValidPrefix(f.name, eltsNames, namespace)
             // We added f.name in previous map, delete if we change it
             if (prefix != f.name) {
               namespace -= f.name
               namespace += prefix
             }
-            namespace ++= (elts map (e => LowerTypes.loweredName(prefix +: e)))
-            Field(prefix, f.flip, tpe)
+            val newElts: Seq[String] = eltsx map (e => LowerTypes.loweredName(prefix +: Seq(e)))
+            namespace ++= newElts
+            (Field(prefix, f.flip, tpe), prefix +: newElts)
           }
         }
-        BundleType(newFields)
+        val (newFields, elts) = newFieldsAndElts.unzip
+        (BundleType(newFields), elts.flatten)
       case tx: VectorType =>
-        VectorType(recUniquifyNames(tx.tpe, namespace), tx.size)
-      case tx => tx
+        val (tpe, elts) = recUniquifyNames(tx.tpe, namespace)
+        val newElts = ((0 until tx.size) map (i => i.toString)) ++
+          ((0 until tx.size) flatMap { i =>
+            elts map (e => LowerTypes.loweredName(Seq(i.toString, e)))
+          })
+        (VectorType(tpe, tx.size), newElts)
+      case tx => (tx, Nil)
     }
-    recUniquifyNames(t, namespace) match {
+    val (tpe, _) = recUniquifyNames(t, namespace)
+    tpe match {
       case tx: BundleType => tx
-      case tx => error("Shouldn't be here")
+      case tx => throwInternalError(s"uniquifyNames: shouldn't be here - $tx")
     }
   }
 
@@ -150,7 +161,7 @@ object Uniquify extends Pass {
         }
         else (e, Map())
       case e: WSubField =>
-        val (subExp, subMap) = rec(e.exp, m)
+        val (subExp, subMap) = rec(e.expr, m)
         val (retName, retMap) =
           if (subMap.contains(e.name)) {
             val node = subMap(e.name)
@@ -160,10 +171,10 @@ object Uniquify extends Pass {
           }
         (WSubField(subExp, retName, e.tpe, e.gender), retMap)
       case e: WSubIndex =>
-        val (subExp, subMap) = rec(e.exp, m)
+        val (subExp, subMap) = rec(e.expr, m)
         (WSubIndex(subExp, e.value, e.tpe, e.gender), subMap)
       case e: WSubAccess =>
-        val (subExp, subMap) = rec(e.exp, m)
+        val (subExp, subMap) = rec(e.expr, m)
         val index = uniquifyNamesExp(e.index, map)
         (WSubAccess(subExp, index, e.tpe, e.gender), subMap)
       case (_: UIntLiteral | _: SIntLiteral) => (exp, m)
@@ -224,7 +235,10 @@ object Uniquify extends Pass {
   }
 
   // Everything wrapped in run so that it's thread safe
-  def run(c: Circuit): Circuit = {
+  def execute(state: CircuitState): CircuitState = {
+    val c = state.circuit
+    val renames = RenameMap()
+    renames.setCircuit(c.main)
     // Debug state
     implicit var mname: String = ""
     implicit var sinfo: Info = NoInfo
@@ -232,7 +246,8 @@ object Uniquify extends Pass {
     val portNameMap = collection.mutable.HashMap[String, Map[String, NameMapNode]]()
     val portTypeMap = collection.mutable.HashMap[String, Type]()
 
-    def uniquifyModule(m: DefModule): DefModule = {
+    def uniquifyModule(renames: RenameMap)(m: DefModule): DefModule = {
+      renames.setModule(m.name)
       val namespace = collection.mutable.HashSet[String]()
       val nameMap = collection.mutable.HashMap[String, NameMapNode]()
 
@@ -251,7 +266,11 @@ object Uniquify extends Pass {
             sinfo = sx.info
             if (nameMap.contains(sx.name)) {
               val node = nameMap(sx.name)
-              DefWire(sx.info, node.name, uniquifyNamesType(sx.tpe, node.elts))
+              val newType = uniquifyNamesType(sx.tpe, node.elts)
+              (Utils.create_exps(sx.name, sx.tpe) zip Utils.create_exps(node.name, newType)) foreach { 
+                case (from, to) => renames.rename(from.serialize, to.serialize)
+              }
+              DefWire(sx.info, node.name, newType)
             } else {
               sx
             }
@@ -259,8 +278,11 @@ object Uniquify extends Pass {
             sinfo = sx.info
             if (nameMap.contains(sx.name)) {
               val node = nameMap(sx.name)
-              DefRegister(sx.info, node.name, uniquifyNamesType(sx.tpe, node.elts),
-                          sx.clock, sx.reset, sx.init)
+              val newType = uniquifyNamesType(sx.tpe, node.elts)
+              (Utils.create_exps(sx.name, sx.tpe) zip Utils.create_exps(node.name, newType)) foreach {
+                case (from, to) => renames.rename(from.serialize, to.serialize)
+              }
+              DefRegister(sx.info, node.name, newType, sx.clock, sx.reset, sx.init)
             } else {
               sx
             }
@@ -268,7 +290,11 @@ object Uniquify extends Pass {
             sinfo = sx.info
             if (nameMap.contains(sx.name)) {
               val node = nameMap(sx.name)
-              WDefInstance(sx.info, node.name, sx.module, sx.tpe)
+              val newType = portTypeMap(m.name)
+              (Utils.create_exps(sx.name, sx.tpe) zip Utils.create_exps(node.name, newType)) foreach {
+                case (from, to) => renames.rename(from.serialize, to.serialize)
+              }
+              WDefInstance(sx.info, node.name, sx.module, newType)
             } else {
               sx
             }
@@ -280,6 +306,9 @@ object Uniquify extends Pass {
               val mem = sx.copy(name = node.name, dataType = dataType)
               // Create new mapping to handle references to memory data fields
               val uniqueMemMap = createNameMapping(memType(sx), memType(mem))
+              (Utils.create_exps(sx.name, memType(sx)) zip Utils.create_exps(node.name, memType(mem))) foreach {
+                case (from, to) => renames.rename(from.serialize, to.serialize)
+              }
               nameMap(sx.name) = NameMapNode(node.name, node.elts ++ uniqueMemMap)
               mem
             } else {
@@ -289,6 +318,9 @@ object Uniquify extends Pass {
             sinfo = sx.info
             if (nameMap.contains(sx.name)) {
               val node = nameMap(sx.name)
+              (Utils.create_exps(sx.name, s.asInstanceOf[DefNode].value.tpe) zip Utils.create_exps(node.name, sx.value.tpe)) foreach {
+                case (from, to) => renames.rename(from.serialize, to.serialize)
+              }
               DefNode(sx.info, node.name, sx.value)
             } else {
               sx
@@ -320,7 +352,8 @@ object Uniquify extends Pass {
       }
     }
 
-    def uniquifyPorts(m: DefModule): DefModule = {
+    def uniquifyPorts(renames: RenameMap)(m: DefModule): DefModule = {
+      renames.setModule(m.name)
       def uniquifyPorts(ports: Seq[Port]): Seq[Port] = {
         val portsType = BundleType(ports map {
           case Port(_, name, dir, tpe) => Field(name, to_flip(dir), tpe)
@@ -331,6 +364,9 @@ object Uniquify extends Pass {
         portTypeMap += (m.name -> uniquePortsType)
 
         ports zip uniquePortsType.fields map { case (p, f) =>
+          (Utils.create_exps(p.name, p.tpe) zip Utils.create_exps(f.name, f.tpe)) foreach {
+            case (from, to) => renames.rename(from.serialize, to.serialize)
+          }
           Port(p.info, f.name, p.direction, f.tpe)
         }
       }
@@ -344,7 +380,8 @@ object Uniquify extends Pass {
     }
 
     sinfo = c.info
-    Circuit(c.info, c.modules map uniquifyPorts map uniquifyModule, c.main)
+    val result = Circuit(c.info, c.modules map uniquifyPorts(renames) map uniquifyModule(renames), c.main)
+    CircuitState(result, outputForm, state.annotations, Some(renames))
   }
 }
 

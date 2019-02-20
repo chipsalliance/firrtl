@@ -65,7 +65,8 @@ object AnalysisUtils {
       if (nodeWidth == extractionWidth) getOrigin(connects)(args.head) else e
     case DoPrim((PrimOps.AsUInt | PrimOps.AsSInt | PrimOps.AsClock), args, _, _) => 
       getOrigin(connects)(args.head)
-    case ValidIf(cond, value, ClockType) => getOrigin(connects)(value)
+    // It is a correct optimization to treat ValidIf as a connection
+    case ValidIf(cond, value, _) => getOrigin(connects)(value)
     // note: this should stop on a reg, but will stack overflow for combinational loops (not allowed)
     case _: WRef | _: WSubField | _: WSubIndex | _: WSubAccess if kind(e) != RegKind =>
        connects get e.serialize match {
@@ -74,12 +75,6 @@ object AnalysisUtils {
        }
     case _ => e
   }
-
-  /** Checks whether the two memories are equivalent in all respects except name
-    */
-  def eqMems(a: DefAnnotatedMemory, b: DefAnnotatedMemory, noDeDupeMems: Seq[String]) =
-    a == b.copy(info = a.info, name = a.name, memRef = a.memRef) &&
-    !(noDeDupeMems.contains(a.name) || noDeDupeMems.contains(b.name))
 }
 
 /** Determines if a write mask is needed (wmode/en and wmask are equivalent).
@@ -120,6 +115,6 @@ object ResolveMaskGranularity extends Pass {
     case sx => sx map updateStmts(connects)
   }
 
-  def annotateModMems(m: DefModule) = m map updateStmts(getConnects(m))
-  def run(c: Circuit) = c copy (modules = c.modules map annotateModMems)
+  def annotateModMems(m: DefModule): DefModule = m map updateStmts(getConnects(m))
+  def run(c: Circuit): Circuit = c copy (modules = c.modules map annotateModMems)
 }

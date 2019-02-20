@@ -22,42 +22,30 @@ class WidthSpec extends FirrtlFlatSpec {
     }
   }
 
-  "Add of UInt<2> and SInt<2>" should "return SInt<4>" in {
-    val passes = Seq(
-      ToWorkingIR,
-      CheckHighForm,
-      ResolveKinds,
-      InferTypes,
-      CheckTypes,
-      InferWidths)
-    val input =
-      """circuit Unit :
-        |  module Unit :
-        |    input x: UInt<2>
-        |    input y: SInt<2>
-        |    output z: SInt
-        |    z <= add(x, y)""".stripMargin
-    val check = Seq( "output z : SInt<4>")
-    executeTest(input, check, passes)
+  case class LiteralWidthCheck(lit: BigInt, uIntWidth: Option[BigInt], sIntWidth: BigInt)
+  val litChecks = Seq(
+    LiteralWidthCheck(-4, None, 3),
+    LiteralWidthCheck(-3, None, 3),
+    LiteralWidthCheck(-2, None, 2),
+    LiteralWidthCheck(-1, None, 1),
+    LiteralWidthCheck(0, Some(1), 1), // TODO https://github.com/freechipsproject/firrtl/pull/530
+    LiteralWidthCheck(1, Some(1), 2),
+    LiteralWidthCheck(2, Some(2), 3),
+    LiteralWidthCheck(3, Some(2), 3),
+    LiteralWidthCheck(4, Some(3), 4)
+  )
+  for (LiteralWidthCheck(lit, uwo, sw) <- litChecks) {
+    import firrtl.ir.{UIntLiteral, SIntLiteral, IntWidth}
+    s"$lit" should s"have signed width $sw" in {
+      SIntLiteral(lit).width should equal (IntWidth(sw))
+    }
+    uwo.foreach { uw =>
+      it should s"have unsigned width $uw" in {
+        UIntLiteral(lit).width should equal (IntWidth(uw))
+      }
+    }
   }
-  "SInt<2> - UInt<3>" should "return SInt<5>" in {
-    val passes = Seq(
-      ToWorkingIR,
-      CheckHighForm,
-      ResolveKinds,
-      InferTypes,
-      CheckTypes,
-      InferWidths)
-    val input =
-      """circuit Unit :
-        |  module Unit :
-        |    input x: UInt<3>
-        |    input y: SInt<2>
-        |    output z: SInt
-        |    z <= sub(y, x)""".stripMargin
-    val check = Seq( "output z : SInt<5>")
-    executeTest(input, check, passes)
-  }
+
   "Dshl by 20 bits" should "result in an error" in {
     val passes = Seq(
       ToWorkingIR,
@@ -65,6 +53,7 @@ class WidthSpec extends FirrtlFlatSpec {
       ResolveKinds,
       InferTypes,
       CheckTypes,
+      ResolveGenders,
       InferWidths,
       CheckWidths)
     val input =
@@ -87,6 +76,7 @@ class WidthSpec extends FirrtlFlatSpec {
       ResolveKinds,
       InferTypes,
       CheckTypes,
+      ResolveGenders,
       InferWidths,
       CheckWidths)
     val input =
@@ -105,6 +95,7 @@ class WidthSpec extends FirrtlFlatSpec {
       ResolveKinds,
       InferTypes,
       CheckTypes,
+      ResolveGenders,
       InferWidths,
       CheckWidths)
     val input =
@@ -120,5 +111,74 @@ class WidthSpec extends FirrtlFlatSpec {
     intercept[CheckWidths.UninferredWidth] {
       executeTest(input, Nil, passes)
     }
+  }
+
+  "Add of UInt<2> and SInt<2>" should "error" in {
+    val passes = Seq(
+      ToWorkingIR,
+      CheckHighForm,
+      ResolveKinds,
+      InferTypes,
+      CheckTypes,
+      ResolveGenders,
+      InferWidths)
+    val input =
+      """circuit Unit :
+        |  module Unit :
+        |    input x: UInt<2>
+        |    input y: SInt<2>
+        |    output z: SInt
+        |    z <= add(x, y)""".stripMargin
+    val check = Seq( "output z : SInt<4>")
+    intercept[PassExceptions] {
+      executeTest(input, check, passes)
+    }
+  }
+
+  "SInt<2> - UInt<3>" should "error" in {
+    val passes = Seq(
+      ToWorkingIR,
+      CheckHighForm,
+      ResolveKinds,
+      InferTypes,
+      CheckTypes,
+      ResolveGenders,
+      InferWidths)
+    val input =
+      """circuit Unit :
+        |  module Unit :
+        |    input x: UInt<3>
+        |    input y: SInt<2>
+        |    output z: SInt
+        |    z <= sub(y, x)""".stripMargin
+    val check = Seq( "output z : SInt<5>")
+    intercept[PassExceptions] {
+      executeTest(input, check, passes)
+    }
+  }
+
+  behavior of "CheckWidths.UniferredWidth"
+
+  it should "provide a good error message with a full target if a user forgets an assign" in {
+    val passes = Seq(
+      ToWorkingIR,
+      ResolveKinds,
+      InferTypes,
+      CheckTypes,
+      ResolveGenders,
+      InferWidths,
+      CheckWidths)
+    val input =
+      """|circuit Foo :
+         |  module Foo :
+         |    input clock : Clock
+         |    inst bar of Bar
+         |  module Bar :
+         |    wire a: { b : UInt<1>, c : { d : UInt<1>, e : UInt } }
+         |""".stripMargin
+    val msg = intercept[CheckWidths.UninferredWidth] { executeTest(input, Nil, passes) }
+      .getMessage should include ("""|    circuit Foo:
+                                     |    └── module Bar:
+                                     |        └── a.c.e""".stripMargin)
   }
 }

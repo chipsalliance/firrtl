@@ -7,14 +7,32 @@ import firrtl.PrimOps._
 import firrtl.Mappers._
 import firrtl.WrappedExpression._
 import firrtl.WrappedType._
+
 import scala.collection.mutable
-import scala.collection.mutable.{StringBuilder, ArrayBuffer, LinkedHashMap, HashMap, HashSet}
+import scala.collection.mutable.{ArrayBuffer, HashMap, HashSet, LinkedHashMap, StringBuilder}
+import scala.util.matching.Regex
 import java.io.PrintWriter
-import logger.LazyLogging
+
+import firrtl.annotations.{ReferenceTarget, TargetToken}
+import _root_.logger.LazyLogging
+
+object FIRRTLException {
+  def defaultMessage(message: String, cause: Throwable) = {
+    if (message != null) {
+      message
+    } else if (cause != null) {
+      cause.toString
+    } else {
+      null
+    }
+  }
+}
+class FIRRTLException(val str: String, cause: Throwable = null)
+  extends RuntimeException(FIRRTLException.defaultMessage(str, cause), cause)
 
 object seqCat {
   def apply(args: Seq[Expression]): Expression = args.length match {
-    case 0 => error("Empty Seq passed to seqcat")
+    case 0 => Utils.error("Empty Seq passed to seqcat")
     case 1 => args.head
     case 2 => DoPrim(PrimOps.Cat, args, Nil, UIntType(UnknownWidth))
     case _ =>
@@ -29,7 +47,7 @@ object seqCat {
 object toBits {
   def apply(e: Expression): Expression = e match {
     case ex @ (_: WRef | _: WSubField | _: WSubIndex) => hiercat(ex)
-    case t => error("Invalid operand expression for toBits!")
+    case t => Utils.error(s"Invalid operand expression for toBits: $e")
   }
   private def hiercat(e: Expression): Expression = e.tpe match {
     case t: VectorType => seqCat((0 until t.size).reverse map (i =>
@@ -37,14 +55,14 @@ object toBits {
     case t: BundleType => seqCat(t.fields map (f =>
       hiercat(WSubField(e, f.name, f.tpe, UNKNOWNGENDER))))
     case t: GroundType => DoPrim(AsUInt, Seq(e), Seq.empty, UnknownType)
-    case t => error("Unknown type encountered in toBits!")
+    case t => Utils.error(s"Unknown type encountered in toBits: $e")
   }
 }
 
 object getWidth {
   def apply(t: Type): Width = t match {
     case t: GroundType => t.width
-    case _ => error("No width!")
+    case _ => Utils.error(s"No width: $t")
   }
   def apply(e: Expression): Width = apply(e.tpe)
 }
@@ -55,7 +73,7 @@ object bitWidth {
     case t: VectorType => t.size * bitWidth(t.tpe)
     case t: BundleType => t.fields.map(f => bitWidth(f.tpe)).foldLeft(BigInt(0))(_+_)
     case GroundType(IntWidth(width)) => width
-    case t => error("Unknown type encountered in bitWidth!")
+    case t => Utils.error(s"Unknown type encountered in bitWidth: $dt")
   }
 }
 
@@ -72,7 +90,7 @@ object castRhs {
         DoPrim(AsClock, Seq(rhs), Seq.empty, lhst)
       case (_: UIntType, _) => 
         DoPrim(AsUInt, Seq(rhs), Seq.empty, lhst)
-      case (_, _) => error("castRhs lhst, rhs type combination is invalid")
+      case (_, _) => Utils.error("castRhs lhst, rhs type combination is invalid")
     }  
   }
 }
@@ -81,7 +99,7 @@ object fromBits {
   def apply(lhs: Expression, rhs: Expression): Statement = {
     val fbits = lhs match {
       case ex @ (_: WRef | _: WSubField | _: WSubIndex) => getPart(ex, ex.tpe, rhs, 0)
-      case _ => error("Invalid LHS expression for fromBits!")
+      case _ => Utils.error("Invalid LHS expression for fromBits!")
     }
     Block(fbits._2)
   }
@@ -112,7 +130,7 @@ object fromBits {
           (tmpOffset, stmts ++ substmts)
       }
       case t: GroundType => getPartGround(lhs, t, rhs, offset)
-      case t => error("Unknown type encountered in fromBits!")
+      case t => Utils.error(s"Unknown type encountered in fromBits: $lhst")
     }
 }
 
@@ -125,12 +143,45 @@ object flattenType {
   def apply(t: Type) = UIntType(IntWidth(bitWidth(t)))
 }
 
-class FIRRTLException(val str: String) extends Exception(str)
-
 object Utils extends LazyLogging {
-  def throwInternalError =
-    error("Internal Error! Please file an issue at https://github.com/ucb-bar/firrtl/issues")
-  private[firrtl] def time[R](block: => R): (Double, R) = {
+  /** Unwind the causal chain until we hit the initial exception (which may be the first).
+    *
+    * @param maybeException - possible exception triggering the error,
+    * @param first - true if we want the first (eldest) exception in the chain,
+    * @return first or last Throwable in the chain.
+    */
+  def getThrowable(maybeException: Option[Throwable], first: Boolean): Throwable = {
+    maybeException match {
+      case Some(e: Throwable) => {
+        val t = e.getCause
+        if (t != null) {
+          if (first) {
+            getThrowable(Some(t), first)
+          } else {
+            t
+          }
+        } else {
+          e
+        }
+      }
+      case None | null => null
+    }
+  }
+
+  /** Throw an internal error, possibly due to an exception.
+    *
+    * @param message - possible string to emit,
+    * @param exception - possible exception triggering the error.
+   */
+  def throwInternalError(message: String = "", exception: Option[Exception] = None) = {
+    // We'll get the first exception in the chain, keeping it intact.
+    val first = true
+    val throwable = getThrowable(exception, true)
+    val string = if (message.nonEmpty) message + "\n" else message
+    error("Internal Error! %sPlease file an issue at https://github.com/ucb-bar/firrtl/issues".format(string), throwable)
+  }
+
+  def time[R](block: => R): (Double, R) = {
     val t0 = System.nanoTime()
     val result = block
     val t1 = System.nanoTime()
@@ -139,7 +190,7 @@ object Utils extends LazyLogging {
   }
 
   /** Removes all [[firrtl.ir.EmptyStmt]] statements and condenses
-   * [[firrtl.ir.Block]] statements.
+    * [[firrtl.ir.Block]] statements.
     */
   def squashEmpty(s: Statement): Statement = s map squashEmpty match {
     case Block(stmts) =>
@@ -152,6 +203,35 @@ object Utils extends LazyLogging {
     case sx => sx
   }
 
+  /** Provide a nice name to create a temporary **/
+  def niceName(e: Expression): String = niceName(1)(e)
+  def niceName(depth: Int)(e: Expression): String = {
+    e match {
+      case WRef(name, _, _, _) if name(0) == '_' => name
+      case WRef(name, _, _, _) => "_" + name
+      case WSubAccess(expr, index, _, _) if depth <= 0 => niceName(depth)(expr)
+      case WSubAccess(expr, index, _, _) => niceName(depth)(expr) + niceName(depth - 1)(index)
+      case WSubField(expr, field, _, _) => niceName(depth)(expr) + "_" + field
+      case WSubIndex(expr, index, _, _) => niceName(depth)(expr) + "_" + index
+      case Reference(name, _) if name(0) == '_' => name
+      case Reference(name, _) => "_" + name
+      case SubAccess(expr, index,  _) if depth <= 0 => niceName(depth)(expr)
+      case SubAccess(expr, index,  _) => niceName(depth)(expr) + niceName(depth - 1)(index)
+      case SubField(expr, field, _) => niceName(depth)(expr) + "_" + field
+      case SubIndex(expr, index, _) => niceName(depth)(expr) + "_" + index
+      case DoPrim(op, args, consts, _) if depth <= 0 => "_" + op
+      case DoPrim(op, args, consts, _) => "_" + op + (args.map(niceName(depth - 1)) ++ consts.map("_" + _)).mkString("")
+      case Mux(cond, tval, fval, _) if depth <= 0 => "_mux"
+      case Mux(cond, tval, fval, _) => "_mux" + Seq(cond, tval, fval).map(niceName(depth - 1)).mkString("")
+      case UIntLiteral(value, _) => "_" + value
+      case SIntLiteral(value, _) => "_" + value
+    }
+  }
+  /** Maps node name to value */
+  type NodeMap = mutable.HashMap[String, Expression]
+
+  def isTemp(str: String): Boolean = str.head == '_'
+
   /** Indent the results of [[ir.FirrtlNode.serialize]] */
   def indent(str: String) = str replaceAllLiterally ("\n", "\n  ")
 
@@ -161,9 +241,8 @@ object Utils extends LazyLogging {
   def min(a: BigInt, b: BigInt): BigInt = if (a >= b) b else a
   def pow_minus_one(a: BigInt, b: BigInt): BigInt = a.pow(b.toInt) - 1
   val BoolType = UIntType(IntWidth(1))
-  val one  = UIntLiteral(BigInt(1), IntWidth(1))
-  val zero = UIntLiteral(BigInt(0), IntWidth(1))
-  def uint(i: BigInt): UIntLiteral = UIntLiteral(i, IntWidth(1 max i.bitLength))
+  val one  = UIntLiteral(1)
+  val zero = UIntLiteral(0)
 
   def create_exps(n: String, t: Type): Seq[Expression] =
     create_exps(WRef(n, t, ExpKind, UNKNOWNGENDER))
@@ -177,14 +256,53 @@ object Utils extends LazyLogging {
     case ex: ValidIf => create_exps(ex.value) map (e1 => ValidIf(ex.cond, e1, e1.tpe))
     case ex => ex.tpe match {
       case (_: GroundType) => Seq(ex)
-      case (t: BundleType) => (t.fields foldLeft Seq[Expression]())((exps, f) =>
+      case t: BundleType =>
+        t.fields.flatMap(f => create_exps(WSubField(ex, f.name, f.tpe,times(gender(ex), f.flip))))
+      case t: VectorType => (0 until t.size).flatMap(i => create_exps(WSubIndex(ex, i, t.tpe,gender(ex))))
+    }
+  }
+
+  /** Like create_exps, but returns intermediate Expressions as well
+    * @param e
+    * @return
+    */
+  def expandRef(e: Expression): Seq[Expression] = e match {
+    case ex: Mux =>
+      val e1s = expandRef(ex.tval)
+      val e2s = expandRef(ex.fval)
+      e1s zip e2s map {case (e1, e2) =>
+        Mux(ex.cond, e1, e2, mux_type_and_widths(e1, e2))
+      }
+    case ex: ValidIf => expandRef(ex.value) map (e1 => ValidIf(ex.cond, e1, e1.tpe))
+    case ex => ex.tpe match {
+      case (_: GroundType) => Seq(ex)
+      case (t: BundleType) => (t.fields foldLeft Seq[Expression](ex))((exps, f) =>
         exps ++ create_exps(WSubField(ex, f.name, f.tpe,times(gender(ex), f.flip))))
-      case (t: VectorType) => (0 until t.size foldLeft Seq[Expression]())((exps, i) =>
+      case (t: VectorType) => (0 until t.size foldLeft Seq[Expression](ex))((exps, i) =>
         exps ++ create_exps(WSubIndex(ex, i, t.tpe,gender(ex))))
     }
   }
+  def toTarget(main: String, module: String)(expression: Expression): ReferenceTarget = {
+    val tokens = mutable.ArrayBuffer[TargetToken]()
+    var ref = "???"
+    def onExp(expr: Expression): Expression = {
+      expr map onExp match {
+        case e: WRef => ref = e.name
+        case e: Reference => tokens += TargetToken.Ref(e.name)
+        case e: WSubField => tokens += TargetToken.Field(e.name)
+        case e: SubField => tokens += TargetToken.Field(e.name)
+        case e: WSubIndex => tokens += TargetToken.Index(e.value)
+        case e: SubIndex => tokens += TargetToken.Index(e.value)
+        case other => throwInternalError("Cannot call Utils.toTarget on non-referencing expression")
+      }
+      expr
+    }
+    onExp(expression)
+    ReferenceTarget(main, module, Nil, ref, tokens)
+  }
+   @deprecated("get_flip is fundamentally slow, use to_flip(gender(expr))", "1.2")
    def get_flip(t: Type, i: Int, f: Orientation): Orientation = {
-     if (i >= get_size(t)) error("Shouldn't be here")
+     if (i >= get_size(t)) throwInternalError(s"get_flip: shouldn't be here - $i >= get_size($t)")
      t match {
        case (_: GroundType) => f
        case (tx: BundleType) =>
@@ -210,12 +328,12 @@ object Utils extends LazyLogging {
   
    def get_point (e:Expression) : Int = e match {
      case (e: WRef) => 0
-     case (e: WSubField) => e.exp.tpe match {case b: BundleType =>
+     case (e: WSubField) => e.expr.tpe match {case b: BundleType =>
        (b.fields takeWhile (_.name != e.name) foldLeft 0)(
          (point, f) => point + get_size(f.tpe))
     }
     case (e: WSubIndex) => e.value * get_size(e.tpe)
-    case (e: WSubAccess) => get_point(e.exp)
+    case (e: WSubAccess) => get_point(e.expr)
   }
 
   /** Returns true if t, or any subtype, contains a flipped field
@@ -231,88 +349,46 @@ object Utils extends LazyLogging {
     case _ => false
   }
 
-//============== TYPES ================
-//<<<<<<< HEAD
-//   def mux_type (e1:Expression,e2:Expression) : Type = mux_type(tpe(e1),tpe(e2))
-//   def mux_type (t1:Type,t2:Type) : Type = {
-//      if (wt(t1) == wt(t2)) {
-//         (t1,t2) match { 
-//            case (t1:UIntType,t2:UIntType) => UIntType(UnknownWidth)
-//            case (t1:SIntType,t2:SIntType) => SIntType(UnknownWidth)
-//            case (t1:FixedType,t2:FixedType) => FixedType(UnknownWidth, UnknownWidth)
-//            case (t1:VectorType,t2:VectorType) => VectorType(mux_type(t1.tpe,t2.tpe),t1.size)
-//            case (t1:BundleType,t2:BundleType) => 
-//               BundleType((t1.fields,t2.fields).zipped.map((f1,f2) => {
-//                  Field(f1.name,f1.flip,mux_type(f1.tpe,f2.tpe))
-//               }))
-//         }
-//      } else UnknownType
-//   }
-//   def mux_type_and_widths (e1:Expression,e2:Expression) : Type = mux_type_and_widths(tpe(e1),tpe(e2))
-//   def PLUS (w1:Width,w2:Width) : Width = (w1, w2) match {
-//     case (IntWidth(i), IntWidth(j)) => IntWidth(i + j)
-//     case _ => PlusWidth(w1,w2)
-//   }
-//   def MAX (w1:Width,w2:Width) : Width = (w1, w2) match {
-//     case (IntWidth(i), IntWidth(j)) => IntWidth(max(i,j))
-//     case _ => MaxWidth(Seq(w1,w2))
-//   }
-//   def MINUS (w1:Width,w2:Width) : Width = (w1, w2) match {
-//     case (IntWidth(i), IntWidth(j)) => IntWidth(i - j)
-//     case _ => MinusWidth(w1,w2)
-//   }
-//   def POW (w1:Width) : Width = w1 match {
-//     case IntWidth(i) => IntWidth(pow_minus_one(BigInt(2), i))
-//     case _ => ExpWidth(w1)
-//   }
-//   def MIN (w1:Width,w2:Width) : Width = (w1, w2) match {
-//     case (IntWidth(i), IntWidth(j)) => IntWidth(min(i,j))
-//     case _ => MinWidth(Seq(w1,w2))
-//   }
-//   def mux_type_and_widths (t1:Type,t2:Type) : Type = {
-//      def wmax (w1:Width,w2:Width) : Width = {
-//         (w1,w2) match {
-//            case (w1:IntWidth,w2:IntWidth) => IntWidth(w1.width.max(w2.width))
-//            case (w1,w2) => MaxWidth(Seq(w1,w2))
-//         }
-//      }
-//      val wt1 = new WrappedType(t1)
-//      val wt2 = new WrappedType(t2)
-//      if (wt1 == wt2) {
-//         (t1,t2) match {
-//            case (t1:UIntType,t2:UIntType) => UIntType(wmax(t1.width,t2.width))
-//            case (t1:SIntType,t2:SIntType) => SIntType(wmax(t1.width,t2.width))
-//            case (FixedType(w1, p1), FixedType(w2, p2)) =>
-//              FixedType(PLUS(MAX(p1, p2),MAX(MINUS(w1, p1), MINUS(w2, p2))), MAX(p1, p2))
-//            case (t1:VectorType,t2:VectorType) => VectorType(mux_type_and_widths(t1.tpe,t2.tpe),t1.size)
-//            case (t1:BundleType,t2:BundleType) => BundleType((t1.fields zip t2.fields).map{case (f1, f2) => Field(f1.name,f1.flip,mux_type_and_widths(f1.tpe,f2.tpe))})
-//         }
-//      } else UnknownType
-//   }
-//   def module_type (m:DefModule) : Type = {
-//      BundleType(m.ports.map(p => p.toField))
-//   }
-//   def sub_type (v:Type) : Type = {
-//      v match {
-//         case v:VectorType => v.tpe
-//         case v => UnknownType
-//      }
-//   }
-//   def field_type (v:Type,s:String) : Type = {
-//      v match {
-//         case v:BundleType => {
-//            val ft = v.fields.find(p => p.name == s)
-//            ft match {
-//               case ft:Some[Field] => ft.get.tpe
-//               case ft => UnknownType
-//            }
-//         }
-//         case v => UnknownType
-//      }
-//   }
-//=======
+  /** Returns children Expressions of e */
+  def getKids(e: Expression): Seq[Expression] = {
+    val kids = mutable.ArrayBuffer[Expression]()
+    def addKids(e: Expression): Expression = {
+      kids += e
+      e
+    }
+    e map addKids
+    kids
+  }
+
+  /** Walks two expression trees and returns a sequence of tuples of where they differ */
+  def diff(e1: Expression, e2: Expression): Seq[(Expression, Expression)] = {
+    if(weq(e1, e2)) Nil
+    else {
+      val (e1Kids, e2Kids) = (getKids(e1), getKids(e2))
+
+      if(e1Kids == Nil || e2Kids == Nil || e1Kids.size != e2Kids.size) Seq((e1, e2))
+      else {
+        e1Kids.zip(e2Kids).flatMap { case (e1k, e2k) => diff(e1k, e2k) }
+      }
+    }
+  }
+
+  /** Returns an inlined expression (replacing node references with values),
+    * stopping on a stopping condition or until the reference is not a node
+    */
+  def inline(nodeMap: NodeMap, stop: String => Boolean = {x: String => false})(e: Expression): Expression = {
+    def onExp(e: Expression): Expression = e map onExp match {
+      case Reference(name, _) if nodeMap.contains(name) && !stop(name) => onExp(nodeMap(name))
+      case WRef(name, _, _, _) if nodeMap.contains(name) && !stop(name) => onExp(nodeMap(name))
+      case other => other
+    }
+    onExp(e)
+  }
+
   def mux_type(e1: Expression, e2: Expression): Type = mux_type(e1.tpe, e2.tpe)
   def mux_type(t1: Type, t2: Type): Type = (t1, t2) match {
+    case (ClockType, ClockType) => ClockType
+    case (AsyncResetType, AsyncResetType) => AsyncResetType
     case (t1: UIntType, t2: UIntType) => UIntType(UnknownWidth)
     case (t1: SIntType, t2: SIntType) => SIntType(UnknownWidth)
     case (t1: FixedType, t2: FixedType) => FixedType(UnknownWidth, UnknownWidth)
@@ -330,6 +406,8 @@ object Utils extends LazyLogging {
       case (w1x, w2x) => MaxWidth(Seq(w1x, w2x))
     }
     (t1, t2) match {
+      case (ClockType, ClockType) => ClockType
+      case (AsyncResetType, AsyncResetType) => AsyncResetType
       case (t1x: UIntType, t2x: UIntType) => UIntType(wmax(t1x.width, t2x.width))
       case (t1x: SIntType, t2x: SIntType) => SIntType(wmax(t1x.width, t2x.width))
       case (FixedType(w1, p1), FixedType(w2, p2)) =>
@@ -343,7 +421,7 @@ object Utils extends LazyLogging {
     }
   }
 
-  def module_type(m: DefModule): Type = BundleType(m.ports map {
+  def module_type(m: DefModule): BundleType = BundleType(m.ports map {
     case Port(_, name, dir, tpe) => Field(name, to_flip(dir), tpe)
   })
   def sub_type(v: Type): Type = v match {
@@ -357,10 +435,9 @@ object Utils extends LazyLogging {
     }
     case vx => UnknownType
   }
-//>>>>>>> e54fb610c6bf0a7fe5c9c0f0e0b3acbb3728cfd0
    
 // =================================
-  def error(str: String) = throw new FIRRTLException(str)
+  def error(str: String, cause: Throwable = null) = throw new FIRRTLException(str, cause)
 
 //// =============== EXPANSION FUNCTIONS ================
   def get_size(t: Type): Int = t match {
@@ -400,8 +477,7 @@ object Utils extends LazyLogging {
             ilen + get_size(t1x.tpe), jlen + get_size(t2x.tpe))
         }._1
       case (ClockType, ClockType) => if (flip1 == flip2) Seq((0, 0)) else Nil
-      case (AnalogType(w1), AnalogType(w2)) => Nil
-      case _ => error("shouldn't be here")
+      case _ => throwInternalError(s"get_valid_points: shouldn't be here - ($t1, $t2)")
     }
   }
 
@@ -447,12 +523,11 @@ object Utils extends LazyLogging {
   def get_field(v: Type, s: String): Field = v match {
     case vx: BundleType => vx.fields find (_.name == s) match {
       case Some(ft) => ft
-      case None => error("Shouldn't be here")
+      case None => throwInternalError(s"get_field: shouldn't be here - $v.$s")
     }
-    case vx => error("Shouldn't be here")
+    case vx => throwInternalError(s"get_field: shouldn't be here - $v")
   }
 
-  def times(flip: Orientation, d: Direction): Direction = times(flip, d)
   def times(d: Direction,flip: Orientation): Direction = flip match {
     case Default => d
     case Flip => swap(d)
@@ -476,9 +551,9 @@ object Utils extends LazyLogging {
 // =========== ACCESSORS =========
   def kind(e: Expression): Kind = e match {
     case ex: WRef => ex.kind
-    case ex: WSubField => kind(ex.exp)
-    case ex: WSubIndex => kind(ex.exp)
-    case ex: WSubAccess => kind(ex.exp)
+    case ex: WSubField => kind(ex.expr)
+    case ex: WSubIndex => kind(ex.expr)
+    case ex: WSubAccess => kind(ex.expr)
     case ex => ExpKind
   }
   def gender(e: Expression): Gender = e match {
@@ -492,7 +567,7 @@ object Utils extends LazyLogging {
     case ex: Mux => MALE
     case ex: ValidIf => MALE
     case WInvalid => MALE
-    case ex => println(ex); error("Shouldn't be here")
+    case ex => throwInternalError(s"gender: shouldn't be here - $e")
   }
   def get_gender(s: Statement): Gender = s match {
     case sx: DefWire => BIGENDER
@@ -530,10 +605,10 @@ object Utils extends LazyLogging {
   def splitRef(e: Expression): (WRef, Expression) = e match {
     case e: WRef => (e, EmptyExpression)
     case e: WSubIndex =>
-      val (root, tail) = splitRef(e.exp)
+      val (root, tail) = splitRef(e.expr)
       (root, WSubIndex(tail, e.value, e.tpe, e.gender))
     case e: WSubField =>
-      val (root, tail) = splitRef(e.exp)
+      val (root, tail) = splitRef(e.expr)
       tail match {
         case EmptyExpression => (root, WRef(e.name, e.tpe, root.kind, e.gender))
         case exp => (root, WSubField(tail, e.name, e.tpe, e.gender))
@@ -541,13 +616,13 @@ object Utils extends LazyLogging {
   }
 
   /** Adds a root reference to some SubField/SubIndex chain */
-  def mergeRef(root: WRef, body: Expression): Expression = body match {
+  def mergeRef(root: Expression, body: Expression): Expression = body match {
     case e: WRef =>
       WSubField(root, e.name, e.tpe, e.gender)
     case e: WSubIndex =>
-      WSubIndex(mergeRef(root, e.exp), e.value, e.tpe, e.gender)
+      WSubIndex(mergeRef(root, e.expr), e.value, e.tpe, e.gender)
     case e: WSubField =>
-      WSubField(mergeRef(root, e.exp), e.name, e.tpe, e.gender)
+      WSubField(mergeRef(root, e.expr), e.name, e.tpe, e.gender)
     case EmptyExpression => root
   }
 
@@ -588,7 +663,7 @@ object Utils extends LazyLogging {
             }
         }
         rootDecl
-      case e => error(s"getDeclaration does not support Expressions of type ${e.getClass}")
+      case e => Utils.error(s"getDeclaration does not support Expressions of type ${e.getClass}")
     }
   }
 
@@ -599,7 +674,7 @@ object Utils extends LazyLogging {
     "before", "begin", "bind", "bins", "binsof", "bit", "break",
     "buf", "bufif0", "bufif1", "byte",
 
-    "case", "casex", "casez", "cell", "chandle", "class", "clocking",
+    "case", "casex", "casez", "cell", "chandle", "checker", "class", "clocking",
     "cmos", "config", "const", "constraint", "context", "continue",
     "cover", "covergroup", "coverpoint", "cross",
 
@@ -661,6 +736,22 @@ object Utils extends LazyLogging {
     "SYNTHESIS",
     "PRINTF_COND",
     "VCS")
+
+  /** Expand a name into its prefixes, e.g., 'foo_bar__baz' becomes 'Seq[foo_, foo_bar__, foo_bar__baz]'. This can be used
+    * to produce better names when generating prefix unique names.
+    * @param name a signal name
+    * @param prefixDelim a prefix delimiter (default is "_")
+    * @return the signal name and any prefixes
+    */
+  def expandPrefixes(name: String, prefixDelim: String = "_"): Seq[String] = {
+    val regex = ("(" + Regex.quote(prefixDelim) + ")+[A-Za-z0-9$]").r
+
+    name +: regex
+      .findAllMatchIn(name)
+      .map(_.end - 1)
+      .toSeq
+      .foldLeft(Seq[String]()){ case (seq, id) => seq :+ name.splitAt(id)._1 }
+  }
 }
 
 object MemoizedHash {

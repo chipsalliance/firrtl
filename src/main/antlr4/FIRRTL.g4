@@ -56,6 +56,7 @@ type
   | 'SInt' ('<' intLit '>')?
   | 'Fixed' ('<' intLit '>')? ('<' '<' intLit '>' '>')?
   | 'Clock'
+  | 'AsyncReset'
   | 'Analog' ('<' intLit '>')?
   | '{' field* '}'        // Bundle
   | type '[' intLit ']'   // Vector
@@ -88,7 +89,7 @@ simple_reset
 	;
 
 reset_block
-	: INDENT simple_reset NEWLINE DEDENT
+	: INDENT simple_reset info? NEWLINE DEDENT
 	| '(' +  simple_reset + ')'
   ;
 
@@ -253,6 +254,7 @@ primop
   | 'neq('
   | 'pad('
   | 'asUInt('
+  | 'asAsyncReset('
   | 'asSInt('
   | 'asClock('
   | 'shl('
@@ -324,7 +326,7 @@ RawString
 
 fragment
 UnquotedString
-  : ('\\"'|~[\r\n])+?
+  : ( '\\\'' | '\\"' | ~[\r\n] )+?
   ;
 
 FileInfo

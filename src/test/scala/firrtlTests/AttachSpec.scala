@@ -48,7 +48,7 @@ class InoutVerilogSpec extends FirrtlFlatSpec {
        |);
        |endmodule
        |""".stripMargin.split("\n") map normalized
-    executeTest(input, check, compiler)
+    executeTest(input, check, compiler, Seq(dontDedup("A"), dontDedup("B")))
   }
 
   it should "attach two instances" in {
@@ -62,7 +62,7 @@ class InoutVerilogSpec extends FirrtlFlatSpec {
         |  module A:
         |    input an: Analog<3>
         |  module B:
-        |    input an: Analog<3> """.stripMargin
+        |    input an: Analog<3>""".stripMargin
     val check =
      """module Attaching(
        |);
@@ -70,16 +70,19 @@ class InoutVerilogSpec extends FirrtlFlatSpec {
        |  A a (
        |    .an(_GEN_0)
        |  );
-       |  A b (
+       |  B b (
        |    .an(_GEN_0)
        |  );
        |endmodule
        |module A(
        |  inout  [2:0] an
        |);
+       |module B(
+       |  inout  [2:0] an
+       |);
        |endmodule
        |""".stripMargin.split("\n") map normalized
-    executeTest(input, check, compiler)
+    executeTest(input, check, compiler, Seq(dontTouch("A.an"), dontDedup("A")))
   }
 
   it should "attach a wire source" in {
@@ -101,8 +104,33 @@ class InoutVerilogSpec extends FirrtlFlatSpec {
         |  );
         |endmodule
         |""".stripMargin.split("\n") map normalized
-    executeTest(input, check, compiler)
+    executeTest(input, check, compiler, Seq(dontTouch("Attaching.x")))
   }
+
+  it should "attach port to submodule port through a wire" in {
+    val compiler = new VerilogCompiler
+    val input =
+      """circuit Attaching :
+         |  module Attaching :
+         |    input an: Analog<3>
+         |    wire x: Analog
+         |    inst a of A
+         |    attach (x, a.an)
+         |    attach (x, an)
+         |  module A:
+         |    input an: Analog<3> """.stripMargin
+    val check =
+      """module Attaching(
+        |  inout [2:0] an
+        |);
+        |  A a (
+        |    .an(an)
+        |  );
+        |endmodule
+        |""".stripMargin.split("\n") map normalized
+    executeTest(input, check, compiler, Seq(dontTouch("Attaching.x")))
+  }
+
 
   it should "attach multiple sources" in {
     val compiler = new VerilogCompiler
@@ -118,18 +146,13 @@ class InoutVerilogSpec extends FirrtlFlatSpec {
         |  inout  [2:0] a1,
         |  inout  [2:0] a2
         |);
-        |  wire [2:0] x;
         |  `ifdef SYNTHESIS
-        |    assign x = a1;
-        |    assign a1 = x;
-        |    assign x = a2;
-        |    assign a2 = x;
         |    assign a1 = a2;
         |    assign a2 = a1;
-        |  `elseif verilator
+        |  `elsif verilator
         |    `error "Verilator does not support alias and thus cannot arbirarily connect bidirectional wires and ports"
         |  `else
-        |    alias x = a1 = a2;
+        |    alias a1 = a2;
         |  `endif
         |endmodule
         |""".stripMargin.split("\n") map normalized
@@ -144,7 +167,7 @@ class InoutVerilogSpec extends FirrtlFlatSpec {
          |    input foo : { b : UInt<3>, a : Analog<3> }
          |    output bar : { b : UInt<3>, a : Analog<3> }
          |    bar <- foo""".stripMargin
-    // Omitting `ifdef SYNTHESIS and `elseif verilator since it's tested above
+    // Omitting `ifdef SYNTHESIS and `elsif verilator since it's tested above
     val check =
       """module Attaching(
         |  input  [2:0] foo_b,
@@ -226,6 +249,36 @@ class InoutVerilogSpec extends FirrtlFlatSpec {
        |endmodule
        |module A(
        |  inout  [2:0] an1
+       |);
+       |endmodule""".stripMargin.split("\n") map normalized
+    executeTest(input, check, compiler)
+  }
+
+  it should "not error if not isinvalid" in {
+    val compiler = new VerilogCompiler
+    val input =
+     """circuit Attaching :
+        |  module Attaching :
+        |    output an: Analog<3>
+        |""".stripMargin
+    val check =
+     """module Attaching(
+       |  inout  [2:0] an
+       |);
+       |endmodule""".stripMargin.split("\n") map normalized
+    executeTest(input, check, compiler)
+  }
+  it should "not error if isinvalid" in {
+    val compiler = new VerilogCompiler
+    val input =
+     """circuit Attaching :
+        |  module Attaching :
+        |    output an: Analog<3>
+        |    an is invalid
+        |""".stripMargin
+    val check =
+     """module Attaching(
+       |  inout  [2:0] an
        |);
        |endmodule""".stripMargin.split("\n") map normalized
     executeTest(input, check, compiler)

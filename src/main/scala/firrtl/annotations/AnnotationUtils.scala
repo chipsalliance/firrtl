@@ -3,14 +3,32 @@
 package firrtl
 package annotations
 
+import java.io.File
+
+import org.json4s._
+import org.json4s.native.JsonMethods._
+import org.json4s.native.Serialization
+import org.json4s.native.Serialization.{read, write, writePretty}
+
 import net.jcazevedo.moultingyaml._
 import firrtl.annotations.AnnotationYamlProtocol._
 
 import firrtl.ir._
+import firrtl.Utils.error
+
+case class InvalidAnnotationFileException(file: File, cause: Throwable = null)
+  extends FIRRTLException(s"$file, see cause below", cause)
+case class InvalidAnnotationJSONException(msg: String) extends FIRRTLException(msg)
+case class AnnotationFileNotFoundException(file: File) extends FIRRTLException(
+  s"Annotation file $file not found!"
+)
+case class AnnotationClassNotFoundException(className: String) extends FIRRTLException(
+  s"Annotation class $className not found! Please check spelling and classpath"
+)
 
 object AnnotationUtils {
-  def toYaml(a: Annotation): String = a.toYaml.prettyPrint
-  def fromYaml(s: String): Annotation = s.parseYaml.convertTo[Annotation]
+  def toYaml(a: LegacyAnnotation): String = a.toYaml.prettyPrint
+  def fromYaml(s: String): LegacyAnnotation = s.parseYaml.convertTo[LegacyAnnotation]
 
   /** Returns true if a valid Module name */
   val SerializedModuleName = """([a-zA-Z_][a-zA-Z_0-9~!@#$%^*\-+=?/]*)""".r
@@ -33,19 +51,34 @@ object AnnotationUtils {
     case Some(_) =>
       val i = s.indexWhere(c => "[].".contains(c))
       s.slice(0, i) match {
-        case "" => Seq(s(i).toString) ++ tokenize(s.drop(i + 1))
-        case x => Seq(x, s(i).toString) ++ tokenize(s.drop(i + 1))
+        case "" => s(i).toString +: tokenize(s.drop(i + 1))
+        case x => x +: s(i).toString +: tokenize(s.drop(i + 1))
       }
     case None if s == "" => Nil
     case None => Seq(s)
   }
 
-  def toNamed(s: String): Named = tokenize(s) match {
-    case Seq(n) => CircuitName(n)
-    case Seq(c, m) => ModuleName(m, CircuitName(c))
-    case Seq(c, m) => ModuleName(m, CircuitName(c))
-    case Seq(c, m, x) => ComponentName(x, ModuleName(m, CircuitName(c)))
+  def toNamed(s: String): Named = s.split("\\.", 3) match {
+    case Array(n) => CircuitName(n)
+    case Array(c, m) => ModuleName(m, CircuitName(c))
+    case Array(c, m, x) => ComponentName(x, ModuleName(m, CircuitName(c)))
   }
+
+  /** Converts a serialized FIRRTL component into a sequence of target tokens
+    * @param s
+    * @return
+    */
+  def toSubComponents(s: String): Seq[TargetToken] = {
+    import TargetToken._
+    def exp2subcomp(e: ir.Expression): Seq[TargetToken] = e match {
+      case ir.Reference(name, _)      => Seq(Ref(name))
+      case ir.SubField(expr, name, _) => exp2subcomp(expr) :+ Field(name)
+      case ir.SubIndex(expr, idx, _)  => exp2subcomp(expr) :+ Index(idx)
+      case ir.SubAccess(expr, idx, _) => Utils.throwInternalError(s"For string $s, cannot convert a subaccess $e into a Target")
+    }
+    exp2subcomp(toExp(s))
+  }
+
 
   /** Given a serialized component/subcomponent reference, subindex, subaccess,
    *  or subfield, return the corresponding IR expression.
@@ -53,10 +86,10 @@ object AnnotationUtils {
    */
   def toExp(s: String): Expression = {
     def parse(tokens: Seq[String]): Expression = {
-      val DecPattern = """([1-9]\d*)""".r
+      val DecPattern = """(\d+)""".r
       def findClose(tokens: Seq[String], index: Int, nOpen: Int): Seq[String] = {
         if(index >= tokens.size) {
-          error("Cannot find closing bracket ]")
+          Utils.error("Cannot find closing bracket ]")
         } else tokens(index) match {
           case "[" => findClose(tokens, index + 1, nOpen + 1)
           case "]" if nOpen == 1 => tokens.slice(1, index)
@@ -81,7 +114,8 @@ object AnnotationUtils {
     }
     if(validComponentName(s)) {
       parse(tokenize(s))
-    } else error(s"Cannot convert $s into an expression.")
+    } else {
+      Utils.error(s"Cannot convert $s into an expression.")
+    }
   }
 }
-

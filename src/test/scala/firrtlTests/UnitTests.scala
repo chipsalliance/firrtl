@@ -6,20 +6,25 @@ import java.io._
 import org.scalatest._
 import org.scalatest.prop._
 import firrtl._
-import firrtl.ir.Circuit
+import firrtl.ir._
 import firrtl.passes._
-import firrtl.Parser.IgnoreInfo
+import firrtl.transforms._
+import FirrtlCheckers._
 
 class UnitTests extends FirrtlFlatSpec {
-  private def executeTest(input: String, expected: Seq[String], passes: Seq[Pass]) = {
-    val c = passes.foldLeft(Parser.parse(input.split("\n").toIterator)) {
-      (c: Circuit, p: Pass) => p.run(c)
-    }
-    val lines = c.serialize.split("\n") map normalized
+  private def executeTest(input: String, expected: Seq[String], transforms: Seq[Transform]) = {
+    val lines = execute(input, transforms).circuit.serialize.split("\n") map normalized
 
     expected foreach { e =>
       lines should contain(e)
     }
+  }
+
+  def execute(input: String, transforms: Seq[Transform]): CircuitState = {
+    val c = transforms.foldLeft(CircuitState(parse(input), UnknownForm)) {
+      (c: CircuitState, t: Transform) => t.runTransform(c)
+    }.circuit
+    CircuitState(c, UnknownForm, Seq(), None)
   }
 
   "Pull muxes" should "not be exponential in runtime" in {
@@ -90,6 +95,7 @@ class UnitTests extends FirrtlFlatSpec {
       ResolveKinds,
       InferTypes,
       CheckTypes,
+      ResolveGenders,
       ExpandConnects)
     val input =
      """circuit Unit :
@@ -125,7 +131,8 @@ class UnitTests extends FirrtlFlatSpec {
   "Emitting a nested expression" should "throw an exception" in {
     val passes = Seq(
       ToWorkingIR,
-      InferTypes)
+      InferTypes,
+      ResolveKinds)
     intercept[PassException] {
       val c = Parser.parse(splitExpTestCode.split("\n").toIterator)
       val c2 = passes.foldLeft(c)((c, p) => p run c)
@@ -189,6 +196,7 @@ class UnitTests extends FirrtlFlatSpec {
      val check = Seq("c <= mux(pred, a, pad(b, 32))")
      executeTest(input, check, passes)
   }
+
   "Indexes into sub-accesses" should "be dealt with" in {
     val passes = Seq(
       ToWorkingIR,
@@ -199,7 +207,7 @@ class UnitTests extends FirrtlFlatSpec {
       PullMuxes,
       ExpandConnects,
       RemoveAccesses,
-      ConstProp
+      new ConstantPropagation
     )
     val input =
       """circuit AssignViaDeref : 
@@ -215,16 +223,16 @@ class UnitTests extends FirrtlFlatSpec {
      //TODO(azidar): I realize this is brittle, but unfortunately there
      //  isn't a better way to test this pass
      val check = Seq(
-       """wire _GEN_0 : { a : UInt<8>}""",
-       """_GEN_0.a <= table[0].a""",
+       """wire _table_1 : { a : UInt<8>}""",
+       """_table_1.a is invalid""",
        """when UInt<1>("h1") :""",
-       """_GEN_0.a <= table[1].a""",
-       """wire _GEN_1 : UInt<8>""",
-       """when eq(UInt<1>("h0"), _GEN_0.a) :""",
-       """otherTable[0].a <= _GEN_1""",
-       """when eq(UInt<1>("h1"), _GEN_0.a) :""",
-       """otherTable[1].a <= _GEN_1""",
-       """_GEN_1 <= UInt<1>("h0")"""
+       """_table_1.a <= table[1].a""",
+       """wire _otherTable_table_1_a_a : UInt<8>""",
+       """when eq(UInt<1>("h0"), _table_1.a) :""",
+       """otherTable[0].a <= _otherTable_table_1_a_a""",
+       """when eq(UInt<1>("h1"), _table_1.a) :""",
+       """otherTable[1].a <= _otherTable_table_1_a_a""",
+       """_otherTable_table_1_a_a <= UInt<1>("h0")"""
      )
      executeTest(input, check, passes)
   }
@@ -306,7 +314,7 @@ class UnitTests extends FirrtlFlatSpec {
     }
   }
 
-  "Conditional conection of clocks" should "throw an exception" in {
+  "Conditional connection of clocks" should "throw an exception" in {
     val input =
       """circuit Unit :
         |  module Unit :
@@ -318,7 +326,7 @@ class UnitTests extends FirrtlFlatSpec {
         |    when sel :
         |      clock3 <= clock2
         |""".stripMargin
-    intercept[PassExceptions] { // Both MuxClock and InvalidConnect are thrown
+    intercept[EmitterException] {
       compileToVerilog(input)
     }
   }
@@ -372,5 +380,73 @@ class UnitTests extends FirrtlFlatSpec {
     expected foreach { e =>
       lines should contain(e)
     }
+  }
+
+
+  "Out of bound accesses" should "be invalid" in {
+    val passes = Seq(
+      ToWorkingIR,
+      ResolveKinds,
+      InferTypes,
+      ResolveGenders,
+      InferWidths,
+      PullMuxes,
+      ExpandConnects,
+      RemoveAccesses,
+      ResolveGenders,
+      new ConstantPropagation
+    )
+    val input =
+      """circuit Top :
+        |  module Top :
+        |    input index: UInt<2>
+        |    output out: UInt<16>
+        |    wire array: UInt<16>[3]
+        |    out <= array[index]""".stripMargin
+
+    val result = execute(input, passes)
+
+    def u(value: Int) = UIntLiteral(BigInt(value))
+
+    val ut16 = UIntType(IntWidth(BigInt(16)))
+    val ut2 = UIntType(IntWidth(BigInt(2)))
+    val ut1 = UIntType(IntWidth(BigInt(1)))
+
+    val mgen = WRef("_array_index", ut16, WireKind, MALE)
+    val fgen = WRef("_array_index", ut16, WireKind, FEMALE)
+    val index = WRef("index", ut2, PortKind, MALE)
+    val out = WRef("out", ut16, PortKind, FEMALE)
+
+    def eq(e1: Expression, e2: Expression): Expression = DoPrim(PrimOps.Eq, Seq(e1, e2), Nil, ut1)
+    def array(v: Int): Expression = WSubIndex(WRef("array", VectorType(ut16, 3), WireKind, MALE), v, ut16, MALE)
+
+    result should containTree { case DefWire(_, "_array_index", `ut16`) => true }
+    result should containTree { case IsInvalid(_, `fgen`) => true }
+
+    val eq0 = eq(u(0), index)
+    val array0 = array(0)
+    result should containTree { case Conditionally(_, `eq0`, Connect(_, `fgen`, `array0`), EmptyStmt) => true }
+
+    val eq1 = eq(u(1), index)
+    val array1 = array(1)
+    result should containTree { case Conditionally(_, `eq1`, Connect(_, `fgen`, `array1`), EmptyStmt) => true }
+
+    val eq2 = eq(u(2), index)
+    val array2 = array(2)
+    result should containTree { case Conditionally(_, `eq2`, Connect(_, `fgen`, `array2`), EmptyStmt) => true }
+
+    result should containTree { case Connect(_, `out`, mgen) => true }
+  }
+
+  "Shl" should "be emitted in Verilog as concat" in {
+    val input =
+      """circuit Unit :
+        |  module Unit :
+        |    input in : UInt<4>
+        |    output out : UInt<8>
+        |    out <= shl(in, 4)
+        |""".stripMargin
+    val res = (new VerilogCompiler).compileAndEmit(CircuitState(parse(input), ChirrtlForm))
+    res should containLine ("assign out = {in, 4'h0};")
   }
 }

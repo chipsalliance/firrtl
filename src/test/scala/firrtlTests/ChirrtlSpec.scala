@@ -8,14 +8,15 @@ import org.scalatest.prop._
 import firrtl.Parser
 import firrtl.ir.Circuit
 import firrtl.passes._
+import firrtl._
 
 class ChirrtlSpec extends FirrtlFlatSpec {
-  def passes = Seq(
+  def transforms = Seq(
     CheckChirrtl,
     CInferTypes,
     CInferMDir,
     RemoveCHIRRTL,
-    ToWorkingIR,            
+    ToWorkingIR,
     CheckHighForm,
     ResolveKinds,
     InferTypes,
@@ -44,8 +45,9 @@ class ChirrtlSpec extends FirrtlFlatSpec {
        |      infer mport y = ram[UInt(4)], newClock
        |      y <= UInt(5)
        """.stripMargin
-    passes.foldLeft(Parser.parse(input.split("\n").toIterator)) {
-      (c: Circuit, p: Pass) => p.run(c)
+    val circuit = Parser.parse(input.split("\n").toIterator)
+    transforms.foldLeft(CircuitState(circuit, UnknownForm)) {
+      (c: CircuitState, p: Transform) => p.runTransform(c)
     }
   }
 
@@ -63,8 +65,18 @@ class ChirrtlSpec extends FirrtlFlatSpec {
        |      y <= z
        """.stripMargin
     intercept[PassException] {
-      passes.foldLeft(Parser.parse(input.split("\n").toIterator)) {
-        (c: Circuit, p: Pass) => p.run(c)
+      val circuit = Parser.parse(input.split("\n").toIterator)
+      transforms.foldLeft(CircuitState(circuit, UnknownForm)) {
+        (c: CircuitState, p: Transform) => p.runTransform(c)
+      }
+    }
+  }
+
+  behavior of "Uniqueness"
+  for ((description, input) <- CheckSpec.nonUniqueExamples) {
+    it should s"be asserted for $description" in {
+      assertThrows[CheckChirrtl.NotUniqueException] {
+        Seq(ToWorkingIR, CheckChirrtl).foldLeft(Parser.parse(input)){ case (c, tx) => tx.run(c) }
       }
     }
   }

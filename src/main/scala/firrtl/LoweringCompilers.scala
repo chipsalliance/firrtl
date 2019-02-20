@@ -2,11 +2,12 @@
 
 package firrtl
 
+import firrtl.transforms.IdentityTransform
+
 sealed abstract class CoreTransform extends SeqTransform
 
 /** This transforms "CHIRRTL", the chisel3 IR, to "Firrtl". Note the resulting
   * circuit has only IR nodes, not WIR.
-  * TODO(izraelevitz): Create RenameMap from RemoveCHIRRTL
   */
 class ChirrtlToHighFirrtl extends CoreTransform {
   def inputForm = ChirrtlForm
@@ -60,6 +61,7 @@ class HighFirrtlToMiddleFirrtl extends CoreTransform {
     passes.ReplaceAccesses,
     passes.ExpandConnects,
     passes.RemoveAccesses,
+    passes.Uniquify,
     passes.ExpandWhens,
     passes.CheckInitialization,
     passes.ResolveKinds,
@@ -69,13 +71,13 @@ class HighFirrtlToMiddleFirrtl extends CoreTransform {
     passes.InferWidths,
     passes.CheckWidths,
     passes.ConvertFixedToSInt,
-    passes.ZeroWidth)
+    passes.ZeroWidth,
+    passes.InferTypes)
 }
 
 /** Expands all aggregate types into many ground-typed components. Must
   * accept a well-formed graph of only middle Firrtl features.
   * Operates on working IR nodes.
-  * TODO(izraelevitz): Create RenameMap from RemoveCHIRRTL
   */
 class MiddleFirrtlToLowFirrtl extends CoreTransform {
   def inputForm = MidForm
@@ -87,7 +89,9 @@ class MiddleFirrtlToLowFirrtl extends CoreTransform {
     passes.ResolveGenders,
     passes.InferWidths,
     passes.Legalize,
-    passes.CheckCombLoops)
+    new firrtl.transforms.RemoveReset,
+    new firrtl.transforms.CheckCombLoops,
+    new firrtl.transforms.RemoveWires)
 }
 
 /** Runs a series of optimization passes on LowFirrtl
@@ -99,20 +103,40 @@ class LowFirrtlOptimization extends CoreTransform {
   def outputForm = LowForm
   def transforms = Seq(
     passes.RemoveValidIf,
-    passes.ConstProp,
+    new firrtl.transforms.ConstantPropagation,
     passes.PadWidths,
-    passes.ConstProp,
+    new firrtl.transforms.ConstantPropagation,
     passes.Legalize,
     passes.memlib.VerilogMemDelays, // TODO move to Verilog emitter
-    passes.ConstProp,
+    new firrtl.transforms.ConstantPropagation,
     passes.SplitExpressions,
+    new firrtl.transforms.CombineCats,
     passes.CommonSubexpressionElimination,
-    passes.DeadCodeElimination)
+    new firrtl.transforms.DeadCodeElimination)
+}
+/** Runs runs only the optimization passes needed for Verilog emission */
+class MinimumLowFirrtlOptimization extends CoreTransform {
+  def inputForm = LowForm
+  def outputForm = LowForm
+  def transforms = Seq(
+    passes.RemoveValidIf,
+    passes.Legalize,
+    passes.memlib.VerilogMemDelays, // TODO move to Verilog emitter
+    passes.SplitExpressions)
 }
 
 
 import CompilerUtils.getLoweringTransforms
 import firrtl.transforms.BlackBoxSourceHelper
+
+/** Emits input circuit with no changes
+  *
+  * Primarily useful for changing between .fir and .pb serialized formats
+  */
+class NoneCompiler extends Compiler {
+  def emitter = new ChirrtlEmitter
+  def transforms: Seq[Transform] = Seq(new IdentityTransform(ChirrtlForm))
+}
 
 /** Emits input circuit
   * Will replace Chirrtl constructs with Firrtl
@@ -138,5 +162,17 @@ class LowFirrtlCompiler extends Compiler {
 class VerilogCompiler extends Compiler {
   def emitter = new VerilogEmitter
   def transforms: Seq[Transform] = getLoweringTransforms(ChirrtlForm, LowForm) ++
-    Seq(new LowFirrtlOptimization, new BlackBoxSourceHelper)
+    Seq(new LowFirrtlOptimization)
+}
+
+/** Emits Verilog without optimizations */
+class MinimumVerilogCompiler extends Compiler {
+  def emitter = new MinimumVerilogEmitter
+  def transforms: Seq[Transform] = getLoweringTransforms(ChirrtlForm, LowForm) ++
+    Seq(new MinimumLowFirrtlOptimization)
+}
+
+/** Currently just an alias for the [[VerilogCompiler]] */
+class SystemVerilogCompiler extends VerilogCompiler {
+  Driver.dramaticWarning("SystemVerilog Compiler behaves the same as the Verilog Compiler!")
 }
