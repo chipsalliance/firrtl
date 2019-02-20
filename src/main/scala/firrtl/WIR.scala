@@ -44,6 +44,8 @@ object WRef {
   def apply(port: Port): WRef = new WRef(port.name, port.tpe, PortKind, UNKNOWNGENDER)
   /** Creates a WRef from a WDefInstance */
   def apply(wi: WDefInstance): WRef = new WRef(wi.name, wi.tpe, InstanceKind, UNKNOWNGENDER)
+  /** Creates a WRef from a DefMemory */
+  def apply(mem: DefMemory): WRef = new WRef(mem.name, passes.MemPortUtils.memType(mem), MemKind, UNKNOWNGENDER)
   /** Creates a WRef from an arbitrary string name */
   def apply(n: String, t: Type = UnknownType, k: Kind = ExpKind): WRef = new WRef(n, t, k, UNKNOWNGENDER)
 }
@@ -221,6 +223,7 @@ class WrappedType(val t: Type) {
       case (_: UIntType, _: UIntType) => true
       case (_: SIntType, _: SIntType) => true
       case (ClockType, ClockType) => true
+      case (AsyncResetType, AsyncResetType) => true
       case (_: FixedType, _: FixedType) => true
       // Analog totally skips out of the Firrtl type system.
       // The only way Analog can play with another Analog component is through Attach.

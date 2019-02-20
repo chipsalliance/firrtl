@@ -69,6 +69,8 @@ libraryDependencies += "net.jcazevedo" %% "moultingyaml" % "0.4.0"
 
 libraryDependencies += "org.json4s" %% "json4s-native" % "3.6.1"
 
+libraryDependencies += "org.apache.commons" % "commons-text" % "1.6"
+
 // Java PB
 
 enablePlugins(ProtobufPlugin)
@@ -159,3 +161,6 @@ scalacOptions in Compile in doc ++= Seq(
   "-doc-title", name.value,
   "-doc-root-content", baseDirectory.value+"/root-doc.txt"
 ) ++ scalacOptionsVersion(scalaVersion.value)
+
+fork := true
+Test / testForkedParallel := true
