@@ -40,6 +40,13 @@ object WRef {
   def apply(reg: DefRegister): WRef = new WRef(reg.name, reg.tpe, RegKind, UNKNOWNGENDER)
   /** Creates a WRef from a Node */
   def apply(node: DefNode): WRef = new WRef(node.name, node.value.tpe, NodeKind, MALE)
+  /** Creates a WRef from a Port */
+  def apply(port: Port): WRef = new WRef(port.name, port.tpe, PortKind, UNKNOWNGENDER)
+  /** Creates a WRef from a WDefInstance */
+  def apply(wi: WDefInstance): WRef = new WRef(wi.name, wi.tpe, InstanceKind, UNKNOWNGENDER)
+  /** Creates a WRef from a DefMemory */
+  def apply(mem: DefMemory): WRef = new WRef(mem.name, passes.MemPortUtils.memType(mem), MemKind, UNKNOWNGENDER)
+  /** Creates a WRef from an arbitrary string name */
   def apply(n: String, t: Type = UnknownType, k: Kind = ExpKind): WRef = new WRef(n, t, k, UNKNOWNGENDER)
 }
 case class WSubField(expr: Expression, name: String, tpe: Type, gender: Gender) extends Expression {
@@ -147,8 +154,6 @@ case object Addw extends PrimOp { override def toString = "addw" }
 case object Subw extends PrimOp { override def toString = "subw" }
 // Resultant width is the same as input argument width
 case object Dshlw extends PrimOp { override def toString = "dshlw" }
-// Resultant width is the same as input argument width
-case object Shlw extends PrimOp { override def toString = "shlw" }
 
 object WrappedExpression {
   def apply(e: Expression) = new WrappedExpression(e)
@@ -218,6 +223,7 @@ class WrappedType(val t: Type) {
       case (_: UIntType, _: UIntType) => true
       case (_: SIntType, _: SIntType) => true
       case (ClockType, ClockType) => true
+      case (AsyncResetType, AsyncResetType) => true
       case (_: FixedType, _: FixedType) => true
       // Analog totally skips out of the Firrtl type system.
       // The only way Analog can play with another Analog component is through Attach.
