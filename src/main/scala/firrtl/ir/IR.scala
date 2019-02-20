@@ -58,15 +58,13 @@ trait HasInfo {
 trait IsDeclaration extends HasName with HasInfo
 
 case class StringLit(string: String) extends FirrtlNode {
+  import org.apache.commons.text.StringEscapeUtils
   /** Returns an escaped and quoted String */
   def escape: String = {
-    import scala.reflect.runtime.universe._
-    Literal(Constant(string)).toString
+    "\"" + serialize + "\""
   }
-  def serialize: String = {
-    val str = escape
-    str.slice(1, str.size - 1)
-  }
+  def serialize: String = StringEscapeUtils.escapeJava(string)
+
   /** Format the string for Verilog */
   def verilogFormat: StringLit = {
     StringLit(string.replaceAll("%x", "%h"))
@@ -81,6 +79,7 @@ case class StringLit(string: String) extends FirrtlNode {
   }
 }
 object StringLit {
+  import org.apache.commons.text.StringEscapeUtils
   /** Maps characters to ASCII for Verilog emission */
   private def toASCII(char: Char): List[Char] = char match {
     case nonASCII if !nonASCII.isValidByte => List('?')
@@ -94,8 +93,7 @@ object StringLit {
 
   /** Create a StringLit from a raw parsed String */
   def unescape(raw: String): StringLit = {
-    val str = StringContext.processEscapes(raw)
-    StringLit(str)
+    StringLit(StringEscapeUtils.unescapeJava(raw))
   }
 }
 
@@ -593,6 +591,12 @@ case object ClockType extends GroundType {
   def mapWidth(f: Width => Width): Type = this
   def foreachWidth(f: Width => Unit): Unit = Unit
 }
+case object AsyncResetType extends GroundType {
+  val width = IntWidth(1)
+  def serialize: String = "AsyncReset"
+  def mapWidth(f: Width => Width): Type = this
+  def foreachWidth(f: Width => Unit): Unit = Unit
+}
 case class AnalogType(width: Width) extends GroundType {
   def serialize: String = "Analog" + width.serialize
   def mapWidth(f: Width => Width): Type = AnalogType(f(width))
@@ -607,7 +611,7 @@ case object UnknownType extends Type {
 }
 
 /** [[Port]] Direction */
-abstract class Direction extends FirrtlNode
+sealed abstract class Direction extends FirrtlNode
 case object Input extends Direction {
   def serialize: String = "input"
 }
