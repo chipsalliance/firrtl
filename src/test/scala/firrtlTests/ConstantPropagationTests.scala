@@ -734,6 +734,24 @@ class ConstantPropagationSingleModule extends ConstantPropagationSpec {
       """.stripMargin
     (parse(exec(input))) should be(parse(check))
   }
+
+  // Optimizing this mux gives: z <= pad(UInt<2>(0), 4)
+  // Thus this checks that we then optimize that pad
+  "ConstProp" should "optimize nested Expressions" in {
+    val input =
+      """circuit Top :
+        |  module Top :
+        |    output z : UInt<4>
+        |    z <= mux(UInt(1), UInt<2>(0), UInt<4>(0))
+      """.stripMargin
+    val check =
+      """circuit Top :
+        |  module Top :
+        |    output z : UInt<4>
+        |    z <= UInt<4>("h0")
+      """.stripMargin
+    (parse(exec(input))) should be(parse(check))
+  }
 }
 
 // More sophisticated tests of the full compiler
@@ -987,6 +1005,87 @@ class ConstantPropagationIntegrationSpec extends LowTransformSpec {
     execute(input, check, Seq.empty)
   }
 
+  "Registers async reset and a constant connection" should "NOT be removed" in {
+      val input =
+        """circuit Top :
+          |  module Top :
+          |    input clock : Clock
+          |    input reset : AsyncReset
+          |    input en : UInt<1>
+          |    output z : UInt<8>
+          |    reg r : UInt<8>, clock with : (reset => (reset, UInt<4>("hb")))
+          |    when en :
+          |      r <= UInt<4>("h0")
+          |    z <= r""".stripMargin
+      val check =
+        """circuit Top :
+          |  module Top :
+          |    input clock : Clock
+          |    input reset : AsyncReset
+          |    input en : UInt<1>
+          |    output z : UInt<8>
+          |    reg r : UInt<8>, clock with :
+          |      reset => (reset, UInt<8>("hb"))
+          |    z <= r
+          |    r <= mux(en, UInt<8>("h0"), r)""".stripMargin
+    execute(input, check, Seq.empty)
+  }
+
+  "Registers with constant reset and connection to the same constant" should "be replaced with that constant" in {
+      val input =
+        """circuit Top :
+          |  module Top :
+          |    input clock : Clock
+          |    input reset : UInt<1>
+          |    input cond : UInt<1>
+          |    output z : UInt<8>
+          |    reg r : UInt<8>, clock with : (reset => (reset, UInt<4>("hb")))
+          |    when cond :
+          |      r <= UInt<4>("hb")
+          |    z <= r""".stripMargin
+      val check =
+        """circuit Top :
+          |  module Top :
+          |    input clock : Clock
+          |    input reset : UInt<1>
+          |    input cond : UInt<1>
+          |    output z : UInt<8>
+          |    z <= UInt<8>("hb")""".stripMargin
+    execute(input, check, Seq.empty)
+  }
+
+  "A register with constant reset and all connection to either itself or the same constant" should "be replaced with that constant" in {
+      val input =
+        """circuit Top :
+          |  module Top :
+          |    input clock : Clock
+          |    input reset : UInt<1>
+          |    input cmd : UInt<3>
+          |    output z : UInt<8>
+          |    reg r : UInt<8>, clock with : (reset => (reset, UInt<4>("h7")))
+          |    r <= r
+          |    when eq(cmd, UInt<3>("h0")) :
+          |      r <= UInt<3>("h7")
+          |    else :
+          |      when eq(cmd, UInt<3>("h1")) :
+          |        r <= r
+          |      else :
+          |        when eq(cmd, UInt<3>("h2")) :
+          |          r <= UInt<4>("h7")
+          |        else :
+          |          r <= r
+          |    z <= r""".stripMargin
+      val check =
+        """circuit Top :
+          |  module Top :
+          |    input clock : Clock
+          |    input reset : UInt<1>
+          |    input cmd : UInt<3>
+          |    output z : UInt<8>
+          |    z <= UInt<8>("h7")""".stripMargin
+    execute(input, check, Seq.empty)
+  }
+
   "Registers with ONLY constant connection" should "be replaced with that constant" in {
       val input =
         """circuit Top :
@@ -1102,6 +1201,77 @@ class ConstantPropagationIntegrationSpec extends LowTransformSpec {
         |    input _T_61 : UInt<1>
         |    output z : UInt<1>
         |    z <= _T_61""".stripMargin
+    execute(input, check, Seq.empty)
+  }
+
+  behavior of "ConstProp"
+
+  it should "optimize shl of constants" in {
+    val input =
+      """circuit Top :
+        |  module Top :
+        |    output z : UInt<7>
+        |    z <= shl(UInt(5), 4)
+      """.stripMargin
+    val check =
+      """circuit Top :
+        |  module Top :
+        |    output z : UInt<7>
+        |    z <= UInt<7>("h50")
+      """.stripMargin
+    execute(input, check, Seq.empty)
+  }
+
+  it should "optimize shr of constants" in {
+    val input =
+      """circuit Top :
+        |  module Top :
+        |    output z : UInt<1>
+        |    z <= shr(UInt(5), 2)
+      """.stripMargin
+    val check =
+      """circuit Top :
+        |  module Top :
+        |    output z : UInt<1>
+        |    z <= UInt<1>("h1")
+      """.stripMargin
+    execute(input, check, Seq.empty)
+  }
+
+  // Due to #866, we need dshl optimized away or it'll become a dshlw and error in parsing
+  // Include cat to verify width is correct
+  it should "optimize dshl of constant" in {
+    val input =
+      """circuit Top :
+        |  module Top :
+        |    output z : UInt<8>
+        |    node n = dshl(UInt<1>(0), UInt<2>(0))
+        |    z <= cat(UInt<4>("hf"), n)
+      """.stripMargin
+    val check =
+      """circuit Top :
+        |  module Top :
+        |    output z : UInt<8>
+        |    z <= UInt<8>("hf0")
+      """.stripMargin
+    execute(input, check, Seq.empty)
+  }
+
+  // Include cat and constants to verify width is correct
+  it should "optimize dshr of constant" in {
+    val input =
+      """circuit Top :
+        |  module Top :
+        |    output z : UInt<8>
+        |    node n = dshr(UInt<4>(0), UInt<2>(2))
+        |    z <= cat(UInt<4>("hf"), n)
+      """.stripMargin
+    val check =
+      """circuit Top :
+        |  module Top :
+        |    output z : UInt<8>
+        |    z <= UInt<8>("hf0")
+      """.stripMargin
     execute(input, check, Seq.empty)
   }
 }

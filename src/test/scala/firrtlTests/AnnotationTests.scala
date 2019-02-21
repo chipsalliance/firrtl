@@ -68,7 +68,6 @@ abstract class AnnotationTests extends AnnotationSpec with Matchers {
     val tname = transform.name
     val inlineAnn = InlineAnnotation(CircuitName("Top"))
     val result = compiler.compile(CircuitState(parse(input), ChirrtlForm, Seq(inlineAnn)), Seq(transform))
-    println(result.annotations.head)
     result.annotations.head should matchPattern {
       case DeletedAnnotation(`tname`, `inlineAnn`) =>
     }
@@ -192,7 +191,7 @@ abstract class AnnotationTests extends AnnotationSpec with Matchers {
       anno("w.a"), anno("w.b[0]"), anno("w.b[1]"),
       anno("r.a"), anno("r.b[0]"), anno("r.b[1]"),
       anno("write.a"), anno("write.b[0]"), anno("write.b[1]"),
-      dontTouch("Top.r"), dontTouch("Top.w")
+      dontTouch("Top.r"), dontTouch("Top.w"), dontTouch("Top.mem")
     )
     val result = compiler.compile(CircuitState(parse(input), ChirrtlForm, annos), Nil)
     val resultAnno = result.annotations.toSeq
@@ -624,5 +623,23 @@ class JsonAnnotationTests extends AnnotationTests with BackendCompilationUtiliti
       case InvalidAnnotationFileException(_, InvalidAnnotationJSONException(msg))
         if msg.contains("JObject") =>
     }
+  }
+
+  object DoNothingTransform extends Transform {
+    override def inputForm: CircuitForm = UnknownForm
+    override def outputForm: CircuitForm = UnknownForm
+
+    protected def execute(state: CircuitState): CircuitState = state
+  }
+
+  "annotation order" should "should be preserved" in {
+    val annos = Seq(anno("a"), anno("b"), anno("c"), anno("d"), anno("e"))
+    val input: String =
+      """circuit Top :
+         |  module Top :
+         |    input a : UInt<1>
+         |    node b = c""".stripMargin
+    val cr = DoNothingTransform.runTransform(CircuitState(parse(input), ChirrtlForm, annos))
+    cr.annotations.toSeq shouldEqual annos
   }
 }

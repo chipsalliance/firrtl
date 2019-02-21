@@ -3,12 +3,12 @@
 package firrtl.analyses
 
 import scala.collection.mutable
-
 import firrtl._
 import firrtl.ir._
 import firrtl.graph._
 import firrtl.Utils._
-import firrtl.Mappers._
+import firrtl.traversals.Foreachers._
+import firrtl.annotations.TargetToken.{Instance, OfModule}
 
 
 /** A class representing the instance hierarchy of a working IR Circuit
@@ -24,7 +24,7 @@ class InstanceGraph(c: Circuit) {
     new mutable.LinkedHashMap[String, mutable.LinkedHashSet[WDefInstance]]
   for (m <- c.modules) {
     childInstances(m.name) = new mutable.LinkedHashSet[WDefInstance]
-    m map InstanceGraph.collectInstances(childInstances(m.name))
+    m.foreach(InstanceGraph.collectInstances(childInstances(m.name)))
     instantiated ++= childInstances(m.name).map(i => i.module)
   }
 
@@ -99,6 +99,12 @@ class InstanceGraph(c: Circuit) {
      */
   def getChildrenInstances: mutable.LinkedHashMap[String, mutable.LinkedHashSet[WDefInstance]] = childInstances
 
+  /** Given a circuit, returns a map from module name to children
+    * instance/module [[firrtl.annotations.TargetToken]]s
+    */
+  def getChildrenInstanceOfModule: mutable.LinkedHashMap[String, mutable.LinkedHashSet[(Instance, OfModule)]] =
+    childInstances.map(kv => kv._1 -> kv._2.map(i => (Instance(i.name), OfModule(i.module))))
+
 
 }
 
@@ -111,12 +117,10 @@ object InstanceGraph {
     * @return
     */
   def collectInstances(insts: mutable.Set[WDefInstance])
-                      (s: Statement): Statement = s match {
-    case i: WDefInstance =>
-      insts += i
-      i
+                      (s: Statement): Unit = s match {
+    case i: WDefInstance => insts += i
     case i: DefInstance => throwInternalError("Expecting WDefInstance, found a DefInstance!")
     case i: WDefInstanceConnector => throwInternalError("Expecting WDefInstance, found a WDefInstanceConnector!")
-    case _ => s map collectInstances(insts)
+    case _ => s.foreach(collectInstances(insts))
   }
 }

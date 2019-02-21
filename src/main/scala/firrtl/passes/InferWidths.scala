@@ -10,6 +10,7 @@ import firrtl._
 import firrtl.ir._
 import firrtl.Utils._
 import firrtl.Mappers._
+import firrtl.traversals.Foreachers._
 
 object InferWidths extends Pass {
   type ConstraintMap = collection.mutable.LinkedHashMap[String, Width]
@@ -227,6 +228,7 @@ object InferWidths extends Pass {
       case (t1: UIntType, t2: UIntType) => Seq(WGeq(t1.width, t2.width))
       case (t1: SIntType, t2: SIntType) => Seq(WGeq(t1.width, t2.width))
       case (ClockType, ClockType) => Nil
+      case (AsyncResetType, AsyncResetType) => Nil
       case (FixedType(w1, p1), FixedType(w2, p2)) => Seq(WGeq(w1,w2), WGeq(p1,p2))
       case (AnalogType(w1), AnalogType(w2)) => Seq(WGeq(w1,w2), WGeq(w2,w1))
       case (t1: BundleType, t2: BundleType) =>
@@ -239,7 +241,7 @@ object InferWidths extends Pass {
       case (t1: VectorType, t2: VectorType) => get_constraints_t(t1.tpe, t2.tpe)
     }
 
-    def get_constraints_e(e: Expression): Expression = {
+    def get_constraints_e(e: Expression): Unit = {
       e match {
         case (e: Mux) => v ++= Seq(
           WGeq(getWidth(e.cond), IntWidth(1)),
@@ -247,7 +249,7 @@ object InferWidths extends Pass {
         )
         case _ =>
       }
-      e map get_constraints_e
+      e.foreach(get_constraints_e)
     }
 
     def get_constraints_declared_type (t: Type): Type = t match {
@@ -257,18 +259,18 @@ object InferWidths extends Pass {
       case _ => t map get_constraints_declared_type
     }
 
-    def get_constraints_s(s: Statement): Statement = {
+    def get_constraints_s(s: Statement): Unit = {
       s map get_constraints_declared_type match {
         case (s: Connect) =>
           val n = get_size(s.loc.tpe)
           val locs = create_exps(s.loc)
           val exps = create_exps(s.expr)
-          v ++= ((locs zip exps).zipWithIndex flatMap {case ((locx, expx), i) =>
-            get_flip(s.loc.tpe, i, Default) match {
+          v ++= locs.zip(exps).flatMap { case (locx, expx) =>
+            to_flip(gender(locx)) match {
               case Default => get_constraints_t(locx.tpe, expx.tpe)//WGeq(getWidth(locx), getWidth(expx))
               case Flip => get_constraints_t(expx.tpe, locx.tpe)//WGeq(getWidth(expx), getWidth(locx))
             }
-          })
+          }
         case (s: PartialConnect) =>
           val ls = get_valid_points(s.loc.tpe, s.expr.tpe, Default, Default)
           val locs = create_exps(s.loc)
@@ -276,15 +278,18 @@ object InferWidths extends Pass {
           v ++= (ls flatMap {case (x, y) =>
             val locx = locs(x)
             val expx = exps(y)
-            get_flip(s.loc.tpe, x, Default) match {
+            to_flip(gender(locx)) match {
               case Default => get_constraints_t(locx.tpe, expx.tpe)//WGeq(getWidth(locx), getWidth(expx))
               case Flip => get_constraints_t(expx.tpe, locx.tpe)//WGeq(getWidth(expx), getWidth(locx))
             }
           })
-        case (s: DefRegister) => v ++= (
-           get_constraints_t(s.reset.tpe, UIntType(IntWidth(1))) ++
-           get_constraints_t(UIntType(IntWidth(1)), s.reset.tpe) ++ 
-           get_constraints_t(s.tpe, s.init.tpe))
+        case (s: DefRegister) =>
+          if (s.reset.tpe != AsyncResetType ) {
+            v ++= (
+               get_constraints_t(s.reset.tpe, UIntType(IntWidth(1))) ++
+               get_constraints_t(UIntType(IntWidth(1)), s.reset.tpe))
+           }
+          v ++= get_constraints_t(s.tpe, s.init.tpe)
         case (s:Conditionally) => v ++= 
            get_constraints_t(s.pred.tpe, UIntType(IntWidth(1))) ++
            get_constraints_t(UIntType(IntWidth(1)), s.pred.tpe)
@@ -294,11 +299,12 @@ object InferWidths extends Pass {
           v ++= widths.tail map (WGeq(widths.head, _))
         case _ =>
       }
-      s map get_constraints_e map get_constraints_s
+      s.foreach(get_constraints_e)
+      s.foreach(get_constraints_s)
     }
 
-    c.modules foreach (_ map get_constraints_s)
-    c.modules foreach (_.ports foreach {p => get_constraints_declared_type(p.tpe)})
+    c.modules.foreach(_.foreach(get_constraints_s))
+    c.modules.foreach(_.ports.foreach({p => get_constraints_declared_type(p.tpe)}))
 
     //println("======== ALL CONSTRAINTS ========")
     //for(x <- v) println(x)

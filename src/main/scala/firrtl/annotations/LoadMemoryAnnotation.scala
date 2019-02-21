@@ -2,6 +2,8 @@
 
 package firrtl.annotations
 
+import java.io.File
+
 /**
   * Enumeration of the two types of readmem statements available in verilog
   */
@@ -31,26 +33,22 @@ case class LoadMemoryAnnotation(
         throw new Exception(s"empty filename not allowed in LoadMemoryAnnotation")
       case name :: Nil =>
         (name, "")
-      case other =>
-        (other.reverse.tail.reverse.mkString("."), "." + other.last)
+      case "" :: name :: Nil => // this case handles a filename that begins with dot and has no suffix
+        ("." + name, "")
+      case other => {
+        if (other.last.indexOf(File.separator) != -1) {
+          (fileName, "")
+        } else {
+          (other.reverse.tail.reverse.mkString("."), "." + other.last)
+        }
+      }
     }
   }
 
-  def getFileName: String = {
-    originalMemoryNameOpt match {
-      case Some(originalMemoryName) =>
-        if(target.name == originalMemoryName) {
-          prefix + suffix
-        }
-        else {
-          prefix + target.name.drop(originalMemoryName.length) + suffix
-        }
-      case _ =>
-        fileName
-    }
-  }
-
+  def getPrefix: String =
+    prefix + originalMemoryNameOpt.map(n => target.name.drop(n.length)).getOrElse("")
   def getSuffix: String = suffix
+  def getFileName: String = getPrefix + getSuffix
 
   def duplicate(newNamed: Named): LoadMemoryAnnotation = {
     newNamed match {
@@ -61,5 +59,3 @@ case class LoadMemoryAnnotation(
     }
   }
 }
-
-

@@ -7,7 +7,6 @@ import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 import firrtl.FirrtlProtos.Firrtl
 import firrtl._
 import firrtl.ir._
-import firrtl.Mappers._
 
 class ProtoBufSpec extends FirrtlFlatSpec {
 
@@ -25,7 +24,8 @@ class ProtoBufSpec extends FirrtlFlatSpec {
     FirrtlResourceTest("Rob", "/regress"),
     FirrtlResourceTest("RocketCore", "/regress"),
     FirrtlResourceTest("ICache", "/regress"),
-    FirrtlResourceTest("FPU", "/regress")
+    FirrtlResourceTest("FPU", "/regress"),
+    FirrtlResourceTest("AsyncResetTester", "/features")
   )
 
   for (FirrtlResourceTest(name, dir) <- firrtlResourceTests) {
@@ -136,5 +136,10 @@ class ProtoBufSpec extends FirrtlFlatSpec {
   it should "support SIntLiteral with a width" in {
     val slit = ir.SIntLiteral(-123)
     FromProto.convert(ToProto.convert(slit).build) should equal (slit)
+  }
+
+  it should "support AsyncResetTypes" in {
+    val port = ir.Port(ir.NoInfo, "reset", ir.Input, ir.AsyncResetType)
+    FromProto.convert(ToProto.convert(port).build) should equal (port)
   }
 }

@@ -6,7 +6,7 @@ import firrtl._
 import firrtl.ir._
 import firrtl.PrimOps._
 import firrtl.Utils._
-import firrtl.Mappers._
+import firrtl.traversals.Foreachers._
 import firrtl.WrappedType._
 
 object CheckHighForm extends Pass {
@@ -53,9 +53,9 @@ object CheckHighForm extends Pass {
     s"$info: [module $mname] Primop $op argument $value < 0.")
   class LsbLargerThanMsbException(info: Info, mname: String, op: String, lsb: Int, msb: Int) extends PassException(
     s"$info: [module $mname] Primop $op lsb $lsb > $msb.")
+  class NonLiteralAsyncResetValueException(info: Info, mname: String, reg: String, init: String) extends PassException(
+    s"$info: [module $mname] AsyncReset Reg '$reg' reset to non-literal '$init'")
 
-  // TODO FIXME
-  // - Do we need to check for uniquness on port names?
   def run(c: Circuit): Circuit = {
     val errors = new Errors()
     val moduleGraph = new ModuleGraph
@@ -76,7 +76,7 @@ object CheckHighForm extends Pass {
         case Add | Sub | Mul | Div | Rem | Lt | Leq | Gt | Geq |
              Eq | Neq | Dshl | Dshr | And | Or | Xor | Cat =>
           correctNum(Option(2), 0)
-        case AsUInt | AsSInt | AsClock | Cvt | Neq | Not =>
+        case AsUInt | AsSInt | AsClock | AsAsyncReset | Cvt | Neq | Not =>
           correctNum(Option(1), 0)
         case AsFixedPoint | Pad | Head | Tail | BPShl | BPShr | BPSet =>
           correctNum(Option(1), 1)
@@ -118,32 +118,29 @@ object CheckHighForm extends Pass {
       case _ => // Do Nothing
     }
 
-    def checkHighFormW(info: Info, mname: String)(w: Width): Width = {
+    def checkHighFormW(info: Info, mname: String)(w: Width): Unit = {
       w match {
-        case wx: IntWidth if wx.width < 0 =>
-          errors.append(new NegWidthException(info, mname))
+        case wx: IntWidth if wx.width < 0 => errors.append(new NegWidthException(info, mname))
         case wx => // Do nothing
       }
-      w
     }
 
-    def checkHighFormT(info: Info, mname: String)(t: Type): Type =
-      t map checkHighFormT(info, mname) match {
-        case tx: VectorType if tx.size < 0 =>
-          errors.append(new NegVecSizeException(info, mname))
-          t
-        case _ => t map checkHighFormW(info, mname)
+    def checkHighFormT(info: Info, mname: String)(t: Type): Unit = {
+      t foreach checkHighFormT(info, mname)
+      t match {
+        case tx: VectorType if tx.size < 0 => errors.append(new NegVecSizeException(info, mname))
+        case _ => t foreach checkHighFormW(info, mname)
       }
+    }
 
-    def validSubexp(info: Info, mname: String)(e: Expression): Expression = {
+    def validSubexp(info: Info, mname: String)(e: Expression): Unit = {
       e match {
         case _: WRef | _: WSubField | _: WSubIndex | _: WSubAccess | _: Mux | _: ValidIf => // No error
         case _ => errors.append(new InvalidAccessException(info, mname))
       }
-      e
     }
 
-    def checkHighFormE(info: Info, mname: String, names: NameSet)(e: Expression): Expression = {
+    def checkHighFormE(info: Info, mname: String, names: NameSet)(e: Expression): Unit = {
       e match {
         case ex: WRef if !names(ex.name) =>
           errors.append(new UndeclaredReferenceException(info, mname, ex.name))
@@ -152,23 +149,30 @@ object CheckHighForm extends Pass {
         case ex: DoPrim => checkHighFormPrimop(info, mname, ex)
         case _: WRef | _: UIntLiteral | _: Mux | _: ValidIf =>
         case ex: WSubAccess => validSubexp(info, mname)(ex.expr)
-        case ex => ex map validSubexp(info, mname)
+        case ex => ex foreach validSubexp(info, mname)
       }
-      (e map checkHighFormW(info, mname)
-         map checkHighFormT(info, mname)
-         map checkHighFormE(info, mname, names))
+      e foreach checkHighFormW(info, mname)
+      e foreach checkHighFormT(info, mname)
+      e foreach checkHighFormE(info, mname, names)
     }
 
-    def checkName(info: Info, mname: String, names: NameSet)(name: String): String = {
+    def checkName(info: Info, mname: String, names: NameSet)(name: String): Unit = {
       if (names(name))
         errors.append(new NotUniqueException(info, mname, name))
       names += name
-      name
     }
 
-    def checkHighFormS(minfo: Info, mname: String, names: NameSet)(s: Statement): Statement = {
+    def checkHighFormS(minfo: Info, mname: String, names: NameSet)(s: Statement): Unit = {
       val info = get_info(s) match {case NoInfo => minfo case x => x}
-      s map checkName(info, mname, names) match {
+      s foreach checkName(info, mname, names)
+      s match {
+        case DefRegister(info, name, _,_, reset, init) if reset.tpe == AsyncResetType =>
+          init match {
+            case _: Literal => // okay
+            case nonlit =>
+              val e = new NonLiteralAsyncResetValueException(info, mname, name, nonlit.serialize)
+              errors.append(e)
+          }
         case sx: DefMemory =>
           if (hasFlip(sx.dataType))
             errors.append(new MemWithFlipException(info, mname, sx.name))
@@ -186,22 +190,23 @@ object CheckHighForm extends Pass {
         case sx: Print => checkFstring(info, mname, sx.string, sx.args.length)
         case sx => // Do Nothing
       }
-      (s map checkHighFormT(info, mname)
-         map checkHighFormE(info, mname, names)
-         map checkHighFormS(minfo, mname, names))
+      s foreach checkHighFormT(info, mname)
+      s foreach checkHighFormE(info, mname, names)
+      s foreach checkHighFormS(minfo, mname, names)
     }
 
-    def checkHighFormP(mname: String, names: NameSet)(p: Port): Port = {
+    def checkHighFormP(mname: String, names: NameSet)(p: Port): Unit = {
+      if (names(p.name))
+        errors.append(new NotUniqueException(NoInfo, mname, p.name))
       names += p.name
-      (p.tpe map checkHighFormT(p.info, mname)
-             map checkHighFormW(p.info, mname))
-      p
+      p.tpe foreach checkHighFormT(p.info, mname)
+      p.tpe foreach checkHighFormW(p.info, mname)
     }
 
     def checkHighFormM(m: DefModule) {
       val names = new NameSet
-      (m map checkHighFormP(m.name, names)
-         map checkHighFormS(m.info, m.name, names))
+      m foreach checkHighFormP(m.name, names)
+      m foreach checkHighFormS(m.info, m.name, names)
     }
 
     c.modules foreach checkHighFormM
@@ -295,45 +300,47 @@ object CheckTypes extends Pass {
       case tx => true
     }
     def check_types_primop(info: Info, mname: String, e: DoPrim): Unit = {
-      def checkAllTypes(exprs: Seq[Expression], okUInt: Boolean, okSInt: Boolean, okClock: Boolean, okFix: Boolean): Unit = {
-        exprs.foldLeft((false, false, false, false)) {
-          case ((isUInt, isSInt, isClock, isFix), expr) => expr.tpe match {
-            case u: UIntType  => (true, isSInt, isClock, isFix)
-            case s: SIntType  => (isUInt, true, isClock, isFix)
-            case ClockType    => (isUInt, isSInt, true, isFix)
-            case f: FixedType => (isUInt, isSInt, isClock, true)
-            case UnknownType =>
+      def checkAllTypes(exprs: Seq[Expression], okUInt: Boolean, okSInt: Boolean, okClock: Boolean, okFix: Boolean, okAsync: Boolean): Unit = {
+        exprs.foldLeft((false, false, false, false, false)) {
+          case ((isUInt, isSInt, isClock, isFix, isAsync), expr) => expr.tpe match {
+            case u: UIntType    => (true,   isSInt, isClock, isFix, isAsync)
+            case s: SIntType    => (isUInt, true,   isClock, isFix, isAsync)
+            case ClockType      => (isUInt, isSInt, true,    isFix, isAsync)
+            case f: FixedType   => (isUInt, isSInt, isClock, true,  isAsync)
+            case AsyncResetType => (isUInt, isSInt, isClock, isFix, true)
+            case UnknownType    =>
               errors.append(new IllegalUnknownType(info, mname, e.serialize))
-              (isUInt, isSInt, isClock, isFix)
+              (isUInt, isSInt, isClock, isFix, isAsync)
             case other => throwInternalError(s"Illegal Type: ${other.serialize}")
           }
         } match {
           //   (UInt,  SInt,  Clock, Fixed)
-          case (isAll, false, false, false) if isAll == okUInt  =>
-          case (false, isAll, false, false) if isAll == okSInt  =>
-          case (false, false, isAll, false) if isAll == okClock =>
-          case (false, false, false, isAll) if isAll == okFix   =>
+          case (isAll, false, false, false, false) if isAll == okUInt  =>
+          case (false, isAll, false, false, false) if isAll == okSInt  =>
+          case (false, false, isAll, false, false) if isAll == okClock =>
+          case (false, false, false, isAll, false) if isAll == okFix   =>
+          case (false, false, false, false, isAll) if isAll == okAsync =>
           case x => errors.append(new OpNotCorrectType(info, mname, e.op.serialize, exprs.map(_.tpe.serialize)))
         }
       }
       e.op match {
-        case AsUInt | AsSInt | AsClock | AsFixedPoint =>
+        case AsUInt | AsSInt | AsClock | AsFixedPoint | AsAsyncReset =>
           // All types are ok
         case Dshl | Dshr =>
-          checkAllTypes(Seq(e.args.head), okUInt=true, okSInt=true,  okClock=false, okFix=true)
-          checkAllTypes(Seq(e.args(1)),   okUInt=true, okSInt=false, okClock=false, okFix=false)
+          checkAllTypes(Seq(e.args.head), okUInt=true, okSInt=true,  okClock=false, okFix=true, okAsync=false)
+          checkAllTypes(Seq(e.args(1)),   okUInt=true, okSInt=false, okClock=false, okFix=false, okAsync=false)
         case Add | Sub | Mul | Lt | Leq | Gt | Geq | Eq | Neq =>
-          checkAllTypes(e.args, okUInt=true, okSInt=true, okClock=false, okFix=true)
+          checkAllTypes(e.args, okUInt=true, okSInt=true, okClock=false, okFix=true, okAsync=false)
         case Pad | Shl | Shr | Cat | Bits | Head | Tail =>
-          checkAllTypes(e.args, okUInt=true, okSInt=true, okClock=false, okFix=true)
+          checkAllTypes(e.args, okUInt=true, okSInt=true, okClock=false, okFix=true, okAsync=false)
         case BPShl | BPShr | BPSet =>
-          checkAllTypes(e.args, okUInt=false, okSInt=false, okClock=false, okFix=true)
+          checkAllTypes(e.args, okUInt=false, okSInt=false, okClock=false, okFix=true, okAsync=false)
         case _ =>
-          checkAllTypes(e.args, okUInt=true, okSInt=true, okClock=false, okFix=false)
+          checkAllTypes(e.args, okUInt=true, okSInt=true, okClock=false, okFix=false, okAsync=false)
       }
     }
 
-    def check_types_e(info:Info, mname: String)(e: Expression): Expression = {
+    def check_types_e(info:Info, mname: String)(e: Expression): Unit = {
       e match {
         case (e: WSubField) => e.expr.tpe match {
           case (t: BundleType) => t.fields find (_.name == e.name) match {
@@ -377,7 +384,7 @@ object CheckTypes extends Pass {
           }
         case _ =>
       }
-      e map check_types_e(info, mname)
+      e foreach check_types_e(info, mname)
     }
 
     def bulk_equals(t1: Type, t2: Type, flip1: Orientation, flip2: Orientation): Boolean = {
@@ -404,7 +411,7 @@ object CheckTypes extends Pass {
       }
     }
 
-    def check_types_s(minfo: Info, mname: String)(s: Statement): Statement = {
+    def check_types_s(minfo: Info, mname: String)(s: Statement): Unit = {
       val info = get_info(s) match { case NoInfo => minfo case x => x }
       s match {
         case sx: Connect if wt(sx.loc.tpe) != wt(sx.expr.tpe) =>
@@ -419,6 +426,7 @@ object CheckTypes extends Pass {
           }
           sx.reset.tpe match {
             case UIntType(IntWidth(w)) if w == 1 =>
+            case AsyncResetType =>
             case UIntType(UnknownWidth) => // cannot catch here, though width may ultimately be wrong
             case _ => errors.append(new IllegalResetType(info, mname, sx.name))
           }
@@ -457,10 +465,11 @@ object CheckTypes extends Pass {
         }
         case _ =>
       }
-      s map check_types_e(info, mname) map check_types_s(info, mname)
+      s foreach check_types_e(info, mname)
+      s foreach check_types_s(info, mname)
     }
 
-    c.modules foreach (m => m map check_types_s(m.info, m.name))
+    c.modules foreach (m => m foreach check_types_s(m.info, m.name))
     errors.trigger()
     c
   }
@@ -504,7 +513,7 @@ object CheckGenders extends Pass {
       flip_rec(t, Default)
     }
 
-    def check_gender(info:Info, mname: String, genders: GenderMap, desired: Gender)(e:Expression): Expression = {
+    def check_gender(info:Info, mname: String, genders: GenderMap, desired: Gender)(e:Expression): Unit = {
       val gender = get_gender(e,genders)
       (gender, desired) match {
         case (MALE, FEMALE) =>
@@ -516,19 +525,18 @@ object CheckGenders extends Pass {
         }
         case _ =>
       }
-      e
    }
 
-    def check_genders_e (info:Info, mname: String, genders: GenderMap)(e:Expression): Expression = {
+    def check_genders_e (info:Info, mname: String, genders: GenderMap)(e:Expression): Unit = {
       e match {
-        case e: Mux => e map check_gender(info, mname, genders, MALE)
-        case e: DoPrim => e.args map check_gender(info, mname, genders, MALE)
+        case e: Mux => e foreach check_gender(info, mname, genders, MALE)
+        case e: DoPrim => e.args foreach check_gender(info, mname, genders, MALE)
         case _ =>
       }
-      e map check_genders_e(info, mname, genders)
+      e foreach check_genders_e(info, mname, genders)
     }
 
-    def check_genders_s(minfo: Info, mname: String, genders: GenderMap)(s: Statement): Statement = {
+    def check_genders_s(minfo: Info, mname: String, genders: GenderMap)(s: Statement): Unit = {
       val info = get_info(s) match { case NoInfo => minfo case x => x }
       s match {
         case (s: DefWire) => genders(s.name) = BIGENDER
@@ -542,7 +550,7 @@ object CheckGenders extends Pass {
           check_gender(info, mname, genders, FEMALE)(s.loc)
           check_gender(info, mname, genders, MALE)(s.expr)
         case (s: Print) =>
-          s.args map check_gender(info, mname, genders, MALE)
+          s.args foreach check_gender(info, mname, genders, MALE)
           check_gender(info, mname, genders, MALE)(s.en)
           check_gender(info, mname, genders, MALE)(s.clk)
         case (s: PartialConnect) =>
@@ -555,13 +563,14 @@ object CheckGenders extends Pass {
           check_gender(info, mname, genders, MALE)(s.clk)
         case _ =>
       }
-      s map check_genders_e(info, mname, genders) map check_genders_s(minfo, mname, genders)
+      s foreach check_genders_e(info, mname, genders)
+      s foreach check_genders_s(minfo, mname, genders)
     }
 
     for (m <- c.modules) {
       val genders = new GenderMap
       genders ++= (m.ports map (p => p.name -> to_gender(p.direction)))
-      m map check_genders_s(m.info, m.name, genders)
+      m foreach check_genders_s(m.info, m.name, genders)
     }
     errors.trigger()
     c

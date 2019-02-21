@@ -17,6 +17,11 @@ env:
     PATH=$PATH:$VERILATOR_ROOT/bin:$TRAVIS_BUILD_DIR/utils/bin
     SBT_ARGS="-Dsbt.log.noformat=true"
 
+before_script:
+  - OLDEST_SHARED=`git log --format=%H $TRAVIS_COMMIT_RANGE | tail -n1`
+  - OLDEST_COMMIT=`git log --format=%H | tail -n1`
+  - if [ $OLDEST_SHARED == $OLDEST_COMMIT ]; then git fetch --unshallow; fi
+
 stages:
   - prepare
   - test
@@ -39,16 +44,16 @@ jobs:
     - stage: test
       script:
         - verilator --version
-        - sbt ++2.11.12 $SBT_ARGS test
-    - stage: test
-      script:
-        - verilator --version
         - sbt ++2.12.4 $SBT_ARGS test
-    # For Chisel tests we just use the default version
     - stage: test
       script:
         - verilator --version
-        - sbt $SBT_ARGS clean assembly publishLocal
+        - sbt ++2.11.12 $SBT_ARGS test
+    # For Chisel tests we use the 2.11.12 version
+    - stage: test
+      script:
+        - verilator --version
+        - sbt ++2.11.12 $SBT_ARGS clean assembly publishLocal
         - bash .run_chisel_tests.sh
     - stage: test
       script:
