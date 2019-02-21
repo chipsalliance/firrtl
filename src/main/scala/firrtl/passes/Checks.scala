@@ -80,7 +80,7 @@ object CheckHighForm extends Pass {
           correctNum(Option(1), 0)
         case AsFixedPoint | Pad | Head | Tail | BPShl | BPShr | BPSet =>
           correctNum(Option(1), 1)
-        case Shl | Shr | Shlw =>
+        case Shl | Shr =>
           correctNum(Option(1), 1)
           val amount = e.consts.head.toInt
           if (amount < 0) {
