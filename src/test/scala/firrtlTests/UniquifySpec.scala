@@ -301,7 +301,7 @@ class UniquifySpec extends FirrtlFlatSpec {
     def mkType(i: Int): String = {
       if(i == 0) "UInt<8>" else s"{x: ${mkType(i - 1)}}"
     }
-    val bareMss = (
+    val timesMs = (
       for (depth <- (List.fill(nCalibrationRuns)(1) :+ depth)) yield {
         val input = s"""circuit Test:
                        |  module Test :
@@ -314,8 +314,8 @@ class UniquifySpec extends FirrtlFlatSpec {
         }
     ).toArray
     // The baseMs will be the maximum of the first calibration runs
-    val baseMs = bareMss.slice(0, nCalibrationRuns - 1).max
-    val renameMs = bareMss(nCalibrationRuns)
+    val baseMs = timesMs.slice(0, nCalibrationRuns - 1).max
+    val renameMs = timesMs(nCalibrationRuns)
     if (TestOptions.accurateTiming)
       renameMs shouldBe < (baseMs * threshold)
   }
