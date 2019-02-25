@@ -119,8 +119,6 @@ trait FirrtlRunners extends BackendCompilationUtilities {
                         infoModeName = "ignore",
                         customTransforms = customTransforms ++ extraCheckTransforms,
                         annotations = annotations.toList)
-                        customTransforms = customTransforms,
-                        annotations = annotations.toList)
     }
     firrtl.Driver.execute(optionsManager)
 
