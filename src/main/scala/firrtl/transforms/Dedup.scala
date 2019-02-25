@@ -20,6 +20,8 @@ case class NoDedupAnnotation(target: ModuleName) extends SingleTargetAnnotation[
   def duplicate(n: ModuleName): NoDedupAnnotation = NoDedupAnnotation(n)
 }
 
+case object NoCircuitDedupAnnotation extends NoTargetAnnotation
+
 /** Only use on legal Firrtl.
   *
   * Specifically, the restriction of instance loops must have been checked, or else this pass can
@@ -34,7 +36,10 @@ class DedupModules extends Transform {
     * @return A transformed Firrtl AST
     */
   def execute(state: CircuitState): CircuitState = {
-    val noDedups = state.annotations.collect { case NoDedupAnnotation(ModuleName(m, c)) => m }
+    val noDedups = state.annotations.collect { case NoDedupAnnotation(ModuleName(m, c)) => m } ++
+    state.annotations.collect {
+      case NoCircuitDedupAnnotation => state.circuit.modules.map(_.name)
+    }.flatten
     val (newC, renameMap) = run(state.circuit, noDedups, state.annotations)
     state.copy(circuit = newC, renames = Some(renameMap))
   }
