@@ -5,12 +5,12 @@ package firrtlTests
 import java.io._
 import org.scalatest._
 import org.scalatest.prop._
-import firrtl.Parser
+import firrtl.{Parser, CircuitState, UnknownForm, Transform}
 import firrtl.ir.Circuit
 import firrtl.passes.{Pass,ToWorkingIR,CheckHighForm,ResolveKinds,InferTypes,CheckTypes,PassException,InferWidths,CheckWidths,ResolveGenders,CheckGenders}
 
 class CheckSpec extends FlatSpec with Matchers {
-  "Connecting bundles of different types" should "throw an exception" in {
+  "Memories with flip in the data type" should "throw an exception" in {
     val passes = Seq(
       ToWorkingIR,
       CheckHighForm)
@@ -28,6 +28,26 @@ class CheckSpec extends FlatSpec with Matchers {
       }
     }
   }
+
+  "Registers with flip in the type" should "throw an exception" in {
+    val passes = Seq(
+      ToWorkingIR,
+      CheckHighForm)
+    val input =
+      """circuit Unit :
+        |  module Unit :
+        |    input clk : Clock
+        |    input in : UInt<32>
+        |    output out : UInt<32>
+        |    reg r : {a : UInt<32>, flip b : UInt<32>}, clk
+        |    out <= in""".stripMargin
+    intercept[CheckHighForm.RegWithFlipException] {
+      passes.foldLeft(Parser.parse(input.split("\n").toIterator)) {
+        (c: Circuit, p: Pass) => p.run(c)
+      }
+    }
+  }
+
   "Instance loops a -> b -> a" should "be detected" in {
     val passes = Seq(
       ToWorkingIR,
@@ -153,7 +173,7 @@ class CheckSpec extends FlatSpec with Matchers {
       CheckTypes,
       ResolveGenders,
       CheckGenders,
-      InferWidths,
+      new InferWidths,
       CheckWidths)
     val input =
       """
@@ -180,8 +200,8 @@ class CheckSpec extends FlatSpec with Matchers {
           |    sub.io.debug_clk <= io.jtag.TCK
           |
           |""".stripMargin
-    passes.foldLeft(Parser.parse(input.split("\n").toIterator)) {
-      (c: Circuit, p: Pass) => p.run(c)
+    passes.foldLeft(CircuitState(Parser.parse(input.split("\n").toIterator), UnknownForm)) {
+      (c: CircuitState, p: Transform) => p.runTransform(c)
     }
   }
 
