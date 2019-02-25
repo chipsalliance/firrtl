@@ -36,12 +36,13 @@ class DedupModules extends Transform {
     * @return A transformed Firrtl AST
     */
   def execute(state: CircuitState): CircuitState = {
-    val noDedups = state.annotations.collect { case NoDedupAnnotation(ModuleName(m, c)) => m } ++
-    state.annotations.collect {
-      case NoCircuitDedupAnnotation => state.circuit.modules.map(_.name)
-    }.flatten
-    val (newC, renameMap) = run(state.circuit, noDedups, state.annotations)
-    state.copy(circuit = newC, renames = Some(renameMap))
+    if (state.annotations.contains(NoCircuitDedupAnnotation)) {
+      state
+    } else {
+      val noDedups = state.annotations.collect { case NoDedupAnnotation(ModuleName(m, c)) => m }
+      val (newC, renameMap) = run(state.circuit, noDedups, state.annotations)
+      state.copy(circuit = newC, renames = Some(renameMap))
+    }
   }
 
   /** Deduplicates a circuit, and records renaming
