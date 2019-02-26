@@ -10,10 +10,10 @@ import firrtl.passes._
 import firrtl.Parser.IgnoreInfo
 
 class FixedTypeInferenceSpec extends FirrtlFlatSpec {
-  private def executeTest(input: String, expected: Seq[String], passes: Seq[Pass]) = {
-    val c = passes.foldLeft(Parser.parse(input.split("\n").toIterator)) {
-      (c: Circuit, p: Pass) => p.run(c)
-    }
+  private def executeTest(input: String, expected: Seq[String], passes: Seq[Transform]) = {
+    val c = passes.foldLeft(CircuitState(Parser.parse(input.split("\n").toIterator), UnknownForm)) {
+      (c: CircuitState, p: Transform) => p.runTransform(c)
+    }.circuit
     val lines = c.serialize.split("\n") map normalized
 
     expected foreach { e =>
@@ -30,7 +30,7 @@ class FixedTypeInferenceSpec extends FirrtlFlatSpec {
       CheckTypes,
       ResolveGenders,
       CheckGenders,
-      InferWidths,
+      new InferWidths,
       CheckWidths)
     val input =
       """circuit Unit :
@@ -60,7 +60,7 @@ class FixedTypeInferenceSpec extends FirrtlFlatSpec {
       CheckTypes,
       ResolveGenders,
       CheckGenders,
-      InferWidths,
+      new InferWidths,
       CheckWidths)
     val input =
       """circuit Unit :
@@ -86,7 +86,7 @@ class FixedTypeInferenceSpec extends FirrtlFlatSpec {
       CheckTypes,
       ResolveGenders,
       CheckGenders,
-      InferWidths,
+      new InferWidths,
       CheckWidths)
     val input =
       """circuit Unit :
@@ -112,7 +112,7 @@ class FixedTypeInferenceSpec extends FirrtlFlatSpec {
       CheckTypes,
       ResolveGenders,
       CheckGenders,
-      InferWidths,
+      new InferWidths,
       CheckWidths)
     val input =
       """circuit Unit :
@@ -138,7 +138,7 @@ class FixedTypeInferenceSpec extends FirrtlFlatSpec {
       CheckTypes,
       ResolveGenders,
       CheckGenders,
-      InferWidths,
+      new InferWidths,
       CheckWidths)
     val input =
       """circuit Unit :
@@ -164,7 +164,7 @@ class FixedTypeInferenceSpec extends FirrtlFlatSpec {
       CheckTypes,
       ResolveGenders,
       CheckGenders,
-      InferWidths,
+      new InferWidths,
       CheckWidths)
     val input =
       """circuit Unit :
@@ -190,19 +190,18 @@ class FixedTypeInferenceSpec extends FirrtlFlatSpec {
       CheckTypes,
       ResolveGenders,
       CheckGenders,
-      InferWidths,
+      new InferWidths,
       CheckWidths)
     val input =
       """circuit Unit :
         |  module Unit :
         |    input a : Fixed<10><<2>>
         |    input b : Fixed<7><<3>>
-        |    input c : UInt<2>
         |    output cat : UInt
         |    output head : UInt
         |    output tail : UInt
         |    output bits : UInt
-        |    cat <= cat(a, c)
+        |    cat <= cat(a, b)
         |    head <= head(a, 3)
         |    tail <= tail(a, 3)
         |    bits <= bits(a, 6, 3)""".stripMargin
@@ -211,12 +210,11 @@ class FixedTypeInferenceSpec extends FirrtlFlatSpec {
         |  module Unit :
         |    input a : Fixed<10><<2>>
         |    input b : Fixed<7><<3>>
-        |    input c : UInt<2>
-        |    output cat : UInt<12>
+        |    output cat : UInt<17>
         |    output head : UInt<3>
         |    output tail : UInt<7>
         |    output bits : UInt<4>
-        |    cat <= cat(a, c)
+        |    cat <= cat(a, b)
         |    head <= head(a, 3)
         |    tail <= tail(a, 3)
         |    bits <= bits(a, 6, 3)""".stripMargin
@@ -232,7 +230,7 @@ class FixedTypeInferenceSpec extends FirrtlFlatSpec {
       CheckTypes,
       ResolveGenders,
       CheckGenders,
-      InferWidths,
+      new InferWidths,
       CheckWidths)
     val input =
       """circuit Unit :
@@ -258,7 +256,7 @@ class FixedTypeInferenceSpec extends FirrtlFlatSpec {
       CheckTypes,
       ResolveGenders,
       CheckGenders,
-      InferWidths,
+      new InferWidths,
       CheckWidths,
       ConvertFixedToSInt)
     val input =

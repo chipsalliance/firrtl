@@ -15,10 +15,12 @@ import scala.collection.mutable
   */
 object RemoveAccesses extends Pass {
   private def AND(e1: Expression, e2: Expression) =
-    DoPrim(And, Seq(e1, e2), Nil, BoolType)
+    if(e1 == one) e2
+    else if(e2 == one) e1
+    else DoPrim(And, Seq(e1, e2), Nil, BoolType)
 
   private def EQV(e1: Expression, e2: Expression): Expression =
-    DoPrim(Eq, Seq(e1, e2), Nil, e1.tpe)
+    DoPrim(Eq, Seq(e1, e2), Nil, BoolType)
 
   /** Container for a base expression and its corresponding guard
     */
@@ -32,27 +34,27 @@ object RemoveAccesses extends Pass {
   private def getLocations(e: Expression): Seq[Location] = e match {
     case e: WRef => create_exps(e).map(Location(_,one))
     case e: WSubIndex =>
-      val ls = getLocations(e.exp)
+      val ls = getLocations(e.expr)
       val start = get_point(e)
       val end = start + get_size(e.tpe)
-      val stride = get_size(e.exp.tpe)
+      val stride = get_size(e.expr.tpe)
       for ((l, i) <- ls.zipWithIndex
         if ((i % stride) >= start) & ((i % stride) < end)) yield l
     case e: WSubField =>
-      val ls = getLocations(e.exp)
+      val ls = getLocations(e.expr)
       val start = get_point(e)
       val end = start + get_size(e.tpe)
-      val stride = get_size(e.exp.tpe)
+      val stride = get_size(e.expr.tpe)
       for ((l, i) <- ls.zipWithIndex
         if ((i % stride) >= start) & ((i % stride) < end)) yield l
     case e: WSubAccess =>
-      val ls = getLocations(e.exp)
+      val ls = getLocations(e.expr)
       val stride = get_size(e.tpe)
-      val wrap = e.exp.tpe.asInstanceOf[VectorType].size
+      val wrap = e.expr.tpe.asInstanceOf[VectorType].size
       ls.zipWithIndex map {case (l, i) =>
         val c = (i / stride) % wrap
         val basex = l.base
-        val guardx = AND(l.guard,EQV(uint(c),e.index))
+        val guardx = AND(l.guard,EQV(UIntLiteral(c),e.index))
         Location(basex,guardx)
       }
   }
@@ -82,7 +84,7 @@ object RemoveAccesses extends Pass {
       val namespace = Namespace(m)
       def onStmt(s: Statement): Statement = {
         def create_temp(e: Expression): (Statement, Expression) = {
-          val n = namespace.newTemp
+          val n = namespace.newName(niceName(e))
           (DefWire(get_info(s), n, e.tpe), WRef(n, e.tpe, kind(e), gender(e)))
         }
 
@@ -93,7 +95,7 @@ object RemoveAccesses extends Pass {
           case (_:WSubAccess| _: WSubField| _: WSubIndex| _: WRef) if hasAccess(e) =>
             val rs = getLocations(e)
             rs find (x => x.guard != one) match {
-              case None => error("Shouldn't be here")
+              case None => throwInternalError(s"removeMale: shouldn't be here - $e")
               case Some(_) =>
                 val (wire, temp) = create_temp(e)
                 val temps = create_exps(temp)
@@ -101,7 +103,8 @@ object RemoveAccesses extends Pass {
                 stmts += wire
                 rs.zipWithIndex foreach {
                   case (x, i) if i < temps.size =>
-                    stmts += Connect(get_info(s),getTemp(i),x.base)
+                    stmts += IsInvalid(get_info(s),getTemp(i))
+                    stmts += Conditionally(get_info(s),x.guard,Connect(get_info(s),getTemp(i),x.base),EmptyStmt)
                   case (x, i) =>
                     stmts += Conditionally(get_info(s),x.guard,Connect(get_info(s),getTemp(i),x.base),EmptyStmt)
                 }
@@ -131,7 +134,7 @@ object RemoveAccesses extends Pass {
           * Otherwise, map to children.
           */
         def fixMale(e: Expression): Expression = e match {
-          case w: WSubAccess => removeMale(WSubAccess(w.exp, fixMale(w.index), w.tpe, w.gender))
+          case w: WSubAccess => removeMale(WSubAccess(w.expr, fixMale(w.index), w.tpe, w.gender))
           //case w: WSubIndex => removeMale(w)
           //case w: WSubField => removeMale(w)
           case x => x map fixMale
@@ -142,7 +145,7 @@ object RemoveAccesses extends Pass {
           * Otherwise, map to children.
           */
         def fixFemale(e: Expression): Expression = e match {
-          case w: WSubAccess => WSubAccess(fixFemale(w.exp), fixMale(w.index), w.tpe, w.gender)
+          case w: WSubAccess => WSubAccess(fixFemale(w.expr), fixMale(w.index), w.tpe, w.gender)
           case x => x map fixFemale
         }
 

@@ -5,8 +5,10 @@ package firrtlTests
 import firrtl._
 import firrtl.ir._
 import firrtl.passes._
+import firrtl.transforms._
 import firrtl.passes.memlib._
 import annotations._
+import FirrtlCheckers._
 
 class ReplSeqMemSpec extends SimpleTransformSpec {
   def emitter = new LowFirrtlEmitter
@@ -21,7 +23,7 @@ class ReplSeqMemSpec extends SimpleTransformSpec {
     new SeqTransform {
       def inputForm = LowForm
       def outputForm = LowForm
-      def transforms = Seq(ConstProp, CommonSubexpressionElimination, DeadCodeElimination, RemoveEmpty)
+      def transforms = Seq(new ConstantPropagation, CommonSubexpressionElimination, new DeadCodeElimination, RemoveEmpty)
     }
   )
 
@@ -62,8 +64,8 @@ circuit Top :
     io2.commit_entry.bits.info <- R1
 """.stripMargin
     val confLoc = "ReplSeqMemTests.confTEMP"
-    val aMap = AnnotationMap(Seq(ReplSeqMemAnnotation("-c:Top:-o:"+confLoc)))
-    val res = compileAndEmit(CircuitState(parse(input), ChirrtlForm, Some(aMap)))
+    val annos = Seq(ReplSeqMemAnnotation.parse("-c:Top:-o:"+confLoc))
+    val res = compileAndEmit(CircuitState(parse(input), ChirrtlForm, annos))
     // Check correctness of firrtl
     parse(res.getEmittedCircuit.value)
     (new java.io.File(confLoc)).delete()
@@ -84,8 +86,8 @@ circuit Top :
         write mport T_155 = mem[p_address], clock
 """.stripMargin
     val confLoc = "ReplSeqMemTests.confTEMP"
-    val aMap = AnnotationMap(Seq(ReplSeqMemAnnotation("-c:Top:-o:"+confLoc)))
-    val res = compileAndEmit(CircuitState(parse(input), ChirrtlForm, Some(aMap)))
+    val annos = Seq(ReplSeqMemAnnotation.parse("-c:Top:-o:"+confLoc))
+    val res = compileAndEmit(CircuitState(parse(input), ChirrtlForm, annos))
     // Check correctness of firrtl
     parse(res.getEmittedCircuit.value)
     (new java.io.File(confLoc)).delete()
@@ -109,8 +111,8 @@ circuit CustomMemory :
       skip 
 """.stripMargin
     val confLoc = "ReplSeqMemTests.confTEMP"
-    val aMap = AnnotationMap(Seq(ReplSeqMemAnnotation("-c:CustomMemory:-o:"+confLoc)))
-    val res = compileAndEmit(CircuitState(parse(input), ChirrtlForm, Some(aMap)))
+    val annos = Seq(ReplSeqMemAnnotation.parse("-c:CustomMemory:-o:"+confLoc))
+    val res = compileAndEmit(CircuitState(parse(input), ChirrtlForm, annos))
     // Check correctness of firrtl
     parse(res.getEmittedCircuit.value)
     (new java.io.File(confLoc)).delete()
@@ -134,8 +136,8 @@ circuit CustomMemory :
       skip 
 """.stripMargin
     val confLoc = "ReplSeqMemTests.confTEMP"
-    val aMap = AnnotationMap(Seq(ReplSeqMemAnnotation("-c:CustomMemory:-o:"+confLoc)))
-    val res = compileAndEmit(CircuitState(parse(input), ChirrtlForm, Some(aMap)))
+    val annos = Seq(ReplSeqMemAnnotation.parse("-c:CustomMemory:-o:"+confLoc))
+    val res = compileAndEmit(CircuitState(parse(input), ChirrtlForm, annos))
     // Check correctness of firrtl
     parse(res.getEmittedCircuit.value)
     (new java.io.File(confLoc)).delete()
@@ -179,7 +181,8 @@ circuit Top :
       "asClock(a)" -> "a",
       "a" -> "a",
       "or(a, b)" -> "or(a, b)",
-      "bits(a, 0, 0)" -> "a"
+      "bits(a, 0, 0)" -> "a",
+      "validif(a, b)" -> "b"
     )
 
     tests foreach { case(hurdle, origin) => checkConnectOrigin(hurdle, origin) }
@@ -198,7 +201,7 @@ circuit CustomMemory :
     smem mem_1 : UInt<16>[7]
     read mport _T_17 = mem_0[io.rAddr], clock
     read mport _T_19 = mem_1[io.rAddr], clock
-    io.dO <= _T_17
+    io.dO <= and(_T_17, _T_19)
     when io.wEn :
       write mport _T_18 = mem_0[io.wAddr], clock
       write mport _T_20 = mem_1[io.wAddr], clock
@@ -207,17 +210,17 @@ circuit CustomMemory :
       skip
 """
     val confLoc = "ReplSeqMemTests.confTEMP"
-    val aMap = AnnotationMap(Seq(
-      ReplSeqMemAnnotation("-c:CustomMemory:-o:"+confLoc),
-      NoDedupMemAnnotation(ComponentName("mem_0", ModuleName("CustomMemory",CircuitName("CustomMemory"))))))
-    val res = compileAndEmit(CircuitState(parse(input), ChirrtlForm, Some(aMap)))
+    val annos = Seq(
+      ReplSeqMemAnnotation.parse("-c:CustomMemory:-o:"+confLoc),
+      NoDedupMemAnnotation(ComponentName("mem_0", ModuleName("CustomMemory",CircuitName("CustomMemory")))))
+    val res = compileAndEmit(CircuitState(parse(input), ChirrtlForm, annos))
     // Check correctness of firrtl
     val circuit = parse(res.getEmittedCircuit.value)
     val numExtMods = circuit.modules.count {
       case e: ExtModule =>  true
       case _ => false
     }
-    require(numExtMods == 2)
+    numExtMods should be (2)
     (new java.io.File(confLoc)).delete()
   }
 
@@ -236,7 +239,7 @@ circuit CustomMemory :
     read mport _T_17 = mem_0[io.rAddr], clock
     read mport _T_19 = mem_1[io.rAddr], clock
     read mport _T_21 = mem_2[io.rAddr], clock
-    io.dO <= _T_17
+    io.dO <= and(_T_17, and(_T_19, _T_21))
     when io.wEn :
       write mport _T_18 = mem_0[io.wAddr], clock
       write mport _T_20 = mem_1[io.wAddr], clock
@@ -247,17 +250,72 @@ circuit CustomMemory :
       skip
 """
     val confLoc = "ReplSeqMemTests.confTEMP"
-    val aMap = AnnotationMap(Seq(
-      ReplSeqMemAnnotation("-c:CustomMemory:-o:"+confLoc),
-      NoDedupMemAnnotation(ComponentName("mem_1", ModuleName("CustomMemory",CircuitName("CustomMemory"))))))
-    val res = compileAndEmit(CircuitState(parse(input), ChirrtlForm, Some(aMap)))
+    val annos = Seq(
+      ReplSeqMemAnnotation.parse("-c:CustomMemory:-o:"+confLoc),
+      NoDedupMemAnnotation(ComponentName("mem_1", ModuleName("CustomMemory",CircuitName("CustomMemory")))))
+    val res = compileAndEmit(CircuitState(parse(input), ChirrtlForm, annos))
     // Check correctness of firrtl
     val circuit = parse(res.getEmittedCircuit.value)
     val numExtMods = circuit.modules.count {
       case e: ExtModule =>  true
       case _ => false
     }
-    require(numExtMods == 2)
+    numExtMods should be (2)
+    (new java.io.File(confLoc)).delete()
+  }
+
+  "ReplSeqMem" should "dedup mems with the same instance name as other mems (in other modules) marked NoDedup" in {
+    val input = """
+circuit CustomMemory :
+  module ChildMemory :
+    input clock : Clock
+    input reset : UInt<1>
+    output io : {flip rClk : Clock, flip rAddr : UInt<3>, dO : UInt<16>, flip wClk : Clock, flip wAddr : UInt<3>, flip wEn : UInt<1>, flip dI : UInt<16>}
+
+    smem mem_0 : UInt<16>[7]
+    read mport r1 = mem_0[io.rAddr], clock
+    io.dO <= r1
+    when io.wEn :
+      write mport w1 = mem_0[io.wAddr], clock
+      w1 <= io.dI
+
+  module CustomMemory :
+    input clock : Clock
+    input reset : UInt<1>
+    output io : {flip rClk : Clock, flip rAddr : UInt<3>, dO : UInt<16>, flip wClk : Clock, flip wAddr : UInt<3>, flip wEn : UInt<1>, flip dI : UInt<16>}
+
+    inst child of ChildMemory
+    child.clock <= clock
+    child.reset <= reset
+    io <- child.io
+
+    smem mem_0 : UInt<16>[7]
+    smem mem_1 : UInt<16>[7]
+    read mport r1 = mem_0[io.rAddr], clock
+    read mport r2 = mem_1[io.rAddr], clock
+    io.dO <= and(r1, and(r2, child.io.dO))
+    when io.wEn :
+      write mport w1 = mem_0[io.wAddr], clock
+      write mport w2 = mem_1[io.wAddr], clock
+      w1 <= io.dI
+      w2 <= io.dI
+"""
+    val confLoc = "ReplSeqMemTests.confTEMP"
+    val annos = Seq(
+      ReplSeqMemAnnotation.parse("-c:CustomMemory:-o:"+confLoc),
+      NoDedupMemAnnotation(ComponentName("mem_0", ModuleName("ChildMemory",CircuitName("CustomMemory")))))
+    val res = compileAndEmit(CircuitState(parse(input), ChirrtlForm, annos))
+    // Check correctness of firrtl
+    val circuit = parse(res.getEmittedCircuit.value)
+    val numExtMods = circuit.modules.count {
+      case e: ExtModule =>  true
+      case _ => false
+    }
+    // Note that there are 3 identical SeqMems in this test
+    // If the NoDedupMemAnnotation were ignored, we'd end up with just 1 ExtModule
+    // If the NoDedupMemAnnotation were handled incorrectly as it was prior to this test, there
+    //   would be 3 ExtModules
+    numExtMods should be (2)
     (new java.io.File(confLoc)).delete()
   }
 
@@ -283,8 +341,8 @@ circuit CustomMemory :
       skip
 """
     val confLoc = "ReplSeqMemTests.confTEMP"
-    val aMap = AnnotationMap(Seq(ReplSeqMemAnnotation("-c:CustomMemory:-o:"+confLoc)))
-    val res = compileAndEmit(CircuitState(parse(input), ChirrtlForm, Some(aMap)))
+    val annos = Seq(ReplSeqMemAnnotation.parse("-c:CustomMemory:-o:"+confLoc))
+    val res = compileAndEmit(CircuitState(parse(input), ChirrtlForm, annos))
     // Check correctness of firrtl
     val circuit = parse(res.getEmittedCircuit.value)
     val numExtMods = circuit.modules.count {
@@ -294,9 +352,88 @@ circuit CustomMemory :
     require(numExtMods == 1)
     (new java.io.File(confLoc)).delete()
   }
+
+  "ReplSeqMem" should "should not have a mask if there is none" in {
+    val input = """
+circuit CustomMemory :
+  module CustomMemory :
+    input clock : Clock
+    output io : { flip en : UInt<1>, out : UInt<8>[2], flip raddr : UInt<10>, flip waddr : UInt<10>, flip wdata : UInt<8>[2] }
+
+    smem mem : UInt<8>[2][1024]
+    read mport r = mem[io.raddr], clock
+    io.out <= r
+
+    when io.en :
+      write mport w = mem[io.waddr], clock
+      w <= io.wdata
+"""
+    val confLoc = "ReplSeqMemTests.confTEMP"
+    val annos = Seq(ReplSeqMemAnnotation.parse("-c:CustomMemory:-o:"+confLoc))
+    val res = compileAndEmit(CircuitState(parse(input), ChirrtlForm, annos))
+    res.getEmittedCircuit.value shouldNot include ("mask")
+    (new java.io.File(confLoc)).delete()
+  }
+
+  "ReplSeqMem" should "should not conjoin enable signal with mask condition" in {
+    val input = """
+circuit CustomMemory :
+  module CustomMemory :
+    input clock : Clock
+    output io : { flip en : UInt<1>, out : UInt<8>[2], flip raddr : UInt<10>, flip waddr : UInt<10>, flip wdata : UInt<8>[2], flip mask : UInt<8>[2] }
+
+    smem mem : UInt<8>[2][1024]
+    read mport r = mem[io.raddr], clock
+    io.out <= r
+
+    when io.en :
+      write mport w = mem[io.waddr], clock
+      when io.mask[0] :
+        w[0] <= io.wdata[0]
+      when io.mask[1] :
+        w[1] <= io.wdata[1]
+"""
+    val confLoc = "ReplSeqMemTests.confTEMP"
+    val annos = Seq(ReplSeqMemAnnotation.parse("-c:CustomMemory:-o:"+confLoc))
+    val res = compileAndEmit(CircuitState(parse(input), ChirrtlForm, annos))
+    // TODO Until RemoveCHIRRTL is removed, enable will still drive validif for mask
+    res should containLine ("mem.W0_mask_0 <= validif(io_en, io_mask_0)")
+    res should containLine ("mem.W0_mask_1 <= validif(io_en, io_mask_1)")
+    (new java.io.File(confLoc)).delete()
+  }
+
+  "ReplSeqMem" should "should not conjoin enable signal with wmask condition (RW Port)" in {
+    val input = """
+circuit CustomMemory :
+  module CustomMemory :
+    input clock : Clock
+    output io : { flip en : UInt<1>, out : UInt<8>[2], flip raddr : UInt<10>, flip waddr : UInt<10>, flip wdata : UInt<8>[2], flip mask : UInt<8>[2] }
+
+    io.out is invalid
+
+    smem mem : UInt<8>[2][1024]
+
+    when io.en :
+      write mport w = mem[io.waddr], clock
+      when io.mask[0] :
+        w[0] <= io.wdata[0]
+      when io.mask[1] :
+        w[1] <= io.wdata[1]
+    when not(io.en) :
+      read mport r = mem[io.raddr], clock
+      io.out <= r
+
+"""
+    val confLoc = "ReplSeqMemTests.confTEMP"
+    val annos = Seq(ReplSeqMemAnnotation.parse("-c:CustomMemory:-o:"+confLoc),
+                    InferReadWriteAnnotation)
+    val res = compileAndEmit(CircuitState(parse(input), ChirrtlForm, annos))
+    // TODO Until RemoveCHIRRTL is removed, enable will still drive validif for mask
+    res should containLine ("mem.RW0_wmask_0 <= validif(io_en, io_mask_0)")
+    res should containLine ("mem.RW0_wmask_1 <= validif(io_en, io_mask_1)")
+    (new java.io.File(confLoc)).delete()
+  }
 }
 
 // TODO: make more checks
-// readwrite vs. no readwrite
-// mask + no mask
 // conf

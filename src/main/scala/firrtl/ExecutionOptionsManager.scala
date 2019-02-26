@@ -4,6 +4,7 @@ package firrtl
 
 import firrtl.annotations._
 import firrtl.Parser._
+import firrtl.ir.Circuit
 import firrtl.passes.memlib.{InferReadWriteAnnotation, ReplSeqMemAnnotation}
 import firrtl.passes.clocklist.ClockListAnnotation
 import logger.LogLevel
@@ -13,13 +14,32 @@ import scala.collection.Seq
 
 /**
   * Use this trait to define an options class that can add its private command line options to a externally
-  * declared parser
+  * declared parser.
+  * '''NOTE''' In all derived trait/classes, if you intend on maintaining backwards compatibility,
+  *  be sure to add new options at the end of the current ones and don't remove any existing ones.
   */
 trait ComposableOptions
 
 abstract class HasParser(applicationName: String) {
-  final val parser: OptionParser[Unit] = new OptionParser[Unit](applicationName) {}
-}
+  final val parser = new OptionParser[Unit](applicationName) {
+    var terminateOnExit = true
+    override def terminate(exitState: Either[String, Unit]): Unit = {
+      if(terminateOnExit) sys.exit(0)
+    }
+  }
+
+  /**
+    * By default scopt calls sys.exit when --help is in options, this defeats that
+    */
+  def doNotExitOnHelp(): Unit = {
+    parser.terminateOnExit = false
+  }
+  /**
+    * By default scopt calls sys.exit when --help is in options, this un-defeats doNotExitOnHelp
+    */
+  def exitOnHelp(): Unit = {
+    parser.terminateOnExit = true
+  }}
 
 /**
   * Most of the chisel toolchain components require a topName which defines a circuit or a device under test.
@@ -29,12 +49,14 @@ abstract class HasParser(applicationName: String) {
   * circuit and then set the topName from that if it has not already been set.
   */
 case class CommonOptions(
-    topName:        String         = "",
-    targetDirName:  String         = ".",
-    globalLogLevel: LogLevel.Value = LogLevel.Error,
-    logToFile:      Boolean        = false,
-    logClassNames:  Boolean        = false,
-    classLogLevels: Map[String, LogLevel.Value] = Map.empty) extends ComposableOptions {
+    topName:           String         = "",
+    targetDirName:     String         = ".",
+    globalLogLevel:    LogLevel.Value = LogLevel.None,
+    logToFile:         Boolean        = false,
+    logClassNames:     Boolean        = false,
+    classLogLevels: Map[String, LogLevel.Value] = Map.empty,
+    programArgs:    Seq[String]                 = Seq.empty
+) extends ComposableOptions {
 
   def getLogFileName(optionsManager: ExecutionOptionsManager): String = {
     if(topName.isEmpty) {
@@ -45,9 +67,6 @@ case class CommonOptions(
     }
   }
 }
-
-/** [[annotations.GlobalCircuitAnnotation]] that contains the [[CommonOptions]] target directory */
-object TargetDirAnnotation extends GlobalCircuitAnnotation
 
 trait HasCommonOptions {
   self: ExecutionOptionsManager =>
@@ -71,7 +90,7 @@ trait HasCommonOptions {
     .text(s"This options defines a work directory for intermediate files, default is ${commonOptions.targetDirName}")
 
   parser.opt[String]("log-level")
-    .abbr("ll").valueName("<Error|Warn|Info|Debug|Trace>")
+    .abbr("ll").valueName("<error|warn|info|debug|trace>")
     .foreach { x =>
       val level = x.toLowerCase match {
         case "error" => LogLevel.Error
@@ -86,10 +105,10 @@ trait HasCommonOptions {
       if (Array("error", "warn", "info", "debug", "trace").contains(x.toLowerCase)) parser.success
       else parser.failure(s"$x bad value must be one of error|warn|info|debug|trace")
     }
-    .text(s"This options defines a work directory for intermediate files, default is ${commonOptions.targetDirName}")
+    .text(s"This options defines global log level, default is ${commonOptions.globalLogLevel}")
 
   parser.opt[Seq[String]]("class-log-level")
-    .abbr("cll").valueName("<FullClassName:[Error|Warn|Info|Debug|Trace]>[,...]")
+    .abbr("cll").valueName("<FullClassName:[error|warn|info|debug|trace]>[,...]")
     .foreach { x =>
       val logAssignments = x.map { y =>
         val className :: levelName :: _ = y.split(":").toList
@@ -109,7 +128,7 @@ trait HasCommonOptions {
       commonOptions = commonOptions.copy(classLogLevels = commonOptions.classLogLevels ++ logAssignments)
 
     }
-    .text(s"This options defines a work directory for intermediate files, default is ${commonOptions.targetDirName}")
+    .text(s"This options defines class log level, default is ${commonOptions.classLogLevels}")
 
   parser.opt[Unit]("log-to-file")
     .abbr("ltf")
@@ -126,6 +145,10 @@ trait HasCommonOptions {
     .text(s"shows class names and log level in logging output, useful for target --class-log-level")
 
   parser.help("help").text("prints this usage text")
+
+  parser.arg[String]("<arg>...").unbounded().optional().action( (x, c) =>
+    commonOptions = commonOptions.copy(programArgs = commonOptions.programArgs :+ x) ).text("optional unbounded args")
+
 }
 
 /** Firrtl output configuration specified by [[FirrtlExecutionOptions]]
@@ -155,9 +178,14 @@ case class FirrtlExecutionOptions(
     customTransforms:       Seq[Transform] = List.empty,
     annotations:            List[Annotation] = List.empty,
     annotationFileNameOverride: String = "",
-    forceAppendAnnoFile:    Boolean = false,
-    emitOneFilePerModule:   Boolean = false)
-  extends ComposableOptions {
+    outputAnnotationFileName: String = "",
+    emitOneFilePerModule:   Boolean = false,
+    dontCheckCombLoops:     Boolean = false,
+    noDCE:                  Boolean = false,
+    annotationFileNames:    List[String] = List.empty,
+    firrtlCircuit:          Option[Circuit] = None
+)
+extends ComposableOptions {
 
   require(!(emitOneFilePerModule && outputFileNameOverride.nonEmpty),
     "Cannot both specify the output filename and emit one file per module!!!")
@@ -174,32 +202,38 @@ case class FirrtlExecutionOptions(
 
   def compiler: Compiler = {
     compilerName match {
+      case "none"      => new NoneCompiler()
       case "high"      => new HighFirrtlCompiler()
       case "low"       => new LowFirrtlCompiler()
       case "middle"    => new MiddleFirrtlCompiler()
       case "verilog"   => new VerilogCompiler()
+      case "mverilog"  => new MinimumVerilogCompiler()
+      case "sverilog"  => new SystemVerilogCompiler()
     }
   }
 
   def outputSuffix: String = {
     compilerName match {
-      case "verilog"   => "v"
-      case "low"       => "lo.fir"
-      case "high"      => "hi.fir"
-      case "middle"    => "mid.fir"
+      case "verilog" | "mverilog" => "v"
+      case "sverilog"             => "sv"
+      case "low"                  => "lo.fir"
+      case "middle"               => "mid.fir"
+      case "high"                 => "hi.fir"
+      case "none"                 => "fir"
       case _ =>
         throw new Exception(s"Illegal compiler name $compilerName")
     }
   }
 
-  /**
-    * build the input file name, taking overriding parameters
+  /** Get the name of the input file
     *
+    * @note Does not implicitly add a file extension to the input file
     * @param optionsManager this is needed to access build function and its common options
     * @return a properly constructed input file name
     */
   def getInputFileName(optionsManager: ExecutionOptionsManager): String = {
-    optionsManager.getBuildFileName("fir", inputFileNameOverride)
+    if (inputFileNameOverride.nonEmpty) inputFileNameOverride
+    else optionsManager.getBuildFileName("fir", inputFileNameOverride)
   }
   /** Get the user-specified [[OutputConfig]]
     *
@@ -229,10 +263,13 @@ case class FirrtlExecutionOptions(
   def getEmitterAnnos(optionsManager: ExecutionOptionsManager): Seq[Annotation] = {
     // TODO should this be a public function?
     val emitter = compilerName match {
+      case "none" => classOf[ChirrtlEmitter]
       case "high" => classOf[HighFirrtlEmitter]
       case "middle" => classOf[MiddleFirrtlEmitter]
       case "low" => classOf[LowFirrtlEmitter]
       case "verilog" => classOf[VerilogEmitter]
+      case "mverilog" => classOf[MinimumVerilogEmitter]
+      case "sverilog" => classOf[VerilogEmitter]
     }
     getOutputConfig(optionsManager) match {
       case SingleFile(_) => Seq(EmitCircuitAnnotation(emitter))
@@ -245,6 +282,7 @@ case class FirrtlExecutionOptions(
     * @param optionsManager this is needed to access build function and its common options
     * @return
     */
+  @deprecated("Use FirrtlOptions.annotationFileNames instead", "1.1")
   def getAnnotationFileName(optionsManager: ExecutionOptionsManager): String = {
     optionsManager.getBuildFileName("anno", annotationFileNameOverride)
   }
@@ -281,30 +319,43 @@ trait HasFirrtlOptions {
 
   parser.opt[String]("annotation-file")
     .abbr("faf")
-    .valueName ("<output>").
-    foreach { x =>
-      firrtlOptions = firrtlOptions.copy(annotationFileNameOverride = x)
-    }.text {
-    "use this to override the default annotation file name, default is empty"
-  }
+    .unbounded()
+    .valueName("<input-anno-file>")
+    .foreach { x =>
+      val annoFiles = x +: firrtlOptions.annotationFileNames
+      firrtlOptions = firrtlOptions.copy(annotationFileNames = annoFiles)
+    }.text("Used to specify annotation files (can appear multiple times)")
 
   parser.opt[Unit]("force-append-anno-file")
     .abbr("ffaaf")
+    .hidden()
     .foreach { _ =>
-      firrtlOptions = firrtlOptions.copy(forceAppendAnnoFile = true)
-    }.text {
-      "use this to force appending annotation file to annotations being passed in through optionsManager"
+      val msg = "force-append-anno-file is deprecated and will soon be removed\n" +
+                (" "*9) + "(It does not do anything anymore)"
+      Driver.dramaticWarning(msg)
     }
+
+  parser.opt[String]("output-annotation-file")
+    .abbr("foaf")
+    .valueName ("<output-anno-file>")
+    .foreach { x =>
+      firrtlOptions = firrtlOptions.copy(outputAnnotationFileName = x)
+    }.text {
+    "use this to set the annotation output file"
+  }
 
   parser.opt[String]("compiler")
     .abbr("X")
-    .valueName ("<high|middle|low|verilog>")
+    .valueName ("<high|middle|low|verilog|mverilog|sverilog|none>")
     .foreach { x =>
       firrtlOptions = firrtlOptions.copy(compilerName = x)
     }
     .validate { x =>
-      if (Array("high", "middle", "low", "verilog").contains(x.toLowerCase)) parser.success
-      else parser.failure(s"$x not a legal compiler")
+      if (Array("high", "middle", "low", "verilog", "mverilog", "sverilog", "none").contains(x.toLowerCase)) {
+        parser.success
+      } else {
+        parser.failure(s"$x not a legal compiler")
+      }
     }.text {
       s"compiler to use, default is ${firrtlOptions.compilerName}"
     }
@@ -361,12 +412,11 @@ trait HasFirrtlOptions {
       """Inline one or more module (comma separated, no spaces) module looks like "MyModule" or "MyModule.myinstance"""
     }
 
-  parser.opt[String]("infer-rw")
+  parser.opt[Unit]("infer-rw")
     .abbr("firw")
-    .valueName ("<circuit>")
     .foreach { x =>
       firrtlOptions = firrtlOptions.copy(
-        annotations = firrtlOptions.annotations :+ InferReadWriteAnnotation(x),
+        annotations = firrtlOptions.annotations :+ InferReadWriteAnnotation,
         customTransforms = firrtlOptions.customTransforms :+ new passes.memlib.InferReadWrite
       )
     }.text {
@@ -378,7 +428,7 @@ trait HasFirrtlOptions {
     .valueName ("-c:<circuit>:-i:<filename>:-o:<filename>")
     .foreach { x =>
       firrtlOptions = firrtlOptions.copy(
-        annotations = firrtlOptions.annotations :+ ReplSeqMemAnnotation(x),
+        annotations = firrtlOptions.annotations :+ ReplSeqMemAnnotation.parse(x),
         customTransforms = firrtlOptions.customTransforms :+ new passes.memlib.ReplSeqMem
       )
     }
@@ -391,7 +441,7 @@ trait HasFirrtlOptions {
     .valueName ("-c:<circuit>:-m:<module>:-o:<filename>")
     .foreach { x =>
       firrtlOptions = firrtlOptions.copy(
-        annotations = firrtlOptions.annotations :+ ClockListAnnotation(x),
+        annotations = firrtlOptions.annotations :+ ClockListAnnotation.parse(x),
         customTransforms = firrtlOptions.customTransforms :+ new passes.clocklist.ClockListTransform
       )
     }
@@ -412,19 +462,50 @@ trait HasFirrtlOptions {
       "Emit each module to its own file in the target directory."
     }
 
+  parser.opt[Unit]("no-check-comb-loops")
+    .foreach { _ =>
+      firrtlOptions = firrtlOptions.copy(dontCheckCombLoops = true)
+    }.text {
+      "Do NOT check for combinational loops (not recommended)"
+    }
+
+  parser.opt[Unit]("no-dce")
+    .foreach { _ =>
+      firrtlOptions = firrtlOptions.copy(noDCE = true)
+    }.text {
+      "Do NOT run dead code elimination"
+    }
+
   parser.note("")
 }
 
 sealed trait FirrtlExecutionResult
 
+object FirrtlExecutionSuccess {
+  def apply(
+    emitType    : String,
+    emitted     : String,
+    circuitState: CircuitState
+  ): FirrtlExecutionSuccess = new FirrtlExecutionSuccess(emitType, emitted, circuitState)
+
+
+  def unapply(arg: FirrtlExecutionSuccess): Option[(String, String)] = {
+    Some((arg.emitType, arg.emitted))
+  }
+}
 /**
   * Indicates a successful execution of the firrtl compiler, returning the compiled result and
   * the type of compile
   *
-  * @param emitType  The name of the compiler used, currently "high", "middle", "low", or "verilog"
+  * @param emitType The name of the compiler used, currently "high", "middle", "low", "verilog", "mverilog", or
+  * "sverilog"
   * @param emitted   The emitted result of compilation
   */
-case class FirrtlExecutionSuccess(emitType: String, emitted: String) extends FirrtlExecutionResult
+class FirrtlExecutionSuccess(
+  val emitType: String,
+  val emitted : String,
+  val circuitState: CircuitState
+) extends FirrtlExecutionResult
 
 /**
   * The firrtl compilation failed.
@@ -505,8 +586,8 @@ class ExecutionOptionsManager(val applicationName: String) extends HasParser(app
       val dottedSuffix = if(suffix.startsWith(".")) suffix else s".$suffix"
       if(baseName.endsWith(dottedSuffix)) "" else dottedSuffix
     }
-
+    val path = directoryName + baseName.split("/").dropRight(1).mkString("/")
+    FileUtils.makeDirectory(path)
     s"$directoryName$baseName$normalizedSuffix"
   }
 }
-

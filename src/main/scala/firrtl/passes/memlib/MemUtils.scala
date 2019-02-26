@@ -46,6 +46,7 @@ object createMask {
   def apply(dt: Type): Type = dt match {
     case t: VectorType => VectorType(apply(t.tpe), t.size)
     case t: BundleType => BundleType(t.fields map (f => f copy (tpe=apply(f.tpe))))
+    case GroundType(w) if w == IntWidth(0) => UIntType(IntWidth(0))
     case t: GroundType => BoolType
   }
 }
@@ -62,7 +63,7 @@ object MemPortUtils {
   )
 
   // Todo: merge it with memToBundle
-  def memType(mem: DefMemory): Type = {
+  def memType(mem: DefMemory): BundleType = {
     val rType = BundleType(defaultPortSeq(mem) :+
       Field("data", Flip, mem.dataType))
     val wType = BundleType(defaultPortSeq(mem) ++ Seq(

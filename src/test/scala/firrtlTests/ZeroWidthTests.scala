@@ -11,17 +11,18 @@ import firrtl.Parser
 import firrtl.passes._
 
 class ZeroWidthTests extends FirrtlFlatSpec {
-  val passes = Seq(
+  val transforms = Seq(
       ToWorkingIR,
       ResolveKinds,
       InferTypes,
       ResolveGenders,
-      InferWidths,
+      new InferWidths,
       ZeroWidth)
   private def exec (input: String) = {
-    passes.foldLeft(parse(input)) {
-      (c: Circuit, p: Pass) => p.run(c)
-    }.serialize
+    val circuit = parse(input)
+    transforms.foldLeft(CircuitState(circuit, UnknownForm)) {
+      (c: CircuitState, p: Transform) => p.runTransform(c)
+    }.circuit.serialize
   }
    // =============================
   "Zero width port" should " be deleted" in {
@@ -105,6 +106,18 @@ class ZeroWidthTests extends FirrtlFlatSpec {
         |    skip""".stripMargin
       (parse(exec(input)).serialize) should be (parse(check).serialize)
   }
+  "IsInvalid on <0>" should "be deleted" in {
+    val input =
+      """circuit Top :
+        |  module Top :
+        |    output y: UInt<0>
+        |    y is invalid""".stripMargin
+    val check =
+      """circuit Top :
+        |  module Top :
+        |    skip""".stripMargin
+      (parse(exec(input)).serialize) should be (parse(check).serialize)
+  }
   "Expression in node with type <0>" should "be replaced by UInt<1>(0)" in {
     val input =
       """circuit Top :
@@ -117,6 +130,86 @@ class ZeroWidthTests extends FirrtlFlatSpec {
         |  module Top :
         |    input x: UInt<1>
         |    node z = add(x, UInt<1>(0))""".stripMargin
+      (parse(exec(input)).serialize) should be (parse(check).serialize)
+  }
+  "Expression in cat with type <0>" should "be removed" in {
+    val input =
+      """circuit Top :
+        |  module Top :
+        |    input x: UInt<1>
+        |    input y: UInt<0>
+        |    node z = cat(x, y)""".stripMargin
+    val check =
+      """circuit Top :
+        |  module Top :
+        |    input x: UInt<1>
+        |    node z = x""".stripMargin
+      (parse(exec(input)).serialize) should be (parse(check).serialize)
+  }
+  "Nested cats with type <0>" should "be removed" in {
+    val input =
+      """circuit Top :
+        |  module Top :
+        |    input x: UInt<0>
+        |    input y: UInt<0>
+        |    input z: UInt<0>
+        |    node a = cat(cat(x, y), z)""".stripMargin
+    val check =
+      """circuit Top :
+        |  module Top :
+        |    skip""".stripMargin
+      (parse(exec(input)).serialize) should be (parse(check).serialize)
+  }
+  "Nested cats where one has type <0>" should "be unaffected" in {
+    val input =
+      """circuit Top :
+        |  module Top :
+        |    input x: UInt<1>
+        |    input y: UInt<0>
+        |    input z: UInt<1>
+        |    node a = cat(cat(x, y), z)""".stripMargin
+    val check =
+      """circuit Top :
+        |  module Top :
+        |    input x: UInt<1>
+        |    input z: UInt<1>
+        |    node a = cat(x, z)""".stripMargin
+      (parse(exec(input)).serialize) should be (parse(check).serialize)
+  }
+  "Stop with type <0>" should "be replaced with UInt(0)" in {
+    val input =
+      """circuit Top :
+        |  module Top :
+        |    input clk: Clock
+        |    input x: UInt<1>
+        |    input y: UInt<0>
+        |    input z: UInt<1>
+        |    stop(clk, y, 1)""".stripMargin
+    val check =
+      """circuit Top :
+        |  module Top :
+        |    input clk: Clock
+        |    input x: UInt<1>
+        |    input z: UInt<1>
+        |    stop(clk, UInt(0), 1)""".stripMargin
+      (parse(exec(input)).serialize) should be (parse(check).serialize)
+  }
+  "Print with type <0>" should "be replaced with UInt(0)" in {
+    val input =
+      """circuit Top :
+        |  module Top :
+        |    input clk: Clock
+        |    input x: UInt<1>
+        |    input y: UInt<0>
+        |    input z: UInt<1>
+        |    printf(clk, UInt(1), "%d %d %d\n", x, y, z)""".stripMargin
+    val check =
+      """circuit Top :
+        |  module Top :
+        |    input clk: Clock
+        |    input x: UInt<1>
+        |    input z: UInt<1>
+        |    printf(clk, UInt(1), "%d %d %d\n", x, UInt(0), z)""".stripMargin
       (parse(exec(input)).serialize) should be (parse(check).serialize)
   }
 }

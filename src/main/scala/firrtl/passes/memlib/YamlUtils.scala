@@ -3,7 +3,9 @@
 package firrtl.passes
 package memlib
 import net.jcazevedo.moultingyaml._
-import java.io.{File, CharArrayWriter, PrintWriter}
+import java.io.{CharArrayWriter, File, PrintWriter}
+
+import firrtl.Utils.error
 
 object CustomYAMLProtocol extends DefaultYamlProtocol {
   // bottom depends on top
@@ -29,7 +31,7 @@ class YamlFileReader(file: String) {
         catch { case e: Exception => None }
       )
     }
-    else error("Yaml file doesn't exist!")
+    else sys.error("Yaml file doesn't exist!")
   }
 }
 

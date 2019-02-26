@@ -5,7 +5,7 @@ package firrtlTests
 import firrtl._
 import firrtl.ir._
 import firrtl.passes._
-import firrtl.Mappers._
+import firrtl.transforms._
 import annotations._
 
 class CInferMDir extends LowTransformSpec {
@@ -39,7 +39,7 @@ class CInferMDir extends LowTransformSpec {
   def transform = new SeqTransform {
     def inputForm = LowForm
     def outputForm = LowForm
-    def transforms = Seq(ConstProp, CInferMDirCheckPass)
+    def transforms = Seq(new ConstantPropagation, CInferMDirCheckPass)
   }
 
   "Memory" should "have correct mem port directions" in {
@@ -67,8 +67,7 @@ circuit foo :
         bar <= io.in
 """.stripMargin
 
-    val annotationMap = AnnotationMap(Nil)
-    val res = compileAndEmit(CircuitState(parse(input), ChirrtlForm, Some(annotationMap)))
+    val res = compileAndEmit(CircuitState(parse(input), ChirrtlForm))
     // Check correctness of firrtl
     parse(res.getEmittedCircuit.value)
   }

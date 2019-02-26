@@ -8,20 +8,16 @@ import firrtl.ir._
 import firrtl.Mappers._
 import firrtl.PrimOps._
 import firrtl.Utils.{one, zero, BoolType}
+import firrtl.options.HasScoptOptions
 import MemPortUtils.memPortField
 import firrtl.passes.memlib.AnalysisUtils.{Connects, getConnects, getOrigin}
 import WrappedExpression.weq
 import annotations._
+import scopt.OptionParser
+import firrtl.stage.RunFirrtlTransformAnnotation
 
-object InferReadWriteAnnotation {
-  def apply(t: String) = Annotation(CircuitName(t), classOf[InferReadWrite], "")
-  def apply(target: CircuitName) = Annotation(target, classOf[InferReadWrite], "")
-  def unapply(a: Annotation): Option[(CircuitName)] = a match {
-    case Annotation(CircuitName(t), transform, "") if transform == classOf[InferReadWrite] =>
-      Some(CircuitName(t))
-    case _ => None
-  }
-}
+
+case object InferReadWriteAnnotation extends NoTargetAnnotation
 
 // This pass examine the enable signals of the read & write ports of memories
 // whose readLatency is greater than 1 (usually SeqMem in Chisel).
@@ -80,10 +76,10 @@ object InferReadWritePass extends Pass {
 
   def replaceStmt(repl: Netlist)(s: Statement): Statement =
     s map replaceStmt(repl) map replaceExp(repl) match {
-      case Connect(_, EmptyExpression, _) => EmptyStmt 
+      case Connect(_, EmptyExpression, _) => EmptyStmt
       case sx => sx
     }
-    
+
   def inferReadWriteStmt(connects: Connects,
                          repl: Netlist,
                          stmts: Statements)
@@ -97,11 +93,12 @@ object InferReadWritePass extends Pass {
       val readwriters = collection.mutable.ArrayBuffer[String]()
       val namespace = Namespace(mem.readers ++ mem.writers ++ mem.readwriters)
       for (w <- mem.writers ; r <- mem.readers) {
-        val wp = getProductTerms(connects)(memPortField(mem, w, "en"))
-        val rp = getProductTerms(connects)(memPortField(mem, r, "en"))
+        val wenProductTerms = getProductTerms(connects)(memPortField(mem, w, "en"))
+        val renProductTerms = getProductTerms(connects)(memPortField(mem, r, "en"))
+        val proofOfMutualExclusion = wenProductTerms.find(a => renProductTerms exists (b => checkComplement(a, b)))
         val wclk = getOrigin(connects)(memPortField(mem, w, "clk"))
         val rclk = getOrigin(connects)(memPortField(mem, r, "clk"))
-        if (weq(wclk, rclk) && (wp exists (a => rp exists (b => checkComplement(a, b))))) {
+        if (weq(wclk, rclk) && proofOfMutualExclusion.nonEmpty) {
           val rw = namespace newName "rw"
           val rwExp = WSubField(WRef(mem.name), rw)
           readwriters += rw
@@ -112,10 +109,11 @@ object InferReadWritePass extends Pass {
           repl(memPortField(mem, r, "addr")) = EmptyExpression
           repl(memPortField(mem, r, "data")) = WSubField(rwExp, "rdata")
           repl(memPortField(mem, w, "clk"))  = EmptyExpression
-          repl(memPortField(mem, w, "en"))   = WSubField(rwExp, "wmode")
+          repl(memPortField(mem, w, "en"))   = EmptyExpression
           repl(memPortField(mem, w, "addr")) = EmptyExpression
           repl(memPortField(mem, w, "data")) = WSubField(rwExp, "wdata")
           repl(memPortField(mem, w, "mask")) = WSubField(rwExp, "wmask")
+          stmts += Connect(NoInfo, WSubField(rwExp, "wmode"), proofOfMutualExclusion.get)
           stmts += Connect(NoInfo, WSubField(rwExp, "clk"), wclk)
           stmts += Connect(NoInfo, WSubField(rwExp, "en"),
              DoPrim(Or, Seq(connects(memPortField(mem, r, "en")),
@@ -149,9 +147,18 @@ object InferReadWritePass extends Pass {
 
 // Transform input: Middle Firrtl. Called after "HighFirrtlToMidleFirrtl"
 // To use this transform, circuit name should be annotated with its TransId.
-class InferReadWrite extends Transform with SeqTransformBased {
+class InferReadWrite extends Transform with SeqTransformBased with HasScoptOptions {
   def inputForm = MidForm
   def outputForm = MidForm
+
+  def addOptions(parser: OptionParser[AnnotationSeq]): Unit = parser
+    .opt[Unit]("infer-rw")
+    .abbr("firw")
+    .valueName ("<circuit>")
+    .action( (_, c) => c ++ Seq(InferReadWriteAnnotation, RunFirrtlTransformAnnotation(new InferReadWrite)) )
+    .maxOccurs(1)
+    .text("Enable readwrite port inference for the target circuit")
+
   def transforms = Seq(
     InferReadWritePass,
     CheckInitialization,
@@ -159,10 +166,13 @@ class InferReadWrite extends Transform with SeqTransformBased {
     ResolveKinds,
     ResolveGenders
   )
-  def execute(state: CircuitState): CircuitState = getMyAnnotations(state) match {
-    case Nil => state
-    case Seq(InferReadWriteAnnotation(CircuitName(state.circuit.main))) =>
+  def execute(state: CircuitState): CircuitState = {
+    val runTransform = state.annotations.contains(InferReadWriteAnnotation)
+    if (runTransform) {
       val ret = runTransforms(state)
       CircuitState(ret.circuit, outputForm, ret.annotations, ret.renames)
+    } else {
+      state
+    }
   }
 }

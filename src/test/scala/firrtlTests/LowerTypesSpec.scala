@@ -8,9 +8,11 @@ import org.scalatest.prop._
 import firrtl.Parser
 import firrtl.ir.Circuit
 import firrtl.passes._
+import firrtl.transforms._
+import firrtl._
 
 class LowerTypesSpec extends FirrtlFlatSpec {
-  private val passes = Seq(
+  private val transforms = Seq(
     ToWorkingIR,
     CheckHighForm,
     ResolveKinds,
@@ -18,7 +20,7 @@ class LowerTypesSpec extends FirrtlFlatSpec {
     CheckTypes,
     ResolveGenders,
     CheckGenders,
-    InferWidths,
+    new InferWidths,
     CheckWidths,
     PullMuxes,
     ExpandConnects,
@@ -26,17 +28,19 @@ class LowerTypesSpec extends FirrtlFlatSpec {
     ExpandWhens,
     CheckInitialization,
     Legalize,
-    ConstProp,
+    new ConstantPropagation,
     ResolveKinds,
     InferTypes,
     ResolveGenders,
-    InferWidths,
+    new InferWidths,
     LowerTypes)
 
   private def executeTest(input: String, expected: Seq[String]) = {
-    val c = passes.foldLeft(Parser.parse(input.split("\n").toIterator)) {
-      (c: Circuit, p: Pass) => p.run(c)
+    val circuit = Parser.parse(input.split("\n").toIterator)
+    val result = transforms.foldLeft(CircuitState(circuit, UnknownForm)) {
+      (c: CircuitState, p: Transform) => p.runTransform(c)
     }
+    val c = result.circuit
     val lines = c.serialize.split("\n") map normalized
 
     expected foreach { e =>
