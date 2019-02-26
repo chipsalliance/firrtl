@@ -29,6 +29,11 @@ class RenderDiGraph[T <: Any](diGraph: DiGraph[T], graphName: String = "", rankD
     s""""${node.toString}""""
   }
 
+  /**
+    * This finds a loop in a DiGraph if one exists and returns nodes
+    * @note there is no way to currently to specify a particular loop
+    * @return
+    */
   def findOneLoop: Set[T] = {
     var path = Seq.empty[T]
 
@@ -38,19 +43,10 @@ class RenderDiGraph[T <: Any](diGraph: DiGraph[T], graphName: String = "", rankD
     catch {
       case cyclicException: CyclicException =>
         val node = cyclicException.node.asInstanceOf[T]
-        val pathFound = diGraph.getEdges(node).exists { vertex =>
-          try {
-            path = diGraph.path(vertex, node, blacklist = Set.empty)
-            true
-          }
-          catch {
-            case _: PathNotFoundException =>
-            case t: Throwable =>
-              throw t
+        path = diGraph.findLoopAtNode(node)
 
-          }
-          false
-        }
+      case t: Throwable =>
+        throw t
 
     }
     path.toSet
@@ -108,8 +104,8 @@ class RenderDiGraph[T <: Any](diGraph: DiGraph[T], graphName: String = "", rankD
   }
 
   /**
-    * returns a string that is a graphviz digraph
-    * @return
+    * Convert this graph into input for the graphviz dot program
+    * @return A string representation of the digraph in dot notation
     */
   def toDot: String = {
     val s = new mutable.StringBuilder()
@@ -129,8 +125,9 @@ class RenderDiGraph[T <: Any](diGraph: DiGraph[T], graphName: String = "", rankD
   }
 
   /**
-    * returns a string that is a graphviz digraph, but with loops highlighted
-    * @return
+    * Convert this graph into input for the graphviz dot program, but with  a
+    * loop,if present, highlighted in red.
+    * @return string that is a graphviz digraph, but with loops highlighted
     */
   def toDotWithLoops(loopedNodes: Set[T], rankedNodes: mutable.ArrayBuffer[Seq[T]]): String = {
     val s = new mutable.StringBuilder()
@@ -169,7 +166,12 @@ class RenderDiGraph[T <: Any](diGraph: DiGraph[T], graphName: String = "", rankD
     s.toString
   }
 
-  def getRankedNodes: mutable.ArrayBuffer[Seq[T]] = {
+  /**
+    * Creates a series of Seq of nodes for each minimum depth that those
+    * are from the sources of this graph.
+    * @return
+    */
+  private def getRankedNodes: mutable.ArrayBuffer[Seq[T]] = {
     val alreadyVisited = new mutable.HashSet[T]()
     val rankNodes = new mutable.ArrayBuffer[Seq[T]]()
 
@@ -191,11 +193,11 @@ class RenderDiGraph[T <: Any](diGraph: DiGraph[T], graphName: String = "", rankD
     rankNodes
   }
   /**
-    * returns a string that is a graphviz digraph
-    * this method may look better than the toDot format. It tries to align nodes in columns based
+    * Convert this graph into input for the graphviz dot program.
+    * It tries to align nodes in columns based
     * on their minimum distance to a source.
     * Can also be faster and better behaved on large graphs
-    * @return
+    * @return string that is a graphviz digraph
     */
   def toDotRanked: String = {
     val s = new mutable.StringBuilder()
