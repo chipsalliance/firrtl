@@ -34,9 +34,27 @@ object ExpandWhens extends Pass {
       val attachedAnalogs = attaches.flatMap(_.exprs.map(we)).toSet
       val newBody = Block(Seq(squashEmpty(bodyx)) ++ expandNetlist(netlist, attachedAnalogs, sourceInfoMap) ++
                               combineAttaches(attaches) ++ simlist)
-      Module(m.info, m.name, m.ports, newBody)
+      val newModule = Module(m.info, m.name, m.ports, newBody)
+
+      val initErrors = new Errors()
+      val voidedNodes = CheckInitialization.checkInitM(newModule, initErrors)
+      if(voidedNodes.nonEmpty && initErrors.errors.isEmpty) {
+        // We have memoized nodes that are dead code
+        removeVoidedNodes(newModule, voidedNodes)
+      } else {
+        newModule
+      }
     }
     Circuit(c.info, modulesx, c.main)
+  }
+
+  def removeVoidedNodes(m: Module, voidedNodes: Seq[DefNode]): DefModule = {
+    val nodeNames = voidedNodes.map(_.name).toSet
+    def removeNodes(s: Statement): Statement = s map removeNodes match {
+      case d: DefNode if nodeNames.contains(d.name) => EmptyStmt
+      case other => other
+    }
+    m map removeNodes
   }
 
   /** Maps an expression to a declared node name. Used to memoize predicates */
