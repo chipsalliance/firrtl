@@ -71,7 +71,6 @@ class CheckInitializationSpec extends FirrtlFlatSpec {
       (c: CircuitState, p: Transform) => p.runTransform(c)
     }
   }
-<<<<<<< HEAD
 
   "Assign after nested incomplete assignment" should "work" in {
     val input =
@@ -93,8 +92,6 @@ class CheckInitializationSpec extends FirrtlFlatSpec {
     }
   }
 
-=======
->>>>>>> 2ede88ed... Added test case demonstrating void error
   "Missing assignment to submodule port" should "trigger a PassException" in {
     val input =
       """circuit Test :
