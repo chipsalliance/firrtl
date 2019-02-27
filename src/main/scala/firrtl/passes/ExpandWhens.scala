@@ -48,6 +48,12 @@ object ExpandWhens extends Pass {
     Circuit(c.info, modulesx, c.main)
   }
 
+  /** Removes nodes in a module which have or depend on a void value which are never consumed
+    *
+    * @param m
+    * @param voidedNodes
+    * @return
+    */
   def removeVoidedNodes(m: Module, voidedNodes: Seq[DefNode]): DefModule = {
     val nodeNames = voidedNodes.map(_.name).toSet
     def removeNodes(s: Statement): Statement = s map removeNodes match {
