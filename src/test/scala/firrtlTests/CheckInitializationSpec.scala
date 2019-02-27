@@ -24,7 +24,9 @@ class CheckInitializationSpec extends FirrtlFlatSpec {
      ExpandConnects,
      RemoveAccesses,
      ExpandWhens,
-     CheckInitialization)
+     CheckInitialization,
+     InferTypes
+  )
   "Missing assignment in consequence branch" should "trigger a PassException" in {
     val input =
       """circuit Test :
@@ -54,6 +56,45 @@ class CheckInitializationSpec extends FirrtlFlatSpec {
       }
     }
   }
+
+  "Assign after incomplete assignment" should "work" in {
+    val input =
+      """circuit Test :
+        |  module Test :
+        |    input p : UInt<1>
+        |    wire x : UInt<32>
+        |    when p :
+        |      x <= UInt(1)
+        |    x <= UInt(1)
+        |    """.stripMargin
+    passes.foldLeft(CircuitState(parse(input), UnknownForm)) {
+      (c: CircuitState, p: Transform) => p.runTransform(c)
+    }
+  }
+<<<<<<< HEAD
+
+  "Assign after nested incomplete assignment" should "work" in {
+    val input =
+      """circuit Test :
+        |  module Test :
+        |    input p : UInt<1>
+        |    input q : UInt<1>
+        |    wire x : UInt<32>
+        |    when p :
+        |      when q :
+        |        x is invalid
+        |    else :
+        |      when q :
+        |        x <= UInt(2)
+        |    x <= UInt(1)
+        |    """.stripMargin
+    passes.foldLeft(CircuitState(parse(input), UnknownForm)) {
+      (c: CircuitState, p: Transform) => p.runTransform(c)
+    }
+  }
+
+=======
+>>>>>>> 2ede88ed... Added test case demonstrating void error
   "Missing assignment to submodule port" should "trigger a PassException" in {
     val input =
       """circuit Test :

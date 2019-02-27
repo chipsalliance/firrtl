@@ -171,7 +171,20 @@ object ExpandWhens extends Pass {
               conseqNetlist getOrElse (lvalue, altNetlist(lvalue))
           }
 
+          // Does an expression contain WVoid inserted in this pass?
+          def containsVoid(e: Expression): Boolean = e match {
+            case WVoid => true
+            case ValidIf(_, value, _) => containsVoid(value)
+            case Mux(_, tv, fv, _) => containsVoid(tv) || containsVoid(fv)
+            case _ => false
+          }
+
           res match {
+            // Don't create a node to hold mux trees with void values
+            // "Idiomatic" emission of these muxes isn't a concern because they represent bad code (latches)
+            case e if containsVoid(e) =>
+              netlist(lvalue) = e
+              EmptyStmt
             case _: ValidIf | _: Mux | _: DoPrim => nodes get res match {
               case Some(name) =>
                 netlist(lvalue) = WRef(name, res.tpe, NodeKind, MALE)
