@@ -2,7 +2,7 @@
 
 package firrtl
 
-import firrtl.transforms.IdentityTransform
+import firrtl.transforms.{DescribeFixed, IdentityTransform}
 
 sealed abstract class CoreTransform extends SeqTransform
 
@@ -70,6 +70,7 @@ class HighFirrtlToMiddleFirrtl extends CoreTransform {
     passes.ResolveGenders,
     new passes.InferWidths,
     passes.CheckWidths,
+    DescribeFixed,
     passes.ConvertFixedToSInt,
     passes.ZeroWidth,
     passes.InferTypes)
