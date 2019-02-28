@@ -73,7 +73,13 @@ object ExpandWhens extends Pass {
   def expandWhens(m: Module): (Netlist, Simlist, Seq[Attach], Statement, InfoMap) = {
     val namespace = Namespace(m)
     val simlist = new Simlist
+
+    // Memoizes if an expression contains any WVoids inserted in this pass
+    val memoizedVoid = new mutable.HashSet[MemoizedHash[Expression]] += WVoid
+
+    // Memoizes the node that holds a particular expression, if any
     val nodes = new NodeMap
+
     // Seq of attaches in order
     lazy val attaches = mutable.ArrayBuffer.empty[Attach]
 
@@ -174,8 +180,8 @@ object ExpandWhens extends Pass {
           // Does an expression contain WVoid inserted in this pass?
           def containsVoid(e: Expression): Boolean = e match {
             case WVoid => true
-            case ValidIf(_, value, _) => containsVoid(value)
-            case Mux(_, tv, fv, _) => containsVoid(tv) || containsVoid(fv)
+            case ValidIf(_, value, _) => memoizedVoid(value)
+            case Mux(_, tv, fv, _) => memoizedVoid(tv) || memoizedVoid(fv)
             case _ => false
           }
 
@@ -184,6 +190,7 @@ object ExpandWhens extends Pass {
             // "Idiomatic" emission of these muxes isn't a concern because they represent bad code (latches)
             case e if containsVoid(e) =>
               netlist(lvalue) = e
+              memoizedVoid += e   // remember that this was void
               EmptyStmt
             case _: ValidIf | _: Mux | _: DoPrim => nodes get res match {
               case Some(name) =>
