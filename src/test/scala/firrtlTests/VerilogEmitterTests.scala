@@ -739,8 +739,8 @@ class VerilogDescriptionEmitterSpec extends FirrtlFlatSpec {
     // We don't use executeTest because we care about the spacing in the result
     val modName = ModuleName("Test", CircuitName("Test"))
     val annos = Seq(
-      DescriptionAnnotation(ComponentName("a", modName), "multi\nline"),
-      DescriptionAnnotation(ComponentName("b", modName), "single line"))
+      DescriptionAnnotation(ComponentName("a", modName), "multi\nline", DocStringDescription),
+      DescriptionAnnotation(ComponentName("b", modName), "single line", DocStringDescription))
     val finalState = compiler.compileAndEmit(CircuitState(parse(input), ChirrtlForm, annos), Seq.empty)
     val output = finalState.getEmittedCircuit.value
     for (c <- check) {
@@ -782,9 +782,9 @@ class VerilogDescriptionEmitterSpec extends FirrtlFlatSpec {
     // We don't use executeTest because we care about the spacing in the result
     val modName = ModuleName("Test", CircuitName("Test"))
     val annos = Seq(
-      DescriptionAnnotation(ComponentName("d", modName), "multi\nline"),
-      DescriptionAnnotation(ComponentName("e", modName), "multi\nline"),
-      DescriptionAnnotation(ComponentName("f", modName), "single line"))
+      DescriptionAnnotation(ComponentName("d", modName), "multi\nline", DocStringDescription),
+      DescriptionAnnotation(ComponentName("e", modName), "multi\nline", DocStringDescription),
+      DescriptionAnnotation(ComponentName("f", modName), "single line", DocStringDescription))
     val finalState = compiler.compileAndEmit(CircuitState(parse(input), ChirrtlForm, annos), Seq.empty)
     val output = finalState.getEmittedCircuit.value
     for (c <- check) {
@@ -819,7 +819,7 @@ class VerilogDescriptionEmitterSpec extends FirrtlFlatSpec {
     )
     // We don't use executeTest because we care about the spacing in the result
     val modName = ModuleName("Test", CircuitName("Test"))
-    val annos = Seq(DescriptionAnnotation(modName, "multi\nline"))
+    val annos = Seq(DescriptionAnnotation(modName, "multi\nline", DocStringDescription))
     val finalState = compiler.compileAndEmit(CircuitState(parse(input), ChirrtlForm, annos), Seq.empty)
     val output = finalState.getEmittedCircuit.value
     for (c <- check) {
@@ -846,27 +846,52 @@ class VerilogDescriptionEmitterSpec extends FirrtlFlatSpec {
         | *
         | * line2
         | */
-        |module Test(""".stripMargin,
+        |(* parallel_case *)
+        |`ifndef SYNTHESIS
+        |real wire Test;
+        |`else
+        |module Test(
+        |`endif""".stripMargin,
       """  /* line3
         |   *
         |   * line4
         |   */
+        |  (* full_case *)
         |  input   a,""".stripMargin,
       """  /* line5
         |   *
         |   * line6
         |   */
-        |  wire  d = """.stripMargin
+        |  (* parallel_case *)
+        |  `ifndef SYNTHESIS
+        |  real wire d;
+        |  `else
+        |  wire  d = 
+        |  `endif""".stripMargin
     )
     // We don't use executeTest because we care about the spacing in the result
     val modName = ModuleName("Test", CircuitName("Test"))
+    def altFunc(alternative: ir.FirrtlNode): String = alternative match {
+      case ir.Port(_, name, dir, _) =>
+        s"real ${dir.serialize} $name"
+      case d: ir.IsDeclaration=>
+        s"real wire ${d.name};"
+      case m: ir.DefModule =>
+        s"module ${m.name}()"
+    }
     val annos = Seq(
-      DescriptionAnnotation(modName, "line1"),
-      DescriptionAnnotation(modName, "line2"),
-      DescriptionAnnotation(ComponentName("a", modName), "line3"),
-      DescriptionAnnotation(ComponentName("a", modName), "line4"),
-      DescriptionAnnotation(ComponentName("d", modName), "line5"),
-      DescriptionAnnotation(ComponentName("d", modName), "line6")
+      DescriptionAnnotation(modName, "line1", DocStringDescription),
+      DescriptionAnnotation(modName, "line2", DocStringDescription),
+      DescriptionAnnotation(modName, "parallel_case", AttributeDescription),
+      DescriptionAnnotation(modName, "SYNTHESIS", IfdefDescription(altFunc)),
+      DescriptionAnnotation(ComponentName("a", modName), "line3", DocStringDescription),
+      DescriptionAnnotation(ComponentName("a", modName), "line4", DocStringDescription),
+      DescriptionAnnotation(ComponentName("d", modName), "line5", DocStringDescription),
+      DescriptionAnnotation(ComponentName("d", modName), "line6", DocStringDescription),
+      DescriptionAnnotation(ComponentName("a", modName), "full_case", AttributeDescription),
+      DescriptionAnnotation(ComponentName("d", modName), "parallel_case", AttributeDescription),
+      DescriptionAnnotation(ComponentName("b", modName), "SYNTHESIS", IfdefDescription(altFunc)),
+      DescriptionAnnotation(ComponentName("d", modName), "SYNTHESIS", IfdefDescription(altFunc))
     )
     val writer = new java.io.StringWriter
     val finalState = compiler.compileAndEmit(CircuitState(parse(input), ChirrtlForm, annos), Seq.empty)

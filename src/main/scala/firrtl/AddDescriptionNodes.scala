@@ -7,7 +7,12 @@ import firrtl.annotations._
 import firrtl.Mappers._
 import firrtl.options.{Dependency, PreservesAll}
 
-case class DescriptionAnnotation(named: Named, description: String) extends Annotation {
+sealed trait DescriptionType
+case object DocStringDescription extends DescriptionType
+case object AttributeDescription extends DescriptionType
+case class IfdefDescription(alternative: FirrtlNode => String) extends DescriptionType
+
+case class DescriptionAnnotation(named: Named, description: String, tpe: DescriptionType) extends Annotation {
   def update(renames: RenameMap): Seq[DescriptionAnnotation] = {
     renames.get(named) match {
       case None => Seq(this)
@@ -20,14 +25,46 @@ private sealed trait HasDescription {
   def description: Description
 }
 
-private abstract class Description extends FirrtlNode
+private sealed trait Description extends FirrtlNode
+private sealed trait SimpleDescription extends Description
 
-private case class DocString(string: StringLit) extends Description {
+private case class DocString(string: StringLit) extends SimpleDescription {
   def serialize: String = "@[" + string.serialize + "]"
 }
 
-private case object EmptyDescription extends Description {
+private case class Attribute(string: StringLit) extends SimpleDescription {
+  def serialize: String = "@[" + string.serialize + "]"
+}
+
+private case class Ifdef(condition: StringLit, alternative: StringLit) extends SimpleDescription {
+  def serialize: String = "@[" + condition.serialize + ", " + alternative.serialize + "]"
+}
+
+private case class MultipleDescriptions(descs: Seq[Description]) extends Description {
+  def serialize: String = descs.map(_.serialize).mkString("\n")
+  def add(d: Description): MultipleDescriptions = d match {
+    case s: SimpleDescription => MultipleDescriptions(descs :+ s)
+    case MultipleDescriptions(md) => MultipleDescriptions(descs ++ md)
+  }
+}
+
+private case object EmptyDescription extends SimpleDescription {
   def serialize: String = ""
+}
+
+private object MakeDescription {
+  def apply(s: FirrtlNode, str: String, tpe: DescriptionType): Description = tpe match {
+    case DocStringDescription => DocString(StringLit.unescape(str))
+    case AttributeDescription => Attribute(StringLit.unescape(str))
+    case IfdefDescription(alt) => Ifdef(StringLit.unescape(str), StringLit(alt(s)))
+  }
+  def apply(s: FirrtlNode)(descs: Seq[(String, DescriptionType)]): Description = {
+    descs.foldLeft[Description](EmptyDescription) { (_, _) match {
+      case (EmptyDescription, (str, d)) => MakeDescription(s, str, d)
+      case (agg: SimpleDescription, (str, d)) => MultipleDescriptions(Seq(agg, MakeDescription(s, str, d)))
+      case (agg: MultipleDescriptions, (str, d)) => agg.add(MakeDescription(s, str, d))
+    }}
+  }
 }
 
 private case class DescribedStmt(description: Description, stmt: Statement) extends Statement with HasDescription {
@@ -87,27 +124,26 @@ class AddDescriptionNodes extends Transform with DependencyAPIMigration with Pre
 
   override def optionalPrerequisiteOf = Seq.empty
 
-  def onStmt(compMap: Map[String, Seq[String]])(stmt: Statement): Statement = {
-    stmt.map(onStmt(compMap)) match {
-      case d: IsDeclaration if compMap.contains(d.name) =>
-        DescribedStmt(DocString(StringLit.unescape(compMap(d.name).mkString("\n\n"))), d)
-      case other => other
+  def onStmt(compMap: Map[String, Seq[(String, DescriptionType)]])(stmt: Statement): Statement = {
+    val s = stmt.map(onStmt(compMap))
+    val sname = s match {
+      case d: IsDeclaration => Some(d.name)
+      case _ => None
     }
+    val desc: Option[Description] = sname.flatMap(name => compMap.get(name)).map(MakeDescription(s))
+    desc.map({ d => DescribedStmt(d, s) }).getOrElse(s)
   }
 
-  def onModule(modMap: Map[String, Seq[String]], compMaps: Map[String, Map[String, Seq[String]]])
+  def onModule(modMap: Map[String, Seq[(String, DescriptionType)]], compMaps: Map[String, Map[String, Seq[(String, DescriptionType)]]])
     (mod: DefModule): DefModule = {
-    val (newMod, portDesc: Map[String, Description]) = compMaps.get(mod.name) match {
-      case None => (mod, Map.empty)
-      case Some(compMap) => (mod.mapStmt(onStmt(compMap)), mod.ports.collect {
-        case p @ Port(_, name, _, _) if compMap.contains(name) =>
-          name -> DocString(StringLit.unescape(compMap(name).mkString("\n\n")))
-      }.toMap)
-    }
+    val compMap = compMaps.getOrElse(mod.name, Map())
+    val newMod = mod.mapStmt(onStmt(compMap))
+    val portDesc = mod.ports.collect {
+      case p @ Port(_, name, _, _) if compMap.contains(name) =>
+        name -> MakeDescription(p)(compMap(name))
+    }.toMap
 
-    val modDesc = modMap.get(newMod.name).map {
-      desc => DocString(StringLit.unescape(desc.mkString("\n\n")))
-    }
+    val modDesc = modMap.get(newMod.name).map(MakeDescription(mod)(_))
 
     if (portDesc.nonEmpty || modDesc.nonEmpty) {
       DescribedMod(modDesc.getOrElse(EmptyDescription), portDesc, newMod)
@@ -116,15 +152,15 @@ class AddDescriptionNodes extends Transform with DependencyAPIMigration with Pre
     }
   }
 
-  def collectMaps(annos: Seq[Annotation]): (Map[String, Seq[String]], Map[String, Map[String, Seq[String]]]) = {
+  def collectMaps(annos: Seq[Annotation]): (Map[String, Seq[(String, DescriptionType)]], Map[String, Map[String, Seq[(String, DescriptionType)]]]) = {
     val modMap = annos.collect {
-      case DescriptionAnnotation(ModuleName(m, CircuitName(c)), desc) => (m, desc)
-    }.groupBy(_._1).mapValues(_.map(_._2))
+      case DescriptionAnnotation(ModuleName(m, CircuitName(c)), desc, tpe) => (m, desc, tpe)
+    }.groupBy(_._1).mapValues(_.map(x => (x._2, x._3)))
 
     val compMap = annos.collect {
-      case DescriptionAnnotation(ComponentName(comp, ModuleName(mod, CircuitName(circ))), desc) =>
-        (mod, comp, desc)
-    }.groupBy(_._1).mapValues(_.groupBy(_._2).mapValues(_.map(_._3)))
+      case DescriptionAnnotation(ComponentName(comp, ModuleName(mod, CircuitName(circ))), desc, tpe) =>
+        (mod, comp, desc, tpe)
+    }.groupBy(_._1).mapValues(_.groupBy(_._2).mapValues(_.map(x => (x._3, x._4))))
 
     (modMap, compMap)
   }

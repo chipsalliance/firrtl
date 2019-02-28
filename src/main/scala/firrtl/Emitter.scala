@@ -803,6 +803,14 @@ class VerilogEmitter extends SeqTransform with Emitter {
       }
     }
 
+    def build_attribute(attrs: String): Seq[Seq[String]] = {
+      Seq(Seq("(* ") ++ attrs.split(",") ++ Seq(" *)"))
+    }
+
+    def build_ifdef(condition: String, alternative: String): Seq[Seq[String]] = {
+      Seq(Seq(s"`ifndef $condition"), Seq(alternative), Seq("`else"))
+    }
+
     // Turn ports into Seq[String] and add to portdefs
     def build_ports(): Unit = {
       def padToMax(strs: Seq[String]): Seq[String] = {
@@ -827,11 +835,9 @@ class VerilogEmitter extends SeqTransform with Emitter {
       // dirs are already padded
       (dirs, padToMax(tpes), m.ports).zipped.toSeq.zipWithIndex.foreach {
         case ((dir, tpe, Port(info, name, _, _)), i) =>
-          portDescriptions.get(name) match {
-            case Some(DocString(s)) =>
-              portdefs += Seq("")
-              portdefs ++= build_comment(s.string)
-            case other =>
+          portDescriptions.get(name).map { case d =>
+            portdefs += Seq("")
+            portdefs ++= build_description(d)
           }
 
           if (i != m.ports.size - 1) {
@@ -839,21 +845,68 @@ class VerilogEmitter extends SeqTransform with Emitter {
           } else {
             portdefs += Seq(dir, " ", tpe, " ", name, info)
           }
+
+          portDescriptions.get(name).foreach {
+            case _: Ifdef => portdefs += Seq("`endif")
+            case _ =>
+          }
       }
+    }
+
+    private def get_all_descriptions(ds: Seq[Description]): Seq[SimpleDescription] = {
+      ds.flatMap(_ match {
+        case EmptyDescription => Seq()
+        case s: SimpleDescription => Seq(s)
+        case MultipleDescriptions(d) => get_all_descriptions(d)
+      })
+    }
+
+    private def combine_all_descriptions(ds: Seq[SimpleDescription]): Seq[SimpleDescription] = {
+      val docStrings = ds collect { case d: DocString => d }
+      val attrs = ds collect { case d: Attribute => d }
+      val ifdefs = ds collect { case d: Ifdef => d }
+
+      val doc = docStrings.foldLeft[SimpleDescription](EmptyDescription) { (_, _) match {
+        case (EmptyDescription, d) => d
+        case (DocString(StringLit(s1)), DocString(StringLit(s2))) =>
+          DocString(StringLit(s1 + "\n\n" + s2))
+        case _ => throw new EmitterException("docStrings should only contain DocStrings or EmptyDescription")
+      }}
+
+      val attr = attrs.foldLeft[SimpleDescription](EmptyDescription) { (_, _) match {
+        case (EmptyDescription, d) => d
+        case (Attribute(StringLit(s1)), Attribute(StringLit(s2))) =>
+          Attribute(StringLit(s1 + ", " + s2))
+        case _ => throw new EmitterException("attrs should only contain Attributes or EmptyDescription")
+      }}
+
+      Seq(doc, attr) ++ ifdefs
+    }
+
+    def description_has_ifdef(d: Description): Boolean = d match {
+      case _: Ifdef => true
+      case MultipleDescriptions(ds) => ds.exists(description_has_ifdef)
+      case _ => false
+    }
+
+    def build_description(d: Description): Seq[Seq[String]] = d match {
+      case DocString(desc) => build_comment(desc.string)
+      case Attribute(attr) => build_attribute(attr.string)
+      case Ifdef(cond, alternative) => build_ifdef(cond.string, alternative.string)
+      case MultipleDescriptions(ds) => combine_all_descriptions(get_all_descriptions(ds)).flatMap(build_description)
+      case EmptyDescription => Seq()
     }
 
     def build_streams(s: Statement): Unit = {
       val withoutDescription = s match {
-        case DescribedStmt(DocString(desc), stmt) =>
-          val comment = Seq("") +: build_comment(desc.string)
+        case DescribedStmt(d, stmt) =>
           stmt match {
             case sx: IsDeclaration =>
-              declares ++= comment
-            case sx =>
+              declares ++= build_description(d)
+            case _ =>
           }
           stmt
-        case DescribedStmt(EmptyDescription, stmt) => stmt
-        case other => other
+        case stmt => stmt
       }
       withoutDescription.foreach(build_streams)
       withoutDescription match {
@@ -971,13 +1024,19 @@ class VerilogEmitter extends SeqTransform with Emitter {
                                      "read & write ports by previous passes")
         case _ =>
       }
+
+      // if we had an ifdef, need to put in `endif
+      s match {
+        case DescribedStmt(d, stmt) =>
+          if (description_has_ifdef(d)) {
+             declares += Seq("`endif")
+          }
+        case _ =>
+      }
     }
 
     def emit_streams(): Unit = {
-      description match {
-        case DocString(s) => build_comment(s.string).foreach(emit(_))
-        case other =>
-      }
+      build_description(description).foreach(emit(_))
       emit(Seq("module ", m.name, "(", m.info))
       for (x <- portdefs) emit(Seq(tab, x))
       emit(Seq(");"))
@@ -1107,10 +1166,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
       build_netlist(m.body)
       build_ports()
 
-      description match {
-        case DocString(s) => build_comment(s.string).foreach(emit(_))
-        case other =>
-      }
+      build_description(description).foreach(emit(_))
 
       emit(Seq("module ", overrideName, "(", m.info))
       for (x <- portdefs) emit(Seq(tab, x))
