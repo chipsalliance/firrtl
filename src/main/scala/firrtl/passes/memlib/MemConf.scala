@@ -19,11 +19,11 @@ object MemPort {
 
   def apply(s: String): Option[MemPort] = MemPort.all.find(_.name == s)
 
-  def fromString(s: String): Seq[MemPort] = {
+  def fromString(s: String): Map[MemPort, Int] = {
     s.split(",").toSeq.map(MemPort.apply).map(_ match {
       case Some(x) => x
       case _ => throw new Exception(s"Error parsing MemPort string : ${s}")
-    })
+    }).groupBy(identity).mapValues(_.size)
   }
 }
 
@@ -31,14 +31,18 @@ case class MemConf(
   name: String,
   depth: Int,
   width: Int,
-  ports: Seq[MemPort],
+  ports: Map[MemPort, Int],
   maskGranularity: Option[Int]
 ) {
 
-  private def portsStr = ports.map(_.name).mkString(",")
+  private def portsStr = ports.map { case (port, num) => Seq.fill(num)(port.name).mkString(",") } mkString (",")
   private def maskGranStr = maskGranularity.map((p) => s"mask_gran $p").getOrElse("")
 
-  override def toString() = s"name ${name} depth ${depth} width ${width} ports ${portsStr} ${maskGranStr} "
+  // Assert that all of the entries in the port map are greater than zero to make it easier to compare two of these case classes
+  // (otherwise an entry of XYZPort -> 0 would not be equivalent to another with no XYZPort despite being semantically the same)
+  ports.foreach { case (k, v) => require(v > 0, "Cannot have negative or zero entry in the port map") }
+
+  override def toString = s"name ${name} depth ${depth} width ${width} ports ${portsStr} ${maskGranStr} \n"
 }
 
 object MemConf {
@@ -53,9 +57,13 @@ object MemConf {
   }
 
   def apply(name: String, depth: Int, width: Int, readPorts: Int, writePorts: Int, readWritePorts: Int, maskGranularity: Option[Int]): MemConf = {
-    val ports = Seq.fill(writePorts)(if (maskGranularity.isEmpty) WritePort else MaskedWritePort) ++
-                Seq.fill(readPorts)(ReadPort) ++
-                Seq.fill(readWritePorts)(if (maskGranularity.isEmpty) ReadWritePort else MaskedReadWritePort)
+    val ports: Map[MemPort, Int] = (if (maskGranularity.isEmpty) {
+      (if (writePorts == 0) Map.empty[MemPort, Int] else Map(WritePort -> writePorts)) ++
+      (if (readWritePorts == 0) Map.empty[MemPort, Int] else Map(ReadWritePort -> readWritePorts))
+    } else {
+      (if (writePorts == 0) Map.empty[MemPort, Int] else Map(MaskedWritePort -> writePorts)) ++
+      (if (readWritePorts == 0) Map.empty[MemPort, Int] else Map(MaskedReadWritePort -> readWritePorts))
+    }) ++ (if (readPorts == 0) Map.empty[MemPort, Int] else Map(ReadPort -> readPorts))
     return new MemConf(name, depth, width, ports, maskGranularity)
   }
 }

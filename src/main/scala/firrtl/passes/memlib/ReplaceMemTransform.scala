@@ -54,7 +54,7 @@ class ConfWriter(filename: String) {
     require(bitWidth(m.dataType) <= Int.MaxValue)
     m.maskGran.foreach { case x => require(x <= Int.MaxValue) }
     val conf = MemConf(m.name, m.depth, bitWidth(m.dataType).toInt, m.readers.length, m.writers.length, m.readwriters.length, m.maskGran.map(_.toInt))
-    outputBuffer.append(conf.toString + "\n")
+    outputBuffer.append(conf.toString)
   }
   def serialize() = {
     val outputFile = new PrintWriter(filename)
