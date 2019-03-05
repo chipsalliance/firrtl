@@ -90,6 +90,87 @@ class AsyncResetSpec extends FirrtlFlatSpec {
       )
     }
   }
+  
+  "Hidden Non-literals" should "NOT be allowed as reset values for AsyncReset" in {
+    an [passes.CheckHighForm.NonLiteralAsyncResetValueException] shouldBe thrownBy {
+      compileBody(s"""
+        |input clock : Clock
+        |input reset : AsyncReset
+        |input x : UInt<1>[4]
+        |input y : UInt<1>
+        |output z : UInt<1>[4]
+        |wire literal : UInt<1>[4]
+        |literal[0] <= UInt<1>("h00")
+        |literal[1] <= y
+        |literal[2] <= UInt<1>("h00")
+        |literal[3] <= UInt<1>("h00")
+        |reg r : UInt<1>[4], clock with : (reset => (reset, literal))
+        |r <= x
+        |z <= r""".stripMargin
+      )
+    }
+  }
+
+  "Complex literals" should "be allowed as reset values for AsyncReset" in {
+    val result = compileBody(s"""
+        |input clock : Clock
+        |input reset : AsyncReset
+        |input x : UInt<1>[4]
+        |output z : UInt<1>[4]
+        |wire literal : UInt<1>[4]
+        |literal[0] <= UInt<1>("h00")
+        |literal[1] <= UInt<1>("h00")
+        |literal[2] <= UInt<1>("h00")
+        |literal[3] <= UInt<1>("h00")
+        |reg r : UInt<1>[4], clock with : (reset => (reset, literal))
+        |r <= x
+        |z <= r""".stripMargin
+      )
+    result should containLine ("always @(posedge clock or posedge reset) begin")
+  }
+  
+  "Complex literals of complex literals" should "be allowed as reset values for AsyncReset" in {
+    val result = compileBody(s"""
+        |input clock : Clock
+        |input reset : AsyncReset
+        |input x : UInt<1>[4]
+        |output z : UInt<1>[4]
+        |wire literal : UInt<1>[2]
+        |literal[0] <= UInt<1>("h01")
+        |literal[1] <= UInt<1>("h01")
+        |wire complex_literal : UInt<1>[4]
+        |complex_literal[0] <= literal[0]
+        |complex_literal[1] <= literal[1]
+        |complex_literal[2] <= UInt<1>("h00")
+        |complex_literal[3] <= UInt<1>("h00")
+
+        |reg r : UInt<1>[4], clock with : (reset => (reset, complex_literal))
+        |r <= x
+        |z <= r""".stripMargin
+      )
+    result should containLine ("always @(posedge clock or posedge reset) begin")
+  }
+  "Literals of bundle literals" should "be allowed as reset values for AsyncReset" in {
+    val result = compileBody(s"""
+        |input clock : Clock
+        |input reset : AsyncReset
+        |input x : UInt<1>[4]
+        |output z : UInt<1>[4]
+        |wire bundle : {a: UInt<1>, b: UInt<1>}
+        |bundle.a <= UInt<1>("h01")
+        |bundle.b <= UInt<1>("h01")
+        |wire complex_literal : UInt<1>[4]
+        |complex_literal[0] <= bundle.a
+        |complex_literal[1] <= bundle.b
+        |complex_literal[2] <= UInt<1>("h00")
+        |complex_literal[3] <= UInt<1>("h00")
+
+        |reg r : UInt<1>[4], clock with : (reset => (reset, complex_literal))
+        |r <= x
+        |z <= r""".stripMargin
+      )
+    result should containLine ("always @(posedge clock or posedge reset) begin")
+  }
 
 
   "Every async reset reg" should "generate its own always block" in {

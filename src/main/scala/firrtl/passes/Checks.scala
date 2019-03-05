@@ -11,6 +11,7 @@ import firrtl.WrappedType._
 
 object CheckHighForm extends Pass {
   type NameSet = collection.mutable.HashSet[String]
+  type LiteralSet = collection.mutable.HashMap[String, Boolean]
 
   // Custom Exceptions
   class NotUniqueException(info: Info, mname: String, name: String) extends PassException(
@@ -142,7 +143,7 @@ object CheckHighForm extends Pass {
       }
     }
 
-    def checkHighFormE(info: Info, mname: String, names: NameSet)(e: Expression): Unit = {
+    def checkHighFormE(info: Info, mname: String, names: NameSet, literals: LiteralSet)(e: Expression): Unit = {
       e match {
         case ex: WRef if !names(ex.name) =>
           errors.append(new UndeclaredReferenceException(info, mname, ex.name))
@@ -155,7 +156,7 @@ object CheckHighForm extends Pass {
       }
       e foreach checkHighFormW(info, mname)
       e foreach checkHighFormT(info, mname)
-      e foreach checkHighFormE(info, mname, names)
+      e foreach checkHighFormE(info, mname, names, literals)
     }
 
     def checkName(info: Info, mname: String, names: NameSet)(name: String): Unit = {
@@ -163,22 +164,56 @@ object CheckHighForm extends Pass {
         errors.append(new NotUniqueException(info, mname, name))
       names += name
     }
+    
+    def resolveToLiteral(literals: LiteralSet, e: Expression): Boolean = {
+      if(e.isInstanceOf[Literal])
+        return true
+      e match {
+        case t: HasName => literals.contains(t.name) && literals(t.name)
+        case t: WRef => literals.contains(t.name) && literals(t.name)
+        case t: WSubIndex => resolveToLiteral(literals, t.expr)
+        case t: WSubField => resolveToLiteral(literals, t.expr)
+        case t: WSubAccess => resolveToLiteral(literals, t.expr)
+        case _ => false
+      }
+    }
+    
+    def validateLiteral(info: Info, mname: String, literals: LiteralSet, loc: Expression, value: Expression): Unit = {
+      loc match {
+        case t: HasName => validateLiteralS(info, mname, literals, t.name, value)
+        case t: WRef => validateLiteralS(info, mname, literals, t.name, value)
+        case t: WSubIndex => validateLiteral(info, mname, literals, t.expr, value)
+        case t: WSubField => validateLiteral(info, mname, literals, t.expr, value)
+        case t: WSubAccess => validateLiteral(info, mname, literals, t.expr, value)
+        case _ => // do nothing 
+      }
+    }
+    
+    def validateLiteralS(info: Info, mname: String, literals: LiteralSet, name: String, value: Expression): Unit = {
+      if (literals.contains(name))
+        literals(name) = literals(name) && resolveToLiteral(literals, value)
+      else 
+        literals(name) = resolveToLiteral(literals, value)
+    }
 
-    def checkHighFormS(minfo: Info, mname: String, names: NameSet)(s: Statement): Unit = {
+    def checkHighFormS(minfo: Info, mname: String, names: NameSet, literals: LiteralSet)(s: Statement): Unit = {
       val info = get_info(s) match {case NoInfo => minfo case x => x}
       s foreach checkName(info, mname, names)
       s match {
         case DefRegister(info, name, tpe, _, reset, init) =>
+          literals(name) = false
           if (hasFlip(tpe))
             errors.append(new RegWithFlipException(info, mname, name))
-          if (reset.tpe == AsyncResetType && !init.isInstanceOf[Literal])
+          if (reset.tpe == AsyncResetType && !(resolveToLiteral(literals,init)))
             errors.append(new NonLiteralAsyncResetValueException(info, mname, name, init.serialize))
         case sx: DefMemory =>
+        literals(name) = false
           if (hasFlip(sx.dataType))
             errors.append(new MemWithFlipException(info, mname, sx.name))
           if (sx.depth <= 0)
             errors.append(new NegMemSizeException(info, mname))
         case sx: WDefInstance =>
+        literals(name) = false
           if (!moduleNames(sx.module))
             errors.append(new ModuleNotDefinedException(info, mname, sx.module))
           // Check to see if a recursive module instantiation has occured
@@ -186,16 +221,19 @@ object CheckHighForm extends Pass {
           if (childToParent.nonEmpty)
             errors.append(new InstanceLoop(info, mname, childToParent mkString "->"))
         case sx: Connect => checkValidLoc(info, mname, sx.loc)
+                            validateLiteral(info, mname, literals, sx.loc, sx.expr)
+        case sx: DefWire => literals(sx.name) = true
         case sx: PartialConnect => checkValidLoc(info, mname, sx.loc)
         case sx: Print => checkFstring(info, mname, sx.string, sx.args.length)
         case sx => // Do Nothing
       }
       s foreach checkHighFormT(info, mname)
-      s foreach checkHighFormE(info, mname, names)
-      s foreach checkHighFormS(minfo, mname, names)
+      s foreach checkHighFormE(info, mname, names, literals)
+      s foreach checkHighFormS(minfo, mname, names, literals)
     }
 
-    def checkHighFormP(mname: String, names: NameSet)(p: Port): Unit = {
+    def checkHighFormP(mname: String, names: NameSet, literals: LiteralSet)(p: Port): Unit = {
+      literals(name) = false
       if (names(p.name))
         errors.append(new NotUniqueException(NoInfo, mname, p.name))
       names += p.name
@@ -205,8 +243,9 @@ object CheckHighForm extends Pass {
 
     def checkHighFormM(m: DefModule) {
       val names = new NameSet
-      m foreach checkHighFormP(m.name, names)
-      m foreach checkHighFormS(m.info, m.name, names)
+      val literals = new LiteralSet
+      m foreach checkHighFormP(m.name, names, literals)
+      m foreach checkHighFormS(m.info, m.name, names, literals)
     }
 
     c.modules foreach checkHighFormM
