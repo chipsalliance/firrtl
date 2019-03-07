@@ -295,6 +295,9 @@ trait Emitter extends Transform {
   def emit(state: CircuitState, writer: Writer): Unit
 }
 
+/** Wraps exceptions from CustomTransforms so they can be reported appropriately */
+case class CustomTransformException(cause: Throwable) extends Exception("", cause)
+
 object CompilerUtils extends LazyLogging {
   /** Generates a sequence of [[Transform]]s to lower a Firrtl circuit
     *
@@ -373,6 +376,10 @@ trait Compiler extends LazyLogging {
     */
   def transforms: Seq[Transform]
 
+  require(transforms.size >= 1,
+          s"Compiler transforms for '${this.getClass.getName}' must have at least ONE Transform! " +
+            "Use IdentityTransform if you need an identity/no-op transform.")
+
   // Similar to (input|output)Form on [[Transform]] but derived from this Compiler's transforms
   def inputForm: CircuitForm = transforms.head.inputForm
   def outputForm: CircuitForm = transforms.last.outputForm
@@ -423,6 +430,15 @@ trait Compiler extends LazyLogging {
     compile(state.copy(annotations = emitAnno +: state.annotations), customTransforms)
   }
 
+  private def isCustomTransform(xform: Transform): Boolean = {
+    def getTopPackage(pack: java.lang.Package): java.lang.Package =
+      Package.getPackage(pack.getName.split('.').head)
+    // We use the top package of the Driver to get the top firrtl package
+    Option(xform.getClass.getPackage).map { p =>
+      getTopPackage(p) != firrtl.Driver.getClass.getPackage
+    }.getOrElse(true)
+  }
+
   /** Perform compilation
     *
     * Emission will only be performed if [[EmitAnnotation]]s are present
@@ -436,7 +452,14 @@ trait Compiler extends LazyLogging {
     val allTransforms = CompilerUtils.mergeTransforms(transforms, customTransforms) :+ emitter
 
     val (timeMillis, finalState) = Utils.time {
-      allTransforms.foldLeft(state) { (in, xform) => xform.runTransform(in) }
+      allTransforms.foldLeft(state) { (in, xform) =>
+        try {
+          xform.runTransform(in)
+        } catch {
+          // Wrap exceptions from custom transforms so they are reported as such
+          case e: Exception if isCustomTransform(xform) => throw CustomTransformException(e)
+        }
+      }
     }
 
     logger.error(f"Total FIRRTL Compile Time: $timeMillis%.1f ms")

@@ -4,6 +4,11 @@
 
 [![Join the chat at https://gitter.im/freechipsproject/firrtl](https://badges.gitter.im/freechipsproject/firrtl.svg)](https://gitter.im/freechipsproject/firrtl?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 [![Build Status](https://travis-ci.org/freechipsproject/firrtl.svg?branch=master)](https://travis-ci.org/freechipsproject/firrtl)
+[![Mergify Status][mergify-status]][mergify]
+
+[mergify]: https://mergify.io
+[mergify-status]: https://gh.mergify.io/badges/:freechipsproject/:firrtl.png?style=cut
+
 #### Flexible Internal Representation for RTL
 
  Firrtl is an intermediate representation (IR) for digital circuits designed as a platform for writing circuit-level transformations.
@@ -11,20 +16,20 @@
 
  A Firrtl compiler is constructed by chaining together these transformations, then writing the final circuit to a file.
 
- For a detailed description of Firrtl's intermediate representation, see the document "Specification of the Firrtl Language" located in [spec/spec.pdf](https://github.com/ucb-bar/firrtl/blob/master/spec/spec.pdf).
+ For a detailed description of Firrtl's intermediate representation, see the document "Specification of the Firrtl Language" located in [spec/spec.pdf](https://github.com/freechipsproject/firrtl/blob/master/spec/spec.pdf).
 
 #### Wiki Pages and Tutorials
 
 Useful information is on our wiki, located here:
-* https://github.com/ucb-bar/firrtl/wiki
+* https://github.com/freechipsproject/firrtl/wiki
 
 Some important pages to read, before writing your own transform:
-* [Submitting Pull Requests](https://github.com/ucb-bar/firrtl/wiki/submitting-a-pull-request)
-* [Understanding Firrtl's IR](https://github.com/ucb-bar/firrtl/wiki/Understanding-Firrtl-Intermediate-Representation)
-* [Traversing a Circuit](https://github.com/ucb-bar/firrtl/wiki/traversing-a-circuit)
-* [Common Pass Idioms](https://github.com/ucb-bar/firrtl/wiki/Common-Pass-Idioms)
+* [Submitting Pull Requests](https://github.com/freechipsproject/firrtl/wiki/Submitting-a-Pull-Request)
+* [Understanding Firrtl's IR](https://github.com/freechipsproject/firrtl/wiki/Understanding-Firrtl-Intermediate-Representation)
+* [Traversing a Circuit](https://github.com/freechipsproject/firrtl/wiki/traversing-a-circuit)
+* [Common Pass Idioms](https://github.com/freechipsproject/firrtl/wiki/Common-Pass-Idioms)
 
-To write a Firrtl transform, please start with the tutorial here: [src/main/scala/tutorial](https://github.com/ucb-bar/firrtl/blob/master/src/main/scala/tutorial).
+To write a Firrtl transform, please start with the tutorial here: [src/main/scala/tutorial](https://github.com/freechipsproject/firrtl/blob/master/src/main/scala/tutorial).
 To run these examples:
 ```
 sbt assembly
@@ -35,9 +40,10 @@ sbt assembly
 #### Other Tools
 * Firrtl syntax highlighting for Vim users: https://github.com/azidar/firrtl-syntax
 * Firrtl syntax highlighting for Sublime Text 3 users: https://github.com/codelec/highlight-firrtl
+* Firrtl syntax highlighting for Atom users: https://atom.io/packages/language-firrtl
 * Firrtl mode for Emacs users: https://github.com/ibm/firrtl-mode
-* Chisel3, an embedded hardware DSL that generates Firrtl: https://github.com/ucb-bar/chisel3
-* Firrtl Interpreter: https://github.com/ucb-bar/firrtl-interpreter
+* Chisel3, an embedded hardware DSL that generates Firrtl: https://github.com/freechipsproject/chisel3
+* Treadle, a Firrtl Interpreter: https://github.com/freechipsproject/treadle
 * Yosys Verilog-to-Firrtl Front-end: https://github.com/cliffordwolf/yosys
 
 #### Installation Instructions

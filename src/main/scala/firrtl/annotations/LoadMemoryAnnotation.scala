@@ -2,8 +2,9 @@
 
 package firrtl.annotations
 
-/**
-  * Enumeration of the two types of readmem statements available in verilog
+import java.io.File
+
+/** Enumeration of the two types of `readmem` statements available in Verilog.
   */
 object MemoryLoadFileType extends Enumeration {
   type FileType = Value
@@ -12,11 +13,10 @@ object MemoryLoadFileType extends Enumeration {
   val Binary: Value = Value("b")
 }
 
-/**
-  * Firrtl implementation for load memory
+/** Firrtl implementation for load memory
   * @param target        memory to load
   * @param fileName      name of input file
-  * @param hexOrBinary   use $readmemh or $readmemb
+  * @param hexOrBinary   use `\$readmemh` or `\$readmemb`
   */
 case class LoadMemoryAnnotation(
   target: ComponentName,
@@ -33,26 +33,20 @@ case class LoadMemoryAnnotation(
         (name, "")
       case "" :: name :: Nil => // this case handles a filename that begins with dot and has no suffix
         ("." + name, "")
-      case other =>
-        (other.reverse.tail.reverse.mkString("."), "." + other.last)
+      case other => {
+        if (other.last.indexOf(File.separator) != -1) {
+          (fileName, "")
+        } else {
+          (other.reverse.tail.reverse.mkString("."), "." + other.last)
+        }
+      }
     }
   }
 
-  def getFileName: String = {
-    originalMemoryNameOpt match {
-      case Some(originalMemoryName) =>
-        if(target.name == originalMemoryName) {
-          prefix + suffix
-        }
-        else {
-          prefix + target.name.drop(originalMemoryName.length) + suffix
-        }
-      case _ =>
-        fileName
-    }
-  }
-
+  def getPrefix: String =
+    prefix + originalMemoryNameOpt.map(n => target.name.drop(n.length)).getOrElse("")
   def getSuffix: String = suffix
+  def getFileName: String = getPrefix + getSuffix
 
   def duplicate(newNamed: Named): LoadMemoryAnnotation = {
     newNamed match {
@@ -63,5 +57,3 @@ case class LoadMemoryAnnotation(
     }
   }
 }
-
-

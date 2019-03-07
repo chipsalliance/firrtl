@@ -33,7 +33,7 @@ trait Pass extends Transform {
 
 // Error handling
 class PassException(message: String) extends Exception(message)
-class PassExceptions(exceptions: Seq[PassException]) extends Exception("\n" + exceptions.mkString("\n"))
+class PassExceptions(val exceptions: Seq[PassException]) extends Exception("\n" + exceptions.mkString("\n"))
 class Errors {
   val errors = collection.mutable.ArrayBuffer[PassException]()
   def append(pe: PassException) = errors.append(pe)
@@ -183,19 +183,23 @@ object ExpandConnects extends Pass {
 object Legalize extends Pass {
   private def legalizeShiftRight(e: DoPrim): Expression = {
     require(e.op == Shr)
-    val amount = e.consts.head.toInt
-    val width = bitWidth(e.args.head.tpe)
-    lazy val msb = width - 1
-    if (amount >= width) {
-      e.tpe match {
-        case UIntType(_) => zero
-        case SIntType(_) =>
-          val bits = DoPrim(Bits, e.args, Seq(msb, msb), BoolType)
-          DoPrim(AsSInt, Seq(bits), Seq.empty, SIntType(IntWidth(1)))
-        case t => error(s"Unsupported type $t for Primop Shift Right")
-      }
-    } else {
-      e
+    e.args.head match {
+      case _: UIntLiteral | _: SIntLiteral => ConstantPropagation.foldShiftRight(e)
+      case _ =>
+        val amount = e.consts.head.toInt
+        val width = bitWidth(e.args.head.tpe)
+        lazy val msb = width - 1
+        if (amount >= width) {
+          e.tpe match {
+            case UIntType(_) => zero
+            case SIntType(_) =>
+              val bits = DoPrim(Bits, e.args, Seq(msb, msb), BoolType)
+              DoPrim(AsSInt, Seq(bits), Seq.empty, SIntType(IntWidth(1)))
+            case t => error(s"Unsupported type $t for Primop Shift Right")
+          }
+        } else {
+          e
+        }
     }
   }
   private def legalizeBitExtract(expr: DoPrim): Expression = {

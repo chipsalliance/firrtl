@@ -25,6 +25,8 @@ object CheckHighForm extends Pass {
     s"$info: [module $mname] Poison $name cannot be a bundle type with flips.")
   class MemWithFlipException(info: Info, mname: String, name: String) extends PassException(
     s"$info: [module $mname] Memory $name cannot be a bundle type with flips.")
+  class RegWithFlipException(info: Info, mname: String, name: String) extends PassException(
+    s"$info: [module $mname] Register $name cannot be a bundle type with flips.")
   class InvalidAccessException(info: Info, mname: String) extends PassException(
     s"$info: [module $mname] Invalid access to non-reference.")
   class ModuleNotDefinedException(info: Info, mname: String, name: String) extends PassException(
@@ -53,6 +55,8 @@ object CheckHighForm extends Pass {
     s"$info: [module $mname] Primop $op argument $value < 0.")
   class LsbLargerThanMsbException(info: Info, mname: String, op: String, lsb: Int, msb: Int) extends PassException(
     s"$info: [module $mname] Primop $op lsb $lsb > $msb.")
+  class NonLiteralAsyncResetValueException(info: Info, mname: String, reg: String, init: String) extends PassException(
+    s"$info: [module $mname] AsyncReset Reg '$reg' reset to non-literal '$init'")
 
   def run(c: Circuit): Circuit = {
     val errors = new Errors()
@@ -72,9 +76,9 @@ object CheckHighForm extends Pass {
 
       e.op match {
         case Add | Sub | Mul | Div | Rem | Lt | Leq | Gt | Geq |
-             Eq | Neq | Dshl | Dshr | And | Or | Xor | Cat =>
+             Eq | Neq | Dshl | Dshr | And | Or | Xor | Cat | Dshlw =>
           correctNum(Option(2), 0)
-        case AsUInt | AsSInt | AsClock | Cvt | Neq | Not =>
+        case AsUInt | AsSInt | AsClock | AsAsyncReset | Cvt | Neq | Not =>
           correctNum(Option(1), 0)
         case AsFixedPoint | Pad | Head | Tail | BPShl | BPShr | BPSet =>
           correctNum(Option(1), 1)
@@ -165,6 +169,11 @@ object CheckHighForm extends Pass {
       val info = get_info(s) match {case NoInfo => minfo case x => x}
       s foreach checkName(info, mname, names)
       s match {
+        case DefRegister(info, name, tpe, _, reset, init) =>
+          if (hasFlip(tpe))
+            errors.append(new RegWithFlipException(info, mname, name))
+          if (reset.tpe == AsyncResetType && !init.isInstanceOf[Literal])
+            errors.append(new NonLiteralAsyncResetValueException(info, mname, name, init.serialize))
         case sx: DefMemory =>
           if (hasFlip(sx.dataType))
             errors.append(new MemWithFlipException(info, mname, sx.name))
@@ -292,42 +301,44 @@ object CheckTypes extends Pass {
       case tx => true
     }
     def check_types_primop(info: Info, mname: String, e: DoPrim): Unit = {
-      def checkAllTypes(exprs: Seq[Expression], okUInt: Boolean, okSInt: Boolean, okClock: Boolean, okFix: Boolean): Unit = {
-        exprs.foldLeft((false, false, false, false)) {
-          case ((isUInt, isSInt, isClock, isFix), expr) => expr.tpe match {
-            case u: UIntType  => (true, isSInt, isClock, isFix)
-            case s: SIntType  => (isUInt, true, isClock, isFix)
-            case ClockType    => (isUInt, isSInt, true, isFix)
-            case f: FixedType => (isUInt, isSInt, isClock, true)
-            case _: BundleType | _: VectorType => (isUInt, isSInt, isClock, isFix) // ignore until lowered
-            case UnknownType =>
+      def checkAllTypes(exprs: Seq[Expression], okUInt: Boolean, okSInt: Boolean, okClock: Boolean, okFix: Boolean, okAsync: Boolean): Unit = {
+        exprs.foldLeft((false, false, false, false, false)) {
+          case ((isUInt, isSInt, isClock, isFix, isAsync), expr) => expr.tpe match {
+            case u: UIntType    => (true,   isSInt, isClock, isFix, isAsync)
+            case s: SIntType    => (isUInt, true,   isClock, isFix, isAsync)
+            case ClockType      => (isUInt, isSInt, true,    isFix, isAsync)
+            case f: FixedType   => (isUInt, isSInt, isClock, true,  isAsync)
+            case AsyncResetType => (isUInt, isSInt, isClock, isFix, true)
+            case _: BundleType | _: VectorType => (isUInt, isSInt, isClock, isFix, isAsync)
+            case UnknownType    =>
               errors.append(new IllegalUnknownType(info, mname, e.serialize))
-              (isUInt, isSInt, isClock, isFix)
-            case other => throwInternalError(s"Illegal Type: ${other.serialize} (for DoPrim ${e.serialize})")
+              (isUInt, isSInt, isClock, isFix, isAsync)
+            case other => throwInternalError(s"Illegal Type: ${other.serialize}")
           }
         } match {
           //   (UInt,  SInt,  Clock, Fixed)
-          case (isAll, false, false, false) if isAll == okUInt  =>
-          case (false, isAll, false, false) if isAll == okSInt  =>
-          case (false, false, isAll, false) if isAll == okClock =>
-          case (false, false, false, isAll) if isAll == okFix   =>
+          case (isAll, false, false, false, false) if isAll == okUInt  =>
+          case (false, isAll, false, false, false) if isAll == okSInt  =>
+          case (false, false, isAll, false, false) if isAll == okClock =>
+          case (false, false, false, isAll, false) if isAll == okFix   =>
+          case (false, false, false, false, isAll) if isAll == okAsync =>
           case x => errors.append(new OpNotCorrectType(info, mname, e.op.serialize, exprs.map(_.tpe.serialize)))
         }
       }
       e.op match {
-        case AsUInt | AsSInt | AsClock | AsFixedPoint =>
+        case AsUInt | AsSInt | AsClock | AsFixedPoint | AsAsyncReset =>
           // All types are ok
         case Dshl | Dshr =>
-          checkAllTypes(Seq(e.args.head), okUInt=true, okSInt=true,  okClock=false, okFix=true)
-          checkAllTypes(Seq(e.args(1)),   okUInt=true, okSInt=false, okClock=false, okFix=false)
+          checkAllTypes(Seq(e.args.head), okUInt=true, okSInt=true,  okClock=false, okFix=true, okAsync=false)
+          checkAllTypes(Seq(e.args(1)),   okUInt=true, okSInt=false, okClock=false, okFix=false, okAsync=false)
         case Add | Sub | Mul | Lt | Leq | Gt | Geq | Eq | Neq =>
-          checkAllTypes(e.args, okUInt=true, okSInt=true, okClock=false, okFix=true)
+          checkAllTypes(e.args, okUInt=true, okSInt=true, okClock=false, okFix=true, okAsync=false)
         case Pad | Shl | Shr | Cat | Bits | Head | Tail =>
-          checkAllTypes(e.args, okUInt=true, okSInt=true, okClock=false, okFix=true)
+          checkAllTypes(e.args, okUInt=true, okSInt=true, okClock=false, okFix=true, okAsync=false)
         case BPShl | BPShr | BPSet =>
-          checkAllTypes(e.args, okUInt=false, okSInt=false, okClock=false, okFix=true)
+          checkAllTypes(e.args, okUInt=false, okSInt=false, okClock=false, okFix=true, okAsync=false)
         case _ =>
-          checkAllTypes(e.args, okUInt=true, okSInt=true, okClock=false, okFix=false)
+          checkAllTypes(e.args, okUInt=true, okSInt=true, okClock=false, okFix=false, okAsync=false)
       }
     }
 
@@ -417,6 +428,7 @@ object CheckTypes extends Pass {
           }
           sx.reset.tpe match {
             case UIntType(IntWidth(w)) if w == 1 =>
+            case AsyncResetType =>
             case UIntType(UnknownWidth) => // cannot catch here, though width may ultimately be wrong
             case _ => errors.append(new IllegalResetType(info, mname, sx.name))
           }
