@@ -110,6 +110,25 @@ class AsyncResetSpec extends FirrtlFlatSpec {
       )
     }
   }
+  "Wire connected to non-literal" should "NOT be allowed as reset values for AsyncReset" in {
+    an [passes.CheckHighForm.NonLiteralAsyncResetValueException] shouldBe thrownBy {
+      compileBody(s"""
+        |input clock : Clock
+        |input reset : AsyncReset
+        |input x : UInt<1>
+        |input y : UInt<1>
+        |input cond : UInt<1>
+        |output z : UInt<1>
+        |wire w : UInt<1>
+        |w <= UInt(1)
+        |when cond : 
+        |  w <= y
+        |reg r : UInt<1>, clock with : (reset => (reset, w))
+        |r <= x
+        |z <= r""".stripMargin
+      )
+    }
+  }
 
   "Complex literals" should "be allowed as reset values for AsyncReset" in {
     val result = compileBody(s"""

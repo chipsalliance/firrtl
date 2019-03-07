@@ -166,9 +166,8 @@ object CheckHighForm extends Pass {
     }
     
     def resolveToLiteral(literals: LiteralSet, e: Expression): Boolean = {
-      if(e.isInstanceOf[Literal])
-        return true
       e match {
+        case _: Literal => true
         case t: HasName => literals.contains(t.name) && literals(t.name)
         case t: WRef => literals.contains(t.name) && literals(t.name)
         case t: WSubIndex => resolveToLiteral(literals, t.expr)
@@ -189,12 +188,9 @@ object CheckHighForm extends Pass {
       }
     }
     
-    def validateLiteralS(info: Info, mname: String, literals: LiteralSet, name: String, value: Expression): Unit = {
-      if (literals.contains(name))
-        literals(name) = literals(name) && resolveToLiteral(literals, value)
-      else 
-        literals(name) = resolveToLiteral(literals, value)
-    }
+    def validateLiteralS(info: Info, mname: String, literals: LiteralSet, name: String, value: Expression): Unit =
+      literals(name) = literals.getOrElse(name, true) && resolveToLiteral(literals, value)
+
 
     def checkHighFormS(minfo: Info, mname: String, names: NameSet, literals: LiteralSet)(s: Statement): Unit = {
       val info = get_info(s) match {case NoInfo => minfo case x => x}
@@ -207,13 +203,13 @@ object CheckHighForm extends Pass {
           if (reset.tpe == AsyncResetType && !(resolveToLiteral(literals,init)))
             errors.append(new NonLiteralAsyncResetValueException(info, mname, name, init.serialize))
         case sx: DefMemory =>
-        literals(name) = false
+          literals(name) = false
           if (hasFlip(sx.dataType))
             errors.append(new MemWithFlipException(info, mname, sx.name))
           if (sx.depth <= 0)
             errors.append(new NegMemSizeException(info, mname))
         case sx: WDefInstance =>
-        literals(name) = false
+          literals(name) = false
           if (!moduleNames(sx.module))
             errors.append(new ModuleNotDefinedException(info, mname, sx.module))
           // Check to see if a recursive module instantiation has occured
