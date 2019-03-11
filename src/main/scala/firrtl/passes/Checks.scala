@@ -12,6 +12,7 @@ import firrtl.WrappedType._
 object CheckHighForm extends Pass {
   type NameSet = collection.mutable.HashSet[String]
   type LiteralSet = collection.mutable.HashMap[String, Boolean]
+  type RegCheckSet = collection.mutable.HashMap[Expression, PassException]
 
   // Custom Exceptions
   class NotUniqueException(info: Info, mname: String, name: String) extends PassException(
@@ -192,7 +193,7 @@ object CheckHighForm extends Pass {
       literals(name) = literals.getOrElse(name, true) && resolveToLiteral(literals, value)
 
 
-    def checkHighFormS(minfo: Info, mname: String, names: NameSet, literals: LiteralSet)(s: Statement): Unit = {
+    def checkHighFormS(minfo: Info, mname: String, names: NameSet, literals: LiteralSet, regsToCheck: RegCheckSet)(s: Statement): Unit = {
       val info = get_info(s) match {case NoInfo => minfo case x => x}
       s foreach checkName(info, mname, names)
       s match {
@@ -200,8 +201,8 @@ object CheckHighForm extends Pass {
           literals(name) = false
           if (hasFlip(tpe))
             errors.append(new RegWithFlipException(info, mname, name))
-          if (reset.tpe == AsyncResetType && !(resolveToLiteral(literals,init)))
-            errors.append(new NonLiteralAsyncResetValueException(info, mname, name, init.serialize))
+          if (reset.tpe == AsyncResetType)
+            regsToCheck(init) = new NonLiteralAsyncResetValueException(info, mname, name, init.serialize)
         case sx: DefMemory =>
           literals(name) = false
           if (hasFlip(sx.dataType))
@@ -225,7 +226,7 @@ object CheckHighForm extends Pass {
       }
       s foreach checkHighFormT(info, mname)
       s foreach checkHighFormE(info, mname, names, literals)
-      s foreach checkHighFormS(minfo, mname, names, literals)
+      s foreach checkHighFormS(minfo, mname, names, literals, regsToCheck)
     }
 
     def checkHighFormP(mname: String, names: NameSet, literals: LiteralSet)(p: Port): Unit = {
@@ -240,8 +241,13 @@ object CheckHighForm extends Pass {
     def checkHighFormM(m: DefModule) {
       val names = new NameSet
       val literals = new LiteralSet
+      val regsToCheck = new RegCheckSet
       m foreach checkHighFormP(m.name, names, literals)
-      m foreach checkHighFormS(m.info, m.name, names, literals)
+      m foreach checkHighFormS(m.info, m.name, names, literals, regsToCheck)
+      regsToCheck foreach ( (c:(Expression, PassException)) => {
+        if(!resolveToLiteral(literals, c._1))
+          errors.append(c._2)
+      })
     }
 
     c.modules foreach checkHighFormM
