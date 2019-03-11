@@ -6,13 +6,18 @@ package transforms
 import firrtl.ir._
 import firrtl.Mappers._
 import firrtl.Utils._
+import firrtl.WrappedExpression.weq
 
 import scala.collection.mutable
+import scala.collection.immutable
 
 object FlattenRegUpdate {
 
   /** Mapping from references to the [[firrtl.ir.Expression Expression]]s that drive them */
   type Netlist = mutable.HashMap[WrappedExpression, Expression]
+
+  /** Set for mux conditions **/
+  type Conditions = immutable.HashSet[WrappedExpression]
 
   /** Build a [[Netlist]] from a Module's connections and Nodes
     *
@@ -63,17 +68,24 @@ object FlattenRegUpdate {
     val regUpdates = mutable.ArrayBuffer.empty[Connect]
     val netlist = buildNetlist(mod)
 
-    def constructRegUpdate(e: Expression): Expression = {
+    def constructRegUpdate(e: Expression, always: Conditions, unreachable: Conditions): Expression = {
       // Only walk netlist for nodes and wires, NOT registers or other state
       val expr = kind(e) match {
         case NodeKind | WireKind => netlist.getOrElse(e, e)
         case _ => e
       }
       expr match {
+        case mux: Mux if canFlatten(mux) && always(mux.cond) =>
+          // this conditions is always true by the previous muxes
+          constructRegUpdate(mux.tval, always, unreachable)
+        case mux: Mux if canFlatten(mux) && unreachable(mux.cond) =>
+          // tval is unreachable by the previous muxes
+          constructRegUpdate(mux.fval, always, unreachable)
         case mux: Mux if canFlatten(mux) =>
-          val tvalx = constructRegUpdate(mux.tval)
-          val fvalx = constructRegUpdate(mux.fval)
-          mux.copy(tval = tvalx, fval = fvalx)
+          val tvalx = constructRegUpdate(mux.tval, always + mux.cond, unreachable)
+          val fvalx = constructRegUpdate(mux.fval, always, unreachable + mux.cond)
+          if (weq(tvalx, fvalx)) tvalx // ConstProp?
+          else mux.copy(tval = tvalx, fval = fvalx)
         // Return the original expression to end flattening
         case _ => e
       }
@@ -84,7 +96,8 @@ object FlattenRegUpdate {
         assert(resetCond.tpe == AsyncResetType || resetCond == Utils.zero,
           "Synchronous reset should have already been made explicit!")
         val ref = WRef(reg)
-        val update = Connect(NoInfo, ref, constructRegUpdate(netlist.getOrElse(ref, ref)))
+        val update = Connect(NoInfo, ref,
+          constructRegUpdate(netlist.getOrElse(ref, ref), new Conditions, new Conditions))
         regUpdates += update
         reg
       // Remove connections to Registers so we preserve LowFirrtl single-connection semantics
