@@ -90,6 +90,22 @@ class AsyncResetSpec extends FirrtlFlatSpec {
       )
     }
   }
+  "Late non-literals connections" should "NOT be allowed as reset values for AsyncReset" in {
+    an [passes.CheckHighForm.NonLiteralAsyncResetValueException] shouldBe thrownBy {
+      compileBody(s"""
+        |input clock : Clock
+        |input reset : AsyncReset
+        |input x : UInt<8>
+        |input y : UInt<8>
+        |output z : UInt<8>
+        |wire a : UInt<8> 
+        |reg r : UInt<8>, clock with : (reset => (reset, a))
+        |a <= y
+        |r <= x
+        |z <= r""".stripMargin
+      )
+    }
+  }
   
   "Hidden Non-literals" should "NOT be allowed as reset values for AsyncReset" in {
     an [passes.CheckHighForm.NonLiteralAsyncResetValueException] shouldBe thrownBy {
