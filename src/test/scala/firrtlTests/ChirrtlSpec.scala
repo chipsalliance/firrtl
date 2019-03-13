@@ -27,7 +27,7 @@ class ChirrtlSpec extends FirrtlFlatSpec {
     CheckWidths,
     PullMuxes,
     ExpandConnects,
-    RemoveAccesses,
+    new RemoveAccesses,
     ExpandWhens,
     CheckInitialization
   )
