@@ -45,7 +45,19 @@ object JsonProtocol {
       }},
     { case x: Transform => JString(x.getClass.getName) }
   ))
-
+  class LoadMemoryFileTypeSerializer extends CustomSerializer[MemoryLoadFileType.FileType](format => ( {
+    case JString(s) => s match {
+      case "h" => MemoryLoadFileType.Hex
+      case "b" => MemoryLoadFileType.Binary
+      case _ => throw new FIRRTLException(s"Unrecognized MemoryLoadFileType: $s")
+    }
+  }, {
+    case named: MemoryLoadFileType.FileType => named match {
+        case MemoryLoadFileType.Hex => JString("h")
+        case MemoryLoadFileType.Binary => JString("b")
+        case _ => throw new FIRRTLException(s"Unrecognized MemoryLoadFileType: $named")
+    }
+  }))
 
   class TargetSerializer extends CustomSerializer[Target](format => (
     { case JString(s) => Target.deserialize(s) },
@@ -78,7 +90,8 @@ object JsonProtocol {
       new TransformClassSerializer + new NamedSerializer + new CircuitNameSerializer +
       new ModuleNameSerializer + new ComponentNameSerializer + new TargetSerializer +
       new GenericTargetSerializer + new CircuitTargetSerializer + new ModuleTargetSerializer +
-      new InstanceTargetSerializer + new ReferenceTargetSerializer + new TransformSerializer
+      new InstanceTargetSerializer + new ReferenceTargetSerializer + new TransformSerializer  +
+      new LoadMemoryFileTypeSerializer
   }
 
   /** Serialize annotations to a String for emission */
