@@ -24,7 +24,7 @@ class LowerTypesSpec extends FirrtlFlatSpec {
     CheckWidths,
     PullMuxes,
     ExpandConnects,
-    new RemoveAccesses,
+    RemoveAccesses,
     ExpandWhens,
     CheckInitialization,
     Legalize,

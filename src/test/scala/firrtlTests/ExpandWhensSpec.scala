@@ -26,7 +26,7 @@ class ExpandWhensSpec extends FirrtlFlatSpec {
     CheckWidths,
     PullMuxes,
     ExpandConnects,
-    new RemoveAccesses,
+    RemoveAccesses,
     ExpandWhens)
   private def executeTest(input: String, check: String, expected: Boolean) = {
     val circuit = Parser.parse(input.split("\n").toIterator)

@@ -166,3 +166,14 @@ class RemoveAccesses extends Pass {
     })
   }
 }
+
+object RemoveAccesses extends Pass {
+  def apply: Pass = {
+    new RemoveAccesses()
+  }
+
+  def run(c: Circuit): Circuit = {
+    val t = new RemoveAccesses
+    t.run(c)
+  }
+}

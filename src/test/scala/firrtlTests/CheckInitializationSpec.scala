@@ -22,7 +22,7 @@ class CheckInitializationSpec extends FirrtlFlatSpec {
      CheckWidths,
      PullMuxes,
      ExpandConnects,
-     new RemoveAccesses,
+     RemoveAccesses,
      ExpandWhens,
      CheckInitialization,
      InferTypes

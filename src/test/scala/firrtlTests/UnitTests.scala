@@ -206,7 +206,7 @@ class UnitTests extends FirrtlFlatSpec {
       new InferWidths,
       PullMuxes,
       ExpandConnects,
-      new RemoveAccesses,
+      RemoveAccesses,
       new ConstantPropagation
     )
     val input =
@@ -392,7 +392,7 @@ class UnitTests extends FirrtlFlatSpec {
       new InferWidths,
       PullMuxes,
       ExpandConnects,
-      new RemoveAccesses,
+      RemoveAccesses,
       ResolveGenders,
       new ConstantPropagation
     )
