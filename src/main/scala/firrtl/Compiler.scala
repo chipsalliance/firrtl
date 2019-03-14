@@ -153,6 +153,13 @@ final case object UnknownForm extends CircuitForm(-1) {
 }
 // scalastyle:on magic.number
 
+// TODO make private[firrtl]
+case class AggregateLiteralAnnotation(target: ReferenceTarget)
+    extends SingleTargetAnnotation[ReferenceTarget] {
+  def targets = Seq(target)
+  def duplicate(n: ReferenceTarget) = this.copy(n)
+}
+
 /** The basic unit of operating on a Firrtl AST */
 abstract class Transform extends LazyLogging {
   /** A convenience function useful for debugging and error messages */

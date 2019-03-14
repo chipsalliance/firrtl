@@ -163,6 +163,23 @@ class AsyncResetSpec extends FirrtlFlatSpec {
     )
   }
 
+  "Complex literals" should "be allowed as reset values for AsyncReset" in {
+    val result = compileBody(s"""
+        |input clock : Clock
+        |input reset : AsyncReset
+        |input x : UInt<1>[4]
+        |output z : UInt<1>[4]
+        |wire literal : UInt<1>[4]
+        |literal[0] <= UInt<1>("h00")
+        |literal[1] <= UInt<1>("h00")
+        |literal[2] <= UInt<1>("h00")
+        |literal[3] <= UInt<1>("h00")
+        |reg r : UInt<1>[4], clock with : (reset => (reset, literal))
+        |r <= x
+        |z <= r""".stripMargin
+      )
+    result should containLine ("always @(posedge clock or posedge reset) begin")
+  }
 }
 
 class AsyncResetExecutionTest extends ExecutionTest("AsyncResetTester", "/features")

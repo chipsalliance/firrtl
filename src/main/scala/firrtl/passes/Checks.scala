@@ -5,11 +5,16 @@ package firrtl.passes
 import firrtl._
 import firrtl.ir._
 import firrtl.PrimOps._
+import firrtl.annotations.ReferenceTarget
 import firrtl.Utils._
 import firrtl.traversals.Foreachers._
 import firrtl.WrappedType._
 
-object CheckHighForm extends Pass {
+// TODO add deprecated object CheckHighForm for compatibility
+class CheckHighForm extends Transform {
+  def inputForm: CircuitForm = HighForm
+  def outputForm: CircuitForm = HighForm
+
   type NameSet = collection.mutable.HashSet[String]
 
   // Custom Exceptions
@@ -58,7 +63,18 @@ object CheckHighForm extends Pass {
   class NonLiteralAsyncResetValueException(info: Info, mname: String, reg: String, init: String) extends PassException(
     s"$info: [module $mname] AsyncReset Reg '$reg' reset to non-literal '$init'")
 
-  def run(c: Circuit): Circuit = {
+  def execute(state: CircuitState): CircuitState = {
+    // Map of module name to Set of annotated components
+    val aggLits: Map[String, Set[String]] = state.annotations.collect {
+      case AggregateLiteralAnnotation(t) =>
+        assert(t.isLocal, "Check High Form does not support non-local annotations!")
+        t.module -> t.ref
+    }.groupBy(_._1).mapValues(_.map(_._2).toSet)
+    run(state.circuit, aggLits)
+    state
+  }
+
+  def run(c: Circuit, aggLits: Map[String, Set[String]]): Circuit = {
     val errors = new Errors()
     val moduleGraph = new ModuleGraph
     val moduleNames = (c.modules map (_.name)).toSet
@@ -169,10 +185,16 @@ object CheckHighForm extends Pass {
       s foreach checkName(info, mname, names)
       s match {
         case DefRegister(info, name, tpe, _, reset, init) =>
-          if (hasFlip(tpe))
+          if (hasFlip(tpe)) {
             errors.append(new RegWithFlipException(info, mname, name))
-          if (reset.tpe == AsyncResetType && !init.isInstanceOf[Literal])
-            errors.append(new NonLiteralAsyncResetValueException(info, mname, name, init.serialize))
+          }
+          if (reset.tpe == AsyncResetType && !init.isInstanceOf[Literal]) {
+            // Check if annotated as AggregateLiteral
+            val (rootRef, _) = splitRef(init)
+            if (!aggLits(mname).contains(rootRef.name)) {
+              errors.append(new NonLiteralAsyncResetValueException(info, mname, name, init.serialize))
+            }
+          }
         case sx: DefMemory =>
           if (hasFlip(sx.dataType))
             errors.append(new MemWithFlipException(info, mname, sx.name))

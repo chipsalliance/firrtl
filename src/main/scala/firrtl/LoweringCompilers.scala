@@ -35,7 +35,7 @@ class ResolveAndCheck extends CoreTransform {
   def inputForm = HighForm
   def outputForm = HighForm
   def transforms = Seq(
-    passes.CheckHighForm,
+    new passes.CheckHighForm,
     passes.ResolveKinds,
     passes.InferTypes,
     passes.CheckTypes,
