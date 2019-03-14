@@ -13,6 +13,9 @@ sealed abstract class MemoryLoadFileType(val value: String) {
 }
 
 object MemoryLoadFileType {
+  // purely for backwards compatibility with chisel3's ChiselLoadMemoryAnnotation
+  type FileType = MemoryLoadFileType
+
   case object Hex extends MemoryLoadFileType("h")
   case object Binary extends MemoryLoadFileType("b")
   def deserialize(s: String): MemoryLoadFileType = s match {
