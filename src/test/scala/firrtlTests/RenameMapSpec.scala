@@ -443,20 +443,51 @@ class RenameMapSpec extends FirrtlFlatSpec {
     val from4 = modC.ref("ref")
     val to4   = modC.ref("refref")
 
-    val renames = RenameMap()
-    renames.record(from1, to1)
-    renames.record(from2, to2)
-    renames.record(from3, to3)
-    renames.record(from4, to4)
+    val renames1 = RenameMap()
+    renames1.record(from1, to1)
+    renames1.record(from2, to2)
+    renames1.record(from3, to3)
+    renames1.record(from4, to4)
 
-    renames.get(from1) should be {
+    renames1.get(from1) should be {
       Some(Seq(modA
         .instOf("b", "B")
         .instOf("c", "C")
-        .ref("refref")
-        .field("f11")
-        .field("f22")
+        .ref("ref")
+        .field("f1")
+        .field("f2")
         .field("f33")
+      ))
+    }
+
+    val renames2 = RenameMap()
+    renames2.record(from2, to2)
+    renames2.record(from3, to3)
+    renames2.record(from4, to4)
+
+    renames2.get(from1) should be {
+      Some(Seq(modA
+        .instOf("b", "B")
+        .instOf("c", "C")
+        .ref("ref")
+        .field("f1")
+        .field("f22")
+        .field("f3")
+      ))
+    }
+
+    val renames3 = RenameMap()
+    renames3.record(from3, to3)
+    renames3.record(from4, to4)
+
+    renames3.get(from1) should be {
+      Some(Seq(modA
+        .instOf("b", "B")
+        .instOf("c", "C")
+        .ref("ref")
+        .field("f11")
+        .field("f2")
+        .field("f3")
       ))
     }
   }

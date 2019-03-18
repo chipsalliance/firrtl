@@ -187,20 +187,22 @@ final class RenameMap private () {
     * @return Renamed targets
     */
   private def componentGet(errors: mutable.ArrayBuffer[String])(key: ReferenceTarget): Seq[ReferenceTarget] = {
-    def traverseTokens(key: ReferenceTarget): Seq[ReferenceTarget] = {
+    println("====== start componentGet ======")
+    def traverseTokens(key: ReferenceTarget): Option[Seq[ReferenceTarget]] = {
+      println(key.serialize)
       if (underlying.contains(key)) {
-        underlying(key).flatMap {
+        Some(underlying(key).flatMap {
           case r: ReferenceTarget if referenceTargetToInstancePath(r).isEmpty => Some(r)
           case other =>
             errors += s"Illegal rename: ${key} cannot be renamed to $other - must rename $key directly"
             None
-        }
+        })
       } else {
         key match {
           case t: ReferenceTarget if t.component.nonEmpty =>
             val last = t.component.last
             val parent = t.copy(component = t.component.dropRight(1))
-            traverseTokens(parent).flatMap { x =>
+            traverseTokens(parent).map(_.flatMap { x =>
               (x, last) match {
                 case (t2: ReferenceTarget, Field(f)) => Some(t2.field(f))
                 case (t2: ReferenceTarget, Index(i)) => Some(t2.index(i))
@@ -208,25 +210,33 @@ final class RenameMap private () {
                   errors += s"Illegal rename: ${key.targetParent} cannot be renamed to ${other._1} - must rename $key directly"
                   None
               }
-            }
-          case t: ReferenceTarget => traverseHierarchy(t)
+            })
+          case t: ReferenceTarget => None
         }
       }
     }
 
     def traverseHierarchy(key: ReferenceTarget): Seq[ReferenceTarget] = {
-      key match {
-        case t: ReferenceTarget if !t.isLocal =>
-          val encapsulatingInstance = t.path.head._1.value
-          val stripped = t.stripHierarchy(1)
-          traverseHierarchy(stripped).map {
-            _.addHierarchy(t.moduleOpt.get, encapsulatingInstance)
-          }
-        case t: ReferenceTarget => Seq(t)
+      val tokenRenamed = traverseTokens(key)
+      if (tokenRenamed.nonEmpty) {
+        tokenRenamed.get
+      } else {
+        key match {
+          case t: ReferenceTarget if !t.isLocal =>
+            val encapsulatingInstance = t.path.head._1.value
+            val stripped = t.stripHierarchy(1)
+            traverseHierarchy(stripped).map {
+              _.addHierarchy(t.moduleOpt.get, encapsulatingInstance)
+            }
+          case t: ReferenceTarget => Seq(t)
+        }
       }
     }
 
-    traverseTokens(key)
+    val asdf = traverseHierarchy(key)
+    println()
+    println()
+    asdf
   }
 
   /** Checks for renames of only the module portion of a [[IsModule]]
@@ -235,11 +245,29 @@ final class RenameMap private () {
     * @return Renamed targets
     */
   private def moduleGet(errors: mutable.ArrayBuffer[String])(key: IsModule): Seq[IsModule] = {
+    println("====== start moduleGet ======")
     def traverseLeft(key: IsModule): Option[Seq[IsModule]] = {
+      var from: CompleteTarget = null
+      var to: Seq[CompleteTarget] = null
       val getOpt = key match {
-        case t: ModuleTarget => underlying.get(t)
-        case t: InstanceTarget if underlying.contains(t) => underlying.get(t)
-        case t: InstanceTarget => underlying.get(t.targetParent.ref(t.instance))
+        case t: ModuleTarget =>
+          from = t
+          underlying.get(t)
+        case t: InstanceTarget if underlying.contains(t) =>
+          from = t
+          underlying.get(t)
+        case t: InstanceTarget =>
+          from = t.targetParent.ref(t.instance).copy(component = Seq(OfModule(t.ofModule)))
+          underlying.get(t.targetParent.ref(t.instance).copy(component = Seq(OfModule(t.ofModule))))
+      }
+
+      getOpt.foreach { asdf =>
+        to = asdf
+      }
+      if (to ne null) {
+        println(s"${from.serialize} -> ${to.map(_.serialize)}")
+      } else {
+        println(from.serialize)
       }
 
       if (getOpt.nonEmpty) {
@@ -266,20 +294,29 @@ final class RenameMap private () {
 
     def traverseRight(key: IsModule): Seq[IsModule] = {
       val findLeft = traverseLeft(key)
-      key match {
-        case t: ModuleTarget => Seq(t)
-        case t: InstanceTarget =>
-          val parent = t.targetParent
-          traverseRight(parent).map(_.instOf(t.instance, t.ofModule))
-        case other => Seq(other)
+      if (findLeft.nonEmpty) {
+        findLeft.get
+      } else {
+        key match {
+          case t: ModuleTarget => Seq(t)
+          case t: InstanceTarget =>
+            val parent = t.targetParent
+            traverseRight(parent).map(_.instOf(t.instance, t.ofModule))
+          case other => Seq(other)
+        }
       }
     }
 
     val pathTargets = sensitivity.empty ++ (key.pathAsTargets ++ key.pathAsTargets.map(_.asReference))
     if(key.pathAsTargets.nonEmpty && sensitivity.intersect(pathTargets).isEmpty) {
+      println()
+      println()
       Seq(key)
     } else {
-      traverseRight(key)
+      val asdf = traverseRight(key)
+      println()
+      println()
+      asdf
     }
   }
 
@@ -319,16 +356,19 @@ final class RenameMap private () {
       case ref: ReferenceTarget => referenceTargetToInstancePath(ref).getOrElse(ref)
       case other => other
     }
+    println("===== topGet =====")
     if(getCache.contains(normalized)) {
+      println(s"${normalized.serialize} -> ${getCache(normalized).map(_.serialize)}")
       getCache(normalized)
     } else {
+      println(normalized.serialize)
       val getter = recursiveGet(set, errors)(_)
 
       // For each remapped key, call recursiveGet on their parentTargets
       val ret = normalized match {
 
         // If t is a CircuitTarget, return it because it has no parent target
-        case t: CircuitTarget => Seq(t)
+        case t: CircuitTarget => underlying.getOrElse(t, Seq(t))
 
         /** If t is an InstanceTarget (has a path) but has no references:
           * 1) Check whether the instance has been renamed (asReference)
@@ -337,12 +377,12 @@ final class RenameMap private () {
         case t: IsModule =>
           val moduleRenamed = moduleGet(errors)(t)
           moduleRenamed.flatMap { mod =>
-            getter(mod.targetParent).flatMap {
-              case CircuitTarget(c) => moduleRenamed.map {
+            getter(CircuitTarget(mod.circuit)).map {
+              case CircuitTarget(c) => mod match {
                 case m: ModuleTarget => m.copy(circuit = c)
                 case i: InstanceTarget => i.copy(circuit = c)
               }
-              case other => Seq.empty
+              case other => mod
             }
           }
 
@@ -353,15 +393,15 @@ final class RenameMap private () {
         case t: ReferenceTarget =>
           val componentRenamed = componentGet(errors)(t)
           componentRenamed.flatMap { ref =>
-            getter(ref.targetParent).flatMap {
-              case m: IsModule => componentRenamed.map(_.setPathTarget(m))
-              case other => Seq.empty
+            getter(ref.pathTarget).map {
+              case m: IsModule => ref.setPathTarget(m)
+              case other => ref
             }
           }
       }
 
       // Cache result
-      getCache(key) = ret
+      getCache(normalized) = ret
 
       // Return result
       ret
