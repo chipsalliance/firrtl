@@ -181,15 +181,20 @@ final class RenameMap private () {
 
 
   /** Checks for renames of only the component portion of a [[ReferenceTarget]]
-    * @param set Used to detect circular renames
+    * NOTE: assumes key has been normalized
     * @param errors Used to record illegal renames
     * @param key Target to rename
     * @return Renamed targets
     */
-  private def componentGet(errors: mutable.ArrayBuffer[String])(key: ReferenceTarget): Seq[CompleteTarget] = {
-    def traverseTokens(key: ReferenceTarget): Seq[CompleteTarget] = {
+  private def componentGet(errors: mutable.ArrayBuffer[String])(key: ReferenceTarget): Seq[ReferenceTarget] = {
+    def traverseTokens(key: ReferenceTarget): Seq[ReferenceTarget] = {
       if (underlying.contains(key)) {
-        underlying(key)
+        underlying(key).flatMap {
+          case r: ReferenceTarget if referenceTargetToInstancePath(r).isEmpty => Some(r)
+          case other =>
+            errors += s"Illegal rename: ${key} cannot be renamed to $other - must rename $key directly"
+            None
+        }
       } else {
         key match {
           case t: ReferenceTarget if t.component.nonEmpty =>
@@ -205,12 +210,11 @@ final class RenameMap private () {
               }
             }
           case t: ReferenceTarget => traverseHierarchy(t)
-          case other => Seq(other)
         }
       }
     }
 
-    def traverseHierarchy(key: ReferenceTarget): Seq[CompleteTarget] = {
+    def traverseHierarchy(key: ReferenceTarget): Seq[ReferenceTarget] = {
       key match {
         case t: ReferenceTarget if !t.isLocal =>
           val encapsulatingInstance = t.path.head._1.value
@@ -225,6 +229,11 @@ final class RenameMap private () {
     traverseTokens(key)
   }
 
+  /** Checks for renames of only the module portion of a [[IsModule]]
+    * @param errors Used to record illegal renames
+    * @param key Target to rename
+    * @return Renamed targets
+    */
   private def moduleGet(errors: mutable.ArrayBuffer[String])(key: IsModule): Seq[IsModule] = {
     def traverseLeft(key: IsModule): Option[Seq[IsModule]] = {
       val getOpt = key match {
@@ -305,23 +314,18 @@ final class RenameMap private () {
   private def recursiveGet(set: mutable.LinkedHashSet[CompleteTarget],
                            errors: mutable.ArrayBuffer[String]
                           )(key: CompleteTarget): Seq[CompleteTarget] = {
-    if(getCache.contains(key)) {
-      getCache(key)
+    // first turn references that point to modules into InstanceTargets
+    val normalized = key match {
+      case ref: ReferenceTarget => referenceTargetToInstancePath(ref).getOrElse(ref)
+      case other => other
+    }
+    if(getCache.contains(normalized)) {
+      getCache(normalized)
     } else {
-      // If we've seen this key before in recursive calls to parentTargets, then we know a circular renaming
-      // mapping has occurred, and no legal name exists
-      if(set.contains(key) && !key.isInstanceOf[CircuitTarget]) {
-        throw CircularRenameException(s"Illegal rename: circular renaming is illegal - ${set.mkString(" -> ")}")
-      }
-
-      // Add key to set to detect circular renaming
-      set += key
-
-      // Curry recursiveGet for cleaner syntax below
       val getter = recursiveGet(set, errors)(_)
 
       // For each remapped key, call recursiveGet on their parentTargets
-      val ret = key match {
+      val ret = normalized match {
 
         // If t is a CircuitTarget, return it because it has no parent target
         case t: CircuitTarget => Seq(t)
@@ -343,23 +347,17 @@ final class RenameMap private () {
           */
         case t: ReferenceTarget =>
           val componentRenamed = componentGet(errors)(t)
-          val moduleRenamed = componentRenamed.flatMap {
-            case ref: ReferenceTarget =>
-              val instanceRenamed = moduleGet(errors)(t.pathTarget)
-              instanceRenamed.map(ref.setPathTarget(_))
-            case other => Seq(other)
+          componentRenamed.flatMap { ref =>
+            val instanceRenamed = moduleGet(errors)(t.pathTarget)
+            instanceRenamed.map(ref.setPathTarget(_))
           }
       }
-
-      // Remove key from set as visiting the same key twice is ok, as long as its not during the same recursive call
-      set -= key
 
       // Cache result
       getCache(key) = ret
 
       // Return result
       ret
-
     }
   }
   // scalastyle:on
