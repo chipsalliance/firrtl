@@ -287,9 +287,9 @@ final class RenameMap private () {
     */
   private def referenceTargetToInstancePath(ref: ReferenceTarget): Option[InstanceTarget] = {
     val tokenPath = (Seq(Instance(ref.ref), ref.tokens.head) +: ref.tokens.tail.grouped(2).toSeq)
-    val isModule = tokenPath.exists {
-      case Seq(i: Instance, o: OfModule) => false
-      case other => true
+    val isModule = tokenPath.forall {
+      case Seq(i: Instance, o: OfModule) => true
+      case other => false
     }
 
     if (isModule) {
