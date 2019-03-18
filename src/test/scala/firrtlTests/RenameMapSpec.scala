@@ -6,6 +6,7 @@ import firrtl.RenameMap
 import firrtl.FIRRTLException
 import firrtl.RenameMap.{CircularRenameException, IllegalRenameException}
 import firrtl.annotations._
+import firrtl.annotations.Target
 
 class RenameMapSpec extends FirrtlFlatSpec {
   val cir   = CircuitTarget("Top")
@@ -489,6 +490,28 @@ class RenameMapSpec extends FirrtlFlatSpec {
         .field("f2")
         .field("f3")
       ))
+    }
+  }
+
+  it should "correctly handle renaming of modules to instances" in {
+    val cir = CircuitTarget("Top")
+    val renames = RenameMap()
+    val from = cir.module("C")
+    val to = cir.module("D").instOf("e", "E").instOf("f", "F")
+    renames.record(from, to)
+    renames.get(cir.module("A").instOf("b", "B").instOf("c", "C")) should be {
+      None // what to do here?
+    }
+  }
+
+  it should "correctly handle renaming of paths and components at the same time" in {
+    val cir = CircuitTarget("Top")
+    val renames = RenameMap()
+    val from = cir.module("C").ref("foo").field("bar")
+    val to = cir.module("D").instOf("e", "E").instOf("f", "F").ref("foo").field("foo")
+    renames.record(from, to)
+    renames.get(cir.module("A").instOf("b", "B").instOf("c", "C").ref("foo").field("bar")) should be {
+      None // what to do here?
     }
   }
 }
