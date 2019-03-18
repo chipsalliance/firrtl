@@ -257,6 +257,7 @@ final class RenameMap private () {
         })
       } else {
         key match {
+          case t: InstanceTarget if t.isLocal => traverseLeft(ModuleTarget(t.circuit, t.ofModule))
           case t: InstanceTarget => traverseLeft(t.stripHierarchy(1))
           case t: ModuleTarget => None
         }
@@ -268,8 +269,7 @@ final class RenameMap private () {
       key match {
         case t: ModuleTarget => Seq(t)
         case t: InstanceTarget =>
-          val (Instance(parentInst), OfModule(parentOfMod)) = t.path.last
-          val parent = t.copy(path = t.path.dropRight(1), instance = parentInst, ofModule = parentOfMod)
+          val parent = t.targetParent
           traverseRight(parent).map(_.instOf(t.instance, t.ofModule))
         case other => Seq(other)
       }
@@ -330,16 +330,21 @@ final class RenameMap private () {
         // If t is a CircuitTarget, return it because it has no parent target
         case t: CircuitTarget => Seq(t)
 
-        // If t is a ModuleTarget, try to rename parent target, then update t's parent
-        case t: ModuleTarget => getter(t.targetParent).map {
-          case CircuitTarget(c) => ModuleTarget(c, t.module)
-        }
-
         /** If t is an InstanceTarget (has a path) but has no references:
           * 1) Check whether the instance has been renamed (asReference)
           * 2) Check whether the ofModule of the instance has been renamed (only 1:1 renaming is ok)
           */
-        case t: InstanceTarget => moduleGet(errors)(t.pathTarget)
+        case t: IsModule =>
+          val moduleRenamed = moduleGet(errors)(t)
+          moduleRenamed.flatMap { mod =>
+            getter(mod.targetParent).flatMap {
+              case CircuitTarget(c) => moduleRenamed.map {
+                case m: ModuleTarget => m.copy(circuit = c)
+                case i: InstanceTarget => i.copy(circuit = c)
+              }
+              case other => Seq.empty
+            }
+          }
 
         /** If t is a ReferenceTarget:
           * 1) Check parentTarget to tokens
@@ -348,8 +353,10 @@ final class RenameMap private () {
         case t: ReferenceTarget =>
           val componentRenamed = componentGet(errors)(t)
           componentRenamed.flatMap { ref =>
-            val instanceRenamed = moduleGet(errors)(t.pathTarget)
-            instanceRenamed.map(ref.setPathTarget(_))
+            getter(ref.targetParent).flatMap {
+              case m: IsModule => componentRenamed.map(_.setPathTarget(m))
+              case other => Seq.empty
+            }
           }
       }
 
