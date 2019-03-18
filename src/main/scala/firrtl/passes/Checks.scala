@@ -171,8 +171,8 @@ object CheckHighForm extends Pass {
         case DefRegister(info, name, tpe, _, reset, init) =>
           if (hasFlip(tpe))
             errors.append(new RegWithFlipException(info, mname, name))
-          if (reset.tpe == AsyncResetType && !init.isInstanceOf[Literal])
-            errors.append(new NonLiteralAsyncResetValueException(info, mname, name, init.serialize))
+          //if (reset.tpe == AsyncResetType && !init.isInstanceOf[Literal])
+          //  errors.append(new NonLiteralAsyncResetValueException(info, mname, name, init.serialize))
         case sx: DefMemory =>
           if (hasFlip(sx.dataType))
             errors.append(new MemWithFlipException(info, mname, sx.name))

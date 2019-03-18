@@ -76,19 +76,20 @@ class AsyncResetSpec extends FirrtlFlatSpec {
     result should containLine ("assign z = a;")
   }
 
-  "Non-literals" should "NOT be allowed as reset values for AsyncReset" in {
-    an [passes.CheckHighForm.NonLiteralAsyncResetValueException] shouldBe thrownBy {
-      compileBody(s"""
-        |input clock : Clock
-        |input reset : AsyncReset
-        |input x : UInt<8>
-        |input y : UInt<8>
-        |output z : UInt<8>
-        |reg r : UInt<8>, clock with : (reset => (reset, y))
-        |r <= x
-        |z <= r""".stripMargin
-      )
-    }
+  "Non-literals" should "be allowed as reset values for AsyncReset" in {
+    val result = compileBody(s"""
+      |input clock : Clock
+      |input reset : AsyncReset
+      |input x : UInt<8>
+      |input y : UInt<8>
+      |output z : UInt<8>
+      |reg r : UInt<8>, clock with : (reset => (reset, y))
+      |r <= x
+      |z <= r""".stripMargin
+    )
+    result should containLine ("always @(posedge clock or posedge reset) begin")
+    result should containLine ("r <= y;")
+    result should containLine ("r <= x;")
   }
 
 
