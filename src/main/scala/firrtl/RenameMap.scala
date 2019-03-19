@@ -186,18 +186,13 @@ final class RenameMap private () {
     * @param key Target to rename
     * @return Renamed targets
     */
-  private def componentGet(errors: mutable.ArrayBuffer[String])(key: ReferenceTarget): Seq[ReferenceTarget] = {
+  private def componentGet(errors: mutable.ArrayBuffer[String])(key: ReferenceTarget): Seq[CompleteTarget] = {
     println("====== start componentGet ======")
-    def traverseTokens(key: ReferenceTarget): Option[Seq[ReferenceTarget]] = {
+    def traverseTokens(key: ReferenceTarget): Option[Seq[CompleteTarget]] = {
       println(key.serialize)
       if (underlying.contains(key)) {
         println(s"${key.serialize} -> ${underlying(key).map(_.serialize)}")
-        Some(underlying(key).flatMap {
-          case r: ReferenceTarget if referenceTargetToInstancePath(r).isEmpty => Some(r)
-          case other =>
-            errors += s"Illegal rename: $key cannot be renamed to $other - must rename $key directly"
-            None
-        })
+        Some(underlying(key))
       } else {
         println(s"${key.serialize}")
         key match {
@@ -218,7 +213,7 @@ final class RenameMap private () {
       }
     }
 
-    def traverseHierarchy(key: ReferenceTarget): Seq[ReferenceTarget] = {
+    def traverseHierarchy(key: ReferenceTarget): Seq[CompleteTarget] = {
       val tokenRenamed = traverseTokens(key)
       if (tokenRenamed.nonEmpty) {
         tokenRenamed.get
@@ -259,7 +254,7 @@ final class RenameMap private () {
           underlying.get(t)
         case t: InstanceTarget =>
           from = t.targetParent.ref(t.instance).copy(component = Seq(OfModule(t.ofModule)))
-          underlying.get(t.targetParent.ref(t.instance).copy(component = Seq(OfModule(t.ofModule))))
+          underlying.get(t.asReference)
       }
 
       if (getOpt.nonEmpty) {
@@ -271,11 +266,15 @@ final class RenameMap private () {
       if (getOpt.nonEmpty) {
         getOpt.map(_.flatMap {
           case ref: ReferenceTarget =>
-            val instancePath = referenceTargetToInstancePath(ref)
-            if (instancePath.isEmpty) {
-              errors += s"Illegal rename: $key cannot be renamed to $ref - must rename $key directly"
+            if (ref.component.isEmpty) {
+              val ofModule = key match {
+                case t: ModuleTarget => t.module
+                case t: InstanceTarget => t.ofModule
+              }
+              Some(InstanceTarget(ref.circuit, ref.module, ref.path, ref.ref, ofModule))
+            } else {
+              ???
             }
-            instancePath
           case isMod: IsModule => Some(isMod)
           case other =>
             errors += s"Illegal rename: $key cannot be renamed to $other - must rename $key directly"
@@ -284,8 +283,16 @@ final class RenameMap private () {
       } else {
         key match {
           case t: InstanceTarget if t.isLocal =>
-            traverseLeft(ModuleTarget(t.circuit, t.ofModule))
-          case t: InstanceTarget => traverseLeft(t.stripHierarchy(1))
+            traverseLeft(ModuleTarget(t.circuit, t.ofModule)).map(_.map {
+              _.addHierarchy(t.moduleOpt.get, t.instance)
+            })
+          case t: InstanceTarget =>
+            val encapsulatingInstance = t.path.head._1.value
+            val stripped = t.stripHierarchy(1)
+            traverseLeft(stripped).map(_.map {
+              _.addHierarchy(t.moduleOpt.get, encapsulatingInstance)
+            })
+            //traverseLeft(t.stripHierarchy(1))
           case t: ModuleTarget => None
         }
       }
@@ -313,7 +320,7 @@ final class RenameMap private () {
 
   /** Converts a reference to Some[InstancePath] if its tokens form a valid path, None otherwise
     */
-  private def referenceTargetToInstancePath(ref: ReferenceTarget): Option[InstanceTarget] = {
+  private def normalizeReference(ref: ReferenceTarget): Option[InstanceTarget] = {
     val tokenPath = (Seq(Instance(ref.ref), ref.tokens.head) +: ref.tokens.tail.grouped(2).toSeq)
     val isModule = tokenPath.forall {
       case Seq(i: Instance, o: OfModule) => true
@@ -344,7 +351,7 @@ final class RenameMap private () {
                           )(key: CompleteTarget): Seq[CompleteTarget] = {
     // first turn references that point to modules into InstanceTargets
     val normalized = key match {
-      case ref: ReferenceTarget => referenceTargetToInstancePath(ref).getOrElse(ref)
+      case ref: ReferenceTarget => normalizeReference(ref).getOrElse(ref)
       case other => other
     }
     println("===== topGet =====")
@@ -387,11 +394,23 @@ final class RenameMap private () {
           */
         case t: ReferenceTarget =>
           val componentRenamed = componentGet(errors)(t)
-          componentRenamed.flatMap { ref =>
-            getter(ref.pathTarget).map {
-              case m: IsModule => ref.setPathTarget(m)
-              case other => ref
-            }
+          componentRenamed.flatMap {
+            case mod: IsModule =>
+              getter(CircuitTarget(mod.circuit)).map {
+                case CircuitTarget(c) => mod match {
+                  case m: ModuleTarget => m.copy(circuit = c)
+                  case i: InstanceTarget => i.copy(circuit = c)
+                }
+                case other => mod
+              }
+            case ref: ReferenceTarget =>
+              getter(ref.pathTarget).map {
+                case m: IsModule => ref.setPathTarget(m)
+                case other => ref
+              }
+            case other =>
+              errors += s"Illegal rename: $key cannot be renamed to $other - must rename $key directly"
+              Seq.empty
           }
       }
 
