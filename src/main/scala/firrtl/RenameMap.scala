@@ -187,14 +187,10 @@ final class RenameMap private () {
     * @return Renamed targets
     */
   private def componentGet(errors: mutable.ArrayBuffer[String])(key: ReferenceTarget): Seq[CompleteTarget] = {
-    println("====== start componentGet ======")
     def traverseTokens(key: ReferenceTarget): Option[Seq[CompleteTarget]] = {
-      println(key.serialize)
       if (underlying.contains(key)) {
-        println(s"${key.serialize} -> ${underlying(key).map(_.serialize)}")
         Some(underlying(key))
       } else {
-        println(s"${key.serialize}")
         key match {
           case t: ReferenceTarget if t.component.nonEmpty =>
             val last = t.component.last
@@ -230,10 +226,7 @@ final class RenameMap private () {
       }
     }
 
-    val asdf = traverseHierarchy(key)
-    println()
-    println()
-    asdf
+    traverseHierarchy(key)
   }
 
   /** Checks for renames of only the module portion of a [[IsModule]]
@@ -242,7 +235,6 @@ final class RenameMap private () {
     * @return Renamed targets
     */
   private def moduleGet(errors: mutable.ArrayBuffer[String])(key: IsModule): Seq[IsModule] = {
-    println("====== start moduleGet ======")
     def traverseLeft(key: IsModule): Option[Seq[IsModule]] = {
       var from: CompleteTarget = null
       val getOpt = key match {
@@ -255,12 +247,6 @@ final class RenameMap private () {
         case t: InstanceTarget =>
           from = t.targetParent.ref(t.instance).copy(component = Seq(OfModule(t.ofModule)))
           underlying.get(t.asReference)
-      }
-
-      if (getOpt.nonEmpty) {
-        println(s"${from.serialize} -> ${getOpt.get.map(_.serialize)}")
-      } else {
-        println(from.serialize)
       }
 
       if (getOpt.nonEmpty) {
@@ -312,10 +298,7 @@ final class RenameMap private () {
       }
     }
 
-    val asdf = traverseRight(key)
-    println()
-    println()
-    asdf
+    traverseRight(key)
   }
 
   /** Converts a reference to Some[InstancePath] if its tokens form a valid path, None otherwise
@@ -354,16 +337,9 @@ final class RenameMap private () {
       case ref: ReferenceTarget => normalizeReference(ref).getOrElse(ref)
       case other => other
     }
-    println("===== topGet =====")
     if(getCache.contains(normalized)) {
-      println(s"${normalized.serialize} -> ${getCache(normalized).map(_.serialize)}")
-      println()
-      println()
       getCache(normalized)
     } else {
-      println(normalized.serialize)
-      println()
-      println()
       val getter = recursiveGet(set, errors)(_)
 
       // For each remapped key, call recursiveGet on their parentTargets
