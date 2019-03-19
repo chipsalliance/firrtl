@@ -68,8 +68,8 @@ class CheckInitializationSpec extends FirrtlFlatSpec {
         |      x <= UInt(1)
         |    x <= UInt(1)
         |    """.stripMargin
-    passes.foldLeft(CircuitState(parse(input), UnknownForm)) {
-      (c: CircuitState, p: Transform) => p.runTransform(c)
+    passes.foldLeft(parse(input)) {
+      (c: Circuit, p: Pass) => p.run(c)
     }
   }
 
@@ -88,8 +88,8 @@ class CheckInitializationSpec extends FirrtlFlatSpec {
         |        x <= UInt(2)
         |    x <= UInt(1)
         |    """.stripMargin
-    passes.foldLeft(CircuitState(parse(input), UnknownForm)) {
-      (c: CircuitState, p: Transform) => p.runTransform(c)
+    passes.foldLeft(parse(input)) {
+      (c: Circuit, p: Pass) => p.run(c)
     }
   }
 
