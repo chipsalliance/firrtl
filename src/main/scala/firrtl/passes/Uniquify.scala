@@ -2,8 +2,6 @@
 
 package firrtl.passes
 
-import com.typesafe.scalalogging.LazyLogging
-
 import scala.annotation.tailrec
 import firrtl._
 import firrtl.ir._

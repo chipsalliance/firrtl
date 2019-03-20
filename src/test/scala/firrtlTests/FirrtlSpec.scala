@@ -91,12 +91,43 @@ trait FirrtlRunners extends BackendCompilationUtilities {
     assert(yosysExpectSuccess(customTop, referenceTop, testDir, resets))
   }
 
+  def toMiddleFIRRTL(circuit: Circuit): Circuit =
+    new MiddleFirrtlCompiler().compile(CircuitState(circuit, ChirrtlForm), Nil).circuit
+
   /** Compiles input Firrtl to Verilog */
   def compileToVerilog(input: String, annotations: AnnotationSeq = Seq.empty): String = {
     val circuit = Parser.parse(input.split("\n").toIterator)
     val compiler = new VerilogCompiler
     val res = compiler.compileAndEmit(CircuitState(circuit, HighForm, annotations), extraCheckTransforms)
     res.getEmittedCircuit.value
+  }
+  /** Execute a FIRRTL file
+    *
+    * @param prefix is the name of the Firrtl file without path or file extension
+    * @param srcDir directory where all Resources for this test are located
+    * @param annotations Optional Firrtl annotations
+    */
+  def executeFirrtlTest(
+                         prefix: String,
+                         srcDir: String,
+                         customTransforms: Seq[Transform] = Seq.empty,
+                         annotations: AnnotationSeq = Seq.empty
+                       ): CircuitState = {
+    val testDir = createTestDirectory(prefix)
+    //copyResourceToFile(s"${srcDir}/${prefix}.fir", new File(testDir, s"${prefix}.fir"))
+    linkResourceToFile(s"${srcDir}/${prefix}.fir", new File(testDir, s"${prefix}.fir"))
+
+    val optionsManager = new ExecutionOptionsManager(prefix) with HasFirrtlOptions {
+      commonOptions = CommonOptions(topName = prefix, targetDirName = testDir.getPath, globalLogLevel= logger.LogLevel.Info)
+      firrtlOptions = FirrtlExecutionOptions(
+        infoModeName = "ignore",
+        customTransforms = customTransforms,
+        annotations = annotations.toList
+      )
+    }
+    firrtl.Driver.execute(optionsManager) match {
+      case f: FirrtlExecutionSuccess => f.circuitState
+    }
   }
   /** Compile a Firrtl file
     *
@@ -123,6 +154,7 @@ trait FirrtlRunners extends BackendCompilationUtilities {
 
     testDir
   }
+
   /** Execute a Firrtl Test
     *
     * @param prefix is the name of the Firrtl file without path or file extension

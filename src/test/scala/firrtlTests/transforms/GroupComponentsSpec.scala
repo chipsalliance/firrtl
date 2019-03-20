@@ -1,3 +1,5 @@
+// See LICENSE for license details.
+
 package firrtlTests
 package transforms
 
@@ -177,8 +179,7 @@ class GroupComponentsSpec extends MiddleTransformSpec {
          |    out <= UInt(1)
          |  module Const2B :
          |    output out: UInt<8>
-         |    out <= UInt(2)
-      """.stripMargin
+         |    out <= UInt(2)""".stripMargin
     val groups = Seq(
       GroupAnnotation(Seq(topComp("c1a"), topComp("c2a"), topComp("asum")), "A", "cA", Some("_OUT"), Some("_IN")),
       GroupAnnotation(Seq(topComp("c1b"), topComp("c2b"), topComp("bsum")), "B", "cB", Some("_OUT"), Some("_IN"))

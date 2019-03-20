@@ -2,9 +2,8 @@
 
 package firrtl.graph
 
-import scala.collection.{Set, Map}
-import scala.collection.mutable
-import scala.collection.mutable.{LinkedHashSet, LinkedHashMap}
+import scala.collection.{Map, Set, mutable}
+import scala.collection.mutable.{LinkedHashMap, LinkedHashSet}
 
 /** An exception that is raised when an assumed DAG has a cycle */
 class CyclicException(val node: Any) extends Exception(s"No valid linearization for cyclic graph, found at $node")
@@ -34,7 +33,9 @@ object DiGraph {
 }
 
 /** Represents common behavior of all directed graphs */
-class DiGraph[T] private[graph] (private[graph] val edges: LinkedHashMap[T, LinkedHashSet[T]]) {
+trait DiGraphLike[T] {
+  private[graph] val edges: LinkedHashMap[T, LinkedHashSet[T]]
+
   /** Check whether the graph contains vertex v */
   def contains(v: T): Boolean = edges.contains(v)
 
@@ -44,11 +45,12 @@ class DiGraph[T] private[graph] (private[graph] val edges: LinkedHashMap[T, Link
   // The pattern of mapping map pairs to keys maintains LinkedHashMap ordering
   def getVertices: Set[T] = new LinkedHashSet ++ edges.map({ case (k, _) => k })
 
+
   /** Get all edges of a node
     * @param v the specified node
     * @return a Set[T] of all vertices that v has edges to
     */
-  def getEdges(v: T): Set[T] = edges.getOrElse(v, Set.empty)
+  def getEdges(v: T, prevOpt: Option[collection.Map[T, T]] = None): Set[T] = edges.getOrElse(v, Set.empty)
 
   def getEdgeMap: Map[T, Set[T]] = edges
 
@@ -77,6 +79,7 @@ class DiGraph[T] private[graph] (private[graph] val edges: LinkedHashMap[T, Link
     // invariant: no intersection between unmarked and tempMarked
     val unmarked = new mutable.LinkedHashSet[T]
     val tempMarked = new mutable.LinkedHashSet[T]
+    val finished = new mutable.LinkedHashSet[T]
 
     case class LinearizeFrame[T](v: T, expanded: Boolean)
     val callStack = mutable.Stack[LinearizeFrame[T]]()
@@ -88,6 +91,7 @@ class DiGraph[T] private[graph] (private[graph] val edges: LinkedHashMap[T, Link
         val LinearizeFrame(n, expanded) = callStack.pop()
         if (!expanded) {
           if (tempMarked.contains(n)) {
+            println(tempMarked.toSeq)
             throw new CyclicException(n)
           }
           if (unmarked.contains(n)) {
@@ -95,12 +99,16 @@ class DiGraph[T] private[graph] (private[graph] val edges: LinkedHashMap[T, Link
             unmarked -= n
             callStack.push(LinearizeFrame(n, true))
             // We want to visit the first edge first (so push it last)
-            for (m <- edges.getOrElse(n, Set.empty).toSeq.reverse) {
+            for (m <- getEdges(n).toSeq.reverse) {
+              if(!unmarked.contains(m) && !tempMarked.contains(m) && !finished.contains(m)){
+                unmarked += m
+              }
               callStack.push(LinearizeFrame(m, false))
             }
           }
         } else {
           tempMarked -= n
+          finished += n
           order.append(n)
         }
       }
@@ -158,15 +166,17 @@ class DiGraph[T] private[graph] (private[graph] val edges: LinkedHashMap[T, Link
     * traversal
     */
   def BFS(root: T, blacklist: Set[T]): Map[T,T] = {
-    val prev = new mutable.LinkedHashMap[T,T]
-    val queue = new mutable.Queue[T]
-    queue.enqueue(root)
-    while (queue.nonEmpty) {
-      val u = queue.dequeue
-      for (v <- getEdges(u)) {
+
+    val prev = new LinkedHashMap[T, T]()
+
+    val bfsQueue = new mutable.Queue[T]()
+    bfsQueue.enqueue(root)
+    while (bfsQueue.nonEmpty) {
+      val u = bfsQueue.dequeue
+      for (v <- getEdges(u, Some(prev))) {
         if (!prev.contains(v) && !blacklist.contains(v)) {
           prev(v) = u
-          queue.enqueue(v)
+          bfsQueue.enqueue(v)
         }
       }
     }
@@ -388,6 +398,8 @@ class DiGraph[T] private[graph] (private[graph] val edges: LinkedHashMap[T, Link
   }
 }
 
+class DiGraph[T] private[graph](private[graph] val edges: mutable.LinkedHashMap[T, mutable.LinkedHashSet[T]]) extends DiGraphLike[T]
+
 class MutableDiGraph[T] extends DiGraph[T](new LinkedHashMap[T, LinkedHashSet[T]]) {
   /** Add vertex v to the graph
     * @return v, the added vertex
@@ -425,3 +437,4 @@ class MutableDiGraph[T] extends DiGraph[T](new LinkedHashMap[T, LinkedHashSet[T]
     valid
   }
 }
+
