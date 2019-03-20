@@ -8,6 +8,7 @@ import Utils.indent
 /** Intermediate Representation */
 abstract class FirrtlNode {
   def serialize: String
+  override def hashCode: Int = serialize.hashCode
 }
 
 abstract class Info extends FirrtlNode {
