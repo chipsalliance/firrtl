@@ -8,6 +8,8 @@ import firrtl.ir._
 import WrappedExpression._
 import WrappedWidth._
 
+import scala.util.hashing.MurmurHash3
+
 trait Kind
 case object WireKind extends Kind
 case object PoisonKind extends Kind
@@ -26,6 +28,7 @@ case object UNKNOWNGENDER extends Gender
 
 case class WRef(name: String, tpe: Type, kind: Kind, gender: Gender) extends Expression {
   def serialize: String = name
+  override def hashCode: Int = serialize.hashCode
   def mapExpr(f: Expression => Expression): Expression = this
   def mapType(f: Type => Type): Expression = this.copy(tpe = f(tpe))
   def mapWidth(f: Width => Width): Expression = this
@@ -50,6 +53,7 @@ object WRef {
   def apply(n: String, t: Type = UnknownType, k: Kind = ExpKind): WRef = new WRef(n, t, k, UNKNOWNGENDER)
 }
 case class WSubField(expr: Expression, name: String, tpe: Type, gender: Gender) extends Expression {
+  override def hashCode: Int = serialize.hashCode
   def serialize: String = s"${expr.serialize}.$name"
   def mapExpr(f: Expression => Expression): Expression = this.copy(expr = f(expr))
   def mapType(f: Type => Type): Expression = this.copy(tpe = f(tpe))
@@ -64,6 +68,7 @@ object WSubField {
 }
 case class WSubIndex(expr: Expression, value: Int, tpe: Type, gender: Gender) extends Expression {
   def serialize: String = s"${expr.serialize}[$value]"
+  override def hashCode: Int = serialize.hashCode
   def mapExpr(f: Expression => Expression): Expression = this.copy(expr = f(expr))
   def mapType(f: Type => Type): Expression = this.copy(tpe = f(tpe))
   def mapWidth(f: Width => Width): Expression = this
@@ -72,6 +77,7 @@ case class WSubIndex(expr: Expression, value: Int, tpe: Type, gender: Gender) ex
   def foreachWidth(f: Width => Unit): Unit = Unit
 }
 case class WSubAccess(expr: Expression, index: Expression, tpe: Type, gender: Gender) extends Expression {
+  override def hashCode: Int = serialize.hashCode
   def serialize: String = s"${expr.serialize}[${index.serialize}]"
   def mapExpr(f: Expression => Expression): Expression = this.copy(expr = f(expr), index = f(index))
   def mapType(f: Type => Type): Expression = this.copy(tpe = f(tpe))
@@ -112,6 +118,7 @@ case object EmptyExpression extends Expression {
   def foreachWidth(f: Width => Unit): Unit = Unit
 }
 case class WDefInstance(info: Info, name: String, module: String, tpe: Type) extends Statement with IsDeclaration {
+  override def hashCode: Int = serialize.hashCode
   def serialize: String = s"inst $name of $module" + info.serialize
   def mapExpr(f: Expression => Expression): Statement = this
   def mapStmt(f: Statement => Statement): Statement = this
