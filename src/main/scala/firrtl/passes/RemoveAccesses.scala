@@ -90,7 +90,7 @@ object RemoveAccesses extends Pass {
 
         /** Replaces a subaccess in a given male expression
           */
-        val stmts = mutable.ArrayBuffer[Statement]()
+        val stmts = mutable.ListBuffer[Statement]()
         def removeMale(e: Expression): Expression = e match {
           case (_:WSubAccess| _: WSubField| _: WSubIndex| _: WRef) if hasAccess(e) =>
             val rs = getLocations(e)
@@ -155,7 +155,7 @@ object RemoveAccesses extends Pass {
           case sxx => sxx map fixMale map onStmt
         }
         stmts += sx
-        if (stmts.size != 1) Block(stmts) else stmts(0)
+        if (stmts.size != 1) Block(stmts.toList) else stmts(0)
       }
       Module(m.info, m.name, m.ports, squashEmpty(onStmt(m.body)))
     }

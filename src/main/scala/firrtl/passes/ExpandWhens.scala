@@ -32,7 +32,7 @@ object ExpandWhens extends Pass {
       case m: Module =>
       val (netlist, simlist, attaches, bodyx, sourceInfoMap) = expandWhens(m)
       val attachedAnalogs = attaches.flatMap(_.exprs.map(we)).toSet
-      val newBody = Block(Seq(squashEmpty(bodyx)) ++ expandNetlist(netlist, attachedAnalogs, sourceInfoMap) ++
+      val newBody = Block(List(squashEmpty(bodyx)) ++ expandNetlist(netlist, attachedAnalogs, sourceInfoMap) ++
                               combineAttaches(attaches) ++ simlist)
       Module(m.info, m.name, m.ports, newBody)
     }
@@ -207,7 +207,7 @@ object ExpandWhens extends Pass {
               EmptyStmt
           }
         }
-        Block(Seq(conseqStmt, altStmt) ++ memos)
+        Block(List(conseqStmt, altStmt) ++ memos)
       case block: Block => block map expandWhens(netlist, defaults, p)
       case _ => throwInternalError()
     }

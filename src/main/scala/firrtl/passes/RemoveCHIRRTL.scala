@@ -3,7 +3,7 @@
 package firrtl.passes
 
 // Datastructures
-import scala.collection.mutable.ArrayBuffer
+import scala.collection.mutable.{ArrayBuffer, ListBuffer}
 import firrtl._
 import firrtl.ir._
 import firrtl.Utils._
@@ -11,7 +11,7 @@ import firrtl.Mappers._
 import firrtl.PrimOps.AsClock
 
 case class MPort(name: String, clk: Expression)
-case class MPorts(readers: ArrayBuffer[MPort], writers: ArrayBuffer[MPort], readwriters: ArrayBuffer[MPort])
+case class MPorts(readers: ListBuffer[MPort], writers: ListBuffer[MPort], readwriters: ListBuffer[MPort])
 case class DataRef(exp: Expression, male: String, female: String, mask: String, rdwrite: Boolean)
 
 object RemoveCHIRRTL extends Transform {
@@ -50,7 +50,7 @@ object RemoveCHIRRTL extends Transform {
     }
   }
 
-  private def EMPs: MPorts = MPorts(ArrayBuffer[MPort](), ArrayBuffer[MPort](), ArrayBuffer[MPort]())
+  private def EMPs: MPorts = MPorts(ListBuffer[MPort](), ListBuffer[MPort](), ListBuffer[MPort]())
 
   def collect_smems_and_mports(mports: MPortMap, smems: SeqMemSet)(s: Statement): Statement = {
     s match {
@@ -75,7 +75,7 @@ object RemoveCHIRRTL extends Transform {
       types(sx.name) = sx.tpe
       val taddr = UIntType(IntWidth(1 max ceilLog2(sx.size)))
       val tdata = sx.tpe
-      def set_poison(vec: Seq[MPort]) = vec flatMap (r => Seq(
+      def set_poison(vec: List[MPort]) = vec flatMap (r => List(
         IsInvalid(sx.info, SubField(SubField(Reference(sx.name, ut), r.name, ut), "addr", taddr)),
         IsInvalid(sx.info, SubField(SubField(Reference(sx.name, ut), r.name, ut), "clk", ClockType))
       ))
@@ -87,9 +87,9 @@ object RemoveCHIRRTL extends Transform {
         val portRef = SubField(Reference(sx.name, ut), r.name, ut)
         Seq(IsInvalid(sx.info, SubField(portRef, data, tdata)), IsInvalid(sx.info, SubField(portRef, mask, tmask)))
       }
-      val rds = (mports getOrElse (sx.name, EMPs)).readers
-      val wrs = (mports getOrElse (sx.name, EMPs)).writers
-      val rws = (mports getOrElse (sx.name, EMPs)).readwriters
+      val rds = (mports getOrElse (sx.name, EMPs)).readers.toList
+      val wrs = (mports getOrElse (sx.name, EMPs)).writers.toList
+      val rws = (mports getOrElse (sx.name, EMPs)).readwriters.toList
       val stmts = set_poison(rds) ++
         set_enable(rds, "en") ++
         set_poison(wrs) ++
@@ -108,9 +108,9 @@ object RemoveCHIRRTL extends Transform {
         case None =>
           throw new PassException(s"Undefined memory ${sx.mem} referenced by mport ${sx.name}")
       }
-      val addrs = ArrayBuffer[String]()
-      val clks = ArrayBuffer[String]()
-      val ens = ArrayBuffer[String]()
+      val addrs = ListBuffer[String]()
+      val clks = ListBuffer[String]()
+      val ens = ListBuffer[String]()
       val masks = ArrayBuffer.empty[Expression]
       val portRef = SubField(Reference(sx.mem, ut), sx.name, ut)
       sx.direction match {
@@ -158,9 +158,9 @@ object RemoveCHIRRTL extends Transform {
         case MInfer => // do nothing if it's not being used
       }
       Block(
-        (addrs map (x => Connect(sx.info, SubField(portRef, x, ut), sx.exps.head))) ++
-        (clks map (x => Connect(sx.info, SubField(portRef, x, ut), sx.exps(1)))) ++
-        (ens map (x => Connect(sx.info,SubField(portRef, x, ut), one))) ++
+        (addrs.toList map (x => Connect(sx.info, SubField(portRef, x, ut), sx.exps.head))) ++
+        (clks.toList map (x => Connect(sx.info, SubField(portRef, x, ut), sx.exps(1)))) ++
+        (ens.toList map (x => Connect(sx.info,SubField(portRef, x, ut), one))) ++
          masks.map(lhs => Connect(sx.info, lhs, zero))
       )
     case sx => sx map collect_refs(mports, smems, types, refs, raddrs, renames)
@@ -209,13 +209,13 @@ object RemoveCHIRRTL extends Transform {
         remove_chirrtl_e(FEMALE)(Reference(name, value.tpe))
         has_read_mport match {
           case None => sx
-          case Some(en) => Block(Seq(sx, Connect(info, en, one)))
+          case Some(en) => Block(List(sx, Connect(info, en, one)))
         }
       case Connect(info, loc, expr) =>
         val rocx = remove_chirrtl_e(MALE)(expr)
         val locx = remove_chirrtl_e(FEMALE)(loc)
         val sx = Connect(info, locx, rocx)
-        val stmts = ArrayBuffer[Statement]()
+        val stmts = ListBuffer[Statement]()
         has_read_mport match {
           case None =>
           case Some(en) => stmts += Connect(info, en, one)
@@ -228,12 +228,12 @@ object RemoveCHIRRTL extends Transform {
             case Some(wmode) => stmts += Connect(info, wmode, one)
           }
         }
-        if (stmts.isEmpty) sx else Block(sx +: stmts)
+        if (stmts.isEmpty) sx else Block(sx +: stmts.toList)
       case PartialConnect(info, loc, expr) =>
         val locx = remove_chirrtl_e(FEMALE)(loc)
         val rocx = remove_chirrtl_e(MALE)(expr)
         val sx = PartialConnect(info, locx, rocx)
-        val stmts = ArrayBuffer[Statement]()
+        val stmts = ListBuffer[Statement]()
         has_read_mport match {
           case None =>
           case Some(en) => stmts += Connect(info, en, one)
@@ -247,7 +247,7 @@ object RemoveCHIRRTL extends Transform {
             case Some(wmode) => stmts += Connect(info, wmode, one)
           }
         }
-        if (stmts.isEmpty) sx else Block(sx +: stmts)
+        if (stmts.isEmpty) sx else Block(sx +: stmts.toList)
       case sx => sx map remove_chirrtl_s(refs, raddrs) map remove_chirrtl_e(MALE)
     }
   }

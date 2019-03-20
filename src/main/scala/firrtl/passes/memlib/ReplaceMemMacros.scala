@@ -98,7 +98,7 @@ class ReplaceMemMacros(writer: ConfWriter) extends Transform {
     val hasMask = m.maskGran.isDefined
     val fillMask = getFillWMask(m)
     def portRef(p: String) = WRef(p, field_type(wrapperIoType, p))
-    val stmts = Seq(WDefInstance(NoInfo, m.name, m.name, UnknownType)) ++
+    val stmts = List(WDefInstance(NoInfo, m.name, m.name, UnknownType)) ++
       (m.readers flatMap (r => adaptReader(portRef(r), WSubField(bbRef, r)))) ++
       (m.writers flatMap (w => adaptWriter(portRef(w), WSubField(bbRef, w), hasMask, fillMask))) ++
       (m.readwriters flatMap (rw => adaptReadWriter(portRef(rw), WSubField(bbRef, rw), hasMask, fillMask)))

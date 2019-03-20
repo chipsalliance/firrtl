@@ -179,8 +179,8 @@ class Wiring(wiSeq: Seq[WiringInfo]) extends Pass {
     map.get(m.name) match {
       case None => m
       case Some(l) =>
-        val defines = mutable.ArrayBuffer[Statement]()
-        val connects = mutable.ArrayBuffer[Statement]()
+        val defines = mutable.ListBuffer[Statement]()
+        val connects = mutable.ListBuffer[Statement]()
         val ports = mutable.ArrayBuffer[Port]()
         l.addPortOrWire match {
           case None =>
@@ -197,9 +197,10 @@ class Wiring(wiSeq: Seq[WiringInfo]) extends Pass {
           case Module(i, n, ps, body) =>
             val stmts = body match {
               case Block(sx) => sx
-              case s => Seq(s)
+              case s => List(s)
             }
-            Module(i, n, ps ++ ports, Block(defines ++ stmts ++ connects))
+            val bodyx = List(Block(defines.toList), Block(stmts), Block(connects.toList))
+            Module(i, n, ps ++ ports, Block(bodyx))
           case ExtModule(i, n, ps, dn, p) => ExtModule(i, n, ps ++ ports, dn, p)
         }
     }

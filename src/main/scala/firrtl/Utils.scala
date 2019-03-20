@@ -101,7 +101,7 @@ object fromBits {
       case ex @ (_: WRef | _: WSubField | _: WSubIndex) => getPart(ex, ex.tpe, rhs, 0)
       case _ => Utils.error("Invalid LHS expression for fromBits!")
     }
-    Block(fbits._2)
+    Block(fbits._2.toList)
   }
   private def getPartGround(lhs: Expression,
                             lhst: Type,

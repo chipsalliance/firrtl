@@ -145,10 +145,10 @@ class Visitor(infoMode: InfoMode) extends FIRRTLBaseVisitor[FirrtlNode] {
   }
 
   private def visitBlock[FirrtlNode](ctx: FIRRTLParser.ModuleBlockContext): Statement =
-    Block(ctx.simple_stmt().asScala.flatMap(x => Option(x.stmt).map(visitStmt)))
+    Block(ctx.simple_stmt().asScala.view.flatMap(x => Option(x.stmt).map(visitStmt)).toList)
 
   private def visitSuite[FirrtlNode](ctx: FIRRTLParser.SuiteContext): Statement =
-    Block(ctx.simple_stmt().asScala.flatMap(x => Option(x.stmt).map(visitStmt)))
+    Block(ctx.simple_stmt().asScala.view.flatMap(x => Option(x.stmt).map(visitStmt)).toList)
 
 
   // Memories are fairly complicated to translate thus have a dedicated method

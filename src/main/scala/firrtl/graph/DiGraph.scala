@@ -70,9 +70,9 @@ class DiGraph[T] private[graph] (private[graph] val edges: LinkedHashMap[T, Link
     * @return a Map[T,T] from each visited node to its predecessor in the
     * traversal
     */
-  def linearize: Seq[T] = {
+  def linearize: List[T] = {
     // permanently marked nodes are implicitly held in order
-    val order = new mutable.ArrayBuffer[T]
+    val order = new mutable.ListBuffer[T]
     // invariant: no intersection between unmarked and tempMarked
     val unmarked = new mutable.LinkedHashSet[T]
     val tempMarked = new mutable.LinkedHashSet[T]
@@ -106,7 +106,7 @@ class DiGraph[T] private[graph] (private[graph] val edges: LinkedHashMap[T, Link
     }
 
     // visited nodes are in post-traversal order, so must be reversed
-    order.reverse.toSeq
+    order.reverseIterator.toList
   }
 
   /**

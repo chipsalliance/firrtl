@@ -52,7 +52,7 @@ class GroupComponents extends firrtl.Transform {
   def outputForm: CircuitForm = MidForm
 
   override def execute(state: CircuitState): CircuitState = {
-    val groups = state.annotations.collect {case g: GroupAnnotation => g}
+    val groups = state.annotations.collect {case g: GroupAnnotation => g}.toList
     val module2group = groups.groupBy(_.currentModule)
     val mnamespace = Namespace(state.circuit)
     val newModules = state.circuit.modules.flatMap {
@@ -66,7 +66,7 @@ class GroupComponents extends firrtl.Transform {
     csx
   }
 
-  def groupModule(m: Module, groups: Seq[GroupAnnotation], mnamespace: Namespace): Seq[Module] = {
+  def groupModule(m: Module, groups: List[GroupAnnotation], mnamespace: Namespace): Seq[Module] = {
     val namespace = Namespace(m)
     val groupRoots = groups.map(_.components.map(_.name))
     val totalSum = groupRoots.map(_.size).sum
@@ -147,7 +147,7 @@ class GroupComponents extends firrtl.Transform {
     * @return new modules, including each group's module and the new split module
     */
   def applyGrouping( m: Module,
-                     labelOrder: Seq[String],
+                     labelOrder: List[String],
                      label2group: Map[String, MSet[String]],
                      label2module: Map[String, String],
                      label2instance: Map[String, String],
@@ -162,11 +162,11 @@ class GroupComponents extends firrtl.Transform {
     }
     val groupNamespace = label2group.map { case (head, set) => head -> Namespace(set.toSeq) }
 
-    val groupStatements = mutable.HashMap[String, mutable.ArrayBuffer[Statement]]()
+    val groupStatements = mutable.HashMap[String, mutable.ListBuffer[Statement]]()
     val groupPorts = mutable.HashMap[String, mutable.ArrayBuffer[Port]]()
     val groupPortNames = mutable.HashMap[String, mutable.HashMap[String, String]]()
     label2group.keys.foreach { group =>
-      groupStatements(group) = new mutable.ArrayBuffer[Statement]()
+      groupStatements(group) = new mutable.ListBuffer[Statement]()
       groupPorts(group) = new mutable.ArrayBuffer[Port]()
       groupPortNames(group) = new mutable.HashMap[String, String]()
     }
@@ -195,7 +195,7 @@ class GroupComponents extends firrtl.Transform {
     }
 
     // Given the sink is in a group, tidy up source references
-    def inGroupFixExps(group: String, added: mutable.ArrayBuffer[Statement])(e: Expression): Expression = e match {
+    def inGroupFixExps(group: String, added: mutable.ListBuffer[Statement])(e: Expression): Expression = e match {
       case _: Literal => e
       case _: DoPrim | _: Mux | _: ValidIf => e map inGroupFixExps(group, added)
       case otherExp: Expression =>
@@ -254,16 +254,16 @@ class GroupComponents extends firrtl.Transform {
       s match {
         // Sink is in a group
         case r: IsDeclaration if byNode(r.name) != "" =>
-          val topStmts = mutable.ArrayBuffer[Statement]()
+          val topStmts = mutable.ListBuffer[Statement]()
           val group = byNode(r.name)
           groupStatements(group) += r mapExpr inGroupFixExps(group, topStmts)
-          Block(topStmts)
+          Block(topStmts.toList)
         case c: Connect if byNode(getWRef(c.loc).name) != "" =>
           // Sink is in a group
-          val topStmts = mutable.ArrayBuffer[Statement]()
+          val topStmts = mutable.ListBuffer[Statement]()
           val group = byNode(getWRef(c.loc).name)
           groupStatements(group) += Connect(c.info, c.loc, inGroupFixExps(group, topStmts)(c.expr))
-          Block(topStmts)
+          Block(topStmts.toList)
         // TODO Attach if all are in a group?
         case _: IsDeclaration | _: Connect | _: Attach =>
           // Sink is in Top
@@ -275,12 +275,12 @@ class GroupComponents extends firrtl.Transform {
 
 
     // Build datastructures
-    val newTopBody = Block(labelOrder.map(g => WDefInstance(NoInfo, label2instance(g), label2module(g), UnknownType)) ++ Seq(onStmt(m.body)))
+    val newTopBody = Block(labelOrder.map(g => WDefInstance(NoInfo, label2instance(g), label2module(g), UnknownType)) ++ List(onStmt(m.body)))
     val finalTopBody = Block(Utils.squashEmpty(newTopBody).asInstanceOf[Block].stmts.distinct)
 
     // For all group labels (not including the original module label), return a new Module.
     val newModules = labelOrder.filter(_ != "") map { group =>
-      Module(NoInfo, label2module(group), groupPorts(group).distinct, Block(groupStatements(group).distinct))
+      Module(NoInfo, label2module(group), groupPorts(group).distinct, Block(groupStatements(group).distinct.toList))
     }
     Seq(m.copy(body = finalTopBody)) ++ newModules
   }

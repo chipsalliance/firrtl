@@ -60,7 +60,7 @@ object FlattenRegUpdate {
       n < flattenThreshold
     }
 
-    val regUpdates = mutable.ArrayBuffer.empty[Connect]
+    val regUpdates = mutable.ListBuffer.empty[Connect]
     val netlist = buildNetlist(mod)
 
     def constructRegUpdate(e: Expression): Expression = {
@@ -93,7 +93,7 @@ object FlattenRegUpdate {
     }
 
     val bodyx = onStmt(mod.body)
-    mod.copy(body = Block(bodyx +: regUpdates))
+    mod.copy(body = Block(bodyx +: regUpdates.toList))
   }
 
 }

@@ -42,7 +42,7 @@ class RemoveWires extends Transform {
   // Transform netlist into DefNodes
   private def getOrderedNodes(
     netlist: mutable.LinkedHashMap[WrappedExpression, (Seq[Expression], Info)],
-    regInfo: mutable.Map[WrappedExpression, DefRegister]): Try[Seq[Statement]] = {
+    regInfo: mutable.Map[WrappedExpression, DefRegister]): Try[List[Statement]] = {
     val digraph = new MutableDiGraph[WrappedExpression]
     for ((sink, (exprs, _)) <- netlist) {
       digraph.addVertex(sink)
@@ -72,9 +72,9 @@ class RemoveWires extends Transform {
 
   private def onModule(m: DefModule): DefModule = {
     // Store all non-node declarations here (like reg, inst, and mem)
-    val decls = mutable.ArrayBuffer.empty[Statement]
+    val decls = mutable.ListBuffer.empty[Statement]
     // Store all "other" statements here, non-wire, non-node connections, printfs, etc.
-    val otherStmts = mutable.ArrayBuffer.empty[Statement]
+    val otherStmts = mutable.ListBuffer.empty[Statement]
     // Add nodes and wire connection here
     val netlist = mutable.LinkedHashMap.empty[WrappedExpression, (Seq[Expression], Info)]
     // Info at definition of wires for combining into node
@@ -126,7 +126,8 @@ class RemoveWires extends Transform {
         onStmt(body)
         getOrderedNodes(netlist, regInfo) match {
           case Success(logic) =>
-            Module(info, name, ports, Block(decls ++ logic ++ otherStmts))
+            val body = List(Block(decls.toList), Block(logic), Block(otherStmts.toList))
+            Module(info, name, ports, Block(body))
           // If we hit a CyclicException, just abort removing wires
           case Failure(c: CyclicException) =>
             val problematicNode = c.node

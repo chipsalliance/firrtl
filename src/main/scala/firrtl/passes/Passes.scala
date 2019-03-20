@@ -135,22 +135,22 @@ object ExpandConnects extends Pass {
             invalids.size match {
                case 0 => EmptyStmt
                case 1 => invalids.head
-               case _ => Block(invalids)
+               case _ => Block(invalids.toList)
             }
           case sx: Connect =>
             val locs = create_exps(sx.loc)
             val exps = create_exps(sx.expr)
-            Block(locs.zip(exps).map { case (locx, expx) =>
+            Block(locs.zip(exps).view.map { case (locx, expx) =>
                to_flip(gender(locx)) match {
                   case Default => Connect(sx.info, locx, expx)
                   case Flip => Connect(sx.info, expx, locx)
                }
-            })
+            }.toList)
           case sx: PartialConnect =>
             val ls = get_valid_points(sx.loc.tpe, sx.expr.tpe, Default, Default)
             val locs = create_exps(sx.loc)
             val exps = create_exps(sx.expr)
-            val stmts = ls map { case (x, y) =>
+            val stmts = ls.view.map { case (x, y) =>
               locs(x).tpe match {
                 case AnalogType(_) => Attach(sx.info, Seq(locs(x), exps(y)))
                 case _ =>
@@ -159,7 +159,7 @@ object ExpandConnects extends Pass {
                     case Flip => Connect(sx.info, exps(y), locs(x))
                   }
               }
-            }
+            }.toList
             Block(stmts)
           case sx => sx map expand_s
         }
@@ -274,7 +274,7 @@ object VerilogPrep extends Pass {
 
     def onStmt(stmt: Statement): Statement = stmt map onStmt match {
       case attach: Attach =>
-        val wires = attach.exprs groupBy kind
+        val wires = attach.exprs.toList groupBy kind
         val sources = wires.getOrElse(PortKind, Seq.empty) ++ wires.getOrElse(WireKind, Seq.empty)
         val instPorts = wires.getOrElse(InstanceKind, Seq.empty)
         // Sanity check (Should be caught by CheckTypes)
@@ -321,7 +321,7 @@ object VerilogPrep extends Pass {
           }
         }.unzip
         val newInst = WDefInstanceConnector(info, name, module, tpe, portCons)
-        Block(wires.flatten :+ newInst)
+        Block(wires.view.flatten.toList :+ newInst)
       case other => other map lowerS(attachMap) map lowerE
     }
 

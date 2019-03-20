@@ -27,7 +27,7 @@ case object InferReadWriteAnnotation extends NoTargetAnnotation
 object InferReadWritePass extends Pass {
 
   type Netlist = collection.mutable.HashMap[String, Expression]
-  type Statements = collection.mutable.ArrayBuffer[Statement]
+  type Statements = collection.mutable.ListBuffer[Statement]
   type PortSet = collection.mutable.HashSet[String]
 
   private implicit def toString(e: Expression): String = e.serialize
@@ -138,7 +138,7 @@ object InferReadWritePass extends Pass {
     (m map inferReadWriteStmt(connects, repl, stmts)
        map replaceStmt(repl)) match {
       case m: ExtModule => m
-      case m: Module => m copy (body = Block(m.body +: stmts))
+      case m: Module => m copy (body = Block(m.body +: stmts.toList))
     }
   }
 

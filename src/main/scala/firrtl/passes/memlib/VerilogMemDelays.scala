@@ -31,7 +31,7 @@ object VerilogMemDelays extends Pass {
       netlist: Netlist,
       namespace: Namespace,
       repl: Netlist,
-      stmts: mutable.ArrayBuffer[Statement])
+      stmts: mutable.ListBuffer[Statement])
       (s: Statement): Statement = s.map(memDelayStmt(netlist, namespace, repl, stmts)) match {
     case sx: DefMemory =>
       val ports = (sx.readers ++ sx.writers).toSet
@@ -143,17 +143,17 @@ object VerilogMemDelays extends Pass {
   def replaceStmt(repl: Netlist)(s: Statement): Statement =
     s map replaceStmt(repl) map replaceExp(repl)
 
-  def appendStmts(sx: Seq[Statement])(s: Statement): Statement = Block(s +: sx)
+  def appendStmts(sx: List[Statement])(s: Statement): Statement = Block(s +: sx)
 
   def memDelayMod(m: DefModule): DefModule = {
     val netlist = new Netlist
     val namespace = Namespace(m)
     val repl = new Netlist
-    val extraStmts = mutable.ArrayBuffer.empty[Statement]
+    val extraStmts = mutable.ListBuffer.empty[Statement]
     m.foreach(buildNetlist(netlist))
     m.map(memDelayStmt(netlist, namespace, repl, extraStmts))
      .map(replaceStmt(repl))
-     .map(appendStmts(extraStmts))
+     .map(appendStmts(extraStmts.toList))
   }
 
   def run(c: Circuit): Circuit =

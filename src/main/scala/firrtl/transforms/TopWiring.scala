@@ -218,7 +218,7 @@ class TopWiringTransform extends Transform {
                   }
                 }
             }
-            m.copy(ports = m.ports ++ newPorts, body = Block(Seq(m.body) ++ connections ))
+            m.copy(ports = m.ports ++ newPorts, body = Block(List(m.body) ++ connections))
           case e: ExtModule =>
             e.copy(ports = e.ports ++ newPorts)
       }

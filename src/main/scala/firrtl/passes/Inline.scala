@@ -178,7 +178,7 @@ class InlineInstances extends Transform with RegisteredTransform {
             case m: Module    => m
           }
 
-          val ports = toInline.ports.map(p => DefWire(p.info, p.name, p.tpe))
+          val ports = toInline.ports.view.map(p => DefWire(p.info, p.name, p.tpe)).toList
 
           val subRenames = RenameMap()
           subRenames.setCircuit(currentModule.circuit.name)

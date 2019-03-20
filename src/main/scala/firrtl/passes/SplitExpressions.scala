@@ -49,7 +49,7 @@ object SplitExpressions extends Pass {
              v += x
              v.size match {
                case 1 => v.head
-               case _ => Block(v.toSeq)
+               case _ => Block(v.toList)
              }
         }
       }

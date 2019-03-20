@@ -33,7 +33,7 @@ object FromProto {
   }
 
   // Convert from ProtoBuf message repeated Statements to FIRRRTL Block
-  private def compressStmts(stmts: Seq[ir.Statement]): ir.Statement = stmts match {
+  private def compressStmts(stmts: List[ir.Statement]): ir.Statement = stmts match {
     case Seq() => ir.EmptyStmt
     case Seq(stmt) => stmt
     case multiple => ir.Block(multiple)
@@ -128,8 +128,8 @@ object FromProto {
     ir.DefInstance(convert(info), inst.getId, inst.getModuleId)
 
   def convert(when: Firrtl.Statement.When, info: Firrtl.SourceInfo): ir.Conditionally = {
-    val conseq = compressStmts(when.getConsequentList.asScala.map(convert(_)))
-    val alt = compressStmts(when.getOtherwiseList.asScala.map(convert(_)))
+    val conseq = compressStmts(when.getConsequentList.asScala.map(convert(_)).toList)
+    val alt = compressStmts(when.getOtherwiseList.asScala.map(convert(_)).toList)
     ir.Conditionally(convert(info), convert(when.getPredicate), conseq, alt)
   }
 
@@ -276,7 +276,7 @@ object FromProto {
     val name = module.getId
     val ports = module.getPortList.asScala.map(convert(_))
     val stmts = module.getStatementList.asScala.map(convert(_))
-    ir.Module(ir.NoInfo, name, ports, ir.Block(stmts))
+    ir.Module(ir.NoInfo, name, ports, ir.Block(stmts.toList))
   }
 
   def convert(module: Firrtl.Module.ExternalModule): ir.ExtModule = {
