@@ -99,18 +99,19 @@ class FirrtlModule(val crossScalaVersion: String) extends CommonModule with Buil
   override def artifactName = "firrtl"
 
   override def ivyDeps = Agg(
-    ivy"com.typesafe.scala-logging::scala-logging:3.7.2",
+    ivy"com.typesafe.scala-logging::scala-logging:3.9.0",
     ivy"ch.qos.logback:logback-classic:1.2.3",
-    ivy"com.github.scopt::scopt:3.6.0",
+    ivy"com.github.scopt::scopt:3.7.0",
     ivy"net.jcazevedo::moultingyaml:0.4.0",
-    ivy"org.json4s::json4s-native:3.5.3",
+    ivy"org.json4s::json4s-native:3.6.1",
+    ivy"org.apache.commons:commons-text:1.6",
     ivy"org.antlr:antlr4-runtime:4.7.1",
     ivy"${Protobuf.ProtobufConfig.ivyDep}"
   )
 
   object test extends Tests {
     override def ivyDeps = Agg(
-      ivy"org.scalatest::scalatest:3.0.1",
+      ivy"org.scalatest::scalatest:3.0.5",
       ivy"org.scalacheck::scalacheck:1.13.4"
     )
     def testFrameworks = Seq("org.scalatest.tools.Framework")
