@@ -18,12 +18,21 @@ import firrtl.analyses.{GetNamespace, InstanceGraph, ModuleNamespaceAnnotation}
 import firrtl.annotations._
 import firrtl.transforms.{DontTouchAnnotation, NoDedupAnnotation, RenameModules}
 import firrtl.util.BackendCompilationUtilities
-
 import scala.collection.mutable
+
+class CheckLowForm extends SeqTransform {
+  def inputForm = LowForm
+  def outputForm = LowForm
+  def transforms = Seq(
+    passes.CheckHighForm
+  )
+}
 
 trait FirrtlRunners extends BackendCompilationUtilities {
 
   val cppHarnessResourceName: String = "/firrtl/testTop.cpp"
+  /** Extra transforms to run by default */
+  val extraCheckTransforms = Seq(new CheckLowForm)
 
   private class RenameTop(newTopPrefix: String) extends Transform {
     def inputForm: LowForm.type = LowForm
@@ -88,7 +97,7 @@ trait FirrtlRunners extends BackendCompilationUtilities {
   def compileToVerilog(input: String, annotations: AnnotationSeq = Seq.empty): String = {
     val circuit = Parser.parse(input.split("\n").toIterator)
     val compiler = new VerilogCompiler
-    val res = compiler.compileAndEmit(CircuitState(circuit, HighForm, annotations))
+    val res = compiler.compileAndEmit(CircuitState(circuit, HighForm, annotations), extraCheckTransforms)
     res.getEmittedCircuit.value
   }
   /** Execute a FIRRTL file
@@ -137,7 +146,7 @@ trait FirrtlRunners extends BackendCompilationUtilities {
       commonOptions = CommonOptions(topName = prefix, targetDirName = testDir.getPath)
       firrtlOptions = FirrtlExecutionOptions(
                         infoModeName = "ignore",
-                        customTransforms = customTransforms,
+                        customTransforms = customTransforms ++ extraCheckTransforms,
                         annotations = annotations.toList)
     }
     firrtl.Driver.execute(optionsManager)
@@ -248,15 +257,18 @@ object FirrtlCheckers extends FirrtlMatchers {
   }
 
   /** Checks that the emitted circuit has the expected line, both will be normalized */
-  def containLine(expectedLine: String) = new CircuitStateStringMatcher(expectedLine)
+  def containLine(expectedLine: String) = containLines(expectedLine)
 
-  class CircuitStateStringMatcher(expectedLine: String) extends Matcher[CircuitState] {
+  /** Checks that the emitted circuit has the expected lines in order, all lines will be normalized */
+  def containLines(expectedLines: String*) = new CircuitStateStringsMatcher(expectedLines)
+
+  class CircuitStateStringsMatcher(expectedLines: Seq[String]) extends Matcher[CircuitState] {
     override def apply(state: CircuitState): MatchResult = {
       val emitted = state.getEmittedCircuit.value
       MatchResult(
-        emitted.split("\n").map(normalized).contains(normalized(expectedLine)),
-        emitted + "\n did not contain \"" + expectedLine + "\"",
-        s"${state.circuit.main} contained $expectedLine"
+        emitted.split("\n").map(normalized).containsSlice(expectedLines.map(normalized)),
+        emitted + "\n did not contain \"" + expectedLines + "\"",
+        s"${state.circuit.main} contained $expectedLines"
       )
     }
   }

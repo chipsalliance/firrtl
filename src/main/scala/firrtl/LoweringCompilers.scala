@@ -44,7 +44,7 @@ class ResolveAndCheck extends CoreTransform {
     passes.InferTypes,
     passes.ResolveGenders,
     passes.CheckGenders,
-    passes.InferWidths,
+    new passes.InferWidths,
     passes.CheckWidths)
 }
 
@@ -68,7 +68,7 @@ class HighFirrtlToMiddleFirrtl extends CoreTransform {
     passes.InferTypes,
     passes.CheckTypes,
     passes.ResolveGenders,
-    passes.InferWidths,
+    new passes.InferWidths,
     passes.CheckWidths,
     passes.ConvertFixedToSInt,
     passes.ZeroWidth,
@@ -87,7 +87,7 @@ class MiddleFirrtlToLowFirrtl extends CoreTransform {
     passes.ResolveKinds,
     passes.InferTypes,
     passes.ResolveGenders,
-    passes.InferWidths,
+    new passes.InferWidths,
     passes.Legalize,
     new firrtl.transforms.RemoveReset,
     new firrtl.transforms.CheckCombLoops,
@@ -119,6 +119,7 @@ class MinimumLowFirrtlOptimization extends CoreTransform {
   def inputForm = LowForm
   def outputForm = LowForm
   def transforms = Seq(
+    passes.RemoveValidIf,
     passes.Legalize,
     passes.memlib.VerilogMemDelays, // TODO move to Verilog emitter
     passes.SplitExpressions)
@@ -166,9 +167,9 @@ class VerilogCompiler extends Compiler {
 
 /** Emits Verilog without optimizations */
 class MinimumVerilogCompiler extends Compiler {
-  def emitter = new VerilogEmitter
+  def emitter = new MinimumVerilogEmitter
   def transforms: Seq[Transform] = getLoweringTransforms(ChirrtlForm, LowForm) ++
-    Seq(new MinimumLowFirrtlOptimization, new BlackBoxSourceHelper)
+    Seq(new MinimumLowFirrtlOptimization)
 }
 
 /** Currently just an alias for the [[VerilogCompiler]] */
