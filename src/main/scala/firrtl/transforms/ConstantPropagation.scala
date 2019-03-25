@@ -122,6 +122,32 @@ class ConstantPropagation extends Transform with ResolvedAnnotationPaths {
     }
   }
 
+  object FoldSUB extends FoldCommutativeOp {
+    def fold(c1: Literal, c2: Literal) = ((c1, c2): @unchecked) match {
+      case (_: UIntLiteral, _: UIntLiteral) => UIntLiteral(c1.value - c2.value, c1.width max c2.width + IntWidth(1))
+      case (_: SIntLiteral, _: SIntLiteral) => SIntLiteral(c1.value - c2.value, (c1.width max c2.width) + IntWidth(1))
+    }
+    def simplify(e: Expression, lhs: Literal, rhs: Expression) = lhs match {
+      case UIntLiteral(v, w) if v == BigInt(0) => rhs
+      case SIntLiteral(v, w) if v == BigInt(0) => rhs
+      case _ => e
+    }
+  }
+
+  object FoldMUL extends FoldCommutativeOp {
+    def fold(c1: Literal, c2: Literal) = ((c1, c2): @unchecked) match {
+      case (_: UIntLiteral, _: UIntLiteral) => UIntLiteral(c1.value * c2.value, c1.width + c2.width)
+      case (_: SIntLiteral, _: SIntLiteral) => SIntLiteral(c1.value * c2.value, c1.width + c2.width)
+    }
+    def simplify(e: Expression, lhs: Literal, rhs: Expression) = lhs match {
+      case UIntLiteral(v, w) if v == BigInt(0) => UIntLiteral(0, w)
+      case SIntLiteral(v, w) if v == BigInt(0) => SIntLiteral(0, w)
+      case UIntLiteral(v, w) if v == BigInt(1) => rhs
+      case SIntLiteral(v, w) if v == BigInt(1) => rhs
+      case _ => e
+    }
+  }
+
   object FoldAND extends FoldCommutativeOp {
     def fold(c1: Literal, c2: Literal) = UIntLiteral(c1.value & c2.value, c1.width max c2.width)
     def simplify(e: Expression, lhs: Literal, rhs: Expression) = lhs match {
@@ -274,6 +300,8 @@ class ConstantPropagation extends Transform with ResolvedAnnotationPaths {
     case Dshr => foldDynamicShiftRight(e)
     case Cat => foldConcat(e)
     case Add => FoldADD(e)
+    case Sub => FoldSUB(e)
+    case Mul => FoldMUL(e)
     case And => FoldAND(e)
     case Or => FoldOR(e)
     case Xor => FoldXOR(e)
