@@ -10,7 +10,7 @@ organization := "edu.berkeley.cs"
 
 name := "firrtl"
 
-version := "1.2-SNAPSHOT"
+version := "1.2-032519-SNAPSHOT"
 
 scalaVersion := "2.12.7"
 
