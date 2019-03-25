@@ -244,7 +244,7 @@ final class RenameMap private () {
 
       if (getOpt.nonEmpty) {
         getOpt.map(_.flatMap {
-          case inst: InstanceTarget => Some(inst)
+          case isMod: IsModule => Some(isMod)
           case ref @ ReferenceTarget(c, m, p, r, Nil) =>
             val ofMod = key match {
               case t: InstanceTarget => t.ofModule
@@ -256,15 +256,17 @@ final class RenameMap private () {
               }
             }
             Some(InstanceTarget(c, m, p, r, ofMod))
-          case mod: IsModule => Some(mod)
           case other =>
-            errors += s"2Illegal rename: $key cannot be renamed to $other - must rename $key directly"
+            errors += s"IsModule: $key cannot be renamed to non-IsModule $other"
             None
         })
       } else {
         key match {
-          case t: IsModule => None
-          case t: InstanceTarget if t.isLocal => None
+          case t: ModuleTarget => None
+          case t: InstanceTarget if t.isLocal =>
+            traverseLeft(ModuleTarget(t.circuit, t.ofModule)).map(_.map {
+              _.addHierarchy(t.moduleOpt.get, t.instance)
+            })
           case t: InstanceTarget =>
             val (Instance(outerInst), OfModule(outerMod)) = t.path.head
             val stripped = t.copy(path = t.path.tail, module = outerMod)
@@ -282,8 +284,8 @@ final class RenameMap private () {
       } else {
         key match {
           case t: InstanceTarget if t.isLocal =>
-            traverseLeft(ModuleTarget(t.circuit, t.ofModule)).map(_.map {
-              _.addHierarchy(t.moduleOpt.get, t.instance)
+            traverseLeft(t.targetParent).map(_.map {
+              _.instOf(t.ofModule, t.instance)
             }).getOrElse(Seq(key))
           case t: InstanceTarget =>
             val (Instance(i), OfModule(m)) = t.path.last
@@ -368,7 +370,7 @@ final class RenameMap private () {
               t.copy(circuit = mod.circuit, module = mod.module, path = newPath)
           }
         case t: InstanceTarget =>
-          val renamedPath = (t.path :+ (Instance(t.instance), OfModule(t.ofModule))).flatMap { pair =>
+          val renamedPath = t.asPath.flatMap { pair =>
             val pathMod = ModuleTarget(t.circuit, pair._2.value)
             moduleGet(errors)(pathMod) match {
               case Seq(isMod: IsModule) if isMod.circuit == t.circuit =>
