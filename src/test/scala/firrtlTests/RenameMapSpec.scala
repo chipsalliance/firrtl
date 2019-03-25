@@ -4,7 +4,7 @@ package firrtlTests
 
 import firrtl.RenameMap
 import firrtl.FIRRTLException
-import firrtl.RenameMap.{CircularRenameException, IllegalRenameException}
+import firrtl.RenameMap.IllegalRenameException
 import firrtl.annotations._
 import firrtl.annotations.Target
 import firrtl.annotations.TargetToken.{Instance, OfModule}
@@ -250,13 +250,13 @@ class RenameMapSpec extends FirrtlFlatSpec {
     }
   }
 
-  it should "error if a circular rename occurs" in {
+  it should "not error if a circular rename occurs" in {
     val renames = RenameMap()
     val top = CircuitTarget("Top")
     renames.record(top.module("A"), top.module("B").instOf("c", "C"))
     renames.record(top.module("B"), top.module("A").instOf("c", "C"))
-    a [CircularRenameException] shouldBe thrownBy {
-      renames.get(top.module("A"))
+    renames.get(top.module("A")) should be {
+      Some(Seq(top.module("B").instOf("c", "C")))
     }
   }
 
@@ -501,7 +501,7 @@ class RenameMapSpec extends FirrtlFlatSpec {
     val to = cir.module("D").instOf("e", "E").instOf("f", "F")
     renames.record(from, to)
     renames.get(cir.module("A").instOf("b", "B").instOf("c", "C")) should be {
-      None // what to do here?
+      Some(Seq(cir.module("A").instOf("b", "B").instOf("c", "D").instOf("e", "E").instOf("f", "F")))
     }
   }
 
@@ -512,7 +512,8 @@ class RenameMapSpec extends FirrtlFlatSpec {
     val to = cir.module("D").instOf("e", "E").instOf("f", "F").ref("foo").field("foo")
     renames.record(from, to)
     renames.get(cir.module("A").instOf("b", "B").instOf("c", "C").ref("foo").field("bar")) should be {
-      None // what to do here?
+      Some(Seq(cir.module("A").instOf("b", "B").instOf("c", "D")
+        .instOf("e", "E").instOf("f", "F").ref("foo").field("foo")))
     }
   }
 
@@ -524,8 +525,8 @@ class RenameMapSpec extends FirrtlFlatSpec {
     renames.record(from, to)
     val test = cir.module("A").instOf("b", "B").instOf("c", "C").ref("d")
       .copy(component = Seq(OfModule("D"), Instance("e"), OfModule("D")))
-    renames.get(test) should be {
-      None // what to do here?
+    a [IllegalRenameException] shouldBe thrownBy {
+      renames.get(test)
     }
   }
 }
