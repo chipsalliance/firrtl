@@ -256,7 +256,7 @@ class RenameMapSpec extends FirrtlFlatSpec {
     renames.record(top.module("A"), top.module("B").instOf("c", "C"))
     renames.record(top.module("B"), top.module("A").instOf("c", "C"))
     renames.get(top.module("A")) should be {
-      Some(Seq(top.module("B").instOf("c", "C")))
+      Some(Seq(top.module("A").instOf("c", "C").instOf("c", "C")))
     }
   }
 
@@ -277,9 +277,7 @@ class RenameMapSpec extends FirrtlFlatSpec {
     a [IllegalRenameException] shouldBe thrownBy {
       renames.get(top.module("A").ref("ref").field("field"))
     }
-    a [IllegalRenameException] shouldBe thrownBy {
-      renames.get(top.module("A").instOf("ref", "R"))
-    }
+    renames.get(top.module("A").instOf("ref", "R")) should be(Some(Seq(top.module("B"))))
   }
 
   it should "error if we rename an instance's ofModule into a non-module" in {

@@ -245,10 +245,15 @@ final class RenameMap private () {
       if (getOpt.nonEmpty) {
         getOpt.map(_.flatMap {
           case inst: InstanceTarget => Some(inst)
-          case ReferenceTarget(c, m, p, r, Nil) =>
+          case ref @ ReferenceTarget(c, m, p, r, Nil) =>
             val ofMod = key match {
               case t: InstanceTarget => t.ofModule
-              case t: ModuleTarget => t.module
+              case t: ModuleTarget => key match {
+                case i: InstanceTarget => i.ofModule
+                case m: ModuleTarget =>
+                  errors += s"Instance as reference: $ref cannot be renamed to a non-instance $m"
+                  t.module
+              }
             }
             Some(InstanceTarget(c, m, p, r, ofMod))
           case mod: IsModule => Some(mod)
@@ -363,13 +368,14 @@ final class RenameMap private () {
               t.copy(circuit = mod.circuit, module = mod.module, path = newPath)
           }
         case t: InstanceTarget =>
-          val renamedPath = (t.path :+ (Instance(t.instance), OfModule(t.ofModule))).map { pair =>
+          val renamedPath = (t.path :+ (Instance(t.instance), OfModule(t.ofModule))).flatMap { pair =>
             val pathMod = ModuleTarget(t.circuit, pair._2.value)
             moduleGet(errors)(pathMod) match {
-              case Seq(ModuleTarget(c, m)) if c == t.circuit => pair.copy(_2 = OfModule(m))
+              case Seq(isMod: IsModule) if isMod.circuit == t.circuit =>
+                pair.copy(_2 = OfModule(isMod.module)) +: isMod.path
               case other =>
                 errors += s"Illegal rename: ofModule of ${pathMod} is renamed to $other - must rename $t directly."
-                pair
+                Seq(pair)
             }
           }
           moduleGet(errors)(ModuleTarget(t.circuit, t.module)).map { mod =>
@@ -377,7 +383,12 @@ final class RenameMap private () {
                 case m: ModuleTarget => renamedPath.dropRight(1)
                 case i: InstanceTarget => i.path ++ ((Instance(i.instance), OfModule(i.ofModule)) +: renamedPath.dropRight(1))
               }
-              t.copy(circuit = mod.circuit, module = mod.module, path = newPath, instance = renamedPath.last._1.value, ofModule = renamedPath.last._2.value)
+              val (Instance(newInst), OfModule(newOfMod)) = renamedPath.last
+              t.copy(circuit = mod.circuit,
+                module = mod.module,
+                path = newPath,
+                instance = newInst,
+                ofModule = newOfMod)
           }
       }
 
