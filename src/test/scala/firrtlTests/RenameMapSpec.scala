@@ -514,17 +514,4 @@ class RenameMapSpec extends FirrtlFlatSpec {
         .instOf("e", "E").instOf("f", "F").ref("foo").field("foo")))
     }
   }
-
-  it should "correctly handle reference targets that point to instances" in {
-    val cir = CircuitTarget("Top")
-    val renames = RenameMap()
-    val from = cir.module("C").instOf("d", "D").instOf("e", "E")
-    val to = cir.module("C").instOf("f", "F").instOf("g", "G")
-    renames.record(from, to)
-    val test = cir.module("A").instOf("b", "B").instOf("c", "C").ref("d")
-      .copy(component = Seq(OfModule("D"), Instance("e"), OfModule("D")))
-    a [IllegalRenameException] shouldBe thrownBy {
-      renames.get(test)
-    }
-  }
 }
