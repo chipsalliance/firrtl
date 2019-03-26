@@ -14,7 +14,7 @@ class ConstantPropagationSpec extends FirrtlFlatSpec {
       ResolveKinds,
       InferTypes,
       ResolveGenders,
-      InferWidths,
+      new InferWidths,
       new ConstantPropagation)
   protected def exec(input: String) = {
     transforms.foldLeft(CircuitState(parse(input), UnknownForm)) {
@@ -1002,6 +1002,32 @@ class ConstantPropagationIntegrationSpec extends LowTransformSpec {
           |    input reset : UInt<1>
           |    output z : UInt<8>
           |    z <= UInt<8>("hb")""".stripMargin
+    execute(input, check, Seq.empty)
+  }
+
+  "Registers async reset and a constant connection" should "NOT be removed" in {
+      val input =
+        """circuit Top :
+          |  module Top :
+          |    input clock : Clock
+          |    input reset : AsyncReset
+          |    input en : UInt<1>
+          |    output z : UInt<8>
+          |    reg r : UInt<8>, clock with : (reset => (reset, UInt<4>("hb")))
+          |    when en :
+          |      r <= UInt<4>("h0")
+          |    z <= r""".stripMargin
+      val check =
+        """circuit Top :
+          |  module Top :
+          |    input clock : Clock
+          |    input reset : AsyncReset
+          |    input en : UInt<1>
+          |    output z : UInt<8>
+          |    reg r : UInt<8>, clock with :
+          |      reset => (reset, UInt<8>("hb"))
+          |    z <= r
+          |    r <= mux(en, UInt<8>("h0"), r)""".stripMargin
     execute(input, check, Seq.empty)
   }
 
