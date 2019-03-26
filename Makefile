@@ -10,7 +10,7 @@ MILL_BIN ?= $(HOME)/bin/mill
 # The following must correspond with the equivalent definition in build.sc
 ANTLR4_JAR ?= $(HOME)/lib/antlr-4.7.1-complete.jar
 MILL ?= $(MILL_BIN) --color false
-MILL_REMOTE_RELEASE ?= https://github.com/ucbjrl/mill/releases/download/v0.2.6-FDF/mill-0.3.4-FDF
+MILL_REMOTE_RELEASE ?= https://github.com/lihaoyi/mill/releases/download/0.3.5/0.3.5
 
 # Ensure the default target is something reasonable.
 default: build

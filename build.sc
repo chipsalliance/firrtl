@@ -101,6 +101,7 @@ class FirrtlModule(val crossScalaVersion: String) extends CommonModule with Buil
     ivy"net.jcazevedo::moultingyaml:0.4.0",
     ivy"org.json4s::json4s-native:3.6.1",
     ivy"org.antlr:antlr4-runtime:4.7.1",
+    ivy"org.apache.commons:commons-text:1.6",
     ivy"${Protobuf.ProtobufConfig.ivyDep}"
   )
 
