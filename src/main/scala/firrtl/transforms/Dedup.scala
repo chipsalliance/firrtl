@@ -20,6 +20,8 @@ case class NoDedupAnnotation(target: ModuleName) extends SingleTargetAnnotation[
   def duplicate(n: ModuleName): NoDedupAnnotation = NoDedupAnnotation(n)
 }
 
+case object NoCircuitDedupAnnotation extends NoTargetAnnotation
+
 /** Only use on legal Firrtl.
   *
   * Specifically, the restriction of instance loops must have been checked, or else this pass can
@@ -34,9 +36,13 @@ class DedupModules extends Transform {
     * @return A transformed Firrtl AST
     */
   def execute(state: CircuitState): CircuitState = {
-    val noDedups = state.annotations.collect { case NoDedupAnnotation(ModuleName(m, c)) => m }
-    val (newC, renameMap) = run(state.circuit, noDedups, state.annotations)
-    state.copy(circuit = newC, renames = Some(renameMap))
+    if (state.annotations.contains(NoCircuitDedupAnnotation)) {
+      state
+    } else {
+      val noDedups = state.annotations.collect { case NoDedupAnnotation(ModuleName(m, c)) => m }
+      val (newC, renameMap) = run(state.circuit, noDedups, state.annotations)
+      state.copy(circuit = newC, renames = Some(renameMap))
+    }
   }
 
   /** Deduplicates a circuit, and records renaming
@@ -373,13 +379,17 @@ object DedupModules {
       val iGraph = new InstanceGraph(circuit)
       (iGraph.moduleMap, iGraph.moduleOrder.reverse)
     }
-    val top = CircuitTarget(circuit.main)
-
+    val main = circuit.main
+    val top = CircuitTarget(main)
     val (tag2all, tagMap) = buildRTLTags(top, moduleLinearization, noDedups, annotations)
 
     // Set tag2name to be the best dedup module name
     val moduleIndex = circuit.modules.zipWithIndex.map{case (m, i) => m.name -> i}.toMap
-    def order(l: String, r: String): String = if (moduleIndex(l) < moduleIndex(r)) l else r
+    def order(l: String, r: String): String = {
+      if (l == main) l
+      else if (r == main) r
+      else if (moduleIndex(l) < moduleIndex(r)) l else r
+    }
 
     // Maps a module's tag to its deduplicated module
     val tag2name = mutable.HashMap.empty[String, String]
