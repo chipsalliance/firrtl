@@ -187,10 +187,23 @@ final class RenameMap private () {
 
 
   /** Checks for renames of only the component portion of a [[ReferenceTarget]]
-    * NOTE: assumes key has been normalized
+    * Recursively checks parent [[ReferenceTarget]]s until a match is found
+    * Parents with longer paths/components are checked first. longer paths take
+    * priority over longer components.
+    *
+    * For example, the order that targets are checked for ~Top|Top/a:A/b:B/c:C>f.g is:
+    * ~Top|Top/a:A/b:B/c:C>f.g
+    * ~Top|Top/a:A/b:B/c:C>f
+    * ~Top|A/b:B/c:C>f.g
+    * ~Top|A/b:B/c:C>f
+    * ~Top|B/c:C>f.g
+    * ~Top|B/c:C>f
+    * ~Top|C>f.g
+    * ~Top|C>f
+    *
     * @param errors Used to record illegal renames
     * @param key Target to rename
-    * @return Renamed targets
+    * @return Renamed targets if a match is found, otherwise None
     */
   private def referenceGet(errors: mutable.ArrayBuffer[String])(key: ReferenceTarget): Option[Seq[CompleteTarget]] = {
     def traverseTokens(key: ReferenceTarget): Option[Seq[CompleteTarget]] = {
@@ -235,10 +248,33 @@ final class RenameMap private () {
     traverseHierarchy(key)
   }
 
-  /** Checks for renames of only the module portion of a [[IsModule]]
+  /** Checks for renames of only the path portion of an [[InstanceTarget]]
+    * Recursively checks parent [[IsModule]]s until a match is found
+    * First checks all parent paths from longest to shortest. Then
+    * recursively checks paths leading to the encapsulating module.
+		* Stops on the first match found.
+    *
+    * For example, the order that targets are checked for ~Top|Top/a:A/b:B/c:C is:
+    * ~Top|Top/a:A/b:B/c:C
+    * ~Top|Top/a:A/b:B>c
+    * ~Top|A/b:B/c:C
+    * ~Top|A/b:B>c
+    * ~Top|B/c:C
+    * ~Top|B>c
+    * ~Top|C
+    * ~Top|Top/a:A/b:B
+    * ~Top|Top/a:A>b
+    * ~Top|A/b:B
+    * ~Top|A>b
+    * ~Top|B
+    * ~Top|Top/a:A
+    * ~Top|Top>a
+    * ~Top|A
+    * ~Top|Top
+		*
     * @param errors Used to record illegal renames
     * @param key Target to rename
-    * @return Renamed targets
+    * @return Renamed targets, contains only the original target if none are found
     */
   private def instanceGet(errors: mutable.ArrayBuffer[String])(key: InstanceTarget): Seq[IsModule] = {
     def traverseLeft(key: IsModule): Option[Seq[IsModule]] = {
@@ -323,10 +359,7 @@ final class RenameMap private () {
     }).getOrElse(Seq(key))
   }
 
-  // scalastyle:off
-  // This function requires a large cyclomatic complexity, and is best naturally expressed as a large function
   /** Recursively renames a target so the returned targets are complete renamed
-    * @param set Used to detect circular renames
     * @param errors Used to record illegal renames
     * @param key Target to rename
     * @return Renamed targets
@@ -359,21 +392,25 @@ final class RenameMap private () {
             case CircuitTarget(c) => t.copy(circuit = c)
           }
         case t: IsComponent =>
+          // rename all modules on the path
           val renamedPath = t.asPath.flatMap { pair =>
             val pathMod = ModuleTarget(t.circuit, pair._2.value)
             moduleGet(errors)(pathMod) match {
               case Seq(isMod: IsModule) if isMod.circuit == t.circuit =>
                 pair.copy(_2 = OfModule(isMod.module)) +: isMod.path
               case other =>
-                errors += s"Illegal rename: ofModule of ${pathMod} cannot be renamed to $other - must rename $t directly."
+                val error = s"ofModule ${pathMod} cannot be renamed to $other " +
+                  "- an ofModule can only be renamed to a single IsModule with the same circuit"
+                errors += error
                 Seq(pair)
             }
           }
+
+          // rename the root module and set the new path
           moduleGet(errors)(ModuleTarget(t.circuit, t.module)).map { mod =>
               val newPath = mod.asPath ++ renamedPath
               t match {
-                case ref: ReferenceTarget =>
-                  ref.copy(circuit = mod.circuit, module = mod.module, path = newPath)
+                case ref: ReferenceTarget => ref.copy(circuit = mod.circuit, module = mod.module, path = newPath)
                 case inst: InstanceTarget =>
                   val (Instance(newInst), OfModule(newOfMod)) = newPath.last
                   inst.copy(circuit = mod.circuit,
@@ -404,7 +441,6 @@ final class RenameMap private () {
       botRename
     }
   }
-  // scalastyle:on
 
   /** Fully renames from to tos
     * @param from
