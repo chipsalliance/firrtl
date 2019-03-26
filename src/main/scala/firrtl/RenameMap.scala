@@ -305,10 +305,7 @@ final class RenameMap private () {
       } else {
         key match {
           case t: ModuleTarget => None
-          case t: InstanceTarget if t.isLocal =>
-            traverseLeft(ModuleTarget(t.circuit, t.ofModule)).map(_.map {
-              _.addHierarchy(t.moduleOpt.get, t.instance)
-            })
+          case t: InstanceTarget if t.isLocal => None
           case t: InstanceTarget =>
             val (Instance(outerInst), OfModule(outerMod)) = t.path.head
             val stripped = t.copy(path = t.path.tail, module = outerMod)
@@ -325,10 +322,7 @@ final class RenameMap private () {
         findLeft.get
       } else {
         key match {
-          case t: InstanceTarget if t.isLocal =>
-            traverseLeft(t.targetParent).map(_.map {
-              _.instOf(t.ofModule, t.instance)
-            }).getOrElse(Seq(key))
+          case t: InstanceTarget if t.isLocal => Seq(key)
           case t: InstanceTarget =>
             val (Instance(i), OfModule(m)) = t.path.last
             val parent = t.copy(path = t.path.dropRight(1), instance = i, ofModule = m)
@@ -397,7 +391,7 @@ final class RenameMap private () {
             val pathMod = ModuleTarget(t.circuit, pair._2.value)
             moduleGet(errors)(pathMod) match {
               case Seq(isMod: IsModule) if isMod.circuit == t.circuit =>
-                pair.copy(_2 = OfModule(isMod.module)) +: isMod.path
+                pair.copy(_2 = OfModule(isMod.module)) +: isMod.asPath
               case other =>
                 val error = s"ofModule ${pathMod} cannot be renamed to $other " +
                   "- an ofModule can only be renamed to a single IsModule with the same circuit"
