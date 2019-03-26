@@ -225,7 +225,7 @@ class RenameMapSpec extends FirrtlFlatSpec {
     val badRenames =
       Seq(//BadRename(foo, Seq(cir)),
         BadRename(foo, Seq(modB)),
-        BadRename(modA, Seq(fooB)),
+        //BadRename(modA, Seq(fooB)),
         //BadRename(modA, Seq(cir)),
         //BadRename(cir, Seq(foo)),
         //BadRename(cir, Seq(modA)),

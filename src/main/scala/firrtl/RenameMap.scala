@@ -261,16 +261,12 @@ final class RenameMap private () {
     * ~Top|A/b:B>c
     * ~Top|B/c:C
     * ~Top|B>c
-    * ~Top|C
     * ~Top|Top/a:A/b:B
     * ~Top|Top/a:A>b
     * ~Top|A/b:B
     * ~Top|A>b
-    * ~Top|B
     * ~Top|Top/a:A
     * ~Top|Top>a
-    * ~Top|A
-    * ~Top|Top
 		*
     * @param errors Used to record illegal renames
     * @param key Target to rename
@@ -304,7 +300,6 @@ final class RenameMap private () {
         })
       } else {
         key match {
-          case t: ModuleTarget => None
           case t: InstanceTarget if t.isLocal => None
           case t: InstanceTarget =>
             val (Instance(outerInst), OfModule(outerMod)) = t.path.head
@@ -346,7 +341,6 @@ final class RenameMap private () {
   private def moduleGet(errors: mutable.ArrayBuffer[String])(key: ModuleTarget): Seq[IsModule] = {
     underlying.get(key).map(_.flatMap {
       case mod: IsModule => Some(mod)
-      case ReferenceTarget(c, m, p, r, Nil) => Some(InstanceTarget(c, m, p, r, key.module))
       case other =>
         errors += s"Illegal rename: $key cannot be renamed to non-module target: $other"
         None
