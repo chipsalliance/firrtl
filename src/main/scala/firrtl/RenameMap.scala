@@ -205,10 +205,15 @@ final class RenameMap private () {
     * @param key Target to rename
     * @return Renamed targets if a match is found, otherwise None
     */
-  private def referenceGet(errors: mutable.ArrayBuffer[String])(key: ReferenceTarget): Option[Seq[CompleteTarget]] = {
-    def traverseTokens(key: ReferenceTarget): Option[Seq[CompleteTarget]] = {
+  private def referenceGet(errors: mutable.ArrayBuffer[String])(key: ReferenceTarget): Option[Seq[IsComponent]] = {
+    def traverseTokens(key: ReferenceTarget): Option[Seq[IsComponent]] = {
       if (underlying.contains(key)) {
-        Some(underlying(key))
+        Some(underlying(key).flatMap {
+          case comp: IsComponent => Some(comp)
+          case other =>
+            errors += s"reference ${key.targetParent} cannot be renamed to a non-component ${other}"
+            None
+        })
       } else {
         key match {
           case t: ReferenceTarget if t.component.nonEmpty =>
@@ -216,10 +221,11 @@ final class RenameMap private () {
             val parent = t.copy(component = t.component.dropRight(1))
             traverseTokens(parent).map(_.flatMap { x =>
               (x, last) match {
+                case (t2: InstanceTarget, Field(f)) => Some(t2.ref(f))
                 case (t2: ReferenceTarget, Field(f)) => Some(t2.field(f))
                 case (t2: ReferenceTarget, Index(i)) => Some(t2.index(i))
                 case other =>
-                  errors += s"1Illegal rename: ${key.targetParent} cannot be renamed to ${other._1} - must rename $key directly"
+                  errors += s"Illegal rename: ${key.targetParent} cannot be renamed to ${other._1} - must rename $key directly"
                   None
               }
             })
@@ -228,7 +234,7 @@ final class RenameMap private () {
       }
     }
 
-    def traverseHierarchy(key: ReferenceTarget): Option[Seq[CompleteTarget]] = {
+    def traverseHierarchy(key: ReferenceTarget): Option[Seq[IsComponent]] = {
       val tokenRenamed = traverseTokens(key)
       if (tokenRenamed.nonEmpty) {
         tokenRenamed
