@@ -353,6 +353,36 @@ class ConstantPropagation extends Transform with ResolvedAnnotationPaths {
     // AsyncReset registers don't have reset turned into a mux so we must be careful
     val asyncResetRegs = mutable.HashSet.empty[String]
 
+    abstract class RegConstPropEntry {
+      def resolve(that: RegConstPropEntry): RegConstPropEntry = CannotRegConstProp
+    }
+    case object CannotRegConstProp extends RegConstPropEntry
+    case class RegOnly(reg: String) extends RegConstPropEntry {
+      override def resolve(that: RegConstPropEntry) = that match {
+        case RegOnly(`reg`) => this
+        case LitOnly(l) => RegOrLit(reg, l)
+        case RegOrLit(`reg`, _) => that
+        case _ => CannotRegConstProp
+      }
+    }
+    case class LitOnly(lit: Literal) extends RegConstPropEntry {
+      override def resolve(that: RegConstPropEntry) = that match {
+        case RegOnly(r) => RegOrLit(r, lit)
+        case LitOnly(`lit`) => this
+        case RegOrLit(_, `lit`) => that
+        case _ => CannotRegConstProp
+      }
+    }
+    case class RegOrLit(reg: String, lit: Literal) extends RegConstPropEntry {
+      override def resolve(that: RegConstPropEntry) = that match {
+        case RegOnly(`reg`) => this
+        case LitOnly(`lit`) => this
+        case RegOrLit(`reg`, `lit`) => that
+        case _ => CannotRegConstProp
+      }
+    }
+    val memoizedRegConstPropNodes = new mutable.HashMap[String, RegConstPropEntry]
+
     // Copy constant mapping for constant inputs (except ones marked dontTouch!)
     nodeMap ++= constInputs.filterNot { case (pname, _) => dontTouches.contains(pname) }
 
@@ -388,7 +418,6 @@ class ConstantPropagation extends Transform with ResolvedAnnotationPaths {
         }
       case other => other map backPropStmt
     }
-
 
     // When propagating a reference, check if we want to keep the name that would be deleted
     def propagateRef(lname: String, value: Expression): Unit = {
@@ -428,22 +457,20 @@ class ConstantPropagation extends Transform with ResolvedAnnotationPaths {
            *
            * @return an option containing the literal or self-connect that e is convertible to, if any
            */
-          def regConstant(e: Expression): Option[Expression] = e match {
-            case lit: Literal => Some(pad(lit, ltpe))
-            case WRef(regName, _, RegKind, _) if (regName == lname) => Some(e)
-            case WRef(nodeName, _, NodeKind, _) => nodeMap.get(nodeName).flatMap(regConstant(_))
-            case Mux(_, tval, fval, _) => (regConstant(tval), regConstant(fval)) match {
-              case (Some(wr: WRef), Some(x)) if weq(lref, wr) => Some(x) // Mux(_, selfassign, <constRHSCandidate>)
-              case (Some(x), Some(wr: WRef)) if weq(lref, wr) => Some(x) // Mux(_, <constRHSCandidate>, selfassign)
-              case (x, y) if (x == y) => x                               // No-op mux
-              case _ => None                                             // At least one case not constant-convertible
-            }
-            case _ => None
+          def regConstant(e: Expression): RegConstPropEntry = e match {
+            case lit: Literal => LitOnly(lit)
+            case WRef(regName, _, RegKind, _) => RegOnly(regName)
+            case WRef(nodeName, _, NodeKind, _) if nodeMap.contains(nodeName) =>
+              memoizedRegConstPropNodes.getOrElseUpdate(nodeName, { regConstant(nodeMap(nodeName)) })
+            case Mux(_, tval, fval, _) => regConstant(tval).resolve(regConstant(fval))
+            case _ => CannotRegConstProp
           }
           def cpExp(e: Expression) = constPropExpression(nodeMap, instMap, constSubOutputs)(e)
-          regConstant(rhs).foreach {
-            case wr: WRef => nodeMap(lname) = cpExp(pad(passes.RemoveValidIf.getGroundZero(ltpe), ltpe))
-            case e => nodeMap(lname) = cpExp(e)
+          regConstant(rhs) match {
+            case RegOnly(`lname`) => nodeMap(lname) = cpExp(pad(passes.RemoveValidIf.getGroundZero(ltpe), ltpe))
+            case LitOnly(lit) => nodeMap(lname) = cpExp(pad(lit, ltpe))
+            case RegOrLit(`lname`, lit) => nodeMap(lname) = cpExp(pad(lit, ltpe))
+            case _ =>
           }
         // Mark instance inputs connected to a constant
         case Connect(_, lref @ WSubField(WRef(inst, _, InstanceKind, _), port, ptpe, _), lit: Literal) =>
