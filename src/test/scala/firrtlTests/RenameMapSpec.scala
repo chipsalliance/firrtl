@@ -224,7 +224,7 @@ class RenameMapSpec extends FirrtlFlatSpec {
     case class BadRename(from: CompleteTarget, tos: Seq[CompleteTarget])
     val badRenames =
       Seq(//BadRename(foo, Seq(cir)),
-        BadRename(foo, Seq(modB)),
+        //BadRename(foo, Seq(modB)),
         //BadRename(modA, Seq(fooB)),
         //BadRename(modA, Seq(cir)),
         //BadRename(cir, Seq(foo)),
@@ -269,11 +269,14 @@ class RenameMapSpec extends FirrtlFlatSpec {
     renames.get(top.module("B")) should be (Some(Seq(top.module("A"))))
   }
 
-  it should "error if a reference is renamed to a module, and then we try to rename the reference's field" in {
+  it should "error if a reference is renamed to a module and vice versa" in {
     val renames = RenameMap()
     val top = CircuitTarget("Top")
     renames.record(top.module("A").ref("ref"), top.module("B"))
-    renames.get(top.module("A").ref("ref")) should be(Some(Seq(top.module("B"))))
+    renames.record(top.module("C"), top.module("D").ref("ref"))
+    a [IllegalRenameException] shouldBe thrownBy {
+      renames.get(top.module("C"))
+    }
     a [IllegalRenameException] shouldBe thrownBy {
       renames.get(top.module("A").ref("ref").field("field"))
     }
@@ -512,6 +515,28 @@ class RenameMapSpec extends FirrtlFlatSpec {
     renames.get(cir.module("A").instOf("b", "B").instOf("c", "C").ref("foo").field("bar")) should be {
       Some(Seq(cir.module("A").instOf("b", "B").instOf("c", "D")
         .instOf("e", "E").instOf("f", "F").ref("foo").field("foo")))
+    }
+  }
+
+  it should "error if an instance is renamed to a ReferenceTarget" in {
+    val top = CircuitTarget("Top").module("Top")
+    val renames = RenameMap()
+    val from = top.instOf("a", "A")
+    val to = top.ref("b")
+    renames.record(from, to)
+    a [IllegalRenameException] shouldBe thrownBy {
+      renames.get(from)
+    }
+  }
+
+  it should "allow renaming of instances if there is a matching reference rename" in {
+    val top = CircuitTarget("Top").module("Top")
+    val renames = RenameMap()
+    val from = top.ref("a")
+    val to = top.ref("b")
+    renames.record(from, to)
+    renames.get(top.instOf("a", "Foo")) should be {
+      Some(Seq(top.instOf("b", "Foo")))
     }
   }
 }
