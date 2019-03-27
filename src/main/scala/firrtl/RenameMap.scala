@@ -239,7 +239,7 @@ final class RenameMap private () {
             val encapsulatingInstance = t.path.head._1.value
             val stripped = t.stripHierarchy(1)
             traverseHierarchy(stripped).map(_.map {
-              _.addHierarchy(t.moduleOpt.get, encapsulatingInstance)
+              _.addHierarchy(t.module, encapsulatingInstance)
             })
         }
       }
@@ -298,7 +298,7 @@ final class RenameMap private () {
             val (Instance(outerInst), OfModule(outerMod)) = t.path.head
             val stripped = t.copy(path = t.path.tail, module = outerMod)
             traverseLeft(stripped).map(_.map {
-              _.addHierarchy(t.moduleOpt.get, outerInst)
+              _.addHierarchy(t.module, outerInst)
             })
         }
       }
