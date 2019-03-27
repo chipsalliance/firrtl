@@ -120,6 +120,8 @@ object RemoveCHIRRTL extends Transform {
           clks += "clk"
           ens += "en"
           masks ++= create_exps(SubField(portRef, "wmask", createMask(sx.tpe)))
+          renames.rename(sx.name, s"${sx.mem}.${sx.name}.rdata")
+          renames.rename(sx.name, s"${sx.mem}.${sx.name}.wdata")
           val es = create_all_exps(WRef(sx.name, sx.tpe))
           val rs = create_all_exps(WRef(s"${sx.mem}.${sx.name}.rdata", sx.tpe))
           val ws = create_all_exps(WRef(s"${sx.mem}.${sx.name}.wdata", sx.tpe))
@@ -132,6 +134,7 @@ object RemoveCHIRRTL extends Transform {
           clks += "clk"
           ens += "en"
           masks ++= create_exps(SubField(portRef, "mask", createMask(sx.tpe)))
+          renames.rename(sx.name, s"${sx.mem}.${sx.name}.data")
           val es = create_all_exps(WRef(sx.name, sx.tpe))
           val ws = create_all_exps(WRef(s"${sx.mem}.${sx.name}.data", sx.tpe))
           (es zip ws) map {
@@ -146,6 +149,7 @@ object RemoveCHIRRTL extends Transform {
               raddrs(e.name) = SubField(portRef, "en", ut)
             case _ => ens += "en"
           }
+          renames.rename(sx.name, s"${sx.mem}.${sx.name}.data")
           val es = create_all_exps(WRef(sx.name, sx.tpe))
           val rs = create_all_exps(WRef(s"${sx.mem}.${sx.name}.data", sx.tpe))
           (es zip rs) map {
