@@ -252,7 +252,7 @@ final class RenameMap private () {
     * Recursively checks parent [[IsModule]]s until a match is found
     * First checks all parent paths from longest to shortest. Then
     * recursively checks paths leading to the encapsulating module.
-		* Stops on the first match found.
+    * Stops on the first match found.
     *
     * For example, the order that targets are checked for ~Top|Top/a:A/b:B/c:C is:
     * ~Top|Top/a:A/b:B/c:C
@@ -267,7 +267,7 @@ final class RenameMap private () {
     * ~Top|A>b
     * ~Top|Top/a:A
     * ~Top|Top>a
-		*
+    *
     * @param errors Used to record illegal renames
     * @param key Target to rename
     * @return Renamed targets, contains only the original target if none are found
