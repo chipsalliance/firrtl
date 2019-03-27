@@ -276,24 +276,17 @@ final class RenameMap private () {
     def traverseLeft(key: IsModule): Option[Seq[IsModule]] = {
       val getOpt = key match {
         case t: InstanceTarget if underlying.contains(t) => underlying.get(t)
-        case t: InstanceTarget => underlying.get(t.asReference)
+        case t: InstanceTarget =>
+          underlying.get(t.asReference).map(_.map {
+            case ReferenceTarget(c, m, p, r, Nil) => InstanceTarget(c, m, p, r, t.ofModule)
+            case other => other
+          })
         case t: ModuleTarget => underlying.get(t)
       }
 
       if (getOpt.nonEmpty) {
         getOpt.map(_.flatMap {
           case isMod: IsModule => Some(isMod)
-          case ref @ ReferenceTarget(c, m, p, r, Nil) =>
-            val ofMod = key match {
-              case t: InstanceTarget => t.ofModule
-              case t: ModuleTarget => key match {
-                case i: InstanceTarget => i.ofModule
-                case m: ModuleTarget =>
-                  errors += s"Instance as reference: $ref cannot be renamed to a non-instance $m"
-                  t.module
-              }
-            }
-            Some(InstanceTarget(c, m, p, r, ofMod))
           case other =>
             errors += s"IsModule: $key cannot be renamed to non-IsModule $other"
             None
