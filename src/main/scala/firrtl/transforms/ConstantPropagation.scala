@@ -56,6 +56,39 @@ object ConstantPropagation {
       case _ => e
     }
   }
+
+
+ /**********************************************
+  * REGISTER CONSTANT PROPAGATION HELPER TYPES *
+  **********************************************/
+
+  // A utility class that is somewhat like an Option but with two variants containing Nothing.
+  // for register constant propagation (register or literal).
+  private abstract class ConstPropBinding[+T] {
+    def resolve[V >: T](that: ConstPropBinding[V]): ConstPropBinding[V] = (this, that) match {
+      case (x, y) if (x == y) => x
+      case (x, UnboundConstant) => x
+      case (UnboundConstant, y) => y
+      case _ => NonConstant
+    }
+  }
+
+  // BoundConstant means that it has exactly the one allowable source of that type.
+  private case class BoundConstant[T](value: T) extends ConstPropBinding[T]
+
+  // NonConstant indicates multiple distinct sources.
+  private case object NonConstant extends ConstPropBinding[Nothing]
+
+  // UnboundConstant means that a node does not yet have a source of the two allowable types
+  private case object UnboundConstant extends ConstPropBinding[Nothing]
+
+  // A RegCPEntry tracks whether a given signal could be part of a register constant propagation
+  // loop. It contains const prop bindings for a register name and a literal, which represent the
+  // fact that a constant propagation loop can include both self-assignments and consistent literals.
+  private case class RegCPEntry(r: ConstPropBinding[String], l: ConstPropBinding[Literal]) {
+    def resolve(that: RegCPEntry) = RegCPEntry(r.resolve(that.r), l.resolve(that.l))
+  }
+
 }
 
 class ConstantPropagation extends Transform with ResolvedAnnotationPaths {
@@ -353,29 +386,10 @@ class ConstantPropagation extends Transform with ResolvedAnnotationPaths {
     // AsyncReset registers don't have reset turned into a mux so we must be careful
     val asyncResetRegs = mutable.HashSet.empty[String]
 
-    // A utility class that is somewhat like an Option but with two variants containing Nothing.
-    // UnboundConstant means that a node does not yet have a source of the two allowable types
-    // for register constant propagation (register or literal). BoundConstant means that it has
-    // exactly the one allowable source of that type. NonConstant indicates multiple distinct sources.
-    sealed abstract class ConstPropBinding[+T] {
-      def resolve[V >: T](that: ConstPropBinding[V]): ConstPropBinding[V] = (this, that) match {
-        case (x, y) if (x == y) => x
-        case (x, UnboundConstant) => x
-        case (UnboundConstant, y) => y
-        case _ => NonConstant
-      }
-    }
-    case class BoundConstant[T](value: T) extends ConstPropBinding[T]
-    case object NonConstant extends ConstPropBinding[Nothing]
-    case object UnboundConstant extends ConstPropBinding[Nothing]
-
     // Register constant propagation is intrinsically more complicated, as it is not feed-forward.
     // Therefore, we must store some memoized information about how nodes can be canditates for
     // forming part of a register const-prop "self-loop," where a register gets some combination of
     // self-assignments and assignments of the same literal value.
-    case class RegCPEntry(r: ConstPropBinding[String], l: ConstPropBinding[Literal]) {
-      def resolve(that: RegCPEntry) = RegCPEntry(r.resolve(that.r), l.resolve(that.l))
-    }
     val nodeRegCPEntries = new mutable.HashMap[String, RegCPEntry]
 
     // Copy constant mapping for constant inputs (except ones marked dontTouch!)
@@ -464,10 +478,10 @@ class ConstantPropagation extends Transform with ResolvedAnnotationPaths {
             case Mux(_, tval, fval, _) => regConstant(tval).resolve(regConstant(fval))
             case _ => RegCPEntry(NonConstant, NonConstant)
           }
-          val zero = passes.RemoveValidIf.getGroundZero(ltpe)
+          def zero = passes.RemoveValidIf.getGroundZero(ltpe)
           def padCPExp(e: Expression) = constPropExpression(nodeMap, instMap, constSubOutputs)(pad(e, ltpe))
           regConstant(rhs) match {
-            case RegCPEntry(BoundConstant(name), litBinding) if (name == lname) => litBinding match {
+            case RegCPEntry(BoundConstant(`lname`), litBinding) => litBinding match {
               case UnboundConstant => nodeMap(lname) = padCPExp(zero) // only self-assigns -> replace with zero
               case BoundConstant(lit) => nodeMap(lname) = padCPExp(lit) // self + lit assigns -> replace with lit
               case _ =>
