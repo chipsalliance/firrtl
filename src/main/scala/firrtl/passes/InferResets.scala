@@ -44,7 +44,23 @@ object InferResets extends Pass {
   private def analyze(c: Circuit): Map[ReferenceTarget, List[ResetDriver]] = {
     val types = mutable.Map[ReferenceTarget, List[ResetDriver]]()
     def onMod(mod: DefModule): Unit = {
-      def makeTarget = toTarget(c.main, mod.name) _
+      val instMap = mutable.Map[String, String]()
+      // We need to convert submodule port targets into targets on the Module port itself
+      def makeTarget(expr: Expression): ReferenceTarget = {
+        val target = toTarget(c.main, mod.name)(expr)
+        Utils.kind(expr) match {
+          case InstanceKind =>
+            val mod = instMap(target.ref)
+            val port = target.component.head match {
+              case TargetToken.Field(name) => name
+            }
+            //println(target)
+            val res = target.copy(module = mod, ref = port, component = target.component.tail)
+            //println(res)
+            res
+          case _ => target
+        }
+      }
       def onStmt(stmt: Statement): Unit = {
         stmt.foreach(onStmt)
         stmt match {
@@ -55,6 +71,8 @@ object InferResets extends Pass {
               case tpe       => TypeDriver(tpe, () => makeTarget(rhs))
             }
             types(target) = driver :: types.getOrElse(target, Nil)
+          case WDefInstance(_, inst, module, _) =>
+            instMap += (inst -> module)
           case _ =>
         }
       }
@@ -103,7 +121,8 @@ object InferResets extends Pass {
       case Seq((Seq(), tpe)) => GroundTree(tpe)
       // VectorTree
       case (TargetToken.Index(_) +: _, _) +: _ =>
-        // Because Vectors must all have the same type, we only process Index 0 (there can be multiple)
+        // Vectors must all have the same type, so we only process Index 0
+        // If the subtype is an aggregate, there can be multiple of each index
         val ts = tokens.collect { case (TargetToken.Index(0) +: tail, tpe) => (tail, tpe) }
         VectorTree(fromTokens(ts:_*))
       // BundleTree
@@ -134,7 +153,7 @@ object InferResets extends Pass {
   // Assumes all ReferenceTargets are in the same module
   private def makeDeclMap(map: Map[ReferenceTarget, Type]): Map[String, TypeTree] =
     map.groupBy(_._1.ref).mapValues { ts =>
-      TypeTree.fromTokens(ts.toSeq.map { case (target, tpe) => (target.tokens, tpe) }: _*)
+      TypeTree.fromTokens(ts.toSeq.map { case (target, tpe) => (target.component, tpe) }:_*)
     }
 
   private def implPort(map: Map[String, TypeTree])(port: Port): Port =
@@ -160,21 +179,22 @@ object InferResets extends Pass {
     def onMod(mod: DefModule): DefModule = {
       modMaps.get(mod.name).map { tmap =>
         val map = makeDeclMap(tmap)
+        //println(s"********** Implement on ${mod.name} **********")
+        //println(map)
         mod.map(implPort(map)).map(implStmt(map))
       }.getOrElse(mod)
-      mod
     }
     c.map(onMod)
-    c
   }
 
   def run(c: Circuit): Circuit = {
     val a = analyze(c)
-    println(a)
+    //println(a)
     val r = resolve(a)
-    println(r)
+    //println(r)
     val res = r.map(m => implement(c, m)).get
-    println(res.serialize)
-    throw new Exception("bail") with scala.util.control.NoStackTrace
+    //println(res.serialize)
+    //throw new Exception("bail") with scala.util.control.NoStackTrace
+    res
   }
 }

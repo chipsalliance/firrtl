@@ -67,6 +67,7 @@ class InferResetsSpec extends FirrtlFlatSpec {
   it should "work in nested aggregates" in {
     val result = compile(s"""
       |circuit top :
+      |  module top :
       |    output io : { flip in : { a : AsyncReset, b: UInt<1> }, out : { a : Reset, b: Reset }[2] }
       |    io.out[0] <= io.in
       |    io.out[1] <= io.in
