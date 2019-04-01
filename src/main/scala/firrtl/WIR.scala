@@ -232,6 +232,7 @@ object WrappedType {
       case (t1: VectorType, t2: VectorType) =>
         t1.size == t2.size && compare(strict)(t1.tpe, t2.tpe)
       case (t1: BundleType, t2: BundleType) =>
+        (t1.fields.size == t2.fields.size) &&
         t1.fields.zip(t2.fields).forall { case (f1, f2) =>
           (f1.flip == f2.flip) && (f1.name == f2.name) && (f1.flip match {
             case Default => compare(strict)(f1.tpe, f2.tpe)
