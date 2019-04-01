@@ -426,8 +426,7 @@ object CheckTypes extends Pass {
       s match {
         // TODO this doesn't work because resets could be flipped
         case sx: Connect if !wt(sx.loc.tpe).superTypeOf(wt(sx.expr.tpe)) =>
-        //case sx: Connect if wt(sx.loc.tpe) != wt(sx.expr.tpe) =>
-            errors.append(new InvalidConnect(info, mname, sx.loc.serialize, sx.expr.serialize))
+          errors.append(new InvalidConnect(info, mname, sx.loc.serialize, sx.expr.serialize))
         case sx: PartialConnect if !bulk_equals(sx.loc.tpe, sx.expr.tpe, Default, Default) =>
           errors.append(new InvalidConnect(info, mname, sx.loc.serialize, sx.expr.serialize))
         case sx: DefRegister =>

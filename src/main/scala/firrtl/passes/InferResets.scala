@@ -19,8 +19,6 @@ import scala.util.{Try, Success, Failure}
   */
 // TODO should we error if a DefMemory is of type AsyncReset? In CheckTypes?
 object InferResets extends Pass {
-  private type ResetMap = Map[ReferenceTarget, (ReferenceTarget, Type)]
-  private val ResetMap = Map[ReferenceTarget, (ReferenceTarget, Type)]()
 
   final class DifferingDriverTypesException private (msg: String) extends PassException(msg)
   object DifferingDriverTypesException {
@@ -29,10 +27,6 @@ object InferResets extends Pass {
       val msg = s"${target.serialize} driven with multiple types!" + xs.mkString("\n  ", "\n  ", "")
       new DifferingDriverTypesException(msg)
     }
-  }
-  final class MultiResetTypesException private (msg: String) extends PassException(msg)
-  object MultiResetTypesException {
-    def apply(): MultiResetTypesException = new MultiResetTypesException("bad")
   }
 
   private sealed trait ResetDriver
@@ -54,10 +48,7 @@ object InferResets extends Pass {
             val port = target.component.head match {
               case TargetToken.Field(name) => name
             }
-            //println(target)
-            val res = target.copy(module = mod, ref = port, component = target.component.tail)
-            //println(res)
-            res
+            target.copy(module = mod, ref = port, component = target.component.tail)
           case _ => target
         }
       }
@@ -109,13 +100,13 @@ object InferResets extends Pass {
     }
   }
 
-  sealed trait TypeTree
-  case class BundleTree(fields: Map[String, TypeTree]) extends TypeTree
-  case class VectorTree(subType: TypeTree) extends TypeTree
+  private sealed trait TypeTree
+  private case class BundleTree(fields: Map[String, TypeTree]) extends TypeTree
+  private case class VectorTree(subType: TypeTree) extends TypeTree
   // TODO ensure is only AsyncResetType or BoolType
-  case class GroundTree(tpe: Type) extends TypeTree
+  private case class GroundTree(tpe: Type) extends TypeTree
 
-  object TypeTree {
+  private object TypeTree {
     // TODO make return Try[TypeTree]
     def fromTokens(tokens: (Seq[TargetToken], Type)*): TypeTree = tokens match {
       case Seq((Seq(), tpe)) => GroundTree(tpe)
@@ -178,23 +169,21 @@ object InferResets extends Pass {
     val modMaps = map.groupBy(_._1.module)
     def onMod(mod: DefModule): DefModule = {
       modMaps.get(mod.name).map { tmap =>
-        val map = makeDeclMap(tmap)
-        //println(s"********** Implement on ${mod.name} **********")
-        //println(map)
-        mod.map(implPort(map)).map(implStmt(map))
+        val declMap = makeDeclMap(tmap)
+        mod.map(implPort(declMap)).map(implStmt(declMap))
       }.getOrElse(mod)
     }
     c.map(onMod)
   }
 
+  private def fixupPasses: Seq[Pass] = Seq(
+    InferTypes,
+    CheckTypes
+  )
+
   def run(c: Circuit): Circuit = {
-    val a = analyze(c)
-    //println(a)
-    val r = resolve(a)
-    //println(r)
-    val res = r.map(m => implement(c, m)).get
-    //println(res.serialize)
-    //throw new Exception("bail") with scala.util.control.NoStackTrace
-    res
+    val inferred = resolve(analyze(c))
+    val result = inferred.map(m => implement(c, m)).get
+    fixupPasses.foldLeft(result)((c, p) => p.run(c))
   }
 }

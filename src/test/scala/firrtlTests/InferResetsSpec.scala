@@ -4,7 +4,7 @@ package firrtlTests
 
 import firrtl._
 import firrtl.ir._
-import firrtl.passes.InferResets
+import firrtl.passes.{CheckTypes, InferResets}
 import FirrtlCheckers._
 
 class InferResetsSpec extends FirrtlFlatSpec {
@@ -76,10 +76,10 @@ class InferResetsSpec extends FirrtlFlatSpec {
     )
     result should containTree { case Port(_, "io_in_a", Input, AsyncResetType) => true }
     result should containTree { case Port(_, "io_in_b", Input, BoolType) => true }
-    result should containTree { case Port(_, "io_out_0_a", Input, AsyncResetType) => true }
-    result should containTree { case Port(_, "io_out_1_a", Input, AsyncResetType) => true }
-    result should containTree { case Port(_, "io_out_0_b", Input, BoolType) => true }
-    result should containTree { case Port(_, "io_out_1_b", Input, BoolType) => true }
+    result should containTree { case Port(_, "io_out_0_a", Output, AsyncResetType) => true }
+    result should containTree { case Port(_, "io_out_1_a", Output, AsyncResetType) => true }
+    result should containTree { case Port(_, "io_out_0_b", Output, BoolType) => true }
+    result should containTree { case Port(_, "io_out_1_b", Output, BoolType) => true }
   }
 
   it should "not allow different Reset Types to drive a single Reset" in {
@@ -102,7 +102,7 @@ class InferResetsSpec extends FirrtlFlatSpec {
   }
 
   it should "not allow Vecs to infer different Reset Types" in {
-    an [InferResets.MultiResetTypesException] shouldBe thrownBy {
+    an [CheckTypes.InvalidConnect] shouldBe thrownBy {
       val result = compile(s"""
         |circuit top :
         |  module top :
@@ -116,41 +116,19 @@ class InferResetsSpec extends FirrtlFlatSpec {
     }
   }
 
-  it should "not allow Vecs only be partially inferred" in {
+  ignore should "not allow Vecs only be partially inferred" in {
     // Some exception should be thrown, TODO figure out which one
+    an [Exception] shouldBe thrownBy {
       val result = compile(s"""
         |circuit top :
         |  module top :
         |    input reset : AsyncReset
         |    output out : Reset[2]
         |    out is invalid
-        |    out[0] <= reset0
+        |    out[0] <= reset
         |""".stripMargin
       )
+    }
   }
 }
 
-class TypeTreesSpec extends FirrtlFlatSpec {
-  import firrtl.annotations.TargetToken
-  import firrtl.annotations.TargetToken.{Field, Index}
-  import firrtl.passes.InferResets._
-  val BoolType = UIntType(IntWidth(1))
-  "jack" should "be cool" in {
-    //  Seq(Index(0)),
-    //  Seq(Index(1))
-    //)
-    val input = Seq(
-      (Seq(Field("a"), Field("x"), Field("m")), BoolType),
-      (Seq(Field("a"), Field("x"), Field("n")), BoolType),
-      (Seq(Field("a"), Field("y")), AsyncResetType),
-      (Seq(Field("b"), Field("z")), BoolType)
-    )
-    //val input = Seq(
-    //  (Seq(Index(0), Field("a")), BoolType),
-    //  (Seq(Index(1), Field("a")), BoolType),
-    //  (Seq(Index(0), Field("b")), AsyncResetType),
-    //  (Seq(Index(1), Field("b")), AsyncResetType)
-    //)
-    println(TypeTree.fromTokens(input:_*))
-  }
-}
