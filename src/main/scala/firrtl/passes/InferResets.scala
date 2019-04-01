@@ -35,33 +35,6 @@ object InferResets extends Pass {
     def apply(): MultiResetTypesException = new MultiResetTypesException("bad")
   }
 
-  private def hasResetType(tpe: Type): Boolean = {
-    var found = false
-    def onType(t: Type): Unit = {
-      t.foreach(onType)
-      if (t == ResetType) { found = true }
-    }
-    onType(tpe)
-    found
-  }
-  /** InferResets within a given [[Module]]
-    * @param resets records what Module ports are driven with what reset types
-    */
-  private def onModule(resets: ResetMap)(mod: Module): (Module, ResetMap) = {
-    val instReset = mutable.Map.empty[ReferenceTarget, (ReferenceTarget, Type)]
-    def onStmt(stmt: Statement): Statement = stmt.map(onStmt) match {
-      case w: DefWire =>
-        hasResetType(w.tpe)
-        w
-      case con @ Connect(_, lhs, rhs) if lhs.tpe == ResetType =>
-        println(con.serialize)
-        con
-      case x => x
-    }
-    mod.map(onStmt)
-    (mod, resets)
-  }
-
   private sealed trait ResetDriver
   private case class TargetDriver(target: ReferenceTarget) extends ResetDriver
   // We keep the target around (lazily) so that we can report errors
@@ -144,20 +117,6 @@ object InferResets extends Pass {
     }
   }
 
-  // Using the tokens, find and replace a subtype
-  //private def fixupType(old: Type, tokens: Seq[TargetToken], repl: Type): Type = {
-  //  import TargetToken._
-  //  if (tokens.isEmpty) repl
-  //  else (old, tokens.head) match {
-  //    case (BundleType(fields), Field(name)) =>
-  //      BundleType(fields.map { f =>
-  //        if (f.name == name) f.copy(tpe = fixupType(f.tpe, tokens.tail, repl))
-  //        else f
-  //      })
-  //    //case (VectorType(tpe, size) // what do we do here?
-  //    case (tpe, token) => throw new Exception(s"Error! unexpected pair ($tpe, $token)")
-  //  }
-  //}
   private def fixupType(tpe: Type, tree: TypeTree): Type = (tpe, tree) match {
     case (BundleType(fields), BundleTree(map)) =>
       val fieldsx =
@@ -177,11 +136,6 @@ object InferResets extends Pass {
     map.groupBy(_._1.ref).mapValues { ts =>
       TypeTree.fromTokens(ts.toSeq.map { case (target, tpe) => (target.tokens, tpe) }: _*)
     }
-
-
-  //private def coolFunc(tpes: Seq[(Seq[TargetToken], Type)]): Map[String, Seq[(Seq[TargetToken], Type)]] =
-  //nda
-  //  tpes.groupBy(_._1.head).mapValues(_.map { case (tar, tpe) => (tar.tail, tpe) })
 
   private def implPort(map: Map[String, TypeTree])(port: Port): Port =
     map.get(port.name)
