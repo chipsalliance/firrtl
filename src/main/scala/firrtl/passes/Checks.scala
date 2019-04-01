@@ -281,10 +281,20 @@ object CheckTypes extends Pass {
   class IllegalAttachExp(info: Info, mname: String, expName: String) extends PassException(
     s"$info: [module $mname]  Attach expression must be an port, wire, or port of instance: $expName.")
   class IllegalResetType(info: Info, mname: String, exp: String) extends PassException(
-    s"$info: [module $mname]  Register resets must have type UInt<1>: $exp.")
+    s"$info: [module $mname]  Register resets must have type Reset, AsyncReset, or UInt<1>: $exp.")
   class IllegalUnknownType(info: Info, mname: String, exp: String) extends PassException(
     s"$info: [module $mname]  Uninferred type: $exp."
   )
+
+  def legalResetType(tpe: Type): Boolean = tpe match {
+    case UIntType(IntWidth(w)) if w == 1 => true
+    case AsyncResetType => true
+    case ResetType => true
+    case UIntType(UnknownWidth) =>
+      // cannot catch here, though width may ultimately be wrong
+      true
+    case _ => false
+  }
 
   //;---------------- Helper Functions --------------
   def ut: UIntType = UIntType(UnknownWidth)
@@ -414,8 +424,10 @@ object CheckTypes extends Pass {
     def check_types_s(minfo: Info, mname: String)(s: Statement): Unit = {
       val info = get_info(s) match { case NoInfo => minfo case x => x }
       s match {
-        case sx: Connect if wt(sx.loc.tpe) != wt(sx.expr.tpe) =>
-          errors.append(new InvalidConnect(info, mname, sx.loc.serialize, sx.expr.serialize))
+        // TODO this doesn't work because resets could be flipped
+        case sx: Connect if !wt(sx.loc.tpe).superTypeOf(wt(sx.expr.tpe)) =>
+        //case sx: Connect if wt(sx.loc.tpe) != wt(sx.expr.tpe) =>
+            errors.append(new InvalidConnect(info, mname, sx.loc.serialize, sx.expr.serialize))
         case sx: PartialConnect if !bulk_equals(sx.loc.tpe, sx.expr.tpe, Default, Default) =>
           errors.append(new InvalidConnect(info, mname, sx.loc.serialize, sx.expr.serialize))
         case sx: DefRegister =>
@@ -424,11 +436,8 @@ object CheckTypes extends Pass {
             case t if wt(sx.tpe) != wt(sx.init.tpe) => errors.append(new InvalidRegInit(info, mname))
             case t =>
           }
-          sx.reset.tpe match {
-            case UIntType(IntWidth(w)) if w == 1 =>
-            case AsyncResetType =>
-            case UIntType(UnknownWidth) => // cannot catch here, though width may ultimately be wrong
-            case _ => errors.append(new IllegalResetType(info, mname, sx.name))
+          if (!legalResetType(sx.reset.tpe)) {
+            errors.append(new IllegalResetType(info, mname, sx.name))
           }
           if (sx.clock.tpe != ClockType) {
             errors.append(new RegReqClk(info, mname, sx.name))

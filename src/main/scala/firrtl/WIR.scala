@@ -215,15 +215,14 @@ case class ExpWidth(arg1: Width) extends Width with HasMapWidth {
 object WrappedType {
   def apply(t: Type) = new WrappedType(t)
   def wt(t: Type) = apply(t)
-}
-class WrappedType(val t: Type) {
-  def wt(tx: Type) = new WrappedType(tx)
-  override def equals(o: Any): Boolean = o match {
-    case (t2: WrappedType) => (t, t2.t) match {
+  private def compare(strict: Boolean)(t1: Type, t2: Type): Boolean =
+    (t1, t2) match {
       case (_: UIntType, _: UIntType) => true
       case (_: SIntType, _: SIntType) => true
       case (ClockType, ClockType) => true
       case (AsyncResetType, AsyncResetType) => true
+      case (ResetType, ResetType) => true
+      case (ResetType, rtpe) if !strict => passes.CheckTypes.legalResetType(rtpe)
       case (_: FixedType, _: FixedType) => true
       // Analog totally skips out of the Firrtl type system.
       // The only way Analog can play with another Analog component is through Attach.
@@ -231,16 +230,27 @@ class WrappedType(val t: Type) {
       // ExpandConnects, etc.
       case (_: AnalogType, _: AnalogType) => false
       case (t1: VectorType, t2: VectorType) =>
-        t1.size == t2.size && wt(t1.tpe) == wt(t2.tpe)
+        t1.size == t2.size && compare(strict)(t1.tpe, t2.tpe)
       case (t1: BundleType, t2: BundleType) =>
-        t1.fields.size == t2.fields.size && (
-        (t1.fields zip t2.fields) forall { case (f1, f2) =>
-          f1.flip == f2.flip && f1.name == f2.name
-        }) && ((t1.fields zip t2.fields) forall { case (f1, f2) =>
-          wt(f1.tpe) == wt(f2.tpe)
-        })
+        t1.fields.zip(t2.fields).forall { case (f1, f2) =>
+          (f1.flip == f2.flip) && (f1.name == f2.name) && (f1.flip match {
+            case Default => compare(strict)(f1.tpe, f2.tpe)
+            // We allow UInt<1> and AsyncReset to drive Reset but not the other way around
+            case Flip    => compare(strict)(f2.tpe, f1.tpe)
+          })
+        }
       case _ => false
     }
+}
+class WrappedType(val t: Type) {
+  def wt(tx: Type) = new WrappedType(tx)
+  // TODO Better name?
+  /** Strict comparison except Reset accepts AsyncReset, Reset, and `UInt<1>`
+    */
+  def superTypeOf(that: WrappedType): Boolean = WrappedType.compare(false)(this.t, that.t)
+
+  override def equals(o: Any): Boolean = o match {
+    case (t2: WrappedType) => WrappedType.compare(true)(this.t, t2.t)
     case _ => false
   }
 }

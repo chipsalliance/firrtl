@@ -60,6 +60,7 @@ class HighFirrtlToMiddleFirrtl extends CoreTransform {
     passes.PullMuxes,
     passes.ReplaceAccesses,
     passes.ExpandConnects,
+    passes.InferResets,
     passes.RemoveAccesses,
     passes.Uniquify,
     passes.ExpandWhens,
