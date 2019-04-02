@@ -156,6 +156,13 @@ final class RenameMap private () {
     */
   private val getCache = mutable.HashMap[CompleteTarget, Seq[CompleteTarget]]()
 
+  /** Caches results of referenceGet. Is cleared any time a new rename target is added
+    */
+  private val traverseTokensCache = mutable.HashMap[ReferenceTarget, Option[Seq[IsComponent]]]()
+  private val traverseHierarchyCache = mutable.HashMap[ReferenceTarget, Option[Seq[IsComponent]]]()
+  private val traverseLeftCache = mutable.HashMap[InstanceTarget, Option[Seq[IsModule]]]()
+  private val traverseRightCache = mutable.HashMap[InstanceTarget, Seq[IsModule]]()
+
   /** Updates [[sensitivity]]
     * @param from original target
     * @param to new target
@@ -206,7 +213,7 @@ final class RenameMap private () {
     * @return Renamed targets if a match is found, otherwise None
     */
   private def referenceGet(errors: mutable.ArrayBuffer[String])(key: ReferenceTarget): Option[Seq[IsComponent]] = {
-    def traverseTokens(key: ReferenceTarget): Option[Seq[IsComponent]] = {
+    def traverseTokens(key: ReferenceTarget): Option[Seq[IsComponent]] = traverseTokensCache.getOrElseUpdate(key, {
       if (underlying.contains(key)) {
         Some(underlying(key).flatMap {
           case comp: IsComponent => Some(comp)
@@ -232,9 +239,9 @@ final class RenameMap private () {
           case t: ReferenceTarget => None
         }
       }
-    }
+    })
 
-    def traverseHierarchy(key: ReferenceTarget): Option[Seq[IsComponent]] = {
+    def traverseHierarchy(key: ReferenceTarget): Option[Seq[IsComponent]] = traverseHierarchyCache.getOrElseUpdate(key, {
       val tokenRenamed = traverseTokens(key)
       if (tokenRenamed.nonEmpty) {
         tokenRenamed
@@ -249,7 +256,7 @@ final class RenameMap private () {
             })
         }
       }
-    }
+    })
 
     traverseHierarchy(key)
   }
@@ -279,7 +286,7 @@ final class RenameMap private () {
     * @return Renamed targets, contains only the original target if none are found
     */
   private def instanceGet(errors: mutable.ArrayBuffer[String])(key: InstanceTarget): Seq[IsModule] = {
-    def traverseLeft(key: IsModule): Option[Seq[IsModule]] = {
+    def traverseLeft(key: InstanceTarget): Option[Seq[IsModule]] = traverseLeftCache.getOrElseUpdate(key, {
       val getOpt = key match {
         case t: InstanceTarget if underlying.contains(t) => underlying.get(t)
         case t: InstanceTarget =>
@@ -308,9 +315,9 @@ final class RenameMap private () {
             })
         }
       }
-    }
+    })
 
-    def traverseRight(key: InstanceTarget): Seq[IsModule] = {
+    def traverseRight(key: InstanceTarget): Seq[IsModule] = traverseRightCache.getOrElseUpdate(key, {
       val findLeft = traverseLeft(key)
       if (findLeft.nonEmpty) {
         findLeft.get
@@ -323,7 +330,7 @@ final class RenameMap private () {
             traverseRight(parent).map(_.instOf(t.instance, t.ofModule))
         }
       }
-    }
+    })
 
     traverseRight(key)
   }
@@ -450,6 +457,10 @@ final class RenameMap private () {
         val updated = existing ++ tos
         underlying(from) = updated
         getCache.clear()
+        traverseTokensCache.clear()
+        traverseHierarchyCache.clear()
+        traverseLeftCache.clear()
+        traverseRightCache.clear()
     }
   }
 
