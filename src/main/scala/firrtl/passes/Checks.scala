@@ -57,6 +57,11 @@ object CheckHighForm extends Pass {
     s"$info: [module $mname] Primop $op lsb $lsb > $msb.")
   class NonLiteralAsyncResetValueException(info: Info, mname: String, reg: String, init: String) extends PassException(
     s"$info: [module $mname] AsyncReset Reg '$reg' reset to non-literal '$init'")
+  class ResetInputException(info: Info, mname: String, expr: Expression) extends PassException(
+    s"$info: [module $mname] Abstract Reset not allowed as top-level input: ${expr.serialize}")
+  class ResetExtModuleOutputException(info: Info, mname: String, expr: Expression) extends PassException(
+    s"$info [module $mname] Abstract Reset not allowed as ExtModule output: ${expr.serialize}")
+
 
   def run(c: Circuit): Circuit = {
     val errors = new Errors()
@@ -203,15 +208,36 @@ object CheckHighForm extends Pass {
       p.tpe foreach checkHighFormW(p.info, mname)
     }
 
+    // Search for ResetType Ports of direction
+    def findBadResetTypePorts(m: DefModule, dir: Direction): Seq[(Port, Expression)] = {
+      val bad = to_gender(dir)
+      for {
+        port <- m.ports
+        ref = WRef(port).copy(gender = to_gender(port.direction))
+        expr <- create_exps(ref)
+        if ((expr.tpe == ResetType) && (gender(expr) == bad))
+      } yield (port, expr)
+    }
+
     def checkHighFormM(m: DefModule) {
       val names = new NameSet
       m foreach checkHighFormP(m.name, names)
       m foreach checkHighFormS(m.info, m.name, names)
+      m match {
+        case _: Module =>
+        case ext: ExtModule =>
+          for ((port, expr) <- findBadResetTypePorts(ext, Output)) {
+            errors.append(new ResetExtModuleOutputException(port.info, ext.name, expr))
+          }
+      }
     }
 
     c.modules foreach checkHighFormM
-    c.modules count (_.name == c.main) match {
-      case 1 =>
+    c.modules.filter(_.name == c.main) match {
+      case Seq(topMod) =>
+        for ((port, expr) <- findBadResetTypePorts(topMod, Input)) {
+          errors.append(new ResetInputException(port.info, topMod.name, expr))
+        }
       case _ => errors.append(new NoTopModuleException(c.info, c.main))
     }
     errors.trigger()
@@ -398,13 +424,15 @@ object CheckTypes extends Pass {
     }
 
     def bulk_equals(t1: Type, t2: Type, flip1: Orientation, flip2: Orientation): Boolean = {
-      //;println_all(["Inside with t1:" t1 ",t2:" t2 ",f1:" flip1 ",f2:" flip2])
       (t1, t2) match {
         case (ClockType, ClockType) => flip1 == flip2
         case (_: UIntType, _: UIntType) => flip1 == flip2
         case (_: SIntType, _: SIntType) => flip1 == flip2
         case (_: FixedType, _: FixedType) => flip1 == flip2
         case (_: AnalogType, _: AnalogType) => true
+        case (AsyncResetType, AsyncResetType) => flip1 == flip2
+        case (ResetType, reset) => legalResetType(reset) && flip1 == Default && flip1 == flip2
+        case (reset, ResetType) => legalResetType(reset) && flip1 == Flip && flip1 == flip2
         case (t1: BundleType, t2: BundleType) =>
           val t1_fields = (t1.fields foldLeft Map[String, (Type, Orientation)]())(
             (map, f1) => map + (f1.name -> (f1.tpe, f1.flip)))

@@ -4,7 +4,7 @@ package firrtlTests
 
 import firrtl._
 import firrtl.ir._
-import firrtl.passes.{CheckTypes, InferResets}
+import firrtl.passes.{CheckHighForm, CheckTypes, InferResets}
 import FirrtlCheckers._
 
 class InferResetsSpec extends FirrtlFlatSpec {
@@ -64,22 +64,33 @@ class InferResetsSpec extends FirrtlFlatSpec {
     result should containTree { case Port(_, "resetOut", Output, BoolType) => true }
   }
 
-  it should "work in nested aggregates" in {
+  it should "work in nested and flipped aggregates with regular and partial connect" in {
     val result = compile(s"""
       |circuit top :
       |  module top :
-      |    output io : { flip in : { a : AsyncReset, b: UInt<1> }, out : { a : Reset, b: Reset }[2] }
-      |    io.out[0] <= io.in
-      |    io.out[1] <= io.in
+      |    output fizz : { flip foo : { a : AsyncReset, flip b: Reset }[2], bar : { a : Reset, flip b: AsyncReset }[2] }
+      |    output buzz : { flip foo : { a : AsyncReset, flip b: Reset }[2], bar : { a : Reset, flip b: AsyncReset }[2] }
+      |    fizz.bar <= fizz.foo
+      |    buzz.bar <- buzz.foo
       |""".stripMargin,
       new LowFirrtlCompiler
     )
-    result should containTree { case Port(_, "io_in_a", Input, AsyncResetType) => true }
-    result should containTree { case Port(_, "io_in_b", Input, BoolType) => true }
-    result should containTree { case Port(_, "io_out_0_a", Output, AsyncResetType) => true }
-    result should containTree { case Port(_, "io_out_1_a", Output, AsyncResetType) => true }
-    result should containTree { case Port(_, "io_out_0_b", Output, BoolType) => true }
-    result should containTree { case Port(_, "io_out_1_b", Output, BoolType) => true }
+    result should containTree { case Port(_, "fizz_foo_0_a", Input, AsyncResetType) => true }
+    result should containTree { case Port(_, "fizz_foo_0_b", Output, AsyncResetType) => true }
+    result should containTree { case Port(_, "fizz_foo_1_a", Input, AsyncResetType) => true }
+    result should containTree { case Port(_, "fizz_foo_1_b", Output, AsyncResetType) => true }
+    result should containTree { case Port(_, "fizz_bar_0_a", Output, AsyncResetType) => true }
+    result should containTree { case Port(_, "fizz_bar_0_b", Input, AsyncResetType) => true }
+    result should containTree { case Port(_, "fizz_bar_1_a", Output, AsyncResetType) => true }
+    result should containTree { case Port(_, "fizz_bar_1_b", Input, AsyncResetType) => true }
+    result should containTree { case Port(_, "buzz_foo_0_a", Input, AsyncResetType) => true }
+    result should containTree { case Port(_, "buzz_foo_0_b", Output, AsyncResetType) => true }
+    result should containTree { case Port(_, "buzz_foo_1_a", Input, AsyncResetType) => true }
+    result should containTree { case Port(_, "buzz_foo_1_b", Output, AsyncResetType) => true }
+    result should containTree { case Port(_, "buzz_bar_0_a", Output, AsyncResetType) => true }
+    result should containTree { case Port(_, "buzz_bar_0_b", Input, AsyncResetType) => true }
+    result should containTree { case Port(_, "buzz_bar_1_a", Output, AsyncResetType) => true }
+    result should containTree { case Port(_, "buzz_bar_1_b", Input, AsyncResetType) => true }
   }
 
   it should "not allow different Reset Types to drive a single Reset" in {
@@ -101,6 +112,59 @@ class InferResetsSpec extends FirrtlFlatSpec {
     }
   }
 
+  it should "not allow ResetType to drive AsyncResets or UInt<1>" in {
+    an [CheckTypes.InvalidConnect] shouldBe thrownBy {
+      val result = compile(s"""
+        |circuit top :
+        |  module top :
+        |    input in : UInt<1>
+        |    output out : UInt<1>
+        |    wire w : Reset
+        |    w <= in
+        |    out <= w
+        |""".stripMargin
+      )
+    }
+    an [CheckTypes.InvalidConnect] shouldBe thrownBy {
+      val result = compile(s"""
+        |circuit top :
+        |  module top :
+        |    input in : UInt<1>
+        |    output out : UInt<1>
+        |    wire w : Reset
+        |    w <- in
+        |    out <- w
+        |""".stripMargin
+      )
+    }
+  }
+
+  it should "not allow ResetType as an Input or ExtModule output" in {
+    // TODO what exception should be thrown here?
+    an [CheckHighForm.ResetInputException] shouldBe thrownBy {
+      val result = compile(s"""
+        |circuit top :
+        |  module top :
+        |    input in : { foo : Reset }
+        |    output out : Reset
+        |    out <= in.foo
+        |""".stripMargin
+      )
+    }
+    an [CheckHighForm.ResetExtModuleOutputException] shouldBe thrownBy {
+      val result = compile(s"""
+        |circuit top :
+        |  extmodule ext :
+        |    output out : { foo : Reset }
+        |  module top :
+        |    output out : Reset
+        |    inst e of ext
+        |    out <= e.out.foo
+        |""".stripMargin
+      )
+    }
+  }
+
   it should "not allow Vecs to infer different Reset Types" in {
     an [CheckTypes.InvalidConnect] shouldBe thrownBy {
       val result = compile(s"""
@@ -116,6 +180,7 @@ class InferResetsSpec extends FirrtlFlatSpec {
     }
   }
 
+  // Or is this actually an error? The behavior is that out is inferred as AsyncReset[2]
   ignore should "not allow Vecs only be partially inferred" in {
     // Some exception should be thrown, TODO figure out which one
     an [Exception] shouldBe thrownBy {

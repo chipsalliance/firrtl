@@ -30,6 +30,25 @@ class AsyncResetSpec extends FirrtlFlatSpec {
     result should containLine ("always @(posedge clock or posedge reset) begin")
   }
 
+  it should "work in nested and flipped aggregates with regular and partial connect" in {
+    val result = compileBody(s"""
+      |output fizz : { flip foo : { a : AsyncReset, flip b: AsyncReset }[2], bar : { a : AsyncReset, flip b: AsyncReset }[2] }
+      |output buzz : { flip foo : { a : AsyncReset, flip b: AsyncReset }[2], bar : { a : AsyncReset, flip b: AsyncReset }[2] }
+      |fizz.bar <= fizz.foo
+      |buzz.bar <- buzz.foo
+      |""".stripMargin
+    )
+
+    result should containLine ("assign fizz_foo_0_b = fizz_bar_0_b;")
+    result should containLine ("assign fizz_foo_1_b = fizz_bar_1_b;")
+    result should containLine ("assign fizz_bar_0_a = fizz_foo_0_a;")
+    result should containLine ("assign fizz_bar_1_a = fizz_foo_1_a;")
+    result should containLine ("assign buzz_foo_0_b = buzz_bar_0_b;")
+    result should containLine ("assign buzz_foo_1_b = buzz_bar_1_b;")
+    result should containLine ("assign buzz_bar_0_a = buzz_foo_0_a;")
+    result should containLine ("assign buzz_bar_1_a = buzz_foo_1_a;")
+  }
+
   it should "support casting to other types" in {
     val result = compileBody(s"""
       |input a : AsyncReset

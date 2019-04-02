@@ -448,6 +448,7 @@ object Utils extends LazyLogging {
   }
 
   def get_valid_points(t1: Type, t2: Type, flip1: Orientation, flip2: Orientation): Seq[(Int,Int)] = {
+    import passes.CheckTypes.legalResetType
     //;println_all(["Inside with t1:" t1 ",t2:" t2 ",f1:" flip1 ",f2:" flip2])
     (t1, t2) match {
       case (_: UIntType, _: UIntType) => if (flip1 == flip2) Seq((0, 0)) else Nil
@@ -477,6 +478,11 @@ object Utils extends LazyLogging {
             ilen + get_size(t1x.tpe), jlen + get_size(t2x.tpe))
         }._1
       case (ClockType, ClockType) => if (flip1 == flip2) Seq((0, 0)) else Nil
+      case (AsyncResetType, AsyncResetType) => if (flip1 == flip2) Seq((0, 0)) else Nil
+      case (ResetType, other) =>
+        if (legalResetType(other) && flip1 == Default && flip1 == flip2) Seq((0, 0)) else Nil
+      case (other, ResetType) =>
+        if (legalResetType(other) && flip1 == Flip && flip1 == flip2) Seq((0, 0)) else Nil
       case _ => throwInternalError(s"get_valid_points: shouldn't be here - ($t1, $t2)")
     }
   }
