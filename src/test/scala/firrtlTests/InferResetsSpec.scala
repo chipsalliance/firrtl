@@ -135,9 +135,9 @@ class InferResetsSpec extends FirrtlFlatSpec {
       |      when en1 :
       |        out <= w2
       |      else :
-      |        out <= w1
+      |        out <= w3
       |    else :
-      |      out <= w1
+      |      out <= w3
       |""".stripMargin
     )
     result should containTree { case Port(_, "out", Output, BoolType) => true }

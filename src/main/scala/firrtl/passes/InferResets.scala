@@ -68,8 +68,10 @@ object InferResets extends Pass {
             val altMap = new DriverMap
             onStmt(conMap)(con)
             onStmt(altMap)(alt)
+            // Default to outerscope if not found in alt
+            val altLookup = altMap.orElse(map).lift
             for (key <- conMap.keys ++ altMap.keys) {
-              map(key) = (altMap.get(key).toList ++ conMap.get(key).toList).flatten
+              map(key) = (conMap.get(key).toList ++ altLookup(key).toList).flatten
             }
           case other => other.foreach(onStmt(map))
         }
