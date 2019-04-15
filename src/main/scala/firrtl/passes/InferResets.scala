@@ -23,7 +23,7 @@ object InferResets extends Pass {
   final class DifferingDriverTypesException private (msg: String) extends PassException(msg)
   object DifferingDriverTypesException {
     def apply(target: ReferenceTarget, tpes: Seq[(Type, Seq[TypeDriver])]): DifferingDriverTypesException = {
-      val xs = tpes.map { case (t, ds) => s"${t.serialize} by {ds.map(_.target().serialize)}" }
+      val xs = tpes.map { case (t, ds) => s"${ds.map(_.target().serialize).mkString(", ")} of type ${t.serialize}" }
       val msg = s"${target.serialize} driven with multiple types!" + xs.mkString("\n  ", "\n  ", "")
       new DifferingDriverTypesException(msg)
     }
@@ -36,8 +36,8 @@ object InferResets extends Pass {
 
   // Collect all drivers for circuit elements of type ResetType
   private def analyze(c: Circuit): Map[ReferenceTarget, List[ResetDriver]] = {
-    val types = mutable.Map[ReferenceTarget, List[ResetDriver]]()
-    def onMod(mod: DefModule): Unit = {
+    type DriverMap = mutable.HashMap[ReferenceTarget, List[ResetDriver]]
+    def onMod(mod: DefModule): DriverMap = {
       val instMap = mutable.Map[String, String]()
       // We need to convert submodule port targets into targets on the Module port itself
       def makeTarget(expr: Expression): ReferenceTarget = {
@@ -52,8 +52,7 @@ object InferResets extends Pass {
           case _ => target
         }
       }
-      def onStmt(stmt: Statement): Unit = {
-        stmt.foreach(onStmt)
+      def onStmt(map: DriverMap)(stmt: Statement): Unit = {
         stmt match {
           case Connect(_, lhs, rhs) if lhs.tpe == ResetType =>
             val target = makeTarget(lhs)
@@ -61,16 +60,27 @@ object InferResets extends Pass {
               case ResetType => TargetDriver(makeTarget(rhs))
               case tpe       => TypeDriver(tpe, () => makeTarget(rhs))
             }
-            types(target) = driver :: types.getOrElse(target, Nil)
+            map(target) = driver :: Nil
           case WDefInstance(_, inst, module, _) =>
             instMap += (inst -> module)
-          case _ =>
+          case Conditionally(_, _, con, alt) =>
+            val conMap = new DriverMap
+            val altMap = new DriverMap
+            onStmt(conMap)(con)
+            onStmt(altMap)(alt)
+            for (key <- conMap.keys ++ altMap.keys) {
+              map(key) = (altMap.get(key).toList ++ conMap.get(key).toList).flatten
+            }
+          case other => other.foreach(onStmt(map))
         }
       }
-      mod.foreach(onStmt)
+      val types = new DriverMap
+      mod.foreach(onStmt(types))
+      types
     }
-    c.foreach(onMod)
-    types.toMap
+    c.modules.foldLeft(Map[ReferenceTarget, List[ResetDriver]]()) {
+      case (map, mod) => map ++ onMod(mod)
+    }
   }
 
   // Determine the type driving a given ResetType
@@ -177,8 +187,7 @@ object InferResets extends Pass {
   }
 
   private def fixupPasses: Seq[Pass] = Seq(
-    InferTypes,
-    CheckTypes
+    InferTypes
   )
 
   def run(c: Circuit): Circuit = {

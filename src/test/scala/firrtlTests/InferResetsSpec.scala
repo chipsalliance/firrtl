@@ -7,6 +7,9 @@ import firrtl.ir._
 import firrtl.passes.{CheckHighForm, CheckTypes, InferResets}
 import FirrtlCheckers._
 
+// TODO
+// - Test nodes in the connection
+// - Test with whens (is this allowed?)
 class InferResetsSpec extends FirrtlFlatSpec {
   def compile(input: String, compiler: Compiler = new MiddleFirrtlCompiler): CircuitState =
     compiler.compileAndEmit(CircuitState(parse(input), ChirrtlForm), List.empty)
@@ -93,6 +96,53 @@ class InferResetsSpec extends FirrtlFlatSpec {
     result should containTree { case Port(_, "buzz_bar_1_b", Input, AsyncResetType) => true }
   }
 
+  it should "allow last connect semantics to pick the right type for Reset" in {
+    val result = compile(s"""
+      |circuit top :
+      |  module top :
+      |    input reset0 : AsyncReset
+      |    input reset1 : UInt<1>
+      |    output out : Reset
+      |    wire w1 : Reset
+      |    wire w2 : Reset
+      |    w1 <= reset0
+      |    w2 <= reset1
+      |    out <= w1
+      |    out <= w2
+      |""".stripMargin
+    )
+    result should containTree { case Port(_, "out", Output, BoolType) => true }
+  }
+
+  it should "support last connect semantics even with nested whens" in {
+    val result = compile(s"""
+      |circuit top :
+      |  module top :
+      |    input reset0 : AsyncReset
+      |    input reset1 : UInt<1>
+      |    input reset2 : UInt<1>
+      |    input en0 : UInt<1>
+      |    input en1 : UInt<1>
+      |    output out : Reset
+      |    wire w1 : Reset
+      |    wire w2 : Reset
+      |    wire w3 : Reset
+      |    w1 <= reset0
+      |    w2 <= reset1
+      |    w3 <= reset2
+      |    out <= w1
+      |    when en0 :
+      |      when en1 :
+      |        out <= w2
+      |      else :
+      |        out <= w1
+      |    else :
+      |      out <= w1
+      |""".stripMargin
+    )
+    result should containTree { case Port(_, "out", Output, BoolType) => true }
+  }
+
   it should "not allow different Reset Types to drive a single Reset" in {
     an [InferResets.DifferingDriverTypesException] shouldBe thrownBy {
       val result = compile(s"""
@@ -100,13 +150,15 @@ class InferResetsSpec extends FirrtlFlatSpec {
         |  module top :
         |    input reset0 : AsyncReset
         |    input reset1 : UInt<1>
+        |    input en : UInt<1>
         |    output out : Reset
         |    wire w1 : Reset
         |    wire w2 : Reset
         |    w1 <= reset0
         |    w2 <= reset1
         |    out <= w1
-        |    out <= w2
+        |    when en :
+        |      out <= w2
         |""".stripMargin
       )
     }
@@ -122,6 +174,18 @@ class InferResetsSpec extends FirrtlFlatSpec {
         |    wire w : Reset
         |    w <= in
         |    out <= w
+        |""".stripMargin
+      )
+    }
+    an [CheckTypes.InvalidConnect] shouldBe thrownBy {
+      val result = compile(s"""
+        |circuit top :
+        |  module top :
+        |    output foo : { flip a : UInt<1> }
+        |    input bar : { flip a : UInt<1> }
+        |    wire w : { flip a : Reset }
+        |    foo <= w
+        |    w <= bar
         |""".stripMargin
       )
     }
