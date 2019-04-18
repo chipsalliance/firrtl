@@ -35,13 +35,15 @@ object RenameMap {
   * These are mutable datastructures for convenience
   */
 // TODO This should probably be refactored into immutable and mutable versions
-final class RenameMap private (val earlier: Option[RenameMap] = None, val previous: Option[RenameMap] = None) {
+final class RenameMap private (earlier: Option[RenameMap] = None, previous: Option[RenameMap] = None) {
 
-  /** Return a new RenameMap with earlier set to a copy of this
+  /** Return a new RenameMap that renames using a copy of this map then rename
+    * again with itself
     */
   def andThen() = new RenameMap(earlier = Some(copy()))
 
-  /** Return a new RenameMap with previous set to a copy of this
+  /** Return a new RenameMap that renames using this map if it continas a valid
+    * rename, otherwise renames with itself
     */
   def orElse() = new RenameMap(previous = Some(copy()))
 
@@ -204,7 +206,7 @@ final class RenameMap private (val earlier: Option[RenameMap] = None, val previo
     * @param key Target referencing the original circuit
     * @return Optionally return sequence of targets that key remaps to
     */
-  def completeGet(key: CompleteTarget): Option[Seq[CompleteTarget]] = {
+  private def completeGet(key: CompleteTarget): Option[Seq[CompleteTarget]] = {
     val previousRet = previous.map(_.completeGet(key)).flatten
     if (previousRet.nonEmpty) {
       previousRet
@@ -218,7 +220,7 @@ final class RenameMap private (val earlier: Option[RenameMap] = None, val previo
     }
   }
 
-  def hereCompleteGet(key: CompleteTarget): Option[Seq[CompleteTarget]] = {
+  private def hereCompleteGet(key: CompleteTarget): Option[Seq[CompleteTarget]] = {
     val errors = mutable.ArrayBuffer[String]()
     val ret = if(hasChanges) {
       val ret = recursiveGet(errors)(key)
