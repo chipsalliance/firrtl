@@ -35,7 +35,13 @@ object RenameMap {
   * These are mutable datastructures for convenience
   */
 // TODO This should probably be refactored into immutable and mutable versions
-final class RenameMap private () {
+final class RenameMap private (val earlier: Option[RenameMap] = None) {
+
+  def andThen() = {
+    val earlier = new RenameMap
+    earlier.underlying ++= underlying
+    new RenameMap(earlier = Some(earlier))
+  }
 
   /** Record that the from [[firrtl.annotations.CircuitTarget CircuitTarget]] is renamed to another
     * [[firrtl.annotations.CircuitTarget CircuitTarget]]
@@ -183,6 +189,15 @@ final class RenameMap private () {
     * @return Optionally return sequence of targets that key remaps to
     */
   private def completeGet(key: CompleteTarget): Option[Seq[CompleteTarget]] = {
+    if (earlier.nonEmpty) {
+      val earlierRet = earlier.get.completeGet(key)
+      earlierRet.map(_.map(hereCompleteGet)).map(_.flatten.flatten)
+    } else {
+      hereCompleteGet(key)
+    }
+  }
+
+  private def hereCompleteGet(key: CompleteTarget): Option[Seq[CompleteTarget]] = {
     val errors = mutable.ArrayBuffer[String]()
     val ret = if(hasChanges) {
       val ret = recursiveGet(errors)(key)
@@ -366,8 +381,8 @@ final class RenameMap private () {
 
       // rename just the first level e.g. just rename component/path portion for ReferenceTargets
       val topRename = key match {
-        case t: CircuitTarget => circuitGet(errors)(t)
-        case t: ModuleTarget => moduleGet(errors)(t)
+        case t: CircuitTarget => Seq(t)
+        case t: ModuleTarget => Seq(t)
         case t: InstanceTarget => instanceGet(errors)(t)
         case ref: ReferenceTarget if ref.isLocal => referenceGet(errors)(ref).getOrElse(Seq(ref))
         case ref @ ReferenceTarget(c, m, p, r, t) =>
@@ -381,10 +396,7 @@ final class RenameMap private () {
       // rename the next level up
       val midRename = topRename.flatMap {
         case t: CircuitTarget => Seq(t)
-        case t: ModuleTarget =>
-          circuitGet(errors)(CircuitTarget(t.circuit)).map {
-            case CircuitTarget(c) => t.copy(circuit = c)
-          }
+        case t: ModuleTarget => moduleGet(errors)(t)
         case t: IsComponent =>
           // rename all modules on the path
           val renamedPath = t.asPath.flatMap { pair =>
@@ -418,8 +430,11 @@ final class RenameMap private () {
 
       // rename the last level
       val botRename = midRename.flatMap {
-        case t: CircuitTarget => Seq(t)
-        case t: ModuleTarget => Seq(t)
+        case t: CircuitTarget => circuitGet(errors)(t)
+        case t: ModuleTarget =>
+          circuitGet(errors)(CircuitTarget(t.circuit)).map {
+            case CircuitTarget(c) => t.copy(circuit = c)
+          }
         case t: IsComponent =>
           circuitGet(errors)(CircuitTarget(t.circuit)).map {
             case CircuitTarget(c) =>

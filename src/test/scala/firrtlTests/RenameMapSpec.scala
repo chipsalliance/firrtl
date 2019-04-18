@@ -256,7 +256,7 @@ class RenameMapSpec extends FirrtlFlatSpec {
     renames.record(top.module("A"), top.module("B").instOf("c", "C"))
     renames.record(top.module("B"), top.module("A").instOf("c", "C"))
     renames.get(top.module("A")) should be {
-      Some(Seq(top.module("A").instOf("c", "C").instOf("c", "C")))
+      Some(Seq(top.module("B").instOf("c", "C")))
     }
   }
 
@@ -537,6 +537,51 @@ class RenameMapSpec extends FirrtlFlatSpec {
     renames.record(from, to)
     renames.get(top.instOf("a", "Foo")) should be {
       Some(Seq(top.instOf("b", "Foo")))
+    }
+  }
+
+  it should "quickly rename a target with a long path after it is cached" in {
+    val renames = RenameMap()
+    renames.record(TopCircuit.module("Y0"), TopCircuit.module("X0"))
+    (0 until 200 by 10).foreach { endIdx =>
+      val deepInstTarget = (0 until endIdx).foldLeft(Top: IsModule) { (t, idx) =>
+        t.instOf("a", "A" + idx)
+      }
+      val deepTarget = (0 until endIdx).foldLeft(deepInstTarget.ref("b")) { (t, idx) =>
+        t.field("b" + idx)
+      }
+      val (millis, rename) = firrtl.Utils.time(renames.get(deepTarget))
+      println(s"${(deepTarget.tokens.size - 1) / 2} -> $millis")
+      //rename should be(None)
+    }
+    println()
+    (0 until 200 by 10).foreach { endIdx =>
+      val deepInstTarget = (0 until endIdx).foldLeft(Top: IsModule) { (t, idx) =>
+        t.instOf("a", "A" + idx)
+      }
+      val deepTarget = (0 until endIdx).foldLeft(deepInstTarget.ref("b")) { (t, idx) =>
+        t.field("b" + idx)
+      }
+      val (millis, rename) = firrtl.Utils.time(renames.get(deepTarget))
+      println(s"${(deepTarget.tokens.size - 1) / 2} -> $millis")
+      //rename should be(None)
+    }
+  }
+
+  it should "correctly chain renames together" in {
+    val renames1 = RenameMap()
+    val top = CircuitTarget("Top")
+    val from1 = top.module("A")
+    val to1 = top.module("Top").instOf("a", "A")
+    renames1.record(from1, to1)
+    println(renames1.get(from1))
+    val renames2 = renames1.andThen()
+    val from2 = top.module("A")
+    val to2 = top.module("A1")
+    renames2.record(from2, to2)
+    println(renames2.get(from1))
+    renames2.get(from1) should be {
+      Some(Seq(top.module("Top").instOf("a", "A1")))
     }
   }
 }
