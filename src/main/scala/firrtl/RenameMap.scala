@@ -37,11 +37,7 @@ object RenameMap {
 // TODO This should probably be refactored into immutable and mutable versions
 final class RenameMap private (val earlier: Option[RenameMap] = None) {
 
-  def andThen() = {
-    val earlier = new RenameMap
-    earlier.underlying ++= underlying
-    new RenameMap(earlier = Some(earlier))
-  }
+  def andThen() = new RenameMap(earlier = Some(RenameMap.create(underlying)))
 
   /** Record that the from [[firrtl.annotations.CircuitTarget CircuitTarget]] is renamed to another
     * [[firrtl.annotations.CircuitTarget CircuitTarget]]
@@ -191,7 +187,9 @@ final class RenameMap private (val earlier: Option[RenameMap] = None) {
   private def completeGet(key: CompleteTarget): Option[Seq[CompleteTarget]] = {
     if (earlier.nonEmpty) {
       val earlierRet = earlier.get.completeGet(key)
-      earlierRet.map(_.map(hereCompleteGet)).map(_.flatten.flatten)
+      earlierRet.map(_.map { t =>
+        hereCompleteGet(t).getOrElse(Seq(t))
+      }).map(_.flatten)
     } else {
       hereCompleteGet(key)
     }
@@ -490,8 +488,7 @@ final class RenameMap private (val earlier: Option[RenameMap] = None) {
   @deprecated("Use record with IsMember instead, this will be removed in 1.3", "1.2")
   def rename(from: ComponentName, to: ComponentName): Unit = record(from, to)
 
-  @deprecated("Use record with IsMember instead, this will be removed in 1.3", "1.2")
-  def rename(from: ComponentName, tos: Seq[ComponentName]): Unit = record(from, tos.map(_.toTarget))
+  @deprecated("Use record with IsMember instead, this will be removed in 1.3", "1.2")def rename(from: ComponentName, tos: Seq[ComponentName]): Unit = record(from, tos.map(_.toTarget))
 
   @deprecated("Use delete with CircuitTarget instead, this will be removed in 1.3", "1.2")
   def delete(name: CircuitName): Unit = underlying(name) = Seq.empty

@@ -540,48 +540,44 @@ class RenameMapSpec extends FirrtlFlatSpec {
     }
   }
 
-  it should "quickly rename a target with a long path after it is cached" in {
-    val renames = RenameMap()
-    renames.record(TopCircuit.module("Y0"), TopCircuit.module("X0"))
-    (0 until 200 by 10).foreach { endIdx =>
-      val deepInstTarget = (0 until endIdx).foldLeft(Top: IsModule) { (t, idx) =>
-        t.instOf("a", "A" + idx)
-      }
-      val deepTarget = (0 until endIdx).foldLeft(deepInstTarget.ref("b")) { (t, idx) =>
-        t.field("b" + idx)
-      }
-      val (millis, rename) = firrtl.Utils.time(renames.get(deepTarget))
-      println(s"${(deepTarget.tokens.size - 1) / 2} -> $millis")
-      //rename should be(None)
-    }
-    println()
-    (0 until 200 by 10).foreach { endIdx =>
-      val deepInstTarget = (0 until endIdx).foldLeft(Top: IsModule) { (t, idx) =>
-        t.instOf("a", "A" + idx)
-      }
-      val deepTarget = (0 until endIdx).foldLeft(deepInstTarget.ref("b")) { (t, idx) =>
-        t.field("b" + idx)
-      }
-      val (millis, rename) = firrtl.Utils.time(renames.get(deepTarget))
-      println(s"${(deepTarget.tokens.size - 1) / 2} -> $millis")
-      //rename should be(None)
-    }
-  }
-
   it should "correctly chain renames together" in {
-    val renames1 = RenameMap()
     val top = CircuitTarget("Top")
+
+    val renames1 = RenameMap()
     val from1 = top.module("A")
     val to1 = top.module("Top").instOf("a", "A")
     renames1.record(from1, to1)
-    println(renames1.get(from1))
+
     val renames2 = renames1.andThen()
     val from2 = top.module("A")
     val to2 = top.module("A1")
     renames2.record(from2, to2)
-    println(renames2.get(from1))
+
     renames2.get(from1) should be {
       Some(Seq(top.module("Top").instOf("a", "A1")))
+    }
+  }
+
+  it should "correctly chain deleted targets" in {
+    val top = CircuitTarget("Top")
+    val modA = top.module("A")
+    val modA1 = top.module("A1")
+    val modB = top.module("B")
+    val modB1 = top.module("B1")
+
+    val renames1 = RenameMap()
+    renames1.delete(modA)
+    renames1.record(modB, modB1)
+
+    val renames2 = renames1.andThen()
+    renames2.record(modA, modA1)
+    renames2.delete(modB1)
+
+    renames2.get(modA) should be {
+      Some(Seq.empty)
+    }
+    renames2.get(modB) should be {
+      Some(Seq.empty)
     }
   }
 }
