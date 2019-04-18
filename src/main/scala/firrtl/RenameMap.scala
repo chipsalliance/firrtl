@@ -35,9 +35,15 @@ object RenameMap {
   * These are mutable datastructures for convenience
   */
 // TODO This should probably be refactored into immutable and mutable versions
-final class RenameMap private (val earlier: Option[RenameMap] = None) {
+final class RenameMap private (val earlier: Option[RenameMap] = None, val previous: Option[RenameMap] = None) {
 
-  def andThen() = new RenameMap(earlier = Some(RenameMap.create(underlying)))
+  /** Return a new RenameMap with earlier set to a copy of this
+    */
+  def andThen() = new RenameMap(earlier = Some(copy()))
+
+  /** Return a new RenameMap with previous set to a copy of this
+    */
+  def orElse() = new RenameMap(previous = Some(copy()))
 
   /** Record that the from [[firrtl.annotations.CircuitTarget CircuitTarget]] is renamed to another
     * [[firrtl.annotations.CircuitTarget CircuitTarget]]
@@ -115,7 +121,21 @@ final class RenameMap private (val earlier: Option[RenameMap] = None) {
     * @param renameMap
     * @return
     */
-  def ++ (renameMap: RenameMap): RenameMap = RenameMap(underlying ++ renameMap.getUnderlying)
+  def ++ (renameMap: RenameMap): RenameMap = {
+    val newPrevious = if (previous.isEmpty) {
+      Some(renameMap)
+    } else {
+      previous.map(_ ++ renameMap)
+    }
+    copy(previous = newPrevious)
+  }
+
+  def copy(earlier: Option[RenameMap] = earlier, previous: Option[RenameMap] = previous): RenameMap = {
+    val ret = new RenameMap(earlier = earlier.map(_.copy()),
+      previous = previous.map(_.copy()))
+    ret.recordAll(underlying)
+    ret
+  }
 
   /** Returns the underlying map of rename information
     * @return
@@ -184,8 +204,11 @@ final class RenameMap private (val earlier: Option[RenameMap] = None) {
     * @param key Target referencing the original circuit
     * @return Optionally return sequence of targets that key remaps to
     */
-  private def completeGet(key: CompleteTarget): Option[Seq[CompleteTarget]] = {
-    if (earlier.nonEmpty) {
+  def completeGet(key: CompleteTarget): Option[Seq[CompleteTarget]] = {
+    val previousRet = previous.map(_.completeGet(key)).flatten
+    if (previousRet.nonEmpty) {
+      previousRet
+    } else if (earlier.nonEmpty) {
       val earlierRet = earlier.get.completeGet(key)
       earlierRet.map(_.map { t =>
         hereCompleteGet(t).getOrElse(Seq(t))
@@ -195,7 +218,7 @@ final class RenameMap private (val earlier: Option[RenameMap] = None) {
     }
   }
 
-  private def hereCompleteGet(key: CompleteTarget): Option[Seq[CompleteTarget]] = {
+  def hereCompleteGet(key: CompleteTarget): Option[Seq[CompleteTarget]] = {
     val errors = mutable.ArrayBuffer[String]()
     val ret = if(hasChanges) {
       val ret = recursiveGet(errors)(key)

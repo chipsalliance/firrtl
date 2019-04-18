@@ -580,4 +580,61 @@ class RenameMapSpec extends FirrtlFlatSpec {
       Some(Seq.empty)
     }
   }
+
+  it should "correctly orElse renameMaps" in {
+    val top = CircuitTarget("Top")
+    val modA = top.module("A")
+    val modA1 = top.module("A1")
+    val modB = top.module("B")
+    val modB1 = top.module("B1")
+    val modC = top.module("C")
+    val modC1 = top.module("C1")
+
+    val renames1 = RenameMap()
+    renames1.record(modA, modA1)
+    renames1.record(modC, modC1)
+
+    val renames2 = renames1.orElse()
+    renames2.record(modB, modB1)
+
+    renames2.get(modA) should be {
+      Some(Seq(modA1))
+    }
+    renames2.get(modB) should be {
+      Some(Seq(modB1))
+    }
+    renames2.get(modC) should be {
+      Some(Seq(modC1))
+    }
+  }
+
+  it should "correctly ++ renameMaps" in {
+    val top = CircuitTarget("Top")
+    val modA = top.module("A")
+    val modA1 = top.module("A1")
+    val modA2 = top.module("A1")
+    val modB = top.module("B")
+    val modB1 = top.module("B1")
+    val modC = top.module("C")
+    val modC1 = top.module("C1")
+
+    val renames1 = RenameMap()
+    renames1.record(modA, modA1)
+    renames1.record(modC, modC1)
+
+    val renames2 = RenameMap()
+    renames2.record(modA, modA2)
+    renames2.record(modB, modB1)
+
+    val renames = renames1 ++ renames2
+    renames.get(modA) should be {
+      Some(Seq(modA2))
+    }
+    renames.get(modB) should be {
+      Some(Seq(modB1))
+    }
+    renames.get(modC) should be {
+      Some(Seq(modC1))
+    }
+  }
 }
