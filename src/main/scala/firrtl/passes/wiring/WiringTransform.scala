@@ -43,7 +43,7 @@ class WiringTransform extends Transform {
   /** Defines the sequence of Transform that should be applied */
   private def transforms(w: Seq[WiringInfo]): Seq[Transform] = Seq(
     new Wiring(w),
-    ToWorkingIR
+    new ToWorkingIR
   )
   def execute(state: CircuitState): CircuitState = {
     val annos = state.annotations.collect {

@@ -2,11 +2,14 @@
 
 package firrtl.passes
 
+import firrtl.Transform
 import firrtl.ir._
 import firrtl.Utils._
 import firrtl.traversals.Foreachers._
+import firrtl.options.PreservesAll
 
-object CheckChirrtl extends Pass {
+object CheckChirrtl extends Pass with DeprecatedPassObject {
+
   type NameSet = collection.mutable.HashSet[String]
 
   class NotUniqueException(info: Info, mname: String, name: String) extends PassException(
@@ -29,6 +32,19 @@ object CheckChirrtl extends Pass {
     s"$info: [module $mname] Memory size cannot be negative or zero.")
   class NoTopModuleException(info: Info, name: String) extends PassException(
     s"$info: A single module must be named $name.")
+
+  override protected lazy val underlying = new CheckChirrtl
+
+}
+
+class CheckChirrtl extends Pass with PreservesAll[Transform] {
+
+  import CheckChirrtl._
+
+  override val dependents = firrtl.stage.Forms.ChirrtlForm ++
+    Seq[Class[Transform]]( classOf[CInferTypes],
+                           classOf[CInferMDir],
+                           classOf[RemoveCHIRRTL] )
 
   def run (c: Circuit): Circuit = {
     val errors = new Errors()
@@ -111,7 +127,7 @@ object CheckChirrtl extends Pass {
       m.foreach(checkChirrtlP(m.name, names))
       m.foreach(checkChirrtlS(m.info, m.name, names))
     }
-    
+
     c.modules.foreach(checkChirrtlM)
     c.modules count (_.name == c.main) match {
       case 1 =>

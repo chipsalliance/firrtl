@@ -66,6 +66,11 @@ class ReplaceTruncatingArithmetic extends Transform {
   def inputForm = LowForm
   def outputForm = LowForm
 
+  override def prerequisites: Seq[Class[Transform]] = firrtl.stage.Forms.LowFormMinimumOptimized ++
+    Seq[Class[Transform]]( classOf[BlackBoxSourceHelper] )
+
+  override def dependents: Seq[Class[Transform]] = Seq.empty
+
   def execute(state: CircuitState): CircuitState = {
     val modulesx = state.circuit.modules.map(ReplaceTruncatingArithmetic.onMod(_))
     state.copy(circuit = state.circuit.copy(modules = modulesx))

@@ -108,6 +108,17 @@ class FlattenRegUpdate extends Transform {
   def inputForm = MidForm
   def outputForm = MidForm
 
+  override def prerequisites: Seq[Class[Transform]] = firrtl.stage.Forms.LowFormMinimumOptimized ++
+    Seq[Class[Transform]]( classOf[BlackBoxSourceHelper],
+                           classOf[ReplaceTruncatingArithmetic] )
+
+  override def dependents: Seq[Class[Transform]] = Seq.empty
+
+  override def invalidates(a: Transform): Boolean = a match {
+    case _: DeadCodeElimination => true
+    case _ => false
+  }
+
   def execute(state: CircuitState): CircuitState = {
     val modulesx = state.circuit.modules.map {
       case mod: Module => FlattenRegUpdate.flattenReg(mod)

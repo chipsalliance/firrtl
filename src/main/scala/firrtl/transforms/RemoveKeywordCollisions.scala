@@ -232,4 +232,14 @@ class RemoveKeywordCollisions(keywords: Set[String]) extends Transform {
 }
 
 /** Transform that removes collisions with Verilog keywords */
-class VerilogRename extends RemoveKeywordCollisions(v_keywords)
+class VerilogRename extends RemoveKeywordCollisions(v_keywords) {
+
+  override def prerequisites: Seq[Class[Transform]] = firrtl.stage.Forms.LowFormMinimumOptimized ++
+    Seq[Class[Transform]]( classOf[BlackBoxSourceHelper],
+                           classOf[ReplaceTruncatingArithmetic],
+                           classOf[FlattenRegUpdate],
+                           classOf[passes.VerilogModulusCleanup] )
+
+  override def dependents: Seq[Class[Transform]] = Seq.empty
+
+}

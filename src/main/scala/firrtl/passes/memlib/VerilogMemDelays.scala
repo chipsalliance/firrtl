@@ -14,7 +14,18 @@ import MemPortUtils._
 import collection.mutable
 
 /** This pass generates delay reigsters for memories for verilog */
-object VerilogMemDelays extends Pass {
+class VerilogMemDelays extends Pass {
+
+  override val prerequisites: Seq[Class[Transform]] = firrtl.stage.Forms.LowForm :+
+    classOf[firrtl.passes.RemoveValidIf].asInstanceOf[Class[Transform]]
+
+  override val dependents: Seq[Class[Transform]] = Seq(classOf[VerilogEmitter], classOf[SystemVerilogEmitter])
+
+  override def invalidates(a: Transform): Boolean = a match {
+    case _: firrtl.transforms.ConstantPropagation => true
+    case _ => false
+  }
+
   val ug = UNKNOWNGENDER
   type Netlist = collection.mutable.HashMap[String, Expression]
   implicit def expToString(e: Expression): String = e.serialize
@@ -94,7 +105,7 @@ object VerilogMemDelays extends Pass {
         Connect(NoInfo, memPortField(mem, writer, "addr"), addr),
         Connect(NoInfo, memPortField(mem, writer, "data"), data)
       )
- 
+
       stmts ++= ((sx.readers flatMap {reader =>
         // generate latency pipes for read ports (enable & addr)
         val clk = netlist(memPortField(sx, reader, "clk"))
@@ -158,4 +169,10 @@ object VerilogMemDelays extends Pass {
 
   def run(c: Circuit): Circuit =
     c copy (modules = c.modules map memDelayMod)
+}
+
+object VerilogMemDelays extends Pass with DeprecatedPassObject {
+
+  override protected lazy val underlying = new VerilogMemDelays
+
 }

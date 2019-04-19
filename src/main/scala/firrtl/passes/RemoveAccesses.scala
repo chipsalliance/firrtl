@@ -2,18 +2,30 @@
 
 package firrtl.passes
 
-import firrtl.{WRef, WSubAccess, WSubIndex, WSubField, Namespace}
+import firrtl.{Namespace, Transform, WRef, WSubAccess, WSubIndex, WSubField}
 import firrtl.PrimOps.{And, Eq}
 import firrtl.ir._
 import firrtl.Mappers._
 import firrtl.Utils._
 import firrtl.WrappedExpression._
+import firrtl.options.PreservesAll
 import scala.collection.mutable
 
 
 /** Removes all [[firrtl.WSubAccess]] from circuit
   */
 class RemoveAccesses extends Pass {
+
+  override def prerequisites: Seq[Class[Transform]] =
+    Seq[Class[Transform]]( classOf[PullMuxes],
+                           classOf[ReplaceAccesses],
+                           classOf[ExpandConnects] ) ++ firrtl.stage.Forms.Deduped
+
+  override def invalidates(a: Transform): Boolean = a match {
+    case _: Uniquify => true
+    case _           => false
+  }
+
   private def AND(e1: Expression, e2: Expression) =
     if(e1 == one) e2
     else if(e2 == one) e1
@@ -159,7 +171,7 @@ class RemoveAccesses extends Pass {
       }
       Module(m.info, m.name, m.ports, squashEmpty(onStmt(m.body)))
     }
-  
+
     c copy (modules = c.modules map {
       case m: ExtModule => m
       case m: Module => remove_m(m)
@@ -167,13 +179,8 @@ class RemoveAccesses extends Pass {
   }
 }
 
-object RemoveAccesses extends Pass {
-  def apply: Pass = {
-    new RemoveAccesses()
-  }
+object RemoveAccesses extends Pass with DeprecatedPassObject {
 
-  def run(c: Circuit): Circuit = {
-    val t = new RemoveAccesses
-    t.run(c)
-  }
+  override protected lazy val underlying = new RemoveAccesses
+
 }

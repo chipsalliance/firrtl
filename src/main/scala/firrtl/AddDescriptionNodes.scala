@@ -71,6 +71,16 @@ class AddDescriptionNodes extends Transform {
   def inputForm = LowForm
   def outputForm = LowForm
 
+  override def prerequisites: Seq[Class[Transform]] = firrtl.stage.Forms.LowFormMinimumOptimized ++
+    Seq[Class[Transform]]( classOf[firrtl.transforms.BlackBoxSourceHelper],
+                           classOf[firrtl.transforms.ReplaceTruncatingArithmetic],
+                           classOf[firrtl.transforms.FlattenRegUpdate],
+                           classOf[firrtl.passes.VerilogModulusCleanup],
+                           classOf[firrtl.transforms.VerilogRename],
+                           classOf[firrtl.passes.VerilogPrep] )
+
+  override def dependents: Seq[Class[Transform]] = Seq.empty
+
   def onStmt(compMap: Map[String, Seq[String]])(stmt: Statement): Statement = {
     stmt.map(onStmt(compMap)) match {
       case d: IsDeclaration if compMap.contains(d.name) =>

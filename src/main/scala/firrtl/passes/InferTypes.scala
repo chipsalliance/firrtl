@@ -6,8 +6,14 @@ import firrtl._
 import firrtl.ir._
 import firrtl.Utils._
 import firrtl.Mappers._
+import firrtl.options.PreservesAll
 
-object InferTypes extends Pass {
+class InferTypes extends Pass with PreservesAll[Transform] {
+
+  override def prerequisites: Seq[Class[Transform]] =
+    Seq[Class[Transform]]( classOf[CheckHighForm],
+                           classOf[ResolveKinds] ) ++ firrtl.stage.Forms.WorkingIR
+
   type TypeMap = collection.mutable.LinkedHashMap[String, Type]
 
   def run(c: Circuit): Circuit = {
@@ -69,12 +75,21 @@ object InferTypes extends Pass {
       val types = new TypeMap
       m map infer_types_p(types) map infer_types_s(types)
     }
- 
+
     c copy (modules = c.modules map infer_types)
   }
 }
 
-object CInferTypes extends Pass {
+object InferTypes extends Pass with DeprecatedPassObject {
+
+  override protected lazy val underlying = new InferTypes
+
+}
+
+class CInferTypes extends Pass with PreservesAll[Transform] {
+
+  override def prerequisites: Seq[Class[Transform]] = firrtl.stage.Forms.ChirrtlForm
+
   type TypeMap = collection.mutable.LinkedHashMap[String, Type]
 
   def run(c: Circuit): Circuit = {
@@ -124,12 +139,12 @@ object CInferTypes extends Pass {
       types(p.name) = p.tpe
       p
     }
- 
+
     def infer_types(m: DefModule): DefModule = {
       val types = new TypeMap
       m map infer_types_p(types) map infer_types_s(types)
     }
-   
+
     c copy (modules = c.modules map infer_types)
   }
 }

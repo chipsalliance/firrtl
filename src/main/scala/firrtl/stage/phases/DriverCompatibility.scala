@@ -7,8 +7,7 @@ import firrtl.stage._
 import firrtl.{AnnotationSeq, EmitAllModulesAnnotation, EmitCircuitAnnotation, FirrtlExecutionResult, Parser}
 import firrtl.annotations.NoTargetAnnotation
 import firrtl.proto.FromProto
-import firrtl.options.{InputAnnotationFileAnnotation, OptionsException, Phase,
-  StageOptions, StageUtils}
+import firrtl.options.{InputAnnotationFileAnnotation, OptionsException, Phase, PreservesAll, StageOptions, StageUtils}
 import firrtl.options.Viewer
 
 import scopt.OptionParser
@@ -62,7 +61,7 @@ object DriverCompatibility {
   /** Indicates that the implicit emitter, derived from a [[CompilerAnnotation]] should be an [[EmitAllModulesAnnotation]]
     * as opposed to an [[EmitCircuitAnnotation]].
     */
-  private [firrtl] case object EmitOneFilePerModuleAnnotation extends NoTargetAnnotation {
+  case object EmitOneFilePerModuleAnnotation extends NoTargetAnnotation {
 
     def addOptions(p: OptionParser[AnnotationSeq]): Unit = p
       .opt[Unit]("split-modules")
@@ -104,10 +103,11 @@ object DriverCompatibility {
     * [[firrtl.options.InputAnnotationFileAnnotation InputAnnotationFileAnnotation]] is present.
     *
     * The implicit annotation file is determined through the following complicated semantics:
-    *   - If an [[InputAnnotationFileAnnotation]] already exists, then nothing is modified
+    *   - If an [[firrtl.options.InputAnnotationFileAnnotation InputAnnotationFileAnnotation]] already exists, then
+    *     nothing is modified
     *   - If the derived topName (the `main` in a [[firrtl.ir.Circuit Circuit]]) is ''discernable'' (see below) and a
     *     file called `topName.anno` (exactly, not `topName.anno.json`) exists, then this will add an
-    *     [[InputAnnotationFileAnnotation]] using that `topName.anno`
+    *     [[firrtl.options.InputAnnotationFileAnnotation InputAnnotationFileAnnotation]] using that `topName.anno`
     *   - If any of this doesn't work, then the the [[AnnotationSeq]] is unmodified
     *
     * The precedence for determining the `topName` is the following (first one wins):
@@ -120,9 +120,14 @@ object DriverCompatibility {
     * @param annos input annotations
     * @return output annotations
     */
-  class AddImplicitAnnotationFile extends Phase {
+  class AddImplicitAnnotationFile extends Phase with PreservesAll[Phase] {
 
-    /** Try to add an [[InputAnnotationFileAnnotation]] implicitly specified by an [[AnnotationSeq]]. */
+    override val prerequisites: Seq[Class[Phase]] = Seq(classOf[AddImplicitFirrtlFile])
+
+    override val dependents: Seq[Class[Phase]] = Seq(classOf[FirrtlStage])
+
+    /** Try to add an [[firrtl.options.InputAnnotationFileAnnotation InputAnnotationFileAnnotation]] implicitly specified by
+      * an [[AnnotationSeq]]. */
     def transform(annotations: AnnotationSeq): AnnotationSeq = annotations
       .collectFirst{ case a: InputAnnotationFileAnnotation => a } match {
         case Some(_) => annotations
@@ -154,7 +159,9 @@ object DriverCompatibility {
     * @param annotations input annotations
     * @return
     */
-  class AddImplicitFirrtlFile extends Phase {
+  class AddImplicitFirrtlFile extends Phase with PreservesAll[Phase] {
+
+    override val dependents: Seq[Class[Phase]] = Seq(classOf[FirrtlStage])
 
     /** Try to add a [[FirrtlFileAnnotation]] implicitly specified by an [[AnnotationSeq]]. */
     def transform(annotations: AnnotationSeq): AnnotationSeq = {
@@ -173,7 +180,7 @@ object DriverCompatibility {
     }
   }
 
-  /** Adds an [[EmitAnnotation]] for each [[CompilerAnnotation]].
+  /** Adds an [[firrtl.EmitAnnotation EmitAnnotation]] for each [[CompilerAnnotation]].
     *
     * If an [[EmitOneFilePerModuleAnnotation]] exists, then this will add an [[EmitAllModulesAnnotation]]. Otherwise,
     * this adds an [[EmitCircuitAnnotation]]. This replicates old behavior where specifying a compiler automatically
@@ -181,7 +188,9 @@ object DriverCompatibility {
     */
   @deprecated("""AddImplicitEmitter should only be used to build Driver compatibility wrappers. Switch to Stage.""",
               "1.2")
-  class AddImplicitEmitter extends Phase {
+  class AddImplicitEmitter extends Phase with PreservesAll[Phase] {
+
+    override val dependents: Seq[Class[Phase]] = Seq(classOf[FirrtlStage])
 
     /** Add one [[EmitAnnotation]] foreach [[CompilerAnnotation]]. */
     def transform(annotations: AnnotationSeq): AnnotationSeq = {
@@ -203,7 +212,11 @@ object DriverCompatibility {
     */
   @deprecated("""AddImplicitOutputFile should only be used to build Driver compatibility wrappers. Switch to Stage.""",
               "1.2")
-  class AddImplicitOutputFile extends Phase {
+  class AddImplicitOutputFile extends Phase with PreservesAll[Phase] {
+
+    override val prerequisites: Seq[Class[Phase]] = Seq(classOf[AddImplicitFirrtlFile])
+
+    override val dependents: Seq[Class[Phase]] = Seq(classOf[FirrtlStage])
 
     /** Add an [[OutputFileAnnotation]] derived from a [[TopNameAnnotation]] if needed. */
     def transform(annotations: AnnotationSeq): AnnotationSeq = {

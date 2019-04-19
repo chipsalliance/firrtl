@@ -3,12 +3,28 @@
 package firrtl
 package passes
 
+import firrtl.{SystemVerilogEmitter, VerilogEmitter}
 import firrtl.ir._
 import firrtl.PrimOps._
 import firrtl.Mappers._
 
 // Makes all implicit width extensions and truncations explicit
-object PadWidths extends Pass {
+class PadWidths extends Pass {
+
+  override val prerequisites: Seq[Class[Transform]] = firrtl.stage.Forms.LowForm ++
+    Seq[Class[Transform]]( classOf[RemoveValidIf],
+                           classOf[firrtl.transforms.ConstantPropagation] )
+
+  override val dependents: Seq[Class[Transform]] =
+    Seq( classOf[firrtl.passes.memlib.VerilogMemDelays],
+         classOf[SystemVerilogEmitter],
+         classOf[VerilogEmitter] )
+
+  override def invalidates(a: Transform): Boolean = a match {
+    case _: firrtl.transforms.ConstantPropagation | _: Legalize => true
+    case _ => false
+  }
+
   private def width(t: Type): Int = bitWidth(t).toInt
   private def width(e: Expression): Int = width(e.tpe)
   // Returns an expression with the correct integer width
@@ -59,4 +75,10 @@ object PadWidths extends Pass {
   }
 
   def run(c: Circuit): Circuit = c copy (modules = c.modules map (_ map onStmt))
+}
+
+object PadWidths extends Pass with DeprecatedPassObject {
+
+  override protected lazy val underlying = new PadWidths
+
 }
