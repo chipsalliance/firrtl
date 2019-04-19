@@ -11,6 +11,8 @@ import firrtl.Mappers._
 import firrtl.WrappedExpression._
 import firrtl.Utils.{throwInternalError, toWrappedExpression, kind}
 import firrtl.MemoizedHash._
+import firrtl.options.RegisteredTransform
+import scopt.OptionParser
 
 import collection.mutable
 import java.io.{File, FileWriter}
@@ -30,9 +32,15 @@ import java.io.{File, FileWriter}
   * circumstances of their instantiation in their parent module, they will still not be removed. To
   * remove such modules, use the [[NoDedupAnnotation]] to prevent deduplication.
   */
-class DeadCodeElimination extends Transform {
+class DeadCodeElimination extends Transform with ResolvedAnnotationPaths with RegisteredTransform {
   def inputForm = LowForm
   def outputForm = LowForm
+
+  def addOptions(parser: OptionParser[AnnotationSeq]): Unit = parser
+    .opt[Unit]("no-dce")
+    .action( (x, c) => c :+ NoDCEAnnotation )
+    .maxOccurs(1)
+    .text("Do NOT run dead code elimination")
 
   /** Based on LogicNode ins CheckCombLoops, currently kind of faking it */
   private type LogicNode = MemoizedHash[WrappedExpression]
@@ -178,7 +186,8 @@ class DeadCodeElimination extends Transform {
                              deadNodes: collection.Set[LogicNode],
                              moduleMap: collection.Map[String, DefModule],
                              renames: RenameMap,
-                             topName: String)
+                             topName: String,
+                             doTouchExtMods: Set[String])
                             (mod: DefModule): Option[DefModule] = {
     // For log-level debug
     def deleteMsg(decl: IsDeclaration): String = {
@@ -203,6 +212,11 @@ class DeadCodeElimination extends Transform {
     var emptyBody = true
     renames.setModule(mod.name)
 
+    def deleteIfNotEnabled(stmt: Statement, en: Expression): Statement = en match {
+      case UIntLiteral(v, _) if v == BigInt(0) => EmptyStmt
+      case _ => stmt
+    }
+
     def onStmt(stmt: Statement): Statement = {
       val stmtx = stmt match {
         case inst: WDefInstance =>
@@ -221,6 +235,8 @@ class DeadCodeElimination extends Transform {
             EmptyStmt
           }
           else decl
+        case print: Print => deleteIfNotEnabled(print, print.en)
+        case stop: Stop => deleteIfNotEnabled(stop, stop.en)
         case con: Connect =>
           val node = getDeps(con.loc) match { case Seq(elt) => elt }
           if (deadNodes.contains(node)) EmptyStmt else con
@@ -257,7 +273,7 @@ class DeadCodeElimination extends Transform {
           Some(Module(info, name, portsx, bodyx))
         }
       case ext: ExtModule =>
-        if (portsx.isEmpty) {
+        if (portsx.isEmpty && doTouchExtMods.contains(ext.name)) {
           logger.debug(deleteMsg(mod))
           None
         }
@@ -308,7 +324,7 @@ class DeadCodeElimination extends Transform {
     // current status of the modulesxMap is used to either delete instances or update their types
     val modulesxMap = mutable.HashMap.empty[String, DefModule]
     topoSortedModules.foreach { case mod =>
-      deleteDeadCode(moduleDeps(mod.name), deadNodes, modulesxMap, renames, c.main)(mod) match {
+      deleteDeadCode(moduleDeps(mod.name), deadNodes, modulesxMap, renames, c.main, doTouchExtMods)(mod) match {
         case Some(m) => modulesxMap += m.name -> m
         case None => renames.delete(ModuleName(mod.name, CircuitName(c.main)))
       }
@@ -320,9 +336,12 @@ class DeadCodeElimination extends Transform {
     state.copy(circuit = newCircuit, renames = Some(renames))
   }
 
+  override val annotationClasses: Traversable[Class[_]] =
+    Seq(classOf[DontTouchAnnotation], classOf[OptimizableExtModuleAnnotation])
+
   def execute(state: CircuitState): CircuitState = {
     val dontTouches: Seq[LogicNode] = state.annotations.collect {
-      case DontTouchAnnotation(component) => LogicNode(component)
+      case DontTouchAnnotation(component: ReferenceTarget) if component.isLocal => LogicNode(component)
     }
     val doTouchExtMods: Seq[String] = state.annotations.collect {
       case OptimizableExtModuleAnnotation(ModuleName(name, _)) => name

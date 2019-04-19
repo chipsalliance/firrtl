@@ -2,7 +2,7 @@
 
 package firrtl.transforms
 
-import java.io.{File, FileNotFoundException, FileOutputStream, PrintWriter}
+import java.io.{File, FileNotFoundException, FileInputStream, FileOutputStream, PrintWriter}
 
 import firrtl._
 import firrtl.Utils.throwInternalError
@@ -28,6 +28,19 @@ case class BlackBoxInlineAnno(target: ModuleName, name: String, text: String) ex
   def duplicate(n: ModuleName) = this.copy(target = n)
   override def serialize: String = s"inline\n$name\n$text"
 }
+
+case class BlackBoxPathAnno(target: ModuleName, path: String) extends BlackBoxHelperAnno
+    with SingleTargetAnnotation[ModuleName] {
+  def duplicate(n: ModuleName) = this.copy(target = n)
+  override def serialize: String = s"path\n$path"
+}
+
+/** Exception indicating that a blackbox wasn't found
+  * @param fileName the name of the BlackBox file (only used for error message generation)
+  * @param e an underlying exception that generated this
+  */
+class BlackBoxNotFoundException(fileName: String, e: Throwable = null) extends FIRRTLException(
+  s"BlackBox '$fileName' not found. Did you misspell it? Is it in src/{main,test}/resources?", e)
 
 /** Handle source for Verilog ExtModules (BlackBoxes)
   *
@@ -64,18 +77,24 @@ class BlackBoxSourceHelper extends firrtl.Transform {
     * @note the state is not changed by this transform
     * @param state Input Firrtl AST
     * @return A transformed Firrtl AST
+    * @throws BlackBoxNotFoundException if a Verilog source cannot be found
     */
   override def execute(state: CircuitState): CircuitState = {
     val (annos, targetDir) = collectAnnos(state.annotations)
 
     val resourceFiles: ListSet[File] = annos.collect {
       case BlackBoxResourceAnno(_, resourceId) =>
-        val name = resourceId.split("/").last
-        val outFile = new File(targetDir, name)
-        (resourceId, outFile)
-    }.map { case (res, file) =>
-      BlackBoxSourceHelper.copyResourceToFile(res, file)
-      file
+        BlackBoxSourceHelper.writeResourceToDirectory(resourceId, targetDir)
+      case BlackBoxPathAnno(_, path) =>
+        val fileName = path.split("/").last
+        val fromFile = new File(path)
+        val toFile = new File(targetDir, fileName)
+
+        val inputStream = BlackBoxSourceHelper.safeFile(fromFile.toString)(new FileInputStream(fromFile).getChannel)
+        val outputStream = new FileOutputStream(toFile).getChannel
+        outputStream.transferFrom(inputStream, 0, Long.MaxValue)
+
+        toFile
     }
 
     val inlineFiles: ListSet[File] = annos.collect {
@@ -87,25 +106,48 @@ class BlackBoxSourceHelper extends firrtl.Transform {
       file
     }
 
-    BlackBoxSourceHelper.writeFileList(resourceFiles ++ inlineFiles, targetDir)
+    // Issue #917 - We don't want to list Verilog header files ("*.vh") in our file list - they will automatically be included by reference.
+    val verilogSourcesOnly = (resourceFiles ++ inlineFiles).filterNot( _.getName().endsWith(".vh"))
+    BlackBoxSourceHelper.writeFileList(verilogSourcesOnly, targetDir)
 
     state
   }
 }
 
 object BlackBoxSourceHelper {
+  /** Safely access a file converting [[FileNotFoundException]]s and [[NullPointerException]]s into
+    * [[BlackBoxNotFoundException]]s
+    * @param fileName the name of the file to be accessed (only used for error message generation)
+    * @param code some code to run
+    */
+  private def safeFile[A](fileName: String)(code: => A) = try { code } catch {
+    case e@ (_: FileNotFoundException | _: NullPointerException) => throw new BlackBoxNotFoundException(fileName, e)
+    case t: Throwable                                            => throw t
+  }
+
+  /**
+    * finds the named resource and writes into the directory
+    * @param name the name of the resource
+    * @param dir the directory in which to write the file
+    * @return the closed File object
+    */
+  def writeResourceToDirectory(name: String, dir: File): File = {
+    val fileName = name.split("/").last
+    val outFile = new File(dir, fileName)
+    copyResourceToFile(name, outFile)
+    outFile
+  }
+
   /**
     * finds the named resource and writes into the directory
     * @param name the name of the resource
     * @param file the file to write it into
+    * @throws BlackBoxNotFoundException if the requested resource does not exist
     */
   def copyResourceToFile(name: String, file: File) {
     val in = getClass.getResourceAsStream(name)
-    if (in == null) {
-      throw new FileNotFoundException(s"Resource '$name'")
-    }
     val out = new FileOutputStream(file)
-    Iterator.continually(in.read).takeWhile(-1 != _).foreach(out.write)
+    safeFile(name)(Iterator.continually(in.read).takeWhile(-1 != _).foreach(out.write))
     out.close()
   }
 
@@ -113,11 +155,13 @@ object BlackBoxSourceHelper {
 
   def writeFileList(files: ListSet[File], targetDir: File) {
     if (files.nonEmpty) {
-      // We need the absolute path here (or strip targetDir from the file path),
-      //  so verilator will create a path to the file that works from the targetDir.
-      //  Otherwise, when make tries to determine dependencies based on the *__ver.d file, we end up with errors like:
-      //    make[1]: *** No rule to make target `test_run_dir/examples.AccumBlackBox_PeekPokeTest_Verilator345491158/AccumBlackBox.v', needed by `.../chisel-testers/test_run_dir/examples.AccumBlackBox_PeekPokeTest_Verilator345491158/VAccumBlackBoxWrapper.h'.  Stop.
-      writeTextToFile(files.map(_.getAbsolutePath).mkString("\n"), new File(targetDir, fileListName))
+      // We need the canonical path here, so verilator will create a path to the file that works from the targetDir,
+      //  and, so we can compare the list of files automatically included, with an explicit list provided by the client
+      //  and reject duplicates.
+      // If the path isn't canonical, when make tries to determine dependencies based on the *__ver.d file, we end up with errors like:
+      //  make[1]: *** No rule to make target `test_run_dir/examples.AccumBlackBox_PeekPokeTest_Verilator345491158/AccumBlackBox.v', needed by `.../chisel-testers/test_run_dir/examples.AccumBlackBox_PeekPokeTest_Verilator345491158/VAccumBlackBoxWrapper.h'.  Stop.
+      //  or we end up including the same file multiple times.
+      writeTextToFile(files.map(_.getCanonicalPath).mkString("\n"), new File(targetDir, fileListName))
     }
   }
 

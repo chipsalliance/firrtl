@@ -263,6 +263,10 @@ message Firrtl {
       // Empty.
     }
 
+    message AsyncResetType {
+      // Empty.
+    }
+
     message BundleType {
       message Field {
         // Required.
@@ -300,6 +304,7 @@ message Firrtl {
       VectorType vector_type = 6;
       FixedType fixed_type = 7;
       AnalogType analog_type = 8;
+      AsyncResetType async_reset_type = 9;
     }
   }
 
@@ -426,6 +431,7 @@ message Firrtl {
         OP_SHIFT_BINARY_POINT_LEFT = 35;
         OP_SHIFT_BINARY_POINT_RIGHT = 36;
         OP_SET_BINARY_POINT = 37;
+        OP_AS_ASYNC_RESET = 38;
       }
 
       // Required.

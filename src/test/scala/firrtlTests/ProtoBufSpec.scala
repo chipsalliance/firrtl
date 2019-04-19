@@ -7,7 +7,6 @@ import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 import firrtl.FirrtlProtos.Firrtl
 import firrtl._
 import firrtl.ir._
-import firrtl.Mappers._
 
 class ProtoBufSpec extends FirrtlFlatSpec {
 
@@ -25,7 +24,8 @@ class ProtoBufSpec extends FirrtlFlatSpec {
     FirrtlResourceTest("Rob", "/regress"),
     FirrtlResourceTest("RocketCore", "/regress"),
     FirrtlResourceTest("ICache", "/regress"),
-    FirrtlResourceTest("FPU", "/regress")
+    FirrtlResourceTest("FPU", "/regress"),
+    FirrtlResourceTest("AsyncResetTester", "/features")
   )
 
   for (FirrtlResourceTest(name, dir) <- firrtlResourceTests) {
@@ -156,5 +156,10 @@ class ProtoBufSpec extends FirrtlFlatSpec {
     // But they both deserialize to the original!
     defaultMem should equal (mem)
     oldMem should equal (mem)
+  }
+
+  it should "support AsyncResetTypes" in {
+    val port = ir.Port(ir.NoInfo, "reset", ir.Input, ir.AsyncResetType)
+    FromProto.convert(ToProto.convert(port).build) should equal (port)
   }
 }

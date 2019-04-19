@@ -8,6 +8,7 @@ import firrtl.passes._
 import firrtl.transforms._
 import firrtl.annotations._
 import firrtl.passes.memlib.SimpleTransform
+import FirrtlCheckers._
 
 import java.io.File
 import java.nio.file.Paths
@@ -320,6 +321,40 @@ class DCETests extends FirrtlFlatSpec {
         """.stripMargin
     exec(input, input)
   }
+  "extmodules with no ports" should "NOT be deleted by default" in {
+    val input =
+      """circuit Top :
+        |  extmodule BlackBox :
+        |    defname = BlackBox
+        |  module Top :
+        |    input x : UInt<1>
+        |    output y : UInt<1>
+        |    inst blackBox of BlackBox
+        |    y <= x
+        |""".stripMargin
+    exec(input, input)
+  }
+  "extmodules with no ports marked optimizable" should "be deleted" in {
+    val input =
+      """circuit Top :
+        |  extmodule BlackBox :
+        |    defname = BlackBox
+        |  module Top :
+        |    input x : UInt<1>
+        |    output y : UInt<1>
+        |    inst blackBox of BlackBox
+        |    y <= x
+        |""".stripMargin
+    val check =
+      """circuit Top :
+        |  module Top :
+        |    input x : UInt<1>
+        |    output y : UInt<1>
+        |    y <= x
+        |""".stripMargin
+    val doTouchAnno = OptimizableExtModuleAnnotation(ModuleName("BlackBox", CircuitName("Top")))
+    exec(input, check, Seq(doTouchAnno))
+  }
   // bar.z is not used and thus is dead code, but foo.z is used so this code isn't eliminated
   "Module deduplication" should "should be preserved despite unused output of ONE instance" in {
     val input =
@@ -413,6 +448,23 @@ class DCETests extends FirrtlFlatSpec {
     verilog shouldNot include regex ("""a \? x : r;""")
     // Check for register update
     verilog should include regex ("""(?m)if \(a\) begin\n\s*r <= x;\s*end""")
+  }
+
+  "Emitted Verilog" should "not contain dead print or stop statements" in {
+    val input = parse(
+      """circuit test :
+        |  module test :
+        |    input clock : Clock
+        |    when UInt<1>(0) :
+        |      printf(clock, UInt<1>(1), "o hai")
+        |      stop(clock, UInt<1>(1), 1)""".stripMargin
+    )
+
+    val state = CircuitState(input, ChirrtlForm)
+    val result = (new VerilogCompiler).compileAndEmit(state, List.empty)
+    val verilog = result.getEmittedCircuit.value
+    verilog shouldNot include regex ("""fwrite""")
+    verilog shouldNot include regex ("""fatal""")
   }
 }
 

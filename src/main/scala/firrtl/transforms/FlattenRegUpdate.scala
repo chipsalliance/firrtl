@@ -11,14 +11,14 @@ import scala.collection.mutable
 
 object FlattenRegUpdate {
 
-  /** Mapping from references to the [[Expression]]s that drive them */
+  /** Mapping from references to the [[firrtl.ir.Expression Expression]]s that drive them */
   type Netlist = mutable.HashMap[WrappedExpression, Expression]
 
   /** Build a [[Netlist]] from a Module's connections and Nodes
     *
-    * This assumes [[LowForm]]
+    * This assumes [[firrtl.LowForm LowForm]]
     *
-    * @param mod [[Module]] from which to build a [[Netlist]]
+    * @param mod [[firrtl.ir.Module Module]] from which to build a [[Netlist]]
     * @return [[Netlist]] of the module's connections and nodes
     */
   def buildNetlist(mod: Module): Netlist = {
@@ -43,8 +43,8 @@ object FlattenRegUpdate {
     * Constructs nested mux trees (up to a certain arbitrary threshold) for register updates. This
     * can result in dead code that this function does NOT remove.
     *
-    * @param mod [[Module]] to transform
-    * @return [[Module]] with register updates flattened
+    * @param mod [[firrtl.ir.Module Module]] to transform
+    * @return [[firrtl.ir.Module Module]] with register updates flattened
     */
   def flattenReg(mod: Module): Module = {
     // We want to flatten Mux trees for reg updates into if-trees for
@@ -81,7 +81,8 @@ object FlattenRegUpdate {
 
     def onStmt(stmt: Statement): Statement = stmt.map(onStmt) match {
       case reg @ DefRegister(_, rname, _,_, resetCond, _) =>
-        assert(resetCond == Utils.zero, "Register reset should have already been made explicit!")
+        assert(resetCond.tpe == AsyncResetType || resetCond == Utils.zero,
+          "Synchronous reset should have already been made explicit!")
         val ref = WRef(reg)
         val update = Connect(NoInfo, ref, constructRegUpdate(netlist.getOrElse(ref, ref)))
         regUpdates += update

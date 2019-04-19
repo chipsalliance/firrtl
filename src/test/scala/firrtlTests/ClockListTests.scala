@@ -1,13 +1,11 @@
+// See LICENSE for license details.
+
 package firrtlTests
 
 import java.io._
-import org.scalatest._
-import org.scalatest.prop._
 import firrtl._
 import firrtl.ir.Circuit
 import firrtl.passes._
-import firrtl.Parser.IgnoreInfo
-import annotations._
 import clocklist._
 
 class ClockListTests extends FirrtlFlatSpec {
@@ -27,7 +25,7 @@ class ClockListTests extends FirrtlFlatSpec {
     ResolveKinds,
     InferTypes,
     ResolveGenders,
-    InferWidths
+    new InferWidths
   )
 
   "Getting clock list" should "work" in {
@@ -77,9 +75,9 @@ class ClockListTests extends FirrtlFlatSpec {
     |Good Origin of h$b.clock is h$clkGen.clk2
     |Good Origin of h$c.clock is h$clkGen.clk3
     |""".stripMargin
-    val c = passes.foldLeft(parse(input)) {
-      (c: Circuit, p: Pass) => p.run(c)
-    }
+    val c = passes.foldLeft(CircuitState(parse(input), UnknownForm)) {
+      (c: CircuitState, p: Transform) => p.runTransform(c)
+    }.circuit
     val writer = new StringWriter()
     val retC = new ClockList("HTop", writer).run(c)
     (writer.toString) should be (check)
@@ -108,9 +106,9 @@ class ClockListTests extends FirrtlFlatSpec {
     |Good Origin of b.clock is clkB
     |Good Origin of b$c.clock is clock
     |""".stripMargin
-    val c = passes.foldLeft(parse(input)) {
-      (c: Circuit, p: Pass) => p.run(c)
-    }
+    val c = passes.foldLeft(CircuitState(parse(input), UnknownForm)) {
+      (c: CircuitState, p: Transform) => p.runTransform(c)
+    }.circuit
     val writer = new StringWriter()
     val retC = new ClockList("A", writer).run(c)
     (writer.toString) should be (check)
@@ -141,9 +139,9 @@ class ClockListTests extends FirrtlFlatSpec {
     |Good Origin of clock is clock
     |Good Origin of c.clock is clkC
     |""".stripMargin
-    val c = passes.foldLeft(parse(input)) {
-      (c: Circuit, p: Pass) => p.run(c)
-    }
+    val c = passes.foldLeft(CircuitState(parse(input), UnknownForm)) {
+      (c: CircuitState, p: Transform) => p.runTransform(c)
+    }.circuit
     val writer = new StringWriter()
     val retC = new ClockList("B", writer).run(c)
     (writer.toString) should be (check)

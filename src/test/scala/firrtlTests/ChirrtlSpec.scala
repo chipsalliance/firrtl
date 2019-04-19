@@ -5,7 +5,7 @@ package firrtlTests
 import java.io._
 import org.scalatest._
 import org.scalatest.prop._
-import firrtl.Parser
+import firrtl.{Parser, CircuitState, UnknownForm, Transform}
 import firrtl.ir.Circuit
 import firrtl.passes._
 import firrtl._
@@ -16,14 +16,14 @@ class ChirrtlSpec extends FirrtlFlatSpec {
     CInferTypes,
     CInferMDir,
     RemoveCHIRRTL,
-    ToWorkingIR,            
+    ToWorkingIR,
     CheckHighForm,
     ResolveKinds,
     InferTypes,
     CheckTypes,
     ResolveGenders,
     CheckGenders,
-    InferWidths,
+    new InferWidths,
     CheckWidths,
     PullMuxes,
     ExpandConnects,
@@ -68,6 +68,15 @@ class ChirrtlSpec extends FirrtlFlatSpec {
       val circuit = Parser.parse(input.split("\n").toIterator)
       transforms.foldLeft(CircuitState(circuit, UnknownForm)) {
         (c: CircuitState, p: Transform) => p.runTransform(c)
+      }
+    }
+  }
+
+  behavior of "Uniqueness"
+  for ((description, input) <- CheckSpec.nonUniqueExamples) {
+    it should s"be asserted for $description" in {
+      assertThrows[CheckChirrtl.NotUniqueException] {
+        Seq(ToWorkingIR, CheckChirrtl).foldLeft(Parser.parse(input)){ case (c, tx) => tx.run(c) }
       }
     }
   }

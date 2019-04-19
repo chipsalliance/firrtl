@@ -28,6 +28,7 @@ object ExceptingTransform {
 
 //noinspection ScalaStyle
 class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities {
+  val outputDir = createTestDirectory("DriverSpec")
   "CommonOptions are some simple options available across the chisel3 ecosystem" - {
     "CommonOption provide an scopt implementation of an OptionParser" - {
       "Options can be set from an Array[String] as is passed into a main" - {
@@ -52,21 +53,23 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
         }
       }
       "CommonOptions can create a directory" in {
-        var dir = new java.io.File("a/b/c")
+        val top_dir = new java.io.File(outputDir, "a")
+        val dir = new java.io.File(top_dir, "b/c")
         if (dir.exists()) {
           dir.delete()
         }
         val optionsManager = new ExecutionOptionsManager("test")
-        optionsManager.parse(Array("--top-name", "dog", "--target-dir", "a/b/c")) should be(true)
+        val targetPath = dir.getPath
+        optionsManager.parse(Array("--top-name", "dog", "--target-dir", targetPath)) should be(true)
         val commonOptions = optionsManager.commonOptions
 
         commonOptions.topName should be("dog")
-        commonOptions.targetDirName should be("a/b/c")
+        commonOptions.targetDirName should be(targetPath)
 
         optionsManager.makeTargetDir() should be(true)
-        dir = new java.io.File("a/b/c")
-        dir.exists() should be(true)
-        FileUtils.deleteDirectoryHierarchy("a") should be(true)
+        val tdir = new java.io.File(targetPath)
+        tdir.exists() should be(true)
+        FileUtils.deleteDirectoryHierarchy(top_dir) should be(true)
       }
     }
     "options include by default a list of strings that are returned in commonOptions.programArgs" in {
@@ -364,10 +367,13 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
 
     "To a single file with file extension depending on the compiler by default" in {
       Seq(
+        "none" -> "./Top.fir",
         "low" -> "./Top.lo.fir",
         "high" -> "./Top.hi.fir",
         "middle" -> "./Top.mid.fir",
-        "verilog" -> "./Top.v"
+        "verilog" -> "./Top.v",
+        "mverilog" -> "./Top.v",
+        "sverilog" -> "./Top.sv"
       ).foreach { case (compilerName, expectedOutputFileName) =>
         val manager = new ExecutionOptionsManager("test") with HasFirrtlOptions {
           commonOptions = CommonOptions(topName = "Top")
@@ -383,10 +389,13 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
     }
     "To a single file per module if OneFilePerModule is specified" in {
       Seq(
+        "none" -> Seq("./Top.fir", "./Child.fir"),
         "low" -> Seq("./Top.lo.fir", "./Child.lo.fir"),
         "high" -> Seq("./Top.hi.fir", "./Child.hi.fir"),
         "middle" -> Seq("./Top.mid.fir", "./Child.mid.fir"),
-        "verilog" -> Seq("./Top.v", "./Child.v")
+        "verilog" -> Seq("./Top.v", "./Child.v"),
+        "mverilog" -> Seq("./Top.v", "./Child.v"),
+        "sverilog" -> Seq("./Top.sv", "./Child.sv")
       ).foreach { case (compilerName, expectedOutputFileNames) =>
         println(s"$compilerName -> $expectedOutputFileNames")
         val manager = new ExecutionOptionsManager("test") with HasFirrtlOptions {

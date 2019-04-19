@@ -3,9 +3,7 @@
 package firrtl
 
 import scala.collection.mutable
-import scala.collection.mutable.HashSet
 import firrtl.ir._
-import Mappers._
 
 class Namespace private {
   private val tempNamePrefix: String = "_GEN"
@@ -39,6 +37,11 @@ class Namespace private {
   }
 
   def newTemp: String = newName(tempNamePrefix)
+
+  /** Create a copy of the HashSet backing this [[Namespace]]
+    * @return a copy of the underlying HashSet
+    */
+  def cloneUnderlying: mutable.HashSet[String] = namespace.clone
 }
 
 /* TODO(azidar): Make Namespace return unique names that will not conflict with expanded
@@ -79,4 +82,3 @@ object Namespace {
     namespace
   }
 }
-
