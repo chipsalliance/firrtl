@@ -57,6 +57,15 @@ trait DependencyAPI[A <: DependencyAPI[A]] {
 
 }
 
+/** A trait indicating that no invalidations occur, i.e., all previous transforms are preserved
+  * @tparam A some [[TransformLike]]
+  */
+trait PreservesAll[A <: DependencyAPI[A]] extends DependencyAPI[A] {
+
+  override def invalidates(a: A): Boolean = false
+
+}
+
 /** A mathematical transformation of an [[AnnotationSeq]].
   *
   * A [[Phase]] forms one unit in the Chisel/FIRRTL Hardware Compiler Framework (HCF). The HCF is built from a sequence
