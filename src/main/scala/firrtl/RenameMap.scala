@@ -207,14 +207,17 @@ final class RenameMap private (earlier: Option[RenameMap] = None, previous: Opti
     * @return Optionally return sequence of targets that key remaps to
     */
   private def completeGet(key: CompleteTarget): Option[Seq[CompleteTarget]] = {
-    val previousRet = previous.map(_.completeGet(key)).flatten
+    val previousRet = previous.flatMap(_.completeGet(key))
     if (previousRet.nonEmpty) {
       previousRet
     } else if (earlier.nonEmpty) {
-      val earlierRet = earlier.get.completeGet(key)
-      earlierRet.map(_.map { t =>
-        hereCompleteGet(t).getOrElse(Seq(t))
-      }).map(_.flatten)
+      val earlierRet = earlier.get.completeGet(key).getOrElse(Seq(key))
+      if (earlierRet.isEmpty) {
+        Some(earlierRet)
+      } else {
+        val hereRet = earlierRet.flatMap(hereCompleteGet)
+        if (hereRet.isEmpty) { None } else { Some(hereRet.flatten) }
+      }
     } else {
       hereCompleteGet(key)
     }

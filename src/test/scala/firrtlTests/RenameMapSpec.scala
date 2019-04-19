@@ -545,16 +545,20 @@ class RenameMapSpec extends FirrtlFlatSpec {
 
     val renames1 = RenameMap()
     val from1 = top.module("A")
-    val to1 = top.module("Top").instOf("a", "A")
+    val to1 = top.module("Top").instOf("b", "B")
     renames1.record(from1, to1)
 
     val renames2 = renames1.andThen()
-    val from2 = top.module("A")
-    val to2 = top.module("A1")
+    val from2 = top.module("B")
+    val to2 = top.module("B1")
     renames2.record(from2, to2)
 
     renames2.get(from1) should be {
-      Some(Seq(top.module("Top").instOf("a", "A1")))
+      Some(Seq(top.module("Top").instOf("b", "B1")))
+    }
+
+    renames2.get(from2) should be {
+      Some(Seq(to2))
     }
   }
 
@@ -635,6 +639,75 @@ class RenameMapSpec extends FirrtlFlatSpec {
     }
     renames.get(modC) should be {
       Some(Seq(modC1))
+    }
+  }
+
+  it should "be able to inline instances" in {
+    val top = CircuitTarget("Top")
+    val inlineRename1 = {
+      val inlineMod = top.module("A")
+      val inlineInst = top.module("A").instOf("b", "B")
+      val oldRef = inlineMod.ref("bar")
+      val prefixRef = inlineMod.ref("foo")
+
+      val renames1 = RenameMap()
+      renames1.record(inlineInst, inlineMod)
+
+      val renames2 = renames1.andThen()
+      renames2.record(oldRef, prefixRef)
+      renames2
+    }
+
+    val inlineRename2 = {
+      val inlineMod = top.module("A1")
+      val inlineInst = top.module("A1").instOf("b", "B1")
+      val oldRef = inlineMod.ref("bar")
+      val prefixRef = inlineMod.ref("foo")
+
+      val renames1 = RenameMap()
+      renames1.record(inlineInst, inlineMod)
+
+      val renames2 = renames1.andThen()
+      renames2.record(oldRef, prefixRef)
+      renames2
+    }
+
+    val renames = inlineRename1 ++ inlineRename2
+    renames.get(top.module("A").instOf("b", "B").instOf("bar", "Bar").ref("ref")) should be {
+      Some(Seq(top.module("A").instOf("foo", "Bar").ref("ref")))
+    }
+
+    renames.get(top.module("A1").instOf("b", "B1").instOf("bar", "Bar").ref("ref")) should be {
+      Some(Seq(top.module("A1").instOf("foo", "Bar").ref("ref")))
+    }
+  }
+
+  it should "be able to dedup modules" in {
+    val top = CircuitTarget("Top")
+    val topMod = top.module("Top")
+    val dedupedMod = top.module("A")
+    val dupMod1 = top.module("A1")
+    val dupMod2 = top.module("A2")
+
+    val relPath1 = top.module("Foo").instOf("a", "A1")
+    val relPath2 = top.module("Foo").instOf("a", "A1")
+    val dupInst1 = topMod.instOf("foo", "Foo").instOf("a", "A1")
+    val dupInst2 = topMod.instOf("bar", "Bar").instOf("a", "A2")
+
+    val renames1 = RenameMap()
+    renames1.record(dupMod1, dupInst1)
+    renames1.record(dupMod2, dupInst2)
+
+    val renames2 = renames1.andThen()
+    renames2.record(dupMod1, dedupedMod)
+    renames2.record(dupMod2, dedupedMod)
+
+    renames2.get(dupMod1.instOf("foo", "Bar").ref("ref")) should be {
+      Some(Seq(dupInst1.copy(ofModule = "A").instOf("foo", "Bar").ref("ref")))
+    }
+
+    renames2.get(dupMod2.ref("ref")) should be {
+      Some(Seq(dupInst2.copy(ofModule = "A").ref("ref")))
     }
   }
 }
