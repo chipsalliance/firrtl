@@ -258,7 +258,7 @@ object ToProto {
             val mem = Firrtl.Statement.Memory.newBuilder()
               .setId(name)
               .setType(convert(dtype))
-              .setDepth(depth)
+              .setDepth(convertToBigInt(depth))
               .setWriteLatency(wlat)
               .setReadLatency(rlat)
             mem.addAllReaderId(rs.asJava)

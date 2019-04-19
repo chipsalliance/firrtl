@@ -155,7 +155,7 @@ class Visitor(infoMode: InfoMode) extends FIRRTLBaseVisitor[FirrtlNode] {
     val readers = mutable.ArrayBuffer.empty[String]
     val writers = mutable.ArrayBuffer.empty[String]
     val readwriters = mutable.ArrayBuffer.empty[String]
-    case class ParamValue(typ: Option[Type] = None, lit: Option[Int] = None, ruw: Option[String] = None, unique: Boolean = true)
+    case class ParamValue(typ: Option[Type] = None, lit: Option[BigInt] = None, ruw: Option[String] = None, unique: Boolean = true)
     val fieldMap = mutable.HashMap[String, ParamValue]()
 
     def parseMemFields(memFields: Seq[MemFieldContext]): Unit =
@@ -170,7 +170,7 @@ class Visitor(infoMode: InfoMode) extends FIRRTLBaseVisitor[FirrtlNode] {
             val paramDef = fieldName match {
               case "data-type" => ParamValue(typ = Some(visitType(field.`type`())))
               case "read-under-write" => ParamValue(ruw = Some(field.ruw().getText)) // TODO
-              case _ => ParamValue(lit = Some(field.intLit().getText.toInt))
+              case _ => ParamValue(lit = Some(BigInt(field.intLit().getText)))
             }
             if (fieldMap.contains(fieldName))
               throw new ParameterRedefinedException(s"Redefinition of $fieldName in FIRRTL line:${field.start.getLine}")
@@ -200,7 +200,8 @@ class Visitor(infoMode: InfoMode) extends FIRRTLBaseVisitor[FirrtlNode] {
     DefMemory(info,
       name = ctx.id(0).getText, dataType = fieldMap("data-type").typ.get,
       depth = lit("depth"),
-      writeLatency = lit("write-latency"), readLatency = lit("read-latency"),
+      writeLatency = lit("write-latency").toInt,
+      readLatency = lit("read-latency").toInt,
       readers = readers, writers = writers, readwriters = readwriters,
       readUnderWrite = ruw
     )

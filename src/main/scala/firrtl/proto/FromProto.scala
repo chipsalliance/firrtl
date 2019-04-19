@@ -165,7 +165,8 @@ object FromProto {
     val rs = mem.getReaderIdList.asScala
     val ws = mem.getWriterIdList.asScala
     val rws = mem.getReadwriterIdList.asScala
-    ir.DefMemory(convert(info), mem.getId, dtype, mem.getDepth, mem.getWriteLatency, mem.getReadLatency,
+    val depth = if (mem.hasDepth) convert(mem.getDepth) else BigInt(mem.getOldDepth)
+    ir.DefMemory(convert(info), mem.getId, dtype, depth, mem.getWriteLatency, mem.getReadLatency,
                  rs, ws, rws, None)
   }
 

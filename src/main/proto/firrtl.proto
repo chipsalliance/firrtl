@@ -110,7 +110,8 @@ message Firrtl {
       // Required.
       Type type = 2;
       // Required.
-      uint32 depth = 3;
+      uint32 old_depth = 3;
+      BigInt depth = 9;
       // Required.
       uint32 write_latency = 4;
       // Required.

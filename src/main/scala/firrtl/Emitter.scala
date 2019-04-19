@@ -340,9 +340,12 @@ class VerilogEmitter extends SeqTransform with Emitter {
       val at_clock = mutable.LinkedHashMap[Expression,ArrayBuffer[Seq[Any]]]()
       val initials = ArrayBuffer[Seq[Any]]()
       val simulates = ArrayBuffer[Seq[Any]]()
+      def declareVectorType(b: String, n: String, tpe: Type, size: BigInt, info: Info) = {
+        declares += Seq(b, " ", tpe, " ", n, " [0:", size - 1, "];", info)
+      }
       def declare(b: String, n: String, t: Type, info: Info) = t match {
         case tx: VectorType =>
-          declares += Seq(b, " ", tx.tpe, " ", n, " [0:", tx.size - 1, "];",info)
+          declareVectorType(b, n, tx.tpe, tx.size, info)
         case tx =>
           declares += Seq(b, " ", tx, " ", n,";",info)
       }
@@ -535,7 +538,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
         case sx: DefMemory =>
           val fullSize = sx.depth * (sx.dataType match { case GroundType(IntWidth(width)) => width })
           val decl = if (fullSize > (1 << 29)) "reg /* sparse */" else "reg"
-          declare(decl, sx.name, VectorType(sx.dataType, sx.depth), sx.info)
+          declareVectorType(decl, sx.name, sx.dataType, sx.depth, sx.info)
           initialize_mem(sx)
           if (sx.readLatency != 0 || sx.writeLatency != 1)
             throw EmitterException("All memories should be transformed into " +
@@ -556,7 +559,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
             // assign(en, netlist(en))     //;Connects value to m.r.en
             val mem = WRef(sx.name, memType(sx), MemKind, UNKNOWNGENDER)
             val memPort = WSubAccess(mem, addr, sx.dataType, UNKNOWNGENDER)
-            val depthValue = UIntLiteral(sx.depth, IntWidth(BigInt(sx.depth).bitLength))
+            val depthValue = UIntLiteral(sx.depth, IntWidth(sx.depth.bitLength))
             val garbageGuard = DoPrim(Geq, Seq(addr, depthValue), Seq(), UnknownType)
 
             if ((sx.depth & (sx.depth - 1)) == 0)

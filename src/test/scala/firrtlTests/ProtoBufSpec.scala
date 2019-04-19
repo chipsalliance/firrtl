@@ -137,4 +137,24 @@ class ProtoBufSpec extends FirrtlFlatSpec {
     val slit = ir.SIntLiteral(-123)
     FromProto.convert(ToProto.convert(slit).build) should equal (slit)
   }
+
+  // Backwards compatibility
+  it should "support mems using old uint32 and new BigInt" in {
+    val size = 128
+    val mem = DefMemory(NoInfo, "m", UIntType(IntWidth(8)), size, 1, 1, List("r"), List("w"), List("rw"))
+    val builder = ToProto.convert(mem).head
+    val defaultProto = builder.build()
+    val oldProto = Firrtl.Statement.newBuilder().setMemory(
+      builder.getMemoryBuilder.clearDepth().setOldDepth(size)
+    ).build()
+    // These Proto messages are not the same
+    defaultProto shouldNot equal (oldProto)
+
+    val defaultMem = FromProto.convert(defaultProto)
+    val oldMem = FromProto.convert(oldProto)
+
+    // But they both deserialize to the original!
+    defaultMem should equal (mem)
+    oldMem should equal (mem)
+  }
 }
