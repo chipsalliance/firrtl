@@ -3,7 +3,7 @@
 package firrtl.stage.phases
 
 import firrtl.{AnnotationSeq, ChirrtlForm, CircuitState, Compiler => FirrtlCompiler, Transform, seqToAnnoSeq}
-import firrtl.options.{Phase, PhasePrerequisiteException, Translator}
+import firrtl.options.{Phase, PhasePrerequisiteException, PreservesAll, Translator}
 import firrtl.stage.{CircuitOption, CompilerAnnotation, FirrtlOptions, FirrtlCircuitAnnotation,
   RunFirrtlTransformAnnotation}
 
@@ -42,7 +42,14 @@ private [stage] case class Defaults(
   * FirrtlCircuitAnnotation(y). Note: A(b) ''may'' overwrite A(a) if this is a CompilerAnnotation.
   * FirrtlCircuitAnnotation(z) has no annotations, so it only gets the default A(a).
   */
-class Compiler extends Phase with Translator[AnnotationSeq, Seq[CompilerRun]] {
+class Compiler extends Phase with Translator[AnnotationSeq, Seq[CompilerRun]] with PreservesAll[Phase] {
+
+  override val prerequisites: Set[Class[Phase]] =
+    Set(classOf[AddDefaults],
+        classOf[AddImplicitEmitter],
+        classOf[Checks],
+        classOf[AddCircuit],
+        classOf[AddImplicitOutputFile])
 
   /** Convert an [[AnnotationSeq]] into a sequence of compiler runs. */
   protected def aToB(a: AnnotationSeq): Seq[CompilerRun] = {

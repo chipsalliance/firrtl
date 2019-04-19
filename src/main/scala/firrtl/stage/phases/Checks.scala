@@ -6,7 +6,7 @@ import firrtl.stage._
 
 import firrtl.{AnnotationSeq, EmitAllModulesAnnotation, EmitCircuitAnnotation}
 import firrtl.annotations.Annotation
-import firrtl.options.{OptionsException, Phase, StageUtils}
+import firrtl.options.{OptionsException, Phase, PreservesAll, StageUtils}
 
 /** [[firrtl.options.Phase Phase]] that strictly validates an [[AnnotationSeq]]. The checks applied are intended to be
   * extremeley strict. Nothing is inferred or assumed to take a default value (for default value resolution see
@@ -16,7 +16,9 @@ import firrtl.options.{OptionsException, Phase, StageUtils}
   * certain that other [[firrtl.options.Phase Phase]]s or views will succeed. See [[FirrtlStage]] for a list of
   * [[firrtl.options.Phase Phase]] that commonly run before this.
   */
-class Checks extends Phase {
+class Checks extends Phase with PreservesAll[Phase] {
+
+  override val prerequisites: Set[Class[Phase]] = Set(classOf[AddDefaults], classOf[AddImplicitEmitter])
 
   /** Determine if annotations are sane
     *

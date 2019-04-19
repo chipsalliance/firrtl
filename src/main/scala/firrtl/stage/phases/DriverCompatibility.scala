@@ -7,8 +7,8 @@ import firrtl.stage._
 import firrtl.{AnnotationSeq, EmitAllModulesAnnotation, EmitCircuitAnnotation, FirrtlExecutionResult, Parser}
 import firrtl.annotations.NoTargetAnnotation
 import firrtl.proto.FromProto
-import firrtl.options.{HasShellOptions, InputAnnotationFileAnnotation, OptionsException, Phase, ShellOption,
-  StageOptions, StageUtils}
+import firrtl.options.{HasShellOptions, InputAnnotationFileAnnotation, OptionsException, Phase, PreservesAll,
+  ShellOption, StageOptions, StageUtils}
 import firrtl.options.Viewer
 
 import scopt.OptionParser
@@ -120,7 +120,11 @@ object DriverCompatibility {
     * @param annos input annotations
     * @return output annotations
     */
-  class AddImplicitAnnotationFile extends Phase {
+  class AddImplicitAnnotationFile extends Phase with PreservesAll[Phase] {
+
+    override val prerequisites: Set[Class[Phase]] = Set(classOf[AddImplicitFirrtlFile])
+
+    override val dependents: Set[Class[Phase]] = Set(classOf[FirrtlStage])
 
     /** Try to add an [[InputAnnotationFileAnnotation]] implicitly specified by an [[AnnotationSeq]]. */
     def transform(annotations: AnnotationSeq): AnnotationSeq = annotations
@@ -154,7 +158,9 @@ object DriverCompatibility {
     * @param annotations input annotations
     * @return
     */
-  class AddImplicitFirrtlFile extends Phase {
+  class AddImplicitFirrtlFile extends Phase with PreservesAll[Phase] {
+
+    override val dependents: Set[Class[Phase]] = Set(classOf[FirrtlStage])
 
     /** Try to add a [[FirrtlFileAnnotation]] implicitly specified by an [[AnnotationSeq]]. */
     def transform(annotations: AnnotationSeq): AnnotationSeq = {
@@ -181,7 +187,9 @@ object DriverCompatibility {
     */
   @deprecated("""AddImplicitEmitter should only be used to build Driver compatibility wrappers. Switch to Stage.""",
               "1.2")
-  class AddImplicitEmitter extends Phase {
+  class AddImplicitEmitter extends Phase with PreservesAll[Phase] {
+
+    override val dependents: Set[Class[Phase]] = Set(classOf[FirrtlStage])
 
     /** Add one [[EmitAnnotation]] foreach [[CompilerAnnotation]]. */
     def transform(annotations: AnnotationSeq): AnnotationSeq = {
@@ -203,7 +211,11 @@ object DriverCompatibility {
     */
   @deprecated("""AddImplicitOutputFile should only be used to build Driver compatibility wrappers. Switch to Stage.""",
               "1.2")
-  class AddImplicitOutputFile extends Phase {
+  class AddImplicitOutputFile extends Phase with PreservesAll[Phase] {
+
+    override val prerequisites: Set[Class[Phase]] = Set(classOf[AddImplicitFirrtlFile])
+
+    override val dependents: Set[Class[Phase]] = Set(classOf[FirrtlStage])
 
     /** Add an [[OutputFileAnnotation]] derived from a [[TopNameAnnotation]] if needed. */
     def transform(annotations: AnnotationSeq): AnnotationSeq = {

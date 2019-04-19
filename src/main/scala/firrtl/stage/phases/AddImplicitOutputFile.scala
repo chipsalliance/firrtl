@@ -3,7 +3,7 @@
 package firrtl.stage.phases
 
 import firrtl.{AnnotationSeq, EmitAllModulesAnnotation}
-import firrtl.options.{Phase, Viewer}
+import firrtl.options.{Phase, PreservesAll, Viewer}
 import firrtl.stage.{FirrtlCircuitAnnotation, FirrtlOptions, OutputFileAnnotation}
 
 /** [[firrtl.options.Phase Phase]] that adds an [[OutputFileAnnotation]] if one does not already exist.
@@ -18,7 +18,9 @@ import firrtl.stage.{FirrtlCircuitAnnotation, FirrtlOptions, OutputFileAnnotatio
   * @note This [[firrtl.options.Phase Phase]] has a dependency on [[AddCircuit]]. Only a [[FirrtlCircuitAnnotation]]
   * will be used to implicitly set the [[OutputFileAnnotation]] (not other [[CircuitOption]] subclasses).
   */
-class AddImplicitOutputFile extends Phase {
+class AddImplicitOutputFile extends Phase with PreservesAll[Phase] {
+
+  override val prerequisites: Set[Class[Phase]] = Set(classOf[AddCircuit])
 
   /** Add an [[OutputFileAnnotation]] to an [[AnnotationSeq]] */
   def transform(annotations: AnnotationSeq): AnnotationSeq =
