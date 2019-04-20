@@ -139,6 +139,19 @@ class Visitor(infoMode: InfoMode) extends FIRRTLBaseVisitor[FirrtlNode] {
     }
   }
 
+  // Special case "type" of CHIRRTL mems because their size can be BigInt
+  private def visitCMemType(ctx: TypeContext): (Type, BigInt) = {
+    def loc: String = s"${ctx.getStart.getLine}:${ctx.getStart.getCharPositionInLine}"
+    ctx.getChild(0) match {
+      case typeContext: TypeContext =>
+        val tpe = visitType(ctx.`type`)
+        val size = string2BigInt(ctx.intLit(0).getText)
+        (tpe, size)
+      case _ =>
+        throw new ParserException(s"[$loc] Must provide cmem or smem with vector type, got ${ctx.getText}")
+    }
+  }
+
   private def visitField[FirrtlNode](ctx: FieldContext): Field = {
     val flip = if (ctx.getChild(0).getText == "flip") Flip else Default
     Field(ctx.fieldId.getText, flip, visitType(ctx.`type`))
@@ -251,21 +264,11 @@ class Visitor(infoMode: InfoMode) extends FIRRTLBaseVisitor[FirrtlNode] {
           DefRegister(info, name, tpe, visitExp(ctx_exp(0)), reset, init)
         case "mem" => visitMem(ctx)
         case "cmem" =>
-          val t = visitType(ctx.`type`())
-          t match {
-            case (t: VectorType) => CDefMemory(info, ctx.id(0).getText, t.tpe, t.size, seq = false)
-            case _ => throw new ParserException(s"${
-              info
-            }: Must provide cmem with vector type")
-          }
+          val (tpe, size) = visitCMemType(ctx.`type`())
+          CDefMemory(info, ctx.id(0).getText, tpe, size, seq = false)
         case "smem" =>
-          val t = visitType(ctx.`type`())
-          t match {
-            case (t: VectorType) => CDefMemory(info, ctx.id(0).getText, t.tpe, t.size, seq = true)
-            case _ => throw new ParserException(s"${
-              info
-            }: Must provide cmem with vector type")
-          }
+          val (tpe, size) = visitCMemType(ctx.`type`())
+          CDefMemory(info, ctx.id(0).getText, tpe, size, seq = true)
         case "inst" => DefInstance(info, ctx.id(0).getText, ctx.id(1).getText)
         case "node" => DefNode(info, ctx.id(0).getText, visitExp(ctx_exp(0)))
 

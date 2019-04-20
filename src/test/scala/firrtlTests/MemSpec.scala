@@ -51,5 +51,31 @@ class MemSpec extends FirrtlPropSpec with FirrtlMatchers {
     // TODO Not great that it includes the sparse comment for VCS
     result should containLine (s"reg /* sparse */ [7:0] m [0:${memSize-1}];")
   }
+
+  property("Very large CHIRRTL memories should be supported") {
+    val addrWidth = 65
+    val memSize = BigInt(1) << addrWidth
+    val input =
+      s"""
+         |circuit Test :
+         |  module Test :
+         |    input clock : Clock
+         |    input raddr : UInt<$addrWidth>
+         |    output rdata : UInt<8>
+         |    input wdata : UInt<8>
+         |    input waddr : UInt<$addrWidth>
+         |    input wen : UInt<1>
+         |
+         |    cmem m : UInt<8>[$memSize]
+         |    read mport r = m[raddr], clock
+         |    rdata <= r
+         |    write mport w = m[waddr], clock
+         |    when wen :
+         |      w <= wdata
+       """.stripMargin
+    val result = (new VerilogCompiler).compileAndEmit(CircuitState(parse(input), ChirrtlForm, List.empty))
+    // TODO Not great that it includes the sparse comment for VCS
+    result should containLine (s"reg /* sparse */ [7:0] m [0:${memSize-1}];")
+  }
 }
 
