@@ -425,16 +425,18 @@ final class RenameMap private (earlier: Option[RenameMap] = None, previous: Opti
         case t: ModuleTarget => moduleGet(errors)(t)
         case t: IsComponent =>
           // rename all modules on the path
-          val renamedPath = t.asPath.flatMap { pair =>
+          val renamedPath = t.asPath.map { pair =>
             val pathMod = ModuleTarget(t.circuit, pair._2.value)
             moduleGet(errors)(pathMod) match {
-              case Seq(isMod: IsModule) if isMod.circuit == t.circuit =>
-                pair.copy(_2 = OfModule(isMod.module)) +: isMod.asPath
+              case Seq(isMod: ModuleTarget) if isMod.circuit == t.circuit =>
+                pair.copy(_2 = OfModule(isMod.module))
+              case Seq(isMod: InstanceTarget) if isMod.circuit == t.circuit =>
+                pair
               case other =>
                 val error = s"ofModule ${pathMod} cannot be renamed to $other " +
                   "- an ofModule can only be renamed to a single IsModule with the same circuit"
                 errors += error
-                Seq(pair)
+                pair
             }
           }
 
