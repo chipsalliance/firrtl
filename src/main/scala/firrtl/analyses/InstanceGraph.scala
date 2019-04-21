@@ -71,7 +71,7 @@ class InstanceGraph(c: Circuit) {
     */
   def findInstancesInHierarchy(module: String): Seq[Seq[WDefInstance]] = {
     val instances = graph.getVertices.filter(_.module == module).toSeq
-    instances flatMap { i => fullHierarchy(i) }
+    instances flatMap { i => fullHierarchy.getOrElse(i, Seq.empty) }
   }
 
   /** An [[firrtl.graph.EulerTour EulerTour]] representation of the [[firrtl.graph.DiGraph DiGraph]] */

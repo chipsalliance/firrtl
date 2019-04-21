@@ -16,8 +16,8 @@ import scala.collection.mutable
 
 
 /** A component, e.g. register etc. Must be declared only once under the TopAnnotation */
-case class NoDedupAnnotation(target: ModuleName) extends SingleTargetAnnotation[ModuleName] {
-  def duplicate(n: ModuleName): NoDedupAnnotation = NoDedupAnnotation(n)
+case class NoDedupAnnotation(target: ModuleTarget) extends SingleTargetAnnotation[ModuleTarget] {
+  def duplicate(n: ModuleTarget): NoDedupAnnotation = NoDedupAnnotation(n)
 }
 
 /** If this [[firrtl.annotations.Annotation Annotation]] exists in an [[firrtl.AnnotationSeq AnnotationSeq]],
@@ -51,7 +51,9 @@ class DedupModules extends Transform {
     if (state.annotations.contains(NoCircuitDedupAnnotation)) {
       state
     } else {
-      val noDedups = state.annotations.collect { case NoDedupAnnotation(ModuleName(m, c)) => m }
+      val noDedups = state.annotations.collect {
+        case NoDedupAnnotation(m: ModuleTarget) => m.module
+      }
       val (newC, renameMap) = run(state.circuit, noDedups, state.annotations)
       state.copy(circuit = newC, renames = Some(renameMap))
     }
@@ -74,17 +76,13 @@ class DedupModules extends Transform {
     // Use old module list to preserve ordering
     val dedupedModules = c.modules.map(m => dedupMap(m.name)).distinct
 
-    val cname = CircuitName(c.main)
+    val cname = c.main
     val map = dedupMap.map { case (from, to) =>
       logger.debug(s"[Dedup] $from -> ${to.name}")
-      ModuleName(from, cname) -> List(ModuleName(to.name, cname))
+      ModuleTarget(cname, from) -> Seq(ModuleTarget(cname, to.name))
     }
-    renameMap.recordAll(
-      map.map {
-        case (k: ModuleName, v: List[ModuleName]) => Target.convertNamed2Target(k) -> v.map(Target.convertNamed2Target)
-      }
-    )
 
+    map.foreach { case (from, to) => renameMap.record(from, to) }
     (InferTypes.run(c.copy(modules = dedupedModules)), renameMap)
   }
 }
@@ -283,7 +281,6 @@ object DedupModules {
   def buildRTLTags(top: CircuitTarget,
                    moduleLinearization: Seq[DefModule],
                    noDedups: Set[String],
-                   annotations: Seq[Annotation]
                   ): (collection.Map[String, collection.Set[String]], RenameMap) = {
 
 
@@ -293,13 +290,6 @@ object DedupModules {
     // Maps a tag to all matching module names
     val tag2all = mutable.HashMap.empty[String, mutable.HashSet[String]]
 
-    val module2Annotations = mutable.HashMap.empty[String, mutable.HashSet[Annotation]]
-    annotations.foreach { a =>
-      a.getTargets.foreach { t =>
-        val annos = module2Annotations.getOrElseUpdate(t.moduleOpt.get, mutable.HashSet.empty[Annotation])
-        annos += a
-      }
-    }
     def fastSerializedHash(s: Statement): Int ={
       def serialize(builder: StringBuilder, nindent: Int)(s: Statement): Unit = s match {
         case Block(stmts) => stmts.map {
@@ -344,15 +334,11 @@ object DedupModules {
         // Build name-agnostic module
         val agnosticModule = DedupModules.agnostify(top, originalModule, agnosticRename)
         agnosticRename.record(top.module(originalModule.name), top.module("thisModule"))
-        val agnosticAnnos = module2Annotations.getOrElse(
-          originalModule.name, mutable.HashSet.empty[Annotation]
-        ).map(_.update(agnosticRename))
         agnosticRename.delete(top.module(originalModule.name))
 
         // Build tag
         val builder = new mutable.ArrayBuffer[Any]()
         agnosticModule.ports.foreach { builder ++= _.serialize }
-        builder += agnosticAnnos
 
         agnosticModule match {
           case Module(i, n, ps, b) => builder ++= fastSerializedHash(b).toString()//.serialize
@@ -392,7 +378,7 @@ object DedupModules {
     }
     val main = circuit.main
     val top = CircuitTarget(main)
-    val (tag2all, tagMap) = buildRTLTags(top, moduleLinearization, noDedups, annotations)
+    val (tag2all, tagMap) = buildRTLTags(top, moduleLinearization, noDedups)
 
     // Set tag2name to be the best dedup module name
     val moduleIndex = circuit.modules.zipWithIndex.map{case (m, i) => m.name -> i}.toMap
