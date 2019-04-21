@@ -335,7 +335,6 @@ final class RenameMap private (earlier: Option[RenameMap] = None, previous: Opti
             case ReferenceTarget(c, m, p, r, Nil) => InstanceTarget(c, m, p, r, t.ofModule)
             case other => other
           })
-        case t: ModuleTarget => underlying.get(t)
       }
 
       if (getOpt.nonEmpty) {
@@ -484,14 +483,6 @@ final class RenameMap private (earlier: Option[RenameMap] = None, previous: Opti
     * @param tos
     */
   private def completeRename(from: CompleteTarget, tos: Seq[CompleteTarget]): Unit = {
-    def check(from: CompleteTarget, to: CompleteTarget)(t: CompleteTarget): Unit = {
-      require(from != t, s"Cannot record $from to $to, as it is a circular constraint")
-      t match {
-        case _: CircuitTarget =>
-        case other: IsMember => check(from, to)(other.targetParent)
-      }
-    }
-    tos.foreach { to => if(from != to) check(from, to)(to) }
     (from, tos) match {
       case (x, Seq(y)) if x == y =>
       case _ =>

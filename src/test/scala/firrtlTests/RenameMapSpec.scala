@@ -195,30 +195,6 @@ class RenameMapSpec extends FirrtlFlatSpec {
     renames.get(Middle.instOf("o", "O")) should be (Some(Seq(Middle.instOf("i", "O"))))
   }
 
-  it should "detect circular renames" in {
-    case class BadRename(from: IsMember, tos: Seq[IsMember])
-    val badRenames =
-      Seq(
-        BadRename(foo, Seq(foo.field("bar"))),
-        BadRename(modA, Seq(foo))
-        //BadRename(cir, Seq(foo)),
-        //BadRename(cir, Seq(modA))
-      )
-    // Run all BadRename tests
-    for (BadRename(from, tos) <- badRenames) {
-      val fromN = from
-      val tosN = tos.mkString(", ")
-      //it should s"error if a $fromN is renamed to $tosN" in {
-      val renames = RenameMap()
-      for (to <- tos) {
-        a [IllegalArgumentException] shouldBe thrownBy {
-          renames.record(from, to)
-        }
-      }
-      //}
-    }
-  }
-
   it should "be able to rename weird stuff" in {
     // Renaming `from` to each of the `tos` at the same time should be ok
     case class BadRename(from: CompleteTarget, tos: Seq[CompleteTarget])
@@ -501,8 +477,11 @@ class RenameMapSpec extends FirrtlFlatSpec {
     val from = cir.module("C")
     val to = cir.module("D").instOf("e", "E").instOf("f", "F")
     renames.record(from, to)
+    renames.get(cir.module("C")) should be {
+      Some(Seq(cir.module("D").instOf("e", "E").instOf("f", "F")))
+    }
     renames.get(cir.module("A").instOf("b", "B").instOf("c", "C")) should be {
-      Some(Seq(cir.module("A").instOf("b", "B").instOf("c", "D").instOf("e", "E").instOf("f", "F")))
+      None
     }
   }
 
@@ -690,24 +669,28 @@ class RenameMapSpec extends FirrtlFlatSpec {
     val dupMod2 = top.module("A2")
 
     val relPath1 = top.module("Foo").instOf("a", "A1")
-    val relPath2 = top.module("Foo").instOf("a", "A1")
-    val dupInst1 = topMod.instOf("foo", "Foo").instOf("a", "A1")
-    val dupInst2 = topMod.instOf("bar", "Bar").instOf("a", "A2")
+    val relPath2 = top.module("Foo").instOf("a", "A2")
+    val absPath1 = relPath1.addHierarchy("Top", "foo")
+    val absPath2 = relPath2.addHierarchy("Top", "foo")
 
     val renames1 = RenameMap()
-    renames1.record(dupMod1, dupInst1)
-    renames1.record(dupMod2, dupInst2)
+    renames1.record(dupMod1, absPath1)
+    renames1.record(dupMod2, absPath2)
 
     val renames2 = renames1.andThen()
     renames2.record(dupMod1, dedupedMod)
     renames2.record(dupMod2, dedupedMod)
 
     renames2.get(dupMod1.instOf("foo", "Bar").ref("ref")) should be {
-      Some(Seq(dupInst1.copy(ofModule = "A").instOf("foo", "Bar").ref("ref")))
+      Some(Seq(absPath1.copy(ofModule = "A").instOf("foo", "Bar").ref("ref")))
     }
 
     renames2.get(dupMod2.ref("ref")) should be {
-      Some(Seq(dupInst2.copy(ofModule = "A").ref("ref")))
+      Some(Seq(absPath2.copy(ofModule = "A").ref("ref")))
+    }
+
+    renames2.get(absPath1.instOf("b", "B").ref("ref")) should be {
+      Some(Seq(absPath1.copy(ofModule = "A").instOf("b", "B").ref("ref")))
     }
   }
 }
