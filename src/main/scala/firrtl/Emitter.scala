@@ -800,6 +800,9 @@ class VerilogEmitter extends SeqTransform with Emitter {
         emit(Seq("`define RANDOM $random"))
         emit(Seq("`endif"))
         emit(Seq("`ifdef RANDOMIZE_MEM_INIT"))
+        // Since simulators don't actually support memories larger than 2^31 - 1, there is no reason
+        // to change Verilog emission in the common case. Instead, we only emit a larger initvar
+        // where necessary
         if (maxMemSize.isValidInt) {
           emit(Seq("  integer initvar;"))
         } else {
