@@ -419,6 +419,8 @@ class VerilogEmitter extends SeqTransform with Emitter {
     // An alternative approach is to have one always block per combination of clock and async reset,
     // but Formality doesn't allow more than 1 statement inside async reset always blocks
     val asyncResetAlwaysBlocks = mutable.ArrayBuffer[(Expression, Expression, Seq[Any])]()
+    // Used to determine type of initvar for initializing memories
+    var maxMemSize: BigInt = BigInt(0)
     val initials = ArrayBuffer[Seq[Any]]()
     // In Verilog, async reset registers are expressed using always blocks of the form:
     // always @(posedge clock or posedge reset) begin
@@ -432,8 +434,11 @@ class VerilogEmitter extends SeqTransform with Emitter {
     val asyncInitials = ArrayBuffer[Seq[Any]]()
     val simulates = ArrayBuffer[Seq[Any]]()
 
+    def bigIntToVLit(bi: BigInt): String =
+      if (bi.isValidInt) bi.toString else s"${bi.bitLength}'d$bi"
+
     def declareVectorType(b: String, n: String, tpe: Type, size: BigInt, info: Info) = {
-      declares += Seq(b, " ", tpe, " ", n, " [0:", size - 1, "];", info)
+      declares += Seq(b, " ", tpe, " ", n, " [0:", bigIntToVLit(size - 1), "];", info)
     }
 
     def declare(b: String, n: String, t: Type, info: Info) = t match {
@@ -537,10 +542,13 @@ class VerilogEmitter extends SeqTransform with Emitter {
     }
 
     def initialize_mem(s: DefMemory) {
+      if (s.depth > maxMemSize) {
+        maxMemSize = s.depth
+      }
       val index = wref("initvar", s.dataType)
       val rstring = rand_string(s.dataType)
       initials += Seq("`ifdef RANDOMIZE_MEM_INIT")
-      initials += Seq("for (initvar = 0; initvar < ", s.depth, "; initvar = initvar+1)")
+      initials += Seq("for (initvar = 0; initvar < ", bigIntToVLit(s.depth), "; initvar = initvar+1)")
       initials += Seq(tab, WSubAccess(wref(s.name, s.dataType), index, s.dataType, FEMALE),
         " = ", rstring, ";")
       initials += Seq("`endif // RANDOMIZE_MEM_INIT")
@@ -792,7 +800,13 @@ class VerilogEmitter extends SeqTransform with Emitter {
         emit(Seq("`define RANDOM $random"))
         emit(Seq("`endif"))
         emit(Seq("`ifdef RANDOMIZE_MEM_INIT"))
-        emit(Seq("  integer initvar;"))
+        if (maxMemSize.isValidInt) {
+          emit(Seq("  integer initvar;"))
+        } else {
+          // Width must be able to represent maxMemSize because that's the upper bound in init loop
+          val width = maxMemSize.bitLength - 1 // minus one because [width-1:0] has a width of "width"
+          emit(Seq(s"  reg [$width:0] initvar;"))
+        }
         emit(Seq("`endif"))
         emit(Seq("initial begin"))
         emit(Seq("  `ifdef RANDOMIZE"))
