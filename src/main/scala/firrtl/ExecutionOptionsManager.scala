@@ -4,6 +4,7 @@ package firrtl
 
 import firrtl.annotations._
 import firrtl.Parser._
+import firrtl.util.FileUtils
 import firrtl.ir.Circuit
 import firrtl.passes.memlib.{InferReadWriteAnnotation, ReplSeqMemAnnotation}
 import firrtl.passes.clocklist.ClockListAnnotation

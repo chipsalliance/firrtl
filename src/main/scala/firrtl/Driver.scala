@@ -3,15 +3,12 @@
 package firrtl
 
 import scala.collection._
-import scala.io.Source
-import scala.sys.process.{BasicIO, ProcessLogger, stringSeqToProcess}
 import scala.util.{Failure, Success, Try}
 import scala.util.control.ControlThrowable
 import java.io.{File, FileNotFoundException}
 
 import net.jcazevedo.moultingyaml._
 import logger.Logger
-import Parser.{IgnoreInfo, InfoMode}
 import annotations._
 import firrtl.annotations.AnnotationYamlProtocol._
 import firrtl.passes.{PassException, PassExceptions}
@@ -318,95 +315,4 @@ object Driver {
   def main(args: Array[String]): Unit = {
     execute(args)
   }
-}
-
-object FileUtils {
-  /**
-    * recursive create directory and all parents
-    *
-    * @param directoryName a directory string with one or more levels
-    * @return
-    */
-  def makeDirectory(directoryName: String): Boolean = {
-    val dirFile = new java.io.File(directoryName)
-    if(dirFile.exists()) {
-      if(dirFile.isDirectory) {
-        true
-      }
-      else {
-        false
-      }
-    }
-    else {
-      dirFile.mkdirs()
-    }
-  }
-
-  /**
-    * recursively delete all directories in a relative path
-    * DO NOT DELETE absolute paths
-    *
-    * @param directoryPathName a directory hierarchy to delete
-    */
-  def deleteDirectoryHierarchy(directoryPathName: String): Boolean = {
-    deleteDirectoryHierarchy(new File(directoryPathName))
-  }
-  /**
-    * recursively delete all directories in a relative path
-    * DO NOT DELETE absolute paths
-    *
-    * @param file: a directory hierarchy to delete
-    */
-  def deleteDirectoryHierarchy(file: File, atTop: Boolean = true): Boolean = {
-    if(file.getPath.split("/").last.isEmpty ||
-      file.getAbsolutePath == "/" ||
-      file.getPath.startsWith("/")) {
-      Driver.dramaticError(s"delete directory ${file.getPath} will not delete absolute paths")
-      false
-    }
-    else {
-      val result = {
-        if(file.isDirectory) {
-          file.listFiles().forall( f => deleteDirectoryHierarchy(f)) && file.delete()
-        }
-        else {
-          file.delete()
-        }
-      }
-      result
-    }
-  }
-
-  /** Indicate if an external command (executable) is available (from the current PATH).
-    *
-    * @param cmd the command/executable plus any arguments to the command as a Seq().
-    * @return true if ```cmd <args>``` returns a 0 exit status.
-    */
-  def isCommandAvailable(cmd: Seq[String]): Boolean = {
-    // Eat any output.
-    val sb = new StringBuffer
-    val ioToDevNull = BasicIO(withIn = false, ProcessLogger(line => sb.append(line)))
-
-    try {
-      cmd.run(ioToDevNull).exitValue == 0
-    } catch {
-      case e: Throwable => false
-    }
-  }
-
-  /** Indicate if an external command (executable) is available (from the current PATH).
-    *
-    * @param cmd the command/executable (without any arguments).
-    * @return true if ```cmd``` returns a 0 exit status.
-    */
-  def isCommandAvailable(cmd:String): Boolean = {
-    isCommandAvailable(Seq(cmd))
-  }
-
-  /** Flag indicating if vcs is available (for Verilog compilation and testing).
-    * We used to use a bash command (`which ...`) to determine this, but this is problematic on Windows (issue #807).
-    * Instead we try to run the executable itself (with innocuous arguments) and interpret any errors/exceptions
-    *  as an indication that the executable is unavailable.
-    */
-  lazy val isVCSAvailable: Boolean = isCommandAvailable(Seq("vcs",  "-platform"))
 }

@@ -11,6 +11,7 @@ import firrtl.transforms.BlackBoxTargetDirAnno
 import firrtl._
 import firrtl.annotations._
 import firrtl.util.BackendCompilationUtilities
+import firrtl.util.FileUtils
 
 import scala.io.Source
 import scala.util.{Failure, Success, Try}

@@ -3,9 +3,9 @@
 package firrtlTests
 package annotationTests
 
-import firrtlTests._
 import firrtl._
 import firrtl.stage.TargetDirAnnotation
+import firrtl.util.FileUtils
 
 /** Looks for [[TargetDirAnnotation]] */
 class FindTargetDirTransform(expected: String) extends Transform {
