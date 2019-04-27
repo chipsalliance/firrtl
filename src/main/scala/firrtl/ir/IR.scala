@@ -24,9 +24,15 @@ case class FileInfo(info: StringLit) extends Info {
   //scalastyle:off method.name
   def ++(that: Info): Info = if (that == NoInfo) this else MultiInfo(Seq(this, that))
 }
+case class CustomInfo(info: StringLit) extends Info {
+  override def toString: String = info.serialize
+  //scalastyle:off method.name
+  def ++(that: Info): Info = if (that == NoInfo) this else MultiInfo(Seq(this, that))
+}
 case class MultiInfo(infos: Seq[Info]) extends Info {
   private def collectStringLits(info: Info): Seq[StringLit] = info match {
     case FileInfo(lit) => Seq(lit)
+    case CustomInfo(lit) => Seq(lit)
     case MultiInfo(seq) => seq flatMap collectStringLits
     case NoInfo => Seq.empty
   }
