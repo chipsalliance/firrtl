@@ -2,13 +2,9 @@
 
 package firrtl
 
-import com.typesafe.scalalogging.LazyLogging
-import java.nio.file.{Paths, Files}
-import java.io.{Reader, Writer}
+import java.io.Writer
 
 import scala.collection.mutable
-import scala.sys.process._
-import scala.io.Source
 
 import firrtl.ir._
 import firrtl.passes._
@@ -21,9 +17,8 @@ import Utils._
 import MemPortUtils.{memPortField, memType}
 import firrtl.options.{HasShellOptions, ShellOption, StageUtils, PhaseException}
 import firrtl.stage.RunFirrtlTransformAnnotation
-import scopt.OptionParser
 // Datastructures
-import scala.collection.mutable.{ArrayBuffer, LinkedHashMap, HashSet}
+import scala.collection.mutable.ArrayBuffer
 
 case class EmitterException(message: String) extends PassException(message)
 

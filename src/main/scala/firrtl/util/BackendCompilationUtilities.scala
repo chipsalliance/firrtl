@@ -7,7 +7,6 @@ import java.nio.file.Files
 import java.text.SimpleDateFormat
 import java.util.Calendar
 
-import firrtl.FirrtlExecutionOptions
 
 import scala.sys.process.{ProcessBuilder, ProcessLogger, _}
 
