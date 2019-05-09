@@ -11,7 +11,7 @@ import firrtl.Mappers._
 import firrtl.WrappedExpression._
 import firrtl.Utils.{throwInternalError, toWrappedExpression, kind}
 import firrtl.MemoizedHash._
-import firrtl.options.RegisteredTransform
+import firrtl.options.{RegisteredTransform, ShellOption}
 import scopt.OptionParser
 
 import collection.mutable
@@ -36,11 +36,11 @@ class DeadCodeElimination extends Transform with ResolvedAnnotationPaths with Re
   def inputForm = LowForm
   def outputForm = LowForm
 
-  def addOptions(parser: OptionParser[AnnotationSeq]): Unit = parser
-    .opt[Unit]("no-dce")
-    .action( (x, c) => c :+ NoDCEAnnotation )
-    .maxOccurs(1)
-    .text("Do NOT run dead code elimination")
+  val options = Seq(
+    new ShellOption[Unit](
+      longOption = "no-dce",
+      toAnnotationSeq = (_: Unit) => Seq(NoDCEAnnotation),
+      helpText = "Disable dead code elimination" ) )
 
   /** Based on LogicNode ins CheckCombLoops, currently kind of faking it */
   private type LogicNode = MemoizedHash[WrappedExpression]
@@ -212,6 +212,11 @@ class DeadCodeElimination extends Transform with ResolvedAnnotationPaths with Re
     var emptyBody = true
     renames.setModule(mod.name)
 
+    def deleteIfNotEnabled(stmt: Statement, en: Expression): Statement = en match {
+      case UIntLiteral(v, _) if v == BigInt(0) => EmptyStmt
+      case _ => stmt
+    }
+
     def onStmt(stmt: Statement): Statement = {
       val stmtx = stmt match {
         case inst: WDefInstance =>
@@ -230,6 +235,8 @@ class DeadCodeElimination extends Transform with ResolvedAnnotationPaths with Re
             EmptyStmt
           }
           else decl
+        case print: Print => deleteIfNotEnabled(print, print.en)
+        case stop: Stop => deleteIfNotEnabled(stop, stop.en)
         case con: Connect =>
           val node = getDeps(con.loc) match { case Seq(elt) => elt }
           if (deadNodes.contains(node)) EmptyStmt else con

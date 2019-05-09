@@ -295,7 +295,7 @@ case class DefMemory(
     info: Info,
     name: String,
     dataType: Type,
-    depth: Int,
+    depth: BigInt,
     writeLatency: Int,
     readLatency: Int,
     readers: Seq[String],
