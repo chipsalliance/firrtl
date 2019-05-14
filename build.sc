@@ -117,6 +117,11 @@ class FirrtlModule(val crossScalaVersion: String) extends CommonModule with Buil
     def testFrameworks = Seq("org.scalatest.tools.Framework")
   }
 
+  // If this is used as a "foreign module" i.e. via a $file import from
+  // a parent project in a parent directory, for some reason mill is not
+  // able to figure out the correct path by itself.
+  override def millSourcePath = millOuterCtx.millSourcePath
+
   def antlrSourceRoot = T.sources{ millSourcePath / 'src / 'main / 'antlr4 }
 
   def generateAntlrSources(p: Path, sourcePath: Path) = {
