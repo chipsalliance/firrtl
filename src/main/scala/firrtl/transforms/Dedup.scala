@@ -6,10 +6,10 @@ package transforms
 import firrtl.ir._
 import firrtl.Mappers._
 import firrtl.analyses.InstanceGraph
-import firrtl.annotations.TargetToken.{Instance, OfModule, Ref}
 import firrtl.annotations._
 import firrtl.passes.{InferTypes, MemPortUtils}
 import firrtl.Utils.throwInternalError
+import firrtl.options.{HasShellOptions, ShellOption}
 
 // Datastructures
 import scala.collection.mutable
@@ -18,6 +18,20 @@ import scala.collection.mutable
 /** A component, e.g. register etc. Must be declared only once under the TopAnnotation */
 case class NoDedupAnnotation(target: ModuleName) extends SingleTargetAnnotation[ModuleName] {
   def duplicate(n: ModuleName): NoDedupAnnotation = NoDedupAnnotation(n)
+}
+
+/** If this [[firrtl.annotations.Annotation Annotation]] exists in an [[firrtl.AnnotationSeq AnnotationSeq]],
+  * then the [[firrtl.transforms.DedupModules]] transform will *NOT* be run on the circuit.
+  *  - set with '--no-dedup'
+  */
+case object NoCircuitDedupAnnotation extends NoTargetAnnotation with HasShellOptions {
+
+  val options = Seq(
+    new ShellOption[Unit](
+      longOption = "no-dedup",
+      toAnnotationSeq = _ => Seq(NoCircuitDedupAnnotation),
+      helpText = "Do NOT dedup modules" ) )
+
 }
 
 /** Only use on legal Firrtl.
@@ -34,9 +48,13 @@ class DedupModules extends Transform {
     * @return A transformed Firrtl AST
     */
   def execute(state: CircuitState): CircuitState = {
-    val noDedups = state.annotations.collect { case NoDedupAnnotation(ModuleName(m, c)) => m }
-    val (newC, renameMap) = run(state.circuit, noDedups, state.annotations)
-    state.copy(circuit = newC, renames = Some(renameMap))
+    if (state.annotations.contains(NoCircuitDedupAnnotation)) {
+      state
+    } else {
+      val noDedups = state.annotations.collect { case NoDedupAnnotation(ModuleName(m, c)) => m }
+      val (newC, renameMap) = run(state.circuit, noDedups, state.annotations)
+      state.copy(circuit = newC, renames = Some(renameMap))
+    }
   }
 
   /** Deduplicates a circuit, and records renaming
