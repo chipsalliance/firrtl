@@ -10,7 +10,7 @@ import firrtl.options.{Dependency, PreservesAll}
 sealed trait DescriptionType
 case object DocStringDescription extends DescriptionType
 case object AttributeDescription extends DescriptionType
-case class IfdefDescription(alternative: FirrtlNode => String) extends DescriptionType
+case class IfdefDescription(alternative: FirrtlNode => String, ifndef: Boolean = false) extends DescriptionType
 
 case class DescriptionAnnotation(named: Named, description: String, tpe: DescriptionType) extends Annotation {
   def update(renames: RenameMap): Seq[DescriptionAnnotation] = {
@@ -36,8 +36,30 @@ private case class Attribute(string: StringLit) extends SimpleDescription {
   def serialize: String = "@[" + string.serialize + "]"
 }
 
-private case class Ifdef(condition: StringLit, alternative: StringLit) extends SimpleDescription {
-  def serialize: String = "@[" + condition.serialize + ", " + alternative.serialize + "]"
+private sealed trait IfdefSection {
+  def serialize: String
+}
+private sealed trait MultiSection extends IfdefSection {
+  val body: StringLit
+  val elseSection: IfdefSection
+  def serialize : String = body.string + s"{ ${elseSection.serialize} }"
+}
+private object MultiSection {
+  def unapply(section: MultiSection): Some[(StringLit, IfdefSection)] = {
+    Some((section.body, section.elseSection))
+  }
+}
+private case class IfdefFirstSection(body: StringLit, elseSection: IfdefSection = IfdefElseSection) extends MultiSection
+private case class IfndefFirstSection(body: StringLit, elseSection: IfdefSection = IfdefElseSection) extends MultiSection
+private case class IfdefElseifSection(condition: StringLit, body: StringLit, elseSection: IfdefSection) extends MultiSection {
+  override def serialize: String = s"{ (${condition.string }) ${body.string} : { ${elseSection.serialize} } }"
+}
+private case object IfdefElseSection extends IfdefSection {
+  def serialize: String = ""
+}
+
+private case class Ifdef(condition: StringLit, body: MultiSection) extends SimpleDescription {
+  def serialize: String = "@[ ${condition.string} : ${body.serialize}]"
 }
 
 private case class MultipleDescriptions(descs: Seq[Description]) extends Description {
@@ -56,7 +78,8 @@ private object MakeDescription {
   def apply(s: FirrtlNode, str: String, tpe: DescriptionType): Description = tpe match {
     case DocStringDescription => DocString(StringLit.unescape(str))
     case AttributeDescription => Attribute(StringLit.unescape(str))
-    case IfdefDescription(alt) => Ifdef(StringLit.unescape(str), StringLit(alt(s)))
+    case IfdefDescription(alt, true) => Ifdef(StringLit.unescape(str), IfndefFirstSection(StringLit(alt(s))))
+    case IfdefDescription(alt, false) => Ifdef(StringLit.unescape(str), IfdefFirstSection(StringLit(alt(s))))
   }
   def apply(s: FirrtlNode)(descs: Seq[(String, DescriptionType)]): Description = {
     descs.foldLeft[Description](EmptyDescription) { (_, _) match {

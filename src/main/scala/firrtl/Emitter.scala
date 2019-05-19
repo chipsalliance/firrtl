@@ -807,10 +807,6 @@ class VerilogEmitter extends SeqTransform with Emitter {
       Seq(Seq("(* ") ++ attrs.split(",") ++ Seq(" *)"))
     }
 
-    def build_ifdef(condition: String, alternative: String): Seq[Seq[String]] = {
-      Seq(Seq(s"`ifndef $condition"), Seq(alternative), Seq("`else"))
-    }
-
     // Turn ports into Seq[String] and add to portdefs
     def build_ports(): Unit = {
       def padToMax(strs: Seq[String]): Seq[String] = {
@@ -866,6 +862,10 @@ class VerilogEmitter extends SeqTransform with Emitter {
       val attrs = ds collect { case d: Attribute => d }
       val ifdefs = ds collect { case d: Ifdef => d }
 
+      if (ifdefs.length > 1) {
+        throw new EmitterException("Multiple conflicting ifdefs")
+      }
+
       val doc = docStrings.foldLeft[SimpleDescription](EmptyDescription) { (_, _) match {
         case (EmptyDescription, d) => d
         case (DocString(StringLit(s1)), DocString(StringLit(s2))) =>
@@ -889,10 +889,19 @@ class VerilogEmitter extends SeqTransform with Emitter {
       case _ => false
     }
 
+    def finish_ifdef(section: IfdefSection): Seq[Seq[String]] = section match {
+      case IfdefElseifSection(cond, body, next) =>
+        Seq(Seq(s"`elseif ${cond.string}"), Seq(body.string)) ++ finish_ifdef(section)
+      case IfdefElseSection => Seq(Seq("`else"))
+    }
+
     def build_description(d: Description): Seq[Seq[String]] = d match {
       case DocString(desc) => build_comment(desc.string)
       case Attribute(attr) => build_attribute(attr.string)
-      case Ifdef(cond, alternative) => build_ifdef(cond.string, alternative.string)
+      case Ifdef(cond, IfdefFirstSection(body, next)) =>
+        Seq(Seq(s"`ifdef ${cond.string}"), Seq(body.string)) ++ finish_ifdef(next)
+      case Ifdef(cond, IfndefFirstSection(body, next)) =>
+        Seq(Seq(s"`ifndef ${cond.string}"), Seq(body.string)) ++ finish_ifdef(next)
       case MultipleDescriptions(ds) => combine_all_descriptions(get_all_descriptions(ds)).flatMap(build_description)
       case EmptyDescription => Seq()
     }
