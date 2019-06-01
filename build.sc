@@ -43,9 +43,9 @@ trait CommonModule extends CrossUnRootedSbtModule with PublishModule {
 
 // Generic antlr4 configuration.
 // This could be simpler, but I'm trying to keep some compatibility with the sbt plugin.
-case class Antlr4Config(val sourcePath: Path) {
+case class Antlr4Config(val sourcePath: Path, val antlr4Path: Path) {
   val antlr4Version: String = "4.7.1"
-  val ANTLR4_JAR = (pwd / s"antlr-${antlr4Version}-complete.jar").toString
+  val ANTLR4_JAR = ( antlr4Path / s"antlr-${antlr4Version}-complete.jar").toString
   if (!new java.io.File(ANTLR4_JAR).exists) {
     println("Downloading ANTLR4 .jar")
     %%("wget", s"https://www.antlr.org/download/antlr-${antlr4Version}-complete.jar", "-O", ANTLR4_JAR)
@@ -117,15 +117,10 @@ class FirrtlModule(val crossScalaVersion: String) extends CommonModule with Buil
     def testFrameworks = Seq("org.scalatest.tools.Framework")
   }
 
-  // If this is used as a "foreign module" i.e. via a $file import from
-  // a parent project in a parent directory, for some reason mill is not
-  // able to figure out the correct path by itself.
-  override def millSourcePath = millOuterCtx.millSourcePath / ammonite.ops.up
-
   def antlrSourceRoot = T.sources{ millSourcePath / 'src / 'main / 'antlr4 }
 
   def generateAntlrSources(p: Path, sourcePath: Path) = {
-    val antlr = new Antlr4Config(sourcePath)
+    val antlr = new Antlr4Config(sourcePath, millSourcePath)
     mkdir! p
     antlr.runAntlr(p)
     p
