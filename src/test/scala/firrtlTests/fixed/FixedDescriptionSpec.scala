@@ -25,8 +25,18 @@ class FixedDescriptionSpec extends FirrtlFlatSpec {
         |    prod <= mul(sum, c)
         |    out <= sub(prod, sum)""".stripMargin
     val check = Seq(
-      """ // Fixed point with binary point 2
-        | input  [3:0] a,""".stripMargin
+      """  // Fixed point with binary point 2
+        |  input  [3:0] a,""".stripMargin,
+      """  // Fixed point with binary point 1
+        |  input  [1:0] b,""".stripMargin,
+      """  // Fixed point with binary point 0
+        |  input  [2:0] c,""".stripMargin,
+      """  // Fixed point with binary point 2
+        |  output [9:0] out""".stripMargin,
+      """  // Fixed point with binary point 2
+        |  reg [4:0] sum;""".stripMargin,
+      """  // Fixed point with binary point 2
+        |  reg [6:0] prod;""".stripMargin,
     )
     val writer = new java.io.StringWriter
     val finalState = compiler.compileAndEmit(CircuitState(parse(input), ChirrtlForm, Seq.empty), Seq.empty)

@@ -20,7 +20,6 @@ object DescribeFixed extends Transform {
       tpe match {
         case FixedType(IntWidth(w), IntWidth(p)) =>
           descs = descs :+ DescriptionAnnotation(n, s"Fixed point with binary point $p")
-          println(s"$w $p") // debug
         case f: FixedType => throw new Exception(s"Uh oh!")
         case _ =>
       }
@@ -30,13 +29,11 @@ object DescribeFixed extends Transform {
       case b: Block => b.foreachStmt(onStmt)
       case ns: Statement with IsDeclaration =>
         val comp = ComponentName(ns.name, mod)
-        println(comp) // debug
         ns.mapType(onType(comp))
       case _ =>
     }
     def onPort(p: Port): Unit = {
       val comp = ComponentName(p.name, mod)
-      println(comp) // debug
       onType(comp)(p.tpe)
     }
     m.foreachStmt(onStmt)
