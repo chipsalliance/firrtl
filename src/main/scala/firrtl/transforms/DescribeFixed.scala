@@ -20,7 +20,7 @@ object DescribeFixed extends Transform {
       tpe match {
         case FixedType(IntWidth(w), IntWidth(p)) =>
           descs = descs :+ DescriptionAnnotation(n, s"Fixed point with binary point $p")
-        case f: FixedType => throw new Exception(s"Uh oh!")
+        case f: FixedType => throw new Exception(s"Found unexpected fixed point number with unresolved binary point")
         case _ =>
       }
       tpe
