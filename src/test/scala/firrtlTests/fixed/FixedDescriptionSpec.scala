@@ -36,7 +36,7 @@ class FixedDescriptionSpec extends FirrtlFlatSpec {
       """  // Fixed point with binary point 2
         |  reg [4:0] sum;""".stripMargin,
       """  // Fixed point with binary point 2
-        |  reg [6:0] prod;""".stripMargin,
+        |  reg [6:0] prod;""".stripMargin
     )
     val writer = new java.io.StringWriter
     val finalState = compiler.compileAndEmit(CircuitState(parse(input), ChirrtlForm, Seq.empty), Seq.empty)
