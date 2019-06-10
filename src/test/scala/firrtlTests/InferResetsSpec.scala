@@ -4,7 +4,8 @@ package firrtlTests
 
 import firrtl._
 import firrtl.ir._
-import firrtl.passes.{CheckHighForm, CheckTypes, InferResets}
+import firrtl.passes.{CheckHighForm, CheckTypes}
+import firrtl.transforms.InferResets
 import FirrtlCheckers._
 
 // TODO
@@ -258,6 +259,49 @@ class InferResetsSpec extends FirrtlFlatSpec {
         |""".stripMargin
       )
     }
+  }
+
+
+  it should "support inferring modules that would dedup differently" in {
+    val result = compile(s"""
+      |circuit top :
+      |  module child :
+      |    input clock : Clock
+      |    input childReset : Reset
+      |    input x : UInt<8>
+      |    output z : UInt<8>
+      |    reg r : UInt<8>, clock with : (reset => (childReset, UInt(123)))
+      |    r <= x
+      |    z <= r
+      |  module child_1 :
+      |    input clock : Clock
+      |    input childReset : Reset
+      |    input x : UInt<8>
+      |    output z : UInt<8>
+      |    reg r : UInt<8>, clock with : (reset => (childReset, UInt(123)))
+      |    r <= x
+      |    z <= r
+      |  module top :
+      |    input clock : Clock
+      |    input reset1 : UInt<1>
+      |    input reset2 : AsyncReset
+      |    input x : UInt<8>[2]
+      |    output z : UInt<8>[2]
+      |    inst c of child
+      |    c.clock <= clock
+      |    c.childReset <= reset1
+      |    c.x <= x[0]
+      |    z[0] <= c.z
+      |    inst c2 of child
+      |    c2.clock <= clock
+      |    c2.childReset <= reset2
+      |    c2.x <= x[1]
+      |    z[1] <= c2.z
+      |""".stripMargin
+    )
+    println(result.circuit.serialize)
+    result should containTree { case Port(_, "childReset", Input, BoolType) => true }
+    result should containTree { case Port(_, "childReset", Input, AsyncResetType) => true }
   }
 }
 

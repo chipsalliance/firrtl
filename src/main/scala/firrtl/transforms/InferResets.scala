@@ -1,6 +1,6 @@
 // See LICENSE for license details.
 
-package firrtl.passes
+package firrtl.transforms
 
 import firrtl._
 import firrtl.ir._
@@ -10,16 +10,12 @@ import firrtl.analyses.InstanceGraph
 import firrtl.graph.{DiGraph, MutableDiGraph}
 import firrtl.annotations.{ReferenceTarget, TargetToken}
 import firrtl.Utils.toTarget
-import collection.mutable
+import firrtl.passes.{Pass, PassException, Errors, InferTypes}
 
+import scala.collection.mutable
 import scala.util.{Try, Success, Failure}
 
-/** Infers the concrete type of [[Reset]]s by their connections
-  * This is a global inference because ports can be of type [[Reset]]
-  */
-// TODO should we error if a DefMemory is of type AsyncReset? In CheckTypes?
-object InferResets extends Pass {
-
+object InferResets {
   final class DifferingDriverTypesException private (msg: String) extends PassException(msg)
   object DifferingDriverTypesException {
     def apply(target: ReferenceTarget, tpes: Seq[(Type, Seq[TypeDriver])]): DifferingDriverTypesException = {
@@ -33,6 +29,45 @@ object InferResets extends Pass {
   private case class TargetDriver(target: ReferenceTarget) extends ResetDriver
   // We keep the target around (lazily) so that we can report errors
   private case class TypeDriver(tpe: Type, target: () => ReferenceTarget) extends ResetDriver
+
+
+  private sealed trait TypeTree
+  private case class BundleTree(fields: Map[String, TypeTree]) extends TypeTree
+  private case class VectorTree(subType: TypeTree) extends TypeTree
+  // TODO ensure is only AsyncResetType or BoolType
+  private case class GroundTree(tpe: Type) extends TypeTree
+
+  private object TypeTree {
+    // TODO make return Try[TypeTree]
+    def fromTokens(tokens: (Seq[TargetToken], Type)*): TypeTree = tokens match {
+      case Seq((Seq(), tpe)) => GroundTree(tpe)
+      // VectorTree
+      case (TargetToken.Index(_) +: _, _) +: _ =>
+        // Vectors must all have the same type, so we only process Index 0
+        // If the subtype is an aggregate, there can be multiple of each index
+        val ts = tokens.collect { case (TargetToken.Index(0) +: tail, tpe) => (tail, tpe) }
+        VectorTree(fromTokens(ts:_*))
+      // BundleTree
+      case (TargetToken.Field(_) +: _, _) +: _ =>
+        val fields =
+          tokens.groupBy { case (TargetToken.Field(n) +: t, _) => n }
+                .mapValues { ts =>
+                  fromTokens(ts.map { case (_ +: t, tpe) => (t, tpe) }:_*)
+                }
+        BundleTree(fields)
+    }
+  }
+}
+
+/** Infers the concrete type of [[Reset]]s by their connections
+  * This is a global inference because ports can be of type [[Reset]]
+  */
+// TODO should we error if a DefMemory is of type AsyncReset? In CheckTypes?
+class InferResets extends Transform {
+  def inputForm: CircuitForm = HighForm
+  def outputForm: CircuitForm = HighForm
+
+  import InferResets._
 
   // Collect all drivers for circuit elements of type ResetType
   private def analyze(c: Circuit): Map[ReferenceTarget, List[ResetDriver]] = {
@@ -112,33 +147,6 @@ object InferResets extends Pass {
     }
   }
 
-  private sealed trait TypeTree
-  private case class BundleTree(fields: Map[String, TypeTree]) extends TypeTree
-  private case class VectorTree(subType: TypeTree) extends TypeTree
-  // TODO ensure is only AsyncResetType or BoolType
-  private case class GroundTree(tpe: Type) extends TypeTree
-
-  private object TypeTree {
-    // TODO make return Try[TypeTree]
-    def fromTokens(tokens: (Seq[TargetToken], Type)*): TypeTree = tokens match {
-      case Seq((Seq(), tpe)) => GroundTree(tpe)
-      // VectorTree
-      case (TargetToken.Index(_) +: _, _) +: _ =>
-        // Vectors must all have the same type, so we only process Index 0
-        // If the subtype is an aggregate, there can be multiple of each index
-        val ts = tokens.collect { case (TargetToken.Index(0) +: tail, tpe) => (tail, tpe) }
-        VectorTree(fromTokens(ts:_*))
-      // BundleTree
-      case (TargetToken.Field(_) +: _, _) +: _ =>
-        val fields =
-          tokens.groupBy { case (TargetToken.Field(n) +: t, _) => n }
-                .mapValues { ts =>
-                  fromTokens(ts.map { case (_ +: t, tpe) => (t, tpe) }:_*)
-                }
-        BundleTree(fields)
-    }
-  }
-
   private def fixupType(tpe: Type, tree: TypeTree): Type = (tpe, tree) match {
     case (BundleType(fields), BundleTree(map)) =>
       val fieldsx =
@@ -192,9 +200,11 @@ object InferResets extends Pass {
     InferTypes
   )
 
-  def run(c: Circuit): Circuit = {
+  def execute(state: CircuitState): CircuitState = {
+    val c = state.circuit
     val inferred = resolve(analyze(c))
     val result = inferred.map(m => implement(c, m)).get
-    fixupPasses.foldLeft(result)((c, p) => p.run(c))
+    val fixedup = fixupPasses.foldLeft(result)((c, p) => p.run(c))
+    state.copy(circuit = fixedup)
   }
 }
