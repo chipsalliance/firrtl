@@ -44,7 +44,6 @@ class ResolveAndCheck extends CoreTransform {
     passes.InferTypes,
     passes.ResolveGenders,
     passes.CheckGenders,
-    new firrtl.transforms.InferResets,
     new passes.InferWidths,
     passes.CheckWidths)
 }

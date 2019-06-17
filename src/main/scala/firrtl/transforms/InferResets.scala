@@ -88,14 +88,38 @@ class InferResets extends Transform {
         }
       }
       def onStmt(map: DriverMap)(stmt: Statement): Unit = {
+        // Utility used for marking drivers for leaf-level connections
+        def markDriver(lhs: Expression, rhs: Expression): Unit = {
+          val (loc, exp) = Utils.to_flip(Utils.gender(lhs)) match {
+            case Default => (lhs, rhs)
+            case Flip    => (rhs, lhs)
+          }
+          val target = makeTarget(loc)
+          val driver = exp.tpe match {
+            case ResetType => TargetDriver(makeTarget(exp))
+            case tpe       => TypeDriver(tpe, () => makeTarget(exp))
+          }
+          map(target) = driver :: Nil
+        }
         stmt match {
-          case Connect(_, lhs, rhs) if lhs.tpe == ResetType =>
-            val target = makeTarget(lhs)
-            val driver = rhs.tpe match {
-              case ResetType => TargetDriver(makeTarget(rhs))
-              case tpe       => TypeDriver(tpe, () => makeTarget(rhs))
+          // TODO
+          //  - Each connect duplicates a bunch of code from ExpandConnects, could be cleaner
+          //  - The full create_exps duplication is inefficient, there has to be a better way
+          case Connect(_, lhs, rhs) =>
+            val locs = Utils.create_exps(lhs)
+            val exps = Utils.create_exps(rhs)
+            for ((loc, exp) <- locs.zip(exps) if loc.tpe == ResetType || exp.tpe == ResetType) {
+              markDriver(loc, exp)
             }
-            map(target) = driver :: Nil
+          case PartialConnect(_, lhs, rhs) =>
+            val points = Utils.get_valid_points(lhs.tpe, rhs.tpe, Default, Default)
+            val locs = Utils.create_exps(lhs)
+            val exps = Utils.create_exps(rhs)
+            for ((i, j) <- points if locs(i).tpe == ResetType || exps(j).tpe == ResetType) {
+              val loc = locs(i)
+              val exp = exps(j)
+              markDriver(loc, exp)
+            }
           case WDefInstance(_, inst, module, _) =>
             instMap += (inst -> module)
           case Conditionally(_, _, con, alt) =>
@@ -202,7 +226,8 @@ class InferResets extends Transform {
 
   def execute(state: CircuitState): CircuitState = {
     val c = state.circuit
-    val inferred = resolve(analyze(c))
+    val analysis = analyze(c)
+    val inferred = resolve(analysis)
     val result = inferred.map(m => implement(c, m)).get
     val fixedup = fixupPasses.foldLeft(result)((c, p) => p.run(c))
     state.copy(circuit = fixedup)

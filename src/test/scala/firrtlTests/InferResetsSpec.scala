@@ -73,7 +73,7 @@ class InferResetsSpec extends FirrtlFlatSpec {
       |circuit top :
       |  module top :
       |    output fizz : { flip foo : { a : AsyncReset, flip b: Reset }[2], bar : { a : Reset, flip b: AsyncReset }[2] }
-      |    output buzz : { flip foo : { a : AsyncReset, flip b: Reset }[2], bar : { a : Reset, flip b: AsyncReset }[2] }
+      |    output buzz : { flip foo : { a : AsyncReset, c: UInt<1>, flip b: Reset }[2], bar : { a : Reset, flip b: AsyncReset, c: UInt<8> }[2] }
       |    fizz.bar <= fizz.foo
       |    buzz.bar <- buzz.foo
       |""".stripMargin,
@@ -292,14 +292,13 @@ class InferResetsSpec extends FirrtlFlatSpec {
       |    c.childReset <= reset1
       |    c.x <= x[0]
       |    z[0] <= c.z
-      |    inst c2 of child
+      |    inst c2 of child_1
       |    c2.clock <= clock
       |    c2.childReset <= reset2
       |    c2.x <= x[1]
       |    z[1] <= c2.z
       |""".stripMargin
     )
-    println(result.circuit.serialize)
     result should containTree { case Port(_, "childReset", Input, BoolType) => true }
     result should containTree { case Port(_, "childReset", Input, AsyncResetType) => true }
   }
