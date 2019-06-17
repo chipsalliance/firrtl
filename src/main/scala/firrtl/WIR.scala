@@ -17,6 +17,7 @@ case object PortKind extends Kind
 case object NodeKind extends Kind
 case object MemKind extends Kind
 case object ExpKind extends Kind
+case object UnknownKind extends Kind
 
 trait Gender
 case object MALE extends Gender
@@ -324,7 +325,7 @@ case class CDefMemory(
     info: Info,
     name: String,
     tpe: Type,
-    size: Int,
+    size: BigInt,
     seq: Boolean) extends Statement with HasInfo {
   def serialize: String = (if (seq) "smem" else "cmem") +
     s" $name : ${tpe.serialize} [$size]" + info.serialize
