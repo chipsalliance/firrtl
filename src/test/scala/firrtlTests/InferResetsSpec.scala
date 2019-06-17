@@ -15,6 +15,36 @@ class InferResetsSpec extends FirrtlFlatSpec {
   def compile(input: String, compiler: Compiler = new MiddleFirrtlCompiler): CircuitState =
     compiler.compileAndEmit(CircuitState(parse(input), ChirrtlForm), List.empty)
 
+  behavior of "ResetType"
+
+  it should "support casting to other types" in {
+    val result = compile(s"""
+      |circuit top:
+      |  module top:
+      |    input a : UInt<1>
+      |    output v : UInt<1>
+      |    output w : SInt<1>
+      |    output x : Clock
+      |    output y : Fixed<1><<0>>
+      |    output z : AsyncReset
+      |    wire r : Reset
+      |    r <= a
+      |    v <= asUInt(r)
+      |    w <= asSInt(r)
+      |    x <= asClock(r)
+      |    y <= asFixedPoint(r, 0)
+      |    z <= asAsyncReset(r)""".stripMargin
+    )
+    println(result.getEmittedCircuit)
+    result should containLine ("wire r : UInt<1>")
+    result should containLine ("r <= a")
+    result should containLine ("v <= asUInt(r)")
+    result should containLine ("w <= asSInt(r)")
+    result should containLine ("x <= asClock(r)")
+    result should containLine ("y <= asSInt(r)")
+    result should containLine ("z <= asAsyncReset(r)")
+  }
+
   behavior of "Reset Inference"
 
   val BoolType = UIntType(IntWidth(1))
