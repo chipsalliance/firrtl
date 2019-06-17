@@ -60,7 +60,7 @@ object CheckHighForm extends Pass {
   class ResetInputException(info: Info, mname: String, expr: Expression) extends PassException(
     s"$info: [module $mname] Abstract Reset not allowed as top-level input: ${expr.serialize}")
   class ResetExtModuleOutputException(info: Info, mname: String, expr: Expression) extends PassException(
-    s"$info [module $mname] Abstract Reset not allowed as ExtModule output: ${expr.serialize}")
+    s"$info: [module $mname] Abstract Reset not allowed as ExtModule output: ${expr.serialize}")
 
 
   def run(c: Circuit): Circuit = {

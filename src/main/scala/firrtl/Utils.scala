@@ -479,6 +479,9 @@ object Utils extends LazyLogging {
         }._1
       case (ClockType, ClockType) => if (flip1 == flip2) Seq((0, 0)) else Nil
       case (AsyncResetType, AsyncResetType) => if (flip1 == flip2) Seq((0, 0)) else Nil
+      // The following two cases handle driving ResetType from other legal reset types
+      // Flippedness is important here because ResetType can be driven by other reset types, but it
+      //   cannot *drive* other reset types
       case (ResetType, other) =>
         if (legalResetType(other) && flip1 == Default && flip1 == flip2) Seq((0, 0)) else Nil
       case (other, ResetType) =>

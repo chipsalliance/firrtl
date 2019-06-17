@@ -25,12 +25,19 @@ object InferResets {
     }
   }
 
+  /** Type hierarchy to represent the type of the thing driving a [[ResetType]] */
   private sealed trait ResetDriver
+  // When a [[ResetType]] is driven by another ResetType, we track the target so that we can infer
+  //   the same type as the driver
   private case class TargetDriver(target: ReferenceTarget) extends ResetDriver
+  // When a [[ResetType]] is driven by something of type Bool or AsyncResetType, we keep track of it
+  //   as a constraint on the type we should infer to be
   // We keep the target around (lazily) so that we can report errors
   private case class TypeDriver(tpe: Type, target: () => ReferenceTarget) extends ResetDriver
 
 
+  // Type hierarchy representing the path to a leaf type in an aggregate type structure
+  // Used by this [[InferResets]] to pinpoint instances of [[ResetType]] and their inferred type
   private sealed trait TypeTree
   private case class BundleTree(fields: Map[String, TypeTree]) extends TypeTree
   private case class VectorTree(subType: TypeTree) extends TypeTree
@@ -38,6 +45,8 @@ object InferResets {
   private case class GroundTree(tpe: Type) extends TypeTree
 
   private object TypeTree {
+    // Given groups of [[TargetToken]]s and Types corresponding to them, construct a [[TypeTree]]
+    // that allows us to lookup the type of each leaf node in the aggregate structure
     // TODO make return Try[TypeTree]
     def fromTokens(tokens: (Seq[TargetToken], Type)*): TypeTree = tokens match {
       case Seq((Seq(), tpe)) => GroundTree(tpe)
@@ -61,6 +70,8 @@ object InferResets {
 
 /** Infers the concrete type of [[Reset]]s by their connections
   * This is a global inference because ports can be of type [[Reset]]
+  * @note This transform should be run before [[DedupModules]] so that similar Modules from
+  *   generator languages like Chisel can infer differently
   */
 // TODO should we error if a DefMemory is of type AsyncReset? In CheckTypes?
 class InferResets extends Transform {

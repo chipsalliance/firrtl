@@ -216,8 +216,11 @@ case class ExpWidth(arg1: Width) extends Width with HasMapWidth {
 object WrappedType {
   def apply(t: Type) = new WrappedType(t)
   def wt(t: Type) = apply(t)
-  private def compare(strict: Boolean)(t1: Type, t2: Type): Boolean =
-    (t1, t2) match {
+  // Check if it is legal for the source type to drive the sink type
+  // Which is which matters because ResetType can be driven by itself, Bool, or AsyncResetType, but
+  //   it cannot drive Bool nor AsyncResetType
+  private def compare(strict: Boolean)(sink: Type, source: Type): Boolean =
+    (sink, source) match {
       case (_: UIntType, _: UIntType) => true
       case (_: SIntType, _: SIntType) => true
       case (ClockType, ClockType) => true
@@ -230,11 +233,11 @@ object WrappedType {
       // Ohterwise, we'd need to special case it during ExpandWhens, Lowering,
       // ExpandConnects, etc.
       case (_: AnalogType, _: AnalogType) => false
-      case (t1: VectorType, t2: VectorType) =>
-        t1.size == t2.size && compare(strict)(t1.tpe, t2.tpe)
-      case (t1: BundleType, t2: BundleType) =>
-        (t1.fields.size == t2.fields.size) &&
-        t1.fields.zip(t2.fields).forall { case (f1, f2) =>
+      case (sink: VectorType, source: VectorType) =>
+        sink.size == source.size && compare(strict)(sink.tpe, source.tpe)
+      case (sink: BundleType, source: BundleType) =>
+        (sink.fields.size == source.fields.size) &&
+        sink.fields.zip(source.fields).forall { case (f1, f2) =>
           (f1.flip == f2.flip) && (f1.name == f2.name) && (f1.flip match {
             case Default => compare(strict)(f1.tpe, f2.tpe)
             // We allow UInt<1> and AsyncReset to drive Reset but not the other way around
