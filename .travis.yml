@@ -37,6 +37,9 @@ jobs:
     # same script
     - stage: prepare
       script:
+        - rm -rf $HOME/.ivy2
+        - rm -rf $HOME/.sbt
+        - rm -rf $INSTALL_DIR
         - bash .install_verilator.sh
         - verilator --version
         - bash .install_yosys.sh
