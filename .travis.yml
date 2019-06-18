@@ -37,9 +37,9 @@ jobs:
     # same script
     - stage: prepare
       script:
-        - bash .install_verilator.sh
+        # - bash .install_verilator.sh
         - verilator --version
-        - bash .install_yosys.sh
+        # - bash .install_yosys.sh
         - yosys -V
     - stage: test
       script:
