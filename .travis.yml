@@ -1,21 +1,21 @@
 language: scala
-sudo: false
+dist: xenial
 
 cache:
   directories:
-    $HOME/.ivy2
-    $HOME/.sbt
-    $INSTALL_DIR
+    - $HOME/.ivy2
+    - $HOME/.sbt
+    - $INSTALL_DIR
 
 git:
   depth: 10
 
 env:
   global:
-    INSTALL_DIR=$TRAVIS_BUILD_DIR/install
-    VERILATOR_ROOT=$INSTALL_DIR
-    PATH=$PATH:$VERILATOR_ROOT/bin:$TRAVIS_BUILD_DIR/utils/bin
-    SBT_ARGS="-Dsbt.log.noformat=true"
+    - INSTALL_DIR=$HOME/usr
+    - VERILATOR_ROOT=$INSTALL_DIR
+    - PATH=$PATH:$VERILATOR_ROOT/bin:$TRAVIS_BUILD_DIR/utils/bin
+    - SBT_ARGS="-Dsbt.log.noformat=true"
 
 before_script:
   - OLDEST_SHARED=`git log --format=%H $TRAVIS_COMMIT_RANGE | tail -n1`
@@ -39,10 +39,15 @@ jobs:
       script:
         - bash .install_verilator.sh
         - verilator --version
-        - bash .install_yosys.sh
-        - yosys -V
+        - find $INSTALL_DIR/bin
+    # - stage: prepare
+    #   script:
+    #     - bash .install_yosys.sh
+    #     - yosys -V
+    #     - find $INSTALL_DIR/bin
     - stage: test
       script:
+        - ls $INSTALL_DIR/bin
         - verilator --version
         - sbt ++2.12.4 $SBT_ARGS test
     - stage: test
