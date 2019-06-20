@@ -85,7 +85,7 @@ simple_reset
 
 reset_block
 	: INDENT simple_reset info? NEWLINE DEDENT
-	| '(' simple_reset+ ')'
+	| '(' simple_reset ')'
   ;
 
 stmt
