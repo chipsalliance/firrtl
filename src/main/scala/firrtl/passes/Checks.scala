@@ -262,8 +262,12 @@ object CheckTypes extends Pass {
     s"$info: [module $mname]  Index is not of UIntType.")
   class EnableNotUInt(info: Info, mname: String) extends PassException(
     s"$info: [module $mname]  Enable is not of UIntType.")
-  class InvalidConnect(info: Info, mname: String, lhs: String, rhs: String) extends PassException(
-    s"$info: [module $mname]  Type mismatch. Cannot connect $lhs to $rhs.")
+  class InvalidConnect(info: Info, mname: String, con: String, lhs: Expression, rhs: Expression)
+      extends PassException({
+    val ltpe = s"  ${lhs.serialize}: ${lhs.tpe.serialize}"
+    val rtpe = s"  ${rhs.serialize}: ${rhs.tpe.serialize}"
+    s"$info: [module $mname]  Type mismatch in '$con'.\n$ltpe\n$rtpe"
+  })
   class InvalidRegInit(info: Info, mname: String) extends PassException(
     s"$info: [module $mname]  Type of init must match type of DefRegister.")
   class PrintfArgNotGround(info: Info, mname: String) extends PassException(
@@ -453,9 +457,11 @@ object CheckTypes extends Pass {
       val info = get_info(s) match { case NoInfo => minfo case x => x }
       s match {
         case sx: Connect if !wt(sx.loc.tpe).superTypeOf(wt(sx.expr.tpe)) =>
-          errors.append(new InvalidConnect(info, mname, sx.loc.serialize, sx.expr.serialize))
+          val conMsg = sx.copy(info = NoInfo).serialize
+          errors.append(new InvalidConnect(info, mname, conMsg, sx.loc, sx.expr))
         case sx: PartialConnect if !bulk_equals(sx.loc.tpe, sx.expr.tpe, Default, Default) =>
-          errors.append(new InvalidConnect(info, mname, sx.loc.serialize, sx.expr.serialize))
+          val conMsg = sx.copy(info = NoInfo).serialize
+          errors.append(new InvalidConnect(info, mname, conMsg, sx.loc, sx.expr))
         case sx: DefRegister =>
           sx.tpe match {
             case AnalogType(_) => errors.append(new IllegalAnalogDeclaration(info, mname, sx.name))
