@@ -3,17 +3,12 @@
 package firrtl
 
 import scala.collection._
-import scala.io.Source
-import scala.util.{Failure, Success, Try}
-import scala.util.control.ControlThrowable
+import scala.util.{Failure, Try}
 import java.io.{File, FileNotFoundException}
 import scala.sys.process.{BasicIO, ProcessLogger, stringSeqToProcess}
 import net.jcazevedo.moultingyaml._
-import logger.Logger
-import Parser.{IgnoreInfo, InfoMode}
 import annotations._
 import firrtl.annotations.AnnotationYamlProtocol._
-import firrtl.passes.{PassException, PassExceptions}
 import firrtl.transforms._
 import firrtl.Utils.throwInternalError
 import firrtl.stage.{FirrtlExecutionResultView, FirrtlStage}
@@ -212,7 +207,7 @@ object Driver {
     *         for downstream tools as desired
     */
   def execute(optionsManager: ExecutionOptionsManager with HasFirrtlOptions): FirrtlExecutionResult = {
-    StageUtils.dramaticWarning("firrtl.Driver is deprecated since 1.2!\nPlease switch to firrtl.stage.FirrtlStage")
+    StageUtils.dramaticWarning("firrtl.Driver is deprecated since 1.2!\nPlease switch to firrtl.stage.FirrtlMain")
 
     val annos = optionsManager.firrtlOptions.toAnnotations ++ optionsManager.commonOptions.toAnnotations
 

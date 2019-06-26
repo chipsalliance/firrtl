@@ -4,7 +4,6 @@ package transforms
 
 import firrtl.annotations._
 import firrtl.passes.PassException
-import firrtl.transforms
 
 /** Indicate that DCE should not be run */
 case object NoDCEAnnotation extends NoTargetAnnotation
@@ -15,7 +14,7 @@ case object NoDCEAnnotation extends NoTargetAnnotation
   */
 case class DontTouchAnnotation(target: ReferenceTarget) extends SingleTargetAnnotation[ReferenceTarget] {
   def targets = Seq(target)
-  def duplicate(n: ReferenceTarget) = this.copy(n)
+  def duplicate(n: ReferenceTarget): DontTouchAnnotation = this.copy(n)
 }
 
 object DontTouchAnnotation {

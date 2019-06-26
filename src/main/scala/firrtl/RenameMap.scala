@@ -113,7 +113,7 @@ final class RenameMap private () {
     * @param renameMap
     * @return
     */
-  def ++ (renameMap: RenameMap): RenameMap = RenameMap(underlying ++ renameMap.getUnderlying)
+  def ++ (renameMap: RenameMap): RenameMap = RenameMap.create(underlying ++ renameMap.getUnderlying)
 
   /** Returns the underlying map of rename information
     * @return
