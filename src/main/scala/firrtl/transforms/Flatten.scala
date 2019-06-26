@@ -5,13 +5,15 @@ package transforms
 
 import firrtl.ir._
 import firrtl.Mappers._
+import firrtl.annotations.Annotation.BasicAnnotationTargetType
 import firrtl.annotations._
+
 import scala.collection.mutable
-import firrtl.passes.{InlineInstances,PassException}
+import firrtl.passes.{InlineInstances, PassException}
 
 /** Tags an annotation to be consumed by this transform */
-case class FlattenAnnotation(target: Named) extends SingleTargetAnnotation[Named] {
-  def duplicate(n: Named) = FlattenAnnotation(n)
+case class FlattenAnnotation(target: BasicAnnotationTargetType) extends SingleTargetAnnotation[BasicAnnotationTargetType] {
+  def duplicate(n: BasicAnnotationTargetType) = FlattenAnnotation(n)
 }
 
 /**

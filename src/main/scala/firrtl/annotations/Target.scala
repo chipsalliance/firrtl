@@ -7,6 +7,7 @@ import firrtl.ir.{Expression, Type}
 import firrtl.Utils.{sub_type, field_type}
 import AnnotationUtils.{toExp, validComponentName, validModuleName}
 import TargetToken._
+import Target.BasicTargetType
 
 import scala.collection.mutable
 
@@ -104,6 +105,7 @@ sealed trait Target extends Named {
 
 object Target {
 
+  type BasicTargetType = Named
   def apply(circuitOpt: Option[String], moduleOpt: Option[String], reference: Seq[TargetToken]): GenericTarget =
     GenericTarget(circuitOpt, moduleOpt, reference.toVector)
 
@@ -554,7 +556,7 @@ case class ReferenceTarget(circuit: String,
   /** @return The clock signal of this reference, must be to a [[firrtl.ir.DefRegister]] */
   def clock: ReferenceTarget = ReferenceTarget(circuit, module, path, ref, component :+ Clock)
 
-  /** @param the type of this target's ref
+  /** @param baseType the type of this target's ref
     * @return the type of the subcomponent specified by this target's component
     */
   def componentType(baseType: Type): Type = componentType(baseType, tokens)

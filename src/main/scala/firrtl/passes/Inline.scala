@@ -7,6 +7,7 @@ import firrtl.ir._
 import firrtl.Mappers._
 import firrtl.annotations._
 import firrtl.analyses.InstanceGraph
+import firrtl.annotations.Annotation.BasicAnnotationTargetType
 import firrtl.stage.RunFirrtlTransformAnnotation
 import firrtl.options.{RegisteredTransform, ShellOption}
 
@@ -14,8 +15,8 @@ import firrtl.options.{RegisteredTransform, ShellOption}
 import scala.collection.mutable
 
 /** Indicates that something should be inlined */
-case class InlineAnnotation(target: Named) extends SingleTargetAnnotation[Named] {
-  def duplicate(n: Named) = InlineAnnotation(n)
+case class InlineAnnotation(target: BasicAnnotationTargetType) extends SingleTargetAnnotation[BasicAnnotationTargetType] {
+  def duplicate(n: BasicAnnotationTargetType) = InlineAnnotation(n)
 }
 
 /** Inline instances as indicated by existing [[InlineAnnotation]]s

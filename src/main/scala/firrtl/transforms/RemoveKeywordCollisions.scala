@@ -6,6 +6,7 @@ import firrtl._
 
 import firrtl.analyses.InstanceGraph
 import firrtl.annotations.{Named, CircuitName, ModuleName, ComponentName}
+import firrtl.annotations.{Target, GenericTarget}
 import firrtl.ir
 import firrtl.passes.{Uniquify, PassException}
 import firrtl.Utils.v_keywords

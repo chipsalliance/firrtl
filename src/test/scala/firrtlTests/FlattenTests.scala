@@ -8,7 +8,7 @@ import org.scalatest.junit.JUnitRunner
 import firrtl.ir.Circuit
 import firrtl.Parser
 import firrtl.passes.PassExceptions
-import firrtl.annotations.{Annotation, CircuitName, ComponentName, ModuleName, Named}
+import firrtl.annotations.{Annotation, CircuitName, ComponentName, ModuleName}
 import firrtl.transforms.{FlattenAnnotation, Flatten}
 import logger.{LogLevel, Logger}
 import logger.LogLevel.Debug
