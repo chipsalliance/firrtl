@@ -68,8 +68,8 @@ object CheckHighForm extends Pass {
     val moduleGraph = new ModuleGraph
     val moduleNames = (c.modules map (_.name)).toSet
 
-    def checkHighFormPrimop(info: Info, mname: String, e: DoPrim) {
-      def correctNum(ne: Option[Int], nc: Int) {
+    def checkHighFormPrimop(info: Info, mname: String, e: DoPrim): Unit = {
+      def correctNum(ne: Option[Int], nc: Int): Unit = {
         ne match {
           case Some(i) if e.args.length != i =>
             errors.append(new IncorrectNumArgsException(info, mname, e.op.toString, i))
@@ -104,7 +104,7 @@ object CheckHighForm extends Pass {
       }
     }
 
-    def checkFstring(info: Info, mname: String, s: StringLit, i: Int) {
+    def checkFstring(info: Info, mname: String, s: StringLit, i: Int): Unit = {
       val validFormats = "bdxc"
       val (percent, npercents) = s.string.foldLeft((false, 0)) {
         case ((percentx, n), b) if percentx && (validFormats contains b) =>
@@ -219,7 +219,7 @@ object CheckHighForm extends Pass {
       } yield (port, expr)
     }
 
-    def checkHighFormM(m: DefModule) {
+    def checkHighFormM(m: DefModule): Unit = {
       val names = new NameSet
       m foreach checkHighFormP(m.name, names)
       m foreach checkHighFormS(m.info, m.name, names)
