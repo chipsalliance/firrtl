@@ -129,7 +129,6 @@ class MinimumLowFirrtlOptimization extends CoreTransform {
 
 
 import CompilerUtils.getLoweringTransforms
-import firrtl.transforms.BlackBoxSourceHelper
 
 /** Emits input circuit with no changes
   *
