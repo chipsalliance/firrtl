@@ -77,6 +77,28 @@ trait SingleTargetAnnotation[T <: Named] extends Annotation {
   }
 }
 
+trait MultiTargetAnnotation extends Annotation {
+  val targets: Seq[Target]
+
+  def duplicate(n: Seq[Target]): Annotation
+
+  private def crossJoin[T](list: Seq[Seq[T]]): Seq[Seq[T]] =
+    list match {
+      case Nil => Nil
+      case x :: Nil => x map (Seq(_))
+      case x :: xs =>
+        val xsJoin = crossJoin(xs)
+        for {
+          i <- x
+          j <- xsJoin
+        } yield {
+          Seq(i) ++ j
+        }
+    }
+
+  def update(renames: RenameMap): Seq[Annotation] = crossJoin(targets.map(renames(_))).map(ts => duplicate(ts.asInstanceOf[Seq[Target]]))
+}
+
 @deprecated("Just extend NoTargetAnnotation", "1.1")
 trait SingleStringAnnotation extends NoTargetAnnotation {
   def value: String
