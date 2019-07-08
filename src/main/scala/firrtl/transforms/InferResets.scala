@@ -77,8 +77,21 @@ object InferResets {
   */
 // TODO should we error if a DefMemory is of type AsyncReset? In CheckTypes?
 class InferResets extends Transform {
-  def inputForm: CircuitForm = HighForm
-  def outputForm: CircuitForm = HighForm
+
+  def inputForm: CircuitForm = UnknownForm
+  def outputForm: CircuitForm = UnknownForm
+
+  override val prerequisites =
+    Seq( classOf[passes.ResolveKinds],
+         classOf[passes.InferTypes],
+         classOf[passes.Uniquify],
+         classOf[passes.ResolveFlows],
+         classOf[passes.InferWidths] ) ++ stage.Forms.WorkingIR
+
+  override def invalidates(a: Transform): Boolean = a match {
+    case _: checks.CheckResets | _: passes.CheckTypes => true
+    case _                                            => false
+  }
 
   import InferResets._
 

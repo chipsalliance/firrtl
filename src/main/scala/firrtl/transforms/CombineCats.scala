@@ -7,6 +7,7 @@ import firrtl.Mappers._
 import firrtl.PrimOps._
 import firrtl.WrappedExpression._
 import firrtl.annotations.NoTargetAnnotation
+import firrtl.options.PreservesAll
 
 import scala.collection.mutable
 
@@ -51,9 +52,18 @@ object CombineCats {
   * Use [[MaxCatLenAnnotation]] to limit the number of elements that can be concatenated.
   * The default maximum number of elements is 10.
   */
-class CombineCats extends Transform {
+class CombineCats extends Transform with PreservesAll[Transform] {
   def inputForm: LowForm.type = LowForm
   def outputForm: LowForm.type = LowForm
+
+  override val prerequisites = firrtl.stage.Forms.LowForm ++
+    Seq( classOf[passes.RemoveValidIf],
+         classOf[firrtl.transforms.ConstantPropagation],
+         classOf[firrtl.passes.memlib.VerilogMemDelays],
+         classOf[firrtl.passes.SplitExpressions] )
+
+  override val dependents = Seq(classOf[SystemVerilogEmitter], classOf[VerilogEmitter])
+
   val defaultMaxCatLen = 10
 
   def execute(state: CircuitState): CircuitState = {

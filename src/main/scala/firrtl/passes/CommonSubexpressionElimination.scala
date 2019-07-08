@@ -5,9 +5,20 @@ package firrtl.passes
 import firrtl._
 import firrtl.ir._
 import firrtl.Mappers._
+import firrtl.options.PreservesAll
 
 
-object CommonSubexpressionElimination extends Pass {
+class CommonSubexpressionElimination extends Pass with PreservesAll[Transform] {
+
+  override val prerequisites = firrtl.stage.Forms.LowForm ++
+    Seq( classOf[firrtl.passes.RemoveValidIf],
+         classOf[firrtl.transforms.ConstantPropagation],
+         classOf[firrtl.passes.memlib.VerilogMemDelays],
+         classOf[firrtl.passes.SplitExpressions],
+         classOf[firrtl.transforms.CombineCats] )
+
+  override val dependents = Seq(classOf[SystemVerilogEmitter], classOf[VerilogEmitter])
+
   private def cse(s: Statement): Statement = {
     val expressions = collection.mutable.HashMap[MemoizedHash[Expression], String]()
     val nodes = collection.mutable.HashMap[String, Expression]()
@@ -44,4 +55,10 @@ object CommonSubexpressionElimination extends Pass {
     }
     Circuit(c.info, modulesx, c.main)
   }
+}
+
+object CommonSubexpressionElimination extends Pass with DeprecatedPassObject {
+
+  override lazy val underlying = new CommonSubexpressionElimination
+
 }

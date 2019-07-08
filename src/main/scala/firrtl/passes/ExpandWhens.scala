@@ -8,6 +8,7 @@ import firrtl.Utils._
 import firrtl.Mappers._
 import firrtl.PrimOps._
 import firrtl.WrappedExpression._
+import firrtl.options.PreservesAll
 
 import annotation.tailrec
 import collection.mutable
@@ -23,7 +24,20 @@ import collection.mutable
   * @note Assumes bulk connects and isInvalids have been expanded
   * @note Assumes all references are declared
   */
-object ExpandWhens extends Pass {
+class ExpandWhens extends Pass with PreservesAll[Transform] {
+
+  override val prerequisites =
+    Seq( classOf[PullMuxes],
+         classOf[ReplaceAccesses],
+         classOf[ExpandConnects],
+         classOf[RemoveAccesses],
+         classOf[Uniquify] ) ++ firrtl.stage.Forms.Resolved
+
+  override def invalidates(a: Transform): Boolean = a match {
+    case _: CheckInitialization | _: ResolveKinds | _: InferTypes => true
+    case _ => false
+  }
+
   /** Returns circuit with when and last connection semantics resolved */
   def run(c: Circuit): Circuit = {
     val modulesx = c.modules map {
@@ -286,4 +300,31 @@ object ExpandWhens extends Pass {
     DoPrim(And, Seq(e1, e2), Nil, BoolType)
   private def NOT(e: Expression) =
     DoPrim(Eq, Seq(e, zero), Nil, BoolType)
+}
+
+object ExpandWhens extends Pass with DeprecatedPassObject {
+
+  override protected lazy val underlying = new ExpandWhens
+
+}
+
+class ExpandWhensAndCheck extends SeqTransform {
+
+  override val prerequisites =
+    Seq( classOf[PullMuxes],
+         classOf[ReplaceAccesses],
+         classOf[ExpandConnects],
+         classOf[RemoveAccesses],
+         classOf[Uniquify] ) ++ firrtl.stage.Forms.Deduped
+
+  override def invalidates(a: Transform): Boolean = a match {
+    case _: ResolveKinds | _: InferTypes | _: ResolveFlows | _: InferWidths => true
+    case _ => false
+  }
+
+  override def inputForm = UnknownForm
+  override def outputForm = UnknownForm
+
+  override val transforms = Seq(new ExpandWhens, new CheckInitialization)
+
 }

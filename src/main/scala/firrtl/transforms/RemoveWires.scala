@@ -9,6 +9,7 @@ import firrtl.Mappers._
 import firrtl.traversals.Foreachers._
 import firrtl.WrappedExpression._
 import firrtl.graph.{MutableDiGraph, CyclicException}
+import firrtl.options.PreservesAll
 
 import scala.collection.mutable
 import scala.util.{Try, Success, Failure}
@@ -19,9 +20,15 @@ import scala.util.{Try, Success, Failure}
   *  wires have multiple connections that may be impossible to order in a
   *  flow-foward way
   */
-class RemoveWires extends Transform {
+class RemoveWires extends Transform with PreservesAll[Transform] {
   def inputForm = LowForm
   def outputForm = LowForm
+
+  override val prerequisites = firrtl.stage.Forms.MidForm ++
+    Seq( classOf[passes.LowerTypes],
+         classOf[passes.Legalize],
+         classOf[transforms.RemoveReset],
+         classOf[transforms.CheckCombLoops] )
 
   // Extract all expressions that are references to a Node, Wire, or Reg
   // Since we are operating on LowForm, they can only be WRefs
@@ -140,8 +147,9 @@ class RemoveWires extends Transform {
     }
   }
 
+  /* @todo move ResolveKinds outside */
   private val cleanup = Seq(
-    passes.ResolveKinds
+    new passes.ResolveKinds
   )
 
   def execute(state: CircuitState): CircuitState = {

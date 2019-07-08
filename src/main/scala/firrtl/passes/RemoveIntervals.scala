@@ -37,6 +37,13 @@ class WrapWithRemainder(info: Info, mname: String, wrap: DoPrim)
   */
 class RemoveIntervals extends Pass {
 
+  override val prerequisites =
+    Seq( classOf[PullMuxes],
+         classOf[ReplaceAccesses],
+         classOf[ExpandConnects],
+         classOf[RemoveAccesses],
+         classOf[ExpandWhensAndCheck] ) ++ firrtl.stage.Forms.Deduped
+
   def run(c: Circuit): Circuit = {
     val alignedCircuit = c
     val errors = new Errors()

@@ -122,11 +122,11 @@ class ReplSeqMem extends Transform with HasShellOptions {
         new ReplaceMemMacros(outConfigFile),
         new WiringTransform,
         new SimpleMidTransform(RemoveEmpty),
-        new SimpleMidTransform(CheckInitialization),
-        new SimpleMidTransform(InferTypes),
-        Uniquify,
-        new SimpleMidTransform(ResolveKinds),
-        new SimpleMidTransform(ResolveFlows))
+        new SimpleMidTransform(new CheckInitialization),
+        new SimpleMidTransform(new InferTypes),
+        new Uniquify,
+        new SimpleMidTransform(new ResolveKinds),
+        new SimpleMidTransform(new ResolveFlows))
 
   def execute(state: CircuitState): CircuitState = {
     val annos = state.annotations.collect { case a: ReplSeqMemAnnotation => a }

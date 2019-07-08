@@ -10,6 +10,7 @@ import firrtl.Mappers._
 import firrtl.Utils.{error, field_type, getUIntWidth, max, module_type, sub_type}
 import Implicits.{bigint2WInt, int2WInt}
 import firrtl.constraint.{IsFloor, IsKnown, IsMul}
+import firrtl.options.PreservesAll
 
 /** Replaces IntervalType with SIntType, three AST walks:
   * 1) Align binary points
@@ -22,7 +23,17 @@ import firrtl.constraint.{IsFloor, IsKnown, IsMul}
   *      c. replace with SIntType
   * 3) Run InferTypes
   */
-class TrimIntervals extends Pass {
+class TrimIntervals extends Pass with PreservesAll[Transform] {
+
+  override val prerequisites =
+    Seq( classOf[passes.ResolveKinds],
+         classOf[passes.InferTypes],
+         classOf[passes.Uniquify],
+         classOf[passes.ResolveFlows],
+         classOf[passes.InferBinaryPoints] )
+
+  override val dependents = Seq.empty
+
   def run(c: Circuit): Circuit = {
     // Open -> closed
     val firstPass = InferTypes.run(c map replaceModuleInterval)
@@ -84,7 +95,7 @@ class TrimIntervals extends Pass {
       val shiftMul = Closed(BigDecimal(1) / shiftGain)
       val bpGain = BigDecimal(BigInt(1) << current.toInt)
       // BP is inferred at this point
-      // y = floor(x * 2^(-amt + bp)) gets rid of precision --> y * 2^(-bp + amt) 
+      // y = floor(x * 2^(-amt + bp)) gets rid of precision --> y * 2^(-bp + amt)
       val newBPRes = Closed(shiftGain / bpGain)
       val bpResInv = Closed(bpGain)
       val newL = IsMul(IsFloor(IsMul(IsMul(l, shiftMul), bpResInv)), newBPRes)

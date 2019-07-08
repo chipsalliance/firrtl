@@ -6,6 +6,7 @@ package transforms
 import firrtl.ir._
 import firrtl.Mappers._
 import firrtl.traversals.Foreachers._
+import firrtl.options.PreservesAll
 import firrtl.WrappedExpression.we
 
 import scala.collection.{immutable, mutable}
@@ -14,9 +15,13 @@ import scala.collection.{immutable, mutable}
   *
   * @note This pass must run after LowerTypes
   */
-class RemoveReset extends Transform {
-  def inputForm = MidForm
-  def outputForm = MidForm
+class RemoveReset extends Transform with PreservesAll[Transform] {
+  def inputForm = LowForm
+  def outputForm = LowForm
+
+  override val prerequisites = firrtl.stage.Forms.MidForm ++
+    Seq( classOf[passes.LowerTypes],
+         classOf[passes.Legalize] )
 
   private case class Reset(cond: Expression, value: Expression)
 
@@ -63,4 +68,10 @@ class RemoveReset extends Transform {
     val c = state.circuit.map(onModule)
     state.copy(circuit = c)
   }
+}
+
+object RemoveReset extends Transform with DeprecatedTransformObject {
+
+  override protected lazy val underlying = new RemoveReset
+
 }

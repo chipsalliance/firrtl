@@ -4,24 +4,20 @@ package firrtl.stage
 
 import firrtl.{AnnotationSeq, CustomTransformException, FirrtlInternalException,
                FirrtlUserException, FIRRTLException, Utils}
-import firrtl.options.{Stage, Phase, PhaseException, Shell, OptionsException, StageMain, StageUtils}
+import firrtl.options.{DependencyManagerException, Phase, PhaseException, PhaseManager, PreservesAll, Shell, Stage,
+  OptionsException, StageMain}
 import firrtl.options.phases.DeletedWrapper
 import firrtl.passes.{PassException, PassExceptions}
 
 import scala.util.control.ControlThrowable
 
 
-class FirrtlStage extends Stage {
+class FirrtlStage extends Stage with PreservesAll[Phase] {
+
   val shell: Shell = new Shell("firrtl") with FirrtlCli
 
-  private val phases: Seq[Phase] =
-    Seq( new firrtl.stage.phases.AddDefaults,
-         new firrtl.stage.phases.AddImplicitEmitter,
-         new firrtl.stage.phases.Checks,
-         new firrtl.stage.phases.AddCircuit,
-         new firrtl.stage.phases.AddImplicitOutputFile,
-         new firrtl.stage.phases.Compiler,
-         new firrtl.stage.phases.WriteEmitted )
+  val phases: Seq[Phase] = new PhaseManager(Seq(classOf[firrtl.stage.phases.WriteEmitted]))
+      .transformOrder
       .map(DeletedWrapper(_))
 
   def run(annotations: AnnotationSeq): AnnotationSeq = try {
@@ -30,7 +26,7 @@ class FirrtlStage extends Stage {
     /* Rethrow the exceptions which are expected or due to the runtime environment (out of memory, stack overflow, etc.).
      * Any UNEXPECTED exceptions should be treated as internal errors. */
     case p @ (_: ControlThrowable | _: FIRRTLException | _: OptionsException | _: FirrtlUserException
-                | _: FirrtlInternalException | _: PhaseException) => throw p
+                | _: FirrtlInternalException | _: PhaseException | _: DependencyManagerException) => throw p
     case CustomTransformException(cause) => throw cause
     case e: Exception => Utils.throwInternalError(exception = Some(e))
   }

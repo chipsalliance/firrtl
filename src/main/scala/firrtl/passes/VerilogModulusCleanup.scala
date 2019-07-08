@@ -23,7 +23,12 @@ import scala.collection.mutable
  *  This is technically incorrect firrtl, but allows the verilog emitter
  *  to emit correct verilog without needing to add temporary nodes
  */
-object VerilogModulusCleanup extends Pass {
+class VerilogModulusCleanup extends Pass {
+
+  override val prerequisites = firrtl.stage.Forms.LowFormMinimumOptimized ++
+    Seq( classOf[firrtl.transforms.BlackBoxSourceHelper],
+         classOf[firrtl.transforms.ReplaceTruncatingArithmetic],
+         classOf[firrtl.transforms.FlattenRegUpdate] )
 
   private def onModule(m: Module): Module = {
     val namespace = Namespace(m)
@@ -80,4 +85,10 @@ object VerilogModulusCleanup extends Pass {
     }
     Circuit(c.info, modules, c.main)
   }
+}
+
+object VerilogModulusCleanup extends Pass with DeprecatedPassObject {
+
+  override protected lazy val underlying = new VerilogModulusCleanup
+
 }

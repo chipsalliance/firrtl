@@ -9,8 +9,9 @@ import firrtl.Utils._
 import firrtl.traversals.Foreachers._
 import firrtl.WrappedType._
 import firrtl.constraint.{Constraint, IsKnown}
+import firrtl.options.PreservesAll
 
-trait CheckHighFormLike {
+trait CheckHighFormLike { this: Pass =>
   type NameSet = collection.mutable.HashSet[String]
 
   // Custom Exceptions
@@ -24,6 +25,8 @@ trait CheckHighFormLike {
     s"$info: [module $mname] Reference $name is not declared.")
   class PoisonWithFlipException(info: Info, mname: String, name: String) extends PassException(
     s"$info: [module $mname] Poison $name cannot be a bundle type with flips.")
+  class IllegalChirrtlMemException(info: Info, mname: String, name: String) extends PassException(
+    s"$info: [module $mname] Memory $name has not been properly lowered from Chirrtl IR.")
   class MemWithFlipException(info: Info, mname: String, name: String) extends PassException(
     s"$info: [module $mname] Memory $name cannot be a bundle type with flips.")
   class IllegalMemLatencyException(info: Info, mname: String, name: String) extends PassException(
@@ -67,7 +70,7 @@ trait CheckHighFormLike {
   // Is Chirrtl allowed for this check? If not, return an error
   def errorOnChirrtl(info: Info, mname: String, s: Statement): Option[PassException]
 
-  def run(c: Circuit): Circuit = {
+  override def run(c: Circuit): Circuit = {
     val errors = new Errors()
     val moduleGraph = new ModuleGraph
     val moduleNames = (c.modules map (_.name)).toSet
@@ -261,9 +264,28 @@ trait CheckHighFormLike {
   }
 }
 
-object CheckHighForm extends Pass with CheckHighFormLike {
+object CheckHighForm extends Pass with CheckHighFormLike with DeprecatedPassObject {
+  override protected lazy val underlying = new CheckHighForm
+
+  type IllegalChirrtlMemException = underlying.IllegalChirrtlMemException
+
+  def errorOnChirrtl(info: Info, mname: String, s: Statement): Option[PassException] =
+    underlying.errorOnChirrtl(info, mname, s)
+}
+
+class CheckHighForm extends Pass with CheckHighFormLike with PreservesAll[Transform] {
   class IllegalChirrtlMemException(info: Info, mname: String, name: String) extends PassException(
-    s"$info: [module $mname] Memory $name has not been properly lowered from Chirrtl IR.")
+	  s"$info: [module $mname] Memory $name has not been properly lowered from Chirrtl IR.")
+
+  override val prerequisites = firrtl.stage.Forms.WorkingIR
+
+  override val dependents =
+    Seq( classOf[passes.ResolveKinds],
+         classOf[passes.InferTypes],
+         classOf[passes.Uniquify],
+         classOf[passes.ResolveFlows],
+         classOf[passes.InferWidths],
+         classOf[transforms.InferResets] )
 
   def errorOnChirrtl(info: Info, mname: String, s: Statement): Option[PassException] = {
     val memName = s match {
@@ -272,10 +294,11 @@ object CheckHighForm extends Pass with CheckHighFormLike {
     }
     Some(new IllegalChirrtlMemException(info, mname, memName))
   }
-}
-object CheckTypes extends Pass {
 
-  // Custom Exceptions
+}
+
+object CheckTypes extends Pass with DeprecatedPassObject {
+
   class SubfieldNotInBundle(info: Info, mname: String, name: String) extends PassException(
     s"$info: [module $mname ]  Subfield $name is not in bundle.")
   class SubfieldOnNonBundle(info: Info, mname: String, name: String) extends PassException(
@@ -402,6 +425,23 @@ object CheckTypes extends Pass {
 
   def validPartialConnect(con: PartialConnect): Boolean =
     bulk_equals(con.loc.tpe, con.expr.tpe, Default, Default)
+
+  override protected lazy val underlying = new CheckTypes
+
+}
+
+class CheckTypes extends Pass with PreservesAll[Transform] {
+
+  import CheckTypes._
+
+  override val prerequisites = Seq( classOf[InferTypes] ) ++ firrtl.stage.Forms.WorkingIR
+
+  override val dependents =
+    Seq( classOf[passes.Uniquify],
+         classOf[passes.ResolveFlows],
+         classOf[passes.CheckFlows],
+         classOf[passes.InferWidths],
+         classOf[passes.CheckWidths] )
 
   //;---------------- Helper Functions --------------
   def ut: UIntType = UIntType(UnknownWidth)
@@ -577,7 +617,22 @@ object CheckTypes extends Pass {
   }
 }
 
-object CheckFlows extends Pass {
+object CheckFlows extends Pass with DeprecatedPassObject {
+
+  override protected lazy val underlying = new CheckFlows
+
+}
+
+class CheckFlows extends Pass with PreservesAll[Transform] {
+
+  override val prerequisites = classOf[passes.ResolveFlows] +: firrtl.stage.Forms.WorkingIR
+
+  override val dependents =
+    Seq( classOf[passes.InferBinaryPoints],
+         classOf[passes.TrimIntervals],
+         classOf[passes.InferWidths],
+         classOf[transforms.InferResets] )
+
   type FlowMap = collection.mutable.HashMap[String, Flow]
 
   implicit def toStr(g: Flow): String = g match {

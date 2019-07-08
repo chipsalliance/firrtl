@@ -7,6 +7,7 @@ import firrtl.ir._
 import firrtl.Utils._
 import firrtl.Mappers._
 import firrtl.PrimOps._
+import firrtl.options.PreservesAll
 import firrtl.transforms.ConstantPropagation
 
 import scala.collection.mutable
@@ -30,6 +31,15 @@ trait Pass extends Transform {
   }
 }
 
+private[firrtl] trait DeprecatedPassObject { this: Pass =>
+
+  protected def underlying: Pass
+
+  @deprecated("Pass objects are now classes. Create an object or use the Dependency API", "1.2")
+  override def run(c: Circuit): Circuit = underlying.run(c)
+
+}
+
 // Error handling
 class PassException(message: String) extends FirrtlUserException(message)
 class PassExceptions(val exceptions: Seq[PassException]) extends FirrtlUserException("\n" + exceptions.mkString("\n"))
@@ -45,8 +55,17 @@ class Errors {
   }
 }
 
+object ToWorkingIR extends Pass with DeprecatedPassObject {
+
+  override protected lazy val underlying = new ToWorkingIR
+
+}
+
 // These should be distributed into separate files
-object ToWorkingIR extends Pass {
+class ToWorkingIR extends Pass with PreservesAll[Transform] {
+
+  override val prerequisites = firrtl.stage.Forms.HighForm
+
   def toExp(e: Expression): Expression = e map toExp match {
     case ex: Reference => WRef(ex.name, ex.tpe, UnknownKind, UnknownFlow)
     case ex: SubField => WSubField(ex.expr, ex.name, ex.tpe, UnknownFlow)
@@ -64,8 +83,17 @@ object ToWorkingIR extends Pass {
     c copy (modules = c.modules map (_ map toStmt))
 }
 
-object PullMuxes extends Pass {
-   def run(c: Circuit): Circuit = {
+object PullMuxes extends Pass with DeprecatedPassObject {
+
+  override protected lazy val underlying = new PullMuxes
+
+}
+
+class PullMuxes extends Pass with PreservesAll[Transform] {
+
+  override val prerequisites = firrtl.stage.Forms.Deduped
+
+  def run(c: Circuit): Circuit = {
      def pull_muxes_e(e: Expression): Expression = e map pull_muxes_e match {
        case ex: WSubField => ex.expr match {
          case exx: Mux => Mux(exx.cond,
@@ -102,7 +130,12 @@ object PullMuxes extends Pass {
    }
 }
 
-object ExpandConnects extends Pass {
+class ExpandConnects extends Pass with PreservesAll[Transform] {
+
+  override val prerequisites =
+    Seq( classOf[PullMuxes],
+         classOf[ReplaceAccesses] ) ++ firrtl.stage.Forms.Deduped
+
   def run(c: Circuit): Circuit = {
     def expand_connects(m: Module): Module = {
       val flows = collection.mutable.LinkedHashMap[String,Flow]()
@@ -176,10 +209,19 @@ object ExpandConnects extends Pass {
   }
 }
 
+object ExpandConnects extends Pass with DeprecatedPassObject {
+
+  override protected lazy val underlying = new ExpandConnects
+
+}
+
 
 // Replace shr by amount >= arg width with 0 for UInts and MSB for SInts
 // TODO replace UInt with zero-width wire instead
-object Legalize extends Pass {
+class Legalize extends Pass with PreservesAll[Transform] {
+
+  override val prerequisites = firrtl.stage.Forms.MidForm :+ classOf[LowerTypes]
+
   private def legalizeShiftRight(e: DoPrim): Expression = {
     require(e.op == Shr)
     e.args.head match {
@@ -250,6 +292,12 @@ object Legalize extends Pass {
   }
 }
 
+object Legalize extends Pass with DeprecatedPassObject {
+
+  override protected lazy val underlying = new Legalize
+
+}
+
 /** Makes changes to the Firrtl AST to make Verilog emission easier
   *
   * - For each instance, adds wires to connect to each port
@@ -260,7 +308,14 @@ object Legalize extends Pass {
   *
   * @note The result of this pass is NOT legal Firrtl
   */
-object VerilogPrep extends Pass {
+class VerilogPrep extends Pass {
+
+  override val prerequisites = firrtl.stage.Forms.LowFormMinimumOptimized ++
+    Seq( classOf[firrtl.transforms.BlackBoxSourceHelper],
+         classOf[firrtl.transforms.ReplaceTruncatingArithmetic],
+         classOf[firrtl.transforms.FlattenRegUpdate],
+         classOf[VerilogModulusCleanup],
+         classOf[firrtl.transforms.VerilogRename] )
 
   type AttachSourceMap = Map[WrappedExpression, Expression]
 
@@ -330,4 +385,10 @@ object VerilogPrep extends Pass {
     }
     c.copy(modules = modulesx)
   }
+}
+
+object VerilogPrep extends Pass with DeprecatedPassObject {
+
+  override protected lazy val underlying = new VerilogPrep
+
 }

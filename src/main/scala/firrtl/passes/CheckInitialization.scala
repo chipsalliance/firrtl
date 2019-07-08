@@ -6,6 +6,7 @@ import firrtl._
 import firrtl.ir._
 import firrtl.Utils._
 import firrtl.traversals.Foreachers._
+import firrtl.options.PreservesAll
 
 import annotation.tailrec
 
@@ -14,13 +15,13 @@ import annotation.tailrec
   * @note This pass looks for [[firrtl.WVoid]]s left behind by [[ExpandWhens]]
   * @note Assumes single connection (ie. no last connect semantics)
   */
-object CheckInitialization extends Pass {
-  private case class VoidExpr(stmt: Statement, voidDeps: Seq[Expression])
+class CheckInitialization extends Pass with PreservesAll[Transform] {
 
-  class RefNotInitializedException(info: Info, mname: String, name: String, trace: Seq[Statement]) extends PassException(
-      s"$info : [module $mname]  Reference $name is not fully initialized.\n" +
-      trace.map(s => s"  ${get_info(s)} : ${s.serialize}").mkString("\n")
-    )
+  import CheckInitialization._
+
+  override val prerequisites = firrtl.stage.Forms.Resolved
+
+  private case class VoidExpr(stmt: Statement, voidDeps: Seq[Expression])
 
   private def getTrace(expr: WrappedExpression, voidExprs: Map[WrappedExpression, VoidExpr]): Seq[Statement] = {
     @tailrec
@@ -88,4 +89,15 @@ object CheckInitialization extends Pass {
     errors.trigger()
     c
   }
+}
+
+object CheckInitialization extends Pass with DeprecatedPassObject {
+
+  override protected lazy val underlying = new CheckInitialization
+
+  class RefNotInitializedException(info: Info, mname: String, name: String, trace: Seq[Statement]) extends PassException(
+      s"$info : [module $mname]  Reference $name is not fully initialized.\n" +
+      trace.map(s => s"  ${get_info(s)} : ${s.serialize}").mkString("\n")
+    )
+
 }

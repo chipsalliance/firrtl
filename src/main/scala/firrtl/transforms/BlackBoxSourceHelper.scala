@@ -60,6 +60,10 @@ class BlackBoxSourceHelper extends firrtl.Transform {
   override def inputForm: CircuitForm = LowForm
   override def outputForm: CircuitForm = LowForm
 
+  override val prerequisites = firrtl.stage.Forms.LowFormMinimumOptimized
+
+  override val dependents = Seq.empty
+
   /** Collect BlackBoxHelperAnnos and and find the target dir if specified
     * @param annos a list of generic annotations for this transform
     * @return BlackBoxHelperAnnos and target directory
