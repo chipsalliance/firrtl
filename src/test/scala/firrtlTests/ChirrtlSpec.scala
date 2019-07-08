@@ -12,10 +12,10 @@ import firrtl._
 
 class ChirrtlSpec extends FirrtlFlatSpec {
   def transforms = Seq(
-    CheckChirrtl,
-    CInferTypes,
-    CInferMDir,
-    RemoveCHIRRTL,
+    new CheckChirrtl,
+    new CInferTypes,
+    new CInferMDir,
+    new RemoveCHIRRTL,
     ToWorkingIR,
     CheckHighForm,
     ResolveKinds,
@@ -76,7 +76,7 @@ class ChirrtlSpec extends FirrtlFlatSpec {
   for ((description, input) <- CheckSpec.nonUniqueExamples) {
     it should s"be asserted for $description" in {
       assertThrows[CheckChirrtl.NotUniqueException] {
-        Seq(ToWorkingIR, CheckChirrtl).foldLeft(Parser.parse(input)){ case (c, tx) => tx.run(c) }
+        Seq(ToWorkingIR, new CheckChirrtl).foldLeft(Parser.parse(input)){ case (c, tx) => tx.run(c) }
       }
     }
   }

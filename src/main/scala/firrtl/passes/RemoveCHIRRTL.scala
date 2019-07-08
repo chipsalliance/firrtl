@@ -8,12 +8,18 @@ import firrtl._
 import firrtl.ir._
 import firrtl.Utils._
 import firrtl.Mappers._
+import firrtl.options.PreservesAll
 
 case class MPort(name: String, clk: Expression)
 case class MPorts(readers: ArrayBuffer[MPort], writers: ArrayBuffer[MPort], readwriters: ArrayBuffer[MPort])
 case class DataRef(exp: Expression, male: String, female: String, mask: String, rdwrite: Boolean)
 
-object RemoveCHIRRTL extends Transform {
+class RemoveCHIRRTL extends Transform with PreservesAll[Transform] {
+
+  override val prerequisites = firrtl.stage.Forms.ChirrtlForm ++
+    Seq( classOf[passes.CInferTypes],
+         classOf[passes.CInferMDir] )
+
   def inputForm: CircuitForm = UnknownForm
   def outputForm: CircuitForm = UnknownForm
   val ut = UnknownType

@@ -5,9 +5,20 @@ package firrtl.passes
 import firrtl._
 import firrtl.ir._
 import firrtl.Mappers._
+import firrtl.options.PreservesAll
 import Utils.throwInternalError
 
-object ResolveKinds extends Pass {
+
+object ResolveKinds extends Pass with DeprecatedPassObject {
+
+  override protected lazy val underlying = new ResolveKinds
+
+}
+
+class ResolveKinds extends Pass with PreservesAll[Transform] {
+
+  override val prerequisites = classOf[passes.CheckHighForm] +: firrtl.stage.Forms.WorkingIR
+
   type KindMap = collection.mutable.LinkedHashMap[String, Kind]
 
   def find_port(kinds: KindMap)(p: Port): Port = {
@@ -22,7 +33,7 @@ object ResolveKinds extends Pass {
       case sx: WDefInstance => kinds(sx.name) = InstanceKind
       case sx: DefMemory => kinds(sx.name) = MemKind
       case _ =>
-    } 
+    }
     s map find_stmt(kinds)
   }
 
@@ -40,12 +51,25 @@ object ResolveKinds extends Pass {
        map find_stmt(kinds)
        map resolve_stmt(kinds))
   }
- 
+
   def run(c: Circuit): Circuit =
     c copy (modules = c.modules map resolve_kinds)
 }
 
-object ResolveGenders extends Pass {
+object ResolveGenders extends Pass with DeprecatedPassObject {
+
+  override protected lazy val underlying = new ResolveGenders
+
+}
+
+class ResolveGenders extends Pass with PreservesAll[Transform] {
+
+  override val prerequisites =
+    Seq( classOf[passes.CheckHighForm],
+         classOf[passes.ResolveKinds],
+         classOf[passes.InferTypes],
+         classOf[passes.Uniquify] ) ++ firrtl.stage.Forms.WorkingIR
+
   def resolve_e(g: Gender)(e: Expression): Expression = e match {
     case ex: WRef => ex copy (gender = g)
     case WSubField(exp, name, tpe, _) => WSubField(
@@ -59,7 +83,7 @@ object ResolveGenders extends Pass {
       WSubAccess(resolve_e(g)(exp), resolve_e(MALE)(index), tpe, g)
     case _ => e map resolve_e(g)
   }
-        
+
   def resolve_s(s: Statement): Statement = s match {
     //TODO(azidar): pretty sure don't need to do anything for Attach, but not positive...
     case IsInvalid(info, expr) =>
@@ -77,7 +101,16 @@ object ResolveGenders extends Pass {
     c copy (modules = c.modules map resolve_gender)
 }
 
-object CInferMDir extends Pass {
+object CInferMDir extends Pass with DeprecatedPassObject {
+
+  override protected lazy val underlying = new CInferMDir
+
+}
+
+class CInferMDir extends Pass with PreservesAll[Transform] {
+
+  override val prerequisites = firrtl.stage.Forms.ChirrtlForm :+ classOf[CInferTypes]
+
   type MPortDirMap = collection.mutable.LinkedHashMap[String, MPortDir]
 
   def infer_mdir_e(mports: MPortDirMap, dir: MPortDir)(e: Expression): Expression = e match {
@@ -111,7 +144,7 @@ object CInferMDir extends Pass {
     case e => e map infer_mdir_e(mports, dir)
   }
 
-  def infer_mdir_s(mports: MPortDirMap)(s: Statement): Statement = s match { 
+  def infer_mdir_s(mports: MPortDirMap)(s: Statement): Statement = s match {
     case sx: CDefMPort =>
        mports(sx.name) = sx.direction
        sx map infer_mdir_e(mports, MRead)
@@ -125,17 +158,17 @@ object CInferMDir extends Pass {
        sx
     case sx => sx map infer_mdir_s(mports) map infer_mdir_e(mports, MRead)
   }
-        
-  def set_mdir_s(mports: MPortDirMap)(s: Statement): Statement = s match { 
+
+  def set_mdir_s(mports: MPortDirMap)(s: Statement): Statement = s match {
     case sx: CDefMPort => sx copy (direction = mports(sx.name))
     case sx => sx map set_mdir_s(mports)
   }
-  
+
   def infer_mdir(m: DefModule): DefModule = {
     val mports = new MPortDirMap
     m map infer_mdir_s(mports) map set_mdir_s(mports)
   }
-     
+
   def run(c: Circuit): Circuit =
     c copy (modules = c.modules map infer_mdir)
 }

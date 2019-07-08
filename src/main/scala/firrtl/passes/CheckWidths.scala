@@ -8,11 +8,14 @@ import firrtl.PrimOps._
 import firrtl.traversals.Foreachers._
 import firrtl.Utils._
 import firrtl.annotations.{CircuitTarget, ModuleTarget, Target, TargetToken}
+import firrtl.options.PreservesAll
 
-object CheckWidths extends Pass {
+object CheckWidths extends Pass with DeprecatedPassObject {
+
   /** The maximum allowed width for any circuit element */
   val MaxWidth = 1000000
   val DshlMaxWidth = ceilLog2(MaxWidth + 1)
+
   class UninferredWidth (info: Info, target: String) extends PassException(
     s"""|$info : Uninferred width for target below. (Did you forget to assign to it?)
         |$target""".stripMargin)
@@ -32,6 +35,16 @@ object CheckWidths extends Pass {
     s"$info: [target $mname] Parameter $n in tail operator is larger than input width $width.")
   class AttachWidthsNotEqual(info: Info, mname: String, eName: String, source: String) extends PassException(
     s"$info: [target $mname] Attach source $source and expression $eName must have identical widths.")
+
+  override protected lazy val underlying = new CheckWidths
+
+}
+
+class CheckWidths extends Pass with PreservesAll[Transform] {
+
+  import CheckWidths._
+
+  override val prerequisites = classOf[passes.InferWidths] +: firrtl.stage.Forms.WorkingIR
 
   def run(c: Circuit): Circuit = {
     val errors = new Errors()

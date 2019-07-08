@@ -8,9 +8,9 @@ import firrtl.PrimOps._
 import firrtl.Utils._
 import firrtl.traversals.Foreachers._
 import firrtl.WrappedType._
+import firrtl.options.PreservesAll
 
-object CheckHighForm extends Pass {
-  type NameSet = collection.mutable.HashSet[String]
+object CheckHighForm extends Pass with DeprecatedPassObject {
 
   // Custom Exceptions
   class NotUniqueException(info: Info, mname: String, name: String) extends PassException(
@@ -57,6 +57,18 @@ object CheckHighForm extends Pass {
     s"$info: [module $mname] Primop $op lsb $lsb > $msb.")
   class NonLiteralAsyncResetValueException(info: Info, mname: String, reg: String, init: String) extends PassException(
     s"$info: [module $mname] AsyncReset Reg '$reg' reset to non-literal '$init'")
+
+  override protected lazy val underlying = new CheckHighForm
+
+}
+
+class CheckHighForm extends Pass with PreservesAll[Transform] {
+
+  import CheckHighForm._
+
+  override val prerequisites = firrtl.stage.Forms.WorkingIR
+
+  type NameSet = collection.mutable.HashSet[String]
 
   def run(c: Circuit): Circuit = {
     val errors = new Errors()
@@ -219,9 +231,8 @@ object CheckHighForm extends Pass {
   }
 }
 
-object CheckTypes extends Pass {
+object CheckTypes extends Pass with DeprecatedPassObject {
 
-  // Custom Exceptions
   class SubfieldNotInBundle(info: Info, mname: String, name: String) extends PassException(
     s"$info: [module $mname ]  Subfield $name is not in bundle.")
   class SubfieldOnNonBundle(info: Info, mname: String, name: String) extends PassException(
@@ -285,6 +296,23 @@ object CheckTypes extends Pass {
   class IllegalUnknownType(info: Info, mname: String, exp: String) extends PassException(
     s"$info: [module $mname]  Uninferred type: $exp."
   )
+
+  override protected lazy val underlying = new CheckTypes
+
+}
+
+class CheckTypes extends Pass with PreservesAll[Transform] {
+
+  import CheckTypes._
+
+  override val prerequisites = Seq( classOf[InferTypes] ) ++ firrtl.stage.Forms.WorkingIR
+
+  override val dependents =
+    Seq( classOf[passes.Uniquify],
+         classOf[passes.ResolveGenders],
+         classOf[passes.CheckGenders],
+         classOf[passes.InferWidths],
+         classOf[passes.CheckWidths] )
 
   //;---------------- Helper Functions --------------
   def ut: UIntType = UIntType(UnknownWidth)
@@ -475,7 +503,18 @@ object CheckTypes extends Pass {
   }
 }
 
-object CheckGenders extends Pass {
+object CheckGenders extends Pass with DeprecatedPassObject {
+
+  override protected lazy val underlying = new CheckGenders
+
+}
+
+class CheckGenders extends Pass with PreservesAll[Transform] {
+
+  override val prerequisites = classOf[passes.ResolveGenders] +: firrtl.stage.Forms.WorkingIR
+
+  override val dependents = Seq( classOf[passes.InferWidths], classOf[passes.CheckWidths] )
+
   type GenderMap = collection.mutable.HashMap[String, Gender]
 
   implicit def toStr(g: Gender): String = g match {

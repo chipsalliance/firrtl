@@ -224,9 +224,9 @@ class TopWiringTransform extends Transform {
   /** Run passes to fix up the circuit of making the new connections  */
   private def fixupCircuit(circuit: Circuit): Circuit = {
     val passes = Seq(
-      InferTypes,
-      ResolveKinds,
-      ResolveGenders
+      new InferTypes,
+      new ResolveKinds,
+      new ResolveGenders
     )
     passes.foldLeft(circuit) { case (c: Circuit, p: Pass) => p.run(c) }
   }

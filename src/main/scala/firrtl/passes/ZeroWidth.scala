@@ -7,7 +7,22 @@ import firrtl.ir._
 import firrtl._
 import firrtl.Mappers._
 
-object ZeroWidth extends Transform {
+class ZeroWidth extends Transform {
+
+  override val prerequisites =
+    Seq( classOf[PullMuxes],
+         classOf[ReplaceAccesses],
+         classOf[ExpandConnects],
+         classOf[RemoveAccesses],
+         classOf[Uniquify],
+         classOf[ExpandWhensAndCheck],
+         classOf[ConvertFixedToSInt] ) ++ firrtl.stage.Forms.Deduped
+
+  override def invalidates(a: Transform): Boolean = a match {
+    case _: InferTypes => true
+    case _             => false
+  }
+
   def inputForm: CircuitForm = UnknownForm
   def outputForm: CircuitForm = UnknownForm
 
@@ -173,10 +188,16 @@ object ZeroWidth extends Transform {
   def execute(state: CircuitState): CircuitState = {
     // run executeEmptyMemStmt first to remove zero-width memories
     // then run InferTypes to update widths for addr, en, clk, etc
-    val c = InferTypes.run(executeEmptyMemStmt(state).circuit)
+    val c = (new InferTypes).run(executeEmptyMemStmt(state).circuit)
     val renames = RenameMap()
     renames.setCircuit(c.main)
     val result = c.copy(modules = c.modules map onModule(renames))
     CircuitState(result, outputForm, state.annotations, Some(renames))
   }
+}
+
+object ZeroWidth extends Transform with DeprecatedTransformObject {
+
+  override protected lazy val underlying = new ZeroWidth
+
 }

@@ -22,22 +22,20 @@ import firrtl.Mappers._
   *   wire foo_b : UInt<16>
   * }}}
   */
-object LowerTypes extends Transform {
+class LowerTypes extends Transform {
+
+  import LowerTypes._
+
   def inputForm = UnknownForm
   def outputForm = UnknownForm
 
-  /** Delimiter used in lowering names */
-  val delim = "_"
-  /** Expands a chain of referential [[firrtl.ir.Expression]]s into the equivalent lowered name
-    * @param e [[firrtl.ir.Expression]] made up of _only_ [[firrtl.WRef]], [[firrtl.WSubField]], and [[firrtl.WSubIndex]]
-    * @return Lowered name of e
-    */
-  def loweredName(e: Expression): String = e match {
-    case e: WRef => e.name
-    case e: WSubField => s"${loweredName(e.expr)}$delim${e.name}"
-    case e: WSubIndex => s"${loweredName(e.expr)}$delim${e.value}"
+  override val prerequisites = firrtl.stage.Forms.MidForm
+
+  override def invalidates(a: Transform): Boolean = a match {
+    case _: ResolveKinds | _: InferTypes | _: ResolveGenders | _: InferWidths => true
+    case _ => false
   }
-  def loweredName(s: Seq[String]): String = s mkString delim
+
   def renameExps(renames: RenameMap, n: String, t: Type, root: String): Seq[String] =
     renameExps(renames, WRef(n, t, ExpKind, UNKNOWNGENDER), root)
   def renameExps(renames: RenameMap, n: String, t: Type): Seq[String] =
@@ -148,7 +146,7 @@ object LowerTypes extends Transform {
         val exps = lowerTypesMemExp(memDataTypeMap, info, mname)(e)
         exps.size match {
           case 1 => exps.head
-          case _ => error("Error! lowerTypesExp called on MemKind " + 
+          case _ => error("Error! lowerTypesExp called on MemKind " +
                           "SubField that needs to be expanded!")(info, mname)
         }
       case _ => WRef(loweredName(e), e.tpe, kind(e), gender(e))
@@ -164,11 +162,11 @@ object LowerTypes extends Transform {
     s map lowerTypesStmt(memDataTypeMap, info, mname, renames) match {
       case s: DefWire => s.tpe match {
         case _: GroundType => s
-        case _ => 
+        case _ =>
           val exps = create_exps(s.name, s.tpe)
           val names = exps map loweredName
           renameExps(renames, s.name, s.tpe)
-          Block((exps zip names) map { case (e, n) => 
+          Block((exps zip names) map { case (e, n) =>
             DefWire(s.info, n, e.tpe)
           })
       }
@@ -190,7 +188,7 @@ object LowerTypes extends Transform {
         case t: BundleType =>
           val fieldsx = t.fields flatMap { f =>
             renameExps(renames, f.name, f.tpe, s"${sx.name}.")
-            create_exps(WRef(f.name, f.tpe, ExpKind, times(f.flip, MALE))) map { e => 
+            create_exps(WRef(f.name, f.tpe, ExpKind, times(f.flip, MALE))) map { e =>
               // Flip because inst genders are reversed from Module type
               Field(loweredName(e), swap(to_flip(gender(e))), e.tpe)
             }
@@ -286,3 +284,22 @@ object LowerTypes extends Transform {
   }
 }
 
+object LowerTypes extends Transform with DeprecatedTransformObject {
+
+  override protected lazy val underlying = new LowerTypes
+
+  /** Delimiter used in lowering names */
+  val delim = "_"
+
+  /** Expands a chain of referential [[firrtl.ir.Expression]]s into the equivalent lowered name
+    * @param e [[firrtl.ir.Expression]] made up of _only_ [[firrtl.WRef]], [[firrtl.WSubField]], and [[firrtl.WSubIndex]]
+    * @return Lowered name of e
+    */
+  def loweredName(e: Expression): String = e match {
+    case e: WRef => e.name
+    case e: WSubField => s"${loweredName(e.expr)}$delim${e.name}"
+    case e: WSubIndex => s"${loweredName(e.expr)}$delim${e.value}"
+  }
+  def loweredName(s: Seq[String]): String = s mkString delim
+
+}
