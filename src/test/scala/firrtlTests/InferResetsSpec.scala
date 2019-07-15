@@ -204,6 +204,7 @@ class InferResetsSpec extends FirrtlFlatSpec {
       |    out <= w
       |""".stripMargin
     )
+    result1 should containTree { case DefWire(_, "w", BoolType) => true }
     val result2 = compile(s"""
       |circuit top :
       |  module top :
@@ -214,6 +215,8 @@ class InferResetsSpec extends FirrtlFlatSpec {
       |    w <= bar
       |""".stripMargin
     )
+    val AggType = BundleType(Seq(Field("a", Flip, BoolType)))
+    result2 should containTree { case DefWire(_, "w", AggType) => true }
     val result3 = compile(s"""
       |circuit top :
       |  module top :
@@ -224,6 +227,7 @@ class InferResetsSpec extends FirrtlFlatSpec {
       |    out <- w
       |""".stripMargin
     )
+    result3 should containTree { case DefWire(_, "w", BoolType) => true }
   }
 
   it should "not allow ResetType as an Input or ExtModule output" in {
