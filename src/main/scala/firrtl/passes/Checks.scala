@@ -435,8 +435,8 @@ object CheckTypes extends Pass {
         case (_: FixedType, _: FixedType) => flip1 == flip2
         case (_: AnalogType, _: AnalogType) => true
         case (AsyncResetType, AsyncResetType) => flip1 == flip2
-        case (ResetType, reset) => legalResetType(reset) && flip1 == Default && flip1 == flip2
-        case (reset, ResetType) => legalResetType(reset) && flip1 == Flip && flip1 == flip2
+        case (ResetType, tpe) => legalResetType(tpe) && flip1 == flip2
+        case (tpe, ResetType) => legalResetType(tpe) && flip1 == flip2
         case (t1: BundleType, t2: BundleType) =>
           val t1_fields = (t1.fields foldLeft Map[String, (Type, Orientation)]())(
             (map, f1) => map + (f1.name ->( (f1.tpe, f1.flip) )))

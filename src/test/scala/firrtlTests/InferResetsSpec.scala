@@ -17,6 +17,8 @@ class InferResetsSpec extends FirrtlFlatSpec {
 
   behavior of "ResetType"
 
+  val BoolType = UIntType(IntWidth(1))
+
   it should "support casting to other types" in {
     val result = compile(s"""
       |circuit top:
@@ -44,10 +46,6 @@ class InferResetsSpec extends FirrtlFlatSpec {
     result should containLine ("y <= asSInt(r)")
     result should containLine ("z <= asAsyncReset(r)")
   }
-
-  behavior of "Reset Inference"
-
-  val BoolType = UIntType(IntWidth(1))
 
   it should "work across Module boundaries" in {
     val result = compile(s"""
@@ -195,43 +193,37 @@ class InferResetsSpec extends FirrtlFlatSpec {
     }
   }
 
-  it should "not allow ResetType to drive AsyncResets or UInt<1>" in {
-    an [CheckTypes.InvalidConnect] shouldBe thrownBy {
-      val result = compile(s"""
-        |circuit top :
-        |  module top :
-        |    input in : UInt<1>
-        |    output out : UInt<1>
-        |    wire w : Reset
-        |    w <= in
-        |    out <= w
-        |""".stripMargin
-      )
-    }
-    an [CheckTypes.InvalidConnect] shouldBe thrownBy {
-      val result = compile(s"""
-        |circuit top :
-        |  module top :
-        |    output foo : { flip a : UInt<1> }
-        |    input bar : { flip a : UInt<1> }
-        |    wire w : { flip a : Reset }
-        |    foo <= w
-        |    w <= bar
-        |""".stripMargin
-      )
-    }
-    an [CheckTypes.InvalidConnect] shouldBe thrownBy {
-      val result = compile(s"""
-        |circuit top :
-        |  module top :
-        |    input in : UInt<1>
-        |    output out : UInt<1>
-        |    wire w : Reset
-        |    w <- in
-        |    out <- w
-        |""".stripMargin
-      )
-    }
+  it should "allow ResetType to drive AsyncResets or UInt<1>" in {
+    val result1 = compile(s"""
+      |circuit top :
+      |  module top :
+      |    input in : UInt<1>
+      |    output out : UInt<1>
+      |    wire w : Reset
+      |    w <= in
+      |    out <= w
+      |""".stripMargin
+    )
+    val result2 = compile(s"""
+      |circuit top :
+      |  module top :
+      |    output foo : { flip a : UInt<1> }
+      |    input bar : { flip a : UInt<1> }
+      |    wire w : { flip a : Reset }
+      |    foo <= w
+      |    w <= bar
+      |""".stripMargin
+    )
+    val result3 = compile(s"""
+      |circuit top :
+      |  module top :
+      |    input in : UInt<1>
+      |    output out : UInt<1>
+      |    wire w : Reset
+      |    w <- in
+      |    out <- w
+      |""".stripMargin
+    )
   }
 
   it should "not allow ResetType as an Input or ExtModule output" in {
