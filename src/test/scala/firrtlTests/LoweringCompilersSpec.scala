@@ -195,10 +195,10 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
 
   it should "work for High -> High" in {
     val expected = Orderings.ChirrtlToHighFirrtl ++
-      Some(classOf[Transforms.HighToHigh]) ++
       Some(classOf[passes.ToWorkingIR]) ++
       Orderings.ResolveAndCheck ++
       Some(classOf[firrtl.transforms.DedupModules]) ++
+      Some(classOf[Transforms.HighToHigh]) ++
       Orderings.HighFirrtlToMiddleFirrtl
     compare((new TransformManager(Forms.MidForm :+ classOf[Transforms.HighToHigh])).flattenedTransformOrder, expected)
   }
