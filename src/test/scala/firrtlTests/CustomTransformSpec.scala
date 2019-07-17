@@ -55,6 +55,44 @@ object CustomTransformSpec {
       state
     }
   }
+
+  object MutableState {
+    var count: Int = 0
+  }
+
+  class FirstTransform extends Transform {
+    def inputForm = HighForm
+    def outputForm = HighForm
+
+    def execute(state: CircuitState): CircuitState = {
+      require(MutableState.count == 0, s"Count was ${MutableState.count}, expected 0")
+      MutableState.count = 1
+      state
+    }
+  }
+
+  class SecondTransform extends Transform {
+    def inputForm = HighForm
+    def outputForm = HighForm
+
+    def execute(state: CircuitState): CircuitState = {
+      require(MutableState.count == 1, s"Count was ${MutableState.count}, expected 1")
+      MutableState.count = 2
+      state
+    }
+  }
+
+  class ThirdTransform extends Transform {
+    def inputForm = HighForm
+    def outputForm = HighForm
+
+    def execute(state: CircuitState): CircuitState = {
+      require(MutableState.count == 2, s"Count was ${MutableState.count}, expected 2")
+      MutableState.count = 3
+      state
+    }
+  }
+
 }
 
 class CustomTransformSpec extends FirrtlFlatSpec {
@@ -76,5 +114,14 @@ class CustomTransformSpec extends FirrtlFlatSpec {
     (the [java.lang.IllegalArgumentException] thrownBy {
       Driver.execute(optionsManager)
     }).getMessage should include (errorString)
+  }
+
+  they should "preserve the input order" in {
+    runFirrtlTest("CustomTransform", "/features", customTransforms = List(
+                    new FirstTransform,
+                    new SecondTransform,
+                    new ThirdTransform,
+                    new ReplaceExtModuleTransform
+                  ))
   }
 }

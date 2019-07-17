@@ -4,9 +4,11 @@ package firrtlTests.stage.phases
 
 import org.scalatest.{FlatSpec, Matchers}
 
+import scala.collection.mutable
+
 import firrtl.{Compiler => _, _}
-import firrtl.options.{Phase, PhasePrerequisiteException}
-import firrtl.stage.{CompilerAnnotation, FirrtlCircuitAnnotation, RunFirrtlTransformAnnotation}
+import firrtl.options.{Phase, PreservesAll}
+import firrtl.stage.{CompilerAnnotation, FirrtlCircuitAnnotation, Forms, RunFirrtlTransformAnnotation}
 import firrtl.stage.phases.Compiler
 
 class CompilerSpec extends FlatSpec with Matchers {
@@ -139,5 +141,38 @@ class CompilerSpec extends FlatSpec with Matchers {
       .collect{ case a: EmittedAnnotation[_] => a }
       .size should be (20)
   }
+
+  it should "run transforms in sequential order" in new Fixture {
+    import CompilerSpec.{FirstTransform, SecondTransform}
+
+    val circuitIn = Parser.parse(chirrtl("top"))
+    val annotations =
+      Seq( FirrtlCircuitAnnotation(circuitIn),
+           CompilerAnnotation(new VerilogCompiler),
+           RunFirrtlTransformAnnotation(new FirstTransform),
+           RunFirrtlTransformAnnotation(new SecondTransform) )
+    phase.transform(annotations)
+
+    CompilerSpec.globalState.toSeq should be (Seq(classOf[FirstTransform], classOf[SecondTransform]))
+  }
+
+}
+
+object CompilerSpec {
+
+  private[CompilerSpec] val globalState: mutable.Queue[Class[_ <: Transform]] = mutable.Queue.empty[Class[_ <: Transform]]
+
+  class LoggingTransform extends Transform with PreservesAll[Transform] {
+    override def inputForm = UnknownForm
+    override def outputForm = UnknownForm
+    override def prerequisites = Forms.HighForm
+    def execute(c: CircuitState): CircuitState = {
+      globalState += this.getClass
+      c
+    }
+  }
+
+  class FirstTransform extends LoggingTransform
+  class SecondTransform extends LoggingTransform
 
 }
