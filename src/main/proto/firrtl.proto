@@ -94,6 +94,10 @@ message Firrtl {
     }
 
     message Register {
+      enum Edge {
+        REGISTER_EDGE_POSEDGE = 0;
+        REGISTER_EDGE_NEGEDGE = 1;
+      }
       // Required.
       string id = 1;
       // Required.
@@ -102,6 +106,7 @@ message Firrtl {
       Expression clock = 3;
       Expression reset = 4;
       Expression init = 5;
+      Edge edge = 6;
     }
 
     message Memory {

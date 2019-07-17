@@ -103,7 +103,16 @@ class Visitor(infoMode: InfoMode) extends AbstractParseTreeVisitor[FirrtlNode] w
       case "output" => Output
     }
 
-  private def visitMdir(ctx: MdirContext): MPortDir =
+  private def visitEdge[FirrtlNode](ctx: Option[EdgeContext]): Edge =
+    ctx match {
+      case Some(edge) => edge.getText match {
+        case "posedge" => Posedge
+        case "negedge" => Negedge
+      }
+      case None => Posedge
+    }
+
+  private def visitMdir[FirrtlNode](ctx: MdirContext): MPortDir =
     ctx.getText match {
       case "infer" => MInfer
       case "read" => MRead
@@ -138,6 +147,7 @@ class Visitor(infoMode: InfoMode) extends AbstractParseTreeVisitor[FirrtlNode] w
       case typeContext: TypeContext => new VectorType(visitType(ctx.`type`), string2Int(ctx.intLit(0).getText))
     }
   }
+
 
   // Special case "type" of CHIRRTL mems because their size can be BigInt
   private def visitCMemType(ctx: TypeContext): (Type, BigInt) = {
@@ -252,6 +262,7 @@ class Visitor(infoMode: InfoMode) extends AbstractParseTreeVisitor[FirrtlNode] w
         case "reg" =>
           val name = ctx.id(0).getText
           val tpe = visitType(ctx.`type`())
+          val edge = visitEdge(Option(ctx.edge))
           val (reset, init) = {
             val rb = ctx.reset_block()
             if (rb != null) {
@@ -261,7 +272,7 @@ class Visitor(infoMode: InfoMode) extends AbstractParseTreeVisitor[FirrtlNode] w
             else
               (UIntLiteral(0, IntWidth(1)), Reference(name, tpe))
           }
-          DefRegister(info, name, tpe, visitExp(ctx_exp(0)), reset, init)
+          DefRegister(info, name, tpe, edge, visitExp(ctx_exp(0)), reset, init)
         case "mem" => visitMem(ctx)
         case "cmem" =>
           val (tpe, size) = visitCMemType(ctx.`type`())

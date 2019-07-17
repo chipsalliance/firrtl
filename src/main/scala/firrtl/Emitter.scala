@@ -253,6 +253,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
         case NoInfo => // Do nothing
         case ix => w.write(s" //$ix")
       }
+      case (i: Edge) => w write i.serialize
       case (s: Seq[Any]) =>
         s foreach (emit(_, top + 1))
         if (top == 0) w write "\n"
@@ -474,11 +475,11 @@ class VerilogEmitter extends SeqTransform with Emitter {
     val attachSynAssigns = ArrayBuffer.empty[Seq[Any]]
     val attachAliases = ArrayBuffer.empty[Seq[Any]]
     // No (aka synchronous) always blocks, keyed by clock
-    val noResetAlwaysBlocks = mutable.LinkedHashMap[Expression, ArrayBuffer[Seq[Any]]]()
+    val noResetAlwaysBlocks = mutable.ArrayBuffer[(Expression, Edge, Seq[Any])]()
     // One always block per async reset register, (Clock, Reset, Content)
     // An alternative approach is to have one always block per combination of clock and async reset,
     // but Formality doesn't allow more than 1 statement inside async reset always blocks
-    val asyncResetAlwaysBlocks = mutable.ArrayBuffer[(Expression, Expression, Seq[Any])]()
+    val asyncResetAlwaysBlocks = mutable.ArrayBuffer[(Expression, Edge, Expression, Seq[Any])]()
     // Used to determine type of initvar for initializing memories
     var maxMemSize: BigInt = BigInt(0)
     val initials = ArrayBuffer[Seq[Any]]()
@@ -528,7 +529,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
       assigns += Seq("`endif // RANDOMIZE_INVALID_ASSIGN")
     }
 
-    def regUpdate(r: Expression, clk: Expression, reset: Expression, init: Expression) = {
+    def regUpdate(r: Expression, clk: Expression, reset: Expression, edge: Edge, init: Expression) = {
       def addUpdate(expr: Expression, tabs: String): Seq[Seq[Any]] = {
         if (weq(expr, r)) Nil // Don't bother emitting connection of register to itself
         else expr match {
@@ -558,23 +559,24 @@ class VerilogEmitter extends SeqTransform with Emitter {
         }
       }
       if (weq(init, r)) { // Synchronous Reset
-        noResetAlwaysBlocks.getOrElseUpdate(clk, ArrayBuffer[Seq[Any]]()) ++= addUpdate(netlist(r), "")
+        noResetAlwaysBlocks += ((clk, edge, addUpdate(netlist(r), "")))
       } else { // Asynchronous Reset
         assert(reset.tpe == AsyncResetType, "Error! Synchronous reset should have been removed!")
         val tv = init
         val fv = netlist(r)
-        asyncResetAlwaysBlocks += ((clk, reset, addUpdate(Mux(reset, tv, fv, mux_type_and_widths(tv, fv)), "")))
+        asyncResetAlwaysBlocks += ((clk, edge, reset, addUpdate(Mux(reset, tv, fv, mux_type_and_widths(tv, fv)), "")))
       }
     }
 
-    def update(e: Expression, value: Expression, clk: Expression, en: Expression, info: Info) = {
-      val lines = noResetAlwaysBlocks.getOrElseUpdate(clk, ArrayBuffer[Seq[Any]]())
+    def update(e: Expression, value: Expression, clk: Expression, edge: Edge, en: Expression, info: Info) = {
+      val lines = ArrayBuffer[Seq[Any]]()
       if (weq(en, one)) lines += Seq(e, " <= ", value, ";")
       else {
         lines += Seq("if(", en, ") begin")
         lines += Seq(tab, e, " <= ", value, ";", info)
         lines += Seq("end")
       }
+      noResetAlwaysBlocks += ((clk, edge, lines))
     }
 
     // Declares an intermediate wire to hold a large enough random number.
@@ -614,8 +616,8 @@ class VerilogEmitter extends SeqTransform with Emitter {
       initials += Seq("`endif // RANDOMIZE_MEM_INIT")
     }
 
-    def simulate(clk: Expression, en: Expression, s: Seq[Any], cond: Option[String], info: Info) = {
-      val lines = noResetAlwaysBlocks.getOrElseUpdate(clk, ArrayBuffer[Seq[Any]]())
+    def simulate(clk: Expression, en: Expression, edge: Edge, s: Seq[Any], cond: Option[String], info: Info) = {
+      val lines = ArrayBuffer[Seq[Any]]()
       lines += Seq("`ifndef SYNTHESIS")
       if (cond.nonEmpty) {
         lines += Seq(s"`ifdef ${cond.get}")
@@ -631,6 +633,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
         lines += Seq("`endif")
       }
       lines += Seq("`endif // SYNTHESIS")
+      noResetAlwaysBlocks += ((clk, edge, lines))
     }
 
     def stop(ret: Int): Seq[Any] = Seq(if (ret == 0) "$finish;" else "$fatal;")
@@ -716,15 +719,15 @@ class VerilogEmitter extends SeqTransform with Emitter {
         case sx: DefRegister =>
           declare("reg", sx.name, sx.tpe, sx.info)
           val e = wref(sx.name, sx.tpe)
-          regUpdate(e, sx.clock, sx.reset, sx.init)
+          regUpdate(e, sx.clock, sx.reset, sx.edge, sx.init)
           initialize(e, sx.reset, sx.init)
         case sx: DefNode =>
           declare("wire", sx.name, sx.value.tpe, sx.info)
           assign(WRef(sx.name, sx.value.tpe, NodeKind, MALE), sx.value, sx.info)
         case sx: Stop =>
-          simulate(sx.clk, sx.en, stop(sx.ret), Some("STOP_COND"), sx.info)
+          simulate(sx.clk, sx.en, Posedge, stop(sx.ret), Some("STOP_COND"), sx.info)
         case sx: Print =>
-          simulate(sx.clk, sx.en, printf(sx.string, sx.args), Some("PRINTF_COND"), sx.info)
+          simulate(sx.clk, sx.en, Posedge, printf(sx.string, sx.args), Some("PRINTF_COND"), sx.info)
         // If we are emitting an Attach, it must not have been removable in VerilogPrep
         case sx: Attach =>
           // For Synthesis
@@ -811,7 +814,8 @@ class VerilogEmitter extends SeqTransform with Emitter {
 
             val mem = WRef(sx.name, memType(sx), MemKind, UNKNOWNGENDER)
             val memPort = WSubAccess(mem, addr, sx.dataType, UNKNOWNGENDER)
-            update(memPort, data, clk, AND(en, mask), sx.info)
+            // TODO: rewrite mem define
+            update(memPort, data, clk, Posedge, AND(en, mask), sx.info)
           }
 
           if (sx.readwriters.nonEmpty)
@@ -893,14 +897,14 @@ class VerilogEmitter extends SeqTransform with Emitter {
         emit(Seq("end"))
       }
 
-      for ((clk, content) <- noResetAlwaysBlocks if content.nonEmpty) {
-        emit(Seq(tab, "always @(posedge ", clk, ") begin"))
+      for ((clk, edge, content) <- noResetAlwaysBlocks if content.nonEmpty) {
+        emit(Seq(tab, "always @(", edge," ", clk, ") begin"))
         for (line <- content) emit(Seq(tab, tab, line))
         emit(Seq(tab, "end"))
       }
 
-      for ((clk, reset, content) <- asyncResetAlwaysBlocks if content.nonEmpty) {
-        emit(Seq(tab, "always @(posedge ", clk, " or posedge ", reset, ") begin"))
+      for ((clk, edge, reset, content) <- asyncResetAlwaysBlocks if content.nonEmpty) {
+        emit(Seq(tab, "always @(", edge," ", clk, " or ", edge," ", reset, ") begin"))
         for (line <- content) emit(Seq(tab, tab, line))
         emit(Seq(tab, "end"))
       }

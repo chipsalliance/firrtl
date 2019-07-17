@@ -250,19 +250,29 @@ case class DefWire(info: Info, name: String, tpe: Type) extends Statement with I
   def foreachString(f: String => Unit): Unit = f(name)
   def foreachInfo(f: Info => Unit): Unit = f(info)
 }
+
+sealed abstract class Edge extends FirrtlNode
+case object Posedge extends Edge {
+  def serialize: String = "posedge"
+}
+case object Negedge extends Edge {
+  def serialize: String = "negedge"
+}
+
 case class DefRegister(
     info: Info,
     name: String,
     tpe: Type,
+    edge: Edge,
     clock: Expression,
     reset: Expression,
     init: Expression) extends Statement with IsDeclaration {
   def serialize: String =
-    s"reg $name : ${tpe.serialize}, ${clock.serialize} with :" +
+    s"reg $name : ${tpe.serialize}, ${edge.serialize} ${clock.serialize} with :" +
     indent("\n" + s"reset => (${reset.serialize}, ${init.serialize})" + info.serialize)
   def mapStmt(f: Statement => Statement): Statement = this
   def mapExpr(f: Expression => Expression): Statement =
-    DefRegister(info, name, tpe, f(clock), f(reset), f(init))
+    DefRegister(info, name, tpe, edge, f(clock), f(reset), f(init))
   def mapType(f: Type => Type): Statement = this.copy(tpe = f(tpe))
   def mapString(f: String => String): Statement = this.copy(name = f(name))
   def mapInfo(f: Info => Info): Statement = this.copy(info = f(info))

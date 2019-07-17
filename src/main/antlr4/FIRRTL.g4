@@ -46,6 +46,11 @@ dir
   | 'output'
   ;
 
+edge
+  : 'posedge'
+  | 'negedge'
+  ;
+
 type 
   : 'UInt' ('<' intLit '>')?
   | 'SInt' ('<' intLit '>')?
@@ -90,7 +95,8 @@ reset_block
 
 stmt
   : 'wire' id ':' type info?
-  | 'reg' id ':' type exp ('with' ':' reset_block)? info?
+  // use edge? for back compatiable
+  | 'reg' id ':' type edge? exp ('with' ':' reset_block)? info?
   | 'mem' id ':' info? INDENT memField* DEDENT
   | 'cmem' id ':' type info?
   | 'smem' id ':' type info?

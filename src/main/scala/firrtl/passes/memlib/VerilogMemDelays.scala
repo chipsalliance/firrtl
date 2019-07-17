@@ -62,7 +62,7 @@ object VerilogMemDelays extends Pass {
         ((0 until n) foldLeft (wref, Seq[Statement](node))){case ((ex, stmts), i) =>
           val name = namespace newName s"${LowerTypes.loweredName(e)}_pipe_$i"
           val exx = WRef(name, e.tpe, RegKind, ug)
-          (exx, stmts ++ Seq(DefRegister(NoInfo, name, e.tpe, clk, zero, exx)) ++
+          (exx, stmts ++ Seq(DefRegister(NoInfo, name, e.tpe, Posedge, clk, zero, exx)) ++
             (if (i < n - 1 && WrappedExpression.weq(cond, one)) Seq(Connect(NoInfo, exx, ex)) else {
               val condn = namespace newName s"${LowerTypes.loweredName(e)}_en"
               val condx = WRef(condn, BoolType, NodeKind, FEMALE)

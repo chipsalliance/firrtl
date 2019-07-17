@@ -127,12 +127,12 @@ object ZeroWidth extends Transform {
         case None => EmptyStmt
         case Some(t) => DefWire(info, name, t)
       }
-    case d @ DefRegister(info, name, tpe, clock, reset, init) =>
+    case d @ DefRegister(info, name, tpe, edge, clock, reset, init) =>
       renames.delete(getRemoved(d))
       removeZero(tpe) match {
         case None => EmptyStmt
         case Some(t) =>
-         DefRegister(info, name, t, onExp(clock), onExp(reset), onExp(init))
+         DefRegister(info, name, t, edge, onExp(clock), onExp(reset), onExp(init))
       }
     case d: DefMemory =>
       renames.delete(getRemoved(d))

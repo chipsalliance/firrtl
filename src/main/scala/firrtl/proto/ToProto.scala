@@ -212,10 +212,11 @@ object ToProto {
               .setId(name)
               .setType(convert(tpe))
             sb.setWire(wb)
-          case ir.DefRegister(_, name, tpe, clock, reset, init) =>
+          case ir.DefRegister(_, name, tpe, edge, clock, reset, init) =>
             val rb = Firrtl.Statement.Register.newBuilder()
               .setId(name)
               .setType(convert(tpe))
+              .setEdge(convert(edge))
               .setClock(convert(clock))
               .setReset(convert(reset))
               .setInit(convert(init))
@@ -355,6 +356,11 @@ object ToProto {
         val vtb = convert(vtpe)
         tb.setVectorType(vtb)
     }
+  }
+
+  def convert(edge: ir.Edge): Firrtl.Statement.Register.Edge = edge match {
+    case ir.Posedge => Firrtl.Statement.Register.Edge.REGISTER_EDGE_POSEDGE
+    case ir.Negedge => Firrtl.Statement.Register.Edge.REGISTER_EDGE_NEGEDGE
   }
 
   def convert(direction: ir.Direction): Firrtl.Port.Direction = direction match {

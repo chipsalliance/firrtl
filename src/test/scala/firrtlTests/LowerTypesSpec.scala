@@ -94,7 +94,7 @@ class LowerTypesSpec extends FirrtlFlatSpec {
       """.stripMargin
     val expected = Seq("w", "x_a", "x_b", "y_0", "y_1", "y_2", "y_3", "z_0_c_d",
       "z_0_c_e", "z_0_f_0", "z_0_f_1", "z_1_c_d", "z_1_c_e", "z_1_f_0",
-      "z_1_f_1") map (x => s"reg $x : UInt<1>, clock with :") map normalized
+      "z_1_f_1") map (x => s"reg $x : UInt<1>, posedge clock with :") map normalized
 
     executeTest(input, expected)
   }
@@ -106,14 +106,14 @@ class LowerTypesSpec extends FirrtlFlatSpec {
        |    input clock : Clock
        |    input reset : UInt<1>
        |    input init : { a : UInt<1>, b : UInt<1>}[2]
-       |    reg x : { a : UInt<1>, b : UInt<1>}[2], clock with :
+       |    reg x : { a : UInt<1>, b : UInt<1>}[2], posedge clock with :
        |      reset => (reset, init)
      """.stripMargin
     val expected = Seq(
-      "reg x_0_a : UInt<1>, clock with :", "reset => (reset, init_0_a)",
-      "reg x_0_b : UInt<1>, clock with :", "reset => (reset, init_0_b)",
-      "reg x_1_a : UInt<1>, clock with :", "reset => (reset, init_1_a)",
-      "reg x_1_b : UInt<1>, clock with :", "reset => (reset, init_1_b)"
+      "reg x_0_a : UInt<1>, posedge clock with :", "reset => (reset, init_0_a)",
+      "reg x_0_b : UInt<1>, posedge clock with :", "reset => (reset, init_0_b)",
+      "reg x_1_a : UInt<1>, posedge clock with :", "reset => (reset, init_1_a)",
+      "reg x_1_b : UInt<1>, posedge clock with :", "reset => (reset, init_1_b)"
     ) map normalized
 
     executeTest(input, expected)
@@ -126,11 +126,11 @@ class LowerTypesSpec extends FirrtlFlatSpec {
         |    input clock : Clock[2]
         |    input reset : { a : UInt<1>, b : UInt<1>}
         |    input init : { a : UInt<4>, b : { c : UInt<4>, d : UInt<4>}[2]}[4]
-        |    reg foo : UInt<4>, clock[1], with :
+        |    reg foo : UInt<4>, posedge clock[1], with :
         |      reset => (reset.a, init[3].b[1].d)
       """.stripMargin
     val expected = Seq(
-      "reg foo : UInt<4>, clock_1 with :",
+      "reg foo : UInt<4>, posedge clock_1 with :",
       "reset => (reset_a, init_3_b_1_d)"
     ) map normalized
 
