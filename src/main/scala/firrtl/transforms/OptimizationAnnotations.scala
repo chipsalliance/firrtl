@@ -2,6 +2,7 @@
 package firrtl
 package transforms
 
+import firrtl.annotations.Target.ModuleTargetType
 import firrtl.annotations._
 import firrtl.passes.PassException
 
@@ -36,7 +37,7 @@ object DontTouchAnnotation {
   *
   * @note Unlike [[DontTouchAnnotation]], we don't care if the annotation is deleted
   */
-case class OptimizableExtModuleAnnotation(target: ModuleName) extends
-    SingleTargetAnnotation[ModuleName] {
-  def duplicate(n: ModuleName) = this.copy(n)
+case class OptimizableExtModuleAnnotation(target: ModuleTargetType) extends
+    SingleTargetAnnotation[ModuleTargetType] {
+  def duplicate(n: ModuleTargetType) = this.copy(n)
 }

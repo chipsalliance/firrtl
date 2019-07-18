@@ -9,6 +9,7 @@ import firrtl.analyses.InstanceGraph
 import firrtl.annotations._
 import firrtl.passes.{InferTypes, MemPortUtils}
 import firrtl.Utils.throwInternalError
+import firrtl.annotations.Target.ModuleTargetType
 import firrtl.options.{HasShellOptions, ShellOption}
 
 // Datastructures
@@ -16,8 +17,8 @@ import scala.collection.mutable
 
 
 /** A component, e.g. register etc. Must be declared only once under the TopAnnotation */
-case class NoDedupAnnotation(target: ModuleName) extends SingleTargetAnnotation[ModuleName] {
-  def duplicate(n: ModuleName): NoDedupAnnotation = NoDedupAnnotation(n)
+case class NoDedupAnnotation(target: ModuleTargetType) extends SingleTargetAnnotation[ModuleTargetType] {
+  def duplicate(n: ModuleTargetType): NoDedupAnnotation = NoDedupAnnotation(n)
 }
 
 /** If this [[firrtl.annotations.Annotation Annotation]] exists in an [[firrtl.AnnotationSeq AnnotationSeq]],
@@ -51,7 +52,8 @@ class DedupModules extends Transform {
     if (state.annotations.contains(NoCircuitDedupAnnotation)) {
       state
     } else {
-      val noDedups = state.annotations.collect { case NoDedupAnnotation(ModuleName(m, c)) => m }
+//      val noDedups = state.annotations.collect { case NoDedupAnnotation(ModuleName(m, c)) => m }
+      val noDedups = state.annotations.collect { case NoDedupAnnotation(ModuleTarget(_, m)) => m }
       val (newC, renameMap) = run(state.circuit, noDedups, state.annotations)
       state.copy(circuit = newC, renames = Some(renameMap))
     }
@@ -295,10 +297,20 @@ object DedupModules {
 
     val module2Annotations = mutable.HashMap.empty[String, mutable.HashSet[Annotation]]
     annotations.foreach { a =>
-      a.getTargets.foreach { t =>
-        val annos = module2Annotations.getOrElseUpdate(t.moduleOpt.get, mutable.HashSet.empty[Annotation])
-        annos += a
-      }
+      a.getTargets.foreach { t => t match {
+        /* FIXME: In order to preserve current semantics, now that all annotations are Targets,
+            we ignore all ReferenceTargets unless the annotation is DontTouchAnnotation.
+         */
+        case r: ReferenceTarget if !a.isInstanceOf[DontTouchAnnotation] =>
+        case _ =>
+          // If this annotation doesn't have a moduleName, we aren't interested in it.
+          t.moduleOpt match {
+            case Some(moduleName: String) =>
+              val annos = module2Annotations.getOrElseUpdate(moduleName, mutable.HashSet.empty[Annotation])
+              annos += a
+            case None =>
+          }
+      }}
     }
     def fastSerializedHash(s: Statement): Int ={
       def serialize(builder: StringBuilder, nindent: Int)(s: Statement): Unit = s match {

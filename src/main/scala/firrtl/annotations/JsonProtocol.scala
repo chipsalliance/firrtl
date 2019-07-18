@@ -16,8 +16,8 @@ object JsonProtocol {
     { case x: Class[_] => JString(x.getName) }
   ))
   // TODO Reduce boilerplate?
-  class NamedSerializer extends CustomSerializer[Named](format => (
-    { case JString(s) => AnnotationUtils.toNamed(s) },
+  class NamedSerializer extends CustomSerializer[Target](format => (
+    { case JString(s) => AnnotationUtils.toNamed(s).toTarget },
     { case named: Named => JString(named.serialize) }
   ))
   class CircuitNameSerializer extends CustomSerializer[CircuitName](format => (
@@ -72,6 +72,10 @@ object JsonProtocol {
     { case JString(s) => Target.deserialize(s).asInstanceOf[ReferenceTarget] },
     { case named: ReferenceTarget => JString(named.serialize) }
   ))
+  class ComponentTargetSerializer extends CustomSerializer[IsComponent](format => (
+    { case JString(s) => Target.deserialize(s).asInstanceOf[IsComponent] },
+    { case named: ReferenceTarget => JString(named.serialize) }
+  ))
 
   /** Construct Json formatter for annotations */
   def jsonFormat(tags: Seq[Class[_ <: Annotation]]) = {
@@ -80,7 +84,7 @@ object JsonProtocol {
       new ModuleNameSerializer + new ComponentNameSerializer + new TargetSerializer +
       new GenericTargetSerializer + new CircuitTargetSerializer + new ModuleTargetSerializer +
       new InstanceTargetSerializer + new ReferenceTargetSerializer + new TransformSerializer  +
-      new LoadMemoryFileTypeSerializer
+      new LoadMemoryFileTypeSerializer + new ComponentTargetSerializer
   }
 
   /** Serialize annotations to a String for emission */
@@ -114,6 +118,8 @@ object JsonProtocol {
     case e: java.lang.ClassNotFoundException =>
       Failure(new AnnotationClassNotFoundException(e.getMessage))
     case e: org.json4s.ParserUtil.ParseException =>
+      Failure(new InvalidAnnotationJSONException(e.getMessage))
+    case e: org.json4s.MappingException =>
       Failure(new InvalidAnnotationJSONException(e.getMessage))
   }.recoverWith { // If the input is a file, wrap in InvalidAnnotationFileException
     case e => in match {

@@ -38,8 +38,8 @@ class WiringTests extends FirrtlFlatSpec {
   )
 
   it should "wire from a register source (r) to multiple extmodule sinks (X)" in {
-    val sinks = Seq(ModuleName("X", CircuitName("Top")))
-    val source = ComponentName("r", ModuleName("C", CircuitName("Top")))
+    val sinks = Seq(ModuleTarget("Top", "X"))
+    val source = ComponentName("r", ModuleName("C", CircuitName("Top"))).toTarget
     val sas = WiringInfo(source, sinks, "pin")
     val input =
       """|circuit Top :
@@ -124,8 +124,8 @@ class WiringTests extends FirrtlFlatSpec {
   }
 
   it should "wire from a register source (r) to multiple module sinks (X)" in {
-    val sinks = Seq(ModuleName("X", CircuitName("Top")))
-    val source = ComponentName("r", ModuleName("C", CircuitName("Top")))
+    val sinks = Seq(ModuleTarget("Top", "X"))
+    val source = ComponentName("r", ModuleName("C", CircuitName("Top"))).toTarget
     val sas = WiringInfo(source, sinks, "pin")
     val input =
       """|circuit Top :
@@ -210,8 +210,8 @@ class WiringTests extends FirrtlFlatSpec {
   }
 
   it should "wire from a register sink (r) to a wire source (s) in another module (X)" in {
-    val sinks = Seq(ComponentName("s", ModuleName("X", CircuitName("Top"))))
-    val source = ComponentName("r", ModuleName("C", CircuitName("Top")))
+    val sinks = Seq(ComponentName("s", ModuleName("X", CircuitName("Top"))).toTarget)
+    val source = ComponentName("r", ModuleName("C", CircuitName("Top"))).toTarget
     val sas = WiringInfo(source, sinks, "pin")
     val input =
       """|circuit Top :
@@ -299,8 +299,8 @@ class WiringTests extends FirrtlFlatSpec {
   }
 
   it should "wire from a SubField source (r.x) to an extmodule sink (X)" in {
-    val sinks = Seq(ModuleName("X", CircuitName("Top")))
-    val source = ComponentName("r.x", ModuleName("A", CircuitName("Top")))
+    val sinks = Seq(ModuleTarget("Top", "X"))
+    val source = ComponentName("r.x", ModuleName("A", CircuitName("Top"))).toTarget
     val sas = WiringInfo(source, sinks, "pin")
     val input =
       """|circuit Top :
@@ -340,8 +340,8 @@ class WiringTests extends FirrtlFlatSpec {
   }
 
   it should "wire properly with a source as a submodule of a sink" in {
-    val sinks = Seq(ComponentName("s", ModuleName("A", CircuitName("Top"))))
-    val source = ComponentName("r", ModuleName("X", CircuitName("Top")))
+    val sinks = Seq(ComponentName("s", ModuleName("A", CircuitName("Top"))).toTarget)
+    val source = ComponentName("r", ModuleName("X", CircuitName("Top"))).toTarget
     val sas = WiringInfo(source, sinks, "pin")
     val input =
       """|circuit Top :
@@ -384,8 +384,8 @@ class WiringTests extends FirrtlFlatSpec {
   }
 
   it should "wire with source and sink in the same module" in {
-    val sinks = Seq(ComponentName("s", ModuleName("Top", CircuitName("Top"))))
-    val source = ComponentName("r", ModuleName("Top", CircuitName("Top")))
+    val sinks = Seq(ComponentName("s", ModuleName("Top", CircuitName("Top"))).toTarget)
+    val source = ComponentName("r", ModuleName("Top", CircuitName("Top"))).toTarget
     val sas = WiringInfo(source, sinks, "pin")
     val input =
       """|circuit Top :
@@ -410,8 +410,8 @@ class WiringTests extends FirrtlFlatSpec {
   }
 
   it should "wire multiple sinks in the same module" in {
-    val sinks = Seq(ComponentName("s", ModuleName("A", CircuitName("Top"))),
-                    ComponentName("t", ModuleName("A", CircuitName("Top"))))
+    val sinks = Seq(ComponentName("s", ModuleName("A", CircuitName("Top"))).toTarget,
+                    ComponentName("t", ModuleName("A", CircuitName("Top"))).toTarget)
     val source = ComponentName("r", ModuleName("A", CircuitName("Top")))
     val sas = WiringInfo(source, sinks, "pin")
     val input =
@@ -448,8 +448,8 @@ class WiringTests extends FirrtlFlatSpec {
   }
 
   it should "wire clocks" in {
-    val sinks = Seq(ModuleName("X", CircuitName("Top")))
-    val source = ComponentName("clock", ModuleName("A", CircuitName("Top")))
+    val sinks = Seq(ModuleTarget("Top", "X"))
+    val source = ComponentName("clock", ModuleName("A", CircuitName("Top"))).toTarget
     val sas = WiringInfo(source, sinks, "pin")
     val input =
       """|circuit Top :
@@ -487,8 +487,8 @@ class WiringTests extends FirrtlFlatSpec {
   }
 
   it should "handle two source instances with clearly defined sinks" in {
-    val sinks = Seq(ModuleName("X", CircuitName("Top")))
-    val source = ComponentName("clock", ModuleName("A", CircuitName("Top")))
+    val sinks = Seq(ModuleTarget("Top", "X"))
+    val source = ComponentName("clock", ModuleName("A", CircuitName("Top"))).toTarget
     val sas = WiringInfo(source, sinks, "pin")
     val input =
       """|circuit Top :
@@ -530,8 +530,8 @@ class WiringTests extends FirrtlFlatSpec {
   }
 
   it should "wire multiple clocks" in {
-    val sinks = Seq(ModuleName("X", CircuitName("Top")))
-    val source = ComponentName("clock", ModuleName("A", CircuitName("Top")))
+    val sinks = Seq(ModuleTarget("Top", "X"))
+    val source = ComponentName("clock", ModuleName("A", CircuitName("Top"))).toTarget
     val sas = WiringInfo(source, sinks, "pin")
     val input =
       """|circuit Top :
@@ -573,8 +573,8 @@ class WiringTests extends FirrtlFlatSpec {
   }
 
   it should "error with WiringException for indeterminate ownership" in {
-    val sinks = Seq(ModuleName("X", CircuitName("Top")))
-    val source = ComponentName("clock", ModuleName("A", CircuitName("Top")))
+    val sinks = Seq(ModuleTarget("Top", "X"))
+    val source = ComponentName("clock", ModuleName("A", CircuitName("Top"))).toTarget
     val sas = WiringInfo(source, sinks, "pin")
     val input =
       """|circuit Top :
@@ -601,8 +601,8 @@ class WiringTests extends FirrtlFlatSpec {
   }
 
   it should "wire subindex source to sink" in {
-    val sinks = Seq(ModuleName("X", CircuitName("Top")))
-    val source = ComponentName("r[a]", ModuleName("A", CircuitName("Top")))
+    val sinks = Seq(ModuleTarget("Top", "X"))
+    val source = ComponentName("r[a]", ModuleName("A", CircuitName("Top"))).toTarget
     val sas = WiringInfo(source, sinks, "pin")
     val input =
       """|circuit Top :
@@ -644,7 +644,7 @@ class WiringTests extends FirrtlFlatSpec {
   }
 
   it should "wire using Annotations with a sink module" in {
-    val source = SourceAnnotation(ComponentName("r", ModuleName("Top", CircuitName("Top"))), "pin")
+    val source = SourceAnnotation(ComponentName("r", ModuleName("Top", CircuitName("Top"))).toTarget, "pin")
     val sink = SinkAnnotation(ModuleName("X", CircuitName("Top")), "pin")
     val input =
       """|circuit Top :
@@ -676,8 +676,8 @@ class WiringTests extends FirrtlFlatSpec {
   }
 
   it should "wire using Annotations with a sink component" in {
-    val source = SourceAnnotation(ComponentName("r", ModuleName("Top", CircuitName("Top"))), "pin")
-    val sink = SinkAnnotation(ComponentName("s", ModuleName("X", CircuitName("Top"))), "pin")
+    val source = SourceAnnotation(ComponentName("r", ModuleName("Top", CircuitName("Top"))).toTarget, "pin")
+    val sink = SinkAnnotation(ComponentName("s", ModuleName("X", CircuitName("Top"))).toTarget, "pin")
     val input =
       """|circuit Top :
          |  module Top :
@@ -711,8 +711,8 @@ class WiringTests extends FirrtlFlatSpec {
   }
 
   it should "wire using annotations with Aggregate source" in {
-    val source = SourceAnnotation(ComponentName("bundle", ModuleName("A", CircuitName("Top"))), "pin")
-    val sink = SinkAnnotation(ModuleName("B", CircuitName("Top")), "pin")
+    val source = SourceAnnotation(ComponentName("bundle", ModuleName("A", CircuitName("Top"))).toTarget, "pin")
+    val sink = SinkAnnotation(ModuleTarget("Top", "B"), "pin")
     val input =
       """|circuit Top :
          |  module Top :
@@ -754,10 +754,10 @@ class WiringTests extends FirrtlFlatSpec {
   }
 
   it should "wire one sink to multiple, disjoint extmodules" in {
-    val sinkX = Seq(ModuleName("X", CircuitName("Top")))
-    val sourceX = ComponentName("r.x", ModuleName("A", CircuitName("Top")))
-    val sinkY = Seq(ModuleName("Y", CircuitName("Top")))
-    val sourceY = ComponentName("r.x", ModuleName("A", CircuitName("Top")))
+    val sinkX = Seq(ModuleTarget("Top", "X"))
+    val sourceX = ComponentName("r.x", ModuleName("A", CircuitName("Top"))).toTarget
+    val sinkY = Seq(ModuleTarget("Top", "Y"))
+    val sourceY = ComponentName("r.x", ModuleName("A", CircuitName("Top"))).toTarget
     val wiSeq = Seq(
       WiringInfo(sourceX, sinkX, "pin"),
       WiringInfo(sourceY, sinkY, "pin"))

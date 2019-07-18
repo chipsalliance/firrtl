@@ -6,6 +6,7 @@ package annotations
 import firrtl.options.StageUtils
 
 import Annotation.BasicAnnotationTargetType
+import Target.{BasicTargetType, CircuitTargetType, ComponentTargetType, ModuleTargetType, useTargetType}
 
 case class AnnotationException(message: String) extends Exception(message)
 
@@ -27,7 +28,8 @@ trait Annotation extends Product {
     */
   private def extractComponents(ls: scala.collection.Traversable[_]): Seq[Target] = {
     ls.collect {
-      case c: Target => Seq(c)
+      case c: Target =>
+        Seq(c)
       case ls: scala.collection.Traversable[_] => extractComponents(ls)
     }.foldRight(Seq.empty[Target])((seq, c) => c ++ seq)
   }
@@ -60,7 +62,7 @@ trait SingleTargetAnnotation[T <: BasicAnnotationTargetType] extends Annotation 
       case c: Target =>
         val x = renames.get(c)
         x.map(newTargets => newTargets.map(t => duplicate(t.asInstanceOf[T]))).getOrElse(List(this))
-      case _: BasicAnnotationTargetType =>
+      case _: Named =>
         val ret = renames.get(Target.convertNamed2Target(target))
         ret.map(_.map(newT => Target.convertTarget2Named(newT: @unchecked) match {
           case newTarget: T @unchecked =>
@@ -84,7 +86,7 @@ trait SingleStringAnnotation extends NoTargetAnnotation {
 }
 
 object Annotation {
-  type BasicAnnotationTargetType = Named
+  type BasicAnnotationTargetType = Target
 
   @deprecated("This returns a LegacyAnnotation, use an explicit Annotation type", "1.1")
   def apply(target: BasicAnnotationTargetType, transform: Class[_ <: Transform], value: String): LegacyAnnotation =
@@ -159,22 +161,33 @@ private[firrtl] object LegacyAnnotation {
     case LegacyAnnotation(_,_,OldDeletedRegex(_,_)) => errorIllegalAnno("DeletedAnnotation")
     // Some annotations we'll try to support
     case LegacyAnnotation(named, t, _) if t == classOf[InlineInstances] => InlineAnnotation(named)
-    case LegacyAnnotation(n: ModuleName, t, outputConfig) if t == classOf[ClockListTransform] =>
+//    case LegacyAnnotation(n: ModuleName, t, outputConfig) if t == classOf[ClockListTransform] =>
+//      ClockListAnnotation(n, outputConfig)
+//    case LegacyAnnotation(CircuitName(_), transform, "") if transform == classOf[InferReadWrite] =>
+//      InferReadWriteAnnotation
+    case LegacyAnnotation(n: ModuleTarget, t, outputConfig) if t == classOf[ClockListTransform] =>
       ClockListAnnotation(n, outputConfig)
-    case LegacyAnnotation(CircuitName(_), transform, "") if transform == classOf[InferReadWrite] =>
+    case LegacyAnnotation(CircuitTarget(_), transform, "") if transform == classOf[InferReadWrite] =>
       InferReadWriteAnnotation
     case LegacyAnnotation(_,_,PinsRegex(pins)) => PinAnnotation(pins.split(" "))
     case LegacyAnnotation(_, t, value) if t == classOf[ReplSeqMem] =>
       val args = value.split(" ")
       require(args.size == 2, "Something went wrong, stop using legacy ReplSeqMemAnnotation")
       ReplSeqMemAnnotation(args(0), args(1))
-    case LegacyAnnotation(c: ComponentName, transform, "nodedupmem!")
+//    case LegacyAnnotation(c: ComponentName, transform, "nodedupmem!")
+//      if transform == classOf[ResolveMemoryReference] => NoDedupMemAnnotation(c)
+//    case LegacyAnnotation(m: ModuleName, transform, "nodedup!")
+//      if transform == classOf[DedupModules] => NoDedupAnnotation(m)
+//    case LegacyAnnotation(c: ComponentName, _, SourceRegex(pin)) => SourceAnnotation(c, pin)
+//    case LegacyAnnotation(n, _, SinkRegex(pin)) => SinkAnnotation(n, pin)
+//    case LegacyAnnotation(m: ModuleName, t, text) if t == classOf[BlackBoxSourceHelper] =>
+    case LegacyAnnotation(c: ReferenceTarget, transform, "nodedupmem!")
       if transform == classOf[ResolveMemoryReference] => NoDedupMemAnnotation(c)
-    case LegacyAnnotation(m: ModuleName, transform, "nodedup!")
+    case LegacyAnnotation(m: ModuleTarget, transform, "nodedup!")
       if transform == classOf[DedupModules] => NoDedupAnnotation(m)
-    case LegacyAnnotation(c: ComponentName, _, SourceRegex(pin)) => SourceAnnotation(c, pin)
+    case LegacyAnnotation(c: ReferenceTarget, _, SourceRegex(pin)) => SourceAnnotation(c, pin)
     case LegacyAnnotation(n, _, SinkRegex(pin)) => SinkAnnotation(n, pin)
-    case LegacyAnnotation(m: ModuleName, t, text) if t == classOf[BlackBoxSourceHelper] =>
+    case LegacyAnnotation(m: ModuleTarget, t, text) if t == classOf[BlackBoxSourceHelper] =>
       val nArgs = 3
       text.split("\n", nArgs).toList match {
         case "resource" :: id ::  _ => BlackBoxResourceAnno(m, id)
@@ -184,8 +197,10 @@ private[firrtl] object LegacyAnnotation {
       }
     case LegacyAnnotation(_, transform, "noDCE!") if transform == classOf[DeadCodeElimination] =>
       NoDCEAnnotation
-    case LegacyAnnotation(c: ComponentName, _, "DONTtouch!") => DontTouchAnnotation(c.toTarget)
-    case LegacyAnnotation(c: ModuleName, _, "optimizableExtModule!") =>
+//    case LegacyAnnotation(c: ComponentName, _, "DONTtouch!") => DontTouchAnnotation(c.toTarget)
+//    case LegacyAnnotation(c: ModuleName, _, "optimizableExtModule!") =>
+    case LegacyAnnotation(c: ReferenceTarget, _, "DONTtouch!") => DontTouchAnnotation(c)
+    case LegacyAnnotation(c: ModuleTarget, _, "optimizableExtModule!") =>
       OptimizableExtModuleAnnotation(c)
     case other => other
   }

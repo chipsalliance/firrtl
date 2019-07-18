@@ -103,11 +103,13 @@ class AddDescriptionNodes extends Transform {
 
   def collectMaps(annos: Seq[Annotation]): (Map[String, Seq[String]], Map[String, Map[String, Seq[String]]]) = {
     val modMap = annos.collect {
-      case DescriptionAnnotation(ModuleName(m, CircuitName(c)), desc) => (m, desc)
+//      case DescriptionAnnotation(ModuleName(m, CircuitName(c)), desc) => (m, desc)
+      case DescriptionAnnotation(ModuleTarget(c, m), desc) => (m, desc)
     }.groupBy(_._1).mapValues(_.map(_._2))
 
     val compMap = annos.collect {
-      case DescriptionAnnotation(ComponentName(comp, ModuleName(mod, CircuitName(circ))), desc) =>
+//      case DescriptionAnnotation(ComponentName(comp, ModuleName(mod, CircuitName(circ))), desc) =>
+      case DescriptionAnnotation(ReferenceTarget(circ, mod, _, comp, _), desc) =>
         (mod, comp, desc)
     }.groupBy(_._1).mapValues(_.groupBy(_._2).mapValues(_.map(_._3)))
 

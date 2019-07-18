@@ -6,20 +6,16 @@ package transforms
 import org.scalatest.FlatSpec
 import org.scalatest.Matchers
 import org.scalatest.junit.JUnitRunner
+
 import scala.io.Source
 import java.io._
 
 import firrtl._
-import firrtl.ir.{Circuit, Type, GroundType, IntWidth}
+import firrtl.ir.{Circuit, GroundType, IntWidth, Type}
 import firrtl.Parser
+import firrtl.annotations.Target.ComponentTargetType
 import firrtl.passes.PassExceptions
-import firrtl.annotations.{
-   Named,
-   CircuitName,
-   ModuleName,
-   ComponentName,
-   Annotation
-}
+import firrtl.annotations.{Annotation, CircuitName, ComponentName, ModuleName, Named}
 import firrtl.transforms.TopWiring._
 
 
@@ -30,13 +26,13 @@ trait TopWiringTestsCommon extends FirrtlRunners {
    def transform = new TopWiringTransform
 
    def topWiringDummyOutputFilesFunction(dir: String,
-                                         mapping: Seq[((ComponentName, Type, Boolean, Seq[String], String), Int)],
+                                         mapping: Seq[((ComponentTargetType, Type, Boolean, Seq[String], String), Int)],
                                          state: CircuitState): CircuitState = {
      state
    }
 
    def topWiringTestOutputFilesFunction(dir: String,
-                                        mapping: Seq[((ComponentName, Type, Boolean, Seq[String], String), Int)],
+                                        mapping: Seq[((ComponentTargetType, Type, Boolean, Seq[String], String), Int)],
                                         state: CircuitState): CircuitState = {
      val testOutputFile = new PrintWriter(new File(dir, "TopWiringOutputTest.txt" ))
      mapping map {
@@ -79,7 +75,7 @@ class TopWiringTests extends MiddleTransformSpec with TopWiringTestsCommon  {
            |    x <= UInt(0)
            """.stripMargin
       val topwiringannos = Seq(TopWiringAnnotation(ComponentName(s"x",
-                                                                 ModuleName(s"C", CircuitName(s"Top"))),
+                                                                 ModuleName(s"C", CircuitName(s"Top"))).toTarget,
                                                    s"topwiring_"),
                          TopWiringOutputFilesAnnotation(testDirName, topWiringTestOutputFilesFunction))
       val check =

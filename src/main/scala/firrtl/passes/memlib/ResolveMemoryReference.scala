@@ -5,11 +5,12 @@ package memlib
 import firrtl._
 import firrtl.ir._
 import firrtl.Mappers._
+import firrtl.annotations.Target.ComponentTargetType
 import firrtl.annotations._
 
 /** A component, e.g. register etc. Must be declared only once under the TopAnnotation */
-case class NoDedupMemAnnotation(target: ComponentName) extends SingleTargetAnnotation[ComponentName] {
-  def duplicate(n: ComponentName) = NoDedupMemAnnotation(n)
+case class NoDedupMemAnnotation(target: ComponentTargetType) extends SingleTargetAnnotation[ComponentTargetType] {
+  def duplicate(n: ComponentTargetType) = NoDedupMemAnnotation(n)
 }
 
 /** Resolves annotation ref to memories that exactly match (except name) another memory
@@ -66,7 +67,8 @@ class ResolveMemoryReference extends Transform {
   }
   def execute(state: CircuitState): CircuitState = {
     val noDedups = state.annotations.collect {
-      case NoDedupMemAnnotation(ComponentName(cn, ModuleName(mn, _))) => mn -> cn
+//      case NoDedupMemAnnotation(ComponentName(cn, ModuleName(mn, _))) => mn -> cn
+      case NoDedupMemAnnotation(ReferenceTarget(mn, _, _, cn, _)) => mn -> cn
     }
     val noDedupMap: Map[String, Set[String]] = noDedups.groupBy(_._1).mapValues(_.map(_._2).toSet)
     state.copy(circuit = run(state.circuit, noDedupMap))

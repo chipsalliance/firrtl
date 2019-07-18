@@ -59,6 +59,10 @@ object AnnotationUtils {
     case Array(c, m, x) => ComponentName(x, ModuleName(m, CircuitName(c)))
   }
 
+  def toTarget(s: String): Target = {
+    Target.deserialize(s)
+  }
+
   /** Converts a serialized FIRRTL component into a sequence of target tokens
     * @param s
     * @return
@@ -68,7 +72,7 @@ object AnnotationUtils {
     def exp2subcomp(e: ir.Expression): Seq[TargetToken] = e match {
       case ir.Reference(name, _)      => Seq(Ref(name))
       case ir.SubField(expr, name, _) => exp2subcomp(expr) :+ Field(name)
-      case ir.SubIndex(expr, idx, _)  => exp2subcomp(expr) :+ Index(idx)
+      case ir.SubIndex(expr, idx, _)  => exp2subcomp(expr) :+ Index(idx.toString)
       case ir.SubAccess(expr, idx, _) => Utils.throwInternalError(s"For string $s, cannot convert a subaccess $e into a Target")
     }
     exp2subcomp(toExp(s))

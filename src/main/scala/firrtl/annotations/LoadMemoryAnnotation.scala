@@ -32,7 +32,7 @@ object MemoryLoadFileType {
   * @param hexOrBinary   use `\$readmemh` or `\$readmemb`
   */
 case class LoadMemoryAnnotation(
-  target: ComponentName,
+  target: IsComponent,
   fileName: String,
   hexOrBinary: MemoryLoadFileType = MemoryLoadFileType.Hex,
   originalMemoryNameOpt: Option[String] = None
@@ -63,8 +63,10 @@ case class LoadMemoryAnnotation(
 
   def duplicate(newNamed: BasicAnnotationTargetType): LoadMemoryAnnotation = {
     newNamed match {
-      case componentName: ComponentName =>
-        this.copy(target = componentName, originalMemoryNameOpt = Some(target.name))
+//      case componentName: ComponentName =>
+//        this.copy(target = componentName, originalMemoryNameOpt = Some(target.name))
+      case refTarget: ReferenceTarget =>
+        this.copy(target = refTarget, originalMemoryNameOpt = Some(target.name))
       case _ =>
         throw new Exception(s"Cannot annotate anything but a memory, invalid target ${newNamed.serialize}")
     }

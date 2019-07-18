@@ -7,6 +7,7 @@ import java.io.{File, FileWriter, Writer}
 import firrtl.annotations.AnnotationYamlProtocol._
 import firrtl.annotations._
 import firrtl._
+import firrtl.annotations.Target.ComponentTargetType
 import firrtl.transforms.OptimizableExtModuleAnnotation
 import firrtl.passes.InlineAnnotation
 import firrtl.passes.memlib.PinAnnotation
@@ -66,7 +67,7 @@ abstract class AnnotationTests extends AnnotationSpec with Matchers {
     }
     val transform = new DeletingTransform
     val tname = transform.name
-    val inlineAnn = InlineAnnotation(CircuitName("Top"))
+    val inlineAnn = InlineAnnotation(CircuitName("Top").toTarget)
     val result = compiler.compile(CircuitState(parse(input), ChirrtlForm, Seq(inlineAnn)), Seq(transform))
     result.annotations.head should matchPattern {
       case DeletedAnnotation(`tname`, `inlineAnn`) =>
@@ -348,7 +349,7 @@ abstract class AnnotationTests extends AnnotationSpec with Matchers {
         |    bar <= foo
         |""".stripMargin
     val annos = Seq(
-      OptimizableExtModuleAnnotation(ModuleName("DeadExt", CircuitName("Top"))),
+      OptimizableExtModuleAnnotation(ModuleTarget("Top", "DeadExt")),
       manno("Dead"), manno("DeadExt"), manno("Top"),
       anno("d"), anno("d2"),
       anno("foo", mod = "Top"), anno("bar", mod = "Top"),
@@ -415,8 +416,8 @@ abstract class AnnotationTests extends AnnotationSpec with Matchers {
   }
 
   "AnnotationUtils.toNamed" should "invert Named.serialize" in {
-    val x = ComponentName("component", ModuleName("module", CircuitName("circuit")))
-    val y = AnnotationUtils.toNamed(x.serialize)
+    val x = ComponentName("component", ModuleName("module", CircuitName("circuit"))).toTarget
+    val y = AnnotationUtils.toTarget(x.serialize)
     require(x == y)
   }
 
@@ -467,16 +468,16 @@ abstract class AnnotationTests extends AnnotationSpec with Matchers {
 
 class LegacyAnnotationTests extends AnnotationTests {
   def anno(s: String, value: String ="this is a value", mod: String = "Top"): Annotation =
-    Annotation(ComponentName(s, ModuleName(mod, CircuitName("Top"))), classOf[Transform], value)
+    Annotation(ComponentName(s, ModuleName(mod, CircuitName("Top"))).toTarget, classOf[Transform], value)
   def manno(mod: String): Annotation =
-    Annotation(ModuleName(mod, CircuitName("Top")), classOf[Transform], "some value")
+    Annotation(ModuleTarget("Top", mod), classOf[Transform], "some value")
 
   "LegacyAnnotations" should "be readable from file" in {
     val annotationStream = getClass.getResourceAsStream("/annotations/SampleAnnotations.anno")
     val annotationsYaml = scala.io.Source.fromInputStream(annotationStream).getLines().mkString("\n").parseYaml
     val annotationArray = annotationsYaml.convertTo[Array[LegacyAnnotation]]
     annotationArray.length should be (9)
-    annotationArray(0).targetString should be ("ModC")
+    annotationArray(0).targetString should be ("~ModC")
     annotationArray(7).transformClass should be ("firrtl.passes.InlineInstances")
     val expectedValue = "TopOfDiamond\nWith\nSome new lines"
     annotationArray(7).value should be (expectedValue)
@@ -512,24 +513,24 @@ class LegacyAnnotationTests extends AnnotationTests {
 
 class JsonAnnotationTests extends AnnotationTests with BackendCompilationUtilities {
   // Helper annotations
-  case class SimpleAnno(target: ComponentName, value: String) extends
-      SingleTargetAnnotation[ComponentName] {
-    def duplicate(n: ComponentName) = this.copy(target = n)
+  case class SimpleAnno(target: ComponentTargetType, value: String) extends
+      SingleTargetAnnotation[ComponentTargetType] {
+    def duplicate(n: ComponentTargetType) = this.copy(target = n)
   }
-  case class ModuleAnno(target: ModuleName) extends SingleTargetAnnotation[ModuleName] {
-    def duplicate(n: ModuleName) = this.copy(target = n)
+  case class ModuleAnno(target: ModuleTarget) extends SingleTargetAnnotation[ModuleTarget] {
+    def duplicate(n: ModuleTarget) = this.copy(target = n)
   }
 
   def anno(s: String, value: String ="this is a value", mod: String = "Top"): SimpleAnno =
-    SimpleAnno(ComponentName(s, ModuleName(mod, CircuitName("Top"))), value)
-  def manno(mod: String): Annotation = ModuleAnno(ModuleName(mod, CircuitName("Top")))
+    SimpleAnno(ComponentName(s, ModuleName(mod, CircuitName("Top"))).toTarget, value)
+  def manno(mod: String): Annotation = ModuleAnno(ModuleTarget("Top", mod))
 
   "Round tripping annotations through text file" should "preserve annotations" in {
     val annos: Array[Annotation] = Seq(
-      InlineAnnotation(CircuitName("fox")),
-      InlineAnnotation(ModuleName("dog", CircuitName("bear"))),
-      InlineAnnotation(ComponentName("chocolate", ModuleName("like", CircuitName("i")))),
-      InlineAnnotation(ComponentName("chocolate.frog", ModuleName("like", CircuitName("i")))),
+      InlineAnnotation(CircuitName("fox").toTarget),
+      InlineAnnotation(ModuleName("dog", CircuitName("bear")).toTarget),
+      InlineAnnotation(ComponentName("chocolate", ModuleName("like", CircuitName("i"))).toTarget),
+      InlineAnnotation(ComponentName("chocolate.frog", ModuleName("like", CircuitName("i"))).toTarget),
       PinAnnotation(Seq("sea-lion", "monk-seal"))
     ).toArray
 

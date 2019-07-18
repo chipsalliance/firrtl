@@ -26,7 +26,13 @@ case object TargetToken {
   case class Instance(value: String)  extends TargetToken { override def keyword: String = "inst" }
   case class OfModule(value: String)  extends TargetToken { override def keyword: String = "of" }
   case class Ref(value: String)       extends TargetToken { override def keyword: String = "ref" }
-  case class Index(value: Int)        extends TargetToken { override def keyword: String = "[]" }
+  case class Index(value: String)     extends TargetToken {
+    override def keyword: String = "[]"
+    def this(int: Int) = this(int.toString)
+  }
+  object Index {
+    def apply(int: Int): Index = Index(int.toString)
+  }
   case class Field(value: String)     extends TargetToken { override def keyword: String = "." }
   case object Clock                   extends TargetToken { override def keyword: String = "clock"; val value = "" }
   case object Init                    extends TargetToken { override def keyword: String = "init";  val value = "" }
@@ -36,7 +42,7 @@ case object TargetToken {
     "inst" -> ((value: String) => Instance(value)),
     "of" -> ((value: String) => OfModule(value)),
     "ref" -> ((value: String) => Ref(value)),
-    "[]" -> ((value: String) => Index(value.toInt)),
+    "[]" -> ((value: String) => Index(value)),
     "." -> ((value: String) => Field(value)),
     "clock" -> ((value: String) => Clock),
     "init" -> ((value: String) => Init),

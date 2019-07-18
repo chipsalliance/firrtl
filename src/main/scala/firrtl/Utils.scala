@@ -288,8 +288,8 @@ object Utils extends LazyLogging {
         case e: Reference => tokens += TargetToken.Ref(e.name)
         case e: WSubField => tokens += TargetToken.Field(e.name)
         case e: SubField => tokens += TargetToken.Field(e.name)
-        case e: WSubIndex => tokens += TargetToken.Index(e.value)
-        case e: SubIndex => tokens += TargetToken.Index(e.value)
+        case e: WSubIndex => tokens += TargetToken.Index(e.value.toString)
+        case e: SubIndex => tokens += TargetToken.Index(e.value.toString)
         case other => throwInternalError("Cannot call Utils.toTarget on non-referencing expression")
       }
       expr

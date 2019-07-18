@@ -105,7 +105,16 @@ sealed trait Target extends Named {
 
 object Target {
 
-  type BasicTargetType = Named
+  val useTargetType = true
+//  type BasicTargetType = Named
+//  type ModuleTargetType = ModuleName
+//  type CircuitTargetType = CircuitName
+//  type ComponentTargetType = ComponentName
+  type BasicTargetType = Target
+  type ModuleTargetType = ModuleTarget
+  type CircuitTargetType = CircuitTarget
+  type ComponentTargetType = ReferenceTarget
+
   def apply(circuitOpt: Option[String], moduleOpt: Option[String], reference: Seq[TargetToken]): GenericTarget =
     GenericTarget(circuitOpt, moduleOpt, reference.toVector)
 
@@ -134,7 +143,7 @@ object Target {
     if(tokens.tail.nonEmpty) {
       tokens.tail.zip(tokens.tail.tail).foreach {
         case (".", value: String) => subComps += Field(value)
-        case ("[", value: String) => subComps += Index(value.toInt)
+        case ("[", value: String) => subComps += Index(value)
         case other =>
       }
     }
@@ -152,25 +161,31 @@ object Target {
 
   /** @return [[Target]] from human-readable serialization */
   def deserialize(s: String): Target = {
-    val regex = """(?=[~|>/:.\[@])"""
-    s.split(regex).foldLeft(GenericTarget(None, None, Vector.empty)) { (t, tokenString) =>
-      val value = tokenString.tail
-      tokenString(0) match {
-        case '~' if t.circuitOpt.isEmpty && t.moduleOpt.isEmpty && t.tokens.isEmpty =>
-          if(value == "???") t else t.copy(circuitOpt = Some(value))
-        case '|' if t.moduleOpt.isEmpty && t.tokens.isEmpty =>
-          if(value == "???") t else t.copy(moduleOpt = Some(value))
-        case '/' => t.add(Instance(value))
-        case ':' => t.add(OfModule(value))
-        case '>' => t.add(Ref(value))
-        case '.' => t.add(Field(value))
-        case '[' if value.dropRight(1).toInt >= 0 => t.add(Index(value.dropRight(1).toInt))
-        case '@' if value == "clock" => t.add(Clock)
-        case '@' if value == "init" => t.add(Init)
-        case '@' if value == "reset" => t.add(Reset)
-        case other => throw NamedException(s"Cannot deserialize Target: $s")
-      }
-    }.tryToComplete
+    // Accept the old Named form (backwards compatibility)
+    if (s(0) == '~') {
+      val regex = """(?=[~|>/:.\[@])"""
+      s.split(regex).foldLeft(GenericTarget(None, None, Vector.empty)) { (t, tokenString) =>
+        val value = tokenString.tail
+        tokenString(0) match {
+          case '~' if t.circuitOpt.isEmpty && t.moduleOpt.isEmpty && t.tokens.isEmpty =>
+            if(value == "???") t else t.copy(circuitOpt = Some(value))
+          case '|' if t.moduleOpt.isEmpty && t.tokens.isEmpty =>
+            if(value == "???") t else t.copy(moduleOpt = Some(value))
+          case '/' => t.add(Instance(value))
+          case ':' => t.add(OfModule(value))
+          case '>' => t.add(Ref(value))
+          case '.' => t.add(Field(value))
+          case '[' if value.last == ']' => t.add(Index(value.dropRight(1)))
+          case '@' if value == "clock" => t.add(Clock)
+          case '@' if value == "init" => t.add(Init)
+          case '@' if value == "reset" => t.add(Reset)
+          case other => throw NamedException(s"Cannot deserialize Target: $s")
+        }
+      }.tryToComplete
+    } else {
+      // Accept the old Named form (backwards compatibility)
+      AnnotationUtils.toNamed(s).toTarget
+    }
   }
 }
 
@@ -199,12 +214,12 @@ case class GenericTarget(circuitOpt: Option[String],
       val target = this match {
         case GenericTarget(Some(c), None, Vector()) => CircuitTarget(c)
         case GenericTarget(Some(c), Some(m), Vector()) => ModuleTarget(c, m)
-        case GenericTarget(Some(c), Some(m), Ref(r) +: component) => ReferenceTarget(c, m, Nil, r, component)
+        case GenericTarget(Some(c), Some(m), Ref(r) +: component) => ReferenceTarget(c, m, Nil, r, component.toList)
         case GenericTarget(Some(c), Some(m), Instance(i) +: OfModule(o) +: Vector()) => InstanceTarget(c, m, Nil, i, o)
         case GenericTarget(Some(c), Some(m), component) =>
           val path = getPath.getOrElse(Nil)
           (getRef, getInstanceOf) match {
-            case (Some((r, comps)), _) => ReferenceTarget(c, m, path, r, comps)
+            case (Some((r, comps)), _) => ReferenceTarget(c, m, path, r, comps.toList)
             case (None, Some((i, o)))  => InstanceTarget(c, m, path, i, o)
           }
       }
@@ -536,10 +551,16 @@ case class ReferenceTarget(circuit: String,
                            ref: String,
                            component: Seq[TargetToken]) extends IsComponent {
 
-  /** @param value Index value of this target
-    * @return A new [[ReferenceTarget]] to the specified index of this [[ReferenceTarget]]
+  /** This constructor is purely for compatibility with ComponentName and should be eliminated once conversion
+    *  from *Name to *Target is complete
+    * @param module - the name of the module
+    * @param circuit - the name of the circuit.
     */
-  def index(value: Int): ReferenceTarget = ReferenceTarget(circuit, module, path, ref, component :+ Index(value))
+  def this(module: String, circuit: String) = {
+    this(circuit, module, Nil, "???", Nil)
+  }
+  def index(value: String): ReferenceTarget = ReferenceTarget(circuit, module, path, ref, component :+ Index(value))
+  def index(value: Int): ReferenceTarget = ReferenceTarget(circuit, module, path, ref, component :+ Index(value.toString))
 
   /** @param value Field name of this target
     * @return A new [[ReferenceTarget]] to the specified field of this [[ReferenceTarget]]
@@ -662,7 +683,12 @@ case class InstanceTarget(circuit: String,
     InstanceTarget(newPath.circuit, newPath.module, newPath.asPath, instance, ofModule)
 }
 
-
+object ReferenceTarget {
+  def apply(module: String, circuit: String): ReferenceTarget = ReferenceTarget(circuit, module, Nil, "???", Nil)
+//  def unapply(rt: ReferenceTarget): Option[(String, )] = {
+//
+//  }
+}
 /** Named classes associate an annotation with a component in a Firrtl circuit */
 @deprecated("Use Target instead, will be removed in 1.3", "1.2")
 sealed trait Named {

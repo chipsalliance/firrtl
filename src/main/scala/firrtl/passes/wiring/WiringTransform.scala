@@ -3,8 +3,12 @@
 package firrtl.passes
 package wiring
 
+import ch.qos.logback.core.spi.ComponentTracker
 import firrtl._
 import firrtl.Utils._
+import firrtl.annotations.Annotation.BasicAnnotationTargetType
+import firrtl.annotations.Target.ComponentTargetType
+
 import scala.collection.mutable
 import firrtl.annotations._
 
@@ -12,15 +16,15 @@ import firrtl.annotations._
 case class WiringException(msg: String) extends PassException(msg)
 
 /** A component, e.g. register etc. Must be declared only once under the TopAnnotation */
-case class SourceAnnotation(target: ComponentName, pin: String) extends
-    SingleTargetAnnotation[ComponentName] {
-  def duplicate(n: ComponentName) = this.copy(target = n)
+case class SourceAnnotation(target: ComponentTargetType, pin: String) extends
+    SingleTargetAnnotation[ComponentTargetType] {
+  def duplicate(n: ComponentTargetType) = this.copy(target = n)
 }
 
 /** A module, e.g. ExtModule etc., that should add the input pin */
-case class SinkAnnotation(target: Named, pin: String) extends
-    SingleTargetAnnotation[Named] {
-  def duplicate(n: Named) = this.copy(target = n)
+case class SinkAnnotation(target: BasicAnnotationTargetType, pin: String) extends
+    SingleTargetAnnotation[BasicAnnotationTargetType] {
+  def duplicate(n: BasicAnnotationTargetType) = this.copy(target = n)
 }
 
 /** Wires a Module's Source Target to one or more Sink
@@ -52,8 +56,8 @@ class WiringTransform extends Transform {
     annos match {
       case Seq() => state
       case p =>
-        val sinks = mutable.HashMap[String, Seq[Named]]()
-        val sources = mutable.HashMap[String, ComponentName]()
+        val sinks = mutable.HashMap[String, Seq[Target]]()
+        val sources = mutable.HashMap[String, ComponentTargetType]()
         p.foreach {
           case SinkAnnotation(m, pin) =>
             sinks(pin) = sinks.getOrElse(pin, Seq.empty) :+ m
