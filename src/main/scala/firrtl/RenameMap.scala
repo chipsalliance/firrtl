@@ -35,17 +35,12 @@ object RenameMap {
   * These are mutable datastructures for convenience
   */
 // TODO This should probably be refactored into immutable and mutable versions
-final class RenameMap private (earlier: Option[RenameMap] = None, previous: Option[RenameMap] = None) {
+final class RenameMap private (val underlying: mutable.HashMap[CompleteTarget, Seq[CompleteTarget]] = mutable.HashMap[CompleteTarget, Seq[CompleteTarget]](), val chained: Option[RenameMap] = None) {
 
   /** Return a new RenameMap that renames using a copy of this map then rename
     * again with itself
     */
-  def andThen() = new RenameMap(earlier = Some(copy()))
-
-  /** Return a new RenameMap that renames using this map if it continas a valid
-    * rename, otherwise renames with itself
-    */
-  def orElse() = new RenameMap(previous = Some(copy()))
+  def andThen(next: RenameMap) = new RenameMap(next.underlying, chained = Some(this))
 
   /** Record that the from [[firrtl.annotations.CircuitTarget CircuitTarget]] is renamed to another
     * [[firrtl.annotations.CircuitTarget CircuitTarget]]
@@ -123,18 +118,18 @@ final class RenameMap private (earlier: Option[RenameMap] = None, previous: Opti
     * @param renameMap
     * @return
     */
+  @deprecated("will be removed in 1.3", "1.2")
   def ++ (renameMap: RenameMap): RenameMap = {
-    val newPrevious = if (previous.isEmpty) {
-      Some(renameMap)
+    val newChained = if (chained.nonEmpty && renameMap.chained.nonEmpty) {
+      Some(chained.get ++ renameMap.chained.get)
     } else {
-      previous.map(_ ++ renameMap)
+      chained.map(_.copy())
     }
-    copy(previous = newPrevious)
+    new RenameMap(underlying = underlying ++ renameMap.getUnderlying, chained = newChained)
   }
 
-  def copy(earlier: Option[RenameMap] = earlier, previous: Option[RenameMap] = previous): RenameMap = {
-    val ret = new RenameMap(earlier = earlier.map(_.copy()),
-      previous = previous.map(_.copy()))
+  def copy(chained: Option[RenameMap] = chained): RenameMap = {
+    val ret = new RenameMap(chained = chained.map(_.copy()))
     ret.recordAll(underlying)
     ret
   }
@@ -169,7 +164,7 @@ final class RenameMap private (earlier: Option[RenameMap] = None, previous: Opti
   /** Maps old names to new names. New names could still require renaming parts of their name
     * Old names must refer to existing names in the old circuit
     */
-  private val underlying = mutable.HashMap[CompleteTarget, Seq[CompleteTarget]]()
+  //private val underlying = mutable.HashMap[CompleteTarget, Seq[CompleteTarget]]()
 
   /** Records which local InstanceTargets will require modification.
     * Used to reduce time to rename nonlocal targets who's path does not require renaming
@@ -207,15 +202,12 @@ final class RenameMap private (earlier: Option[RenameMap] = None, previous: Opti
     * @return Optionally return sequence of targets that key remaps to
     */
   private def completeGet(key: CompleteTarget): Option[Seq[CompleteTarget]] = {
-    val previousRet = previous.flatMap(_.completeGet(key))
-    if (previousRet.nonEmpty) {
-      previousRet
-    } else if (earlier.nonEmpty) {
-      val earlierRet = earlier.get.completeGet(key).getOrElse(Seq(key))
-      if (earlierRet.isEmpty) {
-        Some(earlierRet)
+    if (chained.nonEmpty) {
+      val chainedRet = chained.get.completeGet(key).getOrElse(Seq(key))
+      if (chainedRet.isEmpty) {
+        Some(chainedRet)
       } else {
-        val hereRet = earlierRet.flatMap(hereCompleteGet)
+        val hereRet = chainedRet.flatMap(hereCompleteGet)
         if (hereRet.isEmpty) { None } else { Some(hereRet.flatten) }
       }
     } else {

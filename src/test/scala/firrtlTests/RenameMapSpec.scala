@@ -533,16 +533,18 @@ class RenameMapSpec extends FirrtlFlatSpec {
     val to1 = top.module("Top").instOf("b", "B")
     renames1.record(from1, to1)
 
-    val renames2 = renames1.andThen()
+    val renames2 = RenameMap()
     val from2 = top.module("B")
     val to2 = top.module("B1")
     renames2.record(from2, to2)
 
-    renames2.get(from1) should be {
+    val renames = renames1.andThen(renames2)
+
+    renames.get(from1) should be {
       Some(Seq(top.module("Top").instOf("b", "B1")))
     }
 
-    renames2.get(from2) should be {
+    renames.get(from2) should be {
       Some(Seq(to2))
     }
   }
@@ -558,42 +560,17 @@ class RenameMapSpec extends FirrtlFlatSpec {
     renames1.delete(modA)
     renames1.record(modB, modB1)
 
-    val renames2 = renames1.andThen()
+    val renames2 = RenameMap()
     renames2.record(modA, modA1)
     renames2.delete(modB1)
 
-    renames2.get(modA) should be {
+    val renames = renames1.andThen(renames2)
+
+    renames.get(modA) should be {
       Some(Seq.empty)
     }
-    renames2.get(modB) should be {
+    renames.get(modB) should be {
       Some(Seq.empty)
-    }
-  }
-
-  it should "correctly orElse renameMaps" in {
-    val top = CircuitTarget("Top")
-    val modA = top.module("A")
-    val modA1 = top.module("A1")
-    val modB = top.module("B")
-    val modB1 = top.module("B1")
-    val modC = top.module("C")
-    val modC1 = top.module("C1")
-
-    val renames1 = RenameMap()
-    renames1.record(modA, modA1)
-    renames1.record(modC, modC1)
-
-    val renames2 = renames1.orElse()
-    renames2.record(modB, modB1)
-
-    renames2.get(modA) should be {
-      Some(Seq(modA1))
-    }
-    renames2.get(modB) should be {
-      Some(Seq(modB1))
-    }
-    renames2.get(modC) should be {
-      Some(Seq(modC1))
     }
   }
 
@@ -638,9 +615,10 @@ class RenameMapSpec extends FirrtlFlatSpec {
       val renames1 = RenameMap()
       renames1.record(inlineInst, inlineMod)
 
-      val renames2 = renames1.andThen()
+      val renames2 = RenameMap()
       renames2.record(oldRef, prefixRef)
-      renames2
+
+      renames1.andThen(renames2)
     }
 
     val inlineRename2 = {
@@ -652,9 +630,10 @@ class RenameMapSpec extends FirrtlFlatSpec {
       val renames1 = RenameMap()
       renames1.record(inlineInst, inlineMod)
 
-      val renames2 = renames1.andThen()
+      val renames2 = RenameMap()
       renames2.record(oldRef, prefixRef)
-      renames2
+
+      renames1.andThen(renames2)
     }
 
     val renames = inlineRename1 ++ inlineRename2
@@ -686,19 +665,21 @@ class RenameMapSpec extends FirrtlFlatSpec {
     renames1.record(relPath1, absPath1)
     renames1.record(relPath2, absPath2)
 
-    val renames2 = renames1.andThen()
+    val renames2 = RenameMap()
     renames2.record(dupMod1, dedupedMod)
     renames2.record(dupMod2, dedupedMod)
 
-    renames2.get(dupMod1.instOf("foo", "Bar").ref("ref")) should be {
+    val renames = renames1.andThen(renames2)
+
+    renames.get(dupMod1.instOf("foo", "Bar").ref("ref")) should be {
       Some(Seq(absPath1.copy(ofModule = "A").instOf("foo", "Bar").ref("ref")))
     }
 
-    renames2.get(dupMod2.ref("ref")) should be {
+    renames.get(dupMod2.ref("ref")) should be {
       Some(Seq(absPath2.copy(ofModule = "A").ref("ref")))
     }
 
-    renames2.get(absPath1.instOf("b", "B").ref("ref")) should be {
+    renames.get(absPath1.instOf("b", "B").ref("ref")) should be {
       Some(Seq(absPath1.copy(ofModule = "A").instOf("b", "B").ref("ref")))
     }
   }
