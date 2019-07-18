@@ -11,10 +11,7 @@ import firrtl.passes.{Pass,
       }
 import firrtl.annotations._
 import firrtl.Mappers._
-import firrtl.graph._
 
-import java.io._
-import scala.io.Source
 import collection.mutable
 
 /** Annotation for optional output files, and what directory to put those files in (absolute path) **/
@@ -73,11 +70,10 @@ class TopWiringTransform extends Transform {
             case d: Port => (true, d.tpe, sourceList(ComponentName(w.name,currentmodule)))
             case _ => throw new Exception(s"Cannot wire this type of declaration! ${w.serialize}")
           }
-          val name = w.name
           sourceMap.get(currentmodule.name) match {
             case Some(xs:Seq[(ComponentName, Type, Boolean, InstPath, String)]) =>
-              sourceMap.update(currentmodule.name, xs :+
-                 (ComponentName(w.name,currentmodule), tpe, isport ,Seq[String](w.name), prefix))
+              sourceMap.update(currentmodule.name, xs :+(
+                 (ComponentName(w.name,currentmodule), tpe, isport ,Seq[String](w.name), prefix) ))
             case None =>
               sourceMap(currentmodule.name) = Seq((ComponentName(w.name,currentmodule),
                                                    tpe, isport ,Seq[String](w.name), prefix))
@@ -106,11 +102,10 @@ class TopWiringTransform extends Transform {
             case d: Port => (true, d.tpe, sourceList(ComponentName(w.name,currentmodule)))
             case _ => throw new Exception(s"Cannot wire this type of declaration! ${w.serialize}")
           }
-          val name = w.name
           sourceMap.get(currentmodule.name) match {
             case Some(xs:Seq[(ComponentName, Type, Boolean, InstPath, String)]) =>
-                sourceMap.update(currentmodule.name, xs :+
-                  (ComponentName(w.name,currentmodule), tpe, isport ,Seq[String](w.name), prefix))
+                sourceMap.update(currentmodule.name, xs :+(
+                  (ComponentName(w.name,currentmodule), tpe, isport ,Seq[String](w.name), prefix) ))
             case None =>
                 sourceMap(currentmodule.name) = Seq((ComponentName(w.name,currentmodule),
                                                      tpe, isport ,Seq[String](w.name), prefix))

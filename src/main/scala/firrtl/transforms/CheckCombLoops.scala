@@ -3,11 +3,7 @@
 package firrtl.transforms
 
 import scala.collection.mutable
-import scala.collection.immutable.HashSet
-import scala.collection.immutable.HashMap
-import annotation.tailrec
 
-import Function.tupled
 
 import firrtl._
 import firrtl.ir._
@@ -17,8 +13,7 @@ import firrtl.annotations._
 import firrtl.Utils.throwInternalError
 import firrtl.graph.{MutableDiGraph,DiGraph}
 import firrtl.analyses.InstanceGraph
-import firrtl.options.RegisteredTransform
-import scopt.OptionParser
+import firrtl.options.{RegisteredTransform, ShellOption}
 
 object CheckCombLoops {
   class CombLoopException(info: Info, mname: String, cycle: Seq[String]) extends PassException(
@@ -45,11 +40,11 @@ case class ExtModulePathAnnotation(source: ReferenceTarget, sink: ReferenceTarge
   }
 }
 
-case class CombinationalPath(sink: ComponentName, sources: Seq[ComponentName]) extends Annotation {
+case class CombinationalPath(sink: ReferenceTarget, sources: Seq[ReferenceTarget]) extends Annotation {
   override def update(renames: RenameMap): Seq[Annotation] = {
-    val newSources: Seq[IsComponent] = sources.flatMap { s => renames.get(s).getOrElse(Seq(s.toTarget)) }.collect {case x: IsComponent if x.isLocal => x}
-    val newSinks = renames.get(sink).getOrElse(Seq(sink.toTarget)).collect { case x: IsComponent if x.isLocal => x}
-    newSinks.map(snk => CombinationalPath(snk.toNamed, newSources.map(_.toNamed)))
+    val newSources = sources.flatMap { s => renames(s) }.collect {case x: ReferenceTarget if x.isLocal => x}
+    val newSinks = renames(sink).collect { case x: ReferenceTarget if x.isLocal => x}
+    newSinks.map(snk => CombinationalPath(snk, newSources))
   }
 }
 
@@ -69,11 +64,11 @@ class CheckCombLoops extends Transform with RegisteredTransform {
 
   import CheckCombLoops._
 
-  def addOptions(parser: OptionParser[AnnotationSeq]): Unit = parser
-    .opt[Unit]("no-check-comb-loops")
-    .action( (x, c) => c :+ DontCheckCombLoopsAnnotation )
-    .maxOccurs(1)
-    .text("Do NOT check for combinational loops (not recommended)")
+  val options = Seq(
+    new ShellOption[Unit](
+      longOption = "no-check-comb-loops",
+      toAnnotationSeq = (_: Unit) => Seq(DontCheckCombLoopsAnnotation),
+      helpText = "Disable combinational loop checking" ) )
 
   /*
    * A case class that represents a net in the circuit. This is
@@ -254,10 +249,10 @@ class CheckCombLoops extends Transform with RegisteredTransform {
         }
       case m => throwInternalError(s"Module ${m.name} has unrecognized type")
     }
-    val mn = ModuleName(c.main, CircuitName(c.main))
+    val mt = ModuleTarget(c.main, c.main)
     val annos = simplifiedModuleGraphs(c.main).getEdgeMap.collect { case (from, tos) if tos.nonEmpty =>
-      val sink = ComponentName(from.name, mn)
-      val sources = tos.map(x => ComponentName(x.name, mn))
+      val sink = mt.ref(from.name)
+      val sources = tos.map(to => mt.ref(to.name))
       CombinationalPath(sink, sources.toSeq)
     }
     (state.copy(annotations = state.annotations ++ annos), errors, simplifiedModuleGraphs)
