@@ -113,13 +113,13 @@ class RenameMapSpec extends FirrtlFlatSpec {
   it should "rename targets if instance and module in the path are renamed" in {
     val renames = RenameMap()
     renames.record(Middle, Middle2)
-    renames.record(Top.ref("m"), Top.ref("m2"))
+    renames.record(Top.instOf("m", "Middle"), Top.instOf("m2", "Middle"))
     renames.get(Top_m) should be (Some(Seq(Top.instOf("m2", "Middle2"))))
   }
 
   it should "rename targets if instance in the path are renamed" in {
     val renames = RenameMap()
-    renames.record(Top.ref("m"), Top.ref("m2"))
+    renames.record(Top.instOf("m", "Middle"), Top.instOf("m2", "Middle"))
     renames.get(Top_m) should be (Some(Seq(Top.instOf("m2", "Middle"))))
   }
 
@@ -143,7 +143,7 @@ class RenameMapSpec extends FirrtlFlatSpec {
 
   it should "properly rename if middle is inlined" in {
     val renames = RenameMap()
-    renames.record(Top_m.ref("l"), Top.ref("m_l"))
+    renames.record(Top_m_l, Top.instOf("m_l", "Leaf"))
     renames.get(Top_m_l_a) should be (Some(Seq(Top.instOf("m_l", "Leaf").ref("a"))))
   }
 
