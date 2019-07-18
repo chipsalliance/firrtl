@@ -418,33 +418,49 @@ final class RenameMap private (earlier: Option[RenameMap] = None, previous: Opti
         case t: ModuleTarget => moduleGet(errors)(t)
         case t: IsComponent =>
           // rename all modules on the path
-          val renamedPath = t.asPath.map { pair =>
-            val pathMod = ModuleTarget(t.circuit, pair._2.value)
-            moduleGet(errors)(pathMod) match {
-              case Seq(isMod: ModuleTarget) if isMod.circuit == t.circuit =>
-                pair.copy(_2 = OfModule(isMod.module))
-              case Seq(isMod: InstanceTarget) if isMod.circuit == t.circuit =>
-                pair
-              case other =>
-                val error = s"ofModule ${pathMod} cannot be renamed to $other " +
-                  "- an ofModule can only be renamed to a single IsModule with the same circuit"
-                errors += error
-                pair
+          val renamedPath = t.asPath.reverse.foldLeft((Option.empty[IsModule], Seq.empty[(Instance, OfModule)])) {
+            case (absolute@ (Some(_), _), _) => absolute
+            case ((None, children), pair) =>
+              val pathMod = ModuleTarget(t.circuit, pair._2.value)
+              moduleGet(errors)(pathMod) match {
+                case Seq(absolute: IsModule) if absolute.circuit == t.circuit && absolute.module == t.circuit =>
+                  val withChildren = children.foldLeft(absolute) {
+                    case (target, (inst, ofMod)) => target.instOf(inst.value, ofMod.value)
+                  }
+                  (Some(withChildren), children)
+                case Seq(isMod: ModuleTarget) if isMod.circuit == t.circuit =>
+                  (None, pair.copy(_2 = OfModule(isMod.module)) +: children)
+                case Seq(isMod: InstanceTarget) if isMod.circuit == t.circuit =>
+                  (None, pair +: children)
+                case other =>
+                  val error = s"ofModule ${pathMod} cannot be renamed to $other " +
+                    "- an ofModule can only be renamed to a single IsModule with the same circuit"
+                  errors += error
+                  (None, pair +: children)
             }
           }
 
-          // rename the root module and set the new path
-          moduleGet(errors)(ModuleTarget(t.circuit, t.module)).map { mod =>
-              val newPath = mod.asPath ++ renamedPath
+          renamedPath match {
+            case (Some(absolute), _) =>
               t match {
-                case ref: ReferenceTarget => ref.copy(circuit = mod.circuit, module = mod.module, path = newPath)
-                case inst: InstanceTarget =>
-                  val (Instance(newInst), OfModule(newOfMod)) = newPath.last
-                  inst.copy(circuit = mod.circuit,
-                    module = mod.module,
-                    path = newPath.dropRight(1),
-                    instance = newInst,
-                    ofModule = newOfMod)
+                case ref: ReferenceTarget => Seq(ref.copy(circuit = absolute.circuit, module = absolute.module, path = absolute.asPath))
+                case inst: InstanceTarget => Seq(absolute)
+              }
+            case (_, children) =>
+              // rename the root module and set the new path
+              moduleGet(errors)(ModuleTarget(t.circuit, t.module)).map { mod =>
+                val newPath = mod.asPath ++ children
+
+                t match {
+                  case ref: ReferenceTarget => ref.copy(circuit = mod.circuit, module = mod.module, path = newPath)
+                  case inst: InstanceTarget =>
+                    val (Instance(newInst), OfModule(newOfMod)) = newPath.last
+                    inst.copy(circuit = mod.circuit,
+                      module = mod.module,
+                      path = newPath.dropRight(1),
+                      instance = newInst,
+                      ofModule = newOfMod)
+                }
               }
           }
       }

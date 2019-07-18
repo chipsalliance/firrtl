@@ -674,8 +674,9 @@ class RenameMapSpec extends FirrtlFlatSpec {
     val dupMod1 = top.module("A1")
     val dupMod2 = top.module("A2")
 
-    val relPath1 = top.module("Foo").instOf("a", "A1")
-    val relPath2 = top.module("Foo").instOf("a", "A2")
+    val relPath1 = dupMod1.addHierarchy("Foo", "a")//top.module("Foo").instOf("a", "A1")
+    val relPath2 = dupMod2.addHierarchy("Foo", "a")//top.module("Foo").instOf("a", "A2")
+
     val absPath1 = relPath1.addHierarchy("Top", "foo")
     val absPath2 = relPath2.addHierarchy("Top", "foo")
 
@@ -684,8 +685,6 @@ class RenameMapSpec extends FirrtlFlatSpec {
     renames1.record(dupMod2, absPath2)
     renames1.record(relPath1, absPath1)
     renames1.record(relPath2, absPath2)
-    renames1.record(absPath1, absPath1)
-    renames1.record(absPath2, absPath2)
 
     val renames2 = renames1.andThen()
     renames2.record(dupMod1, dedupedMod)
