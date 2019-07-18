@@ -328,14 +328,7 @@ final class RenameMap private (earlier: Option[RenameMap] = None, previous: Opti
     */
   private def instanceGet(errors: mutable.ArrayBuffer[String])(key: InstanceTarget): Seq[IsModule] = {
     def traverseLeft(key: InstanceTarget): Option[Seq[IsModule]] = traverseLeftCache.getOrElseUpdate(key, {
-      val getOpt = key match {
-        case t: InstanceTarget if underlying.contains(t) => underlying.get(t)
-        case t: InstanceTarget =>
-          underlying.get(t.asReference).map(_.map {
-            case ReferenceTarget(c, m, p, r, Nil) => InstanceTarget(c, m, p, r, t.ofModule)
-            case other => other
-          })
-      }
+      val getOpt = underlying.get(key)
 
       if (getOpt.nonEmpty) {
         getOpt.map(_.flatMap {
@@ -351,7 +344,8 @@ final class RenameMap private (earlier: Option[RenameMap] = None, previous: Opti
             val (Instance(outerInst), OfModule(outerMod)) = t.path.head
             val stripped = t.copy(path = t.path.tail, module = outerMod)
             traverseLeft(stripped).map(_.map {
-              _.addHierarchy(t.module, outerInst)
+              case absolute if absolute.path.nonEmpty && absolute.circuit == absolute.path.head._2.value => absolute
+              case relative => relative.addHierarchy(t.module, outerInst)
             })
         }
       }
