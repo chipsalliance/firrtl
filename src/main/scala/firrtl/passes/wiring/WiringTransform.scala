@@ -6,7 +6,6 @@ package wiring
 import ch.qos.logback.core.spi.ComponentTracker
 import firrtl._
 import firrtl.Utils._
-import firrtl.annotations.Annotation.BasicAnnotationTargetType
 import firrtl.annotations.Target.ComponentTargetType
 
 import scala.collection.mutable
@@ -22,9 +21,9 @@ case class SourceAnnotation(target: ComponentTargetType, pin: String) extends
 }
 
 /** A module, e.g. ExtModule etc., that should add the input pin */
-case class SinkAnnotation(target: BasicAnnotationTargetType, pin: String) extends
-    SingleTargetAnnotation[BasicAnnotationTargetType] {
-  def duplicate(n: BasicAnnotationTargetType) = this.copy(target = n)
+case class SinkAnnotation(target: Target, pin: String) extends
+    SingleTargetAnnotation[Target] {
+  def duplicate(n: Target) = this.copy(target = n)
 }
 
 /** Wires a Module's Source Target to one or more Sink

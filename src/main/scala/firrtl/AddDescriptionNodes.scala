@@ -5,9 +5,8 @@ package firrtl
 import firrtl.ir._
 import firrtl.annotations._
 import firrtl.Mappers._
-import firrtl.annotations.Annotation.BasicAnnotationTargetType
 
-case class DescriptionAnnotation(named: BasicAnnotationTargetType, description: String) extends Annotation {
+case class DescriptionAnnotation(named: Target, description: String) extends Annotation {
   def update(renames: RenameMap): Seq[DescriptionAnnotation] = {
     renames.get(named) match {
       case None => Seq(this)

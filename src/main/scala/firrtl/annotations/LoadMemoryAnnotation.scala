@@ -5,7 +5,6 @@ package firrtl.annotations
 import java.io.File
 
 import firrtl.FIRRTLException
-import firrtl.annotations.Annotation.BasicAnnotationTargetType
 
 /** Representation of the two types of `readmem` statements available in Verilog.
   */
@@ -36,7 +35,7 @@ case class LoadMemoryAnnotation(
   fileName: String,
   hexOrBinary: MemoryLoadFileType = MemoryLoadFileType.Hex,
   originalMemoryNameOpt: Option[String] = None
-) extends SingleTargetAnnotation[BasicAnnotationTargetType] {
+) extends SingleTargetAnnotation[Target] {
 
   val (prefix, suffix) = {
     fileName.split("""\.""").toList match {
@@ -61,7 +60,7 @@ case class LoadMemoryAnnotation(
   def getSuffix: String = suffix
   def getFileName: String = getPrefix + getSuffix
 
-  def duplicate(newNamed: BasicAnnotationTargetType): LoadMemoryAnnotation = {
+  def duplicate(newNamed: Target): LoadMemoryAnnotation = {
     newNamed match {
 //      case componentName: ComponentName =>
 //        this.copy(target = componentName, originalMemoryNameOpt = Some(target.name))

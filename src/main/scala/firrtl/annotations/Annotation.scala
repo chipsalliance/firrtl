@@ -5,7 +5,6 @@ package annotations
 
 import firrtl.options.StageUtils
 
-import Annotation.BasicAnnotationTargetType
 import Target.{BasicTargetType, CircuitTargetType, ComponentTargetType, ModuleTargetType, useTargetType}
 
 case class AnnotationException(message: String) extends Exception(message)
@@ -40,15 +39,15 @@ trait Annotation extends Product {
   def getTargets: Seq[Target] = extractComponents(productIterator.toSeq)
 }
 
-/** If an Annotation does not target any [[BasicAnnotationTargetType]] thing in the circuit, then all updates just
+/** If an Annotation does not target any [[Target]] thing in the circuit, then all updates just
   * return the Annotation itself
   */
 trait NoTargetAnnotation extends Annotation {
   def update(renames: RenameMap): Seq[NoTargetAnnotation] = Seq(this)
 }
 
-/** An Annotation that targets a single [[BasicAnnotationTargetType]] thing */
-trait SingleTargetAnnotation[T <: BasicAnnotationTargetType] extends Annotation {
+/** An Annotation that targets a single [[Target]] thing */
+trait SingleTargetAnnotation[T <: Target] extends Annotation {
   val target: T
 
   /** Create another instance of this Annotation */
@@ -86,26 +85,25 @@ trait SingleStringAnnotation extends NoTargetAnnotation {
 }
 
 object Annotation {
-  type BasicAnnotationTargetType = Target
 
   @deprecated("This returns a LegacyAnnotation, use an explicit Annotation type", "1.1")
-  def apply(target: BasicAnnotationTargetType, transform: Class[_ <: Transform], value: String): LegacyAnnotation =
+  def apply(target: Target, transform: Class[_ <: Transform], value: String): LegacyAnnotation =
     new LegacyAnnotation(target, transform, value)
   @deprecated("This uses LegacyAnnotation, use an explicit Annotation type", "1.1")
-  def unapply(a: LegacyAnnotation): Option[(BasicAnnotationTargetType, Class[_ <: Transform], String)] =
+  def unapply(a: LegacyAnnotation): Option[(Target, Class[_ <: Transform], String)] =
     Some((a.target, a.transform, a.value))
 }
 
 // Constructor is private so that we can still construct these internally without deprecation
 // warnings
 final case class LegacyAnnotation private[firrtl] (
-    target: BasicAnnotationTargetType,
+    target: Target,
     transform: Class[_ <: Transform],
-    value: String) extends SingleTargetAnnotation[BasicAnnotationTargetType] {
+    value: String) extends SingleTargetAnnotation[Target] {
   val targetString: String = target.serialize
   val transformClass: String = transform.getName
 
-  def targets(named: BasicAnnotationTargetType): Boolean = named == target
+  def targets(named: Target): Boolean = named == target
   def targets(transform: Class[_ <: Transform]): Boolean = transform == this.transform
 
   /**
@@ -117,13 +115,13 @@ final case class LegacyAnnotation private[firrtl] (
     s"Annotation(${target.serialize},${transform.getCanonicalName},$value)"
   }
 
-  def update(tos: Seq[BasicAnnotationTargetType]): Seq[Annotation] = {
+  def update(tos: Seq[Target]): Seq[Annotation] = {
     check(target, tos, this)
     propagate(target, tos, duplicate)
   }
-  def propagate(from: BasicAnnotationTargetType, tos: Seq[BasicAnnotationTargetType], dup: BasicAnnotationTargetType=>Annotation): Seq[Annotation] = tos.map(dup(_))
-  def check(from: BasicAnnotationTargetType, tos: Seq[BasicAnnotationTargetType], which: Annotation): Unit = {}
-  def duplicate(n: BasicAnnotationTargetType): LegacyAnnotation = new LegacyAnnotation(n, transform, value)
+  def propagate(from: Target, tos: Seq[Target], dup: Target=>Annotation): Seq[Annotation] = tos.map(dup(_))
+  def check(from: Target, tos: Seq[Target], which: Annotation): Unit = {}
+  def duplicate(n: Target): LegacyAnnotation = new LegacyAnnotation(n, transform, value)
 }
 
 // Private so that LegacyAnnotation can only be constructed via deprecated Annotation.apply
