@@ -161,11 +161,6 @@ final class RenameMap private (val underlying: mutable.HashMap[CompleteTarget, S
     k.serialize + "=>" + v.map(_.serialize).mkString(", ")
   }.mkString("\n")
 
-  /** Maps old names to new names. New names could still require renaming parts of their name
-    * Old names must refer to existing names in the old circuit
-    */
-  //private val underlying = mutable.HashMap[CompleteTarget, Seq[CompleteTarget]]()
-
   /** Records which local InstanceTargets will require modification.
     * Used to reduce time to rename nonlocal targets who's path does not require renaming
     */
