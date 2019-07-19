@@ -128,6 +128,8 @@ final class RenameMap private (val underlying: mutable.HashMap[CompleteTarget, S
     new RenameMap(underlying = underlying ++ renameMap.getUnderlying, chained = newChained)
   }
 
+  /** Creates a deep copy of this [[RenameMap]]
+    */
   def copy(chained: Option[RenameMap] = chained): RenameMap = {
     val ret = new RenameMap(chained = chained.map(_.copy()))
     ret.recordAll(underlying)
@@ -297,17 +299,11 @@ final class RenameMap private (val underlying: mutable.HashMap[CompleteTarget, S
     *
     * For example, the order that targets are checked for ~Top|Top/a:A/b:B/c:C is:
     * ~Top|Top/a:A/b:B/c:C
-    * ~Top|Top/a:A/b:B>c
     * ~Top|A/b:B/c:C
-    * ~Top|A/b:B>c
     * ~Top|B/c:C
-    * ~Top|B>c
     * ~Top|Top/a:A/b:B
-    * ~Top|Top/a:A>b
     * ~Top|A/b:B
-    * ~Top|A>b
     * ~Top|Top/a:A
-    * ~Top|Top>a
     *
     * @param errors Used to record illegal renames
     * @param key Target to rename
@@ -506,7 +502,8 @@ final class RenameMap private (val underlying: mutable.HashMap[CompleteTarget, S
   @deprecated("Use record with IsMember instead, this will be removed in 1.3", "1.2")
   def rename(from: ComponentName, to: ComponentName): Unit = record(from, to)
 
-  @deprecated("Use record with IsMember instead, this will be removed in 1.3", "1.2")def rename(from: ComponentName, tos: Seq[ComponentName]): Unit = record(from, tos.map(_.toTarget))
+  @deprecated("Use record with IsMember instead, this will be removed in 1.3", "1.2")
+  def rename(from: ComponentName, tos: Seq[ComponentName]): Unit = record(from, tos.map(_.toTarget))
 
   @deprecated("Use delete with CircuitTarget instead, this will be removed in 1.3", "1.2")
   def delete(name: CircuitName): Unit = underlying(name) = Seq.empty
