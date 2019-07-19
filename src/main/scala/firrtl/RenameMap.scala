@@ -37,8 +37,8 @@ object RenameMap {
 // TODO This should probably be refactored into immutable and mutable versions
 final class RenameMap private (val underlying: mutable.HashMap[CompleteTarget, Seq[CompleteTarget]] = mutable.HashMap[CompleteTarget, Seq[CompleteTarget]](), val chained: Option[RenameMap] = None) {
 
-  /** Return a new RenameMap that renames using a copy of this map then rename
-    * again with itself
+  /** Chain a [[RenameMap]] with this [[RenameMap]]
+    * @param next the map to chain with this map
     */
   def andThen(next: RenameMap) = new RenameMap(next.underlying, chained = Some(this))
 
