@@ -7,7 +7,6 @@ import java.io.{File, FileWriter, Writer}
 import firrtl.annotations.AnnotationYamlProtocol._
 import firrtl.annotations._
 import firrtl._
-import firrtl.annotations.Target.ComponentTargetType
 import firrtl.transforms.OptimizableExtModuleAnnotation
 import firrtl.passes.InlineAnnotation
 import firrtl.passes.memlib.PinAnnotation
@@ -513,9 +512,9 @@ class LegacyAnnotationTests extends AnnotationTests {
 
 class JsonAnnotationTests extends AnnotationTests with BackendCompilationUtilities {
   // Helper annotations
-  case class SimpleAnno(target: ComponentTargetType, value: String) extends
-      SingleTargetAnnotation[ComponentTargetType] {
-    def duplicate(n: ComponentTargetType) = this.copy(target = n)
+  case class SimpleAnno(target: ReferenceTarget, value: String) extends
+      SingleTargetAnnotation[ReferenceTarget] {
+    def duplicate(n: ReferenceTarget) = this.copy(target = n)
   }
   case class ModuleAnno(target: ModuleTarget) extends SingleTargetAnnotation[ModuleTarget] {
     def duplicate(n: ModuleTarget) = this.copy(target = n)

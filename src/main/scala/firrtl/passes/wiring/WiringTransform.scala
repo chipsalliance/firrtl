@@ -6,7 +6,6 @@ package wiring
 import ch.qos.logback.core.spi.ComponentTracker
 import firrtl._
 import firrtl.Utils._
-import firrtl.annotations.Target.ComponentTargetType
 
 import scala.collection.mutable
 import firrtl.annotations._
@@ -15,9 +14,9 @@ import firrtl.annotations._
 case class WiringException(msg: String) extends PassException(msg)
 
 /** A component, e.g. register etc. Must be declared only once under the TopAnnotation */
-case class SourceAnnotation(target: ComponentTargetType, pin: String) extends
-    SingleTargetAnnotation[ComponentTargetType] {
-  def duplicate(n: ComponentTargetType) = this.copy(target = n)
+case class SourceAnnotation(target: ReferenceTarget, pin: String) extends
+    SingleTargetAnnotation[ReferenceTarget] {
+  def duplicate(n: ReferenceTarget) = this.copy(target = n)
 }
 
 /** A module, e.g. ExtModule etc., that should add the input pin */
@@ -56,7 +55,7 @@ class WiringTransform extends Transform {
       case Seq() => state
       case p =>
         val sinks = mutable.HashMap[String, Seq[Target]]()
-        val sources = mutable.HashMap[String, ComponentTargetType]()
+        val sources = mutable.HashMap[String, ReferenceTarget]()
         p.foreach {
           case SinkAnnotation(m, pin) =>
             sinks(pin) = sinks.getOrElse(pin, Seq.empty) :+ m

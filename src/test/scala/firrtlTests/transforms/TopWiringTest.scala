@@ -13,9 +13,8 @@ import java.io._
 import firrtl._
 import firrtl.ir.{Circuit, GroundType, IntWidth, Type}
 import firrtl.Parser
-import firrtl.annotations.Target.ComponentTargetType
 import firrtl.passes.PassExceptions
-import firrtl.annotations.{Annotation, CircuitName, ComponentName, ModuleName, Named}
+import firrtl.annotations.{Annotation, CircuitName, ComponentName, ModuleName, Named, ReferenceTarget}
 import firrtl.transforms.TopWiring._
 
 
@@ -26,13 +25,13 @@ trait TopWiringTestsCommon extends FirrtlRunners {
    def transform = new TopWiringTransform
 
    def topWiringDummyOutputFilesFunction(dir: String,
-                                         mapping: Seq[((ComponentTargetType, Type, Boolean, Seq[String], String), Int)],
+                                         mapping: Seq[((ReferenceTarget, Type, Boolean, Seq[String], String), Int)],
                                          state: CircuitState): CircuitState = {
      state
    }
 
    def topWiringTestOutputFilesFunction(dir: String,
-                                        mapping: Seq[((ComponentTargetType, Type, Boolean, Seq[String], String), Int)],
+                                        mapping: Seq[((ReferenceTarget, Type, Boolean, Seq[String], String), Int)],
                                         state: CircuitState): CircuitState = {
      val testOutputFile = new PrintWriter(new File(dir, "TopWiringOutputTest.txt" ))
      mapping map {

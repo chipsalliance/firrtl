@@ -9,14 +9,13 @@ import Utils.error
 import java.io.{PrintWriter, Writer}
 
 import Utils._
-import firrtl.annotations.Target.ModuleTargetType
 import memlib._
 import firrtl.options.{RegisteredTransform, ShellOption}
 import firrtl.stage.RunFirrtlTransformAnnotation
 
-case class ClockListAnnotation(target: ModuleTargetType, outputConfig: String) extends
-    SingleTargetAnnotation[ModuleTargetType] {
-  def duplicate(n: ModuleTargetType) = ClockListAnnotation(n, outputConfig)
+case class ClockListAnnotation(target: ModuleTarget, outputConfig: String) extends
+    SingleTargetAnnotation[ModuleTarget] {
+  def duplicate(n: ModuleTarget) = ClockListAnnotation(n, outputConfig)
 }
 
 object ClockListAnnotation {

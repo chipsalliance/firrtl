@@ -5,8 +5,6 @@ package annotations
 
 import firrtl.options.StageUtils
 
-import Target.{BasicTargetType, CircuitTargetType, ComponentTargetType, ModuleTargetType, useTargetType}
-
 case class AnnotationException(message: String) extends Exception(message)
 
 /** Base type of auxiliary information */

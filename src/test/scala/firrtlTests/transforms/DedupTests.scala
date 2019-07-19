@@ -4,7 +4,6 @@ package firrtlTests
 package transforms
 
 import firrtl.RenameMap
-import firrtl.annotations.Target.ComponentTargetType
 import firrtl.annotations._
 import firrtl.transforms.{DedupModules, NoCircuitDedupAnnotation}
 
@@ -19,8 +18,8 @@ class DedupModuleTests extends HighTransformSpec {
       Seq(MultiTargetDummyAnnotation(newTargets, tag))
     }
   }
-  case class SingleTargetDummyAnnotation(target: ComponentTargetType) extends SingleTargetAnnotation[ComponentTargetType] {
-    override def duplicate(n: ComponentTargetType): Annotation = SingleTargetDummyAnnotation(n)
+  case class SingleTargetDummyAnnotation(target: ReferenceTarget) extends SingleTargetAnnotation[ReferenceTarget] {
+    override def duplicate(n: ReferenceTarget): Annotation = SingleTargetDummyAnnotation(n)
   }
   def transform = new DedupModules
   "The module A" should "be deduped" in {

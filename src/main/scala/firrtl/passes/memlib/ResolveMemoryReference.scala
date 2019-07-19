@@ -5,12 +5,11 @@ package memlib
 import firrtl._
 import firrtl.ir._
 import firrtl.Mappers._
-import firrtl.annotations.Target.ComponentTargetType
 import firrtl.annotations._
 
 /** A component, e.g. register etc. Must be declared only once under the TopAnnotation */
-case class NoDedupMemAnnotation(target: ComponentTargetType) extends SingleTargetAnnotation[ComponentTargetType] {
-  def duplicate(n: ComponentTargetType) = NoDedupMemAnnotation(n)
+case class NoDedupMemAnnotation(target: ReferenceTarget) extends SingleTargetAnnotation[ReferenceTarget] {
+  def duplicate(n: ReferenceTarget) = NoDedupMemAnnotation(n)
 }
 
 /** Resolves annotation ref to memories that exactly match (except name) another memory

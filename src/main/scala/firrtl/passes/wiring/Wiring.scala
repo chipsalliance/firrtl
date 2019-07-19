@@ -9,11 +9,10 @@ import scala.collection.mutable
 import firrtl.annotations._
 import firrtl.annotations.AnnotationUtils._
 import firrtl.analyses.InstanceGraph
-import firrtl.annotations.Target.ComponentTargetType
 import WiringUtils._
 
 /** A data store of one sink--source wiring relationship */
-case class WiringInfo(source: ComponentTargetType, sinks: Seq[Target], pin: String)
+case class WiringInfo(source: ReferenceTarget, sinks: Seq[Target], pin: String)
 
 /** A data store of wiring names */
 case class WiringNames(compName: String, source: String, sinks: Seq[Target],

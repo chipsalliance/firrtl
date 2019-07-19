@@ -7,7 +7,6 @@ import firrtl.ir.{Expression, Type}
 import firrtl.Utils.{sub_type, field_type}
 import AnnotationUtils.{toExp, validComponentName, validModuleName}
 import TargetToken._
-import Target.BasicTargetType
 
 import scala.collection.mutable
 
@@ -104,16 +103,6 @@ sealed trait Target extends Named {
 }
 
 object Target {
-
-  val useTargetType = true
-//  type BasicTargetType = Named
-//  type ModuleTargetType = ModuleName
-//  type CircuitTargetType = CircuitName
-//  type ComponentTargetType = ComponentName
-  type BasicTargetType = Target
-  type ModuleTargetType = ModuleTarget
-  type CircuitTargetType = CircuitTarget
-  type ComponentTargetType = ReferenceTarget
 
   def apply(circuitOpt: Option[String], moduleOpt: Option[String], reference: Seq[TargetToken]): GenericTarget =
     GenericTarget(circuitOpt, moduleOpt, reference.toVector)

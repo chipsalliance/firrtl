@@ -9,7 +9,6 @@ import firrtl.analyses.InstanceGraph
 import firrtl.annotations._
 import firrtl.passes.{InferTypes, MemPortUtils}
 import firrtl.Utils.throwInternalError
-import firrtl.annotations.Target.ModuleTargetType
 import firrtl.options.{HasShellOptions, ShellOption}
 
 // Datastructures
@@ -17,8 +16,8 @@ import scala.collection.mutable
 
 
 /** A component, e.g. register etc. Must be declared only once under the TopAnnotation */
-case class NoDedupAnnotation(target: ModuleTargetType) extends SingleTargetAnnotation[ModuleTargetType] {
-  def duplicate(n: ModuleTargetType): NoDedupAnnotation = NoDedupAnnotation(n)
+case class NoDedupAnnotation(target: ModuleTarget) extends SingleTargetAnnotation[ModuleTarget] {
+  def duplicate(n: ModuleTarget): NoDedupAnnotation = NoDedupAnnotation(n)
 }
 
 /** If this [[firrtl.annotations.Annotation Annotation]] exists in an [[firrtl.AnnotationSeq AnnotationSeq]],
