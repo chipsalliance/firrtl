@@ -77,26 +77,22 @@ trait SingleTargetAnnotation[T <: Named] extends Annotation {
   }
 }
 
+/** Annotate Multi Target in a single Annotation,
+  * rather than [[SingleTargetAnnotation]] which duplicate the [[Annotation]] based on the [[RenameMap]],
+  * [[MultiTargetAnnotation]] keeps a RenameMap in the targets for better data structure
+  * */
 trait MultiTargetAnnotation extends Annotation {
-  val targets: Seq[Target]
+  /** Contains a sequence of [[Target]].
+    * When creating in [[toFirrtl]], targets should be assigned by `Seq(Seq(TargetA), Seq(TargetB), Seq(TargetC))`
+    * */
+  val targets: Seq[Seq[Target]]
 
-  def duplicate(n: Seq[Target]): Annotation
+  /** Create another instance of this Annotation*/
+  def duplicate(n: Seq[Seq[Target]]): Annotation
 
-  private def crossJoin[T](list: Seq[Seq[T]]): Seq[Seq[T]] =
-    list match {
-      case Nil => Nil
-      case x :: Nil => x map (Seq(_))
-      case x :: xs =>
-        val xsJoin = crossJoin(xs)
-        for {
-          i <- x
-          j <- xsJoin
-        } yield {
-          Seq(i) ++ j
-        }
-    }
-
-  def update(renames: RenameMap): Seq[Annotation] = crossJoin(targets.map(renames(_))).map(ts => duplicate(ts.asInstanceOf[Seq[Target]]))
+  // After renames, this this Annotation is still one annotation, but the contents are renamed in the below form
+  // Seq(Seq(TargetA1, TargetA2, TargetA3), Seq(TargetB1, TargetB2), Seq(TargetC))
+  def update(renames: RenameMap): Seq[Annotation] = Seq(duplicate(targets.map(ts => ts.flatMap(renames(_)))))
 }
 
 @deprecated("Just extend NoTargetAnnotation", "1.1")
