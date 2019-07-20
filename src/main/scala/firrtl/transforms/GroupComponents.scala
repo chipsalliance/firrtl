@@ -323,11 +323,11 @@ class GroupComponents extends firrtl.Transform {
         exprs.tail map onExpr(getWRef(exprs.head))
       case Connect(_, loc, expr) =>
         onExpr(getWRef(loc))(expr)
-      case q @ Stop(_,_, clk, en) =>
+      case q @ Stop(_, _, _, clk, en) =>
         val simName = simNamespace.newTemp
         simulations(simName) = q
         Seq(clk, en) map onExpr(WRef(simName))
-      case q @ Print(_, _, args, clk, en) =>
+      case q @ Print(_, _, args, _, clk, en) =>
         val simName = simNamespace.newTemp
         simulations(simName) = q
         (args :+ clk :+ en) map onExpr(WRef(simName))

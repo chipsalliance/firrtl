@@ -244,16 +244,18 @@ object ToProto {
             cs.foreach(wb.addConsequent)
             as.foreach(wb.addOtherwise)
             sb.setWhen(wb)
-          case ir.Print(_, string, args, clk, en) =>
+          case ir.Print(_, string, args, edge, clk, en) =>
             val pb = Firrtl.Statement.Printf.newBuilder()
               .setValue(string.string)
+              .setEdge(convert(edge))
               .setClk(convert(clk))
               .setEn(convert(en))
             args.foreach(a => pb.addArg(convert(a)))
             sb.setPrintf(pb)
-          case ir.Stop(_, ret, clk, en) =>
+          case ir.Stop(_, ret, edge, clk, en) =>
             val stopb = Firrtl.Statement.Stop.newBuilder()
               .setReturnValue(ret)
+              .setEdge(convert(edge))
               .setClk(convert(clk))
               .setEn(convert(en))
             sb.setStop(stopb)
@@ -358,9 +360,9 @@ object ToProto {
     }
   }
 
-  def convert(edge: ir.Edge): Firrtl.Statement.Register.Edge = edge match {
-    case ir.Posedge => Firrtl.Statement.Register.Edge.REGISTER_EDGE_POSEDGE
-    case ir.Negedge => Firrtl.Statement.Register.Edge.REGISTER_EDGE_NEGEDGE
+  def convert(edge: ir.Edge): Firrtl.Edge = edge match {
+    case ir.Posedge => Firrtl.Edge.REGISTER_EDGE_POSEDGE
+    case ir.Negedge => Firrtl.Edge.REGISTER_EDGE_NEGEDGE
   }
 
   def convert(direction: ir.Direction): Firrtl.Port.Direction = direction match {

@@ -164,11 +164,11 @@ object FromProto {
   def convert(printf: Firrtl.Statement.Printf, info: Firrtl.SourceInfo): ir.Print = {
     val args = printf.getArgList.asScala.map(convert(_))
     val str = ir.StringLit(printf.getValue)
-    ir.Print(convert(info), str, args, convert(printf.getClk), convert(printf.getEn))
+    ir.Print(convert(info), str, args, convert(printf.getEdge), convert(printf.getClk), convert(printf.getEn))
   }
 
   def convert(stop: Firrtl.Statement.Stop, info: Firrtl.SourceInfo): ir.Stop =
-    ir.Stop(convert(info), stop.getReturnValue, convert(stop.getClk), convert(stop.getEn))
+    ir.Stop(convert(info), stop.getReturnValue, convert(stop.getEdge), convert(stop.getClk), convert(stop.getEn))
 
   def convert(mem: Firrtl.Statement.Memory, info: Firrtl.SourceInfo): ir.DefMemory = {
     val dtype = convert(mem.getType)
@@ -276,10 +276,10 @@ object FromProto {
     ir.Port(ir.NoInfo, port.getId, dir, tpe)
   }
 
-  def convert(edge: Firrtl.Statement.Register.Edge): ir.Edge = {
+  def convert(edge: Firrtl.Edge): ir.Edge = {
     edge match {
-      case Firrtl.Statement.Register.Edge.REGISTER_EDGE_POSEDGE => ir.Posedge
-      case Firrtl.Statement.Register.Edge.REGISTER_EDGE_NEGEDGE => ir.Negedge
+      case Firrtl.Edge.REGISTER_EDGE_POSEDGE => ir.Posedge
+      case Firrtl.Edge.REGISTER_EDGE_NEGEDGE => ir.Negedge
     }
   }
 

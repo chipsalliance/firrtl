@@ -38,6 +38,11 @@ message Firrtl {
     }
   }
 
+  enum Edge {
+    REGISTER_EDGE_POSEDGE = 0;
+    REGISTER_EDGE_NEGEDGE = 1;
+  }
+
   message BigInt {
     // 2's complement binary representation
     bytes value = 1;
@@ -94,10 +99,6 @@ message Firrtl {
     }
 
     message Register {
-      enum Edge {
-        REGISTER_EDGE_POSEDGE = 0;
-        REGISTER_EDGE_NEGEDGE = 1;
-      }
       // Required.
       string id = 1;
       // Required.
@@ -173,6 +174,7 @@ message Firrtl {
       Expression clk = 2;
       // Required.
       Expression en = 3;
+      Edge edge = 4;
     }
 
     message Printf {
@@ -183,6 +185,7 @@ message Firrtl {
       Expression clk = 3;
       // Required.
       Expression en = 4;
+      Edge edge = 5;
     }
 
     message Skip {

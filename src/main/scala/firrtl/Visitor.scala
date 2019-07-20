@@ -283,10 +283,9 @@ class Visitor(infoMode: InfoMode) extends AbstractParseTreeVisitor[FirrtlNode] w
         case "inst" => DefInstance(info, ctx.id(0).getText, ctx.id(1).getText)
         case "node" => DefNode(info, ctx.id(0).getText, visitExp(ctx_exp(0)))
 
-        case "stop(" => Stop(info, string2Int(ctx.intLit().getText), visitExp(ctx_exp(0)), visitExp(ctx_exp(1)))
+        case "stop(" => Stop(info, string2Int(ctx.intLit().getText), visitEdge(Option(ctx.edge)), visitExp(ctx_exp(0)), visitExp(ctx_exp(1)))
         case "attach" => Attach(info, ctx_exp map visitExp)
-        case "printf(" => Print(info, visitStringLit(ctx.StringLit), ctx_exp.drop(2).map(visitExp),
-          visitExp(ctx_exp(0)), visitExp(ctx_exp(1)))
+        case "printf(" => Print(info, visitStringLit(ctx.StringLit), ctx_exp.drop(2).map(visitExp), visitEdge(Option(ctx.edge)), visitExp(ctx_exp(0)), visitExp(ctx_exp(1)))
         case "skip" => EmptyStmt
       }
       // If we don't match on the first child, try the next one

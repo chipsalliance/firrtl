@@ -107,8 +107,8 @@ stmt
   | exp '<-' exp info?
   | exp 'is' 'invalid' info?
   | when
-  | 'stop(' exp exp intLit ')' info?
-  | 'printf(' exp exp StringLit ( exp)* ')' info?
+  | 'stop(' edge? exp exp intLit ')' info?
+  | 'printf(' edge? exp exp StringLit ( exp)* ')' info?
   | 'skip' info?
   | 'attach' '(' exp+ ')' info?
   ;

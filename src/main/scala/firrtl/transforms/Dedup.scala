@@ -315,9 +315,9 @@ object DedupModules {
           builder ++= "\n" + ("  " * nindent)
           builder ++= "else :\n"
           serialize(builder, nindent + 1)(alt)
-        case Print(info, string, args, clk, en) =>
+        case Print(info, string, args, edge, clk, en) =>
           builder ++= ("  " * nindent)
-          val strs = Seq(clk.serialize, en.serialize, string.string) ++
+          val strs = Seq(edge.serialize, clk.serialize, en.serialize, string.string) ++
             (args map (_.serialize))
           builder ++= "printf(" + (strs mkString ", ") + ")" + info.serialize
         case other: Statement =>

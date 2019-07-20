@@ -725,9 +725,9 @@ class VerilogEmitter extends SeqTransform with Emitter {
           declare("wire", sx.name, sx.value.tpe, sx.info)
           assign(WRef(sx.name, sx.value.tpe, NodeKind, MALE), sx.value, sx.info)
         case sx: Stop =>
-          simulate(sx.clk, sx.en, Posedge, stop(sx.ret), Some("STOP_COND"), sx.info)
+          simulate(sx.clk, sx.en, sx.edge, stop(sx.ret), Some("STOP_COND"), sx.info)
         case sx: Print =>
-          simulate(sx.clk, sx.en, Posedge, printf(sx.string, sx.args), Some("PRINTF_COND"), sx.info)
+          simulate(sx.clk, sx.en, sx.edge, printf(sx.string, sx.args), Some("PRINTF_COND"), sx.info)
         // If we are emitting an Attach, it must not have been removable in VerilogPrep
         case sx: Attach =>
           // For Synthesis
