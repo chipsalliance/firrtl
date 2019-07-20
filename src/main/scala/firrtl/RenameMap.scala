@@ -44,7 +44,7 @@ final class RenameMap private (val underlying: mutable.HashMap[CompleteTarget, S
     if (next.chained.isEmpty) {
       new RenameMap(next.underlying, chained = Some(this))
     } else {
-      new RenameMap(next.underlying, chained = next.chained.map(_.andThen(this)))
+      new RenameMap(next.underlying, chained = next.chained.map(this.andThen(_)))
     }
   }
 
