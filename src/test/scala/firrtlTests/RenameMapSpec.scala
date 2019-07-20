@@ -683,4 +683,46 @@ class RenameMapSpec extends FirrtlFlatSpec {
       Some(Seq(absPath1.copy(ofModule = "A").instOf("b", "B").ref("ref")))
     }
   }
+
+  it should "should able to chain many rename maps" in {
+    val top = CircuitTarget("Top")
+    val inlineRename1 = {
+      val inlineMod = top.module("A")
+      val inlineInst = top.module("A").instOf("b", "B")
+      val oldRef = inlineMod.ref("bar")
+      val prefixRef = inlineMod.ref("foo")
+
+      val renames1 = RenameMap()
+      renames1.record(inlineInst, inlineMod)
+
+      val renames2 = RenameMap()
+      renames2.record(oldRef, prefixRef)
+
+      renames1.andThen(renames2)
+    }
+
+    val inlineRename2 = {
+      val inlineMod = top.module("A1")
+      val inlineInst = top.module("A1").instOf("b", "B1")
+      val oldRef = inlineMod.ref("bar")
+      val prefixRef = inlineMod.ref("foo")
+
+      val renames1 = RenameMap()
+      renames1.record(inlineInst, inlineMod)
+
+      val renames2 = RenameMap()
+      renames2.record(oldRef, prefixRef)
+
+      inlineRename1.andThen(renames1).andThen(renames2)
+    }
+
+    val renames = inlineRename2
+    renames.get(top.module("A").instOf("b", "B").ref("bar")) should be {
+      Some(Seq(top.module("A").ref("foo")))
+    }
+
+    renames.get(top.module("A1").instOf("b", "B1").ref("bar")) should be {
+      Some(Seq(top.module("A1").ref("foo")))
+    }
+  }
 }
