@@ -13,9 +13,9 @@ case class ClockEdgeAnnotation(register: ReferenceTarget, edge: Edge) extends Si
 }
 
 class CompleteClockEdge extends Transform {
-  override def inputForm: CircuitForm = LowForm
+  override def inputForm: CircuitForm = MidForm
 
-  override def outputForm: CircuitForm = LowForm
+  override def outputForm: CircuitForm = MidForm
 
   def addEdge(annoMap: Map[String, Edge])(s: Statement): Statement = s.mapStmt {
     case r: DefRegister =>
