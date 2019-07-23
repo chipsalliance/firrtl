@@ -77,10 +77,7 @@ trait SingleTargetAnnotation[T <: Named] extends Annotation {
   }
 }
 
-/** Annotate Multi Target in a single Annotation,
-  * rather than [[SingleTargetAnnotation]] which duplicate the [[Annotation]] based on the [[RenameMap]],
-  * [[MultiTargetAnnotation]] keeps a [[RenameMap]] in the targets for better data structure
-  * */
+/** [[MultiTargetAnnotation]] keeps the renamed targets grouped within a single annotation. */
 trait MultiTargetAnnotation extends Annotation {
   /** Contains a sequence of [[Target]].
     * When creating in [[toFirrtl]], [[targets]] should be assigned by `Seq(Seq(TargetA), Seq(TargetB), Seq(TargetC))`
