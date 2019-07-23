@@ -3,11 +3,8 @@
 package firrtl
 package annotations
 
-import net.jcazevedo.moultingyaml._
-import firrtl.annotations.AnnotationYamlProtocol._
-import firrtl.Utils.throwInternalError
+import firrtl.options.StageUtils
 
-import scala.collection.mutable
 
 case class AnnotationException(message: String) extends Exception(message)
 
@@ -190,7 +187,7 @@ private[firrtl] object LegacyAnnotation {
     case other => other
   }
   // scalastyle:on
-  def convertLegacyAnnos(annos: Seq[Annotation]): Seq[Annotation] = {
+  def convertLegacyAnnos(annos: AnnotationSeq): AnnotationSeq = {
     var warned: Boolean = false
     annos.map {
       case legacy: LegacyAnnotation =>
@@ -198,7 +195,7 @@ private[firrtl] object LegacyAnnotation {
         if (!warned && (annox ne legacy)) {
           val msg = s"A LegacyAnnotation was automatically converted.\n" + (" "*9) +
             "This functionality will soon be removed. Please migrate to new annotations."
-          Driver.dramaticWarning(msg)
+          StageUtils.dramaticWarning(msg)
           warned = true
         }
         annox

@@ -3,7 +3,6 @@
 package firrtl.passes
 package memlib
 
-import scala.util.matching._
 
 sealed abstract class MemPort(val name: String) { override def toString = name }
 
@@ -29,7 +28,7 @@ object MemPort {
 
 case class MemConf(
   name: String,
-  depth: Int,
+  depth: BigInt,
   width: Int,
   ports: Map[MemPort, Int],
   maskGranularity: Option[Int]
@@ -51,12 +50,13 @@ object MemConf {
 
   def fromString(s: String): Seq[MemConf] = {
     s.split("\n").toSeq.map(_ match {
-      case MemConf.regex(name, depth, width, ports, maskGran) => MemConf(name, depth.toInt, width.toInt, MemPort.fromString(ports), Option(maskGran).map(_.toInt))
+      case MemConf.regex(name, depth, width, ports, maskGran) => Some(MemConf(name, depth.toInt, width.toInt, MemPort.fromString(ports), Option(maskGran).map(_.toInt)))
+      case "" => None
       case _ => throw new Exception(s"Error parsing MemConf string : ${s}")
-    })
+    }).flatten
   }
 
-  def apply(name: String, depth: Int, width: Int, readPorts: Int, writePorts: Int, readWritePorts: Int, maskGranularity: Option[Int]): MemConf = {
+  def apply(name: String, depth: BigInt, width: Int, readPorts: Int, writePorts: Int, readWritePorts: Int, maskGranularity: Option[Int]): MemConf = {
     val ports: Map[MemPort, Int] = (if (maskGranularity.isEmpty) {
       (if (writePorts == 0) Map.empty[MemPort, Int] else Map(WritePort -> writePorts)) ++
       (if (readWritePorts == 0) Map.empty[MemPort, Int] else Map(ReadWritePort -> readWritePorts))

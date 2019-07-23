@@ -4,9 +4,8 @@ import firrtl._
 import firrtl.Mappers._
 import firrtl.ir._
 import firrtl.annotations.{Annotation, ComponentName}
-import firrtl.passes.{InferTypes, LowerTypes, MemPortUtils, ResolveKinds}
-import firrtl.Utils.kind
-import firrtl.graph.{DiGraph, MutableDiGraph}
+import firrtl.passes.{InferTypes, LowerTypes, ResolveKinds}
+import firrtl.graph.MutableDiGraph
 
 import scala.collection.mutable
 
@@ -264,6 +263,11 @@ class GroupComponents extends firrtl.Transform {
           val group = byNode(getWRef(c.loc).name)
           groupStatements(group) += Connect(c.info, c.loc, inGroupFixExps(group, topStmts)(c.expr))
           Block(topStmts)
+        case i: IsInvalid if byNode(getWRef(i.expr).name) != "" =>
+          // Sink is in group
+          val group = byNode(getWRef(i.expr).name)
+          groupStatements(group) += i
+          EmptyStmt
         // TODO Attach if all are in a group?
         case _: IsDeclaration | _: Connect | _: Attach =>
           // Sink is in Top

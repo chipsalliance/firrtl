@@ -63,8 +63,8 @@ object CheckHighForm extends Pass {
     val moduleGraph = new ModuleGraph
     val moduleNames = (c.modules map (_.name)).toSet
 
-    def checkHighFormPrimop(info: Info, mname: String, e: DoPrim) {
-      def correctNum(ne: Option[Int], nc: Int) {
+    def checkHighFormPrimop(info: Info, mname: String, e: DoPrim): Unit = {
+      def correctNum(ne: Option[Int], nc: Int): Unit = {
         ne match {
           case Some(i) if e.args.length != i =>
             errors.append(new IncorrectNumArgsException(info, mname, e.op.toString, i))
@@ -99,7 +99,7 @@ object CheckHighForm extends Pass {
       }
     }
 
-    def checkFstring(info: Info, mname: String, s: StringLit, i: Int) {
+    def checkFstring(info: Info, mname: String, s: StringLit, i: Int): Unit = {
       val validFormats = "bdxc"
       val (percent, npercents) = s.string.foldLeft((false, 0)) {
         case ((percentx, n), b) if percentx && (validFormats contains b) =>
@@ -203,7 +203,7 @@ object CheckHighForm extends Pass {
       p.tpe foreach checkHighFormW(p.info, mname)
     }
 
-    def checkHighFormM(m: DefModule) {
+    def checkHighFormM(m: DefModule): Unit = {
       val names = new NameSet
       m foreach checkHighFormP(m.name, names)
       m foreach checkHighFormS(m.info, m.name, names)
@@ -397,7 +397,7 @@ object CheckTypes extends Pass {
         case (_: AnalogType, _: AnalogType) => true
         case (t1: BundleType, t2: BundleType) =>
           val t1_fields = (t1.fields foldLeft Map[String, (Type, Orientation)]())(
-            (map, f1) => map + (f1.name -> (f1.tpe, f1.flip)))
+            (map, f1) => map + (f1.name ->( (f1.tpe, f1.flip) )))
           t2.fields forall (f2 =>
             t1_fields get f2.name match {
               case None => true

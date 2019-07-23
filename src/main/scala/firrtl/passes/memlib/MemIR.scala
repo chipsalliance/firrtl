@@ -3,9 +3,7 @@
 package firrtl.passes
 package memlib
 
-import firrtl._
 import firrtl.ir._
-import Utils.indent
 
 object DefAnnotatedMemory {
   def apply(m: DefMemory): DefAnnotatedMemory = {
@@ -30,7 +28,7 @@ case class DefAnnotatedMemory(
     info: Info,
     name: String,
     dataType: Type,
-    depth: Int,
+    depth: BigInt,
     writeLatency: Int,
     readLatency: Int,
     readers: Seq[String],
