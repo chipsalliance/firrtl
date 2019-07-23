@@ -443,7 +443,7 @@ object CompilerUtils extends LazyLogging {
     val outSeq = (in, out) match {
       case (_, ChirrtlForm)               => Some(firrtl.stage.Forms.ChirrtlForm)
       case (a, HighForm) if a >= HighForm => Some(firrtl.stage.Forms.Deduped)
-      case (_, HighForm)                  => Some(firrtl.stage.Forms.HighForm)
+      case (_, HighForm)                  => Some(firrtl.stage.Forms.MinimalHighForm)
       case (_, MidForm)                   => Some(firrtl.stage.Forms.MidForm)
       case (_, LowForm)                   => Some(firrtl.stage.Forms.LowForm)
       case (_, UnknownForm)               => None

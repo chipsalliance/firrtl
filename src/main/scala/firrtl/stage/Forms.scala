@@ -15,15 +15,15 @@ object Forms {
 
   val ChirrtlForm: Seq[TransformDependency] = Seq.empty
 
-  val HighForm: Seq[TransformDependency] = ChirrtlForm ++
+  private[firrtl] val MinimalHighForm: Seq[TransformDependency] = ChirrtlForm ++
     Seq( classOf[passes.CheckChirrtl],
          classOf[passes.CInferTypes],
          classOf[passes.CInferMDir],
          classOf[passes.RemoveCHIRRTL] )
 
-  val WorkingIR: Seq[TransformDependency] = HighForm :+ classOf[passes.ToWorkingIR]
+  private[firrtl] val WorkingIR: Seq[TransformDependency] = MinimalHighForm :+ classOf[passes.ToWorkingIR]
 
-  val Resolved: Seq[TransformDependency] = WorkingIR ++
+  private[firrtl] val Resolved: Seq[TransformDependency] = WorkingIR ++
     Seq( classOf[passes.CheckHighForm],
          classOf[passes.ResolveKinds],
          classOf[passes.InferTypes],
@@ -37,9 +37,15 @@ object Forms {
          classOf[passes.CheckWidths],
          classOf[firrtl.transforms.InferResets] )
 
-  val Deduped: Seq[TransformDependency] = Resolved :+ classOf[firrtl.transforms.DedupModules]
+  private[firrtl] val Deduped: Seq[TransformDependency] = Resolved :+ classOf[firrtl.transforms.DedupModules]
 
-  val MidForm: Seq[TransformDependency] = Deduped ++
+  val HighForm: Seq[TransformDependency] = ChirrtlForm ++
+    MinimalHighForm ++
+    WorkingIR ++
+    Resolved ++
+    Deduped
+
+  val MidForm: Seq[TransformDependency] = HighForm ++
     Seq( classOf[passes.PullMuxes],
          classOf[passes.ReplaceAccesses],
          classOf[passes.ExpandConnects],

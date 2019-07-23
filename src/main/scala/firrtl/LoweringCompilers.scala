@@ -14,7 +14,7 @@ sealed abstract class CoreTransform extends SeqTransform
 class ChirrtlToHighFirrtl extends CoreTransform {
   def inputForm = ChirrtlForm
   def outputForm = HighForm
-  def transforms = new TransformManager(Forms.HighForm, Forms.ChirrtlForm).flattenedTransformOrder
+  def transforms = new TransformManager(Forms.MinimalHighForm, Forms.ChirrtlForm).flattenedTransformOrder
 }
 
 /** Converts from the bare intermediate representation (ir.scala)
@@ -23,7 +23,7 @@ class ChirrtlToHighFirrtl extends CoreTransform {
 class IRToWorkingIR extends CoreTransform {
   def inputForm = HighForm
   def outputForm = HighForm
-  def transforms = new TransformManager(Forms.WorkingIR, Forms.HighForm).flattenedTransformOrder
+  def transforms = new TransformManager(Forms.WorkingIR, Forms.MinimalHighForm).flattenedTransformOrder
 }
 
 /** Resolves types, kinds, and flows, and checks the circuit legality.
