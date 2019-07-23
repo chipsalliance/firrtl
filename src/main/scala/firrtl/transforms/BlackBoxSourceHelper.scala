@@ -34,6 +34,11 @@ case class BlackBoxPathAnno(target: ModuleName, path: String) extends BlackBoxHe
   override def serialize: String = s"path\n$path"
 }
 
+case class BlackBoxResourceFileNameAnno(resourceFileName: String) extends BlackBoxHelperAnno
+    with NoTargetAnnotation {
+  override def serialize: String = s"resourceFileName\n$resourceFileName"
+}
+
 /** Exception indicating that a blackbox wasn't found
   * @param fileName the name of the BlackBox file (only used for error message generation)
   * @param e an underlying exception that generated this
@@ -96,6 +101,10 @@ class BlackBoxSourceHelper extends firrtl.Transform {
         toFile
     }
 
+    val resourceFileName = annos.collectFirst {
+      case BlackBoxResourceFileNameAnno(fileName) => fileName
+    }
+
     val inlineFiles: ListSet[File] = annos.collect {
       case BlackBoxInlineAnno(_, name, text) =>
         val outFile = new File(targetDir, name)
@@ -107,7 +116,7 @@ class BlackBoxSourceHelper extends firrtl.Transform {
 
     // Issue #917 - We don't want to list Verilog header files ("*.vh") in our file list - they will automatically be included by reference.
     val verilogSourcesOnly = (resourceFiles ++ inlineFiles).filterNot( _.getName().endsWith(".vh"))
-    BlackBoxSourceHelper.writeFileList(verilogSourcesOnly, targetDir)
+    BlackBoxSourceHelper.writeFileList(verilogSourcesOnly, targetDir, resourceFileName)
 
     state
   }
@@ -150,9 +159,9 @@ object BlackBoxSourceHelper {
     out.close()
   }
 
-  val fileListName = "firrtl_black_box_resource_files.f"
+  val defaultFileListName = "firrtl_black_box_resource_files.f"
 
-  def writeFileList(files: ListSet[File], targetDir: File): Unit = {
+  def writeFileList(files: ListSet[File], targetDir: File, outputFileName: Option[String]): Unit = {
     if (files.nonEmpty) {
       // We need the canonical path here, so verilator will create a path to the file that works from the targetDir,
       //  and, so we can compare the list of files automatically included, with an explicit list provided by the client
@@ -160,7 +169,8 @@ object BlackBoxSourceHelper {
       // If the path isn't canonical, when make tries to determine dependencies based on the *__ver.d file, we end up with errors like:
       //  make[1]: *** No rule to make target `test_run_dir/examples.AccumBlackBox_PeekPokeTest_Verilator345491158/AccumBlackBox.v', needed by `.../chisel-testers/test_run_dir/examples.AccumBlackBox_PeekPokeTest_Verilator345491158/VAccumBlackBoxWrapper.h'.  Stop.
       //  or we end up including the same file multiple times.
-      writeTextToFile(files.map(_.getCanonicalPath).mkString("\n"), new File(targetDir, fileListName))
+      val outputFile = outputFileName.getOrElse(defaultFileListName)
+      writeTextToFile(files.map(_.getCanonicalPath).mkString("\n"), new File(targetDir, outputFile))
     }
   }
 
