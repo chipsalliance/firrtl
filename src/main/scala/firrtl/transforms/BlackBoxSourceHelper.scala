@@ -161,6 +161,9 @@ object BlackBoxSourceHelper {
 
   val defaultFileListName = "firrtl_black_box_resource_files.f"
 
+  @deprecated("Renamed to defaultFileListName, as the file list name may now be changed with an annotation", "1.3")
+  def fileListName = defaultFileListName
+
   def writeFileList(files: ListSet[File], targetDir: File, outputFileName: Option[String]): Unit = {
     if (files.nonEmpty) {
       // We need the canonical path here, so verilator will create a path to the file that works from the targetDir,
