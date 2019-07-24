@@ -12,9 +12,9 @@ name := "firrtl"
 
 version := "1.2-SNAPSHOT"
 
-scalaVersion := "2.12.7"
+scalaVersion := "2.12.8"
 
-crossScalaVersions := Seq("2.12.7", "2.11.12")
+crossScalaVersions := Seq("2.12.8", "2.11.12")
 
 def scalacOptionsVersion(scalaVersion: String): Seq[String] = {
   Seq() ++ {
@@ -77,14 +77,9 @@ libraryDependencies += "org.apache.commons" % "commons-text" % "1.6"
 
 // Java PB
 
-enablePlugins(ProtobufPlugin)
-
-sourceDirectory in ProtobufConfig := baseDirectory.value / "src" / "main" / "proto"
-
-protobufRunProtoc in ProtobufConfig := (args =>
-  com.github.os72.protocjar.Protoc.runProtoc("-v351" +: args.toArray))
-
-javaSource in ProtobufConfig := (sourceManaged in Compile).value
+PB.targets in Compile := Seq(
+  PB.gens.java -> (sourceManaged in Compile).value
+)
 
 // Assembly
 
@@ -104,7 +99,7 @@ antlr4GenListener in Antlr4 := false // default = true
 
 antlr4PackageName in Antlr4 := Option("firrtl.antlr")
 
-antlr4Version in Antlr4 := "4.7.1"
+antlr4Version in Antlr4 := "4.7.2"
 
 javaSource in Antlr4 := (sourceManaged in Compile).value
 
