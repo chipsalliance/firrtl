@@ -24,7 +24,7 @@ import collection.mutable
   * @note Assumes bulk connects and isInvalids have been expanded
   * @note Assumes all references are declared
   */
-class ExpandWhens extends Pass with PreservesAll[Transform] {
+class ExpandWhens extends Pass {
 
   override val prerequisites =
     Seq( classOf[PullMuxes],
