@@ -71,8 +71,8 @@ class BlackBoxSourceHelper extends firrtl.Transform {
           val targetDir = new File(dir)
           if (!targetDir.exists()) { FileUtils.makeDirectory(targetDir.getAbsolutePath) }
           (acc, targetDir, flistName)
-        case a: BlackBoxHelperAnno => (acc + a, tdir, flistName)
         case BlackBoxResourceFileNameAnno(fileName) => (acc, tdir, new File(fileName))
+        case a: BlackBoxHelperAnno => (acc + a, tdir, flistName)
         case _ => (acc, tdir, flistName)
       }
     }
