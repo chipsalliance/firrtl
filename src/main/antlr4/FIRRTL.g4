@@ -140,6 +140,7 @@ when
 
 info
   : FileInfo
+  | CustomInfo
   ;
 
 mdir
@@ -326,6 +327,10 @@ UnquotedString
 
 FileInfo
   : '@[' ('\\]'|.)*? ']'
+  ;
+
+CustomInfo
+  : '@(' ('\\)'|.)*? ')'
   ;
 
 Id

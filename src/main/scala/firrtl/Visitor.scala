@@ -47,19 +47,33 @@ class Visitor(infoMode: InfoMode) extends AbstractParseTreeVisitor[FirrtlNode] w
     def genInfo(filename: String): String =
       stripPath(filename) + "@" + parentCtx.getStart.getLine + "." +
         parentCtx.getStart.getCharPositionInLine
-    lazy val useInfo: String = ctx match {
-      case Some(info) => info.getText.drop(2).init // remove surrounding @[ ... ]
-      case None => ""
+    lazy val (useInfo, infoType) = ctx match {
+      case Some(info) => (info.getText.drop(2).init, info.getText.last match {
+        case ']' => "f"
+        case ')' => "c"
+      }) // remove surrounding @[ ... ]
+      case None => ("", "c")
     }
+
     infoMode match {
       case UseInfo =>
-        if (useInfo.length == 0) NoInfo
-        else ir.FileInfo(ir.StringLit.unescape(useInfo))
+        if (useInfo.length == 0)
+          NoInfo
+        else infoType match {
+          case "f" => ir.FileInfo(ir.StringLit.unescape(useInfo))
+          case "c" => ir.CustomInfo(ir.StringLit.unescape(useInfo))
+        }
       case AppendInfo(filename) =>
         val newInfo = useInfo + ":" + genInfo(filename)
-        ir.FileInfo(ir.StringLit.unescape(newInfo))
+        infoType match {
+          case "f" => ir.FileInfo(ir.StringLit.unescape(newInfo))
+          case "c" => ir.CustomInfo(ir.StringLit.unescape(newInfo))
+        }
       case GenInfo(filename) =>
-        ir.FileInfo(ir.StringLit.unescape(genInfo(filename)))
+        infoType match {
+          case "f" => ir.FileInfo(ir.StringLit.unescape(genInfo(filename)))
+          case "c" => ir.CustomInfo(ir.StringLit.unescape(genInfo(filename)))
+        }
       case IgnoreInfo => NoInfo
     }
   }

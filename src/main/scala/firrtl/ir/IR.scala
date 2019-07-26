@@ -25,7 +25,7 @@ case class FileInfo(info: StringLit) extends Info {
   def ++(that: Info): Info = if (that == NoInfo) this else MultiInfo(Seq(this, that))
 }
 case class CustomInfo(info: StringLit) extends Info {
-  override def toString: String = info.serialize
+  override def toString: String = " @(" + info.serialize + ")"
   //scalastyle:off method.name
   def ++(that: Info): Info = if (that == NoInfo) this else MultiInfo(Seq(this, that))
 }

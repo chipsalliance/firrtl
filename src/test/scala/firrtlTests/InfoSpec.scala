@@ -19,7 +19,7 @@ class InfoSpec extends FirrtlFlatSpec {
 
   // Some useful constants to use and look for
   val Info1 = FileInfo(StringLit("Source.scala 1:4"))
-  val Info2 = FileInfo(StringLit("Source.scala 2:4"))
+  val Info2 = CustomInfo(StringLit("This is a custom info"))
   val Info3 = FileInfo(StringLit("Source.scala 3:4"))
 
   "Source locators on module ports" should "be propagated to Verilog" in {
