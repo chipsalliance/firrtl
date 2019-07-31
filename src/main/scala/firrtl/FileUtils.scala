@@ -92,11 +92,10 @@ object FileUtils {
     */
   lazy val isVCSAvailable: Boolean = isCommandAvailable(Seq("vcs",  "-platform"))
 
-  /** Read a text file into a Seq of strings
+  /** Read a text file and return it as a Seq of strings
     * Closes the file after read to avoid dangling file handles
     *
     * @param fileName The file to read
-    * @return
     */
   def getLines(fileName: String): Seq[String] = {
     val source = io.Source.fromFile(fileName)
@@ -105,11 +104,10 @@ object FileUtils {
     lines.toSeq
   }
 
-  /** Read a text file into a Seq of strings
+  /** Read a text file and return it as  a Seq of strings
     * Closes the file after read to avoid dangling file handles
     *
     * @param file a java File to be read
-    * @return
     */
   def getLines(file: File): Seq[String] = {
     val source = io.Source.fromFile(file)
@@ -118,11 +116,10 @@ object FileUtils {
     lines.toSeq
   }
 
-  /** Read a text file into a single string
+  /** Read a text file and return it as  a single string
     * Closes the file after read to avoid dangling file handles
     *
     * @param fileName The file to read
-    * @return
     */
   def getText(fileName: String): String = {
     val source = io.Source.fromFile(fileName)
@@ -131,11 +128,10 @@ object FileUtils {
     text
   }
 
-  /** Read a text file into a single string
+  /** Read a text file and return it as  a single string
     * Closes the file after read to avoid dangling file handles
     *
     * @param file a java File to be read
-    * @return
     */
   def getText(file: File): String = {
     val source = io.Source.fromFile(file)
@@ -144,27 +140,27 @@ object FileUtils {
     text
   }
 
-  /** Read text file into a Seq of strings
+  /** Read text file and return it as  a Seq of strings
     * Closes the file after read to avoid dangling file handles
+    * @note resourceName typically begins with a slash.
     *
     * @param resourceName a java File to be read
-    * @return
     */
   def getLinesResource(resourceName: String): Seq[String] = {
-    val inputStream = getClass.getResourceAsStream("/annotations/SampleAnnotations.anno")
+    val inputStream = getClass.getResourceAsStream(resourceName)
     val text = io.Source.fromInputStream(inputStream).getLines().toSeq
     inputStream.close()
     text
   }
 
-  /** Read text file into a single string
+  /** Read text file and return it as  a single string
     * Closes the file after read to avoid dangling file handles
+    * @note resourceName typically begins with a slash.
     *
     * @param resourceName a java File to be read
-    * @return
     */
   def getTextResource(resourceName: String): String = {
-    val inputStream = getClass.getResourceAsStream("/annotations/SampleAnnotations.anno")
+    val inputStream = getClass.getResourceAsStream(resourceName)
     val text = io.Source.fromInputStream(inputStream).mkString
     inputStream.close()
     text
