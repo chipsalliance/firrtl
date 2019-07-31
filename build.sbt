@@ -10,7 +10,7 @@ organization := "edu.berkeley.cs"
 
 name := "firrtl"
 
-version := "1.2-050719-SNAPSHOT"
+version := "1.2-073119-SNAPSHOT"
 
 scalaVersion := "2.12.7"
 
@@ -28,8 +28,12 @@ def scalacOptionsVersion(scalaVersion: String): Seq[String] = {
   }
 }
 
+addCompilerPlugin(scalafixSemanticdb) // enable SemanticDB
+
 scalacOptions := scalacOptionsVersion(scalaVersion.value) ++ Seq(
-  "-deprecation"
+  "-deprecation",
+  "-Yrangepos",          // required by SemanticDB compiler plugin
+  "-Ywarn-unused-import" // required by `RemoveUnused` rule
 )
 
 def javacOptionsVersion(scalaVersion: String): Seq[String] = {
