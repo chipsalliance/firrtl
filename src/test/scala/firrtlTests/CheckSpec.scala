@@ -2,9 +2,7 @@
 
 package firrtlTests
 
-import java.io._
 import org.scalatest._
-import org.scalatest.prop._
 import firrtl.{Parser, CircuitState, UnknownForm, Transform}
 import firrtl.ir.Circuit
 import firrtl.passes.{Pass,ToWorkingIR,CheckHighForm,ResolveKinds,InferTypes,CheckTypes,PassException,InferWidths,CheckWidths,ResolveGenders,CheckGenders}
@@ -23,6 +21,25 @@ class CheckSpec extends FlatSpec with Matchers {
         |      read-latency => 0
         |      write-latency => 1""".stripMargin
     intercept[CheckHighForm.MemWithFlipException] {
+      passes.foldLeft(Parser.parse(input.split("\n").toIterator)) {
+        (c: Circuit, p: Pass) => p.run(c)
+      }
+    }
+  }
+
+  "Memories with zero write latency" should "throw an exception" in {
+    val passes = Seq(
+      ToWorkingIR,
+      CheckHighForm)
+    val input =
+      """circuit Unit :
+        |  module Unit :
+        |    mem m :
+        |      data-type => UInt<32>
+        |      depth => 32
+        |      read-latency => 0
+        |      write-latency => 0""".stripMargin
+    intercept[CheckHighForm.IllegalMemLatencyException] {
       passes.foldLeft(Parser.parse(input.split("\n").toIterator)) {
         (c: Circuit, p: Pass) => p.run(c)
       }
