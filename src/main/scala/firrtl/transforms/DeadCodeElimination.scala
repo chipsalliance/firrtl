@@ -96,7 +96,7 @@ class DeadCodeElimination extends Transform with ResolvedAnnotationPaths with Re
     def getDeps(expr: Expression): Seq[LogicNode] = getDepsImpl(mod.name, instMap)(expr)
 
     def onStmt(stmt: Statement): Unit = stmt match {
-      case DefRegister(_, name, _, clock, reset, init) =>
+      case DefRegister(_, name, _, _, clock, reset, init) =>
         val node = LogicNode(mod.name, name)
         depGraph.addVertex(node)
         Seq(clock, reset, init).flatMap(getDeps(_)).foreach(ref => depGraph.addPairWithEdge(node, ref))
@@ -128,9 +128,9 @@ class DeadCodeElimination extends Transform with ResolvedAnnotationPaths with Re
         val node = getDeps(loc) match { case Seq(elt) => elt }
         getDeps(expr).foreach(ref => depGraph.addPairWithEdge(node, ref))
       // Simulation constructs are treated as top-level outputs
-      case Stop(_,_, clk, en) =>
+      case Stop(_, _, _, clk, en) =>
         Seq(clk, en).flatMap(getDeps(_)).foreach(ref => depGraph.addPairWithEdge(circuitSink, ref))
-      case Print(_, _, args, clk, en) =>
+      case Print(_, _, args, _, clk, en) =>
         (args :+ clk :+ en).flatMap(getDeps(_)).foreach(ref => depGraph.addPairWithEdge(circuitSink, ref))
       case Block(stmts) => stmts.foreach(onStmt(_))
       case ignore @ (_: IsInvalid | _: WDefInstance | EmptyStmt) => // do nothing

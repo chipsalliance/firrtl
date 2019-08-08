@@ -103,7 +103,16 @@ class Visitor(infoMode: InfoMode) extends AbstractParseTreeVisitor[FirrtlNode] w
       case "output" => Output
     }
 
-  private def visitMdir(ctx: MdirContext): MPortDir =
+  private def visitEdge[FirrtlNode](ctx: Option[EdgeContext]): Edge =
+    ctx match {
+      case Some(edge) => edge.getText match {
+        case "posedge" => Posedge
+        case "negedge" => Negedge
+      }
+      case None => Posedge
+    }
+
+  private def visitMdir[FirrtlNode](ctx: MdirContext): MPortDir =
     ctx.getText match {
       case "infer" => MInfer
       case "read" => MRead
@@ -138,6 +147,7 @@ class Visitor(infoMode: InfoMode) extends AbstractParseTreeVisitor[FirrtlNode] w
       case typeContext: TypeContext => new VectorType(visitType(ctx.`type`), string2Int(ctx.intLit(0).getText))
     }
   }
+
 
   // Special case "type" of CHIRRTL mems because their size can be BigInt
   private def visitCMemType(ctx: TypeContext): (Type, BigInt) = {
@@ -252,6 +262,7 @@ class Visitor(infoMode: InfoMode) extends AbstractParseTreeVisitor[FirrtlNode] w
         case "reg" =>
           val name = ctx.id(0).getText
           val tpe = visitType(ctx.`type`())
+          val edge = visitEdge(Option(ctx.edge))
           val (reset, init) = {
             val rb = ctx.reset_block()
             if (rb != null) {
@@ -261,7 +272,7 @@ class Visitor(infoMode: InfoMode) extends AbstractParseTreeVisitor[FirrtlNode] w
             else
               (UIntLiteral(0, IntWidth(1)), Reference(name, tpe))
           }
-          DefRegister(info, name, tpe, visitExp(ctx_exp(0)), reset, init)
+          DefRegister(info, name, tpe, edge, visitExp(ctx_exp(0)), reset, init)
         case "mem" => visitMem(ctx)
         case "cmem" =>
           val (tpe, size) = visitCMemType(ctx.`type`())
@@ -272,10 +283,9 @@ class Visitor(infoMode: InfoMode) extends AbstractParseTreeVisitor[FirrtlNode] w
         case "inst" => DefInstance(info, ctx.id(0).getText, ctx.id(1).getText)
         case "node" => DefNode(info, ctx.id(0).getText, visitExp(ctx_exp(0)))
 
-        case "stop(" => Stop(info, string2Int(ctx.intLit().getText), visitExp(ctx_exp(0)), visitExp(ctx_exp(1)))
+        case "stop(" => Stop(info, string2Int(ctx.intLit().getText), visitEdge(Option(ctx.edge)), visitExp(ctx_exp(0)), visitExp(ctx_exp(1)))
         case "attach" => Attach(info, ctx_exp map visitExp)
-        case "printf(" => Print(info, visitStringLit(ctx.StringLit), ctx_exp.drop(2).map(visitExp),
-          visitExp(ctx_exp(0)), visitExp(ctx_exp(1)))
+        case "printf(" => Print(info, visitStringLit(ctx.StringLit), ctx_exp.drop(2).map(visitExp), visitEdge(Option(ctx.edge)), visitExp(ctx_exp(0)), visitExp(ctx_exp(1)))
         case "skip" => EmptyStmt
       }
       // If we don't match on the first child, try the next one

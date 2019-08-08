@@ -250,19 +250,29 @@ case class DefWire(info: Info, name: String, tpe: Type) extends Statement with I
   def foreachString(f: String => Unit): Unit = f(name)
   def foreachInfo(f: Info => Unit): Unit = f(info)
 }
+
+sealed abstract class Edge extends FirrtlNode
+case object Posedge extends Edge {
+  def serialize: String = "posedge"
+}
+case object Negedge extends Edge {
+  def serialize: String = "negedge"
+}
+
 case class DefRegister(
     info: Info,
     name: String,
     tpe: Type,
+    edge: Edge,
     clock: Expression,
     reset: Expression,
     init: Expression) extends Statement with IsDeclaration {
   def serialize: String =
-    s"reg $name : ${tpe.serialize}, ${clock.serialize} with :" +
+    s"reg $name : ${tpe.serialize}, ${edge.serialize} ${clock.serialize} with :" +
     indent("\n" + s"reset => (${reset.serialize}, ${init.serialize})" + info.serialize)
   def mapStmt(f: Statement => Statement): Statement = this
   def mapExpr(f: Expression => Expression): Statement =
-    DefRegister(info, name, tpe, f(clock), f(reset), f(init))
+    DefRegister(info, name, tpe, edge, f(clock), f(reset), f(init))
   def mapType(f: Type => Type): Statement = this.copy(tpe = f(tpe))
   def mapString(f: String => String): Statement = this.copy(name = f(name))
   def mapInfo(f: Info => Info): Statement = this.copy(info = f(info))
@@ -418,10 +428,10 @@ case class Attach(info: Info, exprs: Seq[Expression]) extends Statement with Has
   def foreachString(f: String => Unit): Unit = Unit
   def foreachInfo(f: Info => Unit): Unit = f(info)
 }
-case class Stop(info: Info, ret: Int, clk: Expression, en: Expression) extends Statement with HasInfo {
-  def serialize: String = s"stop(${clk.serialize}, ${en.serialize}, $ret)" + info.serialize
+case class Stop(info: Info, ret: Int, edge: Edge, clk: Expression, en: Expression) extends Statement with HasInfo {
+  def serialize: String = s"stop(${edge.serialize} ${clk.serialize}, ${en.serialize}, $ret)" + info.serialize
   def mapStmt(f: Statement => Statement): Statement = this
-  def mapExpr(f: Expression => Expression): Statement = Stop(info, ret, f(clk), f(en))
+  def mapExpr(f: Expression => Expression): Statement = Stop(info, ret, edge,f(clk), f(en))
   def mapType(f: Type => Type): Statement = this
   def mapString(f: String => String): Statement = this
   def mapInfo(f: Info => Info): Statement = this.copy(info = f(info))
@@ -435,15 +445,16 @@ case class Print(
     info: Info,
     string: StringLit,
     args: Seq[Expression],
+    edge: Edge,
     clk: Expression,
     en: Expression) extends Statement with HasInfo {
   def serialize: String = {
-    val strs = Seq(clk.serialize, en.serialize, string.escape) ++
+    val strs = Seq(edge.serialize, clk.serialize, en.serialize, string.escape) ++
                (args map (_.serialize))
     "printf(" + (strs mkString ", ") + ")" + info.serialize
   }
   def mapStmt(f: Statement => Statement): Statement = this
-  def mapExpr(f: Expression => Expression): Statement = Print(info, string, args map f, f(clk), f(en))
+  def mapExpr(f: Expression => Expression): Statement = Print(info, string, args map f, edge, f(clk), f(en))
   def mapType(f: Type => Type): Statement = this
   def mapString(f: String => String): Statement = this
   def mapInfo(f: Info => Info): Statement = this.copy(info = f(info))

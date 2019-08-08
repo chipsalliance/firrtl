@@ -70,14 +70,14 @@ class UniquifySpec extends FirrtlFlatSpec {
       """circuit Test :
         |  module Test :
         |    input clock : Clock
-        |    reg a : { b : UInt<1>, c : { d : UInt<2>, e : UInt<3>}[2], c_1_e : UInt<4>}[2], clock
-        |    reg a_0_c_ : UInt<5>, clock
-        |    reg a__0 : UInt<6>, clock
+        |    reg a : { b : UInt<1>, c : { d : UInt<2>, e : UInt<3>}[2], c_1_e : UInt<4>}[2], posedge clock
+        |    reg a_0_c_ : UInt<5>, posedge clock
+        |    reg a__0 : UInt<6>, posedge clock
       """.stripMargin
     val expected = Seq(
-      "reg a__ : { b : UInt<1>, c_ : { d : UInt<2>, e : UInt<3>}[2], c_1_e : UInt<4>}[2], clock with :",
-      "reg a_0_c_ : UInt<5>, clock with :",
-      "reg a__0 : UInt<6>, clock with :") map normalized
+      "reg a__ : { b : UInt<1>, c_ : { d : UInt<2>, e : UInt<3>}[2], c_1_e : UInt<4>}[2], posedge clock with :",
+      "reg a_0_c_ : UInt<5>, posedge clock with :",
+      "reg a__0 : UInt<6>, posedge clock with :") map normalized
 
     executeTest(input, expected)
   }
@@ -87,7 +87,7 @@ class UniquifySpec extends FirrtlFlatSpec {
       """circuit Test :
         |  module Test :
         |    input clock : Clock
-        |    reg x : { b : UInt<1>, c : { d : UInt<2>, e : UInt<3>}[2], c_1_e : UInt<4>}[2], clock
+        |    reg x : { b : UInt<1>, c : { d : UInt<2>, e : UInt<3>}[2], c_1_e : UInt<4>}[2], posedge clock
         |    node a = x
         |    node a_0_c_ = a[0].b
         |    node a__0  = a[1].c[0].d
@@ -108,11 +108,11 @@ class UniquifySpec extends FirrtlFlatSpec {
         |    input reset_a : UInt<1>
         |    input init : { a : UInt<4>, b : { c : UInt<4>, d : UInt<4>}[2], b_1_c : UInt<4>}[4]
         |    input init_0_a : UInt<4>
-        |    reg foo : UInt<4>, clock[1], with :
+        |    reg foo : UInt<4>, posedge clock[1], with :
         |      reset => (reset.a, init[3].b[1].d)
       """.stripMargin
     val expected = Seq(
-      "reg foo : UInt<4>, clock_[1] with :",
+      "reg foo : UInt<4>, posedge clock_[1] with :",
       "reset => (reset_.a, init_[3].b_[1].d)"
     ) map normalized
 

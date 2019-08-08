@@ -187,7 +187,7 @@ trait CheckHighFormLike {
       val info = get_info(s) match {case NoInfo => minfo case x => x}
       s foreach checkName(info, mname, names)
       s match {
-        case DefRegister(info, name, tpe, _, reset, init) =>
+        case DefRegister(info, name, tpe, _, _, reset, init) =>
           if (hasFlip(tpe))
             errors.append(new RegWithFlipException(info, mname, name))
           if (reset.tpe == AsyncResetType && !init.isInstanceOf[Literal])

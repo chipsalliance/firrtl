@@ -118,7 +118,7 @@ object FromProto {
     ir.DefWire(convert(info), wire.getId, convert(wire.getType))
 
   def convert(reg: Firrtl.Statement.Register, info: Firrtl.SourceInfo): ir.DefRegister =
-    ir.DefRegister(convert(info), reg.getId, convert(reg.getType), convert(reg.getClock),
+    ir.DefRegister(convert(info), reg.getId, convert(reg.getType), convert(reg.getEdge), convert(reg.getClock),
                    convert(reg.getReset), convert(reg.getInit))
 
   def convert(node: Firrtl.Statement.Node, info: Firrtl.SourceInfo): ir.DefNode =
@@ -164,11 +164,11 @@ object FromProto {
   def convert(printf: Firrtl.Statement.Printf, info: Firrtl.SourceInfo): ir.Print = {
     val args = printf.getArgList.asScala.map(convert(_))
     val str = ir.StringLit(printf.getValue)
-    ir.Print(convert(info), str, args, convert(printf.getClk), convert(printf.getEn))
+    ir.Print(convert(info), str, args, convert(printf.getEdge), convert(printf.getClk), convert(printf.getEn))
   }
 
   def convert(stop: Firrtl.Statement.Stop, info: Firrtl.SourceInfo): ir.Stop =
-    ir.Stop(convert(info), stop.getReturnValue, convert(stop.getClk), convert(stop.getEn))
+    ir.Stop(convert(info), stop.getReturnValue, convert(stop.getEdge), convert(stop.getClk), convert(stop.getEn))
 
   def convert(mem: Firrtl.Statement.Memory, info: Firrtl.SourceInfo): ir.DefMemory = {
     val dtype = convert(mem.getType)
@@ -274,6 +274,13 @@ object FromProto {
     val dir = convert(port.getDirection)
     val tpe = convert(port.getType)
     ir.Port(ir.NoInfo, port.getId, dir, tpe)
+  }
+
+  def convert(edge: Firrtl.Edge): ir.Edge = {
+    edge match {
+      case Firrtl.Edge.REGISTER_EDGE_POSEDGE => ir.Posedge
+      case Firrtl.Edge.REGISTER_EDGE_NEGEDGE => ir.Negedge
+    }
   }
 
   def convert(param: Firrtl.Module.ExternalModule.Parameter): ir.Param = {
