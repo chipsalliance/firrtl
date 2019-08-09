@@ -323,6 +323,7 @@ class PhaseManagerSpec extends FlatSpec with Matchers {
       val f = new File(d + "/transformOrder.dot")
       val w = new PrintWriter(new File(d + "/transformOrder.dot"))
       try {
+        info("transform order:\n" + pm.prettyPrint("    ", firrtl.options.DependencyManagerUtils.ASCIICharSet))
         w.write(pm.transformOrderToGraphviz())
         w.close
         maybeToPng(f)
