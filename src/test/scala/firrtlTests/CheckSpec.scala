@@ -2,9 +2,7 @@
 
 package firrtlTests
 
-import java.io._
 import org.scalatest._
-import org.scalatest.prop._
 import firrtl.{Parser, CircuitState, UnknownForm, Transform}
 import firrtl.ir.Circuit
 import firrtl.passes.{Pass,ToWorkingIR,CheckHighForm,ResolveKinds,InferTypes,CheckTypes,PassException,InferWidths,CheckWidths,ResolveGenders,CheckGenders}

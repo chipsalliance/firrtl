@@ -2,17 +2,8 @@
 
 package firrtlTests
 
-import org.scalatest.FlatSpec
-import org.scalatest.Matchers
-import org.scalatest.junit.JUnitRunner
-import firrtl.ir.Circuit
-import firrtl.Parser
-import firrtl.passes.PassExceptions
 import firrtl.annotations.{Annotation, CircuitName, ComponentName, ModuleName}
 import firrtl.passes.{InlineAnnotation, InlineInstances}
-import logger.{LogLevel, Logger}
-import logger.LogLevel.Debug
-
 
 /**
  * Tests inline instances transformation

@@ -59,7 +59,7 @@ trait SingleTargetAnnotation[T <: Target] extends Annotation {
       case c: Target =>
         val x = renames.get(c)
         x.map(newTargets => newTargets.map(t => duplicate(t.asInstanceOf[T]))).getOrElse(List(this))
-      case _: Named =>
+      case _: Named => FIXME
         val ret = renames.get(Target.convertNamed2Target(target))
         ret.map(_.map(newT => Target.convertTarget2Named(newT: @unchecked) match {
           case newTarget: T @unchecked =>

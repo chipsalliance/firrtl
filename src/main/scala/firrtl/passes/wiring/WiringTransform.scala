@@ -3,7 +3,6 @@
 package firrtl.passes
 package wiring
 
-import ch.qos.logback.core.spi.ComponentTracker
 import firrtl._
 import firrtl.Utils._
 

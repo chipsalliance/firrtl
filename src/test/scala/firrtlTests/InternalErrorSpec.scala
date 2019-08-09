@@ -2,8 +2,6 @@
 
 package firrtlTests
 
-import java.io.File
-
 import firrtl._
 import firrtl.Utils.getThrowable
 import firrtl.util.BackendCompilationUtilities

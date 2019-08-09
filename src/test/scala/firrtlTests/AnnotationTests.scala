@@ -2,7 +2,7 @@
 
 package firrtlTests
 
-import java.io.{File, FileWriter, Writer}
+import java.io.{File, FileWriter}
 
 import firrtl.annotations.AnnotationYamlProtocol._
 import firrtl.annotations._
@@ -11,10 +11,8 @@ import firrtl.transforms.OptimizableExtModuleAnnotation
 import firrtl.passes.InlineAnnotation
 import firrtl.passes.memlib.PinAnnotation
 import firrtl.util.BackendCompilationUtilities
-import firrtl.transforms.DontTouchAnnotation
 import net.jcazevedo.moultingyaml._
 import org.scalatest.Matchers
-import logger._
 
 /**
  * An example methodology for testing Firrtl annotations.

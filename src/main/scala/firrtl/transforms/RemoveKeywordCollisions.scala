@@ -5,7 +5,7 @@ package firrtl.transforms
 import firrtl._
 
 import firrtl.analyses.InstanceGraph
-import firrtl.annotations.{CircuitName, CircuitTarget, ComponentName, GenericTarget, IsMember, ModuleName, ModuleTarget, Named, ReferenceTarget, Target}
+import firrtl.annotations.{CircuitTarget, ComponentName, IsMember, ModuleTarget, ReferenceTarget, Target}
 import firrtl.ir
 import firrtl.passes.{PassException, Uniquify}
 import firrtl.Utils.v_keywords

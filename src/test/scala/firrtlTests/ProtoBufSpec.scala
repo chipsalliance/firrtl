@@ -2,8 +2,6 @@
 
 package firrtlTests
 
-import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
-
 import firrtl.FirrtlProtos.Firrtl
 import firrtl._
 import firrtl.ir._

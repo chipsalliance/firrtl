@@ -3,7 +3,7 @@ package firrtlTests
 import org.scalatest.FlatSpec
 import org.scalatest.Matchers._
 
-import firrtl.Utils
+import firrtl.Utils.expandPrefixes
 
 class UtilsSpec extends FlatSpec {
 
@@ -21,6 +21,6 @@ class UtilsSpec extends FlatSpec {
   )
 
   for ((description, delimiter, in, out) <- expandPrefixTests) {
-    it should description in { Utils.expandPrefixes(in, delimiter).toSet should be (out)}
+    it should description in { expandPrefixes(in, delimiter).toSet should be (out)}
   }
 }
