@@ -2,7 +2,8 @@
 
 package firrtl.stage.transforms
 
-import firrtl.{CircuitState, Transform}
+import firrtl.{CircuitState, Transform, VerilogEmitter}
+import firrtl.options.DependencyManagerUtils.CharSet
 import firrtl.stage.TransformManager
 
 class Compiler(
@@ -15,5 +16,35 @@ class Compiler(
     (a: Transform) => TrackTransforms(a),
     (a: Transform) => UpdateAnnotations(a)
   )
+
+  logger.info("Determined Transform order that will be executed:\n" + prettyPrint("  "))
+
+  override def customPrintHandling(
+    tab: String,
+    charSet: CharSet,
+    size: Int): Option[PartialFunction[(Transform, Int), Seq[String]]] = {
+
+    val (l, n, c) = (charSet.lastNode, charSet.notLastNode, charSet.continuation)
+    val last = size - 1
+
+    val f: PartialFunction[(Transform, Int), Seq[String]] = {
+      {
+        case (a: VerilogEmitter, `last`) =>
+          val firstTransforms = a.transforms.dropRight(1)
+          val lastTransform = a.transforms.last
+          Seq(s"$tab$l ${a.name}") ++
+            firstTransforms.map(t => s"""$tab${" " * c.size} $n ${t.name}""") :+
+            s"""$tab${" " * c.size} $l ${lastTransform.name}"""
+        case (a: VerilogEmitter, _) =>
+          val firstTransforms = a.transforms.dropRight(1)
+          val lastTransform = a.transforms.last
+          Seq(s"$tab$n ${a.name}") ++
+            firstTransforms.map(t => s"""$tab$c $n ${t.name}""") :+
+            s"""$tab$c $l ${lastTransform.name}"""
+      }
+    }
+
+    Some(f)
+  }
 
 }
