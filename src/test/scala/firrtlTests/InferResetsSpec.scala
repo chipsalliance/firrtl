@@ -125,51 +125,44 @@ class InferResetsSpec extends FirrtlFlatSpec {
     result should containTree { case Port(_, "buzz_bar_1_b", Input, AsyncResetType) => true }
   }
 
-  it should "allow last connect semantics to pick the right type for Reset" in {
-    val result = compile(s"""
-      |circuit top :
-      |  module top :
-      |    input reset0 : AsyncReset
-      |    input reset1 : UInt<1>
-      |    output out : Reset
-      |    wire w1 : Reset
-      |    wire w2 : Reset
-      |    w1 <= reset0
-      |    w2 <= reset1
-      |    out <= w1
-      |    out <= w2
-      |""".stripMargin
-    )
-    result should containTree { case Port(_, "out", Output, BoolType) => true }
+  it should "NOT allow last connect semantics to pick the right type for Reset" in {
+    an [InferResets.DifferingDriverTypesException] shouldBe thrownBy {
+      compile(s"""
+        |circuit top :
+        |  module top :
+        |    input reset0 : AsyncReset
+        |    input reset1 : UInt<1>
+        |    output out : Reset
+        |    wire w1 : Reset
+        |    wire w2 : Reset
+        |    w1 <= reset0
+        |    w2 <= reset1
+        |    out <= w1
+        |    out <= w2
+        |""".stripMargin
+      )
+    }
   }
 
-  it should "support last connect semantics even with nested whens" in {
-    val result = compile(s"""
-      |circuit top :
-      |  module top :
-      |    input reset0 : AsyncReset
-      |    input reset1 : UInt<1>
-      |    input reset2 : UInt<1>
-      |    input en0 : UInt<1>
-      |    input en1 : UInt<1>
-      |    output out : Reset
-      |    wire w1 : Reset
-      |    wire w2 : Reset
-      |    wire w3 : Reset
-      |    w1 <= reset0
-      |    w2 <= reset1
-      |    w3 <= reset2
-      |    out <= w1
-      |    when en0 :
-      |      when en1 :
-      |        out <= w2
-      |      else :
-      |        out <= w3
-      |    else :
-      |      out <= w3
-      |""".stripMargin
-    )
-    result should containTree { case Port(_, "out", Output, BoolType) => true }
+  it should "NOT support last connect semantics across whens" in {
+    an [InferResets.DifferingDriverTypesException] shouldBe thrownBy {
+      compile(s"""
+        |circuit top :
+        |  module top :
+        |    input reset0 : AsyncReset
+        |    input reset1 : UInt<1>
+        |    input en0 : UInt<1>
+        |    output out : Reset
+        |    wire w1 : Reset
+        |    wire w2 : Reset
+        |    w1 <= reset0
+        |    w2 <= reset1
+        |    out <= w1
+        |    when en0 :
+        |      out <= w2
+        |""".stripMargin
+      )
+    }
   }
 
   it should "not allow different Reset Types to drive a single Reset" in {
@@ -228,6 +221,36 @@ class InferResetsSpec extends FirrtlFlatSpec {
       |""".stripMargin
     )
     result3 should containTree { case DefWire(_, "w", BoolType) => true }
+  }
+
+  it should "error if a ResetType driving UInt<1> infers to AsyncReset" in {
+    an [Exception] shouldBe thrownBy {
+      compile(s"""
+        |circuit top :
+        |  module top :
+        |    input in : AsyncReset
+        |    output out : UInt<1>
+        |    wire w : Reset
+        |    w <= in
+        |    out <= w
+        |""".stripMargin
+      )
+    }
+  }
+
+  it should "error if a ResetType driving AsyncReset infers to UInt<1>" in {
+    an [Exception] shouldBe thrownBy {
+      compile(s"""
+        |circuit top :
+        |  module top :
+        |    input in : UInt<1>
+        |    output out : AsyncReset
+        |    wire w : Reset
+        |    w <= in
+        |    out <= w
+        |""".stripMargin
+      )
+    }
   }
 
   it should "not allow ResetType as an Input or ExtModule output" in {

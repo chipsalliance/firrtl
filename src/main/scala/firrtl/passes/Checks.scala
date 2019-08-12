@@ -55,8 +55,6 @@ object CheckHighForm extends Pass {
     s"$info: [module $mname] Primop $op argument $value < 0.")
   class LsbLargerThanMsbException(info: Info, mname: String, op: String, lsb: Int, msb: Int) extends PassException(
     s"$info: [module $mname] Primop $op lsb $lsb > $msb.")
-  class NonLiteralAsyncResetValueException(info: Info, mname: String, reg: String, init: String) extends PassException(
-    s"$info: [module $mname] AsyncReset Reg '$reg' reset to non-literal '$init'")
   class ResetInputException(info: Info, mname: String, expr: Expression) extends PassException(
     s"$info: [module $mname] Abstract Reset not allowed as top-level input: ${expr.serialize}")
   class ResetExtModuleOutputException(info: Info, mname: String, expr: Expression) extends PassException(
@@ -176,8 +174,6 @@ object CheckHighForm extends Pass {
         case DefRegister(info, name, tpe, _, reset, init) =>
           if (hasFlip(tpe))
             errors.append(new RegWithFlipException(info, mname, name))
-          if (reset.tpe == AsyncResetType && !init.isInstanceOf[Literal])
-            errors.append(new NonLiteralAsyncResetValueException(info, mname, name, init.serialize))
         case sx: DefMemory =>
           if (hasFlip(sx.dataType))
             errors.append(new MemWithFlipException(info, mname, sx.name))
@@ -326,6 +322,37 @@ object CheckTypes extends Pass {
     case _ => false
   }
 
+  private def bulk_equals(t1: Type, t2: Type, flip1: Orientation, flip2: Orientation): Boolean = {
+    (t1, t2) match {
+      case (ClockType, ClockType) => flip1 == flip2
+      case (_: UIntType, _: UIntType) => flip1 == flip2
+      case (_: SIntType, _: SIntType) => flip1 == flip2
+      case (_: FixedType, _: FixedType) => flip1 == flip2
+      case (_: AnalogType, _: AnalogType) => true
+      case (AsyncResetType, AsyncResetType) => flip1 == flip2
+      case (ResetType, tpe) => legalResetType(tpe) && flip1 == flip2
+      case (tpe, ResetType) => legalResetType(tpe) && flip1 == flip2
+      case (t1: BundleType, t2: BundleType) =>
+        val t1_fields = (t1.fields foldLeft Map[String, (Type, Orientation)]())(
+          (map, f1) => map + (f1.name ->( (f1.tpe, f1.flip) )))
+        t2.fields forall (f2 =>
+          t1_fields get f2.name match {
+            case None => true
+            case Some((f1_tpe, f1_flip)) =>
+              bulk_equals(f1_tpe, f2.tpe, times(flip1, f1_flip), times(flip2, f2.flip))
+          }
+        )
+      case (t1: VectorType, t2: VectorType) =>
+        bulk_equals(t1.tpe, t2.tpe, flip1, flip2)
+      case (_, _) => false
+    }
+  }
+
+  def validConnect(con: Connect): Boolean = wt(con.loc.tpe).superTypeOf(wt(con.expr.tpe))
+
+  def validPartialConnect(con: PartialConnect): Boolean =
+    bulk_equals(con.loc.tpe, con.expr.tpe, Default, Default)
+
   //;---------------- Helper Functions --------------
   def ut: UIntType = UIntType(UnknownWidth)
   def st: SIntType = SIntType(UnknownWidth)
@@ -427,39 +454,13 @@ object CheckTypes extends Pass {
       e foreach check_types_e(info, mname)
     }
 
-    def bulk_equals(t1: Type, t2: Type, flip1: Orientation, flip2: Orientation): Boolean = {
-      (t1, t2) match {
-        case (ClockType, ClockType) => flip1 == flip2
-        case (_: UIntType, _: UIntType) => flip1 == flip2
-        case (_: SIntType, _: SIntType) => flip1 == flip2
-        case (_: FixedType, _: FixedType) => flip1 == flip2
-        case (_: AnalogType, _: AnalogType) => true
-        case (AsyncResetType, AsyncResetType) => flip1 == flip2
-        case (ResetType, tpe) => legalResetType(tpe) && flip1 == flip2
-        case (tpe, ResetType) => legalResetType(tpe) && flip1 == flip2
-        case (t1: BundleType, t2: BundleType) =>
-          val t1_fields = (t1.fields foldLeft Map[String, (Type, Orientation)]())(
-            (map, f1) => map + (f1.name ->( (f1.tpe, f1.flip) )))
-          t2.fields forall (f2 =>
-            t1_fields get f2.name match {
-              case None => true
-              case Some((f1_tpe, f1_flip)) =>
-                bulk_equals(f1_tpe, f2.tpe, times(flip1, f1_flip), times(flip2, f2.flip))
-            }
-          )
-        case (t1: VectorType, t2: VectorType) =>
-          bulk_equals(t1.tpe, t2.tpe, flip1, flip2)
-        case (_, _) => false
-      }
-    }
-
     def check_types_s(minfo: Info, mname: String)(s: Statement): Unit = {
       val info = get_info(s) match { case NoInfo => minfo case x => x }
       s match {
-        case sx: Connect if !wt(sx.loc.tpe).superTypeOf(wt(sx.expr.tpe)) =>
+        case sx: Connect if !validConnect(sx) =>
           val conMsg = sx.copy(info = NoInfo).serialize
           errors.append(new InvalidConnect(info, mname, conMsg, sx.loc, sx.expr))
-        case sx: PartialConnect if !bulk_equals(sx.loc.tpe, sx.expr.tpe, Default, Default) =>
+        case sx: PartialConnect if !validPartialConnect(sx) =>
           val conMsg = sx.copy(info = NoInfo).serialize
           errors.append(new InvalidConnect(info, mname, conMsg, sx.loc, sx.expr))
         case sx: DefRegister =>

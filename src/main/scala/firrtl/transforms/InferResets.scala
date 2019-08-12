@@ -6,14 +6,12 @@ import firrtl._
 import firrtl.ir._
 import firrtl.Mappers._
 import firrtl.traversals.Foreachers._
-import firrtl.analyses.InstanceGraph
-import firrtl.graph.{DiGraph, MutableDiGraph}
 import firrtl.annotations.{ReferenceTarget, TargetToken}
 import firrtl.Utils.toTarget
 import firrtl.passes.{Pass, PassException, Errors, InferTypes}
 
 import scala.collection.mutable
-import scala.util.{Try, Success, Failure}
+import scala.util.Try
 
 object InferResets {
   final class DifferingDriverTypesException private (msg: String) extends PassException(msg)
@@ -29,11 +27,15 @@ object InferResets {
   private sealed trait ResetDriver
   // When a [[ResetType]] is driven by another ResetType, we track the target so that we can infer
   //   the same type as the driver
-  private case class TargetDriver(target: ReferenceTarget) extends ResetDriver
+  private case class TargetDriver(target: ReferenceTarget) extends ResetDriver {
+    override def toString: String = s"TargetDriver(${target.serialize})"
+  }
   // When a [[ResetType]] is driven by something of type Bool or AsyncResetType, we keep track of it
   //   as a constraint on the type we should infer to be
   // We keep the target around (lazily) so that we can report errors
-  private case class TypeDriver(tpe: Type, target: () => ReferenceTarget) extends ResetDriver
+  private case class TypeDriver(tpe: Type, target: () => ReferenceTarget) extends ResetDriver {
+    override def toString: String = s"TypeDriver(${tpe.serialize}, $target)"
+  }
 
 
   // Type hierarchy representing the path to a leaf type in an aggregate type structure
@@ -82,7 +84,7 @@ class InferResets extends Transform {
 
   // Collect all drivers for circuit elements of type ResetType
   private def analyze(c: Circuit): Map[ReferenceTarget, List[ResetDriver]] = {
-    type DriverMap = mutable.HashMap[ReferenceTarget, List[ResetDriver]]
+    type DriverMap = mutable.HashMap[ReferenceTarget, mutable.ListBuffer[ResetDriver]]
     def onMod(mod: DefModule): DriverMap = {
       val instMap = mutable.Map[String, String]()
       // We need to convert submodule port targets into targets on the Module port itself
@@ -93,24 +95,29 @@ class InferResets extends Transform {
             val mod = instMap(target.ref)
             val port = target.component.head match {
               case TargetToken.Field(name) => name
+              case bad => Utils.throwInternalError(s"Unexpected token $bad")
             }
             target.copy(module = mod, ref = port, component = target.component.tail)
           case _ => target
         }
       }
       def onStmt(map: DriverMap)(stmt: Statement): Unit = {
-        // Utility used for marking drivers for leaf-level connections
-        def markDriver(lhs: Expression, rhs: Expression): Unit = {
-          val (loc, exp) = Utils.to_flip(Utils.gender(lhs)) match {
-            case Default => (lhs, rhs)
-            case Flip    => (rhs, lhs)
+        // Mark driver of a ResetType leaf
+        def markResetDriver(lhs: Expression, rhs: Expression): Unit = {
+          val lflip = Utils.to_flip(Utils.gender(lhs))
+          if ((lflip == Default && lhs.tpe == ResetType) ||
+              (lflip == Flip    && rhs.tpe == ResetType)) {
+            val (loc, exp) = lflip match {
+              case Default => (lhs, rhs)
+              case Flip    => (rhs, lhs)
+            }
+            val target = makeTarget(loc)
+            val driver = exp.tpe match {
+              case ResetType => TargetDriver(makeTarget(exp))
+              case tpe       => TypeDriver(tpe, () => makeTarget(exp))
+            }
+            map.getOrElseUpdate(target, mutable.ListBuffer()) += driver
           }
-          val target = makeTarget(loc)
-          val driver = exp.tpe match {
-            case ResetType => TargetDriver(makeTarget(exp))
-            case tpe       => TypeDriver(tpe, () => makeTarget(exp))
-          }
-          map(target) = driver :: Nil
         }
         stmt match {
           // TODO
@@ -119,17 +126,15 @@ class InferResets extends Transform {
           case Connect(_, lhs, rhs) =>
             val locs = Utils.create_exps(lhs)
             val exps = Utils.create_exps(rhs)
-            for ((loc, exp) <- locs.zip(exps) if loc.tpe == ResetType || exp.tpe == ResetType) {
-              markDriver(loc, exp)
+            for ((loc, exp) <- locs.zip(exps)) {
+              markResetDriver(loc, exp)
             }
           case PartialConnect(_, lhs, rhs) =>
             val points = Utils.get_valid_points(lhs.tpe, rhs.tpe, Default, Default)
             val locs = Utils.create_exps(lhs)
             val exps = Utils.create_exps(rhs)
-            for ((i, j) <- points if locs(i).tpe == ResetType || exps(j).tpe == ResetType) {
-              val loc = locs(i)
-              val exp = exps(j)
-              markDriver(loc, exp)
+            for ((i, j) <- points) {
+              markResetDriver(locs(i), exps(j))
             }
           case WDefInstance(_, inst, module, _) =>
             instMap += (inst -> module)
@@ -141,7 +146,9 @@ class InferResets extends Transform {
             // Default to outerscope if not found in alt
             val altLookup = altMap.orElse(map).lift
             for (key <- conMap.keys ++ altMap.keys) {
-              map(key) = (conMap.get(key).toList ++ altLookup(key).toList).flatten
+              val ds = map.getOrElseUpdate(key, mutable.ListBuffer())
+              conMap.get(key).foreach(ds ++= _)
+              altLookup(key).foreach(ds ++= _)
             }
           case other => other.foreach(onStmt(map))
         }
@@ -151,7 +158,7 @@ class InferResets extends Transform {
       types
     }
     c.modules.foldLeft(Map[ReferenceTarget, List[ResetDriver]]()) {
-      case (map, mod) => map ++ onMod(mod)
+      case (map, mod) => map ++ onMod(mod).mapValues(_.toList)
     }
   }
 
