@@ -9,7 +9,7 @@ import firrtl.Utils._
 import firrtl.traversals.Foreachers._
 import firrtl.WrappedType._
 
-object CheckHighForm extends Pass {
+trait CheckHighFormLike {
   type NameSet = collection.mutable.HashSet[String]
 
   // Custom Exceptions
@@ -25,6 +25,8 @@ object CheckHighForm extends Pass {
     s"$info: [module $mname] Poison $name cannot be a bundle type with flips.")
   class MemWithFlipException(info: Info, mname: String, name: String) extends PassException(
     s"$info: [module $mname] Memory $name cannot be a bundle type with flips.")
+  class IllegalMemLatencyException(info: Info, mname: String, name: String) extends PassException(
+    s"$info: [module $mname] Memory $name must have non-negative read latency and positive write latency.")
   class RegWithFlipException(info: Info, mname: String, name: String) extends PassException(
     s"$info: [module $mname] Register $name cannot be a bundle type with flips.")
   class InvalidAccessException(info: Info, mname: String) extends PassException(
@@ -61,6 +63,9 @@ object CheckHighForm extends Pass {
     s"$info: [module $mname] Abstract Reset not allowed as ExtModule output: ${expr.serialize}")
 
 
+  // Is Chirrtl allowed for this check? If not, return an error
+  def errorOnChirrtl(info: Info, mname: String, s: Statement): Option[PassException]
+
   def run(c: Circuit): Circuit = {
     val errors = new Errors()
     val moduleGraph = new ModuleGraph
@@ -87,9 +92,8 @@ object CheckHighForm extends Pass {
           correctNum(Option(1), 1)
         case Shl | Shr =>
           correctNum(Option(1), 1)
-          val amount = e.consts.head.toInt
-          if (amount < 0) {
-            errors.append(new NegArgException(info, mname, e.op.toString, amount))
+          val amount = e.consts.map(_.toInt).filter(_ < 0).foreach {
+            c => errors.append(new NegArgException(info, mname, e.op.toString, c))
           }
         case Bits =>
           correctNum(Option(1), 2)
@@ -140,6 +144,7 @@ object CheckHighForm extends Pass {
 
     def validSubexp(info: Info, mname: String)(e: Expression): Unit = {
       e match {
+        case _: Reference | _: SubField | _: SubIndex | _: SubAccess => // No error
         case _: WRef | _: WSubField | _: WSubIndex | _: WSubAccess | _: Mux | _: ValidIf => // No error
         case _ => errors.append(new InvalidAccessException(info, mname))
       }
@@ -147,12 +152,15 @@ object CheckHighForm extends Pass {
 
     def checkHighFormE(info: Info, mname: String, names: NameSet)(e: Expression): Unit = {
       e match {
+        case ex: Reference if !names(ex.name) =>
+          errors.append(new UndeclaredReferenceException(info, mname, ex.name))
         case ex: WRef if !names(ex.name) =>
           errors.append(new UndeclaredReferenceException(info, mname, ex.name))
         case ex: UIntLiteral if ex.value < 0 =>
           errors.append(new NegUIntException(info, mname))
         case ex: DoPrim => checkHighFormPrimop(info, mname, ex)
-        case _: WRef | _: UIntLiteral | _: Mux | _: ValidIf =>
+        case _: Reference | _: WRef | _: UIntLiteral | _: Mux | _: ValidIf =>
+        case ex: SubAccess => validSubexp(info, mname)(ex.expr)
         case ex: WSubAccess => validSubexp(info, mname)(ex.expr)
         case ex => ex foreach validSubexp(info, mname)
       }
@@ -167,6 +175,15 @@ object CheckHighForm extends Pass {
       names += name
     }
 
+    def checkInstance(info: Info, child: String, parent: String): Unit = {
+      if (!moduleNames(child))
+        errors.append(new ModuleNotDefinedException(info, parent, child))
+      // Check to see if a recursive module instantiation has occured
+      val childToParent = moduleGraph add (parent, child)
+      if (childToParent.nonEmpty)
+        errors.append(new InstanceLoop(info, parent, childToParent mkString "->"))
+    }
+
     def checkHighFormS(minfo: Info, mname: String, names: NameSet)(s: Statement): Unit = {
       val info = get_info(s) match {case NoInfo => minfo case x => x}
       s foreach checkName(info, mname, names)
@@ -175,20 +192,18 @@ object CheckHighForm extends Pass {
           if (hasFlip(tpe))
             errors.append(new RegWithFlipException(info, mname, name))
         case sx: DefMemory =>
+          if (sx.readLatency < 0 || sx.writeLatency <= 0)
+            errors.append(new IllegalMemLatencyException(info, mname, sx.name))
           if (hasFlip(sx.dataType))
             errors.append(new MemWithFlipException(info, mname, sx.name))
           if (sx.depth <= 0)
             errors.append(new NegMemSizeException(info, mname))
-        case sx: WDefInstance =>
-          if (!moduleNames(sx.module))
-            errors.append(new ModuleNotDefinedException(info, mname, sx.module))
-          // Check to see if a recursive module instantiation has occured
-          val childToParent = moduleGraph add (mname, sx.module)
-          if (childToParent.nonEmpty)
-            errors.append(new InstanceLoop(info, mname, childToParent mkString "->"))
+        case sx: DefInstance => checkInstance(info, mname, sx.module)
+        case sx: WDefInstance => checkInstance(info, mname, sx.module)
         case sx: Connect => checkValidLoc(info, mname, sx.loc)
         case sx: PartialConnect => checkValidLoc(info, mname, sx.loc)
         case sx: Print => checkFstring(info, mname, sx.string, sx.args.length)
+        case _: CDefMemory | _: CDefMPort => errorOnChirrtl(info, mname, s).foreach { e => errors.append(e) }
         case sx => // Do Nothing
       }
       s foreach checkHighFormT(info, mname)
@@ -241,6 +256,18 @@ object CheckHighForm extends Pass {
   }
 }
 
+object CheckHighForm extends Pass with CheckHighFormLike {
+  class IllegalChirrtlMemException(info: Info, mname: String, name: String) extends PassException(
+    s"$info: [module $mname] Memory $name has not been properly lowered from Chirrtl IR.")
+
+  def errorOnChirrtl(info: Info, mname: String, s: Statement): Option[PassException] = {
+    val memName = s match {
+      case cm: CDefMemory => cm.name
+      case cp: CDefMPort => cp.mem
+    }
+    Some(new IllegalChirrtlMemException(info, mname, memName))
+  }
+}
 object CheckTypes extends Pass {
 
   // Custom Exceptions
