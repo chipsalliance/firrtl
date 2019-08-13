@@ -12,9 +12,9 @@ name := "firrtl"
 
 version := "1.2-SNAPSHOT"
 
-scalaVersion := "2.12.7"
+scalaVersion := "2.12.9"
 
-crossScalaVersions := Seq("2.12.7", "2.11.12")
+crossScalaVersions := Seq("2.12.9", "2.11.12")
 
 def scalacOptionsVersion(scalaVersion: String): Seq[String] = {
   Seq() ++ {
