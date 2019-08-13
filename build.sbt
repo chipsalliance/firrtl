@@ -10,7 +10,7 @@ organization := "edu.berkeley.cs"
 
 name := "firrtl"
 
-version := "1.2-073119-SNAPSHOT"
+version := "1.2-081319-SNAPSHOT"
 
 scalaVersion := "2.12.7"
 
@@ -32,6 +32,7 @@ addCompilerPlugin(scalafixSemanticdb) // enable SemanticDB
 
 scalacOptions := scalacOptionsVersion(scalaVersion.value) ++ Seq(
   "-deprecation",
+  "-unchecked",
   "-Yrangepos",          // required by SemanticDB compiler plugin
   "-Ywarn-unused-import" // required by `RemoveUnused` rule
 )

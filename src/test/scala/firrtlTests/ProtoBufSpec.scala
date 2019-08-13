@@ -2,8 +2,6 @@
 
 package firrtlTests
 
-import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
-
 import firrtl.FirrtlProtos.Firrtl
 import firrtl._
 import firrtl.ir._
@@ -30,8 +28,7 @@ class ProtoBufSpec extends FirrtlFlatSpec {
 
   for (FirrtlResourceTest(name, dir) <- firrtlResourceTests) {
     s"$name" should "work with Protobuf serialization and deserialization" in {
-      val stream = getClass.getResourceAsStream(s"$dir/$name.fir")
-      val circuit = parse(scala.io.Source.fromInputStream(stream).getLines.mkString("\n"))
+      val circuit = parse(FileUtils.getTextResource(s"$dir/$name.fir"))
 
       // Test ToProto and FromProto
       val protobuf = proto.ToProto.convert(circuit)
@@ -181,6 +178,11 @@ class ProtoBufSpec extends FirrtlFlatSpec {
 
   it should "support AsyncResetTypes" in {
     val port = ir.Port(ir.NoInfo, "reset", ir.Input, ir.AsyncResetType)
+    FromProto.convert(ToProto.convert(port).build) should equal (port)
+  }
+
+  it should "support ResetTypes" in {
+    val port = ir.Port(ir.NoInfo, "reset", ir.Input, ir.ResetType)
     FromProto.convert(ToProto.convert(port).build) should equal (port)
   }
 }
