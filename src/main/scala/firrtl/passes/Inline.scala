@@ -9,7 +9,6 @@ import firrtl.annotations._
 import firrtl.analyses.InstanceGraph
 import firrtl.stage.RunFirrtlTransformAnnotation
 import firrtl.options.{RegisteredTransform, ShellOption}
-import scopt.OptionParser
 
 // Datastructures
 import scala.collection.mutable
@@ -46,7 +45,7 @@ class InlineInstances extends Transform with RegisteredTransform {
       helpValueName = Some("<circuit>[.<module>[.<instance>]][,...]") ) )
 
    private def collectAnns(circuit: Circuit, anns: Iterable[Annotation]): (Set[ModuleName], Set[ComponentName]) =
-     anns.foldLeft(Set.empty[ModuleName], Set.empty[ComponentName]) {
+     anns.foldLeft( (Set.empty[ModuleName], Set.empty[ComponentName]) ) {
        case ((modNames, instNames), ann) => ann match {
          case InlineAnnotation(CircuitName(c)) =>
            (circuit.modules.collect {

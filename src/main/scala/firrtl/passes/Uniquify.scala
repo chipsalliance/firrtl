@@ -9,7 +9,6 @@ import firrtl.Utils._
 import firrtl.Mappers._
 import MemPortUtils.memType
 
-import scala.collection.mutable
 
 /** Resolve name collisions that would occur in [[LowerTypes]]
   *

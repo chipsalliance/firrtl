@@ -2,13 +2,9 @@
 
 package firrtl
 
-import com.typesafe.scalalogging.LazyLogging
-import java.nio.file.{Paths, Files}
-import java.io.{Reader, Writer}
+import java.io.Writer
 
 import scala.collection.mutable
-import scala.sys.process._
-import scala.io.Source
 
 import firrtl.ir._
 import firrtl.passes._
@@ -21,9 +17,8 @@ import Utils._
 import MemPortUtils.{memPortField, memType}
 import firrtl.options.{HasShellOptions, ShellOption, StageUtils, PhaseException}
 import firrtl.stage.RunFirrtlTransformAnnotation
-import scopt.OptionParser
 // Datastructures
-import scala.collection.mutable.{ArrayBuffer, LinkedHashMap, HashSet}
+import scala.collection.mutable.ArrayBuffer
 
 case class EmitterException(message: String) extends PassException(message)
 
@@ -224,8 +219,8 @@ class VerilogEmitter extends SeqTransform with Emitter {
     case ClockType | AsyncResetType => ""
     case _ => throwInternalError(s"trying to write unsupported type in the Verilog Emitter: $tpe")
   }
-  def emit(x: Any)(implicit w: Writer) { emit(x, 0) }
-  def emit(x: Any, top: Int)(implicit w: Writer) {
+  def emit(x: Any)(implicit w: Writer): Unit = { emit(x, 0) }
+  def emit(x: Any, top: Int)(implicit w: Writer): Unit = {
     def cast(e: Expression): Any = e.tpe match {
       case (t: UIntType) => e
       case (t: SIntType) => Seq("$signed(",e,")")
@@ -236,7 +231,12 @@ class VerilogEmitter extends SeqTransform with Emitter {
     x match {
       case (e: DoPrim) => emit(op_stream(e), top + 1)
       case (e: Mux) => {
-        if(e.tpe == ClockType) throw EmitterException("Cannot emit clock muxes directly")
+        if (e.tpe == ClockType) {
+          throw EmitterException("Cannot emit clock muxes directly")
+        }
+        if (e.tpe == AsyncResetType) {
+          throw EmitterException("Cannot emit async reset muxes directly")
+        }
         emit(Seq(e.cond," ? ",cast(e.tval)," : ",cast(e.fval)),top + 1)
       }
       case (e: ValidIf) => emit(Seq(cast(e.value)),top + 1)
@@ -513,7 +513,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
         declares += Seq(b, " ", tx, " ", n,";",info)
     }
 
-    def assign(e: Expression, value: Expression, info: Info) {
+    def assign(e: Expression, value: Expression, info: Info): Unit = {
       assigns += Seq("assign ", e, " = ", value, ";", info)
     }
 
@@ -606,7 +606,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
       }
     }
 
-    def initialize_mem(s: DefMemory) {
+    def initialize_mem(s: DefMemory): Unit = {
       if (s.depth > maxMemSize) {
         maxMemSize = s.depth
       }
@@ -678,7 +678,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
       // Turn types into strings, all ports must be GroundTypes
       val tpes = m.ports map {
         case Port(_, _, _, tpe: GroundType) => stringify(tpe)
-        case port: Port => error("Trying to emit non-GroundType Port $port")
+        case port: Port => error(s"Trying to emit non-GroundType Port $port")
       }
 
       // dirs are already padded
@@ -772,9 +772,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
           for (r <- sx.readers) {
             val data = memPortField(sx, r, "data")
             val addr = memPortField(sx, r, "addr")
-            val en = memPortField(sx, r, "en")
             // Ports should share an always@posedge, so can't have intermediary wire
-            val clk = netlist(memPortField(sx, r, "clk"))
 
             declare("wire", LowerTypes.loweredName(data), data.tpe, sx.info)
             declare("wire", LowerTypes.loweredName(addr), addr.tpe, sx.info)
@@ -826,7 +824,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
       }
     }
 
-    def emit_streams() {
+    def emit_streams(): Unit = {
       description match {
         case DocString(s) => build_comment(s.string).foreach(emit(_))
         case other =>

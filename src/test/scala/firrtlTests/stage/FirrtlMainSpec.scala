@@ -6,7 +6,7 @@ import org.scalatest.{FeatureSpec, GivenWhenThen, Matchers}
 
 import java.io.{File, PrintWriter}
 
-import scala.io.Source
+import firrtl.FileUtils
 
 import firrtl.stage.FirrtlMain
 import firrtl.util.BackendCompilationUtilities
@@ -236,6 +236,9 @@ class FirrtlMainSpec extends FeatureSpec with GivenWhenThen with Matchers with f
       Then("outputs should be written to current directory")
       out should (exist)
       out.delete()
+
+      And("the exit code should be 0")
+      result shouldBe a [Right[_,_]]
     }
 
     scenario("User provides Protocol Buffer input") {
@@ -309,7 +312,7 @@ class FirrtlMainSpec extends FeatureSpec with GivenWhenThen with Matchers with f
 
       Then("the implicit annotation file should NOT be read")
       val annoFileOut = new File(td.dir + "/Top.out.anno.json")
-      val annotationJson = Source.fromFile(annoFileOut).mkString
+      val annotationJson = FileUtils.getText(annoFileOut)
       annotationJson should not include ("InlineInstances")
 
       And("no warning should be printed")

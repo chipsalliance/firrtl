@@ -7,7 +7,7 @@ import scala.collection.mutable.ArrayBuffer
 import scala.collection.immutable.ListMap
 
 import firrtl._
-import firrtl.annotations.{Annotation, ReferenceTarget, TargetToken}
+import firrtl.annotations.{Annotation, ReferenceTarget}
 import firrtl.ir._
 import firrtl.Utils._
 import firrtl.Mappers._
@@ -262,6 +262,8 @@ class InferWidths extends Transform with ResolvedAnnotationPaths {
         })
       }
     case (t1: VectorType, t2: VectorType) => get_constraints_t(t1.tpe, t2.tpe)
+    case (ResetType, _) => Nil
+    case (_, ResetType) => Nil
   }
 
   def run(c: Circuit, extra: Seq[WGeq]): Circuit = {
@@ -288,7 +290,6 @@ class InferWidths extends Transform with ResolvedAnnotationPaths {
     def get_constraints_s(s: Statement): Unit = {
       s map get_constraints_declared_type match {
         case (s: Connect) =>
-          val n = get_size(s.loc.tpe)
           val locs = create_exps(s.loc)
           val exps = create_exps(s.expr)
           v ++= locs.zip(exps).flatMap { case (locx, expx) =>

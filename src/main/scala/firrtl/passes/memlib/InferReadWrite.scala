@@ -13,7 +13,6 @@ import MemPortUtils.memPortField
 import firrtl.passes.memlib.AnalysisUtils.{Connects, getConnects, getOrigin}
 import WrappedExpression.weq
 import annotations._
-import scopt.OptionParser
 import firrtl.stage.RunFirrtlTransformAnnotation
 
 
@@ -86,8 +85,6 @@ object InferReadWritePass extends Pass {
                          (s: Statement): Statement = s match {
     // infer readwrite ports only for non combinational memories
     case mem: DefMemory if mem.readLatency > 0 =>
-      val ut = UnknownType
-      val ug = UNKNOWNGENDER
       val readers = new PortSet
       val writers = new PortSet
       val readwriters = collection.mutable.ArrayBuffer[String]()

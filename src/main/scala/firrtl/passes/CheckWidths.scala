@@ -108,6 +108,7 @@ object CheckWidths extends Pass {
           sx.reset.tpe match {
             case UIntType(IntWidth(w)) if w == 1 =>
             case AsyncResetType =>
+            case ResetType =>
             case _ => errors.append(new CheckTypes.IllegalResetType(info, target.serialize, sx.name))
           }
         case _ =>
@@ -116,7 +117,7 @@ object CheckWidths extends Pass {
 
     def check_width_p(minfo: Info, target: ModuleTarget)(p: Port): Unit = check_width_t(p.info, target)(p.tpe)
 
-    def check_width_m(circuit: CircuitTarget)(m: DefModule) {
+    def check_width_m(circuit: CircuitTarget)(m: DefModule): Unit = {
       m foreach check_width_p(m.info, circuit.module(m.name))
       m foreach check_width_s(m.info, circuit.module(m.name))
     }
