@@ -6,6 +6,8 @@ import firrtl.ir.Circuit
 import firrtl._
 import firrtl.passes.Pass
 import firrtl.ir._
+import firrtl.transforms.IdentityTransform
+import firrtl.stage.Forms
 
 object CustomTransformSpec {
   class ReplaceExtModuleTransform extends SeqTransform with FirrtlMatchers {
@@ -93,6 +95,8 @@ object CustomTransformSpec {
     }
   }
 
+  class IdentityLowForm extends IdentityTransform(LowForm)
+
 }
 
 class CustomTransformSpec extends FirrtlFlatSpec {
@@ -123,5 +127,26 @@ class CustomTransformSpec extends FirrtlFlatSpec {
                     new ThirdTransform,
                     new ReplaceExtModuleTransform
                   ))
+  }
+
+  they should "run right before the emitter when inputForm=LowForm" in {
+
+    val custom = classOf[IdentityLowForm]
+
+    def testOrder(emitter: Class[_ <: Emitter], preceder: Class[_ <: Transform]): Unit = {
+      info(s"${preceder.getSimpleName} -> ${custom.getSimpleName} -> ${emitter.getSimpleName} ok!")
+
+      (new firrtl.stage.transforms.Compiler(Seq(custom, emitter)))
+        .flattenedTransformOrder
+        .map(_.getClass)
+        .containsSlice(
+          Seq( preceder, custom, emitter )) should be (true)
+    }
+
+    Seq( (classOf[LowFirrtlEmitter],      Forms.LowForm.last                 ),
+         (classOf[VerilogEmitter],        Forms.LowFormOptimized.last        ),
+         (classOf[SystemVerilogEmitter],  Forms.LowFormOptimized.last        ),
+         (classOf[MinimumVerilogEmitter], Forms.LowFormMinimumOptimized.last )
+    ).foreach((testOrder _).tupled)
   }
 }
