@@ -31,6 +31,8 @@ class LowerTypes extends Transform {
 
   override val prerequisites = firrtl.stage.Forms.MidForm
 
+  override val dependents = Seq.empty
+
   override def invalidates(a: Transform): Boolean = a match {
     case _: ResolveKinds | _: InferTypes | _: ResolveFlows | _: InferWidths => true
     case _ => false

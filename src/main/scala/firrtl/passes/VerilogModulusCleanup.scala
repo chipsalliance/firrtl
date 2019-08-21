@@ -7,6 +7,7 @@ import firrtl.ir._
 import firrtl.Mappers._
 import firrtl.PrimOps.{Bits, Rem}
 import firrtl.Utils._
+import firrtl.options.PreservesAll
 
 import scala.collection.mutable
 
@@ -23,7 +24,7 @@ import scala.collection.mutable
  *  This is technically incorrect firrtl, but allows the verilog emitter
  *  to emit correct verilog without needing to add temporary nodes
  */
-class VerilogModulusCleanup extends Pass {
+class VerilogModulusCleanup extends Pass with PreservesAll[Transform] {
 
   override val prerequisites = firrtl.stage.Forms.LowFormMinimumOptimized ++
     Seq( classOf[firrtl.transforms.BlackBoxSourceHelper],

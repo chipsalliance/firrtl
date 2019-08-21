@@ -204,26 +204,47 @@ abstract class Transform extends TransformLike[CircuitState] with DependencyAPI[
 
   def transform(state: CircuitState): CircuitState = execute(state)
 
-  private lazy val (inSeq, outSeq) = CompilerUtils.circuitFormsToTransformSeq(inputForm, outputForm)
+  /** This logic converts inputForm/outputForm into dependency API equivalents */
+  private lazy val (defaultPrerequisites, defaultDependents, defaultInvalidates) = {
+    val (in, out) = (inputForm, outputForm)
 
-  override def prerequisites = inSeq.getOrElse(Seq.empty)
+    import firrtl.{ChirrtlForm => C, HighForm => H, MidForm => M, LowForm => L, UnknownForm => U}
+    import firrtl.stage.{Forms => f}
 
-  override def dependents = outputForm match {
-    case UnknownForm => Seq.empty
-    case _ =>
-      (new mutable.LinkedHashSet[TransformDependency]() ++
-         inSeq.getOrElse(Set.empty) ++
-         firrtl.stage.Forms.VerilogOptimized --
-         outSeq.getOrElse(Set.empty) --
-         prerequisites -
-         this.getClass)
-        .toSeq
+    val f2e = CompilerUtils.circuitFormToEmitterSeq(_: CircuitForm).toSet
+    val lfoh = Seq(classOf[f.LowFormOptimizedHook])
+    val lfo = f.LowFormOptimized.toSet
+    val vOpt = f.VerilogOptimized.toSet
+    val mHF = f.MinimalHighForm.toSet
+
+    implicit def t2c(a: Transform): Class[_ <: Transform] = a.getClass
+
+    val everything = (_: Transform) => true
+    val nothing =    (_: Transform) => false
+    val self = this.getClass
+
+    (in, out) match {
+      /*   in,out     prereqs,   dependents,                                 invalidates */
+      case (C, _) => (Nil,       (vOpt              ++ f2e(C) - self).toSeq, nothing                           )
+      case (H, C) => (f.Deduped, (vOpt -- f.Deduped ++ f2e(H) - self).toSeq, everything                        )
+      case (H, _) => (f.Deduped, (vOpt -- f.Deduped ++ f2e(H) - self).toSeq, nothing                           )
+      case (M, C) => (f.MidForm, (vOpt -- f.MidForm ++ f2e(M) - self).toSeq, everything                        )
+      case (M, H) => (f.MidForm, (vOpt -- f.MidForm ++ f2e(M) - self).toSeq, (vOpt -- mHF)(_: Transform)       )
+      case (M, _) => (f.MidForm, (vOpt -- f.MidForm ++ f2e(M) - self).toSeq, nothing                           )
+      case (L, C) => (lfoh,      (vOpt -- lfo       ++ f2e(L) - self).toSeq, everything                        )
+      case (L, H) => (lfoh,      (vOpt -- lfo       ++ f2e(L) - self).toSeq, (vOpt -- mHF)(_: Transform)       )
+      case (L, M) => (lfoh,      (vOpt -- lfo       ++ f2e(L) - self).toSeq, (vOpt -- f.MidForm)(_: Transform) )
+      case (L, _) => (lfoh,      (vOpt -- lfo       ++ f2e(L) - self).toSeq, nothing                           )
+      case (U, _) => (Nil,       Nil,                                        everything                        )
+    }
+
   }
 
-  override def invalidates(a: Transform): Boolean = {
-    val diff = inSeq.getOrElse(Seq.empty).toSet -- outSeq.getOrElse(Seq.empty)
-    diff(a.getClass)
-  }
+  override def prerequisites = defaultPrerequisites
+
+  override def dependents = defaultDependents
+
+  override def invalidates(a: Transform) = defaultInvalidates(a)
 
   /** Convenience method to get annotations relevant to this Transform
     *
@@ -438,31 +459,6 @@ object CompilerUtils extends LazyLogging {
     }
   }
 
-  /** Convert input/output [[CircuitForm]]s to a sequence of transforms */
-  private[firrtl] def circuitFormsToTransformSeq(in: CircuitForm, out: CircuitForm):
-      (Option[Seq[TransformDependency]], Option[Seq[TransformDependency]]) = {
-
-    val inSeq = in match {
-      case ChirrtlForm => Some(firrtl.stage.Forms.ChirrtlForm)
-      case HighForm    => Some(firrtl.stage.Forms.Deduped)
-      case MidForm     => Some(firrtl.stage.Forms.MidForm)
-      case LowForm     => Some(firrtl.stage.Forms.LowForm)
-      case UnknownForm => None
-    }
-
-    val outSeq = (in, out) match {
-      case (_, ChirrtlForm)               => Some(firrtl.stage.Forms.ChirrtlForm)
-      case (a, HighForm) if a >= HighForm => Some(firrtl.stage.Forms.Deduped)
-      case (_, HighForm)                  => Some(firrtl.stage.Forms.MinimalHighForm)
-      case (_, MidForm)                   => Some(firrtl.stage.Forms.MidForm)
-      case (_, LowForm)                   => Some(firrtl.stage.Forms.LowForm)
-      case (_, UnknownForm)               => None
-    }
-
-    (inSeq, outSeq)
-
-  }
-
   private[firrtl] def circuitFormToEmitterSeq(a: CircuitForm): Seq[TransformDependency] = {
     val lowEmitters = Seq( classOf[LowFirrtlEmitter],
                            classOf[VerilogEmitter],
@@ -479,6 +475,7 @@ object CompilerUtils extends LazyLogging {
       case UnknownForm => Seq.empty
     }
   }
+
 }
 
 @deprecated("Use a TransformManager requesting which transforms you want to run. This will be removed in 1.3.", "1.2")

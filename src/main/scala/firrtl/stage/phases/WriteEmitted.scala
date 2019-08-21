@@ -28,6 +28,8 @@ class WriteEmitted extends Phase with PreservesAll[Phase] {
 
   override val prerequisites = Seq(classOf[Compiler])
 
+  override val dependents = Seq.empty
+
   /** Write any [[EmittedAnnotation]]s in an [[AnnotationSeq]] to files. Written [[EmittedAnnotation]]s are deleted. */
   def transform(annotations: AnnotationSeq): AnnotationSeq = {
     val fopts = Viewer[FirrtlOptions].view(annotations)

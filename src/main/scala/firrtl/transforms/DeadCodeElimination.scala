@@ -49,7 +49,8 @@ class DeadCodeElimination extends Transform with ResolvedAnnotationPaths with Re
          classOf[passes.VerilogModulusCleanup],
          classOf[firrtl.transforms.VerilogRename],
          classOf[passes.VerilogPrep],
-         classOf[firrtl.AddDescriptionNodes] )
+         classOf[firrtl.AddDescriptionNodes],
+         classOf[firrtl.stage.Forms.LowFormOptimizedHook] )
 
   val options = Seq(
     new ShellOption[Unit](

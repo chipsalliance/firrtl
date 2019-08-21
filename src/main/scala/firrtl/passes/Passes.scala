@@ -222,6 +222,8 @@ class Legalize extends Pass with PreservesAll[Transform] {
 
   override val prerequisites = firrtl.stage.Forms.MidForm :+ classOf[LowerTypes]
 
+  override val dependents = Seq.empty
+
   private def legalizeShiftRight(e: DoPrim): Expression = {
     require(e.op == Shr)
     e.args.head match {
@@ -308,7 +310,7 @@ object Legalize extends Pass with DeprecatedPassObject {
   *
   * @note The result of this pass is NOT legal Firrtl
   */
-class VerilogPrep extends Pass {
+class VerilogPrep extends Pass with PreservesAll[Transform] {
 
   override val prerequisites = firrtl.stage.Forms.LowFormMinimumOptimized ++
     Seq( classOf[firrtl.transforms.BlackBoxSourceHelper],

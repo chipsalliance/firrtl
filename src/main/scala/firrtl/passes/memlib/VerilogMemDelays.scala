@@ -168,7 +168,10 @@ class VerilogMemDelays extends Pass {
 
   override val prerequisites = firrtl.stage.Forms.LowForm :+ classOf[firrtl.passes.RemoveValidIf]
 
-  override val dependents = Seq(classOf[VerilogEmitter], classOf[SystemVerilogEmitter])
+  override val dependents =
+    Seq( classOf[VerilogEmitter],
+         classOf[SystemVerilogEmitter],
+         classOf[firrtl.stage.Forms.LowFormOptimizedHook] )
 
   override def invalidates(a: Transform): Boolean = a match {
     case _: firrtl.transforms.ConstantPropagation => true

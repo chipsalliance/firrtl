@@ -13,6 +13,8 @@ class AddImplicitEmitter extends Phase with PreservesAll[Phase] {
 
   override val prerequisites = Seq(classOf[AddDefaults])
 
+  override val dependents = Seq.empty
+
   def transform(annos: AnnotationSeq): AnnotationSeq = {
     val emitter = annos.collectFirst{ case a: EmitAnnotation => a }
     val compiler = annos.collectFirst{ case CompilerAnnotation(a) => a }

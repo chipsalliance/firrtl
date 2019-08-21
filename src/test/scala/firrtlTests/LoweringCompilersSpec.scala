@@ -98,23 +98,28 @@ object Transforms {
   class IdentityTransformDiff(val inputForm: CircuitForm, val outputForm: CircuitForm) extends Transform {
     override def execute(state: CircuitState): CircuitState = state
   }
-  class HighToHigh extends IdentityTransform(firrtl.HighForm)
-  class MidToMid extends IdentityTransform(firrtl.MidForm)
-  class MidToHigh extends IdentityTransformDiff(firrtl.MidForm, firrtl.HighForm)
-  class LowToLow extends IdentityTransform(firrtl.LowForm)
-  class LowToMid extends IdentityTransformDiff(firrtl.LowForm, firrtl.MidForm)
-  class LowToHigh extends IdentityTransformDiff(firrtl.LowForm, firrtl.HighForm)
+  import firrtl.{ChirrtlForm => C, HighForm => H, MidForm => M, LowForm => L, UnknownForm => U}
+  class ChirrtlToChirrtl extends IdentityTransformDiff(C, C)
+  class HighToChirrtl    extends IdentityTransformDiff(H, C)
+  class HighToHigh       extends IdentityTransformDiff(H, H)
+  class MidToMid         extends IdentityTransformDiff(M, M)
+  class MidToChirrtl     extends IdentityTransformDiff(M, C)
+  class MidToHigh        extends IdentityTransformDiff(M, H)
+  class LowToChirrtl     extends IdentityTransformDiff(L, C)
+  class LowToHigh        extends IdentityTransformDiff(L, H)
+  class LowToMid         extends IdentityTransformDiff(L, M)
+  class LowToLow         extends IdentityTransformDiff(L, L)
 }
 
 class LoweringCompilersSpec extends FlatSpec with Matchers {
 
   def compare(a: Seq[Transform], b: Seq[Class[_ <: Transform]]): Unit = {
     a.map(_.getClass).zip(b).foreach{ case (aa, bb) =>
-      info(s"$aa == $bb")
+      info(s"${aa.getName} ok!")
       aa should be (bb)
     }
 
-    info("expected number of transforms")
+    info(s"found ${b.size} transforms")
     a.size should be (b.size)
   }
 
@@ -193,6 +198,9 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
 
   behavior of "Legacy Custom Transforms"
 
+  it should "work for CHIRRTL -> CHIRRTL" in {
+  }
+
   it should "work for High -> High" in {
     val expected = Orderings.ChirrtlToHighFirrtl ++
       Some(classOf[passes.ToWorkingIR]) ++
@@ -235,8 +243,8 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
       Some(classOf[firrtl.transforms.DedupModules]) ++
       Orderings.HighFirrtlToMiddleFirrtl ++
       Orderings.MiddleFirrtlToLowFirrtl ++
-      Some(classOf[Transforms.LowToLow]) ++
-      Orderings.LowFirrtlOptimization
+      Orderings.LowFirrtlOptimization ++
+      Seq(classOf[Forms.LowFormOptimizedHook], classOf[Transforms.LowToLow])
     compare((new TransformManager(Forms.LowFormOptimized :+ classOf[Transforms.LowToLow])).flattenedTransformOrder,
             expected)
   }
@@ -248,7 +256,8 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
       Some(classOf[firrtl.transforms.DedupModules]) ++
       Orderings.HighFirrtlToMiddleFirrtl ++
       Orderings.MiddleFirrtlToLowFirrtl ++
-      Some(classOf[Transforms.LowToMid]) ++
+      Orderings.LowFirrtlOptimization ++
+      Seq(classOf[Forms.LowFormOptimizedHook], classOf[Transforms.LowToMid]) ++
       Orderings.MiddleFirrtlToLowFirrtl ++
       Orderings.LowFirrtlOptimization
     compare((new TransformManager(Forms.LowFormOptimized :+ classOf[Transforms.LowToMid])).flattenedTransformOrder,
@@ -262,7 +271,8 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
       Some(classOf[firrtl.transforms.DedupModules]) ++
       Orderings.HighFirrtlToMiddleFirrtl ++
       Orderings.MiddleFirrtlToLowFirrtl ++
-      Some(classOf[Transforms.LowToHigh]) ++
+      Orderings.LowFirrtlOptimization ++
+      Seq(classOf[Forms.LowFormOptimizedHook], classOf[Transforms.LowToHigh]) ++
       Some(classOf[passes.ToWorkingIR]) ++
       Orderings.ResolveAndCheck ++
       Some(classOf[firrtl.transforms.DedupModules]) ++

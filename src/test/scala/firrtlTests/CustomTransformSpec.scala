@@ -132,21 +132,27 @@ class CustomTransformSpec extends FirrtlFlatSpec {
   they should "run right before the emitter when inputForm=LowForm" in {
 
     val custom = classOf[IdentityLowForm]
+    val hook = classOf[Forms.LowFormOptimizedHook]
 
-    def testOrder(emitter: Class[_ <: Emitter], preceder: Class[_ <: Transform]): Unit = {
-      info(s"${preceder.getSimpleName} -> ${custom.getSimpleName} -> ${emitter.getSimpleName} ok!")
+    custom.newInstance.dependents.foreach(println)
 
-      (new firrtl.stage.transforms.Compiler(Seq(custom, emitter)))
+    def testOrder(emitter: Class[_ <: Emitter], preceders: Seq[Class[_ <: Transform]]): Unit = {
+      info(s"""${preceders.map(_.getSimpleName).mkString(" -> ")} -> ${custom.getSimpleName} -> ${emitter.getSimpleName} ok!""")
+
+      val compiler = new firrtl.stage.transforms.Compiler(Seq(custom, emitter))
+      info("Transform Order: \n" + compiler.prettyPrint("    "))
+
+      compiler
         .flattenedTransformOrder
         .map(_.getClass)
         .containsSlice(
-          Seq( preceder, custom, emitter )) should be (true)
+          preceders ++Seq( custom, emitter )) should be (true)
     }
 
-    Seq( (classOf[LowFirrtlEmitter],      Forms.LowForm.last                 ),
-         (classOf[VerilogEmitter],        Forms.LowFormOptimized.last        ),
-         (classOf[SystemVerilogEmitter],  Forms.LowFormOptimized.last        ),
-         (classOf[MinimumVerilogEmitter], Forms.LowFormMinimumOptimized.last )
+    Seq( (classOf[LowFirrtlEmitter],      Seq(Forms.LowForm.last, hook)                 ),
+         (classOf[VerilogEmitter],        Seq(Forms.LowFormOptimized.last, hook)        ),
+         (classOf[SystemVerilogEmitter],  Seq(Forms.LowFormOptimized.last, hook)        ),
+         (classOf[MinimumVerilogEmitter], Seq(Forms.LowFormMinimumOptimized.last, hook) )
     ).foreach((testOrder _).tupled)
   }
 }

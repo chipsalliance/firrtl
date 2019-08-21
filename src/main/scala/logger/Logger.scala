@@ -361,7 +361,7 @@ object Logger {
     */
   def setOptions(inputAnnotations: AnnotationSeq): Unit = {
     val annotations =
-      Seq( AddDefaults, Checks )
+      Seq( new AddDefaults, new Checks )
       .foldLeft(inputAnnotations)((a, p) => p.transform(a))
 
     val lopts = view[LoggerOptions](annotations)

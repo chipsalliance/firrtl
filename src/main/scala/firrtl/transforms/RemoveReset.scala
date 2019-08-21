@@ -23,6 +23,8 @@ class RemoveReset extends Transform with PreservesAll[Transform] {
     Seq( classOf[passes.LowerTypes],
          classOf[passes.Legalize] )
 
+  override val dependents = Seq.empty
+
   private case class Reset(cond: Expression, value: Expression)
 
   /** Return an immutable set of all invalid expressions in a module

@@ -15,11 +15,19 @@ class FirrtlPhase
 
 }
 
-class FirrtlStage extends Stage with PreservesAll[Phase] {
+class FirrtlStage extends Stage {
+
+  lazy val phase = new FirrtlPhase
+
+  override lazy val prerequisites = phase.prerequisites
+
+  override lazy val dependents = phase.dependents
+
+  override def invalidates(a: Phase): Boolean = phase.invalidates(a)
 
   val shell: Shell = new Shell("firrtl") with FirrtlCli
 
-  def run(annotations: AnnotationSeq): AnnotationSeq = (new FirrtlPhase).transform(annotations)
+  def run(annotations: AnnotationSeq): AnnotationSeq = phase.transform(annotations)
 
 }
 

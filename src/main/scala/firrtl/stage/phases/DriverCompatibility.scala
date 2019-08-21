@@ -162,6 +162,8 @@ object DriverCompatibility {
     */
   class AddImplicitFirrtlFile extends Phase with PreservesAll[Phase] {
 
+    override val prerequisites = Seq.empty
+
     override val dependents = Seq(classOf[FirrtlPhase], classOf[FirrtlStage])
 
     /** Try to add a [[FirrtlFileAnnotation]] implicitly specified by an [[AnnotationSeq]]. */
@@ -190,6 +192,8 @@ object DriverCompatibility {
   @deprecated("""AddImplicitEmitter should only be used to build Driver compatibility wrappers. Switch to Stage.""",
               "1.2")
   class AddImplicitEmitter extends Phase with PreservesAll[Phase] {
+
+    override val prerequisites = Seq.empty
 
     override val dependents = Seq(classOf[FirrtlPhase], classOf[FirrtlStage])
 

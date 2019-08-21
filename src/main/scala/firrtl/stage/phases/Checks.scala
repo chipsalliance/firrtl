@@ -20,6 +20,8 @@ class Checks extends Phase with PreservesAll[Phase] {
 
   override val prerequisites = Seq(classOf[AddDefaults], classOf[AddImplicitEmitter])
 
+  override val dependents = Seq.empty
+
   /** Determine if annotations are sane
     *
     * @param annos a sequence of [[firrtl.annotations.Annotation Annotation]]

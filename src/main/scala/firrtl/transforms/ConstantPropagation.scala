@@ -103,7 +103,8 @@ class ConstantPropagation extends Transform with ResolvedAnnotationPaths with Pr
     Seq( classOf[firrtl.passes.memlib.VerilogMemDelays],
          classOf[firrtl.passes.SplitExpressions],
          classOf[SystemVerilogEmitter],
-         classOf[VerilogEmitter] )
+         classOf[VerilogEmitter],
+         classOf[firrtl.stage.Forms.LowFormOptimizedHook] )
 
   override val annotationClasses: Traversable[Class[_]] = Seq(classOf[DontTouchAnnotation])
 

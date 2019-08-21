@@ -62,7 +62,10 @@ class CombineCats extends Transform with PreservesAll[Transform] {
          classOf[firrtl.passes.memlib.VerilogMemDelays],
          classOf[firrtl.passes.SplitExpressions] )
 
-  override val dependents = Seq(classOf[SystemVerilogEmitter], classOf[VerilogEmitter])
+  override val dependents = Seq(
+    classOf[SystemVerilogEmitter],
+    classOf[VerilogEmitter],
+    classOf[firrtl.stage.Forms.LowFormOptimizedHook])
 
   val defaultMaxCatLen = 10
 

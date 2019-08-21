@@ -30,6 +30,8 @@ class RemoveWires extends Transform with PreservesAll[Transform] {
          classOf[transforms.RemoveReset],
          classOf[transforms.CheckCombLoops] )
 
+  override val dependents = Seq.empty
+
   // Extract all expressions that are references to a Node, Wire, or Reg
   // Since we are operating on LowForm, they can only be WRefs
   private def extractNodeWireRegRefs(expr: Expression): Seq[WRef] = {

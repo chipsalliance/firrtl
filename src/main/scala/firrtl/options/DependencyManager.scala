@@ -20,6 +20,12 @@ case class DependencyManagerException(message: String, cause: Throwable = null) 
 trait DependencyManager[A, B <: TransformLike[A] with DependencyAPI[B]] extends TransformLike[A] with DependencyAPI[B] {
   import DependencyManagerUtils.CharSet
 
+  override lazy val prerequisites = currentState
+
+  override lazy val dependents = Seq.empty
+
+  override def invalidates(a: B): Boolean = (_currentState -- _targets)(a.getClass)
+
   /** Requested [[firrtl.options.TransformLike TransformLike]]s that should be run. Internally, this will be converted to
     * a set based on the ordering defined here.
     */
@@ -138,6 +144,10 @@ trait DependencyManager[A, B <: TransformLike[A] with DependencyAPI[B]] extends 
 
   /** A directed graph consisting of all prerequisites, including prerequisites derived from dependents */
   lazy val dependencyGraph: DiGraph[B] = prerequisiteGraph + dependentsGraph
+  // println("Dependency Graph -----------------------")
+  // dependencyGraph.getEdgeMap.foreach{ case (a, b) =>
+  //   println(s"""  - ${a.getClass.getSimpleName} -> ${b.map(_.getSimpleName).mkString(", ")}""")
+  // }
 
   /** A directed graph consisting of invalidation edges */
   lazy val invalidateGraph: DiGraph[B] = {
@@ -149,6 +159,10 @@ trait DependencyManager[A, B <: TransformLike[A] with DependencyAPI[B]] extends 
         extractor = (p: B) => v.filter(p.invalidates).map(_.getClass).toSet))
       .reverse
   }
+  // println("Invalidate Graph -----------------------")
+  // invalidateGraph.getEdgeMap.foreach{ case (a, b) =>
+  //   println(s"""  - ${a.getClass.getSimpleName} -> ${b.map(_.getSimpleName).mkString(", ")}""")
+  // }
 
   /** Wrap a possible [[CyclicException]] thrown by a thunk in a [[DependencyManagerException]] */
   private def cyclePossible[A](a: String, diGraph: DiGraph[_])(thunk: => A): A = try { thunk } catch {
@@ -189,6 +203,8 @@ trait DependencyManager[A, B <: TransformLike[A] with DependencyAPI[B]] extends 
           .dropWhile(b => _currentState.contains(b))
       }
     }
+    // println("Sorted ---------------------------------")
+    // println(s"""  - ${sorted.map(_.getClass.getSimpleName).mkString(", ")}""")
 
     val (state, lowerers) = {
       /* [todo] Seq is inefficient here, but Array has ClassTag problems. Use something else? */

@@ -17,7 +17,10 @@ class CommonSubexpressionElimination extends Pass with PreservesAll[Transform] {
          classOf[firrtl.passes.SplitExpressions],
          classOf[firrtl.transforms.CombineCats] )
 
-  override val dependents = Seq(classOf[SystemVerilogEmitter], classOf[VerilogEmitter])
+  override val dependents =
+    Seq( classOf[SystemVerilogEmitter],
+         classOf[VerilogEmitter],
+         classOf[firrtl.stage.Forms.LowFormOptimizedHook] )
 
   private def cse(s: Statement): Statement = {
     val expressions = collection.mutable.HashMap[MemoizedHash[Expression], String]()
