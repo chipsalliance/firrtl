@@ -141,10 +141,10 @@ trait DependencyManager[A, B <: TransformLike[A] with DependencyAPI[B]] extends 
 
   /** A directed graph consisting of invalidation edges */
   lazy val invalidateGraph: DiGraph[B] = {
-    val v = dependencyGraph.getVertices
+    val v = new LinkedHashSet() ++ dependencyGraph.getVertices
     DiGraph(
       bfs(
-        start = _targets -- _currentState,
+        start = v.map(_.getClass),
         blacklist = _currentState,
         extractor = (p: B) => v.filter(p.invalidates).map(_.getClass).toSet))
       .reverse
