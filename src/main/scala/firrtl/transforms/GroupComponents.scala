@@ -252,7 +252,7 @@ class GroupComponents extends firrtl.Transform {
     def onStmt(s: Statement): Statement = {
       s match {
         // Sink is in a group
-        case r: IsDeclaration if byNode(r.name) != "" =>
+        case r: IsDeclaration if byNode.contains(r.name) && (byNode(r.name) != "") =>
           val topStmts = mutable.ArrayBuffer[Statement]()
           val group = byNode(r.name)
           groupStatements(group) += r mapExpr inGroupFixExps(group, topStmts)
