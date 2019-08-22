@@ -198,9 +198,6 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
 
   behavior of "Legacy Custom Transforms"
 
-  it should "work for CHIRRTL -> CHIRRTL" in {
-  }
-
   it should "work for High -> High" in {
     val expected = Orderings.ChirrtlToHighFirrtl ++
       Some(classOf[passes.ToWorkingIR]) ++
@@ -282,4 +279,43 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
     compare((new TransformManager(Forms.LowFormOptimized :+ classOf[Transforms.LowToHigh])).flattenedTransformOrder,
             expected)
   }
+
+  it should "schedule inputForm=LowForm after MiddleFirrtlToLowFirrtl for the LowFirrtlEmitter" in {
+    val expected = Orderings.ChirrtlToHighFirrtl ++
+      Some(classOf[passes.ToWorkingIR]) ++
+      Orderings.ResolveAndCheck ++
+      Some(classOf[firrtl.transforms.DedupModules]) ++
+      Orderings.HighFirrtlToMiddleFirrtl ++
+      Orderings.MiddleFirrtlToLowFirrtl ++
+      Seq(classOf[Forms.LowFormOptimizedHook], classOf[Transforms.LowToLow], classOf[firrtl.LowFirrtlEmitter])
+    val tm = (new TransformManager(Seq(classOf[firrtl.LowFirrtlEmitter], classOf[Transforms.LowToLow])))
+    compare(tm.flattenedTransformOrder, expected)
+  }
+
+  it should "schedule inputForm=LowForm after MinimumLowFirrtlOptimizations for the MinimalVerilogEmitter" in {
+    val expected = Orderings.ChirrtlToHighFirrtl ++
+      Some(classOf[passes.ToWorkingIR]) ++
+      Orderings.ResolveAndCheck ++
+      Some(classOf[firrtl.transforms.DedupModules]) ++
+      Orderings.HighFirrtlToMiddleFirrtl ++
+      Orderings.MiddleFirrtlToLowFirrtl ++
+      Orderings.MinimumLowFirrtlOptimization ++
+      Seq(classOf[Forms.LowFormOptimizedHook], classOf[Transforms.LowToLow], classOf[firrtl.MinimumVerilogEmitter])
+    val tm = (new TransformManager(Seq(classOf[firrtl.MinimumVerilogEmitter], classOf[Transforms.LowToLow])))
+    compare(tm.flattenedTransformOrder, expected)
+  }
+
+  it should "schedule inputForm=LowForm after LowFirrtlOptimizations for the VerilogEmitter" in {
+    val expected = Orderings.ChirrtlToHighFirrtl ++
+      Some(classOf[passes.ToWorkingIR]) ++
+      Orderings.ResolveAndCheck ++
+      Some(classOf[firrtl.transforms.DedupModules]) ++
+      Orderings.HighFirrtlToMiddleFirrtl ++
+      Orderings.MiddleFirrtlToLowFirrtl ++
+      Orderings.LowFirrtlOptimization ++
+      Seq(classOf[Forms.LowFormOptimizedHook], classOf[Transforms.LowToLow], classOf[firrtl.VerilogEmitter])
+    val tm = (new TransformManager(Seq(classOf[firrtl.VerilogEmitter], classOf[Transforms.LowToLow])))
+    compare(tm.flattenedTransformOrder, expected)
+  }
+
 }
