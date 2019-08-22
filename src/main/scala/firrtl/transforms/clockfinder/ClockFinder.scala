@@ -3,7 +3,7 @@
 package firrtl.transforms.clockfinder
 
 import firrtl.{FEMALE, MALE, MemKind, PortKind, RegKind}
-import firrtl.analyses.{CircuitGraph, ConnectionGraph, InstanceGraph}
+import firrtl.analyses._
 import firrtl.annotations.TargetToken.Clock
 import firrtl.annotations._
 import firrtl.ir.{ClockType, DefMemory, ExtModule, UIntLiteral}
@@ -64,6 +64,13 @@ def findClockCrossings(whitelistedRegs: Set[ReferenceTarget] = Set.empty,
 class ClockFinder(reverseGraph: ConnectionGraph,
                   signalToClocks: Map[ReferenceTarget, Set[ReferenceTarget]] = Map.empty
                  ) extends ConnectionGraph(reverseGraph.circuit, reverseGraph.digraph, reverseGraph.irLookup) {
+
+  val signalToClockTags = signalToClocks.map {
+    case (k, v) =>
+      val ts = TagSet()
+      v.foreach{ts.add}
+      k -> ts
+  }.toMap
 
   /** Finds clock sources of specific signals
     *
@@ -129,19 +136,19 @@ class ClockFinder(reverseGraph: ConnectionGraph,
 
     val tpe = irLookup.tpe(t)
 
-    val finalSources = mutable.HashSet.empty[ReferenceTarget]
+    val finalSources = TagSet()
     t.leafSubTargets(tpe).foreach { x =>
       BFS(x, Set.empty[ReferenceTarget])
 
-      finalSources ++= getTag(x, clockMap).getOrElse(mutable.HashSet.empty[ReferenceTarget])
+      finalSources.update(clockMap.getTag(x).getOrElse(TagSet()))
     }
-    finalSources.toSet
+    finalSources.targets.toSet
   }
 
   private val extModuleNames = circuit.modules.collect { case e: ExtModule => e.name }.toSet
 
   // Maps signal to set of clock sources it is synchronized with
-  private val clockMap = mutable.LinkedHashMap[(String, ReferenceTarget), mutable.HashSet[ReferenceTarget]]()
+  private val clockMap = TagMap[ReferenceTarget, TagSet]()//mutable.LinkedHashMap[(String, ReferenceTarget), mutable.HashSet[ReferenceTarget]]()
 
   // Utility function to determine if a target is a register
   private def isReg(t: ReferenceTarget): Boolean = {
@@ -164,46 +171,46 @@ class ClockFinder(reverseGraph: ConnectionGraph,
     val prev = prevOpt.get
     node match {
       // If known clock relationship, tagPath
-      case rt if signalToClocks.contains(rt) =>
-        tagPath(rt, prev, signalToClocks(rt), clockMap)
+      case rt if signalToClockTags.contains(rt) =>
+        clockMap.tagPath(rt, prev, signalToClockTags(rt))
         Set()
 
       // If cached result, record clock and end. Exclude cached top-level signals as input port could be a new result
-      case rt if getTag(rt, clockMap).nonEmpty =>
-        tagPath(rt, prev, getTag(rt, clockMap).get, clockMap)
+      case rt if clockMap.getTag(rt).nonEmpty =>
+        clockMap.tagPath(rt, prev, clockMap.getTag(rt).get)
         Set()
 
       // Top-level Input Port
       // Must check if not isClock because expression that is in the clock port of reg could be a port
       case rt@ ReferenceTarget(c, m, Nil, _, _)
         if irLookup.kind(rt) == PortKind && irLookup.gender(rt) == MALE && !rt.isClock =>
-        tagPath(rt, prev, Set(rt), clockMap)
+        clockMap.tagPath(rt, prev, TagSet(Set(rt)))
         Set()
 
       // Black-box Output Clock Port
       case rt: ReferenceTarget
         if extModuleNames.contains(rt.encapsulatingModule) /*&& irLookup.tpe(rt) == ClockType*/ && irLookup.gender(rt) == FEMALE =>
-        tagPath(rt, prev, Set(rt), clockMap)
+        clockMap.tagPath(rt, prev, TagSet(Set(rt)))
         Set()
 
       // AsClock Expression
       case rt if ConnectionGraph.isAsClock(rt) =>
-        tagPath(rt, prev, Set(rt), clockMap)
+        clockMap.tagPath(rt, prev, TagSet(Set(rt)))
         Set()
 
       // WInvalid Expression
       case rt if ConnectionGraph.isInvalid(rt) =>
-        tagPath(rt, prev, Set(rt.moduleTarget.ref("@invalid")), clockMap)
+        clockMap.tagPath(rt, prev, TagSet(Set(rt.moduleTarget.ref("@invalid"))))
         Set()
 
       // WInvalid Expression
       case rt if ConnectionGraph.isInvalid(rt) =>
-        tagPath(rt, prev, Set(rt.moduleTarget.ref("@invalid")), clockMap)
+        clockMap.tagPath(rt, prev, TagSet(Set(rt.moduleTarget.ref("@invalid"))))
         Set()
 
       // Literal Expression
       case rt if ConnectionGraph.isLiteral(rt) =>
-        tagPath(rt, prev, Set(rt.moduleTarget.ref("@literal")), clockMap)
+        clockMap.tagPath(rt, prev, TagSet(Set(rt.moduleTarget.ref("@literal"))))
         Set()
 
       case nonClockSource =>

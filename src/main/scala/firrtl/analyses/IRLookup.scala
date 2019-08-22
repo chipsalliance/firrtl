@@ -237,10 +237,12 @@ class IRLookup private[analyses] ( private val declarations: mutable.LinkedHashM
     * @return
     */
   def contains(t: ReferenceTarget): Boolean = {
-    validPath(t.pathTarget) &&
-      declarations.contains(t.encapsulatingModuleTarget) &&
-      declarations(t.encapsulatingModuleTarget).contains(asLocalRef(t)) &&
-      getExpr(t, UNKNOWNGENDER).nonEmpty
+    val x0 = validPath(t.pathTarget)
+    val x1 = declarations.contains(t.encapsulatingModuleTarget)
+    val x2 = declarations(t.encapsulatingModuleTarget).contains(asLocalRef(t))
+    val x3 = getExpr(t, UNKNOWNGENDER).nonEmpty
+    val ret = x0 && x1 && x2 && x3
+    ret
   }
 
   /** Returns whether a ModuleTarget or InstanceTarget is contained in this IRLookup

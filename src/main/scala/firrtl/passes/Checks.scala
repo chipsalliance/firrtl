@@ -293,8 +293,8 @@ object CheckTypes extends Pass {
   })
   class InvalidRegInit(info: Info, mname: String) extends PassException(
     s"$info: [module $mname]  Type of init must match type of DefRegister.")
-  class PrintfArgNotGround(info: Info, mname: String) extends PassException(
-    s"$info: [module $mname]  Printf arguments must be either UIntType or SIntType.")
+  class PrintfArgNotGround(info: Info, mname: String, print: Print) extends PassException(
+    s"$info: [module $mname]  Printf arguments must be either UIntType or SIntType: ${print.serialize}")
   class ReqClk(info: Info, mname: String) extends PassException(
     s"$info: [module $mname]  Requires a clock typed signal.")
   class RegReqClk(info: Info, mname: String, name: String) extends PassException(
@@ -525,7 +525,7 @@ object CheckTypes extends Pass {
           if (wt(sx.en.tpe) != wt(ut)) errors.append(new EnNotUInt(info, mname))
         case sx: Print =>
           if (sx.args exists (x => wt(x.tpe) != wt(ut) && wt(x.tpe) != wt(st)))
-            errors.append(new PrintfArgNotGround(info, mname))
+            errors.append(new PrintfArgNotGround(info, mname, sx))
           if (wt(sx.clk.tpe) != wt(ClockType)) errors.append(new ReqClk(info, mname))
           if (wt(sx.en.tpe) != wt(ut)) errors.append(new EnNotUInt(info, mname))
         case sx: DefMemory => sx.dataType match {
