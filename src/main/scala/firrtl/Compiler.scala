@@ -462,23 +462,6 @@ object CompilerUtils extends LazyLogging {
     }
   }
 
-  private[firrtl] def circuitFormToEmitterSeq(a: CircuitForm): Seq[TransformDependency] = {
-    val lowEmitters = Seq( classOf[LowFirrtlEmitter],
-                           classOf[VerilogEmitter],
-                           classOf[MinimumVerilogEmitter],
-                           classOf[SystemVerilogEmitter] )
-    a match {
-      case ChirrtlForm => Seq( classOf[ChirrtlEmitter],
-                               classOf[HighFirrtlEmitter],
-                               classOf[MiddleFirrtlEmitter] ) ++ lowEmitters
-      case HighForm    => Seq( classOf[HighFirrtlEmitter],
-                               classOf[MiddleFirrtlEmitter] ) ++ lowEmitters
-      case MidForm     => lowEmitters :+ classOf[MiddleFirrtlEmitter]
-      case LowForm     => lowEmitters
-      case UnknownForm => Seq.empty
-    }
-  }
-
 }
 
 @deprecated("Use a TransformManager requesting which transforms you want to run. This will be removed in 1.3.", "1.2")
