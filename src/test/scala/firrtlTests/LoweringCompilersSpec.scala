@@ -39,11 +39,11 @@ object Orderings {
     classOf[passes.ResolveKinds],
     classOf[passes.InferTypes],
     classOf[passes.ExpandWhensAndCheck],
-    classOf[firrtl.checks.CheckResets],
     classOf[passes.ResolveKinds],
     classOf[passes.InferTypes],
     classOf[passes.ResolveFlows],
     classOf[passes.InferWidths],
+    classOf[firrtl.checks.CheckResets],
     classOf[passes.ConvertFixedToSInt],
     classOf[passes.ZeroWidth],
     classOf[passes.InferTypes] )

@@ -35,7 +35,7 @@ class CheckResets extends Transform with PreservesAll[Transform] {
          classOf[passes.ReplaceAccesses],
          classOf[passes.ExpandConnects],
          classOf[passes.RemoveAccesses],
-         classOf[passes.ExpandWhensAndCheck] )
+         classOf[passes.ExpandWhensAndCheck] ) ++ firrtl.stage.Forms.Deduped
 
   override val dependents =
     Seq( classOf[passes.ConvertFixedToSInt],
