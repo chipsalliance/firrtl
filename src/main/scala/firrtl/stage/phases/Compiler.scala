@@ -98,7 +98,9 @@ class Compiler extends Phase with Translator[AnnotationSeq, Seq[CompilerRun]] wi
         case Some(d) => c.transforms.reverse.map(_.getClass) ++ compilerToTransforms(d)
         case None    => throw new PhasePrerequisiteException("No compiler specified!") }
       val tm = new firrtl.stage.transforms.Compiler(targets)
-      c.copy(stateOut = Some(tm.transform(c.stateIn)))
+      val (timeMillis, annotationsOut) = firrtl.Utils.time { tm.transform(c.stateIn) }
+      logger.error(f"Total FIRRTL Compile Time: $timeMillis%.1f ms")
+      c.copy(stateOut = Some(annotationsOut))
     }
 
     if (b.size <= 1) { b.map(f)         }
