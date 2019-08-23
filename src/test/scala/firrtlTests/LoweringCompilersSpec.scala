@@ -198,6 +198,12 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
 
   behavior of "Legacy Custom Transforms"
 
+  it should "work for Chirrtl -> Chirrtl" in {
+    val expected = classOf[Transforms.ChirrtlToChirrtl] :: classOf[firrtl.ChirrtlEmitter] :: Nil
+    val tm = new TransformManager(classOf[firrtl.ChirrtlEmitter] :: classOf[Transforms.ChirrtlToChirrtl] :: Nil)
+    compare(tm.flattenedTransformOrder, expected)
+  }
+
   it should "work for High -> High" in {
     val expected = Orderings.ChirrtlToHighFirrtl ++
       Some(classOf[passes.ToWorkingIR]) ++
@@ -206,6 +212,21 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
       Some(classOf[Transforms.HighToHigh]) ++
       Orderings.HighFirrtlToMiddleFirrtl
     compare((new TransformManager(Forms.MidForm :+ classOf[Transforms.HighToHigh])).flattenedTransformOrder, expected)
+  }
+
+  it should "work for High -> Chirrtl" in {
+    val expected =
+      Orderings.ChirrtlToHighFirrtl ++
+        Some(classOf[passes.ToWorkingIR]) ++
+        Orderings.ResolveAndCheck ++
+        Some(classOf[firrtl.transforms.DedupModules]) ++
+        Some(classOf[Transforms.HighToChirrtl]) ++
+        Orderings.ChirrtlToHighFirrtl ++
+        Some(classOf[passes.ToWorkingIR]) ++
+        Orderings.ResolveAndCheck ++
+        Some(classOf[firrtl.transforms.DedupModules])
+    val tm = new TransformManager(Forms.HighForm :+ classOf[Transforms.HighToChirrtl])
+    compare(tm.flattenedTransformOrder, expected)
   }
 
   it should "work for Mid -> Mid" in {
@@ -218,6 +239,7 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
       Orderings.MiddleFirrtlToLowFirrtl
     compare((new TransformManager(Forms.LowForm :+ classOf[Transforms.MidToMid])).flattenedTransformOrder, expected)
   }
+
   it should "work for Mid -> High" in {
     val expected = Orderings.ChirrtlToHighFirrtl ++
       Some(classOf[passes.ToWorkingIR]) ++
@@ -231,6 +253,23 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
       Orderings.HighFirrtlToMiddleFirrtl ++
       Orderings.MiddleFirrtlToLowFirrtl
     compare((new TransformManager(Forms.LowForm :+ classOf[Transforms.MidToHigh])).flattenedTransformOrder, expected)
+  }
+
+  it should "work for Mid -> Chirrtl" in {
+    val expected = Orderings.ChirrtlToHighFirrtl ++
+      Some(classOf[passes.ToWorkingIR]) ++
+      Orderings.ResolveAndCheck ++
+      Some(classOf[firrtl.transforms.DedupModules]) ++
+      Orderings.HighFirrtlToMiddleFirrtl ++
+      Some(classOf[Transforms.MidToChirrtl]) ++
+      Orderings.ChirrtlToHighFirrtl ++
+      Some(classOf[passes.ToWorkingIR]) ++
+      Orderings.ResolveAndCheck ++
+      Some(classOf[firrtl.transforms.DedupModules]) ++
+      Orderings.HighFirrtlToMiddleFirrtl ++
+      Orderings.MiddleFirrtlToLowFirrtl
+    val tm = new TransformManager(Forms.LowForm :+ classOf[Transforms.MidToChirrtl])
+    compare(tm.flattenedTransformOrder, expected)
   }
 
   it should "work for Low -> Low" in {
@@ -278,6 +317,26 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
       Orderings.LowFirrtlOptimization
     compare((new TransformManager(Forms.LowFormOptimized :+ classOf[Transforms.LowToHigh])).flattenedTransformOrder,
             expected)
+  }
+
+  it should "work for Low -> Chirrtl" in {
+    val expected = Orderings.ChirrtlToHighFirrtl ++
+      Some(classOf[passes.ToWorkingIR]) ++
+      Orderings.ResolveAndCheck ++
+      Some(classOf[firrtl.transforms.DedupModules]) ++
+      Orderings.HighFirrtlToMiddleFirrtl ++
+      Orderings.MiddleFirrtlToLowFirrtl ++
+      Orderings.LowFirrtlOptimization ++
+      Seq(classOf[Forms.LowFormOptimizedHook], classOf[Transforms.LowToChirrtl]) ++
+      Orderings.ChirrtlToHighFirrtl ++
+      Some(classOf[passes.ToWorkingIR]) ++
+      Orderings.ResolveAndCheck ++
+      Some(classOf[firrtl.transforms.DedupModules]) ++
+      Orderings.HighFirrtlToMiddleFirrtl ++
+      Orderings.MiddleFirrtlToLowFirrtl ++
+      Orderings.LowFirrtlOptimization
+    val tm = new TransformManager(Forms.LowFormOptimized :+ classOf[Transforms.LowToChirrtl])
+    compare(tm.flattenedTransformOrder, expected)
   }
 
   it should "schedule inputForm=LowForm after MiddleFirrtlToLowFirrtl for the LowFirrtlEmitter" in {
