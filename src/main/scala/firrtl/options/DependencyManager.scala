@@ -156,7 +156,8 @@ trait DependencyManager[A, B <: TransformLike[A] with DependencyAPI[B]] extends 
       bfs(
         start = v.map(_.getClass),
         blacklist = _currentState,
-        extractor = (p: B) => v.filter(p.invalidates).map(_.getClass).toSet))
+        /* Explore all invalidated transforms **EXCEPT** the current transform! */
+        extractor = (p: B) => v.filter(p.invalidates).map(_.getClass).toSet - p.getClass))
       .reverse
   }
   // println("Invalidate Graph -----------------------")
@@ -218,7 +219,8 @@ trait DependencyManager[A, B <: TransformLike[A] with DependencyAPI[B]] extends 
           if (missing.nonEmpty) { Some(this.copy(prereqs.toSeq, state.toSeq)) }
           else                  { None                                     }
         }
-        ((state ++ missing + in).map(cToO).filterNot(in.invalidates).map(oToC), out ++ preprocessing :+ in)
+        /* "in" is added *after* invalidation because a transform my not invalidate itself! */
+        ((state ++ missing).map(cToO).filterNot(in.invalidates).map(oToC) + in, out ++ preprocessing :+ in)
       }
       val missing = (_targets -- s)
       val postprocessing: Option[B] = {

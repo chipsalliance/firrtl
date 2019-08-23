@@ -73,9 +73,9 @@ trait DependencyAPI[A <: DependencyAPI[A]] { this: TransformLike[_] =>
   def dependents: Seq[Dependency] = Seq.empty
   private[options] lazy val _dependents: LinkedHashSet[Dependency] = new LinkedHashSet() ++ dependents.toSet
 
-  /** A function that, given a transform will return true if this transform invalidates/undos the effects of the input
-    * transform
-    * @note Can a [[firrtl.options.Phase Phase]] ever invalidate itself?
+  /** A function that, given *another* transforms will return true if this transform invalidates/undos the effects of
+    * that transform. This function may return any value if given this transform.
+    * @note A transform can never invalidate itself. If it did, then it can never be scheduled.
     */
   def invalidates(a: A): Boolean = true
 
