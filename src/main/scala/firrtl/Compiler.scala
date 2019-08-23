@@ -204,47 +204,50 @@ abstract class Transform extends TransformLike[CircuitState] with DependencyAPI[
 
   def transform(state: CircuitState): CircuitState = execute(state)
 
-  /** This logic converts inputForm/outputForm into dependency API equivalents */
-  private lazy val (defaultPrerequisites, defaultDependents, defaultInvalidates) = {
-    val (in, out) = (inputForm, outputForm)
+  import firrtl.{ChirrtlForm => C, HighForm => H, MidForm => M, LowForm => L, UnknownForm => U}
+  import firrtl.stage.Forms
 
-    import firrtl.{ChirrtlForm => C, HighForm => H, MidForm => M, LowForm => L, UnknownForm => U}
-    import firrtl.stage.{Forms => f}
+  private def emptySet = new scala.collection.mutable.LinkedHashSet[TransformDependency]
 
-    val f2e = CompilerUtils.circuitFormToEmitterSeq(_: CircuitForm).toSet
-    val lfoh = Seq(classOf[f.LowFormOptimizedHook])
-    val lfo = f.LowFormOptimized.toSet
-    val vOpt = f.VerilogOptimized.toSet
-    val mHF = f.MinimalHighForm.toSet
-
-    implicit def t2c(a: Transform): Class[_ <: Transform] = a.getClass
-
-    val everything = (_: Transform) => true
-    val nothing =    (_: Transform) => false
-    val self = this.getClass
-
-    (in, out) match {
-      /*   in,out     prereqs,   dependents,                                 invalidates */
-      case (C, _) => (Nil,       (vOpt              ++ f2e(C) - self).toSeq, nothing                           )
-      case (H, C) => (f.Deduped, (vOpt -- f.Deduped ++ f2e(H) - self).toSeq, everything                        )
-      case (H, _) => (f.Deduped, (vOpt -- f.Deduped ++ f2e(H) - self).toSeq, nothing                           )
-      case (M, C) => (f.MidForm, (vOpt -- f.MidForm ++ f2e(M) - self).toSeq, everything                        )
-      case (M, H) => (f.MidForm, (vOpt -- f.MidForm ++ f2e(M) - self).toSeq, (vOpt -- mHF)(_: Transform)       )
-      case (M, _) => (f.MidForm, (vOpt -- f.MidForm ++ f2e(M) - self).toSeq, nothing                           )
-      case (L, C) => (lfoh,      (vOpt -- lfo       ++ f2e(L) - self).toSeq, everything                        )
-      case (L, H) => (lfoh,      (vOpt -- lfo       ++ f2e(L) - self).toSeq, (vOpt -- mHF)(_: Transform)       )
-      case (L, M) => (lfoh,      (vOpt -- lfo       ++ f2e(L) - self).toSeq, (vOpt -- f.MidForm)(_: Transform) )
-      case (L, _) => (lfoh,      (vOpt -- lfo       ++ f2e(L) - self).toSeq, nothing                           )
-      case (U, _) => (Nil,       Nil,                                        everything                        )
-    }
-
+  override def prerequisites = inputForm match {
+    case C => Nil
+    case H => Forms.Deduped
+    case M => Forms.MidForm
+    case L => Seq(classOf[Forms.LowFormOptimizedHook])
+    case U => Nil
   }
 
-  override def prerequisites = defaultPrerequisites
+  override def dependents = {
+    val lowEmitters = classOf[LowFirrtlEmitter] :: classOf[VerilogEmitter] :: classOf[MinimumVerilogEmitter] ::
+      classOf[SystemVerilogEmitter] :: Nil
 
-  override def dependents = defaultDependents
+    val emitters = inputForm match {
+      case C => classOf[ChirrtlEmitter]      :: classOf[HighFirrtlEmitter]   :: classOf[MiddleFirrtlEmitter] :: lowEmitters
+      case H => classOf[HighFirrtlEmitter]   :: classOf[MiddleFirrtlEmitter] :: lowEmitters
+      case M => classOf[MiddleFirrtlEmitter] :: lowEmitters
+      case L => lowEmitters
+      case U => Nil
+    }
 
-  override def invalidates(a: Transform) = defaultInvalidates(a)
+    inputForm match {
+      case C => (emptySet ++ Forms.VerilogOptimized                           ++ emitters - this.getClass).toSeq
+      case H => (emptySet ++ Forms.VerilogOptimized -- Forms.Deduped          ++ emitters - this.getClass).toSeq
+      case M => (emptySet ++ Forms.VerilogOptimized -- Forms.MidForm          ++ emitters - this.getClass).toSeq
+      case L => (emptySet ++ Forms.VerilogOptimized -- Forms.LowFormOptimized ++ emitters - this.getClass).toSeq
+      case U => Nil
+    }
+  }
+
+  override def invalidates(a: Transform) = {
+    (inputForm, outputForm) match {
+      case (U, _) | (_, U)  => true  // invalidate everything
+      case (i, o) if i >= o => false // invalidate nothing
+      case (_, C)           => true  // invalidate everything
+      case (_, H)           => (emptySet ++ Forms.VerilogOptimized -- Forms.MinimalHighForm)(a.getClass)
+      case (_, M)           => (emptySet ++ Forms.VerilogOptimized -- Forms.MidForm        )(a.getClass)
+      case (_, L)           => false // invalidate nothing
+    }
+  }
 
   /** Convenience method to get annotations relevant to this Transform
     *
