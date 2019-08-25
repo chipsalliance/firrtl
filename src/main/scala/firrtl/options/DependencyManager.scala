@@ -216,7 +216,10 @@ trait DependencyManager[A, B <: TransformLike[A] with DependencyAPI[B]] extends 
           otherDependents.getEdges(in).toSeq.map(oToC)
         val missing = (prereqs -- state)
         val preprocessing: Option[B] = {
-          if (missing.nonEmpty) { Some(this.copy(prereqs.toSeq, state.toSeq)) }
+          if (missing.nonEmpty) {
+            println(s"pre because missing: $missing")
+            Some(this.copy(prereqs.toSeq, state.toSeq))
+          }
           else                  { None                                     }
         }
         /* "in" is added *after* invalidation because a transform my not invalidate itself! */

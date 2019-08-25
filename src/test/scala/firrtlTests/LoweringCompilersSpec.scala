@@ -64,13 +64,13 @@ object Orderings {
     classOf[passes.SplitExpressions] )
   val LowFirrtlOptimization = Seq(
     classOf[passes.RemoveValidIf],
-    classOf[passes.Legalize],
     classOf[firrtl.transforms.ConstantPropagation],
     classOf[passes.PadWidths],
-    classOf[passes.Legalize],
     classOf[firrtl.transforms.ConstantPropagation],
+    classOf[passes.Legalize],
     classOf[passes.memlib.VerilogMemDelays],
     classOf[firrtl.transforms.ConstantPropagation],
+    classOf[passes.Legalize], // This is an additional Legalize
     classOf[passes.SplitExpressions],
     classOf[firrtl.transforms.CombineCats],
     classOf[passes.CommonSubexpressionElimination],

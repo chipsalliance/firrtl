@@ -7,12 +7,17 @@ import firrtl.ir._
 import firrtl.PrimOps._
 import firrtl.Mappers._
 
+import scala.collection.mutable
+
 // Makes all implicit width extensions and truncations explicit
 class PadWidths extends Pass {
 
-  override val prerequisites = firrtl.stage.Forms.LowForm ++
-    Seq( classOf[RemoveValidIf],
-         classOf[firrtl.transforms.ConstantPropagation] )
+  override val prerequisites =
+    ((new mutable.LinkedHashSet())
+       ++ firrtl.stage.Forms.LowForm
+       - classOf[firrtl.passes.Legalize]
+       + classOf[firrtl.passes.RemoveValidIf]
+       + classOf[firrtl.transforms.ConstantPropagation]).toSeq
 
   override val dependents =
     Seq( classOf[firrtl.passes.memlib.VerilogMemDelays],
