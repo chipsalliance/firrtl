@@ -63,9 +63,12 @@ def get_version_hashes(versions):
             hashes[hashcode] = version
     return hashes
 
-def clone_and_build(hashcode):
+def _clone_and_build_helper(hashcode, cmd, filename):
+    s = filename.split(".")
+    prefix = s[0]
+    ext = s[1]
     repo = 'firrtl.{}'.format(hashcode)
-    jar = 'firrtl.{}.jar'.format(hashcode)
+    jar = '{}.{}.{}'.format(prefix, hashcode, ext)
     if os.path.exists(jar):
         print('{} already exists, skipping jar creation'.format(jar))
     else :
@@ -76,13 +79,21 @@ def clone_and_build(hashcode):
             assert res.returncode == 0
         res = subprocess.run(['git', '-C', repo, 'checkout', hashcode])
         assert res.returncode == 0
-        res = subprocess.run(['make', '-C', repo, 'build-scala'])
+        res = subprocess.run(cmd, cwd=repo)
         assert res.returncode == 0
-        res = subprocess.run(['cp', '{}/utils/bin/firrtl.jar'.format(repo), jar])
+        res = subprocess.run(['cp', '{}/utils/bin/{}'.format(repo, filename), jar])
         assert res.returncode == 0
         res = subprocess.run(['rm', '-rf', repo])
         assert res.returncode == 0
     return jar
+
+def clone_and_build(hashcode):
+    return _clone_and_build_helper(hashcode, ["sbt", "assembly"], "firrtl.jar")
+
+def clone_and_build_benchmark(hashcode):
+    cmd = ["sbt", "project benchmark", "assembly"]
+    return _clone_and_build_helper(hashcode, cmd, "firrtl-benchmark.jar")
+
 
 def run_firrtl(java, jar, design):
     java_cmd = java.split()
@@ -94,6 +105,7 @@ def run_firrtl(java, jar, design):
         sys.exit(1)
     size = extract_max_size(result.stderr.decode('utf-8'))
     runtime = extract_run_time(result.stdout.decode('utf-8'))
+    print('{} B, {} ms'.format(size, runtime))
     return (size, runtime)
 
 
@@ -101,6 +113,12 @@ def build_firrtl_jars(versions):
     jars = OrderedDict()
     for hashcode, version in versions.items():
         jars[hashcode] = clone_and_build(hashcode)
+    return jars
+
+def build_firrtl_benchmark_jars(versions):
+    jars = OrderedDict()
+    for hashcode, version in versions.items():
+        jars[hashcode] = clone_and_build_benchmark(hashcode)
     return jars
 
 def check_designs(designs):
