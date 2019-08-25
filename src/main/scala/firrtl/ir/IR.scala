@@ -10,6 +10,11 @@ abstract class FirrtlNode {
   def serialize: String
 }
 
+trait FastSerialize extends FirrtlNode {
+  def fastserialize(indent: String): String
+  override def serialize = fastserialize("")
+}
+
 abstract class Info extends FirrtlNode {
   // default implementation
   def serialize: String = this.toString
@@ -336,12 +341,19 @@ case class Conditionally(
     info: Info,
     pred: Expression,
     conseq: Statement,
-    alt: Statement) extends Statement with HasInfo {
-  def serialize: String =
-    s"when ${pred.serialize} :" + info.serialize +
-    indent("\n" + conseq.serialize) +
+    alt: Statement) extends Statement with HasInfo with FastSerialize {
+  def fastserialize(indent: String): String = {
+    s"when ${pred.serialize} :" + info.serialize + "\n" +
+    (conseq match {
+      case fast: FastSerialize => fast.fastserialize(indent + "  ")
+      case other => s"${indent}${other.serialize}"
+    }) +
     (if (alt == EmptyStmt) ""
-    else "\nelse :" + indent("\n" + alt.serialize))
+    else "\nelse :" + (alt match {
+      case fast: FastSerialize => fast.fastserialize(indent + "  ")
+      case other => s"${indent}${other.serialize}"
+    }))
+  }
   def mapStmt(f: Statement => Statement): Statement = Conditionally(info, pred, f(conseq), f(alt))
   def mapExpr(f: Expression => Expression): Statement = Conditionally(info, f(pred), conseq, alt)
   def mapType(f: Type => Type): Statement = this
@@ -353,8 +365,13 @@ case class Conditionally(
   def foreachString(f: String => Unit): Unit = Unit
   def foreachInfo(f: Info => Unit): Unit = f(info)
 }
-case class Block(stmts: Seq[Statement]) extends Statement {
-  def serialize: String = stmts map (_.serialize) mkString "\n"
+case class Block(stmts: Seq[Statement]) extends Statement with FastSerialize {
+  def fastserialize(indent: String): String = {
+    stmts.view.map {
+      case fast: FastSerialize => fast.fastserialize(indent + "  ")
+      case other => s"${indent}${other.serialize}"
+    }.mkString("\n")
+  }
   def mapStmt(f: Statement => Statement): Statement = Block(stmts map f)
   def mapExpr(f: Expression => Expression): Statement = this
   def mapType(f: Type => Type): Statement = this
@@ -661,7 +678,7 @@ case class RawStringParam(name: String, value: String) extends Param {
 }
 
 /** Base class for modules */
-abstract class DefModule extends FirrtlNode with IsDeclaration {
+abstract class DefModule extends FirrtlNode with IsDeclaration with FastSerialize {
   val info : Info
   val name : String
   val ports : Seq[Port]
@@ -681,7 +698,11 @@ abstract class DefModule extends FirrtlNode with IsDeclaration {
   * An instantiable hardware block
   */
 case class Module(info: Info, name: String, ports: Seq[Port], body: Statement) extends DefModule {
-  def serialize: String = serializeHeader("module") + indent("\n" + body.serialize)
+  def fastserialize(indent: String): String =
+    serializeHeader("module") + "\n" + (body match {
+      case fast: FastSerialize => fast.fastserialize(indent + "  ")
+      case other => other.serialize
+    })
   def mapStmt(f: Statement => Statement): DefModule = this.copy(body = f(body))
   def mapPort(f: Port => Port): DefModule = this.copy(ports = ports map f)
   def mapString(f: String => String): DefModule = this.copy(name = f(name))
@@ -702,8 +723,9 @@ case class ExtModule(
     ports: Seq[Port],
     defname: String,
     params: Seq[Param]) extends DefModule {
-  def serialize: String = serializeHeader("extmodule") +
-    indent(s"\ndefname = $defname\n" + params.map(_.serialize).mkString("\n"))
+  // TODO Why is this broken?
+  def fastserialize(indent: String): String =
+    serializeHeader("extmodule") //+ indent(s"\ndefname = $defname\n")  + params.map(_.serialize).mkString("\n"))
   def mapStmt(f: Statement => Statement): DefModule = this
   def mapPort(f: Port => Port): DefModule = this.copy(ports = ports map f)
   def mapString(f: String => String): DefModule = this.copy(name = f(name))
@@ -717,7 +739,7 @@ case class ExtModule(
 case class Circuit(info: Info, modules: Seq[DefModule], main: String) extends FirrtlNode with HasInfo {
   def serialize: String =
     s"circuit $main :" + info.serialize +
-    (modules map ("\n" + _.serialize) map indent mkString "\n") + "\n"
+    (modules map ("\n" + _.fastserialize("  ")) mkString "\n") + "\n"
   def mapModule(f: DefModule => DefModule): Circuit = this.copy(modules = modules map f)
   def mapString(f: String => String): Circuit = this.copy(main = f(main))
   def mapInfo(f: Info => Info): Circuit = this.copy(f(info))

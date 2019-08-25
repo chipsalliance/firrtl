@@ -49,7 +49,8 @@ private case class DescribedMod(description: Description,
   val info = mod.info
   val name = mod.name
   val ports = mod.ports
-  def serialize: String = s"${description.serialize}\n${mod.serialize}"
+  def fastserialize(indent: String) =
+    s"${description.serialize}\n${mod.fastserialize(indent)}"
   def mapStmt(f: Statement => Statement): DefModule = this.copy(mod = mod.mapStmt(f))
   def mapPort(f: Port => Port): DefModule = this.copy(mod = mod.mapPort(f))
   def mapString(f: String => String): DefModule = this.copy(mod = mod.mapString(f))
