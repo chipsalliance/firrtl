@@ -10,7 +10,13 @@ import os
 import numbers
 
 # Currently hardcoded
-firrtl_repo = "firrtl"
+def get_firrtl_repo():
+    cmd = ['git', 'rev-parse', '--show-toplevel']
+    result = subprocess.run(cmd, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+    assert result.returncode == 0
+    return result.stdout.rstrip()
+
+firrtl_repo = get_firrtl_repo()
 
 platform = ""
 if sys.platform == 'darwin':
