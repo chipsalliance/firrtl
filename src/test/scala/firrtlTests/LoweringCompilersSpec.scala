@@ -5,98 +5,21 @@ package firrtlTests
 import org.scalatest.{FlatSpec, Matchers}
 
 import firrtl.{ChirrtlToHighFirrtl, CircuitForm, CircuitState, HighFirrtlToMiddleFirrtl, IRToWorkingIR,
-  LowFirrtlOptimization, MiddleFirrtlToLowFirrtl, MinimumLowFirrtlOptimization, ResolveAndCheck, Transform}
+  LowFirrtlOptimization, MiddleFirrtlToLowFirrtl, MinimumLowFirrtlOptimization, ResolveAndCheck, SeqTransform,
+  Transform, UnknownForm}
 import firrtl.passes
 import firrtl.stage.{Forms, TransformManager}
 import firrtl.transforms.IdentityTransform
 
-object Orderings {
-  val ChirrtlToHighFirrtl = Seq(
-    classOf[passes.CheckChirrtl],
-    classOf[passes.CInferTypes],
-    classOf[passes.CInferMDir],
-    classOf[passes.RemoveCHIRRTL] )
-  val ResolveAndCheck = Seq(
-    classOf[passes.CheckHighForm],
-    classOf[passes.ResolveKinds],
-    classOf[passes.InferTypes],
-    classOf[passes.CheckTypes],
-    classOf[passes.Uniquify],
-    classOf[passes.ResolveKinds],
-    classOf[passes.InferTypes],
-    classOf[passes.ResolveFlows],
-    classOf[passes.CheckFlows],
-    classOf[passes.InferWidths],
-    classOf[passes.CheckWidths],
-    classOf[firrtl.transforms.InferResets],
-    classOf[passes.CheckTypes] )
-  val HighFirrtlToMiddleFirrtl = Seq(
-    classOf[passes.PullMuxes],
-    classOf[passes.ReplaceAccesses],
-    classOf[passes.ExpandConnects],
-    classOf[passes.RemoveAccesses],
-    classOf[passes.Uniquify],
-    classOf[passes.ResolveKinds],
-    classOf[passes.InferTypes],
-    classOf[passes.ExpandWhensAndCheck],
-    classOf[passes.ResolveKinds],
-    classOf[passes.InferTypes],
-    classOf[passes.ResolveFlows],
-    classOf[passes.InferWidths],
-    classOf[firrtl.checks.CheckResets],
-    classOf[passes.ConvertFixedToSInt],
-    classOf[passes.ZeroWidth],
-    classOf[passes.InferTypes] )
-  val MiddleFirrtlToLowFirrtl = Seq(
-    classOf[passes.LowerTypes],
-    classOf[passes.ResolveKinds],
-    classOf[passes.InferTypes],
-    classOf[passes.ResolveFlows],
-    classOf[passes.InferWidths],
-    classOf[passes.Legalize],
-    classOf[firrtl.transforms.RemoveReset],
-    classOf[firrtl.transforms.CheckCombLoops],
-    classOf[firrtl.transforms.RemoveWires] )
-  val MinimumLowFirrtlOptimization = Seq(
-    classOf[passes.RemoveValidIf],
-    classOf[passes.Legalize],
-    classOf[passes.memlib.VerilogMemDelays],
-    classOf[passes.SplitExpressions] )
-  val LowFirrtlOptimization = Seq(
-    classOf[passes.RemoveValidIf],
-    classOf[firrtl.transforms.ConstantPropagation],
-    classOf[passes.PadWidths],
-    classOf[firrtl.transforms.ConstantPropagation],
-    classOf[passes.Legalize],
-    classOf[passes.memlib.VerilogMemDelays],
-    classOf[firrtl.transforms.ConstantPropagation],
-    classOf[passes.Legalize], // This is an additional Legalize
-    classOf[passes.SplitExpressions],
-    classOf[firrtl.transforms.CombineCats],
-    classOf[passes.CommonSubexpressionElimination],
-    classOf[firrtl.transforms.DeadCodeElimination] )
-  val VerilogMinimumOptimized = Seq(
-    classOf[firrtl.transforms.BlackBoxSourceHelper],
-    classOf[firrtl.transforms.ReplaceTruncatingArithmetic],
-    classOf[firrtl.transforms.FlattenRegUpdate],
-    classOf[passes.VerilogModulusCleanup],
-    classOf[firrtl.transforms.VerilogRename],
-    classOf[passes.VerilogPrep],
-    classOf[firrtl.AddDescriptionNodes] )
-  val VerilogOptimized = Seq(
-    classOf[firrtl.transforms.BlackBoxSourceHelper],
-    classOf[firrtl.transforms.ReplaceTruncatingArithmetic],
-    classOf[firrtl.transforms.FlattenRegUpdate],
-    classOf[firrtl.transforms.DeadCodeElimination],
-    classOf[passes.VerilogModulusCleanup],
-    classOf[firrtl.transforms.VerilogRename],
-    classOf[passes.VerilogPrep],
-    classOf[firrtl.AddDescriptionNodes] )
-}
+sealed trait PatchAction { val line: Int }
+
+case class Add(line: Int, transforms: Seq[Class[_ <: Transform]]) extends PatchAction
+case class Del(line: Int) extends PatchAction
 
 object Transforms {
   class IdentityTransformDiff(val inputForm: CircuitForm, val outputForm: CircuitForm) extends Transform {
     override def execute(state: CircuitState): CircuitState = state
+    override def name: String = s">>>>> $inputForm -> $outputForm <<<<<"
   }
   import firrtl.{ChirrtlForm => C, HighForm => H, MidForm => M, LowForm => L, UnknownForm => U}
   class ChirrtlToChirrtl extends IdentityTransformDiff(C, C)
@@ -113,268 +36,254 @@ object Transforms {
 
 class LoweringCompilersSpec extends FlatSpec with Matchers {
 
-  def compare(a: Seq[Transform], b: Seq[Class[_ <: Transform]]): Unit = {
-    a.map(_.getClass).zip(b).foreach{ case (aa, bb) =>
-      info(s"${aa.getName} ok!")
-      aa should be (bb)
+  def compare(a: Seq[Transform], b: TransformManager): Unit = {
+    info(s"""Transform Order:\n${b.prettyPrint("    ")}""")
+    a.map(_.getClass).zip(b.flattenedTransformOrder.map(_.getClass)).foreach{ case (aa, bb) => bb should be (aa) }
+    info(s"found ${b.flattenedTransformOrder.size} transforms")
+    a.size should be (b.flattenedTransformOrder.size)
+  }
+
+  def compareLegacy(a: SeqTransform, b: TransformManager, patches: Seq[PatchAction] = Seq.empty): Unit = {
+    info(s"""Transform Order:\n${b.prettyPrint("    ")}""")
+
+    val m = new scala.collection.mutable.TreeMap[Int, Seq[Class[_ <: Transform]]].withDefault(_ => Seq.empty)
+    a.transforms.map(_.getClass).zipWithIndex.foreach{ case (t, idx) => m(idx) = Seq(t) }
+
+    patches.foreach {
+      case Add(line, txs) => m(line - 1) = m(line - 1) ++ txs
+      case Del(line)      => m.remove(line - 1)
     }
 
-    info(s"found ${b.size} transforms")
-    a.size should be (b.size)
+    val patched = m.values.flatten
+
+    patched
+      .zip(b.flattenedTransformOrder.map(_.getClass))
+      .foreach{ case (aa, bb) => bb should be (aa) }
+
+    info(s"found ${b.flattenedTransformOrder.size} transforms")
+    patched.size should be (b.flattenedTransformOrder.size)
   }
 
   behavior of "ChirrtlToHighFirrtl"
 
   it should "replicate the old order" in {
-    compare((new ChirrtlToHighFirrtl).transforms, Orderings.ChirrtlToHighFirrtl)
+    val tm = new TransformManager(Forms.MinimalHighForm, Forms.ChirrtlForm)
+    compareLegacy(new firrtl.ChirrtlToHighFirrtl, tm)
   }
 
   behavior of "IRToWorkingIR"
 
   it should "replicate the old order" in {
-    compare((new IRToWorkingIR).transforms, Seq(classOf[passes.ToWorkingIR]))
+    val tm = new TransformManager(Forms.WorkingIR, Forms.MinimalHighForm)
+    compareLegacy(new firrtl.IRToWorkingIR, tm)
   }
 
   behavior of "ResolveAndCheck"
 
   it should "replicate the old order" in {
-    compare((new ResolveAndCheck).transforms, Orderings.ResolveAndCheck)
+    val tm = new TransformManager(Forms.Resolved, Forms.WorkingIR)
+    val patches = Seq(
+      Add(13, Seq(classOf[firrtl.passes.CheckTypes]))
+    )
+    compareLegacy(new ResolveAndCheck, tm, patches)
   }
 
   behavior of "HighFirrtlToMiddleFirrtl"
 
   it should "replicate the old order" in {
-    compare((new HighFirrtlToMiddleFirrtl).transforms, Orderings.HighFirrtlToMiddleFirrtl)
+    val tm = new TransformManager(Forms.MidForm, Forms.Deduped)
+    val patches = Seq(
+      Add(5, Seq(classOf[firrtl.passes.ResolveKinds],
+                 classOf[firrtl.passes.InferTypes])),
+      Del(6),
+      Del(7),
+      Add(6, Seq(classOf[firrtl.passes.ExpandWhensAndCheck])),
+      Del(10),
+      Del(11),
+      Del(12),
+      Add(11, Seq(classOf[firrtl.passes.ResolveFlows],
+                  classOf[firrtl.passes.InferWidths])),
+      Del(12),
+      Add(12, Seq(classOf[firrtl.checks.CheckResets])),
+      Del(13),
+      Del(14)
+    )
+    compareLegacy(new HighFirrtlToMiddleFirrtl, tm, patches)
   }
 
   behavior of "MiddleFirrtlToLowFirrtl"
 
   it should "replicate the old order" in {
-    compare((new MiddleFirrtlToLowFirrtl).transforms, Orderings.MiddleFirrtlToLowFirrtl)
+    val tm = new TransformManager(Forms.LowForm, Forms.MidForm)
+    compareLegacy(new MiddleFirrtlToLowFirrtl, tm)
   }
 
   behavior of "MinimumLowFirrtlOptimization"
 
   it should "replicate the old order" in {
-    compare((new MinimumLowFirrtlOptimization).transforms, Orderings.MinimumLowFirrtlOptimization)
+    val tm = new TransformManager(Forms.LowFormMinimumOptimized, Forms.LowForm)
+    compareLegacy(new MinimumLowFirrtlOptimization, tm)
   }
 
   behavior of "LowFirrtlOptimization"
 
   it should "replicate the old order" in {
-    compare((new LowFirrtlOptimization).transforms, Orderings.LowFirrtlOptimization)
+    val tm = new TransformManager(Forms.LowFormOptimized, Forms.LowForm)
+    val patches = Seq(
+      Add(7, Seq(classOf[firrtl.passes.Legalize]))
+    )
+    compareLegacy(new LowFirrtlOptimization, tm, patches)
   }
 
   behavior of "VerilogMinimumOptimized"
 
   it should "replicate the old order" in {
-    compare((new TransformManager(Forms.VerilogMinimumOptimized, Forms.LowFormMinimumOptimized))
-              .flattenedTransformOrder,
-            Orderings.VerilogMinimumOptimized)
+    val old = new SeqTransform {
+      def inputForm = UnknownForm
+      def outputForm = UnknownForm
+      def transforms = Seq(
+        new firrtl.transforms.BlackBoxSourceHelper,
+        new firrtl.transforms.ReplaceTruncatingArithmetic,
+        new firrtl.transforms.FlattenRegUpdate,
+        new firrtl.passes.VerilogModulusCleanup,
+        new firrtl.transforms.VerilogRename,
+        new firrtl.passes.VerilogPrep,
+        new firrtl.AddDescriptionNodes)
+    }
+    val tm = new TransformManager(Forms.VerilogMinimumOptimized, (new firrtl.VerilogEmitter).prerequisites)
+    compareLegacy(old, tm)
   }
 
   behavior of "VerilogOptimized"
 
   it should "replicate the old order" in {
-    compare((new TransformManager(Forms.VerilogOptimized, Forms.LowFormOptimized)).flattenedTransformOrder,
-            Orderings.VerilogOptimized)
-  }
-
-  behavior of "Chirrtl to Verilog"
-
-  it should "replicate the old order" in {
-    val oldOrder =
-      Orderings.ChirrtlToHighFirrtl ++
-        Some(classOf[passes.ToWorkingIR]) ++
-        Orderings.ResolveAndCheck ++
-        Some(classOf[firrtl.transforms.DedupModules]) ++
-        Orderings.HighFirrtlToMiddleFirrtl ++
-        Orderings.MiddleFirrtlToLowFirrtl ++
-        Orderings.LowFirrtlOptimization ++
-        Some(classOf[firrtl.VerilogEmitter])
-    compare((new TransformManager(Seq(classOf[firrtl.VerilogEmitter]), Forms.ChirrtlForm)).flattenedTransformOrder,
-            oldOrder)
+    val old = new SeqTransform {
+      def inputForm = UnknownForm
+      def outputForm = UnknownForm
+      def transforms = Seq(
+        new firrtl.transforms.BlackBoxSourceHelper,
+        new firrtl.transforms.ReplaceTruncatingArithmetic,
+        new firrtl.transforms.FlattenRegUpdate,
+        new firrtl.transforms.DeadCodeElimination,
+        new firrtl.passes.VerilogModulusCleanup,
+        new firrtl.transforms.VerilogRename,
+        new firrtl.passes.VerilogPrep,
+        new firrtl.AddDescriptionNodes)
+    }
+    val tm = new TransformManager(Forms.VerilogOptimized, Forms.LowFormOptimized)
+    compareLegacy(old, tm)
   }
 
   behavior of "Legacy Custom Transforms"
 
   it should "work for Chirrtl -> Chirrtl" in {
-    val expected = classOf[Transforms.ChirrtlToChirrtl] :: classOf[firrtl.ChirrtlEmitter] :: Nil
+    val expected = new Transforms.ChirrtlToChirrtl :: new firrtl.ChirrtlEmitter :: Nil
     val tm = new TransformManager(classOf[firrtl.ChirrtlEmitter] :: classOf[Transforms.ChirrtlToChirrtl] :: Nil)
-    compare(tm.flattenedTransformOrder, expected)
+    compare(expected, tm)
   }
 
   it should "work for High -> High" in {
-    val expected = Orderings.ChirrtlToHighFirrtl ++
-      Some(classOf[passes.ToWorkingIR]) ++
-      Orderings.ResolveAndCheck ++
-      Some(classOf[firrtl.transforms.DedupModules]) ++
-      Some(classOf[Transforms.HighToHigh]) ++
-      Orderings.HighFirrtlToMiddleFirrtl
-    compare((new TransformManager(Forms.MidForm :+ classOf[Transforms.HighToHigh])).flattenedTransformOrder, expected)
+    val expected =
+      new TransformManager(Forms.HighForm).flattenedTransformOrder ++
+        Some(new Transforms.HighToHigh) ++
+        (new TransformManager(Forms.MidForm, Forms.HighForm).flattenedTransformOrder)
+    val tm = new TransformManager(Forms.MidForm :+ classOf[Transforms.HighToHigh])
+    compare(expected, tm)
   }
 
   it should "work for High -> Chirrtl" in {
     val expected =
-      Orderings.ChirrtlToHighFirrtl ++
-        Some(classOf[passes.ToWorkingIR]) ++
-        Orderings.ResolveAndCheck ++
-        Some(classOf[firrtl.transforms.DedupModules]) ++
-        Some(classOf[Transforms.HighToChirrtl]) ++
-        Orderings.ChirrtlToHighFirrtl ++
-        Some(classOf[passes.ToWorkingIR]) ++
-        Orderings.ResolveAndCheck ++
-        Some(classOf[firrtl.transforms.DedupModules])
+      new TransformManager(Forms.HighForm).flattenedTransformOrder ++
+        Some(new Transforms.HighToChirrtl) ++
+        (new TransformManager(Forms.HighForm, Forms.ChirrtlForm).flattenedTransformOrder)
     val tm = new TransformManager(Forms.HighForm :+ classOf[Transforms.HighToChirrtl])
-    compare(tm.flattenedTransformOrder, expected)
+    compare(expected, tm)
   }
 
   it should "work for Mid -> Mid" in {
-    val expected = Orderings.ChirrtlToHighFirrtl ++
-      Some(classOf[passes.ToWorkingIR]) ++
-      Orderings.ResolveAndCheck ++
-      Some(classOf[firrtl.transforms.DedupModules]) ++
-      Orderings.HighFirrtlToMiddleFirrtl ++
-      Some(classOf[Transforms.MidToMid]) ++
-      Orderings.MiddleFirrtlToLowFirrtl
-    compare((new TransformManager(Forms.LowForm :+ classOf[Transforms.MidToMid])).flattenedTransformOrder, expected)
+    val expected =
+      new TransformManager(Forms.MidForm).flattenedTransformOrder ++
+        Some(new Transforms.MidToMid) ++
+        (new TransformManager(Forms.LowForm, Forms.MidForm).flattenedTransformOrder)
+    val tm = new TransformManager(Forms.LowForm :+ classOf[Transforms.MidToMid])
+    compare(expected, tm)
   }
 
   it should "work for Mid -> High" in {
-    val expected = Orderings.ChirrtlToHighFirrtl ++
-      Some(classOf[passes.ToWorkingIR]) ++
-      Orderings.ResolveAndCheck ++
-      Some(classOf[firrtl.transforms.DedupModules]) ++
-      Orderings.HighFirrtlToMiddleFirrtl ++
-      Some(classOf[Transforms.MidToHigh]) ++
-      Some(classOf[passes.ToWorkingIR]) ++
-      Orderings.ResolveAndCheck ++
-      Some(classOf[firrtl.transforms.DedupModules]) ++
-      Orderings.HighFirrtlToMiddleFirrtl ++
-      Orderings.MiddleFirrtlToLowFirrtl
-    compare((new TransformManager(Forms.LowForm :+ classOf[Transforms.MidToHigh])).flattenedTransformOrder, expected)
+    val expected =
+      new TransformManager(Forms.MidForm).flattenedTransformOrder ++
+        Some(new Transforms.MidToHigh) ++
+        (new TransformManager(Forms.LowForm, Forms.MinimalHighForm).flattenedTransformOrder)
+    val tm = new TransformManager(Forms.LowForm :+ classOf[Transforms.MidToHigh])
+    compare(expected, tm)
   }
 
   it should "work for Mid -> Chirrtl" in {
-    val expected = Orderings.ChirrtlToHighFirrtl ++
-      Some(classOf[passes.ToWorkingIR]) ++
-      Orderings.ResolveAndCheck ++
-      Some(classOf[firrtl.transforms.DedupModules]) ++
-      Orderings.HighFirrtlToMiddleFirrtl ++
-      Some(classOf[Transforms.MidToChirrtl]) ++
-      Orderings.ChirrtlToHighFirrtl ++
-      Some(classOf[passes.ToWorkingIR]) ++
-      Orderings.ResolveAndCheck ++
-      Some(classOf[firrtl.transforms.DedupModules]) ++
-      Orderings.HighFirrtlToMiddleFirrtl ++
-      Orderings.MiddleFirrtlToLowFirrtl
+    val expected =
+      new TransformManager(Forms.MidForm).flattenedTransformOrder ++
+        Some(new Transforms.MidToChirrtl) ++
+        (new TransformManager(Forms.LowForm, Forms.ChirrtlForm).flattenedTransformOrder)
     val tm = new TransformManager(Forms.LowForm :+ classOf[Transforms.MidToChirrtl])
-    compare(tm.flattenedTransformOrder, expected)
+    compare(expected, tm)
   }
 
   it should "work for Low -> Low" in {
-    val expected = Orderings.ChirrtlToHighFirrtl ++
-      Some(classOf[passes.ToWorkingIR]) ++
-      Orderings.ResolveAndCheck ++
-      Some(classOf[firrtl.transforms.DedupModules]) ++
-      Orderings.HighFirrtlToMiddleFirrtl ++
-      Orderings.MiddleFirrtlToLowFirrtl ++
-      Orderings.LowFirrtlOptimization ++
-      Seq(classOf[Forms.LowFormOptimizedHook], classOf[Transforms.LowToLow])
-    compare((new TransformManager(Forms.LowFormOptimized :+ classOf[Transforms.LowToLow])).flattenedTransformOrder,
-            expected)
+    val expected =
+      new TransformManager(Forms.LowFormOptimized).flattenedTransformOrder ++
+        Seq(new Forms.LowFormOptimizedHook, new Transforms.LowToLow)
+    val tm = new TransformManager(Forms.LowFormOptimized :+ classOf[Transforms.LowToLow])
+    compare(expected, tm)
   }
 
   it should "work for Low -> Mid" in {
-    val expected = Orderings.ChirrtlToHighFirrtl ++
-      Some(classOf[passes.ToWorkingIR]) ++
-      Orderings.ResolveAndCheck ++
-      Some(classOf[firrtl.transforms.DedupModules]) ++
-      Orderings.HighFirrtlToMiddleFirrtl ++
-      Orderings.MiddleFirrtlToLowFirrtl ++
-      Orderings.LowFirrtlOptimization ++
-      Seq(classOf[Forms.LowFormOptimizedHook], classOf[Transforms.LowToMid]) ++
-      Orderings.MiddleFirrtlToLowFirrtl ++
-      Orderings.LowFirrtlOptimization
-    compare((new TransformManager(Forms.LowFormOptimized :+ classOf[Transforms.LowToMid])).flattenedTransformOrder,
-            expected)
+    val expected =
+      new TransformManager(Forms.LowFormOptimized).flattenedTransformOrder ++
+        Seq(new Forms.LowFormOptimizedHook, new Transforms.LowToMid) ++
+        (new TransformManager(Forms.LowFormOptimized, Forms.MidForm).flattenedTransformOrder)
+    val tm = new TransformManager(Forms.LowFormOptimized :+ classOf[Transforms.LowToMid])
+    compare(expected, tm)
   }
 
   it should "work for Low -> High" in {
-    val expected = Orderings.ChirrtlToHighFirrtl ++
-      Some(classOf[passes.ToWorkingIR]) ++
-      Orderings.ResolveAndCheck ++
-      Some(classOf[firrtl.transforms.DedupModules]) ++
-      Orderings.HighFirrtlToMiddleFirrtl ++
-      Orderings.MiddleFirrtlToLowFirrtl ++
-      Orderings.LowFirrtlOptimization ++
-      Seq(classOf[Forms.LowFormOptimizedHook], classOf[Transforms.LowToHigh]) ++
-      Some(classOf[passes.ToWorkingIR]) ++
-      Orderings.ResolveAndCheck ++
-      Some(classOf[firrtl.transforms.DedupModules]) ++
-      Orderings.HighFirrtlToMiddleFirrtl ++
-      Orderings.MiddleFirrtlToLowFirrtl ++
-      Orderings.LowFirrtlOptimization
-    compare((new TransformManager(Forms.LowFormOptimized :+ classOf[Transforms.LowToHigh])).flattenedTransformOrder,
-            expected)
+    val expected =
+      new TransformManager(Forms.LowFormOptimized).flattenedTransformOrder ++
+        Seq(new Forms.LowFormOptimizedHook, new Transforms.LowToHigh) ++
+        (new TransformManager(Forms.LowFormOptimized, Forms.MinimalHighForm).flattenedTransformOrder)
+    val tm = new TransformManager(Forms.LowFormOptimized :+ classOf[Transforms.LowToHigh])
+    compare(expected, tm)
   }
 
   it should "work for Low -> Chirrtl" in {
-    val expected = Orderings.ChirrtlToHighFirrtl ++
-      Some(classOf[passes.ToWorkingIR]) ++
-      Orderings.ResolveAndCheck ++
-      Some(classOf[firrtl.transforms.DedupModules]) ++
-      Orderings.HighFirrtlToMiddleFirrtl ++
-      Orderings.MiddleFirrtlToLowFirrtl ++
-      Orderings.LowFirrtlOptimization ++
-      Seq(classOf[Forms.LowFormOptimizedHook], classOf[Transforms.LowToChirrtl]) ++
-      Orderings.ChirrtlToHighFirrtl ++
-      Some(classOf[passes.ToWorkingIR]) ++
-      Orderings.ResolveAndCheck ++
-      Some(classOf[firrtl.transforms.DedupModules]) ++
-      Orderings.HighFirrtlToMiddleFirrtl ++
-      Orderings.MiddleFirrtlToLowFirrtl ++
-      Orderings.LowFirrtlOptimization
+    val expected =
+      new TransformManager(Forms.LowFormOptimized).flattenedTransformOrder ++
+        Seq(new Forms.LowFormOptimizedHook, new Transforms.LowToChirrtl) ++
+        (new TransformManager(Forms.LowFormOptimized, Forms.ChirrtlForm).flattenedTransformOrder)
     val tm = new TransformManager(Forms.LowFormOptimized :+ classOf[Transforms.LowToChirrtl])
-    compare(tm.flattenedTransformOrder, expected)
+    compare(expected, tm)
   }
 
   it should "schedule inputForm=LowForm after MiddleFirrtlToLowFirrtl for the LowFirrtlEmitter" in {
-    val expected = Orderings.ChirrtlToHighFirrtl ++
-      Some(classOf[passes.ToWorkingIR]) ++
-      Orderings.ResolveAndCheck ++
-      Some(classOf[firrtl.transforms.DedupModules]) ++
-      Orderings.HighFirrtlToMiddleFirrtl ++
-      Orderings.MiddleFirrtlToLowFirrtl ++
-      Seq(classOf[Forms.LowFormOptimizedHook], classOf[Transforms.LowToLow], classOf[firrtl.LowFirrtlEmitter])
+    val expected =
+      new TransformManager(Forms.LowForm).flattenedTransformOrder ++
+        Seq(new Forms.LowFormOptimizedHook, new Transforms.LowToLow, new firrtl.LowFirrtlEmitter)
     val tm = (new TransformManager(Seq(classOf[firrtl.LowFirrtlEmitter], classOf[Transforms.LowToLow])))
-    compare(tm.flattenedTransformOrder, expected)
+    compare(expected, tm)
   }
 
   it should "schedule inputForm=LowForm after MinimumLowFirrtlOptimizations for the MinimalVerilogEmitter" in {
-    val expected = Orderings.ChirrtlToHighFirrtl ++
-      Some(classOf[passes.ToWorkingIR]) ++
-      Orderings.ResolveAndCheck ++
-      Some(classOf[firrtl.transforms.DedupModules]) ++
-      Orderings.HighFirrtlToMiddleFirrtl ++
-      Orderings.MiddleFirrtlToLowFirrtl ++
-      Orderings.MinimumLowFirrtlOptimization ++
-      Seq(classOf[Forms.LowFormOptimizedHook], classOf[Transforms.LowToLow], classOf[firrtl.MinimumVerilogEmitter])
+    val expected =
+      new TransformManager(Forms.LowFormMinimumOptimized).flattenedTransformOrder ++
+        Seq(new Forms.LowFormOptimizedHook, new Transforms.LowToLow, new firrtl.MinimumVerilogEmitter)
     val tm = (new TransformManager(Seq(classOf[firrtl.MinimumVerilogEmitter], classOf[Transforms.LowToLow])))
-    compare(tm.flattenedTransformOrder, expected)
+    compare(expected, tm)
   }
 
   it should "schedule inputForm=LowForm after LowFirrtlOptimizations for the VerilogEmitter" in {
-    val expected = Orderings.ChirrtlToHighFirrtl ++
-      Some(classOf[passes.ToWorkingIR]) ++
-      Orderings.ResolveAndCheck ++
-      Some(classOf[firrtl.transforms.DedupModules]) ++
-      Orderings.HighFirrtlToMiddleFirrtl ++
-      Orderings.MiddleFirrtlToLowFirrtl ++
-      Orderings.LowFirrtlOptimization ++
-      Seq(classOf[Forms.LowFormOptimizedHook], classOf[Transforms.LowToLow], classOf[firrtl.VerilogEmitter])
+    val expected =
+      new TransformManager(Forms.LowFormOptimized).flattenedTransformOrder ++
+        Seq(new Forms.LowFormOptimizedHook, new Transforms.LowToLow, new firrtl.VerilogEmitter)
     val tm = (new TransformManager(Seq(classOf[firrtl.VerilogEmitter], classOf[Transforms.LowToLow])))
-    compare(tm.flattenedTransformOrder, expected)
+    compare(expected, tm)
   }
 
 }

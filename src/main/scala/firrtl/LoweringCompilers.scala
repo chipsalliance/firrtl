@@ -16,7 +16,11 @@ sealed abstract class CoreTransform extends SeqTransform
 class ChirrtlToHighFirrtl extends CoreTransform {
   def inputForm = ChirrtlForm
   def outputForm = HighForm
-  def transforms = new TransformManager(Forms.MinimalHighForm, Forms.ChirrtlForm).flattenedTransformOrder
+  def transforms = Seq(
+    new passes.CheckChirrtl,
+    new passes.CInferTypes,
+    new passes.CInferMDir,
+    new passes.RemoveCHIRRTL )
 }
 
 /** Converts from the bare intermediate representation (ir.scala)
@@ -26,7 +30,7 @@ class ChirrtlToHighFirrtl extends CoreTransform {
 class IRToWorkingIR extends CoreTransform {
   def inputForm = HighForm
   def outputForm = HighForm
-  def transforms = new TransformManager(Forms.WorkingIR, Forms.MinimalHighForm).flattenedTransformOrder
+  def transforms = Seq(new passes.ToWorkingIR)
 }
 
 /** Resolves types, kinds, and flows, and checks the circuit legality.
@@ -36,16 +40,19 @@ class IRToWorkingIR extends CoreTransform {
 class ResolveAndCheck extends CoreTransform {
   def inputForm = HighForm
   def outputForm = HighForm
-  def transforms = new TransformManager(Forms.Resolved, Forms.WorkingIR).flattenedTransformOrder
-}
-
-/** Deduplicates copies of the same module
-  */
-@deprecated("Use a TransformManager to handle lowering. Will be removed in 1.3.", "1.2")
-class Dedup extends CoreTransform {
-  def inputForm = HighForm
-  def outputForm = HighForm
-  def transforms = new TransformManager(Forms.Deduped, Forms.Resolved).flattenedTransformOrder
+  def transforms = Seq(
+    new passes.CheckHighForm,
+    new passes.ResolveKinds,
+    new passes.InferTypes,
+    new passes.CheckTypes,
+    new passes.Uniquify,
+    new passes.ResolveKinds,
+    new passes.InferTypes,
+    new passes.ResolveFlows,
+    new passes.CheckFlows,
+    new passes.InferWidths,
+    new passes.CheckWidths,
+    new firrtl.transforms.InferResets)
 }
 
 /** Expands aggregate connects, removes dynamic accesses, and when
@@ -57,7 +64,24 @@ class Dedup extends CoreTransform {
 class HighFirrtlToMiddleFirrtl extends CoreTransform {
   def inputForm = HighForm
   def outputForm = MidForm
-  def transforms = new TransformManager(Forms.MidForm, Forms.Deduped).flattenedTransformOrder
+  def transforms = Seq(
+    new passes.PullMuxes,
+    new passes.ReplaceAccesses,
+    new passes.ExpandConnects,
+    new passes.RemoveAccesses,
+    new passes.Uniquify,
+    new passes.ExpandWhens,
+    new passes.CheckInitialization,
+    new passes.ResolveKinds,
+    new passes.InferTypes,
+    new passes.CheckTypes,
+    new checks.CheckResets,
+    new passes.ResolveFlows,
+    new passes.InferWidths,
+    new passes.CheckWidths,
+    new passes.ConvertFixedToSInt,
+    new passes.ZeroWidth,
+    new passes.InferTypes)
 }
 
 /** Expands all aggregate types into many ground-typed components. Must
@@ -68,7 +92,16 @@ class HighFirrtlToMiddleFirrtl extends CoreTransform {
 class MiddleFirrtlToLowFirrtl extends CoreTransform {
   def inputForm = MidForm
   def outputForm = LowForm
-  def transforms = new TransformManager(Forms.LowForm, Forms.MidForm).flattenedTransformOrder
+  def transforms = Seq(
+    new passes.LowerTypes,
+    new passes.ResolveKinds,
+    new passes.InferTypes,
+    new passes.ResolveFlows,
+    new passes.InferWidths,
+    new passes.Legalize,
+    new firrtl.transforms.RemoveReset,
+    new firrtl.transforms.CheckCombLoops,
+    new firrtl.transforms.RemoveWires)
 }
 
 /** Runs a series of optimization passes on LowFirrtl
@@ -79,14 +112,29 @@ class MiddleFirrtlToLowFirrtl extends CoreTransform {
 class LowFirrtlOptimization extends CoreTransform {
   def inputForm = LowForm
   def outputForm = LowForm
-  def transforms = new TransformManager(Forms.LowFormOptimized, Forms.LowForm).flattenedTransformOrder
+  def transforms = Seq(
+    new passes.RemoveValidIf,
+    new firrtl.transforms.ConstantPropagation,
+    new passes.PadWidths,
+    new firrtl.transforms.ConstantPropagation,
+    new passes.Legalize,
+    new passes.memlib.VerilogMemDelays, // TODO move to Verilog emitter
+    new firrtl.transforms.ConstantPropagation,
+    new passes.SplitExpressions,
+    new firrtl.transforms.CombineCats,
+    new passes.CommonSubexpressionElimination,
+    new firrtl.transforms.DeadCodeElimination)
 }
 /** Runs runs only the optimization passes needed for Verilog emission */
 @deprecated("Use a TransformManager to handle lowering. Will be removed in 1.3.", "1.2")
 class MinimumLowFirrtlOptimization extends CoreTransform {
   def inputForm = LowForm
   def outputForm = LowForm
-  def transforms = new TransformManager(Forms.LowFormMinimumOptimized, Forms.LowForm).flattenedTransformOrder
+  def transforms = Seq(
+    new passes.RemoveValidIf,
+    new passes.Legalize,
+    new passes.memlib.VerilogMemDelays, // TODO move to Verilog emitter
+    new passes.SplitExpressions)
 }
 
 

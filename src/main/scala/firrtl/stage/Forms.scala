@@ -16,15 +16,15 @@ object Forms {
 
   val ChirrtlForm: Seq[TransformDependency] = Seq.empty
 
-  private[firrtl] val MinimalHighForm: Seq[TransformDependency] = ChirrtlForm ++
+  val MinimalHighForm: Seq[TransformDependency] = ChirrtlForm ++
     Seq( classOf[passes.CheckChirrtl],
          classOf[passes.CInferTypes],
          classOf[passes.CInferMDir],
          classOf[passes.RemoveCHIRRTL] )
 
-  private[firrtl] val WorkingIR: Seq[TransformDependency] = MinimalHighForm :+ classOf[passes.ToWorkingIR]
+  val WorkingIR: Seq[TransformDependency] = MinimalHighForm :+ classOf[passes.ToWorkingIR]
 
-  private[firrtl] val Resolved: Seq[TransformDependency] = WorkingIR ++
+  val Resolved: Seq[TransformDependency] = WorkingIR ++
     Seq( classOf[passes.CheckHighForm],
          classOf[passes.ResolveKinds],
          classOf[passes.InferTypes],
@@ -38,7 +38,7 @@ object Forms {
          classOf[passes.CheckWidths],
          classOf[firrtl.transforms.InferResets] )
 
-  private[firrtl] val Deduped: Seq[TransformDependency] = Resolved :+ classOf[firrtl.transforms.DedupModules]
+  val Deduped: Seq[TransformDependency] = Resolved :+ classOf[firrtl.transforms.DedupModules]
 
   val HighForm: Seq[TransformDependency] = ChirrtlForm ++
     MinimalHighForm ++

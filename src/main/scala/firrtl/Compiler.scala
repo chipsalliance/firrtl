@@ -405,7 +405,8 @@ object CompilerUtils extends LazyLogging {
       inputForm match {
         case ChirrtlForm =>
           Seq(new ChirrtlToHighFirrtl) ++ getLoweringTransforms(HighForm, outputForm)
-        case HighForm => Seq(new IRToWorkingIR, new ResolveAndCheck, new Dedup, new HighFirrtlToMiddleFirrtl) ++
+        case HighForm =>
+          Seq(new IRToWorkingIR, new ResolveAndCheck, new transforms.DedupModules, new HighFirrtlToMiddleFirrtl) ++
             getLoweringTransforms(MidForm, outputForm)
         case MidForm => Seq(new MiddleFirrtlToLowFirrtl) ++ getLoweringTransforms(LowForm, outputForm)
         case LowForm => throwInternalError("getLoweringTransforms - LowForm") // should be caught by if above
