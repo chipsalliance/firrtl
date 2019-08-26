@@ -6,7 +6,7 @@ import firrtl.stage._
 
 import firrtl.{AnnotationSeq, EmitAllModulesAnnotation, EmitCircuitAnnotation}
 import firrtl.annotations.Annotation
-import firrtl.options.{OptionsException, Phase, StageUtils}
+import firrtl.options.{OptionsException, Phase}
 
 /** [[firrtl.options.Phase Phase]] that strictly validates an [[AnnotationSeq]]. The checks applied are intended to be
   * extremeley strict. Nothing is inferred or assumed to take a default value (for default value resolution see
@@ -25,7 +25,7 @@ class Checks extends Phase {
     * @throws firrtl.options.OptionsException if any checks fail
     */
   def transform(annos: AnnotationSeq): AnnotationSeq = {
-    val inF, inS, eam, ec, outF, td, i, foaf, comp, im, inC = collection.mutable.ListBuffer[Annotation]()
+    val inF, inS, eam, ec, outF, comp, im, inC = collection.mutable.ListBuffer[Annotation]()
     annos.foreach(
       _ match {
         case a: FirrtlFileAnnotation     => a +=: inF

@@ -3,7 +3,7 @@
 package firrtl
 package proto
 
-import java.io.{BufferedOutputStream, OutputStream}
+import java.io.OutputStream
 
 import FirrtlProtos._
 import Firrtl.Expression.PrimOp.Op
@@ -343,6 +343,9 @@ object ToProto {
       case ir.AsyncResetType =>
         val at = Firrtl.Type.AsyncResetType.newBuilder()
         tb.setAsyncResetType(at)
+      case ir.ResetType =>
+        val rt = Firrtl.Type.ResetType.newBuilder()
+        tb.setResetType(rt)
       case ir.AnalogType(width) =>
         val at = Firrtl.Type.AnalogType.newBuilder()
           convert(width).foreach(at.setWidth)

@@ -6,29 +6,12 @@ import firrtl.ir._
 import firrtl.PrimOps._
 import firrtl.Mappers._
 import firrtl.WrappedExpression._
-import firrtl.WrappedType._
 
 import scala.collection.mutable
-import scala.collection.mutable.{ArrayBuffer, HashMap, HashSet, LinkedHashMap, StringBuilder}
 import scala.util.matching.Regex
-import java.io.PrintWriter
 
 import firrtl.annotations.{ReferenceTarget, TargetToken}
 import _root_.logger.LazyLogging
-
-object FIRRTLException {
-  def defaultMessage(message: String, cause: Throwable) = {
-    if (message != null) {
-      message
-    } else if (cause != null) {
-      cause.toString
-    } else {
-      null
-    }
-  }
-}
-class FIRRTLException(val str: String, cause: Throwable = null)
-  extends RuntimeException(FIRRTLException.defaultMessage(str, cause), cause)
 
 object seqCat {
   def apply(args: Seq[Expression]): Expression = args.length match {
@@ -117,13 +100,13 @@ object fromBits {
                       rhs: Expression,
                       offset: BigInt): (BigInt, Seq[Statement]) =
     lhst match {
-      case t: VectorType => (0 until t.size foldLeft (offset, Seq[Statement]())) {
+      case t: VectorType => (0 until t.size foldLeft( (offset, Seq[Statement]()) )) {
         case ((curOffset, stmts), i) =>
           val subidx = WSubIndex(lhs, i, t.tpe, UNKNOWNGENDER)
           val (tmpOffset, substmts) = getPart(subidx, t.tpe, rhs, curOffset)
           (tmpOffset, stmts ++ substmts)
       }
-      case t: BundleType => (t.fields foldRight (offset, Seq[Statement]())) {
+      case t: BundleType => (t.fields foldRight( (offset, Seq[Statement]()) )) {
         case (f, (curOffset, stmts)) =>
           val subfield = WSubField(lhs, f.name, f.tpe, UNKNOWNGENDER)
           val (tmpOffset, substmts) = getPart(subfield, f.tpe, rhs, curOffset)
@@ -306,7 +289,7 @@ object Utils extends LazyLogging {
      t match {
        case (_: GroundType) => f
        case (tx: BundleType) =>
-         val (_, flip) = tx.fields.foldLeft(i, None: Option[Orientation]) {
+         val (_, flip) = tx.fields.foldLeft( (i, None: Option[Orientation]) ) {
            case ((n, ret), x) if n < get_size(x.tpe) => ret match {
              case None => (n, Some(get_flip(x.tpe, n, times(x.flip, f))))
              case Some(_) => (n, ret)
@@ -315,7 +298,7 @@ object Utils extends LazyLogging {
          }
          flip.get
        case (tx: VectorType) =>
-         val (_, flip) = (0 until tx.size).foldLeft(i, None: Option[Orientation]) {
+         val (_, flip) = (0 until tx.size).foldLeft( (i, None: Option[Orientation]) ) {
            case ((n, ret), x) if n < get_size(tx.tpe) => ret match {
              case None => (n, Some(get_flip(tx.tpe, n, f)))
              case Some(_) => (n, ret)
@@ -437,7 +420,7 @@ object Utils extends LazyLogging {
   }
    
 // =================================
-  def error(str: String, cause: Throwable = null) = throw new FIRRTLException(str, cause)
+  def error(str: String, cause: Throwable = null) = throw new FirrtlInternalException(str, cause)
 
 //// =============== EXPANSION FUNCTIONS ================
   def get_size(t: Type): Int = t match {
@@ -448,6 +431,7 @@ object Utils extends LazyLogging {
   }
 
   def get_valid_points(t1: Type, t2: Type, flip1: Orientation, flip2: Orientation): Seq[(Int,Int)] = {
+    import passes.CheckTypes.legalResetType
     //;println_all(["Inside with t1:" t1 ",t2:" t2 ",f1:" flip1 ",f2:" flip2])
     (t1, t2) match {
       case (_: UIntType, _: UIntType) => if (flip1 == flip2) Seq((0, 0)) else Nil
@@ -456,10 +440,10 @@ object Utils extends LazyLogging {
       case (_: AnalogType, _: AnalogType) => if (flip1 == flip2) Seq((0, 0)) else Nil
       case (t1x: BundleType, t2x: BundleType) =>
         def emptyMap = Map[String, (Type, Orientation, Int)]()
-        val t1_fields = t1x.fields.foldLeft(emptyMap, 0) { case ((map, ilen), f1) =>
-          (map + (f1.name ->(f1.tpe, f1.flip, ilen)), ilen + get_size(f1.tpe))
+        val t1_fields = t1x.fields.foldLeft( (emptyMap, 0) ) { case ((map, ilen), f1) =>
+          (map + (f1.name ->( (f1.tpe, f1.flip, ilen) )), ilen + get_size(f1.tpe))
         }._1
-        t2x.fields.foldLeft(Seq[(Int, Int)](), 0) { case ((points, jlen), f2) =>
+        t2x.fields.foldLeft( (Seq[(Int, Int)](), 0) ) { case ((points, jlen), f2) =>
           t1_fields get f2.name match {
             case None => (points, jlen + get_size(f2.tpe))
             case Some((f1_tpe, f1_flip, ilen)) =>
@@ -471,12 +455,20 @@ object Utils extends LazyLogging {
         }._1
       case (t1x: VectorType, t2x: VectorType) =>
         val size = math.min(t1x.size, t2x.size)
-        (0 until size).foldLeft(Seq[(Int, Int)](), 0, 0) { case ((points, ilen, jlen), _) =>
+        (0 until size).foldLeft( (Seq[(Int, Int)](), 0, 0) ) { case ((points, ilen, jlen), _) =>
           val ls = get_valid_points(t1x.tpe, t2x.tpe, flip1, flip2)
           (points ++ (ls map { case (x, y) => (x + ilen, y + jlen) }),
             ilen + get_size(t1x.tpe), jlen + get_size(t2x.tpe))
         }._1
       case (ClockType, ClockType) => if (flip1 == flip2) Seq((0, 0)) else Nil
+      case (AsyncResetType, AsyncResetType) => if (flip1 == flip2) Seq((0, 0)) else Nil
+      // The following two cases handle driving ResetType from other legal reset types
+      // Flippedness is important here because ResetType can be driven by other reset types, but it
+      //   cannot *drive* other reset types
+      case (ResetType, other) =>
+        if (legalResetType(other) && flip1 == Default && flip1 == flip2) Seq((0, 0)) else Nil
+      case (other, ResetType) =>
+        if (legalResetType(other) && flip1 == Flip && flip1 == flip2) Seq((0, 0)) else Nil
       case _ => throwInternalError(s"get_valid_points: shouldn't be here - ($t1, $t2)")
     }
   }
@@ -626,7 +618,7 @@ object Utils extends LazyLogging {
     case EmptyExpression => root
   }
 
-  case class DeclarationNotFoundException(msg: String) extends FIRRTLException(msg)
+  case class DeclarationNotFoundException(msg: String) extends FirrtlUserException(msg)
 
   /** Gets the root declaration of an expression
     *

@@ -2,7 +2,6 @@
 
 package firrtl.passes
 
-import com.typesafe.scalalogging.LazyLogging
 
 import scala.annotation.tailrec
 import firrtl._
@@ -11,7 +10,6 @@ import firrtl.Utils._
 import firrtl.Mappers._
 import MemPortUtils.memType
 
-import scala.collection.mutable
 
 /** Resolve name collisions that would occur in [[LowerTypes]]
   *
@@ -36,7 +34,7 @@ import scala.collection.mutable
 object Uniquify extends Transform {
   def inputForm = UnknownForm
   def outputForm = UnknownForm
-  private case class UniquifyException(msg: String) extends FIRRTLException(msg)
+  private case class UniquifyException(msg: String) extends FirrtlInternalException(msg)
   private def error(msg: String)(implicit sinfo: Info, mname: String) =
     throw new UniquifyException(s"$sinfo: [moduleOpt $mname] $msg")
 

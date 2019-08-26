@@ -5,16 +5,13 @@ package firrtl
 import logger._
 import java.io.Writer
 
-import firrtl.RenameMap.{CircularRenameException, IllegalRenameException}
 
 import scala.collection.mutable
 import firrtl.annotations._
-import firrtl.ir.{Circuit, Expression}
-import firrtl.Utils.{error, throwInternalError}
-import firrtl.annotations.TargetToken
-import firrtl.annotations.TargetToken.{Field, Index}
+import firrtl.ir.Circuit
+import firrtl.Utils.throwInternalError
 import firrtl.annotations.transforms.{EliminateTargetPaths, ResolvePaths}
-import firrtl.options.StageUtils
+import firrtl.options.{StageUtils, TransformLike}
 
 /** Container of all annotations for a Firrtl compiler */
 class AnnotationSeq private (private[firrtl] val underlying: List[Annotation]) {
@@ -46,7 +43,7 @@ case class CircuitState(
   def getEmittedCircuit: EmittedCircuit = emittedCircuitOption match {
     case Some(emittedCircuit) => emittedCircuit
     case None =>
-      throw new FIRRTLException(s"No EmittedCircuit found! Did you delete any annotations?\n$deletedAnnotations")
+      throw new FirrtlInternalException(s"No EmittedCircuit found! Did you delete any annotations?\n$deletedAnnotations")
   }
 
   /** Helper function for extracting emitted components from annotations */
@@ -172,7 +169,7 @@ final case object UnknownForm extends CircuitForm(-1) {
 // scalastyle:on magic.number
 
 /** The basic unit of operating on a Firrtl AST */
-abstract class Transform extends LazyLogging {
+abstract class Transform extends TransformLike[CircuitState] {
   /** A convenience function useful for debugging and error messages */
   def name: String = this.getClass.getSimpleName
   /** The [[firrtl.CircuitForm]] that this transform requires to operate on */
@@ -187,6 +184,8 @@ abstract class Transform extends LazyLogging {
     * @return A transformed Firrtl AST
     */
   protected def execute(state: CircuitState): CircuitState
+
+  def transform(state: CircuitState): CircuitState = execute(state)
 
   /** Convenience method to get annotations relevant to this Transform
     *
@@ -316,9 +315,6 @@ trait Emitter extends Transform {
   def outputSuffix: String
 }
 
-/** Wraps exceptions from CustomTransforms so they can be reported appropriately */
-case class CustomTransformException(cause: Throwable) extends Exception("", cause)
-
 object CompilerUtils extends LazyLogging {
   /** Generates a sequence of [[Transform]]s to lower a Firrtl circuit
     *
@@ -335,8 +331,9 @@ object CompilerUtils extends LazyLogging {
         case ChirrtlForm =>
           Seq(new ChirrtlToHighFirrtl) ++ getLoweringTransforms(HighForm, outputForm)
         case HighForm =>
-          Seq(new IRToWorkingIR, new ResolveAndCheck, new transforms.DedupModules,
-              new HighFirrtlToMiddleFirrtl) ++ getLoweringTransforms(MidForm, outputForm)
+          Seq(new IRToWorkingIR, new ResolveAndCheck,
+              new transforms.DedupModules, new HighFirrtlToMiddleFirrtl) ++
+              getLoweringTransforms(MidForm, outputForm)
         case MidForm => Seq(new MiddleFirrtlToLowFirrtl) ++ getLoweringTransforms(LowForm, outputForm)
         case LowForm => throwInternalError("getLoweringTransforms - LowForm") // should be caught by if above
         case UnknownForm => throwInternalError("getLoweringTransforms - UnknownForm") // should be caught by if above

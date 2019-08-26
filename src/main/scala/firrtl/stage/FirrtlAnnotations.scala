@@ -7,7 +7,6 @@ import firrtl.ir.Circuit
 import firrtl.annotations.{Annotation, NoTargetAnnotation}
 import firrtl.options.{HasShellOptions, OptionsException, ShellOption}
 
-import scopt.OptionParser
 
 import java.io.FileNotFoundException
 import java.nio.file.NoSuchFileException
@@ -20,7 +19,7 @@ sealed trait FirrtlOption { this: Annotation => }
 /** Indicates that this [[firrtl.annotations.Annotation Annotation]] contains information that is directly convertable
   * to a FIRRTL [[firrtl.ir.Circuit Circuit]].
   */
-sealed trait CircuitOption extends { this: Annotation =>
+sealed trait CircuitOption { this: Annotation =>
 
   /** Convert this [[firrtl.annotations.Annotation Annotation]] to a [[FirrtlCircuitAnnotation]]
     */
@@ -110,7 +109,7 @@ object InfoModeAnnotation extends HasShellOptions {
       longOption      = "info-mode",
       toAnnotationSeq = a => Seq(InfoModeAnnotation(a)),
       helpText        = s"Source file info handling mode (default: ${apply().modeName})",
-      shortOption     = Some("<ignore|use|gen|append>") ) )
+      helpValueName   = Some("<ignore|use|gen|append>") ) )
 
 }
 
