@@ -860,11 +860,6 @@ class VerilogEmitter extends SeqTransform with Emitter {
     private def combine_all_descriptions(ds: Seq[SimpleDescription]): Seq[SimpleDescription] = {
       val docStrings = ds collect { case d: DocString => d }
       val attrs = ds collect { case d: Attribute => d }
-      val ifdefs = ds collect { case d: Ifdef => d }
-
-      if (ifdefs.length > 1) {
-        throw new EmitterException("Multiple conflicting ifdefs")
-      }
 
       val doc = docStrings.foldLeft[SimpleDescription](EmptyDescription) { (_, _) match {
         case (EmptyDescription, d) => d
@@ -880,7 +875,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
         case _ => throw new EmitterException("attrs should only contain Attributes or EmptyDescription")
       }}
 
-      Seq(doc, attr) ++ ifdefs
+      Seq(doc, attr)
     }
 
     def description_has_ifdef(d: Description): Boolean = d match {

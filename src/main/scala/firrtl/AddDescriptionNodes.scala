@@ -35,32 +35,6 @@ private case class Attribute(string: StringLit) extends SimpleDescription {
   def serialize: String = "@[" + string.serialize + "]"
 }
 
-private sealed trait IfdefSection {
-  def serialize: String
-}
-private sealed trait MultiSection extends IfdefSection {
-  val body: StringLit
-  val elseSection: IfdefSection
-  def serialize : String = body.string + s"{ ${elseSection.serialize} }"
-}
-private object MultiSection {
-  def unapply(section: MultiSection): Some[(StringLit, IfdefSection)] = {
-    Some((section.body, section.elseSection))
-  }
-}
-private case class IfdefFirstSection(body: StringLit, elseSection: IfdefSection = IfdefElseSection) extends MultiSection
-private case class IfndefFirstSection(body: StringLit, elseSection: IfdefSection = IfdefElseSection) extends MultiSection
-private case class IfdefElseifSection(condition: StringLit, body: StringLit, elseSection: IfdefSection) extends MultiSection {
-  override def serialize: String = s"{ (${condition.string }) ${body.string} : { ${elseSection.serialize} } }"
-}
-private case object IfdefElseSection extends IfdefSection {
-  def serialize: String = ""
-}
-
-private case class Ifdef(condition: StringLit, body: MultiSection) extends SimpleDescription {
-  def serialize: String = "@[ ${condition.string} : ${body.serialize}]"
-}
-
 private case class MultipleDescriptions(descs: Seq[Description]) extends Description {
   def serialize: String = descs.map(_.serialize).mkString("\n")
   def add(d: Description): MultipleDescriptions = d match {
