@@ -4,7 +4,6 @@ package firrtl.stage
 
 import firrtl._
 import firrtl.stage.TransformManager.TransformDependency
-import firrtl.stage.transforms.HookTransform
 
 /*
  * - InferWidths should have InferTypes split out
@@ -75,14 +74,6 @@ object Forms {
          classOf[firrtl.transforms.CombineCats],
          classOf[passes.CommonSubexpressionElimination],
          classOf[firrtl.transforms.DeadCodeElimination] )
-
-  /** [[Transform]] that when defined as a prerequisite, will cause the defining transform to run after low FIRRTL
-    * optimizations or, if running with only the low FIRRTL emitter, will run after [[LowForm]]. This replicates the old
-    * behavior of transforms defining their input [[firrtl.CircuitForm]] as [[firrtl.LowForm]].
-    */
-  final class LowFormOptimizedHook extends HookTransform {
-    override final val prerequisites = LowForm
-  }
 
   val VerilogMinimumOptimized: Seq[TransformDependency] = LowFormMinimumOptimized ++
     Seq( classOf[firrtl.transforms.BlackBoxSourceHelper],

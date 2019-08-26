@@ -102,12 +102,13 @@ class ConstantPropagation extends Transform with ResolvedAnnotationPaths {
        - classOf[firrtl.passes.Legalize]
        + classOf[firrtl.passes.RemoveValidIf]).toSeq
 
+  override val optionalPrerequisites = Seq.empty
+
   override val dependents =
     Seq( classOf[firrtl.passes.memlib.VerilogMemDelays],
          classOf[firrtl.passes.SplitExpressions],
          classOf[SystemVerilogEmitter],
-         classOf[VerilogEmitter],
-         classOf[firrtl.stage.Forms.LowFormOptimizedHook] )
+         classOf[VerilogEmitter] )
 
   override def invalidates(a: Transform): Boolean = a match {
     case a: firrtl.passes.Legalize => true

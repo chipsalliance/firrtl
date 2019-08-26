@@ -230,7 +230,7 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
   it should "work for Low -> Low" in {
     val expected =
       new TransformManager(Forms.LowFormOptimized).flattenedTransformOrder ++
-        Seq(new Forms.LowFormOptimizedHook, new Transforms.LowToLow)
+        Seq(new Transforms.LowToLow)
     val tm = new TransformManager(Forms.LowFormOptimized :+ classOf[Transforms.LowToLow])
     compare(expected, tm)
   }
@@ -238,7 +238,7 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
   it should "work for Low -> Mid" in {
     val expected =
       new TransformManager(Forms.LowFormOptimized).flattenedTransformOrder ++
-        Seq(new Forms.LowFormOptimizedHook, new Transforms.LowToMid) ++
+        Seq(new Transforms.LowToMid) ++
         (new TransformManager(Forms.LowFormOptimized, Forms.MidForm).flattenedTransformOrder)
     val tm = new TransformManager(Forms.LowFormOptimized :+ classOf[Transforms.LowToMid])
     compare(expected, tm)
@@ -247,7 +247,7 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
   it should "work for Low -> High" in {
     val expected =
       new TransformManager(Forms.LowFormOptimized).flattenedTransformOrder ++
-        Seq(new Forms.LowFormOptimizedHook, new Transforms.LowToHigh) ++
+        Seq(new Transforms.LowToHigh) ++
         (new TransformManager(Forms.LowFormOptimized, Forms.MinimalHighForm).flattenedTransformOrder)
     val tm = new TransformManager(Forms.LowFormOptimized :+ classOf[Transforms.LowToHigh])
     compare(expected, tm)
@@ -256,7 +256,7 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
   it should "work for Low -> Chirrtl" in {
     val expected =
       new TransformManager(Forms.LowFormOptimized).flattenedTransformOrder ++
-        Seq(new Forms.LowFormOptimizedHook, new Transforms.LowToChirrtl) ++
+        Seq(new Transforms.LowToChirrtl) ++
         (new TransformManager(Forms.LowFormOptimized, Forms.ChirrtlForm).flattenedTransformOrder)
     val tm = new TransformManager(Forms.LowFormOptimized :+ classOf[Transforms.LowToChirrtl])
     compare(expected, tm)
@@ -265,7 +265,7 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
   it should "schedule inputForm=LowForm after MiddleFirrtlToLowFirrtl for the LowFirrtlEmitter" in {
     val expected =
       new TransformManager(Forms.LowForm).flattenedTransformOrder ++
-        Seq(new Forms.LowFormOptimizedHook, new Transforms.LowToLow, new firrtl.LowFirrtlEmitter)
+        Seq(new Transforms.LowToLow, new firrtl.LowFirrtlEmitter)
     val tm = (new TransformManager(Seq(classOf[firrtl.LowFirrtlEmitter], classOf[Transforms.LowToLow])))
     compare(expected, tm)
   }
@@ -273,7 +273,7 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
   it should "schedule inputForm=LowForm after MinimumLowFirrtlOptimizations for the MinimalVerilogEmitter" in {
     val expected =
       new TransformManager(Forms.LowFormMinimumOptimized).flattenedTransformOrder ++
-        Seq(new Forms.LowFormOptimizedHook, new Transforms.LowToLow, new firrtl.MinimumVerilogEmitter)
+        Seq(new Transforms.LowToLow, new firrtl.MinimumVerilogEmitter)
     val tm = (new TransformManager(Seq(classOf[firrtl.MinimumVerilogEmitter], classOf[Transforms.LowToLow])))
     compare(expected, tm)
   }
@@ -281,7 +281,7 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
   it should "schedule inputForm=LowForm after LowFirrtlOptimizations for the VerilogEmitter" in {
     val expected =
       new TransformManager(Forms.LowFormOptimized).flattenedTransformOrder ++
-        Seq(new Forms.LowFormOptimizedHook, new Transforms.LowToLow, new firrtl.VerilogEmitter)
+        Seq(new Transforms.LowToLow, new firrtl.VerilogEmitter)
     val tm = (new TransformManager(Seq(classOf[firrtl.VerilogEmitter], classOf[Transforms.LowToLow])))
     compare(expected, tm)
   }

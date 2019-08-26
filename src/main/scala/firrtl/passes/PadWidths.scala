@@ -22,8 +22,7 @@ class PadWidths extends Pass {
   override val dependents =
     Seq( classOf[firrtl.passes.memlib.VerilogMemDelays],
          classOf[SystemVerilogEmitter],
-         classOf[VerilogEmitter],
-         classOf[firrtl.stage.Forms.LowFormOptimizedHook] )
+         classOf[VerilogEmitter] )
 
   override def invalidates(a: Transform): Boolean = a match {
     case _: firrtl.transforms.ConstantPropagation | _: Legalize => true

@@ -42,6 +42,8 @@ class DeadCodeElimination extends Transform with ResolvedAnnotationPaths with Re
          classOf[firrtl.transforms.CombineCats],
          classOf[passes.CommonSubexpressionElimination] )
 
+  override val optionalPrerequisites = Seq.empty
+
   override val dependents =
     Seq( classOf[firrtl.transforms.BlackBoxSourceHelper],
          classOf[firrtl.transforms.ReplaceTruncatingArithmetic],
@@ -49,8 +51,7 @@ class DeadCodeElimination extends Transform with ResolvedAnnotationPaths with Re
          classOf[passes.VerilogModulusCleanup],
          classOf[firrtl.transforms.VerilogRename],
          classOf[passes.VerilogPrep],
-         classOf[firrtl.AddDescriptionNodes],
-         classOf[firrtl.stage.Forms.LowFormOptimizedHook] )
+         classOf[firrtl.AddDescriptionNodes] )
 
   val options = Seq(
     new ShellOption[Unit](

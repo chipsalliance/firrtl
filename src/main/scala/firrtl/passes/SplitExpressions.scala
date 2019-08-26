@@ -22,8 +22,7 @@ class SplitExpressions extends Pass with PreservesAll[Transform] {
 
   override val dependents =
     Seq( classOf[SystemVerilogEmitter],
-         classOf[VerilogEmitter],
-         classOf[firrtl.stage.Forms.LowFormOptimizedHook] )
+         classOf[VerilogEmitter] )
 
    private def onModule(m: Module): Module = {
       val namespace = Namespace(m)

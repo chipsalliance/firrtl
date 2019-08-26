@@ -213,8 +213,13 @@ abstract class Transform extends TransformLike[CircuitState] with DependencyAPI[
     case C => Nil
     case H => Forms.Deduped
     case M => Forms.MidForm
-    case L => Seq(classOf[Forms.LowFormOptimizedHook])
+    case L => Forms.LowForm
     case U => Nil
+  }
+
+  override def optionalPrerequisites = inputForm match {
+    case L => Forms.LowFormOptimized
+    case _ => Seq.empty
   }
 
   override def dependents = {

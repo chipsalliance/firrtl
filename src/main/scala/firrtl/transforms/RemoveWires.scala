@@ -30,6 +30,8 @@ class RemoveWires extends Transform with PreservesAll[Transform] {
          classOf[transforms.RemoveReset],
          classOf[transforms.CheckCombLoops] )
 
+  override val optionalPrerequisites = Seq.empty
+
   override val dependents = Seq.empty
 
   // Extract all expressions that are references to a Node, Wire, or Reg

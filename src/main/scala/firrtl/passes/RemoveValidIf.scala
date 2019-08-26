@@ -16,8 +16,7 @@ class RemoveValidIf extends Pass {
 
   override val dependents =
     Seq( classOf[SystemVerilogEmitter],
-         classOf[VerilogEmitter],
-         classOf[firrtl.stage.Forms.LowFormOptimizedHook] )
+         classOf[VerilogEmitter] )
 
   override def invalidates(a: Transform): Boolean = a match {
     case _: Legalize | _: firrtl.transforms.ConstantPropagation => true
