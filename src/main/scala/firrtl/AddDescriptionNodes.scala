@@ -10,7 +10,6 @@ import firrtl.options.{Dependency, PreservesAll}
 sealed trait DescriptionType
 case object DocStringDescription extends DescriptionType
 case object AttributeDescription extends DescriptionType
-case class IfdefDescription(alternative: FirrtlNode => String, ifndef: Boolean = false) extends DescriptionType
 
 case class DescriptionAnnotation(named: Named, description: String, tpe: DescriptionType) extends Annotation {
   def update(renames: RenameMap): Seq[DescriptionAnnotation] = {
@@ -78,8 +77,6 @@ private object MakeDescription {
   def apply(s: FirrtlNode, str: String, tpe: DescriptionType): Description = tpe match {
     case DocStringDescription => DocString(StringLit.unescape(str))
     case AttributeDescription => Attribute(StringLit.unescape(str))
-    case IfdefDescription(alt, true) => Ifdef(StringLit.unescape(str), IfndefFirstSection(StringLit(alt(s))))
-    case IfdefDescription(alt, false) => Ifdef(StringLit.unescape(str), IfdefFirstSection(StringLit(alt(s))))
   }
   def apply(s: FirrtlNode)(descs: Seq[(String, DescriptionType)]): Description = {
     descs.foldLeft[Description](EmptyDescription) { (_, _) match {
