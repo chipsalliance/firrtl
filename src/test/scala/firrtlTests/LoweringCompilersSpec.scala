@@ -46,7 +46,7 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
   def compareLegacy(a: SeqTransform, b: TransformManager, patches: Seq[PatchAction] = Seq.empty): Unit = {
     info(s"""Transform Order:\n${b.prettyPrint("    ")}""")
 
-    val m = new scala.collection.mutable.TreeMap[Int, Seq[Class[_ <: Transform]]].withDefault(_ => Seq.empty)
+    val m = new scala.collection.mutable.HashMap[Int, Seq[Class[_ <: Transform]]].withDefault(_ => Seq.empty)
     a.transforms.map(_.getClass).zipWithIndex.foreach{ case (t, idx) => m(idx) = Seq(t) }
 
     patches.foreach {
@@ -54,7 +54,7 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
       case Del(line)      => m.remove(line - 1)
     }
 
-    val patched = m.values.flatten
+    val patched = scala.collection.immutable.TreeMap(m.toArray:_*).values.flatten
 
     patched
       .zip(b.flattenedTransformOrder.map(_.getClass))
