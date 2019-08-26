@@ -436,11 +436,8 @@ class VerilogDescriptionEmitterSpec extends FirrtlFlatSpec {
         | * line2
         | */
         |(* parallel_case *)
-        |`ifndef SYNTHESIS
-        |real wire Test;
-        |`else
         |module Test(
-        |`endif""".stripMargin,
+        |""".stripMargin,
       """  /* line3
         |   *
         |   * line4
@@ -452,11 +449,7 @@ class VerilogDescriptionEmitterSpec extends FirrtlFlatSpec {
         |   * line6
         |   */
         |  (* parallel_case *)
-        |  `ifndef SYNTHESIS
-        |  real wire d;
-        |  `else
-        |  wire  d;
-        |  `endif""".stripMargin
+        |""".stripMargin
     )
     // We don't use executeTest because we care about the spacing in the result
     val modName = ModuleName("Test", CircuitName("Test"))
@@ -472,15 +465,12 @@ class VerilogDescriptionEmitterSpec extends FirrtlFlatSpec {
       DescriptionAnnotation(modName, "line1", DocStringDescription),
       DescriptionAnnotation(modName, "line2", DocStringDescription),
       DescriptionAnnotation(modName, "parallel_case", AttributeDescription),
-      DescriptionAnnotation(modName, "SYNTHESIS", IfdefDescription(altFunc)),
       DescriptionAnnotation(ComponentName("a", modName), "line3", DocStringDescription),
       DescriptionAnnotation(ComponentName("a", modName), "line4", DocStringDescription),
       DescriptionAnnotation(ComponentName("d", modName), "line5", DocStringDescription),
       DescriptionAnnotation(ComponentName("d", modName), "line6", DocStringDescription),
       DescriptionAnnotation(ComponentName("a", modName), "full_case", AttributeDescription),
       DescriptionAnnotation(ComponentName("d", modName), "parallel_case", AttributeDescription),
-      DescriptionAnnotation(ComponentName("b", modName), "SYNTHESIS", IfdefDescription(altFunc)),
-      DescriptionAnnotation(ComponentName("d", modName), "SYNTHESIS", IfdefDescription(altFunc))
     )
     val writer = new java.io.StringWriter
     val finalState = compiler.compileAndEmit(CircuitState(parse(input), ChirrtlForm, annos), Seq.empty)

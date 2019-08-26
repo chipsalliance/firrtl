@@ -698,11 +698,6 @@ class VerilogEmitter extends SeqTransform with Emitter {
           } else {
             portdefs += Seq(dir, " ", tpe, " ", name, info)
           }
-
-          portDescriptions.get(name).foreach {
-            case _: Ifdef => portdefs += Seq("`endif")
-            case _ =>
-          }
       }
     }
 
@@ -740,25 +735,9 @@ class VerilogEmitter extends SeqTransform with Emitter {
       Seq(doc, attr) ++ ifdefs
     }
 
-    def description_has_ifdef(d: Description): Boolean = d match {
-      case _: Ifdef => true
-      case MultipleDescriptions(ds) => ds.exists(description_has_ifdef)
-      case _ => false
-    }
-
-    def finish_ifdef(section: IfdefSection): Seq[Seq[String]] = section match {
-      case IfdefElseifSection(cond, body, next) =>
-        Seq(Seq(s"`elseif ${cond.string}"), Seq(body.string)) ++ finish_ifdef(section)
-      case IfdefElseSection => Seq(Seq("`else"))
-    }
-
     def build_description(d: Description): Seq[Seq[String]] = d match {
       case DocString(desc) => build_comment(desc.string)
       case Attribute(attr) => build_attribute(attr.string)
-      case Ifdef(cond, IfdefFirstSection(body, next)) =>
-        Seq(Seq(s"`ifdef ${cond.string}"), Seq(body.string)) ++ finish_ifdef(next)
-      case Ifdef(cond, IfndefFirstSection(body, next)) =>
-        Seq(Seq(s"`ifndef ${cond.string}"), Seq(body.string)) ++ finish_ifdef(next)
       case MultipleDescriptions(ds) => combine_all_descriptions(get_all_descriptions(ds)).flatMap(build_description)
       case EmptyDescription => Seq()
     }
@@ -884,15 +863,6 @@ class VerilogEmitter extends SeqTransform with Emitter {
                                      "read & write ports by previous passes")
         case _ =>
       }
-
-      // if we had an ifdef, need to put in `endif
-      s match {
-        case DescribedStmt(d, stmt) =>
-          if (description_has_ifdef(d)) {
-             declares += Seq("`endif")
-          }
-        case _ =>
-      }
     }
 
     def emit_streams(): Unit = {
@@ -901,10 +871,6 @@ class VerilogEmitter extends SeqTransform with Emitter {
         case other =>
       }
       emit(Seq("module ", m.name, "(", m.info))
-
-      if (description_has_ifdef(description)) {
-        emit(Seq("`endif"))
-      }
 
       for (x <- portdefs) emit(Seq(tab, x))
       emit(Seq(");"))
