@@ -12,21 +12,20 @@ name := "firrtl"
 
 version := "1.2-SNAPSHOT"
 
-scalaVersion := "2.12.7"
+scalaVersion := "2.12.9"
 
-crossScalaVersions := Seq("2.12.7", "2.11.12")
+crossScalaVersions := Seq("2.12.9", "2.11.12")
 
-def scalacOptionsVersion(scalaVersion: String): Seq[String] = {
+def scalacOptionsVersion(scalaVersion: String): Seq[String] =
   Seq() ++ {
     // If we're building with Scala > 2.11, enable the compile option
     //  switch to support our anonymous Bundle definitions:
     //  https://github.com/scala/bug/issues/10047
     CrossVersion.partialVersion(scalaVersion) match {
       case Some((2, scalaMajor: Long)) if scalaMajor < 12 => Seq()
-      case _ => Seq("-Xsource:2.11")
+      case _                                              => Seq("-Xsource:2.11")
     }
   }
-}
 
 addCompilerPlugin(scalafixSemanticdb) // enable SemanticDB
 
@@ -37,7 +36,7 @@ scalacOptions := scalacOptionsVersion(scalaVersion.value) ++ Seq(
   "-Ywarn-unused-import" // required by `RemoveUnused` rule
 )
 
-def javacOptionsVersion(scalaVersion: String): Seq[String] = {
+def javacOptionsVersion(scalaVersion: String): Seq[String] =
   Seq() ++ {
     // Scala 2.12 requires Java 8, but we continue to generate
     //  Java 7 compatible code until we need Java 8 features
@@ -49,7 +48,6 @@ def javacOptionsVersion(scalaVersion: String): Seq[String] = {
         Seq("-source", "1.8", "-target", "1.8")
     }
   }
-}
 
 javacOptions ++= javacOptionsVersion(scalaVersion.value)
 
@@ -82,8 +80,7 @@ enablePlugins(ProtobufPlugin)
 
 sourceDirectory in ProtobufConfig := baseDirectory.value / "src" / "main" / "proto"
 
-protobufRunProtoc in ProtobufConfig := (args =>
-  com.github.os72.protocjar.Protoc.runProtoc("-v351" +: args.toArray))
+protobufRunProtoc in ProtobufConfig := (args => com.github.os72.protocjar.Protoc.runProtoc("-v351" +: args.toArray))
 
 javaSource in ProtobufConfig := (sourceManaged in Compile).value
 
@@ -111,7 +108,9 @@ javaSource in Antlr4 := (sourceManaged in Compile).value
 
 publishMavenStyle := true
 publishArtifact in Test := false
-pomIncludeRepository := { x => false }
+pomIncludeRepository := { x =>
+  false
+}
 // Don't add 'scm' elements if we have a git.remoteRepo definition,
 //  but since we don't (with the removal of ghpages), add them in below.
 pomExtra := <url>http://chisel.eecs.berkeley.edu/</url>
@@ -135,7 +134,7 @@ pomExtra := <url>http://chisel.eecs.berkeley.edu/</url>
   </developers>
 
 publishTo := {
-  val v = version.value
+  val v     = version.value
   val nexus = "https://oss.sonatype.org/"
   if (v.trim.endsWith("SNAPSHOT")) {
     Some("snapshots" at nexus + "content/repositories/snapshots")
@@ -161,13 +160,17 @@ autoAPIMappings := true
 
 scalacOptions in Compile in doc ++= Seq(
   "-diagrams",
-  "-diagrams-max-classes", "25",
-  "-doc-version", version.value,
-  "-doc-title", name.value,
-  "-doc-root-content", baseDirectory.value+"/root-doc.txt",
-  "-sourcepath", (baseDirectory in ThisBuild).value.toString,
-  "-doc-source-url",
-  {
+  "-diagrams-max-classes",
+  "25",
+  "-doc-version",
+  version.value,
+  "-doc-title",
+  name.value,
+  "-doc-root-content",
+  baseDirectory.value + "/root-doc.txt",
+  "-sourcepath",
+  (baseDirectory in ThisBuild).value.toString,
+  "-doc-source-url", {
     val branch =
       if (version.value.endsWith("-SNAPSHOT")) {
         "master"
@@ -180,3 +183,12 @@ scalacOptions in Compile in doc ++= Seq(
 
 fork := true
 Test / testForkedParallel := true
+
+addCommandAlias("com", "all compile test:compile it:compile")
+addCommandAlias("lint", "; compile:scalafix --check ; test:scalafix --check")
+addCommandAlias("fix", "all compile:scalafix test:scalafix")
+addCommandAlias("fmt", "scalafmtSbt")
+//addCommandAlias("fmt", "; scalafmtSbt; scalafmtAll; test:scalafmtAll")
+addCommandAlias("chk", "; scalafmtSbtCheck; scalafmtCheck; test:scalafmtCheck")
+addCommandAlias("cov", "; clean; coverage; test; coverageReport")
+addCommandAlias("tree", "dependencyTree::toFile target/tree.txt -f")
