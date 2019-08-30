@@ -48,7 +48,7 @@ class PromoteSubmodule extends Transform {
   def inputForm = LowForm
   def outputForm = MidForm
 
-  class TransformedParent(anno: PromoteSubmoduleAnnotation, parent: Module, child: Module, renames: RenameMap) {
+  class TransformedParent(anno: PromoteSubmoduleAnnotation, parent: Module, child: DefModule, renames: RenameMap) {
     val ciName = anno.target.instance
     val parentToChildConns = new mutable.ArrayBuffer[(WRef, WSubField)]
     val childToParentConns = new mutable.ArrayBuffer[(WRef, WSubField)]
@@ -162,13 +162,13 @@ class PromoteSubmodule extends Transform {
     // TODO: what about renames of trimmed ports?
     val renames = RenameMap()
     val myAnnos = cs.annotations.collect { case psa: PromoteSubmoduleAnnotation => psa }
-    val moduleMap = (cs.circuit.modules.collect { case m: Module => m.name -> m }).toMap
+    val moduleMap = (cs.circuit.modules.collect { case m: DefModule => m.name -> m }).toMap
     assert(myAnnos.size <= 1)
     val updatedModules = myAnnos.headOption.map({
       case anno =>
         // Update parent and memoize analyses in TransformedParent object
         assert(anno.target.isLocal)
-        val parent = moduleMap(anno.target.module)
+        val parent = moduleMap(anno.target.module).asInstanceOf[Module]
         val child = moduleMap(anno.target.ofModule)
         val transformedParent = new TransformedParent(anno, parent, child, renames)
         cs.circuit.modules.map {
