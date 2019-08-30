@@ -48,7 +48,7 @@ class PromoteSubmodule extends Transform {
   def inputForm = LowForm
   def outputForm = MidForm
 
-  class TransformedParent(anno: PromoteSubmoduleAnnotation, parent: Module, child: Module) {
+  class TransformedParent(anno: PromoteSubmoduleAnnotation, parent: Module, child: Module, renames: RenameMap) {
     val ciName = anno.target.instance
     val parentToChildConns = new mutable.ArrayBuffer[(WRef, WSubField)]
     val childToParentConns = new mutable.ArrayBuffer[(WRef, WSubField)]
@@ -121,7 +121,7 @@ class PromoteSubmodule extends Transform {
   }
 
 
-  def transformGrandparent(anno: PromoteSubmoduleAnnotation, parentAnalysis: TransformedParent, grandparent: Module): Module = {
+  def transformGrandparent(anno: PromoteSubmoduleAnnotation, parentAnalysis: TransformedParent, grandparent: Module, renames: RenameMap): Module = {
     val ciName = anno.target.instance
     val ns = Namespace(grandparent)
     val abstractRedirects = (parentAnalysis.childToParentConns ++ parentAnalysis.parentChildAttaches).toMap
@@ -143,6 +143,7 @@ class PromoteSubmodule extends Transform {
     def onStmt(s: Statement): Statement = s match {
       case pInst: WDefInstance if (pInst.module == anno.target.module) =>
         val newName = ns.newName(s"${pInst.name}_${ciName}")
+        renames.record(anno.target, anno.target.copy(module = grandparent.name, instance = newName))
         val promotedInst = WDefInstance(NoInfo, newName, anno.target.ofModule, UnknownType)
         def parentPortWE(pPort: WRef) = WrappedExpression(mergeRef(WRef(pInst), pPort))
         def replacePTC(ptc: (WRef, WSubField)) = Connect(NoInfo, setRef(promotedInst.name, ptc._2), inputDrivers(parentPortWE(ptc._1)))
@@ -158,6 +159,7 @@ class PromoteSubmodule extends Transform {
   }
 
   def execute(cs: CircuitState): CircuitState = {
+    // TODO: what about renames of trimmed ports?
     val renames = RenameMap()
     val myAnnos = cs.annotations.collect { case psa: PromoteSubmoduleAnnotation => psa }
     val moduleMap = (cs.circuit.modules.collect { case m: Module => m.name -> m }).toMap
@@ -168,10 +170,10 @@ class PromoteSubmodule extends Transform {
         assert(anno.target.isLocal)
         val parent = moduleMap(anno.target.module)
         val child = moduleMap(anno.target.ofModule)
-        val transformedParent = new TransformedParent(anno, parent, child)
+        val transformedParent = new TransformedParent(anno, parent, child, renames)
         cs.circuit.modules.map {
           case m: Module if (m == parent) => transformedParent.result
-          case m: Module if (containsModule(m, parent.name)) => transformGrandparent(anno, transformedParent, m)
+          case m: Module if (containsModule(m, parent.name)) => transformGrandparent(anno, transformedParent, m, renames)
           case m => m
         }
     }).getOrElse(cs.circuit.modules)
