@@ -14,9 +14,9 @@ import scala.collection.mutable
 import firrtl.passes.{InlineInstances,PassException}
 
 
-case class PromoteSubmoduleAnnotation(target: InstanceTarget) extends SingleTargetAnnotation[InstanceTarget] {
+case class PromoteSubmoduleAnnotation(target: InstanceTarget, delimiter: String = "_") extends SingleTargetAnnotation[InstanceTarget] {
   def targets = Seq(target)
-  def duplicate(n: InstanceTarget) = this.copy(n)
+  def duplicate(n: InstanceTarget) = this.copy(target = n)
 }
 
 object PromoteSubmodule {
@@ -144,7 +144,7 @@ class PromoteSubmodule extends Transform {
 
     def onStmt(s: Statement): Statement = s match {
       case pInst: WDefInstance if (pInst.module == anno.target.module) =>
-        val newName = ns.newName(s"${pInst.name}_${ciName}")
+        val newName = ns.newName(s"${pInst.name}${anno.delimiter}${ciName}")
         renames.record(anno.target, anno.target.copy(module = grandparent.name, instance = newName))
         val promotedInst = WDefInstance(NoInfo, newName, anno.target.ofModule, UnknownType)
         def parentPortWE(pPort: WRef) = WrappedExpression(mergeRef(WRef(pInst), pPort))
