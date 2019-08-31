@@ -14,14 +14,6 @@ import scala.collection.mutable
 import firrtl.passes.{InlineInstances,PassException}
 
 
-class MidResolveAndCheck extends SeqTransform {
-  def inputForm = MidForm
-  def outputForm = MidForm
-  def transforms: Seq[Transform] = Seq[Transform](new ResolveAndCheck)
-}
-
-
-
 case class PromoteSubmoduleAnnotation(target: InstanceTarget) extends SingleTargetAnnotation[InstanceTarget] {
   def targets = Seq(target)
   def duplicate(n: InstanceTarget) = this.copy(n)
@@ -55,7 +47,7 @@ object PromoteSubmodule {
 class PromoteSubmodule extends Transform {
   import PromoteSubmodule._
   def inputForm = LowForm
-  def outputForm = MidForm
+  def outputForm = HighForm
 
   class TransformedParent(anno: PromoteSubmoduleAnnotation, parent: Module, child: DefModule, renames: RenameMap) {
     val ciName = anno.target.instance
