@@ -13,6 +13,15 @@ import graph.DiGraph
 import scala.collection.mutable
 import firrtl.passes.{InlineInstances,PassException}
 
+
+class MidResolveAndCheck extends SeqTransform {
+  def inputForm = MidForm
+  def outputForm = MidForm
+  def transforms: Seq[Transform] = Seq[Transform](new ResolveAndCheck)
+}
+
+
+
 case class PromoteSubmoduleAnnotation(target: InstanceTarget) extends SingleTargetAnnotation[InstanceTarget] {
   def targets = Seq(target)
   def duplicate(n: InstanceTarget) = this.copy(n)
@@ -127,6 +136,7 @@ class PromoteSubmodule extends Transform {
     val abstractRedirects = (parentAnalysis.childToParentConns ++ parentAnalysis.parentChildAttaches).toMap
     val concreteRedirects = new mutable.HashMap[WrappedExpression, WSubField]
     val inputDrivers = new mutable.HashMap[WrappedExpression, Expression]
+    val promotedConns = new mutable.ArrayBuffer[Statement]
 
     // TODO: remove reliance on Kind here? Might make it more robust to not running ResolveandCheck
     def analyze(s: Statement): Unit = s match {
@@ -147,15 +157,15 @@ class PromoteSubmodule extends Transform {
         val promotedInst = WDefInstance(NoInfo, newName, anno.target.ofModule, UnknownType)
         def parentPortWE(pPort: WRef) = WrappedExpression(mergeRef(WRef(pInst), pPort))
         def replacePTC(ptc: (WRef, WSubField)) = Connect(NoInfo, setRef(promotedInst.name, ptc._2), inputDrivers(parentPortWE(ptc._1)))
-        val promotedConns = parentAnalysis.parentToChildConns.map(replacePTC(_))
+        promotedConns ++= parentAnalysis.parentToChildConns.map(replacePTC(_))
         val defaultConn = PartialConnect(NoInfo, WSubField(WRef(pInst), ciName), WRef(promotedInst))
         concreteRedirects ++= abstractRedirects.map { case (pPort, cPort) => (parentPortWE(pPort), setRef(promotedInst.name, cPort)) }
-        Block(Seq(pInst, promotedInst, defaultConn) ++ promotedConns)
+        Block(Seq(pInst, promotedInst, defaultConn))
        case s => s map onStmt map onExpr
     }
 
     grandparent foreach analyze
-    grandparent.copy(body = grandparent.body map onStmt)
+    grandparent.copy(body = Block(Seq(grandparent.body map onStmt) ++ promotedConns))
   }
 
   def execute(cs: CircuitState): CircuitState = {
