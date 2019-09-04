@@ -42,12 +42,12 @@ private object MakeDescription {
   def apply(s: FirrtlNode)(descs: Seq[(String, DescriptionType)]): Seq[Description] = {
     // combine DocStringDescriptions (multi-line comment)
     val docString = descs.collect({
-      case (s: String, _: DocStringDescription.type) => s
+      case (s: String, DocStringDescription) => s
     }).mkString("\n\n")
     val docStringDesc = if (docString.length > 0) Some(MakeDescription(s, docString, DocStringDescription)) else None
     // combine AttributeDescriptions (comma separated)
     val attr = descs.collect({
-      case (s: String, _: AttributeDescription.type) => s
+      case (s: String, AttributeDescription) => s
     }).mkString(", ")
     val attrDesc = if (attr.length > 0) Some(MakeDescription(s, attr, AttributeDescription)) else None
     Seq(docStringDesc, attrDesc).flatten

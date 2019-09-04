@@ -804,7 +804,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
     }
 
     def build_attribute(attrs: String): Seq[Seq[String]] = {
-      Seq(Seq("(* ") ++ attrs.split(",") ++ Seq(" *)"))
+      Seq(Seq("(* ") ++ Seq(attrs) ++ Seq(" *)"))
     }
 
     // Turn ports into Seq[String] and add to portdefs
