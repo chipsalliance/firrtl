@@ -9,7 +9,7 @@ import firrtl.Utils._
 import firrtl.traversals.Foreachers._
 import firrtl.WrappedType._
 
-object CheckHighForm extends Pass {
+trait CheckHighFormLike {
   type NameSet = collection.mutable.HashSet[String]
 
   // Custom Exceptions
@@ -25,6 +25,8 @@ object CheckHighForm extends Pass {
     s"$info: [module $mname] Poison $name cannot be a bundle type with flips.")
   class MemWithFlipException(info: Info, mname: String, name: String) extends PassException(
     s"$info: [module $mname] Memory $name cannot be a bundle type with flips.")
+  class IllegalMemLatencyException(info: Info, mname: String, name: String) extends PassException(
+    s"$info: [module $mname] Memory $name must have non-negative read latency and positive write latency.")
   class RegWithFlipException(info: Info, mname: String, name: String) extends PassException(
     s"$info: [module $mname] Register $name cannot be a bundle type with flips.")
   class InvalidAccessException(info: Info, mname: String) extends PassException(
@@ -55,8 +57,14 @@ object CheckHighForm extends Pass {
     s"$info: [module $mname] Primop $op argument $value < 0.")
   class LsbLargerThanMsbException(info: Info, mname: String, op: String, lsb: Int, msb: Int) extends PassException(
     s"$info: [module $mname] Primop $op lsb $lsb > $msb.")
-  class NonLiteralAsyncResetValueException(info: Info, mname: String, reg: String, init: String) extends PassException(
-    s"$info: [module $mname] AsyncReset Reg '$reg' reset to non-literal '$init'")
+  class ResetInputException(info: Info, mname: String, expr: Expression) extends PassException(
+    s"$info: [module $mname] Abstract Reset not allowed as top-level input: ${expr.serialize}")
+  class ResetExtModuleOutputException(info: Info, mname: String, expr: Expression) extends PassException(
+    s"$info: [module $mname] Abstract Reset not allowed as ExtModule output: ${expr.serialize}")
+
+
+  // Is Chirrtl allowed for this check? If not, return an error
+  def errorOnChirrtl(info: Info, mname: String, s: Statement): Option[PassException]
 
   def run(c: Circuit): Circuit = {
     val errors = new Errors()
@@ -84,9 +92,8 @@ object CheckHighForm extends Pass {
           correctNum(Option(1), 1)
         case Shl | Shr =>
           correctNum(Option(1), 1)
-          val amount = e.consts.head.toInt
-          if (amount < 0) {
-            errors.append(new NegArgException(info, mname, e.op.toString, amount))
+          val amount = e.consts.map(_.toInt).filter(_ < 0).foreach {
+            c => errors.append(new NegArgException(info, mname, e.op.toString, c))
           }
         case Bits =>
           correctNum(Option(1), 2)
@@ -137,6 +144,7 @@ object CheckHighForm extends Pass {
 
     def validSubexp(info: Info, mname: String)(e: Expression): Unit = {
       e match {
+        case _: Reference | _: SubField | _: SubIndex | _: SubAccess => // No error
         case _: WRef | _: WSubField | _: WSubIndex | _: WSubAccess | _: Mux | _: ValidIf => // No error
         case _ => errors.append(new InvalidAccessException(info, mname))
       }
@@ -144,12 +152,15 @@ object CheckHighForm extends Pass {
 
     def checkHighFormE(info: Info, mname: String, names: NameSet)(e: Expression): Unit = {
       e match {
+        case ex: Reference if !names(ex.name) =>
+          errors.append(new UndeclaredReferenceException(info, mname, ex.name))
         case ex: WRef if !names(ex.name) =>
           errors.append(new UndeclaredReferenceException(info, mname, ex.name))
         case ex: UIntLiteral if ex.value < 0 =>
           errors.append(new NegUIntException(info, mname))
         case ex: DoPrim => checkHighFormPrimop(info, mname, ex)
-        case _: WRef | _: UIntLiteral | _: Mux | _: ValidIf =>
+        case _: Reference | _: WRef | _: UIntLiteral | _: Mux | _: ValidIf =>
+        case ex: SubAccess => validSubexp(info, mname)(ex.expr)
         case ex: WSubAccess => validSubexp(info, mname)(ex.expr)
         case ex => ex foreach validSubexp(info, mname)
       }
@@ -164,6 +175,15 @@ object CheckHighForm extends Pass {
       names += name
     }
 
+    def checkInstance(info: Info, child: String, parent: String): Unit = {
+      if (!moduleNames(child))
+        errors.append(new ModuleNotDefinedException(info, parent, child))
+      // Check to see if a recursive module instantiation has occured
+      val childToParent = moduleGraph add (parent, child)
+      if (childToParent.nonEmpty)
+        errors.append(new InstanceLoop(info, parent, childToParent mkString "->"))
+    }
+
     def checkHighFormS(minfo: Info, mname: String, names: NameSet)(s: Statement): Unit = {
       val info = get_info(s) match {case NoInfo => minfo case x => x}
       s foreach checkName(info, mname, names)
@@ -171,23 +191,19 @@ object CheckHighForm extends Pass {
         case DefRegister(info, name, tpe, _, reset, init) =>
           if (hasFlip(tpe))
             errors.append(new RegWithFlipException(info, mname, name))
-          if (reset.tpe == AsyncResetType && !init.isInstanceOf[Literal])
-            errors.append(new NonLiteralAsyncResetValueException(info, mname, name, init.serialize))
         case sx: DefMemory =>
+          if (sx.readLatency < 0 || sx.writeLatency <= 0)
+            errors.append(new IllegalMemLatencyException(info, mname, sx.name))
           if (hasFlip(sx.dataType))
             errors.append(new MemWithFlipException(info, mname, sx.name))
           if (sx.depth <= 0)
             errors.append(new NegMemSizeException(info, mname))
-        case sx: WDefInstance =>
-          if (!moduleNames(sx.module))
-            errors.append(new ModuleNotDefinedException(info, mname, sx.module))
-          // Check to see if a recursive module instantiation has occured
-          val childToParent = moduleGraph add (mname, sx.module)
-          if (childToParent.nonEmpty)
-            errors.append(new InstanceLoop(info, mname, childToParent mkString "->"))
+        case sx: DefInstance => checkInstance(info, mname, sx.module)
+        case sx: WDefInstance => checkInstance(info, mname, sx.module)
         case sx: Connect => checkValidLoc(info, mname, sx.loc)
         case sx: PartialConnect => checkValidLoc(info, mname, sx.loc)
         case sx: Print => checkFstring(info, mname, sx.string, sx.args.length)
+        case _: CDefMemory | _: CDefMPort => errorOnChirrtl(info, mname, s).foreach { e => errors.append(e) }
         case sx => // Do Nothing
       }
       s foreach checkHighFormT(info, mname)
@@ -203,15 +219,36 @@ object CheckHighForm extends Pass {
       p.tpe foreach checkHighFormW(p.info, mname)
     }
 
+    // Search for ResetType Ports of direction
+    def findBadResetTypePorts(m: DefModule, dir: Direction): Seq[(Port, Expression)] = {
+      val bad = to_gender(dir)
+      for {
+        port <- m.ports
+        ref = WRef(port).copy(gender = to_gender(port.direction))
+        expr <- create_exps(ref)
+        if ((expr.tpe == ResetType) && (gender(expr) == bad))
+      } yield (port, expr)
+    }
+
     def checkHighFormM(m: DefModule): Unit = {
       val names = new NameSet
       m foreach checkHighFormP(m.name, names)
       m foreach checkHighFormS(m.info, m.name, names)
+      m match {
+        case _: Module =>
+        case ext: ExtModule =>
+          for ((port, expr) <- findBadResetTypePorts(ext, Output)) {
+            errors.append(new ResetExtModuleOutputException(port.info, ext.name, expr))
+          }
+      }
     }
 
     c.modules foreach checkHighFormM
-    c.modules count (_.name == c.main) match {
-      case 1 =>
+    c.modules.filter(_.name == c.main) match {
+      case Seq(topMod) =>
+        for ((port, expr) <- findBadResetTypePorts(topMod, Input)) {
+          errors.append(new ResetInputException(port.info, topMod.name, expr))
+        }
       case _ => errors.append(new NoTopModuleException(c.info, c.main))
     }
     errors.trigger()
@@ -219,6 +256,18 @@ object CheckHighForm extends Pass {
   }
 }
 
+object CheckHighForm extends Pass with CheckHighFormLike {
+  class IllegalChirrtlMemException(info: Info, mname: String, name: String) extends PassException(
+    s"$info: [module $mname] Memory $name has not been properly lowered from Chirrtl IR.")
+
+  def errorOnChirrtl(info: Info, mname: String, s: Statement): Option[PassException] = {
+    val memName = s match {
+      case cm: CDefMemory => cm.name
+      case cp: CDefMPort => cp.mem
+    }
+    Some(new IllegalChirrtlMemException(info, mname, memName))
+  }
+}
 object CheckTypes extends Pass {
 
   // Custom Exceptions
@@ -236,8 +285,12 @@ object CheckTypes extends Pass {
     s"$info: [module $mname]  Index is not of UIntType.")
   class EnableNotUInt(info: Info, mname: String) extends PassException(
     s"$info: [module $mname]  Enable is not of UIntType.")
-  class InvalidConnect(info: Info, mname: String, lhs: String, rhs: String) extends PassException(
-    s"$info: [module $mname]  Type mismatch. Cannot connect $lhs to $rhs.")
+  class InvalidConnect(info: Info, mname: String, con: String, lhs: Expression, rhs: Expression)
+      extends PassException({
+    val ltpe = s"  ${lhs.serialize}: ${lhs.tpe.serialize}"
+    val rtpe = s"  ${rhs.serialize}: ${rhs.tpe.serialize}"
+    s"$info: [module $mname]  Type mismatch in '$con'.\n$ltpe\n$rtpe"
+  })
   class InvalidRegInit(info: Info, mname: String) extends PassException(
     s"$info: [module $mname]  Type of init must match type of DefRegister.")
   class PrintfArgNotGround(info: Info, mname: String) extends PassException(
@@ -281,10 +334,51 @@ object CheckTypes extends Pass {
   class IllegalAttachExp(info: Info, mname: String, expName: String) extends PassException(
     s"$info: [module $mname]  Attach expression must be an port, wire, or port of instance: $expName.")
   class IllegalResetType(info: Info, mname: String, exp: String) extends PassException(
-    s"$info: [module $mname]  Register resets must have type UInt<1>: $exp.")
+    s"$info: [module $mname]  Register resets must have type Reset, AsyncReset, or UInt<1>: $exp.")
   class IllegalUnknownType(info: Info, mname: String, exp: String) extends PassException(
     s"$info: [module $mname]  Uninferred type: $exp."
   )
+
+  def legalResetType(tpe: Type): Boolean = tpe match {
+    case UIntType(IntWidth(w)) if w == 1 => true
+    case AsyncResetType => true
+    case ResetType => true
+    case UIntType(UnknownWidth) =>
+      // cannot catch here, though width may ultimately be wrong
+      true
+    case _ => false
+  }
+
+  private def bulk_equals(t1: Type, t2: Type, flip1: Orientation, flip2: Orientation): Boolean = {
+    (t1, t2) match {
+      case (ClockType, ClockType) => flip1 == flip2
+      case (_: UIntType, _: UIntType) => flip1 == flip2
+      case (_: SIntType, _: SIntType) => flip1 == flip2
+      case (_: FixedType, _: FixedType) => flip1 == flip2
+      case (_: AnalogType, _: AnalogType) => true
+      case (AsyncResetType, AsyncResetType) => flip1 == flip2
+      case (ResetType, tpe) => legalResetType(tpe) && flip1 == flip2
+      case (tpe, ResetType) => legalResetType(tpe) && flip1 == flip2
+      case (t1: BundleType, t2: BundleType) =>
+        val t1_fields = (t1.fields foldLeft Map[String, (Type, Orientation)]())(
+          (map, f1) => map + (f1.name ->( (f1.tpe, f1.flip) )))
+        t2.fields forall (f2 =>
+          t1_fields get f2.name match {
+            case None => true
+            case Some((f1_tpe, f1_flip)) =>
+              bulk_equals(f1_tpe, f2.tpe, times(flip1, f1_flip), times(flip2, f2.flip))
+          }
+        )
+      case (t1: VectorType, t2: VectorType) =>
+        bulk_equals(t1.tpe, t2.tpe, flip1, flip2)
+      case (_, _) => false
+    }
+  }
+
+  def validConnect(con: Connect): Boolean = wt(con.loc.tpe).superTypeOf(wt(con.expr.tpe))
+
+  def validPartialConnect(con: PartialConnect): Boolean =
+    bulk_equals(con.loc.tpe, con.expr.tpe, Default, Default)
 
   //;---------------- Helper Functions --------------
   def ut: UIntType = UIntType(UnknownWidth)
@@ -387,48 +481,23 @@ object CheckTypes extends Pass {
       e foreach check_types_e(info, mname)
     }
 
-    def bulk_equals(t1: Type, t2: Type, flip1: Orientation, flip2: Orientation): Boolean = {
-      //;println_all(["Inside with t1:" t1 ",t2:" t2 ",f1:" flip1 ",f2:" flip2])
-      (t1, t2) match {
-        case (ClockType, ClockType) => flip1 == flip2
-        case (_: UIntType, _: UIntType) => flip1 == flip2
-        case (_: SIntType, _: SIntType) => flip1 == flip2
-        case (_: FixedType, _: FixedType) => flip1 == flip2
-        case (_: AnalogType, _: AnalogType) => true
-        case (t1: BundleType, t2: BundleType) =>
-          val t1_fields = (t1.fields foldLeft Map[String, (Type, Orientation)]())(
-            (map, f1) => map + (f1.name ->( (f1.tpe, f1.flip) )))
-          t2.fields forall (f2 =>
-            t1_fields get f2.name match {
-              case None => true
-              case Some((f1_tpe, f1_flip)) =>
-                bulk_equals(f1_tpe, f2.tpe, times(flip1, f1_flip), times(flip2, f2.flip))
-            }
-          )
-        case (t1: VectorType, t2: VectorType) =>
-          bulk_equals(t1.tpe, t2.tpe, flip1, flip2)
-        case (_, _) => false
-      }
-    }
-
     def check_types_s(minfo: Info, mname: String)(s: Statement): Unit = {
       val info = get_info(s) match { case NoInfo => minfo case x => x }
       s match {
-        case sx: Connect if wt(sx.loc.tpe) != wt(sx.expr.tpe) =>
-          errors.append(new InvalidConnect(info, mname, sx.loc.serialize, sx.expr.serialize))
-        case sx: PartialConnect if !bulk_equals(sx.loc.tpe, sx.expr.tpe, Default, Default) =>
-          errors.append(new InvalidConnect(info, mname, sx.loc.serialize, sx.expr.serialize))
+        case sx: Connect if !validConnect(sx) =>
+          val conMsg = sx.copy(info = NoInfo).serialize
+          errors.append(new InvalidConnect(info, mname, conMsg, sx.loc, sx.expr))
+        case sx: PartialConnect if !validPartialConnect(sx) =>
+          val conMsg = sx.copy(info = NoInfo).serialize
+          errors.append(new InvalidConnect(info, mname, conMsg, sx.loc, sx.expr))
         case sx: DefRegister =>
           sx.tpe match {
             case AnalogType(_) => errors.append(new IllegalAnalogDeclaration(info, mname, sx.name))
             case t if wt(sx.tpe) != wt(sx.init.tpe) => errors.append(new InvalidRegInit(info, mname))
             case t =>
           }
-          sx.reset.tpe match {
-            case UIntType(IntWidth(w)) if w == 1 =>
-            case AsyncResetType =>
-            case UIntType(UnknownWidth) => // cannot catch here, though width may ultimately be wrong
-            case _ => errors.append(new IllegalResetType(info, mname, sx.name))
+          if (!legalResetType(sx.reset.tpe)) {
+            errors.append(new IllegalResetType(info, mname, sx.name))
           }
           if (sx.clock.tpe != ClockType) {
             errors.append(new RegReqClk(info, mname, sx.name))

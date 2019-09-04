@@ -43,7 +43,7 @@ case class CircuitState(
   def getEmittedCircuit: EmittedCircuit = emittedCircuitOption match {
     case Some(emittedCircuit) => emittedCircuit
     case None =>
-      throw new FIRRTLException(s"No EmittedCircuit found! Did you delete any annotations?\n$deletedAnnotations")
+      throw new FirrtlInternalException(s"No EmittedCircuit found! Did you delete any annotations?\n$deletedAnnotations")
   }
 
   /** Helper function for extracting emitted components from annotations */
@@ -315,9 +315,6 @@ trait Emitter extends Transform {
   def outputSuffix: String
 }
 
-/** Wraps exceptions from CustomTransforms so they can be reported appropriately */
-case class CustomTransformException(cause: Throwable) extends Exception("", cause)
-
 object CompilerUtils extends LazyLogging {
   /** Generates a sequence of [[Transform]]s to lower a Firrtl circuit
     *
@@ -334,8 +331,9 @@ object CompilerUtils extends LazyLogging {
         case ChirrtlForm =>
           Seq(new ChirrtlToHighFirrtl) ++ getLoweringTransforms(HighForm, outputForm)
         case HighForm =>
-          Seq(new IRToWorkingIR, new ResolveAndCheck, new transforms.DedupModules,
-              new HighFirrtlToMiddleFirrtl) ++ getLoweringTransforms(MidForm, outputForm)
+          Seq(new IRToWorkingIR, new ResolveAndCheck,
+              new transforms.DedupModules, new HighFirrtlToMiddleFirrtl) ++
+              getLoweringTransforms(MidForm, outputForm)
         case MidForm => Seq(new MiddleFirrtlToLowFirrtl) ++ getLoweringTransforms(LowForm, outputForm)
         case LowForm => throwInternalError("getLoweringTransforms - LowForm") // should be caught by if above
         case UnknownForm => throwInternalError("getLoweringTransforms - UnknownForm") // should be caught by if above
