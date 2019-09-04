@@ -517,18 +517,18 @@ class VerilogEmitter extends SeqTransform with Emitter {
     * @param moduleMap        a map of modules so submodules can be discovered
     * @param writer           where rendered information is placed.
     */
-  class VerilogRender(description: Description,
-                      portDescriptions: Map[String, Description],
+  class VerilogRender(description: Seq[Description],
+                      portDescriptions: Map[String, Seq[Description]],
                       m: Module,
                       moduleMap: Map[String, DefModule],
                       circuitName: String,
                       emissionOptions: EmissionOptions)(implicit writer: Writer) {
 
     def this(m: Module, moduleMap: Map[String, DefModule], circuitName: String, emissionOptions: EmissionOptions)(implicit writer: Writer) {
-      this(EmptyDescription, Map.empty, m, moduleMap, circuitName, emissionOptions)(writer)
+      this(Seq(), Map.empty, m, moduleMap, circuitName, emissionOptions)(writer)
     }
     def this(m: Module, moduleMap: Map[String, DefModule])(implicit writer: Writer) {
-      this(EmptyDescription, Map.empty, m, moduleMap, "", new EmissionOptions(Seq.empty))(writer)
+      this(Seq(), Map.empty, m, moduleMap, "", new EmissionOptions(Seq.empty))(writer)
     }
 
     val netlist = mutable.LinkedHashMap[WrappedExpression, Expression]()
@@ -841,64 +841,12 @@ class VerilogEmitter extends SeqTransform with Emitter {
           } else {
             portdefs += Seq(dir, " ", tpe, " ", name, info)
           }
-
-          portDescriptions.get(name).foreach {
-            case _: Ifdef => portdefs += Seq("`endif")
-            case _ =>
-          }
       }
     }
 
-    private def get_all_descriptions(ds: Seq[Description]): Seq[SimpleDescription] = {
-      ds.flatMap(_ match {
-        case EmptyDescription => Seq()
-        case s: SimpleDescription => Seq(s)
-        case MultipleDescriptions(d) => get_all_descriptions(d)
-      })
-    }
-
-    private def combine_all_descriptions(ds: Seq[SimpleDescription]): Seq[SimpleDescription] = {
-      val docStrings = ds collect { case d: DocString => d }
-      val attrs = ds collect { case d: Attribute => d }
-
-      val doc = docStrings.foldLeft[SimpleDescription](EmptyDescription) { (_, _) match {
-        case (EmptyDescription, d) => d
-        case (DocString(StringLit(s1)), DocString(StringLit(s2))) =>
-          DocString(StringLit(s1 + "\n\n" + s2))
-        case _ => throw new EmitterException("docStrings should only contain DocStrings or EmptyDescription")
-      }}
-
-      val attr = attrs.foldLeft[SimpleDescription](EmptyDescription) { (_, _) match {
-        case (EmptyDescription, d) => d
-        case (Attribute(StringLit(s1)), Attribute(StringLit(s2))) =>
-          Attribute(StringLit(s1 + ", " + s2))
-        case _ => throw new EmitterException("attrs should only contain Attributes or EmptyDescription")
-      }}
-
-      Seq(doc, attr)
-    }
-
-    def description_has_ifdef(d: Description): Boolean = d match {
-      case _: Ifdef => true
-      case MultipleDescriptions(ds) => ds.exists(description_has_ifdef)
-      case _ => false
-    }
-
-    def finish_ifdef(section: IfdefSection): Seq[Seq[String]] = section match {
-      case IfdefElseifSection(cond, body, next) =>
-        Seq(Seq(s"`elseif ${cond.string}"), Seq(body.string)) ++ finish_ifdef(section)
-      case IfdefElseSection => Seq(Seq("`else"))
-    }
-
-    def build_description(d: Description): Seq[Seq[String]] = d match {
+    def build_description(d: Seq[Description]): Seq[Seq[String]] = d.flatMap {
       case DocString(desc) => build_comment(desc.string)
       case Attribute(attr) => build_attribute(attr.string)
-      case Ifdef(cond, IfdefFirstSection(body, next)) =>
-        Seq(Seq(s"`ifdef ${cond.string}"), Seq(body.string)) ++ finish_ifdef(next)
-      case Ifdef(cond, IfndefFirstSection(body, next)) =>
-        Seq(Seq(s"`ifndef ${cond.string}"), Seq(body.string)) ++ finish_ifdef(next)
-      case MultipleDescriptions(ds) => combine_all_descriptions(get_all_descriptions(ds)).flatMap(build_description)
-      case EmptyDescription => Seq()
     }
 
     def build_streams(s: Statement): Unit = {
@@ -1026,15 +974,6 @@ class VerilogEmitter extends SeqTransform with Emitter {
           if (sx.readwriters.nonEmpty)
             throw EmitterException("All readwrite ports should be transformed into " +
                                      "read & write ports by previous passes")
-        case _ =>
-      }
-
-      // if we had an ifdef, need to put in `endif
-      s match {
-        case DescribedStmt(d, stmt) =>
-          if (description_has_ifdef(d)) {
-             declares += Seq("`endif")
-          }
         case _ =>
       }
     }

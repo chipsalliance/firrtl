@@ -21,30 +21,17 @@ case class DescriptionAnnotation(named: Named, description: String, tpe: Descrip
 }
 
 private sealed trait HasDescription {
-  def description: Description
+  def descriptions: Seq[Description]
 }
 
 private sealed trait Description extends FirrtlNode
-private sealed trait SimpleDescription extends Description
 
-private case class DocString(string: StringLit) extends SimpleDescription {
+private case class DocString(string: StringLit) extends Description {
   def serialize: String = "@[" + string.serialize + "]"
 }
 
-private case class Attribute(string: StringLit) extends SimpleDescription {
+private case class Attribute(string: StringLit) extends Description {
   def serialize: String = "@[" + string.serialize + "]"
-}
-
-private case class MultipleDescriptions(descs: Seq[Description]) extends Description {
-  def serialize: String = descs.map(_.serialize).mkString("\n")
-  def add(d: Description): MultipleDescriptions = d match {
-    case s: SimpleDescription => MultipleDescriptions(descs :+ s)
-    case MultipleDescriptions(md) => MultipleDescriptions(descs ++ md)
-  }
-}
-
-private case object EmptyDescription extends SimpleDescription {
-  def serialize: String = ""
 }
 
 private object MakeDescription {
@@ -52,17 +39,23 @@ private object MakeDescription {
     case DocStringDescription => DocString(StringLit.unescape(str))
     case AttributeDescription => Attribute(StringLit.unescape(str))
   }
-  def apply(s: FirrtlNode)(descs: Seq[(String, DescriptionType)]): Description = {
-    descs.foldLeft[Description](EmptyDescription) { (_, _) match {
-      case (EmptyDescription, (str, d)) => MakeDescription(s, str, d)
-      case (agg: SimpleDescription, (str, d)) => MultipleDescriptions(Seq(agg, MakeDescription(s, str, d)))
-      case (agg: MultipleDescriptions, (str, d)) => agg.add(MakeDescription(s, str, d))
-    }}
+  def apply(s: FirrtlNode)(descs: Seq[(String, DescriptionType)]): Seq[Description] = {
+    // combine DocStringDescriptions (multi-line comment)
+    val docString = descs.collect({
+      case (s: String, _: DocStringDescription.type) => s
+    }).mkString("\n\n")
+    val docStringDesc = if (docString.length > 0) Some(MakeDescription(s, docString, DocStringDescription)) else None
+    // combine AttributeDescriptions (comma separated)
+    val attr = descs.collect({
+      case (s: String, _: AttributeDescription.type) => s
+    }).mkString(", ")
+    val attrDesc = if (attr.length > 0) Some(MakeDescription(s, attr, AttributeDescription)) else None
+    Seq(docStringDesc, attrDesc).flatten
   }
 }
 
-private case class DescribedStmt(description: Description, stmt: Statement) extends Statement with HasDescription {
-  def serialize: String = s"${description.serialize}\n${stmt.serialize}"
+private case class DescribedStmt(descriptions: Seq[Description], stmt: Statement) extends Statement with HasDescription {
+  def serialize: String = s"${descriptions.map(_.serialize).mkString("\n")}\n${stmt.serialize}"
   def mapStmt(f: Statement => Statement): Statement = f(stmt)
   def mapExpr(f: Expression => Expression): Statement = this.copy(stmt = stmt.mapExpr(f))
   def mapType(f: Type => Type): Statement = this.copy(stmt = stmt.mapType(f))
@@ -75,13 +68,13 @@ private case class DescribedStmt(description: Description, stmt: Statement) exte
   def foreachInfo(f: Info => Unit): Unit = stmt.foreachInfo(f)
 }
 
-private case class DescribedMod(description: Description,
-  portDescriptions: Map[String, Description],
+private case class DescribedMod(descriptions: Seq[Description],
+  portDescriptions: Map[String, Seq[Description]],
   mod: DefModule) extends DefModule with HasDescription {
   val info = mod.info
   val name = mod.name
   val ports = mod.ports
-  def serialize: String = s"${description.serialize}\n${mod.serialize}"
+  def serialize: String = s"${descriptions.map(_.serialize).mkString("\n")}\n${mod.serialize}"
   def mapStmt(f: Statement => Statement): DefModule = this.copy(mod = mod.mapStmt(f))
   def mapPort(f: Port => Port): DefModule = this.copy(mod = mod.mapPort(f))
   def mapString(f: String => String): DefModule = this.copy(mod = mod.mapString(f))
@@ -124,8 +117,13 @@ class AddDescriptionNodes extends Transform with DependencyAPIMigration with Pre
       case d: IsDeclaration => Some(d.name)
       case _ => None
     }
-    val desc: Option[Description] = sname.flatMap(name => compMap.get(name)).map(MakeDescription(s))
-    desc.map({ d => DescribedStmt(d, s) }).getOrElse(s)
+    val descs = sname.flatMap({ case name =>
+      compMap.get(name).map { MakeDescription(s)(_) }
+    })
+    descs match {
+      case Some(d) => DescribedStmt(d, s)
+      case None => s
+    }
   }
 
   def onModule(modMap: Map[String, Seq[(String, DescriptionType)]], compMaps: Map[String, Map[String, Seq[(String, DescriptionType)]]])
@@ -137,10 +135,10 @@ class AddDescriptionNodes extends Transform with DependencyAPIMigration with Pre
         name -> MakeDescription(p)(compMap(name))
     }.toMap
 
-    val modDesc = modMap.get(newMod.name).map(MakeDescription(mod)(_))
+    val modDesc = MakeDescription(mod)(modMap.get(newMod.name).getOrElse(Seq()))
 
     if (portDesc.nonEmpty || modDesc.nonEmpty) {
-      DescribedMod(modDesc.getOrElse(EmptyDescription), portDesc, newMod)
+      DescribedMod(modDesc, portDesc, newMod)
     } else {
       newMod
     }
