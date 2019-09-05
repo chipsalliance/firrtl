@@ -471,7 +471,7 @@ class VerilogDescriptionEmitterSpec extends FirrtlFlatSpec {
       DescriptionAnnotation(ComponentName("d", modName), "line6", DocStringDescription),
       DescriptionAnnotation(ComponentName("a", modName), "full_case", AttributeDescription),
       DescriptionAnnotation(ComponentName("d", modName), "parallel_case", AttributeDescription),
-      DescriptionAnnotation(ComponentName("d", modName), "mark_debug", AttributeDescription),
+      DescriptionAnnotation(ComponentName("d", modName), "mark_debug", AttributeDescription)
     )
     val writer = new java.io.StringWriter
     val finalState = compiler.compileAndEmit(CircuitState(parse(input), ChirrtlForm, annos), Seq.empty)
