@@ -27,7 +27,7 @@ def scalacOptionsVersion(scalaVersion: String): Seq[String] =
     }
   }
 
-addCompilerPlugin(scalafixSemanticdb) // enable SemanticDB
+//addCompilerPlugin(scalafixSemanticdb) // enable SemanticDB
 
 scalacOptions := scalacOptionsVersion(scalaVersion.value) ++ Seq(
   "-deprecation",
@@ -62,7 +62,10 @@ libraryDependencies += "ch.qos.logback" % "logback-classic" % "1.2.3"
 // An explicit dependency on junit seems to alleviate this.
 libraryDependencies += "junit" % "junit" % "4.12" % "test"
 
-libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.5" % "test"
+//libraryDependencies += "org.scalactic" %% "scalactic" % "3.1.0-M2"
+//libraryDependencies += "org.scalatest" %% "scalatest" % "3.1.0-M2" % "test"
+libraryDependencies += "org.scalactic" %% "scalactic" % "3.0.8"
+libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.8" % "test"
 
 libraryDependencies += "org.scalacheck" %% "scalacheck" % "1.14.0" % "test"
 

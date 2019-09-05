@@ -57,5 +57,9 @@ gen/
 project/project/
 /bin/
 
+.bloop 
+.metals 
+project/.bloop/
+
 *~
-*#*#
+*#*# 
