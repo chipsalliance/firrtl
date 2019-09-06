@@ -18,8 +18,8 @@ class DedupModuleTests extends HighTransformSpec {
       Seq(MultiTargetDummyAnnotation(newTargets, tag))
     }
   }
-  case class SingleTargetDummyAnnotation(target: ComponentName) extends SingleTargetAnnotation[ComponentName] {
-    override def duplicate(n: ComponentName): Annotation = SingleTargetDummyAnnotation(n)
+  case class SingleTargetDummyAnnotation(target: Target) extends SingleTargetAnnotation[Target] {
+    override def duplicate(n: Target): Annotation = SingleTargetDummyAnnotation(n)
   }
   def transform = new DedupModules
   "The module A" should "be deduped" in {
@@ -172,9 +172,11 @@ class DedupModuleTests extends HighTransformSpec {
           |    x <= UInt(1)
         """.stripMargin
 
-     val mname = ModuleName("Top", CircuitName("Top"))
-     val finalState = execute(input, check, Seq(SingleTargetDummyAnnotation(ComponentName("a2.y", mname))))
-     finalState.annotations.collect({ case d: SingleTargetDummyAnnotation => d }).head should be(SingleTargetDummyAnnotation(ComponentName("a2.x", mname)))
+     val mname = ModuleTarget("Top", "Top")
+     val finalState = execute(input, check, Seq(SingleTargetDummyAnnotation(mname.instOf("a2", "A_").ref("y"))))
+     finalState.annotations.collect({ case d: SingleTargetDummyAnnotation => d }).head should be {
+       SingleTargetDummyAnnotation(mname.instOf("a2", "A").ref("x"))
+     }
   }
 
   "Extmodules" should "with the same defname and parameters should dedup" in {
@@ -317,7 +319,7 @@ class DedupModuleTests extends HighTransformSpec {
     execute(input, check, Seq.empty)
   }
 
-  "The module A and A_" should "not be deduped with different annotation targets" in {
+  "The module A and A_" should "be deduped with different annotation targets" in {
     val input =
       """circuit Top :
         |  module Top :
@@ -336,12 +338,8 @@ class DedupModuleTests extends HighTransformSpec {
       """circuit Top :
         |  module Top :
         |    inst a1 of A
-        |    inst a2 of A_
+        |    inst a2 of A
         |  module A :
-        |    output x: UInt<1>
-        |    wire b: UInt<1>
-        |    x <= b
-        |  module A_ :
         |    output x: UInt<1>
         |    wire b: UInt<1>
         |    x <= b
@@ -404,7 +402,7 @@ class DedupModuleTests extends HighTransformSpec {
     val annos = (0 until 100).flatMap(i => Seq(dontTouch(s"A.b[$i]"), dontTouch(s"A_.b[$i]")))
     execute(input, check, annos)
   }
-  "The module A and A_" should "not be deduped with same annotations with same multi-targets, but which have different root modules" in {
+  "The module A and A_" should "be deduped with same annotations with same multi-targets, but which have different root modules" in {
     val input =
       """circuit Top :
         |  module Top :
@@ -429,19 +427,12 @@ class DedupModuleTests extends HighTransformSpec {
       """circuit Top :
         |  module Top :
         |    inst a1 of A
-        |    inst a2 of A_
+        |    inst a2 of A
         |  module A :
         |    output x: UInt<1>
         |    inst b of B
         |    x <= b.x
-        |  module A_ :
-        |    output x: UInt<1>
-        |    inst b of B_
-        |    x <= b.x
         |  module B :
-        |    output x: UInt<1>
-        |    x <= UInt(1)
-        |  module B_ :
         |    output x: UInt<1>
         |    x <= UInt(1)
       """.stripMargin
@@ -454,7 +445,7 @@ class DedupModuleTests extends HighTransformSpec {
     val annoA_B_ = MultiTargetDummyAnnotation(Seq(A_, B_), 0)
     val cs = execute(input, check, Seq(annoAB, annoA_B_))
     cs.annotations.toSeq should contain (annoAB)
-    cs.annotations.toSeq should contain (annoA_B_)
+    cs.annotations.toSeq should not contain (annoA_B_)
   }
   "The module A and A_" should "be deduped with same annotations with same multi-targets, that share roots" in {
     val input =
