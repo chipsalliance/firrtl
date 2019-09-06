@@ -179,13 +179,11 @@ object PrimOps extends LazyLogging {
         case _ => UnknownType
       }
       case AsClock => t1 match {
-        case (_: UIntType | _: SIntType    | _: AnalogType |
-                ClockType | AsyncResetType | ResetType) => ClockType
+        case (_: UIntType | _: SIntType | _: AnalogType | ClockType | AsyncResetType | ResetType) => ClockType
         case _ => UnknownType
       }
       case AsAsyncReset => t1 match {
-        case (_: UIntType | _: SIntType    | _: AnalogType |
-                ClockType | AsyncResetType | ResetType) => AsyncResetType
+        case (_: UIntType | _: SIntType | _: AnalogType | ClockType | AsyncResetType | ResetType) => AsyncResetType
         case _ => UnknownType
       }
       case Shl => t1 match {
@@ -241,8 +239,12 @@ object PrimOps extends LazyLogging {
         case (_: UIntType | _: SIntType | _: FixedType) => UIntType(PLUS(MINUS(c1, c2), IntWidth(1)))
         case _ => UnknownType
       }
-      case ht @(Head | Tail) => t1 match {
-        case (_: UIntType | _: SIntType | _: FixedType) => if (ht == Head) UIntType(c1) else UIntType(MINUS(w1, c1))
+      case Head => t1 match {
+        case (_: UIntType | _: SIntType | _: FixedType) => UIntType(c1)
+        case _ => UnknownType
+      }
+      case Tail => t1 match {
+        case (_: UIntType | _: SIntType | _: FixedType) => UIntType(MINUS(w1, c1))
         case _ => UnknownType
       }
       case BPShl => t1 match {
