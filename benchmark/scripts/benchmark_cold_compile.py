@@ -49,11 +49,24 @@ def extract_max_size(output):
         raise Exception('Max set size not found!')
 
 def extract_run_time(output):
-    m = re.search('Total FIRRTL Compile Time: (\d+)', output, re.MULTILINE)
+    regex = ''
+    res = None
+    if platform == 'macos':
+        regex = '(\d+\.\d+)\s+real'
+    if platform == 'linux':
+        regex = 'Elapsed \(wall clock\) time \(h:mm:ss or m:ss\): ([0-9:.]+)'
+    m = re.search(regex, output, re.MULTILINE)
     if m :
-        return int(m.group(1))
-    else :
-        raise Exception('Runtime not found!')
+        text = m.group(1)
+        if platform == 'macos':
+            return float(text)
+        if platform == 'linux':
+            parts = text.split(':')
+            if len(parts) == 3:
+                return float(parts[0]) * 3600 + float(parts[1]) * 60 + float(parts[0])
+            if len(parts) == 2:
+                return float(parts[0]) * 60 + float(parts[1])
+    raise Exception('Runtime not found!')
 
 def run_firrtl(java, jar, design):
     java_cmd = java.split()
@@ -64,7 +77,7 @@ def run_firrtl(java, jar, design):
         print(result.stderr)
         sys.exit(1)
     size = extract_max_size(result.stderr.decode('utf-8'))
-    runtime = extract_run_time(result.stdout.decode('utf-8'))
+    runtime = extract_run_time(result.stderr.decode('utf-8'))
     return (size, runtime)
 
 def parseargs():
