@@ -2,7 +2,6 @@
 
 package firrtl.passes
 
-import com.typesafe.scalalogging.LazyLogging
 import firrtl._
 import firrtl.ir._
 import firrtl.Utils._
@@ -32,8 +31,8 @@ trait Pass extends Transform {
 }
 
 // Error handling
-class PassException(message: String) extends Exception(message)
-class PassExceptions(exceptions: Seq[PassException]) extends Exception("\n" + exceptions.mkString("\n"))
+class PassException(message: String) extends FirrtlUserException(message)
+class PassExceptions(val exceptions: Seq[PassException]) extends FirrtlUserException("\n" + exceptions.mkString("\n"))
 class Errors {
   val errors = collection.mutable.ArrayBuffer[PassException]()
   def append(pe: PassException) = errors.append(pe)
@@ -49,7 +48,7 @@ class Errors {
 // These should be distributed into separate files
 object ToWorkingIR extends Pass {
   def toExp(e: Expression): Expression = e map toExp match {
-    case ex: Reference => WRef(ex.name, ex.tpe, NodeKind, UNKNOWNGENDER)
+    case ex: Reference => WRef(ex.name, ex.tpe, UnknownKind, UNKNOWNGENDER)
     case ex: SubField => WSubField(ex.expr, ex.name, ex.tpe, UNKNOWNGENDER)
     case ex: SubIndex => WSubIndex(ex.expr, ex.value, ex.tpe, UNKNOWNGENDER)
     case ex: SubAccess => WSubAccess(ex.expr, ex.index, ex.tpe, UNKNOWNGENDER)
@@ -183,19 +182,23 @@ object ExpandConnects extends Pass {
 object Legalize extends Pass {
   private def legalizeShiftRight(e: DoPrim): Expression = {
     require(e.op == Shr)
-    val amount = e.consts.head.toInt
-    val width = bitWidth(e.args.head.tpe)
-    lazy val msb = width - 1
-    if (amount >= width) {
-      e.tpe match {
-        case UIntType(_) => zero
-        case SIntType(_) =>
-          val bits = DoPrim(Bits, e.args, Seq(msb, msb), BoolType)
-          DoPrim(AsSInt, Seq(bits), Seq.empty, SIntType(IntWidth(1)))
-        case t => error(s"Unsupported type $t for Primop Shift Right")
-      }
-    } else {
-      e
+    e.args.head match {
+      case _: UIntLiteral | _: SIntLiteral => ConstantPropagation.foldShiftRight(e)
+      case _ =>
+        val amount = e.consts.head.toInt
+        val width = bitWidth(e.args.head.tpe)
+        lazy val msb = width - 1
+        if (amount >= width) {
+          e.tpe match {
+            case UIntType(_) => zero
+            case SIntType(_) =>
+              val bits = DoPrim(Bits, e.args, Seq(msb, msb), BoolType)
+              DoPrim(AsSInt, Seq(bits), Seq.empty, SIntType(IntWidth(1)))
+            case t => error(s"Unsupported type $t for Primop Shift Right")
+          }
+        } else {
+          e
+        }
     }
   }
   private def legalizeBitExtract(expr: DoPrim): Expression = {

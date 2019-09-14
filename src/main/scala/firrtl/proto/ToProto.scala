@@ -3,7 +3,7 @@
 package firrtl
 package proto
 
-import java.io.{BufferedOutputStream, OutputStream}
+import java.io.OutputStream
 
 import FirrtlProtos._
 import Firrtl.Expression.PrimOp.Op
@@ -80,6 +80,7 @@ object ToProto {
     AsSInt -> Op.OP_AS_SINT,
     AsClock -> Op.OP_AS_CLOCK,
     AsFixedPoint -> Op.OP_AS_FIXED_POINT,
+    AsAsyncReset -> Op.OP_AS_ASYNC_RESET,
     Shl -> Op.OP_SHIFT_LEFT,
     Shr -> Op.OP_SHIFT_RIGHT,
     Dshl -> Op.OP_DYNAMIC_SHIFT_LEFT,
@@ -193,6 +194,11 @@ object ToProto {
     }
   }
 
+  def convert(tpe: ir.Type, depth: BigInt): Firrtl.Statement.CMemory.TypeAndDepth.Builder =
+    Firrtl.Statement.CMemory.TypeAndDepth.newBuilder()
+      .setDataType(convert(tpe))
+      .setDepth(convertToBigInt(depth))
+
   def convert(stmt: ir.Statement): Seq[Firrtl.Statement.Builder] = {
     stmt match {
       case ir.Block(stmts) => stmts.flatMap(convert(_))
@@ -262,7 +268,7 @@ object ToProto {
             val mem = Firrtl.Statement.Memory.newBuilder()
               .setId(name)
               .setType(convert(dtype))
-              .setDepth(depth)
+              .setBigintDepth(convertToBigInt(depth))
               .setWriteLatency(wlat)
               .setReadLatency(rlat)
             mem.addAllReaderId(rs.asJava)
@@ -270,10 +276,9 @@ object ToProto {
             mem.addAllReadwriterId(rws.asJava)
             sb.setMemory(mem)
           case CDefMemory(_, name, tpe, size, seq) =>
-            val tpeb = convert(ir.VectorType(tpe, size))
             val mb = Firrtl.Statement.CMemory.newBuilder()
               .setId(name)
-              .setType(tpeb)
+              .setTypeAndDepth(convert(tpe, size))
               .setSyncRead(seq)
             sb.setCmemory(mb)
           case CDefMPort(_, name, _, mem, exprs, dir) =>
@@ -339,6 +344,12 @@ object ToProto {
       case ir.ClockType =>
         val ct = Firrtl.Type.ClockType.newBuilder()
         tb.setClockType(ct)
+      case ir.AsyncResetType =>
+        val at = Firrtl.Type.AsyncResetType.newBuilder()
+        tb.setAsyncResetType(at)
+      case ir.ResetType =>
+        val rt = Firrtl.Type.ResetType.newBuilder()
+        tb.setResetType(rt)
       case ir.AnalogType(width) =>
         val at = Firrtl.Type.AnalogType.newBuilder()
           convert(width).foreach(at.setWidth)

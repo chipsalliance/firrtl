@@ -11,12 +11,12 @@ import firrtl.Parser
 import firrtl.passes._
 
 class ZeroWidthTests extends FirrtlFlatSpec {
-  def transforms = Seq(
+  val transforms = Seq(
       ToWorkingIR,
       ResolveKinds,
       InferTypes,
       ResolveGenders,
-      new InferWidths(),
+      new InferWidths,
       ZeroWidth)
   private def exec (input: String) = {
     val circuit = parse(input)

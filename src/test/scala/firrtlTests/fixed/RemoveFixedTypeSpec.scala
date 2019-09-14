@@ -9,12 +9,12 @@ import firrtl.passes._
 import firrtl.Parser.IgnoreInfo
 
 class RemoveFixedTypeSpec extends FirrtlFlatSpec {
-  private def executeTest(input: String, expected: Seq[String], passes: Seq[Pass]) = {
-    val c = passes.foldLeft(Parser.parse(input.split("\n").toIterator)) {
-      (c: Circuit, p: Pass) => p.run(c)
-    }
+  private def executeTest(input: String, expected: Seq[String], passes: Seq[Transform]) = {
+    val c = passes.foldLeft(CircuitState(Parser.parse(input.split("\n").toIterator), UnknownForm)) {
+      (c: CircuitState, p: Transform) => p.runTransform(c)
+    }.circuit
     val lines = c.serialize.split("\n") map normalized
-    //println(c.serialize)
+    println(c.serialize)
 
     expected foreach { e =>
       lines should contain(e)
@@ -30,14 +30,14 @@ class RemoveFixedTypeSpec extends FirrtlFlatSpec {
       CheckTypes,
       ResolveGenders,
       CheckGenders,
-      new InferWidths(),
+      new InferWidths,
       CheckWidths,
       ConvertFixedToSInt)
     val input =
       """circuit Unit :
         |  module Unit :
         |    input a : Fixed<10><<2>>
-        |    input b : Fixed<10><<0>>
+        |    input b : Fixed<10>
         |    input c : Fixed<4><<3>>
         |    output d : Fixed<<5>>
         |    d <= add(a, add(b, c))""".stripMargin
@@ -60,14 +60,14 @@ class RemoveFixedTypeSpec extends FirrtlFlatSpec {
       CheckTypes,
       ResolveGenders,
       CheckGenders,
-      new InferWidths(),
+      new InferWidths,
       CheckWidths,
       ConvertFixedToSInt)
     val input =
       """circuit Unit :
         |  module Unit :
         |    input a : Fixed<10><<2>>
-        |    input b : Fixed<10><<0>>
+        |    input b : Fixed<10>
         |    input c : Fixed<4><<3>>
         |    output d : Fixed<<5>>
         |    d <- add(a, add(b, c))""".stripMargin
@@ -91,7 +91,7 @@ class RemoveFixedTypeSpec extends FirrtlFlatSpec {
       CheckTypes,
       ResolveGenders,
       CheckGenders,
-      new InferWidths(),
+      new InferWidths,
       CheckWidths,
       ConvertFixedToSInt)
     val input =
@@ -118,7 +118,7 @@ class RemoveFixedTypeSpec extends FirrtlFlatSpec {
       CheckTypes,
       ResolveGenders,
       CheckGenders,
-      new InferWidths(),
+      new InferWidths,
       CheckWidths,
       ConvertFixedToSInt)
     val input =
@@ -145,7 +145,7 @@ class RemoveFixedTypeSpec extends FirrtlFlatSpec {
       CheckTypes,
       ResolveGenders,
       CheckGenders,
-      new InferWidths(),
+      new InferWidths,
       CheckWidths,
       ConvertFixedToSInt)
     val input =
@@ -181,7 +181,7 @@ class RemoveFixedTypeSpec extends FirrtlFlatSpec {
     class CheckChirrtlTransform extends SeqTransform {
       def inputForm = ChirrtlForm
       def outputForm = ChirrtlForm
-      def transforms = Seq(passes.CheckHighForm)
+      val transforms = Seq(passes.CheckChirrtl)
     }
 
     val chirrtlTransform = new CheckChirrtlTransform
@@ -197,7 +197,7 @@ class RemoveFixedTypeSpec extends FirrtlFlatSpec {
       CheckTypes,
       ResolveGenders,
       CheckGenders,
-      new InferWidths(),
+      new InferWidths,
       CheckWidths,
       ConvertFixedToSInt)
     val input =

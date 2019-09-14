@@ -2,6 +2,9 @@
 
 package firrtl
 
+import firrtl.transforms.IdentityTransform
+import firrtl.options.StageUtils
+
 sealed abstract class CoreTransform extends SeqTransform
 
 /** This transforms "CHIRRTL", the chisel3 IR, to "Firrtl". Note the resulting
@@ -11,7 +14,7 @@ class ChirrtlToHighFirrtl extends CoreTransform {
   def inputForm = ChirrtlForm
   def outputForm = HighForm
   def transforms = Seq(
-    passes.CheckHighForm,
+    passes.CheckChirrtl,
     passes.CInferTypes,
     passes.CInferMDir,
     passes.RemoveCHIRRTL)
@@ -44,8 +47,9 @@ class ResolveAndCheck extends CoreTransform {
     passes.CheckGenders,
     new passes.InferBinaryPoints(),
     new passes.TrimIntervals(),
-    new passes.InferWidths(),
-    passes.CheckWidths)
+    new passes.InferWidths,
+    passes.CheckWidths,
+    new firrtl.transforms.InferResets)
 }
 
 /** Expands aggregate connects, removes dynamic accesses, and when
@@ -67,8 +71,9 @@ class HighFirrtlToMiddleFirrtl extends CoreTransform {
     passes.ResolveKinds,
     passes.InferTypes,
     passes.CheckTypes,
+    new checks.CheckResets,
     passes.ResolveGenders,
-    new passes.InferWidths(),
+    new passes.InferWidths,
     passes.CheckWidths,
     new passes.RemoveIntervals(),
     passes.ConvertFixedToSInt,
@@ -88,7 +93,7 @@ class MiddleFirrtlToLowFirrtl extends CoreTransform {
     passes.ResolveKinds,
     passes.InferTypes,
     passes.ResolveGenders,
-    new passes.InferWidths(),
+    new passes.InferWidths,
     passes.Legalize,
     new firrtl.transforms.RemoveReset,
     new firrtl.transforms.CheckCombLoops,
@@ -120,6 +125,7 @@ class MinimumLowFirrtlOptimization extends CoreTransform {
   def inputForm = LowForm
   def outputForm = LowForm
   def transforms = Seq(
+    passes.RemoveValidIf,
     passes.Legalize,
     passes.memlib.VerilogMemDelays, // TODO move to Verilog emitter
     passes.SplitExpressions)
@@ -127,52 +133,52 @@ class MinimumLowFirrtlOptimization extends CoreTransform {
 
 
 import CompilerUtils.getLoweringTransforms
-import firrtl.transforms.BlackBoxSourceHelper
 
 /** Emits input circuit with no changes
   *
   * Primarily useful for changing between .fir and .pb serialized formats
   */
 class NoneCompiler extends Compiler {
-  def emitter = new ChirrtlEmitter
-  def transforms: Seq[Transform] = Seq.empty
+  val emitter = new ChirrtlEmitter
+  def transforms: Seq[Transform] = Seq(new IdentityTransform(ChirrtlForm))
 }
 
 /** Emits input circuit
   * Will replace Chirrtl constructs with Firrtl
   */
 class HighFirrtlCompiler extends Compiler {
-  def emitter = new HighFirrtlEmitter
+  val emitter = new HighFirrtlEmitter
   def transforms: Seq[Transform] = getLoweringTransforms(ChirrtlForm, HighForm)
 }
 
 /** Emits middle Firrtl input circuit */
 class MiddleFirrtlCompiler extends Compiler {
-  def emitter = new MiddleFirrtlEmitter
+  val emitter = new MiddleFirrtlEmitter
   def transforms: Seq[Transform] = getLoweringTransforms(ChirrtlForm, MidForm)
 }
 
 /** Emits lowered input circuit */
 class LowFirrtlCompiler extends Compiler {
-  def emitter = new LowFirrtlEmitter
+  val emitter = new LowFirrtlEmitter
   def transforms: Seq[Transform] = getLoweringTransforms(ChirrtlForm, LowForm)
 }
 
 /** Emits Verilog */
 class VerilogCompiler extends Compiler {
-  def emitter = new VerilogEmitter
+  val emitter = new VerilogEmitter
   def transforms: Seq[Transform] = getLoweringTransforms(ChirrtlForm, LowForm) ++
     Seq(new LowFirrtlOptimization)
 }
 
 /** Emits Verilog without optimizations */
 class MinimumVerilogCompiler extends Compiler {
-  def emitter = new VerilogEmitter
+  val emitter = new MinimumVerilogEmitter
   def transforms: Seq[Transform] = getLoweringTransforms(ChirrtlForm, LowForm) ++
-    Seq(new MinimumLowFirrtlOptimization, new BlackBoxSourceHelper)
+    Seq(new MinimumLowFirrtlOptimization)
 }
 
 /** Currently just an alias for the [[VerilogCompiler]] */
 class SystemVerilogCompiler extends VerilogCompiler {
-  Driver.dramaticWarning("SystemVerilog Compiler behaves the same as the Verilog Compiler!")
+  override val emitter = new SystemVerilogEmitter
+  StageUtils.dramaticWarning("SystemVerilog Compiler behaves the same as the Verilog Compiler!")
 }

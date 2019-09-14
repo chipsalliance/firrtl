@@ -7,6 +7,7 @@ import Utils._
 import firrtl.ir._
 import WrappedExpression._
 import WrappedWidth._
+import firrtl.passes.CheckTypes.legalResetType
 
 trait Kind
 case object WireKind extends Kind
@@ -17,6 +18,7 @@ case object PortKind extends Kind
 case object NodeKind extends Kind
 case object MemKind extends Kind
 case object ExpKind extends Kind
+case object UnknownKind extends Kind
 
 trait Gender
 case object MALE extends Gender
@@ -40,6 +42,13 @@ object WRef {
   def apply(reg: DefRegister): WRef = new WRef(reg.name, reg.tpe, RegKind, UNKNOWNGENDER)
   /** Creates a WRef from a Node */
   def apply(node: DefNode): WRef = new WRef(node.name, node.value.tpe, NodeKind, MALE)
+  /** Creates a WRef from a Port */
+  def apply(port: Port): WRef = new WRef(port.name, port.tpe, PortKind, UNKNOWNGENDER)
+  /** Creates a WRef from a WDefInstance */
+  def apply(wi: WDefInstance): WRef = new WRef(wi.name, wi.tpe, InstanceKind, UNKNOWNGENDER)
+  /** Creates a WRef from a DefMemory */
+  def apply(mem: DefMemory): WRef = new WRef(mem.name, passes.MemPortUtils.memType(mem), MemKind, UNKNOWNGENDER)
+  /** Creates a WRef from an arbitrary string name */
   def apply(n: String, t: Type = UnknownType, k: Kind = ExpKind): WRef = new WRef(n, t, k, UNKNOWNGENDER)
 }
 case class WSubField(expr: Expression, name: String, tpe: Type, gender: Gender) extends Expression {
@@ -160,8 +169,6 @@ case object Addw extends PrimOp {
 case object Subw extends PrimOp { override def toString = "subw" }
 // Resultant width is the same as input argument width
 case object Dshlw extends PrimOp { override def toString = "dshlw" }
-// Resultant width is the same as input argument width
-case object Shlw extends PrimOp { override def toString = "shlw" }
 
 object WrappedExpression {
   def apply(e: Expression) = new WrappedExpression(e)
@@ -199,14 +206,17 @@ private[firrtl] sealed trait HasMapWidth {
 object WrappedType {
   def apply(t: Type) = new WrappedType(t)
   def wt(t: Type) = apply(t)
-}
-class WrappedType(val t: Type) {
-  def wt(tx: Type) = new WrappedType(tx)
-  override def equals(o: Any): Boolean = o match {
-    case (t2: WrappedType) => (t, t2.t) match {
+  // Check if it is legal for the source type to drive the sink type
+  // Which is which matters because ResetType can be driven by itself, Bool, or AsyncResetType, but
+  //   it cannot drive Bool nor AsyncResetType
+  private def compare(sink: Type, source: Type): Boolean =
+    (sink, source) match {
       case (_: UIntType, _: UIntType) => true
       case (_: SIntType, _: SIntType) => true
       case (ClockType, ClockType) => true
+      case (AsyncResetType, AsyncResetType) => true
+      case (ResetType, tpe) => legalResetType(tpe)
+      case (tpe, ResetType) => legalResetType(tpe)
       case (_: FixedType, _: FixedType) => true
       case (_: IntervalType, _: IntervalType) => true
       // Analog totally skips out of the Firrtl type system.
@@ -214,17 +224,29 @@ class WrappedType(val t: Type) {
       // Ohterwise, we'd need to special case it during ExpandWhens, Lowering,
       // ExpandConnects, etc.
       case (_: AnalogType, _: AnalogType) => false
-      case (t1: VectorType, t2: VectorType) =>
-        t1.size == t2.size && wt(t1.tpe) == wt(t2.tpe)
-      case (t1: BundleType, t2: BundleType) =>
-        t1.fields.size == t2.fields.size && (
-        (t1.fields zip t2.fields) forall { case (f1, f2) =>
-          f1.flip == f2.flip && f1.name == f2.name
-        }) && ((t1.fields zip t2.fields) forall { case (f1, f2) =>
-          wt(f1.tpe) == wt(f2.tpe)
-        })
+      case (sink: VectorType, source: VectorType) =>
+        sink.size == source.size && compare(sink.tpe, source.tpe)
+      case (sink: BundleType, source: BundleType) =>
+        (sink.fields.size == source.fields.size) &&
+        sink.fields.zip(source.fields).forall { case (f1, f2) =>
+          (f1.flip == f2.flip) && (f1.name == f2.name) && (f1.flip match {
+            case Default => compare(f1.tpe, f2.tpe)
+            // We allow UInt<1> and AsyncReset to drive Reset but not the other way around
+            case Flip    => compare(f2.tpe, f1.tpe)
+          })
+        }
       case _ => false
     }
+}
+class WrappedType(val t: Type) {
+  def wt(tx: Type) = new WrappedType(tx)
+  // TODO Better name?
+  /** Strict comparison except Reset accepts AsyncReset, Reset, and `UInt<1>`
+    */
+  def superTypeOf(that: WrappedType): Boolean = WrappedType.compare(this.t, that.t)
+
+  override def equals(o: Any): Boolean = o match {
+    case (t2: WrappedType) => WrappedType.compare(this.t, t2.t)
     case _ => false
   }
 }
@@ -269,7 +291,7 @@ case class CDefMemory(
     info: Info,
     name: String,
     tpe: Type,
-    size: Int,
+    size: BigInt,
     seq: Boolean) extends Statement with HasInfo {
   def serialize: String = (if (seq) "smem" else "cmem") +
     s" $name : ${tpe.serialize} [$size]" + info.serialize

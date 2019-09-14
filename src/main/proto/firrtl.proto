@@ -110,7 +110,10 @@ message Firrtl {
       // Required.
       Type type = 2;
       // Required.
-      uint32 depth = 3;
+      oneof depth {
+        uint32 uint_depth = 3;
+        BigInt bigint_depth = 9;
+      }
       // Required.
       uint32 write_latency = 4;
       // Required.
@@ -121,10 +124,18 @@ message Firrtl {
     }
 
     message CMemory {
+      // As alternative to using VectorType as type
+      message TypeAndDepth {
+        Type data_type = 1;
+        BigInt depth = 2;
+      }
       // Required.
       string id = 1;
       // Required.
-      Type.VectorType type = 2;
+      oneof type {
+        Type.VectorType vector_type = 2;
+        TypeAndDepth type_and_depth = 4;
+      }
       // Required.
       bool sync_read = 3;
     }
@@ -262,6 +273,18 @@ message Firrtl {
       // Empty.
     }
 
+    message AsyncResetType {
+      // Empty.
+    }
+
+    message ResetType {
+      // Empty.
+    }
+
+    message IntervalType {
+      // Empty.
+    }
+
     message BundleType {
       message Field {
         // Required.
@@ -299,6 +322,9 @@ message Firrtl {
       VectorType vector_type = 6;
       FixedType fixed_type = 7;
       AnalogType analog_type = 8;
+      AsyncResetType async_reset_type = 9;
+      ResetType reset_type = 10;
+      IntervalType interval_type = 11;
     }
   }
 
@@ -425,10 +451,11 @@ message Firrtl {
         OP_SHIFT_BINARY_POINT_LEFT = 35;
         OP_SHIFT_BINARY_POINT_RIGHT = 36;
         OP_SET_BINARY_POINT = 37;
-        OP_AS_INTERVAL = 38;
-        OP_WRAP = 39;
-        OP_CLIP = 40;
-        OP_SQUEEZE = 41;
+        OP_AS_ASYNC_RESET = 38;
+        OP_AS_INTERVAL = 39;
+        OP_WRAP = 40;
+        OP_CLIP = 41;
+        OP_SQUEEZE = 42;
       }
 
       // Required.

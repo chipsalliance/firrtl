@@ -7,10 +7,8 @@ import scala.util.{Try, Failure}
 import org.json4s._
 import org.json4s.native.JsonMethods._
 import org.json4s.native.Serialization
-import org.json4s.native.Serialization.{read, write, writePretty}
+import org.json4s.native.Serialization.{read, writePretty}
 
-import firrtl.ir._
-import firrtl.Utils.error
 
 object JsonProtocol {
   class TransformClassSerializer extends CustomSerializer[Class[_ <: Transform]](format => (
@@ -39,13 +37,16 @@ object JsonProtocol {
       try {
         Class.forName(s).asInstanceOf[Class[_ <: Transform]].newInstance()
       } catch {
-        case e: java.lang.InstantiationException => throw new FIRRTLException(
+        case e: java.lang.InstantiationException => throw new FirrtlInternalException(
           "NoSuchMethodException during construction of serialized Transform. Is your Transform an inner class?", e)
         case t: Throwable => throw t
       }},
     { case x: Transform => JString(x.getClass.getName) }
   ))
-
+  class LoadMemoryFileTypeSerializer extends CustomSerializer[MemoryLoadFileType](format => (
+    { case JString(s) => MemoryLoadFileType.deserialize(s) },
+    { case named: MemoryLoadFileType => JString(named.serialize) }
+  ))
 
   class TargetSerializer extends CustomSerializer[Target](format => (
     { case JString(s) => Target.deserialize(s) },
@@ -78,7 +79,8 @@ object JsonProtocol {
       new TransformClassSerializer + new NamedSerializer + new CircuitNameSerializer +
       new ModuleNameSerializer + new ComponentNameSerializer + new TargetSerializer +
       new GenericTargetSerializer + new CircuitTargetSerializer + new ModuleTargetSerializer +
-      new InstanceTargetSerializer + new ReferenceTargetSerializer + new TransformSerializer
+      new InstanceTargetSerializer + new ReferenceTargetSerializer + new TransformSerializer  +
+      new LoadMemoryFileTypeSerializer
   }
 
   /** Serialize annotations to a String for emission */
@@ -111,10 +113,11 @@ object JsonProtocol {
     // Translate some generic errors to specific ones
     case e: java.lang.ClassNotFoundException =>
       Failure(new AnnotationClassNotFoundException(e.getMessage))
-    case e: org.json4s.ParserUtil.ParseException =>
+    // Eat the stack traces of json4s exceptions
+    case e @ (_: org.json4s.ParserUtil.ParseException | _: org.json4s.MappingException) =>
       Failure(new InvalidAnnotationJSONException(e.getMessage))
   }.recoverWith { // If the input is a file, wrap in InvalidAnnotationFileException
-    case e => in match {
+    case e: FirrtlUserException => in match {
       case FileInput(file) =>
         Failure(new InvalidAnnotationFileException(file, e))
       case _ => Failure(e)

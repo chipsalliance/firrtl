@@ -11,19 +11,18 @@ import firrtl.WrappedExpression._
 
 import annotation.tailrec
 import collection.mutable
-import collection.immutable.ListSet
 
 /** Expand Whens
-*
-* This pass does the following things:
-* $ - Remove last connect semantics
-* $ - Remove conditional blocks
-* $ - Eliminate concept of scoping
-* $ - Consolidate attaches
-*
-* @note Assumes bulk connects and isInvalids have been expanded
-* @note Assumes all references are declared
-*/
+  *
+  * This pass does the following things:
+  * $ - Remove last connect semantics
+  * $ - Remove conditional blocks
+  * $ - Eliminate concept of scoping
+  * $ - Consolidate attaches
+  *
+  * @note Assumes bulk connects and isInvalids have been expanded
+  * @note Assumes all references are declared
+  */
 object ExpandWhens extends Pass {
   /** Returns circuit with when and last connection semantics resolved */
   def run(c: Circuit): Circuit = {
@@ -73,29 +72,34 @@ object ExpandWhens extends Pass {
   def expandWhens(m: Module): (Netlist, Simlist, Seq[Attach], Statement, InfoMap) = {
     val namespace = Namespace(m)
     val simlist = new Simlist
+
+    // Memoizes if an expression contains any WVoids inserted in this pass
+    val memoizedVoid = new mutable.HashSet[MemoizedHash[Expression]] += WVoid
+
+    // Memoizes the node that holds a particular expression, if any
     val nodes = new NodeMap
+
     // Seq of attaches in order
     lazy val attaches = mutable.ArrayBuffer.empty[Attach]
 
     val infoMap: InfoMap = new InfoMap
 
-    /**
-      * Adds into into map, aggregates info into MultiInfo where necessary
-      * @param key  serialized name of node
-      * @param info info being recorded
-      */
+    /* Adds into into map, aggregates info into MultiInfo where necessary
+     * @param key  serialized name of node
+     * @param info info being recorded
+     */
     def saveInfo(key: String, info: Info): Unit = {
       infoMap(key) = infoMap(key) ++ info
     }
 
-    /** Removes connections/attaches from the statement
-      * Mutates namespace, simlist, nodes, attaches
-      * Mutates input netlist
-      * @param netlist maps references to their values for a given immediate scope
-      * @param defaults sequence of netlists of surrouding scopes, ordered closest to farthest
-      * @param p predicate so far, used to update simulation constructs
-      * @param s statement to expand
-      */
+    /* Removes connections/attaches from the statement
+     * Mutates namespace, simlist, nodes, attaches
+     * Mutates input netlist
+     * @param netlist maps references to their values for a given immediate scope
+     * @param defaults sequence of netlists of surrouding scopes, ordered closest to farthest
+     * @param p predicate so far, used to update simulation constructs
+     * @param s statement to expand
+     */
     def expandWhens(netlist: Netlist,
                     defaults: Defaults,
                     p: Expression)
@@ -137,13 +141,13 @@ object ExpandWhens extends Pass {
         EmptyStmt
       // Expand conditionally, see comments below
       case sx: Conditionally =>
-        /** 1) Recurse into conseq and alt with empty netlist, updated defaults, updated predicate
-          * 2) For each assigned reference (lvalue) in either conseq or alt, get merged value
-          *   a) Find default value from defaults
-          *   b) Create Mux, ValidIf or WInvalid, depending which (or both) conseq/alt assigned lvalue
-          * 3) If a merged value has been memoized, update netlist. Otherwise, memoize then update netlist.
-          * 4) Return conseq and alt declarations, followed by memoized nodes
-          */
+        /* 1) Recurse into conseq and alt with empty netlist, updated defaults, updated predicate
+         * 2) For each assigned reference (lvalue) in either conseq or alt, get merged value
+         *   a) Find default value from defaults
+         *   b) Create Mux, ValidIf or WInvalid, depending which (or both) conseq/alt assigned lvalue
+         * 3) If a merged value has been memoized, update netlist. Otherwise, memoize then update netlist.
+         * 4) Return conseq and alt declarations, followed by memoized nodes
+         */
         val conseqNetlist = new Netlist
         val altNetlist = new Netlist
         val conseqStmt = expandWhens(conseqNetlist, netlist +: defaults, AND(p, sx.pred))(sx.conseq)
@@ -172,7 +176,21 @@ object ExpandWhens extends Pass {
               conseqNetlist getOrElse (lvalue, altNetlist(lvalue))
           }
 
+          // Does an expression contain WVoid inserted in this pass?
+          def containsVoid(e: Expression): Boolean = e match {
+            case WVoid => true
+            case ValidIf(_, value, _) => memoizedVoid(value)
+            case Mux(_, tv, fv, _) => memoizedVoid(tv) || memoizedVoid(fv)
+            case _ => false
+          }
+
           res match {
+            // Don't create a node to hold mux trees with void values
+            // "Idiomatic" emission of these muxes isn't a concern because they represent bad code (latches)
+            case e if containsVoid(e) =>
+              netlist(lvalue) = e
+              memoizedVoid += e   // remember that this was void
+              EmptyStmt
             case _: ValidIf | _: Mux | _: DoPrim => nodes get res match {
               case Some(name) =>
                 netlist(lvalue) = WRef(name, res.tpe, NodeKind, MALE)
@@ -237,7 +255,7 @@ object ExpandWhens extends Pass {
     case class AttachAcc(exprs: Seq[WrappedExpression], idx: Int)
     // Map from every attached expression to its corresponding AttachAcc
     //   (many keys will point to same value)
-    val attachMap = mutable.HashMap.empty[WrappedExpression, AttachAcc]
+    val attachMap = mutable.LinkedHashMap.empty[WrappedExpression, AttachAcc]
     for (Attach(_, es) <- attaches) {
       val exprs = es.map(we(_))
       val acc = exprs.map(attachMap.get(_)).flatten match {
@@ -269,4 +287,3 @@ object ExpandWhens extends Pass {
   private def NOT(e: Expression) =
     DoPrim(Eq, Seq(e, zero), Nil, BoolType)
 }
-

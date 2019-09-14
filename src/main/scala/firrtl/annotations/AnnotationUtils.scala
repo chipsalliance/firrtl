@@ -5,24 +5,19 @@ package annotations
 
 import java.io.File
 
-import org.json4s._
-import org.json4s.native.JsonMethods._
-import org.json4s.native.Serialization
-import org.json4s.native.Serialization.{read, write, writePretty}
 
 import net.jcazevedo.moultingyaml._
 import firrtl.annotations.AnnotationYamlProtocol._
 
 import firrtl.ir._
-import firrtl.Utils.error
 
-case class InvalidAnnotationFileException(file: File, cause: Throwable = null)
-  extends FIRRTLException(s"$file, see cause below", cause)
-case class InvalidAnnotationJSONException(msg: String) extends FIRRTLException(msg)
-case class AnnotationFileNotFoundException(file: File) extends FIRRTLException(
+case class InvalidAnnotationFileException(file: File, cause: FirrtlUserException = null)
+  extends FirrtlUserException(s"$file", cause)
+case class InvalidAnnotationJSONException(msg: String) extends FirrtlUserException(msg)
+case class AnnotationFileNotFoundException(file: File) extends FirrtlUserException(
   s"Annotation file $file not found!"
 )
-case class AnnotationClassNotFoundException(className: String) extends FIRRTLException(
+case class AnnotationClassNotFoundException(className: String) extends FirrtlUserException(
   s"Annotation class $className not found! Please check spelling and classpath"
 )
 
@@ -51,8 +46,8 @@ object AnnotationUtils {
     case Some(_) =>
       val i = s.indexWhere(c => "[].".contains(c))
       s.slice(0, i) match {
-        case "" => Seq(s(i).toString) ++ tokenize(s.drop(i + 1))
-        case x => Seq(x, s(i).toString) ++ tokenize(s.drop(i + 1))
+        case "" => s(i).toString +: tokenize(s.drop(i + 1))
+        case x => x +: s(i).toString +: tokenize(s.drop(i + 1))
       }
     case None if s == "" => Nil
     case None => Seq(s)

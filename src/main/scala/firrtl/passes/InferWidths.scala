@@ -46,6 +46,7 @@ class InferWidths extends Pass {
     case (UIntType(w1), UIntType(w2)) => constraintSolver.addGeq(r1.prettyPrint(""), r2.prettyPrint(""))(w1, w2)
     case (SIntType(w1), SIntType(w2)) => constraintSolver.addGeq(r1.prettyPrint(""), r2.prettyPrint(""))(w1, w2)
     case (ClockType, ClockType) =>
+    case (AsyncResetType, AsyncResetType) => Nil
     case (FixedType(w1, p1), FixedType(w2, p2)) =>
       constraintSolver.addGeq(r1.prettyPrint(""), r2.prettyPrint(""))(p1, p2)
       constraintSolver.addGeq(r1.prettyPrint(""), r2.prettyPrint(""))(w1, w2)
@@ -98,9 +99,20 @@ class InferWidths extends Pass {
       }
       pc
     case r: DefRegister =>
-       addTypeConstraints(Target.asTarget(mt)(r.reset), mt.ref("1"))(r.reset.tpe, UIntType(IntWidth(1)))
-       addTypeConstraints(mt.ref(r.name), Target.asTarget(mt)(r.init))(r.tpe, r.init.tpe)
-       r
+      //MERGE:CHICK: is this right? Master had
+      /*
+      if (s.reset.tpe != AsyncResetType ) {
+        v ++= (
+          get_constraints_t(s.reset.tpe, UIntType(IntWidth(1))) ++
+          get_constraints_t(UIntType(IntWidth(1)), s.reset.tpe))
+      }
+      v ++= get_constraints_t(s.tpe, s.init.tpe)
+      */
+      if (r.reset.tpe != AsyncResetType) {
+        addTypeConstraints(Target.asTarget(mt)(r.reset), mt.ref("1"))(r.reset.tpe, UIntType(IntWidth(1)))
+      }
+      addTypeConstraints(mt.ref(r.name), Target.asTarget(mt)(r.init))(r.tpe, r.init.tpe)
+      r
     case a@Attach(_, exprs) =>
       val widths = exprs map (e => (e, getWidth(e.tpe)))
       val maxWidth = IsMax(widths.map(x => width2constraint(x._2)))
@@ -119,7 +131,7 @@ class InferWidths extends Pass {
     case _ => sys.error("Shouldn't be here")
   }
   private def fixType(t: Type): Type = t map fixType map fixWidth match {
-    case IntervalType(l, u, p) => 
+    case IntervalType(l, u, p) =>
       val (lx, ux) = (constraintSolver.get(l), constraintSolver.get(u)) match {
         case (Some(x: Bound), Some(y: Bound)) => (x, y)
         case (None, None) => (l, u)

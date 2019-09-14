@@ -6,10 +6,10 @@ package transforms
 import firrtl.ir._
 import firrtl.Mappers._
 import firrtl.analyses.InstanceGraph
-import firrtl.annotations.TargetToken.{Instance, OfModule, Ref}
 import firrtl.annotations._
 import firrtl.passes.{InferTypes, MemPortUtils}
 import firrtl.Utils.throwInternalError
+import firrtl.options.{HasShellOptions, ShellOption}
 
 // Datastructures
 import scala.collection.mutable
@@ -18,6 +18,20 @@ import scala.collection.mutable
 /** A component, e.g. register etc. Must be declared only once under the TopAnnotation */
 case class NoDedupAnnotation(target: ModuleName) extends SingleTargetAnnotation[ModuleName] {
   def duplicate(n: ModuleName): NoDedupAnnotation = NoDedupAnnotation(n)
+}
+
+/** If this [[firrtl.annotations.Annotation Annotation]] exists in an [[firrtl.AnnotationSeq AnnotationSeq]],
+  * then the [[firrtl.transforms.DedupModules]] transform will *NOT* be run on the circuit.
+  *  - set with '--no-dedup'
+  */
+case object NoCircuitDedupAnnotation extends NoTargetAnnotation with HasShellOptions {
+
+  val options = Seq(
+    new ShellOption[Unit](
+      longOption = "no-dedup",
+      toAnnotationSeq = _ => Seq(NoCircuitDedupAnnotation),
+      helpText = "Do NOT dedup modules" ) )
+
 }
 
 /** Only use on legal Firrtl.
@@ -34,9 +48,13 @@ class DedupModules extends Transform {
     * @return A transformed Firrtl AST
     */
   def execute(state: CircuitState): CircuitState = {
-    val noDedups = state.annotations.collect { case NoDedupAnnotation(ModuleName(m, c)) => m }
-    val (newC, renameMap) = run(state.circuit, noDedups, state.annotations)
-    state.copy(circuit = newC, renames = Some(renameMap))
+    if (state.annotations.contains(NoCircuitDedupAnnotation)) {
+      state
+    } else {
+      val noDedups = state.annotations.collect { case NoDedupAnnotation(ModuleName(m, c)) => m }
+      val (newC, renameMap) = run(state.circuit, noDedups, state.annotations)
+      state.copy(circuit = newC, renames = Some(renameMap))
+    }
   }
 
   /** Deduplicates a circuit, and records renaming
@@ -217,7 +235,6 @@ object DedupModules {
     val instances = mutable.Set[WDefInstance]()
     InstanceGraph.collectInstances(instances)(module.asInstanceOf[Module].body)
     val instanceModuleMap = instances.map(i => i.name -> i.module).toMap
-    val moduleNames = instances.map(_.module)
 
     def getNewModule(old: String): DefModule = {
       moduleMap(name2name(old))
@@ -373,13 +390,17 @@ object DedupModules {
       val iGraph = new InstanceGraph(circuit)
       (iGraph.moduleMap, iGraph.moduleOrder.reverse)
     }
-    val top = CircuitTarget(circuit.main)
-
+    val main = circuit.main
+    val top = CircuitTarget(main)
     val (tag2all, tagMap) = buildRTLTags(top, moduleLinearization, noDedups, annotations)
 
     // Set tag2name to be the best dedup module name
     val moduleIndex = circuit.modules.zipWithIndex.map{case (m, i) => m.name -> i}.toMap
-    def order(l: String, r: String): String = if (moduleIndex(l) < moduleIndex(r)) l else r
+    def order(l: String, r: String): String = {
+      if (l == main) l
+      else if (r == main) r
+      else if (moduleIndex(l) < moduleIndex(r)) l else r
+    }
 
     // Maps a module's tag to its deduplicated module
     val tag2name = mutable.HashMap.empty[String, String]
