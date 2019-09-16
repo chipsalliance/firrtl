@@ -40,6 +40,7 @@ object CheckWidths extends Pass {
   class AttachWidthsNotEqual(info: Info, mname: String, eName: String, source: String) extends PassException(
     s"$info: [target $mname] Attach source $source and expression $eName must have identical widths.")
 
+  //scalastyle:off cyclomatic.complexity method.length
   def run(c: Circuit): Circuit = {
     val errors = new Errors()
 

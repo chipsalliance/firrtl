@@ -10,6 +10,7 @@ import Implicits.{constraint2bound, constraint2width, width2constraint}
 import firrtl.constraint._
 
 /** Definitions and Utility functions for [[ir.PrimOp]]s */
+//scalastyle:off method.length number.of.methods
 object PrimOps extends LazyLogging {
   def t1(e: DoPrim) = e.args.head.tpe
   def t2(e: DoPrim) = e.args(1).tpe
@@ -160,8 +161,6 @@ object PrimOps extends LazyLogging {
       case _ => UnknownType
     }
     override def toString = "pad" }
-  /** Interpret As AsyncReset */
-  case object AsAsyncReset extends PrimOp { override def toString = "asAsyncReset" }
   /** Static Shift Left */
   case object Shl extends PrimOp {
     override def propagateType(e: DoPrim): Type = t1(e) match {
@@ -380,8 +379,11 @@ object PrimOps extends LazyLogging {
       case _: SIntType => UIntType(w1(e))
       case _: FixedType => UIntType(w1(e))
       case ClockType => UIntType(IntWidth(1))
+      case AsyncResetType => UIntType(IntWidth(1))
+      case ResetType => UIntType(IntWidth(1))
       case AnalogType(w) => UIntType(w1(e))
-      case _: IntervalType => UIntType(w1(e))
+      case _: IntervalType =>
+        UIntType(w1(e))
       case _ => UnknownType
     }
     override def toString = "asUInt"
@@ -393,11 +395,27 @@ object PrimOps extends LazyLogging {
       case _: SIntType => SIntType(w1(e))
       case _: FixedType => SIntType(w1(e))
       case ClockType => SIntType(IntWidth(1))
+      case AsyncResetType => SIntType(IntWidth(1))
+      case ResetType => SIntType(IntWidth(1))
       case _: AnalogType => SIntType(w1(e))
       case _: IntervalType => SIntType(w1(e))
       case _ => UnknownType
     }
     override def toString = "asSInt"
+  }
+  /** Interpret As AsyncReset */
+  case object AsAsyncReset extends PrimOp {
+    override def propagateType(e: DoPrim): Type = t1(e) match {
+      case _: UIntType => AsyncResetType
+      case _: SIntType => AsyncResetType
+      case ClockType => AsyncResetType
+      case AsyncResetType => AsyncResetType
+      case ResetType => AsyncResetType
+      case _: AnalogType => AsyncResetType
+      case _: IntervalType => AsyncResetType
+      case _ => UnknownType
+    }
+    override def toString = "asAsyncReset"
   }
   /** Interpret As Clock */
   case object AsClock extends PrimOp {
@@ -405,6 +423,8 @@ object PrimOps extends LazyLogging {
       case _: UIntType => ClockType
       case _: SIntType => ClockType
       case ClockType => ClockType
+      case AsyncResetType => ClockType
+      case ResetType => ClockType
       case _: AnalogType => ClockType
       case _: IntervalType => ClockType
       case _ => UnknownType
@@ -418,6 +438,8 @@ object PrimOps extends LazyLogging {
       case _: SIntType => FixedType(w1(e), c1(e))
       case _: FixedType => FixedType(w1(e), c1(e))
       case ClockType => FixedType(IntWidth(1), c1(e))
+      case AsyncResetType => FixedType(IntWidth(1), c1(e))
+      case ResetType => FixedType(IntWidth(1), c1(e))
       case _: AnalogType => FixedType(w1(e), c1(e))
       case _: IntervalType => FixedType(w1(e), c1(e))
       case _ => UnknownType
@@ -483,10 +505,10 @@ object PrimOps extends LazyLogging {
   def MAX(w1: Width, w2: Width): Constraint = IsMax(w1, w2)
   def MINUS(w1: Width, w2: Width): Constraint = IsAdd(w1, IsNeg(w2))
   def MIN(w1: Width, w2: Width): Constraint = IsMin(w1, w2)
-  def POW (w1:Width) : Width = w1 match {
-    case IntWidth(i) => IntWidth(pow_minus_one(BigInt(2), i))
-    case _ => ExpWidth(w1)
-  }
+//  def POW (w1:Width) : Width = w1 match {
+//    case IntWidth(i) => IntWidth(pow_minus_one(BigInt(2), i))
+//    case _ => ExpWidth(w1)
+//  }
 
   def set_primop_type(e: DoPrim): DoPrim = DoPrim(e.op, e.args, e.consts, e.op.propagateType(e))
 

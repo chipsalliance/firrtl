@@ -8,8 +8,28 @@ import firrtl.ir._
 import firrtl.Utils._
 import firrtl.Mappers._
 import firrtl.Implicits.width2constraint
-import firrtl.annotations.{CircuitTarget, ModuleTarget, ReferenceTarget, Target}
+import firrtl.annotations.{Annotation, CircuitTarget, ModuleTarget, ReferenceTarget, Target}
 import firrtl.constraint.{ConstraintSolver, IsMax}
+
+case class WidthGeqConstraintAnnotation(loc: ReferenceTarget, exp: ReferenceTarget) extends Annotation {
+  def update(renameMap: RenameMap): Seq[WidthGeqConstraintAnnotation] = {
+    val newLoc :: newExp :: Nil = Seq(loc, exp).map { target =>
+      renameMap.get(target) match {
+        case None => Some(target)
+        case Some(Seq()) => None
+        case Some(Seq(one)) => Some(one)
+        case Some(many) =>
+          throw new Exception(s"Target below is an AggregateType, which " +
+            "is not supported by WidthGeqConstraintAnnotation\n" + target.prettyPrint())
+      }
+    }
+
+    (newLoc, newExp) match {
+      case (Some(l: ReferenceTarget), Some(e: ReferenceTarget)) => Seq(WidthGeqConstraintAnnotation(l, e))
+      case _ => Seq.empty
+    }
+  }
+}
 
 object InferWidths {
   def apply(): InferWidths = new InferWidths()
@@ -39,14 +59,22 @@ object InferWidths {
   *
   * Uses firrtl.constraint package to infer widths
   */
+//scalastyle:off cyclomatic.complexity method.length
 class InferWidths extends Pass {
   private val constraintSolver = new ConstraintSolver()
 
+  //TODO:MERGE:CHICK Had to add combinatorics on UInt and ResetType|AsyncResetType to get tests to pass
   private def addTypeConstraints(r1: ReferenceTarget, r2: ReferenceTarget)(t1: Type, t2: Type): Unit = (t1,t2) match {
     case (UIntType(w1), UIntType(w2)) => constraintSolver.addGeq(r1.prettyPrint(""), r2.prettyPrint(""))(w1, w2)
+    case (UIntType(w1), ResetType) =>
+    case (UIntType(w1), AsyncResetType) =>
     case (SIntType(w1), SIntType(w2)) => constraintSolver.addGeq(r1.prettyPrint(""), r2.prettyPrint(""))(w1, w2)
     case (ClockType, ClockType) =>
     case (AsyncResetType, AsyncResetType) => Nil
+    case (AsyncResetType, ResetType) => Nil
+    case (ResetType, UIntType(w2)) =>
+    case (ResetType, ResetType) =>
+    case (ResetType, AsyncResetType) =>
     case (FixedType(w1, p1), FixedType(w2, p2)) =>
       constraintSolver.addGeq(r1.prettyPrint(""), r2.prettyPrint(""))(p1, p2)
       constraintSolver.addGeq(r1.prettyPrint(""), r2.prettyPrint(""))(w1, w2)
@@ -99,7 +127,7 @@ class InferWidths extends Pass {
       }
       pc
     case r: DefRegister =>
-      //MERGE:CHICK: is this right? Master had
+      //TODO:MERGE:CHICK: is this right? Master had
       /*
       if (s.reset.tpe != AsyncResetType ) {
         v ++= (

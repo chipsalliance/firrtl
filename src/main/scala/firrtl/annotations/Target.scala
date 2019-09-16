@@ -3,7 +3,7 @@
 package firrtl
 package annotations
 
-import firrtl.ir.{Expression, Type}
+import firrtl.ir._
 import firrtl.Utils.{sub_type, field_type}
 import AnnotationUtils.{toExp, validComponentName, validModuleName}
 import TargetToken._
@@ -41,7 +41,7 @@ sealed trait Target extends Named {
       case Ref(r) => s">$r"
       case Instance(i) => s"/$i"
       case OfModule(o) => s":$o"
-      case Field(f) => s".$f"
+      case TargetToken.Field(f) => s".$f"
       case Index(v) => s"[$v]"
       case Clock => s"@clock"
       case Reset => s"@reset"
@@ -67,7 +67,7 @@ sealed trait Target extends Named {
       case Ref(r) => val rx = s"""\n$tab${" "*depth}└── $r"""; depth += 4; rx
       case Instance(i) => val ix = s"""\n$tab${" "*depth}└── inst $i """; ix
       case OfModule(o) => val ox = s"of $o:"; depth += 4; ox
-      case Field(f) => s".$f"
+      case TargetToken.Field(f) => s".$f"
       case Index(v) => s"[$v]"
       case Clock => s"@clock"
       case Reset => s"@reset"
@@ -146,7 +146,7 @@ object Target {
     subComps += Ref(tokens.head)
     if(tokens.tail.nonEmpty) {
       tokens.tail.zip(tokens.tail.tail).foreach {
-        case (".", value: String) => subComps += Field(value)
+        case (".", value: String) => subComps += TargetToken.Field(value)
         case ("[", value: String) => subComps += Index(value.toInt)
         case other =>
       }
@@ -176,7 +176,7 @@ object Target {
         case '/' => t.add(Instance(value))
         case ':' => t.add(OfModule(value))
         case '>' => t.add(Ref(value))
-        case '.' => t.add(Field(value))
+        case '.' => t.add(TargetToken.Field(value))
         case '[' if value.dropRight(1).toInt >= 0 => t.add(Index(value.dropRight(1).toInt))
         case '@' if value == "clock" => t.add(Clock)
         case '@' if value == "init" => t.add(Init)
@@ -281,7 +281,7 @@ case class GenericTarget(circuitOpt: Option[String],
       case _: Instance  => requireLast(true, "inst", "of")
       case _: OfModule  => requireLast(false, "inst")
       case _: Ref       => requireLast(true, "inst", "of")
-      case _: Field     => requireLast(true, "ref", "[]", ".", "init", "clock", "reset")
+      case _: TargetToken.Field     => requireLast(true, "ref", "[]", ".", "init", "clock", "reset")
       case _: Index     => requireLast(true, "ref", "[]", ".", "init", "clock", "reset")
       case Init         => requireLast(true, "ref", "[]", ".", "init", "clock", "reset")
       case Clock        => requireLast(true, "ref", "[]", ".", "init", "clock", "reset")
@@ -444,7 +444,7 @@ trait IsComponent extends IsMember {
         case Ref(_) :: tail if Target.isOnly(tail, ".", "[]") =>
           val name = tokens.foldLeft(""){
             case ("", Ref(name)) => name
-            case (string, Field(value)) => s"$string.$value"
+            case (string, TargetToken.Field(value)) => s"$string.$value"
             case (string, Index(value)) => s"$string[$value]"
           }
           ComponentName(name, mn)
@@ -559,7 +559,9 @@ case class ReferenceTarget(circuit: String,
   /** @param value Field name of this target
     * @return A new [[ReferenceTarget]] to the specified field of this [[ReferenceTarget]]
     */
-  def field(value: String): ReferenceTarget = ReferenceTarget(circuit, module, path, ref, component :+ Field(value))
+  def field(value: String): ReferenceTarget = {
+    ReferenceTarget(circuit, module, path, ref, component :+ TargetToken.Field(value))
+  }
 
   /** @return The initialization value of this reference, must be to a [[firrtl.ir.DefRegister]] */
   def init: ReferenceTarget = ReferenceTarget(circuit, module, path, ref, component :+ Init)
@@ -570,7 +572,7 @@ case class ReferenceTarget(circuit: String,
   /** @return The clock signal of this reference, must be to a [[firrtl.ir.DefRegister]] */
   def clock: ReferenceTarget = ReferenceTarget(circuit, module, path, ref, component :+ Clock)
 
-  /** @param the type of this target's ref
+  /** @param baseType type of this target's ref
     * @return the type of the subcomponent specified by this target's component
     */
   def componentType(baseType: Type): Type = componentType(baseType, tokens)
@@ -581,7 +583,7 @@ case class ReferenceTarget(circuit: String,
     } else {
       val headType = tokens.head match {
         case Index(idx) => sub_type(baseType)
-        case Field(field) => field_type(baseType, field)
+        case TargetToken.Field(field) => field_type(baseType, field)
         case _: Ref => baseType
       }
       componentType(headType, tokens.tail)

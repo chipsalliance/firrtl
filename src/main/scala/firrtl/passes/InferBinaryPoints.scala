@@ -2,7 +2,7 @@
 
 package firrtl.passes
 
-import firrtl.ir._
+import firrtl.ir.{AsyncResetType, _}
 import firrtl.Utils._
 import firrtl.Mappers._
 import firrtl.annotations.{CircuitTarget, ModuleTarget, ReferenceTarget, Target}
@@ -11,25 +11,36 @@ import firrtl.constraint.ConstraintSolver
 class InferBinaryPoints extends Pass {
   private val constraintSolver = new ConstraintSolver()
 
-  private def addTypeConstraints(r1: ReferenceTarget, r2: ReferenceTarget)(t1: Type, t2: Type): Unit = (t1,t2) match {
-    case (UIntType(w1), UIntType(w2)) =>
-    case (SIntType(w1), SIntType(w2)) =>
-    case (ClockType, ClockType) =>
-    case (FixedType(w1, p1), FixedType(w2, p2)) =>
-      constraintSolver.addGeq(r1.prettyPrint(""), r2.prettyPrint(""))(p1, p2)
-    case (IntervalType(l1, u1, p1), IntervalType(l2, u2, p2)) =>
-      constraintSolver.addGeq(r1.prettyPrint(""), r2.prettyPrint(""))(p1, p2)
-    case (AnalogType(w1), AnalogType(w2)) =>
-    case (t1: BundleType, t2: BundleType) =>
-      (t1.fields zip t2.fields) foreach { case (f1, f2) =>
-        (f1.flip, f2.flip) match {
-          case (Default, Default) => addTypeConstraints(r1.field(f1.name), r2.field(f2.name))(f1.tpe, f2.tpe)
-          case (Flip, Flip) => addTypeConstraints(r2.field(f2.name), r1.field(f1.name))(f2.tpe, f1.tpe)
-          case _ => sys.error("Shouldn't be here")
+  //TODO:MERGE:CHICK Had to add combinatorics on UInt and ResetType|AsyncResetType to get tests to pass
+  private def addTypeConstraints(r1: ReferenceTarget, r2: ReferenceTarget)(t1: Type, t2: Type): Unit = {
+    (t1,t2) match {
+      case (UIntType(w1), UIntType(w2)) =>
+      case (UIntType(w1), ResetType) =>
+      case (UIntType(w1), AsyncResetType) =>
+      case (SIntType(w1), SIntType(w2)) =>
+      case (ClockType, ClockType) =>
+      case (FixedType(w1, p1), FixedType(w2, p2)) =>
+        constraintSolver.addGeq(r1.prettyPrint(""), r2.prettyPrint(""))(p1, p2)
+      case (IntervalType(l1, u1, p1), IntervalType(l2, u2, p2)) =>
+        constraintSolver.addGeq(r1.prettyPrint(""), r2.prettyPrint(""))(p1, p2)
+      case (AnalogType(w1), AnalogType(w2)) =>
+      case (ResetType, UIntType(w2)) =>
+      case (ResetType, ResetType) =>
+      case (ResetType, AsyncResetType) =>
+      case (AsyncResetType, ResetType) =>
+      case (AsyncResetType, AsyncResetType) =>
+      case (t1: BundleType, t2: BundleType) =>
+        (t1.fields zip t2.fields) foreach { case (f1, f2) =>
+          (f1.flip, f2.flip) match {
+            case (Default, Default) => addTypeConstraints(r1.field(f1.name), r2.field(f2.name))(f1.tpe, f2.tpe)
+            case (Flip, Flip) => addTypeConstraints(r2.field(f2.name), r1.field(f1.name))(f2.tpe, f1.tpe)
+            case _ => sys.error("Shouldn't be here")
+          }
         }
-      }
-    case (t1: VectorType, t2: VectorType) => addTypeConstraints(r1.index(0), r2.index(0))(t1.tpe, t2.tpe)
-    case other => throwInternalError(s"Illegal compiler state: cannot constraint different types - $other")
+      case (t1: VectorType, t2: VectorType) => addTypeConstraints(r1.index(0), r2.index(0))(t1.tpe, t2.tpe)
+      case other =>
+        throwInternalError(s"Illegal compiler state: cannot constraint different types - $other")
+    }
   }
   private def addDecConstraints(t: Type): Type = t map addDecConstraints
   private def addStmtConstraints(mt: ModuleTarget)(s: Statement): Statement = s map addDecConstraints match {

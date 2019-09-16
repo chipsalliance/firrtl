@@ -141,7 +141,7 @@ trait CheckHighFormLike {
       t foreach checkHighFormT(info, mname)
       t match {
         case tx: VectorType if tx.size < 0 => errors.append(new NegVecSizeException(info, mname))
-        case i: IntervalType => i
+        case i: IntervalType =>
         case _ => t foreach checkHighFormW(info, mname)
       }
     }
@@ -168,7 +168,7 @@ trait CheckHighFormLike {
         case ex: WSubAccess => validSubexp(info, mname)(ex.expr)
         case ex => ex foreach validSubexp(info, mname)
       }
-      //CHICK:MERGE: INTERVALS BRANCH HAD
+      //TODO:MERGE:CHICK: INTERVALS BRANCH HAD FOLLOWING (make sure it isn't necessary)
       // e foreach checkHighFormW(info, mname + "/" + e.serialize)
       // e foreach checkHighFormT(info, mname + "/" + e.serialize)
 
@@ -293,12 +293,15 @@ object CheckTypes extends Pass {
     s"$info: [module $mname]  Index is not of UIntType.")
   class EnableNotUInt(info: Info, mname: String) extends PassException(
     s"$info: [module $mname]  Enable is not of UIntType.")
-  class InvalidConnect(info: Info, mname: String, con: String, lhs: Expression, rhs: Expression)
-      extends PassException({
-    val ltpe = s"  ${lhs.serialize}: ${lhs.tpe.serialize}"
-    val rtpe = s"  ${rhs.serialize}: ${rhs.tpe.serialize}"
-    s"$info: [module $mname]  Type mismatch in '$con'.\n$ltpe\n$rtpe"
-  })
+//  class InvalidConnect(info: Info, mname: String, con: String, lhs: Expression, rhs: Expression)
+//      extends PassException({
+//    val ltpe = s"  ${lhs.serialize}: ${lhs.tpe.serialize}"
+//    val rtpe = s"  ${rhs.serialize}: ${rhs.tpe.serialize}"
+//    s"$info: [module $mname]  Type mismatch in '$con'.\n$ltpe\n$rtpe"
+//  })
+  class InvalidConnect(info: Info, stmt: Statement, mname: String, lhs: Expression, rhs: Expression) extends PassException(
+    s"""$info: [module $mname]  Type mismatch in "${stmt.serialize}".""" +
+      s" Cannot connect (${rhs.serialize}) of type (${rhs.tpe.serialize}) to (${lhs.serialize}) of type (${lhs.tpe.serialize}).")
   class InvalidRegInit(info: Info, mname: String) extends PassException(
     s"$info: [module $mname]  Type of init must match type of DefRegister.")
   class PrintfArgNotGround(info: Info, mname: String) extends PassException(
@@ -429,15 +432,19 @@ object CheckTypes extends Pass {
       case tx => true
     }
     def check_types_primop(info: Info, mname: String, e: DoPrim): Unit = {
-      def checkAllTypes(exprs: Seq[Expression], okUInt: Boolean, okSInt: Boolean, okClock: Boolean, okFix: Boolean): Unit = {
+      def checkAllTypes(
+                         exprs: Seq[Expression], okUInt: Boolean, okSInt: Boolean,
+                         okClock: Boolean, okFix: Boolean, okInterval: Boolean,
+                         okAsync: Boolean): Unit = {
+
         exprs.foldLeft((false, false, false, false, false, false)) {
-          case ((isUInt, isSInt, isClock, isFix, IsInterval, isAsync), expr) => expr.tpe match {
-            case u: UIntType  => (true, isSInt, isClock, isFix, isInterval, IsAsync)
-            case s: SIntType  => (isUInt, true, isClock, isFix, isInterval, IsAsync)
-            case ClockType    => (isUInt, isSInt, true, isFix, isInterval, IsAsync)
-            case f: FixedType => (isUInt, isSInt, isClock, true, isInterval, IsAsync)
+          case ((isUInt, isSInt, isClock, isFix, isInterval, isAsync), expr) => expr.tpe match {
+            case u: UIntType  => (true, isSInt, isClock, isFix, isInterval, isAsync)
+            case s: SIntType  => (isUInt, true, isClock, isFix, isInterval, isAsync)
+            case ClockType    => (isUInt, isSInt, true, isFix, isInterval, isAsync)
+            case f: FixedType => (isUInt, isSInt, isClock, true, isInterval, isAsync)
             case f: IntervalType => (isUInt, isSInt, isClock, isFix, true, isAsync)
-            case AsyncResetType => (isUInt, isSInt, isClock, isFix, ,isInterval, true)
+            case AsyncResetType => (isUInt, isSInt, isClock, isFix, isInterval, true)
             case UnknownType =>
               errors.append(new IllegalUnknownType(info, mname, e.serialize))
               (isUInt, isSInt, isClock, isFix, isInterval, isAsync)
@@ -451,7 +458,8 @@ object CheckTypes extends Pass {
           case (false, false, false, isAll, false, false) if isAll == okFix   =>
           case (false, false, false, false, isAll, false) if isAll == okInterval =>
           case (false, false, false, false, false, isAll) if isAll == okAsync =>
-          case x => errors.append(new OpNotCorrectType(info, mname, e.op.serialize, exprs.map(_.tpe.serialize)))
+          case x =>
+            errors.append(new OpNotCorrectType(info, mname, e.op.serialize, exprs.map(_.tpe.serialize)))
         }
       }
       e.op match {
@@ -465,7 +473,7 @@ object CheckTypes extends Pass {
         case Wrap | Clip | Squeeze =>
           checkAllTypes(e.args, okUInt = false, okSInt = false, okClock = false, okFix = false, okInterval = true, okAsync=false)
         case Pad | Shl | Shr | Cat | Bits | Head | Tail =>
-          checkAllTypes(e.args, okUInt=true, okSInt=true, okClock=false, okFix=true, okInterval = false, okAsync=false)
+          checkAllTypes(e.args, okUInt=true, okSInt=true, okClock=false, okFix=true, okInterval = true, okAsync=false)
         case BPShl | BPShr | BPSet =>
           checkAllTypes(e.args, okUInt=false, okSInt=false, okClock=false, okFix=true, okInterval = true, okAsync=false)
         case _ =>
@@ -525,10 +533,10 @@ object CheckTypes extends Pass {
       s match {
         case sx: Connect if !validConnect(sx) =>
           val conMsg = sx.copy(info = NoInfo).serialize
-          errors.append(new InvalidConnect(info, mname, conMsg, sx.loc, sx.expr))
+          errors.append(new InvalidConnect(info, sx, mname, sx.loc, sx.expr))
         case sx: PartialConnect if !validPartialConnect(sx) =>
           val conMsg = sx.copy(info = NoInfo).serialize
-          errors.append(new InvalidConnect(info, mname, conMsg, sx.loc, sx.expr))
+          errors.append(new InvalidConnect(info, sx, mname, sx.loc, sx.expr))
         case sx: DefRegister =>
           sx.tpe match {
             case AnalogType(_) => errors.append(new IllegalAnalogDeclaration(info, mname, sx.name))
