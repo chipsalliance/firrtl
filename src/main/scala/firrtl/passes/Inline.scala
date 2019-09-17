@@ -206,6 +206,7 @@ class InlineInstances extends Transform with RegisteredTransform {
     }
 
     var renames = RenameMap()
+    val cache = mutable.HashMap.empty[ModuleTarget, Statement]
 
     def onStmt(currentModule: ModuleTarget)(s: Statement): Statement = {
       val currentModuleName = currentModule.module
@@ -220,7 +221,10 @@ class InlineInstances extends Transform with RegisteredTransform {
 
           val ports = toInline.ports.map(p => DefWire(p.info, p.name, p.tpe))
 
-          val bodyx = Block(ports :+ toInline.body) map onStmt(currentModule.copy(module = modName))
+          val bodyx = {
+            val module = currentModule.copy(module = modName)
+            cache.getOrElseUpdate(module, Block(ports :+ toInline.body) map onStmt(module))
+          }
 
           val names = "" +: Uniquify
             .enumerateNames(Uniquify.stmtToType(bodyx)(NoInfo, ""))
@@ -254,7 +258,8 @@ class InlineInstances extends Transform with RegisteredTransform {
 
     val flatCircuit = c.copy(modules = c.modules.flatMap {
       case m if flatModules.contains(m.name) => None
-      case m                                 => Some(m.map(onStmt(ModuleName(m.name, CircuitName(c.main)))))
+      case m                                 =>
+        Some(m.map(onStmt(ModuleName(m.name, CircuitName(c.main)))))
     })
 
     CircuitState(flatCircuit, LowForm, annos, Some(renames))
