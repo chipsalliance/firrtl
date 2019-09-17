@@ -141,6 +141,7 @@ class InlineInstances extends Transform with RegisteredTransform {
     /** Add a prefix to all declarations updating a [[Namespace]] and appending to a [[RenameMap]] */
     def appendNamePrefix(
       currentModule: IsModule,
+      nextModule: IsModule,
       prefix: String,
       ns: Namespace,
       renames: mutable.HashMap[String, String],
@@ -151,17 +152,17 @@ class InlineInstances extends Transform with RegisteredTransform {
         }
         ofModuleOpt match {
           case None =>
-            renameMap.record(currentModule.ref(name), currentModule.ref(prefix + name))
+            renameMap.record(currentModule.ref(name), nextModule.ref(prefix + name))
           case Some(ofModule) =>
-            renameMap.record(currentModule.instOf(name, ofModule), currentModule.instOf(prefix + name, ofModule))
+            renameMap.record(currentModule.instOf(name, ofModule), nextModule.instOf(prefix + name, ofModule))
         }
         renames(name) = prefix + name
         prefix + name
       }
 
       s match {
-        case s: WDefInstance => s.map(onName(Some(s.module))).map(appendNamePrefix(currentModule, prefix, ns, renames, renameMap))
-        case other => s.map(onName(None)).map(appendNamePrefix(currentModule, prefix, ns, renames, renameMap))
+        case s: WDefInstance => s.map(onName(Some(s.module))).map(appendNamePrefix(currentModule, nextModule, prefix, ns, renames, renameMap))
+        case other => s.map(onName(None)).map(appendNamePrefix(currentModule, nextModule, prefix, ns, renames, renameMap))
       }
     }
 
@@ -232,17 +233,16 @@ class InlineInstances extends Transform with RegisteredTransform {
             */
           val safePrefix = Uniquify.findValidPrefix(instName + inlineDelim, names, ns.cloneUnderlying - instName)
 
-          val prefixRenames = RenameMap()
+          val newRenames = RenameMap()
           val prefixMap = mutable.HashMap.empty[String, String]
           val inlineTarget = currentModule.instOf(instName, modName)
           val renamedBody = bodyx
-            .map(appendNamePrefix(inlineTarget, safePrefix, ns, prefixMap, prefixRenames))
+            .map(appendNamePrefix(inlineTarget, currentModule, safePrefix, ns, prefixMap, newRenames))
             .map(appendRefPrefix(inlineTarget, prefixMap))
 
-          val inlineRenames = RenameMap()
-          inlineRenames.record(inlineTarget, currentModule)
+          newRenames.record(inlineTarget, currentModule)
 
-          renames = renames.andThen(prefixRenames).andThen(inlineRenames)
+          renames = renames.andThen(newRenames)
 
           renamedBody
         case sx =>
