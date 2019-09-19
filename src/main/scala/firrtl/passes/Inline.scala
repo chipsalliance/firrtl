@@ -185,40 +185,42 @@ class InlineInstances extends Transform with RegisteredTransform {
 
     val cache = mutable.HashMap.empty[ModuleTarget, Statement]
 
+    /** renamesMap is a map of instances to [[RenameMap]].
+      *  The keys are pairs of enclosing [[OfModule]] and [[Instance]]
+      *  The [[RenameMap]]s in renamesMap are appear in renamesSeq
+      *  in the order that they should be applied
+      */
     val (renamesMap, renamesSeq) = {
       val mutableDiGraph = new MutableDiGraph[(OfModule, Instance)]
-      val visited = new mutable.HashSet[OfModule]
+      // compute instance graph
       instMaps.foreach { case (grandParentOfMod, parents) =>
-        if (!visited(grandParentOfMod)) {
-          parents.foreach { case (parentInst, parentOfMod) =>
-            val from = grandParentOfMod -> parentInst
-            mutableDiGraph.addVertex(from)
-            instMaps(parentOfMod).foreach { case (childInst, _) =>
-              val to = parentOfMod -> childInst
-              mutableDiGraph.addVertex(to)
-              mutableDiGraph.addEdge(from, to)
-            }
+        parents.foreach { case (parentInst, parentOfMod) =>
+          val from = grandParentOfMod -> parentInst
+          mutableDiGraph.addVertex(from)
+          instMaps(parentOfMod).foreach { case (childInst, _) =>
+            val to = parentOfMod -> childInst
+            mutableDiGraph.addVertex(to)
+            mutableDiGraph.addEdge(from, to)
           }
         }
-        visited += grandParentOfMod
       }
 
       val diGraph = DiGraph(mutableDiGraph)
       val subgraph = diGraph.simplify(flatInstances)
       val edges = subgraph.getEdgeMap
 
+      // calculate which [[RenameMap]] should be associated with each instance
       val indexMap = new mutable.HashMap[(OfModule, Instance), Int]
-
       flatInstances.foreach(v => indexMap(v) = 0)
-
       subgraph.linearize.foreach { parent =>
         edges(parent).foreach { child =>
           indexMap(child) = indexMap(parent) + 1
         }
       }
 
-      val resultSeq = Seq.fill(indexMap.values.max + 1)(RenameMap())
-      val resultMap = indexMap.mapValues(idx => resultSeq(idx))
+      val maxIdx = indexMap.values.max
+      val resultSeq = Seq.fill(maxIdx + 1)(RenameMap())
+      val resultMap = indexMap.mapValues(idx => resultSeq(maxIdx - idx))
       (resultMap, resultSeq)
     }
 
@@ -302,12 +304,7 @@ class InlineInstances extends Transform with RegisteredTransform {
         Some(m.map(onStmt(ModuleName(m.name, CircuitName(c.main)))))
     })
 
-    val renames = {
-      val reversed = renamesSeq.reverse
-      reversed.tail.foldLeft(reversed.head) { case (renameMapAcc, renameMap) =>
-        renameMapAcc.andThen(renameMap)
-      }
-    }
+    val renames = renamesSeq.tail.foldLeft(renamesSeq.head)(_ andThen _)
 
     CircuitState(flatCircuit, LowForm, annos, Some(renames))
   }
