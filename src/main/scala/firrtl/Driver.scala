@@ -18,7 +18,7 @@ import firrtl.FileUtils
 
 
 /**
-  * The driver provides methods to access the firrtl compiler.
+  * The Driver provides methods to access the Firrtl compiler.
   * Invoke the compiler with either a FirrtlExecutionOption
   *
   * @example
