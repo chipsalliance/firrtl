@@ -6,7 +6,9 @@ package passes
 import firrtl.ir._
 import firrtl.Mappers._
 import firrtl.annotations._
-import firrtl.analyses.InstanceGraph
+import firrtl.annotations.TargetToken.{Instance, OfModule}
+import firrtl.analyses.{InstanceGraph}
+import firrtl.graph.{DiGraph, MutableDiGraph}
 import firrtl.stage.RunFirrtlTransformAnnotation
 import firrtl.options.{RegisteredTransform, ShellOption}
 
@@ -108,15 +110,15 @@ class InlineInstances extends Transform with RegisteredTransform {
 
 
   def run(c: Circuit, modsToInline: Set[ModuleName], instsToInline: Set[ComponentName], annos: AnnotationSeq): CircuitState = {
-    def getInstancesOf(c: Circuit, modules: Set[String]): Set[String] =
-      c.modules.foldLeft(Set[String]()) { (set, d) =>
+    def getInstancesOf(c: Circuit, modules: Set[String]): Set[(OfModule, Instance)] =
+      c.modules.foldLeft(Set[(OfModule, Instance)]()) { (set, d) =>
         d match {
           case e: ExtModule => set
           case m: Module =>
-            val instances = mutable.HashSet[String]()
+            val instances = mutable.HashSet[(OfModule, Instance)]()
             def findInstances(s: Statement): Statement = s match {
               case WDefInstance(info, instName, moduleName, instTpe) if modules.contains(moduleName) =>
-                instances += m.name + "." + instName
+                instances += (OfModule(m.name) -> Instance(instName))
                 s
               case sx => sx map findInstances
             }
@@ -128,13 +130,13 @@ class InlineInstances extends Transform with RegisteredTransform {
     // Check annotations and circuit match up
     check(c, modsToInline, instsToInline)
     val flatModules = modsToInline.map(m => m.name)
-    val flatInstances = instsToInline.map(i => i.module.name + "." + i.name) ++ getInstancesOf(c, flatModules)
+    val flatInstances: Set[(OfModule, Instance)] = instsToInline.map(i => OfModule(i.module.name) -> Instance(i.name)) ++ getInstancesOf(c, flatModules)
     val iGraph = new InstanceGraph(c)
     val namespaceMap = collection.mutable.Map[String, Namespace]()
     // Map of Module name to Map of instance name to Module name
-    val instMaps: Map[String, Map[String, String]] = {
+    val instMaps: Map[OfModule, Map[Instance, OfModule]] = {
       iGraph.graph.getEdgeMap.view.map { case (mod, children) =>
-        mod.module -> children.view.map(i => i.name -> i.module).toMap
+        OfModule(mod.module) -> children.view.map(i => Instance(i.name) -> OfModule(i.module)).toMap
       }.toMap
     }
 
@@ -181,39 +183,80 @@ class InlineInstances extends Transform with RegisteredTransform {
         s.map(onExpr).map(appendRefPrefix(currentModule, renames))
       }
 
-    def fixupRefs(
-      instMap: Map[String, String],
-      currentModule: IsModule,
-      renames: RenameMap)(e: Expression): Expression = e match {
-      case wsf@ WSubField(wr@ WRef(ref, _, InstanceKind, _), field, tpe, gen) =>
-        val inst = currentModule.instOf(ref, instMap(ref))
-        val port = inst.ref(field)
-        renames.get(port) match {
-          case Some(Seq(p)) =>
-            p match {
-              case ReferenceTarget(_, _, Seq((TargetToken.Instance(r), TargetToken.OfModule(_))), f, Nil) =>
-                wsf.copy(expr = wr.copy(name = r), name = f)
-              case ReferenceTarget(_, _, Nil, r, Nil) => WRef(r, tpe, WireKind, gen)
+    val cache = mutable.HashMap.empty[ModuleTarget, Statement]
+
+    val (renamesMap, renamesSeq) = {
+      val mutableDiGraph = new MutableDiGraph[(OfModule, Instance)]
+      val visited = new mutable.HashSet[OfModule]
+      instMaps.foreach { case (grandParentOfMod, parents) =>
+        if (!visited(grandParentOfMod)) {
+          parents.foreach { case (parentInst, parentOfMod) =>
+            val from = grandParentOfMod -> parentInst
+            mutableDiGraph.addVertex(from)
+            instMaps(parentOfMod).foreach { case (childInst, _) =>
+              val to = parentOfMod -> childInst
+              mutableDiGraph.addVertex(to)
+              mutableDiGraph.addEdge(from, to)
             }
-          case None => wsf
+          }
         }
-      case wr@ WRef(name, _, _, _) =>
-        val comp = currentModule.ref(name) //ComponentName(name, currentModule)
-        renames.get(comp).getOrElse(Seq(comp)) match {
-          case Seq(car: ReferenceTarget) => wr.copy(name=car.ref)
+        visited += grandParentOfMod
+      }
+
+      val diGraph = DiGraph(mutableDiGraph)
+      val subgraph = diGraph.simplify(flatInstances)
+      val edges = subgraph.getEdgeMap
+
+      val indexMap = new mutable.HashMap[(OfModule, Instance), Int]
+
+      flatInstances.foreach(v => indexMap(v) = 0)
+
+      subgraph.linearize.foreach { parent =>
+        edges(parent).foreach { child =>
+          indexMap(child) = indexMap(parent) + 1
         }
-      case ex => ex.map(fixupRefs(instMap, currentModule, renames))
+      }
+
+      val resultSeq = Seq.fill(indexMap.values.max + 1)(RenameMap())
+      val resultMap = indexMap.mapValues(idx => resultSeq(idx))
+      (resultMap, resultSeq)
     }
 
-    var renames = RenameMap()
-    val cache = mutable.HashMap.empty[ModuleTarget, Statement]
+    def fixupRefs(
+      instMap: Map[Instance, OfModule],
+      currentModule: IsModule)(e: Expression): Expression = {
+      e match {
+        case wsf@ WSubField(wr@ WRef(ref, _, InstanceKind, _), field, tpe, gen) =>
+          val inst = currentModule.instOf(ref, instMap(Instance(ref)).value)
+          val renamesOpt = renamesMap.get(OfModule(currentModule.module) -> Instance(inst.instance))
+          val port = inst.ref(field)
+          renamesOpt.flatMap(_.get(port)) match {
+            case Some(Seq(p)) =>
+              p match {
+                case ReferenceTarget(_, _, Seq((TargetToken.Instance(r), TargetToken.OfModule(_))), f, Nil) =>
+                  wsf.copy(expr = wr.copy(name = r), name = f)
+                case ReferenceTarget(_, _, Nil, r, Nil) => WRef(r, tpe, WireKind, gen)
+              }
+            case None => wsf
+          }
+        case wr@ WRef(name, _, InstanceKind, _) =>
+          val inst = currentModule.instOf(name, instMap(Instance(name)).value)
+          val renamesOpt = renamesMap.get(OfModule(currentModule.module) -> Instance(inst.instance))
+          val comp = currentModule.ref(name)
+          renamesOpt.flatMap(_.get(comp)).getOrElse(Seq(comp)) match {
+            case Seq(car: ReferenceTarget) => wr.copy(name=car.ref)
+          }
+        case ex => ex.map(fixupRefs(instMap, currentModule))
+      }
+    }
 
     def onStmt(currentModule: ModuleTarget)(s: Statement): Statement = {
       val currentModuleName = currentModule.module
       val ns = namespaceMap.getOrElseUpdate(currentModuleName, Namespace(iGraph.moduleMap(currentModuleName)))
-      val instMap = instMaps(currentModuleName)
+      val instMap = instMaps(OfModule(currentModuleName))
       s match {
-        case wDef@ WDefInstance(_, instName, modName, _) if flatInstances.contains(s"${currentModuleName}.$instName") =>
+        case wDef@ WDefInstance(_, instName, modName, _) if flatInstances.contains(OfModule(currentModuleName) -> Instance(instName)) =>
+          val renames = renamesMap(OfModule(currentModuleName) -> Instance(instName))
           val toInline = iGraph.moduleMap(modName) match {
             case m: ExtModule => throw new PassException(s"Cannot inline external module ${m.name}")
             case m: Module    => m
@@ -237,21 +280,18 @@ class InlineInstances extends Transform with RegisteredTransform {
             */
           val safePrefix = Uniquify.findValidPrefix(instName + inlineDelim, names, ns.cloneUnderlying - instName)
 
-          val newRenames = RenameMap()
           val prefixMap = mutable.HashMap.empty[String, String]
           val inlineTarget = currentModule.instOf(instName, modName)
           val renamedBody = bodyx
-            .map(appendNamePrefix(inlineTarget, currentModule, safePrefix, ns, prefixMap, newRenames))
+            .map(appendNamePrefix(inlineTarget, currentModule, safePrefix, ns, prefixMap, renames))
             .map(appendRefPrefix(inlineTarget, prefixMap))
 
-          newRenames.record(inlineTarget, currentModule)
-
-          renames = renames.andThen(newRenames)
+          renames.record(inlineTarget, currentModule)
 
           renamedBody
         case sx =>
           sx
-          .map(fixupRefs(instMap, currentModule, renames))
+          .map(fixupRefs(instMap, currentModule))
           .map(onStmt(currentModule))
       }
     }
@@ -261,6 +301,13 @@ class InlineInstances extends Transform with RegisteredTransform {
       case m                                 =>
         Some(m.map(onStmt(ModuleName(m.name, CircuitName(c.main)))))
     })
+
+    val renames = {
+      val reversed = renamesSeq.reverse
+      reversed.tail.foldLeft(reversed.head) { case (renameMapAcc, renameMap) =>
+        renameMapAcc.andThen(renameMap)
+      }
+    }
 
     CircuitState(flatCircuit, LowForm, annos, Some(renames))
   }
