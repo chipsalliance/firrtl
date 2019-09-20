@@ -5,7 +5,7 @@ package transforms
 
 import firrtl._
 import firrtl.annotations._
-import firrtl.annotations.TargetToken.{Instance, OfModule}
+import firrtl.annotations.TargetToken._
 import firrtl.ir._
 import firrtl.Utils._
 import firrtl.Mappers._
@@ -339,7 +339,7 @@ class ConstantPropagation extends Transform with ResolvedAnnotationPaths {
       case ref @ WRef(rname, _,_, SourceFlow) if nodeMap.contains(rname) =>
         constPropNodeRef(ref, nodeMap(rname))
       case ref @ WSubField(WRef(inst, _, InstanceKind, _), pname, _, SourceFlow) =>
-        val module = instMap(Instance(inst))
+        val module = instMap(inst.Instance)
         // Check constSubOutputs to see if the submodule is driving a constant
         constSubOutputs.get(module).flatMap(_.get(pname)).getOrElse(ref)
       case x => x
@@ -495,7 +495,7 @@ class ConstantPropagation extends Transform with ResolvedAnnotationPaths {
         // Mark instance inputs connected to a constant
         case Connect(_, lref @ WSubField(WRef(inst, _, InstanceKind, _), port, ptpe, _), lit: Literal) =>
           val paddedLit = constPropExpression(nodeMap, instMap, constSubOutputs)(pad(lit, ptpe)).asInstanceOf[Literal]
-          val module = instMap(Instance(inst))
+          val module = instMap(inst.Instance)
           val portsMap = constSubInputs.getOrElseUpdate(module, mutable.HashMap.empty)
           portsMap(port) = paddedLit +: portsMap.getOrElse(port, List.empty)
         case _ =>
@@ -533,7 +533,7 @@ class ConstantPropagation extends Transform with ResolvedAnnotationPaths {
     val instCount = iGraph.staticInstanceCount
 
     // DiGraph using Module names as nodes, destination of edge is a parent Module
-    val parentGraph: DiGraph[OfModule] = iGraph.graph.reverse.transformNodes(i => OfModule(i.module))
+    val parentGraph: DiGraph[OfModule] = iGraph.graph.reverse.transformNodes(_.OfModule)
 
     // This outer loop works by applying constant propagation to the modules in a topologically
     // sorted order from leaf to root
@@ -588,10 +588,10 @@ class ConstantPropagation extends Transform with ResolvedAnnotationPaths {
     }
 
     val modulesx = {
-      val nameMap = c.modules.collect { case m: Module => OfModule(m.name) -> m }.toMap
+      val nameMap = c.modules.collect { case m: Module => m.OfModule -> m }.toMap
       // We only pass names of Modules, we can't apply const prop to ExtModules
       val mmap = iterate(nameMap.keySet, nameMap, Map.empty)
-      c.modules.map(m => mmap.getOrElse(OfModule(m.name), m))
+      c.modules.map(m => mmap.getOrElse(m.OfModule, m))
     }
 
 
@@ -600,7 +600,7 @@ class ConstantPropagation extends Transform with ResolvedAnnotationPaths {
 
   def execute(state: CircuitState): CircuitState = {
     val dontTouches: Seq[(OfModule, String)] = state.annotations.collect {
-      case DontTouchAnnotation(Target(_, Some(m), Seq(Ref(c)))) => OfModule(m) -> c
+      case DontTouchAnnotation(Target(_, Some(m), Seq(Ref(c)))) => m.OfModule -> c
     }
     // Map from module name to component names
     val dontTouchMap: Map[OfModule, Set[String]] =

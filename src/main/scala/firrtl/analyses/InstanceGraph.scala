@@ -8,7 +8,7 @@ import firrtl.ir._
 import firrtl.graph._
 import firrtl.Utils._
 import firrtl.traversals.Foreachers._
-import firrtl.annotations.TargetToken.{Instance, OfModule}
+import firrtl.annotations.TargetToken._
 
 
 /** A class representing the instance hierarchy of a working IR Circuit
@@ -71,8 +71,8 @@ class InstanceGraph(c: Circuit) {
     * never directly instantiated.
     */
   lazy val staticInstanceCount: Map[OfModule, Int] = {
-    val instModules = childInstances.flatMap(_._2.view.map(i => OfModule(i.module)).toSeq)
-    instModules.foldLeft(Map(OfModule(c.main) -> 1)) { case (counts, mod) => counts.updated(mod, counts.getOrElse(mod, 0) + 1) }
+    val instModules = childInstances.flatMap(_._2.view.map(_.OfModule).toSeq)
+    instModules.foldLeft(Map(c.main.OfModule -> 1)) { case (counts, mod) => counts.updated(mod, counts.getOrElse(mod, 0) + 1) }
   }
 
   /** Finds the absolute paths (each represented by a Seq of instances
@@ -120,7 +120,7 @@ class InstanceGraph(c: Circuit) {
     * instance/module [[firrtl.annotations.TargetToken]]s
     */
   def getChildrenInstanceOfModule: mutable.LinkedHashMap[String, mutable.LinkedHashSet[(Instance, OfModule)]] =
-    childInstances.map(kv => kv._1 -> kv._2.map(i => (Instance(i.name), OfModule(i.module))))
+    childInstances.map(kv => kv._1 -> kv._2.map(_.toTokens))
 
   // Transforms a TraversableOnce input into an order-preserving map
   // Iterates only once, no intermediate collections
@@ -135,7 +135,7 @@ class InstanceGraph(c: Circuit) {
     * in turn mapping instances names to corresponding module names
     */
   def getChildrenInstanceMap: collection.Map[OfModule, collection.Map[Instance, OfModule]] =
-    childInstances.map(kv => OfModule(kv._1) -> asOrderedMap(kv._2, (i: WDefInstance) => (Instance(i.name), OfModule(i.module))))
+    childInstances.map(kv => kv._1.OfModule -> asOrderedMap(kv._2, (i: WDefInstance) => i.toTokens))
 
 }
 
