@@ -830,8 +830,8 @@ If the read-under-write flag is set to \verb|new|, then a read port always retur
 If the read-under-write flag is set to \verb|undefined|, then the value held by the read port after the appropriate read latency is undefined.
 
 
-For the purpose of defining such collisions, an ``active write port'' is either a write port or readwrite port that is used to initiate a write operation on a given clock edge.
-An ``active read port'' is a read port or readwrite port that is used to initiate a read operation on a given clock edge.
+For the purpose of defining such collisions, an ``active write port'' is a write port or a readwrite port that is used to initiate a write operation on a given clock edge, where \verb|en| is set and, for a readwriter, \verb|wmode| is set.
+An ``active read port'' is a read port or a readwrite port that is used to initiate a read operation on a given clock edge, where \verb|en| is set and, for a readwriter, \verb|wmode| is not set.
 Each operation is defined to be ``active'' for the number of cycles set by its corresponding latency, starting from the cycle where its inputs were provided to its associated port.
 Note that this excludes combinational reads, which are simply modeled as combinationally selecting from stored values
 
