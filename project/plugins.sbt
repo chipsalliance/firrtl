@@ -1,8 +1,8 @@
-resolvers += Resolver.url("scalasbt", new URL("http://scalasbt.artifactoryonline.com/scalasbt/sbt-plugin-releases")) (Resolver.ivyStylePatterns)
+resolvers += Resolver.url("scalasbt", new URL("https://scalasbt.artifactoryonline.com/scalasbt/sbt-plugin-releases")) (Resolver.ivyStylePatterns)
 
 resolvers += Classpaths.sbtPluginReleases
 
-resolvers += "jgit-repo" at "http://download.eclipse.org/jgit/maven"
+resolvers += "jgit-repo" at "https://download.eclipse.org/jgit/maven"
 
 addSbtPlugin("com.typesafe.sbt" % "sbt-site" % "1.3.1")
 
