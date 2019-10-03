@@ -23,7 +23,7 @@ object RemoveAllButClocks extends Pass {
     case _ => EmptyStmt
   }
   def onModule(m: DefModule): DefModule = m match {
-    case Module(i, n, ps, b) => Module(i, n, ps.filter(_.tpe == ClockType), squashEmpty(onStmt(b)))
+    case Module(i, n, ps, b) => Module(i, n, ps.filter(_.tpe == ClockType), onStmt(b))
     case ExtModule(i, n, ps, dn, p) => ExtModule(i, n, ps.filter(_.tpe == ClockType), dn, p)
   }
   def run(c: Circuit): Circuit = c.copy(modules = c.modules map onModule)

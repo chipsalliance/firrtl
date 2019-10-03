@@ -279,8 +279,8 @@ class GroupComponents extends firrtl.Transform {
 
 
     // Build datastructures
-    val newTopBody = Block(labelOrder.map(g => WDefInstance(NoInfo, label2instance(g), label2module(g), UnknownType)) ++ Seq(onStmt(m.body)))
-    val finalTopBody = Block(Utils.squashEmpty(newTopBody).asInstanceOf[Block].stmts.distinct)
+    val newTopStmts = labelOrder.map(g => WDefInstance(NoInfo, label2instance(g), label2module(g), UnknownType)) ++ Seq(onStmt(m.body))
+    val finalTopBody = Block(newTopStmts.distinct)
 
     // For all group labels (not including the original module label), return a new Module.
     val newModules = labelOrder.filter(_ != "") map { group =>

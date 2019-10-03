@@ -175,16 +175,8 @@ object Utils extends LazyLogging {
   /** Removes all [[firrtl.ir.EmptyStmt]] statements and condenses
     * [[firrtl.ir.Block]] statements.
     */
-  def squashEmpty(s: Statement): Statement = s map squashEmpty match {
-    case Block(stmts) =>
-      val newStmts = stmts filter (_ != EmptyStmt)
-      newStmts.size match {
-        case 0 => EmptyStmt
-        case 1 => newStmts.head
-        case _ => Block(newStmts)
-      }
-    case sx => sx
-  }
+  @deprecated("No longer necessary, no-op", "1.3")
+  def squashEmpty(s: Statement): Statement = s
 
   /** Provide a nice name to create a temporary **/
   def niceName(e: Expression): String = niceName(1)(e)

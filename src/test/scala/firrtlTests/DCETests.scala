@@ -17,8 +17,7 @@ class DCETests extends FirrtlFlatSpec {
   // Not using executeTest because it is for positive testing, we need to check that stuff got
   // deleted
   private val customTransforms = Seq(
-    new LowFirrtlOptimization,
-    new SimpleTransform(RemoveEmpty, LowForm)
+    new LowFirrtlOptimization
   )
   private def exec(input: String, check: String, annos: Seq[Annotation] = List.empty): Unit = {
     val state = CircuitState(parse(input), ChirrtlForm, annos)

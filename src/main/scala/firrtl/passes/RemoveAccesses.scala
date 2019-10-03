@@ -157,7 +157,7 @@ class RemoveAccesses extends Pass {
         stmts += sx
         if (stmts.size != 1) Block(stmts) else stmts(0)
       }
-      Module(m.info, m.name, m.ports, squashEmpty(onStmt(m.body)))
+      Module(m.info, m.name, m.ports, onStmt(m.body))
     }
 
     c copy (modules = c.modules map {

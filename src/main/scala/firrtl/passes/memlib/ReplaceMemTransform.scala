@@ -121,7 +121,6 @@ class ReplSeqMem extends Transform with HasShellOptions {
         new CreateMemoryAnnotations(inConfigFile),
         new ReplaceMemMacros(outConfigFile),
         new WiringTransform,
-        new SimpleMidTransform(RemoveEmpty),
         new SimpleMidTransform(CheckInitialization),
         new SimpleMidTransform(InferTypes),
         Uniquify,
