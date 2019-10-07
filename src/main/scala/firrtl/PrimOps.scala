@@ -9,17 +9,17 @@ import firrtl.constraint._
 
 /** Definitions and Utility functions for [[ir.PrimOp]]s */
 object PrimOps extends LazyLogging {
-  def t1(e: DoPrim) = e.args.head.tpe
-  def t2(e: DoPrim) = e.args(1).tpe
-  def t3(e: DoPrim) = e.args(2).tpe
-  def w1(e: DoPrim) = getWidth(t1(e))
-  def w2(e: DoPrim) = getWidth(t2(e))
-  def p1(e: DoPrim) = t1(e) match {
+  def t1(e: DoPrim): Type = e.args.head.tpe
+  def t2(e: DoPrim): Type = e.args(1).tpe
+  def t3(e: DoPrim): Type = e.args(2).tpe
+  def w1(e: DoPrim): Width = getWidth(t1(e))
+  def w2(e: DoPrim): Width = getWidth(t2(e))
+  def p1(e: DoPrim): Width = t1(e) match {
     case FixedType(w, p) => p
     case IntervalType(min, max, p) => p
     case _ => sys.error(s"Cannot get binary point from ${t1(e)}")
   }
-  def p2(e: DoPrim) = t2(e) match {
+  def p2(e: DoPrim): Width = t2(e) match {
     case FixedType(w, p) => p
     case IntervalType(min, max, p) => p
     case _ => sys.error(s"Cannot get binary point from ${t1(e)}")
