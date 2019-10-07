@@ -83,7 +83,7 @@ object CheckWidths extends Pass {
           errors append new UninferredBound(info, target.prettyPrint("    "), "lower")
           errors append new UninferredBound(info, target.prettyPrint("    "), "upper")
           i
-        case other => other
+        case tt => tt foreach check_width_t(info, target)
       }
       t foreach check_width_w(info, target, t)
     }
@@ -136,8 +136,9 @@ object CheckWidths extends Pass {
             case ResetType =>
             case _ => errors.append(new CheckTypes.IllegalResetType(info, target.serialize, sx.name))
           }
-          if(!CheckTypes.connectOk(sx.tpe, sx.init.tpe)) {
-            errors.append(new CheckTypes.InvalidConnect(info, sx, target.module, WRef(sx), sx.init))
+          if(!CheckTypes.validConnect(sx.tpe, sx.init.tpe)) {
+            val conMsg = sx.copy(info = NoInfo).serialize
+            errors.append(new CheckTypes.InvalidConnect(info, target.module, conMsg, WRef(sx), sx.init))
           }
         case _ =>
       }

@@ -376,6 +376,8 @@ object PrimOps extends LazyLogging {
       case _: SIntType => UIntType(w1(e))
       case _: FixedType => UIntType(w1(e))
       case ClockType => UIntType(IntWidth(1))
+      case AsyncResetType => UIntType(IntWidth(1))
+      case ResetType => UIntType(IntWidth(1))
       case AnalogType(w) => UIntType(w1(e))
       case _: IntervalType => UIntType(w1(e))
       case _ => UnknownType
@@ -389,6 +391,8 @@ object PrimOps extends LazyLogging {
       case _: SIntType => SIntType(w1(e))
       case _: FixedType => SIntType(w1(e))
       case ClockType => SIntType(IntWidth(1))
+      case AsyncResetType => SIntType(IntWidth(1))
+      case ResetType => SIntType(IntWidth(1))
       case _: AnalogType => SIntType(w1(e))
       case _: IntervalType => SIntType(w1(e))
       case _ => UnknownType
@@ -401,6 +405,8 @@ object PrimOps extends LazyLogging {
       case _: UIntType => ClockType
       case _: SIntType => ClockType
       case ClockType => ClockType
+      case AsyncResetType => ClockType
+      case ResetType => ClockType
       case _: AnalogType => ClockType
       case _: IntervalType => ClockType
       case _ => UnknownType
@@ -410,7 +416,7 @@ object PrimOps extends LazyLogging {
   /** Interpret As AsyncReset */
   case object AsAsyncReset extends PrimOp {
     override def propagateType(e: DoPrim): Type = t1(e) match {
-      case _: UIntType | _: SIntType | _: AnalogType | ClockType | AsyncResetType | ResetType => AsyncResetType
+      case _: UIntType | _: SIntType | _: AnalogType | ClockType | AsyncResetType | ResetType | _: IntervalType | _: FixedType => AsyncResetType
       case _ => UnknownType
     }
     override def toString = "asAsyncReset"
@@ -423,6 +429,8 @@ object PrimOps extends LazyLogging {
       case _: FixedType => FixedType(w1(e), c1(e))
       case ClockType => FixedType(IntWidth(1), c1(e))
       case _: AnalogType => FixedType(w1(e), c1(e))
+      case AsyncResetType => FixedType(IntWidth(1), c1(e))
+      case ResetType => FixedType(IntWidth(1), c1(e))
       case _: IntervalType => FixedType(w1(e), c1(e))
       case _ => UnknownType
     }
@@ -431,13 +439,9 @@ object PrimOps extends LazyLogging {
   /** Interpret as Interval (closed lower bound, closed upper bound, binary point) **/
   case object AsInterval extends PrimOp {
     override def propagateType(e: DoPrim): Type = t1(e) match {
-      case _: UIntType     => IntervalType(Closed(BigDecimal(o1(e))/BigDecimal(BigInt(1) << o3(e).toInt)), Closed(BigDecimal(o2(e))/BigDecimal(BigInt(1) << o3(e).toInt)), IntWidth(o3(e)))
-      case _: SIntType     => IntervalType(Closed(BigDecimal(o1(e))/BigDecimal(BigInt(1) << o3(e).toInt)), Closed(BigDecimal(o2(e))/BigDecimal(BigInt(1) << o3(e).toInt)), IntWidth(o3(e)))
-      case _: FixedType    => IntervalType(Closed(BigDecimal(o1(e))/BigDecimal(BigInt(1) << o3(e).toInt)), Closed(BigDecimal(o2(e))/BigDecimal(BigInt(1) << o3(e).toInt)), IntWidth(o3(e)))
-      case ClockType       => IntervalType(Closed(BigDecimal(o1(e))/BigDecimal(BigInt(1) << o3(e).toInt)), Closed(BigDecimal(o2(e))/BigDecimal(BigInt(1) << o3(e).toInt)), IntWidth(o3(e)))
-      case _: AnalogType   => IntervalType(Closed(BigDecimal(o1(e))/BigDecimal(BigInt(1) << o3(e).toInt)), Closed(BigDecimal(o2(e))/BigDecimal(BigInt(1) << o3(e).toInt)), IntWidth(o3(e)))
       // Chisel shifts up and rounds first.
-      case _: IntervalType => IntervalType(Closed(BigDecimal(o1(e))/BigDecimal(BigInt(1) << o3(e).toInt)), Closed(BigDecimal(o2(e))/BigDecimal(BigInt(1) << o3(e).toInt)), IntWidth(o3(e)))
+      case _: UIntType | _: SIntType | _: FixedType | ClockType | AsyncResetType | ResetType | _: AnalogType | _: IntervalType    =>
+        IntervalType(Closed(BigDecimal(o1(e))/BigDecimal(BigInt(1) << o3(e).toInt)), Closed(BigDecimal(o2(e))/BigDecimal(BigInt(1) << o3(e).toInt)), IntWidth(o3(e)))
       case _ => UnknownType
     }
     override def toString = "asInterval"

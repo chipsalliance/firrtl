@@ -14,7 +14,7 @@ class ChirrtlToHighFirrtl extends CoreTransform {
   def inputForm = ChirrtlForm
   def outputForm = HighForm
   def transforms = Seq(
-    passes.CheckHighForm,
+    passes.CheckChirrtl,
     passes.CInferTypes,
     passes.CInferMDir,
     passes.RemoveCHIRRTL)

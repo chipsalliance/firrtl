@@ -388,9 +388,17 @@ object CheckTypes extends Pass {
     }
   }
 
-  def validConnect(locTpe: Type, expTpe: Type): Boolean = wt(locTpe).superTypeOf(wt(expTpe))
+  def validConnect(locTpe: Type, expTpe: Type): Boolean = {
+    val itFits = (locTpe, expTpe) match {
+      case (i1: IntervalType, i2: IntervalType) =>
+        import Implicits.width2constraint
+        fits(i2.lower, i1.lower) && fits(i1.upper, i2.upper) && fits(i1.point, i2.point)
+      case _ => true
+    }
+    wt(locTpe).superTypeOf(wt(expTpe)) && itFits
+  }
 
-  def validConnect(con: Connect): Boolean = wt(con.loc.tpe).superTypeOf(wt(con.expr.tpe))
+  def validConnect(con: Connect): Boolean = validConnect(con.loc.tpe, con.expr.tpe)
 
   def validPartialConnect(con: PartialConnect): Boolean =
     bulk_equals(con.loc.tpe, con.expr.tpe, Default, Default)

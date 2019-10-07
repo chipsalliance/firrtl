@@ -15,6 +15,9 @@ class InferBinaryPoints extends Pass {
     case (UIntType(w1), UIntType(w2)) =>
     case (SIntType(w1), SIntType(w2)) =>
     case (ClockType, ClockType) =>
+    case (ResetType, _) =>
+    case (_, ResetType) =>
+    case (AsyncResetType, AsyncResetType) =>
     case (FixedType(w1, p1), FixedType(w2, p2)) =>
       constraintSolver.addGeq(r1.prettyPrint(""), r2.prettyPrint(""))(p1, p2)
     case (IntervalType(l1, u1, p1), IntervalType(l2, u2, p2)) =>
