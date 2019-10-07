@@ -2,14 +2,14 @@
 
 package firrtl.passes
 
-import com.typesafe.scalalogging.LazyLogging
-import scala.annotation.tailrec
 
+import scala.annotation.tailrec
 import firrtl._
 import firrtl.ir._
 import firrtl.Utils._
 import firrtl.Mappers._
 import MemPortUtils.memType
+
 
 /** Resolve name collisions that would occur in [[LowerTypes]]
   *
@@ -34,7 +34,7 @@ import MemPortUtils.memType
 object Uniquify extends Transform {
   def inputForm = UnknownForm
   def outputForm = UnknownForm
-  private case class UniquifyException(msg: String) extends FIRRTLException(msg)
+  private case class UniquifyException(msg: String) extends FirrtlInternalException(msg)
   private def error(msg: String)(implicit sinfo: Info, mname: String) =
     throw new UniquifyException(s"$sinfo: [moduleOpt $mname] $msg")
 
@@ -78,36 +78,43 @@ object Uniquify extends Transform {
       t: BundleType,
       namespace: collection.mutable.HashSet[String])
       (implicit sinfo: Info, mname: String): BundleType = {
-    def recUniquifyNames(t: Type, namespace: collection.mutable.HashSet[String]): Type = t match {
+    def recUniquifyNames(t: Type, namespace: collection.mutable.HashSet[String]): (Type, Seq[String]) = t match {
       case tx: BundleType =>
         // First add everything
-        val newFields = tx.fields map { f =>
+        val newFieldsAndElts = tx.fields map { f =>
           val newName = findValidPrefix(f.name, Seq(""), namespace)
           namespace += newName
           Field(newName, f.flip, f.tpe)
         } map { f => f.tpe match {
-          case _: GroundType => f
+          case _: GroundType => (f, Seq[String](f.name))
           case _ =>
-            val tpe = recUniquifyNames(f.tpe, collection.mutable.HashSet())
-            val elts = enumerateNames(tpe)
+            val (tpe, eltsx) = recUniquifyNames(f.tpe, collection.mutable.HashSet())
             // Need leading _ for findValidPrefix, it doesn't add _ for checks
-            val eltsNames = elts map (e => "_" + LowerTypes.loweredName(e))
+            val eltsNames: Seq[String] = eltsx map (e => "_" + e)
             val prefix = findValidPrefix(f.name, eltsNames, namespace)
             // We added f.name in previous map, delete if we change it
             if (prefix != f.name) {
               namespace -= f.name
               namespace += prefix
             }
-            namespace ++= (elts map (e => LowerTypes.loweredName(prefix +: e)))
-            Field(prefix, f.flip, tpe)
+            val newElts: Seq[String] = eltsx map (e => LowerTypes.loweredName(prefix +: Seq(e)))
+            namespace ++= newElts
+            (Field(prefix, f.flip, tpe), prefix +: newElts)
           }
         }
-        BundleType(newFields)
+        val (newFields, elts) = newFieldsAndElts.unzip
+        (BundleType(newFields), elts.flatten)
       case tx: VectorType =>
-        VectorType(recUniquifyNames(tx.tpe, namespace), tx.size)
-      case tx => tx
+        val (tpe, elts) = recUniquifyNames(tx.tpe, namespace)
+        val newElts = ((0 until tx.size) map (i => i.toString)) ++
+          ((0 until tx.size) flatMap { i =>
+            elts map (e => LowerTypes.loweredName(Seq(i.toString, e)))
+          })
+        (VectorType(tpe, tx.size), newElts)
+      case tx => (tx, Nil)
     }
-    recUniquifyNames(t, namespace) match {
+    val (tpe, _) = recUniquifyNames(t, namespace)
+    tpe match {
       case tx: BundleType => tx
       case tx => throwInternalError(s"uniquifyNames: shouldn't be here - $tx")
     }
@@ -148,7 +155,7 @@ object Uniquify extends Transform {
       case e: WRef =>
         if (m.contains(e.name)) {
           val node = m(e.name)
-          (WRef(node.name, e.tpe, e.kind, e.gender), node.elts)
+          (WRef(node.name, e.tpe, e.kind, e.flow), node.elts)
         }
         else (e, Map())
       case e: WSubField =>
@@ -160,14 +167,14 @@ object Uniquify extends Transform {
           } else {
             (e.name, Map[String, NameMapNode]())
           }
-        (WSubField(subExp, retName, e.tpe, e.gender), retMap)
+        (WSubField(subExp, retName, e.tpe, e.flow), retMap)
       case e: WSubIndex =>
         val (subExp, subMap) = rec(e.expr, m)
-        (WSubIndex(subExp, e.value, e.tpe, e.gender), subMap)
+        (WSubIndex(subExp, e.value, e.tpe, e.flow), subMap)
       case e: WSubAccess =>
         val (subExp, subMap) = rec(e.expr, m)
         val index = uniquifyNamesExp(e.index, map)
-        (WSubAccess(subExp, index, e.tpe, e.gender), subMap)
+        (WSubAccess(subExp, index, e.tpe, e.flow), subMap)
       case (_: UIntLiteral | _: SIntLiteral) => (exp, m)
       case (_: Mux | _: ValidIf | _: DoPrim) =>
         (exp map ((e: Expression) => uniquifyNamesExp(e, map)), m)
@@ -258,7 +265,7 @@ object Uniquify extends Transform {
             if (nameMap.contains(sx.name)) {
               val node = nameMap(sx.name)
               val newType = uniquifyNamesType(sx.tpe, node.elts)
-              (Utils.create_exps(sx.name, sx.tpe) zip Utils.create_exps(node.name, newType)) foreach { 
+              (Utils.create_exps(sx.name, sx.tpe) zip Utils.create_exps(node.name, newType)) foreach {
                 case (from, to) => renames.rename(from.serialize, to.serialize)
               }
               DefWire(sx.info, node.name, newType)
@@ -375,4 +382,3 @@ object Uniquify extends Transform {
     CircuitState(result, outputForm, state.annotations, Some(renames))
   }
 }
-

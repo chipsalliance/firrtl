@@ -15,8 +15,8 @@ class ZeroWidthTests extends FirrtlFlatSpec {
       ToWorkingIR,
       ResolveKinds,
       InferTypes,
-      ResolveGenders,
-      new InferWidths(),
+      ResolveFlows,
+      new InferWidths,
       ZeroWidth)
   private def exec (input: String) = {
     val circuit = parse(input)
@@ -218,12 +218,12 @@ class ZeroWidthVerilog extends FirrtlFlatSpec {
   "Circuit" should "accept zero width wires" in {
     val compiler = new VerilogCompiler
     val input =
-      """circuit Top : 
-         |  module Top : 
+      """circuit Top :
+         |  module Top :
          |    input y: UInt<0>
          |    output x: UInt<3>
          |    x <= y""".stripMargin
-    val check = 
+    val check =
       """module Top(
         |  output  [2:0] x
         |);

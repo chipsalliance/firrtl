@@ -20,9 +20,9 @@ class ExpandWhensSpec extends FirrtlFlatSpec {
     Uniquify,
     ResolveKinds,
     InferTypes,
-    ResolveGenders,
-    CheckGenders,
-    new InferWidths(),
+    ResolveFlows,
+    CheckFlows,
+    new InferWidths,
     CheckWidths,
     PullMuxes,
     ExpandConnects,
@@ -141,4 +141,3 @@ class ExpandWhensSpec extends FirrtlFlatSpec {
 }
 
 class ExpandWhensExecutionTest extends ExecutionTest("ExpandWhens", "/passes/ExpandWhens")
-

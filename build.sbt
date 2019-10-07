@@ -4,10 +4,6 @@
 
 enablePlugins(SiteScaladocPlugin)
 
-enablePlugins(GhpagesPlugin)
-
-git.remoteRepo := "git@github.com:freechipsproject/firrtl.git"
-
 // Firrtl code
 
 organization := "edu.berkeley.cs"
@@ -16,9 +12,9 @@ name := "firrtl"
 
 version := "1.2-SNAPSHOT"
 
-scalaVersion := "2.12.7"
+scalaVersion := "2.12.10"
 
-crossScalaVersions := Seq("2.12.7", "2.11.12")
+crossScalaVersions := Seq("2.12.10", "2.11.12")
 
 updateConfiguration in updateSbtClassifiers := (updateConfiguration in updateSbtClassifiers).value.withMissingOk(true)
 
@@ -35,8 +31,13 @@ def scalacOptionsVersion(scalaVersion: String): Seq[String] = {
   }
 }
 
+addCompilerPlugin(scalafixSemanticdb) // enable SemanticDB
+
 scalacOptions := scalacOptionsVersion(scalaVersion.value) ++ Seq(
-  "-deprecation"
+  "-deprecation",
+  "-unchecked",
+  "-Yrangepos",          // required by SemanticDB compiler plugin
+  "-Ywarn-unused-import" // required by `RemoveUnused` rule
 )
 
 def javacOptionsVersion(scalaVersion: String): Seq[String] = {
@@ -66,15 +67,17 @@ libraryDependencies += "ch.qos.logback" % "logback-classic" % "1.2.3"
 // An explicit dependency on junit seems to alleviate this.
 libraryDependencies += "junit" % "junit" % "4.12" % "test"
 
-libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.5" % "test"
+libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.8" % "test"
 
 libraryDependencies += "org.scalacheck" %% "scalacheck" % "1.14.0" % "test"
 
-libraryDependencies += "com.github.scopt" %% "scopt" % "3.7.0"
+libraryDependencies += "com.github.scopt" %% "scopt" % "3.7.1"
 
-libraryDependencies += "net.jcazevedo" %% "moultingyaml" % "0.4.0"
+libraryDependencies += "net.jcazevedo" %% "moultingyaml" % "0.4.1"
 
-libraryDependencies += "org.json4s" %% "json4s-native" % "3.6.1"
+libraryDependencies += "org.json4s" %% "json4s-native" % "3.6.7"
+
+libraryDependencies += "org.apache.commons" % "commons-text" % "1.7"
 
 // Java PB
 
@@ -112,7 +115,8 @@ javaSource in Antlr4 := (sourceManaged in Compile).value
 publishMavenStyle := true
 publishArtifact in Test := false
 pomIncludeRepository := { x => false }
-// Don't add 'scm' elements if we have a git.remoteRepo definition.
+// Don't add 'scm' elements if we have a git.remoteRepo definition,
+//  but since we don't (with the removal of ghpages), add them in below.
 pomExtra := <url>http://chisel.eecs.berkeley.edu/</url>
   <licenses>
     <license>
@@ -121,6 +125,10 @@ pomExtra := <url>http://chisel.eecs.berkeley.edu/</url>
       <distribution>repo</distribution>
     </license>
   </licenses>
+  <scm>
+    <url>https://github.com/freechipsproject/firrtl.git</url>
+    <connection>scm:git:github.com/freechipsproject/firrtl.git</connection>
+  </scm>
   <developers>
     <developer>
       <id>jackbackrack</id>
@@ -159,5 +167,19 @@ scalacOptions in Compile in doc ++= Seq(
   "-diagrams-max-classes", "25",
   "-doc-version", version.value,
   "-doc-title", name.value,
-  "-doc-root-content", baseDirectory.value+"/root-doc.txt"
+  "-doc-root-content", baseDirectory.value+"/root-doc.txt",
+  "-sourcepath", (baseDirectory in ThisBuild).value.toString,
+  "-doc-source-url",
+  {
+    val branch =
+      if (version.value.endsWith("-SNAPSHOT")) {
+        "master"
+      } else {
+        s"v${version.value}"
+      }
+    s"https://github.com/freechipsproject/firrtl/tree/$branch€{FILE_PATH}.scala"
+  }
 ) ++ scalacOptionsVersion(scalaVersion.value)
+
+fork := true
+Test / testForkedParallel := true

@@ -11,10 +11,10 @@ import firrtl.passes._
 import firrtl.Parser.IgnoreInfo
 
 class WidthSpec extends FirrtlFlatSpec {
-  private def executeTest(input: String, expected: Seq[String], passes: Seq[Pass]) = {
-    val c = passes.foldLeft(Parser.parse(input.split("\n").toIterator)) {
-      (c: Circuit, p: Pass) => p.run(c)
-    }
+  private def executeTest(input: String, expected: Seq[String], passes: Seq[Transform]) = {
+    val c = passes.foldLeft(CircuitState(Parser.parse(input.split("\n").toIterator), UnknownForm)) {
+      (c: CircuitState, p: Transform) => p.runTransform(c)
+    }.circuit
     val lines = c.serialize.split("\n") map normalized
 
     expected foreach { e =>
@@ -53,8 +53,8 @@ class WidthSpec extends FirrtlFlatSpec {
       ResolveKinds,
       InferTypes,
       CheckTypes,
-      ResolveGenders,
-      new InferWidths(),
+      ResolveFlows,
+      new InferWidths,
       CheckWidths)
     val input =
       """circuit Unit :
@@ -76,8 +76,8 @@ class WidthSpec extends FirrtlFlatSpec {
       ResolveKinds,
       InferTypes,
       CheckTypes,
-      ResolveGenders,
-      new InferWidths(),
+      ResolveFlows,
+      new InferWidths,
       CheckWidths)
     val input =
      s"""circuit Unit :
@@ -95,8 +95,8 @@ class WidthSpec extends FirrtlFlatSpec {
       ResolveKinds,
       InferTypes,
       CheckTypes,
-      ResolveGenders,
-      new InferWidths(),
+      ResolveFlows,
+      new InferWidths,
       CheckWidths)
     val input =
       """circuit Unit :
@@ -120,8 +120,8 @@ class WidthSpec extends FirrtlFlatSpec {
       ResolveKinds,
       InferTypes,
       CheckTypes,
-      ResolveGenders,
-      new InferWidths())
+      ResolveFlows,
+      new InferWidths)
     val input =
       """circuit Unit :
         |  module Unit :
@@ -142,8 +142,8 @@ class WidthSpec extends FirrtlFlatSpec {
       ResolveKinds,
       InferTypes,
       CheckTypes,
-      ResolveGenders,
-      new InferWidths())
+      ResolveFlows,
+      new InferWidths)
     val input =
       """circuit Unit :
         |  module Unit :
@@ -165,8 +165,8 @@ class WidthSpec extends FirrtlFlatSpec {
       ResolveKinds,
       InferTypes,
       CheckTypes,
-      ResolveGenders,
-      new InferWidths(),
+      ResolveFlows,
+      new InferWidths,
       CheckWidths)
     val input =
       """|circuit Foo :

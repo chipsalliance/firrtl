@@ -18,9 +18,9 @@ class LowerTypesSpec extends FirrtlFlatSpec {
     ResolveKinds,
     InferTypes,
     CheckTypes,
-    ResolveGenders,
-    CheckGenders,
-    new InferWidths(),
+    ResolveFlows,
+    CheckFlows,
+    new InferWidths,
     CheckWidths,
     PullMuxes,
     ExpandConnects,
@@ -31,8 +31,8 @@ class LowerTypesSpec extends FirrtlFlatSpec {
     new ConstantPropagation,
     ResolveKinds,
     InferTypes,
-    ResolveGenders,
-    new InferWidths(),
+    ResolveFlows,
+    new InferWidths,
     LowerTypes)
 
   private def executeTest(input: String, expected: Seq[String]) = {
@@ -62,6 +62,21 @@ class LowerTypesSpec extends FirrtlFlatSpec {
     val expected = Seq("w", "x_a", "x_b", "y_0", "y_1", "y_2", "y_3", "z_0_c_d",
       "z_0_c_e", "z_0_f_0", "z_0_f_1", "z_1_c_d", "z_1_c_e", "z_1_f_0",
       "z_1_f_1") map (x => s"input $x : UInt<1>") map normalized
+
+    executeTest(input, expected)
+  }
+
+  it should "lower mixed-direction ports" in {
+    val input =
+      """circuit Test :
+        |  module Test :
+        |    input foo : {flip a : UInt<1>, b : UInt<1>}[1]
+        |    foo is invalid
+      """.stripMargin
+    val expected = Seq(
+      "output foo_0_a : UInt<1>",
+      "input foo_0_b : UInt<1>"
+    ) map normalized
 
     executeTest(input, expected)
   }

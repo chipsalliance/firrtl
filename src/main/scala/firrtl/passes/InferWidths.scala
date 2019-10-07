@@ -4,6 +4,7 @@ package firrtl.passes
 
 // Datastructures
 import firrtl._
+import firrtl.annotations.{Annotation, ReferenceTarget}
 import firrtl.ir._
 import firrtl.Utils._
 import firrtl.Mappers._
@@ -15,6 +16,26 @@ object InferWidths {
   def apply(): InferWidths = new InferWidths()
   def run(c: Circuit): Circuit = new InferWidths().run(c)
   def execute(state: CircuitState): CircuitState = new InferWidths().execute(state)
+}
+
+case class WidthGeqConstraintAnnotation(loc: ReferenceTarget, exp: ReferenceTarget) extends Annotation {
+  def update(renameMap: RenameMap): Seq[WidthGeqConstraintAnnotation] = {
+    val newLoc :: newExp :: Nil = Seq(loc, exp).map { target =>
+      renameMap.get(target) match {
+        case None => Some(target)
+        case Some(Seq()) => None
+        case Some(Seq(one)) => Some(one)
+        case Some(many) =>
+          throw new Exception(s"Target below is an AggregateType, which " +
+            "is not supported by WidthGeqConstraintAnnotation\n" + target.prettyPrint())
+      }
+    }
+
+    (newLoc, newExp) match {
+      case (Some(l: ReferenceTarget), Some(e: ReferenceTarget)) => Seq(WidthGeqConstraintAnnotation(l, e))
+      case _ => Seq.empty
+    }
+  }
 }
 
 /** Infers the widths of all signals with unknown widths
@@ -39,8 +60,13 @@ object InferWidths {
   *
   * Uses firrtl.constraint package to infer widths
   */
-class InferWidths extends Pass {
+class InferWidths extends Transform with ResolvedAnnotationPaths {
+  def inputForm: CircuitForm = UnknownForm
+  def outputForm: CircuitForm = UnknownForm
+
   private val constraintSolver = new ConstraintSolver()
+
+  val annotationClasses = Seq(classOf[WidthGeqConstraintAnnotation])
 
   private def addTypeConstraints(r1: ReferenceTarget, r2: ReferenceTarget)(t1: Type, t2: Type): Unit = (t1,t2) match {
     case (UIntType(w1), UIntType(w2)) => constraintSolver.addGeq(r1.prettyPrint(""), r2.prettyPrint(""))(w1, w2)
@@ -65,13 +91,18 @@ class InferWidths extends Pass {
         }
       }
     case (t1: VectorType, t2: VectorType) => addTypeConstraints(r1.index(0), r2.index(0))(t1.tpe, t2.tpe)
+    case (AsyncResetType, AsyncResetType) => Nil
+    case (ResetType, _) => Nil
+    case (_, ResetType) => Nil
   }
+
   private def addExpConstraints(e: Expression): Expression = e map addExpConstraints match {
     case m@Mux(p, tVal, fVal, t) =>
       constraintSolver.addGeq("mux predicate", "1.W")(getWidth(p), Closed(1))
       m
     case other => other
   }
+
   private def addStmtConstraints(mt: ModuleTarget)(s: Statement): Statement = s map addExpConstraints match {
     case c: Connect =>
       val n = get_size(c.loc.tpe)
@@ -98,9 +129,11 @@ class InferWidths extends Pass {
       }
       pc
     case r: DefRegister =>
-       addTypeConstraints(Target.asTarget(mt)(r.reset), mt.ref("1"))(r.reset.tpe, UIntType(IntWidth(1)))
-       addTypeConstraints(mt.ref(r.name), Target.asTarget(mt)(r.init))(r.tpe, r.init.tpe)
-       r
+      if (r.reset.tpe != AsyncResetType ) {
+        addTypeConstraints(Target.asTarget(mt)(r.reset), mt.ref("1"))(r.reset.tpe, UIntType(IntWidth(1)))
+      }
+      addTypeConstraints(mt.ref(r.name), Target.asTarget(mt)(r.init))(r.tpe, r.init.tpe)
+      r
     case a@Attach(_, exprs) =>
       val widths = exprs map (e => (e, getWidth(e.tpe)))
       val maxWidth = IsMax(widths.map(x => width2constraint(x._2)))
@@ -124,6 +157,8 @@ class InferWidths extends Pass {
         case (Some(x: Bound), Some(y: Bound)) => (x, y)
         case (None, None) => (l, u)
         case x => sys.error(s"Shouldn't be here: $x")
+
+
       }
       IntervalType(lx, ux, fixWidth(p))
     case FixedType(w, p) => FixedType(w, fixWidth(p))
@@ -144,4 +179,55 @@ class InferWidths extends Pass {
     constraintSolver.clear()
     ret
   }
+
+  def execute(state: CircuitState): CircuitState = {
+    val circuitName = state.circuit.main
+    val typeMap = new collection.mutable.HashMap[ReferenceTarget, Type]
+
+    def getDeclTypes(modName: String)(stmt: Statement): Unit = {
+      val pairOpt = stmt match {
+        case w: DefWire => Some(w.name -> w.tpe)
+        case r: DefRegister => Some(r.name -> r.tpe)
+        case n: DefNode => Some(n.name -> n.value.tpe)
+        case i: WDefInstance => Some(i.name -> i.tpe)
+        case m: DefMemory => Some(m.name -> MemPortUtils.memType(m))
+        case other => None
+      }
+      pairOpt.foreach { case (ref, tpe) =>
+        typeMap += (ReferenceTarget(circuitName, modName, Nil, ref, Nil) -> tpe)
+      }
+      stmt.foreachStmt(getDeclTypes(modName))
+    }
+
+    if (state.annotations.exists(_.isInstanceOf[WidthGeqConstraintAnnotation])) {
+      state.circuit.modules.foreach { mod =>
+        mod.ports.foreach { port =>
+          typeMap += (ReferenceTarget(circuitName, mod.name, Nil, port.name, Nil) -> port.tpe)
+        }
+        mod.foreachStmt(getDeclTypes(mod.name))
+      }
+    }
+
+    state.annotations.foreach {
+      case anno: WidthGeqConstraintAnnotation if anno.loc.isLocal && anno.exp.isLocal  =>
+        val locType :: expType :: Nil = Seq(anno.loc, anno.exp) map { target =>
+          val baseType = typeMap.getOrElse(target.copy(component = Seq.empty),
+            throw new Exception(s"Target below from WidthGeqConstraintAnnotation was not found\n" + target.prettyPrint()))
+          val leafType = target.componentType(baseType)
+          if (leafType.isInstanceOf[AggregateType]) {
+            throw new Exception(s"Target below is an AggregateType, which " +
+              "is not supported by WidthGeqConstraintAnnotation\n" + target.prettyPrint())
+          }
+
+          leafType
+        }
+
+        //get_constraints_t(locType, expType)
+        addTypeConstraints(anno.loc, anno.exp)(locType, expType)
+      case other =>
+    }
+
+    state.copy(circuit = run(state.circuit))
+  }
+
 }

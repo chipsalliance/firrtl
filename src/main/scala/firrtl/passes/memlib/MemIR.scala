@@ -3,21 +3,38 @@
 package firrtl.passes
 package memlib
 
-import firrtl._
 import firrtl.ir._
-import Utils.indent
+
+object DefAnnotatedMemory {
+  def apply(m: DefMemory): DefAnnotatedMemory = {
+    new DefAnnotatedMemory(
+      m.info,
+      m.name,
+      m.dataType,
+      m.depth,
+      m.writeLatency,
+      m.readLatency,
+      m.readers,
+      m.writers,
+      m.readwriters,
+      m.readUnderWrite,
+      None, // mask granularity annotation
+      None  // No reference yet to another memory
+    )
+  }
+}
 
 case class DefAnnotatedMemory(
     info: Info,
     name: String,
     dataType: Type,
-    depth: Int,
+    depth: BigInt,
     writeLatency: Int,
     readLatency: Int,
     readers: Seq[String],
     writers: Seq[String],
     readwriters: Seq[String],
-    readUnderWrite: Option[String],
+    readUnderWrite: ReadUnderWrite.Value,
     maskGran: Option[BigInt],
     memRef: Option[(String, String)] /* (Module, Mem) */
     //pins: Seq[Pin],

@@ -5,9 +5,7 @@ package memlib
 
 import firrtl._
 import firrtl.ir._
-import firrtl.Utils._
 import firrtl.Mappers._
-import AnalysisUtils._
 import MemPortUtils.{MemPortMap}
 
 object MemTransformUtils {
@@ -44,6 +42,6 @@ object MemTransformUtils {
   }
 
   def defaultPortSeq(mem: DefAnnotatedMemory): Seq[Field] = MemPortUtils.defaultPortSeq(mem.toMem)
-  def memPortField(s: DefAnnotatedMemory, p: String, f: String): Expression =
+  def memPortField(s: DefAnnotatedMemory, p: String, f: String): WSubField =
     MemPortUtils.memPortField(s.toMem, p, f)
 }

@@ -9,10 +9,10 @@ import firrtl.passes._
 import firrtl.Parser.IgnoreInfo
 
 class RemoveFixedTypeSpec extends FirrtlFlatSpec {
-  private def executeTest(input: String, expected: Seq[String], passes: Seq[Pass]) = {
-    val c = passes.foldLeft(Parser.parse(input.split("\n").toIterator)) {
-      (c: Circuit, p: Pass) => p.run(c)
-    }
+  private def executeTest(input: String, expected: Seq[String], passes: Seq[Transform]) = {
+    val c = passes.foldLeft(CircuitState(Parser.parse(input.split("\n").toIterator), UnknownForm)) {
+      (c: CircuitState, p: Transform) => p.runTransform(c)
+    }.circuit
     val lines = c.serialize.split("\n") map normalized
     //println(c.serialize)
 
@@ -28,9 +28,9 @@ class RemoveFixedTypeSpec extends FirrtlFlatSpec {
       ResolveKinds,
       InferTypes,
       CheckTypes,
-      ResolveGenders,
-      CheckGenders,
-      new InferWidths(),
+      ResolveFlows,
+      CheckFlows,
+      new InferWidths,
       CheckWidths,
       ConvertFixedToSInt)
     val input =
@@ -58,9 +58,9 @@ class RemoveFixedTypeSpec extends FirrtlFlatSpec {
       ResolveKinds,
       InferTypes,
       CheckTypes,
-      ResolveGenders,
-      CheckGenders,
-      new InferWidths(),
+      ResolveFlows,
+      CheckFlows,
+      new InferWidths,
       CheckWidths,
       ConvertFixedToSInt)
     val input =
@@ -89,9 +89,9 @@ class RemoveFixedTypeSpec extends FirrtlFlatSpec {
       ResolveKinds,
       InferTypes,
       CheckTypes,
-      ResolveGenders,
-      CheckGenders,
-      new InferWidths(),
+      ResolveFlows,
+      CheckFlows,
+      new InferWidths,
       CheckWidths,
       ConvertFixedToSInt)
     val input =
@@ -116,9 +116,9 @@ class RemoveFixedTypeSpec extends FirrtlFlatSpec {
       ResolveKinds,
       InferTypes,
       CheckTypes,
-      ResolveGenders,
-      CheckGenders,
-      new InferWidths(),
+      ResolveFlows,
+      CheckFlows,
+      new InferWidths,
       CheckWidths,
       ConvertFixedToSInt)
     val input =
@@ -143,9 +143,9 @@ class RemoveFixedTypeSpec extends FirrtlFlatSpec {
       ResolveKinds,
       InferTypes,
       CheckTypes,
-      ResolveGenders,
-      CheckGenders,
-      new InferWidths(),
+      ResolveFlows,
+      CheckFlows,
+      new InferWidths,
       CheckWidths,
       ConvertFixedToSInt)
     val input =
@@ -195,9 +195,9 @@ class RemoveFixedTypeSpec extends FirrtlFlatSpec {
       ResolveKinds,
       InferTypes,
       CheckTypes,
-      ResolveGenders,
-      CheckGenders,
-      new InferWidths(),
+      ResolveFlows,
+      CheckFlows,
+      new InferWidths,
       CheckWidths,
       ConvertFixedToSInt)
     val input =
@@ -215,4 +215,3 @@ class RemoveFixedTypeSpec extends FirrtlFlatSpec {
     executeTest(input, check.split("\n") map normalized, passes)
   }
 }
-

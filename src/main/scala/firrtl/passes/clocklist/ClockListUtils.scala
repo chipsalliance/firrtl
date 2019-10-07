@@ -5,14 +5,9 @@ package clocklist
 
 import firrtl._
 import firrtl.ir._
-import annotations._
-import Utils.error
-import java.io.{File, CharArrayWriter, PrintWriter, Writer}
 import wiring.Lineage
-import ClockListUtils._
 import Utils._
 import memlib.AnalysisUtils._
-import memlib._
 
 object ClockListUtils {
   /** Returns a list of clock outputs from instances of external modules
@@ -25,8 +20,8 @@ object ClockListUtils {
     }
     val sourceList = moduleMap(lin.name) match {
       case ExtModule(i, n, ports, dn, p) =>
-        val portExps = ports.flatMap{p => create_exps(WRef(p.name, p.tpe, PortKind, to_gender(p.direction)))}
-        portExps.filter(e => (e.tpe == ClockType) && (gender(e) == FEMALE)).map(_.serialize)
+        val portExps = ports.flatMap{p => create_exps(WRef(p.name, p.tpe, PortKind, to_flow(p.direction)))}
+        portExps.filter(e => (e.tpe == ClockType) && (flow(e) == SinkFlow)).map(_.serialize)
       case _ => Nil
     }
     val sx = sourceList ++ s

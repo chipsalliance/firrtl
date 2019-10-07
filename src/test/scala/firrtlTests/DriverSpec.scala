@@ -9,10 +9,10 @@ import firrtl.passes.{InlineAnnotation, InlineInstances}
 import firrtl.passes.memlib.{InferReadWrite, InferReadWriteAnnotation, ReplSeqMem, ReplSeqMemAnnotation}
 import firrtl.transforms.BlackBoxTargetDirAnno
 import firrtl._
+import firrtl.FileUtils
 import firrtl.annotations._
 import firrtl.util.BackendCompilationUtilities
 
-import scala.io.Source
 import scala.util.{Failure, Success, Try}
 
 class ExceptingTransform extends Transform {
@@ -28,6 +28,7 @@ object ExceptingTransform {
 
 //noinspection ScalaStyle
 class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities {
+  val outputDir = createTestDirectory("DriverSpec")
   "CommonOptions are some simple options available across the chisel3 ecosystem" - {
     "CommonOption provide an scopt implementation of an OptionParser" - {
       "Options can be set from an Array[String] as is passed into a main" - {
@@ -52,21 +53,23 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
         }
       }
       "CommonOptions can create a directory" in {
-        var dir = new java.io.File("a/b/c")
+        val top_dir = new java.io.File(outputDir, "a")
+        val dir = new java.io.File(top_dir, "b/c")
         if (dir.exists()) {
           dir.delete()
         }
         val optionsManager = new ExecutionOptionsManager("test")
-        optionsManager.parse(Array("--top-name", "dog", "--target-dir", "a/b/c")) should be(true)
+        val targetPath = dir.getPath
+        optionsManager.parse(Array("--top-name", "dog", "--target-dir", targetPath)) should be(true)
         val commonOptions = optionsManager.commonOptions
 
         commonOptions.topName should be("dog")
-        commonOptions.targetDirName should be("a/b/c")
+        commonOptions.targetDirName should be(targetPath)
 
         optionsManager.makeTargetDir() should be(true)
-        dir = new java.io.File("a/b/c")
-        dir.exists() should be(true)
-        FileUtils.deleteDirectoryHierarchy("a") should be(true)
+        val tdir = new java.io.File(targetPath)
+        tdir.exists() should be(true)
+        FileUtils.deleteDirectoryHierarchy(top_dir) should be(true)
       }
     }
     "options include by default a list of strings that are returned in commonOptions.programArgs" in {
@@ -203,18 +206,38 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
   }
 
   // Deprecated
-  "Annotations can be read implicitly from the name of the circuit" in {
+  "Annotations can be read implicitly from the name of the circuit" - {
+    val input = """|circuit foo :
+                   |  module foo :
+                   |    input x : UInt<8>
+                   |    output y : UInt<8>
+                   |    y <= x""".stripMargin
     val top = "foo"
     val optionsManager = new ExecutionOptionsManager("test") with HasFirrtlOptions {
       commonOptions = commonOptions.copy(topName = top)
+      firrtlOptions = firrtlOptions.copy(firrtlSource = Some(input))
     }
     val annoFile = new File(optionsManager.commonOptions.targetDirName, top + ".anno")
-    copyResourceToFile("/annotations/SampleAnnotations.anno", annoFile)
-    optionsManager.firrtlOptions.annotations.length should be(0)
-    val annos = Driver.getAnnotations(optionsManager)
-    annos.length should be(12) // 9 from circuit plus 3 general purpose
-    annos.count(_.isInstanceOf[InlineAnnotation]) should be(9)
-    annoFile.delete()
+    val vFile = new File(optionsManager.commonOptions.targetDirName, top + ".v")
+    "Using Driver.getAnnotations" in {
+      copyResourceToFile("/annotations/SampleAnnotations.anno", annoFile)
+      optionsManager.firrtlOptions.annotations.length should be(0)
+      val annos = Driver.getAnnotations(optionsManager)
+      annos.length should be(12) // 9 from circuit plus 3 general purpose
+      annos.count(_.isInstanceOf[InlineAnnotation]) should be(9)
+      annoFile.delete()
+      vFile.delete()
+    }
+    "Using Driver.execute" in {
+      copyResourceToFile("/annotations/SampleAnnotations.anno", annoFile)
+      Driver.execute(optionsManager) match {
+        case r: FirrtlExecutionSuccess =>
+          val annos = r.circuitState.annotations
+          annos.count(_.isInstanceOf[InlineAnnotation]) should be(9)
+      }
+      annoFile.delete()
+      vFile.delete()
+    }
   }
 
   // Deprecated
@@ -284,7 +307,7 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
     copyResourceToFile(s"/annotations/$annoFilename", annotationsTestFile)
 
     import net.jcazevedo.moultingyaml._
-    val text = io.Source.fromFile(annotationsTestFile).mkString
+    val text = FileUtils.getText(annotationsTestFile)
     val yamlAnnos = text.parseYaml match {
       case YamlArray(xs) => xs
     }
@@ -364,18 +387,29 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
 
     "To a single file with file extension depending on the compiler by default" in {
       Seq(
-        "none" -> "./Top.fir",
-        "low" -> "./Top.lo.fir",
-        "high" -> "./Top.hi.fir",
-        "middle" -> "./Top.mid.fir",
-        "verilog" -> "./Top.v"
+        "none" -> "./Foo.fir",
+        "low" -> "./Foo.lo.fir",
+        "high" -> "./Foo.hi.fir",
+        "middle" -> "./Foo.mid.fir",
+        "verilog" -> "./Foo.v",
+        "mverilog" -> "./Foo.v",
+        "sverilog" -> "./Foo.sv"
       ).foreach { case (compilerName, expectedOutputFileName) =>
+        info(s"$compilerName -> $expectedOutputFileName")
         val manager = new ExecutionOptionsManager("test") with HasFirrtlOptions {
-          commonOptions = CommonOptions(topName = "Top")
+          commonOptions = CommonOptions(topName = "Foo")
           firrtlOptions = FirrtlExecutionOptions(firrtlSource = Some(input), compilerName = compilerName)
         }
 
-        firrtl.Driver.execute(manager)
+        firrtl.Driver.execute(manager) match {
+          case success: FirrtlExecutionSuccess =>
+            success.emitted.size should not be (0)
+            success.circuitState.annotations.length should be > (0)
+          case a: FirrtlExecutionFailure =>
+            fail(s"Got a FirrtlExecutionFailure! Expected FirrtlExecutionSuccess. Full message:\n${a.message}")
+        }
+
+
 
         val file = new File(expectedOutputFileName)
         file.exists() should be(true)
@@ -388,11 +422,12 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
         "low" -> Seq("./Top.lo.fir", "./Child.lo.fir"),
         "high" -> Seq("./Top.hi.fir", "./Child.hi.fir"),
         "middle" -> Seq("./Top.mid.fir", "./Child.mid.fir"),
-        "verilog" -> Seq("./Top.v", "./Child.v")
+        "verilog" -> Seq("./Top.v", "./Child.v"),
+        "mverilog" -> Seq("./Top.v", "./Child.v"),
+        "sverilog" -> Seq("./Top.sv", "./Child.sv")
       ).foreach { case (compilerName, expectedOutputFileNames) =>
-        println(s"$compilerName -> $expectedOutputFileNames")
+        info(s"$compilerName -> $expectedOutputFileNames")
         val manager = new ExecutionOptionsManager("test") with HasFirrtlOptions {
-          commonOptions = CommonOptions(topName = "Top")
           firrtlOptions = FirrtlExecutionOptions(firrtlSource = Some(input),
             compilerName = compilerName,
             emitOneFilePerModule = true)
@@ -400,9 +435,10 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
 
         firrtl.Driver.execute(manager) match {
           case success: FirrtlExecutionSuccess =>
+            success.emitted.size should not be (0)
             success.circuitState.annotations.length should be > (0)
-          case _ =>
-
+          case failure: FirrtlExecutionFailure =>
+            fail(s"Got a FirrtlExecutionFailure! Expected FirrtlExecutionSuccess. Full message:\n${failure.message}")
         }
 
         for (name <- expectedOutputFileNames) {
@@ -431,8 +467,8 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
       Driver.execute(args)
     }
     "Both paths do the same thing" in {
-      val s1 = Source.fromFile(verilogFromFir).mkString
-      val s2 = Source.fromFile(verilogFromPb).mkString
+      val s1 = FileUtils.getText(verilogFromFir)
+      val s2 = FileUtils.getText(verilogFromPb)
       s1 should equal (s2)
     }
   }

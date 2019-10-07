@@ -27,11 +27,6 @@ import firrtl.LexerHelper;
  * PARSER RULES
  *------------------------------------------------------------------*/
 
-/* TODO 
- *  - Add [info] support (all over the place)
- *  - Add support for extmodule
-*/
-
 // Does there have to be at least one module?
 circuit
   : 'circuit' id ':' info? INDENT module* DEDENT
@@ -57,6 +52,8 @@ type
   | 'Fixed' ('<' intLit '>')? ('<' '<' intLit '>' '>')?
   | 'Interval' (lowerBound boundValue boundValue upperBound)? ('.' intLit)?
   | 'Clock'
+  | 'AsyncReset'
+  | 'Reset'
   | 'Analog' ('<' intLit '>')?
   | '{' field* '}'        // Bundle
   | type '[' intLit ']'   // Vector
@@ -90,7 +87,7 @@ simple_reset
 
 reset_block
 	: INDENT simple_reset info? NEWLINE DEDENT
-	| '(' +  simple_reset + ')'
+	| '(' simple_reset ')'
   ;
 
 stmt
@@ -98,7 +95,7 @@ stmt
   | 'reg' id ':' type exp ('with' ':' reset_block)? info?
   | 'mem' id ':' info? INDENT memField* DEDENT
   | 'cmem' id ':' type info?
-  | 'smem' id ':' type info?
+  | 'smem' id ':' type ruw? info?
   | mdir 'mport' id '=' id '[' exp ']' exp info?
   | 'inst' id 'of' id info?
   | 'node' id '=' exp info?
@@ -271,6 +268,7 @@ primop
   | 'neq('
   | 'pad('
   | 'asUInt('
+  | 'asAsyncReset('
   | 'asSInt('
   | 'asClock('
   | 'asFixedPoint('

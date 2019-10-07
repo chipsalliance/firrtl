@@ -2,13 +2,9 @@
 
 package firrtl
 
-import com.typesafe.scalalogging.LazyLogging
-import java.nio.file.{Paths, Files}
-import java.io.{Reader, Writer}
+import java.io.Writer
 
 import scala.collection.mutable
-import scala.sys.process._
-import scala.io.Source
 
 import firrtl.ir._
 import firrtl.passes._
@@ -19,8 +15,10 @@ import firrtl.PrimOps._
 import firrtl.WrappedExpression._
 import Utils._
 import MemPortUtils.{memPortField, memType}
+import firrtl.options.{HasShellOptions, ShellOption, StageUtils, PhaseException}
+import firrtl.stage.RunFirrtlTransformAnnotation
 // Datastructures
-import scala.collection.mutable.{ArrayBuffer, LinkedHashMap, HashSet}
+import scala.collection.mutable.ArrayBuffer
 
 case class EmitterException(message: String) extends PassException(message)
 
@@ -31,17 +29,68 @@ sealed trait EmitAnnotation extends NoTargetAnnotation {
 case class EmitCircuitAnnotation(emitter: Class[_ <: Emitter]) extends EmitAnnotation
 case class EmitAllModulesAnnotation(emitter: Class[_ <: Emitter]) extends EmitAnnotation
 
+object EmitCircuitAnnotation extends HasShellOptions {
+
+  val options = Seq(
+    new ShellOption[String](
+      longOption = "emit-circuit",
+      toAnnotationSeq = (a: String) => a match {
+        case "chirrtl"              => Seq(RunFirrtlTransformAnnotation(new ChirrtlEmitter),
+                                           EmitCircuitAnnotation(classOf[ChirrtlEmitter]))
+        case "high"                 => Seq(RunFirrtlTransformAnnotation(new HighFirrtlEmitter),
+                                           EmitCircuitAnnotation(classOf[HighFirrtlEmitter]))
+        case "middle"               => Seq(RunFirrtlTransformAnnotation(new MiddleFirrtlEmitter),
+                                           EmitCircuitAnnotation(classOf[MiddleFirrtlEmitter]))
+        case "low"                  => Seq(RunFirrtlTransformAnnotation(new LowFirrtlEmitter),
+                                           EmitCircuitAnnotation(classOf[LowFirrtlEmitter]))
+        case "verilog" | "mverilog" => Seq(RunFirrtlTransformAnnotation(new VerilogEmitter),
+                                           EmitCircuitAnnotation(classOf[VerilogEmitter]))
+        case "sverilog"             => Seq(RunFirrtlTransformAnnotation(new SystemVerilogEmitter),
+                                           EmitCircuitAnnotation(classOf[SystemVerilogEmitter]))
+        case _                      => throw new PhaseException(s"Unknown emitter '$a'! (Did you misspell it?)") },
+      helpText = "Run the specified circuit emitter (all modules in one file)",
+      shortOption = Some("E"),
+      helpValueName = Some("<chirrtl|high|middle|low|verilog|mverilog|sverilog>") ) )
+
+}
+
+object EmitAllModulesAnnotation extends HasShellOptions {
+
+  val options = Seq(
+    new ShellOption[String](
+      longOption = "emit-modules",
+      toAnnotationSeq = (a: String) => a match {
+        case "chirrtl"              => Seq(RunFirrtlTransformAnnotation(new ChirrtlEmitter),
+                                           EmitAllModulesAnnotation(classOf[ChirrtlEmitter]))
+        case "high"                 => Seq(RunFirrtlTransformAnnotation(new HighFirrtlEmitter),
+                                           EmitAllModulesAnnotation(classOf[HighFirrtlEmitter]))
+        case "middle"               => Seq(RunFirrtlTransformAnnotation(new MiddleFirrtlEmitter),
+                                           EmitAllModulesAnnotation(classOf[MiddleFirrtlEmitter]))
+        case "low"                  => Seq(RunFirrtlTransformAnnotation(new LowFirrtlEmitter),
+                                           EmitAllModulesAnnotation(classOf[LowFirrtlEmitter]))
+        case "verilog" | "mverilog" => Seq(RunFirrtlTransformAnnotation(new VerilogEmitter),
+                                           EmitAllModulesAnnotation(classOf[VerilogEmitter]))
+        case "sverilog"             => Seq(RunFirrtlTransformAnnotation(new SystemVerilogEmitter),
+                                           EmitAllModulesAnnotation(classOf[SystemVerilogEmitter]))
+        case _                      => throw new PhaseException(s"Unknown emitter '$a'! (Did you misspell it?)") },
+      helpText = "Run the specified module emitter (one file per module)",
+      shortOption = Some("e"),
+      helpValueName = Some("<chirrtl|high|middle|low|verilog|mverilog|sverilog>") ) )
+
+}
+
 // ***** Annotations for results of emission *****
 sealed abstract class EmittedComponent {
   def name: String
   def value: String
+  def outputSuffix: String
 }
 sealed abstract class EmittedCircuit extends EmittedComponent
-final case class EmittedFirrtlCircuit(name: String, value: String) extends EmittedCircuit
-final case class EmittedVerilogCircuit(name: String, value: String) extends EmittedCircuit
+final case class EmittedFirrtlCircuit(name: String, value: String, outputSuffix: String) extends EmittedCircuit
+final case class EmittedVerilogCircuit(name: String, value: String, outputSuffix: String) extends EmittedCircuit
 sealed abstract class EmittedModule extends EmittedComponent
-final case class EmittedFirrtlModule(name: String, value: String) extends EmittedModule
-final case class EmittedVerilogModule(name: String, value: String) extends EmittedModule
+final case class EmittedFirrtlModule(name: String, value: String, outputSuffix: String) extends EmittedModule
+final case class EmittedVerilogModule(name: String, value: String, outputSuffix: String) extends EmittedModule
 
 /** Traits for Annotations containing emitted components */
 sealed trait EmittedAnnotation[T <: EmittedComponent] extends NoTargetAnnotation {
@@ -51,18 +100,20 @@ sealed trait EmittedCircuitAnnotation[T <: EmittedCircuit] extends EmittedAnnota
 sealed trait EmittedModuleAnnotation[T <: EmittedModule] extends EmittedAnnotation[T]
 
 case class EmittedFirrtlCircuitAnnotation(value: EmittedFirrtlCircuit)
-  extends EmittedCircuitAnnotation[EmittedFirrtlCircuit]
+    extends EmittedCircuitAnnotation[EmittedFirrtlCircuit]
 case class EmittedVerilogCircuitAnnotation(value: EmittedVerilogCircuit)
-  extends EmittedCircuitAnnotation[EmittedVerilogCircuit]
+    extends EmittedCircuitAnnotation[EmittedVerilogCircuit]
 
 case class EmittedFirrtlModuleAnnotation(value: EmittedFirrtlModule)
-  extends EmittedModuleAnnotation[EmittedFirrtlModule]
+    extends EmittedModuleAnnotation[EmittedFirrtlModule]
 case class EmittedVerilogModuleAnnotation(value: EmittedVerilogModule)
-  extends EmittedModuleAnnotation[EmittedVerilogModule]
+    extends EmittedModuleAnnotation[EmittedVerilogModule]
 
 sealed abstract class FirrtlEmitter(form: CircuitForm) extends Transform with Emitter {
   def inputForm = form
   def outputForm = form
+
+  val outputSuffix: String = form.outputSuffix
 
   private def emitAllModules(circuit: Circuit): Seq[EmittedFirrtlModule] = {
     // For a given module, returns a Seq of all modules instantited inside of it
@@ -87,15 +138,15 @@ sealed abstract class FirrtlEmitter(form: CircuitForm) extends Transform with Em
         case ext: ExtModule => ext
       }
       val newCircuit = Circuit(m.info, extModules :+ m, m.name)
-      EmittedFirrtlModule(m.name, newCircuit.serialize)
+      EmittedFirrtlModule(m.name, newCircuit.serialize, outputSuffix)
     }
   }
 
   override def execute(state: CircuitState): CircuitState = {
     val newAnnos = state.annotations.flatMap {
       case EmitCircuitAnnotation(_) =>
-        Seq(EmittedFirrtlCircuitAnnotation.apply(
-              EmittedFirrtlCircuit(state.circuit.main, state.circuit.serialize)))
+        Seq(EmittedFirrtlCircuitAnnotation(
+              EmittedFirrtlCircuit(state.circuit.main, state.circuit.serialize, outputSuffix)))
       case EmitAllModulesAnnotation(_) =>
         emitAllModules(state.circuit) map (EmittedFirrtlModuleAnnotation(_))
       case _ => Seq()
@@ -129,6 +180,7 @@ case class VRandom(width: BigInt) extends Expression {
 class VerilogEmitter extends SeqTransform with Emitter {
   def inputForm = LowForm
   def outputForm = LowForm
+  val outputSuffix = ".v"
   val tab = "  "
   def AND(e1: WrappedExpression, e2: WrappedExpression): Expression = {
     if (e1 == e2) e1.e1
@@ -137,17 +189,25 @@ class VerilogEmitter extends SeqTransform with Emitter {
     else if (e2 == we(one)) e1.e1
     else DoPrim(And, Seq(e1.e1, e2.e1), Nil, UIntType(IntWidth(1)))
   }
-  def wref(n: String, t: Type) = WRef(n, t, ExpKind, UNKNOWNGENDER)
+  def wref(n: String, t: Type) = WRef(n, t, ExpKind, UnknownFlow)
   def remove_root(ex: Expression): Expression = ex match {
     case ex: WSubField => ex.expr match {
       case (e: WSubField) => remove_root(e)
-      case (_: WRef) => WRef(ex.name, ex.tpe, InstanceKind, UNKNOWNGENDER)
+      case (_: WRef) => WRef(ex.name, ex.tpe, InstanceKind, UnknownFlow)
     }
     case _ => throwInternalError(s"shouldn't be here: remove_root($ex)")
   }
   /** Turn Params into Verilog Strings */
   def stringify(param: Param): String = param match {
-    case IntParam(name, value) => s".$name($value)"
+    case IntParam(name, value) =>
+      val lit =
+        if (value.isValidInt) {
+          s"$value"
+        } else {
+          val blen = value.bitLength
+          if (value > 0) s"$blen'd$value" else s"-${blen+1}'sd${value.abs}"
+        }
+      s".$name($lit)"
     case DoubleParam(name, value) => s".$name($value)"
     case StringParam(name, value) => s".${name}(${value.verilogEscape})"
     case RawStringParam(name, value) => s".$name($value)"
@@ -156,11 +216,11 @@ class VerilogEmitter extends SeqTransform with Emitter {
     case (_: UIntType | _: SIntType | _: AnalogType) =>
       val wx = bitWidth(tpe) - 1
       if (wx > 0) s"[$wx:0]" else ""
-    case ClockType => ""
+    case ClockType | AsyncResetType => ""
     case _ => throwInternalError(s"trying to write unsupported type in the Verilog Emitter: $tpe")
   }
-  def emit(x: Any)(implicit w: Writer) { emit(x, 0) }
-  def emit(x: Any, top: Int)(implicit w: Writer) {
+  def emit(x: Any)(implicit w: Writer): Unit = { emit(x, 0) }
+  def emit(x: Any, top: Int)(implicit w: Writer): Unit = {
     def cast(e: Expression): Any = e.tpe match {
       case (t: UIntType) => e
       case (t: SIntType) => Seq("$signed(",e,")")
@@ -171,7 +231,12 @@ class VerilogEmitter extends SeqTransform with Emitter {
     x match {
       case (e: DoPrim) => emit(op_stream(e), top + 1)
       case (e: Mux) => {
-        if(e.tpe == ClockType) throw EmitterException("Cannot emit clock muxes directly")
+        if (e.tpe == ClockType) {
+          throw EmitterException("Cannot emit clock muxes directly")
+        }
+        if (e.tpe == AsyncResetType) {
+          throw EmitterException("Cannot emit async reset muxes directly")
+        }
         emit(Seq(e.cond," ? ",cast(e.tval)," : ",cast(e.fval)),top + 1)
       }
       case (e: ValidIf) => emit(Seq(cast(e.value)),top + 1)
@@ -297,14 +362,14 @@ class VerilogEmitter extends SeqTransform with Emitter {
        case AsUInt => Seq("$unsigned(", a0, ")")
        case AsSInt => Seq("$signed(", a0, ")")
        case AsClock => Seq(a0)
+       case AsAsyncReset => Seq(a0)
        case Dshlw => Seq(cast(a0), " << ", a1)
        case Dshl => Seq(cast(a0), " << ", a1)
        case Dshr => doprim.tpe match {
          case (_: SIntType) => Seq(cast(a0)," >>> ", a1)
          case (_) => Seq(cast(a0), " >> ", a1)
        }
-       case Shlw => Seq(cast(a0), " << ", c0)
-       case Shl => Seq(cast(a0), " << ", c0)
+       case Shl => if (c0 > 0) Seq("{", cast(a0), s", $c0'h0}") else Seq(cast(a0))
        case Shr if c0 >= bitWidth(a0.tpe) =>
          error("Verilog emitter does not support SHIFT_RIGHT >= arg width")
        case Shr => Seq(a0,"[", bitWidth(a0.tpe) - 1, ":", c0, "]")
@@ -363,8 +428,8 @@ class VerilogEmitter extends SeqTransform with Emitter {
     * @return             the render reference
     */
   def getRenderer(descriptions: Seq[DescriptionAnnotation],
-    m: Module,
-    moduleMap: Map[String, DefModule])(implicit writer: Writer): VerilogRender = {
+                  m: Module,
+                  moduleMap: Map[String, DefModule])(implicit writer: Writer): VerilogRender = {
     val newMod = new AddDescriptionNodes().executeModule(m, descriptions)
 
     newMod match {
@@ -384,9 +449,9 @@ class VerilogEmitter extends SeqTransform with Emitter {
     * @param writer           where rendered information is placed.
     */
   class VerilogRender(description: Description,
-    portDescriptions: Map[String, Description],
-    m: Module,
-    moduleMap: Map[String, DefModule])(implicit writer: Writer) {
+                      portDescriptions: Map[String, Description],
+                      m: Module,
+                      moduleMap: Map[String, DefModule])(implicit writer: Writer) {
 
     def this(m: Module, moduleMap: Map[String, DefModule])(implicit writer: Writer) {
       this(EmptyDescription, Map.empty, m, moduleMap)(writer)
@@ -401,7 +466,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
         case sx: Connect => netlist(sx.loc) = sx.expr
         case sx: IsInvalid => error("Should have removed these!")
         case sx: DefNode =>
-          val e = WRef(sx.name, sx.value.tpe, NodeKind, MALE)
+          val e = WRef(sx.name, sx.value.tpe, NodeKind, SourceFlow)
           netlist(e) = sx.value
         case _ =>
       }
@@ -413,18 +478,42 @@ class VerilogEmitter extends SeqTransform with Emitter {
     val assigns = ArrayBuffer[Seq[Any]]()
     val attachSynAssigns = ArrayBuffer.empty[Seq[Any]]
     val attachAliases = ArrayBuffer.empty[Seq[Any]]
-    val at_clock = mutable.LinkedHashMap[Expression, ArrayBuffer[Seq[Any]]]()
+    // No (aka synchronous) always blocks, keyed by clock
+    val noResetAlwaysBlocks = mutable.LinkedHashMap[Expression, ArrayBuffer[Seq[Any]]]()
+    // One always block per async reset register, (Clock, Reset, Content)
+    // An alternative approach is to have one always block per combination of clock and async reset,
+    // but Formality doesn't allow more than 1 statement inside async reset always blocks
+    val asyncResetAlwaysBlocks = mutable.ArrayBuffer[(Expression, Expression, Seq[Any])]()
+    // Used to determine type of initvar for initializing memories
+    var maxMemSize: BigInt = BigInt(0)
     val initials = ArrayBuffer[Seq[Any]]()
+    // In Verilog, async reset registers are expressed using always blocks of the form:
+    // always @(posedge clock or posedge reset) begin
+    //   if (reset) ...
+    // There is a fundamental mismatch between this representation which treats async reset
+    // registers as edge-triggered when in reality they are level-triggered.
+    // This can result in silicon-simulation mismatch in the case where async reset is held high
+    // upon power on with no clock, then async reset is dropped before the clock starts. In this
+    // circumstance, the async reset register will be randomized in simulation instead of being
+    // reset. To fix this, we need extra initial block logic for async reset registers
+    val asyncInitials = ArrayBuffer[Seq[Any]]()
     val simulates = ArrayBuffer[Seq[Any]]()
+
+    def bigIntToVLit(bi: BigInt): String =
+      if (bi.isValidInt) bi.toString else s"${bi.bitLength}'d$bi"
+
+    def declareVectorType(b: String, n: String, tpe: Type, size: BigInt, info: Info) = {
+      declares += Seq(b, " ", tpe, " ", n, " [0:", bigIntToVLit(size - 1), "];", info)
+    }
 
     def declare(b: String, n: String, t: Type, info: Info) = t match {
       case tx: VectorType =>
-        declares += Seq(b, " ", tx.tpe, " ", n, " [0:", tx.size - 1, "];", info)
+        declareVectorType(b, n, tx.tpe, tx.size, info)
       case tx =>
-        declares += Seq(b, " ", tx, " ", n, ";", info)
+        declares += Seq(b, " ", tx, " ", n,";",info)
     }
 
-    def assign(e: Expression, value: Expression, info: Info) {
+    def assign(e: Expression, value: Expression, info: Info): Unit = {
       assigns += Seq("assign ", e, " = ", value, ";", info)
     }
 
@@ -434,7 +523,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
       assigns += Seq("assign ", e, " = ", syn, ";", info)
       assigns += Seq("`else")
       assigns += Seq("assign ", e, " = ", garbageCond, " ? ", rand_string(syn.tpe), " : ", syn,
-        ";", info)
+                     ";", info)
       assigns += Seq("`endif // RANDOMIZE_GARBAGE_ASSIGN")
     }
 
@@ -444,12 +533,13 @@ class VerilogEmitter extends SeqTransform with Emitter {
       assigns += Seq("`endif // RANDOMIZE_INVALID_ASSIGN")
     }
 
-    def regUpdate(r: Expression, clk: Expression) = {
+    def regUpdate(r: Expression, clk: Expression, reset: Expression, init: Expression) = {
       def addUpdate(expr: Expression, tabs: String): Seq[Seq[Any]] = {
         if (weq(expr, r)) Nil // Don't bother emitting connection of register to itself
         else expr match {
           case m: Mux =>
             if (m.tpe == ClockType) throw EmitterException("Cannot emit clock muxes directly")
+            if (m.tpe == AsyncResetType) throw EmitterException("Cannot emit async reset muxes directly")
 
             def ifStatement = Seq(tabs, "if (", m.cond, ") begin")
 
@@ -472,17 +562,23 @@ class VerilogEmitter extends SeqTransform with Emitter {
           case e => Seq(Seq(tabs, r, " <= ", e, ";"))
         }
       }
-
-      at_clock.getOrElseUpdate(clk, ArrayBuffer[Seq[Any]]()) ++= addUpdate(netlist(r), "")
+      if (weq(init, r)) { // Synchronous Reset
+        noResetAlwaysBlocks.getOrElseUpdate(clk, ArrayBuffer[Seq[Any]]()) ++= addUpdate(netlist(r), "")
+      } else { // Asynchronous Reset
+        assert(reset.tpe == AsyncResetType, "Error! Synchronous reset should have been removed!")
+        val tv = init
+        val fv = netlist(r)
+        asyncResetAlwaysBlocks += ((clk, reset, addUpdate(Mux(reset, tv, fv, mux_type_and_widths(tv, fv)), "")))
+      }
     }
 
     def update(e: Expression, value: Expression, clk: Expression, en: Expression, info: Info) = {
-      if (!at_clock.contains(clk)) at_clock(clk) = ArrayBuffer[Seq[Any]]()
-      if (weq(en, one)) at_clock(clk) += Seq(e, " <= ", value, ";")
+      val lines = noResetAlwaysBlocks.getOrElseUpdate(clk, ArrayBuffer[Seq[Any]]())
+      if (weq(en, one)) lines += Seq(e, " <= ", value, ";")
       else {
-        at_clock(clk) += Seq("if(", en, ") begin")
-        at_clock(clk) += Seq(tab, e, " <= ", value, ";", info)
-        at_clock(clk) += Seq("end")
+        lines += Seq("if(", en, ") begin")
+        lines += Seq(tab, e, " <= ", value, ";", info)
+        lines += Seq("end")
       }
     }
 
@@ -497,39 +593,49 @@ class VerilogEmitter extends SeqTransform with Emitter {
       Seq(nx, "[", bitWidth(t) - 1, ":0]")
     }
 
-    def initialize(e: Expression) = {
+    def initialize(e: Expression, reset: Expression, init: Expression) = {
       initials += Seq("`ifdef RANDOMIZE_REG_INIT")
       initials += Seq(e, " = ", rand_string(e.tpe), ";")
       initials += Seq("`endif // RANDOMIZE_REG_INIT")
+      reset.tpe match {
+        case AsyncResetType =>
+          asyncInitials += Seq("if (", reset, ") begin")
+          asyncInitials += Seq(tab, e, " = ", init, ";")
+          asyncInitials += Seq("end")
+        case _ => // do nothing
+      }
     }
 
-    def initialize_mem(s: DefMemory) {
+    def initialize_mem(s: DefMemory): Unit = {
+      if (s.depth > maxMemSize) {
+        maxMemSize = s.depth
+      }
       val index = wref("initvar", s.dataType)
       val rstring = rand_string(s.dataType)
       initials += Seq("`ifdef RANDOMIZE_MEM_INIT")
-      initials += Seq("for (initvar = 0; initvar < ", s.depth, "; initvar = initvar+1)")
-      initials += Seq(tab, WSubAccess(wref(s.name, s.dataType), index, s.dataType, FEMALE),
-        " = ", rstring, ";")
+      initials += Seq("for (initvar = 0; initvar < ", bigIntToVLit(s.depth), "; initvar = initvar+1)")
+      initials += Seq(tab, WSubAccess(wref(s.name, s.dataType), index, s.dataType, SinkFlow),
+                      " = ", rstring, ";")
       initials += Seq("`endif // RANDOMIZE_MEM_INIT")
     }
 
     def simulate(clk: Expression, en: Expression, s: Seq[Any], cond: Option[String], info: Info) = {
-      if (!at_clock.contains(clk)) at_clock(clk) = ArrayBuffer[Seq[Any]]()
-      at_clock(clk) += Seq("`ifndef SYNTHESIS")
+      val lines = noResetAlwaysBlocks.getOrElseUpdate(clk, ArrayBuffer[Seq[Any]]())
+      lines += Seq("`ifndef SYNTHESIS")
       if (cond.nonEmpty) {
-        at_clock(clk) += Seq(s"`ifdef ${cond.get}")
-        at_clock(clk) += Seq(tab, s"if (`${cond.get}) begin")
-        at_clock(clk) += Seq("`endif")
+        lines += Seq(s"`ifdef ${cond.get}")
+        lines += Seq(tab, s"if (`${cond.get}) begin")
+        lines += Seq("`endif")
       }
-      at_clock(clk) += Seq(tab, tab, "if (", en, ") begin")
-      at_clock(clk) += Seq(tab, tab, tab, s, info)
-      at_clock(clk) += Seq(tab, tab, "end")
+      lines += Seq(tab, tab, "if (", en, ") begin")
+      lines += Seq(tab, tab, tab, s, info)
+      lines += Seq(tab, tab, "end")
       if (cond.nonEmpty) {
-        at_clock(clk) += Seq(s"`ifdef ${cond.get}")
-        at_clock(clk) += Seq(tab, "end")
-        at_clock(clk) += Seq("`endif")
+        lines += Seq(s"`ifdef ${cond.get}")
+        lines += Seq(tab, "end")
+        lines += Seq("`endif")
       }
-      at_clock(clk) += Seq("`endif // SYNTHESIS")
+      lines += Seq("`endif // SYNTHESIS")
     }
 
     def stop(ret: Int): Seq[Any] = Seq(if (ret == 0) "$finish;" else "$fatal;")
@@ -572,7 +678,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
       // Turn types into strings, all ports must be GroundTypes
       val tpes = m.ports map {
         case Port(_, _, _, tpe: GroundType) => stringify(tpe)
-        case port: Port => error("Trying to emit non-GroundType Port $port")
+        case port: Port => error(s"Trying to emit non-GroundType Port $port")
       }
 
       // dirs are already padded
@@ -615,11 +721,11 @@ class VerilogEmitter extends SeqTransform with Emitter {
         case sx: DefRegister =>
           declare("reg", sx.name, sx.tpe, sx.info)
           val e = wref(sx.name, sx.tpe)
-          regUpdate(e, sx.clock)
-          initialize(e)
+          regUpdate(e, sx.clock, sx.reset, sx.init)
+          initialize(e, sx.reset, sx.init)
         case sx: DefNode =>
           declare("wire", sx.name, sx.value.tpe, sx.info)
-          assign(WRef(sx.name, sx.value.tpe, NodeKind, MALE), sx.value, sx.info)
+          assign(WRef(sx.name, sx.value.tpe, NodeKind, SourceFlow), sx.value, sx.info)
         case sx: Stop =>
           simulate(sx.clk, sx.en, stop(sx.ret), Some("STOP_COND"), sx.info)
         case sx: Print =>
@@ -655,20 +761,18 @@ class VerilogEmitter extends SeqTransform with Emitter {
           instdeclares += Seq(");")
         case sx: DefMemory =>
           val fullSize = sx.depth * (sx.dataType match {
-            case GroundType(IntWidth(width)) => width
-          })
+                                       case GroundType(IntWidth(width)) => width
+                                     })
           val decl = if (fullSize > (1 << 29)) "reg /* sparse */" else "reg"
-          declare(decl, sx.name, VectorType(sx.dataType, sx.depth), sx.info)
+          declareVectorType(decl, sx.name, sx.dataType, sx.depth, sx.info)
           initialize_mem(sx)
           if (sx.readLatency != 0 || sx.writeLatency != 1)
             throw EmitterException("All memories should be transformed into " +
-              "blackboxes or combinational by previous passses")
+                                     "blackboxes or combinational by previous passses")
           for (r <- sx.readers) {
             val data = memPortField(sx, r, "data")
             val addr = memPortField(sx, r, "addr")
-            val en = memPortField(sx, r, "en")
             // Ports should share an always@posedge, so can't have intermediary wire
-            val clk = netlist(memPortField(sx, r, "clk"))
 
             declare("wire", LowerTypes.loweredName(data), data.tpe, sx.info)
             declare("wire", LowerTypes.loweredName(addr), addr.tpe, sx.info)
@@ -676,10 +780,10 @@ class VerilogEmitter extends SeqTransform with Emitter {
 
             //; Read port
             assign(addr, netlist(addr), NoInfo) // Info should come from addr connection
-            // assign(en, netlist(en))     //;Connects value to m.r.en
-            val mem = WRef(sx.name, memType(sx), MemKind, UNKNOWNGENDER)
-            val memPort = WSubAccess(mem, addr, sx.dataType, UNKNOWNGENDER)
-            val depthValue = UIntLiteral(sx.depth, IntWidth(BigInt(sx.depth).bitLength))
+                                                // assign(en, netlist(en))     //;Connects value to m.r.en
+            val mem = WRef(sx.name, memType(sx), MemKind, UnknownFlow)
+            val memPort = WSubAccess(mem, addr, sx.dataType, UnknownFlow)
+            val depthValue = UIntLiteral(sx.depth, IntWidth(sx.depth.bitLength))
             val garbageGuard = DoPrim(Geq, Seq(addr, depthValue), Seq(), UnknownType)
 
             if ((sx.depth & (sx.depth - 1)) == 0)
@@ -708,19 +812,19 @@ class VerilogEmitter extends SeqTransform with Emitter {
             assign(mask, netlist(mask), NoInfo)
             assign(en, netlist(en), NoInfo)
 
-            val mem = WRef(sx.name, memType(sx), MemKind, UNKNOWNGENDER)
-            val memPort = WSubAccess(mem, addr, sx.dataType, UNKNOWNGENDER)
+            val mem = WRef(sx.name, memType(sx), MemKind, UnknownFlow)
+            val memPort = WSubAccess(mem, addr, sx.dataType, UnknownFlow)
             update(memPort, data, clk, AND(en, mask), sx.info)
           }
 
           if (sx.readwriters.nonEmpty)
             throw EmitterException("All readwrite ports should be transformed into " +
-              "read & write ports by previous passes")
+                                     "read & write ports by previous passes")
         case _ =>
       }
     }
 
-    def emit_streams() {
+    def emit_streams(): Unit = {
       description match {
         case DocString(s) => build_comment(s.string).foreach(emit(_))
         case other =>
@@ -758,9 +862,20 @@ class VerilogEmitter extends SeqTransform with Emitter {
         emit(Seq("`ifndef RANDOM"))
         emit(Seq("`define RANDOM $random"))
         emit(Seq("`endif"))
-        emit(Seq("`ifdef RANDOMIZE"))
-        emit(Seq("  integer initvar;"))
-        emit(Seq("  initial begin"))
+        emit(Seq("`ifdef RANDOMIZE_MEM_INIT"))
+        // Since simulators don't actually support memories larger than 2^31 - 1, there is no reason
+        // to change Verilog emission in the common case. Instead, we only emit a larger initvar
+        // where necessary
+        if (maxMemSize.isValidInt) {
+          emit(Seq("  integer initvar;"))
+        } else {
+          // Width must be able to represent maxMemSize because that's the upper bound in init loop
+          val width = maxMemSize.bitLength - 1 // minus one because [width-1:0] has a width of "width"
+          emit(Seq(s"  reg [$width:0] initvar;"))
+        }
+        emit(Seq("`endif"))
+        emit(Seq("initial begin"))
+        emit(Seq("  `ifdef RANDOMIZE"))
         emit(Seq("    `ifdef INIT_RANDOM"))
         emit(Seq("      `INIT_RANDOM"))
         emit(Seq("    `endif"))
@@ -776,13 +891,20 @@ class VerilogEmitter extends SeqTransform with Emitter {
         emit(Seq("      `endif"))
         emit(Seq("    `endif"))
         for (x <- initials) emit(Seq(tab, x))
-        emit(Seq("  end"))
-        emit(Seq("`endif // RANDOMIZE"))
+        emit(Seq("  `endif // RANDOMIZE"))
+        for (x <- asyncInitials) emit(Seq(tab, x))
+        emit(Seq("end"))
       }
 
-      for (clk_stream <- at_clock if clk_stream._2.nonEmpty) {
-        emit(Seq(tab, "always @(posedge ", clk_stream._1, ") begin"))
-        for (x <- clk_stream._2) emit(Seq(tab, tab, x))
+      for ((clk, content) <- noResetAlwaysBlocks if content.nonEmpty) {
+        emit(Seq(tab, "always @(posedge ", clk, ") begin"))
+        for (line <- content) emit(Seq(tab, tab, line))
+        emit(Seq(tab, "end"))
+      }
+
+      for ((clk, reset, content) <- asyncResetAlwaysBlocks if content.nonEmpty) {
+        emit(Seq(tab, "always @(posedge ", clk, " or posedge ", reset, ") begin"))
+        for (line <- content) emit(Seq(tab, tab, line))
         emit(Seq(tab, "end"))
       }
       emit(Seq("endmodule"))
@@ -859,7 +981,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
       case EmitCircuitAnnotation(_) =>
         val writer = new java.io.StringWriter
         emit(state, writer)
-        Seq(EmittedVerilogCircuitAnnotation(EmittedVerilogCircuit(state.circuit.main, writer.toString)))
+        Seq(EmittedVerilogCircuitAnnotation(EmittedVerilogCircuit(state.circuit.main, writer.toString, outputSuffix)))
 
       case EmitAllModulesAnnotation(_) =>
         val circuit = runTransforms(state).circuit
@@ -870,16 +992,32 @@ class VerilogEmitter extends SeqTransform with Emitter {
             val writer = new java.io.StringWriter
             val renderer = new VerilogRender(d, pds, module, moduleMap)(writer)
             renderer.emit_verilog()
-            Some(EmittedVerilogModuleAnnotation(EmittedVerilogModule(module.name, writer.toString)))
+            Some(EmittedVerilogModuleAnnotation(EmittedVerilogModule(module.name, writer.toString, outputSuffix)))
           case module: Module =>
             val writer = new java.io.StringWriter
             val renderer = new VerilogRender(module, moduleMap)(writer)
             renderer.emit_verilog()
-            Some(EmittedVerilogModuleAnnotation(EmittedVerilogModule(module.name, writer.toString)))
+            Some(EmittedVerilogModuleAnnotation(EmittedVerilogModule(module.name, writer.toString, outputSuffix)))
           case _ => None
         }
       case _ => Seq()
     }
     state.copy(annotations = newAnnos ++ state.annotations)
   }
+}
+
+class MinimumVerilogEmitter extends VerilogEmitter with Emitter {
+
+
+  override def transforms = super.transforms.filter{
+    case _: DeadCodeElimination => false
+    case _ => true
+  }
+
+}
+
+class SystemVerilogEmitter extends VerilogEmitter {
+  StageUtils.dramaticWarning("SystemVerilog Emitter is the same as the Verilog Emitter!")
+
+  override val outputSuffix: String = ".sv"
 }

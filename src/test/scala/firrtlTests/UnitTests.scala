@@ -95,7 +95,7 @@ class UnitTests extends FirrtlFlatSpec {
       ResolveKinds,
       InferTypes,
       CheckTypes,
-      ResolveGenders,
+      ResolveFlows,
       ExpandConnects)
     val input =
      """circuit Unit :
@@ -157,8 +157,8 @@ class UnitTests extends FirrtlFlatSpec {
       ToWorkingIR,
       ResolveKinds,
       InferTypes,
-      ResolveGenders,
-      new InferWidths(),
+      ResolveFlows,
+      new InferWidths,
       SplitExpressions
     )
     val input =
@@ -181,8 +181,8 @@ class UnitTests extends FirrtlFlatSpec {
       ToWorkingIR,
       ResolveKinds,
       InferTypes,
-      ResolveGenders,
-      new InferWidths(),
+      ResolveFlows,
+      new InferWidths,
       PadWidths
     )
     val input =
@@ -202,16 +202,16 @@ class UnitTests extends FirrtlFlatSpec {
       ToWorkingIR,
       ResolveKinds,
       InferTypes,
-      ResolveGenders,
-      new InferWidths(),
+      ResolveFlows,
+      new InferWidths,
       PullMuxes,
       ExpandConnects,
       RemoveAccesses,
       new ConstantPropagation
     )
     val input =
-      """circuit AssignViaDeref : 
-         |  module AssignViaDeref : 
+      """circuit AssignViaDeref :
+         |  module AssignViaDeref :
          |    input clock : Clock
          |    input reset : UInt<1>
          |    output io : {a : UInt<8>, sel : UInt<1>}
@@ -242,16 +242,16 @@ class UnitTests extends FirrtlFlatSpec {
       ToWorkingIR,
       ResolveKinds,
       InferTypes,
-      ResolveGenders,
-      new InferWidths(),
+      ResolveFlows,
+      new InferWidths,
       CheckWidths)
     val input =
       """circuit Unit :
         |  module Unit :
         |    node x = bits(UInt(1), 100, 0)""".stripMargin
     intercept[CheckWidths.BitsWidthException] {
-      passes.foldLeft(Parser.parse(input.split("\n").toIterator)) {
-        (c: Circuit, p: Pass) => p.run(c)
+      passes.foldLeft(CircuitState(Parser.parse(input.split("\n").toIterator), UnknownForm)) {
+        (c: CircuitState, p: Transform) => p.runTransform(c)
       }
     }
   }
@@ -261,16 +261,16 @@ class UnitTests extends FirrtlFlatSpec {
       ToWorkingIR,
       ResolveKinds,
       InferTypes,
-      ResolveGenders,
-      new InferWidths(),
+      ResolveFlows,
+      new InferWidths,
       CheckWidths)
     val input =
       """circuit Unit :
         |  module Unit :
         |    node x = head(UInt(1), 100)""".stripMargin
     intercept[CheckWidths.HeadWidthException] {
-      passes.foldLeft(Parser.parse(input.split("\n").toIterator)) {
-        (c: Circuit, p: Pass) => p.run(c)
+      passes.foldLeft(CircuitState(Parser.parse(input.split("\n").toIterator), UnknownForm)) {
+        (c: CircuitState, p: Transform) => p.runTransform(c)
       }
     }
   }
@@ -280,16 +280,16 @@ class UnitTests extends FirrtlFlatSpec {
       ToWorkingIR,
       ResolveKinds,
       InferTypes,
-      ResolveGenders,
-      new InferWidths(),
+      ResolveFlows,
+      new InferWidths,
       CheckWidths)
     val input =
       """circuit Unit :
         |  module Unit :
         |    node x = tail(UInt(1), 100)""".stripMargin
     intercept[CheckWidths.TailWidthException] {
-      passes.foldLeft(Parser.parse(input.split("\n").toIterator)) {
-        (c: Circuit, p: Pass) => p.run(c)
+      passes.foldLeft(CircuitState(Parser.parse(input.split("\n").toIterator), UnknownForm)) {
+        (c: CircuitState, p: Transform) => p.runTransform(c)
       }
     }
   }
@@ -308,8 +308,8 @@ class UnitTests extends FirrtlFlatSpec {
         |    bar <- foo
         |""".stripMargin
     intercept[PassException] {
-      passes.foldLeft(Parser.parse(input.split("\n").toIterator)) {
-        (c: Circuit, p: Pass) => p.run(c)
+      passes.foldLeft(CircuitState(Parser.parse(input.split("\n").toIterator), UnknownForm)) {
+        (c: CircuitState, p: Transform) => p.runTransform(c)
       }
     }
   }
@@ -388,12 +388,12 @@ class UnitTests extends FirrtlFlatSpec {
       ToWorkingIR,
       ResolveKinds,
       InferTypes,
-      ResolveGenders,
-      new InferWidths(),
+      ResolveFlows,
+      new InferWidths,
       PullMuxes,
       ExpandConnects,
       RemoveAccesses,
-      ResolveGenders,
+      ResolveFlows,
       new ConstantPropagation
     )
     val input =
@@ -412,13 +412,13 @@ class UnitTests extends FirrtlFlatSpec {
     val ut2 = UIntType(IntWidth(BigInt(2)))
     val ut1 = UIntType(IntWidth(BigInt(1)))
 
-    val mgen = WRef("_array_index", ut16, WireKind, MALE)
-    val fgen = WRef("_array_index", ut16, WireKind, FEMALE)
-    val index = WRef("index", ut2, PortKind, MALE)
-    val out = WRef("out", ut16, PortKind, FEMALE)
+    val mgen = WRef("_array_index", ut16, WireKind, SourceFlow)
+    val fgen = WRef("_array_index", ut16, WireKind, SinkFlow)
+    val index = WRef("index", ut2, PortKind, SourceFlow)
+    val out = WRef("out", ut16, PortKind, SinkFlow)
 
     def eq(e1: Expression, e2: Expression): Expression = DoPrim(PrimOps.Eq, Seq(e1, e2), Nil, ut1)
-    def array(v: Int): Expression = WSubIndex(WRef("array", VectorType(ut16, 3), WireKind, MALE), v, ut16, MALE)
+    def array(v: Int): Expression = WSubIndex(WRef("array", VectorType(ut16, 3), WireKind, SourceFlow), v, ut16, SourceFlow)
 
     result should containTree { case DefWire(_, "_array_index", `ut16`) => true }
     result should containTree { case IsInvalid(_, `fgen`) => true }
@@ -436,5 +436,17 @@ class UnitTests extends FirrtlFlatSpec {
     result should containTree { case Conditionally(_, `eq2`, Connect(_, `fgen`, `array2`), EmptyStmt) => true }
 
     result should containTree { case Connect(_, `out`, mgen) => true }
+  }
+
+  "Shl" should "be emitted in Verilog as concat" in {
+    val input =
+      """circuit Unit :
+        |  module Unit :
+        |    input in : UInt<4>
+        |    output out : UInt<8>
+        |    out <= shl(in, 4)
+        |""".stripMargin
+    val res = (new VerilogCompiler).compileAndEmit(CircuitState(parse(input), ChirrtlForm))
+    res should containLine ("assign out = {in, 4'h0};")
   }
 }

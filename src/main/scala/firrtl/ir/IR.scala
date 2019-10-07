@@ -62,15 +62,13 @@ trait HasInfo {
 trait IsDeclaration extends HasName with HasInfo
 
 case class StringLit(string: String) extends FirrtlNode {
+  import org.apache.commons.text.StringEscapeUtils
   /** Returns an escaped and quoted String */
   def escape: String = {
-    import scala.reflect.runtime.universe._
-    Literal(Constant(string)).toString
+    "\"" + serialize + "\""
   }
-  def serialize: String = {
-    val str = escape
-    str.slice(1, str.size - 1)
-  }
+  def serialize: String = StringEscapeUtils.escapeJava(string)
+
   /** Format the string for Verilog */
   def verilogFormat: StringLit = {
     StringLit(string.replaceAll("%x", "%h"))
@@ -85,6 +83,7 @@ case class StringLit(string: String) extends FirrtlNode {
   }
 }
 object StringLit {
+  import org.apache.commons.text.StringEscapeUtils
   /** Maps characters to ASCII for Verilog emission */
   private def toASCII(char: Char): List[Char] = char match {
     case nonASCII if !nonASCII.isValidByte => List('?')
@@ -98,8 +97,7 @@ object StringLit {
 
   /** Create a StringLit from a raw parsed String */
   def unescape(raw: String): StringLit = {
-    val str = StringContext.processEscapes(raw)
-    StringLit(str)
+    StringLit(StringEscapeUtils.unescapeJava(raw))
   }
 }
 
@@ -314,18 +312,25 @@ case class DefInstance(info: Info, name: String, module: String) extends Stateme
   def foreachString(f: String => Unit): Unit = f(name)
   def foreachInfo(f: Info => Unit): Unit = f(info)
 }
+
+object ReadUnderWrite extends Enumeration {
+  val Undefined = Value("undefined")
+  val Old = Value("old")
+  val New = Value("new")
+}
+
 case class DefMemory(
     info: Info,
     name: String,
     dataType: Type,
-    depth: Int,
+    depth: BigInt,
     writeLatency: Int,
     readLatency: Int,
     readers: Seq[String],
     writers: Seq[String],
     readwriters: Seq[String],
     // TODO: handle read-under-write
-    readUnderWrite: Option[String] = None) extends Statement with IsDeclaration {
+    readUnderWrite: ReadUnderWrite.Value = ReadUnderWrite.Undefined) extends Statement with IsDeclaration {
   def serialize: String =
     s"mem $name :" + info.serialize +
     indent(
@@ -336,7 +341,7 @@ case class DefMemory(
           (readers map ("reader => " + _)) ++
           (writers map ("writer => " + _)) ++
           (readwriters map ("readwriter => " + _)) ++
-       Seq("read-under-write => undefined")) mkString "\n")
+       Seq(s"read-under-write => ${readUnderWrite}")) mkString "\n")
   def mapStmt(f: Statement => Statement): Statement = this
   def mapExpr(f: Expression => Expression): Statement = this
   def mapType(f: Type => Type): Statement = this.copy(dataType = f(dataType))
@@ -382,6 +387,11 @@ case class Conditionally(
   def foreachString(f: String => Unit): Unit = Unit
   def foreachInfo(f: Info => Unit): Unit = f(info)
 }
+
+object Block {
+  def apply(head: Statement, tail: Statement*): Block = Block(head +: tail)
+}
+
 case class Block(stmts: Seq[Statement]) extends Statement {
   def serialize: String = stmts map (_.serialize) mkString "\n"
   def mapStmt(f: Statement => Statement): Statement = Block(stmts map f)
@@ -770,6 +780,19 @@ case object ClockType extends GroundType {
   def mapWidth(f: Width => Width): Type = this
   def foreachWidth(f: Width => Unit): Unit = Unit
 }
+/* Abstract reset, will be inferred to UInt<1> or AsyncReset */
+case object ResetType extends GroundType {
+  val width = IntWidth(1)
+  def serialize: String = "Reset"
+  def mapWidth(f: Width => Width): Type = this
+  def foreachWidth(f: Width => Unit): Unit = Unit
+}
+case object AsyncResetType extends GroundType {
+  val width = IntWidth(1)
+  def serialize: String = "AsyncReset"
+  def mapWidth(f: Width => Width): Type = this
+  def foreachWidth(f: Width => Unit): Unit = Unit
+}
 case class AnalogType(width: Width) extends GroundType {
   def serialize: String = "Analog" + width.serialize
   def mapWidth(f: Width => Width): Type = AnalogType(f(width))
@@ -784,7 +807,7 @@ case object UnknownType extends Type {
 }
 
 /** [[Port]] Direction */
-abstract class Direction extends FirrtlNode
+sealed abstract class Direction extends FirrtlNode
 case object Input extends Direction {
   def serialize: String = "input"
 }

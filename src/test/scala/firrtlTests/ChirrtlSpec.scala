@@ -2,13 +2,8 @@
 
 package firrtlTests
 
-import java.io._
-import org.scalatest._
-import org.scalatest.prop._
-import firrtl.Parser
-import firrtl.ir.Circuit
-import firrtl.passes._
 import firrtl._
+import firrtl.passes._
 
 class ChirrtlSpec extends FirrtlFlatSpec {
   def transforms = Seq(
@@ -21,9 +16,9 @@ class ChirrtlSpec extends FirrtlFlatSpec {
     ResolveKinds,
     InferTypes,
     CheckTypes,
-    ResolveGenders,
-    CheckGenders,
-    new InferWidths(),
+    ResolveFlows,
+    CheckFlows,
+    new InferWidths,
     CheckWidths,
     PullMuxes,
     ExpandConnects,

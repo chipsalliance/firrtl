@@ -70,11 +70,15 @@ class InstanceGraph(c: Circuit) {
     * @return a Seq[ Seq[WDefInstance] ] of absolute instance paths
     */
   def findInstancesInHierarchy(module: String): Seq[Seq[WDefInstance]] = {
-    val instances = graph.getVertices.filter(_.module == module).toSeq
-    instances flatMap { i => fullHierarchy(i) }
+    if (instantiated(module)) {
+      val instances = graph.getVertices.filter(_.module == module).toSeq
+      instances flatMap { i => fullHierarchy(i) }
+    } else {
+      Nil
+    }
   }
 
-  /** An `[[EulerTour]]` representation of the `[[DiGraph]]` */
+  /** An [[firrtl.graph.EulerTour EulerTour]] representation of the [[firrtl.graph.DiGraph DiGraph]] */
   lazy val tour = EulerTour(graph, trueTopInstance)
 
   /** Finds the lowest common ancestor instances for two module names in

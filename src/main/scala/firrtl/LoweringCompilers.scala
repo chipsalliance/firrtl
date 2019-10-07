@@ -2,6 +2,9 @@
 
 package firrtl
 
+import firrtl.transforms.IdentityTransform
+import firrtl.options.StageUtils
+
 sealed abstract class CoreTransform extends SeqTransform
 
 /** This transforms "CHIRRTL", the chisel3 IR, to "Firrtl". Note the resulting
@@ -26,7 +29,7 @@ class IRToWorkingIR extends CoreTransform {
   def transforms = Seq(passes.ToWorkingIR)
 }
 
-/** Resolves types, kinds, and genders, and checks the circuit legality.
+/** Resolves types, kinds, and flows, and checks the circuit legality.
   * Operates on working IR nodes and high Firrtl.
   */
 class ResolveAndCheck extends CoreTransform {
@@ -40,12 +43,13 @@ class ResolveAndCheck extends CoreTransform {
     passes.Uniquify,
     passes.ResolveKinds,
     passes.InferTypes,
-    passes.ResolveGenders,
-    passes.CheckGenders,
+    passes.ResolveFlows,
+    passes.CheckFlows,
     new passes.InferBinaryPoints(),
     new passes.TrimIntervals(),
-    new passes.InferWidths(),
-    passes.CheckWidths)
+    new passes.InferWidths,
+    passes.CheckWidths,
+    new firrtl.transforms.InferResets)
 }
 
 /** Expands aggregate connects, removes dynamic accesses, and when
@@ -67,8 +71,9 @@ class HighFirrtlToMiddleFirrtl extends CoreTransform {
     passes.ResolveKinds,
     passes.InferTypes,
     passes.CheckTypes,
-    passes.ResolveGenders,
-    new passes.InferWidths(),
+    new checks.CheckResets,
+    passes.ResolveFlows,
+    new passes.InferWidths,
     passes.CheckWidths,
     new passes.RemoveIntervals(),
     passes.ConvertFixedToSInt,
@@ -87,8 +92,8 @@ class MiddleFirrtlToLowFirrtl extends CoreTransform {
     passes.LowerTypes,
     passes.ResolveKinds,
     passes.InferTypes,
-    passes.ResolveGenders,
-    new passes.InferWidths(),
+    passes.ResolveFlows,
+    new passes.InferWidths,
     passes.Legalize,
     new firrtl.transforms.RemoveReset,
     new firrtl.transforms.CheckCombLoops,
@@ -120,6 +125,7 @@ class MinimumLowFirrtlOptimization extends CoreTransform {
   def inputForm = LowForm
   def outputForm = LowForm
   def transforms = Seq(
+    passes.RemoveValidIf,
     passes.Legalize,
     passes.memlib.VerilogMemDelays, // TODO move to Verilog emitter
     passes.SplitExpressions)
@@ -127,52 +133,52 @@ class MinimumLowFirrtlOptimization extends CoreTransform {
 
 
 import CompilerUtils.getLoweringTransforms
-import firrtl.transforms.BlackBoxSourceHelper
 
 /** Emits input circuit with no changes
   *
   * Primarily useful for changing between .fir and .pb serialized formats
   */
 class NoneCompiler extends Compiler {
-  def emitter = new ChirrtlEmitter
-  def transforms: Seq[Transform] = Seq.empty
+  val emitter = new ChirrtlEmitter
+  def transforms: Seq[Transform] = Seq(new IdentityTransform(ChirrtlForm))
 }
 
 /** Emits input circuit
   * Will replace Chirrtl constructs with Firrtl
   */
 class HighFirrtlCompiler extends Compiler {
-  def emitter = new HighFirrtlEmitter
+  val emitter = new HighFirrtlEmitter
   def transforms: Seq[Transform] = getLoweringTransforms(ChirrtlForm, HighForm)
 }
 
 /** Emits middle Firrtl input circuit */
 class MiddleFirrtlCompiler extends Compiler {
-  def emitter = new MiddleFirrtlEmitter
+  val emitter = new MiddleFirrtlEmitter
   def transforms: Seq[Transform] = getLoweringTransforms(ChirrtlForm, MidForm)
 }
 
 /** Emits lowered input circuit */
 class LowFirrtlCompiler extends Compiler {
-  def emitter = new LowFirrtlEmitter
+  val emitter = new LowFirrtlEmitter
   def transforms: Seq[Transform] = getLoweringTransforms(ChirrtlForm, LowForm)
 }
 
 /** Emits Verilog */
 class VerilogCompiler extends Compiler {
-  def emitter = new VerilogEmitter
+  val emitter = new VerilogEmitter
   def transforms: Seq[Transform] = getLoweringTransforms(ChirrtlForm, LowForm) ++
     Seq(new LowFirrtlOptimization)
 }
 
 /** Emits Verilog without optimizations */
 class MinimumVerilogCompiler extends Compiler {
-  def emitter = new VerilogEmitter
+  val emitter = new MinimumVerilogEmitter
   def transforms: Seq[Transform] = getLoweringTransforms(ChirrtlForm, LowForm) ++
-    Seq(new MinimumLowFirrtlOptimization, new BlackBoxSourceHelper)
+    Seq(new MinimumLowFirrtlOptimization)
 }
 
 /** Currently just an alias for the [[VerilogCompiler]] */
 class SystemVerilogCompiler extends VerilogCompiler {
-  Driver.dramaticWarning("SystemVerilog Compiler behaves the same as the Verilog Compiler!")
+  override val emitter = new SystemVerilogEmitter
+  StageUtils.dramaticWarning("SystemVerilog Compiler behaves the same as the Verilog Compiler!")
 }
