@@ -403,8 +403,8 @@ object Utils extends LazyLogging {
     (t1, t2) match {
       case (ClockType, ClockType) => ClockType
       case (AsyncResetType, AsyncResetType) => AsyncResetType
-      case (t1x: UIntType, t2x: UIntType) => UIntType(wmax(t1x.width, t2x.width))
-      case (t1x: SIntType, t2x: SIntType) => SIntType(wmax(t1x.width, t2x.width))
+      case (t1x: UIntType, t2x: UIntType) => UIntType(IsMax(t1x.width, t2x.width))
+      case (t1x: SIntType, t2x: SIntType) => SIntType(IsMax(t1x.width, t2x.width))
       case (FixedType(w1, p1), FixedType(w2, p2)) =>
         FixedType(PLUS(MAX(p1, p2),MAX(MINUS(w1, p1), MINUS(w2, p2))), MAX(p1, p2))
       case (IntervalType(l1, u1, p1), IntervalType(l2, u2, p2)) =>

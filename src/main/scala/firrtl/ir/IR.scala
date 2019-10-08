@@ -564,11 +564,8 @@ class IntWidth(val width: BigInt) extends Width with Product {
 case object UnknownWidth extends Width {
   def serialize: String = ""
 }
-case class CalcWidth(arg: Constraint) extends Width with Constraint {
+case class CalcWidth(arg: Constraint) extends Width {
   def serialize: String = s"calcw(${arg.serialize})"
-  def map(f: Constraint=>Constraint): Constraint = f(arg)
-  val children = Seq(arg)
-  override def reduce(): Constraint = arg
 }
 case class VarWidth(name: String) extends Width with IsVar {
   override def serialize: String = s"<$name>"

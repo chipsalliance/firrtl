@@ -190,11 +190,13 @@ case class IsAdd private (val known: Option[IsKnown],
 
   def reduce(): Constraint = (known, maxs, mins, others) match {
     case (Some(k), Nil, Nil, Nil) => k
-    case (_, Seq(x), Seq(), Seq()) =>
-      val maxOthers = x.others.foldLeft(new IsAdd(known, Nil, Nil, others))((a, o) => a.addChild(o)).reduce()
-      val maxKnown = merge(known, x.known)
-      new IsMax(maxKnown, Nil, Seq(maxOthers)).reduce()
+    case (Some(k), Seq(x), Seq(), Seq()) =>
+      val q = x.map { o => IsAdd(k, o) }.reduce()
+      q
+      //val maxKnown = merge(known, x.known)
+      //new IsMax(maxKnown, Nil, maxOthers).reduce()
     case (_, Seq(), Seq(x), Seq()) =>
+      //TODO this is broken
       val minOthers = x.others.foldLeft(new IsAdd(known, Nil, Nil, others))((a, o) => a.addChild(o)).reduce()
       val minKnown = merge(known, x.known)
       new IsMin(minKnown, Nil, Seq(minOthers)).reduce()
@@ -208,9 +210,10 @@ object IsMax {
     case _ => apply(Seq(left, right))
   }
   def apply(children: Seq[Constraint]): Constraint = {
-    children.foldLeft(new IsMax(None, Nil, Nil)) { (add, c) =>
+    val x = children.foldLeft(new IsMax(None, Nil, Nil)) { (add, c) =>
       add.addChild(c)
-    }.reduce()
+    }
+    x.reduce()
   }
   //private [constraint] def reduce(gen: Seq[Constraint] => Constraint): Constraint = {
   //  (maxOpt, minOpt) match {
@@ -342,7 +345,7 @@ object IsNeg {
   def apply(child: Constraint): Constraint = new IsNeg(child).reduce()
 }
 
-case class IsNeg private (child: Constraint) extends Constraint {
+class IsNeg private (val child: Constraint) extends Constraint {
   override def reduce(): Constraint = child match {
     case k: IsKnown => k.neg
     case x: IsAdd => IsAdd(x.children.map { b => IsNeg(b) })
@@ -367,7 +370,7 @@ case class IsNeg private (child: Constraint) extends Constraint {
 
 object IsPow { def apply(child: Constraint): Constraint = new IsPow(child).reduce() }
 
-case class IsPow private (val child: Constraint) extends Constraint {
+class IsPow private (val child: Constraint) extends Constraint {
   override def reduce(): Constraint = child match {
     case k: IsKnown => k.pow
     // 2^(a + b) -> 2^a * 2^b
