@@ -595,13 +595,13 @@ case object UnknownBound extends Bound {
   def serialize: String = "?"
   def map(f: Constraint=>Constraint): Constraint = this
   override def reduce(): Constraint = this
-  val children = Nil
+  val children = Vector()
 }
 case class CalcBound(arg: Constraint) extends Bound {
   def serialize: String = s"calcb(${arg.serialize})"
   def map(f: Constraint=>Constraint): Constraint = f(arg)
   override def reduce(): Constraint = arg
-  val children = Seq(arg)
+  val children = Vector(arg)
 }
 case class VarBound(name: String) extends IsVar with Bound
 object KnownBound {
