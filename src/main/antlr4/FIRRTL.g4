@@ -290,12 +290,12 @@ primop
   | 'bits('
   | 'head('
   | 'tail('
-  | 'bpshl('
-  | 'bpshr('
-  | 'bpset('
+  | 'incp('
+  | 'decp('
+  | 'setp('
   | 'wrap('
   | 'clip('
-  | 'squeeze('
+  | 'squz('
   ;
 
 /*------------------------------------------------------------------

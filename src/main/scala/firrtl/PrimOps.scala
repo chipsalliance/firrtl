@@ -325,18 +325,18 @@ object PrimOps extends LazyLogging {
     }
     override def toString = "tail"
   }
-  /** Shift Binary Point Left **/
-  case object BPShl extends PrimOp {
+  /** Increase Precision **/
+  case object IncP extends PrimOp {
     override def propagateType(e: DoPrim): Type = t1(e) match {
       case _: FixedType => FixedType(IsAdd(w1(e),c1(e)), IsAdd(p1(e), c1(e)))
       // Keeps the same exact value, but adds more precision for the future i.e. aaa.bbb -> aaa.bbb00
       case IntervalType(l, u, p) => IntervalType(l, u, IsAdd(p, c1(e)))
       case _ => UnknownType
     }
-    override def toString = "bpshl"
+    override def toString = "incp"
   }
-  /** Shift Binary Point Right **/
-  case object BPShr extends PrimOp {
+  /** Decrease Precision **/
+  case object DecP extends PrimOp {
     override def propagateType(e: DoPrim): Type = t1(e) match {
       case _: FixedType => FixedType(IsAdd(w1(e),IsNeg(c1(e))), IsAdd(p1(e), IsNeg(c1(e))))
       case IntervalType(l, u, p) =>
@@ -353,10 +353,10 @@ object PrimOps extends LazyLogging {
         IntervalType(newL, newU, IsAdd(p, IsNeg(c1(e))))
       case _ => UnknownType
     }
-    override def toString = "bpshr"
+    override def toString = "decp"
   }
-  /** Set Binary Point **/
-  case object BPSet extends PrimOp {
+  /** Set Precision **/
+  case object SetP extends PrimOp {
     override def propagateType(e: DoPrim): Type = t1(e) match {
       case _: FixedType => FixedType(IsAdd(c1(e), IsAdd(w1(e), IsNeg(p1(e)))), c1(e))
       case IntervalType(l, u, p) =>
@@ -367,7 +367,7 @@ object PrimOps extends LazyLogging {
         IntervalType(newL, newU, c1(e))
       case _ => UnknownType
     }
-    override def toString = "bpset"
+    override def toString = "setp"
   }
   /** Interpret As UInt */
   case object AsUInt extends PrimOp {
@@ -452,7 +452,7 @@ object PrimOps extends LazyLogging {
       case (IntervalType(l1, u1, p1), IntervalType(l2, u2, _)) => IntervalType(IsMax(l1, l2), IsMin(u1, u2), p1)
       case _ => UnknownType
     }
-    override def toString = "squeeze"
+    override def toString = "squz"
   }
   /** Wrap First Operand Around Range/Width of Second Operand **/
   case object Wrap extends PrimOp {
@@ -473,8 +473,8 @@ object PrimOps extends LazyLogging {
 
   private lazy val builtinPrimOps: Seq[PrimOp] =
     Seq(Add, Sub, Mul, Div, Rem, Lt, Leq, Gt, Geq, Eq, Neq, Pad, AsUInt, AsSInt, AsInterval, AsClock, AsAsyncReset, Shl, Shr,
-        Dshl, Dshr, Neg, Cvt, Not, And, Or, Xor, Andr, Orr, Xorr, Cat, Bits, Head, Tail, AsFixedPoint, BPShl, BPShr,
-        BPSet, Wrap, Clip, Squeeze)
+        Dshl, Dshr, Neg, Cvt, Not, And, Or, Xor, Andr, Orr, Xorr, Cat, Bits, Head, Tail, AsFixedPoint, IncP, DecP,
+        SetP, Wrap, Clip, Squeeze)
   private lazy val strToPrimOp: Map[String, PrimOp] = builtinPrimOps.map { case op : PrimOp=> op.toString -> op }.toMap
 
   /** Seq of String representations of [[ir.PrimOp]]s */

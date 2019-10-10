@@ -89,7 +89,7 @@ trait CheckHighFormLike {
           correctNum(Option(2), 0)
         case AsUInt | AsSInt | AsClock | AsAsyncReset | Cvt | Neq | Not =>
           correctNum(Option(1), 0)
-        case AsFixedPoint | Pad | Head | Tail | BPShl | BPShr | BPSet =>
+        case AsFixedPoint | Pad | Head | Tail | IncP | DecP | SetP =>
           correctNum(Option(1), 1)
         case Shl | Shr =>
           correctNum(Option(1), 1)
@@ -455,7 +455,7 @@ object CheckTypes extends Pass {
           checkAllTypes(e.args, okUInt=true, okSInt=true, okClock=false, okFix=true, okAsync=false, okInterval=false)
         case Shl | Shr | Cat =>
           checkAllTypes(e.args, okUInt=true, okSInt=true, okClock=false, okFix=true, okAsync=false, okInterval=true)
-        case BPShl | BPShr | BPSet =>
+        case IncP | DecP | SetP =>
           checkAllTypes(e.args, okUInt=false, okSInt=false, okClock=false, okFix=true, okAsync=false, okInterval=true)
         case Wrap | Clip | Squeeze =>
           checkAllTypes(e.args, okUInt = false, okSInt = false, okClock = false, okFix = false, okAsync=false, okInterval = true)

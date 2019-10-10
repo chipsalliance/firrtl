@@ -64,7 +64,7 @@ class TrimIntervals extends Pass {
   private val opsToFix = Seq(Add, Sub, Lt, Leq, Gt, Geq, Eq, Neq/*, Wrap, Clip, Squeeze*/)
 
   private def alignExpBP(e: Expression): Expression = e map alignExpBP match {
-    case DoPrim(BPSet, Seq(arg), Seq(const), tpe: IntervalType) => fixBP(IntWidth(const))(arg)
+    case DoPrim(SetP, Seq(arg), Seq(const), tpe: IntervalType) => fixBP(IntWidth(const))(arg)
     case DoPrim(o, args, consts, t) if opsToFix.contains(o) &&
       (args.map(_.tpe).collect { case x: IntervalType => x }).size == args.size =>
       val maxBP = args.map(_.tpe).collect { case IntervalType(_, _, p) => p }.reduce(_ max _)
@@ -77,7 +77,7 @@ class TrimIntervals extends Pass {
   private def fixBP(p: Width)(e: Expression): Expression = (p, e.tpe) match {
     case (IntWidth(desired), IntervalType(l, u, IntWidth(current))) if desired == current => e
     case (IntWidth(desired), IntervalType(l, u, IntWidth(current))) if desired > current  =>
-      DoPrim(BPShl, Seq(e), Seq(desired - current), IntervalType(l, u, IntWidth(desired)))
+      DoPrim(IncP, Seq(e), Seq(desired - current), IntervalType(l, u, IntWidth(desired)))
     case (IntWidth(desired), IntervalType(l, u, IntWidth(current))) if desired < current  =>
       val shiftAmt = current - desired
       val shiftGain = BigDecimal(BigInt(1) << shiftAmt.toInt)
@@ -89,7 +89,7 @@ class TrimIntervals extends Pass {
       val bpResInv = Closed(bpGain)
       val newL = IsMul(IsFloor(IsMul(IsMul(l, shiftMul), bpResInv)), newBPRes)
       val newU = IsMul(IsFloor(IsMul(IsMul(u, shiftMul), bpResInv)), newBPRes)
-      DoPrim(BPShr, Seq(e), Seq(current - desired), IntervalType(CalcBound(newL), CalcBound(newU), IntWidth(desired)))
+      DoPrim(DecP, Seq(e), Seq(current - desired), IntervalType(CalcBound(newL), CalcBound(newU), IntWidth(desired)))
     case x => sys.error(s"Shouldn't be here: $x")
   }
 }

@@ -47,8 +47,8 @@ class RemoveIntervals extends Pass {
     case o =>
       o map replaceExprInterval match {
         case DoPrim(AsInterval, Seq(a1), _, tpe) => DoPrim(AsSInt, Seq(a1), Seq.empty, tpe)
-        case DoPrim(BPShl, args, consts, tpe) => DoPrim(Shl, args, consts, tpe)
-        case DoPrim(BPShr, args, consts, tpe) => DoPrim(Shr, args, consts, tpe)
+        case DoPrim(IncP, args, consts, tpe) => DoPrim(Shl, args, consts, tpe)
+        case DoPrim(DecP, args, consts, tpe) => DoPrim(Shr, args, consts, tpe)
         case DoPrim(Clip, Seq(a1, _), Nil, tpe: IntervalType) =>
           // Output interval (pre-calculated)
           val clipLo = tpe.minAdjusted.get
