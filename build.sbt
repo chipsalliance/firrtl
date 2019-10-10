@@ -179,4 +179,10 @@ scalacOptions in Compile in doc ++= Seq(
 ) ++ scalacOptionsVersion(scalaVersion.value)
 
 fork := true
-Test / testForkedParallel := true
+Test / testForkedParallel := true 
+
+// Aliases
+addCommandAlias("com", "all compile test:compile")
+addCommandAlias("lint", "; compile:scalafix --check ; test:scalafix --check")
+addCommandAlias("fix", "all compile:scalafix test:scalafix")
+
