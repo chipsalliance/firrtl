@@ -142,5 +142,56 @@ class InequalitySpec extends FlatSpec with Matchers {
     IsMul(Seq(Closed(2), isMax, isMax)).children should be (Vector(Closed(2), isMax, isMax)) //>1 max
     IsMul(Seq(Closed(2), isMin, isMax)).children should be (Vector(Closed(2), isMin, isMax)) //mixed min/max
   }
+
+  "IsNeg" should "reduce properly" in {
+    // All constants
+    IsNeg(Closed(1)) should be (Closed(-1))
+    // Pull out max
+    IsNeg(IsMax(Closed(1), VarCon("a"))) should be (IsMin(Closed(-1), IsNeg(VarCon("a"))))
+    // Pull out min
+    IsNeg(IsMin(Closed(1), VarCon("a"))) should be (IsMax(Closed(-1), IsNeg(VarCon("a"))))
+    // Pull out add
+    IsNeg(IsAdd(Closed(1), VarCon("a"))) should be (IsAdd(Closed(-1), IsNeg(VarCon("a"))))
+    // Pull out mul
+    IsNeg(IsMul(Closed(2), VarCon("a"))) should be (IsMul(Closed(-2), VarCon("a")))
+    // No optimizations
+    // (pow), (floor?)
+    IsNeg(IsPow(VarCon("x"))).children should be (Vector(IsPow(VarCon("x"))))
+    IsNeg(IsFloor(VarCon("x"))).children should be (Vector(IsFloor(VarCon("x"))))
+  }
+
+  "IsPow" should "reduce properly" in {
+    // All constants
+    IsPow(Closed(1)) should be (Closed(2))
+    // Pull out max
+    IsPow(IsMax(Closed(1), VarCon("a"))) should be (IsMax(Closed(2), IsPow(VarCon("a"))))
+    // Pull out min
+    IsPow(IsMin(Closed(1), VarCon("a"))) should be (IsMin(Closed(2), IsPow(VarCon("a"))))
+    // Pull out add
+    IsPow(IsAdd(Closed(1), VarCon("a"))) should be (IsMul(Closed(2), IsPow(VarCon("a"))))
+    // No optimizations
+    // (mul), (pow), (floor?)
+    IsPow(IsMul(Closed(2), VarCon("x"))).children should be (Vector(IsMul(Closed(2), VarCon("x"))))
+    IsPow(IsPow(VarCon("x"))).children should be (Vector(IsPow(VarCon("x"))))
+    IsPow(IsFloor(VarCon("x"))).children should be (Vector(IsFloor(VarCon("x"))))
+  }
+
+  "IsFloor" should "reduce properly" in {
+    // All constants
+    IsFloor(Closed(1.9)) should be (Closed(1))
+    IsFloor(Closed(-1.9)) should be (Closed(-2))
+    // Pull out max
+    IsFloor(IsMax(Closed(1.9), VarCon("a"))) should be (IsMax(Closed(1), IsFloor(VarCon("a"))))
+    // Pull out min
+    IsFloor(IsMin(Closed(1.9), VarCon("a"))) should be (IsMin(Closed(1), IsFloor(VarCon("a"))))
+    // Cancel with another floor
+    IsFloor(IsFloor(VarCon("a"))) should be (IsFloor(VarCon("a")))
+    // No optimizations
+    // (add), (mul), (pow)
+    IsFloor(IsMul(Closed(2), VarCon("x"))).children should be (Vector(IsMul(Closed(2), VarCon("x"))))
+    IsFloor(IsPow(VarCon("x"))).children should be (Vector(IsPow(VarCon("x"))))
+    IsFloor(IsAdd(Closed(1), VarCon("x"))).children should be (Vector(IsAdd(Closed(1), VarCon("x"))))
+  }
+
 }
 

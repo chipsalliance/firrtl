@@ -304,9 +304,11 @@ case class IsNeg private (child: Constraint, dummyArg: Int) extends Constraint {
 
 
 
-object IsPow { def apply(child: Constraint): Constraint = new IsPow(child).reduce() }
+object IsPow {
+  def apply(child: Constraint): Constraint = new IsPow(child, 0).reduce()
+}
 
-class IsPow private (val child: Constraint) extends Constraint {
+case class IsPow private (child: Constraint, dummyArg: Int) extends Constraint {
   override def reduce(): Constraint = child match {
     case k: IsKnown => k.pow
     // 2^(a + b) -> 2^a * 2^b
@@ -320,6 +322,7 @@ class IsPow private (val child: Constraint) extends Constraint {
     case x: IsVar => this
     case _ => this
   }
+
   val children = Vector(child)
 
   override def map(f: Constraint=>Constraint): Constraint = IsPow(f(child))
@@ -330,9 +333,9 @@ class IsPow private (val child: Constraint) extends Constraint {
 
 
 
-object IsFloor { def apply(child: Constraint): Constraint = new IsFloor(child).reduce() }
+object IsFloor { def apply(child: Constraint): Constraint = new IsFloor(child, 0).reduce() }
 
-class IsFloor private (val child: Constraint) extends Constraint {
+case class IsFloor private (child: Constraint, dummyArg: Int) extends Constraint {
 
   override def reduce(): Constraint = child match {
     case k: IsKnown => k.floor
