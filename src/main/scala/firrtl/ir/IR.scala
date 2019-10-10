@@ -523,7 +523,6 @@ abstract class Width extends FirrtlNode {
     case (a: IntWidth, b: IntWidth) => IntWidth(a.width min b.width)
     case _ => UnknownWidth
   }
-  def get: BigInt = sys.error(s"Cannot call get on $this!")
 }
 /** Positive Integer Bit Width of a [[GroundType]] */
 object IntWidth {
@@ -559,7 +558,6 @@ class IntWidth(val width: BigInt) extends Width with Product {
     case 0 => width
     case _ => throw new IndexOutOfBoundsException
   }
-  override def get: BigInt = width
 }
 case object UnknownWidth extends Width {
   def serialize: String = ""
@@ -707,7 +705,7 @@ case class IntervalType(lower: Bound, upper: Bound, point: Width) extends Ground
     "Interval" + bounds + pointString
   }
 
-  private lazy val bp = point.get.toInt
+  private lazy val bp = point.asInstanceOf[IntWidth].width.toInt
   private def precision: Option[BigDecimal] = point match {
     case IntWidth(width) =>
       val bp = width.toInt
@@ -732,12 +730,12 @@ case class IntervalType(lower: Bound, upper: Bound, point: Width) extends Ground
     case (Closed(a), Some(prec)) => Some((a / prec).setScale(0, FLOOR) * prec)
   }
 
-  def minAdjusted: Option[BigInt] = min.map(_ * BigDecimal(BigInt(1) << point.get.toInt) match {
+  def minAdjusted: Option[BigInt] = min.map(_ * BigDecimal(BigInt(1) << bp) match {
     case x if trim(x).isWhole | x.doubleValue == 0.0 => x.toBigInt
-    case x => sys.error(s"MinAdjusted should be a whole number: $x. Min is $min. BP is ${point.get.toInt}. Precision is $precision. Lower is ${lower}.")
+    case x => sys.error(s"MinAdjusted should be a whole number: $x. Min is $min. BP is $bp. Precision is $precision. Lower is ${lower}.")
   })
 
-  def maxAdjusted: Option[BigInt] = max.map(_ * BigDecimal(BigInt(1) << point.get.toInt) match {
+  def maxAdjusted: Option[BigInt] = max.map(_ * BigDecimal(BigInt(1) << bp) match {
     case x if trim(x).isWhole => x.toBigInt
     case x => sys.error(s"MaxAdjusted should be a whole number: $x")
   })

@@ -40,8 +40,8 @@ class InferBinaryPoints extends Pass {
       val n = get_size(c.loc.tpe)
       val locs = create_exps(c.loc)
       val exps = create_exps(c.expr)
-      (locs zip exps).zipWithIndex foreach { case ((loc, exp), i) =>
-        to_flip(flow(c.loc)) match {
+      (locs zip exps) foreach { case (loc, exp) =>
+        to_flip(flow(loc)) match {
           case Default => addTypeConstraints(Target.asTarget(mt)(loc), Target.asTarget(mt)(exp))(loc.tpe, exp.tpe)
           case Flip => addTypeConstraints(Target.asTarget(mt)(exp), Target.asTarget(mt)(loc))(exp.tpe, loc.tpe)
         }
@@ -54,7 +54,7 @@ class InferBinaryPoints extends Pass {
       ls foreach { case (x, y) =>
         val loc = locs(x)
         val exp = exps(y)
-        to_flip(flow(pc.loc)) match {
+        to_flip(flow(loc)) match {
           case Default => addTypeConstraints(Target.asTarget(mt)(loc), Target.asTarget(mt)(exp))(loc.tpe, exp.tpe)
           case Flip => addTypeConstraints(Target.asTarget(mt)(exp), Target.asTarget(mt)(loc))(exp.tpe, loc.tpe)
         }

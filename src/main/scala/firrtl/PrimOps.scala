@@ -174,15 +174,15 @@ object PrimOps extends LazyLogging {
       case _: UIntType => UIntType(IsMax(IsAdd(w1(e), IsNeg(c1(e))), IntWidth(1)))
       case _: SIntType => SIntType(IsMax(IsAdd(w1(e), IsNeg(c1(e))), IntWidth(1)))
       case _: FixedType => FixedType(IsMax(IsMax(IsAdd(w1(e), IsNeg(c1(e))), IntWidth(1)), p1(e)), p1(e))
-      case IntervalType(l, u, p) =>
+      case IntervalType(l, u, IntWidth(p)) =>
         val shiftMul = Closed(BigDecimal(1) / BigDecimal(BigInt(1) << o1(e).toInt))
         // BP is inferred at this point
-        val bpRes = Closed(BigDecimal(1) / BigDecimal(BigInt(1) << p.get.toInt))
-        val bpResInv = Closed(BigDecimal(BigInt(1) << p.get.toInt))
+        val bpRes = Closed(BigDecimal(1) / BigDecimal(BigInt(1) << p.toInt))
+        val bpResInv = Closed(BigDecimal(BigInt(1) << p.toInt))
         val newL = IsMul(IsFloor(IsMul(IsMul(l, shiftMul), bpResInv)), bpRes)
         val newU = IsMul(IsFloor(IsMul(IsMul(u, shiftMul), bpResInv)), bpRes)
         // BP doesn't grow
-        IntervalType(newL, newU, p)
+        IntervalType(newL, newU, IntWidth(p))
       case _ => UnknownType
     }
     override def toString = "shr"
@@ -339,18 +339,18 @@ object PrimOps extends LazyLogging {
   case object DecP extends PrimOp {
     override def propagateType(e: DoPrim): Type = t1(e) match {
       case _: FixedType => FixedType(IsAdd(w1(e),IsNeg(c1(e))), IsAdd(p1(e), IsNeg(c1(e))))
-      case IntervalType(l, u, p) =>
+      case IntervalType(l, u, IntWidth(p)) =>
         val shiftMul = Closed(BigDecimal(1) / BigDecimal(BigInt(1) << o1(e).toInt))
         // BP is inferred at this point
         // newBPRes is the only difference in calculating bpshr from shr
         // y = floor(x * 2^(-amt + bp)) gets rid of precision --> y * 2^(-bp + amt)
         // without amt, same op as shr
-        val newBPRes = Closed(BigDecimal(BigInt(1) << o1(e).toInt) / BigDecimal(BigInt(1) << p.get.toInt))
-        val bpResInv = Closed(BigDecimal(BigInt(1) << p.get.toInt))
+        val newBPRes = Closed(BigDecimal(BigInt(1) << o1(e).toInt) / BigDecimal(BigInt(1) << p.toInt))
+        val bpResInv = Closed(BigDecimal(BigInt(1) << p.toInt))
         val newL = IsMul(IsFloor(IsMul(IsMul(l, shiftMul), bpResInv)), newBPRes)
         val newU = IsMul(IsFloor(IsMul(IsMul(u, shiftMul), bpResInv)), newBPRes)
         // BP doesn't grow
-        IntervalType(newL, newU, IsAdd(p, IsNeg(c1(e))))
+        IntervalType(newL, newU, IsAdd(IntWidth(p), IsNeg(c1(e))))
       case _ => UnknownType
     }
     override def toString = "decp"

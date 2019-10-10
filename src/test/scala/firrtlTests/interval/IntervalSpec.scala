@@ -79,7 +79,7 @@ class IntervalSpec extends FirrtlFlatSpec {
         |    input in1 : Interval[0, 10].3
         |    input in2 : Interval[-0.25, 10].2
         |    output out0 : Interval.4
-        |    out0 <= add(in0, bpshl(add(in1, bpshl(in2, 1)), 1))""".stripMargin
+        |    out0 <= add(in0, incp(add(in1, incp(in2, 1)), 1))""".stripMargin
     executeTest(input, check.split("\n") map normalized, passes)
   }
 
@@ -334,7 +334,7 @@ class IntervalSpec extends FirrtlFlatSpec {
         """.stripMargin
     executeTest(input, check.split("\n") map normalized, passes)
   }
-  "Interval types" should "implement squeeze properly" in {
+  "Interval types" should "implement squz properly" in {
     val passes = Seq(ToWorkingIR, new ResolveAndCheck)
     val input =
       s"""circuit Unit :
@@ -353,14 +353,14 @@ class IntervalSpec extends FirrtlFlatSpec {
          |    output minOff: Interval
          |    output offMin: Interval
          |
-         |    minMax <= squeeze(min, max)
-         |    maxMin <= squeeze(max, min)
-         |    minLeft <= squeeze(min, left)
-         |    leftMin <= squeeze(left, min)
-         |    minRight <= squeeze(min, right)
-         |    rightMin <= squeeze(right, min)
-         |    minOff <= squeeze(min, off)
-         |    offMin <= squeeze(off, min)
+         |    minMax <= squz(min, max)
+         |    maxMin <= squz(max, min)
+         |    minLeft <= squz(min, left)
+         |    leftMin <= squz(left, min)
+         |    minRight <= squz(min, right)
+         |    rightMin <= squz(right, min)
+         |    minOff <= squz(min, off)
+         |    offMin <= squz(off, min)
          |    """.stripMargin
     val check =
       s"""
@@ -375,7 +375,7 @@ class IntervalSpec extends FirrtlFlatSpec {
         """.stripMargin
     executeTest(input, check.split("\n") map normalized, passes)
   }
-  "Interval types" should "lower squeeze properly" in {
+  "Interval types" should "lower squz properly" in {
     val passes = Seq(ToWorkingIR, new ResolveAndCheck, new RemoveIntervals)
     val input =
       s"""circuit Unit :
@@ -394,14 +394,14 @@ class IntervalSpec extends FirrtlFlatSpec {
          |    output minOff: Interval
          |    output offMin: Interval
          |
-         |    minMax <= squeeze(min, max)
-         |    maxMin <= squeeze(max, min)
-         |    minLeft <= squeeze(min, left)
-         |    leftMin <= squeeze(left, min)
-         |    minRight <= squeeze(min, right)
-         |    rightMin <= squeeze(right, min)
-         |    minOff <= squeeze(min, off)
-         |    offMin <= squeeze(off, min)
+         |    minMax <= squz(min, max)
+         |    maxMin <= squz(max, min)
+         |    minLeft <= squz(min, left)
+         |    leftMin <= squz(left, min)
+         |    minRight <= squz(min, right)
+         |    rightMin <= squz(right, min)
+         |    minOff <= squz(min, off)
+         |    offMin <= squz(off, min)
          |    """.stripMargin
     val check =
       s"""

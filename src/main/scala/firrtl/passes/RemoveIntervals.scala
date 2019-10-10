@@ -72,10 +72,10 @@ class RemoveIntervals extends Pass {
           // Using (conditional) reassign interval w/o adding mux
           val a2tpe = a2.tpe.asInstanceOf[IntervalType]
           val a1tpe = a1.tpe.asInstanceOf[IntervalType]
-          val min2 = a2tpe.min.get * BigDecimal(BigInt(1) << a1tpe.point.get.toInt)
+          val min2 = a2tpe.min.get * BigDecimal(BigInt(1) << a1tpe.point.asInstanceOf[IntWidth].width.toInt)
           // Conservative
           val minOpt2 = min2.setScale(0, FLOOR).toBigInt
-          val max2 = a2tpe.max.get * BigDecimal(BigInt(1) << a1tpe.point.get.toInt)
+          val max2 = a2tpe.max.get * BigDecimal(BigInt(1) << a1tpe.point.asInstanceOf[IntWidth].width.toInt)
           val maxOpt2 = max2.setScale(0, CEILING).toBigInt
           val w2 = Seq(minOpt2.bitLength, maxOpt2.bitLength).max + 1
           val w1 = Seq(a1tpe.minAdjusted.get.bitLength, a1tpe.maxAdjusted.get.bitLength).max + 1
@@ -118,13 +118,7 @@ class RemoveIntervals extends Pass {
               // Note: inHi - range - 1 = wrapHi can't be true when inLo + range + 1 = wrapLo (i.e. simultaneous extreme cases don't work)
               case (_, _, true, true) => Mux(Gt(a1, wrapHi.S), gtOpt, Mux(Lt(a1, wrapLo.S), ltOpt, a1))
               case _ =>
-                println(
-                  s" wrapHi >= inHi: ${wrapHi >= inHi} ; " +
-                    s"wrapLo <= inLo: ${wrapLo <= inLo} ; " +
-                    s"(inHi - range - 1) <= wrapHi: ${(inHi - range - 1) <= wrapHi} ; " +
-                    s"(inLo + range + 1) >= wrapLo: ${(inLo + range + 1) >= wrapLo}"
-                )
-                sys.error(s"Wraps with remainder currently unsupported. in: $inLo , $inHi ; out: $wrapLo , $wrapHi") // default
+                sys.error(s"Wraps with remainder currently unsupported. in: $inLo , $inHi ; out: $wrapLo , $wrapHi")
             }
           case _ => sys.error("Shouldn't be here")
         }

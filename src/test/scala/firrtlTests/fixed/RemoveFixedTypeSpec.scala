@@ -99,7 +99,7 @@ class RemoveFixedTypeSpec extends FirrtlFlatSpec {
         |  module Unit :
         |    input a : Fixed<10><<2>>
         |    output d : Fixed<12><<4>>
-        |    d <= bpshl(a, 2)""".stripMargin
+        |    d <= incp(a, 2)""".stripMargin
     val check =
       """circuit Unit :
         |  module Unit :
@@ -126,7 +126,7 @@ class RemoveFixedTypeSpec extends FirrtlFlatSpec {
         |  module Unit :
         |    input a : Fixed<10><<2>>
         |    output d : Fixed<9><<1>>
-        |    d <= bpshr(a, 1)""".stripMargin
+        |    d <= decp(a, 1)""".stripMargin
     val check =
       """circuit Unit :
         |  module Unit :
@@ -153,7 +153,7 @@ class RemoveFixedTypeSpec extends FirrtlFlatSpec {
         |  module Unit :
         |    input a : Fixed<10><<2>>
         |    output d : Fixed
-        |    d <= bpset(a, 3)""".stripMargin
+        |    d <= setp(a, 3)""".stripMargin
     val check =
       """circuit Unit :
         |  module Unit :
@@ -181,7 +181,7 @@ class RemoveFixedTypeSpec extends FirrtlFlatSpec {
     class CheckChirrtlTransform extends SeqTransform {
       def inputForm = ChirrtlForm
       def outputForm = ChirrtlForm
-      def transforms = Seq(passes.CheckHighForm)
+      def transforms = Seq(passes.CheckChirrtl)
     }
 
     val chirrtlTransform = new CheckChirrtlTransform

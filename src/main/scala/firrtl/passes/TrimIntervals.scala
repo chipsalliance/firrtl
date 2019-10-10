@@ -59,7 +59,7 @@ class TrimIntervals extends Pass {
     case other => other map alignStmtBP
   }
 
-  // TODO(adam): I don't think you should align Wrap/Clip/Squeeze, given inference semantics?
+  // Note - wrap/clip/squeeze ignore the binary point of the second argument, thus not needed to be aligned
   // Note - Mul does not need its binary points aligned, because multiplication is cool like that
   private val opsToFix = Seq(Add, Sub, Lt, Leq, Gt, Geq, Eq, Neq/*, Wrap, Clip, Squeeze*/)
 

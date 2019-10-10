@@ -119,13 +119,13 @@ class FixedTypeInferenceSpec extends FirrtlFlatSpec {
         |  module Unit :
         |    input a : Fixed<10><<2>>
         |    output d : Fixed
-        |    d <= bpshl(a, 2)""".stripMargin
+        |    d <= incp(a, 2)""".stripMargin
     val check =
       """circuit Unit :
         |  module Unit :
         |    input a : Fixed<10><<2>>
         |    output d : Fixed<12><<4>>
-        |    d <= bpshl(a, 2)""".stripMargin
+        |    d <= incp(a, 2)""".stripMargin
     executeTest(input, check.split("\n") map normalized, passes)
   }
 
@@ -145,13 +145,13 @@ class FixedTypeInferenceSpec extends FirrtlFlatSpec {
         |  module Unit :
         |    input a : Fixed<10><<2>>
         |    output d : Fixed
-        |    d <= bpshr(a, 2)""".stripMargin
+        |    d <= decp(a, 2)""".stripMargin
     val check =
       """circuit Unit :
         |  module Unit :
         |    input a : Fixed<10><<2>>
         |    output d : Fixed<8><<0>>
-        |    d <= bpshr(a, 2)""".stripMargin
+        |    d <= decp(a, 2)""".stripMargin
     executeTest(input, check.split("\n") map normalized, passes)
   }
 
@@ -171,13 +171,13 @@ class FixedTypeInferenceSpec extends FirrtlFlatSpec {
         |  module Unit :
         |    input a : Fixed<10><<2>>
         |    output d : Fixed
-        |    d <= bpset(a, 3)""".stripMargin
+        |    d <= setp(a, 3)""".stripMargin
     val check =
       """circuit Unit :
         |  module Unit :
         |    input a : Fixed<10><<2>>
         |    output d : Fixed<11><<3>>
-        |    d <= bpset(a, 3)""".stripMargin
+        |    d <= setp(a, 3)""".stripMargin
     executeTest(input, check.split("\n") map normalized, passes)
   }
 

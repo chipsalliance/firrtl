@@ -166,7 +166,7 @@ case object Addw extends PrimOp {
   override def toString = "addw"
   import constraint._
   import PrimOps._
-  import Implicits.{constraint2bound, constraint2width, width2constraint}
+  import Implicits.{constraint2width, width2constraint}
 
   override def propagateType(e: DoPrim): Type = {
     (e.args(0).tpe, e.args(1).tpe) match {
@@ -177,9 +177,34 @@ case object Addw extends PrimOp {
   }
 }
 // Resultant width is the same as the maximum input width
-case object Subw extends PrimOp { override def toString = "subw" }
+case object Subw extends PrimOp {
+  override def toString = "subw"
+  import constraint._
+  import PrimOps._
+  import Implicits.{constraint2width, width2constraint}
+
+  override def propagateType(e: DoPrim): Type = {
+    (e.args(0).tpe, e.args(1).tpe) match {
+      case (_: UIntType, _: UIntType) => UIntType(IsMax(w1(e), w2(e)))
+      case (_: SIntType, _: SIntType) => SIntType(IsMax(w1(e), w2(e)))
+      case _ => UnknownType
+    }
+  }
+}
 // Resultant width is the same as input argument width
-case object Dshlw extends PrimOp { override def toString = "dshlw" }
+case object Dshlw extends PrimOp {
+  override def toString = "dshlw"
+
+  import PrimOps._
+
+  override def propagateType(e: DoPrim): Type = {
+    e.args(0).tpe match {
+      case _: UIntType => UIntType(w1(e))
+      case _: SIntType => SIntType(w1(e))
+      case _ => UnknownType
+    }
+  }
+}
 
 object WrappedExpression {
   def apply(e: Expression) = new WrappedExpression(e)
