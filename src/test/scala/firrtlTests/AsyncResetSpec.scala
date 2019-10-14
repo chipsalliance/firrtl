@@ -223,7 +223,45 @@ class AsyncResetSpec extends FirrtlFlatSpec {
       )
     result should containLine ("always @(posedge clock or posedge reset) begin")
   }
+    
+  "Bit select of literals" should "be allowed as reset values for AsyncReset" in {
+    val result = compileBody(s"""
+        |input clock : Clock
+        |input reset : AsyncReset
+        |output o : {field0 : UInt<1>, field1 : UInt<1>}
+        |wire bundleInit : {field0 : UInt<1>, field1 : UInt<1>}
+        |wire uintInit : UInt<2>
+        |uintInit <= UInt<1>("h00")
+        |node field0Init = bits(uintInit, 0, 0)
+        |bundleInit.field0 <= field0Init
+        |node field1Init = bits(uintInit, 1, 1)
+        |bundleInit.field1 <= field1Init
+        |
+        |reg bundle : {field0 : UInt<1>, field1 : UInt<1>}, clock with : (reset => (reset, bundleInit)) 
+        |o <= bundle""".stripMargin
+      )
+    result should containLine ("always @(posedge clock or posedge reset) begin")
+  }
 
+  "Bit select of non literal" should "NOT be allowed as reset values for AsyncReset" in {
+    an [checks.CheckResets.NonLiteralAsyncResetValueException] shouldBe thrownBy {
+      compileBody(s"""
+        |input clock : Clock
+        |input reset : AsyncReset
+        |input uintInit : UInt<2>
+        |output o : {field0 : UInt<1>, field1 : UInt<1>}
+        |wire bundleInit : {field0 : UInt<1>, field1 : UInt<1>}
+        |node field0Init = bits(uintInit, 0, 0)
+        |bundleInit.field0 <= field0Init
+        |wire uint : UInt<1>
+        |uint <= UInt<1>("h00")
+        |bundleInit.field1 <= uint
+        |
+        |reg bundle : {field0 : UInt<1>, field1 : UInt<1>}, clock with : (reset => (reset, bundleInit)) 
+        |o <= bundle""".stripMargin
+      )
+    }
+  }
 
   "Every async reset reg" should "generate its own always block" in {
     val result = compileBody(s"""

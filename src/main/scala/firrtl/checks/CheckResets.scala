@@ -18,7 +18,7 @@ object CheckResets {
   private type RegCheckList = mutable.ListBuffer[(Expression, DefRegister)]
   // Record driving for literal propagation
   // Indicates *driven by*
-  private type DirectDriverMap = mutable.HashMap[WrappedExpression, Expression]
+  private type DirectDriverMap = mutable.HashMap[WrappedExpression, Seq[Expression]]
 
 }
 
@@ -33,8 +33,13 @@ class CheckResets extends Transform {
 
   private def onStmt(regCheck: RegCheckList, drivers: DirectDriverMap)(stmt: Statement): Unit = {
     stmt match {
-      case DefNode(_, name, expr) => drivers += we(WRef(name)) -> expr
-      case Connect(_, lhs, rhs) => drivers += we(lhs) -> rhs
+      case DefNode(_, name, expr) => 
+        drivers += we(WRef(name)) -> Seq(expr)
+        expr match {
+          case prim @ DoPrim(_, args, _, _) => drivers += we(prim) -> args
+          case _ => // Do nothing
+        }
+      case Connect(_, lhs, rhs) => drivers += we(lhs) -> Seq(rhs)
       case reg @ DefRegister(_,_,_,_, reset, init) if reset.tpe == AsyncResetType =>
         regCheck += init -> reg
       case _ => // Do nothing
@@ -42,11 +47,16 @@ class CheckResets extends Transform {
     stmt.foreach(onStmt(regCheck, drivers))
   }
 
-  private def findDriver(drivers: DirectDriverMap)(expr: Expression): Expression =
-    drivers.get(we(expr)) match {
-      case Some(lit: Literal) => lit
-      case Some(other) => findDriver(drivers)(other)
-      case None => expr
+  private def findDriver(drivers: DirectDriverMap)(expr: Expression): Option[Expression] =
+    expr match {
+      case lit: Literal => None
+      case _ => drivers.get(we(expr)) match {
+          case Some(exprs) => 
+            var nonLit : Option[Expression] = None
+            exprs.find(p => {nonLit = findDriver(drivers)(p); nonLit} != None)
+            nonLit
+          case None => Some(expr)
+        }
     }
 
   private def onMod(errors: Errors)(mod: DefModule): Unit = {
@@ -56,8 +66,8 @@ class CheckResets extends Transform {
     for ((init, reg) <- regCheck) {
       for (subInit <- Utils.create_exps(init)) {
         findDriver(drivers)(subInit) match {
-          case lit: Literal => // All good
-          case other =>
+          case None => // All good
+          case Some(other) =>
             val e = new NonLiteralAsyncResetValueException(reg.info, mod.name, reg.name, other.serialize)
             errors.append(e)
         }
