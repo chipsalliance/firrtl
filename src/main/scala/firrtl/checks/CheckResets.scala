@@ -39,7 +39,11 @@ class CheckResets extends Transform {
           case prim @ DoPrim(_, args, _, _) => drivers += we(prim) -> args
           case _ => // Do nothing
         }
-      case Connect(_, lhs, rhs) => drivers += we(lhs) -> Seq(rhs)
+      case Connect(_, lhs, rhs) => 
+        lhs match {
+          case WRef(_,_,RegKind, _) => // registers are never to be literals
+          case _ => drivers += we(lhs) -> Seq(rhs)
+        }
       case reg @ DefRegister(_,_,_,_, reset, init) if reset.tpe == AsyncResetType =>
         regCheck += init -> reg
       case _ => // Do nothing

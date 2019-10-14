@@ -262,6 +262,23 @@ class AsyncResetSpec extends FirrtlFlatSpec {
       )
     }
   }
+  "Register output" should "NOT be allowed as reset values for AsyncReset" in {
+    an [checks.CheckResets.NonLiteralAsyncResetValueException] shouldBe thrownBy {
+      compileBody(s"""    
+        |input clock : Clock
+        |input areset : AsyncReset
+        |input reset : UInt<1>
+        |wire x : UInt
+        |x <= UInt<1>("h01")
+        |reg z : UInt<2>, clock with : (reset => (reset, UInt<2>("h00")))
+        |node ad = add(x, z)
+        |node adt = tail(ad, 1)
+        |z <= adt
+        |reg r : UInt, clock with : (reset => (areset, z))
+        |""".stripMargin
+      )
+    }
+  }
 
   "Every async reset reg" should "generate its own always block" in {
     val result = compileBody(s"""
