@@ -30,22 +30,41 @@ import scala.math.BigDecimal.RoundingMode._
   */
 class RemoveIntervals extends Pass {
 
+  class WrapWithRemainder(info: Info, mname: String, wrap: DoPrim)
+    extends PassException({
+      val toWrap = wrap.args.head.serialize
+      val toWrapTpe = wrap.args.head.tpe.serialize
+      val wrapTo = wrap.args(1).serialize
+      val wrapToTpe = wrap.args(1).tpe.serialize
+      s"$info: [module $mname] Wraps with remainder currently unsupported: $toWrap:$toWrapTpe cannot be wrapped to $wrapTo's type $wrapToTpe"
+    })
+
   def run(c: Circuit): Circuit = {
     val alignedCircuit = c
+    val errors = new Errors()
     val wiredCircuit = alignedCircuit map makeWireModule
-    val replacedCircuit = wiredCircuit map replaceModuleInterval
+    val replacedCircuit = wiredCircuit map replaceModuleInterval(errors)
+    errors.trigger()
     InferTypes.run(replacedCircuit)
   }
 
   /* Replace interval types */
-  private def replaceModuleInterval(m: DefModule): DefModule = m map replaceStmtInterval map replacePortInterval
+  private def replaceModuleInterval(errors: Errors)(m: DefModule): DefModule =
+    m map replaceStmtInterval(errors, m.name) map replacePortInterval
 
-  private def replaceStmtInterval(s: Statement): Statement = s map replaceTypeInterval map replaceStmtInterval map replaceExprInterval
+  private def replaceStmtInterval(errors: Errors, mname: String)(s: Statement): Statement = {
+    val info = s match {
+      case h: HasInfo => h.info
+      case _ => NoInfo
+    }
+    s map replaceTypeInterval map replaceStmtInterval(errors, mname) map replaceExprInterval(errors, info, mname)
 
-  private def replaceExprInterval(e: Expression): Expression = e match {
+  }
+
+  private def replaceExprInterval(errors: Errors, info: Info, mname: String)(e: Expression): Expression = e match {
     case _: WRef | _: WSubIndex | _: WSubField => e
     case o =>
-      o map replaceExprInterval match {
+      o map replaceExprInterval(errors, info, mname) match {
         case DoPrim(AsInterval, Seq(a1), _, tpe) => DoPrim(AsSInt, Seq(a1), Seq.empty, tpe)
         case DoPrim(IncP, args, consts, tpe) => DoPrim(Shl, args, consts, tpe)
         case DoPrim(DecP, args, consts, tpe) => DoPrim(Shr, args, consts, tpe)
@@ -85,7 +104,7 @@ class RemoveIntervals extends Pass {
             val bits = DoPrim(Bits, Seq(a1), Seq(w2 - 1, 0), UIntType(IntWidth(w2)))
             DoPrim(AsSInt, Seq(bits), Seq.empty, SIntType(IntWidth(w2)))
           }
-        case DoPrim(Wrap, Seq(a1, a2), Nil, tpe: IntervalType) => a2.tpe match {
+        case w@DoPrim(Wrap, Seq(a1, a2), Nil, tpe: IntervalType) => a2.tpe match {
           // If a2 type is Interval wrap around range. If UInt, wrap around width
           case t: IntervalType =>
             // Need to match binary points before getting *adjusted!
@@ -118,7 +137,8 @@ class RemoveIntervals extends Pass {
               // Note: inHi - range - 1 = wrapHi can't be true when inLo + range + 1 = wrapLo (i.e. simultaneous extreme cases don't work)
               case (_, _, true, true) => Mux(Gt(a1, wrapHi.S), gtOpt, Mux(Lt(a1, wrapLo.S), ltOpt, a1))
               case _ =>
-                sys.error(s"Wraps with remainder currently unsupported. in: $inLo , $inHi ; out: $wrapLo , $wrapHi")
+                errors.append(new WrapWithRemainder(info, mname, w))
+                default
             }
           case _ => sys.error("Shouldn't be here")
         }
