@@ -20,8 +20,8 @@ object CheckWidths extends Pass {
   class UninferredBound (info: Info, target: String, bound: String) extends PassException(
     s"""|$info : Uninferred $bound bound for target. (Did you forget to assign to it?)
         |$target""".stripMargin)
-  class InvalidRange (info: Info, target: String) extends PassException(
-    s"""|$info : Invalid range for target below. (Are the bounds valid?)
+  class InvalidRange (info: Info, target: String, i: IntervalType) extends PassException(
+    s"""|$info : Invalid range ${i.serialize} for target below. (Are the bounds valid?)
         |$target""".stripMargin)
   class WidthTooSmall(info: Info, mname: String, b: BigInt) extends PassException(
     s"$info : [target $mname]  Width too small for constant $b.")
@@ -39,6 +39,14 @@ object CheckWidths extends Pass {
     s"$info: [target $mname] Parameter $n in tail operator is larger than input width $width.")
   class AttachWidthsNotEqual(info: Info, mname: String, eName: String, source: String) extends PassException(
     s"$info: [target $mname] Attach source $source and expression $eName must have identical widths.")
+  class DisjointSqueeze(info: Info, mname: String, squeeze: DoPrim)
+    extends PassException({
+      val toSqz = squeeze.args.head.serialize
+      val toSqzTpe = squeeze.args.head.tpe.serialize
+      val sqzTo = squeeze.args(1).serialize
+      val sqzToTpe = squeeze.args(1).tpe.serialize
+      s"$info: [module $mname] Disjoint squz currently unsupported: $toSqz:$toSqzTpe cannot be squeezed with $sqzTo's type $sqzToTpe"
+    })
 
   def run(c: Circuit): Circuit = {
     val errors = new Errors()
@@ -67,10 +75,10 @@ object CheckWidths extends Pass {
         //Supports when l = u (if closed)
         case i@IntervalType(Closed(l), Closed(u), IntWidth(_)) if l <= u => i
         case i:IntervalType if i.range == Some(Nil) =>
-          errors append new InvalidRange(info, target.prettyPrint("    "))
+          errors append new InvalidRange(info, target.prettyPrint("    "), i)
           i
         case i@IntervalType(KnownBound(l), KnownBound(u), IntWidth(p)) if l >= u =>
-          errors append new InvalidRange(info, target.prettyPrint("    "))
+          errors append new InvalidRange(info, target.prettyPrint("    "), i)
           i
         case i@IntervalType(KnownBound(_), KnownBound(_), IntWidth(_)) => i
         case i@IntervalType(_: IsKnown, _, _) =>
@@ -103,6 +111,8 @@ object CheckWidths extends Pass {
             errors append new WidthTooSmall(info, target.serialize, e.value)
           case _ =>
         }
+        case sqz@DoPrim(Squeeze, Seq(a, b), _, IntervalType(Closed(min), Closed(max), _)) if min > max =>
+          errors append new DisjointSqueeze(info, target.serialize, sqz)
         case DoPrim(Bits, Seq(a), Seq(hi, lo), _) if (hasWidth(a.tpe) && bitWidth(a.tpe) <= hi) =>
           errors append new BitsWidthException(info, target.serialize, hi, bitWidth(a.tpe), e.serialize)
         case DoPrim(Head, Seq(a), Seq(n), _) if (hasWidth(a.tpe) && bitWidth(a.tpe) < n) =>
@@ -144,7 +154,7 @@ object CheckWidths extends Pass {
       }
     }
 
-    def check_width_p(minfo: Info, target: ModuleTarget)(p: Port): Unit = check_width_t(p.info, target)(p.tpe)
+    def check_width_p(minfo: Info, target: ModuleTarget)(p: Port): Unit = check_width_t(p.info, target.ref(p.name))(p.tpe)
 
     def check_width_m(circuit: CircuitTarget)(m: DefModule): Unit = {
       m foreach check_width_p(m.info, circuit.module(m.name))

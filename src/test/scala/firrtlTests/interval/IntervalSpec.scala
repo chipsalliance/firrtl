@@ -8,6 +8,7 @@ import firrtl.ir.Circuit
 import firrtl.passes._
 import firrtl.Parser.IgnoreInfo
 import firrtl.passes.CheckTypes.InvalidConnect
+import firrtl.passes.CheckWidths.DisjointSqueeze
 
 class IntervalSpec extends FirrtlFlatSpec {
   private def executeTest(input: String, expected: Seq[String], passes: Seq[Transform]) = {
@@ -467,7 +468,53 @@ class IntervalSpec extends FirrtlFlatSpec {
          |    stop(clock, _T_3, 0) @[IntervalSpec.scala 340:7]
          |
        """.stripMargin
-    val verilog = compileToVerilog(input)
-    println(verilog)
+    compileToVerilog(input)
+  }
+
+  "Squeeze with disjoint intervals" should "error" in {
+    intercept[DisjointSqueeze] {
+      val input =
+        s"""circuit Unit :
+           |  module Unit :
+           |    input in1: Interval[2, 3).3
+           |    input in2: Interval[3, 6].3
+           |    node out = squz(in1, in2)
+        """.stripMargin
+      compileToVerilog(input)
+    }
+    intercept[DisjointSqueeze] {
+      val input =
+        s"""circuit Unit :
+           |  module Unit :
+           |    input in1: Interval[2, 3).3
+           |    input in2: Interval[3, 6].3
+           |    node out = squz(in2, in1)
+        """.stripMargin
+      compileToVerilog(input)
+    }
+  }
+
+  "Clip with disjoint intervals" should "work" in {
+    val input =
+      s"""circuit Unit :
+         |  module Unit :
+         |    input in1: Interval[2, 3).3
+         |    input in2: Interval[3, 6].3
+         |    node out = clip(in1, in2)
+      """.stripMargin
+    compileToVerilog(input)
+  }
+
+  "Wrap with remainder" should "error" in {
+    intercept[WrapWithRemainder] {
+      val input =
+        s"""circuit Unit :
+           |  module Unit :
+           |    input in1: Interval[0, 300).3
+           |    input in2: Interval[3, 6].3
+           |    node out = wrap(in1, in2)
+      """.stripMargin
+      compileToVerilog(input)
+    }
   }
 }

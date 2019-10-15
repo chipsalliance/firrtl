@@ -2,17 +2,24 @@
 
 package firrtl.passes
 
-import scala.collection.mutable
 import firrtl.PrimOps._
 import firrtl.ir._
 import firrtl._
 import firrtl.Mappers._
-import firrtl.Utils.{error, field_type, getUIntWidth, max, module_type, sub_type}
-import Implicits.{bigint2WInt, int2WInt}
-import Implicits.{constraint2bound, constraint2width, width2constraint}
+import Implicits.{bigint2WInt}
 import firrtl.constraint.IsKnown
 
 import scala.math.BigDecimal.RoundingMode._
+
+class WrapWithRemainder(info: Info, mname: String, wrap: DoPrim)
+  extends PassException({
+    val toWrap = wrap.args.head.serialize
+    val toWrapTpe = wrap.args.head.tpe.serialize
+    val wrapTo = wrap.args(1).serialize
+    val wrapToTpe = wrap.args(1).tpe.serialize
+    s"$info: [module $mname] Wraps with remainder currently unsupported: $toWrap:$toWrapTpe cannot be wrapped to $wrapTo's type $wrapToTpe"
+  })
+
 
 /** Replaces IntervalType with SIntType, three AST walks:
   * 1) Align binary points
@@ -29,24 +36,6 @@ import scala.math.BigDecimal.RoundingMode._
   * 3) Run InferTypes
   */
 class RemoveIntervals extends Pass {
-
-  class WrapWithRemainder(info: Info, mname: String, wrap: DoPrim)
-    extends PassException({
-      val toWrap = wrap.args.head.serialize
-      val toWrapTpe = wrap.args.head.tpe.serialize
-      val wrapTo = wrap.args(1).serialize
-      val wrapToTpe = wrap.args(1).tpe.serialize
-      s"$info: [module $mname] Wraps with remainder currently unsupported: $toWrap:$toWrapTpe cannot be wrapped to $wrapTo's type $wrapToTpe"
-    })
-
-  class DisjointSqueeze(info: Info, mname: String, squeeze: DoPrim)
-    extends PassException({
-      val toSqz = squeeze.args.head.serialize
-      val toSqzTpe = squeeze.args.head.tpe.serialize
-      val sqzTo = squeeze.args(1).serialize
-      val sqzToTpe = squeeze.args(1).tpe.serialize
-      s"$info: [module $mname] Disjoint squz currently unsupported: $toSqz:$toSqzTpe cannot be squeezed with $sqzTo's type $sqzToTpe"
-    })
 
   def run(c: Circuit): Circuit = {
     val alignedCircuit = c
@@ -108,10 +97,8 @@ class RemoveIntervals extends Pass {
           val maxOpt2 = max2.setScale(0, CEILING).toBigInt
           val w2 = Seq(minOpt2.bitLength, maxOpt2.bitLength).max + 1
           if (w1 < w2) {
-            if (min2 > max2) errors.append(new DisjointSqueeze(info, mname, sqz))
             a1
           } else {
-            if (minOpt2 > maxOpt2) errors.append(new DisjointSqueeze(info, mname, sqz))
             val bits = DoPrim(Bits, Seq(a1), Seq(w2 - 1, 0), UIntType(IntWidth(w2)))
             DoPrim(AsSInt, Seq(bits), Seq.empty, SIntType(IntWidth(w2)))
           }
