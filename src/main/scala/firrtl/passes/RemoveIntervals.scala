@@ -39,6 +39,15 @@ class RemoveIntervals extends Pass {
       s"$info: [module $mname] Wraps with remainder currently unsupported: $toWrap:$toWrapTpe cannot be wrapped to $wrapTo's type $wrapToTpe"
     })
 
+  class DisjointSqueeze(info: Info, mname: String, squeeze: DoPrim)
+    extends PassException({
+      val toSqz = squeeze.args.head.serialize
+      val toSqzTpe = squeeze.args.head.tpe.serialize
+      val sqzTo = squeeze.args(1).serialize
+      val sqzToTpe = squeeze.args(1).tpe.serialize
+      s"$info: [module $mname] Disjoint squz currently unsupported: $toSqz:$toSqzTpe cannot be squeezed with $sqzTo's type $sqzToTpe"
+    })
+
   def run(c: Circuit): Circuit = {
     val alignedCircuit = c
     val errors = new Errors()
@@ -87,20 +96,22 @@ class RemoveIntervals extends Pass {
             case _ => Mux(Gt(a1, clipHi.S), clipHi.S, Mux(Lt(a1, clipLo.S), clipLo.S, a1))
           }
 
-        case DoPrim(Squeeze, Seq(a1, a2), Nil, tpe: IntervalType) =>
+        case sqz@DoPrim(Squeeze, Seq(a1, a2), Nil, tpe: IntervalType) =>
           // Using (conditional) reassign interval w/o adding mux
-          val a2tpe = a2.tpe.asInstanceOf[IntervalType]
           val a1tpe = a1.tpe.asInstanceOf[IntervalType]
+          val a2tpe = a2.tpe.asInstanceOf[IntervalType]
           val min2 = a2tpe.min.get * BigDecimal(BigInt(1) << a1tpe.point.asInstanceOf[IntWidth].width.toInt)
+          val max2 = a2tpe.max.get * BigDecimal(BigInt(1) << a1tpe.point.asInstanceOf[IntWidth].width.toInt)
+          val w1 = Seq(a1tpe.minAdjusted.get.bitLength, a1tpe.maxAdjusted.get.bitLength).max + 1
           // Conservative
           val minOpt2 = min2.setScale(0, FLOOR).toBigInt
-          val max2 = a2tpe.max.get * BigDecimal(BigInt(1) << a1tpe.point.asInstanceOf[IntWidth].width.toInt)
           val maxOpt2 = max2.setScale(0, CEILING).toBigInt
           val w2 = Seq(minOpt2.bitLength, maxOpt2.bitLength).max + 1
-          val w1 = Seq(a1tpe.minAdjusted.get.bitLength, a1tpe.maxAdjusted.get.bitLength).max + 1
-          if (w1 < w2)
+          if (w1 < w2) {
+            if (min2 > max2) errors.append(new DisjointSqueeze(info, mname, sqz))
             a1
-          else {
+          } else {
+            if (minOpt2 > maxOpt2) errors.append(new DisjointSqueeze(info, mname, sqz))
             val bits = DoPrim(Bits, Seq(a1), Seq(w2 - 1, 0), UIntType(IntWidth(w2)))
             DoPrim(AsSInt, Seq(bits), Seq.empty, SIntType(IntWidth(w2)))
           }
