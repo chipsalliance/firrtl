@@ -99,7 +99,7 @@ object RemoveCHIRRTL extends Transform {
         set_enable(rws, "en") ++
         set_write(rws, "wdata", "wmask")
       val mem = DefMemory(sx.info, sx.name, sx.tpe, sx.size, 1, if (sx.seq) 1 else 0,
-                  rds map (_.name), wrs map (_.name), rws map (_.name))
+                  rds map (_.name), wrs map (_.name), rws map (_.name), sx.readUnderWrite)
       Block(mem +: stmts)
     case sx: CDefMPort =>
       types.get(sx.mem) match {
@@ -208,7 +208,7 @@ object RemoveCHIRRTL extends Transform {
         remove_chirrtl_e(SinkFlow)(Reference(name, value.tpe))
         has_read_mport match {
           case None => sx
-          case Some(en) => Block(Seq(sx, Connect(info, en, one)))
+          case Some(en) => Block(sx, Connect(info, en, one))
         }
       case Connect(info, loc, expr) =>
         val rocx = remove_chirrtl_e(SourceFlow)(expr)
