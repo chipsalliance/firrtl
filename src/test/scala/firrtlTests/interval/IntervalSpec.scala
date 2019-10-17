@@ -505,6 +505,7 @@ class IntervalSpec extends FirrtlFlatSpec {
     compileToVerilog(input)
   }
 
+
   "Wrap with remainder" should "error" in {
     intercept[WrapWithRemainder] {
       val input =
