@@ -10,7 +10,7 @@ class InfoSpec extends FirrtlFlatSpec {
   def compile(input: String): CircuitState =
     (new VerilogCompiler).compileAndEmit(CircuitState(parse(input), ChirrtlForm), List.empty)
   def compileBody(body: String) = {
-    def str = """
+    val str = """
       |circuit Test :
       |  module Test :
       |""".stripMargin + body.split("\n").mkString("    ", "\n    ", "")

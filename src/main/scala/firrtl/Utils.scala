@@ -223,13 +223,7 @@ object Utils extends LazyLogging {
   implicit def toWrappedExpression (x:Expression): WrappedExpression = new WrappedExpression(x)
   def getSIntWidth(s: BigInt): Int = s.bitLength + 1
   def getUIntWidth(u: BigInt): Int = u.bitLength
-  private val Zdec1 = """([+\-]?\d+)(\.[0-9]*[1-9])(0*)""".r
-  private val Zdec2 = """([+\-]?\d+)(\.0*)""".r
-  def dec2string(v: BigDecimal): String = v.toString match {
-    case Zdec1(x, y, z) => x + y
-    case Zdec2(x, y) => x
-    case other => other
-  }
+  def dec2string(v: BigDecimal): String = v.underlying().stripTrailingZeros().toPlainString
   def trim(v: BigDecimal): BigDecimal = BigDecimal(dec2string(v))
   def max(a: BigInt, b: BigInt): BigInt = if (a >= b) a else b
   def min(a: BigInt, b: BigInt): BigInt = if (a >= b) b else a

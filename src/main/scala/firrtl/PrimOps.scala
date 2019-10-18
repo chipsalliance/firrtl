@@ -34,7 +34,7 @@ object PrimOps extends LazyLogging {
   case object Add extends PrimOp {
     override def toString = "add"
     override def propagateType(e: DoPrim): Type = {
-      (e.args(0).tpe, e.args(1).tpe) match {
+      (t1(e), t2(e)) match {
         case (_: UIntType, _: UIntType) => UIntType(IsAdd(IsMax(w1(e), w2(e)), IntWidth(1)))
         case (_: SIntType, _: SIntType) => SIntType(IsAdd(IsMax(w1(e), w2(e)), IntWidth(1)))
         case (_: FixedType, _: FixedType) => FixedType(IsAdd(IsAdd(IsMax(p1(e), p2(e)), IsMax(IsAdd(w1(e), IsNeg(p1(e))), IsAdd(w2(e), IsNeg(p2(e))))), IntWidth(1)), IsMax(p1(e), p2(e)))

@@ -6,6 +6,8 @@ object IsPow {
   def apply(child: Constraint): Constraint = new IsPow(child, 0).reduce()
 }
 
+// Dummy arg is to get around weird Scala issue that can't differentiate between a
+//   private constructor and public apply that share the same arguments
 case class IsPow private (child: Constraint, dummyArg: Int) extends Constraint {
   override def reduce(): Constraint = child match {
     case k: IsKnown => k.pow

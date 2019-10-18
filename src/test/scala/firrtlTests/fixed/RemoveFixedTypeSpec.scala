@@ -14,7 +14,6 @@ class RemoveFixedTypeSpec extends FirrtlFlatSpec {
       (c: CircuitState, p: Transform) => p.runTransform(c)
     }.circuit
     val lines = c.serialize.split("\n") map normalized
-    //println(c.serialize)
 
     expected foreach { e =>
       lines should contain(e)

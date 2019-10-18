@@ -69,19 +69,19 @@ class InferWidths extends Transform with ResolvedAnnotationPaths {
   val annotationClasses = Seq(classOf[WidthGeqConstraintAnnotation])
 
   private def addTypeConstraints(r1: ReferenceTarget, r2: ReferenceTarget)(t1: Type, t2: Type): Unit = (t1,t2) match {
-    case (UIntType(w1), UIntType(w2)) => constraintSolver.addGeq(r1.prettyPrint(""), r2.prettyPrint(""))(w1, w2)
-    case (SIntType(w1), SIntType(w2)) => constraintSolver.addGeq(r1.prettyPrint(""), r2.prettyPrint(""))(w1, w2)
+    case (UIntType(w1), UIntType(w2)) => constraintSolver.addGeq(w1, w2, r1.prettyPrint(""), r2.prettyPrint(""))
+    case (SIntType(w1), SIntType(w2)) => constraintSolver.addGeq(w1, w2, r1.prettyPrint(""), r2.prettyPrint(""))
     case (ClockType, ClockType) =>
     case (FixedType(w1, p1), FixedType(w2, p2)) =>
-      constraintSolver.addGeq(r1.prettyPrint(""), r2.prettyPrint(""))(p1, p2)
-      constraintSolver.addGeq(r1.prettyPrint(""), r2.prettyPrint(""))(w1, w2)
+      constraintSolver.addGeq(p1, p2, r1.prettyPrint(""), r2.prettyPrint(""))
+      constraintSolver.addGeq(w1, w2, r1.prettyPrint(""), r2.prettyPrint(""))
     case (IntervalType(l1, u1, p1), IntervalType(l2, u2, p2)) =>
-      constraintSolver.addGeq(r1.prettyPrint(""), r2.prettyPrint(""))(p1, p2)
-      constraintSolver.addLeq(r1.prettyPrint(""), r2.prettyPrint(""))(l1, l2)
-      constraintSolver.addGeq(r1.prettyPrint(""), r2.prettyPrint(""))(u1, u2)
+      constraintSolver.addGeq(p1, p2, r1.prettyPrint(""), r2.prettyPrint(""))
+      constraintSolver.addLeq(l1, l2, r1.prettyPrint(""), r2.prettyPrint(""))
+      constraintSolver.addGeq(u1, u2, r1.prettyPrint(""), r2.prettyPrint(""))
     case (AnalogType(w1), AnalogType(w2)) =>
-      constraintSolver.addGeq(r1.prettyPrint(""), r2.prettyPrint(""))(w1, w2)
-      constraintSolver.addGeq(r1.prettyPrint(""), r2.prettyPrint(""))(w2, w1)
+      constraintSolver.addGeq(w1, w2, r1.prettyPrint(""), r2.prettyPrint(""))
+      constraintSolver.addGeq(w2, w1, r1.prettyPrint(""), r2.prettyPrint(""))
     case (t1: BundleType, t2: BundleType) =>
       (t1.fields zip t2.fields) foreach { case (f1, f2) =>
         (f1.flip, f2.flip) match {
@@ -98,7 +98,7 @@ class InferWidths extends Transform with ResolvedAnnotationPaths {
 
   private def addExpConstraints(e: Expression): Expression = e map addExpConstraints match {
     case m@Mux(p, tVal, fVal, t) =>
-      constraintSolver.addGeq("mux predicate", "1.W")(getWidth(p), Closed(1))
+      constraintSolver.addGeq(getWidth(p), Closed(1), "mux predicate", "1.W")
       m
     case other => other
   }
@@ -138,7 +138,7 @@ class InferWidths extends Transform with ResolvedAnnotationPaths {
       val widths = exprs map (e => (e, getWidth(e.tpe)))
       val maxWidth = IsMax(widths.map(x => width2constraint(x._2)))
       widths.foreach { case (e, w) =>
-        constraintSolver.addGeq(Target.asTarget(mt)(e).prettyPrint(""), mt.ref(a.serialize).prettyPrint(""))(w, maxWidth)
+        constraintSolver.addGeq(w, CalcWidth(maxWidth), Target.asTarget(mt)(e).prettyPrint(""), mt.ref(a.serialize).prettyPrint(""))
       }
       a
     case c: Conditionally =>

@@ -21,6 +21,36 @@ class FixedTypeInferenceSpec extends FirrtlFlatSpec {
     }
   }
 
+  "Fixed types" should "infer add correctly if only precision unspecified" in {
+    val passes = Seq(
+      ToWorkingIR,
+      CheckHighForm,
+      ResolveKinds,
+      InferTypes,
+      CheckTypes,
+      ResolveFlows,
+      CheckFlows,
+      new InferWidths,
+      CheckWidths)
+    val input =
+      """circuit Unit :
+        |  module Unit :
+        |    input a : Fixed<10><<2>>
+        |    input b : Fixed<10><<0>>
+        |    input c : Fixed<4><<3>>
+        |    output d : Fixed<13>
+        |    d <= add(a, add(b, c))""".stripMargin
+    val check =
+      """circuit Unit :
+        |  module Unit :
+        |    input a : Fixed<10><<2>>
+        |    input b : Fixed<10><<0>>
+        |    input c : Fixed<4><<3>>
+        |    output d : Fixed<13><<3>>
+        |    d <= add(a, add(b, c))""".stripMargin
+    executeTest(input, check.split("\n") map normalized, passes)
+  }
+
   "Fixed types" should "infer add correctly" in {
     val passes = Seq(
       ToWorkingIR,

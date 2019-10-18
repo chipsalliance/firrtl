@@ -32,36 +32,51 @@ class ConstraintSolver {
     solvedConstraintMap.clear()
   }
 
+  /** Updates internal list of inequalities with a new [[GreaterOrEqual]]
+    * @param big The larger constraint, must be either known or a variable
+    * @param small The smaller constraint
+    */
+  def addGeq(big: Constraint, small: Constraint, r1: String, r2: String): Unit = (big, small) match {
+    case (IsVar(name), other: Constraint) => add(GreaterOrEqual(name, other))
+    case _ => // Constraints on widths should never error, e.g. attach adds lots of unnecessary constraints
+  }
 
   /** Updates internal list of inequalities with a new [[GreaterOrEqual]]
     * @param big The larger constraint, must be either known or a variable
     * @param small The smaller constraint
     */
-  def addGeq(r1: String, r2: String)(big: Any, small: Any): Unit = (big, small) match {
+  def addGeq(big: Width, small: Width, r1: String, r2: String): Unit = (big, small) match {
     case (IsVar(name), other: CalcWidth) => add(GreaterOrEqual(name, other.arg))
-    case (IsVar(name), other: Constraint) => add(GreaterOrEqual(name, other))
+    case (IsVar(name), other: IsVar) => add(GreaterOrEqual(name, other))
     case (IsVar(name), other: IntWidth) => add(GreaterOrEqual(name, Implicits.width2constraint(other)))
-    case (IsKnown(u), IsKnown(l)) if l > u => throwInternalError(s"Illegal call of addGeq when fitting \n$r2\n into \n$r1\n: $u is not >= to $l")
-    case _ =>
+    case _ => // Constraints on widths should never error, e.g. attach adds lots of unnecessary constraints
   }
 
   /** Updates internal list of inequalities with a new [[LesserOrEqual]]
     * @param small The smaller constraint, must be either known or a variable
     * @param big The larger constraint
     */
-  def addLeq(r1: String, r2: String)(small: Any, big: Any): Unit = (small, big) match {
-    case (IsVar(name), other: CalcWidth) => add(LesserOrEqual(name, other.arg))
+  def addLeq(small: Constraint, big: Constraint, r1: String, r2: String): Unit = (small, big) match {
     case (IsVar(name), other: Constraint) => add(LesserOrEqual(name, other))
+    case _ => // Constraints on widths should never error, e.g. attach adds lots of unnecessary constraints
+  }
+
+  /** Updates internal list of inequalities with a new [[LesserOrEqual]]
+    * @param small The smaller constraint, must be either known or a variable
+    * @param big The larger constraint
+    */
+  def addLeq(small: Width, big: Width, r1: String, r2: String): Unit = (small, big) match {
+    case (IsVar(name), other: CalcWidth) => add(LesserOrEqual(name, other.arg))
+    case (IsVar(name), other: IsVar) => add(LesserOrEqual(name, other))
     case (IsVar(name), other: IntWidth) => add(LesserOrEqual(name, Implicits.width2constraint(other)))
-    case (IsKnown(l), IsKnown(u)) if u < l => throwInternalError(s"Illegal call of addLeq when fitting \n$r2\n into \n$r1\n: $l is not <= to $u")
-    case _ =>
+    case _ => // Constraints on widths should never error, e.g. attach adds lots of unnecessary constraints
   }
 
   /** Returns a solved constraint, if it exists and is solved
     * @param b
     * @return
     */
-  def get(b: Any): Option[IsKnown] = {
+  def get(b: Constraint): Option[IsKnown] = {
     val name = b match {
       case IsVar(name) => name
       case x => ""
@@ -72,6 +87,23 @@ class ConstraintSolver {
       case Some(_) => None
     }
   }
+
+  /** Returns a solved width, if it exists and is solved
+    * @param b
+    * @return
+    */
+  def get(b: Width): Option[IsKnown] = {
+    val name = b match {
+      case IsVar(name) => name
+      case x => ""
+    }
+    solvedConstraintMap.get(name) match {
+      case None => None
+      case Some((k: IsKnown, _)) => Some(k)
+      case Some(_) => None
+    }
+  }
+
 
   private def add(c: Inequality) = constraints += c
 

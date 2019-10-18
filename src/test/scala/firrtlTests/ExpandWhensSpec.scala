@@ -11,7 +11,7 @@ import firrtl.ir._
 import firrtl.Parser.IgnoreInfo
 
 class ExpandWhensSpec extends FirrtlFlatSpec {
-  private def transforms = Seq(
+  private val transforms = Seq(
     ToWorkingIR,
     CheckHighForm,
     ResolveKinds,
