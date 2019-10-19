@@ -495,14 +495,23 @@ class IntervalSpec extends FirrtlFlatSpec {
   }
 
   "Clip with disjoint intervals" should "work" in {
-    val input =
+    compileToVerilog(
       s"""circuit Unit :
          |  module Unit :
          |    input in1: Interval[2, 3).3
          |    input in2: Interval[3, 6].3
+         |    output out: Interval
+         |    out <= clip(in1, in2)
+      """.stripMargin
+    )
+    compileToVerilog(
+      s"""circuit Unit :
+         |  module Unit :
+         |    input in1: Interval[2, 3).3
+         |    input in2: Interval[4, 6].3
          |    node out = clip(in1, in2)
       """.stripMargin
-    compileToVerilog(input)
+    )
   }
 
 

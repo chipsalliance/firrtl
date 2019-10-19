@@ -449,7 +449,10 @@ object PrimOps extends LazyLogging {
   /** Try to fit the first argument into the type of the smaller argument **/
   case object Squeeze extends PrimOp {
     override def propagateType(e: DoPrim): Type = (t1(e), t2(e)) match {
-      case (IntervalType(l1, u1, p1), IntervalType(l2, u2, _)) => IntervalType(IsMax(l1, l2), IsMin(u1, u2), p1)
+      case (IntervalType(l1, u1, p1), IntervalType(l2, u2, _)) =>
+        val low = IsMax(l1, l2)
+        val high = IsMin(u1, u2)
+        IntervalType(IsMin(low, u2), IsMax(l2, high), p1)
       case _ => UnknownType
     }
     override def toString = "squz"
@@ -465,7 +468,10 @@ object PrimOps extends LazyLogging {
   /** Clip First Operand At Range/Width of Second Operand **/
   case object Clip extends PrimOp {
     override def propagateType(e: DoPrim): Type = (t1(e), t2(e)) match {
-      case (IntervalType(l1, u1, p1), IntervalType(l2, u2, _)) => IntervalType(IsMax(l1, l2), IsMin(u1, u2), p1)
+      case (IntervalType(l1, u1, p1), IntervalType(l2, u2, _)) =>
+        val low = IsMax(l1, l2)
+        val high = IsMin(u1, u2)
+        IntervalType(IsMin(low, u2), IsMax(l2, high), p1)
       case _ => UnknownType
     }
     override def toString = "clip"

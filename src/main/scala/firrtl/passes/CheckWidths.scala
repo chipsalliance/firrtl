@@ -111,8 +111,12 @@ object CheckWidths extends Pass {
             errors append new WidthTooSmall(info, target.serialize, e.value)
           case _ =>
         }
-        case sqz@DoPrim(Squeeze, Seq(a, b), _, IntervalType(Closed(min), Closed(max), _)) if min > max =>
-          errors append new DisjointSqueeze(info, target.serialize, sqz)
+        case sqz@DoPrim(Squeeze, Seq(a, b), _, IntervalType(Closed(min), Closed(max), _)) =>
+          (a.tpe, b.tpe) match {
+            case (IntervalType(Closed(la), Closed(ua), _), IntervalType(Closed(lb), Closed(ub), _)) if (ua < lb) || (ub < la) =>
+              errors append new DisjointSqueeze(info, target.serialize, sqz)
+            case other =>
+          }
         case DoPrim(Bits, Seq(a), Seq(hi, lo), _) if (hasWidth(a.tpe) && bitWidth(a.tpe) <= hi) =>
           errors append new BitsWidthException(info, target.serialize, hi, bitWidth(a.tpe), e.serialize)
         case DoPrim(Head, Seq(a), Seq(n), _) if (hasWidth(a.tpe) && bitWidth(a.tpe) < n) =>
