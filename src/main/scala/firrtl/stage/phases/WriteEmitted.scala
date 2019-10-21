@@ -26,7 +26,7 @@ import java.io.PrintWriter
   */
 class WriteEmitted extends Phase with PreservesAll[Phase] {
 
-  override val prerequisites = Seq(classOf[Compiler])
+  override val prerequisites = Seq.empty
 
   override val dependents = Seq.empty
 

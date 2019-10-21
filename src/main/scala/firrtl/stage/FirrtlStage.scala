@@ -8,7 +8,7 @@ import firrtl.options.phases.DeletedWrapper
 import firrtl.stage.phases.CatchExceptions
 
 class FirrtlPhase
-    extends PhaseManager(targets=Seq(classOf[firrtl.stage.phases.WriteEmitted]))
+    extends PhaseManager(targets=Seq(classOf[firrtl.stage.phases.Compiler], classOf[firrtl.stage.phases.WriteEmitted]))
     with PreservesAll[Phase] {
 
   override val wrappers = Seq(CatchExceptions(_: Phase), DeletedWrapper(_: Phase))

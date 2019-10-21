@@ -51,7 +51,7 @@ class Compiler extends Phase with Translator[AnnotationSeq, Seq[CompilerRun]] wi
         classOf[AddCircuit],
         classOf[AddImplicitOutputFile])
 
-  override val dependents = Seq.empty
+  override val dependents = Seq(classOf[WriteEmitted])
 
   /** Convert an [[AnnotationSeq]] into a sequence of compiler runs. */
   protected def aToB(a: AnnotationSeq): Seq[CompilerRun] = {
