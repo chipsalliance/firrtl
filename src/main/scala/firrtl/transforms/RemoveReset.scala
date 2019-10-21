@@ -15,10 +15,9 @@ import scala.collection.{immutable, mutable}
   *
   * @note This pass must run after LowerTypes
   */
-class RemoveReset extends Transform with PreservesAll[Transform] {
+class RemoveReset extends Transform {
   def inputForm = LowForm
   def outputForm = LowForm
-
 
   override val prerequisites = firrtl.stage.Forms.MidForm ++
     Seq( classOf[passes.LowerTypes],
@@ -27,6 +26,11 @@ class RemoveReset extends Transform with PreservesAll[Transform] {
   override val optionalPrerequisites = Seq.empty
 
   override val dependents = Seq.empty
+
+  override def invalidates(a: Transform): Boolean = a match {
+    case _: firrtl.passes.ResolveFlows => true
+    case _                             => false
+  }
 
   private case class Reset(cond: Expression, value: Expression)
 

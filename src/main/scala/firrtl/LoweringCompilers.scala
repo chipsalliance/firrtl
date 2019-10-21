@@ -50,6 +50,8 @@ class ResolveAndCheck extends CoreTransform {
     new passes.InferTypes,
     new passes.ResolveFlows,
     new passes.CheckFlows,
+    new passes.InferBinaryPoints,
+    new passes.TrimIntervals,
     new passes.InferWidths,
     new passes.CheckWidths,
     new firrtl.transforms.InferResets)
@@ -79,6 +81,7 @@ class HighFirrtlToMiddleFirrtl extends CoreTransform {
     new passes.ResolveFlows,
     new passes.InferWidths,
     new passes.CheckWidths,
+    new passes.RemoveIntervals,
     new passes.ConvertFixedToSInt,
     new passes.ZeroWidth,
     new passes.InferTypes)

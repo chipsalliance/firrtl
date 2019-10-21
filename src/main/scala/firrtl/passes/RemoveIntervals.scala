@@ -8,6 +8,7 @@ import firrtl._
 import firrtl.Mappers._
 import Implicits.{bigint2WInt}
 import firrtl.constraint.IsKnown
+import firrtl.options.PreservesAll
 
 import scala.math.BigDecimal.RoundingMode._
 
@@ -35,14 +36,15 @@ class WrapWithRemainder(info: Info, mname: String, wrap: DoPrim)
   *      c. replace with SIntType
   * 3) Run InferTypes
   */
-class RemoveIntervals extends Pass {
+class RemoveIntervals extends Pass with PreservesAll[Transform] {
 
-  override val prerequisites =
+  override val prerequisites: Seq[Dependency] =
     Seq( classOf[PullMuxes],
          classOf[ReplaceAccesses],
          classOf[ExpandConnects],
          classOf[RemoveAccesses],
-         classOf[ExpandWhensAndCheck] ) ++ firrtl.stage.Forms.Deduped
+         classOf[ExpandWhensAndCheck],
+         classOf[checks.CheckResets] ) ++ firrtl.stage.Forms.Deduped
 
   def run(c: Circuit): Circuit = {
     val alignedCircuit = c
