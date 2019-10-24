@@ -51,7 +51,7 @@ circuit foo :
     output io : {flip wen : UInt<1>, flip in : UInt<1>, flip counter : UInt<2>, ren: UInt<1>[4], out : UInt<1>[4]}
 
     io is invalid
-    cmem indices : UInt<2>[4]
+    smem indices : UInt<2>[4]
     node T_0 = add(io.counter, UInt<1>("h01"))
     node temp = tail(T_0, 1)
     infer mport index = indices[temp], clock

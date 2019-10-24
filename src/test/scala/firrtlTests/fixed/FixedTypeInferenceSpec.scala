@@ -332,7 +332,7 @@ class FixedTypeInferenceSpec extends FirrtlFlatSpec {
         |    infer mport mout = mem[widx], clock
         |    out <= mout
       """.stripMargin
-    def check(readLatency: Int, moutEn: Int, minEn: Int): String =
+    def check(readLatency: Int): String =
       s"""
         |circuit Unit :
         |  module Unit :
@@ -352,15 +352,15 @@ class FixedTypeInferenceSpec extends FirrtlFlatSpec {
         |      read-under-write => undefined
         |    out <= mem.mout.data
         |    mem.mout.addr <= widx
-        |    mem.mout.en <= UInt<1>("h$moutEn")
+        |    mem.mout.en <= UInt<1>("h1")
         |    mem.mout.clk <= clock
         |    mem.min.addr <= ridx
-        |    mem.min.en <= UInt<1>("h$minEn")
+        |    mem.min.en <= UInt<1>("h1")
         |    mem.min.clk <= clock
         |    mem.min.data <= in
         |    mem.min.mask <= UInt<1>("h1")
       """.stripMargin
-    executeTest(input("smem"), check(1, 0, 1).split("\n") map normalized, new LowFirrtlCompiler)
-    executeTest(input("cmem"), check(0, 1, 1).split("\n") map normalized, new LowFirrtlCompiler)
+    executeTest(input("smem"), check(1).split("\n") map normalized, new LowFirrtlCompiler)
+    executeTest(input("cmem"), check(0).split("\n") map normalized, new LowFirrtlCompiler)
   }
 }

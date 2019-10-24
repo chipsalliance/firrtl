@@ -65,8 +65,9 @@ circuit sram6t :
     when T_1 :
       T_2 <= io.raddr
     read mport T_3 = mem[T_2], clock
-    io.rdata <= T_3
     node T_4 = and(io.en, io.wen)
+    when not(T_4) :
+      io.rdata <= T_3
     when T_4 :
       write mport T_5 = mem[io.waddr], clock
       T_5 <= io.wdata

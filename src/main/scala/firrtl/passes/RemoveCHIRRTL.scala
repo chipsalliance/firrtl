@@ -176,25 +176,22 @@ object RemoveCHIRRTL extends Transform {
 
   def remove_chirrtl_s(refs: DataRefMap, raddrs: AddrMap)(s: Statement): Statement = {
     var has_write_mport = false
-    var has_readwrite_mport: Option[Expression] = None
+    // Tuple of wmode and boolean indicating whether access is write
+    var has_readwrite_mport: Option[(Expression, Boolean)] = None
     var has_read_mport: Option[Expression] = None
     def remove_chirrtl_e(g: Flow)(e: Expression): Expression = e match {
       case Reference(name, tpe) => refs get name match {
         case Some(p) => g match {
           case SinkFlow =>
             has_write_mport = true
-            if (p.rdwrite) has_readwrite_mport = Some(SubField(p.exp, "wmode", BoolType))
+            if (p.rdwrite) has_readwrite_mport = Some((SubField(p.exp, "wmode", BoolType), true))
             SubField(p.exp, p.female, tpe)
           case SourceFlow =>
+            if (p.rdwrite) has_readwrite_mport = Some((SubField(p.exp, "wmode", BoolType), false))
+            has_read_mport = Some(SubField(p.exp, "en", BoolType))
             SubField(p.exp, p.male, tpe)
         }
-        case None => g match {
-          case SinkFlow => raddrs get name match {
-            case Some(en) => has_read_mport = Some(en) ; e
-            case None => e
-          }
-          case SourceFlow => e
-        }
+        case None => e
       }
       case SubAccess(expr, index, tpe)  => SubAccess(
         remove_chirrtl_e(g)(expr), remove_chirrtl_e(SourceFlow)(index), tpe)
@@ -210,6 +207,7 @@ object RemoveCHIRRTL extends Transform {
           case None => sx
           case Some(en) => Block(sx, Connect(info, en, one))
         }
+        sx
       case Connect(info, loc, expr) =>
         val rocx = remove_chirrtl_e(SourceFlow)(expr)
         val locx = remove_chirrtl_e(SinkFlow)(loc)
@@ -224,7 +222,8 @@ object RemoveCHIRRTL extends Transform {
           stmts ++= (locs map (x => Connect(info, x, one)))
           has_readwrite_mport match {
             case None =>
-            case Some(wmode) => stmts += Connect(info, wmode, one)
+            case Some((wmode, true)) => stmts += Connect(info, wmode, one)
+            case Some((wmode, false)) => stmts += Connect(info, wmode, zero)
           }
         }
         if (stmts.isEmpty) sx else Block(sx +: stmts)
@@ -243,7 +242,8 @@ object RemoveCHIRRTL extends Transform {
           stmts ++= (ls map { case (x, _) => Connect(info, locs(x), one) })
           has_readwrite_mport match {
             case None =>
-            case Some(wmode) => stmts += Connect(info, wmode, one)
+            case Some((wmode, true)) => stmts += Connect(info, wmode, one)
+            case Some((wmode, false)) => stmts += Connect(info, wmode, zero)
           }
         }
         if (stmts.isEmpty) sx else Block(sx +: stmts)

@@ -108,6 +108,25 @@ circuit foo :
     parse(res.getEmittedCircuit.value)
   }
 
+  "Nodes used as addresses" should "not emit illegal forward references" in {
+    val input = """
+circuit regfile :
+  module regfile :
+    input clock : Clock
+    input reset : UInt<1>
+    output io : { flip sel : UInt<1>, flip addr : UInt<5>, data : UInt<2> }
+
+    node raddr = mux(io.sel, io.addr, UInt<1>("h0"))
+    smem mem : UInt<2> [32]
+    read mport rdata = mem[raddr], clock
+    io.data <= rdata
+""".stripMargin
+
+    val res = compileAndEmit(CircuitState(parse(input), ChirrtlForm))
+    // Check correctness of firrtl
+    parse(res.getEmittedCircuit.value)
+  }
+
   "An mport that refers to an undefined memory" should "have a helpful error message" in {
     val input =
       """circuit testTestModule :
