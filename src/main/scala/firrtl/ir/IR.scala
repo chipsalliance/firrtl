@@ -363,12 +363,11 @@ case class Conditionally(
 case class Block(stmts: Seq[Statement]) extends Statement {
   def serialize: String = stmts map (_.serialize) mkString "\n"
   def mapStmt(f: Statement => Statement): Statement = {
-    // Squash EmptyStmts and nested Blocks
+    // Squash EmptyStmts
     val stmtsx = stmts.flatMap { s =>
       f(s) match {
-        case EmptyStmt => Seq()
-        case Block(stmts) => stmts
-        case other => Seq(other)
+        case EmptyStmt => None
+        case other => Some(other)
       }
     }
     if (stmtsx.nonEmpty) Block(stmtsx) else EmptyStmt
