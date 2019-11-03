@@ -243,7 +243,7 @@ class DeadCodeElimination extends Transform with ResolvedAnnotationPaths with Re
         case IsInvalid(info, expr) =>
           val node = getDeps(expr) match { case Seq(elt) => elt }
           if (deadNodes.contains(node)) EmptyStmt else IsInvalid(info, expr)
-        case block: Block => block map onStmt
+        case Block(stmts) => Utils.squashEmptyStmts(stmts.view.map(onStmt))
         case other => other
       }
       stmtx match { // Check if module empty
