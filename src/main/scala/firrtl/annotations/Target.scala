@@ -25,6 +25,12 @@ sealed trait Target extends Named {
   /** @return Module name, if it exists */
   def moduleOpt: Option[String]
 
+  /** @return true if this is the top-module, false if this cannot be determined */
+  def isTop: Boolean = (circuitOpt, moduleOpt) match {
+    case (Some(a), Some(b)) => a == b
+    case _                  => false
+  }
+
   /** @return [[Target]] tokens */
   def tokens: Seq[TargetToken]
 
