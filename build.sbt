@@ -149,6 +149,17 @@ resolvers ++= Seq(
   Resolver.sonatypeRepo("releases")
 )
 
+// MiMa
+// All changes must be binary compatible with FIRRTL 1.2.0
+import com.typesafe.tools.mima.core._
+mimaPreviousArtifacts := Set("edu.berkeley.cs" %% "firrtl" % "1.2.0")
+mimaBinaryIssueFilters ++= Seq(
+  // Removed private inner classes, see https://github.com/lightbend/mima/issues/54
+  ProblemFilters.exclude[MissingClassProblem]("firrtl.transforms.CheckCombLoops$LogicNode$"),
+  ProblemFilters.exclude[MissingClassProblem]("firrtl.transforms.CheckCombLoops$LogicNode")
+)
+
+
 // ScalaDoc
 
 enablePlugins(ScalaUnidocPlugin)
