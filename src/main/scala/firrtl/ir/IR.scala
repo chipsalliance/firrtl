@@ -362,10 +362,15 @@ case class Conditionally(
 }
 
 object Block {
+  import scala.collection.SeqView
   def apply(head: Statement, tail: Statement*): Block = Block(head +: tail)
+  def apply(stmts: Seq[Statement]): Block = stmts match {
+    case view: SeqView[Statement, List[Statement]] @unchecked => new Block(view.force)
+    case other => new Block(other)
+  }
 }
 
-case class Block(stmts: Seq[Statement]) extends Statement {
+case class Block private (stmts: Seq[Statement]) extends Statement {
   def serialize: String = stmts map (_.serialize) mkString "\n"
   def mapStmt(f: Statement => Statement): Statement = Block(stmts map f)
   def mapExpr(f: Expression => Expression): Statement = this
@@ -378,6 +383,7 @@ case class Block(stmts: Seq[Statement]) extends Statement {
   def foreachString(f: String => Unit): Unit = Unit
   def foreachInfo(f: Info => Unit): Unit = Unit
 }
+
 case class PartialConnect(info: Info, loc: Expression, expr: Expression) extends Statement with HasInfo {
   def serialize: String =  s"${loc.serialize} <- ${expr.serialize}" + info.serialize
   def mapStmt(f: Statement => Statement): Statement = this
