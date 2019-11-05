@@ -50,7 +50,6 @@ type
   : 'UInt' ('<' intLit '>')?
   | 'SInt' ('<' intLit '>')?
   | 'Fixed' ('<' intLit '>')? ('<' '<' intLit '>' '>')?
-  | 'Interval' (lowerBound boundValue boundValue upperBound)? ('.' intLit)?
   | 'Clock'
   | 'AsyncReset'
   | 'Reset'
@@ -188,23 +187,6 @@ intLit
   | HexLit
   ;
 
-lowerBound
-  : '['
-  | '('
-  ;
-
-upperBound
-  : ']'
-  | ')'
-  ;
-
-boundValue
-  : '?'
-  | DoubleLit
-  | UnsignedInt
-  | SignedInt
-  ;
-
 // Keywords that are also legal ids
 keywordAsId
   : 'circuit'
@@ -271,8 +253,6 @@ primop
   | 'asAsyncReset('
   | 'asSInt('
   | 'asClock('
-  | 'asFixedPoint('
-  | 'asInterval('
   | 'shl('
   | 'shr('
   | 'dshl('
@@ -290,12 +270,10 @@ primop
   | 'bits('
   | 'head('
   | 'tail('
-  | 'incp('
-  | 'decp('
-  | 'setp('
-  | 'wrap('
-  | 'clip('
-  | 'squz('
+  | 'asFixedPoint('
+  | 'bpshl('
+  | 'bpshr('
+  | 'bpset('
   ;
 
 /*------------------------------------------------------------------
