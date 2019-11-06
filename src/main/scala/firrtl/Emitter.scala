@@ -534,33 +534,37 @@ class VerilogEmitter extends SeqTransform with Emitter {
     }
 
     def regUpdate(r: Expression, clk: Expression, reset: Expression, init: Expression) = {
-      def addUpdate(expr: Expression, tabs: String): Seq[Seq[Any]] = {
-        if (weq(expr, r)) Nil // Don't bother emitting connection of register to itself
-        else expr match {
-          case m: Mux =>
-            if (m.tpe == ClockType) throw EmitterException("Cannot emit clock muxes directly")
-            if (m.tpe == AsyncResetType) throw EmitterException("Cannot emit async reset muxes directly")
+      def addUpdate(expr: Expression, tabs: String): Seq[Seq[Any]] = expr match {
+        case m: Mux =>
+          if (m.tpe == ClockType) throw EmitterException("Cannot emit clock muxes directly")
+          if (m.tpe == AsyncResetType) throw EmitterException("Cannot emit async reset muxes directly")
 
-            def ifStatement = Seq(tabs, "if (", m.cond, ") begin")
+          lazy val _if     = Seq(tabs, "if (", m.cond, ") begin")
+          lazy val _else   = Seq(tabs, "end else begin")
+          lazy val _ifNot  = Seq(tabs, "if (!(", m.cond, ")) begin")
+          lazy val _end    = Seq(tabs, "end")
+          lazy val _true   = addUpdate(m.tval, tabs + tab)
+          lazy val _false  = addUpdate(m.fval, tabs + tab)
+          lazy val _elseIfFalse = {
+            val _falsex = addUpdate(m.fval, tabs) // _false, but without an additional tab
+            Seq(tabs, "end else ", _falsex.head.tail) +: _falsex.tail
+          }
 
-            val trueCase = addUpdate(m.tval, tabs + tab)
-            val elseStatement = Seq(tabs, "end else begin")
-
-            def ifNotStatement = Seq(tabs, "if (!(", m.cond, ")) begin")
-
-            val falseCase = addUpdate(m.fval, tabs + tab)
-            val endStatement = Seq(tabs, "end")
-
-            ((trueCase.nonEmpty, falseCase.nonEmpty): @unchecked) match {
-              case (true, true) =>
-                ifStatement +: trueCase ++: elseStatement +: falseCase :+ endStatement
-              case (true, false) =>
-                ifStatement +: trueCase :+ endStatement
-              case (false, true) =>
-                ifNotStatement +: falseCase :+ endStatement
-            }
-          case e => Seq(Seq(tabs, r, " <= ", e, ";"))
-        }
+          /* For a Mux assignment, there are five possibilities:
+           *   1. Both the true and false condition are self-assignments; do nothing
+           *   2. The true condition is a self-assignment; invert the false condition and use that only
+           *   3. The false condition is a self-assignment; skip the false condition
+           *   4. The false condition is a Mux; use the true condition and use 'else if' for the false condition
+           *   5. Default; use both the true and false conditions
+           */
+          (m.tval, m.fval) match {
+            case (t, f) if weq(t, r) && weq(f, r) => Nil
+            case (t, _) if weq(t, r)              =>  _ifNot +: _false                           :+ _end
+            case (_, f) if weq(f, r)              =>  _if    +: _true                            :+ _end
+            case (_, _: Mux)                      => (_if    +: _true) ++ _elseIfFalse
+            case _                                => (_if    +: _true  :+ _else)       ++ _false :+ _end
+          }
+        case e => Seq(Seq(tabs, r, " <= ", e, ";"))
       }
       if (weq(init, r)) { // Synchronous Reset
         noResetAlwaysBlocks.getOrElseUpdate(clk, ArrayBuffer[Seq[Any]]()) ++= addUpdate(netlist(r), "")
@@ -874,6 +878,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
           emit(Seq(s"  reg [$width:0] initvar;"))
         }
         emit(Seq("`endif"))
+        emit(Seq("`ifndef SYNTHESIS"))
         emit(Seq("initial begin"))
         emit(Seq("  `ifdef RANDOMIZE"))
         emit(Seq("    `ifdef INIT_RANDOM"))
@@ -893,7 +898,8 @@ class VerilogEmitter extends SeqTransform with Emitter {
         for (x <- initials) emit(Seq(tab, x))
         emit(Seq("  `endif // RANDOMIZE"))
         for (x <- asyncInitials) emit(Seq(tab, x))
-        emit(Seq("end"))
+        emit(Seq("end // initial"))
+        emit(Seq("`endif // SYNTHESIS"))
       }
 
       for ((clk, content) <- noResetAlwaysBlocks if content.nonEmpty) {

@@ -45,6 +45,8 @@ class ResolveAndCheck extends CoreTransform {
     passes.InferTypes,
     passes.ResolveFlows,
     passes.CheckFlows,
+    new passes.InferBinaryPoints(),
+    new passes.TrimIntervals(),
     new passes.InferWidths,
     passes.CheckWidths,
     new firrtl.transforms.InferResets)
@@ -69,10 +71,10 @@ class HighFirrtlToMiddleFirrtl extends CoreTransform {
     passes.ResolveKinds,
     passes.InferTypes,
     passes.CheckTypes,
-    new checks.CheckResets,
     passes.ResolveFlows,
     new passes.InferWidths,
     passes.CheckWidths,
+    new passes.RemoveIntervals(),
     passes.ConvertFixedToSInt,
     passes.ZeroWidth,
     passes.InferTypes)
@@ -94,6 +96,7 @@ class MiddleFirrtlToLowFirrtl extends CoreTransform {
     passes.Legalize,
     new firrtl.transforms.RemoveReset,
     new firrtl.transforms.CheckCombLoops,
+    new checks.CheckResets,
     new firrtl.transforms.RemoveWires)
 }
 

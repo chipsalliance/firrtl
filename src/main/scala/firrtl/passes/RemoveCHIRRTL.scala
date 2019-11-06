@@ -72,7 +72,7 @@ object RemoveCHIRRTL extends Transform {
       refs: DataRefMap, raddrs: AddrMap, renames: RenameMap)(s: Statement): Statement = s match {
     case sx: CDefMemory =>
       types(sx.name) = sx.tpe
-      val taddr = UIntType(IntWidth(1 max ceilLog2(sx.size)))
+      val taddr = UIntType(IntWidth(1 max getUIntWidth(sx.size - 1)))
       val tdata = sx.tpe
       def set_poison(vec: Seq[MPort]) = vec flatMap (r => Seq(
         IsInvalid(sx.info, SubField(SubField(Reference(sx.name, ut), r.name, ut), "addr", taddr)),
@@ -99,7 +99,7 @@ object RemoveCHIRRTL extends Transform {
         set_enable(rws, "en") ++
         set_write(rws, "wdata", "wmask")
       val mem = DefMemory(sx.info, sx.name, sx.tpe, sx.size, 1, if (sx.seq) 1 else 0,
-                  rds map (_.name), wrs map (_.name), rws map (_.name))
+                  rds map (_.name), wrs map (_.name), rws map (_.name), sx.readUnderWrite)
       Block(mem +: stmts)
     case sx: CDefMPort =>
       types.get(sx.mem) match {
@@ -208,7 +208,7 @@ object RemoveCHIRRTL extends Transform {
         remove_chirrtl_e(SinkFlow)(Reference(name, value.tpe))
         has_read_mport match {
           case None => sx
-          case Some(en) => Block(Seq(sx, Connect(info, en, one)))
+          case Some(en) => Block(sx, Connect(info, en, one))
         }
       case Connect(info, loc, expr) =>
         val rocx = remove_chirrtl_e(SourceFlow)(expr)

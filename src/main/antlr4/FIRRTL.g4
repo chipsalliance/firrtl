@@ -29,7 +29,7 @@ import firrtl.LexerHelper;
 
 // Does there have to be at least one module?
 circuit
-  : 'circuit' id ':' info? INDENT module* DEDENT
+  : 'circuit' id ':' info? INDENT module* DEDENT EOF
   ;
 
 module
@@ -50,6 +50,7 @@ type
   : 'UInt' ('<' intLit '>')?
   | 'SInt' ('<' intLit '>')?
   | 'Fixed' ('<' intLit '>')? ('<' '<' intLit '>' '>')?
+  | 'Interval' (lowerBound boundValue boundValue upperBound)? ('.' intLit)?
   | 'Clock'
   | 'AsyncReset'
   | 'Reset'
@@ -94,7 +95,7 @@ stmt
   | 'reg' id ':' type exp ('with' ':' reset_block)? info?
   | 'mem' id ':' info? INDENT memField* DEDENT
   | 'cmem' id ':' type info?
-  | 'smem' id ':' type info?
+  | 'smem' id ':' type ruw? info?
   | mdir 'mport' id '=' id '[' exp ']' exp info?
   | 'inst' id 'of' id info?
   | 'node' id '=' exp info?
@@ -187,6 +188,23 @@ intLit
   | HexLit
   ;
 
+lowerBound
+  : '['
+  | '('
+  ;
+
+upperBound
+  : ']'
+  | ')'
+  ;
+
+boundValue
+  : '?'
+  | DoubleLit
+  | UnsignedInt
+  | SignedInt
+  ;
+
 // Keywords that are also legal ids
 keywordAsId
   : 'circuit'
@@ -253,6 +271,8 @@ primop
   | 'asAsyncReset('
   | 'asSInt('
   | 'asClock('
+  | 'asFixedPoint('
+  | 'asInterval('
   | 'shl('
   | 'shr('
   | 'dshl('
@@ -270,10 +290,12 @@ primop
   | 'bits('
   | 'head('
   | 'tail('
-  | 'asFixedPoint('
-  | 'bpshl('
-  | 'bpshr('
-  | 'bpset('
+  | 'incp('
+  | 'decp('
+  | 'setp('
+  | 'wrap('
+  | 'clip('
+  | 'squz('
   ;
 
 /*------------------------------------------------------------------
