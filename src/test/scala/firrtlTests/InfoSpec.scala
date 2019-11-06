@@ -66,7 +66,7 @@ class InfoSpec extends FirrtlFlatSpec {
     result should containLine (s"assign n = w | x; //$Info3")
   }
 
-  it should "be propagated on memories" in {
+  they should "be propagated on memories" in {
     val result = compileBody(s"""
       |input clock : Clock
       |input addr : UInt<5>
@@ -102,7 +102,7 @@ class InfoSpec extends FirrtlFlatSpec {
     result should containLine (s"m[m_w_addr] <= m_w_data; //$Info1")
   }
 
-  it should "be propagated on instances" in {
+  they should "be propagated on instances" in {
     val result = compile(s"""
       |circuit Test :
       |  module Child :

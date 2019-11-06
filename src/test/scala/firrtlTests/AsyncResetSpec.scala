@@ -51,19 +51,16 @@ class AsyncResetSpec extends FirrtlFlatSpec {
   it should "support casting to other types" in {
     val result = compileBody(s"""
       |input a : AsyncReset
-      |output u : Interval[0, 1].0
       |output v : UInt<1>
       |output w : SInt<1>
       |output x : Clock
       |output y : Fixed<1><<0>>
       |output z : AsyncReset
-      |u <= asInterval(a, 0, 1, 0)
       |v <= asUInt(a)
       |w <= asSInt(a)
       |x <= asClock(a)
       |y <= asFixedPoint(a, 0)
-      |z <= asAsyncReset(a)
-      |""".stripMargin
+      |z <= asAsyncReset(a)""".stripMargin
     )
     result should containLine ("assign v = $unsigned(a);")
     result should containLine ("assign w = $signed(a);")
@@ -79,26 +76,22 @@ class AsyncResetSpec extends FirrtlFlatSpec {
       |input c : Clock
       |input d : Fixed<1><<0>>
       |input e : AsyncReset
-      |input f : Interval[0, 1].0
-      |output u : AsyncReset
       |output v : AsyncReset
       |output w : AsyncReset
       |output x : AsyncReset
       |output y : AsyncReset
       |output z : AsyncReset
-      |u <= asAsyncReset(a)
-      |v <= asAsyncReset(b)
-      |w <= asAsyncReset(c)
-      |x <= asAsyncReset(d)
-      |y <= asAsyncReset(e)
-      |z <= asAsyncReset(f)""".stripMargin
+      |v <= asAsyncReset(a)
+      |w <= asAsyncReset(a)
+      |x <= asAsyncReset(a)
+      |y <= asAsyncReset(a)
+      |z <= asAsyncReset(a)""".stripMargin
     )
-    result should containLine ("assign u = a;")
-    result should containLine ("assign v = b;")
-    result should containLine ("assign w = c;")
-    result should containLine ("assign x = d;")
-    result should containLine ("assign y = e;")
-    result should containLine ("assign z = f;")
+    result should containLine ("assign v = a;")
+    result should containLine ("assign w = a;")
+    result should containLine ("assign x = a;")
+    result should containLine ("assign y = a;")
+    result should containLine ("assign z = a;")
   }
 
   "Non-literals" should "NOT be allowed as reset values for AsyncReset" in {

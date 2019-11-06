@@ -9,5 +9,6 @@ else
   mkdir -p chisel3/lib
   cp utils/bin/firrtl.jar chisel3/lib
   cd chisel3
+  git checkout 3.2.x
   sbt "set concurrentRestrictions in Global += Tags.limit(Tags.Test, 2)" clean test
 fi
