@@ -14,6 +14,22 @@ import WrappedExpression._
 
 import collection.mutable
 
+@deprecated("Internal helper objects from VerilogMemDelays will be removed in 1.3", "1.2.1")
+object DelayPipe {
+  private case class PipeState(ref: Expression, decl: Statement = EmptyStmt, connect: Statement = EmptyStmt, idx: Int = 0)
+  def apply(ns: Namespace)(e: Expression, delay: Int, clock: Expression): (Expression, Seq[Statement]) = {
+    def addStage(prev: PipeState): PipeState = {
+      val idx = prev.idx + 1
+      val name = ns.newName(s"${e.serialize}_r${idx}".replace('.', '_'))
+      val regRef = WRef(name, e.tpe, RegKind)
+      val regDecl = DefRegister(NoInfo, name, e.tpe, clock, zero, regRef)
+      PipeState(regRef, regDecl, Connect(NoInfo, regRef, prev.ref), idx)
+    }
+    val pipeline = Seq.iterate(PipeState(e), delay+1)(addStage)
+    (pipeline.last.ref, pipeline.map(_.decl) ++ pipeline.map(_.connect))
+  }
+}
+
 object MemDelayAndReadwriteTransformer {
   // Representation of a group of signals and associated valid signals
   case class WithValid(valid: Expression, payload: Seq[Expression])
@@ -165,6 +181,37 @@ class MemDelayAndReadwriteTransformer(m: DefModule) {
 }
 
 object VerilogMemDelays extends Pass {
+  @deprecated("Internal helper members from VerilogMemDelays will be removed in 1.3", "1.2.1")
+  val ug = UnknownFlow
+
+  @deprecated("Internal helper members from VerilogMemDelays will be removed in 1.3", "1.2.1")
+  type Netlist = collection.mutable.HashMap[String, Expression]
+
+  @deprecated("Internal helper members from VerilogMemDelays will be removed in 1.3", "1.2.1")
+  implicit def expToString(e: Expression): String = e.serialize
+
+  @deprecated("Internal helper members from VerilogMemDelays will be removed in 1.3", "1.2.1")
+  def buildNetlist(netlist: Netlist)(s: Statement): Unit = s match {
+   case Connect(_, loc, expr) if (kind(loc) == MemKind) => netlist(loc) = expr
+   case _ =>
+   s.foreach(buildNetlist(netlist))
+  }
+
+  @deprecated("Internal helper members from VerilogMemDelays will be removed in 1.3", "1.2.1")
+  def replaceExp(repl: Netlist)(e: Expression): Expression = e match {
+    case ex: WSubField => repl get ex match {
+      case Some(exx) => exx
+      case None => ex
+    }
+    case ex => ex map replaceExp(repl)
+  }
+
+  @deprecated("Internal helper members from VerilogMemDelays will be removed in 1.3", "1.2.1")
+  def appendStmts(sx: Seq[Statement])(s: Statement): Statement = Block(s +: sx)
+
+  @deprecated("Internal helper members from VerilogMemDelays will be removed in 1.3", "1.2.1")
+  def memDelayMod(m: DefModule): DefModule = transform(m)
+
   def transform(m: DefModule): DefModule = (new MemDelayAndReadwriteTransformer(m)).transformed
   def run(c: Circuit): Circuit = c.copy(modules = c.modules.map(transform))
 }
