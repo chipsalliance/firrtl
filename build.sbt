@@ -72,8 +72,6 @@ libraryDependencies += "com.github.scopt" %% "scopt" % "3.7.1"
 
 libraryDependencies += "net.jcazevedo" %% "moultingyaml" % "0.4.1"
 
-libraryDependencies += "org.json4s" %% "json4s-native" % "3.6.7"
-
 libraryDependencies += "org.apache.commons" % "commons-text" % "1.7"
 
 // Java PB
