@@ -37,4 +37,19 @@ jenkins-build:	clean
 	$(SBT) $(SBT_FLAGS) scalastyle coverage test
 	$(SBT) $(SBT_FLAGS) coverageReport
 
+RUN_CLASSPATH := runclasspath.txt
+
+$(RUN_CLASSPATH): $(scala_src)
+	sbt -error "export runtime:fullClasspath" > $@
+
+NATIVE_IMAGE := native-image
+
+GRAAL_ARGS := \
+	--report-unsupported-elements-at-runtime \
+	--class-path $(shell cat $(RUN_CLASSPATH)) \
+	--initialize-at-build-time=com.google.protobuf.ExtensionRegistry
+
+firrtl_native: $(RUN_CLASSPATH)
+	$(NATIVE_IMAGE) $(GRAAL_ARGS) firrtl.Driver firrtl_native
+
 .PHONY: build clean regress build-scala test-scala
