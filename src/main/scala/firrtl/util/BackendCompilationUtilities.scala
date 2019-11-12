@@ -222,12 +222,14 @@ trait BackendCompilationUtilities {
     }.mkString(" ")
     val scriptFileName = s"${testDir.getAbsolutePath}/yosys_script"
     val yosysScriptWriter = new PrintWriter(scriptFileName)
-    yosysScriptWriter.write(s"""read_verilog ${testDir.getAbsolutePath}/$customTop.v
-                               |read_verilog ${testDir.getAbsolutePath}/$referenceTop.v
-                               |prep; proc; opt; memory
-                               |miter -equiv -flatten $customTop $referenceTop miter
-                               |hierarchy -top miter
-                               |sat -verify -tempinduct -prove trigger 0 $setSignals $setAtSignals -seq 1 miter""".stripMargin)
+    yosysScriptWriter.write(
+      s"""read_verilog ${testDir.getAbsolutePath}/$customTop.v
+         |read_verilog ${testDir.getAbsolutePath}/$referenceTop.v
+         |prep; proc; opt; memory
+         |miter -equiv -flatten $customTop $referenceTop miter
+         |hierarchy -top miter
+         |sat -verify -tempinduct -prove trigger 0 $setSignals $setAtSignals -seq 1 miter""".stripMargin
+    )
     yosysScriptWriter.close()
 
     val resultFileName = testDir.getAbsolutePath + "/yosys_results"

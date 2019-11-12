@@ -114,8 +114,8 @@ class ReplSeqMem extends Transform with HasShellOptions {
   val options = Seq(
     new ShellOption[String](
       longOption = "repl-seq-mem",
-      toAnnotationSeq = (a: String) =>
-        Seq(passes.memlib.ReplSeqMemAnnotation.parse(a), RunFirrtlTransformAnnotation(new ReplSeqMem)),
+      toAnnotationSeq =
+        (a: String) => Seq(passes.memlib.ReplSeqMemAnnotation.parse(a), RunFirrtlTransformAnnotation(new ReplSeqMem)),
       helpText = "Blackbox and emit a configuration file for each sequential memory",
       shortOption = Some("frsq"),
       helpValueName = Some("-c:<circuit>:-i:<file>:-o:<file>")

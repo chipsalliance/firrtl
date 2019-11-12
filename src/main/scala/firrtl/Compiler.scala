@@ -383,15 +383,15 @@ object CompilerUtils extends LazyLogging {
           case _ => false
         }
     }.foldLeft(lowering) {
-        case (transforms, xform) =>
-          val index = transforms.lastIndexWhere(_.outputForm == xform.inputForm)
-          assert(
-            index >= 0 || xform.inputForm == ChirrtlForm, // If ChirrtlForm just put at front
-            s"No transform in $lowering has outputForm ${xform.inputForm} as required by $xform"
-          )
-          val (front, back) = transforms.splitAt(index + 1) // +1 because we want to be AFTER index
-          front ++ List(xform) ++ getLoweringTransforms(xform.outputForm, xform.inputForm) ++ back
-      }
+      case (transforms, xform) =>
+        val index = transforms.lastIndexWhere(_.outputForm == xform.inputForm)
+        assert(
+          index >= 0 || xform.inputForm == ChirrtlForm, // If ChirrtlForm just put at front
+          s"No transform in $lowering has outputForm ${xform.inputForm} as required by $xform"
+        )
+        val (front, back) = transforms.splitAt(index + 1) // +1 because we want to be AFTER index
+        front ++ List(xform) ++ getLoweringTransforms(xform.outputForm, xform.inputForm) ++ back
+    }
   }
 }
 
