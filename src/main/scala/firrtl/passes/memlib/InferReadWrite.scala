@@ -42,7 +42,7 @@ object InferReadWritePass extends Pass {
     // Visit connected nodes to references
     case _: WRef | _: WSubField | _: WSubIndex =>
       connects.get(e) match {
-        case None => Seq(e)
+        case None     => Seq(e)
         case Some(ex) => e +: getProductTerms(connects)(ex)
       }
     // Otherwise just return itself
@@ -74,7 +74,7 @@ object InferReadWritePass extends Pass {
   def replaceStmt(repl: Netlist)(s: Statement): Statement =
     s.map(replaceStmt(repl)).map(replaceExp(repl)) match {
       case Connect(_, EmptyExpression, _) => EmptyStmt
-      case sx => sx
+      case sx                             => sx
     }
 
   def inferReadWriteStmt(connects: Connects, repl: Netlist, stmts: Statements)(s: Statement): Statement = s match {
@@ -144,7 +144,7 @@ object InferReadWritePass extends Pass {
     m.map(inferReadWriteStmt(connects, repl, stmts))
       .map(replaceStmt(repl)) match {
       case m: ExtModule => m
-      case m: Module => m.copy(body = Block(m.body +: stmts))
+      case m: Module    => m.copy(body = Block(m.body +: stmts))
     }
   }
 

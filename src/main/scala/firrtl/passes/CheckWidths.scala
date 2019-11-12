@@ -71,8 +71,8 @@ object CheckWidths extends Pass {
 
     def hasWidth(tpe: Type): Boolean = tpe match {
       case GroundType(IntWidth(w)) => true
-      case GroundType(_) => false
-      case _ => throwInternalError(s"hasWidth - $tpe")
+      case GroundType(_)           => false
+      case _                       => throwInternalError(s"hasWidth - $tpe")
     }
 
     def check_width_t(info: Info, target: Target)(t: Type): Unit = {
@@ -142,7 +142,7 @@ object CheckWidths extends Pass {
     def check_width_s(minfo: Info, target: ModuleTarget)(s: Statement): Unit = {
       val info = get_info(s) match {
         case NoInfo => minfo
-        case x => x
+        case x      => x
       }
       val subRef = s match {
         case sx: HasName => target.ref(sx.name)
@@ -161,9 +161,9 @@ object CheckWidths extends Pass {
         case sx: DefRegister =>
           sx.reset.tpe match {
             case UIntType(IntWidth(w)) if w == 1 =>
-            case AsyncResetType =>
-            case ResetType =>
-            case _ => errors.append(new CheckTypes.IllegalResetType(info, target.serialize, sx.name))
+            case AsyncResetType                  =>
+            case ResetType                       =>
+            case _                               => errors.append(new CheckTypes.IllegalResetType(info, target.serialize, sx.name))
           }
           if (!CheckTypes.validConnect(sx.tpe, sx.init.tpe)) {
             val conMsg = sx.copy(info = NoInfo).serialize

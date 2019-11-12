@@ -376,7 +376,7 @@ class UnitTests extends FirrtlFlatSpec {
       WSubIndex(WRef("array", VectorType(ut16, 3), WireKind, SourceFlow), v, ut16, SourceFlow)
 
     result should containTree { case DefWire(_, "_array_index", `ut16`) => true }
-    result should containTree { case IsInvalid(_, `fgen`) => true }
+    result should containTree { case IsInvalid(_, `fgen`)               => true }
 
     val eq0 = eq(u(0), index)
     val array0 = array(0)

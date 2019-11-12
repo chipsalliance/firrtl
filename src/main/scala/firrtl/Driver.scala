@@ -148,7 +148,7 @@ object Driver {
   private def getFileExtension(filename: String): FileExtension =
     filename.drop(filename.lastIndexOf('.')) match {
       case ".pb" => ProtoBufFile
-      case _ => FirrtlFile // Default to FIRRTL File
+      case _     => FirrtlFile // Default to FIRRTL File
     }
 
   // Useful for handling erros in the options
@@ -189,7 +189,7 @@ object Driver {
             // TODO What does InfoMode mean to ProtoBuf?
             getFileExtension(inputFileName) match {
               case ProtoBufFile => proto.FromProto.fromFile(inputFileName)
-              case FirrtlFile => Parser.parseFile(inputFileName, firrtlConfig.infoMode)
+              case FirrtlFile   => Parser.parseFile(inputFileName, firrtlConfig.infoMode)
             }
           } catch {
             case _: FileNotFoundException =>

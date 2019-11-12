@@ -158,7 +158,7 @@ object ExpandWhens extends Pass {
             // Defaults in netlist get priority over those in defaults
             val default = netlist.get(lvalue) match {
               case Some(v) => Some(v)
-              case None => getDefault(lvalue, defaults)
+              case None    => getDefault(lvalue, defaults)
             }
             val res = default match {
               case Some(defaultValue) =>
@@ -166,8 +166,8 @@ object ExpandWhens extends Pass {
                 val falseValue = altNetlist.getOrElse(lvalue, defaultValue)
                 (trueValue, falseValue) match {
                   case (WInvalid, WInvalid) => WInvalid
-                  case (WInvalid, fv) => ValidIf(NOT(sx.pred), fv, fv.tpe)
-                  case (tv, WInvalid) => ValidIf(sx.pred, tv, tv.tpe)
+                  case (WInvalid, fv)       => ValidIf(NOT(sx.pred), fv, fv.tpe)
+                  case (tv, WInvalid)       => ValidIf(sx.pred, tv, tv.tpe)
                   case (tv, fv) =>
                     Mux(sx.pred, tv, fv, mux_type_and_widths(tv, fv)) //Muxing clocks will be checked during type checking
                 }
@@ -178,10 +178,10 @@ object ExpandWhens extends Pass {
 
             // Does an expression contain WVoid inserted in this pass?
             def containsVoid(e: Expression): Boolean = e match {
-              case WVoid => true
+              case WVoid                => true
               case ValidIf(_, value, _) => memoizedVoid(value)
-              case Mux(_, tv, fv, _) => memoizedVoid(tv) || memoizedVoid(fv)
-              case _ => false
+              case Mux(_, tv, fv, _)    => memoizedVoid(tv) || memoizedVoid(fv)
+              case _                    => false
             }
 
             res match {
@@ -231,7 +231,7 @@ object ExpandWhens extends Pass {
           case _ =>
             flow(exp) match {
               case (DuplexFlow | SinkFlow) => Some(exp)
-              case _ => None
+              case _                       => None
             }
         }
     }
@@ -281,7 +281,7 @@ object ExpandWhens extends Pass {
       case head :: tail =>
         head.get(lvalue) match {
           case Some(p) => Some(p)
-          case None => getDefault(lvalue, tail)
+          case None    => getDefault(lvalue, tail)
         }
     }
   }

@@ -169,7 +169,7 @@ trait CheckHighFormLike {
           errors.append(new NegUIntException(info, mname))
         case ex: DoPrim => checkHighFormPrimop(info, mname, ex)
         case _: Reference | _: WRef | _: UIntLiteral | _: Mux | _: ValidIf =>
-        case ex: SubAccess => validSubexp(info, mname)(ex.expr)
+        case ex: SubAccess  => validSubexp(info, mname)(ex.expr)
         case ex: WSubAccess => validSubexp(info, mname)(ex.expr)
         case ex => ex.foreach(validSubexp(info, mname))
       }
@@ -196,7 +196,7 @@ trait CheckHighFormLike {
     def checkHighFormS(minfo: Info, mname: String, names: NameSet)(s: Statement): Unit = {
       val info = get_info(s) match {
         case NoInfo => minfo
-        case x => x
+        case x      => x
       }
       s.foreach(checkName(info, mname, names))
       s match {
@@ -210,11 +210,11 @@ trait CheckHighFormLike {
             errors.append(new MemWithFlipException(info, mname, sx.name))
           if (sx.depth <= 0)
             errors.append(new NegMemSizeException(info, mname))
-        case sx: DefInstance => checkInstance(info, mname, sx.module)
-        case sx: WDefInstance => checkInstance(info, mname, sx.module)
-        case sx: Connect => checkValidLoc(info, mname, sx.loc)
+        case sx: DefInstance    => checkInstance(info, mname, sx.module)
+        case sx: WDefInstance   => checkInstance(info, mname, sx.module)
+        case sx: Connect        => checkValidLoc(info, mname, sx.loc)
         case sx: PartialConnect => checkValidLoc(info, mname, sx.loc)
-        case sx: Print => checkFstring(info, mname, sx.string, sx.args.length)
+        case sx: Print          => checkFstring(info, mname, sx.string, sx.args.length)
         case _: CDefMemory | _: CDefMPort =>
           errorOnChirrtl(info, mname, s).foreach { e =>
             errors.append(e)
@@ -277,7 +277,7 @@ object CheckHighForm extends Pass with CheckHighFormLike {
   def errorOnChirrtl(info: Info, mname: String, s: Statement): Option[PassException] = {
     val memName = s match {
       case cm: CDefMemory => cm.name
-      case cp: CDefMPort => cp.mem
+      case cp: CDefMPort  => cp.mem
     }
     Some(new IllegalChirrtlMemException(info, mname, memName))
   }
@@ -365,14 +365,14 @@ object CheckTypes extends Pass {
 
   def fits(bigger: Constraint, smaller: Constraint): Boolean = (bigger, smaller) match {
     case (IsKnown(v1), IsKnown(v2)) if v1 < v2 => false
-    case _ => true
+    case _                                     => true
   }
 
   def legalResetType(tpe: Type): Boolean = tpe match {
     case UIntType(IntWidth(w)) if w == 1 => true
-    case AsyncResetType => true
-    case ResetType => true
-    case UIntType(UnknownWidth) =>
+    case AsyncResetType                  => true
+    case ResetType                       => true
+    case UIntType(UnknownWidth)          =>
       // cannot catch here, though width may ultimately be wrong
       true
     case _ => false
@@ -389,8 +389,8 @@ object CheckTypes extends Pass {
         fits(i2.lower, i1.lower) && fits(i1.upper, i2.upper) && fits(i1.point, i2.point)
       case (_: AnalogType, _: AnalogType) => true
       case (AsyncResetType, AsyncResetType) => flip1 == flip2
-      case (ResetType, tpe) => legalResetType(tpe) && flip1 == flip2
-      case (tpe, ResetType) => legalResetType(tpe) && flip1 == flip2
+      case (ResetType, tpe)                 => legalResetType(tpe) && flip1 == flip2
+      case (tpe, ResetType)                 => legalResetType(tpe) && flip1 == flip2
       case (t1: BundleType, t2: BundleType) =>
         val t1_fields =
           t1.fields.foldLeft(Map[String, (Type, Orientation)]())((map, f1) => map + (f1.name -> ((f1.tpe, f1.flip))))
@@ -463,13 +463,13 @@ object CheckTypes extends Pass {
             }
         } match {
           //   (UInt,  SInt,  Clock, Fixed, Async, Interval)
-          case (isAll, false, false, false, false, false) if isAll == okUInt =>
-          case (false, isAll, false, false, false, false) if isAll == okSInt =>
-          case (false, false, isAll, false, false, false) if isAll == okClock =>
-          case (false, false, false, isAll, false, false) if isAll == okFix =>
-          case (false, false, false, false, isAll, false) if isAll == okAsync =>
+          case (isAll, false, false, false, false, false) if isAll == okUInt     =>
+          case (false, isAll, false, false, false, false) if isAll == okSInt     =>
+          case (false, false, isAll, false, false, false) if isAll == okClock    =>
+          case (false, false, false, isAll, false, false) if isAll == okFix      =>
+          case (false, false, false, false, isAll, false) if isAll == okAsync    =>
           case (false, false, false, false, false, isAll) if isAll == okInterval =>
-          case x => errors.append(new OpNotCorrectType(info, mname, e.op.serialize, exprs.map(_.tpe.serialize)))
+          case x                                                                 => errors.append(new OpNotCorrectType(info, mname, e.op.serialize, exprs.map(_.tpe.serialize)))
         }
       }
       e.op match {
@@ -564,7 +564,7 @@ object CheckTypes extends Pass {
             case (t: BundleType) =>
               t.fields.find(_.name == e.name) match {
                 case Some(_) =>
-                case None => errors.append(new SubfieldNotInBundle(info, mname, e.name))
+                case None    => errors.append(new SubfieldNotInBundle(info, mname, e.name))
               }
             case _ => errors.append(new SubfieldOnNonBundle(info, mname, e.name))
           }
@@ -610,7 +610,7 @@ object CheckTypes extends Pass {
     def check_types_s(minfo: Info, mname: String)(s: Statement): Unit = {
       val info = get_info(s) match {
         case NoInfo => minfo
-        case x => x
+        case x      => x
       }
       s match {
         case sx: Connect if !validConnect(sx) =>
@@ -621,7 +621,7 @@ object CheckTypes extends Pass {
           errors.append(new InvalidConnect(info, mname, conMsg, sx.loc, sx.expr))
         case sx: DefRegister =>
           sx.tpe match {
-            case AnalogType(_) => errors.append(new IllegalAnalogDeclaration(info, mname, sx.name))
+            case AnalogType(_)                      => errors.append(new IllegalAnalogDeclaration(info, mname, sx.name))
             case t if wt(sx.tpe) != wt(sx.init.tpe) => errors.append(new InvalidRegInit(info, mname))
             case t if !validConnect(sx.tpe, sx.init.tpe) =>
               val conMsg = sx.copy(info = NoInfo).serialize
@@ -638,9 +638,9 @@ object CheckTypes extends Pass {
           errors.append(new PredNotUInt(info, mname))
         case sx: DefNode =>
           sx.value.tpe match {
-            case AnalogType(w) => errors.append(new IllegalAnalogDeclaration(info, mname, sx.name))
+            case AnalogType(w)               => errors.append(new IllegalAnalogDeclaration(info, mname, sx.name))
             case t if !passive(sx.value.tpe) => errors.append(new NodePassiveType(info, mname))
-            case t =>
+            case t                           =>
           }
         case sx: Attach =>
           for (e <- sx.exprs) {
@@ -650,7 +650,7 @@ object CheckTypes extends Pass {
             }
             kind(e) match {
               case (InstanceKind | PortKind | WireKind) =>
-              case _ => errors.append(new IllegalAttachExp(info, mname, e.serialize))
+              case _                                    => errors.append(new IllegalAttachExp(info, mname, e.serialize))
             }
           }
         case sx: Stop =>
@@ -664,7 +664,7 @@ object CheckTypes extends Pass {
         case sx: DefMemory =>
           sx.dataType match {
             case AnalogType(w) => errors.append(new IllegalAnalogDeclaration(info, mname, sx.name))
-            case t =>
+            case t             =>
           }
         case _ =>
       }
@@ -682,10 +682,10 @@ object CheckFlows extends Pass {
   type FlowMap = collection.mutable.HashMap[String, Flow]
 
   implicit def toStr(g: Flow): String = g match {
-    case SourceFlow => "source"
-    case SinkFlow => "sink"
+    case SourceFlow  => "source"
+    case SinkFlow    => "sink"
     case UnknownFlow => "unknown"
-    case DuplexFlow => "duplex"
+    case DuplexFlow  => "duplex"
   }
 
   class WrongFlow(info: Info, mname: String, expr: String, wrong: Flow, right: Flow)
@@ -738,7 +738,7 @@ object CheckFlows extends Pass {
 
     def check_flows_e(info: Info, mname: String, flows: FlowMap)(e: Expression): Unit = {
       e match {
-        case e: Mux => e.foreach(check_flow(info, mname, flows, SourceFlow))
+        case e: Mux    => e.foreach(check_flow(info, mname, flows, SourceFlow))
         case e: DoPrim => e.args.foreach(check_flow(info, mname, flows, SourceFlow))
         case _ =>
       }
@@ -748,7 +748,7 @@ object CheckFlows extends Pass {
     def check_flows_s(minfo: Info, mname: String, flows: FlowMap)(s: Statement): Unit = {
       val info = get_info(s) match {
         case NoInfo => minfo
-        case x => x
+        case x      => x
       }
       s match {
         case (s: DefWire) => flows(s.name) = DuplexFlow
@@ -792,10 +792,10 @@ object CheckFlows extends Pass {
 @deprecated("Use 'CheckFlows'. This object will be removed in 1.3", "1.2")
 object CheckGenders {
   implicit def toStr(g: Gender): String = g match {
-    case MALE => "source"
-    case FEMALE => "sink"
+    case MALE          => "source"
+    case FEMALE        => "sink"
     case UNKNOWNGENDER => "unknown"
-    case BIGENDER => "sourceOrSink"
+    case BIGENDER      => "sourceOrSink"
   }
 
   def run(c: Circuit): Circuit = CheckFlows.run(c)

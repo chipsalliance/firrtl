@@ -132,7 +132,7 @@ class CombineCatsSpec extends FirrtlFlatSpec {
 
     // should not contain any cat chains greater than 3
     result shouldNot containTree {
-      case DoPrim(Cat, Seq(_, DoPrim(Cat, Seq(_, DoPrim(Cat, _, _, _)), _, _)), _, _) => true
+      case DoPrim(Cat, Seq(_, DoPrim(Cat, Seq(_, DoPrim(Cat, _, _, _)), _, _)), _, _)                            => true
       case DoPrim(Cat, Seq(_, DoPrim(Cat, Seq(_, DoPrim(Cat, Seq(_, DoPrim(Cat, _, _, _)), _, _)), _, _)), _, _) => true
     }
 
@@ -169,8 +169,8 @@ class CombineCatsSpec extends FirrtlFlatSpec {
 
     val result = execute(input, transforms, Seq.empty)
     result shouldNot containTree {
-      case DoPrim(Cat, Seq(_, DoPrim(Add, _, _, _)), _, _) => true
-      case DoPrim(Cat, Seq(_, DoPrim(Sub, _, _, _)), _, _) => true
+      case DoPrim(Cat, Seq(_, DoPrim(Add, _, _, _)), _, _)                            => true
+      case DoPrim(Cat, Seq(_, DoPrim(Sub, _, _, _)), _, _)                            => true
       case DoPrim(Cat, Seq(_, DoPrim(Cat, Seq(_, DoPrim(Cat, _, _, _)), _, _)), _, _) => true
     }
   }

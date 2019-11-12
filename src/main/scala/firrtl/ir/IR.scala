@@ -30,9 +30,9 @@ case class FileInfo(info: StringLit) extends Info {
 }
 case class MultiInfo(infos: Seq[Info]) extends Info {
   private def collectStringLits(info: Info): Seq[StringLit] = info match {
-    case FileInfo(lit) => Seq(lit)
+    case FileInfo(lit)  => Seq(lit)
     case MultiInfo(seq) => seq.flatMap(collectStringLits)
-    case NoInfo => Seq.empty
+    case NoInfo         => Seq.empty
   }
   override def toString: String = {
     val parts = collectStringLits(this)
@@ -90,12 +90,12 @@ object StringLit {
   /** Maps characters to ASCII for Verilog emission */
   private def toASCII(char: Char): List[Char] = char match {
     case nonASCII if !nonASCII.isValidByte => List('?')
-    case '"' => List('\\', '"')
-    case '\\' => List('\\', '\\')
-    case c if c >= ' ' && c <= '~' => List(c)
-    case '\n' => List('\\', 'n')
-    case '\t' => List('\\', 't')
-    case _ => List('?')
+    case '"'                               => List('\\', '"')
+    case '\\'                              => List('\\', '\\')
+    case c if c >= ' ' && c <= '~'         => List(c)
+    case '\n'                              => List('\\', 'n')
+    case '\t'                              => List('\\', 't')
+    case _                                 => List('?')
   }
 
   /** Create a StringLit from a raw parsed String */
@@ -114,8 +114,8 @@ abstract class PrimOp extends FirrtlNode {
   def apply(args:      Any*): DoPrim = {
     val groups = args.groupBy {
       case x: Expression => "exp"
-      case x: BigInt => "int"
-      case x: Int => "int"
+      case x: BigInt     => "int"
+      case x: Int        => "int"
       case other => "other"
     }
     val exprs = groups.getOrElse("exp", Nil).collect {
@@ -124,11 +124,11 @@ abstract class PrimOp extends FirrtlNode {
     val consts = groups.getOrElse("int", Nil).map {
       _ match {
         case i: BigInt => i
-        case i: Int => BigInt(i)
+        case i: Int    => BigInt(i)
       }
     }
     groups.get("other") match {
-      case None =>
+      case None    =>
       case Some(x) => sys.error(s"Shouldn't be here: $x")
     }
     DoPrim(this, exprs, consts, UnknownType)
@@ -616,7 +616,7 @@ case class Open(value: BigDecimal) extends IsKnown with Bound {
   def +(that: IsKnown): IsKnown = Open(value + that.value)
   def *(that: IsKnown): IsKnown = that match {
     case Closed(x) if x == 0 => Closed(x)
-    case _ => Open(value * that.value)
+    case _                   => Open(value * that.value)
   }
   def min(that: IsKnown): IsKnown = if (value < that.value) this else that
   def max(that: IsKnown): IsKnown = if (value > that.value) this else that
@@ -628,13 +628,13 @@ case class Open(value: BigDecimal) extends IsKnown with Bound {
 case class Closed(value: BigDecimal) extends IsKnown with Bound {
   def serialize = s"c($value)"
   def +(that: IsKnown): IsKnown = that match {
-    case Open(x) => Open(value + x)
+    case Open(x)   => Open(value + x)
     case Closed(x) => Closed(value + x)
   }
   def *(that: IsKnown): IsKnown = that match {
     case IsKnown(x) if value == BigInt(0) => Closed(0)
-    case Open(x) => Open(value * x)
-    case Closed(x) => Closed(value * x)
+    case Open(x)                          => Open(value * x)
+    case Closed(x)                        => Closed(value * x)
   }
   def min(that: IsKnown): IsKnown = if (value <= that.value) this else that
   def max(that: IsKnown): IsKnown = if (value >= that.value) this else that
@@ -684,16 +684,16 @@ case class FixedType(width: Width, point: Width) extends GroundType {
 case class IntervalType(lower: Bound, upper: Bound, point: Width) extends GroundType {
   override def serialize: String = {
     val lowerString = lower match {
-      case Open(l) => s"(${dec2string(l)}, "
-      case Closed(l) => s"[${dec2string(l)}, "
+      case Open(l)      => s"(${dec2string(l)}, "
+      case Closed(l)    => s"[${dec2string(l)}, "
       case UnknownBound => s"[?, "
-      case _ => s"[?, "
+      case _            => s"[?, "
     }
     val upperString = upper match {
-      case Open(u) => s"${dec2string(u)})"
-      case Closed(u) => s"${dec2string(u)}]"
+      case Open(u)      => s"${dec2string(u)})"
+      case Closed(u)    => s"${dec2string(u)}]"
       case UnknownBound => s"?]"
-      case _ => s"?]"
+      case _            => s"?]"
     }
     val bounds = (lower, upper) match {
       case (k1: IsKnown, k2: IsKnown) => lowerString + upperString
@@ -701,7 +701,7 @@ case class IntervalType(lower: Bound, upper: Bound, point: Width) extends Ground
     }
     val pointString = point match {
       case IntWidth(i) => "." + i.toString
-      case _ => ""
+      case _           => ""
     }
     "Interval" + bounds + pointString
   }
@@ -722,14 +722,14 @@ case class IntervalType(lower: Bound, upper: Bound, point: Width) extends Ground
           Some(x.setScale(0, CEILING) * prec) // Deal with unrepresentable bound representations (finite BP) -- new closed form l > original l
       }
     case (Closed(a), Some(prec)) => Some((a / prec).setScale(0, CEILING) * prec)
-    case other => None
+    case other                   => None
   }
 
   def max: Option[BigDecimal] = (upper, precision) match {
     case (Open(a), Some(prec)) =>
       a / prec match {
         case x if trim(x).isWhole => Some(a - prec) // subtract precision for open upper bound
-        case x => Some(x.setScale(0, FLOOR) * prec)
+        case x                    => Some(x.setScale(0, FLOOR) * prec)
       }
     case (Closed(a), Some(prec)) => Some((a / prec).setScale(0, FLOOR) * prec)
   }
@@ -746,7 +746,7 @@ case class IntervalType(lower: Bound, upper: Bound, point: Width) extends Ground
   def maxAdjusted: Option[BigInt] =
     max.map(_ * BigDecimal(BigInt(1) << bp) match {
       case x if trim(x).isWhole => x.toBigInt
-      case x => sys.error(s"MaxAdjusted should be a whole number: $x")
+      case x                    => sys.error(s"MaxAdjusted should be a whole number: $x")
     })
 
   /** If bounds are known, calculates the width, otherwise returns UnknownWidth */

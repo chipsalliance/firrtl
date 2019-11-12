@@ -13,17 +13,17 @@ import Mappers._
   */
 object RemoveAllButClocks extends Pass {
   def onStmt(s: Statement): Statement = s.map(onStmt) match {
-    case DefWire(i, n, ClockType) => s
+    case DefWire(i, n, ClockType)                       => s
     case DefNode(i, n, value) if value.tpe == ClockType => s
-    case Connect(i, l, r) if l.tpe == ClockType => s
-    case sx: WDefInstance => sx
-    case sx: DefInstance => sx
-    case sx: Block => sx
+    case Connect(i, l, r) if l.tpe == ClockType         => s
+    case sx: WDefInstance  => sx
+    case sx: DefInstance   => sx
+    case sx: Block         => sx
     case sx: Conditionally => sx
     case _ => EmptyStmt
   }
   def onModule(m: DefModule): DefModule = m match {
-    case Module(i, n, ps, b) => Module(i, n, ps.filter(_.tpe == ClockType), squashEmpty(onStmt(b)))
+    case Module(i, n, ps, b)        => Module(i, n, ps.filter(_.tpe == ClockType), squashEmpty(onStmt(b)))
     case ExtModule(i, n, ps, dn, p) => ExtModule(i, n, ps.filter(_.tpe == ClockType), dn, p)
   }
   def run(c: Circuit): Circuit = c.copy(modules = c.modules.map(onModule))

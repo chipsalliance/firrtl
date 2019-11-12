@@ -11,7 +11,7 @@ object ClassUtils {
       Class.forName(name, false, getClass.getClassLoader) != null
     } catch {
       case e: ClassNotFoundException => false
-      case x: Throwable => throw x
+      case x: Throwable              => throw x
     }
 //    println(s"isClassLoaded: %s $name".format(if (found) "found" else "didn't find"))
     found

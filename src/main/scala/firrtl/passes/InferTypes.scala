@@ -16,12 +16,12 @@ object InferTypes extends Pass {
 
     def remove_unknowns_b(b: Bound): Bound = b match {
       case UnknownBound => VarBound(namespace.newName("b"))
-      case k => k
+      case k            => k
     }
 
     def remove_unknowns_w(w: Width): Width = w match {
       case UnknownWidth => VarWidth(namespace.newName("w"))
-      case wx => wx
+      case wx           => wx
     }
 
     def remove_unknowns(t: Type): Type = {
@@ -34,13 +34,13 @@ object InferTypes extends Pass {
 
     def infer_types_e(types: TypeMap)(e: Expression): Expression =
       e.map(infer_types_e(types)) match {
-        case e: WRef => e.copy(tpe = types(e.name))
-        case e: WSubField => e.copy(tpe = field_type(e.expr.tpe, e.name))
-        case e: WSubIndex => e.copy(tpe = sub_type(e.expr.tpe))
+        case e: WRef       => e.copy(tpe = types(e.name))
+        case e: WSubField  => e.copy(tpe = field_type(e.expr.tpe, e.name))
+        case e: WSubIndex  => e.copy(tpe = sub_type(e.expr.tpe))
         case e: WSubAccess => e.copy(tpe = sub_type(e.expr.tpe))
-        case e: DoPrim => PrimOps.set_primop_type(e)
-        case e: Mux => e.copy(tpe = mux_type_and_widths(e.tval, e.fval))
-        case e: ValidIf => e.copy(tpe = e.value.tpe)
+        case e: DoPrim     => PrimOps.set_primop_type(e)
+        case e: Mux        => e.copy(tpe = mux_type_and_widths(e.tval, e.fval))
+        case e: ValidIf    => e.copy(tpe = e.value.tpe)
         case e @ (_: UIntLiteral | _: SIntLiteral) => e
       }
 
@@ -93,12 +93,12 @@ object CInferTypes extends Pass {
     def infer_types_e(types: TypeMap)(e: Expression): Expression =
       e.map(infer_types_e(types)) match {
         case (e: Reference) => e.copy(tpe = types.getOrElse(e.name, UnknownType))
-        case (e: SubField) => e.copy(tpe = field_type(e.expr.tpe, e.name))
-        case (e: SubIndex) => e.copy(tpe = sub_type(e.expr.tpe))
+        case (e: SubField)  => e.copy(tpe = field_type(e.expr.tpe, e.name))
+        case (e: SubIndex)  => e.copy(tpe = sub_type(e.expr.tpe))
         case (e: SubAccess) => e.copy(tpe = sub_type(e.expr.tpe))
-        case (e: DoPrim) => PrimOps.set_primop_type(e)
-        case (e: Mux) => e.copy(tpe = mux_type(e.tval, e.fval))
-        case (e: ValidIf) => e.copy(tpe = e.value.tpe)
+        case (e: DoPrim)    => PrimOps.set_primop_type(e)
+        case (e: Mux)       => e.copy(tpe = mux_type(e.tval, e.fval))
+        case (e: ValidIf)   => e.copy(tpe = e.value.tpe)
         case e @ (_: UIntLiteral | _: SIntLiteral) => e
       }
 

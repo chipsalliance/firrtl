@@ -30,14 +30,14 @@ object AnnotationUtils {
   val SerializedModuleName = """([a-zA-Z_][a-zA-Z_0-9~!@#$%^*\-+=?/]*)""".r
   def validModuleName(s: String): Boolean = s match {
     case SerializedModuleName(name) => true
-    case _ => false
+    case _                          => false
   }
 
   /** Returns true if a valid component/subcomponent name */
   val SerializedComponentName = """([a-zA-Z_][a-zA-Z_0-9\[\]\.~!@#$%^*\-+=?/]*)""".r
   def validComponentName(s: String): Boolean = s match {
     case SerializedComponentName(name) => true
-    case _ => false
+    case _                             => false
   }
 
   /** Tokenizes a string with '[', ']', '.' as tokens, e.g.:
@@ -48,15 +48,15 @@ object AnnotationUtils {
       val i = s.indexWhere(c => "[].".contains(c))
       s.slice(0, i) match {
         case "" => s(i).toString +: tokenize(s.drop(i + 1))
-        case x => x +: s(i).toString +: tokenize(s.drop(i + 1))
+        case x  => x +: s(i).toString +: tokenize(s.drop(i + 1))
       }
     case None if s == "" => Nil
-    case None => Seq(s)
+    case None            => Seq(s)
   }
 
   def toNamed(s: String): Named = s.split("\\.", 3) match {
-    case Array(n) => CircuitName(n)
-    case Array(c, m) => ModuleName(m, CircuitName(c))
+    case Array(n)       => CircuitName(n)
+    case Array(c, m)    => ModuleName(m, CircuitName(c))
     case Array(c, m, x) => ComponentName(x, ModuleName(m, CircuitName(c)))
   }
 
@@ -67,9 +67,9 @@ object AnnotationUtils {
   def toSubComponents(s: String): Seq[TargetToken] = {
     import TargetToken._
     def exp2subcomp(e: ir.Expression): Seq[TargetToken] = e match {
-      case ir.Reference(name, _) => Seq(Ref(name))
+      case ir.Reference(name, _)      => Seq(Ref(name))
       case ir.SubField(expr, name, _) => exp2subcomp(expr) :+ Field(name)
-      case ir.SubIndex(expr, idx, _) => exp2subcomp(expr) :+ Index(idx)
+      case ir.SubIndex(expr, idx, _)  => exp2subcomp(expr) :+ Index(idx)
       case ir.SubAccess(expr, idx, _) =>
         Utils.throwInternalError(s"For string $s, cannot convert a subaccess $e into a Target")
     }
@@ -88,10 +88,10 @@ object AnnotationUtils {
           Utils.error("Cannot find closing bracket ]")
         } else
           tokens(index) match {
-            case "[" => findClose(tokens, index + 1, nOpen + 1)
+            case "["               => findClose(tokens, index + 1, nOpen + 1)
             case "]" if nOpen == 1 => tokens.slice(1, index)
-            case "]" => findClose(tokens, index + 1, nOpen - 1)
-            case _ => findClose(tokens, index + 1, nOpen)
+            case "]"               => findClose(tokens, index + 1, nOpen - 1)
+            case _                 => findClose(tokens, index + 1, nOpen)
           }
       }
       def buildup(e: Expression, tokens: Seq[String]): Expression = tokens match {
@@ -99,7 +99,7 @@ object AnnotationUtils {
           val indexOrAccess = findClose(tokens, 0, 0)
           val exp = indexOrAccess.head match {
             case DecPattern(d) => SubIndex(e, d.toInt, UnknownType)
-            case _ => SubAccess(e, parse(indexOrAccess), UnknownType)
+            case _             => SubAccess(e, parse(indexOrAccess), UnknownType)
           }
           buildup(exp, tokens.drop(2 + indexOrAccess.size))
         case "." :: tail =>

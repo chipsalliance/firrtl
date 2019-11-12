@@ -36,7 +36,7 @@ case class FirrtlFileAnnotation(file: String) extends NoTargetAnnotation with Ci
     val circuit = try {
       FirrtlStageUtils.getFileExtension(file) match {
         case ProtoBufFile => proto.FromProto.fromFile(file)
-        case FirrtlFile => Parser.parseFile(file, info)
+        case FirrtlFile   => Parser.parseFile(file, info)
       }
     } catch {
       case a @ (_: FileNotFoundException | _: NoSuchFileException) =>
@@ -91,12 +91,12 @@ case class InfoModeAnnotation(modeName: String = "use") extends NoTargetAnnotati
     * @param infoSource the name of a file to use for "gen" or "append" info modes
     */
   def toInfoMode(infoSource: Option[String] = None): Parser.InfoMode = modeName match {
-    case "use" => Parser.UseInfo
+    case "use"    => Parser.UseInfo
     case "ignore" => Parser.IgnoreInfo
     case _ =>
       val a = infoSource.getOrElse("unknown source")
       modeName match {
-        case "gen" => Parser.GenInfo(a)
+        case "gen"    => Parser.GenInfo(a)
         case "append" => Parser.AppendInfo(a)
       }
   }
@@ -143,14 +143,14 @@ case class CompilerAnnotation(compiler: Compiler = new VerilogCompiler()) extend
 object CompilerAnnotation extends HasShellOptions {
   private[firrtl] def apply(compilerName: String): CompilerAnnotation = {
     val c = compilerName match {
-      case "none" => new NoneCompiler()
-      case "high" => new HighFirrtlCompiler()
-      case "low" => new LowFirrtlCompiler()
-      case "middle" => new MiddleFirrtlCompiler()
-      case "verilog" => new VerilogCompiler()
+      case "none"     => new NoneCompiler()
+      case "high"     => new HighFirrtlCompiler()
+      case "low"      => new LowFirrtlCompiler()
+      case "middle"   => new MiddleFirrtlCompiler()
+      case "verilog"  => new VerilogCompiler()
       case "mverilog" => new MinimumVerilogCompiler()
       case "sverilog" => new SystemVerilogCompiler()
-      case _ => throw new OptionsException(s"Unknown compiler name '$compilerName'! (Did you misspell it?)")
+      case _          => throw new OptionsException(s"Unknown compiler name '$compilerName'! (Did you misspell it?)")
     }
     CompilerAnnotation(c)
   }

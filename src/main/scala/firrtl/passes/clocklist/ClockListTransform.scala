@@ -43,7 +43,7 @@ Usage:
     )
     passOptions.get(InputConfigFileName) match {
       case Some(x) => error("Unneeded input config file name!" + usage)
-      case None =>
+      case None    =>
     }
     val target = ModuleName(passModule, CircuitName(passCircuit))
     ClockListAnnotation(target, outputConfig)

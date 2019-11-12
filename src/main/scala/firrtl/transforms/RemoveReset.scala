@@ -27,9 +27,9 @@ class RemoveReset extends Transform {
     val invalids = mutable.HashSet.empty[WrappedExpression]
 
     def onStmt(s: Statement): Unit = s match {
-      case IsInvalid(_, expr) => invalids += we(expr)
+      case IsInvalid(_, expr)                                 => invalids += we(expr)
       case Connect(_, lhs, rhs) if invalids.contains(we(rhs)) => invalids += we(lhs)
-      case other => other.foreach(onStmt)
+      case other                                              => other.foreach(onStmt)
     }
 
     m.foreach(onStmt)

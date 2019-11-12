@@ -182,9 +182,9 @@ object WiringUtils {
   /** Helper script to extract a module name from a named Module or Target */
   def getModuleName(n: Named): String = {
     n match {
-      case ModuleName(m, _) => m
+      case ModuleName(m, _)                   => m
       case ComponentName(_, ModuleName(m, _)) => m
-      case _ => throw new WiringException("Only Components or Modules have an associated Module name")
+      case _                                  => throw new WiringException("Only Components or Modules have an associated Module name")
     }
   }
 
@@ -200,9 +200,9 @@ object WiringUtils {
   def getType(c: Circuit, module: String, comp: String): Type = {
     def getRoot(e: Expression): String = e match {
       case r: Reference => r.name
-      case i: SubIndex => getRoot(i.expr)
+      case i: SubIndex  => getRoot(i.expr)
       case a: SubAccess => getRoot(a.expr)
-      case f: SubField => getRoot(f.expr)
+      case f: SubField  => getRoot(f.expr)
     }
     val eComp = toExp(comp)
     val root = getRoot(eComp)
@@ -238,8 +238,8 @@ object WiringUtils {
       case Some(t) =>
         def setType(e: Expression): Expression = e.map(setType) match {
           case ex: Reference => ex.copy(tpe = t)
-          case ex: SubField => ex.copy(tpe = field_type(ex.expr.tpe, ex.name))
-          case ex: SubIndex => ex.copy(tpe = sub_type(ex.expr.tpe))
+          case ex: SubField  => ex.copy(tpe = field_type(ex.expr.tpe, ex.name))
+          case ex: SubIndex  => ex.copy(tpe = sub_type(ex.expr.tpe))
           case ex: SubAccess => ex.copy(tpe = sub_type(ex.expr.tpe))
         }
         setType(eComp).tpe

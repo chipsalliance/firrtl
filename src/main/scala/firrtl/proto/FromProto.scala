@@ -34,9 +34,9 @@ object FromProto {
 
   // Convert from ProtoBuf message repeated Statements to FIRRRTL Block
   private def compressStmts(stmts: Seq[ir.Statement]): ir.Statement = stmts match {
-    case Seq() => ir.EmptyStmt
+    case Seq()     => ir.EmptyStmt
     case Seq(stmt) => stmt
-    case multiple => ir.Block(multiple)
+    case multiple  => ir.Block(multiple)
   }
 
   def convert(info: Firrtl.SourceInfo): ir.Info =
@@ -96,15 +96,15 @@ object FromProto {
   def convert(expr: Firrtl.Expression): ir.Expression = {
     import Firrtl.Expression._
     expr.getExpressionCase.getNumber match {
-      case REFERENCE_FIELD_NUMBER => ir.Reference(expr.getReference.getId, ir.UnknownType)
-      case SUB_FIELD_FIELD_NUMBER => convert(expr.getSubField)
-      case SUB_INDEX_FIELD_NUMBER => convert(expr.getSubIndex)
-      case SUB_ACCESS_FIELD_NUMBER => convert(expr.getSubAccess)
-      case UINT_LITERAL_FIELD_NUMBER => convert(expr.getUintLiteral)
-      case SINT_LITERAL_FIELD_NUMBER => convert(expr.getSintLiteral)
+      case REFERENCE_FIELD_NUMBER     => ir.Reference(expr.getReference.getId, ir.UnknownType)
+      case SUB_FIELD_FIELD_NUMBER     => convert(expr.getSubField)
+      case SUB_INDEX_FIELD_NUMBER     => convert(expr.getSubIndex)
+      case SUB_ACCESS_FIELD_NUMBER    => convert(expr.getSubAccess)
+      case UINT_LITERAL_FIELD_NUMBER  => convert(expr.getUintLiteral)
+      case SINT_LITERAL_FIELD_NUMBER  => convert(expr.getSintLiteral)
       case FIXED_LITERAL_FIELD_NUMBER => convert(expr.getFixedLiteral)
-      case PRIM_OP_FIELD_NUMBER => convert(expr.getPrimOp)
-      case MUX_FIELD_NUMBER => convert(expr.getMux)
+      case PRIM_OP_FIELD_NUMBER       => convert(expr.getPrimOp)
+      case MUX_FIELD_NUMBER           => convert(expr.getMux)
     }
   }
 
@@ -141,8 +141,8 @@ object FromProto {
 
   def convert(ruw: ReadUnderWrite): ir.ReadUnderWrite.Value = ruw match {
     case ReadUnderWrite.UNDEFINED => ir.ReadUnderWrite.Undefined
-    case ReadUnderWrite.OLD => ir.ReadUnderWrite.Old
-    case ReadUnderWrite.NEW => ir.ReadUnderWrite.New
+    case ReadUnderWrite.OLD       => ir.ReadUnderWrite.Old
+    case ReadUnderWrite.NEW       => ir.ReadUnderWrite.New
   }
 
   def convert(dt: Firrtl.Statement.CMemory.TypeAndDepth): (ir.Type, BigInt) =
@@ -162,9 +162,9 @@ object FromProto {
 
   import Firrtl.Statement.MemoryPort.Direction._
   def convert(mportdir: Firrtl.Statement.MemoryPort.Direction): MPortDir = mportdir match {
-    case MEMORY_PORT_DIRECTION_INFER => MInfer
-    case MEMORY_PORT_DIRECTION_READ => MRead
-    case MEMORY_PORT_DIRECTION_WRITE => MWrite
+    case MEMORY_PORT_DIRECTION_INFER      => MInfer
+    case MEMORY_PORT_DIRECTION_READ       => MRead
+    case MEMORY_PORT_DIRECTION_WRITE      => MWrite
     case MEMORY_PORT_DIRECTION_READ_WRITE => MReadWrite
   }
 
@@ -189,7 +189,7 @@ object FromProto {
     val rws = mem.getReadwriterIdList.asScala
     import Firrtl.Statement.Memory._
     val depth = mem.getDepthCase.getNumber match {
-      case UINT_DEPTH_FIELD_NUMBER => BigInt(mem.getUintDepth)
+      case UINT_DEPTH_FIELD_NUMBER   => BigInt(mem.getUintDepth)
       case BIGINT_DEPTH_FIELD_NUMBER => convert(mem.getBigintDepth)
     }
     ir.DefMemory(
@@ -215,21 +215,21 @@ object FromProto {
     import Firrtl.Statement._
     val info = stmt.getSourceInfo
     stmt.getStatementCase.getNumber match {
-      case NODE_FIELD_NUMBER => convert(stmt.getNode, info)
-      case CONNECT_FIELD_NUMBER => convert(stmt.getConnect, info)
+      case NODE_FIELD_NUMBER            => convert(stmt.getNode, info)
+      case CONNECT_FIELD_NUMBER         => convert(stmt.getConnect, info)
       case PARTIAL_CONNECT_FIELD_NUMBER => convert(stmt.getPartialConnect, info)
-      case WIRE_FIELD_NUMBER => convert(stmt.getWire, info)
-      case REGISTER_FIELD_NUMBER => convert(stmt.getRegister, info)
-      case WHEN_FIELD_NUMBER => convert(stmt.getWhen, info)
-      case INSTANCE_FIELD_NUMBER => convert(stmt.getInstance, info)
-      case PRINTF_FIELD_NUMBER => convert(stmt.getPrintf, info)
-      case STOP_FIELD_NUMBER => convert(stmt.getStop, info)
-      case MEMORY_FIELD_NUMBER => convert(stmt.getMemory, info)
+      case WIRE_FIELD_NUMBER            => convert(stmt.getWire, info)
+      case REGISTER_FIELD_NUMBER        => convert(stmt.getRegister, info)
+      case WHEN_FIELD_NUMBER            => convert(stmt.getWhen, info)
+      case INSTANCE_FIELD_NUMBER        => convert(stmt.getInstance, info)
+      case PRINTF_FIELD_NUMBER          => convert(stmt.getPrintf, info)
+      case STOP_FIELD_NUMBER            => convert(stmt.getStop, info)
+      case MEMORY_FIELD_NUMBER          => convert(stmt.getMemory, info)
       case IS_INVALID_FIELD_NUMBER =>
         ir.IsInvalid(convert(info), convert(stmt.getIsInvalid.getExpression))
-      case CMEMORY_FIELD_NUMBER => convert(stmt.getCmemory, info)
+      case CMEMORY_FIELD_NUMBER     => convert(stmt.getCmemory, info)
       case MEMORY_PORT_FIELD_NUMBER => convert(stmt.getMemoryPort, info)
-      case ATTACH_FIELD_NUMBER => convert(stmt.getAttach, info)
+      case ATTACH_FIELD_NUMBER      => convert(stmt.getAttach, info)
     }
   }
 
@@ -273,13 +273,13 @@ object FromProto {
   def convert(tpe: Firrtl.Type): ir.Type = {
     import Firrtl.Type._
     tpe.getTypeCase.getNumber match {
-      case UINT_TYPE_FIELD_NUMBER => convert(tpe.getUintType)
-      case SINT_TYPE_FIELD_NUMBER => convert(tpe.getSintType)
-      case FIXED_TYPE_FIELD_NUMBER => convert(tpe.getFixedType)
-      case CLOCK_TYPE_FIELD_NUMBER => ir.ClockType
+      case UINT_TYPE_FIELD_NUMBER        => convert(tpe.getUintType)
+      case SINT_TYPE_FIELD_NUMBER        => convert(tpe.getSintType)
+      case FIXED_TYPE_FIELD_NUMBER       => convert(tpe.getFixedType)
+      case CLOCK_TYPE_FIELD_NUMBER       => ir.ClockType
       case ASYNC_RESET_TYPE_FIELD_NUMBER => ir.AsyncResetType
-      case RESET_TYPE_FIELD_NUMBER => ir.ResetType
-      case ANALOG_TYPE_FIELD_NUMBER => convert(tpe.getAnalogType)
+      case RESET_TYPE_FIELD_NUMBER       => ir.ResetType
+      case ANALOG_TYPE_FIELD_NUMBER      => convert(tpe.getAnalogType)
       case BUNDLE_TYPE_FIELD_NUMBER =>
         ir.BundleType(tpe.getBundleType.getFieldList.asScala.map(convert(_)))
       case VECTOR_TYPE_FIELD_NUMBER => convert(tpe.getVectorType)
@@ -288,7 +288,7 @@ object FromProto {
 
   def convert(dir: Firrtl.Port.Direction): ir.Direction = {
     dir match {
-      case Firrtl.Port.Direction.PORT_DIRECTION_IN => ir.Input
+      case Firrtl.Port.Direction.PORT_DIRECTION_IN  => ir.Input
       case Firrtl.Port.Direction.PORT_DIRECTION_OUT => ir.Output
     }
   }
@@ -303,9 +303,9 @@ object FromProto {
     import Firrtl.Module.ExternalModule.Parameter._
     val name = param.getId
     param.getValueCase.getNumber match {
-      case INTEGER_FIELD_NUMBER => ir.IntParam(name, convert(param.getInteger))
-      case DOUBLE_FIELD_NUMBER => ir.DoubleParam(name, param.getDouble)
-      case STRING_FIELD_NUMBER => ir.StringParam(name, ir.StringLit(param.getString))
+      case INTEGER_FIELD_NUMBER    => ir.IntParam(name, convert(param.getInteger))
+      case DOUBLE_FIELD_NUMBER     => ir.DoubleParam(name, param.getDouble)
+      case STRING_FIELD_NUMBER     => ir.StringParam(name, ir.StringLit(param.getString))
       case RAW_STRING_FIELD_NUMBER => ir.RawStringParam(name, param.getRawString)
     }
   }

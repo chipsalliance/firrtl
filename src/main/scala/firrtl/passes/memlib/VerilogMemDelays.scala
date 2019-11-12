@@ -83,7 +83,7 @@ class MemDelayAndReadwriteTransformer(m: DefModule) {
 
   private def findMemConns(s: Statement): Unit = s match {
     case Connect(_, loc, expr) if (kind(loc) == MemKind) => netlist(we(loc)) = expr
-    case _ => s.foreach(findMemConns)
+    case _                                               => s.foreach(findMemConns)
   }
 
   private def swapMemRefs(e: Expression): Expression = e.map(swapMemRefs) match {

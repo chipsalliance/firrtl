@@ -92,7 +92,7 @@ class RemoveWires extends Transform {
         case reg: DefRegister =>
           val resetDep = reg.reset.tpe match {
             case AsyncResetType => Some(reg.reset)
-            case _ => None
+            case _              => None
           }
           val initDep = Some(reg.init).filter(we(WRef(reg)) != we(_)) // Dependency exists IF reg doesn't init itself
           regInfo(we(WRef(reg))) = reg

@@ -227,7 +227,7 @@ object FirrtlCheckers extends FirrtlMatchers {
               "Error! Unexpected FirrtlNode that does not implement Product!"
             )
             val iter = node match {
-              case p: Product => p.productIterator
+              case p: Product       => p.productIterator
               case i: Iterable[Any] => i.iterator
               case _ => Iterator.empty
             }
@@ -318,8 +318,8 @@ class TestFirrtlFlatSpec extends FirrtlFlatSpec {
 
   they should "work for partial functions matching on subtrees" in {
     val UInt8 = UIntType(IntWidth(8)) // BigInt unapply is weird
-    compiled should containTree { case Port(_, "in", Input, UInt8) => true }
-    compiled should containTree { case Port(_, "out", Output, UInt8) => true }
+    compiled should containTree { case Port(_, "in", Input, UInt8)                           => true }
+    compiled should containTree { case Port(_, "out", Output, UInt8)                         => true }
     compiled should containTree { case Connect(_, WRef("out", _, _, _), WRef("in", _, _, _)) => true }
   }
 }

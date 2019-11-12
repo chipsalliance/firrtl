@@ -66,7 +66,7 @@ object FlattenRegUpdate {
       // Only walk netlist for nodes and wires, NOT registers or other state
       val expr = kind(e) match {
         case NodeKind | WireKind => netlist.getOrElse(e, e)
-        case _ => e
+        case _                   => e
       }
       expr match {
         case mux: Mux if canFlatten(mux) =>
@@ -90,7 +90,7 @@ object FlattenRegUpdate {
         reg
       // Remove connections to Registers so we preserve LowFirrtl single-connection semantics
       case Connect(_, lhs, _) if kind(lhs) == RegKind => EmptyStmt
-      case other => other
+      case other                                      => other
     }
 
     val bodyx = onStmt(mod.body)
@@ -110,7 +110,7 @@ class FlattenRegUpdate extends Transform {
 
   def execute(state: CircuitState): CircuitState = {
     val modulesx = state.circuit.modules.map {
-      case mod: Module => FlattenRegUpdate.flattenReg(mod)
+      case mod: Module    => FlattenRegUpdate.flattenReg(mod)
       case ext: ExtModule => ext
     }
     state.copy(circuit = state.circuit.copy(modules = modulesx))

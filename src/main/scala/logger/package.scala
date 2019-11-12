@@ -9,11 +9,11 @@ package object logger {
       options
         .foldLeft(new LoggerOptions()) { (c, x) =>
           x match {
-            case LogLevelAnnotation(logLevel) => c.copy(globalLogLevel = logLevel)
+            case LogLevelAnnotation(logLevel)         => c.copy(globalLogLevel = logLevel)
             case ClassLogLevelAnnotation(name, level) => c.copy(classLogLevels = c.classLogLevels + (name -> level))
-            case LogFileAnnotation(f) => c.copy(logFileName = f)
-            case LogClassNamesAnnotation => c.copy(logClassNames = true)
-            case _ => c
+            case LogFileAnnotation(f)                 => c.copy(logFileName = f)
+            case LogClassNamesAnnotation              => c.copy(logClassNames = true)
+            case _                                    => c
           }
         }
   }

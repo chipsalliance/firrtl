@@ -39,14 +39,14 @@ sealed trait Target extends Named {
     val circuitString = "~" + circuitOpt.getOrElse("???")
     val moduleString = "|" + moduleOpt.getOrElse("???")
     val tokensString = tokens.map {
-      case Ref(r) => s">$r"
-      case Instance(i) => s"/$i"
-      case OfModule(o) => s":$o"
+      case Ref(r)               => s">$r"
+      case Instance(i)          => s"/$i"
+      case OfModule(o)          => s":$o"
       case TargetToken.Field(f) => s".$f"
-      case Index(v) => s"[$v]"
-      case Clock => s"@clock"
-      case Reset => s"@reset"
-      case Init => s"@init"
+      case Index(v)             => s"[$v]"
+      case Clock                => s"@clock"
+      case Reset                => s"@reset"
+      case Init                 => s"@init"
     }.mkString("")
     if (moduleOpt.isEmpty && tokens.isEmpty) {
       circuitString
@@ -65,20 +65,20 @@ sealed trait Target extends Named {
     val moduleString = s"""\n$tab└── module ${moduleOpt.getOrElse("???")}:"""
     var depth = 4
     val tokenString = tokens.map {
-      case Ref(r) => val rx = s"""\n$tab${" " * depth}└── $r"""; depth += 4; rx
+      case Ref(r)      => val rx = s"""\n$tab${" " * depth}└── $r"""; depth += 4; rx
       case Instance(i) => val ix = s"""\n$tab${" " * depth}└── inst $i """; ix
       case OfModule(o) => val ox = s"of $o:"; depth += 4; ox
-      case Field(f) => s".$f"
-      case Index(v) => s"[$v]"
-      case Clock => s"@clock"
-      case Reset => s"@reset"
-      case Init => s"@init"
+      case Field(f)    => s".$f"
+      case Index(v)    => s"[$v]"
+      case Clock       => s"@clock"
+      case Reset       => s"@reset"
+      case Init        => s"@init"
     }.mkString("")
 
     (moduleOpt.isEmpty, tokens.isEmpty) match {
       case (true, true) => circuitString
-      case (_, true) => circuitString + moduleString
-      case (_, _) => circuitString + moduleString + tokenString
+      case (_, true)    => circuitString + moduleString
+      case (_, _)       => circuitString + moduleString + tokenString
     }
   }
 
@@ -104,18 +104,18 @@ sealed trait Target extends Named {
 
 object Target {
   def asTarget(m: ModuleTarget)(e: Expression): ReferenceTarget = e match {
-    case w: WRef => m.ref(w.name)
+    case w: WRef         => m.ref(w.name)
     case r: ir.Reference => m.ref(r.name)
-    case w: WSubIndex => asTarget(m)(w.expr).index(w.value)
-    case s: ir.SubIndex => asTarget(m)(s.expr).index(s.value)
-    case w: WSubField => asTarget(m)(w.expr).field(w.name)
-    case s: ir.SubField => asTarget(m)(s.expr).field(s.name)
-    case w: WSubAccess => asTarget(m)(w.expr).field("@" + w.index.serialize)
+    case w: WSubIndex    => asTarget(m)(w.expr).index(w.value)
+    case s: ir.SubIndex  => asTarget(m)(s.expr).index(s.value)
+    case w: WSubField    => asTarget(m)(w.expr).field(w.name)
+    case s: ir.SubField  => asTarget(m)(s.expr).field(s.name)
+    case w: WSubAccess   => asTarget(m)(w.expr).field("@" + w.index.serialize)
     case s: ir.SubAccess => asTarget(m)(s.expr).field("@" + s.index.serialize)
-    case d: DoPrim => m.ref("@" + d.serialize)
-    case d: Mux => m.ref("@" + d.serialize)
-    case d: ValidIf => m.ref("@" + d.serialize)
-    case d: Literal => m.ref("@" + d.serialize)
+    case d: DoPrim       => m.ref("@" + d.serialize)
+    case d: Mux          => m.ref("@" + d.serialize)
+    case d: ValidIf      => m.ref("@" + d.serialize)
+    case d: Literal      => m.ref("@" + d.serialize)
     case other => sys.error(s"Unsupported: $other")
   }
 
@@ -174,15 +174,15 @@ object Target {
             if (value == "???") t else t.copy(circuitOpt = Some(value))
           case '|' if t.moduleOpt.isEmpty && t.tokens.isEmpty =>
             if (value == "???") t else t.copy(moduleOpt = Some(value))
-          case '/' => t.add(Instance(value))
-          case ':' => t.add(OfModule(value))
-          case '>' => t.add(Ref(value))
-          case '.' => t.add(Field(value))
+          case '/'                                  => t.add(Instance(value))
+          case ':'                                  => t.add(OfModule(value))
+          case '>'                                  => t.add(Ref(value))
+          case '.'                                  => t.add(Field(value))
           case '[' if value.dropRight(1).toInt >= 0 => t.add(Index(value.dropRight(1).toInt))
-          case '@' if value == "clock" => t.add(Clock)
-          case '@' if value == "init" => t.add(Init)
-          case '@' if value == "reset" => t.add(Reset)
-          case other => throw NamedException(s"Cannot deserialize Target: $s")
+          case '@' if value == "clock"              => t.add(Clock)
+          case '@' if value == "init"               => t.add(Init)
+          case '@' if value == "reset"              => t.add(Reset)
+          case other                                => throw NamedException(s"Cannot deserialize Target: $s")
         }
       }
       .tryToComplete
@@ -200,8 +200,8 @@ case class GenericTarget(circuitOpt: Option[String], moduleOpt: Option[String], 
 
   override def toNamed: Named = getComplete match {
     case Some(c: IsComponent) if c.isLocal => c.toNamed
-    case Some(c: ModuleTarget) => c.toNamed
-    case Some(c: CircuitTarget) => c.toNamed
+    case Some(c: ModuleTarget)             => c.toNamed
+    case Some(c: CircuitTarget)            => c.toNamed
     case other => throw Target.NamedException(s"Cannot convert $this to [[Named]]")
   }
 
@@ -211,15 +211,15 @@ case class GenericTarget(circuitOpt: Option[String], moduleOpt: Option[String], 
     if (!isComplete) None
     else {
       val target = this match {
-        case GenericTarget(Some(c), None, Vector()) => CircuitTarget(c)
-        case GenericTarget(Some(c), Some(m), Vector()) => ModuleTarget(c, m)
-        case GenericTarget(Some(c), Some(m), Ref(r) +: component) => ReferenceTarget(c, m, Nil, r, component)
+        case GenericTarget(Some(c), None, Vector())                                  => CircuitTarget(c)
+        case GenericTarget(Some(c), Some(m), Vector())                               => ModuleTarget(c, m)
+        case GenericTarget(Some(c), Some(m), Ref(r) +: component)                    => ReferenceTarget(c, m, Nil, r, component)
         case GenericTarget(Some(c), Some(m), Instance(i) +: OfModule(o) +: Vector()) => InstanceTarget(c, m, Nil, i, o)
         case GenericTarget(Some(c), Some(m), component) =>
           val path = getPath.getOrElse(Nil)
           (getRef, getInstanceOf) match {
             case (Some((r, comps)), _) => ReferenceTarget(c, m, path, r, comps)
-            case (None, Some((i, o))) => InstanceTarget(c, m, path, i, o)
+            case (None, Some((i, o)))  => InstanceTarget(c, m, path, i, o)
           }
       }
       Some(target)
@@ -284,10 +284,10 @@ case class GenericTarget(circuitOpt: Option[String], moduleOpt: Option[String], 
     token match {
       case _: Instance => requireLast(true, "inst", "of")
       case _: OfModule => requireLast(false, "inst")
-      case _: Ref => requireLast(true, "inst", "of")
-      case _: Field => requireLast(true, "ref", "[]", ".", "init", "clock", "reset")
-      case _: Index => requireLast(true, "ref", "[]", ".", "init", "clock", "reset")
-      case Init => requireLast(true, "ref", "[]", ".", "init", "clock", "reset")
+      case _: Ref      => requireLast(true, "inst", "of")
+      case _: Field    => requireLast(true, "ref", "[]", ".", "init", "clock", "reset")
+      case _: Index    => requireLast(true, "ref", "[]", ".", "init", "clock", "reset")
+      case Init  => requireLast(true, "ref", "[]", ".", "init", "clock", "reset")
       case Clock => requireLast(true, "ref", "[]", ".", "init", "clock", "reset")
       case Reset => requireLast(true, "ref", "[]", ".", "init", "clock", "reset")
     }
@@ -328,9 +328,9 @@ case class GenericTarget(circuitOpt: Option[String], moduleOpt: Option[String], 
   def isComplete: Boolean = {
     isLegal && (isCircuitTarget || isModuleTarget || (isComponentTarget && tokens.tails.forall {
       case Instance(_) +: OfModule(_) +: tail => true
-      case Instance(_) +: x +: tail => false
-      case x +: OfModule(_) +: tail => false
-      case _ => true
+      case Instance(_) +: x +: tail           => false
+      case x +: OfModule(_) +: tail           => false
+      case _                                  => true
     }))
   }
 
@@ -443,7 +443,7 @@ trait IsComponent extends IsMember {
         case Seq(Ref(name)) => ComponentName(name, mn)
         case Ref(_) :: tail if Target.isOnly(tail, ".", "[]") =>
           val name = tokens.foldLeft("") {
-            case ("", Ref(name)) => name
+            case ("", Ref(name))        => name
             case (string, Field(value)) => s"$string.$value"
             case (string, Index(value)) => s"$string[$value]"
           }
@@ -580,7 +580,7 @@ case class ReferenceTarget(
       baseType
     } else {
       val headType = tokens.head match {
-        case Index(idx) => sub_type(baseType)
+        case Index(idx)   => sub_type(baseType)
         case Field(field) => field_type(baseType, field)
         case _: Ref => baseType
       }
@@ -712,7 +712,7 @@ final case class ComponentName(name: String, module: ModuleName) extends Named {
   def toTarget: ReferenceTarget = {
     Target.toTargetTokens(name).toList match {
       case Ref(r) :: components => ReferenceTarget(module.circuit.name, module.name, Nil, r, components)
-      case other => throw Target.NamedException(s"Cannot convert $this into [[ReferenceTarget]]: $other")
+      case other                => throw Target.NamedException(s"Cannot convert $this into [[ReferenceTarget]]: $other")
     }
   }
 }

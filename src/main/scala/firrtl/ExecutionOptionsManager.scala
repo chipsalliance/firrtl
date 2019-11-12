@@ -134,8 +134,8 @@ trait HasCommonOptions {
     .foreach { x =>
       val level = x.toLowerCase match {
         case "error" => LogLevel.Error
-        case "warn" => LogLevel.Warn
-        case "info" => LogLevel.Info
+        case "warn"  => LogLevel.Warn
+        case "info"  => LogLevel.Info
         case "debug" => LogLevel.Debug
         case "trace" => LogLevel.Trace
       }
@@ -157,8 +157,8 @@ trait HasCommonOptions {
 
         val level = levelName.toLowerCase match {
           case "error" => LogLevel.Error
-          case "warn" => LogLevel.Warn
-          case "info" => LogLevel.Info
+          case "warn"  => LogLevel.Warn
+          case "info"  => LogLevel.Info
           case "debug" => LogLevel.Debug
           case "trace" => LogLevel.Trace
           case _ =>
@@ -239,21 +239,21 @@ case class FirrtlExecutionOptions(
 
   def infoMode: InfoMode = {
     infoModeName match {
-      case "use" => UseInfo
+      case "use"    => UseInfo
       case "ignore" => IgnoreInfo
-      case "gen" => GenInfo(inputFileNameOverride)
+      case "gen"    => GenInfo(inputFileNameOverride)
       case "append" => AppendInfo(inputFileNameOverride)
-      case other => UseInfo
+      case other    => UseInfo
     }
   }
 
   def compiler: Compiler = {
     compilerName match {
-      case "none" => new NoneCompiler()
-      case "high" => new HighFirrtlCompiler()
-      case "low" => new LowFirrtlCompiler()
-      case "middle" => new MiddleFirrtlCompiler()
-      case "verilog" => new VerilogCompiler()
+      case "none"     => new NoneCompiler()
+      case "high"     => new HighFirrtlCompiler()
+      case "low"      => new LowFirrtlCompiler()
+      case "middle"   => new MiddleFirrtlCompiler()
+      case "verilog"  => new VerilogCompiler()
       case "mverilog" => new MinimumVerilogCompiler()
       case "sverilog" => new SystemVerilogCompiler()
     }
@@ -262,11 +262,11 @@ case class FirrtlExecutionOptions(
   def outputSuffix: String = {
     compilerName match {
       case "verilog" | "mverilog" => "v"
-      case "sverilog" => "sv"
-      case "low" => "lo.fir"
-      case "middle" => "mid.fir"
-      case "high" => "hi.fir"
-      case "none" => "fir"
+      case "sverilog"             => "sv"
+      case "low"                  => "lo.fir"
+      case "middle"               => "mid.fir"
+      case "high"                 => "hi.fir"
+      case "none"                 => "fir"
       case _ =>
         throw new Exception(s"Illegal compiler name $compilerName")
     }
@@ -301,7 +301,7 @@ case class FirrtlExecutionOptions(
   def getTargetFile(optionsManager: ExecutionOptionsManager): String = {
     getOutputConfig(optionsManager) match {
       case SingleFile(targetFile) => targetFile
-      case other => throw new Exception("OutputConfig is not SingleFile!")
+      case other                  => throw new Exception("OutputConfig is not SingleFile!")
     }
   }
 
@@ -313,16 +313,16 @@ case class FirrtlExecutionOptions(
   def getEmitterAnnos(optionsManager: ExecutionOptionsManager): Seq[Annotation] = {
     // TODO should this be a public function?
     val emitter = compilerName match {
-      case "none" => classOf[ChirrtlEmitter]
-      case "high" => classOf[HighFirrtlEmitter]
-      case "middle" => classOf[MiddleFirrtlEmitter]
-      case "low" => classOf[LowFirrtlEmitter]
-      case "verilog" => classOf[VerilogEmitter]
+      case "none"     => classOf[ChirrtlEmitter]
+      case "high"     => classOf[HighFirrtlEmitter]
+      case "middle"   => classOf[MiddleFirrtlEmitter]
+      case "low"      => classOf[LowFirrtlEmitter]
+      case "verilog"  => classOf[VerilogEmitter]
       case "mverilog" => classOf[MinimumVerilogEmitter]
       case "sverilog" => classOf[VerilogEmitter]
     }
     getOutputConfig(optionsManager) match {
-      case SingleFile(_) => Seq(EmitCircuitAnnotation(emitter))
+      case SingleFile(_)       => Seq(EmitCircuitAnnotation(emitter))
       case OneFilePerModule(_) => Seq(EmitAllModulesAnnotation(emitter))
     }
   }

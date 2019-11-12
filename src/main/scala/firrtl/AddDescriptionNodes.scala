@@ -9,7 +9,7 @@ import firrtl.Mappers._
 case class DescriptionAnnotation(named: Named, description: String) extends Annotation {
   def update(renames: RenameMap): Seq[DescriptionAnnotation] = {
     renames.get(named) match {
-      case None => Seq(this)
+      case None      => Seq(this)
       case Some(seq) => seq.map(n => this.copy(named = n))
     }
   }

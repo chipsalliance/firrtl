@@ -62,7 +62,7 @@ class RenderDiGraph[T <: Any](diGraph: DiGraph[T], graphName: String = "", rankD
       // Find all the children of the nodes in the loop
       val childrenFound = diGraph.getEdgeMap.flatMap {
         case (node, children) if loop.contains(node) => children
-        case _ => Seq.empty
+        case _                                       => Seq.empty
       }.toSet
 
       // Create a new DiGraph containing only loop and direct children or parents

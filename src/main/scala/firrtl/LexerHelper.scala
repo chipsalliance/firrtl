@@ -117,8 +117,8 @@ abstract class LexerHelper {
       setType(tokenType)
       tokenType match {
         case `NEWLINE` => setText("<NEWLINE>")
-        case `INDENT` => setText("<INDENT>")
-        case `DEDENT` => setText("<DEDENT>")
+        case `INDENT`  => setText("<INDENT>")
+        case `DEDENT`  => setText("<DEDENT>")
       }
     }
 

@@ -49,8 +49,8 @@ class Errors {
 object ToWorkingIR extends Pass {
   def toExp(e: Expression): Expression = e.map(toExp) match {
     case ex: Reference => WRef(ex.name, ex.tpe, UnknownKind, UnknownFlow)
-    case ex: SubField => WSubField(ex.expr, ex.name, ex.tpe, UnknownFlow)
-    case ex: SubIndex => WSubIndex(ex.expr, ex.value, ex.tpe, UnknownFlow)
+    case ex: SubField  => WSubField(ex.expr, ex.name, ex.tpe, UnknownFlow)
+    case ex: SubIndex  => WSubIndex(ex.expr, ex.value, ex.tpe, UnknownFlow)
     case ex: SubAccess => WSubAccess(ex.expr, ex.index, ex.tpe, UnknownFlow)
     case ex => ex // This might look like a case to use case _ => e, DO NOT!
   }
@@ -107,7 +107,7 @@ object PullMuxes extends Pass {
     }
     def pull_muxes(s: Statement): Statement = s.map(pull_muxes).map(pull_muxes_e)
     val modulesx = c.modules.map {
-      case (m: Module) => Module(m.info, m.name, m.ports, pull_muxes(m.body))
+      case (m: Module)    => Module(m.info, m.name, m.ports, pull_muxes(m.body))
       case (m: ExtModule) => m
     }
     Circuit(c.info, modulesx, c.main)
@@ -125,7 +125,7 @@ object ExpandConnects extends Pass {
             val f = get_field(ex.expr.tpe, ex.name)
             val flowx = times(flow(ex.expr), f.flip)
             WSubField(ex.expr, ex.name, ex.tpe, flowx)
-          case ex: WSubIndex => WSubIndex(ex.expr, ex.value, ex.tpe, flow(ex.expr))
+          case ex: WSubIndex  => WSubIndex(ex.expr, ex.value, ex.tpe, flow(ex.expr))
           case ex: WSubAccess => WSubAccess(ex.expr, ex.index, ex.tpe, flow(ex.expr))
           case ex => ex
         }
@@ -140,8 +140,8 @@ object ExpandConnects extends Pass {
               case expx =>
                 flow(set_flow(expx)) match {
                   case DuplexFlow => Some(IsInvalid(sx.info, expx))
-                  case SinkFlow => Some(IsInvalid(sx.info, expx))
-                  case _ => None
+                  case SinkFlow   => Some(IsInvalid(sx.info, expx))
+                  case _          => None
                 }
             }
             invalids.size match {
@@ -156,7 +156,7 @@ object ExpandConnects extends Pass {
               case (locx, expx) =>
                 to_flip(flow(locx)) match {
                   case Default => Connect(sx.info, locx, expx)
-                  case Flip => Connect(sx.info, expx, locx)
+                  case Flip    => Connect(sx.info, expx, locx)
                 }
             })
           case sx: PartialConnect =>
@@ -170,7 +170,7 @@ object ExpandConnects extends Pass {
                   case _ =>
                     to_flip(flow(locs(x))) match {
                       case Default => Connect(sx.info, locs(x), exps(y))
-                      case Flip => Connect(sx.info, exps(y), locs(x))
+                      case Flip    => Connect(sx.info, exps(y), locs(x))
                     }
                 }
             }
@@ -187,7 +187,7 @@ object ExpandConnects extends Pass {
 
     val modulesx = c.modules.map {
       case (m: ExtModule) => m
-      case (m: Module) => expand_connects(m)
+      case (m: Module)    => expand_connects(m)
     }
     Circuit(c.info, modulesx, c.main)
   }
@@ -238,8 +238,8 @@ object Legalize extends Pass {
     } else {
       val bits = DoPrim(Bits, Seq(c.expr), Seq(w - 1, 0), UIntType(IntWidth(w)))
       val expr = t match {
-        case UIntType(_) => bits
-        case SIntType(_) => DoPrim(AsSInt, Seq(bits), Seq(), SIntType(IntWidth(w)))
+        case UIntType(_)               => bits
+        case SIntType(_)               => DoPrim(AsSInt, Seq(bits), Seq(), SIntType(IntWidth(w)))
         case FixedType(_, IntWidth(p)) => DoPrim(AsFixedPoint, Seq(bits), Seq(p), t)
       }
       Connect(c.info, c.loc, expr)
@@ -249,10 +249,10 @@ object Legalize extends Pass {
     def legalizeE(expr: Expression): Expression = expr.map(legalizeE) match {
       case prim: DoPrim =>
         prim.op match {
-          case Shr => legalizeShiftRight(prim)
-          case Pad => legalizePad(prim)
+          case Shr                => legalizeShiftRight(prim)
+          case Pad                => legalizePad(prim)
           case Bits | Head | Tail => legalizeBitExtract(prim)
-          case _ => prim
+          case _                  => prim
         }
       case e => e // respect pre-order traversal
     }

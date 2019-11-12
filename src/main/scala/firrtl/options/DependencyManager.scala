@@ -334,9 +334,9 @@ trait DependencyManager[A, B <: TransformLike[A] with DependencyAPI[B]] extends 
 
   def transformOrderToGraphviz(colormap: Seq[String] = colormap): String = {
     def rotate[A](a: Seq[A]): Seq[A] = a match {
-      case Nil => Nil
+      case Nil        => Nil
       case car :: cdr => cdr :+ car
-      case car => car
+      case car        => car
     }
 
     val sorted = ArrayBuffer.empty[String]

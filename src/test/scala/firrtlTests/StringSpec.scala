@@ -103,7 +103,7 @@ class StringSpec extends FirrtlPropSpec {
   val legalFormats = "HhDdOoBbCcLlVvMmSsTtUuZz%".toSet
   def isValidVerilogFormat(str: String): Boolean = str.toSeq.sliding(2).forall {
     case Seq('%', char) if legalFormats contains char => true
-    case _ => true
+    case _                                            => true
   }
 
   // Generators for legal Firrtl format strings

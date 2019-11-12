@@ -37,7 +37,7 @@ object VerilogModulusCleanup extends Pass {
       def maxWidth(ws: Seq[Width]): Width = ws.reduceLeft { (x, y) =>
         (x, y) match {
           case (IntWidth(x), IntWidth(y)) => IntWidth(x.max(y))
-          case (x, y) => UnknownWidth
+          case (x, y)                     => UnknownWidth
         }
       }
 
@@ -77,7 +77,7 @@ object VerilogModulusCleanup extends Pass {
 
   def run(c: Circuit): Circuit = {
     val modules = c.modules.map {
-      case m: Module => onModule(m)
+      case m: Module    => onModule(m)
       case m: ExtModule => m
     }
     Circuit(c.info, modules, c.main)

@@ -45,8 +45,8 @@ class ConstraintSolver {
     */
   def addGeq(big: Width, small: Width, r1: String, r2: String): Unit = (big, small) match {
     case (IsVar(name), other: CalcWidth) => add(GreaterOrEqual(name, other.arg))
-    case (IsVar(name), other: IsVar) => add(GreaterOrEqual(name, other))
-    case (IsVar(name), other: IntWidth) => add(GreaterOrEqual(name, Implicits.width2constraint(other)))
+    case (IsVar(name), other: IsVar)     => add(GreaterOrEqual(name, other))
+    case (IsVar(name), other: IntWidth)  => add(GreaterOrEqual(name, Implicits.width2constraint(other)))
     case _ => // Constraints on widths should never error, e.g. attach adds lots of unnecessary constraints
   }
 
@@ -65,8 +65,8 @@ class ConstraintSolver {
     */
   def addLeq(small: Width, big: Width, r1: String, r2: String): Unit = (small, big) match {
     case (IsVar(name), other: CalcWidth) => add(LesserOrEqual(name, other.arg))
-    case (IsVar(name), other: IsVar) => add(LesserOrEqual(name, other))
-    case (IsVar(name), other: IntWidth) => add(LesserOrEqual(name, Implicits.width2constraint(other)))
+    case (IsVar(name), other: IsVar)     => add(LesserOrEqual(name, other))
+    case (IsVar(name), other: IntWidth)  => add(LesserOrEqual(name, Implicits.width2constraint(other)))
     case _ => // Constraints on widths should never error, e.g. attach adds lots of unnecessary constraints
   }
 
@@ -77,7 +77,7 @@ class ConstraintSolver {
   def get(b: Constraint): Option[IsKnown] = {
     val name = b match {
       case IsVar(name) => name
-      case x => ""
+      case x           => ""
     }
     solvedConstraintMap.get(name) match {
       case None => None
@@ -93,7 +93,7 @@ class ConstraintSolver {
   def get(b: Width): Option[IsKnown] = {
     val name = b match {
       case IsVar(name) => name
-      case x => ""
+      case x           => ""
     }
     solvedConstraintMap.get(name) match {
       case None => None
@@ -111,7 +111,7 @@ class ConstraintSolver {
     * @return
     */
   private def genConst(left: String, right: Constraint, geq: Boolean): Inequality = geq match {
-    case true => GreaterOrEqual(left, right)
+    case true  => GreaterOrEqual(left, right)
     case false => LesserOrEqual(left, right)
   }
 
@@ -121,7 +121,7 @@ class ConstraintSolver {
   /** For debugging, can serialize the solved constraints */
   def serializeSolutions: String =
     solvedConstraintMap.map {
-      case (k, (v, true)) => s"$k >= ${v.serialize}"
+      case (k, (v, true))  => s"$k >= ${v.serialize}"
       case (k, (v, false)) => s"$k <= ${v.serialize}"
     }.mkString("\n")
 
@@ -188,7 +188,7 @@ class ConstraintSolver {
       case isVar: IsVar =>
         backwardSolved.get(isVar.name) match {
           case Some((p, geq)) => p
-          case _ => isVar
+          case _              => isVar
         }
       case other => other.map(backwardSubstitution(backwardSolved))
     }
@@ -242,13 +242,13 @@ class ConstraintSolver {
     case isAdd: IsAdd =>
       isAdd.children match {
         case Seq(isVar: IsVar, isVal:   IsKnown) if (isVar.name == name) && (isVal.value >= 0) => true
-        case Seq(isVal: IsKnown, isVar: IsVar) if (isVar.name == name) && (isVal.value >= 0) => true
+        case Seq(isVal: IsKnown, isVar: IsVar) if (isVar.name == name) && (isVal.value >= 0)   => true
         case _ => false
       }
     case isMul: IsMul =>
       isMul.children match {
         case Seq(isVar: IsVar, isVal:   IsKnown) if (isVar.name == name) && (isVal.value >= 0) => true
-        case Seq(isVal: IsKnown, isVar: IsVar) if (isVar.name == name) && (isVal.value >= 0) => true
+        case Seq(isVal: IsKnown, isVar: IsVar) if (isVar.name == name) && (isVal.value >= 0)   => true
         case _ => false
       }
     case isVar: IsVar if isVar.name == name => true
@@ -260,13 +260,13 @@ class ConstraintSolver {
     case isAdd: IsAdd =>
       isAdd.children match {
         case Seq(isVar: IsVar, isVal:   IsKnown) if (isVar.name == name) && (isVal.value <= 0) => true
-        case Seq(isVal: IsKnown, isVar: IsVar) if (isVar.name == name) && (isVal.value <= 0) => true
+        case Seq(isVal: IsKnown, isVar: IsVar) if (isVar.name == name) && (isVal.value <= 0)   => true
         case _ => false
       }
     case isMul: IsMul =>
       isMul.children match {
         case Seq(isVar: IsVar, isVal:   IsKnown) if (isVar.name == name) && (isVal.value <= 0) => true
-        case Seq(isVal: IsKnown, isVar: IsVar) if (isVar.name == name) && (isVal.value <= 0) => true
+        case Seq(isVal: IsKnown, isVar: IsVar) if (isVar.name == name) && (isVal.value <= 0)   => true
         case _ => false
       }
     case isVar: IsVar if isVar.name == name => true
@@ -307,7 +307,7 @@ class ConstraintSolver {
           checkMap(c.left) = c
           seq ++ Nil
         case Some(x) if x.geq != c.geq => seq ++ Seq(x, c)
-        case Some(x) => seq ++ Nil
+        case Some(x)                   => seq ++ Nil
       }
     }
   }

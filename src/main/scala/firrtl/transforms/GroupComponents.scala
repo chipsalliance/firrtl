@@ -186,7 +186,7 @@ class GroupComponents extends firrtl.Transform {
       val portNames = groupPortNames(group)
       val suffix = d match {
         case Output => label2annotation(group).outputSuffix.getOrElse("")
-        case Input => label2annotation(group).inputSuffix.getOrElse("")
+        case Input  => label2annotation(group).inputSuffix.getOrElse("")
       }
       val newName = groupNamespace(group).newName(source + suffix)
       val portName = portNames.getOrElseUpdate(source, newName)
@@ -198,7 +198,7 @@ class GroupComponents extends firrtl.Transform {
       val portName = addPort(group, exp, Output)
       val connectStatement = exp.tpe match {
         case AnalogType(_) => Attach(NoInfo, Seq(WRef(portName), exp))
-        case _ => Connect(NoInfo, WRef(portName), exp)
+        case _             => Connect(NoInfo, WRef(portName), exp)
       }
       groupStatements(group) += connectStatement
       portName

@@ -57,9 +57,9 @@ class InlineInstances extends Transform with RegisteredTransform {
             (circuit.modules.collect {
               case Module(_, name, _, _) if name != circuit.main => ModuleName(name, CircuitName(c))
             }.toSet, instNames)
-          case InlineAnnotation(ModuleName(mod, cir)) => (modNames + ModuleName(mod, cir), instNames)
+          case InlineAnnotation(ModuleName(mod, cir))    => (modNames + ModuleName(mod, cir), instNames)
           case InlineAnnotation(ComponentName(com, mod)) => (modNames, instNames + ComponentName(com, mod))
-          case _ => (modNames, instNames)
+          case _                                         => (modNames, instNames)
         }
     }
 
@@ -191,7 +191,7 @@ class InlineInstances extends Transform with RegisteredTransform {
         case wr @ WRef(name, _, _, _) =>
           renames.get(name) match {
             case Some(prefixedName) => wr.copy(name = prefixedName)
-            case None => wr
+            case None               => wr
           }
         case ex => ex.map(onExpr)
       }
@@ -278,7 +278,7 @@ class InlineInstances extends Transform with RegisteredTransform {
           val renames = renamesMap(OfModule(currentModuleName) -> Instance(instName))
           val toInline = iGraph.moduleMap(modName) match {
             case m: ExtModule => throw new PassException(s"Cannot inline external module ${m.name}")
-            case m: Module => m
+            case m: Module    => m
           }
 
           val ports = toInline.ports.map(p => DefWire(p.info, p.name, p.tpe))

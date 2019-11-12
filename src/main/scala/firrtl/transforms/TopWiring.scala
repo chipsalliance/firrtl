@@ -64,10 +64,10 @@ class TopWiringTransform extends Transform {
     case w: IsDeclaration =>
       if (sourceList.keys.toSeq.contains(ComponentName(w.name, currentmodule))) {
         val (isport, tpe, prefix) = w match {
-          case d: DefWire => (false, d.tpe, sourceList(ComponentName(w.name, currentmodule)))
-          case d: DefNode => (false, d.value.tpe, sourceList(ComponentName(w.name, currentmodule)))
+          case d: DefWire     => (false, d.tpe, sourceList(ComponentName(w.name, currentmodule)))
+          case d: DefNode     => (false, d.value.tpe, sourceList(ComponentName(w.name, currentmodule)))
           case d: DefRegister => (false, d.tpe, sourceList(ComponentName(w.name, currentmodule)))
-          case d: Port => (true, d.tpe, sourceList(ComponentName(w.name, currentmodule)))
+          case d: Port        => (true, d.tpe, sourceList(ComponentName(w.name, currentmodule)))
           case _ => throw new Exception(s"Cannot wire this type of declaration! ${w.serialize}")
         }
         sourceMap.get(currentmodule.name) match {

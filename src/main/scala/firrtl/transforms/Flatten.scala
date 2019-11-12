@@ -36,9 +36,9 @@ class Flatten extends Transform {
             (circuit.modules.collect {
               case Module(_, name, _, _) if name != circuit.main => ModuleName(name, CircuitName(c))
             }.toSet, instNames)
-          case FlattenAnnotation(ModuleName(mod, cir)) => (modNames + ModuleName(mod, cir), instNames)
+          case FlattenAnnotation(ModuleName(mod, cir))    => (modNames + ModuleName(mod, cir), instNames)
           case FlattenAnnotation(ComponentName(com, mod)) => (modNames, instNames + ComponentName(com, mod))
-          case _ => throw new PassException("Annotation must be a FlattenAnnotation")
+          case _                                          => throw new PassException("Annotation must be a FlattenAnnotation")
         }
     }
 

@@ -16,8 +16,8 @@ class AddDefaults extends Phase {
     var bb, c, im = true
     annotations.foreach {
       case _: BlackBoxTargetDirAnno => bb = false
-      case _: CompilerAnnotation => c = false
-      case _: InfoModeAnnotation => im = false
+      case _: CompilerAnnotation    => c = false
+      case _: InfoModeAnnotation    => im = false
       case a =>
     }
 

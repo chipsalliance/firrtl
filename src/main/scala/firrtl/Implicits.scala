@@ -15,11 +15,11 @@ object Implicits {
   }
   implicit def constraint2width(c: Constraint): Width = c match {
     case Closed(x) if trim(x).isWhole => IntWidth(x.toBigInt)
-    case x => CalcWidth(x)
+    case x                            => CalcWidth(x)
   }
   implicit def width2constraint(w: Width): Constraint = w match {
     case CalcWidth(x: Constraint) => x
-    case IntWidth(x) => Closed(BigDecimal(x))
+    case IntWidth(x)  => Closed(BigDecimal(x))
     case UnknownWidth => UnknownBound
     case v: Constraint => v
   }

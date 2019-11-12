@@ -247,7 +247,7 @@ abstract class Transform extends TransformLike[CircuitState] {
       val resSet = mutable.LinkedHashSet() ++ resAnno
       val deleted = (inSet -- resSet).map {
         case DeletedAnnotation(xFormName, delAnno) => DeletedAnnotation(s"$xFormName+$name", delAnno)
-        case anno => DeletedAnnotation(name, anno)
+        case anno                                  => DeletedAnnotation(name, anno)
       }
       val created = resSet -- inSet
       val unchanged = resSet & inSet
@@ -336,8 +336,8 @@ object CompilerUtils extends LazyLogging {
         case HighForm =>
           Seq(new IRToWorkingIR, new ResolveAndCheck, new transforms.DedupModules, new HighFirrtlToMiddleFirrtl) ++
             getLoweringTransforms(MidForm, outputForm)
-        case MidForm => Seq(new MiddleFirrtlToLowFirrtl) ++ getLoweringTransforms(LowForm, outputForm)
-        case LowForm => throwInternalError("getLoweringTransforms - LowForm") // should be caught by if above
+        case MidForm     => Seq(new MiddleFirrtlToLowFirrtl) ++ getLoweringTransforms(LowForm, outputForm)
+        case LowForm     => throwInternalError("getLoweringTransforms - LowForm") // should be caught by if above
         case UnknownForm => throwInternalError("getLoweringTransforms - UnknownForm") // should be caught by if above
       }
     }

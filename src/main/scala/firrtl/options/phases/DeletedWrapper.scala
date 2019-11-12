@@ -22,7 +22,7 @@ class DeletedWrapper(p: Phase) extends Phase with Translator[AnnotationSeq, (Ann
 
     (in -- out).map {
       case DeletedAnnotation(n, a) => DeletedAnnotation(s"$n+$name", a)
-      case a => DeletedAnnotation(name, a)
+      case a                       => DeletedAnnotation(name, a)
     }.toSeq ++ b._2
   }
 

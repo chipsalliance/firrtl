@@ -138,7 +138,7 @@ object DedupModules {
               .fields
               .indexWhere({
                 case Field("data" | "wdata" | "rdata", _, _) => true
-                case _ => false
+                case _                                       => false
               })
           )
         val newDataType = index match {
@@ -201,8 +201,8 @@ object DedupModules {
     def reOfModule(instance: String, ofModule: String): String = {
       renameMap.get(top.module(ofModule)) match {
         case Some(Seq(Target(_, Some(ofModuleTag), Nil))) => ofModuleTag
-        case None => ofModule
-        case other => throwInternalError(other.toString)
+        case None                                         => ofModule
+        case other                                        => throwInternalError(other.toString)
       }
     }
 
@@ -424,8 +424,8 @@ object DedupModules {
     val name2name = moduleMap.keysIterator.map { originalModule =>
       tagMap.get(top.module(originalModule)) match {
         case Some(Seq(Target(_, Some(tag), Nil))) => originalModule -> tag2name(tag)
-        case None => originalModule -> originalModule
-        case other => throwInternalError(other.toString)
+        case None                                 => originalModule -> originalModule
+        case other                                => throwInternalError(other.toString)
       }
     }.toMap
 

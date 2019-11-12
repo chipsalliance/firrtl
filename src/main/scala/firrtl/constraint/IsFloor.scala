@@ -9,10 +9,10 @@ object IsFloor {
 case class IsFloor private (child: Constraint, dummyArg: Int) extends Constraint {
   override def reduce(): Constraint = child match {
     case k: IsKnown => k.floor
-    case x: IsAdd => this
-    case x: IsMul => this
-    case x: IsNeg => this
-    case x: IsPow => this
+    case x: IsAdd   => this
+    case x: IsMul   => this
+    case x: IsNeg   => this
+    case x: IsPow   => this
     // floor(max(a, b)) -> max(floor(a), floor(b))
     case x: IsMax =>
       IsMax(x.children.map { b =>

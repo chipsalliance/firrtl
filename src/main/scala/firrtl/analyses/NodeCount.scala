@@ -32,7 +32,7 @@ class NodeCount private (node: FirrtlNode) {
           identityMap.put(node, true)
           regularSet += node
           node match { // FirrtlNodes are Products
-            case p: Product => p.productIterator
+            case p: Product       => p.productIterator
             case i: Iterable[Any] => i
             case _ => List.empty
           }

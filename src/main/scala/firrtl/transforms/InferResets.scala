@@ -93,7 +93,7 @@ class InferResets extends Transform {
             val mod = instMap(target.ref)
             val port = target.component.head match {
               case TargetToken.Field(name) => name
-              case bad => Utils.throwInternalError(s"Unexpected token $bad")
+              case bad                     => Utils.throwInternalError(s"Unexpected token $bad")
             }
             target.copy(module = mod, ref = port, component = target.component.tail)
           case _ => target
@@ -107,12 +107,12 @@ class InferResets extends Transform {
               (lflip == Flip && rhs.tpe == ResetType)) {
             val (loc, exp) = lflip match {
               case Default => (lhs, rhs)
-              case Flip => (rhs, lhs)
+              case Flip    => (rhs, lhs)
             }
             val target = makeTarget(loc)
             val driver = exp.tpe match {
               case ResetType => TargetDriver(makeTarget(exp))
-              case tpe => TypeDriver(tpe, () => makeTarget(exp))
+              case tpe       => TypeDriver(tpe, () => makeTarget(exp))
             }
             map.getOrElseUpdate(target, mutable.ListBuffer()) += driver
           }
@@ -196,14 +196,14 @@ class InferResets extends Transform {
           f =>
             map.get(f.name) match {
               case Some(t) => f.copy(tpe = fixupType(f.tpe, t))
-              case None => f
+              case None    => f
             }
         )
       BundleType(fieldsx)
     case (VectorType(vtpe, size), VectorTree(t)) =>
       VectorType(fixupType(vtpe, t), size)
     case (_, GroundTree(t)) => t
-    case x => throw new Exception(s"Error! Unexpected pair $x")
+    case x                  => throw new Exception(s"Error! Unexpected pair $x")
   }
 
   // Assumes all ReferenceTargets are in the same module
@@ -223,7 +223,7 @@ class InferResets extends Transform {
         val tree = map(decl.name)
         decl match {
           case reg:  DefRegister => reg.copy(tpe = fixupType(reg.tpe, tree))
-          case wire: DefWire => wire.copy(tpe = fixupType(wire.tpe, tree))
+          case wire: DefWire     => wire.copy(tpe = fixupType(wire.tpe, tree))
           // TODO Can this really happen?
           case mem: DefMemory => mem.copy(dataType = fixupType(mem.dataType, tree))
           case other => other

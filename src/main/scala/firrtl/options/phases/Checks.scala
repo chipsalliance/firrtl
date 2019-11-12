@@ -16,7 +16,7 @@ class Checks extends Phase {
   def transform(annotations: AnnotationSeq): AnnotationSeq = {
     val td, outA = collection.mutable.ListBuffer[Annotation]()
     annotations.foreach {
-      case a: TargetDirAnnotation => td += a
+      case a: TargetDirAnnotation            => td += a
       case a: OutputAnnotationFileAnnotation => outA += a
       case _ =>
     }

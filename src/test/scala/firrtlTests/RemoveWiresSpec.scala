@@ -46,8 +46,8 @@ class RemoveWiresSpec extends FirrtlFlatSpec {
     def onStmt(stmt: Statement): Statement = {
       stmt.map(onStmt) match {
         case reg:  DefRegister => names += reg.name
-        case wire: DefWire => names += wire.name
-        case node: DefNode => names += node.name
+        case wire: DefWire     => names += wire.name
+        case node: DefNode     => names += node.name
         case _ =>
       }
       stmt

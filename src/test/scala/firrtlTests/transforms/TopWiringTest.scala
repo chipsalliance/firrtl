@@ -614,7 +614,7 @@ class TopWiringTests extends MiddleTransformSpec with TopWiringTestsCommon {
     )
     firrtl.Driver.execute(args) match {
       case FirrtlExecutionSuccess(_, emitted) => parse(emitted) should be(parse(input))
-      case _ => fail
+      case _                                  => fail
     }
   }
 

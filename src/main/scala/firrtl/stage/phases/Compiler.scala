@@ -69,8 +69,8 @@ class Compiler extends Phase with Translator[AnnotationSeq, Seq[CompilerRun]] {
       case (d, a) if !foundFirstCircuit =>
         a match {
           case RunFirrtlTransformAnnotation(transform) => d.copy(transforms = transform +: d.transforms)
-          case CompilerAnnotation(compiler) => d.copy(compiler = Some(compiler))
-          case annotation => d.copy(annotations = annotation +: d.annotations)
+          case CompilerAnnotation(compiler)            => d.copy(compiler = Some(compiler))
+          case annotation                              => d.copy(annotations = annotation +: d.annotations)
         }
     }
     c

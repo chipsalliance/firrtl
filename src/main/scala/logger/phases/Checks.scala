@@ -23,7 +23,7 @@ object Checks extends Phase {
     val ll, lf = mutable.ListBuffer[Annotation]()
     annotations.foreach(_ match {
       case a: LogLevelAnnotation => ll += a
-      case a: LogFileAnnotation => lf += a
+      case a: LogFileAnnotation  => lf += a
       case _ =>
     })
     if (ll.size > 1) {

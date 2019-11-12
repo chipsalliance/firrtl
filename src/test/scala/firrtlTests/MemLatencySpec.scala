@@ -35,7 +35,7 @@ abstract class MemLatencySpec(rLatency: Int, wLatency: Int, ruw: String)
 
   def mask2Poke(m: Option[Boolean]) = m match {
     case Some(false) => Poke("m.w.mask", 0)
-    case _ => Poke("m.w.mask", 1)
+    case _           => Poke("m.w.mask", 1)
   }
 
   def wPokes = memAccesses.map {
@@ -46,7 +46,7 @@ abstract class MemLatencySpec(rLatency: Int, wLatency: Int, ruw: String)
 
   def rPokes = memAccesses.map {
     case MemAccess(_, Some(Read(a, _))) => Seq(Poke("m.r.en", 1), Poke("m.r.addr", a))
-    case _ => Seq(Poke("m.r.en", 0), Invalidate("m.r.addr"))
+    case _                              => Seq(Poke("m.r.en", 0), Invalidate("m.r.addr"))
   }
 
   // Need to idle for <rLatency> cycles at the end
@@ -56,7 +56,7 @@ abstract class MemLatencySpec(rLatency: Int, wLatency: Int, ruw: String)
   // Need to delay read value expects by <rLatency>
   def expects = Seq.fill(rLatency)(Seq(Step(1))) ++ memAccesses.map {
     case MemAccess(_, Some(Read(_, expected))) => Seq(Expect("m.r.data", expected), Step(1))
-    case _ => Seq(Step(1))
+    case _                                     => Seq(Step(1))
   }
 
   def commands: Seq[SimpleTestCommand] = pokes.zip(expects).flatMap { case (p, e) => p ++ e }

@@ -22,7 +22,7 @@ object MemPort {
       .map(MemPort.apply)
       .map(_ match {
         case Some(x) => x
-        case _ => throw new Exception(s"Error parsing MemPort string : ${s}")
+        case _       => throw new Exception(s"Error parsing MemPort string : ${s}")
       })
       .groupBy(identity)
       .mapValues(_.size)
@@ -56,7 +56,7 @@ object MemConf {
         case MemConf.regex(name, depth, width, ports, maskGran) =>
           Some(MemConf(name, depth.toInt, width.toInt, MemPort.fromString(ports), Option(maskGran).map(_.toInt)))
         case "" => None
-        case _ => throw new Exception(s"Error parsing MemConf string : ${s}")
+        case _  => throw new Exception(s"Error parsing MemConf string : ${s}")
       })
       .flatten
   }

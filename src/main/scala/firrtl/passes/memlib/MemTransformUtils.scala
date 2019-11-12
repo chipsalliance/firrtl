@@ -23,7 +23,7 @@ object MemTransformUtils {
       def testEmptyExpr(e: Expression): Expression = {
         e match {
           case EmptyExpression => foundEmpty = true
-          case _ =>
+          case _               =>
         }
         e.map(testEmptyExpr) // map must return; no foreach
       }

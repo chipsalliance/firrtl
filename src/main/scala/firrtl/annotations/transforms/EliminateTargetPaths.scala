@@ -142,8 +142,8 @@ class EliminateTargetPaths extends Transform {
     val targetsWithInvalidPaths = mutable.ArrayBuffer[IsMember]()
     targets.foreach { t =>
       val path = t match {
-        case m: ModuleTarget => Nil
-        case i: InstanceTarget => i.asPath
+        case m: ModuleTarget    => Nil
+        case i: InstanceTarget  => i.asPath
         case r: ReferenceTarget => r.path
       }
       path.foldLeft(t.module) {

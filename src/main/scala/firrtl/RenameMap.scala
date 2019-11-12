@@ -87,8 +87,8 @@ final class RenameMap private (
     */
   def recordAll(map: collection.Map[CompleteTarget, Seq[CompleteTarget]]): Unit =
     map.foreach {
-      case (from: IsComponent, tos:   Seq[IsMember]) => completeRename(from, tos)
-      case (from: IsModule, tos:      Seq[IsMember]) => completeRename(from, tos)
+      case (from: IsComponent, tos:   Seq[IsMember])      => completeRename(from, tos)
+      case (from: IsModule, tos:      Seq[IsMember])      => completeRename(from, tos)
       case (from: CircuitTarget, tos: Seq[CircuitTarget]) => completeRename(from, tos)
       case other => Utils.throwInternalError(s"Illegal rename: ${other._1} -> ${other._2}")
     }
@@ -283,7 +283,7 @@ final class RenameMap private (
                 val parent = t.copy(component = t.component.dropRight(1))
                 traverseTokens(parent).map(_.flatMap { x =>
                   (x, last) match {
-                    case (t2: InstanceTarget, Field(f)) => Some(t2.ref(f))
+                    case (t2: InstanceTarget, Field(f))  => Some(t2.ref(f))
                     case (t2: ReferenceTarget, Field(f)) => Some(t2.field(f))
                     case (t2: ReferenceTarget, Index(i)) => Some(t2.index(i))
                     case other =>
@@ -359,7 +359,7 @@ final class RenameMap private (
                 val stripped = t.copy(path = t.path.tail, module = outerMod)
                 traverseLeft(stripped).map(_.map {
                   case absolute if absolute.path.nonEmpty && absolute.circuit == absolute.path.head._2.value => absolute
-                  case relative => relative.addHierarchy(t.module, outerInst)
+                  case relative                                                                              => relative.addHierarchy(t.module, outerInst)
                 })
             }
           }
@@ -424,9 +424,9 @@ final class RenameMap private (
 
       // rename just the first level e.g. just rename component/path portion for ReferenceTargets
       val topRename = key match {
-        case t:   CircuitTarget => Seq(t)
-        case t:   ModuleTarget => Seq(t)
-        case t:   InstanceTarget => instanceGet(errors)(t)
+        case t:   CircuitTarget                  => Seq(t)
+        case t:   ModuleTarget                   => Seq(t)
+        case t:   InstanceTarget                 => instanceGet(errors)(t)
         case ref: ReferenceTarget if ref.isLocal => referenceGet(errors)(ref).getOrElse(Seq(ref))
         case ref @ ReferenceTarget(c, m, p, r, t) =>
           val (Instance(inst), OfModule(ofMod)) = p.last
@@ -439,8 +439,8 @@ final class RenameMap private (
       // rename the next level up
       val midRename = topRename.flatMap {
         case t: CircuitTarget => Seq(t)
-        case t: ModuleTarget => moduleGet(errors)(t)
-        case t: IsComponent =>
+        case t: ModuleTarget  => moduleGet(errors)(t)
+        case t: IsComponent   =>
           // rename all modules on the path
           val renamedPath = t.asPath.reverse.foldLeft((Option.empty[IsModule], Seq.empty[(Instance, OfModule)])) {
             case (absolute @ (Some(_), _), _) => absolute
@@ -504,7 +504,7 @@ final class RenameMap private (
             case CircuitTarget(c) =>
               t match {
                 case ref:  ReferenceTarget => ref.copy(circuit = c)
-                case inst: InstanceTarget => inst.copy(circuit = c)
+                case inst: InstanceTarget  => inst.copy(circuit = c)
               }
           }
       }
@@ -631,7 +631,7 @@ final class RenameMap private (
   def delete(name: String): Unit = {
     Target(Some(circuitName), Some(moduleName), AnnotationUtils.toSubComponents(name)).getComplete match {
       case Some(t: CircuitTarget) => delete(t)
-      case Some(m: IsMember) => delete(m)
+      case Some(m: IsMember)      => delete(m)
       case other =>
     }
   }

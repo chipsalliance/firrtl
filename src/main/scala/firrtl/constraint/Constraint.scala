@@ -15,7 +15,7 @@ trait MultiAry extends Constraint {
   def op(a:     IsKnown, b:          IsKnown): IsKnown
   def merge(b1: Option[IsKnown], b2: Option[IsKnown]): Option[IsKnown] = (b1, b2) match {
     case (Some(x), Some(y)) => Some(op(x, y))
-    case (_, y: Some[_]) => y
+    case (_, y: Some[_])    => y
     case (x:    Some[_], _) => x
     case _ => None
   }

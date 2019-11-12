@@ -33,7 +33,7 @@ class CheckResets extends Transform {
   private def onStmt(regCheck: RegCheckList, drivers: DirectDriverMap)(stmt: Statement): Unit = {
     stmt match {
       case DefNode(_, name, expr) => drivers += we(WRef(name)) -> expr
-      case Connect(_, lhs, rhs) => drivers += we(lhs) -> rhs
+      case Connect(_, lhs, rhs)   => drivers += we(lhs) -> rhs
       case reg @ DefRegister(_, _, _, _, reset, init) if reset.tpe == AsyncResetType =>
         regCheck += init -> reg
       case _ => // Do nothing
@@ -45,7 +45,7 @@ class CheckResets extends Transform {
     drivers.get(we(expr)) match {
       case Some(lit: Literal) => lit
       case Some(other) => findDriver(drivers)(other)
-      case None => expr
+      case None        => expr
     }
 
   private def onMod(errors: Errors)(mod: DefModule): Unit = {

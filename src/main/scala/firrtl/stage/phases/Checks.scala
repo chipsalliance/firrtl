@@ -26,14 +26,14 @@ class Checks extends Phase {
   def transform(annos: AnnotationSeq): AnnotationSeq = {
     val inF, inS, eam, ec, outF, comp, im, inC = collection.mutable.ListBuffer[Annotation]()
     annos.foreach(_ match {
-      case a: FirrtlFileAnnotation => a +=: inF
-      case a: FirrtlSourceAnnotation => a +=: inS
+      case a: FirrtlFileAnnotation     => a +=: inF
+      case a: FirrtlSourceAnnotation   => a +=: inS
       case a: EmitAllModulesAnnotation => a +=: eam
-      case a: EmitCircuitAnnotation => a +=: ec
-      case a: OutputFileAnnotation => a +=: outF
-      case a: CompilerAnnotation => a +=: comp
-      case a: InfoModeAnnotation => a +=: im
-      case a: FirrtlCircuitAnnotation => a +=: inC
+      case a: EmitCircuitAnnotation    => a +=: ec
+      case a: OutputFileAnnotation     => a +=: outF
+      case a: CompilerAnnotation       => a +=: comp
+      case a: InfoModeAnnotation       => a +=: im
+      case a: FirrtlCircuitAnnotation  => a +=: inC
       case _ =>
     })
 

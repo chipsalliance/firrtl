@@ -34,20 +34,20 @@ class Visitor(infoMode: InfoMode) extends AbstractParseTreeVisitor[FirrtlNode] w
   private def string2BigInt(s: String): BigInt = {
     // private define legal patterns
     s match {
-      case ZeroPattern(_*) => BigInt(0)
+      case ZeroPattern(_*)       => BigInt(0)
       case HexPattern(hexdigits) => BigInt(hexdigits, 16)
-      case DecPattern(num) => BigInt(num, 10)
-      case _ => throw new Exception("Invalid String for conversion to BigInt " + s)
+      case DecPattern(num)       => BigInt(num, 10)
+      case _                     => throw new Exception("Invalid String for conversion to BigInt " + s)
     }
   }
 
   private def string2BigDecimal(s: String): BigDecimal = {
     // private define legal patterns
     s match {
-      case ZeroPattern(_*) => BigDecimal(0)
-      case DecPattern(num) => BigDecimal(num)
+      case ZeroPattern(_*)     => BigDecimal(0)
+      case DecPattern(num)     => BigDecimal(num)
       case DecimalPattern(num) => BigDecimal(num)
-      case _ => throw new Exception("Invalid String for conversion to BigDecimal " + s)
+      case _                   => throw new Exception("Invalid String for conversion to BigDecimal " + s)
     }
   }
 
@@ -59,7 +59,7 @@ class Visitor(infoMode: InfoMode) extends AbstractParseTreeVisitor[FirrtlNode] w
         parentCtx.getStart.getCharPositionInLine
     lazy val useInfo: String = ctx match {
       case Some(info) => info.getText.drop(2).init // remove surrounding @[ ... ]
-      case None => ""
+      case None       => ""
     }
     infoMode match {
       case UseInfo =>
@@ -108,22 +108,22 @@ class Visitor(infoMode: InfoMode) extends AbstractParseTreeVisitor[FirrtlNode] w
       case (null, str, null, null) => StringParam(name, visitStringLit(str))
       case (null, null, dbl, null) => DoubleParam(name, dbl.getText.toDouble)
       case (null, null, null, raw) => RawStringParam(name, raw.getText.tail.init.replace("\\'", "'")) // Remove "\'"s
-      case _ => throwInternalError(s"visiting impossible parameter ${ctx.getText}")
+      case _                       => throwInternalError(s"visiting impossible parameter ${ctx.getText}")
     }
   }
 
   private def visitDir(ctx: DirContext): Direction =
     ctx.getText match {
-      case "input" => Input
+      case "input"  => Input
       case "output" => Output
     }
 
   private def visitMdir(ctx: MdirContext): MPortDir =
     ctx.getText match {
       case "infer" => MInfer
-      case "read" => MRead
+      case "read"  => MRead
       case "write" => MWrite
-      case "rdwr" => MReadWrite
+      case "rdwr"  => MReadWrite
     }
 
   // Match on a type instead of on strings?
@@ -144,7 +144,7 @@ class Visitor(infoMode: InfoMode) extends AbstractParseTreeVisitor[FirrtlNode] w
               case 1 =>
                 ctx.getChild(2).getText match {
                   case "<" => FixedType(UnknownWidth, getWidth(ctx.intLit(0)))
-                  case _ => FixedType(getWidth(ctx.intLit(0)), UnknownWidth)
+                  case _   => FixedType(getWidth(ctx.intLit(0)), UnknownWidth)
                 }
               case 2 => FixedType(getWidth(ctx.intLit(0)), getWidth(ctx.intLit(1)))
             }
@@ -173,9 +173,9 @@ class Visitor(infoMode: InfoMode) extends AbstractParseTreeVisitor[FirrtlNode] w
                 }
                 IntervalType(lower, upper, point)
             }
-          case "Clock" => ClockType
+          case "Clock"      => ClockType
           case "AsyncReset" => AsyncResetType
-          case "Reset" => ResetType
+          case "Reset"      => ResetType
           case "Analog" =>
             if (ctx.getChildCount > 1) AnalogType(getWidth(ctx.intLit(0)))
             else AnalogType(UnknownWidth)
@@ -214,8 +214,8 @@ class Visitor(infoMode: InfoMode) extends AbstractParseTreeVisitor[FirrtlNode] w
     case Some(ctx) =>
       ctx.getText match {
         case "undefined" => ReadUnderWrite.Undefined
-        case "old" => ReadUnderWrite.Old
-        case "new" => ReadUnderWrite.New
+        case "old"       => ReadUnderWrite.Old
+        case "new"       => ReadUnderWrite.New
       }
   }
 
@@ -237,14 +237,14 @@ class Visitor(infoMode: InfoMode) extends AbstractParseTreeVisitor[FirrtlNode] w
         val fieldName = field.children.asScala(0).getText
 
         fieldName match {
-          case "reader" => readers ++= field.id().asScala.map(_.getText)
-          case "writer" => writers ++= field.id().asScala.map(_.getText)
+          case "reader"     => readers ++= field.id().asScala.map(_.getText)
+          case "writer"     => writers ++= field.id().asScala.map(_.getText)
           case "readwriter" => readwriters ++= field.id().asScala.map(_.getText)
           case _ =>
             val paramDef = fieldName match {
-              case "data-type" => ParamValue(typ = Some(visitType(field.`type`())))
+              case "data-type"        => ParamValue(typ = Some(visitType(field.`type`())))
               case "read-under-write" => ParamValue(ruw = visitRuw(Option(field.ruw)))
-              case _ => ParamValue(lit = Some(BigInt(field.intLit().getText)))
+              case _                  => ParamValue(lit = Some(BigInt(field.intLit().getText)))
             }
             if (fieldMap.contains(fieldName))
               throw new ParameterRedefinedException(s"Redefinition of $fieldName in FIRRTL line:${field.start.getLine}")
@@ -339,7 +339,7 @@ class Visitor(infoMode: InfoMode) extends AbstractParseTreeVisitor[FirrtlNode] w
           case "inst" => DefInstance(info, ctx.id(0).getText, ctx.id(1).getText)
           case "node" => DefNode(info, ctx.id(0).getText, visitExp(ctx_exp(0)))
 
-          case "stop(" => Stop(info, string2Int(ctx.intLit().getText), visitExp(ctx_exp(0)), visitExp(ctx_exp(1)))
+          case "stop("  => Stop(info, string2Int(ctx.intLit().getText), visitExp(ctx_exp(0)), visitExp(ctx_exp(1)))
           case "attach" => Attach(info, ctx_exp.map(visitExp))
           case "printf(" =>
             Print(
@@ -424,7 +424,7 @@ class Visitor(infoMode: InfoMode) extends AbstractParseTreeVisitor[FirrtlNode] w
               SIntLiteral(value)
             }
           case "validif(" => ValidIf(visitExp(ctx_exp(0)), visitExp(ctx_exp(1)), UnknownType)
-          case "mux(" => Mux(visitExp(ctx_exp(0)), visitExp(ctx_exp(1)), visitExp(ctx_exp(2)), UnknownType)
+          case "mux("     => Mux(visitExp(ctx_exp(0)), visitExp(ctx_exp(1)), visitExp(ctx_exp(2)), UnknownType)
         }
     }
   }

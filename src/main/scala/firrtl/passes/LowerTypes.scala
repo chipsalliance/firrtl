@@ -34,7 +34,7 @@ object LowerTypes extends Transform {
     * @return Lowered name of e
     */
   def loweredName(e: Expression): String = e match {
-    case e: WRef => e.name
+    case e: WRef      => e.name
     case e: WSubField => s"${loweredName(e.expr)}$delim${e.name}"
     case e: WSubIndex => s"${loweredName(e.expr)}$delim${e.value}"
   }
@@ -161,9 +161,9 @@ object LowerTypes extends Transform {
           }
         case _ => WRef(loweredName(e), e.tpe, kind(e), flow(e))
       }
-    case e: Mux => e.map(lowerTypesExp(memDataTypeMap, info, mname))
+    case e: Mux     => e.map(lowerTypesExp(memDataTypeMap, info, mname))
     case e: ValidIf => e.map(lowerTypesExp(memDataTypeMap, info, mname))
-    case e: DoPrim => e.map(lowerTypesExp(memDataTypeMap, info, mname))
+    case e: DoPrim  => e.map(lowerTypesExp(memDataTypeMap, info, mname))
     case e @ (_: UIntLiteral | _: SIntLiteral) => e
   }
   def lowerTypesStmt(memDataTypeMap: MemDataTypeMap, minfo: Info, mname: String, renames: RenameMap)(
@@ -171,7 +171,7 @@ object LowerTypes extends Transform {
   ): Statement = {
     val info = get_info(s) match {
       case NoInfo => minfo
-      case x => x
+      case x      => x
     }
     s.map(lowerTypesStmt(memDataTypeMap, info, mname, renames)) match {
       case s: DefWire =>

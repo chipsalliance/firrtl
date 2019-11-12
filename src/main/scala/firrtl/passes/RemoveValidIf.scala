@@ -28,7 +28,7 @@ object RemoveValidIf extends Pass {
   private def onExp(e: Expression): Expression = {
     e.map(onExp) match {
       case ValidIf(_, value, _) => value
-      case x => x
+      case x                    => x
     }
   }
 
@@ -44,7 +44,7 @@ object RemoveValidIf extends Pass {
 
   private def onModule(m: DefModule): DefModule = {
     m match {
-      case m: Module => Module(m.info, m.name, m.ports, onStmt(m.body))
+      case m: Module    => Module(m.info, m.name, m.ports, onStmt(m.body))
       case m: ExtModule => m
     }
   }

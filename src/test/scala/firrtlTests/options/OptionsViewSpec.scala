@@ -20,9 +20,9 @@ class OptionsViewSpec extends FlatSpec with Matchers {
   /* An OptionsView that converts an AnnotationSeq to Option[Foo] */
   implicit object FooView extends OptionsView[Foo] {
     private def append(foo: Foo, anno: Annotation): Foo = anno match {
-      case NameAnnotation(n) => foo.copy(name = Some(n))
+      case NameAnnotation(n)  => foo.copy(name = Some(n))
       case ValueAnnotation(v) => foo.copy(value = Some(v))
-      case _ => foo
+      case _                  => foo
     }
 
     def view(options: AnnotationSeq): Foo = options.foldLeft(Foo())(append)
@@ -32,7 +32,7 @@ class OptionsViewSpec extends FlatSpec with Matchers {
   implicit object BarView extends OptionsView[Bar] {
     private def append(bar: Bar, anno: Annotation): Bar = anno match {
       case NameAnnotation(n) => bar.copy(name = n)
-      case _ => bar
+      case _                 => bar
     }
 
     def view(options: AnnotationSeq): Bar = options.foldLeft(Bar())(append)

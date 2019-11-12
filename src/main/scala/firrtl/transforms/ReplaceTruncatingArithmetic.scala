@@ -27,7 +27,7 @@ object ReplaceTruncatingArithmetic {
         netlist.getOrElse(we(e), e) match {
           case DoPrim(Add, args, cs, _) => DoPrim(Addw, args, cs, tailtpe)
           case DoPrim(Sub, args, cs, _) => DoPrim(Subw, args, cs, tailtpe)
-          case _ => orig // Not a candidate
+          case _                        => orig // Not a candidate
         }
       case other => other // Not a candidate
     }

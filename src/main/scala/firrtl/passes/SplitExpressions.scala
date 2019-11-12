@@ -57,7 +57,7 @@ object SplitExpressions extends Pass {
   }
   def run(c: Circuit): Circuit = {
     val modulesx = c.modules.map {
-      case m: Module => onModule(m)
+      case m: Module    => onModule(m)
       case m: ExtModule => m
     }
     Circuit(c.info, modulesx, c.main)

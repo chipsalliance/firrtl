@@ -34,11 +34,11 @@ object LogLevel extends Enumeration {
 
   def apply(s: String): LogLevel.Value = s.toLowerCase match {
     case "error" => LogLevel.Error
-    case "warn" => LogLevel.Warn
-    case "info" => LogLevel.Info
+    case "warn"  => LogLevel.Warn
+    case "info"  => LogLevel.Info
     case "debug" => LogLevel.Debug
     case "trace" => LogLevel.Trace
-    case level => throw new Exception(s"Unknown LogLevel '$level'")
+    case level   => throw new Exception(s"Unknown LogLevel '$level'")
   }
 }
 
@@ -232,7 +232,7 @@ object Logger {
       }
     }
     testPackageNameMatch(className, level) match {
-      case Some(true) => logIt()
+      case Some(true)  => logIt()
       case Some(false) =>
       case None =>
         if ((state.globalLevel == LogLevel.None && level == LogLevel.Error) ||
@@ -308,7 +308,7 @@ object Logger {
   def clearStringBuffer(): Unit = {
     state.stringBufferOption match {
       case Some(x) => x.byteArrayOutputStream.reset()
-      case None =>
+      case None    =>
     }
   }
 
@@ -365,10 +365,10 @@ object Logger {
     val lopts = view[LoggerOptions](annotations)
     state.globalLevel = (state.globalLevel, lopts.globalLogLevel) match {
       case (LogLevel.None, LogLevel.None) => LogLevel.None
-      case (x, LogLevel.None) => x
-      case (LogLevel.None, x) => x
-      case (_, x) => x
-      case _ => LogLevel.Error
+      case (x, LogLevel.None)             => x
+      case (LogLevel.None, x)             => x
+      case (_, x)                         => x
+      case _                              => LogLevel.Error
     }
     setClassLogLevels(lopts.classLogLevels)
 

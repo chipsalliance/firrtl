@@ -25,7 +25,7 @@ case class IsMul private (known: Option[IsKnown], others: Vector[Constraint]) ex
 
   def addChild(x: Constraint): IsMul = x match {
     case k:   IsKnown => new IsMul(known = merge(Some(k), known), others)
-    case mul: IsMul => new IsMul(merge(known, mul.known), others ++ mul.others)
+    case mul: IsMul   => new IsMul(merge(known, mul.known), others ++ mul.others)
     case other => new IsMul(known, others :+ other)
   }
 

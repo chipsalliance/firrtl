@@ -108,8 +108,8 @@ object ToProto {
 
   def convert(ruw: ir.ReadUnderWrite.Value): ReadUnderWrite = ruw match {
     case ir.ReadUnderWrite.Undefined => ReadUnderWrite.UNDEFINED
-    case ir.ReadUnderWrite.Old => ReadUnderWrite.OLD
-    case ir.ReadUnderWrite.New => ReadUnderWrite.NEW
+    case ir.ReadUnderWrite.Old       => ReadUnderWrite.OLD
+    case ir.ReadUnderWrite.New       => ReadUnderWrite.NEW
   }
 
   def convertToIntegerLiteral(value: BigInt): Firrtl.Expression.IntegerLiteral.Builder = {
@@ -203,9 +203,9 @@ object ToProto {
   def convert(dir: MPortDir): Firrtl.Statement.MemoryPort.Direction = {
     import Firrtl.Statement.MemoryPort.Direction._
     dir match {
-      case MInfer => MEMORY_PORT_DIRECTION_INFER
-      case MRead => MEMORY_PORT_DIRECTION_READ
-      case MWrite => MEMORY_PORT_DIRECTION_WRITE
+      case MInfer     => MEMORY_PORT_DIRECTION_INFER
+      case MRead      => MEMORY_PORT_DIRECTION_READ
+      case MWrite     => MEMORY_PORT_DIRECTION_WRITE
       case MReadWrite => MEMORY_PORT_DIRECTION_READ_WRITE
     }
   }
@@ -219,7 +219,7 @@ object ToProto {
   def convert(stmt: ir.Statement): Seq[Firrtl.Statement.Builder] = {
     stmt match {
       case ir.Block(stmts) => stmts.flatMap(convert(_))
-      case ir.EmptyStmt => Seq.empty
+      case ir.EmptyStmt    => Seq.empty
       case other =>
         val sb = Firrtl.Statement.newBuilder()
         other match {
@@ -349,7 +349,7 @@ object ToProto {
     * @return Option width where None means the width field should be cleared in the parent object
     */
   def convert(width: ir.Width): Option[Firrtl.Width.Builder] = width match {
-    case ir.IntWidth(w) => Some(Firrtl.Width.newBuilder().setValue(w.toInt))
+    case ir.IntWidth(w)  => Some(Firrtl.Width.newBuilder().setValue(w.toInt))
     case ir.UnknownWidth => None
   }
 
@@ -399,7 +399,7 @@ object ToProto {
   }
 
   def convert(direction: ir.Direction): Firrtl.Port.Direction = direction match {
-    case ir.Input => Firrtl.Port.Direction.PORT_DIRECTION_IN
+    case ir.Input  => Firrtl.Port.Direction.PORT_DIRECTION_IN
     case ir.Output => Firrtl.Port.Direction.PORT_DIRECTION_OUT
   }
 

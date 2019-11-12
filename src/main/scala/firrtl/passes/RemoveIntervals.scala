@@ -61,8 +61,8 @@ class RemoveIntervals extends Pass {
     case o =>
       o.map(replaceExprInterval(errors, info, mname)) match {
         case DoPrim(AsInterval, Seq(a1), _, tpe) => DoPrim(AsSInt, Seq(a1), Seq.empty, tpe)
-        case DoPrim(IncP, args, consts, tpe) => DoPrim(Shl, args, consts, tpe)
-        case DoPrim(DecP, args, consts, tpe) => DoPrim(Shr, args, consts, tpe)
+        case DoPrim(IncP, args, consts, tpe)     => DoPrim(Shl, args, consts, tpe)
+        case DoPrim(DecP, args, consts, tpe)     => DoPrim(Shr, args, consts, tpe)
         case DoPrim(Clip, Seq(a1, _), Nil, tpe: IntervalType) =>
           // Output interval (pre-calculated)
           val clipLo = tpe.minAdjusted.get
@@ -76,10 +76,10 @@ class RemoveIntervals extends Pass {
           val ltOpt = clipLo <= inLow
           (gtOpt, ltOpt) match {
             // input range within output range -> no optimization
-            case (true, true) => a1
+            case (true, true)  => a1
             case (true, false) => Mux(Lt(a1, clipLo.S), clipLo.S, a1)
             case (false, true) => Mux(Gt(a1, clipHi.S), clipHi.S, a1)
-            case _ => Mux(Gt(a1, clipHi.S), clipHi.S, Mux(Lt(a1, clipLo.S), clipLo.S, a1))
+            case _             => Mux(Gt(a1, clipHi.S), clipHi.S, Mux(Lt(a1, clipLo.S), clipLo.S, a1))
           }
 
         case sqz @ DoPrim(Squeeze, Seq(a1, a2), Nil, tpe: IntervalType) =>

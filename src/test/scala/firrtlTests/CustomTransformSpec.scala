@@ -35,7 +35,7 @@ class CustomTransformSpec extends FirrtlFlatSpec {
         def run(c: Circuit): Circuit = c.copy(
           modules = c.modules.map {
             case ExtModule(_, "Delay", _, _, _) => delayModule
-            case other => other
+            case other                          => other
           }
         )
       }

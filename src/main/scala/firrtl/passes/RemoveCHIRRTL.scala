@@ -60,10 +60,10 @@ object RemoveCHIRRTL extends Transform {
       case sx: CDefMPort =>
         val p = mports.getOrElse(sx.mem, EMPs)
         sx.direction match {
-          case MRead => p.readers += MPort(sx.name, sx.exps(1))
-          case MWrite => p.writers += MPort(sx.name, sx.exps(1))
+          case MRead      => p.readers += MPort(sx.name, sx.exps(1))
+          case MWrite     => p.writers += MPort(sx.name, sx.exps(1))
           case MReadWrite => p.readwriters += MPort(sx.name, sx.exps(1))
-          case MInfer => // direction may not be inferred if it's not being used
+          case MInfer     => // direction may not be inferred if it's not being used
         }
         mports(sx.mem) = p
       case _ =>
@@ -191,7 +191,7 @@ object RemoveCHIRRTL extends Transform {
     e.map(get_mask(refs)) match {
       case ex: Reference =>
         refs.get(ex.name) match {
-          case None => ex
+          case None    => ex
           case Some(p) => SubField(p.exp, p.mask, createMask(ex.tpe))
         }
       case ex => ex
@@ -218,13 +218,13 @@ object RemoveCHIRRTL extends Transform {
               case SinkFlow =>
                 raddrs.get(name) match {
                   case Some(en) => has_read_mport = Some(en); e
-                  case None => e
+                  case None     => e
                 }
               case SourceFlow => e
             }
         }
       case SubAccess(expr, index, tpe) => SubAccess(remove_chirrtl_e(g)(expr), remove_chirrtl_e(SourceFlow)(index), tpe)
-      case ex => ex.map(remove_chirrtl_e(g))
+      case ex                          => ex.map(remove_chirrtl_e(g))
     }
     s match {
       case DefNode(info, name, value) =>
@@ -233,7 +233,7 @@ object RemoveCHIRRTL extends Transform {
         // Check node is used for read port address
         remove_chirrtl_e(SinkFlow)(Reference(name, value.tpe))
         has_read_mport match {
-          case None => sx
+          case None     => sx
           case Some(en) => Block(sx, Connect(info, en, one))
         }
       case Connect(info, loc, expr) =>
@@ -242,14 +242,14 @@ object RemoveCHIRRTL extends Transform {
         val sx = Connect(info, locx, rocx)
         val stmts = ArrayBuffer[Statement]()
         has_read_mport match {
-          case None =>
+          case None     =>
           case Some(en) => stmts += Connect(info, en, one)
         }
         if (has_write_mport) {
           val locs = create_exps(get_mask(refs)(loc))
           stmts ++= (locs.map(x => Connect(info, x, one)))
           has_readwrite_mport match {
-            case None =>
+            case None        =>
             case Some(wmode) => stmts += Connect(info, wmode, one)
           }
         }
@@ -260,7 +260,7 @@ object RemoveCHIRRTL extends Transform {
         val sx = PartialConnect(info, locx, rocx)
         val stmts = ArrayBuffer[Statement]()
         has_read_mport match {
-          case None =>
+          case None     =>
           case Some(en) => stmts += Connect(info, en, one)
         }
         if (has_write_mport) {
@@ -268,7 +268,7 @@ object RemoveCHIRRTL extends Transform {
           val locs = create_exps(get_mask(refs)(loc))
           stmts ++= (ls.map { case (x, _) => Connect(info, locs(x), one) })
           has_readwrite_mport match {
-            case None =>
+            case None        =>
             case Some(wmode) => stmts += Connect(info, wmode, one)
           }
         }

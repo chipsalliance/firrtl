@@ -34,7 +34,7 @@ object CombineCats {
       case node @ DefNode(_, name, value) =>
         val catLenAndVal = value match {
           case cat @ DoPrim(Cat, _, _, _) => expandCatArgs(maxCatLen, netlist)(cat)
-          case other => (1, other)
+          case other                      => (1, other)
         }
         netlist(we(WRef(name))) = catLenAndVal
         node.copy(value = catLenAndVal._2)

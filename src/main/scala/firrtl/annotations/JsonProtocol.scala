@@ -190,8 +190,8 @@ object JsonProtocol {
             case obj: JObject if requireClassField =>
               throw new InvalidAnnotationJSONException(s"Expected field 'class' not found! $obj")
             case JObject(fields) => findTypeHints(fields.map(_._2))
-            case JArray(arr) => findTypeHints(arr)
-            case oJValue => Seq()
+            case JArray(arr)     => findTypeHints(arr)
+            case oJValue         => Seq()
           })
           .distinct
 

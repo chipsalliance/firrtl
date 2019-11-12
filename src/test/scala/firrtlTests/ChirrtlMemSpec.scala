@@ -19,7 +19,7 @@ class ChirrtlMemSpec extends LowTransformSpec {
         case s: Connect =>
           Utils.kind(s.loc) match {
             case MemKind => netlist(s.loc.serialize) = s.expr
-            case _ =>
+            case _       =>
           }
         case _ =>
       }

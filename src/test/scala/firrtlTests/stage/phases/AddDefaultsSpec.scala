@@ -19,8 +19,8 @@ class AddDefaultsSpec extends FlatSpec with Matchers {
   it should "add expected default annotations and nothing else" in new Fixture {
     val expected = Seq(
       (a: Annotation) => a match { case BlackBoxTargetDirAnno(b) => b == TargetDirAnnotation().directory },
-      (a: Annotation) => a match { case CompilerAnnotation(b) => b.getClass == CompilerAnnotation().compiler.getClass },
-      (a: Annotation) => a match { case InfoModeAnnotation(b) => b == InfoModeAnnotation().modeName }
+      (a: Annotation) => a match { case CompilerAnnotation(b)    => b.getClass == CompilerAnnotation().compiler.getClass },
+      (a: Annotation) => a match { case InfoModeAnnotation(b)    => b == InfoModeAnnotation().modeName }
     )
 
     phase.transform(Seq.empty).zip(expected).map { case (x, f) => f(x) should be(true) }

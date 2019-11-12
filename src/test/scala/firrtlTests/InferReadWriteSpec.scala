@@ -26,7 +26,7 @@ class InferReadWriteSpec extends SimpleTransformSpec {
     def run(c: Circuit) = {
       val errors = new Errors
       val foundReadWrite = c.modules.exists {
-        case m: Module => findReadWrite(m.body)
+        case m: Module    => findReadWrite(m.body)
         case m: ExtModule => false
       }
       if (!foundReadWrite) {

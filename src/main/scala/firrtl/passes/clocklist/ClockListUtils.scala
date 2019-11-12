@@ -45,7 +45,7 @@ object ClockListUtils {
     }
     // If I have a clock, get it
     val clockOpt = moduleMap(lin.name) match {
-      case Module(i, n, ports, b) => ports.collectFirst { case p if p.name == "clock" => me + sep + "clock" }
+      case Module(i, n, ports, b)        => ports.collectFirst { case p if p.name == "clock" => me + sep + "clock" }
       case ExtModule(i, n, ports, dn, p) => None
     }
     // Return new origins with direct children removed, if they match my clock

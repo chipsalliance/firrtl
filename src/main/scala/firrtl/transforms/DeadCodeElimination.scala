@@ -152,7 +152,7 @@ class DeadCodeElimination extends Transform with ResolvedAnnotationPaths with Re
   ): MutableDiGraph[LogicNode] = {
     val depGraph = new MutableDiGraph[LogicNode]
     c.modules.foreach {
-      case mod: Module => setupDepGraph(depGraph, instMaps(mod.name))(mod)
+      case mod: Module    => setupDepGraph(depGraph, instMaps(mod.name))(mod)
       case ext: ExtModule =>
         // Connect all inputs to all outputs
         val node = LogicNode(ext)
@@ -191,13 +191,13 @@ class DeadCodeElimination extends Transform with ResolvedAnnotationPaths with Re
     // For log-level debug
     def deleteMsg(decl: IsDeclaration): String = {
       val tpe = decl match {
-        case _: DefNode => "node"
+        case _: DefNode     => "node"
         case _: DefRegister => "reg"
-        case _: DefWire => "wire"
-        case _: Port => "port"
-        case _: DefMemory => "mem"
+        case _: DefWire     => "wire"
+        case _: Port        => "port"
+        case _: DefMemory   => "mem"
         case (_: DefInstance | _: WDefInstance) => "inst"
-        case _: Module => "module"
+        case _: Module    => "module"
         case _: ExtModule => "extmodule"
       }
       val ref = decl match {
@@ -213,7 +213,7 @@ class DeadCodeElimination extends Transform with ResolvedAnnotationPaths with Re
 
     def deleteIfNotEnabled(stmt: Statement, en: Expression): Statement = en match {
       case UIntLiteral(v, _) if v == BigInt(0) => EmptyStmt
-      case _ => stmt
+      case _                                   => stmt
     }
 
     def onStmt(stmt: Statement): Statement = {
@@ -322,7 +322,7 @@ class DeadCodeElimination extends Transform with ResolvedAnnotationPaths with Re
       case mod =>
         deleteDeadCode(moduleDeps(mod.name), deadNodes, modulesxMap, renames, c.main, doTouchExtMods)(mod) match {
           case Some(m) => modulesxMap += m.name -> m
-          case None => renames.delete(ModuleName(mod.name, CircuitName(c.main)))
+          case None    => renames.delete(ModuleName(mod.name, CircuitName(c.main)))
         }
     }
 

@@ -24,7 +24,7 @@ class CInferMDir extends LowTransformSpec {
     def run(c: Circuit) = {
       val errors = new Errors
       val check = c.modules.exists {
-        case m: Module => checkStmt(m.body)
+        case m: Module    => checkStmt(m.body)
         case m: ExtModule => false
       }
       if (!check) {

@@ -46,7 +46,7 @@ object Uniquify extends Transform {
   def findValidPrefix(prefix: String, elts: Seq[String], namespace: collection.mutable.HashSet[String]): String = {
     elts.find(elt => namespace.contains(prefix + elt)) match {
       case Some(_) => findValidPrefix(prefix + "_", elts, namespace)
-      case None => prefix
+      case None    => prefix
     }
   }
 
@@ -229,9 +229,9 @@ object Uniquify extends Transform {
               (0 until tpe.size).map(i => sx.copy(name = i.toString, dataType = tpe.tpe)).flatMap(recStmtToType)
             Seq(Field(sx.name, Default, BundleType(newFields)))
         }
-      case sx: DefNode => Seq(Field(sx.name, Default, sx.value.tpe))
+      case sx: DefNode       => Seq(Field(sx.name, Default, sx.value.tpe))
       case sx: Conditionally => recStmtToType(sx.conseq) ++ recStmtToType(sx.alt)
-      case sx: Block => sx.stmts.map(recStmtToType).flatten
+      case sx: Block         => sx.stmts.map(recStmtToType).flatten
       case sx => Seq()
     }
     BundleType(recStmtToType(s))
@@ -257,7 +257,7 @@ object Uniquify extends Transform {
       def uniquifyExp(e: Expression): Expression = e match {
         case (_: WRef | _: WSubField | _: WSubIndex | _: WSubAccess) =>
           uniquifyNamesExp(e, nameMap.toMap)
-        case e: Mux => e.map(uniquifyExp)
+        case e: Mux     => e.map(uniquifyExp)
         case e: ValidIf => e.map(uniquifyExp)
         case (_: UIntLiteral | _: SIntLiteral) => e
         case e: DoPrim => e.map(uniquifyExp)
@@ -349,7 +349,7 @@ object Uniquify extends Transform {
       mname = m.name
       m match {
         case m: ExtModule => m
-        case m: Module =>
+        case m: Module    =>
           // Adds port names to namespace and namemap
           nameMap ++= portNameMap(m.name)
           namespace ++= create_exps("", portTypeMap(m.name)).map(LowerTypes.loweredName).map(_.tail)
@@ -381,7 +381,7 @@ object Uniquify extends Transform {
       mname = m.name
       m match {
         case m: ExtModule => m.copy(ports = uniquifyPorts(m.ports))
-        case m: Module => m.copy(ports = uniquifyPorts(m.ports))
+        case m: Module    => m.copy(ports = uniquifyPorts(m.ports))
       }
     }
 

@@ -16,11 +16,11 @@ object ResolveKinds extends Pass {
 
   def find_stmt(kinds: KindMap)(s: Statement): Statement = {
     s match {
-      case sx: DefWire => kinds(sx.name) = WireKind
-      case sx: DefNode => kinds(sx.name) = NodeKind
-      case sx: DefRegister => kinds(sx.name) = RegKind
+      case sx: DefWire      => kinds(sx.name) = WireKind
+      case sx: DefNode      => kinds(sx.name) = NodeKind
+      case sx: DefRegister  => kinds(sx.name) = RegKind
       case sx: WDefInstance => kinds(sx.name) = InstanceKind
-      case sx: DefMemory => kinds(sx.name) = MemKind
+      case sx: DefMemory    => kinds(sx.name) = MemKind
       case _ =>
     }
     s.map(find_stmt(kinds))
@@ -51,7 +51,7 @@ object ResolveFlows extends Pass {
     case WSubField(exp, name, tpe, _) =>
       WSubField(Utils.field_flip(exp.tpe, name) match {
         case Default => resolve_e(g)(exp)
-        case Flip => resolve_e(Utils.swap(g))(exp)
+        case Flip    => resolve_e(Utils.swap(g))(exp)
       }, name, tpe, g)
     case WSubIndex(exp, value, tpe, _) =>
       WSubIndex(resolve_e(g)(exp), value, tpe, g)
@@ -95,21 +95,21 @@ object CInferMDir extends Pass {
         case None =>
         case Some(p) =>
           mports(e.name) = (p, dir) match {
-            case (MInfer, MInfer) => throwInternalError(s"infer_mdir_e: shouldn't be here - $p, $dir")
-            case (MInfer, MWrite) => MWrite
-            case (MInfer, MRead) => MRead
-            case (MInfer, MReadWrite) => MReadWrite
-            case (MWrite, MInfer) => throwInternalError(s"infer_mdir_e: shouldn't be here - $p, $dir")
-            case (MWrite, MWrite) => MWrite
-            case (MWrite, MRead) => MReadWrite
-            case (MWrite, MReadWrite) => MReadWrite
-            case (MRead, MInfer) => throwInternalError(s"infer_mdir_e: shouldn't be here - $p, $dir")
-            case (MRead, MWrite) => MReadWrite
-            case (MRead, MRead) => MRead
-            case (MRead, MReadWrite) => MReadWrite
-            case (MReadWrite, MInfer) => throwInternalError(s"infer_mdir_e: shouldn't be here - $p, $dir")
-            case (MReadWrite, MWrite) => MReadWrite
-            case (MReadWrite, MRead) => MReadWrite
+            case (MInfer, MInfer)         => throwInternalError(s"infer_mdir_e: shouldn't be here - $p, $dir")
+            case (MInfer, MWrite)         => MWrite
+            case (MInfer, MRead)          => MRead
+            case (MInfer, MReadWrite)     => MReadWrite
+            case (MWrite, MInfer)         => throwInternalError(s"infer_mdir_e: shouldn't be here - $p, $dir")
+            case (MWrite, MWrite)         => MWrite
+            case (MWrite, MRead)          => MReadWrite
+            case (MWrite, MReadWrite)     => MReadWrite
+            case (MRead, MInfer)          => throwInternalError(s"infer_mdir_e: shouldn't be here - $p, $dir")
+            case (MRead, MWrite)          => MReadWrite
+            case (MRead, MRead)           => MRead
+            case (MRead, MReadWrite)      => MReadWrite
+            case (MReadWrite, MInfer)     => throwInternalError(s"infer_mdir_e: shouldn't be here - $p, $dir")
+            case (MReadWrite, MWrite)     => MReadWrite
+            case (MReadWrite, MRead)      => MReadWrite
             case (MReadWrite, MReadWrite) => MReadWrite
           }
       }

@@ -14,9 +14,9 @@ case class IsAdd private (known: Option[IsKnown], maxs: Vector[IsMax], mins: Vec
 
   def addChild(x: Constraint): IsAdd = x match {
     case k:   IsKnown => new IsAdd(merge(Some(k), known), maxs, mins, others)
-    case add: IsAdd => new IsAdd(merge(known, add.known), maxs ++ add.maxs, mins ++ add.mins, others ++ add.others)
-    case max: IsMax => new IsAdd(known, maxs :+ max, mins, others)
-    case min: IsMin => new IsAdd(known, maxs, mins :+ min, others)
+    case add: IsAdd   => new IsAdd(merge(known, add.known), maxs ++ add.maxs, mins ++ add.mins, others ++ add.others)
+    case max: IsMax   => new IsAdd(known, maxs :+ max, mins, others)
+    case min: IsMin   => new IsAdd(known, maxs, mins :+ min, others)
     case other => new IsAdd(known, maxs, mins, others :+ other)
   }
 

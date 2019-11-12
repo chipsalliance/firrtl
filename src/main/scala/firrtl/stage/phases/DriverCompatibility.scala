@@ -89,7 +89,7 @@ object DriverCompatibility {
         case FirrtlFileAnnotation(f) =>
           FirrtlStageUtils.getFileExtension(f) match {
             case ProtoBufFile => FromProto.fromFile(f).main
-            case FirrtlFile => Parser.parse(FileUtils.getText(f)).main
+            case FirrtlFile   => Parser.parse(FileUtils.getText(f)).main
           }
       })))
 

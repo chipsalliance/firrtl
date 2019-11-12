@@ -16,7 +16,7 @@ class WriteOutputAnnotations extends Phase {
   def transform(annotations: AnnotationSeq): AnnotationSeq = {
     val sopts = Viewer[StageOptions].view(annotations)
     val serializable = annotations.filter {
-      case _: Unserializable => false
+      case _: Unserializable    => false
       case _: DeletedAnnotation => sopts.writeDeleted
       case _ => true
     }

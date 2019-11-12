@@ -30,9 +30,9 @@ private[firrtl] trait GenderFromFlow { this: Expression =>
   val flow: Flow
   @deprecated("Migrate from 'Gender' to 'Flow'. This method will be removed in 1.3.", "1.2")
   def gender: Gender = flow match {
-    case SourceFlow => MALE
-    case SinkFlow => FEMALE
-    case DuplexFlow => BIGENDER
+    case SourceFlow  => MALE
+    case SinkFlow    => FEMALE
+    case DuplexFlow  => BIGENDER
     case UnknownFlow => UNKNOWNGENDER
   }
 }
@@ -228,17 +228,17 @@ class WrappedExpression(val e1: Expression) {
       (e1, we.e1) match {
         case (e1x: UIntLiteral, e2x: UIntLiteral) => e1x.value == e2x.value && eqw(e1x.width, e2x.width)
         case (e1x: SIntLiteral, e2x: SIntLiteral) => e1x.value == e2x.value && eqw(e1x.width, e2x.width)
-        case (e1x: WRef, e2x:        WRef) => e1x.name.equals(e2x.name)
-        case (e1x: WSubField, e2x:   WSubField) => (e1x.name.equals(e2x.name)) && weq(e1x.expr, e2x.expr)
-        case (e1x: WSubIndex, e2x:   WSubIndex) => (e1x.value == e2x.value) && weq(e1x.expr, e2x.expr)
-        case (e1x: WSubAccess, e2x:  WSubAccess) => weq(e1x.index, e2x.index) && weq(e1x.expr, e2x.expr)
-        case (WVoid, WVoid) => true
+        case (e1x: WRef, e2x:        WRef)        => e1x.name.equals(e2x.name)
+        case (e1x: WSubField, e2x:   WSubField)   => (e1x.name.equals(e2x.name)) && weq(e1x.expr, e2x.expr)
+        case (e1x: WSubIndex, e2x:   WSubIndex)   => (e1x.value == e2x.value) && weq(e1x.expr, e2x.expr)
+        case (e1x: WSubAccess, e2x:  WSubAccess)  => weq(e1x.index, e2x.index) && weq(e1x.expr, e2x.expr)
+        case (WVoid, WVoid)       => true
         case (WInvalid, WInvalid) => true
         case (e1x: DoPrim, e2x: DoPrim) =>
           e1x.op == e2x.op &&
             ((e1x.consts.zip(e2x.consts)).forall { case (x, y) => x == y }) &&
-            ((e1x.args.zip(e2x.args)).forall { case (x, y) => weq(x, y) })
-        case (e1x: Mux, e2x:     Mux) => weq(e1x.cond, e2x.cond) && weq(e1x.tval, e2x.tval) && weq(e1x.fval, e2x.fval)
+            ((e1x.args.zip(e2x.args)).forall { case (x, y)     => weq(x, y) })
+        case (e1x: Mux, e2x:     Mux)     => weq(e1x.cond, e2x.cond) && weq(e1x.tval, e2x.tval) && weq(e1x.fval, e2x.fval)
         case (e1x: ValidIf, e2x: ValidIf) => weq(e1x.cond, e2x.cond) && weq(e1x.value, e2x.value)
         case (e1x, e2x) => false
       }
@@ -262,11 +262,11 @@ object WrappedType {
     (sink, source) match {
       case (_: UIntType, _: UIntType) => true
       case (_: SIntType, _: SIntType) => true
-      case (ClockType, ClockType) => true
+      case (ClockType, ClockType)           => true
       case (AsyncResetType, AsyncResetType) => true
-      case (ResetType, tpe) => legalResetType(tpe)
-      case (tpe, ResetType) => legalResetType(tpe)
-      case (_: FixedType, _:    FixedType) => true
+      case (ResetType, tpe)                 => legalResetType(tpe)
+      case (tpe, ResetType)                 => legalResetType(tpe)
+      case (_: FixedType, _:    FixedType)    => true
       case (_: IntervalType, _: IntervalType) => true
       // Analog totally skips out of the Firrtl type system.
       // The only way Analog can play with another Analog component is through Attach.
@@ -318,7 +318,7 @@ class WrappedWidth(val w: Width) {
         case (w1: VarWidth, w2: VarWidth) => w1.name.equals(w2.name)
         case (w1: IntWidth, w2: IntWidth) => w1.width == w2.width
         case (UnknownWidth, UnknownWidth) => true
-        case _ => false
+        case _                            => false
       }
     case _ => false
   }

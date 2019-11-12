@@ -56,7 +56,7 @@ object AnalysisUtils {
       else if (weq(tvOrigin, fvOrigin)) tvOrigin
       else if (weq(fvOrigin, zero) && weq(condOrigin, tvOrigin)) condOrigin
       else e
-    case DoPrim(PrimOps.Or, args, consts, tpe) if args.exists(weq(_, one)) => one
+    case DoPrim(PrimOps.Or, args, consts, tpe) if args.exists(weq(_, one))   => one
     case DoPrim(PrimOps.And, args, consts, tpe) if args.exists(weq(_, zero)) => zero
     case DoPrim(PrimOps.Bits, args, Seq(msb, lsb), tpe) =>
       val extractionWidth = (msb - lsb) + 1
@@ -71,7 +71,7 @@ object AnalysisUtils {
     case _: WRef | _: WSubField | _: WSubIndex | _: WSubAccess if kind(e) != RegKind =>
       connects.get(e.serialize) match {
         case Some(ex) => getOrigin(connects)(ex)
-        case None => e
+        case None     => e
       }
     case _ => e
   }
@@ -107,7 +107,7 @@ object ResolveMaskGranularity extends Pass {
         m.readwriters.map(rw => getMaskBits(connects, memPortField(m, rw, "wmode"), memPortField(m, rw, "wmask")))
       val wMasks = m.writers.map(w => getMaskBits(connects, memPortField(m, w, "en"), memPortField(m, w, "mask")))
       val maskGran = (rwMasks ++ wMasks).head match {
-        case None => None
+        case None           => None
         case Some(maskBits) => Some(dataBits / maskBits)
       }
       m.copy(maskGran = maskGran)

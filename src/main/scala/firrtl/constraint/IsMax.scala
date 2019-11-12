@@ -35,7 +35,7 @@ case class IsMax private[constraint] (known: Option[IsKnown], mins: Vector[IsMin
           // Eliminate minimums who have a known minimum value which is smaller than known maximum value
           val filteredMins = mins.filter {
             case IsMin(Some(IsKnown(i)), _, _) if i <= a => false
-            case other => true
+            case other                                   => true
           }
           // If a successful filter, rerun reduce
           val newMax = new IsMax(known, filteredMins, others)
@@ -49,8 +49,8 @@ case class IsMax private[constraint] (known: Option[IsKnown], mins: Vector[IsMin
 
   def addChild(x: Constraint): IsMax = x match {
     case k:   IsKnown => new IsMax(known = merge(Some(k), known), mins, others)
-    case max: IsMax => new IsMax(known = merge(known, max.known), max.mins ++ mins, others ++ max.others)
-    case min: IsMin => new IsMax(known, mins :+ min, others)
+    case max: IsMax   => new IsMax(known = merge(known, max.known), max.mins ++ mins, others ++ max.others)
+    case min: IsMin   => new IsMax(known, mins :+ min, others)
     case other => new IsMax(known, mins, others :+ other)
   }
 }

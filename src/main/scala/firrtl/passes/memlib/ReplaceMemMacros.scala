@@ -26,7 +26,7 @@ class ReplaceMemMacros(writer: ConfWriter) extends Transform {
   /** Return true if mask granularity is per bit, false if per byte or unspecified
     */
   private def getFillWMask(mem: DefAnnotatedMemory) = mem.maskGran match {
-    case None => false
+    case None    => false
     case Some(v) => v == 1
   }
 
@@ -37,15 +37,15 @@ class ReplaceMemMacros(writer: ConfWriter) extends Transform {
 
   private def wPortToBundle(mem: DefAnnotatedMemory) = BundleType(
     (defaultPortSeq(mem) :+ Field("data", Default, mem.dataType)) ++ (mem.maskGran match {
-      case None => Nil
+      case None    => Nil
       case Some(_) => Seq(Field("mask", Default, createMask(mem.dataType)))
     })
   )
   private def wPortToFlattenBundle(mem: DefAnnotatedMemory) = BundleType(
     (defaultPortSeq(mem) :+ Field("data", Default, flattenType(mem.dataType))) ++ (mem.maskGran match {
-      case None => Nil
+      case None                         => Nil
       case Some(_) if getFillWMask(mem) => Seq(Field("mask", Default, flattenType(mem.dataType)))
-      case Some(_) => Seq(Field("mask", Default, flattenType(createMask(mem.dataType))))
+      case Some(_)                      => Seq(Field("mask", Default, flattenType(createMask(mem.dataType))))
     })
   )
   // TODO(shunshou): Don't use createMask???
@@ -56,7 +56,7 @@ class ReplaceMemMacros(writer: ConfWriter) extends Transform {
       Field("wdata", Default, mem.dataType),
       Field("rdata", Flip, mem.dataType)
     ) ++ (mem.maskGran match {
-      case None => Nil
+      case None    => Nil
       case Some(_) => Seq(Field("wmask", Default, createMask(mem.dataType)))
     })
   )
@@ -66,9 +66,9 @@ class ReplaceMemMacros(writer: ConfWriter) extends Transform {
       Field("wdata", Default, flattenType(mem.dataType)),
       Field("rdata", Flip, flattenType(mem.dataType))
     ) ++ (mem.maskGran match {
-      case None => Nil
+      case None                           => Nil
       case Some(_) if (getFillWMask(mem)) => Seq(Field("wmask", Default, flattenType(mem.dataType)))
-      case Some(_) => Seq(Field("wmask", Default, flattenType(createMask(mem.dataType))))
+      case Some(_)                        => Seq(Field("wmask", Default, flattenType(createMask(mem.dataType))))
     })
   )
 
@@ -168,7 +168,7 @@ class ReplaceMemMacros(writer: ConfWriter) extends Transform {
     s match {
       case m: DefAnnotatedMemory =>
         m.memRef match {
-          case None => nameMap(mname -> m.name) = namespace.newName(m.name)
+          case None    => nameMap(mname -> m.name) = namespace.newName(m.name)
           case Some(_) =>
         }
       case _ =>
@@ -220,9 +220,9 @@ class ReplaceMemMacros(writer: ConfWriter) extends Transform {
     writer.serialize()
     val pannos = state.annotations.collect { case a: PinAnnotation => a }
     val pins = pannos match {
-      case Seq() => Nil
+      case Seq()                    => Nil
       case Seq(PinAnnotation(pins)) => pins
-      case _ => throwInternalError(s"execute: getMyAnnotations - ${getMyAnnotations(state)}")
+      case _                        => throwInternalError(s"execute: getMyAnnotations - ${getMyAnnotations(state)}")
     }
     val annos = pins.foldLeft(Seq[Annotation]()) { (seq, pin) =>
       seq ++ memMods.collect {

@@ -112,7 +112,7 @@ class CheckCombLoops extends Transform with RegisteredTransform {
   )
 
   private def getExprDeps(deps: MutableConnMap, v: LogicNode, info: Info)(e: Expression): Unit = e match {
-    case r: WRef => deps.addEdgeIfValid(v, LogicNode(r), info)
+    case r: WRef      => deps.addEdgeIfValid(v, LogicNode(r), info)
     case s: WSubField => deps.addEdgeIfValid(v, LogicNode(s), info)
     case _ => e.foreach(getExprDeps(deps, v, info))
   }
@@ -232,7 +232,7 @@ class CheckCombLoops extends Transform with RegisteredTransform {
     val errors = new Errors()
     val extModulePaths = state.annotations.groupBy {
       case ann: ExtModulePathAnnotation => ModuleTarget(c.main, ann.source.module)
-      case ann: Annotation => CircuitTarget(c.main)
+      case ann: Annotation              => CircuitTarget(c.main)
     }
     val moduleMap = c.modules
       .map({ m =>

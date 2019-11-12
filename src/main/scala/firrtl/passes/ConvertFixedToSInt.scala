@@ -20,35 +20,35 @@ object ConvertFixedToSInt extends Pass {
         DoPrim(Shr, Seq(e), Seq(p - point), UnknownType)
       } else e
     case FixedType(w, p) => throwInternalError(s"alignArg: shouldn't be here - $e")
-    case _ => e
+    case _               => e
   }
   def calcPoint(es: Seq[Expression]): BigInt =
     es.map(_.tpe match {
         case FixedType(IntWidth(w), IntWidth(p)) => p
-        case _ => BigInt(0)
+        case _                                   => BigInt(0)
       })
       .reduce(max(_, _))
   def toSIntType(t: Type): Type = t match {
     case FixedType(IntWidth(w), IntWidth(p)) => SIntType(IntWidth(w))
-    case FixedType(w, p) => throwInternalError(s"toSIntType: shouldn't be here - $t")
-    case _ => t.map(toSIntType)
+    case FixedType(w, p)                     => throwInternalError(s"toSIntType: shouldn't be here - $t")
+    case _                                   => t.map(toSIntType)
   }
   def run(c: Circuit): Circuit = {
     val moduleTypes = mutable.HashMap[String, Type]()
     def onModule(m: DefModule): DefModule = {
       val types = mutable.HashMap[String, Type]()
       def updateExpType(e: Expression): Expression = e match {
-        case DoPrim(Mul, args, consts, tpe) => e.map(updateExpType)
-        case DoPrim(AsFixedPoint, args, consts, tpe) => DoPrim(AsSInt, args, Seq.empty, tpe).map(updateExpType)
-        case DoPrim(IncP, args, consts, tpe) => DoPrim(Shl, args, consts, tpe).map(updateExpType)
-        case DoPrim(DecP, args, consts, tpe) => DoPrim(Shr, args, consts, tpe).map(updateExpType)
+        case DoPrim(Mul, args, consts, tpe)                        => e.map(updateExpType)
+        case DoPrim(AsFixedPoint, args, consts, tpe)               => DoPrim(AsSInt, args, Seq.empty, tpe).map(updateExpType)
+        case DoPrim(IncP, args, consts, tpe)                       => DoPrim(Shl, args, consts, tpe).map(updateExpType)
+        case DoPrim(DecP, args, consts, tpe)                       => DoPrim(Shr, args, consts, tpe).map(updateExpType)
         case DoPrim(SetP, args, consts, FixedType(w, IntWidth(p))) => alignArg(args.head, p).map(updateExpType)
         case DoPrim(op, args, consts, tpe) =>
           val point = calcPoint(args)
           val newExp = DoPrim(op, args.map(x => alignArg(x, point)), consts, UnknownType)
           newExp.map(updateExpType) match {
             case DoPrim(AsFixedPoint, args, consts, tpe) => DoPrim(AsSInt, args, Seq.empty, tpe)
-            case e => e
+            case e                                       => e
           }
         case Mux(cond, tval, fval, tpe) =>
           val point = calcPoint(Seq(tval, fval))
@@ -58,10 +58,10 @@ object ConvertFixedToSInt extends Pass {
         case e: SIntLiteral => e
         case _ =>
           e.map(updateExpType) match {
-            case ValidIf(cond, value, tpe) => ValidIf(cond, value, value.tpe)
-            case WRef(name, tpe, k, g) => WRef(name, types(name), k, g)
-            case WSubField(exp, name, tpe, g) => WSubField(exp, name, field_type(exp.tpe, name), g)
-            case WSubIndex(exp, value, tpe, g) => WSubIndex(exp, value, sub_type(exp.tpe), g)
+            case ValidIf(cond, value, tpe)      => ValidIf(cond, value, value.tpe)
+            case WRef(name, tpe, k, g)          => WRef(name, types(name), k, g)
+            case WSubField(exp, name, tpe, g)   => WSubField(exp, name, field_type(exp.tpe, name), g)
+            case WSubIndex(exp, value, tpe, g)  => WSubIndex(exp, value, sub_type(exp.tpe), g)
             case WSubAccess(exp, index, tpe, g) => WSubAccess(exp, index, sub_type(exp.tpe), g)
           }
       }

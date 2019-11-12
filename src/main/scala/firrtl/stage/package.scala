@@ -27,9 +27,9 @@ package object stage {
       options.collect { case a: FirrtlOption => a }
         .foldLeft(new FirrtlOptions()) { (c, x) =>
           x match {
-            case OutputFileAnnotation(f) => c.copy(outputFileName = Some(f))
-            case InfoModeAnnotation(i) => c.copy(infoModeName = i)
-            case CompilerAnnotation(cx) => c.copy(compiler = cx)
+            case OutputFileAnnotation(f)      => c.copy(outputFileName = Some(f))
+            case InfoModeAnnotation(i)        => c.copy(infoModeName = i)
+            case CompilerAnnotation(cx)       => c.copy(compiler = cx)
             case FirrtlCircuitAnnotation(cir) => c.copy(firrtlCircuit = Some(cir))
           }
         }

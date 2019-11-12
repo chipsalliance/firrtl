@@ -148,8 +148,8 @@ object InstanceGraph {
     * @return
     */
   def collectInstances(insts: mutable.Set[WDefInstance])(s: Statement): Unit = s match {
-    case i: WDefInstance => insts += i
-    case i: DefInstance => throwInternalError("Expecting WDefInstance, found a DefInstance!")
+    case i: WDefInstance          => insts += i
+    case i: DefInstance           => throwInternalError("Expecting WDefInstance, found a DefInstance!")
     case i: WDefInstanceConnector => throwInternalError("Expecting WDefInstance, found a WDefInstanceConnector!")
     case _ => s.foreach(collectInstances(insts))
   }

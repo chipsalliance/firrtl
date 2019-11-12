@@ -64,9 +64,9 @@ abstract class SimpleExecutionTest extends FirrtlPropSpec {
   def commands: Seq[SimpleTestCommand]
 
   private def interpretCommand(eth: ExecutionTestHelper, cmd: SimpleTestCommand) = cmd match {
-    case Step(n) => eth.step(n)
-    case Invalidate(expStr) => eth.invalidate(expStr)
-    case Poke(expStr, value) => eth.poke(expStr, UIntLiteral(value))
+    case Step(n)               => eth.step(n)
+    case Invalidate(expStr)    => eth.invalidate(expStr)
+    case Poke(expStr, value)   => eth.poke(expStr, UIntLiteral(value))
     case Expect(expStr, value) => eth.expect(expStr, UIntLiteral(value))
   }
 

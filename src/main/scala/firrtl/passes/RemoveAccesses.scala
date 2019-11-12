@@ -165,7 +165,7 @@ class RemoveAccesses extends Pass {
 
     c.copy(modules = c.modules.map {
       case m: ExtModule => m
-      case m: Module => remove_m(m)
+      case m: Module    => remove_m(m)
     })
   }
 }

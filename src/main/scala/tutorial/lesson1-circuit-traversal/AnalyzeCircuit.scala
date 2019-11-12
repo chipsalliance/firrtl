@@ -26,11 +26,11 @@ class Ledger {
   private val modules = mutable.Set[String]()
   private val moduleMuxMap = mutable.Map[String, Int]()
   def foundMux(): Unit = moduleName match {
-    case None => sys.error("Module name not defined in Ledger!")
+    case None       => sys.error("Module name not defined in Ledger!")
     case Some(name) => moduleMuxMap(name) = moduleMuxMap.getOrElse(name, 0) + 1
   }
   def getModuleName: String = moduleName match {
-    case None => Utils.error("Module name not defined in Ledger!")
+    case None       => Utils.error("Module name not defined in Ledger!")
     case Some(name) => name
   }
   def setModuleName(myName: String): Unit = {

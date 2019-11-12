@@ -22,7 +22,7 @@ object ConstantPropagation {
 
   /** Pads e to the width of t */
   def pad(e: Expression, t: Type) = (bitWidth(e.tpe), bitWidth(t)) match {
-    case (we, wt) if we < wt => DoPrim(Pad, Seq(e), Seq(wt), t)
+    case (we, wt) if we < wt  => DoPrim(Pad, Seq(e), Seq(wt), t)
     case (we, wt) if we == wt => e
   }
 
@@ -55,7 +55,7 @@ object ConstantPropagation {
         case UIntLiteral(v, IntWidth(w)) => UIntLiteral(v >> x, IntWidth((w - x).max(1)))
         // take sign bit if shift amount is larger than arg width
         case SIntLiteral(v, IntWidth(w)) => SIntLiteral(v >> x, IntWidth((w - x).max(1)))
-        case _ => e
+        case _                           => e
       }
   }
 
@@ -66,10 +66,10 @@ object ConstantPropagation {
   // for register constant propagation (register or literal).
   private abstract class ConstPropBinding[+T] {
     def resolve[V >: T](that: ConstPropBinding[V]): ConstPropBinding[V] = (this, that) match {
-      case (x, y) if (x == y) => x
+      case (x, y) if (x == y)   => x
       case (x, UnboundConstant) => x
       case (UnboundConstant, y) => y
-      case _ => NonConstant
+      case _                    => NonConstant
     }
   }
 
@@ -117,27 +117,27 @@ class ConstantPropagation extends Transform with ResolvedAnnotationPaths {
     def simplify(e: Expression, lhs: Literal, rhs: Expression) = lhs match {
       case UIntLiteral(v, w) if v == BigInt(0) => rhs
       case SIntLiteral(v, w) if v == BigInt(0) => rhs
-      case _ => e
+      case _                                   => e
     }
   }
 
   object FoldAND extends FoldCommutativeOp {
     def fold(c1:    Literal, c2:     Literal) = UIntLiteral(c1.value & c2.value, c1.width.max(c2.width))
     def simplify(e: Expression, lhs: Literal, rhs: Expression) = lhs match {
-      case UIntLiteral(v, w) if v == BigInt(0) => UIntLiteral(0, w)
-      case SIntLiteral(v, w) if v == BigInt(0) => UIntLiteral(0, w)
+      case UIntLiteral(v, w) if v == BigInt(0)                                            => UIntLiteral(0, w)
+      case SIntLiteral(v, w) if v == BigInt(0)                                            => UIntLiteral(0, w)
       case UIntLiteral(v, IntWidth(w)) if v == (BigInt(1) << bitWidth(rhs.tpe).toInt) - 1 => rhs
-      case _ => e
+      case _                                                                              => e
     }
   }
 
   object FoldOR extends FoldCommutativeOp {
     def fold(c1:    Literal, c2:     Literal) = UIntLiteral(c1.value | c2.value, c1.width.max(c2.width))
     def simplify(e: Expression, lhs: Literal, rhs: Expression) = lhs match {
-      case UIntLiteral(v, _) if v == BigInt(0) => rhs
-      case SIntLiteral(v, _) if v == BigInt(0) => asUInt(rhs, e.tpe)
+      case UIntLiteral(v, _) if v == BigInt(0)                                            => rhs
+      case SIntLiteral(v, _) if v == BigInt(0)                                            => asUInt(rhs, e.tpe)
       case UIntLiteral(v, IntWidth(w)) if v == (BigInt(1) << bitWidth(rhs.tpe).toInt) - 1 => lhs
-      case _ => e
+      case _                                                                              => e
     }
   }
 
@@ -146,7 +146,7 @@ class ConstantPropagation extends Transform with ResolvedAnnotationPaths {
     def simplify(e: Expression, lhs: Literal, rhs: Expression) = lhs match {
       case UIntLiteral(v, _) if v == BigInt(0) => rhs
       case SIntLiteral(v, _) if v == BigInt(0) => asUInt(rhs, e.tpe)
-      case _ => e
+      case _                                   => e
     }
   }
 
@@ -154,7 +154,7 @@ class ConstantPropagation extends Transform with ResolvedAnnotationPaths {
     def fold(c1:    Literal, c2:     Literal) = UIntLiteral(if (c1.value == c2.value) 1 else 0, IntWidth(1))
     def simplify(e: Expression, lhs: Literal, rhs: Expression) = lhs match {
       case UIntLiteral(v, IntWidth(w)) if v == BigInt(1) && w == BigInt(1) && bitWidth(rhs.tpe) == BigInt(1) => rhs
-      case _ => e
+      case _                                                                                                 => e
     }
   }
 
@@ -162,7 +162,7 @@ class ConstantPropagation extends Transform with ResolvedAnnotationPaths {
     def fold(c1:    Literal, c2:     Literal) = UIntLiteral(if (c1.value != c2.value) 1 else 0, IntWidth(1))
     def simplify(e: Expression, lhs: Literal, rhs: Expression) = lhs match {
       case UIntLiteral(v, IntWidth(w)) if v == BigInt(0) && w == BigInt(1) && bitWidth(rhs.tpe) == BigInt(1) => rhs
-      case _ => e
+      case _                                                                                                 => e
     }
   }
 
@@ -178,7 +178,7 @@ class ConstantPropagation extends Transform with ResolvedAnnotationPaths {
       e.args.head match {
         case UIntLiteral(v, IntWidth(w)) => UIntLiteral(v << x, IntWidth(w + x))
         case SIntLiteral(v, IntWidth(w)) => SIntLiteral(v << x, IntWidth(w + x))
-        case _ => e
+        case _                           => e
       }
   }
 
@@ -200,19 +200,19 @@ class ConstantPropagation extends Transform with ResolvedAnnotationPaths {
     def foldIfZeroedArg(x: Expression): Expression = {
       def isUInt(e: Expression): Boolean = e.tpe match {
         case UIntType(_) => true
-        case _ => false
+        case _           => false
       }
       def isZero(e: Expression) = e match {
         case UIntLiteral(value, _) => value == BigInt(0)
         case SIntLiteral(value, _) => value == BigInt(0)
-        case _ => false
+        case _                     => false
       }
       x match {
-        case DoPrim(Lt, Seq(a, b), _, _) if isUInt(a) && isZero(b) => zero
+        case DoPrim(Lt, Seq(a, b), _, _) if isUInt(a) && isZero(b)  => zero
         case DoPrim(Leq, Seq(a, b), _, _) if isZero(a) && isUInt(b) => one
-        case DoPrim(Gt, Seq(a, b), _, _) if isZero(a) && isUInt(b) => zero
+        case DoPrim(Gt, Seq(a, b), _, _) if isZero(a) && isUInt(b)  => zero
         case DoPrim(Geq, Seq(a, b), _, _) if isUInt(a) && isZero(b) => one
-        case ex => ex
+        case ex                                                     => ex
       }
     }
 
@@ -253,16 +253,16 @@ class ConstantPropagation extends Transform with ResolvedAnnotationPaths {
           def r1 = range(ex.args(1))
           ex.op match {
             // Always true
-            case Lt if r0 < r1 => one
+            case Lt if r0 < r1   => one
             case Leq if r0 <= r1 => one
-            case Gt if r0 > r1 => one
+            case Gt if r0 > r1   => one
             case Geq if r0 >= r1 => one
             // Always false
             case Lt if r0 >= r1 => zero
             case Leq if r0 > r1 => zero
             case Gt if r0 <= r1 => zero
             case Geq if r0 < r1 => zero
-            case _ => ex
+            case _              => ex
           }
         case ex => ex
       }
@@ -271,22 +271,22 @@ class ConstantPropagation extends Transform with ResolvedAnnotationPaths {
   }
 
   private def constPropPrim(e: DoPrim): Expression = e.op match {
-    case Shl => foldShiftLeft(e)
-    case Dshl => foldDynamicShiftLeft(e)
-    case Shr => foldShiftRight(e)
-    case Dshr => foldDynamicShiftRight(e)
-    case Cat => foldConcat(e)
-    case Add => FoldADD(e)
-    case And => FoldAND(e)
-    case Or => FoldOR(e)
-    case Xor => FoldXOR(e)
-    case Eq => FoldEqual(e)
-    case Neq => FoldNotEqual(e)
+    case Shl                   => foldShiftLeft(e)
+    case Dshl                  => foldDynamicShiftLeft(e)
+    case Shr                   => foldShiftRight(e)
+    case Dshr                  => foldDynamicShiftRight(e)
+    case Cat                   => foldConcat(e)
+    case Add                   => FoldADD(e)
+    case And                   => FoldAND(e)
+    case Or                    => FoldOR(e)
+    case Xor                   => FoldXOR(e)
+    case Eq                    => FoldEqual(e)
+    case Neq                   => FoldNotEqual(e)
     case (Lt | Leq | Gt | Geq) => foldComparison(e)
     case Not =>
       e.args.head match {
         case UIntLiteral(v, IntWidth(w)) => UIntLiteral(v ^ ((BigInt(1) << w.toInt) - 1), IntWidth(w))
-        case _ => e
+        case _                           => e
       }
     case AsUInt =>
       e.args.head match {
@@ -302,18 +302,18 @@ class ConstantPropagation extends Transform with ResolvedAnnotationPaths {
       }
     case Pad =>
       e.args.head match {
-        case UIntLiteral(v, IntWidth(w)) => UIntLiteral(v, IntWidth(e.consts.head.max(w)))
-        case SIntLiteral(v, IntWidth(w)) => SIntLiteral(v, IntWidth(e.consts.head.max(w)))
+        case UIntLiteral(v, IntWidth(w))                     => UIntLiteral(v, IntWidth(e.consts.head.max(w)))
+        case SIntLiteral(v, IntWidth(w))                     => SIntLiteral(v, IntWidth(e.consts.head.max(w)))
         case _ if bitWidth(e.args.head.tpe) >= e.consts.head => e.args.head
-        case _ => e
+        case _                                               => e
       }
     case (Bits | Head | Tail) => constPropBitExtract(e)
-    case _ => e
+    case _                    => e
   }
 
   private def constPropMuxCond(m: Mux) = m.cond match {
     case UIntLiteral(c, _) => pad(if (c == BigInt(1)) m.tval else m.fval, m.tpe)
-    case _ => m
+    case _                 => m
   }
 
   private def constPropMux(m: Mux): Expression = (m.tval, m.fval) match {
@@ -349,7 +349,7 @@ class ConstantPropagation extends Transform with ResolvedAnnotationPaths {
     val old = e.map(constPropExpression(nodeMap, instMap, constSubOutputs))
     val propagated = old match {
       case p: DoPrim => constPropPrim(p)
-      case m: Mux => constPropMux(m)
+      case m: Mux    => constPropMux(m)
       case ref @ WRef(rname, _, _, SourceFlow) if nodeMap.contains(rname) =>
         constPropNodeRef(ref, nodeMap(rname))
       case ref @ WSubField(WRef(inst, _, InstanceKind, _), pname, _, SourceFlow) =>
@@ -436,8 +436,8 @@ class ConstantPropagation extends Transform with ResolvedAnnotationPaths {
         val newName = swapMap(decl.name)
         nPropagated += 1
         decl match {
-          case node: DefNode => node.copy(name = newName)
-          case wire: DefWire => wire.copy(name = newName)
+          case node: DefNode     => node.copy(name = newName)
+          case wire: DefWire     => wire.copy(name = newName)
           case reg:  DefRegister => reg.copy(name = newName)
           case other => throwInternalError()
         }
@@ -491,19 +491,19 @@ class ConstantPropagation extends Transform with ResolvedAnnotationPaths {
             case WRef(nodeName, _, NodeKind, _) if nodeMap.contains(nodeName) =>
               nodeRegCPEntries.getOrElseUpdate(nodeName, { regConstant(nodeMap(nodeName)) })
             case Mux(_, tval, fval, _) => regConstant(tval).resolve(regConstant(fval))
-            case _ => RegCPEntry(NonConstant, NonConstant)
+            case _                     => RegCPEntry(NonConstant, NonConstant)
           }
           def zero = passes.RemoveValidIf.getGroundZero(ltpe)
           def padCPExp(e: Expression) = constPropExpression(nodeMap, instMap, constSubOutputs)(pad(e, ltpe))
           regConstant(rhs) match {
             case RegCPEntry(BoundConstant(`lname`), litBinding) =>
               litBinding match {
-                case UnboundConstant => nodeMap(lname) = padCPExp(zero) // only self-assigns -> replace with zero
+                case UnboundConstant    => nodeMap(lname) = padCPExp(zero) // only self-assigns -> replace with zero
                 case BoundConstant(lit) => nodeMap(lname) = padCPExp(lit) // self + lit assigns -> replace with lit
-                case _ =>
+                case _                  =>
               }
             case RegCPEntry(UnboundConstant, BoundConstant(lit)) => nodeMap(lname) = padCPExp(lit) // only lit assigns
-            case _ =>
+            case _                                               =>
           }
         // Mark instance inputs connected to a constant
         case Connect(_, lref @ WSubField(WRef(inst, _, InstanceKind, _), port, ptpe, _), lit: Literal) =>

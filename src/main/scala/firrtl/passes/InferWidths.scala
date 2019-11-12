@@ -22,8 +22,8 @@ case class WidthGeqConstraintAnnotation(loc: ReferenceTarget, exp: ReferenceTarg
   def update(renameMap: RenameMap): Seq[WidthGeqConstraintAnnotation] = {
     val newLoc :: newExp :: Nil = Seq(loc, exp).map { target =>
       renameMap.get(target) match {
-        case None => Some(target)
-        case Some(Seq()) => None
+        case None           => Some(target)
+        case Some(Seq())    => None
         case Some(Seq(one)) => Some(one)
         case Some(many) =>
           throw new Exception(
@@ -73,7 +73,7 @@ class InferWidths extends Transform with ResolvedAnnotationPaths {
   private def addTypeConstraints(r1: ReferenceTarget, r2: ReferenceTarget)(t1: Type, t2: Type): Unit = (t1, t2) match {
     case (UIntType(w1), UIntType(w2)) => constraintSolver.addGeq(w1, w2, r1.prettyPrint(""), r2.prettyPrint(""))
     case (SIntType(w1), SIntType(w2)) => constraintSolver.addGeq(w1, w2, r1.prettyPrint(""), r2.prettyPrint(""))
-    case (ClockType, ClockType) =>
+    case (ClockType, ClockType)       =>
     case (FixedType(w1, p1), FixedType(w2, p2)) =>
       constraintSolver.addGeq(p1, p2, r1.prettyPrint(""), r2.prettyPrint(""))
       constraintSolver.addGeq(w1, w2, r1.prettyPrint(""), r2.prettyPrint(""))
@@ -89,14 +89,14 @@ class InferWidths extends Transform with ResolvedAnnotationPaths {
         case (f1, f2) =>
           (f1.flip, f2.flip) match {
             case (Default, Default) => addTypeConstraints(r1.field(f1.name), r2.field(f2.name))(f1.tpe, f2.tpe)
-            case (Flip, Flip) => addTypeConstraints(r2.field(f2.name), r1.field(f1.name))(f2.tpe, f1.tpe)
-            case _ => sys.error("Shouldn't be here")
+            case (Flip, Flip)       => addTypeConstraints(r2.field(f2.name), r1.field(f1.name))(f2.tpe, f1.tpe)
+            case _                  => sys.error("Shouldn't be here")
           }
       }
     case (t1: VectorType, t2: VectorType) => addTypeConstraints(r1.index(0), r2.index(0))(t1.tpe, t2.tpe)
     case (AsyncResetType, AsyncResetType) => Nil
-    case (ResetType, _) => Nil
-    case (_, ResetType) => Nil
+    case (ResetType, _)                   => Nil
+    case (_, ResetType)                   => Nil
   }
 
   private def addExpConstraints(e: Expression): Expression = e.map(addExpConstraints) match {
@@ -115,7 +115,7 @@ class InferWidths extends Transform with ResolvedAnnotationPaths {
         case (loc, exp) =>
           to_flip(flow(loc)) match {
             case Default => addTypeConstraints(Target.asTarget(mt)(loc), Target.asTarget(mt)(exp))(loc.tpe, exp.tpe)
-            case Flip => addTypeConstraints(Target.asTarget(mt)(exp), Target.asTarget(mt)(loc))(exp.tpe, loc.tpe)
+            case Flip    => addTypeConstraints(Target.asTarget(mt)(exp), Target.asTarget(mt)(loc))(exp.tpe, loc.tpe)
           }
       }
       c
@@ -129,7 +129,7 @@ class InferWidths extends Transform with ResolvedAnnotationPaths {
           val exp = exps(y)
           to_flip(flow(loc)) match {
             case Default => addTypeConstraints(Target.asTarget(mt)(loc), Target.asTarget(mt)(exp))(loc.tpe, exp.tpe)
-            case Flip => addTypeConstraints(Target.asTarget(mt)(exp), Target.asTarget(mt)(loc))(exp.tpe, loc.tpe)
+            case Flip    => addTypeConstraints(Target.asTarget(mt)(exp), Target.asTarget(mt)(loc))(exp.tpe, loc.tpe)
           }
       }
       pc
@@ -155,19 +155,19 @@ class InferWidths extends Transform with ResolvedAnnotationPaths {
   }
   private def fixWidth(w: Width): Width = constraintSolver.get(w) match {
     case Some(Closed(x)) if trim(x).isWhole => IntWidth(x.toBigInt)
-    case None => w
-    case _ => sys.error("Shouldn't be here")
+    case None                               => w
+    case _                                  => sys.error("Shouldn't be here")
   }
   private def fixType(t: Type): Type = t.map(fixType).map(fixWidth) match {
     case IntervalType(l, u, p) =>
       val (lx, ux) = (constraintSolver.get(l), constraintSolver.get(u)) match {
         case (Some(x: Bound), Some(y: Bound)) => (x, y)
         case (None, None) => (l, u)
-        case x => sys.error(s"Shouldn't be here: $x")
+        case x            => sys.error(s"Shouldn't be here: $x")
       }
       IntervalType(lx, ux, fixWidth(p))
     case FixedType(w, p) => FixedType(w, fixWidth(p))
-    case x => x
+    case x               => x
   }
   private def fixStmt(s: Statement): Statement = s.map(fixStmt).map(fixType)
   private def fixPort(p: Port): Port = {
@@ -196,11 +196,11 @@ class InferWidths extends Transform with ResolvedAnnotationPaths {
 
     def getDeclTypes(modName: String)(stmt: Statement): Unit = {
       val pairOpt = stmt match {
-        case w: DefWire => Some(w.name -> w.tpe)
-        case r: DefRegister => Some(r.name -> r.tpe)
-        case n: DefNode => Some(n.name -> n.value.tpe)
+        case w: DefWire      => Some(w.name -> w.tpe)
+        case r: DefRegister  => Some(r.name -> r.tpe)
+        case n: DefNode      => Some(n.name -> n.value.tpe)
         case i: WDefInstance => Some(i.name -> i.tpe)
-        case m: DefMemory => Some(m.name -> MemPortUtils.memType(m))
+        case m: DefMemory    => Some(m.name -> MemPortUtils.memType(m))
         case other => None
       }
       pairOpt.foreach {

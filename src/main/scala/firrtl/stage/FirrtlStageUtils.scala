@@ -10,6 +10,6 @@ private[stage] case object ProtoBufFile extends FileExtension
 object FirrtlStageUtils {
   private[stage] def getFileExtension(file: String): FileExtension = file.drop(file.lastIndexOf('.')) match {
     case ".pb" => ProtoBufFile
-    case _ => FirrtlFile
+    case _     => FirrtlFile
   }
 }

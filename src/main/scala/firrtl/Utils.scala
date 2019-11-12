@@ -56,7 +56,7 @@ object bitWidth {
     case t: VectorType => t.size * bitWidth(t.tpe)
     case t: BundleType => t.fields.map(f => bitWidth(f.tpe)).foldLeft(BigInt(0))(_ + _)
     case GroundType(IntWidth(width)) => width
-    case t => Utils.error(s"Unknown type encountered in bitWidth: $dt")
+    case t                           => Utils.error(s"Unknown type encountered in bitWidth: $dt")
   }
 }
 
@@ -189,24 +189,24 @@ object Utils extends LazyLogging {
   def niceName(e:     Expression): String = niceName(1)(e)
   def niceName(depth: Int)(e: Expression): String = {
     e match {
-      case WRef(name, _, _, _) if name(0) == '_' => name
-      case WRef(name, _, _, _) => "_" + name
+      case WRef(name, _, _, _) if name(0) == '_'       => name
+      case WRef(name, _, _, _)                         => "_" + name
       case WSubAccess(expr, index, _, _) if depth <= 0 => niceName(depth)(expr)
-      case WSubAccess(expr, index, _, _) => niceName(depth)(expr) + niceName(depth - 1)(index)
-      case WSubField(expr, field, _, _) => niceName(depth)(expr) + "_" + field
-      case WSubIndex(expr, index, _, _) => niceName(depth)(expr) + "_" + index
-      case Reference(name, _) if name(0) == '_' => name
-      case Reference(name, _) => "_" + name
-      case SubAccess(expr, index, _) if depth <= 0 => niceName(depth)(expr)
-      case SubAccess(expr, index, _) => niceName(depth)(expr) + niceName(depth - 1)(index)
-      case SubField(expr, field, _) => niceName(depth)(expr) + "_" + field
-      case SubIndex(expr, index, _) => niceName(depth)(expr) + "_" + index
-      case DoPrim(op, args, consts, _) if depth <= 0 => "_" + op
-      case DoPrim(op, args, consts, _) => "_" + op + (args.map(niceName(depth - 1)) ++ consts.map("_" + _)).mkString("")
-      case Mux(cond, tval, fval, _) if depth <= 0 => "_mux"
-      case Mux(cond, tval, fval, _) => "_mux" + Seq(cond, tval, fval).map(niceName(depth - 1)).mkString("")
-      case UIntLiteral(value, _) => "_" + value
-      case SIntLiteral(value, _) => "_" + value
+      case WSubAccess(expr, index, _, _)               => niceName(depth)(expr) + niceName(depth - 1)(index)
+      case WSubField(expr, field, _, _)                => niceName(depth)(expr) + "_" + field
+      case WSubIndex(expr, index, _, _)                => niceName(depth)(expr) + "_" + index
+      case Reference(name, _) if name(0) == '_'        => name
+      case Reference(name, _)                          => "_" + name
+      case SubAccess(expr, index, _) if depth <= 0     => niceName(depth)(expr)
+      case SubAccess(expr, index, _)                   => niceName(depth)(expr) + niceName(depth - 1)(index)
+      case SubField(expr, field, _)                    => niceName(depth)(expr) + "_" + field
+      case SubIndex(expr, index, _)                    => niceName(depth)(expr) + "_" + index
+      case DoPrim(op, args, consts, _) if depth <= 0   => "_" + op
+      case DoPrim(op, args, consts, _)                 => "_" + op + (args.map(niceName(depth - 1)) ++ consts.map("_" + _)).mkString("")
+      case Mux(cond, tval, fval, _) if depth <= 0      => "_mux"
+      case Mux(cond, tval, fval, _)                    => "_mux" + Seq(cond, tval, fval).map(niceName(depth - 1)).mkString("")
+      case UIntLiteral(value, _)                       => "_" + value
+      case SIntLiteral(value, _)                       => "_" + value
     }
   }
 
@@ -280,12 +280,12 @@ object Utils extends LazyLogging {
     var ref = "???"
     def onExp(expr: Expression): Expression = {
       expr.map(onExp) match {
-        case e: WRef => ref = e.name
+        case e: WRef      => ref = e.name
         case e: Reference => tokens += TargetToken.Ref(e.name)
         case e: WSubField => tokens += TargetToken.Field(e.name)
-        case e: SubField => tokens += TargetToken.Field(e.name)
+        case e: SubField  => tokens += TargetToken.Field(e.name)
         case e: WSubIndex => tokens += TargetToken.Index(e.value)
-        case e: SubIndex => tokens += TargetToken.Index(e.value)
+        case e: SubIndex  => tokens += TargetToken.Index(e.value)
         case other => throwInternalError("Cannot call Utils.toTarget on non-referencing expression")
       }
       expr
@@ -302,7 +302,7 @@ object Utils extends LazyLogging {
         val (_, flip) = tx.fields.foldLeft((i, None: Option[Orientation])) {
           case ((n, ret), x) if n < get_size(x.tpe) =>
             ret match {
-              case None => (n, Some(get_flip(x.tpe, n, times(x.flip, f))))
+              case None    => (n, Some(get_flip(x.tpe, n, times(x.flip, f))))
               case Some(_) => (n, ret)
             }
           case ((n, ret), x) => (n - get_size(x.tpe), ret)
@@ -312,7 +312,7 @@ object Utils extends LazyLogging {
         val (_, flip) = (0 until tx.size).foldLeft((i, None: Option[Orientation])) {
           case ((n, ret), x) if n < get_size(tx.tpe) =>
             ret match {
-              case None => (n, Some(get_flip(tx.tpe, n, f)))
+              case None    => (n, Some(get_flip(tx.tpe, n, f)))
               case Some(_) => (n, ret)
             }
           case ((n, ret), x) => (n - get_size(tx.tpe), ret)
@@ -328,7 +328,7 @@ object Utils extends LazyLogging {
         case b: BundleType =>
           b.fields.takeWhile(_.name != e.name).foldLeft(0)((point, f) => point + get_size(f.tpe))
       }
-    case (e: WSubIndex) => e.value * get_size(e.tpe)
+    case (e: WSubIndex)  => e.value * get_size(e.tpe)
     case (e: WSubAccess) => get_point(e.expr)
   }
 
@@ -376,16 +376,16 @@ object Utils extends LazyLogging {
     false
   })(e: Expression): Expression = {
     def onExp(e: Expression): Expression = e.map(onExp) match {
-      case Reference(name, _) if nodeMap.contains(name) && !stop(name) => onExp(nodeMap(name))
+      case Reference(name, _) if nodeMap.contains(name) && !stop(name)  => onExp(nodeMap(name))
       case WRef(name, _, _, _) if nodeMap.contains(name) && !stop(name) => onExp(nodeMap(name))
-      case other => other
+      case other                                                        => other
     }
     onExp(e)
   }
 
   def mux_type(e1: Expression, e2: Expression): Type = mux_type(e1.tpe, e2.tpe)
   def mux_type(t1: Type, t2:       Type): Type = (t1, t2) match {
-    case (ClockType, ClockType) => ClockType
+    case (ClockType, ClockType)           => ClockType
     case (AsyncResetType, AsyncResetType) => AsyncResetType
     case (t1: UIntType, t2:     UIntType) => UIntType(UnknownWidth)
     case (t1: SIntType, t2:     SIntType) => SIntType(UnknownWidth)
@@ -406,7 +406,7 @@ object Utils extends LazyLogging {
       case (w1x, w2x) => IsMax(w1x, w2x)
     }
     (t1, t2) match {
-      case (ClockType, ClockType) => ClockType
+      case (ClockType, ClockType)           => ClockType
       case (AsyncResetType, AsyncResetType) => AsyncResetType
       case (t1x: UIntType, t2x: UIntType) => UIntType(IsMax(t1x.width, t2x.width))
       case (t1x: SIntType, t2x: SIntType) => SIntType(IsMax(t1x.width, t2x.width))
@@ -435,7 +435,7 @@ object Utils extends LazyLogging {
     case vx: BundleType =>
       vx.fields.find(_.name == s) match {
         case Some(f) => f.tpe
-        case None => UnknownType
+        case None    => UnknownType
       }
     case vx => UnknownType
   }
@@ -492,7 +492,7 @@ object Utils extends LazyLogging {
               )
           }
           ._1
-      case (ClockType, ClockType) => if (flip1 == flip2) Seq((0, 0)) else Nil
+      case (ClockType, ClockType)           => if (flip1 == flip2) Seq((0, 0)) else Nil
       case (AsyncResetType, AsyncResetType) => if (flip1 == flip2) Seq((0, 0)) else Nil
       // The following two cases handle driving ResetType from other legal reset types
       // Flippedness is important here because ResetType can be driven by other reset types, but it
@@ -508,45 +508,45 @@ object Utils extends LazyLogging {
 // =========== FLOW/FLIP UTILS ============
   def swap(g: Flow): Flow = g match {
     case UnknownFlow => UnknownFlow
-    case SourceFlow => SinkFlow
-    case SinkFlow => SourceFlow
-    case DuplexFlow => DuplexFlow
+    case SourceFlow  => SinkFlow
+    case SinkFlow    => SourceFlow
+    case DuplexFlow  => DuplexFlow
   }
   def swap(d: Direction): Direction = d match {
     case Output => Input
-    case Input => Output
+    case Input  => Output
   }
   def swap(f: Orientation): Orientation = f match {
     case Default => Flip
-    case Flip => Default
+    case Flip    => Default
   }
   def to_dir(g: Flow): Direction = g match {
     case SourceFlow => Input
-    case SinkFlow => Output
+    case SinkFlow   => Output
   }
   @deprecated("Migrate from 'Gender' to 'Flow. This method will be removed in 1.3", "1.2")
   def to_gender(d: Direction): Gender = d match {
-    case Input => MALE
+    case Input  => MALE
     case Output => FEMALE
   }
   def to_flow(d: Direction): Flow = d match {
-    case Input => SourceFlow
+    case Input  => SourceFlow
     case Output => SinkFlow
   }
   def to_flip(d: Direction): Orientation = d match {
-    case Input => Flip
+    case Input  => Flip
     case Output => Default
   }
   def to_flip(g: Flow): Orientation = g match {
     case SourceFlow => Flip
-    case SinkFlow => Default
+    case SinkFlow   => Default
   }
 
   def field_flip(v: Type, s: String): Orientation = v match {
     case vx: BundleType =>
       vx.fields.find(_.name == s) match {
         case Some(ft) => ft.flip
-        case None => Default
+        case None     => Default
       }
     case vx => Default
   }
@@ -554,97 +554,97 @@ object Utils extends LazyLogging {
     case vx: BundleType =>
       vx.fields.find(_.name == s) match {
         case Some(ft) => ft
-        case None => throwInternalError(s"get_field: shouldn't be here - $v.$s")
+        case None     => throwInternalError(s"get_field: shouldn't be here - $v.$s")
       }
     case vx => throwInternalError(s"get_field: shouldn't be here - $v")
   }
 
   def times(d: Direction, flip: Orientation): Direction = flip match {
     case Default => d
-    case Flip => swap(d)
+    case Flip    => swap(d)
   }
   def times(g: Flow, d:      Direction): Direction = times(d, g)
   def times(d: Direction, g: Flow): Direction = g match {
-    case SinkFlow => d
+    case SinkFlow   => d
     case SourceFlow => swap(d) // SourceFlow == INPUT == REVERSE
   }
 
   def times(g:    Flow, flip:     Orientation): Flow = times(flip, g)
   def times(flip: Orientation, g: Flow): Flow = flip match {
     case Default => g
-    case Flip => swap(g)
+    case Flip    => swap(g)
   }
   def times(f1: Orientation, f2: Orientation): Orientation = f2 match {
     case Default => f1
-    case Flip => swap(f1)
+    case Flip    => swap(f1)
   }
 
 // =========== ACCESSORS =========
   def kind(e: Expression): Kind = e match {
-    case ex: WRef => ex.kind
-    case ex: WSubField => kind(ex.expr)
-    case ex: WSubIndex => kind(ex.expr)
+    case ex: WRef       => ex.kind
+    case ex: WSubField  => kind(ex.expr)
+    case ex: WSubIndex  => kind(ex.expr)
     case ex: WSubAccess => kind(ex.expr)
     case ex => ExpKind
   }
   @deprecated("Migrate from 'Gender' to 'Flow'. This method will be removed in 1.3", "1.2")
   def gender(e: Expression): Gender = e match {
-    case ex: WRef => ex.gender
-    case ex: WSubField => ex.gender
-    case ex: WSubIndex => ex.gender
-    case ex: WSubAccess => ex.gender
-    case ex: DoPrim => MALE
+    case ex: WRef        => ex.gender
+    case ex: WSubField   => ex.gender
+    case ex: WSubIndex   => ex.gender
+    case ex: WSubAccess  => ex.gender
+    case ex: DoPrim      => MALE
     case ex: UIntLiteral => MALE
     case ex: SIntLiteral => MALE
-    case ex: Mux => MALE
-    case ex: ValidIf => MALE
+    case ex: Mux         => MALE
+    case ex: ValidIf     => MALE
     case WInvalid => MALE
-    case ex => throwInternalError(s"gender: shouldn't be here - $e")
+    case ex       => throwInternalError(s"gender: shouldn't be here - $e")
   }
   @deprecated("Migrate from 'Gender' to 'Flow'. This method will be removed in 1.3", "1.2")
   def get_gender(s: Statement): Gender = s match {
-    case sx: DefWire => BIGENDER
-    case sx: DefRegister => BIGENDER
-    case sx: WDefInstance => MALE
-    case sx: DefNode => MALE
-    case sx: DefInstance => MALE
-    case sx: DefMemory => MALE
-    case sx: Block => UNKNOWNGENDER
-    case sx: Connect => UNKNOWNGENDER
+    case sx: DefWire        => BIGENDER
+    case sx: DefRegister    => BIGENDER
+    case sx: WDefInstance   => MALE
+    case sx: DefNode        => MALE
+    case sx: DefInstance    => MALE
+    case sx: DefMemory      => MALE
+    case sx: Block          => UNKNOWNGENDER
+    case sx: Connect        => UNKNOWNGENDER
     case sx: PartialConnect => UNKNOWNGENDER
-    case sx: Stop => UNKNOWNGENDER
-    case sx: Print => UNKNOWNGENDER
-    case sx: IsInvalid => UNKNOWNGENDER
+    case sx: Stop           => UNKNOWNGENDER
+    case sx: Print          => UNKNOWNGENDER
+    case sx: IsInvalid      => UNKNOWNGENDER
     case EmptyStmt => UNKNOWNGENDER
   }
   @deprecated("Migrate from 'Gender' to 'Flow'. This method will be removed in 1.3", "1.2")
   def get_gender(p: Port): Gender = if (p.direction == Input) MALE else FEMALE
   def flow(e:       Expression): Flow = e match {
-    case ex: WRef => ex.flow
-    case ex: WSubField => ex.flow
-    case ex: WSubIndex => ex.flow
-    case ex: WSubAccess => ex.flow
-    case ex: DoPrim => SourceFlow
+    case ex: WRef        => ex.flow
+    case ex: WSubField   => ex.flow
+    case ex: WSubIndex   => ex.flow
+    case ex: WSubAccess  => ex.flow
+    case ex: DoPrim      => SourceFlow
     case ex: UIntLiteral => SourceFlow
     case ex: SIntLiteral => SourceFlow
-    case ex: Mux => SourceFlow
-    case ex: ValidIf => SourceFlow
+    case ex: Mux         => SourceFlow
+    case ex: ValidIf     => SourceFlow
     case WInvalid => SourceFlow
-    case ex => throwInternalError(s"flow: shouldn't be here - $e")
+    case ex       => throwInternalError(s"flow: shouldn't be here - $e")
   }
   def get_flow(s: Statement): Flow = s match {
-    case sx: DefWire => DuplexFlow
-    case sx: DefRegister => DuplexFlow
-    case sx: WDefInstance => SourceFlow
-    case sx: DefNode => SourceFlow
-    case sx: DefInstance => SourceFlow
-    case sx: DefMemory => SourceFlow
-    case sx: Block => UnknownFlow
-    case sx: Connect => UnknownFlow
+    case sx: DefWire        => DuplexFlow
+    case sx: DefRegister    => DuplexFlow
+    case sx: WDefInstance   => SourceFlow
+    case sx: DefNode        => SourceFlow
+    case sx: DefInstance    => SourceFlow
+    case sx: DefMemory      => SourceFlow
+    case sx: Block          => UnknownFlow
+    case sx: Connect        => UnknownFlow
     case sx: PartialConnect => UnknownFlow
-    case sx: Stop => UnknownFlow
-    case sx: Print => UnknownFlow
-    case sx: IsInvalid => UnknownFlow
+    case sx: Stop           => UnknownFlow
+    case sx: Print          => UnknownFlow
+    case sx: IsInvalid      => UnknownFlow
     case EmptyStmt => UnknownFlow
   }
   def get_flow(p: Port): Flow = if (p.direction == Input) SourceFlow else SinkFlow
@@ -674,7 +674,7 @@ object Utils extends LazyLogging {
       val (root, tail) = splitRef(e.expr)
       tail match {
         case EmptyExpression => (root, WRef(e.name, e.tpe, root.kind, e.flow))
-        case exp => (root, WSubField(tail, e.name, e.tpe, e.flow))
+        case exp             => (root, WSubField(tail, e.name, e.tpe, e.flow))
       }
   }
 
@@ -706,7 +706,7 @@ object Utils extends LazyLogging {
         (m: @unchecked) match {
           case (Some(decl), None) => Some(decl)
           case (None, Some(decl)) => Some(decl)
-          case (None, None) => None
+          case (None, None)       => None
         }
       case begin: Block =>
         val stmts = begin.stmts.flatMap(getRootDecl(name)) // can we short circuit?

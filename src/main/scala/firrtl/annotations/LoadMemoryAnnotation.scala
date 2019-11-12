@@ -21,7 +21,7 @@ object MemoryLoadFileType {
   def deserialize(s: String): MemoryLoadFileType = s match {
     case "h" => MemoryLoadFileType.Hex
     case "b" => MemoryLoadFileType.Binary
-    case _ => throw new FirrtlUserException(s"Unrecognized MemoryLoadFileType: $s")
+    case _   => throw new FirrtlUserException(s"Unrecognized MemoryLoadFileType: $s")
   }
 }
 

@@ -24,7 +24,7 @@ trait Annotation extends Product {
     */
   private def extractComponents(ls: scala.collection.Traversable[_]): Seq[Target] = {
     ls.collect {
-      case c:  Target => Seq(c)
+      case c:  Target                          => Seq(c)
       case ls: scala.collection.Traversable[_] => extractComponents(ls)
     }.foldRight(Seq.empty[Target])((seq, c) => c ++ seq)
   }
@@ -99,7 +99,7 @@ trait MultiTargetAnnotation extends Annotation {
 
   private def crossJoin[T](list: Seq[Seq[T]]): Seq[Seq[T]] =
     list match {
-      case Nil => Nil
+      case Nil      => Nil
       case x :: Nil => x.map(Seq(_))
       case x :: xs =>
         val xsJoin = crossJoin(xs)
@@ -183,7 +183,7 @@ private[firrtl] object LegacyAnnotation {
   // scalastyle:off
   def convertLegacyAnno(anno: LegacyAnnotation): Annotation = anno match {
     // All old-style Emitter annotations are illegal
-    case LegacyAnnotation(_, _, "emitCircuit") => errorIllegalAnno("EmitCircuitAnnotation")
+    case LegacyAnnotation(_, _, "emitCircuit")    => errorIllegalAnno("EmitCircuitAnnotation")
     case LegacyAnnotation(_, _, "emitAllModules") => errorIllegalAnno("EmitAllModulesAnnotation")
     case LegacyAnnotation(_, _, value) if value.startsWith("emittedFirrtlCircuit") =>
       errorIllegalAnno("EmittedFirrtlCircuitAnnotation")
@@ -215,10 +215,10 @@ private[firrtl] object LegacyAnnotation {
     case LegacyAnnotation(m: ModuleName, t, text) if t == classOf[BlackBoxSourceHelper] =>
       val nArgs = 3
       text.split("\n", nArgs).toList match {
-        case "resource" :: id :: _ => BlackBoxResourceAnno(m, id)
+        case "resource" :: id :: _         => BlackBoxResourceAnno(m, id)
         case "inline" :: name :: text :: _ => BlackBoxInlineAnno(m, name, text)
         case "targetDir" :: targetDir :: _ => BlackBoxTargetDirAnno(targetDir)
-        case _ => errorIllegalAnno("BlackBoxSourceAnnotation")
+        case _                             => errorIllegalAnno("BlackBoxSourceAnnotation")
       }
     case LegacyAnnotation(_, transform, "noDCE!") if transform == classOf[DeadCodeElimination] =>
       NoDCEAnnotation

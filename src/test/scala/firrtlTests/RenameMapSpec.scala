@@ -223,7 +223,7 @@ class RenameMapSpec extends FirrtlFlatSpec {
       for (to <- tos) {
         (from, to) match {
           case (f: CircuitTarget, t: CircuitTarget) => renames.record(f, t)
-          case (f: IsMember, t:      IsMember) => renames.record(f, t)
+          case (f: IsMember, t:      IsMember)      => renames.record(f, t)
         }
       }
       //a [FIRRTLException] shouldBe thrownBy {

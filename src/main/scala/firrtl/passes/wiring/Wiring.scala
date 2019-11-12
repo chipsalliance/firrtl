@@ -195,9 +195,9 @@ class Wiring(wiSeq: Seq[WiringInfo]) extends Pass {
           case None =>
           case Some((s, dt)) =>
             dt match {
-              case DecInput => ports += Port(NoInfo, s, Input, t)
+              case DecInput  => ports += Port(NoInfo, s, Input, t)
               case DecOutput => ports += Port(NoInfo, s, Output, t)
-              case DecWire => defines += DefWire(NoInfo, s, t)
+              case DecWire   => defines += DefWire(NoInfo, s, t)
             }
         }
         connects ++= (l.cons.map {
@@ -208,7 +208,7 @@ class Wiring(wiSeq: Seq[WiringInfo]) extends Pass {
           case Module(i, n, ps, body) =>
             val stmts = body match {
               case Block(sx) => sx
-              case s => Seq(s)
+              case s         => Seq(s)
             }
             Module(i, n, ps ++ ports, Block(defines ++ stmts ++ connects))
           case ExtModule(i, n, ps, dn, p) => ExtModule(i, n, ps ++ ports, dn, p)

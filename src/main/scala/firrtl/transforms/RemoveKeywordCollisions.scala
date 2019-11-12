@@ -45,8 +45,8 @@ class RemoveKeywordCollisions(keywords: Set[String]) extends Transform {
     // Convert a [[String]] into [[Named]] based on the provided scope.
     def wrap(name: String, scope: Option[Named]): Named = scope match {
       case None => CircuitName(name)
-      case Some(cir: CircuitName) => ModuleName(name, cir)
-      case Some(mod: ModuleName) => ComponentName(name, mod)
+      case Some(cir: CircuitName)   => ModuleName(name, cir)
+      case Some(mod: ModuleName)    => ComponentName(name, mod)
       case Some(com: ComponentName) => ComponentName(s"${com.name}.$name", com.module)
     }
 
@@ -65,8 +65,8 @@ class RemoveKeywordCollisions(keywords: Set[String]) extends Transform {
 
     namedx match {
       case Seq(ComponentName(n, _)) => n
-      case Seq(ModuleName(n, _)) => n
-      case Seq(CircuitName(n)) => n
+      case Seq(ModuleName(n, _))    => n
+      case Seq(CircuitName(n))      => n
       case x =>
         throw new PassException(s"Verilog renaming shouldn't result in multiple renames, but found '$named -> $namedx'")
     }

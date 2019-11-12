@@ -8,7 +8,7 @@ import firrtl.ir._
 object RemoveEmpty extends Pass {
   private def onModule(m: DefModule): DefModule = {
     m match {
-      case m: Module => Module(m.info, m.name, m.ports, Utils.squashEmpty(m.body))
+      case m: Module    => Module(m.info, m.name, m.ports, Utils.squashEmpty(m.body))
       case m: ExtModule => m
     }
   }

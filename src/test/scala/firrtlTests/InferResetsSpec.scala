@@ -89,7 +89,7 @@ class InferResetsSpec extends FirrtlFlatSpec {
                             |    r <= x
                             |    z <= r
                             |""".stripMargin)
-    result should containTree { case Port(_, "resetIn", Input, BoolType) => true }
+    result should containTree { case Port(_, "resetIn", Input, BoolType)   => true }
     result should containTree { case Port(_, "resetOut", Output, BoolType) => true }
   }
 
@@ -105,22 +105,22 @@ class InferResetsSpec extends FirrtlFlatSpec {
          |""".stripMargin,
       new LowFirrtlCompiler
     )
-    result should containTree { case Port(_, "fizz_foo_0_a", Input, AsyncResetType) => true }
+    result should containTree { case Port(_, "fizz_foo_0_a", Input, AsyncResetType)  => true }
     result should containTree { case Port(_, "fizz_foo_0_b", Output, AsyncResetType) => true }
-    result should containTree { case Port(_, "fizz_foo_1_a", Input, AsyncResetType) => true }
+    result should containTree { case Port(_, "fizz_foo_1_a", Input, AsyncResetType)  => true }
     result should containTree { case Port(_, "fizz_foo_1_b", Output, AsyncResetType) => true }
     result should containTree { case Port(_, "fizz_bar_0_a", Output, AsyncResetType) => true }
-    result should containTree { case Port(_, "fizz_bar_0_b", Input, AsyncResetType) => true }
+    result should containTree { case Port(_, "fizz_bar_0_b", Input, AsyncResetType)  => true }
     result should containTree { case Port(_, "fizz_bar_1_a", Output, AsyncResetType) => true }
-    result should containTree { case Port(_, "fizz_bar_1_b", Input, AsyncResetType) => true }
-    result should containTree { case Port(_, "buzz_foo_0_a", Input, AsyncResetType) => true }
+    result should containTree { case Port(_, "fizz_bar_1_b", Input, AsyncResetType)  => true }
+    result should containTree { case Port(_, "buzz_foo_0_a", Input, AsyncResetType)  => true }
     result should containTree { case Port(_, "buzz_foo_0_b", Output, AsyncResetType) => true }
-    result should containTree { case Port(_, "buzz_foo_1_a", Input, AsyncResetType) => true }
+    result should containTree { case Port(_, "buzz_foo_1_a", Input, AsyncResetType)  => true }
     result should containTree { case Port(_, "buzz_foo_1_b", Output, AsyncResetType) => true }
     result should containTree { case Port(_, "buzz_bar_0_a", Output, AsyncResetType) => true }
-    result should containTree { case Port(_, "buzz_bar_0_b", Input, AsyncResetType) => true }
+    result should containTree { case Port(_, "buzz_bar_0_b", Input, AsyncResetType)  => true }
     result should containTree { case Port(_, "buzz_bar_1_a", Output, AsyncResetType) => true }
-    result should containTree { case Port(_, "buzz_bar_1_b", Input, AsyncResetType) => true }
+    result should containTree { case Port(_, "buzz_bar_1_b", Input, AsyncResetType)  => true }
   }
 
   it should "NOT allow last connect semantics to pick the right type for Reset" in {
@@ -332,7 +332,7 @@ class InferResetsSpec extends FirrtlFlatSpec {
                             |    c2.x <= x[1]
                             |    z[1] <= c2.z
                             |""".stripMargin)
-    result should containTree { case Port(_, "childReset", Input, BoolType) => true }
+    result should containTree { case Port(_, "childReset", Input, BoolType)       => true }
     result should containTree { case Port(_, "childReset", Input, AsyncResetType) => true }
   }
 }
