@@ -9,10 +9,10 @@ import Utils._
 import Mappers._
 
 /** Remove all statements and ports (except instances/whens/blocks) whose
- *  expressions do not relate to ground types.
- */
+  *  expressions do not relate to ground types.
+  */
 object RemoveAllButClocks extends Pass {
-  def onStmt(s: Statement): Statement = (s map onStmt) match {
+  def onStmt(s: Statement): Statement = s.map(onStmt) match {
     case DefWire(i, n, ClockType) => s
     case DefNode(i, n, value) if value.tpe == ClockType => s
     case Connect(i, l, r) if l.tpe == ClockType => s
@@ -26,5 +26,5 @@ object RemoveAllButClocks extends Pass {
     case Module(i, n, ps, b) => Module(i, n, ps.filter(_.tpe == ClockType), squashEmpty(onStmt(b)))
     case ExtModule(i, n, ps, dn, p) => ExtModule(i, n, ps.filter(_.tpe == ClockType), dn, p)
   }
-  def run(c: Circuit): Circuit = c.copy(modules = c.modules map onModule)
+  def run(c: Circuit): Circuit = c.copy(modules = c.modules.map(onModule))
 }

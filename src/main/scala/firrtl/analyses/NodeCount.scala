@@ -12,7 +12,6 @@ import scala.collection.JavaConverters._
   * Works because all FirrtlNodes implement Product (case classes do)
   */
 class NodeCount private (node: FirrtlNode) {
-
   // Counts the number of unique objects in a Firrtl graph
   // There is no IdentityHashSet
   private val identityMap = new java.util.IdentityHashMap[Any, Boolean]()
@@ -21,11 +20,12 @@ class NodeCount private (node: FirrtlNode) {
 
   @tailrec
   private final def rec(xs: List[Any]): Unit =
-    if (xs.isEmpty) { }
-    else {
+    if (xs.isEmpty) {} else {
       val node = xs.head
-      require(node.isInstanceOf[Product] || !node.isInstanceOf[FirrtlNode],
-        "Unexpected FirrtlNode that does not implement Product!")
+      require(
+        node.isInstanceOf[Product] || !node.isInstanceOf[FirrtlNode],
+        "Unexpected FirrtlNode that does not implement Product!"
+      )
       val moreToVisit =
         if (identityMap.containsKey(node)) List.empty
         else { // Haven't seen yet

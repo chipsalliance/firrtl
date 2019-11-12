@@ -238,7 +238,6 @@ class LoggerSpec extends FreeSpec with Matchers with OneInstancePerTest with Laz
           val captor = new OutputCaptor
           Logger.setOutput(captor.printStream)
 
-
           Logger.setLevel(LogLevel.Info)
           Logger.setLevel("loggertests.LogsInfo2", LogLevel.Error)
 
@@ -280,47 +279,47 @@ class LoggerSpec extends FreeSpec with Matchers with OneInstancePerTest with Laz
           }
 
           val logText = captor.getOutputAsString
-          logText should include ("message 1")
-          logText should include ("message 2")
+          logText should include("message 1")
+          logText should include("message 2")
         }
       }
       "Show that nested makeScopes share same state" in {
-        Logger.getGlobalLevel should be (LogLevel.None)
+        Logger.getGlobalLevel should be(LogLevel.None)
 
         Logger.makeScope() {
           Logger.setLevel(LogLevel.Info)
 
-          Logger.getGlobalLevel should be (LogLevel.Info)
+          Logger.getGlobalLevel should be(LogLevel.Info)
 
           Logger.makeScope() {
-            Logger.getGlobalLevel should be (LogLevel.Info)
+            Logger.getGlobalLevel should be(LogLevel.Info)
           }
 
           Logger.makeScope() {
             Logger.setLevel(LogLevel.Debug)
-            Logger.getGlobalLevel should be (LogLevel.Debug)
+            Logger.getGlobalLevel should be(LogLevel.Debug)
           }
 
-          Logger.getGlobalLevel should be (LogLevel.Debug)
+          Logger.getGlobalLevel should be(LogLevel.Debug)
         }
 
-        Logger.getGlobalLevel should be (LogLevel.None)
+        Logger.getGlobalLevel should be(LogLevel.None)
       }
 
       "Show that first makeScope starts with fresh state" in {
-        Logger.getGlobalLevel should be (LogLevel.None)
+        Logger.getGlobalLevel should be(LogLevel.None)
 
         Logger.setLevel(LogLevel.Warn)
-        Logger.getGlobalLevel should be (LogLevel.Warn)
+        Logger.getGlobalLevel should be(LogLevel.Warn)
 
         Logger.makeScope() {
-          Logger.getGlobalLevel should be (LogLevel.None)
+          Logger.getGlobalLevel should be(LogLevel.None)
 
           Logger.setLevel(LogLevel.Trace)
-          Logger.getGlobalLevel should be (LogLevel.Trace)
+          Logger.getGlobalLevel should be(LogLevel.Trace)
         }
 
-        Logger.getGlobalLevel should be (LogLevel.Warn)
+        Logger.getGlobalLevel should be(LogLevel.Warn)
       }
     }
   }

@@ -7,10 +7,10 @@ import firrtl.RenameMap.IllegalRenameException
 import firrtl.annotations._
 
 class RenameMapSpec extends FirrtlFlatSpec {
-  val cir   = CircuitTarget("Top")
-  val cir2  = CircuitTarget("Pot")
-  val cir3  = CircuitTarget("Cir3")
-  val modA  = cir.module("A")
+  val cir = CircuitTarget("Top")
+  val cir2 = CircuitTarget("Pot")
+  val cir3 = CircuitTarget("Cir3")
+  val modA = cir.module("A")
   val modA2 = cir2.module("A")
   val modB = cir.module("B")
   val foo = modA.ref("foo")
@@ -25,69 +25,69 @@ class RenameMapSpec extends FirrtlFlatSpec {
   val middle = cir.module("Middle")
   val middle2 = cir.module("Middle2")
 
-  behavior of "RenameMap"
+  behavior.of("RenameMap")
 
   it should "return None if it does not rename something" in {
     val renames = RenameMap()
-    renames.get(modA) should be (None)
-    renames.get(foo) should be (None)
+    renames.get(modA) should be(None)
+    renames.get(foo) should be(None)
   }
 
   it should "return a Seq of renamed things if it does rename something" in {
     val renames = RenameMap()
     renames.record(foo, bar)
-    renames.get(foo) should be (Some(Seq(bar)))
+    renames.get(foo) should be(Some(Seq(bar)))
   }
 
   it should "allow something to be renamed to multiple things" in {
     val renames = RenameMap()
     renames.record(foo, bar)
     renames.record(foo, fizz)
-    renames.get(foo) should be (Some(Seq(bar, fizz)))
+    renames.get(foo) should be(Some(Seq(bar, fizz)))
   }
 
   it should "allow something to be renamed to nothing (ie. deleted)" in {
     val renames = RenameMap()
     renames.record(foo, Seq())
-    renames.get(foo) should be (Some(Seq()))
+    renames.get(foo) should be(Some(Seq()))
   }
 
   it should "return None if something is renamed to itself" in {
     val renames = RenameMap()
     renames.record(foo, foo)
-    renames.get(foo) should be (None)
+    renames.get(foo) should be(None)
   }
 
   it should "allow targets to change module" in {
     val renames = RenameMap()
     renames.record(foo, fooB)
-    renames.get(foo) should be (Some(Seq(fooB)))
+    renames.get(foo) should be(Some(Seq(fooB)))
   }
 
   it should "rename targets if their module is renamed" in {
     val renames = RenameMap()
     renames.record(modA, modB)
-    renames.get(foo) should be (Some(Seq(fooB)))
-    renames.get(bar) should be (Some(Seq(barB)))
+    renames.get(foo) should be(Some(Seq(fooB)))
+    renames.get(bar) should be(Some(Seq(barB)))
   }
 
   it should "rename renamed targets if the module of the target is renamed" in {
     val renames = RenameMap()
     renames.record(modA, modB)
     renames.record(foo, bar)
-    renames.get(foo) should be (Some(Seq(barB)))
+    renames.get(foo) should be(Some(Seq(barB)))
   }
 
   it should "rename modules if their circuit is renamed" in {
     val renames = RenameMap()
     renames.record(cir, cir2)
-    renames.get(modA) should be (Some(Seq(modA2)))
+    renames.get(modA) should be(Some(Seq(modA2)))
   }
 
   it should "rename targets if their circuit is renamed" in {
     val renames = RenameMap()
     renames.record(cir, cir2)
-    renames.get(foo) should be (Some(Seq(foo2)))
+    renames.get(foo) should be(Some(Seq(foo2)))
   }
 
   val TopCircuit = cir
@@ -104,44 +104,44 @@ class RenameMapSpec extends FirrtlFlatSpec {
   it should "rename targets if modules in the path are renamed" in {
     val renames = RenameMap()
     renames.record(Middle, Middle2)
-    renames.get(Top_m) should be (Some(Seq(Top.instOf("m", "Middle2"))))
+    renames.get(Top_m) should be(Some(Seq(Top.instOf("m", "Middle2"))))
   }
 
   it should "rename targets if instance and module in the path are renamed" in {
     val renames = RenameMap()
     renames.record(Middle, Middle2)
     renames.record(Top.instOf("m", "Middle"), Top.instOf("m2", "Middle"))
-    renames.get(Top_m) should be (Some(Seq(Top.instOf("m2", "Middle2"))))
+    renames.get(Top_m) should be(Some(Seq(Top.instOf("m2", "Middle2"))))
   }
 
   it should "rename targets if instance in the path are renamed" in {
     val renames = RenameMap()
     renames.record(Top.instOf("m", "Middle"), Top.instOf("m2", "Middle"))
-    renames.get(Top_m) should be (Some(Seq(Top.instOf("m2", "Middle"))))
+    renames.get(Top_m) should be(Some(Seq(Top.instOf("m2", "Middle"))))
   }
 
   it should "rename targets if instance and ofmodule in the path are renamed" in {
     val renames = RenameMap()
     val Top_m2 = Top.instOf("m2", "Middle2")
     renames.record(Top_m, Top_m2)
-    renames.get(Top_m) should be (Some(Seq(Top_m2)))
+    renames.get(Top_m) should be(Some(Seq(Top_m2)))
   }
 
   it should "properly do nothing if no remaps" in {
     val renames = RenameMap()
-    renames.get(Top_m_l_a) should be (None)
+    renames.get(Top_m_l_a) should be(None)
   }
 
   it should "properly rename if leaf is inlined" in {
     val renames = RenameMap()
     renames.record(Middle_l_a, Middle_la)
-    renames.get(Top_m_l_a) should be (Some(Seq(Top_m_la)))
+    renames.get(Top_m_l_a) should be(Some(Seq(Top_m_la)))
   }
 
   it should "properly rename if middle is inlined" in {
     val renames = RenameMap()
     renames.record(Top_m_l, Top.instOf("m_l", "Leaf"))
-    renames.get(Top_m_l_a) should be (Some(Seq(Top.instOf("m_l", "Leaf").ref("a"))))
+    renames.get(Top_m_l_a) should be(Some(Seq(Top.instOf("m_l", "Leaf").ref("a"))))
   }
 
   it should "properly rename if leaf and middle are inlined" in {
@@ -150,19 +150,21 @@ class RenameMapSpec extends FirrtlFlatSpec {
     renames.record(Top_m_l_a, inlined)
     renames.record(Top_m_l, Nil)
     renames.record(Top_m, Nil)
-    renames.get(Top_m_l_a) should be (Some(Seq(inlined)))
+    renames.get(Top_m_l_a) should be(Some(Seq(inlined)))
   }
 
   it should "quickly rename a target with a long path" in {
     (0 until 50 by 10).foreach { endIdx =>
       val renames = RenameMap()
       renames.record(TopCircuit.module("Y0"), TopCircuit.module("X0"))
-      val deepTarget = (0 until endIdx).foldLeft(Top: IsModule) { (t, idx) =>
-        t.instOf("a", "A" + idx)
-      }.ref("ref")
+      val deepTarget = (0 until endIdx)
+        .foldLeft(Top: IsModule) { (t, idx) =>
+          t.instOf("a", "A" + idx)
+        }
+        .ref("ref")
       val (millis, rename) = firrtl.Utils.time(renames.get(deepTarget))
       println(s"${(deepTarget.tokens.size - 1) / 2} -> $millis")
-      //rename should be(None)
+    //rename should be(None)
     }
   }
 
@@ -171,7 +173,7 @@ class RenameMapSpec extends FirrtlFlatSpec {
     val Middle2 = cir.module("Middle2")
     renames.record(Middle, Middle2)
     renames.record(Middle.ref("l"), Middle.ref("lx"))
-    renames.get(Middle.ref("l")) should be (Some(Seq(Middle2.ref("lx"))))
+    renames.get(Middle.ref("l")) should be(Some(Seq(Middle2.ref("lx"))))
   }
 
   it should "rename with fields" in {
@@ -181,7 +183,7 @@ class RenameMapSpec extends FirrtlFlatSpec {
     val Middle_i_f = Middle.ref("i").field("f")
     val renames = RenameMap()
     renames.record(Middle_o, Middle_i)
-    renames.get(Middle_o_f) should be (Some(Seq(Middle_i_f)))
+    renames.get(Middle_o_f) should be(Some(Seq(Middle_i_f)))
   }
 
   it should "rename instances with same ofModule" in {
@@ -189,7 +191,7 @@ class RenameMapSpec extends FirrtlFlatSpec {
     val Middle_i = Middle.instOf("i", "O")
     val renames = RenameMap()
     renames.record(Middle_o, Middle_i)
-    renames.get(Middle.instOf("o", "O")) should be (Some(Seq(Middle.instOf("i", "O"))))
+    renames.get(Middle.instOf("o", "O")) should be(Some(Seq(Middle.instOf("i", "O"))))
   }
 
   it should "not treat references as instances targets" in {
@@ -197,14 +199,14 @@ class RenameMapSpec extends FirrtlFlatSpec {
     val Middle_i = Middle.ref("i")
     val renames = RenameMap()
     renames.record(Middle_o, Middle_i)
-    renames.get(Middle.instOf("o", "O")) should be (None)
+    renames.get(Middle.instOf("o", "O")) should be(None)
   }
 
   it should "be able to rename weird stuff" in {
     // Renaming `from` to each of the `tos` at the same time should be ok
     case class BadRename(from: CompleteTarget, tos: Seq[CompleteTarget])
     val badRenames =
-      Seq(//BadRename(foo, Seq(cir)),
+      Seq( //BadRename(foo, Seq(cir)),
         //BadRename(foo, Seq(modB)),
         //BadRename(modA, Seq(fooB)),
         //BadRename(modA, Seq(cir)),
@@ -217,16 +219,16 @@ class RenameMapSpec extends FirrtlFlatSpec {
       val fromN = from
       val tosN = tos.mkString(", ")
       //it should s"error if a $fromN is renamed to $tosN" in {
-        val renames = RenameMap()
-        for (to <- tos) {
-          (from, to) match {
-            case (f: CircuitTarget, t: CircuitTarget) => renames.record(f, t)
-            case (f: IsMember, t: IsMember) => renames.record(f, t)
-          }
+      val renames = RenameMap()
+      for (to <- tos) {
+        (from, to) match {
+          case (f: CircuitTarget, t: CircuitTarget) => renames.record(f, t)
+          case (f: IsMember, t:      IsMember) => renames.record(f, t)
         }
-        //a [FIRRTLException] shouldBe thrownBy {
-        renames.get(from)
-        //}
+      }
+      //a [FIRRTLException] shouldBe thrownBy {
+      renames.get(from)
+      //}
       //}
     }
   }
@@ -246,8 +248,8 @@ class RenameMapSpec extends FirrtlFlatSpec {
     val top = CircuitTarget("Top")
     renames.record(top.module("A"), top.module("B"))
     renames.record(top.module("B"), top.module("A"))
-    renames.get(top.module("A")) should be (Some(Seq(top.module("B"))))
-    renames.get(top.module("B")) should be (Some(Seq(top.module("A"))))
+    renames.get(top.module("A")) should be(Some(Seq(top.module("B"))))
+    renames.get(top.module("B")) should be(Some(Seq(top.module("A"))))
   }
 
   it should "error if a reference is renamed to a module and vice versa" in {
@@ -255,10 +257,10 @@ class RenameMapSpec extends FirrtlFlatSpec {
     val top = CircuitTarget("Top")
     renames.record(top.module("A").ref("ref"), top.module("B"))
     renames.record(top.module("C"), top.module("D").ref("ref"))
-    a [IllegalRenameException] shouldBe thrownBy {
+    a[IllegalRenameException] shouldBe thrownBy {
       renames.get(top.module("C"))
     }
-    a [IllegalRenameException] shouldBe thrownBy {
+    a[IllegalRenameException] shouldBe thrownBy {
       renames.get(top.module("A").ref("ref").field("field"))
     }
     renames.get(top.module("A").instOf("ref", "R")) should be(None)
@@ -269,7 +271,7 @@ class RenameMapSpec extends FirrtlFlatSpec {
     val top = CircuitTarget("Top")
 
     renames.record(top.module("C"), top.module("D").ref("x"))
-    a [IllegalRenameException] shouldBe thrownBy {
+    a[IllegalRenameException] shouldBe thrownBy {
       renames.get(top.module("A").instOf("c", "C"))
     }
   }
@@ -280,7 +282,7 @@ class RenameMapSpec extends FirrtlFlatSpec {
 
     renames.record(top.module("E").instOf("f", "F"), top.module("E").ref("g"))
 
-    a [IllegalRenameException] shouldBe thrownBy {
+    a[IllegalRenameException] shouldBe thrownBy {
       println(renames.get(top.module("E").instOf("f", "F").ref("g")))
     }
   }
@@ -402,7 +404,7 @@ class RenameMapSpec extends FirrtlFlatSpec {
       .ref("ref")
       .field("f1")
       .field("f2")
-    val to2   = modA
+    val to2 = modA
       .instOf("b", "B")
       .instOf("c", "C")
       .ref("ref")
@@ -416,7 +418,7 @@ class RenameMapSpec extends FirrtlFlatSpec {
       .instOf("c", "C")
       .ref("ref")
       .field("f1")
-    val to3   = modB
+    val to3 = modB
       .instOf("c", "C")
       .ref("ref")
       .field("f11")
@@ -425,7 +427,7 @@ class RenameMapSpec extends FirrtlFlatSpec {
     // to: ~Top|C>refref
     // renamed last because it has no path
     val from4 = modC.ref("ref")
-    val to4   = modC.ref("refref")
+    val to4 = modC.ref("refref")
 
     val renames1 = RenameMap()
     renames1.record(from1, to1)
@@ -434,14 +436,17 @@ class RenameMapSpec extends FirrtlFlatSpec {
     renames1.record(from4, to4)
 
     renames1.get(from1) should be {
-      Some(Seq(modA
-        .instOf("b", "B")
-        .instOf("c", "C")
-        .ref("ref")
-        .field("f1")
-        .field("f2")
-        .field("f33")
-      ))
+      Some(
+        Seq(
+          modA
+            .instOf("b", "B")
+            .instOf("c", "C")
+            .ref("ref")
+            .field("f1")
+            .field("f2")
+            .field("f33")
+        )
+      )
     }
 
     val renames2 = RenameMap()
@@ -450,14 +455,17 @@ class RenameMapSpec extends FirrtlFlatSpec {
     renames2.record(from4, to4)
 
     renames2.get(from1) should be {
-      Some(Seq(modA
-        .instOf("b", "B")
-        .instOf("c", "C")
-        .ref("ref")
-        .field("f1")
-        .field("f22")
-        .field("f3")
-      ))
+      Some(
+        Seq(
+          modA
+            .instOf("b", "B")
+            .instOf("c", "C")
+            .ref("ref")
+            .field("f1")
+            .field("f22")
+            .field("f3")
+        )
+      )
     }
 
     val renames3 = RenameMap()
@@ -465,14 +473,17 @@ class RenameMapSpec extends FirrtlFlatSpec {
     renames3.record(from4, to4)
 
     renames3.get(from1) should be {
-      Some(Seq(modA
-        .instOf("b", "B")
-        .instOf("c", "C")
-        .ref("ref")
-        .field("f11")
-        .field("f2")
-        .field("f3")
-      ))
+      Some(
+        Seq(
+          modA
+            .instOf("b", "B")
+            .instOf("c", "C")
+            .ref("ref")
+            .field("f11")
+            .field("f2")
+            .field("f3")
+        )
+      )
     }
   }
 
@@ -497,8 +508,18 @@ class RenameMapSpec extends FirrtlFlatSpec {
     val to = cir.module("D").instOf("e", "E").instOf("f", "F").ref("foo").field("foo")
     renames.record(from, to)
     renames.get(cir.module("A").instOf("b", "B").instOf("c", "C").ref("foo").field("bar")) should be {
-      Some(Seq(cir.module("A").instOf("b", "B").instOf("c", "D")
-        .instOf("e", "E").instOf("f", "F").ref("foo").field("foo")))
+      Some(
+        Seq(
+          cir
+            .module("A")
+            .instOf("b", "B")
+            .instOf("c", "D")
+            .instOf("e", "E")
+            .instOf("f", "F")
+            .ref("foo")
+            .field("foo")
+        )
+      )
     }
   }
 
@@ -508,7 +529,7 @@ class RenameMapSpec extends FirrtlFlatSpec {
     val from = top.instOf("a", "A")
     val to = top.ref("b")
     renames.record(from, to)
-    a [IllegalRenameException] shouldBe thrownBy {
+    a[IllegalRenameException] shouldBe thrownBy {
       renames.get(from)
     }
   }
@@ -519,7 +540,7 @@ class RenameMapSpec extends FirrtlFlatSpec {
     val from = top.ref("a")
     val to = top.ref("b")
     renames.record(from, to)
-    renames.get(top.instOf("a", "Foo")) should be (None)
+    renames.get(top.instOf("a", "Foo")) should be(None)
   }
 
   it should "correctly chain renames together" in {
@@ -650,8 +671,8 @@ class RenameMapSpec extends FirrtlFlatSpec {
     val dupMod1 = top.module("A1")
     val dupMod2 = top.module("A2")
 
-    val relPath1 = dupMod1.addHierarchy("Foo", "a")//top.module("Foo").instOf("a", "A1")
-    val relPath2 = dupMod2.addHierarchy("Foo", "a")//top.module("Foo").instOf("a", "A2")
+    val relPath1 = dupMod1.addHierarchy("Foo", "a") //top.module("Foo").instOf("a", "A1")
+    val relPath2 = dupMod2.addHierarchy("Foo", "a") //top.module("Foo").instOf("a", "A2")
 
     val absPath1 = relPath1.addHierarchy("Top", "foo")
     val absPath2 = relPath2.addHierarchy("Top", "foo")

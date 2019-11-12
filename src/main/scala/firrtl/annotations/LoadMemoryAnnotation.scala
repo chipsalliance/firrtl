@@ -31,12 +31,11 @@ object MemoryLoadFileType {
   * @param hexOrBinary   use `\$readmemh` or `\$readmemb`
   */
 case class LoadMemoryAnnotation(
-  target: ComponentName,
-  fileName: String,
-  hexOrBinary: MemoryLoadFileType = MemoryLoadFileType.Hex,
+  target:                ComponentName,
+  fileName:              String,
+  hexOrBinary:           MemoryLoadFileType = MemoryLoadFileType.Hex,
   originalMemoryNameOpt: Option[String] = None
 ) extends SingleTargetAnnotation[Named] {
-
   val (prefix, suffix) = {
     fileName.split("""\.""").toList match {
       case Nil =>
@@ -57,7 +56,7 @@ case class LoadMemoryAnnotation(
 
   def getPrefix: String =
     prefix + originalMemoryNameOpt.map(n => target.name.drop(n.length)).getOrElse("")
-  def getSuffix: String = suffix
+  def getSuffix:   String = suffix
   def getFileName: String = getPrefix + getSuffix
 
   def duplicate(newNamed: Named): LoadMemoryAnnotation = {

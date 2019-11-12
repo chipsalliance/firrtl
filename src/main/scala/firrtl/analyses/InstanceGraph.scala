@@ -10,15 +10,17 @@ import firrtl.Utils._
 import firrtl.traversals.Foreachers._
 import firrtl.annotations.TargetToken._
 
-
 /** A class representing the instance hierarchy of a working IR Circuit
   *
   * @constructor constructs an instance graph from a Circuit
   * @param c the Circuit to analyze
   */
 class InstanceGraph(c: Circuit) {
-
-  val moduleMap = c.modules.map({m => (m.name,m) }).toMap
+  val moduleMap = c.modules
+    .map({ m =>
+      (m.name, m)
+    })
+    .toMap
   private val instantiated = new mutable.LinkedHashSet[String]
   private val childInstances =
     new mutable.LinkedHashMap[String, mutable.LinkedHashSet[WDefInstance]]
@@ -32,7 +34,7 @@ class InstanceGraph(c: Circuit) {
   private val instanceQueue = new mutable.Queue[WDefInstance]
 
   for (subTop <- c.modules.view.map(_.name).filterNot(instantiated)) {
-    val topInstance = WDefInstance(subTop,subTop)
+    val topInstance = WDefInstance(subTop, subTop)
     instanceQueue.enqueue(topInstance)
     while (instanceQueue.nonEmpty) {
       val current = instanceQueue.dequeue
@@ -42,7 +44,7 @@ class InstanceGraph(c: Circuit) {
           instanceQueue.enqueue(child)
           instanceGraph.addVertex(child)
         }
-        instanceGraph.addEdge(current,child)
+        instanceGraph.addEdge(current, child)
       }
     }
   }
@@ -60,7 +62,8 @@ class InstanceGraph(c: Circuit) {
   /** A list of absolute paths (each represented by a Seq of instances)
     * of all module instances in the Circuit.
     */
-  lazy val fullHierarchy: mutable.LinkedHashMap[WDefInstance,Seq[Seq[WDefInstance]]] = graph.pathsInDAG(trueTopInstance)
+  lazy val fullHierarchy: mutable.LinkedHashMap[WDefInstance, Seq[Seq[WDefInstance]]] =
+    graph.pathsInDAG(trueTopInstance)
 
   /** A count of the *static* number of instances of each module. For any module
     * other than the top (main) module, this is equivalent to the number of inst
@@ -71,7 +74,9 @@ class InstanceGraph(c: Circuit) {
     */
   lazy val staticInstanceCount: Map[OfModule, Int] = {
     val instModules = childInstances.flatMap(_._2.view.map(_.OfModule).toSeq)
-    instModules.foldLeft(Map(c.main.OfModule -> 1)) { case (counts, mod) => counts.updated(mod, counts.getOrElse(mod, 0) + 1) }
+    instModules.foldLeft(Map(c.main.OfModule -> 1)) {
+      case (counts, mod) => counts.updated(mod, counts.getOrElse(mod, 0) + 1)
+    }
   }
 
   /** Finds the absolute paths (each represented by a Seq of instances
@@ -85,7 +90,9 @@ class InstanceGraph(c: Circuit) {
     */
   def findInstancesInHierarchy(module: String): Seq[Seq[WDefInstance]] = {
     val instances = graph.getVertices.filter(_.module == module).toSeq
-    instances flatMap { i => fullHierarchy.getOrElse(i, Nil) }
+    instances.flatMap { i =>
+      fullHierarchy.getOrElse(i, Nil)
+    }
   }
 
   /** An [[firrtl.graph.EulerTour EulerTour]] representation of the [[firrtl.graph.DiGraph DiGraph]] */
@@ -94,8 +101,7 @@ class InstanceGraph(c: Circuit) {
   /** Finds the lowest common ancestor instances for two module names in
     * a design
     */
-  def lowestCommonAncestor(moduleA: Seq[WDefInstance],
-                           moduleB: Seq[WDefInstance]): Seq[WDefInstance] = {
+  def lowestCommonAncestor(moduleA: Seq[WDefInstance], moduleB: Seq[WDefInstance]): Seq[WDefInstance] = {
     tour.rmq(moduleA, moduleB)
   }
 
@@ -107,10 +113,9 @@ class InstanceGraph(c: Circuit) {
     graph.transformNodes(_.module).linearize.map(moduleMap(_))
   }
 
-
   /** Given a circuit, returns a map from module name to children
-     * instance/module definitions
-     */
+    * instance/module definitions
+    */
   def getChildrenInstances: mutable.LinkedHashMap[String, mutable.LinkedHashSet[WDefInstance]] = childInstances
 
   /** Given a circuit, returns a map from module name to children
@@ -133,19 +138,16 @@ class InstanceGraph(c: Circuit) {
     */
   def getChildrenInstanceMap: collection.Map[OfModule, collection.Map[Instance, OfModule]] =
     childInstances.map(kv => kv._1.OfModule -> asOrderedMap(kv._2, (i: WDefInstance) => i.toTokens))
-
 }
 
 object InstanceGraph {
-
   /** Returns all WDefInstances in a Statement
     *
     * @param insts mutable datastructure to append to
     * @param s statement to descend
     * @return
     */
-  def collectInstances(insts: mutable.Set[WDefInstance])
-                      (s: Statement): Unit = s match {
+  def collectInstances(insts: mutable.Set[WDefInstance])(s: Statement): Unit = s match {
     case i: WDefInstance => insts += i
     case i: DefInstance => throwInternalError("Expecting WDefInstance, found a DefInstance!")
     case i: WDefInstanceConnector => throwInternalError("Expecting WDefInstance, found a WDefInstanceConnector!")

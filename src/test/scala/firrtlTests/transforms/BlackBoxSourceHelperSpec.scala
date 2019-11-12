@@ -8,9 +8,8 @@ import firrtl.{Transform, VerilogEmitter}
 import firrtlTests.LowTransformSpec
 import firrtl.FileUtils
 
-
 class BlacklBoxSourceHelperTransformSpec extends LowTransformSpec {
-   def transform: Transform = new BlackBoxSourceHelper
+  def transform: Transform = new BlackBoxSourceHelper
 
   private val moduleName = ModuleName("Top", CircuitName("Top"))
   private val input = """
@@ -31,25 +30,24 @@ class BlacklBoxSourceHelperTransformSpec extends LowTransformSpec {
                         |   y <= a1.bar
                       """.stripMargin
   private val output = """
-                        |circuit Top :
-                        |
-                        |  extmodule AdderExtModule :
-                        |    input foo : UInt<16>
-                        |    output bar : UInt<16>
-                        |
-                        |    defname = BBFAdd
-                        |
-                        |  module Top :
-                        |   input x : UInt<16>
-                        |   output y : UInt<16>
-                        |
-                        |   inst a1 of AdderExtModule
-                        |   y <= a1.bar
-                        |   a1.foo <= x
+                         |circuit Top :
+                         |
+                         |  extmodule AdderExtModule :
+                         |    input foo : UInt<16>
+                         |    output bar : UInt<16>
+                         |
+                         |    defname = BBFAdd
+                         |
+                         |  module Top :
+                         |   input x : UInt<16>
+                         |   output y : UInt<16>
+                         |
+                         |   inst a1 of AdderExtModule
+                         |   y <= a1.bar
+                         |   a1.foo <= x
                       """.stripMargin
 
   "annotated external modules with absolute path" should "appear in output directory" in {
-
     val absPath = new java.io.File("src/test/resources/blackboxes/AdderExtModule.v").getCanonicalPath
     val annos = Seq(
       BlackBoxTargetDirAnno("test_run_dir"),
@@ -61,15 +59,14 @@ class BlacklBoxSourceHelperTransformSpec extends LowTransformSpec {
     val module = new java.io.File("test_run_dir/AdderExtModule.v")
     val fileList = new java.io.File(s"test_run_dir/${BlackBoxSourceHelper.defaultFileListName}")
 
-    module.exists should be (true)
-    fileList.exists should be (true)
+    module.exists should be(true)
+    fileList.exists should be(true)
 
     module.delete()
     fileList.delete()
   }
 
   "annotated external modules with relative path" should "appear in output directory" in {
-
     val annos = Seq(
       BlackBoxTargetDirAnno("test_run_dir"),
       BlackBoxPathAnno(moduleName, "src/test/resources/blackboxes/AdderExtModule.v")
@@ -80,15 +77,14 @@ class BlacklBoxSourceHelperTransformSpec extends LowTransformSpec {
     val module = new java.io.File("test_run_dir/AdderExtModule.v")
     val fileList = new java.io.File(s"test_run_dir/${BlackBoxSourceHelper.defaultFileListName}")
 
-    module.exists should be (true)
-    fileList.exists should be (true)
+    module.exists should be(true)
+    fileList.exists should be(true)
 
     module.delete()
     fileList.delete()
   }
 
   "annotated external modules" should "appear in output directory" in {
-
     val annos = Seq(
       BlackBoxTargetDirAnno("test_run_dir"),
       BlackBoxResourceAnno(moduleName, "/blackboxes/AdderExtModule.v")
@@ -96,13 +92,15 @@ class BlacklBoxSourceHelperTransformSpec extends LowTransformSpec {
 
     execute(input, output, annos)
 
-    new java.io.File("test_run_dir/AdderExtModule.v").exists should be (true)
-    new java.io.File(s"test_run_dir/${BlackBoxSourceHelper.defaultFileListName}").exists should be (true)
+    new java.io.File("test_run_dir/AdderExtModule.v").exists should be(true)
+    new java.io.File(s"test_run_dir/${BlackBoxSourceHelper.defaultFileListName}").exists should be(true)
   }
 
   "verilog compiler" should "have BlackBoxSourceHelper transform" in {
     val verilogCompiler = new VerilogEmitter
-    verilogCompiler.transforms.map { x => x.getClass } should contain (classOf[BlackBoxSourceHelper])
+    verilogCompiler.transforms.map { x =>
+      x.getClass
+    } should contain(classOf[BlackBoxSourceHelper])
   }
 
   "verilog header files" should "be available but not mentioned in the file list" in {
@@ -119,40 +117,40 @@ class BlacklBoxSourceHelperTransformSpec extends LowTransformSpec {
     // We'll copy the following resources to the test_run_dir via BlackBoxResourceAnno's
     val resourceNames = Seq("ParameterizedViaHeaderAdderExtModule.v", "VerilogHeaderFile.vh")
 
-    val annos = Seq(
-      BlackBoxTargetDirAnno("test_run_dir")) ++ resourceNames.map{ n => BlackBoxResourceAnno(moduleName, "/blackboxes/" + n)}
+    val annos = Seq(BlackBoxTargetDirAnno("test_run_dir")) ++ resourceNames.map { n =>
+      BlackBoxResourceAnno(moduleName, "/blackboxes/" + n)
+    }
 
     execute(pInput, pOutput, annos)
 
     // Our resource files should exist in the test_run_dir,
     for (n <- resourceNames)
-      new java.io.File("test_run_dir/" + n).exists should be (true)
+      new java.io.File("test_run_dir/" + n).exists should be(true)
 
     //  but our file list should not include the verilog header file.
     val fileListFile = new java.io.File(s"test_run_dir/${BlackBoxSourceHelper.defaultFileListName}")
-    fileListFile.exists should be (true)
+    fileListFile.exists should be(true)
     val fileList = FileUtils.getText(fileListFile)
-    fileList.contains("ParameterizedViaHeaderAdderExtModule.v") should be (true)
-    fileList.contains("VerilogHeaderFile.vh") should be (false)
+    fileList.contains("ParameterizedViaHeaderAdderExtModule.v") should be(true)
+    fileList.contains("VerilogHeaderFile.vh") should be(false)
   }
 
-  behavior of "BlackBox resources that do not exist"
+  behavior.of("BlackBox resources that do not exist")
 
   it should "provide a useful error message for BlackBoxResourceAnno" in {
-    val annos = Seq( BlackBoxTargetDirAnno("test_run_dir"),
-                     BlackBoxResourceAnno(moduleName, "/blackboxes/IDontExist.v") )
+    val annos = Seq(BlackBoxTargetDirAnno("test_run_dir"), BlackBoxResourceAnno(moduleName, "/blackboxes/IDontExist.v"))
 
-    (the [BlackBoxNotFoundException] thrownBy { execute(input, "", annos) })
-      .getMessage should include ("Did you misspell it?")
+    (the[BlackBoxNotFoundException] thrownBy { execute(input, "", annos) }).getMessage should include(
+      "Did you misspell it?"
+    )
   }
 
   it should "provide a useful error message for BlackBoxPathAnno" in {
     val absPath = new java.io.File("src/test/resources/blackboxes/IDontExist.v").getCanonicalPath
-    val annos = Seq( BlackBoxTargetDirAnno("test_run_dir"),
-                     BlackBoxPathAnno(moduleName, absPath) )
+    val annos = Seq(BlackBoxTargetDirAnno("test_run_dir"), BlackBoxPathAnno(moduleName, absPath))
 
-    (the [BlackBoxNotFoundException] thrownBy { execute(input, "", annos) })
-      .getMessage should include ("Did you misspell it?")
+    (the[BlackBoxNotFoundException] thrownBy { execute(input, "", annos) }).getMessage should include(
+      "Did you misspell it?"
+    )
   }
-
 }

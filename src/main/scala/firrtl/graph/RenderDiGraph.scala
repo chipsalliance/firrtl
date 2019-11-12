@@ -15,8 +15,6 @@ import scala.collection.mutable
   * @tparam T        The type of the Node.
   */
 class RenderDiGraph[T <: Any](diGraph: DiGraph[T], graphName: String = "", rankDir: String = "LR") {
-
-
   /**
     * override this to change the default way a node is displayed. Default is toString surrounded by double quotes
     * {{{
@@ -39,15 +37,13 @@ class RenderDiGraph[T <: Any](diGraph: DiGraph[T], graphName: String = "", rankD
 
     try {
       diGraph.linearize
-    }
-    catch {
+    } catch {
       case cyclicException: CyclicException =>
         val node = cyclicException.node.asInstanceOf[T]
         path = diGraph.findLoopAtNode(node)
 
       case t: Throwable =>
         throw t
-
     }
     path.toSet
   }
@@ -62,8 +58,7 @@ class RenderDiGraph[T <: Any](diGraph: DiGraph[T], graphName: String = "", rankD
 
     val loop = findOneLoop
 
-    if(loop.nonEmpty) {
-
+    if (loop.nonEmpty) {
       // Find all the children of the nodes in the loop
       val childrenFound = diGraph.getEdgeMap.flatMap {
         case (node, children) if loop.contains(node) => children
@@ -72,21 +67,19 @@ class RenderDiGraph[T <: Any](diGraph: DiGraph[T], graphName: String = "", rankD
 
       // Create a new DiGraph containing only loop and direct children or parents
       val edgeData = diGraph.getEdgeMap
-      val newEdgeData = edgeData.flatMap { case (node, children) =>
-        if(loop.contains(node)) {
-          Some(node -> children)
-        }
-        else if(childrenFound.contains(node)) {
-          Some(node -> children.intersect(loop))
-        }
-        else {
-          val newChildren = children.intersect(loop)
-          if(newChildren.nonEmpty) {
-            Some(node -> newChildren)
-          }
-          else {
-            None
-          }
+      val newEdgeData = edgeData.flatMap {
+        case (node, children) =>
+          if (loop.contains(node)) {
+            Some(node -> children)
+          } else if (childrenFound.contains(node)) {
+            Some(node -> children.intersect(loop))
+          } else {
+            val newChildren = children.intersect(loop)
+            if (newChildren.nonEmpty) {
+              Some(node -> newChildren)
+            } else {
+              None
+            }
           }
       }
 
@@ -97,8 +90,7 @@ class RenderDiGraph[T <: Any](diGraph: DiGraph[T], graphName: String = "", rankD
         }
       }
       newRenderer.toDotWithLoops(loop, getRankedNodes)
-    }
-    else {
+    } else {
       ""
     }
   }
@@ -115,10 +107,11 @@ class RenderDiGraph[T <: Any](diGraph: DiGraph[T], graphName: String = "", rankD
 
     val edges = diGraph.getEdgeMap
 
-    edges.foreach { case (parent, children) =>
-      children.foreach { child =>
-        s.append(s"""  ${renderNode(parent)} -> ${renderNode(child)};""" + "\n")
-      }
+    edges.foreach {
+      case (parent, children) =>
+        children.foreach { child =>
+          s.append(s"""  ${renderNode(parent)} -> ${renderNode(child)};""" + "\n")
+        }
     }
     s.append("}\n")
     s.toString
@@ -138,24 +131,28 @@ class RenderDiGraph[T <: Any](diGraph: DiGraph[T], graphName: String = "", rankD
 
     val edges = diGraph.getEdgeMap
 
-    edges.foreach { case (parent, children) =>
-      allNodes += parent
-      allNodes ++= children
+    edges.foreach {
+      case (parent, children) =>
+        allNodes += parent
+        allNodes ++= children
 
-      children.foreach { child =>
-        val highlight = if(loopedNodes.contains(parent) && loopedNodes.contains(child)) {
-          "[color=red,penwidth=3.0]"
+        children.foreach { child =>
+          val highlight = if (loopedNodes.contains(parent) && loopedNodes.contains(child)) {
+            "[color=red,penwidth=3.0]"
+          } else {
+            ""
+          }
+          s.append(s"""  ${renderNode(parent)} -> ${renderNode(child)}$highlight;""" + "\n")
         }
-        else {
-          ""
-        }
-        s.append(s"""  ${renderNode(parent)} -> ${renderNode(child)}$highlight;""" + "\n")
-      }
     }
 
     val paredRankedNodes = rankedNodes.flatMap { nodes =>
       val newNodes = nodes.filter(allNodes.contains)
-      if(newNodes.nonEmpty) { Some(newNodes) } else { None }
+      if (newNodes.nonEmpty) {
+        Some(newNodes)
+      } else {
+        None
+      }
     }
 
     paredRankedNodes.foreach { nodesAtRank =>
@@ -184,7 +181,7 @@ class RenderDiGraph[T <: Any](diGraph: DiGraph[T], graphName: String = "", rankD
         diGraph.getEdges(node)
       }.filterNot(alreadyVisited.contains).distinct
 
-      if(nextNodes.nonEmpty) {
+      if (nextNodes.nonEmpty) {
         walkByRank(nextNodes, rankNumber + 1)
       }
     }
@@ -192,6 +189,7 @@ class RenderDiGraph[T <: Any](diGraph: DiGraph[T], graphName: String = "", rankD
     walkByRank(diGraph.findSources.toSeq)
     rankNodes
   }
+
   /**
     * Convert this graph into input for the graphviz dot program.
     * It tries to align nodes in columns based
@@ -217,7 +215,7 @@ class RenderDiGraph[T <: Any](diGraph: DiGraph[T], graphName: String = "", rankD
         children
       }.filterNot(alreadyVisited.contains).distinct
 
-      if(nextNodes.nonEmpty) {
+      if (nextNodes.nonEmpty) {
         walkByRank(nextNodes, rankNumber + 1)
       }
     }

@@ -10,13 +10,12 @@ import firrtl.stage.{CompilerAnnotation, FirrtlCircuitAnnotation, RunFirrtlTrans
 import firrtl.stage.phases.Compiler
 
 class CompilerSpec extends FlatSpec with Matchers {
-
   class Fixture { val phase: Phase = new Compiler }
 
-  behavior of classOf[Compiler].toString
+  behavior.of(classOf[Compiler].toString)
 
   it should "do nothing for an empty AnnotationSeq" in new Fixture {
-    phase.transform(Seq.empty).toSeq should be (empty)
+    phase.transform(Seq.empty).toSeq should be(empty)
   }
 
   /** A circuit with a parameterized main (top name) that is different at High, Mid, and Low FIRRTL forms. */
@@ -34,13 +33,11 @@ class CompilerSpec extends FlatSpec with Matchers {
     val circuitIn = Parser.parse(chirrtl("top"))
     val circuitOut = compiler.compile(CircuitState(circuitIn, ChirrtlForm), Seq.empty).circuit
 
-    val input = Seq(
-      FirrtlCircuitAnnotation(circuitIn),
-      CompilerAnnotation(compiler) )
+    val input = Seq(FirrtlCircuitAnnotation(circuitIn), CompilerAnnotation(compiler))
 
     val expected = Seq(FirrtlCircuitAnnotation(circuitOut))
 
-    phase.transform(input).toSeq should be (expected)
+    phase.transform(input).toSeq should be(expected)
   }
 
   it should "compile multiple FirrtlCircuitAnnotations" in new Fixture {
@@ -50,32 +47,31 @@ class CompilerSpec extends FlatSpec with Matchers {
       new MiddleFirrtlCompiler,
       new LowFirrtlCompiler,
       new VerilogCompiler,
-      new SystemVerilogCompiler )
+      new SystemVerilogCompiler
+    )
     val (ce, hfe, mfe, lfe, ve, sve) = (
       new ChirrtlEmitter,
       new HighFirrtlEmitter,
       new MiddleFirrtlEmitter,
       new LowFirrtlEmitter,
       new VerilogEmitter,
-      new SystemVerilogEmitter )
+      new SystemVerilogEmitter
+    )
 
     val a = Seq(
       /* Default Compiler is HighFirrtlCompiler */
       CompilerAnnotation(hfc),
-
       /* First compiler group, use NoneCompiler */
       FirrtlCircuitAnnotation(Parser.parse(chirrtl("a"))),
       CompilerAnnotation(nc),
       RunFirrtlTransformAnnotation(ce),
       EmitCircuitAnnotation(ce.getClass),
-
       /* Second compiler group, use default HighFirrtlCompiler */
       FirrtlCircuitAnnotation(Parser.parse(chirrtl("b"))),
       RunFirrtlTransformAnnotation(ce),
       EmitCircuitAnnotation(ce.getClass),
       RunFirrtlTransformAnnotation(hfe),
       EmitCircuitAnnotation(hfe.getClass),
-
       /* Third compiler group, use MiddleFirrtlCompiler */
       FirrtlCircuitAnnotation(Parser.parse(chirrtl("c"))),
       CompilerAnnotation(mfc),
@@ -85,7 +81,6 @@ class CompilerSpec extends FlatSpec with Matchers {
       EmitCircuitAnnotation(hfe.getClass),
       RunFirrtlTransformAnnotation(mfe),
       EmitCircuitAnnotation(mfe.getClass),
-
       /* Fourth compiler group, use LowFirrtlCompiler*/
       FirrtlCircuitAnnotation(Parser.parse(chirrtl("d"))),
       CompilerAnnotation(lfc),
@@ -97,7 +92,6 @@ class CompilerSpec extends FlatSpec with Matchers {
       EmitCircuitAnnotation(mfe.getClass),
       RunFirrtlTransformAnnotation(lfe),
       EmitCircuitAnnotation(lfe.getClass),
-
       /* Fifth compiler group, use VerilogCompiler */
       FirrtlCircuitAnnotation(Parser.parse(chirrtl("e"))),
       CompilerAnnotation(vc),
@@ -111,7 +105,6 @@ class CompilerSpec extends FlatSpec with Matchers {
       EmitCircuitAnnotation(lfe.getClass),
       RunFirrtlTransformAnnotation(ve),
       EmitCircuitAnnotation(ve.getClass),
-
       /* Sixth compiler group, use SystemVerilogCompiler */
       FirrtlCircuitAnnotation(Parser.parse(chirrtl("f"))),
       CompilerAnnotation(svc),
@@ -130,14 +123,9 @@ class CompilerSpec extends FlatSpec with Matchers {
     val output = phase.transform(a)
 
     info("with the same number of output FirrtlCircuitAnnotations")
-    output
-      .collect{ case a: FirrtlCircuitAnnotation => a }
-      .size should be (6)
+    output.collect { case a: FirrtlCircuitAnnotation => a }.size should be(6)
 
     info("and all expected EmittedAnnotations should be generated")
-    output
-      .collect{ case a: EmittedAnnotation[_] => a }
-      .size should be (20)
+    output.collect { case a: EmittedAnnotation[_] => a }.size should be(20)
   }
-
 }

@@ -11,7 +11,6 @@ import com.google.protobuf.CodedInputStream
 import Firrtl.Statement.ReadUnderWrite
 
 object FromProto {
-
   /** Deserialize ProtoBuf representation of [[ir.Circuit]]
     *
     * @param filename Name of file containing ProtoBuf representation
@@ -119,8 +118,14 @@ object FromProto {
     ir.DefWire(convert(info), wire.getId, convert(wire.getType))
 
   def convert(reg: Firrtl.Statement.Register, info: Firrtl.SourceInfo): ir.DefRegister =
-    ir.DefRegister(convert(info), reg.getId, convert(reg.getType), convert(reg.getClock),
-                   convert(reg.getReset), convert(reg.getInit))
+    ir.DefRegister(
+      convert(info),
+      reg.getId,
+      convert(reg.getType),
+      convert(reg.getClock),
+      convert(reg.getReset),
+      convert(reg.getInit)
+    )
 
   def convert(node: Firrtl.Statement.Node, info: Firrtl.SourceInfo): ir.DefNode =
     ir.DefNode(convert(info), node.getId, convert(node.getExpression))
@@ -187,8 +192,18 @@ object FromProto {
       case UINT_DEPTH_FIELD_NUMBER => BigInt(mem.getUintDepth)
       case BIGINT_DEPTH_FIELD_NUMBER => convert(mem.getBigintDepth)
     }
-    ir.DefMemory(convert(info), mem.getId, dtype, depth, mem.getWriteLatency, mem.getReadLatency,
-                 rs, ws, rws, convert(mem.getReadUnderWrite))
+    ir.DefMemory(
+      convert(info),
+      mem.getId,
+      dtype,
+      depth,
+      mem.getWriteLatency,
+      mem.getReadLatency,
+      rs,
+      ws,
+      rws,
+      convert(mem.getReadUnderWrite)
+    )
   }
 
   def convert(attach: Firrtl.Statement.Attach, info: Firrtl.SourceInfo): ir.Attach = {
@@ -230,7 +245,7 @@ object FromProto {
     val w = if (ut.hasWidth) convert(ut.getWidth) else ir.UnknownWidth
     ir.UIntType(w)
   }
-  
+
   def convert(st: Firrtl.Type.SIntType): ir.SIntType = {
     val w = if (st.hasWidth) convert(st.getWidth) else ir.UnknownWidth
     ir.SIntType(w)

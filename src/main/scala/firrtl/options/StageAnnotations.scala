@@ -7,12 +7,14 @@ import firrtl.annotations.{Annotation, NoTargetAnnotation}
 
 import scopt.OptionParser
 
-sealed trait StageOption { this: Annotation => }
+sealed trait StageOption { this: Annotation =>
+}
 
 /** An annotation that should not be serialized automatically [[phases.WriteOutputAnnotations WriteOutputAnnotations]].
   * This usually means that this is an annotation that is used only internally to a [[Stage]].
   */
-trait Unserializable { this: Annotation => }
+trait Unserializable { this: Annotation =>
+}
 
 /** Holds the name of the target directory
   *  - set with `-td/--target-dir`
@@ -22,15 +24,15 @@ trait Unserializable { this: Annotation => }
 case class TargetDirAnnotation(directory: String = ".") extends NoTargetAnnotation with StageOption
 
 object TargetDirAnnotation extends HasShellOptions {
-
   val options = Seq(
     new ShellOption[String](
       longOption = "target-dir",
       toAnnotationSeq = (a: String) => Seq(TargetDirAnnotation(a)),
       helpText = "Work directory (default: '.')",
       shortOption = Some("td"),
-      helpValueName = Some("<directory>") ) )
-
+      helpValueName = Some("<directory>")
+    )
+  )
 }
 
 /** Additional arguments
@@ -40,12 +42,12 @@ object TargetDirAnnotation extends HasShellOptions {
 case class ProgramArgsAnnotation(arg: String) extends NoTargetAnnotation with StageOption
 
 object ProgramArgsAnnotation {
-
-  def addOptions(p: OptionParser[AnnotationSeq]): Unit = p.arg[String]("<arg>...")
-    .unbounded()
-    .optional()
-    .action( (x, c) => ProgramArgsAnnotation(x) +: c )
-    .text("optional unbounded args")
+  def addOptions(p: OptionParser[AnnotationSeq]): Unit =
+    p.arg[String]("<arg>...")
+      .unbounded()
+      .optional()
+      .action((x, c) => ProgramArgsAnnotation(x) +: c)
+      .text("optional unbounded args")
 }
 
 /** Holds a filename containing one or more [[annotations.Annotation]] to be read
@@ -56,15 +58,15 @@ object ProgramArgsAnnotation {
 case class InputAnnotationFileAnnotation(file: String) extends NoTargetAnnotation with StageOption
 
 object InputAnnotationFileAnnotation extends HasShellOptions {
-
   val options = Seq(
     new ShellOption[String](
       longOption = "annotation-file",
       toAnnotationSeq = (a: String) => Seq(InputAnnotationFileAnnotation(a)),
       helpText = "An input annotation file",
       shortOption = Some("faf"),
-      helpValueName = Some("<file>") ) )
-
+      helpValueName = Some("<file>")
+    )
+  )
 }
 
 /** An explicit output _annotation_ file to write to
@@ -74,15 +76,15 @@ object InputAnnotationFileAnnotation extends HasShellOptions {
 case class OutputAnnotationFileAnnotation(file: String) extends NoTargetAnnotation with StageOption
 
 object OutputAnnotationFileAnnotation extends HasShellOptions {
-
   val options = Seq(
     new ShellOption[String](
       longOption = "output-annotation-file",
       toAnnotationSeq = (a: String) => Seq(OutputAnnotationFileAnnotation(a)),
       helpText = "An output annotation file",
       shortOption = Some("foaf"),
-      helpValueName = Some("<file>") ) )
-
+      helpValueName = Some("<file>")
+    )
+  )
 }
 
 /** If this [[firrtl.annotations.Annotation Annotation]] exists in an [[firrtl.AnnotationSeq AnnotationSeq]], then a
@@ -91,11 +93,11 @@ object OutputAnnotationFileAnnotation extends HasShellOptions {
   *  - set with '--write-deleted'
   */
 case object WriteDeletedAnnotation extends NoTargetAnnotation with StageOption with HasShellOptions {
-
   val options = Seq(
     new ShellOption[Unit](
       longOption = "write-deleted",
       toAnnotationSeq = (_: Unit) => Seq(WriteDeletedAnnotation),
-      helpText = "Include deleted annotations in the output annotation file" ) )
-
+      helpText = "Include deleted annotations in the output annotation file"
+    )
+  )
 }

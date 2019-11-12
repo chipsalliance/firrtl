@@ -9,7 +9,6 @@ import firrtl.graph.MutableDiGraph
 
 import scala.collection.mutable
 
-
 /**
   * Specifies a group of components, within a module, to pull out into their own module
   * Components that are only connected to a group's components will also be included
@@ -20,8 +19,14 @@ import scala.collection.mutable
   * @param outputSuffix suggested suffix of any output ports of the new module
   * @param inputSuffix suggested suffix of any input ports of the new module
   */
-case class GroupAnnotation(components: Seq[ComponentName], newModule: String, newInstance: String, outputSuffix: Option[String] = None, inputSuffix: Option[String] = None) extends Annotation {
-  if(components.nonEmpty) {
+case class GroupAnnotation(
+  components:   Seq[ComponentName],
+  newModule:    String,
+  newInstance:  String,
+  outputSuffix: Option[String] = None,
+  inputSuffix:  Option[String] = None
+) extends Annotation {
+  if (components.nonEmpty) {
     require(components.forall(_.module == components.head.module), "All components must be in the same module.")
     require(components.forall(!_.name.contains('.')), "No components can be a subcomponent.")
   }
@@ -34,7 +39,9 @@ case class GroupAnnotation(components: Seq[ComponentName], newModule: String, ne
 
   /* Only keeps components renamed to components */
   def update(renames: RenameMap): Seq[Annotation] = {
-    val newComponents = components.flatMap{c => renames.get(c).getOrElse(Seq(c))}.collect {
+    val newComponents = components.flatMap { c =>
+      renames.get(c).getOrElse(Seq(c))
+    }.collect {
       case c: ComponentName => c
     }
     Seq(GroupAnnotation(newComponents, newModule, newInstance, outputSuffix, inputSuffix))
@@ -47,11 +54,11 @@ case class GroupAnnotation(components: Seq[ComponentName], newModule: String, ne
 class GroupComponents extends firrtl.Transform {
   type MSet[T] = mutable.Set[T]
 
-  def inputForm: CircuitForm = MidForm
+  def inputForm:  CircuitForm = MidForm
   def outputForm: CircuitForm = MidForm
 
   override def execute(state: CircuitState): CircuitState = {
-    val groups = state.annotations.collect {case g: GroupAnnotation => g}
+    val groups = state.annotations.collect { case g: GroupAnnotation => g }
     val module2group = groups.groupBy(_.currentModule)
     val mnamespace = Namespace(state.circuit)
     val newModules = state.circuit.modules.flatMap {
@@ -69,12 +76,13 @@ class GroupComponents extends firrtl.Transform {
     val namespace = Namespace(m)
     val groupRoots = groups.map(_.components.map(_.name))
     val totalSum = groupRoots.map(_.size).sum
-    val union = groupRoots.foldLeft(Set.empty[String]){(all, set) => all.union(set.toSet)}
+    val union = groupRoots.foldLeft(Set.empty[String]) { (all, set) =>
+      all.union(set.toSet)
+    }
 
-    require(groupRoots.forall{_.forall{namespace.contains}}, "All names should be in this module")
+    require(groupRoots.forall { _.forall { namespace.contains } }, "All names should be in this module")
     require(totalSum == union.size, "No name can be in more than one group")
     require(groupRoots.forall(_.nonEmpty), "All groupRoots must by non-empty")
-
 
     // Order of groups, according to their label. The label is the first root in the group
     val labelOrder = groups.collect({ case g: GroupAnnotation => g.components.head.name })
@@ -85,8 +93,8 @@ class GroupComponents extends firrtl.Transform {
     // Group roots, by label
     // The label "" indicates the original module, and components belonging to that group will remain
     //   in the original module (not get moved into a new module)
-    val label2group: Map[String, MSet[String]] = groups.collect{
-      case GroupAnnotation(set, module, instance, _, _) => set.head.name -> mutable.Set(set.map(_.name):_*)
+    val label2group: Map[String, MSet[String]] = groups.collect {
+      case GroupAnnotation(set, module, instance, _, _) => set.head.name -> mutable.Set(set.map(_.name): _*)
     }.toMap + ("" -> mutable.Set(""))
 
     // Name of new module containing each group, by label
@@ -100,7 +108,6 @@ class GroupComponents extends firrtl.Transform {
     // Build set of components not in set
     val notSet = label2group.map { case (key, value) => key -> union.diff(value) }
 
-
     // Get all dependencies between components
     val deps = getComponentConnectivity(m)
 
@@ -109,13 +116,14 @@ class GroupComponents extends firrtl.Transform {
 
     // For each group (by label), add connectivity between nodes in set
     // Populate reachableNodes with reachability, where blacklist is their notSet
-    label2group.foreach { case (label, set) =>
-      set.foreach { x =>
-        deps.addPairWithEdge(label, x)
-      }
-      deps.reachableFrom(label, notSet(label)) foreach { node =>
-        reachableNodes.getOrElseUpdate(node, mutable.Set.empty[String]) += label
-      }
+    label2group.foreach {
+      case (label, set) =>
+        set.foreach { x =>
+          deps.addPairWithEdge(label, x)
+        }
+        deps.reachableFrom(label, notSet(label)).foreach { node =>
+          reachableNodes.getOrElseUpdate(node, mutable.Set.empty[String]) += label
+        }
     }
 
     // Unused nodes are not reachable from any group nor the root--add them to root group
@@ -124,12 +132,13 @@ class GroupComponents extends firrtl.Transform {
     }
 
     // Add nodes who are reached by a single group, to that group
-    reachableNodes.foreach { case (node, membership) =>
-      if(membership.size == 1) {
-        label2group(membership.head) += node
-      } else {
-        label2group("") += node
-      }
+    reachableNodes.foreach {
+      case (node, membership) =>
+        if (membership.size == 1) {
+          label2group(membership.head) += node
+        } else {
+          label2group("") += node
+        }
     }
 
     applyGrouping(m, labelOrder, label2group, label2module, label2instance, label2annotation)
@@ -145,19 +154,21 @@ class GroupComponents extends firrtl.Transform {
     * @param label2annotation annotation specifying the group, by label
     * @return new modules, including each group's module and the new split module
     */
-  def applyGrouping( m: Module,
-                     labelOrder: Seq[String],
-                     label2group: Map[String, MSet[String]],
-                     label2module: Map[String, String],
-                     label2instance: Map[String, String],
-                     label2annotation: Map[String, GroupAnnotation]
-                   ): Seq[Module] = {
+  def applyGrouping(
+    m:                Module,
+    labelOrder:       Seq[String],
+    label2group:      Map[String, MSet[String]],
+    label2module:     Map[String, String],
+    label2instance:   Map[String, String],
+    label2annotation: Map[String, GroupAnnotation]
+  ): Seq[Module] = {
     // Maps node to group
     val byNode = mutable.HashMap[String, String]()
-    label2group.foreach { case (group, nodes) =>
-      nodes.foreach { node =>
-        byNode(node) = group
-      }
+    label2group.foreach {
+      case (group, nodes) =>
+        nodes.foreach { node =>
+          byNode(node) = group
+        }
     }
     val groupNamespace = label2group.map { case (head, set) => head -> Namespace(set.toSeq) }
 
@@ -196,7 +207,7 @@ class GroupComponents extends firrtl.Transform {
     // Given the sink is in a group, tidy up source references
     def inGroupFixExps(group: String, added: mutable.ArrayBuffer[Statement])(e: Expression): Expression = e match {
       case _: Literal => e
-      case _: DoPrim | _: Mux | _: ValidIf => e map inGroupFixExps(group, added)
+      case _: DoPrim | _: Mux | _: ValidIf => e.map(inGroupFixExps(group, added))
       case otherExp: Expression =>
         val wref = getWRef(otherExp)
         val source = wref.name
@@ -233,10 +244,10 @@ class GroupComponents extends firrtl.Transform {
 
     // Given the sink is in the parent module, tidy up source references belonging to groups
     def inTopFixExps(e: Expression): Expression = e match {
-      case _: DoPrim | _: Mux | _: ValidIf => e map inTopFixExps
+      case _: DoPrim | _: Mux | _: ValidIf => e.map(inTopFixExps)
       case otherExp: Expression =>
         val wref = getWRef(otherExp)
-        if(byNode(wref.name) != "") {
+        if (byNode(wref.name) != "") {
           // Get the name of source's group
           val otherGroup = byNode(wref.name)
 
@@ -245,7 +256,6 @@ class GroupComponents extends firrtl.Transform {
 
           // Return WSubField (its inside the top Module still)
           WSubField(WRef(label2instance(otherGroup)), otherPortName)
-
         } else otherExp
     }
 
@@ -255,7 +265,7 @@ class GroupComponents extends firrtl.Transform {
         case r: IsDeclaration if byNode(r.name) != "" =>
           val topStmts = mutable.ArrayBuffer[Statement]()
           val group = byNode(r.name)
-          groupStatements(group) += r mapExpr inGroupFixExps(group, topStmts)
+          groupStatements(group) += r.mapExpr(inGroupFixExps(group, topStmts))
           Block(topStmts)
         case c: Connect if byNode(getWRef(c.loc).name) != "" =>
           // Sink is in a group
@@ -271,19 +281,20 @@ class GroupComponents extends firrtl.Transform {
         // TODO Attach if all are in a group?
         case _: IsDeclaration | _: Connect | _: Attach =>
           // Sink is in Top
-          val ret = s mapExpr inTopFixExps
+          val ret = s.mapExpr(inTopFixExps)
           ret
-        case other => other map onStmt
+        case other => other.map(onStmt)
       }
     }
 
-
     // Build datastructures
-    val newTopBody = Block(labelOrder.map(g => WDefInstance(NoInfo, label2instance(g), label2module(g), UnknownType)) ++ Seq(onStmt(m.body)))
+    val newTopBody = Block(
+      labelOrder.map(g => WDefInstance(NoInfo, label2instance(g), label2module(g), UnknownType)) ++ Seq(onStmt(m.body))
+    )
     val finalTopBody = Block(Utils.squashEmpty(newTopBody).asInstanceOf[Block].stmts.distinct)
 
     // For all group labels (not including the original module label), return a new Module.
-    val newModules = labelOrder.filter(_ != "") map { group =>
+    val newModules = labelOrder.filter(_ != "").map { group =>
       Module(NoInfo, label2module(group), groupPorts(group).distinct, Block(groupStatements(group).distinct))
     }
     Seq(m.copy(body = finalTopBody)) ++ newModules
@@ -293,7 +304,9 @@ class GroupComponents extends firrtl.Transform {
     case w: WRef => w
     case other =>
       var w = WRef("")
-      other mapExpr { e => w = getWRef(e); e}
+      other.mapExpr { e =>
+        w = getWRef(e); e
+      }
       w
   }
 
@@ -312,25 +325,25 @@ class GroupComponents extends firrtl.Transform {
         bidirGraph.addPairWithEdge(sink.name, name)
         bidirGraph.addPairWithEdge(name, sink.name)
         w
-      case other => other map onExpr(sink)
+      case other => other.map(onExpr(sink))
     }
     def onStmt(stmt: Statement): Unit = stmt match {
       case w: WDefInstance =>
       case h: IsDeclaration =>
         bidirGraph.addVertex(h.name)
-        h map onExpr(WRef(h.name))
+        h.map(onExpr(WRef(h.name)))
       case Attach(_, exprs) => // Add edge between each expression
-        exprs.tail map onExpr(getWRef(exprs.head))
+        exprs.tail.map(onExpr(getWRef(exprs.head)))
       case Connect(_, loc, expr) =>
         onExpr(getWRef(loc))(expr)
-      case q @ Stop(_,_, clk, en) =>
+      case q @ Stop(_, _, clk, en) =>
         val simName = simNamespace.newTemp
         simulations(simName) = q
-        Seq(clk, en) map onExpr(WRef(simName))
+        Seq(clk, en).map(onExpr(WRef(simName)))
       case q @ Print(_, _, args, clk, en) =>
         val simName = simNamespace.newTemp
         simulations(simName) = q
-        (args :+ clk :+ en) map onExpr(WRef(simName))
+        (args :+ clk :+ en).map(onExpr(WRef(simName)))
       case Block(stmts) => stmts.foreach(onStmt)
       case ignore @ (_: IsInvalid | EmptyStmt) => // do nothing
       case other => throw new Exception(s"Unexpected Statement $other")
@@ -350,7 +363,7 @@ class GroupComponents extends firrtl.Transform {
   * Tries to deduplicate the resulting circuit
   */
 class GroupAndDedup extends Transform {
-  def inputForm: CircuitForm = MidForm
+  def inputForm:  CircuitForm = MidForm
   def outputForm: CircuitForm = MidForm
 
   override def execute(state: CircuitState): CircuitState = {

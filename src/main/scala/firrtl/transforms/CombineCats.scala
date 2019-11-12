@@ -1,4 +1,3 @@
-
 package firrtl
 package transforms
 
@@ -17,21 +16,24 @@ object CombineCats {
   type Netlist = mutable.HashMap[WrappedExpression, (Int, Expression)]
 
   def expandCatArgs(maxCatLen: Int, netlist: Netlist)(expr: Expression): (Int, Expression) = expr match {
-    case cat@DoPrim(Cat, args, _, _) =>
+    case cat @ DoPrim(Cat, args, _, _) =>
       val (a0Len, a0Expanded) = expandCatArgs(maxCatLen - 1, netlist)(args.head)
       val (a1Len, a1Expanded) = expandCatArgs(maxCatLen - a0Len, netlist)(args(1))
       (a0Len + a1Len, cat.copy(args = Seq(a0Expanded, a1Expanded)).asInstanceOf[Expression])
     case other =>
-      netlist.get(we(expr)).collect {
-        case (len, cat@DoPrim(Cat, _, _, _)) if maxCatLen >= len => expandCatArgs(maxCatLen, netlist)(cat)
-      }.getOrElse((1, other))
+      netlist
+        .get(we(expr))
+        .collect {
+          case (len, cat @ DoPrim(Cat, _, _, _)) if maxCatLen >= len => expandCatArgs(maxCatLen, netlist)(cat)
+        }
+        .getOrElse((1, other))
   }
 
   def onStmt(maxCatLen: Int, netlist: Netlist)(stmt: Statement): Statement = {
     stmt.map(onStmt(maxCatLen, netlist)) match {
-      case node@DefNode(_, name, value) =>
+      case node @ DefNode(_, name, value) =>
         val catLenAndVal = value match {
-          case cat@DoPrim(Cat, _, _, _) => expandCatArgs(maxCatLen, netlist)(cat)
+          case cat @ DoPrim(Cat, _, _, _) => expandCatArgs(maxCatLen, netlist)(cat)
           case other => (1, other)
         }
         netlist(we(WRef(name))) = catLenAndVal
@@ -52,7 +54,7 @@ object CombineCats {
   * The default maximum number of elements is 10.
   */
 class CombineCats extends Transform {
-  def inputForm: LowForm.type = LowForm
+  def inputForm:  LowForm.type = LowForm
   def outputForm: LowForm.type = LowForm
   val defaultMaxCatLen = 10
 

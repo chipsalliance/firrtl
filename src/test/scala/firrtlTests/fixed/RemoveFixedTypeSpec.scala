@@ -10,12 +10,15 @@ import firrtl.Parser.IgnoreInfo
 
 class RemoveFixedTypeSpec extends FirrtlFlatSpec {
   private def executeTest(input: String, expected: Seq[String], passes: Seq[Transform]) = {
-    val c = passes.foldLeft(CircuitState(Parser.parse(input.split("\n").toIterator), UnknownForm)) {
-      (c: CircuitState, p: Transform) => p.runTransform(c)
-    }.circuit
-    val lines = c.serialize.split("\n") map normalized
+    val c = passes
+      .foldLeft(CircuitState(Parser.parse(input.split("\n").toIterator), UnknownForm)) {
+        (c: CircuitState, p: Transform) =>
+          p.runTransform(c)
+      }
+      .circuit
+    val lines = c.serialize.split("\n").map(normalized)
 
-    expected foreach { e =>
+    expected.foreach { e =>
       lines should contain(e)
     }
   }
@@ -31,7 +34,8 @@ class RemoveFixedTypeSpec extends FirrtlFlatSpec {
       CheckFlows,
       new InferWidths,
       CheckWidths,
-      ConvertFixedToSInt)
+      ConvertFixedToSInt
+    )
     val input =
       """circuit Unit :
         |  module Unit :
@@ -42,13 +46,13 @@ class RemoveFixedTypeSpec extends FirrtlFlatSpec {
         |    d <= add(a, add(b, c))""".stripMargin
     val check =
       """circuit Unit :
-         |  module Unit :
-         |    input a : SInt<10>
-         |    input b : SInt<10>
-         |    input c : SInt<4>
-         |    output d : SInt<15>
-         |    d <= shl(add(shl(a, 1), add(shl(b, 3), c)), 2)""".stripMargin
-    executeTest(input, check.split("\n") map normalized, passes)
+        |  module Unit :
+        |    input a : SInt<10>
+        |    input b : SInt<10>
+        |    input c : SInt<4>
+        |    output d : SInt<15>
+        |    d <= shl(add(shl(a, 1), add(shl(b, 3), c)), 2)""".stripMargin
+    executeTest(input, check.split("\n").map(normalized), passes)
   }
   "Fixed types" should "be removed, even with a bulk connect" in {
     val passes = Seq(
@@ -61,7 +65,8 @@ class RemoveFixedTypeSpec extends FirrtlFlatSpec {
       CheckFlows,
       new InferWidths,
       CheckWidths,
-      ConvertFixedToSInt)
+      ConvertFixedToSInt
+    )
     val input =
       """circuit Unit :
         |  module Unit :
@@ -72,13 +77,13 @@ class RemoveFixedTypeSpec extends FirrtlFlatSpec {
         |    d <- add(a, add(b, c))""".stripMargin
     val check =
       """circuit Unit :
-         |  module Unit :
-         |    input a : SInt<10>
-         |    input b : SInt<10>
-         |    input c : SInt<4>
-         |    output d : SInt<15>
-         |    d <- shl(add(shl(a, 1), add(shl(b, 3), c)), 2)""".stripMargin
-    executeTest(input, check.split("\n") map normalized, passes)
+        |  module Unit :
+        |    input a : SInt<10>
+        |    input b : SInt<10>
+        |    input c : SInt<4>
+        |    output d : SInt<15>
+        |    d <- shl(add(shl(a, 1), add(shl(b, 3), c)), 2)""".stripMargin
+    executeTest(input, check.split("\n").map(normalized), passes)
   }
 
   "Fixed types" should "remove binary point shift correctly" in {
@@ -92,7 +97,8 @@ class RemoveFixedTypeSpec extends FirrtlFlatSpec {
       CheckFlows,
       new InferWidths,
       CheckWidths,
-      ConvertFixedToSInt)
+      ConvertFixedToSInt
+    )
     val input =
       """circuit Unit :
         |  module Unit :
@@ -105,7 +111,7 @@ class RemoveFixedTypeSpec extends FirrtlFlatSpec {
         |    input a : SInt<10>
         |    output d : SInt<12>
         |    d <= shl(a, 2)""".stripMargin
-    executeTest(input, check.split("\n") map normalized, passes)
+    executeTest(input, check.split("\n").map(normalized), passes)
   }
 
   "Fixed types" should "remove binary point shift correctly in reverse" in {
@@ -119,7 +125,8 @@ class RemoveFixedTypeSpec extends FirrtlFlatSpec {
       CheckFlows,
       new InferWidths,
       CheckWidths,
-      ConvertFixedToSInt)
+      ConvertFixedToSInt
+    )
     val input =
       """circuit Unit :
         |  module Unit :
@@ -132,7 +139,7 @@ class RemoveFixedTypeSpec extends FirrtlFlatSpec {
         |    input a : SInt<10>
         |    output d : SInt<9>
         |    d <= shr(a, 1)""".stripMargin
-    executeTest(input, check.split("\n") map normalized, passes)
+    executeTest(input, check.split("\n").map(normalized), passes)
   }
 
   "Fixed types" should "remove an absolutely set binary point correctly" in {
@@ -146,7 +153,8 @@ class RemoveFixedTypeSpec extends FirrtlFlatSpec {
       CheckFlows,
       new InferWidths,
       CheckWidths,
-      ConvertFixedToSInt)
+      ConvertFixedToSInt
+    )
     val input =
       """circuit Unit :
         |  module Unit :
@@ -159,7 +167,7 @@ class RemoveFixedTypeSpec extends FirrtlFlatSpec {
         |    input a : SInt<10>
         |    output d : SInt<11>
         |    d <= shl(a, 1)""".stripMargin
-    executeTest(input, check.split("\n") map normalized, passes)
+    executeTest(input, check.split("\n").map(normalized), passes)
   }
 
   "Fixed point numbers" should "allow binary point to be set to zero at creation" in {
@@ -198,7 +206,8 @@ class RemoveFixedTypeSpec extends FirrtlFlatSpec {
       CheckFlows,
       new InferWidths,
       CheckWidths,
-      ConvertFixedToSInt)
+      ConvertFixedToSInt
+    )
     val input =
       """
         |circuit Unit :
@@ -211,6 +220,6 @@ class RemoveFixedTypeSpec extends FirrtlFlatSpec {
         |  module Unit :
         |    node x = asSInt(asSInt(UInt<2>("h3")))
       """.stripMargin
-    executeTest(input, check.split("\n") map normalized, passes)
+    executeTest(input, check.split("\n").map(normalized), passes)
   }
 }

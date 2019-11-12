@@ -16,7 +16,6 @@ import org.scalacheck._
 import org.scalacheck.Arbitrary._
 
 class PrintfSpec extends FirrtlPropSpec {
-
   property("Printf should correctly print values in each format %x, %d, %b") {
     val prefix = "Printf"
     val testDir = compileFirrtlTest(prefix, "/features")
@@ -34,7 +33,7 @@ class PrintfSpec extends FirrtlPropSpec {
     var expected = 0
     var error = false
     val ret = Process(s"./V${prefix}", testDir) !
-      ProcessLogger( line => {
+      ProcessLogger(line => {
         line match {
           case regex(dec, hex, bin) => {
             if (!done) {
@@ -56,11 +55,10 @@ class PrintfSpec extends FirrtlPropSpec {
 }
 
 class StringSpec extends FirrtlPropSpec {
-
   // Whitelist is [0x20 - 0x7e]
   val whitelist =
     """ !\"#$%&\''()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ""" +
-    """[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~"""
+      """[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~"""
 
   property(s"Character whitelist should be supported: [$whitelist] ") {
     val lit = StringLit.unescape(whitelist)
@@ -115,8 +113,8 @@ class StringSpec extends FirrtlPropSpec {
   val genFragment = Gen.frequency((10, genChar), (1, genFormat), (1, genEsc)).map(_.mkString)
   val genString = Gen.listOf[String](genFragment).map(_.mkString)
 
-  property ("Firrtl Format Strings with Unicode chars should emit as legal Verilog Strings") {
-    forAll (genString) { str =>
+  property("Firrtl Format Strings with Unicode chars should emit as legal Verilog Strings") {
+    forAll(genString) { str =>
       val verilogStr = StringLit(str).verilogFormat.verilogEscape
       assert(isValidVerilogString(verilogStr))
       assert(isValidVerilogFormat(verilogStr))

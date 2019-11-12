@@ -11,7 +11,6 @@ import firrtl.options.{OptionsException, OutputAnnotationFileAnnotation, Phase}
 import firrtl.stage.phases.{AddImplicitOutputFile, Checks}
 
 class ChecksSpec extends FlatSpec with Matchers {
-
   class Fixture { val phase: Phase = new Checks }
 
   val inputFile = FirrtlFileAnnotation("foo")
@@ -24,9 +23,9 @@ class ChecksSpec extends FlatSpec with Matchers {
   val min = Seq(inputFile, goodCompiler, infoMode)
 
   def checkExceptionMessage(phase: Phase, annotations: AnnotationSeq, messageStart: String): Unit =
-    intercept[OptionsException]{ phase.transform(annotations) }.getMessage should startWith(messageStart)
+    intercept[OptionsException] { phase.transform(annotations) }.getMessage should startWith(messageStart)
 
-  behavior of classOf[Checks].toString
+  behavior.of(classOf[Checks].toString)
 
   it should "require exactly one input source" in new Fixture {
     info("0 input source causes an exception")
@@ -73,8 +72,11 @@ class ChecksSpec extends FlatSpec with Matchers {
 
   it should "enforce exactly one info mode" in new Fixture {
     info("0 info modes should throw an exception")
-    checkExceptionMessage(phase, Seq(inputFile, goodCompiler),
-                          "Exactly one info mode must be specified, but none found")
+    checkExceptionMessage(
+      phase,
+      Seq(inputFile, goodCompiler),
+      "Exactly one info mode must be specified, but none found"
+    )
 
     info("2 info modes should throw an exception")
     val i = infoMode.modeName
@@ -85,5 +87,4 @@ class ChecksSpec extends FlatSpec with Matchers {
     info(s"""Minimum required: ${min.map(_.getClass.getSimpleName).mkString(", ")}""")
     phase.transform(min)
   }
-
 }

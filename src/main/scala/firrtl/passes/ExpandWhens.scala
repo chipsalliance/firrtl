@@ -26,14 +26,16 @@ import collection.mutable
 object ExpandWhens extends Pass {
   /** Returns circuit with when and last connection semantics resolved */
   def run(c: Circuit): Circuit = {
-    val modulesx = c.modules map {
+    val modulesx = c.modules.map {
       case m: ExtModule => m
       case m: Module =>
-      val (netlist, simlist, attaches, bodyx, sourceInfoMap) = expandWhens(m)
-      val attachedAnalogs = attaches.flatMap(_.exprs.map(we)).toSet
-      val newBody = Block(Seq(squashEmpty(bodyx)) ++ expandNetlist(netlist, attachedAnalogs, sourceInfoMap) ++
-                              combineAttaches(attaches) ++ simlist)
-      Module(m.info, m.name, m.ports, newBody)
+        val (netlist, simlist, attaches, bodyx, sourceInfoMap) = expandWhens(m)
+        val attachedAnalogs = attaches.flatMap(_.exprs.map(we)).toSet
+        val newBody = Block(
+          Seq(squashEmpty(bodyx)) ++ expandNetlist(netlist, attachedAnalogs, sourceInfoMap) ++
+            combineAttaches(attaches) ++ simlist
+        )
+        Module(m.info, m.name, m.ports, newBody)
     }
     Circuit(c.info, modulesx, c.main)
   }
@@ -60,7 +62,6 @@ object ExpandWhens extends Pass {
     * @note Note immutable.Map because conversion from mutable.LinkedHashMap to mutable.Map is VERY slow
     */
   type Defaults = Seq[mutable.Map[WrappedExpression, Expression]]
-
 
   /** Expands a module's when statements
     * @param m Module to expand
@@ -100,18 +101,15 @@ object ExpandWhens extends Pass {
      * @param p predicate so far, used to update simulation constructs
      * @param s statement to expand
      */
-    def expandWhens(netlist: Netlist,
-                    defaults: Defaults,
-                    p: Expression)
-                    (s: Statement): Statement = s match {
+    def expandWhens(netlist: Netlist, defaults: Defaults, p: Expression)(s: Statement): Statement = s match {
       // For each non-register declaration, update netlist with value WVoid for each female reference
       // Return self, unchanged
       case stmt @ (_: DefNode | EmptyStmt) => stmt
       case w: DefWire =>
-        netlist ++= (getFemaleRefs(w.name, w.tpe, DuplexFlow) map (ref => we(ref) -> WVoid))
+        netlist ++= (getFemaleRefs(w.name, w.tpe, DuplexFlow).map(ref => we(ref) -> WVoid))
         w
       case w: DefMemory =>
-        netlist ++= (getFemaleRefs(w.name, MemPortUtils.memType(w), SourceFlow) map (ref => we(ref) -> WVoid))
+        netlist ++= (getFemaleRefs(w.name, MemPortUtils.memType(w), SourceFlow).map(ref => we(ref) -> WVoid))
         w
       case w: WDefInstance =>
         netlist ++= (getFemaleRefs(w.name, w.tpe, SourceFlow).map(ref => we(ref) -> WVoid))
@@ -119,7 +117,7 @@ object ExpandWhens extends Pass {
       // Update netlist with self reference for each female reference
       // Return self, unchanged
       case r: DefRegister =>
-        netlist ++= (getFemaleRefs(r.name, r.tpe, DuplexFlow) map (ref => we(ref) -> ref))
+        netlist ++= (getFemaleRefs(r.name, r.tpe, DuplexFlow).map(ref => we(ref) -> ref))
         r
       // For value assignments, update netlist/attaches and return EmptyStmt
       case c: Connect =>
@@ -155,82 +153,87 @@ object ExpandWhens extends Pass {
 
         // Process combined maps because we only want to create 1 mux for each node
         //   present in the conseq and/or alt
-        val memos = (conseqNetlist ++ altNetlist) map { case (lvalue, _) =>
-          // Defaults in netlist get priority over those in defaults
-          val default = netlist get lvalue match {
-            case Some(v) => Some(v)
-            case None => getDefault(lvalue, defaults)
-          }
-          val res = default match {
-            case Some(defaultValue) =>
-              val trueValue = conseqNetlist getOrElse (lvalue, defaultValue)
-              val falseValue = altNetlist getOrElse (lvalue, defaultValue)
-              (trueValue, falseValue) match {
-                case (WInvalid, WInvalid) => WInvalid
-                case (WInvalid, fv) => ValidIf(NOT(sx.pred), fv, fv.tpe)
-                case (tv, WInvalid) => ValidIf(sx.pred, tv, tv.tpe)
-                case (tv, fv) => Mux(sx.pred, tv, fv, mux_type_and_widths(tv, fv)) //Muxing clocks will be checked during type checking
-              }
-            case None =>
-              // Since not in netlist, lvalue must be declared in EXACTLY one of conseq or alt
-              conseqNetlist getOrElse (lvalue, altNetlist(lvalue))
-          }
-
-          // Does an expression contain WVoid inserted in this pass?
-          def containsVoid(e: Expression): Boolean = e match {
-            case WVoid => true
-            case ValidIf(_, value, _) => memoizedVoid(value)
-            case Mux(_, tv, fv, _) => memoizedVoid(tv) || memoizedVoid(fv)
-            case _ => false
-          }
-
-          res match {
-            // Don't create a node to hold mux trees with void values
-            // "Idiomatic" emission of these muxes isn't a concern because they represent bad code (latches)
-            case e if containsVoid(e) =>
-              netlist(lvalue) = e
-              memoizedVoid += e   // remember that this was void
-              EmptyStmt
-            case _: ValidIf | _: Mux | _: DoPrim => nodes get res match {
-              case Some(name) =>
-                netlist(lvalue) = WRef(name, res.tpe, NodeKind, SourceFlow)
-                EmptyStmt
-              case None =>
-                val name = namespace.newTemp
-                nodes(res) = name
-                netlist(lvalue) = WRef(name, res.tpe, NodeKind, SourceFlow)
-                DefNode(sx.info, name, res)
+        val memos = (conseqNetlist ++ altNetlist).map {
+          case (lvalue, _) =>
+            // Defaults in netlist get priority over those in defaults
+            val default = netlist.get(lvalue) match {
+              case Some(v) => Some(v)
+              case None => getDefault(lvalue, defaults)
             }
-            case _ =>
-              netlist(lvalue) = res
-              EmptyStmt
-          }
+            val res = default match {
+              case Some(defaultValue) =>
+                val trueValue = conseqNetlist.getOrElse(lvalue, defaultValue)
+                val falseValue = altNetlist.getOrElse(lvalue, defaultValue)
+                (trueValue, falseValue) match {
+                  case (WInvalid, WInvalid) => WInvalid
+                  case (WInvalid, fv) => ValidIf(NOT(sx.pred), fv, fv.tpe)
+                  case (tv, WInvalid) => ValidIf(sx.pred, tv, tv.tpe)
+                  case (tv, fv) =>
+                    Mux(sx.pred, tv, fv, mux_type_and_widths(tv, fv)) //Muxing clocks will be checked during type checking
+                }
+              case None =>
+                // Since not in netlist, lvalue must be declared in EXACTLY one of conseq or alt
+                conseqNetlist.getOrElse(lvalue, altNetlist(lvalue))
+            }
+
+            // Does an expression contain WVoid inserted in this pass?
+            def containsVoid(e: Expression): Boolean = e match {
+              case WVoid => true
+              case ValidIf(_, value, _) => memoizedVoid(value)
+              case Mux(_, tv, fv, _) => memoizedVoid(tv) || memoizedVoid(fv)
+              case _ => false
+            }
+
+            res match {
+              // Don't create a node to hold mux trees with void values
+              // "Idiomatic" emission of these muxes isn't a concern because they represent bad code (latches)
+              case e if containsVoid(e) =>
+                netlist(lvalue) = e
+                memoizedVoid += e // remember that this was void
+                EmptyStmt
+              case _: ValidIf | _: Mux | _: DoPrim =>
+                nodes.get(res) match {
+                  case Some(name) =>
+                    netlist(lvalue) = WRef(name, res.tpe, NodeKind, SourceFlow)
+                    EmptyStmt
+                  case None =>
+                    val name = namespace.newTemp
+                    nodes(res) = name
+                    netlist(lvalue) = WRef(name, res.tpe, NodeKind, SourceFlow)
+                    DefNode(sx.info, name, res)
+                }
+              case _ =>
+                netlist(lvalue) = res
+                EmptyStmt
+            }
         }
         Block(Seq(conseqStmt, altStmt) ++ memos)
-      case block: Block => block map expandWhens(netlist, defaults, p)
+      case block: Block => block.map(expandWhens(netlist, defaults, p))
       case _ => throwInternalError()
     }
     val netlist = new Netlist
     // Add ports to netlist
-    netlist ++= (m.ports flatMap { case Port(_, name, dir, tpe) =>
-      getFemaleRefs(name, tpe, to_flow(dir)) map (ref => we(ref) -> WVoid)
+    netlist ++= (m.ports.flatMap {
+      case Port(_, name, dir, tpe) =>
+        getFemaleRefs(name, tpe, to_flow(dir)).map(ref => we(ref) -> WVoid)
     })
     val bodyx = expandWhens(netlist, Seq(netlist), one)(m.body)
     (netlist, simlist, attaches, bodyx, infoMap)
   }
 
-
   /** Returns all references to all Female leaf subcomponents of a reference */
   private def getFemaleRefs(n: String, t: Type, g: Flow): Seq[Expression] = {
     val exps = create_exps(WRef(n, t, ExpKind, g))
-    exps.flatMap { case exp =>
-      exp.tpe match {
-        case AnalogType(w) => None
-        case _ => flow(exp) match {
-          case (DuplexFlow | SinkFlow) => Some(exp)
-          case _ => None
+    exps.flatMap {
+      case exp =>
+        exp.tpe match {
+          case AnalogType(w) => None
+          case _ =>
+            flow(exp) match {
+              case (DuplexFlow | SinkFlow) => Some(exp)
+              case _ => None
+            }
         }
-      }
     }
   }
 
@@ -239,7 +242,7 @@ object ExpandWhens extends Pass {
     * @note Remove IsInvalids on attached Analog-typed components
     */
   private def expandNetlist(netlist: Netlist, attached: Set[WrappedExpression], sourceInfoMap: InfoMap) =
-    netlist map {
+    netlist.map {
       case (k, WInvalid) => // Remove IsInvalids on attached Analog types
         if (attached.contains(k)) EmptyStmt else IsInvalid(NoInfo, k.e1)
       case (k, v) =>
@@ -262,7 +265,7 @@ object ExpandWhens extends Pass {
         case Seq() => // None of these expressions is present in the attachMap
           AttachAcc(exprs, attachMap.size)
         case accs => // At least one expression present in the attachMap
-          val sorted = accs sortBy (_.idx)
+          val sorted = accs.sortBy(_.idx)
           AttachAcc((sorted.map(_.exprs) :+ exprs).flatten.distinct, sorted.head.idx)
       }
       attachMap ++= acc.exprs.map(_ -> acc)
@@ -275,10 +278,11 @@ object ExpandWhens extends Pass {
   private def getDefault(lvalue: WrappedExpression, defaults: Defaults): Option[Expression] = {
     defaults match {
       case Nil => None
-      case head :: tail => head get lvalue match {
-        case Some(p) => Some(p)
-        case None => getDefault(lvalue, tail)
-      }
+      case head :: tail =>
+        head.get(lvalue) match {
+          case Some(p) => Some(p)
+          case None => getDefault(lvalue, tail)
+        }
     }
   }
 

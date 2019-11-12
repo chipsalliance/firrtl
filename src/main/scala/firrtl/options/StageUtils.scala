@@ -2,7 +2,6 @@
 
 package firrtl.options
 
-
 /** Utilities related to working with a [[Stage]] */
 object StageUtils {
   /** Print a warning message (in yellow)
@@ -10,9 +9,9 @@ object StageUtils {
     */
   //scalastyle:off regex
   def dramaticWarning(message: String): Unit = {
-    println(Console.YELLOW + "-"*78)
+    println(Console.YELLOW + "-" * 78)
     println(s"Warning: $message")
-    println("-"*78 + Console.RESET)
+    println("-" * 78 + Console.RESET)
   }
 
   /** Print an error message (in red)
@@ -21,9 +20,9 @@ object StageUtils {
     */
   //scalastyle:off regex
   def dramaticError(message: String): Unit = {
-    println(Console.RED + "-"*78)
+    println(Console.RED + "-" * 78)
     println(s"Error: $message")
-    println("-"*78 + Console.RESET)
+    println("-" * 78 + Console.RESET)
   }
 
   /** Generate a message suggesting that the user look at the usage text.
@@ -32,5 +31,4 @@ object StageUtils {
   def dramaticUsageError(message: String): Unit =
     dramaticError(s"""|$message
                       |Try --help for more information.""".stripMargin)
-
 }

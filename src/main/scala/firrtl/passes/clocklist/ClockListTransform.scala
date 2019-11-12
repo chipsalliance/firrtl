@@ -12,8 +12,7 @@ import memlib._
 import firrtl.options.{RegisteredTransform, ShellOption}
 import firrtl.stage.RunFirrtlTransformAnnotation
 
-case class ClockListAnnotation(target: ModuleName, outputConfig: String) extends
-    SingleTargetAnnotation[ModuleName] {
+case class ClockListAnnotation(target: ModuleName, outputConfig: String) extends SingleTargetAnnotation[ModuleName] {
   def duplicate(n: ModuleName) = ClockListAnnotation(n, outputConfig)
 }
 
@@ -58,11 +57,13 @@ class ClockListTransform extends Transform with RegisteredTransform {
   val options = Seq(
     new ShellOption[String](
       longOption = "list-clocks",
-      toAnnotationSeq = (a: String) => Seq( passes.clocklist.ClockListAnnotation.parse(a),
-                                            RunFirrtlTransformAnnotation(new ClockListTransform) ),
+      toAnnotationSeq = (a: String) =>
+        Seq(passes.clocklist.ClockListAnnotation.parse(a), RunFirrtlTransformAnnotation(new ClockListTransform)),
       helpText = "List which signal drives each clock of every descendent of specified modules",
       shortOption = Some("clks"),
-      helpValueName = Some("-c:<circuit>:-m:<module>:-o:<filename>") ) )
+      helpValueName = Some("-c:<circuit>:-m:<module>:-o:<filename>")
+    )
+  )
 
   def passSeq(top: String, writer: Writer): Seq[Pass] =
     Seq(new ClockList(top, writer))

@@ -8,17 +8,14 @@ import firrtl.AnnotationSeq
   * @tparam T the type to which this viewer converts an [[firrtl.AnnotationSeq AnnotationSeq]] to
   */
 trait OptionsView[T] {
-
   /** Convert an [[firrtl.AnnotationSeq AnnotationSeq]] to some other type
     * @param options some annotations
     */
   def view(options: AnnotationSeq): T
-
 }
 
 /** A shim to manage multiple "views" of an [[firrtl.AnnotationSeq AnnotationSeq]] */
 object Viewer {
-
   /** Helper method to get at a given [[OptionsView]]. This enables access to [[OptionsView]] methods in a more canonical
     * format, e.g., you can then do `Viewer[T].view`.
     * @param a an implicit [[OptionsView]]
@@ -30,5 +27,4 @@ object Viewer {
     * @tparam T the type to which the input [[firrtl.AnnotationSeq AnnotationSeq]] should be viewed as
     */
   def view[T: OptionsView](options: AnnotationSeq): T = Viewer[T].view(options)
-
 }

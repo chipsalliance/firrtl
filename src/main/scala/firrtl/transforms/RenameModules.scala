@@ -13,7 +13,7 @@ import scala.collection.mutable
   * using namespace created by [[analyses.GetNamespace]], create unique names for modules
   */
 class RenameModules extends Transform {
-  def inputForm: LowForm.type = LowForm
+  def inputForm:  LowForm.type = LowForm
   def outputForm: LowForm.type = LowForm
 
   def collectNameMapping(namespace: Namespace, moduleNameMap: mutable.HashMap[String, String])(mod: DefModule): Unit = {

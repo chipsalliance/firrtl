@@ -15,9 +15,9 @@ import scala.collection.mutable
   * Has an [[UnknownForm]], because larger [[Transform]] should specify form
   */
 trait Pass extends Transform {
-  def inputForm: CircuitForm = UnknownForm
+  def inputForm:  CircuitForm = UnknownForm
   def outputForm: CircuitForm = UnknownForm
-  def run(c: Circuit): Circuit
+  def run(c:         Circuit): Circuit
   def execute(state: CircuitState): CircuitState = {
     val result = (state.form, inputForm) match {
       case (_, UnknownForm) => run(state.circuit)
@@ -31,7 +31,7 @@ trait Pass extends Transform {
 }
 
 // Error handling
-class PassException(message: String) extends FirrtlUserException(message)
+class PassException(message:         String) extends FirrtlUserException(message)
 class PassExceptions(val exceptions: Seq[PassException]) extends FirrtlUserException("\n" + exceptions.mkString("\n"))
 class Errors {
   val errors = collection.mutable.ArrayBuffer[PassException]()
@@ -47,7 +47,7 @@ class Errors {
 
 // These should be distributed into separate files
 object ToWorkingIR extends Pass {
-  def toExp(e: Expression): Expression = e map toExp match {
+  def toExp(e: Expression): Expression = e.map(toExp) match {
     case ex: Reference => WRef(ex.name, ex.tpe, UnknownKind, UnknownFlow)
     case ex: SubField => WSubField(ex.expr, ex.name, ex.tpe, UnknownFlow)
     case ex: SubIndex => WSubIndex(ex.expr, ex.value, ex.tpe, UnknownFlow)
@@ -55,59 +55,71 @@ object ToWorkingIR extends Pass {
     case ex => ex // This might look like a case to use case _ => e, DO NOT!
   }
 
-  def toStmt(s: Statement): Statement = s map toExp match {
+  def toStmt(s: Statement): Statement = s.map(toExp) match {
     case sx: DefInstance => WDefInstance(sx.info, sx.name, sx.module, UnknownType)
-    case sx => sx map toStmt
+    case sx => sx.map(toStmt)
   }
 
-  def run (c:Circuit): Circuit =
-    c copy (modules = c.modules map (_ map toStmt))
+  def run(c: Circuit): Circuit =
+    c.copy(modules = c.modules.map(_.map(toStmt)))
 }
 
 object PullMuxes extends Pass {
-   def run(c: Circuit): Circuit = {
-     def pull_muxes_e(e: Expression): Expression = e map pull_muxes_e match {
-       case ex: WSubField => ex.expr match {
-         case exx: Mux => Mux(exx.cond,
-           WSubField(exx.tval, ex.name, ex.tpe, ex.flow),
-           WSubField(exx.fval, ex.name, ex.tpe, ex.flow), ex.tpe)
-         case exx: ValidIf => ValidIf(exx.cond,
-           WSubField(exx.value, ex.name, ex.tpe, ex.flow), ex.tpe)
-         case _ => ex  // case exx => exx causes failed tests
-       }
-       case ex: WSubIndex => ex.expr match {
-         case exx: Mux => Mux(exx.cond,
-           WSubIndex(exx.tval, ex.value, ex.tpe, ex.flow),
-           WSubIndex(exx.fval, ex.value, ex.tpe, ex.flow), ex.tpe)
-         case exx: ValidIf => ValidIf(exx.cond,
-           WSubIndex(exx.value, ex.value, ex.tpe, ex.flow), ex.tpe)
-         case _ => ex  // case exx => exx causes failed tests
-       }
-       case ex: WSubAccess => ex.expr match {
-         case exx: Mux => Mux(exx.cond,
-           WSubAccess(exx.tval, ex.index, ex.tpe, ex.flow),
-           WSubAccess(exx.fval, ex.index, ex.tpe, ex.flow), ex.tpe)
-         case exx: ValidIf => ValidIf(exx.cond,
-           WSubAccess(exx.value, ex.index, ex.tpe, ex.flow), ex.tpe)
-         case _ => ex  // case exx => exx causes failed tests
-       }
-       case ex => ex
-     }
-     def pull_muxes(s: Statement): Statement = s map pull_muxes map pull_muxes_e
-     val modulesx = c.modules.map {
-       case (m:Module) => Module(m.info, m.name, m.ports, pull_muxes(m.body))
-       case (m:ExtModule) => m
-     }
-     Circuit(c.info, modulesx, c.main)
-   }
+  def run(c: Circuit): Circuit = {
+    def pull_muxes_e(e: Expression): Expression = e.map(pull_muxes_e) match {
+      case ex: WSubField =>
+        ex.expr match {
+          case exx: Mux =>
+            Mux(
+              exx.cond,
+              WSubField(exx.tval, ex.name, ex.tpe, ex.flow),
+              WSubField(exx.fval, ex.name, ex.tpe, ex.flow),
+              ex.tpe
+            )
+          case exx: ValidIf => ValidIf(exx.cond, WSubField(exx.value, ex.name, ex.tpe, ex.flow), ex.tpe)
+          case _ => ex // case exx => exx causes failed tests
+        }
+      case ex: WSubIndex =>
+        ex.expr match {
+          case exx: Mux =>
+            Mux(
+              exx.cond,
+              WSubIndex(exx.tval, ex.value, ex.tpe, ex.flow),
+              WSubIndex(exx.fval, ex.value, ex.tpe, ex.flow),
+              ex.tpe
+            )
+          case exx: ValidIf => ValidIf(exx.cond, WSubIndex(exx.value, ex.value, ex.tpe, ex.flow), ex.tpe)
+          case _ => ex // case exx => exx causes failed tests
+        }
+      case ex: WSubAccess =>
+        ex.expr match {
+          case exx: Mux =>
+            Mux(
+              exx.cond,
+              WSubAccess(exx.tval, ex.index, ex.tpe, ex.flow),
+              WSubAccess(exx.fval, ex.index, ex.tpe, ex.flow),
+              ex.tpe
+            )
+          case exx: ValidIf => ValidIf(exx.cond, WSubAccess(exx.value, ex.index, ex.tpe, ex.flow), ex.tpe)
+          case _ => ex // case exx => exx causes failed tests
+        }
+      case ex => ex
+    }
+    def pull_muxes(s: Statement): Statement = s.map(pull_muxes).map(pull_muxes_e)
+    val modulesx = c.modules.map {
+      case (m: Module) => Module(m.info, m.name, m.ports, pull_muxes(m.body))
+      case (m: ExtModule) => m
+    }
+    Circuit(c.info, modulesx, c.main)
+  }
 }
 
 object ExpandConnects extends Pass {
   def run(c: Circuit): Circuit = {
     def expand_connects(m: Module): Module = {
-      val flows = collection.mutable.LinkedHashMap[String,Flow]()
+      val flows = collection.mutable.LinkedHashMap[String, Flow]()
       def expand_s(s: Statement): Statement = {
-        def set_flow(e: Expression): Expression = e map set_flow match {
+        def set_flow(e: Expression): Expression = e.map(set_flow) match {
           case ex: WRef => WRef(ex.name, ex.tpe, ex.kind, flows(ex.name))
           case ex: WSubField =>
             val f = get_field(ex.expr.tpe, ex.name)
@@ -124,58 +136,62 @@ object ExpandConnects extends Pass {
           case sx: DefMemory => flows(sx.name) = SourceFlow; sx
           case sx: DefNode => flows(sx.name) = SourceFlow; sx
           case sx: IsInvalid =>
-            val invalids = create_exps(sx.expr).flatMap { case expx =>
-               flow(set_flow(expx)) match {
+            val invalids = create_exps(sx.expr).flatMap {
+              case expx =>
+                flow(set_flow(expx)) match {
                   case DuplexFlow => Some(IsInvalid(sx.info, expx))
                   case SinkFlow => Some(IsInvalid(sx.info, expx))
                   case _ => None
-               }
+                }
             }
             invalids.size match {
-               case 0 => EmptyStmt
-               case 1 => invalids.head
-               case _ => Block(invalids)
+              case 0 => EmptyStmt
+              case 1 => invalids.head
+              case _ => Block(invalids)
             }
           case sx: Connect =>
             val locs = create_exps(sx.loc)
             val exps = create_exps(sx.expr)
-            Block(locs.zip(exps).map { case (locx, expx) =>
-               to_flip(flow(locx)) match {
+            Block(locs.zip(exps).map {
+              case (locx, expx) =>
+                to_flip(flow(locx)) match {
                   case Default => Connect(sx.info, locx, expx)
                   case Flip => Connect(sx.info, expx, locx)
-               }
+                }
             })
           case sx: PartialConnect =>
             val ls = get_valid_points(sx.loc.tpe, sx.expr.tpe, Default, Default)
             val locs = create_exps(sx.loc)
             val exps = create_exps(sx.expr)
-            val stmts = ls map { case (x, y) =>
-              locs(x).tpe match {
-                case AnalogType(_) => Attach(sx.info, Seq(locs(x), exps(y)))
-                case _ =>
-                  to_flip(flow(locs(x))) match {
-                    case Default => Connect(sx.info, locs(x), exps(y))
-                    case Flip => Connect(sx.info, exps(y), locs(x))
-                  }
-              }
+            val stmts = ls.map {
+              case (x, y) =>
+                locs(x).tpe match {
+                  case AnalogType(_) => Attach(sx.info, Seq(locs(x), exps(y)))
+                  case _ =>
+                    to_flip(flow(locs(x))) match {
+                      case Default => Connect(sx.info, locs(x), exps(y))
+                      case Flip => Connect(sx.info, exps(y), locs(x))
+                    }
+                }
             }
             Block(stmts)
-          case sx => sx map expand_s
+          case sx => sx.map(expand_s)
         }
       }
 
-      m.ports.foreach { p => flows(p.name) = to_flow(p.direction) }
+      m.ports.foreach { p =>
+        flows(p.name) = to_flow(p.direction)
+      }
       Module(m.info, m.name, m.ports, expand_s(m.body))
     }
 
     val modulesx = c.modules.map {
-       case (m: ExtModule) => m
-       case (m: Module) => expand_connects(m)
+      case (m: ExtModule) => m
+      case (m: Module) => expand_connects(m)
     }
     Circuit(c.info, modulesx, c.main)
   }
 }
-
 
 // Replace shr by amount >= arg width with 0 for UInts and MSB for SInts
 // TODO replace UInt with zero-width wire instead
@@ -229,24 +245,25 @@ object Legalize extends Pass {
       Connect(c.info, c.loc, expr)
     }
   }
-  def run (c: Circuit): Circuit = {
-    def legalizeE(expr: Expression): Expression = expr map legalizeE match {
-      case prim: DoPrim => prim.op match {
-        case Shr => legalizeShiftRight(prim)
-        case Pad => legalizePad(prim)
-        case Bits | Head | Tail => legalizeBitExtract(prim)
-        case _ => prim
-      }
+  def run(c: Circuit): Circuit = {
+    def legalizeE(expr: Expression): Expression = expr.map(legalizeE) match {
+      case prim: DoPrim =>
+        prim.op match {
+          case Shr => legalizeShiftRight(prim)
+          case Pad => legalizePad(prim)
+          case Bits | Head | Tail => legalizeBitExtract(prim)
+          case _ => prim
+        }
       case e => e // respect pre-order traversal
     }
-    def legalizeS (s: Statement): Statement = {
+    def legalizeS(s: Statement): Statement = {
       val legalizedStmt = s match {
         case c: Connect => legalizeConnect(c)
         case _ => s
       }
-      legalizedStmt map legalizeS map legalizeE
+      legalizedStmt.map(legalizeS).map(legalizeE)
     }
-    c copy (modules = c.modules map (_ map legalizeS))
+    c.copy(modules = c.modules.map(_.map(legalizeS)))
   }
 }
 
@@ -261,7 +278,6 @@ object Legalize extends Pass {
   * @note The result of this pass is NOT legal Firrtl
   */
 object VerilogPrep extends Pass {
-
   type AttachSourceMap = Map[WrappedExpression, Expression]
 
   // Finds attaches with only a single source (Port or Wire)
@@ -271,9 +287,9 @@ object VerilogPrep extends Pass {
     val sourceMap = mutable.HashMap.empty[WrappedExpression, Expression]
     lazy val namespace = Namespace(m)
 
-    def onStmt(stmt: Statement): Statement = stmt map onStmt match {
+    def onStmt(stmt: Statement): Statement = stmt.map(onStmt) match {
       case attach: Attach =>
-        val wires = attach.exprs groupBy kind
+        val wires = attach.exprs.groupBy(kind)
         val sources = wires.getOrElse(PortKind, Seq.empty) ++ wires.getOrElse(WireKind, Seq.empty)
         val instPorts = wires.getOrElse(InstanceKind, Seq.empty)
         // Sanity check (Should be caught by CheckTypes)
@@ -296,14 +312,14 @@ object VerilogPrep extends Pass {
       case s => s
     }
 
-    (m map onStmt, sourceMap.toMap)
+    (m.map(onStmt), sourceMap.toMap)
   }
 
   def run(c: Circuit): Circuit = {
     def lowerE(e: Expression): Expression = e match {
       case (_: WRef | _: WSubField) if kind(e) == InstanceKind =>
         WRef(LowerTypes.loweredName(e), e.tpe, kind(e), flow(e))
-      case _ => e map lowerE
+      case _ => e.map(lowerE)
     }
 
     def lowerS(attachMap: AttachSourceMap)(s: Statement): Statement = s match {
@@ -321,12 +337,12 @@ object VerilogPrep extends Pass {
         }.unzip
         val newInst = WDefInstanceConnector(info, name, module, tpe, portCons)
         Block(wires.flatten :+ newInst)
-      case other => other map lowerS(attachMap) map lowerE
+      case other => other.map(lowerS(attachMap)).map(lowerE)
     }
 
-    val modulesx = c.modules map { mod =>
+    val modulesx = c.modules.map { mod =>
       val (modx, attachMap) = collectAndRemoveAttach(mod)
-      modx map lowerS(attachMap)
+      modx.map(lowerS(attachMap))
     }
     c.copy(modules = modulesx)
   }

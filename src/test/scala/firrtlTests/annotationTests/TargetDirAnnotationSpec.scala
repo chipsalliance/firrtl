@@ -23,7 +23,7 @@ class FindTargetDirTransform(expected: String) extends Transform {
 }
 
 class TargetDirAnnotationSpec extends FirrtlFlatSpec {
-  behavior of "The target directory"
+  behavior.of("The target directory")
 
   val input =
     """circuit Top :
@@ -38,32 +38,30 @@ class TargetDirAnnotationSpec extends FirrtlFlatSpec {
     val findTargetDir = new FindTargetDirTransform(targetDir) // looks for the annotation
 
     val optionsManager = new ExecutionOptionsManager("TargetDir") with HasFirrtlOptions {
-      commonOptions = commonOptions.copy(targetDirName = targetDir,
-                                         topName = "Top")
-      firrtlOptions = firrtlOptions.copy(compilerName = "high",
-                                         firrtlSource = Some(input),
-                                         customTransforms = Seq(findTargetDir))
+      commonOptions = commonOptions.copy(targetDirName = targetDir, topName = "Top")
+      firrtlOptions =
+        firrtlOptions.copy(compilerName = "high", firrtlSource = Some(input), customTransforms = Seq(findTargetDir))
     }
     Driver.execute(optionsManager)
 
     // Check that FindTargetDirTransform transform is run and finds the annotation
-    findTargetDir.run should be (true)
-    findTargetDir.foundTargetDir should be (true)
+    findTargetDir.run should be(true)
+    findTargetDir.foundTargetDir should be(true)
 
     // Delete created directory
     val dir = new java.io.File(targetDir)
-    dir.exists should be (true)
-    FileUtils.deleteDirectoryHierarchy("a") should be (true)
+    dir.exists should be(true)
+    FileUtils.deleteDirectoryHierarchy("a") should be(true)
   }
 
   it should "NOT be available as an annotation when using a raw compiler" in {
     val findTargetDir = new FindTargetDirTransform(targetDir) // looks for the annotation
     val compiler = new VerilogCompiler
-    val circuit = Parser.parse(input split "\n")
+    val circuit = Parser.parse(input.split("\n"))
     compiler.compileAndEmit(CircuitState(circuit, HighForm), Seq(findTargetDir))
 
     // Check that FindTargetDirTransform does not find the annotation
-    findTargetDir.run should be (true)
-    findTargetDir.foundTargetDir should be (false)
+    findTargetDir.run should be(true)
+    findTargetDir.foundTargetDir should be(false)
   }
 }

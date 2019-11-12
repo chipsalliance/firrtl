@@ -13,11 +13,7 @@ sealed abstract class CoreTransform extends SeqTransform
 class ChirrtlToHighFirrtl extends CoreTransform {
   def inputForm = ChirrtlForm
   def outputForm = HighForm
-  def transforms = Seq(
-    passes.CheckChirrtl,
-    passes.CInferTypes,
-    passes.CInferMDir,
-    passes.RemoveCHIRRTL)
+  def transforms = Seq(passes.CheckChirrtl, passes.CInferTypes, passes.CInferMDir, passes.RemoveCHIRRTL)
 }
 
 /** Converts from the bare intermediate representation (ir.scala)
@@ -35,21 +31,23 @@ class IRToWorkingIR extends CoreTransform {
 class ResolveAndCheck extends CoreTransform {
   def inputForm = HighForm
   def outputForm = HighForm
-  def transforms = Seq(
-    passes.CheckHighForm,
-    passes.ResolveKinds,
-    passes.InferTypes,
-    passes.CheckTypes,
-    passes.Uniquify,
-    passes.ResolveKinds,
-    passes.InferTypes,
-    passes.ResolveFlows,
-    passes.CheckFlows,
-    new passes.InferBinaryPoints(),
-    new passes.TrimIntervals(),
-    new passes.InferWidths,
-    passes.CheckWidths,
-    new firrtl.transforms.InferResets)
+  def transforms =
+    Seq(
+      passes.CheckHighForm,
+      passes.ResolveKinds,
+      passes.InferTypes,
+      passes.CheckTypes,
+      passes.Uniquify,
+      passes.ResolveKinds,
+      passes.InferTypes,
+      passes.ResolveFlows,
+      passes.CheckFlows,
+      new passes.InferBinaryPoints(),
+      new passes.TrimIntervals(),
+      new passes.InferWidths,
+      passes.CheckWidths,
+      new firrtl.transforms.InferResets
+    )
 }
 
 /** Expands aggregate connects, removes dynamic accesses, and when
@@ -60,24 +58,26 @@ class ResolveAndCheck extends CoreTransform {
 class HighFirrtlToMiddleFirrtl extends CoreTransform {
   def inputForm = HighForm
   def outputForm = MidForm
-  def transforms = Seq(
-    passes.PullMuxes,
-    passes.ReplaceAccesses,
-    passes.ExpandConnects,
-    passes.RemoveAccesses,
-    passes.Uniquify,
-    passes.ExpandWhens,
-    passes.CheckInitialization,
-    passes.ResolveKinds,
-    passes.InferTypes,
-    passes.CheckTypes,
-    passes.ResolveFlows,
-    new passes.InferWidths,
-    passes.CheckWidths,
-    new passes.RemoveIntervals(),
-    passes.ConvertFixedToSInt,
-    passes.ZeroWidth,
-    passes.InferTypes)
+  def transforms =
+    Seq(
+      passes.PullMuxes,
+      passes.ReplaceAccesses,
+      passes.ExpandConnects,
+      passes.RemoveAccesses,
+      passes.Uniquify,
+      passes.ExpandWhens,
+      passes.CheckInitialization,
+      passes.ResolveKinds,
+      passes.InferTypes,
+      passes.CheckTypes,
+      passes.ResolveFlows,
+      new passes.InferWidths,
+      passes.CheckWidths,
+      new passes.RemoveIntervals(),
+      passes.ConvertFixedToSInt,
+      passes.ZeroWidth,
+      passes.InferTypes
+    )
 }
 
 /** Expands all aggregate types into many ground-typed components. Must
@@ -87,17 +87,19 @@ class HighFirrtlToMiddleFirrtl extends CoreTransform {
 class MiddleFirrtlToLowFirrtl extends CoreTransform {
   def inputForm = MidForm
   def outputForm = LowForm
-  def transforms = Seq(
-    passes.LowerTypes,
-    passes.ResolveKinds,
-    passes.InferTypes,
-    passes.ResolveFlows,
-    new passes.InferWidths,
-    passes.Legalize,
-    new firrtl.transforms.RemoveReset,
-    new firrtl.transforms.CheckCombLoops,
-    new checks.CheckResets,
-    new firrtl.transforms.RemoveWires)
+  def transforms =
+    Seq(
+      passes.LowerTypes,
+      passes.ResolveKinds,
+      passes.InferTypes,
+      passes.ResolveFlows,
+      new passes.InferWidths,
+      passes.Legalize,
+      new firrtl.transforms.RemoveReset,
+      new firrtl.transforms.CheckCombLoops,
+      new checks.CheckResets,
+      new firrtl.transforms.RemoveWires
+    )
 }
 
 /** Runs a series of optimization passes on LowFirrtl
@@ -107,30 +109,34 @@ class MiddleFirrtlToLowFirrtl extends CoreTransform {
 class LowFirrtlOptimization extends CoreTransform {
   def inputForm = LowForm
   def outputForm = LowForm
-  def transforms = Seq(
-    passes.RemoveValidIf,
-    new firrtl.transforms.ConstantPropagation,
-    passes.PadWidths,
-    new firrtl.transforms.ConstantPropagation,
-    passes.Legalize,
-    passes.memlib.VerilogMemDelays, // TODO move to Verilog emitter
-    new firrtl.transforms.ConstantPropagation,
-    passes.SplitExpressions,
-    new firrtl.transforms.CombineCats,
-    passes.CommonSubexpressionElimination,
-    new firrtl.transforms.DeadCodeElimination)
+  def transforms =
+    Seq(
+      passes.RemoveValidIf,
+      new firrtl.transforms.ConstantPropagation,
+      passes.PadWidths,
+      new firrtl.transforms.ConstantPropagation,
+      passes.Legalize,
+      passes.memlib.VerilogMemDelays, // TODO move to Verilog emitter
+      new firrtl.transforms.ConstantPropagation,
+      passes.SplitExpressions,
+      new firrtl.transforms.CombineCats,
+      passes.CommonSubexpressionElimination,
+      new firrtl.transforms.DeadCodeElimination
+    )
 }
+
 /** Runs runs only the optimization passes needed for Verilog emission */
 class MinimumLowFirrtlOptimization extends CoreTransform {
   def inputForm = LowForm
   def outputForm = LowForm
-  def transforms = Seq(
-    passes.RemoveValidIf,
-    passes.Legalize,
-    passes.memlib.VerilogMemDelays, // TODO move to Verilog emitter
-    passes.SplitExpressions)
+  def transforms =
+    Seq(
+      passes.RemoveValidIf,
+      passes.Legalize,
+      passes.memlib.VerilogMemDelays, // TODO move to Verilog emitter
+      passes.SplitExpressions
+    )
 }
-
 
 import CompilerUtils.getLoweringTransforms
 
@@ -166,15 +172,17 @@ class LowFirrtlCompiler extends Compiler {
 /** Emits Verilog */
 class VerilogCompiler extends Compiler {
   val emitter = new VerilogEmitter
-  def transforms: Seq[Transform] = getLoweringTransforms(ChirrtlForm, LowForm) ++
-    Seq(new LowFirrtlOptimization)
+  def transforms: Seq[Transform] =
+    getLoweringTransforms(ChirrtlForm, LowForm) ++
+      Seq(new LowFirrtlOptimization)
 }
 
 /** Emits Verilog without optimizations */
 class MinimumVerilogCompiler extends Compiler {
   val emitter = new MinimumVerilogEmitter
-  def transforms: Seq[Transform] = getLoweringTransforms(ChirrtlForm, LowForm) ++
-    Seq(new MinimumLowFirrtlOptimization)
+  def transforms: Seq[Transform] =
+    getLoweringTransforms(ChirrtlForm, LowForm) ++
+      Seq(new MinimumLowFirrtlOptimization)
 }
 
 /** Currently just an alias for the [[VerilogCompiler]] */

@@ -12,7 +12,6 @@ import scala.collection.mutable.LinkedHashSet
   * @tparam A the transformed type
   */
 trait TransformLike[A] extends LazyLogging {
-
   /** An identifier of this [[TransformLike]] that can be used for logging and informational printing */
   def name: String
 
@@ -21,7 +20,6 @@ trait TransformLike[A] extends LazyLogging {
     * @return an output object of the same type
     */
   def transform(a: A): A
-
 }
 
 /** Mixin that defines dependencies between [[firrtl.options.TransformLike TransformLike]]s (hereafter referred to as
@@ -48,7 +46,7 @@ trait DependencyAPI[A <: DependencyAPI[A]] { this: TransformLike[_] =>
   /** All transform that must run before this transform
     * $seqNote
     */
-  def prerequisites: Seq[Dependency] = Seq.empty
+  def prerequisites:                        Seq[Dependency] = Seq.empty
   private[options] lazy val _prerequisites: LinkedHashSet[Dependency] = new LinkedHashSet() ++ prerequisites.toSet
 
   /** All transforms that must run ''after'' this transform
@@ -70,7 +68,7 @@ trait DependencyAPI[A <: DependencyAPI[A]] { this: TransformLike[_] =>
     * @see [[firrtl.passes.CheckTypes]] for an example of an optional checking [[firrtl.Transform]]
     * $seqNote
     */
-  def dependents: Seq[Dependency] = Seq.empty
+  def dependents:                        Seq[Dependency] = Seq.empty
   private[options] lazy val _dependents: LinkedHashSet[Dependency] = new LinkedHashSet() ++ dependents.toSet
 
   /** A function that, given a transform will return true if this transform invalidates/undos the effects of the input
@@ -78,7 +76,6 @@ trait DependencyAPI[A <: DependencyAPI[A]] { this: TransformLike[_] =>
     * @note Can a [[firrtl.options.Phase Phase]] ever invalidate itself?
     */
   def invalidates(a: A): Boolean = true
-
 }
 
 /** A trait indicating that no invalidations occur, i.e., all previous transforms are preserved
@@ -87,7 +84,6 @@ trait DependencyAPI[A <: DependencyAPI[A]] { this: TransformLike[_] =>
 trait PreservesAll[A <: DependencyAPI[A]] { this: DependencyAPI[A] =>
 
   override def invalidates(a: A): Boolean = false
-
 }
 
 /** A mathematical transformation of an [[AnnotationSeq]].
@@ -97,14 +93,12 @@ trait PreservesAll[A <: DependencyAPI[A]] { this: DependencyAPI[A] =>
   * [[firrtl.options.Phase Phase]] may consist of multiple phases internally.
   */
 trait Phase extends TransformLike[AnnotationSeq] with DependencyAPI[Phase] {
-
   /** The name of this [[firrtl.options.Phase Phase]]. This will be used to generate debug/error messages or when deleting
     * annotations. This will default to the `simpleName` of the class.
     * @return this phase's name
     * @note Override this with your own implementation for different naming behavior.
     */
   lazy val name: String = this.getClass.getName
-
 }
 
 /** A [[firrtl.options.TransformLike TransformLike]] that internally ''translates'' the input type to some other type,
@@ -116,7 +110,6 @@ trait Phase extends TransformLike[AnnotationSeq] with DependencyAPI[Phase] {
   * @tparam B the internal type
   */
 trait Translator[A, B] extends TransformLike[A] {
-
   /** A method converting type `A` into type `B`
     * @param an object of type `A`
     * @return an object of type `B`
@@ -138,5 +131,4 @@ trait Translator[A, B] extends TransformLike[A] {
   /** Convert the input object to the internal type, transform the internal type, and convert back to the original type
     */
   override final def transform(a: A): A = bToA(internalTransform(aToB(a)))
-
 }

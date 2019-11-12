@@ -8,7 +8,7 @@ import firrtl.Mappers._
 import firrtl.traversals.Foreachers._
 import firrtl.annotations.{ReferenceTarget, TargetToken}
 import firrtl.Utils.toTarget
-import firrtl.passes.{Pass, PassException, Errors, InferTypes}
+import firrtl.passes.{Errors, InferTypes, Pass, PassException}
 
 import scala.collection.mutable
 import scala.util.Try
@@ -37,11 +37,10 @@ object InferResets {
     override def toString: String = s"TypeDriver(${tpe.serialize}, $target)"
   }
 
-
   // Type hierarchy representing the path to a leaf type in an aggregate type structure
   // Used by this [[InferResets]] to pinpoint instances of [[ResetType]] and their inferred type
   private sealed trait TypeTree
-  private case class BundleTree(fields: Map[String, TypeTree]) extends TypeTree
+  private case class BundleTree(fields:  Map[String, TypeTree]) extends TypeTree
   private case class VectorTree(subType: TypeTree) extends TypeTree
   // TODO ensure is only AsyncResetType or BoolType
   private case class GroundTree(tpe: Type) extends TypeTree
@@ -57,14 +56,13 @@ object InferResets {
         // Vectors must all have the same type, so we only process Index 0
         // If the subtype is an aggregate, there can be multiple of each index
         val ts = tokens.collect { case (TargetToken.Index(0) +: tail, tpe) => (tail, tpe) }
-        VectorTree(fromTokens(ts:_*))
+        VectorTree(fromTokens(ts: _*))
       // BundleTree
       case (TargetToken.Field(_) +: _, _) +: _ =>
         val fields =
-          tokens.groupBy { case (TargetToken.Field(n) +: t, _) => n }
-                .mapValues { ts =>
-                  fromTokens(ts.map { case (_ +: t, tpe) => (t, tpe) }:_*)
-                }
+          tokens.groupBy { case (TargetToken.Field(n) +: t, _) => n }.mapValues { ts =>
+            fromTokens(ts.map { case (_ +: t, tpe) => (t, tpe) }: _*)
+          }
         BundleTree(fields)
     }
   }
@@ -77,7 +75,7 @@ object InferResets {
   */
 // TODO should we error if a DefMemory is of type AsyncReset? In CheckTypes?
 class InferResets extends Transform {
-  def inputForm: CircuitForm = HighForm
+  def inputForm:  CircuitForm = HighForm
   def outputForm: CircuitForm = HighForm
 
   import InferResets._
@@ -106,15 +104,15 @@ class InferResets extends Transform {
         def markResetDriver(lhs: Expression, rhs: Expression): Unit = {
           val lflip = Utils.to_flip(Utils.gender(lhs))
           if ((lflip == Default && lhs.tpe == ResetType) ||
-              (lflip == Flip    && rhs.tpe == ResetType)) {
+              (lflip == Flip && rhs.tpe == ResetType)) {
             val (loc, exp) = lflip match {
               case Default => (lhs, rhs)
-              case Flip    => (rhs, lhs)
+              case Flip => (rhs, lhs)
             }
             val target = makeTarget(loc)
             val driver = exp.tpe match {
               case ResetType => TargetDriver(makeTarget(exp))
-              case tpe       => TypeDriver(tpe, () => makeTarget(exp))
+              case tpe => TypeDriver(tpe, () => makeTarget(exp))
             }
             map.getOrElseUpdate(target, mutable.ListBuffer()) += driver
           }
@@ -168,17 +166,19 @@ class InferResets extends Transform {
     val errors = new Errors
     def rec(target: ReferenceTarget): Type = {
       val drivers = map(target)
-      res.getOrElseUpdate(target, {
-        val tpes = drivers.map {
-          case TargetDriver(t) => TypeDriver(rec(t), () => t)
-          case td: TypeDriver => td
-        }.groupBy(_.tpe)
-        if (tpes.keys.size != 1) {
-          // Multiple types of driver!
-          errors.append(DifferingDriverTypesException(target, tpes.toSeq))
+      res.getOrElseUpdate(
+        target, {
+          val tpes = drivers.map {
+            case TargetDriver(t) => TypeDriver(rec(t), () => t)
+            case td: TypeDriver => td
+          }.groupBy(_.tpe)
+          if (tpes.keys.size != 1) {
+            // Multiple types of driver!
+            errors.append(DifferingDriverTypesException(target, tpes.toSeq))
+          }
+          tpes.keys.head
         }
-        tpes.keys.head
-      })
+      )
     }
     for ((target, _) <- map) {
       rec(target)
@@ -192,10 +192,13 @@ class InferResets extends Transform {
   private def fixupType(tpe: Type, tree: TypeTree): Type = (tpe, tree) match {
     case (BundleType(fields), BundleTree(map)) =>
       val fieldsx =
-        fields.map(f => map.get(f.name) match {
-          case Some(t) => f.copy(tpe = fixupType(f.tpe, t))
-          case None => f
-        })
+        fields.map(
+          f =>
+            map.get(f.name) match {
+              case Some(t) => f.copy(tpe = fixupType(f.tpe, t))
+              case None => f
+            }
+        )
       BundleType(fieldsx)
     case (VectorType(vtpe, size), VectorTree(t)) =>
       VectorType(fixupType(vtpe, t), size)
@@ -206,19 +209,20 @@ class InferResets extends Transform {
   // Assumes all ReferenceTargets are in the same module
   private def makeDeclMap(map: Map[ReferenceTarget, Type]): Map[String, TypeTree] =
     map.groupBy(_._1.ref).mapValues { ts =>
-      TypeTree.fromTokens(ts.toSeq.map { case (target, tpe) => (target.component, tpe) }:_*)
+      TypeTree.fromTokens(ts.toSeq.map { case (target, tpe) => (target.component, tpe) }: _*)
     }
 
   private def implPort(map: Map[String, TypeTree])(port: Port): Port =
-    map.get(port.name)
-       .map(tree => port.copy(tpe = fixupType(port.tpe, tree)))
-       .getOrElse(port)
+    map
+      .get(port.name)
+      .map(tree => port.copy(tpe = fixupType(port.tpe, tree)))
+      .getOrElse(port)
   private def implStmt(map: Map[String, TypeTree])(stmt: Statement): Statement =
     stmt.map(implStmt(map)) match {
       case decl: IsDeclaration if map.contains(decl.name) =>
         val tree = map(decl.name)
         decl match {
-          case reg: DefRegister => reg.copy(tpe = fixupType(reg.tpe, tree))
+          case reg:  DefRegister => reg.copy(tpe = fixupType(reg.tpe, tree))
           case wire: DefWire => wire.copy(tpe = fixupType(wire.tpe, tree))
           // TODO Can this really happen?
           case mem: DefMemory => mem.copy(dataType = fixupType(mem.dataType, tree))
@@ -230,10 +234,13 @@ class InferResets extends Transform {
   private def implement(c: Circuit, map: Map[ReferenceTarget, Type]): Circuit = {
     val modMaps = map.groupBy(_._1.module)
     def onMod(mod: DefModule): DefModule = {
-      modMaps.get(mod.name).map { tmap =>
-        val declMap = makeDeclMap(tmap)
-        mod.map(implPort(declMap)).map(implStmt(declMap))
-      }.getOrElse(mod)
+      modMaps
+        .get(mod.name)
+        .map { tmap =>
+          val declMap = makeDeclMap(tmap)
+          mod.map(implPort(declMap)).map(implStmt(declMap))
+        }
+        .getOrElse(mod)
     }
     c.map(onMod)
   }

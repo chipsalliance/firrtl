@@ -9,7 +9,6 @@ import firrtl.WrappedExpression._
 import scala.collection.mutable
 
 object ReplaceTruncatingArithmetic {
-
   /** Mapping from references to the [[firrtl.ir.Expression Expression]]s that drive them */
   type Netlist = mutable.HashMap[WrappedExpression, Expression]
 

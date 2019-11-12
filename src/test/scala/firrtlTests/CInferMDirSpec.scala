@@ -14,22 +14,21 @@ class CInferMDir extends LowTransformSpec {
     def checkStmt(s: Statement): Boolean = s match {
       case s: DefMemory if s.name == "indices" =>
         (s.readers contains "index") &&
-        (s.writers contains "bar") &&
-        s.readwriters.isEmpty
+          (s.writers contains "bar") &&
+          s.readwriters.isEmpty
       case s: Block =>
-        s.stmts exists checkStmt
+        s.stmts.exists(checkStmt)
       case _ => false
     }
 
-    def run (c: Circuit) = {
+    def run(c: Circuit) = {
       val errors = new Errors
-      val check = c.modules exists {
+      val check = c.modules.exists {
         case m: Module => checkStmt(m.body)
         case m: ExtModule => false
       }
       if (!check) {
-        errors append new PassException(
-          "Memory has incorrect port directions!")
+        errors.append(new PassException("Memory has incorrect port directions!"))
         errors.trigger
       }
       c
@@ -43,7 +42,8 @@ class CInferMDir extends LowTransformSpec {
   }
 
   "Memory" should "have correct mem port directions" in {
-    val input = """
+    val input =
+      """
 circuit foo :
   module foo :
     input clock : Clock

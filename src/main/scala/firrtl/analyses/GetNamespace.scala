@@ -12,7 +12,7 @@ case class ModuleNamespaceAnnotation(namespace: Namespace) extends NoTargetAnnot
   * namespace is used by RenameModules to get unique names
   */
 class GetNamespace extends Transform {
-  def inputForm: LowForm.type = LowForm
+  def inputForm:  LowForm.type = LowForm
   def outputForm: LowForm.type = LowForm
 
   def execute(state: CircuitState): CircuitState = {

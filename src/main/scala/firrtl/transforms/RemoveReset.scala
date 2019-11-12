@@ -27,9 +27,9 @@ class RemoveReset extends Transform {
     val invalids = mutable.HashSet.empty[WrappedExpression]
 
     def onStmt(s: Statement): Unit = s match {
-      case IsInvalid(_, expr)                                 => invalids += we(expr)
+      case IsInvalid(_, expr) => invalids += we(expr)
       case Connect(_, lhs, rhs) if invalids.contains(we(rhs)) => invalids += we(lhs)
-      case other                                              => other.foreach(onStmt)
+      case other => other.foreach(onStmt)
     }
 
     m.foreach(onStmt)
@@ -44,8 +44,7 @@ class RemoveReset extends Transform {
         /* A register is initialized to an invalid expression */
         case reg @ DefRegister(_, _, _, _, _, init) if invalids.contains(we(init)) =>
           reg.copy(reset = Utils.zero, init = WRef(reg))
-        case reg @ DefRegister(_, rname, _, _, reset, init)
-            if reset != Utils.zero && reset.tpe != AsyncResetType =>
+        case reg @ DefRegister(_, rname, _, _, reset, init) if reset != Utils.zero && reset.tpe != AsyncResetType =>
           // Add register reset to map
           resets(rname) = Reset(reset, init)
           reg.copy(reset = Utils.zero, init = WRef(reg))
@@ -53,7 +52,7 @@ class RemoveReset extends Transform {
           val reset = resets(rname)
           val muxType = Utils.mux_type_and_widths(reset.value, expr)
           Connect(info, ref, Mux(reset.cond, reset.value, expr, muxType))
-        case other => other map onStmt
+        case other => other.map(onStmt)
       }
     }
     m.map(onStmt)

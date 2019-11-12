@@ -14,8 +14,7 @@ import firrtl.antlr.FIRRTLParser
  */
 
 abstract class LexerHelper {
-
-  import FIRRTLParser.{NEWLINE, INDENT, DEDENT}
+  import FIRRTLParser.{DEDENT, INDENT, NEWLINE}
 
   private val tokenBuffer = mutable.Queue.empty[Token]
   private val indentations = mutable.Stack[Int]()
@@ -58,9 +57,9 @@ abstract class LexerHelper {
 
     def handleNewlineToken(token: Token): Token = {
       @tailrec
-      def nonNewline(token: Token) : (Token, Token) = {
+      def nonNewline(token: Token): (Token, Token) = {
         val nextNext = pullToken()
-        if(nextNext.getType == NEWLINE)
+        if (nextNext.getType == NEWLINE)
           nonNewline(nextNext)
         else
           (token, nextNext)
@@ -94,10 +93,11 @@ abstract class LexerHelper {
       }
     }
 
-    val t = if (tokenBuffer.isEmpty)
-      pullToken()
-    else
-      tokenBuffer.dequeue
+    val t =
+      if (tokenBuffer.isEmpty)
+        pullToken()
+      else
+        tokenBuffer.dequeue
 
     if (reachedEof)
       t

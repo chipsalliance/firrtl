@@ -4,9 +4,9 @@ package tutorial
 package lesson2
 
 // Compiler Infrastructure
-import firrtl.{Transform, LowForm, CircuitState, Utils}
+import firrtl.{CircuitState, LowForm, Transform, Utils}
 // Firrtl IR classes
-import firrtl.ir.{DefModule, Statement, DefInstance, Expression, Mux}
+import firrtl.ir.{DefInstance, DefModule, Expression, Mux, Statement}
 // Firrtl compiler's working IR classes (WIR)
 import firrtl.WDefInstance
 // Map functions
@@ -49,14 +49,16 @@ class Ledger {
   private def countMux(myName: String): Int = {
     val myMuxes = moduleMuxMap.getOrElse(myName, 0)
     val myInstanceMuxes =
-      moduleInstanceMap.getOrElse(myName, Nil).foldLeft(0) {
-        (total, name) => total + countMux(name)
+      moduleInstanceMap.getOrElse(myName, Nil).foldLeft(0) { (total, name) =>
+        total + countMux(name)
       }
     myMuxes + myInstanceMuxes
   }
   // Display recursive total of muxes
   def serialize: String = {
-    modules map { myName => s"$myName => ${countMux(myName)} muxes!" } mkString "\n"
+    modules.map { myName =>
+      s"$myName => ${countMux(myName)} muxes!"
+    }.mkString("\n")
   }
 }
 
@@ -104,7 +106,7 @@ class AnalyzeCircuit extends Transform {
     val circuit = state.circuit
 
     // Execute the function walkModule(ledger) on all [[DefModule]] in circuit
-    circuit map walkModule(ledger)
+    circuit.map(walkModule(ledger))
 
     // Print our ledger
     println(ledger.serialize)
@@ -119,13 +121,13 @@ class AnalyzeCircuit extends Transform {
     ledger.setModuleName(m.name)
 
     // Execute the function walkStatement(ledger) on every [[Statement]] in m.
-    m map walkStatement(ledger)
+    m.map(walkStatement(ledger))
   }
 
   // Deeply visits every [[Statement]] and [[Expression]] in s.
   def walkStatement(ledger: Ledger)(s: Statement): Statement = {
     // Map the functions walkStatement(ledger) and walkExpression(ledger)
-    val visited = s map walkStatement(ledger) map walkExpression(ledger)
+    val visited = s.map(walkStatement(ledger)).map(walkExpression(ledger))
     visited match {
       // IR node [[DefInstance]] is previously replaced by WDefInstance, a
       //  "working" IR node
@@ -144,7 +146,7 @@ class AnalyzeCircuit extends Transform {
   def walkExpression(ledger: Ledger)(e: Expression): Expression = {
     // Execute the function walkExpression(ledger) on every [[Expression]] in e,
     //  then handle if a [[Mux]].
-    e map walkExpression(ledger) match {
+    e.map(walkExpression(ledger)) match {
       case mux: Mux =>
         ledger.foundMux()
         mux

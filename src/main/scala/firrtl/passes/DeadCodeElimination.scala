@@ -18,12 +18,12 @@ object DeadCodeElimination extends Transform {
     def checkExpressionUse(e: Expression): Expression = {
       e match {
         case WRef(name, _, _, _) => referenced += name
-        case _ => e map checkExpressionUse
+        case _ => e.map(checkExpressionUse)
       }
       e
     }
 
-    def checkUse(s: Statement): Statement = s map checkUse map checkExpressionUse
+    def checkUse(s: Statement): Statement = s.map(checkUse).map(checkExpressionUse)
 
     def maybeEliminate(x: Statement, name: String) =
       if (referenced(name)) x
@@ -37,7 +37,7 @@ object DeadCodeElimination extends Transform {
       case x: DefRegister => maybeEliminate(x, x.name)
       case x: DefWire => maybeEliminate(x, x.name)
       case x: DefNode => maybeEliminate(x, x.name)
-      case x => s map removeUnused
+      case x => s.map(removeUnused)
     }
 
     checkUse(s)

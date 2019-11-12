@@ -64,12 +64,7 @@ trait BackendCompilationUtilities {
     * @return       true if compiler completed successfully
     */
   def firrtlToVerilog(prefix: String, dir: File): ProcessBuilder = {
-    Process(
-      Seq("firrtl",
-        "-i", s"$prefix.fir",
-        "-o", s"$prefix.v",
-        "-X", "verilog"),
-      dir)
+    Process(Seq("firrtl", "-i", s"$prefix.fir", "-o", s"$prefix.v", "-X", "verilog"), dir)
   }
 
   /** Generates a Verilator invocation to convert Verilog sources to C++
@@ -97,22 +92,20 @@ trait BackendCompilationUtilities {
     * @param resourceFileName specifies what filename to look for to find a .f file
     */
   def verilogToCpp(
-    dutFile: String,
-    dir: File,
-    vSources: Seq[File],
-    cppHarness: File,
-    suppressVcd: Boolean = false,
+    dutFile:          String,
+    dir:              File,
+    vSources:         Seq[File],
+    cppHarness:       File,
+    suppressVcd:      Boolean = false,
     resourceFileName: String = firrtl.transforms.BlackBoxSourceHelper.defaultFileListName
   ): ProcessBuilder = {
-
     val topModule = dutFile
 
     val list_file = new File(dir, resourceFileName)
     val blackBoxVerilogList = {
-      if(list_file.exists()) {
+      if (list_file.exists()) {
         Seq("-f", list_file.getAbsolutePath)
-      }
-      else {
+      } else {
         Seq.empty[String]
       }
     }
@@ -121,36 +114,41 @@ trait BackendCompilationUtilities {
     // If it's in the main .f resource file, don't explicitly include it on the command line.
     // Build a set of canonical file paths to use as a filter to exclude already included additional Verilog sources.
     val blackBoxHelperFiles: Set[String] = {
-      if(list_file.exists()) {
+      if (list_file.exists()) {
         FileUtils.getLines(list_file).toSet
-      }
-      else {
+      } else {
         Set.empty
       }
     }
     val vSourcesFiltered = vSources.filterNot(f => blackBoxHelperFiles.contains(f.getCanonicalPath))
     val command = Seq(
       "verilator",
-      "--cc", s"${dir.getAbsolutePath}/$dutFile.v"
+      "--cc",
+      s"${dir.getAbsolutePath}/$dutFile.v"
     ) ++
       blackBoxVerilogList ++
       vSourcesFiltered.flatMap(file => Seq("-v", file.getCanonicalPath)) ++
-      Seq("--assert",
-        "-Wno-fatal",
-        "-Wno-WIDTH",
-        "-Wno-STMTDLY"
-      ) ++
-      { if(suppressVcd) { Seq.empty } else { Seq("--trace")} } ++
+      Seq("--assert", "-Wno-fatal", "-Wno-WIDTH", "-Wno-STMTDLY") ++ {
+      if (suppressVcd) {
+        Seq.empty
+      } else {
+        Seq("--trace")
+      }
+    } ++
       Seq(
         "-O1",
-        "--top-module", topModule,
+        "--top-module",
+        topModule,
         "+define+TOP_TYPE=V" + dutFile,
         s"+define+PRINTF_COND=!$topModule.reset",
         s"+define+STOP_COND=!$topModule.reset",
         "-CFLAGS",
         s"""-Wno-undefined-bool-conversion -O1 -DTOP_TYPE=V$dutFile -DVL_USER_FINISH -include V$dutFile.h""",
-        "-Mdir", dir.getAbsolutePath,
-        "--exe", cppHarness.getAbsolutePath)
+        "-Mdir",
+        dir.getAbsolutePath,
+        "--exe",
+        cppHarness.getAbsolutePath
+      )
     System.out.println(s"${command.mkString(" ")}") // scalastyle:ignore regex
     command
   }
@@ -158,10 +156,7 @@ trait BackendCompilationUtilities {
   def cppToExe(prefix: String, dir: File): ProcessBuilder =
     Seq("make", "-C", dir.toString, "-j", "-f", s"V$prefix.mk", s"V$prefix")
 
-  def executeExpectingFailure(
-                               prefix: String,
-                               dir: File,
-                               assertionMsg: String = ""): Boolean = {
+  def executeExpectingFailure(prefix: String, dir: File, assertionMsg: String = ""): Boolean = {
     var triggered = false
     val assertionMessageSupplied = assertionMsg != ""
     val e = Process(s"./V$prefix", dir) !
@@ -192,10 +187,12 @@ trait BackendCompilationUtilities {
     * @param resets       signals to set for SAT, format is
     *                     (timestep, signal, value)
     */
-  def yosysExpectSuccess(customTop: String,
-                         referenceTop: String,
-                         testDir: File,
-                         resets: Seq[(Int, String, Int)] = Seq.empty): Boolean = {
+  def yosysExpectSuccess(
+    customTop:    String,
+    referenceTop: String,
+    testDir:      File,
+    resets:       Seq[(Int, String, Int)] = Seq.empty
+  ): Boolean = {
     !yosysExpectFailure(customTop, referenceTop, testDir, resets)
   }
 
@@ -213,25 +210,24 @@ trait BackendCompilationUtilities {
     * @param resets       signals to set for SAT, format is
     *                     (timestep, signal, value)
     */
-  def yosysExpectFailure(customTop: String,
-                         referenceTop: String,
-                         testDir: File,
-                         resets: Seq[(Int, String, Int)] = Seq.empty): Boolean = {
-
+  def yosysExpectFailure(
+    customTop:    String,
+    referenceTop: String,
+    testDir:      File,
+    resets:       Seq[(Int, String, Int)] = Seq.empty
+  ): Boolean = {
     val setSignals = resets.map(_._2).toSet[String].map(s => s"-set in_$s 0").mkString(" ")
     val setAtSignals = resets.map {
       case (timestep, signal, value) => s"-set-at $timestep in_$signal $value"
     }.mkString(" ")
     val scriptFileName = s"${testDir.getAbsolutePath}/yosys_script"
     val yosysScriptWriter = new PrintWriter(scriptFileName)
-    yosysScriptWriter.write(
-      s"""read_verilog ${testDir.getAbsolutePath}/$customTop.v
-         |read_verilog ${testDir.getAbsolutePath}/$referenceTop.v
-         |prep; proc; opt; memory
-         |miter -equiv -flatten $customTop $referenceTop miter
-         |hierarchy -top miter
-         |sat -verify -tempinduct -prove trigger 0 $setSignals $setAtSignals -seq 1 miter"""
-        .stripMargin)
+    yosysScriptWriter.write(s"""read_verilog ${testDir.getAbsolutePath}/$customTop.v
+                               |read_verilog ${testDir.getAbsolutePath}/$referenceTop.v
+                               |prep; proc; opt; memory
+                               |miter -equiv -flatten $customTop $referenceTop miter
+                               |hierarchy -top miter
+                               |sat -verify -tempinduct -prove trigger 0 $setSignals $setAtSignals -seq 1 miter""".stripMargin)
     yosysScriptWriter.close()
 
     val resultFileName = testDir.getAbsolutePath + "/yosys_results"

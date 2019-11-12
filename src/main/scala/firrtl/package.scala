@@ -30,9 +30,9 @@ package object firrtl {
 
   @deprecated("Please migrate from 'Gender' to 'Flow'. This implicit conversion will be removed in 1.3", "1.2")
   implicit def genderToFlow(gender: Gender): Flow = gender match {
-    case MALE          => SourceFlow
-    case FEMALE        => SinkFlow
-    case BIGENDER      => DuplexFlow
+    case MALE => SourceFlow
+    case FEMALE => SinkFlow
+    case BIGENDER => DuplexFlow
     case UNKNOWNGENDER => UnknownFlow
   }
 }

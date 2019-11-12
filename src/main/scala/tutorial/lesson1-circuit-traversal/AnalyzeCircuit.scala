@@ -4,9 +4,9 @@ package tutorial
 package lesson1
 
 // Compiler Infrastructure
-import firrtl.{Transform, LowForm, CircuitState, Utils}
+import firrtl.{CircuitState, LowForm, Transform, Utils}
 // Firrtl IR classes
-import firrtl.ir.{DefModule, Statement, Expression, Mux}
+import firrtl.ir.{DefModule, Expression, Mux, Statement}
 // Map functions
 import firrtl.Mappers._
 // Scala's mutable collections
@@ -38,9 +38,9 @@ class Ledger {
     moduleName = Some(myName)
   }
   def serialize: String = {
-    modules map { myName =>
+    modules.map { myName =>
       s"$myName => ${moduleMuxMap.getOrElse(myName, 0)} muxes!"
-    } mkString "\n"
+    }.mkString("\n")
   }
 }
 
@@ -70,6 +70,7 @@ class Ledger {
 class AnalyzeCircuit extends Transform {
   /** Requires the [[firrtl.ir.Circuit Circuit]] form to be "low" */
   def inputForm = LowForm
+
   /** Indicates the output [[firrtl.ir.Circuit Circuit]] form to be "low" */
   def outputForm = LowForm
 
@@ -88,7 +89,7 @@ class AnalyzeCircuit extends Transform {
      *   - "map" - classic functional programming concept
      *   - discard the returned new [[firrtl.ir.Circuit Circuit]] because circuit is unmodified
      */
-    circuit map walkModule(ledger)
+    circuit.map(walkModule(ledger))
 
     // Print our ledger
     println(ledger.serialize)
@@ -106,23 +107,22 @@ class AnalyzeCircuit extends Transform {
      *   - return the new [[firrtl.ir.DefModule DefModule]] (in this case, its identical to m)
      *   - if m does not contain [[firrtl.ir.Statement Statement]], map returns m.
      */
-    m map walkStatement(ledger)
+    m.map(walkStatement(ledger))
   }
 
   /** Deeply visits every [[firrtl.ir.Statement Statement]] and [[firrtl.ir.Expression Expression]] in s. */
   def walkStatement(ledger: Ledger)(s: Statement): Statement = {
-
     /* Execute the function walkExpression(ledger) on every [[firrtl.ir.Expression Expression]] in s.
      *   - discard the new [[firrtl.ir.Statement Statement]] (in this case, its identical to s)
      *   - if s does not contain [[firrtl.ir.Expression Expression]], map returns s.
      */
-    s map walkExpression(ledger)
+    s.map(walkExpression(ledger))
 
     /* Execute the function walkStatement(ledger) on every [[firrtl.ir.Statement Statement]] in s.
      *   - return the new [[firrtl.ir.Statement Statement]] (in this case, its identical to s)
      *   - if s does not contain [[firrtl.ir.Statement Statement]], map returns s.
      */
-    s map walkStatement(ledger)
+    s.map(walkStatement(ledger))
   }
 
   /** Deeply visits every [[firrtl.ir.Expression Expression]] in e.
@@ -130,12 +130,11 @@ class AnalyzeCircuit extends Transform {
     *   - handle e's children [[firrtl.ir.Expression Expression]] before e
     */
   def walkExpression(ledger: Ledger)(e: Expression): Expression = {
-
     /** Execute the function walkExpression(ledger) on every [[firrtl.ir.Expression Expression]] in e.
       *   - return the new [[firrtl.ir.Expression Expression]] (in this case, its identical to e)
       *   - if s does not contain [[firrtl.ir.Expression Expression]], map returns e.
       */
-    val visited = e map walkExpression(ledger)
+    val visited = e.map(walkExpression(ledger))
 
     visited match {
       // If e is a [[firrtl.ir.Mux Mux]], increment our ledger and return e.

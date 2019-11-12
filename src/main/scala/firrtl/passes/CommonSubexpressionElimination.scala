@@ -6,31 +6,32 @@ import firrtl._
 import firrtl.ir._
 import firrtl.Mappers._
 
-
 object CommonSubexpressionElimination extends Pass {
   private def cse(s: Statement): Statement = {
     val expressions = collection.mutable.HashMap[MemoizedHash[Expression], String]()
     val nodes = collection.mutable.HashMap[String, Expression]()
 
     def eliminateNodeRef(e: Expression): Expression = e match {
-      case WRef(name, tpe, kind, flow) => nodes get name match {
-        case Some(expression) => expressions get expression match {
-          case Some(cseName) if cseName != name =>
-            WRef(cseName, tpe, kind, flow)
+      case WRef(name, tpe, kind, flow) =>
+        nodes.get(name) match {
+          case Some(expression) =>
+            expressions.get(expression) match {
+              case Some(cseName) if cseName != name =>
+                WRef(cseName, tpe, kind, flow)
+              case _ => e
+            }
           case _ => e
         }
-        case _ => e
-      }
-      case _ => e map eliminateNodeRef
+      case _ => e.map(eliminateNodeRef)
     }
 
     def eliminateNodeRefs(s: Statement): Statement = {
-      s map eliminateNodeRef match {
+      s.map(eliminateNodeRef) match {
         case x: DefNode =>
           nodes(x.name) = x.value
           expressions.getOrElseUpdate(x.value, x.name)
           x
-        case other => other map eliminateNodeRefs
+        case other => other.map(eliminateNodeRefs)
       }
     }
 

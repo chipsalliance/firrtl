@@ -26,18 +26,16 @@ import firrtl.options.{Phase, PhasePrerequisiteException}
   * @define infoModeException firrtl.options.PhasePrerequisiteException if no [[InfoModeAnnotation]] is present
   */
 class AddCircuit extends Phase {
-
   /** Extract the info mode from an [[AnnotationSeq]] or use the default info mode if no annotation exists
     * @param annotations some annotations
     * @return the info mode
     * @throws $infoModeException
     */
   private def infoMode(annotations: AnnotationSeq): Parser.InfoMode = {
-    val infoModeAnnotation = annotations
-      .collectFirst{ case a: InfoModeAnnotation => a }
-      .getOrElse { throw new PhasePrerequisiteException(
-                    "An InfoModeAnnotation must be present (did you forget to run AddDefaults?)") }
-    val infoSource = annotations.collectFirst{
+    val infoModeAnnotation = annotations.collectFirst { case a: InfoModeAnnotation => a }.getOrElse {
+      throw new PhasePrerequisiteException("An InfoModeAnnotation must be present (did you forget to run AddDefaults?)")
+    }
+    val infoSource = annotations.collectFirst {
       case FirrtlFileAnnotation(f) => f
       case _: FirrtlSourceAnnotation => "anonymous source"
     }.getOrElse("not defined")
@@ -52,8 +50,7 @@ class AddCircuit extends Phase {
     lazy val info = infoMode(annotations)
     annotations.map {
       case a: CircuitOption => a.toCircuit(info)
-      case a                => a
+      case a => a
     }
   }
-
 }

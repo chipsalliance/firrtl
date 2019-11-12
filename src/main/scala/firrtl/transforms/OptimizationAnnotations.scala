@@ -1,4 +1,3 @@
-
 package firrtl
 package transforms
 
@@ -18,11 +17,12 @@ case class DontTouchAnnotation(target: ReferenceTarget) extends SingleTargetAnno
 }
 
 object DontTouchAnnotation {
-  class DontTouchNotFoundException(module: String, component: String) extends PassException(
-    s"""|Target marked dontTouch ($module.$component) not found!
-        |It was probably accidentally deleted. Please check that your custom transforms are not responsible and then
-        |file an issue on GitHub: https://github.com/freechipsproject/firrtl/issues/new""".stripMargin
-  )
+  class DontTouchNotFoundException(module: String, component: String)
+      extends PassException(
+        s"""|Target marked dontTouch ($module.$component) not found!
+            |It was probably accidentally deleted. Please check that your custom transforms are not responsible and then
+            |file an issue on GitHub: https://github.com/freechipsproject/firrtl/issues/new""".stripMargin
+      )
 
   def errorNotFound(module: String, component: String) =
     throw new DontTouchNotFoundException(module, component)
@@ -36,7 +36,6 @@ object DontTouchAnnotation {
   *
   * @note Unlike [[DontTouchAnnotation]], we don't care if the annotation is deleted
   */
-case class OptimizableExtModuleAnnotation(target: ModuleName) extends
-    SingleTargetAnnotation[ModuleName] {
+case class OptimizableExtModuleAnnotation(target: ModuleName) extends SingleTargetAnnotation[ModuleName] {
   def duplicate(n: ModuleName) = this.copy(n)
 }

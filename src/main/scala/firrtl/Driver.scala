@@ -12,10 +12,9 @@ import firrtl.transforms._
 import firrtl.Utils.throwInternalError
 import firrtl.stage.{FirrtlExecutionResultView, FirrtlStage}
 import firrtl.stage.phases.DriverCompatibility
-import firrtl.options.{StageUtils, Phase, Viewer}
+import firrtl.options.{Phase, StageUtils, Viewer}
 import firrtl.options.phases.DeletedWrapper
 import firrtl.FileUtils
-
 
 /**
   * The driver provides methods to access the firrtl compiler.
@@ -75,7 +74,7 @@ object Driver {
     */
   //scalastyle:off cyclomatic.complexity method.length
   def getAnnotations(
-      optionsManager: ExecutionOptionsManager with HasFirrtlOptions
+    optionsManager: ExecutionOptionsManager with HasFirrtlOptions
   ): Seq[Annotation] = {
     val firrtlConfig = optionsManager.firrtlOptions
 
@@ -96,11 +95,11 @@ object Driver {
     // Warnings to get people to change to drop old API
     if (firrtlConfig.annotationFileNameOverride.nonEmpty) {
       val msg = "annotationFileNameOverride is deprecated! " +
-                "Use annotationFileNames"
+        "Use annotationFileNames"
       dramaticWarning(msg)
     } else if (usingImplicitAnnoFile) {
       val msg = "Implicit .anno file from top-name is deprecated!\n" +
-             (" "*9) + "Use explicit -faf option or annotationFileNames"
+        (" " * 9) + "Use explicit -faf option or annotationFileNames"
       Driver.dramaticWarning(msg)
     }
 
@@ -109,19 +108,23 @@ object Driver {
         throw new AnnotationFileNotFoundException(file)
       }
       // Try new protocol first
-      JsonProtocol.deserializeTry(file).recoverWith { case jsonException =>
-        // Try old protocol if new one fails
-        Try {
-          val yaml = FileUtils.getText(file).parseYaml
-          val result = yaml.convertTo[List[LegacyAnnotation]]
-          val msg = s"$file is a YAML file!\n" +
-                    (" "*9) + "YAML Annotation files are deprecated! Use JSON"
-          Driver.dramaticWarning(msg)
-          result
-        }.orElse { // Propagate original JsonProtocol exception if YAML also fails
-          Failure(jsonException)
+      JsonProtocol
+        .deserializeTry(file)
+        .recoverWith {
+          case jsonException =>
+            // Try old protocol if new one fails
+            Try {
+              val yaml = FileUtils.getText(file).parseYaml
+              val result = yaml.convertTo[List[LegacyAnnotation]]
+              val msg = s"$file is a YAML file!\n" +
+                (" " * 9) + "YAML Annotation files are deprecated! Use JSON"
+              Driver.dramaticWarning(msg)
+              result
+            }.orElse { // Propagate original JsonProtocol exception if YAML also fails
+              Failure(jsonException)
+            }
         }
-      }.get
+        .get
     }
 
     val targetDirAnno = List(BlackBoxTargetDirAnno(optionsManager.targetDirName))
@@ -134,7 +137,7 @@ object Driver {
       (if (firrtlConfig.noDCE) Seq(NoDCEAnnotation) else Seq())
 
     val annos = targetDirAnno ++ outputAnnos ++ globalAnnos ++
-                firrtlConfig.annotations ++ loadedAnnos
+      firrtlConfig.annotations ++ loadedAnnos
     LegacyAnnotation.convertLegacyAnnos(annos)
   }
 
@@ -162,7 +165,8 @@ object Driver {
       val circuitSources = Map(
         "firrtlSource" -> firrtlConfig.firrtlSource.isDefined,
         "firrtlCircuit" -> firrtlConfig.firrtlCircuit.isDefined,
-        "inputFileNameOverride" -> firrtlConfig.inputFileNameOverride.nonEmpty)
+        "inputFileNameOverride" -> firrtlConfig.inputFileNameOverride.nonEmpty
+      )
       if (circuitSources.values.count(x => x) > 1) {
         val msg = circuitSources.collect { case (s, true) => s }.mkString(" and ") +
           " are set, only 1 can be set at a time!"
@@ -174,8 +178,7 @@ object Driver {
             val message = "either top-name or input-file-override must be set"
             throw new OptionsException(message)
           }
-          if (
-            optionsManager.topName.isEmpty &&
+          if (optionsManager.topName.isEmpty &&
               firrtlConfig.inputFileNameOverride.nonEmpty &&
               firrtlConfig.outputFileNameOverride.isEmpty) {
             val message = "inputFileName set but neither top-name or output-file-override is set"
@@ -188,8 +191,7 @@ object Driver {
               case ProtoBufFile => proto.FromProto.fromFile(inputFileName)
               case FirrtlFile => Parser.parseFile(inputFileName, firrtlConfig.infoMode)
             }
-          }
-          catch {
+          } catch {
             case _: FileNotFoundException =>
               val message = s"Input file $inputFileName not found"
               throw new OptionsException(message)
@@ -212,15 +214,16 @@ object Driver {
     val annos = optionsManager.firrtlOptions.toAnnotations ++ optionsManager.commonOptions.toAnnotations
 
     val phases: Seq[Phase] =
-      Seq( new DriverCompatibility.AddImplicitAnnotationFile,
-           new DriverCompatibility.AddImplicitFirrtlFile,
-           new DriverCompatibility.AddImplicitOutputFile,
-           new DriverCompatibility.AddImplicitEmitter,
-           new FirrtlStage )
-        .map(DeletedWrapper(_))
+      Seq(
+        new DriverCompatibility.AddImplicitAnnotationFile,
+        new DriverCompatibility.AddImplicitFirrtlFile,
+        new DriverCompatibility.AddImplicitOutputFile,
+        new DriverCompatibility.AddImplicitEmitter,
+        new FirrtlStage
+      ).map(DeletedWrapper(_))
 
     val annosx = try {
-      phases.foldLeft(annos)( (a, p) => p.transform(a) )
+      phases.foldLeft(annos)((a, p) => p.transform(a))
     } catch {
       case e: firrtl.options.OptionsException => return FirrtlExecutionFailure(e.message)
     }
@@ -238,7 +241,7 @@ object Driver {
   def execute(args: Array[String]): FirrtlExecutionResult = {
     val optionsManager = new ExecutionOptionsManager("firrtl") with HasFirrtlOptions
 
-    if(optionsManager.parse(args)) {
+    if (optionsManager.parse(args)) {
       execute(optionsManager) match {
         case success: FirrtlExecutionSuccess =>
           success
@@ -248,8 +251,7 @@ object Driver {
         case result =>
           throwInternalError(s"Error: Unknown Firrtl Execution result $result")
       }
-    }
-    else {
+    } else {
       FirrtlExecutionFailure("Could not parser command line options")
     }
   }
@@ -258,4 +260,3 @@ object Driver {
     execute(args)
   }
 }
-

@@ -9,14 +9,13 @@ import firrtl.Mappers._
 import MemPortUtils.{MemPortMap}
 
 object MemTransformUtils {
-
   /** Replaces references to old memory port names with new memory port names
-   */
+    */
   def updateStmtRefs(repl: MemPortMap)(s: Statement): Statement = {
     //TODO(izraelevitz): check speed
     def updateRef(e: Expression): Expression = {
-      val ex = e map updateRef
-      repl getOrElse (ex.serialize, ex)
+      val ex = e.map(updateRef)
+      repl.getOrElse(ex.serialize, ex)
     }
 
     def hasEmptyExpr(stmt: Statement): Boolean = {
@@ -26,14 +25,14 @@ object MemTransformUtils {
           case EmptyExpression => foundEmpty = true
           case _ =>
         }
-        e map testEmptyExpr // map must return; no foreach
+        e.map(testEmptyExpr) // map must return; no foreach
       }
-      stmt map testEmptyExpr
+      stmt.map(testEmptyExpr)
       foundEmpty
     }
 
     def updateStmtRefs(s: Statement): Statement =
-      s map updateStmtRefs map updateRef match {
+      s.map(updateStmtRefs).map(updateRef) match {
         case c: Connect if hasEmptyExpr(c) => EmptyStmt
         case s => s
       }
@@ -42,6 +41,6 @@ object MemTransformUtils {
   }
 
   def defaultPortSeq(mem: DefAnnotatedMemory): Seq[Field] = MemPortUtils.defaultPortSeq(mem.toMem)
-  def memPortField(s: DefAnnotatedMemory, p: String, f: String): WSubField =
+  def memPortField(s:     DefAnnotatedMemory, p: String, f: String): WSubField =
     MemPortUtils.memPortField(s.toMem, p, f)
 }

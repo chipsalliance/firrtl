@@ -6,7 +6,6 @@ import firrtl._
 import FirrtlCheckers._
 
 class MemSpec extends FirrtlPropSpec with FirrtlMatchers {
-
   property("Zero-ported mems should be supported!") {
     runFirrtlTest("ZeroPortMem", "/features")
   }
@@ -49,7 +48,7 @@ class MemSpec extends FirrtlPropSpec with FirrtlMatchers {
        """.stripMargin
     val result = (new VerilogCompiler).compileAndEmit(CircuitState(parse(input), ChirrtlForm, List.empty))
     // TODO Not great that it includes the sparse comment for VCS
-    result should containLine (s"reg /* sparse */ [7:0] m [0:$addrWidth'd${memSize-1}];")
+    result should containLine(s"reg /* sparse */ [7:0] m [0:$addrWidth'd${memSize - 1}];")
   }
 
   property("Very large CHIRRTL memories should be supported") {
@@ -75,7 +74,6 @@ class MemSpec extends FirrtlPropSpec with FirrtlMatchers {
        """.stripMargin
     val result = (new VerilogCompiler).compileAndEmit(CircuitState(parse(input), ChirrtlForm, List.empty))
     // TODO Not great that it includes the sparse comment for VCS
-    result should containLine (s"reg /* sparse */ [7:0] m [0:$addrWidth'd${memSize-1}];")
+    result should containLine(s"reg /* sparse */ [7:0] m [0:$addrWidth'd${memSize - 1}];")
   }
 }
-

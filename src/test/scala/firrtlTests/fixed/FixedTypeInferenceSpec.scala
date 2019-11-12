@@ -11,12 +11,15 @@ import firrtl.Parser.IgnoreInfo
 
 class FixedTypeInferenceSpec extends FirrtlFlatSpec {
   private def executeTest(input: String, expected: Seq[String], passes: Seq[Transform]) = {
-    val c = passes.foldLeft(CircuitState(Parser.parse(input.split("\n").toIterator), UnknownForm)) {
-      (c: CircuitState, p: Transform) => p.runTransform(c)
-    }.circuit
-    val lines = c.serialize.split("\n") map normalized
+    val c = passes
+      .foldLeft(CircuitState(Parser.parse(input.split("\n").toIterator), UnknownForm)) {
+        (c: CircuitState, p: Transform) =>
+          p.runTransform(c)
+      }
+      .circuit
+    val lines = c.serialize.split("\n").map(normalized)
 
-    expected foreach { e =>
+    expected.foreach { e =>
       lines should contain(e)
     }
   }
@@ -31,7 +34,8 @@ class FixedTypeInferenceSpec extends FirrtlFlatSpec {
       ResolveFlows,
       CheckFlows,
       new InferWidths,
-      CheckWidths)
+      CheckWidths
+    )
     val input =
       """circuit Unit :
         |  module Unit :
@@ -48,7 +52,7 @@ class FixedTypeInferenceSpec extends FirrtlFlatSpec {
         |    input c : Fixed<4><<3>>
         |    output d : Fixed<13><<3>>
         |    d <= add(a, add(b, c))""".stripMargin
-    executeTest(input, check.split("\n") map normalized, passes)
+    executeTest(input, check.split("\n").map(normalized), passes)
   }
 
   "Fixed types" should "infer add correctly" in {
@@ -61,7 +65,8 @@ class FixedTypeInferenceSpec extends FirrtlFlatSpec {
       ResolveFlows,
       CheckFlows,
       new InferWidths,
-      CheckWidths)
+      CheckWidths
+    )
     val input =
       """circuit Unit :
         |  module Unit :
@@ -78,7 +83,7 @@ class FixedTypeInferenceSpec extends FirrtlFlatSpec {
         |    input c : Fixed<4><<3>>
         |    output d : Fixed<15><<3>>
         |    d <= add(a, add(b, c))""".stripMargin
-    executeTest(input, check.split("\n") map normalized, passes)
+    executeTest(input, check.split("\n").map(normalized), passes)
   }
 
   "Fixed types" should "be correctly shifted left" in {
@@ -91,7 +96,8 @@ class FixedTypeInferenceSpec extends FirrtlFlatSpec {
       ResolveFlows,
       CheckFlows,
       new InferWidths,
-      CheckWidths)
+      CheckWidths
+    )
     val input =
       """circuit Unit :
         |  module Unit :
@@ -104,7 +110,7 @@ class FixedTypeInferenceSpec extends FirrtlFlatSpec {
         |    input a : Fixed<10><<2>>
         |    output d : Fixed<12><<2>>
         |    d <= shl(a, 2)""".stripMargin
-    executeTest(input, check.split("\n") map normalized, passes)
+    executeTest(input, check.split("\n").map(normalized), passes)
   }
 
   "Fixed types" should "be correctly shifted right" in {
@@ -117,7 +123,8 @@ class FixedTypeInferenceSpec extends FirrtlFlatSpec {
       ResolveFlows,
       CheckFlows,
       new InferWidths,
-      CheckWidths)
+      CheckWidths
+    )
     val input =
       """circuit Unit :
         |  module Unit :
@@ -130,7 +137,7 @@ class FixedTypeInferenceSpec extends FirrtlFlatSpec {
         |    input a : Fixed<10><<2>>
         |    output d : Fixed<8><<2>>
         |    d <= shr(a, 2)""".stripMargin
-    executeTest(input, check.split("\n") map normalized, passes)
+    executeTest(input, check.split("\n").map(normalized), passes)
   }
 
   "Fixed types" should "relatively move binary point left" in {
@@ -143,7 +150,8 @@ class FixedTypeInferenceSpec extends FirrtlFlatSpec {
       ResolveFlows,
       CheckFlows,
       new InferWidths,
-      CheckWidths)
+      CheckWidths
+    )
     val input =
       """circuit Unit :
         |  module Unit :
@@ -156,7 +164,7 @@ class FixedTypeInferenceSpec extends FirrtlFlatSpec {
         |    input a : Fixed<10><<2>>
         |    output d : Fixed<12><<4>>
         |    d <= incp(a, 2)""".stripMargin
-    executeTest(input, check.split("\n") map normalized, passes)
+    executeTest(input, check.split("\n").map(normalized), passes)
   }
 
   "Fixed types" should "relatively move binary point right" in {
@@ -169,7 +177,8 @@ class FixedTypeInferenceSpec extends FirrtlFlatSpec {
       ResolveFlows,
       CheckFlows,
       new InferWidths,
-      CheckWidths)
+      CheckWidths
+    )
     val input =
       """circuit Unit :
         |  module Unit :
@@ -182,7 +191,7 @@ class FixedTypeInferenceSpec extends FirrtlFlatSpec {
         |    input a : Fixed<10><<2>>
         |    output d : Fixed<8><<0>>
         |    d <= decp(a, 2)""".stripMargin
-    executeTest(input, check.split("\n") map normalized, passes)
+    executeTest(input, check.split("\n").map(normalized), passes)
   }
 
   "Fixed types" should "absolutely set binary point correctly" in {
@@ -195,7 +204,8 @@ class FixedTypeInferenceSpec extends FirrtlFlatSpec {
       ResolveFlows,
       CheckFlows,
       new InferWidths,
-      CheckWidths)
+      CheckWidths
+    )
     val input =
       """circuit Unit :
         |  module Unit :
@@ -208,7 +218,7 @@ class FixedTypeInferenceSpec extends FirrtlFlatSpec {
         |    input a : Fixed<10><<2>>
         |    output d : Fixed<11><<3>>
         |    d <= setp(a, 3)""".stripMargin
-    executeTest(input, check.split("\n") map normalized, passes)
+    executeTest(input, check.split("\n").map(normalized), passes)
   }
 
   "Fixed types" should "cat, head, tail, bits" in {
@@ -221,7 +231,8 @@ class FixedTypeInferenceSpec extends FirrtlFlatSpec {
       ResolveFlows,
       CheckFlows,
       new InferWidths,
-      CheckWidths)
+      CheckWidths
+    )
     val input =
       """circuit Unit :
         |  module Unit :
@@ -248,7 +259,7 @@ class FixedTypeInferenceSpec extends FirrtlFlatSpec {
         |    head <= head(a, 3)
         |    tail <= tail(a, 3)
         |    bits <= bits(a, 6, 3)""".stripMargin
-    executeTest(input, check.split("\n") map normalized, passes)
+    executeTest(input, check.split("\n").map(normalized), passes)
   }
 
   "Fixed types" should "be cast to" in {
@@ -261,7 +272,8 @@ class FixedTypeInferenceSpec extends FirrtlFlatSpec {
       ResolveFlows,
       CheckFlows,
       new InferWidths,
-      CheckWidths)
+      CheckWidths
+    )
     val input =
       """circuit Unit :
         |  module Unit :
@@ -274,7 +286,7 @@ class FixedTypeInferenceSpec extends FirrtlFlatSpec {
         |    input a : SInt<10>
         |    output d : Fixed<10><<2>>
         |    d <= asFixedPoint(a, 2)""".stripMargin
-    executeTest(input, check.split("\n") map normalized, passes)
+    executeTest(input, check.split("\n").map(normalized), passes)
   }
 
   "Fixed types" should "support binary point of zero" in {
@@ -288,7 +300,8 @@ class FixedTypeInferenceSpec extends FirrtlFlatSpec {
       CheckFlows,
       new InferWidths,
       CheckWidths,
-      ConvertFixedToSInt)
+      ConvertFixedToSInt
+    )
     val input =
       """
         |circuit Unit :
@@ -314,53 +327,53 @@ class FixedTypeInferenceSpec extends FirrtlFlatSpec {
         |    io_out <= io_in
         |
       """.stripMargin
-    executeTest(input, check.split("\n") map normalized, passes)
+    executeTest(input, check.split("\n").map(normalized), passes)
   }
   "Fixed types" should "work with mems" in {
     def input(memType: String): String =
       s"""
-        |circuit Unit :
-        |  module Unit :
-        |    input clock : Clock
-        |    input in : Fixed<16><<8>>
-        |    input ridx : UInt<3>
-        |    output out : Fixed<16><<8>>
-        |    input widx : UInt<3>
-        |    $memType mem : Fixed<16><<8>>[8]
-        |    infer mport min = mem[ridx], clock
-        |    min <= in
-        |    infer mport mout = mem[widx], clock
-        |    out <= mout
+         |circuit Unit :
+         |  module Unit :
+         |    input clock : Clock
+         |    input in : Fixed<16><<8>>
+         |    input ridx : UInt<3>
+         |    output out : Fixed<16><<8>>
+         |    input widx : UInt<3>
+         |    $memType mem : Fixed<16><<8>>[8]
+         |    infer mport min = mem[ridx], clock
+         |    min <= in
+         |    infer mport mout = mem[widx], clock
+         |    out <= mout
       """.stripMargin
     def check(readLatency: Int, moutEn: Int, minEn: Int): String =
       s"""
-        |circuit Unit :
-        |  module Unit :
-        |    input clock : Clock
-        |    input in : SInt<16>
-        |    input ridx : UInt<3>
-        |    output out : SInt<16>
-        |    input widx : UInt<3>
-        |
-        |    mem mem :
-        |      data-type => SInt<16>
-        |      depth => 8
-        |      read-latency => $readLatency
-        |      write-latency => 1
-        |      reader => mout
-        |      writer => min
-        |      read-under-write => undefined
-        |    out <= mem.mout.data
-        |    mem.mout.addr <= widx
-        |    mem.mout.en <= UInt<1>("h$moutEn")
-        |    mem.mout.clk <= clock
-        |    mem.min.addr <= ridx
-        |    mem.min.en <= UInt<1>("h$minEn")
-        |    mem.min.clk <= clock
-        |    mem.min.data <= in
-        |    mem.min.mask <= UInt<1>("h1")
+         |circuit Unit :
+         |  module Unit :
+         |    input clock : Clock
+         |    input in : SInt<16>
+         |    input ridx : UInt<3>
+         |    output out : SInt<16>
+         |    input widx : UInt<3>
+         |
+         |    mem mem :
+         |      data-type => SInt<16>
+         |      depth => 8
+         |      read-latency => $readLatency
+         |      write-latency => 1
+         |      reader => mout
+         |      writer => min
+         |      read-under-write => undefined
+         |    out <= mem.mout.data
+         |    mem.mout.addr <= widx
+         |    mem.mout.en <= UInt<1>("h$moutEn")
+         |    mem.mout.clk <= clock
+         |    mem.min.addr <= ridx
+         |    mem.min.en <= UInt<1>("h$minEn")
+         |    mem.min.clk <= clock
+         |    mem.min.data <= in
+         |    mem.min.mask <= UInt<1>("h1")
       """.stripMargin
-    executeTest(input("smem"), check(1, 0, 1).split("\n") map normalized, new LowFirrtlCompiler)
-    executeTest(input("cmem"), check(0, 1, 1).split("\n") map normalized, new LowFirrtlCompiler)
+    executeTest(input("smem"), check(1, 0, 1).split("\n").map(normalized), new LowFirrtlCompiler)
+    executeTest(input("cmem"), check(0, 1, 1).split("\n").map(normalized), new LowFirrtlCompiler)
   }
 }

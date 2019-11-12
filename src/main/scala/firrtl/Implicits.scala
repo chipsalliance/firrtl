@@ -7,8 +7,8 @@ import Utils.trim
 import firrtl.constraint.Constraint
 
 object Implicits {
-  implicit def int2WInt(i: Int): WrappedInt = WrappedInt(BigInt(i))
-  implicit def bigint2WInt(i: BigInt): WrappedInt = WrappedInt(i)
+  implicit def int2WInt(i:         Int): WrappedInt = WrappedInt(BigInt(i))
+  implicit def bigint2WInt(i:      BigInt): WrappedInt = WrappedInt(i)
   implicit def constraint2bound(c: Constraint): Bound = c match {
     case x: Bound => x
     case x => CalcBound(x)

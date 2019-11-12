@@ -8,10 +8,10 @@ import firrtl.Utils._
 import firrtl.Mappers._
 import firrtl.traversals.Foreachers._
 import firrtl.WrappedExpression._
-import firrtl.graph.{MutableDiGraph, CyclicException}
+import firrtl.graph.{CyclicException, MutableDiGraph}
 
 import scala.collection.mutable
-import scala.util.{Try, Success, Failure}
+import scala.util.{Failure, Success, Try}
 
 /** Replace wires with nodes in a legal, flow-forward order
   *
@@ -29,7 +29,7 @@ class RemoveWires extends Transform {
     val refs = mutable.ArrayBuffer.empty[WRef]
     def rec(e: Expression): Expression = {
       e match {
-        case ref @ WRef(_,_, WireKind | NodeKind | RegKind, _) => refs += ref
+        case ref @ WRef(_, _, WireKind | NodeKind | RegKind, _) => refs += ref
         case nested @ (_: Mux | _: DoPrim | _: ValidIf) => nested.foreach(rec)
         case _ => // Do nothing
       }
@@ -42,7 +42,8 @@ class RemoveWires extends Transform {
   // Transform netlist into DefNodes
   private def getOrderedNodes(
     netlist: mutable.LinkedHashMap[WrappedExpression, (Seq[Expression], Info)],
-    regInfo: mutable.Map[WrappedExpression, DefRegister]): Try[Seq[Statement]] = {
+    regInfo: mutable.Map[WrappedExpression, DefRegister]
+  ): Try[Seq[Statement]] = {
     val digraph = new MutableDiGraph[WrappedExpression]
     for ((sink, (exprs, _)) <- netlist) {
       digraph.addVertex(sink)
@@ -98,14 +99,15 @@ class RemoveWires extends Transform {
           netlist(we(WRef(reg))) = (Seq(reg.clock) ++ resetDep ++ initDep, reg.info)
         case decl: IsDeclaration => // Keep all declarations except for nodes and non-Analog wires
           decls += decl
-        case con @ Connect(cinfo, lhs, rhs) => kind(lhs) match {
-          case WireKind =>
-            // Be sure to pad the rhs since nodes get their type from the rhs
-            val paddedRhs = ConstantPropagation.pad(rhs, lhs.tpe)
-            val dinfo = wireInfo(lhs)
-            netlist(we(lhs)) = (Seq(paddedRhs), MultiInfo(dinfo, cinfo))
-          case _ => otherStmts += con // Other connections just pass through
-        }
+        case con @ Connect(cinfo, lhs, rhs) =>
+          kind(lhs) match {
+            case WireKind =>
+              // Be sure to pad the rhs since nodes get their type from the rhs
+              val paddedRhs = ConstantPropagation.pad(rhs, lhs.tpe)
+              val dinfo = wireInfo(lhs)
+              netlist(we(lhs)) = (Seq(paddedRhs), MultiInfo(dinfo, cinfo))
+            case _ => otherStmts += con // Other connections just pass through
+          }
         case invalid @ IsInvalid(info, expr) =>
           kind(expr) match {
             case WireKind =>
@@ -131,8 +133,10 @@ class RemoveWires extends Transform {
           // If we hit a CyclicException, just abort removing wires
           case Failure(c: CyclicException) =>
             val problematicNode = c.node
-            logger.warn(s"Cycle found in module $name, " +
-              s"wires will not be removed which can prevent optimizations! Problem node: $problematicNode")
+            logger.warn(
+              s"Cycle found in module $name, " +
+                s"wires will not be removed which can prevent optimizations! Problem node: $problematicNode"
+            )
             mod
           case Failure(other) => throw other
         }

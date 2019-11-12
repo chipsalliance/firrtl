@@ -8,32 +8,32 @@ import firrtl.passes.Pass
 import firrtl.ir._
 
 class CustomTransformSpec extends FirrtlFlatSpec {
-  behavior of "Custom Transforms"
+  behavior.of("Custom Transforms")
 
   they should "be able to introduce high firrtl" in {
     // Simple module
     val delayModuleString = """
-      |circuit Delay :
-      |  module Delay :
-      |    input clock : Clock
-      |    input reset : UInt<1>
-      |    input a : UInt<32>
-      |    input en : UInt<1>
-      |    output b : UInt<32>
-      |
-      |    reg r : UInt<32>, clock
-      |    r <= r
-      |    when en :
-      |      r <= a
-      |    b <= r
-      |""".stripMargin
+                              |circuit Delay :
+                              |  module Delay :
+                              |    input clock : Clock
+                              |    input reset : UInt<1>
+                              |    input a : UInt<32>
+                              |    input en : UInt<1>
+                              |    output b : UInt<32>
+                              |
+                              |    reg r : UInt<32>, clock
+                              |    r <= r
+                              |    when en :
+                              |      r <= a
+                              |    b <= r
+                              |""".stripMargin
     val delayModuleCircuit = parse(delayModuleString)
     val delayModule = delayModuleCircuit.modules.find(_.name == delayModuleCircuit.main).get
 
     class ReplaceExtModuleTransform extends SeqTransform {
       class ReplaceExtModule extends Pass {
         def run(c: Circuit): Circuit = c.copy(
-          modules = c.modules map {
+          modules = c.modules.map {
             case ExtModule(_, "Delay", _, _, _) => delayModule
             case other => other
           }
@@ -49,10 +49,10 @@ class CustomTransformSpec extends FirrtlFlatSpec {
 
   they should "not cause \"Internal Errors\"" in {
     val input = """
-      |circuit test :
-      |  module test :
-      |    output out : UInt
-      |    out <= UInt(123)""".stripMargin
+                  |circuit test :
+                  |  module test :
+                  |    output out : UInt
+                  |    out <= UInt(123)""".stripMargin
     val errorString = "My Custom Transform failed!"
     class ErroringTransform extends Transform {
       def inputForm = HighForm
@@ -63,13 +63,10 @@ class CustomTransformSpec extends FirrtlFlatSpec {
       }
     }
     val optionsManager = new ExecutionOptionsManager("test") with HasFirrtlOptions {
-      firrtlOptions = FirrtlExecutionOptions(
-        firrtlSource = Some(input),
-        customTransforms = List(new ErroringTransform))
+      firrtlOptions = FirrtlExecutionOptions(firrtlSource = Some(input), customTransforms = List(new ErroringTransform))
     }
-    (the [java.lang.IllegalArgumentException] thrownBy {
+    (the[java.lang.IllegalArgumentException] thrownBy {
       Driver.execute(optionsManager)
-    }).getMessage should include (errorString)
+    }).getMessage should include(errorString)
   }
 }
-

@@ -4,23 +4,24 @@ package firrtl.stage.phases
 
 import firrtl.{AnnotationSeq, ChirrtlForm, CircuitState, Compiler => FirrtlCompiler, Transform, seqToAnnoSeq}
 import firrtl.options.{Phase, PhasePrerequisiteException, Translator}
-import firrtl.stage.{CompilerAnnotation, FirrtlCircuitAnnotation,
-  RunFirrtlTransformAnnotation}
+import firrtl.stage.{CompilerAnnotation, FirrtlCircuitAnnotation, RunFirrtlTransformAnnotation}
 
 import scala.collection.mutable
 
 /** An encoding of the information necessary to run the FIRRTL compiler once */
-private [stage] case class CompilerRun(
-  stateIn: CircuitState,
-  stateOut: Option[CircuitState],
+private[stage] case class CompilerRun(
+  stateIn:    CircuitState,
+  stateOut:   Option[CircuitState],
   transforms: Seq[Transform],
-  compiler: Option[FirrtlCompiler] )
+  compiler:   Option[FirrtlCompiler]
+)
 
 /** An encoding of possible defaults for a [[CompilerRun]] */
-private [stage] case class Defaults(
+private[stage] case class Defaults(
   annotations: AnnotationSeq = Seq.empty,
-  transforms: Seq[Transform] = Seq.empty,
-  compiler: Option[FirrtlCompiler] = None)
+  transforms:  Seq[Transform] = Seq.empty,
+  compiler:    Option[FirrtlCompiler] = None
+)
 
 /** Runs the FIRRTL compilers on an [[AnnotationSeq]]. If the input [[AnnotationSeq]] contains more than one circuit
   * (i.e., more than one [[FirrtlCircuitAnnotation]]), then annotations will be broken up and each run will be executed
@@ -43,33 +44,34 @@ private [stage] case class Defaults(
   * FirrtlCircuitAnnotation(z) has no annotations, so it only gets the default A(a).
   */
 class Compiler extends Phase with Translator[AnnotationSeq, Seq[CompilerRun]] {
-
   /** Convert an [[AnnotationSeq]] into a sequence of compiler runs. */
   protected def aToB(a: AnnotationSeq): Seq[CompilerRun] = {
     var foundFirstCircuit = false
     val c = mutable.ArrayBuffer.empty[CompilerRun]
-    a.foldLeft(Defaults()){
+    a.foldLeft(Defaults()) {
       case (d, FirrtlCircuitAnnotation(circuit)) =>
         foundFirstCircuit = true
         CompilerRun(CircuitState(circuit, ChirrtlForm, d.annotations, None), None, d.transforms, d.compiler) +=: c
         d
-      case (d, a) if foundFirstCircuit => a match {
-        case RunFirrtlTransformAnnotation(transform) =>
-          c(0) = c(0).copy(transforms = transform +: c(0).transforms)
-          d
-        case CompilerAnnotation(compiler) =>
-          c(0) = c(0).copy(compiler = Some(compiler))
-          d
-        case annotation =>
-          val state = c(0).stateIn
-          c(0) = c(0).copy(stateIn = state.copy(annotations = annotation +: state.annotations))
-          d
-      }
-      case (d, a) if !foundFirstCircuit => a match {
-        case RunFirrtlTransformAnnotation(transform) => d.copy(transforms = transform +: d.transforms)
-        case CompilerAnnotation(compiler) => d.copy(compiler = Some(compiler))
-        case annotation => d.copy(annotations = annotation +: d.annotations)
-      }
+      case (d, a) if foundFirstCircuit =>
+        a match {
+          case RunFirrtlTransformAnnotation(transform) =>
+            c(0) = c(0).copy(transforms = transform +: c(0).transforms)
+            d
+          case CompilerAnnotation(compiler) =>
+            c(0) = c(0).copy(compiler = Some(compiler))
+            d
+          case annotation =>
+            val state = c(0).stateIn
+            c(0) = c(0).copy(stateIn = state.copy(annotations = annotation +: state.annotations))
+            d
+        }
+      case (d, a) if !foundFirstCircuit =>
+        a match {
+          case RunFirrtlTransformAnnotation(transform) => d.copy(transforms = transform +: d.transforms)
+          case CompilerAnnotation(compiler) => d.copy(compiler = Some(compiler))
+          case annotation => d.copy(annotations = annotation +: d.annotations)
+        }
     }
     c
   }
@@ -78,22 +80,22 @@ class Compiler extends Phase with Translator[AnnotationSeq, Seq[CompilerRun]] {
     * removed ([[CompilerAnnotation]]s and [[RunFirrtlTransformAnnotation]]s).
     */
   protected def bToA(b: Seq[CompilerRun]): AnnotationSeq =
-    b.flatMap( bb => FirrtlCircuitAnnotation(bb.stateOut.get.circuit) +: bb.stateOut.get.annotations )
+    b.flatMap(bb => FirrtlCircuitAnnotation(bb.stateOut.get.circuit) +: bb.stateOut.get.annotations)
 
   /** Run the FIRRTL compiler some number of times. If more than one run is specified, a parallel collection will be
     * used.
     */
   protected def internalTransform(b: Seq[CompilerRun]): Seq[CompilerRun] = {
     def f(c: CompilerRun): CompilerRun = {
-      val statex = c
-        .compiler
-        .getOrElse { throw new PhasePrerequisiteException("No compiler specified!") }
+      val statex = c.compiler.getOrElse { throw new PhasePrerequisiteException("No compiler specified!") }
         .compile(c.stateIn, c.transforms.reverse)
       c.copy(stateOut = Some(statex))
     }
 
-    if (b.size <= 1) { b.map(f)         }
-    else             { b.par.map(f).seq }
+    if (b.size <= 1) {
+      b.map(f)
+    } else {
+      b.par.map(f).seq
+    }
   }
-
 }

@@ -6,7 +6,7 @@ import org.scalatest.{FlatSpec, Matchers}
 import scopt.OptionParser
 import java.util.ServiceLoader
 
-import firrtl.options.{RegisteredTransform, RegisteredLibrary, ShellOption}
+import firrtl.options.{RegisteredLibrary, RegisteredTransform, ShellOption}
 import firrtl.passes.Pass
 import firrtl.ir.Circuit
 import firrtl.annotations.NoTargetAnnotation
@@ -18,26 +18,20 @@ class FooTransform extends Pass with RegisteredTransform {
   def run(c: Circuit): Circuit = c
 
   val options = Seq(
-    new ShellOption[Unit](
-      longOption = "hello",
-      toAnnotationSeq = _ => Seq(HelloAnnotation),
-      helpText = "Hello option") )
-
+    new ShellOption[Unit](longOption = "hello", toAnnotationSeq = _ => Seq(HelloAnnotation), helpText = "Hello option")
+  )
 }
 
 class BarLibrary extends RegisteredLibrary {
   def name: String = "Bar"
 
   val options = Seq(
-    new ShellOption[Unit](
-      longOption = "world",
-      toAnnotationSeq = _ => Seq(HelloAnnotation),
-      helpText = "World option") )
+    new ShellOption[Unit](longOption = "world", toAnnotationSeq = _ => Seq(HelloAnnotation), helpText = "World option")
+  )
 }
 
 class RegistrationSpec extends FlatSpec with Matchers {
-
-  behavior of "RegisteredTransform"
+  behavior.of("RegisteredTransform")
 
   it should "FooTransform should be discovered by Java.util.ServiceLoader" in {
     val iter = ServiceLoader.load(classOf[RegisteredTransform]).iterator()
@@ -45,10 +39,10 @@ class RegistrationSpec extends FlatSpec with Matchers {
     while (iter.hasNext) {
       transforms += iter.next()
     }
-    transforms.map(_.getClass.getName) should contain ("firrtlTests.options.FooTransform")
+    transforms.map(_.getClass.getName) should contain("firrtlTests.options.FooTransform")
   }
 
-  behavior of "RegisteredLibrary"
+  behavior.of("RegisteredLibrary")
 
   it should "BarLibrary be discovered by Java.util.ServiceLoader" in {
     val iter = ServiceLoader.load(classOf[RegisteredLibrary]).iterator()
@@ -56,6 +50,6 @@ class RegistrationSpec extends FlatSpec with Matchers {
     while (iter.hasNext) {
       transforms += iter.next()
     }
-    transforms.map(_.getClass.getName) should contain ("firrtlTests.options.BarLibrary")
+    transforms.map(_.getClass.getName) should contain("firrtlTests.options.BarLibrary")
   }
 }

@@ -5,7 +5,7 @@ package firrtl.options
 import firrtl.AnnotationSeq
 import firrtl.transforms.NoCircuitDedupAnnotation
 
-import logger.{LogLevelAnnotation, ClassLogLevelAnnotation, LogFileAnnotation, LogClassNamesAnnotation}
+import logger.{ClassLogLevelAnnotation, LogClassNamesAnnotation, LogFileAnnotation, LogLevelAnnotation}
 
 import scopt.OptionParser
 
@@ -15,7 +15,6 @@ import java.util.ServiceLoader
   * @param applicationName the application associated with these command line options
   */
 class Shell(val applicationName: String) {
-
   /** Command line argument parser (OptionParser) with modifications */
   protected val parser = new OptionParser[AnnotationSeq](applicationName) with DuplicateHandling with ExceptOnError
 
@@ -37,7 +36,9 @@ class Shell(val applicationName: String) {
   final lazy val registeredTransforms: Seq[RegisteredTransform] = {
     val transforms = scala.collection.mutable.ArrayBuffer[RegisteredTransform]()
     val iter = ServiceLoader.load(classOf[RegisteredTransform]).iterator()
-    if (iter.hasNext) { parser.note("FIRRTL Transform Options") }
+    if (iter.hasNext) {
+      parser.note("FIRRTL Transform Options")
+    }
     while (iter.hasNext) {
       val tx = iter.next()
       transforms += tx
@@ -63,29 +64,25 @@ class Shell(val applicationName: String) {
 
   parser.note("Shell Options")
   ProgramArgsAnnotation.addOptions(parser)
-  Seq( TargetDirAnnotation,
-       InputAnnotationFileAnnotation,
-       OutputAnnotationFileAnnotation,
-       NoCircuitDedupAnnotation)
+  Seq(TargetDirAnnotation, InputAnnotationFileAnnotation, OutputAnnotationFileAnnotation, NoCircuitDedupAnnotation)
     .foreach(_.addOptions(parser))
 
-  parser.opt[Unit]("show-registrations")
-    .action{ (_, c) =>
+  parser
+    .opt[Unit]("show-registrations")
+    .action { (_, c) =>
       val rtString = registeredTransforms.map(r => s"\n  - ${r.getClass.getName}").mkString
       val rlString = registeredLibraries.map(l => s"\n  - ${l.getClass.getName}").mkString
 
       println(s"""|The following FIRRTL transforms registered command line options:$rtString
                   |The following libraries registered command line options:$rlString""".stripMargin)
-      c }
+      c
+    }
     .unbounded()
     .text("print discovered registered libraries and transforms")
 
   parser.help("help").text("prints this usage text")
 
   parser.note("Logging Options")
-  Seq( LogLevelAnnotation,
-       ClassLogLevelAnnotation,
-       LogFileAnnotation,
-       LogClassNamesAnnotation )
+  Seq(LogLevelAnnotation, ClassLogLevelAnnotation, LogFileAnnotation, LogClassNamesAnnotation)
     .foreach(_.addOptions(parser))
 }

@@ -11,22 +11,21 @@ import firrtl.WrappedExpression._
 import scala.collection.mutable
 
 object CheckResets {
-  class NonLiteralAsyncResetValueException(info: Info, mname: String, reg: String, init: String) extends PassException(
-    s"$info: [module $mname] AsyncReset Reg '$reg' reset to non-literal '$init'")
+  class NonLiteralAsyncResetValueException(info: Info, mname: String, reg: String, init: String)
+      extends PassException(s"$info: [module $mname] AsyncReset Reg '$reg' reset to non-literal '$init'")
 
   // Map of Initialization Expression to check
   private type RegCheckList = mutable.ListBuffer[(Expression, DefRegister)]
   // Record driving for literal propagation
   // Indicates *driven by*
   private type DirectDriverMap = mutable.HashMap[WrappedExpression, Expression]
-
 }
 
 // Must run after ExpandWhens
 // Requires
 //   - static single connections of ground types
 class CheckResets extends Transform {
-  def inputForm: CircuitForm = MidForm
+  def inputForm:  CircuitForm = MidForm
   def outputForm: CircuitForm = MidForm
 
   import CheckResets._
@@ -35,7 +34,7 @@ class CheckResets extends Transform {
     stmt match {
       case DefNode(_, name, expr) => drivers += we(WRef(name)) -> expr
       case Connect(_, lhs, rhs) => drivers += we(lhs) -> rhs
-      case reg @ DefRegister(_,_,_,_, reset, init) if reset.tpe == AsyncResetType =>
+      case reg @ DefRegister(_, _, _, _, reset, init) if reset.tpe == AsyncResetType =>
         regCheck += init -> reg
       case _ => // Do nothing
     }
@@ -72,4 +71,3 @@ class CheckResets extends Transform {
     state
   }
 }
-

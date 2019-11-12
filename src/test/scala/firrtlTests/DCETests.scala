@@ -25,9 +25,9 @@ class DCETests extends FirrtlFlatSpec {
     val finalState = (new LowFirrtlCompiler).compileAndEmit(state, customTransforms)
     val res = finalState.getEmittedCircuit.value
     // Convert to sets for comparison
-    val resSet = Set(parse(res).serialize.split("\n"):_*)
-    val checkSet = Set(parse(check).serialize.split("\n"):_*)
-    resSet should be (checkSet)
+    val resSet = Set(parse(res).serialize.split("\n"):     _*)
+    val checkSet = Set(parse(check).serialize.split("\n"): _*)
+    resSet should be(checkSet)
   }
 
   "Unread wire" should "be deleted" in {
@@ -394,7 +394,7 @@ class DCETests extends FirrtlFlatSpec {
     exec(input, check)
   }
   // This currently does NOT work
-  behavior of "Single dead instances"
+  behavior.of("Single dead instances")
   ignore should "should be deleted" in {
     val input =
       """circuit Top :
@@ -445,9 +445,9 @@ class DCETests extends FirrtlFlatSpec {
     val result = (new VerilogCompiler).compileAndEmit(state, List.empty)
     val verilog = result.getEmittedCircuit.value
     // Check that mux is removed!
-    verilog shouldNot include regex ("""a \? x : r;""")
+    (verilog shouldNot include).regex("""a \? x : r;""")
     // Check for register update
-    verilog should include regex ("""(?m)if \(a\) begin\n\s*r <= x;\s*end""")
+    (verilog should include).regex("""(?m)if \(a\) begin\n\s*r <= x;\s*end""")
   }
 
   "Emitted Verilog" should "not contain dead print or stop statements" in {
@@ -463,13 +463,12 @@ class DCETests extends FirrtlFlatSpec {
     val state = CircuitState(input, ChirrtlForm)
     val result = (new VerilogCompiler).compileAndEmit(state, List.empty)
     val verilog = result.getEmittedCircuit.value
-    verilog shouldNot include regex ("""fwrite""")
-    verilog shouldNot include regex ("""fatal""")
+    (verilog shouldNot include).regex("""fwrite""")
+    (verilog shouldNot include).regex("""fatal""")
   }
 }
 
 class DCECommandLineSpec extends FirrtlFlatSpec {
-
   val testDir = createTestDirectory("dce")
   val inputFile = Paths.get(getClass.getResource("/features/HasDeadCode.fir").toURI()).toFile()
   val outFile = new File(testDir, "HasDeadCode.v")
@@ -478,7 +477,7 @@ class DCECommandLineSpec extends FirrtlFlatSpec {
   "Dead Code Elimination" should "run by default" in {
     firrtl.Driver.execute(args) match {
       case FirrtlExecutionSuccess(_, verilog) =>
-        verilog should not include regex ("wire +a;")
+        (verilog should not).include(regex("wire +a;"))
       case _ => fail("Unexpected compilation failure")
     }
   }
@@ -486,7 +485,7 @@ class DCECommandLineSpec extends FirrtlFlatSpec {
   it should "not run when given --no-dce option" in {
     firrtl.Driver.execute(args :+ "--no-dce") match {
       case FirrtlExecutionSuccess(_, verilog) =>
-        verilog should include regex ("wire +a;")
+        (verilog should include).regex("wire +a;")
       case _ => fail("Unexpected compilation failure")
     }
   }

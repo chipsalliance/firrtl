@@ -8,7 +8,6 @@ import Utils.throwInternalError
 
 /** Remove [[firrtl.ir.ValidIf ValidIf]] and replace [[firrtl.ir.IsInvalid IsInvalid]] with a connection to zero */
 object RemoveValidIf extends Pass {
-
   val UIntZero = Utils.zero
   val SIntZero = SIntLiteral(BigInt(0), IntWidth(1))
   val ClockZero = DoPrim(PrimOps.AsClock, Seq(UIntZero), Seq.empty, ClockType)
@@ -27,18 +26,19 @@ object RemoveValidIf extends Pass {
 
   // Recursive. Removes ValidIfs
   private def onExp(e: Expression): Expression = {
-    e map onExp match {
+    e.map(onExp) match {
       case ValidIf(_, value, _) => value
       case x => x
     }
   }
 
   // Recursive. Replaces IsInvalid with connecting zero
-  private def onStmt(s: Statement): Statement = s map onStmt map onExp match {
-    case invalid @ IsInvalid(info, loc) => loc.tpe match {
-      case _: AnalogType => EmptyStmt
-      case tpe => Connect(info, loc, getGroundZero(tpe))
-    }
+  private def onStmt(s: Statement): Statement = s.map(onStmt).map(onExp) match {
+    case invalid @ IsInvalid(info, loc) =>
+      loc.tpe match {
+        case _: AnalogType => EmptyStmt
+        case tpe => Connect(info, loc, getGroundZero(tpe))
+      }
     case other => other
   }
 

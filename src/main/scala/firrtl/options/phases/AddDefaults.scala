@@ -11,12 +11,10 @@ import firrtl.options.{Phase, TargetDirAnnotation}
   * tools may expect a [[TargetDirAnnotation]] to exist.
   */
 class AddDefaults extends Phase {
-
   def transform(annotations: AnnotationSeq): AnnotationSeq = {
-    val td = annotations.collectFirst{ case a: TargetDirAnnotation => a}.isEmpty
+    val td = annotations.collectFirst { case a: TargetDirAnnotation => a }.isEmpty
 
     (if (td) Seq(TargetDirAnnotation()) else Seq()) ++
       annotations
   }
-
 }

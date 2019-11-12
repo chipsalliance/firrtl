@@ -19,11 +19,11 @@ object ToMemIR extends Pass {
     */
   import ReadUnderWrite._
   def updateStmts(s: Statement): Statement = s match {
-    case m @ DefMemory(_,_,_,_,1,1,r,w,rw,Undefined) if (w.length + rw.length) == 1 && r.length <= 1 =>
+    case m @ DefMemory(_, _, _, _, 1, 1, r, w, rw, Undefined) if (w.length + rw.length) == 1 && r.length <= 1 =>
       DefAnnotatedMemory(m)
-    case sx => sx map updateStmts
+    case sx => sx.map(updateStmts)
   }
 
-  def annotateModMems(m: DefModule) = m map updateStmts
-  def run(c: Circuit) = c copy (modules = c.modules map annotateModMems)
+  def annotateModMems(m: DefModule) = m.map(updateStmts)
+  def run(c:             Circuit) = c.copy(modules = c.modules.map(annotateModMems))
 }

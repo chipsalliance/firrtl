@@ -15,7 +15,6 @@ import logger.Logger
   * may be pulled in if available.
   */
 abstract class Stage extends Phase {
-
   /** A utility that helps convert command line options to annotations */
   val shell: Shell
 
@@ -32,17 +31,17 @@ abstract class Stage extends Phase {
     */
   final def transform(annotations: AnnotationSeq): AnnotationSeq = {
     val annotationsx =
-      Seq( new phases.GetIncludes,
-           new phases.ConvertLegacyAnnotations )
+      Seq(new phases.GetIncludes, new phases.ConvertLegacyAnnotations)
         .map(phases.DeletedWrapper(_))
         .foldLeft(annotations)((a, p) => p.transform(a))
 
     Logger.makeScope(annotationsx) {
-      Seq( new phases.AddDefaults,
-           new phases.Checks,
-           new Phase { def transform(a: AnnotationSeq) = run(a) },
-           new phases.WriteOutputAnnotations )
-        .map(phases.DeletedWrapper(_))
+      Seq(
+        new phases.AddDefaults,
+        new phases.Checks,
+        new Phase { def transform(a: AnnotationSeq) = run(a) },
+        new phases.WriteOutputAnnotations
+      ).map(phases.DeletedWrapper(_))
         .foldLeft(annotationsx)((a, p) => p.transform(a))
     }
   }
@@ -55,25 +54,23 @@ abstract class Stage extends Phase {
     */
   final def execute(args: Array[String], annotations: AnnotationSeq): AnnotationSeq =
     transform(shell.parse(args, annotations))
-
 }
 
 /** Provides a main method for a [[Stage]]
   * @param stage the stage to run
   */
 class StageMain(val stage: Stage) {
-
   /** The main function that serves as this stage's command line interface.
     * @param args command line arguments
     */
-  final def main(args: Array[String]): Unit = try {
-    stage.execute(args, Seq.empty)
-  } catch {
-    case a: StageError =>
-      System.exit(a.code.number)
-    case a: OptionsException =>
-      StageUtils.dramaticUsageError(a.message)
-      System.exit(1)
-  }
-
+  final def main(args: Array[String]): Unit =
+    try {
+      stage.execute(args, Seq.empty)
+    } catch {
+      case a: StageError =>
+        System.exit(a.code.number)
+      case a: OptionsException =>
+        StageUtils.dramaticUsageError(a.message)
+        System.exit(1)
+    }
 }

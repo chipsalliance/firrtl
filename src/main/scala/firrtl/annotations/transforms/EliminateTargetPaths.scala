@@ -12,7 +12,6 @@ import firrtl.{CircuitForm, CircuitState, FirrtlInternalException, HighForm, Ren
 
 import scala.collection.mutable
 
-
 /** Group of targets that should become local targets
   * @param targets
   */
@@ -41,7 +40,6 @@ case class NoSuchTargetException(message: String) extends FirrtlInternalExceptio
   * C/x -> (C/x, C_/x) // where x is any reference in C
   */
 class EliminateTargetPaths extends Transform {
-
   def inputForm: CircuitForm = HighForm
 
   def outputForm: CircuitForm = HighForm
@@ -53,22 +51,22 @@ class EliminateTargetPaths extends Transform {
     * @param s
     * @return
     */
-  private def onStmt(dupMap: DuplicationHelper,
-                     oldUsedOfModules: mutable.HashSet[String],
-                     newUsedOfModules: mutable.HashSet[String])
-                    (originalModule: String, newModule: String)
-                    (s: Statement): Statement = s match {
-    case d@DefInstance(_, name, module) =>
+  private def onStmt(
+    dupMap:           DuplicationHelper,
+    oldUsedOfModules: mutable.HashSet[String],
+    newUsedOfModules: mutable.HashSet[String]
+  )(originalModule:   String, newModule: String)(s: Statement): Statement = s match {
+    case d @ DefInstance(_, name, module) =>
       val ofModule = dupMap.getNewOfModule(originalModule, newModule, Instance(name), OfModule(module)).value
       newUsedOfModules += ofModule
       oldUsedOfModules += module
       d.copy(module = ofModule)
-    case d@WDefInstance(_, name, module, _) =>
+    case d @ WDefInstance(_, name, module, _) =>
       val ofModule = dupMap.getNewOfModule(originalModule, newModule, Instance(name), OfModule(module)).value
       newUsedOfModules += ofModule
       oldUsedOfModules += module
       d.copy(module = ofModule)
-    case other => other map onStmt(dupMap, oldUsedOfModules, newUsedOfModules)(originalModule, newModule)
+    case other => other.map(onStmt(dupMap, oldUsedOfModules, newUsedOfModules)(originalModule, newModule))
   }
 
   /** Returns a modified circuit and [[RenameMap]] containing the associated target remapping
@@ -77,11 +75,12 @@ class EliminateTargetPaths extends Transform {
     * @return
     */
   def run(cir: Circuit, targets: Seq[IsMember]): (Circuit, RenameMap) = {
-
     val dupMap = DuplicationHelper(cir.modules.map(_.name).toSet)
 
     // For each target, record its path and calculate the necessary modifications to circuit
-    targets.foreach { t => dupMap.expandHierarchy(t) }
+    targets.foreach { t =>
+      dupMap.expandHierarchy(t)
+    }
 
     // Records original list of used ofModules
     val oldUsedOfModules = mutable.HashSet[String]()
@@ -111,8 +110,9 @@ class EliminateTargetPaths extends Transform {
     // A module is in the final list if:
     // 1) it is a module that is instantiated (new or old)
     // 2) it is an old module that was not instantiated and is still not instantiated
-    val finalModuleList = duplicatedModuleList.filter(m =>
-      newUsedOfModules.contains(m.name) || (!newUsedOfModules.contains(m.name) && !oldUsedOfModules.contains(m.name))
+    val finalModuleList = duplicatedModuleList.filter(
+      m =>
+        newUsedOfModules.contains(m.name) || (!newUsedOfModules.contains(m.name) && !oldUsedOfModules.contains(m.name))
     )
 
     // Records how targets have been renamed
@@ -122,7 +122,7 @@ class EliminateTargetPaths extends Transform {
     targets.foreach { t =>
       val newTsx = dupMap.makePathless(t)
       val newTs = newTsx.filter(c => newUsedOfModules.contains(c.moduleOpt.get))
-      if(newTs.nonEmpty) {
+      if (newTs.nonEmpty) {
         renameMap.record(t, newTs)
       }
     }
@@ -132,7 +132,6 @@ class EliminateTargetPaths extends Transform {
   }
 
   override protected def execute(state: CircuitState): CircuitState = {
-
     val annotations = state.annotations.collect { case a: ResolvePaths => a }
 
     // Collect targets that are not local
@@ -147,15 +146,16 @@ class EliminateTargetPaths extends Transform {
         case i: InstanceTarget => i.asPath
         case r: ReferenceTarget => r.path
       }
-      path.foldLeft(t.module) { case (module, (inst: Instance, of: OfModule)) =>
-        val childrenOpt = instanceOfModules.get(module)
-        if(childrenOpt.isEmpty || !childrenOpt.get.contains((inst, of))) {
-          targetsWithInvalidPaths += t
-        }
-        of.value
+      path.foldLeft(t.module) {
+        case (module, (inst: Instance, of: OfModule)) =>
+          val childrenOpt = instanceOfModules.get(module)
+          if (childrenOpt.isEmpty || !childrenOpt.get.contains((inst, of))) {
+            targetsWithInvalidPaths += t
+          }
+          of.value
       }
     }
-    if(targetsWithInvalidPaths.nonEmpty) {
+    if (targetsWithInvalidPaths.nonEmpty) {
       val string = targetsWithInvalidPaths.mkString(",")
       throw NoSuchTargetException(s"""Some targets have illegal paths that cannot be resolved/eliminated: $string""")
     }

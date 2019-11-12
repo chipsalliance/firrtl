@@ -5,25 +5,26 @@ package annotations
 
 import java.io.File
 
-
 import net.jcazevedo.moultingyaml._
 import firrtl.annotations.AnnotationYamlProtocol._
 
 import firrtl.ir._
 
 case class InvalidAnnotationFileException(file: File, cause: FirrtlUserException = null)
-  extends FirrtlUserException(s"$file", cause)
-case class InvalidAnnotationJSONException(msg: String) extends FirrtlUserException(msg)
-case class AnnotationFileNotFoundException(file: File) extends FirrtlUserException(
-  s"Annotation file $file not found!"
-)
-case class AnnotationClassNotFoundException(className: String) extends FirrtlUserException(
-  s"Annotation class $className not found! Please check spelling and classpath"
-)
+    extends FirrtlUserException(s"$file", cause)
+case class InvalidAnnotationJSONException(msg:   String) extends FirrtlUserException(msg)
+case class AnnotationFileNotFoundException(file: File)
+    extends FirrtlUserException(
+      s"Annotation file $file not found!"
+    )
+case class AnnotationClassNotFoundException(className: String)
+    extends FirrtlUserException(
+      s"Annotation class $className not found! Please check spelling and classpath"
+    )
 
 object AnnotationUtils {
-  def toYaml(a: LegacyAnnotation): String = a.toYaml.prettyPrint
-  def fromYaml(s: String): LegacyAnnotation = s.parseYaml.convertTo[LegacyAnnotation]
+  def toYaml(a:   LegacyAnnotation): String = a.toYaml.prettyPrint
+  def fromYaml(s: String):           LegacyAnnotation = s.parseYaml.convertTo[LegacyAnnotation]
 
   /** Returns true if a valid Module name */
   val SerializedModuleName = """([a-zA-Z_][a-zA-Z_0-9~!@#$%^*\-+=?/]*)""".r
@@ -40,8 +41,8 @@ object AnnotationUtils {
   }
 
   /** Tokenizes a string with '[', ']', '.' as tokens, e.g.:
-   *  "foo.bar[boo.far]" becomes Seq("foo" "." "bar" "[" "boo" "." "far" "]")
-   */
+    *  "foo.bar[boo.far]" becomes Seq("foo" "." "bar" "[" "boo" "." "far" "]")
+    */
   def tokenize(s: String): Seq[String] = s.find(c => "[].".contains(c)) match {
     case Some(_) =>
       val i = s.indexWhere(c => "[].".contains(c))
@@ -66,31 +67,32 @@ object AnnotationUtils {
   def toSubComponents(s: String): Seq[TargetToken] = {
     import TargetToken._
     def exp2subcomp(e: ir.Expression): Seq[TargetToken] = e match {
-      case ir.Reference(name, _)      => Seq(Ref(name))
+      case ir.Reference(name, _) => Seq(Ref(name))
       case ir.SubField(expr, name, _) => exp2subcomp(expr) :+ Field(name)
-      case ir.SubIndex(expr, idx, _)  => exp2subcomp(expr) :+ Index(idx)
-      case ir.SubAccess(expr, idx, _) => Utils.throwInternalError(s"For string $s, cannot convert a subaccess $e into a Target")
+      case ir.SubIndex(expr, idx, _) => exp2subcomp(expr) :+ Index(idx)
+      case ir.SubAccess(expr, idx, _) =>
+        Utils.throwInternalError(s"For string $s, cannot convert a subaccess $e into a Target")
     }
     exp2subcomp(toExp(s))
   }
 
-
   /** Given a serialized component/subcomponent reference, subindex, subaccess,
-   *  or subfield, return the corresponding IR expression.
-   *  E.g. "foo.bar" becomes SubField(Reference("foo", UnknownType), "bar", UnknownType)
-   */
+    *  or subfield, return the corresponding IR expression.
+    *  E.g. "foo.bar" becomes SubField(Reference("foo", UnknownType), "bar", UnknownType)
+    */
   def toExp(s: String): Expression = {
     def parse(tokens: Seq[String]): Expression = {
       val DecPattern = """(\d+)""".r
       def findClose(tokens: Seq[String], index: Int, nOpen: Int): Seq[String] = {
-        if(index >= tokens.size) {
+        if (index >= tokens.size) {
           Utils.error("Cannot find closing bracket ]")
-        } else tokens(index) match {
-          case "[" => findClose(tokens, index + 1, nOpen + 1)
-          case "]" if nOpen == 1 => tokens.slice(1, index)
-          case "]" => findClose(tokens, index + 1, nOpen - 1)
-          case _ => findClose(tokens, index + 1, nOpen)
-        }
+        } else
+          tokens(index) match {
+            case "[" => findClose(tokens, index + 1, nOpen + 1)
+            case "]" if nOpen == 1 => tokens.slice(1, index)
+            case "]" => findClose(tokens, index + 1, nOpen - 1)
+            case _ => findClose(tokens, index + 1, nOpen)
+          }
       }
       def buildup(e: Expression, tokens: Seq[String]): Expression = tokens match {
         case "[" :: tail =>
@@ -107,7 +109,7 @@ object AnnotationUtils {
       val root = Reference(tokens.head, UnknownType)
       buildup(root, tokens.tail)
     }
-    if(validComponentName(s)) {
+    if (validComponentName(s)) {
       parse(tokenize(s))
     } else {
       Utils.error(s"Cannot convert $s into an expression.")

@@ -21,7 +21,6 @@ class ExtModuleTests extends FirrtlFlatSpec {
         |    parameter TYP = 'bit'
         |    """.stripMargin
     val parsed = parse(input)
-    (parse(parsed.serialize)) should be (parsed)
+    (parse(parsed.serialize)) should be(parsed)
   }
 }
-

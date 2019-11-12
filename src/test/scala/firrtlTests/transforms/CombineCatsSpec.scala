@@ -14,9 +14,11 @@ class CombineCatsSpec extends FirrtlFlatSpec {
   private val annotations = Seq(new MaxCatLenAnnotation(12))
 
   private def execute(input: String, transforms: Seq[Transform], annotations: AnnotationSeq): CircuitState = {
-    val c = transforms.foldLeft(CircuitState(parse(input), UnknownForm, annotations)) {
-      (c: CircuitState, t: Transform) => t.runTransform(c)
-    }.circuit
+    val c = transforms
+      .foldLeft(CircuitState(parse(input), UnknownForm, annotations)) { (c: CircuitState, t: Transform) =>
+        t.runTransform(c)
+      }
+      .circuit
     CircuitState(c, UnknownForm, Seq(), None)
   }
 
@@ -86,11 +88,24 @@ class CombineCatsSpec extends FirrtlFlatSpec {
 
     // temp5 should get cat(cat(cat(in3, in2), cat(in4, in3)), cat(cat(in3, in2), cat(in4, in3)))
     result should containTree {
-      case DoPrim(Cat, Seq(
-        DoPrim(Cat, Seq(
-          DoPrim(Cat, Seq(WRef("in2", _, _, _), WRef("in1", _, _, _)), _, _),
-          DoPrim(Cat, Seq(WRef("in3", _, _, _), WRef("in2", _, _, _)), _, _)), _, _),
-        DoPrim(Cat, Seq(WRef("in4", _, _, _), WRef("in3", _, _, _)), _, _)), _, _) => true
+      case DoPrim(
+          Cat,
+          Seq(
+            DoPrim(
+              Cat,
+              Seq(
+                DoPrim(Cat, Seq(WRef("in2", _, _, _), WRef("in1", _, _, _)), _, _),
+                DoPrim(Cat, Seq(WRef("in3", _, _, _), WRef("in2", _, _, _)), _, _)
+              ),
+              _,
+              _
+            ),
+            DoPrim(Cat, Seq(WRef("in4", _, _, _), WRef("in3", _, _, _)), _, _)
+          ),
+          _,
+          _
+          ) =>
+        true
     }
   }
 
@@ -123,11 +138,13 @@ class CombineCatsSpec extends FirrtlFlatSpec {
 
     // temp2 should get cat(in3, cat(in2, in1))
     result should containTree {
-      case DoPrim(Cat, Seq(
-        WRef("in3", _, _, _),
-        DoPrim(Cat, Seq(
-          WRef("in2", _, _, _),
-          WRef("in1", _, _, _)), _, _)), _, _) => true
+      case DoPrim(
+          Cat,
+          Seq(WRef("in3", _, _, _), DoPrim(Cat, Seq(WRef("in2", _, _, _), WRef("in1", _, _, _)), _, _)),
+          _,
+          _
+          ) =>
+        true
     }
   }
 

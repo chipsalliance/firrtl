@@ -19,16 +19,14 @@ import firrtl.stage.{FirrtlOptions, OutputFileAnnotation}
   * will be used to implicitly set the [[OutputFileAnnotation]] (not other [[CircuitOption]] subclasses).
   */
 class AddImplicitOutputFile extends Phase {
-
   /** Add an [[OutputFileAnnotation]] to an [[AnnotationSeq]] */
   def transform(annotations: AnnotationSeq): AnnotationSeq =
-    annotations
-      .collectFirst { case _: OutputFileAnnotation | _: EmitAllModulesAnnotation => annotations }
-      .getOrElse {
-        val topName = Viewer[FirrtlOptions].view(annotations)
-          .firrtlCircuit
-          .map(_.main)
-          .getOrElse("a")
-        OutputFileAnnotation(topName) +: annotations
-      }
+    annotations.collectFirst { case _: OutputFileAnnotation | _: EmitAllModulesAnnotation => annotations }.getOrElse {
+      val topName = Viewer[FirrtlOptions]
+        .view(annotations)
+        .firrtlCircuit
+        .map(_.main)
+        .getOrElse("a")
+      OutputFileAnnotation(topName) +: annotations
+    }
 }

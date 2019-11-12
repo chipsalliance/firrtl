@@ -7,8 +7,7 @@ import org.scalatest.{FlatSpec, Matchers}
 import java.io.{File, PrintWriter}
 
 import firrtl.AnnotationSeq
-import firrtl.annotations.{AnnotationFileNotFoundException, JsonProtocol,
-  NoTargetAnnotation}
+import firrtl.annotations.{AnnotationFileNotFoundException, JsonProtocol, NoTargetAnnotation}
 import firrtl.options.phases.GetIncludes
 import firrtl.options.{InputAnnotationFileAnnotation, Phase}
 import firrtl.util.BackendCompilationUtilities
@@ -20,7 +19,6 @@ case object D extends NoTargetAnnotation
 case object E extends NoTargetAnnotation
 
 class GetIncludesSpec extends FlatSpec with Matchers with BackendCompilationUtilities with firrtlTests.Utils {
-
   val dir = new File("test_run_dir/GetIncludesSpec")
   dir.mkdirs()
 
@@ -28,10 +26,10 @@ class GetIncludesSpec extends FlatSpec with Matchers with BackendCompilationUtil
 
   def checkAnnos(a: AnnotationSeq, b: AnnotationSeq): Unit = {
     info("read the expected number of annotations")
-    a.size should be (b.size)
+    a.size should be(b.size)
 
     info("annotations match exact order")
-    a.zip(b).foreach{ case (ax, bx) => ax should be (bx) }
+    a.zip(b).foreach { case (ax, bx) => ax should be(bx) }
   }
 
   val files = Seq(
@@ -42,19 +40,21 @@ class GetIncludesSpec extends FlatSpec with Matchers with BackendCompilationUtil
     new File(dir + "/e.anno.json") -> Seq(E)
   )
 
-  files.foreach{ case (file, annotations) =>
-    val pw = new PrintWriter(file)
-    pw.write(JsonProtocol.serialize(annotations))
-    pw.close()
+  files.foreach {
+    case (file, annotations) =>
+      val pw = new PrintWriter(file)
+      pw.write(JsonProtocol.serialize(annotations))
+      pw.close()
   }
 
   class Fixture { val phase: Phase = new GetIncludes }
 
-  behavior of classOf[GetIncludes].toString
+  behavior.of(classOf[GetIncludes].toString)
 
   it should "throw an exception if the annotation file doesn't exit" in new Fixture {
-    intercept[AnnotationFileNotFoundException]{ phase.transform(Seq(ref("f"))) }
-      .getMessage should startWith("Annotation file")
+    intercept[AnnotationFileNotFoundException] { phase.transform(Seq(ref("f"))) }.getMessage should startWith(
+      "Annotation file"
+    )
   }
 
   it should "read annotations from a file" in new Fixture {
@@ -74,9 +74,9 @@ class GetIncludesSpec extends FlatSpec with Matchers with BackendCompilationUtil
 
     checkAnnos(out, expect)
 
-    Seq("d", "e").foreach{ x =>
+    Seq("d", "e").foreach { x =>
       info(s"a warning about '$x.anno.json' was printed")
-      stdout should include (s"Warning: Annotation file ($dir/$x.anno.json) already included!")
+      stdout should include(s"Warning: Annotation file ($dir/$x.anno.json) already included!")
     }
   }
 
@@ -89,7 +89,6 @@ class GetIncludesSpec extends FlatSpec with Matchers with BackendCompilationUtil
     checkAnnos(out, expect)
 
     info("a warning about 'a.anno.json' was printed")
-    stdout should include (s"Warning: Annotation file ($dir/a.anno.json)")
+    stdout should include(s"Warning: Annotation file ($dir/a.anno.json)")
   }
-
 }

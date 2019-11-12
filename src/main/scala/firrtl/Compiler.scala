@@ -5,7 +5,6 @@ package firrtl
 import logger._
 import java.io.Writer
 
-
 import scala.collection.mutable
 import firrtl.annotations._
 import firrtl.ir.Circuit
@@ -30,20 +29,18 @@ object AnnotationSeq {
   * @param renames A map of [[firrtl.annotations.Named Named]] things that have been renamed.
   *   Generally only a return value from [[Transform]]s
   */
-case class CircuitState(
-    circuit: Circuit,
-    form: CircuitForm,
-    annotations: AnnotationSeq,
-    renames: Option[RenameMap]) {
-
+case class CircuitState(circuit: Circuit, form: CircuitForm, annotations: AnnotationSeq, renames: Option[RenameMap]) {
   /** Helper for getting just an emitted circuit */
   def emittedCircuitOption: Option[EmittedCircuit] =
-    emittedComponents collectFirst { case x: EmittedCircuit => x }
+    emittedComponents.collectFirst { case x: EmittedCircuit => x }
+
   /** Helper for getting an [[EmittedCircuit]] when it is known to exist */
   def getEmittedCircuit: EmittedCircuit = emittedCircuitOption match {
     case Some(emittedCircuit) => emittedCircuit
     case None =>
-      throw new FirrtlInternalException(s"No EmittedCircuit found! Did you delete any annotations?\n$deletedAnnotations")
+      throw new FirrtlInternalException(
+        s"No EmittedCircuit found! Did you delete any annotations?\n$deletedAnnotations"
+      )
   }
 
   /** Helper function for extracting emitted components from annotations */
@@ -59,7 +56,7 @@ case class CircuitState(
     * @return
     */
   def resolvePaths(targets: Seq[CompleteTarget]): CircuitState = {
-    val newCS = new EliminateTargetPaths().runTransform(this.copy(annotations = ResolvePaths(targets) +: annotations ))
+    val newCS = new EliminateTargetPaths().runTransform(this.copy(annotations = ResolvePaths(targets) +: annotations))
     newCS.copy(form = form)
   }
 
@@ -68,8 +65,8 @@ case class CircuitState(
     * @return
     */
   def resolvePathsOf(annoClasses: Class[_]*): CircuitState = {
-    val targets = getAnnotationsOf(annoClasses:_*).flatMap(_.getTargets)
-    if(targets.nonEmpty) resolvePaths(targets.flatMap{_.getComplete}) else this
+    val targets = getAnnotationsOf(annoClasses: _*).flatMap(_.getTargets)
+    if (targets.nonEmpty) resolvePaths(targets.flatMap { _.getComplete }) else this
   }
 
   /** Returns all annotations which are of a class in annoClasses
@@ -172,10 +169,13 @@ final case object UnknownForm extends CircuitForm(-1) {
 abstract class Transform extends TransformLike[CircuitState] {
   /** A convenience function useful for debugging and error messages */
   def name: String = this.getClass.getSimpleName
+
   /** The [[firrtl.CircuitForm]] that this transform requires to operate on */
   def inputForm: CircuitForm
+
   /** The [[firrtl.CircuitForm]] that this transform outputs */
   def outputForm: CircuitForm
+
   /** Perform the transform, encode renaming with RenameMap, and can
     *   delete annotations
     * Called by [[runTransform]].
@@ -238,9 +238,10 @@ abstract class Transform extends TransformLike[CircuitState] {
     * @return the updated annotations
     */
   final private def propagateAnnotations(
-      inAnno: AnnotationSeq,
-      resAnno: AnnotationSeq,
-      renameOpt: Option[RenameMap]): AnnotationSeq = {
+    inAnno:    AnnotationSeq,
+    resAnno:   AnnotationSeq,
+    renameOpt: Option[RenameMap]
+  ): AnnotationSeq = {
     val newAnnotations = {
       val inSet = mutable.LinkedHashSet() ++ inAnno
       val resSet = mutable.LinkedHashSet() ++ resAnno
@@ -262,7 +263,7 @@ abstract class Transform extends TransformLike[CircuitState] {
       remappedAnnos.foreach { remapped =>
         val set = remapped2original.getOrElseUpdate(remapped, mutable.LinkedHashSet.empty[Annotation])
         set += anno
-        if(set.size > 1) keysOfNote += remapped
+        if (set.size > 1) keysOfNote += remapped
       }
       remappedAnnos
     }.toSeq
@@ -278,7 +279,9 @@ abstract class Transform extends TransformLike[CircuitState] {
 trait SeqTransformBased {
   def transforms: Seq[Transform]
   protected def runTransforms(state: CircuitState): CircuitState =
-    transforms.foldLeft(state) { (in, xform) => xform.runTransform(in) }
+    transforms.foldLeft(state) { (in, xform) =>
+      xform.runTransform(in)
+    }
 }
 
 /** For transformations that are simply a sequence of transforms */
@@ -287,7 +290,7 @@ abstract class SeqTransform extends Transform with SeqTransformBased {
     /*
     require(state.form <= inputForm,
       s"[$name]: Input form must be lower or equal to $inputForm. Got ${state.form}")
-    */
+     */
     val ret = runTransforms(state)
     CircuitState(ret.circuit, outputForm, ret.annotations, ret.renames)
   }
@@ -302,7 +305,7 @@ trait ResolvedAnnotationPaths {
   val annotationClasses: Traversable[Class[_]]
 
   override def prepare(state: CircuitState): CircuitState = {
-    state.resolvePathsOf(annotationClasses.toSeq:_*)
+    state.resolvePathsOf(annotationClasses.toSeq: _*)
   }
 }
 
@@ -331,9 +334,8 @@ object CompilerUtils extends LazyLogging {
         case ChirrtlForm =>
           Seq(new ChirrtlToHighFirrtl) ++ getLoweringTransforms(HighForm, outputForm)
         case HighForm =>
-          Seq(new IRToWorkingIR, new ResolveAndCheck,
-              new transforms.DedupModules, new HighFirrtlToMiddleFirrtl) ++
-              getLoweringTransforms(MidForm, outputForm)
+          Seq(new IRToWorkingIR, new ResolveAndCheck, new transforms.DedupModules, new HighFirrtlToMiddleFirrtl) ++
+            getLoweringTransforms(MidForm, outputForm)
         case MidForm => Seq(new MiddleFirrtlToLowFirrtl) ++ getLoweringTransforms(LowForm, outputForm)
         case LowForm => throwInternalError("getLoweringTransforms - LowForm") // should be caught by if above
         case UnknownForm => throwInternalError("getLoweringTransforms - UnknownForm") // should be caught by if above
@@ -373,21 +375,24 @@ object CompilerUtils extends LazyLogging {
     * of the previous transform.
     */
   def mergeTransforms(lowering: Seq[Transform], custom: Seq[Transform]): Seq[Transform] = {
-    custom
-      .sortWith{
-        case (a, b) => (a, b) match {
-          case (_: Emitter, _: Emitter) => false
-          case (_, _: Emitter)          => true
-          case _                        => false }}
-      .foldLeft(lowering) { case (transforms, xform) =>
-      val index = transforms lastIndexWhere (_.outputForm == xform.inputForm)
-      assert(index >= 0 || xform.inputForm == ChirrtlForm, // If ChirrtlForm just put at front
-        s"No transform in $lowering has outputForm ${xform.inputForm} as required by $xform")
-      val (front, back) = transforms.splitAt(index + 1) // +1 because we want to be AFTER index
-      front ++ List(xform) ++ getLoweringTransforms(xform.outputForm, xform.inputForm) ++ back
-    }
+    custom.sortWith {
+      case (a, b) =>
+        (a, b) match {
+          case (_:    Emitter, _: Emitter) => false
+          case (_, _: Emitter) => true
+          case _ => false
+        }
+    }.foldLeft(lowering) {
+        case (transforms, xform) =>
+          val index = transforms.lastIndexWhere(_.outputForm == xform.inputForm)
+          assert(
+            index >= 0 || xform.inputForm == ChirrtlForm, // If ChirrtlForm just put at front
+            s"No transform in $lowering has outputForm ${xform.inputForm} as required by $xform"
+          )
+          val (front, back) = transforms.splitAt(index + 1) // +1 because we want to be AFTER index
+          front ++ List(xform) ++ getLoweringTransforms(xform.outputForm, xform.inputForm) ++ back
+      }
   }
-
 }
 
 trait Compiler extends LazyLogging {
@@ -399,25 +404,30 @@ trait Compiler extends LazyLogging {
     */
   def transforms: Seq[Transform]
 
-  require(transforms.size >= 1,
-          s"Compiler transforms for '${this.getClass.getName}' must have at least ONE Transform! " +
-            "Use IdentityTransform if you need an identity/no-op transform.")
+  require(
+    transforms.size >= 1,
+    s"Compiler transforms for '${this.getClass.getName}' must have at least ONE Transform! " +
+      "Use IdentityTransform if you need an identity/no-op transform."
+  )
 
   // Similar to (input|output)Form on [[Transform]] but derived from this Compiler's transforms
-  def inputForm: CircuitForm = transforms.head.inputForm
+  def inputForm:  CircuitForm = transforms.head.inputForm
   def outputForm: CircuitForm = transforms.last.outputForm
 
   private def transformsLegal(xforms: Seq[Transform]): Boolean =
     if (xforms.size < 2) {
       true
     } else {
-      xforms.sliding(2, 1)
-            .map { case Seq(p, n) => n.inputForm >= p.outputForm }
-            .reduce(_ && _)
+      xforms
+        .sliding(2, 1)
+        .map { case Seq(p, n) => n.inputForm >= p.outputForm }
+        .reduce(_ && _)
     }
 
-  assert(transformsLegal(transforms),
-    "Illegal Compiler, each transform must be able to accept the output of the previous transform!")
+  assert(
+    transformsLegal(transforms),
+    "Illegal Compiler, each transform must be able to accept the output of the previous transform!"
+  )
 
   /** Perform compilation
     *
@@ -427,9 +437,7 @@ trait Compiler extends LazyLogging {
     *   into the compilation process by [[CompilerUtils.mergeTransforms]]
     */
   @deprecated("Please use compileAndEmit or other compile method instead", "firrtl 1.0")
-  def compile(state: CircuitState,
-              writer: Writer,
-              customTransforms: Seq[Transform] = Seq.empty): CircuitState = {
+  def compile(state: CircuitState, writer: Writer, customTransforms: Seq[Transform] = Seq.empty): CircuitState = {
     val finalState = compileAndEmit(state, customTransforms)
     writer.write(finalState.getEmittedCircuit.value)
     finalState
@@ -447,8 +455,7 @@ trait Compiler extends LazyLogging {
     *   into the compilation process by [[CompilerUtils.mergeTransforms]]
     * @return result of compilation with emitted circuit annotated
     */
-  def compileAndEmit(state: CircuitState,
-                     customTransforms: Seq[Transform] = Seq.empty): CircuitState = {
+  def compileAndEmit(state: CircuitState, customTransforms: Seq[Transform] = Seq.empty): CircuitState = {
     val emitAnno = EmitCircuitAnnotation(emitter.getClass)
     compile(state.copy(annotations = emitAnno +: state.annotations), emitter +: customTransforms)
   }
@@ -489,5 +496,4 @@ trait Compiler extends LazyLogging {
 
     finalState
   }
-
 }

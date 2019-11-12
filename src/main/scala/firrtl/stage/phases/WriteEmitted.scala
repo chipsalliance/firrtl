@@ -2,7 +2,7 @@
 
 package firrtl.stage.phases
 
-import firrtl.{AnnotationSeq, EmittedModuleAnnotation, EmittedCircuitAnnotation}
+import firrtl.{AnnotationSeq, EmittedCircuitAnnotation, EmittedModuleAnnotation}
 import firrtl.options.{Phase, StageOptions, Viewer}
 import firrtl.stage.FirrtlOptions
 
@@ -25,7 +25,6 @@ import java.io.PrintWriter
   * Any annotations written to files will be deleted.
   */
 class WriteEmitted extends Phase {
-
   /** Write any [[EmittedAnnotation]]s in an [[AnnotationSeq]] to files. Written [[EmittedAnnotation]]s are deleted. */
   def transform(annotations: AnnotationSeq): AnnotationSeq = {
     val fopts = Viewer[FirrtlOptions].view(annotations)
@@ -39,12 +38,12 @@ class WriteEmitted extends Phase {
         None
       case a: EmittedCircuitAnnotation[_] =>
         val pw = new PrintWriter(
-          sopts.getBuildFileName(fopts.outputFileName.getOrElse(a.value.name), Some(a.value.outputSuffix)))
+          sopts.getBuildFileName(fopts.outputFileName.getOrElse(a.value.name), Some(a.value.outputSuffix))
+        )
         pw.write(a.value.value)
         pw.close()
         None
       case a => Some(a)
     }
-
   }
 }

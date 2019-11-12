@@ -10,8 +10,7 @@ import annotations._
 import FirrtlCheckers._
 
 class InferReadWriteSpec extends SimpleTransformSpec {
-  class InferReadWriteCheckException extends PassException(
-    "Readwrite ports are not found!")
+  class InferReadWriteCheckException extends PassException("Readwrite ports are not found!")
 
   object InferReadWriteCheck extends Pass {
     override def inputForm = MidForm
@@ -20,18 +19,18 @@ class InferReadWriteSpec extends SimpleTransformSpec {
       case s: DefMemory if s.readLatency > 0 && s.readwriters.size == 1 =>
         s.name == "mem" && s.readwriters.head == "rw"
       case s: Block =>
-        s.stmts exists findReadWrite
+        s.stmts.exists(findReadWrite)
       case _ => false
     }
 
-    def run (c: Circuit) = {
+    def run(c: Circuit) = {
       val errors = new Errors
-      val foundReadWrite = c.modules exists {
+      val foundReadWrite = c.modules.exists {
         case m: Module => findReadWrite(m.body)
         case m: ExtModule => false
       }
       if (!foundReadWrite) {
-        errors append new InferReadWriteCheckException
+        errors.append(new InferReadWriteCheckException)
         errors.trigger
       }
       c
@@ -49,7 +48,8 @@ class InferReadWriteSpec extends SimpleTransformSpec {
   )
 
   "Infer ReadWrite Ports" should "infer readwrite ports for the same clock" in {
-    val input = """
+    val input =
+      """
 circuit sram6t :
   module sram6t :
     input clock : Clock
@@ -79,7 +79,8 @@ circuit sram6t :
   }
 
   "Infer ReadWrite Ports" should "infer readwrite ports from exclusive when statements" in {
-    val input = """
+    val input =
+      """
 circuit sram6t :
   module sram6t :
     input clock : Clock
@@ -110,7 +111,8 @@ circuit sram6t :
   }
 
   "Infer ReadWrite Ports" should "not infer readwrite ports for the difference clocks" in {
-    val input = """
+    val input =
+      """
 circuit sram6t :
   module sram6t :
     input clk1 : Clock
@@ -144,7 +146,8 @@ circuit sram6t :
   }
 
   "wmode" should "be simplified" in {
-    val input = """
+    val input =
+      """
 circuit sram6t :
   module sram6t :
     input clock : Clock
@@ -173,6 +176,6 @@ circuit sram6t :
     val annos = Seq(memlib.InferReadWriteAnnotation)
     val res = compileAndEmit(CircuitState(parse(input), ChirrtlForm, annos))
     // Check correctness of firrtl
-    res should containLine (s"mem.rw.wmode <= wen")
+    res should containLine(s"mem.rw.wmode <= wen")
   }
 }

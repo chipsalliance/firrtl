@@ -12,14 +12,12 @@ import firrtl.antlr.{FIRRTLParser, _}
 class ParserException(message: String) extends FirrtlUserException(message)
 
 case class ParameterNotSpecifiedException(message: String) extends ParserException(message)
-case class ParameterRedefinedException(message: String) extends ParserException(message)
-case class InvalidStringLitException(message: String) extends ParserException(message)
-case class InvalidEscapeCharException(message: String) extends ParserException(message)
-case class SyntaxErrorsException(message: String) extends ParserException(message)
-
+case class ParameterRedefinedException(message:    String) extends ParserException(message)
+case class InvalidStringLitException(message:      String) extends ParserException(message)
+case class InvalidEscapeCharException(message:     String) extends ParserException(message)
+case class SyntaxErrorsException(message:          String) extends ParserException(message)
 
 object Parser extends LazyLogging {
-
   /** Parses a file in a given filename and returns a parsed [[firrtl.ir.Circuit Circuit]] */
   def parseFile(filename: String, infoMode: InfoMode): Circuit =
     parseCharStream(CharStreams.fromFileName(filename), infoMode)
@@ -57,6 +55,7 @@ object Parser extends LazyLogging {
 
     ast
   }
+
   /** Takes Iterator over lines of FIRRTL, returns FirrtlNode (root node is Circuit) */
   def parse(lines: Iterator[String], infoMode: InfoMode = UseInfo): Circuit =
     parseString(lines.mkString("\n"), infoMode)
@@ -74,5 +73,4 @@ object Parser extends LazyLogging {
   case class GenInfo(filename: String) extends InfoMode
 
   case class AppendInfo(filename: String) extends InfoMode
-
 }

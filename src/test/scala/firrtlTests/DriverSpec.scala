@@ -81,19 +81,16 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
       optionsManager.commonOptions.programArgs should be("fox" :: "tardigrade" :: "stomatopod" :: Nil)
 
       optionsManager.commonOptions = CommonOptions()
-      optionsManager.parse(
-        Array("dog", "stomatopod")) should be(true)
+      optionsManager.parse(Array("dog", "stomatopod")) should be(true)
       println(s"programArgs ${optionsManager.commonOptions.programArgs}")
       optionsManager.commonOptions.programArgs.length should be(2)
       optionsManager.commonOptions.programArgs should be("dog" :: "stomatopod" :: Nil)
 
       optionsManager.commonOptions = CommonOptions()
-      optionsManager.parse(
-        Array("fox", "--top-name", "dog", "tardigrade", "stomatopod")) should be(true)
+      optionsManager.parse(Array("fox", "--top-name", "dog", "tardigrade", "stomatopod")) should be(true)
       println(s"programArgs ${optionsManager.commonOptions.programArgs}")
       optionsManager.commonOptions.programArgs.length should be(3)
       optionsManager.commonOptions.programArgs should be("fox" :: "tardigrade" :: "stomatopod" :: Nil)
-
     }
   }
   "FirrtlOptions holds option information for the firrtl compiler" - {
@@ -126,11 +123,11 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
       outputFileName should be("carol.v")
     }
     val input = """
-      |circuit Top :
-      |  module Top :
-      |    input x : UInt<8>
-      |    output y : UInt<8>
-      |    y <= x""".stripMargin
+                  |circuit Top :
+                  |  module Top :
+                  |    input x : UInt<8>
+                  |    output y : UInt<8>
+                  |    y <= x""".stripMargin
     val circuit = Parser.parse(input.split("\n").toIterator)
     "firrtl source can be provided directly" in {
       val manager = new ExecutionOptionsManager("test") with HasFirrtlOptions {
@@ -149,18 +146,15 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
     "Only one of inputFileNameOverride, firrtlSource, and firrtlCircuit can be used at a time" in {
       val manager1 = new ExecutionOptionsManager("test") with HasFirrtlOptions {
         commonOptions = CommonOptions(topName = "Top")
-        firrtlOptions = FirrtlExecutionOptions(firrtlCircuit = Some(circuit),
-                                               firrtlSource = Some(input))
+        firrtlOptions = FirrtlExecutionOptions(firrtlCircuit = Some(circuit), firrtlSource = Some(input))
       }
       val manager2 = new ExecutionOptionsManager("test") with HasFirrtlOptions {
         commonOptions = CommonOptions(topName = "Top")
-        firrtlOptions = FirrtlExecutionOptions(inputFileNameOverride = "hi",
-                                               firrtlSource = Some(input))
+        firrtlOptions = FirrtlExecutionOptions(inputFileNameOverride = "hi", firrtlSource = Some(input))
       }
       val manager3 = new ExecutionOptionsManager("test") with HasFirrtlOptions {
         commonOptions = CommonOptions(topName = "Top")
-        firrtlOptions = FirrtlExecutionOptions(inputFileNameOverride = "hi",
-                                               firrtlCircuit = Some(circuit))
+        firrtlOptions = FirrtlExecutionOptions(inputFileNameOverride = "hi", firrtlCircuit = Some(circuit))
       }
       assert(firrtl.Driver.getCircuit(manager1).isFailure)
       assert(firrtl.Driver.getCircuit(manager2).isFailure)
@@ -248,7 +242,10 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
         annotationFileNameOverride = "SampleAnnotations"
       )
     }
-    val annotationsTestFile = new File(optionsManager.commonOptions.targetDirName, optionsManager.firrtlOptions.annotationFileNameOverride + ".anno")
+    val annotationsTestFile = new File(
+      optionsManager.commonOptions.targetDirName,
+      optionsManager.firrtlOptions.annotationFileNameOverride + ".anno"
+    )
     copyResourceToFile("/annotations/SampleAnnotations.anno", annotationsTestFile)
     optionsManager.firrtlOptions.annotations.length should be(0)
     val annos = Driver.getAnnotations(optionsManager)
@@ -394,26 +391,25 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
         "verilog" -> "./Foo.v",
         "mverilog" -> "./Foo.v",
         "sverilog" -> "./Foo.sv"
-      ).foreach { case (compilerName, expectedOutputFileName) =>
-        info(s"$compilerName -> $expectedOutputFileName")
-        val manager = new ExecutionOptionsManager("test") with HasFirrtlOptions {
-          commonOptions = CommonOptions(topName = "Foo")
-          firrtlOptions = FirrtlExecutionOptions(firrtlSource = Some(input), compilerName = compilerName)
-        }
+      ).foreach {
+        case (compilerName, expectedOutputFileName) =>
+          info(s"$compilerName -> $expectedOutputFileName")
+          val manager = new ExecutionOptionsManager("test") with HasFirrtlOptions {
+            commonOptions = CommonOptions(topName = "Foo")
+            firrtlOptions = FirrtlExecutionOptions(firrtlSource = Some(input), compilerName = compilerName)
+          }
 
-        firrtl.Driver.execute(manager) match {
-          case success: FirrtlExecutionSuccess =>
-            success.emitted.size should not be (0)
-            success.circuitState.annotations.length should be > (0)
-          case a: FirrtlExecutionFailure =>
-            fail(s"Got a FirrtlExecutionFailure! Expected FirrtlExecutionSuccess. Full message:\n${a.message}")
-        }
+          firrtl.Driver.execute(manager) match {
+            case success: FirrtlExecutionSuccess =>
+              success.emitted.size should not be (0)
+              success.circuitState.annotations.length should be > (0)
+            case a: FirrtlExecutionFailure =>
+              fail(s"Got a FirrtlExecutionFailure! Expected FirrtlExecutionSuccess. Full message:\n${a.message}")
+          }
 
-
-
-        val file = new File(expectedOutputFileName)
-        file.exists() should be(true)
-        file.delete()
+          val file = new File(expectedOutputFileName)
+          file.exists() should be(true)
+          file.delete()
       }
     }
     "To a single file per module if OneFilePerModule is specified" in {
@@ -425,27 +421,30 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
         "verilog" -> Seq("./Top.v", "./Child.v"),
         "mverilog" -> Seq("./Top.v", "./Child.v"),
         "sverilog" -> Seq("./Top.sv", "./Child.sv")
-      ).foreach { case (compilerName, expectedOutputFileNames) =>
-        info(s"$compilerName -> $expectedOutputFileNames")
-        val manager = new ExecutionOptionsManager("test") with HasFirrtlOptions {
-          firrtlOptions = FirrtlExecutionOptions(firrtlSource = Some(input),
-            compilerName = compilerName,
-            emitOneFilePerModule = true)
-        }
+      ).foreach {
+        case (compilerName, expectedOutputFileNames) =>
+          info(s"$compilerName -> $expectedOutputFileNames")
+          val manager = new ExecutionOptionsManager("test") with HasFirrtlOptions {
+            firrtlOptions = FirrtlExecutionOptions(
+              firrtlSource = Some(input),
+              compilerName = compilerName,
+              emitOneFilePerModule = true
+            )
+          }
 
-        firrtl.Driver.execute(manager) match {
-          case success: FirrtlExecutionSuccess =>
-            success.emitted.size should not be (0)
-            success.circuitState.annotations.length should be > (0)
-          case failure: FirrtlExecutionFailure =>
-            fail(s"Got a FirrtlExecutionFailure! Expected FirrtlExecutionSuccess. Full message:\n${failure.message}")
-        }
+          firrtl.Driver.execute(manager) match {
+            case success: FirrtlExecutionSuccess =>
+              success.emitted.size should not be (0)
+              success.circuitState.annotations.length should be > (0)
+            case failure: FirrtlExecutionFailure =>
+              fail(s"Got a FirrtlExecutionFailure! Expected FirrtlExecutionSuccess. Full message:\n${failure.message}")
+          }
 
-        for (name <- expectedOutputFileNames) {
-          val file = new File(name)
-          file.exists() should be(true)
-          file.delete()
-        }
+          for (name <- expectedOutputFileNames) {
+            val file = new File(name)
+            file.exists() should be(true)
+            file.delete()
+          }
       }
     }
   }
@@ -469,7 +468,7 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
     "Both paths do the same thing" in {
       val s1 = FileUtils.getText(verilogFromFir)
       val s2 = FileUtils.getText(verilogFromPb)
-      s1 should equal (s2)
+      s1 should equal(s2)
     }
   }
 
@@ -505,7 +504,7 @@ class VcdSuppressionSpec extends FirrtlFlatSpec {
 
       val vcdFile = new File(s"$testDir/dump.vcd")
       println(s"file ${vcdFile.getAbsolutePath} ${vcdFile.exists()}")
-      vcdFile.exists() should be(! suppress)
+      vcdFile.exists() should be(!suppress)
     }
 
     testIfVcdCreated(suppress = false)
