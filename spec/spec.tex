@@ -198,9 +198,9 @@ are often used to interface with external Verilog or VHDL IP.
 
 In contrast with all other ground types, analog signals cannot appear on either side of a connection
 statement. Instead, analog signals are attached to each other with the commutative \verb|attach|
-statement. An analog signal may appear any number of attach statements, and a legal circuit may also
-contain analog signals that are never attached. The only primitive operations that may be applied to
-analog signals are casts to other signal types.
+statement. An analog signal may appear in any number of attach statements, and a legal circuit may
+also contain analog signals that are never attached. The only primitive operations that may be
+applied to analog signals are casts to other signal types.
 
 When an analog signal appears as a field of an aggregate type, the aggregate cannot appear in a
 standard connection statement; however, the partial connection statement will \verb|attach|
