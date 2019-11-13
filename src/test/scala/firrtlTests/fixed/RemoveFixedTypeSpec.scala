@@ -14,7 +14,6 @@ class RemoveFixedTypeSpec extends FirrtlFlatSpec {
       (c: CircuitState, p: Transform) => p.runTransform(c)
     }.circuit
     val lines = c.serialize.split("\n") map normalized
-    println(c.serialize)
 
     expected foreach { e =>
       lines should contain(e)
@@ -28,8 +27,8 @@ class RemoveFixedTypeSpec extends FirrtlFlatSpec {
       ResolveKinds,
       InferTypes,
       CheckTypes,
-      ResolveGenders,
-      CheckGenders,
+      ResolveFlows,
+      CheckFlows,
       new InferWidths,
       CheckWidths,
       ConvertFixedToSInt)
@@ -37,7 +36,7 @@ class RemoveFixedTypeSpec extends FirrtlFlatSpec {
       """circuit Unit :
         |  module Unit :
         |    input a : Fixed<10><<2>>
-        |    input b : Fixed<10>
+        |    input b : Fixed<10><<0>>
         |    input c : Fixed<4><<3>>
         |    output d : Fixed<<5>>
         |    d <= add(a, add(b, c))""".stripMargin
@@ -58,8 +57,8 @@ class RemoveFixedTypeSpec extends FirrtlFlatSpec {
       ResolveKinds,
       InferTypes,
       CheckTypes,
-      ResolveGenders,
-      CheckGenders,
+      ResolveFlows,
+      CheckFlows,
       new InferWidths,
       CheckWidths,
       ConvertFixedToSInt)
@@ -67,7 +66,7 @@ class RemoveFixedTypeSpec extends FirrtlFlatSpec {
       """circuit Unit :
         |  module Unit :
         |    input a : Fixed<10><<2>>
-        |    input b : Fixed<10>
+        |    input b : Fixed<10><<0>>
         |    input c : Fixed<4><<3>>
         |    output d : Fixed<<5>>
         |    d <- add(a, add(b, c))""".stripMargin
@@ -89,8 +88,8 @@ class RemoveFixedTypeSpec extends FirrtlFlatSpec {
       ResolveKinds,
       InferTypes,
       CheckTypes,
-      ResolveGenders,
-      CheckGenders,
+      ResolveFlows,
+      CheckFlows,
       new InferWidths,
       CheckWidths,
       ConvertFixedToSInt)
@@ -99,7 +98,7 @@ class RemoveFixedTypeSpec extends FirrtlFlatSpec {
         |  module Unit :
         |    input a : Fixed<10><<2>>
         |    output d : Fixed<12><<4>>
-        |    d <= bpshl(a, 2)""".stripMargin
+        |    d <= incp(a, 2)""".stripMargin
     val check =
       """circuit Unit :
         |  module Unit :
@@ -116,8 +115,8 @@ class RemoveFixedTypeSpec extends FirrtlFlatSpec {
       ResolveKinds,
       InferTypes,
       CheckTypes,
-      ResolveGenders,
-      CheckGenders,
+      ResolveFlows,
+      CheckFlows,
       new InferWidths,
       CheckWidths,
       ConvertFixedToSInt)
@@ -126,7 +125,7 @@ class RemoveFixedTypeSpec extends FirrtlFlatSpec {
         |  module Unit :
         |    input a : Fixed<10><<2>>
         |    output d : Fixed<9><<1>>
-        |    d <= bpshr(a, 1)""".stripMargin
+        |    d <= decp(a, 1)""".stripMargin
     val check =
       """circuit Unit :
         |  module Unit :
@@ -143,8 +142,8 @@ class RemoveFixedTypeSpec extends FirrtlFlatSpec {
       ResolveKinds,
       InferTypes,
       CheckTypes,
-      ResolveGenders,
-      CheckGenders,
+      ResolveFlows,
+      CheckFlows,
       new InferWidths,
       CheckWidths,
       ConvertFixedToSInt)
@@ -153,7 +152,7 @@ class RemoveFixedTypeSpec extends FirrtlFlatSpec {
         |  module Unit :
         |    input a : Fixed<10><<2>>
         |    output d : Fixed
-        |    d <= bpset(a, 3)""".stripMargin
+        |    d <= setp(a, 3)""".stripMargin
     val check =
       """circuit Unit :
         |  module Unit :
@@ -181,7 +180,7 @@ class RemoveFixedTypeSpec extends FirrtlFlatSpec {
     class CheckChirrtlTransform extends SeqTransform {
       def inputForm = ChirrtlForm
       def outputForm = ChirrtlForm
-      val transforms = Seq(passes.CheckChirrtl)
+      def transforms = Seq(passes.CheckChirrtl)
     }
 
     val chirrtlTransform = new CheckChirrtlTransform
@@ -195,8 +194,8 @@ class RemoveFixedTypeSpec extends FirrtlFlatSpec {
       ResolveKinds,
       InferTypes,
       CheckTypes,
-      ResolveGenders,
-      CheckGenders,
+      ResolveFlows,
+      CheckFlows,
       new InferWidths,
       CheckWidths,
       ConvertFixedToSInt)
@@ -215,4 +214,3 @@ class RemoveFixedTypeSpec extends FirrtlFlatSpec {
     executeTest(input, check.split("\n") map normalized, passes)
   }
 }
-

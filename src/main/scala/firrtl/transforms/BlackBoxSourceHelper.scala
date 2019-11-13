@@ -43,8 +43,8 @@ case class BlackBoxResourceFileNameAnno(resourceFileName: String) extends BlackB
   * @param fileName the name of the BlackBox file (only used for error message generation)
   * @param e an underlying exception that generated this
   */
-class BlackBoxNotFoundException(fileName: String, e: Throwable = null) extends FIRRTLException(
-  s"BlackBox '$fileName' not found. Did you misspell it? Is it in src/{main,test}/resources?", e)
+class BlackBoxNotFoundException(fileName: String, message: String) extends FirrtlUserException(
+  s"BlackBox '$fileName' not found. Did you misspell it? Is it in src/{main,test}/resources?\n$message")
 
 /** Handle source for Verilog ExtModules (BlackBoxes)
   *
@@ -112,7 +112,8 @@ class BlackBoxSourceHelper extends firrtl.Transform {
     }
 
     // Issue #917 - We don't want to list Verilog header files ("*.vh") in our file list - they will automatically be included by reference.
-    val verilogSourcesOnly = (resourceFiles ++ inlineFiles).filterNot( _.getName().endsWith(".vh"))
+    def isHeader(name: String) = name.endsWith(".h") || name.endsWith(".vh") || name.endsWith(".svh")
+    val verilogSourcesOnly = (resourceFiles ++ inlineFiles).filterNot{ f => isHeader(f.getName()) }
     val filelistFile = if (flistName.isAbsolute()) flistName else new File(targetDir, flistName.getName())
 
     // We need the canonical path here, so verilator will create a path to the file that works from the targetDir,
@@ -136,8 +137,8 @@ object BlackBoxSourceHelper {
     * @param code some code to run
     */
   private def safeFile[A](fileName: String)(code: => A) = try { code } catch {
-    case e@ (_: FileNotFoundException | _: NullPointerException) => throw new BlackBoxNotFoundException(fileName, e)
-    case t: Throwable                                            => throw t
+    case e @ (_: FileNotFoundException | _: NullPointerException) =>
+      throw new BlackBoxNotFoundException(fileName, e.getMessage)
   }
 
   /**
@@ -168,7 +169,7 @@ object BlackBoxSourceHelper {
 
   val defaultFileListName = "firrtl_black_box_resource_files.f"
 
-  @deprecated("Renamed to defaultFileListName, as the file list name may now be changed with an annotation", "1.3")
+  @deprecated("Renamed to defaultFileListName, as the file list name may now be changed with an annotation", "1.2")
   def fileListName = defaultFileListName
 
   def writeTextToFile(text: String, file: File): Unit = {

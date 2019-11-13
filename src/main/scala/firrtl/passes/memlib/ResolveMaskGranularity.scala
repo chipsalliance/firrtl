@@ -44,7 +44,7 @@ object AnalysisUtils {
     * TODO(shunshou): implement more equivalence cases (i.e. a + 0 = a)
     */
   def getOrigin(connects: Connects, s: String): Expression =
-    getOrigin(connects)(WRef(s, UnknownType, ExpKind, UNKNOWNGENDER))
+    getOrigin(connects)(WRef(s, UnknownType, ExpKind, UnknownFlow))
   def getOrigin(connects: Connects)(e: Expression): Expression = e match {
     case Mux(cond, tv, fv, _) =>
       val fvOrigin = getOrigin(connects)(fv)

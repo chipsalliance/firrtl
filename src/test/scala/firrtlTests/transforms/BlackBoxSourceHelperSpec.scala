@@ -2,12 +2,11 @@
 
 package firrtlTests.transforms
 
-import firrtl.annotations.{Annotation, CircuitName, ModuleName}
+import firrtl.annotations.{CircuitName, ModuleName}
 import firrtl.transforms._
-import firrtl.{FIRRTLException, Transform, VerilogCompiler, VerilogEmitter}
-import firrtlTests.{HighTransformSpec, LowTransformSpec}
-import org.scalacheck.Test.Failed
-import org.scalatest.{FreeSpec, Matchers, Succeeded}
+import firrtl.{Transform, VerilogEmitter}
+import firrtlTests.LowTransformSpec
+import firrtl.FileUtils
 
 
 class BlacklBoxSourceHelperTransformSpec extends LowTransformSpec {
@@ -132,9 +131,7 @@ class BlacklBoxSourceHelperTransformSpec extends LowTransformSpec {
     //  but our file list should not include the verilog header file.
     val fileListFile = new java.io.File(s"test_run_dir/${BlackBoxSourceHelper.defaultFileListName}")
     fileListFile.exists should be (true)
-    val fileListFileSource = io.Source.fromFile(fileListFile)
-    val fileList = fileListFileSource.getLines.mkString
-    fileListFileSource.close()
+    val fileList = FileUtils.getText(fileListFile)
     fileList.contains("ParameterizedViaHeaderAdderExtModule.v") should be (true)
     fileList.contains("VerilogHeaderFile.vh") should be (false)
   }
