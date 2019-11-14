@@ -9,11 +9,11 @@ import firrtl.Mappers._
 import firrtl.Utils._
 import firrtl.WrappedExpression._
 import scala.collection.mutable
-
+import java.util.concurrent.ConcurrentHashMap
 
 /** Removes all [[firrtl.WSubAccess]] from circuit
   */
-class RemoveAccesses extends Pass {
+object RemoveAccesses extends Pass {
   private def AND(e1: Expression, e2: Expression) =
     if(e1 == one) e2
     else if(e2 == one) e1
@@ -75,9 +75,12 @@ class RemoveAccesses extends Pass {
   }
 
   // This improves the performance of this pass
-  private val createExpsCache = mutable.HashMap[Expression, Seq[Expression]]()
-  private def create_exps(e: Expression) =
-    createExpsCache getOrElseUpdate (e, firrtl.Utils.create_exps(e))
+  private val createExpsCache: ConcurrentHashMap[Expression, Seq[Expression]] = new ConcurrentHashMap
+  private val build_exps = new java.util.function.Function[Expression, Seq[Expression]] {
+    override def apply(e: Expression) = firrtl.Utils.create_exps(e)
+  }
+
+  private def create_exps(e: Expression) = createExpsCache.computeIfAbsent(e, build_exps)
 
   def run(c: Circuit): Circuit = {
     def remove_m(m: Module): Module = {
@@ -164,16 +167,5 @@ class RemoveAccesses extends Pass {
       case m: ExtModule => m
       case m: Module => remove_m(m)
     })
-  }
-}
-
-object RemoveAccesses extends Pass {
-  def apply: Pass = {
-    new RemoveAccesses()
-  }
-
-  def run(c: Circuit): Circuit = {
-    val t = new RemoveAccesses
-    t.run(c)
   }
 }
