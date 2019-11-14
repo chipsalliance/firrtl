@@ -24,6 +24,10 @@ class ReplaceMemMacros(writer: ConfWriter) extends Transform {
   def inputForm = MidForm
   def outputForm = MidForm
 
+  class UnsupportedBlackboxMemoryException(mem: DefAnnotatedMemory, msg: String) extends PassException(
+      s"${mem.info} : [module ${mem.name}] Unable to blackbox this memory. $msg"
+    )
+
   /** Return true if mask granularity is per bit, false if per byte or unspecified
     */
   private def getFillWMask(mem: DefAnnotatedMemory) = mem.maskGran match {
@@ -36,27 +40,30 @@ class ReplaceMemMacros(writer: ConfWriter) extends Transform {
   private def rPortToFlattenBundle(mem: DefAnnotatedMemory) = BundleType(
     defaultPortSeq(mem) :+ Field("data", Flip, flattenType(mem.dataType)))
 
-  /** Catch incorrect memory instantiations when there are nested aggregate types.
-    * The MemConf format doesn't support these cases currently.
+  /** Catch incorrect memory instantiations when there are masked memories with aggregate types.
     *
-    * Ex:
-    *   val memory = SyncReadMem(N, Vec(M, new Bundle {
-    *     val a = Bool()
-    *     val b = UInt(3.W)
-    *   }))
+    * Example:
     *
-    *   will have a maskGran of BUNDLE_WIDTH and thus M mask bits (since M*BUNDLE_WIDTH is the total mem width).
-    *   However, the wrapper created will have M*NUM_BUNDLE_ENTRIES bits.
-    *   In this particular case M != M*2 breaking the ext mem module interface.
+    * val memory = SyncReadMem(N, Vec(M, new Bundle {
+    *   val a = Bool()
+    *   val b = UInt(3.W)
+    * }))
+    *
+    * This memory wrapper will have created M*NUM_BUNDLE_ENTRIES bits or M*2 since createMask matches the
+    * structure of the memory datatype. However, the MemConf output will have
+    * a maskGran of 4b and thus M mask bits (since M*4b is the total mem. width and (M*4b)/4b = M).
+    * Thus, when connecting the blackbox module created from the MemConf file and the FIRRTL wrapper,
+    * there will be a mismatch in port size (M != M*2).
     */
   private def checkMaskDatatype(mem: DefAnnotatedMemory) = {
     mem.dataType match {
       case t: VectorType =>
         t.tpe match {
-          case t: GroundType =>
+          case t: VectorType => throw new UnsupportedBlackboxMemoryException(mem, "Unsupported AggregateType (i.e. Vec(N, Vec(M, ...))). Instead, use Vec(N, UInt(X)).")
+          case t: BundleType => throw new UnsupportedBlackboxMemoryException(mem, "Unsupported AggregateType (i.e. Vec(N, new Bundle{...})). Instead, use Vec(N, UInt(X)).")
           case _ =>
-            throw new PassException(s"${mem.info} : Unsupported use of nested AggregateType (i.e. Vec(N, new Bundle{...})). Instead, use Vec(N, UInt()).")
         }
+      case t: BundleType => throw new UnsupportedBlackboxMemoryException(mem, "Unsupported AggregateType (i.e. Bundle{...}). Instead, use UInt(X).")
       case _ =>
     }
   }
