@@ -45,7 +45,7 @@ class ResolveAndCheck extends CoreTransform {
     passes.InferTypes,
     passes.ResolveFlows,
     passes.CheckFlows,
-    new passes.InferBinaryPoints(),
+    passes.InferBinaryPoints,
     new passes.TrimIntervals(),
     new passes.InferWidths,
     passes.CheckWidths,

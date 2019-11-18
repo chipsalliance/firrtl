@@ -8,7 +8,7 @@ import firrtl.Mappers._
 import firrtl.annotations.{CircuitTarget, ModuleTarget, ReferenceTarget, Target}
 import firrtl.constraint.ConstraintSolver
 
-class InferBinaryPoints extends Pass {
+class InferBinaryPoints(c: Circuit) {
   private val constraintSolver = new ConstraintSolver()
 
   private def addTypeConstraints(r1: ReferenceTarget, r2: ReferenceTarget)(t1: Type, t2: Type): Unit = (t1,t2) match {
@@ -89,13 +89,19 @@ class InferBinaryPoints extends Pass {
   }
   private def fixStmt(s: Statement): Statement = s map fixStmt map fixType
   private def fixPort(p: Port): Port = Port(p.info, p.name, p.direction, fixType(p.tpe))
+
+  private val ct = CircuitTarget(c.main)
+  c.modules foreach (m => m map addStmtConstraints(ct.module(m.name)))
+  c.modules foreach (_.ports foreach {p => addDecConstraints(p.tpe)})
+  constraintSolver.solve()
+  val transformed = InferTypes.run(c.copy(modules = c.modules map (_
+    map fixPort
+    map fixStmt)))
+}
+
+object InferBinaryPoints extends Pass {
   def run (c: Circuit): Circuit = {
-    val ct = CircuitTarget(c.main)
-    c.modules foreach (m => m map addStmtConstraints(ct.module(m.name)))
-    c.modules foreach (_.ports foreach {p => addDecConstraints(p.tpe)})
-    constraintSolver.solve()
-    InferTypes.run(c.copy(modules = c.modules map (_
-      map fixPort
-      map fixStmt)))
+    val transformer = new InferBinaryPoints(c)
+    transformer.transformed
   }
 }
