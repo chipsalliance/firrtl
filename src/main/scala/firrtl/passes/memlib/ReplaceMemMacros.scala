@@ -16,6 +16,10 @@ import wiring._
 /** Annotates the name of the pins to add for WiringTransform */
 case class PinAnnotation(pins: Seq[String]) extends NoTargetAnnotation
 
+object ReplaceMemMacros {
+  class UnsupportedBlackboxMemoryException(msg: String) extends PassException(msg)
+}
+
 /** Replace DefAnnotatedMemory with memory blackbox + wrapper + conf file.
   * This will not generate wmask ports if not needed.
   * Creates the minimum # of black boxes needed by the design.
@@ -23,10 +27,6 @@ case class PinAnnotation(pins: Seq[String]) extends NoTargetAnnotation
 class ReplaceMemMacros(writer: ConfWriter) extends Transform {
   def inputForm = MidForm
   def outputForm = MidForm
-
-  class UnsupportedBlackboxMemoryException(mem: DefAnnotatedMemory, msg: String) extends PassException(
-      s"${mem.info} : [module ${mem.name}] Unable to blackbox this memory. $msg"
-    )
 
   /** Return true if mask granularity is per bit, false if per byte or unspecified
     */
@@ -40,7 +40,7 @@ class ReplaceMemMacros(writer: ConfWriter) extends Transform {
   private def rPortToFlattenBundle(mem: DefAnnotatedMemory) = BundleType(
     defaultPortSeq(mem) :+ Field("data", Flip, flattenType(mem.dataType)))
 
-  /** Catch incorrect memory instantiations when there are masked memories with aggregate types.
+  /** Catch incorrect memory instantiations when there are masked memories with unsupported aggregate types.
     *
     * Example:
     *
@@ -57,13 +57,12 @@ class ReplaceMemMacros(writer: ConfWriter) extends Transform {
     */
   private def checkMaskDatatype(mem: DefAnnotatedMemory) = {
     mem.dataType match {
-      case t: VectorType =>
-        t.tpe match {
-          case t: VectorType => throw new UnsupportedBlackboxMemoryException(mem, "Unsupported AggregateType (i.e. Vec(N, Vec(M, ...))). Instead, use Vec(N, UInt(X)).")
-          case t: BundleType => throw new UnsupportedBlackboxMemoryException(mem, "Unsupported AggregateType (i.e. Vec(N, new Bundle{...})). Instead, use Vec(N, UInt(X)).")
-          case _ =>
-        }
-      case t: BundleType => throw new UnsupportedBlackboxMemoryException(mem, "Unsupported AggregateType (i.e. Bundle{...}). Instead, use UInt(X).")
+      case VectorType(at: AggregateType, _) =>
+        val msg = s"${mem.info} : Cannot blackbox masked-write memory ${mem.name} with nested aggregate data type."
+        throw new ReplaceMemMacros.UnsupportedBlackboxMemoryException(msg)
+      case BundleType(_) =>
+        val msg = s"${mem.info} : Cannot blackbox masked-write memory ${mem.name} with bundle data type."
+        throw new ReplaceMemMacros.UnsupportedBlackboxMemoryException(msg)
       case _ =>
     }
   }
