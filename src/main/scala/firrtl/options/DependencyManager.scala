@@ -24,7 +24,7 @@ trait DependencyManager[A, B <: TransformLike[A] with DependencyAPI[B]] extends 
 
   override lazy val dependents = Seq.empty
 
-  override def invalidates(a: B): Boolean = (_currentState -- _targets)(a.getClass)
+  override def invalidates(a: B): Boolean = (_currentState &~ _targets)(a.getClass)
 
   /** Requested [[firrtl.options.TransformLike TransformLike]]s that should be run. Internally, this will be converted to
     * a set based on the ordering defined here.
@@ -112,9 +112,9 @@ trait DependencyManager[A, B <: TransformLike[A] with DependencyAPI[B]] extends 
   /** A directed graph consisting of prerequisite edges */
   private lazy val prerequisiteGraph: DiGraph[B] = {
     val edges = bfs(
-      start = _targets -- _currentState,
+      start = _targets &~ _currentState,
       blacklist = _currentState,
-      extractor = (p: B) => new LinkedHashSet[Dependency]() ++ p.prerequisites -- _currentState)
+      extractor = (p: B) => new LinkedHashSet[Dependency]() ++ p.prerequisites &~ _currentState)
     DiGraph(edges)
   }
 
@@ -123,7 +123,7 @@ trait DependencyManager[A, B <: TransformLike[A] with DependencyAPI[B]] extends 
     */
   private lazy val dependentsGraph: DiGraph[B] = {
     val v = new LinkedHashSet() ++ prerequisiteGraph.getVertices
-    DiGraph(new LinkedHashMap() ++ v.map(vv => vv -> ((new LinkedHashSet() ++ vv.dependents).map(cToO) & v))).reverse
+    DiGraph(new LinkedHashMap() ++ v.map(vv => vv -> (v & (vv.dependents.toSet).map(cToO)))).reverse
   }
 
   /** A directed graph of *optional* prerequisites. Each optional prerequisite is promoted to a full prerequisite if the
@@ -131,7 +131,7 @@ trait DependencyManager[A, B <: TransformLike[A] with DependencyAPI[B]] extends 
     */
   private lazy val optionalPrerequisitesGraph: DiGraph[B] = {
     val v = new LinkedHashSet() ++ prerequisiteGraph.getVertices
-    DiGraph(new LinkedHashMap() ++ v.map(vv => vv -> ((new LinkedHashSet() ++ vv.optionalPrerequisites).map(cToO) & v)))
+    DiGraph(new LinkedHashMap() ++ v.map(vv => vv -> (v & (vv.optionalPrerequisites.toSet).map(cToO))))
   }
 
   /** A directed graph consisting of prerequisites derived from ALL targets. This is necessary for defining targets for
@@ -199,51 +199,51 @@ trait DependencyManager[A, B <: TransformLike[A] with DependencyAPI[B]] extends 
     */
   lazy val transformOrder: Seq[B] = {
 
-    /* Topologically sort the dependency graph using the invalidate graph topological sort as a seed. This has the effect of
-     * reducing (perhaps minimizing?) the number of work re-lowerings.
+    /* Topologically sort the dependency graph to determine a "good" initial ordering.
      */
     val sorted = {
-      val seed = cyclePossible("invalidates", invalidateGraph){ invalidateGraph.linearize }.reverse
+      val edges = {
+        val v = cyclePossible("invalidates", invalidateGraph){ invalidateGraph.linearize }.reverse
+        /* A comparison function that will sort vertices based on the topological sort of the invalidation graph */
+        val cmp =
+          (l: B, r: B) => v.foldLeft((Map.empty[B, Dependency => Boolean], Set.empty[Dependency])){
+            case ((m, s), r) => (m + (r -> ((a: Dependency) => !s(a))), s + r) }._1(l)(r)
+        new LinkedHashMap() ++
+          v.map(vv => vv -> (new LinkedHashSet() ++ (dependencyGraph.getEdges(vv).toSeq.sortWith(cmp))))
+      }
 
       cyclePossible("prerequisites/dependents", dependencyGraph) {
-        dependencyGraph
-          .seededLinearize(Some(seed))
+        DiGraph(edges)
+          .linearize
           .reverse
           .dropWhile(b => _currentState.contains(b))
       }
     }
-    // println("Sorted ---------------------------------")
+
+    // println("Invalidate Sorted ---------------------------------")
     // println(s"""  - ${sorted.map(_.getClass.getSimpleName).mkString(", ")}""")
 
-    val (state, lowerers) = {
-      /* [todo] Seq is inefficient here, but Array has ClassTag problems. Use something else? */
-      val (s, l) = sorted.foldLeft((_currentState, Seq[B]())){ case ((state, out), in) =>
-        /* The prerequisites are both prerequisites AND dependents. */
-        val prereqs = new LinkedHashSet() ++ in.prerequisites ++
-          dependencyGraph.getEdges(in).toSeq.map(oToC) ++
-          otherDependents.getEdges(in).toSeq.map(oToC)
-        val missing = (prereqs -- state)
-        val preprocessing: Option[B] = {
-          if (missing.nonEmpty) { Some(this.copy(prereqs.toSeq, state.toSeq)) }
-          else                  { None                                     }
-        }
-        /* "in" is added *after* invalidation because a transform my not invalidate itself! */
-        ((state ++ missing).map(cToO).filterNot(in.invalidates).map(oToC) + in, out ++ preprocessing :+ in)
-      }
-      val missing = (_targets -- s)
-      val postprocessing: Option[B] = {
-        if (missing.nonEmpty) { Some(this.copy(_targets.toSeq, s.toSeq)) }
-        else                  { None                        }
-      }
+    // println("Dependencies Sorted ---------------------------------")
+    // println(s"""  - ${sorted.map(_.getClass.getSimpleName).mkString(", ")}""")
 
-      (s ++ missing, l ++ postprocessing)
+    /* [todo] Seq is inefficient here, but Array has ClassTag problems. Use something else? */
+    val (s, l) = sorted.foldLeft((_currentState, Seq[B]())){ case ((state, out), in) =>
+      /* The prerequisites are both prerequisites AND dependents. */
+      val prereqs = new LinkedHashSet() ++ in.prerequisites ++
+        dependencyGraph.getEdges(in).toSeq.map(oToC) ++
+        otherDependents.getEdges(in).toSeq.map(oToC)
+      val preprocessing: Option[B] = {
+        if ((prereqs -- state).nonEmpty) { Some(this.copy(prereqs.toSeq, state.toSeq)) }
+        else                             { None                                        }
+      }
+      /* "in" is added *after* invalidation because a transform my not invalidate itself! */
+      ((state ++ prereqs).map(cToO).filterNot(in.invalidates).map(oToC) + in, out ++ preprocessing :+ in)
     }
-
-    if (!_targets.subsetOf(state)) {
-      throw new DependencyManagerException(
-        s"The final state ($state) did not include the requested targets (${targets})!")
+    val postprocessing: Option[B] = {
+      if ((_targets -- s).nonEmpty) { Some(this.copy(_targets.toSeq, s.toSeq)) }
+      else                          { None                                     }
     }
-    lowerers
+    l ++ postprocessing
   }
 
   /** A version of the [[DependencyManager.transformOrder transformOrder]] that flattens the transforms of any internal
