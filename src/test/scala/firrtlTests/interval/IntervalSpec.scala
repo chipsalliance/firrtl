@@ -106,7 +106,7 @@ class IntervalSpec extends FirrtlFlatSpec {
   }
 
   "Interval types" should "be removed correctly" in {
-    val passes = Seq(ToWorkingIR, InferTypes, ResolveGenders, InferBinaryPoints, TrimIntervals, new InferWidths(), new RemoveIntervals())
+    val passes = Seq(ToWorkingIR, InferTypes, ResolveGenders, InferBinaryPoints, TrimIntervals, new InferWidths(), RemoveIntervals)
     val input =
       """circuit Unit :
         |  module Unit :
@@ -244,7 +244,7 @@ class IntervalSpec extends FirrtlFlatSpec {
     executeTest(input, check.split("\n") map normalized, passes)
   }
   "Interval types" should "remove wrap/clip correctly" in {
-    val passes = Seq(ToWorkingIR, new ResolveAndCheck(), new RemoveIntervals())
+    val passes = Seq(ToWorkingIR, new ResolveAndCheck(), RemoveIntervals)
       val input =
         s"""circuit Unit :
         |  module Unit :
@@ -287,7 +287,7 @@ class IntervalSpec extends FirrtlFlatSpec {
     executeTest(input, check.split("\n") map normalized, passes)
   }
   "Interval types" should "shift wrap/clip correctly" in {
-    val passes = Seq(ToWorkingIR, new ResolveAndCheck, new RemoveIntervals())
+    val passes = Seq(ToWorkingIR, new ResolveAndCheck, RemoveIntervals)
       val input =
         s"""circuit Unit :
         |  module Unit :
@@ -320,7 +320,7 @@ class IntervalSpec extends FirrtlFlatSpec {
     executeTest(input, check.split("\n") map normalized, passes)
   }
   "Interval types" should "remove negative binary points" in {
-    val passes = Seq(ToWorkingIR, InferTypes, ResolveGenders, InferBinaryPoints, TrimIntervals, new InferWidths(), new RemoveIntervals())
+    val passes = Seq(ToWorkingIR, InferTypes, ResolveGenders, InferBinaryPoints, TrimIntervals, new InferWidths(), RemoveIntervals)
       val input =
         s"""circuit Unit :
         |  module Unit :
@@ -377,7 +377,7 @@ class IntervalSpec extends FirrtlFlatSpec {
     executeTest(input, check.split("\n") map normalized, passes)
   }
   "Interval types" should "lower squz properly" in {
-    val passes = Seq(ToWorkingIR, new ResolveAndCheck, new RemoveIntervals)
+    val passes = Seq(ToWorkingIR, new ResolveAndCheck, RemoveIntervals)
     val input =
       s"""circuit Unit :
          |  module Unit :
@@ -418,7 +418,7 @@ class IntervalSpec extends FirrtlFlatSpec {
     executeTest(input, check.split("\n") map normalized, passes)
   }
   "Assigning a larger interval to a smaller interval" should "error!" in {
-    val passes = Seq(ToWorkingIR, new ResolveAndCheck, new RemoveIntervals)
+    val passes = Seq(ToWorkingIR, new ResolveAndCheck, RemoveIntervals)
     val input =
       s"""circuit Unit :
          |  module Unit :
@@ -431,7 +431,7 @@ class IntervalSpec extends FirrtlFlatSpec {
     }
   }
   "Assigning a more precise interval to a less precise interval" should "error!" in {
-    val passes = Seq(ToWorkingIR, new ResolveAndCheck, new RemoveIntervals)
+    val passes = Seq(ToWorkingIR, new ResolveAndCheck, RemoveIntervals)
     val input =
       s"""circuit Unit :
          |  module Unit :

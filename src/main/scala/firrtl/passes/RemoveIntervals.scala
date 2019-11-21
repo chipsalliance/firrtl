@@ -35,7 +35,7 @@ class WrapWithRemainder(info: Info, mname: String, wrap: DoPrim)
   *      c. replace with SIntType
   * 3) Run InferTypes
   */
-class RemoveIntervals extends Pass {
+object RemoveIntervals extends Pass {
 
   def run(c: Circuit): Circuit = {
     val alignedCircuit = c

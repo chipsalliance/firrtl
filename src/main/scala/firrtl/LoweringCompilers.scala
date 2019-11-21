@@ -74,7 +74,7 @@ class HighFirrtlToMiddleFirrtl extends CoreTransform {
     passes.ResolveFlows,
     new passes.InferWidths,
     passes.CheckWidths,
-    new passes.RemoveIntervals(),
+    passes.RemoveIntervals,
     passes.ConvertFixedToSInt,
     passes.ZeroWidth,
     passes.InferTypes)
