@@ -28,7 +28,7 @@ class LowerTypesSpec extends FirrtlFlatSpec {
     ExpandWhens,
     CheckInitialization,
     Legalize,
-    new ConstantPropagation,
+    ConstantPropagation,
     ResolveKinds,
     InferTypes,
     ResolveFlows,

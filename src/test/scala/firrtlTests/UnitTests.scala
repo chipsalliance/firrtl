@@ -207,7 +207,7 @@ class UnitTests extends FirrtlFlatSpec {
       PullMuxes,
       ExpandConnects,
       RemoveAccesses,
-      new ConstantPropagation
+      ConstantPropagation
     )
     val input =
       """circuit AssignViaDeref :
@@ -394,7 +394,7 @@ class UnitTests extends FirrtlFlatSpec {
       ExpandConnects,
       RemoveAccesses,
       ResolveFlows,
-      new ConstantPropagation
+      ConstantPropagation
     )
     val input =
       """circuit Top :

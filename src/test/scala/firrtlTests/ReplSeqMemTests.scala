@@ -24,7 +24,7 @@ class ReplSeqMemSpec extends SimpleTransformSpec {
     new SeqTransform {
       def inputForm = LowForm
       def outputForm = LowForm
-      def transforms = Seq(new ConstantPropagation, CommonSubexpressionElimination, new DeadCodeElimination, RemoveEmpty)
+      def transforms = Seq(ConstantPropagation, CommonSubexpressionElimination, new DeadCodeElimination, RemoveEmpty)
     }
   )
 

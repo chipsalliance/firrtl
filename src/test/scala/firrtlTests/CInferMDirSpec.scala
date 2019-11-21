@@ -39,7 +39,7 @@ class CInferMDir extends LowTransformSpec {
   def transform = new SeqTransform {
     def inputForm = LowForm
     def outputForm = LowForm
-    def transforms = Seq(new ConstantPropagation, CInferMDirCheckPass)
+    def transforms = Seq(ConstantPropagation, CInferMDirCheckPass)
   }
 
   "Memory" should "have correct mem port directions" in {

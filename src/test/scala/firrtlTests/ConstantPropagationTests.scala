@@ -15,7 +15,7 @@ class ConstantPropagationSpec extends FirrtlFlatSpec {
       InferTypes,
       ResolveFlows,
       InferWidths,
-      new ConstantPropagation)
+      ConstantPropagation)
   protected def exec(input: String) = {
     transforms.foldLeft(CircuitState(parse(input), UnknownForm)) {
       (c: CircuitState, t: Transform) => t.runTransform(c)
@@ -1279,7 +1279,7 @@ class ConstantPropagationIntegrationSpec extends LowTransformSpec {
 
 class ConstantPropagationEquivalenceSpec extends FirrtlFlatSpec {
   private val srcDir = "/constant_propagation_tests"
-  private val transforms = Seq(new ConstantPropagation)
+  private val transforms = Seq(ConstantPropagation)
 
   "anything added to zero" should "be equal to itself" in {
     val input =

@@ -22,7 +22,7 @@ class FirrtlCliSpec extends FlatSpec with Matchers {
       classOf[firrtl.transforms.BlackBoxSourceHelper],
       classOf[firrtl.transforms.CheckCombLoops],
       classOf[firrtl.transforms.CombineCats],
-      classOf[firrtl.transforms.ConstantPropagation] )
+      firrtl.transforms.ConstantPropagation.getClass )
 
     shell
       .parse(args)

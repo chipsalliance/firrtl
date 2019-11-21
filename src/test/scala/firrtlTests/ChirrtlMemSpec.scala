@@ -56,7 +56,7 @@ class ChirrtlMemSpec extends LowTransformSpec {
   def transform = new SeqTransform {
     def inputForm = LowForm
     def outputForm = LowForm
-    def transforms = Seq(new ConstantPropagation, MemEnableCheckPass)
+    def transforms = Seq(ConstantPropagation, MemEnableCheckPass)
   }
 
   "Sequential Memory" should "have correct enable signals" in {
