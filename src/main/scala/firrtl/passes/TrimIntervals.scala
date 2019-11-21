@@ -2,7 +2,6 @@
 
 package firrtl.passes
 
-import scala.collection.mutable
 import firrtl.PrimOps._
 import firrtl.ir._
 import firrtl._
@@ -22,7 +21,7 @@ import firrtl.constraint.{IsFloor, IsKnown, IsMul}
   *      c. replace with SIntType
   * 3) Run InferTypes
   */
-class TrimIntervals extends Pass {
+object TrimIntervals extends Pass {
   def run(c: Circuit): Circuit = {
     // Open -> closed
     val firstPass = InferTypes.run(c map replaceModuleInterval)
