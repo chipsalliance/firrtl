@@ -49,7 +49,7 @@ class ResolveAndCheck extends CoreTransform {
     passes.TrimIntervals,
     passes.InferWidths,
     passes.CheckWidths,
-    new firrtl.transforms.InferResets)
+    firrtl.transforms.InferResets)
 }
 
 /** Expands aggregate connects, removes dynamic accesses, and when

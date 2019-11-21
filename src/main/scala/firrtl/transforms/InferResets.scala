@@ -13,8 +13,20 @@ import firrtl.passes.{Pass, PassException, Errors, InferTypes}
 import scala.collection.mutable
 import scala.util.Try
 
-object InferResets {
+
+/** Infers the concrete type of [[Reset]]s by their connections
+  * This is a global inference because ports can be of type [[Reset]]
+  * @note This transform should be run before [[DedupModules]] so that similar Modules from
+  *   generator languages like Chisel can infer differently
+  */
+// TODO should we error if a DefMemory is of type AsyncReset? In CheckTypes?
+object InferResets extends Transform {
+  def inputForm: CircuitForm = HighForm
+  def outputForm: CircuitForm = HighForm
+
+
   final class DifferingDriverTypesException private (msg: String) extends PassException(msg)
+
   object DifferingDriverTypesException {
     def apply(target: ReferenceTarget, tpes: Seq[(Type, Seq[TypeDriver])]): DifferingDriverTypesException = {
       val xs = tpes.map { case (t, ds) => s"${ds.map(_.target().serialize).mkString(", ")} of type ${t.serialize}" }
@@ -68,19 +80,6 @@ object InferResets {
         BundleTree(fields)
     }
   }
-}
-
-/** Infers the concrete type of [[Reset]]s by their connections
-  * This is a global inference because ports can be of type [[Reset]]
-  * @note This transform should be run before [[DedupModules]] so that similar Modules from
-  *   generator languages like Chisel can infer differently
-  */
-// TODO should we error if a DefMemory is of type AsyncReset? In CheckTypes?
-class InferResets extends Transform {
-  def inputForm: CircuitForm = HighForm
-  def outputForm: CircuitForm = HighForm
-
-  import InferResets._
 
   // Collect all drivers for circuit elements of type ResetType
   private def analyze(c: Circuit): Map[ReferenceTarget, List[ResetDriver]] = {
