@@ -36,7 +36,7 @@ class InferWidthsWithAnnosSpec extends FirrtlFlatSpec {
       InferTypes,
       CheckTypes,
       ResolveFlows,
-      new InferWidths,
+      InferWidths,
       CheckWidths)
 
     val input =
@@ -65,7 +65,7 @@ class InferWidthsWithAnnosSpec extends FirrtlFlatSpec {
       InferTypes,
       CheckTypes,
       ResolveFlows,
-      new InferWidths,
+      InferWidths,
       CheckWidths)
 
     val annos = Seq(WidthGeqConstraintAnnotation(
@@ -108,7 +108,7 @@ class InferWidthsWithAnnosSpec extends FirrtlFlatSpec {
       InferTypes,
       CheckTypes,
       ResolveFlows,
-      new InferWidths,
+      InferWidths,
       CheckWidths)
 
     val tokenLists = Seq(
@@ -157,7 +157,7 @@ class InferWidthsWithAnnosSpec extends FirrtlFlatSpec {
       ResolveKinds,
       InferTypes,
       ResolveFlows,
-      new InferWidths,
+      InferWidths,
       CheckWidths,
       new WiringTransform,
       new ResolveAndCheck

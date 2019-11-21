@@ -178,7 +178,7 @@ class CheckSpec extends FlatSpec with Matchers {
       CheckTypes,
       ResolveFlows,
       CheckFlows,
-      new InferWidths,
+      InferWidths,
       CheckWidths)
     val input =
       """

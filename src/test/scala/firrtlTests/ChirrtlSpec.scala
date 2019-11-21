@@ -18,7 +18,7 @@ class ChirrtlSpec extends FirrtlFlatSpec {
     CheckTypes,
     ResolveFlows,
     CheckFlows,
-    new InferWidths,
+    InferWidths,
     CheckWidths,
     PullMuxes,
     ExpandConnects,

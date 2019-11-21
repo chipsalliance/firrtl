@@ -411,7 +411,7 @@ class AttachAnalogSpec extends FirrtlFlatSpec {
       ResolveKinds,
       InferTypes,
       CheckTypes,
-      new InferWidths,
+      InferWidths,
       CheckWidths)
     val input =
       """circuit Unit :

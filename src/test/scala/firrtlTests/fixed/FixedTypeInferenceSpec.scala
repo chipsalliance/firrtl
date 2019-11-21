@@ -30,7 +30,7 @@ class FixedTypeInferenceSpec extends FirrtlFlatSpec {
       CheckTypes,
       ResolveFlows,
       CheckFlows,
-      new InferWidths,
+      InferWidths,
       CheckWidths)
     val input =
       """circuit Unit :
@@ -60,7 +60,7 @@ class FixedTypeInferenceSpec extends FirrtlFlatSpec {
       CheckTypes,
       ResolveFlows,
       CheckFlows,
-      new InferWidths,
+      InferWidths,
       CheckWidths)
     val input =
       """circuit Unit :
@@ -90,7 +90,7 @@ class FixedTypeInferenceSpec extends FirrtlFlatSpec {
       CheckTypes,
       ResolveFlows,
       CheckFlows,
-      new InferWidths,
+      InferWidths,
       CheckWidths)
     val input =
       """circuit Unit :
@@ -116,7 +116,7 @@ class FixedTypeInferenceSpec extends FirrtlFlatSpec {
       CheckTypes,
       ResolveFlows,
       CheckFlows,
-      new InferWidths,
+      InferWidths,
       CheckWidths)
     val input =
       """circuit Unit :
@@ -142,7 +142,7 @@ class FixedTypeInferenceSpec extends FirrtlFlatSpec {
       CheckTypes,
       ResolveFlows,
       CheckFlows,
-      new InferWidths,
+      InferWidths,
       CheckWidths)
     val input =
       """circuit Unit :
@@ -168,7 +168,7 @@ class FixedTypeInferenceSpec extends FirrtlFlatSpec {
       CheckTypes,
       ResolveFlows,
       CheckFlows,
-      new InferWidths,
+      InferWidths,
       CheckWidths)
     val input =
       """circuit Unit :
@@ -194,7 +194,7 @@ class FixedTypeInferenceSpec extends FirrtlFlatSpec {
       CheckTypes,
       ResolveFlows,
       CheckFlows,
-      new InferWidths,
+      InferWidths,
       CheckWidths)
     val input =
       """circuit Unit :
@@ -220,7 +220,7 @@ class FixedTypeInferenceSpec extends FirrtlFlatSpec {
       CheckTypes,
       ResolveFlows,
       CheckFlows,
-      new InferWidths,
+      InferWidths,
       CheckWidths)
     val input =
       """circuit Unit :
@@ -260,7 +260,7 @@ class FixedTypeInferenceSpec extends FirrtlFlatSpec {
       CheckTypes,
       ResolveFlows,
       CheckFlows,
-      new InferWidths,
+      InferWidths,
       CheckWidths)
     val input =
       """circuit Unit :
@@ -286,7 +286,7 @@ class FixedTypeInferenceSpec extends FirrtlFlatSpec {
       CheckTypes,
       ResolveFlows,
       CheckFlows,
-      new InferWidths,
+      InferWidths,
       CheckWidths,
       ConvertFixedToSInt)
     val input =

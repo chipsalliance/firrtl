@@ -20,7 +20,7 @@ class LowerTypesSpec extends FirrtlFlatSpec {
     CheckTypes,
     ResolveFlows,
     CheckFlows,
-    new InferWidths,
+    InferWidths,
     CheckWidths,
     PullMuxes,
     ExpandConnects,
@@ -32,7 +32,7 @@ class LowerTypesSpec extends FirrtlFlatSpec {
     ResolveKinds,
     InferTypes,
     ResolveFlows,
-    new InferWidths,
+    InferWidths,
     LowerTypes)
 
   private def executeTest(input: String, expected: Seq[String]) = {

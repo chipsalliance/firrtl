@@ -158,7 +158,7 @@ class UnitTests extends FirrtlFlatSpec {
       ResolveKinds,
       InferTypes,
       ResolveFlows,
-      new InferWidths,
+      InferWidths,
       SplitExpressions
     )
     val input =
@@ -182,7 +182,7 @@ class UnitTests extends FirrtlFlatSpec {
       ResolveKinds,
       InferTypes,
       ResolveFlows,
-      new InferWidths,
+      InferWidths,
       PadWidths
     )
     val input =
@@ -203,7 +203,7 @@ class UnitTests extends FirrtlFlatSpec {
       ResolveKinds,
       InferTypes,
       ResolveFlows,
-      new InferWidths,
+      InferWidths,
       PullMuxes,
       ExpandConnects,
       RemoveAccesses,
@@ -243,7 +243,7 @@ class UnitTests extends FirrtlFlatSpec {
       ResolveKinds,
       InferTypes,
       ResolveFlows,
-      new InferWidths,
+      InferWidths,
       CheckWidths)
     val input =
       """circuit Unit :
@@ -262,7 +262,7 @@ class UnitTests extends FirrtlFlatSpec {
       ResolveKinds,
       InferTypes,
       ResolveFlows,
-      new InferWidths,
+      InferWidths,
       CheckWidths)
     val input =
       """circuit Unit :
@@ -281,7 +281,7 @@ class UnitTests extends FirrtlFlatSpec {
       ResolveKinds,
       InferTypes,
       ResolveFlows,
-      new InferWidths,
+      InferWidths,
       CheckWidths)
     val input =
       """circuit Unit :
@@ -389,7 +389,7 @@ class UnitTests extends FirrtlFlatSpec {
       ResolveKinds,
       InferTypes,
       ResolveFlows,
-      new InferWidths,
+      InferWidths,
       PullMuxes,
       ExpandConnects,
       RemoveAccesses,

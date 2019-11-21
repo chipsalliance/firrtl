@@ -29,7 +29,7 @@ class RemoveFixedTypeSpec extends FirrtlFlatSpec {
       CheckTypes,
       ResolveFlows,
       CheckFlows,
-      new InferWidths,
+      InferWidths,
       CheckWidths,
       ConvertFixedToSInt)
     val input =
@@ -59,7 +59,7 @@ class RemoveFixedTypeSpec extends FirrtlFlatSpec {
       CheckTypes,
       ResolveFlows,
       CheckFlows,
-      new InferWidths,
+      InferWidths,
       CheckWidths,
       ConvertFixedToSInt)
     val input =
@@ -90,7 +90,7 @@ class RemoveFixedTypeSpec extends FirrtlFlatSpec {
       CheckTypes,
       ResolveFlows,
       CheckFlows,
-      new InferWidths,
+      InferWidths,
       CheckWidths,
       ConvertFixedToSInt)
     val input =
@@ -117,7 +117,7 @@ class RemoveFixedTypeSpec extends FirrtlFlatSpec {
       CheckTypes,
       ResolveFlows,
       CheckFlows,
-      new InferWidths,
+      InferWidths,
       CheckWidths,
       ConvertFixedToSInt)
     val input =
@@ -144,7 +144,7 @@ class RemoveFixedTypeSpec extends FirrtlFlatSpec {
       CheckTypes,
       ResolveFlows,
       CheckFlows,
-      new InferWidths,
+      InferWidths,
       CheckWidths,
       ConvertFixedToSInt)
     val input =
@@ -196,7 +196,7 @@ class RemoveFixedTypeSpec extends FirrtlFlatSpec {
       CheckTypes,
       ResolveFlows,
       CheckFlows,
-      new InferWidths,
+      InferWidths,
       CheckWidths,
       ConvertFixedToSInt)
     val input =
