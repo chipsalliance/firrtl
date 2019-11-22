@@ -82,4 +82,5 @@ jobs:
     - stage: test
       name: "[Release Branch] Check Binary-compatibility"
       script:
+        - sbt compile
         - sbt +mimaReportBinaryIssues
