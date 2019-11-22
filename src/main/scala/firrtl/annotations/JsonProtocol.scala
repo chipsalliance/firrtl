@@ -99,7 +99,7 @@ object JsonProtocol {
     val annos = parsed match {
       case JArray(objs) => objs
       case x => throw new InvalidAnnotationJSONException(
-        s"Annotations must be serialized as a JArray, got ${x.getClass.getSimpleName} instead!")
+        s"Annotations must be serialized as a JArray, got ${x.getClass.getName} instead!")
     }
     // Gather classes so we can deserialize arbitrary Annotations
     val classes = annos.map({
