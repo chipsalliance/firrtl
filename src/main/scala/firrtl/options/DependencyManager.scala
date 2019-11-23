@@ -310,15 +310,16 @@ trait DependencyManager[A, B <: TransformLike[A] with DependencyAPI[B]] extends 
 
     val connections =
       Seq( (prerequisiteGraph, "edge []"),
-           (dependentsGraph,   """edge [color="#de2d26"]"""),
-           (invalidateGraph,   "edge [minlen=2,style=dashed,constraint=false]") )
+           (dependentsGraph,   """edge [style=bold color="#4292c6"]"""),
+           (invalidateGraph,   """edge [minlen=2 style=dashed constraint=false color="#fb6a4a"]"""),
+           (optionalPrerequisitesGraph, """edge [style=dotted color="#a1d99b"]""") )
         .flatMap{ case (a, b) => toGraphviz(a, b) }
         .mkString("\n")
 
     val nodes =
       (prerequisiteGraph + dependentsGraph + invalidateGraph + otherDependents)
         .getVertices
-        .map(v => s"""${transformName(v)} [label="${v.getClass.getSimpleName}"]""")
+        .map(v => s"""${transformName(v)} [label="${v.name}"]""")
 
     s"""|digraph DependencyManager {
         |  graph [rankdir=BT]
@@ -342,8 +343,8 @@ trait DependencyManager[A, B <: TransformLike[A] with DependencyAPI[B]] extends 
     def rec(pm: DependencyManager[A, B], cm: Seq[String], tab: String = "", id: Int = 0): (String, Int) = {
       var offset = id
 
-      val targets = pm._targets.toSeq.map(_.getSimpleName).mkString(", ")
-      val state = pm._currentState.toSeq.map(_.getSimpleName).mkString(", ")
+      val targets = pm._targets.toSeq.map(_.name).mkString(", ")
+      val state = pm._currentState.toSeq.map(_.name).mkString(", ")
 
       val header = s"""|${tab}subgraph cluster_$id {
                        |$tab  label="targets: $targets\\nstate: $state"
@@ -358,7 +359,7 @@ trait DependencyManager[A, B <: TransformLike[A] with DependencyAPI[B]] extends 
         case a =>
           val name = s"""${transformName(a, "_" + id)}"""
           sorted += name
-          s"""$tab  $name [label="${a.getClass.getSimpleName}"]"""
+          s"""$tab  $name [label="${a.name}"]"""
       }.mkString("\n")
 
       (Seq(header, body, s"$tab}").mkString("\n"), offset)
