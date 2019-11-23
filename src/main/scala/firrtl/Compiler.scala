@@ -357,7 +357,7 @@ private[firrtl] trait DeprecatedTransformObject { this: Transform =>
 trait SeqTransformBased {
   def transforms: Seq[Transform]
   protected def runTransforms(state: CircuitState): CircuitState =
-    transforms.foldLeft(state) { (in, xform) => val a = xform.runTransform(in); println(xform, a.circuit); a }
+    transforms.foldLeft(state) { (in, xform) => xform.runTransform(in) }
 }
 
 /** For transformations that are simply a sequence of transforms */
