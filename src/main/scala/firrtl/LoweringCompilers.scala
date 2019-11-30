@@ -123,8 +123,6 @@ class LowFirrtlOptimization extends CoreTransform {
     new firrtl.transforms.ConstantPropagation,
     new passes.Legalize,
     new passes.memlib.VerilogMemDelays, // TODO move to Verilog emitter
-    new passes.InferTypes,
-    new passes.ResolveFlows,
     new firrtl.transforms.ConstantPropagation,
     new passes.SplitExpressions,
     new firrtl.transforms.CombineCats,
@@ -140,8 +138,6 @@ class MinimumLowFirrtlOptimization extends CoreTransform {
     new passes.RemoveValidIf,
     new passes.Legalize,
     new passes.memlib.VerilogMemDelays, // TODO move to Verilog emitter
-    new passes.InferTypes,
-    new passes.ResolveFlows,
     new passes.SplitExpressions)
 }
 

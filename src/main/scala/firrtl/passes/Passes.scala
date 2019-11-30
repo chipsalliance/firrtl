@@ -222,6 +222,8 @@ class Legalize extends Pass with PreservesAll[Transform] {
 
   override val prerequisites = firrtl.stage.Forms.MidForm :+ classOf[LowerTypes]
 
+  override val optionalPrerequisites = Seq.empty
+
   override val dependents = Seq.empty
 
   private def legalizeShiftRight(e: DoPrim): Expression = {

@@ -8,7 +8,7 @@ import firrtl.ir._
 import firrtl.Utils._
 import firrtl.Mappers._
 import firrtl.traversals.Foreachers._
-import firrtl.{transforms, passes}
+import firrtl.transforms
 
 import MemPortUtils._
 import WrappedExpression._
@@ -174,7 +174,7 @@ class VerilogMemDelays extends Pass {
          classOf[SystemVerilogEmitter] )
 
   override def invalidates(a: Transform): Boolean = a match {
-    case _: transforms.ConstantPropagation | _: passes.InferTypes | _: passes.ResolveFlows => true
+    case _: transforms.ConstantPropagation => true
     case _ => false
   }
 
