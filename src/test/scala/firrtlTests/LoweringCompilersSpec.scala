@@ -4,9 +4,7 @@ package firrtlTests
 
 import org.scalatest.{FlatSpec, Matchers}
 
-import firrtl.{ChirrtlToHighFirrtl, CircuitForm, CircuitState, HighFirrtlToMiddleFirrtl, IRToWorkingIR,
-  LowFirrtlOptimization, MiddleFirrtlToLowFirrtl, MinimumLowFirrtlOptimization, ResolveAndCheck, SeqTransform,
-  Transform, UnknownForm}
+import firrtl._
 import firrtl.passes
 import firrtl.stage.{Forms, TransformManager}
 import firrtl.transforms.IdentityTransform
@@ -36,18 +34,82 @@ object Transforms {
 
 class LoweringCompilersSpec extends FlatSpec with Matchers {
 
-  def compare(a: Seq[Transform], b: TransformManager): Unit = {
-    info(s"""Transform Order:\n${b.prettyPrint("    ")}""")
-    a.map(_.getClass).zip(b.flattenedTransformOrder.map(_.getClass)).foreach{ case (aa, bb) => bb should be (aa) }
-    info(s"found ${b.flattenedTransformOrder.size} transforms")
-    a.size should be (b.flattenedTransformOrder.size)
+  def legacyTransforms(a: CoreTransform): Seq[Transform] = a match {
+    case _: ChirrtlToHighFirrtl => Seq(
+      new passes.CheckChirrtl,
+      new passes.CInferTypes,
+      new passes.CInferMDir,
+      new passes.RemoveCHIRRTL)
+    case _: IRToWorkingIR => Seq(new passes.ToWorkingIR)
+    case _: ResolveAndCheck => Seq(
+      new passes.CheckHighForm,
+      new passes.ResolveKinds,
+      new passes.InferTypes,
+      new passes.CheckTypes,
+      new passes.Uniquify,
+      new passes.ResolveKinds,
+      new passes.InferTypes,
+      new passes.ResolveFlows,
+      new passes.CheckFlows,
+      new passes.InferBinaryPoints,
+      new passes.TrimIntervals,
+      new passes.InferWidths,
+      new passes.CheckWidths,
+      new firrtl.transforms.InferResets)
+    case _: HighFirrtlToMiddleFirrtl => Seq(
+      new passes.PullMuxes,
+      new passes.ReplaceAccesses,
+      new passes.ExpandConnects,
+      new passes.RemoveAccesses,
+      new passes.Uniquify,
+      new passes.ExpandWhens,
+      new passes.CheckInitialization,
+      new passes.ResolveKinds,
+      new passes.InferTypes,
+      new passes.CheckTypes,
+      new passes.ResolveFlows,
+      new passes.InferWidths,
+      new passes.CheckWidths,
+      new passes.RemoveIntervals,
+      new passes.ConvertFixedToSInt,
+      new passes.ZeroWidth,
+      new passes.InferTypes)
+    case _: MiddleFirrtlToLowFirrtl => Seq(
+      new passes.LowerTypes,
+      new passes.ResolveKinds,
+      new passes.InferTypes,
+      new passes.ResolveFlows,
+      new passes.InferWidths,
+      new passes.Legalize,
+      new firrtl.transforms.RemoveReset,
+      new passes.ResolveFlows,
+      new firrtl.transforms.CheckCombLoops,
+      new checks.CheckResets,
+      new firrtl.transforms.RemoveWires)
+    case _: LowFirrtlOptimization => Seq(
+      new passes.RemoveValidIf,
+      new firrtl.transforms.ConstantPropagation,
+      new passes.PadWidths,
+      new firrtl.transforms.ConstantPropagation,
+      new passes.Legalize,
+      new passes.memlib.VerilogMemDelays, // TODO move to Verilog emitter
+      new firrtl.transforms.ConstantPropagation,
+      new passes.SplitExpressions,
+      new firrtl.transforms.CombineCats,
+      new passes.CommonSubexpressionElimination,
+      new firrtl.transforms.DeadCodeElimination)
+    case _: MinimumLowFirrtlOptimization => Seq(
+      new passes.RemoveValidIf,
+      new passes.Legalize,
+      new passes.memlib.VerilogMemDelays, // TODO move to Verilog emitter
+      new passes.SplitExpressions)
   }
 
-  def compareLegacy(a: SeqTransform, b: TransformManager, patches: Seq[PatchAction] = Seq.empty): Unit = {
+  def compare(a: Seq[Transform], b: TransformManager, patches: Seq[PatchAction] = Seq.empty): Unit = {
     info(s"""Transform Order:\n${b.prettyPrint("    ")}""")
 
     val m = new scala.collection.mutable.HashMap[Int, Seq[Class[_ <: Transform]]].withDefault(_ => Seq.empty)
-    a.transforms.map(_.getClass).zipWithIndex.foreach{ case (t, idx) => m(idx) = Seq(t) }
+    a.map(_.getClass).zipWithIndex.foreach{ case (t, idx) => m(idx) = Seq(t) }
 
     patches.foreach {
       case Add(line, txs) => m(line - 1) = m(line - 1) ++ txs
@@ -68,14 +130,14 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
 
   it should "replicate the old order" in {
     val tm = new TransformManager(Forms.MinimalHighForm, Forms.ChirrtlForm)
-    compareLegacy(new firrtl.ChirrtlToHighFirrtl, tm)
+    compare(legacyTransforms(new firrtl.ChirrtlToHighFirrtl), tm)
   }
 
   behavior of "IRToWorkingIR"
 
   it should "replicate the old order" in {
     val tm = new TransformManager(Forms.WorkingIR, Forms.MinimalHighForm)
-    compareLegacy(new firrtl.IRToWorkingIR, tm)
+    compare(legacyTransforms(new firrtl.IRToWorkingIR), tm)
   }
 
   behavior of "ResolveAndCheck"
@@ -85,7 +147,7 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
     val patches = Seq(
       Add(14, Seq(classOf[firrtl.passes.CheckTypes]))
     )
-    compareLegacy(new ResolveAndCheck, tm, patches)
+    compare(legacyTransforms(new ResolveAndCheck), tm, patches)
   }
 
   behavior of "HighFirrtlToMiddleFirrtl"
@@ -105,21 +167,21 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
                   classOf[firrtl.passes.InferWidths])),
       Del(13)
     )
-    compareLegacy(new HighFirrtlToMiddleFirrtl, tm, patches)
+    compare(legacyTransforms(new HighFirrtlToMiddleFirrtl), tm, patches)
   }
 
   behavior of "MiddleFirrtlToLowFirrtl"
 
   it should "replicate the old order" in {
     val tm = new TransformManager(Forms.LowForm, Forms.MidForm)
-    compareLegacy(new MiddleFirrtlToLowFirrtl, tm)
+    compare(legacyTransforms(new MiddleFirrtlToLowFirrtl), tm)
   }
 
   behavior of "MinimumLowFirrtlOptimization"
 
   it should "replicate the old order" in {
     val tm = new TransformManager(Forms.LowFormMinimumOptimized, Forms.LowForm)
-    compareLegacy(new MinimumLowFirrtlOptimization, tm)
+    compare(legacyTransforms(new MinimumLowFirrtlOptimization), tm)
   }
 
   behavior of "LowFirrtlOptimization"
@@ -129,46 +191,38 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
     val patches = Seq(
       Add(7, Seq(classOf[firrtl.passes.Legalize]))
     )
-    compareLegacy(new LowFirrtlOptimization, tm, patches)
+    compare(legacyTransforms(new LowFirrtlOptimization), tm, patches)
   }
 
   behavior of "VerilogMinimumOptimized"
 
   it should "replicate the old order" in {
-    val old = new SeqTransform {
-      def inputForm = UnknownForm
-      def outputForm = UnknownForm
-      def transforms = Seq(
-        new firrtl.transforms.BlackBoxSourceHelper,
-        new firrtl.transforms.ReplaceTruncatingArithmetic,
-        new firrtl.transforms.FlattenRegUpdate,
-        new firrtl.passes.VerilogModulusCleanup,
-        new firrtl.transforms.VerilogRename,
-        new firrtl.passes.VerilogPrep,
-        new firrtl.AddDescriptionNodes)
-    }
+    val legacy = Seq(
+      new firrtl.transforms.BlackBoxSourceHelper,
+      new firrtl.transforms.ReplaceTruncatingArithmetic,
+      new firrtl.transforms.FlattenRegUpdate,
+      new firrtl.passes.VerilogModulusCleanup,
+      new firrtl.transforms.VerilogRename,
+      new firrtl.passes.VerilogPrep,
+      new firrtl.AddDescriptionNodes)
     val tm = new TransformManager(Forms.VerilogMinimumOptimized, (new firrtl.VerilogEmitter).prerequisites)
-    compareLegacy(old, tm)
+    compare(legacy, tm)
   }
 
   behavior of "VerilogOptimized"
 
   it should "replicate the old order" in {
-    val old = new SeqTransform {
-      def inputForm = UnknownForm
-      def outputForm = UnknownForm
-      def transforms = Seq(
-        new firrtl.transforms.BlackBoxSourceHelper,
-        new firrtl.transforms.ReplaceTruncatingArithmetic,
-        new firrtl.transforms.FlattenRegUpdate,
-        new firrtl.transforms.DeadCodeElimination,
-        new firrtl.passes.VerilogModulusCleanup,
-        new firrtl.transforms.VerilogRename,
-        new firrtl.passes.VerilogPrep,
-        new firrtl.AddDescriptionNodes)
-    }
+    val legacy = Seq(
+      new firrtl.transforms.BlackBoxSourceHelper,
+      new firrtl.transforms.ReplaceTruncatingArithmetic,
+      new firrtl.transforms.FlattenRegUpdate,
+      new firrtl.transforms.DeadCodeElimination,
+      new firrtl.passes.VerilogModulusCleanup,
+      new firrtl.transforms.VerilogRename,
+      new firrtl.passes.VerilogPrep,
+      new firrtl.AddDescriptionNodes)
     val tm = new TransformManager(Forms.VerilogOptimized, Forms.LowFormOptimized)
-    compareLegacy(old, tm)
+    compare(legacy, tm)
   }
 
   behavior of "Legacy Custom Transforms"
