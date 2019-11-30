@@ -6,8 +6,9 @@ import firrtl.ir.Circuit
 import firrtl._
 import firrtl.passes.Pass
 import firrtl.ir._
+import firrtl.annotations.{Annotation, NoTargetAnnotation}
+import firrtl.stage.{FirrtlSourceAnnotation, FirrtlStage, Forms, RunFirrtlTransformAnnotation}
 import firrtl.transforms.IdentityTransform
-import firrtl.stage.Forms
 
 object CustomTransformSpec {
   class ReplaceExtModuleTransform extends SeqTransform with FirrtlMatchers {
@@ -99,6 +100,17 @@ object CustomTransformSpec {
     override val name = ">>>>> IdentityLowForm <<<<<"
   }
 
+  object Foo {
+    class A extends Transform {
+      def inputForm = HighForm
+      def outputForm = HighForm
+      def execute(s: CircuitState) = {
+        println(name)
+        s
+      }
+    }
+  }
+
 }
 
 class CustomTransformSpec extends FirrtlFlatSpec {
@@ -153,5 +165,18 @@ class CustomTransformSpec extends FirrtlFlatSpec {
          (classOf[VerilogEmitter],        Seq(Forms.LowFormOptimized.last)        ),
          (classOf[SystemVerilogEmitter],  Seq(Forms.LowFormOptimized.last)        )
     ).foreach((testOrder _).tupled)
+  }
+
+  they should "work if placed inside an object" in {
+    val input =
+      """|circuit Foo:
+         |  module Foo:
+         |    node a = UInt<1>(0)
+         |""".stripMargin
+    val annotations = Seq(
+      RunFirrtlTransformAnnotation(new Foo.A),
+      FirrtlSourceAnnotation(input)
+    )
+    (new FirrtlStage).execute(Array.empty, annotations)
   }
 }

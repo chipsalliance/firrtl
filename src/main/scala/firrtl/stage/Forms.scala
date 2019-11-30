@@ -51,7 +51,6 @@ object Forms {
          classOf[passes.ExpandConnects],
          classOf[passes.RemoveAccesses],
          classOf[passes.ExpandWhensAndCheck],
-         classOf[checks.CheckResets],
          classOf[passes.RemoveIntervals],
          classOf[passes.ConvertFixedToSInt],
          classOf[passes.ZeroWidth] )
@@ -61,6 +60,7 @@ object Forms {
          classOf[passes.Legalize],
          classOf[firrtl.transforms.RemoveReset],
          classOf[firrtl.transforms.CheckCombLoops],
+         classOf[checks.CheckResets],
          classOf[firrtl.transforms.RemoveWires] )
 
   val LowFormMinimumOptimized: Seq[TransformDependency] = LowForm ++

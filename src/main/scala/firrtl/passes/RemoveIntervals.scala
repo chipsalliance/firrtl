@@ -43,8 +43,7 @@ class RemoveIntervals extends Pass with PreservesAll[Transform] {
          classOf[ReplaceAccesses],
          classOf[ExpandConnects],
          classOf[RemoveAccesses],
-         classOf[ExpandWhensAndCheck],
-         classOf[checks.CheckResets] ) ++ firrtl.stage.Forms.Deduped
+         classOf[ExpandWhensAndCheck] ) ++ firrtl.stage.Forms.Deduped
 
   def run(c: Circuit): Circuit = {
     val alignedCircuit = c

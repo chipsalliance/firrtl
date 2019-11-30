@@ -179,8 +179,7 @@ final case object UnknownForm extends CircuitForm(-1) {
 /** The basic unit of operating on a Firrtl AST */
 abstract class Transform extends TransformLike[CircuitState] with DependencyAPI[Transform] {
   /** A convenience function useful for debugging and error messages */
-  def name: String = this.getClass.getSimpleName
-
+  def name: String = this.getClass.getName
   /** The [[firrtl.CircuitForm]] that this transform requires to operate on */
   @deprecated(
     "InputForm/OutputForm will be removed in 1.3. Use DependencyAPI methods (prerequisites, dependents, invalidates)",

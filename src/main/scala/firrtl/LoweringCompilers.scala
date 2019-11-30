@@ -77,7 +77,6 @@ class HighFirrtlToMiddleFirrtl extends CoreTransform {
     new passes.ResolveKinds,
     new passes.InferTypes,
     new passes.CheckTypes,
-    new checks.CheckResets,
     new passes.ResolveFlows,
     new passes.InferWidths,
     new passes.CheckWidths,
@@ -105,6 +104,7 @@ class MiddleFirrtlToLowFirrtl extends CoreTransform {
     new firrtl.transforms.RemoveReset,
     new passes.ResolveFlows,
     new firrtl.transforms.CheckCombLoops,
+    new checks.CheckResets,
     new firrtl.transforms.RemoveWires)
 }
 

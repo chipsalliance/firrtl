@@ -30,7 +30,7 @@ class RemoveWires extends Transform with PreservesAll[Transform] {
          classOf[transforms.RemoveReset],
          classOf[transforms.CheckCombLoops] )
 
-  override val optionalPrerequisites = Seq.empty
+  override val optionalPrerequisites = Seq(classOf[checks.CheckResets])
 
   override val dependents = Seq.empty
 

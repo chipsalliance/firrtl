@@ -103,10 +103,7 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
       Del(12),
       Add(11, Seq(classOf[firrtl.passes.ResolveFlows],
                   classOf[firrtl.passes.InferWidths])),
-      Del(12),
-      Add(12, Seq(classOf[firrtl.checks.CheckResets])),
-      Del(13),
-      Del(14)
+      Del(13)
     )
     compareLegacy(new HighFirrtlToMiddleFirrtl, tm, patches)
   }

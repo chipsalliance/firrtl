@@ -31,15 +31,13 @@ class CheckResets extends Transform with PreservesAll[Transform] {
   def outputForm: CircuitForm = MidForm
 
   override val prerequisites =
-    Seq( classOf[passes.PullMuxes],
-         classOf[passes.ReplaceAccesses],
-         classOf[passes.ExpandConnects],
-         classOf[passes.RemoveAccesses],
-         classOf[passes.ExpandWhensAndCheck] ) ++ firrtl.stage.Forms.Deduped
+    Seq( classOf[passes.LowerTypes],
+         classOf[passes.Legalize],
+         classOf[firrtl.transforms.RemoveReset] ) ++ firrtl.stage.Forms.MidForm
 
-  override val dependents =
-    Seq( classOf[passes.ConvertFixedToSInt],
-         classOf[passes.ZeroWidth] )
+  override val optionalPrerequisites = Seq(classOf[firrtl.transforms.CheckCombLoops])
+
+  override val dependents = Seq.empty
 
   import CheckResets._
 
