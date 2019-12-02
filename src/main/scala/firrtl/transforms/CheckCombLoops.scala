@@ -48,16 +48,6 @@ object LogicNode {
   }
 }
 
-object CheckCombLoops {
-  type AbstractConnMap = DiGraph[LogicNode]
-  type ConnMap = DiGraph[LogicNode] with EdgeData[LogicNode, Info]
-  type MutableConnMap = MutableDiGraph[LogicNode] with MutableEdgeData[LogicNode, Info]
-
-
-  class CombLoopException(info: Info, mname: String, cycle: Seq[String]) extends PassException(
-    s"$info: [module $mname] Combinational loop detected:\n" + cycle.mkString("\n"))
-}
-
 case object DontCheckCombLoopsAnnotation extends NoTargetAnnotation
 
 case class ExtModulePathAnnotation(source: ReferenceTarget, sink: ReferenceTarget) extends Annotation {
@@ -95,11 +85,16 @@ case class CombinationalPath(sink: ReferenceTarget, sources: Seq[ReferenceTarget
   * @note The pass relies on ExtModulePathAnnotations to find loops through ExtModules
   * @note The pass will throw exceptions on "false paths"
   */
-class CheckCombLoops extends Transform with RegisteredTransform {
+object CheckCombLoops extends Transform with RegisteredTransform {
   def inputForm = LowForm
   def outputForm = LowForm
 
-  import CheckCombLoops._
+  type AbstractConnMap = DiGraph[LogicNode]
+  type ConnMap = DiGraph[LogicNode] with EdgeData[LogicNode, Info]
+  type MutableConnMap = MutableDiGraph[LogicNode] with MutableEdgeData[LogicNode, Info]
+
+  class CombLoopException(info: Info, mname: String, cycle: Seq[String]) extends PassException(
+    s"$info: [module $mname] Combinational loop detected:\n" + cycle.mkString("\n"))
 
   val options = Seq(
     new ShellOption[Unit](
