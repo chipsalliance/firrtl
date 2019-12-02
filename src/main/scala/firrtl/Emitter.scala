@@ -430,7 +430,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
   def getRenderer(descriptions: Seq[DescriptionAnnotation],
                   m: Module,
                   moduleMap: Map[String, DefModule])(implicit writer: Writer): VerilogRender = {
-    val newMod = new AddDescriptionNodes().executeModule(m, descriptions)
+    val newMod = AddDescriptionNodes.executeModule(m, descriptions)
 
     newMod match {
       case DescribedMod(d, pds, m: Module) => new VerilogRender(d, pds, m, moduleMap)(writer)
@@ -966,7 +966,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
     passes.VerilogModulusCleanup,
     new VerilogRename,
     passes.VerilogPrep,
-    new AddDescriptionNodes)
+    AddDescriptionNodes)
 
   def emit(state: CircuitState, writer: Writer): Unit = {
     val circuit = runTransforms(state).circuit

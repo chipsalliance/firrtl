@@ -67,7 +67,7 @@ private case class DescribedMod(description: Description,
   * @note should only be used by VerilogEmitter, described nodes will
   *       break other transforms.
   */
-class AddDescriptionNodes extends Transform {
+object AddDescriptionNodes extends Transform {
   def inputForm = LowForm
   def outputForm = LowForm
 
