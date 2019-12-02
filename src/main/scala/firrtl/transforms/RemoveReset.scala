@@ -14,7 +14,7 @@ import scala.collection.{immutable, mutable}
   *
   * @note This pass must run after LowerTypes
   */
-class RemoveReset extends Transform {
+object RemoveReset extends Transform {
   def inputForm = MidForm
   def outputForm = MidForm
 
