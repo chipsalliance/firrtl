@@ -3,6 +3,7 @@
 package firrtl.stage
 
 import firrtl._
+import firrtl.options.DependencyID
 import firrtl.stage.TransformManager.TransformDependency
 
 /*
@@ -16,28 +17,28 @@ object Forms {
   val ChirrtlForm: Seq[TransformDependency] = Seq.empty
 
   val MinimalHighForm: Seq[TransformDependency] = ChirrtlForm ++
-    Seq( classOf[passes.CheckChirrtl],
-         classOf[passes.CInferTypes],
-         classOf[passes.CInferMDir],
-         classOf[passes.RemoveCHIRRTL] )
+    Seq( DependencyID[passes.CheckChirrtl],
+         DependencyID[passes.CInferTypes],
+         DependencyID[passes.CInferMDir],
+         DependencyID[passes.RemoveCHIRRTL] )
 
-  val WorkingIR: Seq[TransformDependency] = MinimalHighForm :+ classOf[passes.ToWorkingIR]
+  val WorkingIR: Seq[TransformDependency] = MinimalHighForm :+ DependencyID[passes.ToWorkingIR]
 
   val Resolved: Seq[TransformDependency] = WorkingIR ++
-    Seq( classOf[passes.CheckHighForm],
-         classOf[passes.ResolveKinds],
-         classOf[passes.InferTypes],
-         classOf[passes.CheckTypes],
-         classOf[passes.Uniquify],
-         classOf[passes.ResolveFlows],
-         classOf[passes.CheckFlows],
-         classOf[passes.InferBinaryPoints],
-         classOf[passes.TrimIntervals],
-         classOf[passes.InferWidths],
-         classOf[passes.CheckWidths],
-         classOf[firrtl.transforms.InferResets] )
+    Seq( DependencyID[passes.CheckHighForm],
+         DependencyID[passes.ResolveKinds],
+         DependencyID[passes.InferTypes],
+         DependencyID[passes.CheckTypes],
+         DependencyID[passes.Uniquify],
+         DependencyID[passes.ResolveFlows],
+         DependencyID[passes.CheckFlows],
+         DependencyID[passes.InferBinaryPoints],
+         DependencyID[passes.TrimIntervals],
+         DependencyID[passes.InferWidths],
+         DependencyID[passes.CheckWidths],
+         DependencyID[firrtl.transforms.InferResets] )
 
-  val Deduped: Seq[TransformDependency] = Resolved :+ classOf[firrtl.transforms.DedupModules]
+  val Deduped: Seq[TransformDependency] = Resolved :+ DependencyID[firrtl.transforms.DedupModules]
 
   val HighForm: Seq[TransformDependency] = ChirrtlForm ++
     MinimalHighForm ++
@@ -46,51 +47,51 @@ object Forms {
     Deduped
 
   val MidForm: Seq[TransformDependency] = HighForm ++
-    Seq( classOf[passes.PullMuxes],
-         classOf[passes.ReplaceAccesses],
-         classOf[passes.ExpandConnects],
-         classOf[passes.RemoveAccesses],
-         classOf[passes.ExpandWhensAndCheck],
-         classOf[passes.RemoveIntervals],
-         classOf[passes.ConvertFixedToSInt],
-         classOf[passes.ZeroWidth] )
+    Seq( DependencyID[passes.PullMuxes],
+         DependencyID[passes.ReplaceAccesses],
+         DependencyID[passes.ExpandConnects],
+         DependencyID[passes.RemoveAccesses],
+         DependencyID[passes.ExpandWhensAndCheck],
+         DependencyID[passes.RemoveIntervals],
+         DependencyID[passes.ConvertFixedToSInt],
+         DependencyID[passes.ZeroWidth] )
 
   val LowForm: Seq[TransformDependency] = MidForm ++
-    Seq( classOf[passes.LowerTypes],
-         classOf[passes.Legalize],
-         classOf[firrtl.transforms.RemoveReset],
-         classOf[firrtl.transforms.CheckCombLoops],
-         classOf[checks.CheckResets],
-         classOf[firrtl.transforms.RemoveWires] )
+    Seq( DependencyID[passes.LowerTypes],
+         DependencyID[passes.Legalize],
+         DependencyID[firrtl.transforms.RemoveReset],
+         DependencyID[firrtl.transforms.CheckCombLoops],
+         DependencyID[checks.CheckResets],
+         DependencyID[firrtl.transforms.RemoveWires] )
 
   val LowFormMinimumOptimized: Seq[TransformDependency] = LowForm ++
-    Seq( classOf[passes.RemoveValidIf],
-         classOf[passes.memlib.VerilogMemDelays],
-         classOf[passes.SplitExpressions] )
+    Seq( DependencyID[passes.RemoveValidIf],
+         DependencyID[passes.memlib.VerilogMemDelays],
+         DependencyID[passes.SplitExpressions] )
 
   val LowFormOptimized: Seq[TransformDependency] = LowFormMinimumOptimized ++
-    Seq( classOf[firrtl.transforms.ConstantPropagation],
-         classOf[passes.PadWidths],
-         classOf[firrtl.transforms.CombineCats],
-         classOf[passes.CommonSubexpressionElimination],
-         classOf[firrtl.transforms.DeadCodeElimination] )
+    Seq( DependencyID[firrtl.transforms.ConstantPropagation],
+         DependencyID[passes.PadWidths],
+         DependencyID[firrtl.transforms.CombineCats],
+         DependencyID[passes.CommonSubexpressionElimination],
+         DependencyID[firrtl.transforms.DeadCodeElimination] )
 
   val VerilogMinimumOptimized: Seq[TransformDependency] = LowFormMinimumOptimized ++
-    Seq( classOf[firrtl.transforms.BlackBoxSourceHelper],
-         classOf[firrtl.transforms.ReplaceTruncatingArithmetic],
-         classOf[firrtl.transforms.FlattenRegUpdate],
-         classOf[passes.VerilogModulusCleanup],
-         classOf[firrtl.transforms.VerilogRename],
-         classOf[passes.VerilogPrep],
-         classOf[firrtl.AddDescriptionNodes] )
+    Seq( DependencyID[firrtl.transforms.BlackBoxSourceHelper],
+         DependencyID[firrtl.transforms.ReplaceTruncatingArithmetic],
+         DependencyID[firrtl.transforms.FlattenRegUpdate],
+         DependencyID[passes.VerilogModulusCleanup],
+         DependencyID[firrtl.transforms.VerilogRename],
+         DependencyID[passes.VerilogPrep],
+         DependencyID[firrtl.AddDescriptionNodes] )
 
   val VerilogOptimized: Seq[TransformDependency] = LowFormOptimized ++
-    Seq( classOf[firrtl.transforms.BlackBoxSourceHelper],
-         classOf[firrtl.transforms.ReplaceTruncatingArithmetic],
-         classOf[firrtl.transforms.FlattenRegUpdate],
-         classOf[passes.VerilogModulusCleanup],
-         classOf[firrtl.transforms.VerilogRename],
-         classOf[passes.VerilogPrep],
-         classOf[firrtl.AddDescriptionNodes] )
+    Seq( DependencyID[firrtl.transforms.BlackBoxSourceHelper],
+         DependencyID[firrtl.transforms.ReplaceTruncatingArithmetic],
+         DependencyID[firrtl.transforms.FlattenRegUpdate],
+         DependencyID[passes.VerilogModulusCleanup],
+         DependencyID[firrtl.transforms.VerilogRename],
+         DependencyID[passes.VerilogPrep],
+         DependencyID[firrtl.AddDescriptionNodes] )
 
 }

@@ -11,7 +11,7 @@ import firrtl.Mappers._
 import firrtl.Implicits.width2constraint
 import firrtl.annotations.{CircuitTarget, ModuleTarget, ReferenceTarget, Target}
 import firrtl.constraint.{ConstraintSolver, IsMax}
-import firrtl.options.PreservesAll
+import firrtl.options.{DependencyID, PreservesAll}
 import firrtl.traversals.Foreachers._
 
 object InferWidths {
@@ -65,12 +65,12 @@ case class WidthGeqConstraintAnnotation(loc: ReferenceTarget, exp: ReferenceTarg
 class InferWidths extends Transform with ResolvedAnnotationPaths with PreservesAll[Transform] {
 
   override val prerequisites =
-    Seq( classOf[passes.ResolveKinds],
-         classOf[passes.InferTypes],
-         classOf[passes.Uniquify],
-         classOf[passes.ResolveFlows],
-         classOf[passes.InferBinaryPoints],
-         classOf[passes.TrimIntervals] ) ++ firrtl.stage.Forms.WorkingIR
+    Seq( DependencyID[passes.ResolveKinds],
+         DependencyID[passes.InferTypes],
+         DependencyID[passes.Uniquify],
+         DependencyID[passes.ResolveFlows],
+         DependencyID[passes.InferBinaryPoints],
+         DependencyID[passes.TrimIntervals] ) ++ firrtl.stage.Forms.WorkingIR
 
   def inputForm: CircuitForm = UnknownForm
   def outputForm: CircuitForm = UnknownForm

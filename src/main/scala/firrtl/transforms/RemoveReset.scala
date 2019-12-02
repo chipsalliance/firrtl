@@ -8,6 +8,7 @@ import firrtl.Mappers._
 import firrtl.traversals.Foreachers._
 import firrtl.options.PreservesAll
 import firrtl.WrappedExpression.we
+import firrtl.options.DependencyID
 
 import scala.collection.{immutable, mutable}
 
@@ -20,8 +21,8 @@ class RemoveReset extends Transform {
   def outputForm = LowForm
 
   override val prerequisites = firrtl.stage.Forms.MidForm ++
-    Seq( classOf[passes.LowerTypes],
-         classOf[passes.Legalize] )
+    Seq( DependencyID[passes.LowerTypes],
+         DependencyID[passes.Legalize] )
 
   override val optionalPrerequisites = Seq.empty
 

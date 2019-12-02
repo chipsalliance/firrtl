@@ -9,6 +9,7 @@ import firrtl.traversals.Foreachers._
 import firrtl.annotations.{ReferenceTarget, TargetToken}
 import firrtl.Utils.toTarget
 import firrtl.passes.{Pass, PassException, Errors, InferTypes}
+import firrtl.options.DependencyID
 
 import scala.collection.mutable
 import scala.util.Try
@@ -82,11 +83,11 @@ class InferResets extends Transform {
   def outputForm: CircuitForm = UnknownForm
 
   override val prerequisites =
-    Seq( classOf[passes.ResolveKinds],
-         classOf[passes.InferTypes],
-         classOf[passes.Uniquify],
-         classOf[passes.ResolveFlows],
-         classOf[passes.InferWidths] ) ++ stage.Forms.WorkingIR
+    Seq( DependencyID[passes.ResolveKinds],
+         DependencyID[passes.InferTypes],
+         DependencyID[passes.Uniquify],
+         DependencyID[passes.ResolveFlows],
+         DependencyID[passes.InferWidths] ) ++ stage.Forms.WorkingIR
 
   override def invalidates(a: Transform): Boolean = a match {
     case _: checks.CheckResets | _: passes.CheckTypes => true

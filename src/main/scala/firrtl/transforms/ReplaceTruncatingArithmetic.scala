@@ -5,6 +5,7 @@ import firrtl.ir._
 import firrtl.Mappers._
 import firrtl.PrimOps._
 import firrtl.WrappedExpression._
+import firrtl.options.DependencyID
 
 import scala.collection.mutable
 
@@ -66,7 +67,7 @@ class ReplaceTruncatingArithmetic extends Transform {
   def inputForm = LowForm
   def outputForm = LowForm
 
-  override val prerequisites = firrtl.stage.Forms.LowFormMinimumOptimized :+ classOf[BlackBoxSourceHelper]
+  override val prerequisites = firrtl.stage.Forms.LowFormMinimumOptimized :+ DependencyID[BlackBoxSourceHelper]
 
   override val dependents = Seq.empty
 

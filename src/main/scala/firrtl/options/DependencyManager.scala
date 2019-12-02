@@ -9,6 +9,8 @@ import scala.collection.Set
 import scala.collection.immutable.{Set => ISet}
 import scala.collection.mutable.{ArrayBuffer, HashMap, LinkedHashMap, LinkedHashSet, Queue}
 
+import scala.reflect.runtime
+
 /** An exception arising from an in a [[DependencyManager]] */
 case class DependencyManagerException(message: String, cause: Throwable = null) extends RuntimeException(message, cause)
 
@@ -24,7 +26,7 @@ trait DependencyManager[A, B <: TransformLike[A] with DependencyAPI[B]] extends 
 
   override lazy val dependents = Seq.empty
 
-  override def invalidates(a: B): Boolean = (_currentState &~ _targets)(a.getClass)
+  override def invalidates(a: B): Boolean = (_currentState &~ _targets)(oToD(a))
 
   /** Requested [[firrtl.options.TransformLike TransformLike]]s that should be run. Internally, this will be converted to
     * a set based on the ordering defined here.
@@ -49,11 +51,11 @@ trait DependencyManager[A, B <: TransformLike[A] with DependencyAPI[B]] extends 
 
   /** Store of conversions between classes and objects. Objects that do not exist in the map will be lazily constructed.
     */
-  protected lazy val classToObject: LinkedHashMap[Dependency, B] = {
-    val init = LinkedHashMap[Dependency, B](knownObjects.map(x => x.getClass -> x).toSeq: _*)
+  protected lazy val dependencyToObject: LinkedHashMap[Dependency, B] = {
+    val init = LinkedHashMap[Dependency, B](knownObjects.map(x => oToD(x) -> x).toSeq: _*)
     (_targets ++ _currentState)
       .filter(!init.contains(_))
-      .map(x => init(x) = safeConstruct(x))
+      .map(x => init(x) = x.getObject())
     init
   }
 
@@ -63,13 +65,26 @@ trait DependencyManager[A, B <: TransformLike[A] with DependencyAPI[B]] extends 
   protected def copy(
     targets: Seq[Dependency],
     currentState: Seq[Dependency],
-    knownObjects: ISet[B] = classToObject.values.toSet): B
+    knownObjects: ISet[B] = dependencyToObject.values.toSet): B
 
-  /** Implicit conversion from Class[B] to B */
-  private implicit def cToO(c: Dependency): B = classToObject.getOrElseUpdate(c, safeConstruct(c))
+  /** Implicit conversion from Dependency to B */
+  private implicit def dToO(d: Dependency): B = dependencyToObject.getOrElseUpdate(d, d.getObject())
 
-  /** Implicit conversion from B to Class[B] */
-  private implicit def oToC(b: B): Dependency = b.getClass
+  /** Dynamically check if an object is a singleton. Works on AnyRef rather than B to avoid needing a ClassTag,
+    * since DependencyManager is a trait.
+    */
+  private def isSingleton(o: AnyRef): Boolean = {
+    runtime.currentMirror.reflect(o).symbol.isModuleClass
+  }
+
+  /** Implicit conversion from B to Dependency */
+  private implicit def oToD(b: B): Dependency = {
+    if (isSingleton(b)) {
+      DependencyID(Right(b.asInstanceOf[B with Singleton]))
+    } else {
+      DependencyID(Left(b.getClass))
+    }
+  }
 
   /** Modified breadth-first search that supports multiple starting nodes and a custom extractor that can be used to
     * generate/filter the edges to explore. Additionally, this will include edges to previously discovered nodes.
@@ -81,22 +96,22 @@ trait DependencyManager[A, B <: TransformLike[A] with DependencyAPI[B]] extends 
     val (queue, edges) = {
       val a: Queue[Dependency]                    = Queue(start.toSeq:_*)
       val b: LinkedHashMap[B, LinkedHashSet[B]] = LinkedHashMap[B, LinkedHashSet[B]](
-        start.map((cToO(_) -> LinkedHashSet[B]())).toSeq:_*)
+        start.map((dToO(_) -> LinkedHashSet[B]())).toSeq:_*)
       (a, b)
     }
 
     while (queue.nonEmpty) {
       val u: Dependency = queue.dequeue
-      for (v <- extractor(classToObject(u))) {
+      for (v <- extractor(dependencyToObject(u))) {
         if (!blacklist.contains(v) && !edges.contains(v)) {
           queue.enqueue(v)
         }
         if (!edges.contains(v)) {
-          val obj = cToO(v)
+          val obj = dToO(v)
           edges(obj) = LinkedHashSet.empty
-          classToObject += (v -> obj)
+          dependencyToObject += (v -> obj)
         }
-        edges(classToObject(u)) = edges(classToObject(u)) + classToObject(v)
+        edges(dependencyToObject(u)) = edges(dependencyToObject(u)) + dependencyToObject(v)
       }
     }
 
@@ -123,7 +138,7 @@ trait DependencyManager[A, B <: TransformLike[A] with DependencyAPI[B]] extends 
     */
   private lazy val dependentsGraph: DiGraph[B] = {
     val v = new LinkedHashSet() ++ prerequisiteGraph.getVertices
-    DiGraph(new LinkedHashMap() ++ v.map(vv => vv -> (v & (vv.dependents.toSet).map(cToO)))).reverse
+    DiGraph(new LinkedHashMap() ++ v.map(vv => vv -> (v & (vv.dependents.toSet).map(dToO)))).reverse
   }
 
   /** A directed graph of *optional* prerequisites. Each optional prerequisite is promoted to a full prerequisite if the
@@ -131,7 +146,7 @@ trait DependencyManager[A, B <: TransformLike[A] with DependencyAPI[B]] extends 
     */
   private lazy val optionalPrerequisitesGraph: DiGraph[B] = {
     val v = new LinkedHashSet() ++ prerequisiteGraph.getVertices
-    DiGraph(new LinkedHashMap() ++ v.map(vv => vv -> (v & (vv.optionalPrerequisites.toSet).map(cToO))))
+    DiGraph(new LinkedHashMap() ++ v.map(vv => vv -> (v & (vv.optionalPrerequisites.toSet).map(dToO))))
   }
 
   /** A directed graph consisting of prerequisites derived from ALL targets. This is necessary for defining targets for
@@ -140,7 +155,7 @@ trait DependencyManager[A, B <: TransformLike[A] with DependencyAPI[B]] extends 
   private lazy val otherDependents: DiGraph[B] = {
     val edges = {
       val x = new LinkedHashMap ++ _targets
-        .map(classToObject)
+        .map(dependencyToObject)
         .map{ a => a -> prerequisiteGraph.getVertices.filter(a._dependents(_)) }
       x
         .values
@@ -162,10 +177,11 @@ trait DependencyManager[A, B <: TransformLike[A] with DependencyAPI[B]] extends 
     val v = new LinkedHashSet() ++ dependencyGraph.getVertices
     DiGraph(
       bfs(
-        start = v.map(_.getClass),
+        start = v.map(oToD(_)),
         blacklist = _currentState,
+
         /* Explore all invalidated transforms **EXCEPT** the current transform! */
-        extractor = (p: B) => v.filter(p.invalidates).map(_.getClass).toSet - p.getClass))
+        extractor = (p: B) => v.filter(p.invalidates).map(oToD(_)).toSet - oToD(p)))
       .reverse
   }
   // println("Invalidate Graph -----------------------")
@@ -179,14 +195,6 @@ trait DependencyManager[A, B <: TransformLike[A] with DependencyAPI[B]] extends 
       throw new DependencyManagerException(
         s"""|No transform ordering possible due to cyclic dependency in $a with cycles:
             |${diGraph.findSCCs.filter(_.size > 1).mkString("    - ", "\n    - ", "")}""".stripMargin, e)
-  }
-
-  /** Wrap an [[IllegalAccessException]] due to attempted object construction in a [[DependencyManagerException]] */
-  private def safeConstruct[A](a: Class[_ <: A]): A = try { a.newInstance } catch {
-    case e: IllegalAccessException => throw new DependencyManagerException(
-      s"Failed to construct '$a'! (Did you try to construct an object?)", e)
-    case e: InstantiationException => throw new DependencyManagerException(
-      s"Failed to construct '$a'! (Did you try to construct an inner class or a class with parameters?)", e)
   }
 
   /** An ordering of [[firrtl.options.TransformLike TransformLike]]s that causes the requested [[DependencyManager.targets
@@ -230,14 +238,14 @@ trait DependencyManager[A, B <: TransformLike[A] with DependencyAPI[B]] extends 
     val (s, l) = sorted.foldLeft((_currentState, Seq[B]())){ case ((state, out), in) =>
       /* The prerequisites are both prerequisites AND dependents. */
       val prereqs = new LinkedHashSet() ++ in.prerequisites ++
-        dependencyGraph.getEdges(in).toSeq.map(oToC) ++
-        otherDependents.getEdges(in).toSeq.map(oToC)
+        dependencyGraph.getEdges(in).toSeq.map(oToD) ++
+        otherDependents.getEdges(in).toSeq.map(oToD)
       val preprocessing: Option[B] = {
         if ((prereqs -- state).nonEmpty) { Some(this.copy(prereqs.toSeq, state.toSeq)) }
         else                             { None                                        }
       }
       /* "in" is added *after* invalidation because a transform my not invalidate itself! */
-      ((state ++ prereqs).map(cToO).filterNot(in.invalidates).map(oToC) + in, out ++ preprocessing :+ in)
+      ((state ++ prereqs).map(dToO).filterNot(in.invalidates).map(oToD) + in, out ++ preprocessing :+ in)
     }
     val postprocessing: Option[B] = {
       if ((_targets -- s).nonEmpty) { Some(this.copy(_targets.toSeq, s.toSeq)) }
@@ -276,7 +284,7 @@ trait DependencyManager[A, B <: TransformLike[A] with DependencyAPI[B]] extends 
                   |  state: ${state.mkString("\n    -", "\n    -", "")}
                   |  prerequisites: ${prerequisites.mkString("\n    -", "\n    -", "")}""".stripMargin)
           }
-          (t.transform(a), ((state + wrapperToClass(t)).map(cToO).filterNot(t.invalidates).map(oToC)))
+          (t.transform(a), ((state + wrapperToClass(t)).map(dToO).filterNot(t.invalidates).map(oToD)))
       }._1
   }
 
@@ -435,16 +443,24 @@ trait DependencyManager[A, B <: TransformLike[A] with DependencyAPI[B]] extends 
 class PhaseManager(
   val targets: Seq[PhaseManager.PhaseDependency],
   val currentState: Seq[PhaseManager.PhaseDependency] = Seq.empty,
-  val knownObjects: Set[Phase] = Set.empty) extends Phase with DependencyManager[AnnotationSeq, Phase] {
+  val knownObjects: Set[Phase] = Set.empty) extends DependencyManager[AnnotationSeq, Phase] with Phase {
+
+  // TODO: are these adapter constructors needed?
+  def this(targets: Seq[Class[_ <: Phase]], currentState: Seq[Class[_ <: Phase]]) {
+    this(targets.map(c => DependencyID[Phase](Left(c))), currentState.map(c => DependencyID[Phase](Left(c))))
+  }
+
+  def this(targets: Seq[Class[_ <: Phase]]) {
+    this(targets, Seq.empty)
+  }
 
   protected def copy(a: Seq[Dependency], b: Seq[Dependency], c: ISet[Phase]) = new PhaseManager(a, b, c)
-
 }
 
 object PhaseManager {
 
   /** The type used to represent dependencies between [[Phase]]s */
-  type PhaseDependency = Class[_ <: Phase]
+  type PhaseDependency = DependencyID[Phase]
 
 }
 

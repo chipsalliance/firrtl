@@ -4,14 +4,14 @@ package firrtl.stage.phases
 
 import firrtl.{AnnotationSeq, EmitAnnotation, EmitCircuitAnnotation}
 import firrtl.stage.{CompilerAnnotation, RunFirrtlTransformAnnotation}
-import firrtl.options.{Phase, PreservesAll}
+import firrtl.options.{DependencyID, Phase, PreservesAll}
 
 /** [[firrtl.options.Phase Phase]] that adds a [[firrtl.EmitCircuitAnnotation EmitCircuitAnnotation]] derived from a
   * [[firrtl.stage.CompilerAnnotation CompilerAnnotation]] if one does not already exist.
   */
 class AddImplicitEmitter extends Phase with PreservesAll[Phase] {
 
-  override val prerequisites = Seq(classOf[AddDefaults])
+  override val prerequisites = Seq(DependencyID[AddDefaults])
 
   override val dependents = Seq.empty
 

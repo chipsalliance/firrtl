@@ -7,7 +7,7 @@ import firrtl.ir._
 import firrtl.Utils._
 import firrtl.Mappers._
 import firrtl.PrimOps._
-import firrtl.options.PreservesAll
+import firrtl.options.{DependencyID, PreservesAll}
 import firrtl.transforms.ConstantPropagation
 
 import scala.collection.mutable
@@ -133,8 +133,8 @@ class PullMuxes extends Pass with PreservesAll[Transform] {
 class ExpandConnects extends Pass with PreservesAll[Transform] {
 
   override val prerequisites =
-    Seq( classOf[PullMuxes],
-         classOf[ReplaceAccesses] ) ++ firrtl.stage.Forms.Deduped
+    Seq( DependencyID[PullMuxes],
+         DependencyID[ReplaceAccesses] ) ++ firrtl.stage.Forms.Deduped
 
   def run(c: Circuit): Circuit = {
     def expand_connects(m: Module): Module = {
@@ -220,7 +220,7 @@ object ExpandConnects extends Pass with DeprecatedPassObject {
 // TODO replace UInt with zero-width wire instead
 class Legalize extends Pass with PreservesAll[Transform] {
 
-  override val prerequisites = firrtl.stage.Forms.MidForm :+ classOf[LowerTypes]
+  override val prerequisites = firrtl.stage.Forms.MidForm :+ DependencyID[LowerTypes]
 
   override val optionalPrerequisites = Seq.empty
 
@@ -315,11 +315,11 @@ object Legalize extends Pass with DeprecatedPassObject {
 class VerilogPrep extends Pass with PreservesAll[Transform] {
 
   override val prerequisites = firrtl.stage.Forms.LowFormMinimumOptimized ++
-    Seq( classOf[firrtl.transforms.BlackBoxSourceHelper],
-         classOf[firrtl.transforms.ReplaceTruncatingArithmetic],
-         classOf[firrtl.transforms.FlattenRegUpdate],
-         classOf[VerilogModulusCleanup],
-         classOf[firrtl.transforms.VerilogRename] )
+    Seq( DependencyID[firrtl.transforms.BlackBoxSourceHelper],
+         DependencyID[firrtl.transforms.ReplaceTruncatingArithmetic],
+         DependencyID[firrtl.transforms.FlattenRegUpdate],
+         DependencyID[VerilogModulusCleanup],
+         DependencyID[firrtl.transforms.VerilogRename] )
 
   type AttachSourceMap = Map[WrappedExpression, Expression]
 

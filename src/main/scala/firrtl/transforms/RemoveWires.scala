@@ -9,7 +9,7 @@ import firrtl.Mappers._
 import firrtl.traversals.Foreachers._
 import firrtl.WrappedExpression._
 import firrtl.graph.{MutableDiGraph, CyclicException}
-import firrtl.options.PreservesAll
+import firrtl.options.{DependencyID, PreservesAll}
 
 import scala.collection.mutable
 import scala.util.{Try, Success, Failure}
@@ -25,12 +25,12 @@ class RemoveWires extends Transform with PreservesAll[Transform] {
   def outputForm = LowForm
 
   override val prerequisites = firrtl.stage.Forms.MidForm ++
-    Seq( classOf[passes.LowerTypes],
-         classOf[passes.Legalize],
-         classOf[transforms.RemoveReset],
-         classOf[transforms.CheckCombLoops] )
+    Seq( DependencyID[passes.LowerTypes],
+         DependencyID[passes.Legalize],
+         DependencyID[transforms.RemoveReset],
+         DependencyID[transforms.CheckCombLoops] )
 
-  override val optionalPrerequisites = Seq(classOf[checks.CheckResets])
+  override val optionalPrerequisites = Seq(DependencyID[checks.CheckResets])
 
   override val dependents = Seq.empty
 

@@ -3,7 +3,7 @@
 package firrtl.stage.phases
 
 import firrtl.{AnnotationSeq, EmitAllModulesAnnotation}
-import firrtl.options.{Phase, PreservesAll, Viewer}
+import firrtl.options.{DependencyID, Phase, PreservesAll, Viewer}
 import firrtl.stage.{FirrtlOptions, OutputFileAnnotation}
 
 /** [[firrtl.options.Phase Phase]] that adds an [[OutputFileAnnotation]] if one does not already exist.
@@ -22,7 +22,7 @@ import firrtl.stage.{FirrtlOptions, OutputFileAnnotation}
   */
 class AddImplicitOutputFile extends Phase with PreservesAll[Phase] {
 
-  override val prerequisites = Seq(classOf[AddCircuit])
+  override val prerequisites = Seq(DependencyID[AddCircuit])
 
   override val dependents = Seq.empty
 

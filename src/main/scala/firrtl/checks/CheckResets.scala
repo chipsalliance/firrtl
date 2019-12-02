@@ -3,7 +3,7 @@
 package firrtl.checks
 
 import firrtl._
-import firrtl.options.PreservesAll
+import firrtl.options.{DependencyID, PreservesAll}
 import firrtl.passes.{Errors, PassException}
 import firrtl.ir._
 import firrtl.traversals.Foreachers._
@@ -31,11 +31,11 @@ class CheckResets extends Transform with PreservesAll[Transform] {
   def outputForm: CircuitForm = MidForm
 
   override val prerequisites =
-    Seq( classOf[passes.LowerTypes],
-         classOf[passes.Legalize],
-         classOf[firrtl.transforms.RemoveReset] ) ++ firrtl.stage.Forms.MidForm
+    Seq( DependencyID[passes.LowerTypes],
+         DependencyID[passes.Legalize],
+         DependencyID[firrtl.transforms.RemoveReset] ) ++ firrtl.stage.Forms.MidForm
 
-  override val optionalPrerequisites = Seq(classOf[firrtl.transforms.CheckCombLoops])
+  override val optionalPrerequisites = Seq(DependencyID[firrtl.transforms.CheckCombLoops])
 
   override val dependents = Seq.empty
 

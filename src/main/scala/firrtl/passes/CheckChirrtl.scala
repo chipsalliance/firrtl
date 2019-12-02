@@ -4,7 +4,7 @@ package firrtl.passes
 
 import firrtl.Transform
 import firrtl.ir._
-import firrtl.options.PreservesAll
+import firrtl.options.{DependencyID, PreservesAll}
 
 object CheckChirrtl extends Pass with CheckHighFormLike with DeprecatedPassObject {
 
@@ -17,9 +17,9 @@ object CheckChirrtl extends Pass with CheckHighFormLike with DeprecatedPassObjec
 class CheckChirrtl extends Pass with CheckHighFormLike with PreservesAll[Transform] {
 
   override val dependents = firrtl.stage.Forms.ChirrtlForm ++
-    Seq( classOf[CInferTypes],
-         classOf[CInferMDir],
-         classOf[RemoveCHIRRTL] )
+    Seq( DependencyID[CInferTypes],
+         DependencyID[CInferMDir],
+         DependencyID[RemoveCHIRRTL] )
 
   def errorOnChirrtl(info: Info, mname: String, s: Statement): Option[PassException] = None
 

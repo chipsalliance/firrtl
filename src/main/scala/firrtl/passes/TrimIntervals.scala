@@ -10,7 +10,7 @@ import firrtl.Mappers._
 import firrtl.Utils.{error, field_type, getUIntWidth, max, module_type, sub_type}
 import Implicits.{bigint2WInt, int2WInt}
 import firrtl.constraint.{IsFloor, IsKnown, IsMul}
-import firrtl.options.PreservesAll
+import firrtl.options.{DependencyID, PreservesAll}
 
 /** Replaces IntervalType with SIntType, three AST walks:
   * 1) Align binary points
@@ -26,11 +26,11 @@ import firrtl.options.PreservesAll
 class TrimIntervals extends Pass with PreservesAll[Transform] {
 
   override val prerequisites =
-    Seq( classOf[passes.ResolveKinds],
-         classOf[passes.InferTypes],
-         classOf[passes.Uniquify],
-         classOf[passes.ResolveFlows],
-         classOf[passes.InferBinaryPoints] )
+    Seq( DependencyID[passes.ResolveKinds],
+         DependencyID[passes.InferTypes],
+         DependencyID[passes.Uniquify],
+         DependencyID[passes.ResolveFlows],
+         DependencyID[passes.InferBinaryPoints] )
 
   override val dependents = Seq.empty
 

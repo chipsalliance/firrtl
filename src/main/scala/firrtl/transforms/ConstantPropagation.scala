@@ -13,6 +13,7 @@ import firrtl.PrimOps._
 import firrtl.graph.DiGraph
 import firrtl.analyses.InstanceGraph
 import firrtl.annotations.TargetToken.Ref
+import firrtl.options.DependencyID
 
 import annotation.tailrec
 import collection.mutable
@@ -99,16 +100,16 @@ class ConstantPropagation extends Transform with ResolvedAnnotationPaths {
   override val prerequisites =
     ((new mutable.LinkedHashSet())
        ++ firrtl.stage.Forms.LowForm
-       - classOf[firrtl.passes.Legalize]
-       + classOf[firrtl.passes.RemoveValidIf]).toSeq
+       - DependencyID[firrtl.passes.Legalize]
+       + DependencyID[firrtl.passes.RemoveValidIf]).toSeq
 
   override val optionalPrerequisites = Seq.empty
 
   override val dependents =
-    Seq( classOf[firrtl.passes.memlib.VerilogMemDelays],
-         classOf[firrtl.passes.SplitExpressions],
-         classOf[SystemVerilogEmitter],
-         classOf[VerilogEmitter] )
+    Seq( DependencyID[firrtl.passes.memlib.VerilogMemDelays],
+         DependencyID[firrtl.passes.SplitExpressions],
+         DependencyID[SystemVerilogEmitter],
+         DependencyID[VerilogEmitter] )
 
   override def invalidates(a: Transform): Boolean = a match {
     case a: firrtl.passes.Legalize => true

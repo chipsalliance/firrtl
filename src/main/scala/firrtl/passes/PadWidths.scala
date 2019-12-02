@@ -6,6 +6,7 @@ package passes
 import firrtl.ir._
 import firrtl.PrimOps._
 import firrtl.Mappers._
+import firrtl.options.DependencyID
 
 import scala.collection.mutable
 
@@ -15,14 +16,14 @@ class PadWidths extends Pass {
   override val prerequisites =
     ((new mutable.LinkedHashSet())
        ++ firrtl.stage.Forms.LowForm
-       - classOf[firrtl.passes.Legalize]
-       + classOf[firrtl.passes.RemoveValidIf]
-       + classOf[firrtl.transforms.ConstantPropagation]).toSeq
+       - DependencyID[firrtl.passes.Legalize]
+       + DependencyID[firrtl.passes.RemoveValidIf]
+       + DependencyID[firrtl.transforms.ConstantPropagation]).toSeq
 
   override val dependents =
-    Seq( classOf[firrtl.passes.memlib.VerilogMemDelays],
-         classOf[SystemVerilogEmitter],
-         classOf[VerilogEmitter] )
+    Seq( DependencyID[firrtl.passes.memlib.VerilogMemDelays],
+         DependencyID[SystemVerilogEmitter],
+         DependencyID[VerilogEmitter] )
 
   override def invalidates(a: Transform): Boolean = a match {
     case _: firrtl.transforms.ConstantPropagation | _: Legalize => true

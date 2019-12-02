@@ -3,7 +3,7 @@
 package firrtl.options.phases
 
 import firrtl.AnnotationSeq
-import firrtl.options.{Phase, PreservesAll, TargetDirAnnotation}
+import firrtl.options.{DependencyID, Phase, PreservesAll, TargetDirAnnotation}
 
 /** Add default annotations for a [[Stage]]
   *
@@ -12,7 +12,7 @@ import firrtl.options.{Phase, PreservesAll, TargetDirAnnotation}
   */
 class AddDefaults extends Phase with PreservesAll[Phase] {
 
-  override val prerequisites = Seq(classOf[GetIncludes], classOf[ConvertLegacyAnnotations])
+  override val prerequisites = Seq(DependencyID[GetIncludes], DependencyID[ConvertLegacyAnnotations])
 
   override val dependents = Seq.empty
 

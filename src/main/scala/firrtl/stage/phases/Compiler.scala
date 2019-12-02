@@ -3,7 +3,7 @@
 package firrtl.stage.phases
 
 import firrtl.{AnnotationSeq, ChirrtlForm, CircuitState, Compiler => FirrtlCompiler, Transform, seqToAnnoSeq}
-import firrtl.options.{Phase, PhasePrerequisiteException, PreservesAll, Translator}
+import firrtl.options.{DependencyID, Phase, PhasePrerequisiteException, PreservesAll, Translator}
 import firrtl.stage.{CompilerAnnotation, FirrtlCircuitAnnotation, Forms, RunFirrtlTransformAnnotation}
 import firrtl.stage.TransformManager.TransformDependency
 
@@ -45,13 +45,13 @@ private [stage] case class Defaults(
 class Compiler extends Phase with Translator[AnnotationSeq, Seq[CompilerRun]] with PreservesAll[Phase] {
 
   override val prerequisites =
-    Seq(classOf[AddDefaults],
-        classOf[AddImplicitEmitter],
-        classOf[Checks],
-        classOf[AddCircuit],
-        classOf[AddImplicitOutputFile])
+    Seq(DependencyID[AddDefaults],
+        DependencyID[AddImplicitEmitter],
+        DependencyID[Checks],
+        DependencyID[AddCircuit],
+        DependencyID[AddImplicitOutputFile])
 
-  override val dependents = Seq(classOf[WriteEmitted])
+  override val dependents = Seq(DependencyID[WriteEmitted])
 
   /** Convert an [[AnnotationSeq]] into a sequence of compiler runs. */
   protected def aToB(a: AnnotationSeq): Seq[CompilerRun] = {
@@ -95,7 +95,7 @@ class Compiler extends Phase with Translator[AnnotationSeq, Seq[CompilerRun]] wi
   protected def internalTransform(b: Seq[CompilerRun]): Seq[CompilerRun] = {
     def f(c: CompilerRun): CompilerRun = {
       val targets = c.compiler match {
-        case Some(d) => c.transforms.reverse.map(_.getClass) ++ compilerToTransforms(d)
+        case Some(d) => c.transforms.reverse.map(t => DependencyID(t.getClass)) ++ compilerToTransforms(d)
         case None    => throw new PhasePrerequisiteException("No compiler specified!") }
       val tm = new firrtl.stage.transforms.Compiler(targets)
       val (timeMillis, annotationsOut) = firrtl.Utils.time { tm.transform(c.stateIn) }

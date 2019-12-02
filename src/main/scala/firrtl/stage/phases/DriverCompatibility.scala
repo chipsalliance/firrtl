@@ -10,6 +10,7 @@ import firrtl.FileUtils
 import firrtl.proto.FromProto
 import firrtl.options.{InputAnnotationFileAnnotation, OptionsException, Phase, PreservesAll, StageOptions, StageUtils}
 import firrtl.options.Viewer
+import firrtl.options.DependencyID
 
 import scopt.OptionParser
 
@@ -123,9 +124,9 @@ object DriverCompatibility {
     */
   class AddImplicitAnnotationFile extends Phase with PreservesAll[Phase] {
 
-    override val prerequisites = Seq(classOf[AddImplicitFirrtlFile])
+    override val prerequisites = Seq(DependencyID[AddImplicitFirrtlFile])
 
-    override val dependents = Seq(classOf[FirrtlPhase], classOf[FirrtlStage])
+    override val dependents = Seq(DependencyID[FirrtlPhase], DependencyID[FirrtlStage])
 
     /** Try to add an [[firrtl.options.InputAnnotationFileAnnotation InputAnnotationFileAnnotation]] implicitly specified by
       * an [[AnnotationSeq]]. */
@@ -164,7 +165,7 @@ object DriverCompatibility {
 
     override val prerequisites = Seq.empty
 
-    override val dependents = Seq(classOf[FirrtlPhase], classOf[FirrtlStage])
+    override val dependents = Seq(DependencyID[FirrtlPhase], DependencyID[FirrtlStage])
 
     /** Try to add a [[FirrtlFileAnnotation]] implicitly specified by an [[AnnotationSeq]]. */
     def transform(annotations: AnnotationSeq): AnnotationSeq = {
@@ -195,7 +196,7 @@ object DriverCompatibility {
 
     override val prerequisites = Seq.empty
 
-    override val dependents = Seq(classOf[FirrtlPhase], classOf[FirrtlStage])
+    override val dependents = Seq(DependencyID[FirrtlPhase], DependencyID[FirrtlStage])
 
     /** Add one [[EmitAnnotation]] foreach [[CompilerAnnotation]]. */
     def transform(annotations: AnnotationSeq): AnnotationSeq = {
@@ -219,9 +220,9 @@ object DriverCompatibility {
               "1.2")
   class AddImplicitOutputFile extends Phase with PreservesAll[Phase] {
 
-    override val prerequisites = Seq(classOf[AddImplicitFirrtlFile])
+    override val prerequisites = Seq(DependencyID[AddImplicitFirrtlFile])
 
-    override val dependents = Seq(classOf[FirrtlPhase], classOf[FirrtlStage])
+    override val dependents = Seq(DependencyID[FirrtlPhase], DependencyID[FirrtlStage])
 
     /** Add an [[OutputFileAnnotation]] derived from a [[TopNameAnnotation]] if needed. */
     def transform(annotations: AnnotationSeq): AnnotationSeq = {

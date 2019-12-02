@@ -9,7 +9,7 @@ import firrtl.traversals.Foreachers._
 import firrtl.Utils._
 import firrtl.constraint.IsKnown
 import firrtl.annotations.{CircuitTarget, ModuleTarget, Target, TargetToken}
-import firrtl.options.PreservesAll
+import firrtl.options.{DependencyID, PreservesAll}
 
 object CheckWidths extends Pass with DeprecatedPassObject {
 
@@ -58,9 +58,9 @@ class CheckWidths extends Pass with PreservesAll[Transform] {
 
   import CheckWidths._
 
-  override val prerequisites = classOf[passes.InferWidths] +: firrtl.stage.Forms.WorkingIR
+  override val prerequisites = DependencyID[passes.InferWidths] +: firrtl.stage.Forms.WorkingIR
 
-  override val dependents = Seq(classOf[transforms.InferResets])
+  override val dependents = Seq(DependencyID[transforms.InferResets])
 
   def run(c: Circuit): Circuit = {
     val errors = new Errors()

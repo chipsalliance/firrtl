@@ -9,6 +9,7 @@ import firrtl.Utils._
 import firrtl.Mappers._
 import firrtl.traversals.Foreachers._
 import firrtl.transforms
+import firrtl.options.DependencyID
 
 import MemPortUtils._
 import WrappedExpression._
@@ -167,11 +168,11 @@ class MemDelayAndReadwriteTransformer(m: DefModule) {
 
 class VerilogMemDelays extends Pass {
 
-  override val prerequisites = firrtl.stage.Forms.LowForm :+ classOf[firrtl.passes.RemoveValidIf]
+  override val prerequisites = firrtl.stage.Forms.LowForm :+ DependencyID[firrtl.passes.RemoveValidIf]
 
   override val dependents =
-    Seq( classOf[VerilogEmitter],
-         classOf[SystemVerilogEmitter] )
+    Seq( DependencyID[VerilogEmitter],
+         DependencyID[SystemVerilogEmitter] )
 
   override def invalidates(a: Transform): Boolean = a match {
     case _: transforms.ConstantPropagation => true

@@ -10,7 +10,7 @@ import firrtl.analyses.InstanceGraph
 import firrtl.Mappers._
 import firrtl.Utils.{throwInternalError, kind}
 import firrtl.MemoizedHash._
-import firrtl.options.{PreservesAll, RegisteredTransform, ShellOption}
+import firrtl.options.{DependencyID, PreservesAll, RegisteredTransform, ShellOption}
 
 import collection.mutable
 
@@ -35,23 +35,23 @@ class DeadCodeElimination extends Transform with ResolvedAnnotationPaths with Re
   def outputForm = LowForm
 
   override val prerequisites = firrtl.stage.Forms.LowForm ++
-    Seq( classOf[firrtl.passes.RemoveValidIf],
-         classOf[firrtl.transforms.ConstantPropagation],
-         classOf[firrtl.passes.memlib.VerilogMemDelays],
-         classOf[firrtl.passes.SplitExpressions],
-         classOf[firrtl.transforms.CombineCats],
-         classOf[passes.CommonSubexpressionElimination] )
+    Seq( DependencyID[firrtl.passes.RemoveValidIf],
+         DependencyID[firrtl.transforms.ConstantPropagation],
+         DependencyID[firrtl.passes.memlib.VerilogMemDelays],
+         DependencyID[firrtl.passes.SplitExpressions],
+         DependencyID[firrtl.transforms.CombineCats],
+         DependencyID[passes.CommonSubexpressionElimination] )
 
   override val optionalPrerequisites = Seq.empty
 
   override val dependents =
-    Seq( classOf[firrtl.transforms.BlackBoxSourceHelper],
-         classOf[firrtl.transforms.ReplaceTruncatingArithmetic],
-         classOf[firrtl.transforms.FlattenRegUpdate],
-         classOf[passes.VerilogModulusCleanup],
-         classOf[firrtl.transforms.VerilogRename],
-         classOf[passes.VerilogPrep],
-         classOf[firrtl.AddDescriptionNodes] )
+    Seq( DependencyID[firrtl.transforms.BlackBoxSourceHelper],
+         DependencyID[firrtl.transforms.ReplaceTruncatingArithmetic],
+         DependencyID[firrtl.transforms.FlattenRegUpdate],
+         DependencyID[passes.VerilogModulusCleanup],
+         DependencyID[firrtl.transforms.VerilogRename],
+         DependencyID[passes.VerilogPrep],
+         DependencyID[firrtl.AddDescriptionNodes] )
 
   val options = Seq(
     new ShellOption[Unit](

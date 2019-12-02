@@ -3,7 +3,7 @@
 package firrtl.stage
 
 import firrtl.{CircuitForm, CircuitState, Transform, UnknownForm}
-import firrtl.options.DependencyManager
+import firrtl.options.{DependencyID, DependencyManager}
 
 /** A [[Transform]] that ensures some other [[Transform]]s and their prerequisites are executed.
   *
@@ -29,6 +29,6 @@ class TransformManager(
 object TransformManager {
 
   /** The type used to represent dependencies between [[Transform]]s */
-  type TransformDependency = Class[_ <: Transform]
+  type TransformDependency = DependencyID[Transform]
 
 }

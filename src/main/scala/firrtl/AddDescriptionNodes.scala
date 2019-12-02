@@ -5,6 +5,7 @@ package firrtl
 import firrtl.ir._
 import firrtl.annotations._
 import firrtl.Mappers._
+import firrtl.options.DependencyID
 
 case class DescriptionAnnotation(named: Named, description: String) extends Annotation {
   def update(renames: RenameMap): Seq[DescriptionAnnotation] = {
@@ -72,12 +73,12 @@ class AddDescriptionNodes extends Transform {
   def outputForm = LowForm
 
   override val prerequisites = firrtl.stage.Forms.LowFormMinimumOptimized ++
-    Seq( classOf[firrtl.transforms.BlackBoxSourceHelper],
-         classOf[firrtl.transforms.ReplaceTruncatingArithmetic],
-         classOf[firrtl.transforms.FlattenRegUpdate],
-         classOf[firrtl.passes.VerilogModulusCleanup],
-         classOf[firrtl.transforms.VerilogRename],
-         classOf[firrtl.passes.VerilogPrep] )
+    Seq( DependencyID[firrtl.transforms.BlackBoxSourceHelper],
+         DependencyID[firrtl.transforms.ReplaceTruncatingArithmetic],
+         DependencyID[firrtl.transforms.FlattenRegUpdate],
+         DependencyID[firrtl.passes.VerilogModulusCleanup],
+         DependencyID[firrtl.transforms.VerilogRename],
+         DependencyID[firrtl.passes.VerilogPrep] )
 
   override val dependents = Seq.empty
 

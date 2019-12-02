@@ -8,17 +8,18 @@ import firrtl.ir._
 import firrtl.Mappers._
 import firrtl.Utils._
 import firrtl.WrappedExpression._
-import scala.collection.mutable
+import firrtl.options.DependencyID
 
+import scala.collection.mutable
 
 /** Removes all [[firrtl.WSubAccess]] from circuit
   */
 class RemoveAccesses extends Pass {
 
   override val prerequisites =
-    Seq( classOf[PullMuxes],
-         classOf[ReplaceAccesses],
-         classOf[ExpandConnects] ) ++ firrtl.stage.Forms.Deduped
+    Seq( DependencyID[PullMuxes],
+         DependencyID[ReplaceAccesses],
+         DependencyID[ExpandConnects] ) ++ firrtl.stage.Forms.Deduped
 
   override def invalidates(a: Transform): Boolean = a match {
     case _: Uniquify => true

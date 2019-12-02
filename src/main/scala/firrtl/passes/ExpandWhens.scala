@@ -8,7 +8,7 @@ import firrtl.Utils._
 import firrtl.Mappers._
 import firrtl.PrimOps._
 import firrtl.WrappedExpression._
-import firrtl.options.PreservesAll
+import firrtl.options.{DependencyID, PreservesAll}
 
 import annotation.tailrec
 import collection.mutable
@@ -27,11 +27,11 @@ import collection.mutable
 class ExpandWhens extends Pass {
 
   override val prerequisites =
-    Seq( classOf[PullMuxes],
-         classOf[ReplaceAccesses],
-         classOf[ExpandConnects],
-         classOf[RemoveAccesses],
-         classOf[Uniquify] ) ++ firrtl.stage.Forms.Resolved
+    Seq( DependencyID[PullMuxes],
+         DependencyID[ReplaceAccesses],
+         DependencyID[ExpandConnects],
+         DependencyID[RemoveAccesses],
+         DependencyID[Uniquify] ) ++ firrtl.stage.Forms.Resolved
 
   override def invalidates(a: Transform): Boolean = a match {
     case _: CheckInitialization | _: ResolveKinds | _: InferTypes => true
@@ -311,11 +311,11 @@ object ExpandWhens extends Pass with DeprecatedPassObject {
 class ExpandWhensAndCheck extends SeqTransform {
 
   override val prerequisites =
-    Seq( classOf[PullMuxes],
-         classOf[ReplaceAccesses],
-         classOf[ExpandConnects],
-         classOf[RemoveAccesses],
-         classOf[Uniquify] ) ++ firrtl.stage.Forms.Deduped
+    Seq( DependencyID[PullMuxes],
+         DependencyID[ReplaceAccesses],
+         DependencyID[ExpandConnects],
+         DependencyID[RemoveAccesses],
+         DependencyID[Uniquify] ) ++ firrtl.stage.Forms.Deduped
 
   override def invalidates(a: Transform): Boolean = a match {
     case _: ResolveKinds | _: InferTypes | _: ResolveFlows | _: InferWidths => true

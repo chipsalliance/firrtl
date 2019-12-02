@@ -5,7 +5,7 @@ package firrtl.passes
 import firrtl._
 import firrtl.ir._
 import firrtl.Mappers._
-import firrtl.options.PreservesAll
+import firrtl.options.{DependencyID, PreservesAll}
 import Utils.throwInternalError
 
 
@@ -65,9 +65,9 @@ object ResolveFlows extends Pass with DeprecatedPassObject {
 class ResolveFlows extends Pass with PreservesAll[Transform] {
 
   override val prerequisites =
-    Seq( classOf[passes.ResolveKinds],
-         classOf[passes.InferTypes],
-         classOf[passes.Uniquify] ) ++ firrtl.stage.Forms.WorkingIR
+    Seq( DependencyID[passes.ResolveKinds],
+         DependencyID[passes.InferTypes],
+         DependencyID[passes.Uniquify] ) ++ firrtl.stage.Forms.WorkingIR
 
   def resolve_e(g: Flow)(e: Expression): Expression = e match {
     case ex: WRef => ex copy (flow = g)
@@ -119,7 +119,7 @@ object CInferMDir extends Pass with DeprecatedPassObject {
 
 class CInferMDir extends Pass with PreservesAll[Transform] {
 
-  override val prerequisites = firrtl.stage.Forms.ChirrtlForm :+ classOf[CInferTypes]
+  override val prerequisites = firrtl.stage.Forms.ChirrtlForm :+ DependencyID[CInferTypes]
 
   type MPortDirMap = collection.mutable.LinkedHashMap[String, MPortDir]
 

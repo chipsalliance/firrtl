@@ -11,7 +11,7 @@ import firrtl.annotations._
 import firrtl.ir.Circuit
 import firrtl.Utils.throwInternalError
 import firrtl.annotations.transforms.{EliminateTargetPaths, ResolvePaths}
-import firrtl.options.{DependencyAPI, PreservesAll, StageUtils, TransformLike}
+import firrtl.options.{DependencyAPI, DependencyID, PreservesAll, StageUtils, TransformLike}
 import firrtl.stage.transforms.CatchCustomTransformExceptions
 import firrtl.stage.TransformManager.TransformDependency
 
@@ -177,7 +177,7 @@ final case object UnknownForm extends CircuitForm(-1) {
 // scalastyle:on magic.number
 
 /** The basic unit of operating on a Firrtl AST */
-abstract class Transform extends TransformLike[CircuitState] with DependencyAPI[Transform] {
+trait Transform extends TransformLike[CircuitState] with DependencyAPI[Transform] {
   /** A convenience function useful for debugging and error messages */
   def name: String = this.getClass.getName
   /** The [[firrtl.CircuitForm]] that this transform requires to operate on */
@@ -208,7 +208,7 @@ abstract class Transform extends TransformLike[CircuitState] with DependencyAPI[
 
   private def emptySet = new scala.collection.mutable.LinkedHashSet[TransformDependency]
 
-  override def prerequisites = inputForm match {
+  override def prerequisites: Seq[Dependency] = inputForm match {
     case C => Nil
     case H => Forms.Deduped
     case M => Forms.MidForm
@@ -216,39 +216,52 @@ abstract class Transform extends TransformLike[CircuitState] with DependencyAPI[
     case U => Nil
   }
 
-  override def optionalPrerequisites = inputForm match {
+  override def optionalPrerequisites: Seq[Dependency] = inputForm match {
     case L => Forms.LowFormOptimized
     case _ => Seq.empty
   }
 
-  override def dependents = {
-    val lowEmitters = classOf[LowFirrtlEmitter] :: classOf[VerilogEmitter] :: classOf[MinimumVerilogEmitter] ::
-      classOf[SystemVerilogEmitter] :: Nil
+  override def dependents: Seq[Dependency] = {
+    val lowEmitters = DependencyID[LowFirrtlEmitter] :: DependencyID[VerilogEmitter] :: DependencyID[MinimumVerilogEmitter] ::
+      DependencyID[SystemVerilogEmitter] :: Nil
 
     val emitters = inputForm match {
-      case C => classOf[ChirrtlEmitter]      :: classOf[HighFirrtlEmitter]   :: classOf[MiddleFirrtlEmitter] :: lowEmitters
-      case H => classOf[HighFirrtlEmitter]   :: classOf[MiddleFirrtlEmitter] :: lowEmitters
-      case M => classOf[MiddleFirrtlEmitter] :: lowEmitters
+      case C => DependencyID[ChirrtlEmitter]      :: DependencyID[HighFirrtlEmitter]   :: DependencyID[MiddleFirrtlEmitter] :: lowEmitters
+      case H => DependencyID[HighFirrtlEmitter]   :: DependencyID[MiddleFirrtlEmitter] :: lowEmitters
+      case M => DependencyID[MiddleFirrtlEmitter] :: lowEmitters
       case L => lowEmitters
       case U => Nil
     }
 
+    val selfDep = DependencyID[Transform](this.getClass)
+
     inputForm match {
-      case C => (emptySet ++ Forms.VerilogOptimized                           ++ emitters - this.getClass).toSeq
-      case H => (emptySet ++ Forms.VerilogOptimized -- Forms.Deduped          ++ emitters - this.getClass).toSeq
-      case M => (emptySet ++ Forms.VerilogOptimized -- Forms.MidForm          ++ emitters - this.getClass).toSeq
-      case L => (emptySet ++ Forms.VerilogOptimized -- Forms.LowFormOptimized ++ emitters - this.getClass).toSeq
+      case C => (Forms.VerilogOptimized.toSet                           ++ emitters - selfDep).toSeq
+      case H => (Forms.VerilogOptimized.toSet -- Forms.Deduped          ++ emitters - selfDep).toSeq
+      case M => (Forms.VerilogOptimized.toSet -- Forms.MidForm          ++ emitters - selfDep).toSeq
+      case L => (Forms.VerilogOptimized.toSet -- Forms.LowFormOptimized ++ emitters - selfDep).toSeq
       case U => Nil
     }
   }
 
-  override def invalidates(a: Transform) = {
+  private def classOfDep(td: TransformDependency): Class[_ <: Transform] = {
+    td match {
+      case DependencyID(Left(c)) => c
+      case DependencyID(Right(o)) => o.getClass
+    }
+  }
+
+  private val fullSet = Forms.VerilogOptimized.toSet
+  private val highOutputInvalidates = (fullSet -- Forms.MinimalHighForm).map(classOfDep(_))
+  private val midOutputInvalidates = (fullSet -- Forms.MidForm).map(classOfDep(_))
+
+  override def invalidates(a: Transform): Boolean = {
     (inputForm, outputForm) match {
       case (U, _) | (_, U)  => true  // invalidate everything
       case (i, o) if i >= o => false // invalidate nothing
       case (_, C)           => true  // invalidate everything
-      case (_, H)           => (emptySet ++ Forms.VerilogOptimized -- Forms.MinimalHighForm)(a.getClass)
-      case (_, M)           => (emptySet ++ Forms.VerilogOptimized -- Forms.MidForm        )(a.getClass)
+      case (_, H)           => highOutputInvalidates(a.getClass)
+      case (_, M)           => midOutputInvalidates(a.getClass)
       case (_, L)           => false // invalidate nothing
     }
   }

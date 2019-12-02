@@ -8,6 +8,7 @@ import firrtl.PrimOps._
 import firrtl.WrappedExpression._
 import firrtl.annotations.NoTargetAnnotation
 import firrtl.options.PreservesAll
+import firrtl.options.DependencyID
 
 import scala.collection.mutable
 
@@ -57,16 +58,16 @@ class CombineCats extends Transform with PreservesAll[Transform] {
   def outputForm: LowForm.type = LowForm
 
   override val prerequisites = firrtl.stage.Forms.LowForm ++
-    Seq( classOf[passes.RemoveValidIf],
-         classOf[firrtl.transforms.ConstantPropagation],
-         classOf[firrtl.passes.memlib.VerilogMemDelays],
-         classOf[firrtl.passes.SplitExpressions] )
+    Seq( DependencyID[passes.RemoveValidIf],
+         DependencyID[firrtl.transforms.ConstantPropagation],
+         DependencyID[firrtl.passes.memlib.VerilogMemDelays],
+         DependencyID[firrtl.passes.SplitExpressions] )
 
   override val optionalPrerequisites = Seq.empty
 
   override val dependents = Seq(
-    classOf[SystemVerilogEmitter],
-    classOf[VerilogEmitter] )
+    DependencyID[SystemVerilogEmitter],
+    DependencyID[VerilogEmitter] )
 
   val defaultMaxCatLen = 10
 

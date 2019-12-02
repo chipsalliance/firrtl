@@ -7,10 +7,23 @@ import firrtl._
 import firrtl.passes.Pass
 import firrtl.ir._
 import firrtl.annotations.{Annotation, NoTargetAnnotation}
+import firrtl.options.DependencyID
 import firrtl.stage.{FirrtlSourceAnnotation, FirrtlStage, Forms, RunFirrtlTransformAnnotation}
 import firrtl.transforms.IdentityTransform
 
+import scala.reflect.runtime
+
 object CustomTransformSpec {
+
+  private def asDependency(t: Transform): DependencyID[Transform] = {
+    val isSingleton = runtime.currentMirror.reflect(t).symbol.isModuleClass
+    if (isSingleton) {
+      DependencyID(Right(t.asInstanceOf[Transform with Singleton]))
+    } else {
+      DependencyID(Left(t.getClass))
+    }
+  }
+
   class ReplaceExtModuleTransform extends SeqTransform with FirrtlMatchers {
     // Simple module
     val delayModuleString = """
@@ -145,25 +158,26 @@ class CustomTransformSpec extends FirrtlFlatSpec {
 
   they should "run right before the emitter when inputForm=LowForm" in {
 
-    val custom = classOf[IdentityLowForm]
+    val custom = DependencyID[IdentityLowForm]
 
-    def testOrder(emitter: Class[_ <: Emitter], preceders: Seq[Class[_ <: Transform]]): Unit = {
+    def testOrder(emitter: DependencyID[Emitter], preceders: Seq[DependencyID[Transform]]): Unit = {
       info(s"""${preceders.map(_.getSimpleName).mkString(" -> ")} -> ${custom.getSimpleName} -> ${emitter.getSimpleName} ok!""")
 
       val compiler = new firrtl.stage.transforms.Compiler(Seq(custom, emitter))
       info("Transform Order: \n" + compiler.prettyPrint("    "))
 
+      val expectedSlice = preceders ++ Seq(custom, emitter)
+
       compiler
         .flattenedTransformOrder
-        .map(_.getClass)
-        .containsSlice(
-          preceders ++Seq( custom, emitter )) should be (true)
+        .map(asDependency(_))
+        .containsSlice(expectedSlice) should be (true)
     }
 
-    Seq( (classOf[LowFirrtlEmitter],      Seq(Forms.LowForm.last)                 ),
-         (classOf[MinimumVerilogEmitter], Seq(Forms.LowFormMinimumOptimized.last) ),
-         (classOf[VerilogEmitter],        Seq(Forms.LowFormOptimized.last)        ),
-         (classOf[SystemVerilogEmitter],  Seq(Forms.LowFormOptimized.last)        )
+    Seq( (DependencyID[LowFirrtlEmitter],      Seq(Forms.LowForm.last)                 ),
+         (DependencyID[MinimumVerilogEmitter], Seq(Forms.LowFormMinimumOptimized.last) ),
+         (DependencyID[VerilogEmitter],        Seq(Forms.LowFormOptimized.last)        ),
+         (DependencyID[SystemVerilogEmitter],  Seq(Forms.LowFormOptimized.last)        )
     ).foreach((testOrder _).tupled)
   }
 

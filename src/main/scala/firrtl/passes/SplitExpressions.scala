@@ -5,7 +5,7 @@ package passes
 
 import firrtl.{SystemVerilogEmitter, VerilogEmitter}
 import firrtl.ir._
-import firrtl.options.PreservesAll
+import firrtl.options.{DependencyID, PreservesAll}
 import firrtl.Mappers._
 import firrtl.Utils.{kind, flow, get_info}
 
@@ -17,12 +17,12 @@ import scala.collection.mutable
 class SplitExpressions extends Pass with PreservesAll[Transform] {
 
   override val prerequisites = firrtl.stage.Forms.LowForm ++
-    Seq( classOf[passes.RemoveValidIf],
-         classOf[firrtl.passes.memlib.VerilogMemDelays] )
+    Seq( DependencyID[passes.RemoveValidIf],
+         DependencyID[firrtl.passes.memlib.VerilogMemDelays] )
 
   override val dependents =
-    Seq( classOf[SystemVerilogEmitter],
-         classOf[VerilogEmitter] )
+    Seq( DependencyID[SystemVerilogEmitter],
+         DependencyID[VerilogEmitter] )
 
    private def onModule(m: Module): Module = {
       val namespace = Namespace(m)

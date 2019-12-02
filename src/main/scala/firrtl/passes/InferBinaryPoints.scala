@@ -8,15 +8,15 @@ import firrtl.Mappers._
 import firrtl.annotations.{CircuitTarget, ModuleTarget, ReferenceTarget, Target}
 import firrtl.constraint.ConstraintSolver
 import firrtl.Transform
-import firrtl.options.PreservesAll
+import firrtl.options.{DependencyID, PreservesAll}
 
 class InferBinaryPoints extends Pass with PreservesAll[Transform] {
 
   override val prerequisites =
-    Seq( classOf[ResolveKinds],
-         classOf[InferTypes],
-         classOf[Uniquify],
-         classOf[ResolveFlows] )
+    Seq( DependencyID[ResolveKinds],
+         DependencyID[InferTypes],
+         DependencyID[Uniquify],
+         DependencyID[ResolveFlows] )
 
   override val dependents = Seq.empty
 

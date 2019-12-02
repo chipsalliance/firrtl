@@ -4,7 +4,7 @@ package firrtl.stage.transforms
 
 import firrtl.{AnnotationSeq, CircuitState, Transform}
 import firrtl.annotations.NoTargetAnnotation
-import firrtl.options.DependencyManagerException
+import firrtl.options.{DependencyID, DependencyManagerException}
 
 case class TransformHistoryAnnotation(history: Seq[Transform], state: Set[Transform]) extends NoTargetAnnotation {
 
@@ -47,7 +47,7 @@ class TrackTransforms(val underlying: Transform) extends Transform with WrappedT
     val state = c.annotations
       .collectFirst{ case TransformHistoryAnnotation(_, state) => state }
       .getOrElse(Set.empty[Transform])
-      .map(_.getClass)
+      .map(t => DependencyID(t.getClass))
 
     if (!trueUnderlying.prerequisites.toSet.subsetOf(state)) {
       throw new DependencyManagerException(
