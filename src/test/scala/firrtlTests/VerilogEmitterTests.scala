@@ -70,6 +70,24 @@ class DoPrimVerilog extends FirrtlFlatSpec {
         |""".stripMargin.split("\n") map normalized
     executeTest(input, check, compiler)
   }
+  "Not" should "emit correctly" in {
+    val compiler = new VerilogCompiler
+    val input =
+      """circuit Not :
+        |  module Not :
+        |    input a: UInt<1>
+        |    output b: UInt<1>
+        |    b <= not(a)""".stripMargin
+    val check =
+      """module Not(
+        |  input   a,
+        |  output  b
+        |);
+        |  assign b = ~a;
+        |endmodule
+        |""".stripMargin.split("\n") map normalized
+    executeTest(input, check, compiler)
+  }
   "Rem" should "emit correctly" in {
     val compiler = new VerilogCompiler
     val input =

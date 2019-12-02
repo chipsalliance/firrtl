@@ -378,7 +378,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
          case (_: UIntType) => Seq("{1'b0,", cast(a0), "}")
          case (_: SIntType) => Seq(cast(a0))
        }
-       case Not => Seq("~ ", a0)
+       case Not => Seq("~", a0)
        case And => Seq(cast_as(a0), " & ", cast_as(a1))
        case Or => Seq(cast_as(a0), " | ", cast_as(a1))
        case Xor => Seq(cast_as(a0), " ^ ", cast_as(a1))
