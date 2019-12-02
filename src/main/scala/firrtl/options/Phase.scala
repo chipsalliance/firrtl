@@ -8,6 +8,32 @@ import logger.LazyLogging
 
 import scala.collection.mutable.LinkedHashSet
 
+object DependencyList {
+  def apply[A](dependencies: DependencyID[A]*): Seq[DependencyID[A]] = {
+    dependencies.toSeq
+  }
+}
+
+case class DependencyID[A](id: Either[Class[_ <: A], A with Singleton]) {
+  def getObject(): A = id match {
+    case Left(c) => safeConstruct(c)
+    case Right(o) => o
+  }
+
+  def getName: String = id match {
+    case Left(c) => c.getName
+    case Right(o) => o.getClass.getName
+  }
+
+  /** Wrap an [[IllegalAccessException]] due to attempted object construction in a [[DependencyManagerException]] */
+  private def safeConstruct[A](a: Class[_ <: A]): A = try { a.newInstance } catch {
+    case e: IllegalAccessException => throw new DependencyManagerException(
+      s"Failed to construct '$a'! (Did you try to construct an object?)", e)
+    case e: InstantiationException => throw new DependencyManagerException(
+      s"Failed to construct '$a'! (Did you try to construct an inner class or a class with parameters?)", e)
+  }
+}
+
 /** A polymorphic mathematical transform
   * @tparam A the transformed type
   */
@@ -43,11 +69,15 @@ trait TransformLike[A] extends LazyLogging {
 trait DependencyAPI[A <: DependencyAPI[A]] { this: TransformLike[_] =>
 
   /** The type used to express dependencies: a class which itself has dependencies. */
-  type Dependency = Class[_ <: A]
+  type Dependency = DependencyID[A]
+
+  /** Convenience implicits for building heterogeneous DependencyLists */
+  protected implicit def classToDependency(c: Class[_ <: A]): Dependency = DependencyID[A](Left(c))
+  protected implicit def objectToDependency(o: A with Singleton): Dependency = DependencyID[A](Right(o))
 
   /** All transform that must run before this transform
-    * $seqNote
-    */
+  * $seqNote
+  */
   def prerequisites: Seq[Dependency] = Seq.empty
   private[options] lazy val _prerequisites: LinkedHashSet[Dependency] = new LinkedHashSet() ++ prerequisites.toSet
 

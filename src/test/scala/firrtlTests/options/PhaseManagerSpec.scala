@@ -5,7 +5,7 @@ package firrtlTests.options
 import org.scalatest.{FlatSpec, Matchers}
 
 import firrtl.AnnotationSeq
-import firrtl.options.{DependencyManagerException, Phase, PhaseManager, PreservesAll}
+import firrtl.options.{DependencyManagerException, Phase, PhaseManager, PreservesAll, DependencyList}
 
 import java.io.{File, PrintWriter}
 
@@ -23,19 +23,19 @@ class A extends IdentityPhase {
 
 /** [[Phase]] that requires [[A]] and invalidates nothing */
 class B extends IdentityPhase {
-  override def prerequisites: Seq[Dependency] = Seq(classOf[A])
+  override def prerequisites = DependencyList(classOf[A])
   override def invalidates(phase: Phase): Boolean = false
 }
 
 /** [[Phase]] that requires [[B]] and invalidates nothing */
 class C extends IdentityPhase {
-  override def prerequisites = Seq(classOf[A])
+  override def prerequisites = DependencyList(classOf[A])
   override def invalidates(phase: Phase): Boolean = false
 }
 
 /** [[Phase]] that requires [[A]] and invalidates [[A]] */
 class D extends IdentityPhase {
-  override def prerequisites = Seq(classOf[A])
+  override def prerequisites = DependencyList(classOf[A])
   override def invalidates(phase: Phase): Boolean = phase match {
     case _: A => true
     case _ => false
@@ -44,13 +44,13 @@ class D extends IdentityPhase {
 
 /** [[Phase]] that requires [[B]] and invalidates nothing */
 class E extends IdentityPhase {
-  override def prerequisites = Seq(classOf[B])
+  override def prerequisites = DependencyList(classOf[B])
   override def invalidates(phase: Phase): Boolean = false
 }
 
 /** [[Phase]] that requires [[B]] and [[C]] and invalidates [[E]] */
 class F extends IdentityPhase {
-  override def prerequisites = Seq(classOf[B], classOf[C])
+  override def prerequisites = DependencyList(classOf[B], classOf[C])
   override def invalidates(phase: Phase): Boolean = phase match {
     case _: E => true
     case _ => false
@@ -60,7 +60,7 @@ class F extends IdentityPhase {
 
 /** [[Phase]] that requires [[C]] and invalidates [[F]] */
 class G extends IdentityPhase {
-  override def prerequisites = Seq(classOf[C])
+  override def prerequisites = DependencyList(classOf[C])
   override def invalidates(phase: Phase): Boolean = phase match {
     case _: F => true
     case _ => false
@@ -68,11 +68,11 @@ class G extends IdentityPhase {
 }
 
 class CyclicA extends IdentityPhase with PreservesAll[Phase] {
-  override def prerequisites = Seq(classOf[CyclicB])
+  override def prerequisites = DependencyList(classOf[CyclicB])
 }
 
 class CyclicB extends IdentityPhase with PreservesAll[Phase] {
-  override def prerequisites = Seq(classOf[CyclicA])
+  override def prerequisites = DependencyList(classOf[CyclicA])
 }
 
 class CyclicC extends IdentityPhase {
@@ -95,25 +95,25 @@ object ComplicatedFixture {
     override def invalidates(phase: Phase): Boolean = false
   }
   class B extends IdentityPhase {
-    override def prerequisites = Seq(classOf[A])
+    override def prerequisites = DependencyList(classOf[A])
     override def invalidates(phase: Phase): Boolean = false
   }
   class C extends IdentityPhase {
-    override def prerequisites = Seq(classOf[A])
+    override def prerequisites = DependencyList(classOf[A])
     override def invalidates(phase: Phase): Boolean = phase match {
       case _: B => true
       case _ => false
     }
   }
   class D extends IdentityPhase {
-    override def prerequisites = Seq(classOf[B])
+    override def prerequisites = DependencyList(classOf[B])
     override def invalidates(phase: Phase): Boolean = phase match {
       case _: C | _: E => true
       case _ => false
     }
   }
   class E extends IdentityPhase {
-    override def prerequisites = Seq(classOf[B])
+    override def prerequisites = DependencyList(classOf[B])
     override def invalidates(phase: Phase): Boolean = false
   }
 
@@ -132,13 +132,13 @@ object RepeatedAnalysisFixture {
     override def invalidates(phase: Phase): Boolean = false
   }
   class A extends InvalidatesAnalysis {
-    override def prerequisites = Seq(classOf[Analysis])
+    override def prerequisites = DependencyList(classOf[Analysis])
   }
   class B extends InvalidatesAnalysis {
-    override def prerequisites = Seq(classOf[A], classOf[Analysis])
+    override def prerequisites = DependencyList(classOf[A], classOf[Analysis])
   }
   class C extends InvalidatesAnalysis {
-    override def prerequisites = Seq(classOf[B], classOf[Analysis])
+    override def prerequisites = DependencyList(classOf[B], classOf[Analysis])
   }
 
 }
@@ -149,21 +149,21 @@ object InvertedAnalysisFixture {
     override def invalidates(phase: Phase): Boolean = false
   }
   class A extends IdentityPhase {
-    override def prerequisites = Seq(classOf[Analysis])
+    override def prerequisites = DependencyList(classOf[Analysis])
     override def invalidates(phase: Phase): Boolean = phase match {
       case _: Analysis => true
       case _ => false
     }
   }
   class B extends IdentityPhase {
-    override def prerequisites = Seq(classOf[Analysis])
+    override def prerequisites = DependencyList(classOf[Analysis])
     override def invalidates(phase: Phase): Boolean = phase match {
       case _: Analysis | _: A => true
       case _ => false
     }
   }
   class C extends IdentityPhase {
-    override def prerequisites = Seq(classOf[Analysis])
+    override def prerequisites = DependencyList(classOf[Analysis])
     override def invalidates(phase: Phase): Boolean = phase match {
       case _: Analysis | _: B => true
       case _ => false
@@ -179,7 +179,7 @@ object DependentsFixture {
   }
 
   class Second extends IdentityPhase {
-    override val prerequisites = Seq(classOf[First])
+    override val prerequisites = DependencyList(classOf[First])
     override def invalidates(phase: Phase): Boolean = false
   }
 
@@ -188,8 +188,8 @@ object DependentsFixture {
    * loop detection.
    */
   class Custom extends IdentityPhase {
-    override val prerequisites = Seq(classOf[First])
-    override val dependents = Seq(classOf[Second])
+    override val prerequisites = DependencyList(classOf[First])
+    override val dependents = DependencyList(classOf[Second])
     override def invalidates(phase: Phase): Boolean = false
   }
 
@@ -219,7 +219,7 @@ object ChainedInvalidationFixture {
     override def invalidates(phase: Phase): Boolean = false
   }
   class E extends IdentityPhase {
-    override val prerequisites = Seq(classOf[A], classOf[B], classOf[C], classOf[D])
+    override val prerequisites = DependencyList(classOf[A], classOf[B], classOf[C], classOf[D])
     override def invalidates(phase: Phase): Boolean = false
   }
 
@@ -253,8 +253,8 @@ object UnrelatedFixture {
   class B15 extends IdentityPhase with PreservesAll[Phase]
 
   class B6Sub extends B6 {
-    override val prerequisites = Seq(classOf[B6])
-    override val dependents = Seq(classOf[B7])
+    override val prerequisites = DependencyList(classOf[B6])
+    override val dependents = DependencyList(classOf[B7])
   }
 
   class B6_0 extends B6Sub
@@ -275,7 +275,7 @@ object UnrelatedFixture {
   class B6_15 extends B6Sub
 
   class B8Dep extends B8 {
-    override val dependents = Seq(classOf[B8])
+    override val dependents = DependencyList(classOf[B8])
   }
 
   class B8_0 extends B8Dep
