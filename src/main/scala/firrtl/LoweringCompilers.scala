@@ -96,7 +96,7 @@ class MiddleFirrtlToLowFirrtl extends CoreTransform {
     passes.Legalize,
     firrtl.transforms.RemoveReset,
     firrtl.transforms.CheckCombLoops,
-    new checks.CheckResets,
+    checks.CheckResets,
     new firrtl.transforms.RemoveWires)
 }
 

@@ -10,7 +10,13 @@ import firrtl.WrappedExpression._
 
 import scala.collection.mutable
 
-object CheckResets {
+// Must run after ExpandWhens
+// Requires
+//   - static single connections of ground types
+object CheckResets extends Transform {
+  def inputForm: CircuitForm = MidForm
+  def outputForm: CircuitForm = MidForm
+
   class NonLiteralAsyncResetValueException(info: Info, mname: String, reg: String, init: String) extends PassException(
     s"$info: [module $mname] AsyncReset Reg '$reg' reset to non-literal '$init'")
 
@@ -19,17 +25,6 @@ object CheckResets {
   // Record driving for literal propagation
   // Indicates *driven by*
   private type DirectDriverMap = mutable.HashMap[WrappedExpression, Expression]
-
-}
-
-// Must run after ExpandWhens
-// Requires
-//   - static single connections of ground types
-class CheckResets extends Transform {
-  def inputForm: CircuitForm = MidForm
-  def outputForm: CircuitForm = MidForm
-
-  import CheckResets._
 
   private def onStmt(regCheck: RegCheckList, drivers: DirectDriverMap)(stmt: Statement): Unit = {
     stmt match {
@@ -72,4 +67,3 @@ class CheckResets extends Transform {
     state
   }
 }
-
