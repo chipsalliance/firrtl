@@ -187,8 +187,18 @@ object RunFirrtlTransformAnnotation extends HasShellOptions {
         } catch {
           case e: ClassNotFoundException => throw new OptionsException(
             s"Unable to locate custom transform $txName (did you misspell it?)", e)
-          case e: InstantiationException => throw new OptionsException(
-            s"Unable to create instance of Transform $txName (is this an anonymous class?)", e)
+          case e: InstantiationException =>
+            try {
+              // Try finding a pass object
+              val mirror = scala.reflect.runtime.universe.runtimeMirror(getClass.getClassLoader)
+              val module = mirror.staticModule(txName)
+              val tx = mirror.reflectModule(module).instance.asInstanceOf[Transform]
+              RunFirrtlTransformAnnotation(tx)
+            } catch {
+              case e: ScalaReflectionException =>
+                throw new OptionsException(
+                  s"Unable to create instance of Transform $txName (is this an anonymous class?)", e)
+            }
           case e: Throwable => throw new OptionsException(
             s"Unknown error when instantiating class $txName", e) }),
       helpText = "Run these transforms during compilation",
