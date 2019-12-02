@@ -14,11 +14,6 @@ import firrtl.stage.phases.WriteEmitted
 
 class WriteEmittedSpec extends FlatSpec with Matchers {
 
-  def removeEmitted(a: AnnotationSeq): AnnotationSeq = a.flatMap {
-    case a: EmittedAnnotation[_] => None
-    case a => Some(a)
-  }
-
   class Fixture { val phase: Phase = new WriteEmitted }
 
   behavior of classOf[WriteEmitted].toString
@@ -33,7 +28,7 @@ class WriteEmittedSpec extends FlatSpec with Matchers {
       .map(a => new File(s"test_run_dir/WriteEmittedSpec/$a"))
 
     info("annotations are unmodified")
-    phase.transform(annotations).toSeq should be (removeEmitted(annotations).toSeq)
+    phase.transform(annotations).toSeq should be (annotations)
 
     expected.foreach{ a =>
       info(s"$a was written")
@@ -50,7 +45,7 @@ class WriteEmittedSpec extends FlatSpec with Matchers {
     val expected = new File("test_run_dir/WriteEmittedSpec/quux.quxcircuit")
 
     info("annotations are unmodified")
-    phase.transform(annotations).toSeq should be (removeEmitted(annotations).toSeq)
+    phase.transform(annotations).toSeq should be (annotations)
 
     info(s"$expected was written")
     expected should (exist)
@@ -66,8 +61,8 @@ class WriteEmittedSpec extends FlatSpec with Matchers {
     val expected = Seq("foo.foomodule", "bar.barmodule", "baz.bazmodule")
       .map(a => new File(s"test_run_dir/WriteEmittedSpec/$a"))
 
-    info("EmittedComponent annotations are deleted")
-    phase.transform(annotations).toSeq should be (removeEmitted(annotations).toSeq)
+    info("annotations are unmodified")
+    phase.transform(annotations).toSeq should be (annotations)
 
     expected.foreach{ a =>
       info(s"$a was written")
