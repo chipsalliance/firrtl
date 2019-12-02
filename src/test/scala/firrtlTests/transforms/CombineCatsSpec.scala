@@ -10,7 +10,7 @@ import firrtlTests.FirrtlFlatSpec
 import firrtlTests.FirrtlCheckers._
 
 class CombineCatsSpec extends FirrtlFlatSpec {
-  private val transforms = Seq(new IRToWorkingIR, new CombineCats)
+  private val transforms = Seq(new IRToWorkingIR, CombineCats)
   private val annotations = Seq(new MaxCatLenAnnotation(12))
 
   private def execute(input: String, transforms: Seq[Transform], annotations: AnnotationSeq): CircuitState = {

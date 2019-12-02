@@ -21,7 +21,7 @@ class FirrtlCliSpec extends FlatSpec with Matchers {
     val expected = Seq(
       classOf[firrtl.transforms.BlackBoxSourceHelper],
       firrtl.transforms.CheckCombLoops.getClass,
-      classOf[firrtl.transforms.CombineCats],
+      firrtl.transforms.CombineCats.getClass,
       firrtl.transforms.ConstantPropagation.getClass )
 
     shell

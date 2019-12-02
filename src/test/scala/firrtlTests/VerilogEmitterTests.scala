@@ -117,7 +117,7 @@ class DoPrimVerilog extends FirrtlFlatSpec {
         |endmodule
         |""".stripMargin.split("\n") map normalized
 
-    val finalState = compiler.compileAndEmit(CircuitState(parse(input), ChirrtlForm), Seq(new CombineCats()))
+    val finalState = compiler.compileAndEmit(CircuitState(parse(input), ChirrtlForm), Seq(CombineCats))
     val lines = finalState.getEmittedCircuit.value split "\n" map normalized
     for (e <- check) {
       lines should contain (e)
