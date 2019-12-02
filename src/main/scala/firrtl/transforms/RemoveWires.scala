@@ -19,7 +19,7 @@ import scala.util.{Try, Success, Failure}
   *  wires have multiple connections that may be impossible to order in a
   *  flow-foward way
   */
-class RemoveWires extends Transform {
+object RemoveWires extends Transform {
   def inputForm = LowForm
   def outputForm = LowForm
 
