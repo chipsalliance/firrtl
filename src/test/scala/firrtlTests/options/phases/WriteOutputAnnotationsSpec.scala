@@ -8,7 +8,13 @@ import java.io.File
 
 import firrtl.{AnnotationSeq, EmittedFirrtlCircuitAnnotation, EmittedFirrtlCircuit}
 import firrtl.annotations.{DeletedAnnotation, NoTargetAnnotation}
-import firrtl.options.{InputAnnotationFileAnnotation, OutputAnnotationFileAnnotation, Phase, WriteDeletedAnnotation}
+import firrtl.options.{
+  DontSerialize,
+  InputAnnotationFileAnnotation,
+  OutputAnnotationFileAnnotation,
+  Phase,
+  WriteDeletedAnnotation,
+  WriteDontSerializeAnnotation}
 import firrtl.options.phases.{GetIncludes, WriteOutputAnnotations}
 import firrtl.stage.FirrtlFileAnnotation
 
@@ -48,15 +54,17 @@ class WriteOutputAnnotationsSpec extends FlatSpec with Matchers with firrtlTests
 
   behavior of classOf[WriteOutputAnnotations].toString
 
-  it should "write annotations to a file (excluding DeletedAnnotations)" in new Fixture {
+  it should "write annotations to a file (excluding DeletedAnnotations and DontSerialize)" in new Fixture {
     val file = new File(dir + "/should-write-annotations-to-a-file.anno.json")
     val annotations = Seq( OutputAnnotationFileAnnotation(file.toString),
                            WriteOutputAnnotationsSpec.FooAnnotation,
                            WriteOutputAnnotationsSpec.BarAnnotation(0),
                            WriteOutputAnnotationsSpec.BarAnnotation(1),
-                           DeletedAnnotation("foo", WriteOutputAnnotationsSpec.FooAnnotation) )
+                           DeletedAnnotation("foo", WriteOutputAnnotationsSpec.FooAnnotation),
+                           WriteOutputAnnotationsSpec.BazAnnotation)
     val expected = annotations.filter {
       case a: DeletedAnnotation => false
+      case a: DontSerialize => false
       case a => true
     }
     val out = phase.transform(annotations)
@@ -68,19 +76,45 @@ class WriteOutputAnnotationsSpec extends FlatSpec with Matchers with firrtlTests
   }
 
   it should "include DeletedAnnotations if a WriteDeletedAnnotation is present" in new Fixture {
-    val file = new File(dir + "should-include-deleted.anno.json")
+    val file = new File(dir + "/should-include-deleted.anno.json")
     val annotations = Seq( OutputAnnotationFileAnnotation(file.toString),
                            WriteOutputAnnotationsSpec.FooAnnotation,
                            WriteOutputAnnotationsSpec.BarAnnotation(0),
                            WriteOutputAnnotationsSpec.BarAnnotation(1),
                            DeletedAnnotation("foo", WriteOutputAnnotationsSpec.FooAnnotation),
-                           WriteDeletedAnnotation )
+                           WriteOutputAnnotationsSpec.BazAnnotation,
+                           WriteDeletedAnnotation)
+    val expected = annotations.filter {
+      case _: DontSerialize => false
+      case _                => true
+    }
     val out = phase.transform(annotations)
 
     info("annotations are unmodified")
     out.toSeq should be (annotations)
 
-    fileContainsAnnotations(file, annotations)
+    fileContainsAnnotations(file, expected)
+  }
+
+  it should "include DontSerialize annotations if a WriteDontSerializeAnnotation is present" in new Fixture {
+    val file = new File(dir + "/should-include-dontserialize.anno.json")
+    val annotations = Seq( OutputAnnotationFileAnnotation(file.toString),
+                           WriteOutputAnnotationsSpec.FooAnnotation,
+                           WriteOutputAnnotationsSpec.BarAnnotation(0),
+                           WriteOutputAnnotationsSpec.BarAnnotation(1),
+                           DeletedAnnotation("foo", WriteOutputAnnotationsSpec.FooAnnotation),
+                           WriteOutputAnnotationsSpec.BazAnnotation,
+                           WriteDontSerializeAnnotation )
+    val expected = annotations.filter {
+      case _: DeletedAnnotation => false
+      case _                    => true
+    }
+    val out = phase.transform(annotations)
+
+    info("annotations are unmodified")
+    out.toSeq should be (annotations)
+
+    fileContainsAnnotations(file, expected)
   }
 
   it should "do nothing if no output annotation file is specified" in new Fixture {
@@ -105,4 +139,5 @@ class WriteOutputAnnotationsSpec extends FlatSpec with Matchers with firrtlTests
 private object WriteOutputAnnotationsSpec {
   case object FooAnnotation extends NoTargetAnnotation
   case class BarAnnotation(x: Int) extends NoTargetAnnotation
+  case object BazAnnotation extends NoTargetAnnotation with DontSerialize
 }
