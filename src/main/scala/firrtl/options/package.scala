@@ -16,6 +16,7 @@ package object options {
           /* Do NOT reorder program args. The order may matter. */
           case ProgramArgsAnnotation(a) => c.copy(programArgs = c.programArgs :+ a)
           case WriteDeletedAnnotation => c.copy(writeDeleted = true)
+          case WriteDontSerializeAnnotation => c.copy(writeDontSerialize = true)
         }
       )
   }

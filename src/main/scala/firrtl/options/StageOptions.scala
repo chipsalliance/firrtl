@@ -11,25 +11,28 @@ import java.io.File
   * @param outputAnnotationFileName an output annotation filename
   */
 class StageOptions private [firrtl] (
-  val targetDir:         String         = TargetDirAnnotation().directory,
-  val annotationFilesIn: Seq[String]    = Seq.empty,
-  val annotationFileOut: Option[String] = None,
-  val programArgs:       Seq[String]    = Seq.empty,
-  val writeDeleted:      Boolean        = false ) {
+  val targetDir:          String         = TargetDirAnnotation().directory,
+  val annotationFilesIn:  Seq[String]    = Seq.empty,
+  val annotationFileOut:  Option[String] = None,
+  val programArgs:        Seq[String]    = Seq.empty,
+  val writeDeleted:       Boolean        = false,
+  val writeDontSerialize: Boolean        = false) {
 
   private [options] def copy(
-    targetDir:         String         = targetDir,
-    annotationFilesIn: Seq[String]    = annotationFilesIn,
-    annotationFileOut: Option[String] = annotationFileOut,
-    programArgs:       Seq[String]    = programArgs,
-    writeDeleted:      Boolean        = writeDeleted ): StageOptions = {
+    targetDir:          String         = targetDir,
+    annotationFilesIn:  Seq[String]    = annotationFilesIn,
+    annotationFileOut:  Option[String] = annotationFileOut,
+    programArgs:        Seq[String]    = programArgs,
+    writeDeleted:       Boolean        = writeDeleted,
+    writeDontSerialize: Boolean        = writeDontSerialize): StageOptions = {
 
     new StageOptions(
       targetDir = targetDir,
       annotationFilesIn = annotationFilesIn,
       annotationFileOut = annotationFileOut,
       programArgs = programArgs,
-      writeDeleted = writeDeleted )
+      writeDeleted = writeDeleted,
+      writeDontSerialize = writeDontSerialize )
 
   }
 

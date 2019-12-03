@@ -66,6 +66,7 @@ class Shell(val applicationName: String) {
   Seq( TargetDirAnnotation,
        InputAnnotationFileAnnotation,
        OutputAnnotationFileAnnotation,
+       WriteDontSerializeAnnotation,
        NoCircuitDedupAnnotation)
     .foreach(_.addOptions(parser))
 
