@@ -594,9 +594,9 @@ class WiringTests extends FirrtlFlatSpec {
     }
   }
 
-  it should "wire subindex source to sink" in {
+  it should "wire subaccess source to sink" in {
     val sinks = Seq(ModuleTarget("Top", "X"))
-    val source = ComponentName("r[a]", ModuleName("A", CircuitName("Top"))).toTarget
+    val source = ComponentName("r[a]", ModuleName("A", CircuitName("Top")))
     val sas = WiringInfo(source, sinks, "pin")
     val input =
       """|circuit Top :
@@ -628,6 +628,49 @@ class WiringTests extends FirrtlFlatSpec {
          |    x.clock <= clock
          |    x.pin <= r_a
          |    r_a <= r[a]
+         |  extmodule X :
+         |    input clock: Clock
+         |    input pin: UInt<2>
+         |""".stripMargin
+
+    val wiringPass = new Wiring(Seq(sas))
+    executeTest(input, check, passes :+ wiringPass)
+  }
+
+  it should "wire subindex source to sink" in {
+    val sinks = Seq(ModuleTarget("Top", "X"))
+    val source = ComponentName("r[1]", ModuleName("A", CircuitName("Top"))).toTarget
+    val sas = WiringInfo(source, sinks, "pin")
+    val input =
+      """|circuit Top :
+         |  module Top :
+         |    input clock: Clock
+         |    inst a of A
+         |    a.clock <= clock
+         |  module A :
+         |    input clock: Clock
+         |    reg r: UInt<2>[5], clock
+         |    node a = UInt(5)
+         |    inst x of X
+         |    x.clock <= clock
+         |  extmodule X :
+         |    input clock: Clock
+         |""".stripMargin
+    val check =
+      """|circuit Top :
+         |  module Top :
+         |    input clock: Clock
+         |    inst a of A
+         |    a.clock <= clock
+         |  module A :
+         |    input clock: Clock
+         |    wire r_1: UInt<2>
+         |    reg r: UInt<2>[5], clock
+         |    node a = UInt(5)
+         |    inst x of X
+         |    x.clock <= clock
+         |    x.pin <= r_1
+         |    r_1 <= r[1]
          |  extmodule X :
          |    input clock: Clock
          |    input pin: UInt<2>
