@@ -4,7 +4,7 @@ package firrtl.options.phases
 
 import firrtl.AnnotationSeq
 import firrtl.annotations.{DeletedAnnotation, JsonProtocol}
-import firrtl.options.{Phase, StageOptions, Unserializable, Viewer}
+import firrtl.options.{DontSerialize, Phase, StageOptions, Unserializable, Viewer}
 
 import java.io.PrintWriter
 
@@ -19,6 +19,7 @@ class WriteOutputAnnotations extends Phase {
     val serializable = annotations.filter{
       case _: Unserializable    => false
       case _: DeletedAnnotation => sopts.writeDeleted
+      case _: DontSerialize     => sopts.writeDontSerialize
       case _                    => true
     }
 
