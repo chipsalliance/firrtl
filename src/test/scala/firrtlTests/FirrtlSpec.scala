@@ -5,7 +5,7 @@ package firrtlTests
 import java.io._
 import java.security.Permission
 
-import com.typesafe.scalalogging.LazyLogging
+import logger.LazyLogging
 
 import org.scalatest._
 import org.scalatest.prop._

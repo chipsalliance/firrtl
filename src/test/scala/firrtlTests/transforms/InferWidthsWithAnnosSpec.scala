@@ -32,7 +32,7 @@ class InferWidthsWithAnnosSpec extends FirrtlFlatSpec {
       ResolveKinds,
       InferTypes,
       CheckTypes,
-      ResolveGenders,
+      ResolveFlows,
       new InferWidths,
       CheckWidths)
 
@@ -61,7 +61,7 @@ class InferWidthsWithAnnosSpec extends FirrtlFlatSpec {
       ResolveKinds,
       InferTypes,
       CheckTypes,
-      ResolveGenders,
+      ResolveFlows,
       new InferWidths,
       CheckWidths)
 
@@ -104,7 +104,7 @@ class InferWidthsWithAnnosSpec extends FirrtlFlatSpec {
       ResolveKinds,
       InferTypes,
       CheckTypes,
-      ResolveGenders,
+      ResolveFlows,
       new InferWidths,
       CheckWidths)
 
@@ -149,11 +149,11 @@ class InferWidthsWithAnnosSpec extends FirrtlFlatSpec {
   }
 
   "InferWidthsWithAnnos" should "work with WiringTransform" in {
-    def transforms = Seq(
+    def transforms() = Seq(
       ToWorkingIR,
       ResolveKinds,
       InferTypes,
-      ResolveGenders,
+      ResolveFlows,
       new InferWidths,
       CheckWidths,
       new WiringTransform,

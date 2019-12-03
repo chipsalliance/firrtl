@@ -8,14 +8,14 @@ import firrtl.transforms._
 import firrtl._
 
 class LowerTypesSpec extends FirrtlFlatSpec {
-  private val transforms = Seq(
+  private def transforms = Seq(
     ToWorkingIR,
     CheckHighForm,
     ResolveKinds,
     InferTypes,
     CheckTypes,
-    ResolveGenders,
-    CheckGenders,
+    ResolveFlows,
+    CheckFlows,
     new InferWidths,
     CheckWidths,
     PullMuxes,
@@ -27,7 +27,7 @@ class LowerTypesSpec extends FirrtlFlatSpec {
     new ConstantPropagation,
     ResolveKinds,
     InferTypes,
-    ResolveGenders,
+    ResolveFlows,
     new InferWidths,
     LowerTypes)
 

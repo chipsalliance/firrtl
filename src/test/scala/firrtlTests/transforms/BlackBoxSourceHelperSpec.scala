@@ -6,6 +6,8 @@ import firrtl.annotations.{CircuitName, ModuleName}
 import firrtl.transforms._
 import firrtl.{Transform, VerilogEmitter}
 import firrtlTests.LowTransformSpec
+import firrtl.FileUtils
+
 
 class BlacklBoxSourceHelperTransformSpec extends LowTransformSpec {
    def transform: Transform = new BlackBoxSourceHelper
@@ -57,7 +59,7 @@ class BlacklBoxSourceHelperTransformSpec extends LowTransformSpec {
     execute(input, output, annos)
 
     val module = new java.io.File("test_run_dir/AdderExtModule.v")
-    val fileList = new java.io.File(s"test_run_dir/${BlackBoxSourceHelper.fileListName}")
+    val fileList = new java.io.File(s"test_run_dir/${BlackBoxSourceHelper.defaultFileListName}")
 
     module.exists should be (true)
     fileList.exists should be (true)
@@ -76,7 +78,7 @@ class BlacklBoxSourceHelperTransformSpec extends LowTransformSpec {
     execute(input, output, annos)
 
     val module = new java.io.File("test_run_dir/AdderExtModule.v")
-    val fileList = new java.io.File(s"test_run_dir/${BlackBoxSourceHelper.fileListName}")
+    val fileList = new java.io.File(s"test_run_dir/${BlackBoxSourceHelper.defaultFileListName}")
 
     module.exists should be (true)
     fileList.exists should be (true)
@@ -95,7 +97,7 @@ class BlacklBoxSourceHelperTransformSpec extends LowTransformSpec {
     execute(input, output, annos)
 
     new java.io.File("test_run_dir/AdderExtModule.v").exists should be (true)
-    new java.io.File(s"test_run_dir/${BlackBoxSourceHelper.fileListName}").exists should be (true)
+    new java.io.File(s"test_run_dir/${BlackBoxSourceHelper.defaultFileListName}").exists should be (true)
   }
 
   "verilog compiler" should "have BlackBoxSourceHelper transform" in {
@@ -127,11 +129,9 @@ class BlacklBoxSourceHelperTransformSpec extends LowTransformSpec {
       new java.io.File("test_run_dir/" + n).exists should be (true)
 
     //  but our file list should not include the verilog header file.
-    val fileListFile = new java.io.File(s"test_run_dir/${BlackBoxSourceHelper.fileListName}")
+    val fileListFile = new java.io.File(s"test_run_dir/${BlackBoxSourceHelper.defaultFileListName}")
     fileListFile.exists should be (true)
-    val fileListFileSource = io.Source.fromFile(fileListFile)
-    val fileList = fileListFileSource.getLines.mkString
-    fileListFileSource.close()
+    val fileList = FileUtils.getText(fileListFile)
     fileList.contains("ParameterizedViaHeaderAdderExtModule.v") should be (true)
     fileList.contains("VerilogHeaderFile.vh") should be (false)
   }

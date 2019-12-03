@@ -18,6 +18,36 @@ class FixedTypeInferenceSpec extends FirrtlFlatSpec {
     }
   }
 
+  "Fixed types" should "infer add correctly if only precision unspecified" in {
+    val passes = Seq(
+      ToWorkingIR,
+      CheckHighForm,
+      ResolveKinds,
+      InferTypes,
+      CheckTypes,
+      ResolveFlows,
+      CheckFlows,
+      new InferWidths,
+      CheckWidths)
+    val input =
+      """circuit Unit :
+        |  module Unit :
+        |    input a : Fixed<10><<2>>
+        |    input b : Fixed<10><<0>>
+        |    input c : Fixed<4><<3>>
+        |    output d : Fixed<13>
+        |    d <= add(a, add(b, c))""".stripMargin
+    val check =
+      """circuit Unit :
+        |  module Unit :
+        |    input a : Fixed<10><<2>>
+        |    input b : Fixed<10><<0>>
+        |    input c : Fixed<4><<3>>
+        |    output d : Fixed<13><<3>>
+        |    d <= add(a, add(b, c))""".stripMargin
+    executeTest(input, check.split("\n") map normalized, passes)
+  }
+
   "Fixed types" should "infer add correctly" in {
     val passes = Seq(
       ToWorkingIR,
@@ -25,15 +55,15 @@ class FixedTypeInferenceSpec extends FirrtlFlatSpec {
       ResolveKinds,
       InferTypes,
       CheckTypes,
-      ResolveGenders,
-      CheckGenders,
+      ResolveFlows,
+      CheckFlows,
       new InferWidths,
       CheckWidths)
     val input =
       """circuit Unit :
         |  module Unit :
         |    input a : Fixed<10><<2>>
-        |    input b : Fixed<10>
+        |    input b : Fixed<10><<0>>
         |    input c : Fixed<4><<3>>
         |    output d : Fixed
         |    d <= add(a, add(b, c))""".stripMargin
@@ -55,8 +85,8 @@ class FixedTypeInferenceSpec extends FirrtlFlatSpec {
       ResolveKinds,
       InferTypes,
       CheckTypes,
-      ResolveGenders,
-      CheckGenders,
+      ResolveFlows,
+      CheckFlows,
       new InferWidths,
       CheckWidths)
     val input =
@@ -81,8 +111,8 @@ class FixedTypeInferenceSpec extends FirrtlFlatSpec {
       ResolveKinds,
       InferTypes,
       CheckTypes,
-      ResolveGenders,
-      CheckGenders,
+      ResolveFlows,
+      CheckFlows,
       new InferWidths,
       CheckWidths)
     val input =
@@ -107,8 +137,8 @@ class FixedTypeInferenceSpec extends FirrtlFlatSpec {
       ResolveKinds,
       InferTypes,
       CheckTypes,
-      ResolveGenders,
-      CheckGenders,
+      ResolveFlows,
+      CheckFlows,
       new InferWidths,
       CheckWidths)
     val input =
@@ -116,13 +146,13 @@ class FixedTypeInferenceSpec extends FirrtlFlatSpec {
         |  module Unit :
         |    input a : Fixed<10><<2>>
         |    output d : Fixed
-        |    d <= bpshl(a, 2)""".stripMargin
+        |    d <= incp(a, 2)""".stripMargin
     val check =
       """circuit Unit :
         |  module Unit :
         |    input a : Fixed<10><<2>>
         |    output d : Fixed<12><<4>>
-        |    d <= bpshl(a, 2)""".stripMargin
+        |    d <= incp(a, 2)""".stripMargin
     executeTest(input, check.split("\n") map normalized, passes)
   }
 
@@ -133,8 +163,8 @@ class FixedTypeInferenceSpec extends FirrtlFlatSpec {
       ResolveKinds,
       InferTypes,
       CheckTypes,
-      ResolveGenders,
-      CheckGenders,
+      ResolveFlows,
+      CheckFlows,
       new InferWidths,
       CheckWidths)
     val input =
@@ -142,13 +172,13 @@ class FixedTypeInferenceSpec extends FirrtlFlatSpec {
         |  module Unit :
         |    input a : Fixed<10><<2>>
         |    output d : Fixed
-        |    d <= bpshr(a, 2)""".stripMargin
+        |    d <= decp(a, 2)""".stripMargin
     val check =
       """circuit Unit :
         |  module Unit :
         |    input a : Fixed<10><<2>>
         |    output d : Fixed<8><<0>>
-        |    d <= bpshr(a, 2)""".stripMargin
+        |    d <= decp(a, 2)""".stripMargin
     executeTest(input, check.split("\n") map normalized, passes)
   }
 
@@ -159,8 +189,8 @@ class FixedTypeInferenceSpec extends FirrtlFlatSpec {
       ResolveKinds,
       InferTypes,
       CheckTypes,
-      ResolveGenders,
-      CheckGenders,
+      ResolveFlows,
+      CheckFlows,
       new InferWidths,
       CheckWidths)
     val input =
@@ -168,13 +198,13 @@ class FixedTypeInferenceSpec extends FirrtlFlatSpec {
         |  module Unit :
         |    input a : Fixed<10><<2>>
         |    output d : Fixed
-        |    d <= bpset(a, 3)""".stripMargin
+        |    d <= setp(a, 3)""".stripMargin
     val check =
       """circuit Unit :
         |  module Unit :
         |    input a : Fixed<10><<2>>
         |    output d : Fixed<11><<3>>
-        |    d <= bpset(a, 3)""".stripMargin
+        |    d <= setp(a, 3)""".stripMargin
     executeTest(input, check.split("\n") map normalized, passes)
   }
 
@@ -185,8 +215,8 @@ class FixedTypeInferenceSpec extends FirrtlFlatSpec {
       ResolveKinds,
       InferTypes,
       CheckTypes,
-      ResolveGenders,
-      CheckGenders,
+      ResolveFlows,
+      CheckFlows,
       new InferWidths,
       CheckWidths)
     val input =
@@ -225,8 +255,8 @@ class FixedTypeInferenceSpec extends FirrtlFlatSpec {
       ResolveKinds,
       InferTypes,
       CheckTypes,
-      ResolveGenders,
-      CheckGenders,
+      ResolveFlows,
+      CheckFlows,
       new InferWidths,
       CheckWidths)
     val input =
@@ -251,8 +281,8 @@ class FixedTypeInferenceSpec extends FirrtlFlatSpec {
       ResolveKinds,
       InferTypes,
       CheckTypes,
-      ResolveGenders,
-      CheckGenders,
+      ResolveFlows,
+      CheckFlows,
       new InferWidths,
       CheckWidths,
       ConvertFixedToSInt)
@@ -331,4 +361,3 @@ class FixedTypeInferenceSpec extends FirrtlFlatSpec {
     executeTest(input("cmem"), check(0, 1, 1).split("\n") map normalized, new LowFirrtlCompiler)
   }
 }
-

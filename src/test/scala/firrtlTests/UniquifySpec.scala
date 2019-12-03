@@ -12,7 +12,7 @@ import firrtl.util.TestOptions
 
 class UniquifySpec extends FirrtlFlatSpec {
 
-  private val transforms = Seq(
+  private def transforms = Seq(
     ToWorkingIR,
     CheckHighForm,
     ResolveKinds,
@@ -52,11 +52,11 @@ class UniquifySpec extends FirrtlFlatSpec {
       "output a_0_c_ : UInt<5>",
       "output a__0 : UInt<6>") map normalized
 
-    val inputAnnos = Seq(DontTouchAnnotation(ReferenceTarget("Test", "Test", Seq.empty, "a", Seq(Index("0"), Field("b")))),
-      DontTouchAnnotation(ReferenceTarget("Test", "Test", Seq.empty, "a", Seq(Index("0"), Field("c"), Index("0"), Field("e")))))
+    val inputAnnos = Seq(DontTouchAnnotation(ReferenceTarget("Test", "Test", Seq.empty, "a", Seq(Index(0), Field("b")))),
+      DontTouchAnnotation(ReferenceTarget("Test", "Test", Seq.empty, "a", Seq(Index(0), Field("c"), Index(0), Field("e")))))
 
-    val expectedAnnos = Seq(DontTouchAnnotation(ReferenceTarget("Test", "Test", Seq.empty, "a__", Seq(Index("0"), Field("b")))),
-      DontTouchAnnotation(ReferenceTarget("Test", "Test", Seq.empty, "a__", Seq(Index("0"), Field("c_"), Index("0"), Field("e")))))
+    val expectedAnnos = Seq(DontTouchAnnotation(ReferenceTarget("Test", "Test", Seq.empty, "a__", Seq(Index(0), Field("b")))),
+      DontTouchAnnotation(ReferenceTarget("Test", "Test", Seq.empty, "a__", Seq(Index(0), Field("c_"), Index(0), Field("e")))))
 
     executeTest(input, expected, inputAnnos, expectedAnnos)
   }

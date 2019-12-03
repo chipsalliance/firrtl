@@ -5,7 +5,6 @@ package wiring
 
 import firrtl._
 import firrtl.Utils._
-
 import scala.collection.mutable
 import firrtl.annotations._
 
@@ -55,11 +54,17 @@ class WiringTransform extends Transform {
       case p =>
         val sinks = mutable.HashMap[String, Seq[Target]]()
         val sources = mutable.HashMap[String, ReferenceTarget]()
-        p.foreach {
+        val errors = p.flatMap {
           case SinkAnnotation(m, pin) =>
             sinks(pin) = sinks.getOrElse(pin, Seq.empty) :+ m
+            None
           case SourceAnnotation(c, pin) =>
+            val res = if (sources.contains(pin)) Some(pin) else None
             sources(pin) = c
+            res
+        }
+        if (errors.nonEmpty) {
+          throw WiringException(s"Multiple sources specified for wiring pin(s): " + errors.distinct.mkString(", "))
         }
         (sources.size, sinks.size) match {
           case (0, p) => state

@@ -10,7 +10,7 @@ class ReplaceAccessesSpec extends FirrtlFlatSpec {
     ToWorkingIR,
     ResolveKinds,
     InferTypes,
-    ResolveGenders,
+    ResolveFlows,
     new InferWidths,
     ReplaceAccesses)
   protected def exec(input: String) = {
