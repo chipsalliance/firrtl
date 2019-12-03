@@ -5,7 +5,7 @@ package firrtl.stage
 import firrtl._
 import firrtl.ir.Circuit
 import firrtl.annotations.{Annotation, NoTargetAnnotation}
-import firrtl.options.{HasShellOptions, OptionsException, ShellOption}
+import firrtl.options.{DontSerialize, HasShellOptions, OptionsException, ShellOption}
 
 
 import java.io.FileNotFoundException
@@ -117,7 +117,7 @@ object InfoModeAnnotation extends HasShellOptions {
   *  - set with `--firrtl-source`
   * @param value FIRRTL source as a [[scala.Predef.String String]]
   */
-case class FirrtlSourceAnnotation(source: String) extends NoTargetAnnotation with CircuitOption {
+case class FirrtlSourceAnnotation(source: String) extends NoTargetAnnotation with CircuitOption with DontSerialize {
 
   def toCircuit(info: Parser.InfoMode): FirrtlCircuitAnnotation =
     FirrtlCircuitAnnotation(Parser.parseString(source, info))
@@ -200,7 +200,7 @@ object RunFirrtlTransformAnnotation extends HasShellOptions {
 /** Holds a FIRRTL [[firrtl.ir.Circuit Circuit]]
   * @param circuit a circuit
   */
-case class FirrtlCircuitAnnotation(circuit: Circuit) extends NoTargetAnnotation with FirrtlOption {
+case class FirrtlCircuitAnnotation(circuit: Circuit) extends NoTargetAnnotation with FirrtlOption with DontSerialize {
   /* Caching the hashCode for a large circuit is necessary due to repeated queries, e.g., in
    * [[Compiler.propagateAnnotations]]. Not caching the hashCode will cause severe performance degredations for large
    * [[Annotations]].
