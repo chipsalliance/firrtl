@@ -14,6 +14,17 @@ sealed trait StageOption { this: Annotation => }
   */
 trait Unserializable { this: Annotation => }
 
+/** [[Annotation]] mixin that indicates that an annotation should not be serialized during WriteOutputAnnotations.
+  *
+  * Mixing this in would indicate that this is an annotation has some attribute that makes it undesirable to serialize,
+  * e.g., it's very large like [[FirrtlCircuitAnnotation]].
+  *
+  * @note Mixing this into an annotation that is used for inter-stage communication will prevent those stages from
+  * running serially and communicating only using annotations.
+  * @see [[Unserializable]] for annotations that *cannot* be serialized
+  */
+trait DontSerialize { this: Annotation => }
+
 /** Holds the name of the target directory
   *  - set with `-td/--target-dir`
   *  - if unset, a [[TargetDirAnnotation]] will be generated with the
@@ -89,6 +100,7 @@ object OutputAnnotationFileAnnotation extends HasShellOptions {
   * [[firrtl.options.phase.WriteOutputAnnotations WriteOutputAnnotations]] will include
   * [[firrtl.annotations.DeletedAnnotation DeletedAnnotation]]s when it writes to a file.
   *  - set with '--write-deleted'
+  * @see [[WritedontSerializeAnnotation]]
   */
 case object WriteDeletedAnnotation extends NoTargetAnnotation with StageOption with HasShellOptions {
 
@@ -97,5 +109,21 @@ case object WriteDeletedAnnotation extends NoTargetAnnotation with StageOption w
       longOption = "write-deleted",
       toAnnotationSeq = (_: Unit) => Seq(WriteDeletedAnnotation),
       helpText = "Include deleted annotations in the output annotation file" ) )
+
+}
+
+/** if this [[firrtl.annotations.Annotation Annotation]] exists in an [[firrtl.AnnotationSeq AnnotationSeq]], then any
+  * annotation sthat mixing [[DontSerialize]] will be included in the output annotation file for a
+  * [[firrtl.options.Stage Stage]].
+  *  - set with '--write-dont-serialize'
+  * @see [[WriteDontSerializeAnnotation]]
+  */
+case object WriteDontSerializeAnnotation extends NoTargetAnnotation with StageOption with HasShellOptions {
+
+  val options = Seq(
+    new ShellOption[Unit](
+      longOption = "write-dont-serialize",
+      toAnnotationSeq = (_: Unit) => Seq(WriteDontSerializeAnnotation),
+      helpText = "Include 'DontSerialize' annotations in the output annotation file") )
 
 }
