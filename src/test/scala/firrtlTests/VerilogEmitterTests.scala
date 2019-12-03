@@ -88,6 +88,38 @@ class DoPrimVerilog extends FirrtlFlatSpec {
         |""".stripMargin.split("\n") map normalized
     executeTest(input, check, compiler)
   }
+  "inline Not" should "emit correctly" in {
+    val compiler = new VerilogCompiler
+    val input =
+      """circuit InlineNot :
+        |  module InlineNot :
+        |    input a: UInt<1>
+        |    input b: UInt<1>
+        |    input c: UInt<4>
+        |    output d: UInt<1>
+        |    output e: UInt<1>
+        |    output f: UInt<1>
+        |    d <= and(a, not(b))
+        |    e <= or(a, not(b))
+        |    f <= not(bits(c, 2, 2))""".stripMargin
+    val check =
+      """module InlineNot(
+        |  input   a,
+        |  input   b,
+        |  input  [3:0] c,
+        |  output  d,
+        |  output  e,
+        |  output  f
+        |);
+        |  wire _GEN_2;
+        |  assign d = a & ~b;
+        |  assign e = a | ~b;
+        |  assign _GEN_2 = c[2];
+        |  assign f = ~_GEN_2;
+        |endmodule
+        |""".stripMargin.split("\n") map normalized
+    executeTest(input, check, compiler)
+  }
   "Rem" should "emit correctly" in {
     val compiler = new VerilogCompiler
     val input =

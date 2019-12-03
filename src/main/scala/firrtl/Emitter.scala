@@ -309,11 +309,13 @@ class VerilogEmitter extends SeqTransform with Emitter {
 
      def checkArgumentLegality(e: Expression) = e match {
        case _: UIntLiteral | _: SIntLiteral | _: WRef | _: WSubField =>
+       case _ if isNot(e) =>
        case _ => throw EmitterException(s"Can't emit ${e.getClass.getName} as PrimOp argument")
      }
 
      def checkCatArgumentLegality(e: Expression): Unit = e match {
        case _: UIntLiteral | _: SIntLiteral | _: WRef | _: WSubField =>
+       case _ if isNot(e) =>
        case DoPrim(Cat, args, _, _) => args foreach(checkCatArgumentLegality)
        case _ => throw EmitterException(s"Can't emit ${e.getClass.getName} as PrimOp argument")
      }
@@ -961,6 +963,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
   def transforms = Seq(
     new BlackBoxSourceHelper,
     new ReplaceTruncatingArithmetic,
+    new InlineNotsTransform,
     new FlattenRegUpdate,
     new DeadCodeElimination,
     passes.VerilogModulusCleanup,
