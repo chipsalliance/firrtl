@@ -11,13 +11,13 @@ import firrtl.annotations.AnnotationYamlProtocol._
 
 import firrtl.ir._
 
-case class InvalidAnnotationFileException(file: File, cause: Throwable = null)
-  extends FIRRTLException(s"$file, see cause below", cause)
-case class InvalidAnnotationJSONException(msg: String) extends FIRRTLException(msg)
-case class AnnotationFileNotFoundException(file: File) extends FIRRTLException(
+case class InvalidAnnotationFileException(file: File, cause: FirrtlUserException = null)
+  extends FirrtlUserException(s"$file", cause)
+case class InvalidAnnotationJSONException(msg: String) extends FirrtlUserException(msg)
+case class AnnotationFileNotFoundException(file: File) extends FirrtlUserException(
   s"Annotation file $file not found!"
 )
-case class AnnotationClassNotFoundException(className: String) extends FIRRTLException(
+case class AnnotationClassNotFoundException(className: String) extends FirrtlUserException(
   s"Annotation class $className not found! Please check spelling and classpath"
 )
 
@@ -72,7 +72,7 @@ object AnnotationUtils {
     def exp2subcomp(e: ir.Expression): Seq[TargetToken] = e match {
       case ir.Reference(name, _)      => Seq(Ref(name))
       case ir.SubField(expr, name, _) => exp2subcomp(expr) :+ Field(name)
-      case ir.SubIndex(expr, idx, _)  => exp2subcomp(expr) :+ Index(idx.toString)
+      case ir.SubIndex(expr, idx, _)  => exp2subcomp(expr) :+ Index(idx)
       case ir.SubAccess(expr, idx, _) => Utils.throwInternalError(s"For string $s, cannot convert a subaccess $e into a Target")
     }
     exp2subcomp(toExp(s))

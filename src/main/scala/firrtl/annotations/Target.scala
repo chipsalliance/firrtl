@@ -3,7 +3,7 @@
 package firrtl
 package annotations
 
-import firrtl.ir.{Expression, Type}
+import firrtl.ir.{Field => _, _}
 import firrtl.Utils.{sub_type, field_type}
 import AnnotationUtils.{toExp, validComponentName, validModuleName}
 import TargetToken._
@@ -41,7 +41,7 @@ sealed trait Target extends Named {
       case Ref(r) => s">$r"
       case Instance(i) => s"/$i"
       case OfModule(o) => s":$o"
-      case Field(f) => s".$f"
+      case TargetToken.Field(f) => s".$f"
       case Index(v) => s"[$v]"
       case Clock => s"@clock"
       case Reset => s"@reset"
@@ -103,6 +103,21 @@ sealed trait Target extends Named {
 }
 
 object Target {
+  def asTarget(m: ModuleTarget)(e: Expression): ReferenceTarget = e match {
+    case w: WRef => m.ref(w.name)
+    case r: ir.Reference => m.ref(r.name)
+    case w: WSubIndex => asTarget(m)(w.expr).index(w.value)
+    case s: ir.SubIndex => asTarget(m)(s.expr).index(s.value)
+    case w: WSubField => asTarget(m)(w.expr).field(w.name)
+    case s: ir.SubField => asTarget(m)(s.expr).field(s.name)
+    case w: WSubAccess => asTarget(m)(w.expr).field("@" + w.index.serialize)
+    case s: ir.SubAccess => asTarget(m)(s.expr).field("@" + s.index.serialize)
+    case d: DoPrim => m.ref("@" + d.serialize)
+    case d: Mux => m.ref("@" + d.serialize)
+    case d: ValidIf => m.ref("@" + d.serialize)
+    case d: Literal => m.ref("@" + d.serialize)
+    case other => sys.error(s"Unsupported: $other")
+  }
 
   def apply(circuitOpt: Option[String], moduleOpt: Option[String], reference: Seq[TargetToken]): GenericTarget =
     GenericTarget(circuitOpt, moduleOpt, reference.toVector)
@@ -132,7 +147,7 @@ object Target {
     if(tokens.tail.nonEmpty) {
       tokens.tail.zip(tokens.tail.tail).foreach {
         case (".", value: String) => subComps += Field(value)
-        case ("[", value: String) => subComps += Index(value)
+        case ("[", value: String) => subComps += Index(value.toInt)
         case other =>
       }
     }
@@ -164,7 +179,7 @@ object Target {
           case ':' => t.add(OfModule(value))
           case '>' => t.add(Ref(value))
           case '.' => t.add(Field(value))
-          case '[' if value.last == ']' => t.add(Index(value.dropRight(1)))
+          case '[' if value.dropRight(1).toInt >= 0 => t.add(Index(value.dropRight(1).toInt))
           case '@' if value == "clock" => t.add(Clock)
           case '@' if value == "init" => t.add(Init)
           case '@' if value == "reset" => t.add(Reset)
@@ -203,12 +218,12 @@ case class GenericTarget(circuitOpt: Option[String],
       val target = this match {
         case GenericTarget(Some(c), None, Vector()) => CircuitTarget(c)
         case GenericTarget(Some(c), Some(m), Vector()) => ModuleTarget(c, m)
-        case GenericTarget(Some(c), Some(m), Ref(r) +: component) => ReferenceTarget(c, m, Nil, r, component.toList)
+        case GenericTarget(Some(c), Some(m), Ref(r) +: component) => ReferenceTarget(c, m, Nil, r, component)
         case GenericTarget(Some(c), Some(m), Instance(i) +: OfModule(o) +: Vector()) => InstanceTarget(c, m, Nil, i, o)
         case GenericTarget(Some(c), Some(m), component) =>
           val path = getPath.getOrElse(Nil)
           (getRef, getInstanceOf) match {
-            case (Some((r, comps)), _) => ReferenceTarget(c, m, path, r, comps.toList)
+            case (Some((r, comps)), _) => ReferenceTarget(c, m, path, r, comps)
             case (None, Some((i, o)))  => InstanceTarget(c, m, path, i, o)
           }
       }
@@ -550,8 +565,7 @@ case class ReferenceTarget(circuit: String,
   def this(module: String, circuit: String) = {
     this(circuit, module, Nil, "???", Nil)
   }
-  def index(value: String): ReferenceTarget = ReferenceTarget(circuit, module, path, ref, component :+ Index(value))
-  def index(value: Int): ReferenceTarget = ReferenceTarget(circuit, module, path, ref, component :+ Index(value.toString))
+  def index(value: Int): ReferenceTarget = ReferenceTarget(circuit, module, path, ref, component :+ Index(value))
 
   /** @param value Field name of this target
     * @return A new [[ReferenceTarget]] to the specified field of this [[ReferenceTarget]]

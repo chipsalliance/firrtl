@@ -7,6 +7,7 @@ import firrtl.ir._
 import firrtl.passes._
 import firrtl.transforms._
 import firrtl.passes.memlib._
+import firrtl.FileUtils
 import annotations._
 import FirrtlCheckers._
 
@@ -29,8 +30,7 @@ class ReplSeqMemSpec extends SimpleTransformSpec {
 
   def checkMemConf(filename: String, mems: Set[MemConf]) {
     // Read the mem conf
-    val file = scala.io.Source.fromFile(filename)
-    val text = try file.mkString finally file.close()
+    val text = FileUtils.getText(filename)
     // Verify that this does not throw an exception
     val fromConf = MemConf.fromString(text)
     // Verify the mems in the conf are the same as the expected ones
@@ -47,10 +47,8 @@ circuit Top :
     input tail_ptr : UInt<5>
     input wmask : {takens : UInt<2>, history : UInt<14>, info : UInt<14>}
     output io : {backend : {flip allocate : {valid : UInt<1>, bits : {info : {takens : UInt<2>, history : UInt<14>, info : UInt<14>}}}}, commit_entry : {valid : UInt<1>, bits : {info : {takens : UInt<2>, history : UInt<14>, info : UInt<14>}}}}
-    output io2 : {backend : {flip allocate : {valid : UInt<1>, bits : {info : {takens : UInt<2>, history : UInt<14>, info : UInt<14>}}}}, commit_entry : {valid : UInt<1>, bits : {info : {takens : UInt<2>, history : UInt<14>, info : UInt<14>}}}}
 
     io is invalid
-    io2 is invalid
 
     smem entries_info : {takens : UInt<2>, history : UInt<14>, info : UInt<14>}[24]
     when io.backend.allocate.valid :
@@ -59,23 +57,9 @@ circuit Top :
 
     read mport R = entries_info[head_ptr], clock
     io.commit_entry.bits.info <- R
-
-    smem entries_info2 : {takens : UInt<2>, history : UInt<14>, info : UInt<14>}[24]
-    when io2.backend.allocate.valid :
-      write mport W1 = entries_info2[tail_ptr], clock
-      when wmask.takens :
-        W1.takens <- io.backend.allocate.bits.info.takens
-      when wmask.history :
-        W1.history <- io.backend.allocate.bits.info.history
-      when wmask.info :
-        W1.info <- io.backend.allocate.bits.info.history
-      
-    read mport R1 = entries_info2[head_ptr], clock
-    io2.commit_entry.bits.info <- R1
 """.stripMargin
     val mems = Set(
-      MemConf("entries_info_ext", 24, 30, Map(WritePort -> 1, ReadPort -> 1), None),
-      MemConf("entries_info2_ext", 24, 30, Map(MaskedWritePort -> 1, ReadPort -> 1), Some(10))
+      MemConf("entries_info_ext", 24, 30, Map(WritePort -> 1, ReadPort -> 1), None)
     )
     val confLoc = "ReplSeqMemTests.confTEMP"
     val annos = Seq(ReplSeqMemAnnotation.parse("-c:Top:-o:"+confLoc))
@@ -509,6 +493,34 @@ circuit NoMemsHere :
     checkMemConf(confLoc, mems)
     (new java.io.File(confLoc)).delete()
   }
+
+ "ReplSeqMem" should "throw an exception when encountering masks with variable granularity" in {
+    val input = """
+circuit Top : 
+  module Top : 
+    input clock : Clock
+    input wmask : {a : UInt<1>, b : UInt<1>}
+    input waddr : UInt<5>
+    input wdata : {a : UInt<8>, b : UInt<6>}
+    input raddr : UInt<5>
+    output rdata : {a : UInt<8>, b : UInt<6>}
+
+    smem testmem : {a : UInt<8>, b : UInt<6>}[32]
+    write mport w = testmem[waddr], clock
+    when wmask.a :
+        w.a <- wdata.a
+    when wmask.b :
+        w.b <- wdata.b
+      
+    read mport r = testmem[raddr], clock
+    rdata <- r
+""".stripMargin
+    intercept[ReplaceMemMacros.UnsupportedBlackboxMemoryException] {
+      val confLoc = "ReplSeqMemTests.confTEMP"
+      val annos = Seq(ReplSeqMemAnnotation.parse("-c:Top:-o:"+confLoc))
+      val res = compileAndEmit(CircuitState(parse(input), ChirrtlForm, annos))
+    }
+  }
+
 }
 
-// TODO: make more checks
