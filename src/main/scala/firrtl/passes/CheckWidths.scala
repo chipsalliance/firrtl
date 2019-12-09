@@ -11,7 +11,11 @@ import firrtl.constraint.IsKnown
 import firrtl.annotations.{CircuitTarget, ModuleTarget, Target, TargetToken}
 import firrtl.options.{Dependency, PreservesAll}
 
-object CheckWidths extends Pass with DeprecatedPassObject {
+object CheckWidths extends Pass with PreservesAll[Transform] {
+
+  override val prerequisites = Dependency[passes.InferWidths] +: firrtl.stage.Forms.WorkingIR
+
+  override val dependents = Seq(Dependency[transforms.InferResets])
 
   /** The maximum allowed width for any circuit element */
   val MaxWidth = 1000000
@@ -49,18 +53,6 @@ object CheckWidths extends Pass with DeprecatedPassObject {
       val sqzToTpe = squeeze.args(1).tpe.serialize
       s"$info: [module $mname] Disjoint squz currently unsupported: $toSqz:$toSqzTpe cannot be squeezed with $sqzTo's type $sqzToTpe"
     })
-
-  override protected lazy val underlying = new CheckWidths
-
-}
-
-class CheckWidths extends Pass with PreservesAll[Transform] {
-
-  import CheckWidths._
-
-  override val prerequisites = Dependency[passes.InferWidths] +: firrtl.stage.Forms.WorkingIR
-
-  override val dependents = Seq(Dependency[transforms.InferResets])
 
   def run(c: Circuit): Circuit = {
     val errors = new Errors()

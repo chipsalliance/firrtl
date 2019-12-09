@@ -90,8 +90,8 @@ class InferResets extends Transform {
          Dependency[passes.InferWidths] ) ++ stage.Forms.WorkingIR
 
   override def invalidates(a: Transform): Boolean = a match {
-    case _: checks.CheckResets | _: passes.CheckTypes => true
-    case _                                            => false
+    case _: checks.CheckResets | passes.CheckTypes => true
+    case _                                         => false
   }
 
   import InferResets._

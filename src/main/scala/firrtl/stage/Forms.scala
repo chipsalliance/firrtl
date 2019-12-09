@@ -17,7 +17,7 @@ object Forms {
   lazy val ChirrtlForm: Seq[TransformDependency] = Seq.empty
 
   lazy val MinimalHighForm: Seq[TransformDependency] = ChirrtlForm ++
-    Seq( Dependency[passes.CheckChirrtl],
+    Seq( Dependency(passes.CheckChirrtl),
          Dependency[passes.CInferTypes],
          Dependency[passes.CInferMDir],
          Dependency[passes.RemoveCHIRRTL] )
@@ -25,17 +25,17 @@ object Forms {
   lazy val WorkingIR: Seq[TransformDependency] = MinimalHighForm :+ Dependency[passes.ToWorkingIR]
 
   lazy val Resolved: Seq[TransformDependency] = WorkingIR ++
-    Seq( Dependency[passes.CheckHighForm],
+    Seq( Dependency(passes.CheckHighForm),
          Dependency[passes.ResolveKinds],
          Dependency[passes.InferTypes],
-         Dependency[passes.CheckTypes],
+         Dependency(passes.CheckTypes),
          Dependency[passes.Uniquify],
          Dependency[passes.ResolveFlows],
-         Dependency[passes.CheckFlows],
+         Dependency(passes.CheckFlows),
          Dependency[passes.InferBinaryPoints],
          Dependency[passes.TrimIntervals],
          Dependency[passes.InferWidths],
-         Dependency[passes.CheckWidths],
+         Dependency(passes.CheckWidths),
          Dependency[firrtl.transforms.InferResets] )
 
   lazy val Deduped: Seq[TransformDependency] = Resolved :+ Dependency[firrtl.transforms.DedupModules]

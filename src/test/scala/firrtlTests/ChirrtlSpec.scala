@@ -7,7 +7,7 @@ import firrtl.passes._
 
 class ChirrtlSpec extends FirrtlFlatSpec {
   def transforms = Seq(
-    new CheckChirrtl,
+    CheckChirrtl,
     new CInferTypes,
     new CInferMDir,
     new RemoveCHIRRTL,

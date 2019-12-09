@@ -37,25 +37,25 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
 
   def legacyTransforms(a: CoreTransform): Seq[Transform] = a match {
     case _: ChirrtlToHighFirrtl => Seq(
-      new passes.CheckChirrtl,
+      passes.CheckChirrtl,
       new passes.CInferTypes,
       new passes.CInferMDir,
       new passes.RemoveCHIRRTL)
     case _: IRToWorkingIR => Seq(new passes.ToWorkingIR)
     case _: ResolveAndCheck => Seq(
-      new passes.CheckHighForm,
+      passes.CheckHighForm,
       new passes.ResolveKinds,
       new passes.InferTypes,
-      new passes.CheckTypes,
+      passes.CheckTypes,
       new passes.Uniquify,
       new passes.ResolveKinds,
       new passes.InferTypes,
       new passes.ResolveFlows,
-      new passes.CheckFlows,
+      passes.CheckFlows,
       new passes.InferBinaryPoints,
       new passes.TrimIntervals,
       new passes.InferWidths,
-      new passes.CheckWidths,
+      passes.CheckWidths,
       new firrtl.transforms.InferResets)
     case _: HighFirrtlToMiddleFirrtl => Seq(
       new passes.PullMuxes,
@@ -64,13 +64,13 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
       new passes.RemoveAccesses,
       new passes.Uniquify,
       new passes.ExpandWhens,
-      new passes.CheckInitialization,
+      passes.CheckInitialization,
       new passes.ResolveKinds,
       new passes.InferTypes,
-      new passes.CheckTypes,
+      passes.CheckTypes,
       new passes.ResolveFlows,
       new passes.InferWidths,
-      new passes.CheckWidths,
+      passes.CheckWidths,
       new passes.RemoveIntervals,
       new passes.ConvertFixedToSInt,
       new passes.ZeroWidth,

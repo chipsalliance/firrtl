@@ -157,7 +157,7 @@ class InferReadWrite extends Transform with SeqTransformBased with HasShellOptio
 
   def transforms = Seq(
     InferReadWritePass,
-    new CheckInitialization,
+    CheckInitialization,
     new InferTypes,
     new ResolveKinds,
     new ResolveFlows

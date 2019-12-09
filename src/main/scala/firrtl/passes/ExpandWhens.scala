@@ -34,7 +34,7 @@ class ExpandWhens extends Pass {
          Dependency[Uniquify] ) ++ firrtl.stage.Forms.Resolved
 
   override def invalidates(a: Transform): Boolean = a match {
-    case _: CheckInitialization | _: ResolveKinds | _: InferTypes => true
+    case CheckInitialization | _: ResolveKinds | _: InferTypes => true
     case _ => false
   }
 
@@ -325,6 +325,6 @@ class ExpandWhensAndCheck extends SeqTransform {
   override def inputForm = UnknownForm
   override def outputForm = UnknownForm
 
-  override val transforms = Seq(new ExpandWhens, new CheckInitialization)
+  override val transforms = Seq(new ExpandWhens, CheckInitialization)
 
 }
