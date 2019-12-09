@@ -430,15 +430,6 @@ class PhaseManager(
   val currentState: Seq[PhaseManager.PhaseDependency] = Seq.empty,
   val knownObjects: Set[Phase] = Set.empty) extends DependencyManager[AnnotationSeq, Phase] with Phase {
 
-  // TODO: are these adapter constructors needed?
-  def this(targets: Seq[Class[_ <: Phase]], currentState: Seq[Class[_ <: Phase]]) {
-    this(targets.map(c => DependencyID[Phase](Left(c))), currentState.map(c => DependencyID[Phase](Left(c))))
-  }
-
-  def this(targets: Seq[Class[_ <: Phase]]) {
-    this(targets, Seq.empty)
-  }
-
   protected def copy(a: Seq[Dependency], b: Seq[Dependency], c: ISet[Phase]) = new PhaseManager(a, b, c)
 }
 
