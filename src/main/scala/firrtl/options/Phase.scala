@@ -97,20 +97,17 @@ trait TransformLike[A] extends LazyLogging {
   */
 trait DependencyAPI[A <: DependencyAPI[A]] { this: TransformLike[_] =>
 
-  /** The type used to express dependencies: a class which itself has dependencies. */
-  type Dependency = DependencyID[A]
-
   /** All transform that must run before this transform
     * $seqNote
     */
-  def prerequisites: Seq[Dependency] = Seq.empty
-  private[options] lazy val _prerequisites: LinkedHashSet[Dependency] = new LinkedHashSet() ++ prerequisites.toSet
+  def prerequisites: Seq[DependencyID[A]] = Seq.empty
+  private[options] lazy val _prerequisites: LinkedHashSet[DependencyID[A]] = new LinkedHashSet() ++ prerequisites.toSet
 
   /** All transforms that, if a prerequisite of *another* transform, will run before this transform.
     * $seqNote
     */
-  def optionalPrerequisites: Seq[Dependency] = Seq.empty
-  private[options] lazy val _optionalPrerquisites: LinkedHashSet[Dependency] =
+  def optionalPrerequisites: Seq[DependencyID[A]] = Seq.empty
+  private[options] lazy val _optionalPrerquisites: LinkedHashSet[DependencyID[A]] =
     new LinkedHashSet() ++ optionalPrerequisites.toSet
 
   /** All transforms that must run ''after'' this transform
@@ -132,8 +129,8 @@ trait DependencyAPI[A <: DependencyAPI[A]] { this: TransformLike[_] =>
     * @see [[firrtl.passes.CheckTypes]] for an example of an optional checking [[firrtl.Transform]]
     * $seqNote
     */
-  def dependents: Seq[Dependency] = Seq.empty
-  private[options] lazy val _dependents: LinkedHashSet[Dependency] = new LinkedHashSet() ++ dependents.toSet
+  def dependents: Seq[DependencyID[A]] = Seq.empty
+  private[options] lazy val _dependents: LinkedHashSet[DependencyID[A]] = new LinkedHashSet() ++ dependents.toSet
 
   /** A function that, given *another* transforms will return true if this transform invalidates/undos the effects of
     * that transform. This function may return any value if given this transform.

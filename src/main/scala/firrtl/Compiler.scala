@@ -178,6 +178,7 @@ final case object UnknownForm extends CircuitForm(-1) {
 
 /** The basic unit of operating on a Firrtl AST */
 trait Transform extends TransformLike[CircuitState] with DependencyAPI[Transform] {
+
   /** A convenience function useful for debugging and error messages */
   def name: String = this.getClass.getName
   /** The [[firrtl.CircuitForm]] that this transform requires to operate on */
@@ -208,7 +209,7 @@ trait Transform extends TransformLike[CircuitState] with DependencyAPI[Transform
 
   private def emptySet = new scala.collection.mutable.LinkedHashSet[TransformDependency]
 
-  override def prerequisites: Seq[Dependency] = inputForm match {
+  override def prerequisites: Seq[DependencyID[Transform]] = inputForm match {
     case C => Nil
     case H => Forms.Deduped
     case M => Forms.MidForm
@@ -216,12 +217,12 @@ trait Transform extends TransformLike[CircuitState] with DependencyAPI[Transform
     case U => Nil
   }
 
-  override def optionalPrerequisites: Seq[Dependency] = inputForm match {
+  override def optionalPrerequisites: Seq[DependencyID[Transform]] = inputForm match {
     case L => Forms.LowFormOptimized
     case _ => Seq.empty
   }
 
-  override def dependents: Seq[Dependency] = {
+  override def dependents: Seq[DependencyID[Transform]] = {
     val lowEmitters = DependencyID[LowFirrtlEmitter] :: DependencyID[VerilogEmitter] :: DependencyID[MinimumVerilogEmitter] ::
       DependencyID[SystemVerilogEmitter] :: Nil
 

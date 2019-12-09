@@ -22,7 +22,7 @@ class TransformManager(
 
   override def execute(state: CircuitState): CircuitState = transform(state)
 
-  override protected def copy(a: Seq[Dependency], b: Seq[Dependency], c: Set[Transform]) = new TransformManager(a, b, c)
+  override protected def copy(a: Seq[DependencyID[Transform]], b: Seq[DependencyID[Transform]], c: Set[Transform]) = new TransformManager(a, b, c)
 
 }
 

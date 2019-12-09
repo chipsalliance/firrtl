@@ -38,7 +38,7 @@ class WrapWithRemainder(info: Info, mname: String, wrap: DoPrim)
   */
 class RemoveIntervals extends Pass with PreservesAll[Transform] {
 
-  override val prerequisites: Seq[Dependency] =
+  override val prerequisites: Seq[DependencyID[Transform]] =
     Seq( DependencyID[PullMuxes],
          DependencyID[ReplaceAccesses],
          DependencyID[ExpandConnects],
