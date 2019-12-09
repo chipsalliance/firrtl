@@ -9,7 +9,7 @@ import firrtl.Utils._
 import firrtl.traversals.Foreachers._
 import firrtl.WrappedType._
 import firrtl.constraint.{Constraint, IsKnown}
-import firrtl.options.{DependencyID, PreservesAll}
+import firrtl.options.{Dependency, PreservesAll}
 
 trait CheckHighFormLike { this: Pass =>
   type NameSet = collection.mutable.HashSet[String]
@@ -280,12 +280,12 @@ class CheckHighForm extends Pass with CheckHighFormLike with PreservesAll[Transf
   override val prerequisites = firrtl.stage.Forms.WorkingIR
 
   override val dependents =
-    Seq( DependencyID[passes.ResolveKinds],
-         DependencyID[passes.InferTypes],
-         DependencyID[passes.Uniquify],
-         DependencyID[passes.ResolveFlows],
-         DependencyID[passes.InferWidths],
-         DependencyID[transforms.InferResets] )
+    Seq( Dependency[passes.ResolveKinds],
+         Dependency[passes.InferTypes],
+         Dependency[passes.Uniquify],
+         Dependency[passes.ResolveFlows],
+         Dependency[passes.InferWidths],
+         Dependency[transforms.InferResets] )
 
   def errorOnChirrtl(info: Info, mname: String, s: Statement): Option[PassException] = {
     val memName = s match {
@@ -434,14 +434,14 @@ class CheckTypes extends Pass with PreservesAll[Transform] {
 
   import CheckTypes._
 
-  override val prerequisites = Seq( DependencyID[InferTypes] ) ++ firrtl.stage.Forms.WorkingIR
+  override val prerequisites = Seq( Dependency[InferTypes] ) ++ firrtl.stage.Forms.WorkingIR
 
   override val dependents =
-    Seq( DependencyID[passes.Uniquify],
-         DependencyID[passes.ResolveFlows],
-         DependencyID[passes.CheckFlows],
-         DependencyID[passes.InferWidths],
-         DependencyID[passes.CheckWidths] )
+    Seq( Dependency[passes.Uniquify],
+         Dependency[passes.ResolveFlows],
+         Dependency[passes.CheckFlows],
+         Dependency[passes.InferWidths],
+         Dependency[passes.CheckWidths] )
 
   //;---------------- Helper Functions --------------
   def ut: UIntType = UIntType(UnknownWidth)
@@ -625,13 +625,13 @@ object CheckFlows extends Pass with DeprecatedPassObject {
 
 class CheckFlows extends Pass with PreservesAll[Transform] {
 
-  override val prerequisites = DependencyID[passes.ResolveFlows] +: firrtl.stage.Forms.WorkingIR
+  override val prerequisites = Dependency[passes.ResolveFlows] +: firrtl.stage.Forms.WorkingIR
 
   override val dependents =
-    Seq( DependencyID[passes.InferBinaryPoints],
-         DependencyID[passes.TrimIntervals],
-         DependencyID[passes.InferWidths],
-         DependencyID[transforms.InferResets] )
+    Seq( Dependency[passes.InferBinaryPoints],
+         Dependency[passes.TrimIntervals],
+         Dependency[passes.InferWidths],
+         Dependency[transforms.InferResets] )
 
   type FlowMap = collection.mutable.HashMap[String, Flow]
 

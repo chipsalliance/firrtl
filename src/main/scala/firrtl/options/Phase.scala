@@ -11,25 +11,25 @@ import scala.collection.mutable.LinkedHashSet
 import scala.reflect
 import scala.reflect.ClassTag
 
-object DependencyID {
-  def apply[A <: DependencyAPI[_] : ClassTag]: DependencyID[A] = {
+object Dependency {
+  def apply[A <: DependencyAPI[_] : ClassTag]: Dependency[A] = {
     val clazz = reflect.classTag[A].runtimeClass
-    DependencyID(Left(clazz.asInstanceOf[Class[A]]))
+    Dependency(Left(clazz.asInstanceOf[Class[A]]))
   }
 
-  def apply[A <: DependencyAPI[_]](c: Class[_ <: A]): DependencyID[A] = {
-    // It's forbidden to wrap the class of a singleton as a DependencyID
+  def apply[A <: DependencyAPI[_]](c: Class[_ <: A]): Dependency[A] = {
+    // It's forbidden to wrap the class of a singleton as a Dependency
     require(c.getName.last != '$')
-    DependencyID(Left(c))
+    Dependency(Left(c))
   }
 
-  def apply[A <: DependencyAPI[_]](o: A with Singleton): DependencyID[A] = DependencyID(Right(o))
+  def apply[A <: DependencyAPI[_]](o: A with Singleton): Dependency[A] = Dependency(Right(o))
 
-  def fromTransform[A <: DependencyAPI[_]](t: A): DependencyID[A] = {
+  def fromTransform[A <: DependencyAPI[_]](t: A): Dependency[A] = {
     if (isSingleton(t)) {
-      DependencyID[A](Right(t.asInstanceOf[A with Singleton]))
+      Dependency[A](Right(t.asInstanceOf[A with Singleton]))
     } else {
-      DependencyID[A](Left(t.getClass))
+      Dependency[A](Left(t.getClass))
     }
   }
 
@@ -38,7 +38,7 @@ object DependencyID {
   }
 }
 
-case class DependencyID[+A <: DependencyAPI[_]](id: Either[Class[_ <: A], A with Singleton]) {
+case class Dependency[+A <: DependencyAPI[_]](id: Either[Class[_ <: A], A with Singleton]) {
   def getObject(): A = id match {
     case Left(c) => safeConstruct(c)
     case Right(o) => o
@@ -100,14 +100,14 @@ trait DependencyAPI[A <: DependencyAPI[A]] { this: TransformLike[_] =>
   /** All transform that must run before this transform
     * $seqNote
     */
-  def prerequisites: Seq[DependencyID[A]] = Seq.empty
-  private[options] lazy val _prerequisites: LinkedHashSet[DependencyID[A]] = new LinkedHashSet() ++ prerequisites.toSet
+  def prerequisites: Seq[Dependency[A]] = Seq.empty
+  private[options] lazy val _prerequisites: LinkedHashSet[Dependency[A]] = new LinkedHashSet() ++ prerequisites.toSet
 
   /** All transforms that, if a prerequisite of *another* transform, will run before this transform.
     * $seqNote
     */
-  def optionalPrerequisites: Seq[DependencyID[A]] = Seq.empty
-  private[options] lazy val _optionalPrerquisites: LinkedHashSet[DependencyID[A]] =
+  def optionalPrerequisites: Seq[Dependency[A]] = Seq.empty
+  private[options] lazy val _optionalPrerquisites: LinkedHashSet[Dependency[A]] =
     new LinkedHashSet() ++ optionalPrerequisites.toSet
 
   /** All transforms that must run ''after'' this transform
@@ -129,8 +129,8 @@ trait DependencyAPI[A <: DependencyAPI[A]] { this: TransformLike[_] =>
     * @see [[firrtl.passes.CheckTypes]] for an example of an optional checking [[firrtl.Transform]]
     * $seqNote
     */
-  def dependents: Seq[DependencyID[A]] = Seq.empty
-  private[options] lazy val _dependents: LinkedHashSet[DependencyID[A]] = new LinkedHashSet() ++ dependents.toSet
+  def dependents: Seq[Dependency[A]] = Seq.empty
+  private[options] lazy val _dependents: LinkedHashSet[Dependency[A]] = new LinkedHashSet() ++ dependents.toSet
 
   /** A function that, given *another* transforms will return true if this transform invalidates/undos the effects of
     * that transform. This function may return any value if given this transform.

@@ -6,7 +6,7 @@ package transforms
 import firrtl.ir._
 import firrtl.Mappers._
 import firrtl.Utils._
-import firrtl.options.DependencyID
+import firrtl.options.Dependency
 
 import scala.collection.mutable
 
@@ -110,8 +110,8 @@ class FlattenRegUpdate extends Transform {
   def outputForm = MidForm
 
   override val prerequisites = firrtl.stage.Forms.LowFormMinimumOptimized ++
-    Seq( DependencyID[BlackBoxSourceHelper],
-         DependencyID[ReplaceTruncatingArithmetic] )
+    Seq( Dependency[BlackBoxSourceHelper],
+         Dependency[ReplaceTruncatingArithmetic] )
 
   override val dependents = Seq.empty
 

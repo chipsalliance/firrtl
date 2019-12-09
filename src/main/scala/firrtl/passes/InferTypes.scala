@@ -6,11 +6,11 @@ import firrtl._
 import firrtl.ir._
 import firrtl.Utils._
 import firrtl.Mappers._
-import firrtl.options.{DependencyID, PreservesAll}
+import firrtl.options.{Dependency, PreservesAll}
 
 class InferTypes extends Pass with PreservesAll[Transform] {
 
-  override val prerequisites = DependencyID[ResolveKinds] +: firrtl.stage.Forms.WorkingIR
+  override val prerequisites = Dependency[ResolveKinds] +: firrtl.stage.Forms.WorkingIR
 
   type TypeMap = collection.mutable.LinkedHashMap[String, Type]
 

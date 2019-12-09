@@ -10,7 +10,7 @@ import firrtl.ir
 import firrtl.passes.{Uniquify, PassException}
 import firrtl.Utils.v_keywords
 import firrtl.Mappers._
-import firrtl.options.DependencyID
+import firrtl.options.Dependency
 
 import scala.collection.mutable
 
@@ -236,10 +236,10 @@ class RemoveKeywordCollisions(keywords: Set[String]) extends Transform {
 class VerilogRename extends RemoveKeywordCollisions(v_keywords) {
 
   override val prerequisites = firrtl.stage.Forms.LowFormMinimumOptimized ++
-    Seq( DependencyID[BlackBoxSourceHelper],
-         DependencyID[ReplaceTruncatingArithmetic],
-         DependencyID[FlattenRegUpdate],
-         DependencyID[passes.VerilogModulusCleanup] )
+    Seq( Dependency[BlackBoxSourceHelper],
+         Dependency[ReplaceTruncatingArithmetic],
+         Dependency[FlattenRegUpdate],
+         Dependency[passes.VerilogModulusCleanup] )
 
   override val dependents = Seq.empty
 

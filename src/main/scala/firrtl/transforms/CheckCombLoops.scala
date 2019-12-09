@@ -12,7 +12,7 @@ import firrtl.annotations._
 import firrtl.Utils.throwInternalError
 import firrtl.graph._
 import firrtl.analyses.InstanceGraph
-import firrtl.options.{DependencyID, PreservesAll, RegisteredTransform, ShellOption}
+import firrtl.options.{Dependency, PreservesAll, RegisteredTransform, ShellOption}
 
 /*
  * A case class that represents a net in the circuit. This is
@@ -99,9 +99,9 @@ class CheckCombLoops extends Transform with RegisteredTransform with PreservesAl
   def outputForm = LowForm
 
   override val prerequisites = firrtl.stage.Forms.MidForm ++
-    Seq( DependencyID(passes.LowerTypes),
-         DependencyID[passes.Legalize],
-         DependencyID[firrtl.transforms.RemoveReset] )
+    Seq( Dependency(passes.LowerTypes),
+         Dependency[passes.Legalize],
+         Dependency[firrtl.transforms.RemoveReset] )
 
   override val optionalPrerequisites = Seq.empty
 

@@ -12,7 +12,7 @@ import firrtl.transforms._
 import firrtl.Utils.throwInternalError
 import firrtl.stage.{FirrtlExecutionResultView, FirrtlStage}
 import firrtl.stage.phases.DriverCompatibility
-import firrtl.options.{DependencyID, Phase, PhaseManager, StageUtils, Viewer}
+import firrtl.options.{Dependency, Phase, PhaseManager, StageUtils, Viewer}
 import firrtl.options.phases.DeletedWrapper
 import firrtl.FileUtils
 
@@ -214,11 +214,11 @@ object Driver {
     val phases: Seq[Phase] = {
       import DriverCompatibility._
       new PhaseManager(
-        Seq( DependencyID[AddImplicitFirrtlFile],
-             DependencyID[AddImplicitAnnotationFile],
-             DependencyID[AddImplicitOutputFile],
-             DependencyID[AddImplicitEmitter],
-             DependencyID[FirrtlStage] ))
+        Seq( Dependency[AddImplicitFirrtlFile],
+             Dependency[AddImplicitAnnotationFile],
+             Dependency[AddImplicitOutputFile],
+             Dependency[AddImplicitEmitter],
+             Dependency[FirrtlStage] ))
         .transformOrder
         .map(DeletedWrapper(_))
     }

@@ -3,7 +3,7 @@
 package firrtl.stage.phases
 
 import firrtl.{AnnotationSeq, ChirrtlForm, CircuitState, Compiler => FirrtlCompiler, Transform, seqToAnnoSeq}
-import firrtl.options.{DependencyID, Phase, PhasePrerequisiteException, PreservesAll, Translator}
+import firrtl.options.{Dependency, Phase, PhasePrerequisiteException, PreservesAll, Translator}
 import firrtl.stage.{CompilerAnnotation, FirrtlCircuitAnnotation, Forms, RunFirrtlTransformAnnotation}
 import firrtl.stage.TransformManager.TransformDependency
 
@@ -45,13 +45,13 @@ private [stage] case class Defaults(
 class Compiler extends Phase with Translator[AnnotationSeq, Seq[CompilerRun]] with PreservesAll[Phase] {
 
   override val prerequisites =
-    Seq(DependencyID[AddDefaults],
-        DependencyID[AddImplicitEmitter],
-        DependencyID[Checks],
-        DependencyID[AddCircuit],
-        DependencyID[AddImplicitOutputFile])
+    Seq(Dependency[AddDefaults],
+        Dependency[AddImplicitEmitter],
+        Dependency[Checks],
+        Dependency[AddCircuit],
+        Dependency[AddImplicitOutputFile])
 
-  override val dependents = Seq(DependencyID[WriteEmitted])
+  override val dependents = Seq(Dependency[WriteEmitted])
 
   /** Convert an [[AnnotationSeq]] into a sequence of compiler runs. */
   protected def aToB(a: AnnotationSeq): Seq[CompilerRun] = {
@@ -95,7 +95,7 @@ class Compiler extends Phase with Translator[AnnotationSeq, Seq[CompilerRun]] wi
   protected def internalTransform(b: Seq[CompilerRun]): Seq[CompilerRun] = {
     def f(c: CompilerRun): CompilerRun = {
       val targets = c.compiler match {
-        case Some(d) => c.transforms.reverse.map(DependencyID.fromTransform(_)) ++ compilerToTransforms(d)
+        case Some(d) => c.transforms.reverse.map(Dependency.fromTransform(_)) ++ compilerToTransforms(d)
         case None    => throw new PhasePrerequisiteException("No compiler specified!") }
       val tm = new firrtl.stage.transforms.Compiler(targets)
       val (timeMillis, annotationsOut) = firrtl.Utils.time { tm.transform(c.stateIn) }

@@ -10,7 +10,7 @@ import firrtl.analyses.InstanceGraph
 import firrtl.Mappers._
 import firrtl.Utils.{throwInternalError, kind}
 import firrtl.MemoizedHash._
-import firrtl.options.{DependencyID, PreservesAll, RegisteredTransform, ShellOption}
+import firrtl.options.{Dependency, PreservesAll, RegisteredTransform, ShellOption}
 
 import collection.mutable
 
@@ -35,23 +35,23 @@ class DeadCodeElimination extends Transform with ResolvedAnnotationPaths with Re
   def outputForm = LowForm
 
   override val prerequisites = firrtl.stage.Forms.LowForm ++
-    Seq( DependencyID[firrtl.passes.RemoveValidIf],
-         DependencyID[firrtl.transforms.ConstantPropagation],
-         DependencyID[firrtl.passes.memlib.VerilogMemDelays],
-         DependencyID[firrtl.passes.SplitExpressions],
-         DependencyID[firrtl.transforms.CombineCats],
-         DependencyID[passes.CommonSubexpressionElimination] )
+    Seq( Dependency[firrtl.passes.RemoveValidIf],
+         Dependency[firrtl.transforms.ConstantPropagation],
+         Dependency[firrtl.passes.memlib.VerilogMemDelays],
+         Dependency[firrtl.passes.SplitExpressions],
+         Dependency[firrtl.transforms.CombineCats],
+         Dependency[passes.CommonSubexpressionElimination] )
 
   override val optionalPrerequisites = Seq.empty
 
   override val dependents =
-    Seq( DependencyID[firrtl.transforms.BlackBoxSourceHelper],
-         DependencyID[firrtl.transforms.ReplaceTruncatingArithmetic],
-         DependencyID[firrtl.transforms.FlattenRegUpdate],
-         DependencyID[passes.VerilogModulusCleanup],
-         DependencyID[firrtl.transforms.VerilogRename],
-         DependencyID[passes.VerilogPrep],
-         DependencyID[firrtl.AddDescriptionNodes] )
+    Seq( Dependency[firrtl.transforms.BlackBoxSourceHelper],
+         Dependency[firrtl.transforms.ReplaceTruncatingArithmetic],
+         Dependency[firrtl.transforms.FlattenRegUpdate],
+         Dependency[passes.VerilogModulusCleanup],
+         Dependency[firrtl.transforms.VerilogRename],
+         Dependency[passes.VerilogPrep],
+         Dependency[firrtl.AddDescriptionNodes] )
 
   val options = Seq(
     new ShellOption[Unit](

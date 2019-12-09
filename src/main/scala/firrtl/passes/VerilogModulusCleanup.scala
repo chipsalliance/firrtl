@@ -7,7 +7,7 @@ import firrtl.ir._
 import firrtl.Mappers._
 import firrtl.PrimOps.{Bits, Rem}
 import firrtl.Utils._
-import firrtl.options.{DependencyID, PreservesAll}
+import firrtl.options.{Dependency, PreservesAll}
 
 import scala.collection.mutable
 
@@ -27,9 +27,9 @@ import scala.collection.mutable
 class VerilogModulusCleanup extends Pass with PreservesAll[Transform] {
 
   override val prerequisites = firrtl.stage.Forms.LowFormMinimumOptimized ++
-    Seq( DependencyID[firrtl.transforms.BlackBoxSourceHelper],
-         DependencyID[firrtl.transforms.ReplaceTruncatingArithmetic],
-         DependencyID[firrtl.transforms.FlattenRegUpdate] )
+    Seq( Dependency[firrtl.transforms.BlackBoxSourceHelper],
+         Dependency[firrtl.transforms.ReplaceTruncatingArithmetic],
+         Dependency[firrtl.transforms.FlattenRegUpdate] )
 
   private def onModule(m: Module): Module = {
     val namespace = Namespace(m)

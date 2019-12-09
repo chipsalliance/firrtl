@@ -5,7 +5,7 @@ package firrtl.stage.phases
 import firrtl.stage._
 
 import firrtl.{AnnotationSeq, Parser}
-import firrtl.options.{DependencyID, Phase, PhasePrerequisiteException, PreservesAll}
+import firrtl.options.{Dependency, Phase, PhasePrerequisiteException, PreservesAll}
 
 /** [[firrtl.options.Phase Phase]] that expands [[FirrtlFileAnnotation]]/[[FirrtlSourceAnnotation]] into
   * [[FirrtlCircuitAnnotation]]s and deletes the originals. This is part of the preprocessing done on an input
@@ -27,7 +27,7 @@ import firrtl.options.{DependencyID, Phase, PhasePrerequisiteException, Preserve
   */
 class AddCircuit extends Phase with PreservesAll[Phase] {
 
-  override val prerequisites = Seq(DependencyID[AddDefaults], DependencyID[Checks])
+  override val prerequisites = Seq(Dependency[AddDefaults], Dependency[Checks])
 
   override val dependents = Seq.empty
 

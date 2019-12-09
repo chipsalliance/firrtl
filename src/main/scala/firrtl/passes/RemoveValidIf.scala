@@ -6,7 +6,7 @@ package passes
 import firrtl.Mappers._
 import firrtl.ir._
 import Utils.throwInternalError
-import firrtl.options.DependencyID
+import firrtl.options.Dependency
 
 /** Remove [[firrtl.ir.ValidIf ValidIf]] and replace [[firrtl.ir.IsInvalid IsInvalid]] with a connection to zero */
 class RemoveValidIf extends Pass {
@@ -16,8 +16,8 @@ class RemoveValidIf extends Pass {
   override val prerequisites = firrtl.stage.Forms.LowForm
 
   override val dependents =
-    Seq( DependencyID[SystemVerilogEmitter],
-         DependencyID[VerilogEmitter] )
+    Seq( Dependency[SystemVerilogEmitter],
+         Dependency[VerilogEmitter] )
 
   override def invalidates(a: Transform): Boolean = a match {
     case _: Legalize | _: firrtl.transforms.ConstantPropagation => true

@@ -5,7 +5,7 @@ package firrtl.options.phases
 import firrtl.AnnotationSeq
 import firrtl.annotations.{DeletedAnnotation, JsonProtocol}
 import firrtl.options.{Phase, PreservesAll, StageOptions, Unserializable, Viewer}
-import firrtl.options.DependencyID
+import firrtl.options.Dependency
 
 import java.io.PrintWriter
 
@@ -15,10 +15,10 @@ import java.io.PrintWriter
 class WriteOutputAnnotations extends Phase with PreservesAll[Phase] {
 
   override val prerequisites =
-    Seq( DependencyID[GetIncludes],
-         DependencyID[ConvertLegacyAnnotations],
-         DependencyID[AddDefaults],
-         DependencyID[Checks] )
+    Seq( Dependency[GetIncludes],
+         Dependency[ConvertLegacyAnnotations],
+         Dependency[AddDefaults],
+         Dependency[Checks] )
 
   override val dependents = Seq.empty
 

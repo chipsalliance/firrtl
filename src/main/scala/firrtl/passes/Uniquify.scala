@@ -8,7 +8,7 @@ import firrtl._
 import firrtl.ir._
 import firrtl.Utils._
 import firrtl.Mappers._
-import firrtl.options.DependencyID
+import firrtl.options.Dependency
 
 import MemPortUtils.memType
 
@@ -106,8 +106,8 @@ class Uniquify extends Transform {
   import Uniquify._
 
   override val prerequisites =
-    Seq( DependencyID[ResolveKinds],
-         DependencyID[InferTypes] ) ++ firrtl.stage.Forms.WorkingIR
+    Seq( Dependency[ResolveKinds],
+         Dependency[InferTypes] ) ++ firrtl.stage.Forms.WorkingIR
 
   override def invalidates(a: Transform): Boolean = a match {
     case _: ResolveKinds | _: InferTypes => true

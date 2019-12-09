@@ -6,18 +6,18 @@ import firrtl.PrimOps._
 import firrtl.ir._
 import firrtl._
 import firrtl.Mappers._
-import firrtl.options.DependencyID
+import firrtl.options.Dependency
 
 class ZeroWidth extends Transform {
 
   override val prerequisites =
-    Seq( DependencyID[PullMuxes],
-         DependencyID[ReplaceAccesses],
-         DependencyID[ExpandConnects],
-         DependencyID[RemoveAccesses],
-         DependencyID[Uniquify],
-         DependencyID[ExpandWhensAndCheck],
-         DependencyID[ConvertFixedToSInt] ) ++ firrtl.stage.Forms.Deduped
+    Seq( Dependency[PullMuxes],
+         Dependency[ReplaceAccesses],
+         Dependency[ExpandConnects],
+         Dependency[RemoveAccesses],
+         Dependency[Uniquify],
+         Dependency[ExpandWhensAndCheck],
+         Dependency[ConvertFixedToSInt] ) ++ firrtl.stage.Forms.Deduped
 
   override def invalidates(a: Transform): Boolean = a match {
     case _: InferTypes => true

@@ -12,7 +12,7 @@ import firrtl.annotations._
 import firrtl.ir.Circuit
 import firrtl.Utils.throwInternalError
 import firrtl.annotations.transforms.{EliminateTargetPaths, ResolvePaths}
-import firrtl.options.{DependencyAPI, DependencyID, PreservesAll, StageUtils, TransformLike}
+import firrtl.options.{DependencyAPI, Dependency, PreservesAll, StageUtils, TransformLike}
 import firrtl.stage.transforms.CatchCustomTransformExceptions
 import firrtl.stage.TransformManager.TransformDependency
 
@@ -208,7 +208,7 @@ trait Transform extends TransformLike[CircuitState] with DependencyAPI[Transform
   import firrtl.{ChirrtlForm => C, HighForm => H, MidForm => M, LowForm => L, UnknownForm => U}
   import firrtl.stage.Forms
 
-  override def prerequisites: Seq[DependencyID[Transform]] = inputForm match {
+  override def prerequisites: Seq[Dependency[Transform]] = inputForm match {
     case C => Nil
     case H => Forms.Deduped
     case M => Forms.MidForm
@@ -216,26 +216,26 @@ trait Transform extends TransformLike[CircuitState] with DependencyAPI[Transform
     case U => Nil
   }
 
-  override def optionalPrerequisites: Seq[DependencyID[Transform]] = inputForm match {
+  override def optionalPrerequisites: Seq[Dependency[Transform]] = inputForm match {
     case L => Forms.LowFormOptimized
     case _ => Seq.empty
   }
 
-  private lazy val fullCompilerSet = new mutable.LinkedHashSet[DependencyID[Transform]] ++ Forms.VerilogOptimized
+  private lazy val fullCompilerSet = new mutable.LinkedHashSet[Dependency[Transform]] ++ Forms.VerilogOptimized
 
-  override def dependents: Seq[DependencyID[Transform]] = {
-    val lowEmitters = DependencyID[LowFirrtlEmitter] :: DependencyID[VerilogEmitter] :: DependencyID[MinimumVerilogEmitter] ::
-      DependencyID[SystemVerilogEmitter] :: Nil
+  override def dependents: Seq[Dependency[Transform]] = {
+    val lowEmitters = Dependency[LowFirrtlEmitter] :: Dependency[VerilogEmitter] :: Dependency[MinimumVerilogEmitter] ::
+      Dependency[SystemVerilogEmitter] :: Nil
 
     val emitters = inputForm match {
-      case C => DependencyID[ChirrtlEmitter]      :: DependencyID[HighFirrtlEmitter]   :: DependencyID[MiddleFirrtlEmitter] :: lowEmitters
-      case H => DependencyID[HighFirrtlEmitter]   :: DependencyID[MiddleFirrtlEmitter] :: lowEmitters
-      case M => DependencyID[MiddleFirrtlEmitter] :: lowEmitters
+      case C => Dependency[ChirrtlEmitter]      :: Dependency[HighFirrtlEmitter]   :: Dependency[MiddleFirrtlEmitter] :: lowEmitters
+      case H => Dependency[HighFirrtlEmitter]   :: Dependency[MiddleFirrtlEmitter] :: lowEmitters
+      case M => Dependency[MiddleFirrtlEmitter] :: lowEmitters
       case L => lowEmitters
       case U => Nil
     }
 
-    val selfDep = DependencyID.fromTransform(this)
+    val selfDep = Dependency.fromTransform(this)
 
     inputForm match {
       case C => (fullCompilerSet                           ++ emitters - selfDep).toSeq
@@ -254,8 +254,8 @@ trait Transform extends TransformLike[CircuitState] with DependencyAPI[Transform
       case (U, _) | (_, U)  => true  // invalidate everything
       case (i, o) if i >= o => false // invalidate nothing
       case (_, C)           => true  // invalidate everything
-      case (_, H)           => highOutputInvalidates(DependencyID.fromTransform(a))
-      case (_, M)           => midOutputInvalidates(DependencyID.fromTransform(a))
+      case (_, H)           => highOutputInvalidates(Dependency.fromTransform(a))
+      case (_, M)           => midOutputInvalidates(Dependency.fromTransform(a))
       case (_, L)           => false // invalidate nothing
     }
   }

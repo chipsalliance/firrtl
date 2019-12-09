@@ -29,15 +29,15 @@ trait DependencyManager[A, B <: TransformLike[A] with DependencyAPI[B]] extends 
   /** Requested [[firrtl.options.TransformLike TransformLike]]s that should be run. Internally, this will be converted to
     * a set based on the ordering defined here.
     */
-  def targets: Seq[DependencyID[B]]
-  private lazy val _targets: LinkedHashSet[DependencyID[B]] = targets
-    .foldLeft(new LinkedHashSet[DependencyID[B]]()){ case (a, b) => a += b }
+  def targets: Seq[Dependency[B]]
+  private lazy val _targets: LinkedHashSet[Dependency[B]] = targets
+    .foldLeft(new LinkedHashSet[Dependency[B]]()){ case (a, b) => a += b }
 
   /** A sequence of [[firrtl.Transform]]s that have been run. Internally, this will be converted to an ordered set.
     */
-  def currentState: Seq[DependencyID[B]]
-  private lazy val _currentState: LinkedHashSet[DependencyID[B]] = currentState
-    .foldLeft(new LinkedHashSet[DependencyID[B]]()){ case (a, b) => a += b }
+  def currentState: Seq[Dependency[B]]
+  private lazy val _currentState: LinkedHashSet[Dependency[B]] = currentState
+    .foldLeft(new LinkedHashSet[Dependency[B]]()){ case (a, b) => a += b }
 
   /** Existing transform objects that have already been constructed */
   def knownObjects: Set[B]
@@ -49,8 +49,8 @@ trait DependencyManager[A, B <: TransformLike[A] with DependencyAPI[B]] extends 
 
   /** Store of conversions between classes and objects. Objects that do not exist in the map will be lazily constructed.
     */
-  protected lazy val dependencyToObject: LinkedHashMap[DependencyID[B], B] = {
-    val init = LinkedHashMap[DependencyID[B], B](knownObjects.map(x => oToD(x) -> x).toSeq: _*)
+  protected lazy val dependencyToObject: LinkedHashMap[Dependency[B], B] = {
+    val init = LinkedHashMap[Dependency[B], B](knownObjects.map(x => oToD(x) -> x).toSeq: _*)
     (_targets ++ _currentState)
       .filter(!init.contains(_))
       .map(x => init(x) = x.getObject())
@@ -61,32 +61,32 @@ trait DependencyManager[A, B <: TransformLike[A] with DependencyAPI[B]] extends 
     * requirements. This is used to solve sub-problems arising from invalidations.
     */
   protected def copy(
-    targets: Seq[DependencyID[B]],
-    currentState: Seq[DependencyID[B]],
+    targets: Seq[Dependency[B]],
+    currentState: Seq[Dependency[B]],
     knownObjects: ISet[B] = dependencyToObject.values.toSet): B
 
   /** Implicit conversion from Dependency to B */
-  private implicit def dToO(d: DependencyID[B]): B = dependencyToObject.getOrElseUpdate(d, d.getObject())
+  private implicit def dToO(d: Dependency[B]): B = dependencyToObject.getOrElseUpdate(d, d.getObject())
 
   /** Implicit conversion from B to Dependency */
-  private implicit def oToD(b: B): DependencyID[B] = DependencyID.fromTransform(b)
+  private implicit def oToD(b: B): Dependency[B] = Dependency.fromTransform(b)
 
   /** Modified breadth-first search that supports multiple starting nodes and a custom extractor that can be used to
     * generate/filter the edges to explore. Additionally, this will include edges to previously discovered nodes.
     */
-  private def bfs( start: LinkedHashSet[DependencyID[B]],
-                   blacklist: LinkedHashSet[DependencyID[B]],
-                   extractor: B => Set[DependencyID[B]] ): LinkedHashMap[B, LinkedHashSet[B]] = {
+  private def bfs( start: LinkedHashSet[Dependency[B]],
+                   blacklist: LinkedHashSet[Dependency[B]],
+                   extractor: B => Set[Dependency[B]] ): LinkedHashMap[B, LinkedHashSet[B]] = {
 
     val (queue, edges) = {
-      val a: Queue[DependencyID[B]]                    = Queue(start.toSeq:_*)
+      val a: Queue[Dependency[B]]                    = Queue(start.toSeq:_*)
       val b: LinkedHashMap[B, LinkedHashSet[B]] = LinkedHashMap[B, LinkedHashSet[B]](
         start.map((dToO(_) -> LinkedHashSet[B]())).toSeq:_*)
       (a, b)
     }
 
     while (queue.nonEmpty) {
-      val u: DependencyID[B] = queue.dequeue
+      val u: Dependency[B] = queue.dequeue
       for (v <- extractor(dependencyToObject(u))) {
         if (!blacklist.contains(v) && !edges.contains(v)) {
           queue.enqueue(v)
@@ -114,7 +114,7 @@ trait DependencyManager[A, B <: TransformLike[A] with DependencyAPI[B]] extends 
     val edges = bfs(
       start = _targets &~ _currentState,
       blacklist = _currentState,
-      extractor = (p: B) => new LinkedHashSet[DependencyID[B]]() ++ p.prerequisites &~ _currentState)
+      extractor = (p: B) => new LinkedHashSet[Dependency[B]]() ++ p.prerequisites &~ _currentState)
     DiGraph(edges)
   }
 
@@ -199,8 +199,8 @@ trait DependencyManager[A, B <: TransformLike[A] with DependencyAPI[B]] extends 
         val v = cyclePossible("invalidates", invalidateGraph){ invalidateGraph.linearize }.reverse
         /* A comparison function that will sort vertices based on the topological sort of the invalidation graph */
         val cmp =
-          (l: B, r: B) => v.foldLeft((Map.empty[B, DependencyID[B] => Boolean], Set.empty[DependencyID[B]])){
-            case ((m, s), r) => (m + (r -> ((a: DependencyID[B]) => !s(a))), s + r) }._1(l)(r)
+          (l: B, r: B) => v.foldLeft((Map.empty[B, Dependency[B] => Boolean], Set.empty[Dependency[B]])){
+            case ((m, s), r) => (m + (r -> ((a: Dependency[B]) => !s(a))), s + r) }._1(l)(r)
         new LinkedHashMap() ++
           v.map(vv => vv -> (new LinkedHashSet() ++ (dependencyGraph.getEdges(vv).toSeq.sortWith(cmp))))
       }
@@ -250,7 +250,7 @@ trait DependencyManager[A, B <: TransformLike[A] with DependencyAPI[B]] extends 
   final override def transform(annotations: A): A = {
 
     /* A local store of each wrapper to it's underlying class. */
-    val wrapperToClass = new HashMap[B, DependencyID[B]]
+    val wrapperToClass = new HashMap[B, Dependency[B]]
 
     /* The determined, flat order of transforms is wrapped with surrounding transforms while populating wrapperToClass so
      * that each wrapped transform object can be dereferenced to its underlying class. Each wrapped transform is then
@@ -437,7 +437,7 @@ class PhaseManager(
 object PhaseManager {
 
   /** The type used to represent dependencies between [[Phase]]s */
-  type PhaseDependency = DependencyID[Phase]
+  type PhaseDependency = Dependency[Phase]
 
 }
 

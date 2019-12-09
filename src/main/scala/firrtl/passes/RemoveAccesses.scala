@@ -8,7 +8,7 @@ import firrtl.ir._
 import firrtl.Mappers._
 import firrtl.Utils._
 import firrtl.WrappedExpression._
-import firrtl.options.DependencyID
+import firrtl.options.Dependency
 
 import scala.collection.mutable
 
@@ -17,9 +17,9 @@ import scala.collection.mutable
 class RemoveAccesses extends Pass {
 
   override val prerequisites =
-    Seq( DependencyID[PullMuxes],
-         DependencyID[ReplaceAccesses],
-         DependencyID[ExpandConnects] ) ++ firrtl.stage.Forms.Deduped
+    Seq( Dependency[PullMuxes],
+         Dependency[ReplaceAccesses],
+         Dependency[ExpandConnects] ) ++ firrtl.stage.Forms.Deduped
 
   override def invalidates(a: Transform): Boolean = a match {
     case _: Uniquify => true

@@ -5,20 +5,20 @@ package firrtl.passes
 import firrtl._
 import firrtl.ir._
 import firrtl.Mappers._
-import firrtl.options.{DependencyID, PreservesAll}
+import firrtl.options.{Dependency, PreservesAll}
 
 class CommonSubexpressionElimination extends Pass with PreservesAll[Transform] {
 
   override val prerequisites = firrtl.stage.Forms.LowForm ++
-    Seq( DependencyID[firrtl.passes.RemoveValidIf],
-         DependencyID[firrtl.transforms.ConstantPropagation],
-         DependencyID[firrtl.passes.memlib.VerilogMemDelays],
-         DependencyID[firrtl.passes.SplitExpressions],
-         DependencyID[firrtl.transforms.CombineCats] )
+    Seq( Dependency[firrtl.passes.RemoveValidIf],
+         Dependency[firrtl.transforms.ConstantPropagation],
+         Dependency[firrtl.passes.memlib.VerilogMemDelays],
+         Dependency[firrtl.passes.SplitExpressions],
+         Dependency[firrtl.transforms.CombineCats] )
 
   override val dependents =
-    Seq( DependencyID[SystemVerilogEmitter],
-         DependencyID[VerilogEmitter] )
+    Seq( Dependency[SystemVerilogEmitter],
+         Dependency[VerilogEmitter] )
 
   private def cse(s: Statement): Statement = {
     val expressions = collection.mutable.HashMap[MemoizedHash[Expression], String]()
