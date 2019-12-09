@@ -6,7 +6,7 @@ import org.scalatest.{FlatSpec, Matchers}
 
 import firrtl._
 import firrtl.passes
-import firrtl.options.DependencyID
+import firrtl.options.Dependency
 import firrtl.stage.{Forms, TransformManager}
 import firrtl.transforms.IdentityTransform
 
@@ -230,7 +230,7 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
 
   it should "work for Chirrtl -> Chirrtl" in {
     val expected = new Transforms.ChirrtlToChirrtl :: new firrtl.ChirrtlEmitter :: Nil
-    val tm = new TransformManager(DependencyID[firrtl.ChirrtlEmitter] :: DependencyID[Transforms.ChirrtlToChirrtl] :: Nil)
+    val tm = new TransformManager(Dependency[firrtl.ChirrtlEmitter] :: Dependency[Transforms.ChirrtlToChirrtl] :: Nil)
     compare(expected, tm)
   }
 
@@ -239,7 +239,7 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
       new TransformManager(Forms.HighForm).flattenedTransformOrder ++
         Some(new Transforms.HighToHigh) ++
         (new TransformManager(Forms.MidForm, Forms.HighForm).flattenedTransformOrder)
-    val tm = new TransformManager(Forms.MidForm :+ DependencyID[Transforms.HighToHigh])
+    val tm = new TransformManager(Forms.MidForm :+ Dependency[Transforms.HighToHigh])
     compare(expected, tm)
   }
 
@@ -248,7 +248,7 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
       new TransformManager(Forms.HighForm).flattenedTransformOrder ++
         Some(new Transforms.HighToChirrtl) ++
         (new TransformManager(Forms.HighForm, Forms.ChirrtlForm).flattenedTransformOrder)
-    val tm = new TransformManager(Forms.HighForm :+ DependencyID[Transforms.HighToChirrtl])
+    val tm = new TransformManager(Forms.HighForm :+ Dependency[Transforms.HighToChirrtl])
     compare(expected, tm)
   }
 
@@ -257,7 +257,7 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
       new TransformManager(Forms.MidForm).flattenedTransformOrder ++
         Some(new Transforms.MidToMid) ++
         (new TransformManager(Forms.LowForm, Forms.MidForm).flattenedTransformOrder)
-    val tm = new TransformManager(Forms.LowForm :+ DependencyID[Transforms.MidToMid])
+    val tm = new TransformManager(Forms.LowForm :+ Dependency[Transforms.MidToMid])
     compare(expected, tm)
   }
 
@@ -266,7 +266,7 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
       new TransformManager(Forms.MidForm).flattenedTransformOrder ++
         Some(new Transforms.MidToHigh) ++
         (new TransformManager(Forms.LowForm, Forms.MinimalHighForm).flattenedTransformOrder)
-    val tm = new TransformManager(Forms.LowForm :+ DependencyID[Transforms.MidToHigh])
+    val tm = new TransformManager(Forms.LowForm :+ Dependency[Transforms.MidToHigh])
     compare(expected, tm)
   }
 
@@ -275,7 +275,7 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
       new TransformManager(Forms.MidForm).flattenedTransformOrder ++
         Some(new Transforms.MidToChirrtl) ++
         (new TransformManager(Forms.LowForm, Forms.ChirrtlForm).flattenedTransformOrder)
-    val tm = new TransformManager(Forms.LowForm :+ DependencyID[Transforms.MidToChirrtl])
+    val tm = new TransformManager(Forms.LowForm :+ Dependency[Transforms.MidToChirrtl])
     compare(expected, tm)
   }
 
@@ -283,7 +283,7 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
     val expected =
       new TransformManager(Forms.LowFormOptimized).flattenedTransformOrder ++
         Seq(new Transforms.LowToLow)
-    val tm = new TransformManager(Forms.LowFormOptimized :+ DependencyID[Transforms.LowToLow])
+    val tm = new TransformManager(Forms.LowFormOptimized :+ Dependency[Transforms.LowToLow])
     compare(expected, tm)
   }
 
@@ -292,7 +292,7 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
       new TransformManager(Forms.LowFormOptimized).flattenedTransformOrder ++
         Seq(new Transforms.LowToMid) ++
         (new TransformManager(Forms.LowFormOptimized, Forms.MidForm).flattenedTransformOrder)
-    val tm = new TransformManager(Forms.LowFormOptimized :+ DependencyID[Transforms.LowToMid])
+    val tm = new TransformManager(Forms.LowFormOptimized :+ Dependency[Transforms.LowToMid])
     compare(expected, tm)
   }
 
@@ -301,7 +301,7 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
       new TransformManager(Forms.LowFormOptimized).flattenedTransformOrder ++
         Seq(new Transforms.LowToHigh) ++
         (new TransformManager(Forms.LowFormOptimized, Forms.MinimalHighForm).flattenedTransformOrder)
-    val tm = new TransformManager(Forms.LowFormOptimized :+ DependencyID[Transforms.LowToHigh])
+    val tm = new TransformManager(Forms.LowFormOptimized :+ Dependency[Transforms.LowToHigh])
     compare(expected, tm)
   }
 
@@ -310,7 +310,7 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
       new TransformManager(Forms.LowFormOptimized).flattenedTransformOrder ++
         Seq(new Transforms.LowToChirrtl) ++
         (new TransformManager(Forms.LowFormOptimized, Forms.ChirrtlForm).flattenedTransformOrder)
-    val tm = new TransformManager(Forms.LowFormOptimized :+ DependencyID[Transforms.LowToChirrtl])
+    val tm = new TransformManager(Forms.LowFormOptimized :+ Dependency[Transforms.LowToChirrtl])
     compare(expected, tm)
   }
 
@@ -318,7 +318,7 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
     val expected =
       new TransformManager(Forms.LowForm).flattenedTransformOrder ++
         Seq(new Transforms.LowToLow, new firrtl.LowFirrtlEmitter)
-    val tm = (new TransformManager(Seq(DependencyID[firrtl.LowFirrtlEmitter], DependencyID[Transforms.LowToLow])))
+    val tm = (new TransformManager(Seq(Dependency[firrtl.LowFirrtlEmitter], Dependency[Transforms.LowToLow])))
     compare(expected, tm)
   }
 
@@ -326,7 +326,7 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
     val expected =
       new TransformManager(Forms.LowFormMinimumOptimized).flattenedTransformOrder ++
         Seq(new Transforms.LowToLow, new firrtl.MinimumVerilogEmitter)
-    val tm = (new TransformManager(Seq(DependencyID[firrtl.MinimumVerilogEmitter], DependencyID[Transforms.LowToLow])))
+    val tm = (new TransformManager(Seq(Dependency[firrtl.MinimumVerilogEmitter], Dependency[Transforms.LowToLow])))
     compare(expected, tm)
   }
 
@@ -334,7 +334,7 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
     val expected =
       new TransformManager(Forms.LowFormOptimized).flattenedTransformOrder ++
         Seq(new Transforms.LowToLow, new firrtl.VerilogEmitter)
-    val tm = (new TransformManager(Seq(DependencyID[firrtl.VerilogEmitter], DependencyID[Transforms.LowToLow])))
+    val tm = (new TransformManager(Seq(Dependency[firrtl.VerilogEmitter], Dependency[Transforms.LowToLow])))
     compare(expected, tm)
   }
 

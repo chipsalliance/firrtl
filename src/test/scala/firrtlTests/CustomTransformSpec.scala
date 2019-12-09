@@ -7,7 +7,7 @@ import firrtl._
 import firrtl.passes.Pass
 import firrtl.ir._
 import firrtl.annotations.{Annotation, NoTargetAnnotation}
-import firrtl.options.DependencyID
+import firrtl.options.Dependency
 import firrtl.stage.{FirrtlSourceAnnotation, FirrtlStage, Forms, RunFirrtlTransformAnnotation}
 import firrtl.transforms.IdentityTransform
 
@@ -149,9 +149,9 @@ class CustomTransformSpec extends FirrtlFlatSpec {
 
   they should "run right before the emitter when inputForm=LowForm" in {
 
-    val custom = DependencyID[IdentityLowForm]
+    val custom = Dependency[IdentityLowForm]
 
-    def testOrder(emitter: DependencyID[Emitter], preceders: Seq[DependencyID[Transform]]): Unit = {
+    def testOrder(emitter: Dependency[Emitter], preceders: Seq[Dependency[Transform]]): Unit = {
       info(s"""${preceders.map(_.getSimpleName).mkString(" -> ")} -> ${custom.getSimpleName} -> ${emitter.getSimpleName} ok!""")
 
       val compiler = new firrtl.stage.transforms.Compiler(Seq(custom, emitter))
@@ -161,14 +161,14 @@ class CustomTransformSpec extends FirrtlFlatSpec {
 
       compiler
         .flattenedTransformOrder
-        .map(DependencyID.fromTransform(_))
+        .map(Dependency.fromTransform(_))
         .containsSlice(expectedSlice) should be (true)
     }
 
-    Seq( (DependencyID[LowFirrtlEmitter],      Seq(Forms.LowForm.last)                 ),
-         (DependencyID[MinimumVerilogEmitter], Seq(Forms.LowFormMinimumOptimized.last) ),
-         (DependencyID[VerilogEmitter],        Seq(Forms.LowFormOptimized.last)        ),
-         (DependencyID[SystemVerilogEmitter],  Seq(Forms.LowFormOptimized.last)        )
+    Seq( (Dependency[LowFirrtlEmitter],      Seq(Forms.LowForm.last)                 ),
+         (Dependency[MinimumVerilogEmitter], Seq(Forms.LowFormMinimumOptimized.last) ),
+         (Dependency[VerilogEmitter],        Seq(Forms.LowFormOptimized.last)        ),
+         (Dependency[SystemVerilogEmitter],  Seq(Forms.LowFormOptimized.last)        )
     ).foreach((testOrder _).tupled)
   }
 
