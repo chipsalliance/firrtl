@@ -31,7 +31,7 @@ class CheckResets extends Transform with PreservesAll[Transform] {
   def outputForm: CircuitForm = MidForm
 
   override val prerequisites =
-    Seq( DependencyID[passes.LowerTypes],
+    Seq( DependencyID(passes.LowerTypes),
          DependencyID[passes.Legalize],
          DependencyID[firrtl.transforms.RemoveReset] ) ++ firrtl.stage.Forms.MidForm
 

@@ -220,7 +220,7 @@ object ExpandConnects extends Pass with DeprecatedPassObject {
 // TODO replace UInt with zero-width wire instead
 class Legalize extends Pass with PreservesAll[Transform] {
 
-  override val prerequisites = firrtl.stage.Forms.MidForm :+ DependencyID[LowerTypes]
+  override val prerequisites = firrtl.stage.Forms.MidForm :+ DependencyID(LowerTypes)
 
   override val optionalPrerequisites = Seq.empty
 

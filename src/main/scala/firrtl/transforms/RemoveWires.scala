@@ -25,7 +25,7 @@ class RemoveWires extends Transform with PreservesAll[Transform] {
   def outputForm = LowForm
 
   override val prerequisites = firrtl.stage.Forms.MidForm ++
-    Seq( DependencyID[passes.LowerTypes],
+    Seq( DependencyID(passes.LowerTypes),
          DependencyID[passes.Legalize],
          DependencyID[transforms.RemoveReset],
          DependencyID[transforms.CheckCombLoops] )

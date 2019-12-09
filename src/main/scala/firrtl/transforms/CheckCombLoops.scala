@@ -99,7 +99,7 @@ class CheckCombLoops extends Transform with RegisteredTransform with PreservesAl
   def outputForm = LowForm
 
   override val prerequisites = firrtl.stage.Forms.MidForm ++
-    Seq( DependencyID[passes.LowerTypes],
+    Seq( DependencyID(passes.LowerTypes),
          DependencyID[passes.Legalize],
          DependencyID[firrtl.transforms.RemoveReset] )
 

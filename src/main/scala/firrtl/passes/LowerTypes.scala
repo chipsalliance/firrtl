@@ -22,10 +22,7 @@ import firrtl.Mappers._
   *   wire foo_b : UInt<16>
   * }}}
   */
-class LowerTypes extends Transform {
-
-  import LowerTypes._
-
+object LowerTypes extends Transform {
   def inputForm = UnknownForm
   def outputForm = UnknownForm
 
@@ -38,6 +35,18 @@ class LowerTypes extends Transform {
     case _ => false
   }
 
+  /** Delimiter used in lowering names */
+  val delim = "_"
+  /** Expands a chain of referential [[firrtl.ir.Expression]]s into the equivalent lowered name
+    * @param e [[firrtl.ir.Expression]] made up of _only_ [[firrtl.WRef]], [[firrtl.WSubField]], and [[firrtl.WSubIndex]]
+    * @return Lowered name of e
+    */
+  def loweredName(e: Expression): String = e match {
+    case e: WRef => e.name
+    case e: WSubField => s"${loweredName(e.expr)}$delim${e.name}"
+    case e: WSubIndex => s"${loweredName(e.expr)}$delim${e.value}"
+  }
+  def loweredName(s: Seq[String]): String = s mkString delim
   def renameExps(renames: RenameMap, n: String, t: Type, root: String): Seq[String] =
     renameExps(renames, WRef(n, t, ExpKind, UnknownFlow), root)
   def renameExps(renames: RenameMap, n: String, t: Type): Seq[String] =
@@ -284,24 +293,4 @@ class LowerTypes extends Transform {
     val result = c copy (modules = c.modules map lowerTypes(renames))
     CircuitState(result, outputForm, state.annotations, Some(renames))
   }
-}
-
-object LowerTypes extends Transform with DeprecatedTransformObject {
-
-  override protected lazy val underlying = new LowerTypes
-
-  /** Delimiter used in lowering names */
-  val delim = "_"
-
-  /** Expands a chain of referential [[firrtl.ir.Expression]]s into the equivalent lowered name
-    * @param e [[firrtl.ir.Expression]] made up of _only_ [[firrtl.WRef]], [[firrtl.WSubField]], and [[firrtl.WSubIndex]]
-    * @return Lowered name of e
-    */
-  def loweredName(e: Expression): String = e match {
-    case e: WRef => e.name
-    case e: WSubField => s"${loweredName(e.expr)}$delim${e.name}"
-    case e: WSubIndex => s"${loweredName(e.expr)}$delim${e.value}"
-  }
-  def loweredName(s: Seq[String]): String = s mkString delim
-
 }

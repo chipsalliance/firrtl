@@ -21,7 +21,7 @@ class RemoveReset extends Transform {
   def outputForm = LowForm
 
   override val prerequisites = firrtl.stage.Forms.MidForm ++
-    Seq( DependencyID[passes.LowerTypes],
+    Seq( DependencyID(passes.LowerTypes),
          DependencyID[passes.Legalize] )
 
   override val optionalPrerequisites = Seq.empty

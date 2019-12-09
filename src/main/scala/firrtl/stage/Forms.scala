@@ -57,7 +57,7 @@ object Forms {
          DependencyID[passes.ZeroWidth] )
 
   def LowForm: Seq[TransformDependency] = MidForm ++
-    Seq( DependencyID[passes.LowerTypes],
+    Seq( DependencyID(passes.LowerTypes),
          DependencyID[passes.Legalize],
          DependencyID[firrtl.transforms.RemoveReset],
          DependencyID[firrtl.transforms.CheckCombLoops],
