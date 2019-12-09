@@ -14,17 +14,17 @@ import firrtl.stage.TransformManager.TransformDependency
 
 object Forms {
 
-  val ChirrtlForm: Seq[TransformDependency] = Seq.empty
+  def ChirrtlForm: Seq[TransformDependency] = Seq.empty
 
-  val MinimalHighForm: Seq[TransformDependency] = ChirrtlForm ++
+  def MinimalHighForm: Seq[TransformDependency] = ChirrtlForm ++
     Seq( DependencyID[passes.CheckChirrtl],
          DependencyID[passes.CInferTypes],
          DependencyID[passes.CInferMDir],
          DependencyID[passes.RemoveCHIRRTL] )
 
-  val WorkingIR: Seq[TransformDependency] = MinimalHighForm :+ DependencyID[passes.ToWorkingIR]
+  def WorkingIR: Seq[TransformDependency] = MinimalHighForm :+ DependencyID[passes.ToWorkingIR]
 
-  val Resolved: Seq[TransformDependency] = WorkingIR ++
+  def Resolved: Seq[TransformDependency] = WorkingIR ++
     Seq( DependencyID[passes.CheckHighForm],
          DependencyID[passes.ResolveKinds],
          DependencyID[passes.InferTypes],
@@ -38,15 +38,15 @@ object Forms {
          DependencyID[passes.CheckWidths],
          DependencyID[firrtl.transforms.InferResets] )
 
-  val Deduped: Seq[TransformDependency] = Resolved :+ DependencyID[firrtl.transforms.DedupModules]
+  def Deduped: Seq[TransformDependency] = Resolved :+ DependencyID[firrtl.transforms.DedupModules]
 
-  val HighForm: Seq[TransformDependency] = ChirrtlForm ++
+  def HighForm: Seq[TransformDependency] = ChirrtlForm ++
     MinimalHighForm ++
     WorkingIR ++
     Resolved ++
     Deduped
 
-  val MidForm: Seq[TransformDependency] = HighForm ++
+  def MidForm: Seq[TransformDependency] = HighForm ++
     Seq( DependencyID[passes.PullMuxes],
          DependencyID[passes.ReplaceAccesses],
          DependencyID[passes.ExpandConnects],
@@ -56,7 +56,7 @@ object Forms {
          DependencyID[passes.ConvertFixedToSInt],
          DependencyID[passes.ZeroWidth] )
 
-  val LowForm: Seq[TransformDependency] = MidForm ++
+  def LowForm: Seq[TransformDependency] = MidForm ++
     Seq( DependencyID[passes.LowerTypes],
          DependencyID[passes.Legalize],
          DependencyID[firrtl.transforms.RemoveReset],
@@ -64,19 +64,19 @@ object Forms {
          DependencyID[checks.CheckResets],
          DependencyID[firrtl.transforms.RemoveWires] )
 
-  val LowFormMinimumOptimized: Seq[TransformDependency] = LowForm ++
+  def LowFormMinimumOptimized: Seq[TransformDependency] = LowForm ++
     Seq( DependencyID[passes.RemoveValidIf],
          DependencyID[passes.memlib.VerilogMemDelays],
          DependencyID[passes.SplitExpressions] )
 
-  val LowFormOptimized: Seq[TransformDependency] = LowFormMinimumOptimized ++
+  def LowFormOptimized: Seq[TransformDependency] = LowFormMinimumOptimized ++
     Seq( DependencyID[firrtl.transforms.ConstantPropagation],
          DependencyID[passes.PadWidths],
          DependencyID[firrtl.transforms.CombineCats],
          DependencyID[passes.CommonSubexpressionElimination],
          DependencyID[firrtl.transforms.DeadCodeElimination] )
 
-  val VerilogMinimumOptimized: Seq[TransformDependency] = LowFormMinimumOptimized ++
+  def VerilogMinimumOptimized: Seq[TransformDependency] = LowFormMinimumOptimized ++
     Seq( DependencyID[firrtl.transforms.BlackBoxSourceHelper],
          DependencyID[firrtl.transforms.ReplaceTruncatingArithmetic],
          DependencyID[firrtl.transforms.FlattenRegUpdate],
@@ -85,7 +85,7 @@ object Forms {
          DependencyID[passes.VerilogPrep],
          DependencyID[firrtl.AddDescriptionNodes] )
 
-  val VerilogOptimized: Seq[TransformDependency] = LowFormOptimized ++
+  def VerilogOptimized: Seq[TransformDependency] = LowFormOptimized ++
     Seq( DependencyID[firrtl.transforms.BlackBoxSourceHelper],
          DependencyID[firrtl.transforms.ReplaceTruncatingArithmetic],
          DependencyID[firrtl.transforms.FlattenRegUpdate],

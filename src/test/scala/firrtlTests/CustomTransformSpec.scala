@@ -15,15 +15,6 @@ import scala.reflect.runtime
 
 object CustomTransformSpec {
 
-  private def asDependency(t: Transform): DependencyID[Transform] = {
-    val isSingleton = runtime.currentMirror.reflect(t).symbol.isModuleClass
-    if (isSingleton) {
-      DependencyID(Right(t.asInstanceOf[Transform with Singleton]))
-    } else {
-      DependencyID(Left(t.getClass))
-    }
-  }
-
   class ReplaceExtModuleTransform extends SeqTransform with FirrtlMatchers {
     // Simple module
     val delayModuleString = """
@@ -170,7 +161,7 @@ class CustomTransformSpec extends FirrtlFlatSpec {
 
       compiler
         .flattenedTransformOrder
-        .map(asDependency(_))
+        .map(DependencyID.fromTransform(_))
         .containsSlice(expectedSlice) should be (true)
     }
 

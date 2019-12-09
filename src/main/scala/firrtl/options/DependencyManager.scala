@@ -9,8 +9,6 @@ import scala.collection.Set
 import scala.collection.immutable.{Set => ISet}
 import scala.collection.mutable.{ArrayBuffer, HashMap, LinkedHashMap, LinkedHashSet, Queue}
 
-import scala.reflect.runtime
-
 /** An exception arising from an in a [[DependencyManager]] */
 case class DependencyManagerException(message: String, cause: Throwable = null) extends RuntimeException(message, cause)
 
@@ -70,21 +68,8 @@ trait DependencyManager[A, B <: TransformLike[A] with DependencyAPI[B]] extends 
   /** Implicit conversion from Dependency to B */
   private implicit def dToO(d: Dependency): B = dependencyToObject.getOrElseUpdate(d, d.getObject())
 
-  /** Dynamically check if an object is a singleton. Works on AnyRef rather than B to avoid needing a ClassTag,
-    * since DependencyManager is a trait.
-    */
-  private def isSingleton(o: AnyRef): Boolean = {
-    runtime.currentMirror.reflect(o).symbol.isModuleClass
-  }
-
   /** Implicit conversion from B to Dependency */
-  private implicit def oToD(b: B): Dependency = {
-    if (isSingleton(b)) {
-      DependencyID(Right(b.asInstanceOf[B with Singleton]))
-    } else {
-      DependencyID(Left(b.getClass))
-    }
-  }
+  private implicit def oToD(b: B): Dependency = DependencyID.fromTransform(b)
 
   /** Modified breadth-first search that supports multiple starting nodes and a custom extractor that can be used to
     * generate/filter the edges to explore. Additionally, this will include edges to previously discovered nodes.

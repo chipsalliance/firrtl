@@ -47,7 +47,7 @@ class TrackTransforms(val underlying: Transform) extends Transform with WrappedT
     val state = c.annotations
       .collectFirst{ case TransformHistoryAnnotation(_, state) => state }
       .getOrElse(Set.empty[Transform])
-      .map(t => DependencyID(t.getClass))
+      .map(DependencyID.fromTransform(_))
 
     if (!trueUnderlying.prerequisites.toSet.subsetOf(state)) {
       throw new DependencyManagerException(

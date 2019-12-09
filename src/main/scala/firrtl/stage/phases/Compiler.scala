@@ -95,7 +95,7 @@ class Compiler extends Phase with Translator[AnnotationSeq, Seq[CompilerRun]] wi
   protected def internalTransform(b: Seq[CompilerRun]): Seq[CompilerRun] = {
     def f(c: CompilerRun): CompilerRun = {
       val targets = c.compiler match {
-        case Some(d) => c.transforms.reverse.map(t => DependencyID(t.getClass)) ++ compilerToTransforms(d)
+        case Some(d) => c.transforms.reverse.map(DependencyID.fromTransform(_)) ++ compilerToTransforms(d)
         case None    => throw new PhasePrerequisiteException("No compiler specified!") }
       val tm = new firrtl.stage.transforms.Compiler(targets)
       val (timeMillis, annotationsOut) = firrtl.Utils.time { tm.transform(c.stateIn) }

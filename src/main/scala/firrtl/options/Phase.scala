@@ -12,17 +12,32 @@ import scala.reflect
 import scala.reflect.ClassTag
 
 object DependencyID {
-  def apply[A : ClassTag]: DependencyID[A] = {
+  def apply[A <: DependencyAPI[_] : ClassTag]: DependencyID[A] = {
     val clazz = reflect.classTag[A].runtimeClass
     DependencyID(Left(clazz.asInstanceOf[Class[A]]))
   }
-    
-  def apply[A](c: Class[_ <: A]): DependencyID[A] = DependencyID(Left(c))
 
-  def apply[A](o: A with Singleton): DependencyID[A] = DependencyID(Right(o))
+  def apply[A <: DependencyAPI[_]](c: Class[_ <: A]): DependencyID[A] = {
+    require(!c.getName.contains("$"))
+    DependencyID(Left(c))
+  }
+
+  def apply[A <: DependencyAPI[_]](o: A with Singleton): DependencyID[A] = DependencyID(Right(o))
+
+  def fromTransform[A <: DependencyAPI[_]](t: A): DependencyID[A] = {
+    if (isSingleton(t)) {
+      DependencyID[A](Right(t.asInstanceOf[A with Singleton]))
+    } else {
+      DependencyID[A](Left(t.getClass))
+    }
+  }
+
+  private def isSingleton(obj: AnyRef): Boolean = {
+    reflect.runtime.currentMirror.reflect(obj).symbol.isModuleClass
+  }
 }
 
-case class DependencyID[+A](id: Either[Class[_ <: A], A with Singleton]) {
+case class DependencyID[+A <: DependencyAPI[_]](id: Either[Class[_ <: A], A with Singleton]) {
   def getObject(): A = id match {
     case Left(c) => safeConstruct(c)
     case Right(o) => o

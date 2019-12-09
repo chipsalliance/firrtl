@@ -233,7 +233,7 @@ trait Transform extends TransformLike[CircuitState] with DependencyAPI[Transform
       case U => Nil
     }
 
-    val selfDep = DependencyID[Transform](this.getClass)
+    val selfDep = DependencyID.fromTransform(this)
 
     inputForm match {
       case C => (Forms.VerilogOptimized.toSet                           ++ emitters - selfDep).toSeq
@@ -244,24 +244,17 @@ trait Transform extends TransformLike[CircuitState] with DependencyAPI[Transform
     }
   }
 
-  private def classOfDep(td: TransformDependency): Class[_ <: Transform] = {
-    td match {
-      case DependencyID(Left(c)) => c
-      case DependencyID(Right(o)) => o.getClass
-    }
-  }
-
   private val fullSet = Forms.VerilogOptimized.toSet
-  private val highOutputInvalidates = (fullSet -- Forms.MinimalHighForm).map(classOfDep(_))
-  private val midOutputInvalidates = (fullSet -- Forms.MidForm).map(classOfDep(_))
+  private val highOutputInvalidates = fullSet -- Forms.MinimalHighForm
+  private val midOutputInvalidates = fullSet -- Forms.MidForm
 
   override def invalidates(a: Transform): Boolean = {
     (inputForm, outputForm) match {
       case (U, _) | (_, U)  => true  // invalidate everything
       case (i, o) if i >= o => false // invalidate nothing
       case (_, C)           => true  // invalidate everything
-      case (_, H)           => highOutputInvalidates(a.getClass)
-      case (_, M)           => midOutputInvalidates(a.getClass)
+      case (_, H)           => highOutputInvalidates(DependencyID.fromTransform(a))
+      case (_, M)           => midOutputInvalidates(DependencyID.fromTransform(a))
       case (_, L)           => false // invalidate nothing
     }
   }
