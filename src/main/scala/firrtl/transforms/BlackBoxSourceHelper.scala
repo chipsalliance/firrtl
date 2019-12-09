@@ -6,7 +6,6 @@ import java.io.{File, FileNotFoundException, FileInputStream, FileOutputStream, 
 
 import firrtl._
 import firrtl.annotations._
-import firrtl.options.DependencyID
 
 import scala.collection.immutable.ListSet
 
