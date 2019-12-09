@@ -18,7 +18,8 @@ object DependencyID {
   }
 
   def apply[A <: DependencyAPI[_]](c: Class[_ <: A]): DependencyID[A] = {
-    require(!c.getName.contains("$"))
+    // It's forbidden to wrap the class of a singleton as a DependencyID
+    require(c.getName.last != '$')
     DependencyID(Left(c))
   }
 
