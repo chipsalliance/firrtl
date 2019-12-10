@@ -27,7 +27,7 @@ make_verilog () {
 
     sbt clean
     sbt "runMain firrtl.Driver -i $DUT.fir -o $filename -X verilog"
-    RET=$filename
+    RET="firrtl/$filename"
 }
 
 # Generate Verilog to compare
