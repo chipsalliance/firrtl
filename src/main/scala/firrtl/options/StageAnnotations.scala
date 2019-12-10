@@ -4,6 +4,9 @@ package firrtl.options
 
 import firrtl.AnnotationSeq
 import firrtl.annotations.{Annotation, NoTargetAnnotation}
+import firrtl.options.Viewer.view
+
+import java.io.File
 
 import scopt.OptionParser
 
@@ -13,6 +16,23 @@ sealed trait StageOption { this: Annotation => }
   * This usually means that this is an annotation that is used only internally to a [[Stage]].
   */
 trait Unserializable { this: Annotation => }
+
+trait HowToSerialize { this: Annotation =>
+
+  protected def baseFileName: String
+
+  protected def suffix: Option[String]
+
+  def howToSerialize: Option[String]
+
+  def howToResume(file: File): Option[AnnotationSeq]
+
+  def filename(annotations: AnnotationSeq): File = {
+    val name = view[StageOptions](annotations).getBuildFileName(baseFileName, suffix)
+    new File(name)
+  }
+
+}
 
 /** Holds the name of the target directory
   *  - set with `-td/--target-dir`
