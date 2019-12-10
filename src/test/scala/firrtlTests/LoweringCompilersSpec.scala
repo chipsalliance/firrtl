@@ -12,7 +12,7 @@ import firrtl.transforms.IdentityTransform
 
 sealed trait PatchAction { val line: Int }
 
-case class Add(line: Int, transforms: Seq[Class[_ <: Transform]]) extends PatchAction
+case class Add(line: Int, transforms: Seq[Dependency[Transform]]) extends PatchAction
 case class Del(line: Int) extends PatchAction
 
 object Transforms {
@@ -109,8 +109,8 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
   def compare(a: Seq[Transform], b: TransformManager, patches: Seq[PatchAction] = Seq.empty): Unit = {
     info(s"""Transform Order:\n${b.prettyPrint("    ")}""")
 
-    val m = new scala.collection.mutable.HashMap[Int, Seq[Class[_ <: Transform]]].withDefault(_ => Seq.empty)
-    a.map(_.getClass).zipWithIndex.foreach{ case (t, idx) => m(idx) = Seq(t) }
+    val m = new scala.collection.mutable.HashMap[Int, Seq[Dependency[Transform]]].withDefault(_ => Seq.empty)
+    a.map(Dependency.fromTransform).zipWithIndex.foreach{ case (t, idx) => m(idx) = Seq(t) }
 
     patches.foreach {
       case Add(line, txs) => m(line - 1) = m(line - 1) ++ txs
@@ -120,7 +120,7 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
     val patched = scala.collection.immutable.TreeMap(m.toArray:_*).values.flatten
 
     patched
-      .zip(b.flattenedTransformOrder.map(_.getClass))
+      .zip(b.flattenedTransformOrder.map(Dependency.fromTransform))
       .foreach{ case (aa, bb) => bb should be (aa) }
 
     info(s"found ${b.flattenedTransformOrder.size} transforms")
@@ -146,7 +146,7 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
   it should "replicate the old order" in {
     val tm = new TransformManager(Forms.Resolved, Forms.WorkingIR)
     val patches = Seq(
-      Add(14, Seq(classOf[firrtl.passes.CheckTypes]))
+      Add(14, Seq(Dependency.fromTransform(firrtl.passes.CheckTypes)))
     )
     compare(legacyTransforms(new ResolveAndCheck), tm, patches)
   }
@@ -156,16 +156,16 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
   it should "replicate the old order" in {
     val tm = new TransformManager(Forms.MidForm, Forms.Deduped)
     val patches = Seq(
-      Add(5, Seq(classOf[firrtl.passes.ResolveKinds],
-                 classOf[firrtl.passes.InferTypes])),
+      Add(5, Seq(Dependency[firrtl.passes.ResolveKinds],
+                 Dependency[firrtl.passes.InferTypes])),
       Del(6),
       Del(7),
-      Add(6, Seq(classOf[firrtl.passes.ExpandWhensAndCheck])),
+      Add(6, Seq(Dependency[firrtl.passes.ExpandWhensAndCheck])),
       Del(10),
       Del(11),
       Del(12),
-      Add(11, Seq(classOf[firrtl.passes.ResolveFlows],
-                  classOf[firrtl.passes.InferWidths])),
+      Add(11, Seq(Dependency[firrtl.passes.ResolveFlows],
+                  Dependency[firrtl.passes.InferWidths])),
       Del(13)
     )
     compare(legacyTransforms(new HighFirrtlToMiddleFirrtl), tm, patches)
@@ -190,7 +190,7 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
   it should "replicate the old order" in {
     val tm = new TransformManager(Forms.LowFormOptimized, Forms.LowForm)
     val patches = Seq(
-      Add(7, Seq(classOf[firrtl.passes.Legalize]))
+      Add(7, Seq(Dependency[firrtl.passes.Legalize]))
     )
     compare(legacyTransforms(new LowFirrtlOptimization), tm, patches)
   }
