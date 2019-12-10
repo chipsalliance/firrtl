@@ -7,7 +7,15 @@ import java.io.File
 
 import firrtl.AnnotationSeq
 import firrtl.annotations.{DeletedAnnotation, NoTargetAnnotation}
-import firrtl.options.{InputAnnotationFileAnnotation, OutputAnnotationFileAnnotation, Phase, WriteDeletedAnnotation}
+import firrtl.options.{
+  HowToSerialize,
+  InputAnnotationFileAnnotation,
+  OutputAnnotationFileAnnotation,
+  Phase,
+  StageOptions,
+  TargetDirAnnotation,
+  WriteDeletedAnnotation}
+import firrtl.options.Viewer.view
 import firrtl.options.phases.{GetIncludes, WriteOutputAnnotations}
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
@@ -100,9 +108,48 @@ class WriteOutputAnnotationsSpec extends AnyFlatSpec with Matchers with firrtl.t
     out.toSeq should be (annotations)
   }
 
+  it should "write HowToSerialize annotations" in new Fixture {
+    val file = new File("write-HowToSerialize-annotations.anno.json")
+    val annotations = Seq( TargetDirAnnotation(dir),
+                           OutputAnnotationFileAnnotation(file.toString),
+                           WriteOutputAnnotationsSpec.HowTo("hello!") )
+    val serializedFileName = view[StageOptions](annotations).getBuildFileName("HowTo", Some(".Serialize"))
+    val expected = annotations.map {
+      case _: WriteOutputAnnotationsSpec.HowTo => WriteOutputAnnotationsSpec.HowToFindMe(serializedFileName)
+      case a => a
+    }
+
+    val out = phase.transform(annotations)
+
+    info("annotations are unmodified")
+    out.toSeq should be (annotations)
+
+    fileContainsAnnotations(new File(dir, file.toString), expected)
+
+    info(s"file '$serializedFileName' exists")
+    new File(serializedFileName) should (exist)
+  }
+
 }
 
 private object WriteOutputAnnotationsSpec {
+
   case object FooAnnotation extends NoTargetAnnotation
+
   case class BarAnnotation(x: Int) extends NoTargetAnnotation
+
+  case class HowTo(value: String) extends NoTargetAnnotation with HowToSerialize {
+
+    override protected def baseFileName: String = "HowTo"
+
+    override protected def suffix: Option[String] = Some(".Serialize")
+
+    override def howToSerialize: Option[String] = Some(value)
+
+    override def howToResume(file: File): Option[AnnotationSeq] = Some(Seq(HowToFindMe(file.toString)))
+
+  }
+
+  case class HowToFindMe(file: String) extends NoTargetAnnotation
+
 }
