@@ -4,8 +4,7 @@ package firrtl.options.phases
 
 import firrtl.AnnotationSeq
 import firrtl.annotations.{DeletedAnnotation, JsonProtocol}
-import firrtl.options.{Phase, StageOptions, Unserializable, Viewer}
-import firrtl.options.Dependency
+import firrtl.options.{Dependency, HowToSerialize, Phase, StageOptions, Unserializable, Viewer}
 
 import java.io.PrintWriter
 
@@ -27,10 +26,21 @@ class WriteOutputAnnotations extends Phase {
   /** Write the input [[AnnotationSeq]] to a fie. */
   def transform(annotations: AnnotationSeq): AnnotationSeq = {
     val sopts = Viewer[StageOptions].view(annotations)
-    val serializable = annotations.filter{
-      case _: Unserializable    => false
-      case _: DeletedAnnotation => sopts.writeDeleted
-      case _                    => true
+    val serializable: AnnotationSeq = annotations.flatMap{
+      case _: Unserializable    => None
+      case a: DeletedAnnotation => if (sopts.writeDeleted) { Some(a) } else { None }
+      case a: HowToSerialize    =>
+        val filename = a.filename(annotations)
+        a.howToSerialize.map { str =>
+          val pw = new PrintWriter(filename)
+          pw.write(str)
+          pw.close()
+        }
+        a.howToResume(filename) match {
+          case Some(a) => a
+          case None => None
+        }
+      case a => Some(a)
     }
 
     sopts.annotationFileOut match {
