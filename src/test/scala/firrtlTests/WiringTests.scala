@@ -594,7 +594,7 @@ class WiringTests extends FirrtlFlatSpec {
     }
   }
 
-  it should "wire subaccess source to sink" in {
+  ignore should "wire subaccess source to sink" in {
     val sinks = Seq(ModuleTarget("Top", "X"))
     val source = ComponentName("r[a]", ModuleName("A", CircuitName("Top")))
     val sas = WiringInfo(source, sinks, "pin")
