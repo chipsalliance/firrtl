@@ -6,7 +6,6 @@ package transforms
 import org.scalatest.FlatSpec
 import org.scalatest.Matchers
 import org.scalatest.junit.JUnitRunner
-import scala.io.Source
 import java.io._
 
 import firrtl._
@@ -18,7 +17,8 @@ import firrtl.annotations.{
    CircuitName,
    ModuleName,
    ComponentName,
-   Annotation
+   Annotation,
+   Target
 }
 import firrtl.transforms.TopWiring._
 
@@ -626,6 +626,24 @@ class TopWiringTests extends MiddleTransformSpec with TopWiringTestsCommon  {
        case FirrtlExecutionSuccess(_, emitted) => parse(emitted) should be (parse(input))
        case _ => fail
      }
+   }
+
+   "TopWiringTransform" should "remove TopWiringAnnotations" in {
+     val input =
+       """|circuit Top:
+          |  module Top:
+          |    wire foo: UInt<1>""".stripMargin
+
+     val bar =
+       Target
+         .deserialize("~Top|Top>foo")
+         .toNamed match { case a: ComponentName => a }
+
+     val annotations = Seq(TopWiringAnnotation(bar, "bar_"))
+     val outputState = (new TopWiringTransform).execute(CircuitState(Parser.parse(input), MidForm, annotations, None))
+
+     outputState.circuit.serialize should include ("output bar_foo")
+     outputState.annotations.toSeq should be (empty)
    }
 }
 

@@ -10,22 +10,10 @@ import firrtl.WrappedExpression._
 import scala.collection.mutable
 import scala.util.matching.Regex
 
+import Implicits.{constraint2bound, constraint2width, width2constraint}
+import firrtl.constraint.{IsMax, IsMin}
 import firrtl.annotations.{ReferenceTarget, TargetToken}
 import _root_.logger.LazyLogging
-
-object FIRRTLException {
-  def defaultMessage(message: String, cause: Throwable) = {
-    if (message != null) {
-      message
-    } else if (cause != null) {
-      cause.toString
-    } else {
-      null
-    }
-  }
-}
-class FIRRTLException(val str: String, cause: Throwable = null)
-  extends RuntimeException(FIRRTLException.defaultMessage(str, cause), cause)
 
 object seqCat {
   def apply(args: Seq[Expression]): Expression = args.length match {
@@ -48,9 +36,9 @@ object toBits {
   }
   private def hiercat(e: Expression): Expression = e.tpe match {
     case t: VectorType => seqCat((0 until t.size).reverse map (i =>
-      hiercat(WSubIndex(e, i, t.tpe, UNKNOWNGENDER))))
+      hiercat(WSubIndex(e, i, t.tpe, UnknownFlow))))
     case t: BundleType => seqCat(t.fields map (f =>
-      hiercat(WSubField(e, f.name, f.tpe, UNKNOWNGENDER))))
+      hiercat(WSubField(e, f.name, f.tpe, UnknownFlow))))
     case t: GroundType => DoPrim(AsUInt, Seq(e), Seq.empty, UnknownType)
     case t => Utils.error(s"Unknown type encountered in toBits: $e")
   }
@@ -77,18 +65,18 @@ object bitWidth {
 object castRhs {
   def apply(lhst: Type, rhs: Expression) = {
     (lhst, rhs.tpe) match {
-      case (x: GroundType, y: GroundType) if WrappedType(x) == WrappedType(y) => 
+      case (x: GroundType, y: GroundType) if WrappedType(x) == WrappedType(y) =>
         rhs
-      case (_: SIntType, _) => 
+      case (_: SIntType, _) =>
         DoPrim(AsSInt, Seq(rhs), Seq.empty, lhst)
-      case (FixedType(_, IntWidth(p)), _) => 
+      case (FixedType(_, IntWidth(p)), _) =>
         DoPrim(AsFixedPoint, Seq(rhs), Seq(p), lhst)
-      case (ClockType, _) => 
+      case (ClockType, _) =>
         DoPrim(AsClock, Seq(rhs), Seq.empty, lhst)
-      case (_: UIntType, _) => 
+      case (_: UIntType, _) =>
         DoPrim(AsUInt, Seq(rhs), Seq.empty, lhst)
       case (_, _) => Utils.error("castRhs lhst, rhs type combination is invalid")
-    }  
+    }
   }
 }
 
@@ -116,13 +104,13 @@ object fromBits {
     lhst match {
       case t: VectorType => (0 until t.size foldLeft( (offset, Seq[Statement]()) )) {
         case ((curOffset, stmts), i) =>
-          val subidx = WSubIndex(lhs, i, t.tpe, UNKNOWNGENDER)
+          val subidx = WSubIndex(lhs, i, t.tpe, UnknownFlow)
           val (tmpOffset, substmts) = getPart(subidx, t.tpe, rhs, curOffset)
           (tmpOffset, stmts ++ substmts)
       }
       case t: BundleType => (t.fields foldRight( (offset, Seq[Statement]()) )) {
         case (f, (curOffset, stmts)) =>
-          val subfield = WSubField(lhs, f.name, f.tpe, UNKNOWNGENDER)
+          val subfield = WSubField(lhs, f.name, f.tpe, UnknownFlow)
           val (tmpOffset, substmts) = getPart(subfield, f.tpe, rhs, curOffset)
           (tmpOffset, stmts ++ substmts)
       }
@@ -233,7 +221,10 @@ object Utils extends LazyLogging {
   def indent(str: String) = str replaceAllLiterally ("\n", "\n  ")
 
   implicit def toWrappedExpression (x:Expression): WrappedExpression = new WrappedExpression(x)
-  def ceilLog2(x: BigInt): Int = (x-1).bitLength
+  def getSIntWidth(s: BigInt): Int = s.bitLength + 1
+  def getUIntWidth(u: BigInt): Int = u.bitLength
+  def dec2string(v: BigDecimal): String = v.underlying().stripTrailingZeros().toPlainString
+  def trim(v: BigDecimal): BigDecimal = BigDecimal(dec2string(v))
   def max(a: BigInt, b: BigInt): BigInt = if (a >= b) a else b
   def min(a: BigInt, b: BigInt): BigInt = if (a >= b) b else a
   def pow_minus_one(a: BigInt, b: BigInt): BigInt = a.pow(b.toInt) - 1
@@ -242,7 +233,7 @@ object Utils extends LazyLogging {
   val zero = UIntLiteral(0)
 
   def create_exps(n: String, t: Type): Seq[Expression] =
-    create_exps(WRef(n, t, ExpKind, UNKNOWNGENDER))
+    create_exps(WRef(n, t, ExpKind, UnknownFlow))
   def create_exps(e: Expression): Seq[Expression] = e match {
     case ex: Mux =>
       val e1s = create_exps(ex.tval)
@@ -254,8 +245,8 @@ object Utils extends LazyLogging {
     case ex => ex.tpe match {
       case (_: GroundType) => Seq(ex)
       case t: BundleType =>
-        t.fields.flatMap(f => create_exps(WSubField(ex, f.name, f.tpe,times(gender(ex), f.flip))))
-      case t: VectorType => (0 until t.size).flatMap(i => create_exps(WSubIndex(ex, i, t.tpe,gender(ex))))
+        t.fields.flatMap(f => create_exps(WSubField(ex, f.name, f.tpe,times(flow(ex), f.flip))))
+      case t: VectorType => (0 until t.size).flatMap(i => create_exps(WSubIndex(ex, i, t.tpe,flow(ex))))
     }
   }
 
@@ -274,9 +265,9 @@ object Utils extends LazyLogging {
     case ex => ex.tpe match {
       case (_: GroundType) => Seq(ex)
       case (t: BundleType) => (t.fields foldLeft Seq[Expression](ex))((exps, f) =>
-        exps ++ create_exps(WSubField(ex, f.name, f.tpe,times(gender(ex), f.flip))))
+        exps ++ create_exps(WSubField(ex, f.name, f.tpe,times(flow(ex), f.flip))))
       case (t: VectorType) => (0 until t.size foldLeft Seq[Expression](ex))((exps, i) =>
-        exps ++ create_exps(WSubIndex(ex, i, t.tpe,gender(ex))))
+        exps ++ create_exps(WSubIndex(ex, i, t.tpe,flow(ex))))
     }
   }
   def toTarget(main: String, module: String)(expression: Expression): ReferenceTarget = {
@@ -297,7 +288,7 @@ object Utils extends LazyLogging {
     onExp(expression)
     ReferenceTarget(main, module, Nil, ref, tokens)
   }
-   @deprecated("get_flip is fundamentally slow, use to_flip(gender(expr))", "1.2")
+   @deprecated("get_flip is fundamentally slow, use to_flip(flow(expr))", "1.2")
    def get_flip(t: Type, i: Int, f: Orientation): Orientation = {
      if (i >= get_size(t)) throwInternalError(s"get_flip: shouldn't be here - $i >= get_size($t)")
      t match {
@@ -322,7 +313,7 @@ object Utils extends LazyLogging {
          flip.get
      }
    }
-  
+
    def get_point (e:Expression) : Int = e match {
      case (e: WRef) => 0
      case (e: WSubField) => e.expr.tpe match {case b: BundleType =>
@@ -389,6 +380,7 @@ object Utils extends LazyLogging {
     case (t1: UIntType, t2: UIntType) => UIntType(UnknownWidth)
     case (t1: SIntType, t2: SIntType) => SIntType(UnknownWidth)
     case (t1: FixedType, t2: FixedType) => FixedType(UnknownWidth, UnknownWidth)
+    case (t1: IntervalType, t2: IntervalType) => IntervalType(UnknownBound, UnknownBound, UnknownWidth)
     case (t1: VectorType, t2: VectorType) => VectorType(mux_type(t1.tpe, t2.tpe), t1.size)
     case (t1: BundleType, t2: BundleType) => BundleType(t1.fields zip t2.fields map {
       case (f1, f2) => Field(f1.name, f1.flip, mux_type(f1.tpe, f2.tpe))
@@ -400,15 +392,17 @@ object Utils extends LazyLogging {
   def mux_type_and_widths(t1: Type, t2: Type): Type = {
     def wmax(w1: Width, w2: Width): Width = (w1, w2) match {
       case (w1x: IntWidth, w2x: IntWidth) => IntWidth(w1x.width max w2x.width)
-      case (w1x, w2x) => MaxWidth(Seq(w1x, w2x))
+      case (w1x, w2x) => IsMax(w1x, w2x)
     }
     (t1, t2) match {
       case (ClockType, ClockType) => ClockType
       case (AsyncResetType, AsyncResetType) => AsyncResetType
-      case (t1x: UIntType, t2x: UIntType) => UIntType(wmax(t1x.width, t2x.width))
-      case (t1x: SIntType, t2x: SIntType) => SIntType(wmax(t1x.width, t2x.width))
+      case (t1x: UIntType, t2x: UIntType) => UIntType(IsMax(t1x.width, t2x.width))
+      case (t1x: SIntType, t2x: SIntType) => SIntType(IsMax(t1x.width, t2x.width))
       case (FixedType(w1, p1), FixedType(w2, p2)) =>
         FixedType(PLUS(MAX(p1, p2),MAX(MINUS(w1, p1), MINUS(w2, p2))), MAX(p1, p2))
+      case (IntervalType(l1, u1, p1), IntervalType(l2, u2, p2)) =>
+        IntervalType(IsMin(l1, l2), constraint.IsMax(u1, u2), MAX(p1, p2))
       case (t1x: VectorType, t2x: VectorType) => VectorType(
         mux_type_and_widths(t1x.tpe, t2x.tpe), t1x.size)
       case (t1x: BundleType, t2x: BundleType) => BundleType(t1x.fields zip t2x.fields map {
@@ -432,9 +426,9 @@ object Utils extends LazyLogging {
     }
     case vx => UnknownType
   }
-   
+
 // =================================
-  def error(str: String, cause: Throwable = null) = throw new FIRRTLException(str, cause)
+  def error(str: String, cause: Throwable = null) = throw new FirrtlInternalException(str, cause)
 
 //// =============== EXPANSION FUNCTIONS ================
   def get_size(t: Type): Int = t match {
@@ -445,6 +439,7 @@ object Utils extends LazyLogging {
   }
 
   def get_valid_points(t1: Type, t2: Type, flip1: Orientation, flip2: Orientation): Seq[(Int,Int)] = {
+    import passes.CheckTypes.legalResetType
     //;println_all(["Inside with t1:" t1 ",t2:" t2 ",f1:" flip1 ",f2:" flip2])
     (t1, t2) match {
       case (_: UIntType, _: UIntType) => if (flip1 == flip2) Seq((0, 0)) else Nil
@@ -474,16 +469,24 @@ object Utils extends LazyLogging {
             ilen + get_size(t1x.tpe), jlen + get_size(t2x.tpe))
         }._1
       case (ClockType, ClockType) => if (flip1 == flip2) Seq((0, 0)) else Nil
+      case (AsyncResetType, AsyncResetType) => if (flip1 == flip2) Seq((0, 0)) else Nil
+      // The following two cases handle driving ResetType from other legal reset types
+      // Flippedness is important here because ResetType can be driven by other reset types, but it
+      //   cannot *drive* other reset types
+      case (ResetType, other) =>
+        if (legalResetType(other) && flip1 == Default && flip1 == flip2) Seq((0, 0)) else Nil
+      case (other, ResetType) =>
+        if (legalResetType(other) && flip1 == Flip && flip1 == flip2) Seq((0, 0)) else Nil
       case _ => throwInternalError(s"get_valid_points: shouldn't be here - ($t1, $t2)")
     }
   }
 
-// =========== GENDER/FLIP UTILS ============
-  def swap(g: Gender) : Gender = g match {
-    case UNKNOWNGENDER => UNKNOWNGENDER
-    case MALE => FEMALE
-    case FEMALE => MALE
-    case BIGENDER => BIGENDER
+// =========== FLOW/FLIP UTILS ============
+  def swap(g: Flow) : Flow = g match {
+    case UnknownFlow => UnknownFlow
+    case SourceFlow => SinkFlow
+    case SinkFlow => SourceFlow
+    case DuplexFlow => DuplexFlow
   }
   def swap(d: Direction) : Direction = d match {
     case Output => Input
@@ -493,21 +496,26 @@ object Utils extends LazyLogging {
     case Default => Flip
     case Flip => Default
   }
-  def to_dir(g: Gender): Direction = g match {
-    case MALE => Input
-    case FEMALE => Output
+  def to_dir(g: Flow): Direction = g match {
+    case SourceFlow => Input
+    case SinkFlow => Output
   }
+  @deprecated("Migrate from 'Gender' to 'Flow. This method will be removed in 1.3", "1.2")
   def to_gender(d: Direction): Gender = d match {
     case Input => MALE
     case Output => FEMALE
+  }
+  def to_flow(d: Direction): Flow = d match {
+    case Input => SourceFlow
+    case Output => SinkFlow
   }
   def to_flip(d: Direction): Orientation = d match {
     case Input => Flip
     case Output => Default
   }
-  def to_flip(g: Gender): Orientation = g match {
-    case MALE => Flip
-    case FEMALE => Default
+  def to_flip(g: Flow): Orientation = g match {
+    case SourceFlow => Flip
+    case SinkFlow => Default
   }
 
   def field_flip(v: Type, s: String): Orientation = v match {
@@ -529,14 +537,14 @@ object Utils extends LazyLogging {
     case Default => d
     case Flip => swap(d)
   }
-  def times(g: Gender, d: Direction): Direction = times(d, g)
-  def times(d: Direction, g: Gender): Direction = g match {
-    case FEMALE => d
-    case MALE => swap(d) // MALE == INPUT == REVERSE
+  def times(g: Flow, d: Direction): Direction = times(d, g)
+  def times(d: Direction, g: Flow): Direction = g match {
+    case SinkFlow => d
+    case SourceFlow => swap(d) // SourceFlow == INPUT == REVERSE
   }
 
-  def times(g: Gender, flip: Orientation): Gender = times(flip, g)
-  def times(flip: Orientation, g: Gender): Gender = flip match {
+  def times(g: Flow, flip: Orientation): Flow = times(flip, g)
+  def times(flip: Orientation, g: Flow): Flow = flip match {
     case Default => g
     case Flip => swap(g)
   }
@@ -553,6 +561,7 @@ object Utils extends LazyLogging {
     case ex: WSubAccess => kind(ex.expr)
     case ex => ExpKind
   }
+  @deprecated("Migrate from 'Gender' to 'Flow'. This method will be removed in 1.3", "1.2")
   def gender(e: Expression): Gender = e match {
     case ex: WRef => ex.gender
     case ex: WSubField => ex.gender
@@ -566,6 +575,7 @@ object Utils extends LazyLogging {
     case WInvalid => MALE
     case ex => throwInternalError(s"gender: shouldn't be here - $e")
   }
+  @deprecated("Migrate from 'Gender' to 'Flow'. This method will be removed in 1.3", "1.2")
   def get_gender(s: Statement): Gender = s match {
     case sx: DefWire => BIGENDER
     case sx: DefRegister => BIGENDER
@@ -581,7 +591,37 @@ object Utils extends LazyLogging {
     case sx: IsInvalid => UNKNOWNGENDER
     case EmptyStmt => UNKNOWNGENDER
   }
+  @deprecated("Migrate from 'Gender' to 'Flow'. This method will be removed in 1.3", "1.2")
   def get_gender(p: Port): Gender = if (p.direction == Input) MALE else FEMALE
+  def flow(e: Expression): Flow = e match {
+    case ex: WRef => ex.flow
+    case ex: WSubField => ex.flow
+    case ex: WSubIndex => ex.flow
+    case ex: WSubAccess => ex.flow
+    case ex: DoPrim => SourceFlow
+    case ex: UIntLiteral => SourceFlow
+    case ex: SIntLiteral => SourceFlow
+    case ex: Mux => SourceFlow
+    case ex: ValidIf => SourceFlow
+    case WInvalid => SourceFlow
+    case ex => throwInternalError(s"flow: shouldn't be here - $e")
+  }
+  def get_flow(s: Statement): Flow = s match {
+    case sx: DefWire => DuplexFlow
+    case sx: DefRegister => DuplexFlow
+    case sx: WDefInstance => SourceFlow
+    case sx: DefNode => SourceFlow
+    case sx: DefInstance => SourceFlow
+    case sx: DefMemory => SourceFlow
+    case sx: Block => UnknownFlow
+    case sx: Connect => UnknownFlow
+    case sx: PartialConnect => UnknownFlow
+    case sx: Stop => UnknownFlow
+    case sx: Print => UnknownFlow
+    case sx: IsInvalid => UnknownFlow
+    case EmptyStmt => UnknownFlow
+  }
+  def get_flow(p: Port): Flow = if (p.direction == Input) SourceFlow else SinkFlow
   def get_info(s: Statement): Info = s match {
     case s: HasInfo => s.info
     case _ => NoInfo
@@ -603,27 +643,27 @@ object Utils extends LazyLogging {
     case e: WRef => (e, EmptyExpression)
     case e: WSubIndex =>
       val (root, tail) = splitRef(e.expr)
-      (root, WSubIndex(tail, e.value, e.tpe, e.gender))
+      (root, WSubIndex(tail, e.value, e.tpe, e.flow))
     case e: WSubField =>
       val (root, tail) = splitRef(e.expr)
       tail match {
-        case EmptyExpression => (root, WRef(e.name, e.tpe, root.kind, e.gender))
-        case exp => (root, WSubField(tail, e.name, e.tpe, e.gender))
+        case EmptyExpression => (root, WRef(e.name, e.tpe, root.kind, e.flow))
+        case exp => (root, WSubField(tail, e.name, e.tpe, e.flow))
       }
   }
 
   /** Adds a root reference to some SubField/SubIndex chain */
   def mergeRef(root: Expression, body: Expression): Expression = body match {
     case e: WRef =>
-      WSubField(root, e.name, e.tpe, e.gender)
+      WSubField(root, e.name, e.tpe, e.flow)
     case e: WSubIndex =>
-      WSubIndex(mergeRef(root, e.expr), e.value, e.tpe, e.gender)
+      WSubIndex(mergeRef(root, e.expr), e.value, e.tpe, e.flow)
     case e: WSubField =>
-      WSubField(mergeRef(root, e.expr), e.name, e.tpe, e.gender)
+      WSubField(mergeRef(root, e.expr), e.name, e.tpe, e.flow)
     case EmptyExpression => root
   }
 
-  case class DeclarationNotFoundException(msg: String) extends FIRRTLException(msg)
+  case class DeclarationNotFoundException(msg: String) extends FirrtlUserException(msg)
 
   /** Gets the root declaration of an expression
     *

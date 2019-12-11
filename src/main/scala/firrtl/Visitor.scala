@@ -30,6 +30,7 @@ class Visitor(infoMode: InfoMode) extends AbstractParseTreeVisitor[FirrtlNode] w
   private val HexPattern = """\"*h([+\-]?[a-zA-Z0-9]+)\"*""".r
   private val DecPattern = """([+\-]?[1-9]\d*)""".r
   private val ZeroPattern = "0".r
+  private val DecimalPattern = """([+\-]?[0-9]\d*\.[0-9]\d*)""".r
 
   private def string2BigInt(s: String): BigInt = {
     // private define legal patterns
@@ -38,6 +39,16 @@ class Visitor(infoMode: InfoMode) extends AbstractParseTreeVisitor[FirrtlNode] w
       case HexPattern(hexdigits) => BigInt(hexdigits, 16)
       case DecPattern(num) => BigInt(num, 10)
       case _ => throw new Exception("Invalid String for conversion to BigInt " + s)
+    }
+  }
+
+  private def string2BigDecimal(s: String): BigDecimal = {
+    // private define legal patterns
+    s match {
+      case ZeroPattern(_*) => BigDecimal(0)
+      case DecPattern(num) => BigDecimal(num)
+      case DecimalPattern(num) => BigDecimal(num)
+      case _ => throw new Exception("Invalid String for conversion to BigDecimal " + s)
     }
   }
 
@@ -143,8 +154,33 @@ class Visitor(infoMode: InfoMode) extends AbstractParseTreeVisitor[FirrtlNode] w
             }
             case 2 => FixedType(getWidth(ctx.intLit(0)), getWidth(ctx.intLit(1)))
           }
+          case "Interval" => ctx.boundValue.size match {
+            case 0 =>
+              val point = ctx.intLit.size match {
+                case 0 => UnknownWidth
+                case 1 => IntWidth(string2BigInt(ctx.intLit(0).getText))
+              }
+              IntervalType(UnknownBound, UnknownBound, point)
+            case 2 =>
+              val lower = (ctx.lowerBound.getText, ctx.boundValue(0).getText) match {
+                case (_, "?") => UnknownBound
+                case ("(", v) => Open(string2BigDecimal(v))
+                case ("[", v) => Closed(string2BigDecimal(v))
+              }
+              val upper = (ctx.upperBound.getText, ctx.boundValue(1).getText) match {
+                case (_, "?") => UnknownBound
+                case (")", v) => Open(string2BigDecimal(v))
+                case ("]", v) => Closed(string2BigDecimal(v))
+              }
+              val point = ctx.intLit.size match {
+                case 0 => UnknownWidth
+                case 1 => IntWidth(string2BigInt(ctx.intLit(0).getText))
+              }
+              IntervalType(lower, upper, point)
+          }
           case "Clock" => ClockType
           case "AsyncReset" => AsyncResetType
+          case "Reset" => ResetType
           case "Analog" => if (ctx.getChildCount > 1) AnalogType(getWidth(ctx.intLit(0)))
           else AnalogType(UnknownWidth)
           case "{" => BundleType(ctx.field.asScala.map(visitField))
@@ -177,15 +213,23 @@ class Visitor(infoMode: InfoMode) extends AbstractParseTreeVisitor[FirrtlNode] w
   private def visitSuite(ctx: SuiteContext): Statement =
     Block(ctx.simple_stmt().asScala.flatMap(x => Option(x.stmt).map(visitStmt)))
 
+  private def visitRuw(ctx: Option[RuwContext]): ReadUnderWrite.Value = ctx match {
+    case None => ReadUnderWrite.Undefined
+    case Some(ctx) => ctx.getText match {
+      case "undefined" => ReadUnderWrite.Undefined
+      case "old" => ReadUnderWrite.Old
+      case "new" => ReadUnderWrite.New
+    }
+  }
 
   // Memories are fairly complicated to translate thus have a dedicated method
   private def visitMem(ctx: StmtContext): Statement = {
     val readers = mutable.ArrayBuffer.empty[String]
     val writers = mutable.ArrayBuffer.empty[String]
     val readwriters = mutable.ArrayBuffer.empty[String]
-    case class ParamValue(typ: Option[Type] = None, lit: Option[BigInt] = None, ruw: Option[String] = None, unique: Boolean = true)
+    case class ParamValue(typ: Option[Type] = None, lit: Option[BigInt] = None, ruw: ReadUnderWrite.Value = ReadUnderWrite.Undefined, unique: Boolean = true)
     val fieldMap = mutable.HashMap[String, ParamValue]()
-
+    val memName = ctx.id(0).getText
     def parseMemFields(memFields: Seq[MemFieldContext]): Unit =
       memFields.foreach { field =>
         val fieldName = field.children.asScala(0).getText
@@ -197,7 +241,7 @@ class Visitor(infoMode: InfoMode) extends AbstractParseTreeVisitor[FirrtlNode] w
           case _ =>
             val paramDef = fieldName match {
               case "data-type" => ParamValue(typ = Some(visitType(field.`type`())))
-              case "read-under-write" => ParamValue(ruw = Some(field.ruw().getText)) // TODO
+              case "read-under-write" => ParamValue(ruw = visitRuw(Option(field.ruw)))
               case _ => ParamValue(lit = Some(BigInt(field.intLit().getText)))
             }
             if (fieldMap.contains(fieldName))
@@ -223,10 +267,11 @@ class Visitor(infoMode: InfoMode) extends AbstractParseTreeVisitor[FirrtlNode] w
     }
 
     def lit(param: String) = fieldMap(param).lit.get
-    val ruw = fieldMap.get("read-under-write").map(_.ruw).getOrElse(None)
+    val ruw = fieldMap.get("read-under-write").map(_.ruw).getOrElse(ir.ReadUnderWrite.Undefined)
 
     DefMemory(info,
-      name = ctx.id(0).getText, dataType = fieldMap("data-type").typ.get,
+      name = memName,
+      dataType = fieldMap("data-type").typ.get,
       depth = lit("depth"),
       writeLatency = lit("write-latency").toInt,
       readLatency = lit("read-latency").toInt,
@@ -282,7 +327,7 @@ class Visitor(infoMode: InfoMode) extends AbstractParseTreeVisitor[FirrtlNode] w
           CDefMemory(info, ctx.id(0).getText, tpe, size, seq = false)
         case "smem" =>
           val (tpe, size) = visitCMemType(ctx.`type`())
-          CDefMemory(info, ctx.id(0).getText, tpe, size, seq = true)
+          CDefMemory(info, ctx.id(0).getText, tpe, size, seq = true, readUnderWrite = visitRuw(Option(ctx.ruw)))
         case "inst" => DefInstance(info, ctx.id(0).getText, ctx.id(1).getText)
         case "node" => DefNode(info, ctx.id(0).getText, visitExp(ctx_exp(0)))
 
