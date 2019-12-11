@@ -3,23 +3,35 @@ package transforms
 
 import firrtl.ir._
 import firrtl.Mappers._
-import firrtl.Utils.{isNot, NodeMap}
+import firrtl.PrimOps.Not
+import firrtl.Utils.isNot
+import firrtl.WrappedExpression._
+
+import scala.collection.mutable
 
 object InlineNotsTransform {
 
+  /** Mapping from references to the [[firrtl.ir.Expression Expression]]s that drive them */
+  type Netlist = mutable.HashMap[WrappedExpression, Expression]
+
   /** Recursively replace [[WRef]]s with new [[Expression]]s
     *
-    * @param replace a '''mutable''' HashMap mapping [[WRef]]s to values with which the [[WRef]]
-    * will be replaced. It is '''not''' mutated in this function
+    * @param netlist a '''mutable''' HashMap mapping references to [[firrtl.ir.DefNode DefNode]]s to their connected
+    * [[firrtl.ir.Expression Expression]]s. It is '''not''' mutated in this function
     * @param expr the Expression being transformed
-    * @return Returns expr with [[WRef]]s replaced by values found in replace
+    * @return Returns expr with Nots inlined
     */
-  def onExpr(replace: NodeMap)(expr: Expression): Expression = {
-    expr.map(onExpr(replace)) match {
+  def onExpr(netlist: Netlist)(expr: Expression): Expression = {
+    expr.map(onExpr(netlist)) match {
       case e @ WRef(name, _,_,_) =>
-        replace.get(name)
+        netlist.get(we(e))
                .filter(isNot)
                .getOrElse(e)
+      case lhs @ DoPrim(Not, Seq(inv), _,_) =>
+        netlist.getOrElse(we(inv), inv) match {
+          case DoPrim(Not, Seq(rhs), _,_) => rhs
+          case _ => lhs  // Not a candiate
+        }
       case other => other // Not a candidate
     }
   }
@@ -32,16 +44,16 @@ object InlineNotsTransform {
     * @param stmt the Statement being searched for nodes and transformed
     * @return Returns stmt with nots inlined
     */
-  def onStmt(netlist: NodeMap)(stmt: Statement): Statement =
+  def onStmt(netlist: Netlist)(stmt: Statement): Statement =
     stmt.map(onStmt(netlist)).map(onExpr(netlist)) match {
-      case node @ DefNode(_, name, value) =>
-        netlist(name) = value
+      case node @ DefNode(_, name, value) if name.head == '_' =>
+        netlist(we(WRef(name))) = value
         node
       case other => other
     }
 
   /** Inline nots in a Module */
-  def onMod(mod: DefModule): DefModule = mod.map(onStmt(new NodeMap))
+  def onMod(mod: DefModule): DefModule = mod.map(onStmt(new Netlist))
 }
 
 /** Inline nodes that are simple nots */
