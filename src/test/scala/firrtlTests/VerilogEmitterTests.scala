@@ -99,9 +99,11 @@ class DoPrimVerilog extends FirrtlFlatSpec {
         |    output d: UInt<1>
         |    output e: UInt<1>
         |    output f: UInt<1>
+        |    output g: UInt<1>
         |    d <= and(a, not(b))
         |    e <= or(a, not(b))
-        |    f <= not(not(not(bits(c, 2, 2))))""".stripMargin
+        |    f <= not(not(not(bits(c, 2, 2))))
+        |    g <= mux(not(bits(c, 2, 2)), a, b)""".stripMargin
     val check =
       """module InlineNot(
         |  input   a,
@@ -109,7 +111,8 @@ class DoPrimVerilog extends FirrtlFlatSpec {
         |  input  [3:0] c,
         |  output  d,
         |  output  e,
-        |  output  f
+        |  output  f,
+        |  output  g
         |);
         |  wire _GEN_2;
         |  wire _GEN_4;
@@ -118,6 +121,7 @@ class DoPrimVerilog extends FirrtlFlatSpec {
         |  assign _GEN_2 = c[2];
         |  assign _GEN_4 = _GEN_2;
         |  assign f = ~_GEN_4;
+        |  assign g = _GEN_2 ? b : a;
         |endmodule
         |""".stripMargin.split("\n") map normalized
     executeTest(input, check, compiler)
