@@ -188,17 +188,6 @@ object Utils extends LazyLogging {
     case sx => sx
   }
 
-  /** Returns true if PrimOp is a Not, false otherwise */
-  def isNot(op: PrimOp): Boolean = op match {
-    case Not => true
-    case _ => false
-  }
-  /** Returns true if Expression is a Not PrimOp, false otherwise */
-  def isNot(expr: Expression): Boolean = expr match {
-    case DoPrim(op, _,_,_) if isNot(op) => true
-    case _ => false
-  }
-
   /** Provide a nice name to create a temporary **/
   def niceName(e: Expression): String = niceName(1)(e)
   def niceName(depth: Int)(e: Expression): String = {

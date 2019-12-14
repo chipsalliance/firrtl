@@ -310,15 +310,15 @@ class VerilogEmitter extends SeqTransform with Emitter {
      def c0: Int = doprim.consts.head.toInt
      def c1: Int = doprim.consts(1).toInt
 
-     def checkArgumentLegality(e: Expression) = e match {
+     def checkArgumentLegality(e: Expression): Unit = e match {
        case _: UIntLiteral | _: SIntLiteral | _: WRef | _: WSubField =>
-       case _ if isNot(e) =>
+       case DoPrim(Not, args, _,_) => args.foreach(checkArgumentLegality)
        case _ => throw EmitterException(s"Can't emit ${e.getClass.getName} as PrimOp argument")
      }
 
      def checkCatArgumentLegality(e: Expression): Unit = e match {
        case _: UIntLiteral | _: SIntLiteral | _: WRef | _: WSubField =>
-       case _ if isNot(e) =>
+       case DoPrim(Not, args, _,_) => args.foreach(checkArgumentLegality)
        case DoPrim(Cat, args, _, _) => args foreach(checkCatArgumentLegality)
        case _ => throw EmitterException(s"Can't emit ${e.getClass.getName} as PrimOp argument")
      }

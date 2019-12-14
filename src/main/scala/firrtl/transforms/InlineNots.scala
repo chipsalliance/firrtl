@@ -4,12 +4,27 @@ package transforms
 import firrtl.ir._
 import firrtl.Mappers._
 import firrtl.PrimOps.Not
-import firrtl.Utils.isNot
+import firrtl.Utils.isTemp
 import firrtl.WrappedExpression._
 
 import scala.collection.mutable
 
 object InlineNotsTransform {
+
+  /** Returns true if Expression is a Not PrimOp, false otherwise */
+  private def isNot(expr: Expression): Boolean = expr match {
+    case DoPrim(Not, args,_,_) => args.forall(isSimpleExpr)
+    case _ => false
+  }
+
+  // Checks if an Expression is made up of only Nots terminated by a Literal or Reference.
+  // private because it's not clear if this definition of "Simple Expression" would be useful elsewhere.
+  // Note that this can have false negatives but MUST NOT have false positives.
+  private def isSimpleExpr(expr: Expression): Boolean = expr match {
+    case _: WRef | _: Literal | _: WSubField => true
+    case DoPrim(Not, args, _,_) => args.forall(isSimpleExpr)
+    case _ => false
+  }
 
   /** Mapping from references to the [[firrtl.ir.Expression Expression]]s that drive them */
   type Netlist = mutable.HashMap[WrappedExpression, Expression]
@@ -27,9 +42,10 @@ object InlineNotsTransform {
         netlist.get(we(e))
                .filter(isNot)
                .getOrElse(e)
-      case lhs @ DoPrim(Not, Seq(inv), _,_) =>
+      // replace back-to-back inversions with a straight rename
+      case lhs @ DoPrim(Not, Seq(inv), _,_) if isSimpleExpr(inv) =>
         netlist.getOrElse(we(inv), inv) match {
-          case DoPrim(Not, Seq(rhs), _,_) => rhs
+          case DoPrim(Not, Seq(rhs), _,_) if isSimpleExpr(inv) => rhs
           case _ => lhs  // Not a candiate
         }
       case other => other // Not a candidate
@@ -46,7 +62,7 @@ object InlineNotsTransform {
     */
   def onStmt(netlist: Netlist)(stmt: Statement): Statement =
     stmt.map(onStmt(netlist)).map(onExpr(netlist)) match {
-      case node @ DefNode(_, name, value) if name.head == '_' =>
+      case node @ DefNode(_, name, value) if isTemp(name) =>
         netlist(we(WRef(name))) = value
         node
       case other => other
