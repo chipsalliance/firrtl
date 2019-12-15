@@ -64,11 +64,14 @@ def extract_run_time(output):
 def run_firrtl(java, jar, design):
     java_cmd = java.split()
     cmd = time() + java_cmd + ['-cp', jar, 'firrtl.stage.FirrtlMain', '-i', design,'-o','out.v','-X','verilog']
-    result = subprocess.run(cmd, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
-    if result.returncode != 0 :
-        sys.stderr.write(result.stdout)
-        sys.stderr.write(result.stderr)
-        sys.exit(1)
+    result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    if re.search('Could not find or load main class firrtl.stage.FirrtlMain', str(result.stderr)):
+        cmd = time() + java_cmd + ['-cp', jar, 'firrtl.Driver', '-i', design,'-o','out.v','-X','verilog']
+        result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    if result.returncode != 0:
+        sys.stderr.write(str(result.stdout))
+        sys.stderr.write(str(result.stderr))
+        exit(1)
     size = extract_max_size(result.stderr.decode('utf-8'))
     runtime = extract_run_time(result.stderr.decode('utf-8'))
     return (size, runtime)
