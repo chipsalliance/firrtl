@@ -105,7 +105,7 @@ sealed trait EmittedAnnotation[T <: EmittedComponent] extends NoTargetAnnotation
 }
 sealed trait EmittedCircuitAnnotation[T <: EmittedCircuit] extends EmittedAnnotation[T] {
 
-  override def howToSerialize: Option[String] = Some(value.value)
+  override def howToSerialize: Option[Stream[Char]] = Some(new StringBuilder(value.value).toStream)
 
   override def filename(annotations: AnnotationSeq): File = {
     val sopts = view[StageOptions](annotations)
@@ -116,7 +116,7 @@ sealed trait EmittedCircuitAnnotation[T <: EmittedCircuit] extends EmittedAnnota
 }
 sealed trait EmittedModuleAnnotation[T <: EmittedModule] extends EmittedAnnotation[T] {
 
-  override def howToSerialize: Option[String] = Some(value.value)
+  override def howToSerialize: Option[Stream[Char]] = Some(new StringBuilder(value.value).toStream)
 
   override def howToResume(file: File): Option[AnnotationSeq] = None
 

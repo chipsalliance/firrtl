@@ -6,7 +6,7 @@ import firrtl.AnnotationSeq
 import firrtl.annotations.{DeletedAnnotation, JsonProtocol}
 import firrtl.options.{Dependency, HowToSerialize, Phase, StageOptions, Unserializable, Viewer}
 
-import java.io.PrintWriter
+import java.io.{BufferedWriter, FileWriter, PrintWriter}
 
 /** [[firrtl.options.Phase Phase]] that writes an [[AnnotationSeq]] to a file. A file is written if and only if a
   * [[StageOptions]] view has a non-empty [[StageOptions.annotationFileOut annotationFileOut]].
@@ -32,9 +32,9 @@ class WriteOutputAnnotations extends Phase {
       case a: HowToSerialize    =>
         val filename = a.filename(annotations)
         a.howToSerialize.map { str =>
-          val pw = new PrintWriter(filename)
-          pw.write(str)
-          pw.close()
+          val w = new BufferedWriter(new FileWriter(filename))
+          str.foreach( w.write(_) )
+          w.close()
         }
         a.howToResume(filename) match {
           case Some(a) => a
