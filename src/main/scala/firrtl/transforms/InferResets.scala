@@ -37,7 +37,6 @@ object InferResets {
     override def toString: String = s"TypeDriver(${tpe.serialize}, $target)"
   }
 
-
   // Type hierarchy representing the path to a leaf type in an aggregate type structure
   // Used by this [[InferResets]] to pinpoint instances of [[ResetType]] and their inferred type
   private sealed trait TypeTree
@@ -167,17 +166,26 @@ class InferResets extends Transform {
     val res = mutable.Map[ReferenceTarget, Type]()
     val errors = new Errors
     def rec(target: ReferenceTarget): Type = {
-      val drivers = map(target)
+      val drivers = map.getOrElse(target, Nil)
       res.getOrElseUpdate(target, {
-        val tpes = drivers.map {
-          case TargetDriver(t) => TypeDriver(rec(t), () => t)
-          case td: TypeDriver => td
+        val tpes = drivers.flatMap {
+          case TargetDriver(t) => rec(t) match {
+            // Squash drivers that themselves are undriven
+            case ResetType => None
+            case other  => Some(TypeDriver(other, () => t))
+          }
+          case td: TypeDriver => Some(td)
         }.groupBy(_.tpe)
-        if (tpes.keys.size != 1) {
-          // Multiple types of driver!
-          errors.append(DifferingDriverTypesException(target, tpes.toSeq))
+        tpes.keys.size match {
+          // This can occur if something of type Reset has no driver or is only invalidated
+          // CheckInitializations will error if undriven, leave as ResetType
+          case 0 => ResetType
+          case 1 => tpes.keys.head
+          case _ =>
+            // Multiple types of driver!
+            errors.append(DifferingDriverTypesException(target, tpes.toSeq))
+            tpes.keys.head
         }
-        tpes.keys.head
       })
     }
     for ((target, _) <- map) {

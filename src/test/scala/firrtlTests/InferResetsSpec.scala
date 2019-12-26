@@ -4,7 +4,7 @@ package firrtlTests
 
 import firrtl._
 import firrtl.ir._
-import firrtl.passes.{CheckHighForm, CheckTypes}
+import firrtl.passes.{CheckHighForm, CheckTypes, CheckInitialization}
 import firrtl.transforms.InferResets
 import FirrtlCheckers._
 
@@ -37,7 +37,6 @@ class InferResetsSpec extends FirrtlFlatSpec {
       |    y <= asFixedPoint(r, 0)
       |    z <= asAsyncReset(r)""".stripMargin
     )
-    println(result.getEmittedCircuit)
     result should containLine ("wire r : UInt<1>")
     result should containLine ("r <= a")
     result should containLine ("v <= asUInt(r)")
@@ -125,6 +124,20 @@ class InferResetsSpec extends FirrtlFlatSpec {
     result should containTree { case Port(_, "buzz_bar_1_b", Input, AsyncResetType) => true }
   }
 
+  it should "not crash if a ResetType has no drivers" in {
+    a [CheckInitialization.RefNotInitializedException] shouldBe thrownBy {
+      compile(s"""
+        |circuit test :
+        |  module test :
+        |    output out : Reset
+        |    wire w : Reset
+        |    out <= w
+        |    out <= UInt(1)
+        |""".stripMargin
+      )
+    }
+  }
+
   it should "NOT allow last connect semantics to pick the right type for Reset" in {
     an [InferResets.DifferingDriverTypesException] shouldBe thrownBy {
       compile(s"""
@@ -184,6 +197,44 @@ class InferResetsSpec extends FirrtlFlatSpec {
         |""".stripMargin
       )
     }
+  }
+
+  it should "allow concrete reset types to overrule invalidation" in {
+    val result = compile(s"""
+      |circuit test :
+      |  module test :
+      |    input in : AsyncReset
+      |    output out : Reset
+      |    out is invalid
+      |    out <= in
+      |""".stripMargin)
+    result should containTree { case Port(_, "out", Output, AsyncResetType) => true }
+  }
+
+  it should "allow concrete reset types to overrule invalidation recursively and across module boundaries" in {
+    val result = compile(s"""
+      |circuit test :
+      |  module child :
+      |    input cin : AsyncReset
+      |    input cin2 : Reset
+      |    output cout : Reset
+      |    cout <= cin2
+      |    cout <= cin
+      |  module test :
+      |    input in : AsyncReset
+      |    output out : Reset
+      |    wire w : Reset
+      |    w is invalid
+      |    inst c of child
+      |    c.cin <= in
+      |    c.cin2 <= w
+      |    out <= c.cout
+      |""".stripMargin)
+    result should containTree { case Port(_, "out", Output, AsyncResetType) => true }
+    result should containTree { case Port(_, "cout", Output, AsyncResetType) => true }
+    // Undriven/invalidated Reset left alone
+    result should containTree { case DefWire(_, "w", ResetType) => true }
+    result should containTree { case Port(_, "cin2", Input, ResetType) => true }
   }
 
   it should "allow ResetType to drive AsyncResets or UInt<1>" in {
