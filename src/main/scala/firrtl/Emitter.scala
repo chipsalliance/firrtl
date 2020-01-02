@@ -264,7 +264,8 @@ class VerilogEmitter extends SeqTransform with Emitter {
       case (s: Seq[Any]) =>
         s foreach (emit(_, top + 1))
         if (top == 0) w write "\n"
-      case x => throwInternalError(s"trying to emit unsupported operator: $x")
+      case x =>
+        throwInternalError(s"trying to emit unsupported operator: '$x'")
     }
   }
 
@@ -539,7 +540,11 @@ class VerilogEmitter extends SeqTransform with Emitter {
     }
 
     def regUpdate(r: Expression, clk: Expression, reset: Expression, init: Expression) = {
-      def addUpdate(expr: Expression, tabs: String): Seq[Seq[Any]] = expr match {
+      def addUpdate(
+        expr: Expression,
+        tabs: String,
+        caseOpt: Option[Expression] = None): (Seq[Seq[Any]], Option[Expression]) = expr match {
+
         case m: Mux =>
           if (m.tpe == ClockType) throw EmitterException("Cannot emit clock muxes directly")
           if (m.tpe == AsyncResetType) throw EmitterException("Cannot emit async reset muxes directly")
@@ -548,36 +553,74 @@ class VerilogEmitter extends SeqTransform with Emitter {
           lazy val _else   = Seq(tabs, "end else begin")
           lazy val _ifNot  = Seq(tabs, "if (!(", m.cond, ")) begin")
           lazy val _end    = Seq(tabs, "end")
-          lazy val _true   = addUpdate(m.tval, tabs + tab)
-          lazy val _false  = addUpdate(m.fval, tabs + tab)
+          lazy val _true   = addUpdate(m.tval, tabs + tab, None)._1
+          lazy val _false  = addUpdate(m.fval, tabs + tab, None)._1
           lazy val _elseIfFalse = {
-            val _falsex = addUpdate(m.fval, tabs) // _false, but without an additional tab
+            val _falsex = addUpdate(m.fval, tabs, None)._1 // _false, but without an additional tab
             Seq(tabs, "end else ", _falsex.head.tail) +: _falsex.tail
           }
 
-          /* For a Mux assignment, there are five possibilities:
-           *   1. Both the true and false condition are self-assignments; do nothing
-           *   2. The true condition is a self-assignment; invert the false condition and use that only
-           *   3. The false condition is a self-assignment; skip the false condition
-           *   4. The false condition is a Mux; use the true condition and use 'else if' for the false condition
-           *   5. Default; use both the true and false conditions
-           */
-          (m.tval, m.fval) match {
-            case (t, f) if weq(t, r) && weq(f, r) => Nil
-            case (t, _) if weq(t, r)              =>  _ifNot +: _false                           :+ _end
-            case (_, f) if weq(f, r)              =>  _if    +: _true                            :+ _end
-            case (_, _: Mux)                      => (_if    +: _true) ++ _elseIfFalse
-            case _                                => (_if    +: _true  :+ _else)       ++ _false :+ _end
+          m.cond match {
+            /* Emit equality with a UIntLiteral as a Verilog case statement */
+            case DoPrim(PrimOps.Eq, a +: (b: UIntLiteral) +: Nil, _, _) => {
+              a match {
+                /* We are already in a case block */
+                case aa if caseOpt.nonEmpty && weq(aa, caseOpt.get) => (m.tval, m.fval) match {
+                  case (_, _: Mux) =>
+                    val x = (Seq(tabs, b, ": begin") +: Seq(addUpdate(m.tval, tabs + tab, Some(a))._1) :+
+                               Seq(tabs, "end")) ++ addUpdate(m.fval, tabs, Some(a))._1
+                    (x, caseOpt)
+                  case (_, _) =>
+                    val x = (Seq(tabs, b, ": begin") +:
+                               Seq(addUpdate(m.tval, tabs + tab, Some(a))._1) :+
+                               Seq(tabs, "end") :+
+                               Seq(tabs, "default: begin")) ++
+                      addUpdate(m.fval, tabs + tab, Some(a))._1 ++
+                      Seq(Seq(tabs, "end"))
+                    (x, None)
+                }
+                /* Start a new case block */
+                case _ if caseOpt.nonEmpty =>
+                  val x: Seq[Seq[Any]] = Seq(tabs, "default: begin") +:
+                  Seq(tabs + tab, "case (", a, ")") +: (
+                    (Seq(tabs + tab * 2, b, ": begin") +:
+                       Seq(addUpdate(m.tval, tabs + tab * 3, Some(a))._1) :+ Seq(tabs + tab * 2, "end"))
+                      ++ addUpdate(m.fval, tabs + tab * 2, Some(a))._1
+                      ++ Seq(Seq(tabs + tab, "endcase"))) :+ Seq(tabs, "end")
+                  (x, Some(a))
+                case _ =>
+                  val x: Seq[Seq[Any]] = Seq(tabs, "case (", a, ")") +: (
+                    (Seq(tabs + tab, b, ": begin") +:
+                       Seq(addUpdate(m.tval, tabs + tab * 2, Some(a))._1) :+ Seq(tabs + tab, "end"))
+                      ++ addUpdate(m.fval, tabs + tab, Some(a))._1
+                      ++ Seq(Seq("endcase")))
+                  (x, Some(a))
+              }
+            }
+            /* For a Mux assignment, there are five possibilities:
+             *   1. Both the true and false condition are self-assignments; do nothing
+             *   2. The true condition is a self-assignment; invert the false condition and use that only
+             *   3. The false condition is a self-assignment; skip the false condition
+             *   4. The false condition is a Mux; use the true condition and use 'else if' for the false condition
+             *   5. Default; use both the true and false conditions
+             */
+            case _ => (m.tval, m.fval) match {
+              case (t, f) if weq(t, r) && weq(f, r) => (Nil,                                                 None)
+              case (t, _) if weq(t, r)              => (_ifNot +: _false                           :+ _end,  None)
+              case (_, f) if weq(f, r)              => (_if    +: _true                            :+ _end,  None)
+              case (_, a: Mux)                      => ((_if    +: _true) ++ _elseIfFalse,                   None)
+              case x                                => ((_if    +: _true  :+ _else)       ++ _false :+ _end, None)
+            }
           }
-        case e => Seq(Seq(tabs, r, " <= ", e, ";"))
+        case e => (Seq(Seq(tabs, r, " <= ", e, ";")), None)
       }
       if (weq(init, r)) { // Synchronous Reset
-        noResetAlwaysBlocks.getOrElseUpdate(clk, ArrayBuffer[Seq[Any]]()) ++= addUpdate(netlist(r), "")
+        noResetAlwaysBlocks.getOrElseUpdate(clk, ArrayBuffer[Seq[Any]]()) ++= addUpdate(netlist(r), "")._1
       } else { // Asynchronous Reset
         assert(reset.tpe == AsyncResetType, "Error! Synchronous reset should have been removed!")
         val tv = init
         val fv = netlist(r)
-        asyncResetAlwaysBlocks += ((clk, reset, addUpdate(Mux(reset, tv, fv, mux_type_and_widths(tv, fv)), "")))
+        asyncResetAlwaysBlocks += ((clk, reset, addUpdate(Mux(reset, tv, fv, mux_type_and_widths(tv, fv)), "")._1))
       }
     }
 
