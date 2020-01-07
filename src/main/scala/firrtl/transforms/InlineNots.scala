@@ -82,8 +82,8 @@ object InlineNotsTransform {
 
 /** Inline nodes that are simple nots */
 class InlineNotsTransform extends Transform {
-  def inputForm = LowForm
-  def outputForm = LowForm
+  def inputForm = UnknownForm
+  def outputForm = UnknownForm
 
   def execute(state: CircuitState): CircuitState = {
     val modulesx = state.circuit.modules.map(InlineNotsTransform.onMod(_))

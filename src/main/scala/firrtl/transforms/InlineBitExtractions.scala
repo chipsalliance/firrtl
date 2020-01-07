@@ -92,8 +92,8 @@ object InlineBitExtractionsTransform {
 
 /** Inline nodes that are simple bits */
 class InlineBitExtractionsTransform extends Transform {
-  def inputForm = LowForm
-  def outputForm = LowForm
+  def inputForm = UnknownForm
+  def outputForm = UnknownForm
 
   def execute(state: CircuitState): CircuitState = {
     val modulesx = state.circuit.modules.map(InlineBitExtractionsTransform.onMod(_))
