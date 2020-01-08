@@ -120,7 +120,7 @@ trait FirrtlRunners extends BackendCompilationUtilities {
     }
     firrtl.Driver.execute(optionsManager)
 
-    testDir
+    new File(testDir, "firrtl")
   }
   /** Execute a Firrtl Test
     *

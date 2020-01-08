@@ -98,7 +98,7 @@ class FirrtlMainSpec extends FeatureSpec with GivenWhenThen with Matchers with f
 
       p.files.foreach { f =>
         And(s"file '$f' should be emitted in the target directory")
-        val out = new File(td.buildDir + s"/$f")
+        val out = new File(td.stageDir + s"/$f")
         out should (exist)
       }
     }
@@ -119,6 +119,7 @@ class FirrtlMainSpec extends FeatureSpec with GivenWhenThen with Matchers with f
   class TargetDirectoryFixture(dirName: String) {
     val dir = new File(s"test_run_dir/FirrtlMainSpec/$dirName")
     val buildDir = new File(dir + "/build")
+    val stageDir = new File(buildDir, "firrtl")
     dir.mkdirs()
   }
 
@@ -227,7 +228,7 @@ class FirrtlMainSpec extends FeatureSpec with GivenWhenThen with Matchers with f
 
       When("the user doesn't specify a target directory")
       val outName = "FirrtlMainSpecNoTargetDirectory"
-      val out = new File(s"$outName.hi.fir")
+      val out = new File("firrtl", s"$outName.hi.fir")
       out.delete()
       val result = catchStatus {
         f.stage.main(Array("-i", "src/test/resources/integration/GCDTester.fir", "-o", outName, "-X", "high",
@@ -254,7 +255,7 @@ class FirrtlMainSpec extends FeatureSpec with GivenWhenThen with Matchers with f
                          "-o", "Foo"))
 
       Then("the output should be the same as using FIRRTL input")
-      new File(td.buildDir + "/Foo.hi.fir") should (exist)
+      new File(td.stageDir + "/Foo.hi.fir") should (exist)
     }
 
   }
@@ -304,14 +305,14 @@ class FirrtlMainSpec extends FeatureSpec with GivenWhenThen with Matchers with f
       val pw = new PrintWriter(in)
       pw.write(circuit.input)
       pw.close()
-      val (out, _, result) = grabStdOutErr{ catchStatus { f.stage.main(Array("-td", td.dir.toString,
+      val (out, _, result) = grabStdOutErr{ catchStatus { f.stage.main(Array("-td", td.buildDir.toString,
                                                                              "-i", in.toString,
                                                                              "-foaf", "Top.out",
                                                                              "-X", "high",
                                                                              "-E", "high")) } }
 
       Then("the implicit annotation file should NOT be read")
-      val annoFileOut = new File(td.dir + "/Top.out.anno.json")
+      val annoFileOut = new File(td.stageDir + "/Top.out.anno.json")
       val annotationJson = FileUtils.getText(annoFileOut)
       annotationJson should not include ("InlineInstances")
 

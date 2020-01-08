@@ -19,6 +19,7 @@ class GCDSplitEmissionExecutionTest extends FirrtlFlatSpec {
     val top = "GCDTester"
     val testDir = createTestDirectory("GCDTesterSplitEmission")
     val sourceFile = new File(testDir, s"$top.fir")
+    val outputDir = new File(testDir, "firrtl")
     copyResourceToFile(s"/integration/$top.fir", sourceFile)
 
     val optionsManager = new ExecutionOptionsManager("GCDTesterSplitEmission") with HasFirrtlOptions {
@@ -32,19 +33,19 @@ class GCDSplitEmissionExecutionTest extends FirrtlFlatSpec {
     firrtl.Driver.execute(optionsManager)
 
     // expected filenames
-    val dutFile = new File(testDir, "DecoupledGCD.v")
-    val topFile = new File(testDir, s"$top.v")
+    val dutFile = new File(outputDir, "DecoupledGCD.v")
+    val topFile = new File(outputDir, s"$top.v")
     dutFile should exist
     topFile should exist
 
     // Copy harness over
-    val harness = new File(testDir, s"testTop.cpp")
+    val harness = new File(outputDir, s"testTop.cpp")
     copyResourceToFile(cppHarnessResourceName, harness)
 
     // topFile will be compiled by Verilator command by default but we need to also include dutFile
-    verilogToCpp(top, testDir, Seq(dutFile), harness).!
-    cppToExe(top, testDir).!
-    assert(executeExpectingSuccess(top, testDir))
+    verilogToCpp(top, outputDir, Seq(dutFile), harness).!
+    cppToExe(top, outputDir).!
+    assert(executeExpectingSuccess(top, outputDir))
   }
 }
 

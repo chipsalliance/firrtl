@@ -387,13 +387,13 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
 
     "To a single file with file extension depending on the compiler by default" in {
       Seq(
-        "none" -> "./Foo.fir",
-        "low" -> "./Foo.lo.fir",
-        "high" -> "./Foo.hi.fir",
-        "middle" -> "./Foo.mid.fir",
-        "verilog" -> "./Foo.v",
-        "mverilog" -> "./Foo.v",
-        "sverilog" -> "./Foo.sv"
+        "none" -> "./firrtl/Foo.fir",
+        "low" -> "./firrtl/Foo.lo.fir",
+        "high" -> "./firrtl/Foo.hi.fir",
+        "middle" -> "./firrtl/Foo.mid.fir",
+        "verilog" -> "./firrtl/Foo.v",
+        "mverilog" -> "./firrtl/Foo.v",
+        "sverilog" -> "./firrtl/Foo.sv"
       ).foreach { case (compilerName, expectedOutputFileName) =>
         info(s"$compilerName -> $expectedOutputFileName")
         val manager = new ExecutionOptionsManager("test") with HasFirrtlOptions {
@@ -418,13 +418,13 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
     }
     "To a single file per module if OneFilePerModule is specified" in {
       Seq(
-        "none" -> Seq("./Top.fir", "./Child.fir"),
-        "low" -> Seq("./Top.lo.fir", "./Child.lo.fir"),
-        "high" -> Seq("./Top.hi.fir", "./Child.hi.fir"),
-        "middle" -> Seq("./Top.mid.fir", "./Child.mid.fir"),
-        "verilog" -> Seq("./Top.v", "./Child.v"),
-        "mverilog" -> Seq("./Top.v", "./Child.v"),
-        "sverilog" -> Seq("./Top.sv", "./Child.sv")
+        "none" -> Seq("./firrtl/Top.fir", "./firrtl/Child.fir"),
+        "low" -> Seq("./firrtl/Top.lo.fir", "./firrtl/Child.lo.fir"),
+        "high" -> Seq("./firrtl/Top.hi.fir", "./firrtl/Child.hi.fir"),
+        "middle" -> Seq("./firrtl/Top.mid.fir", "./firrtl/Child.mid.fir"),
+        "verilog" -> Seq("./firrtl/Top.v", "./firrtl/Child.v"),
+        "mverilog" -> Seq("./firrtl/Top.v", "./firrtl/Child.v"),
+        "sverilog" -> Seq("./firrtl/Top.sv", "./firrtl/Child.sv")
       ).foreach { case (compilerName, expectedOutputFileNames) =>
         info(s"$compilerName -> $expectedOutputFileNames")
         val manager = new ExecutionOptionsManager("test") with HasFirrtlOptions {
