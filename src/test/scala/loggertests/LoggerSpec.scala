@@ -38,6 +38,25 @@ class LogsInfo3 extends LazyLogging {
 class LoggerSpec extends FreeSpec with Matchers with OneInstancePerTest with LazyLogging {
   "Logger is a simple but powerful logging system" - {
     "Following tests show how global level can control logging" - {
+
+      "setting level to None will result in only error messages" in {
+        Logger.makeScope() {
+          val captor = new OutputCaptor
+          Logger.setOutput(captor.printStream)
+          Logger.setLevel(LogLevel.None)
+
+          val r1 = new Logger1
+          r1.run()
+          val messagesLogged = captor.getOutputAsString
+
+          messagesLogged.contains(LoggerSpec.ErrorMsg) should be(true)
+          messagesLogged.contains(LoggerSpec.WarnMsg) should be(false)
+          messagesLogged.contains(LoggerSpec.InfoMsg) should be(false)
+          messagesLogged.contains(LoggerSpec.DebugMsg) should be(false)
+          messagesLogged.contains(LoggerSpec.TraceMsg) should be(false)
+        }
+      }
+
       "only warn and error shows up by default" in {
         Logger.makeScope() {
           val captor = new OutputCaptor
