@@ -22,14 +22,14 @@ object InlineBitExtractionsTransform {
 
   // replace Head/Tail/Shr with Bits for easier back-to-back Bits Extractions
   private def lowerToDoPrimOpBits(expr: Expression): Expression = expr match {
-    case DoPrim(Head, rhs, c, tpe) if isSimpleExpr(expr) && rhs.forall(isSimpleExpr) =>
+    case DoPrim(Head, rhs, c, tpe) if isSimpleExpr(expr) =>
       val msb = bitWidth(rhs.head.tpe) - 1
       val lsb = bitWidth(rhs.head.tpe) - c.head
       DoPrim(Bits, rhs, Seq(msb,lsb), tpe)
-    case DoPrim(Tail, rhs, c, tpe) if isSimpleExpr(expr) && rhs.forall(isSimpleExpr) =>
+    case DoPrim(Tail, rhs, c, tpe) if isSimpleExpr(expr) =>
       val msb = bitWidth(rhs.head.tpe) - c.head - 1
       DoPrim(Bits, rhs, Seq(msb,0), tpe)
-    case DoPrim(Shr, rhs, c, tpe) if isSimpleExpr(expr) && rhs.forall(isSimpleExpr) =>
+    case DoPrim(Shr, rhs, c, tpe) if isSimpleExpr(expr) =>
       DoPrim(Bits, rhs, Seq(bitWidth(rhs.head.tpe)-1, c.head), tpe)
     case _ => expr // Not a candidate
   }
@@ -51,9 +51,9 @@ object InlineBitExtractionsTransform {
                .filter(isBitExtract)
                .getOrElse(e)
       // replace back-to-back Bits Extractions
-      case lhs @ DoPrim(lop, ival, lc, ltpe) if isSimpleExpr(lhs) && ival.forall(isSimpleExpr) =>
-        netlist.getOrElse(we(ival.head), ival.head) match {
-          case of @ DoPrim(rop, rhs, rc, rtpe) if isSimpleExpr(of) && rhs.forall(isSimpleExpr) =>
+      case lhs @ DoPrim(lop, ival, lc, ltpe) if isSimpleExpr(lhs) =>
+        ival.head match {
+          case of @ DoPrim(rop, rhs, rc, rtpe) if isSimpleExpr(of) =>
             (lop, rop) match {
               case (Head, Head) => DoPrim(Head, rhs, Seq(lc.head min rc.head), ltpe)
               case (Tail, Tail) => DoPrim(Tail, rhs, Seq(lc.head + rc.head), ltpe)
