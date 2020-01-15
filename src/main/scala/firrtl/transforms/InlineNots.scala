@@ -64,7 +64,7 @@ object InlineNotsTransform {
     *
     * @param netlist a '''mutable''' HashMap mapping references to [[firrtl.ir.DefNode DefNode]]s to their connected
     * [[firrtl.ir.Expression Expression]]s. This function '''will''' mutate it if stmt is a [[firrtl.ir.DefNode
-    * DefNode]] with a value that is a [[PrimOp]] Not
+    * DefNode]] with a Temporary name and a value that is a [[PrimOp]] Not
     * @param stmt the Statement being searched for nodes and transformed
     * @return Returns stmt with nots inlined
     */
