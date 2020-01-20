@@ -3,7 +3,14 @@
 package firrtl
 package ir
 
+<<<<<<< HEAD
 import Utils.indent
+=======
+import Utils.{dec2string, indent, trim}
+import firrtl.constraint.{Constraint, IsKnown, IsVar}
+
+import scala.math.BigDecimal.RoundingMode._
+>>>>>>> 21ccc514... clean up warnings: trim unused imports (#1315)
 
 /** Intermediate Representation */
 abstract class FirrtlNode {

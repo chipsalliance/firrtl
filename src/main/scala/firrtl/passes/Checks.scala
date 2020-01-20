@@ -137,7 +137,13 @@ trait CheckHighFormLike {
     def checkHighFormT(info: Info, mname: String)(t: Type): Unit = {
       t foreach checkHighFormT(info, mname)
       t match {
+<<<<<<< HEAD
         case tx: VectorType if tx.size < 0 => errors.append(new NegVecSizeException(info, mname))
+=======
+        case tx: VectorType if tx.size < 0 =>
+          errors.append(new NegVecSizeException(info, mname))
+        case _: IntervalType =>
+>>>>>>> 21ccc514... clean up warnings: trim unused imports (#1315)
         case _ => t foreach checkHighFormW(info, mname)
       }
     }
