@@ -210,6 +210,17 @@ object Utils extends LazyLogging {
     case _ => false
   }
 
+  /** Returns true if PrimOp is a Boolean Operator, false otherwise */
+  def isBooleanExpr(op: PrimOp): Boolean = op match {
+    case Not | And | Or | Xor => true
+    case _ => false
+  }
+  /** Returns true if Expression is a Boolean PrimOp, false otherwise */
+  def isBooleanExpr(expr: Expression): Boolean = expr match {
+    case DoPrim(op, _,_, UIntType(_)) if isBooleanExpr(op) => true
+    case _ => false
+  }
+
   /** Provide a nice name to create a temporary **/
   def niceName(e: Expression): String = niceName(1)(e)
   def niceName(depth: Int)(e: Expression): String = {

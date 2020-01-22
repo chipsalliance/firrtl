@@ -980,6 +980,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
     new ReplaceTruncatingArithmetic,
     new InlineNotsTransform,
     new InlineBitExtractionsTransform,  // here after InlineNots to clean up not(not(...)) rename
+    new InlineBooleanExpressions,
     new InlineCastsTransform,
     new LegalizeClocksTransform,
     new FlattenRegUpdate,
