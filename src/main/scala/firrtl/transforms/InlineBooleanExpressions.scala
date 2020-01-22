@@ -25,7 +25,7 @@ import scala.collection.mutable
   *
   */
 
-object InlineBooleanExpressionTransforms {
+object InlineBooleanExpressionsTransforms {
 
   // Checks if an Expression is made up of only boolean expressions terminated by a Literal or Reference.
   // private because it's not clear if this definition of "Simple Expression" would be useful elsewhere.
@@ -168,7 +168,7 @@ class InlineBooleanExpressions extends Transform {
       }
 
     val modulesx = state.circuit.modules.map {
-      m => InlineBooleanExpressionTransforms.onMod(m, netlists(m.name), symbolTable(m.name))
+      m => InlineBooleanExpressionsTransforms.onMod(m, netlists(m.name), symbolTable(m.name))
   }
 
     state.copy(circuit = state.circuit.copy(modules = modulesx))
