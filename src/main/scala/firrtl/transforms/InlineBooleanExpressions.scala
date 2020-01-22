@@ -45,14 +45,26 @@ object InlineBooleanExpressionsTransforms {
     * @param expr the Expression being transformed
     * @return Returns expr with Bits inlined
     */
-  def onExpr(netlist: Netlist, symbolTable: Map[WrappedExpression, Int], depth: Int)(expr: Expression): Expression = {
+  def onExpr(netlist: Netlist, symbolTable: Map[Expression, Int], depth: Int)(expr: Expression): Expression = {
     expr.map(onExpr(netlist, symbolTable, depth + 1)) match {
       case lhs @ DoPrim(lop, args, lc, ltpe) if isSimpleExpr(lhs) =>
         val ivalNew = args.map {
           e =>
-            netlist.get(we(e))
-            .filter(isBooleanExpr)
-            .getOrElse(e)
+            netlist.get(we(e)) match {
+              case Some(e1) if (isBooleanExpr(e1)) =>
+                if (symbolTable(e1) <= 1) {
+                  e1
+                }
+                else {
+                  e
+                }
+              case _ => e
+            }
+
+
+//            netlist.get(we(e))
+//              .filter(isBooleanExpr)
+//              .getOrElse(e)
         }
         val l = lhs.copy(args = ivalNew)
         l
@@ -74,13 +86,13 @@ object InlineBooleanExpressionsTransforms {
     * @param stmt the Statement being searched for nodes and transformed
     * @return Returns stmt with Bits inlined
     */
-  def onStmt(netlist: Netlist, symbolTable: Map[WrappedExpression, Int])(stmt: Statement): Statement =
+  def onStmt(netlist: Netlist, symbolTable: Map[Expression, Int])(stmt: Statement): Statement =
   stmt.map(onStmt(netlist, symbolTable)).map(onExpr(netlist, symbolTable, StartingDepth))
 
   /** Replaces bits in a Module */
   def onMod(mod: DefModule,
     netlist: Netlist,
-    symbolTable: Map[WrappedExpression, Int]): DefModule =
+    symbolTable: Map[Expression, Int]): DefModule =
     mod.map(onStmt(netlist, symbolTable))
 }
 
@@ -129,18 +141,18 @@ class InlineBooleanExpressions extends Transform {
 
     val netlists = state.circuit.modules.map{ m => (m.name -> buildNetlist(m)) }.toMap
 
-    val symbolTable = netlists.foldLeft(Map[String, Map[WrappedExpression, Int]]()) {
+    val symbolTable = netlists.foldLeft(Map[String, Map[Expression, Int]]()) {
       case (symbolTable, (moduleName, netlist)) =>
-        //val symTab: Map[WrappedExpression, Int] = symbolTable(moduleName)
+        //val symTab: Map[Expression, Int] = symbolTable(moduleName)
         val st =
-          netlist.foldLeft(Map[WrappedExpression, Int]()) {
+          netlist.foldLeft(Map[Expression, Int]()) {
           case (symTab, (signalName, expr)) =>
-            if (symTab.contains(signalName)) {
-              val n: Int = symTab(signalName) + 1
-              symTab + (signalName -> n)
+            if (symTab.contains(expr)) {
+              val n: Int = symTab(expr) + 1
+              symTab + (expr -> n)
             }
             else {
-              symTab + (signalName -> 1)
+              symTab + (expr -> 1)
             }
         }
         symbolTable + (moduleName -> st)
