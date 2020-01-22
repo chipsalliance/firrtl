@@ -52,7 +52,7 @@ object InlineBooleanExpressionsTransforms {
           e =>
             netlist.get(we(e)) match {
               case Some(e1) if (isBooleanExpr(e1)) =>
-                if (symbolTable(e1) <= 1) {
+                if (symbolTable(e1) <= 1) { // if the fanout of the expression is 1 then replace
                   e1
                 }
                 else {
@@ -60,11 +60,6 @@ object InlineBooleanExpressionsTransforms {
                 }
               case _ => e
             }
-
-
-//            netlist.get(we(e))
-//              .filter(isBooleanExpr)
-//              .getOrElse(e)
         }
         val l = lhs.copy(args = ivalNew)
         l
