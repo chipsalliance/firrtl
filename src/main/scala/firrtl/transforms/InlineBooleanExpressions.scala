@@ -3,7 +3,6 @@
 package firrtl.transforms
 
 import firrtl.Mappers._
-import firrtl.PrimOps.{Bits, Head, Shr, Tail}
 import firrtl.Utils.{isBooleanExpr, isTemp}
 import firrtl._
 import firrtl.WrappedExpression._
@@ -35,20 +34,6 @@ object InlineBooleanExpressionsTransforms {
     case DoPrim(op, args, _,_) if isBooleanExpr(op) => args.forall(isSimpleExpr)
     case _ => false
   }
-
-//  // replace Head/Tail/Shr with Bits for easier back-to-back Bits Extractions
-//  private def lowerToDoPrimOpBits(expr: Expression): Expression = expr match {
-//    case DoPrim(Head, rhs, c, tpe) if isSimpleExpr(expr) =>
-//      val msb = bitWidth(rhs.head.tpe) - 1
-//      val lsb = bitWidth(rhs.head.tpe) - c.head
-//      DoPrim(Bits, rhs, Seq(msb,lsb), tpe)
-//    case DoPrim(Tail, rhs, c, tpe) if isSimpleExpr(expr) =>
-//      val msb = bitWidth(rhs.head.tpe) - c.head - 1
-//      DoPrim(Bits, rhs, Seq(msb,0), tpe)
-//    case DoPrim(Shr, rhs, c, tpe) if isSimpleExpr(expr) =>
-//      DoPrim(Bits, rhs, Seq(bitWidth(rhs.head.tpe)-1, c.head), tpe)
-//    case _ => expr // Not a candidate
-//  }
 
   /** Mapping from references to the [[firrtl.ir.Expression Expression]]s that drive them */
   type Netlist = mutable.HashMap[WrappedExpression, Expression]
@@ -91,12 +76,6 @@ object InlineBooleanExpressionsTransforms {
     */
   def onStmt(netlist: Netlist, symbolTable: Map[WrappedExpression, Int])(stmt: Statement): Statement =
   stmt.map(onStmt(netlist, symbolTable)).map(onExpr(netlist, symbolTable, StartingDepth))
-  //    match {
-  //    Map[String,   case node @ DefNode(_, name, value) if isTemp(name) =>
-//        netlist(we(WRef(name))) = value
-//        node
-//      case other => other
-  // }
 
   /** Replaces bits in a Module */
   def onMod(mod: DefModule,
