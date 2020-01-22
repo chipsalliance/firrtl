@@ -3,9 +3,9 @@
 package firrtl
 
 import java.io.Writer
+import java.lang.IllegalArgumentException
 
 import scala.collection.mutable
-
 import firrtl.ir._
 import firrtl.passes._
 import firrtl.transforms._
@@ -15,7 +15,7 @@ import firrtl.PrimOps._
 import firrtl.WrappedExpression._
 import Utils._
 import MemPortUtils.{memPortField, memType}
-import firrtl.options.{HasShellOptions, ShellOption, StageUtils, PhaseException, Unserializable}
+import firrtl.options.{HasShellOptions, PhaseException, ShellOption, StageUtils, Unserializable}
 import firrtl.stage.RunFirrtlTransformAnnotation
 // Datastructures
 import scala.collection.mutable.ArrayBuffer
@@ -321,7 +321,8 @@ class VerilogEmitter extends SeqTransform with Emitter {
        case DoPrim(Not, args, _,_) => args.foreach(checkArgumentLegality)
        case DoPrim(op, args, _,_) if isCast(op) => args.foreach(checkArgumentLegality)
        case DoPrim(op, args, _,_) if isBitExtract(op) => args.foreach(checkArgumentLegality)
-       case _ => throw EmitterException(s"Can't emit ${e.getClass.getName} as PrimOp argument")
+       case DoPrim(op, args, _,_) if isBooleanExpr(op) => args.foreach(checkArgumentLegality)
+       case _ => EmitterException(s"Can't emit ${e.getClass.getName} as PrimOp argument")
      }
 
      def checkCatArgumentLegality(e: Expression): Unit = e match {
@@ -330,6 +331,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
        case DoPrim(op, args, _,_) if isCast(op) => args.foreach(checkArgumentLegality)
        case DoPrim(op, args, _,_) if isBitExtract(op) => args.foreach(checkArgumentLegality)
        case DoPrim(Cat, args, _, _) => args foreach(checkCatArgumentLegality)
+       case DoPrim(op, args, _,_) if isBooleanExpr(op) => args.foreach(checkArgumentLegality)
        case _ => throw EmitterException(s"Can't emit ${e.getClass.getName} as PrimOp argument")
      }
 
