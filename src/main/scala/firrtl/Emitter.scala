@@ -322,7 +322,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
        case DoPrim(op, args, _,_) if isCast(op) => args.foreach(checkArgumentLegality)
        case DoPrim(op, args, _,_) if isBitExtract(op) => args.foreach(checkArgumentLegality)
        case DoPrim(op, args, _,_) if isBooleanExpr(op) => args.foreach(checkArgumentLegality)
-       case _ => EmitterException(s"Can't emit ${e.getClass.getName} as PrimOp argument")
+       case _ => throw EmitterException(s"Can't emit ${e.getClass.getName} as PrimOp argument")
      }
 
      def checkCatArgumentLegality(e: Expression): Unit = e match {
