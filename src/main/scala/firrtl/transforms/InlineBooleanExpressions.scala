@@ -5,9 +5,10 @@ package firrtl.transforms
 import firrtl.Mappers._
 import firrtl.Utils.{isBooleanExpr, isTemp}
 import firrtl._
-import firrtl.WrappedExpression._
+import firrtl.WrappedExpression.{we, _}
 import firrtl.analyses.InstanceGraph
 import firrtl.ir._
+import firrtl.transforms.InlineBooleanExpressionsTransforms.{Netlist, isSimpleExpr, onExpr}
 
 import scala.collection.mutable
 
@@ -29,7 +30,7 @@ object InlineBooleanExpressionsTransforms {
   // Checks if an Expression is made up of only boolean expressions terminated by a Literal or Reference.
   // private because it's not clear if this definition of "Simple Expression" would be useful elsewhere.
   // Note that this can have false negatives but MUST NOT have false positives.
-  private def isSimpleExpr(expr: Expression): Boolean = expr match {
+  def isSimpleExpr(expr: Expression): Boolean = expr match {
     case _: WRef | _: Literal | _: WSubField => true
     case DoPrim(op, args, _,_) if isBooleanExpr(op) => args.forall(isSimpleExpr)
     case _ => false
@@ -45,14 +46,16 @@ object InlineBooleanExpressionsTransforms {
     * @param expr the Expression being transformed
     * @return Returns expr with Bits inlined
     */
-  def onExpr(netlist: Netlist, symbolTable: Map[Expression, Int], depth: Int)(expr: Expression): Expression = {
+  def onExpr(netlist: Netlist, symbolTable: Map[WrappedExpression, Int], depth: Int)(expr: Expression): Expression = {
     expr.map(onExpr(netlist, symbolTable, depth + 1)) match {
       case lhs @ DoPrim(lop, args, lc, ltpe) if isSimpleExpr(lhs) =>
         val ivalNew = args.map {
           e =>
-            netlist.get(we(e)) match {
+            val we1 = we(e)
+            val rhs = netlist.get(we1)
+            rhs match {
               case Some(e1) if (isBooleanExpr(e1)) =>
-                if (symbolTable(e1) <= 1) { // if the fanout of the expression is 1 then replace
+                if (symbolTable(we1) <= 1) { // if the fanout of the expression is 1 then replace
                   e1
                 }
                 else {
@@ -81,13 +84,13 @@ object InlineBooleanExpressionsTransforms {
     * @param stmt the Statement being searched for nodes and transformed
     * @return Returns stmt with Bits inlined
     */
-  def onStmt(netlist: Netlist, symbolTable: Map[Expression, Int])(stmt: Statement): Statement =
+  def onStmt(netlist: Netlist, symbolTable: Map[WrappedExpression, Int])(stmt: Statement): Statement =
   stmt.map(onStmt(netlist, symbolTable)).map(onExpr(netlist, symbolTable, StartingDepth))
 
   /** Replaces bits in a Module */
   def onMod(mod: DefModule,
     netlist: Netlist,
-    symbolTable: Map[Expression, Int]): DefModule =
+    symbolTable: Map[WrappedExpression, Int]): DefModule =
     mod.map(onStmt(netlist, symbolTable))
 }
 
@@ -132,29 +135,51 @@ class InlineBooleanExpressions extends Transform {
     netlist
   }
 
+  def buildSymTab(mod: DefModule): Map[WrappedExpression, Int] = {
+    val symTab = mutable.HashMap[WrappedExpression, Int]()
+
+    def update(signalName: WrappedExpression): Unit = {
+      if (symTab.contains(signalName)) {
+        val n: Int = symTab(signalName) + 1
+        symTab(signalName) = n
+      }
+      else {
+        symTab(signalName) = 1
+      }
+    }
+
+    def onExpr(expr: Expression): Expression = {
+      expr.map(onExpr) match {
+        case lhs @ DoPrim(lop, args, lc, ltpe) if isSimpleExpr(lhs) =>
+          val ivalNew = args.map {
+            e => update(we(e))
+          }
+          lhs
+        case other => other // Not a candidate
+      }
+    }
+
+    def onStmt(stmt: Statement): Statement = {
+      stmt.map(onStmt) match {
+        case Connect(_, lhs  , rhs) => onExpr(rhs)
+        case DefNode(_, nname, rhs) => onExpr(rhs)
+        case _ => // Do nothing
+      }
+      stmt
+    }
+    mod.map(onStmt)
+    symTab.toMap
+  }
+
   def execute(state: CircuitState): CircuitState = {
+
+    val symTabs = state.circuit.modules.map{ m => (m.name -> buildSymTab(m)) }.toMap
 
     val netlists = state.circuit.modules.map{ m => (m.name -> buildNetlist(m)) }.toMap
 
-    val symbolTable = netlists.foldLeft(Map[String, Map[Expression, Int]]()) {
-      case (symbolTable, (moduleName, netlist)) =>
-        //val symTab: Map[Expression, Int] = symbolTable(moduleName)
-        val st =
-          netlist.foldLeft(Map[Expression, Int]()) {
-          case (symTab, (signalName, expr)) =>
-            if (symTab.contains(expr)) {
-              val n: Int = symTab(expr) + 1
-              symTab + (expr -> n)
-            }
-            else {
-              symTab + (expr -> 1)
-            }
-        }
-        symbolTable + (moduleName -> st)
-      }
 
     val modulesx = state.circuit.modules.map {
-      m => InlineBooleanExpressionsTransforms.onMod(m, netlists(m.name), symbolTable(m.name))
+      m => InlineBooleanExpressionsTransforms.onMod(m, netlists(m.name), symTabs(m.name))
   }
 
     state.copy(circuit = state.circuit.copy(modules = modulesx))
