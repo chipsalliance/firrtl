@@ -13,19 +13,6 @@ import firrtl.transforms.InlineBooleanExpressionsTransforms.{Netlist, isSimpleEx
 
 import scala.collection.mutable
 
-/**
-  * 1. Find all references to an LHS of a boolean statement
-  * 2. If the LHS reference to the boolean statement is not referenced more than FANOUT_LIMIT or DEPTH
-  *    then replace the references to the LHS in other statements with the RHS
-  *
-  *    wire x = a & b
-  *    wire y = x & c
-  *    convert to
-  *    y = (a & b) & c
-  *
-  *
-  */
-
 object InlineBooleanExpressionsTransforms {
 
   // Checks if an Expression is made up of only boolean expressions terminated by a Literal or Reference.
@@ -52,7 +39,7 @@ object InlineBooleanExpressionsTransforms {
     * @param netlist a '''mutable''' HashMap mapping references to [[firrtl.ir.DefNode DefNode]]s to their connected
     * [[firrtl.ir.Expression Expression]]s. It is '''not''' mutated in this function
     * @param expr the Expression being transformed
-    * @return Returns expr with Bits inlined
+    * @return Returns expr with Boolean Expression inlined
     */
   def onExpr(netlist: Netlist, symbolTable: Map[WrappedExpression, Int], depth: Int)(expr: Expression): Expression = {
     expr.map(onExpr(netlist, symbolTable, depth + 1)) match {
@@ -65,7 +52,7 @@ object InlineBooleanExpressionsTransforms {
     * During the recursive traversal of the rhs expression the depth that the boolean expressions are combined is controlled
     * StartingDepth is set to 0
     */
-  val StartingDepth = 0
+  private val StartingDepth = 0
 
   /** Inline bits in a Statement
     *
@@ -85,7 +72,91 @@ object InlineBooleanExpressionsTransforms {
     mod.map(onStmt(netlist, symbolTable))
 }
 
-/** Inline nodes that are simple bits */
+/**
+  * 1. Find all references to an LHS of a boolean statement
+  * 2. If the LHS reference to the boolean statement is not referenced more than FANOUT_LIMIT or DEPTH
+  *    then replace the references to the LHS in other statements with the RHS
+  *
+  *    wire x = a & b
+  *    wire y = x & c
+  *    convert to
+  *    y = (a & b) & c
+  *
+  *
+  * for each node count the number of usages (the fanout) and if the node is assigned to a boolean expression then if the world node has a fanout count of 1 then replace the node with the RHS expression else do nothing.
+  *
+  * circuit Top :
+  * module Top :
+  * input a : UInt<1>
+  * input b : UInt<1>
+  * input c : UInt<1>
+  * output y : UInt<1>
+  * node _x = and(a, b)
+  * y <= and(_x, c)""".stripMargin
+  * // replaces _x with and(a, b)
+  *
+  * circuit Top :
+  * module Top :
+  * input a : UInt<1>
+  * input b : UInt<1>
+  * input c : UInt<1>
+  * output y : UInt<1>
+  * y <= and(and(a, b), c)""".stripMargin
+  * ===============================================================
+  *
+  * circuit Top :
+  * module Top :
+  * input a : UInt<1>
+  * input b : UInt<1>
+  * input c : UInt<1>
+  * input d : UInt<1>
+  * output y : UInt<1>
+  * output z : UInt<1>
+  * node _y = and(a, b)
+  * node _z = and(a, b)
+  * y <= and(_y, c)
+  * z <= and(_z, d)
+  * // Replacement of _y and _z is performed because the expressions are assigned to two different nodes
+  *
+  * circuit Top :
+  * module Top :
+  * input a : UInt<1>
+  * input b : UInt<1>
+  * input c : UInt<1>
+  * input d : UInt<1>
+  * output y : UInt<1>
+  * output z : UInt<1>
+  * node _y = and(a, b)
+  * node _z = and(a, b)
+  * y <= and(_y, c)
+  * z <= and(_z, d)
+  * ===============================================================
+  *
+  * circuit Top :
+  * module Top :
+  * input a : UInt<1>
+  * input b : UInt<1>
+  * input c : UInt<1>
+  * input d : UInt<1>
+  * output y : UInt<1>
+  * output z : UInt<1>
+  * node _x = and(a, b)
+  * y <= and(_x, c)
+  * z <= and(_x, d)
+  *
+  * // No replacement of _x is performed because _x has a fanout of 2
+  * circuit Top :
+  * module Top :
+  * input a : UInt<1>
+  * input b : UInt<1>
+  * input c : UInt<1>
+  * input d : UInt<1>
+  * output y : UInt<1>
+  * output z : UInt<1>
+  * node _y = and(a, b)
+  * y <= and(_y, c)
+  * z <= and(_z, d)
+  */
 class InlineBooleanExpressions extends Transform {
   def inputForm = LowForm
   def outputForm = LowForm
