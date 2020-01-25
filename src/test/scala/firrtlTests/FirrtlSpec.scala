@@ -18,6 +18,10 @@ import firrtl.analyses.{GetNamespace, ModuleNamespaceAnnotation}
 import firrtl.annotations._
 import firrtl.transforms.{DontTouchAnnotation, NoDedupAnnotation, RenameModules}
 import firrtl.util.BackendCompilationUtilities
+import org.scalatestplus.scalacheck.ScalaCheckPropertyChecks
+import org.scalatest.flatspec.AnyFlatSpec
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.propspec.AnyPropSpec
 
 class CheckLowForm extends SeqTransform {
   def inputForm = LowForm
@@ -255,9 +259,9 @@ object FirrtlCheckers extends FirrtlMatchers {
   }
 }
 
-abstract class FirrtlPropSpec extends PropSpec with PropertyChecks with FirrtlRunners with LazyLogging
+abstract class FirrtlPropSpec extends AnyPropSpec with ScalaCheckPropertyChecks with FirrtlRunners with LazyLogging
 
-abstract class FirrtlFlatSpec extends FlatSpec with FirrtlRunners with FirrtlMatchers with LazyLogging
+abstract class FirrtlFlatSpec extends AnyFlatSpec with FirrtlRunners with FirrtlMatchers with LazyLogging
 
 // Who tests the testers?
 class TestFirrtlFlatSpec extends FirrtlFlatSpec {

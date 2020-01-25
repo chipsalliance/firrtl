@@ -3,9 +3,6 @@
 package firrtlTests
 package transforms
 
-import org.scalatest.FlatSpec
-import org.scalatest.Matchers
-import org.scalatest.junit.JUnitRunner
 import java.io._
 
 import firrtl._

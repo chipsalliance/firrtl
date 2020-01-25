@@ -2,7 +2,6 @@
 
 package firrtlTests
 
-import org.scalatest.Matchers
 import firrtl._
 
 class ExtModuleTests extends FirrtlFlatSpec {

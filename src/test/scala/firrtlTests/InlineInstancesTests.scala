@@ -2,9 +2,6 @@
 
 package firrtlTests
 
-import org.scalatest.FlatSpec
-import org.scalatest.Matchers
-import org.scalatest.junit.JUnitRunner
 import firrtl.ir.Circuit
 import firrtl.Parser
 import firrtl.passes.PassExceptions

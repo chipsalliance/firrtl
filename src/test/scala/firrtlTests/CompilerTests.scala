@@ -2,9 +2,6 @@
 
 package firrtlTests
 
-import org.scalatest.FlatSpec
-import org.scalatest.Matchers
-import org.scalatest.junit.JUnitRunner
 
 import firrtl.ir.Circuit
 import firrtl.{
@@ -18,6 +15,8 @@ import firrtl.{
   Parser,
   VerilogCompiler
 }
+import org.scalatest.flatspec.AnyFlatSpec
+import org.scalatest.matchers.should.Matchers
 
 /**
  * An example methodology for testing Firrtl compilers.
@@ -26,7 +25,7 @@ import firrtl.{
  * the compiler is executed. The output of the compiler
  * should be compared against the check string.
  */
-abstract class CompilerSpec extends FlatSpec {
+abstract class CompilerSpec extends AnyFlatSpec {
    def parse (s: String): Circuit = Parser.parse(s.split("\n").toIterator)
    def compiler: Compiler
    def input: String

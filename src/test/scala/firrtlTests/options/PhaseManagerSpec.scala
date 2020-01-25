@@ -2,7 +2,6 @@
 
 package firrtlTests.options
 
-import org.scalatest.{FlatSpec, Matchers}
 
 import firrtl.AnnotationSeq
 import firrtl.options.{DependencyManagerException, Phase, PhaseManager, PreservesAll}
@@ -10,6 +9,8 @@ import firrtl.options.{DependencyManagerException, Phase, PhaseManager, Preserve
 import java.io.{File, PrintWriter}
 
 import sys.process._
+import org.scalatest.flatspec.AnyFlatSpec
+import org.scalatest.matchers.should.Matchers
 
 trait IdentityPhase extends Phase {
   def transform(annotations: AnnotationSeq): AnnotationSeq = annotations
@@ -297,7 +298,7 @@ object UnrelatedFixture {
 
 }
 
-class PhaseManagerSpec extends FlatSpec with Matchers {
+class PhaseManagerSpec extends AnyFlatSpec with Matchers {
 
   def writeGraphviz(pm: PhaseManager, dir: String): Unit = {
 
