@@ -62,7 +62,7 @@ libraryDependencies += "junit" % "junit" % "4.12" % "test"
 
 libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.8" % "test"
 
-libraryDependencies += "org.scalacheck" %% "scalacheck" % "1.14.0" % "test"
+libraryDependencies += "org.scalacheck" %% "scalacheck" % "1.14.3" % "test"
 
 libraryDependencies += "com.github.scopt" %% "scopt" % "3.7.1"
 
