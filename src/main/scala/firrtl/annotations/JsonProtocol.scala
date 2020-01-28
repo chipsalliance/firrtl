@@ -72,6 +72,18 @@ object JsonProtocol {
     { case JString(s) => Target.deserialize(s).asInstanceOf[ReferenceTarget] },
     { case named: ReferenceTarget => JString(named.serialize) }
   ))
+  class IsModuleSerializer extends CustomSerializer[IsModule](format => (
+    { case JString(s) => Target.deserialize(s).asInstanceOf[IsModule] },
+    { case named: IsModule => JString(named.serialize) }
+  ))
+  class IsMemberSerializer extends CustomSerializer[IsMember](format => (
+    { case JString(s) => Target.deserialize(s).asInstanceOf[IsMember] },
+    { case named: IsMember => JString(named.serialize) }
+  ))
+  class CompleteTargetSerializer extends CustomSerializer[CompleteTarget](format => (
+    { case JString(s) => Target.deserialize(s).asInstanceOf[CompleteTarget] },
+    { case named: CompleteTarget => JString(named.serialize) }
+  ))
 
   /** Construct Json formatter for annotations */
   def jsonFormat(tags: Seq[Class[_ <: Annotation]]) = {
@@ -80,7 +92,8 @@ object JsonProtocol {
       new ModuleNameSerializer + new ComponentNameSerializer + new TargetSerializer +
       new GenericTargetSerializer + new CircuitTargetSerializer + new ModuleTargetSerializer +
       new InstanceTargetSerializer + new ReferenceTargetSerializer + new TransformSerializer  +
-      new LoadMemoryFileTypeSerializer
+      new LoadMemoryFileTypeSerializer + new IsModuleSerializer + new IsMemberSerializer +
+      new CompleteTargetSerializer
   }
 
   /** Serialize annotations to a String for emission */
