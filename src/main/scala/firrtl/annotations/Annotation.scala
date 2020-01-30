@@ -42,6 +42,9 @@ trait Annotation extends Product {
   */
 trait NoTargetAnnotation extends Annotation {
   def update(renames: RenameMap): Seq[NoTargetAnnotation] = Seq(this)
+  override def productArity: Int = 0
+  override def canEqual(that: Any): Boolean = true
+  override def productElement(n: Int): Any = 0
 }
 
 /** An Annotation that targets a single [[Named]] thing */
