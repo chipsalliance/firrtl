@@ -9,16 +9,14 @@ import firrtl._
 import firrtl.WrappedExpression.we
 import firrtl.analyses.InstanceGraph
 import firrtl.ir._
-import firrtl.transforms.InlineBooleanExpressionsTransforms.{Netlist, isSimpleExpr}
 
 import scala.collection.mutable
 
-object InlineBooleanExpressionsTransforms {
-
+object InlineBooleanExpressions {
   // Checks if an Expression is made up of only boolean expressions terminated by a Literal or Reference.
   // private because it's not clear if this definition of "Simple Expression" would be useful elsewhere.
   // Note that this can have false negatives but MUST NOT have false positives.
-  def isSimpleExpr(expr: Expression): Boolean = expr match {
+  private def isSimpleExpr(expr: Expression): Boolean = expr match {
     case _: WRef | _: Literal | _: WSubField => true
     case DoPrim(op, args, _,_) if isBooleanExpr(op) => args.forall(isSimpleExpr)
     case _ => false
@@ -27,11 +25,18 @@ object InlineBooleanExpressionsTransforms {
   /** Mapping from references to the [[firrtl.ir.Expression Expression]]s that drive them */
   type Netlist = mutable.HashMap[WrappedExpression, Expression]
 
-  private def onArg(netlist: Netlist, symbolTable: Map[WrappedExpression, Int], depth: Int)
+  private def onArg(netlist: Netlist, symbolTable: Map[WrappedExpression, Int])
                    (expr: Expression): Expression =
-    netlist.get(we(expr)) match {
-      case Some(e) if isBooleanExpr(e) && symbolTable(we(expr)) <= 1 => e
-      case _ => expr
+    if (!netlist.contains(we(expr))) {
+      throw new IllegalArgumentException(s"Error: netlist does not contain ${expr.serialize}")
+    }
+    else {
+
+      netlist.get(we(expr)) match {
+        case Some(e) if isBooleanExpr(e) && symbolTable(we(expr)) <= 1 =>
+          e
+        case _ => expr
+      }
     }
 
   /** Recursively replace [[WRef]]s with new [[Expression]]s
@@ -41,18 +46,13 @@ object InlineBooleanExpressionsTransforms {
     * @param expr the Expression being transformed
     * @return Returns expr with Boolean Expression inlined
     */
-  def onExpr(netlist: Netlist, symbolTable: Map[WrappedExpression, Int], depth: Int)(expr: Expression): Expression = {
-    expr.map(onExpr(netlist, symbolTable, depth + 1)) match {
-      case lhs: DoPrim if isSimpleExpr(lhs) => lhs.map(onArg(netlist, symbolTable, depth))
+  def onExpr(netlist: Netlist, symbolTable: Map[WrappedExpression, Int])(expr: Expression): Expression = {
+    expr.map(onExpr(netlist, symbolTable)) match {
+      case lhs: DoPrim if isSimpleExpr(lhs) =>
+        lhs.map(onArg(netlist, symbolTable))
       case other => other
     }
   }
-
-  /**
-    * During the recursive traversal of the rhs expression the depth that the boolean expressions are combined is controlled
-    * StartingDepth is set to 0
-    */
-  private val StartingDepth = 0
 
   /** Inline bits in a Statement
     *
@@ -62,9 +62,16 @@ object InlineBooleanExpressionsTransforms {
     * @param stmt the Statement being searched for nodes and transformed
     * @return Returns stmt with Bits inlined
     */
-  def onStmt(netlist: Netlist, symbolTable: Map[WrappedExpression, Int])(stmt: Statement): Statement =
-  stmt.map(onStmt(netlist, symbolTable)).map(onExpr(netlist, symbolTable, StartingDepth))
+  def onStmt(netlist: Netlist, symbolTable: Map[WrappedExpression, Int])(stmt: Statement): Statement = {
+//    stmt.map(onStmt(netlist, symbolTable)).map(onExpr(netlist, symbolTable))
+    stmt.map(onStmt(netlist, symbolTable)).map{
+      println(s"stmt = ${stmt.serialize}")
 
+      onExpr(netlist, symbolTable)
+    }
+
+
+  }
   /** Replaces bits in a Module */
   def onMod(mod: DefModule,
     netlist: Netlist,
@@ -77,15 +84,17 @@ object InlineBooleanExpressionsTransforms {
   * 2. If the LHS reference to the boolean statement is not referenced more than FANOUT_LIMIT or DEPTH
   *    then replace the references to the LHS in other statements with the RHS
   *
-  *    wire x = a & b
+  *    {{{wire x = a & b
   *    wire y = x & c
   *    convert to
-  *    y = (a & b) & c
+  *    y = (a & b) & c}}}
   *
   *
   * for each node count the number of usages (the fanout) and if the node is assigned to a boolean expression then if the world node has a fanout count of 1 then replace the node with the RHS expression else do nothing.
   *
-  * circuit Top :
+  * Original:
+  *
+  * {{{circuit Top :
   * module Top :
   * input a : UInt<1>
   * input b : UInt<1>
@@ -93,32 +102,21 @@ object InlineBooleanExpressionsTransforms {
   * output y : UInt<1>
   * node _x = and(a, b)
   * y <= and(_x, c)""".stripMargin
-  * // replaces _x with and(a, b)
+  * // replaces _x with and(a, b)}}}
   *
-  * circuit Top :
+  * Transformed to:
+  *
+  * {{{circuit Top :
   * module Top :
   * input a : UInt<1>
   * input b : UInt<1>
   * input c : UInt<1>
   * output y : UInt<1>
-  * y <= and(and(a, b), c)""".stripMargin
-  * ===============================================================
+  * y <= and(and(a, b), c)""".stripMargin}}}
   *
-  * circuit Top :
-  * module Top :
-  * input a : UInt<1>
-  * input b : UInt<1>
-  * input c : UInt<1>
-  * input d : UInt<1>
-  * output y : UInt<1>
-  * output z : UInt<1>
-  * node _y = and(a, b)
-  * node _z = and(a, b)
-  * y <= and(_y, c)
-  * z <= and(_z, d)
-  * // Replacement of _y and _z is performed because the expressions are assigned to two different nodes
+  * Original:
   *
-  * circuit Top :
+  * {{{circuit Top :
   * module Top :
   * input a : UInt<1>
   * input b : UInt<1>
@@ -130,9 +128,28 @@ object InlineBooleanExpressionsTransforms {
   * node _z = and(a, b)
   * y <= and(_y, c)
   * z <= and(_z, d)
-  * ===============================================================
+  * // Replacement of _y and _z is performed because the expressions are assigned to two different nodes}}}
   *
-  * circuit Top :
+  * Transformed to:
+  *
+  * {{{circuit Top :
+  * module Top :
+  * input a : UInt<1>
+  * input b : UInt<1>
+  * input c : UInt<1>
+  * input d : UInt<1>
+  * output y : UInt<1>
+  * output z : UInt<1>
+  * node _y = and(a, b)
+  * node _z = and(a, b)
+  * y <= and(_y, c)
+  * z <= and(_z, d)}}}
+  *
+  * No replacement of _x is performed because _x has a fanout of 2
+  *
+  * Original:
+  *
+  * {{{circuit Top :
   * module Top :
   * input a : UInt<1>
   * input b : UInt<1>
@@ -142,10 +159,11 @@ object InlineBooleanExpressionsTransforms {
   * output z : UInt<1>
   * node _x = and(a, b)
   * y <= and(_x, c)
-  * z <= and(_x, d)
+  * z <= and(_x, d)}}}
   *
-  * // No replacement of _x is performed because _x has a fanout of 2
-  * circuit Top :
+  * Transformed to:
+  *
+  * {{{circuit Top :
   * module Top :
   * input a : UInt<1>
   * input b : UInt<1>
@@ -155,11 +173,13 @@ object InlineBooleanExpressionsTransforms {
   * output z : UInt<1>
   * node _y = and(a, b)
   * y <= and(_y, c)
-  * z <= and(_z, d)
+  * z <= and(_z, d)}}}
   */
 class InlineBooleanExpressions extends Transform {
   def inputForm = LowForm
   def outputForm = LowForm
+
+  import InlineBooleanExpressions._
 
   def makeModuleInfo(c: Circuit): (Map[String, Map[String, String]], Seq[String], InstanceGraph, Map[String, DefModule]) = {
     val iGraph = (new InstanceGraph(c))
@@ -184,6 +204,8 @@ class InlineBooleanExpressions extends Transform {
   def buildNetlist(mod: DefModule): Netlist = {
     val netlist = new Netlist()
     def onStmt(stmt: Statement): Statement = {
+      println(s"stmt = ${stmt.serialize}")
+
       stmt.map(onStmt) match {
         case Connect(_, lhs  , rhs) => netlist(WrappedExpression(lhs)) = rhs
         case DefNode(_, nname, rhs) => netlist(WrappedExpression(WRef(nname))) = rhs
@@ -200,14 +222,30 @@ class InlineBooleanExpressions extends Transform {
 
     def update(signalName: WrappedExpression): Unit = symTab(signalName) = symTab.getOrElse(signalName, 0) + 1
 
-    def onExpr(expr: Expression): Unit = expr match {
-      case lhs @ DoPrim(_, args, _, _) if isSimpleExpr(lhs) => args.foreach(e => update(we(e)))
-      case _ => expr.foreach(onExpr)
-    }
+    def onExpr(expr: Expression): Expression =
+      expr map onExpr match {
+        case _: WRef | _: Literal | _: WSubField =>
+          update(we(expr))
+          expr
+        case other => expr
+      }
+
+//      expr match {
+//      case lhs @ DoPrim(_, args, _, _) if isSimpleExpr(lhs) => args.foreach(e => update(we(e)))
+//      case lhs @ Mux(cond, tval, fval, _) if isSimpleExpr(lhs) =>
+//        cond.foreach(e => update(we(e)))
+//        tval.foreach(e => update(we(e)))
+//        fval.foreach(e => update(we(e)))
+//      case _ => expr.foreach(onExpr)
+//    }
 
     def onStmt(stmt: Statement): Unit = stmt match {
       case Connect(_, _, rhs) => onExpr(rhs)
       case DefNode(_, _, rhs) => onExpr(rhs)
+      case Conditionally(_, pred, conseq, alt) =>
+        onExpr(pred)
+        onStmt(conseq)
+        onStmt(alt)
       case _ => stmt.foreach(onStmt)
     }
 
@@ -223,7 +261,7 @@ class InlineBooleanExpressions extends Transform {
 
 
     val modulesx = state.circuit.modules.map {
-      m => InlineBooleanExpressionsTransforms.onMod(m, netlists(m.name), symTabs(m.name))
+      m => InlineBooleanExpressions.onMod(m, netlists(m.name), symTabs(m.name))
   }
 
     state.copy(circuit = state.circuit.copy(modules = modulesx))

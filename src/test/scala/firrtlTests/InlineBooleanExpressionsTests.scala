@@ -65,4 +65,32 @@ class InlineBooleanExpressionsTests extends LowTransformSpec {
     execute(input, check, Nil)
   }
 
+  "The module Top" should "not have the boolean expressions combined" in {
+    val input =
+      """circuit Top :
+        |  module Top :
+        |    input clk : Clock
+        |    input a : UInt<1>
+        |    input b : UInt<1>
+        |    input s0 : UInt<1>
+        |    input s1 : UInt<1>
+        |    output x: UInt<1>
+        |    node sel = and(s0, s1)
+        |    printf(clk, not(sel), "xxxx\n")
+        |""".stripMargin
+    val check =
+      """circuit Top :
+        |  module Top :
+        |    input clk : Clock
+        |    input a : UInt<1>
+        |    input b : UInt<1>
+        |    input s0 : UInt<1>
+        |    input s1 : UInt<1>
+        |    output x: UInt<1>
+        |    node sel = and(s0, s1)
+        |    printf(clk, not(and(s0, s1)), "xxxx\n")
+        |""".stripMargin
+    execute(input, check, Nil)
+  }
+
 }
