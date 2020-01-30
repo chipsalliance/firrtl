@@ -321,6 +321,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
        case DoPrim(Not, args, _,_) => args.foreach(checkArgumentLegality)
        case DoPrim(op, args, _,_) if isCast(op) => args.foreach(checkArgumentLegality)
        case DoPrim(op, args, _,_) if isBitExtract(op) => args.foreach(checkArgumentLegality)
+       case DoPrim(op, args, _,_) if isBitReduce(op) => args.foreach(checkArgumentLegality)
        case _ => throw EmitterException(s"Can't emit ${e.getClass.getName} as PrimOp argument")
      }
 
@@ -982,6 +983,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
     new ReplaceTruncatingArithmetic,
     new InlineNotsTransform,
     new InlineBitExtractionsTransform,  // here after InlineNots to clean up not(not(...)) rename
+    new InlineBitReductionsTransform,
     new InlineCastsTransform,
     new LegalizeClocksTransform,
     new FlattenRegUpdate,

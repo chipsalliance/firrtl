@@ -210,6 +210,17 @@ object Utils extends LazyLogging {
     case _ => false
   }
 
+  /** Returns true if PrimOp is a BitReduction, false otherwise */
+  def isBitReduce(op: PrimOp): Boolean = op match {
+    case Andr | Orr | Xorr => true
+    case _ => false
+  }
+  /** Returns true if Expression is a bit-wise reduction PrimOp, false otherwise */
+  def isBitReduce(expr: Expression): Boolean = expr match {
+    case DoPrim(op, _,_, UIntType(_)) if isBitReduce(op) => true
+    case _ => false
+  }
+
   /** Provide a nice name to create a temporary **/
   def niceName(e: Expression): String = niceName(1)(e)
   def niceName(depth: Int)(e: Expression): String = {

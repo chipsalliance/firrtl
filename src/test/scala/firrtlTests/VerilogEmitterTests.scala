@@ -214,6 +214,76 @@ class DoPrimVerilog extends FirrtlFlatSpec {
         |""".stripMargin.split("\n") map normalized
     executeTest(input, check, compiler)
   }
+  "inline bit reductions" should "emit correctly" in {
+    val compiler = new VerilogCompiler
+    val input =
+      """circuit InlineBitReduction :
+        |  module InlineBitReduction :
+        |    input a: UInt<4>
+        |    input b: UInt<1>
+        |    output c: UInt<1>
+        |    output d: UInt<1>
+        |    output e: UInt<1>
+        |    output f: UInt<1>
+        |    output g: UInt<1>
+        |    output h: UInt<1>
+        |    output i: UInt<1>
+        |    output j: UInt<1>
+        |    c <= eq(a, UInt<4>("hf"))
+        |    d <= neq(a, UInt<4>("h0"))
+        |    e <= or(eq(a, UInt<4>("hf")), xorr(a))
+        |    f <= and(neq(a, UInt<4>("h0")), not(b))
+        |    g <= not(xorr(a))
+        |    h <= andr(not(a))
+        |    i <= orr(not(a))
+        |    j <= xorr(not(a))""".stripMargin
+    val check =
+      """module InlineBitReduction(
+        |  input  [3:0] a,
+        |  input   b,
+        |  output  c,
+        |  output  d,
+        |  output  e,
+        |  output  f,
+        |  output  g,
+        |  output  h,
+        |  output  i,
+        |  output  j
+        |);
+        |  assign c = &a;
+        |  assign d = |a;
+        |  assign e = &a | ^a;
+        |  assign f = |a & ~b;
+        |  assign g = ~^a;
+        |  assign h = ~|a;
+        |  assign i = ~&a;
+        |  assign j = ~^a;
+        |endmodule
+        |""".stripMargin.split("\n") map normalized
+    executeTest(input, check, compiler)
+  }
+  "inline bit expansions" should "emit correctly" in {
+    val compiler = new VerilogCompiler
+    val input =
+      """circuit InlineBitExpansion :
+        |  module InlineBitExpansion :
+        |    input a: UInt<1>
+        |    output b: UInt<4>
+        |    output c: UInt<4>
+        |    b <= mux(a, UInt<4>("hf"), UInt<4>("h0"))
+        |    c <= mux(a, UInt<4>("h0"), UInt<4>("hf"))""".stripMargin
+    val check =
+      """module InlineBitExpansion(
+        |  input   a,
+        |  output [3:0] b,
+        |  output [3:0] c
+        |);
+        |  assign b = a ? 4'hf : 4'h0;
+        |  assign c = a ? 4'h0 : 4'hf;
+        |endmodule
+        |""".stripMargin.split("\n") map normalized
+    executeTest(input, check, compiler)
+  }
   "Rem" should "emit correctly" in {
     val compiler = new VerilogCompiler
     val input =

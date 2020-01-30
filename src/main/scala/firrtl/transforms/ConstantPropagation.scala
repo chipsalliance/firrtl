@@ -186,6 +186,7 @@ class ConstantPropagation extends Transform with ResolvedAnnotationPaths {
     def simplify(e: Expression, lhs: Literal, rhs: Expression) = lhs match {
       case UIntLiteral(v, IntWidth(w)) if v == BigInt(1) && w == BigInt(1) && bitWidth(rhs.tpe) == BigInt(1) => rhs
       case UIntLiteral(v, IntWidth(w)) if v == BigInt(0) && w == BigInt(1) && bitWidth(rhs.tpe) == BigInt(1) => DoPrim(Not, Seq(rhs), Nil, e.tpe)
+      case UIntLiteral(v, IntWidth(w)) if v == ((BigInt(1) << bitWidth(rhs.tpe).toInt) - 1) => DoPrim(Andr, Seq(rhs), Nil, e.tpe)
       case _ => e
     }
     def matchingArgsValue(e: DoPrim, arg: Expression) = UIntLiteral(1)
@@ -196,6 +197,7 @@ class ConstantPropagation extends Transform with ResolvedAnnotationPaths {
     def simplify(e: Expression, lhs: Literal, rhs: Expression) = lhs match {
       case UIntLiteral(v, IntWidth(w)) if v == BigInt(0) && w == BigInt(1) && bitWidth(rhs.tpe) == BigInt(1) => rhs
       case UIntLiteral(v, IntWidth(w)) if v == BigInt(1) && w == BigInt(1) && bitWidth(rhs.tpe) == BigInt(1) => DoPrim(Not, Seq(rhs), Nil, e.tpe)
+      case UIntLiteral(v, IntWidth(w)) if v == BigInt(0) => DoPrim(Orr, Seq(rhs), Nil, e.tpe)
       case _ => e
     }
     def matchingArgsValue(e: DoPrim, arg: Expression) = UIntLiteral(0)

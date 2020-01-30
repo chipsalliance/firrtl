@@ -70,7 +70,7 @@ object InlineBitExtractionsTransform {
     }
   }
 
-  /** Inline bits in a Statement
+  /** Inline Bits in a Statement
     *
     * @param netlist a '''mutable''' HashMap mapping references to [[firrtl.ir.DefNode DefNode]]s to their connected
     * [[firrtl.ir.Expression Expression]]s. This function '''will''' mutate it if stmt is a [[firrtl.ir.DefNode
@@ -86,11 +86,11 @@ object InlineBitExtractionsTransform {
       case other => other
     }
 
-  /** Replaces bits in a Module */
+  /** Replaces Bits in a Module */
   def onMod(mod: DefModule): DefModule = mod.map(onStmt(new Netlist))
 }
 
-/** Inline nodes that are simple bits */
+/** Inline nodes that are simple Bits */
 class InlineBitExtractionsTransform extends Transform {
   def inputForm = UnknownForm
   def outputForm = UnknownForm
