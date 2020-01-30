@@ -3,27 +3,21 @@ package transforms
 
 import firrtl.ir._
 import firrtl.Mappers._
-import firrtl.PrimOps.{Bits, Not}
-import firrtl.Utils.{isBitExtract, isBitExpand, isTemp}
+import firrtl.PrimOps.{AsUInt, Pad, Not}
+import firrtl.Utils.{isBitExpand, isTemp}
 import firrtl.WrappedExpression._
 
 import scala.collection.mutable
 
-object InlineNotsTransform {
+object InlineBitExpansionsTransform {
 
-  /** Returns true if Expression is a Not PrimOp, false otherwise */
-  private def isNot(expr: Expression): Boolean = expr match {
-    case DoPrim(Not, args, _,_) => args.forall(isSimpleExpr)
-    case _ => false
-  }
-
-  // Checks if an Expression is made up of only Nots terminated by a Literal or Reference.
+  // Checks if an Expression is made up of only bit expansions terminated by a Literal or Reference.
   // private because it's not clear if this definition of "Simple Expression" would be useful elsewhere.
   // Note that this can have false negatives but MUST NOT have false positives.
   private def isSimpleExpr(expr: Expression): Boolean = expr match {
     case _: WRef | _: Literal | _: WSubField => true
-    case DoPrim(Not, args, _,_) => args.forall(isSimpleExpr)
-    case _ => isBitExpand(expr)
+    case DoPrim(_, args, _,_) if isBitExpand(expr) => args.forall(isSimpleExpr)
+    case _ => false
   }
 
   /** Mapping from references to the [[firrtl.ir.Expression Expression]]s that drive them */
@@ -34,39 +28,35 @@ object InlineNotsTransform {
     * @param netlist a '''mutable''' HashMap mapping references to [[firrtl.ir.DefNode DefNode]]s to their connected
     * [[firrtl.ir.Expression Expression]]s. It is '''not''' mutated in this function
     * @param expr the Expression being transformed
-    * @return Returns expr with Nots inlined
+    * @return Returns expr with Andr/Orr/Xorr inlined
     */
   def onExpr(netlist: Netlist)(expr: Expression): Expression = {
     expr.map(onExpr(netlist)) match {
       case e @ WRef(name, _,_,_) =>
         netlist.get(we(e))
-               .filter(isNot)
+               .filter(isBitExpand)
                .getOrElse(e)
-      // replace bits-of-not with not-of-bits to enable later bit extraction transform
-      case lhs @ DoPrim(op, Seq(lval), lcons, ltpe) if isBitExtract(op) && isSimpleExpr(lval) =>
-        netlist.getOrElse(we(lval), lval) match {
-          case DoPrim(Not, Seq(rhs), rcons, rtpe) =>
-            DoPrim(Not, Seq(DoPrim(op, Seq(rhs), lcons, ltpe)), rcons, ltpe)
-          case _ => lhs  // Not a candiate
+      case lhs @ Mux(cond, UIntLiteral(tval,IntWidth(tw)), UIntLiteral(fval,IntWidth(fw)), tpe) if (bitWidth(cond.tpe) == 1) && (tw == fw) => cond match {
+        case _: WRef | _: Literal | _: WSubField => cond.tpe match {
+          case (_: UIntType) if (tval == (BigInt(1) << tw.toInt) - 1) && (fval == BigInt(0)) =>
+            DoPrim(AsUInt, Seq(DoPrim(Pad, Seq(cond), Seq(bitWidth(tpe)), SIntType(IntWidth(1)))), Seq(), tpe)
+          case (_: UIntType) if (tval == BigInt(0)) && (fval == (BigInt(1) << fw.toInt) - 1) =>
+            DoPrim(Not, Seq(DoPrim(Pad, Seq(cond), Seq(bitWidth(tpe)), SIntType(IntWidth(1)))), Seq(), tpe)
+          case _ => lhs // Not a candidate
         }
-      // replace back-to-back inversions with a straight rename
-      case lhs @ DoPrim(Not, Seq(inv), _, invtpe) if isSimpleExpr(lhs) && isSimpleExpr(inv) && (lhs.tpe == invtpe) && (bitWidth(lhs.tpe) == bitWidth(inv.tpe)) =>
-        netlist.getOrElse(we(inv), inv) match {
-          case DoPrim(Not, Seq(rhs), _, rtpe) if (invtpe == rtpe) && (bitWidth(inv.tpe) == bitWidth(rhs.tpe)) =>
-            DoPrim(Bits, Seq(rhs), Seq(bitWidth(lhs.tpe)-1,0), rtpe)
-          case _ => lhs  // Not a candiate
-        }
+        case _ => lhs // Not a candidate
+      }
       case other => other // Not a candidate
     }
   }
 
-  /** Inline nots in a Statement
+  /** Inline bit expansions in a Statement
     *
     * @param netlist a '''mutable''' HashMap mapping references to [[firrtl.ir.DefNode DefNode]]s to their connected
     * [[firrtl.ir.Expression Expression]]s. This function '''will''' mutate it if stmt is a [[firrtl.ir.DefNode
-    * DefNode]] with a Temporary name and a value that is a [[PrimOp]] Not
+    * DefNode]] with a Temporary name and a value that is a [[PrimOp]] bit expansion
     * @param stmt the Statement being searched for nodes and transformed
-    * @return Returns stmt with nots inlined
+    * @return Returns stmt with bit expansions inlined
     */
   def onStmt(netlist: Netlist)(stmt: Statement): Statement =
     stmt.map(onStmt(netlist)).map(onExpr(netlist)) match {
@@ -76,17 +66,17 @@ object InlineNotsTransform {
       case other => other
     }
 
-  /** Inline nots in a Module */
+  /** Replaces bit expansions in a Module */
   def onMod(mod: DefModule): DefModule = mod.map(onStmt(new Netlist))
 }
 
-/** Inline nodes that are simple nots */
-class InlineNotsTransform extends Transform {
+/** Inline nodes that are simple bit expansions */
+class InlineBitExpansionsTransform extends Transform {
   def inputForm = UnknownForm
   def outputForm = UnknownForm
 
   def execute(state: CircuitState): CircuitState = {
-    val modulesx = state.circuit.modules.map(InlineNotsTransform.onMod(_))
+    val modulesx = state.circuit.modules.map(InlineBitExpansionsTransform.onMod(_))
     state.copy(circuit = state.circuit.copy(modules = modulesx))
   }
 }

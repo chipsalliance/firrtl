@@ -268,18 +268,31 @@ class DoPrimVerilog extends FirrtlFlatSpec {
       """circuit InlineBitExpansion :
         |  module InlineBitExpansion :
         |    input a: UInt<1>
-        |    output b: UInt<4>
+        |    input b: UInt<4>
         |    output c: UInt<4>
-        |    b <= mux(a, UInt<4>("hf"), UInt<4>("h0"))
-        |    c <= mux(a, UInt<4>("h0"), UInt<4>("hf"))""".stripMargin
+        |    output d: UInt<4>
+        |    output e: UInt<4>
+        |    output f: UInt<4>
+        |    node g = mux(a, UInt<4>("hf"), UInt<4>("h0"))
+        |    c <= g
+        |    d <= mux(a, UInt<4>("h0"), UInt<4>("hf"))
+        |    e <= and(b, mux(a, UInt<4>("hf"), UInt<4>("h0")))
+        |    f <= or(b, mux(a, UInt<4>("h0"), UInt<4>("hf")))""".stripMargin
     val check =
       """module InlineBitExpansion(
         |  input   a,
-        |  output [3:0] b,
-        |  output [3:0] c
+        |  input  [3:0] b,
+        |  output [3:0] c,
+        |  output [3:0] d,
+        |  output [3:0] e,
+        |  output [3:0] f
         |);
-        |  assign b = a ? 4'hf : 4'h0;
-        |  assign c = a ? 4'h0 : 4'hf;
+        |  wire [3:0] g;
+        |  assign g = {4{a}};
+        |  assign c = {4{a}};
+        |  assign d = ~{4{a}};
+        |  assign e = b & g;
+        |  assign f = b | ~{4{a}};
         |endmodule
         |""".stripMargin.split("\n") map normalized
     executeTest(input, check, compiler)

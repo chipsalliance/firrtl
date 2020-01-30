@@ -221,6 +221,18 @@ object Utils extends LazyLogging {
     case _ => false
   }
 
+  /** Returns true if Expression is a bit expansion PrimOp, false otherwise */
+  def isBitExpand(expr: Expression): Boolean = expr match {
+    case DoPrim(Pad, Seq(arg), _, tpe) => tpe match {
+      case (_: SIntType) => arg.tpe match {
+        case (_: UIntType) if (bitWidth(arg.tpe) == 1) => true
+        case _ => false
+      }
+      case _ => false
+    }
+    case _ => false
+  }
+
   /** Provide a nice name to create a temporary **/
   def niceName(e: Expression): String = niceName(1)(e)
   def niceName(depth: Int)(e: Expression): String = {

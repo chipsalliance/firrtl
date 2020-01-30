@@ -222,8 +222,8 @@ class VerilogEmitter extends SeqTransform with Emitter {
   def emit(x: Any)(implicit w: Writer): Unit = { emit(x, 0) }
   def emit(x: Any, top: Int)(implicit w: Writer): Unit = {
     def cast(e: Expression): Any = e.tpe match {
-      case (t: UIntType) => e
-      case (t: SIntType) => Seq("$signed(",e,")")
+      case (_: UIntType) => e
+      case (_: SIntType) => Seq("$signed(",e,")")
       case ClockType => e
       case AnalogType(_) => e
       case _ => throwInternalError(s"unrecognized cast: $e")
@@ -238,8 +238,8 @@ class VerilogEmitter extends SeqTransform with Emitter {
           throw EmitterException("Cannot emit async reset muxes directly")
         }
         e.cond match {
-          case DoPrim(Not, Seq(sel), _,_) => emit(Seq(sel," ? ",cast(e.fval)," : ",cast(e.tval)),top + 1)
-          case _ => emit(Seq(e.cond," ? ",cast(e.tval)," : ",cast(e.fval)),top + 1)
+          case DoPrim(Not, Seq(sel), _,_) => emit(Seq(sel," ? ",cast(e.fval)," : ",cast(e.tval)), top + 1)
+          case _ => emit(Seq(e.cond," ? ",cast(e.tval)," : ",cast(e.fval)), top + 1)
         }
       }
       case (e: ValidIf) => emit(Seq(cast(e.value)),top + 1)
@@ -288,13 +288,13 @@ class VerilogEmitter extends SeqTransform with Emitter {
      // Cast to SInt, don't cast multiple times
      def doCast(e: Expression): Any = e match {
        case DoPrim(AsSInt, Seq(arg), _,_) => doCast(arg)
-       case slit: SIntLiteral             => slit
+       case (slit: SIntLiteral)           => slit
        case other                         => Seq("$signed(", other, ")")
      }
      def castIf(e: Expression): Any = {
        if (doprim.args.exists(_.tpe.isInstanceOf[SIntType])) {
          e.tpe match {
-           case _: SIntType => doCast(e)
+           case (_: SIntType) => doCast(e)
            case _ => throwInternalError(s"Unexpected non-SInt type for $e in $doprim")
          }
        } else {
@@ -302,13 +302,14 @@ class VerilogEmitter extends SeqTransform with Emitter {
        }
      }
      def cast(e: Expression): Any = doprim.tpe match {
-       case _: UIntType => e
-       case _: SIntType => doCast(e)
+       case (_: UIntType) => e
+       case (_: SIntType) => doCast(e)
        case _ => throwInternalError(s"Unexpected type for $e in $doprim")
      }
      def castAs(e: Expression): Any = e.tpe match {
-       case _: UIntType => e
-       case _: SIntType => doCast(e)
+       case (_: UIntType) => e
+       case SIntType(IntWidth(sw)) if bitWidth(e.tpe) == sw => e
+       case (_: SIntType) => doCast(e)
        case _ => throwInternalError(s"Unexpected type for $e in $doprim")
      }
      def a0: Expression = doprim.args.head
@@ -318,10 +319,11 @@ class VerilogEmitter extends SeqTransform with Emitter {
 
      def checkArgumentLegality(e: Expression): Unit = e match {
        case _: UIntLiteral | _: SIntLiteral | _: WRef | _: WSubField =>
-       case DoPrim(Not, args, _,_) => args.foreach(checkArgumentLegality)
-       case DoPrim(op, args, _,_) if isCast(op) => args.foreach(checkArgumentLegality)
+       case DoPrim(Not, Seq(arg), _,_) => checkArgumentLegality(arg)
+       case DoPrim(op, args, _,_) if isCast(op)       => args.foreach(checkArgumentLegality)
        case DoPrim(op, args, _,_) if isBitExtract(op) => args.foreach(checkArgumentLegality)
-       case DoPrim(op, args, _,_) if isBitReduce(op) => args.foreach(checkArgumentLegality)
+       case DoPrim(op, args, _,_) if isBitReduce(op)  => args.foreach(checkArgumentLegality)
+       case DoPrim(_,  args, _,_) if isBitExpand(e)   => args.foreach(checkArgumentLegality)
        case _ => throw EmitterException(s"Can't emit ${e.getClass.getName} as PrimOp argument")
      }
 
@@ -981,7 +983,8 @@ class VerilogEmitter extends SeqTransform with Emitter {
     new BlackBoxSourceHelper,
     new FixAddingNegativeLiterals,
     new ReplaceTruncatingArithmetic,
-    new InlineNotsTransform,
+    new InlineBitExpansionsTransform,
+    new InlineNotsTransform,  // here after InlineBitExpansions to clean up not(pad(...))
     new InlineBitExtractionsTransform,  // here after InlineNots to clean up not(not(...)) rename
     new InlineBitReductionsTransform,
     new InlineCastsTransform,
