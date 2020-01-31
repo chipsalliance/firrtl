@@ -37,14 +37,14 @@ object InlineBooleanExpressions {
   /** Mapping from references to the [[firrtl.ir.Expression Expression]]s that drive them */
   type Netlist = mutable.HashMap[String, Expression]
 
-  private def onArg(netlist: Netlist, symbolTable: Map[WrappedExpression, Int])
+  private def onArg(netlist: Netlist, refCounter: Map[WrappedExpression, Int])
                    (expr: Expression): Expression = {
     if (isTmpVar(expr.serialize) && !netlist.contains(expr.serialize)) {
       throw new IllegalArgumentException(s"Error: netlist does not contain ${expr.serialize}")
     }
     else {
       lookup(expr.serialize, netlist) match {
-        case Some(e) if isBooleanExpr(e) && symbolTable(we(expr)) <= 1 => e
+        case Some(e) if isBooleanExpr(e) && refCounter(we(expr)) <= 1 => e
         case _ => expr
       }
     }
@@ -59,10 +59,10 @@ object InlineBooleanExpressions {
     * @param expr the Expression being transformed
     * @return Returns expr with Boolean Expression inlined
     */
-  def onExpr(netlist: Netlist, symbolTable: Map[WrappedExpression, Int])(expr: Expression): Expression = {
-    expr.map(onExpr(netlist, symbolTable)) match {
+  def onExpr(netlist: Netlist, refCounter: Map[WrappedExpression, Int])(expr: Expression): Expression = {
+    expr.map(onExpr(netlist, refCounter)) match {
       case dp: DoPrim if (isSimpleExpr(dp)) =>
-        dp.map(onArg(netlist, symbolTable))
+        dp.map(onArg(netlist, refCounter))
       case other => other
     }
   }
@@ -75,12 +75,12 @@ object InlineBooleanExpressions {
     * @param stmt the Statement being searched for nodes and transformed
     * @return Returns stmt with Bits inlined
     */
-  def onStmt(netlist: Netlist, symbolTable: Map[WrappedExpression, Int])(stmt: Statement): Statement = {
-//    stmt.map(onStmt(netlist, symbolTable)).map(onExpr(netlist, symbolTable))
-    stmt.map(onStmt(netlist, symbolTable)).map{
+  def onStmt(netlist: Netlist, refCounter: Map[WrappedExpression, Int])(stmt: Statement): Statement = {
+//    stmt.map(onStmt(netlist, refCounter)).map(onExpr(netlist, refCounter))
+    stmt.map(onStmt(netlist, refCounter)).map{
       println(s"stmt = ${stmt.serialize}")
 
-      onExpr(netlist, symbolTable)
+      onExpr(netlist, refCounter)
     }
 
 
@@ -88,8 +88,8 @@ object InlineBooleanExpressions {
   /** Replaces bits in a Module */
   def onMod(mod: DefModule,
     netlist: Netlist,
-    symbolTable: Map[WrappedExpression, Int]): DefModule =
-    mod.map(onStmt(netlist, symbolTable))
+    refCounter: Map[WrappedExpression, Int]): DefModule =
+    mod.map(onStmt(netlist, refCounter))
 }
 
 /**
@@ -232,9 +232,9 @@ class InlineBooleanExpressions extends Transform {
   }
 
   def buildSymTab(mod: DefModule): Map[WrappedExpression, Int] = {
-    val symTab = mutable.HashMap[WrappedExpression, Int]()
+    val refCnt = mutable.HashMap[WrappedExpression, Int]()
 
-    def update(signalName: WrappedExpression): Unit = symTab(signalName) = symTab.getOrElse(signalName, 0) + 1
+    def update(signalName: WrappedExpression): Unit = refCnt(signalName) = refCnt.getOrElse(signalName, 0) + 1
 
     def onExpr(expr: Expression): Expression =
       expr map onExpr match {
@@ -250,17 +250,17 @@ class InlineBooleanExpressions extends Transform {
     }
 
     mod.foreach(onStmt)
-    symTab.toMap
+    refCnt.toMap
   }
 
   def execute(state: CircuitState): CircuitState = {
 
-      val symTabs = state.circuit.modules.map { m => (m.name -> buildSymTab(m)) }.toMap
+      val refCnts = state.circuit.modules.map { m => (m.name -> buildSymTab(m)) }.toMap
 
       val netlists = state.circuit.modules.map { m => (m.name -> buildNetlist(m)) }.toMap
 
       val modulesx = state.circuit.modules.map {
-        m => InlineBooleanExpressions.onMod(m, netlists(m.name), symTabs(m.name))
+        m => InlineBooleanExpressions.onMod(m, netlists(m.name), refCnts(m.name))
       }
 
       state.copy(circuit = state.circuit.copy(modules = modulesx))
