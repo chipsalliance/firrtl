@@ -23,25 +23,6 @@ object SimpleArithmetic {
     case _ => false
   }
 
-  def onArg(op: PrimOp, e: Expression, args: Seq[Expression], consts: Seq[BigInt], tpe: Type): Expression = {
-    if ((args.size == 2)) {
-      args(1) match {
-        case lit@SIntLiteral(n, _) if (n < 0) =>
-          args(0) match {
-            case e1 if isSimpleExpr(e1) =>
-              val other = args(0)
-              val s = Seq(other, lit.copy(value = n * -1))
-              DoPrim(op, s, consts, tpe)
-            case complex => e // TODO should the args(0) be processed recursively?
-          }
-        case _ => e
-      }
-    }
-    else {
-      e
-    }
-  }
-
   /**
     *
     * @param e
@@ -49,8 +30,10 @@ object SimpleArithmetic {
     */
   def replaceSimple(e: Expression): Expression = {
     e match {
-      case DoPrim(Add, args, consts: Seq[BigInt], tpe) => onArg(Sub, e, args, consts, tpe)
-      case DoPrim(Addw, args, consts: Seq[BigInt], tpe) => onArg(Subw, e, args, consts, tpe)
+      case DoPrim(Add, Seq(e, lit@SIntLiteral(n, _)), consts: Seq[BigInt], tpe) if (n < 0) =>  DoPrim(Sub, Seq(e, lit.copy(n * -1)), consts, tpe)
+      case DoPrim(Addw, Seq(e, lit@SIntLiteral(n, _)), consts: Seq[BigInt], tpe) if (n < 0) =>  DoPrim(Subw, Seq(e, lit.copy(n * -1)), consts, tpe)
+      case DoPrim(Sub, Seq(e, lit@SIntLiteral(n, _)), consts: Seq[BigInt], tpe) if (n < 0) =>  DoPrim(Add, Seq(e, lit.copy(n * -1)), consts, tpe)
+      case DoPrim(Subw, Seq(e, lit@SIntLiteral(n, _)), consts: Seq[BigInt], tpe) if (n < 0) =>  DoPrim(Addw, Seq(e, lit.copy(n * -1)), consts, tpe)
       case _ => e
     }
   }
@@ -93,101 +76,44 @@ object SimpleArithmetic {
 }
 
 /**
-  * 1. Find all references to an LHS of a boolean statement
-  * 2. If the LHS reference to the boolean statement is not referenced more than FANOUT_LIMIT or DEPTH
-  *    then replace the references to the LHS in other statements with the RHS
+  * {{{
+  *   circuit Top :
+  *   module Top :
+  *     input a : SInt<2>
+  *     output y : SInt<2>
+  *     y <= add(a, SInt(-1))
+  * }}}
   *
-  *    {{{wire x = a & b
-  *    wire y = x & c
-  *    convert to
-  *    y = (a & b) & c}}}
+  * converts to
   *
+  * {{{
+  *   circuit Top :
+  *   module Top :
+  *     input a : SInt<2>
+  *     output y : SInt<2>
+  *     y <= sub(a, SInt(1))
+  * }}}
   *
-  * for each node count the number of usages (the fanout) and if the node is assigned to a boolean expression then if the world node has a fanout count of 1 then replace the node with the RHS expression else do nothing.
+  * ________________________
   *
-  * Original:
-  *
-  * {{{circuit Top :
-  * module Top :
-  * input a : UInt<1>
-  * input b : UInt<1>
-  * input c : UInt<1>
-  * output y : UInt<1>
-  * node _x = and(a, b)
-  * y <= and(_x, c)""".stripMargin
-  * // replaces _x with and(a, b)}}}
-  *
-  * Transformed to:
-  *
-  * {{{circuit Top :
-  * module Top :
-  * input a : UInt<1>
-  * input b : UInt<1>
-  * input c : UInt<1>
-  * output y : UInt<1>
-  * y <= and(and(a, b), c)""".stripMargin}}}
-  *
-  * Original:
-  *
-  * {{{circuit Top :
-  * module Top :
-  * input a : UInt<1>
-  * input b : UInt<1>
-  * input c : UInt<1>
-  * input d : UInt<1>
-  * output y : UInt<1>
-  * output z : UInt<1>
-  * node _y = and(a, b)
-  * node _z = and(a, b)
-  * y <= and(_y, c)
-  * z <= and(_z, d)
-  * // Replacement of _y and _z is performed because the expressions are assigned to two different nodes}}}
-  *
-  * Transformed to:
-  *
-  * {{{circuit Top :
-  * module Top :
-  * input a : UInt<1>
-  * input b : UInt<1>
-  * input c : UInt<1>
-  * input d : UInt<1>
-  * output y : UInt<1>
-  * output z : UInt<1>
-  * node _y = and(a, b)
-  * node _z = and(a, b)
-  * y <= and(_y, c)
-  * z <= and(_z, d)}}}
-  *
-  * No replacement of _x is performed because _x has a fanout of 2
-  *
-  * Original:
-  *
-  * {{{circuit Top :
-  * module Top :
-  * input a : UInt<1>
-  * input b : UInt<1>
-  * input c : UInt<1>
-  * input d : UInt<1>
-  * output y : UInt<1>
-  * output z : UInt<1>
-  * node _x = and(a, b)
-  * y <= and(_x, c)
-  * z <= and(_x, d)}}}
-  *
-  * Transformed to:
-  *
-  * {{{circuit Top :
-  * module Top :
-  * input a : UInt<1>
-  * input b : UInt<1>
-  * input c : UInt<1>
-  * input d : UInt<1>
-  * output y : UInt<1>
-  * output z : UInt<1>
-  * node _y = and(a, b)
-  * y <= and(_y, c)
-  * z <= and(_z, d)}}}
-  */
+  * * {{{
+  *   *   circuit Top :
+  *   *   module Top :
+  *   *     input a : SInt<2>
+  *   *     output y : SInt<2>
+  *   *     y <= sub(a, SInt(-1))
+  *   * }}}
+  * *
+  * * converts to
+  * *
+  * * {{{
+  *   *   circuit Top :
+  *   *   module Top :
+  *   *     input a : SInt<2>
+  *   *     output y : SInt<2>
+  *   *     y <= add(a, SInt(1))
+  *   * }}}
+   */
 class SimpleArithmetic extends Transform {
   def inputForm = LowForm
   def outputForm = LowForm
