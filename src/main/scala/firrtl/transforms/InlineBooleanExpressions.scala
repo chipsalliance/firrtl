@@ -6,9 +6,9 @@ import firrtl.Mappers._
 import firrtl.traversals.Foreachers._
 import firrtl.Utils.isBooleanExpr
 import firrtl._
-import firrtl.WrappedExpression.we
 import firrtl.analyses.InstanceGraph
 import firrtl.ir._
+import firrtl.WrappedExpression._
 
 import scala.collection.mutable
 
@@ -22,22 +22,35 @@ object InlineBooleanExpressions {
     case _ => false
   }
 
+  private def lookup(s: String, netlist: Netlist): Option[Expression] = {
+    if (isTmpVar(s)) {
+      netlist.get(s) match {
+        case Some(e) => Some(e)
+        case _ => throw new IllegalArgumentException(s"Error: netlist does not contain ${s}")
+      }
+    }
+    else {
+      None
+    }
+  }
+
   /** Mapping from references to the [[firrtl.ir.Expression Expression]]s that drive them */
-  type Netlist = mutable.HashMap[WrappedExpression, Expression]
+  type Netlist = mutable.HashMap[String, Expression]
 
   private def onArg(netlist: Netlist, symbolTable: Map[WrappedExpression, Int])
-                   (expr: Expression): Expression =
-    if (!netlist.contains(we(expr))) {
+                   (expr: Expression): Expression = {
+    if (isTmpVar(expr.serialize) && !netlist.contains(expr.serialize)) {
       throw new IllegalArgumentException(s"Error: netlist does not contain ${expr.serialize}")
     }
     else {
-
-      netlist.get(we(expr)) match {
-        case Some(e) if isBooleanExpr(e) && symbolTable(we(expr)) <= 1 =>
-          e
+      lookup(expr.serialize, netlist) match {
+        case Some(e) if isBooleanExpr(e) && symbolTable(we(expr)) <= 1 => e
         case _ => expr
       }
     }
+  }
+
+  def isTmpVar(s: String): Boolean = s.charAt(0) == '_'
 
   /** Recursively replace [[WRef]]s with new [[Expression]]s
     *
@@ -48,8 +61,8 @@ object InlineBooleanExpressions {
     */
   def onExpr(netlist: Netlist, symbolTable: Map[WrappedExpression, Int])(expr: Expression): Expression = {
     expr.map(onExpr(netlist, symbolTable)) match {
-      case lhs: DoPrim if isSimpleExpr(lhs) =>
-        lhs.map(onArg(netlist, symbolTable))
+      case dp: DoPrim if (isSimpleExpr(dp)) =>
+        dp.map(onArg(netlist, symbolTable))
       case other => other
     }
   }
@@ -190,14 +203,15 @@ class InlineBooleanExpressions extends Transform {
     // TODO Generating order as we execute constant propagation on each module would be faster
     val x = iGraph.moduleOrder.reverse
 
-    val moduleNameTraversalOrder = x.map{ m => m.name }
+    val moduleNameTraversalOrder = x.map { m => m.name }
 
-    val modNameModules = x.map{ m => (m.name -> m)}.toMap
+    val modNameModules = x.map { m => (m.name -> m) }.toMap
     (childInstances, moduleNameTraversalOrder, iGraph, modNameModules)
   }
 
   /** Build a [[Netlist]] from a Module's connections and Nodes
     * This assumes [[firrtl.LowForm LowForm]]
+    *
     * @param mod [[firrtl.ir.Module Module]] from which to build a [[Netlist]]
     * @return [[Netlist]] of the module's connections and nodes
     */
@@ -207,8 +221,8 @@ class InlineBooleanExpressions extends Transform {
       println(s"stmt = ${stmt.serialize}")
 
       stmt.map(onStmt) match {
-        case Connect(_, lhs  , rhs) => netlist(WrappedExpression(lhs)) = rhs
-        case DefNode(_, nname, rhs) => netlist(WrappedExpression(WRef(nname))) = rhs
+        case Connect(_, lhs, rhs) if (isTmpVar(lhs.serialize)) => netlist(lhs.serialize) = rhs
+        case DefNode(_, nname, rhs) if (isTmpVar(nname)) => netlist(nname) = rhs
         case _ => // Do nothing
       }
       stmt
@@ -224,29 +238,15 @@ class InlineBooleanExpressions extends Transform {
 
     def onExpr(expr: Expression): Expression =
       expr map onExpr match {
-        case _: WRef | _: Literal | _: WSubField =>
+        case w: WRef if (isTmpVar(expr.serialize) && w.flow == SourceFlow) =>
           update(we(expr))
           expr
         case other => expr
       }
 
-//      expr match {
-//      case lhs @ DoPrim(_, args, _, _) if isSimpleExpr(lhs) => args.foreach(e => update(we(e)))
-//      case lhs @ Mux(cond, tval, fval, _) if isSimpleExpr(lhs) =>
-//        cond.foreach(e => update(we(e)))
-//        tval.foreach(e => update(we(e)))
-//        fval.foreach(e => update(we(e)))
-//      case _ => expr.foreach(onExpr)
-//    }
-
-    def onStmt(stmt: Statement): Unit = stmt match {
-      case Connect(_, _, rhs) => onExpr(rhs)
-      case DefNode(_, _, rhs) => onExpr(rhs)
-      case Conditionally(_, pred, conseq, alt) =>
-        onExpr(pred)
-        onStmt(conseq)
-        onStmt(alt)
-      case _ => stmt.foreach(onStmt)
+    def onStmt(stmt: Statement): Unit = {
+      stmt.foreach(onStmt)
+      stmt.foreach(onExpr)
     }
 
     mod.foreach(onStmt)
@@ -255,15 +255,14 @@ class InlineBooleanExpressions extends Transform {
 
   def execute(state: CircuitState): CircuitState = {
 
-    val symTabs = state.circuit.modules.map{ m => (m.name -> buildSymTab(m)) }.toMap
+      val symTabs = state.circuit.modules.map { m => (m.name -> buildSymTab(m)) }.toMap
 
-    val netlists = state.circuit.modules.map{ m => (m.name -> buildNetlist(m)) }.toMap
+      val netlists = state.circuit.modules.map { m => (m.name -> buildNetlist(m)) }.toMap
 
+      val modulesx = state.circuit.modules.map {
+        m => InlineBooleanExpressions.onMod(m, netlists(m.name), symTabs(m.name))
+      }
 
-    val modulesx = state.circuit.modules.map {
-      m => InlineBooleanExpressions.onMod(m, netlists(m.name), symTabs(m.name))
+      state.copy(circuit = state.circuit.copy(modules = modulesx))
+    }
   }
-
-    state.copy(circuit = state.circuit.copy(modules = modulesx))
-  }
-}
