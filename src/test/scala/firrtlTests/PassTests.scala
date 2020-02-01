@@ -25,8 +25,8 @@ abstract class SimpleTransformSpec extends FlatSpec with FirrtlMatchers with Com
       val finalState = compileAndEmit(CircuitState(parse(input), ChirrtlForm, annotations))
       val actual = RemoveEmpty.run(parse(finalState.getEmittedCircuit.value)).serialize
       val expected = parse(check).serialize
-      logger.debug(actual)
-      logger.debug(expected)
+      logger.debug(s"actual = $actual")
+      logger.debug(s"expected = $expected")
       (actual) should be (expected)
       finalState
    }
