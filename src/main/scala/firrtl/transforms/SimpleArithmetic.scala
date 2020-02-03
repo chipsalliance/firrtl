@@ -32,8 +32,6 @@ object SimpleArithmetic {
     e match {
       case DoPrim(Add, Seq(e, lit@SIntLiteral(n, _)), consts: Seq[BigInt], tpe) if (n < 0) =>  DoPrim(Sub, Seq(e, lit.copy(n * -1)), consts, tpe)
       case DoPrim(Addw, Seq(e, lit@SIntLiteral(n, _)), consts: Seq[BigInt], tpe) if (n < 0) =>  DoPrim(Subw, Seq(e, lit.copy(n * -1)), consts, tpe)
-      case DoPrim(Sub, Seq(e, lit@SIntLiteral(n, _)), consts: Seq[BigInt], tpe) if (n < 0) =>  DoPrim(Add, Seq(e, lit.copy(n * -1)), consts, tpe)
-      case DoPrim(Subw, Seq(e, lit@SIntLiteral(n, _)), consts: Seq[BigInt], tpe) if (n < 0) =>  DoPrim(Addw, Seq(e, lit.copy(n * -1)), consts, tpe)
       case _ => e
     }
   }
