@@ -8,8 +8,9 @@ import org.scalatest.junit.JUnitRunner
 import firrtl.ir.Circuit
 import firrtl.Parser
 import firrtl.passes.PassExceptions
-import firrtl.annotations.{Annotation, CircuitName, ComponentName, ModuleName, Named}
+import firrtl.annotations._
 import firrtl.passes.{InlineAnnotation, InlineInstances}
+import firrtl.transforms.NoCircuitDedupAnnotation
 import logger.{LogLevel, Logger}
 import logger.LogLevel.Debug
 
@@ -19,11 +20,10 @@ import logger.LogLevel.Debug
  */
 class InlineInstancesTests extends LowTransformSpec {
   def transform = new InlineInstances
-	def inline(mod: String): Annotation = {
-	  val parts = mod.split('.')
-		val modName = ModuleName(parts.head, CircuitName("Top")) // If this fails, bad input
-		val name = if (parts.size == 1) modName
-							 else ComponentName(parts.tail.mkString("."), modName)
+  def inline(mod: String): Annotation = {
+    val parts = mod.split('.')
+    val modName = ModuleName(parts.head, CircuitName("Top")) // If this fails, bad input
+    val name = if (parts.size == 1) modName else ComponentName(parts.tail.mkString("."), modName)
     InlineAnnotation(name)
   }
    // Set this to debug, this will apply to all tests
@@ -382,6 +382,169 @@ class InlineInstancesTests extends LowTransformSpec {
                   |    output b : UInt<32>
                   |    b <= a""".stripMargin
     execute(input, check, Seq(inline("Inline")))
+  }
+
+  case class DummyAnno(target: ReferenceTarget) extends SingleTargetAnnotation[ReferenceTarget] {
+    override def duplicate(n: ReferenceTarget): Annotation = DummyAnno(n)
+  }
+  "annotations" should "be renamed" in {
+     val input =
+        """circuit Top :
+          |  module Top :
+          |    input a : UInt<32>
+          |    output b : UInt<32>
+          |    inst i of Inline
+          |    i.a <= a
+          |    b <= i.b
+          |  module Inline :
+          |    input a : UInt<32>
+          |    output b : UInt<32>
+          |    inst foo of NestedInline
+          |    inst bar of NestedNoInline
+          |    foo.a <= a
+          |    bar.a <= foo.b
+          |    b <= bar.b
+          |  module NestedInline :
+          |    input a : UInt<32>
+          |    output b : UInt<32>
+          |    b <= a
+          |  module NestedNoInline :
+          |    input a : UInt<32>
+          |    output b : UInt<32>
+          |    b <= a
+          |""".stripMargin
+     val check =
+        """circuit Top :
+          |  module Top :
+          |    input a : UInt<32>
+          |    output b : UInt<32>
+          |    wire i_a : UInt<32>
+          |    wire i_b : UInt<32>
+          |    wire i_foo_a : UInt<32>
+          |    wire i_foo_b : UInt<32>
+          |    i_foo_b <= i_foo_a
+          |    inst i_bar of NestedNoInline
+          |    i_b <= i_bar.b
+          |    i_foo_a <= i_a
+          |    i_bar.a <= i_foo_b
+          |    b <= i_b
+          |    i_a <= a
+          |  module NestedNoInline :
+          |    input a : UInt<32>
+          |    output b : UInt<32>
+          |    b <= a
+          |""".stripMargin
+    val top = CircuitTarget("Top").module("Top")
+    val inlined = top.instOf("i", "Inline")
+    val nestedInlined = top.instOf("i", "Inline").instOf("foo", "NestedInline")
+    val nestedNotInlined = top.instOf("i", "Inline").instOf("bar", "NestedNoInline")
+
+     executeWithAnnos(input, check,
+       Seq(
+         inline("Inline"),
+         inline("NestedInline"),
+         NoCircuitDedupAnnotation,
+         DummyAnno(inlined.ref("a")),
+         DummyAnno(inlined.ref("b")),
+         DummyAnno(nestedInlined.ref("a")),
+         DummyAnno(nestedInlined.ref("b")),
+         DummyAnno(nestedNotInlined.ref("a")),
+         DummyAnno(nestedNotInlined.ref("b"))
+       ),
+       Seq(
+         DummyAnno(top.ref("i_a")),
+         DummyAnno(top.ref("i_b")),
+         DummyAnno(top.ref("i_foo_a")),
+         DummyAnno(top.ref("i_foo_b")),
+         DummyAnno(top.instOf("i_bar", "NestedNoInline").ref("a")),
+         DummyAnno(top.instOf("i_bar", "NestedNoInline").ref("b"))
+       )
+     )
+  }
+
+  "inlining both grandparent and grandchild" should "should work" in {
+     val input =
+        """circuit Top :
+          |  module Top :
+          |    input a : UInt<32>
+          |    output b : UInt<32>
+          |    inst i of Inline
+          |    i.a <= a
+          |    b <= i.b
+          |  module Inline :
+          |    input a : UInt<32>
+          |    output b : UInt<32>
+          |    inst foo of NestedInline
+          |    inst bar of NestedNoInline
+          |    foo.a <= a
+          |    bar.a <= foo.b
+          |    b <= bar.b
+          |  module NestedInline :
+          |    input a : UInt<32>
+          |    output b : UInt<32>
+          |    b <= a
+          |  module NestedNoInline :
+          |    input a : UInt<32>
+          |    output b : UInt<32>
+          |    inst foo of NestedInline
+          |    foo.a <= a
+          |    b <= foo.b
+          |""".stripMargin
+     val check =
+        """circuit Top :
+          |  module Top :
+          |    input a : UInt<32>
+          |    output b : UInt<32>
+          |    wire i_a : UInt<32>
+          |    wire i_b : UInt<32>
+          |    wire i_foo_a : UInt<32>
+          |    wire i_foo_b : UInt<32>
+          |    i_foo_b <= i_foo_a
+          |    inst i_bar of NestedNoInline
+          |    i_b <= i_bar.b
+          |    i_foo_a <= i_a
+          |    i_bar.a <= i_foo_b
+          |    b <= i_b
+          |    i_a <= a
+          |  module NestedNoInline :
+          |    input a : UInt<32>
+          |    output b : UInt<32>
+          |    wire foo_a : UInt<32>
+          |    wire foo_b : UInt<32>
+          |    foo_b <= foo_a
+          |    b <= foo_b
+          |    foo_a <= a
+          |""".stripMargin
+    val top = CircuitTarget("Top").module("Top")
+    val inlined = top.instOf("i", "Inline")
+    val nestedInlined = inlined.instOf("foo", "NestedInline")
+    val nestedNotInlined = inlined.instOf("bar", "NestedNoInline")
+    val innerNestedInlined = nestedNotInlined.instOf("foo", "NestedInline")
+
+     executeWithAnnos(input, check,
+       Seq(
+         inline("Inline"),
+         inline("NestedInline"),
+         DummyAnno(inlined.ref("a")),
+         DummyAnno(inlined.ref("b")),
+         DummyAnno(nestedInlined.ref("a")),
+         DummyAnno(nestedInlined.ref("b")),
+         DummyAnno(nestedNotInlined.ref("a")),
+         DummyAnno(nestedNotInlined.ref("b")),
+         DummyAnno(innerNestedInlined.ref("a")),
+         DummyAnno(innerNestedInlined.ref("b"))
+       ),
+       Seq(
+         DummyAnno(top.ref("i_a")),
+         DummyAnno(top.ref("i_b")),
+         DummyAnno(top.ref("i_foo_a")),
+         DummyAnno(top.ref("i_foo_b")),
+         DummyAnno(top.instOf("i_bar", "NestedNoInline").ref("a")),
+         DummyAnno(top.instOf("i_bar", "NestedNoInline").ref("b")),
+         DummyAnno(top.instOf("i_bar", "NestedNoInline").ref("foo_a")),
+         DummyAnno(top.instOf("i_bar", "NestedNoInline").ref("foo_b"))
+       )
+     )
   }
 }
 

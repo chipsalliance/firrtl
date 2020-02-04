@@ -171,7 +171,7 @@ final case object UnknownForm extends CircuitForm(-1) {
 /** The basic unit of operating on a Firrtl AST */
 abstract class Transform extends TransformLike[CircuitState] {
   /** A convenience function useful for debugging and error messages */
-  def name: String = this.getClass.getSimpleName
+  def name: String = this.getClass.getName
   /** The [[firrtl.CircuitForm]] that this transform requires to operate on */
   def inputForm: CircuitForm
   /** The [[firrtl.CircuitForm]] that this transform outputs */
@@ -485,7 +485,7 @@ trait Compiler extends LazyLogging {
       }
     }
 
-    logger.error(f"Total FIRRTL Compile Time: $timeMillis%.1f ms")
+    logger.warn(f"Total FIRRTL Compile Time: $timeMillis%.1f ms")
 
     finalState
   }

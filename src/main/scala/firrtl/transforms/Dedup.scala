@@ -296,8 +296,10 @@ object DedupModules {
     val module2Annotations = mutable.HashMap.empty[String, mutable.HashSet[Annotation]]
     annotations.foreach { a =>
       a.getTargets.foreach { t =>
-        val annos = module2Annotations.getOrElseUpdate(t.moduleOpt.get, mutable.HashSet.empty[Annotation])
-        annos += a
+        if (t.moduleOpt.isDefined) {
+          val annos = module2Annotations.getOrElseUpdate(t.moduleOpt.get, mutable.HashSet.empty[Annotation])
+          annos += a
+        }
       }
     }
     def fastSerializedHash(s: Statement): Int ={
@@ -439,7 +441,7 @@ object DedupModules {
     def rename(name: String): String = name
 
     def retype(name: String)(tpe: Type): Type = {
-      val exps = Utils.expandRef(WRef(name, tpe, ExpKind, UNKNOWNGENDER))
+      val exps = Utils.expandRef(WRef(name, tpe, ExpKind, UnknownFlow))
       refs ++= exps.map(Utils.toTarget(main, m.name))
       tpe
     }
@@ -465,7 +467,7 @@ object DedupModules {
       expr.tpe match {
         case _: GroundType =>
         case b: BundleType => b.fields.foreach { f => onExp(WSubField(expr, f.name, f.tpe)) }
-        case v: VectorType => (0 until v.size).foreach { i => onExp(WSubIndex(expr, i, v.tpe, UNKNOWNGENDER)) }
+        case v: VectorType => (0 until v.size).foreach { i => onExp(WSubIndex(expr, i, v.tpe, UnknownFlow)) }
       }
       all += expr
     }

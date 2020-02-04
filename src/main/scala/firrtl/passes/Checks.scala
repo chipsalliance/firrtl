@@ -8,6 +8,7 @@ import firrtl.PrimOps._
 import firrtl.Utils._
 import firrtl.traversals.Foreachers._
 import firrtl.WrappedType._
+import firrtl.constraint.{Constraint, IsKnown}
 
 trait CheckHighFormLike {
   type NameSet = collection.mutable.HashSet[String]
@@ -84,11 +85,11 @@ trait CheckHighFormLike {
 
       e.op match {
         case Add | Sub | Mul | Div | Rem | Lt | Leq | Gt | Geq |
-             Eq | Neq | Dshl | Dshr | And | Or | Xor | Cat | Dshlw =>
+             Eq | Neq | Dshl | Dshr | And | Or | Xor | Cat | Dshlw | Clip | Wrap | Squeeze =>
           correctNum(Option(2), 0)
         case AsUInt | AsSInt | AsClock | AsAsyncReset | Cvt | Neq | Not =>
           correctNum(Option(1), 0)
-        case AsFixedPoint | Pad | Head | Tail | BPShl | BPShr | BPSet =>
+        case AsFixedPoint | Pad | Head | Tail | IncP | DecP | SetP =>
           correctNum(Option(1), 1)
         case Shl | Shr =>
           correctNum(Option(1), 1)
@@ -101,6 +102,8 @@ trait CheckHighFormLike {
           if (lsb > msb) {
             errors.append(new LsbLargerThanMsbException(info, mname, e.op.toString, lsb, msb))
           }
+        case AsInterval =>
+          correctNum(Option(1), 3)
         case Andr | Orr | Xorr | Neg =>
           correctNum(None,0)
       }
@@ -137,7 +140,9 @@ trait CheckHighFormLike {
     def checkHighFormT(info: Info, mname: String)(t: Type): Unit = {
       t foreach checkHighFormT(info, mname)
       t match {
-        case tx: VectorType if tx.size < 0 => errors.append(new NegVecSizeException(info, mname))
+        case tx: VectorType if tx.size < 0 =>
+          errors.append(new NegVecSizeException(info, mname))
+        case _: IntervalType =>
         case _ => t foreach checkHighFormW(info, mname)
       }
     }
@@ -164,8 +169,8 @@ trait CheckHighFormLike {
         case ex: WSubAccess => validSubexp(info, mname)(ex.expr)
         case ex => ex foreach validSubexp(info, mname)
       }
-      e foreach checkHighFormW(info, mname)
-      e foreach checkHighFormT(info, mname)
+      e foreach checkHighFormW(info, mname + "/" + e.serialize)
+      e foreach checkHighFormT(info, mname + "/" + e.serialize)
       e foreach checkHighFormE(info, mname, names)
     }
 
@@ -215,18 +220,17 @@ trait CheckHighFormLike {
       if (names(p.name))
         errors.append(new NotUniqueException(NoInfo, mname, p.name))
       names += p.name
-      p.tpe foreach checkHighFormT(p.info, mname)
-      p.tpe foreach checkHighFormW(p.info, mname)
+      checkHighFormT(p.info, mname)(p.tpe)
     }
 
     // Search for ResetType Ports of direction
     def findBadResetTypePorts(m: DefModule, dir: Direction): Seq[(Port, Expression)] = {
-      val bad = to_gender(dir)
+      val bad = to_flow(dir)
       for {
         port <- m.ports
-        ref = WRef(port).copy(gender = to_gender(port.direction))
+        ref = WRef(port).copy(flow = to_flow(port.direction))
         expr <- create_exps(ref)
-        if ((expr.tpe == ResetType) && (gender(expr) == bad))
+        if ((expr.tpe == ResetType) && (flow(expr) == bad))
       } yield (port, expr)
     }
 
@@ -339,6 +343,11 @@ object CheckTypes extends Pass {
     s"$info: [module $mname]  Uninferred type: $exp."
   )
 
+  def fits(bigger: Constraint, smaller: Constraint): Boolean = (bigger, smaller) match {
+    case (IsKnown(v1), IsKnown(v2)) if v1 < v2 => false
+    case _ => true
+  }
+
   def legalResetType(tpe: Type): Boolean = tpe match {
     case UIntType(IntWidth(w)) if w == 1 => true
     case AsyncResetType => true
@@ -355,6 +364,9 @@ object CheckTypes extends Pass {
       case (_: UIntType, _: UIntType) => flip1 == flip2
       case (_: SIntType, _: SIntType) => flip1 == flip2
       case (_: FixedType, _: FixedType) => flip1 == flip2
+      case (i1: IntervalType, i2: IntervalType) =>
+        import Implicits.width2constraint
+        fits(i2.lower, i1.lower) && fits(i1.upper, i2.upper) && fits(i1.point, i2.point)
       case (_: AnalogType, _: AnalogType) => true
       case (AsyncResetType, AsyncResetType) => flip1 == flip2
       case (ResetType, tpe) => legalResetType(tpe) && flip1 == flip2
@@ -375,7 +387,17 @@ object CheckTypes extends Pass {
     }
   }
 
-  def validConnect(con: Connect): Boolean = wt(con.loc.tpe).superTypeOf(wt(con.expr.tpe))
+  def validConnect(locTpe: Type, expTpe: Type): Boolean = {
+    val itFits = (locTpe, expTpe) match {
+      case (i1: IntervalType, i2: IntervalType) =>
+        import Implicits.width2constraint
+        fits(i2.lower, i1.lower) && fits(i1.upper, i2.upper) && fits(i1.point, i2.point)
+      case _ => true
+    }
+    wt(locTpe).superTypeOf(wt(expTpe)) && itFits
+  }
+
+  def validConnect(con: Connect): Boolean = validConnect(con.loc.tpe, con.expr.tpe)
 
   def validPartialConnect(con: PartialConnect): Boolean =
     bulk_equals(con.loc.tpe, con.expr.tpe, Default, Default)
@@ -393,44 +415,51 @@ object CheckTypes extends Pass {
       case tx: BundleType => tx.fields forall (x => x.flip == Default && passive(x.tpe))
       case tx => true
     }
+
     def check_types_primop(info: Info, mname: String, e: DoPrim): Unit = {
-      def checkAllTypes(exprs: Seq[Expression], okUInt: Boolean, okSInt: Boolean, okClock: Boolean, okFix: Boolean, okAsync: Boolean): Unit = {
-        exprs.foldLeft((false, false, false, false, false)) {
-          case ((isUInt, isSInt, isClock, isFix, isAsync), expr) => expr.tpe match {
-            case u: UIntType    => (true,   isSInt, isClock, isFix, isAsync)
-            case s: SIntType    => (isUInt, true,   isClock, isFix, isAsync)
-            case ClockType      => (isUInt, isSInt, true,    isFix, isAsync)
-            case f: FixedType   => (isUInt, isSInt, isClock, true,  isAsync)
-            case AsyncResetType => (isUInt, isSInt, isClock, isFix, true)
+      def checkAllTypes(exprs: Seq[Expression], okUInt: Boolean, okSInt: Boolean, okClock: Boolean, okFix: Boolean, okAsync: Boolean, okInterval: Boolean): Unit = {
+        exprs.foldLeft((false, false, false, false, false, false)) {
+          case ((isUInt, isSInt, isClock, isFix, isAsync, isInterval), expr) => expr.tpe match {
+            case u: UIntType    => (true,   isSInt, isClock, isFix, isAsync, isInterval)
+            case s: SIntType    => (isUInt, true,   isClock, isFix, isAsync, isInterval)
+            case ClockType      => (isUInt, isSInt, true,    isFix, isAsync, isInterval)
+            case f: FixedType   => (isUInt, isSInt, isClock, true,  isAsync, isInterval)
+            case AsyncResetType => (isUInt, isSInt, isClock, isFix, true,    isInterval)
+            case i:IntervalType => (isUInt, isSInt, isClock, isFix, isAsync, true)
             case UnknownType    =>
               errors.append(new IllegalUnknownType(info, mname, e.serialize))
-              (isUInt, isSInt, isClock, isFix, isAsync)
+              (isUInt, isSInt, isClock, isFix, isAsync, isInterval)
             case other => throwInternalError(s"Illegal Type: ${other.serialize}")
           }
         } match {
-          //   (UInt,  SInt,  Clock, Fixed)
-          case (isAll, false, false, false, false) if isAll == okUInt  =>
-          case (false, isAll, false, false, false) if isAll == okSInt  =>
-          case (false, false, isAll, false, false) if isAll == okClock =>
-          case (false, false, false, isAll, false) if isAll == okFix   =>
-          case (false, false, false, false, isAll) if isAll == okAsync =>
+          //   (UInt,  SInt,  Clock, Fixed, Async, Interval)
+          case (isAll, false, false, false, false, false) if isAll == okUInt  =>
+          case (false, isAll, false, false, false, false) if isAll == okSInt  =>
+          case (false, false, isAll, false, false, false) if isAll == okClock =>
+          case (false, false, false, isAll, false, false) if isAll == okFix   =>
+          case (false, false, false, false, isAll, false) if isAll == okAsync =>
+          case (false, false, false, false, false, isAll) if isAll == okInterval =>
           case x => errors.append(new OpNotCorrectType(info, mname, e.op.serialize, exprs.map(_.tpe.serialize)))
         }
       }
       e.op match {
-        case AsUInt | AsSInt | AsClock | AsFixedPoint | AsAsyncReset =>
+        case AsUInt | AsSInt | AsClock | AsFixedPoint | AsAsyncReset | AsInterval =>
           // All types are ok
         case Dshl | Dshr =>
-          checkAllTypes(Seq(e.args.head), okUInt=true, okSInt=true,  okClock=false, okFix=true, okAsync=false)
-          checkAllTypes(Seq(e.args(1)),   okUInt=true, okSInt=false, okClock=false, okFix=false, okAsync=false)
+          checkAllTypes(Seq(e.args.head), okUInt=true, okSInt=true,  okClock=false, okFix=true,  okAsync=false, okInterval=true)
+          checkAllTypes(Seq(e.args(1)),   okUInt=true, okSInt=false, okClock=false, okFix=false, okAsync=false, okInterval=false)
         case Add | Sub | Mul | Lt | Leq | Gt | Geq | Eq | Neq =>
-          checkAllTypes(e.args, okUInt=true, okSInt=true, okClock=false, okFix=true, okAsync=false)
-        case Pad | Shl | Shr | Cat | Bits | Head | Tail =>
-          checkAllTypes(e.args, okUInt=true, okSInt=true, okClock=false, okFix=true, okAsync=false)
-        case BPShl | BPShr | BPSet =>
-          checkAllTypes(e.args, okUInt=false, okSInt=false, okClock=false, okFix=true, okAsync=false)
+          checkAllTypes(e.args, okUInt=true, okSInt=true, okClock=false, okFix=true, okAsync=false, okInterval=true)
+        case Pad | Bits | Head | Tail =>
+          checkAllTypes(e.args, okUInt=true, okSInt=true, okClock=false, okFix=true, okAsync=false, okInterval=false)
+        case Shl | Shr | Cat =>
+          checkAllTypes(e.args, okUInt=true, okSInt=true, okClock=false, okFix=true, okAsync=false, okInterval=true)
+        case IncP | DecP | SetP =>
+          checkAllTypes(e.args, okUInt=false, okSInt=false, okClock=false, okFix=true, okAsync=false, okInterval=true)
+        case Wrap | Clip | Squeeze =>
+          checkAllTypes(e.args, okUInt = false, okSInt = false, okClock = false, okFix = false, okAsync=false, okInterval = true)
         case _ =>
-          checkAllTypes(e.args, okUInt=true, okSInt=true, okClock=false, okFix=false, okAsync=false)
+          checkAllTypes(e.args, okUInt=true, okSInt=true, okClock=false, okFix=false, okAsync=false, okInterval=false)
       }
     }
 
@@ -494,6 +523,9 @@ object CheckTypes extends Pass {
           sx.tpe match {
             case AnalogType(_) => errors.append(new IllegalAnalogDeclaration(info, mname, sx.name))
             case t if wt(sx.tpe) != wt(sx.init.tpe) => errors.append(new InvalidRegInit(info, mname))
+            case t if !validConnect(sx.tpe, sx.init.tpe) =>
+              val conMsg = sx.copy(info = NoInfo).serialize
+              errors.append(new CheckTypes.InvalidConnect(info, mname, conMsg, WRef(sx), sx.init))
             case t =>
           }
           if (!legalResetType(sx.reset.tpe)) {
@@ -544,31 +576,31 @@ object CheckTypes extends Pass {
   }
 }
 
-object CheckGenders extends Pass {
-  type GenderMap = collection.mutable.HashMap[String, Gender]
+object CheckFlows extends Pass {
+  type FlowMap = collection.mutable.HashMap[String, Flow]
 
-  implicit def toStr(g: Gender): String = g match {
-    case MALE => "source"
-    case FEMALE => "sink"
-    case UNKNOWNGENDER => "unknown"
-    case BIGENDER => "sourceOrSink"
+  implicit def toStr(g: Flow): String = g match {
+    case SourceFlow => "source"
+    case SinkFlow => "sink"
+    case UnknownFlow => "unknown"
+    case DuplexFlow => "duplex"
   }
 
-  class WrongGender(info:Info, mname: String, expr: String, wrong: Gender, right: Gender) extends PassException(
+  class WrongFlow(info:Info, mname: String, expr: String, wrong: Flow, right: Flow) extends PassException(
     s"$info: [module $mname]  Expression $expr is used as a $wrong but can only be used as a $right.")
 
   def run (c:Circuit): Circuit = {
     val errors = new Errors()
 
-    def get_gender(e: Expression, genders: GenderMap): Gender = e match {
-      case (e: WRef) => genders(e.name)
-      case (e: WSubIndex) => get_gender(e.expr, genders)
-      case (e: WSubAccess) => get_gender(e.expr, genders)
+    def get_flow(e: Expression, flows: FlowMap): Flow = e match {
+      case (e: WRef) => flows(e.name)
+      case (e: WSubIndex) => get_flow(e.expr, flows)
+      case (e: WSubAccess) => get_flow(e.expr, flows)
       case (e: WSubField) => e.expr.tpe match {case t: BundleType =>
         val f = (t.fields find (_.name == e.name)).get
-        times(get_gender(e.expr, genders), f.flip)
+        times(get_flow(e.expr, flows), f.flip)
       }
-      case _ => MALE
+      case _ => SourceFlow
     }
 
     def flip_q(t: Type): Boolean = {
@@ -582,66 +614,83 @@ object CheckGenders extends Pass {
       flip_rec(t, Default)
     }
 
-    def check_gender(info:Info, mname: String, genders: GenderMap, desired: Gender)(e:Expression): Unit = {
-      val gender = get_gender(e,genders)
-      (gender, desired) match {
-        case (MALE, FEMALE) =>
-          errors.append(new WrongGender(info, mname, e.serialize, desired, gender))
-        case (FEMALE, MALE) => kind(e) match {
+    def check_flow(info:Info, mname: String, flows: FlowMap, desired: Flow)(e:Expression): Unit = {
+      val flow = get_flow(e,flows)
+      (flow, desired) match {
+        case (SourceFlow, SinkFlow) =>
+          errors.append(new WrongFlow(info, mname, e.serialize, desired, flow))
+        case (SinkFlow, SourceFlow) => kind(e) match {
           case PortKind | InstanceKind if !flip_q(e.tpe) => // OK!
           case _ =>
-            errors.append(new WrongGender(info, mname, e.serialize, desired, gender))
+            errors.append(new WrongFlow(info, mname, e.serialize, desired, flow))
         }
         case _ =>
       }
    }
 
-    def check_genders_e (info:Info, mname: String, genders: GenderMap)(e:Expression): Unit = {
+    def check_flows_e (info:Info, mname: String, flows: FlowMap)(e:Expression): Unit = {
       e match {
-        case e: Mux => e foreach check_gender(info, mname, genders, MALE)
-        case e: DoPrim => e.args foreach check_gender(info, mname, genders, MALE)
+        case e: Mux => e foreach check_flow(info, mname, flows, SourceFlow)
+        case e: DoPrim => e.args foreach check_flow(info, mname, flows, SourceFlow)
         case _ =>
       }
-      e foreach check_genders_e(info, mname, genders)
+      e foreach check_flows_e(info, mname, flows)
     }
 
-    def check_genders_s(minfo: Info, mname: String, genders: GenderMap)(s: Statement): Unit = {
+    def check_flows_s(minfo: Info, mname: String, flows: FlowMap)(s: Statement): Unit = {
       val info = get_info(s) match { case NoInfo => minfo case x => x }
       s match {
-        case (s: DefWire) => genders(s.name) = BIGENDER
-        case (s: DefRegister) => genders(s.name) = BIGENDER
-        case (s: DefMemory) => genders(s.name) = MALE
-        case (s: WDefInstance) => genders(s.name) = MALE
+        case (s: DefWire) => flows(s.name) = DuplexFlow
+        case (s: DefRegister) => flows(s.name) = DuplexFlow
+        case (s: DefMemory) => flows(s.name) = SourceFlow
+        case (s: WDefInstance) => flows(s.name) = SourceFlow
         case (s: DefNode) =>
-          check_gender(info, mname, genders, MALE)(s.value)
-          genders(s.name) = MALE
+          check_flow(info, mname, flows, SourceFlow)(s.value)
+          flows(s.name) = SourceFlow
         case (s: Connect) =>
-          check_gender(info, mname, genders, FEMALE)(s.loc)
-          check_gender(info, mname, genders, MALE)(s.expr)
+          check_flow(info, mname, flows, SinkFlow)(s.loc)
+          check_flow(info, mname, flows, SourceFlow)(s.expr)
         case (s: Print) =>
-          s.args foreach check_gender(info, mname, genders, MALE)
-          check_gender(info, mname, genders, MALE)(s.en)
-          check_gender(info, mname, genders, MALE)(s.clk)
+          s.args foreach check_flow(info, mname, flows, SourceFlow)
+          check_flow(info, mname, flows, SourceFlow)(s.en)
+          check_flow(info, mname, flows, SourceFlow)(s.clk)
         case (s: PartialConnect) =>
-          check_gender(info, mname, genders, FEMALE)(s.loc)
-          check_gender(info, mname, genders, MALE)(s.expr)
+          check_flow(info, mname, flows, SinkFlow)(s.loc)
+          check_flow(info, mname, flows, SourceFlow)(s.expr)
         case (s: Conditionally) =>
-          check_gender(info, mname, genders, MALE)(s.pred)
+          check_flow(info, mname, flows, SourceFlow)(s.pred)
         case (s: Stop) =>
-          check_gender(info, mname, genders, MALE)(s.en)
-          check_gender(info, mname, genders, MALE)(s.clk)
+          check_flow(info, mname, flows, SourceFlow)(s.en)
+          check_flow(info, mname, flows, SourceFlow)(s.clk)
         case _ =>
       }
-      s foreach check_genders_e(info, mname, genders)
-      s foreach check_genders_s(minfo, mname, genders)
+      s foreach check_flows_e(info, mname, flows)
+      s foreach check_flows_s(minfo, mname, flows)
     }
 
     for (m <- c.modules) {
-      val genders = new GenderMap
-      genders ++= (m.ports map (p => p.name -> to_gender(p.direction)))
-      m foreach check_genders_s(m.info, m.name, genders)
+      val flows = new FlowMap
+      flows ++= (m.ports map (p => p.name -> to_flow(p.direction)))
+      m foreach check_flows_s(m.info, m.name, flows)
     }
     errors.trigger()
     c
   }
+}
+
+@deprecated("Use 'CheckFlows'. This object will be removed in 1.3", "1.2")
+object CheckGenders {
+
+  implicit def toStr(g: Gender): String = g match {
+    case MALE => "source"
+    case FEMALE => "sink"
+    case UNKNOWNGENDER => "unknown"
+    case BIGENDER => "sourceOrSink"
+  }
+
+  def run(c: Circuit): Circuit = CheckFlows.run(c)
+
+  @deprecated("Use 'CheckFlows.WrongFlow'. This class will be removed in 1.3", "1.2")
+  class WrongGender(info:Info, mname: String, expr: String, wrong: Flow, right: Flow) extends PassException(
+    s"$info: [module $mname]  Expression $expr is used as a $wrong but can only be used as a $right.")
 }
