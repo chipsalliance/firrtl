@@ -24,7 +24,7 @@ object SimpleArithmetic {
   }
 
   def notMax(n: BigInt, w: BigInt): Boolean = {
-    val n1 = (BigInt(1) << (w.toInt-1)) - 1
+    val n1 = -(BigInt(1) << (w.toInt-1)) - 1
     n != n1
   }
 
