@@ -19,8 +19,13 @@ object SimpleArithmetic {
   // Note that this can have false negatives but MUST NOT have false positives.
   private def isSimpleExpr(expr: Expression): Boolean = expr match {
     case _: WRef | _: Literal | _: WSubField => true
-    case DoPrim(op, args, _,_) if isSimpleArithmeticExpr(op) => args.forall(isSimpleExpr)
+    case DoPrim(op, args, _, _) if isSimpleArithmeticExpr(op) => args.forall(isSimpleExpr)
     case _ => false
+  }
+
+  def notMax(n: BigInt, w: BigInt): Boolean = {
+    val n1 = (BigInt(1) << (w.toInt-1)) - 1
+    n != n1
   }
 
   /**
@@ -32,6 +37,10 @@ object SimpleArithmetic {
     e match {
       case DoPrim(Add, Seq(e, lit@SIntLiteral(n, _)), consts: Seq[BigInt], tpe) if (n < 0) =>  DoPrim(Sub, Seq(e, lit.copy(n * -1)), consts, tpe)
       case DoPrim(Addw, Seq(e, lit@SIntLiteral(n, _)), consts: Seq[BigInt], tpe) if (n < 0) =>  DoPrim(Subw, Seq(e, lit.copy(n * -1)), consts, tpe)
+      case DoPrim(Sub, Seq(e, lit@SIntLiteral(n, IntWidth(w))), consts: Seq[BigInt], tpe) if (n < 0) && notMax(n, w) =>
+        DoPrim(Add, Seq(e, lit.copy(n * -1)), consts, tpe)
+      case DoPrim(Subw, Seq(e, lit@SIntLiteral(n, IntWidth(w))), consts: Seq[BigInt], tpe) if (n < 0) && notMax(n, w) =>
+        DoPrim(Addw, Seq(e, lit.copy(n * -1)), consts, tpe)
       case _ => e
     }
   }
