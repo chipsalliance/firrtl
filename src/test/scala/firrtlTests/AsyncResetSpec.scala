@@ -4,16 +4,19 @@ package firrtlTests
 
 import firrtl._
 import FirrtlCheckers._
+import firrtl.annotations.{Annotation, CircuitTarget, ReferenceTarget}
+import firrtl.transforms.DontTouchAnnotation
+import logger.{LogLevel, LogLevelAnnotation}
 
 class AsyncResetSpec extends FirrtlFlatSpec {
-  def compile(input: String): CircuitState =
-    (new VerilogCompiler).compileAndEmit(CircuitState(parse(input), ChirrtlForm), List.empty)
-  def compileBody(body: String) = {
+  def compile(input: String, annos: AnnotationSeq = Nil): CircuitState =
+    (new VerilogCompiler).compileAndEmit(CircuitState(parse(input), ChirrtlForm, annos), List.empty)
+  def compileBody(body: String, annos: AnnotationSeq = Nil) = {
     val str = """
       |circuit Test :
       |  module Test :
       |""".stripMargin + body.split("\n").mkString("    ", "\n    ", "")
-    compile(str)
+    compile(str, annos)
   }
 
   "AsyncReset" should "generate async-reset always blocks" in {
@@ -352,7 +355,7 @@ class AsyncResetSpec extends FirrtlFlatSpec {
     result shouldNot containLine("always @(posedge clock or posedge reset) begin")
   }
 
-  "Constantly assigned and initialized asynchronously reset registers" should "properly constantprop" in {
+  "Constantly assigned and initialized asynchronously reset registers with donttouch" should "properly constantprop" in {
     val result = compileBody(
       s"""
          |input clock : Clock
@@ -360,9 +363,14 @@ class AsyncResetSpec extends FirrtlFlatSpec {
          |output z : UInt<1>
          |reg r : UInt<1>, clock with : (reset => (reset, UInt(0)))
          |r <= UInt(0)
-         |z <= r""".stripMargin
+         |z <= r""".stripMargin,
+      Seq(DontTouchAnnotation(CircuitTarget("Test").module("Test").ref("r")))
     )
-    result shouldNot containLine("always @(posedge clock or posedge reset) begin")
+    result should containLines (
+      "always @(posedge clock) begin",
+      "r <= 1'h0;",
+      "end"
+    )
   }
 }
 
