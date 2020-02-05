@@ -502,7 +502,7 @@ class ConstantPropagation extends Transform with ResolvedAnnotationPaths {
           }
 
           // Updates nodeMap after analyzing the returned value from regConstant
-          def updateNodeMap(e: Expression): Unit = regConstant(e) match {
+          def updateNodeMapIfConstant(e: Expression): Unit = regConstant(e) match {
             case RegCPEntry(BoundConstant(`lname`), litBinding) => litBinding match {
               case UnboundConstant => nodeMap(lname) = padCPExp(zero) // only self-assigns -> replace with zero
               case BoundConstant(lit) => nodeMap(lname) = padCPExp(lit) // self + lit assigns -> replace with lit
@@ -516,9 +516,9 @@ class ConstantPropagation extends Transform with ResolvedAnnotationPaths {
 
           asyncResetRegs.get(lname) match {
             // Normal Register
-            case None => updateNodeMap(rhs)
+            case None => updateNodeMapIfConstant(rhs)
             // Async Register
-            case Some(reg: DefRegister) => updateNodeMap(Mux(reg.reset, reg.init, rhs))
+            case Some(reg: DefRegister) => updateNodeMapIfConstant(Mux(reg.reset, reg.init, rhs))
           }
 
         // Mark instance inputs connected to a constant
