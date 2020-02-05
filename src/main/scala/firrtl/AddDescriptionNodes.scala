@@ -6,12 +6,20 @@ import firrtl.ir._
 import firrtl.annotations._
 import firrtl.Mappers._
 
+/**
+  * A base trait for `Annotation`s that describe a `FirrtlNode`.
+  * Usually, we would like to emit these descriptions in some way.
+  */
 sealed trait DescriptionAnnotation extends Annotation {
   val named: Named
   val description: String
-
 }
 
+/**
+  * A docstring description (a comment).
+  * @param named the object being described
+  * @param description the docstring describing the object
+  */
 case class DocStringAnnotation(named: Named, description: String) extends DescriptionAnnotation {
   def update(renames: RenameMap): Seq[DocStringAnnotation] = {
     renames.get(named) match {
@@ -20,6 +28,12 @@ case class DocStringAnnotation(named: Named, description: String) extends Descri
     }
   }
 }
+
+/**
+  * An Verilog-style attribute.
+  * @param named the object being given an attribute
+  * @param description the attribute
+  */
 case class AttributeAnnotation(named: Named, description: String) extends DescriptionAnnotation {
   def update(renames: RenameMap): Seq[AttributeAnnotation] = {
     renames.get(named) match {
@@ -29,20 +43,40 @@ case class AttributeAnnotation(named: Named, description: String) extends Descri
   }
 }
 
+/**
+  * Base trait for an object that has associated descriptions
+  */
 private sealed trait HasDescription {
   def descriptions: Seq[Description]
 }
 
+/**
+  * Base trait for a description that gives some information about a `FirrtlNode`.
+  * Usually, we would like to emit these descriptions in some way.
+  */
 sealed trait Description extends FirrtlNode
 
+/**
+  * A docstring description (a comment)
+  * @param string a comment
+  */
 case class DocString(string: StringLit) extends Description {
   def serialize: String = "@[" + string.serialize + "]"
 }
 
+/**
+  * A Verilog-style attribute.
+  * @param string the attribute
+  */
 case class Attribute(string: StringLit) extends Description {
   def serialize: String = "@[" + string.serialize + "]"
 }
 
+/**
+  * A statement with descriptions
+  * @param descriptions
+  * @param stmt the encapsulated statement
+  */
 private case class DescribedStmt(descriptions: Seq[Description], stmt: Statement) extends Statement with HasDescription {
   def serialize: String = s"${descriptions.map(_.serialize).mkString("\n")}\n${stmt.serialize}"
   def mapStmt(f: Statement => Statement): Statement = f(stmt)
@@ -57,6 +91,12 @@ private case class DescribedStmt(descriptions: Seq[Description], stmt: Statement
   def foreachInfo(f: Info => Unit): Unit = stmt.foreachInfo(f)
 }
 
+/**
+  * A module with descriptions
+  * @param descriptions list of descriptions for the module
+  * @param portDescriptions list of descriptions for the module's ports
+  * @param mod the encapsulated module
+  */
 private case class DescribedMod(descriptions: Seq[Description],
   portDescriptions: Map[String, Seq[Description]],
   mod: DefModule) extends DefModule with HasDescription {
