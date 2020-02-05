@@ -210,16 +210,14 @@ object Utils extends LazyLogging {
     case _ => false
   }
 
-  /** Returns true if PrimOp is a isSimple Arithmetic Operator, false otherwise */
-  def isSimpleArithmeticExpr(op: PrimOp): Boolean = op match {
-    case Add | Sub  => true
-    case _ => false
-  }
-  /** Returns true if Expression is a Simple Arithmetic PrimOp, false otherwise */
-  def isSimpleArithmeticExpr (expr: Expression): Boolean = expr match {
-    case DoPrim(op, _,_, UIntType(_)) if isSimpleArithmeticExpr(op) => true
-    case _ => false
-  }
+  /** Returns true if PrimOp is a isSimple Arithmet{ic Operator, false otherwise */
+  def isAddorSubExpr (expr: Expression): Boolean = expr match {
+      case DoPrim(Add, _,_, UIntType(_)) => true
+      case DoPrim(Sub, _,_, UIntType(_)) => true
+      case DoPrim(Add, _,_, SIntType(_)) => true
+      case DoPrim(Sub, _,_, SIntType(_)) => true
+      case _ => false
+    }
 
   /** Provide a nice name to create a temporary **/
   def niceName(e: Expression): String = niceName(1)(e)

@@ -5,7 +5,7 @@ package firrtl.transforms
 import firrtl.Mappers._
 import firrtl.PrimOps._
 import firrtl.traversals.Foreachers._
-import firrtl.Utils.isSimpleArithmeticExpr
+import firrtl.Utils.isAddorSubExpr
 import firrtl._
 import firrtl.WrappedExpression.we
 import firrtl.analyses.InstanceGraph
@@ -18,13 +18,13 @@ object SimpleArithmetic {
   // private because it's not clear if this definition of "Simple Expression" would be useful elsewhere.
   // Note that this can have false negatives but MUST NOT have false positives.
   private def isSimpleExpr(expr: Expression): Boolean = expr match {
-    case _: WRef | _: Literal | _: WSubField => true
-    case DoPrim(op, args, _, _) if isSimpleArithmeticExpr(op) => args.forall(isSimpleExpr)
-    case _ => false
-  }
+      case _: WRef | _: Literal | _: WSubField => true
+      case e@DoPrim(op, args, _, _) if isAddorSubExpr(e) => args.forall(isSimpleExpr)
+      case _ => false
+    }
 
   def notMax(n: BigInt, w: BigInt): Boolean = {
-    val n1 = -(BigInt(1) << (w.toInt-1)) - 1
+    val n1 = -((BigInt(1) << (w.toInt)) - 1)
     n != n1
   }
 
@@ -35,11 +35,11 @@ object SimpleArithmetic {
     */
   def replaceSimple(e: Expression): Expression = {
     e match {
-      case DoPrim(Add, Seq(e, lit@SIntLiteral(n, _)), consts: Seq[BigInt], tpe) if (n < 0) =>  DoPrim(Sub, Seq(e, lit.copy(n * -1)), consts, tpe)
-      case DoPrim(Addw, Seq(e, lit@SIntLiteral(n, _)), consts: Seq[BigInt], tpe) if (n < 0) =>  DoPrim(Subw, Seq(e, lit.copy(n * -1)), consts, tpe)
-      case DoPrim(Sub, Seq(e, lit@SIntLiteral(n, IntWidth(w))), consts: Seq[BigInt], tpe) if (n < 0) && notMax(n, w) =>
+      case DoPrim(Add, Seq(e, lit@SIntLiteral(n, _)), consts, tpe) if (n < 0) =>  DoPrim(Sub, Seq(e, lit.copy(n * -1)), consts, tpe)
+      case DoPrim(Addw, Seq(e, lit@SIntLiteral(n, _)), consts, tpe) if (n < 0) =>  DoPrim(Subw, Seq(e, lit.copy(n * -1)), consts, tpe)
+      case DoPrim(Sub, Seq(e, lit@SIntLiteral(n, IntWidth(w))), consts, tpe) if (n < 0) && notMax(n, w) =>
         DoPrim(Add, Seq(e, lit.copy(n * -1)), consts, tpe)
-      case DoPrim(Subw, Seq(e, lit@SIntLiteral(n, IntWidth(w))), consts: Seq[BigInt], tpe) if (n < 0) && notMax(n, w) =>
+      case DoPrim(Subw, Seq(e, lit@SIntLiteral(n, IntWidth(w))), consts, tpe) if (n < 0) && notMax(n, w) =>
         DoPrim(Addw, Seq(e, lit.copy(n * -1)), consts, tpe)
       case _ => e
     }
@@ -48,34 +48,18 @@ object SimpleArithmetic {
   /** Mapping from references to the [[firrtl.ir.Expression Expression]]s that drive them */
   type Netlist = mutable.HashMap[WrappedExpression, Expression]
 
-  /** Recursively replace [[WRef]]s with new [[Expression]]s
-    *
-    * @param netlist a '''mutable''' HashMap mapping references to [[firrtl.ir.DefNode DefNode]]s to their connected
-    * [[firrtl.ir.Expression Expression]]s. It is '''not''' mutated in this function
-    * @param expr the Expression being transformed
-    * @return Returns expr with Boolean Expression inlined
-    */
   def onExpr(netlist: Netlist, symbolTable: Map[WrappedExpression, Int])(expr: Expression): Expression = {
     expr.map(onExpr(netlist, symbolTable)) match {
-      case DoPrim(op, args, _, _) if isSimpleArithmeticExpr(op) => replaceSimple(expr)
+      case e@DoPrim(op, args, _, _) if isAddorSubExpr(e) => replaceSimple(expr)
       case other => other
     }
   }
 
-  /** Inline bits in a Statement
-    *
-    * @param netlist a '''mutable''' HashMap mapping references to [[firrtl.ir.DefNode DefNode]]s to their connected
-     * [[firrtl.ir.Expression Expression]]s. This function '''will''' mutate it if stmt is a [[firrtl.ir.DefNode
-    * DefNode]] with a Temporary name and a value that is a [[PrimOp]] Bits
-    * @param stmt the Statement being searched for nodes and transformed
-    * @return Returns stmt with Bits inlined
-    */
   def onStmt(netlist: Netlist, symbolTable: Map[WrappedExpression, Int])(stmt: Statement): Statement = {
-    println(s"stmt = ${stmt.serialize}")
     stmt.map(onStmt(netlist, symbolTable)).map(onExpr(netlist, symbolTable))
   }
 
-  /** Replaces bits in a Module */
+  /** Replaces simple artihmetic epressions with one constant in a Module */
   def onMod(mod: DefModule,
     netlist: Netlist,
     symbolTable: Map[WrappedExpression, Int]): DefModule =
