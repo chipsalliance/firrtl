@@ -339,7 +339,20 @@ class AsyncResetSpec extends FirrtlFlatSpec {
     result shouldNot containLine("always @(posedge clock or posedge reset) begin")
   }
 
-  "Constantly assigned asyncronously reset registers" should "properly constantprop" in {
+  "Constantly assigned asynchronously reset registers" should "properly constantprop" in {
+    val result = compileBody(
+      s"""
+         |input clock : Clock
+         |input reset : AsyncReset
+         |output z : UInt<1>
+         |reg r : UInt<1>, clock with : (reset => (reset, r))
+         |r <= UInt(0)
+         |z <= r""".stripMargin
+    )
+    result shouldNot containLine("always @(posedge clock or posedge reset) begin")
+  }
+
+  "Constantly assigned and initialized asynchronously reset registers" should "properly constantprop" in {
     val result = compileBody(
       s"""
          |input clock : Clock
