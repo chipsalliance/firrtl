@@ -6,7 +6,6 @@ import firrtl.Mappers._
 import firrtl.traversals.Foreachers._
 import firrtl.Utils.isBooleanExpr
 import firrtl._
-import firrtl.analyses.InstanceGraph
 import firrtl.ir._
 import firrtl.WrappedExpression._
 
@@ -76,14 +75,7 @@ object InlineBooleanExpressions {
     * @return Returns stmt with Bits inlined
     */
   def onStmt(netlist: Netlist, refCounter: Map[WrappedExpression, Int])(stmt: Statement): Statement = {
-//    stmt.map(onStmt(netlist, refCounter)).map(onExpr(netlist, refCounter))
-    stmt.map(onStmt(netlist, refCounter)).map{
-      println(s"stmt = ${stmt.serialize}")
-
-      onExpr(netlist, refCounter)
-    }
-
-
+    stmt.map(onStmt(netlist, refCounter)).map(onExpr(netlist, refCounter))
   }
   /** Replaces bits in a Module */
   def onMod(mod: DefModule,
@@ -194,21 +186,6 @@ class InlineBooleanExpressions extends Transform {
 
   import InlineBooleanExpressions._
 
-  def makeModuleInfo(c: Circuit): (Map[String, Map[String, String]], Seq[String], InstanceGraph, Map[String, DefModule]) = {
-    val iGraph = (new InstanceGraph(c))
-    val childInstances = iGraph.getChildrenInstances.mapValues(_.map(inst => inst.name -> inst.module).toMap).toMap
-
-    // Order from leaf modules to root so that any module driving an output
-    // with a constant will be visible to modules that instantiate it
-    // TODO Generating order as we execute constant propagation on each module would be faster
-    val x = iGraph.moduleOrder.reverse
-
-    val moduleNameTraversalOrder = x.map { m => m.name }
-
-    val modNameModules = x.map { m => (m.name -> m) }.toMap
-    (childInstances, moduleNameTraversalOrder, iGraph, modNameModules)
-  }
-
   /** Build a [[Netlist]] from a Module's connections and Nodes
     * This assumes [[firrtl.LowForm LowForm]]
     *
@@ -218,8 +195,6 @@ class InlineBooleanExpressions extends Transform {
   def buildNetlist(mod: DefModule): Netlist = {
     val netlist = new Netlist()
     def onStmt(stmt: Statement): Statement = {
-      println(s"stmt = ${stmt.serialize}")
-
       stmt.map(onStmt) match {
         case Connect(_, lhs, rhs) if (isTmpVar(lhs.serialize)) => netlist(lhs.serialize) = rhs
         case DefNode(_, nname, rhs) if (isTmpVar(nname)) => netlist(nname) = rhs
@@ -231,7 +206,13 @@ class InlineBooleanExpressions extends Transform {
     netlist
   }
 
-  def buildSymTab(mod: DefModule): Map[WrappedExpression, Int] = {
+  /**
+    * For each LHS variable count the number of times that the variable is used on the RHS
+    *
+    * @param mod
+    * @return
+    */
+  def buildReferenceCounters(mod: DefModule): Map[WrappedExpression, Int] = {
     val refCnt = mutable.HashMap[WrappedExpression, Int]()
 
     def update(signalName: WrappedExpression): Unit = refCnt(signalName) = refCnt.getOrElse(signalName, 0) + 1
@@ -255,7 +236,7 @@ class InlineBooleanExpressions extends Transform {
 
   def execute(state: CircuitState): CircuitState = {
 
-      val refCnts = state.circuit.modules.map { m => (m.name -> buildSymTab(m)) }.toMap
+      val refCnts = state.circuit.modules.map { m => (m.name -> buildReferenceCounters(m)) }.toMap
 
       val netlists = state.circuit.modules.map { m => (m.name -> buildNetlist(m)) }.toMap
 

@@ -33,8 +33,6 @@ class InlineBooleanExpressionsTests extends LowTransformSpec {
     execute(input, check, Nil)
   }
 
-  // Set this to debug, this will apply to all tests
-  // Logger.setLevel(this.getClass, Debug)
   "The module Top" should "not have the boolean expressions combined" in {
     val input =
       """circuit Top :
