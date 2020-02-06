@@ -407,7 +407,6 @@ class ConstantPropagation extends Transform with ResolvedAnnotationPaths {
     val constSubInputs = mutable.HashMap.empty[OfModule, mutable.HashMap[String, Seq[Literal]]]
     // AsyncReset registers don't have reset turned into a mux so we must be careful
     val asyncResetRegs = mutable.HashMap.empty[String, DefRegister]
-    val constantAsyncResetRegs = mutable.HashMap.empty[String, Expression]
 
     // Register constant propagation is intrinsically more complicated, as it is not feed-forward.
     // Therefore, we must store some memoized information about how nodes can be canditates for
@@ -448,12 +447,6 @@ class ConstantPropagation extends Transform with ResolvedAnnotationPaths {
           case reg: DefRegister => reg.copy(name = newName)
           case other => throwInternalError()
         }
-      // If async reset register with constant, remove reset from register
-      case reg: DefRegister if reg.reset.tpe == AsyncResetType && constantAsyncResetRegs.contains(reg.name) =>
-        reg.copy(reset = UIntLiteral(BigInt(0)), init = WRef(reg))
-      // If async reset register assigned as constant, assign register directly
-      case connect@Connect(_, lref @ WRef(lname, ltpe, RegKind, _), rhs) if constantAsyncResetRegs.contains(lname) =>
-        connect.copy(expr = constantAsyncResetRegs(lname))
       case other => other map backPropStmt
     }
 
@@ -485,7 +478,7 @@ class ConstantPropagation extends Transform with ResolvedAnnotationPaths {
           constOutputs(pname) = paddedLit
         // Const prop registers that are driven by a mux tree containing only instances of one constant or self-assigns
         // This requires that reset has been made explicit
-        case Connect(_, lref @ WRef(lname, ltpe, RegKind, _), rhs) =>
+        case Connect(_, lref @ WRef(lname, ltpe, RegKind, _), rhs) if !dontTouches(lname) =>
 
          /* Checks if an RHS expression e of a register assignment is convertible to a constant assignment.
           * Here, this means that e must be 1) a literal, 2) a self-connect, or 3) a mux tree of
@@ -508,31 +501,24 @@ class ConstantPropagation extends Transform with ResolvedAnnotationPaths {
             case _ => RegCPEntry(NonConstant, NonConstant)
           }
 
-          // Analyzing the returned value from regConstant
-          def regCPEntryToConstant(regCPEntry: RegCPEntry): Option[Expression] = regCPEntry match {
+          // Updates nodeMap after analyzing the returned value from regConstant
+          def updateNodeMapIfConstant(e: Expression): Unit = regConstant(e) match {
             case RegCPEntry(BoundConstant(`lname`), litBinding) => litBinding match {
-              case UnboundConstant => Some(padCPExp(zero)) // only self-assigns -> replace with zero
-              case BoundConstant(lit) => Some(padCPExp(lit)) // self + lit assigns -> replace with lit
-              case _ => None
+              case UnboundConstant => nodeMap(lname) = padCPExp(zero) // only self-assigns -> replace with zero
+              case BoundConstant(lit) => nodeMap(lname) = padCPExp(lit) // self + lit assigns -> replace with lit
+              case _ =>
             }
-            case RegCPEntry(UnboundConstant, BoundConstant(lit)) => Some(padCPExp(lit)) // only lit assigns
-            case _ => None
+            case RegCPEntry(UnboundConstant, BoundConstant(lit)) => nodeMap(lname) = padCPExp(lit) // only lit assigns
+            case _ =>
           }
           def zero = passes.RemoveValidIf.getGroundZero(ltpe)
-          def padCPExp(e: Expression): Expression = constPropExpression(nodeMap, instMap, constSubOutputs)(pad(e, ltpe))
+          def padCPExp(e: Expression) = constPropExpression(nodeMap, instMap, constSubOutputs)(pad(e, ltpe))
 
           asyncResetRegs.get(lname) match {
-            case None if dontTouches.contains(lname) => // Do Nothing
-            case None => regCPEntryToConstant(regConstant(rhs)).foreach { nodeMap(lname) = _ }
-            case Some(reg: DefRegister) => // Async Register
-              val constantOpt = regCPEntryToConstant(regConstant(Mux(reg.reset, reg.init, rhs)))
-              constantOpt match {
-                case None =>
-                case Some(constant) =>
-                  nodeMap(lname) = constant
-                  //Async Register, if its a literal then and update constantAsyncResetRegs
-                  constantAsyncResetRegs(lname) = constant
-              }
+            // Normal Register
+            case None => updateNodeMapIfConstant(rhs)
+            // Async Register
+            case Some(reg: DefRegister) => updateNodeMapIfConstant(Mux(reg.reset, reg.init, rhs))
           }
 
         // Mark instance inputs connected to a constant
