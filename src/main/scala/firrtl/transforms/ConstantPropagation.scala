@@ -518,7 +518,7 @@ class ConstantPropagation extends Transform with ResolvedAnnotationPaths {
             // Normal Register
             case None => updateNodeMapIfConstant(rhs)
             // Async Register
-            case Some(reg: DefRegister) => updateNodeMapIfConstant(Mux(reg.reset, reg.init, rhs))
+            case Some(reg: DefRegister) => updateNodeMapIfConstant(Mux(reg.reset, reg.init, rhs, UnknownType))
           }
 
         // Mark instance inputs connected to a constant
