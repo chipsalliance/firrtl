@@ -23,12 +23,12 @@ class firrtlCrossModule(crossVersion: String) extends ScalaModule with SbtModule
 
   def mainClass = Some("firrtl.stage.FirrtlMain")
   
-  private def scalacOptionsVersion = majorVersion match {
+  private def scalacCrossOptions = majorVersion match {
     case i if i < 12 => Seq()
     case _ => Seq("-Xsource:2.11")
   }
 
-  private def javacOptionsVersion = majorVersion match {
+  private def javacCrossOptions = majorVersion match {
     case i if i < 12 => Seq("-source", "1.7", "-target", "1.7")
     case _ => Seq("-source", "1.8", "-target", "1.8")
   }
@@ -37,9 +37,9 @@ class firrtlCrossModule(crossVersion: String) extends ScalaModule with SbtModule
     "-deprecation",
     "-unchecked",
     "-Yrangepos", // required by SemanticDB compiler plugin
-  ) ++ scalacOptionsVersion
+  ) ++ scalacCrossOptions
   
-  override def javacOptions = super.javacOptions() ++ javacOptionsVersion 
+  override def javacOptions = super.javacOptions() ++ javacCrossOptions
 
   override def ivyDeps = super.ivyDeps() ++ Agg(
     ivy"${scalaOrganization()}:scala-reflect:${scalaVersion()}",
@@ -50,6 +50,20 @@ class firrtlCrossModule(crossVersion: String) extends ScalaModule with SbtModule
     ivy"org.antlr:antlr4-runtime:4.7.1",
     ivy"com.google.protobuf:protobuf-java:3.5.1"
   )
+  
+  object test extends Tests {
+    private def ivyCrossDeps = majorVersion match {
+      case i if i < 12 => Agg(ivy"junit:junit:4.12")
+      case _ => Agg()
+    }
+
+    def ivyDeps = Agg(
+      ivy"org.scalatest::scalatest:3.0.8",
+      ivy"org.scalacheck::scalacheck:1.14.0"
+    ) ++ ivyCrossDeps
+
+    def testFrameworks = Seq("org.scalatest.tools.Framework")
+  }
 
   override def generatedSources = T {
     generatedAntlr4Source() ++ generatedProtoSources()
