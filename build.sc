@@ -3,10 +3,17 @@ import mill.scalalib._
 import mill.scalalib.publish._
 import mill.modules.Util
 
-object firrtl extends ScalaModule with SbtModule with PublishModule {
-  override def millSourcePath = super.millSourcePath / os.up
+object firrtl extends mill.Cross[firrtlCrossModule]("2.11.12", "2.12.10")
 
-  def scalaVersion = "2.12.10"
+class firrtlCrossModule(crossVersion: String) extends ScalaModule with SbtModule with PublishModule {
+  // different scala version shares same sources
+  // mill use foo/2.11.12 foo/2.12.10 as millSourcePath by default
+  override def millSourcePath = super.millSourcePath / os.up / os.up
+
+  def scalaVersion = crossVersion
+
+  // 2.12.10 -> Array("2", "12", "10") -> "12" -> 12
+  private def majorVersion = crossVersion.split('.')(1).toInt
 
   def publishVersion = "1.3-SNAPSHOT"
 
@@ -15,13 +22,24 @@ object firrtl extends ScalaModule with SbtModule with PublishModule {
   def protocVersion = "3.5.1"
 
   def mainClass = Some("firrtl.stage.FirrtlMain")
+  
+  private def scalacOptionsVersion = majorVersion match {
+    case i if i < 12 => Seq()
+    case _ => Seq("-Xsource:2.11")
+  }
 
-  override def scalacOptions = Seq(
+  private def javacOptionsVersion = majorVersion match {
+    case i if i < 12 => Seq("-source", "1.7", "-target", "1.7")
+    case _ => Seq("-source", "1.8", "-target", "1.8")
+  }
+
+  override def scalacOptions = super.scalacOptions() ++ Seq(
     "-deprecation",
     "-unchecked",
     "-Yrangepos", // required by SemanticDB compiler plugin
-    "-Xsource:2.11"
-  )
+  ) ++ scalacOptionsVersion
+  
+  override def javacOptions = super.javacOptions() ++ javacOptionsVersion 
 
   override def ivyDeps = super.ivyDeps() ++ Agg(
     ivy"${scalaOrganization()}:scala-reflect:${scalaVersion()}",
