@@ -1,3 +1,4 @@
+// Build script for mill 0.6.0
 import mill._
 import mill.scalalib._
 import mill.scalalib.publish._
