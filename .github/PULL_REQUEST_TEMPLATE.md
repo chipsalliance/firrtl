@@ -2,6 +2,7 @@
 
 - [ ] Did you add Scaladoc to every public function/method?
 - [ ] Did you add at least one test demonstrating the PR?
+- [ ] Did you delete any extraneous printlns/debugging code?
 - [ ] Did you specify the type of improvement?
 - [ ] Did you state the API impact?
 - [ ] Did you specify the code generation impact?
