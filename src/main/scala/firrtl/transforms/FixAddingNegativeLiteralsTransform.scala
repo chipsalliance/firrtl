@@ -40,7 +40,7 @@ object FixAddingNegativeLiterals {
     * @return updated statement
     */
   def fixupStatement(namespace: Namespace)(s: Statement): Statement = {
-    val stmtBuffer = mutable.ArrayBuffer[Statement]()
+    val stmtBuffer = mutable.ListBuffer[Statement]()
     val ret = s map fixupStatement(namespace) map fixupExpression(Utils.get_info(s), namespace, stmtBuffer)
     if(stmtBuffer.isEmpty) {
       ret
@@ -57,7 +57,7 @@ object FixAddingNegativeLiterals {
     * @param e expression to fixup
     * @return fixed expression
     */
-  def fixupExpression(info: Info, namespace: Namespace, stmtBuffer: mutable.ArrayBuffer[Statement])
+  def fixupExpression(info: Info, namespace: Namespace, stmtBuffer: mutable.ListBuffer[Statement])
                      (e: Expression): Expression = {
 
     // Helper function to create the subtraction expression
