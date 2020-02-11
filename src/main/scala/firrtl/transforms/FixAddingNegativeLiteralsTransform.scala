@@ -15,7 +15,7 @@ object FixAddingNegativeLiterals {
     * @param width width of the negative number
     * @return maximum negative number
     */
-  def maxNegNumberOfWidth(width: BigInt): BigInt = -(1 << (width.toInt - 1))
+  def minNegValue(width: BigInt): BigInt = -(1 << (width.toInt - 1))
 
   /** Updates the type of the DoPrim from its arguments (e.g. if is UnknownType)
     * @param d input DoPrim
@@ -62,7 +62,7 @@ object FixAddingNegativeLiterals {
 
     // Helper function to create the subtraction expression
     def fixupAdd(expr: Expression, litValue: BigInt, litWidth: BigInt): DoPrim = {
-      if(litValue == maxNegNumberOfWidth(litWidth)) {
+      if(litValue == minNegValue(litWidth)) {
         val posLiteral = SIntLiteral(-litValue)
         assert(posLiteral.width.asInstanceOf[IntWidth].width - 1 == litWidth)
         val sub = DefNode(info, namespace.newTemp, setType(DoPrim(Sub, Seq(expr, posLiteral), Nil, UnknownType)))
