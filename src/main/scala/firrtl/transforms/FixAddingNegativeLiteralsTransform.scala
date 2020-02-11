@@ -41,7 +41,7 @@ object FixAddingNegativeLiterals {
     */
   def fixupStatement(namespace: Namespace)(s: Statement): Statement = {
     val stmtBuffer = mutable.ListBuffer[Statement]()
-    val ret = s map fixupStatement(namespace) map fixupExpression(Utils.get_info(s), namespace, stmtBuffer)
+    val ret = s map fixupStatement(namespace) map fixupOnExpr(Utils.get_info(s), namespace, stmtBuffer)
     if(stmtBuffer.isEmpty) {
       ret
     } else {
@@ -53,12 +53,25 @@ object FixAddingNegativeLiterals {
   /** Returns a statement with fixed additions of negative literals
     * @param info Info of statement containing this expression
     * @param namespace object to enabling creating unique names
+    * @param e expression to fixup
+    * @return generated statements and the fixed expression
+    */
+  def fixupExpression(info: Info, namespace: Namespace)
+                     (e: Expression): (Seq[Statement], Expression) = {
+    val stmtBuffer = mutable.ListBuffer[Statement]()
+    val retExpr = fixupOnExpr(info, namespace, stmtBuffer)(e)
+    (stmtBuffer.toList, retExpr)
+  }
+
+  /** Returns a statement with fixed additions of negative literals
+    * @param info Info of statement containing this expression
+    * @param namespace object to enabling creating unique names
     * @param stmtBuffer mutable buffer of statements - append to this for it to be inlined in the module
     * @param e expression to fixup
     * @return fixed expression
     */
-  def fixupExpression(info: Info, namespace: Namespace, stmtBuffer: mutable.ListBuffer[Statement])
-                     (e: Expression): Expression = {
+  private def fixupOnExpr(info: Info, namespace: Namespace, stmtBuffer: mutable.ListBuffer[Statement])
+                         (e: Expression): Expression = {
 
     // Helper function to create the subtraction expression
     def fixupAdd(expr: Expression, litValue: BigInt, litWidth: BigInt): DoPrim = {
@@ -76,7 +89,7 @@ object FixAddingNegativeLiterals {
       }
     }
 
-    e map fixupExpression(info, namespace, stmtBuffer) match {
+    e map fixupOnExpr(info, namespace, stmtBuffer) match {
       case DoPrim(Add, Seq(arg, lit@SIntLiteral(value, w@IntWidth(width))), Nil, t: SIntType) if value < 0 =>
         fixupAdd(arg, value, width)
       case DoPrim(Add, Seq(lit@SIntLiteral(value, w@IntWidth(width)), arg), Nil, t: SIntType) if value < 0 =>
