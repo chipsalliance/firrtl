@@ -44,7 +44,7 @@ trait NoTargetAnnotation extends Annotation {
   def update(renames: RenameMap): Seq[NoTargetAnnotation] = Seq(this)
   override def productArity: Int = 0
   override def canEqual(that: Any): Boolean = true
-  override def productElement(n: Int): Any = throw new java.lang.IndexOutOfBoundsException(n)
+  override def productElement(n: Int): Any = throw new java.lang.IndexOutOfBoundsException(s"Cannot access elements of NoTargetAnnotation: $n")
 }
 
 /** An Annotation that targets a single [[Named]] thing */
