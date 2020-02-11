@@ -15,7 +15,7 @@ object FixAddingNegativeLiterals {
     * @param width width of the negative number
     * @return maximum negative number
     */
-  def maxNegNumber(width: BigInt): BigInt = -(1 << (width.toInt - 1))
+  def maxNegNumberOfWidth(width: BigInt): BigInt = -(1 << (width.toInt - 1))
 
   /** Updates the type of the DoPrim from its arguments (e.g. if is UnknownType)
     * @param d input DoPrim
@@ -62,7 +62,7 @@ object FixAddingNegativeLiterals {
 
     // Helper function to create the subtraction expression
     def fixupAdd(expr: Expression, litValue: BigInt, litWidth: BigInt): DoPrim = {
-      if(litValue == maxNegNumber(litWidth)) {
+      if(litValue == maxNegNumberOfWidth(litWidth)) {
         val posLiteral = SIntLiteral(-litValue)
         assert(posLiteral.width.asInstanceOf[IntWidth].width - 1 == litWidth)
         val sub = DefNode(info, namespace.newTemp, setType(DoPrim(Sub, Seq(expr, posLiteral), Nil, UnknownType)))
@@ -86,14 +86,11 @@ object FixAddingNegativeLiterals {
   }
 }
 
-/** Replaces non-expanding arithmetic
+/** Replaces adding a negative literal with subtracting that literal
   *
-  * In the case where the result of `add` or `sub` immediately throws away the expanded msb, this
-  * transform will replace the operation with a non-expanding operator `addw` or `subw`
-  * respectively.
-  *
-  * @note This replaces some FIRRTL primops with ops that are not actually legal FIRRTL. They are
-  * useful for emission to languages that support non-expanding arithmetic (like Verilog)
+  * Verilator has a lint warning if a literal is negated in an expression, because it adds a bit to
+  * the literal and thus not all expressions in the add are the same. This is fixed here when we directly
+  * subtract the literal instead.
   */
 class FixAddingNegativeLiterals extends Transform {
   def inputForm = LowForm
