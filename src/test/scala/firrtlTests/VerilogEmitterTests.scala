@@ -2,16 +2,10 @@
 
 package firrtlTests
 
-import java.io._
-
-import org.scalatest._
-import org.scalatest.prop._
 import firrtl._
 import firrtl.annotations._
-import firrtl.ir.Circuit
 import firrtl.passes._
 import firrtl.transforms.VerilogRename
-import firrtl.Parser.IgnoreInfo
 import FirrtlCheckers._
 import firrtl.transforms.CombineCats
 
@@ -643,7 +637,7 @@ class VerilogEmitterSpec extends FirrtlFlatSpec {
         |z <= add(x, SInt(-1))
         |""".stripMargin
     )
-    result should containLine("assign z = $signed(x) + -4'sh1;")
+    result should containLine("assign z = $signed(x) - 4'sh1;")
   }
 
   it should "inline asSInt casts" in {
@@ -711,6 +705,42 @@ class VerilogEmitterSpec extends FirrtlFlatSpec {
     result should containLine("assign z = x == y;")
   }
 
+  it should "subtract positive literals instead of adding negative literals" in {
+    val compiler = new VerilogCompiler
+    val result = compileBody(
+      """input x : SInt<8>
+        |output z : SInt<9>
+        |z <= add(x, SInt(-2))
+        |""".stripMargin
+    )
+    result shouldNot containLine("assign z = $signed(x) + -8'sh2;")
+    result should    containLine("assign z = $signed(x) - 8'sh2;")
+  }
+
+  it should "subtract positive literals even with max negative literal" in {
+    val compiler = new VerilogCompiler
+    val result = compileBody(
+      """input x : SInt<2>
+        |output z : SInt<3>
+        |z <= add(x, SInt(-2))
+        |""".stripMargin
+    )
+    result shouldNot containLine("assign z = $signed(x) + -2'sh2;")
+    result should    containLine("assign z = $signed(x) - 3'sh2;")
+  }
+
+  it should "subtract positive literals even with max negative literal with no carryout" in {
+    val compiler = new VerilogCompiler
+    val result = compileBody(
+      """input x : SInt<2>
+        |output z : SInt<2>
+        |z <= add(x, SInt(-2))
+        |""".stripMargin
+    )
+    result shouldNot containLine("assign z = $signed(x) + -2'sh2;")
+    result should    containLine("assign _GEN_0 = $signed(x) - 3'sh2;")
+    result should    containLine("assign z = _GEN_0[1:0];")
+  }
 }
 
 class VerilogDescriptionEmitterSpec extends FirrtlFlatSpec {
