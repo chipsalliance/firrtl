@@ -65,10 +65,10 @@ class AsyncResetSpec extends FirrtlFlatSpec {
       |z <= asAsyncReset(a)
       |""".stripMargin
     )
-    result should containLine ("assign v = $unsigned(a);")
-    result should containLine ("assign w = $signed(a);")
+    result should containLine ("assign v = a;")
+    result should containLine ("assign w = a;")
     result should containLine ("assign x = a;")
-    result should containLine ("assign y = $signed(a);")
+    result should containLine ("assign y = a;")
     result should containLine ("assign z = a;")
   }
 
@@ -319,6 +319,74 @@ class AsyncResetSpec extends FirrtlFlatSpec {
     )
   }
 
+  "Unassigned asyncronously reset registers" should "properly constantprop" in {
+    val result = compileBody(
+      s"""
+         |input clock : Clock
+         |input reset : AsyncReset
+         |output z : UInt<1>[4]
+         |wire literal : UInt<1>[2]
+         |literal[0] <= UInt<1>("h01")
+         |literal[1] <= UInt<1>("h01")
+         |wire complex_literal : UInt<1>[4]
+         |complex_literal[0] <= literal[0]
+         |complex_literal[1] <= literal[1]
+         |complex_literal[2] <= UInt<1>("h00")
+         |complex_literal[3] <= UInt<1>("h00")
+         |reg r : UInt<1>[4], clock with : (reset => (reset, complex_literal))
+         |z <= r""".stripMargin
+    )
+    result shouldNot containLine("always @(posedge clock or posedge reset) begin")
+  }
+
+  "Constantly assigned asynchronously reset registers" should "properly constantprop" in {
+    val result = compileBody(
+      s"""
+         |input clock : Clock
+         |input reset : AsyncReset
+         |output z : UInt<1>
+         |reg r : UInt<1>, clock with : (reset => (reset, r))
+         |r <= UInt(0)
+         |z <= r""".stripMargin
+    )
+    result shouldNot containLine("always @(posedge clock or posedge reset) begin")
+  }
+
+  "Constantly assigned and initialized asynchronously reset registers" should "properly constantprop" in {
+    val result = compileBody(
+      s"""
+         |input clock : Clock
+         |input reset : AsyncReset
+         |output z : UInt<1>
+         |reg r : UInt<1>, clock with : (reset => (reset, UInt(0)))
+         |r <= UInt(0)
+         |z <= r""".stripMargin
+    )
+    result shouldNot containLine("always @(posedge clock or posedge reset) begin")
+  }
+
+  "AsyncReset registers" should "emit 'else' case for reset even for trivial valued registers" in {
+    val withDontTouch = s"""
+      |circuit m :
+      |  module m :
+      |    input clock : Clock
+      |    input reset : AsyncReset
+      |    input x : UInt<8>
+      |    reg r : UInt<8>, clock with : (reset => (reset, UInt(123)))
+      |""".stripMargin
+    val annos = Seq(dontTouch("m.r")) // dontTouch prevents ConstantPropagation from fixing this problem
+    val result = (new VerilogCompiler).compileAndEmit(CircuitState(parse(withDontTouch), ChirrtlForm, annos))
+    result should containLines (
+       "always @(posedge clock or posedge reset) begin",
+       "if (reset) begin",
+       "r <= 8'h7b;",
+       "end else begin",
+       "r <= 8'h7b;",
+       "end",
+       "end"
+     )
+
+  }
 }
 
 class AsyncResetExecutionTest extends ExecutionTest("AsyncResetTester", "/features")
