@@ -58,7 +58,7 @@ libraryDependencies += "org.scala-lang" % "scala-reflect" % scalaVersion.value
 // sbt 1.2.6 fails with `Symbol 'term org.junit' is missing from the classpath`
 // when compiling tests under 2.11.12
 // An explicit dependency on junit seems to alleviate this.
-libraryDependencies += "junit" % "junit" % "4.12" % "test"
+libraryDependencies += "junit" % "junit" % "4.13" % "test"
 
 libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.8" % "test"
 
@@ -70,7 +70,7 @@ libraryDependencies += "net.jcazevedo" %% "moultingyaml" % "0.4.1"
 
 libraryDependencies += "org.json4s" %% "json4s-native" % "3.6.7"
 
-libraryDependencies += "org.apache.commons" % "commons-text" % "1.7"
+libraryDependencies += "org.apache.commons" % "commons-text" % "1.8"
 
 // Java PB
 
