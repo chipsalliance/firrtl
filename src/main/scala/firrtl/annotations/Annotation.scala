@@ -43,7 +43,10 @@ trait Annotation extends Product {
 trait NoTargetAnnotation extends Annotation {
   def update(renames: RenameMap): Seq[NoTargetAnnotation] = Seq(this)
   override def productArity: Int = 0
-  override def canEqual(that: Any): Boolean = true
+  override def canEqual(that: Any): Boolean = that match {
+    case _: NoTargetAnnotation => true
+    case _                     => false
+  }
   override def productElement(n: Int): Any = throw new java.lang.IndexOutOfBoundsException(s"Cannot access elements of NoTargetAnnotation: $n")
 }
 
