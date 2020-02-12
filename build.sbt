@@ -55,14 +55,9 @@ javacOptions ++= javacOptionsVersion(scalaVersion.value)
 
 libraryDependencies += "org.scala-lang" % "scala-reflect" % scalaVersion.value
 
-// sbt 1.2.6 fails with `Symbol 'term org.junit' is missing from the classpath`
-// when compiling tests under 2.11.12
-// An explicit dependency on junit seems to alleviate this.
-libraryDependencies += "junit" % "junit" % "4.12" % "test"
+libraryDependencies += "org.scalatest" %% "scalatest" % "3.1.0" % "test"
 
-libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.8" % "test"
-
-libraryDependencies += "org.scalacheck" %% "scalacheck" % "1.14.0" % "test"
+libraryDependencies += "org.scalatestplus" %% "scalacheck-1-14" % "3.1.0.1" % "test"
 
 libraryDependencies += "com.github.scopt" %% "scopt" % "3.7.1"
 
@@ -176,3 +171,7 @@ scalacOptions in Compile in doc ++= Seq(
 
 fork := true
 Test / testForkedParallel := true
+
+scalafixDependencies in ThisBuild += "org.scalatest" %% "autofix" % "3.1.0.0"
+
+addCompilerPlugin(scalafixSemanticdb) // enable SemanticDB
