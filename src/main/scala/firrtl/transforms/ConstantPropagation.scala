@@ -87,6 +87,7 @@ object ConstantPropagation {
   // fact that a constant propagation loop can include both self-assignments and consistent literals.
   private case class RegCPEntry(r: ConstPropBinding[String], l: ConstPropBinding[Literal]) {
     def resolve(that: RegCPEntry) = RegCPEntry(r.resolve(that.r), l.resolve(that.l))
+    def nonConstant: Boolean = r == NonConstant || l == NonConstant
   }
 
 }
@@ -155,6 +156,7 @@ class ConstantPropagation extends Transform with ResolvedAnnotationPaths {
     def fold(c1: Literal, c2: Literal) = UIntLiteral(if (c1.value == c2.value) 1 else 0, IntWidth(1))
     def simplify(e: Expression, lhs: Literal, rhs: Expression) = lhs match {
       case UIntLiteral(v, IntWidth(w)) if v == BigInt(1) && w == BigInt(1) && bitWidth(rhs.tpe) == BigInt(1) => rhs
+      case UIntLiteral(v, IntWidth(w)) if v == BigInt(0) && w == BigInt(1) && bitWidth(rhs.tpe) == BigInt(1) => DoPrim(Not, Seq(rhs), Nil, e.tpe)
       case _ => e
     }
   }
@@ -163,6 +165,7 @@ class ConstantPropagation extends Transform with ResolvedAnnotationPaths {
     def fold(c1: Literal, c2: Literal) = UIntLiteral(if (c1.value != c2.value) 1 else 0, IntWidth(1))
     def simplify(e: Expression, lhs: Literal, rhs: Expression) = lhs match {
       case UIntLiteral(v, IntWidth(w)) if v == BigInt(0) && w == BigInt(1) && bitWidth(rhs.tpe) == BigInt(1) => rhs
+      case UIntLiteral(v, IntWidth(w)) if v == BigInt(1) && w == BigInt(1) && bitWidth(rhs.tpe) == BigInt(1) => DoPrim(Not, Seq(rhs), Nil, e.tpe)
       case _ => e
     }
   }
@@ -284,16 +287,33 @@ class ConstantPropagation extends Transform with ResolvedAnnotationPaths {
       case UIntLiteral(v, IntWidth(w)) => UIntLiteral(v ^ ((BigInt(1) << w.toInt) - 1), IntWidth(w))
       case _ => e
     }
-    case AsUInt => e.args.head match {
-      case SIntLiteral(v, IntWidth(w)) => UIntLiteral(v + (if (v < 0) BigInt(1) << w.toInt else 0), IntWidth(w))
-      case u: UIntLiteral => u
-      case _ => e
-    }
+    case AsUInt =>
+      e.args.head match {
+        case SIntLiteral(v, IntWidth(w)) => UIntLiteral(v + (if (v < 0) BigInt(1) << w.toInt else 0), IntWidth(w))
+        case arg => arg.tpe match {
+          case _: UIntType => arg
+          case _           => e
+        }
+      }
     case AsSInt => e.args.head match {
       case UIntLiteral(v, IntWidth(w)) => SIntLiteral(v - ((v >> (w.toInt-1)) << w.toInt), IntWidth(w))
-      case s: SIntLiteral => s
-      case _ => e
+      case arg => arg.tpe match {
+        case _: SIntType => arg
+        case _           => e
+      }
     }
+    case AsClock =>
+      val arg = e.args.head
+      arg.tpe match {
+        case ClockType => arg
+        case _         => e
+      }
+    case AsAsyncReset =>
+      val arg = e.args.head
+      arg.tpe match {
+        case AsyncResetType => arg
+        case _              => e
+      }
     case Pad => e.args.head match {
       case UIntLiteral(v, IntWidth(w)) => UIntLiteral(v, IntWidth(e.consts.head max w))
       case SIntLiteral(v, IntWidth(w)) => SIntLiteral(v, IntWidth(e.consts.head max w))
@@ -387,7 +407,7 @@ class ConstantPropagation extends Transform with ResolvedAnnotationPaths {
     // (can have more than 1 of the same submodule)
     val constSubInputs = mutable.HashMap.empty[OfModule, mutable.HashMap[String, Seq[Literal]]]
     // AsyncReset registers don't have reset turned into a mux so we must be careful
-    val asyncResetRegs = mutable.HashSet.empty[String]
+    val asyncResetRegs = mutable.HashMap.empty[String, DefRegister]
 
     // Register constant propagation is intrinsically more complicated, as it is not feed-forward.
     // Therefore, we must store some memoized information about how nodes can be canditates for
@@ -449,7 +469,7 @@ class ConstantPropagation extends Transform with ResolvedAnnotationPaths {
       stmtx match {
         case x: DefNode if !dontTouches.contains(x.name) => propagateRef(x.name, x.value)
         case reg: DefRegister if reg.reset.tpe == AsyncResetType =>
-          asyncResetRegs += reg.name
+          asyncResetRegs(reg.name) = reg
         case Connect(_, WRef(wname, wtpe, WireKind, _), expr: Literal) if !dontTouches.contains(wname) =>
           val exprx = constPropExpression(nodeMap, instMap, constSubOutputs)(pad(expr, wtpe))
           propagateRef(wname, exprx)
@@ -459,7 +479,7 @@ class ConstantPropagation extends Transform with ResolvedAnnotationPaths {
           constOutputs(pname) = paddedLit
         // Const prop registers that are driven by a mux tree containing only instances of one constant or self-assigns
         // This requires that reset has been made explicit
-        case Connect(_, lref @ WRef(lname, ltpe, RegKind, _), rhs) if !dontTouches(lname) && !asyncResetRegs(lname) =>
+        case Connect(_, lref @ WRef(lname, ltpe, RegKind, _), rhs) if !dontTouches(lname) =>
 
          /* Checks if an RHS expression e of a register assignment is convertible to a constant assignment.
           * Here, this means that e must be 1) a literal, 2) a self-connect, or 3) a mux tree of
@@ -471,27 +491,55 @@ class ConstantPropagation extends Transform with ResolvedAnnotationPaths {
           * NonConstant values.  When encountering a node reference, it expands the node by to its
           * RHS assignment and recurses.
           *
+          * @note Some optimization of Mux trees turn 1-bit mux operators into boolean operators. This
+          * can stifle register constant propagations, which looks at drivers through value-preserving
+          * Muxes and Connects only. By speculatively expanding some 1-bit Or and And operations into
+          * muxes, we can obtain the best possible insight on the value of the mux with a simple peephole
+          * de-optimization that does not actually appear in the output code.
+          *
           * @return a RegCPEntry describing the constant prop-compatible sources driving this expression
           */
-          def regConstant(e: Expression): RegCPEntry = e match {
-            case lit: Literal => RegCPEntry(UnboundConstant, BoundConstant(lit))
-            case WRef(regName, _, RegKind, _) => RegCPEntry(BoundConstant(regName), UnboundConstant)
-            case WRef(nodeName, _, NodeKind, _) if nodeMap.contains(nodeName) =>
-              nodeRegCPEntries.getOrElseUpdate(nodeName, { regConstant(nodeMap(nodeName)) })
-            case Mux(_, tval, fval, _) => regConstant(tval).resolve(regConstant(fval))
-            case _ => RegCPEntry(NonConstant, NonConstant)
-          }
+
+          val unbound = RegCPEntry(UnboundConstant, UnboundConstant)
+          val selfBound = RegCPEntry(BoundConstant(lname), UnboundConstant)
+
           def zero = passes.RemoveValidIf.getGroundZero(ltpe)
-          def padCPExp(e: Expression) = constPropExpression(nodeMap, instMap, constSubOutputs)(pad(e, ltpe))
-          regConstant(rhs) match {
-            case RegCPEntry(BoundConstant(`lname`), litBinding) => litBinding match {
-              case UnboundConstant => nodeMap(lname) = padCPExp(zero) // only self-assigns -> replace with zero
-              case BoundConstant(lit) => nodeMap(lname) = padCPExp(lit) // self + lit assigns -> replace with lit
-              case _ =>
-            }
-            case RegCPEntry(UnboundConstant, BoundConstant(lit)) => nodeMap(lname) = padCPExp(lit) // only lit assigns
+          def regConstant(e: Expression, baseCase: RegCPEntry): RegCPEntry = e match {
+            case lit: Literal => baseCase.resolve(RegCPEntry(UnboundConstant, BoundConstant(lit)))
+            case WRef(regName, _, RegKind, _) => baseCase.resolve(RegCPEntry(BoundConstant(regName), UnboundConstant))
+            case WRef(nodeName, _, NodeKind, _) if nodeMap.contains(nodeName) =>
+              val cached = nodeRegCPEntries.getOrElseUpdate(nodeName, { regConstant(nodeMap(nodeName), unbound) })
+              baseCase.resolve(cached)
+            case Mux(_, tval, fval, _) =>
+              regConstant(tval, baseCase).resolve(regConstant(fval, baseCase))
+            case DoPrim(Or, Seq(a, b), _, BoolType) =>
+              val aSel = regConstant(Mux(a, one, b, BoolType), baseCase)
+              if (!aSel.nonConstant) aSel else regConstant(Mux(b, one, a, BoolType), baseCase)
+            case DoPrim(And, Seq(a, b), _, BoolType) =>
+              val aSel = regConstant(Mux(a, b, zero, BoolType), baseCase)
+              if (!aSel.nonConstant) aSel else regConstant(Mux(b, a, zero, BoolType), baseCase)
+            case _ =>
+              RegCPEntry(NonConstant, NonConstant)
+          }
+
+          // Updates nodeMap after analyzing the returned value from regConstant
+          def updateNodeMapIfConstant(e: Expression): Unit = regConstant(e, selfBound) match {
+            case RegCPEntry(UnboundConstant,  UnboundConstant)    => nodeMap(lname) = padCPExp(zero)
+            case RegCPEntry(BoundConstant(_), UnboundConstant)    => nodeMap(lname) = padCPExp(zero)
+            case RegCPEntry(UnboundConstant,  BoundConstant(lit)) => nodeMap(lname) = padCPExp(lit)
+            case RegCPEntry(BoundConstant(_), BoundConstant(lit)) => nodeMap(lname) = padCPExp(lit)
             case _ =>
           }
+
+          def padCPExp(e: Expression) = constPropExpression(nodeMap, instMap, constSubOutputs)(pad(e, ltpe))
+
+          asyncResetRegs.get(lname) match {
+            // Normal Register
+            case None => updateNodeMapIfConstant(rhs)
+            // Async Register
+            case Some(reg: DefRegister) => updateNodeMapIfConstant(Mux(reg.reset, reg.init, rhs))
+          }
+
         // Mark instance inputs connected to a constant
         case Connect(_, lref @ WSubField(WRef(inst, _, InstanceKind, _), port, ptpe, _), lit: Literal) =>
           val paddedLit = constPropExpression(nodeMap, instMap, constSubOutputs)(pad(lit, ptpe)).asInstanceOf[Literal]

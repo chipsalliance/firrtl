@@ -4,7 +4,6 @@ import java.io.File
 
 import firrtl._
 import firrtl.ir._
-import firrtlTests._
 
 import firrtl.stage.{FirrtlCircuitAnnotation, FirrtlStage}
 import firrtl.options.TargetDirAnnotation
@@ -25,8 +24,8 @@ trait VerilogExecution extends TestExecution {
     copyResourceToFile(cppHarnessResourceName, harness)
 
     // Make and run Verilog simulation
-    verilogToCpp(c.main, testDir, Nil, harness).!
-    cppToExe(c.main, testDir).!
+    verilogToCpp(c.main, testDir, Nil, harness) #&&
+    cppToExe(c.main, testDir) ! loggingProcessLogger
     assert(executeExpectingSuccess(c.main, testDir))
   }
 }

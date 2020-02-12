@@ -3,8 +3,6 @@
 package firrtlTests
 
 import firrtl._
-import firrtl.ir.Circuit
-import firrtl.Parser.IgnoreInfo
 import firrtl.passes._
 import firrtl.transforms._
 
@@ -735,6 +733,78 @@ class ConstantPropagationSingleModule extends ConstantPropagationSpec {
     (parse(exec(input))) should be(parse(check))
   }
 
+   "ConstProp" should "propagate boolean equality with true" in {
+    val input =
+      """circuit Top :
+        |  module Top :
+        |    input x : UInt<1>
+        |    output z : UInt<1>
+        |    z <= eq(x, UInt<1>("h1"))
+      """.stripMargin
+    val check =
+      """circuit Top :
+        |  module Top :
+        |    input x : UInt<1>
+        |    output z : UInt<1>
+        |    z <= x
+      """.stripMargin
+    (parse(exec(input))) should be(parse(check))
+  }
+
+   "ConstProp" should "propagate boolean equality with false" in {
+    val input =
+      """circuit Top :
+        |  module Top :
+        |    input x : UInt<1>
+        |    output z : UInt<1>
+        |    z <= eq(x, UInt<1>("h0"))
+      """.stripMargin
+    val check =
+      """circuit Top :
+        |  module Top :
+        |    input x : UInt<1>
+        |    output z : UInt<1>
+        |    z <= not(x)
+      """.stripMargin
+    (parse(exec(input))) should be(parse(check))
+  }
+
+   "ConstProp" should "propagate boolean non-equality with true" in {
+    val input =
+      """circuit Top :
+        |  module Top :
+        |    input x : UInt<1>
+        |    output z : UInt<1>
+        |    z <= neq(x, UInt<1>("h1"))
+      """.stripMargin
+    val check =
+      """circuit Top :
+        |  module Top :
+        |    input x : UInt<1>
+        |    output z : UInt<1>
+        |    z <= not(x)
+      """.stripMargin
+    (parse(exec(input))) should be(parse(check))
+  }
+
+   "ConstProp" should "propagate boolean non-equality with false" in {
+    val input =
+      """circuit Top :
+        |  module Top :
+        |    input x : UInt<1>
+        |    output z : UInt<1>
+        |    z <= neq(x, UInt<1>("h0"))
+      """.stripMargin
+    val check =
+      """circuit Top :
+        |  module Top :
+        |    input x : UInt<1>
+        |    output z : UInt<1>
+        |    z <= x
+      """.stripMargin
+    (parse(exec(input))) should be(parse(check))
+  }
+
   // Optimizing this mux gives: z <= pad(UInt<2>(0), 4)
   // Thus this checks that we then optimize that pad
   "ConstProp" should "optimize nested Expressions" in {
@@ -751,6 +821,30 @@ class ConstantPropagationSingleModule extends ConstantPropagationSpec {
         |    z <= UInt<4>("h0")
       """.stripMargin
     (parse(exec(input))) should be(parse(check))
+  }
+
+  def castCheck(tpe: String, cast: String): Unit = {
+    val input =
+     s"""circuit Top :
+        |  module Top :
+        |    input  x : $tpe
+        |    output z : $tpe
+        |    z <= $cast(x)
+      """.stripMargin
+    val check =
+     s"""circuit Top :
+        |  module Top :
+        |    input  x : $tpe
+        |    output z : $tpe
+        |    z <= x
+      """.stripMargin
+    (parse(exec(input)).serialize) should be (parse(check).serialize)
+  }
+  it should "optimize unnecessary casts" in {
+    castCheck("UInt<4>", "asUInt")
+    castCheck("SInt<4>", "asSInt")
+    castCheck("Clock", "asClock")
+    castCheck("AsyncReset", "asAsyncReset")
   }
 }
 
@@ -1051,6 +1145,31 @@ class ConstantPropagationIntegrationSpec extends LowTransformSpec {
           |    input cond : UInt<1>
           |    output z : UInt<8>
           |    z <= UInt<8>("hb")""".stripMargin
+    execute(input, check, Seq.empty)
+  }
+
+  "Const prop of registers" should "do limited speculative expansion of optimized muxes to absorb bigger cones" in {
+      val input =
+        """circuit Top :
+          |  module Top :
+          |    input clock : Clock
+          |    input en : UInt<1>
+          |    output out : UInt<1>
+          |    reg r1 : UInt<1>, clock
+          |    reg r2 : UInt<1>, clock
+          |    when en :
+          |      r1 <= UInt<1>(1)
+          |    r2 <= UInt<1>(0)
+          |    when en :
+          |      r2 <= r2
+          |    out <= xor(r1, r2)""".stripMargin
+      val check =
+        """circuit Top :
+          |  module Top :
+          |    input clock : Clock
+          |    input en : UInt<1>
+          |    output out : UInt<1>
+          |    out <= UInt<1>("h1")""".stripMargin
     execute(input, check, Seq.empty)
   }
 
