@@ -3,6 +3,7 @@
 package firrtl
 
 import firrtl.transforms.IdentityTransform
+import firrtl.options.StageUtils
 
 sealed abstract class CoreTransform extends SeqTransform
 
@@ -28,7 +29,7 @@ class IRToWorkingIR extends CoreTransform {
   def transforms = Seq(passes.ToWorkingIR)
 }
 
-/** Resolves types, kinds, and genders, and checks the circuit legality.
+/** Resolves types, kinds, and flows, and checks the circuit legality.
   * Operates on working IR nodes and high Firrtl.
   */
 class ResolveAndCheck extends CoreTransform {
@@ -42,10 +43,13 @@ class ResolveAndCheck extends CoreTransform {
     passes.Uniquify,
     passes.ResolveKinds,
     passes.InferTypes,
-    passes.ResolveGenders,
-    passes.CheckGenders,
-    passes.InferWidths,
-    passes.CheckWidths)
+    passes.ResolveFlows,
+    passes.CheckFlows,
+    new passes.InferBinaryPoints(),
+    new passes.TrimIntervals(),
+    new passes.InferWidths,
+    passes.CheckWidths,
+    new firrtl.transforms.InferResets)
 }
 
 /** Expands aggregate connects, removes dynamic accesses, and when
@@ -67,9 +71,10 @@ class HighFirrtlToMiddleFirrtl extends CoreTransform {
     passes.ResolveKinds,
     passes.InferTypes,
     passes.CheckTypes,
-    passes.ResolveGenders,
-    passes.InferWidths,
+    passes.ResolveFlows,
+    new passes.InferWidths,
     passes.CheckWidths,
+    new passes.RemoveIntervals(),
     passes.ConvertFixedToSInt,
     passes.ZeroWidth,
     passes.InferTypes)
@@ -86,11 +91,12 @@ class MiddleFirrtlToLowFirrtl extends CoreTransform {
     passes.LowerTypes,
     passes.ResolveKinds,
     passes.InferTypes,
-    passes.ResolveGenders,
-    passes.InferWidths,
+    passes.ResolveFlows,
+    new passes.InferWidths,
     passes.Legalize,
     new firrtl.transforms.RemoveReset,
     new firrtl.transforms.CheckCombLoops,
+    new checks.CheckResets,
     new firrtl.transforms.RemoveWires)
 }
 
@@ -127,14 +133,13 @@ class MinimumLowFirrtlOptimization extends CoreTransform {
 
 
 import CompilerUtils.getLoweringTransforms
-import firrtl.transforms.BlackBoxSourceHelper
 
 /** Emits input circuit with no changes
   *
   * Primarily useful for changing between .fir and .pb serialized formats
   */
 class NoneCompiler extends Compiler {
-  def emitter = new ChirrtlEmitter
+  val emitter = new ChirrtlEmitter
   def transforms: Seq[Transform] = Seq(new IdentityTransform(ChirrtlForm))
 }
 
@@ -142,37 +147,38 @@ class NoneCompiler extends Compiler {
   * Will replace Chirrtl constructs with Firrtl
   */
 class HighFirrtlCompiler extends Compiler {
-  def emitter = new HighFirrtlEmitter
+  val emitter = new HighFirrtlEmitter
   def transforms: Seq[Transform] = getLoweringTransforms(ChirrtlForm, HighForm)
 }
 
 /** Emits middle Firrtl input circuit */
 class MiddleFirrtlCompiler extends Compiler {
-  def emitter = new MiddleFirrtlEmitter
+  val emitter = new MiddleFirrtlEmitter
   def transforms: Seq[Transform] = getLoweringTransforms(ChirrtlForm, MidForm)
 }
 
 /** Emits lowered input circuit */
 class LowFirrtlCompiler extends Compiler {
-  def emitter = new LowFirrtlEmitter
+  val emitter = new LowFirrtlEmitter
   def transforms: Seq[Transform] = getLoweringTransforms(ChirrtlForm, LowForm)
 }
 
 /** Emits Verilog */
 class VerilogCompiler extends Compiler {
-  def emitter = new VerilogEmitter
+  val emitter = new VerilogEmitter
   def transforms: Seq[Transform] = getLoweringTransforms(ChirrtlForm, LowForm) ++
     Seq(new LowFirrtlOptimization)
 }
 
 /** Emits Verilog without optimizations */
 class MinimumVerilogCompiler extends Compiler {
-  def emitter = new MinimumVerilogEmitter
+  val emitter = new MinimumVerilogEmitter
   def transforms: Seq[Transform] = getLoweringTransforms(ChirrtlForm, LowForm) ++
     Seq(new MinimumLowFirrtlOptimization)
 }
 
 /** Currently just an alias for the [[VerilogCompiler]] */
 class SystemVerilogCompiler extends VerilogCompiler {
-  Driver.dramaticWarning("SystemVerilog Compiler behaves the same as the Verilog Compiler!")
+  override val emitter = new SystemVerilogEmitter
+  StageUtils.dramaticWarning("SystemVerilog Compiler behaves the same as the Verilog Compiler!")
 }

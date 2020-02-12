@@ -2,21 +2,16 @@
 
 package firrtlTests
 
-import org.scalatest.Matchers
-import java.io.{StringWriter,Writer}
-import firrtl.ir.Circuit
 import firrtl._
-import firrtl.Parser.IgnoreInfo
-import firrtl.Parser
 import firrtl.passes._
 
 class ZeroWidthTests extends FirrtlFlatSpec {
-  val transforms = Seq(
+  def transforms = Seq(
       ToWorkingIR,
       ResolveKinds,
       InferTypes,
-      ResolveGenders,
-      InferWidths,
+      ResolveFlows,
+      new InferWidths,
       ZeroWidth)
   private def exec (input: String) = {
     val circuit = parse(input)
@@ -212,18 +207,33 @@ class ZeroWidthTests extends FirrtlFlatSpec {
         |    printf(clk, UInt(1), "%d %d %d\n", x, UInt(0), z)""".stripMargin
       (parse(exec(input)).serialize) should be (parse(check).serialize)
   }
+
+  "Andr of zero-width expression" should "return true" in {
+    val input =
+      """circuit Top :
+        |  module Top :
+        |    input y : UInt<0>
+        |    output x : UInt<1>
+        |    x <= andr(y)""".stripMargin
+    val check =
+      """circuit Top :
+         |  module Top :
+         |    output x : UInt<1>
+         |    x <= UInt<1>(1)""".stripMargin
+      (parse(exec(input))) should be (parse(check))
+  }
 }
 
 class ZeroWidthVerilog extends FirrtlFlatSpec {
   "Circuit" should "accept zero width wires" in {
     val compiler = new VerilogCompiler
     val input =
-      """circuit Top : 
-         |  module Top : 
+      """circuit Top :
+         |  module Top :
          |    input y: UInt<0>
          |    output x: UInt<3>
          |    x <= y""".stripMargin
-    val check = 
+    val check =
       """module Top(
         |  output  [2:0] x
         |);

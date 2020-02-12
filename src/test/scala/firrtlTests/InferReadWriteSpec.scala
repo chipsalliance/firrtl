@@ -5,8 +5,6 @@ package firrtlTests
 import firrtl._
 import firrtl.ir._
 import firrtl.passes._
-import firrtl.Mappers._
-import annotations._
 import FirrtlCheckers._
 
 class InferReadWriteSpec extends SimpleTransformSpec {
@@ -135,8 +133,11 @@ circuit sram6t :
 """.stripMargin
 
     val annos = Seq(memlib.InferReadWriteAnnotation)
-    intercept[InferReadWriteCheckException] {
+    intercept[Exception] {
       compileAndEmit(CircuitState(parse(input), ChirrtlForm, annos))
+    } match {
+      case CustomTransformException(_: InferReadWriteCheckException) => // success
+      case _ => fail()
     }
   }
 

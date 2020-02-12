@@ -3,11 +3,8 @@
 package firrtl
 package annotations
 
-import net.jcazevedo.moultingyaml._
-import firrtl.annotations.AnnotationYamlProtocol._
-import firrtl.Utils.throwInternalError
+import firrtl.options.StageUtils
 
-import scala.collection.mutable
 
 case class AnnotationException(message: String) extends Exception(message)
 
@@ -34,7 +31,7 @@ trait Annotation extends Product {
     }.foldRight(Seq.empty[Target])((seq, c) => c ++ seq)
   }
 
-  /** Returns all [[Target]] members in this annotation
+  /** Returns all [[firrtl.annotations.Target Target]] members in this annotation
     * @return
     */
   def getTargets: Seq[Target] = extractComponents(productIterator.toSeq)
@@ -78,6 +75,45 @@ trait SingleTargetAnnotation[T <: Named] extends Annotation {
         })).getOrElse(List(this))
     }
   }
+}
+
+/** [[MultiTargetAnnotation]] keeps the renamed targets grouped within a single annotation. */
+trait MultiTargetAnnotation extends Annotation {
+  /** Contains a sequence of [[Target]].
+    * When creating in [[toFirrtl]], [[targets]] should be assigned by `Seq(Seq(TargetA), Seq(TargetB), Seq(TargetC))`
+    * */
+  val targets: Seq[Seq[Target]]
+
+  /** Create another instance of this Annotation*/
+  def duplicate(n: Seq[Seq[Target]]): Annotation
+
+  /** Assume [[RenameMap]] is `Map(TargetA -> Seq(TargetA1, TargetA2, TargetA3), TargetB -> Seq(TargetB1, TargetB2))`
+    * in the update, this Annotation is still one annotation, but the contents are renamed in the below form
+    * Seq(Seq(TargetA1, TargetA2, TargetA3), Seq(TargetB1, TargetB2), Seq(TargetC))
+    **/
+  def update(renames: RenameMap): Seq[Annotation] = Seq(duplicate(targets.map(ts => ts.flatMap(renames(_)))))
+
+  private def crossJoin[T](list: Seq[Seq[T]]): Seq[Seq[T]] =
+    list match {
+      case Nil => Nil
+      case x :: Nil => x map (Seq(_))
+      case x :: xs =>
+        val xsJoin = crossJoin(xs)
+        for {
+          i <- x
+          j <- xsJoin
+        } yield {
+          Seq(i) ++ j
+        }
+    }
+
+  /** Assume [[RenameMap]] is `Map(TargetA -> Seq(TargetA1, TargetA2, TargetA3), TargetB -> Seq(TargetB1, TargetB2))`
+    * After flat, this Annotation will be flat to the [[AnnotationSeq]] in the below form
+    * Seq(Seq(TargetA1), Seq(TargetB1), Seq(TargetC)); Seq(Seq(TargetA1), Seq(TargetB2), Seq(TargetC))
+    * Seq(Seq(TargetA2), Seq(TargetB1), Seq(TargetC)); Seq(Seq(TargetA2), Seq(TargetB2), Seq(TargetC))
+    * Seq(Seq(TargetA3), Seq(TargetB1), Seq(TargetC)); Seq(Seq(TargetA3), Seq(TargetB2), Seq(TargetC))
+    * */
+  def flat(): AnnotationSeq = crossJoin(targets).map(r => duplicate(r.map(Seq(_))))
 }
 
 @deprecated("Just extend NoTargetAnnotation", "1.1")
@@ -190,7 +226,7 @@ private[firrtl] object LegacyAnnotation {
     case other => other
   }
   // scalastyle:on
-  def convertLegacyAnnos(annos: Seq[Annotation]): Seq[Annotation] = {
+  def convertLegacyAnnos(annos: AnnotationSeq): AnnotationSeq = {
     var warned: Boolean = false
     annos.map {
       case legacy: LegacyAnnotation =>
@@ -198,7 +234,7 @@ private[firrtl] object LegacyAnnotation {
         if (!warned && (annox ne legacy)) {
           val msg = s"A LegacyAnnotation was automatically converted.\n" + (" "*9) +
             "This functionality will soon be removed. Please migrate to new annotations."
-          Driver.dramaticWarning(msg)
+          StageUtils.dramaticWarning(msg)
           warned = true
         }
         annox
@@ -210,4 +246,3 @@ private[firrtl] object LegacyAnnotation {
 case class DeletedAnnotation(xFormName: String, anno: Annotation) extends NoTargetAnnotation {
   override def serialize: String = s"""DELETED by $xFormName\n${anno.serialize}"""
 }
-

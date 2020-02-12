@@ -1,9 +1,14 @@
 ![FIRRTL](https://raw.githubusercontent.com/freechipsproject/firrtl/master/doc/images/firrtl_logo.svg?sanitize=true)
 
-#
+---
 
 [![Join the chat at https://gitter.im/freechipsproject/firrtl](https://badges.gitter.im/freechipsproject/firrtl.svg)](https://gitter.im/freechipsproject/firrtl?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 [![Build Status](https://travis-ci.org/freechipsproject/firrtl.svg?branch=master)](https://travis-ci.org/freechipsproject/firrtl)
+[![Mergify Status][mergify-status]][mergify]
+
+[mergify]: https://mergify.io
+[mergify-status]: https://gh.mergify.io/badges/:freechipsproject/:firrtl.png?style=cut
+
 #### Flexible Internal Representation for RTL
 
  Firrtl is an intermediate representation (IR) for digital circuits designed as a platform for writing circuit-level transformations.
@@ -28,13 +33,14 @@ To write a Firrtl transform, please start with the tutorial here: [src/main/scal
 To run these examples:
 ```
 sbt assembly
-./utils/bin/firrtl -td regress -tn rocket --custom-transforms tutorial.lesson1.AnalyzeCircuit
-./utils/bin/firrtl -td regress -tn rocket --custom-transforms tutorial.lesson2.AnalyzeCircuit
+./utils/bin/firrtl -td regress -i regress/RocketCore.fir --custom-transforms tutorial.lesson1.AnalyzeCircuit
+./utils/bin/firrtl -td regress -i regress/RocketCore.fir --custom-transforms tutorial.lesson2.AnalyzeCircuit
 ```
 
 #### Other Tools
 * Firrtl syntax highlighting for Vim users: https://github.com/azidar/firrtl-syntax
 * Firrtl syntax highlighting for Sublime Text 3 users: https://github.com/codelec/highlight-firrtl
+* Firrtl syntax highlighting for Atom users: https://atom.io/packages/language-firrtl
 * Firrtl mode for Emacs users: https://github.com/ibm/firrtl-mode
 * Chisel3, an embedded hardware DSL that generates Firrtl: https://github.com/freechipsproject/chisel3
 * Treadle, a Firrtl Interpreter: https://github.com/freechipsproject/treadle
@@ -45,7 +51,8 @@ sbt assembly
 
 ##### Prerequisites
  1. If not already installed, install [verilator](http://www.veripool.org/projects/verilator/wiki/Installing) (Requires at least v3.886)
- 2. If not already installed, install [sbt](http://www.scala-sbt.org/) (Requires at least v0.13.6)
+ 1. If not already installed, install [yosys](http://www.clifford.at/yosys/) (Requires at least v0.8)
+ 1. If not already installed, install [sbt](http://www.scala-sbt.org/) (Requires at least v0.13.6)
 
 ##### Installation
  1. Clone the repository:
@@ -69,6 +76,16 @@ sbt publishLocal
 sbt
 > compile
 > test
+```
+
+##### Use scalafix to remove unused import and deprecated procedure syntax
+ 1. Remove unused import:
+```
+sbt "firrtl/scalafix RemoveUnused"
+```
+ 2. Remove deprecated procedure syntax
+```
+sbt "firrtl/scalafix ProcedureSyntax"
 ```
 
 ##### Using Firrtl as a commandline tool

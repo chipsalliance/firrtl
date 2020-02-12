@@ -5,15 +5,13 @@ package firrtl
 import logger._
 import java.io.Writer
 
-import firrtl.RenameMap.{CircularRenameException, IllegalRenameException}
 
 import scala.collection.mutable
 import firrtl.annotations._
-import firrtl.ir.{Circuit, Expression}
-import firrtl.Utils.{error, throwInternalError}
-import firrtl.annotations.TargetToken
-import firrtl.annotations.TargetToken.{Field, Index}
+import firrtl.ir.Circuit
+import firrtl.Utils.throwInternalError
 import firrtl.annotations.transforms.{EliminateTargetPaths, ResolvePaths}
+import firrtl.options.{StageUtils, TransformLike}
 
 /** Container of all annotations for a Firrtl compiler */
 class AnnotationSeq private (private[firrtl] val underlying: List[Annotation]) {
@@ -45,7 +43,7 @@ case class CircuitState(
   def getEmittedCircuit: EmittedCircuit = emittedCircuitOption match {
     case Some(emittedCircuit) => emittedCircuit
     case None =>
-      throw new FIRRTLException(s"No EmittedCircuit found! Did you delete any annotations?\n$deletedAnnotations")
+      throw new FirrtlInternalException(s"No EmittedCircuit found! Did you delete any annotations?\n$deletedAnnotations")
   }
 
   /** Helper function for extracting emitted components from annotations */
@@ -101,6 +99,9 @@ object CircuitState {
 sealed abstract class CircuitForm(private val value: Int) extends Ordered[CircuitForm] {
   // Note that value is used only to allow comparisons
   def compare(that: CircuitForm): Int = this.value - that.value
+
+  /** Defines a suffix to use if this form is written to a file */
+  def outputSuffix: String
 }
 
 // scalastyle:off magic.number
@@ -113,7 +114,10 @@ sealed abstract class CircuitForm(private val value: Int) extends Ordered[Circui
   *
   * See [[CDefMemory]] and [[CDefMPort]]
   */
-final case object ChirrtlForm extends CircuitForm(value = 3)
+final case object ChirrtlForm extends CircuitForm(value = 3) {
+  val outputSuffix: String = ".fir"
+}
+
 /** High Form
   *
   * As detailed in the Firrtl specification
@@ -121,7 +125,10 @@ final case object ChirrtlForm extends CircuitForm(value = 3)
   *
   * Also see [[firrtl.ir]]
   */
-final case object HighForm extends CircuitForm(2)
+final case object HighForm extends CircuitForm(2) {
+  val outputSuffix: String = ".hi.fir"
+}
+
 /** Middle Form
   *
   * A "lower" form than [[HighForm]] with the following restrictions:
@@ -129,14 +136,20 @@ final case object HighForm extends CircuitForm(2)
   *  - All whens must be removed
   *  - There can only be a single connection to any element
   */
-final case object MidForm extends CircuitForm(1)
+final case object MidForm extends CircuitForm(1) {
+  val outputSuffix: String = ".mid.fir"
+}
+
 /** Low Form
   *
   * The "lowest" form. In addition to the restrictions in [[MidForm]]:
   *  - All aggregate types (vector/bundle) must have been removed
   *  - All implicit truncations must be made explicit
   */
-final case object LowForm extends CircuitForm(0)
+final case object LowForm extends CircuitForm(0) {
+  val outputSuffix: String = ".lo.fir"
+}
+
 /** Unknown Form
   *
   * Often passes may modify a circuit (e.g. InferTypes), but return
@@ -150,13 +163,15 @@ final case object LowForm extends CircuitForm(0)
   */
 final case object UnknownForm extends CircuitForm(-1) {
   override def compare(that: CircuitForm): Int = { sys.error("Illegal to compare UnknownForm"); 0 }
+
+  val outputSuffix: String = ".unknown.fir"
 }
 // scalastyle:on magic.number
 
 /** The basic unit of operating on a Firrtl AST */
-abstract class Transform extends LazyLogging {
+abstract class Transform extends TransformLike[CircuitState] {
   /** A convenience function useful for debugging and error messages */
-  def name: String = this.getClass.getSimpleName
+  def name: String = this.getClass.getName
   /** The [[firrtl.CircuitForm]] that this transform requires to operate on */
   def inputForm: CircuitForm
   /** The [[firrtl.CircuitForm]] that this transform outputs */
@@ -170,6 +185,8 @@ abstract class Transform extends LazyLogging {
     */
   protected def execute(state: CircuitState): CircuitState
 
+  def transform(state: CircuitState): CircuitState = execute(state)
+
   /** Convenience method to get annotations relevant to this Transform
     *
     * @param state The [[CircuitState]] form which to extract annotations
@@ -178,7 +195,7 @@ abstract class Transform extends LazyLogging {
   @deprecated("Just collect the actual Annotation types the transform wants", "1.1")
   final def getMyAnnotations(state: CircuitState): Seq[Annotation] = {
     val msg = "getMyAnnotations is deprecated, use collect and match on concrete types"
-    Driver.dramaticWarning(msg)
+    StageUtils.dramaticWarning(msg)
     state.annotations.collect { case a: LegacyAnnotation if a.transform == this.getClass => a }
   }
 
@@ -293,6 +310,9 @@ trait ResolvedAnnotationPaths {
 trait Emitter extends Transform {
   @deprecated("Use emission annotations instead", "firrtl 1.0")
   def emit(state: CircuitState, writer: Writer): Unit
+
+  /** An output suffix to use if the output of this [[Emitter]] was written to a file */
+  def outputSuffix: String
 }
 
 object CompilerUtils extends LazyLogging {
@@ -311,8 +331,9 @@ object CompilerUtils extends LazyLogging {
         case ChirrtlForm =>
           Seq(new ChirrtlToHighFirrtl) ++ getLoweringTransforms(HighForm, outputForm)
         case HighForm =>
-          Seq(new IRToWorkingIR, new ResolveAndCheck, new transforms.DedupModules,
-              new HighFirrtlToMiddleFirrtl) ++ getLoweringTransforms(MidForm, outputForm)
+          Seq(new IRToWorkingIR, new ResolveAndCheck,
+              new transforms.DedupModules, new HighFirrtlToMiddleFirrtl) ++
+              getLoweringTransforms(MidForm, outputForm)
         case MidForm => Seq(new MiddleFirrtlToLowFirrtl) ++ getLoweringTransforms(LowForm, outputForm)
         case LowForm => throwInternalError("getLoweringTransforms - LowForm") // should be caught by if above
         case UnknownForm => throwInternalError("getLoweringTransforms - UnknownForm") // should be caught by if above
@@ -322,11 +343,10 @@ object CompilerUtils extends LazyLogging {
 
   /** Merge a Seq of lowering transforms with custom transforms
     *
-    * Custom Transforms are inserted based on their [[Transform.inputForm]] and
-    * [[Transform.outputForm]]. Custom transforms are inserted in order at the
-    * last location in the Seq of transforms where previous.outputForm ==
-    * customTransform.inputForm. If a customTransform outputs a higher form
-    * than input, [[getLoweringTransforms]] is used to relower the circuit.
+    * Custom  Transforms are  inserted  based on  their [[Transform.inputForm]]  and  [[Transform.outputForm]] with  any
+    * [[Emitter]]s being  scheduled last. Custom transforms  are inserted in  order at the  last location in the  Seq of
+    * transforms where previous.outputForm == customTransform.inputForm. If a customTransform outputs a higher form than
+    * input, [[getLoweringTransforms]] is used to relower the circuit.
     *
     * @example
     *   {{{
@@ -353,7 +373,13 @@ object CompilerUtils extends LazyLogging {
     * of the previous transform.
     */
   def mergeTransforms(lowering: Seq[Transform], custom: Seq[Transform]): Seq[Transform] = {
-    custom.foldLeft(lowering) { case (transforms, xform) =>
+    custom
+      .sortWith{
+        case (a, b) => (a, b) match {
+          case (_: Emitter, _: Emitter) => false
+          case (_, _: Emitter)          => true
+          case _                        => false }}
+      .foldLeft(lowering) { case (transforms, xform) =>
       val index = transforms lastIndexWhere (_.outputForm == xform.inputForm)
       assert(index >= 0 || xform.inputForm == ChirrtlForm, // If ChirrtlForm just put at front
         s"No transform in $lowering has outputForm ${xform.inputForm} as required by $xform")
@@ -424,7 +450,16 @@ trait Compiler extends LazyLogging {
   def compileAndEmit(state: CircuitState,
                      customTransforms: Seq[Transform] = Seq.empty): CircuitState = {
     val emitAnno = EmitCircuitAnnotation(emitter.getClass)
-    compile(state.copy(annotations = emitAnno +: state.annotations), customTransforms)
+    compile(state.copy(annotations = emitAnno +: state.annotations), emitter +: customTransforms)
+  }
+
+  private def isCustomTransform(xform: Transform): Boolean = {
+    def getTopPackage(pack: java.lang.Package): java.lang.Package =
+      Package.getPackage(pack.getName.split('.').head)
+    // We use the top package of the Driver to get the top firrtl package
+    Option(xform.getClass.getPackage).map { p =>
+      getTopPackage(p) != firrtl.Driver.getClass.getPackage
+    }.getOrElse(true)
   }
 
   /** Perform compilation
@@ -437,16 +472,22 @@ trait Compiler extends LazyLogging {
     * @return result of compilation
     */
   def compile(state: CircuitState, customTransforms: Seq[Transform]): CircuitState = {
-    val allTransforms = CompilerUtils.mergeTransforms(transforms, customTransforms) :+ emitter
+    val allTransforms = CompilerUtils.mergeTransforms(transforms, customTransforms)
 
     val (timeMillis, finalState) = Utils.time {
-      allTransforms.foldLeft(state) { (in, xform) => xform.runTransform(in) }
+      allTransforms.foldLeft(state) { (in, xform) =>
+        try {
+          xform.runTransform(in)
+        } catch {
+          // Wrap exceptions from custom transforms so they are reported as such
+          case e: Exception if isCustomTransform(xform) => throw CustomTransformException(e)
+        }
+      }
     }
 
-    logger.error(f"Total FIRRTL Compile Time: $timeMillis%.1f ms")
+    logger.warn(f"Total FIRRTL Compile Time: $timeMillis%.1f ms")
 
     finalState
   }
 
 }
-

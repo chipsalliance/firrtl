@@ -2,7 +2,6 @@
 
 package firrtl.options
 
-import java.io.File
 
 /** Utilities related to working with a [[Stage]] */
 object StageUtils {
@@ -27,7 +26,11 @@ object StageUtils {
     println("-"*78 + Console.RESET)
   }
 
-  // def canonicalFileName(suffix: String, directory: String = TargetDirAnnotation().targetDirName) {
-  // }
+  /** Generate a message suggesting that the user look at the usage text.
+    * @param message the error message
+    */
+  def dramaticUsageError(message: String): Unit =
+    dramaticError(s"""|$message
+                      |Try --help for more information.""".stripMargin)
 
 }

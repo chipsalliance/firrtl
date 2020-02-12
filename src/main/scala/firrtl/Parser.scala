@@ -4,12 +4,12 @@ package firrtl
 
 import org.antlr.v4.runtime._
 import org.antlr.v4.runtime.atn._
-import com.typesafe.scalalogging.LazyLogging
+import logger.LazyLogging
 import firrtl.ir._
 import firrtl.Utils.time
 import firrtl.antlr.{FIRRTLParser, _}
 
-class ParserException(message: String) extends FIRRTLException(message)
+class ParserException(message: String) extends FirrtlUserException(message)
 
 case class ParameterNotSpecifiedException(message: String) extends ParserException(message)
 case class ParameterRedefinedException(message: String) extends ParserException(message)
@@ -20,15 +20,15 @@ case class SyntaxErrorsException(message: String) extends ParserException(messag
 
 object Parser extends LazyLogging {
 
-  /** Parses a file in a given filename and returns a parsed [[Circuit]] */
+  /** Parses a file in a given filename and returns a parsed [[firrtl.ir.Circuit Circuit]] */
   def parseFile(filename: String, infoMode: InfoMode): Circuit =
     parseCharStream(CharStreams.fromFileName(filename), infoMode)
 
-  /** Parses a String and returns a parsed [[Circuit]] */
+  /** Parses a String and returns a parsed [[firrtl.ir.Circuit Circuit]] */
   def parseString(text: String, infoMode: InfoMode): Circuit =
     parseCharStream(CharStreams.fromString(text), infoMode)
 
-  /** Parses a org.antlr.v4.runtime.CharStream and returns a parsed [[Circuit]] */
+  /** Parses a org.antlr.v4.runtime.CharStream and returns a parsed [[firrtl.ir.Circuit Circuit]] */
   def parseCharStream(charStream: CharStream, infoMode: InfoMode): Circuit = {
     val (parseTimeMillis, cst) = time {
       val parser = {

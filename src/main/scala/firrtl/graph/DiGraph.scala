@@ -64,23 +64,24 @@ class DiGraph[T] private[graph] (private[graph] val edges: LinkedHashMap[T, Link
     */
   def findSinks: Set[T] = reverse.findSources
 
-  /** Linearizes (topologically sorts) a DAG
-    *
+  /** Linearizes (topologically sorts) a DAG using a DFS. This can be seeded with an order to use for the DFS if the user
+    * wants to tease out a special ordering of the DAG.
+    * @param seed an optional sequence of vertices to use. This will default to the vertices ordering provided by getVertices.
     * @throws CyclicException if the graph is cyclic
     * @return a Map[T,T] from each visited node to its predecessor in the
     * traversal
     */
-  def linearize: Seq[T] = {
+  def seededLinearize(seed: Option[Seq[T]] = None): Seq[T] = {
     // permanently marked nodes are implicitly held in order
     val order = new mutable.ArrayBuffer[T]
     // invariant: no intersection between unmarked and tempMarked
     val unmarked = new mutable.LinkedHashSet[T]
     val tempMarked = new mutable.LinkedHashSet[T]
 
-    case class LinearizeFrame[T](v: T, expanded: Boolean)
+    case class LinearizeFrame[A](v: A, expanded: Boolean)
     val callStack = mutable.Stack[LinearizeFrame[T]]()
 
-    unmarked ++= getVertices
+    unmarked ++= seed.getOrElse(getVertices)
     while (unmarked.nonEmpty) {
       callStack.push(LinearizeFrame(unmarked.head, false))
       while (callStack.nonEmpty) {
@@ -108,6 +109,38 @@ class DiGraph[T] private[graph] (private[graph] val edges: LinkedHashMap[T, Link
     // visited nodes are in post-traversal order, so must be reversed
     order.reverse.toSeq
   }
+
+  /**
+    * Finds a Seq of Nodes that form a loop
+    * @param node Node to start loop path search from.
+    * @return     The found Seq, the Seq is empty if there is no loop
+    */
+  def findLoopAtNode(node: T): Seq[T] = {
+    var foundPath = Seq.empty[T]
+    getEdges(node).exists { vertex =>
+      try {
+        foundPath = path(vertex, node, blacklist = Set.empty)
+        true
+      }
+      catch {
+        case _: PathNotFoundException =>
+          foundPath = Seq.empty[T]
+          false
+        case t: Throwable =>
+          throw t
+
+      }
+    }
+    foundPath
+  }
+
+  /** Linearizes (topologically sorts) a DAG
+    *
+    * @throws CyclicException if the graph is cyclic
+    * @return a Map[T,T] from each visited node to its predecessor in the
+    * traversal
+    */
+  def linearize: Seq[T] = seededLinearize(None)
 
   /** Performs breadth-first search on the directed graph
     *
@@ -163,7 +196,7 @@ class DiGraph[T] private[graph] (private[graph] val edges: LinkedHashMap[T, Link
     * @return a Seq[T] of nodes defining an arbitrary valid path
     */
   def path(start: T, end: T): Seq[T] = path(start, end, Set.empty[T])
-  
+
   /** Finds a path (if one exists) from one node to another, with a blacklist
     *
     * @param start the start node
@@ -206,7 +239,7 @@ class DiGraph[T] private[graph] (private[graph] val edges: LinkedHashMap[T, Link
      * created on the last iteration where the current frame was
      * active is sufficient to track the position.
      */
-    class StrongConnectFrame[T](val v: T, val edgeIter: Iterator[T], var childCall: Option[T] = None)
+    class StrongConnectFrame[A](val v: A, val edgeIter: Iterator[A], var childCall: Option[A] = None)
     val callStack = new mutable.Stack[StrongConnectFrame[T]]
 
     for (node <- getVertices) {
@@ -298,7 +331,7 @@ class DiGraph[T] private[graph] (private[graph] val edges: LinkedHashMap[T, Link
   private def filterEdges(vprime: Set[T]): LinkedHashMap[T, LinkedHashSet[T]] = {
     def filterNodeSet(s: LinkedHashSet[T]): LinkedHashSet[T] = s.filter({ case (k) => vprime.contains(k) })
     def filterAdjacencyLists(m: LinkedHashMap[T, LinkedHashSet[T]]): LinkedHashMap[T, LinkedHashSet[T]] = m.map({ case (k, v) => (k, filterNodeSet(v)) })
-    var eprime: LinkedHashMap[T, LinkedHashSet[T]] = edges.filter({ case (k, v) => vprime.contains(k) })
+    val eprime: LinkedHashMap[T, LinkedHashSet[T]] = edges.filter({ case (k, v) => vprime.contains(k) })
     filterAdjacencyLists(eprime)
   }
 

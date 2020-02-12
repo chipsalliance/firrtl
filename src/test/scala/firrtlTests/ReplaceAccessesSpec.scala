@@ -3,18 +3,15 @@
 package firrtlTests
 
 import firrtl._
-import firrtl.ir.Circuit
-import firrtl.Parser.IgnoreInfo
 import firrtl.passes._
-import firrtl.transforms._
 
 class ReplaceAccessesSpec extends FirrtlFlatSpec {
   val transforms = Seq(
     ToWorkingIR,
     ResolveKinds,
     InferTypes,
-    ResolveGenders,
-    InferWidths,
+    ResolveFlows,
+    new InferWidths,
     ReplaceAccesses)
   protected def exec(input: String) = {
     transforms.foldLeft(CircuitState(parse(input), UnknownForm)) {

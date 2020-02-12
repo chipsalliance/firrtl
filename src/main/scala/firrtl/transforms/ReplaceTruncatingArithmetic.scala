@@ -1,3 +1,5 @@
+// See LICENSE for license details.
+
 package firrtl
 package transforms
 
@@ -10,24 +12,36 @@ import scala.collection.mutable
 
 object ReplaceTruncatingArithmetic {
 
-  /** Mapping from references to the [[Expression]]s that drive them */
+  /** Mapping from references to the [[firrtl.ir.Expression Expression]]s that drive them */
   type Netlist = mutable.HashMap[WrappedExpression, Expression]
 
   private val SeqBIOne = Seq(BigInt(1))
 
   /** Replaces truncating arithmetic in an Expression
     *
-    * @param netlist a '''mutable''' HashMap mapping references to [[DefNode]]s to their connected
-    * [[Expression]]s. It is '''not''' mutated in this function
+    * @param netlist a '''mutable''' HashMap mapping references to [[firrtl.ir.DefNode DefNode]]s to their connected
+    * [[firrtl.ir.Expression Expression]]s. It is '''not''' mutated in this function
     * @param expr the Expression being transformed
     * @return Returns expr with truncating arithmetic replaced
     */
   def onExpr(netlist: Netlist)(expr: Expression): Expression =
     expr.map(onExpr(netlist)) match {
+      // If an unsigned wrapping add/sub
       case orig @ DoPrim(Tail, Seq(e), SeqBIOne, tailtpe) =>
         netlist.getOrElse(we(e), e) match {
-          case DoPrim(Add, args, cs, _) => DoPrim(Addw, args, cs, tailtpe)
-          case DoPrim(Sub, args, cs, _) => DoPrim(Subw, args, cs, tailtpe)
+          case DoPrim(Add, args, cs, u: UIntType) => DoPrim(Addw, args, cs, tailtpe)
+          case DoPrim(Sub, args, cs, u: UIntType) => DoPrim(Subw, args, cs, tailtpe)
+          case _ => orig // Not a candidate
+        }
+      // If a signed wrapping add/sub, there should be a cast
+      case orig @ DoPrim(AsSInt, Seq(x), _, casttpe) =>
+        netlist.getOrElse(we(x), x) match {
+          case DoPrim(Tail, Seq(e), SeqBIOne, tailtpe) =>
+            netlist.getOrElse(we(e), e) match {
+              case DoPrim(Add, args, cs, s: SIntType) => DoPrim(Addw, args, cs, casttpe)
+              case DoPrim(Sub, args, cs, s: SIntType) => DoPrim(Subw, args, cs, casttpe)
+              case _ => orig // Not a candidate
+            }
           case _ => orig // Not a candidate
         }
       case other => other // Not a candidate
@@ -35,8 +49,9 @@ object ReplaceTruncatingArithmetic {
 
   /** Replaces truncating arithmetic in a Statement
     *
-    * @param netlist a '''mutable''' HashMap mapping references to [[DefNode]]s to their connected
-    * [[Expression]]s. This function '''will''' mutate it if stmt contains a [[DefNode]]
+    * @param netlist a '''mutable''' HashMap mapping references to [[firrtl.ir.DefNode DefNode]]s to their connected
+    * [[firrtl.ir.Expression Expression]]s. This function '''will''' mutate it if stmt contains a [[firrtl.ir.DefNode
+    * DefNode]]
     * @param stmt the Statement being searched for nodes and transformed
     * @return Returns stmt with truncating arithmetic replaced
     */
@@ -70,4 +85,3 @@ class ReplaceTruncatingArithmetic extends Transform {
     state.copy(circuit = state.circuit.copy(modules = modulesx))
   }
 }
-

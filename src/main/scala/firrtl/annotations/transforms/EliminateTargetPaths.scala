@@ -4,11 +4,12 @@ package firrtl.annotations.transforms
 
 import firrtl.Mappers._
 import firrtl.analyses.InstanceGraph
+import firrtl.annotations.ModuleTarget
 import firrtl.annotations.TargetToken.{Instance, OfModule}
 import firrtl.annotations.analysis.DuplicationHelper
 import firrtl.annotations._
 import firrtl.ir._
-import firrtl.{CircuitForm, CircuitState, FIRRTLException, HighForm, RenameMap, Transform, WDefInstance}
+import firrtl.{CircuitForm, CircuitState, FirrtlInternalException, HighForm, RenameMap, Transform, WDefInstance}
 
 import scala.collection.mutable
 
@@ -23,7 +24,7 @@ case class ResolvePaths(targets: Seq[CompleteTarget]) extends Annotation {
   }
 }
 
-case class NoSuchTargetException(message: String) extends FIRRTLException(message)
+case class NoSuchTargetException(message: String) extends FirrtlInternalException(message)
 
 /** For a set of non-local targets, modify the instance/module hierarchy of the circuit such that
   * the paths in each non-local target can be removed
@@ -114,16 +115,26 @@ class EliminateTargetPaths extends Transform {
     val finalModuleList = duplicatedModuleList.filter(m =>
       newUsedOfModules.contains(m.name) || (!newUsedOfModules.contains(m.name) && !oldUsedOfModules.contains(m.name))
     )
+    lazy val finalModuleSet = finalModuleList.map{ case a: DefModule => a.name }.toSet
 
     // Records how targets have been renamed
     val renameMap = RenameMap()
 
-    // Foreach target, calculate the pathless version and only rename targets that are instantiated
+    /* Foreach target, calculate the pathless version and only rename targets that are instantiated. Additionally, rename
+     * module targets
+     */
     targets.foreach { t =>
       val newTsx = dupMap.makePathless(t)
       val newTs = newTsx.filter(c => newUsedOfModules.contains(c.moduleOpt.get))
       if(newTs.nonEmpty) {
         renameMap.record(t, newTs)
+        val m = Target.referringModule(t)
+        val duplicatedModules = newTs.map(Target.referringModule)
+        val oldModule: Option[ModuleTarget] = m match {
+          case a: ModuleTarget if finalModuleSet(a.module) => Some(a)
+          case _                                           => None
+        }
+        renameMap.record(m, (duplicatedModules ++ oldModule).distinct)
       }
     }
 
@@ -133,10 +144,13 @@ class EliminateTargetPaths extends Transform {
 
   override protected def execute(state: CircuitState): CircuitState = {
 
-    val annotations = state.annotations.collect { case a: ResolvePaths => a }
+    val (annotations, annotationsx) = state.annotations.partition{
+      case a: ResolvePaths => true
+      case _               => false
+    }
 
     // Collect targets that are not local
-    val targets = annotations.flatMap(_.targets.collect { case x: IsMember => x })
+    val targets = annotations.map(_.asInstanceOf[ResolvePaths]).flatMap(_.targets.collect { case x: IsMember => x })
 
     // Check validity of paths in targets
     val instanceOfModules = new InstanceGraph(state.circuit).getChildrenInstanceOfModule
@@ -162,6 +176,6 @@ class EliminateTargetPaths extends Transform {
 
     val (newCircuit, renameMap) = run(state.circuit, targets)
 
-    state.copy(circuit = newCircuit, renames = Some(renameMap))
+    state.copy(circuit = newCircuit, renames = Some(renameMap), annotations = annotationsx)
   }
 }

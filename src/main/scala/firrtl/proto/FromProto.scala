@@ -8,6 +8,7 @@ import java.io.{File, FileInputStream, InputStream}
 import collection.JavaConverters._
 import FirrtlProtos._
 import com.google.protobuf.CodedInputStream
+import Firrtl.Statement.ReadUnderWrite
 
 object FromProto {
 
@@ -133,9 +134,25 @@ object FromProto {
     ir.Conditionally(convert(info), convert(when.getPredicate), conseq, alt)
   }
 
+  def convert(ruw: ReadUnderWrite): ir.ReadUnderWrite.Value = ruw match {
+    case ReadUnderWrite.UNDEFINED => ir.ReadUnderWrite.Undefined
+    case ReadUnderWrite.OLD => ir.ReadUnderWrite.Old
+    case ReadUnderWrite.NEW => ir.ReadUnderWrite.New
+  }
+
+  def convert(dt: Firrtl.Statement.CMemory.TypeAndDepth): (ir.Type, BigInt) =
+    (convert(dt.getDataType), convert(dt.getDepth))
+
   def convert(cmem: Firrtl.Statement.CMemory, info: Firrtl.SourceInfo): ir.Statement = {
-    val vtpe = convert(cmem.getType)
-    CDefMemory(convert(info), cmem.getId, vtpe.tpe, vtpe.size, cmem.getSyncRead)
+    import Firrtl.Statement.CMemory._
+    val (tpe, depth) = cmem.getTypeCase.getNumber match {
+      case VECTOR_TYPE_FIELD_NUMBER =>
+        val vtpe = convert(cmem.getVectorType)
+        (vtpe.tpe, BigInt(vtpe.size))
+      case TYPE_AND_DEPTH_FIELD_NUMBER =>
+        convert(cmem.getTypeAndDepth)
+    }
+    CDefMemory(convert(info), cmem.getId, tpe, depth, cmem.getSyncRead, convert(cmem.getReadUnderWrite))
   }
 
   import Firrtl.Statement.MemoryPort.Direction._
@@ -165,8 +182,13 @@ object FromProto {
     val rs = mem.getReaderIdList.asScala
     val ws = mem.getWriterIdList.asScala
     val rws = mem.getReadwriterIdList.asScala
-    ir.DefMemory(convert(info), mem.getId, dtype, mem.getDepth, mem.getWriteLatency, mem.getReadLatency,
-                 rs, ws, rws, None)
+    import Firrtl.Statement.Memory._
+    val depth = mem.getDepthCase.getNumber match {
+      case UINT_DEPTH_FIELD_NUMBER => BigInt(mem.getUintDepth)
+      case BIGINT_DEPTH_FIELD_NUMBER => convert(mem.getBigintDepth)
+    }
+    ir.DefMemory(convert(info), mem.getId, dtype, depth, mem.getWriteLatency, mem.getReadLatency,
+                 rs, ws, rws, convert(mem.getReadUnderWrite))
   }
 
   def convert(attach: Firrtl.Statement.Attach, info: Firrtl.SourceInfo): ir.Attach = {
@@ -241,6 +263,7 @@ object FromProto {
       case FIXED_TYPE_FIELD_NUMBER => convert(tpe.getFixedType)
       case CLOCK_TYPE_FIELD_NUMBER => ir.ClockType
       case ASYNC_RESET_TYPE_FIELD_NUMBER => ir.AsyncResetType
+      case RESET_TYPE_FIELD_NUMBER => ir.ResetType
       case ANALOG_TYPE_FIELD_NUMBER => convert(tpe.getAnalogType)
       case BUNDLE_TYPE_FIELD_NUMBER =>
         ir.BundleType(tpe.getBundleType.getFieldList.asScala.map(convert(_)))
