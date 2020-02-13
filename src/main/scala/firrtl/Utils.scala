@@ -399,6 +399,7 @@ object Utils extends LazyLogging {
   def mux_type(t1: Type, t2: Type): Type = (t1, t2) match {
     case (ClockType, ClockType) => ClockType
     case (AsyncResetType, AsyncResetType) => AsyncResetType
+    case (ResetType, ResetType) => ResetType
     case (t1: UIntType, t2: UIntType) => UIntType(UnknownWidth)
     case (t1: SIntType, t2: SIntType) => SIntType(UnknownWidth)
     case (t1: FixedType, t2: FixedType) => FixedType(UnknownWidth, UnknownWidth)
@@ -419,6 +420,7 @@ object Utils extends LazyLogging {
     (t1, t2) match {
       case (ClockType, ClockType) => ClockType
       case (AsyncResetType, AsyncResetType) => AsyncResetType
+      case (ResetType, ResetType) => ResetType
       case (t1x: UIntType, t2x: UIntType) => UIntType(IsMax(t1x.width, t2x.width))
       case (t1x: SIntType, t2x: SIntType) => SIntType(IsMax(t1x.width, t2x.width))
       case (FixedType(w1, p1), FixedType(w2, p2)) =>
@@ -493,12 +495,10 @@ object Utils extends LazyLogging {
       case (ClockType, ClockType) => if (flip1 == flip2) Seq((0, 0)) else Nil
       case (AsyncResetType, AsyncResetType) => if (flip1 == flip2) Seq((0, 0)) else Nil
       // The following two cases handle driving ResetType from other legal reset types
-      // Flippedness is important here because ResetType can be driven by other reset types, but it
-      //   cannot *drive* other reset types
       case (ResetType, other) =>
         if (legalResetType(other) && flip1 == Default && flip1 == flip2) Seq((0, 0)) else Nil
       case (other, ResetType) =>
-        if (legalResetType(other) && flip1 == Flip && flip1 == flip2) Seq((0, 0)) else Nil
+        if (legalResetType(other) && flip1 == flip2) Seq((0, 0)) else Nil
       case _ => throwInternalError(s"get_valid_points: shouldn't be here - ($t1, $t2)")
     }
   }

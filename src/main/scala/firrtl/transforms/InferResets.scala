@@ -3,12 +3,17 @@
 package firrtl.transforms
 
 import firrtl._
+import firrtl.analyses.InstanceGraph
 import firrtl.ir._
 import firrtl.Mappers._
 import firrtl.traversals.Foreachers._
-import firrtl.annotations.{ReferenceTarget, TargetToken}
+import firrtl.annotations.{
+  InstanceTarget,
+  ReferenceTarget,
+  TargetToken}
+import firrtl.annotations.TargetToken.{fromWDefInstanceToTargetToken, Instance, OfModule}
 import firrtl.Utils.toTarget
-import firrtl.passes.{Pass, PassException, Errors, InferTypes}
+import firrtl.passes.{PassException, Errors}
 
 import scala.collection.mutable
 import scala.util.Try
@@ -81,10 +86,33 @@ object InferResets {
   */
 // TODO should we error if a DefMemory is of type AsyncReset? In CheckTypes?
 class InferResets extends Transform {
-  def inputForm: CircuitForm = HighForm
-  def outputForm: CircuitForm = HighForm
+  def inputForm: CircuitForm = MidForm
+  def outputForm: CircuitForm = MidForm
 
   import InferResets._
+
+  /** Duplicate all modules that contain abstract input resets
+    * @param state a [[CircuitState]]
+    * @return the duplicated [[CircuitState]]
+    */
+  def duplicate(state: CircuitState): CircuitState = {
+    val iGraph = new InstanceGraph(state.circuit)
+
+    val targets = state.circuit.modules.flatMap {
+      case ir.Module(_, n, p, _) if p.collectFirst{ case ir.Port(_, _, Input, ir.ResetType) => true }.nonEmpty => Some(n)
+      case _ => None
+    }.map{ case a => iGraph.findInstancesInHierarchy(a).map(_.map(_.toTokens)).head }.map {
+      case (Instance(a), OfModule(b)) :: tail => tail.reverse match {
+        case (Instance(c), OfModule(d)) :: path => InstanceTarget(a, b, path.reverse, c, d)
+        case Nil => Utils.throwInternalError("Found top-level abstract reset. This should be impossible...")
+      }
+    }
+
+    logger.info(s"Found ${targets.size} instances with input abstract resets to duplicate:")
+    targets.foreach{ case a => logger.info(s"  - ${a.serialize}") }
+
+    state.resolvePaths(targets)
+  }
 
   // Collect all drivers for circuit elements of type ResetType
   private def analyze(c: Circuit): Map[ReferenceTarget, List[ResetDriver]] = {
@@ -108,9 +136,10 @@ class InferResets extends Transform {
       def onStmt(map: DriverMap)(stmt: Statement): Unit = {
         // Mark driver of a ResetType leaf
         def markResetDriver(lhs: Expression, rhs: Expression): Unit = {
-          val con = Utils.flow(lhs) match {
-            case SinkFlow   if lhs.tpe == ResetType => Some((lhs, rhs))
-            case SourceFlow if rhs.tpe == ResetType => Some((rhs, lhs))
+          val con = (Utils.flow(lhs), Utils.kind(lhs)) match {
+            case (SinkFlow, _)   if lhs.tpe == ResetType => Some((lhs, rhs))
+            case (SourceFlow, NodeKind) if rhs.tpe == ResetType => Some((lhs, rhs))
+            case (SourceFlow, _) if rhs.tpe == ResetType => Some((rhs, lhs))
             // If sink is not ResetType, do nothing
             case _                                  => None
           }
@@ -163,6 +192,12 @@ class InferResets extends Transform {
               val values = conLookup(key).getOrElse(Nil) ++ altLookup(key).getOrElse(Nil)
               map(key) = values
             }
+          case lhs@ DefNode(_, _, rhs) => rhs match {
+            case Mux(_, tval, fval, _) =>
+              markResetDriver(WRef(lhs), tval)
+              markResetDriver(WRef(lhs), fval)
+            case _ => markResetDriver(WRef(lhs), rhs)
+          }
           case other => other.foreach(onStmt(map))
         }
       }
@@ -256,16 +291,13 @@ class InferResets extends Transform {
     c.map(onMod)
   }
 
-  private def fixupPasses: Seq[Pass] = Seq(
-    InferTypes
-  )
-
   def execute(state: CircuitState): CircuitState = {
-    val c = state.circuit
+    val statex = duplicate(state)
+    val c = statex.circuit
     val analysis = analyze(c)
     val inferred = resolve(analysis)
     val result = inferred.map(m => implement(c, m)).get
-    val fixedup = fixupPasses.foldLeft(result)((c, p) => p.run(c))
-    state.copy(circuit = fixedup)
+
+    statex.copy(circuit = result)
   }
 }
