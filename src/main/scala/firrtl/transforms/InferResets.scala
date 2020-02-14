@@ -7,8 +7,9 @@ import firrtl.ir._
 import firrtl.Mappers._
 import firrtl.traversals.Foreachers._
 import firrtl.annotations.{ReferenceTarget, TargetToken}
-import firrtl.Utils.toTarget
-import firrtl.passes.{Pass, PassException, Errors, InferTypes}
+import firrtl.Utils.{toTarget, throwInternalError}
+import firrtl.passes.{Pass, PassException, InferTypes}
+import firrtl.graph.MutableDiGraph
 
 import scala.collection.mutable
 import scala.util.Try
@@ -23,6 +24,15 @@ object InferResets {
     }
   }
 
+  final class InferResetsException private (msg: String) extends PassException(msg)
+  object InferResetsException {
+    private[InferResets] def apply(path: Seq[Node]): InferResetsException = {
+      val ps = path.collect { case Var(t) => t.serialize }.mkString("\n  ", "\n  ", "")
+      val msg = s"Reset-typed components connected to both AsyncReset and UInt<1>. Offending path:$ps"
+      new InferResetsException(msg)
+    }
+  }
+
   /** Type hierarchy to represent the type of the thing driving a [[ResetType]] */
   private sealed trait ResetDriver
   // When a [[ResetType]] is driven by another ResetType, we track the target so that we can infer
@@ -34,12 +44,20 @@ object InferResets {
   //   as a constraint on the type we should infer to be
   // We keep the target around (lazily) so that we can report errors
   private case class TypeDriver(tpe: Type, target: () => ReferenceTarget) extends ResetDriver {
-    override def toString: String = s"TypeDriver(${tpe.serialize}, $target)"
+    override def toString: String = s"TypeDriver(${tpe.serialize}, () => ?)"
   }
   // When a [[ResetType]] is invalidated, we record the InvalidDrive
   // If there are no types but invalid drivers, we default to BoolType
   private case object InvalidDriver extends ResetDriver {
     def defaultType: Type = Utils.BoolType
+  }
+
+  private sealed trait Node
+  private case class Var(target: ReferenceTarget) extends Node {
+    override def toString = target.serialize
+  }
+  private case class Typ(tpe: Type) extends Node {
+    override def toString = tpe.serialize
   }
 
   // Type hierarchy representing the path to a leaf type in an aggregate type structure
@@ -175,33 +193,34 @@ class InferResets extends Transform {
 
   // Determine the type driving a given ResetType
   private def resolve(map: Map[ReferenceTarget, List[ResetDriver]]): Try[Map[ReferenceTarget, Type]] = {
-    val res = mutable.Map[ReferenceTarget, Type]()
-    val errors = new Errors
-    def rec(target: ReferenceTarget): Type = {
-      res.getOrElseUpdate(target, {
-        val drivers = map.getOrElse(target, Nil)
-        val tpes = drivers.flatMap {
-          case TargetDriver(t) => Some(TypeDriver(rec(t), () => t))
-          case td: TypeDriver  => Some(td)
-          case InvalidDriver   => None
-        }.groupBy(_.tpe)
-        tpes.keys.size match {
-          // This can occur if something of type Reset has no driver
-          case 0 => InvalidDriver.defaultType
-          case 1 => tpes.keys.head
-          case _ =>
-            // Multiple types of driver!
-            errors.append(DifferingDriverTypesException(target, tpes.toSeq))
-            tpes.keys.head
-        }
-      })
+    val graph = new MutableDiGraph[Node]
+    val asyncNode = Typ(AsyncResetType)
+    val syncNode  = Typ(Utils.BoolType)
+    for ((target, drivers) <- map) {
+      val v = Var(target)
+      drivers.foreach {
+        case TargetDriver(t) =>
+          val u = Var(t)
+          graph.addPairWithEdge(v, u)
+          graph.addPairWithEdge(u, v)
+        case TypeDriver(tpe, _) =>
+          // Use nodes we already made, saves memory
+          val u = tpe match {
+            case AsyncResetType => asyncNode
+            case Utils.BoolType => syncNode
+            case other          => throwInternalError(s"Shouldn't have $other here")
+          }
+          graph.addPairWithEdge(u, v)
+          graph.addPairWithEdge(v, u)
+        case InvalidDriver => // do nothing
+      }
     }
-    for ((target, _) <- map) {
-      rec(target)
-    }
+    val async = graph.reachableFrom(asyncNode)
+    val sync = graph.getVertices -- async
     Try {
-      errors.trigger()
-      res.toMap
+      if (async.contains(syncNode)) throw InferResetsException(graph.path(asyncNode, syncNode))
+      ( sync.view.collect { case Var(t) => t -> syncNode.tpe } ++
+       async.view.collect { case Var(t) => t -> asyncNode.tpe }).toMap
     }
   }
 
