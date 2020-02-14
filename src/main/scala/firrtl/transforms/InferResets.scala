@@ -107,7 +107,7 @@ class InferResets extends Transform {
   // Collect all drivers for circuit elements of type ResetType
   private def analyze(c: Circuit): Map[ReferenceTarget, List[ResetDriver]] = {
     type DriverMap = mutable.HashMap[ReferenceTarget, mutable.ListBuffer[ResetDriver]]
-    def onMod(mod: DefModule): DriverMap = {
+    def onMod(types: DriverMap)(mod: DefModule): DriverMap = {
       val instMap = mutable.Map[String, String]()
       // We need to convert submodule port targets into targets on the Module port itself
       def makeTarget(expr: Expression): ReferenceTarget = {
@@ -182,13 +182,12 @@ class InferResets extends Transform {
           case other => other.foreach(onStmt(map))
         }
       }
-      val types = new DriverMap
       mod.foreach(onStmt(types))
       types
     }
-    c.modules.foldLeft(Map[ReferenceTarget, List[ResetDriver]]()) {
-      case (map, mod) => map ++ onMod(mod).mapValues(_.toList)
-    }
+    val res = new DriverMap
+    c.modules.foreach(m => onMod(res)(m))
+    res.mapValues(_.toList).toMap
   }
 
   // Determine the type driving a given ResetType
@@ -212,7 +211,8 @@ class InferResets extends Transform {
           }
           graph.addPairWithEdge(u, v)
           graph.addPairWithEdge(v, u)
-        case InvalidDriver => // do nothing
+        case InvalidDriver =>
+          graph.addVertex(v)   // Must be in the graph or won't be inferred
       }
     }
     val async = graph.reachableFrom(asyncNode)
