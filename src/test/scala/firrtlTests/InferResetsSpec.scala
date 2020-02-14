@@ -139,7 +139,7 @@ class InferResetsSpec extends FirrtlFlatSpec {
   }
 
   it should "allow NOT last connect semantics to pick the right type for Reset" in {
-    an [InferResets.DifferingDriverTypesException] shouldBe thrownBy {
+    an [InferResets.InferResetsException] shouldBe thrownBy {
       compile(s"""
         |circuit top :
         |  module top :
@@ -158,7 +158,7 @@ class InferResetsSpec extends FirrtlFlatSpec {
   }
 
   it should "NOT support last connect semantics across whens" in {
-    an [InferResets.DifferingDriverTypesException] shouldBe thrownBy {
+    an [InferResets.InferResetsException] shouldBe thrownBy {
       compile(s"""
         |circuit top :
         |  module top :
@@ -184,7 +184,7 @@ class InferResetsSpec extends FirrtlFlatSpec {
   }
 
   it should "not allow different Reset Types to drive a single Reset" in {
-    an [InferResets.DifferingDriverTypesException] shouldBe thrownBy {
+    an [InferResets.InferResetsException] shouldBe thrownBy {
       val result = compile(s"""
         |circuit top :
         |  module top :
