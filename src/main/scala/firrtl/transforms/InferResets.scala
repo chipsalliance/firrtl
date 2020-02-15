@@ -54,6 +54,7 @@ object InferResets {
     def defaultType: Type = Utils.BoolType
   }
 
+  // Private type hierarchy used as DiGraph nodes for type inference
   private sealed trait Node
   private case class Var(target: ReferenceTarget) extends Node {
     override def toString = target.serialize
