@@ -453,6 +453,25 @@ class InferResetsSpec extends FirrtlFlatSpec {
     }
   }
 
+  it should "not propagate type info from downstream across a cast" in {
+    val result = compile(s"""
+        |circuit top :
+        |  module top :
+        |    input in0 : AsyncReset
+        |    input in1 : UInt<1>
+        |    output out0 : Reset
+        |    output out1 : Reset
+        |    wire w : Reset
+        |    w is invalid
+        |    out0 <= asAsyncReset(w)
+        |    out1 <= w
+        |    out0 <= in0
+        |    out1 <= in1
+        |""".stripMargin
+    )
+    result should containTree { case Port(_, "out0", Output, AsyncResetType) => true }
+  }
+
   // This tests for a bug unrelated to support or lackthereof for last connect in inference
   it should "take into account both internal and external constraints on Module port types" in {
     val result = compile(s"""
