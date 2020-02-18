@@ -29,7 +29,7 @@ object InferResets {
   final class InferResetsException private (msg: String) extends PassException(msg)
   object InferResetsException {
     private[InferResets] def apply(path: Seq[Node]): InferResetsException = {
-      val ps = path.collect { case Var(t) => t.serialize }.mkString("\n  ", "\n  ", "")
+      val ps = path.collect { case Var(t) => t.serialize }.mkString("\n    - ", "\n    - ", "")
       val msg = s"Reset-typed components connected to both AsyncReset and UInt<1>. Offending path:$ps"
       new InferResetsException(msg)
     }

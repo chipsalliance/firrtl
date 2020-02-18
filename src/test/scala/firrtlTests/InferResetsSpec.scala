@@ -138,7 +138,7 @@ class InferResetsSpec extends FirrtlFlatSpec {
     }
   }
 
-  it should "allow NOT last connect semantics to pick the right type for Reset" in {
+  it should "NOT allow last connect semantics to pick the right type for Reset" in {
     an [InferResets.InferResetsException] shouldBe thrownBy {
       compile(s"""
         |circuit top :
@@ -420,7 +420,7 @@ class InferResetsSpec extends FirrtlFlatSpec {
     result should containTree { case DefWire(_, "w", AsyncResetType) => true }
   }
 
-  it should "infer from connections, ignoring \"winning\" invalidation" in {
+  it should "infer from connections, ignoring the fact that the invalidation wins" in {
     val result = compile(s"""
       |circuit top :
       |  module top :
@@ -492,7 +492,7 @@ class InferResetsSpec extends FirrtlFlatSpec {
   }
 
   it should "not crash on combinational loops" in {
-    an [CheckCombLoops.CombLoopException] shouldBe thrownBy {
+    a [CheckCombLoops.CombLoopException] shouldBe thrownBy {
       val result = compile(s"""
         |circuit top :
         |  module top :
@@ -510,4 +510,3 @@ class InferResetsSpec extends FirrtlFlatSpec {
     }
   }
 }
-
