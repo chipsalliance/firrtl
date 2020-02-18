@@ -95,8 +95,16 @@ object InferResets {
   }
 }
 
-/** Infers the concrete type of [[Reset]]s by their connections
-  * This is a global inference because ports can be of type [[Reset]]
+/** Infers the concrete type of [[ResetType]]s by their connections
+  *
+  * There are 3 cases
+  * 1. An abstract reset driven by and/or driving only asynchronous resets will be inferred as
+  *    asynchronous reset
+  * 1. An abstract reset driven by and/or driving both asynchronous and synchronous resets will
+  *    error
+  * 1. Otherwise, the reset is inferred as synchronous (i.e. the abstract reset is only invalidated
+  *    or is driven by or drives only synchronous resets)
+  * @note This is a global inference because ports can be of type [[ResetType]]
   * @note This transform should be run before [[DedupModules]] so that similar Modules from
   *   generator languages like Chisel can infer differently
   */
@@ -193,7 +201,19 @@ class InferResets extends Transform {
     res.mapValues(_.toList).toMap
   }
 
-  // Determine the type driving a given ResetType
+  /** Determine the type driving a given ResetType
+    *
+    * This is implemented as a graph traversal. Every type constraint is a forwards and backwards
+    * edge between the two components (where one of the components can be Bool or AsyncReset). Then,
+    * types are inferred by determining all of the nodes that are reachable from Bool and AsyncReset
+    * respectively. As an optimization, we actually only need to check reachability from one, since
+    * nodes that are not reachable from the one are either reachable from the other or reachable
+    * from neither. If unreachable, then the component must only be connected to invalidated
+    * components of type Reset, thus we can arbitrarily choose which reset to infer it to. As an
+    * optimization, we have edges from components back to Bool and AsyncReset which allows us to
+    * check if any node is erroneously constrained to be both by simply checking if Bool is
+    * reachable from AsyncReset.
+    */
   private def resolve(map: Map[ReferenceTarget, List[ResetDriver]]): Try[Map[ReferenceTarget, Type]] = {
     val graph = new MutableDiGraph[Node]
     val asyncNode = Typ(AsyncResetType)
@@ -213,6 +233,8 @@ class InferResets extends Transform {
             case other          => throwInternalError(s"Shouldn't have $other here")
           }
           graph.addPairWithEdge(u, v)
+          // This backwards edge allows us to check for nodes that infer to both at the same time we
+          // do the actual inference, the check is simply if syncNode is reachable from asyncNode
           graph.addPairWithEdge(v, u)
         case InvalidDriver =>
           graph.addVertex(v)   // Must be in the graph or won't be inferred
@@ -221,9 +243,12 @@ class InferResets extends Transform {
     val async = graph.reachableFrom(asyncNode)
     val sync = graph.getVertices -- async
     Try {
-      if (async.contains(syncNode)) throw InferResetsException(graph.path(asyncNode, syncNode))
-      ( sync.view.collect { case Var(t) => t -> syncNode.tpe } ++
-       async.view.collect { case Var(t) => t -> asyncNode.tpe }).toMap
+      (async, sync) match {
+        case (a, _) if a.contains(syncNode) => throw InferResetsException(graph.path(asyncNode, syncNode))
+        case (a, s) =>
+          (a.view.collect { case Var(t) => t -> asyncNode.tpe } ++
+           s.view.collect { case Var(t) => t -> syncNode.tpe  }).toMap
+      }
     }
   }
 
