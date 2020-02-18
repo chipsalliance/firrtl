@@ -45,7 +45,26 @@ class IRToWorkingIR extends CoreTransform {
 class ResolveAndCheck extends CoreTransform {
   def inputForm = HighForm
   def outputForm = HighForm
+<<<<<<< HEAD
   def transforms = new TransformManager(Forms.Resolved, Forms.WorkingIR).flattenedTransformOrder
+=======
+  def transforms = Seq(
+    passes.CheckHighForm,
+    passes.ResolveKinds,
+    passes.InferTypes,
+    passes.CheckTypes,
+    passes.Uniquify,
+    passes.ResolveKinds,
+    passes.InferTypes,
+    passes.ResolveFlows,
+    passes.CheckFlows,
+    new passes.InferBinaryPoints(),
+    new passes.TrimIntervals(),
+    new passes.InferWidths,
+    passes.CheckWidths,
+    new firrtl.transforms.InferResets,
+    passes.CheckTypes)
+>>>>>>> 6c7a15a2... Remove last connect semantics from reset inference (#1396)
 }
 
 /** Expands aggregate connects, removes dynamic accesses, and when

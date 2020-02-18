@@ -6,8 +6,12 @@ import firrtl._
 import firrtl.ir._
 import firrtl.passes.{CheckHighForm, CheckTypes, CheckInitialization}
 import firrtl.transforms.{CheckCombLoops, InferResets}
+<<<<<<< HEAD
 import firrtl.testutils._
 import firrtl.testutils.FirrtlCheckers._
+=======
+import FirrtlCheckers._
+>>>>>>> 6c7a15a2... Remove last connect semantics from reset inference (#1396)
 
 // TODO
 // - Test nodes in the connection

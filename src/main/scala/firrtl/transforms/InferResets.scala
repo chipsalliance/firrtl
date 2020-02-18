@@ -8,7 +8,10 @@ import firrtl.Mappers._
 import firrtl.traversals.Foreachers._
 import firrtl.annotations.{ReferenceTarget, TargetToken}
 import firrtl.Utils.{toTarget, throwInternalError}
+<<<<<<< HEAD
 import firrtl.options.Dependency
+=======
+>>>>>>> 6c7a15a2... Remove last connect semantics from reset inference (#1396)
 import firrtl.passes.{Pass, PassException, InferTypes}
 import firrtl.graph.MutableDiGraph
 
@@ -96,7 +99,11 @@ object InferResets {
   }
 }
 
+<<<<<<< HEAD
 /** Infers the concrete type of [[firrtl.ir.ResetType ResetType]]s by their connections
+=======
+/** Infers the concrete type of [[ResetType]]s by their connections
+>>>>>>> 6c7a15a2... Remove last connect semantics from reset inference (#1396)
   *
   * There are 3 cases
   * 1. An abstract reset driven by and/or driving only asynchronous resets will be inferred as
@@ -105,7 +112,11 @@ object InferResets {
   *    error
   * 1. Otherwise, the reset is inferred as synchronous (i.e. the abstract reset is only invalidated
   *    or is driven by or drives only synchronous resets)
+<<<<<<< HEAD
   * @note This is a global inference because ports can be of type [[firrtl.ir.ResetType ResetType]]
+=======
+  * @note This is a global inference because ports can be of type [[ResetType]]
+>>>>>>> 6c7a15a2... Remove last connect semantics from reset inference (#1396)
   * @note This transform should be run before [[DedupModules]] so that similar Modules from
   *   generator languages like Chisel can infer differently
   */
