@@ -47,7 +47,8 @@ class ResolveAndCheck extends CoreTransform {
     passes.CheckFlows,
     new passes.InferWidths,
     passes.CheckWidths,
-    new firrtl.transforms.InferResets)
+    new firrtl.transforms.InferResets,
+    passes.CheckTypes)
 }
 
 /** Expands aggregate connects, removes dynamic accesses, and when
