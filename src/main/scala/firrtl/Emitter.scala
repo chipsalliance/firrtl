@@ -320,15 +320,13 @@ class VerilogEmitter extends SeqTransform with Emitter {
        case _: UIntLiteral | _: SIntLiteral | _: WRef | _: WSubField =>
        case DoPrim(Not, args, _,_) => args.foreach(checkArgumentLegality)
        case DoPrim(op, args, _,_) if isCast(op) => args.foreach(checkArgumentLegality)
+       case DoPrim(op, args, _,_) if isBitExtract(op) => args.foreach(checkArgumentLegality)
        case _ => throw EmitterException(s"Can't emit ${e.getClass.getName} as PrimOp argument")
      }
 
      def checkCatArgumentLegality(e: Expression): Unit = e match {
-       case _: UIntLiteral | _: SIntLiteral | _: WRef | _: WSubField =>
-       case DoPrim(Not, args, _,_) => args.foreach(checkArgumentLegality)
-       case DoPrim(op, args, _,_) if isCast(op) => args.foreach(checkArgumentLegality)
        case DoPrim(Cat, args, _, _) => args foreach(checkCatArgumentLegality)
-       case _ => throw EmitterException(s"Can't emit ${e.getClass.getName} as PrimOp argument")
+       case _ => checkArgumentLegality(e)
      }
 
      def castCatArgs(a0: Expression, a1: Expression): Seq[Any] = {
@@ -386,6 +384,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
        case Shl => if (c0 > 0) Seq("{", cast(a0), s", $c0'h0}") else Seq(cast(a0))
        case Shr if c0 >= bitWidth(a0.tpe) =>
          error("Verilog emitter does not support SHIFT_RIGHT >= arg width")
+       case Shr if c0 == (bitWidth(a0.tpe)-1) => Seq(a0,"[", bitWidth(a0.tpe) - 1, "]")
        case Shr => Seq(a0,"[", bitWidth(a0.tpe) - 1, ":", c0, "]")
        case Neg => Seq("-{", cast(a0), "}")
        case Cvt => a0.tpe match {
@@ -404,15 +403,15 @@ class VerilogEmitter extends SeqTransform with Emitter {
        case Bits if c0 == 0 && c1 == 0 && bitWidth(a0.tpe) == BigInt(1) => Seq(a0)
        case Bits if c0 == c1 => Seq(a0, "[", c0, "]")
        case Bits => Seq(a0, "[", c0, ":", c1, "]")
+       // If selecting zeroth bit and single-bit wire, just emit the wire
+       case Head if c0 == 1 && bitWidth(a0.tpe) == BigInt(1) => Seq(a0)
+       case Head if c0 == 1 => Seq(a0, "[", bitWidth(a0.tpe)-1, "]")
        case Head =>
-         val w = bitWidth(a0.tpe)
-         val high = w - 1
-         val low = w - c0
-         Seq(a0, "[", high, ":", low, "]")
-       case Tail =>
-         val w = bitWidth(a0.tpe)
-         val low = w - c0 - 1
-         Seq(a0, "[", low, ":", 0, "]")
+         val msb = bitWidth(a0.tpe) - 1
+         val lsb = bitWidth(a0.tpe) - c0
+         Seq(a0, "[", msb, ":", lsb, "]")
+       case Tail if c0 == (bitWidth(a0.tpe)-1) => Seq(a0, "[0]")
+       case Tail => Seq(a0, "[", bitWidth(a0.tpe) - c0 - 1, ":0]")
      }
    }
 
@@ -564,17 +563,22 @@ class VerilogEmitter extends SeqTransform with Emitter {
             Seq(tabs, "end else ", _falsex.head.tail) +: _falsex.tail
           }
 
-          /* For a Mux assignment, there are five possibilities:
+          /* For a Mux assignment, there are five possibilities, with one subcase for asynchronous reset:
            *   1. Both the true and false condition are self-assignments; do nothing
            *   2. The true condition is a self-assignment; invert the false condition and use that only
-           *   3. The false condition is a self-assignment; skip the false condition
+           *   3. The false condition is a self-assignment
+           *      a) The reset is asynchronous; emit both 'if' and a trivial 'else' to avoid latches
+           *      b) The reset is synchronous; skip the false condition
            *   4. The false condition is a Mux; use the true condition and use 'else if' for the false condition
            *   5. Default; use both the true and false conditions
            */
           (m.tval, m.fval) match {
             case (t, f) if weq(t, r) && weq(f, r) => Nil
             case (t, _) if weq(t, r)              =>  _ifNot +: _false                           :+ _end
-            case (_, f) if weq(f, r)              =>  _if    +: _true                            :+ _end
+            case (_, f) if weq(f, r) => m.cond.tpe match {
+              case AsyncResetType =>                 (_if +: _true     :+ _else)       ++ _true  :+ _end
+              case _ =>                               _if +: _true :+                               _end
+            }
             case (_, _: Mux)                      => (_if    +: _true) ++ _elseIfFalse
             case _                                => (_if    +: _true  :+ _else)       ++ _false :+ _end
           }
@@ -974,8 +978,10 @@ class VerilogEmitter extends SeqTransform with Emitter {
   /** Preamble for every emitted Verilog file */
   def transforms = Seq(
     new BlackBoxSourceHelper,
+    new FixAddingNegativeLiterals,
     new ReplaceTruncatingArithmetic,
     new InlineNotsTransform,
+    new InlineBitExtractionsTransform,  // here after InlineNots to clean up not(not(...)) rename
     new InlineCastsTransform,
     new LegalizeClocksTransform,
     new FlattenRegUpdate,
