@@ -9,6 +9,7 @@ import firrtl.annotations.TargetToken.{Instance, OfModule}
 import firrtl.annotations.analysis.DuplicationHelper
 import firrtl.annotations._
 import firrtl.ir._
+import firrtl.transforms.DedupedResult
 import firrtl.{CircuitForm, CircuitState, FirrtlInternalException, HighForm, RenameMap, Transform, WDefInstance}
 
 import scala.collection.mutable
@@ -77,9 +78,9 @@ class EliminateTargetPaths extends Transform {
     * @param targets
     * @return
     */
-  def run(cir: Circuit, targets: Seq[IsMember]): (Circuit, RenameMap) = {
+  def run(cir: Circuit, targets: Seq[IsMember], previousDedup: Map[IsModule, ModuleTarget]): (Circuit, RenameMap) = {
 
-    val dupMap = DuplicationHelper(cir.modules.map(_.name).toSet)
+    val dupMap = DuplicationHelper(cir.main, cir.modules.map(_.name).toSet, previousDedup)
 
     // For each target, record its path and calculate the necessary modifications to circuit
     targets.foreach { t => dupMap.expandHierarchy(t) }
@@ -144,13 +145,22 @@ class EliminateTargetPaths extends Transform {
 
   override protected def execute(state: CircuitState): CircuitState = {
 
-    val (annotations, annotationsx) = state.annotations.partition{
-      case a: ResolvePaths => true
-      case _               => false
-    }
+    val (remainingAnnotations, targetsToEliminate, previouslyDeduped) =
+      state.annotations.foldLeft(
+        ( Vector.empty[Annotation],
+          Seq.empty[CompleteTarget],
+          Map.empty[IsModule, ModuleTarget]
+        )
+      ) { case ((remainingAnnos, targets, dedupedResult), anno)  =>
+          anno match {
+            case ResolvePaths(ts)          => (remainingAnnos, ts ++ targets, dedupedResult)
+            case DedupedResult(dups, orig, _) => (remainingAnnos, targets, dedupedResult ++ dups.map(_ -> orig).toMap)
+            case other => (remainingAnnos :+ other, targets, dedupedResult)
+          }
+      }
 
     // Collect targets that are not local
-    val targets = annotations.map(_.asInstanceOf[ResolvePaths]).flatMap(_.targets.collect { case x: IsMember => x })
+    val targets = targetsToEliminate.collect { case x: IsMember => x }
 
     // Check validity of paths in targets
     val instanceOfModules = new InstanceGraph(state.circuit).getChildrenInstanceOfModule
@@ -174,8 +184,8 @@ class EliminateTargetPaths extends Transform {
       throw NoSuchTargetException(s"""Some targets have illegal paths that cannot be resolved/eliminated: $string""")
     }
 
-    val (newCircuit, renameMap) = run(state.circuit, targets)
+    val (newCircuit, renameMap) = run(state.circuit, targets, previouslyDeduped)
 
-    state.copy(circuit = newCircuit, renames = Some(renameMap), annotations = annotationsx)
+    state.copy(circuit = newCircuit, renames = Some(renameMap), annotations = remainingAnnotations)
   }
 }
