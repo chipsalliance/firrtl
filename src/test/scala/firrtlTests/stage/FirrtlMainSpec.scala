@@ -2,7 +2,7 @@
 
 package firrtlTests.stage
 
-import org.scalatest.{FeatureSpec, GivenWhenThen, Matchers}
+import org.scalatest.GivenWhenThen
 
 import java.io.{File, PrintWriter}
 
@@ -10,13 +10,15 @@ import firrtl.FileUtils
 
 import firrtl.stage.FirrtlMain
 import firrtl.util.BackendCompilationUtilities
+import org.scalatest.featurespec.AnyFeatureSpec
+import org.scalatest.matchers.should.Matchers
 
 /** Testing for the top-level [[FirrtlStage]] via [[FirrtlMain]].
   *
   * This test uses the [[org.scalatest.FeatureSpec FeatureSpec]] intentionally as this test exercises the top-level
   * interface and is more suitable to an Acceptance Testing style.
   */
-class FirrtlMainSpec extends FeatureSpec with GivenWhenThen with Matchers with firrtlTests.Utils
+class FirrtlMainSpec extends AnyFeatureSpec with GivenWhenThen with Matchers with firrtlTests.Utils
     with BackendCompilationUtilities {
 
   /** Parameterizes one test of [[FirrtlMain]]. Running the [[FirrtlMain]] `main` with certain args should produce

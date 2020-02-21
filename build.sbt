@@ -60,7 +60,7 @@ libraryDependencies += "org.scala-lang" % "scala-reflect" % scalaVersion.value
 // An explicit dependency on junit seems to alleviate this.
 libraryDependencies += "junit" % "junit" % "4.13" % "test"
 
-libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.8" % "test"
+libraryDependencies += "org.scalatest" %% "scalatest" % "3.1.1" % "test"
 
 libraryDependencies += "org.scalacheck" %% "scalacheck" % "1.14.3" % "test"
 
