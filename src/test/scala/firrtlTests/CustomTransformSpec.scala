@@ -6,7 +6,6 @@ import firrtl.ir.Circuit
 import firrtl._
 import firrtl.passes.Pass
 import firrtl.ir._
-import firrtl.annotations.{Annotation, NoTargetAnnotation}
 import firrtl.stage.{FirrtlSourceAnnotation, FirrtlStage, RunFirrtlTransformAnnotation}
 
 class CustomTransformSpec extends FirrtlFlatSpec {
@@ -79,7 +78,7 @@ class CustomTransformSpec extends FirrtlFlatSpec {
       def inputForm = HighForm
       def outputForm = HighForm
       def execute(s: CircuitState) = {
-        println(name)
+        assert(name.endsWith("A"))
         s
       }
     }

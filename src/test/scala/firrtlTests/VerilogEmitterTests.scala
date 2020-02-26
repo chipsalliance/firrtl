@@ -2,16 +2,10 @@
 
 package firrtlTests
 
-import java.io._
-
-import org.scalatest._
-import org.scalatest.prop._
 import firrtl._
 import firrtl.annotations._
-import firrtl.ir.Circuit
 import firrtl.passes._
 import firrtl.transforms.VerilogRename
-import firrtl.Parser.IgnoreInfo
 import FirrtlCheckers._
 import firrtl.transforms.CombineCats
 
@@ -66,6 +60,156 @@ class DoPrimVerilog extends FirrtlFlatSpec {
         |  output  b
         |);
         |  assign b = |a;
+        |endmodule
+        |""".stripMargin.split("\n") map normalized
+    executeTest(input, check, compiler)
+  }
+  "Not" should "emit correctly" in {
+    val compiler = new VerilogCompiler
+    val input =
+      """circuit Not :
+        |  module Not :
+        |    input a: UInt<1>
+        |    output b: UInt<1>
+        |    b <= not(a)""".stripMargin
+    val check =
+      """module Not(
+        |  input   a,
+        |  output  b
+        |);
+        |  assign b = ~a;
+        |endmodule
+        |""".stripMargin.split("\n") map normalized
+    executeTest(input, check, compiler)
+  }
+  "inline Bits" should "emit correctly" in {
+    val compiler = new VerilogCompiler
+    val input =
+      """circuit InlineBits :
+        |  module InlineBits :
+        |    input a: UInt<4>
+        |    output b: UInt<1>
+        |    output c: UInt<3>
+        |    output d: UInt<2>
+        |    output e: UInt<2>
+        |    output f: UInt<2>
+        |    output g: UInt<2>
+        |    output h: UInt<2>
+        |    output i: UInt<2>
+        |    output j: UInt<2>
+        |    output k: UInt<1>
+        |    output l: UInt<1>
+        |    output m: UInt<1>
+        |    output n: UInt<1>
+        |    output o: UInt<2>
+        |    output p: UInt<2>
+        |    output q: UInt<2>
+        |    output r: UInt<1>
+        |    output s: UInt<2>
+        |    output t: UInt<2>
+        |    output u: UInt<1>
+        |    b <= bits(a, 2, 2)
+        |    c <= bits(a, 3, 1)
+        |    d <= head(a, 2)
+        |    e <= tail(a, 2)
+        |    f <= bits(bits(a, 3, 1), 2, 1)
+        |    g <= bits(head(a, 3), 1, 0)
+        |    h <= bits(tail(a, 1), 1, 0)
+        |    i <= bits(shr(a, 1), 1, 0)
+        |    j <= head(bits(a, 3, 1), 2)
+        |    k <= head(head(a, 3), 1)
+        |    l <= head(tail(a, 1), 1)
+        |    m <= head(shr(a, 1), 1)
+        |    n <= tail(bits(a, 3, 1), 2)
+        |    o <= tail(head(a, 3), 1)
+        |    p <= tail(tail(a, 1), 1)
+        |    q <= tail(shr(a, 1), 1)
+        |    r <= shr(bits(a, 1, 0), 1)
+        |    s <= shr(head(a, 3), 1)
+        |    t <= shr(tail(a, 1), 1)
+        |    u <= shr(shr(a, 1), 2)""".stripMargin
+    val check =
+      """module InlineBits(
+        |  input  [3:0] a,
+        |  output  b,
+        |  output [2:0] c,
+        |  output [1:0] d,
+        |  output [1:0] e,
+        |  output [1:0] f,
+        |  output [1:0] g,
+        |  output [1:0] h,
+        |  output [1:0] i,
+        |  output [1:0] j,
+        |  output  k,
+        |  output  l,
+        |  output  m,
+        |  output  n,
+        |  output [1:0] o,
+        |  output [1:0] p,
+        |  output [1:0] q,
+        |  output  r,
+        |  output [1:0] s,
+        |  output [1:0] t,
+        |  output  u
+        |);
+        |  assign b = a[2];
+        |  assign c = a[3:1];
+        |  assign d = a[3:2];
+        |  assign e = a[1:0];
+        |  assign f = a[3:2];
+        |  assign g = a[2:1];
+        |  assign h = a[1:0];
+        |  assign i = a[2:1];
+        |  assign j = a[3:2];
+        |  assign k = a[3];
+        |  assign l = a[2];
+        |  assign m = a[3];
+        |  assign n = a[1];
+        |  assign o = a[2:1];
+        |  assign p = a[1:0];
+        |  assign q = a[2:1];
+        |  assign r = a[1];
+        |  assign s = a[3:2];
+        |  assign t = a[2:1];
+        |  assign u = a[3];
+        |endmodule
+        |""".stripMargin.split("\n") map normalized
+    executeTest(input, check, compiler)
+  }
+  "inline Not" should "emit correctly" in {
+    val compiler = new VerilogCompiler
+    val input =
+      """circuit InlineNot :
+        |  module InlineNot :
+        |    input a: UInt<1>
+        |    input b: UInt<1>
+        |    input c: UInt<4>
+        |    output d: UInt<1>
+        |    output e: UInt<1>
+        |    output f: UInt<1>
+        |    output g: UInt<1>
+        |    output h: UInt<1>
+        |    d <= and(a, not(b))
+        |    e <= or(a, not(b))
+        |    f <= not(not(not(bits(c, 2, 2))))
+        |    g <= mux(not(bits(c, 2, 2)), a, b)
+        |    h <= shr(not(bits(c, 2, 1)), 1)""".stripMargin
+    val check =
+      """module InlineNot(
+        |  input   a,
+        |  input   b,
+        |  input  [3:0] c,
+        |  output  d,
+        |  output  e,
+        |  output  f,
+        |  output  g,
+        |  output  h
+        |);
+        |  assign d = a & ~b;
+        |  assign e = a | ~b;
+        |  assign f = ~c[2];
+        |  assign g = c[2] ? b : a;
+        |  assign h = ~c[2];
         |endmodule
         |""".stripMargin.split("\n") map normalized
     executeTest(input, check, compiler)
@@ -126,6 +270,16 @@ class DoPrimVerilog extends FirrtlFlatSpec {
 }
 
 class VerilogEmitterSpec extends FirrtlFlatSpec {
+  private def compile(input: String): CircuitState =
+    (new VerilogCompiler).compileAndEmit(CircuitState(parse(input), ChirrtlForm), List.empty)
+  private def compileBody(body: String): CircuitState = {
+    val str = """
+      |circuit Test :
+      |  module Test :
+      |""".stripMargin + body.split("\n").mkString("    ", "\n    ", "")
+    compile(str)
+  }
+
   "Ports" should "emit with widths aligned and names aligned" in {
     val compiler = new VerilogCompiler
     val input =
@@ -322,7 +476,6 @@ class VerilogEmitterSpec extends FirrtlFlatSpec {
     output.circuit.serialize should be (parse(check_firrtl).serialize)
   }
 
-
   behavior of "Register Updates"
 
   they should "emit using 'else if' constructs" in {
@@ -464,6 +617,130 @@ class VerilogEmitterSpec extends FirrtlFlatSpec {
     result        should containLine ("tmp <= in_9;")
   }
 
+  "SInt addition" should "have casts" in {
+    val compiler = new VerilogCompiler
+    val result = compileBody(
+      """input x : SInt<4>
+        |input y : SInt<4>
+        |output z : SInt
+        |z <= add(x, y)
+        |""".stripMargin
+    )
+    result should containLine("assign z = $signed(x) + $signed(y);")
+  }
+
+  it should "NOT cast SInt literals" in {
+    val compiler = new VerilogCompiler
+    val result = compileBody(
+      """input x : SInt<4>
+        |output z : SInt
+        |z <= add(x, SInt(-1))
+        |""".stripMargin
+    )
+    result should containLine("assign z = $signed(x) - 4'sh1;")
+  }
+
+  it should "inline asSInt casts" in {
+    val compiler = new VerilogCompiler
+    val result = compileBody(
+      """input x : UInt<4>
+        |input y : UInt<4>
+        |output z : SInt
+        |node _T_1 = asSInt(x)
+        |z <= add(_T_1, asSInt(y))
+        |""".stripMargin
+    )
+    result should containLine("assign z = $signed(x) + $signed(y);")
+  }
+
+  "Verilog Emitter" should "drop asUInt casts on Clocks" in {
+    val compiler = new VerilogCompiler
+    val result = compileBody(
+      """input x : Clock
+        |input y : Clock
+        |output z : UInt<1>
+        |node _T_1 = asUInt(x)
+        |z <= eq(_T_1, asUInt(y))
+        |""".stripMargin
+    )
+    result should containLine("assign z = x == y;")
+  }
+
+  it should "drop asClock casts on UInts" in {
+    val compiler = new VerilogCompiler
+    val result = compileBody(
+      """input x : UInt<1>
+        |input y : UInt<1>
+        |output z : Clock
+        |node _T_1 = eq(x, y)
+        |z <= asClock(_T_1)
+        |""".stripMargin
+    )
+    result should containLine("assign z = x == y;")
+  }
+
+  it should "drop asUInt casts on AsyncResets" in {
+    val compiler = new VerilogCompiler
+    val result = compileBody(
+      """input x : AsyncReset
+        |input y : AsyncReset
+        |output z : UInt<1>
+        |node _T_1 = asUInt(x)
+        |z <= eq(_T_1, asUInt(y))
+        |""".stripMargin
+    )
+    result should containLine("assign z = x == y;")
+  }
+
+  it should "drop asAsyncReset casts on UInts" in {
+    val compiler = new VerilogCompiler
+    val result = compileBody(
+      """input x : UInt<1>
+        |input y : UInt<1>
+        |output z : AsyncReset
+        |node _T_1 = eq(x, y)
+        |z <= asAsyncReset(_T_1)
+        |""".stripMargin
+    )
+    result should containLine("assign z = x == y;")
+  }
+
+  it should "subtract positive literals instead of adding negative literals" in {
+    val compiler = new VerilogCompiler
+    val result = compileBody(
+      """input x : SInt<8>
+        |output z : SInt<9>
+        |z <= add(x, SInt(-2))
+        |""".stripMargin
+    )
+    result shouldNot containLine("assign z = $signed(x) + -8'sh2;")
+    result should    containLine("assign z = $signed(x) - 8'sh2;")
+  }
+
+  it should "subtract positive literals even with max negative literal" in {
+    val compiler = new VerilogCompiler
+    val result = compileBody(
+      """input x : SInt<2>
+        |output z : SInt<3>
+        |z <= add(x, SInt(-2))
+        |""".stripMargin
+    )
+    result shouldNot containLine("assign z = $signed(x) + -2'sh2;")
+    result should    containLine("assign z = $signed(x) - 3'sh2;")
+  }
+
+  it should "subtract positive literals even with max negative literal with no carryout" in {
+    val compiler = new VerilogCompiler
+    val result = compileBody(
+      """input x : SInt<2>
+        |output z : SInt<2>
+        |z <= add(x, SInt(-2))
+        |""".stripMargin
+    )
+    result shouldNot containLine("assign z = $signed(x) + -2'sh2;")
+    result should    containLine("assign _GEN_0 = $signed(x) - 3'sh2;")
+    result should    containLine("assign z = _GEN_0[1:0];")
+  }
 }
 
 class VerilogDescriptionEmitterSpec extends FirrtlFlatSpec {

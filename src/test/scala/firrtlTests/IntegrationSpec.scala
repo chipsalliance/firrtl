@@ -3,8 +3,6 @@
 package firrtlTests
 
 import firrtl._
-import org.scalatest._
-import org.scalatest.prop._
 
 import java.io.File
 
@@ -42,8 +40,8 @@ class GCDSplitEmissionExecutionTest extends FirrtlFlatSpec {
     copyResourceToFile(cppHarnessResourceName, harness)
 
     // topFile will be compiled by Verilator command by default but we need to also include dutFile
-    verilogToCpp(top, testDir, Seq(dutFile), harness).!
-    cppToExe(top, testDir).!
+    verilogToCpp(top, testDir, Seq(dutFile), harness) #&&
+    cppToExe(top, testDir) ! loggingProcessLogger
     assert(executeExpectingSuccess(top, testDir))
   }
 }
