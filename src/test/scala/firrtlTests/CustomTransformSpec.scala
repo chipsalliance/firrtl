@@ -7,6 +7,7 @@ import firrtl._
 import firrtl.passes.Pass
 import firrtl.ir._
 import firrtl.stage.{FirrtlSourceAnnotation, FirrtlStage, RunFirrtlTransformAnnotation}
+import firrtl.testutils._
 
 class CustomTransformSpec extends FirrtlFlatSpec {
   behavior of "Custom Transforms"

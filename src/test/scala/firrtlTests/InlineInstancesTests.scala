@@ -5,6 +5,7 @@ package firrtlTests
 import firrtl.annotations._
 import firrtl.passes.{InlineAnnotation, InlineInstances}
 import firrtl.transforms.NoCircuitDedupAnnotation
+import firrtl.testutils._
 
 /**
  * Tests inline instances transformation

@@ -5,6 +5,7 @@ package firrtlTests
 import firrtl._
 import firrtl.passes._
 import firrtl.transforms._
+import firrtl.testutils._
 
 class ConstantPropagationSpec extends FirrtlFlatSpec {
   val transforms = Seq(
