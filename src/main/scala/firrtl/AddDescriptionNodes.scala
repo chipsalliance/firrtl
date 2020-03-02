@@ -209,7 +209,7 @@ class AddDescriptionNodes extends Transform with DependencyAPIMigration with Pre
   }
 
   def collectMaps(annos: Seq[Annotation]): (Map[String, Seq[Description]], Map[String, Map[String, Seq[Description]]]) = {
-    val modList: Map[String, Seq[Description]] = annos.collect {
+    val modList = annos.collect {
       case DocStringAnnotation(ModuleName(m, _), desc) => (m, DocString(StringLit.unescape(desc)))
       case AttributeAnnotation(ModuleName(m, _), desc) => (m, Attribute(StringLit.unescape(desc)))
     }
