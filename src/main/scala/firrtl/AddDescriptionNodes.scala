@@ -12,8 +12,8 @@ import firrtl.options.{Dependency, PreservesAll}
   * Usually, we would like to emit these descriptions in some way.
   */
 sealed trait DescriptionAnnotation extends Annotation {
-  val named: Named
-  val description: String
+  def named: Named
+  def description: String
 }
 
 /**
@@ -185,14 +185,14 @@ class AddDescriptionNodes extends Transform with DependencyAPIMigration with Pre
     * @return List of `Description`s with some descriptions merged
     */
   def mergeDescriptions(descs: Seq[Description]): Seq[Description] = {
-    val (docs: Seq[DocString], nodocs) = descs.partition(_ match {
+    val (docs: Seq[DocString], nodocs) = descs.partition {
       case _: DocString => true
       case _ => false
-    })
-    val (attrs: Seq[Attribute], rest) = nodocs.partition(_ match {
+    }
+    val (attrs: Seq[Attribute], rest) = nodocs.partition {
       case _: Attribute => true
       case _ => false
-    })
+    }
 
     val doc = if (docs.nonEmpty) {
       Seq(DocString(StringLit.unescape(docs.map(_.string.string).mkString("\n\n"))))
