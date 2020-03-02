@@ -193,17 +193,29 @@ class AddDescriptionNodes extends Transform {
   }
 
   def collectMaps(annos: Seq[Annotation]): (Map[String, Seq[Description]], Map[String, Map[String, Seq[Description]]]) = {
-    val modMap: Map[String, Seq[Description]] = annos.collect {
+    val modList: Map[String, Seq[Description]] = annos.collect {
       case DocStringAnnotation(ModuleName(m, _), desc) => (m, DocString(StringLit.unescape(desc)))
       case AttributeAnnotation(ModuleName(m, _), desc) => (m, Attribute(StringLit.unescape(desc)))
-    }.groupBy(_._1).mapValues(_.map(_._2)).mapValues(mergeDescriptions)
+    }
 
-    val compMap = annos.collect {
+    // map field 1 (module name) -> field 2 (a list of Descriptions)
+    val modMap = modList.groupBy(_._1).mapValues(_.map(_._2))
+      // and then merge like descriptions (e.g. multiple docstrings into one big docstring)
+      .mapValues(mergeDescriptions)
+
+    val compList = annos.collect {
       case DocStringAnnotation(ComponentName(c, ModuleName(m, _)), desc) =>
         (m, c, DocString(StringLit.unescape(desc)))
       case AttributeAnnotation(ComponentName(c, ModuleName(m, _)), desc) =>
         (m, c, Attribute(StringLit.unescape(desc)))
-    }.groupBy(_._1).mapValues(_.groupBy(_._2).mapValues(_.map(_._3)).mapValues(mergeDescriptions))
+    }
+
+    // map field 1 (name) -> a map that we build
+    val compMap = compList.groupBy(_._1).mapValues(
+      // map field 2 (component name) -> field 3 (a list of Descriptions)
+      _.groupBy(_._2).mapValues(_.map(_._3))
+      // and then merge like descriptions (e.g. multiple docstrings into one big docstring)
+      .mapValues(mergeDescriptions))
 
     (modMap, compMap)
   }
