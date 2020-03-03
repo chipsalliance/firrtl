@@ -2,11 +2,7 @@
 
 package firrtlTests
 
-import java.io._
-import org.scalatest._
-import org.scalatest.prop._
-import firrtl.{Parser, CircuitState, UnknownForm, Transform}
-import firrtl.Parser.IgnoreInfo
+import firrtl.{CircuitState, UnknownForm, Transform}
 import firrtl.passes._
 
 class CheckInitializationSpec extends FirrtlFlatSpec {
@@ -16,8 +12,8 @@ class CheckInitializationSpec extends FirrtlFlatSpec {
      ResolveKinds,
      InferTypes,
      CheckTypes,
-     ResolveGenders,
-     CheckGenders,
+     ResolveFlows,
+     CheckFlows,
      new InferWidths,
      CheckWidths,
      PullMuxes,

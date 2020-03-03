@@ -64,6 +64,30 @@ class DiGraph[T] private[graph] (private[graph] val edges: LinkedHashMap[T, Link
     */
   def findSinks: Set[T] = reverse.findSources
 
+  /**
+    * Finds a Seq of Nodes that form a loop
+    * @param node Node to start loop path search from.
+    * @return     The found Seq, the Seq is empty if there is no loop
+    */
+  def findLoopAtNode(node: T): Seq[T] = {
+    var foundPath = Seq.empty[T]
+    getEdges(node).exists { vertex =>
+      try {
+        foundPath = path(vertex, node, blacklist = Set.empty)
+        true
+      }
+      catch {
+        case _: PathNotFoundException =>
+          foundPath = Seq.empty[T]
+          false
+        case t: Throwable =>
+          throw t
+
+      }
+    }
+    foundPath
+  }
+
   /** Linearizes (topologically sorts) a DAG
     *
     * @throws CyclicException if the graph is cyclic
@@ -77,7 +101,7 @@ class DiGraph[T] private[graph] (private[graph] val edges: LinkedHashMap[T, Link
     val unmarked = new mutable.LinkedHashSet[T]
     val tempMarked = new mutable.LinkedHashSet[T]
 
-    case class LinearizeFrame[T](v: T, expanded: Boolean)
+    case class LinearizeFrame[A](v: A, expanded: Boolean)
     val callStack = mutable.Stack[LinearizeFrame[T]]()
 
     unmarked ++= getVertices
@@ -109,30 +133,6 @@ class DiGraph[T] private[graph] (private[graph] val edges: LinkedHashMap[T, Link
     order.reverse.toSeq
   }
 
-  /**
-    * Finds a Seq of Nodes that form a loop
-    * @param node Node to start loop path search from.
-    * @return     The found Seq, the Seq is empty if there is no loop
-    */
-  def findLoopAtNode(node: T): Seq[T] = {
-    var foundPath = Seq.empty[T]
-    getEdges(node).exists { vertex =>
-      try {
-        foundPath = path(vertex, node, blacklist = Set.empty)
-        true
-      }
-      catch {
-        case _: PathNotFoundException =>
-          foundPath = Seq.empty[T]
-          false
-        case t: Throwable =>
-          throw t
-
-      }
-    }
-    foundPath
-  }
-
   /** Performs breadth-first search on the directed graph
     *
     * @param root the start node
@@ -144,7 +144,7 @@ class DiGraph[T] private[graph] (private[graph] val edges: LinkedHashMap[T, Link
   /** Performs breadth-first search on the directed graph, with a blacklist of nodes
     *
     * @param root the start node
-    * @param blacklist list of nodes to stop searching, if encountered
+    * @param blacklist list of nodes to avoid visiting, if encountered
     * @return a Map[T,T] from each visited node to its predecessor in the
     * traversal
     */
@@ -164,18 +164,23 @@ class DiGraph[T] private[graph] (private[graph] val edges: LinkedHashMap[T, Link
     prev
   }
 
-  /** Finds the set of nodes reachable from a particular node
+  /** Finds the set of nodes reachable from a particular node. The `root` node is *not* included in the
+    * returned set unless it is possible to reach `root` along a non-trivial path beginning at
+    * `root`; i.e., if the graph has a cycle that contains `root`.
     *
     * @param root the start node
-    * @return a Set[T] of nodes reachable from the root
+    * @return a Set[T] of nodes reachable from `root`
     */
   def reachableFrom(root: T): LinkedHashSet[T] = reachableFrom(root, Set.empty[T])
 
-  /** Finds the set of nodes reachable from a particular node, with a blacklist
+  /** Finds the set of nodes reachable from a particular node, with a blacklist. The semantics of
+    * adding a node to the blacklist is that any of its inedges will be ignored in the traversal.
+    * The `root` node is *not* included in the returned set unless it is possible to reach `root` along
+    * a non-trivial path beginning at `root`; i.e., if the graph has a cycle that contains `root`.
     *
     * @param root the start node
     * @param blacklist list of nodes to stop searching, if encountered
-    * @return a Set[T] of nodes reachable from the root
+    * @return a Set[T] of nodes reachable from `root`
     */
   def reachableFrom(root: T, blacklist: Set[T]): LinkedHashSet[T] = new LinkedHashSet[T] ++ BFS(root, blacklist).map({ case (k, v) => k })
 
@@ -187,7 +192,7 @@ class DiGraph[T] private[graph] (private[graph] val edges: LinkedHashMap[T, Link
     * @return a Seq[T] of nodes defining an arbitrary valid path
     */
   def path(start: T, end: T): Seq[T] = path(start, end, Set.empty[T])
-  
+
   /** Finds a path (if one exists) from one node to another, with a blacklist
     *
     * @param start the start node
@@ -230,7 +235,7 @@ class DiGraph[T] private[graph] (private[graph] val edges: LinkedHashMap[T, Link
      * created on the last iteration where the current frame was
      * active is sufficient to track the position.
      */
-    class StrongConnectFrame[T](val v: T, val edgeIter: Iterator[T], var childCall: Option[T] = None)
+    class StrongConnectFrame[A](val v: A, val edgeIter: Iterator[A], var childCall: Option[A] = None)
     val callStack = new mutable.Stack[StrongConnectFrame[T]]
 
     for (node <- getVertices) {
@@ -322,7 +327,7 @@ class DiGraph[T] private[graph] (private[graph] val edges: LinkedHashMap[T, Link
   private def filterEdges(vprime: Set[T]): LinkedHashMap[T, LinkedHashSet[T]] = {
     def filterNodeSet(s: LinkedHashSet[T]): LinkedHashSet[T] = s.filter({ case (k) => vprime.contains(k) })
     def filterAdjacencyLists(m: LinkedHashMap[T, LinkedHashSet[T]]): LinkedHashMap[T, LinkedHashSet[T]] = m.map({ case (k, v) => (k, filterNodeSet(v)) })
-    var eprime: LinkedHashMap[T, LinkedHashSet[T]] = edges.filter({ case (k, v) => vprime.contains(k) })
+    val eprime: LinkedHashMap[T, LinkedHashSet[T]] = edges.filter({ case (k, v) => vprime.contains(k) })
     filterAdjacencyLists(eprime)
   }
 

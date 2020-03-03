@@ -2,24 +2,20 @@
 
 package firrtlTests
 
-import java.io._
-import org.scalatest._
-import org.scalatest.prop._
 import firrtl.Parser
-import firrtl.ir.Circuit
 import firrtl.passes._
 import firrtl.transforms._
 import firrtl._
 
 class LowerTypesSpec extends FirrtlFlatSpec {
-  private val transforms = Seq(
+  private def transforms = Seq(
     ToWorkingIR,
     CheckHighForm,
     ResolveKinds,
     InferTypes,
     CheckTypes,
-    ResolveGenders,
-    CheckGenders,
+    ResolveFlows,
+    CheckFlows,
     new InferWidths,
     CheckWidths,
     PullMuxes,
@@ -31,7 +27,7 @@ class LowerTypesSpec extends FirrtlFlatSpec {
     new ConstantPropagation,
     ResolveKinds,
     InferTypes,
-    ResolveGenders,
+    ResolveFlows,
     new InferWidths,
     LowerTypes)
 

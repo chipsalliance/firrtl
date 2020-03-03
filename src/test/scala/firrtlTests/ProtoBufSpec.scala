@@ -2,8 +2,6 @@
 
 package firrtlTests
 
-import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
-
 import firrtl.FirrtlProtos.Firrtl
 import firrtl._
 import firrtl.ir._
@@ -30,8 +28,7 @@ class ProtoBufSpec extends FirrtlFlatSpec {
 
   for (FirrtlResourceTest(name, dir) <- firrtlResourceTests) {
     s"$name" should "work with Protobuf serialization and deserialization" in {
-      val stream = getClass.getResourceAsStream(s"$dir/$name.fir")
-      val circuit = parse(scala.io.Source.fromInputStream(stream).getLines.mkString("\n"))
+      val circuit = parse(FileUtils.getTextResource(s"$dir/$name.fir"))
 
       // Test ToProto and FromProto
       val protobuf = proto.ToProto.convert(circuit)
@@ -179,8 +176,28 @@ class ProtoBufSpec extends FirrtlFlatSpec {
     oldCMem should equal (cmem)
   }
 
+  // readunderwrite support
+  it should "support readunderwrite parameters" in {
+    val m1 = DefMemory(NoInfo, "m", UIntType(IntWidth(8)), 128, 1, 1, List("r"), List("w"), Nil, ir.ReadUnderWrite.Old)
+    FromProto.convert(ToProto.convert(m1).head.build) should equal (m1)
+
+    val m2 = m1.copy(readUnderWrite = ir.ReadUnderWrite.New)
+    FromProto.convert(ToProto.convert(m2).head.build) should equal (m2)
+
+    val cm1 = CDefMemory(NoInfo, "m", UIntType(IntWidth(8)), 128, true, ir.ReadUnderWrite.Old)
+    FromProto.convert(ToProto.convert(cm1).head.build) should equal (cm1)
+
+    val cm2 = cm1.copy(readUnderWrite = ir.ReadUnderWrite.New)
+    FromProto.convert(ToProto.convert(cm2).head.build) should equal (cm2)
+  }
+
   it should "support AsyncResetTypes" in {
     val port = ir.Port(ir.NoInfo, "reset", ir.Input, ir.AsyncResetType)
+    FromProto.convert(ToProto.convert(port).build) should equal (port)
+  }
+
+  it should "support ResetTypes" in {
+    val port = ir.Port(ir.NoInfo, "reset", ir.Input, ir.ResetType)
     FromProto.convert(ToProto.convert(port).build) should equal (port)
   }
 }

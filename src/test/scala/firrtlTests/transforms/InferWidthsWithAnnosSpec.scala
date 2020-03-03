@@ -3,12 +3,9 @@
 package firrtlTests.transforms
 
 import firrtlTests.FirrtlFlatSpec
-import org.scalatest._
-import org.scalatest.prop._
 import firrtl._
 import firrtl.passes._
 import firrtl.passes.wiring.{WiringTransform, SourceAnnotation, SinkAnnotation}
-import firrtl.ir.Circuit
 import firrtl.annotations._
 import firrtl.annotations.TargetToken.{Field, Index}
 
@@ -35,7 +32,7 @@ class InferWidthsWithAnnosSpec extends FirrtlFlatSpec {
       ResolveKinds,
       InferTypes,
       CheckTypes,
-      ResolveGenders,
+      ResolveFlows,
       new InferWidths,
       CheckWidths)
 
@@ -64,7 +61,7 @@ class InferWidthsWithAnnosSpec extends FirrtlFlatSpec {
       ResolveKinds,
       InferTypes,
       CheckTypes,
-      ResolveGenders,
+      ResolveFlows,
       new InferWidths,
       CheckWidths)
 
@@ -107,7 +104,7 @@ class InferWidthsWithAnnosSpec extends FirrtlFlatSpec {
       ResolveKinds,
       InferTypes,
       CheckTypes,
-      ResolveGenders,
+      ResolveFlows,
       new InferWidths,
       CheckWidths)
 
@@ -152,11 +149,11 @@ class InferWidthsWithAnnosSpec extends FirrtlFlatSpec {
   }
 
   "InferWidthsWithAnnos" should "work with WiringTransform" in {
-    def transforms = Seq(
+    def transforms() = Seq(
       ToWorkingIR,
       ResolveKinds,
       InferTypes,
-      ResolveGenders,
+      ResolveFlows,
       new InferWidths,
       CheckWidths,
       new WiringTransform,

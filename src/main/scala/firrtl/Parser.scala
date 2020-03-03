@@ -4,12 +4,12 @@ package firrtl
 
 import org.antlr.v4.runtime._
 import org.antlr.v4.runtime.atn._
-import com.typesafe.scalalogging.LazyLogging
+import logger.LazyLogging
 import firrtl.ir._
 import firrtl.Utils.time
 import firrtl.antlr.{FIRRTLParser, _}
 
-class ParserException(message: String) extends FIRRTLException(message)
+class ParserException(message: String) extends FirrtlUserException(message)
 
 case class ParameterNotSpecifiedException(message: String) extends ParserException(message)
 case class ParameterRedefinedException(message: String) extends ParserException(message)

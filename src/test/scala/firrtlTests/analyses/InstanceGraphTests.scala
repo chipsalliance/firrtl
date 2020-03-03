@@ -1,12 +1,9 @@
 package firrtlTests.analyses
 
-import java.io._
-import org.scalatest._
-import org.scalatest.prop._
-import org.scalatest.Matchers._
+import firrtl.annotations.TargetToken.OfModule
 import firrtl.analyses.InstanceGraph
 import firrtl.graph.DiGraph
-import firrtl.Parser.parse
+import firrtl.WDefInstance
 import firrtl.passes._
 import firrtlTests._
 
@@ -37,6 +34,41 @@ circuit Top :
     val circuit = ToWorkingIR.run(parse(input))
     val graph = new InstanceGraph(circuit).graph.transformNodes(_.module)
     getEdgeSet(graph) shouldBe Map("Top" -> Set("Child1", "Child2"), "Child1" -> Set("Child1a", "Child1b"), "Child2" -> Set(), "Child1a" -> Set(), "Child1b" -> Set())
+  }
+
+  it should "find hierarchical instances correctly in disconnected hierarchies" in {
+    val input = """
+circuit Top :
+  module Top :
+    inst c of Child1
+  module Child1 :
+    skip
+
+  module Top2 :
+    inst a of Child2
+    inst b of Child3
+    skip
+  module Child2 :
+    inst a of Child2a
+    inst b of Child2b
+    skip
+  module Child2a :
+    skip
+  module Child2b :
+    skip
+  module Child3 :
+    skip
+"""
+
+    val circuit = ToWorkingIR.run(parse(input))
+    val iGraph = new InstanceGraph(circuit)
+    iGraph.findInstancesInHierarchy("Top") shouldBe Seq(Seq(WDefInstance("Top", "Top")))
+    iGraph.findInstancesInHierarchy("Child1") shouldBe Seq(Seq(WDefInstance("Top", "Top"), WDefInstance("c", "Child1")))
+    iGraph.findInstancesInHierarchy("Top2") shouldBe Nil
+    iGraph.findInstancesInHierarchy("Child2") shouldBe Nil
+    iGraph.findInstancesInHierarchy("Child2a") shouldBe Nil
+    iGraph.findInstancesInHierarchy("Child2b") shouldBe Nil
+    iGraph.findInstancesInHierarchy("Child3") shouldBe Nil
   }
 
   it should "recognize disconnected hierarchies" in {
@@ -163,5 +195,71 @@ circuit Top :
     val instGraph = new InstanceGraph(circuit)
     val hier = instGraph.fullHierarchy
     hier.keys.toSeq.map(_.name) should equal (Seq("Top", "a", "b", "c", "d", "e"))
+  }
+
+  behavior of "InstanceGraph.staticInstanceCount"
+
+  it should "report that there is one instance of the top module" in {
+    val input =
+      """|circuit Foo:
+         |  module Foo:
+         |    skip
+         |""".stripMargin
+    val iGraph = new InstanceGraph(ToWorkingIR.run(parse(input)))
+    val expectedCounts = Map(OfModule("Foo") -> 1)
+    iGraph.staticInstanceCount should be (expectedCounts)
+  }
+
+  it should "report correct number of instances for a sample circuit" in {
+    val input =
+      """|circuit Foo:
+         |  module Baz:
+         |    skip
+         |  module Bar:
+         |    inst baz1 of Baz
+         |    inst baz2 of Baz
+         |    inst baz3 of Baz
+         |    skip
+         |  module Foo:
+         |    inst bar1 of Bar
+         |    inst bar2 of Bar
+         |""".stripMargin
+    val iGraph = new InstanceGraph(ToWorkingIR.run(parse(input)))
+    val expectedCounts = Map(OfModule("Foo") -> 1,
+                             OfModule("Bar") -> 2,
+                             OfModule("Baz") -> 3)
+    iGraph.staticInstanceCount should be (expectedCounts)
+  }
+
+  it should "report zero instances for dead modules" in {
+    val input =
+      """|circuit Foo:
+         |  module Bar:
+         |    skip
+         |  module Foo:
+         |    skip
+         |""".stripMargin
+    val iGraph = new InstanceGraph(ToWorkingIR.run(parse(input)))
+    val expectedCounts = Map(OfModule("Foo") -> 1,
+                             OfModule("Bar") -> 0)
+    iGraph.staticInstanceCount should be (expectedCounts)
+  }
+
+  behavior of "Reachable/Unreachable helper methods"
+
+  they should "report correct reachable/unreachable counts" in {
+    val input =
+      """|circuit Top:
+         |  module Unreachable:
+         |    skip
+         |  module Reachable:
+         |    skip
+         |  module Top:
+         |    inst reachable of Reachable
+         |""".stripMargin
+    val iGraph = new InstanceGraph(ToWorkingIR.run(parse(input)))
+    iGraph.modules should contain theSameElementsAs Seq(OfModule("Top"), OfModule("Reachable"), OfModule("Unreachable"))
+    iGraph.reachableModules should contain theSameElementsAs Seq(OfModule("Top"), OfModule("Reachable"))
+    iGraph.unreachableModules should contain theSameElementsAs Seq(OfModule("Unreachable"))
   }
 }

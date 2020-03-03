@@ -2,10 +2,10 @@
 
 package firrtl.stage
 
-import firrtl.{AnnotationSeq, CustomTransformException, FIRRTLException, Utils}
+import firrtl.{AnnotationSeq, CustomTransformException, FirrtlInternalException,
+               FirrtlUserException, FIRRTLException, Utils}
 import firrtl.options.{Stage, Phase, PhaseException, Shell, OptionsException, StageMain}
 import firrtl.options.phases.DeletedWrapper
-import firrtl.passes.{PassException, PassExceptions}
 
 import scala.util.control.ControlThrowable
 
@@ -28,8 +28,8 @@ class FirrtlStage extends Stage {
   } catch {
     /* Rethrow the exceptions which are expected or due to the runtime environment (out of memory, stack overflow, etc.).
      * Any UNEXPECTED exceptions should be treated as internal errors. */
-    case p @ (_: ControlThrowable | _: PassException | _: PassExceptions | _: FIRRTLException | _: OptionsException
-                | _: PhaseException) => throw p
+    case p @ (_: ControlThrowable | _: FIRRTLException | _: OptionsException | _: FirrtlUserException
+                | _: FirrtlInternalException | _: PhaseException) => throw p
     case CustomTransformException(cause) => throw cause
     case e: Exception => Utils.throwInternalError(exception = Some(e))
   }
