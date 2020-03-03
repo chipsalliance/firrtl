@@ -83,21 +83,26 @@ trait CheckHighFormLike {
           errors.append(new IncorrectNumConstsException(info, mname, e.op.toString, nc))
       }
 
+      def nonNegativeConsts(): Unit = {
+        e.consts.map(_.toInt).filter(_ < 0).foreach {
+          negC => errors.append(new NegArgException(info, mname, e.op.toString, negC))
+        }
+      }
+
       e.op match {
         case Add | Sub | Mul | Div | Rem | Lt | Leq | Gt | Geq |
              Eq | Neq | Dshl | Dshr | And | Or | Xor | Cat | Dshlw | Clip | Wrap | Squeeze =>
           correctNum(Option(2), 0)
         case AsUInt | AsSInt | AsClock | AsAsyncReset | Cvt | Neq | Not =>
           correctNum(Option(1), 0)
-        case AsFixedPoint | Pad | Head | Tail | IncP | DecP | SetP =>
+        case AsFixedPoint | SetP =>
           correctNum(Option(1), 1)
-        case Shl | Shr =>
+        case Shl | Shr | Pad | Head | Tail | IncP | DecP =>
           correctNum(Option(1), 1)
-          val amount = e.consts.map(_.toInt).filter(_ < 0).foreach {
-            c => errors.append(new NegArgException(info, mname, e.op.toString, c))
-          }
+          nonNegativeConsts()
         case Bits =>
           correctNum(Option(1), 2)
+          nonNegativeConsts()
           if (e.consts.length == 2) {
             val (msb, lsb) = (e.consts(0).toInt, e.consts(1).toInt)
             if (lsb > msb) {
