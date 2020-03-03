@@ -2,8 +2,6 @@
 
 package firrtlTests
 
-import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
-
 import firrtl.FirrtlProtos.Firrtl
 import firrtl._
 import firrtl.ir._
@@ -30,8 +28,7 @@ class ProtoBufSpec extends FirrtlFlatSpec {
 
   for (FirrtlResourceTest(name, dir) <- firrtlResourceTests) {
     s"$name" should "work with Protobuf serialization and deserialization" in {
-      val stream = getClass.getResourceAsStream(s"$dir/$name.fir")
-      val circuit = parse(scala.io.Source.fromInputStream(stream).getLines.mkString("\n"))
+      val circuit = parse(FileUtils.getTextResource(s"$dir/$name.fir"))
 
       // Test ToProto and FromProto
       val protobuf = proto.ToProto.convert(circuit)
@@ -107,12 +104,12 @@ class ProtoBufSpec extends FirrtlFlatSpec {
     FromProto.convert(ToProto.convert(ext).build) should equal (ext)
   }
 
-  it should "supported FixedType" in {
+  it should "support FixedType" in {
     val ftpe = ir.FixedType(IntWidth(8), IntWidth(4))
     FromProto.convert(ToProto.convert(ftpe).build) should equal (ftpe)
   }
 
-  it should "supported FixedLiteral" in {
+  it should "support FixedLiteral" in {
     val flit = ir.FixedLiteral(3, IntWidth(8), IntWidth(4))
     FromProto.convert(ToProto.convert(flit).build) should equal (flit)
   }
@@ -160,8 +157,69 @@ class ProtoBufSpec extends FirrtlFlatSpec {
     FromProto.convert(ToProto.convert(slit).build) should equal (slit)
   }
 
+  // Backwards compatibility
+  it should "support mems using old uint32 and new BigInt" in {
+    val size = 128
+    val mem = DefMemory(NoInfo, "m", UIntType(IntWidth(8)), size, 1, 1, List("r"), List("w"), List("rw"))
+    val builder = ToProto.convert(mem).head
+    val defaultProto = builder.build()
+    val oldProto = Firrtl.Statement.newBuilder().setMemory(
+      builder.getMemoryBuilder.clearDepth().setUintDepth(size)
+    ).build()
+    // These Proto messages are not the same
+    defaultProto shouldNot equal (oldProto)
+
+    val defaultMem = FromProto.convert(defaultProto)
+    val oldMem = FromProto.convert(oldProto)
+
+    // But they both deserialize to the original!
+    defaultMem should equal (mem)
+    oldMem should equal (mem)
+  }
+
+  // Backwards compatibility
+  it should "support cmems using old VectorType and new TypeAndDepth" in {
+    val size = 128
+    val cmem = CDefMemory(NoInfo, "m", UIntType(IntWidth(8)), size, true)
+    val vtpe = ToProto.convert(VectorType(UIntType(IntWidth(8)), size))
+    val builder = ToProto.convert(cmem).head
+    val defaultProto = builder.build()
+    val oldProto = Firrtl.Statement.newBuilder().setCmemory(
+      builder.getCmemoryBuilder.clearTypeAndDepth().setVectorType(vtpe)
+    ).build()
+    // These Proto messages are not the same
+    defaultProto shouldNot equal (oldProto)
+
+    val defaultCMem = FromProto.convert(defaultProto)
+    val oldCMem = FromProto.convert(oldProto)
+
+    // But they both deserialize to the original!
+    defaultCMem should equal (cmem)
+    oldCMem should equal (cmem)
+  }
+
+  // readunderwrite support
+  it should "support readunderwrite parameters" in {
+    val m1 = DefMemory(NoInfo, "m", UIntType(IntWidth(8)), 128, 1, 1, List("r"), List("w"), Nil, ir.ReadUnderWrite.Old)
+    FromProto.convert(ToProto.convert(m1).head.build) should equal (m1)
+
+    val m2 = m1.copy(readUnderWrite = ir.ReadUnderWrite.New)
+    FromProto.convert(ToProto.convert(m2).head.build) should equal (m2)
+
+    val cm1 = CDefMemory(NoInfo, "m", UIntType(IntWidth(8)), 128, true, ir.ReadUnderWrite.Old)
+    FromProto.convert(ToProto.convert(cm1).head.build) should equal (cm1)
+
+    val cm2 = cm1.copy(readUnderWrite = ir.ReadUnderWrite.New)
+    FromProto.convert(ToProto.convert(cm2).head.build) should equal (cm2)
+  }
+
   it should "support AsyncResetTypes" in {
     val port = ir.Port(ir.NoInfo, "reset", ir.Input, ir.AsyncResetType)
+    FromProto.convert(ToProto.convert(port).build) should equal (port)
+  }
+
+  it should "support ResetTypes" in {
+    val port = ir.Port(ir.NoInfo, "reset", ir.Input, ir.ResetType)
     FromProto.convert(ToProto.convert(port).build) should equal (port)
   }
 }

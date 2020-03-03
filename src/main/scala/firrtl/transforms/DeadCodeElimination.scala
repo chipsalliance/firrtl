@@ -8,14 +8,11 @@ import firrtl.annotations._
 import firrtl.graph._
 import firrtl.analyses.InstanceGraph
 import firrtl.Mappers._
-import firrtl.WrappedExpression._
-import firrtl.Utils.{throwInternalError, toWrappedExpression, kind}
+import firrtl.Utils.{throwInternalError, kind}
 import firrtl.MemoizedHash._
-import firrtl.options.RegisteredTransform
-import scopt.OptionParser
+import firrtl.options.{RegisteredTransform, ShellOption}
 
 import collection.mutable
-import java.io.{File, FileWriter}
 
 /** Dead Code Elimination (DCE)
   *
@@ -36,11 +33,11 @@ class DeadCodeElimination extends Transform with ResolvedAnnotationPaths with Re
   def inputForm = LowForm
   def outputForm = LowForm
 
-  def addOptions(parser: OptionParser[AnnotationSeq]): Unit = parser
-    .opt[Unit]("no-dce")
-    .action( (x, c) => c :+ NoDCEAnnotation )
-    .maxOccurs(1)
-    .text("Do NOT run dead code elimination")
+  val options = Seq(
+    new ShellOption[Unit](
+      longOption = "no-dce",
+      toAnnotationSeq = (_: Unit) => Seq(NoDCEAnnotation),
+      helpText = "Disable dead code elimination" ) )
 
   /** Based on LogicNode ins CheckCombLoops, currently kind of faking it */
   private type LogicNode = MemoizedHash[WrappedExpression]
@@ -111,11 +108,11 @@ class DeadCodeElimination extends Transform with ResolvedAnnotationPaths with Re
         depGraph.addVertex(LogicNode(mod.name, name))
       case mem: DefMemory =>
         // Treat DefMems as a node with outputs depending on the node and node depending on inputs
-        // From perpsective of the module or instance, MALE expressions are inputs, FEMALE are outputs
-        val memRef = WRef(mem.name, MemPortUtils.memType(mem), ExpKind, FEMALE)
-        val exprs = Utils.create_exps(memRef).groupBy(Utils.gender(_))
-        val sources = exprs.getOrElse(MALE, List.empty).flatMap(getDeps(_))
-        val sinks = exprs.getOrElse(FEMALE, List.empty).flatMap(getDeps(_))
+        // From perpsective of the module or instance, SourceFlow expressions are inputs, SinkFlow are outputs
+        val memRef = WRef(mem.name, MemPortUtils.memType(mem), ExpKind, SinkFlow)
+        val exprs = Utils.create_exps(memRef).groupBy(Utils.flow(_))
+        val sources = exprs.getOrElse(SourceFlow, List.empty).flatMap(getDeps(_))
+        val sinks = exprs.getOrElse(SinkFlow, List.empty).flatMap(getDeps(_))
         val memNode = getDeps(memRef) match { case Seq(node) => node }
         depGraph.addVertex(memNode)
         sinks.foreach(sink => depGraph.addPairWithEdge(sink, memNode))
@@ -212,6 +209,11 @@ class DeadCodeElimination extends Transform with ResolvedAnnotationPaths with Re
     var emptyBody = true
     renames.setModule(mod.name)
 
+    def deleteIfNotEnabled(stmt: Statement, en: Expression): Statement = en match {
+      case UIntLiteral(v, _) if v == BigInt(0) => EmptyStmt
+      case _ => stmt
+    }
+
     def onStmt(stmt: Statement): Statement = {
       val stmtx = stmt match {
         case inst: WDefInstance =>
@@ -230,6 +232,8 @@ class DeadCodeElimination extends Transform with ResolvedAnnotationPaths with Re
             EmptyStmt
           }
           else decl
+        case print: Print => deleteIfNotEnabled(print, print.en)
+        case stop: Stop => deleteIfNotEnabled(stop, stop.en)
         case con: Connect =>
           val node = getDeps(con.loc) match { case Seq(elt) => elt }
           if (deadNodes.contains(node)) EmptyStmt else con

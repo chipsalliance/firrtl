@@ -3,7 +3,7 @@
 package firrtl
 package annotations
 
-import firrtl.ir.{Expression, Type}
+import firrtl.ir.{Field => _, _}
 import firrtl.Utils.{sub_type, field_type}
 import AnnotationUtils.{toExp, validComponentName, validModuleName}
 import TargetToken._
@@ -41,7 +41,7 @@ sealed trait Target extends Named {
       case Ref(r) => s">$r"
       case Instance(i) => s"/$i"
       case OfModule(o) => s":$o"
-      case Field(f) => s".$f"
+      case TargetToken.Field(f) => s".$f"
       case Index(v) => s"[$v]"
       case Clock => s"@clock"
       case Reset => s"@reset"
@@ -103,6 +103,21 @@ sealed trait Target extends Named {
 }
 
 object Target {
+  def asTarget(m: ModuleTarget)(e: Expression): ReferenceTarget = e match {
+    case w: WRef => m.ref(w.name)
+    case r: ir.Reference => m.ref(r.name)
+    case w: WSubIndex => asTarget(m)(w.expr).index(w.value)
+    case s: ir.SubIndex => asTarget(m)(s.expr).index(s.value)
+    case w: WSubField => asTarget(m)(w.expr).field(w.name)
+    case s: ir.SubField => asTarget(m)(s.expr).field(s.name)
+    case w: WSubAccess => asTarget(m)(w.expr).field("@" + w.index.serialize)
+    case s: ir.SubAccess => asTarget(m)(s.expr).field("@" + s.index.serialize)
+    case d: DoPrim => m.ref("@" + d.serialize)
+    case d: Mux => m.ref("@" + d.serialize)
+    case d: ValidIf => m.ref("@" + d.serialize)
+    case d: Literal => m.ref("@" + d.serialize)
+    case other => sys.error(s"Unsupported: $other")
+  }
 
   def apply(circuitOpt: Option[String], moduleOpt: Option[String], reference: Seq[TargetToken]): GenericTarget =
     GenericTarget(circuitOpt, moduleOpt, reference.toVector)
@@ -169,6 +184,19 @@ object Target {
         case other => throw NamedException(s"Cannot deserialize Target: $s")
       }
     }.tryToComplete
+  }
+
+  /** Returns the module that a [[Target]] "refers" to.
+    *
+    * For a [[ModuleTarget]] or a [[ReferenceTarget]], this is simply the deepest module. For an [[InstanceTarget]] this
+    * is *the module of the instance*.
+    *
+    * @note This differs from [[InstanceTarget.pathlessTarget]] which refers to the module instantiating the instance.
+    */
+  def referringModule(a: IsMember): ModuleTarget = a match {
+    case b: ModuleTarget    => b
+    case b: InstanceTarget  => b.ofModuleTarget
+    case b: ReferenceTarget => b.pathlessTarget.moduleTarget
   }
 }
 
@@ -380,7 +408,6 @@ trait IsMember extends CompleteTarget {
 
   /** @return List of local Instance Targets refering to each instance/ofModule in this member's path */
   def pathAsTargets: Seq[InstanceTarget] = {
-    val targets = mutable.ArrayBuffer[InstanceTarget]()
     path.foldLeft((module, Vector.empty[InstanceTarget])) {
       case ((m, vec), (Instance(i), OfModule(o))) =>
         (o, vec :+ InstanceTarget(circuit, m, Nil, i, o))
@@ -403,6 +430,8 @@ trait IsModule extends IsMember {
 
   /** @return Creates a new Target, appending an instance and ofmodule */
   def instOf(instance: String, of: String): InstanceTarget
+
+  def addHierarchy(root: String, inst: String): InstanceTarget
 }
 
 /** A component of a FIRRTL Module (e.g. cannot point to a CircuitTarget or ModuleTarget)
@@ -651,7 +680,7 @@ case class InstanceTarget(circuit: String,
     }
   }
 
-  override def asPath: Seq[(Instance, OfModule)] = path :+ (Instance(instance), OfModule(ofModule))
+  override def asPath: Seq[(Instance, OfModule)] = path :+( (Instance(instance), OfModule(ofModule)) )
 
   override def pathlessTarget: InstanceTarget = InstanceTarget(circuit, encapsulatingModule, Nil, instance, ofModule)
 

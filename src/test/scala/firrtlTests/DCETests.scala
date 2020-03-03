@@ -2,13 +2,11 @@
 
 package firrtlTests
 
-import firrtl.ir.Circuit
 import firrtl._
 import firrtl.passes._
 import firrtl.transforms._
 import firrtl.annotations._
 import firrtl.passes.memlib.SimpleTransform
-import FirrtlCheckers._
 
 import java.io.File
 import java.nio.file.Paths
@@ -448,6 +446,23 @@ class DCETests extends FirrtlFlatSpec {
     verilog shouldNot include regex ("""a \? x : r;""")
     // Check for register update
     verilog should include regex ("""(?m)if \(a\) begin\n\s*r <= x;\s*end""")
+  }
+
+  "Emitted Verilog" should "not contain dead print or stop statements" in {
+    val input = parse(
+      """circuit test :
+        |  module test :
+        |    input clock : Clock
+        |    when UInt<1>(0) :
+        |      printf(clock, UInt<1>(1), "o hai")
+        |      stop(clock, UInt<1>(1), 1)""".stripMargin
+    )
+
+    val state = CircuitState(input, ChirrtlForm)
+    val result = (new VerilogCompiler).compileAndEmit(state, List.empty)
+    val verilog = result.getEmittedCircuit.value
+    verilog shouldNot include regex ("""fwrite""")
+    verilog shouldNot include regex ("""fatal""")
   }
 }
 

@@ -3,8 +3,6 @@
 package firrtlTests
 
 import java.io._
-import org.scalatest._
-import org.scalatest.prop._
 import firrtl._
 import firrtl.ir._
 import firrtl.passes._
@@ -18,6 +16,10 @@ class UnitTests extends FirrtlFlatSpec {
     expected foreach { e =>
       lines should contain(e)
     }
+  }
+
+  private def executeTest(input: String, expected: String, transforms: Seq[Transform]) = {
+    execute(input, transforms).circuit should be (parse(expected))
   }
 
   def execute(input: String, transforms: Seq[Transform]): CircuitState = {
@@ -182,7 +184,7 @@ class UnitTests extends FirrtlFlatSpec {
       ResolveKinds,
       InferTypes,
       CheckTypes,
-      ResolveGenders,
+      ResolveFlows,
       ExpandConnects)
     val input =
      """circuit Unit :
@@ -244,7 +246,7 @@ class UnitTests extends FirrtlFlatSpec {
       ToWorkingIR,
       ResolveKinds,
       InferTypes,
-      ResolveGenders,
+      ResolveFlows,
       new InferWidths,
       SplitExpressions
     )
@@ -268,7 +270,7 @@ class UnitTests extends FirrtlFlatSpec {
       ToWorkingIR,
       ResolveKinds,
       InferTypes,
-      ResolveGenders,
+      ResolveFlows,
       new InferWidths,
       PadWidths
     )
@@ -289,7 +291,7 @@ class UnitTests extends FirrtlFlatSpec {
       ToWorkingIR,
       ResolveKinds,
       InferTypes,
-      ResolveGenders,
+      ResolveFlows,
       new InferWidths,
       PullMuxes,
       ExpandConnects,
@@ -297,8 +299,8 @@ class UnitTests extends FirrtlFlatSpec {
       new ConstantPropagation
     )
     val input =
-      """circuit AssignViaDeref : 
-         |  module AssignViaDeref : 
+      """circuit AssignViaDeref :
+         |  module AssignViaDeref :
          |    input clock : Clock
          |    input reset : UInt<1>
          |    output io : {a : UInt<8>, sel : UInt<1>}
@@ -329,7 +331,7 @@ class UnitTests extends FirrtlFlatSpec {
       ToWorkingIR,
       ResolveKinds,
       InferTypes,
-      ResolveGenders,
+      ResolveFlows,
       new InferWidths,
       CheckWidths)
     val input =
@@ -348,7 +350,7 @@ class UnitTests extends FirrtlFlatSpec {
       ToWorkingIR,
       ResolveKinds,
       InferTypes,
-      ResolveGenders,
+      ResolveFlows,
       new InferWidths,
       CheckWidths)
     val input =
@@ -362,12 +364,32 @@ class UnitTests extends FirrtlFlatSpec {
     }
   }
 
+  "zero head select" should "return an empty module" in {
+    val passes = Seq(
+      ToWorkingIR,
+      ResolveKinds,
+      InferTypes,
+      ResolveFlows,
+      new InferWidths,
+      CheckWidths,
+      new DeadCodeElimination)
+    val input =
+      """circuit Unit :
+        |  module Unit :
+        |    node x = head(UInt(1), 0)""".stripMargin
+    val check =
+      """circuit Unit :
+        |  module Unit :
+        |    skip""".stripMargin
+    executeTest(input, check, passes)
+  }
+
   "Oversized tail select" should "throw an exception" in {
     val passes = Seq(
       ToWorkingIR,
       ResolveKinds,
       InferTypes,
-      ResolveGenders,
+      ResolveFlows,
       new InferWidths,
       CheckWidths)
     val input =
@@ -379,6 +401,26 @@ class UnitTests extends FirrtlFlatSpec {
         (c: CircuitState, p: Transform) => p.runTransform(c)
       }
     }
+  }
+
+  "max tail select" should "return an empty module" in {
+    val passes = Seq(
+      ToWorkingIR,
+      ResolveKinds,
+      InferTypes,
+      ResolveFlows,
+      new InferWidths,
+      CheckWidths,
+      new DeadCodeElimination)
+    val input =
+      """circuit Unit :
+        |  module Unit :
+        |    node x = tail(UInt(1), 1)""".stripMargin
+    val check =
+      """circuit Unit :
+        |  module Unit :
+        |    skip""".stripMargin
+    executeTest(input, check, passes)
   }
 
   "Partial connecting incompatable types" should "throw an exception" in {
@@ -475,12 +517,12 @@ class UnitTests extends FirrtlFlatSpec {
       ToWorkingIR,
       ResolveKinds,
       InferTypes,
-      ResolveGenders,
+      ResolveFlows,
       new InferWidths,
       PullMuxes,
       ExpandConnects,
       RemoveAccesses,
-      ResolveGenders,
+      ResolveFlows,
       new ConstantPropagation
     )
     val input =
@@ -499,13 +541,13 @@ class UnitTests extends FirrtlFlatSpec {
     val ut2 = UIntType(IntWidth(BigInt(2)))
     val ut1 = UIntType(IntWidth(BigInt(1)))
 
-    val mgen = WRef("_array_index", ut16, WireKind, MALE)
-    val fgen = WRef("_array_index", ut16, WireKind, FEMALE)
-    val index = WRef("index", ut2, PortKind, MALE)
-    val out = WRef("out", ut16, PortKind, FEMALE)
+    val mgen = WRef("_array_index", ut16, WireKind, SourceFlow)
+    val fgen = WRef("_array_index", ut16, WireKind, SinkFlow)
+    val index = WRef("index", ut2, PortKind, SourceFlow)
+    val out = WRef("out", ut16, PortKind, SinkFlow)
 
     def eq(e1: Expression, e2: Expression): Expression = DoPrim(PrimOps.Eq, Seq(e1, e2), Nil, ut1)
-    def array(v: Int): Expression = WSubIndex(WRef("array", VectorType(ut16, 3), WireKind, MALE), v, ut16, MALE)
+    def array(v: Int): Expression = WSubIndex(WRef("array", VectorType(ut16, 3), WireKind, SourceFlow), v, ut16, SourceFlow)
 
     result should containTree { case DefWire(_, "_array_index", `ut16`) => true }
     result should containTree { case IsInvalid(_, `fgen`) => true }

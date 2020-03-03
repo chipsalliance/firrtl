@@ -7,7 +7,7 @@ import firrtl.PrimOps._
 import firrtl.ir._
 import firrtl._
 import firrtl.Mappers._
-import firrtl.Utils.{sub_type, module_type, field_type, max, error, throwInternalError}
+import firrtl.Utils.{sub_type, module_type, field_type, max, throwInternalError}
 
 /** Replaces FixedType with SIntType, and correctly aligns all binary points
   */
@@ -39,9 +39,9 @@ object ConvertFixedToSInt extends Pass {
       def updateExpType(e:Expression): Expression = e match {
         case DoPrim(Mul, args, consts, tpe) => e map updateExpType
         case DoPrim(AsFixedPoint, args, consts, tpe) => DoPrim(AsSInt, args, Seq.empty, tpe) map updateExpType
-        case DoPrim(BPShl, args, consts, tpe) => DoPrim(Shl, args, consts, tpe) map updateExpType
-        case DoPrim(BPShr, args, consts, tpe) => DoPrim(Shr, args, consts, tpe) map updateExpType
-        case DoPrim(BPSet, args, consts, FixedType(w, IntWidth(p))) => alignArg(args.head, p) map updateExpType
+        case DoPrim(IncP, args, consts, tpe) => DoPrim(Shl, args, consts, tpe) map updateExpType
+        case DoPrim(DecP, args, consts, tpe) => DoPrim(Shr, args, consts, tpe) map updateExpType
+        case DoPrim(SetP, args, consts, FixedType(w, IntWidth(p))) => alignArg(args.head, p) map updateExpType
         case DoPrim(op, args, consts, tpe) =>
           val point = calcPoint(args)
           val newExp = DoPrim(op, args.map(x => alignArg(x, point)), consts, UnknownType)

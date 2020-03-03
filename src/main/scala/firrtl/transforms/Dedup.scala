@@ -6,10 +6,10 @@ package transforms
 import firrtl.ir._
 import firrtl.Mappers._
 import firrtl.analyses.InstanceGraph
-import firrtl.annotations.TargetToken.{Instance, OfModule, Ref}
 import firrtl.annotations._
 import firrtl.passes.{InferTypes, MemPortUtils}
 import firrtl.Utils.throwInternalError
+import firrtl.options.{HasShellOptions, ShellOption}
 
 // Datastructures
 import scala.collection.mutable
@@ -20,7 +20,19 @@ case class NoDedupAnnotation(target: ModuleName) extends SingleTargetAnnotation[
   def duplicate(n: ModuleName): NoDedupAnnotation = NoDedupAnnotation(n)
 }
 
-case object NoCircuitDedupAnnotation extends NoTargetAnnotation
+/** If this [[firrtl.annotations.Annotation Annotation]] exists in an [[firrtl.AnnotationSeq AnnotationSeq]],
+  * then the [[firrtl.transforms.DedupModules]] transform will *NOT* be run on the circuit.
+  *  - set with '--no-dedup'
+  */
+case object NoCircuitDedupAnnotation extends NoTargetAnnotation with HasShellOptions {
+
+  val options = Seq(
+    new ShellOption[Unit](
+      longOption = "no-dedup",
+      toAnnotationSeq = _ => Seq(NoCircuitDedupAnnotation),
+      helpText = "Do NOT dedup modules" ) )
+
+}
 
 /** Only use on legal Firrtl.
   *
@@ -223,7 +235,6 @@ object DedupModules {
     val instances = mutable.Set[WDefInstance]()
     InstanceGraph.collectInstances(instances)(module.asInstanceOf[Module].body)
     val instanceModuleMap = instances.map(i => i.name -> i.module).toMap
-    val moduleNames = instances.map(_.module)
 
     def getNewModule(old: String): DefModule = {
       moduleMap(name2name(old))
@@ -285,8 +296,10 @@ object DedupModules {
     val module2Annotations = mutable.HashMap.empty[String, mutable.HashSet[Annotation]]
     annotations.foreach { a =>
       a.getTargets.foreach { t =>
-        val annos = module2Annotations.getOrElseUpdate(t.moduleOpt.get, mutable.HashSet.empty[Annotation])
-        annos += a
+        if (t.moduleOpt.isDefined) {
+          val annos = module2Annotations.getOrElseUpdate(t.moduleOpt.get, mutable.HashSet.empty[Annotation])
+          annos += a
+        }
       }
     }
     def fastSerializedHash(s: Statement): Int ={
@@ -428,7 +441,7 @@ object DedupModules {
     def rename(name: String): String = name
 
     def retype(name: String)(tpe: Type): Type = {
-      val exps = Utils.expandRef(WRef(name, tpe, ExpKind, UNKNOWNGENDER))
+      val exps = Utils.expandRef(WRef(name, tpe, ExpKind, UnknownFlow))
       refs ++= exps.map(Utils.toTarget(main, m.name))
       tpe
     }
@@ -454,7 +467,7 @@ object DedupModules {
       expr.tpe match {
         case _: GroundType =>
         case b: BundleType => b.fields.foreach { f => onExp(WSubField(expr, f.name, f.tpe)) }
-        case v: VectorType => (0 until v.size).foreach { i => onExp(WSubIndex(expr, i, v.tpe, UNKNOWNGENDER)) }
+        case v: VectorType => (0 until v.size).foreach { i => onExp(WSubIndex(expr, i, v.tpe, UnknownFlow)) }
       }
       all += expr
     }

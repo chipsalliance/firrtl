@@ -4,14 +4,11 @@ package firrtl.passes
 package memlib
 
 import firrtl._
-import firrtl.ir._
 import firrtl.annotations._
-import firrtl.options.HasScoptOptions
-import AnalysisUtils._
+import firrtl.options.{HasShellOptions, ShellOption}
 import Utils.error
 import java.io.{File, CharArrayWriter, PrintWriter}
 import wiring._
-import scopt.OptionParser
 import firrtl.stage.RunFirrtlTransformAnnotation
 
 sealed trait PassOption
@@ -50,15 +47,11 @@ class ConfWriter(filename: String) {
   val outputBuffer = new CharArrayWriter
   def append(m: DefAnnotatedMemory) = {
     // legacy
-    val maskGran = m.maskGran
-    val readers = List.fill(m.readers.length)("read")
-    val writers = List.fill(m.writers.length)(if (maskGran.isEmpty) "write" else "mwrite")
-    val readwriters = List.fill(m.readwriters.length)(if (maskGran.isEmpty) "rw" else "mrw")
-    val ports = (writers ++ readers ++ readwriters) mkString ","
-    val maskGranConf = maskGran match { case None => "" case Some(p) => s"mask_gran $p" }
-    val width = bitWidth(m.dataType)
-    val conf = s"name ${m.name} depth ${m.depth} width $width ports $ports $maskGranConf \n"
-    outputBuffer.append(conf)
+    // assert that we don't overflow going from BigInt to Int conversion
+    require(bitWidth(m.dataType) <= Int.MaxValue)
+    m.maskGran.foreach { case x => require(x <= Int.MaxValue) }
+    val conf = MemConf(m.name, m.depth, bitWidth(m.dataType).toInt, m.readers.length, m.writers.length, m.readwriters.length, m.maskGran.map(_.toInt))
+    outputBuffer.append(conf.toString)
   }
   def serialize() = {
     val outputFile = new PrintWriter(filename)
@@ -106,18 +99,18 @@ class SimpleTransform(p: Pass, form: CircuitForm) extends Transform {
 class SimpleMidTransform(p: Pass) extends SimpleTransform(p, MidForm)
 
 // SimpleRun instead of PassBased because of the arguments to passSeq
-class ReplSeqMem extends Transform with HasScoptOptions {
+class ReplSeqMem extends Transform with HasShellOptions {
   def inputForm = MidForm
   def outputForm = MidForm
 
-  def addOptions(parser: OptionParser[AnnotationSeq]): Unit = parser
-    .opt[String]("repl-seq-mem")
-    .abbr("frsq")
-    .valueName ("-c:<circuit>:-i:<filename>:-o:<filename>")
-    .action( (x, c) => c ++ Seq(passes.memlib.ReplSeqMemAnnotation.parse(x),
-                                RunFirrtlTransformAnnotation(new ReplSeqMem)) )
-    .maxOccurs(1)
-    .text("Replace sequential memories with blackboxes + configuration file")
+  val options = Seq(
+    new ShellOption[String](
+      longOption = "repl-seq-mem",
+      toAnnotationSeq = (a: String) => Seq( passes.memlib.ReplSeqMemAnnotation.parse(a),
+                                            RunFirrtlTransformAnnotation(new ReplSeqMem) ),
+      helpText = "Blackbox and emit a configuration file for each sequential memory",
+      shortOption = Some("frsq"),
+      helpValueName = Some("-c:<circuit>:-i:<file>:-o:<file>") ) )
 
   def transforms(inConfigFile: Option[YamlFileReader], outConfigFile: ConfWriter): Seq[Transform] =
     Seq(new SimpleMidTransform(Legalize),
@@ -133,7 +126,7 @@ class ReplSeqMem extends Transform with HasScoptOptions {
         new SimpleMidTransform(InferTypes),
         Uniquify,
         new SimpleMidTransform(ResolveKinds),
-        new SimpleMidTransform(ResolveGenders))
+        new SimpleMidTransform(ResolveFlows))
 
   def execute(state: CircuitState): CircuitState = {
     val annos = state.annotations.collect { case a: ReplSeqMemAnnotation => a }

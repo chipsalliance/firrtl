@@ -104,13 +104,22 @@ message Firrtl {
       Expression init = 5;
     }
 
+    enum ReadUnderWrite {
+      UNDEFINED = 0;
+      OLD = 1;
+      NEW = 2;
+    }
+
     message Memory {
       // Required.
       string id = 1;
       // Required.
       Type type = 2;
       // Required.
-      uint32 depth = 3;
+      oneof depth {
+        uint32 uint_depth = 3;
+        BigInt bigint_depth = 9;
+      }
       // Required.
       uint32 write_latency = 4;
       // Required.
@@ -118,15 +127,25 @@ message Firrtl {
       repeated string reader_id = 6;
       repeated string writer_id = 7;
       repeated string readwriter_id = 8;
+      ReadUnderWrite read_under_write = 10;
     }
 
     message CMemory {
+      // As alternative to using VectorType as type
+      message TypeAndDepth {
+        Type data_type = 1;
+        BigInt depth = 2;
+      }
       // Required.
       string id = 1;
       // Required.
-      Type.VectorType type = 2;
+      oneof type {
+        Type.VectorType vector_type = 2;
+        TypeAndDepth type_and_depth = 4;
+      }
       // Required.
       bool sync_read = 3;
+      ReadUnderWrite read_under_write = 5;
     }
 
     message Instance {
@@ -266,6 +285,10 @@ message Firrtl {
       // Empty.
     }
 
+    message ResetType {
+      // Empty.
+    }
+
     message BundleType {
       message Field {
         // Required.
@@ -304,6 +327,7 @@ message Firrtl {
       FixedType fixed_type = 7;
       AnalogType analog_type = 8;
       AsyncResetType async_reset_type = 9;
+      ResetType reset_type = 10;
     }
   }
 
@@ -441,10 +465,14 @@ message Firrtl {
         OP_AS_FIXED_POINT = 32;
         OP_AND_REDUCE = 33;
         OP_OR_REDUCE = 34;
-        OP_SHIFT_BINARY_POINT_LEFT = 35;
-        OP_SHIFT_BINARY_POINT_RIGHT = 36;
-        OP_SET_BINARY_POINT = 37;
+        OP_INCREASE_PRECISION = 35;
+        OP_DECREASE_PRECISION = 36;
+        OP_SET_PRECISION = 37;
         OP_AS_ASYNC_RESET = 38;
+        OP_WRAP = 39;
+        OP_CLIP = 40;
+        OP_SQUEEZE = 41;
+        OP_AS_INTERVAL = 42;
       }
 
       // Required.

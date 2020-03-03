@@ -2,7 +2,6 @@
 
 package firrtl.passes
 
-import com.typesafe.scalalogging.LazyLogging
 
 import scala.annotation.tailrec
 import firrtl._
@@ -11,7 +10,6 @@ import firrtl.Utils._
 import firrtl.Mappers._
 import MemPortUtils.memType
 
-import scala.collection.mutable
 
 /** Resolve name collisions that would occur in [[LowerTypes]]
   *
@@ -36,7 +34,7 @@ import scala.collection.mutable
 object Uniquify extends Transform {
   def inputForm = UnknownForm
   def outputForm = UnknownForm
-  private case class UniquifyException(msg: String) extends FIRRTLException(msg)
+  private case class UniquifyException(msg: String) extends FirrtlInternalException(msg)
   private def error(msg: String)(implicit sinfo: Info, mname: String) =
     throw new UniquifyException(s"$sinfo: [moduleOpt $mname] $msg")
 
@@ -157,7 +155,7 @@ object Uniquify extends Transform {
       case e: WRef =>
         if (m.contains(e.name)) {
           val node = m(e.name)
-          (WRef(node.name, e.tpe, e.kind, e.gender), node.elts)
+          (WRef(node.name, e.tpe, e.kind, e.flow), node.elts)
         }
         else (e, Map())
       case e: WSubField =>
@@ -169,14 +167,14 @@ object Uniquify extends Transform {
           } else {
             (e.name, Map[String, NameMapNode]())
           }
-        (WSubField(subExp, retName, e.tpe, e.gender), retMap)
+        (WSubField(subExp, retName, e.tpe, e.flow), retMap)
       case e: WSubIndex =>
         val (subExp, subMap) = rec(e.expr, m)
-        (WSubIndex(subExp, e.value, e.tpe, e.gender), subMap)
+        (WSubIndex(subExp, e.value, e.tpe, e.flow), subMap)
       case e: WSubAccess =>
         val (subExp, subMap) = rec(e.expr, m)
         val index = uniquifyNamesExp(e.index, map)
-        (WSubAccess(subExp, index, e.tpe, e.gender), subMap)
+        (WSubAccess(subExp, index, e.tpe, e.flow), subMap)
       case _: VectorExpression => (exp, m)
       case (_: UIntLiteral | _: SIntLiteral | _: BundleLiteral) => (exp, m)
       case (_: Mux | _: ValidIf | _: DoPrim) =>
@@ -269,7 +267,7 @@ object Uniquify extends Transform {
             if (nameMap.contains(sx.name)) {
               val node = nameMap(sx.name)
               val newType = uniquifyNamesType(sx.tpe, node.elts)
-              (Utils.create_exps(sx.name, sx.tpe) zip Utils.create_exps(node.name, newType)) foreach { 
+              (Utils.create_exps(sx.name, sx.tpe) zip Utils.create_exps(node.name, newType)) foreach {
                 case (from, to) => renames.rename(from.serialize, to.serialize)
               }
               DefWire(sx.info, node.name, newType)
@@ -386,4 +384,3 @@ object Uniquify extends Transform {
     CircuitState(result, outputForm, state.annotations, Some(renames))
   }
 }
-

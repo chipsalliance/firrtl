@@ -11,7 +11,6 @@ import firrtl.WrappedExpression._
 
 import annotation.tailrec
 import collection.mutable
-import collection.immutable.ListSet
 
 /** Expand Whens
   *
@@ -109,18 +108,18 @@ object ExpandWhens extends Pass {
       // Return self, unchanged
       case stmt @ (_: DefNode | EmptyStmt) => stmt
       case w: DefWire =>
-        netlist ++= (getFemaleRefs(w.name, w.tpe, BIGENDER) map (ref => we(ref) -> WVoid))
+        netlist ++= (getFemaleRefs(w.name, w.tpe, DuplexFlow) map (ref => we(ref) -> WVoid))
         w
       case w: DefMemory =>
-        netlist ++= (getFemaleRefs(w.name, MemPortUtils.memType(w), MALE) map (ref => we(ref) -> WVoid))
+        netlist ++= (getFemaleRefs(w.name, MemPortUtils.memType(w), SourceFlow) map (ref => we(ref) -> WVoid))
         w
       case w: WDefInstance =>
-        netlist ++= (getFemaleRefs(w.name, w.tpe, MALE).map(ref => we(ref) -> WVoid))
+        netlist ++= (getFemaleRefs(w.name, w.tpe, SourceFlow).map(ref => we(ref) -> WVoid))
         w
       // Update netlist with self reference for each female reference
       // Return self, unchanged
       case r: DefRegister =>
-        netlist ++= (getFemaleRefs(r.name, r.tpe, BIGENDER) map (ref => we(ref) -> ref))
+        netlist ++= (getFemaleRefs(r.name, r.tpe, DuplexFlow) map (ref => we(ref) -> ref))
         r
       // For value assignments, update netlist/attaches and return EmptyStmt
       case c: Connect =>
@@ -194,12 +193,12 @@ object ExpandWhens extends Pass {
               EmptyStmt
             case _: ValidIf | _: Mux | _: DoPrim => nodes get res match {
               case Some(name) =>
-                netlist(lvalue) = WRef(name, res.tpe, NodeKind, MALE)
+                netlist(lvalue) = WRef(name, res.tpe, NodeKind, SourceFlow)
                 EmptyStmt
               case None =>
                 val name = namespace.newTemp
                 nodes(res) = name
-                netlist(lvalue) = WRef(name, res.tpe, NodeKind, MALE)
+                netlist(lvalue) = WRef(name, res.tpe, NodeKind, SourceFlow)
                 DefNode(sx.info, name, res)
             }
             case _ =>
@@ -214,7 +213,7 @@ object ExpandWhens extends Pass {
     val netlist = new Netlist
     // Add ports to netlist
     netlist ++= (m.ports flatMap { case Port(_, name, dir, tpe) =>
-      getFemaleRefs(name, tpe, to_gender(dir)) map (ref => we(ref) -> WVoid)
+      getFemaleRefs(name, tpe, to_flow(dir)) map (ref => we(ref) -> WVoid)
     })
     val bodyx = expandWhens(netlist, Seq(netlist), one)(m.body)
     (netlist, simlist, attaches, bodyx, infoMap)
@@ -222,13 +221,13 @@ object ExpandWhens extends Pass {
 
 
   /** Returns all references to all Female leaf subcomponents of a reference */
-  private def getFemaleRefs(n: String, t: Type, g: Gender): Seq[Expression] = {
+  private def getFemaleRefs(n: String, t: Type, g: Flow): Seq[Expression] = {
     val exps = create_exps(WRef(n, t, ExpKind, g))
     exps.flatMap { case exp =>
       exp.tpe match {
         case AnalogType(w) => None
-        case _ => gender(exp) match {
-          case (BIGENDER | FEMALE) => Some(exp)
+        case _ => flow(exp) match {
+          case (DuplexFlow | SinkFlow) => Some(exp)
           case _ => None
         }
       }
@@ -256,7 +255,7 @@ object ExpandWhens extends Pass {
     case class AttachAcc(exprs: Seq[WrappedExpression], idx: Int)
     // Map from every attached expression to its corresponding AttachAcc
     //   (many keys will point to same value)
-    val attachMap = mutable.HashMap.empty[WrappedExpression, AttachAcc]
+    val attachMap = mutable.LinkedHashMap.empty[WrappedExpression, AttachAcc]
     for (Attach(_, es) <- attaches) {
       val exprs = es.map(we(_))
       val acc = exprs.map(attachMap.get(_)).flatten match {
