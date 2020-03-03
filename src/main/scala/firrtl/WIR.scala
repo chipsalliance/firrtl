@@ -77,9 +77,9 @@ object WSubField {
 }
 object WSubLiteral {
   def unapply(w: Expression): Option[Expression] = w match {
-    case WSubField(BundleLiteral(lits), name, _, _) =>
+    case WSubField(BundleExpression(lits), name, _, _) =>
       lits.collectFirst({ case (n, value) if n == name => value })
-    case WSubField(WSubLiteral(BundleLiteral(lits)), name, _, _) =>
+    case WSubField(WSubLiteral(BundleExpression(lits)), name, _, _) =>
       lits.collectFirst({ case (n, value) if n == name => value })
     case WSubIndex(VectorExpression(exprs, _), index, _, _) =>
       exprs.lift(index)

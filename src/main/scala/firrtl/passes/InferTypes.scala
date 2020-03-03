@@ -45,7 +45,7 @@ object InferTypes extends Pass {
           e.exprs.map(_.tpe).reduce[Type](mux_type_and_widths),
           e.exprs.length
         ))
-         case e: BundleLiteral => e.copy(lits = e.lits.map(x => (x._1, infer_types_e(types)(x._2))))
+         case e: BundleExpression => e.copy(lits = e.lits.map(x => (x._1, infer_types_e(types)(x._2))))
          case e @ (_: UIntLiteral | _: SIntLiteral) => e
       }
 
@@ -108,7 +108,7 @@ object CInferTypes extends Pass {
            e.exprs.map(_.tpe).reduce[Type](mux_type),
            e.exprs.length
          ))
-         case e: BundleLiteral => e.copy(lits = e.lits.map(x => (x._1, infer_types_e(types)(x._2))))
+         case e: BundleExpression => e.copy(lits = e.lits.map(x => (x._1, infer_types_e(types)(x._2))))
          case e @ (_: UIntLiteral | _: SIntLiteral) => e
       }
 

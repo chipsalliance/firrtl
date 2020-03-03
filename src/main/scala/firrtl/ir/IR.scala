@@ -240,7 +240,7 @@ case class FixedLiteral(value: BigInt, width: Width, point: Width) extends Liter
   def foreachType(f: Type => Unit): Unit = Unit
   def foreachWidth(f: Width => Unit): Unit = { f(width); f(point) }
 }
-case class BundleLiteral(lits: Seq[(String, Expression)]) extends Expression {
+case class BundleExpression(lits: Seq[(String, Expression)]) extends Expression {
   def tpe = BundleType(lits.map { case (name, lit) =>
     Field(name = name, flip = Default, tpe = lit.tpe)
   })
@@ -251,13 +251,13 @@ case class BundleLiteral(lits: Seq[(String, Expression)]) extends Expression {
   def foreachExpr(f: Expression => Unit): Unit = lits.foreach { case (_, l) => l foreachExpr f }
   def foreachType(f: Type => Unit): Unit = lits.foreach { case (_, l) => l foreachType f }
   def foreachWidth(f: Width => Unit): Unit = lits.foreach { case (_, l) => l foreachWidth f }
-  def mapExpr(f: Expression => Expression): Expression = BundleLiteral(lits.map { case (s, l) =>
+  def mapExpr(f: Expression => Expression): Expression = BundleExpression(lits.map { case (s, l) =>
     (s, l mapExpr f)
   })
-  def mapType(f: Type => Type): Expression = BundleLiteral(lits.map { case (s, l) =>
+  def mapType(f: Type => Type): Expression = BundleExpression(lits.map { case (s, l) =>
     (s, l mapType f)
   })
-  def mapWidth(f: Width => Width): Expression = BundleLiteral(lits.map { case (s, l) =>
+  def mapWidth(f: Width => Width): Expression = BundleExpression(lits.map { case (s, l) =>
     (s, l mapWidth f)
   })
 }

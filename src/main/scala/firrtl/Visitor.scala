@@ -392,7 +392,7 @@ class Visitor(infoMode: InfoMode) extends AbstractParseTreeVisitor[FirrtlNode] w
           case "validif(" => ValidIf(visitExp(ctx_exp(0)), visitExp(ctx_exp(1)), UnknownType)
           case "mux(" => Mux(visitExp(ctx_exp(0)), visitExp(ctx_exp(1)), visitExp(ctx_exp(2)), UnknownType)
           case "{" =>
-            BundleLiteral(ctx.expField.asScala.map(visitExpField))
+            BundleExpression(ctx.expField.asScala.map(visitExpField))
           case "[" =>
             VectorExpression(ctx_exp.map(visitExp), UnknownType)
         }

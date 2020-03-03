@@ -55,7 +55,7 @@ object ConvertFixedToSInt extends Pass {
           newExp map updateExpType
         case e: UIntLiteral => e
         case e: SIntLiteral => e
-        case e: BundleLiteral => e
+        case e: BundleExpression => e
         case e: VectorExpression =>
           val point = calcPoint(e.exprs)
           val newExprs = e.exprs.map(alignArg(_, point))

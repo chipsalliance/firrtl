@@ -151,7 +151,7 @@ trait CheckHighFormLike {
       e match {
         case _: Reference | _: SubField | _: SubIndex | _: SubAccess => // No error
         case _: WRef | _: WSubField | _: WSubIndex | _: WSubAccess | _: Mux | _: ValidIf | 
-          _: BundleLiteral | _: VectorExpression => // No error
+          _: BundleExpression | _: VectorExpression => // No error
         case _ => errors.append(new InvalidAccessException(info, mname))
       }
     }

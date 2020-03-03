@@ -377,7 +377,7 @@ message Firrtl {
       Width point = 3;
     }
 
-    message BundleLiteral {
+    message BundleExpression {
       message Field {
         // Required
         string name = 1;
@@ -489,7 +489,7 @@ message Firrtl {
       UIntLiteral uint_literal = 2;
       SIntLiteral sint_literal = 3;
       FixedLiteral fixed_literal = 11;
-      BundleLiteral bundle_literal = 12;
+      BundleExpression bundle_expression = 12;
       VectorExpression vector_expression = 13;
       ValidIf valid_if = 4;
       //ExtractBits extract_bits = 5;
