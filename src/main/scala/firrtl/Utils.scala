@@ -625,6 +625,8 @@ object Utils extends LazyLogging {
     case ex: DoPrim => SourceFlow
     case ex: UIntLiteral => SourceFlow
     case ex: SIntLiteral => SourceFlow
+    case ex: BundleLiteral => SourceFlow
+    case ex: VectorExpression => SourceFlow
     case ex: Mux => SourceFlow
     case ex: ValidIf => SourceFlow
     case WInvalid => SourceFlow
