@@ -237,7 +237,7 @@ class ParserPropSpec extends FirrtlPropSpec {
       }
     }
   }
-  property("Bundle literals should be OK") {
+  property("Bundle expressions should be OK") {
     forAll (identifier, bundleField, uintValues) { case (id, field, uval) =>
       whenever(id.nonEmpty && field.nonEmpty) {
         val input = s"""

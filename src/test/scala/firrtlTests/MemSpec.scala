@@ -260,6 +260,7 @@ class MemSpec extends FirrtlPropSpec with FirrtlMatchers {
     val cCircuit = parse(removeJunk(cWriter.toString()))
     iCircuit should be (cCircuit)
   }
+
   property("Very large memories should be supported") {
     val addrWidth = 65
     val memSize = BigInt(1) << addrWidth
