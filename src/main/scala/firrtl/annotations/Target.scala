@@ -115,6 +115,8 @@ object Target {
     case d: DoPrim => m.ref("@" + d.serialize)
     case d: Mux => m.ref("@" + d.serialize)
     case d: ValidIf => m.ref("@" + d.serialize)
+    case b: BundleExpression => m.ref("@" + b.serialize)
+    case v: VectorExpression => m.ref("@" + v.serialize)
     case d: Literal => m.ref("@" + d.serialize)
     case other => sys.error(s"Unsupported: $other")
   }

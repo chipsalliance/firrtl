@@ -115,6 +115,25 @@ class LowerTypesSpec extends FirrtlFlatSpec {
     executeTest(input, expected)
   }
 
+  it should "lower registers with aggregate expression initialization" in {
+    val input =
+     """circuit Test :
+       |  module Test :
+       |    input clock : Clock
+       |    input reset : UInt<1>
+       |    reg x : { a : UInt<1>, b : UInt<1>}[2], clock with :
+       |      reset => (reset, [{ a : UInt<1>("h0"), b : UInt<1>("h0") }, { a : UInt<1>("h1"), b : UInt<1>("h1") }])
+     """.stripMargin
+    val expected = Seq(
+      "reg x_0_a : UInt<1>, clock with :", "reset => (reset, UInt<1>(\"h0\"))",
+      "reg x_0_b : UInt<1>, clock with :", "reset => (reset, UInt<1>(\"h0\"))",
+      "reg x_1_a : UInt<1>, clock with :", "reset => (reset, UInt<1>(\"h1\"))",
+      "reg x_1_b : UInt<1>, clock with :", "reset => (reset, UInt<1>(\"h1\"))"
+    ) map normalized
+
+    executeTest(input, expected)
+  }
+
   it should "lower DefRegister expressions: clock, reset, and init" in {
     val input =
       """circuit Test :
