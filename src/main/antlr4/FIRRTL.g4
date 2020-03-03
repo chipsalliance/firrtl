@@ -59,7 +59,7 @@ type
   | type '[' intLit ']'   // Vector
   ;
 
-litField
+expField
   : fieldId ':' exp
   ;
 
@@ -172,7 +172,7 @@ exp
   | 'mux(' exp exp exp ')'
   | 'validif(' exp exp ')'
   | primop exp* intLit*  ')'
-  | '{' litField* '}' // Bundle Literal
+  | '{' expField* '}' // Bundle Literal
   | '[' exp* ']' // Vector Literal
   ;
 

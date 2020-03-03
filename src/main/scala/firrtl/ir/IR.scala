@@ -11,7 +11,6 @@ import scala.math.BigDecimal.RoundingMode._
 /** Intermediate Representation */
 abstract class FirrtlNode {
   def serialize: String
-  override def toString = serialize
 }
 
 abstract class Info extends FirrtlNode {
@@ -241,11 +240,7 @@ case class FixedLiteral(value: BigInt, width: Width, point: Width) extends Liter
   def foreachType(f: Type => Unit): Unit = Unit
   def foreachWidth(f: Width => Unit): Unit = { f(width); f(point) }
 }
-case class BundleLiteral(lits: Seq[(String, Literal)]) extends Literal {
-  val value = lits.map({ case (_, lit) => (lit.value, lit.width) }).foldLeft(BigInt(0)) { case (prev, (v, IntWidth(w))) =>
-    (prev << w.toInt) + v
-  }
-  val width = lits.map(_._2.width).reduce(_ + _)
+case class BundleLiteral(lits: Seq[(String, Expression)]) extends Expression {
   def tpe = BundleType(lits.map { case (name, lit) =>
     Field(name = name, flip = Default, tpe = lit.tpe)
   })
@@ -257,29 +252,16 @@ case class BundleLiteral(lits: Seq[(String, Literal)]) extends Literal {
   def foreachType(f: Type => Unit): Unit = lits.foreach { case (_, l) => l foreachType f }
   def foreachWidth(f: Width => Unit): Unit = lits.foreach { case (_, l) => l foreachWidth f }
   def mapExpr(f: Expression => Expression): Expression = BundleLiteral(lits.map { case (s, l) =>
-    l mapExpr f match {
-      case lit: Literal => (s, lit)
-      case _ => throw new Exception("Oh no!")
-    }
+    (s, l mapExpr f)
   })
   def mapType(f: Type => Type): Expression = BundleLiteral(lits.map { case (s, l) =>
-    l mapType f match {
-      case lit: Literal => (s, lit)
-      case _ => throw new Exception("Oh no!")
-    }
+    (s, l mapType f)
   })
   def mapWidth(f: Width => Width): Expression = BundleLiteral(lits.map { case (s, l) =>
-    l mapWidth f match {
-      case lit: Literal => (s, lit)
-      case _ => throw new Exception("Oh no!")
-    }
+    (s, l mapWidth f)
   })
 }
 case class VectorExpression(exprs: Seq[Expression], tpe: Type) extends Expression {
-  // val value = lits.map(x => (x.value, x.width)).foldLeft(BigInt(0)) { case (prev, (v, IntWidth(w))) =>
-  //   (prev << w.toInt) + v
-  // }
-  // val width = lits.map(_.width).reduce(_ + _)
   def serialize =
     "[" + exprs.map(_.serialize).mkString(", ") + "]" // TODO type annotation
   def foreachExpr(f: Expression => Unit): Unit = exprs.foreach(_ foreachExpr f)

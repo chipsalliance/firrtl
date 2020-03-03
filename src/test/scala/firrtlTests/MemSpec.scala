@@ -37,7 +37,7 @@ class MemSpec extends FirrtlPropSpec with FirrtlMatchers {
      """circuit Unit :
        |  module Unit :
        |    input clock : Clock
-       |    output i : { a: { b: UInt<32> }, c: UInt<32> }
+       |    input i : { a: { b: UInt<32> }, c: UInt<32> }
        |    output o : { a: { b: UInt<32> }, c: UInt<32> }
        |    input wZero: UInt<1>
        |    input waddr: UInt<4>
@@ -56,7 +56,7 @@ class MemSpec extends FirrtlPropSpec with FirrtlMatchers {
      """circuit Unit :
        |  module Unit :
        |    input clock : Clock
-       |    output i : { a: { b: UInt<32> }, c: UInt<32> }
+       |    input i : { a: { b: UInt<32> }, c: UInt<32> }
        |    output o : { a: { b: UInt<32> }, c: UInt<32> }
        |    input wZero: UInt<1>
        |    input waddr: UInt<4>
@@ -176,7 +176,7 @@ class MemSpec extends FirrtlPropSpec with FirrtlMatchers {
     iCircuit should be (cCircuit)
   }
 
-  ignore("Writing to mems with a bundle of vector literals should work") {
+  property("Writing to mems with a bundle of vector literals should work") {
     val passes = Seq(
       CheckChirrtl,
       CInferTypes,

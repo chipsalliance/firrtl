@@ -76,10 +76,10 @@ object FromProto {
     ir.FixedLiteral(convert(fixed.getValue), width, point)
   }
 
-  def convert(fixed: Firrtl.Expression.BundleLiteral.LiteralField): (String, ir.Literal) = {
+  def convert(fixed: Firrtl.Expression.BundleLiteral.Field): (String, ir.Expression) = {
     val value = convert(fixed.getValue)
     value match {
-      case l: ir.Literal => (fixed.getName, l)
+      case l: ir.Expression => (fixed.getName, l)
     }
   }
 

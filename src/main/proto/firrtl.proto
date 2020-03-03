@@ -378,13 +378,13 @@ message Firrtl {
     }
 
     message BundleLiteral {
-      message LiteralField {
+      message Field {
         // Required
         string name = 1;
         // Required
         Expression value = 2;
       }
-      repeated LiteralField field = 1;
+      repeated Field field = 1;
     }
 
     message VectorExpression {

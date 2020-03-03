@@ -179,7 +179,7 @@ object ToProto {
       case ir.BundleLiteral(fields) =>
         val bb = Firrtl.Expression.BundleLiteral.newBuilder()
         fields.foreach({ case (n, v) =>
-          val fb = Firrtl.Expression.BundleLiteral.LiteralField.newBuilder()
+          val fb = Firrtl.Expression.BundleLiteral.Field.newBuilder()
           fb.setName(n)
           fb.setValue(convert(v))
           bb.addField(fb)

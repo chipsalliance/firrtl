@@ -175,14 +175,8 @@ class Visitor(infoMode: InfoMode) extends AbstractParseTreeVisitor[FirrtlNode] w
     }
   }
 
-  private def visitLitField[FirrtlNode](ctx: LitFieldContext): (String, Literal) = {
-    val expr = visitExp(ctx.exp) match {
-      case u: UIntLiteral => u
-      case s: SIntLiteral => s
-      case b: BundleLiteral => b
-      case _ => throw new ParserException(s"Illegal expression in bundle literal at ${ctx.exp}")
-    }
-    (ctx.fieldId.getText, expr)
+  private def visitExpField[FirrtlNode](ctx: ExpFieldContext): (String, Expression) = {
+    (ctx.fieldId.getText, visitExp(ctx.exp))
   }
 
   // Special case "type" of CHIRRTL mems because their size can be BigInt
@@ -397,10 +391,10 @@ class Visitor(infoMode: InfoMode) extends AbstractParseTreeVisitor[FirrtlNode] w
             }
           case "validif(" => ValidIf(visitExp(ctx_exp(0)), visitExp(ctx_exp(1)), UnknownType)
           case "mux(" => Mux(visitExp(ctx_exp(0)), visitExp(ctx_exp(1)), visitExp(ctx_exp(2)), UnknownType)
-        case "{" =>
-          BundleLiteral(ctx.litField.asScala.map(visitLitField))
-        case "[" =>
-          VectorExpression(ctx.exp.asScala.map(visitExp), UnknownType)
+          case "{" =>
+            BundleLiteral(ctx.expField.asScala.map(visitExpField))
+          case "[" =>
+            VectorExpression(ctx_exp.map(visitExp), UnknownType)
         }
     }
   }
