@@ -78,7 +78,7 @@ class MorphismSpec extends FlatSpec with Matchers {
     /** An input FIRRTL string */
     val input: String
 
-    val output: String = input
+    lazy val output: String = input
 
     /** Input annotations */
     val annotations: AnnotationSeq = Seq.empty
@@ -150,13 +150,14 @@ class MorphismSpec extends FlatSpec with Matchers {
         }
         info("each annotation is the same")
       } else {
-        outputState.annotations.size should be(finalAnnotations.get.size)
-        info("the number of annotations is the same")
-
         outputState.annotations.zip(finalAnnotations.get).foreach {
           //case (a, b) => a should be (b)
           case (a, b) => a.getTargets should be(b.getTargets)
         }
+
+        outputState.annotations.size should be(finalAnnotations.get.size)
+        info("the number of annotations is the same")
+
         info("each annotation is the same as the final annotations")
       }
     }
@@ -370,13 +371,11 @@ class MorphismSpec extends FlatSpec with Matchers {
          |  module Top:
          |    inst baz of Baz
          |    inst qux of Baz""".stripMargin
-    override val output =
+    override lazy val output =
       """|circuit Top :
          |  module Foo___Top_baz_bar :
-         |
          |    node a = UInt<1>("h0")
          |    skip
-         |
          |  module Foo___Top_qux_foox :
          |    node a = UInt<1>("h0")
          |    skip
@@ -418,7 +417,8 @@ class MorphismSpec extends FlatSpec with Matchers {
     )
 
     override val finalAnnotations: Option[AnnotationSeq] = Some(Seq(
-      AnAnnotation(CircuitTarget("Top").module("Baz").instOf("foo", "Foo")),
+      AnAnnotation(CircuitTarget("Top").module("Foo___Top_qux_foo")),
+      AnAnnotation(CircuitTarget("Top").module("Foo___Top_baz_foo"))
     ))
     test()
   }
