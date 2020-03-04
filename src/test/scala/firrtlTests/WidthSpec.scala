@@ -2,13 +2,8 @@
 
 package firrtlTests
 
-import java.io._
-import org.scalatest._
-import org.scalatest.prop._
 import firrtl._
-import firrtl.ir.Circuit
 import firrtl.passes._
-import firrtl.Parser.IgnoreInfo
 
 class WidthSpec extends FirrtlFlatSpec {
   private def executeTest(input: String, expected: Seq[String], passes: Seq[Transform]) = {
@@ -53,7 +48,7 @@ class WidthSpec extends FirrtlFlatSpec {
       ResolveKinds,
       InferTypes,
       CheckTypes,
-      ResolveGenders,
+      ResolveFlows,
       new InferWidths,
       CheckWidths)
     val input =
@@ -76,7 +71,7 @@ class WidthSpec extends FirrtlFlatSpec {
       ResolveKinds,
       InferTypes,
       CheckTypes,
-      ResolveGenders,
+      ResolveFlows,
       new InferWidths,
       CheckWidths)
     val input =
@@ -95,7 +90,7 @@ class WidthSpec extends FirrtlFlatSpec {
       ResolveKinds,
       InferTypes,
       CheckTypes,
-      ResolveGenders,
+      ResolveFlows,
       new InferWidths,
       CheckWidths)
     val input =
@@ -120,7 +115,7 @@ class WidthSpec extends FirrtlFlatSpec {
       ResolveKinds,
       InferTypes,
       CheckTypes,
-      ResolveGenders,
+      ResolveFlows,
       new InferWidths)
     val input =
       """circuit Unit :
@@ -142,7 +137,7 @@ class WidthSpec extends FirrtlFlatSpec {
       ResolveKinds,
       InferTypes,
       CheckTypes,
-      ResolveGenders,
+      ResolveFlows,
       new InferWidths)
     val input =
       """circuit Unit :
@@ -165,7 +160,7 @@ class WidthSpec extends FirrtlFlatSpec {
       ResolveKinds,
       InferTypes,
       CheckTypes,
-      ResolveGenders,
+      ResolveFlows,
       new InferWidths,
       CheckWidths)
     val input =

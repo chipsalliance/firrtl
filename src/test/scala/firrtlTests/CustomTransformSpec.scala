@@ -6,6 +6,7 @@ import firrtl.ir.Circuit
 import firrtl._
 import firrtl.passes.Pass
 import firrtl.ir._
+import firrtl.stage.{FirrtlSourceAnnotation, FirrtlStage, RunFirrtlTransformAnnotation}
 
 class CustomTransformSpec extends FirrtlFlatSpec {
   behavior of "Custom Transforms"
@@ -71,5 +72,28 @@ class CustomTransformSpec extends FirrtlFlatSpec {
       Driver.execute(optionsManager)
     }).getMessage should include (errorString)
   }
-}
 
+  object Foo {
+    class A extends Transform {
+      def inputForm = HighForm
+      def outputForm = HighForm
+      def execute(s: CircuitState) = {
+        assert(name.endsWith("A"))
+        s
+      }
+    }
+  }
+
+  they should "work if placed inside an object" in {
+    val input =
+      """|circuit Foo:
+         |  module Foo:
+         |    node a = UInt<1>(0)
+         |""".stripMargin
+    val annotations = Seq(
+      RunFirrtlTransformAnnotation(new Foo.A),
+      FirrtlSourceAnnotation(input)
+    )
+    (new FirrtlStage).execute(Array.empty, annotations)
+  }
+}

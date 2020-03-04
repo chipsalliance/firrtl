@@ -4,10 +4,9 @@ package firrtlTests.stage
 
 import org.scalatest.{FlatSpec, Matchers}
 
-import firrtl.options._
 import firrtl.stage._
 
-import firrtl.{CircuitForm, CircuitState, ir, NoneCompiler, Parser, UnknownForm}
+import firrtl.{ir, NoneCompiler, Parser}
 import firrtl.options.Viewer.view
 import firrtl.stage.{FirrtlOptions, FirrtlOptionsView}
 
@@ -23,8 +22,6 @@ class FirrtlOptionsViewSpec extends FlatSpec with Matchers {
                                                 |  module $main:
                                                 |    node x = UInt<1>("h0")
                                                 |""".stripMargin
-
-  val corge: String = circuitString("corge")
 
   val grault: ir.Circuit = Parser.parse(circuitString("grault"))
 
@@ -49,7 +46,6 @@ class FirrtlOptionsViewSpec extends FlatSpec with Matchers {
    * behavior, only that modifications to existing code will not change behavior that people may expect.
    */
   it should "overwrite or append to earlier annotation information with later annotation information" in {
-    val corge_ = circuitString("xyzzy_")
     val grault_ = Parser.parse(circuitString("thud_"))
 
     val overwrites = Seq(

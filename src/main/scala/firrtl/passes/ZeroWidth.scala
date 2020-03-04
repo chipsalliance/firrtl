@@ -63,14 +63,14 @@ object ZeroWidth extends Transform {
     }
     case BundleType(fields) =>
       if (fields.isEmpty) List(expr)
-      else fields.flatMap(f => findRemovable(WSubField(expr, f.name, f.tpe, MALE), f.tpe))
+      else fields.flatMap(f => findRemovable(WSubField(expr, f.name, f.tpe, SourceFlow), f.tpe))
     case VectorType(vtpe, size) =>
       if (size == 0) List(expr)
       else { // Only invoke findRemovable multiple times if a zero-width element is found
-        val es0 = findRemovable(WSubIndex(expr, 0, vtpe, MALE), vtpe)
+        val es0 = findRemovable(WSubIndex(expr, 0, vtpe, SourceFlow), vtpe)
         if (es0.isEmpty) es0
         else {
-          es0 ++ (1 until size).flatMap(i => findRemovable(WSubIndex(expr, i, vtpe, MALE), vtpe))
+          es0 ++ (1 until size).flatMap(i => findRemovable(WSubIndex(expr, i, vtpe, SourceFlow), vtpe))
         }
       }
   }
@@ -114,6 +114,7 @@ object ZeroWidth extends Transform {
         case Seq(x) => x
         case seq => DoPrim(Cat, seq, consts, tpe) map onExp
       }
+    case DoPrim(Andr, Seq(x), _, _) if (bitWidth(x.tpe) == 0) => UIntLiteral(1) // nothing false
     case other => other.tpe match {
       case UIntType(IntWidth(ZERO)) => UIntLiteral(ZERO, IntWidth(BigInt(1)))
       case SIntType(IntWidth(ZERO)) => SIntLiteral(ZERO, IntWidth(BigInt(1)))

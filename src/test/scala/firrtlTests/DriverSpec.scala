@@ -2,18 +2,18 @@
 
 package firrtlTests
 
-import java.io.{File, FileInputStream, FileWriter}
+import java.io.{File, FileWriter}
 
 import org.scalatest.{FreeSpec, Matchers}
-import firrtl.passes.{InlineAnnotation, InlineInstances}
-import firrtl.passes.memlib.{InferReadWrite, InferReadWriteAnnotation, ReplSeqMem, ReplSeqMemAnnotation}
+import firrtl.passes.InlineAnnotation
+import firrtl.passes.memlib.{InferReadWriteAnnotation, ReplSeqMemAnnotation}
 import firrtl.transforms.BlackBoxTargetDirAnno
 import firrtl._
+import firrtl.FileUtils
 import firrtl.annotations._
 import firrtl.util.BackendCompilationUtilities
 
-import scala.io.Source
-import scala.util.{Failure, Success, Try}
+import scala.util.Success
 
 class ExceptingTransform extends Transform {
   def inputForm = HighForm
@@ -76,21 +76,21 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
       val optionsManager = new ExecutionOptionsManager("test")
 
       optionsManager.parse(Array("--top-name", "dog", "fox", "tardigrade", "stomatopod")) should be(true)
-      println(s"programArgs ${optionsManager.commonOptions.programArgs}")
+      info(s"programArgs ${optionsManager.commonOptions.programArgs}")
       optionsManager.commonOptions.programArgs.length should be(3)
       optionsManager.commonOptions.programArgs should be("fox" :: "tardigrade" :: "stomatopod" :: Nil)
 
       optionsManager.commonOptions = CommonOptions()
       optionsManager.parse(
         Array("dog", "stomatopod")) should be(true)
-      println(s"programArgs ${optionsManager.commonOptions.programArgs}")
+      info(s"programArgs ${optionsManager.commonOptions.programArgs}")
       optionsManager.commonOptions.programArgs.length should be(2)
       optionsManager.commonOptions.programArgs should be("dog" :: "stomatopod" :: Nil)
 
       optionsManager.commonOptions = CommonOptions()
       optionsManager.parse(
         Array("fox", "--top-name", "dog", "tardigrade", "stomatopod")) should be(true)
-      println(s"programArgs ${optionsManager.commonOptions.programArgs}")
+      info(s"programArgs ${optionsManager.commonOptions.programArgs}")
       optionsManager.commonOptions.programArgs.length should be(3)
       optionsManager.commonOptions.programArgs should be("fox" :: "tardigrade" :: "stomatopod" :: Nil)
 
@@ -307,7 +307,7 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
     copyResourceToFile(s"/annotations/$annoFilename", annotationsTestFile)
 
     import net.jcazevedo.moultingyaml._
-    val text = io.Source.fromFile(annotationsTestFile).mkString
+    val text = FileUtils.getText(annotationsTestFile)
     val yamlAnnos = text.parseYaml match {
       case YamlArray(xs) => xs
     }
@@ -467,8 +467,8 @@ class DriverSpec extends FreeSpec with Matchers with BackendCompilationUtilities
       Driver.execute(args)
     }
     "Both paths do the same thing" in {
-      val s1 = Source.fromFile(verilogFromFir).mkString
-      val s2 = Source.fromFile(verilogFromPb).mkString
+      val s1 = FileUtils.getText(verilogFromFir)
+      val s2 = FileUtils.getText(verilogFromPb)
       s1 should equal (s2)
     }
   }
@@ -498,13 +498,12 @@ class VcdSuppressionSpec extends FirrtlFlatSpec {
       val harness = new File(testDir, s"top.cpp")
       copyResourceToFile(cppHarnessResourceName, harness)
 
-      verilogToCpp(prefix, testDir, Seq.empty, harness, suppress).!
-      cppToExe(prefix, testDir).!
+      verilogToCpp(prefix, testDir, Seq.empty, harness, suppress) #&&
+      cppToExe(prefix, testDir) ! loggingProcessLogger
 
       assert(executeExpectingSuccess(prefix, testDir))
 
       val vcdFile = new File(s"$testDir/dump.vcd")
-      println(s"file ${vcdFile.getAbsolutePath} ${vcdFile.exists()}")
       vcdFile.exists() should be(! suppress)
     }
 

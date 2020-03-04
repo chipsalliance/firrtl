@@ -29,11 +29,11 @@ object toBitMask {
     (mask.tpe, dataType) match {
       case (mt: VectorType, dt: VectorType) =>
         seqCat((0 until mt.size).reverse map { i =>
-          hiermask(WSubIndex(mask, i, mt.tpe, UNKNOWNGENDER), dt.tpe)
+          hiermask(WSubIndex(mask, i, mt.tpe, UnknownFlow), dt.tpe)
         })
       case (mt: BundleType, dt: BundleType) =>
         seqCat((mt.fields zip dt.fields) map { case (mf, df) =>
-          hiermask(WSubField(mask, mf.name, mf.tpe, UNKNOWNGENDER), df.tpe)
+          hiermask(WSubField(mask, mf.name, mf.tpe, UnknownFlow), df.tpe)
         })
       case (UIntType(width), dt: GroundType) if width == IntWidth(BigInt(1)) =>
         seqCat(List.fill(bitWidth(dt).intValue)(mask))
@@ -56,7 +56,7 @@ object MemPortUtils {
   type Modules = collection.mutable.ArrayBuffer[DefModule]
 
   def defaultPortSeq(mem: DefMemory): Seq[Field] = Seq(
-    Field("addr", Default, UIntType(IntWidth(ceilLog2(mem.depth) max 1))),
+    Field("addr", Default, UIntType(IntWidth(getUIntWidth(mem.depth - 1) max 1))),
     Field("en", Default, BoolType),
     Field("clk", Default, ClockType)
   )
@@ -79,10 +79,10 @@ object MemPortUtils {
       (mem.readwriters map (Field(_, Flip, rwType))))
   }
 
-  def memPortField(s: DefMemory, p: String, f: String): Expression = {
-    val mem = WRef(s.name, memType(s), MemKind, UNKNOWNGENDER)
+  def memPortField(s: DefMemory, p: String, f: String): WSubField = {
+    val mem = WRef(s.name, memType(s), MemKind, UnknownFlow)
     val t1 = field_type(mem.tpe, p)
     val t2 = field_type(t1, f)
-    WSubField(WSubField(mem, p, t1, UNKNOWNGENDER), f, t2, UNKNOWNGENDER)
+    WSubField(WSubField(mem, p, t1, UnknownFlow), f, t2, UnknownFlow)
   }
 }

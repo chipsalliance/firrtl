@@ -4,11 +4,12 @@ package firrtl.annotations.transforms
 
 import firrtl.Mappers._
 import firrtl.analyses.InstanceGraph
-import firrtl.annotations.TargetToken.{Instance, OfModule}
+import firrtl.annotations.ModuleTarget
+import firrtl.annotations.TargetToken.{Instance, OfModule, fromDefModuleToTargetToken}
 import firrtl.annotations.analysis.DuplicationHelper
 import firrtl.annotations._
 import firrtl.ir._
-import firrtl.{CircuitForm, CircuitState, FIRRTLException, HighForm, RenameMap, Transform, WDefInstance}
+import firrtl.{CircuitForm, CircuitState, FirrtlInternalException, HighForm, RenameMap, Transform, WDefInstance}
 
 import scala.collection.mutable
 
@@ -23,7 +24,7 @@ case class ResolvePaths(targets: Seq[CompleteTarget]) extends Annotation {
   }
 }
 
-case class NoSuchTargetException(message: String) extends FIRRTLException(message)
+case class NoSuchTargetException(message: String) extends FirrtlInternalException(message)
 
 /** For a set of non-local targets, modify the instance/module hierarchy of the circuit such that
   * the paths in each non-local target can be removed
@@ -53,22 +54,16 @@ class EliminateTargetPaths extends Transform {
     * @param s
     * @return
     */
-  private def onStmt(dupMap: DuplicationHelper,
-                     oldUsedOfModules: mutable.HashSet[String],
-                     newUsedOfModules: mutable.HashSet[String])
+  private def onStmt(dupMap: DuplicationHelper)
                     (originalModule: String, newModule: String)
                     (s: Statement): Statement = s match {
     case d@DefInstance(_, name, module) =>
       val ofModule = dupMap.getNewOfModule(originalModule, newModule, Instance(name), OfModule(module)).value
-      newUsedOfModules += ofModule
-      oldUsedOfModules += module
       d.copy(module = ofModule)
     case d@WDefInstance(_, name, module, _) =>
       val ofModule = dupMap.getNewOfModule(originalModule, newModule, Instance(name), OfModule(module)).value
-      newUsedOfModules += ofModule
-      oldUsedOfModules += module
       d.copy(module = ofModule)
-    case other => other map onStmt(dupMap, oldUsedOfModules, newUsedOfModules)(originalModule, newModule)
+    case other => other map onStmt(dupMap)(originalModule, newModule)
   }
 
   /** Returns a modified circuit and [[RenameMap]] containing the associated target remapping
@@ -83,14 +78,6 @@ class EliminateTargetPaths extends Transform {
     // For each target, record its path and calculate the necessary modifications to circuit
     targets.foreach { t => dupMap.expandHierarchy(t) }
 
-    // Records original list of used ofModules
-    val oldUsedOfModules = mutable.HashSet[String]()
-    oldUsedOfModules += cir.main
-
-    // Records new list of used ofModules
-    val newUsedOfModules = mutable.HashSet[String]()
-    newUsedOfModules += cir.main
-
     // Contains new list of module declarations
     val duplicatedModuleList = mutable.ArrayBuffer[DefModule]()
 
@@ -101,29 +88,33 @@ class EliminateTargetPaths extends Transform {
         val newM = m match {
           case e: ExtModule => e.copy(name = newName)
           case o: Module =>
-            o.copy(name = newName, body = onStmt(dupMap, oldUsedOfModules, newUsedOfModules)(m.name, newName)(o.body))
+            o.copy(name = newName, body = onStmt(dupMap)(m.name, newName)(o.body))
         }
         duplicatedModuleList += newM
       }
     }
 
-    // Calculate the final module list
-    // A module is in the final list if:
-    // 1) it is a module that is instantiated (new or old)
-    // 2) it is an old module that was not instantiated and is still not instantiated
-    val finalModuleList = duplicatedModuleList.filter(m =>
-      newUsedOfModules.contains(m.name) || (!newUsedOfModules.contains(m.name) && !oldUsedOfModules.contains(m.name))
-    )
+    val finalModuleList = duplicatedModuleList
+    lazy val finalModuleSet = finalModuleList.map{ case a: DefModule => a.name }.toSet
 
     // Records how targets have been renamed
     val renameMap = RenameMap()
 
-    // Foreach target, calculate the pathless version and only rename targets that are instantiated
+    /* Foreach target, calculate the pathless version and only rename targets that are instantiated. Additionally, rename
+     * module targets
+     */
     targets.foreach { t =>
       val newTsx = dupMap.makePathless(t)
-      val newTs = newTsx.filter(c => newUsedOfModules.contains(c.moduleOpt.get))
+      val newTs = newTsx
       if(newTs.nonEmpty) {
         renameMap.record(t, newTs)
+        val m = Target.referringModule(t)
+        val duplicatedModules = newTs.map(Target.referringModule)
+        val oldModule: Option[ModuleTarget] = m match {
+          case a: ModuleTarget if finalModuleSet(a.module) => Some(a)
+          case _                                           => None
+        }
+        renameMap.record(m, (duplicatedModules).distinct)
       }
     }
 
@@ -133,13 +124,17 @@ class EliminateTargetPaths extends Transform {
 
   override protected def execute(state: CircuitState): CircuitState = {
 
-    val annotations = state.annotations.collect { case a: ResolvePaths => a }
+    val (annotations, annotationsx) = state.annotations.partition{
+      case a: ResolvePaths => true
+      case _               => false
+    }
 
     // Collect targets that are not local
-    val targets = annotations.flatMap(_.targets.collect { case x: IsMember => x })
+    val targets = annotations.map(_.asInstanceOf[ResolvePaths]).flatMap(_.targets.collect { case x: IsMember => x })
 
     // Check validity of paths in targets
-    val instanceOfModules = new InstanceGraph(state.circuit).getChildrenInstanceOfModule
+    val iGraph = new InstanceGraph(state.circuit)
+    val instanceOfModules = iGraph.getChildrenInstanceOfModule
     val targetsWithInvalidPaths = mutable.ArrayBuffer[IsMember]()
     targets.foreach { t =>
       val path = t match {
@@ -162,6 +157,23 @@ class EliminateTargetPaths extends Transform {
 
     val (newCircuit, renameMap) = run(state.circuit, targets)
 
-    state.copy(circuit = newCircuit, renames = Some(renameMap))
+    val iGraphx = new InstanceGraph(newCircuit)
+    val newlyUnreachableModules = iGraphx.unreachableModules diff iGraph.unreachableModules
+
+    val newCircuitGC = {
+      val modulesx = newCircuit.modules.flatMap{
+        case dead if newlyUnreachableModules(dead.OfModule) => None
+        case live =>
+          val m = CircuitTarget(newCircuit.main).module(live.name)
+          renameMap.get(m).foreach(_ => renameMap.record(m, m))
+          Some(live)
+      }
+      newCircuit.copy(modules = modulesx)
+    }
+
+    logger.info("Renames:")
+    logger.info(renameMap.serialize)
+
+    state.copy(circuit = newCircuitGC, renames = Some(renameMap), annotations = annotationsx)
   }
 }

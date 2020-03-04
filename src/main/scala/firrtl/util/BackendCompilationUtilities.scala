@@ -7,10 +7,13 @@ import java.nio.file.Files
 import java.text.SimpleDateFormat
 import java.util.Calendar
 
+import logger.LazyLogging
+
+import firrtl.FileUtils
 
 import scala.sys.process.{ProcessBuilder, ProcessLogger, _}
 
-trait BackendCompilationUtilities {
+trait BackendCompilationUtilities extends LazyLogging {
   /** Parent directory for tests */
   lazy val TestDirectory = new File("test_run_dir")
 
@@ -19,6 +22,9 @@ trait BackendCompilationUtilities {
     val now = Calendar.getInstance.getTime
     format.format(now)
   }
+
+  def loggingProcessLogger: ProcessLogger =
+    ProcessLogger(logger.info(_), logger.warn(_))
 
   /**
     * Copy the contents of a resource to a destination file.
@@ -81,7 +87,8 @@ trait BackendCompilationUtilities {
     * all the files which are not included elsewhere. If multiple ones exist,
     * the compilation will fail.
     *
-    * If the file BlackBoxSourceHelper.fileListName exists in the output directory,
+    * If the file BlackBoxSourceHelper.fileListName (or an overridden .f resource filename that is
+    * specified with the optional resourceFileName parameter) exists in the output directory,
     * it contains a list of source files to be included. Filter out any files in the vSources
     * sequence that are in this file so we don't include the same file multiple times.
     * This complication is an attempt to work-around the fact that clients used to have to
@@ -91,18 +98,21 @@ trait BackendCompilationUtilities {
     * @param dir output directory
     * @param vSources list of additional Verilog sources to compile
     * @param cppHarness C++ testharness to compile/link against
+    * @param suppressVcd specifies if VCD tracing should be suppressed
+    * @param resourceFileName specifies what filename to look for to find a .f file
     */
   def verilogToCpp(
     dutFile: String,
     dir: File,
     vSources: Seq[File],
     cppHarness: File,
-    suppressVcd: Boolean = false
+    suppressVcd: Boolean = false,
+    resourceFileName: String = firrtl.transforms.BlackBoxSourceHelper.defaultFileListName
   ): ProcessBuilder = {
 
     val topModule = dutFile
 
-    val list_file = new File(dir, firrtl.transforms.BlackBoxSourceHelper.fileListName)
+    val list_file = new File(dir, resourceFileName)
     val blackBoxVerilogList = {
       if(list_file.exists()) {
         Seq("-f", list_file.getAbsolutePath)
@@ -113,11 +123,11 @@ trait BackendCompilationUtilities {
     }
 
     // Don't include the same file multiple times.
-    // If it's in BlackBoxSourceHelper.fileListName, don't explicitly include it on the command line.
+    // If it's in the main .f resource file, don't explicitly include it on the command line.
     // Build a set of canonical file paths to use as a filter to exclude already included additional Verilog sources.
     val blackBoxHelperFiles: Set[String] = {
       if(list_file.exists()) {
-        io.Source.fromFile(list_file).getLines.toSet
+        FileUtils.getLines(list_file).toSet
       }
       else {
         Set.empty
@@ -146,7 +156,7 @@ trait BackendCompilationUtilities {
         s"""-Wno-undefined-bool-conversion -O1 -DTOP_TYPE=V$dutFile -DVL_USER_FINISH -include V$dutFile.h""",
         "-Mdir", dir.getAbsolutePath,
         "--exe", cppHarness.getAbsolutePath)
-    System.out.println(s"${command.mkString(" ")}") // scalastyle:ignore regex
+    logger.info(s"${command.mkString(" ")}") // scalastyle:ignore regex
     command
   }
 
@@ -162,8 +172,9 @@ trait BackendCompilationUtilities {
     val e = Process(s"./V$prefix", dir) !
       ProcessLogger(line => {
         triggered = triggered || (assertionMessageSupplied && line.contains(assertionMsg))
-        System.out.println(line) // scalastyle:ignore regex
-      })
+        logger.info(line) // scalastyle:ignore regex
+      },
+      logger.warn(_))
     // Fail if a line contained an assertion or if we get a non-zero exit code
     //  or, we get a SIGABRT (assertion failure) and we didn't provide a specific assertion message
     triggered || (e != 0 && (e != 134 || !assertionMessageSupplied))

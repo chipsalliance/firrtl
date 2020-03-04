@@ -4,7 +4,7 @@ package firrtlTests.stage.phases
 
 import org.scalatest.{FlatSpec, Matchers}
 
-import firrtl.{AnnotationSeq, Parser}
+import firrtl.Parser
 import firrtl.annotations.NoTargetAnnotation
 import firrtl.options.{OptionsException, Phase, PhasePrerequisiteException}
 import firrtl.stage.{CircuitOption, FirrtlCircuitAnnotation, FirrtlSourceAnnotation, InfoModeAnnotation,
@@ -45,7 +45,9 @@ class AddCircuitSpec extends FlatSpec with Matchers {
   val (file, fileCircuit) = {
     val source = firrtlSource("foo")
     val fileName = "test_run_dir/AddCircuitSpec.fir"
-    val fw = new FileWriter(new File(fileName))
+    val srcFile = new File(fileName)
+    srcFile.getParentFile.mkdirs()
+    val fw = new FileWriter(srcFile)
     fw.write(source)
     fw.close()
     (fileName, Parser.parse(source))

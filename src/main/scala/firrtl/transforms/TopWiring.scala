@@ -7,7 +7,8 @@ import firrtl.ir._
 import firrtl.passes.{Pass,
       InferTypes,
       ResolveKinds,
-      ResolveGenders
+      ResolveFlows,
+      ExpandConnects
       }
 import firrtl.annotations._
 import firrtl.Mappers._
@@ -70,11 +71,10 @@ class TopWiringTransform extends Transform {
             case d: Port => (true, d.tpe, sourceList(ComponentName(w.name,currentmodule)))
             case _ => throw new Exception(s"Cannot wire this type of declaration! ${w.serialize}")
           }
-          val name = w.name
           sourceMap.get(currentmodule.name) match {
             case Some(xs:Seq[(ComponentName, Type, Boolean, InstPath, String)]) =>
-              sourceMap.update(currentmodule.name, xs :+
-                 (ComponentName(w.name,currentmodule), tpe, isport ,Seq[String](w.name), prefix))
+              sourceMap.update(currentmodule.name, xs :+(
+                 (ComponentName(w.name,currentmodule), tpe, isport ,Seq[String](w.name), prefix) ))
             case None =>
               sourceMap(currentmodule.name) = Seq((ComponentName(w.name,currentmodule),
                                                    tpe, isport ,Seq[String](w.name), prefix))
@@ -103,11 +103,10 @@ class TopWiringTransform extends Transform {
             case d: Port => (true, d.tpe, sourceList(ComponentName(w.name,currentmodule)))
             case _ => throw new Exception(s"Cannot wire this type of declaration! ${w.serialize}")
           }
-          val name = w.name
           sourceMap.get(currentmodule.name) match {
             case Some(xs:Seq[(ComponentName, Type, Boolean, InstPath, String)]) =>
-                sourceMap.update(currentmodule.name, xs :+
-                  (ComponentName(w.name,currentmodule), tpe, isport ,Seq[String](w.name), prefix))
+                sourceMap.update(currentmodule.name, xs :+(
+                  (ComponentName(w.name,currentmodule), tpe, isport ,Seq[String](w.name), prefix) ))
             case None =>
                 sourceMap(currentmodule.name) = Seq((ComponentName(w.name,currentmodule),
                                                      tpe, isport ,Seq[String](w.name), prefix))
@@ -228,7 +227,11 @@ class TopWiringTransform extends Transform {
     val passes = Seq(
       InferTypes,
       ResolveKinds,
-      ResolveGenders
+      ResolveFlows,
+      ExpandConnects,
+      InferTypes,
+      ResolveKinds,
+      ResolveFlows
     )
     passes.foldLeft(circuit) { case (c: Circuit, p: Pass) => p.run(c) }
   }
@@ -258,7 +261,13 @@ class TopWiringTransform extends Transform {
       val newCircuit = state.circuit.copy(modules = modulesx)
       val fixedCircuit = fixupCircuit(newCircuit)
       val mappings = sources(state.circuit.main).zipWithIndex
-      (state.copy(circuit = fixedCircuit), mappings)
+
+      val annosx = state.annotations.filter {
+        case _: TopWiringAnnotation => false
+        case _                      => true
+      }
+
+      (state.copy(circuit = fixedCircuit, annotations = annosx), mappings)
     }
     else { (state, List.empty) }
     //Generate output files based on the mapping.

@@ -2,16 +2,12 @@
 
 package firrtlTests
 
-import firrtl._
 import firrtl.ir.StringLit
 
 import java.io._
 
 import scala.sys.process._
 import annotation.tailrec
-import org.scalatest._
-import org.scalatest.prop._
-import org.scalatest.Assertions._
 import org.scalacheck._
 import org.scalacheck.Arbitrary._
 
@@ -23,8 +19,8 @@ class PrintfSpec extends FirrtlPropSpec {
     val harness = new File(testDir, s"top.cpp")
     copyResourceToFile(cppHarnessResourceName, harness)
 
-    verilogToCpp(prefix, testDir, Seq(), harness).!
-    cppToExe(prefix, testDir).!
+    verilogToCpp(prefix, testDir, Seq(), harness) #&&
+    cppToExe(prefix, testDir) ! loggingProcessLogger
 
     // Check for correct Printf:
     // Count up from 0, match decimal, hex, and binary

@@ -85,8 +85,6 @@ object InferReadWritePass extends Pass {
                          (s: Statement): Statement = s match {
     // infer readwrite ports only for non combinational memories
     case mem: DefMemory if mem.readLatency > 0 =>
-      val ut = UnknownType
-      val ug = UNKNOWNGENDER
       val readers = new PortSet
       val writers = new PortSet
       val readwriters = collection.mutable.ArrayBuffer[String]()
@@ -162,7 +160,7 @@ class InferReadWrite extends Transform with SeqTransformBased with HasShellOptio
     CheckInitialization,
     InferTypes,
     ResolveKinds,
-    ResolveGenders
+    ResolveFlows
   )
   def execute(state: CircuitState): CircuitState = {
     val runTransform = state.annotations.contains(InferReadWriteAnnotation)
