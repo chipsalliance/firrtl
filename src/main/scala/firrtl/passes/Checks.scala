@@ -54,9 +54,9 @@ trait CheckHighFormLike {
     s"$info: [module $mname] Has instance loop $loop")
   class NoTopModuleException(info: Info, name: String) extends PassException(
     s"$info: A single module must be named $name.")
-  class NegArgException(info: Info, mname: String, op: String, value: Int) extends PassException(
+  class NegArgException(info: Info, mname: String, op: String, value: BigInt) extends PassException(
     s"$info: [module $mname] Primop $op argument $value < 0.")
-  class LsbLargerThanMsbException(info: Info, mname: String, op: String, lsb: Int, msb: Int) extends PassException(
+  class LsbLargerThanMsbException(info: Info, mname: String, op: String, lsb: BigInt, msb: BigInt) extends PassException(
     s"$info: [module $mname] Primop $op lsb $lsb > $msb.")
   class ResetInputException(info: Info, mname: String, expr: Expression) extends PassException(
     s"$info: [module $mname] Abstract Reset not allowed as top-level input: ${expr.serialize}")
@@ -84,7 +84,7 @@ trait CheckHighFormLike {
       }
 
       def nonNegativeConsts(): Unit = {
-        e.consts.map(_.toInt).filter(_ < 0).foreach {
+        e.consts.filter(_ < 0).foreach {
           negC => errors.append(new NegArgException(info, mname, e.op.toString, negC))
         }
       }
@@ -104,7 +104,7 @@ trait CheckHighFormLike {
           correctNum(Option(1), 2)
           nonNegativeConsts()
           if (e.consts.length == 2) {
-            val (msb, lsb) = (e.consts(0).toInt, e.consts(1).toInt)
+            val (msb, lsb) = (e.consts(0), e.consts(1))
             if (lsb > msb) {
               errors.append(new LsbLargerThanMsbException(info, mname, e.op.toString, lsb, msb))
             }
