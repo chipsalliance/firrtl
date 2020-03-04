@@ -5,7 +5,7 @@ package transforms
 
 import firrtl.RenameMap
 import firrtl.annotations._
-import firrtl.transforms.{DedupModules, NoCircuitDedupAnnotation}
+import firrtl.transforms.{DedupModules, DontTouchAnnotation, NoCircuitDedupAnnotation}
 
 
 /**
@@ -505,31 +505,41 @@ class DedupModuleTests extends HighTransformSpec {
       """circuit Top :
         |  module Top :
         |    inst a1 of A
+        |    a1 is invalid
         |    inst a2 of A_
+        |    a2 is invalid
         |  module A :
+        |    input x: UInt<1>
         |    output y: UInt<1>
-        |    y <= UInt(1)
+        |    node a = add(x, UInt(1))
+        |    y <= add(a, a)
         |  module A_ :
-        |    output x: UInt<1>
-        |    x <= UInt(1)
+        |    input x: UInt<1>
+        |    output y: UInt<1>
+        |    node b = add(x, UInt(1))
+        |    y <= add(b, b)
       """.stripMargin
     val check =
       """circuit Top :
         |  module Top :
         |    inst a1 of A
+        |    a1 is invalid
         |    inst a2 of A
+        |    a2 is invalid
         |  module A :
+        |    input x: UInt<1>
         |    output y: UInt<1>
-        |    y <= UInt<1>("h1")
+        |    node a = add(x, UInt<1>("h1"))
+        |    y <= add(a, a)
       """.stripMargin
     val Top = CircuitTarget("Top")
     val A = Top.module("A")
     val A_ = Top.module("A_")
-    val annoA = SingleTargetDummyAnnotation(A.ref("y"))
-    val annoA_ = SingleTargetDummyAnnotation(A_.ref("x"))
+    val annoA  = SingleTargetDummyAnnotation(A.ref("a"))
+    val annoA_ = SingleTargetDummyAnnotation(A_.ref("b"))
     val cs = execute(input, check, Seq(annoA, annoA_))
     cs.annotations.toSeq should contain (annoA)
-    cs.annotations.toSeq should not contain (SingleTargetDummyAnnotation(A.ref("x")))
+    cs.annotations.toSeq should not contain (SingleTargetDummyAnnotation(A.ref("b")))
     cs.deletedAnnotations.isEmpty should be (true)
   }
   "main" should "not be deduped even if it's the last module" in {

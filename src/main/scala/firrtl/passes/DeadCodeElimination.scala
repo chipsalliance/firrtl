@@ -52,7 +52,7 @@ object DeadCodeElimination extends Transform {
 
   def execute(state: CircuitState): CircuitState = {
     val c = state.circuit
-    val renames = RenameMap()
+    val renames = RenameMap(this)
     renames.setCircuit(c.main)
     val modulesx = c.modules.map {
       case m: ExtModule => m

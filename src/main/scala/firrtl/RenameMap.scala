@@ -24,6 +24,8 @@ object RenameMap {
 
   def apply(): RenameMap = new RenameMap
 
+  def apply(associatedTransform: Transform): RenameMap = new RenameMap(associatedTransform = Some(associatedTransform))
+
   abstract class RenameTargetException(reason: String) extends Exception(reason)
   case class IllegalRenameException(reason: String) extends RenameTargetException(reason)
   case class CircularRenameException(reason: String) extends RenameTargetException(reason)
@@ -37,7 +39,11 @@ object RenameMap {
   * @define noteDistinct @note Rename to/tos will be made distinct
   */
 // TODO This should probably be refactored into immutable and mutable versions
-final class RenameMap private (val underlying: mutable.HashMap[CompleteTarget, Seq[CompleteTarget]] = mutable.HashMap[CompleteTarget, Seq[CompleteTarget]](), val chained: Option[RenameMap] = None) {
+final class RenameMap private (
+    val underlying: mutable.HashMap[CompleteTarget, Seq[CompleteTarget]] = mutable.HashMap[CompleteTarget, Seq[CompleteTarget]](),
+    val chained: Option[RenameMap] = None,
+    val associatedTransform: Option[Transform] = None
+) {
 
   /** Chain a [[RenameMap]] with this [[RenameMap]]
     * @param next the map to chain with this map
@@ -46,9 +52,9 @@ final class RenameMap private (val underlying: mutable.HashMap[CompleteTarget, S
     */
   def andThen(next: RenameMap): RenameMap = {
     if (next.chained.isEmpty) {
-      new RenameMap(next.underlying, chained = Some(this))
+      new RenameMap(next.underlying, chained = Some(this), next.associatedTransform)
     } else {
-      new RenameMap(next.underlying, chained = next.chained.map(this.andThen(_)))
+      new RenameMap(next.underlying, chained = next.chained.map(this.andThen(_)), next.associatedTransform)
     }
   }
 
@@ -402,6 +408,13 @@ final class RenameMap private (val underlying: mutable.HashMap[CompleteTarget, S
       getCache(key)
     } else {
       val getter = recursiveGet(errors)(_)
+      // Returns (ts, continueRenamingCircuit, continueRenamingModules)
+      def continueRenaming[T <: CompleteTarget](original: Seq[CompleteTarget], ts: Seq[CompleteTarget]): Boolean =
+        ts match {
+          case Seq(_: T) if original != ts => false
+          case _ => true
+        }
+
 
       // rename just the first level e.g. just rename component/path portion for ReferenceTargets
       val topRename = key match {
@@ -416,10 +429,12 @@ final class RenameMap private (val underlying: mutable.HashMap[CompleteTarget, S
             instanceGet(errors)(parent).map(ref.setPathTarget(_))
           }
       }
+      val continueModule = continueRenaming[ModuleTarget](Seq(key), topRename)
 
       // rename the next level up
       val midRename = topRename.flatMap {
         case t: CircuitTarget => Seq(t)
+        case t: ModuleTarget if !continueModule => Seq(t)
         case t: ModuleTarget => moduleGet(errors)(t)
         case t: IsComponent =>
           // rename all modules on the path
@@ -437,8 +452,10 @@ final class RenameMap private (val underlying: mutable.HashMap[CompleteTarget, S
                   (None, pair.copy(_2 = OfModule(isMod.module)) +: children)
                 case Seq(isMod: InstanceTarget) if isMod.circuit == t.circuit =>
                   (None, pair +: children)
+                case other if other.forall(x => x.circuit == t.circuit && x.module == t.circuit)=>
+                  (None, pair +: children)
                 case other =>
-                  val error = s"ofModule ${pathMod} cannot be renamed to $other " +
+                  val error = s"ofModule ${pathMod} of target ${key.serialize} cannot be renamed to $other " +
                     "- an ofModule can only be renamed to a single IsModule with the same circuit"
                   errors += error
                   (None, pair +: children)
@@ -469,9 +486,11 @@ final class RenameMap private (val underlying: mutable.HashMap[CompleteTarget, S
               }
           }
       }
+      val continueCircuit = continueRenaming[CircuitTarget](Seq(key), midRename)
 
       // rename the last level
       val botRename = midRename.flatMap {
+        case t: CircuitTarget if !continueCircuit => Seq(t)
         case t: CircuitTarget => circuitGet(errors)(t)
         case t: ModuleTarget =>
           circuitGet(errors)(CircuitTarget(t.circuit)).map {

@@ -235,7 +235,7 @@ object Uniquify extends Transform {
   // Everything wrapped in run so that it's thread safe
   def execute(state: CircuitState): CircuitState = {
     val c = state.circuit
-    val renames = RenameMap()
+    val renames = RenameMap(this)
     renames.setCircuit(c.main)
     // Debug state
     implicit var mname: String = ""

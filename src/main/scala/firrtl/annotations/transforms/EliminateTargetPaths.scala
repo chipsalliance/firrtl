@@ -119,23 +119,31 @@ class EliminateTargetPaths extends Transform {
     lazy val finalModuleSet = finalModuleList.map{ case a: DefModule => a.name }.toSet
 
     // Records how targets have been renamed
-    val renameMap = RenameMap()
+    val renameMap = RenameMap(this)
 
     /* Foreach target, calculate the pathless version and only rename targets that are instantiated. Additionally, rename
      * module targets
      */
     targets.foreach { t =>
       val newTsx = dupMap.makePathless(t)
-      val newTs = newTsx.filter(c => newUsedOfModules.contains(c.moduleOpt.get))
-      if(newTs.nonEmpty) {
-        renameMap.record(t, newTs)
-        val m = Target.referringModule(t)
-        val duplicatedModules = newTs.map(Target.referringModule)
-        val oldModule: Option[ModuleTarget] = m match {
-          case a: ModuleTarget if finalModuleSet(a.module) => Some(a)
-          case _                                           => None
-        }
-        renameMap.record(m, (duplicatedModules ++ oldModule).distinct)
+      newTsx.filter(c => newUsedOfModules.contains(c.moduleOpt.get)) match {
+        case Seq(mt@ModuleTarget(circuit, module)) =>
+          def addRecord(m: IsMember): Unit = m match {
+            case x: ModuleTarget =>
+              renameMap.record(x, mt)
+            case x: IsComponent =>
+              renameMap.record(x, mt)
+              addRecord(x.stripHierarchy(1))
+          }
+
+          addRecord(t)
+
+          val duplicatedModule = mt
+          val oldModule: Option[ModuleTarget] = mt match {
+            case a: ModuleTarget if finalModuleSet(a.module) => Some(a)
+            case _                                           => None
+          }
+          renameMap.record(mt, (Seq(duplicatedModule) ++ oldModule).distinct)
       }
     }
 
@@ -154,7 +162,7 @@ class EliminateTargetPaths extends Transform {
       ) { case ((remainingAnnos, targets, dedupedResult), anno)  =>
           anno match {
             case ResolvePaths(ts)          => (remainingAnnos, ts ++ targets, dedupedResult)
-            case DedupedResult(dups, orig, _) => (remainingAnnos, targets, dedupedResult ++ dups.map(_ -> orig).toMap)
+            case DedupedResult(orig, dups) => (remainingAnnos, targets, dedupedResult ++ dups.map(_ -> orig).toMap)
             case other => (remainingAnnos :+ other, targets, dedupedResult)
           }
       }

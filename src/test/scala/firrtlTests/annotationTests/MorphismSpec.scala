@@ -3,31 +3,68 @@
 package firrtlTests.annotationTests
 
 import firrtl._
-import firrtl.annotations.{CircuitTarget, DeletedAnnotation, SingleTargetAnnotation, Target}
+import firrtl.annotations.{Annotation, CircuitTarget, CompleteTarget, DeletedAnnotation, IsModule, SingleTargetAnnotation, Target}
 import firrtl.annotations.transforms.ResolvePaths
-
-import logger.{Logger, LogLevel, LogLevelAnnotation}
-
+import logger.{LogLevel, LogLevelAnnotation, Logger}
 import org.scalatest.{FlatSpec, Matchers}
 
 class MorphismSpec extends FlatSpec with Matchers {
 
-  case class AnAnnotation(target: Target) extends SingleTargetAnnotation[Target] {
-
-    override def duplicate(a: Target) = this.copy(a)
-
+  object AnAnnotation {
+    def apply(target: CompleteTarget) = new AnAnnotation(Some(target))
   }
+
+  case class AnAnnotation(
+                           target: Option[CompleteTarget],
+                           from: Option[AnAnnotation] = None,
+                           cause: Option[String] = None,
+                         ) extends Annotation {
+    override def update(renames: RenameMap): Seq[AnAnnotation] = {
+      if (target.isDefined) {
+        renames.get(target.get) match {
+          case None => Seq(this)
+          case Some(Seq()) => Seq(AnAnnotation(None, Some(this), renames.associatedTransform.map(_.name)))
+          case Some(targets) =>
+            //TODO: Add cause of renaming, requires FIRRTL change to RenameMap
+            targets.map { t => AnAnnotation(Some(t), Some(this), renames.associatedTransform.map(_.name)) }
+        }
+      } else Seq(this)
+    }
+
+    private def expand(stringBuilder: StringBuilder): StringBuilder = {
+      if (target.isDefined) {
+        stringBuilder.append(s"${target.get.serialize}")
+      } else {
+        stringBuilder.append(s"<DELETED>")
+      }
+      if (from.isDefined) {
+        val arrow = cause.map("(" + _ + ")").getOrElse("")
+        stringBuilder.append(s" <-$arrow- ")
+        from.get.expand(stringBuilder)
+      }
+      stringBuilder
+    }
+
+    override def serialize: String = expand(new StringBuilder()).toString
+  }
+
+  //case class AnAnnotation(target: Target) extends SingleTargetAnnotation[Target] {
+
+  //  override def duplicate(a: Target) = this.copy(a)
+
+  //}
 
   object StripDeleted extends Transform {
 
     override def inputForm = UnknownForm
+
     override def outputForm = UnknownForm
 
     override def execute(a: CircuitState): CircuitState = {
 
       val annotationsx = a.annotations.filter {
         case a: DeletedAnnotation => false
-        case _                    => true
+        case _ => true
       }
 
       a.copy(annotations = annotationsx)
@@ -41,8 +78,12 @@ class MorphismSpec extends FlatSpec with Matchers {
     /** An input FIRRTL string */
     val input: String
 
+    val output: String = input
+
     /** Input annotations */
     val annotations: AnnotationSeq = Seq.empty
+
+    val finalAnnotations: Option[AnnotationSeq] = None
 
     lazy val state = CircuitState(Parser.parse(input), UnknownForm, annotations)
   }
@@ -64,32 +105,60 @@ class MorphismSpec extends FlatSpec with Matchers {
       StripDeleted
     )
 
-    def apply(a: CircuitState): CircuitState = Logger.makeScope(Seq(LogLevelAnnotation(LogLevel.None))) {
-      val ax = (setup ++ f ++ g).foldLeft(a){
+    def apply(a: CircuitState): CircuitState = Logger.makeScope(Seq(LogLevelAnnotation(LogLevel.Trace))) {
+      val ax = (setup ++ f ++ g).foldLeft(a) {
         case (state, transform) => transform.runTransform(state)
       }
 
-      cleanup.foldLeft(ax){
+      cleanup.foldLeft(ax) {
         case (state, transform) => transform.transform(state)
       }
     }
 
-    lazy val output = apply(state)
+    lazy val outputState = apply(state)
 
     def test(): Unit = {
 
       /* The output circuit should be the same as the input circuit */
+      outputState.circuit.serialize should be(Parser.parse(output).serialize)
       info("the circuits are the same")
-      output.circuit.serialize should be (state.circuit.serialize)
+      info(state.circuit.serialize)
 
       /* The output annotations should match the input annotations */
-      info("each annotation is the same")
-      output.annotations.zip(state.annotations).foreach{
-        case (a, b) => a should be (b)
+      info(s"Input annotations:\n\t${state.annotations.toList.mkString("\n\t")}")
+      info(s"Output annotations:\n\t${outputState.annotations.toList.mkString("\n\t")}")
+      if (finalAnnotations.nonEmpty) {
+        info(s"Final annotations: ${finalAnnotations.get.toList.mkString("\n\t")}")
       }
-      info("the number of annotations is the same")
-      output.annotations.size should be (state.annotations.size)
 
+      info(s"Output Annotation History:\n")
+      outputState.annotations.collect {
+        case a: AnAnnotation => info(a.serialize)
+      }
+
+      val inputAnnotations = state.annotations.filter {
+        case r: ResolvePaths => false
+        case other => true
+      }
+
+      if (finalAnnotations.isEmpty) {
+        outputState.annotations.size should be(inputAnnotations.size)
+        info("the number of annotations is the same")
+
+        outputState.annotations.zip(inputAnnotations).foreach {
+          case (a, b) => a.getTargets should be(b.getTargets)
+        }
+        info("each annotation is the same")
+      } else {
+        outputState.annotations.size should be(finalAnnotations.get.size)
+        info("the number of annotations is the same")
+
+        outputState.annotations.zip(finalAnnotations.get).foreach {
+          //case (a, b) => a should be (b)
+          case (a, b) => a.getTargets should be(b.getTargets)
+        }
+        info("each annotation is the same as the final annotations")
+      }
     }
 
   }
@@ -110,11 +179,11 @@ class MorphismSpec extends FlatSpec with Matchers {
 
     def apply(a: CircuitState): (CircuitState, CircuitState) = {
 
-      val once = (setup ++ f).foldLeft(a){
+      val once = (setup ++ f).foldLeft(a) {
         case (state, transform) => transform.runTransform(state)
       }
 
-      val twice = f.foldLeft(once){
+      val twice = f.foldLeft(once) {
         case (state, transform) => transform.runTransform(state)
       }
 
@@ -127,15 +196,15 @@ class MorphismSpec extends FlatSpec with Matchers {
     def test(): Unit = {
 
       info("a second application does not change the circuit")
-      twoApplications.circuit.serialize should be (oneApplication.circuit.serialize)
+      twoApplications.circuit.serialize should be(oneApplication.circuit.serialize)
 
       info("each annotation is the same after a second application")
-      twoApplications.annotations.zip(oneApplication.annotations).foreach{
-        case (a, b) => a should be (b)
+      twoApplications.annotations.zip(oneApplication.annotations).foreach {
+        case (a, b) => a should be(b)
       }
 
       info("the number of annotations after a second application is the same")
-      twoApplications.annotations.size should be (oneApplication.annotations.size)
+      twoApplications.annotations.size should be(oneApplication.annotations.size)
 
     }
 
@@ -148,16 +217,90 @@ class MorphismSpec extends FlatSpec with Matchers {
          |  module Foo:
          |    node a = UInt<1>(0)
          |    skip
-         |  module Bar:
-         |    node b = UInt<1>(0)
+         |  module Bop:
+         |    node a = UInt<1>(0)
          |    skip
-         |  module Top:
+         |  module Fub:
+         |    node a = UInt<1>(0)
+         |    skip
+         |  module Bar:
+         |    node a = UInt<1>(0)
+         |    skip
+         |  module Baz:
+         |    input x: UInt<1>
          |    inst foo of Foo
-         |    inst bar of Bar""".stripMargin
+         |    inst bar of Bar
+         |  module Qux:
+         |    input x: UInt<1>
+         |    inst foo of Fub
+         |    inst bar of Bop
+         |  module Top:
+         |    inst baz of Baz
+         |    inst qux of Qux""".stripMargin
 
     override val f: Seq[Transform] = Seq(new firrtl.transforms.DedupModules)
 
     override val g: Seq[Transform] = Seq(new firrtl.annotations.transforms.EliminateTargetPaths)
+
+
+    val randomSeed = 10
+    val random = new scala.util.Random(randomSeed)
+
+    def allModuleInstances =
+      IndexedSeq(
+        CircuitTarget("Top").module("Foo"),
+        CircuitTarget("Top").module("Bar"),
+        CircuitTarget("Top").module("Fub"),
+        CircuitTarget("Top").module("Bop"),
+        CircuitTarget("Top").module("Baz"),
+        CircuitTarget("Top").module("Qux"),
+        CircuitTarget("Top").module("Top"),
+      )
+
+    def allAbsoluteInstances =
+      IndexedSeq(
+        CircuitTarget("Top").module("Top").instOf("baz", "Baz").instOf("foo", "Foo"),
+        CircuitTarget("Top").module("Top").instOf("baz", "Baz").instOf("bar", "Bar"),
+        CircuitTarget("Top").module("Top").instOf("qux", "Qux").instOf("foo", "Fub"),
+        CircuitTarget("Top").module("Top").instOf("qux", "Qux").instOf("bar", "Bop"),
+        CircuitTarget("Top").module("Top").instOf("baz", "Baz"),
+        CircuitTarget("Top").module("Top").instOf("qux", "Qux"),
+        CircuitTarget("Top").module("Top"),
+      )
+
+    def allRelative2LevelInstances =
+      IndexedSeq(
+        CircuitTarget("Top").module("Baz").instOf("foo", "Foo"),
+        CircuitTarget("Top").module("Baz").instOf("bar", "Bar"),
+        CircuitTarget("Top").module("Top").instOf("baz", "Baz"),
+        CircuitTarget("Top").module("Qux").instOf("foo", "Fub"),
+        CircuitTarget("Top").module("Qux").instOf("bar", "Bop"),
+        CircuitTarget("Top").module("Top").instOf("qux", "Qux"),
+        CircuitTarget("Top").module("Top"),
+      )
+
+    def allASTModules =
+      IndexedSeq(
+        CircuitTarget("Foo").module("Foo"),
+        CircuitTarget("Bar").module("Bar"),
+        CircuitTarget("Fub").module("Fub"),
+        CircuitTarget("Bop").module("Bop"),
+        CircuitTarget("Baz").module("Baz"),
+        CircuitTarget("Quz").module("Qux"),
+        CircuitTarget("Top").module("Top"),
+      )
+
+    // Possible to get duplicate targets
+    def getRandomMix(targets: IndexedSeq[IsModule], n: Int): Seq[IsModule] = {
+      (0 until n.min(targets.length)).map { _ =>
+        targets(random.nextInt(targets.length))
+      }
+    }
+
+    def targetsList = Seq(
+      allAbsoluteInstances,
+      allRelative2LevelInstances,
+    ) // ++ (3 until 10).map { i => getRandomMix(allAbsoluteInstances ++ allRelative2LevelInstances, i) }
 
   }
 
@@ -165,27 +308,39 @@ class MorphismSpec extends FlatSpec with Matchers {
 
   it should "invert DedupModules with no annotations" in new RightInverseEliminateTargetsFixture {
     override val annotations: AnnotationSeq = Seq(
-      ResolvePaths(Seq(CircuitTarget("Top").module("Top").instOf("foo", "Foo"),
-                       CircuitTarget("Top").module("Top").instOf("bar", "Bar")))
+      ResolvePaths(allAbsoluteInstances)
     )
     test()
   }
 
-  it should "invert DedupModules with InstanceTarget annotations" in new RightInverseEliminateTargetsFixture {
-    override val annotations: AnnotationSeq = Seq(
-      AnAnnotation(CircuitTarget("Top").module("Top").instOf("foo", "Foo")),
-      AnAnnotation(CircuitTarget("Top").module("Top").instOf("bar", "Bar")),
-      ResolvePaths(Seq(CircuitTarget("Top").module("Top").instOf("foo", "Foo"),
-                       CircuitTarget("Top").module("Top").instOf("bar", "Bar")))
+  it should "invert DedupModules with absolute InstanceTarget annotations" in new RightInverseEliminateTargetsFixture {
+    override val annotations: AnnotationSeq =
+      allAbsoluteInstances.map(AnAnnotation(_)) :+ ResolvePaths(allAbsoluteInstances)
+
+    override val finalAnnotations: Option[AnnotationSeq] = Some(
+      allModuleInstances.map(AnAnnotation.apply)
     )
     test()
   }
 
-  it should "invert DedupModules with a ModuleTarget annotation" in new RightInverseEliminateTargetsFixture {
-    override val annotations: AnnotationSeq = Seq(
-      AnAnnotation(CircuitTarget("Top").module("Top")),
-      ResolvePaths(Seq(CircuitTarget("Top").module("Top").instOf("foo", "Foo"),
-                       CircuitTarget("Top").module("Top").instOf("bar", "Bar")))
+  it should "invert DedupModules with all ModuleTarget annotations" in new RightInverseEliminateTargetsFixture {
+    override val annotations: AnnotationSeq =
+      allModuleInstances.map(AnAnnotation.apply) :+ ResolvePaths(allAbsoluteInstances)
+    test()
+  }
+
+  it should "invert DedupModules with all AST ModuleTarget annotations" in new RightInverseEliminateTargetsFixture {
+    override val annotations: AnnotationSeq =
+      allASTModules.map(AnAnnotation.apply) :+ ResolvePaths(allAbsoluteInstances)
+    test()
+  }
+
+  it should "invert DedupModules with relative InstanceTarget annotations" in new RightInverseEliminateTargetsFixture {
+    override val annotations: AnnotationSeq =
+      allRelative2LevelInstances.map(AnAnnotation.apply) :+ ResolvePaths(allAbsoluteInstances)
+
+    override val finalAnnotations: Option[AnnotationSeq] = Some(
+      allModuleInstances.map(AnAnnotation.apply)
     )
     test()
   }
@@ -193,9 +348,78 @@ class MorphismSpec extends FlatSpec with Matchers {
   it should "invert DedupModules with a ReferenceTarget annotation" in new RightInverseEliminateTargetsFixture {
     override val annotations: AnnotationSeq = Seq(
       AnAnnotation(CircuitTarget("Top").module("Top").ref("x")),
-      ResolvePaths(Seq(CircuitTarget("Top").module("Top").instOf("foo", "Foo"),
-                       CircuitTarget("Top").module("Top").instOf("bar", "Bar")))
+      ResolvePaths(allAbsoluteInstances)
     )
+    test()
+  }
+
+  it should "invert DedupModules with partially duplicated modules" in new RightInverseEliminateTargetsFixture {
+    override val input =
+      """|circuit Top:
+         |  module Foo:
+         |    node a = UInt<1>(0)
+         |    skip
+         |  module Bar:
+         |    node a = UInt<1>(0)
+         |    skip
+         |  module Baz:
+         |    input x: UInt<1>
+         |    inst foo of Foo
+         |    inst foox of Foo
+         |    inst bar of Bar
+         |  module Top:
+         |    inst baz of Baz
+         |    inst qux of Baz""".stripMargin
+    override val output =
+      """|circuit Top :
+         |  module Foo___Top_baz_bar :
+         |
+         |    node a = UInt<1>("h0")
+         |    skip
+         |
+         |  module Foo___Top_qux_foox :
+         |    node a = UInt<1>("h0")
+         |    skip
+         |  module Foo___Top_qux_bar :
+         |    node a = UInt<1>("h0")
+         |    skip
+         |  module Foo___Top_baz_foox :
+         |    node a = UInt<1>("h0")
+         |    skip
+         |  module Foo___Top_baz_foo :
+         |    node a = UInt<1>("h0")
+         |    skip
+         |  module Foo___Top_qux_foo :
+         |    node a = UInt<1>("h0")
+         |    skip
+         |  module Baz___Top_qux :
+         |    input x : UInt<1>
+         |    inst foo of Foo___Top_qux_foo
+         |    inst foox of Foo___Top_qux_foox
+         |    inst bar of Foo___Top_qux_bar
+         |  module Baz___Top_baz :
+         |    input x : UInt<1>
+         |    inst foo of Foo___Top_baz_foo
+         |    inst foox of Foo___Top_baz_foox
+         |    inst bar of Foo___Top_baz_bar
+         |  module Top :
+         |    inst baz of Baz___Top_baz
+         |    inst qux of Baz___Top_qux""".stripMargin
+    override val annotations: AnnotationSeq = Seq(
+      AnAnnotation(CircuitTarget("Top").module("Baz").instOf("foo", "Foo")),
+      ResolvePaths(Seq(
+        CircuitTarget("Top").module("Top").instOf("baz", "Baz").instOf("foo", "Foo"),
+        CircuitTarget("Top").module("Top").instOf("baz", "Baz").instOf("foox", "Foo"),
+        CircuitTarget("Top").module("Top").instOf("baz", "Baz").instOf("bar", "Bar"),
+        CircuitTarget("Top").module("Top").instOf("qux", "Baz").instOf("foo", "Foo"),
+        CircuitTarget("Top").module("Top").instOf("qux", "Baz").instOf("foox", "Foo"),
+        CircuitTarget("Top").module("Top").instOf("qux", "Baz").instOf("bar", "Bar"),
+      ))
+    )
+
+    override val finalAnnotations: Option[AnnotationSeq] = Some(Seq(
+      AnAnnotation(CircuitTarget("Top").module("Baz").instOf("foo", "Foo")),
+    ))
     test()
   }
 
