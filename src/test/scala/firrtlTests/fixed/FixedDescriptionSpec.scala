@@ -32,7 +32,7 @@ class FixedDescriptionSpec extends FirrtlFlatSpec {
       """  // Fixed point with binary point 0
         |  input  [2:0] c,""".stripMargin,
       """  // Fixed point with binary point 2
-        |  output [9:0] out""".stripMargin,
+        |  output [7:0] out""".stripMargin,
       """  // Fixed point with binary point 2
         |  reg [4:0] sum;""".stripMargin,
       """  // Fixed point with binary point 2
