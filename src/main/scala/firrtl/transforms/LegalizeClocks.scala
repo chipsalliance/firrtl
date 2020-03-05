@@ -68,7 +68,8 @@ class LegalizeClocksTransform extends Transform with PreservesAll[Transform] {
          Dependency[FixAddingNegativeLiterals],
          Dependency[ReplaceTruncatingArithmetic],
          Dependency[InlineBitExtractionsTransform],
-         Dependency[InlineCastsTransform] )
+         Dependency[InlineCastsTransform],
+         Dependency[InlineNotsTransform] )
 
   override val optionalPrerequisites = firrtl.stage.Forms.LowFormOptimized
 

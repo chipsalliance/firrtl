@@ -115,6 +115,7 @@ class FlattenRegUpdate extends Transform {
          Dependency[ReplaceTruncatingArithmetic],
          Dependency[InlineBitExtractionsTransform],
          Dependency[InlineCastsTransform],
+         Dependency[InlineNotsTransform],
          Dependency[LegalizeClocksTransform] )
 
   override val optionalPrerequisites = firrtl.stage.Forms.LowFormOptimized

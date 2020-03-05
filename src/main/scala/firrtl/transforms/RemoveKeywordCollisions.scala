@@ -241,6 +241,7 @@ class VerilogRename extends RemoveKeywordCollisions(v_keywords) with PreservesAl
          Dependency[ReplaceTruncatingArithmetic],
          Dependency[InlineBitExtractionsTransform],
          Dependency[InlineCastsTransform],
+         Dependency[InlineNotsTransform],
          Dependency[LegalizeClocksTransform],
          Dependency[FlattenRegUpdate],
          Dependency(passes.VerilogModulusCleanup) )

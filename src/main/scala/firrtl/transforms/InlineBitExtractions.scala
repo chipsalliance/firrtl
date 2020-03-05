@@ -99,7 +99,8 @@ class InlineBitExtractionsTransform extends Transform with PreservesAll[Transfor
   override val prerequisites = firrtl.stage.Forms.LowFormMinimumOptimized ++
     Seq( Dependency[BlackBoxSourceHelper],
          Dependency[FixAddingNegativeLiterals],
-         Dependency[ReplaceTruncatingArithmetic] )
+         Dependency[ReplaceTruncatingArithmetic],
+         Dependency[InlineNotsTransform] )  // after InlineNots to clean up not(not(...)) rename
 
   override val optionalPrerequisites = firrtl.stage.Forms.LowFormOptimized
 

@@ -202,7 +202,8 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
       new firrtl.transforms.BlackBoxSourceHelper,
       new firrtl.transforms.FixAddingNegativeLiterals,
       new firrtl.transforms.ReplaceTruncatingArithmetic,
-      new firrtl.transforms.InlineBitExtractionsTransform,
+      new firrtl.transforms.InlineNotsTransform,
+      new firrtl.transforms.InlineBitExtractionsTransform,  // here after InlineNots to clean up not(not(...)) rename
       new firrtl.transforms.PropagatePresetAnnotations,
       new firrtl.transforms.InlineCastsTransform,
       new firrtl.transforms.LegalizeClocksTransform,
@@ -222,7 +223,8 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
       new firrtl.transforms.BlackBoxSourceHelper,
       new firrtl.transforms.FixAddingNegativeLiterals,
       new firrtl.transforms.ReplaceTruncatingArithmetic,
-      new firrtl.transforms.InlineBitExtractionsTransform,
+      new firrtl.transforms.InlineNotsTransform,
+      new firrtl.transforms.InlineBitExtractionsTransform,  // here after InlineNots to clean up not(not(...)) rename
       new firrtl.transforms.PropagatePresetAnnotations,
       new firrtl.transforms.InlineCastsTransform,
       new firrtl.transforms.LegalizeClocksTransform,

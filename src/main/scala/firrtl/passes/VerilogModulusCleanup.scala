@@ -32,6 +32,7 @@ object VerilogModulusCleanup extends Pass with PreservesAll[Transform] {
          Dependency[firrtl.transforms.ReplaceTruncatingArithmetic],
          Dependency[firrtl.transforms.InlineBitExtractionsTransform],
          Dependency[firrtl.transforms.InlineCastsTransform],
+         Dependency[firrtl.transforms.InlineNotsTransform],
          Dependency[firrtl.transforms.LegalizeClocksTransform],
          Dependency[firrtl.transforms.FlattenRegUpdate] )
 

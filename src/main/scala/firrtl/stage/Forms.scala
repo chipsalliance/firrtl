@@ -82,6 +82,7 @@ object Forms {
          Dependency[firrtl.transforms.ReplaceTruncatingArithmetic],
          Dependency[firrtl.transforms.InlineBitExtractionsTransform],
          Dependency[firrtl.transforms.InlineCastsTransform],
+         Dependency[firrtl.transforms.InlineNotsTransform],
          Dependency[firrtl.transforms.LegalizeClocksTransform],
          Dependency[firrtl.transforms.FlattenRegUpdate],
          Dependency(passes.VerilogModulusCleanup),
