@@ -3,11 +3,13 @@
 package firrtlTests.annotationTests
 
 import firrtl._
+import firrtl.analyses.InstanceGraph
 import firrtl.annotations._
 import firrtl.annotations.analysis.DuplicationHelper
 import firrtl.annotations.transforms.NoSuchTargetException
 import firrtl.transforms.DontTouchAnnotation
 import firrtlTests.{FirrtlMatchers, FirrtlPropSpec}
+import logger.{LogLevel, LogLevelAnnotation, Logger}
 
 class EliminateTargetPathsSpec extends FirrtlPropSpec with FirrtlMatchers {
   val input =
@@ -63,7 +65,10 @@ class EliminateTargetPathsSpec extends FirrtlPropSpec with FirrtlMatchers {
 
   val inputState = CircuitState(parse(input), ChirrtlForm)
   property("Hierarchical tokens should be expanded properly") {
-    val dupMap = new DuplicationHelper(inputState.circuit.main, inputState.circuit.modules.map(_.name).toSet)
+    val dupMap = DuplicationHelper(
+      inputState.circuit.main,
+      inputState.circuit.modules.map(_.name).toSet
+    )
 
 
     // Only a few instance references
@@ -104,7 +109,9 @@ class EliminateTargetPathsSpec extends FirrtlPropSpec with FirrtlMatchers {
   property("Hierarchical donttouch should be resolved properly") {
     val inputState = CircuitState(parse(input), ChirrtlForm, Seq(DontTouchAnnotation(Top_m1_l1_a)))
     val customTransforms = Seq(new LowFirrtlOptimization())
-    val outputState = new LowFirrtlCompiler().compile(inputState, customTransforms)
+    val outputState = Logger.makeScope(Seq(LogLevelAnnotation(LogLevel.Trace))) {
+      new LowFirrtlCompiler().compile(inputState, customTransforms)
+    }
     val check =
       """circuit Top :
         |  module Leaf___Top_m1_l1 :
@@ -189,7 +196,10 @@ class EliminateTargetPathsSpec extends FirrtlPropSpec with FirrtlMatchers {
         |  module Middle____Top_m1 :""".stripMargin.split("\n")
     val Top_m1 = Top.instOf("m1", "Middle")
     val inputState = CircuitState(parse(input), ChirrtlForm, Seq(DummyAnnotation(Top_m1)))
-    val outputState = new LowFirrtlCompiler().compile(inputState, customTransforms)
+    //val outputState = new LowFirrtlCompiler().compile(inputState, customTransforms)
+    val outputState = Logger.makeScope(Seq(LogLevelAnnotation(LogLevel.Trace))) {
+      new LowFirrtlCompiler().compile(inputState, customTransforms)
+    }
     val outputLines = outputState.circuit.serialize.split("\n")
     checks.foreach { line =>
       outputLines should contain (line)
@@ -313,7 +323,10 @@ class EliminateTargetPathsSpec extends FirrtlPropSpec with FirrtlMatchers {
     val Middle_l1 = CircuitTarget("Top").module("Middle").instOf("_l", "Leaf")
     val Middle_l2 = CircuitTarget("Top").module("Middle_").instOf("l", "Leaf")
     val inputState = CircuitState(parse(input), ChirrtlForm, Seq(DummyAnnotation(Middle_l1), DummyAnnotation(Middle_l2)))
-    val outputState = new LowFirrtlCompiler().compile(inputState, customTransforms)
+    //val outputState = new LowFirrtlCompiler().compile(inputState, customTransforms)
+    val outputState = Logger.makeScope(Seq(LogLevelAnnotation(LogLevel.Trace))) {
+      new LowFirrtlCompiler().compile(inputState, customTransforms)
+    }
     val outputLines = outputState.circuit.serialize.split("\n")
     checks.foreach { line =>
       outputLines should contain (line)

@@ -264,7 +264,9 @@ abstract class Transform extends TransformLike[CircuitState] {
       remappedAnnos.foreach { remapped =>
         val set = remapped2original.getOrElseUpdate(remapped, mutable.LinkedHashSet.empty[Annotation])
         set += anno
-        if(set.size > 1) keysOfNote += remapped
+        if(set.size > 1) {
+          keysOfNote += remapped
+        }
       }
       remappedAnnos
     }.toSeq

@@ -5,6 +5,7 @@ package firrtl.annotations.analysis
 import firrtl.annotations._
 import firrtl.annotations.TargetToken.{Instance, OfModule, Ref}
 import firrtl.Utils.throwInternalError
+import firrtl.analyses.InstanceGraph
 
 import scala.collection.mutable
 
@@ -12,8 +13,7 @@ import scala.collection.mutable
   * Calculates needed modifications to a circuit's module/instance hierarchy
   */
 case class DuplicationHelper(circuit: String,
-                             existingModules: Set[String],
-                             previousDedupResult: Map[IsModule, ModuleTarget] = Map.empty
+                             existingModules: Set[String]
                             ) {
 
   // Maps instances to the module it instantiates (an ofModule)
@@ -74,11 +74,6 @@ case class DuplicationHelper(circuit: String,
       im.instOf(inst.value, ofM.value)
     }
     cachedNames.get((top, path)) match {
-      case None if previousDedupResult.contains(it) =>
-        val finalName = previousDedupResult(it).module
-        allModules += finalName
-        cachedNames((top, path)) = finalName
-        finalName
       case None => // Need a new name
         val prefix = path.last._2.value + "___"
         val postfix = top + "_" + path.map { case (i, m) => i.value }.mkString("_")
@@ -103,23 +98,27 @@ case class DuplicationHelper(circuit: String,
                      newModule: String,
                      instance: Instance,
                      originalOfModule: OfModule): OfModule = {
-    dupMap.get(originalModule) match {
-      case None => // No duplication, can return originalOfModule
-        originalOfModule
-      case Some(newDupedModules) =>
-        newDupedModules.get(newModule) match {
-          case None if newModule != originalModule => throwInternalError("BAD")
-          case None => // No duplication, can return originalOfModule
-            originalOfModule
-          case Some(newDupedModule) =>
-            newDupedModule.get(instance) match {
-              case None => // Not duped, can return originalOfModule
-                originalOfModule
-              case Some(newOfModule) =>
-                newOfModule
-            }
-        }
-    }
+    //if(getDuplicates(originalOfModule.value).size == 1) {
+    //  OfModule(getDuplicates(originalOfModule.value).head)
+    //} else {
+      dupMap.get(originalModule) match {
+        case None => // No duplication, can return originalOfModule
+          originalOfModule
+        case Some(newDupedModules) =>
+          newDupedModules.get(newModule) match {
+            case None if newModule != originalModule => throwInternalError("BAD")
+            case None => // No duplication, can return originalOfModule
+              originalOfModule
+            case Some(newDupedModule) =>
+              newDupedModule.get(instance) match {
+                case None => // Not duped, can return originalOfModule
+                  originalOfModule
+                case Some(newOfModule) =>
+                  newOfModule
+              }
+          }
+      }
+    //}
   }
 
   /** Returns the names of this module's duplicated (including the original name)

@@ -4,7 +4,8 @@ package firrtlTests.annotationTests
 
 import firrtl._
 import firrtl.annotations.{Annotation, CircuitTarget, CompleteTarget, DeletedAnnotation, IsModule, SingleTargetAnnotation, Target}
-import firrtl.annotations.transforms.ResolvePaths
+import firrtl.annotations.transforms.{DupedResult, ResolvePaths}
+import firrtl.transforms.DedupedResult
 import logger.{LogLevel, LogLevelAnnotation, Logger}
 import org.scalatest.{FlatSpec, Matchers}
 
@@ -48,12 +49,6 @@ class MorphismSpec extends FlatSpec with Matchers {
     override def serialize: String = expand(new StringBuilder()).toString
   }
 
-  //case class AnAnnotation(target: Target) extends SingleTargetAnnotation[Target] {
-
-  //  override def duplicate(a: Target) = this.copy(a)
-
-  //}
-
   object StripDeleted extends Transform {
 
     override def inputForm = UnknownForm
@@ -64,6 +59,9 @@ class MorphismSpec extends FlatSpec with Matchers {
 
       val annotationsx = a.annotations.filter {
         case a: DeletedAnnotation => false
+        case AnAnnotation(None, _, _) => false
+        case _: DupedResult => false
+        case _: DedupedResult => false
         case _ => true
       }
 
@@ -211,8 +209,7 @@ class MorphismSpec extends FlatSpec with Matchers {
 
   }
 
-  trait RightInverseEliminateTargetsFixture extends RightInverseFixture {
-
+  trait DefaultExample extends CircuitFixture {
     override val input =
       """|circuit Top:
          |  module Foo:
@@ -239,10 +236,18 @@ class MorphismSpec extends FlatSpec with Matchers {
          |    inst baz of Baz
          |    inst qux of Qux""".stripMargin
 
-    override val f: Seq[Transform] = Seq(new firrtl.transforms.DedupModules)
-
-    override val g: Seq[Transform] = Seq(new firrtl.annotations.transforms.EliminateTargetPaths)
-
+    def deduped =
+      """|circuit Top:
+         |  module Foo:
+         |    node a = UInt<1>(0)
+         |    skip
+         |  module Baz:
+         |    input x: UInt<1>
+         |    inst foo of Foo
+         |    inst bar of Foo
+         |  module Top:
+         |    inst baz of Baz
+         |    inst qux of Baz""".stripMargin
 
     val randomSeed = 10
     val random = new scala.util.Random(randomSeed)
@@ -287,7 +292,7 @@ class MorphismSpec extends FlatSpec with Matchers {
         CircuitTarget("Fub").module("Fub"),
         CircuitTarget("Bop").module("Bop"),
         CircuitTarget("Baz").module("Baz"),
-        CircuitTarget("Quz").module("Qux"),
+        CircuitTarget("Qux").module("Qux"),
         CircuitTarget("Top").module("Top"),
       )
 
@@ -303,9 +308,19 @@ class MorphismSpec extends FlatSpec with Matchers {
       allRelative2LevelInstances,
     ) // ++ (3 until 10).map { i => getRandomMix(allAbsoluteInstances ++ allRelative2LevelInstances, i) }
 
+
   }
 
+
   behavior of "EliminateTargetPaths"
+
+  trait RightInverseEliminateTargetsFixture extends RightInverseFixture with DefaultExample {
+    override val f: Seq[Transform] = Seq(new firrtl.transforms.DedupModules)
+    override val g: Seq[Transform] = Seq(new firrtl.annotations.transforms.EliminateTargetPaths)
+  }
+  trait IdempotencyEliminateTargetsFixture extends IdempotencyFixture with DefaultExample {
+    override val f: Seq[Transform] = Seq(new firrtl.annotations.transforms.EliminateTargetPaths)
+  }
 
   it should "invert DedupModules with no annotations" in new RightInverseEliminateTargetsFixture {
     override val annotations: AnnotationSeq = Seq(
@@ -333,6 +348,11 @@ class MorphismSpec extends FlatSpec with Matchers {
   it should "invert DedupModules with all AST ModuleTarget annotations" in new RightInverseEliminateTargetsFixture {
     override val annotations: AnnotationSeq =
       allASTModules.map(AnAnnotation.apply) :+ ResolvePaths(allAbsoluteInstances)
+    override val finalAnnotations: Option[AnnotationSeq] = Some(Seq(
+      AnAnnotation(CircuitTarget("Foo").module("Foo")),
+      AnAnnotation(CircuitTarget("Bar").module("Bar")),
+      AnAnnotation(CircuitTarget("Top").module("Top"))
+    ))
     test()
   }
 
@@ -423,14 +443,134 @@ class MorphismSpec extends FlatSpec with Matchers {
     test()
   }
 
-  it should "be idempotent" in (pending)
+  it should "be idempotent with per-module annotations" in new IdempotencyEliminateTargetsFixture {
+    /** An endomorphism */
+    override val annotations: AnnotationSeq =
+      allModuleInstances.map(AnAnnotation.apply) :+ ResolvePaths(allAbsoluteInstances)
+    test()
+  }
+
+  it should "be idempotent with per-instance annotations" in new IdempotencyEliminateTargetsFixture {
+    /** An endomorphism */
+    override val annotations: AnnotationSeq =
+      allAbsoluteInstances.map(AnAnnotation.apply) :+ ResolvePaths(allAbsoluteInstances)
+    test()
+  }
+
+  it should "be idempotent with relative module annotations" in new IdempotencyEliminateTargetsFixture {
+    /** An endomorphism */
+    override val annotations: AnnotationSeq =
+      allRelative2LevelInstances.map(AnAnnotation.apply) :+ ResolvePaths(allAbsoluteInstances)
+    test()
+  }
+
+  it should "be idempotent with ast module annotations" in new IdempotencyEliminateTargetsFixture {
+    /** An endomorphism */
+    override val annotations: AnnotationSeq =
+      allASTModules.map(AnAnnotation.apply) :+ ResolvePaths(allAbsoluteInstances)
+    test()
+  }
 
   behavior of "DedupModules"
-  it should "invert EliminateTargetPaths with not annotations" in (pending)
-  it should "invert EliminateTargetPaths with InstanceTarget annotations" in (pending)
-  it should "invert EliminateTargetPaths with a ModuleTarget annotation" in (pending)
-  it should "invert EliminateTargetPaths with a ReferenceTarget annotation" in (pending)
+
+  trait RightInverseDedupModulesFixture extends RightInverseFixture with DefaultExample {
+    override val f: Seq[Transform] = Seq(new firrtl.annotations.transforms.EliminateTargetPaths)
+    override val g: Seq[Transform] = Seq(new firrtl.transforms.DedupModules)
+  }
+
+  trait IdempotencyDedupModulesFixture extends IdempotencyFixture with DefaultExample {
+    override val f: Seq[Transform] = Seq(new firrtl.transforms.DedupModules)
+  }
+
+  it should "invert EliminateTargetPaths with no annotations" in new RightInverseDedupModulesFixture {
+    override val annotations: AnnotationSeq = Seq(
+      ResolvePaths(allAbsoluteInstances)
+    )
+    override lazy val output = deduped
+
+    test()
+  }
+
+  it should "invert EliminateTargetPaths with absolute InstanceTarget annotations" in new RightInverseDedupModulesFixture {
+    override val annotations: AnnotationSeq =
+      allAbsoluteInstances.map(AnAnnotation(_)) :+ ResolvePaths(allAbsoluteInstances)
+    override lazy val output = deduped
+    test()
+  }
+
+  it should "invert EliminateTargetPaths with all ModuleTarget annotations" in new RightInverseDedupModulesFixture {
+    override val annotations: AnnotationSeq =
+      allModuleInstances.map(AnAnnotation.apply) :+ ResolvePaths(allAbsoluteInstances)
+    override val finalAnnotations: Option[AnnotationSeq] = Some(
+      allAbsoluteInstances.map(AnAnnotation.apply)
+    )
+    override lazy val output = deduped
+    test()
+  }
+
+  it should "invert EliminateTargetPaths with all AST ModuleTarget annotations" in new RightInverseDedupModulesFixture {
+    override val annotations: AnnotationSeq =
+      allASTModules.map(AnAnnotation.apply) :+ ResolvePaths(allAbsoluteInstances)
+    override val finalAnnotations: Option[AnnotationSeq] = Some(Seq(
+      AnAnnotation(CircuitTarget("Foo").module("Foo")),
+      AnAnnotation(CircuitTarget("Bar").module("Bar")),
+      AnAnnotation(CircuitTarget("Top").module("Top"))
+    ))
+    override lazy val output = deduped
+    test()
+  }
+
+  it should "invert EliminateTargetPaths with partially duplicated modules" in new RightInverseDedupModulesFixture {
+    override val input =
+      """|circuit Top:
+         |  module Foo:
+         |    node a = UInt<1>(0)
+         |    skip
+         |  module Bar:
+         |    node a = UInt<1>(0)
+         |    skip
+         |  module Baz:
+         |    input x: UInt<1>
+         |    inst foo of Foo
+         |    inst foox of Foo
+         |    inst bar of Bar
+         |  module Top:
+         |    inst baz of Baz
+         |    inst qux of Baz""".stripMargin
+    override lazy val output =
+      """|circuit Top :
+         |  module Foo :
+         |    node a = UInt<1>("h0")
+         |    skip
+         |  module Baz :
+         |    input x : UInt<1>
+         |    inst foo of Foo
+         |    inst foox of Foo
+         |    inst bar of Foo
+         |  module Top :
+         |    inst baz of Baz
+         |    inst qux of Baz""".stripMargin
+    override val annotations: AnnotationSeq = Seq(
+      AnAnnotation(CircuitTarget("Top").module("Baz").instOf("foo", "Foo")),
+      ResolvePaths(Seq(
+        CircuitTarget("Top").module("Top").instOf("baz", "Baz").instOf("foo", "Foo"),
+        CircuitTarget("Top").module("Top").instOf("baz", "Baz").instOf("foox", "Foo"),
+        CircuitTarget("Top").module("Top").instOf("baz", "Baz").instOf("bar", "Bar"),
+        CircuitTarget("Top").module("Top").instOf("qux", "Baz").instOf("foo", "Foo"),
+        CircuitTarget("Top").module("Top").instOf("qux", "Baz").instOf("foox", "Foo"),
+        CircuitTarget("Top").module("Top").instOf("qux", "Baz").instOf("bar", "Bar"),
+      ))
+    )
+
+    override val finalAnnotations: Option[AnnotationSeq] = Some(Seq(
+      AnAnnotation(CircuitTarget("Top").module("Foo___Top_qux_foo")),
+      AnAnnotation(CircuitTarget("Top").module("Foo___Top_baz_foo"))
+    ))
+    test()
+  }
+
   it should "be idempotent" in (pending)
+
 
   behavior of "GroupComponents"
   it should "invert InlineInstances with not annotations" in (pending)

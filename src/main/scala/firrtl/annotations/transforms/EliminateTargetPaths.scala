@@ -10,7 +10,7 @@ import firrtl.annotations.analysis.DuplicationHelper
 import firrtl.annotations._
 import firrtl.ir._
 import firrtl.transforms.DedupedResult
-import firrtl.{CircuitForm, CircuitState, FirrtlInternalException, HighForm, RenameMap, Transform, WDefInstance}
+import firrtl.{AnnotationSeq, CircuitForm, CircuitState, FirrtlInternalException, HighForm, RenameMap, Transform, WDefInstance}
 
 import scala.collection.mutable
 
@@ -22,6 +22,21 @@ case class ResolvePaths(targets: Seq[CompleteTarget]) extends Annotation {
   override def update(renames: RenameMap): Seq[Annotation] = {
     val newTargets = targets.flatMap(t => renames.get(t).getOrElse(Seq(t)))
     Seq(ResolvePaths(newTargets))
+  }
+}
+
+/** Holds the mapping from original module to the new, duplicated modules
+  * The original module target is unaffected by renaming
+  * @param newModules Instance target of what the original module now points to
+  * @param originalModule Original module
+  */
+case class DupedResult(newModules: Seq[IsModule], originalModule: ModuleTarget) extends MultiTargetAnnotation {
+  override val targets: Seq[Seq[Target]] = Seq(newModules)
+  override def duplicate(n: Seq[Seq[Target]]): Annotation = {
+    n.toList match {
+      case Seq(newMods) => DupedResult(newMods.collect { case x: IsModule => x }, originalModule)
+      case _ => DupedResult(Nil, originalModule)
+    }
   }
 }
 
@@ -72,9 +87,11 @@ class EliminateTargetPaths extends Transform {
     * @param targets
     * @return
     */
-  def run(cir: Circuit, targets: Seq[IsMember], previousDedup: Map[IsModule, ModuleTarget]): (Circuit, RenameMap) = {
+  def run(cir: Circuit,
+          targets: Seq[IsMember]
+         ): (Circuit, RenameMap, AnnotationSeq) = {
 
-    val dupMap = DuplicationHelper(cir.main, cir.modules.map(_.name).toSet, previousDedup)
+    val dupMap = DuplicationHelper(cir.main, cir.modules.map(_.name).toSet)
 
     // For each target, record its path and calculate the necessary modifications to circuit
     targets.foreach { t => dupMap.expandHierarchy(t) }
@@ -84,8 +101,11 @@ class EliminateTargetPaths extends Transform {
 
     // Foreach module, calculate the unique names of its duplicates
     // Then, update the ofModules of instances that it encapsulates
-    cir.modules.foreach { m =>
-      dupMap.getDuplicates(m.name).foreach { newName =>
+
+    val ct = CircuitTarget(cir.main)
+    val annos = cir.modules.map { m =>
+      val newNames = dupMap.getDuplicates(m.name)
+      newNames.foreach { newName =>
         val newM = m match {
           case e: ExtModule => e.copy(name = newName)
           case o: Module =>
@@ -93,6 +113,7 @@ class EliminateTargetPaths extends Transform {
         }
         duplicatedModuleList += newM
       }
+      DupedResult(newNames.toList.map(ct.module), ct.module(m.name))
     }
 
     val finalModuleList = duplicatedModuleList
@@ -104,29 +125,52 @@ class EliminateTargetPaths extends Transform {
     /* Foreach target, calculate the pathless version and only rename targets that are instantiated. Additionally, rename
      * module targets
      */
+    def addRecord(old: IsMember, newPathless: IsMember): Unit = old match {
+      case x: ModuleTarget =>
+        renameMap.record(x, newPathless)
+      case x: IsComponent if x.path.isEmpty =>
+        renameMap.record(x, newPathless)
+      case x: IsComponent =>
+        renameMap.record(x, newPathless)
+        addRecord(x.stripHierarchy(1), newPathless)
+    }
     targets.foreach { t =>
-      val newTsx = dupMap.makePathless(t)
-      newTsx match {
-        case Seq(mt@ModuleTarget(circuit, module)) =>
-          def addRecord(m: IsMember): Unit = m match {
-            case x: ModuleTarget =>
-              renameMap.record(x, mt)
-            case x: IsComponent =>
-              renameMap.record(x, mt)
-              addRecord(x.stripHierarchy(1))
-          }
-
-          addRecord(t)
-          val duplicatedModule = mt
-          renameMap.record(mt, Seq(duplicatedModule).distinct)
+      val newTs = dupMap.makePathless(t)
+      newTs.toList match {
+        case Seq(pathless) =>
+          val mt = Target.referringModule(pathless)
+          addRecord(t, pathless)
+          renameMap.record(Target.referringModule(t), mt)
+        case _ =>
       }
     }
 
     // Return modified circuit and associated renameMap
-    (cir.copy(modules = finalModuleList), renameMap)
+    (cir.copy(modules = finalModuleList), renameMap, annos)
+  }
+
+  def renameModules(c: Circuit, toRename: Map[String, String]): Circuit = {
+    def onMod(m: DefModule): DefModule = {
+      m map onStmt match {
+        case e: ExtModule if toRename.contains(e.name) => e.copy(name = toRename(e.name))
+        case e: Module if toRename.contains(e.name)    => e.copy(name = toRename(e.name))
+      }
+    }
+    def onStmt(s: Statement): Statement = s map onStmt match {
+      case w@WDefInstance(info, name, module, tpe) if toRename.contains(module) => w.copy(module = toRename(module))
+      case w@DefInstance(info, name, module) if toRename.contains(module) => w.copy(module = toRename(module))
+      case other => other
+    }
+    val cx = if(toRename.contains(c.main)) {
+      c.copy(main = toRename(c.main))
+    } else {
+      c
+    }
+    cx map onMod
   }
 
   override protected def execute(state: CircuitState): CircuitState = {
+    val moduleNames = state.circuit.modules.map(_.name).toSet
 
     val (remainingAnnotations, targetsToEliminate, previouslyDeduped) =
       state.annotations.foldLeft(
@@ -136,11 +180,15 @@ class EliminateTargetPaths extends Transform {
         )
       ) { case ((remainingAnnos, targets, dedupedResult), anno)  =>
           anno match {
-            case ResolvePaths(ts)          => (remainingAnnos, ts ++ targets, dedupedResult)
-            case DedupedResult(orig, dups) => (remainingAnnos, targets, dedupedResult ++ dups.map(_ -> orig).toMap)
-            case other => (remainingAnnos :+ other, targets, dedupedResult)
+            case ResolvePaths(ts)          =>
+              (remainingAnnos, ts ++ targets, dedupedResult)
+            case DedupedResult(orig, dups) if dups.size <= 1 =>
+              (remainingAnnos, targets, dedupedResult ++ dups.map(_ -> orig).toMap)
+            case other =>
+              (remainingAnnos :+ other, targets, dedupedResult)
           }
       }
+
 
     // Collect targets that are not local
     val targets = targetsToEliminate.collect { case x: IsMember => x }
@@ -168,7 +216,7 @@ class EliminateTargetPaths extends Transform {
       throw NoSuchTargetException(s"""Some targets have illegal paths that cannot be resolved/eliminated: $string""")
     }
 
-    val (newCircuit, renameMap) = run(state.circuit, targets, previouslyDeduped)
+    val (newCircuit, renameMap, newAnnos) = run(state.circuit, targets)
 
     val iGraphx = new InstanceGraph(newCircuit)
     val newlyUnreachableModules = iGraphx.unreachableModules diff iGraph.unreachableModules
@@ -184,6 +232,6 @@ class EliminateTargetPaths extends Transform {
       newCircuit.copy(modules = modulesx)
     }
 
-    state.copy(circuit = newCircuitGC, renames = Some(renameMap), annotations = remainingAnnotations)
+    state.copy(circuit = newCircuitGC, renames = Some(renameMap), annotations = remainingAnnotations ++ newAnnos)
   }
 }

@@ -9,6 +9,7 @@ import firrtl.analyses.InstanceGraph
 import firrtl.annotations._
 import firrtl.passes.{InferTypes, MemPortUtils}
 import firrtl.Utils.throwInternalError
+import firrtl.annotations.transforms.DupedResult
 import firrtl.options.{HasShellOptions, ShellOption}
 
 // Datastructures
@@ -67,8 +68,18 @@ class DedupModules extends Transform {
       state
     } else {
       val noDedups = state.annotations.collect { case NoDedupAnnotation(ModuleTarget(_, m)) => m }
-      val (newC, renameMap, newAnnos) = run(state.circuit, noDedups, state.annotations)
-      state.copy(circuit = newC, renames = Some(renameMap), annotations = newAnnos ++ state.annotations)
+      val (remainingAnnotations, dupResults) = state.annotations.partition {
+        case _: DupedResult => false
+        case _                => true
+      }
+      val previouslyDupedMap = dupResults.flatMap {
+        case DupedResult(newModules, original) =>
+          newModules.collect {
+            case m: ModuleTarget => m.module -> original.module
+          }
+      }.toMap
+      val (newC, renameMap, newAnnos) = run(state.circuit, noDedups, previouslyDupedMap, remainingAnnotations)
+      state.copy(circuit = newC, renames = Some(renameMap), annotations = newAnnos ++ remainingAnnotations)
     }
   }
 
@@ -77,14 +88,17 @@ class DedupModules extends Transform {
     * @param noDedups Modules not to dedup
     * @return Deduped Circuit and corresponding RenameMap
     */
-  def run(c: Circuit, noDedups: Seq[String], annotations: Seq[Annotation]): (Circuit, RenameMap, AnnotationSeq) = {
+  def run(c: Circuit,
+          noDedups: Seq[String],
+          previouslyDupedMap: Map[String, String],
+          annotations: Seq[Annotation]): (Circuit, RenameMap, AnnotationSeq) = {
 
     // RenameMap
     val renameMap = RenameMap(this)
     renameMap.setCircuit(c.main)
 
     // Maps module name to corresponding dedup module
-    val dedupMap = DedupModules.deduplicate(c, noDedups.toSet, renameMap)
+    val dedupMap = DedupModules.deduplicate(c, noDedups.toSet, previouslyDupedMap, renameMap)
 
     val module2OriginalAnnotations = mutable.HashMap.empty[ModuleTarget, mutable.HashSet[Annotation]]
     annotations.foreach { a =>
@@ -111,6 +125,13 @@ class DedupModules extends Transform {
     }
     renameMap.recordAll(map)
 
+    val deletedASTModules = RenameMap(this)
+    dedupMap.foreach {
+      case (from, to) if from != to.name =>
+        deletedASTModules.delete(CircuitTarget(from).module(from))
+      case x =>
+    }
+
     val underlying = renameMap.getUnderlying
     val originalModuleToRename = underlying.groupBy {
       case (original@ReferenceTarget(_, om, Nil, oref, Nil), Seq(dedup@ReferenceTarget(_, dm, Nil, dref, Nil))) => om
@@ -121,33 +142,36 @@ class DedupModules extends Transform {
     val instanceGraph = new InstanceGraph(c)
     val instanceify = RenameMap(this)
     val dedupAnnotations = module2RenameAnnotations.flatMap { case (mt@ModuleTarget(c, m), annos: mutable.HashSet[Annotation]) =>
-      val dedupedModule = dedupMap(m)
-      val dedupedAnnos = module2RenameAnnotations.get(ct.module(dedupedModule.name))
-      // If dedupedAnnos is exactly annos, contains is because dedupedAnnos is type Option
-      val paths = instanceGraph.findInstancesInHierarchy(m)
-      val newTargets = paths.map { path =>
-        path.foldLeft(ct.module(c): IsModule) { case (relPath, WDefInstance(_, name, mod, _)) =>
-          if(mod == c) CircuitTarget(c).module(c) else relPath.instOf(name, mod)
-        }
+      dedupMap.get(m) match {
+        case None => Nil
+        case Some(dedupedModule) =>
+          val dedupedAnnos = module2RenameAnnotations.get(ct.module(dedupedModule.name))
+          // If dedupedAnnos is exactly annos, contains is because dedupedAnnos is type Option
+          val paths = instanceGraph.findInstancesInHierarchy(m)
+          val newTargets = paths.map { path =>
+            path.foldLeft(ct.module(c): IsModule) { case (relPath, WDefInstance(_, name, mod, _)) =>
+              if(mod == c) CircuitTarget(c).module(c) else relPath.instOf(name, mod)
+            }
+          }
+          if(dedupedAnnos.contains(annos)) {
+            // Add all relative paths to referredModule to map to new instances
+            def addRecord(original: IsMember, m: IsMember): Unit = m match {
+              case x: ModuleTarget =>
+                instanceify.record(x, original)
+              case x: IsComponent =>
+                instanceify.record(x, original)
+                addRecord(original, x.stripHierarchy(1))
+            }
+            newTargets.foreach(t => addRecord(t, t))
+          }
+          if(newTargets.size == 1) {
+            Seq(DedupedResult(mt, newTargets.headOption))
+          } else Nil
       }
-      if(dedupedAnnos.contains(annos)) {
-        // Add all relative paths to referredModule to map to new instances
-        def addRecord(original: IsMember, m: IsMember): Unit = m match {
-          case x: ModuleTarget =>
-            instanceify.record(x, original)
-          case x: IsComponent =>
-            instanceify.record(x, original)
-            addRecord(original, x.stripHierarchy(1))
-        }
-        newTargets.foreach(t => addRecord(t, t))
-      }
-      if(newTargets.size == 1) {
-        Seq(DedupedResult(mt, newTargets.headOption))
-      } else Nil
     }
 
 
-    (InferTypes.run(c.copy(modules = dedupedModules)), instanceify.andThen(renameMap), dedupAnnotations.toList)
+    (InferTypes.run(c.copy(modules = dedupedModules)), instanceify.andThen(renameMap).andThen(deletedASTModules), dedupAnnotations.toList)
   }
 }
 
@@ -432,6 +456,7 @@ object DedupModules {
     */
   def deduplicate(circuit: Circuit,
                   noDedups: Set[String],
+                  previousDupResults: Map[String, String],
                   renameMap: RenameMap): Map[String, DefModule] = {
 
     val (moduleMap, moduleLinearization) = {
@@ -452,9 +477,20 @@ object DedupModules {
       else if (moduleIndex(l) < moduleIndex(r)) l else r
     }
 
+
     // Maps a module's tag to its deduplicated module
     val tag2name = mutable.HashMap.empty[String, String]
-    tag2all.foreach { case (tag, all) => tag2name(tag) = all.reduce(order)}
+    val moduleMapWithOldNames = tag2all.map {
+      case (tag, all: collection.Set[String]) =>
+        val dedupWithoutOldName = all.reduce(order)
+        val dedupName = previousDupResults.getOrElse(dedupWithoutOldName, dedupWithoutOldName)
+        tag2name(tag) = dedupName
+        val dedupModule = moduleMap(dedupWithoutOldName) match {
+          case e: ExtModule => e.copy(name = dedupName)
+          case e: Module => e.copy(name = dedupName)
+        }
+        dedupName -> dedupModule
+    }.toMap
 
     // Create map from original to dedup name
     val name2name = moduleMap.keysIterator.map{ originalModule =>
@@ -466,7 +502,7 @@ object DedupModules {
     }.toMap
 
     // Build Remap for modules with deduped module references
-    val dedupedName2module = tag2name.map({ case (tag, name) => name -> DedupModules.dedupInstances(top, name, moduleMap, name2name, renameMap) })
+    val dedupedName2module = tag2name.map({ case (tag, name) => name -> DedupModules.dedupInstances(top, name, moduleMapWithOldNames, name2name, renameMap) })
 
     // Build map from original name to corresponding deduped module
     val name2module = tag2all.flatMap({ case (tag, names) => names.map(n => n -> dedupedName2module(tag2name(tag))) })
