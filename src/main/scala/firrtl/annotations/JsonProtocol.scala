@@ -1,3 +1,4 @@
+// See LICENSE for license details.
 
 package firrtl
 package annotations
@@ -105,6 +106,10 @@ object JsonProtocol {
     { case JString(s) => Parser.parseStatement(s) },
     { case statement: Statement => JString(statement.serialize) }
   ))
+  class PortSerializer extends CustomSerializer[Port](format => (
+    { case JString(s) => Parser.parsePort(s) },
+    { case port: Port => JString(port.serialize) }
+  ))
   class DefModuleSerializer extends CustomSerializer[DefModule](format => (
     { case JString(s) => Parser.parseDefModule(s) },
     { case mod: DefModule => JString(mod.serialize) }
@@ -112,6 +117,10 @@ object JsonProtocol {
   class CircuitSerializer extends CustomSerializer[Circuit](format => (
     { case JString(s) => Parser.parse(s) },
     { case cir: Circuit => JString(cir.serialize) }
+  ))
+  class InfoSerializer extends CustomSerializer[Info](format => (
+    { case JString(s) => Parser.parseInfo(s) },
+    { case info: Info => JString(info.serialize) }
   ))
 
   /** Construct Json formatter for annotations */
@@ -123,7 +132,8 @@ object JsonProtocol {
       new InstanceTargetSerializer + new ReferenceTargetSerializer + new TransformSerializer  +
       new LoadMemoryFileTypeSerializer + new IsModuleSerializer + new IsMemberSerializer +
       new CompleteTargetSerializer + new TypeSerializer + new ExpressionSerializer +
-      new StatementSerializer + new DefModuleSerializer
+      new StatementSerializer + new PortSerializer + new DefModuleSerializer +
+      new CircuitSerializer + new InfoSerializer
   }
 
   /** Serialize annotations to a String for emission */
