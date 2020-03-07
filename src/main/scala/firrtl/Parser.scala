@@ -65,6 +65,32 @@ object Parser extends LazyLogging {
 
   def parse(text: String): Circuit = parseString(text, UseInfo)
 
+  def parseType(tpe: String): Type = {
+    val input = Seq("circuit Top:\n", "  module Top:\n", s"    input x:$tpe\n")
+    val circuit = parse(input)
+    circuit.modules.head.ports.head.tpe
+  }
+
+  def parseExpression(expr: String): Expression = {
+    val input = Seq("circuit Top:\n", "  module Top:\n", s"    node x = $expr\n")
+    val circuit = parse(input)
+    circuit.modules match {
+      case Seq(Module(_, _, _, Block(Seq(DefNode(_, _, value))))) => value
+    }
+  }
+
+  def parseStatement(statement: String): Statement = {
+    val input = Seq("circuit Top:\n", "  module Top:\n") ++ statement.split("\n").map("    " + _)
+    val circuit = parse(input)
+    circuit.modules.head.asInstanceOf[Module].body
+  }
+
+  def parseDefModule(module: String): DefModule = {
+    val input = Seq("circuit Top:\n") ++ module.split("\n").map("  " + _)
+    val circuit = parse(input)
+    circuit.modules.head
+  }
+
   sealed abstract class InfoMode
 
   case object IgnoreInfo extends InfoMode
