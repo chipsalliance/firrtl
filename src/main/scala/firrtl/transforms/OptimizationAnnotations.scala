@@ -10,7 +10,7 @@ case object NoDCEAnnotation extends NoTargetAnnotation
 
 /** Lets an annotation mark its ReferenceTarget members as DontTouch
   *
-  * This permits a transform to run and remove it's associated annotations,
+  * This permits a transform to run and remove its associated annotations,
   * thus making their ReferenceTargets new candidates for optimization. This
   * removes the need for the pass writer to reason about pre-existing
   * DontTouchAnnotations that may touch the same node.
