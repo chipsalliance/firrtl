@@ -15,7 +15,7 @@ case class AnnotationWithDontTouches(target: ReferenceTarget)
     extends SingleTargetAnnotation[ReferenceTarget] with HasDontTouches {
   def targets = Seq(target)
   def duplicate(n: ReferenceTarget) = this.copy(n)
-  def dontTouches(): Seq[ReferenceTarget] = targets
+  def dontTouches: Seq[ReferenceTarget] = targets
 }
 
 class DCETests extends FirrtlFlatSpec {
