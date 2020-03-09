@@ -64,52 +64,6 @@ class DiGraph[T] private[graph] (private[graph] val edges: LinkedHashMap[T, Link
     */
   def findSinks: Set[T] = reverse.findSources
 
-  /** Linearizes (topologically sorts) a DAG using a DFS. This can be seeded with an order to use for the DFS if the user
-    * wants to tease out a special ordering of the DAG.
-    * @param seed an optional sequence of vertices to use. This will default to the vertices ordering provided by getVertices.
-    * @throws CyclicException if the graph is cyclic
-    * @return a Map[T,T] from each visited node to its predecessor in the
-    * traversal
-    */
-  def seededLinearize(seed: Option[Seq[T]] = None): Seq[T] = {
-    // permanently marked nodes are implicitly held in order
-    val order = new mutable.ArrayBuffer[T]
-    // invariant: no intersection between unmarked and tempMarked
-    val unmarked = new mutable.LinkedHashSet[T]
-    val tempMarked = new mutable.LinkedHashSet[T]
-
-    case class LinearizeFrame[A](v: A, expanded: Boolean)
-    val callStack = mutable.Stack[LinearizeFrame[T]]()
-
-    unmarked ++= seed.getOrElse(getVertices)
-    while (unmarked.nonEmpty) {
-      callStack.push(LinearizeFrame(unmarked.head, false))
-      while (callStack.nonEmpty) {
-        val LinearizeFrame(n, expanded) = callStack.pop()
-        if (!expanded) {
-          if (tempMarked.contains(n)) {
-            throw new CyclicException(n)
-          }
-          if (unmarked.contains(n)) {
-            tempMarked += n
-            unmarked -= n
-            callStack.push(LinearizeFrame(n, true))
-            // We want to visit the first edge first (so push it last)
-            for (m <- edges.getOrElse(n, Set.empty).toSeq.reverse) {
-              callStack.push(LinearizeFrame(m, false))
-            }
-          }
-        } else {
-          tempMarked -= n
-          order.append(n)
-        }
-      }
-    }
-
-    // visited nodes are in post-traversal order, so must be reversed
-    order.reverse.toSeq
-  }
-
   /**
     * Finds a Seq of Nodes that form a loop
     * @param node Node to start loop path search from.
@@ -140,7 +94,44 @@ class DiGraph[T] private[graph] (private[graph] val edges: LinkedHashMap[T, Link
     * @return a Map[T,T] from each visited node to its predecessor in the
     * traversal
     */
-  def linearize: Seq[T] = seededLinearize(None)
+  def linearize: Seq[T] = {
+    // permanently marked nodes are implicitly held in order
+    val order = new mutable.ArrayBuffer[T]
+    // invariant: no intersection between unmarked and tempMarked
+    val unmarked = new mutable.LinkedHashSet[T]
+    val tempMarked = new mutable.LinkedHashSet[T]
+
+    case class LinearizeFrame[A](v: A, expanded: Boolean)
+    val callStack = mutable.Stack[LinearizeFrame[T]]()
+
+    unmarked ++= getVertices
+    while (unmarked.nonEmpty) {
+      callStack.push(LinearizeFrame(unmarked.head, false))
+      while (callStack.nonEmpty) {
+        val LinearizeFrame(n, expanded) = callStack.pop()
+        if (!expanded) {
+          if (tempMarked.contains(n)) {
+            throw new CyclicException(n)
+          }
+          if (unmarked.contains(n)) {
+            tempMarked += n
+            unmarked -= n
+            callStack.push(LinearizeFrame(n, true))
+            // We want to visit the first edge first (so push it last)
+            for (m <- edges.getOrElse(n, Set.empty).toSeq.reverse) {
+              callStack.push(LinearizeFrame(m, false))
+            }
+          }
+        } else {
+          tempMarked -= n
+          order.append(n)
+        }
+      }
+    }
+
+    // visited nodes are in post-traversal order, so must be reversed
+    order.reverse.toSeq
+  }
 
   /** Performs breadth-first search on the directed graph
     *
@@ -153,7 +144,7 @@ class DiGraph[T] private[graph] (private[graph] val edges: LinkedHashMap[T, Link
   /** Performs breadth-first search on the directed graph, with a blacklist of nodes
     *
     * @param root the start node
-    * @param blacklist list of nodes to stop searching, if encountered
+    * @param blacklist list of nodes to avoid visiting, if encountered
     * @return a Map[T,T] from each visited node to its predecessor in the
     * traversal
     */
@@ -173,18 +164,23 @@ class DiGraph[T] private[graph] (private[graph] val edges: LinkedHashMap[T, Link
     prev
   }
 
-  /** Finds the set of nodes reachable from a particular node
+  /** Finds the set of nodes reachable from a particular node. The `root` node is *not* included in the
+    * returned set unless it is possible to reach `root` along a non-trivial path beginning at
+    * `root`; i.e., if the graph has a cycle that contains `root`.
     *
     * @param root the start node
-    * @return a Set[T] of nodes reachable from the root
+    * @return a Set[T] of nodes reachable from `root`
     */
   def reachableFrom(root: T): LinkedHashSet[T] = reachableFrom(root, Set.empty[T])
 
-  /** Finds the set of nodes reachable from a particular node, with a blacklist
+  /** Finds the set of nodes reachable from a particular node, with a blacklist. The semantics of
+    * adding a node to the blacklist is that any of its inedges will be ignored in the traversal.
+    * The `root` node is *not* included in the returned set unless it is possible to reach `root` along
+    * a non-trivial path beginning at `root`; i.e., if the graph has a cycle that contains `root`.
     *
     * @param root the start node
     * @param blacklist list of nodes to stop searching, if encountered
-    * @return a Set[T] of nodes reachable from the root
+    * @return a Set[T] of nodes reachable from `root`
     */
   def reachableFrom(root: T, blacklist: Set[T]): LinkedHashSet[T] = new LinkedHashSet[T] ++ BFS(root, blacklist).map({ case (k, v) => k })
 
