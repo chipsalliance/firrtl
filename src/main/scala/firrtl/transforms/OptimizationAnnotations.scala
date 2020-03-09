@@ -50,8 +50,6 @@ object DontTouchAnnotation {
     throw new DontTouchNotFoundException(module, component)
 }
 
-
-
 /** An [[firrtl.ir.ExtModule]] that can be optimized
   *
   * Firrtl does not know the semantics of an external module. This annotation provides some
