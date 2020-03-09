@@ -192,6 +192,57 @@ class ParserSpec extends FirrtlFlatSpec {
       Driver.execute(manager)
     }
   }
+
+  "Tabs" should "be legal indent stops" in {
+    val input = s"""
+      |circuit Test :
+      |\tmodule Test :
+      |\t\tinput i : UInt<32>
+      |\t\toutput o : UInt<32>
+      |\t\to <= i
+      """.stripMargin
+    val c = firrtl.Parser.parse(input)
+    firrtl.Parser.parse(c.serialize)
+  }
+
+  "Mixed tabs and spaces" should "work for ugly but Python-rule-compliant examples" in {
+    val input = s"""
+      |circuit Test :
+      |\tmodule Test :
+      |        input i : UInt<32>
+      |        output o : UInt<32>
+      |        o <= i
+      """.stripMargin
+    val c = firrtl.Parser.parse(input)
+    firrtl.Parser.parse(c.serialize)
+  }
+
+  "Mixed tabs and spaces at one indent level" should "error in the parser" in {
+    val input = s"""
+      |circuit Test :
+      |\tmodule Test :
+      |\t\tinput i : UInt<32>
+      |        output o : UInt<32>
+      |        o <= i
+      """.stripMargin
+    a [SyntaxErrorsException] shouldBe thrownBy {
+      val c = firrtl.Parser.parse(input)
+    }
+  }
+
+  "Mixed tabs and spaces in one line" should "error in the parser" in {
+    val input = s"""
+      |circuit Test :
+      |\tmodule Test :
+      |\t    input i : UInt<32>
+      |        output o : UInt<32>
+      |        o <= i
+      """.stripMargin
+    a [SyntaxErrorsException] shouldBe thrownBy {
+      val c = firrtl.Parser.parse(input)
+    }
+  }
+
 }
 
 class ParserPropSpec extends FirrtlPropSpec {
