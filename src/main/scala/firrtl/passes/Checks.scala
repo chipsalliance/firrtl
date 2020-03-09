@@ -82,24 +82,31 @@ trait CheckHighFormLike {
           errors.append(new IncorrectNumConstsException(info, mname, e.op.toString, nc))
       }
 
+      def nonNegativeConsts(): Unit = {
+        e.consts.filter(_ < 0).foreach {
+          negC => errors.append(new NegArgException(info, mname, e.op.toString, negC.toInt))
+        }
+      }
+
       e.op match {
         case Add | Sub | Mul | Div | Rem | Lt | Leq | Gt | Geq |
              Eq | Neq | Dshl | Dshr | And | Or | Xor | Cat | Dshlw =>
           correctNum(Option(2), 0)
         case AsUInt | AsSInt | AsClock | AsAsyncReset | Cvt | Neq | Not =>
           correctNum(Option(1), 0)
-        case AsFixedPoint | Pad | Head | Tail | BPShl | BPShr | BPSet =>
+        case AsFixedPoint | BPSet =>
           correctNum(Option(1), 1)
-        case Shl | Shr =>
+        case Shl | Shr | Pad | Head | Tail | BPShl | BPShr =>
           correctNum(Option(1), 1)
-          val amount = e.consts.map(_.toInt).filter(_ < 0).foreach {
-            c => errors.append(new NegArgException(info, mname, e.op.toString, c))
-          }
+          nonNegativeConsts()
         case Bits =>
           correctNum(Option(1), 2)
-          val (msb, lsb) = (e.consts(0).toInt, e.consts(1).toInt)
-          if (lsb > msb) {
-            errors.append(new LsbLargerThanMsbException(info, mname, e.op.toString, lsb, msb))
+          nonNegativeConsts()
+          if (e.consts.length == 2) {
+            val (msb, lsb) = (e.consts(0), e.consts(1))
+            if (lsb > msb) {
+              errors.append(new LsbLargerThanMsbException(info, mname, e.op.toString, lsb.toInt, msb.toInt))
+            }
           }
         case Andr | Orr | Xorr | Neg =>
           correctNum(None,0)
