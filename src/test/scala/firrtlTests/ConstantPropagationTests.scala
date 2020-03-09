@@ -733,78 +733,6 @@ class ConstantPropagationSingleModule extends ConstantPropagationSpec {
     (parse(exec(input))) should be(parse(check))
   }
 
-   "ConstProp" should "propagate boolean equality with true" in {
-    val input =
-      """circuit Top :
-        |  module Top :
-        |    input x : UInt<1>
-        |    output z : UInt<1>
-        |    z <= eq(x, UInt<1>("h1"))
-      """.stripMargin
-    val check =
-      """circuit Top :
-        |  module Top :
-        |    input x : UInt<1>
-        |    output z : UInt<1>
-        |    z <= x
-      """.stripMargin
-    (parse(exec(input))) should be(parse(check))
-  }
-
-   "ConstProp" should "propagate boolean equality with false" in {
-    val input =
-      """circuit Top :
-        |  module Top :
-        |    input x : UInt<1>
-        |    output z : UInt<1>
-        |    z <= eq(x, UInt<1>("h0"))
-      """.stripMargin
-    val check =
-      """circuit Top :
-        |  module Top :
-        |    input x : UInt<1>
-        |    output z : UInt<1>
-        |    z <= not(x)
-      """.stripMargin
-    (parse(exec(input))) should be(parse(check))
-  }
-
-   "ConstProp" should "propagate boolean non-equality with true" in {
-    val input =
-      """circuit Top :
-        |  module Top :
-        |    input x : UInt<1>
-        |    output z : UInt<1>
-        |    z <= neq(x, UInt<1>("h1"))
-      """.stripMargin
-    val check =
-      """circuit Top :
-        |  module Top :
-        |    input x : UInt<1>
-        |    output z : UInt<1>
-        |    z <= not(x)
-      """.stripMargin
-    (parse(exec(input))) should be(parse(check))
-  }
-
-   "ConstProp" should "propagate boolean non-equality with false" in {
-    val input =
-      """circuit Top :
-        |  module Top :
-        |    input x : UInt<1>
-        |    output z : UInt<1>
-        |    z <= neq(x, UInt<1>("h0"))
-      """.stripMargin
-    val check =
-      """circuit Top :
-        |  module Top :
-        |    input x : UInt<1>
-        |    output z : UInt<1>
-        |    z <= x
-      """.stripMargin
-    (parse(exec(input))) should be(parse(check))
-  }
-
   // Optimizing this mux gives: z <= pad(UInt<2>(0), 4)
   // Thus this checks that we then optimize that pad
   "ConstProp" should "optimize nested Expressions" in {
@@ -1148,6 +1076,31 @@ class ConstantPropagationIntegrationSpec extends LowTransformSpec {
     execute(input, check, Seq.empty)
   }
 
+  "Const prop of registers" should "do limited speculative expansion of optimized muxes to absorb bigger cones" in {
+      val input =
+        """circuit Top :
+          |  module Top :
+          |    input clock : Clock
+          |    input en : UInt<1>
+          |    output out : UInt<1>
+          |    reg r1 : UInt<1>, clock
+          |    reg r2 : UInt<1>, clock
+          |    when en :
+          |      r1 <= UInt<1>(1)
+          |    r2 <= UInt<1>(0)
+          |    when en :
+          |      r2 <= r2
+          |    out <= xor(r1, r2)""".stripMargin
+      val check =
+        """circuit Top :
+          |  module Top :
+          |    input clock : Clock
+          |    input en : UInt<1>
+          |    output out : UInt<1>
+          |    out <= UInt<1>("h1")""".stripMargin
+    execute(input, check, Seq.empty)
+  }
+
   "A register with constant reset and all connection to either itself or the same constant" should "be replaced with that constant" in {
       val input =
         """circuit Top :
@@ -1368,6 +1321,50 @@ class ConstantPropagationIntegrationSpec extends LowTransformSpec {
       """.stripMargin
     execute(input, check, Seq.empty)
   }
+
+  private def matchingArgs(op: String, iType: String, oType: String, result: String): Unit = {
+    val input =
+      s"""circuit Top :
+         |  module Top :
+         |    input i : ${iType}
+         |    output o : ${oType}
+         |    o <= ${op}(i, i)
+      """.stripMargin
+    val check =
+      s"""circuit Top :
+         |  module Top :
+         |    input i : ${iType}
+         |    output o : ${oType}
+         |    o <= ${result}
+      """.stripMargin
+    execute(input, check, Seq.empty)
+  }
+
+  it should "optimize some binary operations when arguments match" in {
+    // Signedness matters
+    matchingArgs("sub", "UInt<8>", "UInt<8>", """ UInt<8>("h0")  """ )
+    matchingArgs("sub", "SInt<8>", "SInt<8>", """ SInt<8>("h0")  """ )
+    matchingArgs("div", "UInt<8>", "UInt<8>", """ UInt<8>("h1")  """ )
+    matchingArgs("div", "SInt<8>", "SInt<8>", """ SInt<8>("h1")  """ )
+    matchingArgs("rem", "UInt<8>", "UInt<8>", """ UInt<8>("h0")  """ )
+    matchingArgs("rem", "SInt<8>", "SInt<8>", """ SInt<8>("h0")  """ )
+    matchingArgs("and", "UInt<8>", "UInt<8>", """ i              """ )
+    matchingArgs("and", "SInt<8>", "UInt<8>", """ asUInt(i)      """ )
+    // Signedness doesn't matter
+    matchingArgs("or",  "UInt<8>", "UInt<8>", """ i """ )
+    matchingArgs("or",  "SInt<8>", "UInt<8>", """ asUInt(i) """ )
+    matchingArgs("xor", "UInt<8>", "UInt<8>", """ UInt<8>("h0")  """ )
+    matchingArgs("xor", "SInt<8>", "UInt<8>", """ UInt<8>("h0")  """ )
+    // Always true
+    matchingArgs("eq",  "UInt<8>", "UInt<1>", """ UInt<1>("h1")  """ )
+    matchingArgs("leq", "UInt<8>", "UInt<1>", """ UInt<1>("h1")  """ )
+    matchingArgs("geq", "UInt<8>", "UInt<1>", """ UInt<1>("h1")  """ )
+    // Never true
+    matchingArgs("neq", "UInt<8>", "UInt<1>", """ UInt<1>("h0")  """ )
+    matchingArgs("lt",  "UInt<8>", "UInt<1>", """ UInt<1>("h0")  """ )
+    matchingArgs("gt",  "UInt<8>", "UInt<1>", """ UInt<1>("h0")  """ )
+  }
+
 }
 
 

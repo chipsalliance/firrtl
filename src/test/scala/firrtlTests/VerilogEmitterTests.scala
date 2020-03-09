@@ -2,16 +2,10 @@
 
 package firrtlTests
 
-import java.io._
-
-import org.scalatest._
-import org.scalatest.prop._
 import firrtl._
 import firrtl.annotations._
-import firrtl.ir.Circuit
 import firrtl.passes._
 import firrtl.transforms.VerilogRename
-import firrtl.Parser.IgnoreInfo
 import FirrtlCheckers._
 import firrtl.transforms.CombineCats
 
@@ -178,44 +172,6 @@ class DoPrimVerilog extends FirrtlFlatSpec {
         |  assign s = a[3:2];
         |  assign t = a[2:1];
         |  assign u = a[3];
-        |endmodule
-        |""".stripMargin.split("\n") map normalized
-    executeTest(input, check, compiler)
-  }
-  "inline Not" should "emit correctly" in {
-    val compiler = new VerilogCompiler
-    val input =
-      """circuit InlineNot :
-        |  module InlineNot :
-        |    input a: UInt<1>
-        |    input b: UInt<1>
-        |    input c: UInt<4>
-        |    output d: UInt<1>
-        |    output e: UInt<1>
-        |    output f: UInt<1>
-        |    output g: UInt<1>
-        |    output h: UInt<1>
-        |    d <= and(a, not(b))
-        |    e <= or(a, not(b))
-        |    f <= not(not(not(bits(c, 2, 2))))
-        |    g <= mux(not(bits(c, 2, 2)), a, b)
-        |    h <= shr(not(bits(c, 2, 1)), 1)""".stripMargin
-    val check =
-      """module InlineNot(
-        |  input   a,
-        |  input   b,
-        |  input  [3:0] c,
-        |  output  d,
-        |  output  e,
-        |  output  f,
-        |  output  g,
-        |  output  h
-        |);
-        |  assign d = a & ~b;
-        |  assign e = a | ~b;
-        |  assign f = ~c[2];
-        |  assign g = c[2] ? b : a;
-        |  assign h = ~c[2];
         |endmodule
         |""".stripMargin.split("\n") map normalized
     executeTest(input, check, compiler)
@@ -643,7 +599,7 @@ class VerilogEmitterSpec extends FirrtlFlatSpec {
         |z <= add(x, SInt(-1))
         |""".stripMargin
     )
-    result should containLine("assign z = $signed(x) + -4'sh1;")
+    result should containLine("assign z = $signed(x) - 4'sh1;")
   }
 
   it should "inline asSInt casts" in {
@@ -711,6 +667,42 @@ class VerilogEmitterSpec extends FirrtlFlatSpec {
     result should containLine("assign z = x == y;")
   }
 
+  it should "subtract positive literals instead of adding negative literals" in {
+    val compiler = new VerilogCompiler
+    val result = compileBody(
+      """input x : SInt<8>
+        |output z : SInt<9>
+        |z <= add(x, SInt(-2))
+        |""".stripMargin
+    )
+    result shouldNot containLine("assign z = $signed(x) + -8'sh2;")
+    result should    containLine("assign z = $signed(x) - 8'sh2;")
+  }
+
+  it should "subtract positive literals even with max negative literal" in {
+    val compiler = new VerilogCompiler
+    val result = compileBody(
+      """input x : SInt<2>
+        |output z : SInt<3>
+        |z <= add(x, SInt(-2))
+        |""".stripMargin
+    )
+    result shouldNot containLine("assign z = $signed(x) + -2'sh2;")
+    result should    containLine("assign z = $signed(x) - 3'sh2;")
+  }
+
+  it should "subtract positive literals even with max negative literal with no carryout" in {
+    val compiler = new VerilogCompiler
+    val result = compileBody(
+      """input x : SInt<2>
+        |output z : SInt<2>
+        |z <= add(x, SInt(-2))
+        |""".stripMargin
+    )
+    result shouldNot containLine("assign z = $signed(x) + -2'sh2;")
+    result should    containLine("assign _GEN_0 = $signed(x) - 3'sh2;")
+    result should    containLine("assign z = _GEN_0[1:0];")
+  }
 }
 
 class VerilogDescriptionEmitterSpec extends FirrtlFlatSpec {
