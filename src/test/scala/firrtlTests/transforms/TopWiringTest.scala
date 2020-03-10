@@ -3,16 +3,12 @@
 package firrtlTests
 package transforms
 
-import org.scalatest.FlatSpec
-import org.scalatest.Matchers
-import org.scalatest.junit.JUnitRunner
 import java.io._
 
 import firrtl._
-import firrtl.ir.{Circuit, GroundType, IntWidth, Type}
+import firrtl.ir.{GroundType, IntWidth, Type}
 import firrtl.Parser
-import firrtl.passes.PassExceptions
-import firrtl.annotations.{Annotation, CircuitName, ComponentName, ModuleName, Named, ReferenceTarget, Target}
+import firrtl.annotations.{CircuitName, ComponentName, ModuleName, ReferenceTarget, Target}
 import firrtl.transforms.TopWiring._
 
 

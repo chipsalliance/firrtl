@@ -4,8 +4,8 @@ package firrtlTests
 
 import firrtl._
 import firrtl.ir._
-import firrtl.passes.{CheckHighForm, CheckTypes}
-import firrtl.transforms.InferResets
+import firrtl.passes.{CheckHighForm, CheckTypes, CheckInitialization}
+import firrtl.transforms.{CheckCombLoops, InferResets}
 import FirrtlCheckers._
 
 // TODO
@@ -37,7 +37,6 @@ class InferResetsSpec extends FirrtlFlatSpec {
       |    y <= asFixedPoint(r, 0)
       |    z <= asAsyncReset(r)""".stripMargin
     )
-    println(result.getEmittedCircuit)
     result should containLine ("wire r : UInt<1>")
     result should containLine ("r <= a")
     result should containLine ("v <= asUInt(r)")
@@ -125,48 +124,67 @@ class InferResetsSpec extends FirrtlFlatSpec {
     result should containTree { case Port(_, "buzz_bar_1_b", Input, AsyncResetType) => true }
   }
 
+  it should "not crash if a ResetType has no drivers" in {
+    a [CheckInitialization.RefNotInitializedException] shouldBe thrownBy {
+      compile(s"""
+        |circuit test :
+        |  module test :
+        |    output out : Reset
+        |    wire w : Reset
+        |    out <= w
+        |    out <= UInt(1)
+        |""".stripMargin
+      )
+    }
+  }
+
   it should "NOT allow last connect semantics to pick the right type for Reset" in {
-    an [InferResets.DifferingDriverTypesException] shouldBe thrownBy {
+    an [InferResets.InferResetsException] shouldBe thrownBy {
       compile(s"""
         |circuit top :
         |  module top :
         |    input reset0 : AsyncReset
         |    input reset1 : UInt<1>
         |    output out : Reset
+        |    wire w0 : Reset
         |    wire w1 : Reset
-        |    wire w2 : Reset
-        |    w1 <= reset0
-        |    w2 <= reset1
+        |    w0 <= reset0
+        |    w1 <= reset1
+        |    out <= w0
         |    out <= w1
-        |    out <= w2
         |""".stripMargin
       )
     }
   }
 
   it should "NOT support last connect semantics across whens" in {
-    an [InferResets.DifferingDriverTypesException] shouldBe thrownBy {
+    an [InferResets.InferResetsException] shouldBe thrownBy {
       compile(s"""
         |circuit top :
         |  module top :
         |    input reset0 : AsyncReset
-        |    input reset1 : UInt<1>
-        |    input en0 : UInt<1>
+        |    input reset1 : AsyncReset
+        |    input reset2 : UInt<1>
+        |    input en : UInt<1>
         |    output out : Reset
+        |    wire w0 : Reset
         |    wire w1 : Reset
         |    wire w2 : Reset
-        |    w1 <= reset0
-        |    w2 <= reset1
-        |    out <= w1
-        |    when en0 :
-        |      out <= w2
+        |    w0 <= reset0
+        |    w1 <= reset1
+        |    w2 <= reset2
+        |    out <= w2
+        |    when en :
+        |      out <= w0
+        |    else :
+        |      out <= w1
         |""".stripMargin
       )
     }
   }
 
   it should "not allow different Reset Types to drive a single Reset" in {
-    an [InferResets.DifferingDriverTypesException] shouldBe thrownBy {
+    an [InferResets.InferResetsException] shouldBe thrownBy {
       val result = compile(s"""
         |circuit top :
         |  module top :
@@ -184,6 +202,42 @@ class InferResetsSpec extends FirrtlFlatSpec {
         |""".stripMargin
       )
     }
+  }
+
+  it should "allow concrete reset types to overrule invalidation" in {
+    val result = compile(s"""
+      |circuit test :
+      |  module test :
+      |    input in : AsyncReset
+      |    output out : Reset
+      |    out is invalid
+      |    out <= in
+      |""".stripMargin)
+    result should containTree { case Port(_, "out", Output, AsyncResetType) => true }
+  }
+
+  it should "default to BoolType for Resets that are only invalidated" in {
+    val result = compile(s"""
+      |circuit test :
+      |  module test :
+      |    output out : Reset
+      |    out is invalid
+      |""".stripMargin)
+    result should containTree { case Port(_, "out", Output, BoolType) => true }
+  }
+
+  it should "not error if component of ResetType is invalidated and connected to an AsyncResetType" in {
+    val result = compile(s"""
+      |circuit test :
+      |  module test :
+      |    input cond : UInt<1>
+      |    input in : AsyncReset
+      |    output out : Reset
+      |    out is invalid
+      |    when cond :
+      |      out <= in
+      |""".stripMargin)
+    result should containTree { case Port(_, "out", Output, AsyncResetType) => true }
   }
 
   it should "allow ResetType to drive AsyncResets or UInt<1>" in {
@@ -351,5 +405,108 @@ class InferResetsSpec extends FirrtlFlatSpec {
     result should containTree { case Port(_, "childReset", Input, BoolType) => true }
     result should containTree { case Port(_, "childReset", Input, AsyncResetType) => true }
   }
-}
 
+  it should "infer based on what a component *drives* not just what drives it" in {
+    val result = compile(s"""
+      |circuit top :
+      |  module top :
+      |    input in : AsyncReset
+      |    output out : Reset
+      |    wire w : Reset
+      |    w is invalid
+      |    out <= w
+      |    out <= in
+      |""".stripMargin)
+    result should containTree { case DefWire(_, "w", AsyncResetType) => true }
+  }
+
+  it should "infer from connections, ignoring the fact that the invalidation wins" in {
+    val result = compile(s"""
+      |circuit top :
+      |  module top :
+      |    input in : AsyncReset
+      |    output out : Reset
+      |    out <= in
+      |    out is invalid
+      |""".stripMargin)
+    result should containTree { case Port(_, "out", Output, AsyncResetType) => true }
+  }
+
+  // The backwards type propagation constrains `w` to be the same as both `out0` and `out1`
+  it should "not allow an invalidated Wire to drive both a UInt<1> and an AsyncReset" in {
+    an [InferResets.InferResetsException] shouldBe thrownBy {
+      val result = compile(s"""
+        |circuit top :
+        |  module top :
+        |    input in0 : AsyncReset
+        |    input in1 : UInt<1>
+        |    output out0 : Reset
+        |    output out1 : Reset
+        |    wire w : Reset
+        |    w is invalid
+        |    out0 <= w
+        |    out1 <= w
+        |    out0 <= in0
+        |    out1 <= in1
+        |""".stripMargin
+      )
+    }
+  }
+
+  it should "not propagate type info from downstream across a cast" in {
+    val result = compile(s"""
+        |circuit top :
+        |  module top :
+        |    input in0 : AsyncReset
+        |    input in1 : UInt<1>
+        |    output out0 : Reset
+        |    output out1 : Reset
+        |    wire w : Reset
+        |    w is invalid
+        |    out0 <= asAsyncReset(w)
+        |    out1 <= w
+        |    out0 <= in0
+        |    out1 <= in1
+        |""".stripMargin
+    )
+    result should containTree { case Port(_, "out0", Output, AsyncResetType) => true }
+  }
+
+  // This tests for a bug unrelated to support or lackthereof for last connect in inference
+  it should "take into account both internal and external constraints on Module port types" in {
+    val result = compile(s"""
+      |circuit top :
+      |  module child :
+      |    input i : AsyncReset
+      |    output o : Reset
+      |    o <= i
+      |  module top :
+      |    input in : AsyncReset
+      |    output out : AsyncReset
+      |    inst c of child
+      |    c.o is invalid
+      |    c.i <= in
+      |    out <= c.o
+      |""".stripMargin)
+    result should containTree { case Port(_, "o", Output, AsyncResetType) => true }
+  }
+
+  it should "not crash on combinational loops" in {
+    a [CheckCombLoops.CombLoopException] shouldBe thrownBy {
+      val result = compile(s"""
+        |circuit top :
+        |  module top :
+        |    input in : AsyncReset
+        |    output out : Reset
+        |    wire w0 : Reset
+        |    wire w1 : Reset
+        |    w0 <= in
+        |    w0 <= w1
+        |    w1 <= w0
+        |    out <= in
+        |""".stripMargin,
+        compiler = new LowFirrtlCompiler
+      )
+    }
+  }
+}

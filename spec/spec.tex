@@ -1249,7 +1249,7 @@ The add operation result is the sum of \vv{e1} and \vv{e2} without loss of preci
 {\ttfamily
 \begin{tabular}{ |c|c|c|c|c|c| }
   \opheader
-sub & (e1,e2) & () & (UInt,UInt) & SInt & max(w\ts{e1},w\ts{e2})+1\\
+sub & (e1,e2) & () & (UInt,UInt) & UInt & max(w\ts{e1},w\ts{e2})+1\\
                  &&& (SInt,SInt) & SInt & max(w\ts{e1},w\ts{e2})+1\\
  \hline
 \end{tabular}
@@ -1285,7 +1285,7 @@ div & (num,den) & () & (UInt,UInt) & UInt & w\ts{num}\\
 \end{tabular}
 }}
 \end{figure}
-The divide operation divides \vv{num} by \vv{den}, truncating the fractional portion of the result. This is equivalent to rounding the result towards zero.
+The divide operation divides \vv{num} by \vv{den}, truncating the fractional portion of the result. This is equivalent to rounding the result towards zero. The result of a division where \vv{den} is zero is undefined.
 
 \subsection{Modulus Operation}
 
@@ -1533,6 +1533,8 @@ andr,orr,xorr & (e)  & () & (UInt) & UInt & 1\\
 
 The bitwise reduction operations correspond to a bitwise and, or, and exclusive or operation, reduced over every bit in \vv{e}.
 
+In all cases, the reduction incorporates as an inductive base case the ``identity value'' associated with each operator. This is defined as the value that preserves the value of the other argument: one for \vv{and} (as $x \wedge 1 = x$), zero for \vv{or} (as $x \vee 0 = x$), and zero for \vv{xor} (as $x \oplus 0 = x$). Note that the logical consequence is that the and-reduction of a zero-width expression returns a one, while the or- and xor-reductions of a zero-width expression both return zero.
+
 \subsection{Concatenate Operation}
 
 \begin{figure}[H]
@@ -1579,7 +1581,7 @@ head & (e) & (n) & (UInt) & UInt & n\\
 }}
 \end{figure}
 
-The result of the head operation are the \vv{n} most significant bits of \vv{e}. \vv{n} must be positive and less than or equal to the bit width of \vv{e}.
+The result of the head operation are the \vv{n} most significant bits of \vv{e}. \vv{n} must be non-negative and less than or equal to the bit width of \vv{e}.
 
 \subsection{Tail}
 
@@ -1595,7 +1597,7 @@ tail & (e) & (n) & (UInt) & UInt & w\ts{e}-n\\
 }}
 \end{figure}
 
-The tail operation truncates the \vv{n} most significant bits from \vv{e}. \vv{n} must be non-negative and strictly less than the bit width of \vv{e}.
+The tail operation truncates the \vv{n} most significant bits from \vv{e}. \vv{n} must be non-negative and less than or equal to the bit width of \vv{e}.
 
 \section{Flows}\label{flows}
 
@@ -1741,12 +1743,11 @@ The following statement:
 when c :
    a <= b
 else :
-   c <= d
    e <= f
 \end{lstlisting}
 can be equivalently expressed on a single line as follows.
 \begin{lstlisting}
-when c : (a <= b) else : (c <= d, e <= f)
+when c : a <= b else : e <= f
 \end{lstlisting}
 
 All circuits, modules, ports and statements can optionally be followed with the info token \verb|@[fileinfo]| where fileinfo is a string containing the source file information from where it was generated.

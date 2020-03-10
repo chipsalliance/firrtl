@@ -7,19 +7,31 @@ import firrtl.ir._
 import firrtl.Mappers._
 import firrtl.traversals.Foreachers._
 import firrtl.annotations.{ReferenceTarget, TargetToken}
-import firrtl.Utils.toTarget
-import firrtl.passes.{Pass, PassException, Errors, InferTypes}
+import firrtl.Utils.{toTarget, throwInternalError}
+import firrtl.passes.{Pass, PassException, InferTypes}
+import firrtl.graph.MutableDiGraph
 
 import scala.collection.mutable
 import scala.util.Try
 
 object InferResets {
+  @deprecated("This is no longer in use and will be removed", "1.3")
   final class DifferingDriverTypesException private (msg: String) extends PassException(msg)
+  @deprecated("This is no longer in use and will be removed", "1.3")
   object DifferingDriverTypesException {
     def apply(target: ReferenceTarget, tpes: Seq[(Type, Seq[TypeDriver])]): DifferingDriverTypesException = {
       val xs = tpes.map { case (t, ds) => s"${ds.map(_.target().serialize).mkString(", ")} of type ${t.serialize}" }
       val msg = s"${target.serialize} driven with multiple types!" + xs.mkString("\n  ", "\n  ", "")
       new DifferingDriverTypesException(msg)
+    }
+  }
+
+  final class InferResetsException private (msg: String) extends PassException(msg)
+  object InferResetsException {
+    private[InferResets] def apply(path: Seq[Node]): InferResetsException = {
+      val ps = path.collect { case Var(t) => t.serialize }.mkString("\n    - ", "\n    - ", "")
+      val msg = s"Reset-typed components connected to both AsyncReset and UInt<1>. Offending path:$ps"
+      new InferResetsException(msg)
     }
   }
 
@@ -34,9 +46,22 @@ object InferResets {
   //   as a constraint on the type we should infer to be
   // We keep the target around (lazily) so that we can report errors
   private case class TypeDriver(tpe: Type, target: () => ReferenceTarget) extends ResetDriver {
-    override def toString: String = s"TypeDriver(${tpe.serialize}, $target)"
+    override def toString: String = s"TypeDriver(${tpe.serialize}, () => ?)"
+  }
+  // When a [[ResetType]] is invalidated, we record the InvalidDrive
+  // If there are no types but invalid drivers, we default to BoolType
+  private case object InvalidDriver extends ResetDriver {
+    def defaultType: Type = Utils.BoolType
   }
 
+  // Private type hierarchy used as DiGraph nodes for type inference
+  private sealed trait Node
+  private case class Var(target: ReferenceTarget) extends Node {
+    override def toString = target.serialize
+  }
+  private case class Typ(tpe: Type) extends Node {
+    override def toString = tpe.serialize
+  }
 
   // Type hierarchy representing the path to a leaf type in an aggregate type structure
   // Used by this [[InferResets]] to pinpoint instances of [[ResetType]] and their inferred type
@@ -70,8 +95,16 @@ object InferResets {
   }
 }
 
-/** Infers the concrete type of [[Reset]]s by their connections
-  * This is a global inference because ports can be of type [[Reset]]
+/** Infers the concrete type of [[ResetType]]s by their connections
+  *
+  * There are 3 cases
+  * 1. An abstract reset driven by and/or driving only asynchronous resets will be inferred as
+  *    asynchronous reset
+  * 1. An abstract reset driven by and/or driving both asynchronous and synchronous resets will
+  *    error
+  * 1. Otherwise, the reset is inferred as synchronous (i.e. the abstract reset is only invalidated
+  *    or is driven by or drives only synchronous resets)
+  * @note This is a global inference because ports can be of type [[ResetType]]
   * @note This transform should be run before [[DedupModules]] so that similar Modules from
   *   generator languages like Chisel can infer differently
   */
@@ -85,7 +118,7 @@ class InferResets extends Transform {
   // Collect all drivers for circuit elements of type ResetType
   private def analyze(c: Circuit): Map[ReferenceTarget, List[ResetDriver]] = {
     type DriverMap = mutable.HashMap[ReferenceTarget, mutable.ListBuffer[ResetDriver]]
-    def onMod(mod: DefModule): DriverMap = {
+    def onMod(types: DriverMap)(mod: DefModule): DriverMap = {
       val instMap = mutable.Map[String, String]()
       // We need to convert submodule port targets into targets on the Module port itself
       def makeTarget(expr: Expression): ReferenceTarget = {
@@ -104,19 +137,18 @@ class InferResets extends Transform {
       def onStmt(map: DriverMap)(stmt: Statement): Unit = {
         // Mark driver of a ResetType leaf
         def markResetDriver(lhs: Expression, rhs: Expression): Unit = {
-          val lflip = Utils.to_flip(Utils.gender(lhs))
-          if ((lflip == Default && lhs.tpe == ResetType) ||
-              (lflip == Flip    && rhs.tpe == ResetType)) {
-            val (loc, exp) = lflip match {
-              case Default => (lhs, rhs)
-              case Flip    => (rhs, lhs)
-            }
-            val target = makeTarget(loc)
+          val con = Utils.flow(lhs) match {
+            case SinkFlow   if lhs.tpe == ResetType => Some((lhs, rhs))
+            case SourceFlow if rhs.tpe == ResetType => Some((rhs, lhs))
+            // If sink is not ResetType, do nothing
+            case _                                  => None
+          }
+          con.foreach { case (loc, exp) =>
             val driver = exp.tpe match {
               case ResetType => TargetDriver(makeTarget(exp))
               case tpe       => TypeDriver(tpe, () => makeTarget(exp))
             }
-            map.getOrElseUpdate(target, mutable.ListBuffer()) += driver
+            map.getOrElseUpdate(makeTarget(loc), mutable.ListBuffer()) += driver
           }
         }
         stmt match {
@@ -136,6 +168,16 @@ class InferResets extends Transform {
             for ((i, j) <- points) {
               markResetDriver(locs(i), exps(j))
             }
+          case IsInvalid(_, lhs) =>
+            val exprs = Utils.create_exps(lhs)
+            for (expr <- exprs) {
+              // Ignore leaves that are not of type ResetType
+              // Unlike in markResetDriver, flow is irrelevant for invalidation
+              if (expr.tpe == ResetType) {
+                val target = makeTarget(expr)
+                map.getOrElseUpdate(target, mutable.ListBuffer()) += InvalidDriver
+              }
+            }
           case WDefInstance(_, inst, module, _) =>
             instMap += (inst -> module)
           case Conditionally(_, _, con, alt) =>
@@ -143,49 +185,70 @@ class InferResets extends Transform {
             val altMap = new DriverMap
             onStmt(conMap)(con)
             onStmt(altMap)(alt)
-            // Default to outerscope if not found in alt
-            val altLookup = altMap.orElse(map).lift
             for (key <- conMap.keys ++ altMap.keys) {
               val ds = map.getOrElseUpdate(key, mutable.ListBuffer())
               conMap.get(key).foreach(ds ++= _)
-              altLookup(key).foreach(ds ++= _)
+              altMap.get(key).foreach(ds ++= _)
             }
           case other => other.foreach(onStmt(map))
         }
       }
-      val types = new DriverMap
       mod.foreach(onStmt(types))
       types
     }
-    c.modules.foldLeft(Map[ReferenceTarget, List[ResetDriver]]()) {
-      case (map, mod) => map ++ onMod(mod).mapValues(_.toList)
-    }
+    val res = new DriverMap
+    c.modules.foreach(m => onMod(res)(m))
+    res.mapValues(_.toList).toMap
   }
 
-  // Determine the type driving a given ResetType
+  /** Determine the type driving a given ResetType
+    *
+    * This is implemented as a graph traversal. Every type constraint is a forwards and backwards
+    * edge between the two components (where one of the components can be Bool or AsyncReset). Then,
+    * types are inferred by determining all of the nodes that are reachable from Bool and AsyncReset
+    * respectively. As an optimization, we actually only need to check reachability from one, since
+    * nodes that are not reachable from the one are either reachable from the other or reachable
+    * from neither. If unreachable, then the component must only be connected to invalidated
+    * components of type Reset, thus we can arbitrarily choose which reset to infer it to. As an
+    * optimization, we have edges from components back to Bool and AsyncReset which allows us to
+    * check if any node is erroneously constrained to be both by simply checking if Bool is
+    * reachable from AsyncReset.
+    */
   private def resolve(map: Map[ReferenceTarget, List[ResetDriver]]): Try[Map[ReferenceTarget, Type]] = {
-    val res = mutable.Map[ReferenceTarget, Type]()
-    val errors = new Errors
-    def rec(target: ReferenceTarget): Type = {
-      val drivers = map(target)
-      res.getOrElseUpdate(target, {
-        val tpes = drivers.map {
-          case TargetDriver(t) => TypeDriver(rec(t), () => t)
-          case td: TypeDriver => td
-        }.groupBy(_.tpe)
-        if (tpes.keys.size != 1) {
-          // Multiple types of driver!
-          errors.append(DifferingDriverTypesException(target, tpes.toSeq))
-        }
-        tpes.keys.head
-      })
+    val graph = new MutableDiGraph[Node]
+    val asyncNode = Typ(AsyncResetType)
+    val syncNode  = Typ(Utils.BoolType)
+    for ((target, drivers) <- map) {
+      val v = Var(target)
+      drivers.foreach {
+        case TargetDriver(t) =>
+          val u = Var(t)
+          graph.addPairWithEdge(v, u)
+          graph.addPairWithEdge(u, v)
+        case TypeDriver(tpe, _) =>
+          // Use nodes we already made, saves memory
+          val u = tpe match {
+            case AsyncResetType => asyncNode
+            case Utils.BoolType => syncNode
+            case other          => throwInternalError(s"Shouldn't have $other here")
+          }
+          graph.addPairWithEdge(u, v)
+          // This backwards edge allows us to check for nodes that infer to both at the same time we
+          // do the actual inference, the check is simply if syncNode is reachable from asyncNode
+          graph.addPairWithEdge(v, u)
+        case InvalidDriver =>
+          graph.addVertex(v)   // Must be in the graph or won't be inferred
+      }
     }
-    for ((target, _) <- map) {
-      rec(target)
-    }
+    val async = graph.reachableFrom(asyncNode)
+    val sync = graph.getVertices -- async
     Try {
-      errors.trigger()
-      res.toMap
+      (async, sync) match {
+        case (a, _) if a.contains(syncNode) => throw InferResetsException(graph.path(asyncNode, syncNode))
+        case (a, s) =>
+          (a.view.collect { case Var(t) => t -> asyncNode.tpe } ++
+           s.view.collect { case Var(t) => t -> syncNode.tpe  }).toMap
+      }
     }
   }
 

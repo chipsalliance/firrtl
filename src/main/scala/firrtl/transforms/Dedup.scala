@@ -296,20 +296,12 @@ object DedupModules {
 
     val module2Annotations = mutable.HashMap.empty[String, mutable.HashSet[Annotation]]
     annotations.foreach { a =>
-      a.getTargets.foreach { t => t match {
-        /* FIXME: In order to preserve current semantics, now that all annotations are Targets,
-            we ignore all ReferenceTargets unless the annotation is DontTouchAnnotation.
-         */
-        case r: ReferenceTarget if !a.isInstanceOf[DontTouchAnnotation] =>
-        case _ =>
-          // If this annotation doesn't have a moduleName, we aren't interested in it.
-          t.moduleOpt match {
-            case Some(moduleName: String) =>
-              val annos = module2Annotations.getOrElseUpdate(moduleName, mutable.HashSet.empty[Annotation])
-              annos += a
-            case None =>
-          }
-      }}
+      a.getTargets.foreach { t =>
+        if (t.moduleOpt.isDefined) {
+          val annos = module2Annotations.getOrElseUpdate(t.moduleOpt.get, mutable.HashSet.empty[Annotation])
+          annos += a
+        }
+      }
     }
     def fastSerializedHash(s: Statement): Int ={
       def serialize(builder: StringBuilder, nindent: Int)(s: Statement): Unit = s match {

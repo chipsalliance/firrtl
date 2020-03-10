@@ -8,11 +8,12 @@ import java.security.Permission
 import logger.LazyLogging
 
 import org.scalatest._
-import org.scalatest.prop._
+import org.scalatestplus.scalacheck._
 
 import firrtl._
 import firrtl.ir._
 import firrtl.Parser.UseInfo
+import firrtl.stage.{FirrtlFileAnnotation, InfoModeAnnotation, RunFirrtlTransformAnnotation}
 import firrtl.analyses.{GetNamespace, ModuleNamespaceAnnotation}
 import firrtl.annotations._
 import firrtl.transforms.{DontTouchAnnotation, NoDedupAnnotation, RenameModules}
@@ -107,16 +108,17 @@ trait FirrtlRunners extends BackendCompilationUtilities {
       customTransforms: Seq[Transform] = Seq.empty,
       annotations: AnnotationSeq = Seq.empty): File = {
     val testDir = createTestDirectory(prefix)
-    copyResourceToFile(s"${srcDir}/${prefix}.fir", new File(testDir, s"${prefix}.fir"))
+    val inputFile = new File(testDir, s"${prefix}.fir")
+    copyResourceToFile(s"${srcDir}/${prefix}.fir", inputFile)
 
-    val optionsManager = new ExecutionOptionsManager(prefix) with HasFirrtlOptions {
-      commonOptions = CommonOptions(topName = prefix, targetDirName = testDir.getPath)
-      firrtlOptions = FirrtlExecutionOptions(
-                        infoModeName = "ignore",
-                        customTransforms = customTransforms ++ extraCheckTransforms,
-                        annotations = annotations.toList)
-    }
-    firrtl.Driver.execute(optionsManager)
+    val annos =
+      FirrtlFileAnnotation(inputFile.toString) +:
+      TargetDirAnnotation(testDir.toString) +:
+      InfoModeAnnotation("ignore") +:
+      annotations ++:
+      (customTransforms ++ extraCheckTransforms).map(RunFirrtlTransformAnnotation(_))
+
+    (new firrtl.stage.FirrtlStage).run(annos)
 
     testDir
   }
@@ -144,8 +146,9 @@ trait FirrtlRunners extends BackendCompilationUtilities {
       file
     }
 
-    verilogToCpp(prefix, testDir, verilogFiles, harness).!
-    cppToExe(prefix, testDir).!
+    verilogToCpp(prefix, testDir, verilogFiles, harness) #&&
+    cppToExe(prefix, testDir) !
+    loggingProcessLogger
     assert(executeExpectingSuccess(prefix, testDir))
   }
 }
@@ -255,7 +258,7 @@ object FirrtlCheckers extends FirrtlMatchers {
   }
 }
 
-abstract class FirrtlPropSpec extends PropSpec with PropertyChecks with FirrtlRunners with LazyLogging
+abstract class FirrtlPropSpec extends PropSpec with ScalaCheckPropertyChecks with FirrtlRunners with LazyLogging
 
 abstract class FirrtlFlatSpec extends FlatSpec with FirrtlRunners with FirrtlMatchers with LazyLogging
 
