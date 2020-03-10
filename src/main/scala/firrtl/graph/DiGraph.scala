@@ -68,7 +68,7 @@ class DiGraph[T] private[graph] (private[graph] val edges: LinkedHashMap[T, Link
     * wants to tease out a special ordering of the DAG.
     * @param seed an optional sequence of vertices to use. This will default to the vertices ordering provided by getVertices.
     * @throws CyclicException if the graph is cyclic
-    * @return a Map[T,T] from each visited node to its predecessor in the
+    * @return a Seq[T] describing the topological order of the DAG
     * traversal
     */
   def seededLinearize(seed: Option[Seq[T]] = None): Seq[T] = {
