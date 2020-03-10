@@ -16,7 +16,7 @@ class firrtlCrossModule(crossVersion: String) extends ScalaModule with SbtModule
   // 2.12.10 -> Array("2", "12", "10") -> "12" -> 12
   private def majorVersion = crossVersion.split('.')(1).toInt
 
-  def publishVersion = "1.3-20200227-SNAPSHOT"
+  def publishVersion = "1.3-20200310-SNAPSHOT"
 
   def antlr4Version = "4.7.1"
 
