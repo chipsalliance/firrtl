@@ -23,7 +23,7 @@ trait HowToSerialize { this: Annotation =>
 
   protected def suffix: Option[String]
 
-  def howToSerialize: Option[Stream[Char]]
+  def howToSerialize: Option[Stream[Byte]]
 
   def howToResume(file: File): Option[AnnotationSeq]
 

@@ -144,7 +144,7 @@ private object WriteOutputAnnotationsSpec {
 
     override protected def suffix: Option[String] = Some(".Serialize")
 
-    override def howToSerialize: Option[Stream[Char]] = Some(new StringBuilder(value).toStream)
+    override def howToSerialize: Option[Stream[Byte]] = Some(new StringBuilder(value).toStream.map(_.toByte))
 
     override def howToResume(file: File): Option[AnnotationSeq] = Some(Seq(HowToFindMe(file.toString)))
 
