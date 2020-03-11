@@ -484,8 +484,9 @@ class ConstantPropagation extends Transform with ResolvedAnnotationPaths {
     def backPropStmt(stmt: Statement): Statement = stmt match {
       case reg: DefRegister if (WrappedExpression.weq(reg.init, WRef(reg))) =>
         // Self-init reset is an idiom for "no reset," and must be handled separately
-        val updatedName = swapMap.getOrElse(reg.name, reg.name)
-        reg.copy(name = updatedName, init = WRef(reg).copy(name = updatedName))
+        swapMap.get(reg.name)
+               .map(newName => reg.copy(name = newName, init = WRef(reg).copy(name = newName)))
+               .getOrElse(reg)
       case s => s map backPropExpr match {
         case decl: IsDeclaration if swapMap.contains(decl.name) =>
           val newName = swapMap(decl.name)
