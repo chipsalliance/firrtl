@@ -395,7 +395,7 @@ class ConstantPropagation extends Transform with ResolvedAnnotationPaths {
   def optimize(e: Expression, nodeMap: NodeMap): Expression = constPropExpression(nodeMap, Map.empty[Instance, OfModule], Map.empty[OfModule, Map[String, Literal]])(e)
 
   private def constPropExpression(nodeMap: NodeMap, instMap: collection.Map[Instance, OfModule], constSubOutputs: Map[OfModule, Map[String, Literal]])(e: Expression): Expression = {
-    val old = e map constPropExpression(nodeMap, instMap, constSubOutputs)
+    val old = e mapExpr constPropExpression(nodeMap, instMap, constSubOutputs)
     val propagated = old match {
       case p: DoPrim => constPropPrim(p)
       case m: Mux => constPropMux(m)
@@ -465,7 +465,7 @@ class ConstantPropagation extends Transform with ResolvedAnnotationPaths {
     // to constant wires, we don't need to worry about propagating primops or muxes since we'll do
     // that on the next iteration if necessary
     def backPropExpr(expr: Expression): Expression = {
-      val old = expr map backPropExpr
+      val old = expr mapExpr backPropExpr
       val propagated = old match {
         // When swapping, we swap both rhs and lhs
         case ref @ WRef(rname, _,_,_) if swapMap.contains(rname) =>
@@ -481,7 +481,7 @@ class ConstantPropagation extends Transform with ResolvedAnnotationPaths {
       propagated
     }
 
-    def backPropStmt(stmt: Statement): Statement = stmt map backPropExpr match {
+    def backPropStmt(stmt: Statement): Statement = stmt mapExpr backPropExpr match {
       case decl: IsDeclaration if swapMap.contains(decl.name) =>
         val newName = swapMap(decl.name)
         nPropagated += 1
@@ -491,7 +491,7 @@ class ConstantPropagation extends Transform with ResolvedAnnotationPaths {
           case reg: DefRegister => reg.copy(name = newName)
           case other => throwInternalError()
         }
-      case other => other map backPropStmt
+      case other => other mapStmt backPropStmt
     }
 
     // When propagating a reference, check if we want to keep the name that would be deleted
@@ -507,7 +507,7 @@ class ConstantPropagation extends Transform with ResolvedAnnotationPaths {
     }
 
     def constPropStmt(s: Statement): Statement = {
-      val stmtx = s map constPropStmt map constPropExpression(nodeMap, instMap, constSubOutputs)
+      val stmtx = s mapStmt constPropStmt mapExpr constPropExpression(nodeMap, instMap, constSubOutputs)
       // Record things that should be propagated
       stmtx match {
         case x: DefNode if !dontTouches.contains(x.name) => propagateRef(x.name, x.value)

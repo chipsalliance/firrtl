@@ -110,7 +110,7 @@ class CheckCombLoops extends Transform with RegisteredTransform {
   private def getExprDeps(deps: MutableConnMap, v: LogicNode, info: Info)(e: Expression): Unit = e match {
     case r: WRef => deps.addEdgeIfValid(v, LogicNode(r), info)
     case s: WSubField => deps.addEdgeIfValid(v, LogicNode(s), info)
-    case _ => e.foreach(getExprDeps(deps, v, info))
+    case _ => e.foreachExpr(getExprDeps(deps, v, info))
   }
 
   private def getStmtDeps(
@@ -140,7 +140,7 @@ class CheckCombLoops extends Transform with RegisteredTransform {
       iGraph.getVertices.foreach(deps.addVertex(_))
       iGraph.getVertices.foreach({ v => iGraph.getEdges(v).foreach { deps.addEdge(v,_) } })
     case _ =>
-      s.foreach(getStmtDeps(simplifiedModules,deps))
+      s.foreachStmt(getStmtDeps(simplifiedModules,deps))
   }
 
   // Pretty-print a LogicNode with a prepended hierarchical path
@@ -246,7 +246,7 @@ class CheckCombLoops extends Transform with RegisteredTransform {
         val portSet = m.ports.map(p => LogicNode(p.name)).toSet
         val internalDeps = new MutableDiGraph[LogicNode] with MutableEdgeData[LogicNode, Info]
         portSet.foreach(internalDeps.addVertex(_))
-        m.foreach(getStmtDeps(simplifiedModuleGraphs, internalDeps))
+        m.foreachStmt(getStmtDeps(simplifiedModuleGraphs, internalDeps))
         moduleGraphs(m.name) = internalDeps
         simplifiedModuleGraphs(m.name) = moduleGraphs(m.name).simplify(portSet)
         // Find combinational nodes with self-edges; this is *NOT* the same as length-1 SCCs!

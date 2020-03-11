@@ -145,12 +145,12 @@ trait CheckHighFormLike {
     }
 
     def checkHighFormT(info: Info, mname: String)(t: Type): Unit = {
-      t foreach checkHighFormT(info, mname)
+      t foreachType checkHighFormT(info, mname)
       t match {
         case tx: VectorType if tx.size < 0 =>
           errors.append(new NegVecSizeException(info, mname))
         case _: IntervalType =>
-        case _ => t foreach checkHighFormW(info, mname)
+        case _ => t foreachWidth checkHighFormW(info, mname)
       }
     }
 
@@ -174,11 +174,11 @@ trait CheckHighFormLike {
         case _: Reference | _: WRef | _: UIntLiteral | _: Mux | _: ValidIf =>
         case ex: SubAccess => validSubexp(info, mname)(ex.expr)
         case ex: WSubAccess => validSubexp(info, mname)(ex.expr)
-        case ex => ex foreach validSubexp(info, mname)
+        case ex => ex foreachExpr validSubexp(info, mname)
       }
-      e foreach checkHighFormW(info, mname + "/" + e.serialize)
-      e foreach checkHighFormT(info, mname + "/" + e.serialize)
-      e foreach checkHighFormE(info, mname, names)
+      e foreachWidth checkHighFormW(info, mname + "/" + e.serialize)
+      e foreachType checkHighFormT(info, mname + "/" + e.serialize)
+      e foreachExpr checkHighFormE(info, mname, names)
     }
 
     def checkName(info: Info, mname: String, names: NameSet)(name: String): Unit = {
@@ -198,7 +198,7 @@ trait CheckHighFormLike {
 
     def checkHighFormS(minfo: Info, mname: String, names: NameSet)(s: Statement): Unit = {
       val info = get_info(s) match {case NoInfo => minfo case x => x}
-      s foreach checkName(info, mname, names)
+      s foreachString checkName(info, mname, names)
       s match {
         case DefRegister(info, name, tpe, _, reset, init) =>
           if (hasFlip(tpe))
@@ -218,9 +218,9 @@ trait CheckHighFormLike {
         case _: CDefMemory | _: CDefMPort => errorOnChirrtl(info, mname, s).foreach { e => errors.append(e) }
         case sx => // Do Nothing
       }
-      s foreach checkHighFormT(info, mname)
-      s foreach checkHighFormE(info, mname, names)
-      s foreach checkHighFormS(minfo, mname, names)
+      s foreachType checkHighFormT(info, mname)
+      s foreachExpr checkHighFormE(info, mname, names)
+      s foreachStmt checkHighFormS(minfo, mname, names)
     }
 
     def checkHighFormP(mname: String, names: NameSet)(p: Port): Unit = {
@@ -243,8 +243,8 @@ trait CheckHighFormLike {
 
     def checkHighFormM(m: DefModule): Unit = {
       val names = new NameSet
-      m foreach checkHighFormP(m.name, names)
-      m foreach checkHighFormS(m.info, m.name, names)
+      m foreachPort checkHighFormP(m.name, names)
+      m foreachStmt checkHighFormS(m.info, m.name, names)
       m match {
         case _: Module =>
         case ext: ExtModule =>
@@ -514,7 +514,7 @@ object CheckTypes extends Pass {
           }
         case _ =>
       }
-      e foreach check_types_e(info, mname)
+      e foreachExpr check_types_e(info, mname)
     }
 
     def check_types_s(minfo: Info, mname: String)(s: Statement): Unit = {
@@ -573,8 +573,8 @@ object CheckTypes extends Pass {
         }
         case _ =>
       }
-      s foreach check_types_e(info, mname)
-      s foreach check_types_s(info, mname)
+      s foreachExpr check_types_e(info, mname)
+      s foreachStmt check_types_s(info, mname)
     }
 
     c.modules foreach (m => m foreach check_types_s(m.info, m.name))
@@ -637,11 +637,11 @@ object CheckFlows extends Pass {
 
     def check_flows_e (info:Info, mname: String, flows: FlowMap)(e:Expression): Unit = {
       e match {
-        case e: Mux => e foreach check_flow(info, mname, flows, SourceFlow)
+        case e: Mux => e foreachExpr check_flow(info, mname, flows, SourceFlow)
         case e: DoPrim => e.args foreach check_flow(info, mname, flows, SourceFlow)
         case _ =>
       }
-      e foreach check_flows_e(info, mname, flows)
+      e foreachExpr check_flows_e(info, mname, flows)
     }
 
     def check_flows_s(minfo: Info, mname: String, flows: FlowMap)(s: Statement): Unit = {
@@ -671,14 +671,14 @@ object CheckFlows extends Pass {
           check_flow(info, mname, flows, SourceFlow)(s.clk)
         case _ =>
       }
-      s foreach check_flows_e(info, mname, flows)
-      s foreach check_flows_s(minfo, mname, flows)
+      s foreachExpr check_flows_e(info, mname, flows)
+      s foreachStmt check_flows_s(minfo, mname, flows)
     }
 
     for (m <- c.modules) {
       val flows = new FlowMap
       flows ++= (m.ports map (p => p.name -> to_flow(p.direction)))
-      m foreach check_flows_s(m.info, m.name, flows)
+      m foreachStmt check_flows_s(m.info, m.name, flows)
     }
     errors.trigger()
     c

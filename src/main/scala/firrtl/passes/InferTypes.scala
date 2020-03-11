@@ -25,7 +25,7 @@ object InferTypes extends Pass {
     }
 
     def remove_unknowns(t: Type): Type = {
-      t map remove_unknowns map remove_unknowns_w match {
+      t mapType remove_unknowns mapWidth remove_unknowns_w match {
         case IntervalType(l, u, p) =>
           IntervalType(remove_unknowns_b(l), remove_unknowns_b(u), p)
         case x => x
@@ -33,7 +33,7 @@ object InferTypes extends Pass {
     }
 
     def infer_types_e(types: TypeMap)(e: Expression): Expression =
-      e map infer_types_e(types) match {
+      e mapExpr infer_types_e(types) match {
         case e: WRef => e copy (tpe = types(e.name))
         case e: WSubField => e copy (tpe = field_type(e.expr.tpe, e.name))
         case e: WSubIndex => e copy (tpe = sub_type(e.expr.tpe))
@@ -54,19 +54,19 @@ object InferTypes extends Pass {
         types(sx.name) = t
         sx copy (tpe = t)
       case sx: DefNode =>
-        val sxx = (sx map infer_types_e(types)).asInstanceOf[DefNode]
+        val sxx = (sx mapExpr infer_types_e(types)).asInstanceOf[DefNode]
         val t = remove_unknowns(sxx.value.tpe)
         types(sx.name) = t
-        sxx map infer_types_e(types)
+        sxx mapExpr infer_types_e(types)
       case sx: DefRegister =>
         val t = remove_unknowns(sx.tpe)
         types(sx.name) = t
-        sx copy (tpe = t) map infer_types_e(types)
+        sx copy (tpe = t) mapExpr infer_types_e(types)
       case sx: DefMemory =>
         val t = remove_unknowns(MemPortUtils.memType(sx))
         types(sx.name) = t
         sx copy (dataType = remove_unknowns(sx.dataType))
-      case sx => sx map infer_types_s(types) map infer_types_e(types)
+      case sx => sx mapStmt infer_types_s(types) mapExpr infer_types_e(types)
     }
 
     def infer_types_p(types: TypeMap)(p: Port): Port = {
@@ -77,7 +77,7 @@ object InferTypes extends Pass {
 
     def infer_types(m: DefModule): DefModule = {
       val types = new TypeMap
-      m map infer_types_p(types) map infer_types_s(types)
+      m mapPort infer_types_p(types) mapStmt infer_types_s(types)
     }
  
     c copy (modules = c.modules map infer_types)
@@ -91,7 +91,7 @@ object CInferTypes extends Pass {
     val mtypes = (c.modules map (m => m.name -> module_type(m))).toMap
 
     def infer_types_e(types: TypeMap)(e: Expression) : Expression =
-      e map infer_types_e(types) match {
+      e mapExpr infer_types_e(types) match {
          case (e: Reference) => e copy (tpe = types.getOrElse(e.name, UnknownType))
          case (e: SubField) => e copy (tpe = field_type(e.expr.tpe, e.name))
          case (e: SubIndex) => e copy (tpe = sub_type(e.expr.tpe))
@@ -105,12 +105,12 @@ object CInferTypes extends Pass {
     def infer_types_s(types: TypeMap)(s: Statement): Statement = s match {
       case sx: DefRegister =>
         types(sx.name) = sx.tpe
-        sx map infer_types_e(types)
+        sx mapExpr infer_types_e(types)
       case sx: DefWire =>
         types(sx.name) = sx.tpe
         sx
       case sx: DefNode =>
-        val sxx = (sx map infer_types_e(types)).asInstanceOf[DefNode]
+        val sxx = (sx mapExpr infer_types_e(types)).asInstanceOf[DefNode]
         types(sxx.name) = sxx.value.tpe
         sxx
       case sx: DefMemory =>
@@ -126,7 +126,7 @@ object CInferTypes extends Pass {
       case sx: DefInstance =>
         types(sx.name) = mtypes(sx.module)
         sx
-      case sx => sx map infer_types_s(types) map infer_types_e(types)
+      case sx => sx mapStmt infer_types_s(types) mapExpr infer_types_e(types)
     }
 
     def infer_types_p(types: TypeMap)(p: Port): Port = {
@@ -136,7 +136,7 @@ object CInferTypes extends Pass {
  
     def infer_types(m: DefModule): DefModule = {
       val types = new TypeMap
-      m map infer_types_p(types) map infer_types_s(types)
+      m mapPort infer_types_p(types) mapStmt infer_types_s(types)
     }
    
     c copy (modules = c.modules map infer_types)

@@ -91,9 +91,9 @@ object CheckWidths extends Pass {
           errors append new UninferredBound(info, target.prettyPrint("    "), "lower")
           errors append new UninferredBound(info, target.prettyPrint("    "), "upper")
           i
-        case tt => tt foreach check_width_t(info, target)
+        case tt => tt foreachType check_width_t(info, target)
       }
-      t foreach check_width_w(info, target, t)
+      t foreachWidth check_width_w(info, target, t)
     }
 
     def check_width_f(info: Info, target: Target)(f: Field): Unit =
@@ -127,16 +127,16 @@ object CheckWidths extends Pass {
           errors append new DshlTooBig(info, target.serialize)
         case _ =>
       }
-      e foreach check_width_e(info, target)
+      e foreachExpr check_width_e(info, target)
     }
 
 
     def check_width_s(minfo: Info, target: ModuleTarget)(s: Statement): Unit = {
       val info = get_info(s) match { case NoInfo => minfo case x => x }
       val subRef = s match { case sx: HasName => target.ref(sx.name) case _ => target }
-      s foreach check_width_e(info, target)
-      s foreach check_width_s(info, target)
-      s foreach check_width_t(info, subRef)
+      s foreachExpr check_width_e(info, target)
+      s foreachStmt check_width_s(info, target)
+      s foreachType check_width_t(info, subRef)
       s match {
         case Attach(infox, exprs) =>
           exprs.tail.foreach ( e =>
@@ -161,8 +161,8 @@ object CheckWidths extends Pass {
     def check_width_p(minfo: Info, target: ModuleTarget)(p: Port): Unit = check_width_t(p.info, target.ref(p.name))(p.tpe)
 
     def check_width_m(circuit: CircuitTarget)(m: DefModule): Unit = {
-      m foreach check_width_p(m.info, circuit.module(m.name))
-      m foreach check_width_s(m.info, circuit.module(m.name))
+      m foreachPort check_width_p(m.info, circuit.module(m.name))
+      m foreachStmt check_width_s(m.info, circuit.module(m.name))
     }
 
     c.modules foreach check_width_m(CircuitTarget(c.main))

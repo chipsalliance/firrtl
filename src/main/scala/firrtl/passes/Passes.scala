@@ -47,7 +47,7 @@ class Errors {
 
 // These should be distributed into separate files
 object ToWorkingIR extends Pass {
-  def toExp(e: Expression): Expression = e map toExp match {
+  def toExp(e: Expression): Expression = e mapExpr toExp match {
     case ex: Reference => WRef(ex.name, ex.tpe, UnknownKind, UnknownFlow)
     case ex: SubField => WSubField(ex.expr, ex.name, ex.tpe, UnknownFlow)
     case ex: SubIndex => WSubIndex(ex.expr, ex.value, ex.tpe, UnknownFlow)
@@ -55,18 +55,18 @@ object ToWorkingIR extends Pass {
     case ex => ex // This might look like a case to use case _ => e, DO NOT!
   }
 
-  def toStmt(s: Statement): Statement = s map toExp match {
+  def toStmt(s: Statement): Statement = s mapExpr toExp match {
     case sx: DefInstance => WDefInstance(sx.info, sx.name, sx.module, UnknownType)
-    case sx => sx map toStmt
+    case sx => sx mapStmt toStmt
   }
 
   def run (c:Circuit): Circuit =
-    c copy (modules = c.modules map (_ map toStmt))
+    c copy (modules = c.modules map (_ mapStmt toStmt))
 }
 
 object PullMuxes extends Pass {
    def run(c: Circuit): Circuit = {
-     def pull_muxes_e(e: Expression): Expression = e map pull_muxes_e match {
+     def pull_muxes_e(e: Expression): Expression = e mapExpr pull_muxes_e match {
        case ex: WSubField => ex.expr match {
          case exx: Mux => Mux(exx.cond,
            WSubField(exx.tval, ex.name, ex.tpe, ex.flow),
@@ -93,7 +93,7 @@ object PullMuxes extends Pass {
        }
        case ex => ex
      }
-     def pull_muxes(s: Statement): Statement = s map pull_muxes map pull_muxes_e
+     def pull_muxes(s: Statement): Statement = s mapStmt pull_muxes mapExpr pull_muxes_e
      val modulesx = c.modules.map {
        case (m:Module) => Module(m.info, m.name, m.ports, pull_muxes(m.body))
        case (m:ExtModule) => m
@@ -107,7 +107,7 @@ object ExpandConnects extends Pass {
     def expand_connects(m: Module): Module = {
       val flows = collection.mutable.LinkedHashMap[String,Flow]()
       def expand_s(s: Statement): Statement = {
-        def set_flow(e: Expression): Expression = e map set_flow match {
+        def set_flow(e: Expression): Expression = e mapExpr set_flow match {
           case ex: WRef => WRef(ex.name, ex.tpe, ex.kind, flows(ex.name))
           case ex: WSubField =>
             val f = get_field(ex.expr.tpe, ex.name)
@@ -160,7 +160,7 @@ object ExpandConnects extends Pass {
               }
             }
             Block(stmts)
-          case sx => sx map expand_s
+          case sx => sx mapStmt expand_s
         }
       }
 
@@ -230,7 +230,7 @@ object Legalize extends Pass {
     }
   }
   def run (c: Circuit): Circuit = {
-    def legalizeE(expr: Expression): Expression = expr map legalizeE match {
+    def legalizeE(expr: Expression): Expression = expr mapExpr legalizeE match {
       case prim: DoPrim => prim.op match {
         case Shr => legalizeShiftRight(prim)
         case Pad => legalizePad(prim)
@@ -244,9 +244,9 @@ object Legalize extends Pass {
         case c: Connect => legalizeConnect(c)
         case _ => s
       }
-      legalizedStmt map legalizeS map legalizeE
+      legalizedStmt mapStmt legalizeS mapExpr legalizeE
     }
-    c copy (modules = c.modules map (_ map legalizeS))
+    c copy (modules = c.modules map (_ mapStmt legalizeS))
   }
 }
 
@@ -271,7 +271,7 @@ object VerilogPrep extends Pass {
     val sourceMap = mutable.HashMap.empty[WrappedExpression, Expression]
     lazy val namespace = Namespace(m)
 
-    def onStmt(stmt: Statement): Statement = stmt map onStmt match {
+    def onStmt(stmt: Statement): Statement = stmt mapStmt onStmt match {
       case attach: Attach =>
         val wires = attach.exprs groupBy kind
         val sources = wires.getOrElse(PortKind, Seq.empty) ++ wires.getOrElse(WireKind, Seq.empty)
@@ -296,14 +296,14 @@ object VerilogPrep extends Pass {
       case s => s
     }
 
-    (m map onStmt, sourceMap.toMap)
+    (m mapStmt onStmt, sourceMap.toMap)
   }
 
   def run(c: Circuit): Circuit = {
     def lowerE(e: Expression): Expression = e match {
       case (_: WRef | _: WSubField) if kind(e) == InstanceKind =>
         WRef(LowerTypes.loweredName(e), e.tpe, kind(e), flow(e))
-      case _ => e map lowerE
+      case _ => e mapExpr lowerE
     }
 
     def lowerS(attachMap: AttachSourceMap)(s: Statement): Statement = s match {
@@ -321,12 +321,12 @@ object VerilogPrep extends Pass {
         }.unzip
         val newInst = WDefInstanceConnector(info, name, module, tpe, portCons)
         Block(wires.flatten :+ newInst)
-      case other => other map lowerS(attachMap) map lowerE
+      case other => other mapStmt lowerS(attachMap) mapExpr lowerE
     }
 
     val modulesx = c.modules map { mod =>
       val (modx, attachMap) = collectAndRemoveAttach(mod)
-      modx map lowerS(attachMap)
+      modx mapStmt lowerS(attachMap)
     }
     c.copy(modules = modulesx)
   }
