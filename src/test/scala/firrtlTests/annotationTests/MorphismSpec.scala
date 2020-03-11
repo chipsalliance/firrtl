@@ -126,7 +126,7 @@ class MorphismSpec extends FlatSpec with Matchers {
       info(s"Input annotations:\n\t${state.annotations.toList.mkString("\n\t")}")
       info(s"Output annotations:\n\t${outputState.annotations.toList.mkString("\n\t")}")
       if (finalAnnotations.nonEmpty) {
-        info(s"Final annotations: ${finalAnnotations.get.toList.mkString("\n\t")}")
+        info(s"Final annotations:\n\t${finalAnnotations.get.toList.mkString("\n\t")}")
       }
 
       info(s"Output Annotation History:\n")
@@ -143,14 +143,13 @@ class MorphismSpec extends FlatSpec with Matchers {
         outputState.annotations.size should be(inputAnnotations.size)
         info("the number of annotations is the same")
 
-        outputState.annotations.zip(inputAnnotations).foreach {
-          case (a, b) => a.getTargets should be(b.getTargets)
+        outputState.annotations.zip(inputAnnotations).collect {
+          case (a: AnAnnotation, b: AnAnnotation) => a.target should be(b.target)
         }
         info("each annotation is the same")
       } else {
-        outputState.annotations.zip(finalAnnotations.get).foreach {
-          //case (a, b) => a should be (b)
-          case (a, b) => a.getTargets should be(b.getTargets)
+        outputState.annotations.zip(finalAnnotations.get).collect {
+          case (a: AnAnnotation, b: AnAnnotation) => a.target should be(b.target)
         }
 
         outputState.annotations.size should be(finalAnnotations.get.size)
@@ -286,9 +285,9 @@ class MorphismSpec extends FlatSpec with Matchers {
       IndexedSeq(
         CircuitTarget("Top").module("Baz").instOf("foo", "Foo"),
         CircuitTarget("Top").module("Baz").instOf("bar", "Bar"),
-        CircuitTarget("Top").module("Top").instOf("baz", "Baz"),
         CircuitTarget("Top").module("Qux").instOf("foo", "Fub"),
         CircuitTarget("Top").module("Qux").instOf("bar", "Bop"),
+        CircuitTarget("Top").module("Top").instOf("baz", "Baz"),
         CircuitTarget("Top").module("Top").instOf("qux", "Qux"),
         CircuitTarget("Top").module("Top"),
       )
@@ -301,6 +300,17 @@ class MorphismSpec extends FlatSpec with Matchers {
         CircuitTarget("Bop").module("Bop"),
         CircuitTarget("Baz").module("Baz"),
         CircuitTarget("Qux").module("Qux"),
+        CircuitTarget("Top").module("Top"),
+      )
+
+    def allDedupedAbsoluteInstances =
+      IndexedSeq(
+        CircuitTarget("Top").module("Top").instOf("baz", "Baz").instOf("foo", "Foo"),
+        CircuitTarget("Top").module("Top").instOf("baz", "Baz").instOf("bar", "Foo"),
+        CircuitTarget("Top").module("Top").instOf("qux", "Baz").instOf("foo", "Foo"),
+        CircuitTarget("Top").module("Top").instOf("qux", "Baz").instOf("bar", "Foo"),
+        CircuitTarget("Top").module("Top").instOf("baz", "Baz"),
+        CircuitTarget("Top").module("Top").instOf("qux", "Baz"),
         CircuitTarget("Top").module("Top"),
       )
 
@@ -358,7 +368,7 @@ class MorphismSpec extends FlatSpec with Matchers {
       allASTModules.map(AnAnnotation.apply) :+ ResolvePaths(allAbsoluteInstances)
     override val finalAnnotations: Option[AnnotationSeq] = Some(Seq(
       AnAnnotation(CircuitTarget("Foo").module("Foo")),
-      AnAnnotation(CircuitTarget("Bar").module("Bar")),
+      AnAnnotation(CircuitTarget("Baz").module("Baz")),
       AnAnnotation(CircuitTarget("Top").module("Top"))
     ))
     test()
@@ -502,6 +512,7 @@ class MorphismSpec extends FlatSpec with Matchers {
   it should "invert EliminateTargetPaths with absolute InstanceTarget annotations" in new RightInverseDedupModulesFixture {
     override val annotations: AnnotationSeq =
       allAbsoluteInstances.map(AnAnnotation(_)) :+ ResolvePaths(allAbsoluteInstances)
+    override val finalAnnotations: Option[AnnotationSeq] = Some(allDedupedAbsoluteInstances.map(AnAnnotation.apply))
     override lazy val output = deduped
     test()
   }
@@ -510,7 +521,7 @@ class MorphismSpec extends FlatSpec with Matchers {
     override val annotations: AnnotationSeq =
       allModuleInstances.map(AnAnnotation.apply) :+ ResolvePaths(allAbsoluteInstances)
     override val finalAnnotations: Option[AnnotationSeq] = Some(
-      allAbsoluteInstances.map(AnAnnotation.apply)
+      allDedupedAbsoluteInstances.map(AnAnnotation.apply)
     )
     override lazy val output = deduped
     test()
@@ -521,7 +532,7 @@ class MorphismSpec extends FlatSpec with Matchers {
       allASTModules.map(AnAnnotation.apply) :+ ResolvePaths(allAbsoluteInstances)
     override val finalAnnotations: Option[AnnotationSeq] = Some(Seq(
       AnAnnotation(CircuitTarget("Foo").module("Foo")),
-      AnAnnotation(CircuitTarget("Bar").module("Bar")),
+      AnAnnotation(CircuitTarget("Baz").module("Baz")),
       AnAnnotation(CircuitTarget("Top").module("Top"))
     ))
     override lazy val output = deduped
@@ -566,13 +577,13 @@ class MorphismSpec extends FlatSpec with Matchers {
         CircuitTarget("Top").module("Top").instOf("baz", "Baz").instOf("bar", "Bar"),
         CircuitTarget("Top").module("Top").instOf("qux", "Baz").instOf("foo", "Foo"),
         CircuitTarget("Top").module("Top").instOf("qux", "Baz").instOf("foox", "Foo"),
-        CircuitTarget("Top").module("Top").instOf("qux", "Baz").instOf("bar", "Bar"),
+        CircuitTarget("Top").module("Top").instOf("qux", "Baz").instOf("bar", "Bar")
       ))
     )
 
     override val finalAnnotations: Option[AnnotationSeq] = Some(Seq(
-      AnAnnotation(CircuitTarget("Top").module("Foo___Top_qux_foo")),
-      AnAnnotation(CircuitTarget("Top").module("Foo___Top_baz_foo"))
+      AnAnnotation(CircuitTarget("Top").module("Top").instOf("baz", "Baz").instOf("foo", "Foo")),
+      AnAnnotation(CircuitTarget("Top").module("Top").instOf("qux", "Baz").instOf("foo", "Foo"))
     ))
     test()
   }

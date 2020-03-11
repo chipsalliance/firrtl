@@ -27,7 +27,8 @@ trait Annotation extends Product {
   private def extractComponents(ls: scala.collection.Traversable[_]): Seq[Target] = {
     ls.collect {
       case c: Target => Seq(c)
-      case ls: scala.collection.Traversable[_] => extractComponents(ls)
+      case o: Product => extractComponents(o.productIterator.toList)
+      case x: scala.collection.Traversable[_] => extractComponents(x)
     }.foldRight(Seq.empty[Target])((seq, c) => c ++ seq)
   }
 
