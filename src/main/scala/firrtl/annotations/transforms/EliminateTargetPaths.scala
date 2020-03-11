@@ -30,17 +30,60 @@ case class ResolvePaths(targets: Seq[CompleteTarget]) extends Annotation {
   * @param newModules Instance target of what the original module now points to
   * @param originalModule Original module
   */
-case class DupedResult(newModules: Seq[IsModule], originalModule: ModuleTarget) extends MultiTargetAnnotation {
-  override val targets: Seq[Seq[Target]] = Seq(newModules)
+case class DupedResult(newModules: Set[IsModule], originalModule: ModuleTarget) extends MultiTargetAnnotation {
+  override val targets: Seq[Seq[Target]] = Seq(newModules.toSeq)
   override def duplicate(n: Seq[Seq[Target]]): Annotation = {
     n.toList match {
-      case Seq(newMods) => DupedResult(newMods.collect { case x: IsModule => x }, originalModule)
-      case _ => DupedResult(Nil, originalModule)
+      case Seq(newMods) => DupedResult(newMods.collect { case x: IsModule => x }.toSet, originalModule)
+      case _ => DupedResult(Set.empty, originalModule)
     }
   }
 }
 
 case class NoSuchTargetException(message: String) extends FirrtlInternalException(message)
+
+object EliminateTargetPaths {
+
+  def renameModules(c: Circuit, toRename: Map[String, String], renameMap: RenameMap): Circuit = {
+    val ct = CircuitTarget(c.main)
+    val cx = if(toRename.contains(c.main)) {
+      renameMap.record(ct, CircuitTarget(toRename(c.main)))
+      c.copy(main = toRename(c.main))
+    } else {
+      c
+    }
+    def onMod(m: DefModule): DefModule = {
+      m map onStmt match {
+        case e: ExtModule if toRename.contains(e.name) =>
+          renameMap.record(ct.module(e.name), ct.module(toRename(e.name)))
+          e.copy(name = toRename(e.name))
+        case e: Module if toRename.contains(e.name)    =>
+          renameMap.record(ct.module(e.name), ct.module(toRename(e.name)))
+          e.copy(name = toRename(e.name))
+        case o => o
+      }
+    }
+    def onStmt(s: Statement): Statement = s map onStmt match {
+      case w@WDefInstance(info, name, module, tpe) if toRename.contains(module) => w.copy(module = toRename(module))
+      case w@DefInstance(info, name, module) if toRename.contains(module) => w.copy(module = toRename(module))
+      case other => other
+    }
+    cx map onMod
+  }
+
+  def reorderModules(c: Circuit, toReorder: Map[String, Double]): Circuit = {
+    val (hasOrder, noOrder) = c.modules.partition {
+      case m if toReorder.contains(m.name) => true
+      case _ => false
+    }
+
+    val newOrder = hasOrder.sortBy { m => toReorder(m.name) } ++ noOrder
+
+    c.copy(modules = newOrder)
+  }
+
+
+}
 
 /** For a set of non-local targets, modify the instance/module hierarchy of the circuit such that
   * the paths in each non-local target can be removed
@@ -58,6 +101,7 @@ case class NoSuchTargetException(message: String) extends FirrtlInternalExceptio
   * C/x -> (C/x, C_/x) // where x is any reference in C
   */
 class EliminateTargetPaths extends Transform {
+  import EliminateTargetPaths._
 
   def inputForm: CircuitForm = HighForm
 
@@ -113,7 +157,7 @@ class EliminateTargetPaths extends Transform {
         }
         duplicatedModuleList += newM
       }
-      DupedResult(newNames.toList.map(ct.module), ct.module(m.name))
+      DupedResult(newNames.map(ct.module), ct.module(m.name))
     }
 
     val finalModuleList = duplicatedModuleList
@@ -149,26 +193,6 @@ class EliminateTargetPaths extends Transform {
     (cir.copy(modules = finalModuleList), renameMap, annos)
   }
 
-  def renameModules(c: Circuit, toRename: Map[String, String]): Circuit = {
-    def onMod(m: DefModule): DefModule = {
-      m map onStmt match {
-        case e: ExtModule if toRename.contains(e.name) => e.copy(name = toRename(e.name))
-        case e: Module if toRename.contains(e.name)    => e.copy(name = toRename(e.name))
-      }
-    }
-    def onStmt(s: Statement): Statement = s map onStmt match {
-      case w@WDefInstance(info, name, module, tpe) if toRename.contains(module) => w.copy(module = toRename(module))
-      case w@DefInstance(info, name, module) if toRename.contains(module) => w.copy(module = toRename(module))
-      case other => other
-    }
-    val cx = if(toRename.contains(c.main)) {
-      c.copy(main = toRename(c.main))
-    } else {
-      c
-    }
-    cx map onMod
-  }
-
   override protected def execute(state: CircuitState): CircuitState = {
     val moduleNames = state.circuit.modules.map(_.name).toSet
 
@@ -176,14 +200,14 @@ class EliminateTargetPaths extends Transform {
       state.annotations.foldLeft(
         ( Vector.empty[Annotation],
           Seq.empty[CompleteTarget],
-          Map.empty[IsModule, ModuleTarget]
+          Map.empty[IsModule, (ModuleTarget, Double)]
         )
       ) { case ((remainingAnnos, targets, dedupedResult), anno)  =>
           anno match {
             case ResolvePaths(ts)          =>
               (remainingAnnos, ts ++ targets, dedupedResult)
-            case DedupedResult(orig, dups) if dups.size <= 1 =>
-              (remainingAnnos, targets, dedupedResult ++ dups.map(_ -> orig).toMap)
+            case DedupedResult(orig, dups, idx) if dups.nonEmpty =>
+              (remainingAnnos, targets, dedupedResult ++ dups.map(_ -> (orig, idx)).toMap)
             case other =>
               (remainingAnnos :+ other, targets, dedupedResult)
           }
@@ -199,7 +223,7 @@ class EliminateTargetPaths extends Transform {
     val targetsWithInvalidPaths = mutable.ArrayBuffer[IsMember]()
     targets.foreach { t =>
       val path = t match {
-        case m: ModuleTarget => Nil
+        case _: ModuleTarget => Nil
         case i: InstanceTarget => i.asPath
         case r: ReferenceTarget => r.path
       }
@@ -232,6 +256,51 @@ class EliminateTargetPaths extends Transform {
       newCircuit.copy(modules = modulesx)
     }
 
-    state.copy(circuit = newCircuitGC, renames = Some(renameMap), annotations = remainingAnnotations ++ newAnnos)
+    // If instance targeted is in fact the only instance of a module, then it should not be renamed
+    // E.g. if Eliminate Target Paths on ~Top|Top/foo:Foo, but that is the only instance of Foo, then should return
+    //   ~Top|Top/foo:Foo, not ~Top|Top/foo:Foo___Top_foo
+    val renamedModuleMap = RenameMap(this)
+    val newIGraph = new InstanceGraph(newCircuitGC)
+    val ct = CircuitTarget(newCircuitGC.main)
+    val newModule2Original = state.circuit.modules.map {
+      m => ct.module(m.name)
+    }.map {
+      t => (t, renameMap.get(ct.module(t.name)))
+    }.flatMap {
+      // TODO: rename Top_foo_bar crap back to Bar if only instantiated once
+      // TODO: Then continue running MorphismSpec.DedupModules should invert... with all AST blah
+      // TODO: Look at output, it isn't right
+      case (origMod, Some(Seq(newMod: IsModule))) =>
+        Some(Target.referringModule(newMod).module -> origMod.module)
+      case _ =>
+        None
+    }.toMap
+
+    // If previous instance target mapped to a single previously deduped module, return original name
+    // E.g. if previously ~Top|Top/foo:Foo was deduped to ~Top|Top/foo:Bar, then
+    //  Eliminate target paths on ~Top|Top/foo:Bar should rename to ~Top|Top/foo:Foo, not
+    //  ~Top|Top/foo:Bar___Top_foo
+    val newModuleNameMapping = newModule2Original ++ previouslyDeduped.flatMap {
+      case (current: IsModule, (orig: ModuleTarget, idx)) =>
+        renameMap.get(current) match {
+          case Some(Seq(ModuleTarget(_, m))) => Some(m -> orig.name)
+          case _ => None
+        }
+    }
+
+    val renamedCircuit = renameModules(newCircuitGC, newModuleNameMapping, renamedModuleMap)
+
+    val reorderedCircuit = reorderModules(renamedCircuit,
+      previouslyDeduped.map {
+        case (current: IsModule, (orig: ModuleTarget, idx)) =>
+          orig.name -> idx
+      }
+    )
+
+    state.copy(
+      circuit = reorderedCircuit,
+      renames = Some(renameMap.andThen(renamedModuleMap)),
+      annotations = remainingAnnotations ++ newAnnos
+    )
   }
 }

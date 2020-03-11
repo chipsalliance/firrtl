@@ -186,7 +186,15 @@ class MorphismSpec extends FlatSpec with Matchers {
         case (state, transform) => transform.runTransform(state)
       }
 
-      (once, twice)
+      val onceClean = cleanup.foldLeft(once) {
+        case (state, transform) => transform.transform(state)
+      }
+
+      val twiceClean = cleanup.foldLeft(twice) {
+        case (state, transform) => transform.transform(state)
+      }
+
+      (onceClean, twiceClean)
 
     }
 
@@ -411,16 +419,16 @@ class MorphismSpec extends FlatSpec with Matchers {
          |  module Foo___Top_qux_foo :
          |    node a = UInt<1>("h0")
          |    skip
-         |  module Baz___Top_qux :
-         |    input x : UInt<1>
-         |    inst foo of Foo___Top_qux_foo
-         |    inst foox of Foo___Top_qux_foox
-         |    inst bar of Foo___Top_qux_bar
          |  module Baz___Top_baz :
          |    input x : UInt<1>
          |    inst foo of Foo___Top_baz_foo
          |    inst foox of Foo___Top_baz_foox
          |    inst bar of Foo___Top_baz_bar
+         |  module Baz___Top_qux :
+         |    input x : UInt<1>
+         |    inst foo of Foo___Top_qux_foo
+         |    inst foox of Foo___Top_qux_foox
+         |    inst bar of Foo___Top_qux_bar
          |  module Top :
          |    inst baz of Baz___Top_baz
          |    inst qux of Baz___Top_qux""".stripMargin

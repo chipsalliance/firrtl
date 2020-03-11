@@ -6,6 +6,7 @@ package transforms
 import firrtl.RenameMap
 import firrtl.annotations._
 import firrtl.transforms.{DedupModules, DontTouchAnnotation, NoCircuitDedupAnnotation}
+import logger.{LogLevel, LogLevelAnnotation, Logger}
 
 
 /**
@@ -317,7 +318,7 @@ class DedupModuleTests extends HighTransformSpec {
     execute(input, check, Seq.empty)
   }
 
-  "The module A and A_" should "not be deduped with different annotation targets" in {
+  "The module A and A_" should "dedup with different annotation targets" in {
     val input =
       """circuit Top :
         |  module Top :
@@ -336,17 +337,15 @@ class DedupModuleTests extends HighTransformSpec {
       """circuit Top :
         |  module Top :
         |    inst a1 of A
-        |    inst a2 of A_
+        |    inst a2 of A
         |  module A :
         |    output x: UInt<1>
         |    wire b: UInt<1>
         |    x <= b
-        |  module A_ :
-        |    output x: UInt<1>
-        |    wire b: UInt<1>
-        |    x <= b
       """.stripMargin
-    execute(input, check, Seq(dontTouch("A.b")))
+    Logger.makeScope(Seq(LogLevelAnnotation(LogLevel.Trace))) {
+      execute(input, check, Seq(dontTouch("A.b")))
+    }
   }
 
   "The module A and A_" should "be deduped with same annotation targets" in {
@@ -404,7 +403,7 @@ class DedupModuleTests extends HighTransformSpec {
     val annos = (0 until 100).flatMap(i => Seq(dontTouch(s"A.b[$i]"), dontTouch(s"A_.b[$i]")))
     execute(input, check, annos)
   }
-  "The module A and A_" should "not be deduped with same annotations with same multi-targets, but which have different root modules" in {
+  "The module A and A_" should "be deduped with same annotations with same multi-targets" in {
     val input =
       """circuit Top :
         |  module Top :
@@ -429,19 +428,12 @@ class DedupModuleTests extends HighTransformSpec {
       """circuit Top :
         |  module Top :
         |    inst a1 of A
-        |    inst a2 of A_
+        |    inst a2 of A
         |  module A :
         |    output x: UInt<1>
         |    inst b of B
         |    x <= b.x
-        |  module A_ :
-        |    output x: UInt<1>
-        |    inst b of B_
-        |    x <= b.x
         |  module B :
-        |    output x: UInt<1>
-        |    x <= UInt(1)
-        |  module B_ :
         |    output x: UInt<1>
         |    x <= UInt(1)
       """.stripMargin
@@ -450,11 +442,21 @@ class DedupModuleTests extends HighTransformSpec {
     val B = Top.module("B")
     val A_ = Top.module("A_")
     val B_ = Top.module("B_")
+    val Top_a1 = Top.module("Top").instOf("a1", "A")
+    val Top_a2 = Top.module("Top").instOf("a2", "A")
+    val Top_a1_b = Top_a1.instOf("b", "B")
+    val Top_a2_b = Top_a2.instOf("b", "B")
     val annoAB = MultiTargetDummyAnnotation(Seq(A, B), 0)
-    val annoA_B_ = MultiTargetDummyAnnotation(Seq(A_, B_), 0)
-    val cs = execute(input, check, Seq(annoAB, annoA_B_))
-    cs.annotations.toSeq should contain (annoAB)
-    cs.annotations.toSeq should contain (annoA_B_)
+    val annoA_B_ = MultiTargetDummyAnnotation(Seq(A_, B_), 1)
+    val cs = Logger.makeScope(Seq(LogLevelAnnotation(LogLevel.Trace))) {
+      execute(input, check, Seq(annoAB, annoA_B_))
+    }
+    cs.annotations.toSeq should contain (MultiTargetDummyAnnotation(Seq(
+      Top_a1, Top_a1_b
+    ), 0))
+    cs.annotations.toSeq should contain (MultiTargetDummyAnnotation(Seq(
+      Top_a2, Top_a2_b
+    ), 1))
   }
   "The module A and A_" should "be deduped with same annotations with same multi-targets, that share roots" in {
     val input =
@@ -494,10 +496,16 @@ class DedupModuleTests extends HighTransformSpec {
     val A = Top.module("A")
     val A_ = Top.module("A_")
     val annoA = MultiTargetDummyAnnotation(Seq(A, A.instOf("b", "B")), 0)
-    val annoA_ = MultiTargetDummyAnnotation(Seq(A_, A_.instOf("b", "B_")), 0)
+    val annoA_ = MultiTargetDummyAnnotation(Seq(A_, A_.instOf("b", "B_")), 1)
     val cs = execute(input, check, Seq(annoA, annoA_))
-    cs.annotations.toSeq should contain (annoA)
-    cs.annotations.toSeq should not contain (annoA_)
+    cs.annotations.toSeq should contain (MultiTargetDummyAnnotation(Seq(
+      Top.module("Top").instOf("a1", "A"),
+      Top.module("Top").instOf("a1", "A").instOf("b", "B")
+    ),0))
+    cs.annotations.toSeq should contain (MultiTargetDummyAnnotation(Seq(
+      Top.module("Top").instOf("a2", "A"),
+      Top.module("Top").instOf("a2", "A").instOf("b", "B")
+    ),1))
     cs.deletedAnnotations.isEmpty should be (true)
   }
   "The deduping module A and A_" should "renamed internal signals that have different names" in {

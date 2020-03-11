@@ -40,12 +40,12 @@ case object NoCircuitDedupAnnotation extends NoTargetAnnotation with HasShellOpt
   * @param duplicate Instance target of what the original module now points to
   * @param original Original module
   */
-case class DedupedResult(original: ModuleTarget, duplicate: Option[IsModule]) extends MultiTargetAnnotation {
+case class DedupedResult(original: ModuleTarget, duplicate: Option[IsModule], index: Double) extends MultiTargetAnnotation {
   override val targets: Seq[Seq[Target]] = Seq(Seq(original), duplicate.toList)
   override def duplicate(n: Seq[Seq[Target]]): Annotation = {
     n.toList match {
-      case Seq(_, List(dup: IsModule)) => DedupedResult(original, Some(dup))
-      case _                           => DedupedResult(original, None)
+      case Seq(_, List(dup: IsModule)) => DedupedResult(original, Some(dup), index)
+      case _                           => DedupedResult(original, None, -1)
     }
   }
 }
@@ -99,6 +99,13 @@ class DedupModules extends Transform {
 
     // Maps module name to corresponding dedup module
     val dedupMap = DedupModules.deduplicate(c, noDedups.toSet, previouslyDupedMap, renameMap)
+    val dedupCliques = dedupMap.foldLeft(Map.empty[String, Set[String]]) {
+      case (dedupCliqueMap, (orig: String, dupMod: DefModule)) =>
+        val set = dedupCliqueMap.getOrElse(dupMod.name, Set.empty[String]) + dupMod.name + orig
+        dedupCliqueMap + (dupMod.name -> set)
+    }.flatMap { case (dedupName, set) =>
+      set.map { _ -> set }
+    }
 
     val module2OriginalAnnotations = mutable.HashMap.empty[ModuleTarget, mutable.HashSet[Annotation]]
     annotations.foreach { a =>
@@ -141,31 +148,45 @@ class DedupModules extends Transform {
     // Build instanceify renaming map
     val instanceGraph = new InstanceGraph(c)
     val instanceify = RenameMap(this)
+    val moduleName2Index = c.modules.map(_.name).zipWithIndex.toMap
     val dedupAnnotations = module2RenameAnnotations.flatMap { case (mt@ModuleTarget(c, m), annos: mutable.HashSet[Annotation]) =>
       dedupMap.get(m) match {
         case None => Nil
-        case Some(dedupedModule) =>
-          val dedupedAnnos = module2RenameAnnotations.get(ct.module(dedupedModule.name))
-          // If dedupedAnnos is exactly annos, contains is because dedupedAnnos is type Option
+        // When commented out, EliminateTargetPathsSpec breaks
+        // When included, MorphismSpec breaks...
+        // Basically, its whether ~Top|Foo is instanceified
+        //   (bc then EliminateTargetPaths moves the annotation back to other duplicate modules)
+        case Some(module: DefModule) if dedupCliques(module.name).size == 1 =>
+          val dedupedAnnos = module2RenameAnnotations.get(ct.module(module.name))
           val paths = instanceGraph.findInstancesInHierarchy(m)
           val newTargets = paths.map { path =>
             path.foldLeft(ct.module(c): IsModule) { case (relPath, WDefInstance(_, name, mod, _)) =>
               if(mod == c) CircuitTarget(c).module(c) else relPath.instOf(name, mod)
             }
           }
-          if(dedupedAnnos.contains(annos)) {
-            // Add all relative paths to referredModule to map to new instances
-            def addRecord(original: IsMember, m: IsMember): Unit = m match {
-              case x: ModuleTarget =>
-                instanceify.record(x, original)
-              case x: IsComponent =>
-                instanceify.record(x, original)
-                addRecord(original, x.stripHierarchy(1))
-            }
-            newTargets.foreach(t => addRecord(t, t))
-          }
           if(newTargets.size == 1) {
-            Seq(DedupedResult(mt, newTargets.headOption))
+            Seq(DedupedResult(mt, newTargets.headOption, moduleName2Index(m)))
+          } else Nil
+        case Some(dedupedModule: DefModule) =>
+          val dedupedAnnos = module2RenameAnnotations.get(ct.module(dedupedModule.name))
+          val paths = instanceGraph.findInstancesInHierarchy(m)
+          // If dedupedAnnos is exactly annos, contains is because dedupedAnnos is type Option
+          val newTargets = paths.map { path =>
+            path.foldLeft(ct.module(c): IsModule) { case (relPath, WDefInstance(_, name, mod, _)) =>
+              if(mod == c) CircuitTarget(c).module(c) else relPath.instOf(name, mod)
+            }
+          }
+          // Add all relative paths to referredModule to map to new instances
+          def addRecord(original: IsMember, m: IsMember): Unit = m match {
+            case x: ModuleTarget =>
+              instanceify.record(x, original)
+            case x: IsComponent =>
+              instanceify.record(x, original)
+              addRecord(original, x.stripHierarchy(1))
+          }
+          newTargets.foreach(t => addRecord(t, t))
+          if(newTargets.size == 1) {
+            Seq(DedupedResult(mt, newTargets.headOption, moduleName2Index(m)))
           } else Nil
       }
     }
