@@ -112,6 +112,7 @@ class LowFirrtlOptimization extends CoreTransform {
     passes.RemoveValidIf,
     new firrtl.transforms.ConstantPropagation,
     passes.PadWidths,
+    new firrtl.transforms.RestructureMuxes,
     new firrtl.transforms.ConstantPropagation,
     passes.Legalize,
     passes.memlib.VerilogMemDelays, // TODO move to Verilog emitter
