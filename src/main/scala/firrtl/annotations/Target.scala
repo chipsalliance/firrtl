@@ -715,7 +715,7 @@ final case class CircuitName(name: String) extends Named {
 final case class ModuleName(name: String, circuit: CircuitName) extends Named {
   if(!validModuleName(name)) throw AnnotationException(s"Illegal module name: $name")
   def serialize: String = circuit.serialize + "." + name
-  def toTarget: ModuleTarget = ModuleTarget(name, name)
+  def toTarget: ModuleTarget = ModuleTarget(circuit.name, name)
 }
 
 @deprecated("Use Target instead, will be removed in 1.3", "1.2")
@@ -725,7 +725,7 @@ final case class ComponentName(name: String, module: ModuleName) extends Named {
   def serialize: String = module.serialize + "." + name
   def toTarget: ReferenceTarget = {
     Target.toTargetTokens(name).toList match {
-      case Ref(r) :: components => ReferenceTarget(module.name, module.name, Nil, r, components)
+      case Ref(r) :: components => ReferenceTarget(module.circuit.name, module.name, Nil, r, components)
       case other => throw Target.NamedException(s"Cannot convert $this into [[ReferenceTarget]]: $other")
     }
   }
