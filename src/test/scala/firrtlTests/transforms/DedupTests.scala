@@ -369,7 +369,12 @@ class DedupModuleTests extends HighTransformSpec {
         |    wire b: UInt<1>
         |    x <= b
       """.stripMargin
-    execute(input, check, Seq(dontTouch("A.b"), dontTouch("A_.b")))
+    val cs = execute(input, check, Seq(
+      dontTouch(ReferenceTarget("A", "A", Nil, "b", Nil)),
+      dontTouch(ReferenceTarget("A_", "A_", Nil, "b", Nil))
+    ))
+    cs.annotations.toSeq should contain (dontTouch(ReferenceTarget("A", "A", Nil, "b", Nil)))
+    cs.annotations.toSeq should not contain dontTouch(ReferenceTarget("A_", "A_", Nil, "b", Nil))
   }
   "The module A and A_" should "be deduped with same annotation targets when there are a lot" in {
     val input =
