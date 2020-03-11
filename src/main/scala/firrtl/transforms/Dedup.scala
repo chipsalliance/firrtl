@@ -10,7 +10,7 @@ import firrtl.annotations._
 import firrtl.passes.{InferTypes, MemPortUtils}
 import firrtl.Utils.throwInternalError
 import firrtl.annotations.transforms.DupedResult
-import firrtl.options.{HasShellOptions, ShellOption}
+import firrtl.options.{HasShellOptions, PreservesAll, ShellOption}
 
 // Datastructures
 import scala.collection.mutable
@@ -55,9 +55,13 @@ case class DedupedResult(original: ModuleTarget, duplicate: Option[IsModule], in
   * Specifically, the restriction of instance loops must have been checked, or else this pass can
   *  infinitely recurse
   */
-class DedupModules extends Transform {
+class DedupModules extends Transform with PreservesAll[Transform] {
   def inputForm: CircuitForm = HighForm
   def outputForm: CircuitForm = HighForm
+
+  override val prerequisites = firrtl.stage.Forms.Resolved
+
+  override val dependents = Seq.empty
 
   /** Deduplicate a Circuit
     * @param state Input Firrtl AST

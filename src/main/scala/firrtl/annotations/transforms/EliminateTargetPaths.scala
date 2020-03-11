@@ -193,7 +193,7 @@ class EliminateTargetPaths extends Transform {
     (cir.copy(modules = finalModuleList), renameMap, annos)
   }
 
-  override protected def execute(state: CircuitState): CircuitState = {
+  override def execute(state: CircuitState): CircuitState = {
     val moduleNames = state.circuit.modules.map(_.name).toSet
 
     val (remainingAnnotations, targetsToEliminate, previouslyDeduped) =
