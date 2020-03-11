@@ -5,9 +5,7 @@ package transforms
 
 import firrtl.RenameMap
 import firrtl.annotations._
-import firrtl.transforms.{DedupModules, DontTouchAnnotation, NoCircuitDedupAnnotation}
-import logger.{LogLevel, LogLevelAnnotation, Logger}
-
+import firrtl.transforms.{DedupModules, NoCircuitDedupAnnotation}
 
 /**
  * Tests inline instances transformation
@@ -343,9 +341,7 @@ class DedupModuleTests extends HighTransformSpec {
         |    wire b: UInt<1>
         |    x <= b
       """.stripMargin
-    Logger.makeScope(Seq(LogLevelAnnotation(LogLevel.Trace))) {
-      execute(input, check, Seq(dontTouch("A.b")))
-    }
+    execute(input, check, Seq(dontTouch("A.b")))
   }
 
   "The module A and A_" should "be deduped with same annotation targets" in {
@@ -448,9 +444,7 @@ class DedupModuleTests extends HighTransformSpec {
     val Top_a2_b = Top_a2.instOf("b", "B")
     val annoAB = MultiTargetDummyAnnotation(Seq(A, B), 0)
     val annoA_B_ = MultiTargetDummyAnnotation(Seq(A_, B_), 1)
-    val cs = Logger.makeScope(Seq(LogLevelAnnotation(LogLevel.Trace))) {
-      execute(input, check, Seq(annoAB, annoA_B_))
-    }
+    val cs = execute(input, check, Seq(annoAB, annoA_B_))
     cs.annotations.toSeq should contain (MultiTargetDummyAnnotation(Seq(
       Top_a1, Top_a1_b
     ), 0))

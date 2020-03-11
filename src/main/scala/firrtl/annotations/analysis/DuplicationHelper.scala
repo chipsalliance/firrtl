@@ -98,27 +98,23 @@ case class DuplicationHelper(circuit: String,
                      newModule: String,
                      instance: Instance,
                      originalOfModule: OfModule): OfModule = {
-    //if(getDuplicates(originalOfModule.value).size == 1) {
-    //  OfModule(getDuplicates(originalOfModule.value).head)
-    //} else {
-      dupMap.get(originalModule) match {
-        case None => // No duplication, can return originalOfModule
-          originalOfModule
-        case Some(newDupedModules) =>
-          newDupedModules.get(newModule) match {
-            case None if newModule != originalModule => throwInternalError("BAD")
-            case None => // No duplication, can return originalOfModule
-              originalOfModule
-            case Some(newDupedModule) =>
-              newDupedModule.get(instance) match {
-                case None => // Not duped, can return originalOfModule
-                  originalOfModule
-                case Some(newOfModule) =>
-                  newOfModule
-              }
-          }
-      }
-    //}
+    dupMap.get(originalModule) match {
+      case None => // No duplication, can return originalOfModule
+        originalOfModule
+      case Some(newDupedModules) =>
+        newDupedModules.get(newModule) match {
+          case None if newModule != originalModule => throwInternalError("BAD")
+          case None => // No duplication, can return originalOfModule
+            originalOfModule
+          case Some(newDupedModule) =>
+            newDupedModule.get(instance) match {
+              case None => // Not duped, can return originalOfModule
+                originalOfModule
+              case Some(newOfModule) =>
+                newOfModule
+            }
+        }
+    }
   }
 
   /** Returns the names of this module's duplicated (including the original name)

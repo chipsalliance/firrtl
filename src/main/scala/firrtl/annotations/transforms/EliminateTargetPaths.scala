@@ -267,9 +267,6 @@ class EliminateTargetPaths extends Transform {
     }.map {
       t => (t, renameMap.get(ct.module(t.name)))
     }.flatMap {
-      // TODO: rename Top_foo_bar crap back to Bar if only instantiated once
-      // TODO: Then continue running MorphismSpec.DedupModules should invert... with all AST blah
-      // TODO: Look at output, it isn't right
       case (origMod, Some(Seq(newMod: IsModule))) =>
         Some(Target.referringModule(newMod).module -> origMod.module)
       case _ =>
