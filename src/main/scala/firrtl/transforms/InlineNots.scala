@@ -37,26 +37,32 @@ object InlineNotsTransform {
     * @param expr the Expression being transformed
     * @return Returns expr with Nots inlined
     */
-  def onExpr(netlist: Netlist)(expr: Expression): Expression = {
-    expr.map(onExpr(netlist)) match {
+  def onExpr(netlist: Netlist, lhs_tpe: Type)(expr: Expression): Expression = {
+    expr.map(onExpr(netlist, lhs_tpe)) match {
       case e @ WRef(name, _,_,_) =>
         netlist.get(we(e))
                .filter(isNot)
+               .filter(_.tpe == lhs_tpe)
                .getOrElse(e)
       // replace bits-of-not with not-of-bits to enable later bit extraction transform
-      case lhs @ DoPrim(op, Seq(lval), lcons, ltpe) if isBitExtract(op) && isSimpleExpr(lval) =>
+      case lhs @ DoPrim(op, Seq(lval), lcons, ltpe) if isBitExtract(lhs) && isSimpleExpr(lval) =>
         netlist.getOrElse(we(lval), lval) match {
-          case DoPrim(Not, Seq(rhs), rcons, rtpe) =>
+          case DoPrim(Not, Seq(rhs), rcons, rtpe) if (ltpe == rtpe) =>
             DoPrim(Not, Seq(DoPrim(op, Seq(rhs), lcons, ltpe)), rcons, ltpe)
           case _ => lhs  // Not a candiate
         }
       // replace back-to-back inversions with a straight rename
-      case lhs @ DoPrim(Not, Seq(inv), _, invtpe) if isSimpleExpr(lhs) && isSimpleExpr(inv) && (lhs.tpe == invtpe) && (bitWidth(lhs.tpe) == bitWidth(inv.tpe)) =>
+      case lhs @ DoPrim(Not, Seq(inv), _, invtpe) if isSimpleExpr(lhs) && isSimpleExpr(inv) && (lhs.tpe == invtpe) && (lhs.tpe == inv.tpe) =>
         netlist.getOrElse(we(inv), inv) match {
-          case DoPrim(Not, Seq(rhs), _, rtpe) if (invtpe == rtpe) && (bitWidth(inv.tpe) == bitWidth(rhs.tpe)) =>
+          case DoPrim(Not, Seq(rhs), _, rtpe) if (invtpe == rtpe) && (inv.tpe == rhs.tpe) =>
             DoPrim(Bits, Seq(rhs), Seq(bitWidth(lhs.tpe)-1,0), rtpe)
           case _ => lhs  // Not a candiate
         }
+      // replace "mux = ~sel ? b : a" with "mux = sel ? a : b"
+      case mux @ Mux(cond, tval, fval, tpe) => cond match {
+        case DoPrim(Not, Seq(sel), _, cond_tpe) if (sel.tpe == cond_tpe) => Mux(sel, fval, tval, tpe)
+        case _ => mux  // Not a candiate
+      }
       case other => other // Not a candidate
     }
   }
@@ -70,10 +76,14 @@ object InlineNotsTransform {
     * @return Returns stmt with nots inlined
     */
   def onStmt(netlist: Netlist)(stmt: Statement): Statement =
-    stmt.map(onStmt(netlist)).map(onExpr(netlist)) match {
-      case node @ DefNode(_, name, value) if isTemp(name) =>
+    stmt.map(onStmt(netlist)) match {
+      case con @ Connect(_, lhs, _) =>
+        con.map(onExpr(netlist, lhs.tpe))
+      case node @ DefNode(_, name, value) if isTemp(name) => {
         netlist(we(WRef(name))) = value
+        node.map(onExpr(netlist, value.tpe))
         node
+      }
       case other => other
     }
 

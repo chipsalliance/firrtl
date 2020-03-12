@@ -185,32 +185,44 @@ class DoPrimVerilog extends FirrtlFlatSpec {
         |    input a: UInt<1>
         |    input b: UInt<1>
         |    input c: UInt<4>
-        |    output d: UInt<1>
+        |    input d: UInt<4>
         |    output e: UInt<1>
         |    output f: UInt<1>
         |    output g: UInt<1>
         |    output h: UInt<1>
-        |    d <= and(a, not(b))
-        |    e <= or(a, not(b))
-        |    f <= not(not(not(bits(c, 2, 2))))
-        |    g <= mux(not(bits(c, 2, 2)), a, b)
-        |    h <= shr(not(bits(c, 2, 1)), 1)""".stripMargin
+        |    output i: UInt<1>
+        |    output j: UInt<5>
+        |    e <= and(a, not(b))
+        |    f <= or(a, not(b))
+        |    g <= not(not(not(bits(c, 2, 2))))
+        |    h <= mux(not(bits(c, 2, 2)), a, b)
+        |    i <= shr(not(bits(c, 2, 1)), 1)
+        |    j <= add(c, not(d))""".stripMargin
     val check =
       """module InlineNot(
         |  input   a,
         |  input   b,
         |  input  [3:0] c,
-        |  output  d,
+        |  input  [3:0] d,
         |  output  e,
         |  output  f,
         |  output  g,
-        |  output  h
+        |  output  h,
+        |  output  i,
+        |  output [4:0] j
         |);
-        |  assign d = a & ~b;
-        |  assign e = a | ~b;
-        |  assign f = ~c[2];
-        |  assign g = c[2] ? b : a;
-        |  assign h = ~c[2];
+        |  wire _GEN_3;
+        |  wire [1:0] _GEN_7;
+        |  wire [3:0] _GEN_8;
+        |  assign e = a & ~b;
+        |  assign f = a | ~b;
+        |  assign _GEN_3 = ~c[2];
+        |  assign g = _GEN_3;
+        |  assign h = c[2] ? b : a;
+        |  assign _GEN_7 = ~c[2:1];
+        |  assign i = _GEN_7[1];
+        |  assign _GEN_8 = ~d;
+        |  assign j = c + _GEN_8;
         |endmodule
         |""".stripMargin.split("\n") map normalized
     executeTest(input, check, compiler)
