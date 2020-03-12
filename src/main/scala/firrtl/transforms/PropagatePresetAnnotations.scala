@@ -10,6 +10,7 @@ import firrtl.PrimOps._
 import firrtl.ir._
 import firrtl.ir.{AsyncResetType}
 import firrtl.annotations._
+import firrtl.options.{Dependency, PreservesAll}
 
 import scala.collection.mutable
 
@@ -39,9 +40,19 @@ object PropagatePresetAnnotations {
   *
   * @note This pass must run before InlineCastsTransform
   */
-class PropagatePresetAnnotations extends Transform {
+class PropagatePresetAnnotations extends Transform with PreservesAll[Transform] {
   def inputForm = UnknownForm
   def outputForm = UnknownForm
+  
+  override val prerequisites = firrtl.stage.Forms.LowFormMinimumOptimized ++
+    Seq( Dependency[BlackBoxSourceHelper],
+         Dependency[FixAddingNegativeLiterals],
+         Dependency[ReplaceTruncatingArithmetic])
+
+  override val optionalPrerequisites = firrtl.stage.Forms.LowFormOptimized
+
+  override val dependents = Seq.empty
+  
   
   import PropagatePresetAnnotations._
   
