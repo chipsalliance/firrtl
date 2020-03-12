@@ -383,7 +383,7 @@ trait ResolvedAnnotationPaths {
 /** Defines old API for Emission. Deprecated */
 trait Emitter extends Transform with PreservesAll[Transform] {
   @deprecated("Use emission annotations instead", "firrtl 1.0")
-  def emit(state: CircuitState, writer: Writer): CircuitState
+  def emit(state: CircuitState, writer: Writer): Unit
 
   /** An output suffix to use if the output of this [[Emitter]] was written to a file */
   def outputSuffix: String

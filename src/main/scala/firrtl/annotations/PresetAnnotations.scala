@@ -21,7 +21,7 @@ case class PresetAnnotation(target: ReferenceTarget)
   *
   * @param target ReferenceTarget to a Reg
   */
-case class PresetRegAnnotation(
+private[firrtl] case class PresetRegAnnotation(
   target: ReferenceTarget
 ) extends SingleTargetAnnotation[ReferenceTarget] with RegisterEmissionOption {
   def duplicate(n: ReferenceTarget) = this.copy(target = n)

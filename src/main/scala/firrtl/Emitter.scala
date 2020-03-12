@@ -8,7 +8,6 @@ import scala.collection.mutable
 
 import firrtl.ir._
 import firrtl.passes._
-import firrtl.transforms._
 import firrtl.annotations._
 import firrtl.traversals.Foreachers._
 import firrtl.PrimOps._
@@ -155,10 +154,7 @@ sealed abstract class FirrtlEmitter(form: CircuitForm) extends Transform with Em
   }
 
   // Old style, deprecated
-  def emit(state: CircuitState, writer: Writer): CircuitState = {
-    writer.write(state.circuit.serialize)
-    state
-  }
+  def emit(state: CircuitState, writer: Writer): Unit = writer.write(state.circuit.serialize)
 }
 
 // ***** Start actual Emitters *****
@@ -1060,7 +1056,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
   /** Preamble for every emitted Verilog file */
   def transforms = new TransformManager(firrtl.stage.Forms.VerilogOptimized, prerequisites).flattenedTransformOrder
 
-  def emit(state: CircuitState, writer: Writer): CircuitState = {
+  def emit(state: CircuitState, writer: Writer): Unit = {
     val cs = runTransforms(state)
     val emissionOptions = new EmissionOptions(cs.annotations)
     val moduleMap = cs.circuit.modules.map(m => m.name -> m).toMap
@@ -1073,15 +1069,14 @@ class VerilogEmitter extends SeqTransform with Emitter {
         renderer.emit_verilog()
       case _ => // do nothing
     }
-    cs
   }
 
   override def execute(state: CircuitState): CircuitState = {
     val newAnnos = state.annotations.flatMap {
       case EmitCircuitAnnotation(_) =>
         val writer = new java.io.StringWriter
-        val cs = emit(state, writer)
-        Seq(EmittedVerilogCircuitAnnotation(EmittedVerilogCircuit(state.circuit.main, writer.toString, outputSuffix))) ++ (cs.annotations.toSeq diff state.annotations.toSeq)
+        emit(state, writer)
+        Seq(EmittedVerilogCircuitAnnotation(EmittedVerilogCircuit(state.circuit.main, writer.toString, outputSuffix)))
 
       case EmitAllModulesAnnotation(_) =>
         val cs = runTransforms(state)
@@ -1093,12 +1088,12 @@ class VerilogEmitter extends SeqTransform with Emitter {
             val writer = new java.io.StringWriter
             val renderer = new VerilogRender(d, pds, module, moduleMap, cs.circuit.main, emissionOptions)(writer)
             renderer.emit_verilog()
-            Some(EmittedVerilogModuleAnnotation(EmittedVerilogModule(module.name, writer.toString, outputSuffix))) ++ (cs.annotations.toSeq diff state.annotations.toSeq)
+            Some(EmittedVerilogModuleAnnotation(EmittedVerilogModule(module.name, writer.toString, outputSuffix)))
           case module: Module =>
             val writer = new java.io.StringWriter
             val renderer = new VerilogRender(module, moduleMap, cs.circuit.main, emissionOptions)(writer)
             renderer.emit_verilog()
-            Some(EmittedVerilogModuleAnnotation(EmittedVerilogModule(module.name, writer.toString, outputSuffix))) ++ (cs.annotations.toSeq diff state.annotations.toSeq)
+            Some(EmittedVerilogModuleAnnotation(EmittedVerilogModule(module.name, writer.toString, outputSuffix)))
           case _ => None
         }
       case _ => Seq()
