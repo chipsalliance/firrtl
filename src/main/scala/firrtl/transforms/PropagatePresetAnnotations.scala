@@ -19,17 +19,17 @@ object PropagatePresetAnnotations {
   case class TreeCleanUpOrphanException(message: String) extends FirrtlUserException(s"Node left an orphan during tree cleanup: $message $advice")
 }
 
-/** Propagate PresetAnnotations to all children of targeted AsyncResets 
+/** Propagate PresetAnnotations to all children of targeted AsyncResets
   * Leaf Registers are annotated with PresetRegAnnotation
   * All wires, nodes and connectors along the way are suppressed
   *
   * Processing of multiples targets are NOT isolated from one another as the expected outcome does not differ
-  * Annotations of leaf registers, wires, nodes & connectors does indeed not depend on the initial AsyncReset reference 
-  * The set of created annotation based on multiple initial AsyncReset PresetAnnotation 
+  * Annotations of leaf registers, wires, nodes & connectors does indeed not depend on the initial AsyncReset reference
+  * The set of created annotation based on multiple initial AsyncReset PresetAnnotation
   *
   * This transform consists of 2 successive walk of the AST
-  * I./ Propagate 
-  *    - 1./ Create all AsyncResetTrees 
+  * I./ Propagate
+  *    - 1./ Create all AsyncResetTrees
   *    - 2./ Leverage them to annotate register for specialized emission & PresetTree for cleanUp
   * II./ CleanUpTree
   *    - clean up all the intermediate nodes (replaced with EmptyStmt)
@@ -43,7 +43,7 @@ object PropagatePresetAnnotations {
 class PropagatePresetAnnotations extends Transform with PreservesAll[Transform] {
   def inputForm = UnknownForm
   def outputForm = UnknownForm
-  
+
   override val prerequisites = firrtl.stage.Forms.LowFormMinimumOptimized ++
     Seq( Dependency[BlackBoxSourceHelper],
          Dependency[FixAddingNegativeLiterals],
@@ -52,16 +52,16 @@ class PropagatePresetAnnotations extends Transform with PreservesAll[Transform] 
   override val optionalPrerequisites = firrtl.stage.Forms.LowFormOptimized
 
   override val dependents = Seq.empty
-  
-  
+
+
   import PropagatePresetAnnotations._
-  
-  type TargetSet = mutable.HashSet[ReferenceTarget]
-  type TargetMap = mutable.HashMap[ReferenceTarget,String]
-  type TargetSetMap = mutable.HashMap[ReferenceTarget, TargetSet]
-  
-  val toCleanUp = new TargetSet()
-  
+
+  private type TargetSet = mutable.HashSet[ReferenceTarget]
+  private type TargetMap = mutable.HashMap[ReferenceTarget,String]
+  private type TargetSetMap = mutable.HashMap[ReferenceTarget, TargetSet]
+
+  private val toCleanUp = new TargetSet()
+
   /**
     * Logic of the propagation, divided in two main phases:
     * 1./ Walk all the Circuit looking for annotated AsyncResets :
@@ -74,28 +74,28 @@ class PropagatePresetAnnotations extends Transform with PreservesAll[Transform] 
     *
     * @param circuit the circuit
     * @param annotations all the annotations
-    * @return updated annotations 
+    * @return updated annotations
     */
-  def propagate(cs: CircuitState, presetAnnos: Seq[PresetAnnotation]): AnnotationSeq = {
+  private def propagate(cs: CircuitState, presetAnnos: Seq[PresetAnnotation]): AnnotationSeq = {
     val presets = presetAnnos.groupBy(_.target)
     // store all annotated asyncreset references
     val asyncToAnnotate = new TargetSet()
-    // store all async-reset-registers 
+    // store all async-reset-registers
     val asyncRegMap = new TargetSetMap()
     // store async-reset trees
     val asyncCoMap = new TargetSetMap()
     // Annotations to be appended and returned as result of the transform
     val annos = cs.annotations.to[mutable.ArrayBuffer] -- presetAnnos
-    
+
     val circuitTarget = CircuitTarget(cs.circuit.main)
-    
+
     /*
     * WALK I PHASE 1 FUNCTIONS
     */
-    
+
     /**
-      * Walk current module 
-      *  - process ports 
+      * Walk current module
+      *  - process ports
       *     - store connections & entry points for PHASE 2
       *  - process statements
       *     - Instances => record local instances for cross module AsyncReset Tree Buidling
@@ -108,15 +108,15 @@ class PropagatePresetAnnotations extends Transform with PreservesAll[Transform] 
     def processModule(m: DefModule): Unit = {
       val moduleTarget = circuitTarget.module(m.name)
       val localInstances = new TargetMap()
-      
+
       /**
-        * Recursively process a given type 
+        * Recursively process a given type
         * Recursive on Bundle and Vector Type only
         * Store Register and Connections for AsyncResetType
         *
         * @param tpe Type to be processed
         * @param target ReferenceTarget associated to the tpe
-        * @param all Boolean indicating whether all subelements of the current tpe should also be stored as Annotated AsyncReset entry points 
+        * @param all Boolean indicating whether all subelements of the current tpe should also be stored as Annotated AsyncReset entry points
         */
       def processType(tpe: Type, target: ReferenceTarget, all: Boolean): Unit = {
         if(tpe == AsyncResetType){
@@ -127,45 +127,45 @@ class PropagatePresetAnnotations extends Transform with PreservesAll[Transform] 
           }
         } else {
           tpe match {
-            case b: BundleType => 
+            case b: BundleType =>
               b.fields.foreach{
-                (x: Field) => 
+                (x: Field) =>
                   val tar = target.field(x.name)
                   processType(x.tpe, tar, (presets.contains(tar) || all))
               }
-              
-            case v: VectorType => 
+
+            case v: VectorType =>
               for(i <- 0 until v.size) {
                 val tar = target.index(i)
                 processType(v.tpe, tar, (presets.contains(tar) || all))
               }
-            case _ => 
+            case _ =>
           }
         }
       }
-      
+
       def processWire(w: DefWire): Unit = {
         val target = moduleTarget.ref(w.name)
         processType(w.tpe, target, presets.contains(target))
       }
-      
+
       /**
-        * Recursively search for the ReferenceTarget of a given Expression 
+        * Recursively search for the ReferenceTarget of a given Expression
         *
         * @param e Targeted Expression
         * @param ta Local ReferenceTarget of the Targeted Expression
         * @return a ReferenceTarget in case of success, a GenericTarget otherwise
-        * @throw Internal Error on unexpected recursive path return results 
+        * @throw Internal Error on unexpected recursive path return results
         */
       def getRef(e: Expression, ta: ReferenceTarget, annoCo: Boolean = false) : Target = {
         e match {
           case w: WRef => moduleTarget.ref(w.name)
-          case w: WSubField => 
+          case w: WSubField =>
             getRef(w.expr, ta, annoCo) match {
-              case rt: ReferenceTarget => 
+              case rt: ReferenceTarget =>
                 if(localInstances.contains(rt)){
                   val remote_ref =  circuitTarget.module(localInstances(rt))
-                  if (annoCo) 
+                  if (annoCo)
                     asyncCoMap(ta) += rt.field(w.name)
                   remote_ref.ref(w.name)
                 } else {
@@ -175,34 +175,34 @@ class PropagatePresetAnnotations extends Transform with PreservesAll[Transform] 
              }
           case w: WSubIndex =>
             getRef(w.expr, ta, annoCo) match {
-              case remote_target: ReferenceTarget => 
-                if (annoCo) 
+              case remote_target: ReferenceTarget =>
+                if (annoCo)
                   asyncCoMap(ta) += remote_target
                 remote_target.index(w.value)
               case _ => Utils.throwInternalError("Unexpected Reference kind")
             }
-            
+
           case _ => Target(None, None, Seq.empty)
         }
       }
-      
+
       def processRegister(r: DefRegister): Unit = {
         getRef(r.reset, moduleTarget.ref(r.name), false) match {
-          case rt : ReferenceTarget => 
+          case rt : ReferenceTarget =>
             if (asyncRegMap.contains(rt)) {
               asyncRegMap(rt) += moduleTarget.ref(r.name)
             }
-          case _ => 
+          case _ =>
         }
-        
+
       }
-      
+
       def processConnect(c: Connect): Unit = {
         getRef(c.expr, ReferenceTarget("","", Seq.empty, "", Seq.empty)) match {
-          case rhs: ReferenceTarget => 
+          case rhs: ReferenceTarget =>
             if (presets.contains(rhs) || asyncRegMap.contains(rhs)) {
               getRef(c.loc, rhs, true) match {
-                case lhs : ReferenceTarget => 
+                case lhs : ReferenceTarget =>
                   if(asyncRegMap.contains(rhs)){
                     asyncRegMap(rhs) += lhs
                   } else {
@@ -215,13 +215,13 @@ class PropagatePresetAnnotations extends Transform with PreservesAll[Transform] 
           case _ => Utils.throwInternalError("Unexpected Reference kind")
         }
       }
-      
+
       def processNode(n: DefNode): Unit = {
         val target = moduleTarget.ref(n.name)
         processType(n.value.tpe, target, presets.contains(target))
-        
+
         getRef(n.value, ReferenceTarget("","", Seq.empty, "", Seq.empty)) match {
-          case rhs: ReferenceTarget => 
+          case rhs: ReferenceTarget =>
             if (presets.contains(rhs) || asyncRegMap.contains(rhs)) {
               if(asyncRegMap.contains(rhs)){
                 asyncRegMap(rhs) += target
@@ -236,7 +236,7 @@ class PropagatePresetAnnotations extends Transform with PreservesAll[Transform] 
 
       def processStatements(statement: Statement): Unit = {
         statement match {
-          case i : WDefInstance => 
+          case i : WDefInstance =>
             localInstances(moduleTarget.ref(i.name)) = i.module
           case r : DefRegister => processRegister(r)
           case w : DefWire     => processWire(w)
@@ -245,7 +245,7 @@ class PropagatePresetAnnotations extends Transform with PreservesAll[Transform] 
           case s               => s.foreachStmt(processStatements)
         }
       }
-      
+
       def processPorts(port: Port): Unit = {
         if(port.tpe == AsyncResetType){
           val target = moduleTarget.ref(port.name)
@@ -257,19 +257,19 @@ class PropagatePresetAnnotations extends Transform with PreservesAll[Transform] 
           }
         }
       }
-      
+
       m match {
-        case module: firrtl.ir.Module =>  
+        case module: firrtl.ir.Module =>
           module.foreachPort(processPorts)
           processStatements(module.body)
-        case _ => 
+        case _ =>
       }
     }
-    
+
     /*
      * WALK I PHASE 2 FUNCTIONS
      */
-    
+
     /** Annotate a given target and all its children according to the asyncCoMap */
     def annotateCo(ta: ReferenceTarget){
       if (asyncCoMap.contains(ta)){
@@ -279,7 +279,7 @@ class PropagatePresetAnnotations extends Transform with PreservesAll[Transform] 
         })
       }
     }
-    
+
     /** Annotate all registers somehow connected to the orignal annotated async reset */
     def annotateRegSet(set: TargetSet) : Unit = {
       set foreach ( (ta: ReferenceTarget) => {
@@ -288,12 +288,12 @@ class PropagatePresetAnnotations extends Transform with PreservesAll[Transform] 
           annotateRegSet(asyncRegMap(ta))
         } else {
           annos += new PresetRegAnnotation(ta)
-        }  
+        }
       })
     }
-    
-    /** 
-      * Walk AsyncReset Trees with all Annotated AsyncReset as entry points 
+
+    /**
+      * Walk AsyncReset Trees with all Annotated AsyncReset as entry points
       * Annotate all leaf registers and intermediate wires, nodes, connectors along the way
       */
     def annotateAsyncSet(set: TargetSet) : Unit = {
@@ -303,38 +303,38 @@ class PropagatePresetAnnotations extends Transform with PreservesAll[Transform] 
           annotateRegSet(asyncRegMap(t))
       })
     }
-    
+
     /*
-     * MAIN 
+     * MAIN
      */
-    
+
     cs.circuit.foreachModule(processModule) // PHASE 1 : Initialize
     annotateAsyncSet(asyncToAnnotate)       // PHASE 2 : Annotate
     annos
   }
-  
+
   /*
    * WALK II FUNCTIONS
    */
-   
+
   /**
     * Clean-up useless reset tree (not relying on DCE)
     * Disconnect preset registers from their reset tree
     */
-  def cleanUpPresetTree(circuit: Circuit, annos: AnnotationSeq) : Circuit = {
+  private def cleanUpPresetTree(circuit: Circuit, annos: AnnotationSeq) : Circuit = {
     val presetRegs = annos.collect {case a : PresetRegAnnotation => a}.groupBy(_.target)
     val circuitTarget = CircuitTarget(circuit.main)
-    
+
     def processModule(m: DefModule): DefModule = {
       val moduleTarget = circuitTarget.module(m.name)
       val localInstances = new TargetMap()
-      
+
       def getRef(e: Expression) : Target = {
         e match {
           case w: WRef => moduleTarget.ref(w.name)
-          case w: WSubField => 
+          case w: WSubField =>
             getRef(w.expr) match {
-              case rt: ReferenceTarget => 
+              case rt: ReferenceTarget =>
                 if(localInstances.contains(rt)){
                   circuitTarget.module(localInstances(rt)).ref(w.name)
                 } else {
@@ -347,7 +347,7 @@ class PropagatePresetAnnotations extends Transform with PreservesAll[Transform] 
               case remote_target: ReferenceTarget => remote_target.index(w.value)
               case _ => Utils.throwInternalError("Unexpected Reference kind")
             }
-          case DoPrim(op, args, _, _) => 
+          case DoPrim(op, args, _, _) =>
             op match {
               case AsInterval | AsUInt | AsSInt | AsClock | AsFixedPoint | AsAsyncReset => getRef(args.head)
               case _ => Target(None, None, Seq.empty)
@@ -355,8 +355,8 @@ class PropagatePresetAnnotations extends Transform with PreservesAll[Transform] 
           case _ => Target(None, None, Seq.empty)
         }
       }
-      
-      
+
+
       def processRegister(r: DefRegister) : DefRegister = {
         if (presetRegs.contains(moduleTarget.ref(r.name))) {
           r.copy(reset = UIntLiteral(0))
@@ -364,7 +364,7 @@ class PropagatePresetAnnotations extends Transform with PreservesAll[Transform] 
           r
         }
       }
-      
+
       def processWire(w: DefWire) : Statement = {
         if (toCleanUp.contains(moduleTarget.ref(w.name))) {
           EmptyStmt
@@ -372,42 +372,42 @@ class PropagatePresetAnnotations extends Transform with PreservesAll[Transform] 
           w
         }
       }
-      
+
       def processNode(n: DefNode) : Statement = {
         if (toCleanUp.contains(moduleTarget.ref(n.name))) {
           EmptyStmt
         } else {
           getRef(n.value) match {
-            case rt : ReferenceTarget if(toCleanUp.contains(rt)) => 
+            case rt : ReferenceTarget if(toCleanUp.contains(rt)) =>
               throw TreeCleanUpOrphanException(s"Orphan (${moduleTarget.ref(n.name)}) the way.")
             case _ => n
           }
         }
       }
-      
+
       def processConnect(c: Connect): Statement = {
         getRef(c.expr) match {
-          case rhs: ReferenceTarget if (toCleanUp.contains(rhs)) => 
+          case rhs: ReferenceTarget if (toCleanUp.contains(rhs)) =>
             getRef(c.loc) match {
-              case lhs : ReferenceTarget if(!toCleanUp.contains(lhs)) => 
+              case lhs : ReferenceTarget if(!toCleanUp.contains(lhs)) =>
                 throw TreeCleanUpOrphanException(s"Orphan ${lhs} connected deleted node $rhs.")
               case _ => EmptyStmt
             }
           case _ => c
         }
       }
-      
+
       def processInstance(i: WDefInstance) : WDefInstance = {
         localInstances(moduleTarget.ref(i.name)) = i.module
         val tpe = i.tpe match {
-          case b: BundleType => 
+          case b: BundleType =>
             val inst = moduleTarget.instOf(i.name, i.module).asReference
             BundleType(b.fields.filterNot(p => toCleanUp.contains(inst.field(p.name))))
           case other => other
         }
         i.copy(tpe = tpe)
       }
-      
+
       def processStatements(statement: Statement): Statement = {
         statement match {
           case i : WDefInstance => processInstance(i)
@@ -418,7 +418,7 @@ class PropagatePresetAnnotations extends Transform with PreservesAll[Transform] 
           case s                => s.mapStmt(processStatements)
         }
       }
-      
+
       m match {
         case module: firrtl.ir.Module =>
           val ports = module.ports.filterNot(p => toCleanUp.contains(moduleTarget.ref(p.name)))
@@ -433,7 +433,7 @@ class PropagatePresetAnnotations extends Transform with PreservesAll[Transform] 
     // Collect all user-defined PresetAnnotation
     val presets = state.annotations
       .collect{ case m : PresetAnnotation => m }
-      
+
     // No PresetAnnotation => no need to walk the IR
     if (presets.size == 0){
       state
@@ -442,6 +442,9 @@ class PropagatePresetAnnotations extends Transform with PreservesAll[Transform] 
       val annos = propagate(state, presets)
       // PHASE II - CleanUp
       val cleanCircuit = cleanUpPresetTree(state.circuit, annos)
+      // Because toCleanup is a class field, we need to clear it
+      // TODO refactor so that toCleanup is not a class field
+      toCleanUp.clear()
       state.copy(annotations = annos, circuit = cleanCircuit)
     }
   }
