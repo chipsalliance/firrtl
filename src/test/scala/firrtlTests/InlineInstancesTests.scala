@@ -2,18 +2,29 @@
 
 package firrtlTests
 
+<<<<<<< HEAD
 import org.scalatest.FlatSpec
 import org.scalatest.Matchers
 import org.scalatest.junit.JUnitRunner
 import firrtl.ir.Circuit
 import firrtl.Parser
 import firrtl.passes.PassExceptions
+=======
+import firrtl._
+>>>>>>> 7ddbdc36... Make InlineInstances invalidate ResolveKinds
 import firrtl.annotations._
-import firrtl.passes.{InlineAnnotation, InlineInstances}
+import firrtl.passes.{InlineAnnotation, InlineInstances, ResolveKinds}
 import firrtl.transforms.NoCircuitDedupAnnotation
+<<<<<<< HEAD
 import logger.{LogLevel, Logger}
 import logger.LogLevel.Debug
 
+=======
+import firrtl.stage.TransformManager
+import firrtl.options.Dependency
+
+import FirrtlCheckers._
+>>>>>>> 7ddbdc36... Make InlineInstances invalidate ResolveKinds
 
 /**
  * Tests inline instances transformation
@@ -545,6 +556,28 @@ class InlineInstancesTests extends LowTransformSpec {
          DummyAnno(top.instOf("i_bar", "NestedNoInline").ref("foo_b"))
        )
      )
+  }
+
+  "InlineInstances" should "properly invalidate ResolveKinds" in {
+    val input =
+      """circuit Top :
+        |  module Top :
+        |    input a : UInt<32>
+        |    output b : UInt<32>
+        |    inst i of Inline
+        |    i.a <= a
+        |    b <= i.b
+        |  module Inline :
+        |    input a : UInt<32>
+        |    output b : UInt<32>
+        |    b <= a""".stripMargin
+
+    val state = CircuitState(parse(input), ChirrtlForm, Seq(inline("Inline")))
+    val manager = new TransformManager(Seq(Dependency[InlineInstances], Dependency(ResolveKinds)))
+    val result = manager.execute(state)
+
+    result shouldNot containTree { case WRef("i_a", _, PortKind, _) => true }
+    result should    containTree { case WRef("i_a", _, WireKind, _) => true }
   }
 }
 
