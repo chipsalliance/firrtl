@@ -21,7 +21,9 @@ object ResolveKinds extends Pass with PreservesAll[Transform] {
   }
 
   def resolve_expr(kinds: KindMap)(e: Expression): Expression = e match {
-    case ex: WRef => ex copy (kind = kinds(ex.name))
+    case ex: WRef =>
+      val kindx = kinds(ex.name)
+      if (ex.kind == kindx) ex else ex.copy(kind = kindx)
     case _ => e map resolve_expr(kinds)
   }
 
