@@ -192,3 +192,11 @@ lazy val firrtl = (project in file("."))
   .settings(publishSettings)
   .settings(docSettings)
   .settings(mimaSettings)
+
+lazy val benchmark = (project in file("benchmark"))
+  .dependsOn(firrtl)
+  .settings(
+    assemblyJarName in assembly := "firrtl-benchmark.jar",
+    test in assembly := {},
+    assemblyOutputPath in assembly := file("./utils/bin/firrtl-benchmark.jar")
+  )
