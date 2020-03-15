@@ -38,33 +38,36 @@ object InlineNotsTransform {
     * @return Returns expr with Nots inlined
     */
   def onExpr(netlist: Netlist, lhs_tpe: Type)(expr: Expression): Expression = {
-    expr.map(onExpr(netlist, lhs_tpe)) match {
-      case e @ WRef(name, _,_,_) =>
-        netlist.get(we(e))
-               .filter(isNot)
-               .filter(_.tpe == lhs_tpe)
-               .getOrElse(e)
-      // replace bits-of-not with not-of-bits to enable later bit extraction transform
-      case lhs @ DoPrim(op, Seq(lval), lcons, ltpe) if isBitExtract(lhs) && isSimpleExpr(lval) =>
-        netlist.getOrElse(we(lval), lval) match {
-          case DoPrim(Not, Seq(rhs), rcons, rtpe) if (ltpe == rtpe) =>
-            DoPrim(Not, Seq(DoPrim(op, Seq(rhs), lcons, ltpe)), rcons, ltpe)
-          case _ => lhs  // Not a candiate
+    if (expr.tpe != lhs_tpe)  // do not recurse into children whose type does not match that of their parent
+      expr
+    else
+      expr.map(onExpr(netlist, lhs_tpe)) match {
+        case e @ WRef(name, _,_,_) =>
+          netlist.get(we(e))
+                 .filter(isNot)
+                 .filter(_.tpe == lhs_tpe)
+                 .getOrElse(e)
+        // replace bits-of-not with not-of-bits to enable later bit extraction transform
+        case lhs @ DoPrim(op, Seq(lval), lcons, ltpe) if isBitExtract(lhs) && isSimpleExpr(lval) && (ltpe == lhs_tpe) =>
+          netlist.getOrElse(we(lval), lval) match {
+            case DoPrim(Not, Seq(rhs), rcons, rtpe) if (ltpe == rtpe) =>
+              DoPrim(Not, Seq(DoPrim(op, Seq(rhs), lcons, ltpe)), rcons, ltpe)
+            case _ => lhs  // Not a candiate
+          }
+        // replace back-to-back inversions with a straight rename
+        case lhs @ DoPrim(Not, Seq(inv), _, invtpe) if isSimpleExpr(lhs) && isSimpleExpr(inv) && (lhs.tpe == invtpe) && (lhs.tpe == inv.tpe) && (lhs.tpe == lhs_tpe) =>
+          netlist.getOrElse(we(inv), inv) match {
+            case DoPrim(Not, Seq(rhs), _, rtpe) if (invtpe == rtpe) && (inv.tpe == rhs.tpe) =>
+              DoPrim(Bits, Seq(rhs), Seq(bitWidth(lhs.tpe)-1,0), rtpe)
+            case _ => lhs  // Not a candiate
+          }
+        // replace "mux = ~sel ? b : a" with "mux = sel ? a : b"
+        case mux @ Mux(cond, tval, fval, tpe) => cond match {
+          case DoPrim(Not, Seq(sel), _, cond_tpe) if (tpe == lhs_tpe) && (sel.tpe == cond_tpe) => Mux(sel, fval, tval, tpe)
+          case _ => mux  // Not a candiate
         }
-      // replace back-to-back inversions with a straight rename
-      case lhs @ DoPrim(Not, Seq(inv), _, invtpe) if isSimpleExpr(lhs) && isSimpleExpr(inv) && (lhs.tpe == invtpe) && (lhs.tpe == inv.tpe) =>
-        netlist.getOrElse(we(inv), inv) match {
-          case DoPrim(Not, Seq(rhs), _, rtpe) if (invtpe == rtpe) && (inv.tpe == rhs.tpe) =>
-            DoPrim(Bits, Seq(rhs), Seq(bitWidth(lhs.tpe)-1,0), rtpe)
-          case _ => lhs  // Not a candiate
-        }
-      // replace "mux = ~sel ? b : a" with "mux = sel ? a : b"
-      case mux @ Mux(cond, tval, fval, tpe) => cond match {
-        case DoPrim(Not, Seq(sel), _, cond_tpe) if (sel.tpe == cond_tpe) => Mux(sel, fval, tval, tpe)
-        case _ => mux  // Not a candiate
+        case other => other // Not a candidate
       }
-      case other => other // Not a candidate
-    }
   }
 
   /** Inline nots in a Statement
