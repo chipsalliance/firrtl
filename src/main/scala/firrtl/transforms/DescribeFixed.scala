@@ -18,8 +18,8 @@ class DescribeFixed extends Transform with PreservesAll[Transform] {
 
   override val dependents = Seq(Dependency(passes.ConvertFixedToSInt))
 
-  private def onModule(cir: CircuitName)(m: DefModule): Seq[DescriptionAnnotation] = {
-    val mod = ModuleName(m.name, cir)
+  private def onModule(cir: CircuitTarget)(m: DefModule): Seq[DescriptionAnnotation] = {
+    val mod = ModuleTarget(circuit = cir.circuit, module = m.name)
     var descs = Seq[DescriptionAnnotation]()
     def onType(n: Target)(tpe: Type): Type = {
       tpe match {
@@ -33,12 +33,12 @@ class DescribeFixed extends Transform with PreservesAll[Transform] {
     def onStmt(s: Statement): Unit = s match {
       case b: Block => b.foreachStmt(onStmt)
       case ns: Statement with IsDeclaration =>
-        val comp = ComponentName(ns.name, mod)
+        val comp = ReferenceTarget(mod.circuit, mod.module, Nil, ns.name, Nil)
         ns.mapType(onType(comp))
       case _ =>
     }
     def onPort(p: Port): Unit = {
-      val comp = ComponentName(p.name, mod)
+      val comp = ReferenceTarget(mod.circuit, mod.module, Nil, p.name, Nil)
       onType(comp)(p.tpe)
     }
     m.foreachStmt(onStmt)
@@ -47,7 +47,7 @@ class DescribeFixed extends Transform with PreservesAll[Transform] {
   }
 
   def execute(state: CircuitState): CircuitState = {
-    val descriptions = state.circuit.modules.flatMap(onModule(CircuitName(state.circuit.main)))
+    val descriptions = state.circuit.modules.flatMap(onModule(CircuitTarget(state.circuit.main)))
     state.copy(annotations = state.annotations ++ descriptions)
   }
 }
