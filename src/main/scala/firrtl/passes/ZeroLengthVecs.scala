@@ -22,29 +22,19 @@ object ZeroLengthVecs extends Pass with PreservesAll[Transform] {
          Dependency(InferTypes),
          Dependency(ExpandConnects) )
 
-  // Represents the results of a subaccess of a zero-length Vector
-  private case class DontCareAggregate(tpe: AggregateType) extends Expression {
-    def serialize: String = "DONTCARE"
-    def mapExpr(f: Expression => Expression): Expression = this
-    def mapType(f: Type => Type): Expression = this
-    def mapWidth(f: Width => Width): Expression = this
-    def foreachExpr(f: Expression => Unit): Unit = Unit
-    def foreachType(f: Type => Unit): Unit = Unit
-    def foreachWidth(f: Width => Unit): Unit = Unit
-  }
-
   // Pass in an expression, not just a type, since it's not possible to generate an expression of
   // interval type with the type alone unless you declare a component
-  // Big-picture TODO: zero for don't care is bad -- change this here when repo-wide refactor happens
-  private def replaceWithDontCare(toReplace: Expression): Expression = toReplace.tpe match {
-    case UIntType(w) => UIntLiteral(0, w)
-    case SIntType(w) => SIntLiteral(0, w)
-    case FixedType(w, p) => FixedLiteral(0, w, p)
-    case at: AggregateType => DontCareAggregate(at)
-    case it: IntervalType =>
-      val zeroType = IntervalType(Closed(0), Closed(0), IntWidth(0))
-      val zeroLit = DoPrim(AsInterval, Seq(SIntLiteral(0)), Seq(0, 0, 0), zeroType)
-      DoPrim(Clip, Seq(zeroLit, toReplace), Nil, it)
+  private def replaceWithDontCare(toReplace: Expression): Expression = {
+    val default = toReplace.tpe match {
+      case UIntType(w) => UIntLiteral(0, w)
+      case SIntType(w) => SIntLiteral(0, w)
+      case FixedType(w, p) => FixedLiteral(0, w, p)
+      case it: IntervalType =>
+        val zeroType = IntervalType(Closed(0), Closed(0), IntWidth(0))
+        val zeroLit = DoPrim(AsInterval, Seq(SIntLiteral(0)), Seq(0, 0, 0), zeroType)
+        DoPrim(Clip, Seq(zeroLit, toReplace), Nil, it)
+    }
+    ValidIf(UIntLiteral(0), default, toReplace.tpe)
   }
 
   private def zeroLenDerivedRefLike(expr: Expression): Boolean = (expr, expr.tpe) match {

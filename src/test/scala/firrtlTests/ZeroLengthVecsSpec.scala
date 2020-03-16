@@ -39,7 +39,7 @@ class ZeroLengthVecsSpec extends FirrtlFlatSpec {
         |    output foo : UInt<1>[0]
         |    output o : UInt<8>
         |    skip
-        |    o <= UInt<8>(0)
+        |    o <= validif(UInt<1>(0), UInt<8>(0))
         |""".stripMargin
     (parse(exec(input))) should be (parse(check))
   }
@@ -59,7 +59,7 @@ class ZeroLengthVecsSpec extends FirrtlFlatSpec {
         |    input i : Interval[3,4].0[0]
         |    input sel : UInt<1>
         |    output o : Interval[3,4].0
-        |    o <= clip(asInterval(SInt<1>(0), 0, 0, 0), i[sel])
+        |    o <= validif(UInt<1>(0), clip(asInterval(SInt<1>(0), 0, 0, 0), i[sel]))
         |""".stripMargin
     (parse(exec(input))) should be (parse(check))
   }
