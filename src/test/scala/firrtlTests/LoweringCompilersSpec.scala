@@ -146,6 +146,7 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
   it should "replicate the old order" in {
     val tm = new TransformManager(Forms.Resolved, Forms.WorkingIR)
     val patches = Seq(
+      Add(14, Seq(Dependency.fromTransform(new firrtl.transforms.DescribeFixed))),
       Add(14, Seq(Dependency.fromTransform(firrtl.passes.CheckTypes)))
     )
     compare(legacyTransforms(new ResolveAndCheck), tm, patches)
