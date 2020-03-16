@@ -5,13 +5,18 @@ package firrtl.transforms
 import firrtl._
 import firrtl.annotations._
 import firrtl.ir._
+import firrtl.options.{Dependency, PreservesAll}
 
 /**
  * Adds description to fixed point nodes giving its width and binary point
  */
-object DescribeFixed extends Transform {
-  def inputForm = MidForm
-  def outputForm = MidForm
+class DescribeFixed extends Transform with PreservesAll[Transform] {
+  def inputForm = UnknownForm
+  def outputForm = UnknownForm
+
+  override val prerequisites = Seq(Dependency[passes.InferBinaryPoints])
+
+  override val dependents = Seq(Dependency(passes.ConvertFixedToSInt))
 
   private def onModule(cir: CircuitName)(m: DefModule): Seq[DescriptionAnnotation] = {
     val mod = ModuleName(m.name, cir)
