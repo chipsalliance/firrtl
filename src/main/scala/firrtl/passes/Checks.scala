@@ -9,8 +9,9 @@ import firrtl.Utils._
 import firrtl.traversals.Foreachers._
 import firrtl.WrappedType._
 import firrtl.constraint.{Constraint, IsKnown}
+import firrtl.options.{Dependency, PreservesAll}
 
-trait CheckHighFormLike {
+trait CheckHighFormLike { this: Pass =>
   type NameSet = collection.mutable.HashSet[String]
 
   // Custom Exceptions
@@ -32,6 +33,10 @@ trait CheckHighFormLike {
     s"$info: [module $mname] Register $name cannot be a bundle type with flips.")
   class InvalidAccessException(info: Info, mname: String) extends PassException(
     s"$info: [module $mname] Invalid access to non-reference.")
+  class ModuleNameNotUniqueException(info: Info, mname: String) extends PassException(
+    s"$info: Repeat definition of module $mname")
+  class DefnameConflictException(info: Info, mname: String, defname: String) extends PassException(
+    s"$info: defname $defname of extmodule $mname conflicts with an existing module")
   class ModuleNotDefinedException(info: Info, mname: String, name: String) extends PassException(
     s"$info: Module $name is not defined.")
   class IncorrectNumArgsException(info: Info, mname: String, op: String, n: Int) extends PassException(
@@ -39,7 +44,7 @@ trait CheckHighFormLike {
   class IncorrectNumConstsException(info: Info, mname: String, op: String, n: Int) extends PassException(
     s"$info: [module $mname] Primop $op requires $n integer arguments.")
   class NegWidthException(info: Info, mname: String) extends PassException(
-    s"$info: [module $mname] Width cannot be negative or zero.")
+    s"$info: [module $mname] Width cannot be negative.")
   class NegVecSizeException(info: Info, mname: String) extends PassException(
     s"$info: [module $mname] Vector type size cannot be negative.")
   class NegMemSizeException(info: Info, mname: String) extends PassException(
@@ -54,9 +59,9 @@ trait CheckHighFormLike {
     s"$info: [module $mname] Has instance loop $loop")
   class NoTopModuleException(info: Info, name: String) extends PassException(
     s"$info: A single module must be named $name.")
-  class NegArgException(info: Info, mname: String, op: String, value: Int) extends PassException(
+  class NegArgException(info: Info, mname: String, op: String, value: BigInt) extends PassException(
     s"$info: [module $mname] Primop $op argument $value < 0.")
-  class LsbLargerThanMsbException(info: Info, mname: String, op: String, lsb: Int, msb: Int) extends PassException(
+  class LsbLargerThanMsbException(info: Info, mname: String, op: String, lsb: BigInt, msb: BigInt) extends PassException(
     s"$info: [module $mname] Primop $op lsb $lsb > $msb.")
   class ResetInputException(info: Info, mname: String, expr: Expression) extends PassException(
     s"$info: [module $mname] Abstract Reset not allowed as top-level input: ${expr.serialize}")
@@ -72,6 +77,17 @@ trait CheckHighFormLike {
     val moduleGraph = new ModuleGraph
     val moduleNames = (c.modules map (_.name)).toSet
 
+    val intModuleNames = c.modules.view.collect({ case m: Module => m.name }).toSet
+
+    c.modules.view.groupBy(_.name).filter(_._2.length > 1).flatMap(_._2).foreach {
+      m => errors.append(new ModuleNameNotUniqueException(m.info, m.name))
+    }
+
+    c.modules.collect {
+      case ExtModule(info, name, _, defname, _) if (intModuleNames.contains(defname)) =>
+        errors.append(new DefnameConflictException(info, name, defname))
+    }
+
     def checkHighFormPrimop(info: Info, mname: String, e: DoPrim): Unit = {
       def correctNum(ne: Option[Int], nc: Int): Unit = {
         ne match {
@@ -83,24 +99,31 @@ trait CheckHighFormLike {
           errors.append(new IncorrectNumConstsException(info, mname, e.op.toString, nc))
       }
 
+      def nonNegativeConsts(): Unit = {
+        e.consts.filter(_ < 0).foreach {
+          negC => errors.append(new NegArgException(info, mname, e.op.toString, negC))
+        }
+      }
+
       e.op match {
         case Add | Sub | Mul | Div | Rem | Lt | Leq | Gt | Geq |
              Eq | Neq | Dshl | Dshr | And | Or | Xor | Cat | Dshlw | Clip | Wrap | Squeeze =>
           correctNum(Option(2), 0)
         case AsUInt | AsSInt | AsClock | AsAsyncReset | Cvt | Neq | Not =>
           correctNum(Option(1), 0)
-        case AsFixedPoint | Pad | Head | Tail | IncP | DecP | SetP =>
+        case AsFixedPoint | SetP =>
           correctNum(Option(1), 1)
-        case Shl | Shr =>
+        case Shl | Shr | Pad | Head | Tail | IncP | DecP =>
           correctNum(Option(1), 1)
-          val amount = e.consts.map(_.toInt).filter(_ < 0).foreach {
-            c => errors.append(new NegArgException(info, mname, e.op.toString, c))
-          }
+          nonNegativeConsts()
         case Bits =>
           correctNum(Option(1), 2)
-          val (msb, lsb) = (e.consts(0).toInt, e.consts(1).toInt)
-          if (lsb > msb) {
-            errors.append(new LsbLargerThanMsbException(info, mname, e.op.toString, lsb, msb))
+          nonNegativeConsts()
+          if (e.consts.length == 2) {
+            val (msb, lsb) = (e.consts(0), e.consts(1))
+            if (lsb > msb) {
+              errors.append(new LsbLargerThanMsbException(info, mname, e.op.toString, lsb, msb))
+            }
           }
         case AsInterval =>
           correctNum(Option(1), 3)
@@ -261,7 +284,18 @@ trait CheckHighFormLike {
   }
 }
 
-object CheckHighForm extends Pass with CheckHighFormLike {
+object CheckHighForm extends Pass with CheckHighFormLike with PreservesAll[Transform] {
+
+  override val prerequisites = firrtl.stage.Forms.WorkingIR
+
+  override val dependents =
+    Seq( Dependency(passes.ResolveKinds),
+         Dependency(passes.InferTypes),
+         Dependency(passes.Uniquify),
+         Dependency(passes.ResolveFlows),
+         Dependency[passes.InferWidths],
+         Dependency[transforms.InferResets] )
+
   class IllegalChirrtlMemException(info: Info, mname: String, name: String) extends PassException(
     s"$info: [module $mname] Memory $name has not been properly lowered from Chirrtl IR.")
 
@@ -273,7 +307,17 @@ object CheckHighForm extends Pass with CheckHighFormLike {
     Some(new IllegalChirrtlMemException(info, mname, memName))
   }
 }
-object CheckTypes extends Pass {
+
+object CheckTypes extends Pass with PreservesAll[Transform] {
+
+  override val prerequisites = Dependency(InferTypes) +: firrtl.stage.Forms.WorkingIR
+
+  override val dependents =
+    Seq( Dependency(passes.Uniquify),
+         Dependency(passes.ResolveFlows),
+         Dependency(passes.CheckFlows),
+         Dependency[passes.InferWidths],
+         Dependency(passes.CheckWidths) )
 
   // Custom Exceptions
   class SubfieldNotInBundle(info: Info, mname: String, name: String) extends PassException(
@@ -579,7 +623,16 @@ object CheckTypes extends Pass {
   }
 }
 
-object CheckFlows extends Pass {
+object CheckFlows extends Pass with PreservesAll[Transform] {
+
+  override val prerequisites = Dependency(passes.ResolveFlows) +: firrtl.stage.Forms.WorkingIR
+
+  override val dependents =
+    Seq( Dependency[passes.InferBinaryPoints],
+         Dependency[passes.TrimIntervals],
+         Dependency[passes.InferWidths],
+         Dependency[transforms.InferResets] )
+
   type FlowMap = collection.mutable.HashMap[String, Flow]
 
   implicit def toStr(g: Flow): String = g match {
