@@ -13,7 +13,7 @@ import firrtl.options.{Dependency, PreservesAll}
   * @note Removes assignments that use a zero-length vector as a sink
   * @note Removes signals resulting from accesses to a zero-length vector from attach groups
   * @note Removes attaches that become degenerate after zero-length-accessor removal
-  * @note Replaces "source" references to elements of zero-length vectors with zero
+  * @note Replaces "source" references to elements of zero-length vectors with always-invalid validif
   */
 object ZeroLengthVecs extends Pass with PreservesAll[Transform] {
   override val prerequisites =
