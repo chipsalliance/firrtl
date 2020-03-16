@@ -159,10 +159,10 @@ class InferWidthsWithAnnosSpec extends FirrtlFlatSpec {
       new WiringTransform,
       new ResolveAndCheck
     )
-    val sourceTarget = ComponentName("bundle", ModuleName("A", CircuitName("Top")))
+    val sourceTarget = ComponentName("bundle", ModuleName("A", CircuitName("Top"))).toTarget
     val source = SourceAnnotation(sourceTarget, "pin")
 
-    val sinkTarget = ComponentName("bundle", ModuleName("B", CircuitName("Top")))
+    val sinkTarget = ComponentName("bundle", ModuleName("B", CircuitName("Top"))).toTarget
     val sink = SinkAnnotation(sinkTarget, "pin")
 
     val tokenLists = Seq(

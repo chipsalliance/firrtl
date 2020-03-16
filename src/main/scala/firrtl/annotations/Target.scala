@@ -165,25 +165,31 @@ object Target {
 
   /** @return [[Target]] from human-readable serialization */
   def deserialize(s: String): Target = {
-    val regex = """(?=[~|>/:.\[@])"""
-    s.split(regex).foldLeft(GenericTarget(None, None, Vector.empty)) { (t, tokenString) =>
-      val value = tokenString.tail
-      tokenString(0) match {
-        case '~' if t.circuitOpt.isEmpty && t.moduleOpt.isEmpty && t.tokens.isEmpty =>
-          if(value == "???") t else t.copy(circuitOpt = Some(value))
-        case '|' if t.moduleOpt.isEmpty && t.tokens.isEmpty =>
-          if(value == "???") t else t.copy(moduleOpt = Some(value))
-        case '/' => t.add(Instance(value))
-        case ':' => t.add(OfModule(value))
-        case '>' => t.add(Ref(value))
-        case '.' => t.add(Field(value))
-        case '[' if value.dropRight(1).toInt >= 0 => t.add(Index(value.dropRight(1).toInt))
-        case '@' if value == "clock" => t.add(Clock)
-        case '@' if value == "init" => t.add(Init)
-        case '@' if value == "reset" => t.add(Reset)
-        case other => throw NamedException(s"Cannot deserialize Target: $s")
-      }
-    }.tryToComplete
+    // Accept the old Named form (backwards compatibility)
+    if (s(0) == '~') {
+      val regex = """(?=[~|>/:.\[@])"""
+      s.split(regex).foldLeft(GenericTarget(None, None, Vector.empty)) { (t, tokenString) =>
+        val value = tokenString.tail
+        tokenString(0) match {
+          case '~' if t.circuitOpt.isEmpty && t.moduleOpt.isEmpty && t.tokens.isEmpty =>
+            if(value == "???") t else t.copy(circuitOpt = Some(value))
+          case '|' if t.moduleOpt.isEmpty && t.tokens.isEmpty =>
+            if(value == "???") t else t.copy(moduleOpt = Some(value))
+          case '/' => t.add(Instance(value))
+          case ':' => t.add(OfModule(value))
+          case '>' => t.add(Ref(value))
+          case '.' => t.add(Field(value))
+          case '[' if value.dropRight(1).toInt >= 0 => t.add(Index(value.dropRight(1).toInt))
+          case '@' if value == "clock" => t.add(Clock)
+          case '@' if value == "init" => t.add(Init)
+          case '@' if value == "reset" => t.add(Reset)
+          case other => throw NamedException(s"Cannot deserialize Target: $s")
+        }
+      }.tryToComplete
+    } else {
+      // Accept the old Named form (backwards compatibility)
+      AnnotationUtils.toNamed(s).toTarget
+    }
   }
 
   /** Returns the module that a [[Target]] "refers" to.
@@ -564,9 +570,14 @@ case class ReferenceTarget(circuit: String,
                            ref: String,
                            component: Seq[TargetToken]) extends IsComponent {
 
-  /** @param value Index value of this target
-    * @return A new [[ReferenceTarget]] to the specified index of this [[ReferenceTarget]]
+  /** This constructor is purely for compatibility with ComponentName and should be eliminated once conversion
+    *  from *Name to *Target is complete
+    * @param module - the name of the module
+    * @param circuit - the name of the circuit.
     */
+  def this(module: String, circuit: String) = {
+    this(circuit, module, Nil, "???", Nil)
+  }
   def index(value: Int): ReferenceTarget = ReferenceTarget(circuit, module, path, ref, component :+ Index(value))
 
   /** @param value Field name of this target
@@ -583,7 +594,7 @@ case class ReferenceTarget(circuit: String,
   /** @return The clock signal of this reference, must be to a [[firrtl.ir.DefRegister]] */
   def clock: ReferenceTarget = ReferenceTarget(circuit, module, path, ref, component :+ Clock)
 
-  /** @param the type of this target's ref
+  /** @param baseType the type of this target's ref
     * @return the type of the subcomponent specified by this target's component
     */
   def componentType(baseType: Type): Type = componentType(baseType, tokens)
@@ -690,7 +701,12 @@ case class InstanceTarget(circuit: String,
     InstanceTarget(newPath.circuit, newPath.module, newPath.asPath, instance, ofModule)
 }
 
-
+object ReferenceTarget {
+  def apply(module: String, circuit: String): ReferenceTarget = ReferenceTarget(circuit, module, Nil, "???", Nil)
+//  def unapply(rt: ReferenceTarget): Option[(String, )] = {
+//
+//  }
+}
 /** Named classes associate an annotation with a component in a Firrtl circuit */
 @deprecated("Use Target instead, will be removed in 1.3", "1.2")
 sealed trait Named {

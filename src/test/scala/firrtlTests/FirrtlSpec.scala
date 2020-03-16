@@ -157,12 +157,15 @@ trait FirrtlMatchers extends Matchers {
   def dontTouch(path: String): Annotation = {
     val parts = path.split('.')
     require(parts.size >= 2, "Must specify both module and component!")
-    val name = ComponentName(parts.tail.mkString("."), ModuleName(parts.head, CircuitName("Top")))
-    DontTouchAnnotation(name)
+//    val name = ComponentName(parts.tail.mkString("."), ModuleName(parts.head, CircuitName("Top")))
+    val moduleName = parts.head
+    val componentName = parts.tail.mkString(".")
+    val target = ReferenceTarget("Top", moduleName, Nil, componentName, Nil)
+    DontTouchAnnotation(target)
   }
   def dontDedup(mod: String): Annotation = {
     require(mod.split('.').size == 1, "Can only specify a Module, not a component or instance")
-    NoDedupAnnotation(ModuleName(mod, CircuitName("Top")))
+    NoDedupAnnotation(ModuleTarget("Top", mod))
   }
   // Replace all whitespace with a single space and remove leading and
   //   trailing whitespace

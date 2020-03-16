@@ -17,14 +17,14 @@ import collection.mutable
 
 /** Annotation for optional output files, and what directory to put those files in (absolute path) **/
 case class TopWiringOutputFilesAnnotation(dirName: String,
-                                          outputFunction: (String,Seq[((ComponentName, Type, Boolean,
+                                          outputFunction: (String,Seq[((ReferenceTarget, Type, Boolean,
                                                                          Seq[String],String), Int)],
                                                            CircuitState) => CircuitState) extends NoTargetAnnotation
 
 /** Annotation for indicating component to be wired, and what prefix to add to the ports that are generated */
-case class TopWiringAnnotation(target: ComponentName, prefix: String) extends
-    SingleTargetAnnotation[ComponentName] {
-  def duplicate(n: ComponentName) = this.copy(target = n)
+case class TopWiringAnnotation(target: ReferenceTarget, prefix: String) extends
+    SingleTargetAnnotation[ReferenceTarget] {
+  def duplicate(n: ReferenceTarget) = this.copy(target = n)
 }
 
 
@@ -40,7 +40,8 @@ class TopWiringTransform extends Transform {
   type InstPath = Seq[String]
 
   /** Get the names of the targets that need to be wired */
-  private def getSourceNames(state: CircuitState): Map[ComponentName, String] = {
+//  private def getSourceNames(state: CircuitState): Map[ComponentName, String] = {
+  private def getSourceNames(state: CircuitState): Map[ReferenceTarget, String] = {
     state.annotations.collect { case TopWiringAnnotation(srcname,prefix) =>
                                   (srcname -> prefix) }.toMap.withDefaultValue("")
   }
@@ -48,7 +49,8 @@ class TopWiringTransform extends Transform {
 
   /** Get the names of the modules which include the  targets that need to be wired */
   private def getSourceModNames(state: CircuitState): Seq[String] = {
-    state.annotations.collect { case TopWiringAnnotation(ComponentName(_,ModuleName(srcmodname, _)),_) => srcmodname }
+//    state.annotations.collect { case TopWiringAnnotation(ComponentName(_,ModuleName(srcmodname, _)),_) => srcmodname }
+    state.annotations.collect { case TopWiringAnnotation(ReferenceTarget(srcmodname, _, _, _, _),_) => srcmodname }
   }
 
 
@@ -58,12 +60,39 @@ class TopWiringTransform extends Transform {
     * Find the definition of each wire in sourceList, and get the type and whether or not it's a port
     * Update the results in sourceMap
     */
-  private def getSourceTypes(sourceList: Map[ComponentName, String],
-                     sourceMap: mutable.Map[String, Seq[(ComponentName, Type, Boolean, InstPath, String)]],
-                     currentmodule: ModuleName, state: CircuitState)(s: Statement): Statement = s match {
+//  private def getSourceTypes(sourceList: Map[ComponentName, String],
+//                     sourceMap: mutable.Map[String, Seq[(ComponentName, Type, Boolean, InstPath, String)]],
+//                     currentmodule: ModuleName, state: CircuitState)(s: Statement): Statement = s match {
+//    // If target wire, add name and size to to sourceMap
+//    case w: IsDeclaration =>
+//      if (sourceList.keys.toSeq.contains(ComponentName(w.name, currentmodule))) {
+//          val (isport, tpe, prefix) = w match {
+//            case d: DefWire => (false, d.tpe, sourceList(ComponentName(w.name,currentmodule)))
+//            case d: DefNode => (false, d.value.tpe, sourceList(ComponentName(w.name,currentmodule)))
+//            case d: DefRegister => (false, d.tpe, sourceList(ComponentName(w.name,currentmodule)))
+//            case d: Port => (true, d.tpe, sourceList(ComponentName(w.name,currentmodule)))
+//            case _ => throw new Exception(s"Cannot wire this type of declaration! ${w.serialize}")
+//          }
+//          val name = w.name
+//          sourceMap.get(currentmodule.name) match {
+//            case Some(xs:Seq[(ComponentName, Type, Boolean, InstPath, String)]) =>
+//              sourceMap.update(currentmodule.name, xs :+
+//                 (ComponentName(w.name,currentmodule), tpe, isport ,Seq[String](w.name), prefix))
+//            case None =>
+//              sourceMap(currentmodule.name) = Seq((ComponentName(w.name,currentmodule),
+//                                                   tpe, isport ,Seq[String](w.name), prefix))
+//          }
+//      }
+//      w // Return argument unchanged (ok because DefWire has no Statement children)
+//    // If not, apply to all children Statement
+//    case _ => s map getSourceTypes(sourceList, sourceMap, currentmodule, state)
+//  }
+  private def getSourceTypes(sourceList: Map[ReferenceTarget, String],
+                             sourceMap: mutable.Map[String, Seq[(ReferenceTarget, Type, Boolean, InstPath, String)]],
+                             currentmodule: ModuleTarget, state: CircuitState)(s: Statement): Statement = s match {
     // If target wire, add name and size to to sourceMap
     case w: IsDeclaration =>
-      if (sourceList.keys.toSeq.contains(ComponentName(w.name, currentmodule))) {
+      if (sourceList.keys.toSeq.contains(ComponentName(w.name, currentmodule).toTarget)) {
           val (isport, tpe, prefix) = w match {
             case d: DefWire => (false, d.tpe, sourceList(ComponentName(w.name,currentmodule)))
             case d: DefNode => (false, d.value.tpe, sourceList(ComponentName(w.name,currentmodule)))
@@ -72,9 +101,9 @@ class TopWiringTransform extends Transform {
             case _ => throw new Exception(s"Cannot wire this type of declaration! ${w.serialize}")
           }
           sourceMap.get(currentmodule.name) match {
-            case Some(xs:Seq[(ComponentName, Type, Boolean, InstPath, String)]) =>
+            case Some(xs:Seq[(ReferenceTarget, Type, Boolean, InstPath, String)]) =>
               sourceMap.update(currentmodule.name, xs :+(
-                 (ComponentName(w.name,currentmodule), tpe, isport ,Seq[String](w.name), prefix) ))
+                 (ComponentName(w.name,currentmodule).toTarget, tpe, isport ,Seq[String](w.name), prefix) ))
             case None =>
               sourceMap(currentmodule.name) = Seq((ComponentName(w.name,currentmodule),
                                                    tpe, isport ,Seq[String](w.name), prefix))
@@ -93,22 +122,22 @@ class TopWiringTransform extends Transform {
     * Find the definition of each port in sourceList, and get the type and whether or not it's a port
     * Update the results in sourceMap
     */
-  private def getSourceTypesPorts(sourceList: Map[ComponentName, String], sourceMap: mutable.Map[String,
-                          Seq[(ComponentName, Type, Boolean, InstPath, String)]],
-                          currentmodule: ModuleName, state: CircuitState)(s: Port): CircuitState = s match {
+  private def getSourceTypesPorts(sourceList: Map[ReferenceTarget, String], sourceMap: mutable.Map[String,
+                          Seq[(ReferenceTarget, Type, Boolean, InstPath, String)]],
+                          currentmodule: ModuleTarget, state: CircuitState)(s: Port): CircuitState = s match {
     // If target port, add name and size to to sourceMap
     case w: IsDeclaration =>
-      if (sourceList.keys.toSeq.contains(ComponentName(w.name, currentmodule))) {
+      if (sourceList.keys.toSeq.contains(ComponentName(w.name, currentmodule).toTarget)) {
           val (isport, tpe, prefix) = w match {
             case d: Port => (true, d.tpe, sourceList(ComponentName(w.name,currentmodule)))
             case _ => throw new Exception(s"Cannot wire this type of declaration! ${w.serialize}")
           }
           sourceMap.get(currentmodule.name) match {
-            case Some(xs:Seq[(ComponentName, Type, Boolean, InstPath, String)]) =>
+            case Some(xs:Seq[(ReferenceTarget, Type, Boolean, InstPath, String)]) =>
                 sourceMap.update(currentmodule.name, xs :+(
-                  (ComponentName(w.name,currentmodule), tpe, isport ,Seq[String](w.name), prefix) ))
+                  (ComponentName(w.name,currentmodule).toTarget, tpe, isport ,Seq[String](w.name), prefix) ))
             case None =>
-                sourceMap(currentmodule.name) = Seq((ComponentName(w.name,currentmodule),
+                sourceMap(currentmodule.name) = Seq((ComponentName(w.name,currentmodule).toTarget,
                                                      tpe, isport ,Seq[String](w.name), prefix))
           }
       }
@@ -122,7 +151,7 @@ class TopWiringTransform extends Transform {
     *
     * These paths are relative but cross module (they refer down through instance hierarchy)
     */
-  private def getSourcesMap(state: CircuitState): Map[String,Seq[(ComponentName, Type, Boolean, InstPath, String)]] = {
+  private def getSourcesMap(state: CircuitState): Map[String,Seq[(ReferenceTarget, Type, Boolean, InstPath, String)]] = {
     val sSourcesModNames = getSourceModNames(state)
     val sSourcesNames = getSourceNames(state)
     val instGraph = new firrtl.analyses.InstanceGraph(state.circuit)
@@ -131,17 +160,17 @@ class TopWiringTransform extends Transform {
     val topSort = instGraph.moduleOrder.reverse
 
     // Map of component name to relative instance paths that result in a debug wire
-    val sourcemods: mutable.Map[String, Seq[(ComponentName, Type, Boolean, InstPath, String)]] =
+    val sourcemods: mutable.Map[String, Seq[(ReferenceTarget, Type, Boolean, InstPath, String)]] =
       mutable.Map(sSourcesModNames.map(_ -> Seq()): _*)
 
     state.circuit.modules.foreach { m => m map
-      getSourceTypes(sSourcesNames, sourcemods, ModuleName(m.name, CircuitName(state.circuit.main)) , state) }
+      getSourceTypes(sSourcesNames, sourcemods, ModuleTarget(state.circuit.main, m.name) , state) }
     state.circuit.modules.foreach { m => m.ports.foreach {
        p => Seq(p) map
-          getSourceTypesPorts(sSourcesNames, sourcemods, ModuleName(m.name, CircuitName(state.circuit.main)) , state) }}
+          getSourceTypesPorts(sSourcesNames, sourcemods, ModuleTarget(state.circuit.main, m.name) , state) }}
 
     for (mod <- topSort) {
-      val seqChildren: Seq[(ComponentName,Type,Boolean,InstPath,String)] = cMap(mod.name).flatMap {
+      val seqChildren: Seq[(ReferenceTarget,Type,Boolean,InstPath,String)] = cMap(mod.name).flatMap {
         case (inst, module) =>
           sourcemods.get(module).map( _.map { case (a,b,c,path,p) => (a,b,c, inst +: path, p)})
       }.flatten
@@ -161,7 +190,7 @@ class TopWiringTransform extends Transform {
     * 1. Add ports for each target wire this module is parent to
     * 2. Connect these ports to ports of instances that are parents to some number of target wires
     */
-  private def onModule(sources: Map[String, Seq[(ComponentName, Type, Boolean, InstPath, String)]],
+  private def onModule(sources: Map[String, Seq[(ReferenceTarget, Type, Boolean, InstPath, String)]],
                        portnamesmap : mutable.Map[String,String],
                        instgraph : firrtl.analyses.InstanceGraph,
                        namespacemap : Map[String, Namespace])
@@ -169,7 +198,7 @@ class TopWiringTransform extends Transform {
     val namespace = namespacemap(module.name)
     sources.get(module.name) match {
       case Some(p) =>
-        val newPorts = p.map{ case (ComponentName(cname,_), tpe, _ , path, prefix) => {
+        val newPorts = p.map{ case (_, tpe, _ , path, prefix) => {
               val newportname = portnamesmap.get(prefix + path.mkString("_")) match {
                 case Some(pn) => pn
                  case None => {
@@ -184,7 +213,7 @@ class TopWiringTransform extends Transform {
         // Add connections to Module
         module match {
           case m: Module =>
-            val connections: Seq[Connect] = p.map { case (ComponentName(cname,_), _, _ , path, prefix) =>
+            val connections: Seq[Connect] = p.map { case (_, _, _ , path, prefix) =>
                 val modRef = portnamesmap.get(prefix + path.mkString("_")) match {
                        case Some(pn) => WRef(pn)
                        case None => {
@@ -248,7 +277,8 @@ class TopWiringTransform extends Transform {
   def execute(state: CircuitState): CircuitState = {
 
     val outputTuples: Seq[(String,
-                          (String,Seq[((ComponentName, Type, Boolean, InstPath, String), Int)],
+//                          (String,Seq[((ComponentName, Type, Boolean, InstPath, String), Int)],
+                            (String,Seq[((ReferenceTarget, Type, Boolean, InstPath, String), Int)],
                                         CircuitState) => CircuitState)] = state.annotations.collect {
          case TopWiringOutputFilesAnnotation(td,of) => (td, of) }
     // Do actual work of this transform

@@ -31,11 +31,11 @@ object MemoryLoadFileType {
   * @param hexOrBinary   use `\$readmemh` or `\$readmemb`
   */
 case class LoadMemoryAnnotation(
-  target: ComponentName,
+  target: IsComponent,
   fileName: String,
   hexOrBinary: MemoryLoadFileType = MemoryLoadFileType.Hex,
   originalMemoryNameOpt: Option[String] = None
-) extends SingleTargetAnnotation[Named] {
+) extends SingleTargetAnnotation[Target] {
 
   val (prefix, suffix) = {
     fileName.split("""\.""").toList match {
@@ -60,10 +60,12 @@ case class LoadMemoryAnnotation(
   def getSuffix: String = suffix
   def getFileName: String = getPrefix + getSuffix
 
-  def duplicate(newNamed: Named): LoadMemoryAnnotation = {
+  def duplicate(newNamed: Target): LoadMemoryAnnotation = {
     newNamed match {
-      case componentName: ComponentName =>
-        this.copy(target = componentName, originalMemoryNameOpt = Some(target.name))
+//      case componentName: ComponentName =>
+//        this.copy(target = componentName, originalMemoryNameOpt = Some(target.name))
+      case refTarget: ReferenceTarget =>
+        this.copy(target = refTarget, originalMemoryNameOpt = Some(target.name))
       case _ =>
         throw new Exception(s"Cannot annotate anything but a memory, invalid target ${newNamed.serialize}")
     }

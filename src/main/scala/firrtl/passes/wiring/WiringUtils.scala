@@ -112,7 +112,7 @@ object WiringUtils {
     * @return a map of sink instance names to source instance names
     * @throws WiringException if a sink is equidistant to two sources
     */
-  def sinksToSources(sinks: Seq[Named],
+  def sinksToSources(sinks: Seq[Target],
                      source: String,
                      i: InstanceGraph):
       Map[Seq[WDefInstance], Seq[WDefInstance]] = {
@@ -180,10 +180,10 @@ object WiringUtils {
   }
 
   /** Helper script to extract a module name from a named Module or Target */
-  def getModuleName(n: Named): String = {
+  def getModuleName(n: Target): String = {
     n match {
-      case ModuleName(m, _)                   => m
-      case ComponentName(_, ModuleName(m, _)) => m
+      case ModuleTarget(_, m)             => m
+      case ReferenceTarget(_, m, _, _, _) => m
       case _ => throw new WiringException(
         "Only Components or Modules have an associated Module name")
     }

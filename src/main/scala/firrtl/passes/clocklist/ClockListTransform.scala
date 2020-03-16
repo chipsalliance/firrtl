@@ -7,14 +7,15 @@ import firrtl._
 import annotations._
 import Utils.error
 import java.io.{PrintWriter, Writer}
+
 import Utils._
 import memlib._
 import firrtl.options.{RegisteredTransform, ShellOption}
 import firrtl.stage.RunFirrtlTransformAnnotation
 
-case class ClockListAnnotation(target: ModuleName, outputConfig: String) extends
-    SingleTargetAnnotation[ModuleName] {
-  def duplicate(n: ModuleName) = ClockListAnnotation(n, outputConfig)
+case class ClockListAnnotation(target: ModuleTarget, outputConfig: String) extends
+    SingleTargetAnnotation[ModuleTarget] {
+  def duplicate(n: ModuleTarget) = ClockListAnnotation(n, outputConfig)
 }
 
 object ClockListAnnotation {
@@ -69,7 +70,8 @@ class ClockListTransform extends Transform with RegisteredTransform {
   def execute(state: CircuitState): CircuitState = {
     val annos = state.annotations.collect { case a: ClockListAnnotation => a }
     annos match {
-      case Seq(ClockListAnnotation(ModuleName(top, CircuitName(state.circuit.main)), out)) =>
+//      case Seq(ClockListAnnotation(ModuleName(top, CircuitName(state.circuit.main)), out)) =>
+      case Seq(ClockListAnnotation(ModuleTarget(state.circuit.main, top), out)) =>
         val outputFile = new PrintWriter(out)
         val newC = (new ClockList(top, outputFile)).run(state.circuit)
         outputFile.close()

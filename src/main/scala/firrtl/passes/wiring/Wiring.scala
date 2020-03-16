@@ -12,10 +12,10 @@ import firrtl.analyses.InstanceGraph
 import WiringUtils._
 
 /** A data store of one sink--source wiring relationship */
-case class WiringInfo(source: ComponentName, sinks: Seq[Named], pin: String)
+case class WiringInfo(source: ReferenceTarget, sinks: Seq[Target], pin: String)
 
 /** A data store of wiring names */
-case class WiringNames(compName: String, source: String, sinks: Seq[Named],
+case class WiringNames(compName: String, source: String, sinks: Seq[Target],
                        pin: String)
 
 /** Pass that computes and applies a sequence of wiring modifications
@@ -34,8 +34,11 @@ class Wiring(wiSeq: Seq[WiringInfo]) extends Pass {
 
     val names = wiSeq
       .map ( wi => (wi.source, wi.sinks, wi.pin) match {
-              case (ComponentName(comp, ModuleName(source,_)), sinks, pin) =>
-                WiringNames(comp, source, sinks, pin) })
+              case (r: ReferenceTarget, sinks, pin) =>
+                /* FIXME: It would be better if we could replace this `toString`, and the subsequent `fromString`
+                    in WiringUtils.getType.toExp(comp) with something more strongly typed. */
+                val name = r.toNamed
+                WiringNames(name.name, r.module, sinks, pin) })
 
     val portNames = mutable.Seq.fill(names.size)(Map[String, String]())
     c.modules.foreach{ m =>
@@ -70,13 +73,13 @@ class Wiring(wiSeq: Seq[WiringInfo]) extends Pass {
                                    iGraph: InstanceGraph,
                                    compName: String,
                                    source: String,
-                                   sinks: Seq[Named],
+                                   sinks: Seq[Target],
                                    portNames: Map[String, String]):
       (Type, Map[String, Modifications]) = {
 
     val sourceComponentType = getType(c, source, compName)
     val sinkComponents: Map[String, Seq[String]] = sinks
-      .collect{ case ComponentName(c, ModuleName(m, _)) => (c, m) }
+      .collect{ case ReferenceTarget(_, m, _, c, _) => (c, m) }
       .foldLeft(new scala.collection.immutable.HashMap[String, Seq[String]]){
         case (a, (c, m)) => a ++ Map(m -> (Seq(c) ++ a.getOrElse(m, Nil)) ) }
 

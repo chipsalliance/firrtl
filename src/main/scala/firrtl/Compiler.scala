@@ -29,7 +29,7 @@ object AnnotationSeq {
   * @param circuit The current state of the Firrtl AST
   * @param form The current form of the circuit
   * @param annotations The current collection of [[firrtl.annotations.Annotation Annotation]]
-  * @param renames A map of [[firrtl.annotations.Named Named]] things that have been renamed.
+  * @param renames A map of [[firrtl.annotations.Target Target]] things that have been renamed.
   *   Generally only a return value from [[Transform]]s
   */
 case class CircuitState(

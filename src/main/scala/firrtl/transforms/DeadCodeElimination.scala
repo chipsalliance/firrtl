@@ -362,7 +362,8 @@ class DeadCodeElimination extends Transform with ResolvedAnnotationPaths with Re
       case o => Nil
     }
     val doTouchExtMods: Seq[String] = state.annotations.collect {
-      case OptimizableExtModuleAnnotation(ModuleName(name, _)) => name
+//      case OptimizableExtModuleAnnotation(ModuleName(name, _)) => name
+      case OptimizableExtModuleAnnotation(ModuleTarget(_, name)) => name
     }
     val noDCE = state.annotations.contains(NoDCEAnnotation)
     if (noDCE) {

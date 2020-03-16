@@ -37,7 +37,7 @@ class ClockList(top: String, writer: Writer) extends Pass {
     val onlyClockCircuit = RemoveAllButClocks.run(c)
 
     // Inline the clock-only circuit up to the specified top module
-    val modulesToInline = (c.modules.collect { case Module(_, n, _, _) if n != top => ModuleName(n, CircuitName(c.main)) }).toSet
+    val modulesToInline = (c.modules.collect { case Module(_, n, _, _) if n != top => ModuleTarget(c.main, n) }).toSet
     val inlineTransform = new InlineInstances{ override val inlineDelim = "$" }
     val inlinedCircuit = inlineTransform.run(onlyClockCircuit, modulesToInline, Set(), Seq()).circuit
     val topModule = inlinedCircuit.modules.find(_.name == top).getOrElse(throwInternalError("no top module"))

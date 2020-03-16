@@ -36,7 +36,7 @@ trait DontTouchAllTargets extends HasDontTouches { self: Annotation =>
 case class DontTouchAnnotation(target: ReferenceTarget)
     extends SingleTargetAnnotation[ReferenceTarget] with DontTouchAllTargets {
   def targets = Seq(target)
-  def duplicate(n: ReferenceTarget) = this.copy(n)
+  def duplicate(n: ReferenceTarget): DontTouchAnnotation = this.copy(n)
 }
 
 object DontTouchAnnotation {
@@ -58,7 +58,7 @@ object DontTouchAnnotation {
   *
   * @note Unlike [[DontTouchAnnotation]], we don't care if the annotation is deleted
   */
-case class OptimizableExtModuleAnnotation(target: ModuleName) extends
-    SingleTargetAnnotation[ModuleName] {
-  def duplicate(n: ModuleName) = this.copy(n)
+case class OptimizableExtModuleAnnotation(target: ModuleTarget) extends
+    SingleTargetAnnotation[ModuleTarget] {
+  def duplicate(n: ModuleTarget) = this.copy(n)
 }

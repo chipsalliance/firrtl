@@ -28,7 +28,7 @@ class LoadMemoryAnnotationSpec extends FreeSpec with Matchers {
   }
   "LoadMemoryAnnotation should be correctly parsed from a string" in {
     val lma = new LoadMemoryAnnotation(
-      ComponentName("ram", ModuleName("ModuleMem", CircuitName("CircuitMem"))),
+      ComponentName("ram", ModuleName("ModuleMem", CircuitName("CircuitMem"))).toTarget,
       "CircuitMem.ModuleMem.ram.dat",
       hexOrBinary = MemoryLoadFileType.Binary,
       originalMemoryNameOpt = Some("memory")

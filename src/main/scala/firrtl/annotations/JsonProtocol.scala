@@ -25,8 +25,8 @@ object JsonProtocol {
     { case x: Class[_] => JString(x.getName) }
   ))
   // TODO Reduce boilerplate?
-  class NamedSerializer extends CustomSerializer[Named](format => (
-    { case JString(s) => AnnotationUtils.toNamed(s) },
+  class NamedSerializer extends CustomSerializer[Target](format => (
+    { case JString(s) => AnnotationUtils.toNamed(s).toTarget },
     { case named: Named => JString(named.serialize) }
   ))
   class CircuitNameSerializer extends CustomSerializer[CircuitName](format => (
@@ -180,6 +180,8 @@ object JsonProtocol {
       Failure(new AnnotationClassNotFoundException(e.getMessage))
     // Eat the stack traces of json4s exceptions
     case e @ (_: org.json4s.ParserUtil.ParseException | _: org.json4s.MappingException) =>
+      Failure(new InvalidAnnotationJSONException(e.getMessage))
+    case e: org.json4s.MappingException =>
       Failure(new InvalidAnnotationJSONException(e.getMessage))
   }.recoverWith { // If the input is a file, wrap in InvalidAnnotationFileException
     case e: FirrtlUserException => in match {

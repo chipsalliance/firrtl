@@ -59,6 +59,10 @@ object AnnotationUtils {
     case Array(c, m, x) => ComponentName(x, ModuleName(m, CircuitName(c)))
   }
 
+  def toTarget(s: String): Target = {
+    Target.deserialize(s)
+  }
+
   /** Converts a serialized FIRRTL component into a sequence of target tokens
     * @param s
     * @return

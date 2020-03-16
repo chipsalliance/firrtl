@@ -18,8 +18,8 @@ class DedupModuleTests extends HighTransformSpec {
       Seq(MultiTargetDummyAnnotation(newTargets, tag))
     }
   }
-  case class SingleTargetDummyAnnotation(target: ComponentName) extends SingleTargetAnnotation[ComponentName] {
-    override def duplicate(n: ComponentName): Annotation = SingleTargetDummyAnnotation(n)
+  case class SingleTargetDummyAnnotation(target: ReferenceTarget) extends SingleTargetAnnotation[ReferenceTarget] {
+    override def duplicate(n: ReferenceTarget): Annotation = SingleTargetDummyAnnotation(n)
   }
   def transform = new DedupModules
   "The module A" should "be deduped" in {
@@ -173,8 +173,8 @@ class DedupModuleTests extends HighTransformSpec {
         """.stripMargin
 
      val mname = ModuleName("Top", CircuitName("Top"))
-     val finalState = execute(input, check, Seq(SingleTargetDummyAnnotation(ComponentName("a2.y", mname))))
-     finalState.annotations.collect({ case d: SingleTargetDummyAnnotation => d }).head should be(SingleTargetDummyAnnotation(ComponentName("a2.x", mname)))
+     val finalState = execute(input, check, Seq(SingleTargetDummyAnnotation(ComponentName("a2.y", mname).toTarget)))
+     finalState.annotations.collect({ case d: SingleTargetDummyAnnotation => d }).head should be(SingleTargetDummyAnnotation(ComponentName("a2.x", mname).toTarget))
   }
 
   "Extmodules" should "with the same defname and parameters should dedup" in {

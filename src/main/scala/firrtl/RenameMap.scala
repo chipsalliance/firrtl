@@ -138,7 +138,6 @@ final class RenameMap private (val underlying: mutable.HashMap[CompleteTarget, S
     * @param renameMap
     * @return
     */
-  @deprecated("will be removed in 1.3", "1.2")
   def ++ (renameMap: RenameMap): RenameMap = {
     val newChained = if (chained.nonEmpty && renameMap.chained.nonEmpty) {
       Some(chained.get ++ renameMap.chained.get)

@@ -2,7 +2,7 @@
 
 package firrtl.transforms
 
-import java.io.{File, FileNotFoundException, FileInputStream, FileOutputStream, PrintWriter}
+import java.io.{File, FileInputStream, FileNotFoundException, FileOutputStream, PrintWriter}
 
 import firrtl._
 import firrtl.annotations._
@@ -17,21 +17,21 @@ case class BlackBoxTargetDirAnno(targetDir: String) extends BlackBoxHelperAnno
   override def serialize: String = s"targetDir\n$targetDir"
 }
 
-case class BlackBoxResourceAnno(target: ModuleName, resourceId: String) extends BlackBoxHelperAnno
-    with SingleTargetAnnotation[ModuleName] {
-  def duplicate(n: ModuleName) = this.copy(target = n)
+case class BlackBoxResourceAnno(target: ModuleTarget, resourceId: String) extends BlackBoxHelperAnno
+    with SingleTargetAnnotation[ModuleTarget] {
+  def duplicate(n: ModuleTarget) = this.copy(target = n)
   override def serialize: String = s"resource\n$resourceId"
 }
 
-case class BlackBoxInlineAnno(target: ModuleName, name: String, text: String) extends BlackBoxHelperAnno
-    with SingleTargetAnnotation[ModuleName] {
-  def duplicate(n: ModuleName) = this.copy(target = n)
+case class BlackBoxInlineAnno(target: ModuleTarget, name: String, text: String) extends BlackBoxHelperAnno
+    with SingleTargetAnnotation[ModuleTarget] {
+  def duplicate(n: ModuleTarget) = this.copy(target = n)
   override def serialize: String = s"inline\n$name\n$text"
 }
 
-case class BlackBoxPathAnno(target: ModuleName, path: String) extends BlackBoxHelperAnno
-    with SingleTargetAnnotation[ModuleName] {
-  def duplicate(n: ModuleName) = this.copy(target = n)
+case class BlackBoxPathAnno(target: ModuleTarget, path: String) extends BlackBoxHelperAnno
+    with SingleTargetAnnotation[ModuleTarget] {
+  def duplicate(n: ModuleTarget) = this.copy(target = n)
   override def serialize: String = s"path\n$path"
 }
 

@@ -5,7 +5,6 @@ package annotations
 
 import firrtl.options.StageUtils
 
-
 case class AnnotationException(message: String) extends Exception(message)
 
 /** Base type of auxiliary information */
@@ -26,7 +25,8 @@ trait Annotation extends Product {
     */
   private def extractComponents(ls: scala.collection.Traversable[_]): Seq[Target] = {
     ls.collect {
-      case c: Target => Seq(c)
+      case c: Target =>
+        Seq(c)
       case ls: scala.collection.Traversable[_] => extractComponents(ls)
     }.foldRight(Seq.empty[Target])((seq, c) => c ++ seq)
   }
@@ -37,15 +37,15 @@ trait Annotation extends Product {
   def getTargets: Seq[Target] = extractComponents(productIterator.toSeq)
 }
 
-/** If an Annotation does not target any [[Named]] thing in the circuit, then all updates just
+/** If an Annotation does not target any [[Target]] thing in the circuit, then all updates just
   * return the Annotation itself
   */
 trait NoTargetAnnotation extends Annotation {
   def update(renames: RenameMap): Seq[NoTargetAnnotation] = Seq(this)
 }
 
-/** An Annotation that targets a single [[Named]] thing */
-trait SingleTargetAnnotation[T <: Named] extends Annotation {
+/** An Annotation that targets a single [[Target]] thing */
+trait SingleTargetAnnotation[T <: Target] extends Annotation {
   val target: T
 
   /** Create another instance of this Annotation */
@@ -59,7 +59,7 @@ trait SingleTargetAnnotation[T <: Named] extends Annotation {
       case c: Target =>
         val x = renames.get(c)
         x.map(newTargets => newTargets.map(t => duplicate(t.asInstanceOf[T]))).getOrElse(List(this))
-      case _: Named =>
+      case _: Named => /* FIXME */
         val ret = renames.get(Target.convertNamed2Target(target))
         ret.map(_.map(newT => Target.convertTarget2Named(newT: @unchecked) match {
           case newTarget: T @unchecked =>
@@ -122,24 +122,25 @@ trait SingleStringAnnotation extends NoTargetAnnotation {
 }
 
 object Annotation {
+
   @deprecated("This returns a LegacyAnnotation, use an explicit Annotation type", "1.1")
-  def apply(target: Named, transform: Class[_ <: Transform], value: String): LegacyAnnotation =
+  def apply(target: Target, transform: Class[_ <: Transform], value: String): LegacyAnnotation =
     new LegacyAnnotation(target, transform, value)
   @deprecated("This uses LegacyAnnotation, use an explicit Annotation type", "1.1")
-  def unapply(a: LegacyAnnotation): Option[(Named, Class[_ <: Transform], String)] =
+  def unapply(a: LegacyAnnotation): Option[(Target, Class[_ <: Transform], String)] =
     Some((a.target, a.transform, a.value))
 }
 
 // Constructor is private so that we can still construct these internally without deprecation
 // warnings
 final case class LegacyAnnotation private[firrtl] (
-    target: Named,
+    target: Target,
     transform: Class[_ <: Transform],
-    value: String) extends SingleTargetAnnotation[Named] {
+    value: String) extends SingleTargetAnnotation[Target] {
   val targetString: String = target.serialize
   val transformClass: String = transform.getName
 
-  def targets(named: Named): Boolean = named == target
+  def targets(named: Target): Boolean = named == target
   def targets(transform: Class[_ <: Transform]): Boolean = transform == this.transform
 
   /**
@@ -151,13 +152,13 @@ final case class LegacyAnnotation private[firrtl] (
     s"Annotation(${target.serialize},${transform.getCanonicalName},$value)"
   }
 
-  def update(tos: Seq[Named]): Seq[Annotation] = {
+  def update(tos: Seq[Target]): Seq[Annotation] = {
     check(target, tos, this)
     propagate(target, tos, duplicate)
   }
-  def propagate(from: Named, tos: Seq[Named], dup: Named=>Annotation): Seq[Annotation] = tos.map(dup(_))
-  def check(from: Named, tos: Seq[Named], which: Annotation): Unit = {}
-  def duplicate(n: Named): LegacyAnnotation = new LegacyAnnotation(n, transform, value)
+  def propagate(from: Target, tos: Seq[Target], dup: Target=>Annotation): Seq[Annotation] = tos.map(dup(_))
+  def check(from: Target, tos: Seq[Target], which: Annotation): Unit = {}
+  def duplicate(n: Target): LegacyAnnotation = new LegacyAnnotation(n, transform, value)
 }
 
 // Private so that LegacyAnnotation can only be constructed via deprecated Annotation.apply
@@ -195,22 +196,33 @@ private[firrtl] object LegacyAnnotation {
     case LegacyAnnotation(_,_,OldDeletedRegex(_,_)) => errorIllegalAnno("DeletedAnnotation")
     // Some annotations we'll try to support
     case LegacyAnnotation(named, t, _) if t == classOf[InlineInstances] => InlineAnnotation(named)
-    case LegacyAnnotation(n: ModuleName, t, outputConfig) if t == classOf[ClockListTransform] =>
+//    case LegacyAnnotation(n: ModuleName, t, outputConfig) if t == classOf[ClockListTransform] =>
+//      ClockListAnnotation(n, outputConfig)
+//    case LegacyAnnotation(CircuitName(_), transform, "") if transform == classOf[InferReadWrite] =>
+//      InferReadWriteAnnotation
+    case LegacyAnnotation(n: ModuleTarget, t, outputConfig) if t == classOf[ClockListTransform] =>
       ClockListAnnotation(n, outputConfig)
-    case LegacyAnnotation(CircuitName(_), transform, "") if transform == classOf[InferReadWrite] =>
+    case LegacyAnnotation(CircuitTarget(_), transform, "") if transform == classOf[InferReadWrite] =>
       InferReadWriteAnnotation
     case LegacyAnnotation(_,_,PinsRegex(pins)) => PinAnnotation(pins.split(" "))
     case LegacyAnnotation(_, t, value) if t == classOf[ReplSeqMem] =>
       val args = value.split(" ")
       require(args.size == 2, "Something went wrong, stop using legacy ReplSeqMemAnnotation")
       ReplSeqMemAnnotation(args(0), args(1))
-    case LegacyAnnotation(c: ComponentName, transform, "nodedupmem!")
+//    case LegacyAnnotation(c: ComponentName, transform, "nodedupmem!")
+//      if transform == classOf[ResolveMemoryReference] => NoDedupMemAnnotation(c)
+//    case LegacyAnnotation(m: ModuleName, transform, "nodedup!")
+//      if transform == classOf[DedupModules] => NoDedupAnnotation(m)
+//    case LegacyAnnotation(c: ComponentName, _, SourceRegex(pin)) => SourceAnnotation(c, pin)
+//    case LegacyAnnotation(n, _, SinkRegex(pin)) => SinkAnnotation(n, pin)
+//    case LegacyAnnotation(m: ModuleName, t, text) if t == classOf[BlackBoxSourceHelper] =>
+    case LegacyAnnotation(c: ReferenceTarget, transform, "nodedupmem!")
       if transform == classOf[ResolveMemoryReference] => NoDedupMemAnnotation(c)
-    case LegacyAnnotation(m: ModuleName, transform, "nodedup!")
+    case LegacyAnnotation(m: ModuleTarget, transform, "nodedup!")
       if transform == classOf[DedupModules] => NoDedupAnnotation(m)
-    case LegacyAnnotation(c: ComponentName, _, SourceRegex(pin)) => SourceAnnotation(c, pin)
+    case LegacyAnnotation(c: ReferenceTarget, _, SourceRegex(pin)) => SourceAnnotation(c, pin)
     case LegacyAnnotation(n, _, SinkRegex(pin)) => SinkAnnotation(n, pin)
-    case LegacyAnnotation(m: ModuleName, t, text) if t == classOf[BlackBoxSourceHelper] =>
+    case LegacyAnnotation(m: ModuleTarget, t, text) if t == classOf[BlackBoxSourceHelper] =>
       val nArgs = 3
       text.split("\n", nArgs).toList match {
         case "resource" :: id ::  _ => BlackBoxResourceAnno(m, id)
@@ -220,8 +232,10 @@ private[firrtl] object LegacyAnnotation {
       }
     case LegacyAnnotation(_, transform, "noDCE!") if transform == classOf[DeadCodeElimination] =>
       NoDCEAnnotation
-    case LegacyAnnotation(c: ComponentName, _, "DONTtouch!") => DontTouchAnnotation(c.toTarget)
-    case LegacyAnnotation(c: ModuleName, _, "optimizableExtModule!") =>
+//    case LegacyAnnotation(c: ComponentName, _, "DONTtouch!") => DontTouchAnnotation(c.toTarget)
+//    case LegacyAnnotation(c: ModuleName, _, "optimizableExtModule!") =>
+    case LegacyAnnotation(c: ReferenceTarget, _, "DONTtouch!") => DontTouchAnnotation(c)
+    case LegacyAnnotation(c: ModuleTarget, _, "optimizableExtModule!") =>
       OptimizableExtModuleAnnotation(c)
     case other => other
   }

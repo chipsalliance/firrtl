@@ -16,8 +16,8 @@ import firrtl.options.{RegisteredTransform, ShellOption}
 import scala.collection.mutable
 
 /** Indicates that something should be inlined */
-case class InlineAnnotation(target: Named) extends SingleTargetAnnotation[Named] {
-  def duplicate(n: Named) = InlineAnnotation(n)
+case class InlineAnnotation(target: Target) extends SingleTargetAnnotation[Target] {
+  def duplicate(n: Target) = InlineAnnotation(n)
 }
 
 /** Inline instances as indicated by existing [[InlineAnnotation]]s
@@ -48,18 +48,18 @@ class InlineInstances extends Transform with RegisteredTransform {
       shortOption = Some("fil"),
       helpValueName = Some("<circuit>[.<module>[.<instance>]][,...]") ) )
 
-   private def collectAnns(circuit: Circuit, anns: Iterable[Annotation]): (Set[ModuleName], Set[ComponentName]) =
-     anns.foldLeft( (Set.empty[ModuleName], Set.empty[ComponentName]) ) {
-       case ((modNames, instNames), ann) => ann match {
-         case InlineAnnotation(CircuitName(c)) =>
-           (circuit.modules.collect {
-             case Module(_, name, _, _) if name != circuit.main => ModuleName(name, CircuitName(c))
-           }.toSet, instNames)
-         case InlineAnnotation(ModuleName(mod, cir)) => (modNames + ModuleName(mod, cir), instNames)
-         case InlineAnnotation(ComponentName(com, mod)) => (modNames, instNames + ComponentName(com, mod))
-         case _ => (modNames, instNames)
-       }
-     }
+    private def collectAnns(circuit: Circuit, anns: Iterable[Annotation]): (Set[ModuleTarget], Set[IsComponent]) =
+      anns.foldLeft( (Set.empty[ModuleTarget], Set.empty[IsComponent]) ) {
+        case ((modNames, instNames), ann) => ann match {
+          case InlineAnnotation(CircuitTarget(c)) =>
+            (circuit.modules.collect {
+              case Module(_, name, _, _) if name != circuit.main => ModuleTarget(c, name)
+            }.toSet, instNames)
+          case InlineAnnotation(ModuleTarget(cir, mod)) => (modNames + ModuleTarget(cir, mod), instNames)
+          case InlineAnnotation(ReferenceTarget(mod, cir, path, com, tok)) => (modNames, instNames + ReferenceTarget(mod, cir, path, com, tok))
+          case _ => (modNames, instNames)
+        }
+      }
 
    def execute(state: CircuitState): CircuitState = {
      // TODO Add error check for more than one annotation for inlining
@@ -75,55 +75,91 @@ class InlineInstances extends Transform with RegisteredTransform {
    // 1) All annotated modules exist
    // 2) All annotated modules are InModules (can be inlined)
    // 3) All annotated instances exist, and their modules can be inline
-   def check(c: Circuit, moduleNames: Set[ModuleName], instanceNames: Set[ComponentName]): Unit = {
-      val errors = mutable.ArrayBuffer[PassException]()
-      val moduleMap = new InstanceGraph(c).moduleMap
-      def checkExists(name: String): Unit =
-         if (!moduleMap.contains(name))
-            errors += new PassException(s"Annotated module does not exist: $name")
-      def checkExternal(name: String): Unit = moduleMap(name) match {
-            case m: ExtModule => errors += new PassException(s"Annotated module cannot be an external module: $name")
-            case _ =>
-      }
-      def checkInstance(cn: ComponentName): Unit = {
-         var containsCN = false
-         def onStmt(name: String)(s: Statement): Statement = {
-            s match {
-               case WDefInstance(_, inst_name, module_name, tpe) =>
-                  if (name == inst_name) {
-                     containsCN = true
-                     checkExternal(module_name)
-                  }
-               case _ =>
-            }
-            s map onStmt(name)
+//   def check(c: Circuit, moduleNames: Set[ModuleName], instanceNames: Set[ComponentName]): Unit = {
+//      val errors = mutable.ArrayBuffer[PassException]()
+//      val moduleMap = new InstanceGraph(c).moduleMap
+//      def checkExists(name: String): Unit =
+//         if (!moduleMap.contains(name))
+//            errors += new PassException(s"Annotated module does not exist: $name")
+//      def checkExternal(name: String): Unit = moduleMap(name) match {
+//            case m: ExtModule => errors += new PassException(s"Annotated module cannot be an external module: $name")
+//            case _ =>
+//      }
+//      def checkInstance(cn: ComponentName): Unit = {
+//         var containsCN = false
+//         def onStmt(name: String)(s: Statement): Statement = {
+//            s match {
+//               case WDefInstance(_, inst_name, module_name, tpe) =>
+//                  if (name == inst_name) {
+//                     containsCN = true
+//                     checkExternal(module_name)
+//                  }
+//               case _ =>
+//            }
+//            s map onStmt(name)
+//         }
+//         onStmt(cn.name)(moduleMap(cn.module.name).asInstanceOf[Module].body)
+//         if (!containsCN) errors += new PassException(s"Annotated instance does not exist: ${cn.module.name}.${cn.name}")
+//      }
+//
+//      moduleNames.foreach{mn => checkExists(mn.name)}
+//      if (errors.nonEmpty) throw new PassExceptions(errors)
+//      moduleNames.foreach{mn => checkExternal(mn.name)}
+//      if (errors.nonEmpty) throw new PassExceptions(errors)
+//      instanceNames.foreach{cn => checkInstance(cn)}
+//      if (errors.nonEmpty) throw new PassExceptions(errors)
+//   }
+   def check(c: Circuit, moduleNames: Set[ModuleTarget], instanceNames: Set[IsComponent]): Unit = {
+     val errors = mutable.ArrayBuffer[PassException]()
+     val moduleMap = new InstanceGraph(c).moduleMap
+     def checkExists(name: String): Unit =
+       if (!moduleMap.contains(name))
+         errors += new PassException(s"Annotated module does not exist: $name")
+     def checkExternal(name: String): Unit = moduleMap(name) match {
+       case m: ExtModule => errors += new PassException(s"Annotated module cannot be an external module: $name")
+       case _ =>
+     }
+     def checkInstance(cn: IsComponent): Unit = {
+       var containsCN = false
+       def onStmt(name: String)(s: Statement): Statement = {
+         s match {
+           case WDefInstance(_, inst_name, module_name, tpe) =>
+             if (name == inst_name) {
+               containsCN = true
+               checkExternal(module_name)
+             }
+           case _ =>
          }
-         onStmt(cn.name)(moduleMap(cn.module.name).asInstanceOf[Module].body)
-         if (!containsCN) errors += new PassException(s"Annotated instance does not exist: ${cn.module.name}.${cn.name}")
-      }
+         s map onStmt(name)
+       }
+       onStmt(cn.name)(moduleMap(cn.module).asInstanceOf[Module].body)
+       if (!containsCN) errors += new PassException(s"Annotated instance does not exist: ${cn.module}.${cn.name}")
+     }
 
-      moduleNames.foreach{mn => checkExists(mn.name)}
-      if (errors.nonEmpty) throw new PassExceptions(errors)
-      moduleNames.foreach{mn => checkExternal(mn.name)}
-      if (errors.nonEmpty) throw new PassExceptions(errors)
-      instanceNames.foreach{cn => checkInstance(cn)}
-      if (errors.nonEmpty) throw new PassExceptions(errors)
+     moduleNames.foreach{mn => checkExists(mn.name)}
+     if (errors.nonEmpty) throw new PassExceptions(errors)
+     moduleNames.foreach{mn => checkExternal(mn.name)}
+     if (errors.nonEmpty) throw new PassExceptions(errors)
+     instanceNames.foreach{cn => checkInstance(cn)}
+     if (errors.nonEmpty) throw new PassExceptions(errors)
    }
 
 
-  def run(c: Circuit, modsToInline: Set[ModuleName], instsToInline: Set[ComponentName], annos: AnnotationSeq): CircuitState = {
+  def run(c: Circuit, modsToInline: Set[ModuleTarget], instsToInline: Set[IsComponent], annos: AnnotationSeq): CircuitState = {
     def getInstancesOf(c: Circuit, modules: Set[String]): Set[(OfModule, Instance)] =
       c.modules.foldLeft(Set[(OfModule, Instance)]()) { (set, d) =>
         d match {
           case e: ExtModule => set
           case m: Module =>
             val instances = mutable.HashSet[(OfModule, Instance)]()
+
             def findInstances(s: Statement): Statement = s match {
               case WDefInstance(info, instName, moduleName, instTpe) if modules.contains(moduleName) =>
                 instances += (OfModule(m.name) -> Instance(instName))
                 s
               case sx => sx map findInstances
             }
+
             findInstances(m.body)
             instances.toSet ++ set
         }
@@ -132,7 +168,8 @@ class InlineInstances extends Transform with RegisteredTransform {
     // Check annotations and circuit match up
     check(c, modsToInline, instsToInline)
     val flatModules = modsToInline.map(m => m.name)
-    val flatInstances: Set[(OfModule, Instance)] = instsToInline.map(i => OfModule(i.module.name) -> Instance(i.name)) ++ getInstancesOf(c, flatModules)
+//    val flatInstances: Set[(OfModule, Instance)] = instsToInline.map(i => OfModule(i.module.name) -> Instance(i.name)) ++ getInstancesOf(c, flatModules)
+    val flatInstances: Set[(OfModule, Instance)] = instsToInline.map(i => OfModule(i.module) -> Instance(i.name)) ++ getInstancesOf(c, flatModules)
     val iGraph = new InstanceGraph(c)
     val namespaceMap = collection.mutable.Map[String, Namespace]()
     // Map of Module name to Map of instance name to Module name
