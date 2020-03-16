@@ -122,7 +122,7 @@ class EliminateTargetPaths extends Transform {
     (cir.copy(modules = finalModuleList), renameMap)
   }
 
-  override protected def execute(state: CircuitState): CircuitState = {
+  override def execute(state: CircuitState): CircuitState = {
 
     val (annotations, annotationsx) = state.annotations.partition{
       case a: ResolvePaths => true
@@ -170,9 +170,6 @@ class EliminateTargetPaths extends Transform {
       }
       newCircuit.copy(modules = modulesx)
     }
-
-    logger.info("Renames:")
-    logger.info(renameMap.serialize)
 
     state.copy(circuit = newCircuitGC, renames = Some(renameMap), annotations = annotationsx)
   }

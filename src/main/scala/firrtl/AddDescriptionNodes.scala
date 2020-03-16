@@ -5,6 +5,7 @@ package firrtl
 import firrtl.ir._
 import firrtl.annotations._
 import firrtl.Mappers._
+import firrtl.options.{Dependency, PreservesAll}
 
 /**
   * A base trait for `Annotation`s that describe a `FirrtlNode`.
@@ -121,9 +122,26 @@ private case class DescribedMod(descriptions: Seq[Description],
   * @note should only be used by VerilogEmitter, described nodes will
   *       break other transforms.
   */
-class AddDescriptionNodes extends Transform {
-  def inputForm = LowForm
-  def outputForm = LowForm
+class AddDescriptionNodes extends Transform with PreservesAll[Transform] {
+  def inputForm = UnknownForm
+  def outputForm = UnknownForm
+
+  override val prerequisites = firrtl.stage.Forms.LowFormMinimumOptimized ++
+    Seq( Dependency[firrtl.transforms.BlackBoxSourceHelper],
+         Dependency[firrtl.transforms.FixAddingNegativeLiterals],
+         Dependency[firrtl.transforms.ReplaceTruncatingArithmetic],
+         Dependency[firrtl.transforms.InlineBitExtractionsTransform],
+         Dependency[firrtl.transforms.PropagatePresetAnnotations],
+         Dependency[firrtl.transforms.InlineCastsTransform],
+         Dependency[firrtl.transforms.LegalizeClocksTransform],
+         Dependency[firrtl.transforms.FlattenRegUpdate],
+         Dependency(passes.VerilogModulusCleanup),
+         Dependency[firrtl.transforms.VerilogRename],
+         Dependency(firrtl.passes.VerilogPrep) )
+
+  override val optionalPrerequisites = firrtl.stage.Forms.LowFormOptimized
+
+  override val dependents = Seq.empty
 
   def onStmt(compMap: Map[String, Seq[Description]])(stmt: Statement): Statement = {
     val s = stmt.map(onStmt(compMap))
