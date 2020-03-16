@@ -65,6 +65,11 @@ object ConvertFixedToSInt extends Pass with PreservesAll[Transform] {
           newExp map updateExpType
         case e: UIntLiteral => e
         case e: SIntLiteral => e
+        case e: BundleExpression => e
+        case e: VectorExpression =>
+          val point = calcPoint(e.exprs)
+          val newExprs = e.exprs.map(alignArg(_, point))
+          VectorExpression(newExprs, UnknownType)
         case _ => e map updateExpType match {
           case ValidIf(cond, value, tpe) => ValidIf(cond, value, value.tpe)
           case WRef(name, tpe, k, g) => WRef(name, types(name), k, g)

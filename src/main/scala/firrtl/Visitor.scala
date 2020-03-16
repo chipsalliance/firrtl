@@ -175,6 +175,10 @@ class Visitor(infoMode: InfoMode) extends AbstractParseTreeVisitor[FirrtlNode] w
     }
   }
 
+  private def visitExpField[FirrtlNode](ctx: ExpFieldContext): (String, Expression) = {
+    (ctx.fieldId.getText, visitExp(ctx.exp))
+  }
+
   // Special case "type" of CHIRRTL mems because their size can be BigInt
   private def visitCMemType(ctx: TypeContext): (Type, BigInt) = {
     def loc: String = s"${ctx.getStart.getLine}:${ctx.getStart.getCharPositionInLine}"
@@ -387,6 +391,10 @@ class Visitor(infoMode: InfoMode) extends AbstractParseTreeVisitor[FirrtlNode] w
             }
           case "validif(" => ValidIf(visitExp(ctx_exp(0)), visitExp(ctx_exp(1)), UnknownType)
           case "mux(" => Mux(visitExp(ctx_exp(0)), visitExp(ctx_exp(1)), visitExp(ctx_exp(2)), UnknownType)
+          case "{" =>
+            BundleExpression(ctx.expField.asScala.map(visitExpField))
+          case "[" =>
+            VectorExpression(ctx_exp.map(visitExp), UnknownType)
         }
     }
   }

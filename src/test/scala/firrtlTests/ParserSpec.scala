@@ -201,6 +201,7 @@ class ParserPropSpec extends FirrtlPropSpec {
 
   def legalStartChar = Gen.frequency((1, '_'), (20, Gen.alphaChar))
   def legalChar = Gen.frequency((1, Gen.numChar), (1, '$'), (10, legalStartChar))
+  def uintValues = Gen.choose(0, 1000000)
 
   def identifier = for {
     x <- legalStartChar
@@ -232,6 +233,33 @@ class ParserPropSpec extends FirrtlPropSpec {
            |  module Test :
            |    input $id : { $field : UInt<32> }
            |""".stripMargin
+        firrtl.Parser.parse(input split "\n")
+      }
+    }
+  }
+  property("Bundle expressions should be OK") {
+    forAll (identifier, bundleField, uintValues) { case (id, field, uval) =>
+      whenever(id.nonEmpty && field.nonEmpty) {
+        val input = s"""
+           |circuit Test :
+           |  module Test :
+           |    output $id : { $field : UInt<32> }
+           |    $id <= { $field : UInt<32>("h${uval.toHexString}") }
+           |""".stripMargin
+        firrtl.Parser.parse(input split "\n")
+      }
+    }
+  }
+  property("Vector expressions should be OK") {
+    forAll (identifier, uintValues) { case (id, uval) =>
+      whenever(id.nonEmpty) {
+        val entries = (0 until 6).map(x => "UInt(\"h" + (x + uval).toHexString + "\")")
+        val input = s"""
+          |circuit Test :
+          |  module Test :
+          |    output $id : UInt<32>[6]
+          |    $id <= [${entries.mkString(", ")}]
+          |""".stripMargin
         firrtl.Parser.parse(input split "\n")
       }
     }

@@ -75,6 +75,19 @@ object WSubField {
   def apply(expr: Expression, n: String): WSubField = new WSubField(expr, n, field_type(expr.tpe, n), UnknownFlow)
   def apply(expr: Expression, name: String, tpe: Type): WSubField = new WSubField(expr, name, tpe, UnknownFlow)
 }
+object WSubLiteral {
+  def unapply(w: Expression): Option[Expression] = w match {
+    case WSubField(BundleExpression(lits), name, _, _) =>
+      lits.collectFirst({ case (n, value) if n == name => value })
+    case WSubField(WSubLiteral(BundleExpression(lits)), name, _, _) =>
+      lits.collectFirst({ case (n, value) if n == name => value })
+    case WSubIndex(VectorExpression(exprs, _), index, _, _) =>
+      exprs.lift(index)
+    case WSubIndex(WSubLiteral(VectorExpression(exprs, _)), index, _, _) =>
+      exprs.lift(index)
+    case _ => None
+  }
+}
 case class WSubIndex(expr: Expression, value: Int, tpe: Type, flow: Flow) extends Expression with GenderFromFlow {
   def serialize: String = s"${expr.serialize}[$value]"
   def mapExpr(f: Expression => Expression): Expression = this.copy(expr = f(expr))

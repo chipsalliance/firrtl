@@ -377,6 +377,20 @@ message Firrtl {
       Width point = 3;
     }
 
+    message BundleExpression {
+      message Field {
+        // Required
+        string name = 1;
+        // Required
+        Expression value = 2;
+      }
+      repeated Field field = 1;
+    }
+
+    message VectorExpression {
+      repeated Expression exp = 1;
+    }
+
     message ValidIf {
       // Required.
       Expression condition = 1;
@@ -475,6 +489,8 @@ message Firrtl {
       UIntLiteral uint_literal = 2;
       SIntLiteral sint_literal = 3;
       FixedLiteral fixed_literal = 11;
+      BundleExpression bundle_expression = 12;
+      VectorExpression vector_expression = 13;
       ValidIf valid_if = 4;
       //ExtractBits extract_bits = 5;
       Mux mux = 6;

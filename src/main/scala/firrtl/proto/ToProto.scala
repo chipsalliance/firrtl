@@ -176,6 +176,22 @@ object ToProto {
         convert(width).foreach(fb.setWidth)
         convert(point).foreach(fb.setPoint)
         eb.setFixedLiteral(fb)
+      case ir.BundleExpression(fields) =>
+        val bb = Firrtl.Expression.BundleExpression.newBuilder()
+        fields.foreach({ case (n, v) =>
+          val fb = Firrtl.Expression.BundleExpression.Field.newBuilder()
+          fb.setName(n)
+          fb.setValue(convert(v))
+          bb.addField(fb)
+        })
+        eb.setBundleExpression(bb)
+      case ir.VectorExpression(exps, _) =>
+        val bb = Firrtl.Expression.VectorExpression.newBuilder()
+        exps.foreach({ case e =>
+          bb.addExp(convert(e))
+        })
+
+        eb.setVectorExpression(bb)
       case ir.DoPrim(op, args, consts, _) =>
         val db = Firrtl.Expression.PrimOp.newBuilder()
           .setOp(convert(op))

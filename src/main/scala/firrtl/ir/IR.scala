@@ -240,6 +240,40 @@ case class FixedLiteral(value: BigInt, width: Width, point: Width) extends Liter
   def foreachType(f: Type => Unit): Unit = Unit
   def foreachWidth(f: Width => Unit): Unit = { f(width); f(point) }
 }
+case class BundleExpression(lits: Seq[(String, Expression)]) extends Expression {
+  def tpe = BundleType(lits.map { case (name, lit) =>
+    Field(name = name, flip = Default, tpe = lit.tpe)
+  })
+  def serialize =
+    "{ " + (lits.map({ case (n, v) =>
+      s"$n : ${v.serialize}"
+    }) mkString ", ") + " }"
+  def foreachExpr(f: Expression => Unit): Unit = lits.foreach { case (_, l) => l foreachExpr f }
+  def foreachType(f: Type => Unit): Unit = lits.foreach { case (_, l) => l foreachType f }
+  def foreachWidth(f: Width => Unit): Unit = lits.foreach { case (_, l) => l foreachWidth f }
+  def mapExpr(f: Expression => Expression): Expression = BundleExpression(lits.map { case (s, l) =>
+    (s, l mapExpr f)
+  })
+  def mapType(f: Type => Type): Expression = BundleExpression(lits.map { case (s, l) =>
+    (s, l mapType f)
+  })
+  def mapWidth(f: Width => Width): Expression = BundleExpression(lits.map { case (s, l) =>
+    (s, l mapWidth f)
+  })
+}
+case class VectorExpression(exprs: Seq[Expression], tpe: Type) extends Expression {
+  def serialize =
+    "[" + exprs.map(_.serialize).mkString(", ") + "]" // TODO type annotation
+  def foreachExpr(f: Expression => Unit): Unit = exprs.foreach(_ foreachExpr f)
+  def foreachType(f: Type => Unit): Unit = exprs.foreach(_ foreachType f)
+  def foreachWidth(f: Width => Unit): Unit = exprs.foreach(_ foreachWidth f)
+  def mapExpr(f: Expression => Expression): Expression =
+    VectorExpression(exprs.map(_ mapExpr f), tpe)
+  def mapType(f: Type => Type): Expression =
+    VectorExpression(exprs.map(_ mapType f), tpe)
+  def mapWidth(f: Width => Width): Expression =
+    VectorExpression(exprs.map(_ mapWidth f), tpe)
+}
 case class DoPrim(op: PrimOp, args: Seq[Expression], consts: Seq[BigInt], tpe: Type) extends Expression {
   def serialize: String = op.serialize + "(" +
     (args.map(_.serialize) ++ consts.map(_.toString)).mkString(", ") + ")"

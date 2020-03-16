@@ -173,7 +173,8 @@ trait CheckHighFormLike { this: Pass =>
     def validSubexp(info: Info, mname: String)(e: Expression): Unit = {
       e match {
         case _: Reference | _: SubField | _: SubIndex | _: SubAccess => // No error
-        case _: WRef | _: WSubField | _: WSubIndex | _: WSubAccess | _: Mux | _: ValidIf => // No error
+        case _: WRef | _: WSubField | _: WSubIndex | _: WSubAccess | _: Mux | _: ValidIf | 
+          _: BundleExpression | _: VectorExpression => // No error
         case _ => errors.append(new InvalidAccessException(info, mname))
       }
     }
@@ -470,6 +471,8 @@ object CheckTypes extends Pass with PreservesAll[Transform] {
             case f: FixedType   => (isUInt, isSInt, isClock, true,  isAsync, isInterval)
             case AsyncResetType => (isUInt, isSInt, isClock, isFix, true,    isInterval)
             case i:IntervalType => (isUInt, isSInt, isClock, isFix, isAsync, true)
+            case _: BundleType |
+                 _: VectorType  => (isUInt, isSInt, isClock, isFix, isAsync, isInterval)
             case UnknownType    =>
               errors.append(new IllegalUnknownType(info, mname, e.serialize))
               (isUInt, isSInt, isClock, isFix, isAsync, isInterval)

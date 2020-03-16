@@ -59,6 +59,10 @@ type
   | type '[' intLit ']'   // Vector
   ;
 
+expField
+  : fieldId ':' exp
+  ;
+
 field
   : 'flip'? fieldId ':' type
   ;
@@ -168,6 +172,8 @@ exp
   | 'mux(' exp exp exp ')'
   | 'validif(' exp exp ')'
   | primop exp* intLit*  ')'
+  | '{' expField* '}' // Bundle Expression
+  | '[' exp* ']' // Vector Expression
   ;
 
 id

@@ -90,6 +90,93 @@ class UnitTests extends FirrtlFlatSpec {
     }
   }
 
+  "Connecting bundle literals" should "work" in {
+    val passes = Seq(
+      ToWorkingIR,
+      CheckHighForm,
+      ResolveKinds,
+      ResolveGenders,
+      InferTypes,
+      CheckTypes,
+      ExpandConnects,
+      LowerTypes
+    )
+    val input =
+     """circuit Unit :
+       |  module Unit :
+       |    output x : { a: { b: UInt<32> }, c: UInt<32> }
+       |    output y : UInt<32>
+       |    x <= { a: { b: UInt<32>("h5") }, c: UInt<32>("h6") }
+       |    y <= { a: { b: UInt<32>("h5") }, c: UInt<32>("h6") }.a.b
+       |    """.stripMargin
+    val check =
+     """circuit Unit :
+       |  module Unit :
+       |    output x : { a: { b: UInt<32> }, c: UInt<32> }
+       |    output y : UInt<32>
+       |    x.a.b <= UInt<32>("h5")
+       |    x.c <= UInt<32>("h6")
+       |    y <= { a: { b: UInt<32>("h5") }, c: UInt<32>("h6") }.a.b
+       |    """.stripMargin
+    val iResult = passes.foldLeft(CircuitState(parse(input), UnknownForm)) {
+      (c: CircuitState, p: Transform) => p.runTransform(c)
+    }
+    val cResult = passes.foldLeft(CircuitState(parse(check), UnknownForm)) {
+      (c: CircuitState, p: Transform) => p.runTransform(c)
+    }
+    val iWriter = new StringWriter()
+    (new HighFirrtlEmitter).emit(iResult, iWriter)
+    val cWriter = new StringWriter()
+    (new HighFirrtlEmitter).emit(cResult, cWriter)
+    (parse(iWriter.toString())) should be (parse(cWriter.toString()))
+  }
+
+  "Connecting vector expressions" should "work" in {
+    val passes = Seq(
+      ToWorkingIR,
+      CheckHighForm,
+      ResolveKinds,
+      ResolveGenders,
+      InferTypes,
+      CheckTypes,
+      ExpandConnects,
+      LowerTypes
+    )
+    val input =
+     """circuit Unit :
+       |  module Unit :
+       |    output x : UInt<32>[6]
+       |    x <= [ UInt("h1"), UInt("h2"), UInt("h4"), UInt("h8"), UInt("h10"), UInt("h20") ]
+       |    """.stripMargin
+    val check =
+     """circuit Unit :
+       |  module Unit :
+       |    output x_0 : UInt<32>
+       |    output x_1 : UInt<32>
+       |    output x_2 : UInt<32>
+       |    output x_3 : UInt<32>
+       |    output x_4 : UInt<32>
+       |    output x_5 : UInt<32>
+       |    x_0 <= UInt("h1")
+       |    x_1 <= UInt("h2")
+       |    x_2 <= UInt("h4")
+       |    x_3 <= UInt("h8")
+       |    x_4 <= UInt("h10")
+       |    x_5 <= UInt("h20")
+       |    """.stripMargin
+    val iResult = passes.foldLeft(CircuitState(parse(input), UnknownForm)) {
+      (c: CircuitState, p: Transform) => p.runTransform(c)
+    }
+    val cResult = passes.foldLeft(CircuitState(parse(check), UnknownForm)) {
+      (c: CircuitState, p: Transform) => p.runTransform(c)
+    }
+    val iWriter = new StringWriter()
+    (new HighFirrtlEmitter).emit(iResult, iWriter)
+    val cWriter = new StringWriter()
+    (new HighFirrtlEmitter).emit(cResult, cWriter)
+    (parse(iWriter.toString())) should be (parse(cWriter.toString()))
+  }
+
   "Partial connection two bundle types whose relative flips don't match but leaf node directions do" should "connect correctly" in {
     val passes = Seq(
       ToWorkingIR,
