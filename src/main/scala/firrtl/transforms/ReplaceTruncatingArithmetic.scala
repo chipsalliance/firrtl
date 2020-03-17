@@ -1,3 +1,5 @@
+// See LICENSE for license details.
+
 package firrtl
 package transforms
 
@@ -5,6 +7,7 @@ import firrtl.ir._
 import firrtl.Mappers._
 import firrtl.PrimOps._
 import firrtl.WrappedExpression._
+import firrtl.options.{Dependency, PreservesAll}
 
 import scala.collection.mutable
 
@@ -24,10 +27,22 @@ object ReplaceTruncatingArithmetic {
     */
   def onExpr(netlist: Netlist)(expr: Expression): Expression =
     expr.map(onExpr(netlist)) match {
+      // If an unsigned wrapping add/sub
       case orig @ DoPrim(Tail, Seq(e), SeqBIOne, tailtpe) =>
         netlist.getOrElse(we(e), e) match {
-          case DoPrim(Add, args, cs, _) => DoPrim(Addw, args, cs, tailtpe)
-          case DoPrim(Sub, args, cs, _) => DoPrim(Subw, args, cs, tailtpe)
+          case DoPrim(Add, args, cs, u: UIntType) => DoPrim(Addw, args, cs, tailtpe)
+          case DoPrim(Sub, args, cs, u: UIntType) => DoPrim(Subw, args, cs, tailtpe)
+          case _ => orig // Not a candidate
+        }
+      // If a signed wrapping add/sub, there should be a cast
+      case orig @ DoPrim(AsSInt, Seq(x), _, casttpe) =>
+        netlist.getOrElse(we(x), x) match {
+          case DoPrim(Tail, Seq(e), SeqBIOne, tailtpe) =>
+            netlist.getOrElse(we(e), e) match {
+              case DoPrim(Add, args, cs, s: SIntType) => DoPrim(Addw, args, cs, casttpe)
+              case DoPrim(Sub, args, cs, s: SIntType) => DoPrim(Subw, args, cs, casttpe)
+              case _ => orig // Not a candidate
+            }
           case _ => orig // Not a candidate
         }
       case other => other // Not a candidate
@@ -62,9 +77,17 @@ object ReplaceTruncatingArithmetic {
   * @note This replaces some FIRRTL primops with ops that are not actually legal FIRRTL. They are
   * useful for emission to languages that support non-expanding arithmetic (like Verilog)
   */
-class ReplaceTruncatingArithmetic extends Transform {
-  def inputForm = LowForm
-  def outputForm = LowForm
+class ReplaceTruncatingArithmetic extends Transform with PreservesAll[Transform] {
+  def inputForm = UnknownForm
+  def outputForm = UnknownForm
+
+  override val prerequisites = firrtl.stage.Forms.LowFormMinimumOptimized ++
+    Seq( Dependency[BlackBoxSourceHelper],
+         Dependency[FixAddingNegativeLiterals] )
+
+  override val optionalPrerequisites = firrtl.stage.Forms.LowFormOptimized
+
+  override val dependents = Seq.empty
 
   def execute(state: CircuitState): CircuitState = {
     val modulesx = state.circuit.modules.map(ReplaceTruncatingArithmetic.onMod(_))

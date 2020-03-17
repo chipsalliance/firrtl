@@ -1,5 +1,6 @@
 package firrtlTests.analyses
 
+import firrtl.annotations.TargetToken.OfModule
 import firrtl.analyses.InstanceGraph
 import firrtl.graph.DiGraph
 import firrtl.WDefInstance
@@ -194,5 +195,71 @@ circuit Top :
     val instGraph = new InstanceGraph(circuit)
     val hier = instGraph.fullHierarchy
     hier.keys.toSeq.map(_.name) should equal (Seq("Top", "a", "b", "c", "d", "e"))
+  }
+
+  behavior of "InstanceGraph.staticInstanceCount"
+
+  it should "report that there is one instance of the top module" in {
+    val input =
+      """|circuit Foo:
+         |  module Foo:
+         |    skip
+         |""".stripMargin
+    val iGraph = new InstanceGraph(ToWorkingIR.run(parse(input)))
+    val expectedCounts = Map(OfModule("Foo") -> 1)
+    iGraph.staticInstanceCount should be (expectedCounts)
+  }
+
+  it should "report correct number of instances for a sample circuit" in {
+    val input =
+      """|circuit Foo:
+         |  module Baz:
+         |    skip
+         |  module Bar:
+         |    inst baz1 of Baz
+         |    inst baz2 of Baz
+         |    inst baz3 of Baz
+         |    skip
+         |  module Foo:
+         |    inst bar1 of Bar
+         |    inst bar2 of Bar
+         |""".stripMargin
+    val iGraph = new InstanceGraph(ToWorkingIR.run(parse(input)))
+    val expectedCounts = Map(OfModule("Foo") -> 1,
+                             OfModule("Bar") -> 2,
+                             OfModule("Baz") -> 3)
+    iGraph.staticInstanceCount should be (expectedCounts)
+  }
+
+  it should "report zero instances for dead modules" in {
+    val input =
+      """|circuit Foo:
+         |  module Bar:
+         |    skip
+         |  module Foo:
+         |    skip
+         |""".stripMargin
+    val iGraph = new InstanceGraph(ToWorkingIR.run(parse(input)))
+    val expectedCounts = Map(OfModule("Foo") -> 1,
+                             OfModule("Bar") -> 0)
+    iGraph.staticInstanceCount should be (expectedCounts)
+  }
+
+  behavior of "Reachable/Unreachable helper methods"
+
+  they should "report correct reachable/unreachable counts" in {
+    val input =
+      """|circuit Top:
+         |  module Unreachable:
+         |    skip
+         |  module Reachable:
+         |    skip
+         |  module Top:
+         |    inst reachable of Reachable
+         |""".stripMargin
+    val iGraph = new InstanceGraph(ToWorkingIR.run(parse(input)))
+    iGraph.modules should contain theSameElementsAs Seq(OfModule("Top"), OfModule("Reachable"), OfModule("Unreachable"))
+    iGraph.reachableModules should contain theSameElementsAs Seq(OfModule("Top"), OfModule("Reachable"))
+    iGraph.unreachableModules should contain theSameElementsAs Seq(OfModule("Unreachable"))
   }
 }

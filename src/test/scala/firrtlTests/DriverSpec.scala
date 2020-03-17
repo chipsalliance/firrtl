@@ -4,6 +4,8 @@ package firrtlTests
 
 import java.io.{File, FileWriter}
 
+import org.scalatest.freespec.AnyFreeSpec
+import org.scalatest.matchers.should.Matchers
 import firrtl.passes.InlineAnnotation
 import firrtl.passes.memlib.{InferReadWriteAnnotation, ReplSeqMemAnnotation}
 import firrtl.transforms.BlackBoxTargetDirAnno
@@ -13,8 +15,6 @@ import firrtl.annotations._
 import firrtl.util.BackendCompilationUtilities
 
 import scala.util.Success
-import org.scalatest.freespec.AnyFreeSpec
-import org.scalatest.matchers.should.Matchers
 
 class ExceptingTransform extends Transform {
   def inputForm = HighForm
