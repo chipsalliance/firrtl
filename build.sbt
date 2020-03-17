@@ -187,6 +187,7 @@ lazy val firrtl = (project in file("."))
 
 lazy val benchmark = (project in file("benchmark"))
   .dependsOn(firrtl)
+  .enablePlugins(JmhPlugin)
   .settings(
     assemblyJarName in assembly := "firrtl-benchmark.jar",
     test in assembly := {},
