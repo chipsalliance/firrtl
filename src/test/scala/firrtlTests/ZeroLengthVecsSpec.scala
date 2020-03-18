@@ -4,6 +4,7 @@ package firrtlTests
 
 import firrtl._
 import firrtl.passes._
+import firrtl.testutils.FirrtlFlatSpec
 
 class ZeroLengthVecsSpec extends FirrtlFlatSpec {
   val transforms = Seq(
