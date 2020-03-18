@@ -271,17 +271,24 @@ class CheckCombLoops extends Transform with RegisteredTransform {
       val sources = tos.map(to => mt.ref(to.name))
       CombinationalPath(sink, sources.toSeq)
     }
-    (state.copy(annotations = state.annotations ++ annos), errors, simplifiedModuleGraphs)
+    (state.copy(annotations = state.annotations ++ annos), errors, simplifiedModuleGraphs, moduleGraphs)
   }
 
   /**
     * Returns a Map from Module name to port connectivity
     */
   def analyze(state: CircuitState): collection.Map[String,DiGraph[String]] = {
-    val (result, errors, connectivity) = run(state)
+    val (result, errors, connectivity, _) = run(state)
     connectivity.map {
       case (k, v) => (k, v.transformNodes(ln => ln.name))
     }
+  }
+
+  /**
+    * Returns a Map from Module name to complete netlist connectivity
+    */
+  def analyzeFull(state: CircuitState): collection.Map[String,DiGraph[LogicNode]] = {
+    run(state)._4
   }
 
   def execute(state: CircuitState): CircuitState = {
@@ -290,7 +297,7 @@ class CheckCombLoops extends Transform with RegisteredTransform {
       logger.warn("Skipping Combinational Loop Detection")
       state
     } else {
-      val (result, errors, connectivity) = run(state)
+      val (result, errors, connectivity, _) = run(state)
       errors.trigger()
       result
     }
