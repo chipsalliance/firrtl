@@ -62,7 +62,8 @@ abstract class Stage extends Phase {
   * @param stage the stage to run
   */
 class StageMain(val stage: Stage) {
-
+  // Force initialization of the Forms object - https://github.com/freechipsproject/firrtl/issues/1462
+  val _dummyForms = firrtl.stage.Forms
   /** The main function that serves as this stage's command line interface.
     * @param args command line arguments
     */

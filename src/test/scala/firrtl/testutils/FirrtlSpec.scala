@@ -28,6 +28,8 @@ class CheckLowForm extends SeqTransform {
 }
 
 trait FirrtlRunners extends BackendCompilationUtilities {
+  // Force initialization of the Forms object - see https://github.com/freechipsproject/firrtl/issues/1462
+  private val _dummyForms = firrtl.stage.Forms
 
   val cppHarnessResourceName: String = "/firrtl/testTop.cpp"
   /** Extra transforms to run by default */
