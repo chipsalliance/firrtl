@@ -18,7 +18,7 @@ import org.scalatest.matchers.should.Matchers
   * This test uses the [[org.scalatest.FeatureSpec FeatureSpec]] intentionally as this test exercises the top-level
   * interface and is more suitable to an Acceptance Testing style.
   */
-class FirrtlMainSpec extends AnyFeatureSpec with GivenWhenThen with Matchers with firrtlTests.Utils
+class FirrtlMainSpec extends FeatureSpec with GivenWhenThen with Matchers with firrtl.testutils.Utils
     with BackendCompilationUtilities {
 
   /** Parameterizes one test of [[FirrtlMain]]. Running the [[FirrtlMain]] `main` with certain args should produce

@@ -12,7 +12,7 @@ import firrtl.options.phases.{GetIncludes, WriteOutputAnnotations}
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
-class WriteOutputAnnotationsSpec extends AnyFlatSpec with Matchers with firrtlTests.Utils {
+class WriteOutputAnnotationsSpec extends FlatSpec with Matchers with firrtl.testutils.Utils {
 
   val dir = "test_run_dir/WriteOutputAnnotationSpec"
 

@@ -5,6 +5,8 @@ package firrtlTests
 import firrtl._
 import firrtl.passes._
 import firrtl.transforms._
+import firrtl.testutils._
+import firrtl.annotations.Annotation
 
 class ConstantPropagationSpec extends FirrtlFlatSpec {
   val transforms = Seq(
@@ -14,8 +16,8 @@ class ConstantPropagationSpec extends FirrtlFlatSpec {
       ResolveFlows,
       new InferWidths,
       new ConstantPropagation)
-  protected def exec(input: String) = {
-    transforms.foldLeft(CircuitState(parse(input), UnknownForm)) {
+  protected def exec(input: String, annos: Seq[Annotation] = Nil) = {
+    transforms.foldLeft(CircuitState(parse(input), UnknownForm, AnnotationSeq(annos))) {
       (c: CircuitState, t: Transform) => t.runTransform(c)
     }.circuit.serialize
   }
@@ -733,78 +735,6 @@ class ConstantPropagationSingleModule extends ConstantPropagationSpec {
     (parse(exec(input))) should be(parse(check))
   }
 
-   "ConstProp" should "propagate boolean equality with true" in {
-    val input =
-      """circuit Top :
-        |  module Top :
-        |    input x : UInt<1>
-        |    output z : UInt<1>
-        |    z <= eq(x, UInt<1>("h1"))
-      """.stripMargin
-    val check =
-      """circuit Top :
-        |  module Top :
-        |    input x : UInt<1>
-        |    output z : UInt<1>
-        |    z <= x
-      """.stripMargin
-    (parse(exec(input))) should be(parse(check))
-  }
-
-   "ConstProp" should "propagate boolean equality with false" in {
-    val input =
-      """circuit Top :
-        |  module Top :
-        |    input x : UInt<1>
-        |    output z : UInt<1>
-        |    z <= eq(x, UInt<1>("h0"))
-      """.stripMargin
-    val check =
-      """circuit Top :
-        |  module Top :
-        |    input x : UInt<1>
-        |    output z : UInt<1>
-        |    z <= not(x)
-      """.stripMargin
-    (parse(exec(input))) should be(parse(check))
-  }
-
-   "ConstProp" should "propagate boolean non-equality with true" in {
-    val input =
-      """circuit Top :
-        |  module Top :
-        |    input x : UInt<1>
-        |    output z : UInt<1>
-        |    z <= neq(x, UInt<1>("h1"))
-      """.stripMargin
-    val check =
-      """circuit Top :
-        |  module Top :
-        |    input x : UInt<1>
-        |    output z : UInt<1>
-        |    z <= not(x)
-      """.stripMargin
-    (parse(exec(input))) should be(parse(check))
-  }
-
-   "ConstProp" should "propagate boolean non-equality with false" in {
-    val input =
-      """circuit Top :
-        |  module Top :
-        |    input x : UInt<1>
-        |    output z : UInt<1>
-        |    z <= neq(x, UInt<1>("h0"))
-      """.stripMargin
-    val check =
-      """circuit Top :
-        |  module Top :
-        |    input x : UInt<1>
-        |    output z : UInt<1>
-        |    z <= x
-      """.stripMargin
-    (parse(exec(input))) should be(parse(check))
-  }
-
   // Optimizing this mux gives: z <= pad(UInt<2>(0), 4)
   // Thus this checks that we then optimize that pad
   "ConstProp" should "optimize nested Expressions" in {
@@ -821,6 +751,30 @@ class ConstantPropagationSingleModule extends ConstantPropagationSpec {
         |    z <= UInt<4>("h0")
       """.stripMargin
     (parse(exec(input))) should be(parse(check))
+  }
+
+  "ConstProp" should "NOT touch self-inits" in {
+    val input =
+      """circuit Top :
+        |  module Top :
+        |    input clk : Clock
+        |    input rst : UInt<1>
+        |    output z : UInt<4>
+        |    reg selfinit : UInt<1>, clk with : (reset => (UInt<1>(0), selfinit))
+        |    selfinit <= UInt<1>(0)
+        |    z <= mux(UInt(1), UInt<2>(0), UInt<4>(0))
+     """.stripMargin
+    val check =
+      """circuit Top :
+        |  module Top :
+        |    input clk : Clock
+        |    input rst : UInt<1>
+        |    output z : UInt<4>
+        |    reg selfinit : UInt<1>, clk with : (reset => (UInt<1>(0), selfinit))
+        |    selfinit <= UInt<1>(0)
+        |    z <= UInt<4>(0)
+     """.stripMargin
+    (parse(exec(input, Seq(NoDCEAnnotation)))) should be(parse(check))
   }
 
   def castCheck(tpe: String, cast: String): Unit = {
@@ -864,7 +818,20 @@ class ConstantPropagationIntegrationSpec extends LowTransformSpec {
     execute(input, check, Seq(dontTouch("Top.z")))
   }
 
-  "ConstProp" should "NOT optimize across dontTouch on registers" in {
+  it should "NOT optimize across nodes marked dontTouch by other annotations" in {
+      val input =
+        """circuit Top :
+          |  module Top :
+          |    input x : UInt<1>
+          |    output y : UInt<1>
+          |    node z = x
+          |    y <= z""".stripMargin
+      val check = input
+      val dontTouchRT = annotations.ModuleTarget("Top", "Top").ref("z")
+    execute(input, check, Seq(AnnotationWithDontTouches(dontTouchRT)))
+  }
+
+  it should "NOT optimize across dontTouch on registers" in {
       val input =
         """circuit Top :
           |  module Top :

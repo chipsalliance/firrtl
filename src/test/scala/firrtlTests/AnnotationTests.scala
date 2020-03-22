@@ -12,6 +12,7 @@ import firrtl.transforms.OptimizableExtModuleAnnotation
 import firrtl.passes.InlineAnnotation
 import firrtl.passes.memlib.PinAnnotation
 import firrtl.util.BackendCompilationUtilities
+import firrtl.testutils._
 import net.jcazevedo.moultingyaml._
 import org.scalatest.matchers.should.Matchers
 
@@ -627,7 +628,7 @@ class JsonAnnotationTests extends AnnotationTests with BackendCompilationUtiliti
     override def inputForm: CircuitForm = UnknownForm
     override def outputForm: CircuitForm = UnknownForm
 
-    protected def execute(state: CircuitState): CircuitState = state
+    def execute(state: CircuitState): CircuitState = state
   }
 
   "annotation order" should "should be preserved" in {

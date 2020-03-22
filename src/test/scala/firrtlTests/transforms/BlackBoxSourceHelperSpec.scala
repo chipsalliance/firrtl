@@ -5,8 +5,8 @@ package firrtlTests.transforms
 import firrtl.annotations.{CircuitName, ModuleName}
 import firrtl.transforms._
 import firrtl.{Transform, VerilogEmitter}
-import firrtlTests.LowTransformSpec
 import firrtl.FileUtils
+import firrtl.testutils.LowTransformSpec
 
 
 class BlacklBoxSourceHelperTransformSpec extends LowTransformSpec {
@@ -98,11 +98,6 @@ class BlacklBoxSourceHelperTransformSpec extends LowTransformSpec {
 
     new java.io.File("test_run_dir/AdderExtModule.v").exists should be (true)
     new java.io.File(s"test_run_dir/${BlackBoxSourceHelper.defaultFileListName}").exists should be (true)
-  }
-
-  "verilog compiler" should "have BlackBoxSourceHelper transform" in {
-    val verilogCompiler = new VerilogEmitter
-    verilogCompiler.transforms.map { x => x.getClass } should contain (classOf[BlackBoxSourceHelper])
   }
 
   "verilog header files" should "be available but not mentioned in the file list" in {

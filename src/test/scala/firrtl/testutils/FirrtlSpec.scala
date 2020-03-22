@@ -1,6 +1,6 @@
 // See LICENSE for license details.
 
-package firrtlTests
+package firrtl.testutils
 
 import java.io._
 import java.security.Permission
@@ -313,9 +313,9 @@ class TestFirrtlFlatSpec extends FirrtlFlatSpec {
 }
 
 /** Super class for execution driven Firrtl tests */
-abstract class ExecutionTest(name: String, dir: String, vFiles: Seq[String] = Seq.empty) extends FirrtlPropSpec {
+abstract class ExecutionTest(name: String, dir: String, vFiles: Seq[String] = Seq.empty, annotations: AnnotationSeq = Seq.empty) extends FirrtlPropSpec {
   property(s"$name should execute correctly") {
-    runFirrtlTest(name, dir, vFiles)
+    runFirrtlTest(name, dir, vFiles, annotations = annotations)
   }
 }
 /** Super class for compilation driven Firrtl tests */
