@@ -11,7 +11,7 @@ import scopt.OptionParser
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
-class OptionParserSpec extends AnyFlatSpec with Matchers with firrtlTests.Utils {
+class OptionParserSpec extends AnyFlatSpec with Matchers with firrtl.testutils.Utils {
 
   case class IntAnnotation(x: Int) extends NoTargetAnnotation {
     def extract: Int = x
