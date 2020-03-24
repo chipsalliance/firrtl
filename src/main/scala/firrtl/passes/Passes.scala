@@ -220,6 +220,13 @@ object Legalize extends Pass with PreservesAll[Transform] {
         }
     }
   }
+  private def legalizeCast(expr: DoPrim): Expression = {
+    (expr.tpe, expr.args.head) match {
+      case (SIntType(w), UIntLiteral(v, _)) => SIntLiteral(v, w)
+      case (UIntType(w), SIntLiteral(v, _)) => UIntLiteral(v, w)
+      case (_, _) => expr
+    }
+  }
   private def legalizeBitExtract(expr: DoPrim): Expression = {
     expr.args.head match {
       case _: UIntLiteral | _: SIntLiteral => ConstantPropagation.constPropBitExtract(expr)
@@ -254,6 +261,7 @@ object Legalize extends Pass with PreservesAll[Transform] {
         case Shr => legalizeShiftRight(prim)
         case Pad => legalizePad(prim)
         case Bits | Head | Tail => legalizeBitExtract(prim)
+        case AsUInt | AsSInt => legalizeCast(prim)
         case _ => prim
       }
       case e => e // respect pre-order traversal
