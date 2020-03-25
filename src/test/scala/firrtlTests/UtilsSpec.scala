@@ -1,9 +1,7 @@
 package firrtlTests
 
-import matchers.should.Matchers._
-
 import firrtl.Utils
-import org.scalatest.matchers
+import org.scalatest.matchers.should.Matchers._
 import org.scalatest.flatspec.AnyFlatSpec
 
 class UtilsSpec extends AnyFlatSpec {

@@ -2,6 +2,8 @@
 
 package firrtlTests
 
+import org.scalatest.flatspec.AnyFlatSpec
+import org.scalatest.matchers.should.Matchers
 
 import firrtl.ir.Circuit
 import firrtl.{

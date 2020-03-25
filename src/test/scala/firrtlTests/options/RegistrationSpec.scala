@@ -2,6 +2,8 @@
 
 package firrtlTests.options
 
+import org.scalatest.flatspec.AnyFlatSpec
+import org.scalatest.matchers.should.Matchers
 import java.util.ServiceLoader
 
 import firrtl.options.{RegisteredTransform, RegisteredLibrary, ShellOption}

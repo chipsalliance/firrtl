@@ -2,6 +2,7 @@
 
 package firrtl.testutils
 
+import org.scalatest.flatspec.AnyFlatSpec
 import firrtl.ir.Circuit
 import firrtl.passes.{PassExceptions, RemoveEmpty}
 import firrtl.transforms.DedupModules
