@@ -37,13 +37,13 @@ object InlineBitExtractionsTransform {
     case _ => expr // Not a candidate
   }
 
-  /** Mapping from references to the [[firrtl.ir.Expression]]s that drive them */
+  /** Mapping from references to the [[firrtl.ir.Expression Expression]]s that drive them */
   type Netlist = mutable.HashMap[WrappedExpression, Expression]
 
-  /** Recursively replace [[WRef]]s with new [[firrtl.ir.Expression]]s
+  /** Recursively replace [[WRef]]s with new [[firrtl.ir.Expression Expression]]s
     *
     * @param netlist a '''mutable''' HashMap mapping references to [[firrtl.ir.DefNode DefNode]]s to their connected
-    * [[firrtl.ir.Expression Expression]]s. It is '''not''' mutated in this function
+    * [[firrtl.ir.Expression Expression Expression]]s. It is '''not''' mutated in this function
     * @param expr the Expression being transformed
     * @return Returns expr with Bits inlined
     */
@@ -75,9 +75,9 @@ object InlineBitExtractionsTransform {
 
   /** Inline bits in a Statement
     *
-    * @param netlist a '''mutable''' HashMap mapping references to [[firrtl.ir.DefNode]]s to their connected
-    * [[firrtl.ir.Expression]]s. This function '''will''' mutate it if stmt is
-    * a [[firrtl.ir.DefNode]] with a Temporary name and a value that is a [[firrtl.ir.PrimOp]] Bits
+    * @param netlist a '''mutable''' HashMap mapping references to [[firrtl.ir.DefNode DefNode]]s to their connected
+    * [[firrtl.ir.Expression Expression]]s. This function '''will''' mutate it if stmt is
+    * a [[firrtl.ir.DefNode DefNode]] with a Temporary name and a value that is a [[firrtl.ir.PrimOp PrimOp]] Bits
     * @param stmt the Statement being searched for nodes and transformed
     * @return Returns stmt with Bits inlined
     */
