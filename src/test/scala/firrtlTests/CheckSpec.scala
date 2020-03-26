@@ -6,8 +6,10 @@ import org.scalatest._
 import firrtl.{Parser, CircuitState, UnknownForm, Transform}
 import firrtl.ir.Circuit
 import firrtl.passes.{Pass,ToWorkingIR,CheckHighForm,ResolveKinds,InferTypes,CheckTypes,PassException,InferWidths,CheckWidths,ResolveFlows,CheckFlows}
+import org.scalatest.flatspec.AnyFlatSpec
+import org.scalatest.matchers.should.Matchers
 
-class CheckSpec extends FlatSpec with Matchers {
+class CheckSpec extends AnyFlatSpec with Matchers {
   val defaultPasses = Seq(ToWorkingIR, CheckHighForm)
   def checkHighInput(input: String) = {
     defaultPasses.foldLeft(Parser.parse(input.split("\n").toIterator)) {
@@ -307,6 +309,49 @@ class CheckSpec extends FlatSpec with Matchers {
       }
     }
   }
+
+  s"Duplicate module names" should "throw an exception" in {
+    val input =
+      s"""|circuit bar :
+          |  module bar :
+          |    input i : UInt<8>
+          |    output o : UInt<8>
+          |    o <= i
+          |  module dup :
+          |    input i : UInt<8>
+          |    output o : UInt<8>
+          |    o <= i
+          |  module dup :
+          |    input i : UInt<8>
+          |    output o : UInt<8>
+          |    o <= not(i)
+          |""".stripMargin
+    assertThrows[CheckHighForm.ModuleNameNotUniqueException] {
+      try {
+        checkHighInput(input)
+      } catch {
+        case e: firrtl.passes.PassExceptions => throw e.exceptions.head
+      }
+    }
+  }
+
+  s"Defnames that conflict with pure-FIRRTL module names" should "throw an exception" in {
+    val input =
+      s"""|circuit bar :
+          |  module bar :
+          |    input i : UInt<8>
+          |    output o : UInt<8>
+          |    o <= i
+          |  extmodule dup :
+          |    input i : UInt<8>
+          |    output o : UInt<8>
+          |    defname = bar
+          |""".stripMargin
+    assertThrows[CheckHighForm.DefnameConflictException] {
+      checkHighInput(input)
+    }
+  }
+
 }
 
 object CheckSpec {

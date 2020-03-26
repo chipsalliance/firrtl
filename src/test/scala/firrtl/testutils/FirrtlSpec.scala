@@ -1,6 +1,6 @@
 // See LICENSE for license details.
 
-package firrtlTests
+package firrtl.testutils
 
 import java.io._
 import java.security.Permission
@@ -18,6 +18,9 @@ import firrtl.analyses.{GetNamespace, ModuleNamespaceAnnotation}
 import firrtl.annotations._
 import firrtl.transforms.{DontTouchAnnotation, NoDedupAnnotation, RenameModules}
 import firrtl.util.BackendCompilationUtilities
+import org.scalatest.flatspec.AnyFlatSpec
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.propspec.AnyPropSpec
 
 class CheckLowForm extends SeqTransform {
   def inputForm = LowForm
@@ -255,9 +258,9 @@ object FirrtlCheckers extends FirrtlMatchers {
   }
 }
 
-abstract class FirrtlPropSpec extends PropSpec with ScalaCheckPropertyChecks with FirrtlRunners with LazyLogging
+abstract class FirrtlPropSpec extends AnyPropSpec with ScalaCheckPropertyChecks with FirrtlRunners with LazyLogging
 
-abstract class FirrtlFlatSpec extends FlatSpec with FirrtlRunners with FirrtlMatchers with LazyLogging
+abstract class FirrtlFlatSpec extends AnyFlatSpec with FirrtlRunners with FirrtlMatchers with LazyLogging
 
 // Who tests the testers?
 class TestFirrtlFlatSpec extends FirrtlFlatSpec {
@@ -310,9 +313,9 @@ class TestFirrtlFlatSpec extends FirrtlFlatSpec {
 }
 
 /** Super class for execution driven Firrtl tests */
-abstract class ExecutionTest(name: String, dir: String, vFiles: Seq[String] = Seq.empty) extends FirrtlPropSpec {
+abstract class ExecutionTest(name: String, dir: String, vFiles: Seq[String] = Seq.empty, annotations: AnnotationSeq = Seq.empty) extends FirrtlPropSpec {
   property(s"$name should execute correctly") {
-    runFirrtlTest(name, dir, vFiles)
+    runFirrtlTest(name, dir, vFiles, annotations = annotations)
   }
 }
 /** Super class for compilation driven Firrtl tests */
