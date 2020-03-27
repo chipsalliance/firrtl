@@ -185,6 +185,8 @@ intLit
   : UnsignedInt
   | SignedInt
   | HexLit
+  | OctalLit
+  | BinaryLit
   ;
 
 // Keywords that are also legal ids
@@ -298,6 +300,14 @@ HexLit
   : '"' 'h' ( '+' | '-' )? ( HexDigit )+ '"'
   ;
 
+OctalLit
+  : '"' 'o' ( '+' | '-' )? ( OctalDigit )+ '"'
+  ;
+
+BinaryLit
+  : '"' 'b' ( '+' | '-' )? ( BinaryDigit )+ '"'
+  ;
+
 DoubleLit
   : ( '+' | '-' )? Digit+ '.' Digit+ ( 'E' ( '+' | '-' )? Digit+ )?
   ;
@@ -310,6 +320,16 @@ Digit
 fragment
 HexDigit
   : [a-fA-F0-9]
+  ;
+
+fragment
+OctalDigit
+  : [0-7]
+  ;
+
+fragment
+BinaryDigit
+  : [01]
   ;
 
 StringLit
