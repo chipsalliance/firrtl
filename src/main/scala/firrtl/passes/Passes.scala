@@ -48,7 +48,8 @@ class Errors {
 
 // These should be distributed into separate files
 object ToWorkingIR extends Pass with PreservesAll[Transform] {
-
+  private val _dummyForms = firrtl.stage.Forms
+  
   override val prerequisites = firrtl.stage.Forms.MinimalHighForm
 
   def toExp(e: Expression): Expression = e map toExp match {
