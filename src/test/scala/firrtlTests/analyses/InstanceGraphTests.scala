@@ -1,5 +1,6 @@
 package firrtlTests.analyses
 
+import firrtl.annotations.TargetToken.OfModule
 import firrtl.analyses.InstanceGraph
 import firrtl.graph.DiGraph
 import firrtl.WDefInstance
@@ -194,5 +195,23 @@ circuit Top :
     val instGraph = new InstanceGraph(circuit)
     val hier = instGraph.fullHierarchy
     hier.keys.toSeq.map(_.name) should equal (Seq("Top", "a", "b", "c", "d", "e"))
+  }
+
+  behavior of "Reachable/Unreachable helper methods"
+
+  they should "report correct reachable/unreachable counts" in {
+    val input =
+      """|circuit Top:
+         |  module Unreachable:
+         |    skip
+         |  module Reachable:
+         |    skip
+         |  module Top:
+         |    inst reachable of Reachable
+         |""".stripMargin
+    val iGraph = new InstanceGraph(ToWorkingIR.run(parse(input)))
+    iGraph.modules should contain theSameElementsAs Seq(OfModule("Top"), OfModule("Reachable"), OfModule("Unreachable"))
+    iGraph.reachableModules should contain theSameElementsAs Seq(OfModule("Top"), OfModule("Reachable"))
+    iGraph.unreachableModules should contain theSameElementsAs Seq(OfModule("Unreachable"))
   }
 }
