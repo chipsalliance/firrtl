@@ -33,8 +33,8 @@ lazy val commonSettings = Seq(
   organization := "edu.berkeley.cs",
   name := "firrtl",
   version := "1.3-SNAPSHOT",
-  scalaVersion := "2.12.10",
-  crossScalaVersions := Seq("2.12.10", "2.11.12"),
+  scalaVersion := "2.12.11",
+  crossScalaVersions := Seq("2.12.11", "2.11.12"),
   addCompilerPlugin(scalafixSemanticdb),
   scalacOptions := scalacOptionsVersion(scalaVersion.value) ++ Seq(
     "-deprecation",
@@ -45,12 +45,8 @@ lazy val commonSettings = Seq(
   javacOptions ++= javacOptionsVersion(scalaVersion.value),
   libraryDependencies ++= Seq(
     "org.scala-lang" % "scala-reflect" % scalaVersion.value,
-    // sbt 1.2.6 fails with `Symbol 'term org.junit' is missing from the classpath`
-    // when compiling tests under 2.11.12
-    // An explicit dependency on junit seems to alleviate this.
-    "junit" % "junit" % "4.13" % "test",
-    "org.scalatest" %% "scalatest" % "3.0.8" % "test",
-    "org.scalacheck" %% "scalacheck" % "1.14.3" % "test",
+    "org.scalatest" %% "scalatest" % "3.1.0" % "test",
+    "org.scalatestplus" %% "scalacheck-1-14" % "3.1.0.1" % "test",
     "com.github.scopt" %% "scopt" % "3.7.1",
     "net.jcazevedo" %% "moultingyaml" % "0.4.1",
     "org.json4s" %% "json4s-native" % "3.6.7",
@@ -136,6 +132,18 @@ lazy val publishSettings = Seq(
 lazy val docSettings = Seq(
   doc in Compile := (doc in ScalaUnidoc).value,
   autoAPIMappings := true,
+  apiMappings ++= {
+    Option(System.getProperty("sun.boot.class.path")).flatMap { classPath =>
+      classPath.split(java.io.File.pathSeparator).find(_.endsWith(java.io.File.separator + "rt.jar"))
+    }.map { jarPath =>
+      Map(
+        file(jarPath) -> url("https://docs.oracle.com/javase/8/docs/api")
+      )
+    }.getOrElse {
+      streams.value.log.warn("Failed to add bootstrap class path of Java to apiMappings")
+      Map.empty[File,URL]
+    }
+  },
   scalacOptions in Compile in doc ++= Seq(
     "-diagrams",
     "-diagrams-max-classes", "25",
