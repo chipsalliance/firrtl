@@ -82,7 +82,7 @@ class DedupModules extends Transform with PreservesAll[Transform] {
             case m: ModuleTarget => m.module -> original.module
           }
       }.toMap
-      val (newC, renameMap, newAnnos) = run(state.circuit, noDedups, previouslyDupedMap, remainingAnnotations)
+      val (newC, renameMap, newAnnos) = run(state.circuit, noDedups, previouslyDupedMap)
       state.copy(circuit = newC, renames = Some(renameMap), annotations = newAnnos ++ remainingAnnotations)
     }
   }
@@ -94,8 +94,7 @@ class DedupModules extends Transform with PreservesAll[Transform] {
     */
   def run(c: Circuit,
           noDedups: Seq[String],
-          previouslyDupedMap: Map[String, String],
-          annotations: Seq[Annotation]): (Circuit, RenameMap, AnnotationSeq) = {
+          previouslyDupedMap: Map[String, String]): (Circuit, RenameMap, AnnotationSeq) = {
 
     // RenameMap
     val renameMap = RenameMap(this)
@@ -109,20 +108,6 @@ class DedupModules extends Transform with PreservesAll[Transform] {
         dedupCliqueMap + (dupMod.name -> set)
     }.flatMap { case (dedupName, set) =>
       set.map { _ -> set }
-    }
-
-    val module2OriginalAnnotations = mutable.HashMap.empty[ModuleTarget, mutable.HashSet[Annotation]]
-    annotations.foreach { a =>
-      a.getTargets.collect {
-        case t: IsMember =>
-          val mt = Target.referringModule(t)
-          val annos = module2OriginalAnnotations.getOrElseUpdate(mt, mutable.HashSet.empty[Annotation])
-          annos += a
-      }
-    }
-
-    val module2RenameAnnotations = module2OriginalAnnotations.map {
-      case (mt: ModuleTarget, annos) => mt -> annos.flatMap(_.update(renameMap))
     }
 
     // Use old module list to preserve ordering
@@ -151,8 +136,16 @@ class DedupModules extends Transform with PreservesAll[Transform] {
     // Build instanceify renaming map
     val instanceGraph = new InstanceGraph(c)
     val instanceify = RenameMap(this)
-    val moduleName2Index = c.modules.map(_.name).zipWithIndex.toMap
-    val dedupAnnotations = module2RenameAnnotations.flatMap { case (mt@ModuleTarget(c, m), annos: mutable.HashSet[Annotation]) =>
+    val moduleName2Index = c.modules.map(_.name).zipWithIndex.map { case (n, i) =>
+      {
+        c.modules.size match {
+          case 0 => (n, 0.0)
+          case 1 => (n, 1.0)
+          case d => (n, i.toDouble / (d - 1))
+        }
+      }
+    }.toMap
+    val dedupAnnotations = c.modules.map(_.name).map(ct.module).flatMap { case mt@ModuleTarget(c, m) =>
       dedupMap.get(m) match {
         case None => Nil
         // When commented out, EliminateTargetPathsSpec breaks

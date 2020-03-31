@@ -72,12 +72,13 @@ object EliminateTargetPaths {
   }
 
   def reorderModules(c: Circuit, toReorder: Map[String, Double]): Circuit = {
-    val (hasOrder, noOrder) = c.modules.partition {
-      case m if toReorder.contains(m.name) => true
-      case _ => false
-    }
+    val newOrderMap = c.modules.zipWithIndex.map {
+      case (m, _) if toReorder.contains(m.name) => m.name -> toReorder(m.name)
+      case (m, i) if c.modules.size > 1 => m.name -> i.toDouble / (c.modules.size - 1)
+      case (m, _) => m.name -> 1.0
+    }.toMap
 
-    val newOrder = hasOrder.sortBy { m => toReorder(m.name) } ++ noOrder
+    val newOrder = c.modules.sortBy { m => newOrderMap(m.name) }
 
     c.copy(modules = newOrder)
   }
@@ -260,7 +261,6 @@ class EliminateTargetPaths extends Transform {
     // E.g. if Eliminate Target Paths on ~Top|Top/foo:Foo, but that is the only instance of Foo, then should return
     //   ~Top|Top/foo:Foo, not ~Top|Top/foo:Foo___Top_foo
     val renamedModuleMap = RenameMap(this)
-    val newIGraph = new InstanceGraph(newCircuitGC)
     val ct = CircuitTarget(newCircuitGC.main)
     val newModule2Original = state.circuit.modules.map {
       m => ct.module(m.name)
