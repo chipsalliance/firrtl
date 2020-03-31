@@ -2,18 +2,12 @@
 
 package firrtlTests
 
-import org.scalatest.FlatSpec
-import org.scalatest.Matchers
-import org.scalatest.junit.JUnitRunner
-import firrtl.ir.Circuit
-import firrtl.Parser
-import firrtl.passes.PassExceptions
+import firrtl._
 import firrtl.annotations._
-import firrtl.passes.{InlineAnnotation, InlineInstances}
+import firrtl.passes.{InlineAnnotation, InlineInstances, ResolveKinds}
 import firrtl.transforms.NoCircuitDedupAnnotation
-import logger.{LogLevel, Logger}
-import logger.LogLevel.Debug
 
+import FirrtlCheckers._
 
 /**
  * Tests inline instances transformation
@@ -545,6 +539,27 @@ class InlineInstancesTests extends LowTransformSpec {
          DummyAnno(top.instOf("i_bar", "NestedNoInline").ref("foo_b"))
        )
      )
+  }
+
+  "InlineInstances" should "properly invalidate ResolveKinds" in {
+    val input =
+      """circuit Top :
+        |  module Top :
+        |    input a : UInt<32>
+        |    output b : UInt<32>
+        |    inst i of Inline
+        |    i.a <= a
+        |    b <= i.b
+        |  module Inline :
+        |    input a : UInt<32>
+        |    output b : UInt<32>
+        |    b <= a""".stripMargin
+
+    val state = CircuitState(parse(input), ChirrtlForm, Seq(inline("Inline")))
+    val result = (new LowFirrtlCompiler).compile(state, Seq(transform))
+
+    result shouldNot containTree { case WRef("i_a", _, PortKind, _) => true }
+    result should    containTree { case WRef("i_a", _, WireKind, _) => true }
   }
 }
 
