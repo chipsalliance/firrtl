@@ -32,12 +32,16 @@ object RenameMap {
   *
   * Transforms that modify names should return a [[RenameMap]] with the [[CircuitState]]
   * These are mutable datastructures for convenience
+  * @define noteSelfRename @note Self renames *will* be recorded
+  * @define noteDistinct @note Rename to/tos will be made distinct
   */
 // TODO This should probably be refactored into immutable and mutable versions
 final class RenameMap private (val underlying: mutable.HashMap[CompleteTarget, Seq[CompleteTarget]] = mutable.HashMap[CompleteTarget, Seq[CompleteTarget]](), val chained: Option[RenameMap] = None) {
 
   /** Chain a [[RenameMap]] with this [[RenameMap]]
     * @param next the map to chain with this map
+    * $noteSelfRename
+    * $noteDistinct
     */
   def andThen(next: RenameMap): RenameMap = {
     if (next.chained.isEmpty) {
@@ -51,6 +55,8 @@ final class RenameMap private (val underlying: mutable.HashMap[CompleteTarget, S
     * [[firrtl.annotations.CircuitTarget CircuitTarget]]
     * @param from
     * @param to
+    * $noteSelfRename
+    * $noteDistinct
     */
   def record(from: CircuitTarget, to: CircuitTarget): Unit = completeRename(from, Seq(to))
 
@@ -58,6 +64,8 @@ final class RenameMap private (val underlying: mutable.HashMap[CompleteTarget, S
     * [[firrtl.annotations.CircuitTarget CircuitTarget]]s
     * @param from
     * @param tos
+    * $noteSelfRename
+    * $noteDistinct
     */
   def record(from: CircuitTarget, tos: Seq[CircuitTarget]): Unit = completeRename(from, tos)
 
@@ -65,6 +73,8 @@ final class RenameMap private (val underlying: mutable.HashMap[CompleteTarget, S
     * IsMember]]
     * @param from
     * @param to
+    * $noteSelfRename
+    * $noteDistinct
     */
   def record(from: IsMember, to: IsMember): Unit = completeRename(from, Seq(to))
 
@@ -72,6 +82,8 @@ final class RenameMap private (val underlying: mutable.HashMap[CompleteTarget, S
     * [[firrtl.annotations.IsMember IsMember]]s
     * @param from
     * @param tos
+    * $noteSelfRename
+    * $noteDistinct
     */
   def record(from: IsMember, tos: Seq[IsMember]): Unit = completeRename(from, tos)
 
@@ -80,6 +92,8 @@ final class RenameMap private (val underlying: mutable.HashMap[CompleteTarget, S
     * and ([[firrtl.annotations.IsMember IsMember]] -> Seq[ [[firrtl.annotations.IsMember IsMember]] ]) key/value
     * allowed
     * @param map
+    * $noteSelfRename
+    * $noteDistinct
     */
   def recordAll(map: collection.Map[CompleteTarget, Seq[CompleteTarget]]): Unit =
     map.foreach{
@@ -477,24 +491,20 @@ final class RenameMap private (val underlying: mutable.HashMap[CompleteTarget, S
     }
   }
 
-  /** Fully renames from to tos
+  /** Fully rename `from` to `tos`
     * @param from
     * @param tos
     */
   private def completeRename(from: CompleteTarget, tos: Seq[CompleteTarget]): Unit = {
-    (from, tos) match {
-      case (x, Seq(y)) if x == y =>
-      case _ =>
-        tos.foreach{recordSensitivity(from, _)}
-        val existing = underlying.getOrElse(from, Vector.empty)
-        val updated = existing ++ tos
-        underlying(from) = updated
-        getCache.clear()
-        traverseTokensCache.clear()
-        traverseHierarchyCache.clear()
-        traverseLeftCache.clear()
-        traverseRightCache.clear()
-    }
+    tos.foreach{recordSensitivity(from, _)}
+    val existing = underlying.getOrElse(from, Vector.empty)
+    val updated = (existing ++ tos).distinct
+    underlying(from) = updated
+    getCache.clear()
+    traverseTokensCache.clear()
+    traverseHierarchyCache.clear()
+    traverseLeftCache.clear()
+    traverseRightCache.clear()
   }
 
   /* DEPRECATED ACCESSOR/SETTOR METHODS WITH [[firrtl.ir.Named Named]] */
