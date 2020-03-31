@@ -29,8 +29,6 @@ class InlineInstances extends Transform with RegisteredTransform {
   def outputForm = LowForm
   private [firrtl] val inlineDelim: String = "_"
 
-  override def invalidates(a: Transform): Boolean = a == ResolveKinds
-
   val options = Seq(
     new ShellOption[Seq[String]](
       longOption = "inline",
@@ -303,7 +301,8 @@ class InlineInstances extends Transform with RegisteredTransform {
     })
 
     val renames = renamesSeq.tail.foldLeft(renamesSeq.head)(_ andThen _)
+    val circuitx = ResolveKinds.run(flatCircuit)
 
-    CircuitState(flatCircuit, LowForm, annos, Some(renames))
+    CircuitState(circuitx, LowForm, annos, Some(renames))
   }
 }
