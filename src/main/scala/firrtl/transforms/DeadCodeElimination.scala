@@ -343,7 +343,9 @@ class DeadCodeElimination extends Transform with ResolvedAnnotationPaths with Re
     topoSortedModules.foreach { case mod =>
       deleteDeadCode(moduleDeps(mod.name), deadNodes, modulesxMap, renames, c.main, doTouchExtMods)(mod) match {
         case Some(m) => modulesxMap += m.name -> m
-        case None => renames.delete(ModuleName(mod.name, CircuitName(c.main)))
+        case None =>
+          renames.delete(ModuleTarget(c.main, mod.name))
+          renames.delete(ModuleTarget(mod.name, mod.name))
       }
     }
 

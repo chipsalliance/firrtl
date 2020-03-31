@@ -368,6 +368,10 @@ class MorphismSpec extends FlatSpec with Matchers {
       allASTModules.map(AnAnnotation.apply) :+ ResolvePaths(allAbsoluteInstances)
     override val finalAnnotations: Option[AnnotationSeq] = Some(Seq(
       AnAnnotation(CircuitTarget("Foo").module("Foo")),
+      AnAnnotation(CircuitTarget("Foo").module("Foo")),
+      AnAnnotation(CircuitTarget("Foo").module("Foo")),
+      AnAnnotation(CircuitTarget("Foo").module("Foo")),
+      AnAnnotation(CircuitTarget("Baz").module("Baz")),
       AnAnnotation(CircuitTarget("Baz").module("Baz")),
       AnAnnotation(CircuitTarget("Top").module("Top"))
     ))
@@ -532,6 +536,10 @@ class MorphismSpec extends FlatSpec with Matchers {
       allASTModules.map(AnAnnotation.apply) :+ ResolvePaths(allAbsoluteInstances)
     override val finalAnnotations: Option[AnnotationSeq] = Some(Seq(
       AnAnnotation(CircuitTarget("Foo").module("Foo")),
+      AnAnnotation(CircuitTarget("Foo").module("Foo")),
+      AnAnnotation(CircuitTarget("Foo").module("Foo")),
+      AnAnnotation(CircuitTarget("Foo").module("Foo")),
+      AnAnnotation(CircuitTarget("Baz").module("Baz")),
       AnAnnotation(CircuitTarget("Baz").module("Baz")),
       AnAnnotation(CircuitTarget("Top").module("Top"))
     ))

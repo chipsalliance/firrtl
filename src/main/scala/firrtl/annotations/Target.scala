@@ -372,6 +372,7 @@ trait CompleteTarget extends Target {
 
   override def toTarget: CompleteTarget = this
 
+  // Very useful for debugging, I (@azidar) think this is reasonable
   override def toString = serialize
 }
 

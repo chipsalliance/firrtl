@@ -22,8 +22,10 @@ object RenameMap {
     rm
   }
 
+  /** Initialize a new RenameMap which is not associated with a transform */
   def apply(): RenameMap = new RenameMap
 
+  /** Initialize a new RenameMap associated with the provided transform */
   def apply(associatedTransform: Transform): RenameMap = new RenameMap(associatedTransform = Some(associatedTransform))
 
   abstract class RenameTargetException(reason: String) extends Exception(reason)
@@ -407,14 +409,19 @@ final class RenameMap private (
     if(getCache.contains(key)) {
       getCache(key)
     } else {
-      val getter = recursiveGet(errors)(_)
-      // Returns (ts, continueRenamingCircuit, continueRenamingModules)
+
+      // Used to determine if renaming has ended early. This is to prevent the case
+      //   where a fully recursive renaming occurs, e.g.
+      //   Given Renames:
+      //     - (~Top|Top/a:A -> ~Top|A)
+      //     - (~Top|A -> ~Top|B)
+      //   Renaming (~Top|Top/a:A) should return (~Top|A), not (~Top|B)
+      // This is due to our splitting recursive renaming into three parts (top, mid, bot)
       def continueRenaming[T <: CompleteTarget](original: Seq[CompleteTarget], ts: Seq[CompleteTarget]): Boolean =
         ts match {
           case Seq(_: T) if original != ts => false
           case _ => true
         }
-
 
       // rename just the first level e.g. just rename component/path portion for ReferenceTargets
       val topRename = key match {
@@ -429,6 +436,7 @@ final class RenameMap private (
             instanceGet(errors)(parent).map(ref.setPathTarget(_))
           }
       }
+
       val continueModule = continueRenaming[ModuleTarget](Seq(key), topRename)
 
       // rename the next level up
@@ -486,10 +494,44 @@ final class RenameMap private (
               }
           }
       }
-      val continueCircuit = continueRenaming[CircuitTarget](Seq(key), midRename)
+
+      val continueAST = continueRenaming[ModuleTarget](Seq(key), midRename)
+
+      val astRename = midRename.flatMap {
+        case t: CircuitTarget => Seq(t)
+        case t: ModuleTarget if !continueAST => Seq(t)
+        case t: ModuleTarget => moduleGet(errors)(t.copy(circuit = t.module)).map {
+          case mt: ModuleTarget => mt.copy(circuit = t.circuit)
+          case it: ModuleTarget => it.copy(circuit = t.circuit)
+        }
+        case t: IsComponent =>
+          // rename the root module and set the new path
+          moduleGet(errors)(ModuleTarget(t.module, t.module)).map { ret =>
+            val mod = ret match {
+              case mt: ModuleTarget => mt.copy(circuit = t.circuit)
+              case it: InstanceTarget => it.copy(circuit = t.circuit)
+            }
+
+            val newPath = mod.asPath ++ t.asPath
+
+            t match {
+              case ref: ReferenceTarget => ref.copy(circuit = mod.circuit, module = mod.module, path = newPath)
+              case inst: InstanceTarget if newPath.isEmpty => inst.copy(circuit = mod.circuit, module = mod.module)
+              case inst: InstanceTarget =>
+                val (Instance(newInst), OfModule(newOfMod)) = newPath.last
+                inst.copy(circuit = mod.circuit,
+                  module = mod.module,
+                  path = newPath.dropRight(1),
+                  instance = newInst,
+                  ofModule = newOfMod)
+            }
+          }
+      }
+
+      val continueCircuit = continueRenaming[CircuitTarget](Seq(key), astRename)
 
       // rename the last level
-      val botRename = midRename.flatMap {
+      val botRename = astRename.flatMap {
         case t: CircuitTarget if !continueCircuit => Seq(t)
         case t: CircuitTarget => circuitGet(errors)(t)
         case t: ModuleTarget =>

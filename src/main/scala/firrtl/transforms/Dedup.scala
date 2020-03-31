@@ -139,15 +139,14 @@ class DedupModules extends Transform with PreservesAll[Transform] {
     val deletedASTModules = RenameMap(this)
     dedupMap.foreach {
       case (from, to) if from != to.name =>
-        deletedASTModules.delete(CircuitTarget(from).module(from))
+        deletedASTModules.record(
+          CircuitTarget(from).module(from),
+          CircuitTarget(to.name).module(to.name)
+        )
       case x =>
     }
 
     val underlying = renameMap.getUnderlying
-    val originalModuleToRename = underlying.groupBy {
-      case (original@ReferenceTarget(_, om, Nil, oref, Nil), Seq(dedup@ReferenceTarget(_, dm, Nil, dref, Nil))) => om
-      case other => ""
-    }
 
     // Build instanceify renaming map
     val instanceGraph = new InstanceGraph(c)
@@ -161,7 +160,6 @@ class DedupModules extends Transform with PreservesAll[Transform] {
         // Basically, its whether ~Top|Foo is instanceified
         //   (bc then EliminateTargetPaths moves the annotation back to other duplicate modules)
         case Some(module: DefModule) if dedupCliques(module.name).size == 1 =>
-          val dedupedAnnos = module2RenameAnnotations.get(ct.module(module.name))
           val paths = instanceGraph.findInstancesInHierarchy(m)
           val newTargets = paths.map { path =>
             path.foldLeft(ct.module(c): IsModule) { case (relPath, WDefInstance(_, name, mod, _)) =>
@@ -172,7 +170,6 @@ class DedupModules extends Transform with PreservesAll[Transform] {
             Seq(DedupedResult(mt, newTargets.headOption, moduleName2Index(m)))
           } else Nil
         case Some(dedupedModule: DefModule) =>
-          val dedupedAnnos = module2RenameAnnotations.get(ct.module(dedupedModule.name))
           val paths = instanceGraph.findInstancesInHierarchy(m)
           // If dedupedAnnos is exactly annos, contains is because dedupedAnnos is type Option
           val newTargets = paths.map { path =>
@@ -564,7 +561,8 @@ object DedupModules {
                        renameMap: RenameMap): Unit = {
 
     originalNames.zip(dedupedNames).foreach {
-      case (o, d) => if (o.component != d.component || o.ref != d.ref) renameMap.record(o, d)
+      case (o, d) => if (o.component != d.component || o.ref != d.ref)
+        renameMap.record(o.copy(circuit = o.module), d.copy(circuit = d.module))
     }
 
   }

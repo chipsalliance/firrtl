@@ -12,9 +12,7 @@ import scala.collection.mutable
 /** Used by [[firrtl.annotations.transforms.EliminateTargetPaths]] to eliminate target paths
   * Calculates needed modifications to a circuit's module/instance hierarchy
   */
-case class DuplicationHelper(circuit: String,
-                             existingModules: Set[String]
-                            ) {
+case class DuplicationHelper(existingModules: Set[String]) {
 
   // Maps instances to the module it instantiates (an ofModule)
   type InstanceOfModuleMap = mutable.LinkedHashMap[Instance, OfModule]
@@ -70,9 +68,6 @@ case class DuplicationHelper(circuit: String,
     * @return
     */
   def getModuleName(top: String, path: Seq[(Instance, OfModule)]): String = {
-    val it = path.foldLeft(ModuleTarget(top, top): IsModule) { case (im: IsModule, (inst, ofM)) =>
-      im.instOf(inst.value, ofM.value)
-    }
     cachedNames.get((top, path)) match {
       case None => // Need a new name
         val prefix = path.last._2.value + "___"

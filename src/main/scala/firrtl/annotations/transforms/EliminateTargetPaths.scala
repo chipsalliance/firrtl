@@ -135,7 +135,7 @@ class EliminateTargetPaths extends Transform {
           targets: Seq[IsMember]
          ): (Circuit, RenameMap, AnnotationSeq) = {
 
-    val dupMap = DuplicationHelper(cir.main, cir.modules.map(_.name).toSet)
+    val dupMap = DuplicationHelper(cir.modules.map(_.name).toSet)
 
     // For each target, record its path and calculate the necessary modifications to circuit
     targets.foreach { t => dupMap.expandHierarchy(t) }

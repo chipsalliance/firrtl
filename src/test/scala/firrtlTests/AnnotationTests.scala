@@ -12,6 +12,7 @@ import firrtl.transforms.OptimizableExtModuleAnnotation
 import firrtl.passes.InlineAnnotation
 import firrtl.passes.memlib.PinAnnotation
 import firrtl.util.BackendCompilationUtilities
+import logger.{LogLevel, LogLevelAnnotation, Logger}
 import net.jcazevedo.moultingyaml._
 import org.scalatest.Matchers
 
@@ -404,7 +405,9 @@ abstract class AnnotationTests extends AnnotationSpec with Matchers {
     val annos = Seq(
       anno("x", mod = "Child"), anno("y", mod = "Child_1"), manno("Child"), manno("Child_1")
     )
-    val result = compiler.compile(CircuitState(parse(input), ChirrtlForm, annos), Nil)
+    val result = Logger.makeScope(Seq(LogLevelAnnotation(LogLevel.Trace))) {
+      compiler.compile(CircuitState(parse(input), ChirrtlForm, annos), Nil)
+    }
     val resultAnno = result.annotations.toSeq
     resultAnno should contain (anno("x", mod = "Child"))
     resultAnno should contain (anno("y", mod = "Child"))

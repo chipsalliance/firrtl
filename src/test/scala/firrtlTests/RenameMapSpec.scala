@@ -780,4 +780,20 @@ class RenameMapSpec extends FirrtlFlatSpec {
     r.get(foo) should not be (empty)
     r.get(foo).get should contain theSameElementsAs Seq(bar)
   }
+
+  it should "not circularly rename" in {
+    val top = CircuitTarget("Top").module("Top")
+    val foo = top.instOf("foo", "Mod")
+    val Mod = CircuitTarget("Top").module("Mod")
+    val Mod2 = CircuitTarget("Top").module("Mod2")
+
+    val r = RenameMap()
+
+    r.record(foo, Mod)
+    r.record(Mod, Mod2)
+
+    r.get(foo) should not be (empty)
+    r.get(foo).get should contain theSameElementsAs Seq(Mod)
+    r.get(Mod).get should contain theSameElementsAs Seq(Mod2)
+  }
 }
