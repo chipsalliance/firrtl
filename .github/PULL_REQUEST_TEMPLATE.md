@@ -8,6 +8,7 @@
 - [ ] Did you state the API impact?
 - [ ] Did you specify the code generation impact?
 - [ ] Did you request a desired merge strategy?
+- [ ] Did you add text to be included in the Release Notes for this change?
 
 ### Type of Improvement
 
@@ -41,3 +42,8 @@
 - [ ] Did you mark the proper milestone (1.2.x, 1.3.0, 1.4.0) ?
 - [ ] Did you review?
 - [ ] Did you mark as `Please Merge`?
+
+### Release Notes
+<!--
+Text from here to the end of the body will be considered for inclusion in the release notes for the version containing this pull request.
+-->
