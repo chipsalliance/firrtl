@@ -36,6 +36,14 @@ object Dependency {
   private def isSingleton(obj: AnyRef): Boolean = {
     reflect.runtime.currentMirror.reflect(obj).symbol.isModuleClass
   }
+
+  /** Determines whether a given concrete DependencyAPI[_] is the same as a given Dependency[_]
+    * @param t concrete value
+    * @tparam A type of Dependency
+    * @return Whether they are equivalent
+    */
+  def is[A <: DependencyAPI[_] : ClassTag](t: DependencyAPI[_]): Boolean =
+    fromTransform(t) == Dependency[A]
 }
 
 case class Dependency[+A <: DependencyAPI[_]](id: Either[Class[_ <: A], A with Singleton]) {
