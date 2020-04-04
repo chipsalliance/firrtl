@@ -194,6 +194,8 @@ Although this is discouraged, if this transform requires being run after LowForm
   - override def inputForm = LowForm
   + override def prerequisites: Seq[Dependency[Transform]] = firrtl.stage.Forms.LowFormOptimized
 Note that this will always require optimization passes to be run, which is highly undesireable.
+
+Your code:
 """, "1.2")
   def inputForm: CircuitForm = UnknownForm
 
