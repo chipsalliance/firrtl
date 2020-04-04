@@ -72,6 +72,7 @@ trait SingleTargetAnnotation[T <: Named] extends Annotation {
                   s"cannot be renamed to ${newTarget.getClass}"
                 throw AnnotationException(msg)
             }
+          case other => throw new FirrtlUnexpectedMatch(other)
         })).getOrElse(List(this))
     }
   }
