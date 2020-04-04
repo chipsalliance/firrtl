@@ -2,8 +2,9 @@ package firrtl.passes
 
 import firrtl.Utils.{create_exps, flow, get_field, get_valid_points, times, to_flip, to_flow}
 import firrtl.ir._
-import firrtl.options.PreservesAll
+import firrtl.options.{PreservesAll, Dependency}
 import firrtl.{DuplexFlow, Flow, SinkFlow, SourceFlow, Transform, WDefInstance, WRef, WSubAccess, WSubField, WSubIndex}
+import firrtl.Mappers._
 
 object ExpandConnects extends Pass with PreservesAll[Transform] {
 

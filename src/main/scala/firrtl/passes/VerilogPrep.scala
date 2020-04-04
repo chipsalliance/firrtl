@@ -1,9 +1,10 @@
 package firrtl.passes
 
-import firrtl.Utils.{create_exps, flow, kind}
+import firrtl.Utils.{create_exps, flow, kind, toWrappedExpression}
 import firrtl.ir._
+import firrtl.Mappers._
 import firrtl.options.{Dependency, PreservesAll}
-import firrtl.{ExpKind, InstanceKind, Namespace, PortKind, SourceFlow, Transform, WDefInstance, WDefInstanceConnector, WRef, WSubField, WireKind, WrappedExpression, passes}
+import firrtl._
 
 import scala.collection.mutable
 

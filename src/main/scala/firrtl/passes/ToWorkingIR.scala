@@ -1,7 +1,8 @@
 package firrtl.passes
 
 import firrtl.ir._
-import firrtl.options.PreservesAll
+import firrtl.Mappers._
+import firrtl.options.{PreservesAll}
 import firrtl.{Transform, UnknownFlow, UnknownKind, WDefInstance, WRef, WSubAccess, WSubField, WSubIndex}
 
 // These should be distributed into separate files

@@ -1,6 +1,7 @@
 package firrtl.passes
 
 import firrtl.ir._
+import firrtl.Mappers._
 import firrtl.options.PreservesAll
 import firrtl.{Transform, WSubAccess, WSubField, WSubIndex}
 
