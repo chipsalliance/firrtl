@@ -197,7 +197,7 @@ Note that this will always require optimization passes to be run, which is highl
 
 Your code:
 """, "1.2")
-  def inputForm: CircuitForm = UnknownForm
+  def inputForm: CircuitForm
 
   /** The [[firrtl.CircuitForm]] that this transform outputs */
   @deprecatedOverriding(

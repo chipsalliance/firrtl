@@ -42,8 +42,8 @@ object Dependency {
     * @tparam A type of Dependency
     * @return Whether they are equivalent
     */
-  def is[A <: DependencyAPI[_] : ClassTag](t: DependencyAPI[_]): Boolean =
-    fromTransform(t) == Dependency[A]
+  //def is[A <: DependencyAPI[_] : ClassTag](t: DependencyAPI[_]): Boolean =
+  //  fromTransform(t) == Dependency[A]
 }
 
 case class Dependency[+A <: DependencyAPI[_]](id: Either[Class[_ <: A], A with Singleton]) {
