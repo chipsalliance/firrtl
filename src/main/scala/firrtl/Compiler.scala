@@ -185,59 +185,17 @@ trait Transform extends TransformLike[CircuitState] with DependencyAPI[Transform
   def name: String = this.getClass.getName
   /** The [[firrtl.CircuitForm]] that this transform requires to operate on */
   @deprecatedOverriding(
-"""inputForm will be removed in 1.3. Use DependencyAPI method prerequisites, dependents, invalidates)
-Please delete your overriding of inputForm and instead override prerequisites:"
-  - override def inputForm = [[[LowForm|MidForm|HighForm|ChirrtlForm]]]
-  + override def prerequisites: Seq[Dependency[Transform]] = firrtl.stage.Forms.[[[LowForm|MidForm|Deduped|Nil]]]
-
-Although this is discouraged, if this transform requires being run after LowForm optimizations, use the following:
-  - override def inputForm = LowForm
-  + override def prerequisites: Seq[Dependency[Transform]] = firrtl.stage.Forms.LowFormOptimized
-Note that this will always require optimization passes to be run, which is highly undesireable.
-
-Your code:
-""", "1.2")
-  def inputForm: CircuitForm
+    "inputForm will be removed in 1.4, please follow migration instructions: https://gist.github.com/azidar/2595584157adb2228ef40d1e643e8ffd",
+    "1.2"
+  )
+  def inputForm: CircuitForm = UnknownForm
 
   /** The [[firrtl.CircuitForm]] that this transform outputs */
   @deprecatedOverriding(
-    """outputForm will be removed in 1.3. Use DependencyAPI method prerequisites, dependents, invalidates)
-Please delete your overriding of outputForm:
-  - override def outputForm = [[[LowForm|MidForm|HighForm|ChirrtlForm]]]
-
-Then, you will need to override 'def invalidates' depending on your transform.
-  + override def invalidates(a: Transform): Boolean = ...
-
-First we listed the most conservative options to replicate existing behavior. However, we recommend not doing these
-solutions, but instead understanding your transform and trying to minimize the number of transforms you invalidate.
-This can significantly reduce your execution runtime through not unnecessarily rerunning many transforms.
-
-Conservative solutions:
-
-If inputForm == outputForm == UnknownForm:
-  + override def invalidates(a: Transform): Boolean = true
-
-If inputForm == outputForm != UnknownForm:
-  + override def invalidates(a: Transform): Boolean = false
-
-If inputForm != outputForm and outputForm is HighForm:
-  + override def invalidates(a: Transform): Boolean =
-     (Forms.VerilogOptimized -- Forms.MinimalHighForm).contains(Dependency.fromTransform(a))
-
-If inputForm != outputForm and outputForm is MidForm:
-  + override def invalidates(a: Transform): Boolean =
-     (Forms.VerilogOptimized -- Forms.MidForm).contains(Dependency.fromTransform(a))
-
-Recommended Solutions:
-
-For faster and less conservative invalidation, consider if you know more about what this transform does. If so, you can
-selectively invalidate the transforms you know need to be rerun. For example if you invalidate deduplication (and want
-it to be rerun) you can do the following:
-  + override def invalidates(a: Transform): Boolean = Dependency.is[firrtl.transforms.DedupModules](a)
-
-Your code:
-""", "1.2")
-  def outputForm: CircuitForm
+    "outputForm will be removed in 1.4, please follow migration instructions: https://gist.github.com/azidar/2595584157adb2228ef40d1e643e8ffd",
+    "1.2"
+  )
+  def outputForm: CircuitForm = UnknownForm
 
   /** Perform the transform, encode renaming with RenameMap, and can
     *   delete annotations

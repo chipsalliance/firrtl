@@ -28,3 +28,23 @@ class HasAllModifiers extends Transform {
   final override def outputForm = LowForm
   override def execute(state: CircuitState): CircuitState = state
 }
+
+class HasVals extends Transform {
+  val inputForm = LowForm
+  val outputForm = LowForm
+  override def execute(state: CircuitState): CircuitState = state
+}
+
+object ObjTransform extends Transform {
+  val inputForm = LowForm
+  val outputForm = LowForm
+  override def execute(state: CircuitState): CircuitState = state
+}
+
+abstract class SubClass extends Transform {
+  override def execute(state: CircuitState): CircuitState = state
+}
+class SubSubClass extends SubClass {
+  val inputForm = LowForm
+  val outputForm = LowForm
+}
