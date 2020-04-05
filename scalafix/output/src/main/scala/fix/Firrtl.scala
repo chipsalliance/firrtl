@@ -44,4 +44,6 @@ abstract class SubClass extends Transform {
 class SubSubClass extends SubClass {
   override val inputForm = LowForm
   override val outputForm = LowForm
+  val otherVal = 10
+  def otherDef = 10
 }
