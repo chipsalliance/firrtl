@@ -14,9 +14,9 @@ trait Annotation extends Product {
   /** Update the target based on how signals are renamed */
   def update(renames: RenameMap): Seq[Annotation]
 
-  /** Pretty Print
+  /** Optional pretty print
     *
-    * @note In [[logger.LogLevel.Debug]] this is called on every Annotation after every Transform
+    * @note rarely used
     */
   def serialize: String = this.toString
 
@@ -80,7 +80,7 @@ trait SingleTargetAnnotation[T <: Named] extends Annotation {
 /** [[MultiTargetAnnotation]] keeps the renamed targets grouped within a single annotation. */
 trait MultiTargetAnnotation extends Annotation {
   /** Contains a sequence of [[Target]].
-    * When creating in [[toFirrtl]], [[targets]] should be assigned by `Seq(Seq(TargetA), Seq(TargetB), Seq(TargetC))`
+    * When created, [[targets]] should be assigned by `Seq(Seq(TargetA), Seq(TargetB), Seq(TargetC))`
     * */
   val targets: Seq[Seq[Target]]
 
