@@ -411,10 +411,26 @@ class ConstantPropagation extends Transform with ResolvedAnnotationPaths {
   // Is "a" a "better name" than "b"?
   private def betterName(a: String, b: String): Boolean = (a.head != '_') && (b.head == '_')
 
-  def optimize(e: Expression): Expression = constPropExpression(new NodeMap(), Map.empty[Instance, OfModule], Map.empty[OfModule, Map[String, Literal]])(e)
-  def optimize(e: Expression, nodeMap: NodeMap): Expression = constPropExpression(nodeMap, Map.empty[Instance, OfModule], Map.empty[OfModule, Map[String, Literal]])(e)
+  def optimize(e: Expression): Expression =
+    constPropExpression(
+      new NodeMap(),
+      Map.empty[Instance, OfModule],
+      Map.empty[OfModule, Map[String, Literal]]
+    )(e)
+  def optimize(e: Expression, nodeMap: NodeMap): Expression =
+    constPropExpression(
+      nodeMap,
+      Map.empty[Instance, OfModule],
+      Map.empty[OfModule, Map[String, Literal]]
+    )(e)
 
-  private def constPropExpression(nodeMap: NodeMap, instMap: collection.Map[Instance, OfModule], constSubOutputs: Map[OfModule, Map[String, Literal]])(e: Expression): Expression = {
+  private def constPropExpression(
+      nodeMap: NodeMap,
+      instMap: collection.Map[Instance, OfModule],
+      constSubOutputs: Map[OfModule, Map[String, Literal]]
+  )(
+      e: Expression
+  ): Expression = {
     val old = e map constPropExpression(nodeMap, instMap, constSubOutputs)
     val propagated = old match {
       case p: DoPrim => constPropPrim(p)
@@ -450,14 +466,17 @@ class ConstantPropagation extends Transform with ResolvedAnnotationPaths {
    * @return (Constpropped Module, Map of output port names to literal value,
    *   Map of submodule modulenames to Map of input port names to literal values)
    */
-  @tailrec
+  //@tailrec
   private def constPropModule(
       m: Module,
       dontTouches: Set[String],
       instMap: collection.Map[Instance, OfModule],
       constInputs: Map[String, Literal],
-      constSubOutputs: Map[OfModule, Map[String, Literal]]
+      constSubOutputs: Map[OfModule, Map[String, Literal]],
+      renameMap: RenameMap
     ): (Module, Map[String, Literal], Map[OfModule, Map[String, Seq[Literal]]]) = {
+
+    val mt = ModuleTarget(m.name)
 
     var nPropagated = 0L
     val nodeMap = new NodeMap()
@@ -526,11 +545,20 @@ class ConstantPropagation extends Transform with ResolvedAnnotationPaths {
       nodeMap(lname) = value
     }
 
-    def constPropStmt(s: Statement): Statement = {
-      val stmtx = s map constPropStmt map constPropExpression(nodeMap, instMap, constSubOutputs)
+    def constPropStmt(renameMap: RenameMap)(s: Statement): Statement = {
+      val stmtx = s map constPropStmt(renameMap) map constPropExpression(nodeMap, instMap, constSubOutputs)
       // Record things that should be propagated
       stmtx match {
         case x: DefNode if !dontTouches.contains(x.name) => propagateRef(x.name, x.value)
+        case w: WDefInstance =>
+          val module = instMap(w.name.Instance)
+          // Check constSubOutputs to see if the submodule is driving a constant
+          constSubOutputs.get(module).foreach { map =>
+            map.foreach { case (pname, lit) =>
+              val rt = mt.ref(w.name).field(pname)
+              renameMap.record(rt, rt.setConstant(lit.value))
+            }
+          }
         case reg: DefRegister if reg.reset.tpe == AsyncResetType =>
           asyncResetRegs(reg.name) = reg
         case Connect(_, WRef(wname, wtpe, WireKind, _), expr: Literal) if !dontTouches.contains(wname) =>
@@ -605,6 +633,8 @@ class ConstantPropagation extends Transform with ResolvedAnnotationPaths {
 
         // Mark instance inputs connected to a constant
         case Connect(_, lref @ WSubField(WRef(inst, _, InstanceKind, _), port, ptpe, _), lit: Literal) =>
+          val rf = mt.ref(inst).field(port)
+          renameMap.record(rf, rf.setConstant(lit.value))
           val paddedLit = constPropExpression(nodeMap, instMap, constSubOutputs)(pad(lit, ptpe)).asInstanceOf[Literal]
           val module = instMap(inst.Instance)
           val portsMap = constSubInputs.getOrElseUpdate(module, mutable.HashMap.empty)
@@ -623,12 +653,36 @@ class ConstantPropagation extends Transform with ResolvedAnnotationPaths {
       }
     }
 
-    val modx = m.copy(body = backPropStmt(constPropStmt(m.body)))
+    val modx = m.copy(body = backPropStmt(constPropStmt(renameMap)(m.body)))
 
     // When we call this function again, constOutputs and constSubInputs are reconstructed and
     // strictly a superset of the versions here
-    if (nPropagated > 0) constPropModule(modx, dontTouches, instMap, constInputs, constSubOutputs)
+    val ret = if (nPropagated > 0) constPropModule(modx, dontTouches, instMap, constInputs, constSubOutputs, renameMap)
     else (modx, constOutputs.toMap, constSubInputs.mapValues(_.toMap).toMap)
+    println(s"HERE on ${modx.name}")
+    println(s"${modx.serialize}")
+
+    nodeMap.foreach {
+      case(name, l: Literal) =>
+        val rt = mt.ref(name)
+        renameMap.record(rt, rt.setConstant(l.value))
+      case(name, _) =>
+    }
+    constOutputs.foreach {
+      case(name, l: Literal) =>
+        val rt = mt.ref(name)
+        renameMap.record(rt, rt.setConstant(l.value))
+    }
+
+
+    //constSubOutputs.foreach { case (OfModule(of), map) =>
+    //  map.foreach {
+    //    case (instPortName, Seq(l: Literal)) =>
+    //      val rt = mt.ref(of).field(instPortName)
+    //      renameMap.record(rt, rt.setConstant(l.value))
+    //  }
+    //}
+    ret
   }
 
   // Unify two maps using f to combine values of duplicate keys
@@ -638,7 +692,7 @@ class ConstantPropagation extends Transform with ResolvedAnnotationPaths {
     }
 
 
-  private def run(c: Circuit, dontTouchMap: Map[OfModule, Set[String]]): Circuit = {
+  private def run(c: Circuit, dontTouchMap: Map[OfModule, Set[String]], renameMap: RenameMap): Circuit = {
     val iGraph = new InstanceGraph(c)
     val moduleDeps = iGraph.getChildrenInstanceMap
     val instCount = iGraph.staticInstanceCount
@@ -653,10 +707,11 @@ class ConstantPropagation extends Transform with ResolvedAnnotationPaths {
     // Since Modules can be instantiated multiple times, for inputs we must check that all instances
     // are driven with the same constant value. Then, if we find a Module input where each instance
     // is driven with the same constant (and not seen in a previous iteration), we iterate again
-    @tailrec
+    //@tailrec
     def iterate(toVisit: Set[OfModule],
             modules: Map[OfModule, Module],
-            constInputs: Map[OfModule, Map[String, Literal]]): Map[OfModule, DefModule] = {
+            constInputs: Map[OfModule, Map[String, Literal]],
+            renameMap: RenameMap): Map[OfModule, DefModule] = {
       if (toVisit.isEmpty) modules
       else {
         // Order from leaf modules to root so that any module driving an output
@@ -673,7 +728,7 @@ class ConstantPropagation extends Transform with ResolvedAnnotationPaths {
             case ((mmap, constOutputs, constInputsAcc), mname) =>
               val dontTouches = dontTouchMap.getOrElse(mname, Set.empty)
               val (mx, mco, mci) = constPropModule(modules(mname), dontTouches, moduleDeps(mname),
-                                                   constInputs.getOrElse(mname, Map.empty), constOutputs)
+                                                   constInputs.getOrElse(mname, Map.empty), constOutputs, renameMap)
               // Accumulate all Literals used to drive a particular Module port
               val constInputsx = unify(constInputsAcc, mci)((a, b) => unify(a, b)((c, d) => c ++ d))
               (mmap + (mname -> mx), constOutputs + (mname -> mco), constInputsx)
@@ -694,14 +749,14 @@ class ConstantPropagation extends Transform with ResolvedAnnotationPaths {
                          modsWithConstInputs.flatMap(parentGraph.reachableFrom)
         // Combine const inputs (there can't be duplicate values in the inner maps)
         val nextConstInputs = unify(constInputs, newProppedInputs)((a, b) => a ++ b)
-        iterate(newToVisit.toSet, modulesx, nextConstInputs)
+        iterate(newToVisit.toSet, modulesx, nextConstInputs, renameMap)
       }
     }
 
     val modulesx = {
       val nameMap = c.modules.collect { case m: Module => m.OfModule -> m }.toMap
       // We only pass names of Modules, we can't apply const prop to ExtModules
-      val mmap = iterate(nameMap.keySet, nameMap, Map.empty)
+      val mmap = iterate(nameMap.keySet, nameMap, Map.empty, renameMap)
       c.modules.map(m => mmap.getOrElse(m.OfModule, m))
     }
 
@@ -721,6 +776,11 @@ class ConstantPropagation extends Transform with ResolvedAnnotationPaths {
     val dontTouchMap: Map[OfModule, Set[String]] =
       dontTouches.groupBy(_._1).mapValues(_.map(_._2).toSet)
 
-    state.copy(circuit = run(state.circuit, dontTouchMap))
+    val renameMap = RenameMap(this)
+
+    val ret = state.copy(circuit = run(state.circuit, dontTouchMap, renameMap), renames = Some(renameMap))
+    println("done")
+    println(renameMap.underlying.mkString("\n"))
+    ret
   }
 }

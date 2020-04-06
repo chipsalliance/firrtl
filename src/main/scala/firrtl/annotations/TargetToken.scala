@@ -34,6 +34,7 @@ case object TargetToken {
   case object Clock                   extends TargetToken { override def keyword: String = "clock"; val value = "" }
   case object Init                    extends TargetToken { override def keyword: String = "init";  val value = "" }
   case object Reset                   extends TargetToken { override def keyword: String = "reset"; val value = "" }
+  case class IsConstant(value: BigInt)extends TargetToken { override def keyword: String = "=" }
 
   implicit class fromStringToTargetToken(s: String) {
     def Instance: Instance = new TargetToken.Instance(s)
@@ -70,7 +71,8 @@ case object TargetToken {
     "." -> ((value: String) => Field(value)),
     "clock" -> ((value: String) => Clock),
     "init" -> ((value: String) => Init),
-    "reset" -> ((value: String) => Reset)
+    "reset" -> ((value: String) => Reset),
+    "=" -> ((value: String) => IsConstant(BigInt(value)))
   )
 }
 

@@ -46,6 +46,7 @@ sealed trait Target extends Named {
       case Clock => s"@clock"
       case Reset => s"@reset"
       case Init => s"@init"
+      case IsConstant(c) => s"=${c.toString(10)}"
     }.mkString("")
     if(moduleOpt.isEmpty && tokens.isEmpty) {
       circuitString
@@ -352,7 +353,7 @@ case class GenericTarget(circuitOpt: Option[String],
 /** Concretely points to a FIRRTL target, no generic selectors
   * IsLegal
   */
-trait CompleteTarget extends Target {
+sealed trait CompleteTarget extends Target {
 
   /** @return The circuit of this target */
   def circuit: String
@@ -380,7 +381,7 @@ trait CompleteTarget extends Target {
 /** A member of a FIRRTL Circuit (e.g. cannot point to a CircuitTarget)
   * Concrete Subclasses are: [[ModuleTarget]], [[InstanceTarget]], and [[ReferenceTarget]]
   */
-trait IsMember extends CompleteTarget {
+sealed trait IsMember extends CompleteTarget {
 
   /** @return Root module, e.g. top-level module of this target */
   def module: String
@@ -426,7 +427,7 @@ trait IsMember extends CompleteTarget {
 
 /** References a module-like target (e.g. a [[ModuleTarget]] or an [[InstanceTarget]])
   */
-trait IsModule extends IsMember {
+sealed trait IsModule extends IsMember {
 
   /** @return Creates a new Target, appending a ref */
   def ref(value: String): ReferenceTarget
@@ -439,7 +440,7 @@ trait IsModule extends IsMember {
 
 /** A component of a FIRRTL Module (e.g. cannot point to a CircuitTarget or ModuleTarget)
   */
-trait IsComponent extends IsMember {
+sealed trait IsComponent extends IsMember {
 
   /** @return The [[ModuleTarget]] of the module that directly contains this component */
   def encapsulatingModule: String = if(path.isEmpty) module else path.last._2.value
@@ -560,6 +561,32 @@ object ModuleTarget {
   def apply(module: String): ModuleTarget = ModuleTarget(module, module)
 }
 
+// Thoughts
+// Constant vs literal? - Constant, as untyped
+// Should constant targets have modules? circuits? Yes, yes. It IS in a module/circuit
+// Should they have a path? Why not?
+// Should they have a type? Or just a value? Just a value, like other refs
+// Can you rename constants? e.g. 0 -> 1 ? Its super weird, but also if you are recording
+//   constant prop, then you change it, should you update the renaming so its correct?
+// If you are recording for constant prop, don't we have the same problem as ModuleTarget vs InstanceTarget types?
+// Thus, shouldn't they be the same type, and thus we just expand ReferenceTarget to have an optional Constant value?
+//   e.g. ~Top|Top>ref.a.b=0, where =0 is a constant: Option[BigInt], and = is the prefix syntax
+// Adding a separate IsConstant field is brittle because (a) it makes it backwards incompatible, and (b)
+//   It is tough to understand the targetParent stuff. It makes more sense as a component, which is stripped off
+//   and we ensure constant tokens are only legal at the end of the component seq
+// CP/DCE RenameMap behavior
+//   - CP  Only replaces references with literals, but does not delete declarations
+//   - DCE Only deletes declarations
+// Options
+// 1. Both CP+DCE rename, and change RenameMap behavior so deleting a constant does nothing
+// 2. Both CP+DCE rename, and annotations must customize desired renaming by inspecting rename output
+// 3. Only DCE renames, given metadata from CP
+// circuit T:
+//   module T:
+//     node x = 0 ----
+//     out <= 0 + y
+// Albert wants to stop renaming after a name is set to a constant
+//   Renaming to a constant means it was inlined as that constant
 /** Target pointing to a declared named component in a [[firrtl.ir.DefModule]]
   * This includes: [[firrtl.ir.Port]], [[firrtl.ir.DefWire]], [[firrtl.ir.DefRegister]], [[firrtl.ir.DefInstance]],
   *   [[firrtl.ir.DefMemory]], [[firrtl.ir.DefNode]]
@@ -575,26 +602,37 @@ case class ReferenceTarget(circuit: String,
                            ref: String,
                            component: Seq[TargetToken]) extends IsComponent {
 
+  // Require constant IsConstant, if it exists, is the last token
+  if(component.nonEmpty) require(component.dropRight(1).forall(!_.isInstanceOf[IsConstant]))
+
+  /** @return All component tokens, without any IsConstant tokens
+    */
+  def componentWithoutIsConstants: Seq[TargetToken] = component.filter(!_.isInstanceOf[IsConstant])
+
   /** @param value Index value of this target
     * @return A new [[ReferenceTarget]] to the specified index of this [[ReferenceTarget]]
     */
-  def index(value: Int): ReferenceTarget = ReferenceTarget(circuit, module, path, ref, component :+ Index(value))
+  def index(value: Int): ReferenceTarget = this.copy(component = componentWithoutIsConstants :+ Index(value))
 
   /** @param value Field name of this target
     * @return A new [[ReferenceTarget]] to the specified field of this [[ReferenceTarget]]
     */
-  def field(value: String): ReferenceTarget = ReferenceTarget(circuit, module, path, ref, component :+ Field(value))
+  def field(value: String): ReferenceTarget = this.copy(component = componentWithoutIsConstants :+ Field(value))
 
   /** @return The initialization value of this reference, must be to a [[firrtl.ir.DefRegister]] */
-  def init: ReferenceTarget = ReferenceTarget(circuit, module, path, ref, component :+ Init)
+  def init: ReferenceTarget = this.copy(component = componentWithoutIsConstants :+ Init)
 
   /** @return The reset signal of this reference, must be to a [[firrtl.ir.DefRegister]] */
-  def reset: ReferenceTarget = ReferenceTarget(circuit, module, path, ref, component :+ Reset)
+  def reset: ReferenceTarget = this.copy(component = componentWithoutIsConstants :+ Reset)
 
   /** @return The clock signal of this reference, must be to a [[firrtl.ir.DefRegister]] */
-  def clock: ReferenceTarget = ReferenceTarget(circuit, module, path, ref, component :+ Clock)
+  def clock: ReferenceTarget = this.copy(component = componentWithoutIsConstants :+ Clock)
 
-  /** @param the type of this target's ref
+  /** @return The clock signal of this reference, must be to a [[firrtl.ir.DefRegister]] */
+  def setConstant(constant: BigInt): ReferenceTarget =
+    this.copy(component = componentWithoutIsConstants :+ IsConstant(constant))
+
+  /** @param baseType the type of this target's ref
     * @return the type of the subcomponent specified by this target's component
     */
   def componentType(baseType: Type): Type = componentType(baseType, tokens)
@@ -604,13 +642,20 @@ case class ReferenceTarget(circuit: String,
       baseType
     } else {
       val headType = tokens.head match {
-        case Index(idx) => sub_type(baseType)
+        case Index(_) => sub_type(baseType)
         case Field(field) => field_type(baseType, field)
+        case IsConstant(_) => baseType
         case _: Ref => baseType
       }
       componentType(headType, tokens.tail)
     }
   }
+
+  def isAConstant: Boolean = component.lastOption.nonEmpty && component.last.is("=")
+
+  def getConstant: Option[BigInt] = if(isAConstant) Some(component.last.asInstanceOf[IsConstant].value) else None
+
+  def constant: BigInt = getConstant.get
 
   override def circuitOpt: Option[String] = Some(circuit)
 
@@ -622,7 +667,7 @@ case class ReferenceTarget(circuit: String,
         val (i, o) = path.last
         InstanceTarget(circuit, module, path.dropRight(1), i.value, o.value)
       }
-    case other => ReferenceTarget(circuit, module, path, ref, component.dropRight(1))
+    case _ => ReferenceTarget(circuit, module, path, ref, component.dropRight(1))
   }
 
   override def notPath: Seq[TargetToken] = Ref(ref) +: component
