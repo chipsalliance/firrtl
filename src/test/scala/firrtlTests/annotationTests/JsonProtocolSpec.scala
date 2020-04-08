@@ -15,7 +15,7 @@ case class AnAnnotation(
     statement: Statement,
     expr: Expression,
     tpe: Type,
-    groundType: GroundType,
+    groundType: GroundType
 ) extends NoTargetAnnotation
 
 class JsonProtocolSpec extends FlatSpec with Matchers {
