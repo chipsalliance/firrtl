@@ -71,7 +71,8 @@ trait Utils {
     * want to test a command line program, e.g., the `main` method of [[firrtl.options.Stage Stage]].
     *
     * NOTE: THIS WILL NOT WORK IN SITUATIONS WHERE THE THUNK IS CATCHING ALL [[java.lang.Exception Exception]]s OR
-    * [[Throwable]]s, E.G., SCOPT. IF THIS IS HAPPENING THIS WILL NOT WORK. REPEAT THIS WILL NOT WORK.
+    * [[java.lang.Throwable Throwable]]s, E.G., SCOPT. IF THIS IS HAPPENING THIS WILL NOT WORK. REPEAT THIS WILL NOT
+    * WORK.
     * @param thunk some Scala code
     * @return either the output of the thunk (`Right[T]`) or an exit code (`Left[Int]`)
     */
