@@ -13,8 +13,9 @@ import firrtl.passes.InlineAnnotation
 import firrtl.passes.memlib.PinAnnotation
 import firrtl.util.BackendCompilationUtilities
 import logger.{LogLevel, LogLevelAnnotation, Logger}
+import firrtl.testutils._
 import net.jcazevedo.moultingyaml._
-import org.scalatest.Matchers
+import org.scalatest.matchers.should.Matchers
 
 /**
  * An example methodology for testing Firrtl annotations.

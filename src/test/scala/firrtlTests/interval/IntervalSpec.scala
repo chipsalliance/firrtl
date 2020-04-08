@@ -6,6 +6,7 @@ import firrtl.ir.Circuit
 import firrtl.passes._
 import firrtl.passes.CheckTypes.InvalidConnect
 import firrtl.passes.CheckWidths.DisjointSqueeze
+import firrtl.testutils.FirrtlFlatSpec
 
 class IntervalSpec extends FirrtlFlatSpec {
   private def executeTest(input: String, expected: Seq[String], passes: Seq[Transform]) = {
@@ -40,7 +41,7 @@ class IntervalSpec extends FirrtlFlatSpec {
   }
 
   "Interval types" should "infer bp correctly" in {
-    val passes = Seq(ToWorkingIR, InferTypes, ResolveGenders, new InferBinaryPoints())
+    val passes = Seq(ToWorkingIR, InferTypes, ResolveFlows, new InferBinaryPoints())
     val input =
       """circuit Unit :
         |  module Unit :
@@ -61,7 +62,7 @@ class IntervalSpec extends FirrtlFlatSpec {
   }
 
   "Interval types" should "trim known intervals correctly" in {
-    val passes = Seq(ToWorkingIR, InferTypes, ResolveGenders, new InferBinaryPoints(), new TrimIntervals())
+    val passes = Seq(ToWorkingIR, InferTypes, ResolveFlows, new InferBinaryPoints(), new TrimIntervals())
     val input =
       """circuit Unit :
         |  module Unit :
@@ -82,7 +83,7 @@ class IntervalSpec extends FirrtlFlatSpec {
   }
 
   "Interval types" should "infer intervals correctly" in {
-    val passes = Seq(ToWorkingIR, InferTypes, ResolveGenders, new InferBinaryPoints(), new TrimIntervals(), new InferWidths())
+    val passes = Seq(ToWorkingIR, InferTypes, ResolveFlows, new InferBinaryPoints(), new TrimIntervals(), new InferWidths())
     val input =
       """circuit Unit :
         |  module Unit :
@@ -103,7 +104,7 @@ class IntervalSpec extends FirrtlFlatSpec {
   }
 
   "Interval types" should "be removed correctly" in {
-    val passes = Seq(ToWorkingIR, InferTypes, ResolveGenders, new InferBinaryPoints(), new TrimIntervals(), new InferWidths(), new RemoveIntervals())
+    val passes = Seq(ToWorkingIR, InferTypes, ResolveFlows, new InferBinaryPoints(), new TrimIntervals(), new InferWidths(), new RemoveIntervals())
     val input =
       """circuit Unit :
         |  module Unit :
@@ -132,7 +133,7 @@ class IntervalSpec extends FirrtlFlatSpec {
   }
 
 "Interval types" should "infer multiplication by zero correctly" in {
-  val passes = Seq(ToWorkingIR, InferTypes, ResolveGenders, new InferBinaryPoints(), new TrimIntervals(), new InferWidths())
+  val passes = Seq(ToWorkingIR, InferTypes, ResolveFlows, new InferBinaryPoints(), new TrimIntervals(), new InferWidths())
     val input =
       s"""circuit Unit :
       |  module Unit :
@@ -146,7 +147,7 @@ class IntervalSpec extends FirrtlFlatSpec {
 }
 
   "Interval types" should "infer muxes correctly" in {
-    val passes = Seq(ToWorkingIR, InferTypes, ResolveGenders, new InferBinaryPoints(), new TrimIntervals(), new InferWidths())
+    val passes = Seq(ToWorkingIR, InferTypes, ResolveFlows, new InferBinaryPoints(), new TrimIntervals(), new InferWidths())
       val input =
         s"""circuit Unit :
         |  module Unit :
@@ -160,7 +161,7 @@ class IntervalSpec extends FirrtlFlatSpec {
     executeTest(input, check.split("\n") map normalized, passes)
   }
   "Interval types" should "infer dshl correctly" in {
-    val passes = Seq(ToWorkingIR, InferTypes, ResolveKinds, ResolveGenders, new InferBinaryPoints(), new TrimIntervals, new InferWidths())
+    val passes = Seq(ToWorkingIR, InferTypes, ResolveKinds, ResolveFlows, new InferBinaryPoints(), new TrimIntervals, new InferWidths())
       val input =
         s"""circuit Unit :
         |  module Unit :
@@ -173,7 +174,7 @@ class IntervalSpec extends FirrtlFlatSpec {
     executeTest(input, check.split("\n") map normalized, passes)
   }
   "Interval types" should "infer asInterval correctly" in {
-    val passes = Seq(ToWorkingIR, InferTypes, ResolveGenders, new InferWidths())
+    val passes = Seq(ToWorkingIR, InferTypes, ResolveFlows, new InferWidths())
       val input =
         s"""circuit Unit :
         |  module Unit :
@@ -317,7 +318,7 @@ class IntervalSpec extends FirrtlFlatSpec {
     executeTest(input, check.split("\n") map normalized, passes)
   }
   "Interval types" should "remove negative binary points" in {
-    val passes = Seq(ToWorkingIR, InferTypes, ResolveGenders, new InferBinaryPoints(), new TrimIntervals(), new InferWidths(), new RemoveIntervals())
+    val passes = Seq(ToWorkingIR, InferTypes, ResolveFlows, new InferBinaryPoints(), new TrimIntervals(), new InferWidths(), new RemoveIntervals())
       val input =
         s"""circuit Unit :
         |  module Unit :

@@ -1,11 +1,11 @@
 // See LICENSE for license details.
 
-package firrtlTests
+package firrtl.testutils
 
 import java.io._
 import java.security.Permission
 
-import logger.LazyLogging
+import logger.{LazyLogging, LogLevel, LogLevelAnnotation}
 
 import org.scalatest._
 import org.scalatestplus.scalacheck._
@@ -13,11 +13,15 @@ import org.scalatestplus.scalacheck._
 import firrtl._
 import firrtl.ir._
 import firrtl.Parser.UseInfo
+import firrtl.options.{Dependency, PreservesAll}
 import firrtl.stage.{FirrtlFileAnnotation, InfoModeAnnotation, RunFirrtlTransformAnnotation}
 import firrtl.analyses.{GetNamespace, ModuleNamespaceAnnotation}
 import firrtl.annotations._
 import firrtl.transforms.{DontTouchAnnotation, NoDedupAnnotation, RenameModules}
 import firrtl.util.BackendCompilationUtilities
+import org.scalatest.flatspec.AnyFlatSpec
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.propspec.AnyPropSpec
 
 class CheckLowForm extends SeqTransform {
   def inputForm = LowForm
@@ -27,30 +31,46 @@ class CheckLowForm extends SeqTransform {
   )
 }
 
+case class RenameTopAnnotation(newTopName: String) extends NoTargetAnnotation
+
+object RenameTop extends Transform with PreservesAll[Transform] {
+  def inputForm = UnknownForm
+  def outputForm = UnknownForm
+
+  override val optionalPrerequisites = Seq(Dependency[RenameModules])
+
+  override val dependents = Seq(Dependency[VerilogEmitter], Dependency[MinimumVerilogEmitter])
+
+  def execute(state: CircuitState): CircuitState = {
+    val c = state.circuit
+    val ns = Namespace(c)
+
+    val newTopName = state.annotations.collectFirst({
+      case RenameTopAnnotation(name) =>
+        require(ns.tryName(name))
+        name
+    }).getOrElse(c.main)
+
+    state.annotations.collect {
+      case ModuleNamespaceAnnotation(mustNotCollideNS) => require(mustNotCollideNS.tryName(newTopName))
+    }
+
+    val modulesx = c.modules.map {
+      case m: Module if (m.name == c.main) => m.copy(name = newTopName)
+      case m => m
+    }
+
+    val renames = RenameMap()
+    renames.record(CircuitTarget(c.main), CircuitTarget(newTopName))
+    state.copy(circuit = c.copy(main = newTopName, modules = modulesx), renames = Some(renames))
+  }
+}
+
 trait FirrtlRunners extends BackendCompilationUtilities {
 
   val cppHarnessResourceName: String = "/firrtl/testTop.cpp"
   /** Extra transforms to run by default */
   val extraCheckTransforms = Seq(new CheckLowForm)
-
-  private class RenameTop(newTopPrefix: String) extends Transform {
-    def inputForm: LowForm.type = LowForm
-    def outputForm: LowForm.type = LowForm
-
-    def execute(state: CircuitState): CircuitState = {
-      val namespace = state.annotations.collectFirst {
-        case m: ModuleNamespaceAnnotation => m
-      }.get.namespace
-
-      val newTopName = namespace.newName(newTopPrefix)
-      val modulesx = state.circuit.modules.map {
-        case mod: Module if mod.name == state.circuit.main => mod.mapString(_ => newTopName)
-        case other => other
-      }
-
-      state.copy(circuit = state.circuit.copy(main = newTopName, modules = modulesx))
-    }
-  }
 
   /** Check equivalence of Firrtl transforms using yosys
     *
@@ -64,29 +84,35 @@ trait FirrtlRunners extends BackendCompilationUtilities {
                             customAnnotations: AnnotationSeq = Seq.empty,
                             resets: Seq[(Int, String, Int)] = Seq.empty): Unit = {
     val circuit = Parser.parse(input.split("\n").toIterator)
-    val compiler = new MinimumVerilogCompiler
     val prefix = circuit.main
     val testDir = createTestDirectory(prefix + "_equivalence_test")
-    val firrtlWriter = new PrintWriter(s"${testDir.getAbsolutePath}/$prefix.fir")
-    firrtlWriter.write(input)
-    firrtlWriter.close()
 
-    val customVerilog = compiler.compileAndEmit(CircuitState(circuit, HighForm, customAnnotations),
-      new GetNamespace +: new RenameTop(s"${prefix}_custom") +: customTransforms)
-    val namespaceAnnotation = customVerilog.annotations.collectFirst { case m: ModuleNamespaceAnnotation => m }.get
-    val customTop = customVerilog.circuit.main
-    val customFile = new PrintWriter(s"${testDir.getAbsolutePath}/$customTop.v")
-    customFile.write(customVerilog.getEmittedCircuit.value)
-    customFile.close()
+    def toAnnos(xforms: Seq[Transform]) = xforms.map(RunFirrtlTransformAnnotation(_))
 
-    val referenceVerilog = compiler.compileAndEmit(CircuitState(circuit, HighForm, Seq(namespaceAnnotation)),
-      Seq(new RenameModules, new RenameTop(s"${prefix}_reference")))
-    val referenceTop = referenceVerilog.circuit.main
-    val referenceFile = new PrintWriter(s"${testDir.getAbsolutePath}/$referenceTop.v")
-    referenceFile.write(referenceVerilog.getEmittedCircuit.value)
-    referenceFile.close()
+    def getBaseAnnos(topName: String) = {
+      val baseTransforms = RenameTop +: extraCheckTransforms
+      TargetDirAnnotation(testDir.toString) +:
+      InfoModeAnnotation("ignore") +:
+      RenameTopAnnotation(topName) +:
+      stage.FirrtlCircuitAnnotation(circuit) +:
+      stage.CompilerAnnotation("mverilog") +:
+      stage.OutputFileAnnotation(topName) +:
+      toAnnos(baseTransforms)
+    }
 
-    assert(yosysExpectSuccess(customTop, referenceTop, testDir, resets))
+    val customName = s"${prefix}_custom"
+    val customAnnos = getBaseAnnos(customName) ++: toAnnos((new GetNamespace) +: customTransforms) ++: customAnnotations
+
+    val customResult = (new firrtl.stage.FirrtlStage).run(customAnnos)
+    val nsAnno = customResult.collectFirst { case m: ModuleNamespaceAnnotation => m }.get
+
+    val refSuggestedName = s"${prefix}_ref"
+    val refAnnos = getBaseAnnos(refSuggestedName) ++: Seq(RunFirrtlTransformAnnotation(new RenameModules), nsAnno)
+
+    val refResult = (new firrtl.stage.FirrtlStage).run(refAnnos)
+    val refName = refResult.collectFirst({ case stage.FirrtlCircuitAnnotation(c) => c.main }).getOrElse(refSuggestedName)
+
+    assert(yosysExpectSuccess(customName, refName, testDir, resets))
   }
 
   /** Compiles input Firrtl to Verilog */
@@ -258,9 +284,9 @@ object FirrtlCheckers extends FirrtlMatchers {
   }
 }
 
-abstract class FirrtlPropSpec extends PropSpec with ScalaCheckPropertyChecks with FirrtlRunners with LazyLogging
+abstract class FirrtlPropSpec extends AnyPropSpec with ScalaCheckPropertyChecks with FirrtlRunners with LazyLogging
 
-abstract class FirrtlFlatSpec extends FlatSpec with FirrtlRunners with FirrtlMatchers with LazyLogging
+abstract class FirrtlFlatSpec extends AnyFlatSpec with FirrtlRunners with FirrtlMatchers with LazyLogging
 
 // Who tests the testers?
 class TestFirrtlFlatSpec extends FirrtlFlatSpec {
@@ -313,9 +339,9 @@ class TestFirrtlFlatSpec extends FirrtlFlatSpec {
 }
 
 /** Super class for execution driven Firrtl tests */
-abstract class ExecutionTest(name: String, dir: String, vFiles: Seq[String] = Seq.empty) extends FirrtlPropSpec {
+abstract class ExecutionTest(name: String, dir: String, vFiles: Seq[String] = Seq.empty, annotations: AnnotationSeq = Seq.empty) extends FirrtlPropSpec {
   property(s"$name should execute correctly") {
-    runFirrtlTest(name, dir, vFiles)
+    runFirrtlTest(name, dir, vFiles, annotations = annotations)
   }
 }
 /** Super class for compilation driven Firrtl tests */

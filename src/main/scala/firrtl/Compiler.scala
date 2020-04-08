@@ -202,7 +202,7 @@ trait Transform extends TransformLike[CircuitState] with DependencyAPI[Transform
     * @param state Input Firrtl AST
     * @return A transformed Firrtl AST
     */
-  def execute(state: CircuitState): CircuitState
+  protected def execute(state: CircuitState): CircuitState
 
   def transform(state: CircuitState): CircuitState = execute(state)
 
@@ -295,10 +295,8 @@ trait Transform extends TransformLike[CircuitState] with DependencyAPI[Transform
     val remappedAnnotations = propagateAnnotations(state.annotations, result.annotations, result.renames)
 
     logger.info(s"Form: ${result.form}")
-    logger.debug(s"Annotations:")
-    remappedAnnotations.foreach { a =>
-      logger.debug(a.serialize)
-    }
+    logger.trace(s"Annotations:")
+    logger.trace(JsonProtocol.serialize(remappedAnnotations))
     logger.trace(s"Circuit:\n${result.circuit.serialize}")
     logger.info(s"======== Finished Transform $name ========\n")
     CircuitState(result.circuit, result.form, remappedAnnotations, None)
