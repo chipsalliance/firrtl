@@ -70,8 +70,8 @@ trait Utils {
     * situation where a test results in something actually exiting and killing the entire test. This is necessary if you
     * want to test a command line program, e.g., the `main` method of [[firrtl.options.Stage Stage]].
     *
-    * NOTE: THIS WILL NOT WORK IN SITUATIONS WHERE THE THUNK IS CATCHING ALL [[Exception]]s OR [[Throwable]]s, E.G.,
-    * SCOPT. IF THIS IS HAPPENING THIS WILL NOT WORK. REPEAT THIS WILL NOT WORK.
+    * NOTE: THIS WILL NOT WORK IN SITUATIONS WHERE THE THUNK IS CATCHING ALL [[java.lang.Exception Exception]]s OR
+    * [[Throwable]]s, E.G., SCOPT. IF THIS IS HAPPENING THIS WILL NOT WORK. REPEAT THIS WILL NOT WORK.
     * @param thunk some Scala code
     * @return either the output of the thunk (`Right[T]`) or an exit code (`Left[Int]`)
     */
