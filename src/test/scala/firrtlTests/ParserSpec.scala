@@ -2,10 +2,9 @@
 
 package firrtlTests
 
-import org.scalatest._
 import firrtl._
+import firrtl.testutils._
 import org.scalacheck.Gen
-import org.scalacheck.Prop.forAll
 
 class ParserSpec extends FirrtlFlatSpec {
 
@@ -118,6 +117,38 @@ class ParserSpec extends FirrtlFlatSpec {
     firrtl.Parser.parse(c.serialize)
   }
 
+  // ********** Literal Formats **********
+  "Literals of different bases and signs" should "produce correct values" in {
+    def circuit(lit: String): firrtl.ir.Circuit = {
+      val input = s"""circuit Top :
+                     |  module lits:
+                     |    output litout : SInt<16>
+                     |    litout <= SInt(${lit})
+                     |""".stripMargin
+      firrtl.Parser.parse(input)
+    }
+
+    def check(inFormat: String, ref: Integer): Unit = {
+      (circuit(inFormat)) should be (circuit(ref.toString))
+    }
+
+    val checks = Map(
+      """       12 """ -> 12,
+      """      -14 """ -> -14,
+      """      +15 """ -> 15,
+      """     "hA" """ -> 10,
+      """    "h-C" """ -> -12,
+      """   "h+1B" """ -> 27,
+      """    "o66" """ -> 54,
+      """   "o-33" """ -> -27,
+      """  "b1101" """ -> 13,
+      """ "b-1001" """ -> -9,
+      """ "b+1000" """ -> 8
+    )
+
+    checks.foreach { case (k, v) => check(k, v) }
+   }
+
   // ********** Doubles as parameters **********
   "Doubles" should "be legal parameters for extmodules" in {
     val nums = Seq("1.0", "7.6", "3.00004", "1.0E10", "1.0023E-17")
@@ -164,6 +195,29 @@ class ParserSpec extends FirrtlFlatSpec {
       |  module Test :
 
       |""".stripMargin
+    val manager = new ExecutionOptionsManager("test") with HasFirrtlOptions {
+      firrtlOptions = FirrtlExecutionOptions(firrtlSource = Some(input))
+    }
+    a [SyntaxErrorsException] shouldBe thrownBy {
+      Driver.execute(manager)
+    }
+  }
+
+  "Trailing syntax errors" should "be caught in the parser" in {
+    val input = s"""
+      |circuit Foo:
+      |  module Bar:
+      |    input a: UInt<1>
+      |output b: UInt<1>
+      |    b <- a
+      |
+      |  module Foo:
+      |    input a: UInt<1>
+      |    output b: UInt<1>
+      |    inst bar of Bar
+      |    bar.a <- a
+      |    b <- bar.b
+      """.stripMargin
     val manager = new ExecutionOptionsManager("test") with HasFirrtlOptions {
       firrtlOptions = FirrtlExecutionOptions(firrtlSource = Some(input))
     }

@@ -3,8 +3,7 @@
 package firrtlTests
 
 import firrtl._
-import org.scalatest._
-import org.scalatest.prop._
+import firrtl.testutils._
 
 import java.io.File
 
@@ -42,8 +41,8 @@ class GCDSplitEmissionExecutionTest extends FirrtlFlatSpec {
     copyResourceToFile(cppHarnessResourceName, harness)
 
     // topFile will be compiled by Verilator command by default but we need to also include dutFile
-    verilogToCpp(top, testDir, Seq(dutFile), harness).!
-    cppToExe(top, testDir).!
+    verilogToCpp(top, testDir, Seq(dutFile), harness) #&&
+    cppToExe(top, testDir) ! loggingProcessLogger
     assert(executeExpectingSuccess(top, testDir))
   }
 }
@@ -52,4 +51,4 @@ class RobCompilationTest extends CompilationTest("Rob", "/regress")
 class RocketCoreCompilationTest extends CompilationTest("RocketCore", "/regress")
 class ICacheCompilationTest extends CompilationTest("ICache", "/regress")
 class FPUCompilationTest extends CompilationTest("FPU", "/regress")
-
+class HwachaSequencerCompilationTest extends CompilationTest("HwachaSequencer", "/regress")

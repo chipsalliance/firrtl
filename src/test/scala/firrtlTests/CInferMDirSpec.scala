@@ -6,10 +6,9 @@ import firrtl._
 import firrtl.ir._
 import firrtl.passes._
 import firrtl.transforms._
-import firrtl.Mappers._
-import annotations._
+import firrtl.testutils._
 
-class CInferMDir extends LowTransformSpec {
+class CInferMDirSpec extends LowTransformSpec {
   object CInferMDirCheckPass extends Pass {
     // finds the memory and check its read port
     def checkStmt(s: Statement): Boolean = s match {

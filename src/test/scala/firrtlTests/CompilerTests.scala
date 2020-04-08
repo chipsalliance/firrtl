@@ -2,9 +2,8 @@
 
 package firrtlTests
 
-import org.scalatest.FlatSpec
-import org.scalatest.Matchers
-import org.scalatest.junit.JUnitRunner
+import org.scalatest.flatspec.AnyFlatSpec
+import org.scalatest.matchers.should.Matchers
 
 import firrtl.ir.Circuit
 import firrtl.{
@@ -13,6 +12,7 @@ import firrtl.{
   Compiler,
   HighFirrtlCompiler,
   MiddleFirrtlCompiler,
+  MinimumVerilogCompiler,
   LowFirrtlCompiler,
   Parser,
   VerilogCompiler
@@ -25,7 +25,7 @@ import firrtl.{
  * the compiler is executed. The output of the compiler
  * should be compared against the check string.
  */
-abstract class CompilerSpec extends FlatSpec {
+abstract class CompilerSpec extends AnyFlatSpec {
    def parse (s: String): Circuit = Parser.parse(s.split("\n").toIterator)
    def compiler: Compiler
    def input: String
@@ -152,4 +152,35 @@ class VerilogCompilerSpec extends CompilerSpec with Matchers {
    "A circuit's verilog output" should "match the given string and not have RANDOMIZE if no invalids" in {
       getOutput should be (check)
    }
+}
+
+class MinimumVerilogCompilerSpec extends CompilerSpec with Matchers {
+  val input = """|circuit Top:
+                 |  module Top:
+                 |    output b: UInt<1>[3]
+                 |    node c = bits(UInt<3>("h7"), 2, 2)
+                 |    node d = shr(UInt<3>("h7"), 2)
+                 |    b[0] is invalid
+                 |    b[1] <= c
+                 |    b[2] <= d
+                 |""".stripMargin
+  val check = """|module Top(
+                 |  output  b_0,
+                 |  output  b_1,
+                 |  output  b_2
+                 |);
+                 |  wire  c;
+                 |  wire  d;
+                 |  assign c = 1'h1;
+                 |  assign d = 1'h1;
+                 |  assign b_0 = 1'h0;
+                 |  assign b_1 = c;
+                 |  assign b_2 = d;
+                 |endmodule
+                 |""".stripMargin
+  def compiler = new MinimumVerilogCompiler()
+
+  "A circuit's minimum Verilog output" should "not have constants propagated or dead code eliminated" in {
+    getOutput should be (check)
+  }
 }

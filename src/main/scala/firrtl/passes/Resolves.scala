@@ -5,9 +5,14 @@ package firrtl.passes
 import firrtl._
 import firrtl.ir._
 import firrtl.Mappers._
+import firrtl.options.{Dependency, PreservesAll}
 import Utils.throwInternalError
 
-object ResolveKinds extends Pass {
+
+object ResolveKinds extends Pass with PreservesAll[Transform] {
+
+  override val prerequisites = firrtl.stage.Forms.WorkingIR
+
   type KindMap = collection.mutable.LinkedHashMap[String, Kind]
 
   def find_port(kinds: KindMap)(p: Port): Port = {
@@ -22,7 +27,7 @@ object ResolveKinds extends Pass {
       case sx: WDefInstance => kinds(sx.name) = InstanceKind
       case sx: DefMemory => kinds(sx.name) = MemKind
       case _ =>
-    } 
+    }
     s map find_stmt(kinds)
   }
 
@@ -40,14 +45,20 @@ object ResolveKinds extends Pass {
        map find_stmt(kinds)
        map resolve_stmt(kinds))
   }
- 
+
   def run(c: Circuit): Circuit =
     c copy (modules = c.modules map resolve_kinds)
 }
 
-object ResolveGenders extends Pass {
-  def resolve_e(g: Gender)(e: Expression): Expression = e match {
-    case ex: WRef => ex copy (gender = g)
+object ResolveFlows extends Pass with PreservesAll[Transform] {
+
+  override val prerequisites =
+    Seq( Dependency(passes.ResolveKinds),
+         Dependency(passes.InferTypes),
+         Dependency(passes.Uniquify) ) ++ firrtl.stage.Forms.WorkingIR
+
+  def resolve_e(g: Flow)(e: Expression): Expression = e match {
+    case ex: WRef => ex copy (flow = g)
     case WSubField(exp, name, tpe, _) => WSubField(
       Utils.field_flip(exp.tpe, name) match {
         case Default => resolve_e(g)(exp)
@@ -56,28 +67,31 @@ object ResolveGenders extends Pass {
     case WSubIndex(exp, value, tpe, _) =>
       WSubIndex(resolve_e(g)(exp), value, tpe, g)
     case WSubAccess(exp, index, tpe, _) =>
-      WSubAccess(resolve_e(g)(exp), resolve_e(MALE)(index), tpe, g)
+      WSubAccess(resolve_e(g)(exp), resolve_e(SourceFlow)(index), tpe, g)
     case _ => e map resolve_e(g)
   }
-        
+
   def resolve_s(s: Statement): Statement = s match {
     //TODO(azidar): pretty sure don't need to do anything for Attach, but not positive...
     case IsInvalid(info, expr) =>
-      IsInvalid(info, resolve_e(FEMALE)(expr))
+      IsInvalid(info, resolve_e(SinkFlow)(expr))
     case Connect(info, loc, expr) =>
-      Connect(info, resolve_e(FEMALE)(loc), resolve_e(MALE)(expr))
+      Connect(info, resolve_e(SinkFlow)(loc), resolve_e(SourceFlow)(expr))
     case PartialConnect(info, loc, expr) =>
-      PartialConnect(info, resolve_e(FEMALE)(loc), resolve_e(MALE)(expr))
-    case sx => sx map resolve_e(MALE) map resolve_s
+      PartialConnect(info, resolve_e(SinkFlow)(loc), resolve_e(SourceFlow)(expr))
+    case sx => sx map resolve_e(SourceFlow) map resolve_s
   }
 
-  def resolve_gender(m: DefModule): DefModule = m map resolve_s
+  def resolve_flow(m: DefModule): DefModule = m map resolve_s
 
   def run(c: Circuit): Circuit =
-    c copy (modules = c.modules map resolve_gender)
+    c copy (modules = c.modules map resolve_flow)
 }
 
-object CInferMDir extends Pass {
+object CInferMDir extends Pass with PreservesAll[Transform] {
+
+  override val prerequisites = firrtl.stage.Forms.ChirrtlForm :+ Dependency(CInferTypes)
+
   type MPortDirMap = collection.mutable.LinkedHashMap[String, MPortDir]
 
   def infer_mdir_e(mports: MPortDirMap, dir: MPortDir)(e: Expression): Expression = e match {
@@ -111,7 +125,7 @@ object CInferMDir extends Pass {
     case e => e map infer_mdir_e(mports, dir)
   }
 
-  def infer_mdir_s(mports: MPortDirMap)(s: Statement): Statement = s match { 
+  def infer_mdir_s(mports: MPortDirMap)(s: Statement): Statement = s match {
     case sx: CDefMPort =>
        mports(sx.name) = sx.direction
        sx map infer_mdir_e(mports, MRead)
@@ -125,17 +139,17 @@ object CInferMDir extends Pass {
        sx
     case sx => sx map infer_mdir_s(mports) map infer_mdir_e(mports, MRead)
   }
-        
-  def set_mdir_s(mports: MPortDirMap)(s: Statement): Statement = s match { 
+
+  def set_mdir_s(mports: MPortDirMap)(s: Statement): Statement = s match {
     case sx: CDefMPort => sx copy (direction = mports(sx.name))
     case sx => sx map set_mdir_s(mports)
   }
-  
+
   def infer_mdir(m: DefModule): DefModule = {
     val mports = new MPortDirMap
     m map infer_mdir_s(mports) map set_mdir_s(mports)
   }
-     
+
   def run(c: Circuit): Circuit =
     c copy (modules = c.modules map infer_mdir)
 }

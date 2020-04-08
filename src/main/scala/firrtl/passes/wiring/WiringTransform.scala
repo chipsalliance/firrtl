@@ -4,12 +4,9 @@ package firrtl.passes
 package wiring
 
 import firrtl._
-import firrtl.ir._
 import firrtl.Utils._
-import firrtl.Mappers._
 import scala.collection.mutable
 import firrtl.annotations._
-import WiringUtils._
 
 /** A class for all exceptions originating from firrtl.passes.wiring */
 case class WiringException(msg: String) extends PassException(msg)
@@ -26,7 +23,7 @@ case class SinkAnnotation(target: Named, pin: String) extends
   def duplicate(n: Named) = this.copy(target = n)
 }
 
-/** Wires a Module's Source Component to one or more Sink
+/** Wires a Module's Source Target to one or more Sink
   * Modules/Components
   *
   * Sinks are wired to their closest source through their lowest
@@ -57,11 +54,17 @@ class WiringTransform extends Transform {
       case p =>
         val sinks = mutable.HashMap[String, Seq[Named]]()
         val sources = mutable.HashMap[String, ComponentName]()
-        p.foreach {
+        val errors = p.flatMap {
           case SinkAnnotation(m, pin) =>
             sinks(pin) = sinks.getOrElse(pin, Seq.empty) :+ m
+            None
           case SourceAnnotation(c, pin) =>
+            val res = if (sources.contains(pin)) Some(pin) else None
             sources(pin) = c
+            res
+        }
+        if (errors.nonEmpty) {
+          throw WiringException(s"Multiple sources specified for wiring pin(s): " + errors.distinct.mkString(", "))
         }
         (sources.size, sinks.size) match {
           case (0, p) => state

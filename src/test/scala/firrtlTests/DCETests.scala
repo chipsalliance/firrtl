@@ -2,15 +2,22 @@
 
 package firrtlTests
 
-import firrtl.ir.Circuit
 import firrtl._
 import firrtl.passes._
 import firrtl.transforms._
 import firrtl.annotations._
 import firrtl.passes.memlib.SimpleTransform
+import firrtl.testutils._
 
 import java.io.File
 import java.nio.file.Paths
+
+case class AnnotationWithDontTouches(target: ReferenceTarget)
+    extends SingleTargetAnnotation[ReferenceTarget] with HasDontTouches {
+  def targets = Seq(target)
+  def duplicate(n: ReferenceTarget) = this.copy(n)
+  def dontTouches: Seq[ReferenceTarget] = targets
+}
 
 class DCETests extends FirrtlFlatSpec {
   // Not using executeTest because it is for positive testing, we need to check that stuff got
@@ -63,6 +70,24 @@ class DCETests extends FirrtlFlatSpec {
         |    node a = x
         |    z <= x""".stripMargin
     exec(input, check, Seq(dontTouch("Top.a")))
+  }
+  "Unread wire marked dont touch by another annotation" should "NOT be deleted" in {
+    val input =
+      """circuit Top :
+        |  module Top :
+        |    input x : UInt<1>
+        |    output z : UInt<1>
+        |    wire a : UInt<1>
+        |    z <= x
+        |    a <= x""".stripMargin
+    val check =
+      """circuit Top :
+        |  module Top :
+        |    input x : UInt<1>
+        |    output z : UInt<1>
+        |    node a = x
+        |    z <= x""".stripMargin
+    exec(input, check, Seq(AnnotationWithDontTouches(ModuleTarget("Top", "Top").ref("a"))))
   }
   "Unread register" should "be deleted" in {
     val input =
@@ -320,6 +345,40 @@ class DCETests extends FirrtlFlatSpec {
         """.stripMargin
     exec(input, input)
   }
+  "extmodules with no ports" should "NOT be deleted by default" in {
+    val input =
+      """circuit Top :
+        |  extmodule BlackBox :
+        |    defname = BlackBox
+        |  module Top :
+        |    input x : UInt<1>
+        |    output y : UInt<1>
+        |    inst blackBox of BlackBox
+        |    y <= x
+        |""".stripMargin
+    exec(input, input)
+  }
+  "extmodules with no ports marked optimizable" should "be deleted" in {
+    val input =
+      """circuit Top :
+        |  extmodule BlackBox :
+        |    defname = BlackBox
+        |  module Top :
+        |    input x : UInt<1>
+        |    output y : UInt<1>
+        |    inst blackBox of BlackBox
+        |    y <= x
+        |""".stripMargin
+    val check =
+      """circuit Top :
+        |  module Top :
+        |    input x : UInt<1>
+        |    output y : UInt<1>
+        |    y <= x
+        |""".stripMargin
+    val doTouchAnno = OptimizableExtModuleAnnotation(ModuleName("BlackBox", CircuitName("Top")))
+    exec(input, check, Seq(doTouchAnno))
+  }
   // bar.z is not used and thus is dead code, but foo.z is used so this code isn't eliminated
   "Module deduplication" should "should be preserved despite unused output of ONE instance" in {
     val input =
@@ -413,6 +472,23 @@ class DCETests extends FirrtlFlatSpec {
     verilog shouldNot include regex ("""a \? x : r;""")
     // Check for register update
     verilog should include regex ("""(?m)if \(a\) begin\n\s*r <= x;\s*end""")
+  }
+
+  "Emitted Verilog" should "not contain dead print or stop statements" in {
+    val input = parse(
+      """circuit test :
+        |  module test :
+        |    input clock : Clock
+        |    when UInt<1>(0) :
+        |      printf(clock, UInt<1>(1), "o hai")
+        |      stop(clock, UInt<1>(1), 1)""".stripMargin
+    )
+
+    val state = CircuitState(input, ChirrtlForm)
+    val result = (new VerilogCompiler).compileAndEmit(state, List.empty)
+    val verilog = result.getEmittedCircuit.value
+    verilog shouldNot include regex ("""fwrite""")
+    verilog shouldNot include regex ("""fatal""")
   }
 }
 

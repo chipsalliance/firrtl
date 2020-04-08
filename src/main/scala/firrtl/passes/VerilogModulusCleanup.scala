@@ -7,6 +7,7 @@ import firrtl.ir._
 import firrtl.Mappers._
 import firrtl.PrimOps.{Bits, Rem}
 import firrtl.Utils._
+import firrtl.options.{Dependency, PreservesAll}
 
 import scala.collection.mutable
 
@@ -23,7 +24,20 @@ import scala.collection.mutable
  *  This is technically incorrect firrtl, but allows the verilog emitter
  *  to emit correct verilog without needing to add temporary nodes
  */
-object VerilogModulusCleanup extends Pass {
+object VerilogModulusCleanup extends Pass with PreservesAll[Transform] {
+
+  override val prerequisites = firrtl.stage.Forms.LowFormMinimumOptimized ++
+    Seq( Dependency[firrtl.transforms.BlackBoxSourceHelper],
+         Dependency[firrtl.transforms.FixAddingNegativeLiterals],
+         Dependency[firrtl.transforms.ReplaceTruncatingArithmetic],
+         Dependency[firrtl.transforms.InlineBitExtractionsTransform],
+         Dependency[firrtl.transforms.InlineCastsTransform],
+         Dependency[firrtl.transforms.LegalizeClocksTransform],
+         Dependency[firrtl.transforms.FlattenRegUpdate] )
+
+  override val optionalPrerequisites = firrtl.stage.Forms.LowFormOptimized
+
+  override val dependents = Seq.empty
 
   private def onModule(m: Module): Module = {
     val namespace = Namespace(m)
@@ -47,11 +61,11 @@ object VerilogModulusCleanup extends Pass {
 
       def removeRem(e: Expression): Expression = e match {
         case e: DoPrim => e.op match {
-          case Rem => 
+          case Rem =>
             val name = namespace.newTemp
             val newType = e mapType verilogRemWidth(e)
             v += DefNode(get_info(s), name, e mapType verilogRemWidth(e))
-            val remRef = WRef(name, newType.tpe, kind(e), gender(e))
+            val remRef = WRef(name, newType.tpe, kind(e), flow(e))
             val remWidth = bitWidth(e.tpe)
             DoPrim(Bits, Seq(remRef), Seq(remWidth - 1, BigInt(0)), e.tpe)
           case _ => e

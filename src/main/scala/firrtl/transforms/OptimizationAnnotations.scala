@@ -8,20 +8,42 @@ import firrtl.passes.PassException
 /** Indicate that DCE should not be run */
 case object NoDCEAnnotation extends NoTargetAnnotation
 
+/** Lets an annotation mark its ReferenceTarget members as DontTouch
+  *
+  * This permits a transform to run and remove its associated annotations,
+  * thus making their ReferenceTargets new candidates for optimization. This
+  * removes the need for the pass writer to reason about pre-existing
+  * DontTouchAnnotations that may touch the same node.
+  */
+trait HasDontTouches { self: Annotation =>
+  def dontTouches: Iterable[ReferenceTarget]
+}
+
+/**
+  * A globalized form of HasDontTouches which applies to all ReferenceTargets
+  * provided with the annotation
+  */
+trait DontTouchAllTargets extends HasDontTouches { self: Annotation =>
+  def dontTouches: Iterable[ReferenceTarget] = getTargets.collect {
+    case rT: ReferenceTarget => rT
+  }
+}
+
 /** A component that should be preserved
   *
   * DCE treats the component as a top-level sink of the circuit
   */
-case class DontTouchAnnotation(target: ComponentName) extends SingleTargetAnnotation[ComponentName] {
-  def duplicate(n: ComponentName) = this.copy(n)
+case class DontTouchAnnotation(target: ReferenceTarget)
+    extends SingleTargetAnnotation[ReferenceTarget] with DontTouchAllTargets {
+  def targets = Seq(target)
+  def duplicate(n: ReferenceTarget) = this.copy(n)
 }
 
 object DontTouchAnnotation {
   class DontTouchNotFoundException(module: String, component: String) extends PassException(
-    s"Component marked DONT Touch ($module.$component) not found!\n" +
-    "Perhaps it is an aggregate type? Currently only leaf components are supported.\n" +
-    "Otherwise it was probably accidentally deleted. Please check that your custom passes are not" +
-    "responsible and then file an issue on Github."
+    s"""|Target marked dontTouch ($module.$component) not found!
+        |It was probably accidentally deleted. Please check that your custom transforms are not responsible and then
+        |file an issue on GitHub: https://github.com/freechipsproject/firrtl/issues/new""".stripMargin
   )
 
   def errorNotFound(module: String, component: String) =

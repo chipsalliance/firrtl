@@ -2,19 +2,19 @@
 
 package firrtlTests
 
-import java.io.{File, FileWriter, Writer}
+import java.io.{File, FileWriter}
 
 import firrtl.annotations.AnnotationYamlProtocol._
 import firrtl.annotations._
 import firrtl._
+import firrtl.FileUtils
 import firrtl.transforms.OptimizableExtModuleAnnotation
 import firrtl.passes.InlineAnnotation
 import firrtl.passes.memlib.PinAnnotation
 import firrtl.util.BackendCompilationUtilities
-import firrtl.transforms.DontTouchAnnotation
+import firrtl.testutils._
 import net.jcazevedo.moultingyaml._
-import org.scalatest.Matchers
-import logger._
+import org.scalatest.matchers.should.Matchers
 
 /**
  * An example methodology for testing Firrtl annotations.
@@ -68,15 +68,14 @@ abstract class AnnotationTests extends AnnotationSpec with Matchers {
     val tname = transform.name
     val inlineAnn = InlineAnnotation(CircuitName("Top"))
     val result = compiler.compile(CircuitState(parse(input), ChirrtlForm, Seq(inlineAnn)), Seq(transform))
-    println(result.annotations.head)
     result.annotations.head should matchPattern {
       case DeletedAnnotation(`tname`, `inlineAnn`) =>
     }
-    val exception = (intercept[FIRRTLException] {
+    val exception = (intercept[Exception] {
       result.getEmittedCircuit
     })
     val deleted = result.deletedAnnotations
-    exception.str should be (s"No EmittedCircuit found! Did you delete any annotations?\n$deleted")
+    exception.getMessage should be (s"No EmittedCircuit found! Did you delete any annotations?\n$deleted")
   }
 
   "Renaming" should "propagate in Lowering of memories" in {
@@ -192,7 +191,7 @@ abstract class AnnotationTests extends AnnotationSpec with Matchers {
       anno("w.a"), anno("w.b[0]"), anno("w.b[1]"),
       anno("r.a"), anno("r.b[0]"), anno("r.b[1]"),
       anno("write.a"), anno("write.b[0]"), anno("write.b[1]"),
-      dontTouch("Top.r"), dontTouch("Top.w")
+      dontTouch("Top.r"), dontTouch("Top.w"), dontTouch("Top.mem")
     )
     val result = compiler.compile(CircuitState(parse(input), ChirrtlForm, annos), Nil)
     val resultAnno = result.annotations.toSeq
@@ -420,6 +419,50 @@ abstract class AnnotationTests extends AnnotationSpec with Matchers {
     val y = AnnotationUtils.toNamed(x.serialize)
     require(x == y)
   }
+
+  "Annotations on empty aggregates" should "be deleted" in {
+    val compiler = new VerilogCompiler
+    val input =
+     """circuit Top :
+        |  module Top :
+        |    input x : { foo : UInt<8>, bar : {}, fizz : UInt<8>[0], buzz : UInt<0> }
+        |    output y : { foo : UInt<8>, bar : {}, fizz : UInt<8>[0], buzz : UInt<0> }
+        |    output a : {}
+        |    output b : UInt<8>[0]
+        |    output c : { d : UInt<0>, e : UInt<8> }[2]
+        |    c is invalid
+        |    y <= x
+        |""".stripMargin
+    val annos = Seq(
+      anno("x"), anno("y.bar"), anno("y.fizz"), anno("y.buzz"), anno("a"), anno("b"), anno("c"),
+      anno("c[0].d"), anno("c[1].d")
+    )
+    val result = compiler.compile(CircuitState(parse(input), ChirrtlForm, annos), Nil)
+    val resultAnno = result.annotations.toSeq
+    resultAnno should contain (anno("x_foo"))
+    resultAnno should not contain (anno("a"))
+    resultAnno should not contain (anno("b"))
+    // Check both with and without dots because both are wrong
+    resultAnno should not contain (anno("y.bar"))
+    resultAnno should not contain (anno("y.fizz"))
+    resultAnno should not contain (anno("y.buzz"))
+    resultAnno should not contain (anno("x.bar"))
+    resultAnno should not contain (anno("x.fizz"))
+    resultAnno should not contain (anno("x.buzz"))
+    resultAnno should not contain (anno("y_bar"))
+    resultAnno should not contain (anno("y_fizz"))
+    resultAnno should not contain (anno("y_buzz"))
+    resultAnno should not contain (anno("x_bar"))
+    resultAnno should not contain (anno("x_fizz"))
+    resultAnno should not contain (anno("x_buzz"))
+    resultAnno should not contain (anno("c"))
+    resultAnno should contain (anno("c_0_e"))
+    resultAnno should contain (anno("c_1_e"))
+    resultAnno should not contain (anno("c[0].d"))
+    resultAnno should not contain (anno("c[1].d"))
+    resultAnno should not contain (anno("c_0_d"))
+    resultAnno should not contain (anno("c_1_d"))
+  }
 }
 
 class LegacyAnnotationTests extends AnnotationTests {
@@ -429,8 +472,7 @@ class LegacyAnnotationTests extends AnnotationTests {
     Annotation(ModuleName(mod, CircuitName("Top")), classOf[Transform], "some value")
 
   "LegacyAnnotations" should "be readable from file" in {
-    val annotationStream = getClass.getResourceAsStream("/annotations/SampleAnnotations.anno")
-    val annotationsYaml = scala.io.Source.fromInputStream(annotationStream).getLines().mkString("\n").parseYaml
+    val annotationsYaml = FileUtils.getTextResource("/annotations/SampleAnnotations.anno").parseYaml
     val annotationArray = annotationsYaml.convertTo[Array[LegacyAnnotation]]
     annotationArray.length should be (9)
     annotationArray(0).targetString should be ("ModC")
@@ -464,6 +506,7 @@ class LegacyAnnotationTests extends AnnotationTests {
     }
     thrown.getMessage should include ("Illegal circuit name")
   }
+
 }
 
 class JsonAnnotationTests extends AnnotationTests with BackendCompilationUtilities {
@@ -494,7 +537,7 @@ class JsonAnnotationTests extends AnnotationTests with BackendCompilationUtiliti
     writer.write(JsonProtocol.serialize(annos))
     writer.close()
 
-    val text = io.Source.fromFile(annoFile).getLines().mkString("\n")
+    val text = FileUtils.getText(annoFile)
     annoFile.delete()
 
     val readAnnos = JsonProtocol.deserializeTry(text).get
@@ -579,5 +622,23 @@ class JsonAnnotationTests extends AnnotationTests with BackendCompilationUtiliti
       case InvalidAnnotationFileException(_, InvalidAnnotationJSONException(msg))
         if msg.contains("JObject") =>
     }
+  }
+
+  object DoNothingTransform extends Transform {
+    override def inputForm: CircuitForm = UnknownForm
+    override def outputForm: CircuitForm = UnknownForm
+
+    def execute(state: CircuitState): CircuitState = state
+  }
+
+  "annotation order" should "should be preserved" in {
+    val annos = Seq(anno("a"), anno("b"), anno("c"), anno("d"), anno("e"))
+    val input: String =
+      """circuit Top :
+         |  module Top :
+         |    input a : UInt<1>
+         |    node b = c""".stripMargin
+    val cr = DoNothingTransform.runTransform(CircuitState(parse(input), ChirrtlForm, annos))
+    cr.annotations.toSeq shouldEqual annos
   }
 }

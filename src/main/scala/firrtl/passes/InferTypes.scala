@@ -6,21 +6,35 @@ import firrtl._
 import firrtl.ir._
 import firrtl.Utils._
 import firrtl.Mappers._
+import firrtl.options.{Dependency, PreservesAll}
 
-object InferTypes extends Pass {
+object InferTypes extends Pass with PreservesAll[Transform] {
+
+  override val prerequisites = Dependency(ResolveKinds) +: firrtl.stage.Forms.WorkingIR
+
   type TypeMap = collection.mutable.LinkedHashMap[String, Type]
 
   def run(c: Circuit): Circuit = {
     val namespace = Namespace()
     val mtypes = (c.modules map (m => m.name -> module_type(m))).toMap
 
+    def remove_unknowns_b(b: Bound): Bound = b match {
+      case UnknownBound => VarBound(namespace.newName("b"))
+      case k => k
+    }
+
     def remove_unknowns_w(w: Width): Width = w match {
       case UnknownWidth => VarWidth(namespace.newName("w"))
       case wx => wx
     }
 
-    def remove_unknowns(t: Type): Type =
-      t map remove_unknowns map remove_unknowns_w
+    def remove_unknowns(t: Type): Type = {
+      t map remove_unknowns map remove_unknowns_w match {
+        case IntervalType(l, u, p) =>
+          IntervalType(remove_unknowns_b(l), remove_unknowns_b(u), p)
+        case x => x
+      }
+    }
 
     def infer_types_e(types: TypeMap)(e: Expression): Expression =
       e map infer_types_e(types) match {
@@ -69,16 +83,18 @@ object InferTypes extends Pass {
       val types = new TypeMap
       m map infer_types_p(types) map infer_types_s(types)
     }
- 
+
     c copy (modules = c.modules map infer_types)
   }
 }
 
-object CInferTypes extends Pass {
+object CInferTypes extends Pass with PreservesAll[Transform] {
+
+  override val prerequisites = firrtl.stage.Forms.ChirrtlForm
+
   type TypeMap = collection.mutable.LinkedHashMap[String, Type]
 
   def run(c: Circuit): Circuit = {
-    val namespace = Namespace()
     val mtypes = (c.modules map (m => m.name -> module_type(m))).toMap
 
     def infer_types_e(types: TypeMap)(e: Expression) : Expression =
@@ -124,12 +140,12 @@ object CInferTypes extends Pass {
       types(p.name) = p.tpe
       p
     }
- 
+
     def infer_types(m: DefModule): DefModule = {
       val types = new TypeMap
       m map infer_types_p(types) map infer_types_s(types)
     }
-   
+
     c copy (modules = c.modules map infer_types)
   }
 }

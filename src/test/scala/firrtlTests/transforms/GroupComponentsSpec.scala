@@ -2,9 +2,14 @@ package firrtlTests
 package transforms
 
 import firrtl.annotations.{CircuitName, ComponentName, ModuleName}
-import firrtl.transforms.{GroupAnnotation, GroupComponents}
+import firrtl.transforms.{GroupAnnotation, GroupComponents, NoCircuitDedupAnnotation}
+import firrtl._
+import firrtl.ir._
+import firrtl.testutils._
 
-class GroupComponentsSpec extends LowTransformSpec {
+import FirrtlCheckers._
+
+class GroupComponentsSpec extends MiddleTransformSpec {
   def transform = new GroupComponents()
   val top = "Top"
   def topComp(name: String): ComponentName = ComponentName(name, ModuleName(top, CircuitName(top)))
@@ -42,6 +47,46 @@ class GroupComponentsSpec extends LowTransformSpec {
       """.stripMargin
     execute(input, check, groups)
   }
+  "Grouping" should "work even when there are unused nodes" in {
+    val input =
+    s"""circuit $top :
+        |  module $top :
+        |    input in: UInt<16>
+        |    output out: UInt<16>
+        |    node n = UInt<16>("h0")
+        |    wire w : UInt<16>
+        |    wire a : UInt<16>
+        |    wire b : UInt<16>
+        |    a <= UInt<16>("h0")
+        |    b <= a
+        |    w <= in
+        |    out <= w
+      """.stripMargin
+    val groups = Seq(
+      GroupAnnotation(Seq(topComp("w")), "Child", "inst", Some("_OUT"), Some("_IN"))
+    )
+    val check =
+     s"""circuit Top :
+        |  module $top :
+        |    input in: UInt<16>
+        |    output out: UInt<16>
+        |    inst inst of Child
+        |    node n = UInt<16>("h0")
+        |    wire a : UInt<16>
+        |    wire b : UInt<16>
+        |    out <= inst.w_OUT
+        |    inst.in_IN <= in
+        |    a <= UInt<16>("h0")
+        |    b <= a
+        |  module Child :
+        |    output w_OUT : UInt<16>
+        |    input in_IN : UInt<16>
+        |    wire w : UInt<16>
+        |    w_OUT <= w
+        |    w <= in_IN
+      """.stripMargin
+    execute(input, check, groups)
+  }
 
   "The two sets of instances" should "be grouped" in {
     val input =
@@ -68,9 +113,10 @@ class GroupComponentsSpec extends LowTransformSpec {
          |    output out: UInt<8>
          |    out <= UInt(2)
       """.stripMargin
-    val groups = Seq(
+    val annotations = Seq(
       GroupAnnotation(Seq(topComp("c1a"), topComp("c2a")/*, topComp("asum")*/), "A", "cA", Some("_OUT"), Some("_IN")),
-      GroupAnnotation(Seq(topComp("c1b"), topComp("c2b")/*, topComp("bsum")*/), "B", "cB", Some("_OUT"), Some("_IN"))
+      GroupAnnotation(Seq(topComp("c1b"), topComp("c2b")/*, topComp("bsum")*/), "B", "cB", Some("_OUT"), Some("_IN")),
+      NoCircuitDedupAnnotation
     )
     val check =
       s"""circuit Top :
@@ -108,7 +154,7 @@ class GroupComponentsSpec extends LowTransformSpec {
          |    output out: UInt<8>
          |    out <= UInt(2)
       """.stripMargin
-    execute(input, check, groups)
+    execute(input, check, annotations)
   }
   "The two sets of instances" should "be grouped with their nodes" in {
     val input =
@@ -135,9 +181,10 @@ class GroupComponentsSpec extends LowTransformSpec {
          |    output out: UInt<8>
          |    out <= UInt(2)
       """.stripMargin
-    val groups = Seq(
+    val annotations = Seq(
       GroupAnnotation(Seq(topComp("c1a"), topComp("c2a"), topComp("asum")), "A", "cA", Some("_OUT"), Some("_IN")),
-      GroupAnnotation(Seq(topComp("c1b"), topComp("c2b"), topComp("bsum")), "B", "cB", Some("_OUT"), Some("_IN"))
+      GroupAnnotation(Seq(topComp("c1b"), topComp("c2b"), topComp("bsum")), "B", "cB", Some("_OUT"), Some("_IN")),
+      NoCircuitDedupAnnotation
     )
     val check =
       s"""circuit Top :
@@ -171,7 +218,7 @@ class GroupComponentsSpec extends LowTransformSpec {
          |    output out: UInt<8>
          |    out <= UInt(2)
       """.stripMargin
-    execute(input, check, groups)
+    execute(input, check, annotations)
   }
 
   "The two sets of instances" should "be grouped with one not grouped" in {
@@ -205,9 +252,10 @@ class GroupComponentsSpec extends LowTransformSpec {
          |    output out: UInt
          |    out <= in
       """.stripMargin
-    val groups = Seq(
+    val annotations = Seq(
       GroupAnnotation(Seq(topComp("c1a"), topComp("c2a"), topComp("asum")), "A", "cA", Some("_OUT"), Some("_IN")),
-      GroupAnnotation(Seq(topComp("c1b"), topComp("c2b"), topComp("bsum")), "B", "cB", Some("_OUT"), Some("_IN"))
+      GroupAnnotation(Seq(topComp("c1b"), topComp("c2b"), topComp("bsum")), "B", "cB", Some("_OUT"), Some("_IN")),
+      NoCircuitDedupAnnotation
     )
     val check =
       s"""circuit Top :
@@ -247,7 +295,7 @@ class GroupComponentsSpec extends LowTransformSpec {
          |    output out: UInt<10>
          |    out <= in
       """.stripMargin
-    execute(input, check, groups)
+    execute(input, check, annotations)
   }
 
   "The two sets of instances" should "be grouped with a connection between them" in {
@@ -286,5 +334,74 @@ class GroupComponentsSpec extends LowTransformSpec {
          |    second_0 <= second
       """.stripMargin
     execute(input, check, groups)
+  }
+
+  "Instances with uninitialized ports" should "work properly" in {
+    val input =
+      s"""circuit $top :
+         |  module $top :
+         |    input in: UInt<16>
+         |    output out: UInt<16>
+         |    inst other of Other
+         |    other is invalid
+         |    out <= add(in, other.out)
+         |  module Other:
+         |    input in: UInt<16>
+         |    output out: UInt<16>
+         |    out <= add(asUInt(in), UInt(1))
+      """.stripMargin
+    val groups = Seq(
+      GroupAnnotation(Seq(topComp("other")), "Wrapper", "wrapper")
+    )
+    val check =
+      s"""circuit $top :
+         |  module $top :
+         |    input in: UInt<16>
+         |    output out: UInt<16>
+         |    inst wrapper of Wrapper
+         |    out <= add(in, wrapper.other_out)
+         |  module Wrapper :
+         |    output other_out: UInt<16>
+         |    inst other of Other
+         |    other_out <= other.out
+         |    other.in is invalid
+         |  module Other:
+         |    input in: UInt<16>
+         |    output out: UInt<16>
+         |    out <= add(asUInt(in), UInt(1))
+      """.stripMargin
+    execute(input, check, groups)
+  }
+}
+
+class GroupComponentsIntegrationSpec extends FirrtlFlatSpec {
+  def topComp(name: String): ComponentName = ComponentName(name, ModuleName("Top", CircuitName("Top")))
+  "Grouping" should "properly set kinds" in {
+    val input =
+     """circuit Top :
+        |  module Top :
+        |    input clk: Clock
+        |    input data: UInt<16>
+        |    output out: UInt<16>
+        |    reg r: UInt<16>, clk
+        |    r <= data
+        |    out <= r
+      """.stripMargin
+    val groups = Seq(
+      GroupAnnotation(Seq(topComp("r")), "MyModule", "inst", Some("_OUT"), Some("_IN"))
+    )
+    val result = (new VerilogCompiler).compileAndEmit(
+      CircuitState(parse(input), ChirrtlForm, groups),
+      Seq(new GroupComponents)
+    )
+    result should containTree {
+      case Connect(_, WSubField(WRef("inst",_, InstanceKind,_), "data_IN", _,_), WRef("data",_,_,_)) => true
+    }
+    result should containTree {
+      case Connect(_, WSubField(WRef("inst",_, InstanceKind,_), "clk_IN", _,_), WRef("clk",_,_,_)) => true
+    }
+    result should containTree {
+      case Connect(_, WRef("out",_,_,_), WSubField(WRef("inst",_, InstanceKind,_), "r_OUT", _,_)) => true
+    }
   }
 }

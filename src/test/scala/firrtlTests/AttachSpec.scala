@@ -2,14 +2,10 @@
 
 package firrtlTests
 
-import java.io._
-import org.scalatest._
-import org.scalatest.prop._
 import firrtl._
-import firrtl.annotations._
 import firrtl.ir.Circuit
 import firrtl.passes._
-import firrtl.Parser.IgnoreInfo
+import firrtl.testutils._
 
 class InoutVerilogSpec extends FirrtlFlatSpec {
 
@@ -107,6 +103,31 @@ class InoutVerilogSpec extends FirrtlFlatSpec {
     executeTest(input, check, compiler, Seq(dontTouch("Attaching.x")))
   }
 
+  it should "attach port to submodule port through a wire" in {
+    val compiler = new VerilogCompiler
+    val input =
+      """circuit Attaching :
+         |  module Attaching :
+         |    input an: Analog<3>
+         |    wire x: Analog
+         |    inst a of A
+         |    attach (x, a.an)
+         |    attach (x, an)
+         |  module A:
+         |    input an: Analog<3> """.stripMargin
+    val check =
+      """module Attaching(
+        |  inout [2:0] an
+        |);
+        |  A a (
+        |    .an(an)
+        |  );
+        |endmodule
+        |""".stripMargin.split("\n") map normalized
+    executeTest(input, check, compiler, Seq(dontTouch("Attaching.x")))
+  }
+
+
   it should "attach multiple sources" in {
     val compiler = new VerilogCompiler
     val input =
@@ -121,18 +142,13 @@ class InoutVerilogSpec extends FirrtlFlatSpec {
         |  inout  [2:0] a1,
         |  inout  [2:0] a2
         |);
-        |  wire [2:0] x;
         |  `ifdef SYNTHESIS
-        |    assign x = a1;
-        |    assign a1 = x;
-        |    assign x = a2;
-        |    assign a2 = x;
         |    assign a1 = a2;
         |    assign a2 = a1;
         |  `elsif verilator
         |    `error "Verilator does not support alias and thus cannot arbirarily connect bidirectional wires and ports"
         |  `else
-        |    alias x = a1 = a2;
+        |    alias a1 = a2;
         |  `endif
         |endmodule
         |""".stripMargin.split("\n") map normalized
@@ -391,7 +407,7 @@ class AttachAnalogSpec extends FirrtlFlatSpec {
       ResolveKinds,
       InferTypes,
       CheckTypes,
-      InferWidths,
+      new InferWidths,
       CheckWidths)
     val input =
       """circuit Unit :
@@ -402,8 +418,8 @@ class AttachAnalogSpec extends FirrtlFlatSpec {
         |  extmodule A :
         |    output o: Analog<2> """.stripMargin
     intercept[CheckWidths.AttachWidthsNotEqual] {
-      passes.foldLeft(parse(input)) {
-        (c: Circuit, p: Pass) => p.run(c)
+      passes.foldLeft(CircuitState(parse(input), UnknownForm)) {
+        (c: CircuitState, p: Transform) => p.runTransform(c)
       }
     }
   }

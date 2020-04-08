@@ -5,8 +5,8 @@ package firrtlTests
 import firrtl._
 import firrtl.ir._
 import firrtl.passes._
-import firrtl.Mappers._
-import annotations._
+import firrtl.testutils._
+import firrtl.testutils.FirrtlCheckers._
 
 class InferReadWriteSpec extends SimpleTransformSpec {
   class InferReadWriteCheckException extends PassException(
@@ -134,8 +134,44 @@ circuit sram6t :
 """.stripMargin
 
     val annos = Seq(memlib.InferReadWriteAnnotation)
-    intercept[InferReadWriteCheckException] {
+    intercept[Exception] {
       compileAndEmit(CircuitState(parse(input), ChirrtlForm, annos))
+    } match {
+      case CustomTransformException(_: InferReadWriteCheckException) => // success
+      case _ => fail()
     }
+  }
+
+  "wmode" should "be simplified" in {
+    val input = """
+circuit sram6t :
+  module sram6t :
+    input clock : Clock
+    input reset : UInt<1>
+    output io : { flip addr : UInt<11>, flip valid : UInt<1>, flip write : UInt<1>, flip dataIn : UInt<32>, dataOut : UInt<32>}
+
+    io is invalid
+    smem mem : UInt<32> [2048]
+    node wen = and(io.valid, io.write)
+    node ren = and(io.valid, not(io.write))
+    when wen :
+      write mport _T_14 = mem[io.addr], clock
+      _T_14 <= io.dataIn
+    node _T_16 = eq(wen, UInt<1>("h0"))
+    when _T_16 :
+      wire _T_18 : UInt
+      _T_18 is invalid
+      when ren :
+        _T_18 <= io.addr
+        node _T_20 = or(_T_18, UInt<11>("h0"))
+        node _T_21 = bits(_T_20, 10, 0)
+        read mport _T_22 = mem[_T_21], clock
+      io.dataOut <= _T_22
+""".stripMargin
+
+    val annos = Seq(memlib.InferReadWriteAnnotation)
+    val res = compileAndEmit(CircuitState(parse(input), ChirrtlForm, annos))
+    // Check correctness of firrtl
+    res should containLine (s"mem.rw.wmode <= wen")
   }
 }

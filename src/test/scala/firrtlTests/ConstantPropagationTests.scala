@@ -3,21 +3,21 @@
 package firrtlTests
 
 import firrtl._
-import firrtl.ir.Circuit
-import firrtl.Parser.IgnoreInfo
 import firrtl.passes._
 import firrtl.transforms._
+import firrtl.testutils._
+import firrtl.annotations.Annotation
 
 class ConstantPropagationSpec extends FirrtlFlatSpec {
   val transforms = Seq(
       ToWorkingIR,
       ResolveKinds,
       InferTypes,
-      ResolveGenders,
-      InferWidths,
+      ResolveFlows,
+      new InferWidths,
       new ConstantPropagation)
-  protected def exec(input: String) = {
-    transforms.foldLeft(CircuitState(parse(input), UnknownForm)) {
+  protected def exec(input: String, annos: Seq[Annotation] = Nil) = {
+    transforms.foldLeft(CircuitState(parse(input), UnknownForm, AnnotationSeq(annos))) {
       (c: CircuitState, t: Transform) => t.runTransform(c)
     }.circuit.serialize
   }
@@ -694,6 +694,112 @@ class ConstantPropagationSingleModule extends ConstantPropagationSpec {
 """
       (parse(exec(input))) should be (parse(check))
     }
+
+   "ConstProp" should "propagate constant addition" in {
+    val input =
+      """circuit Top :
+        |  module Top :
+        |    input x : UInt<5>
+        |    output z : UInt<5>
+        |    node _T_1 = add(UInt<5>("h0"), UInt<5>("h1"))
+        |    node _T_2 = add(_T_1, UInt<5>("h2"))
+        |    z <= add(x, _T_2)
+      """.stripMargin
+    val check =
+      """circuit Top :
+        |  module Top :
+        |    input x : UInt<5>
+        |    output z : UInt<5>
+        |    node _T_1 = UInt<6>("h1")
+        |    node _T_2 = UInt<7>("h3")
+        |    z <= add(x, UInt<7>("h3"))
+      """.stripMargin
+    (parse(exec(input))) should be(parse(check))
+  }
+
+   "ConstProp" should "propagate addition with zero" in {
+    val input =
+      """circuit Top :
+        |  module Top :
+        |    input x : UInt<5>
+        |    output z : UInt<5>
+        |    z <= add(x, UInt<5>("h0"))
+      """.stripMargin
+    val check =
+      """circuit Top :
+        |  module Top :
+        |    input x : UInt<5>
+        |    output z : UInt<5>
+        |    z <= pad(x, 6)
+      """.stripMargin
+    (parse(exec(input))) should be(parse(check))
+  }
+
+  // Optimizing this mux gives: z <= pad(UInt<2>(0), 4)
+  // Thus this checks that we then optimize that pad
+  "ConstProp" should "optimize nested Expressions" in {
+    val input =
+      """circuit Top :
+        |  module Top :
+        |    output z : UInt<4>
+        |    z <= mux(UInt(1), UInt<2>(0), UInt<4>(0))
+      """.stripMargin
+    val check =
+      """circuit Top :
+        |  module Top :
+        |    output z : UInt<4>
+        |    z <= UInt<4>("h0")
+      """.stripMargin
+    (parse(exec(input))) should be(parse(check))
+  }
+
+  "ConstProp" should "NOT touch self-inits" in {
+    val input =
+      """circuit Top :
+        |  module Top :
+        |    input clk : Clock
+        |    input rst : UInt<1>
+        |    output z : UInt<4>
+        |    reg selfinit : UInt<1>, clk with : (reset => (UInt<1>(0), selfinit))
+        |    selfinit <= UInt<1>(0)
+        |    z <= mux(UInt(1), UInt<2>(0), UInt<4>(0))
+     """.stripMargin
+    val check =
+      """circuit Top :
+        |  module Top :
+        |    input clk : Clock
+        |    input rst : UInt<1>
+        |    output z : UInt<4>
+        |    reg selfinit : UInt<1>, clk with : (reset => (UInt<1>(0), selfinit))
+        |    selfinit <= UInt<1>(0)
+        |    z <= UInt<4>(0)
+     """.stripMargin
+    (parse(exec(input, Seq(NoDCEAnnotation)))) should be(parse(check))
+  }
+
+  def castCheck(tpe: String, cast: String): Unit = {
+    val input =
+     s"""circuit Top :
+        |  module Top :
+        |    input  x : $tpe
+        |    output z : $tpe
+        |    z <= $cast(x)
+      """.stripMargin
+    val check =
+     s"""circuit Top :
+        |  module Top :
+        |    input  x : $tpe
+        |    output z : $tpe
+        |    z <= x
+      """.stripMargin
+    (parse(exec(input)).serialize) should be (parse(check).serialize)
+  }
+  it should "optimize unnecessary casts" in {
+    castCheck("UInt<4>", "asUInt")
+    castCheck("SInt<4>", "asSInt")
+    castCheck("Clock", "asClock")
+    castCheck("AsyncReset", "asAsyncReset")
+  }
 }
 
 // More sophisticated tests of the full compiler
@@ -712,7 +818,20 @@ class ConstantPropagationIntegrationSpec extends LowTransformSpec {
     execute(input, check, Seq(dontTouch("Top.z")))
   }
 
-  "ConstProp" should "NOT optimize across dontTouch on registers" in {
+  it should "NOT optimize across nodes marked dontTouch by other annotations" in {
+      val input =
+        """circuit Top :
+          |  module Top :
+          |    input x : UInt<1>
+          |    output y : UInt<1>
+          |    node z = x
+          |    y <= z""".stripMargin
+      val check = input
+      val dontTouchRT = annotations.ModuleTarget("Top", "Top").ref("z")
+    execute(input, check, Seq(AnnotationWithDontTouches(dontTouchRT)))
+  }
+
+  it should "NOT optimize across dontTouch on registers" in {
       val input =
         """circuit Top :
           |  module Top :
@@ -836,6 +955,25 @@ class ConstantPropagationIntegrationSpec extends LowTransformSpec {
     execute(input, check, Seq.empty)
   }
 
+  it should "pad zero when constant propping a register replaced with zero" in {
+      val input =
+        """circuit Top :
+          |  module Top :
+          |    input clock : Clock
+          |    output z : UInt<16>
+          |    reg r : UInt<8>, clock
+          |    r <= or(r, UInt(0))
+          |    node n = UInt("hab")
+          |    z <= cat(n, r)""".stripMargin
+      val check =
+        """circuit Top :
+          |  module Top :
+          |    input clock : Clock
+          |    output z : UInt<16>
+          |    z <= UInt<16>("hab00")""".stripMargin
+    execute(input, check, Seq.empty)
+  }
+
   it should "pad constant connections to outputs when propagating" in {
       val input =
         """circuit Top :
@@ -874,6 +1012,23 @@ class ConstantPropagationIntegrationSpec extends LowTransformSpec {
     execute(input, check, Seq.empty)
   }
 
+  it should "remove pads if the width is <= the width of the argument" in {
+    def input(w: Int) =
+     s"""circuit Top :
+        |  module Top :
+        |    input x : UInt<8>
+        |    output z : UInt<8>
+        |    z <= pad(x, $w)""".stripMargin
+    val check =
+      """circuit Top :
+        |  module Top :
+        |    input x : UInt<8>
+        |    output z : UInt<8>
+        |    z <= x""".stripMargin
+    execute(input(6), check, Seq.empty)
+    execute(input(8), check, Seq.empty)
+  }
+
 
   "Registers with no reset or connections" should "be replaced with constant zero" in {
       val input =
@@ -908,6 +1063,112 @@ class ConstantPropagationIntegrationSpec extends LowTransformSpec {
           |    input reset : UInt<1>
           |    output z : UInt<8>
           |    z <= UInt<8>("hb")""".stripMargin
+    execute(input, check, Seq.empty)
+  }
+
+  "Registers async reset and a constant connection" should "NOT be removed" in {
+      val input =
+        """circuit Top :
+          |  module Top :
+          |    input clock : Clock
+          |    input reset : AsyncReset
+          |    input en : UInt<1>
+          |    output z : UInt<8>
+          |    reg r : UInt<8>, clock with : (reset => (reset, UInt<4>("hb")))
+          |    when en :
+          |      r <= UInt<4>("h0")
+          |    z <= r""".stripMargin
+      val check =
+        """circuit Top :
+          |  module Top :
+          |    input clock : Clock
+          |    input reset : AsyncReset
+          |    input en : UInt<1>
+          |    output z : UInt<8>
+          |    reg r : UInt<8>, clock with :
+          |      reset => (reset, UInt<8>("hb"))
+          |    z <= r
+          |    r <= mux(en, UInt<8>("h0"), r)""".stripMargin
+    execute(input, check, Seq.empty)
+  }
+
+  "Registers with constant reset and connection to the same constant" should "be replaced with that constant" in {
+      val input =
+        """circuit Top :
+          |  module Top :
+          |    input clock : Clock
+          |    input reset : UInt<1>
+          |    input cond : UInt<1>
+          |    output z : UInt<8>
+          |    reg r : UInt<8>, clock with : (reset => (reset, UInt<4>("hb")))
+          |    when cond :
+          |      r <= UInt<4>("hb")
+          |    z <= r""".stripMargin
+      val check =
+        """circuit Top :
+          |  module Top :
+          |    input clock : Clock
+          |    input reset : UInt<1>
+          |    input cond : UInt<1>
+          |    output z : UInt<8>
+          |    z <= UInt<8>("hb")""".stripMargin
+    execute(input, check, Seq.empty)
+  }
+
+  "Const prop of registers" should "do limited speculative expansion of optimized muxes to absorb bigger cones" in {
+      val input =
+        """circuit Top :
+          |  module Top :
+          |    input clock : Clock
+          |    input en : UInt<1>
+          |    output out : UInt<1>
+          |    reg r1 : UInt<1>, clock
+          |    reg r2 : UInt<1>, clock
+          |    when en :
+          |      r1 <= UInt<1>(1)
+          |    r2 <= UInt<1>(0)
+          |    when en :
+          |      r2 <= r2
+          |    out <= xor(r1, r2)""".stripMargin
+      val check =
+        """circuit Top :
+          |  module Top :
+          |    input clock : Clock
+          |    input en : UInt<1>
+          |    output out : UInt<1>
+          |    out <= UInt<1>("h1")""".stripMargin
+    execute(input, check, Seq.empty)
+  }
+
+  "A register with constant reset and all connection to either itself or the same constant" should "be replaced with that constant" in {
+      val input =
+        """circuit Top :
+          |  module Top :
+          |    input clock : Clock
+          |    input reset : UInt<1>
+          |    input cmd : UInt<3>
+          |    output z : UInt<8>
+          |    reg r : UInt<8>, clock with : (reset => (reset, UInt<4>("h7")))
+          |    r <= r
+          |    when eq(cmd, UInt<3>("h0")) :
+          |      r <= UInt<3>("h7")
+          |    else :
+          |      when eq(cmd, UInt<3>("h1")) :
+          |        r <= r
+          |      else :
+          |        when eq(cmd, UInt<3>("h2")) :
+          |          r <= UInt<4>("h7")
+          |        else :
+          |          r <= r
+          |    z <= r""".stripMargin
+      val check =
+        """circuit Top :
+          |  module Top :
+          |    input clock : Clock
+          |    input reset : UInt<1>
+          |    input cmd : UInt<3>
+          |    output z : UInt<8>
+          |    z <= UInt<8>("h7")""".stripMargin
     execute(input, check, Seq.empty)
   }
 
@@ -1010,5 +1271,233 @@ class ConstantPropagationIntegrationSpec extends LowTransformSpec {
           |    a <= UInt<8>(0)
           |""".stripMargin
     execute(input, check, Seq.empty)
+  }
+
+  "Temporary named port" should "not be declared as a node" in {
+    val input =
+      """circuit Top :
+        |  module Top :
+        |    input _T_61 : UInt<1>
+        |    output z : UInt<1>
+        |    node a = _T_61
+        |    z <= a""".stripMargin
+    val check =
+      """circuit Top :
+        |  module Top :
+        |    input _T_61 : UInt<1>
+        |    output z : UInt<1>
+        |    z <= _T_61""".stripMargin
+    execute(input, check, Seq.empty)
+  }
+
+  behavior of "ConstProp"
+
+  it should "optimize shl of constants" in {
+    val input =
+      """circuit Top :
+        |  module Top :
+        |    output z : UInt<7>
+        |    z <= shl(UInt(5), 4)
+      """.stripMargin
+    val check =
+      """circuit Top :
+        |  module Top :
+        |    output z : UInt<7>
+        |    z <= UInt<7>("h50")
+      """.stripMargin
+    execute(input, check, Seq.empty)
+  }
+
+  it should "optimize shr of constants" in {
+    val input =
+      """circuit Top :
+        |  module Top :
+        |    output z : UInt<1>
+        |    z <= shr(UInt(5), 2)
+      """.stripMargin
+    val check =
+      """circuit Top :
+        |  module Top :
+        |    output z : UInt<1>
+        |    z <= UInt<1>("h1")
+      """.stripMargin
+    execute(input, check, Seq.empty)
+  }
+
+  // Due to #866, we need dshl optimized away or it'll become a dshlw and error in parsing
+  // Include cat to verify width is correct
+  it should "optimize dshl of constant" in {
+    val input =
+      """circuit Top :
+        |  module Top :
+        |    output z : UInt<8>
+        |    node n = dshl(UInt<1>(0), UInt<2>(0))
+        |    z <= cat(UInt<4>("hf"), n)
+      """.stripMargin
+    val check =
+      """circuit Top :
+        |  module Top :
+        |    output z : UInt<8>
+        |    z <= UInt<8>("hf0")
+      """.stripMargin
+    execute(input, check, Seq.empty)
+  }
+
+  // Include cat and constants to verify width is correct
+  it should "optimize dshr of constant" in {
+    val input =
+      """circuit Top :
+        |  module Top :
+        |    output z : UInt<8>
+        |    node n = dshr(UInt<4>(0), UInt<2>(2))
+        |    z <= cat(UInt<4>("hf"), n)
+      """.stripMargin
+    val check =
+      """circuit Top :
+        |  module Top :
+        |    output z : UInt<8>
+        |    z <= UInt<8>("hf0")
+      """.stripMargin
+    execute(input, check, Seq.empty)
+  }
+
+  private def matchingArgs(op: String, iType: String, oType: String, result: String): Unit = {
+    val input =
+      s"""circuit Top :
+         |  module Top :
+         |    input i : ${iType}
+         |    output o : ${oType}
+         |    o <= ${op}(i, i)
+      """.stripMargin
+    val check =
+      s"""circuit Top :
+         |  module Top :
+         |    input i : ${iType}
+         |    output o : ${oType}
+         |    o <= ${result}
+      """.stripMargin
+    execute(input, check, Seq.empty)
+  }
+
+  it should "optimize some binary operations when arguments match" in {
+    // Signedness matters
+    matchingArgs("sub", "UInt<8>", "UInt<8>", """ UInt<8>("h0")  """ )
+    matchingArgs("sub", "SInt<8>", "SInt<8>", """ SInt<8>("h0")  """ )
+    matchingArgs("div", "UInt<8>", "UInt<8>", """ UInt<8>("h1")  """ )
+    matchingArgs("div", "SInt<8>", "SInt<8>", """ SInt<8>("h1")  """ )
+    matchingArgs("rem", "UInt<8>", "UInt<8>", """ UInt<8>("h0")  """ )
+    matchingArgs("rem", "SInt<8>", "SInt<8>", """ SInt<8>("h0")  """ )
+    matchingArgs("and", "UInt<8>", "UInt<8>", """ i              """ )
+    matchingArgs("and", "SInt<8>", "UInt<8>", """ asUInt(i)      """ )
+    // Signedness doesn't matter
+    matchingArgs("or",  "UInt<8>", "UInt<8>", """ i """ )
+    matchingArgs("or",  "SInt<8>", "UInt<8>", """ asUInt(i) """ )
+    matchingArgs("xor", "UInt<8>", "UInt<8>", """ UInt<8>("h0")  """ )
+    matchingArgs("xor", "SInt<8>", "UInt<8>", """ UInt<8>("h0")  """ )
+    // Always true
+    matchingArgs("eq",  "UInt<8>", "UInt<1>", """ UInt<1>("h1")  """ )
+    matchingArgs("leq", "UInt<8>", "UInt<1>", """ UInt<1>("h1")  """ )
+    matchingArgs("geq", "UInt<8>", "UInt<1>", """ UInt<1>("h1")  """ )
+    // Never true
+    matchingArgs("neq", "UInt<8>", "UInt<1>", """ UInt<1>("h0")  """ )
+    matchingArgs("lt",  "UInt<8>", "UInt<1>", """ UInt<1>("h0")  """ )
+    matchingArgs("gt",  "UInt<8>", "UInt<1>", """ UInt<1>("h0")  """ )
+  }
+
+}
+
+
+class ConstantPropagationEquivalenceSpec extends FirrtlFlatSpec {
+  private val srcDir = "/constant_propagation_tests"
+  private val transforms = Seq(new ConstantPropagation)
+
+  "anything added to zero" should "be equal to itself" in {
+    val input =
+      s"""circuit AddZero :
+         |  module AddZero :
+         |    input in : UInt<5>
+         |    output out1 : UInt<6>
+         |    output out2 : UInt<6>
+         |    out1 <= add(in, UInt<5>("h0"))
+         |    out2 <= add(UInt<5>("h0"), in)""".stripMargin
+    firrtlEquivalenceTest(input, transforms)
+  }
+
+  "constants added together" should "be propagated" in {
+    val input =
+      s"""circuit AddLiterals :
+         |  module AddLiterals :
+         |    input uin : UInt<5>
+         |    input sin : SInt<5>
+         |    output uout : UInt<6>
+         |    output sout : SInt<6>
+         |    node uconst = add(UInt<5>("h1"), UInt<5>("h2"))
+         |    uout <= add(uconst, uin)
+         |    node sconst = add(SInt<5>("h1"), SInt<5>("h-1"))
+         |    sout <= add(sconst, sin)""".stripMargin
+    firrtlEquivalenceTest(input, transforms)
+  }
+
+  "UInt addition" should "have the correct widths" in {
+    val input =
+      s"""circuit WidthsAddUInt :
+         |  module WidthsAddUInt :
+         |    input in : UInt<3>
+         |    output out1 : UInt<10>
+         |    output out2 : UInt<10>
+         |    wire temp : UInt<5>
+         |    temp <= add(in, UInt<1>("h0"))
+         |    out1 <= cat(temp, temp)
+         |    node const = add(UInt<4>("h1"), UInt<3>("h2"))
+         |    out2 <= cat(const, const)""".stripMargin
+    firrtlEquivalenceTest(input, transforms)
+  }
+
+  "SInt addition" should "have the correct widths" in {
+    val input =
+      s"""circuit WidthsAddSInt :
+         |  module WidthsAddSInt :
+         |    input in : SInt<3>
+         |    output out1 : UInt<10>
+         |    output out2 : UInt<10>
+         |    wire temp : SInt<5>
+         |    temp <= add(in, SInt<7>("h0"))
+         |    out1 <= cat(temp, temp)
+         |    node const = add(SInt<4>("h1"), SInt<3>("h-2"))
+         |    out2 <= cat(const, const)""".stripMargin
+    firrtlEquivalenceTest(input, transforms)
+  }
+
+  "addition by zero width wires" should "have the correct widths" in {
+    val input =
+      s"""circuit ZeroWidthAdd:
+         |  module ZeroWidthAdd:
+         |    input x: UInt<0>
+         |    output y: UInt<7>
+         |    node temp = add(x, UInt<9>("h0"))
+         |    y <= cat(temp, temp)""".stripMargin
+    firrtlEquivalenceTest(input, transforms)
+  }
+
+  "tail of constants" should "be propagated" in {
+    val input =
+      s"""circuit TailTester :
+         |  module TailTester :
+         |    output out : UInt<1>
+         |    node temp = add(UInt<1>("h00"), UInt<5>("h017"))
+         |    node tail_temp = tail(temp, 1)
+         |    out <= tail_temp""".stripMargin
+    firrtlEquivalenceTest(input, transforms)
+  }
+
+  "head of constants" should "be propagated" in {
+    val input =
+      s"""circuit TailTester :
+         |  module TailTester :
+         |    output out : UInt<1>
+         |    node temp = add(UInt<1>("h00"), UInt<5>("h017"))
+         |    node head_temp = head(temp, 3)
+         |    out <= head_temp""".stripMargin
+    firrtlEquivalenceTest(input, transforms)
   }
 }

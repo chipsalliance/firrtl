@@ -2,18 +2,31 @@
 
 package firrtl.passes
 
-import firrtl.{WRef, WSubAccess, WSubIndex, WSubField, Namespace}
+import firrtl.{Namespace, Transform, WRef, WSubAccess, WSubIndex, WSubField}
 import firrtl.PrimOps.{And, Eq}
 import firrtl.ir._
 import firrtl.Mappers._
 import firrtl.Utils._
 import firrtl.WrappedExpression._
-import scala.collection.mutable
+import firrtl.options.Dependency
 
+import scala.collection.mutable
 
 /** Removes all [[firrtl.WSubAccess]] from circuit
   */
 object RemoveAccesses extends Pass {
+
+  override val prerequisites =
+    Seq( Dependency(PullMuxes),
+         Dependency(ZeroLengthVecs),
+         Dependency(ReplaceAccesses),
+         Dependency(ExpandConnects) ) ++ firrtl.stage.Forms.Deduped
+
+  override def invalidates(a: Transform): Boolean = a match {
+    case Uniquify => true
+    case _        => false
+  }
+
   private def AND(e1: Expression, e2: Expression) =
     if(e1 == one) e2
     else if(e2 == one) e1
@@ -54,7 +67,7 @@ object RemoveAccesses extends Pass {
       ls.zipWithIndex map {case (l, i) =>
         val c = (i / stride) % wrap
         val basex = l.base
-        val guardx = AND(l.guard,EQV(uint(c),e.index))
+        val guardx = AND(l.guard,EQV(UIntLiteral(c),e.index))
         Location(basex,guardx)
       }
   }
@@ -85,7 +98,7 @@ object RemoveAccesses extends Pass {
       def onStmt(s: Statement): Statement = {
         def create_temp(e: Expression): (Statement, Expression) = {
           val n = namespace.newName(niceName(e))
-          (DefWire(get_info(s), n, e.tpe), WRef(n, e.tpe, kind(e), gender(e)))
+          (DefWire(get_info(s), n, e.tpe), WRef(n, e.tpe, kind(e), flow(e)))
         }
 
         /** Replaces a subaccess in a given male expression
@@ -134,7 +147,7 @@ object RemoveAccesses extends Pass {
           * Otherwise, map to children.
           */
         def fixMale(e: Expression): Expression = e match {
-          case w: WSubAccess => removeMale(WSubAccess(w.expr, fixMale(w.index), w.tpe, w.gender))
+          case w: WSubAccess => removeMale(WSubAccess(w.expr, fixMale(w.index), w.tpe, w.flow))
           //case w: WSubIndex => removeMale(w)
           //case w: WSubField => removeMale(w)
           case x => x map fixMale
@@ -145,7 +158,7 @@ object RemoveAccesses extends Pass {
           * Otherwise, map to children.
           */
         def fixFemale(e: Expression): Expression = e match {
-          case w: WSubAccess => WSubAccess(fixFemale(w.expr), fixMale(w.index), w.tpe, w.gender)
+          case w: WSubAccess => WSubAccess(fixFemale(w.expr), fixMale(w.index), w.tpe, w.flow)
           case x => x map fixFemale
         }
 
@@ -159,7 +172,7 @@ object RemoveAccesses extends Pass {
       }
       Module(m.info, m.name, m.ports, squashEmpty(onStmt(m.body)))
     }
-  
+
     c copy (modules = c.modules map {
       case m: ExtModule => m
       case m: Module => remove_m(m)

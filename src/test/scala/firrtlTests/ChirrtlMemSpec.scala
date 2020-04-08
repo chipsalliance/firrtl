@@ -7,9 +7,9 @@ import firrtl.ir._
 import firrtl.passes._
 import firrtl.transforms._
 import firrtl.Mappers._
-import annotations._
-import FirrtlCheckers._
 import firrtl.PrimOps.AsClock
+import firrtl.testutils._
+import firrtl.testutils.FirrtlCheckers._
 
 class ChirrtlMemSpec extends LowTransformSpec {
   object MemEnableCheckPass extends Pass {
@@ -106,6 +106,23 @@ circuit foo :
     val res = compileAndEmit(CircuitState(parse(input), ChirrtlForm))
     // Check correctness of firrtl
     parse(res.getEmittedCircuit.value)
+  }
+
+  "An mport that refers to an undefined memory" should "have a helpful error message" in {
+    val input =
+      """circuit testTestModule :
+         |  module testTestModule :
+         |    input clock : Clock
+         |    input reset : UInt<1>
+         |    output io : {flip in : UInt<10>, out : UInt<10>}
+         |
+         |    node _T_10 = bits(io.in, 1, 0)
+         |    read mport _T_11 = m[_T_10], clock
+         |    io.out <= _T_11""".stripMargin
+
+    intercept[PassException]{
+      (new LowFirrtlCompiler).compile(CircuitState(parse(input), ChirrtlForm), Seq()).circuit
+    }.getMessage should startWith ("Undefined memory m referenced by mport _T_11")
   }
 
   ignore should "Memories should not have validif on port clocks when declared in a when" in {

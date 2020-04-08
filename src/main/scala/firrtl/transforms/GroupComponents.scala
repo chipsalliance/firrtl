@@ -4,9 +4,8 @@ import firrtl._
 import firrtl.Mappers._
 import firrtl.ir._
 import firrtl.annotations.{Annotation, ComponentName}
-import firrtl.passes.{InferTypes, LowerTypes, MemPortUtils}
-import firrtl.Utils.kind
-import firrtl.graph.{DiGraph, MutableDiGraph}
+import firrtl.passes.{InferTypes, LowerTypes, ResolveKinds}
+import firrtl.graph.MutableDiGraph
 
 import scala.collection.mutable
 
@@ -62,7 +61,8 @@ class GroupComponents extends firrtl.Transform {
       case other => Seq(other)
     }
     val cs = state.copy(circuit = state.circuit.copy(modules = newModules))
-    val csx = InferTypes.execute(cs)
+    /* @todo move ResolveKinds and InferTypes out */
+    val csx = ResolveKinds.execute(InferTypes.execute(cs))
     csx
   }
 
@@ -117,6 +117,11 @@ class GroupComponents extends firrtl.Transform {
       deps.reachableFrom(label, notSet(label)) foreach { node =>
         reachableNodes.getOrElseUpdate(node, mutable.Set.empty[String]) += label
       }
+    }
+
+    // Unused nodes are not reachable from any group nor the root--add them to root group
+    for ((v, _) <- deps.getEdgeMap) {
+      reachableNodes.getOrElseUpdate(v, mutable.Set(""))
     }
 
     // Add nodes who are reached by a single group, to that group
@@ -181,7 +186,11 @@ class GroupComponents extends firrtl.Transform {
 
     def punchSignalOut(group: String, exp: Expression): String = {
       val portName = addPort(group, exp, Output)
-      groupStatements(group) += Connect(NoInfo, WRef(portName), exp)
+      val connectStatement = exp.tpe match {
+        case AnalogType(_) => Attach(NoInfo, Seq(WRef(portName), exp))
+        case _ => Connect(NoInfo, WRef(portName), exp)
+      }
+      groupStatements(group) += connectStatement
       portName
     }
 
@@ -205,7 +214,7 @@ class GroupComponents extends firrtl.Transform {
             added += Connect(NoInfo, WSubField(WRef(label2instance(group)), toPort), otherExp)
 
             // Return WRef with new kind (its inside the group Module now)
-            WRef(toPort, otherExp.tpe, PortKind, MALE)
+            WRef(toPort, otherExp.tpe, PortKind, SourceFlow)
 
           // case 3: source in different group
           case otherGroup =>
@@ -219,7 +228,7 @@ class GroupComponents extends firrtl.Transform {
             added += Connect(NoInfo, WSubField(WRef(groupInst), toPort), WSubField(WRef(otherInst), fromPort))
 
             // Return WRef with new kind (its inside the group Module now)
-            WRef(toPort, otherExp.tpe, PortKind, MALE)
+            WRef(toPort, otherExp.tpe, PortKind, SourceFlow)
         }
     }
 
@@ -255,6 +264,11 @@ class GroupComponents extends firrtl.Transform {
           val group = byNode(getWRef(c.loc).name)
           groupStatements(group) += Connect(c.info, c.loc, inGroupFixExps(group, topStmts)(c.expr))
           Block(topStmts)
+        case i: IsInvalid if byNode(getWRef(i.expr).name) != "" =>
+          // Sink is in group
+          val group = byNode(getWRef(i.expr).name)
+          groupStatements(group) += i
+          EmptyStmt
         // TODO Attach if all are in a group?
         case _: IsDeclaration | _: Connect | _: Attach =>
           // Sink is in Top
@@ -303,7 +317,9 @@ class GroupComponents extends firrtl.Transform {
     }
     def onStmt(stmt: Statement): Unit = stmt match {
       case w: WDefInstance =>
-      case h: IsDeclaration => h map onExpr(WRef(h.name))
+      case h: IsDeclaration =>
+        bidirGraph.addVertex(h.name)
+        h map onExpr(WRef(h.name))
       case Attach(_, exprs) => // Add edge between each expression
         exprs.tail map onExpr(getWRef(exprs.head))
       case Connect(_, loc, expr) =>

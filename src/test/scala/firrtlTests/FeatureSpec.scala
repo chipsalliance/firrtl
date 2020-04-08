@@ -2,7 +2,7 @@
 
 package firrtlTests
 
-import org.scalatest._
+import firrtl.testutils.ExecutionTest
 
 // Miscellaneous Feature Checks
 class NestedSubAccessExecutionTest extends ExecutionTest("NestedSubAccessTester", "/features")

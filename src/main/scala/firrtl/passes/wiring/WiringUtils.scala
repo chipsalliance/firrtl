@@ -7,12 +7,11 @@ import firrtl._
 import firrtl.ir._
 import firrtl.Utils._
 import firrtl.Mappers._
+import firrtl.traversals.Foreachers._
 import scala.collection.mutable
 import firrtl.annotations._
 import firrtl.annotations.AnnotationUtils._
 import firrtl.analyses.InstanceGraph
-import firrtl.graph.DiGraph
-import WiringUtils._
 
 /** Declaration kind in lineage (e.g. input port, output port, wire)
   */
@@ -36,6 +35,7 @@ case class Modifications(
 
 /** A lineage tree representing the instance hierarchy in a design
   */
+@deprecated("Use DiGraph/InstanceGraph", "1.1.1")
 case class Lineage(
     name: String,
     children: Seq[(String, Lineage)] = Seq.empty,
@@ -74,31 +74,32 @@ case class Lineage(
 }
 
 object WiringUtils {
+  @deprecated("Use DiGraph/InstanceGraph", "1.1.1")
   type ChildrenMap = mutable.HashMap[String, Seq[(String, String)]]
 
   /** Given a circuit, returns a map from module name to children
     * instance/module names
     */
+  @deprecated("Use DiGraph/InstanceGraph", "1.1.1")
   def getChildrenMap(c: Circuit): ChildrenMap = {
     val childrenMap = new ChildrenMap()
-    def getChildren(mname: String)(s: Statement): Statement = s match {
+    def getChildren(mname: String)(s: Statement): Unit = s match {
       case s: WDefInstance =>
-        childrenMap(mname) = childrenMap(mname) :+ (s.name, s.module)
-        s
+        childrenMap(mname) = childrenMap(mname) :+( (s.name, s.module) )
       case s: DefInstance =>
-        childrenMap(mname) = childrenMap(mname) :+ (s.name, s.module)
-        s
-      case s => s map getChildren(mname)
+        childrenMap(mname) = childrenMap(mname) :+( (s.name, s.module) )
+      case s => s.foreach(getChildren(mname))
     }
     c.modules.foreach{ m =>
       childrenMap(m.name) = Nil
-      m map getChildren(m.name)
+      m.foreach(getChildren(m.name))
     }
     childrenMap
   }
 
   /** Returns a module's lineage, containing all children lineages as well
     */
+  @deprecated("Use DiGraph/InstanceGraph", "1.1.1")
   def getLineage(childrenMap: ChildrenMap, module: String): Lineage =
     Lineage(module, childrenMap(module) map { case (i, m) => (i, getLineage(childrenMap, m)) } )
 
@@ -178,7 +179,7 @@ object WiringUtils {
       .collect { case (k, v) if sinkInsts.contains(k) => (k, v.flatten) }.toMap
   }
 
-  /** Helper script to extract a module name from a named Module or Component */
+  /** Helper script to extract a module name from a named Module or Target */
   def getModuleName(n: Named): String = {
     n match {
       case ModuleName(m, _)                   => m

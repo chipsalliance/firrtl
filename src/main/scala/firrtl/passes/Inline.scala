@@ -6,6 +6,11 @@ package passes
 import firrtl.ir._
 import firrtl.Mappers._
 import firrtl.annotations._
+import firrtl.annotations.TargetToken.{Instance, OfModule}
+import firrtl.analyses.{InstanceGraph}
+import firrtl.graph.{DiGraph, MutableDiGraph}
+import firrtl.stage.RunFirrtlTransformAnnotation
+import firrtl.options.{RegisteredTransform, ShellOption}
 
 // Datastructures
 import scala.collection.mutable
@@ -15,16 +20,36 @@ case class InlineAnnotation(target: Named) extends SingleTargetAnnotation[Named]
   def duplicate(n: Named) = InlineAnnotation(n)
 }
 
-// Only use on legal Firrtl. Specifically, the restriction of
-//  instance loops must have been checked, or else this pass can
-//  infinitely recurse
-class InlineInstances extends Transform {
-   def inputForm = LowForm
-   def outputForm = LowForm
-   val inlineDelim = "$"
+/** Inline instances as indicated by existing [[InlineAnnotation]]s
+  * @note Only use on legal Firrtl. Specifically, the restriction of instance loops must have been checked, or else this
+  * pass can infinitely recurse.
+  */
+class InlineInstances extends Transform with RegisteredTransform {
+  def inputForm = LowForm
+  def outputForm = LowForm
+  private [firrtl] val inlineDelim: String = "_"
+
+  override def invalidates(a: Transform): Boolean = a == ResolveKinds
+
+  val options = Seq(
+    new ShellOption[Seq[String]](
+      longOption = "inline",
+      toAnnotationSeq = (a: Seq[String]) => a.map { value =>
+        value.split('.') match {
+          case Array(circuit) =>
+            InlineAnnotation(CircuitName(circuit))
+          case Array(circuit, module) =>
+            InlineAnnotation(ModuleName(module, CircuitName(circuit)))
+          case Array(circuit, module, inst) =>
+            InlineAnnotation(ComponentName(inst, ModuleName(module, CircuitName(circuit))))
+        }
+      } :+ RunFirrtlTransformAnnotation(new InlineInstances),
+      helpText = "Inline selected modules",
+      shortOption = Some("fil"),
+      helpValueName = Some("<circuit>[.<module>[.<instance>]][,...]") ) )
 
    private def collectAnns(circuit: Circuit, anns: Iterable[Annotation]): (Set[ModuleName], Set[ComponentName]) =
-     anns.foldLeft(Set.empty[ModuleName], Set.empty[ComponentName]) {
+     anns.foldLeft( (Set.empty[ModuleName], Set.empty[ComponentName]) ) {
        case ((modNames, instNames), ann) => ann match {
          case InlineAnnotation(CircuitName(c)) =>
            (circuit.modules.collect {
@@ -52,7 +77,7 @@ class InlineInstances extends Transform {
    // 3) All annotated instances exist, and their modules can be inline
    def check(c: Circuit, moduleNames: Set[ModuleName], instanceNames: Set[ComponentName]): Unit = {
       val errors = mutable.ArrayBuffer[PassException]()
-      val moduleMap = (for(m <- c.modules) yield m.name -> m).toMap
+      val moduleMap = new InstanceGraph(c).moduleMap
       def checkExists(name: String): Unit =
          if (!moduleMap.contains(name))
             errors += new PassException(s"Annotated module does not exist: $name")
@@ -87,15 +112,15 @@ class InlineInstances extends Transform {
 
 
   def run(c: Circuit, modsToInline: Set[ModuleName], instsToInline: Set[ComponentName], annos: AnnotationSeq): CircuitState = {
-    def getInstancesOf(c: Circuit, modules: Set[String]): Set[String] =
-      c.modules.foldLeft(Set[String]()) { (set, d) =>
+    def getInstancesOf(c: Circuit, modules: Set[String]): Set[(OfModule, Instance)] =
+      c.modules.foldLeft(Set[(OfModule, Instance)]()) { (set, d) =>
         d match {
           case e: ExtModule => set
           case m: Module =>
-            val instances = mutable.HashSet[String]()
+            val instances = mutable.HashSet[(OfModule, Instance)]()
             def findInstances(s: Statement): Statement = s match {
               case WDefInstance(info, instName, moduleName, instTpe) if modules.contains(moduleName) =>
-                instances += m.name + "." + instName
+                instances += (OfModule(m.name) -> Instance(instName))
                 s
               case sx => sx map findInstances
             }
@@ -107,38 +132,178 @@ class InlineInstances extends Transform {
     // Check annotations and circuit match up
     check(c, modsToInline, instsToInline)
     val flatModules = modsToInline.map(m => m.name)
-    val flatInstances = instsToInline.map(i => i.module.name + "." + i.name) ++ getInstancesOf(c, flatModules)
-    val moduleMap = c.modules.foldLeft(Map[String, DefModule]()) { (map, m) => map + (m.name -> m) }
+    val flatInstances: Set[(OfModule, Instance)] = instsToInline.map(i => OfModule(i.module.name) -> Instance(i.name)) ++ getInstancesOf(c, flatModules)
+    val iGraph = new InstanceGraph(c)
+    val namespaceMap = collection.mutable.Map[String, Namespace]()
+    // Map of Module name to Map of instance name to Module name
+    val instMaps = iGraph.getChildrenInstanceMap
 
-    def appendNamePrefix(prefix: String)(name:String): String = prefix + name
-    def appendRefPrefix(prefix: String, currentModule: String)(e: Expression): Expression = e match {
-      case WSubField(WRef(ref, _, InstanceKind, _), field, tpe, gen) if flatInstances.contains(currentModule + "." + ref) =>
-        WRef(prefix + ref + inlineDelim + field, tpe, WireKind, gen)
-      case WRef(name, tpe, kind, gen) => WRef(prefix + name, tpe, kind, gen)
-      case ex => ex map appendRefPrefix(prefix, currentModule)
+    /** Add a prefix to all declarations updating a [[Namespace]] and appending to a [[RenameMap]] */
+    def appendNamePrefix(
+      currentModule: IsModule,
+      nextModule: IsModule,
+      prefix: String,
+      ns: Namespace,
+      renames: mutable.HashMap[String, String],
+      renameMap: RenameMap)(s: Statement): Statement = {
+      def onName(ofModuleOpt: Option[String])(name: String) = {
+        if (prefix.nonEmpty && !ns.tryName(prefix + name)) {
+          throw new Exception(s"Inlining failed. Inlined name '${prefix + name}' already exists")
+        }
+        ofModuleOpt match {
+          case None =>
+            renameMap.record(currentModule.ref(name), nextModule.ref(prefix + name))
+          case Some(ofModule) =>
+            renameMap.record(currentModule.instOf(name, ofModule), nextModule.instOf(prefix + name, ofModule))
+        }
+        renames(name) = prefix + name
+        prefix + name
+      }
+
+      s match {
+        case s: WDefInstance => s.map(onName(Some(s.module))).map(appendNamePrefix(currentModule, nextModule, prefix, ns, renames, renameMap))
+        case other => s.map(onName(None)).map(appendNamePrefix(currentModule, nextModule, prefix, ns, renames, renameMap))
+      }
     }
 
-    def onStmt(prefix: String, currentModule: String)(s: Statement): Statement = s match {
-      case WDefInstance(info, instName, moduleName, instTpe) =>
-        // Rewrites references in inlined statements from ref to inst$ref
-        val shouldInline = flatInstances.contains(currentModule + "." + instName)
-        // Used memoized instance if available
-        if (shouldInline) {
-          val toInline = moduleMap(moduleName) match {
-            case m: ExtModule => throw new PassException("Cannot inline external module")
-            case m: Module => m
+    /** Modify all references */
+    def appendRefPrefix(
+      currentModule: IsModule,
+      renames: mutable.HashMap[String, String])(s: Statement): Statement = {
+        def onExpr(e: Expression): Expression = e match {
+          case wr@ WRef(name, _, _, _) =>
+            renames.get(name) match {
+              case Some(prefixedName) => wr.copy(name = prefixedName)
+              case None => wr
+            }
+          case ex => ex.map(onExpr)
+        }
+        s.map(onExpr).map(appendRefPrefix(currentModule, renames))
+      }
+
+    val cache = mutable.HashMap.empty[ModuleTarget, Statement]
+
+    /** renamesMap is a map of instances to [[RenameMap]].
+      *  The keys are pairs of enclosing [[OfModule]] and [[Instance]]
+      *  The [[RenameMap]]s in renamesMap are appear in renamesSeq
+      *  in the order that they should be applied
+      */
+    val (renamesMap, renamesSeq) = {
+      val mutableDiGraph = new MutableDiGraph[(OfModule, Instance)]
+      // compute instance graph
+      instMaps.foreach { case (grandParentOfMod, parents) =>
+        parents.foreach { case (parentInst, parentOfMod) =>
+          val from = grandParentOfMod -> parentInst
+          mutableDiGraph.addVertex(from)
+          instMaps(parentOfMod).foreach { case (childInst, _) =>
+            val to = parentOfMod -> childInst
+            mutableDiGraph.addVertex(to)
+            mutableDiGraph.addEdge(from, to)
           }
-          val stmts = toInline.ports.map(p => DefWire(p.info, p.name, p.tpe)) :+ toInline.body
-          onStmt(prefix + instName + inlineDelim, moduleName)(Block(stmts))
-        } else WDefInstance(info, prefix + instName, moduleName, instTpe)
-      case sx => sx map appendRefPrefix(prefix, currentModule) map onStmt(prefix, currentModule) map appendNamePrefix(prefix)
+        }
+      }
+
+      val diGraph = DiGraph(mutableDiGraph)
+      val subgraph = diGraph.simplify(flatInstances)
+      val edges = subgraph.getEdgeMap
+
+      // calculate which [[RenameMap]] should be associated with each instance
+      val indexMap = new mutable.HashMap[(OfModule, Instance), Int]
+      flatInstances.foreach(v => indexMap(v) = 0)
+      subgraph.linearize.foreach { parent =>
+        edges(parent).foreach { child =>
+          indexMap(child) = indexMap(parent) + 1
+        }
+      }
+
+      val maxIdx = indexMap.values.max
+      val resultSeq = Seq.fill(maxIdx + 1)(RenameMap())
+      val resultMap = indexMap.mapValues(idx => resultSeq(maxIdx - idx))
+      (resultMap, resultSeq)
     }
 
-    val flatCircuit = c.copy(modules = c.modules.flatMap { 
+    def fixupRefs(
+      instMap: collection.Map[Instance, OfModule],
+      currentModule: IsModule)(e: Expression): Expression = {
+      e match {
+        case wsf@ WSubField(wr@ WRef(ref, _, InstanceKind, _), field, tpe, gen) =>
+          val inst = currentModule.instOf(ref, instMap(Instance(ref)).value)
+          val renamesOpt = renamesMap.get(OfModule(currentModule.module) -> Instance(inst.instance))
+          val port = inst.ref(field)
+          renamesOpt.flatMap(_.get(port)) match {
+            case Some(Seq(p)) =>
+              p match {
+                case ReferenceTarget(_, _, Seq((TargetToken.Instance(r), TargetToken.OfModule(_))), f, Nil) =>
+                  wsf.copy(expr = wr.copy(name = r), name = f)
+                case ReferenceTarget(_, _, Nil, r, Nil) => WRef(r, tpe, WireKind, gen)
+              }
+            case None => wsf
+          }
+        case wr@ WRef(name, _, InstanceKind, _) =>
+          val inst = currentModule.instOf(name, instMap(Instance(name)).value)
+          val renamesOpt = renamesMap.get(OfModule(currentModule.module) -> Instance(inst.instance))
+          val comp = currentModule.ref(name)
+          renamesOpt.flatMap(_.get(comp)).getOrElse(Seq(comp)) match {
+            case Seq(car: ReferenceTarget) => wr.copy(name=car.ref)
+          }
+        case ex => ex.map(fixupRefs(instMap, currentModule))
+      }
+    }
+
+    def onStmt(currentModule: ModuleTarget)(s: Statement): Statement = {
+      val currentModuleName = currentModule.module
+      val ns = namespaceMap.getOrElseUpdate(currentModuleName, Namespace(iGraph.moduleMap(currentModuleName)))
+      val instMap = instMaps(OfModule(currentModuleName))
+      s match {
+        case wDef@ WDefInstance(_, instName, modName, _) if flatInstances.contains(OfModule(currentModuleName) -> Instance(instName)) =>
+          val renames = renamesMap(OfModule(currentModuleName) -> Instance(instName))
+          val toInline = iGraph.moduleMap(modName) match {
+            case m: ExtModule => throw new PassException(s"Cannot inline external module ${m.name}")
+            case m: Module    => m
+          }
+
+          val ports = toInline.ports.map(p => DefWire(p.info, p.name, p.tpe))
+
+          val bodyx = {
+            val module = currentModule.copy(module = modName)
+            cache.getOrElseUpdate(module, Block(ports :+ toInline.body) map onStmt(module))
+          }
+
+          val names = "" +: Uniquify
+            .enumerateNames(Uniquify.stmtToType(bodyx)(NoInfo, ""))
+            .map(_.mkString("_"))
+
+          /** The returned prefix will not be "prefix unique". It may be the same as other existing prefixes in the namespace.
+            * However, prepending this prefix to all inlined components is guaranteed to not conflict with this module's
+            * namespace. To make it prefix unique, this requires expanding all names in the namespace to include their
+            * prefixes before calling findValidPrefix.
+            */
+          val safePrefix = Uniquify.findValidPrefix(instName + inlineDelim, names, ns.cloneUnderlying - instName)
+
+          val prefixMap = mutable.HashMap.empty[String, String]
+          val inlineTarget = currentModule.instOf(instName, modName)
+          val renamedBody = bodyx
+            .map(appendNamePrefix(inlineTarget, currentModule, safePrefix, ns, prefixMap, renames))
+            .map(appendRefPrefix(inlineTarget, prefixMap))
+
+          renames.record(inlineTarget, currentModule)
+
+          renamedBody
+        case sx =>
+          sx
+          .map(fixupRefs(instMap, currentModule))
+          .map(onStmt(currentModule))
+      }
+    }
+
+    val flatCircuit = c.copy(modules = c.modules.flatMap {
       case m if flatModules.contains(m.name) => None
-      case m => 
-        Some(m map onStmt("", m.name))
+      case m                                 =>
+        Some(m.map(onStmt(ModuleName(m.name, CircuitName(c.main)))))
     })
-    CircuitState(flatCircuit, LowForm, annos, None)
+
+    val renames = renamesSeq.tail.foldLeft(renamesSeq.head)(_ andThen _)
+
+    CircuitState(flatCircuit, LowForm, annos, Some(renames))
   }
 }

@@ -4,21 +4,31 @@ package firrtl.passes
 
 import firrtl._
 import firrtl.ir._
-import firrtl.Utils._
 import firrtl.Mappers._
+import firrtl.options.{Dependency, PreservesAll}
 
-import annotation.tailrec
+object CommonSubexpressionElimination extends Pass with PreservesAll[Transform] {
 
-object CommonSubexpressionElimination extends Pass {
+  override val prerequisites = firrtl.stage.Forms.LowForm ++
+    Seq( Dependency(firrtl.passes.RemoveValidIf),
+         Dependency[firrtl.transforms.ConstantPropagation],
+         Dependency(firrtl.passes.memlib.VerilogMemDelays),
+         Dependency(firrtl.passes.SplitExpressions),
+         Dependency[firrtl.transforms.CombineCats] )
+
+  override val dependents =
+    Seq( Dependency[SystemVerilogEmitter],
+         Dependency[VerilogEmitter] )
+
   private def cse(s: Statement): Statement = {
     val expressions = collection.mutable.HashMap[MemoizedHash[Expression], String]()
     val nodes = collection.mutable.HashMap[String, Expression]()
 
     def eliminateNodeRef(e: Expression): Expression = e match {
-      case WRef(name, tpe, kind, gender) => nodes get name match {
+      case WRef(name, tpe, kind, flow) => nodes get name match {
         case Some(expression) => expressions get expression match {
           case Some(cseName) if cseName != name =>
-            WRef(cseName, tpe, kind, gender)
+            WRef(cseName, tpe, kind, flow)
           case _ => e
         }
         case _ => e

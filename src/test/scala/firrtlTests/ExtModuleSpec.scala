@@ -2,6 +2,8 @@
 
 package firrtlTests
 
+import firrtl.testutils._
+
 class SimpleExtModuleExecutionTest extends ExecutionTest("SimpleExtModuleTester", "/blackboxes",
                                                          Seq("SimpleExtModule"))
 class MultiExtModuleExecutionTest extends ExecutionTest("MultiExtModuleTester", "/blackboxes",
@@ -11,3 +13,4 @@ class RenamedExtModuleExecutionTest extends ExecutionTest("RenamedExtModuleTeste
 class ParameterizedExtModuleExecutionTest extends ExecutionTest(
     "ParameterizedExtModuleTester", "/blackboxes", Seq("ParameterizedExtModule"))
 
+class LargeParamExecutionTest extends ExecutionTest("LargeParamTester", "/blackboxes", Seq("LargeParam"))

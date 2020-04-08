@@ -2,13 +2,13 @@
 
 package firrtl.passes
 
-import com.typesafe.scalalogging.LazyLogging
-
 import firrtl._
 import firrtl.ir._
 import firrtl.Utils._
 import firrtl.Mappers._
 import firrtl.PrimOps._
+import firrtl.options.{Dependency, PreservesAll}
+import firrtl.transforms.ConstantPropagation
 
 import scala.collection.mutable
 
@@ -32,8 +32,8 @@ trait Pass extends Transform {
 }
 
 // Error handling
-class PassException(message: String) extends Exception(message)
-class PassExceptions(exceptions: Seq[PassException]) extends Exception("\n" + exceptions.mkString("\n"))
+class PassException(message: String) extends FirrtlUserException(message)
+class PassExceptions(val exceptions: Seq[PassException]) extends FirrtlUserException("\n" + exceptions.mkString("\n"))
 class Errors {
   val errors = collection.mutable.ArrayBuffer[PassException]()
   def append(pe: PassException) = errors.append(pe)
@@ -47,12 +47,15 @@ class Errors {
 }
 
 // These should be distributed into separate files
-object ToWorkingIR extends Pass {
+object ToWorkingIR extends Pass with PreservesAll[Transform] {
+
+  override val prerequisites = firrtl.stage.Forms.MinimalHighForm
+
   def toExp(e: Expression): Expression = e map toExp match {
-    case ex: Reference => WRef(ex.name, ex.tpe, NodeKind, UNKNOWNGENDER)
-    case ex: SubField => WSubField(ex.expr, ex.name, ex.tpe, UNKNOWNGENDER)
-    case ex: SubIndex => WSubIndex(ex.expr, ex.value, ex.tpe, UNKNOWNGENDER)
-    case ex: SubAccess => WSubAccess(ex.expr, ex.index, ex.tpe, UNKNOWNGENDER)
+    case ex: Reference => WRef(ex.name, ex.tpe, UnknownKind, UnknownFlow)
+    case ex: SubField => WSubField(ex.expr, ex.name, ex.tpe, UnknownFlow)
+    case ex: SubIndex => WSubIndex(ex.expr, ex.value, ex.tpe, UnknownFlow)
+    case ex: SubAccess => WSubAccess(ex.expr, ex.index, ex.tpe, UnknownFlow)
     case ex => ex // This might look like a case to use case _ => e, DO NOT!
   }
 
@@ -65,31 +68,34 @@ object ToWorkingIR extends Pass {
     c copy (modules = c.modules map (_ map toStmt))
 }
 
-object PullMuxes extends Pass {
-   def run(c: Circuit): Circuit = {
+object PullMuxes extends Pass with PreservesAll[Transform] {
+
+  override val prerequisites = firrtl.stage.Forms.Deduped
+
+  def run(c: Circuit): Circuit = {
      def pull_muxes_e(e: Expression): Expression = e map pull_muxes_e match {
        case ex: WSubField => ex.expr match {
          case exx: Mux => Mux(exx.cond,
-           WSubField(exx.tval, ex.name, ex.tpe, ex.gender),
-           WSubField(exx.fval, ex.name, ex.tpe, ex.gender), ex.tpe)
+           WSubField(exx.tval, ex.name, ex.tpe, ex.flow),
+           WSubField(exx.fval, ex.name, ex.tpe, ex.flow), ex.tpe)
          case exx: ValidIf => ValidIf(exx.cond,
-           WSubField(exx.value, ex.name, ex.tpe, ex.gender), ex.tpe)
+           WSubField(exx.value, ex.name, ex.tpe, ex.flow), ex.tpe)
          case _ => ex  // case exx => exx causes failed tests
        }
        case ex: WSubIndex => ex.expr match {
          case exx: Mux => Mux(exx.cond,
-           WSubIndex(exx.tval, ex.value, ex.tpe, ex.gender),
-           WSubIndex(exx.fval, ex.value, ex.tpe, ex.gender), ex.tpe)
+           WSubIndex(exx.tval, ex.value, ex.tpe, ex.flow),
+           WSubIndex(exx.fval, ex.value, ex.tpe, ex.flow), ex.tpe)
          case exx: ValidIf => ValidIf(exx.cond,
-           WSubIndex(exx.value, ex.value, ex.tpe, ex.gender), ex.tpe)
+           WSubIndex(exx.value, ex.value, ex.tpe, ex.flow), ex.tpe)
          case _ => ex  // case exx => exx causes failed tests
        }
        case ex: WSubAccess => ex.expr match {
          case exx: Mux => Mux(exx.cond,
-           WSubAccess(exx.tval, ex.index, ex.tpe, ex.gender),
-           WSubAccess(exx.fval, ex.index, ex.tpe, ex.gender), ex.tpe)
+           WSubAccess(exx.tval, ex.index, ex.tpe, ex.flow),
+           WSubAccess(exx.fval, ex.index, ex.tpe, ex.flow), ex.tpe)
          case exx: ValidIf => ValidIf(exx.cond,
-           WSubAccess(exx.value, ex.index, ex.tpe, ex.gender), ex.tpe)
+           WSubAccess(exx.value, ex.index, ex.tpe, ex.flow), ex.tpe)
          case _ => ex  // case exx => exx causes failed tests
        }
        case ex => ex
@@ -103,35 +109,40 @@ object PullMuxes extends Pass {
    }
 }
 
-object ExpandConnects extends Pass {
+object ExpandConnects extends Pass with PreservesAll[Transform] {
+
+  override val prerequisites =
+    Seq( Dependency(PullMuxes),
+         Dependency(ReplaceAccesses) ) ++ firrtl.stage.Forms.Deduped
+
   def run(c: Circuit): Circuit = {
     def expand_connects(m: Module): Module = {
-      val genders = collection.mutable.LinkedHashMap[String,Gender]()
+      val flows = collection.mutable.LinkedHashMap[String,Flow]()
       def expand_s(s: Statement): Statement = {
-        def set_gender(e: Expression): Expression = e map set_gender match {
-          case ex: WRef => WRef(ex.name, ex.tpe, ex.kind, genders(ex.name))
+        def set_flow(e: Expression): Expression = e map set_flow match {
+          case ex: WRef => WRef(ex.name, ex.tpe, ex.kind, flows(ex.name))
           case ex: WSubField =>
             val f = get_field(ex.expr.tpe, ex.name)
-            val genderx = times(gender(ex.expr), f.flip)
-            WSubField(ex.expr, ex.name, ex.tpe, genderx)
-          case ex: WSubIndex => WSubIndex(ex.expr, ex.value, ex.tpe, gender(ex.expr))
-          case ex: WSubAccess => WSubAccess(ex.expr, ex.index, ex.tpe, gender(ex.expr))
+            val flowx = times(flow(ex.expr), f.flip)
+            WSubField(ex.expr, ex.name, ex.tpe, flowx)
+          case ex: WSubIndex => WSubIndex(ex.expr, ex.value, ex.tpe, flow(ex.expr))
+          case ex: WSubAccess => WSubAccess(ex.expr, ex.index, ex.tpe, flow(ex.expr))
           case ex => ex
         }
         s match {
-          case sx: DefWire => genders(sx.name) = BIGENDER; sx
-          case sx: DefRegister => genders(sx.name) = BIGENDER; sx
-          case sx: WDefInstance => genders(sx.name) = MALE; sx
-          case sx: DefMemory => genders(sx.name) = MALE; sx
-          case sx: DefNode => genders(sx.name) = MALE; sx
+          case sx: DefWire => flows(sx.name) = DuplexFlow; sx
+          case sx: DefRegister => flows(sx.name) = DuplexFlow; sx
+          case sx: WDefInstance => flows(sx.name) = SourceFlow; sx
+          case sx: DefMemory => flows(sx.name) = SourceFlow; sx
+          case sx: DefNode => flows(sx.name) = SourceFlow; sx
           case sx: IsInvalid =>
-            val invalids = (create_exps(sx.expr) foldLeft Seq[Statement]())(
-               (invalids,  expx) => gender(set_gender(expx)) match {
-                  case BIGENDER => invalids :+ IsInvalid(sx.info, expx)
-                  case FEMALE => invalids :+ IsInvalid(sx.info, expx)
-                  case _ => invalids
+            val invalids = create_exps(sx.expr).flatMap { case expx =>
+               flow(set_flow(expx)) match {
+                  case DuplexFlow => Some(IsInvalid(sx.info, expx))
+                  case SinkFlow => Some(IsInvalid(sx.info, expx))
+                  case _ => None
                }
-            )
+            }
             invalids.size match {
                case 0 => EmptyStmt
                case 1 => invalids.head
@@ -140,8 +151,8 @@ object ExpandConnects extends Pass {
           case sx: Connect =>
             val locs = create_exps(sx.loc)
             val exps = create_exps(sx.expr)
-            Block((locs zip exps).zipWithIndex map {case ((locx, expx), i) =>
-               get_flip(sx.loc.tpe, i, Default) match {
+            Block(locs.zip(exps).map { case (locx, expx) =>
+               to_flip(flow(locx)) match {
                   case Default => Connect(sx.info, locx, expx)
                   case Flip => Connect(sx.info, expx, locx)
                }
@@ -154,7 +165,7 @@ object ExpandConnects extends Pass {
               locs(x).tpe match {
                 case AnalogType(_) => Attach(sx.info, Seq(locs(x), exps(y)))
                 case _ =>
-                  get_flip(sx.loc.tpe, x, Default) match {
+                  to_flip(flow(locs(x))) match {
                     case Default => Connect(sx.info, locs(x), exps(y))
                     case Flip => Connect(sx.info, exps(y), locs(x))
                   }
@@ -165,7 +176,7 @@ object ExpandConnects extends Pass {
         }
       }
 
-      m.ports.foreach { p => genders(p.name) = to_gender(p.direction) }
+      m.ports.foreach { p => flows(p.name) = to_flow(p.direction) }
       Module(m.info, m.name, m.ports, expand_s(m.body))
     }
 
@@ -180,32 +191,38 @@ object ExpandConnects extends Pass {
 
 // Replace shr by amount >= arg width with 0 for UInts and MSB for SInts
 // TODO replace UInt with zero-width wire instead
-object Legalize extends Pass {
+object Legalize extends Pass with PreservesAll[Transform] {
+
+  override val prerequisites = firrtl.stage.Forms.MidForm :+ Dependency(LowerTypes)
+
+  override val optionalPrerequisites = Seq.empty
+
+  override val dependents = Seq.empty
+
   private def legalizeShiftRight(e: DoPrim): Expression = {
     require(e.op == Shr)
-    val amount = e.consts.head.toInt
-    val width = bitWidth(e.args.head.tpe)
-    lazy val msb = width - 1
-    if (amount >= width) {
-      e.tpe match {
-        case UIntType(_) => zero
-        case SIntType(_) =>
-          val bits = DoPrim(Bits, e.args, Seq(msb, msb), BoolType)
-          DoPrim(AsSInt, Seq(bits), Seq.empty, SIntType(IntWidth(1)))
-        case t => error(s"Unsupported type $t for Primop Shift Right")
-      }
-    } else {
-      e
+    e.args.head match {
+      case _: UIntLiteral | _: SIntLiteral => ConstantPropagation.foldShiftRight(e)
+      case _ =>
+        val amount = e.consts.head.toInt
+        val width = bitWidth(e.args.head.tpe)
+        lazy val msb = width - 1
+        if (amount >= width) {
+          e.tpe match {
+            case UIntType(_) => zero
+            case SIntType(_) =>
+              val bits = DoPrim(Bits, e.args, Seq(msb, msb), BoolType)
+              DoPrim(AsSInt, Seq(bits), Seq.empty, SIntType(IntWidth(1)))
+            case t => error(s"Unsupported type $t for Primop Shift Right")
+          }
+        } else {
+          e
+        }
     }
   }
-  private def legalizeBits(expr: DoPrim): Expression = {
-    lazy val (hi, low) = (expr.consts.head, expr.consts(1))
-    lazy val mask = (BigInt(1) << (hi - low + 1).toInt) - 1
-    lazy val width = IntWidth(hi - low + 1)
+  private def legalizeBitExtract(expr: DoPrim): Expression = {
     expr.args.head match {
-      case UIntLiteral(value, _) => UIntLiteral((value >> low.toInt) & mask, width)
-      case SIntLiteral(value, _) => SIntLiteral((value >> low.toInt) & mask, width)
-      //case FixedLiteral
+      case _: UIntLiteral | _: SIntLiteral => ConstantPropagation.constPropBitExtract(expr)
       case _ => expr
     }
   }
@@ -236,7 +253,7 @@ object Legalize extends Pass {
       case prim: DoPrim => prim.op match {
         case Shr => legalizeShiftRight(prim)
         case Pad => legalizePad(prim)
-        case Bits => legalizeBits(prim)
+        case Bits | Head | Tail => legalizeBitExtract(prim)
         case _ => prim
       }
       case e => e // respect pre-order traversal
@@ -252,51 +269,6 @@ object Legalize extends Pass {
   }
 }
 
-object VerilogWrap extends Pass {
-  def vWrapE(e: Expression): Expression = e map vWrapE match {
-    case e: DoPrim => e.op match {
-      case Tail => e.args.head match {
-        case e0: DoPrim => e0.op match {
-          case Add => DoPrim(Addw, e0.args, Nil, e.tpe)
-          case Sub => DoPrim(Subw, e0.args, Nil, e.tpe)
-          case _ => e
-        }
-        case _ => e
-      }
-      case _ => e
-    }
-    case _ => e
-  }
-  def vWrapS(s: Statement): Statement = {
-    s map vWrapS map vWrapE match {
-      case sx: Print => sx.copy(string = sx.string.verilogFormat)
-      case sx => sx
-    }
-  }
-
-  def run(c: Circuit): Circuit =
-    c copy (modules = c.modules map (_ map vWrapS))
-}
-
-object VerilogRename extends Pass {
-  def verilogRenameN(n: String): String =
-    if (v_keywords(n)) "%s$".format(n) else n
-
-  def verilogRenameE(e: Expression): Expression = e match {
-    case ex: WRef => ex copy (name = verilogRenameN(ex.name))
-    case ex => ex map verilogRenameE
-  }
-
-  def verilogRenameS(s: Statement): Statement =
-    s map verilogRenameS map verilogRenameE map verilogRenameN
-
-  def verilogRenameP(p: Port): Port =
-    p copy (name = verilogRenameN(p.name))
-
-  def run(c: Circuit): Circuit =
-    c copy (modules = c.modules map (_ map verilogRenameP map verilogRenameS))
-}
-
 /** Makes changes to the Firrtl AST to make Verilog emission easier
   *
   * - For each instance, adds wires to connect to each port
@@ -307,7 +279,22 @@ object VerilogRename extends Pass {
   *
   * @note The result of this pass is NOT legal Firrtl
   */
-object VerilogPrep extends Pass {
+object VerilogPrep extends Pass with PreservesAll[Transform] {
+
+  override val prerequisites = firrtl.stage.Forms.LowFormMinimumOptimized ++
+    Seq( Dependency[firrtl.transforms.BlackBoxSourceHelper],
+         Dependency[firrtl.transforms.FixAddingNegativeLiterals],
+         Dependency[firrtl.transforms.ReplaceTruncatingArithmetic],
+         Dependency[firrtl.transforms.InlineBitExtractionsTransform],
+         Dependency[firrtl.transforms.InlineCastsTransform],
+         Dependency[firrtl.transforms.LegalizeClocksTransform],
+         Dependency[firrtl.transforms.FlattenRegUpdate],
+         Dependency(passes.VerilogModulusCleanup),
+         Dependency[firrtl.transforms.VerilogRename] )
+
+  override val optionalPrerequisites = firrtl.stage.Forms.LowFormOptimized
+
+  override val dependents = Seq.empty
 
   type AttachSourceMap = Map[WrappedExpression, Expression]
 
@@ -349,13 +336,13 @@ object VerilogPrep extends Pass {
   def run(c: Circuit): Circuit = {
     def lowerE(e: Expression): Expression = e match {
       case (_: WRef | _: WSubField) if kind(e) == InstanceKind =>
-        WRef(LowerTypes.loweredName(e), e.tpe, kind(e), gender(e))
+        WRef(LowerTypes.loweredName(e), e.tpe, kind(e), flow(e))
       case _ => e map lowerE
     }
 
     def lowerS(attachMap: AttachSourceMap)(s: Statement): Statement = s match {
       case WDefInstance(info, name, module, tpe) =>
-        val portRefs = create_exps(WRef(name, tpe, ExpKind, MALE))
+        val portRefs = create_exps(WRef(name, tpe, ExpKind, SourceFlow))
         val (portCons, wires) = portRefs.map { p =>
           attachMap.get(p) match {
             // If it has a source in attachMap use that

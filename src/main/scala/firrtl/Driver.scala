@@ -3,20 +3,17 @@
 package firrtl
 
 import scala.collection._
-import scala.io.Source
-import scala.sys.process.{BasicIO,stringSeqToProcess}
-import scala.util.{Try, Success, Failure}
-import scala.util.control.ControlThrowable
+import scala.util.{Failure, Try}
 import java.io.{File, FileNotFoundException}
-
 import net.jcazevedo.moultingyaml._
-import logger.Logger
-import Parser.{IgnoreInfo, InfoMode}
 import annotations._
 import firrtl.annotations.AnnotationYamlProtocol._
-import firrtl.passes.PassException
 import firrtl.transforms._
 import firrtl.Utils.throwInternalError
+import firrtl.stage.{FirrtlExecutionResultView, FirrtlStage}
+import firrtl.stage.phases.DriverCompatibility
+import firrtl.options.{Dependency, Phase, PhaseManager, StageUtils, Viewer}
+import firrtl.options.phases.DeletedWrapper
 
 
 /**
@@ -40,30 +37,22 @@ import firrtl.Utils.throwInternalError
   * @see firrtlTests/DriverSpec.scala in the test directory for a lot more examples
   * @see [[CompilerUtils.mergeTransforms]] to see how customTransformations are inserted
   */
-
+@deprecated("Use firrtl.stage.FirrtlStage", "1.2")
 object Driver {
   /** Print a warning message
     *
     * @param message error message
     */
-  //scalastyle:off regex
-  def dramaticWarning(message: String): Unit = {
-    println(Console.YELLOW + "-"*78)
-    println(s"Warning: $message")
-    println("-"*78 + Console.RESET)
-  }
+  @deprecated("Use firrtl.options.StageUtils.dramaticWarning", "1.2")
+  def dramaticWarning(message: String): Unit = StageUtils.dramaticWarning(message)
 
   /**
     * print the message in red
     *
     * @param message error message
     */
-  //scalastyle:off regex
-  def dramaticError(message: String): Unit = {
-    println(Console.RED + "-"*78)
-    println(s"Error: $message")
-    println("-"*78 + Console.RESET)
-  }
+  @deprecated("Use firrtl.options.StageUtils.dramaticWarning", "1.2")
+  def dramaticError(message: String): Unit = StageUtils.dramaticError(message)
 
   /** Load annotation file based on options
     * @param optionsManager use optionsManager config to load annotation file if it exists
@@ -107,7 +96,7 @@ object Driver {
     if (firrtlConfig.annotationFileNameOverride.nonEmpty) {
       val msg = "annotationFileNameOverride is deprecated! " +
                 "Use annotationFileNames"
-      Driver.dramaticWarning(msg)
+      dramaticWarning(msg)
     } else if (usingImplicitAnnoFile) {
       val msg = "Implicit .anno file from top-name is deprecated!\n" +
              (" "*9) + "Use explicit -faf option or annotationFileNames"
@@ -122,7 +111,7 @@ object Driver {
       JsonProtocol.deserializeTry(file).recoverWith { case jsonException =>
         // Try old protocol if new one fails
         Try {
-          val yaml = io.Source.fromFile(file).getLines().mkString("\n").parseYaml
+          val yaml = FileUtils.getText(file).parseYaml
           val result = yaml.convertTo[List[LegacyAnnotation]]
           val msg = s"$file is a YAML file!\n" +
                     (" "*9) + "YAML Annotation files are deprecated! Use JSON"
@@ -148,6 +137,67 @@ object Driver {
     LegacyAnnotation.convertLegacyAnnos(annos)
   }
 
+  private sealed trait FileExtension
+  private case object FirrtlFile extends FileExtension
+  private case object ProtoBufFile extends FileExtension
+
+  private def getFileExtension(filename: String): FileExtension =
+    filename.drop(filename.lastIndexOf('.')) match {
+      case ".pb" => ProtoBufFile
+      case _ => FirrtlFile // Default to FIRRTL File
+    }
+
+  // Useful for handling erros in the options
+  case class OptionsException(message: String) extends Exception(message)
+
+  /** Get the Circuit from the compile options
+    *
+    * Handles the myriad of ways it can be specified
+    */
+  def getCircuit(optionsManager: ExecutionOptionsManager with HasFirrtlOptions): Try[ir.Circuit] = {
+    val firrtlConfig = optionsManager.firrtlOptions
+    Try {
+      // Check that only one "override" is used
+      val circuitSources = Map(
+        "firrtlSource" -> firrtlConfig.firrtlSource.isDefined,
+        "firrtlCircuit" -> firrtlConfig.firrtlCircuit.isDefined,
+        "inputFileNameOverride" -> firrtlConfig.inputFileNameOverride.nonEmpty)
+      if (circuitSources.values.count(x => x) > 1) {
+        val msg = circuitSources.collect { case (s, true) => s }.mkString(" and ") +
+          " are set, only 1 can be set at a time!"
+        throw new OptionsException(msg)
+      }
+      firrtlConfig.firrtlCircuit.getOrElse {
+        firrtlConfig.firrtlSource.map(x => Parser.parseString(x, firrtlConfig.infoMode)).getOrElse {
+          if (optionsManager.topName.isEmpty && firrtlConfig.inputFileNameOverride.isEmpty) {
+            val message = "either top-name or input-file-override must be set"
+            throw new OptionsException(message)
+          }
+          if (
+            optionsManager.topName.isEmpty &&
+              firrtlConfig.inputFileNameOverride.nonEmpty &&
+              firrtlConfig.outputFileNameOverride.isEmpty) {
+            val message = "inputFileName set but neither top-name or output-file-override is set"
+            throw new OptionsException(message)
+          }
+          val inputFileName = firrtlConfig.getInputFileName(optionsManager)
+          try {
+            // TODO What does InfoMode mean to ProtoBuf?
+            getFileExtension(inputFileName) match {
+              case ProtoBufFile => proto.FromProto.fromFile(inputFileName)
+              case FirrtlFile => Parser.parseFile(inputFileName, firrtlConfig.infoMode)
+            }
+          }
+          catch {
+            case _: FileNotFoundException =>
+              val message = s"Input file $inputFileName not found"
+              throw new OptionsException(message)
+          }
+        }
+      }
+    }
+  }
+
   /**
     * Run the firrtl compiler using the provided option
     *
@@ -155,100 +205,30 @@ object Driver {
     * @return a FirrtlExecutionResult indicating success or failure, provide access to emitted data on success
     *         for downstream tools as desired
     */
-  //scalastyle:off cyclomatic.complexity method.length
   def execute(optionsManager: ExecutionOptionsManager with HasFirrtlOptions): FirrtlExecutionResult = {
-    def firrtlConfig = optionsManager.firrtlOptions
+    StageUtils.dramaticWarning("firrtl.Driver is deprecated since 1.2!\nPlease switch to firrtl.stage.FirrtlMain")
 
-    Logger.makeScope(optionsManager) {
-      val firrtlSource = firrtlConfig.firrtlSource match {
-        case Some(text) => text.split("\n").toIterator
-        case None =>
-          if (optionsManager.topName.isEmpty && firrtlConfig.inputFileNameOverride.isEmpty) {
-            val message = "either top-name or input-file-override must be set"
-            dramaticError(message)
-            return FirrtlExecutionFailure(message)
-          }
-          if (
-            optionsManager.topName.isEmpty &&
-              firrtlConfig.inputFileNameOverride.nonEmpty &&
-              firrtlConfig.outputFileNameOverride.isEmpty) {
-            val message = "inputFileName set but neither top-name or output-file-override is set"
-            dramaticError(message)
-            return FirrtlExecutionFailure(message)
-          }
-          val inputFileName = firrtlConfig.getInputFileName(optionsManager)
-          try {
-            io.Source.fromFile(inputFileName).getLines()
-          }
-          catch {
-            case _: FileNotFoundException =>
-              val message = s"Input file $inputFileName not found"
-              dramaticError(message)
-              return FirrtlExecutionFailure(message)
-          }
-      }
+    val annos = optionsManager.firrtlOptions.toAnnotations ++ optionsManager.commonOptions.toAnnotations
 
-      var maybeFinalState: Option[CircuitState] = None
-
-      // Wrap compilation in a try/catch to present Scala MatchErrors in a more user-friendly format.
-      try {
-        val annos = getAnnotations(optionsManager)
-
-        val parsedInput = Parser.parse(firrtlSource, firrtlConfig.infoMode)
-
-        // Does this need to be before calling compiler?
-        optionsManager.makeTargetDir()
-
-        maybeFinalState = Some(firrtlConfig.compiler.compile(
-          CircuitState(parsedInput, ChirrtlForm, annos),
-          firrtlConfig.customTransforms
-        ))
-      }
-      catch {
-        // Rethrow the exceptions which are expected or due to the runtime environment (out of memory, stack overflow)
-        case p: ControlThrowable => throw p
-        case p: PassException  => throw p
-        case p: FIRRTLException => throw p
-        // Treat remaining exceptions as internal errors.
-        case e: Exception => throwInternalError(exception = Some(e))
-      }
-
-      val finalState = maybeFinalState.get
-
-      // Do emission
-      // Note: Single emission target assumption is baked in here
-      // Note: FirrtlExecutionSuccess emitted is only used if we're emitting the whole Circuit
-      val emittedRes = firrtlConfig.getOutputConfig(optionsManager) match {
-        case SingleFile(filename) =>
-          val emitted = finalState.getEmittedCircuit
-          val outputFile = new java.io.PrintWriter(filename)
-          outputFile.write(emitted.value)
-          outputFile.close()
-          emitted.value
-        case OneFilePerModule(dirName) =>
-          val emittedModules = finalState.emittedComponents collect { case x: EmittedModule => x }
-          if (emittedModules.isEmpty) throwInternalError() // There should be something
-          emittedModules.foreach { module =>
-            val filename = optionsManager.getBuildFileName(firrtlConfig.outputSuffix, s"$dirName/${module.name}")
-            val outputFile = new java.io.PrintWriter(filename)
-            outputFile.write(module.value)
-            outputFile.close()
-          }
-          "" // Should we return something different here?
-      }
-
-      // If set, emit final annotations to a file
-      optionsManager.firrtlOptions.outputAnnotationFileName match {
-        case "" =>
-        case file =>
-          val filename = optionsManager.getBuildFileName("anno.json", file)
-          val outputFile = new java.io.PrintWriter(filename)
-          outputFile.write(JsonProtocol.serialize(finalState.annotations))
-          outputFile.close()
-      }
-
-      FirrtlExecutionSuccess(firrtlConfig.compilerName, emittedRes, finalState)
+    val phases: Seq[Phase] = {
+      import DriverCompatibility._
+      new PhaseManager(
+        Seq( Dependency[AddImplicitFirrtlFile],
+             Dependency[AddImplicitAnnotationFile],
+             Dependency[AddImplicitOutputFile],
+             Dependency[AddImplicitEmitter],
+             Dependency[FirrtlStage] ))
+        .transformOrder
+        .map(DeletedWrapper(_))
     }
+
+    val annosx = try {
+      phases.foldLeft(annos)( (a, p) => p.transform(a) )
+    } catch {
+      case e: firrtl.options.OptionsException => return FirrtlExecutionFailure(e.message)
+    }
+
+    Viewer[FirrtlExecutionResult].view(annosx)
   }
 
   /**
@@ -280,78 +260,4 @@ object Driver {
   def main(args: Array[String]): Unit = {
     execute(args)
   }
-}
-
-object FileUtils {
-  /**
-    * recursive create directory and all parents
-    *
-    * @param directoryName a directory string with one or more levels
-    * @return
-    */
-  def makeDirectory(directoryName: String): Boolean = {
-    val dirFile = new java.io.File(directoryName)
-    if(dirFile.exists()) {
-      if(dirFile.isDirectory) {
-        true
-      }
-      else {
-        false
-      }
-    }
-    else {
-      dirFile.mkdirs()
-    }
-  }
-
-  /**
-    * recursively delete all directories in a relative path
-    * DO NOT DELETE absolute paths
-    *
-    * @param directoryPathName a directory hierarchy to delete
-    */
-  def deleteDirectoryHierarchy(directoryPathName: String): Boolean = {
-    deleteDirectoryHierarchy(new File(directoryPathName))
-  }
-  /**
-    * recursively delete all directories in a relative path
-    * DO NOT DELETE absolute paths
-    *
-    * @param file: a directory hierarchy to delete
-    */
-  def deleteDirectoryHierarchy(file: File, atTop: Boolean = true): Boolean = {
-    if(file.getPath.split("/").last.isEmpty ||
-      file.getAbsolutePath == "/" ||
-      file.getPath.startsWith("/")) {
-      Driver.dramaticError(s"delete directory ${file.getPath} will not delete absolute paths")
-      false
-    }
-    else {
-      val result = {
-        if(file.isDirectory) {
-          file.listFiles().forall( f => deleteDirectoryHierarchy(f)) && file.delete()
-        }
-        else {
-          file.delete()
-        }
-      }
-      result
-    }
-  }
-
-  /** Indicate if an external command (executable) is available.
-    *
-    * @param cmd the command/executable
-    * @return true if ```cmd``` is found in PATH.
-    */
-  def isCommandAvailable(cmd: String): Boolean = {
-    // Eat any output.
-    val sb = new StringBuffer
-    val ioToDevNull = BasicIO(withIn = false, sb, None)
-
-    Seq("bash", "-c", "which %s".format(cmd)).run(ioToDevNull).exitValue == 0
-  }
-
-  /** Flag indicating if vcs is available (for Verilog compilation and testing). */
-  lazy val isVCSAvailable: Boolean = isCommandAvailable("vcs")
 }

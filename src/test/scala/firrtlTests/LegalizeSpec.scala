@@ -2,7 +2,7 @@
 
 package firrtlTests
 
-import firrtl._
+import firrtl.testutils.ExecutionTest
 
 class LegalizeExecutionTest extends ExecutionTest("Legalize", "/passes/Legalize")
 

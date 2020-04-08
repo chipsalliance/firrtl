@@ -2,35 +2,34 @@
 
 package firrtlTests
 
-import java.io._
-import org.scalatest._
-import org.scalatest.prop._
 import firrtl._
-import firrtl.ir.Circuit
 import firrtl.passes._
-import firrtl.Parser.IgnoreInfo
+import firrtl.testutils._
 import annotations._
-import wiring.WiringUtils._
 import wiring._
 
 class WiringTests extends FirrtlFlatSpec {
-  private def executeTest(input: String, expected: Seq[String], passes: Seq[Pass]) = {
-    val c = passes.foldLeft(Parser.parse(input.split("\n").toIterator)) {
-      (c: Circuit, p: Pass) => p.run(c)
-    }
-    val lines = c.serialize.split("\n") map normalized
+  private def executeTest(input: String,
+    expected: String,
+    passes: Seq[Transform],
+    annos: Seq[Annotation]): Unit = {
+    val c = passes.foldLeft(CircuitState(Parser.parse(input.split("\n").toIterator), UnknownForm, annos)) {
+      (c: CircuitState, p: Transform) => p.runTransform(c)
+    }.circuit
 
-    expected foreach { e =>
-      lines should contain(e)
-    }
+    (parse(c.serialize).serialize) should be (parse(expected).serialize)
+  }
+
+  private def executeTest(input: String, expected: String, passes: Seq[Transform]): Unit = {
+    executeTest(input, expected, passes, Seq.empty)
   }
 
   def passes = Seq(
     ToWorkingIR,
     ResolveKinds,
     InferTypes,
-    ResolveGenders,
-    InferWidths
+    ResolveFlows,
+    new InferWidths
   )
 
   it should "wire from a register source (r) to multiple extmodule sinks (X)" in {
@@ -114,12 +113,9 @@ class WiringTests extends FirrtlFlatSpec {
          |    input clock: Clock
          |    input pin: UInt<5>
          |""".stripMargin
-    val c = passes.foldLeft(parse(input)) {
-      (c: Circuit, p: Pass) => p.run(c)
-    }
+
     val wiringPass = new Wiring(Seq(sas))
-    val retC = wiringPass.run(c)
-    (parse(retC.serialize).serialize) should be (parse(check).serialize)
+    executeTest(input, check, passes :+ wiringPass)
   }
 
   it should "wire from a register source (r) to multiple module sinks (X)" in {
@@ -203,12 +199,9 @@ class WiringTests extends FirrtlFlatSpec {
          |    input clock: Clock
          |    input pin: UInt<5>
          |""".stripMargin
-    val c = passes.foldLeft(parse(input)) {
-      (c: Circuit, p: Pass) => p.run(c)
-    }
+
     val wiringPass = new Wiring(Seq(sas))
-    val retC = wiringPass.run(c)
-    (parse(retC.serialize).serialize) should be (parse(check).serialize)
+    executeTest(input, check, passes :+ wiringPass)
   }
 
   it should "wire from a register sink (r) to a wire source (s) in another module (X)" in {
@@ -295,12 +288,9 @@ class WiringTests extends FirrtlFlatSpec {
          |    wire s: UInt<5>
          |    s <= pin
          |""".stripMargin
-    val c = passes.foldLeft(parse(input)) {
-      (c: Circuit, p: Pass) => p.run(c)
-    }
+
     val wiringPass = new Wiring(Seq(sas))
-    val retC = wiringPass.run(c)
-    (parse(retC.serialize).serialize) should be (parse(check).serialize)
+    executeTest(input, check, passes :+ wiringPass)
   }
 
   it should "wire from a SubField source (r.x) to an extmodule sink (X)" in {
@@ -339,12 +329,9 @@ class WiringTests extends FirrtlFlatSpec {
          |    input clock: Clock
          |    input pin: UInt<5>
          |""".stripMargin
-    val c = passes.foldLeft(parse(input)) {
-      (c: Circuit, p: Pass) => p.run(c)
-    }
+
     val wiringPass = new Wiring(Seq(sas))
-    val retC = wiringPass.run(c)
-    (parse(retC.serialize).serialize) should be (parse(check).serialize)
+    executeTest(input, check, passes :+ wiringPass)
   }
 
   it should "wire properly with a source as a submodule of a sink" in {
@@ -386,12 +373,9 @@ class WiringTests extends FirrtlFlatSpec {
          |    reg r: UInt<5>, clock
          |    r_0 <= r
          |""".stripMargin
-    val c = passes.foldLeft(parse(input)) {
-      (c: Circuit, p: Pass) => p.run(c)
-    }
+
     val wiringPass = new Wiring(Seq(sas))
-    val retC = wiringPass.run(c)
-    (parse(retC.serialize).serialize) should be (parse(check).serialize)
+    executeTest(input, check, passes :+ wiringPass)
   }
 
   it should "wire with source and sink in the same module" in {
@@ -415,12 +399,9 @@ class WiringTests extends FirrtlFlatSpec {
          |    s <= pin
          |    pin <= r
          |""".stripMargin
-    val c = passes.foldLeft(parse(input)) {
-      (c: Circuit, p: Pass) => p.run(c)
-    }
+
     val wiringPass = new Wiring(Seq(sas))
-    val retC = wiringPass.run(c)
-    (parse(retC.serialize).serialize) should be (parse(check).serialize)
+    executeTest(input, check, passes :+ wiringPass)
   }
 
   it should "wire multiple sinks in the same module" in {
@@ -456,12 +437,9 @@ class WiringTests extends FirrtlFlatSpec {
          |    s <= pin
          |    pin <= r
          |""".stripMargin
-    val c = passes.foldLeft(parse(input)) {
-      (c: Circuit, p: Pass) => p.run(c)
-    }
+
     val wiringPass = new Wiring(Seq(sas))
-    val retC = wiringPass.run(c)
-    (parse(retC.serialize).serialize) should be (parse(check).serialize)
+    executeTest(input, check, passes :+ wiringPass)
   }
 
   it should "wire clocks" in {
@@ -498,12 +476,9 @@ class WiringTests extends FirrtlFlatSpec {
          |    input clock: Clock
          |    input pin: Clock
          |""".stripMargin
-    val c = passes.foldLeft(parse(input)) {
-      (c: Circuit, p: Pass) => p.run(c)
-    }
+
     val wiringPass = new Wiring(Seq(sas))
-    val retC = wiringPass.run(c)
-    (parse(retC.serialize).serialize) should be (parse(check).serialize)
+    executeTest(input, check, passes :+ wiringPass)
   }
 
   it should "handle two source instances with clearly defined sinks" in {
@@ -544,12 +519,9 @@ class WiringTests extends FirrtlFlatSpec {
          |    input clock: Clock
          |    input pin: Clock
          |""".stripMargin
-    val c = passes.foldLeft(parse(input)) {
-      (c: Circuit, p: Pass) => p.run(c)
-    }
+
     val wiringPass = new Wiring(Seq(sas))
-    val retC = wiringPass.run(c)
-    (parse(retC.serialize).serialize) should be (parse(check).serialize)
+    executeTest(input, check, passes :+ wiringPass)
   }
 
   it should "wire multiple clocks" in {
@@ -590,12 +562,9 @@ class WiringTests extends FirrtlFlatSpec {
          |    input clock: Clock
          |    input pin: Clock
          |""".stripMargin
-    val c = passes.foldLeft(parse(input)) {
-      (c: Circuit, p: Pass) => p.run(c)
-    }
+
     val wiringPass = new Wiring(Seq(sas))
-    val retC = wiringPass.run(c)
-    (parse(retC.serialize).serialize) should be (parse(check).serialize)
+    executeTest(input, check, passes :+ wiringPass)
   }
 
   it should "error with WiringException for indeterminate ownership" in {
@@ -619,12 +588,10 @@ class WiringTests extends FirrtlFlatSpec {
          |  extmodule X :
          |    input clock: Clock
          |""".stripMargin
+
     intercept[WiringException] {
-      val c = passes.foldLeft(parse(input)) {
-        (c: Circuit, p: Pass) => p.run(c)
-      }
       val wiringPass = new Wiring(Seq(sas))
-      val retC = wiringPass.run(c)
+      executeTest(input, "", passes :+ wiringPass)
     }
   }
 
@@ -666,12 +633,9 @@ class WiringTests extends FirrtlFlatSpec {
          |    input clock: Clock
          |    input pin: UInt<2>
          |""".stripMargin
-    val c = passes.foldLeft(parse(input)) {
-      (c: Circuit, p: Pass) => p.run(c)
-    }
+
     val wiringPass = new Wiring(Seq(sas))
-    val retC = wiringPass.run(c)
-    (parse(retC.serialize).serialize) should be (parse(check).serialize)
+    executeTest(input, check, passes :+ wiringPass)
   }
 
   it should "wire using Annotations with a sink module" in {
@@ -701,12 +665,9 @@ class WiringTests extends FirrtlFlatSpec {
          |    input clk: Clock
          |    input pin: UInt<5>
          |""".stripMargin
-    val c = passes.foldLeft(parse(input)) {
-      (c: Circuit, p: Pass) => p.run(c)
-    }
+
     val wiringXForm = new WiringTransform()
-    val retC = wiringXForm.execute(CircuitState(c, MidForm, Seq(source, sink))).circuit
-    (parse(retC.serialize).serialize) should be (parse(check).serialize)
+    executeTest(input, check, passes :+ wiringXForm, Seq(source, sink))
   }
 
   it should "wire using Annotations with a sink component" in {
@@ -739,12 +700,9 @@ class WiringTests extends FirrtlFlatSpec {
          |    wire s: UInt<5>
          |    s <= pin
          |""".stripMargin
-    val c = passes.foldLeft(parse(input)) {
-      (c: Circuit, p: Pass) => p.run(c)
-    }
+
     val wiringXForm = new WiringTransform()
-    val retC = wiringXForm.execute(CircuitState(c, MidForm, Seq(source, sink))).circuit
-    (parse(retC.serialize).serialize) should be (parse(check).serialize)
+    executeTest(input, check, passes :+ wiringXForm, Seq(source, sink))
   }
 
   it should "wire using annotations with Aggregate source" in {
@@ -785,12 +743,9 @@ class WiringTests extends FirrtlFlatSpec {
          |    input clock : Clock
          |    input pin : {x : UInt<1>, y: UInt<1>, z: {zz : UInt<1>} }"""
         .stripMargin
-    val c = passes.foldLeft(parse(input)) {
-      (c: Circuit, p: Pass) => p.run(c)
-    }
+
     val wiringXForm = new WiringTransform()
-    val retC = wiringXForm.execute(CircuitState(c, MidForm, Seq(source, sink))).circuit
-    (parse(retC.serialize).serialize) should be (parse(check).serialize)
+    executeTest(input, check, passes :+ wiringXForm, Seq(source, sink))
   }
 
   it should "wire one sink to multiple, disjoint extmodules" in {
@@ -845,11 +800,28 @@ class WiringTests extends FirrtlFlatSpec {
          |    input clock: Clock
          |    input pin: UInt<5>
          |""".stripMargin
-    val c = passes.foldLeft(parse(input)) {
-      (c: Circuit, p: Pass) => p.run(c)
-    }
+
     val wiringPass = new Wiring(wiSeq)
-    val retC = wiringPass.run(c)
-    (parse(retC.serialize).serialize) should be (parse(check).serialize)
+    executeTest(input, check, passes :+ wiringPass)
+  }
+
+  it should "error when there are multiple sources for the same pin" in {
+    val sink = ComponentName("s", ModuleName("Top", CircuitName("Top")))
+    val source1 = ComponentName("r", ModuleName("Top", CircuitName("Top")))
+    val source2 = ComponentName("r2", ModuleName("Top", CircuitName("Top")))
+    val annos = Seq(SourceAnnotation(source1, "pin"),
+                    SourceAnnotation(source2, "pin"),
+                    SinkAnnotation(sink, "pin"))
+    val input =
+      """|circuit Top :
+         |  module Top :
+         |    input clock: Clock
+         |    wire s: UInt<5>
+         |    reg r: UInt<5>, clock
+         |    reg r2: UInt<5>, clock
+         |""".stripMargin
+    a [WiringException] shouldBe thrownBy {
+      executeTest(input, "", passes :+ new WiringTransform, annos)
+    }
   }
 }

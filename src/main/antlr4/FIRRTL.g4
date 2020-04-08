@@ -27,14 +27,9 @@ import firrtl.LexerHelper;
  * PARSER RULES
  *------------------------------------------------------------------*/
 
-/* TODO 
- *  - Add [info] support (all over the place)
- *  - Add support for extmodule
-*/
-
 // Does there have to be at least one module?
 circuit
-  : 'circuit' id ':' info? INDENT module* DEDENT
+  : 'circuit' id ':' info? INDENT module* DEDENT EOF
   ;
 
 module
@@ -55,7 +50,10 @@ type
   : 'UInt' ('<' intLit '>')?
   | 'SInt' ('<' intLit '>')?
   | 'Fixed' ('<' intLit '>')? ('<' '<' intLit '>' '>')?
+  | 'Interval' (lowerBound boundValue boundValue upperBound)? ('.' intLit)?
   | 'Clock'
+  | 'AsyncReset'
+  | 'Reset'
   | 'Analog' ('<' intLit '>')?
   | '{' field* '}'        // Bundle
   | type '[' intLit ']'   // Vector
@@ -89,7 +87,7 @@ simple_reset
 
 reset_block
 	: INDENT simple_reset info? NEWLINE DEDENT
-	| '(' +  simple_reset + ')'
+	| '(' simple_reset ')'
   ;
 
 stmt
@@ -97,7 +95,7 @@ stmt
   | 'reg' id ':' type exp ('with' ':' reset_block)? info?
   | 'mem' id ':' info? INDENT memField* DEDENT
   | 'cmem' id ':' type info?
-  | 'smem' id ':' type info?
+  | 'smem' id ':' type ruw? info?
   | mdir 'mport' id '=' id '[' exp ']' exp info?
   | 'inst' id 'of' id info?
   | 'node' id '=' exp info?
@@ -188,6 +186,25 @@ intLit
   : UnsignedInt
   | SignedInt
   | HexLit
+  | OctalLit
+  | BinaryLit
+  ;
+
+lowerBound
+  : '['
+  | '('
+  ;
+
+upperBound
+  : ']'
+  | ')'
+  ;
+
+boundValue
+  : '?'
+  | DoubleLit
+  | UnsignedInt
+  | SignedInt
   ;
 
 // Keywords that are also legal ids
@@ -253,8 +270,11 @@ primop
   | 'neq('
   | 'pad('
   | 'asUInt('
+  | 'asAsyncReset('
   | 'asSInt('
   | 'asClock('
+  | 'asFixedPoint('
+  | 'asInterval('
   | 'shl('
   | 'shr('
   | 'dshl('
@@ -272,10 +292,12 @@ primop
   | 'bits('
   | 'head('
   | 'tail('
-  | 'asFixedPoint('
-  | 'bpshl('
-  | 'bpshr('
-  | 'bpset('
+  | 'incp('
+  | 'decp('
+  | 'setp('
+  | 'wrap('
+  | 'clip('
+  | 'squz('
   ;
 
 /*------------------------------------------------------------------
@@ -300,6 +322,14 @@ HexLit
   : '"' 'h' ( '+' | '-' )? ( HexDigit )+ '"'
   ;
 
+OctalLit
+  : '"' 'o' ( '+' | '-' )? ( OctalDigit )+ '"'
+  ;
+
+BinaryLit
+  : '"' 'b' ( '+' | '-' )? ( BinaryDigit )+ '"'
+  ;
+
 DoubleLit
   : ( '+' | '-' )? Digit+ '.' Digit+ ( 'E' ( '+' | '-' )? Digit+ )?
   ;
@@ -314,6 +344,16 @@ HexDigit
   : [a-fA-F0-9]
   ;
 
+fragment
+OctalDigit
+  : [0-7]
+  ;
+
+fragment
+BinaryDigit
+  : [01]
+  ;
+
 StringLit
   : '"' UnquotedString? '"'
   ;
@@ -324,7 +364,7 @@ RawString
 
 fragment
 UnquotedString
-  : ('\\"'|~[\r\n])+?
+  : ( '\\\'' | '\\"' | ~[\r\n] )+?
   ;
 
 FileInfo

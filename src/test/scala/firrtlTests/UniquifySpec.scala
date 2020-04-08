@@ -2,17 +2,18 @@
 
 package firrtlTests
 
-import java.io._
-import org.scalatest._
-import org.scalatest.prop._
 import firrtl.Parser
-import firrtl.ir.Circuit
 import firrtl.passes._
 import firrtl._
+import firrtl.annotations._
+import firrtl.annotations.TargetToken._
+import firrtl.transforms.DontTouchAnnotation
+import firrtl.util.TestOptions
+import firrtl.testutils._
 
 class UniquifySpec extends FirrtlFlatSpec {
 
-  private val transforms = Seq(
+  private def transforms = Seq(
     ToWorkingIR,
     CheckHighForm,
     ResolveKinds,
@@ -20,9 +21,11 @@ class UniquifySpec extends FirrtlFlatSpec {
     Uniquify
   )
 
-  private def executeTest(input: String, expected: Seq[String]) = {
+  private def executeTest(input: String, expected: Seq[String]): Unit = executeTest(input, expected, Seq.empty, Seq.empty)
+  private def executeTest(input: String, expected: Seq[String],
+    inputAnnos: Seq[Annotation], expectedAnnos: Seq[Annotation]): Unit = {
     val circuit = Parser.parse(input.split("\n").toIterator)
-    val result = transforms.foldLeft(CircuitState(circuit, UnknownForm)) {
+    val result = transforms.foldLeft(CircuitState(circuit, UnknownForm, inputAnnos)) {
       (c: CircuitState, p: Transform) => p.runTransform(c)
     }
     val c = result.circuit
@@ -31,6 +34,8 @@ class UniquifySpec extends FirrtlFlatSpec {
     expected foreach { e =>
       lines should contain(e)
     }
+
+    result.annotations.toSeq should equal(expectedAnnos)
   }
 
   behavior of "Uniquify"
@@ -48,7 +53,13 @@ class UniquifySpec extends FirrtlFlatSpec {
       "output a_0_c_ : UInt<5>",
       "output a__0 : UInt<6>") map normalized
 
-    executeTest(input, expected)
+    val inputAnnos = Seq(DontTouchAnnotation(ReferenceTarget("Test", "Test", Seq.empty, "a", Seq(Index(0), Field("b")))),
+      DontTouchAnnotation(ReferenceTarget("Test", "Test", Seq.empty, "a", Seq(Index(0), Field("c"), Index(0), Field("e")))))
+
+    val expectedAnnos = Seq(DontTouchAnnotation(ReferenceTarget("Test", "Test", Seq.empty, "a__", Seq(Index(0), Field("b")))),
+      DontTouchAnnotation(ReferenceTarget("Test", "Test", Seq.empty, "a__", Seq(Index(0), Field("c_"), Index(0), Field("e")))))
+
+    executeTest(input, expected, inputAnnos, expectedAnnos)
   }
 
   it should "rename colliding registers" in {
@@ -269,5 +280,40 @@ class UniquifySpec extends FirrtlFlatSpec {
       "node mod_a_b = mod_.a_b") map normalized
 
     executeTest(input, expected)
+  }
+
+  it should "quickly rename deep bundles" in {
+    val depth = 500
+    // We previously used a fixed time to determine if this test passed or failed.
+    // This test would pass under normal conditions, but would fail during coverage tests.
+    // Instead of using a fixed time, we run the test once (with a rename depth of 1), and record the time,
+    //  then run it again with a depth of 500 and verify that the difference is below a fixed threshold.
+    // Additionally, since executions times vary significantly under coverage testing, we check a global
+    //  to see if timing measurements are accurate enough to enforce the timing checks.
+    val threshold = depth * 2.0
+    // As of 20-Feb-2019, this still fails occasionally:
+    //  [info]   9038.99351 was not less than 6113.865 (UniquifySpec.scala:317)
+    // Run the "quick" test three times and choose the longest time as the basis.
+    val nCalibrationRuns = 3
+    def mkType(i: Int): String = {
+      if(i == 0) "UInt<8>" else s"{x: ${mkType(i - 1)}}"
+    }
+    val timesMs = (
+      for (depth <- (List.fill(nCalibrationRuns)(1) :+ depth)) yield {
+        val input = s"""circuit Test:
+                       |  module Test :
+                       |    input in: ${mkType(depth)}
+                       |    output out: ${mkType(depth)}
+                       |    out <= in
+                       |""".stripMargin
+        val (ms, _) = Utils.time(compileToVerilog(input))
+        ms
+        }
+    ).toArray
+    // The baseMs will be the maximum of the first calibration runs
+    val baseMs = timesMs.slice(0, nCalibrationRuns - 1).max
+    val renameMs = timesMs(nCalibrationRuns)
+    if (TestOptions.accurateTiming)
+      renameMs shouldBe < (baseMs * threshold)
   }
 }

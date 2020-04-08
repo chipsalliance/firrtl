@@ -5,7 +5,7 @@ package firrtlTests
 import firrtl._
 import firrtl.ir._
 import firrtl.Mappers._
-import FirrtlCheckers._
+import firrtl.testutils._
 
 import collection.mutable
 
@@ -38,6 +38,24 @@ class RemoveWiresSpec extends FirrtlFlatSpec {
       case Module(_,_,_, body) => onStmt(body)
     }
     (nodes, wires)
+  }
+
+  def orderedNames(circuit: Circuit): Seq[String] = {
+    require(circuit.modules.size == 1)
+    val names = mutable.ArrayBuffer.empty[String]
+    def onStmt(stmt: Statement): Statement = {
+      stmt map onStmt match {
+        case reg: DefRegister => names += reg.name
+        case wire: DefWire => names += wire.name
+        case node: DefNode => names += node.name
+        case _ =>
+      }
+      stmt
+    }
+    circuit.modules.head match {
+      case Module(_,_,_, body) => onStmt(body)
+    }
+    names
   }
 
   "Remove Wires" should "turn wires and their single connect into nodes" in {
@@ -120,4 +138,64 @@ class RemoveWiresSpec extends FirrtlFlatSpec {
           "node y = not(b)")
     )
   }
+
+  it should "work for multiple clocks" in {
+    val result = compileBody(
+      s"""|input clock: Clock
+          |reg a : UInt<1>, clock
+          |node clock2 = asClock(a)
+          |reg b : UInt<1>, clock2
+          |""".stripMargin
+    )
+    val names = orderedNames(result.circuit)
+    names should be (Seq("a", "clock2", "b"))
+  }
+
+  it should "order registers correctly" in {
+    val result = compileBody(s"""
+      |input clock : Clock
+      |input a : UInt<8>
+      |output c : UInt<8>
+      |wire w : UInt<8>
+      |node n = tail(add(w, UInt(1)), 1)
+      |reg r : UInt<8>, clock
+      |w <= tail(add(r, a), 1)
+      |c <= n""".stripMargin
+    )
+    // Check declaration before use is maintained
+    passes.CheckHighForm.execute(result)
+  }
+
+  it should "order registers with async reset correctly" in {
+    val result = compileBody(s"""
+      |input clock : Clock
+      |input reset : UInt<1>
+      |input in : UInt<8>
+      |output out : UInt<8>
+      |wire areset : AsyncReset
+      |reg r : UInt<8>, clock with : (reset => (areset, UInt(0)))
+      |areset <= asAsyncReset(reset)
+      |r <= in
+      |out <= r
+      |""".stripMargin
+    )
+    // Check declaration before use is maintained
+    passes.CheckHighForm.execute(result)
+  }
+
+  it should "order registers respecting initializations" in {
+    val result = compileBody(
+      s"""|input clock : Clock
+          |input foo : UInt<2>
+          |output bar : UInt<2>
+          |wire y_fault : UInt<2>
+          |reg y : UInt<2>, clock with :
+          |  reset => (UInt<1>("h0"), y_fault)
+          |y_fault <= foo
+          |bar <= y
+          |""".stripMargin)
+    // Check declaration before use is maintained
+    passes.CheckHighForm.execute(result)
+  }
+
 }

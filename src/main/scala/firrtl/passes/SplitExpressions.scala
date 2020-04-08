@@ -3,16 +3,27 @@
 package firrtl
 package passes
 
+import firrtl.{SystemVerilogEmitter, VerilogEmitter}
 import firrtl.ir._
+import firrtl.options.{Dependency, PreservesAll}
 import firrtl.Mappers._
-import firrtl.Utils.{kind, gender, get_info}
+import firrtl.Utils.{kind, flow, get_info}
 
 // Datastructures
 import scala.collection.mutable
 
 // Splits compound expressions into simple expressions
 //  and named intermediate nodes
-object SplitExpressions extends Pass {
+object SplitExpressions extends Pass with PreservesAll[Transform] {
+
+  override val prerequisites = firrtl.stage.Forms.LowForm ++
+    Seq( Dependency(firrtl.passes.RemoveValidIf),
+         Dependency(firrtl.passes.memlib.VerilogMemDelays) )
+
+  override val dependents =
+    Seq( Dependency[SystemVerilogEmitter],
+         Dependency[VerilogEmitter] )
+
    private def onModule(m: Module): Module = {
       val namespace = Namespace(m)
       def onStmt(s: Statement): Statement = {
@@ -23,15 +34,15 @@ object SplitExpressions extends Pass {
           case e: DoPrim =>
             val name = namespace.newTemp
             v += DefNode(get_info(s), name, e)
-            WRef(name, e.tpe, kind(e), gender(e))
+            WRef(name, e.tpe, kind(e), flow(e))
           case e: Mux =>
             val name = namespace.newTemp
             v += DefNode(get_info(s), name, e)
-            WRef(name, e.tpe, kind(e), gender(e))
+            WRef(name, e.tpe, kind(e), flow(e))
           case e: ValidIf =>
             val name = namespace.newTemp
             v += DefNode(get_info(s), name, e)
-            WRef(name, e.tpe, kind(e), gender(e))
+            WRef(name, e.tpe, kind(e), flow(e))
           case _ => e
         }
 

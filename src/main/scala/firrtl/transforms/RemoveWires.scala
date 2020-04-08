@@ -6,8 +6,10 @@ package transforms
 import firrtl.ir._
 import firrtl.Utils._
 import firrtl.Mappers._
+import firrtl.traversals.Foreachers._
 import firrtl.WrappedExpression._
-import firrtl.graph.{DiGraph, MutableDiGraph, CyclicException}
+import firrtl.graph.{MutableDiGraph, CyclicException}
+import firrtl.options.{Dependency, PreservesAll}
 
 import scala.collection.mutable
 import scala.util.{Try, Success, Failure}
@@ -18,18 +20,28 @@ import scala.util.{Try, Success, Failure}
   *  wires have multiple connections that may be impossible to order in a
   *  flow-foward way
   */
-class RemoveWires extends Transform {
+class RemoveWires extends Transform with PreservesAll[Transform] {
   def inputForm = LowForm
   def outputForm = LowForm
 
-  // Extract all expressions that are references to a Wire or Node
+  override val prerequisites = firrtl.stage.Forms.MidForm ++
+    Seq( Dependency(passes.LowerTypes),
+         Dependency(passes.Legalize),
+         Dependency(transforms.RemoveReset),
+         Dependency[transforms.CheckCombLoops] )
+
+  override val optionalPrerequisites = Seq(Dependency[checks.CheckResets])
+
+  override val dependents = Seq.empty
+
+  // Extract all expressions that are references to a Node, Wire, or Reg
   // Since we are operating on LowForm, they can only be WRefs
-  private def extractNodeWireRefs(expr: Expression): Seq[WRef] = {
+  private def extractNodeWireRegRefs(expr: Expression): Seq[WRef] = {
     val refs = mutable.ArrayBuffer.empty[WRef]
     def rec(e: Expression): Expression = {
       e match {
-        case ref @ WRef(_,_, WireKind | NodeKind, _) => refs += ref
-        case nested @ (_: Mux | _: DoPrim | _: ValidIf) => nested map rec
+        case ref @ WRef(_,_, WireKind | NodeKind | RegKind, _) => refs += ref
+        case nested @ (_: Mux | _: DoPrim | _: ValidIf) => nested.foreach(rec)
         case _ => // Do nothing
       }
       e
@@ -40,12 +52,15 @@ class RemoveWires extends Transform {
 
   // Transform netlist into DefNodes
   private def getOrderedNodes(
-      netlist: mutable.LinkedHashMap[WrappedExpression, (Expression, Info)]): Try[Seq[DefNode]] = {
+    netlist: mutable.LinkedHashMap[WrappedExpression, (Seq[Expression], Info)],
+    regInfo: mutable.Map[WrappedExpression, DefRegister]): Try[Seq[Statement]] = {
     val digraph = new MutableDiGraph[WrappedExpression]
-    for ((sink, (expr, _)) <- netlist) {
+    for ((sink, (exprs, _)) <- netlist) {
       digraph.addVertex(sink)
-      for (source <- extractNodeWireRefs(expr)) {
-        digraph.addPairWithEdge(sink, source)
+      for (expr <- exprs) {
+        for (source <- extractNodeWireRegRefs(expr)) {
+          digraph.addPairWithEdge(sink, source)
+        }
       }
     }
 
@@ -55,9 +70,13 @@ class RemoveWires extends Transform {
     Try {
       val ordered = digraph.linearize.reverse
       ordered.map { key =>
-        val WRef(name, _,_,_) = key.e1
-        val (rhs, info) = netlist(key)
-        DefNode(info, name, rhs)
+        val WRef(name, _, kind, _) = key.e1
+        kind match {
+          case RegKind => regInfo(key)
+          case WireKind | NodeKind =>
+            val (Seq(rhs), info) = netlist(key)
+            DefNode(info, name, rhs)
+        }
       }
     }
   }
@@ -68,16 +87,26 @@ class RemoveWires extends Transform {
     // Store all "other" statements here, non-wire, non-node connections, printfs, etc.
     val otherStmts = mutable.ArrayBuffer.empty[Statement]
     // Add nodes and wire connection here
-    val netlist = mutable.LinkedHashMap.empty[WrappedExpression, (Expression, Info)]
+    val netlist = mutable.LinkedHashMap.empty[WrappedExpression, (Seq[Expression], Info)]
     // Info at definition of wires for combining into node
     val wireInfo = mutable.HashMap.empty[WrappedExpression, Info]
+    // Additional info about registers
+    val regInfo = mutable.HashMap.empty[WrappedExpression, DefRegister]
 
     def onStmt(stmt: Statement): Statement = {
       stmt match {
-        case DefNode(info, name, expr) =>
-          netlist(we(WRef(name))) = (expr, info)
+        case node: DefNode =>
+          netlist(we(WRef(node))) = (Seq(node.value), node.info)
         case wire: DefWire if !wire.tpe.isInstanceOf[AnalogType] => // Remove all non-Analog wires
           wireInfo(WRef(wire)) = wire.info
+        case reg: DefRegister =>
+          val resetDep = reg.reset.tpe match {
+            case AsyncResetType => Some(reg.reset)
+            case _ => None
+          }
+          val initDep = Some(reg.init).filter(we(WRef(reg)) != we(_)) // Dependency exists IF reg doesn't init itself
+          regInfo(we(WRef(reg))) = reg
+          netlist(we(WRef(reg))) = (Seq(reg.clock) ++ resetDep ++ initDep, reg.info)
         case decl: IsDeclaration => // Keep all declarations except for nodes and non-Analog wires
           decls += decl
         case con @ Connect(cinfo, lhs, rhs) => kind(lhs) match {
@@ -85,20 +114,20 @@ class RemoveWires extends Transform {
             // Be sure to pad the rhs since nodes get their type from the rhs
             val paddedRhs = ConstantPropagation.pad(rhs, lhs.tpe)
             val dinfo = wireInfo(lhs)
-            netlist(we(lhs)) = (paddedRhs, MultiInfo(dinfo, cinfo))
+            netlist(we(lhs)) = (Seq(paddedRhs), MultiInfo(dinfo, cinfo))
           case _ => otherStmts += con // Other connections just pass through
         }
         case invalid @ IsInvalid(info, expr) =>
           kind(expr) match {
             case WireKind =>
               val width = expr.tpe match { case GroundType(width) => width } // LowFirrtl
-              netlist(we(expr)) = (ValidIf(Utils.zero, UIntLiteral(BigInt(0), width), expr.tpe), info)
+              netlist(we(expr)) = (Seq(ValidIf(Utils.zero, UIntLiteral(BigInt(0), width), expr.tpe)), info)
             case _ => otherStmts += invalid
           }
         case other @ (_: Print | _: Stop | _: Attach) =>
           otherStmts += other
         case EmptyStmt => // Dont bother keeping EmptyStmts around
-        case block: Block => block map onStmt
+        case block: Block => block.foreach(onStmt)
         case _ => throwInternalError()
       }
       stmt
@@ -107,7 +136,7 @@ class RemoveWires extends Transform {
     m match {
       case mod @ Module(info, name, ports, body) =>
         onStmt(body)
-        getOrderedNodes(netlist) match {
+        getOrderedNodes(netlist, regInfo) match {
           case Success(logic) =>
             Module(info, name, ports, Block(decls ++ logic ++ otherStmts))
           // If we hit a CyclicException, just abort removing wires
@@ -122,12 +151,13 @@ class RemoveWires extends Transform {
     }
   }
 
+  /* @todo move ResolveKinds outside */
   private val cleanup = Seq(
     passes.ResolveKinds
   )
 
   def execute(state: CircuitState): CircuitState = {
-    val result = state.copy(circuit = state.circuit map onModule)
+    val result = state.copy(circuit = state.circuit.map(onModule))
     cleanup.foldLeft(result) { case (in, xform) => xform.execute(in) }
   }
 }
