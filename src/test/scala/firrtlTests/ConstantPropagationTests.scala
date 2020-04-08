@@ -176,43 +176,6 @@ s"""circuit Top :
 """
       (parse(exec(input))) should be (parse(check))
    }
-
-  it should "explain things to me" in {
-    val input =
-      """circuit Top :
-        |  module Foo :
-        |    input in: UInt<1>
-        |    input clk: Clock
-        |    output out: UInt<1>
-        |    reg r: UInt<1>, clk
-        |    r <= UInt(0)
-        |    out <= and(and(in, UInt(1)), r)
-        |  module Bar :
-        |    input in: UInt<1>
-        |    input clk: Clock
-        |    output out: UInt<1>
-        |    inst foo of Foo
-        |    foo.clk <= clk
-        |    foo.in <= UInt(1)
-        |    out <= and(in, foo.out)
-        |  module Top :
-        |    input in: UInt<1>
-        |    input clk: Clock
-        |    output out: UInt<1>
-        |    inst foo of Foo
-        |    foo.clk <= clk
-        |    foo.in <= UInt(1)
-        |    out <= and(in, foo.out)
-      """.stripMargin
-    val check =
-      """circuit Top :
-        |  module Top :
-        |    output z : UInt<1>
-        |    z <= UInt<1>("h1")
-      """.stripMargin
-    parse(exec(input)) should be (parse(check))
-  }
-
 }
 
 // Tests the following cases for constant propagation:
