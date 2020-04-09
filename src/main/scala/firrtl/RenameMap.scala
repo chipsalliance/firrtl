@@ -414,10 +414,13 @@ final class RenameMap private (
       //     - (~Top|Top/a:A -> ~Top|A)
       //     - (~Top|A -> ~Top|B)
       //   Renaming (~Top|Top/a:A) should return (~Top|A), not (~Top|B)
-      // This is due to our splitting recursive renaming into three parts (top, mid, bot)
-      def continueRenaming[T <: CompleteTarget](original: Seq[CompleteTarget], ts: Seq[CompleteTarget]): Boolean =
+      // This is due to our splitting recursive renaming into three parts (top, mid, ast, bot)
+      // We continue renaming even if original == ts.head because if it returns the same target, there are
+      //   still additional renaming of different parts of the target which must occur. If the target actually
+      //   should not be renamed, it must go through all partial renaming parts to actually determine that fact.
+      def continueRenaming[T <: CompleteTarget](original: CompleteTarget, ts: Seq[CompleteTarget]): Boolean =
         ts match {
-          case Seq(_: T @unchecked) if original != ts => false
+          case Seq(t: T @unchecked) if original != t => false
           case _ => true
         }
 
@@ -435,7 +438,7 @@ final class RenameMap private (
           }
       }
 
-      val continueModule = continueRenaming[ModuleTarget](Seq(key), topRename)
+      val continueModule = continueRenaming[ModuleTarget](key, topRename)
 
       // rename the next level up
       val midRename = topRename.flatMap {
@@ -497,21 +500,26 @@ final class RenameMap private (
           }
       }
 
-      val continueAST = continueRenaming[ModuleTarget](Seq(key), midRename)
+      val continueAST = continueRenaming[ModuleTarget](key, midRename)
 
+      // Renames module targets regardless of circuit, if there exists an AST Module target that
+      //   renames the module
       val astRename = midRename.flatMap {
         case t: CircuitTarget => Seq(t)
         case t: ModuleTarget if !continueAST => Seq(t)
         case t: ModuleTarget => moduleGet(errors)(t.copy(circuit = t.module)).map {
           case mt: ModuleTarget => mt.copy(circuit = t.circuit)
-          case it: ModuleTarget => it.copy(circuit = t.circuit)
+          case it: InstanceTarget => it.copy(circuit = t.circuit)
         }
         case t: IsComponent =>
           // rename the root module and set the new path
           moduleGet(errors)(ModuleTarget(t.module, t.module)).map { ret =>
             val mod = ret match {
               case mt: ModuleTarget => mt.copy(circuit = t.circuit)
-              case it: InstanceTarget => it.copy(circuit = t.circuit)
+              case it: InstanceTarget =>
+                val error = s"AST ModuleTarget ${ModuleTarget(t.module, t.module)} cannot rename to $it."
+                errors += error
+                it.copy(circuit = t.circuit)
             }
 
             val newPath = mod.asPath ++ t.asPath
@@ -530,7 +538,7 @@ final class RenameMap private (
           }
       }
 
-      val continueCircuit = continueRenaming[CircuitTarget](Seq(key), astRename)
+      val continueCircuit = continueRenaming[CircuitTarget](key, astRename)
 
       // rename the last level
       val botRename = astRename.flatMap {
@@ -561,6 +569,11 @@ final class RenameMap private (
     * @param tos
     */
   private def completeRename(from: CompleteTarget, tos: Seq[CompleteTarget]): Unit = {
+    from match {
+      case ast@ModuleTarget(cir, mod) if cir == mod && tos.collect { case i: InstanceTarget => i }.nonEmpty =>
+          throw IllegalRenameException(s"Cannot rename AST $ast to InstanceTargets: $tos")
+      case _ =>
+    }
     tos.foreach{recordSensitivity(from, _)}
     val existing = underlying.getOrElse(from, Vector.empty)
     val updated = (existing ++ tos).distinct
