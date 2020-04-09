@@ -5,7 +5,6 @@ package firrtl.annotations.analysis
 import firrtl.annotations._
 import firrtl.annotations.TargetToken.{Instance, OfModule, Ref}
 import firrtl.Utils.throwInternalError
-import firrtl.analyses.InstanceGraph
 
 import scala.collection.mutable
 

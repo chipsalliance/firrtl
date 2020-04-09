@@ -797,4 +797,15 @@ class RenameMapSpec extends FirrtlFlatSpec {
     r.get(foo).get should contain theSameElementsAs Seq(Mod)
     r.get(Mod).get should contain theSameElementsAs Seq(Mod2)
   }
+
+  it should "delete instances of deleted modules" in {
+    val top = CircuitTarget("Top").module("Top")
+    val foo = top.instOf("foo", "Mod")
+    val Mod = CircuitTarget("Top").module("Mod")
+
+    val r = RenameMap()
+
+    r.delete(Mod)
+    r.get(foo) should be (Some(Nil))
+  }
 }
