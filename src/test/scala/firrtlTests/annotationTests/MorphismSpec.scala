@@ -3,10 +3,9 @@
 package firrtlTests.annotationTests
 
 import firrtl._
-import firrtl.annotations.{Annotation, CircuitTarget, CompleteTarget, DeletedAnnotation, IsModule, SingleTargetAnnotation, Target}
+import firrtl.annotations.{Annotation, CircuitTarget, CompleteTarget, DeletedAnnotation}
 import firrtl.annotations.transforms.{DupedResult, ResolvePaths}
 import firrtl.transforms.DedupedResult
-import logger.{LogLevel, LogLevelAnnotation, Logger}
 import org.scalatest.{FlatSpec, Matchers}
 
 class MorphismSpec extends FlatSpec with Matchers {
@@ -103,7 +102,7 @@ class MorphismSpec extends FlatSpec with Matchers {
       StripDeleted
     )
 
-    def apply(a: CircuitState): CircuitState = Logger.makeScope(Seq(LogLevelAnnotation(LogLevel.Trace))) {
+    def apply(a: CircuitState): CircuitState = {
       val ax = (setup ++ f ++ g).foldLeft(a) {
         case (state, transform) => transform.runTransform(state)
       }

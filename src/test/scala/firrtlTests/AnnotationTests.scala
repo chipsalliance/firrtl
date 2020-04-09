@@ -12,7 +12,6 @@ import firrtl.transforms.OptimizableExtModuleAnnotation
 import firrtl.passes.InlineAnnotation
 import firrtl.passes.memlib.PinAnnotation
 import firrtl.util.BackendCompilationUtilities
-import logger.{LogLevel, LogLevelAnnotation, Logger}
 import firrtl.testutils._
 import net.jcazevedo.moultingyaml._
 import org.scalatest.matchers.should.Matchers
@@ -68,9 +67,7 @@ abstract class AnnotationTests extends AnnotationSpec with Matchers {
     val transform = new DeletingTransform
     val tname = transform.name
     val inlineAnn = InlineAnnotation(CircuitName("Top"))
-    val result = Logger.makeScope(Seq(LogLevelAnnotation(LogLevel.Trace))) {
-      compiler.compile(CircuitState(parse(input), ChirrtlForm, Seq(inlineAnn)), Seq(transform))
-    }
+    val result = compiler.compile(CircuitState(parse(input), ChirrtlForm, Seq(inlineAnn)), Seq(transform))
     result.annotations.last should matchPattern {
       case DeletedAnnotation(`tname`, `inlineAnn`) =>
     }
@@ -408,9 +405,7 @@ abstract class AnnotationTests extends AnnotationSpec with Matchers {
     val annos = Seq(
       anno("x", mod = "Child"), anno("y", mod = "Child_1"), manno("Child"), manno("Child_1")
     )
-    val result = Logger.makeScope(Seq(LogLevelAnnotation(LogLevel.Trace))) {
-      compiler.compile(CircuitState(parse(input), ChirrtlForm, annos), Nil)
-    }
+    val result = compiler.compile(CircuitState(parse(input), ChirrtlForm, annos), Nil)
     val resultAnno = result.annotations.toSeq
     resultAnno should contain (anno("x", mod = "Child"))
     resultAnno should contain (anno("y", mod = "Child"))
