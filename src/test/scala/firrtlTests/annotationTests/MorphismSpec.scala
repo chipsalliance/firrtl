@@ -275,7 +275,7 @@ class MorphismSpec extends FlatSpec with Matchers {
         CircuitTarget("Top").module("Top").instOf("qux", "Qux").instOf("bar", "Bop"),
         CircuitTarget("Top").module("Top").instOf("baz", "Baz"),
         CircuitTarget("Top").module("Top").instOf("qux", "Qux"),
-        CircuitTarget("Top").module("Top"),
+        CircuitTarget("Top").module("Top")
       )
 
     def allRelative2LevelInstances =
@@ -297,7 +297,7 @@ class MorphismSpec extends FlatSpec with Matchers {
         CircuitTarget("Bop").module("Bop"),
         CircuitTarget("Baz").module("Baz"),
         CircuitTarget("Qux").module("Qux"),
-        CircuitTarget("Top").module("Top"),
+        CircuitTarget("Top").module("Top")
       )
 
     def allDedupedAbsoluteInstances =
@@ -308,7 +308,7 @@ class MorphismSpec extends FlatSpec with Matchers {
         CircuitTarget("Top").module("Top").instOf("qux", "Baz").instOf("bar", "Foo"),
         CircuitTarget("Top").module("Top").instOf("baz", "Baz"),
         CircuitTarget("Top").module("Top").instOf("qux", "Baz"),
-        CircuitTarget("Top").module("Top"),
+        CircuitTarget("Top").module("Top")
       )
   }
 
