@@ -148,21 +148,7 @@ class DedupModules extends Transform with PreservesAll[Transform] {
     val dedupAnnotations = c.modules.map(_.name).map(ct.module).flatMap { case mt@ModuleTarget(c, m) =>
       dedupMap.get(m) match {
         case None => Nil
-        // When commented out, EliminateTargetPathsSpec breaks
-        // When included, MorphismSpec breaks...
-        // Basically, its whether ~Top|Foo is instanceified
-        //   (bc then EliminateTargetPaths moves the annotation back to other duplicate modules)
-        case Some(module: DefModule) if dedupCliques(module.name).size == 1 =>
-          val paths = instanceGraph.findInstancesInHierarchy(m)
-          val newTargets = paths.map { path =>
-            path.foldLeft(ct.module(c): IsModule) { case (relPath, WDefInstance(_, name, mod, _)) =>
-              if(mod == c) CircuitTarget(c).module(c) else relPath.instOf(name, mod)
-            }
-          }
-          if(newTargets.size == 1) {
-            Seq(DedupedResult(mt, newTargets.headOption, moduleName2Index(m)))
-          } else Nil
-        case Some(dedupedModule: DefModule) =>
+        case Some(module: DefModule) =>
           val paths = instanceGraph.findInstancesInHierarchy(m)
           // If dedupedAnnos is exactly annos, contains is because dedupedAnnos is type Option
           val newTargets = paths.map { path =>
@@ -178,7 +164,11 @@ class DedupModules extends Transform with PreservesAll[Transform] {
               instanceify.record(x, original)
               addRecord(original, x.stripHierarchy(1))
           }
-          newTargets.foreach(t => addRecord(t, t))
+          // Instanceify deduped Modules!
+          if(dedupCliques(module.name).size > 1) {
+            newTargets.foreach(t => addRecord(t, t))
+          }
+          // Return Deduped Results
           if(newTargets.size == 1) {
             Seq(DedupedResult(mt, newTargets.headOption, moduleName2Index(m)))
           } else Nil

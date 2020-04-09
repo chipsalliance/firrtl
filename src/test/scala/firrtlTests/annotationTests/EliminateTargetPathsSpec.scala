@@ -307,6 +307,7 @@ class EliminateTargetPathsSpec extends FirrtlPropSpec with FirrtlMatchers {
     val checks =
       """circuit Top :
         |  module Middle :
+        |  module Middle_ :
         |  module Top :
         |  module Leaf___Middle__l :
         |  module Leaf____Middle__l :""".stripMargin.split("\n")
