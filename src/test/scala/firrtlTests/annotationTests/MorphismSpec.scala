@@ -256,9 +256,6 @@ class MorphismSpec extends FlatSpec with Matchers {
          |    inst baz of Baz
          |    inst qux of Baz""".stripMargin
 
-    val randomSeed = 10
-    val random = new scala.util.Random(randomSeed)
-
     def allModuleInstances =
       IndexedSeq(
         CircuitTarget("Top").module("Foo"),
@@ -289,7 +286,7 @@ class MorphismSpec extends FlatSpec with Matchers {
         CircuitTarget("Top").module("Qux").instOf("bar", "Bop"),
         CircuitTarget("Top").module("Top").instOf("baz", "Baz"),
         CircuitTarget("Top").module("Top").instOf("qux", "Qux"),
-        CircuitTarget("Top").module("Top"),
+        CircuitTarget("Top").module("Top")
       )
 
     def allASTModules =
@@ -313,20 +310,6 @@ class MorphismSpec extends FlatSpec with Matchers {
         CircuitTarget("Top").module("Top").instOf("qux", "Baz"),
         CircuitTarget("Top").module("Top"),
       )
-
-    // Possible to get duplicate targets
-    def getRandomMix(targets: IndexedSeq[IsModule], n: Int): Seq[IsModule] = {
-      (0 until n.min(targets.length)).map { _ =>
-        targets(random.nextInt(targets.length))
-      }
-    }
-
-    def targetsList = Seq(
-      allAbsoluteInstances,
-      allRelative2LevelInstances
-    ) // ++ (3 until 10).map { i => getRandomMix(allAbsoluteInstances ++ allRelative2LevelInstances, i) }
-
-
   }
 
 
