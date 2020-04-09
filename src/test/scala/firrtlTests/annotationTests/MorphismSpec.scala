@@ -18,7 +18,7 @@ class MorphismSpec extends FlatSpec with Matchers {
   case class AnAnnotation(
                            target: Option[CompleteTarget],
                            from: Option[AnAnnotation] = None,
-                           cause: Option[String] = None,
+                           cause: Option[String] = None
                          ) extends Annotation {
     override def update(renames: RenameMap): Seq[AnAnnotation] = {
       if (target.isDefined) {
