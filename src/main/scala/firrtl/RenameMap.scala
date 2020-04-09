@@ -395,7 +395,14 @@ final class RenameMap private (
       case other =>
         errors += s"Illegal rename: $key cannot be renamed to non-module target: $other"
         None
-    }).getOrElse(Seq(key))
+    }).getOrElse(
+      if(key.circuit != key.module) {
+        moduleGet(errors)(key.copy(circuit = key.module)).map {
+          case ret: ModuleTarget => ret.copy(circuit = key.circuit)
+          case ret: InstanceTarget => ret.copy(circuit = key.circuit)
+        }
+      } else Seq(key)
+    )
   }
 
   /** Recursively renames a target so the returned targets are complete renamed
@@ -501,48 +508,10 @@ final class RenameMap private (
           }
       }
 
-      val continueAST = continueRenaming[ModuleTarget](key, midRename)
-
-      // Renames module targets regardless of circuit, if there exists an AST Module target that
-      //   renames the module
-      val astRename = midRename.flatMap {
-        case t: CircuitTarget => Seq(t)
-        case t: ModuleTarget if !continueAST => Seq(t)
-        case t: ModuleTarget => moduleGet(errors)(t.copy(circuit = t.module)).map {
-          case mt: ModuleTarget => mt.copy(circuit = t.circuit)
-          case it: InstanceTarget => it.copy(circuit = t.circuit)
-        }
-        case t: IsComponent =>
-          // rename the root module and set the new path
-          moduleGet(errors)(ModuleTarget(t.module, t.module)).map { ret =>
-            val mod = ret match {
-              case mt: ModuleTarget => mt.copy(circuit = t.circuit)
-              case it: InstanceTarget =>
-                val error = s"AST ModuleTarget ${ModuleTarget(t.module, t.module)} cannot rename to $it."
-                errors += error
-                it.copy(circuit = t.circuit)
-            }
-
-            val newPath = mod.asPath ++ t.asPath
-
-            t match {
-              case ref: ReferenceTarget => ref.copy(circuit = mod.circuit, module = mod.module, path = newPath)
-              case inst: InstanceTarget if newPath.isEmpty => inst.copy(circuit = mod.circuit, module = mod.module)
-              case inst: InstanceTarget =>
-                val (Instance(newInst), OfModule(newOfMod)) = newPath.last
-                inst.copy(circuit = mod.circuit,
-                  module = mod.module,
-                  path = newPath.dropRight(1),
-                  instance = newInst,
-                  ofModule = newOfMod)
-            }
-          }
-      }
-
-      val continueCircuit = continueRenaming[CircuitTarget](key, astRename)
+      val continueCircuit = continueRenaming[CircuitTarget](key, midRename)
 
       // rename the last level
-      val botRename = astRename.flatMap {
+      val botRename = midRename.flatMap {
         case t: CircuitTarget if !continueCircuit => Seq(t)
         case t: CircuitTarget => circuitGet(errors)(t)
         case t: ModuleTarget =>

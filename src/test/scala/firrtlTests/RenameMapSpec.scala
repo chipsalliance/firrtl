@@ -222,6 +222,7 @@ class RenameMapSpec extends FirrtlFlatSpec {
           (from, to) match {
             case (f: CircuitTarget, t: CircuitTarget) => renames.record(f, t)
             case (f: IsMember, t: IsMember) => renames.record(f, t)
+            case _ => sys.error("Unexpected!")
           }
         }
         //a [FIRRTLException] shouldBe thrownBy {
@@ -802,6 +803,17 @@ class RenameMapSpec extends FirrtlFlatSpec {
     val top = CircuitTarget("Top").module("Top")
     val foo = top.instOf("foo", "Mod")
     val Mod = CircuitTarget("Top").module("Mod")
+
+    val r = RenameMap()
+
+    r.delete(Mod)
+    r.get(foo) should be (Some(Nil))
+  }
+
+  it should "delete instances of deleted AST modules" in {
+    val top = CircuitTarget("Top").module("Top")
+    val foo = top.instOf("foo", "Mod")
+    val Mod = CircuitTarget("Mod").module("Mod")
 
     val r = RenameMap()
 
