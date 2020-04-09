@@ -596,9 +596,36 @@ class MorphismSpec extends FlatSpec with Matchers {
     test()
   }
 
-  it should "be idempotent" in (pending)
+  it should "be idempotent with per-module annotations" in new IdempotencyDedupModulesFixture {
+    /** An endomorphism */
+    override val annotations: AnnotationSeq =
+      allModuleInstances.map(AnAnnotation.apply) :+ ResolvePaths(allAbsoluteInstances)
+    test()
+  }
 
+  it should "be idempotent with per-instance annotations" in new IdempotencyDedupModulesFixture {
+    /** An endomorphism */
+    override val annotations: AnnotationSeq =
+      allAbsoluteInstances.map(AnAnnotation.apply) :+ ResolvePaths(allAbsoluteInstances)
+    test()
+  }
 
+  it should "be idempotent with relative module annotations" in new IdempotencyDedupModulesFixture {
+    /** An endomorphism */
+    override val annotations: AnnotationSeq =
+      allRelative2LevelInstances.map(AnAnnotation.apply) :+ ResolvePaths(allAbsoluteInstances)
+    test()
+  }
+
+  it should "be idempotent with ast module annotations" in new IdempotencyDedupModulesFixture {
+    /** An endomorphism */
+    override val annotations: AnnotationSeq =
+      allASTModules.map(AnAnnotation.apply) :+ ResolvePaths(allAbsoluteInstances)
+    test()
+  }
+
+  /*
+  //TODO: Future tests of GroupComponents + InlineInstances renaming
   behavior of "GroupComponents"
   it should "invert InlineInstances with not annotations" in (pending)
   it should "invert InlineInstances with InstanceTarget annotations" in (pending)
@@ -612,5 +639,6 @@ class MorphismSpec extends FlatSpec with Matchers {
   it should "invert GroupComponents with a ModuleTarget annotation" in (pending)
   it should "invert GroupComponents with a ReferenceTarget annotation" in (pending)
   it should "be idempotent" in (pending)
+   */
 
 }
