@@ -267,7 +267,7 @@ class MorphismSpec extends FlatSpec with Matchers {
         CircuitTarget("Top").module("Bop"),
         CircuitTarget("Top").module("Baz"),
         CircuitTarget("Top").module("Qux"),
-        CircuitTarget("Top").module("Top"),
+        CircuitTarget("Top").module("Top")
       )
 
     def allAbsoluteInstances =
@@ -323,7 +323,7 @@ class MorphismSpec extends FlatSpec with Matchers {
 
     def targetsList = Seq(
       allAbsoluteInstances,
-      allRelative2LevelInstances,
+      allRelative2LevelInstances
     ) // ++ (3 until 10).map { i => getRandomMix(allAbsoluteInstances ++ allRelative2LevelInstances, i) }
 
 
@@ -454,7 +454,7 @@ class MorphismSpec extends FlatSpec with Matchers {
         CircuitTarget("Top").module("Top").instOf("baz", "Baz").instOf("bar", "Bar"),
         CircuitTarget("Top").module("Top").instOf("qux", "Baz").instOf("foo", "Foo"),
         CircuitTarget("Top").module("Top").instOf("qux", "Baz").instOf("foox", "Foo"),
-        CircuitTarget("Top").module("Top").instOf("qux", "Baz").instOf("bar", "Bar"),
+        CircuitTarget("Top").module("Top").instOf("qux", "Baz").instOf("bar", "Bar")
       ))
     )
 
