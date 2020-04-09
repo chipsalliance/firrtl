@@ -101,11 +101,11 @@ trait SingleTargetAnnotation[T <: Named] extends Annotation {
   }
 }
 
-  /** [[MultiTargetAnnotation]] keeps the renamed targets grouped within a single annotation. */
+/** [[MultiTargetAnnotation]] keeps the renamed targets grouped within a single annotation. */
 trait MultiTargetAnnotation extends Annotation {
-  /** Contains a sequence of [[Target]].
+  /** Contains a sequence of targets.
     * When created, [[targets]] should be assigned by `Seq(Seq(TargetA), Seq(TargetB), Seq(TargetC))`
-    * */
+    */
   val targets: Seq[Seq[Target]]
 
   /** Create another instance of this Annotation*/

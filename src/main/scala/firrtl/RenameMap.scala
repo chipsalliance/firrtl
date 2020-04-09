@@ -451,6 +451,7 @@ final class RenameMap private (
               (Option.empty[IsModule], Some(Seq.empty[(Instance, OfModule)]): Option[Seq[(Instance, OfModule)]])
           ) {
             case (absolute@ (Some(_), _), _) => absolute
+            case (empty@(None, None), _) => empty
             case ((None, Some(children)), pair) =>
               val pathMod = ModuleTarget(t.circuit, pair._2.value)
               moduleGet(errors)(pathMod) match {
