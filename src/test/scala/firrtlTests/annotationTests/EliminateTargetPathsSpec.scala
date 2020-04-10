@@ -471,7 +471,7 @@ class EliminateTargetPathsSpec extends FirrtlPropSpec with FirrtlMatchers {
       case a: DontTouchAnnotation => a
     } should contain allOf (
       DontTouchAnnotation(ModuleTarget("FooBar", "Bar___Foo_bar").ref("baz")),
-      DontTouchAnnotation(ModuleTarget("FooBar", "Bar___Foo_barBar").ref("baz")),
+      DontTouchAnnotation(ModuleTarget("FooBar", "Bar___Foo_barBar").ref("baz"))
     )
   }
 }
