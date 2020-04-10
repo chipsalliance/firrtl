@@ -5,7 +5,7 @@ import firrtl.analyses.InstanceGraph
 import firrtl.graph.DiGraph
 import firrtl.WDefInstance
 import firrtl.passes._
-import firrtlTests._
+import firrtl.testutils._
 
 class InstanceGraphTests extends FirrtlFlatSpec {
   private def getEdgeSet(graph: DiGraph[String]): collection.Map[String, collection.Set[String]] = {
@@ -243,5 +243,23 @@ circuit Top :
     val expectedCounts = Map(OfModule("Foo") -> 1,
                              OfModule("Bar") -> 0)
     iGraph.staticInstanceCount should be (expectedCounts)
+  }
+
+  behavior of "Reachable/Unreachable helper methods"
+
+  they should "report correct reachable/unreachable counts" in {
+    val input =
+      """|circuit Top:
+         |  module Unreachable:
+         |    skip
+         |  module Reachable:
+         |    skip
+         |  module Top:
+         |    inst reachable of Reachable
+         |""".stripMargin
+    val iGraph = new InstanceGraph(ToWorkingIR.run(parse(input)))
+    iGraph.modules should contain theSameElementsAs Seq(OfModule("Top"), OfModule("Reachable"), OfModule("Unreachable"))
+    iGraph.reachableModules should contain theSameElementsAs Seq(OfModule("Top"), OfModule("Reachable"))
+    iGraph.unreachableModules should contain theSameElementsAs Seq(OfModule("Unreachable"))
   }
 }

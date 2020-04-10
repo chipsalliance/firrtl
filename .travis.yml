@@ -43,6 +43,10 @@ jobs:
         - bash .install_yosys.sh
         - yosys -V
     - stage: test
+      name: "Unidoc builds (no warnings)"
+      script:
+        - sbt $SBT_ARGS unidoc
+    - stage: test
       name: "Tests: FIRRTL (2.12)"
       script:
         - verilator --version
@@ -76,6 +80,13 @@ jobs:
         - yosys -V
         - "travis_wait 30 sleep 1800 &"
         - ./.run_formal_checks.sh ICache
+    - stage: test
+      name: "Formal equivalence: small expression-tree stress tests"
+      script:
+        - yosys -V
+        - "travis_wait 30 sleep 1800 &"
+        - ./.run_formal_checks.sh Ops
+        - ./.run_formal_checks.sh AddNot
     - stage: test
       script:
         - ./benchmark/scripts/benchmark_cold_compile.py --versions $TRAVIS_BRANCH $TRAVIS_COMMIT -N 2 --designs regress/ICache.fir | ./benchmark/scripts/benchmark_stats.py --pretty-print -

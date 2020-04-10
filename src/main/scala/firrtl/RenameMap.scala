@@ -9,7 +9,6 @@ import firrtl.annotations.TargetToken.{Field, Index, Instance, OfModule}
 import scala.collection.mutable
 
 object RenameMap {
-  @deprecated("Use create with CompleteTarget instead, this will be removed in 1.3", "1.2")
   def apply(map: collection.Map[Named, Seq[Named]]): RenameMap = {
     val rm = new RenameMap
     rm.addMap(map)
@@ -33,12 +32,16 @@ object RenameMap {
   *
   * Transforms that modify names should return a [[RenameMap]] with the [[CircuitState]]
   * These are mutable datastructures for convenience
+  * @define noteSelfRename @note Self renames *will* be recorded
+  * @define noteDistinct @note Rename to/tos will be made distinct
   */
 // TODO This should probably be refactored into immutable and mutable versions
 final class RenameMap private (val underlying: mutable.HashMap[CompleteTarget, Seq[CompleteTarget]] = mutable.HashMap[CompleteTarget, Seq[CompleteTarget]](), val chained: Option[RenameMap] = None) {
 
   /** Chain a [[RenameMap]] with this [[RenameMap]]
     * @param next the map to chain with this map
+    * $noteSelfRename
+    * $noteDistinct
     */
   def andThen(next: RenameMap): RenameMap = {
     if (next.chained.isEmpty) {
@@ -52,6 +55,8 @@ final class RenameMap private (val underlying: mutable.HashMap[CompleteTarget, S
     * [[firrtl.annotations.CircuitTarget CircuitTarget]]
     * @param from
     * @param to
+    * $noteSelfRename
+    * $noteDistinct
     */
   def record(from: CircuitTarget, to: CircuitTarget): Unit = completeRename(from, Seq(to))
 
@@ -59,6 +64,8 @@ final class RenameMap private (val underlying: mutable.HashMap[CompleteTarget, S
     * [[firrtl.annotations.CircuitTarget CircuitTarget]]s
     * @param from
     * @param tos
+    * $noteSelfRename
+    * $noteDistinct
     */
   def record(from: CircuitTarget, tos: Seq[CircuitTarget]): Unit = completeRename(from, tos)
 
@@ -66,6 +73,8 @@ final class RenameMap private (val underlying: mutable.HashMap[CompleteTarget, S
     * IsMember]]
     * @param from
     * @param to
+    * $noteSelfRename
+    * $noteDistinct
     */
   def record(from: IsMember, to: IsMember): Unit = completeRename(from, Seq(to))
 
@@ -73,6 +82,8 @@ final class RenameMap private (val underlying: mutable.HashMap[CompleteTarget, S
     * [[firrtl.annotations.IsMember IsMember]]s
     * @param from
     * @param tos
+    * $noteSelfRename
+    * $noteDistinct
     */
   def record(from: IsMember, tos: Seq[IsMember]): Unit = completeRename(from, tos)
 
@@ -81,12 +92,14 @@ final class RenameMap private (val underlying: mutable.HashMap[CompleteTarget, S
     * and ([[firrtl.annotations.IsMember IsMember]] -> Seq[ [[firrtl.annotations.IsMember IsMember]] ]) key/value
     * allowed
     * @param map
+    * $noteSelfRename
+    * $noteDistinct
     */
   def recordAll(map: collection.Map[CompleteTarget, Seq[CompleteTarget]]): Unit =
     map.foreach{
-      case (from: IsComponent, tos: Seq[IsMember]) => completeRename(from, tos)
-      case (from: IsModule, tos: Seq[IsMember]) => completeRename(from, tos)
-      case (from: CircuitTarget, tos: Seq[CircuitTarget]) => completeRename(from, tos)
+      case (from: IsComponent, tos: Seq[_]) => completeRename(from, tos)
+      case (from: IsModule, tos: Seq[_]) => completeRename(from, tos)
+      case (from: CircuitTarget, tos: Seq[_]) => completeRename(from, tos)
       case other => Utils.throwInternalError(s"Illegal rename: ${other._1} -> ${other._2}")
     }
 
@@ -124,7 +137,6 @@ final class RenameMap private (val underlying: mutable.HashMap[CompleteTarget, S
     * @param renameMap
     * @return
     */
-  @deprecated("will be removed in 1.3", "1.2")
   def ++ (renameMap: RenameMap): RenameMap = {
     val newChained = if (chained.nonEmpty && renameMap.chained.nonEmpty) {
       Some(chained.get ++ renameMap.chained.get)
@@ -479,69 +491,53 @@ final class RenameMap private (val underlying: mutable.HashMap[CompleteTarget, S
     }
   }
 
-  /** Fully renames from to tos
+  /** Fully rename `from` to `tos`
     * @param from
     * @param tos
     */
   private def completeRename(from: CompleteTarget, tos: Seq[CompleteTarget]): Unit = {
-    (from, tos) match {
-      case (x, Seq(y)) if x == y =>
-      case _ =>
-        tos.foreach{recordSensitivity(from, _)}
-        val existing = underlying.getOrElse(from, Vector.empty)
-        val updated = existing ++ tos
-        underlying(from) = updated
-        getCache.clear()
-        traverseTokensCache.clear()
-        traverseHierarchyCache.clear()
-        traverseLeftCache.clear()
-        traverseRightCache.clear()
-    }
+    tos.foreach{recordSensitivity(from, _)}
+    val existing = underlying.getOrElse(from, Vector.empty)
+    val updated = (existing ++ tos).distinct
+    underlying(from) = updated
+    getCache.clear()
+    traverseTokensCache.clear()
+    traverseHierarchyCache.clear()
+    traverseLeftCache.clear()
+    traverseRightCache.clear()
   }
 
   /* DEPRECATED ACCESSOR/SETTOR METHODS WITH [[firrtl.ir.Named Named]] */
 
-  @deprecated("Use record with CircuitTarget instead, this will be removed in 1.3", "1.2")
   def rename(from: Named, to: Named): Unit = rename(from, Seq(to))
 
-  @deprecated("Use record with IsMember instead, this will be removed in 1.3", "1.2")
   def rename(from: Named, tos: Seq[Named]): Unit = recordAll(Map(from.toTarget -> tos.map(_.toTarget)))
 
-  @deprecated("Use record with IsMember instead, this will be removed in 1.3", "1.2")
   def rename(from: ComponentName, to: ComponentName): Unit = record(from, to)
 
-  @deprecated("Use record with IsMember instead, this will be removed in 1.3", "1.2")
   def rename(from: ComponentName, tos: Seq[ComponentName]): Unit = record(from, tos.map(_.toTarget))
 
-  @deprecated("Use delete with CircuitTarget instead, this will be removed in 1.3", "1.2")
   def delete(name: CircuitName): Unit = underlying(name) = Seq.empty
 
-  @deprecated("Use delete with IsMember instead, this will be removed in 1.3", "1.2")
   def delete(name: ModuleName): Unit = underlying(name) = Seq.empty
 
-  @deprecated("Use delete with IsMember instead, this will be removed in 1.3", "1.2")
   def delete(name: ComponentName): Unit = underlying(name) = Seq.empty
 
-  @deprecated("Use recordAll with CompleteTarget instead, this will be removed in 1.3", "1.2")
   def addMap(map: collection.Map[Named, Seq[Named]]): Unit =
     recordAll(map.map { case (key, values) => (Target.convertNamed2Target(key), values.map(Target.convertNamed2Target)) })
 
-  @deprecated("Use get with CircuitTarget instead, this will be removed in 1.3", "1.2")
   def get(key: CircuitName): Option[Seq[CircuitName]] = {
     get(Target.convertCircuitName2CircuitTarget(key)).map(_.collect{ case c: CircuitTarget => c.toNamed })
   }
 
-  @deprecated("Use get with IsMember instead, this will be removed in 1.3", "1.2")
   def get(key: ModuleName): Option[Seq[ModuleName]] = {
     get(Target.convertModuleName2ModuleTarget(key)).map(_.collect{ case m: ModuleTarget => m.toNamed })
   }
 
-  @deprecated("Use get with IsMember instead, this will be removed in 1.3", "1.2")
   def get(key: ComponentName): Option[Seq[ComponentName]] = {
     get(Target.convertComponentName2ReferenceTarget(key)).map(_.collect{ case c: IsComponent => c.toNamed })
   }
 
-  @deprecated("Use get with IsMember instead, this will be removed in 1.3", "1.2")
   def get(key: Named): Option[Seq[Named]] = key match {
     case t: CompleteTarget => get(t)
     case other => get(key.toTarget).map(_.collect{ case c: IsComponent => c.toNamed })
@@ -555,20 +551,17 @@ final class RenameMap private (val underlying: mutable.HashMap[CompleteTarget, S
   /** Sets mutable state to record current module we are visiting
     * @param module
     */
-  @deprecated("Use typesafe rename defs instead, this will be removed in 1.3", "1.2")
   def setModule(module: String): Unit = moduleName = module
 
   /** Sets mutable state to record current circuit we are visiting
     * @param circuit
     */
-  @deprecated("Use typesafe rename defs instead, this will be removed in 1.3", "1.2")
   def setCircuit(circuit: String): Unit = circuitName = circuit
 
   /** Records how a reference maps to a new reference
     * @param from
     * @param to
     */
-  @deprecated("Use typesafe rename defs instead, this will be removed in 1.3", "1.2")
   def rename(from: String, to: String): Unit = rename(from, Seq(to))
 
   /** Records how a reference maps to a new reference
@@ -576,7 +569,6 @@ final class RenameMap private (val underlying: mutable.HashMap[CompleteTarget, S
     * @param from
     * @param tos
     */
-  @deprecated("Use typesafe rename defs instead, this will be removed in 1.3", "1.2")
   def rename(from: String, tos: Seq[String]): Unit = {
     val mn = ModuleName(moduleName, CircuitName(circuitName))
     val fromName = ComponentName(from, mn).toTarget
@@ -588,7 +580,6 @@ final class RenameMap private (val underlying: mutable.HashMap[CompleteTarget, S
     * The reference's root module and circuit are determined by whomever called setModule or setCircuit last
     * @param name
     */
-  @deprecated("Use typesafe rename defs instead, this will be removed in 1.3", "1.2")
   def delete(name: String): Unit = {
     Target(Some(circuitName), Some(moduleName), AnnotationUtils.toSubComponents(name)).getComplete match {
       case Some(t: CircuitTarget) => delete(t)
@@ -601,6 +592,5 @@ final class RenameMap private (val underlying: mutable.HashMap[CompleteTarget, S
     * The reference's root module and circuit are determined by whomever called setModule or setCircuit last
     * @param names
     */
-  @deprecated("Use typesafe rename defs instead, this will be removed in 1.3", "1.2")
   def delete(names: Seq[String]): Unit = names.foreach(delete(_))
 }

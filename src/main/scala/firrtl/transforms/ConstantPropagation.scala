@@ -13,11 +13,17 @@ import firrtl.PrimOps._
 import firrtl.graph.DiGraph
 import firrtl.analyses.InstanceGraph
 import firrtl.annotations.TargetToken.Ref
+import firrtl.options.Dependency
 
 import annotation.tailrec
 import collection.mutable
 
 object ConstantPropagation {
+  private def litOfType(value: BigInt, t: Type): Literal = t match {
+    case UIntType(w) => UIntLiteral(value, w)
+    case SIntType(w) => SIntLiteral(value, w)
+  }
+
   private def asUInt(e: Expression, t: Type) = DoPrim(AsUInt, Seq(e), Seq(), t)
 
   /** Pads e to the width of t */
@@ -97,16 +103,43 @@ class ConstantPropagation extends Transform with ResolvedAnnotationPaths {
   def inputForm = LowForm
   def outputForm = LowForm
 
+  override val prerequisites =
+    ((new mutable.LinkedHashSet())
+       ++ firrtl.stage.Forms.LowForm
+       - Dependency(firrtl.passes.Legalize)
+       + Dependency(firrtl.passes.RemoveValidIf)).toSeq
+
+  override val optionalPrerequisites = Seq.empty
+
+  override val dependents =
+    Seq( Dependency(firrtl.passes.memlib.VerilogMemDelays),
+         Dependency(firrtl.passes.SplitExpressions),
+         Dependency[SystemVerilogEmitter],
+         Dependency[VerilogEmitter] )
+
+  override def invalidates(a: Transform): Boolean = a match {
+    case firrtl.passes.Legalize => true
+    case _ => false
+  }
+
   override val annotationClasses: Traversable[Class[_]] = Seq(classOf[DontTouchAnnotation])
 
-  trait FoldCommutativeOp {
+  sealed trait SimplifyBinaryOp {
+    def matchingArgsValue(e: DoPrim, arg: Expression): Expression
+    def apply(e: DoPrim): Expression = {
+      if (e.args.head == e.args(1)) matchingArgsValue(e, e.args.head) else e
+    }
+  }
+
+  sealed trait FoldCommutativeOp extends SimplifyBinaryOp {
     def fold(c1: Literal, c2: Literal): Expression
     def simplify(e: Expression, lhs: Literal, rhs: Expression): Expression
 
-    def apply(e: DoPrim): Expression = (e.args.head, e.args(1)) match {
+    override def apply(e: DoPrim): Expression = (e.args.head, e.args(1)) match {
       case (lhs: Literal, rhs: Literal) => fold(lhs, rhs)
       case (lhs: Literal, rhs) => pad(simplify(e, lhs, rhs), e.tpe)
       case (lhs, rhs: Literal) => pad(simplify(e, rhs, lhs), e.tpe)
+      case (lhs, rhs) if (lhs == rhs) => matchingArgsValue(e, lhs)
       case _ => e
     }
   }
@@ -121,6 +154,19 @@ class ConstantPropagation extends Transform with ResolvedAnnotationPaths {
       case SIntLiteral(v, w) if v == BigInt(0) => rhs
       case _ => e
     }
+    def matchingArgsValue(e: DoPrim, arg: Expression) = e
+  }
+
+  object SimplifySUB extends SimplifyBinaryOp {
+    def matchingArgsValue(e: DoPrim, arg: Expression) = litOfType(0, e.tpe)
+  }
+
+  object SimplifyDIV extends SimplifyBinaryOp {
+    def matchingArgsValue(e: DoPrim, arg: Expression) = litOfType(1, e.tpe)
+  }
+
+  object SimplifyREM extends SimplifyBinaryOp {
+    def matchingArgsValue(e: DoPrim, arg: Expression) = litOfType(0, e.tpe)
   }
 
   object FoldAND extends FoldCommutativeOp {
@@ -131,6 +177,7 @@ class ConstantPropagation extends Transform with ResolvedAnnotationPaths {
       case UIntLiteral(v, IntWidth(w)) if v == (BigInt(1) << bitWidth(rhs.tpe).toInt) - 1 => rhs
       case _ => e
     }
+    def matchingArgsValue(e: DoPrim, arg: Expression) = asUInt(arg, e.tpe)
   }
 
   object FoldOR extends FoldCommutativeOp {
@@ -141,6 +188,7 @@ class ConstantPropagation extends Transform with ResolvedAnnotationPaths {
       case UIntLiteral(v, IntWidth(w)) if v == (BigInt(1) << bitWidth(rhs.tpe).toInt) - 1 => lhs
       case _ => e
     }
+    def matchingArgsValue(e: DoPrim, arg: Expression) = asUInt(arg, e.tpe)
   }
 
   object FoldXOR extends FoldCommutativeOp {
@@ -150,6 +198,7 @@ class ConstantPropagation extends Transform with ResolvedAnnotationPaths {
       case SIntLiteral(v, _) if v == BigInt(0) => asUInt(rhs, e.tpe)
       case _ => e
     }
+    def matchingArgsValue(e: DoPrim, arg: Expression) = UIntLiteral(0, getWidth(arg.tpe))
   }
 
   object FoldEqual extends FoldCommutativeOp {
@@ -159,6 +208,7 @@ class ConstantPropagation extends Transform with ResolvedAnnotationPaths {
       case UIntLiteral(v, IntWidth(w)) if v == BigInt(0) && w == BigInt(1) && bitWidth(rhs.tpe) == BigInt(1) => DoPrim(Not, Seq(rhs), Nil, e.tpe)
       case _ => e
     }
+    def matchingArgsValue(e: DoPrim, arg: Expression) = UIntLiteral(1)
   }
 
   object FoldNotEqual extends FoldCommutativeOp {
@@ -168,6 +218,7 @@ class ConstantPropagation extends Transform with ResolvedAnnotationPaths {
       case UIntLiteral(v, IntWidth(w)) if v == BigInt(1) && w == BigInt(1) && bitWidth(rhs.tpe) == BigInt(1) => DoPrim(Not, Seq(rhs), Nil, e.tpe)
       case _ => e
     }
+    def matchingArgsValue(e: DoPrim, arg: Expression) = UIntLiteral(0)
   }
 
   private def foldConcat(e: DoPrim) = (e.args.head, e.args(1)) match {
@@ -267,7 +318,16 @@ class ConstantPropagation extends Transform with ResolvedAnnotationPaths {
         case ex => ex
       }
     }
-    foldIfZeroedArg(foldIfOutsideRange(e))
+
+    def foldIfMatchingArgs(x: Expression) = x match {
+      case DoPrim(op, Seq(a, b), _, _) if (a == b) => op match {
+        case (Lt | Gt) => zero
+        case (Leq | Geq) => one
+        case _ => x
+      }
+      case _ => x
+    }
+    foldIfZeroedArg(foldIfOutsideRange(foldIfMatchingArgs(e)))
   }
 
   private def constPropPrim(e: DoPrim): Expression = e.op match {
@@ -277,6 +337,9 @@ class ConstantPropagation extends Transform with ResolvedAnnotationPaths {
     case Dshr => foldDynamicShiftRight(e)
     case Cat => foldConcat(e)
     case Add => FoldADD(e)
+    case Sub => SimplifySUB(e)
+    case Div => SimplifyDIV(e)
+    case Rem => SimplifyREM(e)
     case And => FoldAND(e)
     case Or => FoldOR(e)
     case Xor => FoldXOR(e)
@@ -438,17 +501,24 @@ class ConstantPropagation extends Transform with ResolvedAnnotationPaths {
       propagated
     }
 
-    def backPropStmt(stmt: Statement): Statement = stmt map backPropExpr match {
-      case decl: IsDeclaration if swapMap.contains(decl.name) =>
-        val newName = swapMap(decl.name)
-        nPropagated += 1
-        decl match {
-          case node: DefNode => node.copy(name = newName)
-          case wire: DefWire => wire.copy(name = newName)
-          case reg: DefRegister => reg.copy(name = newName)
-          case other => throwInternalError()
-        }
-      case other => other map backPropStmt
+    def backPropStmt(stmt: Statement): Statement = stmt match {
+      case reg: DefRegister if (WrappedExpression.weq(reg.init, WRef(reg))) =>
+        // Self-init reset is an idiom for "no reset," and must be handled separately
+        swapMap.get(reg.name)
+               .map(newName => reg.copy(name = newName, init = WRef(reg).copy(name = newName)))
+               .getOrElse(reg)
+      case s => s map backPropExpr match {
+        case decl: IsDeclaration if swapMap.contains(decl.name) =>
+          val newName = swapMap(decl.name)
+          nPropagated += 1
+          decl match {
+            case node: DefNode => node.copy(name = newName)
+            case wire: DefWire => wire.copy(name = newName)
+            case reg: DefRegister => reg.copy(name = newName)
+            case other => throwInternalError()
+          }
+        case other => other map backPropStmt
+      }
     }
 
     // When propagating a reference, check if we want to keep the name that would be deleted
@@ -647,8 +717,12 @@ class ConstantPropagation extends Transform with ResolvedAnnotationPaths {
   }
 
   def execute(state: CircuitState): CircuitState = {
-    val dontTouches: Seq[(OfModule, String)] = state.annotations.collect {
-      case DontTouchAnnotation(Target(_, Some(m), Seq(Ref(c)))) => m.OfModule -> c
+    val dontTouchRTs = state.annotations.flatMap {
+      case anno: HasDontTouches => anno.dontTouches
+      case o => Nil
+    }
+    val dontTouches: Seq[(OfModule, String)] = dontTouchRTs.map {
+      case Target(_, Some(m), Seq(Ref(c))) => m.OfModule -> c
     }
     // Map from module name to component names
     val dontTouchMap: Map[OfModule, Set[String]] =
