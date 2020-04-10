@@ -370,6 +370,9 @@ trait CompleteTarget extends Target {
   def addHierarchy(root: String, instance: String): IsComponent
 
   override def toTarget: CompleteTarget = this
+
+  // Very useful for debugging, I (@azidar) think this is reasonable
+  override def toString = serialize
 }
 
 
@@ -548,6 +551,14 @@ case class ModuleTarget(circuit: String, module: String) extends IsModule {
   override def toNamed: ModuleName = ModuleName(module, CircuitName(circuit))
 }
 
+object ModuleTarget {
+  /** Creates an AST module target, whose circuit and module are the same
+    * @param module
+    * @return
+    */
+  def apply(module: String): ModuleTarget = ModuleTarget(module, module)
+}
+
 /** Target pointing to a declared named component in a [[firrtl.ir.DefModule]]
   * This includes: [[firrtl.ir.Port]], [[firrtl.ir.DefWire]], [[firrtl.ir.DefRegister]], [[firrtl.ir.DefInstance]],
   *   [[firrtl.ir.DefMemory]], [[firrtl.ir.DefNode]]
@@ -672,10 +683,14 @@ case class InstanceTarget(circuit: String,
   override def instOf(inst: String, of: String): InstanceTarget = InstanceTarget(circuit, module, asPath, inst, of)
 
   override def stripHierarchy(n: Int): IsModule = {
-    require(path.size >= n, s"Cannot strip $n levels of hierarchy from $this")
+    require(path.size + 1 >= n, s"Cannot strip $n levels of hierarchy from $this")
     if(n == 0) this else {
-      val newModule = path(n - 1)._2.value
-      InstanceTarget(circuit, newModule, path.drop(n), instance, ofModule)
+      if(path.size < n){
+        ModuleTarget(circuit, ofModule)
+      } else {
+        val newModule = path(n - 1)._2.value
+        InstanceTarget(circuit, newModule, path.drop(n), instance, ofModule)
+      }
     }
   }
 

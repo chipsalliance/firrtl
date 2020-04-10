@@ -27,7 +27,8 @@ trait Annotation extends Product {
   private def extractComponents(ls: scala.collection.Traversable[_]): Seq[Target] = {
     ls.collect {
       case c: Target => Seq(c)
-      case ls: scala.collection.Traversable[_] => extractComponents(ls)
+      case o: Product => extractComponents(o.productIterator.toList)
+      case x: scala.collection.Traversable[_] => extractComponents(x)
     }.foldRight(Seq.empty[Target])((seq, c) => c ++ seq)
   }
 
@@ -59,29 +60,52 @@ trait SingleTargetAnnotation[T <: Named] extends Annotation {
       case c: Target =>
         val x = renames.get(c)
         x.map(newTargets => newTargets.map(t => duplicate(t.asInstanceOf[T]))).getOrElse(List(this))
-      case _: Named =>
-        val ret = renames.get(Target.convertNamed2Target(target))
-        ret.map(_.map(newT => Target.convertTarget2Named(newT: @unchecked) match {
-          case newTarget: T @unchecked =>
-            try {
-              duplicate(newTarget)
+      case cn: Named =>
+        val rf = cn.toTarget
+        val rfAST = rf match {
+          case t: ReferenceTarget => t.copy(circuit = t.module)
+          case t: ModuleTarget => t.copy(circuit = t.module)
+          case t: InstanceTarget => t.copy(circuit = t.module)
+          case t: CircuitTarget => t
+        }
+        val ct = rf.circuitTarget
+        val cts = renames.get(ct).getOrElse(Seq(ct))
+        val retASTs = renames.get(rfAST)
+        retASTs.map { seq =>
+          seq.flatMap {
+            newAST =>
+              cts.map { case CircuitTarget(c) =>
+                newAST match {
+                  case rt: ReferenceTarget => rt.copy(circuit = c)
+                  case mt: ModuleTarget => mt.copy(circuit = c)
+                  case it: InstanceTarget => it.copy(circuit = c)
+                  case ct => ct
+                }
+              }
+          }.map { newT =>
+            Target.convertTarget2Named(newT: @unchecked) match {
+              case newTarget: T@unchecked =>
+                try {
+                  duplicate(newTarget)
+                }
+                catch {
+                  case _: java.lang.ClassCastException =>
+                    val msg = s"${this.getClass.getName} target ${target.getClass.getName} " +
+                      s"cannot be renamed to ${newTarget.getClass}"
+                    throw AnnotationException(msg)
+                }
             }
-            catch {
-              case _: java.lang.ClassCastException =>
-                val msg = s"${this.getClass.getName} target ${target.getClass.getName} " +
-                  s"cannot be renamed to ${newTarget.getClass}"
-                throw AnnotationException(msg)
-            }
-        })).getOrElse(List(this))
+          }
+        }.getOrElse(List(this))
     }
   }
 }
 
 /** [[MultiTargetAnnotation]] keeps the renamed targets grouped within a single annotation. */
 trait MultiTargetAnnotation extends Annotation {
-  /** Contains a sequence of [[Target]].
+  /** Contains a sequence of targets.
     * When created, [[targets]] should be assigned by `Seq(Seq(TargetA), Seq(TargetB), Seq(TargetC))`
-    * */
+    */
   val targets: Seq[Seq[Target]]
 
   /** Create another instance of this Annotation*/

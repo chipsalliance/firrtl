@@ -63,7 +63,7 @@ class EliminateTargetPathsSpec extends FirrtlPropSpec with FirrtlMatchers {
 
   val inputState = CircuitState(parse(input), ChirrtlForm)
   property("Hierarchical tokens should be expanded properly") {
-    val dupMap = new DuplicationHelper(inputState.circuit.modules.map(_.name).toSet)
+    val dupMap = DuplicationHelper(inputState.circuit.modules.map(_.name).toSet)
 
 
     // Only a few instance references
@@ -307,6 +307,7 @@ class EliminateTargetPathsSpec extends FirrtlPropSpec with FirrtlMatchers {
     val checks =
       """circuit Top :
         |  module Middle :
+        |  module Middle_ :
         |  module Top :
         |  module Leaf___Middle__l :
         |  module Leaf____Middle__l :""".stripMargin.split("\n")

@@ -75,7 +75,7 @@ class SimplifyMems extends Transform {
 
   override def execute(state: CircuitState): CircuitState = {
     val c = state.circuit
-    val renames = RenameMap()
+    val renames = RenameMap(this)
     CircuitState(c.map(onModule(c, renames)), outputForm, state.annotations, Some(renames))
   }
 }

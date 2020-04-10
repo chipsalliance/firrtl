@@ -217,7 +217,7 @@ class InlineInstances extends Transform with RegisteredTransform {
       }
 
       val maxIdx = indexMap.values.max
-      val resultSeq = Seq.fill(maxIdx + 1)(RenameMap())
+      val resultSeq = Seq.fill(maxIdx + 1)(RenameMap(this))
       val resultMap = indexMap.mapValues(idx => resultSeq(maxIdx - idx))
       (resultMap, resultSeq)
     }

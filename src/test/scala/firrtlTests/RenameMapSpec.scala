@@ -222,6 +222,7 @@ class RenameMapSpec extends FirrtlFlatSpec {
           (from, to) match {
             case (f: CircuitTarget, t: CircuitTarget) => renames.record(f, t)
             case (f: IsMember, t: IsMember) => renames.record(f, t)
+            case _ => sys.error("Unexpected!")
           }
         }
         //a [FIRRTLException] shouldBe thrownBy {
@@ -780,5 +781,43 @@ class RenameMapSpec extends FirrtlFlatSpec {
 
     r.get(foo) should not be (empty)
     r.get(foo).get should contain theSameElementsAs Seq(bar)
+  }
+
+  it should "not circularly rename" in {
+    val top = CircuitTarget("Top").module("Top")
+    val foo = top.instOf("foo", "Mod")
+    val Mod = CircuitTarget("Top").module("Mod")
+    val Mod2 = CircuitTarget("Top").module("Mod2")
+
+    val r = RenameMap()
+
+    r.record(foo, Mod)
+    r.record(Mod, Mod2)
+
+    r.get(foo) should not be (empty)
+    r.get(foo).get should contain theSameElementsAs Seq(Mod)
+    r.get(Mod).get should contain theSameElementsAs Seq(Mod2)
+  }
+
+  it should "delete instances of deleted modules" in {
+    val top = CircuitTarget("Top").module("Top")
+    val foo = top.instOf("foo", "Mod")
+    val Mod = CircuitTarget("Top").module("Mod")
+
+    val r = RenameMap()
+
+    r.delete(Mod)
+    r.get(foo) should be (Some(Nil))
+  }
+
+  it should "delete instances of deleted AST modules" in {
+    val top = CircuitTarget("Top").module("Top")
+    val foo = top.instOf("foo", "Mod")
+    val Mod = CircuitTarget("Mod").module("Mod")
+
+    val r = RenameMap()
+
+    r.delete(Mod)
+    r.get(foo) should be (Some(Nil))
   }
 }
