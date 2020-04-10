@@ -3,6 +3,7 @@
 package firrtlTests
 
 import firrtl._
+import firrtl.testutils.FirrtlFlatSpec
 
 class FlattenRegisterUpdateSpec extends FirrtlFlatSpec {
   "Emitted Verilog" should "not contain deeply nested register updates" in {
