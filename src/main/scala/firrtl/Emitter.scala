@@ -8,7 +8,6 @@ import scala.collection.mutable
 
 import firrtl.ir._
 import firrtl.passes._
-import firrtl.transforms._
 import firrtl.annotations._
 import firrtl.traversals.Foreachers._
 import firrtl.PrimOps._
@@ -16,7 +15,7 @@ import firrtl.WrappedExpression._
 import Utils._
 import MemPortUtils.{memPortField, memType}
 import firrtl.options.{HasShellOptions, ShellOption, StageUtils, PhaseException, Unserializable}
-import firrtl.stage.RunFirrtlTransformAnnotation
+import firrtl.stage.{RunFirrtlTransformAnnotation, TransformManager}
 // Datastructures
 import scala.collection.mutable.ArrayBuffer
 
@@ -180,6 +179,11 @@ case class VRandom(width: BigInt) extends Expression {
 class VerilogEmitter extends SeqTransform with Emitter {
   def inputForm = LowForm
   def outputForm = LowForm
+
+  override val prerequisites = firrtl.stage.Forms.LowFormOptimized
+
+  override val dependents = Seq.empty
+
   val outputSuffix = ".v"
   val tab = "  "
   def AND(e1: WrappedExpression, e2: WrappedExpression): Expression = {
@@ -237,10 +241,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
         if (e.tpe == AsyncResetType) {
           throw EmitterException("Cannot emit async reset muxes directly")
         }
-        e.cond match {
-          case DoPrim(Not, Seq(sel), _,_) => emit(Seq(sel," ? ",cast(e.fval)," : ",cast(e.tval)),top + 1)
-          case _ => emit(Seq(e.cond," ? ",cast(e.tval)," : ",cast(e.fval)),top + 1)
-        }
+        emit(Seq(e.cond," ? ",cast(e.tval)," : ",cast(e.fval)),top + 1)
       }
       case (e: ValidIf) => emit(Seq(cast(e.value)),top + 1)
       case (e: WRef) => w write e.serialize
@@ -446,9 +447,61 @@ class VerilogEmitter extends SeqTransform with Emitter {
     val newMod = new AddDescriptionNodes().executeModule(m, descriptions)
 
     newMod match {
-      case DescribedMod(d, pds, m: Module) => new VerilogRender(d, pds, m, moduleMap)(writer)
+      case DescribedMod(d, pds, m: Module) => new VerilogRender(d, pds, m, moduleMap, "", new EmissionOptions(Seq.empty))(writer)
       case m: Module => new VerilogRender(m, moduleMap)(writer)
     }
+  }
+  
+  /** 
+    * Store Emission option per Target
+    * Guarantee only one emission option per Target 
+    */
+  private[firrtl] class EmissionOptionMap[V <: EmissionOption](val df : V) extends collection.mutable.HashMap[ReferenceTarget, V] {
+    override def default(key: ReferenceTarget) = df
+    override def +=(elem : (ReferenceTarget, V)) : EmissionOptionMap.this.type = {
+      if (this.contains(elem._1))
+        throw EmitterException(s"Multiple EmissionOption for the target ${elem._1} (${this(elem._1)} ; ${elem._2})")
+      super.+=(elem)
+    } 
+  }
+  
+  /** Provide API to retrieve EmissionOptions based on the provided [[AnnotationSeq]]
+    * 
+    * @param annotations : AnnotationSeq to be searched for EmissionOptions
+    *
+    */
+  private[firrtl] class EmissionOptions(annotations: AnnotationSeq) {
+    // Private so that we can present an immutable API
+    private val registerEmissionOption = new EmissionOptionMap[RegisterEmissionOption](RegisterEmissionOptionDefault)
+    private val wireEmissionOption = new EmissionOptionMap[WireEmissionOption](WireEmissionOptionDefault)
+    private val portEmissionOption = new EmissionOptionMap[PortEmissionOption](PortEmissionOptionDefault)
+    private val nodeEmissionOption = new EmissionOptionMap[NodeEmissionOption](NodeEmissionOptionDefault)
+    private val connectEmissionOption = new EmissionOptionMap[ConnectEmissionOption](ConnectEmissionOptionDefault)
+
+    def getRegisterEmissionOption(target: ReferenceTarget): RegisterEmissionOption =
+      registerEmissionOption(target)
+      
+    def getWireEmissionOption(target: ReferenceTarget): WireEmissionOption =
+      wireEmissionOption(target)
+      
+    def getPortEmissionOption(target: ReferenceTarget): PortEmissionOption =
+      portEmissionOption(target)
+      
+    def getNodeEmissionOption(target: ReferenceTarget): NodeEmissionOption =
+      nodeEmissionOption(target)
+      
+    def getConnectEmissionOption(target: ReferenceTarget): ConnectEmissionOption =
+      connectEmissionOption(target)
+
+    private val emissionAnnos = annotations.collect{
+      case m : SingleTargetAnnotation[ReferenceTarget] @unchecked with EmissionOption => m
+    }
+    // using multiple foreach instead of a single partial function as an Annotation can gather multiple EmissionOptions for simplicity
+    emissionAnnos.foreach { case a :RegisterEmissionOption => registerEmissionOption += ((a.target,a)) case _ => }
+    emissionAnnos.foreach { case a :WireEmissionOption     => wireEmissionOption += ((a.target,a))     case _ => }
+    emissionAnnos.foreach { case a :PortEmissionOption     => portEmissionOption += ((a.target,a))     case _ => }
+    emissionAnnos.foreach { case a :NodeEmissionOption     => nodeEmissionOption += ((a.target,a))     case _ => }
+    emissionAnnos.foreach { case a :ConnectEmissionOption  => connectEmissionOption += ((a.target,a))  case _ => }
   }
 
   /**
@@ -464,10 +517,15 @@ class VerilogEmitter extends SeqTransform with Emitter {
   class VerilogRender(description: Description,
                       portDescriptions: Map[String, Description],
                       m: Module,
-                      moduleMap: Map[String, DefModule])(implicit writer: Writer) {
+                      moduleMap: Map[String, DefModule],
+                      circuitName: String,
+                      emissionOptions: EmissionOptions)(implicit writer: Writer) {
 
+    def this(m: Module, moduleMap: Map[String, DefModule], circuitName: String, emissionOptions: EmissionOptions)(implicit writer: Writer) {
+      this(EmptyDescription, Map.empty, m, moduleMap, circuitName, emissionOptions)(writer)
+    }
     def this(m: Module, moduleMap: Map[String, DefModule])(implicit writer: Writer) {
-      this(EmptyDescription, Map.empty, m, moduleMap)(writer)
+      this(EmptyDescription, Map.empty, m, moduleMap, "", new EmissionOptions(Seq.empty))(writer)
     }
 
     val netlist = mutable.LinkedHashMap[WrappedExpression, Expression]()
@@ -518,7 +576,21 @@ class VerilogEmitter extends SeqTransform with Emitter {
     def declareVectorType(b: String, n: String, tpe: Type, size: BigInt, info: Info) = {
       declares += Seq(b, " ", tpe, " ", n, " [0:", bigIntToVLit(size - 1), "];", info)
     }
-
+    def declareVectorType(b: String, n: String, tpe: Type, size: BigInt, info: Info, preset: Expression) = {
+      declares += Seq(b, " ", tpe, " ", n, " [0:", bigIntToVLit(size - 1), "] = ", preset, ";", info)
+    }
+    
+    val moduleTarget = CircuitTarget(circuitName).module(m.name)
+      
+    // declare with initial value
+    def declare(b: String, n: String, t: Type, info: Info, preset: Expression) = t match {
+      case tx: VectorType =>
+        declareVectorType(b, n, tx.tpe, tx.size, info, preset)
+      case tx =>
+        declares += Seq(b, " ", tx, " ", n, " = ", preset, ";", info)
+    }
+    
+    // original declare without initial value
     def declare(b: String, n: String, t: Type, info: Info) = t match {
       case tx: VectorType =>
         declareVectorType(b, n, tx.tpe, tx.size, info)
@@ -741,10 +813,17 @@ class VerilogEmitter extends SeqTransform with Emitter {
         case sx: DefWire =>
           declare("wire", sx.name, sx.tpe, sx.info)
         case sx: DefRegister =>
-          declare("reg", sx.name, sx.tpe, sx.info)
+          val options = emissionOptions.getRegisterEmissionOption(moduleTarget.ref(sx.name))
           val e = wref(sx.name, sx.tpe)
-          regUpdate(e, sx.clock, sx.reset, sx.init)
-          initialize(e, sx.reset, sx.init)
+          if (options.useInitAsPreset){
+            declare("reg", sx.name, sx.tpe, sx.info, sx.init)
+            regUpdate(e, sx.clock, sx.reset, e)
+          } else {
+            declare("reg", sx.name, sx.tpe, sx.info)
+            regUpdate(e, sx.clock, sx.reset, sx.init)
+          }
+          if (!options.disableRandomization)
+            initialize(e, sx.reset, sx.init)
         case sx: DefNode =>
           declare("wire", sx.name, sx.value.tpe, sx.info)
           assign(WRef(sx.name, sx.value.tpe, NodeKind, SourceFlow), sx.value, sx.info)
@@ -976,30 +1055,18 @@ class VerilogEmitter extends SeqTransform with Emitter {
   }
 
   /** Preamble for every emitted Verilog file */
-  def transforms = Seq(
-    new BlackBoxSourceHelper,
-    new FixAddingNegativeLiterals,
-    new ReplaceTruncatingArithmetic,
-    new InlineNotsTransform,
-    new InlineBitExtractionsTransform,  // here after InlineNots to clean up not(not(...)) rename
-    new InlineCastsTransform,
-    new LegalizeClocksTransform,
-    new FlattenRegUpdate,
-    new DeadCodeElimination,
-    passes.VerilogModulusCleanup,
-    new VerilogRename,
-    passes.VerilogPrep,
-    new AddDescriptionNodes)
+  def transforms = new TransformManager(firrtl.stage.Forms.VerilogOptimized, prerequisites).flattenedTransformOrder
 
   def emit(state: CircuitState, writer: Writer): Unit = {
-    val circuit = runTransforms(state).circuit
-    val moduleMap = circuit.modules.map(m => m.name -> m).toMap
-    circuit.modules.foreach {
+    val cs = runTransforms(state)
+    val emissionOptions = new EmissionOptions(cs.annotations)
+    val moduleMap = cs.circuit.modules.map(m => m.name -> m).toMap
+    cs.circuit.modules.foreach {
       case dm @ DescribedMod(d, pds, m: Module) =>
-        val renderer = new VerilogRender(d, pds, m, moduleMap)(writer)
+        val renderer = new VerilogRender(d, pds, m, moduleMap, cs.circuit.main, emissionOptions)(writer)
         renderer.emit_verilog()
       case m: Module =>
-        val renderer = new VerilogRender(m, moduleMap)(writer)
+        val renderer = new VerilogRender(m, moduleMap, cs.circuit.main, emissionOptions)(writer)
         renderer.emit_verilog()
       case _ => // do nothing
     }
@@ -1013,18 +1080,19 @@ class VerilogEmitter extends SeqTransform with Emitter {
         Seq(EmittedVerilogCircuitAnnotation(EmittedVerilogCircuit(state.circuit.main, writer.toString, outputSuffix)))
 
       case EmitAllModulesAnnotation(_) =>
-        val circuit = runTransforms(state).circuit
-        val moduleMap = circuit.modules.map(m => m.name -> m).toMap
+        val cs = runTransforms(state)
+        val emissionOptions = new EmissionOptions(cs.annotations)
+        val moduleMap = cs.circuit.modules.map(m => m.name -> m).toMap
 
-        circuit.modules flatMap {
+        cs.circuit.modules flatMap {
           case dm @ DescribedMod(d, pds, module: Module) =>
             val writer = new java.io.StringWriter
-            val renderer = new VerilogRender(d, pds, module, moduleMap)(writer)
+            val renderer = new VerilogRender(d, pds, module, moduleMap, cs.circuit.main, emissionOptions)(writer)
             renderer.emit_verilog()
             Some(EmittedVerilogModuleAnnotation(EmittedVerilogModule(module.name, writer.toString, outputSuffix)))
           case module: Module =>
             val writer = new java.io.StringWriter
-            val renderer = new VerilogRender(module, moduleMap)(writer)
+            val renderer = new VerilogRender(module, moduleMap, cs.circuit.main, emissionOptions)(writer)
             renderer.emit_verilog()
             Some(EmittedVerilogModuleAnnotation(EmittedVerilogModule(module.name, writer.toString, outputSuffix)))
           case _ => None
@@ -1037,16 +1105,18 @@ class VerilogEmitter extends SeqTransform with Emitter {
 
 class MinimumVerilogEmitter extends VerilogEmitter with Emitter {
 
+  override val prerequisites = firrtl.stage.Forms.LowFormMinimumOptimized
 
-  override def transforms = super.transforms.filter{
-    case _: DeadCodeElimination => false
-    case _ => true
-  }
+  override def transforms = new TransformManager(firrtl.stage.Forms.VerilogMinimumOptimized, prerequisites)
+    .flattenedTransformOrder
 
 }
 
 class SystemVerilogEmitter extends VerilogEmitter {
-  StageUtils.dramaticWarning("SystemVerilog Emitter is the same as the Verilog Emitter!")
-
   override val outputSuffix: String = ".sv"
+
+  override def execute(state: CircuitState): CircuitState = {
+    StageUtils.dramaticWarning("SystemVerilog Emitter is the same as the Verilog Emitter!")
+    super.execute(state)
+  }
 }

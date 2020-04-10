@@ -5,9 +5,14 @@ package firrtl.passes
 import firrtl._
 import firrtl.ir._
 import firrtl.Mappers._
+import firrtl.options.{Dependency, PreservesAll}
 import Utils.throwInternalError
 
-object ResolveKinds extends Pass {
+
+object ResolveKinds extends Pass with PreservesAll[Transform] {
+
+  override val prerequisites = firrtl.stage.Forms.WorkingIR
+
   type KindMap = collection.mutable.LinkedHashMap[String, Kind]
 
   def find_port(kinds: KindMap)(p: Port): Port = {
@@ -45,7 +50,13 @@ object ResolveKinds extends Pass {
     c copy (modules = c.modules map resolve_kinds)
 }
 
-object ResolveFlows extends Pass {
+object ResolveFlows extends Pass with PreservesAll[Transform] {
+
+  override val prerequisites =
+    Seq( Dependency(passes.ResolveKinds),
+         Dependency(passes.InferTypes),
+         Dependency(passes.Uniquify) ) ++ firrtl.stage.Forms.WorkingIR
+
   def resolve_e(g: Flow)(e: Expression): Expression = e match {
     case ex: WRef => ex copy (flow = g)
     case WSubField(exp, name, tpe, _) => WSubField(
@@ -77,18 +88,10 @@ object ResolveFlows extends Pass {
     c copy (modules = c.modules map resolve_flow)
 }
 
-@deprecated("Use 'ResolveFlows'. This will be removed in 1.3", "1.2")
-object ResolveGenders extends Pass {
+object CInferMDir extends Pass with PreservesAll[Transform] {
 
-  def run(c: Circuit): Circuit = ResolveFlows.run(c)
+  override val prerequisites = firrtl.stage.Forms.ChirrtlForm :+ Dependency(CInferTypes)
 
-  def resolve_e(g: Gender)(e: Expression): Expression = ResolveFlows.resolve_e(g)(e)
-
-  def resolve_s(s: Statement): Statement = ResolveFlows.resolve_s(s)
-
-}
-
-object CInferMDir extends Pass {
   type MPortDirMap = collection.mutable.LinkedHashMap[String, MPortDir]
 
   def infer_mdir_e(mports: MPortDirMap, dir: MPortDir)(e: Expression): Expression = e match {

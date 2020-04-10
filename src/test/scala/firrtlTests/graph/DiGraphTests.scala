@@ -3,7 +3,7 @@
 package firrtlTests.graph
 
 import firrtl.graph._
-import firrtlTests._
+import firrtl.testutils._
 
 //scalastyle:off magic.number
 class DiGraphTests extends FirrtlFlatSpec {
@@ -149,5 +149,14 @@ class DiGraphTests extends FirrtlFlatSpec {
     dotLines.count(s => s.contains("""[color=red,penwidth=3.0];""")) should be (3)
     dotLines.exists(s => s.contains(""""d" -> "k";""")) should be (true)
     dotLines.exists(s => s.contains("""rankdir="TB";""")) should be (true)
+  }
+
+  "reachableFrom" should "omit the queried node if no self-path exists" in {
+    degenerateGraph.reachableFrom("a") shouldBe empty
+    acyclicGraph.reachableFrom("b") should contain theSameElementsAs Vector("d", "e")
+  }
+
+  "reachableFrom" should "include the queried node if it is included in a cycle" in {
+    cyclicGraph.reachableFrom("b") should contain theSameElementsAs Vector("a", "b", "c", "d")
   }
 }

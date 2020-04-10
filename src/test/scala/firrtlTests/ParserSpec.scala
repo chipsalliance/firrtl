@@ -3,6 +3,7 @@
 package firrtlTests
 
 import firrtl._
+import firrtl.testutils._
 import org.scalacheck.Gen
 
 class ParserSpec extends FirrtlFlatSpec {
@@ -115,6 +116,38 @@ class ParserSpec extends FirrtlFlatSpec {
     val c = firrtl.Parser.parse(input)
     firrtl.Parser.parse(c.serialize)
   }
+
+  // ********** Literal Formats **********
+  "Literals of different bases and signs" should "produce correct values" in {
+    def circuit(lit: String): firrtl.ir.Circuit = {
+      val input = s"""circuit Top :
+                     |  module lits:
+                     |    output litout : SInt<16>
+                     |    litout <= SInt(${lit})
+                     |""".stripMargin
+      firrtl.Parser.parse(input)
+    }
+
+    def check(inFormat: String, ref: Integer): Unit = {
+      (circuit(inFormat)) should be (circuit(ref.toString))
+    }
+
+    val checks = Map(
+      """       12 """ -> 12,
+      """      -14 """ -> -14,
+      """      +15 """ -> 15,
+      """     "hA" """ -> 10,
+      """    "h-C" """ -> -12,
+      """   "h+1B" """ -> 27,
+      """    "o66" """ -> 54,
+      """   "o-33" """ -> -27,
+      """  "b1101" """ -> 13,
+      """ "b-1001" """ -> -9,
+      """ "b+1000" """ -> 8
+    )
+
+    checks.foreach { case (k, v) => check(k, v) }
+   }
 
   // ********** Doubles as parameters **********
   "Doubles" should "be legal parameters for extmodules" in {

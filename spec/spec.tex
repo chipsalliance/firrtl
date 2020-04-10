@@ -1014,7 +1014,7 @@ Similar to unsigned integers, a literal signed integer can alternatively be crea
 
 The bit representation contains a binary, octal or hex indicator, followed by an optional sign, followed by the value.
 
-If a bit width is not given, the number of bits in the bit representation is the minimal bitwidth to represent the value represented by the string. The following examples create a 8-bit integer representing the number -13.
+If a bit width is not given, the number of bits in the bit representation is the minimal bitwidth to represent the value represented by the string. The following examples create a 8-bit integer representing the number -13. For all bases, a negative sign acts as if it were a unary negation; in other words, a negative literal produces the additive inverse of the unsigned interpretation of the digit pattern.
 \begin{lstlisting}
 SInt("b-1101")
 SInt("h-d")
@@ -1285,7 +1285,7 @@ div & (num,den) & () & (UInt,UInt) & UInt & w\ts{num}\\
 \end{tabular}
 }}
 \end{figure}
-The divide operation divides \vv{num} by \vv{den}, truncating the fractional portion of the result. This is equivalent to rounding the result towards zero.
+The divide operation divides \vv{num} by \vv{den}, truncating the fractional portion of the result. This is equivalent to rounding the result towards zero. The result of a division where \vv{den} is zero is undefined.
 
 \subsection{Modulus Operation}
 
@@ -1667,6 +1667,7 @@ A FIRRTL circuit is defined to be a valid MidFIRRTL circuit if it obeys the foll
 \begin{itemize}
 \item All widths must be explicitly defined.
 \item The conditional statement is not used.
+\item The dynamic subaccess expression is not used.
 \item All components are connected to exactly once.
 \end{itemize}
 
@@ -1727,9 +1728,9 @@ The following characters are allowed in identifiers: upper and lower case letter
 
 An integer literal in FIRRTL begins with one of the following, where `\#' represents a digit between 0 and 9.
 \begin{itemize}
-\item `0x' : For indicating a hexadecimal number. The rest of the literal must consist of either digits or a letter between `A' and `F', or the separator `\_'.
-\item `0o' : For indicating an octal number. The rest of the literal must consist of digits between 0 and 7, or the separator `\_'.
-\item `0b' : For indicating a binary number. The rest of the literal must consist of either 0 or 1, or the separator `\_'.
+\item `h' : For indicating a hexadecimal number, followed by an optional sign. The rest of the literal must consist of either digits or a letter between `A' and `F'.
+\item `o' : For indicating an octal number, followed by an optional sign. The rest of the literal must consist of digits between 0 and 7.
+\item `b' : For indicating a binary number, followed by an optional sign. The rest of the literal must consist of digits that are either 0 or 1.
 \item `-\#' : For indicating a negative decimal number. The rest of the literal must consist of digits between 0 and 9.
 \item `\#' : For indicating a positive decimal number. The rest of the literal must consist of digits between 0 and 9.
 \end{itemize}
@@ -1743,12 +1744,11 @@ The following statement:
 when c :
    a <= b
 else :
-   c <= d
    e <= f
 \end{lstlisting}
 can be equivalently expressed on a single line as follows.
 \begin{lstlisting}
-when c : (a <= b) else : (c <= d, e <= f)
+when c : a <= b else : e <= f
 \end{lstlisting}
 
 All circuits, modules, ports and statements can optionally be followed with the info token \verb|@[fileinfo]| where fileinfo is a string containing the source file information from where it was generated.

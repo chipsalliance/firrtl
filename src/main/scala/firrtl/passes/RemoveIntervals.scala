@@ -8,6 +8,7 @@ import firrtl._
 import firrtl.Mappers._
 import Implicits.{bigint2WInt}
 import firrtl.constraint.IsKnown
+import firrtl.options.{Dependency, PreservesAll}
 
 import scala.math.BigDecimal.RoundingMode._
 
@@ -25,9 +26,9 @@ class WrapWithRemainder(info: Info, mname: String, wrap: DoPrim)
   * 1) Align binary points
   *    - adds shift operators to primop args and connections
   *    - does not affect declaration- or inferred-types
-  * 2) Replace Interval [[DefNode]] with [[DefWire]] + [[Connect]]
+  * 2) Replace Interval [[firrtl.ir.DefNode DefNode]] with [[firrtl.ir.DefWire DefWire]] + [[firrtl.ir.Connect Connect]]
   *    - You have to do this to capture the smaller bitwidths of nodes that intervals give you. Otherwise, any future
-  *    InferTypes would reinfer the larger widths on these nodes from SInt width inference rules
+  *    InferTypes would re-infer the larger widths on these nodes from SInt width inference rules
   * 3) Replace declaration IntervalType's with SIntType's
   *    - for each declaration:
   *      a. remove non-zero binary points
@@ -35,7 +36,14 @@ class WrapWithRemainder(info: Info, mname: String, wrap: DoPrim)
   *      c. replace with SIntType
   * 3) Run InferTypes
   */
-class RemoveIntervals extends Pass {
+class RemoveIntervals extends Pass with PreservesAll[Transform] {
+
+  override val prerequisites: Seq[Dependency[Transform]] =
+    Seq( Dependency(PullMuxes),
+         Dependency(ReplaceAccesses),
+         Dependency(ExpandConnects),
+         Dependency(RemoveAccesses),
+         Dependency[ExpandWhensAndCheck] ) ++ firrtl.stage.Forms.Deduped
 
   def run(c: Circuit): Circuit = {
     val alignedCircuit = c
@@ -165,7 +173,7 @@ class RemoveIntervals extends Pass {
     case DefNode(info, name, value) => value.tpe match {
       case IntervalType(l, u, p) =>
         val newType = IntervalType(l, u, p)
-        Block(Seq(DefWire(info, name, newType), Connect(info, WRef(name, newType, WireKind, FEMALE), value)))
+        Block(Seq(DefWire(info, name, newType), Connect(info, WRef(name, newType, WireKind, SinkFlow), value)))
       case other => s
     }
     case other => other map makeWireStmt

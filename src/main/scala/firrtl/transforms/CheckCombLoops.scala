@@ -4,7 +4,6 @@ package firrtl.transforms
 
 import scala.collection.mutable
 
-
 import firrtl._
 import firrtl.ir._
 import firrtl.passes.{Errors, PassException}
@@ -13,7 +12,7 @@ import firrtl.annotations._
 import firrtl.Utils.throwInternalError
 import firrtl.graph._
 import firrtl.analyses.InstanceGraph
-import firrtl.options.{RegisteredTransform, ShellOption}
+import firrtl.options.{Dependency, PreservesAll, RegisteredTransform, ShellOption}
 
 /*
  * A case class that represents a net in the circuit. This is
@@ -95,9 +94,18 @@ case class CombinationalPath(sink: ReferenceTarget, sources: Seq[ReferenceTarget
   * @note The pass relies on ExtModulePathAnnotations to find loops through ExtModules
   * @note The pass will throw exceptions on "false paths"
   */
-class CheckCombLoops extends Transform with RegisteredTransform {
+class CheckCombLoops extends Transform with RegisteredTransform with PreservesAll[Transform] {
   def inputForm = LowForm
   def outputForm = LowForm
+
+  override val prerequisites = firrtl.stage.Forms.MidForm ++
+    Seq( Dependency(passes.LowerTypes),
+         Dependency(passes.Legalize),
+         Dependency(firrtl.transforms.RemoveReset) )
+
+  override val optionalPrerequisites = Seq.empty
+
+  override val dependents = Seq.empty
 
   import CheckCombLoops._
 
@@ -271,17 +279,24 @@ class CheckCombLoops extends Transform with RegisteredTransform {
       val sources = tos.map(to => mt.ref(to.name))
       CombinationalPath(sink, sources.toSeq)
     }
-    (state.copy(annotations = state.annotations ++ annos), errors, simplifiedModuleGraphs)
+    (state.copy(annotations = state.annotations ++ annos), errors, simplifiedModuleGraphs, moduleGraphs)
   }
 
   /**
     * Returns a Map from Module name to port connectivity
     */
   def analyze(state: CircuitState): collection.Map[String,DiGraph[String]] = {
-    val (result, errors, connectivity) = run(state)
+    val (result, errors, connectivity, _) = run(state)
     connectivity.map {
       case (k, v) => (k, v.transformNodes(ln => ln.name))
     }
+  }
+
+  /**
+    * Returns a Map from Module name to complete netlist connectivity
+    */
+  def analyzeFull(state: CircuitState): collection.Map[String,DiGraph[LogicNode]] = {
+    run(state)._4
   }
 
   def execute(state: CircuitState): CircuitState = {
@@ -290,7 +305,7 @@ class CheckCombLoops extends Transform with RegisteredTransform {
       logger.warn("Skipping Combinational Loop Detection")
       state
     } else {
-      val (result, errors, connectivity) = run(state)
+      val (result, errors, connectivity, _) = run(state)
       errors.trigger()
       result
     }
