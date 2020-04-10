@@ -4,7 +4,8 @@ package firrtlTests
 package fixed
 
 import firrtl._
-import FirrtlCheckers._
+import firrtl.testutils.FirrtlCheckers._
+import firrtl.testutils.FirrtlFlatSpec
 
 class FixedDescriptionSpec extends FirrtlFlatSpec {
   "Fixed point numbers" should "have descriptions" in {
