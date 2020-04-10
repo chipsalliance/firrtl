@@ -91,7 +91,7 @@ class DiGraph[T] private[graph] (private[graph] val edges: LinkedHashMap[T, Link
   /** Linearizes (topologically sorts) a DAG
     *
     * @throws CyclicException if the graph is cyclic
-    * @return a Map[T,T] from each visited node to its predecessor in the
+    * @return a Seq[T] describing the topological order of the DAG
     * traversal
     */
   def linearize: Seq[T] = {
@@ -336,7 +336,7 @@ class DiGraph[T] private[graph] (private[graph] val edges: LinkedHashMap[T, Link
     * Any edge including a deleted node will be deleted
     *
     * @param vprime the Set[T] of desired vertices
-    * @throws IllegalArgumentException if vprime is not a subset of V
+    * @throws scala.IllegalArgumentException if vprime is not a subset of V
     * @return the subgraph
     */
   def subgraph(vprime: Set[T]): DiGraph[T] = {
@@ -350,7 +350,7 @@ class DiGraph[T] private[graph] (private[graph] val edges: LinkedHashMap[T, Link
     * transformed into an edge (u,v).
     *
     * @param vprime the Set[T] of desired vertices
-    * @throws IllegalArgumentException if vprime is not a subset of V
+    * @throws scala.IllegalArgumentException if vprime is not a subset of V
     * @return the simplified graph
     */
   def simplify(vprime: Set[T]): DiGraph[T] = {
@@ -394,7 +394,7 @@ class MutableDiGraph[T] extends DiGraph[T](new LinkedHashMap[T, LinkedHashSet[T]
   }
 
   /** Add edge (u,v) to the graph.
-    * @throws IllegalArgumentException if u and/or v is not in the graph
+    * @throws scala.IllegalArgumentException if u and/or v is not in the graph
     */
   def addEdge(u: T, v: T): Unit = {
     require(contains(u))

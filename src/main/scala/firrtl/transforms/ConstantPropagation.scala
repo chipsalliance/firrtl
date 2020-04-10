@@ -13,6 +13,7 @@ import firrtl.PrimOps._
 import firrtl.graph.DiGraph
 import firrtl.analyses.InstanceGraph
 import firrtl.annotations.TargetToken.Ref
+import firrtl.options.Dependency
 
 import annotation.tailrec
 import collection.mutable
@@ -101,6 +102,25 @@ class ConstantPropagation extends Transform with ResolvedAnnotationPaths {
   import ConstantPropagation._
   def inputForm = LowForm
   def outputForm = LowForm
+
+  override val prerequisites =
+    ((new mutable.LinkedHashSet())
+       ++ firrtl.stage.Forms.LowForm
+       - Dependency(firrtl.passes.Legalize)
+       + Dependency(firrtl.passes.RemoveValidIf)).toSeq
+
+  override val optionalPrerequisites = Seq.empty
+
+  override val dependents =
+    Seq( Dependency(firrtl.passes.memlib.VerilogMemDelays),
+         Dependency(firrtl.passes.SplitExpressions),
+         Dependency[SystemVerilogEmitter],
+         Dependency[VerilogEmitter] )
+
+  override def invalidates(a: Transform): Boolean = a match {
+    case firrtl.passes.Legalize => true
+    case _ => false
+  }
 
   override val annotationClasses: Traversable[Class[_]] = Seq(classOf[DontTouchAnnotation])
 
@@ -506,17 +526,24 @@ class ConstantPropagation extends Transform with ResolvedAnnotationPaths {
       propagated
     }
 
-    def backPropStmt(stmt: Statement): Statement = stmt map backPropExpr match {
-      case decl: IsDeclaration if swapMap.contains(decl.name) =>
-        val newName = swapMap(decl.name)
-        nPropagated += 1
-        decl match {
-          case node: DefNode => node.copy(name = newName)
-          case wire: DefWire => wire.copy(name = newName)
-          case reg: DefRegister => reg.copy(name = newName)
-          case other => throwInternalError()
-        }
-      case other => other map backPropStmt
+    def backPropStmt(stmt: Statement): Statement = stmt match {
+      case reg: DefRegister if (WrappedExpression.weq(reg.init, WRef(reg))) =>
+        // Self-init reset is an idiom for "no reset," and must be handled separately
+        swapMap.get(reg.name)
+               .map(newName => reg.copy(name = newName, init = WRef(reg).copy(name = newName)))
+               .getOrElse(reg)
+      case s => s map backPropExpr match {
+        case decl: IsDeclaration if swapMap.contains(decl.name) =>
+          val newName = swapMap(decl.name)
+          nPropagated += 1
+          decl match {
+            case node: DefNode => node.copy(name = newName)
+            case wire: DefWire => wire.copy(name = newName)
+            case reg: DefRegister => reg.copy(name = newName)
+            case other => throwInternalError()
+          }
+        case other => other map backPropStmt
+      }
     }
 
     // When propagating a reference, check if we want to keep the name that would be deleted
@@ -715,8 +742,12 @@ class ConstantPropagation extends Transform with ResolvedAnnotationPaths {
   }
 
   def execute(state: CircuitState): CircuitState = {
-    val dontTouches: Seq[(OfModule, String)] = state.annotations.collect {
-      case DontTouchAnnotation(Target(_, Some(m), Seq(Ref(c)))) => m.OfModule -> c
+    val dontTouchRTs = state.annotations.flatMap {
+      case anno: HasDontTouches => anno.dontTouches
+      case o => Nil
+    }
+    val dontTouches: Seq[(OfModule, String)] = dontTouchRTs.map {
+      case Target(_, Some(m), Seq(Ref(c))) => m.OfModule -> c
     }
     // Map from module name to component names
     val dontTouchMap: Map[OfModule, Set[String]] =

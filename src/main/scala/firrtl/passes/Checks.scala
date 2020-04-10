@@ -9,8 +9,9 @@ import firrtl.Utils._
 import firrtl.traversals.Foreachers._
 import firrtl.WrappedType._
 import firrtl.constraint.{Constraint, IsKnown}
+import firrtl.options.{Dependency, PreservesAll}
 
-trait CheckHighFormLike {
+trait CheckHighFormLike { this: Pass =>
   type NameSet = collection.mutable.HashSet[String]
 
   // Custom Exceptions
@@ -32,6 +33,10 @@ trait CheckHighFormLike {
     s"$info: [module $mname] Register $name cannot be a bundle type with flips.")
   class InvalidAccessException(info: Info, mname: String) extends PassException(
     s"$info: [module $mname] Invalid access to non-reference.")
+  class ModuleNameNotUniqueException(info: Info, mname: String) extends PassException(
+    s"$info: Repeat definition of module $mname")
+  class DefnameConflictException(info: Info, mname: String, defname: String) extends PassException(
+    s"$info: defname $defname of extmodule $mname conflicts with an existing module")
   class ModuleNotDefinedException(info: Info, mname: String, name: String) extends PassException(
     s"$info: Module $name is not defined.")
   class IncorrectNumArgsException(info: Info, mname: String, op: String, n: Int) extends PassException(
@@ -71,6 +76,17 @@ trait CheckHighFormLike {
     val errors = new Errors()
     val moduleGraph = new ModuleGraph
     val moduleNames = (c.modules map (_.name)).toSet
+
+    val intModuleNames = c.modules.view.collect({ case m: Module => m.name }).toSet
+
+    c.modules.view.groupBy(_.name).filter(_._2.length > 1).flatMap(_._2).foreach {
+      m => errors.append(new ModuleNameNotUniqueException(m.info, m.name))
+    }
+
+    c.modules.collect {
+      case ExtModule(info, name, _, defname, _) if (intModuleNames.contains(defname)) =>
+        errors.append(new DefnameConflictException(info, name, defname))
+    }
 
     def checkHighFormPrimop(info: Info, mname: String, e: DoPrim): Unit = {
       def correctNum(ne: Option[Int], nc: Int): Unit = {
@@ -267,7 +283,18 @@ trait CheckHighFormLike {
   }
 }
 
-object CheckHighForm extends Pass with CheckHighFormLike {
+object CheckHighForm extends Pass with CheckHighFormLike with PreservesAll[Transform] {
+
+  override val prerequisites = firrtl.stage.Forms.WorkingIR
+
+  override val dependents =
+    Seq( Dependency(passes.ResolveKinds),
+         Dependency(passes.InferTypes),
+         Dependency(passes.Uniquify),
+         Dependency(passes.ResolveFlows),
+         Dependency[passes.InferWidths],
+         Dependency[transforms.InferResets] )
+
   class IllegalChirrtlMemException(info: Info, mname: String, name: String) extends PassException(
     s"$info: [module $mname] Memory $name has not been properly lowered from Chirrtl IR.")
 
@@ -279,7 +306,17 @@ object CheckHighForm extends Pass with CheckHighFormLike {
     Some(new IllegalChirrtlMemException(info, mname, memName))
   }
 }
-object CheckTypes extends Pass {
+
+object CheckTypes extends Pass with PreservesAll[Transform] {
+
+  override val prerequisites = Dependency(InferTypes) +: firrtl.stage.Forms.WorkingIR
+
+  override val dependents =
+    Seq( Dependency(passes.Uniquify),
+         Dependency(passes.ResolveFlows),
+         Dependency(passes.CheckFlows),
+         Dependency[passes.InferWidths],
+         Dependency(passes.CheckWidths) )
 
   // Custom Exceptions
   class SubfieldNotInBundle(info: Info, mname: String, name: String) extends PassException(
@@ -583,7 +620,16 @@ object CheckTypes extends Pass {
   }
 }
 
-object CheckFlows extends Pass {
+object CheckFlows extends Pass with PreservesAll[Transform] {
+
+  override val prerequisites = Dependency(passes.ResolveFlows) +: firrtl.stage.Forms.WorkingIR
+
+  override val dependents =
+    Seq( Dependency[passes.InferBinaryPoints],
+         Dependency[passes.TrimIntervals],
+         Dependency[passes.InferWidths],
+         Dependency[transforms.InferResets] )
+
   type FlowMap = collection.mutable.HashMap[String, Flow]
 
   implicit def toStr(g: Flow): String = g match {
@@ -685,19 +731,3 @@ object CheckFlows extends Pass {
   }
 }
 
-@deprecated("Use 'CheckFlows'. This object will be removed in 1.3", "1.2")
-object CheckGenders {
-
-  implicit def toStr(g: Gender): String = g match {
-    case MALE => "source"
-    case FEMALE => "sink"
-    case UNKNOWNGENDER => "unknown"
-    case BIGENDER => "sourceOrSink"
-  }
-
-  def run(c: Circuit): Circuit = CheckFlows.run(c)
-
-  @deprecated("Use 'CheckFlows.WrongFlow'. This class will be removed in 1.3", "1.2")
-  class WrongGender(info:Info, mname: String, expr: String, wrong: Flow, right: Flow) extends PassException(
-    s"$info: [module $mname]  Expression $expr is used as a $wrong but can only be used as a $right.")
-}
