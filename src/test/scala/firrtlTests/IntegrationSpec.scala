@@ -54,7 +54,7 @@ class FPUCompilationTest extends CompilationTest("FPU", "/regress")
 class HwachaSequencerCompilationTest extends CompilationTest("HwachaSequencer", "/regress")
 
 abstract class CommonSubexprEliminationEquivTest(name: String, dir: String) extends
-  EquivalenceTest(Seq(new firrtl.transforms.CommonSubexpressionElimination), name, dir)
+  EquivalenceTest(Seq(firrtl.passes.CommonSubexpressionElimination), name, dir)
 abstract class DeadCodeEliminationEquivTest(name: String, dir: String) extends
   EquivalenceTest(Seq(new firrtl.transforms.DeadCodeElimination), name, dir)
 abstract class ConstantPropagationEquivTest(name: String, dir: String) extends
