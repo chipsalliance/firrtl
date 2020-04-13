@@ -108,7 +108,7 @@ object CheckWidths extends Pass with PreservesAll[Transform] {
     def check_width_e(info: Info, target: Target)(e: Expression): Unit = {
       e match {
         case e: UIntLiteral => e.width match {
-          case w: IntWidth if math.max(1, e.value.bitLength) > w.width =>
+          case w: IntWidth if e.value.bitLength > w.width =>
             errors append new WidthTooSmall(info, target.serialize, e.value)
           case _ =>
         }
