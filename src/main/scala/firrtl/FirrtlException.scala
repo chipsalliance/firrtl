@@ -41,3 +41,10 @@ case class CustomTransformException(cause: Throwable) extends Exception("", caus
   */
 private[firrtl] class FirrtlInternalException(message: String, cause: Throwable = null)
   extends Exception(message, cause)
+
+/** A useful exception for an unexpected match within FIRRTL
+  * @param other The value which is not matched
+  * @param cause Cause of exception, usually left blank
+  */
+private[firrtl] class FirrtlUnexpectedMatch(other: Any, cause: Throwable = null)
+  extends FirrtlInternalException(s"Unexpected match: $other", cause)

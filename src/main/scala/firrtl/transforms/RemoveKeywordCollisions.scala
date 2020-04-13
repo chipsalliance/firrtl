@@ -51,6 +51,7 @@ class RemoveKeywordCollisions(keywords: Set[String]) extends Transform {
       case Some(cir: CircuitName)   => ModuleName(name, cir)
       case Some(mod: ModuleName)    => ComponentName(name, mod)
       case Some(com: ComponentName) => ComponentName(s"${com.name}.$name", com.module)
+      case other => throw new FirrtlUnexpectedMatch(other)
     }
 
     val named = wrap(n, scope)

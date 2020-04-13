@@ -103,6 +103,7 @@ class InferWidths extends Transform with ResolvedAnnotationPaths with PreservesA
     case (AsyncResetType, AsyncResetType) => Nil
     case (ResetType, _) => Nil
     case (_, ResetType) => Nil
+    case other => throw new FirrtlUnexpectedMatch(other)
   }
 
   private def addExpConstraints(e: Expression): Expression = e map addExpConstraints match {

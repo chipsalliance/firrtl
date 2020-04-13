@@ -115,6 +115,7 @@ object CInferMDir extends Pass with PreservesAll[Transform] {
           case (MReadWrite, MWrite) => MReadWrite
           case (MReadWrite, MRead) => MReadWrite
           case (MReadWrite, MReadWrite) => MReadWrite
+          case other => throw new FirrtlUnexpectedMatch(other)
         }
       }
       e

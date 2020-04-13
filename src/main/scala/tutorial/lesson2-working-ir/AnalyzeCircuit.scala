@@ -4,7 +4,9 @@ package tutorial
 package lesson2
 
 // Compiler Infrastructure
-import firrtl.{Transform, LowForm, CircuitState, Utils}
+import firrtl.options.Dependency
+import firrtl.{CircuitState, Transform, Utils}
+import firrtl.stage.Forms.LowForm
 // Firrtl IR classes
 import firrtl.ir.{DefModule, Statement, DefInstance, Expression, Mux}
 // Firrtl compiler's working IR classes (WIR)
@@ -95,8 +97,8 @@ class Ledger {
   *   - TODO(izraelevitz)
   */
 class AnalyzeCircuit extends Transform {
-  def inputForm = LowForm
-  def outputForm = LowForm
+  override def prerequisites: Seq[Dependency[Transform]] = LowForm
+  override def invalidates(xform: Transform) = false
 
   // Called by [[Compiler]] to run your pass.
   def execute(state: CircuitState): CircuitState = {

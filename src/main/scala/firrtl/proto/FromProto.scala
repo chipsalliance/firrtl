@@ -138,6 +138,7 @@ object FromProto {
     case ReadUnderWrite.UNDEFINED => ir.ReadUnderWrite.Undefined
     case ReadUnderWrite.OLD => ir.ReadUnderWrite.Old
     case ReadUnderWrite.NEW => ir.ReadUnderWrite.New
+    case other => throw new FirrtlUnexpectedMatch(other)
   }
 
   def convert(dt: Firrtl.Statement.CMemory.TypeAndDepth): (ir.Type, BigInt) =
@@ -161,6 +162,7 @@ object FromProto {
     case MEMORY_PORT_DIRECTION_READ => MRead
     case MEMORY_PORT_DIRECTION_WRITE => MWrite
     case MEMORY_PORT_DIRECTION_READ_WRITE => MReadWrite
+    case other => throw new FirrtlUnexpectedMatch(other)
   }
 
   def convert(port: Firrtl.Statement.MemoryPort, info: Firrtl.SourceInfo): CDefMPort = {
@@ -275,6 +277,7 @@ object FromProto {
     dir match {
       case Firrtl.Port.Direction.PORT_DIRECTION_IN => ir.Input
       case Firrtl.Port.Direction.PORT_DIRECTION_OUT => ir.Output
+      case other => throw new FirrtlUnexpectedMatch(other)
     }
   }
 

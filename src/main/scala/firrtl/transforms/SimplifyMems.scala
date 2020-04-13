@@ -51,6 +51,7 @@ class SimplifyMems extends Transform {
             case Field(name, _, _) => // etc
               Connect(mem.info, WSubField(memPort, name), WSubField(adapterPort, name))
           }
+        case other => throw new FirrtlUnexpectedMatch(other)
       }
       memAdapters(mem.name) = adapterDecl
       renames.record(oldRT, oldRT.copy(ref = simpleMemDecl.name))

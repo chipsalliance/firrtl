@@ -231,6 +231,7 @@ case class GenericTarget(circuitOpt: Option[String],
           (getRef, getInstanceOf) match {
             case (Some((r, comps)), _) => ReferenceTarget(c, m, path, r, comps)
             case (None, Some((i, o)))  => InstanceTarget(c, m, path, i, o)
+            case other => throw new FirrtlUnexpectedMatch(other)
           }
       }
       Some(target)
@@ -458,6 +459,7 @@ trait IsComponent extends IsMember {
             case ("", Ref(name)) => name
             case (string, Field(value)) => s"$string.$value"
             case (string, Index(value)) => s"$string[$value]"
+            case other => throw new FirrtlUnexpectedMatch(other)
           }
           ComponentName(name, mn)
         case Seq(Instance(name), OfModule(o)) => ComponentName(name, mn)
@@ -595,6 +597,7 @@ case class ReferenceTarget(circuit: String,
         case Index(idx) => sub_type(baseType)
         case Field(field) => field_type(baseType, field)
         case _: Ref => baseType
+        case other => throw new FirrtlUnexpectedMatch(other)
       }
       componentType(headType, tokens.tail)
     }

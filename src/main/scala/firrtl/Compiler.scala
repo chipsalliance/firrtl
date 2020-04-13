@@ -100,7 +100,7 @@ object CircuitState {
   * strictly supersets of the "lower" forms. Thus, that any transform that
   * operates on [[HighForm]] can also operate on [[MidForm]] or [[LowForm]]
   */
-@deprecated("CircuitForm will be removed in 1.3. Switch to Seq[TransformDependency] to specify dependencies.", "1.2")
+//@deprecated("CircuitForm will be removed in 1.3. Switch to Seq[TransformDependency] to specify dependencies.", "1.2")
 sealed abstract class CircuitForm(private val value: Int) extends Ordered[CircuitForm] {
   // Note that value is used only to allow comparisons
   def compare(that: CircuitForm): Int = this.value - that.value
@@ -119,7 +119,7 @@ sealed abstract class CircuitForm(private val value: Int) extends Ordered[Circui
   *
   * See [[CDefMemory]] and [[CDefMPort]]
   */
-@deprecated("Form-based dependencies will be removed in 1.3. Please migrate to the new Dependency API.", "1.2")
+//@deprecated("Form-based dependencies will be removed in 1.3. Please migrate to the new Dependency API.", "1.2")
 final case object ChirrtlForm extends CircuitForm(value = 3) {
   val outputSuffix: String = ".fir"
 }
@@ -131,7 +131,7 @@ final case object ChirrtlForm extends CircuitForm(value = 3) {
   *
   * Also see [[firrtl.ir]]
   */
-@deprecated("Form-based dependencies will be removed in 1.3. Please migrate to the new Dependency API.", "1.2")
+//@deprecated("Form-based dependencies will be removed in 1.3. Please migrate to the new Dependency API.", "1.2")
 final case object HighForm extends CircuitForm(2) {
   val outputSuffix: String = ".hi.fir"
 }
@@ -143,7 +143,7 @@ final case object HighForm extends CircuitForm(2) {
   *  - All whens must be removed
   *  - There can only be a single connection to any element
   */
-@deprecated("Form-based dependencies will be removed in 1.3. Please migrate to the new Dependency API.", "1.2")
+//@deprecated("Form-based dependencies will be removed in 1.3. Please migrate to the new Dependency API.", "1.2")
 final case object MidForm extends CircuitForm(1) {
   val outputSuffix: String = ".mid.fir"
 }
@@ -154,7 +154,7 @@ final case object MidForm extends CircuitForm(1) {
   *  - All aggregate types (vector/bundle) must have been removed
   *  - All implicit truncations must be made explicit
   */
-@deprecated("Form-based dependencies will be removed in 1.3. Please migrate to the new Dependency API.", "1.2")
+//@deprecated("Form-based dependencies will be removed in 1.3. Please migrate to the new Dependency API.", "1.2")
 final case object LowForm extends CircuitForm(0) {
   val outputSuffix: String = ".lo.fir"
 }
@@ -170,7 +170,7 @@ final case object LowForm extends CircuitForm(0) {
   * TODO(azidar): Replace with PreviousForm, which more explicitly encodes
   * this requirement.
   */
-@deprecated("Form-based dependencies will be removed in 1.3. Please migrate to the new Dependency API.", "1.2")
+//@deprecated("Form-based dependencies will be removed in 1.3. Please migrate to the new Dependency API.", "1.2")
 final case object UnknownForm extends CircuitForm(-1) {
   override def compare(that: CircuitForm): Int = { sys.error("Illegal to compare UnknownForm"); 0 }
 
@@ -184,16 +184,18 @@ trait Transform extends TransformLike[CircuitState] with DependencyAPI[Transform
   /** A convenience function useful for debugging and error messages */
   def name: String = this.getClass.getName
   /** The [[firrtl.CircuitForm]] that this transform requires to operate on */
-  @deprecated(
-    "InputForm/OutputForm will be removed in 1.3. Use DependencyAPI methods (prerequisites, dependents, invalidates)",
-    "1.2")
-  def inputForm: CircuitForm
+  @deprecatedOverriding(
+    "inputForm will be removed in 1.4, please follow migration instructions: https://gist.github.com/azidar/2595584157adb2228ef40d1e643e8ffd",
+    "1.2"
+  )
+  def inputForm: CircuitForm = UnknownForm
 
   /** The [[firrtl.CircuitForm]] that this transform outputs */
-  @deprecated(
-    "InputForm/OutputForm will be removed in 1.3. Use DependencyAPI methods (prerequisites, dependents, invalidates)",
-    "1.2")
-  def outputForm: CircuitForm
+  @deprecatedOverriding(
+    "outputForm will be removed in 1.4, please follow migration instructions: https://gist.github.com/azidar/2595584157adb2228ef40d1e643e8ffd",
+    "1.2"
+  )
+  def outputForm: CircuitForm = UnknownForm
 
   /** Perform the transform, encode renaming with RenameMap, and can
     *   delete annotations
