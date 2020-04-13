@@ -540,8 +540,8 @@ final class RenameMap private (
     */
   private def completeRename(from: CompleteTarget, tos: Seq[CompleteTarget]): Unit = {
     from match {
-      case ast@ModuleTarget(cir, mod) if cir == mod && tos.collect { case i: InstanceTarget => i }.nonEmpty =>
-          throw IllegalRenameException(s"Cannot rename AST $ast to InstanceTargets: $tos")
+      case ModuleTarget(cir, mod) if cir == mod && tos.collectFirst { case i: InstanceTarget => i }.nonEmpty =>
+          throw IllegalRenameException(s"Cannot rename AST $from to InstanceTargets: $tos")
       case _ =>
     }
     tos.foreach{recordSensitivity(from, _)}
