@@ -279,10 +279,7 @@ class EliminateTargetPaths extends Transform {
     //  ~Top|Top/foo:Bar___Top_foo
     val newModuleNameMapping = newModule2Original ++ previouslyDeduped.flatMap {
       case (current: IsModule, (orig: ModuleTarget, idx)) =>
-        renameMap.get(current) match {
-          case Some(Seq(ModuleTarget(_, m))) => Some(m -> orig.name)
-          case _ => None
-        }
+        renameMap.get(current).collect { case Seq(ModuleTarget(_, m)) => m -> orig.name }
     }
 
     val renamedCircuit = renameModules(newCircuitGC, newModuleNameMapping, renamedModuleMap)
