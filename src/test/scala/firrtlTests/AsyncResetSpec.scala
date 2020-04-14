@@ -257,18 +257,6 @@ class AsyncResetSpec extends FirrtlFlatSpec {
       )
     fixedResult should containLine ("always @(posedge clock or posedge reset) begin")
     fixedResult should containLine ("r <= -2'sh2;")
-
-    val intervalResult = compileBody(s"""
-        |input clock : Clock
-        |input reset : AsyncReset
-        |input x : Interval[0, 4].0
-        |output z : Interval[0, 4].0
-        |reg r : Interval[0, 4].0, clock with : (reset => (reset, asInterval(UInt(0), 0, 0, 0)))
-        |r <= x
-        |z <= r""".stripMargin
-      )
-    intervalResult should containLine ("always @(posedge clock or posedge reset) begin")
-    intervalResult should containLine ("r <= 4'sh0;")
   }
 
   "CheckResets" should "NOT raise StackOverflow Exception on Combinational Loops (should be caught by firrtl.transforms.CheckCombLoops)" in {
