@@ -128,6 +128,24 @@ class ZeroWidthTests extends FirrtlFlatSpec {
         |    node z = add(x, UInt<1>(0))""".stripMargin
       (parse(exec(input)).serialize) should be (parse(check).serialize)
   }
+  "Reg of Vec reset by zero-width wire" should "work" in {
+    val input =
+      """circuit RegTester :
+        |  module RegTester :
+        |    input clock : Clock
+        |    input reset : UInt<1>
+        |    output out : UInt[1]
+        |    wire a : UInt<0>[1]
+        |    a[0] <= UInt<0>(0)
+        |    reg myReg : UInt<2>[1], clock with : (reset => (reset, a))
+        |    out <= myReg""".stripMargin
+    val check =
+      """circuit Top :
+        |  module Top :
+        |    output out_0 : UInt<2>
+        |    out_0 <= myReg
+        |""".stripMargin
+  }
   "Expression in cat with type <0>" should "be removed" in {
     val input =
       """circuit Top :
@@ -234,6 +252,22 @@ class ZeroWidthVerilog extends FirrtlFlatSpec {
          |    input y: UInt<0>
          |    output x: UInt<3>
          |    x <= y""".stripMargin
+    val check =
+      """module Top(
+        |  output  [2:0] x
+        |);
+        |  assign x = 3'h0;
+        |endmodule
+        |""".stripMargin.split("\n") map normalized
+    executeTest(input, check, compiler)
+  }
+  "Zero width literals" should " be supported" in {
+    val compiler = new VerilogCompiler
+    val input =
+      """circuit Top :
+         |  module Top :
+         |    output x: UInt<3>
+         |    x <= UInt<0>(0)""".stripMargin
     val check =
       """module Top(
         |  output  [2:0] x
