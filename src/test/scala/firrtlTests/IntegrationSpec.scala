@@ -67,6 +67,11 @@ class RocketDeadCodeEliminationTest extends DeadCodeEliminationEquivTest("Rocket
 class RocketConstantPropagationTest extends ConstantPropagationEquivTest("RocketCore", "/regress")
 class RocketLowFirrtlOptimizationTest extends LowFirrtlOptimizationEquivTest("RocketCore", "/regress")
 
+class OpsCommonSubexprEliminationTest extends CommonSubexprEliminationEquivTest("Ops", "/regress")
+class OpsDeadCodeEliminationTest extends DeadCodeEliminationEquivTest("Ops", "/regress")
+class OpsConstantPropagationTest extends ConstantPropagationEquivTest("Ops", "/regress")
+class OpsLowFirrtlOptimizationTest extends LowFirrtlOptimizationEquivTest("Ops", "/regress")
+
 class FPUCommonSubexprEliminationTest extends CommonSubexprEliminationEquivTest("FPU", "/regress")
 class FPUDeadCodeEliminationTest extends DeadCodeEliminationEquivTest("FPU", "/regress")
 class FPUConstantPropagationTest extends ConstantPropagationEquivTest("FPU", "/regress")
