@@ -71,12 +71,16 @@ trait DependencyManager[A, B <: TransformLike[A] with DependencyAPI[B]] extends 
   /** Implicit conversion from B to Dependency */
   private implicit def oToD(b: B): Dependency[B] = Dependency.fromTransform(b)
 
+  private sealed trait Direction
+  private case object Forward extends Direction
+  private case object Backward extends Direction
+
   /** Modified breadth-first search that supports multiple starting nodes and a custom extractor that can be used to
     * generate/filter the edges to explore. Additionally, this will include edges to previously discovered nodes.
     */
   private def bfs( start: LinkedHashSet[Dependency[B]],
                    blacklist: LinkedHashSet[Dependency[B]],
-                   extractor: B => Set[Dependency[B]] ): LinkedHashMap[B, LinkedHashSet[B]] = {
+                   extractor: B => Set[(Dependency[B], Direction)] ): LinkedHashMap[B, LinkedHashSet[B]] = {
 
     val (queue, edges) = {
       val a: Queue[Dependency[B]]                    = Queue(start.toSeq:_*)
@@ -87,7 +91,7 @@ trait DependencyManager[A, B <: TransformLike[A] with DependencyAPI[B]] extends 
 
     while (queue.nonEmpty) {
       val u: Dependency[B] = queue.dequeue
-      for (v <- extractor(dependencyToObject(u))) {
+      for ((v, dir) <- extractor(dependencyToObject(u))) {
         if (!blacklist.contains(v) && !edges.contains(v)) {
           queue.enqueue(v)
         }
@@ -96,7 +100,10 @@ trait DependencyManager[A, B <: TransformLike[A] with DependencyAPI[B]] extends 
           edges(obj) = LinkedHashSet.empty
           dependencyToObject += (v -> obj)
         }
-        edges(dependencyToObject(u)) = edges(dependencyToObject(u)) + dependencyToObject(v)
+        dir match {
+          case Forward => edges(dependencyToObject(u)) = edges(dependencyToObject(u)) + dependencyToObject(v)
+          case Backward => edges(dependencyToObject(v)) = edges(dependencyToObject(v)) + dependencyToObject(u)
+        }
       }
     }
 
@@ -114,7 +121,9 @@ trait DependencyManager[A, B <: TransformLike[A] with DependencyAPI[B]] extends 
     val edges = bfs(
       start = _targets &~ _currentState,
       blacklist = _currentState,
-      extractor = (p: B) => new LinkedHashSet[Dependency[B]]() ++ p.prerequisites &~ _currentState)
+      extractor = (p: B) => (new LinkedHashSet[Dependency[B]]() ++ p.prerequisites &~ _currentState).map(_ -> Forward) ++
+        (new LinkedHashSet[Dependency[B]]() ++ p.dependents &~ _currentState).map(_ -> Backward)
+    )
     DiGraph(edges)
   }
 
@@ -162,7 +171,7 @@ trait DependencyManager[A, B <: TransformLike[A] with DependencyAPI[B]] extends 
         blacklist = _currentState,
 
         /* Explore all invalidated transforms **EXCEPT** the current transform! */
-        extractor = (p: B) => v.filter(p.invalidates).map(oToD(_)).toSet - oToD(p)))
+        extractor = (p: B) => (v.filter(p.invalidates).map(oToD(_)).toSet - oToD(p)).map(_ -> Forward)))
       .reverse
   }
 

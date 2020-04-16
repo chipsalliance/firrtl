@@ -110,6 +110,10 @@ trait DependencyAPI[A <: DependencyAPI[A]] { this: TransformLike[_] =>
   private[options] lazy val _optionalPrerquisites: LinkedHashSet[Dependency[A]] =
     new LinkedHashSet() ++ optionalPrerequisites.toSet
 
+  def dependents: Seq[Dependency[A]] = Seq.empty
+  private[options] lazy val _dependents: LinkedHashSet[Dependency[A]] =
+    new LinkedHashSet() ++ dependents.toSet
+
   /** All transforms that must run ''after'' this transform, but only if a prerequisite of another transform.
     *
     * ''This is a means of prerequisite injection into some other transform.'' Normally a transform will define its own
