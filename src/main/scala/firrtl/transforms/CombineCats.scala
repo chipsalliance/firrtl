@@ -9,6 +9,7 @@ import firrtl.WrappedExpression._
 import firrtl.annotations.NoTargetAnnotation
 import firrtl.options.PreservesAll
 import firrtl.options.Dependency
+import firrtl.stage.CircuitPhase
 
 import scala.collection.mutable
 
@@ -53,7 +54,7 @@ object CombineCats {
   * Use [[MaxCatLenAnnotation]] to limit the number of elements that can be concatenated.
   * The default maximum number of elements is 10.
   */
-class CombineCats extends Transform with PreservesAll[Transform] {
+class CombineCats extends Transform with PreservesAll[CircuitPhase] {
   def inputForm: LowForm.type = LowForm
   def outputForm: LowForm.type = LowForm
 

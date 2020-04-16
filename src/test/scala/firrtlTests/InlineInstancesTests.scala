@@ -559,7 +559,7 @@ class InlineInstancesTests extends LowTransformSpec {
 
     val state = CircuitState(parse(input), ChirrtlForm, Seq(inline("Inline")))
     val manager = new TransformManager(Seq(Dependency[InlineInstances], Dependency(ResolveKinds)))
-    val result = manager.execute(state)
+    val result = manager.transform(state)
 
     result shouldNot containTree { case WRef("i_a", _, PortKind, _) => true }
     result should    containTree { case WRef("i_a", _, WireKind, _) => true }

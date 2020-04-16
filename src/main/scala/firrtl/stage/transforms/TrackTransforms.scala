@@ -5,11 +5,12 @@ package firrtl.stage.transforms
 import firrtl.{AnnotationSeq, CircuitState, Transform}
 import firrtl.annotations.NoTargetAnnotation
 import firrtl.options.{Dependency, DependencyManagerException}
+import firrtl.stage.CircuitPhase
 
-case class TransformHistoryAnnotation(history: Seq[Transform], state: Set[Transform]) extends NoTargetAnnotation {
+case class TransformHistoryAnnotation(history: Seq[CircuitPhase], state: Set[CircuitPhase]) extends NoTargetAnnotation {
 
-  def add(transform: Transform,
-          invalidates: (Transform) => Boolean = (a: Transform) => false): TransformHistoryAnnotation =
+  def add(transform: CircuitPhase,
+          invalidates: (CircuitPhase) => Boolean = (a: CircuitPhase) => false): TransformHistoryAnnotation =
     this.copy(
       history = transform +: this.history,
       state = (this.state + transform).filterNot(invalidates)
@@ -19,14 +20,14 @@ case class TransformHistoryAnnotation(history: Seq[Transform], state: Set[Transf
 
 object TransformHistoryAnnotation {
 
-  def apply(transform: Transform): TransformHistoryAnnotation = TransformHistoryAnnotation(
+  def apply(transform: CircuitPhase): TransformHistoryAnnotation = TransformHistoryAnnotation(
     history = Seq(transform),
     state = Set(transform)
   )
 
 }
 
-class TrackTransforms(val underlying: Transform) extends Transform with WrappedTransform {
+class TrackTransforms(val underlying: CircuitPhase) extends CircuitPhase with WrappedTransform {
 
   private def updateState(annotations: AnnotationSeq): AnnotationSeq = {
     var foundAnnotation = false
@@ -43,10 +44,10 @@ class TrackTransforms(val underlying: Transform) extends Transform with WrappedT
     }
   }
 
-  override def execute(c: CircuitState): CircuitState = {
+  override def transform(c: CircuitState): CircuitState = {
     val state = c.annotations
       .collectFirst{ case TransformHistoryAnnotation(_, state) => state }
-      .getOrElse(Set.empty[Transform])
+      .getOrElse(Set.empty[CircuitPhase])
       .map(Dependency.fromTransform(_))
 
     if (!trueUnderlying.prerequisites.toSet.subsetOf(state)) {
@@ -64,6 +65,6 @@ class TrackTransforms(val underlying: Transform) extends Transform with WrappedT
 
 object TrackTransforms {
 
-  def apply(a: Transform): Transform = new TrackTransforms(a)
+  def apply(a: CircuitPhase) = new TrackTransforms(a)
 
 }

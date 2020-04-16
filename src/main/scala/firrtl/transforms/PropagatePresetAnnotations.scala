@@ -7,6 +7,7 @@ import firrtl.PrimOps._
 import firrtl.annotations._
 import firrtl.ir.{AsyncResetType, _}
 import firrtl.options.{Dependency, PreservesAll}
+import firrtl.stage.CircuitPhase
 
 import scala.collection.mutable
 
@@ -36,7 +37,7 @@ object PropagatePresetAnnotations {
   *
   * @note This pass must run before InlineCastsTransform
   */
-class PropagatePresetAnnotations extends Transform with PreservesAll[Transform] {
+class PropagatePresetAnnotations extends Transform with PreservesAll[CircuitPhase] {
   def inputForm = UnknownForm
   def outputForm = UnknownForm
 

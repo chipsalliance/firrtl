@@ -5,6 +5,7 @@ package firrtl.checks
 import firrtl._
 import firrtl.options.{Dependency, PreservesAll}
 import firrtl.passes.{Errors, PassException}
+import firrtl.stage.CircuitPhase
 import firrtl.ir._
 import firrtl.Utils.isCast
 import firrtl.traversals.Foreachers._
@@ -28,7 +29,7 @@ object CheckResets {
 // Must run after ExpandWhens
 // Requires
 //   - static single connections of ground types
-class CheckResets extends Transform with PreservesAll[Transform] {
+class CheckResets extends Transform with PreservesAll[CircuitPhase] {
   def inputForm: CircuitForm = MidForm
   def outputForm: CircuitForm = MidForm
 

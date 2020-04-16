@@ -7,8 +7,9 @@ import firrtl.ir._
 import firrtl.Utils._
 import firrtl.Mappers._
 import firrtl.options.{Dependency, PreservesAll}
+import firrtl.stage.CircuitPhase
 
-object InferTypes extends Pass with PreservesAll[Transform] {
+object InferTypes extends Pass with PreservesAll[CircuitPhase] {
 
   override val prerequisites = Dependency(ResolveKinds) +: firrtl.stage.Forms.WorkingIR
 
@@ -88,7 +89,7 @@ object InferTypes extends Pass with PreservesAll[Transform] {
   }
 }
 
-object CInferTypes extends Pass with PreservesAll[Transform] {
+object CInferTypes extends Pass with PreservesAll[CircuitPhase] {
 
   override val prerequisites = firrtl.stage.Forms.ChirrtlForm
 

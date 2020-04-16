@@ -7,7 +7,7 @@ import org.scalatest.{FlatSpec, Matchers}
 import firrtl._
 import firrtl.passes
 import firrtl.options.Dependency
-import firrtl.stage.{Forms, TransformManager}
+import firrtl.stage.{CircuitPhase, Forms, TransformManager}
 import firrtl.transforms.IdentityTransform
 
 sealed trait PatchAction { val line: Int }
@@ -108,10 +108,10 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
       passes.SplitExpressions)
   }
 
-  def compare(a: Seq[Transform], b: TransformManager, patches: Seq[PatchAction] = Seq.empty): Unit = {
+  def compare(a: Seq[CircuitPhase], b: TransformManager, patches: Seq[PatchAction] = Seq.empty): Unit = {
     info(s"""Transform Order:\n${b.prettyPrint("    ")}""")
 
-    val m = new scala.collection.mutable.HashMap[Int, Seq[Dependency[Transform]]].withDefault(_ => Seq.empty)
+    val m = new scala.collection.mutable.HashMap[Int, Seq[Dependency[CircuitPhase]]].withDefault(_ => Seq.empty)
     a.map(Dependency.fromTransform).zipWithIndex.foreach{ case (t, idx) => m(idx) = Seq(t) }
 
     patches.foreach {

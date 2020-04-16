@@ -11,6 +11,7 @@ import firrtl.annotations._
 import firrtl.constraint.{ConstraintSolver, IsMax}
 import firrtl.ir._
 import firrtl.options.{Dependency, PreservesAll}
+import firrtl.stage.CircuitPhase
 
 object InferWidths {
   def apply(): InferWidths = new InferWidths()
@@ -60,7 +61,7 @@ case class WidthGeqConstraintAnnotation(loc: ReferenceTarget, exp: ReferenceTarg
   *
   * Uses firrtl.constraint package to infer widths
   */
-class InferWidths extends Transform with ResolvedAnnotationPaths with PreservesAll[Transform] {
+class InferWidths extends Transform with ResolvedAnnotationPaths with PreservesAll[CircuitPhase] {
 
   override val prerequisites =
     Seq( Dependency(passes.ResolveKinds),

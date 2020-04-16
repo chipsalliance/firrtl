@@ -6,6 +6,7 @@ package passes
 import firrtl.{SystemVerilogEmitter, VerilogEmitter}
 import firrtl.ir._
 import firrtl.options.{Dependency, PreservesAll}
+import firrtl.stage.CircuitPhase
 import firrtl.Mappers._
 import firrtl.Utils.{kind, flow, get_info}
 
@@ -14,7 +15,7 @@ import scala.collection.mutable
 
 // Splits compound expressions into simple expressions
 //  and named intermediate nodes
-object SplitExpressions extends Pass with PreservesAll[Transform] {
+object SplitExpressions extends Pass with PreservesAll[CircuitPhase] {
 
   override val prerequisites = firrtl.stage.Forms.LowForm ++
     Seq( Dependency(firrtl.passes.RemoveValidIf),

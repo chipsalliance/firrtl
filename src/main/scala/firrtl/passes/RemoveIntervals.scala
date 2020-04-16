@@ -9,6 +9,7 @@ import firrtl.Mappers._
 import Implicits.{bigint2WInt}
 import firrtl.constraint.IsKnown
 import firrtl.options.{Dependency, PreservesAll}
+import firrtl.stage.CircuitPhase
 
 import scala.math.BigDecimal.RoundingMode._
 
@@ -36,7 +37,7 @@ class WrapWithRemainder(info: Info, mname: String, wrap: DoPrim)
   *      c. replace with SIntType
   * 3) Run InferTypes
   */
-class RemoveIntervals extends Pass with PreservesAll[Transform] {
+class RemoveIntervals extends Pass with PreservesAll[CircuitPhase] {
 
   override val prerequisites =
     Seq( Dependency(PullMuxes),

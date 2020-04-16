@@ -4,13 +4,14 @@ import firrtl.PrimOps._
 import firrtl.Utils.{BoolType, error, zero}
 import firrtl.ir._
 import firrtl.options.{PreservesAll, Dependency}
+import firrtl.stage.CircuitPhase
 import firrtl.transforms.ConstantPropagation
-import firrtl.{Transform, bitWidth}
+import firrtl.bitWidth
 import firrtl.Mappers._
 
 // Replace shr by amount >= arg width with 0 for UInts and MSB for SInts
 // TODO replace UInt with zero-width wire instead
-object Legalize extends Pass with PreservesAll[Transform] {
+object Legalize extends Pass with PreservesAll[CircuitPhase] {
 
   override val prerequisites = firrtl.stage.Forms.MidForm :+ Dependency(LowerTypes)
 

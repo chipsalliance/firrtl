@@ -11,6 +11,7 @@ import firrtl.Utils.{toTarget, throwInternalError}
 import firrtl.options.Dependency
 import firrtl.passes.{Pass, PassException, InferTypes}
 import firrtl.graph.MutableDiGraph
+import firrtl.stage.CircuitPhase
 
 import scala.collection.mutable
 import scala.util.Try
@@ -122,7 +123,7 @@ class InferResets extends Transform {
          Dependency(passes.ResolveFlows),
          Dependency[passes.InferWidths] ) ++ stage.Forms.WorkingIR
 
-  override def invalidates(a: Transform): Boolean = a match {
+  override def invalidates(a: CircuitPhase): Boolean = a match {
     case _: checks.CheckResets | passes.CheckTypes => true
     case _                                         => false
   }

@@ -9,8 +9,9 @@ import firrtl.annotations.{CircuitTarget, ModuleTarget, ReferenceTarget, Target}
 import firrtl.constraint.ConstraintSolver
 import firrtl.Transform
 import firrtl.options.{Dependency, PreservesAll}
+import firrtl.stage.CircuitPhase
 
-class InferBinaryPoints extends Pass with PreservesAll[Transform] {
+class InferBinaryPoints extends Pass with PreservesAll[CircuitPhase] {
 
   override val prerequisites =
     Seq( Dependency(ResolveKinds),

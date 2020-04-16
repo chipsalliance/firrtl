@@ -7,6 +7,7 @@ import firrtl.ir._
 import firrtl.Mappers._
 import firrtl.constraint.{IsFloor, IsKnown, IsMul}
 import firrtl.options.{Dependency, PreservesAll}
+import firrtl.stage.CircuitPhase
 import firrtl.Transform
 
 /** Replaces IntervalType with SIntType, three AST walks:
@@ -20,7 +21,7 @@ import firrtl.Transform
   *      c. replace with SIntType
   * 3) Run InferTypes
   */
-class TrimIntervals extends Pass with PreservesAll[Transform] {
+class TrimIntervals extends Pass with PreservesAll[CircuitPhase] {
 
   override val prerequisites =
     Seq( Dependency(ResolveKinds),

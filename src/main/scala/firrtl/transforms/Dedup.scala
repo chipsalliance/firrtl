@@ -10,6 +10,7 @@ import firrtl.annotations._
 import firrtl.passes.{InferTypes, MemPortUtils}
 import firrtl.Utils.throwInternalError
 import firrtl.options.{HasShellOptions, PreservesAll, ShellOption}
+import firrtl.stage.CircuitPhase
 
 // Datastructures
 import scala.collection.mutable
@@ -39,7 +40,7 @@ case object NoCircuitDedupAnnotation extends NoTargetAnnotation with HasShellOpt
   * Specifically, the restriction of instance loops must have been checked, or else this pass can
   *  infinitely recurse
   */
-class DedupModules extends Transform with PreservesAll[Transform] {
+class DedupModules extends Transform with PreservesAll[CircuitPhase] {
   def inputForm: CircuitForm = HighForm
   def outputForm: CircuitForm = HighForm
 

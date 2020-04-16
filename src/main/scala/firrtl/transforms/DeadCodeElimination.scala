@@ -11,6 +11,7 @@ import firrtl.Mappers._
 import firrtl.Utils.{throwInternalError, kind}
 import firrtl.MemoizedHash._
 import firrtl.options.{Dependency, PreservesAll, RegisteredTransform, ShellOption}
+import firrtl.stage.CircuitPhase
 
 import collection.mutable
 
@@ -30,7 +31,7 @@ import collection.mutable
   * remove such modules, use the [[NoDedupAnnotation]] to prevent deduplication.
   */
 class DeadCodeElimination extends Transform with ResolvedAnnotationPaths with RegisteredTransform
-    with PreservesAll[Transform] {
+    with PreservesAll[CircuitPhase] {
   def inputForm = UnknownForm
   def outputForm = UnknownForm
 

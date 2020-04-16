@@ -7,11 +7,12 @@ import firrtl.ir._
 import firrtl.{WSubAccess, WSubIndex}
 import firrtl.Mappers._
 import firrtl.options.{Dependency, PreservesAll}
+import firrtl.stage.CircuitPhase
 
 /** Replaces constant [[firrtl.WSubAccess]] with [[firrtl.WSubIndex]]
   * TODO Fold in to High Firrtl Const Prop
   */
-object ReplaceAccesses extends Pass with PreservesAll[Transform] {
+object ReplaceAccesses extends Pass with PreservesAll[CircuitPhase] {
 
   override val prerequisites = firrtl.stage.Forms.Deduped :+ Dependency(PullMuxes)
 

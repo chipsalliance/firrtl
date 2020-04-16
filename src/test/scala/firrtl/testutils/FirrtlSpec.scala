@@ -14,7 +14,7 @@ import firrtl._
 import firrtl.ir._
 import firrtl.Parser.UseInfo
 import firrtl.options.{Dependency, PreservesAll}
-import firrtl.stage.{FirrtlFileAnnotation, InfoModeAnnotation, RunFirrtlTransformAnnotation}
+import firrtl.stage.{CircuitPhase, FirrtlFileAnnotation, InfoModeAnnotation, RunFirrtlTransformAnnotation}
 import firrtl.analyses.{GetNamespace, ModuleNamespaceAnnotation}
 import firrtl.annotations._
 import firrtl.transforms.{DontTouchAnnotation, NoDedupAnnotation, RenameModules}
@@ -33,7 +33,7 @@ class CheckLowForm extends SeqTransform {
 
 case class RenameTopAnnotation(newTopName: String) extends NoTargetAnnotation
 
-object RenameTop extends Transform with PreservesAll[Transform] {
+object RenameTop extends Transform with PreservesAll[CircuitPhase] {
   def inputForm = UnknownForm
   def outputForm = UnknownForm
 

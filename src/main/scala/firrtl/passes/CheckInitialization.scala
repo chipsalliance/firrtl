@@ -7,6 +7,7 @@ import firrtl.ir._
 import firrtl.Utils._
 import firrtl.traversals.Foreachers._
 import firrtl.options.PreservesAll
+import firrtl.stage.CircuitPhase
 
 import annotation.tailrec
 
@@ -15,7 +16,7 @@ import annotation.tailrec
   * @note This pass looks for [[firrtl.WVoid]]s left behind by [[ExpandWhens]]
   * @note Assumes single connection (ie. no last connect semantics)
   */
-object CheckInitialization extends Pass with PreservesAll[Transform] {
+object CheckInitialization extends Pass with PreservesAll[CircuitPhase] {
 
   override val prerequisites = firrtl.stage.Forms.Resolved
 

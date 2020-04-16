@@ -10,8 +10,9 @@ import firrtl.traversals.Foreachers._
 import firrtl.WrappedType._
 import firrtl.constraint.{Constraint, IsKnown}
 import firrtl.options.{Dependency, PreservesAll}
+import firrtl.stage.CircuitPhase
 
-object CheckTypes extends Pass with PreservesAll[Transform] {
+object CheckTypes extends Pass with PreservesAll[CircuitPhase] {
 
   override val prerequisites = Dependency(InferTypes) +: firrtl.stage.Forms.WorkingIR
 

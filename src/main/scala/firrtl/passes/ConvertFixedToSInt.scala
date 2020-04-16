@@ -9,10 +9,11 @@ import firrtl._
 import firrtl.Mappers._
 import firrtl.Utils.{sub_type, module_type, field_type, max, throwInternalError}
 import firrtl.options.{Dependency, PreservesAll}
+import firrtl.stage.CircuitPhase
 
 /** Replaces FixedType with SIntType, and correctly aligns all binary points
   */
-object ConvertFixedToSInt extends Pass with PreservesAll[Transform] {
+object ConvertFixedToSInt extends Pass with PreservesAll[CircuitPhase] {
 
   override val prerequisites =
     Seq( Dependency(PullMuxes),

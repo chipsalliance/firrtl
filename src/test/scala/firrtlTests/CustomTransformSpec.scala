@@ -7,7 +7,7 @@ import firrtl._
 import firrtl.passes.Pass
 import firrtl.ir._
 
-import firrtl.stage.{FirrtlSourceAnnotation, FirrtlStage, Forms, RunFirrtlTransformAnnotation}
+import firrtl.stage.{CircuitPhase, FirrtlSourceAnnotation, FirrtlStage, Forms, RunFirrtlTransformAnnotation}
 import firrtl.options.Dependency
 import firrtl.transforms.IdentityTransform
 
@@ -153,7 +153,7 @@ class CustomTransformSpec extends FirrtlFlatSpec {
 
     val custom = Dependency[IdentityLowForm]
 
-    def testOrder(emitter: Dependency[Emitter], preceders: Seq[Dependency[Transform]]): Unit = {
+    def testOrder(emitter: Dependency[Emitter], preceders: Seq[Dependency[CircuitPhase]]): Unit = {
       info(s"""${preceders.map(_.getSimpleName).mkString(" -> ")} -> ${custom.getSimpleName} -> ${emitter.getSimpleName} ok!""")
 
       val compiler = new firrtl.stage.transforms.Compiler(Seq(custom, emitter))

@@ -6,9 +6,10 @@ import firrtl._
 import firrtl.ir._
 import firrtl.Mappers._
 import firrtl.options.{Dependency, PreservesAll}
+import firrtl.stage.CircuitPhase
 import Utils.throwInternalError
 
-object CInferMDir extends Pass with PreservesAll[Transform] {
+object CInferMDir extends Pass with PreservesAll[CircuitPhase] {
 
   override val prerequisites = firrtl.stage.Forms.ChirrtlForm :+ Dependency(CInferTypes)
 

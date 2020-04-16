@@ -13,6 +13,7 @@ import firrtl.Utils.throwInternalError
 import firrtl.graph._
 import firrtl.analyses.InstanceGraph
 import firrtl.options.{Dependency, PreservesAll, RegisteredTransform, ShellOption}
+import firrtl.stage.CircuitPhase
 
 /*
  * A case class that represents a net in the circuit. This is
@@ -94,7 +95,7 @@ case class CombinationalPath(sink: ReferenceTarget, sources: Seq[ReferenceTarget
   * @note The pass relies on ExtModulePathAnnotations to find loops through ExtModules
   * @note The pass will throw exceptions on "false paths"
   */
-class CheckCombLoops extends Transform with RegisteredTransform with PreservesAll[Transform] {
+class CheckCombLoops extends Transform with RegisteredTransform with PreservesAll[CircuitPhase] {
   def inputForm = LowForm
   def outputForm = LowForm
 

@@ -8,6 +8,7 @@ import firrtl.Mappers._
 import firrtl.traversals.Foreachers._
 import firrtl.WrappedExpression.we
 import firrtl.options.Dependency
+import firrtl.stage.CircuitPhase
 
 import scala.collection.{immutable, mutable}
 
@@ -27,7 +28,7 @@ object RemoveReset extends Transform {
 
   override val dependents = Seq.empty
 
-  override def invalidates(a: Transform): Boolean = a match {
+  override def invalidates(a: CircuitPhase): Boolean = a match {
     case firrtl.passes.ResolveFlows => true
     case _                          => false
   }

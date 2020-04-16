@@ -7,6 +7,7 @@ import firrtl.ir._
 import firrtl._
 import firrtl.Mappers._
 import firrtl.options.Dependency
+import firrtl.stage.CircuitPhase
 
 object ZeroWidth extends Transform {
 
@@ -19,7 +20,7 @@ object ZeroWidth extends Transform {
          Dependency[ExpandWhensAndCheck],
          Dependency(ConvertFixedToSInt) ) ++ firrtl.stage.Forms.Deduped
 
-  override def invalidates(a: Transform): Boolean = a match {
+  override def invalidates(a: CircuitPhase): Boolean = a match {
     case InferTypes => true
     case _          => false
   }

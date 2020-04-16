@@ -10,6 +10,7 @@ import firrtl.traversals.Foreachers._
 import firrtl.WrappedExpression._
 import firrtl.graph.{MutableDiGraph, CyclicException}
 import firrtl.options.{Dependency, PreservesAll}
+import firrtl.stage.CircuitPhase
 
 import scala.collection.mutable
 import scala.util.{Try, Success, Failure}
@@ -20,7 +21,7 @@ import scala.util.{Try, Success, Failure}
   *  wires have multiple connections that may be impossible to order in a
   *  flow-foward way
   */
-class RemoveWires extends Transform with PreservesAll[Transform] {
+class RemoveWires extends Transform with PreservesAll[CircuitPhase] {
   def inputForm = LowForm
   def outputForm = LowForm
 

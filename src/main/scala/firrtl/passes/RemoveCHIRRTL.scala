@@ -9,12 +9,13 @@ import firrtl.ir._
 import firrtl.Utils._
 import firrtl.Mappers._
 import firrtl.options.{Dependency, PreservesAll}
+import firrtl.stage.CircuitPhase
 
 case class MPort(name: String, clk: Expression)
 case class MPorts(readers: ArrayBuffer[MPort], writers: ArrayBuffer[MPort], readwriters: ArrayBuffer[MPort])
 case class DataRef(exp: Expression, male: String, female: String, mask: String, rdwrite: Boolean)
 
-object RemoveCHIRRTL extends Transform with PreservesAll[Transform] {
+object RemoveCHIRRTL extends Transform with PreservesAll[CircuitPhase] {
 
   override val prerequisites = firrtl.stage.Forms.ChirrtlForm ++
     Seq( Dependency(passes.CInferTypes),

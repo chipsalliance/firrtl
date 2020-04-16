@@ -7,8 +7,9 @@ import firrtl.ir._
 import firrtl.Utils._
 import firrtl.traversals.Foreachers._
 import firrtl.options.{Dependency, PreservesAll}
+import firrtl.stage.CircuitPhase
 
-object CheckFlows extends Pass with PreservesAll[Transform] {
+object CheckFlows extends Pass with PreservesAll[CircuitPhase] {
 
   override val prerequisites = Dependency(passes.ResolveFlows) +: firrtl.stage.Forms.WorkingIR
 
@@ -118,4 +119,3 @@ object CheckFlows extends Pass with PreservesAll[Transform] {
     c
   }
 }
-

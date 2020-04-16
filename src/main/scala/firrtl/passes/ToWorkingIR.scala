@@ -3,10 +3,11 @@ package firrtl.passes
 import firrtl.ir._
 import firrtl.Mappers._
 import firrtl.options.{PreservesAll}
-import firrtl.{Transform, UnknownFlow, UnknownKind, WDefInstance, WRef, WSubAccess, WSubField, WSubIndex}
+import firrtl.{UnknownFlow, UnknownKind, WDefInstance, WRef, WSubAccess, WSubField, WSubIndex}
+import firrtl.stage.CircuitPhase
 
 // These should be distributed into separate files
-object ToWorkingIR extends Pass with PreservesAll[Transform] {
+object ToWorkingIR extends Pass with PreservesAll[CircuitPhase] {
 
   override val prerequisites = firrtl.stage.Forms.MinimalHighForm
 

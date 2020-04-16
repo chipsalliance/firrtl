@@ -10,8 +10,9 @@ import firrtl.Utils._
 import firrtl.constraint.IsKnown
 import firrtl.annotations.{CircuitTarget, ModuleTarget, Target, TargetToken}
 import firrtl.options.{Dependency, PreservesAll}
+import firrtl.stage.CircuitPhase
 
-object CheckWidths extends Pass with PreservesAll[Transform] {
+object CheckWidths extends Pass with PreservesAll[CircuitPhase] {
 
   override val prerequisites = Dependency[passes.InferWidths] +: firrtl.stage.Forms.WorkingIR
 

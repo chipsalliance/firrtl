@@ -15,7 +15,8 @@ import firrtl.WrappedExpression._
 import Utils._
 import MemPortUtils.{memPortField, memType}
 import firrtl.options.{HasShellOptions, ShellOption, StageUtils, PhaseException, Unserializable}
-import firrtl.stage.{RunFirrtlTransformAnnotation, TransformManager}
+import firrtl.stage.{CircuitPhase, RunFirrtlTransformAnnotation, TransformManager}
+import firrtl.stage.transforms.{CatchCustomTransformExceptions, UpdateAnnotations}
 // Datastructures
 import scala.collection.mutable.ArrayBuffer
 
@@ -176,7 +177,7 @@ case class VRandom(width: BigInt) extends Expression {
   def foreachWidth(f: Width => Unit): Unit = Unit
 }
 
-class VerilogEmitter extends SeqTransform with Emitter {
+class VerilogEmitter extends Emitter {
   def inputForm = LowForm
   def outputForm = LowForm
 
@@ -451,10 +452,10 @@ class VerilogEmitter extends SeqTransform with Emitter {
       case m: Module => new VerilogRender(m, moduleMap)(writer)
     }
   }
-  
-  /** 
+
+  /**
     * Store Emission option per Target
-    * Guarantee only one emission option per Target 
+    * Guarantee only one emission option per Target
     */
   private[firrtl] class EmissionOptionMap[V <: EmissionOption](val df : V) extends collection.mutable.HashMap[ReferenceTarget, V] {
     override def default(key: ReferenceTarget) = df
@@ -462,11 +463,11 @@ class VerilogEmitter extends SeqTransform with Emitter {
       if (this.contains(elem._1))
         throw EmitterException(s"Multiple EmissionOption for the target ${elem._1} (${this(elem._1)} ; ${elem._2})")
       super.+=(elem)
-    } 
+    }
   }
-  
+
   /** Provide API to retrieve EmissionOptions based on the provided [[AnnotationSeq]]
-    * 
+    *
     * @param annotations : AnnotationSeq to be searched for EmissionOptions
     *
     */
@@ -480,16 +481,16 @@ class VerilogEmitter extends SeqTransform with Emitter {
 
     def getRegisterEmissionOption(target: ReferenceTarget): RegisterEmissionOption =
       registerEmissionOption(target)
-      
+
     def getWireEmissionOption(target: ReferenceTarget): WireEmissionOption =
       wireEmissionOption(target)
-      
+
     def getPortEmissionOption(target: ReferenceTarget): PortEmissionOption =
       portEmissionOption(target)
-      
+
     def getNodeEmissionOption(target: ReferenceTarget): NodeEmissionOption =
       nodeEmissionOption(target)
-      
+
     def getConnectEmissionOption(target: ReferenceTarget): ConnectEmissionOption =
       connectEmissionOption(target)
 
@@ -582,9 +583,9 @@ class VerilogEmitter extends SeqTransform with Emitter {
     def declareVectorType(b: String, n: String, tpe: Type, size: BigInt, info: Info, preset: Expression) = {
       declares += Seq(b, " ", tpe, " ", n, " [0:", bigIntToVLit(size - 1), "] = ", preset, ";", info)
     }
-    
+
     val moduleTarget = CircuitTarget(circuitName).module(m.name)
-      
+
     // declare with initial value
     def declare(b: String, n: String, t: Type, info: Info, preset: Expression) = t match {
       case tx: VectorType =>
@@ -592,7 +593,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
       case tx =>
         declares += Seq(b, " ", tx, " ", n, " = ", preset, ";", info)
     }
-    
+
     // original declare without initial value
     def declare(b: String, n: String, t: Type, info: Info) = t match {
       case tx: VectorType =>
@@ -1057,11 +1058,15 @@ class VerilogEmitter extends SeqTransform with Emitter {
     }
   }
 
-  /** Preamble for every emitted Verilog file */
-  def transforms = new TransformManager(firrtl.stage.Forms.VerilogOptimized, prerequisites).flattenedTransformOrder
+  lazy val transformManager = new TransformManager(firrtl.stage.Forms.VerilogOptimized, prerequisites) {
+    override val wrappers = Seq(
+      (a: CircuitPhase) => CatchCustomTransformExceptions(a),
+      (a: CircuitPhase) => UpdateAnnotations(a)
+    )
+  }
 
   def emit(state: CircuitState, writer: Writer): Unit = {
-    val cs = runTransforms(state)
+    val cs = transformManager.transform(state)
     val emissionOptions = new EmissionOptions(cs.annotations)
     val moduleMap = cs.circuit.modules.map(m => m.name -> m).toMap
     cs.circuit.modules.foreach {
@@ -1083,7 +1088,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
         Seq(EmittedVerilogCircuitAnnotation(EmittedVerilogCircuit(state.circuit.main, writer.toString, outputSuffix)))
 
       case EmitAllModulesAnnotation(a) if this.getClass == a =>
-        val cs = runTransforms(state)
+        val cs = transformManager.transform(state)
         val emissionOptions = new EmissionOptions(cs.annotations)
         val moduleMap = cs.circuit.modules.map(m => m.name -> m).toMap
 
@@ -1110,8 +1115,12 @@ class MinimumVerilogEmitter extends VerilogEmitter with Emitter {
 
   override val prerequisites = firrtl.stage.Forms.LowFormMinimumOptimized
 
-  override def transforms = new TransformManager(firrtl.stage.Forms.VerilogMinimumOptimized, prerequisites)
-    .flattenedTransformOrder
+  override lazy val transformManager = new TransformManager(firrtl.stage.Forms.VerilogMinimumOptimized, prerequisites) {
+    override val wrappers = Seq(
+      (a: CircuitPhase) => CatchCustomTransformExceptions(a),
+      (a: CircuitPhase) => UpdateAnnotations(a)
+    )
+  }
 
 }
 

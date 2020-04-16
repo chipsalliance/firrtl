@@ -5,6 +5,7 @@ import firrtl.ir._
 import firrtl.Mappers._
 import firrtl.options.{Dependency, PreservesAll}
 import firrtl._
+import firrtl.stage.CircuitPhase
 
 import scala.collection.mutable
 
@@ -18,7 +19,7 @@ import scala.collection.mutable
   *
   * @note The result of this pass is NOT legal Firrtl
   */
-object VerilogPrep extends Pass with PreservesAll[Transform] {
+object VerilogPrep extends Pass with PreservesAll[CircuitPhase] {
 
   override val prerequisites = firrtl.stage.Forms.LowFormMinimumOptimized ++
     Seq( Dependency[firrtl.transforms.BlackBoxSourceHelper],

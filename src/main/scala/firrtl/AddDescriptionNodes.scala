@@ -6,6 +6,7 @@ import firrtl.ir._
 import firrtl.annotations._
 import firrtl.Mappers._
 import firrtl.options.{Dependency, PreservesAll}
+import firrtl.stage.CircuitPhase
 
 case class DescriptionAnnotation(named: Named, description: String) extends Annotation {
   def update(renames: RenameMap): Seq[DescriptionAnnotation] = {
@@ -68,7 +69,7 @@ private case class DescribedMod(description: Description,
   * @note should only be used by VerilogEmitter, described nodes will
   *       break other transforms.
   */
-class AddDescriptionNodes extends Transform with PreservesAll[Transform] {
+class AddDescriptionNodes extends Transform with PreservesAll[CircuitPhase] {
   def inputForm = UnknownForm
   def outputForm = UnknownForm
 

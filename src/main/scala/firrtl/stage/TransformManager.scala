@@ -9,7 +9,7 @@ import TransformManager._
 object TransformManager {
 
   /** The type used to represent dependencies between [[Transform]]s */
-  type TransformDependency = Dependency[Transform]
+  type TransformDependency = Dependency[CircuitPhase]
 
 }
 
@@ -22,17 +22,11 @@ object TransformManager {
 class TransformManager(
   val targets: Seq[TransformDependency],
   val currentState: Seq[TransformDependency] = Seq.empty,
-  val knownObjects: Set[Transform] = Set.empty) extends Transform with DependencyManager[CircuitState, Transform] {
-
-  override def inputForm: CircuitForm = UnknownForm
-
-  override def outputForm: CircuitForm = UnknownForm
-
-  override def execute(state: CircuitState): CircuitState = transform(state)
+  val knownObjects: Set[CircuitPhase] = Set.empty) extends CircuitPhase with DependencyManager[CircuitState, CircuitPhase] {
 
   override protected def copy(
     a: Seq[TransformDependency],
     b: Seq[TransformDependency],
-    c: Set[Transform]) = new TransformManager(a, b, c)
+    c: Set[CircuitPhase]) = new TransformManager(a, b, c)
 
 }

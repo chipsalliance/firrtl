@@ -5,13 +5,12 @@ package firrtl.stage.transforms
 import firrtl.{AnnotationSeq, CircuitState, RenameMap, Transform, Utils}
 import firrtl.annotations.{Annotation, DeletedAnnotation, JsonProtocol}
 import firrtl.options.Translator
+import firrtl.stage.CircuitPhase
 
 import scala.collection.mutable
 
-class UpdateAnnotations(val underlying: Transform) extends Transform with WrappedTransform
+class UpdateAnnotations(val underlying: CircuitPhase) extends CircuitPhase with WrappedTransform
     with Translator[CircuitState, (CircuitState, CircuitState)] {
-
-  override def execute(c: CircuitState): CircuitState = underlying.transform(c)
 
   def aToB(a: CircuitState): (CircuitState, CircuitState) = (a, a)
 
@@ -34,7 +33,12 @@ class UpdateAnnotations(val underlying: Transform) extends Transform with Wrappe
     logger.info(s"======== Starting Transform $name ========")
 
     /* @todo: prepare should likely be factored out of this */
-    val (timeMillis, result) = Utils.time { execute( trueUnderlying.prepare(b._2) ) }
+    val (timeMillis, result) = Utils.time {
+      underlying match {
+        case a: Transform => a.transform(a.prepare(b._2))
+        case a            => a.transform(b._2)
+      }
+    }
 
     logger.info(s"""----------------------------${"-" * name.size}---------\n""")
     logger.info(f"Time: $timeMillis%.1f ms")
@@ -89,6 +93,6 @@ class UpdateAnnotations(val underlying: Transform) extends Transform with Wrappe
 
 object UpdateAnnotations {
 
-  def apply(a: Transform): UpdateAnnotations = new UpdateAnnotations(a)
+  def apply(a: CircuitPhase): UpdateAnnotations = new UpdateAnnotations(a)
 
 }

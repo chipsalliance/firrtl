@@ -5,6 +5,7 @@ import firrtl.ir._
 import firrtl.Mappers._
 import firrtl.options.{Dependency, PreservesAll}
 import firrtl.Utils.isCast
+import firrtl.stage.CircuitPhase
 
 // Fixup otherwise legal Verilog that lint tools and other tools don't like
 // Currently:
@@ -59,7 +60,7 @@ object LegalizeClocksTransform {
 }
 
 /** Ensure Clocks to be emitted are legal Verilog */
-class LegalizeClocksTransform extends Transform with PreservesAll[Transform] {
+class LegalizeClocksTransform extends Transform with PreservesAll[CircuitPhase] {
   def inputForm = UnknownForm
   def outputForm = UnknownForm
 

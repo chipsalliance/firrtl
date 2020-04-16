@@ -7,6 +7,7 @@ import firrtl.ir._
 import firrtl.PrimOps._
 import firrtl.Mappers._
 import firrtl.options.Dependency
+import firrtl.stage.CircuitPhase
 
 import scala.collection.mutable
 
@@ -26,7 +27,7 @@ object PadWidths extends Pass {
          Dependency[SystemVerilogEmitter],
          Dependency[VerilogEmitter] )
 
-  override def invalidates(a: Transform): Boolean = a match {
+  override def invalidates(a: CircuitPhase): Boolean = a match {
     case _: firrtl.transforms.ConstantPropagation | Legalize => true
     case _ => false
   }

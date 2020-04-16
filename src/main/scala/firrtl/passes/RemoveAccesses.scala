@@ -9,6 +9,7 @@ import firrtl.Mappers._
 import firrtl.Utils._
 import firrtl.WrappedExpression._
 import firrtl.options.Dependency
+import firrtl.stage.CircuitPhase
 
 import scala.collection.mutable
 
@@ -22,7 +23,7 @@ object RemoveAccesses extends Pass {
          Dependency(ReplaceAccesses),
          Dependency(ExpandConnects) ) ++ firrtl.stage.Forms.Deduped
 
-  override def invalidates(a: Transform): Boolean = a match {
+  override def invalidates(a: CircuitPhase): Boolean = a match {
     case Uniquify => true
     case _        => false
   }

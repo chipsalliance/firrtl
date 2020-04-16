@@ -9,6 +9,7 @@ import firrtl.ir._
 import firrtl.Utils._
 import firrtl.Mappers._
 import firrtl.options.Dependency
+import firrtl.stage.CircuitPhase
 
 import MemPortUtils.memType
 
@@ -38,7 +39,7 @@ object Uniquify extends Transform {
     Seq( Dependency(ResolveKinds),
          Dependency(InferTypes) ) ++ firrtl.stage.Forms.WorkingIR
 
-  override def invalidates(a: Transform): Boolean = a match {
+  override def invalidates(a: CircuitPhase): Boolean = a match {
     case ResolveKinds | InferTypes => true
     case _ => false
   }

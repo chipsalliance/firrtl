@@ -6,8 +6,9 @@ import firrtl._
 import firrtl.ir._
 import firrtl.Mappers._
 import firrtl.options.PreservesAll
+import firrtl.stage.CircuitPhase
 
-object ResolveKinds extends Pass with PreservesAll[Transform] {
+object ResolveKinds extends Pass with PreservesAll[CircuitPhase] {
 
   override val prerequisites = firrtl.stage.Forms.WorkingIR
 

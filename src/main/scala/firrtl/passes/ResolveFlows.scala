@@ -6,8 +6,9 @@ import firrtl._
 import firrtl.ir._
 import firrtl.Mappers._
 import firrtl.options.{Dependency, PreservesAll}
+import firrtl.stage.CircuitPhase
 
-object ResolveFlows extends Pass with PreservesAll[Transform] {
+object ResolveFlows extends Pass with PreservesAll[CircuitPhase] {
 
   override val prerequisites =
     Seq( Dependency(passes.ResolveKinds),

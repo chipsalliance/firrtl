@@ -8,6 +8,7 @@ import firrtl.ir._
 import firrtl.Utils._
 import MemPortUtils.memType
 import firrtl.Mappers._
+import firrtl.stage.CircuitPhase
 
 /** Removes all aggregate types from a [[firrtl.ir.Circuit]]
   *
@@ -30,7 +31,7 @@ object LowerTypes extends Transform {
 
   override val dependents = Seq.empty
 
-  override def invalidates(a: Transform): Boolean = a match {
+  override def invalidates(a: CircuitPhase): Boolean = a match {
     case ResolveKinds | InferTypes | ResolveFlows | _: InferWidths => true
     case _ => false
   }

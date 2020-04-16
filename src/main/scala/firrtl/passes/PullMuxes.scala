@@ -4,8 +4,9 @@ import firrtl.ir._
 import firrtl.Mappers._
 import firrtl.options.PreservesAll
 import firrtl.{Transform, WSubAccess, WSubField, WSubIndex}
+import firrtl.stage.CircuitPhase
 
-object PullMuxes extends Pass with PreservesAll[Transform] {
+object PullMuxes extends Pass with PreservesAll[CircuitPhase] {
 
   override val prerequisites = firrtl.stage.Forms.Deduped
 

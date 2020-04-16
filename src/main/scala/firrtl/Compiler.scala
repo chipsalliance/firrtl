@@ -13,6 +13,7 @@ import firrtl.ir.Circuit
 import firrtl.Utils.throwInternalError
 import firrtl.annotations.transforms.{EliminateTargetPaths, ResolvePaths}
 import firrtl.options.{DependencyAPI, Dependency, PreservesAll, StageUtils, TransformLike}
+import firrtl.stage.CircuitPhase
 import firrtl.stage.TransformManager.TransformDependency
 import firrtl.stage.transforms.CatchCustomTransformExceptions
 
@@ -180,20 +181,13 @@ final case object UnknownForm extends CircuitForm(-1) {
 // scalastyle:on magic.number
 
 /** The basic unit of operating on a Firrtl AST */
-trait Transform extends TransformLike[CircuitState] with DependencyAPI[Transform] {
+@deprecated("Migrate to 'CircuitPhase' and convert 'inputForm'/'outputForm' to Dependency API.", "1.3")
+trait Transform extends CircuitPhase {
 
-  /** A convenience function useful for debugging and error messages */
-  def name: String = this.getClass.getName
   /** The [[firrtl.CircuitForm]] that this transform requires to operate on */
-  @deprecated(
-    "InputForm/OutputForm will be removed in 1.3. Use DependencyAPI methods (prerequisites, dependents, invalidates)",
-    "1.2")
   def inputForm: CircuitForm
 
   /** The [[firrtl.CircuitForm]] that this transform outputs */
-  @deprecated(
-    "InputForm/OutputForm will be removed in 1.3. Use DependencyAPI methods (prerequisites, dependents, invalidates)",
-    "1.2")
   def outputForm: CircuitForm
 
   /** Perform the transform, encode renaming with RenameMap, and can
@@ -251,7 +245,7 @@ trait Transform extends TransformLike[CircuitState] with DependencyAPI[Transform
   private lazy val highOutputInvalidates = fullCompilerSet -- Forms.MinimalHighForm
   private lazy val midOutputInvalidates = fullCompilerSet -- Forms.MidForm
 
-  override def invalidates(a: Transform): Boolean = {
+  override def invalidates(a: CircuitPhase): Boolean = {
     (inputForm, outputForm) match {
       case (U, _) | (_, U)  => true  // invalidate everything
       case (i, o) if i >= o => false // invalidate nothing
@@ -348,6 +342,7 @@ trait Transform extends TransformLike[CircuitState] with DependencyAPI[Transform
   }
 }
 
+@deprecated("Use 'TransformManager' or run a sequence of 'CircuitPhase's. This will be removed in 1.4.", "1.3")
 trait SeqTransformBased {
   def transforms: Seq[Transform]
   protected def runTransforms(state: CircuitState): CircuitState =
@@ -355,6 +350,7 @@ trait SeqTransformBased {
 }
 
 /** For transformations that are simply a sequence of transforms */
+@deprecated("Use 'TransformManager' or run a sequence of 'CircuitPhase's. This will be removed in 1.4.", "1.3")
 abstract class SeqTransform extends Transform with SeqTransformBased {
   def execute(state: CircuitState): CircuitState = {
     /*
@@ -380,7 +376,7 @@ trait ResolvedAnnotationPaths {
 }
 
 /** Defines old API for Emission. Deprecated */
-trait Emitter extends Transform with PreservesAll[Transform] {
+trait Emitter extends Transform with PreservesAll[CircuitPhase] {
   @deprecated("Use emission annotations instead", "firrtl 1.0")
   def emit(state: CircuitState, writer: Writer): Unit
 

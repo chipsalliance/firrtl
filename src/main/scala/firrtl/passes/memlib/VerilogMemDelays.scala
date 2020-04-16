@@ -10,6 +10,7 @@ import firrtl.Mappers._
 import firrtl.traversals.Foreachers._
 import firrtl.transforms
 import firrtl.options.Dependency
+import firrtl.stage.CircuitPhase
 
 import MemPortUtils._
 import WrappedExpression._
@@ -174,7 +175,7 @@ object VerilogMemDelays extends Pass {
     Seq( Dependency[VerilogEmitter],
          Dependency[SystemVerilogEmitter] )
 
-  override def invalidates(a: Transform): Boolean = a match {
+  override def invalidates(a: CircuitPhase): Boolean = a match {
     case _: transforms.ConstantPropagation => true
     case _ => false
   }

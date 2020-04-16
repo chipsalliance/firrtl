@@ -7,6 +7,7 @@ import firrtl.Mappers._
 import firrtl.ir._
 import Utils.throwInternalError
 import firrtl.options.Dependency
+import firrtl.stage.CircuitPhase
 
 /** Remove [[firrtl.ir.ValidIf ValidIf]] and replace [[firrtl.ir.IsInvalid IsInvalid]] with a connection to zero */
 object RemoveValidIf extends Pass {
@@ -35,7 +36,7 @@ object RemoveValidIf extends Pass {
     Seq( Dependency[SystemVerilogEmitter],
          Dependency[VerilogEmitter] )
 
-  override def invalidates(a: Transform): Boolean = a match {
+  override def invalidates(a: CircuitPhase): Boolean = a match {
     case Legalize | _: firrtl.transforms.ConstantPropagation => true
     case _ => false
   }

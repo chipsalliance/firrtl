@@ -9,6 +9,7 @@ import firrtl.Mappers._
 import firrtl.PrimOps._
 import firrtl.WrappedExpression._
 import firrtl.options.Dependency
+import firrtl.stage.CircuitPhase
 
 import annotation.tailrec
 import collection.mutable
@@ -33,7 +34,7 @@ object ExpandWhens extends Pass {
          Dependency(RemoveAccesses),
          Dependency(Uniquify) ) ++ firrtl.stage.Forms.Resolved
 
-  override def invalidates(a: Transform): Boolean = a match {
+  override def invalidates(a: CircuitPhase): Boolean = a match {
     case CheckInitialization | ResolveKinds | InferTypes => true
     case _ => false
   }
@@ -311,7 +312,7 @@ class ExpandWhensAndCheck extends SeqTransform {
          Dependency(RemoveAccesses),
          Dependency(Uniquify) ) ++ firrtl.stage.Forms.Deduped
 
-  override def invalidates(a: Transform): Boolean = a match {
+  override def invalidates(a: CircuitPhase): Boolean = a match {
     case ResolveKinds | InferTypes | ResolveFlows | _: InferWidths => true
     case _ => false
   }

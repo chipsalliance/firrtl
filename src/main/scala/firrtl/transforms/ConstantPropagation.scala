@@ -14,6 +14,7 @@ import firrtl.graph.DiGraph
 import firrtl.analyses.InstanceGraph
 import firrtl.annotations.TargetToken.Ref
 import firrtl.options.Dependency
+import firrtl.stage.CircuitPhase
 
 import annotation.tailrec
 import collection.mutable
@@ -117,7 +118,7 @@ class ConstantPropagation extends Transform with ResolvedAnnotationPaths {
          Dependency[SystemVerilogEmitter],
          Dependency[VerilogEmitter] )
 
-  override def invalidates(a: Transform): Boolean = a match {
+  override def invalidates(a: CircuitPhase): Boolean = a match {
     case firrtl.passes.Legalize => true
     case _ => false
   }

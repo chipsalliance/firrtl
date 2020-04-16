@@ -7,6 +7,7 @@ import java.io.{File, FileNotFoundException, FileInputStream, FileOutputStream, 
 import firrtl._
 import firrtl.annotations._
 import firrtl.options.PreservesAll
+import firrtl.stage.CircuitPhase
 
 import scala.collection.immutable.ListSet
 
@@ -55,7 +56,7 @@ class BlackBoxNotFoundException(fileName: String, message: String) extends Firrt
   * will set the directory where the Verilog will be written.  This annotation is typically be
   * set by the execution harness, or directly in the tests
   */
-class BlackBoxSourceHelper extends firrtl.Transform with PreservesAll[Transform] {
+class BlackBoxSourceHelper extends firrtl.Transform with PreservesAll[CircuitPhase] {
   import BlackBoxSourceHelper._
   private val DefaultTargetDir = new File(".")
   override def inputForm: CircuitForm = LowForm

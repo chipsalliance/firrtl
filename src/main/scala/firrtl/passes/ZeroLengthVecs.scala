@@ -7,6 +7,7 @@ import firrtl.ir._
 import firrtl.Mappers._
 import firrtl.PrimOps._
 import firrtl.options.{Dependency, PreservesAll}
+import firrtl.stage.CircuitPhase
 
 /** Handles dynamic accesses to zero-length vectors.
   *
@@ -15,7 +16,7 @@ import firrtl.options.{Dependency, PreservesAll}
   * @note Removes attaches that become degenerate after zero-length-accessor removal
   * @note Replaces "source" references to elements of zero-length vectors with always-invalid validif
   */
-object ZeroLengthVecs extends Pass with PreservesAll[Transform] {
+object ZeroLengthVecs extends Pass with PreservesAll[CircuitPhase] {
   override val prerequisites =
     Seq( Dependency(PullMuxes),
          Dependency(ResolveKinds),

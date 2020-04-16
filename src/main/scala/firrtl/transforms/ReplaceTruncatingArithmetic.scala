@@ -8,6 +8,7 @@ import firrtl.Mappers._
 import firrtl.PrimOps._
 import firrtl.WrappedExpression._
 import firrtl.options.{Dependency, PreservesAll}
+import firrtl.stage.CircuitPhase
 
 import scala.collection.mutable
 
@@ -77,7 +78,7 @@ object ReplaceTruncatingArithmetic {
   * @note This replaces some FIRRTL primops with ops that are not actually legal FIRRTL. They are
   * useful for emission to languages that support non-expanding arithmetic (like Verilog)
   */
-class ReplaceTruncatingArithmetic extends Transform with PreservesAll[Transform] {
+class ReplaceTruncatingArithmetic extends Transform with PreservesAll[CircuitPhase] {
   def inputForm = UnknownForm
   def outputForm = UnknownForm
 

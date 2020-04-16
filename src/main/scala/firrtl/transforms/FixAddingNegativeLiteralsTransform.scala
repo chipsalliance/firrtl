@@ -7,7 +7,7 @@ import firrtl.ir._
 import firrtl.Mappers._
 import firrtl.options.{Dependency, PreservesAll}
 import firrtl.PrimOps.{Add, AsSInt, Sub, Tail}
-import firrtl.stage.Forms
+import firrtl.stage.{CircuitPhase, Forms}
 
 import scala.collection.mutable
 
@@ -107,7 +107,7 @@ object FixAddingNegativeLiterals {
   * the literal and thus not all expressions in the add are the same. This is fixed here when we directly
   * subtract the literal instead.
   */
-class FixAddingNegativeLiterals extends Transform with PreservesAll[Transform] {
+class FixAddingNegativeLiterals extends Transform with PreservesAll[CircuitPhase] {
   def inputForm = UnknownForm
   def outputForm = UnknownForm
 

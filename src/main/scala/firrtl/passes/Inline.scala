@@ -9,7 +9,7 @@ import firrtl.annotations._
 import firrtl.annotations.TargetToken.{Instance, OfModule}
 import firrtl.analyses.{InstanceGraph}
 import firrtl.graph.{DiGraph, MutableDiGraph}
-import firrtl.stage.RunFirrtlTransformAnnotation
+import firrtl.stage.{CircuitPhase, RunFirrtlTransformAnnotation}
 import firrtl.options.{RegisteredTransform, ShellOption}
 
 // Datastructures
@@ -29,7 +29,7 @@ class InlineInstances extends Transform with RegisteredTransform {
   def outputForm = LowForm
   private [firrtl] val inlineDelim: String = "_"
 
-  override def invalidates(a: Transform): Boolean = a == ResolveKinds
+  override def invalidates(a: CircuitPhase): Boolean = a == ResolveKinds
 
   val options = Seq(
     new ShellOption[Seq[String]](

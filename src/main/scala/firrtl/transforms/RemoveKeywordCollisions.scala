@@ -11,6 +11,7 @@ import firrtl.passes.{Uniquify, PassException}
 import firrtl.Utils.v_keywords
 import firrtl.Mappers._
 import firrtl.options.{Dependency, PreservesAll}
+import firrtl.stage.CircuitPhase
 
 import scala.collection.mutable
 
@@ -233,7 +234,7 @@ class RemoveKeywordCollisions(keywords: Set[String]) extends Transform {
 }
 
 /** Transform that removes collisions with Verilog keywords */
-class VerilogRename extends RemoveKeywordCollisions(v_keywords) with PreservesAll[Transform] {
+class VerilogRename extends RemoveKeywordCollisions(v_keywords) with PreservesAll[CircuitPhase] {
 
   override val prerequisites = firrtl.stage.Forms.LowFormMinimumOptimized ++
     Seq( Dependency[BlackBoxSourceHelper],

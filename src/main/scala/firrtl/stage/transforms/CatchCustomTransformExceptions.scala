@@ -3,10 +3,11 @@
 package firrtl.stage.transforms
 
 import firrtl.{CircuitState, CustomTransformException, Transform}
+import firrtl.stage.CircuitPhase
 
-class CatchCustomTransformExceptions(val underlying: Transform) extends Transform with WrappedTransform {
+class CatchCustomTransformExceptions(val underlying: CircuitPhase) extends CircuitPhase with WrappedTransform {
 
-  override def execute(c: CircuitState): CircuitState = try {
+  override def transform(c: CircuitState): CircuitState = try {
     underlying.transform(c)
   } catch {
     case e: Exception if CatchCustomTransformExceptions.isCustomTransform(trueUnderlying) => throw CustomTransformException(e)
@@ -16,7 +17,7 @@ class CatchCustomTransformExceptions(val underlying: Transform) extends Transfor
 
 object CatchCustomTransformExceptions {
 
-  private[firrtl] def isCustomTransform(xform: Transform): Boolean = {
+  private[firrtl] def isCustomTransform(xform: CircuitPhase): Boolean = {
     def getTopPackage(pack: java.lang.Package): java.lang.Package =
       Package.getPackage(pack.getName.split('.').head)
     // We use the top package of the Driver to get the top firrtl package
@@ -25,6 +26,6 @@ object CatchCustomTransformExceptions {
     }.getOrElse(true)
   }
 
-  def apply(a: Transform): CatchCustomTransformExceptions = new CatchCustomTransformExceptions(a)
+  def apply(a: CircuitPhase): CatchCustomTransformExceptions = new CatchCustomTransformExceptions(a)
 
 }

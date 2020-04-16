@@ -7,7 +7,7 @@ import scala.collection.mutable
 
 import firrtl.{Compiler => _, _}
 import firrtl.options.{Phase, PreservesAll}
-import firrtl.stage.{CompilerAnnotation, FirrtlCircuitAnnotation, Forms, RunFirrtlTransformAnnotation}
+import firrtl.stage.{CircuitPhase, CompilerAnnotation, FirrtlCircuitAnnotation, Forms, RunFirrtlTransformAnnotation}
 import firrtl.stage.phases.Compiler
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
@@ -161,9 +161,10 @@ class CompilerSpec extends AnyFlatSpec with Matchers {
 
 object CompilerSpec {
 
-  private[CompilerSpec] val globalState: mutable.Queue[Class[_ <: Transform]] = mutable.Queue.empty[Class[_ <: Transform]]
+  private[CompilerSpec] val globalState: mutable.Queue[Class[_ <: CircuitPhase]] =
+    mutable.Queue.empty[Class[_ <: CircuitPhase]]
 
-  class LoggingTransform extends Transform with PreservesAll[Transform] {
+  class LoggingTransform extends Transform with PreservesAll[CircuitPhase] {
     override def inputForm = UnknownForm
     override def outputForm = UnknownForm
     override def prerequisites = Forms.HighForm
