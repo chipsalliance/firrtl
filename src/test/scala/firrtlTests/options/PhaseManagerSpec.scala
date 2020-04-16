@@ -173,7 +173,7 @@ object InvertedAnalysisFixture {
 
 }
 
-object DependentsFixture {
+object OptionalDependentsFixture {
 
   class First extends IdentityPhase {
     override def invalidates(phase: Phase): Boolean = false
@@ -191,6 +191,19 @@ object DependentsFixture {
   class Custom extends IdentityPhase {
     override val prerequisites = Seq(Dependency[First])
     override val optionalDependents = Seq(Dependency[Second])
+    override def invalidates(phase: Phase): Boolean = false
+  }
+
+}
+
+object DependentsFixture {
+
+  class Target extends IdentityPhase {
+    override val dependents = Seq(Dependency[Dependent])
+    override def invalidates(phase: Phase): Boolean = false
+  }
+
+  class Dependent extends IdentityPhase {
     override def invalidates(phase: Phase): Boolean = false
   }
 
@@ -525,8 +538,8 @@ class PhaseManagerSpec extends AnyFlatSpec with Matchers {
   }
 
   /** This test shows how the optionalDependents member can be used to run one transform before another. */
-  it should "handle a custom Phase with a dependent" in {
-    val f = DependentsFixture
+  it should "handle a custom Phase with an optional dependent" in {
+    val f = OptionalDependentsFixture
 
     info("without the custom transform it runs: First -> Second")
     val pm = new PhaseManager(Seq(Dependency[f.Second]))
@@ -537,9 +550,23 @@ class PhaseManagerSpec extends AnyFlatSpec with Matchers {
     val pmCustom = new PhaseManager(Seq(Dependency[f.Custom], Dependency[f.Second]))
     val orderCustom = Seq(classOf[f.First], classOf[f.Custom], classOf[f.Second])
 
-    writeGraphviz(pmCustom, "test_run_dir/PhaseManagerSpec/SingleDependent")
+    writeGraphviz(pmCustom, "test_run_dir/PhaseManagerSpec/SingleOptionalDependent")
 
     pmCustom.flattenedTransformOrder.map(_.getClass) should be (orderCustom)
+  }
+
+  it should "add a dependent Phase not in the current state" in {
+    val f = DependentsFixture
+    val pm = new PhaseManager(Seq(Dependency[f.Target]))
+    val order = Seq(classOf[f.Target], classOf[f.Dependent])
+    pm.flattenedTransformOrder.map(_.getClass) should be (order)
+  }
+
+  it should "NOT add a dependent Phase already in the current state" in {
+    val f = DependentsFixture
+    val pm = new PhaseManager(Seq(Dependency[f.Target]), Seq(Dependency[f.Dependent]))
+    val order = Seq(classOf[f.Target])
+    pm.flattenedTransformOrder.map(_.getClass) should be (order)
   }
 
   it should "handle chained invalidation" in {
