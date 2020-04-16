@@ -32,7 +32,7 @@ class RemoveWires extends Transform with PreservesAll[Transform] {
 
   override val optionalPrerequisites = Seq(Dependency[checks.CheckResets])
 
-  override val dependents = Seq.empty
+  override val optionalDependents = Seq.empty
 
   // Extract all expressions that are references to a Node, Wire, or Reg
   // Since we are operating on LowForm, they can only be WRefs

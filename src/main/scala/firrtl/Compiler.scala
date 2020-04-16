@@ -185,13 +185,13 @@ trait Transform extends TransformLike[CircuitState] with DependencyAPI[Transform
   def name: String = this.getClass.getName
   /** The [[firrtl.CircuitForm]] that this transform requires to operate on */
   @deprecated(
-    "InputForm/OutputForm will be removed in 1.3. Use DependencyAPI methods (prerequisites, dependents, invalidates)",
+    "InputForm/OutputForm will be removed in 1.3. Use DependencyAPI methods (prerequisites, optionalDependents, invalidates)",
     "1.2")
   def inputForm: CircuitForm
 
   /** The [[firrtl.CircuitForm]] that this transform outputs */
   @deprecated(
-    "InputForm/OutputForm will be removed in 1.3. Use DependencyAPI methods (prerequisites, dependents, invalidates)",
+    "InputForm/OutputForm will be removed in 1.3. Use DependencyAPI methods (prerequisites, optionalDependents, invalidates)",
     "1.2")
   def outputForm: CircuitForm
 
@@ -224,7 +224,7 @@ trait Transform extends TransformLike[CircuitState] with DependencyAPI[Transform
 
   private lazy val fullCompilerSet = new mutable.LinkedHashSet[Dependency[Transform]] ++ Forms.VerilogOptimized
 
-  override def dependents: Seq[Dependency[Transform]] = {
+  override def optionalDependents: Seq[Dependency[Transform]] = {
     val lowEmitters = Dependency[LowFirrtlEmitter] :: Dependency[VerilogEmitter] :: Dependency[MinimumVerilogEmitter] ::
       Dependency[SystemVerilogEmitter] :: Nil
 

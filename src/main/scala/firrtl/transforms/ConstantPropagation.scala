@@ -111,7 +111,7 @@ class ConstantPropagation extends Transform with ResolvedAnnotationPaths {
 
   override val optionalPrerequisites = Seq.empty
 
-  override val dependents =
+  override val optionalDependents =
     Seq( Dependency(firrtl.passes.memlib.VerilogMemDelays),
          Dependency(firrtl.passes.SplitExpressions),
          Dependency[SystemVerilogEmitter],

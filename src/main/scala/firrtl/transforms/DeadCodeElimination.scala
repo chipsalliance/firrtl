@@ -44,7 +44,7 @@ class DeadCodeElimination extends Transform with ResolvedAnnotationPaths with Re
 
   override val optionalPrerequisites = Seq.empty
 
-  override val dependents =
+  override val optionalDependents =
     Seq( Dependency[firrtl.transforms.BlackBoxSourceHelper],
          Dependency[firrtl.transforms.ReplaceTruncatingArithmetic],
          Dependency[firrtl.transforms.FlattenRegUpdate],

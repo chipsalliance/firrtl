@@ -285,7 +285,7 @@ object CheckHighForm extends Pass with CheckHighFormLike with PreservesAll[Trans
 
   override val prerequisites = firrtl.stage.Forms.WorkingIR
 
-  override val dependents =
+  override val optionalDependents =
     Seq( Dependency(passes.ResolveKinds),
          Dependency(passes.InferTypes),
          Dependency(passes.Uniquify),

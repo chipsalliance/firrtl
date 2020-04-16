@@ -39,7 +39,7 @@ class CheckResets extends Transform with PreservesAll[Transform] {
 
   override val optionalPrerequisites = Seq(Dependency[firrtl.transforms.CheckCombLoops])
 
-  override val dependents = Seq.empty
+  override val optionalDependents = Seq.empty
 
   import CheckResets._
 

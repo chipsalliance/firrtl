@@ -22,7 +22,7 @@ trait DependencyManager[A, B <: TransformLike[A] with DependencyAPI[B]] extends 
 
   override lazy val prerequisites = currentState
 
-  override lazy val dependents = Seq.empty
+  override lazy val optionalDependents = Seq.empty
 
   override def invalidates(a: B): Boolean = (_currentState &~ _targets)(oToD(a))
 
@@ -119,11 +119,11 @@ trait DependencyManager[A, B <: TransformLike[A] with DependencyAPI[B]] extends 
   }
 
   /** A directed graph consisting of prerequisites derived from only those transforms which are supposed to run. This
-    * pulls in dependents for transforms which are not in the target set.
+    * pulls in optionalDependents for transforms which are not in the target set.
     */
-  private lazy val dependentsGraph: DiGraph[B] = {
+  private lazy val optionalDependentsGraph: DiGraph[B] = {
     val v = new LinkedHashSet() ++ prerequisiteGraph.getVertices
-    DiGraph(new LinkedHashMap() ++ v.map(vv => vv -> (v & (vv.dependents.toSet).map(dToO)))).reverse
+    DiGraph(new LinkedHashMap() ++ v.map(vv => vv -> (v & (vv.optionalDependents.toSet).map(dToO)))).reverse
   }
 
   /** A directed graph of *optional* prerequisites. Each optional prerequisite is promoted to a full prerequisite if the
@@ -141,7 +141,7 @@ trait DependencyManager[A, B <: TransformLike[A] with DependencyAPI[B]] extends 
     val edges = {
       val x = new LinkedHashMap ++ _targets
         .map(dependencyToObject)
-        .map{ a => a -> prerequisiteGraph.getVertices.filter(a._dependents(_)) }
+        .map{ a => a -> prerequisiteGraph.getVertices.filter(a._optionalDependents(_)) }
       x
         .values
         .reduce(_ ++ _)
@@ -150,8 +150,8 @@ trait DependencyManager[A, B <: TransformLike[A] with DependencyAPI[B]] extends 
     DiGraph(edges).reverse
   }
 
-  /** A directed graph consisting of all prerequisites, including prerequisites derived from dependents */
-  lazy val dependencyGraph: DiGraph[B] = prerequisiteGraph + dependentsGraph + optionalPrerequisitesGraph
+  /** A directed graph consisting of all prerequisites, including prerequisites derived from optionalDependents */
+  lazy val dependencyGraph: DiGraph[B] = prerequisiteGraph + optionalDependentsGraph + optionalPrerequisitesGraph
 
   /** A directed graph consisting of invalidation edges */
   lazy val invalidateGraph: DiGraph[B] = {
@@ -176,7 +176,7 @@ trait DependencyManager[A, B <: TransformLike[A] with DependencyAPI[B]] extends 
 
   /** An ordering of [[firrtl.options.TransformLike TransformLike]]s that causes the requested [[DependencyManager.targets
     * targets]] to be executed starting from the [[DependencyManager.currentState currentState]]. This ordering respects
-    * prerequisites, dependents, and invalidates of all constituent [[firrtl.options.TransformLike TransformLike]]s.
+    * prerequisites, optionalDependents, and invalidates of all constituent [[firrtl.options.TransformLike TransformLike]]s.
     * This uses an algorithm that attempts to reduce the number of re-lowerings due to invalidations. Re-lowerings are
     * implemented as new [[DependencyManager]]s.
     * @throws DependencyManagerException if a cycle exists in either the [[DependencyManager.dependencyGraph
@@ -197,7 +197,7 @@ trait DependencyManager[A, B <: TransformLike[A] with DependencyAPI[B]] extends 
           v.map(vv => vv -> (new LinkedHashSet() ++ (dependencyGraph.getEdges(vv).toSeq.sortWith(cmp))))
       }
 
-      cyclePossible("prerequisites/dependents", dependencyGraph) {
+      cyclePossible("prerequisites/optionalDependents", dependencyGraph) {
         DiGraph(edges)
           .linearize
           .reverse
@@ -207,7 +207,7 @@ trait DependencyManager[A, B <: TransformLike[A] with DependencyAPI[B]] extends 
 
     /* [todo] Seq is inefficient here, but Array has ClassTag problems. Use something else? */
     val (s, l) = sorted.foldLeft((_currentState, Seq[B]())){ case ((state, out), in) =>
-      /* The prerequisites are both prerequisites AND dependents. */
+      /* The prerequisites are both prerequisites AND optionalDependents. */
       val prereqs = new LinkedHashSet() ++ in.prerequisites ++
         dependencyGraph.getEdges(in).toSeq.map(oToD) ++
         otherDependents.getEdges(in).toSeq.map(oToD)
@@ -265,7 +265,7 @@ trait DependencyManager[A, B <: TransformLike[A] with DependencyAPI[B]] extends 
   /** Get a name of some [[firrtl.options.TransformLike TransformLike]] */
   private def transformName(transform: B, suffix: String = ""): String = s""""${transform.name}$suffix""""
 
-  /** Convert all prerequisites, dependents, and invalidates to a Graphviz representation.
+  /** Convert all prerequisites, optionalDependents, and invalidates to a Graphviz representation.
     * @param file the name of the output file
     */
   def dependenciesToGraphviz: String = {
@@ -289,14 +289,14 @@ trait DependencyManager[A, B <: TransformLike[A] with DependencyAPI[B]] extends 
 
     val connections =
       Seq( (prerequisiteGraph, "edge []"),
-           (dependentsGraph,   """edge [style=bold color="#4292c6"]"""),
+           (optionalDependentsGraph,   """edge [style=bold color="#4292c6"]"""),
            (invalidateGraph,   """edge [minlen=2 style=dashed constraint=false color="#fb6a4a"]"""),
            (optionalPrerequisitesGraph, """edge [style=dotted color="#a1d99b"]""") )
         .flatMap{ case (a, b) => toGraphviz(a, b) }
         .mkString("\n")
 
     val nodes =
-      (prerequisiteGraph + dependentsGraph + invalidateGraph + otherDependents)
+      (prerequisiteGraph + optionalDependentsGraph + invalidateGraph + otherDependents)
         .getVertices
         .map(v => s"""${transformName(v)} [label="${v.name}"]""")
 

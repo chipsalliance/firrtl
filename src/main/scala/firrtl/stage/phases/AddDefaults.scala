@@ -14,7 +14,7 @@ class AddDefaults extends Phase with PreservesAll[Phase] {
 
   override val prerequisites = Seq.empty
 
-  override val dependents = Seq.empty
+  override val optionalDependents = Seq.empty
 
   /** Append any missing default annotations to an annotation sequence */
   def transform(annotations: AnnotationSeq): AnnotationSeq = {

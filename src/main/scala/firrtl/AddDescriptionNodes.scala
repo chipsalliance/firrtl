@@ -87,7 +87,7 @@ class AddDescriptionNodes extends Transform with PreservesAll[Transform] {
 
   override val optionalPrerequisites = firrtl.stage.Forms.LowFormOptimized
 
-  override val dependents = Seq.empty
+  override val optionalDependents = Seq.empty
 
   def onStmt(compMap: Map[String, Seq[String]])(stmt: Statement): Statement = {
     stmt.map(onStmt(compMap)) match {

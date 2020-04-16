@@ -20,7 +20,7 @@ class WriteOutputAnnotations extends Phase with PreservesAll[Phase] {
          Dependency[AddDefaults],
          Dependency[Checks] )
 
-  override val dependents = Seq.empty
+  override val optionalDependents = Seq.empty
 
   /** Write the input [[AnnotationSeq]] to a fie. */
   def transform(annotations: AnnotationSeq): AnnotationSeq = {

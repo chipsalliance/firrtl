@@ -190,7 +190,7 @@ object DependentsFixture {
    */
   class Custom extends IdentityPhase {
     override val prerequisites = Seq(Dependency[First])
-    override val dependents = Seq(Dependency[Second])
+    override val optionalDependents = Seq(Dependency[Second])
     override def invalidates(phase: Phase): Boolean = false
   }
 
@@ -255,7 +255,7 @@ object UnrelatedFixture {
 
   class B6Sub extends B6 {
     override val prerequisites = Seq(Dependency[B6])
-    override val dependents = Seq(Dependency[B7])
+    override val optionalDependents = Seq(Dependency[B7])
   }
 
   class B6_0 extends B6Sub
@@ -276,7 +276,7 @@ object UnrelatedFixture {
   class B6_15 extends B6Sub
 
   class B8Dep extends B8 {
-    override val dependents = Seq(Dependency[B8])
+    override val optionalDependents = Seq(Dependency[B8])
   }
 
   class B8_0 extends B8Dep
@@ -304,12 +304,12 @@ object CustomAfterOptimizationFixture {
 
   class OptMinimum extends IdentityPhase with PreservesAll[Phase] {
     override val prerequisites = Seq(Dependency[Root])
-    override val dependents = Seq(Dependency[AfterOpt])
+    override val optionalDependents = Seq(Dependency[AfterOpt])
   }
 
   class OptFull extends IdentityPhase with PreservesAll[Phase] {
     override val prerequisites = Seq(Dependency[Root], Dependency[OptMinimum])
-    override val dependents = Seq(Dependency[AfterOpt])
+    override val optionalDependents = Seq(Dependency[AfterOpt])
   }
 
   class AfterOpt extends IdentityPhase with PreservesAll[Phase]
@@ -324,7 +324,7 @@ object CustomAfterOptimizationFixture {
 
   class Custom extends IdentityPhase with PreservesAll[Phase] {
     override val prerequisites = Seq(Dependency[Root], Dependency[AfterOpt])
-    override val dependents = Seq(Dependency[DoneMinimum], Dependency[DoneFull])
+    override val optionalDependents = Seq(Dependency[DoneMinimum], Dependency[DoneFull])
   }
 
 }
@@ -352,7 +352,7 @@ object OptionalPrerequisitesFixture {
   class Custom extends IdentityPhase with PreservesAll[Phase] {
     override val prerequisites = Seq(Dependency[Root])
     override val optionalPrerequisites = Seq(Dependency[OptMinimum], Dependency[OptFull])
-    override val dependents = Seq(Dependency[DoneMinimum], Dependency[DoneFull])
+    override val optionalDependents = Seq(Dependency[DoneMinimum], Dependency[DoneFull])
   }
 
 }
@@ -524,7 +524,7 @@ class PhaseManagerSpec extends AnyFlatSpec with Matchers {
     pm.flattenedTransformOrder.map(_.getClass) should be (order)
   }
 
-  /** This test shows how the dependents member can be used to run one transform before another. */
+  /** This test shows how the optionalDependents member can be used to run one transform before another. */
   it should "handle a custom Phase with a dependent" in {
     val f = DependentsFixture
 
@@ -578,7 +578,7 @@ class PhaseManagerSpec extends AnyFlatSpec with Matchers {
            Dependency[f.B14],
            Dependency[f.B15] )
     /** A sequence of custom transforms that should all run after B6 and before B7. This exercises correct ordering of the
-      * prerequisiteGraph and dependentsGraph.
+      * prerequisiteGraph and optionalDependentsGraph.
       */
     val prerequisiteTargets =
       Seq( Dependency[f.B6_0],
@@ -597,7 +597,7 @@ class PhaseManagerSpec extends AnyFlatSpec with Matchers {
            Dependency[f.B6_13],
            Dependency[f.B6_14],
            Dependency[f.B6_15] )
-    /** A sequence of transforms that are invalidated by B0 and only define dependents on B8. This exercises the ordering
+    /** A sequence of transforms that are invalidated by B0 and only define optionalDependents on B8. This exercises the ordering
       * defined by "otherDependents".
       */
     val current =

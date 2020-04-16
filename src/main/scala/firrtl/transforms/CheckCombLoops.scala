@@ -105,7 +105,7 @@ class CheckCombLoops extends Transform with RegisteredTransform with PreservesAl
 
   override val optionalPrerequisites = Seq.empty
 
-  override val dependents = Seq.empty
+  override val optionalDependents = Seq.empty
 
   import CheckCombLoops._
 

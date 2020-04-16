@@ -45,7 +45,7 @@ class DedupModules extends Transform with PreservesAll[Transform] {
 
   override val prerequisites = firrtl.stage.Forms.Resolved
 
-  override val dependents = Seq.empty
+  override val optionalDependents = Seq.empty
 
   /** Deduplicate a Circuit
     * @param state Input Firrtl AST

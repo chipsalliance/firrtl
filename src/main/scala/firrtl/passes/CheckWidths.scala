@@ -15,7 +15,7 @@ object CheckWidths extends Pass with PreservesAll[Transform] {
 
   override val prerequisites = Dependency[passes.InferWidths] +: firrtl.stage.Forms.WorkingIR
 
-  override val dependents = Seq(Dependency[transforms.InferResets])
+  override val optionalDependents = Seq(Dependency[transforms.InferResets])
 
   /** The maximum allowed width for any circuit element */
   val MaxWidth = 1000000

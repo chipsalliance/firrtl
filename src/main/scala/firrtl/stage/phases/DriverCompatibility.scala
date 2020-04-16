@@ -126,7 +126,7 @@ object DriverCompatibility {
 
     override val prerequisites = Seq(Dependency[AddImplicitFirrtlFile])
 
-    override val dependents = Seq(Dependency[FirrtlPhase], Dependency[FirrtlStage])
+    override val optionalDependents = Seq(Dependency[FirrtlPhase], Dependency[FirrtlStage])
 
     /** Try to add an [[firrtl.options.InputAnnotationFileAnnotation InputAnnotationFileAnnotation]] implicitly specified by
       * an [[AnnotationSeq]]. */
@@ -165,7 +165,7 @@ object DriverCompatibility {
 
     override val prerequisites = Seq.empty
 
-    override val dependents = Seq(Dependency[FirrtlPhase], Dependency[FirrtlStage])
+    override val optionalDependents = Seq(Dependency[FirrtlPhase], Dependency[FirrtlStage])
 
     /** Try to add a [[FirrtlFileAnnotation]] implicitly specified by an [[AnnotationSeq]]. */
     def transform(annotations: AnnotationSeq): AnnotationSeq = {
@@ -196,7 +196,7 @@ object DriverCompatibility {
 
     override val prerequisites = Seq.empty
 
-    override val dependents = Seq(Dependency[FirrtlPhase], Dependency[FirrtlStage])
+    override val optionalDependents = Seq(Dependency[FirrtlPhase], Dependency[FirrtlStage])
 
     /** Add one [[EmitAnnotation]] foreach [[CompilerAnnotation]]. */
     def transform(annotations: AnnotationSeq): AnnotationSeq = {
@@ -222,7 +222,7 @@ object DriverCompatibility {
 
     override val prerequisites = Seq(Dependency[AddImplicitFirrtlFile])
 
-    override val dependents = Seq(Dependency[FirrtlPhase], Dependency[FirrtlStage])
+    override val optionalDependents = Seq(Dependency[FirrtlPhase], Dependency[FirrtlStage])
 
     /** Add an [[OutputFileAnnotation]] derived from a [[TopNameAnnotation]] if needed. */
     def transform(annotations: AnnotationSeq): AnnotationSeq = {

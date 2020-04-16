@@ -15,7 +15,7 @@ object CheckTypes extends Pass with PreservesAll[Transform] {
 
   override val prerequisites = Dependency(InferTypes) +: firrtl.stage.Forms.WorkingIR
 
-  override val dependents =
+  override val optionalDependents =
     Seq( Dependency(passes.Uniquify),
          Dependency(passes.ResolveFlows),
          Dependency(passes.CheckFlows),

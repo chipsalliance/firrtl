@@ -25,7 +25,7 @@ object RemoveReset extends Transform {
 
   override val optionalPrerequisites = Seq.empty
 
-  override val dependents = Seq.empty
+  override val optionalDependents = Seq.empty
 
   override def invalidates(a: Transform): Boolean = a match {
     case firrtl.passes.ResolveFlows => true

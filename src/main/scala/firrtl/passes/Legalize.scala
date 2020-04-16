@@ -16,7 +16,7 @@ object Legalize extends Pass with PreservesAll[Transform] {
 
   override val optionalPrerequisites = Seq.empty
 
-  override val dependents = Seq.empty
+  override val optionalDependents = Seq.empty
 
   private def legalizeShiftRight(e: DoPrim): Expression = {
     require(e.op == Shr)

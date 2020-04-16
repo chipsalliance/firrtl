@@ -105,7 +105,7 @@ class InlineBitExtractionsTransform extends Transform with PreservesAll[Transfor
 
   override val optionalPrerequisites = firrtl.stage.Forms.LowFormOptimized
 
-  override val dependents = Seq.empty
+  override val optionalDependents = Seq.empty
 
   def execute(state: CircuitState): CircuitState = {
     val modulesx = state.circuit.modules.map(InlineBitExtractionsTransform.onMod(_))

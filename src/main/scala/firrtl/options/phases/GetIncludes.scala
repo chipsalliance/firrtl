@@ -20,7 +20,7 @@ class GetIncludes extends Phase with PreservesAll[Phase] {
 
   override val prerequisites = Seq.empty
 
-  override val dependents = Seq.empty
+  override val optionalDependents = Seq.empty
 
   /** Read all [[annotations.Annotation]] from a file in JSON or YAML format
     * @param filename a JSON or YAML file of [[annotations.Annotation]]

@@ -83,7 +83,7 @@ trait TransformLike[A] extends LazyLogging {
   * "transforms")
   *
   * This trait forms the basis of the Dependency API of the Chisel/FIRRTL Hardware Compiler Framework. Dependencies are
-  * defined in terms of prerequisistes, dependents, and invalidates. A prerequisite is a transform that must run before
+  * defined in terms of prerequisistes, optionalDependents, and invalidates. A prerequisite is a transform that must run before
   * this transform. A dependent is a transform that must run ''after'' this transform. (This can be viewed as a means of
   * injecting a prerequisite into some other transform.) Finally, invalidates define the set of transforms whose effects
   * this transform undos/invalidates. (Invalidation then implies that a transform that is invalidated by this transform
@@ -110,7 +110,7 @@ trait DependencyAPI[A <: DependencyAPI[A]] { this: TransformLike[_] =>
   private[options] lazy val _optionalPrerquisites: LinkedHashSet[Dependency[A]] =
     new LinkedHashSet() ++ optionalPrerequisites.toSet
 
-  /** All transforms that must run ''after'' this transform
+  /** All transforms that must run ''after'' this transform, but only if a prerequisite of another transform.
     *
     * ''This is a means of prerequisite injection into some other transform.'' Normally a transform will define its own
     * prerequisites. Dependents exist for two main situations:
@@ -129,8 +129,8 @@ trait DependencyAPI[A <: DependencyAPI[A]] { this: TransformLike[_] =>
     * @see [[firrtl.passes.CheckTypes]] for an example of an optional checking [[firrtl.Transform]]
     * $seqNote
     */
-  def dependents: Seq[Dependency[A]] = Seq.empty
-  private[options] lazy val _dependents: LinkedHashSet[Dependency[A]] = new LinkedHashSet() ++ dependents.toSet
+  def optionalDependents: Seq[Dependency[A]] = Seq.empty
+  private[options] lazy val _optionalDependents: LinkedHashSet[Dependency[A]] = new LinkedHashSet() ++ optionalDependents.toSet
 
   /** A function that, given *another* transform (parameter `a`) will return true if this transform invalidates/undos the
     * effects of the *other* transform (parameter `a`).

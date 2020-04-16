@@ -87,7 +87,7 @@ class ReplaceTruncatingArithmetic extends Transform with PreservesAll[Transform]
 
   override val optionalPrerequisites = firrtl.stage.Forms.LowFormOptimized
 
-  override val dependents = Seq.empty
+  override val optionalDependents = Seq.empty
 
   def execute(state: CircuitState): CircuitState = {
     val modulesx = state.circuit.modules.map(ReplaceTruncatingArithmetic.onMod(_))

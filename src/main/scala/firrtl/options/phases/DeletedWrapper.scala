@@ -17,7 +17,7 @@ class DeletedWrapper(p: Phase) extends Phase with Translator[AnnotationSeq, (Ann
 
   override val prerequisites = Seq.empty
 
-  override val dependents = Seq.empty
+  override val optionalDependents = Seq.empty
 
   override lazy val name: String = p.name
 

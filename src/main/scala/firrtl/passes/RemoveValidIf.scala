@@ -31,7 +31,7 @@ object RemoveValidIf extends Pass {
 
   override val prerequisites = firrtl.stage.Forms.LowForm
 
-  override val dependents =
+  override val optionalDependents =
     Seq( Dependency[SystemVerilogEmitter],
          Dependency[VerilogEmitter] )
 

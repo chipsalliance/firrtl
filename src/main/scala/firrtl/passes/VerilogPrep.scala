@@ -33,7 +33,7 @@ object VerilogPrep extends Pass with PreservesAll[Transform] {
 
   override val optionalPrerequisites = firrtl.stage.Forms.LowFormOptimized
 
-  override val dependents = Seq.empty
+  override val optionalDependents = Seq.empty
 
   type AttachSourceMap = Map[WrappedExpression, Expression]
 

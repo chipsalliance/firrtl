@@ -13,7 +13,7 @@ import scala.util.control.ControlThrowable
 class CatchExceptions(val underlying: Phase) extends Phase {
 
   override final val prerequisites = underlying.prerequisites
-  override final val dependents = underlying.dependents
+  override final val optionalDependents = underlying.optionalDependents
   override final def invalidates(a: Phase): Boolean = underlying.invalidates(a)
   override final lazy val name = underlying.name
 

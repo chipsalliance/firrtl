@@ -16,7 +16,7 @@ object CommonSubexpressionElimination extends Pass with PreservesAll[Transform] 
          Dependency(firrtl.passes.SplitExpressions),
          Dependency[firrtl.transforms.CombineCats] )
 
-  override val dependents =
+  override val optionalDependents =
     Seq( Dependency[SystemVerilogEmitter],
          Dependency[VerilogEmitter] )
 

@@ -119,7 +119,7 @@ class FlattenRegUpdate extends Transform {
 
   override val optionalPrerequisites = firrtl.stage.Forms.LowFormOptimized
 
-  override val dependents = Seq.empty
+  override val optionalDependents = Seq.empty
 
   override def invalidates(a: Transform): Boolean = a match {
     case _: DeadCodeElimination => true

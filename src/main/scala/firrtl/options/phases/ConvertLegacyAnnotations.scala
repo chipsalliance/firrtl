@@ -11,7 +11,7 @@ class ConvertLegacyAnnotations extends Phase with PreservesAll[Phase] {
 
   override val prerequisites = Seq(Dependency[GetIncludes])
 
-  override val dependents = Seq.empty
+  override val optionalDependents = Seq.empty
 
   def transform(annotations: AnnotationSeq): AnnotationSeq = LegacyAnnotation.convertLegacyAnnos(annotations)
 

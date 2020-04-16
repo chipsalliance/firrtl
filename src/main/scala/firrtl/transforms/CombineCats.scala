@@ -65,7 +65,7 @@ class CombineCats extends Transform with PreservesAll[Transform] {
 
   override val optionalPrerequisites = Seq.empty
 
-  override val dependents = Seq(
+  override val optionalDependents = Seq(
     Dependency[SystemVerilogEmitter],
     Dependency[VerilogEmitter] )
 
