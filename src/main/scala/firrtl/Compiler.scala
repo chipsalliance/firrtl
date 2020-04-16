@@ -13,6 +13,7 @@ import firrtl.ir.Circuit
 import firrtl.Utils.throwInternalError
 import firrtl.annotations.transforms.{EliminateTargetPaths, ResolvePaths}
 import firrtl.options.{DependencyAPI, Dependency, PreservesAll, StageUtils, TransformLike}
+import firrtl.stage.TransformManager.TransformDependency
 import firrtl.stage.transforms.CatchCustomTransformExceptions
 
 /** Container of all annotations for a Firrtl compiler */
@@ -209,7 +210,7 @@ trait Transform extends TransformLike[CircuitState] with DependencyAPI[Transform
   import firrtl.{ChirrtlForm => C, HighForm => H, MidForm => M, LowForm => L, UnknownForm => U}
   import firrtl.stage.Forms
 
-  override def prerequisites: Seq[Dependency[Transform]] = inputForm match {
+  override def prerequisites: Seq[TransformDependency] = inputForm match {
     case C => Nil
     case H => Forms.Deduped
     case M => Forms.MidForm
@@ -217,14 +218,14 @@ trait Transform extends TransformLike[CircuitState] with DependencyAPI[Transform
     case U => Nil
   }
 
-  override def optionalPrerequisites: Seq[Dependency[Transform]] = inputForm match {
+  override def optionalPrerequisites: Seq[TransformDependency] = inputForm match {
     case L => Forms.LowFormOptimized
     case _ => Seq.empty
   }
 
-  private lazy val fullCompilerSet = new mutable.LinkedHashSet[Dependency[Transform]] ++ Forms.VerilogOptimized
+  private lazy val fullCompilerSet = new mutable.LinkedHashSet[TransformDependency] ++ Forms.VerilogOptimized
 
-  override def dependents: Seq[Dependency[Transform]] = {
+  override def dependents: Seq[TransformDependency] = {
     val lowEmitters = Dependency[LowFirrtlEmitter] :: Dependency[VerilogEmitter] :: Dependency[MinimumVerilogEmitter] ::
       Dependency[SystemVerilogEmitter] :: Nil
 
