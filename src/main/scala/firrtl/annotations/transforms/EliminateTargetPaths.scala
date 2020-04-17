@@ -241,7 +241,55 @@ class EliminateTargetPaths extends Transform {
       throw NoSuchTargetException(s"""Some targets have illegal paths that cannot be resolved/eliminated: $string""")
     }
 
-    val (newCircuit, renameMap, newAnnos) = run(state.circuit, targets)
+    /* get rid of path prefixes of modules with only one instance so we don't rename them
+     * If instance targeted is in fact the only instance of a module, then it should not be renamed
+     * E.g. if Eliminate Target Paths on ~Top|Top/foo:Foo, but that is the only instance of Foo, then should return
+     *   ~Top|Top/foo:Foo, not ~Top|Top/foo:Foo___Top_foo
+     */
+    val isSingleInstMod: String => Boolean = {
+      val cache = mutable.Map.empty[String, Boolean]
+      mod => cache.getOrElseUpdate(mod, iGraph.findInstancesInHierarchy(mod).size == 1)
+    }
+    val firstRenameMap = RenameMap()
+    val nonSingletonTargets = targets.foldRight(Seq.empty[IsMember]) {
+      case (t: IsComponent, acc) if t.asPath.nonEmpty =>
+        val origPath = t.asPath
+        val (singletonPrefix, rest) = origPath.partition {
+          case (_, OfModule(mod)) =>
+            isSingleInstMod(mod)
+        }
+
+        if (singletonPrefix.size > 0) {
+          val module = singletonPrefix.last._2.value
+          val circuit = t.circuit
+          val newIsModule =
+            if (rest.isEmpty) {
+              ModuleTarget(circuit, module)
+            } else {
+              val (Instance(inst), OfModule(ofMod)) = rest.last
+              val path = rest.dropRight(1)
+              InstanceTarget(circuit, module, path, inst, ofMod)
+            }
+          val newTarget = t match {
+            case r: ReferenceTarget => r.setPathTarget(newIsModule)
+            case i: InstanceTarget => newIsModule
+          }
+          firstRenameMap.record(t, Seq(newTarget))
+          newTarget +: acc
+        } else {
+          t +: acc
+        }
+      case (t, acc) => t +: acc
+    }
+
+    val (newCircuit, nextRenameMap, newAnnos) = run(state.circuit, nonSingletonTargets)
+
+    val renameMap =
+      if (firstRenameMap.hasChanges) {
+        firstRenameMap andThen nextRenameMap
+      } else {
+        nextRenameMap
+      }
 
     val iGraphx = new InstanceGraph(newCircuit)
     val newlyUnreachableModules = iGraphx.unreachableModules diff iGraph.unreachableModules
@@ -257,27 +305,13 @@ class EliminateTargetPaths extends Transform {
       newCircuit.copy(modules = modulesx)
     }
 
-    // If instance targeted is in fact the only instance of a module, then it should not be renamed
-    // E.g. if Eliminate Target Paths on ~Top|Top/foo:Foo, but that is the only instance of Foo, then should return
-    //   ~Top|Top/foo:Foo, not ~Top|Top/foo:Foo___Top_foo
     val renamedModuleMap = RenameMap(this)
-    val ct = CircuitTarget(newCircuitGC.main)
-    val newModule2Original = state.circuit.modules.map {
-      m => ct.module(m.name)
-    }.map {
-      t => (t, renameMap.get(ct.module(t.name)))
-    }.flatMap {
-      case (origMod, Some(Seq(newMod: IsModule))) =>
-        Some(Target.referringModule(newMod).module -> origMod.module)
-      case _ =>
-        None
-    }.toMap
 
     // If previous instance target mapped to a single previously deduped module, return original name
     // E.g. if previously ~Top|Top/foo:Foo was deduped to ~Top|Top/foo:Bar, then
     //  Eliminate target paths on ~Top|Top/foo:Bar should rename to ~Top|Top/foo:Foo, not
     //  ~Top|Top/foo:Bar___Top_foo
-    val newModuleNameMapping = newModule2Original ++ previouslyDeduped.flatMap {
+    val newModuleNameMapping = previouslyDeduped.flatMap {
       case (current: IsModule, (orig: ModuleTarget, idx)) =>
         renameMap.get(current).collect { case Seq(ModuleTarget(_, m)) => m -> orig.name }
     }
