@@ -5,8 +5,8 @@ package firrtlTests.annotationTests
 import firrtl._
 import firrtl.annotations._
 import firrtl.annotations.analysis.DuplicationHelper
-import firrtl.annotations.transforms.NoSuchTargetException
-import firrtl.transforms.DontTouchAnnotation
+import firrtl.annotations.transforms.{NoSuchTargetException}
+import firrtl.transforms.{DontTouchAnnotation, DedupedResult}
 import firrtl.testutils.{FirrtlMatchers, FirrtlPropSpec}
 
 class EliminateTargetPathsSpec extends FirrtlPropSpec with FirrtlMatchers {
@@ -474,5 +474,83 @@ class EliminateTargetPathsSpec extends FirrtlPropSpec with FirrtlMatchers {
       DontTouchAnnotation(ModuleTarget("FooBar", "Bar___Foo_bar").ref("baz")),
       DontTouchAnnotation(ModuleTarget("FooBar", "Bar___Foo_barBar").ref("baz"))
     )
+  }
+
+  property("It should use DedupedResult names") {
+    val input =
+      """|circuit Top:
+         |  module Baz:
+         |    skip
+         |  module Bar:
+         |    inst baz of Baz
+         |    inst bazzz of Baz
+         |    skip
+         |  module Top:
+         |    inst bar of Bar
+         |""".stripMargin
+    val checks =
+      """|circuit Top :
+         |  module Baz_0 :
+         |  module Baz_1 :
+         |    inst baz of Baz_0
+         |    inst bazzz of Baz_1
+         |""".stripMargin.split("\n")
+    val baz = CircuitTarget("Top").module("Top").instOf("bar", "Bar").instOf("baz", "Baz")
+    val bazzz = CircuitTarget("Top").module("Top").instOf("bar", "Bar").instOf("bazzz", "Baz")
+    val annos = Seq(
+      DedupedResult(ModuleTarget("Top", "Baz_0"), Some(baz), 0),
+      DedupedResult(ModuleTarget("Top", "Baz_1"), Some(bazzz), 1),
+      DontTouchAnnotation(baz.ref("foo")),
+      DontTouchAnnotation(bazzz.ref("foo")),
+    )
+    val inputCircuit = Parser.parse(input)
+    val output = CircuitState(passes.ToWorkingIR.run(inputCircuit), UnknownForm, annos)
+      .resolvePaths(Seq(baz, bazzz))
+
+    info(output.circuit.serialize)
+
+    val outputLines = output.circuit.serialize.split("\n")
+    checks.foreach { line =>
+      outputLines should contain (line)
+    }
+    output.annotations.collect {
+      case a: DontTouchAnnotation => a
+    } should contain allOf (
+      DontTouchAnnotation(ModuleTarget("Top", "Baz_0").ref("foo")),
+      DontTouchAnnotation(ModuleTarget("Top", "Baz_1").ref("foo")),
+    )
+  }
+
+  property("It should not rename untouched modules") {
+    val input =
+      """|circuit Top:
+         |  module Baz:
+         |    node foo = UInt<1>(0)
+         |  module Bar:
+         |    inst lkj of Baz
+         |    inst asdf of Baz
+         |  module Top:
+         |    inst bar of Bar
+         |    inst baz of Baz
+         |""".stripMargin
+    val asdf = ModuleTarget("Top", "Top").instOf("bar", "Bar").instOf("asdf", "Baz")
+    val lkj = ModuleTarget("Top", "Top").instOf("bar", "Bar").instOf("lkj", "Baz")
+    val baz = ModuleTarget("Top", "Top").instOf("baz", "Baz")
+    val annos = Seq(
+      DontTouchAnnotation(asdf.ref("foo")),
+      DontTouchAnnotation(lkj.ref("foo")),
+      DontTouchAnnotation(baz.ref("foo"))
+    )
+    val inputCircuit = Parser.parse(input)
+    val output = CircuitState(passes.ToWorkingIR.run(inputCircuit), UnknownForm, annos)
+      .resolvePaths(Seq(asdf, lkj))
+
+    info(output.circuit.serialize)
+
+    output.annotations.collect { case a: DontTouchAnnotation => a } should be (Seq(
+      DontTouchAnnotation(ModuleTarget("Top", "Baz___Bar_asdf").ref("foo")),
+      DontTouchAnnotation(ModuleTarget("Top", "Baz___Bar_lkj").ref("foo")),
+      DontTouchAnnotation(baz.ref("foo"))
+    ))
   }
 }

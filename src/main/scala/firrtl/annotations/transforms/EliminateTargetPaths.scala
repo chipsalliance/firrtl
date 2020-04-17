@@ -284,6 +284,16 @@ class EliminateTargetPaths extends Transform {
 
     val (newCircuit, nextRenameMap, newAnnos) = run(state.circuit, nonSingletonTargets)
 
+    println("SINGLETON RENAME MAP")
+    firstRenameMap.underlying.foreach { case (from, tos) =>
+      println(s"${from.serialize} -> ${tos.map(_.serialize).mkString(", ")}")
+    }
+
+    println("NEXT RENAME MAP")
+    nextRenameMap.underlying.foreach { case (from, tos) =>
+      println(s"${from.serialize} -> ${tos.map(_.serialize).mkString(", ")}")
+    }
+
     val renameMap =
       if (firstRenameMap.hasChanges) {
         firstRenameMap andThen nextRenameMap
@@ -324,6 +334,11 @@ class EliminateTargetPaths extends Transform {
           orig.name -> idx
       }
     )
+
+    println("FINAL RENAME MAP")
+    renamedModuleMap.underlying.foreach { case (from, tos) =>
+      println(s"${from.serialize} -> ${tos.map(_.serialize).mkString(", ")}")
+    }
 
     state.copy(
       circuit = reorderedCircuit,
