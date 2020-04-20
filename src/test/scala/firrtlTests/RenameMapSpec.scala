@@ -809,15 +809,4 @@ class RenameMapSpec extends FirrtlFlatSpec {
     r.delete(Mod)
     r.get(foo) should be (Some(Nil))
   }
-
-  it should "delete instances of deleted AST modules" in {
-    val top = CircuitTarget("Top").module("Top")
-    val foo = top.instOf("foo", "Mod")
-    val Mod = CircuitTarget("Mod").module("Mod")
-
-    val r = RenameMap()
-
-    r.delete(Mod)
-    r.get(foo) should be (Some(Nil))
-  }
 }

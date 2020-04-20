@@ -288,17 +288,6 @@ class MorphismSpec extends FlatSpec with Matchers {
         CircuitTarget("Top").module("Top")
       )
 
-    def allASTModules =
-      IndexedSeq(
-        CircuitTarget("Foo").module("Foo"),
-        CircuitTarget("Bar").module("Bar"),
-        CircuitTarget("Fub").module("Fub"),
-        CircuitTarget("Bop").module("Bop"),
-        CircuitTarget("Baz").module("Baz"),
-        CircuitTarget("Qux").module("Qux"),
-        CircuitTarget("Top").module("Top")
-      )
-
     def allDedupedAbsoluteInstances =
       IndexedSeq(
         CircuitTarget("Top").module("Top").instOf("baz", "Baz").instOf("foo", "Foo"),
@@ -342,21 +331,6 @@ class MorphismSpec extends FlatSpec with Matchers {
   it should "invert DedupModules with all ModuleTarget annotations" in new RightInverseEliminateTargetsFixture {
     override val annotations: AnnotationSeq =
       allModuleInstances.map(AnAnnotation.apply) :+ ResolvePaths(allAbsoluteInstances)
-    test()
-  }
-
-  it should "invert DedupModules with all AST ModuleTarget annotations" in new RightInverseEliminateTargetsFixture {
-    override val annotations: AnnotationSeq =
-      allASTModules.map(AnAnnotation.apply) :+ ResolvePaths(allAbsoluteInstances)
-    override val finalAnnotations: Option[AnnotationSeq] = Some(Seq(
-      AnAnnotation(CircuitTarget("Foo").module("Foo")),
-      AnAnnotation(CircuitTarget("Foo").module("Foo")),
-      AnAnnotation(CircuitTarget("Foo").module("Foo")),
-      AnAnnotation(CircuitTarget("Foo").module("Foo")),
-      AnAnnotation(CircuitTarget("Baz").module("Baz")),
-      AnAnnotation(CircuitTarget("Baz").module("Baz")),
-      AnAnnotation(CircuitTarget("Top").module("Top"))
-    ))
     test()
   }
 
@@ -468,13 +442,6 @@ class MorphismSpec extends FlatSpec with Matchers {
     test()
   }
 
-  it should "be idempotent with ast module annotations" in new IdempotencyEliminateTargetsFixture {
-    /** An endomorphism */
-    override val annotations: AnnotationSeq =
-      allASTModules.map(AnAnnotation.apply) :+ ResolvePaths(allAbsoluteInstances)
-    test()
-  }
-
   behavior of "DedupModules"
 
   trait RightInverseDedupModulesFixture extends RightInverseFixture with DefaultExample {
@@ -509,22 +476,6 @@ class MorphismSpec extends FlatSpec with Matchers {
     override val finalAnnotations: Option[AnnotationSeq] = Some(
       allDedupedAbsoluteInstances.map(AnAnnotation.apply)
     )
-    override lazy val output = deduped
-    test()
-  }
-
-  it should "invert EliminateTargetPaths with all AST ModuleTarget annotations" in new RightInverseDedupModulesFixture {
-    override val annotations: AnnotationSeq =
-      allASTModules.map(AnAnnotation.apply) :+ ResolvePaths(allAbsoluteInstances)
-    override val finalAnnotations: Option[AnnotationSeq] = Some(Seq(
-      AnAnnotation(CircuitTarget("Foo").module("Foo")),
-      AnAnnotation(CircuitTarget("Foo").module("Foo")),
-      AnAnnotation(CircuitTarget("Foo").module("Foo")),
-      AnAnnotation(CircuitTarget("Foo").module("Foo")),
-      AnAnnotation(CircuitTarget("Baz").module("Baz")),
-      AnAnnotation(CircuitTarget("Baz").module("Baz")),
-      AnAnnotation(CircuitTarget("Top").module("Top"))
-    ))
     override lazy val output = deduped
     test()
   }
@@ -596,13 +547,6 @@ class MorphismSpec extends FlatSpec with Matchers {
     /** An endomorphism */
     override val annotations: AnnotationSeq =
       allRelative2LevelInstances.map(AnAnnotation.apply) :+ ResolvePaths(allAbsoluteInstances)
-    test()
-  }
-
-  it should "be idempotent with ast module annotations" in new IdempotencyDedupModulesFixture {
-    /** An endomorphism */
-    override val annotations: AnnotationSeq =
-      allASTModules.map(AnAnnotation.apply) :+ ResolvePaths(allAbsoluteInstances)
     test()
   }
 

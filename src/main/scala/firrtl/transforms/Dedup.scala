@@ -121,16 +121,6 @@ class DedupModules extends Transform with PreservesAll[Transform] {
     }
     renameMap.recordAll(map)
 
-    val deletedASTModules = RenameMap(this)
-    dedupMap.foreach {
-      case (from, to) if from != to.name =>
-        deletedASTModules.record(
-          CircuitTarget(from).module(from),
-          CircuitTarget(to.name).module(to.name)
-        )
-      case x =>
-    }
-
     val underlying = renameMap.getUnderlying
 
     // Build instanceify renaming map
@@ -176,7 +166,7 @@ class DedupModules extends Transform with PreservesAll[Transform] {
     }
 
 
-    (InferTypes.run(c.copy(modules = dedupedModules)), instanceify.andThen(renameMap).andThen(deletedASTModules), dedupAnnotations.toList)
+    (InferTypes.run(c.copy(modules = dedupedModules)), instanceify.andThen(renameMap), dedupAnnotations.toList)
   }
 }
 
@@ -544,8 +534,7 @@ object DedupModules {
                        renameMap: RenameMap): Unit = {
 
     originalNames.zip(dedupedNames).foreach {
-      case (o, d) => if (o.component != d.component || o.ref != d.ref)
-        renameMap.record(o.copy(circuit = o.module), d.copy(circuit = d.module))
+      case (o, d) => if (o.component != d.component || o.ref != d.ref) renameMap.record(o, d)
     }
 
   }

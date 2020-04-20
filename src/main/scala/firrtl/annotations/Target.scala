@@ -551,14 +551,6 @@ case class ModuleTarget(circuit: String, module: String) extends IsModule {
   override def toNamed: ModuleName = ModuleName(module, CircuitName(circuit))
 }
 
-object ModuleTarget {
-  /** Creates an AST module target, whose circuit and module are the same
-    * @param module
-    * @return
-    */
-  def apply(module: String): ModuleTarget = ModuleTarget(module, module)
-}
-
 /** Target pointing to a declared named component in a [[firrtl.ir.DefModule]]
   * This includes: [[firrtl.ir.Port]], [[firrtl.ir.DefWire]], [[firrtl.ir.DefRegister]], [[firrtl.ir.DefInstance]],
   *   [[firrtl.ir.DefMemory]], [[firrtl.ir.DefNode]]

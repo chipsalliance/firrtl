@@ -395,14 +395,7 @@ final class RenameMap private (
       case other =>
         errors += s"Illegal rename: $key cannot be renamed to non-module target: $other"
         None
-    }).getOrElse(
-      if(key.circuit != key.module) {
-        moduleGet(errors)(key.copy(circuit = key.module)).map {
-          case ret: ModuleTarget => ret.copy(circuit = key.circuit)
-          case ret: InstanceTarget => ret.copy(circuit = key.circuit)
-        }
-      } else Seq(key)
-    )
+    }).getOrElse(Seq(key))
   }
 
   /** Recursively renames a target so the returned targets are complete renamed
@@ -471,8 +464,6 @@ final class RenameMap private (
                   (None, Some(pair.copy(_2 = OfModule(isMod.module)) +: children))
                 case Seq(isMod: InstanceTarget) if isMod.circuit == t.circuit =>
                   (None, Some(pair +: children))
-                case other if other.nonEmpty && other.forall(x => x.circuit == t.circuit && x.module == t.circuit)=>
-                  (None, Some(pair +: children))
                 case Nil => (None, None)
                 case other =>
                   val error = s"ofModule ${pathMod} of target ${key.serialize} cannot be renamed to $other " +
@@ -539,11 +530,6 @@ final class RenameMap private (
     * @param tos
     */
   private def completeRename(from: CompleteTarget, tos: Seq[CompleteTarget]): Unit = {
-    from match {
-      case ModuleTarget(cir, mod) if cir == mod && tos.collectFirst { case i: InstanceTarget => i }.nonEmpty =>
-          throw IllegalRenameException(s"Cannot rename AST $from to InstanceTargets: $tos")
-      case _ =>
-    }
     tos.foreach{recordSensitivity(from, _)}
     val existing = underlying.getOrElse(from, Vector.empty)
     val updated = (existing ++ tos).distinct
