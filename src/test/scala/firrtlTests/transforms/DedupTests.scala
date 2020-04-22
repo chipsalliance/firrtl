@@ -603,5 +603,103 @@ class DedupModuleTests extends HighTransformSpec {
       """.stripMargin
     execute(input, check, Seq(NoCircuitDedupAnnotation))
   }
+
+  "The deduping module A and A_" should "rename instances and signals that have different names" in {
+    val input =
+      """circuit Top :
+        |  module Top :
+        |    inst a of A
+        |    inst a_ of A_
+        |  module A :
+        |    inst b of B
+        |  module A_ :
+        |    inst b_ of B_
+        |  module B :
+        |    node foo = UInt<1>(0)
+        |  module B_ :
+        |    node bar = UInt<1>(0)
+      """.stripMargin
+    val check =
+      """circuit Top :
+        |  module Top :
+        |    inst a of A
+        |    inst a_ of A
+        |  module A :
+        |    inst b of B
+        |  module B :
+        |    node foo = UInt<1>(0)
+      """.stripMargin
+    val Top = CircuitTarget("Top")
+    val inst1 = Top.module("Top").instOf("a", "A").instOf("b", "B")
+    val inst2 = Top.module("Top").instOf("a_", "A_").instOf("b_", "B_")
+    val ref1 = Top.module("Top").instOf("a", "A").instOf("b", "B").ref("foo")
+    val ref2 = Top.module("Top").instOf("a_", "A_").instOf("b_", "B_").ref("bar")
+    val anno1 = MultiTargetDummyAnnotation(Seq(inst1, ref1), 0)
+    val anno2 = MultiTargetDummyAnnotation(Seq(inst2, ref2), 1)
+    val cs = execute(input, check, Seq(anno1, anno2))
+    cs.annotations.toSeq should contain (MultiTargetDummyAnnotation(Seq(
+      inst1, ref1
+    ),0))
+    cs.annotations.toSeq should contain (MultiTargetDummyAnnotation(Seq(
+      Top.module("Top").instOf("a_", "A").instOf("b", "B"),
+      Top.module("Top").instOf("a_", "A").instOf("b", "B").ref("foo")
+    ),1))
+    cs.deletedAnnotations.isEmpty should be (true)
+  }
+
+  "The deduping module A and A_" should "rename nested instances that have different names" in {
+    val input =
+      """circuit Top :
+        |  module Top :
+        |    inst a of A
+        |    inst a_ of A_
+        |  module A :
+        |    inst b of B
+        |  module A_ :
+        |    inst b_ of B_
+        |  module B :
+        |    inst c of C
+        |  module B_ :
+        |    inst c_ of C_
+        |  module C :
+        |    inst d of D
+        |  module C_ :
+        |    inst d_ of D_
+        |  module D :
+        |    node foo = UInt<1>(0)
+        |  module D_ :
+        |    node bar = UInt<1>(0)
+      """.stripMargin
+    val check =
+      """circuit Top :
+        |  module Top :
+        |    inst a of A
+        |    inst a_ of A
+        |  module A :
+        |    inst b of B
+        |  module B :
+        |    inst c of C
+        |  module C :
+        |    inst d of D
+        |  module D :
+        |    node foo = UInt<1>(0)
+      """.stripMargin
+    val Top = CircuitTarget("Top")
+    val inst1 = Top.module("Top").instOf("a", "A").instOf("b", "B").instOf("c", "C").instOf("d", "D")
+    val inst2 = Top.module("Top").instOf("a_", "A_").instOf("b_", "B_").instOf("c_", "C_").instOf("d_", "D_")
+    val ref1 = Top.module("Top").instOf("a", "A").instOf("b", "B").instOf("c", "C").instOf("d", "D").ref("foo")
+    val ref2 = Top.module("Top").instOf("a_", "A_").instOf("b_", "B_").instOf("c_", "C_").instOf("d_", "D_").ref("bar")
+    val anno1 = MultiTargetDummyAnnotation(Seq(inst1, ref1), 0)
+    val anno2 = MultiTargetDummyAnnotation(Seq(inst2, ref2), 1)
+    val cs = execute(input, check, Seq(anno1, anno2))
+    cs.annotations.toSeq should contain (MultiTargetDummyAnnotation(Seq(
+      inst1, ref1
+    ),0))
+    cs.annotations.toSeq should contain (MultiTargetDummyAnnotation(Seq(
+      Top.module("Top").instOf("a_", "A").instOf("b", "B").instOf("c", "C").instOf("d", "D"),
+      Top.module("Top").instOf("a_", "A").instOf("b", "B").instOf("c", "C").instOf("d", "D").ref("foo")
+    ),1))
+    cs.deletedAnnotations.isEmpty should be (true)
+  }
 }
 
