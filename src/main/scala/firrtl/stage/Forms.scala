@@ -51,6 +51,7 @@ object Forms {
          Dependency(passes.ReplaceAccesses),
          Dependency(passes.ExpandConnects),
          Dependency(passes.RemoveAccesses),
+         Dependency(passes.ZeroLengthVecs),
          Dependency[passes.ExpandWhensAndCheck],
          Dependency[passes.RemoveIntervals],
          Dependency(passes.ConvertFixedToSInt),
@@ -66,12 +67,12 @@ object Forms {
 
   val LowFormMinimumOptimized: Seq[TransformDependency] = LowForm ++
     Seq( Dependency(passes.RemoveValidIf),
+         Dependency(passes.PadWidths),
          Dependency(passes.memlib.VerilogMemDelays),
          Dependency(passes.SplitExpressions) )
 
   val LowFormOptimized: Seq[TransformDependency] = LowFormMinimumOptimized ++
     Seq( Dependency[firrtl.transforms.ConstantPropagation],
-         Dependency(passes.PadWidths),
          Dependency[firrtl.transforms.CombineCats],
          Dependency(passes.CommonSubexpressionElimination),
          Dependency[firrtl.transforms.DeadCodeElimination] )
