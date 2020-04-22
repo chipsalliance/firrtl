@@ -60,20 +60,30 @@ trait SingleTargetAnnotation[T <: Named] extends Annotation {
       case c: Target =>
         val x = renames.get(c)
         x.map(newTargets => newTargets.map(t => duplicate(t.asInstanceOf[T]))).getOrElse(List(this))
-      case _: Named =>
+      case from: Named =>
         val ret = renames.get(Target.convertNamed2Target(target))
-        ret.map(_.map(newT => Target.convertTarget2Named(newT: @unchecked) match {
-          case newTarget: T @unchecked =>
-            try {
-              duplicate(newTarget)
-            }
-            catch {
-              case _: java.lang.ClassCastException =>
-                val msg = s"${this.getClass.getName} target ${target.getClass.getName} " +
-                  s"cannot be renamed to ${newTarget.getClass}"
-                throw AnnotationException(msg)
-            }
-        })).getOrElse(List(this))
+        ret.map(_.map { newT =>
+          val result = newT match {
+            case c: InstanceTarget => ModuleName(c.ofModule, CircuitName(c.circuit))
+            case c: IsMember => 
+              val local = Target.referringModule(c)
+              c.setPathTarget(local)
+            case c: CircuitTarget => c.toNamed
+            case other => throw Target.NamedException(s"Cannot convert $other to [[Named]]")
+          }
+          Target.convertTarget2Named(result) match {
+            case newTarget: T @unchecked =>
+              try {
+                duplicate(newTarget)
+              }
+              catch {
+                case _: java.lang.ClassCastException =>
+                  val msg = s"${this.getClass.getName} target ${target.getClass.getName} " +
+                    s"cannot be renamed to ${newTarget.getClass}"
+                  throw AnnotationException(msg)
+              }
+          }
+        }).getOrElse(List(this))
     }
   }
 }
