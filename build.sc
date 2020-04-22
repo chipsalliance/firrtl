@@ -4,16 +4,16 @@ import mill.scalalib._
 import mill.scalalib.publish._
 import mill.modules.Util
 
-object firrtl extends mill.Cross[firrtlCrossModule]("2.11.12", "2.12.10")
+object firrtl extends mill.Cross[firrtlCrossModule]("2.11.12", "2.12.11")
 
 class firrtlCrossModule(crossVersion: String) extends ScalaModule with SbtModule with PublishModule {
   // different scala version shares same sources
-  // mill use foo/2.11.12 foo/2.12.10 as millSourcePath by default
+  // mill use foo/2.11.12 foo/2.12.11 as millSourcePath by default
   override def millSourcePath = super.millSourcePath / os.up / os.up
 
   def scalaVersion = crossVersion
 
-  // 2.12.10 -> Array("2", "12", "10") -> "12" -> 12
+  // 2.12.11 -> Array("2", "12", "10") -> "12" -> 12
   private def majorVersion = crossVersion.split('.')(1).toInt
 
   def publishVersion = "1.3-SNAPSHOT"
@@ -59,14 +59,14 @@ class firrtlCrossModule(crossVersion: String) extends ScalaModule with SbtModule
     }
 
     def ivyDeps = Agg(
-      ivy"org.scalatest::scalatest:3.0.8",
-      ivy"org.scalacheck::scalacheck:1.14.0"
+      ivy"org.scalatest::scalatest:3.1.0",
+      ivy"org.scalatestplus::scalacheck-1-14:3.1.0.1"
     ) ++ ivyCrossDeps
 
     def testFrameworks = Seq("org.scalatest.tools.Framework")
 
     // a sbt-like testOnly command.
-    // for example, mill -i "firrtl[2.12.10].test.testOnly" "firrtlTests.AsyncResetSpec"
+    // for example, mill -i "firrtl[2.12.11].test.testOnly" "firrtlTests.AsyncResetSpec"
     def testOnly(args: String*) = T.command {
       super.runMain("org.scalatest.run", args: _*)
     }

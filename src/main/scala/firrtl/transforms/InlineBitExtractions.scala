@@ -1,8 +1,11 @@
+// See LICENSE for license details.
+
 package firrtl
 package transforms
 
 import firrtl.ir._
 import firrtl.Mappers._
+import firrtl.options.{Dependency, PreservesAll}
 import firrtl.PrimOps.{Bits, Head, Tail, Shr}
 import firrtl.Utils.{isBitExtract, isTemp}
 import firrtl.WrappedExpression._
@@ -37,10 +40,10 @@ object InlineBitExtractionsTransform {
   /** Mapping from references to the [[firrtl.ir.Expression Expression]]s that drive them */
   type Netlist = mutable.HashMap[WrappedExpression, Expression]
 
-  /** Recursively replace [[WRef]]s with new [[Expression]]s
+  /** Recursively replace [[WRef]]s with new [[firrtl.ir.Expression Expression]]s
     *
     * @param netlist a '''mutable''' HashMap mapping references to [[firrtl.ir.DefNode DefNode]]s to their connected
-    * [[firrtl.ir.Expression Expression]]s. It is '''not''' mutated in this function
+    * [[firrtl.ir.Expression Expression Expression]]s. It is '''not''' mutated in this function
     * @param expr the Expression being transformed
     * @return Returns expr with Bits inlined
     */
@@ -73,8 +76,8 @@ object InlineBitExtractionsTransform {
   /** Inline bits in a Statement
     *
     * @param netlist a '''mutable''' HashMap mapping references to [[firrtl.ir.DefNode DefNode]]s to their connected
-    * [[firrtl.ir.Expression Expression]]s. This function '''will''' mutate it if stmt is a [[firrtl.ir.DefNode
-    * DefNode]] with a Temporary name and a value that is a [[PrimOp]] Bits
+    * [[firrtl.ir.Expression Expression]]s. This function '''will''' mutate it if stmt is
+    * a [[firrtl.ir.DefNode DefNode]] with a Temporary name and a value that is a [[firrtl.ir.PrimOp PrimOp]] Bits
     * @param stmt the Statement being searched for nodes and transformed
     * @return Returns stmt with Bits inlined
     */
@@ -91,9 +94,18 @@ object InlineBitExtractionsTransform {
 }
 
 /** Inline nodes that are simple bits */
-class InlineBitExtractionsTransform extends Transform {
+class InlineBitExtractionsTransform extends Transform with PreservesAll[Transform] {
   def inputForm = UnknownForm
   def outputForm = UnknownForm
+
+  override val prerequisites = firrtl.stage.Forms.LowFormMinimumOptimized ++
+    Seq( Dependency[BlackBoxSourceHelper],
+         Dependency[FixAddingNegativeLiterals],
+         Dependency[ReplaceTruncatingArithmetic] )
+
+  override val optionalPrerequisites = firrtl.stage.Forms.LowFormOptimized
+
+  override val dependents = Seq.empty
 
   def execute(state: CircuitState): CircuitState = {
     val modulesx = state.circuit.modules.map(InlineBitExtractionsTransform.onMod(_))
