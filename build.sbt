@@ -150,9 +150,9 @@ resolvers ++= Seq(
 )
 
 // MiMa
-// All changes must be binary compatible with FIRRTL 1.2.0
+// All changes must be binary compatible with prior 1.2 minor releases
 import com.typesafe.tools.mima.core._
-mimaPreviousArtifacts := Set("edu.berkeley.cs" %% "firrtl" % "1.2.0")
+mimaPreviousArtifacts := Set("edu.berkeley.cs" %% "firrtl" % "1.2.4")
 mimaBinaryIssueFilters ++= Seq(
   // Removed private inner classes, see https://github.com/lightbend/mima/issues/54
   ProblemFilters.exclude[MissingClassProblem]("firrtl.transforms.CheckCombLoops$LogicNode$"),
@@ -169,6 +169,19 @@ doc in Compile := (doc in ScalaUnidoc).value
 //target in unidoc in ScalaUnidoc := crossTarget.value / "api"
 
 autoAPIMappings := true
+
+apiMappings ++= {
+    Option(System.getProperty("sun.boot.class.path")).flatMap { classPath =>
+      classPath.split(java.io.File.pathSeparator).find(_.endsWith(java.io.File.separator + "rt.jar"))
+    }.map { jarPath =>
+      Map(
+        file(jarPath) -> url("https://docs.oracle.com/javase/8/docs/api")
+      )
+    }.getOrElse {
+      streams.value.log.warn("Failed to add bootstrap class path of Java to apiMappings")
+      Map.empty[File,URL]
+    }
+  }
 
 scalacOptions in Compile in doc ++= Seq(
   "-diagrams",

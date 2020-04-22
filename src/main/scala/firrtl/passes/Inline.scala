@@ -25,9 +25,9 @@ case class InlineAnnotation(target: Named) extends SingleTargetAnnotation[Named]
   * pass can infinitely recurse.
   */
 class InlineInstances extends Transform with RegisteredTransform {
-   def inputForm = LowForm
-   def outputForm = LowForm
-   private [firrtl] val inlineDelim: String = "_"
+  def inputForm = LowForm
+  def outputForm = LowForm
+  private [firrtl] val inlineDelim: String = "_"
 
   val options = Seq(
     new ShellOption[Seq[String]](
@@ -301,7 +301,8 @@ class InlineInstances extends Transform with RegisteredTransform {
     })
 
     val renames = renamesSeq.tail.foldLeft(renamesSeq.head)(_ andThen _)
+    val circuitx = ResolveKinds.run(flatCircuit)
 
-    CircuitState(flatCircuit, LowForm, annos, Some(renames))
+    CircuitState(circuitx, LowForm, annos, Some(renames))
   }
 }

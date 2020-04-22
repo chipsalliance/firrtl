@@ -63,6 +63,7 @@ class HighFirrtlToMiddleFirrtl extends CoreTransform {
     passes.PullMuxes,
     passes.ReplaceAccesses,
     passes.ExpandConnects,
+    passes.ZeroLengthVecs,
     passes.RemoveAccesses,
     passes.Uniquify,
     passes.ExpandWhens,
@@ -124,6 +125,7 @@ class MinimumLowFirrtlOptimization extends CoreTransform {
   def outputForm = LowForm
   def transforms = Seq(
     passes.RemoveValidIf,
+    passes.PadWidths,
     passes.Legalize,
     passes.memlib.VerilogMemDelays, // TODO move to Verilog emitter
     passes.SplitExpressions)
