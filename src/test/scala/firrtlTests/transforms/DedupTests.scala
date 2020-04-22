@@ -8,6 +8,8 @@ import firrtl.annotations._
 import firrtl.transforms.{DedupModules, NoCircuitDedupAnnotation}
 import firrtl.testutils._
 
+import logger.{Logger, LogLevel}
+
 /**
  * Tests inline instances transformation
  */
@@ -371,11 +373,12 @@ class DedupModuleTests extends HighTransformSpec {
         |    x <= b
       """.stripMargin
     val cs = execute(input, check, Seq(
-      dontTouch(ReferenceTarget("A", "A", Nil, "b", Nil)),
-      dontTouch(ReferenceTarget("A_", "A_", Nil, "b", Nil))
+      dontTouch(ReferenceTarget("Top", "A", Nil, "b", Nil)),
+      dontTouch(ReferenceTarget("Top", "A_", Nil, "b", Nil))
     ))
-    cs.annotations.toSeq should contain (dontTouch(ReferenceTarget("A", "A", Nil, "b", Nil)))
-    cs.annotations.toSeq should not contain dontTouch(ReferenceTarget("A_", "A_", Nil, "b", Nil))
+    cs.annotations.toSeq should contain (dontTouch(ModuleTarget("Top", "Top").instOf("a1", "A").ref("b")))
+    cs.annotations.toSeq should contain (dontTouch(ModuleTarget("Top", "Top").instOf("a2", "A").ref("b")))
+    cs.annotations.toSeq should not contain dontTouch(ReferenceTarget("Top", "A_", Nil, "b", Nil))
   }
   "The module A and A_" should "be deduped with same annotation targets when there are a lot" in {
     val input =
@@ -450,7 +453,9 @@ class DedupModuleTests extends HighTransformSpec {
     val Top_a2_b = Top_a2.instOf("b", "B")
     val annoAB = MultiTargetDummyAnnotation(Seq(A, B), 0)
     val annoA_B_ = MultiTargetDummyAnnotation(Seq(A_, B_), 1)
+    //Logger.setLevel(LogLevel.Info)
     val cs = execute(input, check, Seq(annoAB, annoA_B_))
+    //Logger.setLevel(LogLevel.None)
     cs.annotations.toSeq should contain (MultiTargetDummyAnnotation(Seq(
       Top_a1, Top_a1_b
     ), 0))
@@ -508,7 +513,7 @@ class DedupModuleTests extends HighTransformSpec {
     ),1))
     cs.deletedAnnotations.isEmpty should be (true)
   }
-  "The deduping module A and A_" should "renamed internal signals that have different names" in {
+  "The deduping module A and A_" should "rename internal signals that have different names" in {
     val input =
       """circuit Top :
         |  module Top :
@@ -545,7 +550,9 @@ class DedupModuleTests extends HighTransformSpec {
     val A_ = Top.module("A_")
     val annoA  = SingleTargetDummyAnnotation(A.ref("a"))
     val annoA_ = SingleTargetDummyAnnotation(A_.ref("b"))
+    //Logger.setLevel(LogLevel.Info)
     val cs = execute(input, check, Seq(annoA, annoA_))
+    Logger.setLevel(LogLevel.None)
     cs.annotations.toSeq should contain (annoA)
     cs.annotations.toSeq should not contain (SingleTargetDummyAnnotation(A.ref("b")))
     cs.deletedAnnotations.isEmpty should be (true)
