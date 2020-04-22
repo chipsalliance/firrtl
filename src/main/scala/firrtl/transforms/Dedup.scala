@@ -83,6 +83,7 @@ class DedupModules extends Transform with PreservesAll[Transform] {
           }
       }.toMap
       val (newC, renameMap, newAnnos) = run(state.circuit, noDedups, previouslyDupedMap)
+      renameMap.debug()
       state.copy(circuit = newC, renames = Some(renameMap), annotations = newAnnos ++ remainingAnnotations)
     }
   }
@@ -120,8 +121,6 @@ class DedupModules extends Transform with PreservesAll[Transform] {
       ct.module(from).asInstanceOf[CompleteTarget] -> Seq(ct.module(to.name))
     }
     renameMap.recordAll(map)
-
-    val underlying = renameMap.getUnderlying
 
     // Build instanceify renaming map
     val instanceGraph = new InstanceGraph(c)
@@ -164,7 +163,6 @@ class DedupModules extends Transform with PreservesAll[Transform] {
           } else Nil
       }
     }
-
 
     (InferTypes.run(c.copy(modules = dedupedModules)), instanceify.andThen(renameMap), dedupAnnotations.toList)
   }
@@ -349,15 +347,6 @@ object DedupModules {
     def getNewModule(old: String): DefModule = {
       moduleMap(name2name(old))
     }
-    // Define rename functions
-    def renameOfModule(instance: String, ofModule: String): String = {
-      val newOfModule = name2name(ofModule)
-      renameMap.record(
-        top.module(originalModule).instOf(instance, ofModule),
-        top.module(originalModule).instOf(instance, newOfModule)
-      )
-      newOfModule
-    }
     val typeMap = mutable.HashMap[String, Type]()
     def retype(name: String)(tpe: Type): Type = {
       if (typeMap.contains(name)) typeMap(name) else {
@@ -374,8 +363,12 @@ object DedupModules {
       }
     }
 
-    renameMap.setModule(module.name)
+    renameMap.setModule(module.name, name2name(module.name))
     // Change module internals
+    // Define rename functions
+    def renameOfModule(instance: String, ofModule: String): String = {
+      name2name(ofModule)
+    }
     changeInternals({n => n}, retype, {i => i}, renameOfModule)(module)
   }
 
