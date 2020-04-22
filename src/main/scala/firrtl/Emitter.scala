@@ -1004,7 +1004,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
         emit(Seq("end // initial"))
         emit(Seq("`ifdef AFTER_INITIAL"))
         emit(Seq("`AFTER_INITIAL"))
-        emit(Seq("endif"))
+        emit(Seq("`endif"))
         emit(Seq("`endif // SYNTHESIS"))
       }
 
