@@ -701,5 +701,58 @@ class DedupModuleTests extends HighTransformSpec {
     ),1))
     cs.deletedAnnotations.isEmpty should be (true)
   }
+
+  "Deduping modules with multiple instances" should "corectly rename instances" in {
+    val input =
+      """circuit Top :
+        |  module Top :
+        |    inst b of B
+        |    inst b_ of B_
+        |    inst a1 of A
+        |    inst a2 of A
+        |  module A :
+        |    inst b_ of B_
+        |  module B :
+        |    inst c of C
+        |  module B_ :
+        |    inst c of C
+        |  module C :
+        |    skip
+      """.stripMargin
+    val check =
+      """circuit Top :
+        |  module Top :
+        |    inst a of A
+        |    inst b1 of B
+        |  module A :
+        |    inst b2 of B
+        |    inst b3 of B
+        |  module B :
+        |    inst c of C
+        |  module C :
+        |    skip
+      """.stripMargin
+    val Top = CircuitTarget("Top").module("Top")
+    val bInstances = Seq(
+      Top.instOf("b", "B"),
+      Top.instOf("b_", "B_"),
+      Top.instOf("a1", "A").instOf("b", "B_"),
+      Top.instOf("a2", "A").instOf("b", "B_")
+    )
+    val cInstances = bInstances.map(_.instOf("c", "C"))
+    val annos = MultiTargetDummyAnnotation(bInstances ++ cInstances, 0)
+    val cs = execute(input, check, Seq(annos))
+    cs.annotations.toSeq should contain (MultiTargetDummyAnnotation(Seq(
+      Top.instOf("b", "B"),
+      Top.instOf("b_", "B"),
+      Top.instOf("a1", "A").instOf("b", "B"),
+      Top.instOf("a2", "A").instOf("b", "B"),
+      Top.instOf("b", "B").instOf("c", "C"),
+      Top.instOf("b_", "B").instOf("c", "C"),
+      Top.instOf("a1", "A").instOf("b", "B").instOf("c", "C"),
+      Top.instOf("a2", "A").instOf("b", "B").instOf("c", "C")
+    ),0))
+    cs.deletedAnnotations.isEmpty should be (true)
+  }
 }
 
