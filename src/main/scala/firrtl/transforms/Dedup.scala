@@ -137,11 +137,29 @@ class DedupModules extends Transform with PreservesAll[Transform] {
         }
       }
     }.toMap
-    val instanceNameMap: Map[OfModule, Map[Instance, Instance]] = {
+
+    instanceGraph.getChildrenInstances.foreach { case (k, v) =>
+      println(s"$k -> ${v.map(_.serialize)}")
+    }
+
+    // get the ordered set of instances a module, includes new Deduped modules
+    val getChildrenInstances = (mod: String) => {
       val childrenMap = instanceGraph.getChildrenInstances
+      val newModsMap: Map[String, mutable.LinkedHashSet[WDefInstance]] = dedupMap.map {
+        case (name, m: Module) =>
+          val set = new mutable.LinkedHashSet[WDefInstance]
+          InstanceGraph.collectInstances(set)(m.body)
+          m.name -> set
+        case (name, m: DefModule) =>
+          m.name -> mutable.LinkedHashSet.empty[WDefInstance]
+      }.toMap
+      childrenMap.get(mod).getOrElse(newModsMap(mod))
+    }
+
+    val instanceNameMap: Map[OfModule, Map[Instance, Instance]] = {
       dedupMap.map { case (oldName, dedupedMod) =>
         val key = OfModule(oldName)
-        val value = childrenMap(oldName).zip(childrenMap(dedupedMod.name)).map {
+        val value = getChildrenInstances(oldName).zip(getChildrenInstances(dedupedMod.name)).map {
           case (oldInst, newInst) => Instance(oldInst.name) -> Instance(newInst.name)
         }.toMap
         key -> value
