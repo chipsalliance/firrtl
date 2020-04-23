@@ -24,18 +24,20 @@ object Forms {
 
   val WorkingIR: Seq[TransformDependency] = MinimalHighForm :+ Dependency(passes.ToWorkingIR)
 
-  val Resolved: Seq[TransformDependency] = WorkingIR ++
+  val Checks: Seq[TransformDependency] =
     Seq( Dependency(passes.CheckHighForm),
-         Dependency(passes.ResolveKinds),
-         Dependency(passes.InferTypes),
          Dependency(passes.CheckTypes),
+         Dependency(passes.CheckFlows),
+         Dependency(passes.CheckWidths) )
+
+  val Resolved: Seq[TransformDependency] = WorkingIR ++ Checks ++
+    Seq( Dependency(passes.ResolveKinds),
+         Dependency(passes.InferTypes),
          Dependency(passes.Uniquify),
          Dependency(passes.ResolveFlows),
-         Dependency(passes.CheckFlows),
          Dependency[passes.InferBinaryPoints],
          Dependency[passes.TrimIntervals],
          Dependency[passes.InferWidths],
-         Dependency(passes.CheckWidths),
          Dependency[firrtl.transforms.InferResets] )
 
   val Deduped: Seq[TransformDependency] = Resolved :+ Dependency[firrtl.transforms.DedupModules]
@@ -67,12 +69,12 @@ object Forms {
 
   val LowFormMinimumOptimized: Seq[TransformDependency] = LowForm ++
     Seq( Dependency(passes.RemoveValidIf),
+         Dependency(passes.PadWidths),
          Dependency(passes.memlib.VerilogMemDelays),
          Dependency(passes.SplitExpressions) )
 
   val LowFormOptimized: Seq[TransformDependency] = LowFormMinimumOptimized ++
     Seq( Dependency[firrtl.transforms.ConstantPropagation],
-         Dependency(passes.PadWidths),
          Dependency[firrtl.transforms.CombineCats],
          Dependency(passes.CommonSubexpressionElimination),
          Dependency[firrtl.transforms.DeadCodeElimination] )
@@ -91,5 +93,18 @@ object Forms {
          Dependency[firrtl.AddDescriptionNodes] )
 
   val VerilogOptimized: Seq[TransformDependency] = LowFormOptimized ++ VerilogMinimumOptimized
+
+  val BackendEmitters =
+    Seq( Dependency[VerilogEmitter],
+         Dependency[MinimumVerilogEmitter],
+         Dependency[SystemVerilogEmitter] )
+
+  val LowEmitters = Dependency[LowFirrtlEmitter] +: BackendEmitters
+
+  val MidEmitters = Dependency[MiddleFirrtlEmitter] +: LowEmitters
+
+  val HighEmitters = Dependency[HighFirrtlEmitter] +: MidEmitters
+
+  val ChirrtlEmitters = Dependency[ChirrtlEmitter] +: HighEmitters
 
 }
