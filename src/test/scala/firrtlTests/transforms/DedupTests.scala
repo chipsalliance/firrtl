@@ -453,9 +453,7 @@ class DedupModuleTests extends HighTransformSpec {
     val Top_a2_b = Top_a2.instOf("b", "B")
     val annoAB = MultiTargetDummyAnnotation(Seq(A, B), 0)
     val annoA_B_ = MultiTargetDummyAnnotation(Seq(A_, B_), 1)
-    //Logger.setLevel(LogLevel.Info)
     val cs = execute(input, check, Seq(annoAB, annoA_B_))
-    //Logger.setLevel(LogLevel.None)
     cs.annotations.toSeq should contain (MultiTargetDummyAnnotation(Seq(
       Top_a1, Top_a1_b
     ), 0))
@@ -550,9 +548,7 @@ class DedupModuleTests extends HighTransformSpec {
     val A_ = Top.module("A_")
     val annoA  = SingleTargetDummyAnnotation(A.ref("a"))
     val annoA_ = SingleTargetDummyAnnotation(A_.ref("b"))
-    //Logger.setLevel(LogLevel.Info)
     val cs = execute(input, check, Seq(annoA, annoA_))
-    Logger.setLevel(LogLevel.None)
     cs.annotations.toSeq should contain (annoA)
     cs.annotations.toSeq should not contain (SingleTargetDummyAnnotation(A.ref("b")))
     cs.deletedAnnotations.isEmpty should be (true)
@@ -711,6 +707,7 @@ class DedupModuleTests extends HighTransformSpec {
         |    inst a1 of A
         |    inst a2 of A
         |  module A :
+        |    inst b of B
         |    inst b_ of B_
         |  module B :
         |    inst c of C
@@ -722,11 +719,13 @@ class DedupModuleTests extends HighTransformSpec {
     val check =
       """circuit Top :
         |  module Top :
-        |    inst a of A
-        |    inst b1 of B
+        |    inst b of B
+        |    inst b_ of B
+        |    inst a1 of A
+        |    inst a2 of A
         |  module A :
-        |    inst b2 of B
-        |    inst b3 of B
+        |    inst b of B
+        |    inst b_ of B
         |  module B :
         |    inst c of C
         |  module C :
@@ -736,8 +735,10 @@ class DedupModuleTests extends HighTransformSpec {
     val bInstances = Seq(
       Top.instOf("b", "B"),
       Top.instOf("b_", "B_"),
-      Top.instOf("a1", "A").instOf("b", "B_"),
-      Top.instOf("a2", "A").instOf("b", "B_")
+      Top.instOf("a1", "A").instOf("b_", "B_"),
+      Top.instOf("a2", "A").instOf("b_", "B_"),
+      Top.instOf("a1", "A").instOf("b", "B"),
+      Top.instOf("a2", "A").instOf("b", "B")
     )
     val cInstances = bInstances.map(_.instOf("c", "C"))
     val annos = MultiTargetDummyAnnotation(bInstances ++ cInstances, 0)
@@ -745,10 +746,14 @@ class DedupModuleTests extends HighTransformSpec {
     cs.annotations.toSeq should contain (MultiTargetDummyAnnotation(Seq(
       Top.instOf("b", "B"),
       Top.instOf("b_", "B"),
+      Top.instOf("a1", "A").instOf("b_", "B"),
+      Top.instOf("a2", "A").instOf("b_", "B"),
       Top.instOf("a1", "A").instOf("b", "B"),
       Top.instOf("a2", "A").instOf("b", "B"),
       Top.instOf("b", "B").instOf("c", "C"),
       Top.instOf("b_", "B").instOf("c", "C"),
+      Top.instOf("a1", "A").instOf("b_", "B").instOf("c", "C"),
+      Top.instOf("a2", "A").instOf("b_", "B").instOf("c", "C"),
       Top.instOf("a1", "A").instOf("b", "B").instOf("c", "C"),
       Top.instOf("a2", "A").instOf("b", "B").instOf("c", "C")
     ),0))
