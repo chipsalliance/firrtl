@@ -329,10 +329,12 @@ final class RenameMap private (
   }
 
   /** Checks for renames of only the path portion of an [[InstanceTarget]]
-    * Recursively checks parent [[IsModule]]s until a match is found
-    * First checks all parent paths from longest to shortest. Then
-    * recursively checks paths leading to the encapsulating module.
-    * Stops on the first match found.
+    * Recursively checks parent [[IsModule]]s until a match is found First
+    * checks all parent paths from longest to shortest. Then recursively checks
+    * paths leading to the encapsulating module.  Stops on the first match
+    * found. When a match is found the parent instances that were stripped off
+    * are added back unless the child is renamed to an absolute instance target
+    * (target.module == target.circuit).
     *
     * For example, the order that targets are checked for ~Top|Top/a:A/b:B/c:C is:
     * ~Top|Top/a:A/b:B/c:C
@@ -344,10 +346,11 @@ final class RenameMap private (
     *
     * @param errors Used to record illegal renames
     * @param key Target to rename
-    * @return Renamed targets, contains only the original target if none are found
+    * @return Renamed targets if a match is found, otherwise None
     */
   private def instanceGet(errors: mutable.ArrayBuffer[String])(key: InstanceTarget): Option[Seq[IsModule]] = {
     def traverseLeft(key: InstanceTarget): Option[Seq[IsModule]] = traverseLeftCache.getOrElseUpdate(key, {
+      logger.info(s"LEFT $key")
       val getOpt = underlying.get(key)
 
       if (getOpt.nonEmpty) {
@@ -364,7 +367,7 @@ final class RenameMap private (
             val (Instance(outerInst), OfModule(outerMod)) = t.path.head
             val stripped = t.copy(path = t.path.tail, module = outerMod)
             traverseLeft(stripped).map(_.map {
-              case absolute if absolute.path.nonEmpty && absolute.circuit == absolute.path.head._2.value => absolute
+              case absolute if absolute.circuit == absolute.module => absolute
               case relative => relative.addHierarchy(t.module, outerInst)
             })
         }
@@ -372,7 +375,9 @@ final class RenameMap private (
     })
 
     def traverseRight(key: InstanceTarget): Option[Seq[IsModule]] = traverseRightCache.getOrElseUpdate(key, {
+      logger.info(s"RIGHT $key")
       val findLeft = traverseLeft(key)
+      logger.info(s"LEFTGOT $findLeft")
       if (findLeft.isDefined) {
         findLeft
       } else {
@@ -400,19 +405,53 @@ final class RenameMap private (
 
   private def moduleGet(errors: mutable.ArrayBuffer[String])(key: ModuleTarget): Option[Seq[IsModule]] = {
     underlying.get(key).map(_.flatMap {
-      case mod: IsModule => Seq(mod)
+      case mod: IsModule => Some(mod)
       case other =>
         errors += s"Illegal rename: $key cannot be renamed to non-module target: $other"
         None
     })
   }
 
+  // the possible results returned by ofModuleGet
   private sealed trait OfModuleRenameResult
+
+  // an OfModule was renamed to an absolute module (t.module == t.circuit) and parent OfModules were not renamed
   private case class AbsoluteOfModule(isMod: IsModule) extends OfModuleRenameResult
+
+  // all OfModules were renamed to relative modules, and their paths are concatenated together
   private case class RenamedOfModules(children: Seq[(Instance, OfModule)]) extends OfModuleRenameResult
+
+  // an of the OfModule was deleted, thus the entire target is deleted
   private case object DeletedOfModule extends OfModuleRenameResult
+
+  // no renamed of OModules were found
   private case object NoOfModuleRenames extends OfModuleRenameResult
 
+  /** Checks for renames of [[OfModule]]s in the path of and [[IsComponent]]
+    * from right to left.  Renamed [[OfModule]]s must all have the same circuit
+    * name and cannot be renamed to more than one target. [[OfModule]]s that
+    * are renamed to relative targets are inline into the path of the original
+    * target. If it is renamed to an absolute target, then it become the parent
+    * path of the original target and renaming stops.
+    *
+    * Examples:
+    *
+    * RenameMap(~Top|A -> ~Top|Foo/bar:Bar):
+    * ofModuleGet(~Top|Top/a:A/b:B) == RenamedOfModules(a:Foo, bar:Bar, b:B)
+    *
+    * RenameMap(~Top|B -> ~Top|Top/foo:Foo/bar:Bar, ~Top|A -> ~Top|C):
+    * ofModuleGet(~Top|Top/a:A/b:B) == AbsoluteOfModule(~Top|Top/foo:Foo/bar:Bar/b:B)
+    *
+    * RenameMap(~Top|B -> deleted, ~Top|A -> ~Top|C):
+    * ofModuleGet(~Top|Top/a:A/b:B) == DeletedOfModule
+    *
+    * RenameMap.empty
+    * ofModuleGet(~Top|Top/a:A/b:B) == NoOfModuleRenames
+    *
+    * @param errors Used to record illegal renames
+    * @param key Target to rename
+    * @return rename results (see examples)
+    */
   private def ofModuleGet(errors: mutable.ArrayBuffer[String])(key: IsComponent): OfModuleRenameResult = {
     val circuit = key.circuit
     def renameOfModules(
@@ -442,9 +481,11 @@ final class RenameMap private (
                 }
                 AbsoluteOfModule(withChildren)
               case Seq(isMod: ModuleTarget) =>
-                renameOfModules(path.tail, true, Some(isMod.circuit), pair.copy(_2 = OfModule(isMod.module)) +: children)
+                val newPair = pair.copy(_2 = OfModule(isMod.module))
+                renameOfModules(path.tail, true, Some(isMod.circuit), newPair +: children)
               case Seq(isMod: InstanceTarget) =>
-                renameOfModules(path.tail, true, Some(isMod.circuit), isMod.asPath ++ children)
+                val newPair = pair.copy(_2 = OfModule(isMod.module))
+                renameOfModules(path.tail, true, Some(isMod.circuit), newPair +: (isMod.asPath ++ children))
               case Nil =>
                 DeletedOfModule
               case other =>
