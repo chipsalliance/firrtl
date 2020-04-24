@@ -10,7 +10,9 @@ import firrtl.annotations.analysis.DuplicationHelper
 import firrtl.annotations._
 import firrtl.ir._
 import firrtl.transforms.DedupedResult
-import firrtl.{AnnotationSeq, CircuitForm, CircuitState, FirrtlInternalException, HighForm, RenameMap, Transform, WDefInstance}
+import firrtl.{AnnotationSeq, CircuitState, DependencyAPIMigration, FirrtlInternalException, RenameMap, Transform, WDefInstance}
+import firrtl.options.PreservesAll
+import firrtl.stage.Forms
 
 import scala.collection.mutable
 
@@ -101,12 +103,12 @@ object EliminateTargetPaths {
   * B/x -> (B/x, B_/x) // where x is any reference in B
   * C/x -> (C/x, C_/x) // where x is any reference in C
   */
-class EliminateTargetPaths extends Transform {
+class EliminateTargetPaths extends Transform with DependencyAPIMigration with PreservesAll[Transform] {
   import EliminateTargetPaths._
 
-  def inputForm: CircuitForm = HighForm
-
-  def outputForm: CircuitForm = HighForm
+  override def prerequisites = Forms.MinimalHighForm
+  override def optionalPrerequisites = Seq.empty
+  override def optionalPrerequisiteOf = Seq.empty
 
   /** Replaces old ofModules with new ofModules by calling dupMap methods
     * Updates oldUsedOfModules, newUsedOfModules

@@ -57,13 +57,11 @@ case class DedupedResult(original: ModuleTarget, duplicate: Option[IsModule], in
   * Specifically, the restriction of instance loops must have been checked, or else this pass can
   *  infinitely recurse
   */
-class DedupModules extends Transform with PreservesAll[Transform] {
-  def inputForm: CircuitForm = HighForm
-  def outputForm: CircuitForm = HighForm
+class DedupModules extends Transform with DependencyAPIMigration with PreservesAll[Transform] {
 
-  override val prerequisites = firrtl.stage.Forms.Resolved
+  override def prerequisites = firrtl.stage.Forms.Resolved
 
-  override val dependents = Seq.empty
+  override def optionalPrerequisiteOf = Seq.empty
 
   /** Deduplicate a Circuit
     * @param state Input Firrtl AST
@@ -138,10 +136,6 @@ class DedupModules extends Transform with PreservesAll[Transform] {
       }
     }.toMap
 
-    instanceGraph.getChildrenInstances.foreach { case (k, v) =>
-      println(s"$k -> ${v.map(_.serialize)}")
-    }
-
     // get the ordered set of instances a module, includes new Deduped modules
     val getChildrenInstances = (mod: String) => {
       val childrenMap = instanceGraph.getChildrenInstances
@@ -165,7 +159,7 @@ class DedupModules extends Transform with PreservesAll[Transform] {
         key -> value
       }.toMap
     }
-    val dedupAnnotations = c.modules.map(_.name).map(ct.module).flatMap { case mt@ModuleTarget(c, m) =>
+    val dedupAnnotations = c.modules.map(_.name).map(ct.module).flatMap { case mt@ModuleTarget(c, m) if dedupCliques(m).size > 1 =>
       dedupMap.get(m) match {
         case None => Nil
         case Some(module: DefModule) =>
@@ -207,6 +201,7 @@ class DedupModules extends Transform with PreservesAll[Transform] {
             Seq(DedupedResult(mt, newTargets.headOption.map(_._1), moduleName2Index(m)))
           } else Nil
       }
+      case noDedups => Nil
     }
 
     val finalRenameMap = instanceify.andThen(componentRenameMap).andThen(moduleRenameMap)
