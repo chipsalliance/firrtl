@@ -384,7 +384,7 @@ class VerilogEmitterSpec extends FirrtlFlatSpec {
     }
   }
 
-  "Initial Blocks" should "be guarded by ifndef SYNTHESIS" in {
+  "Initial Blocks" should "be guarded by ifndef SYNTHESIS and user-defined optional macros" in {
     val input =
       """circuit Test :
         |  module Test :
@@ -398,8 +398,16 @@ class VerilogEmitterSpec extends FirrtlFlatSpec {
         """.stripMargin
     val state = CircuitState(parse(input), ChirrtlForm)
     val result = (new VerilogCompiler).compileAndEmit(state, List())
-    result should containLines ("`ifndef SYNTHESIS", "initial begin")
-    result should containLines ("end // initial", "`endif // SYNTHESIS")
+    result should containLines ("`ifndef SYNTHESIS",
+                                "`ifdef BEFORE_INITIAL",
+                                "`BEFORE_INITIAL",
+                                "`endif",
+                                "initial begin")
+    result should containLines ("end // initial",
+                                "`ifdef AFTER_INITIAL",
+                                "`AFTER_INITIAL",
+                                "`endif",
+                                "`endif // SYNTHESIS")
   }
 
   "Verilog name conflicts" should "be resolved" in {

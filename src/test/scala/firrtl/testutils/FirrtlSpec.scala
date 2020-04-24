@@ -254,12 +254,15 @@ object FirrtlCheckers extends FirrtlMatchers {
   /** Checks that the emitted circuit has the expected line, both will be normalized */
   def containLine(expectedLine: String) = containLines(expectedLine)
 
-  /** Checks that the emitted circuit has the expected lines in order, all lines will be normalized */
+  /** Checks that the emitted circuit contains the expected lines contiguously and in order;
+    * all lines will be normalized
+    */
   def containLines(expectedLines: String*) = new CircuitStateStringsMatcher(expectedLines)
 
   class CircuitStateStringsMatcher(expectedLines: Seq[String]) extends Matcher[CircuitState] {
     override def apply(state: CircuitState): MatchResult = {
       val emitted = state.getEmittedCircuit.value
+      println(expectedLines)
       MatchResult(
         emitted.split("\n").map(normalized).containsSlice(expectedLines.map(normalized)),
         emitted + "\n did not contain \"" + expectedLines + "\"",
