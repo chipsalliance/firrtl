@@ -133,7 +133,8 @@ class EliminateTargetPaths extends Transform {
     * @return
     */
   def run(cir: Circuit,
-          targets: Seq[IsMember]
+          targets: Seq[IsMember],
+          iGraph: InstanceGraph
          ): (Circuit, RenameMap, AnnotationSeq) = {
 
     val dupMap = DuplicationHelper(cir.modules.map(_.name).toSet)
@@ -179,8 +180,11 @@ class EliminateTargetPaths extends Transform {
         renameMap.record(x, newPathless)
         addRecord(x.stripHierarchy(1), newPathless)
     }
+    val duplicatedParents = mutable.Set[OfModule]()
     targets.foreach { t =>
       val newTs = dupMap.makePathless(t)
+      val path = t.asPath
+      if (path.nonEmpty) { duplicatedParents += path(0)._2 }
       newTs.toList match {
         case Seq(pathless) =>
           val mt = Target.referringModule(pathless)
@@ -188,6 +192,24 @@ class EliminateTargetPaths extends Transform {
           renameMap.record(Target.referringModule(t), mt)
         case _ =>
       }
+    }
+
+    def addSelfRecord(mod: IsModule): Unit = mod match {
+      case m: ModuleTarget =>
+      case i: InstanceTarget if renameMap.underlying.contains(i) =>
+      case i: InstanceTarget =>
+        renameMap.record(i, i)
+        addSelfRecord(i.stripHierarchy(1))
+    }
+    val topMod = ModuleTarget(cir.main, cir.main)
+    duplicatedParents.foreach { parent =>
+      val paths = iGraph.findInstancesInHierarchy(parent.value)
+      val newTargets = paths.map { path =>
+        path.tail.foldLeft(topMod: IsModule) { case (mod, wDefInst) =>
+          mod.instOf(wDefInst.name, wDefInst.module)
+        }
+      }
+      newTargets.foreach(addSelfRecord(_))
     }
 
     // Return modified circuit and associated renameMap
@@ -282,21 +304,11 @@ class EliminateTargetPaths extends Transform {
       case (t, acc) => t +: acc
     }
 
-    val (newCircuit, nextRenameMap, newAnnos) = run(state.circuit, nonSingletonTargets)
-
-    println("SINGLETON RENAME MAP")
-    firstRenameMap.underlying.foreach { case (from, tos) =>
-      println(s"${from.serialize} -> ${tos.map(_.serialize).mkString(", ")}")
-    }
-
-    println("NEXT RENAME MAP")
-    nextRenameMap.underlying.foreach { case (from, tos) =>
-      println(s"${from.serialize} -> ${tos.map(_.serialize).mkString(", ")}")
-    }
+    val (newCircuit, nextRenameMap, newAnnos) = run(state.circuit, nonSingletonTargets, iGraph)
 
     val renameMap =
       if (firstRenameMap.hasChanges) {
-        firstRenameMap andThen nextRenameMap
+        firstRenameMap.andThen(nextRenameMap)
       } else {
         nextRenameMap
       }
@@ -335,14 +347,11 @@ class EliminateTargetPaths extends Transform {
       }
     )
 
-    println("FINAL RENAME MAP")
-    renamedModuleMap.underlying.foreach { case (from, tos) =>
-      println(s"${from.serialize} -> ${tos.map(_.serialize).mkString(", ")}")
-    }
+    val finalRenameMap = renameMap.andThen(renamedModuleMap)
 
     state.copy(
       circuit = reorderedCircuit,
-      renames = Some(renameMap.andThen(renamedModuleMap)),
+      renames = Some(finalRenameMap),
       annotations = remainingAnnotations ++ newAnnos
     )
   }
