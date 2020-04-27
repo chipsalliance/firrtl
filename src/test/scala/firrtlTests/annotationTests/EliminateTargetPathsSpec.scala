@@ -521,7 +521,7 @@ class EliminateTargetPathsSpec extends FirrtlPropSpec with FirrtlMatchers {
       DedupedResult(ModuleTarget("Top", "Baz_0"), Some(baz), 0),
       DedupedResult(ModuleTarget("Top", "Baz_1"), Some(bazzz), 1),
       DontTouchAnnotation(baz.ref("foo")),
-      DontTouchAnnotation(bazzz.ref("foo")),
+      DontTouchAnnotation(bazzz.ref("foo"))
     )
     val inputCircuit = Parser.parse(input)
     val output = CircuitState(passes.ToWorkingIR.run(inputCircuit), UnknownForm, annos)
@@ -537,7 +537,7 @@ class EliminateTargetPathsSpec extends FirrtlPropSpec with FirrtlMatchers {
       case a: DontTouchAnnotation => a
     } should contain allOf (
       DontTouchAnnotation(ModuleTarget("Top", "Baz_0").ref("foo")),
-      DontTouchAnnotation(ModuleTarget("Top", "Baz_1").ref("foo")),
+      DontTouchAnnotation(ModuleTarget("Top", "Baz_1").ref("foo"))
     )
   }
 
@@ -572,5 +572,38 @@ class EliminateTargetPathsSpec extends FirrtlPropSpec with FirrtlMatchers {
       DontTouchAnnotation(ModuleTarget("Top", "Baz___Bar_lkj").ref("foo")),
       DontTouchAnnotation(baz.ref("foo"))
     ))
+  }
+
+  property("It should properly rename modules with multiple instances") {
+    val input =
+      """|circuit Top:
+         |  module Core:
+         |    node clock = UInt<1>(0)
+         |  module System:
+         |    inst core_1 of Core
+         |    inst core_2 of Core
+         |    inst core_3 of Core
+         |    inst core_4 of Core
+         |  module Top:
+         |    inst system of System
+         |""".stripMargin
+    val absCoreInstances = (1 to 4).map { i =>
+      ModuleTarget("Top", "Top").instOf("system", "System").instOf(s"core_$i", "Core")
+    }
+    val relCoreInstances = (1 to 4).map { i =>
+      ModuleTarget("Top", "System").instOf(s"core_$i", "Core")
+    }
+    val coreModule = ModuleTarget("Top", "Core")
+    val annos = (coreModule +: (relCoreInstances ++ absCoreInstances)).map(DummyAnnotation(_))
+    val inputCircuit = Parser.parse(input)
+    val output = CircuitState(passes.ToWorkingIR.run(inputCircuit), UnknownForm, annos)
+      .resolvePaths(relCoreInstances ++ absCoreInstances)
+
+    info(output.circuit.serialize)
+
+    val checkDontTouches = (1 to 4).map { i =>
+      DummyAnnotation(ModuleTarget("Top", s"Core___System_core_$i"))
+    }
+    output.annotations.collect { case a: DummyAnnotation => a } should be (checkDontTouches)
   }
 }
