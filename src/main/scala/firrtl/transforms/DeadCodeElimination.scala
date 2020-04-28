@@ -344,7 +344,7 @@ class DeadCodeElimination extends Transform
     topoSortedModules.foreach { case mod =>
       deleteDeadCode(moduleDeps(mod.name), deadNodes, modulesxMap, renames, c.main, doTouchExtMods)(mod) match {
         case Some(m) => modulesxMap += m.name -> m
-        case None => renames.delete(ModuleTarget(c.main, mod.name))
+        case None => renames.delete(ModuleName(mod.name, CircuitName(c.main)))
       }
     }
 
