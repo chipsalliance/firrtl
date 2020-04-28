@@ -7,7 +7,6 @@ import firrtl.RenameMap.IllegalRenameException
 import firrtl.annotations.TargetToken.{Field, Index, Instance, OfModule}
 
 import scala.collection.mutable
-import logger.LazyLogging
 
 object RenameMap {
   def apply(map: collection.Map[Named, Seq[Named]]): RenameMap = {
@@ -45,7 +44,7 @@ final class RenameMap private (
     val underlying: mutable.HashMap[CompleteTarget, Seq[CompleteTarget]] = mutable.HashMap[CompleteTarget, Seq[CompleteTarget]](),
     val chained: Option[RenameMap] = None,
     val associatedTransform: Option[Transform] = None
-) extends LazyLogging {
+) {
 
   /** Chain a [[RenameMap]] with this [[RenameMap]]
     * @param next the map to chain with this map
@@ -225,39 +224,30 @@ final class RenameMap private (
     * @param key Target referencing the original circuit
     * @return Optionally return sequence of targets that key remaps to
     */
-  private def completeGet(key: CompleteTarget, level: Int = 0): Option[Seq[CompleteTarget]] = {
-    if(level == 0) { logger.info("START")}
+  private def completeGet(key: CompleteTarget): Option[Seq[CompleteTarget]] = {
     if (chained.nonEmpty) {
-      val chainedRet = chained.get.completeGet(key, level + 1).getOrElse(Seq(key))
+      val chainedRet = chained.get.completeGet(key).getOrElse(Seq(key))
       if (chainedRet.isEmpty) {
         Some(chainedRet)
       } else {
         val hereRet = (chainedRet.flatMap { target =>
-          hereCompleteGet(target, level).getOrElse(Seq(target))
+          hereCompleteGet(target).getOrElse(Seq(target))
         }).distinct
         if (hereRet.size == 1 && hereRet.head == key) { None } else { Some(hereRet) }
       }
     } else {
-      hereCompleteGet(key, level)
+      hereCompleteGet(key)
     }
   }
 
-  private def hereCompleteGet(key: CompleteTarget, level: Int): Option[Seq[CompleteTarget]] = {
+  private def hereCompleteGet(key: CompleteTarget): Option[Seq[CompleteTarget]] = {
     val errors = mutable.ArrayBuffer[String]()
     val ret = if(hasChanges) {
-      val ret = recursiveGet(errors, level)(key)
+      val ret = recursiveGet(errors)(key)
       if(errors.nonEmpty) { throw IllegalRenameException(errors.mkString("\n")) }
       if(ret.size == 1 && ret.head == key) { None } else { Some(ret) }
     } else { None }
     ret
-  }
-
-  def debug(): Unit = {
-    chained.map(_.debug())
-    logger.info("renames:")
-    underlying.foreach {
-      case (from, to) => logger.info(s"${from} -> ${to}")
-    }
   }
 
   /** Checks for renames of only the component portion of a [[ReferenceTarget]]
@@ -350,7 +340,6 @@ final class RenameMap private (
     */
   private def instanceGet(errors: mutable.ArrayBuffer[String])(key: InstanceTarget): Option[Seq[IsModule]] = {
     def traverseLeft(key: InstanceTarget): Option[Seq[IsModule]] = traverseLeftCache.getOrElseUpdate(key, {
-      logger.info(s"LEFT $key")
       val getOpt = underlying.get(key)
 
       if (getOpt.nonEmpty) {
@@ -375,9 +364,7 @@ final class RenameMap private (
     })
 
     def traverseRight(key: InstanceTarget): Option[Seq[IsModule]] = traverseRightCache.getOrElseUpdate(key, {
-      logger.info(s"RIGHT $key")
       val findLeft = traverseLeft(key)
-      logger.info(s"LEFTGOT $findLeft")
       if (findLeft.isDefined) {
         findLeft
       } else {
@@ -505,7 +492,7 @@ final class RenameMap private (
     * @param key Target to rename
     * @return Renamed targets
     */
-  private def recursiveGet(errors: mutable.ArrayBuffer[String], level: Int)(key: CompleteTarget): Seq[CompleteTarget] = {
+  private def recursiveGet(errors: mutable.ArrayBuffer[String])(key: CompleteTarget): Seq[CompleteTarget] = {
     if(getCache.contains(key)) {
       getCache(key)
     } else {
@@ -618,15 +605,6 @@ final class RenameMap private (
             }
         }
       }
-      logger.info(
-        if (topRename.isDefined) {
-          s"TOPRENAME $level: " + key + " -> " + topRename.get
-        } else if (midRename.isDefined) {
-          s"MIDRENAME $level: " + key + " -> " + midRename.get
-        } else {
-          s"BOTRENAME $level: " + key + " -> " + botRename
-        }
-      )
 
       // Cache result
       getCache(key) = botRename
@@ -688,39 +666,18 @@ final class RenameMap private (
 
 
   // Mutable helpers - APIs that set these are deprecated!
-  private var fromCircuitName: String = ""
-  private var toCircuitName: String = ""
-  private var fromModuleName: String = ""
-  private var toModuleName: String = ""
+  private var circuitName: String = ""
+  private var moduleName: String = ""
 
   /** Sets mutable state to record current module we are visiting
     * @param module
     */
-  def setModule(module: String): Unit = {
-    fromModuleName = module
-    toModuleName = module
-  }
-
-  /** Sets mutable state to record current module we are visiting
-    * @param module
-    */
-  def setModule(fromModule: String, toModule: String): Unit = {
-    fromModuleName = fromModule
-    toModuleName = toModule
-  }
+  def setModule(module: String): Unit = moduleName = module
 
   /** Sets mutable state to record current circuit we are visiting
     * @param circuit
     */
-  def setCircuit(circuit: String): Unit = {
-    fromCircuitName = circuit
-    toCircuitName = circuit
-  }
-
-  def setCircuit(fromCircuit: String, toCircuit: String): Unit = {
-    fromCircuitName = fromCircuit
-    toCircuitName = toCircuit
-  }
+  def setCircuit(circuit: String): Unit = circuitName = circuit
 
   /** Records how a reference maps to a new reference
     * @param from
@@ -734,11 +691,9 @@ final class RenameMap private (
     * @param tos
     */
   def rename(from: String, tos: Seq[String]): Unit = {
-    val fromModName = ModuleName(fromModuleName, CircuitName(fromCircuitName))
-    val fromName = ComponentName(from, fromModName).toTarget
-
-    val toModName = ModuleName(toModuleName, CircuitName(toCircuitName))
-    val tosName = tos map { to => ComponentName(to, toModName).toTarget }
+    val mn = ModuleName(moduleName, CircuitName(circuitName))
+    val fromName = ComponentName(from, mn).toTarget
+    val tosName = tos map { to => ComponentName(to, mn).toTarget }
     record(fromName, tosName)
   }
 
@@ -747,7 +702,7 @@ final class RenameMap private (
     * @param name
     */
   def delete(name: String): Unit = {
-    Target(Some(fromCircuitName), Some(fromModuleName), AnnotationUtils.toSubComponents(name)).getComplete match {
+    Target(Some(circuitName), Some(moduleName), AnnotationUtils.toSubComponents(name)).getComplete match {
       case Some(t: CircuitTarget) => delete(t)
       case Some(m: IsMember) => delete(m)
       case other =>

@@ -8,8 +8,6 @@ import firrtl.annotations._
 import firrtl.transforms.{DedupModules, NoCircuitDedupAnnotation}
 import firrtl.testutils._
 
-import logger.{Logger, LogLevel}
-
 /**
  * Tests inline instances transformation
  */

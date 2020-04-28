@@ -9,10 +9,10 @@ import firrtl.annotations.TargetToken.{Instance, OfModule, fromDefModuleToTarget
 import firrtl.annotations.analysis.DuplicationHelper
 import firrtl.annotations._
 import firrtl.ir._
-import firrtl.transforms.DedupedResult
 import firrtl.{AnnotationSeq, CircuitState, DependencyAPIMigration, FirrtlInternalException, RenameMap, Transform, WDefInstance}
 import firrtl.options.PreservesAll
 import firrtl.stage.Forms
+import firrtl.transforms.DedupedResult
 
 import scala.collection.mutable
 
@@ -349,11 +349,9 @@ class EliminateTargetPaths extends Transform with DependencyAPIMigration with Pr
       }
     )
 
-    val finalRenameMap = renameMap.andThen(renamedModuleMap)
-
     state.copy(
       circuit = reorderedCircuit,
-      renames = Some(finalRenameMap),
+      renames = Some(renameMap.andThen(renamedModuleMap)),
       annotations = remainingAnnotations ++ newAnnos
     )
   }

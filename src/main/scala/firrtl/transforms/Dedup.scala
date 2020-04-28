@@ -83,7 +83,6 @@ class DedupModules extends Transform with DependencyAPIMigration with PreservesA
           }
       }.toMap
       val (newC, renameMap, newAnnos) = run(state.circuit, noDedups, previouslyDupedMap)
-      renameMap.debug()
       state.copy(circuit = newC, renames = Some(renameMap), annotations = newAnnos ++ remainingAnnotations)
     }
   }

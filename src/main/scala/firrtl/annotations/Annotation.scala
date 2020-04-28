@@ -65,7 +65,7 @@ trait SingleTargetAnnotation[T <: Named] extends Annotation {
         ret.map(_.map { newT =>
           val result = newT match {
             case c: InstanceTarget => ModuleName(c.ofModule, CircuitName(c.circuit))
-            case c: IsMember => 
+            case c: IsMember =>
               val local = Target.referringModule(c)
               c.setPathTarget(local)
             case c: CircuitTarget => c.toNamed
