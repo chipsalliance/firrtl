@@ -319,7 +319,7 @@ final class RenameMap private (
   }
 
   /** Checks for renames of only the path portion of an [[InstanceTarget]]
-    * Recursively checks parent [[IsModule]]s until a match is found First
+    * Recursively checks parent [[IsModule]]s until a match is found. First
     * checks all parent paths from longest to shortest. Then recursively checks
     * paths leading to the encapsulating module.  Stops on the first match
     * found. When a match is found the parent instances that were stripped off
@@ -503,7 +503,7 @@ final class RenameMap private (
       //     - (~Top|Top/a:A -> ~Top|A)
       //     - (~Top|A -> ~Top|B)
       //   Renaming (~Top|Top/a:A) should return (~Top|A), not (~Top|B)
-      // This is due to our splitting recursive renaming into three parts (top, mid, ast, bot)
+      // This is due to our splitting recursive renaming into three parts (top, mid, bot)
       // We continue renaming even if original == ts.head because if it returns the same target, there are
       //   still additional renaming of different parts of the target which must occur. If the target actually
       //   should not be renamed, it must go through all partial renaming parts to actually determine that fact.
