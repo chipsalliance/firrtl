@@ -408,18 +408,18 @@ final class RenameMap private (
   // all OfModules were renamed to relative modules, and their paths are concatenated together
   private case class RenamedOfModules(children: Seq[(Instance, OfModule)]) extends OfModuleRenameResult
 
-  // an of the OfModule was deleted, thus the entire target is deleted
+  // an OfModule was deleted, thus the entire target was deleted
   private case object DeletedOfModule extends OfModuleRenameResult
 
-  // no renamed of OModules were found
+  // no renamed of OfModules were found
   private case object NoOfModuleRenames extends OfModuleRenameResult
 
   /** Checks for renames of [[OfModule]]s in the path of and [[IsComponent]]
     * from right to left.  Renamed [[OfModule]]s must all have the same circuit
     * name and cannot be renamed to more than one target. [[OfModule]]s that
-    * are renamed to relative targets are inline into the path of the original
-    * target. If it is renamed to an absolute target, then it become the parent
-    * path of the original target and renaming stops.
+    * are renamed to relative targets are inlined into the path of the original
+    * target. If it is renamed to an absolute target, then it becomes the
+    * parent path of the original target and renaming stops.
     *
     * Examples:
     *
