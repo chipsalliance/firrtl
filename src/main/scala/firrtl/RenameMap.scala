@@ -497,22 +497,6 @@ final class RenameMap private (
       getCache(key)
     } else {
 
-      // Used to determine if renaming has ended early. This is to prevent the case
-      //   where a fully recursive renaming occurs, e.g.
-      //   Given Renames:
-      //     - (~Top|Top/a:A -> ~Top|A)
-      //     - (~Top|A -> ~Top|B)
-      //   Renaming (~Top|Top/a:A) should return (~Top|A), not (~Top|B)
-      // This is due to our splitting recursive renaming into three parts (top, mid, bot)
-      // We continue renaming even if original == ts.head because if it returns the same target, there are
-      //   still additional renaming of different parts of the target which must occur. If the target actually
-      //   should not be renamed, it must go through all partial renaming parts to actually determine that fact.
-      def continueRenaming[T <: CompleteTarget](original: CompleteTarget, ts: Seq[CompleteTarget]): Boolean =
-        ts match {
-          case Seq(t: T @unchecked) if original != t => false
-          case _ => true
-        }
-
       // rename just the first level e.g. just rename component/path portion for ReferenceTargets
       val topRename = key match {
         case t: CircuitTarget => None
