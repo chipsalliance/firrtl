@@ -497,8 +497,8 @@ final class RenameMap private (
       getCache(key)
     } else {
 
-      // rename just the first level e.g. just rename component/path portion for ReferenceTargets
-      val topRename = key match {
+      // rename just the component portion; path/ref/component for ReferenceTargets or path/instance for InstanceTargets
+      val componentRename = key match {
         case t: CircuitTarget => None
         case t: ModuleTarget => None
         case t: InstanceTarget => instanceGet(errors)(t)
@@ -515,9 +515,9 @@ final class RenameMap private (
       }
 
 
-      // rename the next level up
-      val midRename = if (topRename.isDefined) {
-        topRename
+      // if no component rename was found, look for Module renames; root module/OfModules in path
+      val moduleRename = if (componentRename.isDefined) {
+        componentRename
       } else {
         key match {
           case t: CircuitTarget => None
@@ -569,9 +569,9 @@ final class RenameMap private (
         }
       }
 
-      // rename the last level
-      val botRename = if (midRename.isDefined) {
-        midRename.get
+      // if no module renames were found, look for circuit renames;
+      val circuitRename = if (moduleRename.isDefined) {
+        moduleRename.get
       } else {
         key match {
           case t: CircuitTarget => circuitGet(errors)(t)
@@ -591,8 +591,8 @@ final class RenameMap private (
       }
 
       // Cache result
-      getCache(key) = botRename
-      botRename
+      getCache(key) = circuitRename
+      circuitRename
     }
   }
 
