@@ -544,6 +544,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
     }
 
     val portdefs = ArrayBuffer[Seq[Any]]()
+    // mapps ifdef guard to declaration blocks
     val ifdefDeclares = mutable.Map[String, ArrayBuffer[Seq[Any]]]()
     val declares = ArrayBuffer[Seq[Any]]()
     val instdeclares = ArrayBuffer[Seq[Any]]()
@@ -558,6 +559,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
     val asyncResetAlwaysBlocks = mutable.ArrayBuffer[(Expression, Expression, Seq[Any])]()
     // Used to determine type of initvar for initializing memories
     var maxMemSize: BigInt = BigInt(0)
+    // mapps ifdef guard to initial blocks
     val ifdefInitials = mutable.Map[String, ArrayBuffer[Seq[Any]]]()
     val initials = ArrayBuffer[Seq[Any]]()
     // In Verilog, async reset registers are expressed using always blocks of the form:
@@ -588,6 +590,11 @@ class VerilogEmitter extends SeqTransform with Emitter {
       }
     }
 
+    // original vector type declare without initial value
+    def declareVectorType(b: String, n: String, tpe: Type, size: BigInt, info: Info): Unit =
+      declareVectorType(b, n, tpe, size, info, None)
+
+    // declare vector type with initial value
     def declareVectorType(b: String, n: String, tpe: Type, size: BigInt, info: Info, preset: Expression): Unit = {
       declares += Seq(b, " ", tpe, " ", n, " [0:", bigIntToVLit(size - 1), "] = ", preset, ";", info)
     }
@@ -601,14 +608,6 @@ class VerilogEmitter extends SeqTransform with Emitter {
       case tx =>
         declares += Seq(b, " ", tx, " ", n, " = ", preset, ";", info)
     }
-
-    // original vector type declare without initial value
-    def declareVectorType(b: String, n: String, tpe: Type, size: BigInt, info: Info): Unit =
-      declareVectorType(b, n, tpe, size, info, None)
-
-    // original vector type declare without initial value and with an ifdef guard
-    def declareVectorType(b: String, n: String, tpe: Type, size: BigInt, info: Info, ifdef: String): Unit =
-      declareVectorType(b, n, tpe, size, info, Some(ifdef))
 
     // original declare without initial value and optinally with an ifdef guard
     def declare(b: String, n: String, t: Type, info: Info, ifdefOpt: Option[String]): Unit = t match {
