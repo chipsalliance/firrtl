@@ -558,6 +558,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
     val asyncResetAlwaysBlocks = mutable.ArrayBuffer[(Expression, Expression, Seq[Any])]()
     // Used to determine type of initvar for initializing memories
     var maxMemSize: BigInt = BigInt(0)
+    val ifdefInitials = mutable.Map[String, ArrayBuffer[Seq[Any]]]()
     val initials = ArrayBuffer[Seq[Any]]()
     // In Verilog, async reset registers are expressed using always blocks of the form:
     // always @(posedge clock or posedge reset) begin
@@ -577,6 +578,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
     def bigIntToVLit(bi: BigInt): String =
       if (bi.isValidInt) bi.toString else s"${bi.bitLength}'d$bi"
 
+    // declare vector type with no preset and optionally with an ifdef guard
     def declareVectorType(b: String, n: String, tpe: Type, size: BigInt, info: Info, ifdefOpt: Option[String]): Unit = {
       val decl = Seq(b, " ", tpe, " ", n, " [0:", bigIntToVLit(size - 1), "];", info)
       if (ifdefOpt.isDefined) {
@@ -589,7 +591,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
     def declareVectorType(b: String, n: String, tpe: Type, size: BigInt, info: Info, preset: Expression): Unit = {
       declares += Seq(b, " ", tpe, " ", n, " [0:", bigIntToVLit(size - 1), "] = ", preset, ";", info)
     }
-    
+
     val moduleTarget = CircuitTarget(circuitName).module(m.name)
 
     // declare with initial value
@@ -599,14 +601,16 @@ class VerilogEmitter extends SeqTransform with Emitter {
       case tx =>
         declares += Seq(b, " ", tx, " ", n, " = ", preset, ";", info)
     }
-    
+
+    // original vector type declare without initial value
     def declareVectorType(b: String, n: String, tpe: Type, size: BigInt, info: Info): Unit =
       declareVectorType(b, n, tpe, size, info, None)
 
+    // original vector type declare without initial value and with an ifdef guard
     def declareVectorType(b: String, n: String, tpe: Type, size: BigInt, info: Info, ifdef: String): Unit =
       declareVectorType(b, n, tpe, size, info, Some(ifdef))
 
-    // original declare without initial value
+    // original declare without initial value and optinally with an ifdef guard
     def declare(b: String, n: String, t: Type, info: Info, ifdefOpt: Option[String]): Unit = t match {
       case tx: VectorType =>
         declareVectorType(b, n, tx.tpe, tx.size, info, ifdefOpt)
@@ -619,9 +623,11 @@ class VerilogEmitter extends SeqTransform with Emitter {
         }
     }
 
+    // original declare without initial value and with an ifdef guard
     def declare(b: String, n: String, t: Type, info: Info, ifdef: String): Unit =
       declare(b, n, t, info, Some(ifdef))
 
+    // original declare without initial value
     def declare(b: String, n: String, t: Type, info: Info): Unit =
       declare(b, n, t, info, None)
 
@@ -710,7 +716,12 @@ class VerilogEmitter extends SeqTransform with Emitter {
       val rand = VRandom(bitWidth(t))
       val tx = SIntType(IntWidth(rand.realWidth))
       declare("reg", nx, tx, NoInfo, ifdefOpt)
-      initials += Seq(wref(nx, tx), " = ", VRandom(bitWidth(t)), ";")
+      val initial = Seq(wref(nx, tx), " = ", VRandom(bitWidth(t)), ";")
+      if (ifdefOpt.isDefined) {
+        ifdefInitials.getOrElseUpdate(ifdefOpt.get, ArrayBuffer[Seq[Any]]()) += initial
+      } else {
+        initials += initial
+      }
       Seq(nx, "[", bitWidth(t) - 1, ":0]")
     }
 
@@ -719,9 +730,8 @@ class VerilogEmitter extends SeqTransform with Emitter {
     def rand_string(t: Type): Seq[Any] = rand_string(t, None)
 
     def initialize(e: Expression, reset: Expression, init: Expression) = {
-      initials += Seq("`ifdef RANDOMIZE_REG_INIT")
-      initials += Seq(e, " = ", rand_string(e.tpe, "RANDOMIZE_REG_INIT"), ";")
-      initials += Seq("`endif // RANDOMIZE_REG_INIT")
+      val randString = rand_string(e.tpe, "RANDOMIZE_REG_INIT")
+      ifdefInitials("RANDOMIZE_REG_INIT") += Seq(e, " = ", randString, ";")
       reset.tpe match {
         case AsyncResetType =>
           asyncInitials += Seq("if (", reset, ") begin")
@@ -737,11 +747,9 @@ class VerilogEmitter extends SeqTransform with Emitter {
       }
       val index = wref("initvar", s.dataType)
       val rstring = rand_string(s.dataType, "RANDOMIZE_MEM_INIT")
-      initials += Seq("`ifdef RANDOMIZE_MEM_INIT")
-      initials += Seq("for (initvar = 0; initvar < ", bigIntToVLit(s.depth), "; initvar = initvar+1)")
-      initials += Seq(tab, WSubAccess(wref(s.name, s.dataType), index, s.dataType, SinkFlow),
+      ifdefInitials("RANDOMIZE_MEM_INIT") += Seq("for (initvar = 0; initvar < ", bigIntToVLit(s.depth), "; initvar = initvar+1)")
+      ifdefInitials("RANDOMIZE_MEM_INIT") += Seq(tab, WSubAccess(wref(s.name, s.dataType), index, s.dataType, SinkFlow),
                       " = ", rstring, ";")
-      initials += Seq("`endif // RANDOMIZE_MEM_INIT")
     }
 
     def simulate(clk: Expression, en: Expression, s: Seq[Any], cond: Option[String], info: Info) = {
@@ -968,9 +976,9 @@ class VerilogEmitter extends SeqTransform with Emitter {
       ifdefDeclares.toSeq.sortWith(_._1 < _._1).foreach { case (ifdef, declares) =>
         emit(Seq("`ifdef " + ifdef))
         for (x <- declares) emit(Seq(tab, x))
-        emit(Seq("`endif"))
+        emit(Seq("`endif // " + ifdef))
       }
-      if (declares.isEmpty && assigns.isEmpty) emit(Seq(tab, "initial begin end"))
+      if (declares.isEmpty && ifdefDeclares.isEmpty && assigns.isEmpty) emit(Seq(tab, "initial begin end"))
       for (x <- declares) emit(Seq(tab, x))
       for (x <- instdeclares) emit(Seq(tab, x))
       for (x <- assigns) emit(Seq(tab, x))
@@ -983,7 +991,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
         for (x <- attachAliases) emit(Seq(tab, x))
         emit(Seq("`endif"))
       }
-      if (initials.nonEmpty) {
+      if (initials.nonEmpty || ifdefInitials.nonEmpty) {
         emit(Seq("`ifdef RANDOMIZE_GARBAGE_ASSIGN"))
         emit(Seq("`define RANDOMIZE"))
         emit(Seq("`endif"))
@@ -1028,6 +1036,11 @@ class VerilogEmitter extends SeqTransform with Emitter {
         emit(Seq("        #0.002 begin end"))
         emit(Seq("      `endif"))
         emit(Seq("    `endif"))
+        ifdefInitials.toSeq.sortWith(_._1 < _._1).foreach { case (ifdef, initials) =>
+          emit(Seq("`ifdef " + ifdef))
+          for (x <- initials) emit(Seq(tab, x))
+          emit(Seq("`endif // " + ifdef))
+        }
         for (x <- initials) emit(Seq(tab, x))
         for (x <- asyncInitials) emit(Seq(tab, x))
         emit(Seq("  `endif // RANDOMIZE"))
