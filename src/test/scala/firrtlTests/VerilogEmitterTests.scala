@@ -2,6 +2,8 @@
 
 package firrtlTests
 
+import java.io.File
+
 import firrtl._
 import firrtl.annotations._
 import firrtl.passes._
@@ -9,6 +11,8 @@ import firrtl.transforms.VerilogRename
 import firrtl.transforms.CombineCats
 import firrtl.testutils._
 import firrtl.testutils.FirrtlCheckers._
+
+import scala.sys.process.{Process, ProcessLogger}
 
 class DoPrimVerilog extends FirrtlFlatSpec {
   "Xorr" should "emit correctly" in {
@@ -871,5 +875,38 @@ class VerilogDescriptionEmitterSpec extends FirrtlFlatSpec {
     for (c <- check) {
       assert(output.contains(c))
     }
+  }
+}
+
+class EmittedMacroSpec extends FirrtlPropSpec {
+  property("User-defined macros for before/after initial should be supported") {
+    val prefix = "Printf"
+    val testDir = compileFirrtlTest(prefix, "/features")
+    val harness = new File(testDir, s"top.cpp")
+    copyResourceToFile(cppHarnessResourceName, harness)
+
+    // define macros to print
+    val cmdLineArgs = Seq(
+      "+define+BEFORE_INITIAL=initial begin $fwrite(32'h80000002, \"printing from BEFORE_INITIAL macro\\n\"); end",
+      "+define+AFTER_INITIAL=initial begin $fwrite(32'h80000002, \"printing from AFTER_INITIAL macro\\n\"); end"
+    )
+
+    verilogToCpp(prefix, testDir, List.empty, harness, extraCmdLineArgs = cmdLineArgs) #&&
+      cppToExe(prefix, testDir) !
+      loggingProcessLogger
+
+    // check for expected print statements
+    var saw_before = false
+    var saw_after = false
+    Process(s"./V${prefix}", testDir) !
+      ProcessLogger(line => {
+        line match {
+          case "printing from BEFORE_INITIAL macro" => saw_before = true
+          case "printing from AFTER_INITIAL macro" => saw_after = true
+          case _ => // Do Nothing
+        }
+      })
+
+    assert(saw_before & saw_after)
   }
 }

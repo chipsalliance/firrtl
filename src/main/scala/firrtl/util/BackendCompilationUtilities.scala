@@ -107,7 +107,8 @@ trait BackendCompilationUtilities extends LazyLogging {
     vSources: Seq[File],
     cppHarness: File,
     suppressVcd: Boolean = false,
-    resourceFileName: String = firrtl.transforms.BlackBoxSourceHelper.defaultFileListName
+    resourceFileName: String = firrtl.transforms.BlackBoxSourceHelper.defaultFileListName,
+    extraCmdLineArgs: Seq[String] = Seq.empty
   ): ProcessBuilder = {
 
     val topModule = dutFile
@@ -138,6 +139,7 @@ trait BackendCompilationUtilities extends LazyLogging {
       "verilator",
       "--cc", s"${dir.getAbsolutePath}/$dutFile.v"
     ) ++
+      extraCmdLineArgs ++
       blackBoxVerilogList ++
       vSourcesFiltered.flatMap(file => Seq("-v", file.getCanonicalPath)) ++
       Seq("--assert",
