@@ -316,4 +316,24 @@ class UniquifySpec extends FirrtlFlatSpec {
     if (TestOptions.accurateTiming)
       renameMs shouldBe < (baseMs * threshold)
   }
+
+  it should "rename to avoid collisions with lowered bits" in {
+    val input =
+     """|circuit Foo:
+        |  module Foo:
+        |    mem _T :
+        |      data-type => UInt<1>
+        |      depth => 2
+        |      read-latency => 0
+        |      write-latency => 1
+        |      read-under-write => undefined
+        |    wire _T_1 : UInt<1>
+     """.stripMargin
+    val expected = Seq(
+      "mem _T_ :",
+      "wire _T_1 : UInt<1>") map normalized
+
+    executeTest(input, expected)
+  }
+
 }
