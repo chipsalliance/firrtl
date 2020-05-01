@@ -96,6 +96,12 @@ lazy val antlrSettings = Seq(
   javaSource in Antlr4 := (sourceManaged in Compile).value
 )
 
+import com.typesafe.tools.mima.core._
+lazy val mimaSettings = Seq(
+  mimaPreviousArtifacts := Set("edu.berkeley.cs" %% "firrtl" % "1.3.0"),
+  mimaBinaryIssueFilters ++= Seq()
+)
+
 lazy val publishSettings = Seq(
   publishMavenStyle := true,
   publishArtifact in Test := false,
@@ -185,3 +191,4 @@ lazy val firrtl = (project in file("."))
   .settings(testAssemblySettings)
   .settings(publishSettings)
   .settings(docSettings)
+  .settings(mimaSettings)
