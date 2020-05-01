@@ -589,7 +589,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
       if (bi.isValidInt) bi.toString else s"${bi.bitLength}'d$bi"
 
     // declare vector type with no preset and optionally with an ifdef guard
-    private def declareVectorType(b: String, n: String, tpe: Type, size: BigInt, info: Info, ifdefOpt: Option[String]): Unit = {
+    private def declareVectorType(b: String, n: String, tpe: Type, size: BigInt, info: Info, ifdefOpt: Option[String]): ArrayBuffer[Seq[Any]] = {
       val decl = Seq(b, " ", tpe, " ", n, " [0:", bigIntToVLit(size - 1), "];", info)
       if (ifdefOpt.isDefined) {
         ifdefDeclares(ifdefOpt.get) += decl
@@ -599,18 +599,18 @@ class VerilogEmitter extends SeqTransform with Emitter {
     }
 
     // original vector type declare without initial value
-    def declareVectorType(b: String, n: String, tpe: Type, size: BigInt, info: Info): Unit =
+    def declareVectorType(b: String, n: String, tpe: Type, size: BigInt, info: Info): ArrayBuffer[Seq[Any]] =
       declareVectorType(b, n, tpe, size, info, None)
 
     // declare vector type with initial value
-    def declareVectorType(b: String, n: String, tpe: Type, size: BigInt, info: Info, preset: Expression): Unit = {
+    def declareVectorType(b: String, n: String, tpe: Type, size: BigInt, info: Info, preset: Expression): ArrayBuffer[Seq[Any]] = {
       declares += Seq(b, " ", tpe, " ", n, " [0:", bigIntToVLit(size - 1), "] = ", preset, ";", info)
     }
 
     val moduleTarget = CircuitTarget(circuitName).module(m.name)
 
     // declare with initial value
-    def declare(b: String, n: String, t: Type, info: Info, preset: Expression) = t match {
+    def declare(b: String, n: String, t: Type, info: Info, preset: Expression): ArrayBuffer[Seq[Any]] = t match {
       case tx: VectorType =>
         declareVectorType(b, n, tx.tpe, tx.size, info, preset)
       case tx =>
@@ -618,7 +618,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
     }
 
     // original declare without initial value and optinally with an ifdef guard
-    private def declare(b: String, n: String, t: Type, info: Info, ifdefOpt: Option[String]): Unit = t match {
+    private def declare(b: String, n: String, t: Type, info: Info, ifdefOpt: Option[String]): ArrayBuffer[Seq[Any]] = t match {
       case tx: VectorType =>
         declareVectorType(b, n, tx.tpe, tx.size, info, ifdefOpt)
       case tx =>
@@ -631,11 +631,11 @@ class VerilogEmitter extends SeqTransform with Emitter {
     }
 
     // original declare without initial value and with an ifdef guard
-    private def declare(b: String, n: String, t: Type, info: Info, ifdef: String): Unit =
+    private def declare(b: String, n: String, t: Type, info: Info, ifdef: String): ArrayBuffer[Seq[Any]] =
       declare(b, n, t, info, Some(ifdef))
 
     // original declare without initial value
-    def declare(b: String, n: String, t: Type, info: Info): Unit =
+    def declare(b: String, n: String, t: Type, info: Info): ArrayBuffer[Seq[Any]] =
       declare(b, n, t, info, None)
 
     def assign(e: Expression, value: Expression, info: Info): Unit = {
