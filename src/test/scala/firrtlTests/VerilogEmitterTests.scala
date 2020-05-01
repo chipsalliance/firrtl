@@ -403,13 +403,13 @@ class VerilogEmitterSpec extends FirrtlFlatSpec {
     val state = CircuitState(parse(input), ChirrtlForm)
     val result = (new VerilogCompiler).compileAndEmit(state, List())
     result should containLines ("`ifndef SYNTHESIS",
-                                "`ifdef BEFORE_INITIAL",
-                                "`BEFORE_INITIAL",
+                                "`ifdef FIRRTL_BEFORE_INITIAL",
+                                "`FIRRTL_BEFORE_INITIAL",
                                 "`endif",
                                 "initial begin")
     result should containLines ("end // initial",
-                                "`ifdef AFTER_INITIAL",
-                                "`AFTER_INITIAL",
+                                "`ifdef FIRRTL_AFTER_INITIAL",
+                                "`FIRRTL_AFTER_INITIAL",
                                 "`endif",
                                 "`endif // SYNTHESIS")
   }
@@ -887,8 +887,8 @@ class EmittedMacroSpec extends FirrtlPropSpec {
 
     // define macros to print
     val cmdLineArgs = Seq(
-      "+define+BEFORE_INITIAL=initial begin $fwrite(32'h80000002, \"printing from BEFORE_INITIAL macro\\n\"); end",
-      "+define+AFTER_INITIAL=initial begin $fwrite(32'h80000002, \"printing from AFTER_INITIAL macro\\n\"); end"
+      "+define+FIRRTL_BEFORE_INITIAL=initial begin $fwrite(32'h80000002, \"printing from FIRRTL_BEFORE_INITIAL macro\\n\"); end",
+      "+define+FIRRTL_AFTER_INITIAL=initial begin $fwrite(32'h80000002, \"printing from FIRRTL_AFTER_INITIAL macro\\n\"); end"
     )
 
     verilogToCpp(prefix, testDir, List.empty, harness, extraCmdLineArgs = cmdLineArgs) #&&
@@ -901,8 +901,8 @@ class EmittedMacroSpec extends FirrtlPropSpec {
     Process(s"./V${prefix}", testDir) !
       ProcessLogger(line => {
         line match {
-          case "printing from BEFORE_INITIAL macro" => saw_before = true
-          case "printing from AFTER_INITIAL macro" => saw_after = true
+          case "printing from FIRRTL_BEFORE_INITIAL macro" => saw_before = true
+          case "printing from FIRRTL_AFTER_INITIAL macro" => saw_after = true
           case _ => // Do Nothing
         }
       })
