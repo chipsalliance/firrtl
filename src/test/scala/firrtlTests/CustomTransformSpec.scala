@@ -9,7 +9,7 @@ import firrtl.ir._
 
 import firrtl.stage.{FirrtlSourceAnnotation, FirrtlStage, Forms, RunFirrtlTransformAnnotation}
 import firrtl.options.Dependency
-import firrtl.transforms.IdentityTransform
+import firrtl.transforms.{IdentityTransform, LegalizeAndReductionsTransform}
 
 import firrtl.testutils._
 
@@ -149,17 +149,18 @@ class CustomTransformSpec extends FirrtlFlatSpec {
                   ))
   }
 
-  they should "run right before the emitter when inputForm=LowForm" in {
+  they should "run right before the emitter* when inputForm=LowForm" in {
 
     val custom = Dependency[IdentityLowForm]
 
-    def testOrder(emitter: Dependency[Emitter], preceders: Seq[Dependency[Transform]]): Unit = {
-      info(s"""${preceders.map(_.getSimpleName).mkString(" -> ")} -> ${custom.getSimpleName} -> ${emitter.getSimpleName} ok!""")
+    def testOrder(after: Seq[Dependency[Transform]], before: Seq[Dependency[Transform]]): Unit = {
+      val expectedSlice: Seq[Dependency[Transform]] = before ++: custom +: after
 
-      val compiler = new firrtl.stage.transforms.Compiler(Seq(custom, emitter))
+      info(expectedSlice.map(_.getSimpleName).mkString(" -> ") + " ok!")
+
+      val compiler = new firrtl.stage.transforms.Compiler(custom +: after)
       info("Transform Order: \n" + compiler.prettyPrint("    "))
 
-      val expectedSlice = preceders ++ Seq(custom, emitter)
 
       compiler
         .flattenedTransformOrder
@@ -167,10 +168,22 @@ class CustomTransformSpec extends FirrtlFlatSpec {
         .containsSlice(expectedSlice) should be (true)
     }
 
+<<<<<<< HEAD
     Seq( (Dependency[LowFirrtlEmitter],      Seq(Forms.LowForm.last)                 ),
          (Dependency[MinimumVerilogEmitter], Seq(Forms.LowFormMinimumOptimized.last) ),
          (Dependency[VerilogEmitter],        Seq(Forms.LowFormOptimized.last)        ),
          (Dependency[SystemVerilogEmitter],  Seq(Forms.LowFormOptimized.last)        )
+=======
+    val Seq(low, lowMinOpt, lowOpt) =
+      Seq(Forms.LowForm, Forms.LowFormMinimumOptimized, Forms.LowFormOptimized)
+        .map(target => new firrtl.stage.transforms.Compiler(target))
+        .map(_.flattenedTransformOrder.map(Dependency.fromTransform(_)))
+
+    Seq( (Seq(Dependency[LowFirrtlEmitter]),                                                  Seq(low.last)      ),
+         (Seq(Dependency[LegalizeAndReductionsTransform], Dependency[MinimumVerilogEmitter]), Seq(lowMinOpt.last)),
+         (Seq(Dependency[LegalizeAndReductionsTransform], Dependency[VerilogEmitter]),        Seq(lowOpt.last)    ),
+         (Seq(Dependency[LegalizeAndReductionsTransform], Dependency[SystemVerilogEmitter]),  Seq(lowOpt.last)   )
+>>>>>>> 96241211... Add LegalizeAndReductionsTransform
     ).foreach((testOrder _).tupled)
   }
 
