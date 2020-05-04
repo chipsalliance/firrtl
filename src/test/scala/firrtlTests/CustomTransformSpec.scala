@@ -168,12 +168,6 @@ class CustomTransformSpec extends FirrtlFlatSpec {
         .containsSlice(expectedSlice) should be (true)
     }
 
-<<<<<<< HEAD
-    Seq( (Dependency[LowFirrtlEmitter],      Seq(Forms.LowForm.last)                 ),
-         (Dependency[MinimumVerilogEmitter], Seq(Forms.LowFormMinimumOptimized.last) ),
-         (Dependency[VerilogEmitter],        Seq(Forms.LowFormOptimized.last)        ),
-         (Dependency[SystemVerilogEmitter],  Seq(Forms.LowFormOptimized.last)        )
-=======
     val Seq(low, lowMinOpt, lowOpt) =
       Seq(Forms.LowForm, Forms.LowFormMinimumOptimized, Forms.LowFormOptimized)
         .map(target => new firrtl.stage.transforms.Compiler(target))
@@ -183,7 +177,6 @@ class CustomTransformSpec extends FirrtlFlatSpec {
          (Seq(Dependency[LegalizeAndReductionsTransform], Dependency[MinimumVerilogEmitter]), Seq(lowMinOpt.last)),
          (Seq(Dependency[LegalizeAndReductionsTransform], Dependency[VerilogEmitter]),        Seq(lowOpt.last)    ),
          (Seq(Dependency[LegalizeAndReductionsTransform], Dependency[SystemVerilogEmitter]),  Seq(lowOpt.last)   )
->>>>>>> 96241211... Add LegalizeAndReductionsTransform
     ).foreach((testOrder _).tupled)
   }
 
