@@ -170,7 +170,7 @@ trait BackendCompilationUtilities extends LazyLogging {
     vSources: Seq[File],
     cppHarness: File,
     suppressVcd: Boolean = false,
-    resourceFileName: String = firrtl.transforms.BlackBoxSourceHelper.defaultFileListName,
+    resourceFileName: String = firrtl.transforms.BlackBoxSourceHelper.defaultFileListName
   ): ProcessBuilder = {
     verilogToCppWithExtraCmdLineArgs(dutFile, dir, vSources, cppHarness, suppressVcd, resourceFileName)
   }
