@@ -891,7 +891,7 @@ class EmittedMacroSpec extends FirrtlPropSpec {
       "+define+FIRRTL_AFTER_INITIAL=initial begin $fwrite(32'h80000002, \"printing from FIRRTL_AFTER_INITIAL macro\\n\"); end"
     )
 
-    verilogToCpp(prefix, testDir, List.empty, harness, extraCmdLineArgs = cmdLineArgs) #&&
+    verilogToCppWithExtraCmdLineArgs(prefix, testDir, List.empty, harness, extraCmdLineArgs = cmdLineArgs) #&&
       cppToExe(prefix, testDir) !
       loggingProcessLogger
 

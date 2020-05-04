@@ -262,7 +262,6 @@ object FirrtlCheckers extends FirrtlMatchers {
   class CircuitStateStringsMatcher(expectedLines: Seq[String]) extends Matcher[CircuitState] {
     override def apply(state: CircuitState): MatchResult = {
       val emitted = state.getEmittedCircuit.value
-      println(expectedLines)
       MatchResult(
         emitted.split("\n").map(normalized).containsSlice(expectedLines.map(normalized)),
         emitted + "\n did not contain \"" + expectedLines + "\"",
