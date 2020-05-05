@@ -3,16 +3,14 @@
 package firrtl.passes
 
 // Datastructures
-import firrtl._
-import firrtl.annotations.{Annotation, ReferenceTarget}
-import firrtl.ir._
-import firrtl.Utils._
-import firrtl.Mappers._
 import firrtl.Implicits.width2constraint
-import firrtl.annotations.{CircuitTarget, ModuleTarget, ReferenceTarget, Target}
+import firrtl.Mappers._
+import firrtl.Utils._
+import firrtl._
+import firrtl.annotations._
 import firrtl.constraint.{ConstraintSolver, IsMax}
+import firrtl.ir._
 import firrtl.options.{Dependency, PreservesAll}
-import firrtl.traversals.Foreachers._
 
 object InferWidths {
   def apply(): InferWidths = new InferWidths()
@@ -62,18 +60,18 @@ case class WidthGeqConstraintAnnotation(loc: ReferenceTarget, exp: ReferenceTarg
   *
   * Uses firrtl.constraint package to infer widths
   */
-class InferWidths extends Transform with ResolvedAnnotationPaths with PreservesAll[Transform] {
+class InferWidths extends Transform
+    with ResolvedAnnotationPaths
+    with DependencyAPIMigration
+    with PreservesAll[Transform] {
 
-  override val prerequisites =
+  override def prerequisites =
     Seq( Dependency(passes.ResolveKinds),
          Dependency(passes.InferTypes),
          Dependency(passes.Uniquify),
          Dependency(passes.ResolveFlows),
          Dependency[passes.InferBinaryPoints],
          Dependency[passes.TrimIntervals] ) ++ firrtl.stage.Forms.WorkingIR
-
-  def inputForm: CircuitForm = UnknownForm
-  def outputForm: CircuitForm = UnknownForm
 
   private val constraintSolver = new ConstraintSolver()
 

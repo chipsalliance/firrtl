@@ -16,14 +16,15 @@ import scala.collection.mutable
   */
 object RemoveAccesses extends Pass {
 
-  override val prerequisites =
+  override def prerequisites =
     Seq( Dependency(PullMuxes),
+         Dependency(ZeroLengthVecs),
          Dependency(ReplaceAccesses),
          Dependency(ExpandConnects) ) ++ firrtl.stage.Forms.Deduped
 
   override def invalidates(a: Transform): Boolean = a match {
-    case Uniquify => true
-    case _        => false
+    case Uniquify | ResolveKinds | ResolveFlows => true
+    case _                                      => false
   }
 
   private def AND(e1: Expression, e2: Expression) =

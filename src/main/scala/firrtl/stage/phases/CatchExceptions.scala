@@ -2,17 +2,23 @@
 
 package firrtl.stage.phases
 
-import firrtl.{AnnotationSeq, CustomTransformException, FIRRTLException, FirrtlInternalException, FirrtlUserException,
-  Utils}
-import firrtl.options.{DependencyManagerException, Phase, PhaseException, OptionsException}
-import firrtl.passes.{PassException, PassExceptions}
+import firrtl.options.{DependencyManagerException, OptionsException, Phase, PhaseException}
+import firrtl.{
+  AnnotationSeq, CustomTransformException, FIRRTLException,
+  FirrtlInternalException, FirrtlUserException, Utils
+}
 
 import scala.util.control.ControlThrowable
 
 class CatchExceptions(val underlying: Phase) extends Phase {
 
-  override final val prerequisites = underlying.prerequisites
-  override final val dependents = underlying.dependents
+  override final def prerequisites = underlying.prerequisites
+  @deprecated(
+    "Due to confusion, 'dependents' is being renamed to 'optionalPrerequisiteOf'. Override the latter instead.",
+    "FIRRTL 1.3"
+  )
+  override final def dependents = underlying.dependents
+  override final def optionalPrerequisiteOf = underlying.optionalPrerequisiteOf
   override final def invalidates(a: Phase): Boolean = underlying.invalidates(a)
   override final lazy val name = underlying.name
 

@@ -96,7 +96,7 @@ object InferResets {
   }
 }
 
-/** Infers the concrete type of [[ResetType]]s by their connections
+/** Infers the concrete type of [[firrtl.ir.ResetType ResetType]]s by their connections
   *
   * There are 3 cases
   * 1. An abstract reset driven by and/or driving only asynchronous resets will be inferred as
@@ -105,17 +105,14 @@ object InferResets {
   *    error
   * 1. Otherwise, the reset is inferred as synchronous (i.e. the abstract reset is only invalidated
   *    or is driven by or drives only synchronous resets)
-  * @note This is a global inference because ports can be of type [[ResetType]]
+  * @note This is a global inference because ports can be of type [[firrtl.ir.ResetType ResetType]]
   * @note This transform should be run before [[DedupModules]] so that similar Modules from
   *   generator languages like Chisel can infer differently
   */
 // TODO should we error if a DefMemory is of type AsyncReset? In CheckTypes?
-class InferResets extends Transform {
+class InferResets extends Transform with DependencyAPIMigration {
 
-  def inputForm: CircuitForm = UnknownForm
-  def outputForm: CircuitForm = UnknownForm
-
-  override val prerequisites =
+  override def prerequisites =
     Seq( Dependency(passes.ResolveKinds),
          Dependency(passes.InferTypes),
          Dependency(passes.Uniquify),
