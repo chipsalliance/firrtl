@@ -283,9 +283,9 @@ trait CheckHighFormLike { this: Pass =>
 
 object CheckHighForm extends Pass with CheckHighFormLike with PreservesAll[Transform] {
 
-  override val prerequisites = firrtl.stage.Forms.WorkingIR
+  override def prerequisites = firrtl.stage.Forms.WorkingIR
 
-  override val dependents =
+  override def optionalPrerequisiteOf =
     Seq( Dependency(passes.ResolveKinds),
          Dependency(passes.InferTypes),
          Dependency(passes.Uniquify),
