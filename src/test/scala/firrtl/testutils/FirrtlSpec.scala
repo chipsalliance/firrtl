@@ -39,7 +39,7 @@ object RenameTop extends Transform with PreservesAll[Transform] {
 
   override val optionalPrerequisites = Seq(Dependency[RenameModules])
 
-  override val dependents = Seq(Dependency[VerilogEmitter], Dependency[MinimumVerilogEmitter])
+  override val optionalPrerequisiteOf = Seq(Dependency[VerilogEmitter], Dependency[MinimumVerilogEmitter])
 
   def execute(state: CircuitState): CircuitState = {
     val c = state.circuit
@@ -254,7 +254,9 @@ object FirrtlCheckers extends FirrtlMatchers {
   /** Checks that the emitted circuit has the expected line, both will be normalized */
   def containLine(expectedLine: String) = containLines(expectedLine)
 
-  /** Checks that the emitted circuit has the expected lines in order, all lines will be normalized */
+  /** Checks that the emitted circuit contains the expected lines contiguously and in order;
+    * all lines will be normalized
+    */
   def containLines(expectedLines: String*) = new CircuitStateStringsMatcher(expectedLines)
 
   class CircuitStateStringsMatcher(expectedLines: Seq[String]) extends Matcher[CircuitState] {
