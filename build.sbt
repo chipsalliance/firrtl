@@ -39,6 +39,9 @@ lazy val commonSettings = Seq(
   scalacOptions := scalacOptionsVersion(scalaVersion.value) ++ Seq(
     "-deprecation",
     "-unchecked",
+    "-language:reflectiveCalls",
+    "-language:existentials",
+    "-language:implicitConversions",
     "-Yrangepos",          // required by SemanticDB compiler plugin
     "-Ywarn-unused-import" // required by `RemoveUnused` rule
   ),
@@ -129,22 +132,24 @@ lazy val publishSettings = Seq(
   }
 )
 
+
+def scalacDocOptionsVersion(scalaVersion: String): Seq[String] = {
+  Seq() ++ {
+    // If we're building with Scala > 2.11, enable the compile option
+    //  to flag warnings as errors. This must be disabled for 2.11 since
+    //  references to the Java class library from Java 9 on generate warnings.
+    //  https://github.com/scala/bug/issues/10675
+    CrossVersion.partialVersion(scalaVersion) match {
+      case Some((2, scalaMajor: Long)) if scalaMajor < 12 => Seq()
+      case _ => Seq("-Xfatal-warnings")
+    }
+  }
+}
 lazy val docSettings = Seq(
   doc in Compile := (doc in ScalaUnidoc).value,
   autoAPIMappings := true,
-  apiMappings ++= {
-    Option(System.getProperty("sun.boot.class.path")).flatMap { classPath =>
-      classPath.split(java.io.File.pathSeparator).find(_.endsWith(java.io.File.separator + "rt.jar"))
-    }.map { jarPath =>
-      Map(
-        file(jarPath) -> url("https://docs.oracle.com/javase/8/docs/api")
-      )
-    }.getOrElse {
-      streams.value.log.warn("Failed to add bootstrap class path of Java to apiMappings")
-      Map.empty[File,URL]
-    }
-  },
   scalacOptions in Compile in doc ++= Seq(
+    "-feature",
     "-diagrams",
     "-diagrams-max-classes", "25",
     "-doc-version", version.value,
@@ -161,7 +166,7 @@ lazy val docSettings = Seq(
         }
       s"https://github.com/freechipsproject/firrtl/tree/$branch€{FILE_PATH}.scala"
     }
-  ) ++ scalacOptionsVersion(scalaVersion.value)
+  ) ++ scalacOptionsVersion(scalaVersion.value) ++ scalacDocOptionsVersion(scalaVersion.value)
 )
 
 lazy val firrtl = (project in file("."))

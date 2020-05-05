@@ -38,7 +38,7 @@ class WrapWithRemainder(info: Info, mname: String, wrap: DoPrim)
   */
 class RemoveIntervals extends Pass with PreservesAll[Transform] {
 
-  override val prerequisites: Seq[Dependency[Transform]] =
+  override def prerequisites: Seq[Dependency[Transform]] =
     Seq( Dependency(PullMuxes),
          Dependency(ReplaceAccesses),
          Dependency(ExpandConnects),
@@ -173,7 +173,7 @@ class RemoveIntervals extends Pass with PreservesAll[Transform] {
     case DefNode(info, name, value) => value.tpe match {
       case IntervalType(l, u, p) =>
         val newType = IntervalType(l, u, p)
-        Block(Seq(DefWire(info, name, newType), Connect(info, WRef(name, newType, WireKind, FEMALE), value)))
+        Block(Seq(DefWire(info, name, newType), Connect(info, WRef(name, newType, WireKind, SinkFlow), value)))
       case other => s
     }
     case other => other map makeWireStmt

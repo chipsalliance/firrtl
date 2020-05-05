@@ -61,6 +61,7 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
       passes.PullMuxes,
       passes.ReplaceAccesses,
       passes.ExpandConnects,
+      passes.ZeroLengthVecs,
       passes.RemoveAccesses,
       passes.Uniquify,
       passes.ExpandWhens,
@@ -101,6 +102,7 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
       new firrtl.transforms.DeadCodeElimination)
     case _: MinimumLowFirrtlOptimization => Seq(
       passes.RemoveValidIf,
+      passes.PadWidths,
       passes.Legalize,
       passes.memlib.VerilogMemDelays, // TODO move to Verilog emitter
       passes.SplitExpressions)
@@ -156,17 +158,20 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
   it should "replicate the old order" in {
     val tm = new TransformManager(Forms.MidForm, Forms.Deduped)
     val patches = Seq(
-      Add(5, Seq(Dependency(firrtl.passes.ResolveKinds),
-                 Dependency(firrtl.passes.InferTypes))),
-      Del(6),
+      Add(4, Seq(Dependency(firrtl.passes.ResolveFlows))),
+      Add(5, Seq(Dependency(firrtl.passes.ResolveKinds))),
+      Add(6, Seq(Dependency(firrtl.passes.ResolveKinds),
+                 Dependency(firrtl.passes.InferTypes),
+                 Dependency(firrtl.passes.ResolveFlows))),
       Del(7),
-      Add(6, Seq(Dependency[firrtl.passes.ExpandWhensAndCheck])),
-      Del(10),
+      Del(8),
+      Add(7, Seq(Dependency[firrtl.passes.ExpandWhensAndCheck])),
       Del(11),
       Del(12),
-      Add(11, Seq(Dependency(firrtl.passes.ResolveFlows),
+      Del(13),
+      Add(12, Seq(Dependency(firrtl.passes.ResolveFlows),
                   Dependency[firrtl.passes.InferWidths])),
-      Del(13)
+      Del(14)
     )
     compare(legacyTransforms(new HighFirrtlToMiddleFirrtl), tm, patches)
   }
@@ -182,7 +187,11 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
 
   it should "replicate the old order" in {
     val tm = new TransformManager(Forms.LowFormMinimumOptimized, Forms.LowForm)
-    compare(legacyTransforms(new MinimumLowFirrtlOptimization), tm)
+    val patches = Seq(
+      Add(4, Seq(Dependency(firrtl.passes.ResolveFlows))),
+      Add(5, Seq(Dependency(firrtl.passes.ResolveKinds)))
+    )
+    compare(legacyTransforms(new MinimumLowFirrtlOptimization), tm, patches)
   }
 
   behavior of "LowFirrtlOptimization"
@@ -190,7 +199,9 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
   it should "replicate the old order" in {
     val tm = new TransformManager(Forms.LowFormOptimized, Forms.LowForm)
     val patches = Seq(
-      Add(7, Seq(Dependency(firrtl.passes.Legalize)))
+      Add(6, Seq(Dependency(firrtl.passes.ResolveFlows))),
+      Add(7, Seq(Dependency(firrtl.passes.Legalize))),
+      Add(8, Seq(Dependency(firrtl.passes.ResolveKinds)))
     )
     compare(legacyTransforms(new LowFirrtlOptimization), tm, patches)
   }
@@ -337,7 +348,10 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
       new TransformManager(Forms.LowFormMinimumOptimized).flattenedTransformOrder ++
         Seq(new Transforms.LowToLow, new firrtl.MinimumVerilogEmitter)
     val tm = (new TransformManager(Seq(Dependency[firrtl.MinimumVerilogEmitter], Dependency[Transforms.LowToLow])))
-    compare(expected, tm)
+    val patches = Seq(
+      Add(60, Seq(Dependency[firrtl.transforms.LegalizeAndReductionsTransform]))
+    )
+    compare(expected, tm, patches)
   }
 
   it should "schedule inputForm=LowForm after LowFirrtlOptimizations for the VerilogEmitter" in {
@@ -345,7 +359,10 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
       new TransformManager(Forms.LowFormOptimized).flattenedTransformOrder ++
         Seq(new Transforms.LowToLow, new firrtl.VerilogEmitter)
     val tm = (new TransformManager(Seq(Dependency[firrtl.VerilogEmitter], Dependency[Transforms.LowToLow])))
-    compare(expected, tm)
+    val patches = Seq(
+      Add(67, Seq(Dependency[firrtl.transforms.LegalizeAndReductionsTransform]))
+    )
+    compare(expected, tm, patches)
   }
 
 }
