@@ -7,17 +7,35 @@ import firrtl.ir._
 import firrtl.Mappers._
 import firrtl.options.PreservesAll
 
+import scala.collection.mutable
+
 object ResolveKinds extends Pass with PreservesAll[Transform] {
 
   override def prerequisites = firrtl.stage.Forms.WorkingIR
 
+  @deprecated("This API should never have been public", "1.3.1")
   type KindMap = collection.mutable.LinkedHashMap[String, Kind]
 
-  def find_port(kinds: KindMap)(p: Port): Port = {
-    kinds(p.name) = PortKind ; p
+  @deprecated("This API should never have been public", "1.3.1")
+  def find_port(kinds: KindMap)(p: Port): Port = findPort(kinds)(p)
+
+  @deprecated("This API should never have been public", "1.3.1")
+  def find_stmt(kinds: KindMap)(s: Statement): Statement = findStmt(kinds)(s)
+
+  @deprecated("This API should never have been public", "1.3.1")
+  def resolve_expr(kinds: KindMap)(e: Expression): Expression = onExpr(kinds)(e)
+
+  @deprecated("This API should never have been public", "1.3.1")
+  def resolve_stmt(kinds: KindMap)(s: Statement): Statement = onStmt(kinds)(s)
+
+  private type NewKindMap = mutable.Map[String, Kind]
+
+  private def findPort(kinds: NewKindMap)(p: Port): Port = {
+    kinds(p.name) = PortKind
+    p
   }
 
-  def find_stmt(kinds: KindMap)(s: Statement):Statement = {
+  private def findStmt(kinds: NewKindMap)(s: Statement): Statement = {
     s match {
       case sx: DefWire => kinds(sx.name) = WireKind
       case sx: DefNode => kinds(sx.name) = NodeKind
@@ -26,24 +44,24 @@ object ResolveKinds extends Pass with PreservesAll[Transform] {
       case sx: DefMemory => kinds(sx.name) = MemKind
       case _ =>
     }
-    s map find_stmt(kinds)
+    s.map(findStmt(kinds))
   }
 
-  def resolve_expr(kinds: KindMap)(e: Expression): Expression = e match {
-    case ex: WRef => ex copy (kind = kinds(ex.name))
-    case _ => e map resolve_expr(kinds)
+  private def onExpr(kinds: NewKindMap)(e: Expression): Expression = e match {
+    case ex: WRef => ex.copy(kind = kinds(ex.name))
+    case _ => e.map(onExpr(kinds))
   }
 
-  def resolve_stmt(kinds: KindMap)(s: Statement): Statement =
-    s map resolve_stmt(kinds) map resolve_expr(kinds)
+  private def onStmt(kinds: NewKindMap)(s: Statement): Statement =
+    s.map(onStmt(kinds)).map(onExpr(kinds))
 
   def resolve_kinds(m: DefModule): DefModule = {
-    val kinds = new KindMap
-    (m map find_port(kinds)
-       map find_stmt(kinds)
-       map resolve_stmt(kinds))
+    val kinds = new mutable.LinkedHashMap[String, Kind]
+    m.map(findPort(kinds))
+     .map(findStmt(kinds))
+     .map(onStmt(kinds))
   }
 
   def run(c: Circuit): Circuit =
-    c copy (modules = c.modules map resolve_kinds)
+    c.copy(modules = c.modules.map(resolve_kinds))
 }
