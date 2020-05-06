@@ -56,7 +56,7 @@ object ResolveKinds extends Pass with PreservesAll[Transform] {
     s.map(onStmt(kinds)).map(onExpr(kinds))
 
   def resolve_kinds(m: DefModule): DefModule = {
-    val kinds = new mutable.LinkedHashMap[String, Kind]
+    val kinds = new mutable.HashMap[String, Kind]
     m.map(findPort(kinds))
      .map(findStmt(kinds))
      .map(onStmt(kinds))
