@@ -1011,16 +1011,9 @@ class VerilogEmitter extends SeqTransform with Emitter {
         emit(state, writer)
         Seq(EmittedVerilogCircuitAnnotation(EmittedVerilogCircuit(state.circuit.main, writer.toString, outputSuffix)))
 
-<<<<<<< HEAD
-      case EmitAllModulesAnnotation(_) =>
+      case EmitAllModulesAnnotation(a) if this.getClass == a =>
         val circuit = runTransforms(state).circuit
         val moduleMap = circuit.modules.map(m => m.name -> m).toMap
-=======
-      case EmitAllModulesAnnotation(a) if this.getClass == a =>
-        val cs = runTransforms(state)
-        val emissionOptions = new EmissionOptions(cs.annotations)
-        val moduleMap = cs.circuit.modules.map(m => m.name -> m).toMap
->>>>>>> a49a2f5e... Check EmitAnnotation class before emitting
 
         circuit.modules flatMap {
           case dm @ DescribedMod(d, pds, module: Module) =>
