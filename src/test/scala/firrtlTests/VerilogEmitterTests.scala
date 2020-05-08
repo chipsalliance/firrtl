@@ -2,6 +2,8 @@
 
 package firrtlTests
 
+import java.io.File
+
 import firrtl._
 import firrtl.annotations._
 import firrtl.passes._
@@ -10,6 +12,8 @@ import firrtl.transforms.CombineCats
 import firrtl.testutils._
 import firrtl.testutils.FirrtlCheckers._
 import firrtl.util.BackendCompilationUtilities
+
+import scala.sys.process.{Process, ProcessLogger}
 
 class DoPrimVerilog extends FirrtlFlatSpec {
   "Xorr" should "emit correctly" in {
