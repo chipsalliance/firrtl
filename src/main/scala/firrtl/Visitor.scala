@@ -60,7 +60,7 @@ class Visitor(infoMode: InfoMode) extends AbstractParseTreeVisitor[FirrtlNode] w
 
   private def visitInfo(ctx: Option[InfoContext], parentCtx: ParserRuleContext): Info = {
     def genInfo(filename: String): String =
-      stripPath(filename) + "@" + parentCtx.getStart.getLine + "." +
+      stripPath(filename) + " " + parentCtx.getStart.getLine + "." +
         parentCtx.getStart.getCharPositionInLine
     lazy val useInfo: String = ctx match {
       case Some(info) => info.getText.drop(2).init // remove surrounding @[ ... ]
@@ -71,8 +71,9 @@ class Visitor(infoMode: InfoMode) extends AbstractParseTreeVisitor[FirrtlNode] w
         if (useInfo.length == 0) NoInfo
         else ir.FileInfo(ir.StringLit.unescape(useInfo))
       case AppendInfo(filename) =>
-        val newInfo = useInfo + ":" + genInfo(filename)
-        ir.FileInfo(ir.StringLit.unescape(newInfo))
+        val useFileInfo = ir.FileInfo(ir.StringLit.unescape(useInfo))
+        val newFileInfo = ir.FileInfo(ir.StringLit.unescape(genInfo(filename)))
+        ir.MultiInfo(useFileInfo, newFileInfo)
       case GenInfo(filename) =>
         ir.FileInfo(ir.StringLit.unescape(genInfo(filename)))
       case IgnoreInfo => NoInfo
