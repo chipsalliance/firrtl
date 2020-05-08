@@ -9,6 +9,7 @@ import firrtl.transforms.VerilogRename
 import firrtl.transforms.CombineCats
 import firrtl.testutils._
 import firrtl.testutils.FirrtlCheckers._
+import firrtl.util.BackendCompilationUtilities
 
 class DoPrimVerilog extends FirrtlFlatSpec {
   "Xorr" should "emit correctly" in {
@@ -865,3 +866,39 @@ class VerilogDescriptionEmitterSpec extends FirrtlFlatSpec {
     }
   }
 }
+<<<<<<< HEAD
+=======
+
+class EmittedMacroSpec extends FirrtlPropSpec {
+  property("User-defined macros for before/after initial should be supported") {
+    val prefix = "Printf"
+    val testDir = compileFirrtlTest(prefix, "/features")
+    val harness = new File(testDir, s"top.cpp")
+    copyResourceToFile(cppHarnessResourceName, harness)
+
+    // define macros to print
+    val cmdLineArgs = Seq(
+      "+define+FIRRTL_BEFORE_INITIAL=initial begin $fwrite(32'h80000002, \"printing from FIRRTL_BEFORE_INITIAL macro\\n\"); end",
+      "+define+FIRRTL_AFTER_INITIAL=initial begin $fwrite(32'h80000002, \"printing from FIRRTL_AFTER_INITIAL macro\\n\"); end"
+    )
+
+    BackendCompilationUtilities.verilogToCpp(prefix, testDir, List.empty, harness, extraCmdLineArgs = cmdLineArgs) #&&
+      cppToExe(prefix, testDir) !
+      loggingProcessLogger
+
+    // check for expected print statements
+    var saw_before = false
+    var saw_after = false
+    Process(s"./V${prefix}", testDir) !
+      ProcessLogger(line => {
+        line match {
+          case "printing from FIRRTL_BEFORE_INITIAL macro" => saw_before = true
+          case "printing from FIRRTL_AFTER_INITIAL macro" => saw_after = true
+          case _ => // Do Nothing
+        }
+      })
+
+    assert(saw_before & saw_after)
+  }
+}
+>>>>>>> 72c48bbf... deprecating BackendCompilationUtilities trait for object (#1575)
