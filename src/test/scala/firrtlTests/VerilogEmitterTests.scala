@@ -866,8 +866,6 @@ class VerilogDescriptionEmitterSpec extends FirrtlFlatSpec {
     }
   }
 }
-<<<<<<< HEAD
-=======
 
 class EmittedMacroSpec extends FirrtlPropSpec {
   property("User-defined macros for before/after initial should be supported") {
@@ -901,4 +899,3 @@ class EmittedMacroSpec extends FirrtlPropSpec {
     assert(saw_before & saw_after)
   }
 }
->>>>>>> 72c48bbf... deprecating BackendCompilationUtilities trait for object (#1575)
