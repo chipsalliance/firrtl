@@ -89,4 +89,4 @@ jobs:
         - ./.run_formal_checks.sh AddNot
     - stage: test
       script:
-        - benchmark/scripts/benchmark_cold_compile.py -N 2 --designs regress/ICache.fir --versions HEAD
+        - ./benchmark/scripts/benchmark_cold_compile.py --versions $TRAVIS_BRANCH $TRAVIS_COMMIT -N 2 --designs regress/ICache.fir | ./benchmark/scripts/benchmark_stats.py --pretty-print -

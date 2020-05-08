@@ -9,6 +9,7 @@ import argparse
 from collections import OrderedDict
 import os
 import numbers
+import csv
 
 # Currently hardcoded
 def get_firrtl_repo():
@@ -21,26 +22,21 @@ firrtl_repo = get_firrtl_repo()
 
 platform = ""
 if sys.platform == 'darwin':
-    print("Running on MacOS")
+    sys.stderr.write("Running on MacOS\n")
     platform = 'macos'
 elif sys.platform.startswith("linux"):
-    print("Running on Linux")
+    sys.stderr.write("Running on Linux\n")
     platform = 'linux'
 else :
     raise Exception('Unrecognized platform ' + sys.platform)
 
 def time():
-    if platform == 'macos':
-        return ['/usr/bin/time', '-l']
-    if platform == 'linux':
-        return ['/usr/bin/time', '-v']
+    return { 'macos': ['/usr/bin/time', '-l'],
+             'linux': ['/usr/bin/time', '-v'] }[platform]
 
 def extract_max_size(output):
-    regex = ''
-    if platform == 'macos':
-        regex = '(\d+)\s+maximum resident set size'
-    if platform == 'linux':
-        regex = 'Maximum resident set size[^:]*:\s+(\d+)'
+    regex = { 'macos': '(\d+)\s+maximum resident set size',
+              'linux': 'Maximum resident set size[^:]*:\s+(\d+)' }[platform]
 
     m = re.search(regex, output, re.MULTILINE)
     if m :
@@ -49,12 +45,9 @@ def extract_max_size(output):
         raise Exception('Max set size not found!')
 
 def extract_run_time(output):
-    regex = ''
     res = None
-    if platform == 'macos':
-        regex = '(\d+\.\d+)\s+real'
-    if platform == 'linux':
-        regex = 'Elapsed \(wall clock\) time \(h:mm:ss or m:ss\): ([0-9:.]+)'
+    regex = { 'macos': '(\d+\.\d+)\s+real',
+              'linux': 'Elapsed \(wall clock\) time \(h:mm:ss or m:ss\): ([0-9:.]+)' }[platform]
     m = re.search(regex, output, re.MULTILINE)
     if m :
         text = m.group(1)
@@ -71,46 +64,52 @@ def extract_run_time(output):
 def run_firrtl(java, jar, design):
     java_cmd = java.split()
     cmd = time() + java_cmd + ['-cp', jar, 'firrtl.stage.FirrtlMain', '-i', design,'-o','out.v','-X','verilog']
-    result = subprocess.run(cmd, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
-    if result.returncode != 0 :
-        print(result.stdout)
-        print(result.stderr)
-        sys.exit(1)
+    result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    if re.search('Could not find or load main class firrtl.stage.FirrtlMain', str(result.stderr)):
+        cmd = time() + java_cmd + ['-cp', jar, 'firrtl.Driver', '-i', design,'-o','out.v','-X','verilog']
+        result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    if result.returncode != 0:
+        sys.stderr.write(str(result.stdout))
+        sys.stderr.write(str(result.stderr))
+        exit(1)
     size = extract_max_size(result.stderr.decode('utf-8'))
     runtime = extract_run_time(result.stderr.decode('utf-8'))
     return (size, runtime)
 
+class GetVersionHashes(argparse.Action):
+    def __call__(self, parser, namespace, values, option_string=None):
+        res = subprocess.run(['git', '-C', firrtl_repo, 'fetch'])
+        assert res.returncode == 0, '"{}" must be an existing repo!'.format(firrtl_repo)
+        hashes = OrderedDict()
+        for version in values:
+            res = subprocess.run(['git', '-C', firrtl_repo, 'rev-parse', '--short', version], stdout=subprocess.PIPE)
+            assert res.returncode == 0, '"{}" is not a legal revision!'.format(version)
+            hashcode = res.stdout.decode('utf-8').rstrip()
+            if hashcode in hashes :
+                sys.stderr.write('{} and {} are the same revision!'.format(version, hashes[hashcode]))
+            else :
+                hashes[hashcode] = version
+        setattr(namespace, self.dest, hashes)
+
 def parseargs():
-    parser = argparse.ArgumentParser("Benchmark FIRRTL")
-    parser.add_argument('--designs', type=str, nargs='+',
+    parser = argparse.ArgumentParser("Benchmark FIRRTL",
+                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument('--designs', type=argparse.FileType('r'), nargs='+',
                         help='FIRRTL input files to use as benchmarks')
-    parser.add_argument('--versions', type=str, nargs='+', default=['HEAD'],
+    parser.add_argument('--versions', type=str, nargs='+', default=['HEAD'], action=GetVersionHashes,
                         help='FIRRTL commit hashes to benchmark')
     parser.add_argument('--iterations', '-N', type=int, default=10,
                         help='Number of times to run each benchmark')
     parser.add_argument('--jvms', type=str, nargs='+', default=['java'],
                         help='JVMs to use')
+    parser.add_argument('--output', type=argparse.FileType('w'), default='-', help='Output CSV file to write')
     return parser.parse_args()
-
-def get_version_hashes(versions):
-    res = subprocess.run(['git', '-C', firrtl_repo, 'fetch'])
-    assert res.returncode == 0, '"{}" must be an existing repo!'.format(firrtl_repo)
-    hashes = OrderedDict()
-    for version in versions :
-        res = subprocess.run(['git', '-C', firrtl_repo, 'rev-parse', '--short', version], stdout=subprocess.PIPE)
-        assert res.returncode == 0, '"{}" is not a legal revision!'.format(version)
-        hashcode = res.stdout.decode('utf-8').rstrip()
-        if hashcode in hashes :
-            print('{} and {} are the same revision!'.format(version, hashes[hashcode]))
-        else :
-            hashes[hashcode] = version
-    return hashes
 
 def clone_and_build(hashcode):
     repo = 'firrtl.{}'.format(hashcode)
     jar = 'firrtl.{}.jar'.format(hashcode)
     if os.path.exists(jar):
-        print('{} already exists, skipping jar creation'.format(jar))
+        sys.stderr.write('{} already exists, skipping jar creation\n'.format(jar))
     else :
         if os.path.exists(repo):
             assert os.path.isdir(repo), '{} already exists but isn\'t a directory!'.format(repo)
@@ -133,46 +132,37 @@ def build_firrtl_jars(versions):
         jars[hashcode] = clone_and_build(hashcode)
     return jars
 
-def check_designs(designs):
-    for design in designs:
-        assert os.path.exists(design), '{} must be an existing file!'.format(design)
-
 # /usr/bin/time -v on Linux returns size in kbytes
 # /usr/bin/time -l on MacOS returns size in Bytes
-def norm_max_set_sizes(sizes):
-    div = None
-    if platform == 'linux':
-        d = 1000.0
-    if platform == 'macos':
-        d = 1000000.0
-    return [s / d for s in sizes]
+def mem_to_MB(size):
+    d = { 'linux': 1000.0,
+          'macos': 1000000.0 }[platform]
+    return size / d
 
 def main():
     args = parseargs()
-    designs = args.designs
-    check_designs(designs)
-    hashes = get_version_hashes(args.versions)
-    jars = build_firrtl_jars(hashes)
-    jvms = args.jvms
-    N = args.iterations
-    info = [['java', 'revision', 'design', 'max heap', 'SD', 'runtime', 'SD']]
-    for java in jvms:
-        print("Running with '{}'".format(java))
+    fieldnames = ['jvm', 'revision', 'design', 'iteration', 'memory', 'runtime']
+    writer = csv.DictWriter(args.output, fieldnames=fieldnames, quoting=csv.QUOTE_NONNUMERIC)
+    jars = build_firrtl_jars(args.versions)
+    writer.writeheader()
+    for java in args.jvms:
+        sys.stderr.write('- java: {}\n'.format(java))
         for hashcode, jar in jars.items():
-            print("Benchmarking {}...".format(hashcode))
-            revision = hashcode
-            java_title = java
-            for design in designs:
-                print('Running {}...'.format(design))
-                (sizes, runtimes) = zip(*[run_firrtl(java, jar, design) for i in range(N)])
-                norm_sizes = norm_max_set_sizes(sizes)
-                info.append([java_title, revision, design, median(norm_sizes), stdev(norm_sizes), median(runtimes), stdev(runtimes)])
-                java_title = ''
-                revision = ''
-
-    for line in info:
-        formated = ['{:0.2f}'.format(elt) if isinstance(elt, numbers.Real) else elt for elt in line]
-        print(','.join(formated))
+            sys.stderr.write('  - hashcode: {}\n'.format(hashcode))
+            for design in args.designs:
+                sys.stderr.write('    - design: {}\n'.format(design.name))
+                for i in range(args.iterations):
+                    memory, runtime = run_firrtl(java, jar, design.name)
+                    sys.stderr.write('      - memory: {:0.0f} MB\n'.format(mem_to_MB(memory)))
+                    sys.stderr.write('        runtime: {:0.2f} s\n'.format(runtime))
+                    writer.writerow(
+                        {'jvm':       java,
+                         'revision':  hashcode,
+                         'design':    design.name,
+                         'iteration': i,
+                         'memory':    mem_to_MB(memory),
+                         'runtime':   runtime
+                        })
 
 if __name__ == '__main__':
     main()
