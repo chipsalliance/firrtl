@@ -8,7 +8,7 @@ import firrtl.testutils._
 import FirrtlCheckers._
 import firrtl.Parser.AppendInfo
 
-class InfoSpec extends FirrtlFlatSpec {
+class InfoSpec extends FirrtlFlatSpec with FirrtlMatchers {
   def compile(input: String): CircuitState =
     (new VerilogCompiler).compileAndEmit(CircuitState(parse(input), ChirrtlForm), List.empty)
   def compileBody(body: String) = {
@@ -169,7 +169,8 @@ class InfoSpec extends FirrtlFlatSpec {
                   |    out <= in @[Top.scala 15:14]
                   |""".stripMargin
     val circuit = firrtl.Parser.parse(input.split("\n").toIterator, AppendInfo("myfile.fir"))
-    val result = circuit.serialize
-    result.split("\n") should contain ("    out <= in @[Top.scala 15:14 myfile.fir 6.4]")
+    val circuitState = CircuitState(circuit, UnknownForm)
+    val expectedInfos = Seq(FileInfo(StringLit("Top.scala 15:14")), FileInfo(StringLit("myfile.fir 6:4")))
+    circuitState should containTree { case MultiInfo(`expectedInfos`) => true }
   }
 }
