@@ -41,6 +41,7 @@ case object NoCircuitDedupAnnotation extends NoTargetAnnotation with HasShellOpt
   * The original module target is unaffected by renaming
   * @param duplicate Instance target of what the original module now points to
   * @param original Original module
+  * @param index the normalized position of the original module in the original module list, fraction between 0 and 1
   */
 case class DedupedResult(original: ModuleTarget, duplicate: Option[IsModule], index: Double) extends MultiTargetAnnotation {
   override val targets: Seq[Seq[Target]] = Seq(Seq(original), duplicate.toList)
@@ -55,7 +56,22 @@ case class DedupedResult(original: ModuleTarget, duplicate: Option[IsModule], in
 /** Only use on legal Firrtl.
   *
   * Specifically, the restriction of instance loops must have been checked, or else this pass can
-  *  infinitely recurse
+  * infinitely recurse.
+  *
+  * Deduped modules are renamed using a chain of 3 [[RenameMap]]s. The first
+  * [[RenameMap]] renames the original [[ModuleTarget]]s and relative
+  * [[InstanceTarget]]s to the groups of absolute [[InstanceTarget]]s that they
+  * target. These renames only affect instance names and paths and use the old
+  * module names. During this rename, modules will also have their instance
+  * names renamed if they dedup with a module that has different instance
+  * names.
+  * The second [[RenameMap]] renames all component names within modules that
+  * dedup with another module that has different component names.
+  * The third [[RenameMap]] renames original [[ModuleTarget]]s to their deduped
+  * [[ModuleTarget]].
+  *
+  * This transform will also emit [[DedupedResult]] for deduped modules that
+  * only have one instance.
   */
 class DedupModules extends Transform with DependencyAPIMigration with PreservesAll[Transform] {
 
