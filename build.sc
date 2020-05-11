@@ -18,7 +18,7 @@ class firrtlCrossModule(crossVersion: String) extends ScalaModule with SbtModule
 
   def publishVersion = "1.3-SNAPSHOT"
 
-  def antlr4Version = "4.7.1"
+  def antlr4Version = "4.8"
 
   def protocVersion = "3.5.1"
 
@@ -48,7 +48,7 @@ class firrtlCrossModule(crossVersion: String) extends ScalaModule with SbtModule
     ivy"net.jcazevedo::moultingyaml:0.4.2",
     ivy"org.json4s::json4s-native:3.6.7",
     ivy"org.apache.commons:commons-text:1.7",
-    ivy"org.antlr:antlr4-runtime:4.7.1",
+    ivy"org.antlr:antlr4-runtime:4.8",
     ivy"com.google.protobuf:protobuf-java:3.5.1"
   )
   
