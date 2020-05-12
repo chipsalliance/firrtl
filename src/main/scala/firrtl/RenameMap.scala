@@ -39,7 +39,7 @@ object RenameMap {
 // TODO This should probably be refactored into immutable and mutable versions
 final class RenameMap private (
     val underlying: mutable.HashMap[CompleteTarget, Seq[CompleteTarget]] = mutable.HashMap[CompleteTarget, Seq[CompleteTarget]](),
-    val chained: Option[RenameMap] = None,
+    val chained: Option[RenameMap] = None
 ) {
 
   /** Chain a [[RenameMap]] with this [[RenameMap]]
