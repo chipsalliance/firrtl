@@ -67,7 +67,7 @@ class DedupModules extends Transform with DependencyAPIMigration with PreservesA
   def run(c: Circuit, noDedups: Seq[String], annos: Seq[Annotation]): (Circuit, RenameMap) = {
 
     // RenameMap
-    val renameMap = RenameMap()
+    val renameMap = RenameMap(this)
     renameMap.setCircuit(c.main)
 
     // Maps module name to corresponding dedup module
@@ -336,9 +336,6 @@ object DedupModules {
     val agnosticRename = RenameMap()
 
     moduleLinearization.foreach { originalModule =>
-      // Replace instance references to new deduped modules
-      val dontcare = RenameMap()
-      dontcare.setCircuit("dontcare")
 
       if (noDedups.contains(originalModule.name)) {
         // Don't dedup. Set dedup module to be the same as fixed module
