@@ -2,15 +2,14 @@ package firrtlTests.analyses
 
 import firrtl.PrimOps.AsUInt
 import firrtl.analyses.IRLookup
-import firrtl.annotations.{ModuleTarget, ReferenceTarget}
+import firrtl.annotations.{CircuitTarget, ModuleTarget, ReferenceTarget}
 import firrtl._
 import firrtl.ir._
-import firrtlTests.FirrtlFlatSpec
-import firrtlTests.transforms.MemStuff
+import firrtl.stage.{Forms, TransformManager}
+import firrtl.testutils.FirrtlFlatSpec
 
-import scala.reflect.internal.MissingRequirementError
 
-class IRLookupSpec extends FirrtlFlatSpec with MemStuff {
+class IRLookupSpec extends FirrtlFlatSpec {
 
   "IRLookup" should "return declarations" in {
     val input =
@@ -37,7 +36,7 @@ class IRLookupSpec extends FirrtlFlatSpec with MemStuff {
         |    out <= UInt(1)
         |""".stripMargin
 
-    val circuit = toMiddleFIRRTL(parse(input))
+    val circuit = new TransformManager(Forms.MidForm, Forms.Deduped).execute(CircuitState(parse(input), ChirrtlForm)).circuit
     val irLookup = IRLookup(circuit)
     val Test = ModuleTarget("Test", "Test")
     val uint8 = UIntType(IntWidth(8))
@@ -57,8 +56,8 @@ class IRLookupSpec extends FirrtlFlatSpec with MemStuff {
     irLookup.declaration(Test.ref("ana1")) shouldBe Port(NoInfo, "ana1", Input, AnalogType(IntWidth(8)))
     irLookup.declaration(Test.ref("ana2")) shouldBe Port(NoInfo, "ana2", Output, AnalogType(IntWidth(8)))
 
-    val clk = WRef("clk", ClockType, PortKind, MALE)
-    val reset = WRef("reset", UIntType(IntWidth(1)), PortKind, MALE)
+    val clk = WRef("clk", ClockType, PortKind, SourceFlow)
+    val reset = WRef("reset", UIntType(IntWidth(1)), PortKind, SourceFlow)
     val init = UIntLiteral(0)
     val reg = DefRegister(NoInfo, "r", uint8, clk, reset, init)
     irLookup.declaration(Test.ref("r")) shouldBe reg
@@ -67,14 +66,14 @@ class IRLookupSpec extends FirrtlFlatSpec with MemStuff {
     irLookup.declaration(Test.ref("r").init) shouldBe reg
 
     irLookup.declaration(Test.ref("x")) shouldBe
-      DefNode(NoInfo, "x", WRef("r", uint8, RegKind, MALE))
+      DefNode(NoInfo, "x", WRef("r", uint8, RegKind, SourceFlow))
 
     irLookup.declaration(Test.ref("y")) shouldBe
       DefWire(NoInfo, "y", uint8)
 
     irLookup.declaration(Test.ref("@and#0")) shouldBe
       DoPrim(PrimOps.And,
-        Seq(WRef("y", uint8, WireKind, MALE), DoPrim(AsUInt, Seq(SIntLiteral(-1)), Nil, UIntType(IntWidth(1)))),
+        Seq(WRef("y", uint8, WireKind, SourceFlow), DoPrim(AsUInt, Seq(SIntLiteral(-1)), Nil, UIntType(IntWidth(1)))),
         Nil,
         uint8
       )
@@ -93,10 +92,67 @@ class IRLookupSpec extends FirrtlFlatSpec with MemStuff {
   }
 
   "IRLookup" should "return mem declarations" in {
-    val input = makeInput(0)
-    val circuit = toMiddleFIRRTL(parse(input))
+    def commonFields: Seq[String] = Seq("clk", "en", "addr")
+    def readerTargets(rt: ReferenceTarget): Seq[ReferenceTarget] = {
+      (commonFields ++ Seq("data")).map(rt.field)
+    }
+    def writerTargets(rt: ReferenceTarget): Seq[ReferenceTarget] = {
+      (commonFields ++ Seq("data", "mask")).map(rt.field)
+    }
+    def readwriterTargets(rt: ReferenceTarget): Seq[ReferenceTarget] = {
+      (commonFields ++ Seq("wdata", "wmask", "wmode", "rdata")).map(rt.field)
+    }
+    val input =
+      s"""circuit Test:
+         |  module Test :
+         |    input in : UInt<8>
+         |    input clk: Clock[3]
+         |    input dataClk: Clock
+         |    input mode: UInt<1>
+         |    output out : UInt<8>[2]
+         |    mem m:
+         |      data-type => UInt<8>
+         |      reader => r
+         |      writer => w
+         |      readwriter => rw
+         |      depth => 2
+         |      write-latency => 1
+         |      read-latency => 0
+         |
+         |    reg addr: UInt<1>, dataClk
+         |    reg en: UInt<1>, dataClk
+         |    reg indata: UInt<8>, dataClk
+         |
+         |    m.r.clk <= clk[0]
+         |    m.r.en <= en
+         |    m.r.addr <= addr
+         |    out[0] <= m.r.data
+         |
+         |    m.w.clk <= clk[1]
+         |    m.w.en <= en
+         |    m.w.addr <= addr
+         |    m.w.data <= indata
+         |    m.w.mask <= en
+         |
+         |    m.rw.clk <= clk[2]
+         |    m.rw.en <= en
+         |    m.rw.addr <= addr
+         |    m.rw.wdata <= indata
+         |    m.rw.wmask <= en
+         |    m.rw.wmode <= en
+         |    out[1] <= m.rw.rdata
+         |""".stripMargin
+
+    val C = CircuitTarget("Test")
+    val MemTest = C.module("Test")
+    val Mem = MemTest.ref("m")
+    val Reader = Mem.field("r")
+    val Writer = Mem.field("w")
+    val Readwriter = Mem.field("rw")
+    val allSignals = readerTargets(Reader) ++ writerTargets(Writer) ++ readwriterTargets(Readwriter)
+
+    val circuit = new TransformManager(Forms.MidForm, Forms.Deduped).execute(CircuitState(parse(input), ChirrtlForm)).circuit
     val irLookup = IRLookup(circuit)
-    val Test = ModuleTarget("Test", "Test")
     val uint8 = UIntType(IntWidth(8))
     val mem = DefMemory(NoInfo, "m", uint8, 2, 1, 0, Seq("r"), Seq("w"), Seq("rw"))
     allSignals.foreach { at =>
@@ -104,7 +160,7 @@ class IRLookupSpec extends FirrtlFlatSpec with MemStuff {
     }
   }
 
-  "IRLookup" should "return expressions, types, kinds, and genders" in {
+  "IRLookup" should "return expressions, types, kinds, and flows" in {
     val input =
       """circuit Test:
         |  module Test :
@@ -129,7 +185,7 @@ class IRLookupSpec extends FirrtlFlatSpec with MemStuff {
         |    out <= UInt(1)
         |""".stripMargin
 
-    val circuit = toMiddleFIRRTL(parse(input))
+    val circuit = new TransformManager(Forms.MidForm, Forms.Deduped).execute(CircuitState(parse(input), ChirrtlForm)).circuit
     val irLookup = IRLookup(circuit)
     val Test = ModuleTarget("Test", "Test")
     val uint8 = UIntType(IntWidth(8))
@@ -139,56 +195,55 @@ class IRLookupSpec extends FirrtlFlatSpec with MemStuff {
       irLookup.expr(rt) shouldBe e
       irLookup.tpe(rt) shouldBe e.tpe
       irLookup.kind(rt) shouldBe Utils.kind(e)
-      irLookup.gender(rt) shouldBe Utils.gender(e)
+      irLookup.flow(rt) shouldBe Utils.flow(e)
     }
 
-    check(Test.ref("in"), WRef("in", uint8, PortKind, MALE))
-    check(Test.ref("clk"), WRef("clk", ClockType, PortKind, MALE))
-    check(Test.ref("reset"), WRef("reset", uint1, PortKind, MALE))
+    check(Test.ref("in"), WRef("in", uint8, PortKind, SourceFlow))
+    check(Test.ref("clk"), WRef("clk", ClockType, PortKind, SourceFlow))
+    check(Test.ref("reset"), WRef("reset", uint1, PortKind, SourceFlow))
 
     val out = Test.ref("out")
     val outExpr =
       WRef("out",
         BundleType(Seq(Field("a", Default, uint8), Field("b", Default, VectorType(uint8, 2)))),
         PortKind,
-        FEMALE
+        SinkFlow
       )
     check(out, outExpr)
-    check(out.field("a"), WSubField(outExpr, "a", uint8, FEMALE))
+    check(out.field("a"), WSubField(outExpr, "a", uint8, SinkFlow))
     val outB = out.field("b")
-    val outBExpr = WSubField(outExpr, "b", VectorType(uint8, 2), FEMALE)
+    val outBExpr = WSubField(outExpr, "b", VectorType(uint8, 2), SinkFlow)
     check(outB, outBExpr)
-    check(outB.index(0), WSubIndex(outBExpr, 0, uint8, FEMALE))
-    check(outB.index(1), WSubIndex(outBExpr, 1, uint8, FEMALE))
+    check(outB.index(0), WSubIndex(outBExpr, 0, uint8, SinkFlow))
+    check(outB.index(1), WSubIndex(outBExpr, 1, uint8, SinkFlow))
 
-    check(Test.ref("ana1"), WRef("ana1", AnalogType(IntWidth(8)), PortKind, MALE))
-    check(Test.ref("ana2"), WRef("ana2", AnalogType(IntWidth(8)), PortKind, FEMALE))
+    check(Test.ref("ana1"), WRef("ana1", AnalogType(IntWidth(8)), PortKind, SourceFlow))
+    check(Test.ref("ana2"), WRef("ana2", AnalogType(IntWidth(8)), PortKind, SinkFlow))
 
-    val clk = WRef("clk", ClockType, PortKind, MALE)
-    val reset = WRef("reset", UIntType(IntWidth(1)), PortKind, MALE)
+    val clk = WRef("clk", ClockType, PortKind, SourceFlow)
+    val reset = WRef("reset", UIntType(IntWidth(1)), PortKind, SourceFlow)
     val init = UIntLiteral(0)
-    val reg = DefRegister(NoInfo, "r", uint8, clk, reset, init)
-    check(Test.ref("r"), WRef("r", uint8, RegKind, BIGENDER))
+    check(Test.ref("r"), WRef("r", uint8, RegKind, DuplexFlow))
     check(Test.ref("r").clock, clk)
     check(Test.ref("r").reset, reset)
     check(Test.ref("r").init, init)
 
-    check(Test.ref("x"), WRef("x", uint8, ExpKind, MALE))
+    check(Test.ref("x"), WRef("x", uint8, ExpKind, SourceFlow))
 
-    check(Test.ref("y"), WRef("y", uint8, WireKind, BIGENDER))
+    check(Test.ref("y"), WRef("y", uint8, WireKind, DuplexFlow))
 
     check(Test.ref("@and#0"),
       DoPrim(PrimOps.And,
-        Seq(WRef("y", uint8, WireKind, MALE), DoPrim(AsUInt, Seq(SIntLiteral(-1)), Nil, UIntType(IntWidth(1)))),
+        Seq(WRef("y", uint8, WireKind, SourceFlow), DoPrim(AsUInt, Seq(SIntLiteral(-1)), Nil, UIntType(IntWidth(1)))),
         Nil,
         uint8
       )
     )
 
-    val child = WRef("child", BundleType(Seq(Field("out", Default, uint8))), InstanceKind, MALE)
+    val child = WRef("child", BundleType(Seq(Field("out", Default, uint8))), InstanceKind, SourceFlow)
     check(Test.ref("child"), child)
     check(Test.ref("child").field("out"),
-      WSubField(child, "out", uint8, MALE)
+      WSubField(child, "out", uint8, SourceFlow)
     )
   }
 
@@ -208,7 +263,7 @@ class IRLookupSpec extends FirrtlFlatSpec with MemStuff {
         |""".stripMargin
     println(input)
 
-    val circuit = toMiddleFIRRTL(parse(input))
+    val circuit = new TransformManager(Forms.MidForm, Forms.Deduped).execute(CircuitState(parse(input), ChirrtlForm)).circuit
     val Test = ModuleTarget("Test", "Test")
     val irLookup = IRLookup(circuit)
     def mkReferences(parent: ReferenceTarget, i: Int): Seq[ReferenceTarget] = {

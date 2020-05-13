@@ -2,12 +2,13 @@
 
 package firrtlTests.analyses
 
+import firrtl.{ChirrtlForm, CircuitState}
 import firrtl.analyses.ConnectionGraph
 import firrtl.annotations.ModuleTarget
-import firrtlTests.FirrtlFlatSpec
-import firrtlTests.transforms.MemStuff
+import firrtl.stage.{Forms, TransformManager}
+import firrtl.testutils.FirrtlFlatSpec
 
-class ConnectionGraphSpec extends FirrtlFlatSpec with MemStuff {
+class ConnectionGraphSpec extends FirrtlFlatSpec {
 
   val input =
     """circuit Test:
@@ -33,7 +34,7 @@ class ConnectionGraphSpec extends FirrtlFlatSpec with MemStuff {
       |    out <= in
       |""".stripMargin
 
-  val circuit = toMiddleFIRRTL(parse(input))
+  val circuit = new TransformManager(Forms.MidForm, Forms.Deduped).execute(CircuitState(parse(input), ChirrtlForm)).circuit
 
   "ConnectionGraph" should "work with pathsInDAG" in {
 
