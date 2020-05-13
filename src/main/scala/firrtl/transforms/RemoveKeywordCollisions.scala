@@ -187,7 +187,7 @@ class RemoveKeywordCollisions(keywords: Set[String]) extends Transform with Depe
     * @param renames a [[RenameMap]] to update. If you don't want to propagate renames, this can be ignored.
     * @return a [[firrtl.ir Circuit]] without keyword conflicts
     */
-  def run(c: ir.Circuit, renames: RenameMap = RenameMap()): ir.Circuit = {
+  def run(c: ir.Circuit, renames: RenameMap = RenameMap(this)): ir.Circuit = {
     implicit val circuitNamespace: Namespace = Namespace(c)
     implicit val scope: Option[CircuitName] = Some(CircuitName(c.main))
     val modType: ModuleType = new ModuleType()
@@ -224,7 +224,7 @@ class RemoveKeywordCollisions(keywords: Set[String]) extends Transform with Depe
     * @return a [[CircuitState]] without name collisions
     */
   def execute(state: CircuitState): CircuitState = {
-    val renames = RenameMap()
+    val renames = RenameMap(this)
     renames.setCircuit(state.circuit.main)
     state.copy(circuit = run(state.circuit, renames), renames = Some(renames))
   }

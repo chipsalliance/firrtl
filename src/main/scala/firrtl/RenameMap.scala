@@ -21,7 +21,13 @@ object RenameMap {
     rm
   }
 
-  def apply(): RenameMap = new RenameMap
+  /** Initialize a new RenameMap which is not associated with a transform */
+   def apply(): RenameMap = new RenameMap
+
+  /** Initialize a new RenameMap associated with the provided transform */
+  def apply(associatedTransform: Transform): RenameMap = {
+    new RenameMap(associatedTransform = Some(associatedTransform))
+  }
 
   abstract class RenameTargetException(reason: String) extends Exception(reason)
   case class IllegalRenameException(reason: String) extends RenameTargetException(reason)
@@ -36,7 +42,11 @@ object RenameMap {
   * @define noteDistinct @note Rename to/tos will be made distinct
   */
 // TODO This should probably be refactored into immutable and mutable versions
-final class RenameMap private (val underlying: mutable.HashMap[CompleteTarget, Seq[CompleteTarget]] = mutable.HashMap[CompleteTarget, Seq[CompleteTarget]](), val chained: Option[RenameMap] = None) {
+final class RenameMap private (
+  val underlying: mutable.HashMap[CompleteTarget, Seq[CompleteTarget]] = mutable.HashMap[CompleteTarget, Seq[CompleteTarget]](),
+  val chained: Option[RenameMap] = None,
+  val associatedTransform: Option[Transform] = None
+) {
 
   /** Chain a [[RenameMap]] with this [[RenameMap]]
     * @param next the map to chain with this map
@@ -45,9 +55,9 @@ final class RenameMap private (val underlying: mutable.HashMap[CompleteTarget, S
     */
   def andThen(next: RenameMap): RenameMap = {
     if (next.chained.isEmpty) {
-      new RenameMap(next.underlying, chained = Some(this))
+      new RenameMap(next.underlying, chained = Some(this), next.associatedTransform)
     } else {
-      new RenameMap(next.underlying, chained = next.chained.map(this.andThen(_)))
+      new RenameMap(next.underlying, chained = next.chained.map(this.andThen(_)), next.associatedTransform)
     }
   }
 

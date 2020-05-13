@@ -100,7 +100,7 @@ class EliminateTargetPaths extends Transform with DependencyAPIMigration with Pr
     lazy val finalModuleSet = finalModuleList.map{ case a: DefModule => a.name }.toSet
 
     // Records how targets have been renamed
-    val renameMap = RenameMap()
+    val renameMap = RenameMap(this)
 
     /* Foreach target, calculate the pathless version and only rename targets that are instantiated. Additionally, rename
      * module targets
@@ -162,7 +162,7 @@ class EliminateTargetPaths extends Transform with DependencyAPIMigration with Pr
       val cache = mutable.Map.empty[String, Boolean]
       mod => cache.getOrElseUpdate(mod, iGraph.findInstancesInHierarchy(mod).size == 1)
     }
-    val firstRenameMap = RenameMap()
+    val firstRenameMap = RenameMap(this)
     val nonSingletonTargets = targets.foldLeft(Seq.empty[IsMember]) {
       case (acc, t: IsComponent) if t.asPath.nonEmpty =>
         val origPath = t.asPath

@@ -286,7 +286,7 @@ object LowerTypes extends Transform with DependencyAPIMigration {
 
   def execute(state: CircuitState): CircuitState = {
     val c = state.circuit
-    val renames = RenameMap()
+    val renames = RenameMap(this)
     renames.setCircuit(c.main)
     val result = c copy (modules = c.modules map lowerTypes(renames))
     CircuitState(result, outputForm, state.annotations, Some(renames))

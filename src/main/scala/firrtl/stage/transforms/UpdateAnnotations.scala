@@ -65,7 +65,7 @@ class UpdateAnnotations(val underlying: Transform) extends Transform with Wrappe
     }
 
     // For each annotation, rename all annotations.
-    val renames = renameOpt.getOrElse(RenameMap())
+    val renames = renameOpt.getOrElse(RenameMap(this))
     val remapped2original = mutable.LinkedHashMap[Annotation, mutable.LinkedHashSet[Annotation]]()
     val keysOfNote = mutable.LinkedHashSet[Annotation]()
     val finalAnnotations = newAnnotations.flatMap { anno =>
