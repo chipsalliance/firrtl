@@ -72,7 +72,11 @@ class DedupModules extends Transform {
     val dedupMap = DedupModules.deduplicate(c, noDedups.toSet, annos, renameMap)
 
     // Use old module list to preserve ordering
-    val dedupedModules = c.modules.map(m => dedupMap(m.name)).distinct
+    // Lookup what a module deduped to, if its a duplicate, remove it
+    val dedupedModules = c.modules.flatMap { m =>
+      val mx = dedupMap(m.name)
+      if (mx.name == m.name) Some(mx) else None
+    }
 
     val cname = CircuitName(c.main)
     val map = dedupMap.map { case (from, to) =>
