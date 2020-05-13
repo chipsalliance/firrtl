@@ -20,11 +20,12 @@ class FirrtlMainSpec extends FeatureSpec with GivenWhenThen with Matchers with f
     with BackendCompilationUtilities {
 
   /** Parameterizes one test of [[FirrtlMain]]. Running the [[FirrtlMain]] `main` with certain args should produce
-    * certain files.
+    * certain files and not produce others.
     * @param args arguments to pass
     * @param circuit a [[FirrtlCircuitFixture]] to use. This will generate an appropriate '-i $targetDir/$main.fi'
     * argument.
     * @param files expected files that will be created
+    * @param files files that should NOT be created
     * @param stdout expected stdout string, None if no output expected
     * @param stderr expected stderr string, None if no output expected
     * @param result expected exit code
@@ -33,6 +34,7 @@ class FirrtlMainSpec extends FeatureSpec with GivenWhenThen with Matchers with f
     args: Array[String],
     circuit: Option[FirrtlCircuitFixture] = Some(new SimpleFirrtlCircuitFixture),
     files: Seq[String] = Seq.empty,
+    notFiles: Seq[String] = Seq.empty,
     stdout: Option[String] = None,
     stderr: Option[String] = None,
     result: Int = 0) {
@@ -64,6 +66,7 @@ class FirrtlMainSpec extends FeatureSpec with GivenWhenThen with Matchers with f
       }
 
       p.files.foreach( f => new File(td.buildDir + s"/$f").delete() )
+      p.notFiles.foreach( f => new File(td.buildDir + s"/$f").delete() )
 
       When(s"""the user tries to compile with '${p.argsString}'""")
       val (stdout, stderr, result) =
@@ -100,6 +103,12 @@ class FirrtlMainSpec extends FeatureSpec with GivenWhenThen with Matchers with f
         And(s"file '$f' should be emitted in the target directory")
         val out = new File(td.buildDir + s"/$f")
         out should (exist)
+      }
+
+      p.notFiles.foreach { f =>
+        And(s"file '$f' should NOT be emitted in the target directory")
+        val out = new File(td.buildDir + s"/$f")
+        out should not (exist)
       }
     }
   }
@@ -204,6 +213,11 @@ class FirrtlMainSpec extends FeatureSpec with GivenWhenThen with Matchers with f
       FirrtlMainTest(args   = Array("-X", "sverilog", "-e", "sverilog"),
                       files  = Seq("Top.sv", "Child.sv"),
                       stdout = Some("SystemVerilog Compiler behaves the same as the Verilog Compiler!")),
+
+      /* Test mixing of -E with -e */
+      FirrtlMainTest(args     = Array("-X", "middle", "-E", "high", "-e", "middle"),
+                     files    = Seq("Top.hi.fir", "Top.mid.fir", "Child.mid.fir"),
+                     notFiles = Seq("Child.hi.fir")),
 
       /* Test changes to output file name */
       FirrtlMainTest(args   = Array("-X", "none", "-E", "chirrtl", "-o", "foo"),
