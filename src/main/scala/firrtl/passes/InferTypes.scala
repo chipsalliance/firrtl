@@ -7,8 +7,14 @@ import firrtl.ir._
 import firrtl.Utils._
 import firrtl.Mappers._
 
+<<<<<<< HEAD
 object InferTypes extends Pass {
+=======
+  @deprecated("This should never have been public", "1.3.2")
+>>>>>>> a15f65c8... Use HashMap instead of LinkedHashMap in InferTypes
   type TypeMap = collection.mutable.LinkedHashMap[String, Type]
+
+  private type TypeLookup = collection.mutable.HashMap[String, Type]
 
   def run(c: Circuit): Circuit = {
     val namespace = Namespace()
@@ -22,7 +28,7 @@ object InferTypes extends Pass {
     def remove_unknowns(t: Type): Type =
       t map remove_unknowns map remove_unknowns_w
 
-    def infer_types_e(types: TypeMap)(e: Expression): Expression =
+    def infer_types_e(types: TypeLookup)(e: Expression): Expression =
       e map infer_types_e(types) match {
         case e: WRef => e copy (tpe = types(e.name))
         case e: WSubField => e copy (tpe = field_type(e.expr.tpe, e.name))
@@ -34,7 +40,7 @@ object InferTypes extends Pass {
         case e @ (_: UIntLiteral | _: SIntLiteral) => e
       }
 
-    def infer_types_s(types: TypeMap)(s: Statement): Statement = s match {
+    def infer_types_s(types: TypeLookup)(s: Statement): Statement = s match {
       case sx: WDefInstance =>
         val t = mtypes(sx.module)
         types(sx.name) = t
@@ -59,14 +65,14 @@ object InferTypes extends Pass {
       case sx => sx map infer_types_s(types) map infer_types_e(types)
     }
 
-    def infer_types_p(types: TypeMap)(p: Port): Port = {
+    def infer_types_p(types: TypeLookup)(p: Port): Port = {
       val t = remove_unknowns(p.tpe)
       types(p.name) = t
       p copy (tpe = t)
     }
 
     def infer_types(m: DefModule): DefModule = {
-      val types = new TypeMap
+      val types = new TypeLookup
       m map infer_types_p(types) map infer_types_s(types)
     }
  
@@ -74,13 +80,23 @@ object InferTypes extends Pass {
   }
 }
 
+<<<<<<< HEAD
 object CInferTypes extends Pass {
+=======
+object CInferTypes extends Pass with PreservesAll[Transform] {
+
+  override def prerequisites = firrtl.stage.Forms.ChirrtlForm
+
+  @deprecated("This should never have been public", "1.3.2")
+>>>>>>> a15f65c8... Use HashMap instead of LinkedHashMap in InferTypes
   type TypeMap = collection.mutable.LinkedHashMap[String, Type]
+
+  private type TypeLookup = collection.mutable.HashMap[String, Type]
 
   def run(c: Circuit): Circuit = {
     val mtypes = (c.modules map (m => m.name -> module_type(m))).toMap
 
-    def infer_types_e(types: TypeMap)(e: Expression) : Expression =
+    def infer_types_e(types: TypeLookup)(e: Expression) : Expression =
       e map infer_types_e(types) match {
          case (e: Reference) => e copy (tpe = types.getOrElse(e.name, UnknownType))
          case (e: SubField) => e copy (tpe = field_type(e.expr.tpe, e.name))
@@ -92,7 +108,7 @@ object CInferTypes extends Pass {
          case e @ (_: UIntLiteral | _: SIntLiteral) => e
       }
 
-    def infer_types_s(types: TypeMap)(s: Statement): Statement = s match {
+    def infer_types_s(types: TypeLookup)(s: Statement): Statement = s match {
       case sx: DefRegister =>
         types(sx.name) = sx.tpe
         sx map infer_types_e(types)
@@ -119,13 +135,13 @@ object CInferTypes extends Pass {
       case sx => sx map infer_types_s(types) map infer_types_e(types)
     }
 
-    def infer_types_p(types: TypeMap)(p: Port): Port = {
+    def infer_types_p(types: TypeLookup)(p: Port): Port = {
       types(p.name) = p.tpe
       p
     }
  
     def infer_types(m: DefModule): DefModule = {
-      val types = new TypeMap
+      val types = new TypeLookup
       m map infer_types_p(types) map infer_types_s(types)
     }
    
