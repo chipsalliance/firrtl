@@ -59,8 +59,13 @@ class firrtlCrossModule(crossVersion: String) extends ScalaModule with SbtModule
     }
 
     def ivyDeps = Agg(
+<<<<<<< HEAD
       ivy"org.scalatest::scalatest:3.1.1",
       ivy"org.scalatestplus::scalacheck-1-14:3.1.0.1"
+=======
+      ivy"org.scalatest::scalatest:3.1.2",
+      ivy"org.scalatestplus::scalacheck-1-14:3.1.1.1"
+>>>>>>> 50a90664... Update scalacheck-1-14 to 3.1.1.1 (#1606)
     ) ++ ivyCrossDeps
 
     def testFrameworks = Seq("org.scalatest.tools.Framework")
