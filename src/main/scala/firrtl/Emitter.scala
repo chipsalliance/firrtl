@@ -1012,8 +1012,8 @@ class VerilogEmitter extends SeqTransform with Emitter {
         emit(Seq(tab, "end"))
       }
 
-      emit(Seq("// Register and memory initialization"))
       if (initials.nonEmpty || ifdefInitials.nonEmpty) {
+        emit(Seq("// Register and memory initialization"))
         emit(Seq("`ifdef RANDOMIZE_GARBAGE_ASSIGN"))
         emit(Seq("`define RANDOMIZE"))
         emit(Seq("`endif"))
