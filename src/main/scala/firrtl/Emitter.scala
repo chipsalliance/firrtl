@@ -519,6 +519,10 @@ class VerilogEmitter extends SeqTransform with Emitter {
       declares += Seq(b, " ", tpe, " ", n, " [0:", bigIntToVLit(size - 1), "];", info)
     }
 
+    private def declareAssign(b: String, n: String, t: Type, info: Info, rhs: Expression) = {
+      declares += Seq(b, " ", t, " ", n, " = ", rhs, ";", info)
+    }
+
     def declare(b: String, n: String, t: Type, info: Info) = t match {
       case tx: VectorType =>
         declareVectorType(b, n, tx.tpe, tx.size, info)
@@ -746,7 +750,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
           regUpdate(e, sx.clock, sx.reset, sx.init)
           initialize(e, sx.reset, sx.init)
         case sx: DefNode =>
-          declare("wire", sx.name, sx.value.tpe, sx.info, sx.value)
+          declareAssign("wire", sx.name, sx.value.tpe, sx.info, sx.value)
         case sx: Stop =>
           simulate(sx.clk, sx.en, stop(sx.ret), Some("STOP_COND"), sx.info)
         case sx: Print =>
