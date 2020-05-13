@@ -253,20 +253,19 @@ case class GenericTarget(circuitOpt: Option[String],
 
   override def getComplete: Option[CompleteTarget] = {
     if(!isComplete) None else {
-      this match {
-        case GenericTarget(Some(c), None, Vector()) => Some(CircuitTarget(c))
-        case GenericTarget(Some(c), Some(m), Vector()) => Some(ModuleTarget(c, m))
-        case GenericTarget(Some(c), Some(m), Ref(r) +: component) => Some(ReferenceTarget(c, m, Nil, r, component))
-        case GenericTarget(Some(c), Some(m), Instance(i) +: OfModule(o) +: Vector()) =>
-          Some(InstanceTarget(c, m, Nil, i, o))
+      val target = this match {
+        case GenericTarget(Some(c), None, Vector()) => CircuitTarget(c)
+        case GenericTarget(Some(c), Some(m), Vector()) => ModuleTarget(c, m)
+        case GenericTarget(Some(c), Some(m), Ref(r) +: component) => ReferenceTarget(c, m, Nil, r, component)
+        case GenericTarget(Some(c), Some(m), Instance(i) +: OfModule(o) +: Vector()) => InstanceTarget(c, m, Nil, i, o)
         case GenericTarget(Some(c), Some(m), component) =>
           val path = getPath.getOrElse(Nil)
           (getRef, getInstanceOf) match {
-            case (Some((r, comps)), _) => Some(ReferenceTarget(c, m, path, r, comps))
-            case (None, Some((i, o)))  => Some(InstanceTarget(c, m, path, i, o))
-            case (None, None) => None
+            case (Some((r, comps)), _) => ReferenceTarget(c, m, path, r, comps)
+            case (None, Some((i, o)))  => InstanceTarget(c, m, path, i, o)
           }
       }
+      Some(target)
     }
   }
 
@@ -661,7 +660,7 @@ case class ReferenceTarget(circuit: String,
 
   override def moduleOpt: Option[String] = Some(module)
 
-  override def targetParent: IsMember = component match {
+  override def targetParent: CompleteTarget = component match {
     case Nil =>
       if(path.isEmpty) moduleTarget else {
         val (i, o) = path.last

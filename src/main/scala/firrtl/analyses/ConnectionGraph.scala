@@ -8,13 +8,14 @@ import firrtl.ir._
 import firrtl.Mappers._
 import firrtl.annotations.TargetToken
 import firrtl.passes.MemPortUtils
-import firrtl.{FEMALE, InstanceKind, MALE, PortKind, Utils, WDefInstance, WInvalid, WRef, WSubField, WSubIndex}
+import firrtl.{InstanceKind, PortKind, SinkFlow, SourceFlow, Utils, WDefInstance, WInvalid, WRef, WSubField, WSubIndex}
 
 import scala.collection.mutable
 
 class ConnectionGraph protected(val circuit: Circuit,
                                 val digraph: DiGraph[ReferenceTarget],
                                 val irLookup: IRLookup) extends DiGraphLike[ReferenceTarget] {
+  override val prev = new mutable.LinkedHashMap[ReferenceTarget, ReferenceTarget]()
   override val edges =
     digraph.getEdgeMap.asInstanceOf[mutable.LinkedHashMap[ReferenceTarget, mutable.LinkedHashSet[ReferenceTarget]]]
 
@@ -251,7 +252,7 @@ class ConnectionGraph protected(val circuit: Circuit,
     prev
   }
 
-  override def getEdges(source: ReferenceTarget, prevOpt: Option[collection.Map[ReferenceTarget, ReferenceTarget]] = None): collection.Set[ReferenceTarget] = {
+  def getEdges(source: ReferenceTarget, prevOpt: Option[collection.Map[ReferenceTarget, ReferenceTarget]] = None): collection.Set[ReferenceTarget] = {
     import ConnectionGraph._
 
     val localSource = source.pathlessTarget
@@ -469,12 +470,12 @@ object ConnectionGraph {
     def buildInstance(m: ModuleTarget, tagger: TokenTagger, name: String, ofModule: String, tpe: Type): Unit = {
 
       val instTarget = m.instOf(name, ofModule)
-      val instPorts = Utils.create_exps(WRef(name, tpe, InstanceKind, FEMALE))
+      val instPorts = Utils.create_exps(WRef(name, tpe, InstanceKind, SinkFlow))
       val modulePorts = tpe.asInstanceOf[BundleType].fields.flatMap {
         // Module output
-        case firrtl.ir.Field(name, Default, tpe) => Utils.create_exps(WRef(name, tpe, PortKind, MALE))
+        case firrtl.ir.Field(name, Default, tpe) => Utils.create_exps(WRef(name, tpe, PortKind, SourceFlow))
         // Module input
-        case firrtl.ir.Field(name, Flip, tpe) => Utils.create_exps(WRef(name, tpe, PortKind, FEMALE))
+        case firrtl.ir.Field(name, Flip, tpe) => Utils.create_exps(WRef(name, tpe, PortKind, SinkFlow))
       }
       assert(instPorts.size == modulePorts.size)
       val o = m.circuitTarget.module(ofModule)
@@ -482,9 +483,9 @@ object ConnectionGraph {
         val (instExp, modExp) = x
         val it = asTarget(m, tagger)(instExp)
         val mt = asTarget(o, tagger)(modExp)
-        (Utils.gender(instExp), Utils.gender(modExp)) match {
-          case (MALE, FEMALE) => mdg.addPairWithEdge(it, mt)
-          case (FEMALE, MALE) => mdg.addPairWithEdge(mt, it)
+        (Utils.flow(instExp), Utils.flow(modExp)) match {
+          case (SourceFlow, SinkFlow) => mdg.addPairWithEdge(it, mt)
+          case (SinkFlow, SourceFlow) => mdg.addPairWithEdge(mt, it)
           case _ => sys.error("Something went wrong...")
         }
       }

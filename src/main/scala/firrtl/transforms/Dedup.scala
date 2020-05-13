@@ -334,7 +334,6 @@ object DedupModules extends LazyLogging {
     // Get all instances to know what to rename in the module s
     val instances = InstanceKeyGraph.collectInstances(module)
     val instanceModuleMap = instances.map(i => i.name -> i.module).toMap
-    val moduleNames = instances.map(_.module)
 
     def getNewModule(old: String): DefModule = {
       moduleMap(name2name(old))

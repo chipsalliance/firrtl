@@ -48,7 +48,6 @@ trait DiGraphLike[T] {
   // The pattern of mapping map pairs to keys maintains LinkedHashMap ordering
   def getVertices: Set[T] = new LinkedHashSet ++ edges.map({ case (k, _) => k })
 
-
   /** Get all edges of a node
     * @param v the specified node
     * @return a Set[T] of all vertices that v has edges to
@@ -117,7 +116,6 @@ trait DiGraphLike[T] {
         val LinearizeFrame(n, expanded) = callStack.pop()
         if (!expanded) {
           if (tempMarked.contains(n)) {
-            println(tempMarked.toSeq)
             throw new CyclicException(n)
           }
           if (unmarked.contains(n)) {
@@ -125,16 +123,12 @@ trait DiGraphLike[T] {
             unmarked -= n
             callStack.push(LinearizeFrame(n, true))
             // We want to visit the first edge first (so push it last)
-            for (m <- getEdges(n).toSeq.reverse) {
-              if(!unmarked.contains(m) && !tempMarked.contains(m) && !finished.contains(m)){
-                unmarked += m
-              }
+            for (m <- edges.getOrElse(n, Set.empty).toSeq.reverse) {
               callStack.push(LinearizeFrame(m, false))
             }
           }
         } else {
           tempMarked -= n
-          finished += n
           order.append(n)
         }
       }
@@ -156,54 +150,27 @@ trait DiGraphLike[T] {
 
   /** Performs breadth-first search on the directed graph, with a blacklist of nodes
     *
+    * @todo add customGetEdges
     * @param root the start node
     * @param blacklist list of nodes to avoid visiting, if encountered
     * @return a Map[T,T] from each visited node to its predecessor in the
     * traversal
     */
-  def BFS(root: T,
-          blacklist: Set[T],
-          customGetEdges: Option[T => Set[T]] = None
-         ): Map[T,T] = {
-
-    clearPrev()
-    val bfsQueue = new mutable.Queue[T]
-    bfsQueue.enqueue(root)
-    while (bfsQueue.nonEmpty) {
-      val u = bfsQueue.dequeue
+  def BFS(root: T, blacklist: Set[T]): Map[T,T] = {
+    val prev = new mutable.LinkedHashMap[T,T]
+    val queue = new mutable.Queue[T]
+    queue.enqueue(root)
+    while (queue.nonEmpty) {
+      val u = queue.dequeue
       for (v <- getEdges(u)) {
         if (!prev.contains(v) && !blacklist.contains(v)) {
           prev(v) = u
-          bfsQueue.enqueue(v)
+          queue.enqueue(v)
         }
       }
     }
     prev
   }
-
-  //def BFS(root: T, blacklist: Set[T]): Map[T,T] = {
-  //  val prev = new mutable.LinkedHashMap[T,T]
-  //  def shouldVisit(from: T, to: T): Boolean = {
-  //    val should = !prev.contains(to) && !blacklist.contains(to)
-  //    if(should) { prev(to) = from }
-  //    should
-  //  }
-  //  BFS(root, getEdges, shouldVisit, prev)
-  //}
-
-  //def BFS(root: T, getEdges: T => Set[T], shouldVisit: (T, T) => Boolean, getResult: => Map[T, T]): Map[T, T] = {
-  //  val queue = new mutable.Queue[T]
-  //  queue.enqueue(root)
-  //  while (queue.nonEmpty) {
-  //    val u = queue.dequeue
-  //    for (v <- getEdges(u)) {
-  //      if (shouldVisit(u, v)) {
-  //        queue.enqueue(v)
-  //      }
-  //    }
-  //  }
-  //  getResult
-  //}
 
   /** Finds the set of nodes reachable from a particular node. The `root` node is *not* included in the
     * returned set unless it is possible to reach `root` along a non-trivial path beginning at

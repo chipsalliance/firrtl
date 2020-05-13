@@ -6,7 +6,7 @@ import firrtl.annotations.TargetToken._
 import firrtl.annotations._
 import firrtl.ir._
 import firrtl.passes.MemPortUtils
-import firrtl.{BIGENDER, ExpKind, FEMALE, Gender, InstanceKind, Kind, MALE, MemKind, PortKind, RegKind, UNKNOWNGENDER, Utils, WDefInstance, WInvalid, WRef, WSubField, WSubIndex, WireKind}
+import firrtl.{DuplexFlow, ExpKind, SinkFlow, Flow, InstanceKind, Kind, SourceFlow, MemKind, PortKind, RegKind, UnknownFlow, Utils, WDefInstance, WInvalid, WRef, WSubField, WSubIndex, WireKind}
 
 import scala.collection.mutable
 
@@ -21,10 +21,10 @@ object IRLookup {
 class IRLookup private[analyses] ( private val declarations: mutable.LinkedHashMap[ModuleTarget, mutable.LinkedHashMap[ReferenceTarget, FirrtlNode]],
                                    private val modules: Map[ModuleTarget, DefModule]) {
 
-  private val genderCache = mutable.HashMap[ReferenceTarget, Gender]()
+  private val flowCache = mutable.HashMap[ReferenceTarget, Flow]()
   private val kindCache = mutable.HashMap[ReferenceTarget, Kind]()
   private val tpeCache = mutable.HashMap[ReferenceTarget, Type]()
-  private val exprCache = mutable.HashMap[(ReferenceTarget, Gender), Expression]()
+  private val exprCache = mutable.HashMap[(ReferenceTarget, Flow), Expression]()
 
   private val refCache = mutable.HashMap[ModuleTarget, mutable.LinkedHashMap[Kind, mutable.ArrayBuffer[ReferenceTarget]]]()
 
@@ -37,16 +37,16 @@ class IRLookup private[analyses] ( private val declarations: mutable.LinkedHashM
     */
   def asLocalRef(t: ReferenceTarget): ReferenceTarget = t.pathlessTarget.copy(component = Nil)
 
-  /** Returns the gender of t
+  /** Returns the flow of t
     * @param t
     * @return
     */
-  def gender(t: ReferenceTarget): Gender = {
+  def flow(t: ReferenceTarget): Flow = {
     val pathless = t.pathlessTarget
-    if(genderCache.contains(pathless)) return genderCache(pathless)
-    val gender = Utils.gender(expr(pathless))
-    genderCache(pathless) = gender
-    gender
+    if(flowCache.contains(pathless)) return flowCache(pathless)
+    val flow = Utils.flow(expr(pathless))
+    flowCache(pathless) = flow
+    flow
   }
 
   /** Returns the kind of t
@@ -79,17 +79,17 @@ class IRLookup private[analyses] ( private val declarations: mutable.LinkedHashM
     *
     * It can return None for many reasons, including
     *  - declaration is missing
-    *  - gender is wrong
+    *  - flow is wrong
     *  - component is wrong
     *
     * @param t
-    * @param gender
+    * @param flow
     * @return
     */
-  def getExpr(t: ReferenceTarget, gender: Gender): Option[Expression] = {
+  def getExpr(t: ReferenceTarget, flow: Flow): Option[Expression] = {
     val pathless = t.pathlessTarget
 
-    inCache(pathless, gender) match {
+    inCache(pathless, flow) match {
       case Some(e) => e
       case None =>
         val mt = pathless.moduleTarget
@@ -98,54 +98,54 @@ class IRLookup private[analyses] ( private val declarations: mutable.LinkedHashM
           declarations(emt)(asLocalRef(t)) match {
             case e: Expression =>
               require(e.tpe.isInstanceOf[GroundType])
-              exprCache.getOrElseUpdate((pathless, Utils.gender(e)), e)
+              exprCache.getOrElseUpdate((pathless, Utils.flow(e)), e)
             case d: IsDeclaration => d match {
               case n: DefNode =>
-                updateExpr(mt, WRef(n.name, n.value.tpe, ExpKind, MALE))
+                updateExpr(mt, WRef(n.name, n.value.tpe, ExpKind, SourceFlow))
               case p: Port =>
-                updateExpr(mt, WRef(p.name, p.tpe, PortKind, Utils.get_gender(p)))
+                updateExpr(mt, WRef(p.name, p.tpe, PortKind, Utils.get_flow(p)))
               case w: WDefInstance =>
-                updateExpr(mt, WRef(w.name, w.tpe, InstanceKind, MALE))
+                updateExpr(mt, WRef(w.name, w.tpe, InstanceKind, SourceFlow))
               case w: DefWire =>
-                updateExpr(mt, WRef(w.name, w.tpe, WireKind, MALE))
-                updateExpr(mt, WRef(w.name, w.tpe, WireKind, FEMALE))
-                updateExpr(mt, WRef(w.name, w.tpe, WireKind, BIGENDER))
+                updateExpr(mt, WRef(w.name, w.tpe, WireKind, SourceFlow))
+                updateExpr(mt, WRef(w.name, w.tpe, WireKind, SinkFlow))
+                updateExpr(mt, WRef(w.name, w.tpe, WireKind, DuplexFlow))
               case r: DefRegister if pathless.tokens.last == Clock =>
-                exprCache((pathless, MALE)) = r.clock
+                exprCache((pathless, SourceFlow)) = r.clock
               case r: DefRegister if pathless.tokens.isDefinedAt(1) && pathless.tokens(1) == Init =>
-                exprCache((pathless, MALE)) = r.init
+                exprCache((pathless, SourceFlow)) = r.init
                 updateExpr(pathless, r.init)
               case r: DefRegister if pathless.tokens.last == Reset =>
-                exprCache((pathless, MALE)) = r.reset
+                exprCache((pathless, SourceFlow)) = r.reset
               case r: DefRegister =>
-                updateExpr(mt, WRef(r.name, r.tpe, RegKind, MALE))
-                updateExpr(mt, WRef(r.name, r.tpe, RegKind, FEMALE))
-                updateExpr(mt, WRef(r.name, r.tpe, RegKind, BIGENDER))
+                updateExpr(mt, WRef(r.name, r.tpe, RegKind, SourceFlow))
+                updateExpr(mt, WRef(r.name, r.tpe, RegKind, SinkFlow))
+                updateExpr(mt, WRef(r.name, r.tpe, RegKind, DuplexFlow))
               case m: DefMemory =>
-                updateExpr(mt, WRef(m.name, MemPortUtils.memType(m), MemKind, MALE))
+                updateExpr(mt, WRef(m.name, MemPortUtils.memType(m), MemKind, SourceFlow))
               case other =>
                 sys.error(s"Cannot call expr with: $t, given declaration $other")
             }
             case x: IsInvalid =>
-              exprCache((pathless, MALE)) = WInvalid
+              exprCache((pathless, SourceFlow)) = WInvalid
           }
         } else None
     }
 
-    inCache(pathless, gender)
+    inCache(pathless, flow)
   }
 
   /** Returns an expression corresponding to the target
     * @param t
-    * @param gender
+    * @param flow
     * @return
     */
-  def expr(t: ReferenceTarget, gender: Gender = UNKNOWNGENDER): Expression = {
+  def expr(t: ReferenceTarget, flow: Flow = UnknownFlow): Expression = {
     require(contains(t), s"Cannot find\n${t.prettyPrint()}\nin circuit!")
-    getExpr(t, gender) match {
+    getExpr(t, flow) match {
       case Some(e) => e
       case None =>
-        require(getExpr(t.pathlessTarget, UNKNOWNGENDER).isEmpty, s"Illegal gender $gender with target $t")
+        require(getExpr(t.pathlessTarget, UnknownFlow).isEmpty, s"Illegal flow $flow with target $t")
         sys.error("")
     }
   }
@@ -222,10 +222,10 @@ class IRLookup private[analyses] ( private val declarations: mutable.LinkedHashM
                             module: DefModule
                            ): (Seq[(ReferenceTarget, Type)], Seq[(ReferenceTarget, Type)]) = {
     module.ports.flatMap {
-      case Port(_, name, Output, tpe) => Utils.create_exps(WRef(name, tpe, PortKind, MALE))
-      case Port(_, name, Input, tpe) => Utils.create_exps(WRef(name, tpe, PortKind, FEMALE))
+      case Port(_, name, Output, tpe) => Utils.create_exps(WRef(name, tpe, PortKind, SourceFlow))
+      case Port(_, name, Input, tpe) => Utils.create_exps(WRef(name, tpe, PortKind, SinkFlow))
     }.foldLeft((Vector.empty[(ReferenceTarget, Type)], Vector.empty[(ReferenceTarget, Type)])) {
-      case ((inputs, outputs), e) if Utils.gender(e) == MALE =>
+      case ((inputs, outputs), e) if Utils.flow(e) == SourceFlow =>
         (inputs, outputs :+ (ConnectionGraph.asTarget(m, new TokenTagger())(e).asInstanceOf[ReferenceTarget], e.tpe))
       case ((inputs, outputs), e) =>
         (inputs :+ (ConnectionGraph.asTarget(m, new TokenTagger())(e).asInstanceOf[ReferenceTarget], e.tpe), outputs)
@@ -240,7 +240,7 @@ class IRLookup private[analyses] ( private val declarations: mutable.LinkedHashM
     validPath(t.pathTarget) &&
       declarations.contains(t.encapsulatingModuleTarget) &&
       declarations(t.encapsulatingModuleTarget).contains(asLocalRef(t)) &&
-      getExpr(t, UNKNOWNGENDER).nonEmpty
+      getExpr(t, UnknownFlow).nonEmpty
   }
 
   /** Returns whether a ModuleTarget or InstanceTarget is contained in this IRLookup
@@ -277,7 +277,7 @@ class IRLookup private[analyses] ( private val declarations: mutable.LinkedHashM
     val refs = Utils.expandRef(ref)
     refs.foreach { e =>
       val target = ConnectionGraph.asTarget(mt, new TokenTagger())(e)
-      exprCache((target, Utils.gender(e))) = e
+      exprCache((target, Utils.flow(e))) = e
     }
   }
 
@@ -286,7 +286,7 @@ class IRLookup private[analyses] ( private val declarations: mutable.LinkedHashM
     * @param e
     */
   private def updateExpr(gt: ReferenceTarget, e: Expression): Unit = {
-    val g = Utils.gender(e)
+    val g = Utils.flow(e)
     e.tpe match {
       case _: GroundType =>
         exprCache((gt, g)) = e
@@ -302,21 +302,21 @@ class IRLookup private[analyses] ( private val declarations: mutable.LinkedHashM
 
   /** Optionally returns the expression corresponding to the target if contained in the expression cache
     * @param pathless
-    * @param gender
+    * @param flow
     * @return
     */
-  private def inCache(pathless: ReferenceTarget, gender: Gender): Option[Expression] = {
-    (gender,
-      exprCache.contains((pathless, MALE)),
-      exprCache.contains((pathless, FEMALE)),
-      exprCache.contains(pathless, BIGENDER)
+  private def inCache(pathless: ReferenceTarget, flow: Flow): Option[Expression] = {
+    (flow,
+      exprCache.contains((pathless, SourceFlow)),
+      exprCache.contains((pathless, SinkFlow)),
+      exprCache.contains(pathless, DuplexFlow)
     ) match {
-      case (MALE,          true,  _,     _)     => Some(exprCache((pathless, gender)))
-      case (FEMALE,        _,     true,  _)     => Some(exprCache((pathless, gender)))
-      case (BIGENDER,      _,     _,     true)  => Some(exprCache((pathless, BIGENDER)))
-      case (UNKNOWNGENDER, _,     _,     true)  => Some(exprCache((pathless, BIGENDER)))
-      case (UNKNOWNGENDER, true,  false, false) => Some(exprCache((pathless, MALE)))
-      case (UNKNOWNGENDER, false, true,  false) => Some(exprCache((pathless, FEMALE)))
+      case (SourceFlow,          true,  _,     _)     => Some(exprCache((pathless, flow)))
+      case (SinkFlow,        _,     true,  _)     => Some(exprCache((pathless, flow)))
+      case (DuplexFlow,      _,     _,     true)  => Some(exprCache((pathless, DuplexFlow)))
+      case (UnknownFlow, _,     _,     true)  => Some(exprCache((pathless, DuplexFlow)))
+      case (UnknownFlow, true,  false, false) => Some(exprCache((pathless, SourceFlow)))
+      case (UnknownFlow, false, true,  false) => Some(exprCache((pathless, SinkFlow)))
       case other => None
     }
   }

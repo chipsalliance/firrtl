@@ -41,21 +41,6 @@ object BackendCompilationUtilities extends LazyLogging {
     out.close()
   }
 
-  def linkResourceToFile(name: String, link: File): Unit = {
-    val in = getClass.getResourceAsStream(name)
-    if (in == null) {
-      throw new FileNotFoundException(s"Resource '$name'")
-    }
-    val filePath = getClass.getResource(name).getPath
-    val linkPath = link.getPath()
-
-    val result = s"ln -s ${filePath} ${linkPath}"!
-
-    require(result == 0, "Link unsuccessful")
-  }
-
-
-
   /** Create a test directory
     *
     * Will create outer directory called testName then inner directory based on
