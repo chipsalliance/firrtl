@@ -3,7 +3,7 @@
 package firrtl.analyses
 
 import firrtl.annotations._
-import firrtl.graph.{DiGraph, DiGraphLike, MutableDiGraph, PathNotFoundException}
+import firrtl.graph.{DiGraph, MutableDiGraph, PathNotFoundException}
 import firrtl.ir._
 import firrtl.Mappers._
 import firrtl.annotations.TargetToken
@@ -14,10 +14,9 @@ import scala.collection.mutable
 
 class ConnectionGraph protected(val circuit: Circuit,
                                 val digraph: DiGraph[ReferenceTarget],
-                                val irLookup: IRLookup) extends DiGraphLike[ReferenceTarget] {
+                                val irLookup: IRLookup) extends DiGraph[ReferenceTarget] {
   override val prev = new mutable.LinkedHashMap[ReferenceTarget, ReferenceTarget]()
-  override val edges =
-    digraph.getEdgeMap.asInstanceOf[mutable.LinkedHashMap[ReferenceTarget, mutable.LinkedHashSet[ReferenceTarget]]]
+  override val edges = digraph.getEdgeMap.asInstanceOf[mutable.LinkedHashMap[ReferenceTarget, mutable.LinkedHashSet[ReferenceTarget]]]
 
   /** Used by BFS to map each visited node to the list of instance inputs visited thus far
     *

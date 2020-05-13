@@ -18,7 +18,7 @@ object DiGraph {
   def apply[T](mdg: MutableDiGraph[T]): DiGraph[T] = mdg
 
   /** Create a DiGraph from a Map[T,Set[T]] of edge data */
-  def apply[T](edgeData: Map[T,Set[T]]): DiGraph[T] = {
+  def apply[T](edgeData: Map[T, Set[T]]): DiGraph[T] = {
     val edgeDataCopy = new LinkedHashMap[T, LinkedHashSet[T]]
     for ((k, v) <- edgeData) {
       edgeDataCopy(k) = new LinkedHashSet[T]
@@ -29,15 +29,17 @@ object DiGraph {
         edgeDataCopy(k) += n
       }
     }
-    new DiGraph(edgeDataCopy)
+    new DiGraph[T] {
+      val edges = edgeDataCopy
+    }
   }
 }
 
-/** Represents common behavior of all directed graphs */
-trait DiGraphLike[T] {
+abstract class DiGraph[T] {
+
   private[graph] val edges: LinkedHashMap[T, LinkedHashSet[T]]
 
-  private[graph] val prev: LinkedHashMap[T, T]
+  private[graph] val prev = new mutable.LinkedHashMap[T, T]()
 
   /** Check whether the graph contains vertex v */
   def contains(v: T): Boolean = edges.contains(v)
@@ -349,7 +351,9 @@ trait DiGraphLike[T] {
     */
   def subgraph(vprime: Set[T]): DiGraph[T] = {
     require(vprime.subsetOf(edges.keySet))
-    new DiGraph(filterEdges(vprime))
+    new DiGraph[T] {
+      val edges = filterEdges(vprime)
+    }
   }
 
   /** Return a simplified connectivity graph with only a subset of the nodes
@@ -363,8 +367,10 @@ trait DiGraphLike[T] {
     */
   def simplify(vprime: Set[T]): DiGraph[T] = {
     require(vprime.subsetOf(edges.keySet))
-    val pathEdges = vprime.map( v => (v, reachableFrom(v) & (vprime-v)) )
-    new DiGraph(new LinkedHashMap[T, LinkedHashSet[T]] ++ pathEdges)
+    val pathEdges: Set[(T, mutable.LinkedHashSet[T])] = vprime.map(v => (v, reachableFrom(v) & (vprime-v)) )
+    new DiGraph[T] {
+      val edges: LinkedHashMap[T, LinkedHashSet[T]] = new LinkedHashMap[T, LinkedHashSet[T]] ++ pathEdges
+    }
   }
 
   /** Return a graph with all the nodes of the current graph transformed
@@ -377,7 +383,9 @@ trait DiGraphLike[T] {
   def transformNodes[Q](f: (T) => Q): DiGraph[Q] = {
     val eprime = edges.map({ case (k, _) => (f(k), new LinkedHashSet[Q]) })
     edges.foreach({ case (k, v) => eprime(f(k)) ++= v.map(f(_)) })
-    new DiGraph(eprime)
+    new DiGraph[Q] {
+      val edges = eprime
+    }
   }
 
   /** Graph sum of `this` and `that`
@@ -388,16 +396,17 @@ trait DiGraphLike[T] {
   def +(that: DiGraph[T]): DiGraph[T] = {
     val eprime = edges.map({ case (k, v) => (k, v.clone) })
     that.edges.foreach({ case (k, v) => eprime.getOrElseUpdate(k, new LinkedHashSet[T]) ++= v })
-    new DiGraph(eprime)
+    new DiGraph[T] {
+     val edges = eprime
+    }
   }
 }
 
-class DiGraph[T] private[graph](private[graph] val edges: mutable.LinkedHashMap[T, mutable.LinkedHashSet[T]]) extends DiGraphLike[T] {
-  override val prev = new mutable.LinkedHashMap[T, T]()
-}
+class MutableDiGraph[T] extends DiGraph[T] {
+  val edges = new LinkedHashMap[T, LinkedHashSet[T]]
 
-class MutableDiGraph[T] extends DiGraph[T](new LinkedHashMap[T, LinkedHashSet[T]]) {
   /** Add vertex v to the graph
+    *
     * @return v, the added vertex
     */
   def addVertex(v: T): T = {
@@ -406,6 +415,7 @@ class MutableDiGraph[T] extends DiGraph[T](new LinkedHashMap[T, LinkedHashSet[T]
   }
 
   /** Add edge (u,v) to the graph.
+    *
     * @throws scala.IllegalArgumentException if u and/or v is not in the graph
     */
   def addEdge(u: T, v: T): Unit = {
@@ -441,12 +451,13 @@ class MutableDiGraph[T] extends DiGraph[T](new LinkedHashMap[T, LinkedHashSet[T]
 //   * change linearize use of edges.getOrElse(n, Set.empty).toSeq.reverse
 //   * override reverse, filteredges
 
-class EdgeDataDigraph[T, ET](val defaultData: ET) extends MutableDiGraph[T] {
+class EdgeDataDigraph[T, ET](val defaultData: ET) extends MutableDiGraph[T] { edd =>
 
   // Even though this is redundant, it is desirable to maintain separate edges and edgeData data structures, 
   val edgeData = new LinkedHashMap[T, LinkedHashMap[T, ET]]()
 
-  class DiGraphView private (viewFunc: (ET) => Boolean) extends DiGraph[T](edges) {
+  class DiGraphView private (viewFunc: (ET) => Boolean) extends DiGraph[T] {
+    val edges = edd.edges
     /** Get all edges of a node that are part of this view
       * @param v the specified node
       * @return a Set[T] of all vertices that v has edges to in this view
