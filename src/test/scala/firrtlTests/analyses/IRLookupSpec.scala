@@ -5,6 +5,8 @@ import firrtl.analyses.IRLookup
 import firrtl.annotations.{CircuitTarget, ModuleTarget, ReferenceTarget}
 import firrtl._
 import firrtl.ir._
+import firrtl.options.Dependency
+import firrtl.passes.ExpandWhensAndCheck
 import firrtl.stage.{Forms, TransformManager}
 import firrtl.testutils.FirrtlFlatSpec
 
@@ -36,7 +38,9 @@ class IRLookupSpec extends FirrtlFlatSpec {
         |    out <= UInt(1)
         |""".stripMargin
 
-    val circuit = new TransformManager(Forms.MidForm, Forms.Deduped).execute(CircuitState(parse(input), ChirrtlForm)).circuit
+    val circuit = new firrtl.stage.transforms.Compiler(Seq(Dependency[ExpandWhensAndCheck])).runTransform(
+      CircuitState(parse(input), UnknownForm)
+    ).circuit
     val irLookup = IRLookup(circuit)
     val Test = ModuleTarget("Test", "Test")
     val uint8 = UIntType(IntWidth(8))
@@ -151,7 +155,9 @@ class IRLookupSpec extends FirrtlFlatSpec {
     val Readwriter = Mem.field("rw")
     val allSignals = readerTargets(Reader) ++ writerTargets(Writer) ++ readwriterTargets(Readwriter)
 
-    val circuit = new TransformManager(Forms.MidForm, Forms.Deduped).execute(CircuitState(parse(input), ChirrtlForm)).circuit
+    val circuit = new firrtl.stage.transforms.Compiler(Seq(Dependency[ExpandWhensAndCheck])).runTransform(
+      CircuitState(parse(input), UnknownForm)
+    ).circuit
     val irLookup = IRLookup(circuit)
     val uint8 = UIntType(IntWidth(8))
     val mem = DefMemory(NoInfo, "m", uint8, 2, 1, 0, Seq("r"), Seq("w"), Seq("rw"))
@@ -185,7 +191,9 @@ class IRLookupSpec extends FirrtlFlatSpec {
         |    out <= UInt(1)
         |""".stripMargin
 
-    val circuit = new TransformManager(Forms.MidForm, Forms.Deduped).execute(CircuitState(parse(input), ChirrtlForm)).circuit
+    val circuit = new firrtl.stage.transforms.Compiler(Seq(Dependency[ExpandWhensAndCheck])).runTransform(
+      CircuitState(parse(input), UnknownForm)
+    ).circuit
     val irLookup = IRLookup(circuit)
     val Test = ModuleTarget("Test", "Test")
     val uint8 = UIntType(IntWidth(8))
@@ -261,9 +269,10 @@ class IRLookupSpec extends FirrtlFlatSpec {
         |    output out: ${mkType(depth)}
         |    out <= in
         |""".stripMargin
-    println(input)
 
-    val circuit = new TransformManager(Forms.MidForm, Forms.Deduped).execute(CircuitState(parse(input), ChirrtlForm)).circuit
+    val circuit = new firrtl.stage.transforms.Compiler(Seq(Dependency[ExpandWhensAndCheck])).runTransform(
+      CircuitState(parse(input), UnknownForm)
+    ).circuit
     val Test = ModuleTarget("Test", "Test")
     val irLookup = IRLookup(circuit)
     def mkReferences(parent: ReferenceTarget, i: Int): Seq[ReferenceTarget] = {
