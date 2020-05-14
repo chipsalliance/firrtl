@@ -2,13 +2,23 @@
 
 package firrtlTests.analyses
 
-import firrtl.{ChirrtlForm, CircuitState}
-import firrtl.analyses.ConnectionGraph
+import firrtl.{ChirrtlForm, CircuitState, FileUtils, IRToWorkingIR, UnknownForm}
+import firrtl.analyses.{CircuitGraph, ConnectionGraph}
 import firrtl.annotations.ModuleTarget
+import firrtl.options.Dependency
+import firrtl.passes.ExpandWhensAndCheck
 import firrtl.stage.{Forms, TransformManager}
 import firrtl.testutils.FirrtlFlatSpec
 
 class ConnectionGraphSpec extends FirrtlFlatSpec {
+
+  "ConnectionGraph" should "build connection graph for rocket-chip" in {
+    ConnectionGraph(
+      new firrtl.stage.transforms.Compiler(Seq(Dependency[ExpandWhensAndCheck])).runTransform(
+        CircuitState(parse(FileUtils.getTextResource("/regress/RocketCore.fir")), UnknownForm)
+      ).circuit
+    )
+  }
 
   val input =
     """circuit Test:
@@ -34,12 +44,14 @@ class ConnectionGraphSpec extends FirrtlFlatSpec {
       |    out <= in
       |""".stripMargin
 
-  val circuit = new TransformManager(Forms.MidForm, Forms.Deduped).execute(CircuitState(parse(input), ChirrtlForm)).circuit
+  val circuit = new firrtl.stage.transforms.Compiler(Seq(Dependency[ExpandWhensAndCheck])).runTransform(
+    CircuitState(parse(input), UnknownForm)
+  ).circuit
 
   "ConnectionGraph" should "work with pathsInDAG" in {
-
     val Test = ModuleTarget("Test", "Test")
     val irGraph = ConnectionGraph(circuit)
+
     val paths = irGraph.pathsInDAG(Test.ref("in"))
     paths(Test.ref("out").field("b").index(0)) shouldBe Seq(
       Seq(
@@ -51,7 +63,6 @@ class ConnectionGraphSpec extends FirrtlFlatSpec {
         Test.ref("out").field("b").index(0)
       )
     )
-
     paths(Test.ref("out").field("a")) shouldBe Seq(
       Seq(
         Test.ref("in"),
@@ -66,9 +77,9 @@ class ConnectionGraphSpec extends FirrtlFlatSpec {
   }
 
   "ConnectionGraph" should "work with path" in {
-
     val Test = ModuleTarget("Test", "Test")
     val irGraph = ConnectionGraph(circuit)
+
     irGraph.path(Test.ref("in"), Test.ref("out").field("b").index(0)) shouldBe Seq(
       Test.ref("in"),
       Test.ref("r"),

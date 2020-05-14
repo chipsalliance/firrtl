@@ -251,7 +251,7 @@ class ConnectionGraph protected(val circuit: Circuit,
     prev
   }
 
-  def getEdges(source: ReferenceTarget, prevOpt: Option[collection.Map[ReferenceTarget, ReferenceTarget]] = None): collection.Set[ReferenceTarget] = {
+  override def getEdges(source: ReferenceTarget, prevOpt: Option[collection.Map[ReferenceTarget, ReferenceTarget]] = None): collection.Set[ReferenceTarget] = {
     import ConnectionGraph._
 
     val localSource = source.pathlessTarget

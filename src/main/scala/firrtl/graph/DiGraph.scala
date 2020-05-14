@@ -2,9 +2,8 @@
 
 package firrtl.graph
 
-import scala.collection.{Set, Map}
-import scala.collection.mutable
-import scala.collection.mutable.{LinkedHashSet, LinkedHashMap}
+import scala.collection.{Map, Set, mutable}
+import scala.collection.mutable.{LinkedHashMap, LinkedHashSet}
 
 /** An exception that is raised when an assumed DAG has a cycle */
 class CyclicException(val node: Any) extends Exception(s"No valid linearization for cyclic graph, found at $node")
@@ -54,7 +53,7 @@ abstract class DiGraph[T] {
     * @param v the specified node
     * @return a Set[T] of all vertices that v has edges to
     */
-  def getEdges(v: T): Set[T] = edges.getOrElse(v, Set.empty)
+  def getEdges(v: T, prevOpt: Option[collection.Map[T, T]] = None): Set[T] = edges.getOrElse(v, Set.empty)
 
   def getEdgeMap: Map[T, Set[T]] = edges
 
@@ -69,30 +68,6 @@ abstract class DiGraph[T] {
     * @return a Set[T] of sink nodes
     */
   def findSinks: Set[T] = reverse.findSources
-
-  /**
-    * Finds a Seq of Nodes that form a loop
-    * @param node Node to start loop path search from.
-    * @return     The found Seq, the Seq is empty if there is no loop
-    */
-  def findLoopAtNode(node: T): Seq[T] = {
-    var foundPath = Seq.empty[T]
-    getEdges(node).exists { vertex =>
-      try {
-        foundPath = path(vertex, node, blacklist = Set.empty)
-        true
-      }
-      catch {
-        case _: PathNotFoundException =>
-          foundPath = Seq.empty[T]
-          false
-        case t: Throwable =>
-          throw t
-
-      }
-    }
-    foundPath
-  }
 
   /** Linearizes (topologically sorts) a DAG
     *
@@ -118,6 +93,7 @@ abstract class DiGraph[T] {
         val LinearizeFrame(n, expanded) = callStack.pop()
         if (!expanded) {
           if (tempMarked.contains(n)) {
+            println(tempMarked.toSeq)
             throw new CyclicException(n)
           }
           if (unmarked.contains(n)) {
@@ -125,12 +101,16 @@ abstract class DiGraph[T] {
             unmarked -= n
             callStack.push(LinearizeFrame(n, true))
             // We want to visit the first edge first (so push it last)
-            for (m <- edges.getOrElse(n, Set.empty).toSeq.reverse) {
+            for (m <- getEdges(n).toSeq.reverse) {
+              if(!unmarked.contains(m) && !tempMarked.contains(m) && !finished.contains(m)){
+                unmarked += m
+              }
               callStack.push(LinearizeFrame(m, false))
             }
           }
         } else {
           tempMarked -= n
+          finished += n
           order.append(n)
         }
       }
@@ -140,7 +120,29 @@ abstract class DiGraph[T] {
     order.reverse.toSeq
   }
 
-  def clearPrev(): Unit = prev.clear()
+  /**
+    * Finds a Seq of Nodes that form a loop
+    * @param node Node to start loop path search from.
+    * @return     The found Seq, the Seq is empty if there is no loop
+    */
+  def findLoopAtNode(node: T): Seq[T] = {
+    var foundPath = Seq.empty[T]
+    getEdges(node).exists { vertex =>
+      try {
+        foundPath = path(vertex, node, blacklist = Set.empty)
+        true
+      }
+      catch {
+        case _: PathNotFoundException =>
+          foundPath = Seq.empty[T]
+          false
+        case t: Throwable =>
+          throw t
+
+      }
+    }
+    foundPath
+  }
 
   /** Performs breadth-first search on the directed graph
     *
@@ -152,45 +154,41 @@ abstract class DiGraph[T] {
 
   /** Performs breadth-first search on the directed graph, with a blacklist of nodes
     *
-    * @todo add customGetEdges
     * @param root the start node
     * @param blacklist list of nodes to avoid visiting, if encountered
     * @return a Map[T,T] from each visited node to its predecessor in the
     * traversal
     */
   def BFS(root: T, blacklist: Set[T]): Map[T,T] = {
-    val prev = new mutable.LinkedHashMap[T,T]
-    val queue = new mutable.Queue[T]
-    queue.enqueue(root)
-    while (queue.nonEmpty) {
-      val u = queue.dequeue
-      for (v <- getEdges(u)) {
+
+    val prev = new LinkedHashMap[T, T]()
+
+    val bfsQueue = new mutable.Queue[T]()
+    bfsQueue.enqueue(root)
+    while (bfsQueue.nonEmpty) {
+      val u = bfsQueue.dequeue
+      for (v <- getEdges(u, Some(prev))) {
         if (!prev.contains(v) && !blacklist.contains(v)) {
           prev(v) = u
-          queue.enqueue(v)
+          bfsQueue.enqueue(v)
         }
       }
     }
     prev
   }
 
-  /** Finds the set of nodes reachable from a particular node. The `root` node is *not* included in the
-    * returned set unless it is possible to reach `root` along a non-trivial path beginning at
-    * `root`; i.e., if the graph has a cycle that contains `root`.
+  /** Finds the set of nodes reachable from a particular node
     *
     * @param root the start node
-    * @return a Set[T] of nodes reachable from `root`
+    * @return a Set[T] of nodes reachable from the root
     */
   def reachableFrom(root: T): LinkedHashSet[T] = reachableFrom(root, Set.empty[T])
 
-  /** Finds the set of nodes reachable from a particular node, with a blacklist. The semantics of
-    * adding a node to the blacklist is that any of its inedges will be ignored in the traversal.
-    * The `root` node is *not* included in the returned set unless it is possible to reach `root` along
-    * a non-trivial path beginning at `root`; i.e., if the graph has a cycle that contains `root`.
+  /** Finds the set of nodes reachable from a particular node, with a blacklist
     *
     * @param root the start node
     * @param blacklist list of nodes to stop searching, if encountered
-    * @return a Set[T] of nodes reachable from `root`
+    * @return a Set[T] of nodes reachable from the root
     */
   def reachableFrom(root: T, blacklist: Set[T]): LinkedHashSet[T] = new LinkedHashSet[T] ++ BFS(root, blacklist).map({ case (k, v) => k })
 
@@ -346,7 +344,7 @@ abstract class DiGraph[T] {
     * Any edge including a deleted node will be deleted
     *
     * @param vprime the Set[T] of desired vertices
-    * @throws scala.IllegalArgumentException if vprime is not a subset of V
+    * @throws IllegalArgumentException if vprime is not a subset of V
     * @return the subgraph
     */
   def subgraph(vprime: Set[T]): DiGraph[T] = {
@@ -362,7 +360,7 @@ abstract class DiGraph[T] {
     * transformed into an edge (u,v).
     *
     * @param vprime the Set[T] of desired vertices
-    * @throws scala.IllegalArgumentException if vprime is not a subset of V
+    * @throws IllegalArgumentException if vprime is not a subset of V
     * @return the simplified graph
     */
   def simplify(vprime: Set[T]): DiGraph[T] = {
@@ -406,7 +404,6 @@ class MutableDiGraph[T] extends DiGraph[T] {
   val edges = new LinkedHashMap[T, LinkedHashSet[T]]
 
   /** Add vertex v to the graph
-    *
     * @return v, the added vertex
     */
   def addVertex(v: T): T = {
@@ -415,8 +412,7 @@ class MutableDiGraph[T] extends DiGraph[T] {
   }
 
   /** Add edge (u,v) to the graph.
-    *
-    * @throws scala.IllegalArgumentException if u and/or v is not in the graph
+    * @throws IllegalArgumentException if u and/or v is not in the graph
     */
   def addEdge(u: T, v: T): Unit = {
     require(contains(u))
@@ -439,81 +435,6 @@ class MutableDiGraph[T] extends DiGraph[T] {
     val valid = contains(u) && contains(v)
     if (contains(u) && contains(v)) {
       edges(u) += v
-    }
-    valid
-  }
-}
-
-
-// Method behaviors that must change from MutableDigraph
-//   * override contains, getVertices, getEdges, getEdgeMap
-//   * change findsources use of edges.values.flatten.toSet
-//   * change linearize use of edges.getOrElse(n, Set.empty).toSeq.reverse
-//   * override reverse, filteredges
-
-class EdgeDataDigraph[T, ET](val defaultData: ET) extends MutableDiGraph[T] { edd =>
-
-  // Even though this is redundant, it is desirable to maintain separate edges and edgeData data structures, 
-  val edgeData = new LinkedHashMap[T, LinkedHashMap[T, ET]]()
-
-  class DiGraphView private (viewFunc: (ET) => Boolean) extends DiGraph[T] {
-    val edges = edd.edges
-    /** Get all edges of a node that are part of this view
-      * @param v the specified node
-      * @return a Set[T] of all vertices that v has edges to in this view
-      */
-    // TODO: reduce number of times this gets iterated through
-    override def getEdges(v: T): Set[T] = {
-      val edSet = EdgeDataDigraph.this.edgeData(v)
-      EdgeDataDigraph.this.getEdges(v).filter(e => viewFunc(edSet(e)))
-    }
-  }
-
-  /** Add edge (u, v) with edge data d to the graph.
-    * @throws IllegalArgumentException if u and/or v is not in the graph
-    */
-  def labeledEdge(u: T, v: T, d: ET): Unit = {
-    addEdge(u, v)
-    edgeData(u)(v) = d
-  }
-
-  /** Add vertex v to the graph
-    * @return v, the added vertex
-    */
-  override def addVertex(v: T): T = {
-    edges.getOrElseUpdate(v, new LinkedHashSet[T])
-    edgeData.getOrElseUpdate(v, new LinkedHashMap[T, ET])
-    v
-  }
-
-  /** Add edge (u,v) to the graph.
-    * @throws IllegalArgumentException if u and/or v is not in the graph
-    */
-  override def addEdge(u: T, v: T): Unit = {
-    require(contains(u))
-    require(contains(v))
-    edges(u) += v
-    edgeData(u)(v) = defaultData
-  }
-
-  /** Add edge (u,v) to the graph, adding u and/or v if they are not
-    * already in the graph.
-    */
-  override def addPairWithEdge(u: T, v: T): Unit = {
-    edges.getOrElseUpdate(v, new LinkedHashSet[T])
-    edges.getOrElseUpdate(u, new LinkedHashSet[T]) += v
-    edgeData.getOrElseUpdate(v, new LinkedHashMap[T, ET])
-    edgeData.getOrElseUpdate(u, new LinkedHashMap[T, ET]) += (v -> defaultData)
-  }
-
-  /** Add edge (u,v) to the graph if and only if both u and v are in
-    * the graph prior to calling addEdgeIfValid.
-    */
-  override def addEdgeIfValid(u: T, v: T): Boolean = {
-    val valid = contains(u) && contains(v)
-    if (contains(u) && contains(v)) {
-      edges(u) += v
-      edgeData.getOrElseUpdate(u, new LinkedHashMap[T, ET]) += (v -> defaultData)
     }
     valid
   }
