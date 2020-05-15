@@ -4,6 +4,8 @@ resolvers += Classpaths.sbtPluginReleases
 
 resolvers += "jgit-repo" at "https://download.eclipse.org/jgit/maven"
 
+addSbtPlugin("com.typesafe" % "sbt-mima-plugin" % "0.7.0")
+
 addSbtPlugin("com.typesafe.sbt" % "sbt-site" % "1.4.0")
 
 addSbtPlugin("com.eed3si9n" % "sbt-buildinfo" % "0.9.0")
@@ -20,8 +22,8 @@ addSbtPlugin("com.simplytyped" % "sbt-antlr4" % "0.8.2")
 
 addSbtPlugin("com.github.gseitz" % "sbt-protobuf" % "0.6.5")
 
-addSbtPlugin("ch.epfl.scala" % "sbt-scalafix" % "0.9.12")
+addSbtPlugin("ch.epfl.scala" % "sbt-scalafix" % "0.9.15")
 
 addSbtPlugin("com.thoughtworks.sbt-api-mappings" % "sbt-api-mappings" % "3.0.0")
 
-libraryDependencies += "com.github.os72" % "protoc-jar" % "3.11.1"
+libraryDependencies += "com.github.os72" % "protoc-jar" % "3.11.4"

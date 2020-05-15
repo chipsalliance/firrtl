@@ -3,7 +3,7 @@ sudo: false
 
 cache:
   directories:
-    $HOME/.ivy2
+    $HOME/.cache/coursier
     $HOME/.sbt
     $INSTALL_DIR
 
@@ -90,3 +90,8 @@ jobs:
     - stage: test
       script:
         - benchmark/scripts/benchmark_cold_compile.py -N 2 --designs regress/ICache.fir --versions HEAD
+    - stage: test
+      name: "[Release Branch] Check Binary-compatibility"
+      script:
+        - sbt compile
+        - sbt +mimaReportBinaryIssues
