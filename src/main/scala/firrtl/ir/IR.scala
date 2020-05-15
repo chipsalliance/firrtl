@@ -422,7 +422,21 @@ object Block {
 
 case class Block(stmts: Seq[Statement]) extends Statement {
   def serialize: String = stmts map (_.serialize) mkString "\n"
-  def mapStmt(f: Statement => Statement): Statement = Block(stmts map f)
+  def mapStmt(f: Statement => Statement): Statement = {
+    val res = new scala.collection.mutable.ArrayBuffer[Statement]()
+    var it = stmts.iterator
+    while (it.hasNext) {
+      it.next() match {
+        case EmptyStmt => // flatten out
+        case b: Block =>
+          val prev = it
+          it = b.stmts.iterator ++ prev
+        case other =>
+          res.append(f(other))
+      }
+    }
+    Block(res)
+  }
   def mapExpr(f: Expression => Expression): Statement = this
   def mapType(f: Type => Type): Statement = this
   def mapString(f: String => String): Statement = this
