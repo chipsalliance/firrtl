@@ -112,7 +112,7 @@ trait FirrtlRunners extends BackendCompilationUtilities {
     val refResult = (new firrtl.stage.FirrtlStage).run(refAnnos)
     val refName = refResult.collectFirst({ case stage.FirrtlCircuitAnnotation(c) => c.main }).getOrElse(refSuggestedName)
 
-    assert(yosysExpectSuccess(customName, refName, testDir, timesteps))
+    assert(BackendCompilationUtilities.yosysExpectSuccess(customName, refName, testDir, timesteps))
   }
 
   /** Compiles input Firrtl to Verilog */

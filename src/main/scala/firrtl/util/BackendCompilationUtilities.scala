@@ -282,16 +282,4 @@ trait BackendCompilationUtilities extends LazyLogging {
     BackendCompilationUtilities.executeExpectingFailure(prefix, dir, assertionMsg)
   }
   def executeExpectingSuccess(prefix: String, dir: File): Boolean = BackendCompilationUtilities.executeExpectingSuccess(prefix, dir)
-  def yosysExpectSuccess(customTop: String,
-                         referenceTop: String,
-                         testDir: File,
-                         resets: Seq[(Int, String, Int)] = Seq.empty): Boolean = {
-    BackendCompilationUtilities.yosysExpectSuccess(customTop, referenceTop, testDir, resets)
-  }
-  def yosysExpectFailure(customTop: String,
-                         referenceTop: String,
-                         testDir: File,
-                         resets: Seq[(Int, String, Int)] = Seq.empty): Boolean = {
-    BackendCompilationUtilities.yosysExpectFailure(customTop, referenceTop, testDir, resets)
-  }
 }
