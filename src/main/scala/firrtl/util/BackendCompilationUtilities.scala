@@ -13,7 +13,7 @@ import firrtl.FileUtils
 
 import scala.sys.process.{ProcessBuilder, ProcessLogger, _}
 
-trait BackendCompilationUtilities extends LazyLogging {
+object BackendCompilationUtilities extends LazyLogging {
   /** Parent directory for tests */
   lazy val TestDirectory = new File("test_run_dir")
 
@@ -100,6 +100,7 @@ trait BackendCompilationUtilities extends LazyLogging {
     * @param cppHarness C++ testharness to compile/link against
     * @param suppressVcd specifies if VCD tracing should be suppressed
     * @param resourceFileName specifies what filename to look for to find a .f file
+    * @param extraCmdLineArgs list of additional command line arguments
     */
   def verilogToCpp(
     dutFile: String,
@@ -107,7 +108,8 @@ trait BackendCompilationUtilities extends LazyLogging {
     vSources: Seq[File],
     cppHarness: File,
     suppressVcd: Boolean = false,
-    resourceFileName: String = firrtl.transforms.BlackBoxSourceHelper.defaultFileListName
+    resourceFileName: String = firrtl.transforms.BlackBoxSourceHelper.defaultFileListName,
+    extraCmdLineArgs: Seq[String] = Seq.empty
   ): ProcessBuilder = {
 
     val topModule = dutFile
@@ -138,6 +140,7 @@ trait BackendCompilationUtilities extends LazyLogging {
       "verilator",
       "--cc", s"${dir.getAbsolutePath}/$dutFile.v"
     ) ++
+      extraCmdLineArgs ++
       blackBoxVerilogList ++
       vSourcesFiltered.flatMap(file => Seq("-v", file.getCanonicalPath)) ++
       Seq("--assert",
@@ -249,5 +252,46 @@ trait BackendCompilationUtilities extends LazyLogging {
     val resultFileName = testDir.getAbsolutePath + "/yosys_results"
     val command = s"yosys -s $scriptFileName" #> new File(resultFileName)
     command.! != 0
+  }
+}
+
+@deprecated("use object BackendCompilationUtilities", "1.3")
+trait BackendCompilationUtilities extends LazyLogging {
+  lazy val TestDirectory = BackendCompilationUtilities.TestDirectory
+  def timeStamp: String = BackendCompilationUtilities.timeStamp
+  def loggingProcessLogger: ProcessLogger = BackendCompilationUtilities.loggingProcessLogger
+  def copyResourceToFile(name: String, file: File): Unit = BackendCompilationUtilities.copyResourceToFile(name, file)
+  def createTestDirectory(testName: String): File = BackendCompilationUtilities.createTestDirectory(testName)
+  def makeHarness(template: String => String, post: String)(f: File): File = BackendCompilationUtilities.makeHarness(template, post)(f)
+  def firrtlToVerilog(prefix: String, dir: File): ProcessBuilder = BackendCompilationUtilities.firrtlToVerilog(prefix, dir)
+  def verilogToCpp(
+                    dutFile: String,
+                    dir: File,
+                    vSources: Seq[File],
+                    cppHarness: File,
+                    suppressVcd: Boolean = false,
+                    resourceFileName: String = firrtl.transforms.BlackBoxSourceHelper.defaultFileListName
+                  ): ProcessBuilder = {
+    BackendCompilationUtilities.verilogToCpp(dutFile, dir, vSources, cppHarness, suppressVcd, resourceFileName)
+  }
+  def cppToExe(prefix: String, dir: File): ProcessBuilder = BackendCompilationUtilities.cppToExe(prefix, dir)
+  def executeExpectingFailure(
+                               prefix: String,
+                               dir: File,
+                               assertionMsg: String = ""): Boolean = {
+    BackendCompilationUtilities.executeExpectingFailure(prefix, dir, assertionMsg)
+  }
+  def executeExpectingSuccess(prefix: String, dir: File): Boolean = BackendCompilationUtilities.executeExpectingSuccess(prefix, dir)
+  def yosysExpectSuccess(customTop: String,
+                         referenceTop: String,
+                         testDir: File,
+                         resets: Seq[(Int, String, Int)] = Seq.empty): Boolean = {
+    BackendCompilationUtilities.yosysExpectSuccess(customTop, referenceTop, testDir, resets)
+  }
+  def yosysExpectFailure(customTop: String,
+                         referenceTop: String,
+                         testDir: File,
+                         resets: Seq[(Int, String, Int)] = Seq.empty): Boolean = {
+    BackendCompilationUtilities.yosysExpectFailure(customTop, referenceTop, testDir, resets)
   }
 }

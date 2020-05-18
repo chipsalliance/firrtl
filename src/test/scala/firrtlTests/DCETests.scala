@@ -24,7 +24,7 @@ class DCETests extends FirrtlFlatSpec {
   // deleted
   private val customTransforms = Seq(
     new LowFirrtlOptimization,
-    new SimpleTransform(RemoveEmpty, LowForm)
+    RemoveEmpty
   )
   private def exec(input: String, check: String, annos: Seq[Annotation] = List.empty): Unit = {
     val state = CircuitState(parse(input), ChirrtlForm, annos)
@@ -502,7 +502,7 @@ class DCECommandLineSpec extends FirrtlFlatSpec {
   "Dead Code Elimination" should "run by default" in {
     firrtl.Driver.execute(args) match {
       case FirrtlExecutionSuccess(_, verilog) =>
-        verilog should not include regex ("wire +a;")
+        verilog should not include regex ("wire +a")
       case _ => fail("Unexpected compilation failure")
     }
   }
@@ -510,7 +510,7 @@ class DCECommandLineSpec extends FirrtlFlatSpec {
   it should "not run when given --no-dce option" in {
     firrtl.Driver.execute(args :+ "--no-dce") match {
       case FirrtlExecutionSuccess(_, verilog) =>
-        verilog should include regex ("wire +a;")
+        verilog should include regex ("wire +a")
       case _ => fail("Unexpected compilation failure")
     }
   }

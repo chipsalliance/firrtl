@@ -48,11 +48,11 @@ lazy val commonSettings = Seq(
   javacOptions ++= javacOptionsVersion(scalaVersion.value),
   libraryDependencies ++= Seq(
     "org.scala-lang" % "scala-reflect" % scalaVersion.value,
-    "org.scalatest" %% "scalatest" % "3.1.0" % "test",
-    "org.scalatestplus" %% "scalacheck-1-14" % "3.1.0.1" % "test",
+    "org.scalatest" %% "scalatest" % "3.1.2" % "test",
+    "org.scalatestplus" %% "scalacheck-1-14" % "3.1.1.1" % "test",
     "com.github.scopt" %% "scopt" % "3.7.1",
-    "net.jcazevedo" %% "moultingyaml" % "0.4.1",
-    "org.json4s" %% "json4s-native" % "3.6.7",
+    "net.jcazevedo" %% "moultingyaml" % "0.4.2",
+    "org.json4s" %% "json4s-native" % "3.6.8",
     "org.apache.commons" % "commons-text" % "1.8"
   ),
   resolvers ++= Seq(
@@ -185,3 +185,11 @@ lazy val firrtl = (project in file("."))
   .settings(testAssemblySettings)
   .settings(publishSettings)
   .settings(docSettings)
+
+lazy val benchmark = (project in file("benchmark"))
+  .dependsOn(firrtl)
+  .settings(
+    assemblyJarName in assembly := "firrtl-benchmark.jar",
+    test in assembly := {},
+    assemblyOutputPath in assembly := file("./utils/bin/firrtl-benchmark.jar")
+  )
