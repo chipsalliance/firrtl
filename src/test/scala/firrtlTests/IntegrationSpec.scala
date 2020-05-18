@@ -62,22 +62,7 @@ abstract class ConstantPropagationEquivTest(name: String, dir: String) extends
 abstract class LowFirrtlOptimizationEquivTest(name: String, dir: String) extends
   EquivalenceTest(Seq(new LowFirrtlOptimization), name, dir)
 
-class RocketCommonSubexprEliminationTest extends CommonSubexprEliminationEquivTest("RocketCore", "/regress")
-class RocketDeadCodeEliminationTest extends DeadCodeEliminationEquivTest("RocketCore", "/regress")
-class RocketConstantPropagationTest extends ConstantPropagationEquivTest("RocketCore", "/regress")
-class RocketLowFirrtlOptimizationTest extends LowFirrtlOptimizationEquivTest("RocketCore", "/regress")
-
 class OpsCommonSubexprEliminationTest extends CommonSubexprEliminationEquivTest("Ops", "/regress")
 class OpsDeadCodeEliminationTest extends DeadCodeEliminationEquivTest("Ops", "/regress")
 class OpsConstantPropagationTest extends ConstantPropagationEquivTest("Ops", "/regress")
 class OpsLowFirrtlOptimizationTest extends LowFirrtlOptimizationEquivTest("Ops", "/regress")
-
-class FPUCommonSubexprEliminationTest extends CommonSubexprEliminationEquivTest("FPU", "/regress")
-class FPUDeadCodeEliminationTest extends DeadCodeEliminationEquivTest("FPU", "/regress")
-class FPUConstantPropagationTest extends ConstantPropagationEquivTest("FPU", "/regress")
-class FPULowFirrtlOptimizationTest extends LowFirrtlOptimizationEquivTest("FPU", "/regress")
-
-class RobCommonSubexprEliminationTest extends CommonSubexprEliminationEquivTest("Rob", "/regress")
-class RobDeadCodeEliminationTest extends DeadCodeEliminationEquivTest("Rob", "/regress")
-class RobConstantPropagationTest extends ConstantPropagationEquivTest("Rob", "/regress")
-class RobLowFirrtlOptimizationTest extends LowFirrtlOptimizationEquivTest("Rob", "/regress")
