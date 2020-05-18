@@ -46,7 +46,7 @@ class firrtlCrossModule(crossVersion: String) extends ScalaModule with SbtModule
     ivy"${scalaOrganization()}:scala-reflect:${scalaVersion()}",
     ivy"com.github.scopt::scopt:3.7.1",
     ivy"net.jcazevedo::moultingyaml:0.4.2",
-    ivy"org.json4s::json4s-native:3.6.7",
+    ivy"org.json4s::json4s-native:3.6.8",
     ivy"org.apache.commons:commons-text:1.7",
     ivy"org.antlr:antlr4-runtime:4.7.1",
     ivy"com.google.protobuf:protobuf-java:3.5.1"
@@ -59,8 +59,8 @@ class firrtlCrossModule(crossVersion: String) extends ScalaModule with SbtModule
     }
 
     def ivyDeps = Agg(
-      ivy"org.scalatest::scalatest:3.1.1",
-      ivy"org.scalatestplus::scalacheck-1-14:3.1.0.1"
+      ivy"org.scalatest::scalatest:3.1.2",
+      ivy"org.scalatestplus::scalacheck-1-14:3.1.1.1"
     ) ++ ivyCrossDeps
 
     def testFrameworks = Seq("org.scalatest.tools.Framework")
