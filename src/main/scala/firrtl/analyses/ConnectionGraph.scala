@@ -14,9 +14,8 @@ import scala.collection.mutable
 
 class ConnectionGraph protected(val circuit: Circuit,
                                 val digraph: DiGraph[ReferenceTarget],
-                                val irLookup: IRLookup) extends DiGraph[ReferenceTarget] {
-  override val prev = new mutable.LinkedHashMap[ReferenceTarget, ReferenceTarget]()
-  override val edges = digraph.getEdgeMap.asInstanceOf[mutable.LinkedHashMap[ReferenceTarget, mutable.LinkedHashSet[ReferenceTarget]]]
+                                val irLookup: IRLookup)
+  extends DiGraph[ReferenceTarget](digraph.getEdgeMap.asInstanceOf[mutable.LinkedHashMap[ReferenceTarget, mutable.LinkedHashSet[ReferenceTarget]]]) {
 
   /** Used by BFS to map each visited node to the list of instance inputs visited thus far
     *

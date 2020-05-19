@@ -28,17 +28,12 @@ object DiGraph {
         edgeDataCopy(k) += n
       }
     }
-    new DiGraph[T] {
-      val edges = edgeDataCopy
-    }
+    new DiGraph(edgeDataCopy)
   }
 }
 
-abstract class DiGraph[T] {
-
-  private[graph] val edges: LinkedHashMap[T, LinkedHashSet[T]]
-
-  private[graph] val prev = new mutable.LinkedHashMap[T, T]()
+/** Represents common behavior of all directed graphs */
+class DiGraph[T] (private[graph] val edges: LinkedHashMap[T, LinkedHashSet[T]]) {
 
   /** Check whether the graph contains vertex v */
   def contains(v: T): Boolean = edges.contains(v)
@@ -69,6 +64,30 @@ abstract class DiGraph[T] {
     */
   def findSinks: Set[T] = reverse.findSources
 
+  /**
+    * Finds a Seq of Nodes that form a loop
+    * @param node Node to start loop path search from.
+    * @return     The found Seq, the Seq is empty if there is no loop
+    */
+  def findLoopAtNode(node: T): Seq[T] = {
+    var foundPath = Seq.empty[T]
+    getEdges(node).exists { vertex =>
+      try {
+        foundPath = path(vertex, node, blacklist = Set.empty)
+        true
+      }
+      catch {
+        case _: PathNotFoundException =>
+          foundPath = Seq.empty[T]
+          false
+        case t: Throwable =>
+          throw t
+
+      }
+    }
+    foundPath
+  }
+
   /** Linearizes (topologically sorts) a DAG
     *
     * @throws CyclicException if the graph is cyclic
@@ -93,7 +112,6 @@ abstract class DiGraph[T] {
         val LinearizeFrame(n, expanded) = callStack.pop()
         if (!expanded) {
           if (tempMarked.contains(n)) {
-            println(tempMarked.toSeq)
             throw new CyclicException(n)
           }
           if (unmarked.contains(n)) {
@@ -120,30 +138,6 @@ abstract class DiGraph[T] {
     order.reverse.toSeq
   }
 
-  /**
-    * Finds a Seq of Nodes that form a loop
-    * @param node Node to start loop path search from.
-    * @return     The found Seq, the Seq is empty if there is no loop
-    */
-  def findLoopAtNode(node: T): Seq[T] = {
-    var foundPath = Seq.empty[T]
-    getEdges(node).exists { vertex =>
-      try {
-        foundPath = path(vertex, node, blacklist = Set.empty)
-        true
-      }
-      catch {
-        case _: PathNotFoundException =>
-          foundPath = Seq.empty[T]
-          false
-        case t: Throwable =>
-          throw t
-
-      }
-    }
-    foundPath
-  }
-
   /** Performs breadth-first search on the directed graph
     *
     * @param root the start node
@@ -161,34 +155,39 @@ abstract class DiGraph[T] {
     */
   def BFS(root: T, blacklist: Set[T]): Map[T,T] = {
 
-    val prev = new LinkedHashMap[T, T]()
+    val prev = new mutable.LinkedHashMap[T, T]
 
-    val bfsQueue = new mutable.Queue[T]()
-    bfsQueue.enqueue(root)
-    while (bfsQueue.nonEmpty) {
-      val u = bfsQueue.dequeue
+    val queue = new mutable.Queue[T]
+    queue.enqueue(root)
+    while (queue.nonEmpty) {
+      val u = queue.dequeue
       for (v <- getEdges(u, Some(prev))) {
         if (!prev.contains(v) && !blacklist.contains(v)) {
           prev(v) = u
-          bfsQueue.enqueue(v)
+          queue.enqueue(v)
         }
       }
     }
     prev
   }
 
-  /** Finds the set of nodes reachable from a particular node
+  /** Finds the set of nodes reachable from a particular node. The `root` node is *not* included in the
+    * returned set unless it is possible to reach `root` along a non-trivial path beginning at
+    * `root`; i.e., if the graph has a cycle that contains `root`.
     *
     * @param root the start node
-    * @return a Set[T] of nodes reachable from the root
+    * @return a Set[T] of nodes reachable from `root`
     */
   def reachableFrom(root: T): LinkedHashSet[T] = reachableFrom(root, Set.empty[T])
 
-  /** Finds the set of nodes reachable from a particular node, with a blacklist
+  /** Finds the set of nodes reachable from a particular node, with a blacklist. The semantics of
+    * adding a node to the blacklist is that any of its inedges will be ignored in the traversal.
+    * The `root` node is *not* included in the returned set unless it is possible to reach `root` along
+    * a non-trivial path beginning at `root`; i.e., if the graph has a cycle that contains `root`.
     *
     * @param root the start node
     * @param blacklist list of nodes to stop searching, if encountered
-    * @return a Set[T] of nodes reachable from the root
+    * @return a Set[T] of nodes reachable from `root`
     */
   def reachableFrom(root: T, blacklist: Set[T]): LinkedHashSet[T] = new LinkedHashSet[T] ++ BFS(root, blacklist).map({ case (k, v) => k })
 
@@ -349,9 +348,7 @@ abstract class DiGraph[T] {
     */
   def subgraph(vprime: Set[T]): DiGraph[T] = {
     require(vprime.subsetOf(edges.keySet))
-    new DiGraph[T] {
-      val edges = filterEdges(vprime)
-    }
+    new DiGraph(filterEdges(vprime))
   }
 
   /** Return a simplified connectivity graph with only a subset of the nodes
@@ -365,10 +362,8 @@ abstract class DiGraph[T] {
     */
   def simplify(vprime: Set[T]): DiGraph[T] = {
     require(vprime.subsetOf(edges.keySet))
-    val pathEdges: Set[(T, mutable.LinkedHashSet[T])] = vprime.map(v => (v, reachableFrom(v) & (vprime-v)) )
-    new DiGraph[T] {
-      val edges: LinkedHashMap[T, LinkedHashSet[T]] = new LinkedHashMap[T, LinkedHashSet[T]] ++ pathEdges
-    }
+    val pathEdges = vprime.map(v => (v, reachableFrom(v) & (vprime-v)) )
+    new DiGraph(new LinkedHashMap[T, LinkedHashSet[T]] ++ pathEdges)
   }
 
   /** Return a graph with all the nodes of the current graph transformed
@@ -381,9 +376,7 @@ abstract class DiGraph[T] {
   def transformNodes[Q](f: (T) => Q): DiGraph[Q] = {
     val eprime = edges.map({ case (k, _) => (f(k), new LinkedHashSet[Q]) })
     edges.foreach({ case (k, v) => eprime(f(k)) ++= v.map(f(_)) })
-    new DiGraph[Q] {
-      val edges = eprime
-    }
+    new DiGraph(eprime)
   }
 
   /** Graph sum of `this` and `that`
@@ -394,14 +387,11 @@ abstract class DiGraph[T] {
   def +(that: DiGraph[T]): DiGraph[T] = {
     val eprime = edges.map({ case (k, v) => (k, v.clone) })
     that.edges.foreach({ case (k, v) => eprime.getOrElseUpdate(k, new LinkedHashSet[T]) ++= v })
-    new DiGraph[T] {
-     val edges = eprime
-    }
+    new DiGraph(eprime)
   }
 }
 
-class MutableDiGraph[T] extends DiGraph[T] {
-  val edges = new LinkedHashMap[T, LinkedHashSet[T]]
+class MutableDiGraph[T] extends DiGraph[T](new LinkedHashMap[T, LinkedHashSet[T]]) {
 
   /** Add vertex v to the graph
     * @return v, the added vertex
