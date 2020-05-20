@@ -34,7 +34,6 @@ object DiGraph {
 
 /** Represents common behavior of all directed graphs */
 class DiGraph[T] (private[graph] val edges: LinkedHashMap[T, LinkedHashSet[T]]) {
-
   /** Check whether the graph contains vertex v */
   def contains(v: T): Boolean = edges.contains(v)
 
@@ -392,7 +391,6 @@ class DiGraph[T] (private[graph] val edges: LinkedHashMap[T, LinkedHashSet[T]]) 
 }
 
 class MutableDiGraph[T] extends DiGraph[T](new LinkedHashMap[T, LinkedHashSet[T]]) {
-
   /** Add vertex v to the graph
     * @return v, the added vertex
     */
