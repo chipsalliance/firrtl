@@ -99,7 +99,6 @@ class DiGraph[T] (private[graph] val edges: LinkedHashMap[T, LinkedHashSet[T]]) 
     // invariant: no intersection between unmarked and tempMarked
     val unmarked = new mutable.LinkedHashSet[T]
     val tempMarked = new mutable.LinkedHashSet[T]
-    val finished = new mutable.LinkedHashSet[T]
 
     case class LinearizeFrame[A](v: A, expanded: Boolean)
     val callStack = mutable.Stack[LinearizeFrame[T]]()
@@ -118,16 +117,12 @@ class DiGraph[T] (private[graph] val edges: LinkedHashMap[T, LinkedHashSet[T]]) 
             unmarked -= n
             callStack.push(LinearizeFrame(n, true))
             // We want to visit the first edge first (so push it last)
-            for (m <- getEdges(n).toSeq.reverse) {
-              if(!unmarked.contains(m) && !tempMarked.contains(m) && !finished.contains(m)){
-                unmarked += m
-              }
+            for (m <- edges.getOrElse(n, Set.empty).toSeq.reverse) {
               callStack.push(LinearizeFrame(m, false))
             }
           }
         } else {
           tempMarked -= n
-          finished += n
           order.append(n)
         }
       }

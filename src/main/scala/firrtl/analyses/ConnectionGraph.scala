@@ -3,7 +3,7 @@
 package firrtl.analyses
 
 import firrtl.annotations._
-import firrtl.graph.{DiGraph, MutableDiGraph, PathNotFoundException}
+import firrtl.graph.{CyclicException, DiGraph, MutableDiGraph, PathNotFoundException}
 import firrtl.ir._
 import firrtl.Mappers._
 import firrtl.annotations.TargetToken
@@ -248,6 +248,56 @@ class ConnectionGraph protected(val circuit: Circuit,
     portConnectivityStack.clear()
 
     prev
+  }
+
+  /** Linearizes (topologically sorts) a DAG
+    *
+    * @throws CyclicException if the graph is cyclic
+    * @return a Seq[T] describing the topological order of the DAG
+    * traversal
+    */
+  override def linearize: Seq[ReferenceTarget] = {
+    // permanently marked nodes are implicitly held in order
+    val order = new mutable.ArrayBuffer[ReferenceTarget]
+    // invariant: no intersection between unmarked and tempMarked
+    val unmarked = new mutable.LinkedHashSet[ReferenceTarget]
+    val tempMarked = new mutable.LinkedHashSet[ReferenceTarget]
+    val finished = new mutable.LinkedHashSet[ReferenceTarget]
+
+    case class LinearizeFrame[A](v: A, expanded: Boolean)
+    val callStack = mutable.Stack[LinearizeFrame[ReferenceTarget]]()
+
+    unmarked ++= getVertices
+    while (unmarked.nonEmpty) {
+      callStack.push(LinearizeFrame(unmarked.head, false))
+      while (callStack.nonEmpty) {
+        val LinearizeFrame(n, expanded) = callStack.pop()
+        if (!expanded) {
+          if (tempMarked.contains(n)) {
+            throw new CyclicException(n)
+          }
+          if (unmarked.contains(n)) {
+            tempMarked += n
+            unmarked -= n
+            callStack.push(LinearizeFrame(n, true))
+            // We want to visit the first edge first (so push it last)
+            for (m <- getEdges(n).toSeq.reverse) {
+              if(!unmarked.contains(m) && !tempMarked.contains(m) && !finished.contains(m)){
+                unmarked += m
+              }
+              callStack.push(LinearizeFrame(m, false))
+            }
+          }
+        } else {
+          tempMarked -= n
+          finished += n
+          order.append(n)
+        }
+      }
+    }
+
+    // visited nodes are in post-traversal order, so must be reversed
+    order.reverse.toSeq
   }
 
   override def getEdges(source: ReferenceTarget, prevOpt: Option[collection.Map[ReferenceTarget, ReferenceTarget]] = None): collection.Set[ReferenceTarget] = {
