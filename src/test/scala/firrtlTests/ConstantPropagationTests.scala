@@ -1605,3 +1605,204 @@ class ConstantPropagationEquivalenceSpec extends FirrtlFlatSpec {
     firrtlEquivalenceTest(input, transforms)
   }
 }
+
+class ConstantPropagationMidForm extends ConstantPropagationSpec {
+   // =============================
+   "The rule x >= 0 " should " always be true if x is a UInt" in {
+      val input =
+"""circuit Top :
+  module Top :
+    input x : { in: Int<10>, flip out: Int<10> }
+    output y : { flip in: Int<10>, out: Int<10> }
+    y.out <= geq(x.in, UInt(0))
+    x.out <= geq(y.in, UInt(0))
+"""
+      val check =
+"""circuit Top :
+  module Top :
+    input x : { in: Int<10>, flip out: Int<10> }
+    output y : { flip in: Int<10>, out: Int<10> }
+    y.out <= UInt<1>("h1")
+    x.out <= UInt<1>("h1")
+"""
+      (parse(exec(input))) should be (parse(check))
+   }
+
+   // =============================
+   "ConstProp" should "swap named nodes with temporary nodes that drive them" in {
+      val input =
+"""circuit Top :
+  module Top :
+    input io : { x: UInt<1>, y: UInt<1>, flip z: UInt<1> }
+    wire bundle = { value: UInt<1> }
+    bundle.value <= and(io.x, io.y)
+    node _T_1 = bundle
+    node n = _T_1.value
+    io.z <= and(n, x)
+"""
+      val check =
+"""circuit Top :
+  module Top :
+    input io : { x: UInt<1>, y: UInt<1>, flip z: UInt<1> }
+    wire bundle: { value: UInt<1> }
+    bundle.value <= and(io.x, io.y)
+    node _T_1 = bundle
+    node n = bundle.value
+    io.z <= and(n, x)
+"""
+      (parse(exec(input))) should be (parse(check))
+   }
+
+   // =============================
+   "ConstProp" should "swap named nodes with temporary wires that drive them" in {
+      val input =
+"""circuit Top :
+  module Top :
+    input io : { x: UInt<1>, y: UInt<1>, flip z: UInt<1> }
+    wire _T_1 : { value: UInt<1> }
+    node n = _T_1.value
+    io.z <= n
+    _T_1 <= and(io.x, io.y)
+"""
+      val check =
+"""circuit Top :
+    input io : { x: UInt<1>, y: UInt<1>, flip z: UInt<1> }
+    wire _T_1 : { value: UInt<1> }
+    wire n: UInt<1>
+    _T_1.value <= n
+    io.z <= n
+    n <= and(io.x, io.y)
+"""
+/*
+    wire n : UInt<1>
+    node _T_1 = n
+    z <= n
+    n <= and(x, y)
+ */
+      (parse(exec(input))) should be (parse(check))
+   }
+
+   // =============================
+   "ConstProp" should "swap seprated named sub-nodes with temporary registers that drive them" in {
+      val input =
+"""circuit Top :
+  module Top :
+    input clock : Clock
+    input in : { x: UInt<1>, y: UInt<1> }
+
+    wire _T_1 = { foobar: UInt<1>, baz: { foo: UInt<1>, bar: UInt<1> } }
+    _T_1.baz.foo <= in.x
+    _T_1.baz.bar <= in.y
+    _T_1.foobar <= and(in.x, in.y)
+
+    node baz = _T_1.baz
+    node foobar = _T_1.foobar
+"""
+      val check =
+"""circuit Top :
+  module Top :
+    input in : { x: UInt<2>, y: UInt<3> }
+    input z : UInt<1>
+
+    wire _T_1 = { foobar: UInt<1>, baz: { foo: UInt<2>, bar: UInt<3> } }
+    wire baz = { foo: UInt<2>, bar: UInt<3> }
+    baz.foo <= in.x
+    baz.bar <= in.y
+    wire foobar = UInt<1>
+    foobar <= and(in.x, in.y)
+
+    _T_1.baz <= baz
+    _T_1.foobar <= foobar
+"""
+      (parse(exec(input))) should be (parse(check))
+   }
+
+   // =============================
+   "ConstProp" should "swap named sub-nodes within the same bundle with temporary registers that drive them" in {
+      val input =
+"""circuit Top :
+  module Top :
+    input in : UInt<1>[5]
+
+    wire _T_1 = { a: UInt<1>, b: { c: UInt<2>, d: UInt<3> }[2] }
+    node n = _T_1
+    node n_a = _T_1.a
+    node n_b = _T_1.b
+    node n_b_0 = _T_1.b[0]
+    node n_b_1_c = _T_1.b[1].c
+    node n_b_1_d = _T_1.b[1].d
+
+    in[0] <= _T_1.a
+    in[1] <= _T_1.b[0].c
+    in[2] <= _T_1.b[0].d
+    in[3] <= _T_1.b[1].c
+    in[4] <= _T_1.b[1].d
+"""
+      val check =
+"""circuit Top :
+  module Top :
+    input in : UInt<1>[5]
+
+    wire _T_1 = { a: UInt<1>, b: { c: UInt<2>, d: UInt<3> }[2] }
+    node n = _T_1
+    node n_a = _T_1.a
+    node n_b = _T_1.b
+    node n_b_0 = _T_1.b[0]
+    node n_b_1_d = _T_1.b[1].d
+
+    in[0] <= n_a
+    in[1] <= n_b_0.c
+    in[2] <= n_b_0.d
+    in[3] <= n_b[1].c
+    in[4] <= n_b_1_d
+"""
+      (parse(exec(input))) should be (parse(check))
+   }
+
+   // =============================
+   "ConstProp" should "swap named sub-nodes within the same bundle with temporary registers that drive them" in {
+      val input =
+"""circuit Top :
+  module Top :
+    input clock : Clock
+    input in : UInt<1>[3]
+    input out : UInt<1>[3]
+
+    wire reset = { a: UInt<1>, b: { c: UInt<2>, d: UInt<3> } }
+    reg _T_1: { a: UInt<1>, b: { c: UInt<2>, d: UInt<3> } }, clock
+    _T_1.a <= in[0]
+    _T_1.b.c <= in[1]
+    _T_1.b.d <= in[2]
+
+    node r_a = _T_1.a
+    node r_b = _T_1.b
+
+    out[0] <= _T_1.a
+    out[1] <= _T_1.b.c
+    out[2] <= _T_1.b.d
+"""
+      val check =
+"""circuit Top :
+  module Top :
+    input clock : Clock
+    input in : UInt<1>[3]
+    input out : UInt<1>[3]
+
+    wire reset = { a: UInt<1>, b: { c: UInt<2>, d: UInt<3> } }
+    reg _T_1: { a: UInt<1>, b: { c: UInt<2>, d: UInt<3> } }, clock
+    reg r_a: UInt<1>, clock
+    reg r_b: { c: UInt<2>, d: UInt<3> }, clock
+    r_a <= in[0]
+    r_b.c <= in[1]
+    r_b.d <= in[2]
+
+    _T_1.a <= r_a
+    _T_1.b <= r_b
+
+    out[0] <= r_a
+    out[1] <= r_b.c
+    out[2] <= r_b.d
+"""
+      (parse(exec(input))) should be (parse(check))
+   }
+}
