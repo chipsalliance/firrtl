@@ -47,7 +47,7 @@ class DiGraph[T] (private[graph] val edges: LinkedHashMap[T, LinkedHashSet[T]]) 
     * @param v the specified node
     * @return a Set[T] of all vertices that v has edges to
     */
-  def getEdges(v: T, prevOpt: Option[collection.Map[T, T]] = None): Set[T] = edges.getOrElse(v, Set.empty)
+  def getEdges(v: T): Set[T] = edges.getOrElse(v, Set.empty)
 
   def getEdgeMap: Map[T, Set[T]] = edges
 
@@ -148,14 +148,12 @@ class DiGraph[T] (private[graph] val edges: LinkedHashMap[T, LinkedHashSet[T]]) 
     * traversal
     */
   def BFS(root: T, blacklist: Set[T]): Map[T,T] = {
-
-    val prev = new mutable.LinkedHashMap[T, T]
-
+    val prev = new mutable.LinkedHashMap[T,T]
     val queue = new mutable.Queue[T]
     queue.enqueue(root)
     while (queue.nonEmpty) {
       val u = queue.dequeue
-      for (v <- getEdges(u, Some(prev))) {
+      for (v <- getEdges(u)) {
         if (!prev.contains(v) && !blacklist.contains(v)) {
           prev(v) = u
           queue.enqueue(v)

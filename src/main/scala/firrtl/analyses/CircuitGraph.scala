@@ -60,13 +60,13 @@ class CircuitGraph private[analyses] (val connectionGraph: ConnectionGraph) {
     * @param source
     * @return
     */
-  def fanOutSignals(source: ReferenceTarget): Set[ReferenceTarget] = connectionGraph.getEdges(source, None).toSet
+  def fanOutSignals(source: ReferenceTarget): Set[ReferenceTarget] = connectionGraph.getEdges(source).toSet
 
   /** Given a signal, return the signals that drive it
     * @param sink
     * @return
     */
-  def fanInSignals(sink: ReferenceTarget): Set[ReferenceTarget] = reverseConnectionGraph.getEdges(sink, None).toSet
+  def fanInSignals(sink: ReferenceTarget): Set[ReferenceTarget] = reverseConnectionGraph.getEdges(sink).toSet
 
   /** Return the absolute paths of all instances of this module.
     *

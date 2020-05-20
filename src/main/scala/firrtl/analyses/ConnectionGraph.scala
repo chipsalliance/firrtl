@@ -235,7 +235,7 @@ class ConnectionGraph protected(val circuit: Circuit,
 
     while (bfsQueue.nonEmpty) {
       val u = bfsQueue.dequeue
-      for (v <- getEdges(u, Some(prev))) {
+      for (v <- getEdges(u)) {
         if (!prev.contains(v) && !blacklist.contains(v)) {
           prev(v) = u
           bfsQueue.enqueue(v)
@@ -300,7 +300,7 @@ class ConnectionGraph protected(val circuit: Circuit,
     order.reverse.toSeq
   }
 
-  override def getEdges(source: ReferenceTarget, prevOpt: Option[collection.Map[ReferenceTarget, ReferenceTarget]] = None): collection.Set[ReferenceTarget] = {
+  override def getEdges(source: ReferenceTarget): collection.Set[ReferenceTarget] = {
     import ConnectionGraph._
 
     val localSource = source.pathlessTarget
