@@ -53,7 +53,8 @@ class DedupModules extends Transform with DependencyAPIMigration with PreservesA
     if (state.annotations.contains(NoCircuitDedupAnnotation)) {
       state
     } else {
-      val noDedups = state.annotations.collect { case NoDedupAnnotation(ModuleName(m, c)) => m }
+      // Don't try deduping the main module of the circuit
+      val noDedups = state.circuit.main +: state.annotations.collect { case NoDedupAnnotation(ModuleName(m, c)) => m }
       val (newC, renameMap) = run(state.circuit, noDedups, state.annotations)
       state.copy(circuit = newC, renames = Some(renameMap))
     }
@@ -74,7 +75,11 @@ class DedupModules extends Transform with DependencyAPIMigration with PreservesA
     val dedupMap = DedupModules.deduplicate(c, noDedups.toSet, annos, componentRenameMap)
 
     // Use old module list to preserve ordering
-    val dedupedModules = c.modules.map(m => dedupMap(m.name)).distinct
+    // Lookup what a module deduped to, if its a duplicate, remove it
+    val dedupedModules = c.modules.flatMap { m =>
+      val mx = dedupMap(m.name)
+      if (mx.name == m.name) Some(mx) else None
+    }
 
     val cname = CircuitName(c.main)
     val map = dedupMap.map { case (from, to) =>
@@ -426,7 +431,11 @@ object DedupModules {
     val dedupedName2module = tag2name.map({ case (tag, name) => name -> DedupModules.dedupInstances(top, name, moduleMap, name2name, renameMap) })
 
     // Build map from original name to corresponding deduped module
-    val name2module = tag2all.flatMap({ case (tag, names) => names.map(n => n -> dedupedName2module(tag2name(tag))) })
+    // It is important to flatMap before looking up the DefModules so that they aren't hashed
+    val name2module: Map[String, DefModule] =
+      tag2all.flatMap { case (tag, names) => names.map(_ -> tag) }
+             .mapValues(tag => dedupedName2module(tag2name(tag)))
+             .toMap
 
     // Build renameMap
     val indexedTargets = mutable.HashMap[String, IndexedSeq[ReferenceTarget]]()
@@ -438,7 +447,7 @@ object DedupModules {
       }
     }
 
-    name2module.toMap
+    name2module
   }
 
   def computeIndexedNames(main: String, m: DefModule): IndexedSeq[ReferenceTarget] = {
