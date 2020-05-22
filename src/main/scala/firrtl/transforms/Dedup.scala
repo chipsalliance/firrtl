@@ -87,7 +87,8 @@ class DedupModules extends Transform with DependencyAPIMigration with PreservesA
     if (state.annotations.contains(NoCircuitDedupAnnotation)) {
       state
     } else {
-      val noDedups = state.annotations.collect { case NoDedupAnnotation(ModuleTarget(_, m)) => m }
+      // Don't try deduping the main module of the circuit
+      val noDedups = state.circuit.main +: state.annotations.collect { case NoDedupAnnotation(ModuleTarget(_, m)) => m }
       val (remainingAnnotations, dupResults) = state.annotations.partition {
         case _: DupedResult => false
         case _                => true
@@ -127,7 +128,11 @@ class DedupModules extends Transform with DependencyAPIMigration with PreservesA
     }
 
     // Use old module list to preserve ordering
-    val dedupedModules = c.modules.map(m => dedupMap(m.name)).distinct
+    // Lookup what a module deduped to, if its a duplicate, remove it
+    val dedupedModules = c.modules.flatMap { m =>
+      val mx = dedupMap(m.name)
+      if (mx.name == m.name) Some(mx) else None
+    }
 
     val ct = CircuitTarget(c.main)
 
@@ -329,7 +334,8 @@ object DedupModules extends LazyLogging {
     */
   def agnostify(top: CircuitTarget,
                 module: DefModule,
-                renameMap: RenameMap
+                renameMap: RenameMap,
+                agnosticModuleName: String
                ): DefModule = {
 
 
@@ -338,11 +344,12 @@ object DedupModules extends LazyLogging {
     val nameMap = mutable.HashMap[String, String]()
 
     val mod = top.module(module.name)
+    val agnosticMod = top.module(agnosticModuleName)
 
     def rename(name: String): String = {
       nameMap.getOrElseUpdate(name, {
         val newName = namespace.newTemp
-        renameMap.record(mod.ref(name), mod.ref(newName))
+        renameMap.record(mod.ref(name), agnosticMod.ref(newName))
         newName
       })
     }
@@ -462,7 +469,7 @@ object DedupModules extends LazyLogging {
       } else { // Try to dedup
 
         // Build name-agnostic module
-        val agnosticModule = DedupModules.agnostify(top, originalModule, agnosticRename)
+        val agnosticModule = DedupModules.agnostify(top, originalModule, agnosticRename, "thisModule")
         agnosticRename.record(top.module(originalModule.name), top.module("thisModule"))
         agnosticRename.delete(top.module(originalModule.name))
 
@@ -556,11 +563,11 @@ object DedupModules extends LazyLogging {
     }
 
     // Build map from original name to corresponding deduped module
-    val name2module = tag2all.flatMap {
-      case (tag, names) => names.map { n =>
-        n -> dedupedName2module(tag2name(tag))
-      }
-    }
+    // It is important to flatMap before looking up the DefModules so that they aren't hashed
+    val name2module: Map[String, DefModule] =
+      tag2all.flatMap { case (tag, names) => names.map(_ -> tag) }
+             .mapValues(tag => dedupedName2module(tag2name(tag)))
+             .toMap
 
     // Build renameMap
     val indexedTargets = mutable.HashMap[String, IndexedSeq[ReferenceTarget]]()
@@ -572,7 +579,7 @@ object DedupModules extends LazyLogging {
       }
     }
 
-    name2module.toMap
+    name2module
   }
 
   def computeIndexedNames(main: String, m: DefModule): IndexedSeq[ReferenceTarget] = {

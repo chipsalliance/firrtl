@@ -21,7 +21,7 @@ object RenameMap {
     rm
   }
 
-  /** Initialize a new RenameMap which is not associated with a transform */
+  /** Initialize a new RenameMap */
   def apply(): RenameMap = new RenameMap
 
   /** Initialize a new RenameMap associated with the provided transform */
@@ -42,8 +42,7 @@ object RenameMap {
 // TODO This should probably be refactored into immutable and mutable versions
 final class RenameMap private (
     val underlying: mutable.HashMap[CompleteTarget, Seq[CompleteTarget]] = mutable.HashMap[CompleteTarget, Seq[CompleteTarget]](),
-    val chained: Option[RenameMap] = None,
-    val associatedTransform: Option[Transform] = None
+    val chained: Option[RenameMap] = None
 ) {
 
   /** Chain a [[RenameMap]] with this [[RenameMap]]
