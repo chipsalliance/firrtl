@@ -530,7 +530,8 @@ class ConstantPropagationSingleModule extends ConstantPropagationSpec {
     y <= UInt<1>(0)
     z <= UInt<1>(0)
 """
-      (parse(exec(input))) should be (parse(check))
+      val output = parse(exec(input))
+      (output) should be (parse(check))
    }
 
    // =============================
@@ -551,11 +552,13 @@ class ConstantPropagationSingleModule extends ConstantPropagationSpec {
     input x : UInt<1>
     input y : UInt<1>
     output z : UInt<1>
+    node _T_1 = and(x, y)
     node n = and(x, y)
-    node _T_1 = n
+    skip
     z <= and(n, x)
 """
-      (parse(exec(input))) should be (parse(check))
+      val output = parse(exec(input))
+      (output.serialize) should be (parse(check).serialize)
    }
 
    // =============================
@@ -577,12 +580,14 @@ class ConstantPropagationSingleModule extends ConstantPropagationSpec {
     input x : UInt<1>
     input y : UInt<1>
     output z : UInt<1>
+    wire _T_1 : UInt<1>
     wire n : UInt<1>
-    node _T_1 = n
+    skip
     z <= n
     n <= and(x, y)
 """
-      (parse(exec(input))) should be (parse(check))
+      val output = parse(exec(input))
+      (output) should be (parse(check))
    }
 
    // =============================
@@ -604,12 +609,14 @@ class ConstantPropagationSingleModule extends ConstantPropagationSpec {
     input clock : Clock
     input x : UInt<1>
     output z : UInt<1>
+    reg _T_1 : UInt<1>, clock with : (reset => (UInt<1>(0), _T_1))
     reg n : UInt<1>, clock with : (reset => (UInt<1>(0), n))
-    node _T_1 = n
+    skip
     z <= n
     n <= x
 """
-      (parse(exec(input))) should be (parse(check))
+      val output = parse(exec(input))
+      (output) should be (parse(check))
    }
 
    // =============================
@@ -631,8 +638,9 @@ class ConstantPropagationSingleModule extends ConstantPropagationSpec {
     input x : UInt<1>
     input y : UInt<1>
     output z : UInt<3>
+    node _T_1 = add(x, y)
     node n = add(x, y)
-    node _T_1 = n
+    skip
     node m = n
     z <= add(n, n)
 """
@@ -1612,16 +1620,16 @@ class ConstantPropagationMidForm extends ConstantPropagationSpec {
       val input =
 """circuit Top :
   module Top :
-    input x : { in: Int<10>, flip out: Int<10> }
-    output y : { flip in: Int<10>, out: Int<10> }
+    input x : { in: UInt<10>, flip out: UInt<10> }
+    output y : { flip in: UInt<10>, out: UInt<10> }
     y.out <= geq(x.in, UInt(0))
     x.out <= geq(y.in, UInt(0))
 """
       val check =
 """circuit Top :
   module Top :
-    input x : { in: Int<10>, flip out: Int<10> }
-    output y : { flip in: Int<10>, out: Int<10> }
+    input x : { in: UInt<10>, flip out: UInt<10> }
+    output y : { flip in: UInt<10>, out: UInt<10> }
     y.out <= UInt<1>("h1")
     x.out <= UInt<1>("h1")
 """
@@ -1634,11 +1642,11 @@ class ConstantPropagationMidForm extends ConstantPropagationSpec {
 """circuit Top :
   module Top :
     input io : { x: UInt<1>, y: UInt<1>, flip z: UInt<1> }
-    wire bundle = { value: UInt<1> }
+    wire bundle: { value: UInt<1> }
     bundle.value <= and(io.x, io.y)
     node _T_1 = bundle
     node n = _T_1.value
-    io.z <= and(n, x)
+    io.z <= and(n, io.x)
 """
       val check =
 """circuit Top :
@@ -1648,7 +1656,7 @@ class ConstantPropagationMidForm extends ConstantPropagationSpec {
     bundle.value <= and(io.x, io.y)
     node _T_1 = bundle
     node n = bundle.value
-    io.z <= and(n, x)
+    io.z <= and(n, io.x)
 """
       (parse(exec(input))) should be (parse(check))
    }
@@ -1659,27 +1667,23 @@ class ConstantPropagationMidForm extends ConstantPropagationSpec {
 """circuit Top :
   module Top :
     input io : { x: UInt<1>, y: UInt<1>, flip z: UInt<1> }
-    wire _T_1 : { value: UInt<1> }
+    wire _T_1: { value: UInt<1> }
     node n = _T_1.value
     io.z <= n
-    _T_1 <= and(io.x, io.y)
+    _T_1.value <= and(io.x, io.y)
 """
       val check =
 """circuit Top :
+  module Top :
     input io : { x: UInt<1>, y: UInt<1>, flip z: UInt<1> }
-    wire _T_1 : { value: UInt<1> }
+    wire _T_1: { value: UInt<1> }
     wire n: UInt<1>
-    _T_1.value <= n
+    skip
     io.z <= n
     n <= and(io.x, io.y)
 """
-/*
-    wire n : UInt<1>
-    node _T_1 = n
-    z <= n
-    n <= and(x, y)
- */
-      (parse(exec(input))) should be (parse(check))
+      val output = parse(exec(input))
+      (output.serialize) should be (parse(check).serialize)
    }
 
    // =============================
@@ -1687,10 +1691,9 @@ class ConstantPropagationMidForm extends ConstantPropagationSpec {
       val input =
 """circuit Top :
   module Top :
-    input clock : Clock
-    input in : { x: UInt<1>, y: UInt<1> }
+    input in : { x: UInt<2>, y: UInt<3> }
 
-    wire _T_1 = { foobar: UInt<1>, baz: { foo: UInt<1>, bar: UInt<1> } }
+    wire _T_1: { foobar: UInt<1>, baz: { foo: UInt<2>, bar: UInt<3> } }
     _T_1.baz.foo <= in.x
     _T_1.baz.bar <= in.y
     _T_1.foobar <= and(in.x, in.y)
@@ -1702,19 +1705,19 @@ class ConstantPropagationMidForm extends ConstantPropagationSpec {
 """circuit Top :
   module Top :
     input in : { x: UInt<2>, y: UInt<3> }
-    input z : UInt<1>
 
-    wire _T_1 = { foobar: UInt<1>, baz: { foo: UInt<2>, bar: UInt<3> } }
-    wire baz = { foo: UInt<2>, bar: UInt<3> }
+    wire _T_1: { foobar: UInt<1>, baz: { foo: UInt<2>, bar: UInt<3> } }
+    wire baz: { foo: UInt<2>, bar: UInt<3> }
+    wire foobar: UInt<1>
     baz.foo <= in.x
     baz.bar <= in.y
-    wire foobar = UInt<1>
     foobar <= and(in.x, in.y)
 
-    _T_1.baz <= baz
-    _T_1.foobar <= foobar
+    skip
+    skip
 """
-      (parse(exec(input))) should be (parse(check))
+      val output = parse(exec(input))
+      (output) should be (parse(check))
    }
 
    // =============================
@@ -1724,12 +1727,11 @@ class ConstantPropagationMidForm extends ConstantPropagationSpec {
   module Top :
     input in : UInt<1>[5]
 
-    wire _T_1 = { a: UInt<1>, b: { c: UInt<2>, d: UInt<3> }[2] }
-    node n = _T_1
+    wire _T_1: { a: UInt<1>, b: { c: UInt<2>, d: UInt<3> }[2] }
+
     node n_a = _T_1.a
     node n_b = _T_1.b
     node n_b_0 = _T_1.b[0]
-    node n_b_1_c = _T_1.b[1].c
     node n_b_1_d = _T_1.b[1].d
 
     in[0] <= _T_1.a
@@ -1743,12 +1745,16 @@ class ConstantPropagationMidForm extends ConstantPropagationSpec {
   module Top :
     input in : UInt<1>[5]
 
-    wire _T_1 = { a: UInt<1>, b: { c: UInt<2>, d: UInt<3> }[2] }
-    node n = _T_1
-    node n_a = _T_1.a
-    node n_b = _T_1.b
-    node n_b_0 = _T_1.b[0]
-    node n_b_1_d = _T_1.b[1].d
+    wire _T_1: { a: UInt<1>, b: { c: UInt<2>, d: UInt<3> }[2] }
+    wire n_a: UInt<1>
+    wire n_b: { c: UInt<2>, d: UInt<3> }[2]
+    wire n_b_0: { c: UInt<2>, d: UInt<3> }
+    wire n_b_1_d: UInt<3>
+
+    skip
+    skip
+    skip
+    skip
 
     in[0] <= n_a
     in[1] <= n_b_0.c
@@ -1756,11 +1762,12 @@ class ConstantPropagationMidForm extends ConstantPropagationSpec {
     in[3] <= n_b[1].c
     in[4] <= n_b_1_d
 """
-      (parse(exec(input))) should be (parse(check))
+      val output = parse(exec(input))
+      (output) should be (parse(check))
    }
 
    // =============================
-   "ConstProp" should "swap named sub-nodes within the same bundle with temporary registers that drive them" in {
+   "ConstProp" should "nlkjamed sub-nodes within the same bundle with temporary registers that drive them" in {
       val input =
 """circuit Top :
   module Top :
@@ -1768,8 +1775,12 @@ class ConstantPropagationMidForm extends ConstantPropagationSpec {
     input in : UInt<1>[3]
     input out : UInt<1>[3]
 
-    wire reset = { a: UInt<1>, b: { c: UInt<2>, d: UInt<3> } }
-    reg _T_1: { a: UInt<1>, b: { c: UInt<2>, d: UInt<3> } }, clock
+    wire reset: { a: UInt<1>, b: { c: UInt<2>, d: UInt<3> } }
+    reset.a <= UInt<1>(0)
+    reset.b.c <= UInt<2>(0)
+    reset.b.d <= UInt<3>(0)
+
+    reg _T_1: { a: UInt<1>, b: { c: UInt<2>, d: UInt<3> } }, clock with: (reset => (UInt<1>(0), reset))
     _T_1.a <= in[0]
     _T_1.b.c <= in[1]
     _T_1.b.d <= in[2]
@@ -1788,21 +1799,26 @@ class ConstantPropagationMidForm extends ConstantPropagationSpec {
     input in : UInt<1>[3]
     input out : UInt<1>[3]
 
-    wire reset = { a: UInt<1>, b: { c: UInt<2>, d: UInt<3> } }
-    reg _T_1: { a: UInt<1>, b: { c: UInt<2>, d: UInt<3> } }, clock
-    reg r_a: UInt<1>, clock
-    reg r_b: { c: UInt<2>, d: UInt<3> }, clock
+    wire reset: { a: UInt<1>, b: { c: UInt<2>, d: UInt<3> } }
+    reset.a <= UInt<1>(0)
+    reset.b.c <= UInt<2>(0)
+    reset.b.d <= UInt<3>(0)
+
+    reg _T_1: { a: UInt<1>, b: { c: UInt<2>, d: UInt<3> } }, clock with: (reset => (UInt<1>(0), reset))
+    reg r_a: UInt<1>, clock with: (reset => (UInt<1>(0), UInt<1>(0)))
+    reg r_b: { c: UInt<2>, d: UInt<3> }, clock with: (reset => (UInt<1>(0), reset.b))
     r_a <= in[0]
     r_b.c <= in[1]
     r_b.d <= in[2]
 
-    _T_1.a <= r_a
-    _T_1.b <= r_b
+    skip
+    skip
 
     out[0] <= r_a
     out[1] <= r_b.c
     out[2] <= r_b.d
 """
-      (parse(exec(input))) should be (parse(check))
+      val output = parse(exec(input))
+      (output) should be (parse(check))
    }
 }

@@ -5,14 +5,15 @@ package transforms
 
 import firrtl._
 import firrtl.annotations._
-import firrtl.annotations.TargetToken._
 import firrtl.ir._
+import firrtl.passes.LowerTypes
 import firrtl.Utils.{NodeMap => _, _}
 import firrtl.Mappers._
 import firrtl.PrimOps._
 import firrtl.graph.DiGraph
 import firrtl.analyses.InstanceGraph
-import firrtl.annotations.TargetToken.Ref
+import firrtl.annotations.TargetToken
+import firrtl.annotations.TargetToken.{Field => _, _}
 import firrtl.options.Dependency
 
 import annotation.tailrec
@@ -21,7 +22,7 @@ import collection.mutable
 sealed trait TokenTrie[T] {
   def value: Option[T]
   protected def setValue(value: T): Unit
-  def children: mutable.Map[TargetToken, TokenTrie[T]]
+  def children: mutable.LinkedHashMap[TargetToken, TokenTrie[T]]
 
   @tailrec
   def insert(tokens: Seq[TargetToken], value: T): Unit = {
@@ -37,26 +38,32 @@ sealed trait TokenTrie[T] {
   def get(tokens: Seq[TargetToken]): Option[T] = {
     if (tokens.isEmpty) {
       value
+    } else if (children.contains(tokens.head)) {
+      children(tokens.head).get(tokens.tail)
     } else {
-      children.get(tokens.head) match {
-        case Some(child) => child.get(tokens.tail)
-        case None => None
-      }
+      None
     }
   }
 
   def copy(): TokenTrie[T]
 
   @tailrec
-  def getChildrenTrie(tokens: Seq[TargetToken]): Option[TokenTrie[T]] = {
+  def getChild(tokens: Seq[TargetToken]): Option[TokenTrie[T]] = {
     if (tokens.isEmpty) {
       Some(copy())
+    } else if (children.contains(tokens.head)) {
+      children(tokens.head).getChild(tokens.tail)
     } else {
-      children.get(tokens.head) match {
-        case Some(child) => child.getChildrenTrie(tokens.tail)
-        case None => None
-      }
+      None
     }
+  }
+
+  def getChildToken(token: TargetToken): Option[TokenTrie[T]] = {
+    children.get(token)
+  }
+
+  def childToken(token: TargetToken): TokenTrie[T] = {
+    children(token)
   }
 
   def merge(trie: TokenTrie[T]): Unit = {
@@ -64,6 +71,13 @@ sealed trait TokenTrie[T] {
     trie.children.foreach {
       case (token, child) if children.contains(token) => children(token).merge(child)
       case (token, child) => children(token) = child
+    }
+  }
+
+  def foreach(fn: (IndexedSeq[TargetToken], T) => Unit, parent: IndexedSeq[TargetToken] = IndexedSeq.empty): Unit = {
+    value.foreach(fn(parent, _))
+    children.foreach { case (token, child) =>
+      child.foreach(fn, parent :+ token)
     }
   }
 
@@ -109,23 +123,23 @@ sealed trait TokenTrie[T] {
 }
 
 object TokenTrie {
-  def empty[T]: TokenTrie[T] = apply(None, mutable.Map.empty)
+  def empty[T]: TokenTrie[T] = apply(None, mutable.LinkedHashMap.empty)
 
-  def apply[T](valuex: Option[T], childrenx: mutable.Map[TargetToken, TokenTrie[T]]): TokenTrie[T] = {
+  def apply[T](valuex: Option[T], childrenx: mutable.LinkedHashMap[TargetToken, TokenTrie[T]]): TokenTrie[T] = {
     new TokenTrie[T] {
       var value: Option[T] = None
       def setValue(valuex: T): Unit = {
         value = Some(valuex)
       }
       def map[A](fn: T => A): TokenTrie[A] = {
-        val newChildren = mutable.Map.empty[TargetToken, TokenTrie[A]]
+        val newChildren = mutable.LinkedHashMap.empty[TargetToken, TokenTrie[A]]
         children.foreach { case (token, child) =>
           newChildren(token) = child.map(fn)
         }
         TokenTrie(value.map(fn), newChildren)
       }
       def copy(): TokenTrie[T] = {
-        val newChildren = mutable.Map.empty[TargetToken, TokenTrie[T]]
+        val newChildren = mutable.LinkedHashMap.empty[TargetToken, TokenTrie[T]]
         children.foreach { case (token, child) =>
           newChildren(token) = child.copy()
         }
@@ -211,7 +225,7 @@ object ConstantPropagation {
   // A RegCPEntry tracks whether a given signal could be part of a register constant propagation
   // loop. It contains const prop bindings for a register name and a literal, which represent the
   // fact that a constant propagation loop can include both self-assignments and consistent literals.
-  private case class RegCPEntry(r: ConstPropBinding[String], l: ConstPropBinding[Literal]) {
+  private case class RegCPEntry(r: ConstPropBinding[Seq[TargetToken]], l: ConstPropBinding[Literal]) {
     def resolve(that: RegCPEntry) = RegCPEntry(r.resolve(that.r), l.resolve(that.l))
     def nonConstant: Boolean = r == NonConstant || l == NonConstant
   }
@@ -223,7 +237,7 @@ class ConstantPropagation extends Transform with DependencyAPIMigration with Res
 
   override def prerequisites =
     ((new mutable.LinkedHashSet())
-       ++ firrtl.stage.Forms.LowForm
+       ++ firrtl.stage.Forms.MidForm
        - Dependency(firrtl.passes.Legalize)
        + Dependency(firrtl.passes.RemoveValidIf)).toSeq
 
@@ -641,7 +655,11 @@ class ConstantPropagation extends Transform with DependencyAPIMigration with Res
     val nodeMap = TokenTrie.empty[Expression]
     // For cases where we are trying to constprop a bad name over a good one, we swap their names
     // during the second pass
-    val swapMap = TokenTrie.empty[Seq[TargetToken]]
+    val swapMap = TokenTrie.empty[DefNode]
+
+    // const propped nodes with better names, which have thier nodes replaced with decls next to the bad name declaration
+    val replaced = mutable.Set.empty[String]
+
     // Keep track of any outputs we drive with a constant
     val constOutputs = TokenTrie.empty[Literal]
     // Keep track of any submodule inputs we drive with a constant
@@ -654,7 +672,7 @@ class ConstantPropagation extends Transform with DependencyAPIMigration with Res
     // Therefore, we must store some memoized information about how nodes can be canditates for
     // forming part of a register const-prop "self-loop," where a register gets some combination of
     // self-assignments and assignments of the same literal value.
-    val nodeRegCPEntries = new mutable.HashMap[String, RegCPEntry]
+    val nodeRegCPEntries = TokenTrie.empty[RegCPEntry]
 
     // Copy constant mapping for constant inputs (except ones marked dontTouch!)
     constInputs.foreach {
@@ -667,142 +685,319 @@ class ConstantPropagation extends Transform with DependencyAPIMigration with Res
     // to constant wires, we don't need to worry about propagating primops or muxes since we'll do
     // that on the next iteration if necessary
     def backPropExpr(expr: Expression): Expression = {
-      val old = expr map backPropExpr
-      val propagated = old match {
+
+      val propagated = expr match {
         // When swapping, we swap both rhs and lhs
+        case _: WRef | _: WSubIndex | _: WSubField =>
+          val (ref, tokens) = toTokens(expr)
+          swapMap.getParent(tokens) match {
+            case Some((node, tailTokens)) =>
+              nPropagated += 1
+              applyTokens(tailTokens, WRef(node.name))
+            case None if ref.flow == SourceFlow => nodeMap.get(tokens) match {
+              case None => expr
+              case Some(lit) =>
+                val r = constPropNodeRef(ref, lit)
+                if (r ne ref) {
+                  nPropagated += 1
+                }
+                r
+            }
+            case None => expr
+          }
+          /*
         case ref @ WRef(rname, _,_,_) if swapMap.containsToken(Ref(rname)) =>
-          val Seq(Ref(newName)) = swapMap(Seq(Ref(rname)))
-          ref.copy(name = newName)
+          ref.copy(name = swapMap(Seq(Ref(rname))).name)
         // Only const prop on the rhs
         case ref @ WRef(rname, _,_, SourceFlow) if nodeMap.contains(Seq(Ref(rname))) =>
           constPropNodeRef(ref, nodeMap.get(Seq(Ref(rname))).get)
-        case x => x
-      }
-      if (old ne propagated) {
-        nPropagated += 1
+          */
+        case x => x map backPropExpr
       }
       propagated
+    }
+
+    def filterType(tpe: Type, trie: TokenTrie[_]): Option[Type] = {
+      tpe match {
+        case _: GroundType => Some(tpe)
+        case b: BundleType =>
+          val newFields = b.fields.flatMap { f =>
+            trie.getChildToken(TargetToken.Field(f.name)).flatMap { childTrie =>
+              val newTpe = filterType(f.tpe, childTrie)
+              newTpe.map(tpe => f.copy(tpe = tpe))
+            }
+          }
+          if (newFields.isEmpty) {
+            None
+          } else {
+            Some(b.copy(fields = newFields))
+          }
+      }
     }
 
     def backPropStmt(stmt: Statement): Statement = stmt match {
       case reg: DefRegister if (WrappedExpression.weq(reg.init, WRef(reg))) =>
         // Self-init reset is an idiom for "no reset," and must be handled separately
-        swapMap.get(Seq(Ref(reg.name)))
-               .map { case Seq(Ref(newName)) =>
-                 reg.copy(name = newName, init = WRef(reg).copy(name = newName))
-               }
-               .getOrElse(reg)
+        swapMap.getChildToken(Ref(reg.name)).map { trie =>
+          val regs = mutable.ArrayBuffer.empty[DefRegister]
+          regs += reg
+          trie.foreach { case (_, node) =>
+            regs += DefRegister(
+              node.info,
+              node.name,
+              node.value.tpe,
+              reg.clock,
+              reg.reset,
+              WRef(node.name, node.value.tpe, RegKind, UnknownFlow)
+            )
+          }
+          Block(regs)
+        }.getOrElse(reg)
+      case n: DefNode if replaced(n.name) => EmptyStmt
       case s => s map backPropExpr match {
-        case decl: IsDeclaration if swapMap.contains(Seq(Ref(decl.name))) =>
-          val Seq(Ref(newName)) = swapMap(Seq(Ref(decl.name)))
+        case decl: IsDeclaration if swapMap.getChildToken(Ref(decl.name)).isDefined =>
           nPropagated += 1
+          val trie = swapMap.getChildToken(Ref(decl.name)).get
+          val stmts = mutable.ArrayBuffer.empty[Statement]
+          stmts += decl
           decl match {
-            case node: DefNode => node.copy(name = newName)
-            case wire: DefWire => wire.copy(name = newName)
-            case reg: DefRegister => reg.copy(name = newName)
+            case node: DefNode =>
+              trie.foreach { case (tokens, betterNameNode) =>
+                stmts += betterNameNode.copy(value = applyTokens(tokens, node.value))
+              }
+            case wire: DefWire =>
+              trie.foreach { case (_, node) =>
+                stmts += DefWire(
+                  node.info,
+                  node.name,
+                  node.value.tpe
+                )
+              }
+            case reg: DefRegister =>
+              trie.foreach { case (tokens, node) =>
+                stmts += DefRegister(
+                  node.info,
+                  node.name,
+                  node.value.tpe,
+                  reg.clock,
+                  reg.reset,
+                  applyTokens(tokens, reg.init)
+                )
+              }
             case other => throwInternalError()
           }
+          Block(stmts.toSeq)
         case other => other map backPropStmt
       }
     }
 
     // When propagating a reference, check if we want to keep the name that would be deleted
-    def propagateRef(lname: String, value: Expression): Unit = {
-      value match {
+    def propagateRef(node: DefNode): Unit = {
+      val lname = node.name
+      node.value match {
+        case _: WRef | _: WSubField | _: WSubIndex =>
+          val (ref, tokens) = toTokens(node.value)
+          if (betterName(lname, ref.name)
+            && !swapMap.contains(tokens)
+            && ref.kind != PortKind) {
+            // assert(!swapMap.contains(Seq(Ref(lname)))) // <- Shouldn't be possible because lname is either a
+            // node declaration or the single connection to a wire or register
+            swapMap.insert(tokens, node)
+            replaced += lname
+          }
+          /*
         case WRef(rname,_,kind,_) if betterName(lname, rname) && !swapMap.contains(Seq(Ref(rname))) && kind != PortKind =>
           assert(!swapMap.contains(Seq(Ref(lname)))) // <- Shouldn't be possible because lname is either a
           // node declaration or the single connection to a wire or register
-          swapMap.insert(Seq(Ref(lname)), Seq(Ref(rname)))
-          swapMap.insert(Seq(Ref(rname)), Seq(Ref(lname)))
+          swapMap.insert(Seq(Ref(lname)), rname)
+          swapMap.insert(Seq(Ref(rname)), lname)
+          */
         case _ =>
       }
-      nodeMap.insert(Seq(Ref(lname)), value)
+      nodeMap.insert(Seq(Ref(lname)), node.value)
     }
 
     def constPropStmt(s: Statement): Statement = {
       val stmtx = s map constPropStmt map constPropExpression(nodeMap, instMap, constSubOutputs)
       // Record things that should be propagated
       stmtx match {
-        case x: DefNode if !dontTouches.contains(Seq(Ref(x.name))) => propagateRef(x.name, x.value)
+        case x: DefNode if !dontTouches.contains(Seq(Ref(x.name))) => propagateRef(x)
         case reg: DefRegister if reg.reset.tpe == AsyncResetType =>
           asyncResetRegs(reg.name) = reg
-        case Connect(_, WRef(wname, wtpe, WireKind, _), expr: Literal) if !dontTouches.containsToken(Ref(wname)) =>
-          val exprx = constPropExpression(nodeMap, instMap, constSubOutputs)(pad(expr, wtpe))
-          propagateRef(wname, exprx)
-        // Record constants driving outputs
-        case Connect(_, WRef(pname, ptpe, PortKind, _), lit: Literal) if !dontTouches.containsToken(Ref(pname)) =>
-          val paddedLit = constPropExpression(nodeMap, instMap, constSubOutputs)(pad(lit, ptpe)).asInstanceOf[Literal]
-          constOutputs.insert(Seq(Ref(pname)), paddedLit)
-        // Const prop registers that are driven by a mux tree containing only instances of one constant or self-assigns
-        // This requires that reset has been made explicit
-        case Connect(_, lref @ WRef(lname, ltpe, RegKind, _), rhs) if !dontTouches.containsToken(Ref(lname)) =>
+        case c@ Connect(_, _: WRef| _: WSubField | _: WSubIndex, _) =>
+          val (ref, tokens) = toTokens(c.loc)
+          val dontTouched = dontTouches.contains(tokens)
+          (ref.kind, c.expr) match {
+            case (WireKind, lit: Literal) if !dontTouched =>
+              val exprx = constPropExpression(nodeMap, instMap, constSubOutputs)(pad(lit, c.loc.tpe))
+              nodeMap.insert(tokens, exprx)
+            case (PortKind, lit: Literal) if !dontTouched =>
+              val paddedLit = constPropExpression(nodeMap, instMap, constSubOutputs)(pad(lit, c.loc.tpe)).asInstanceOf[Literal]
+              constOutputs.insert(tokens, paddedLit)
+            case (InstanceKind, lit: Literal) =>
+              val paddedLit = constPropExpression(nodeMap, instMap, constSubOutputs)(pad(lit, c.loc.tpe)).asInstanceOf[Literal]
+              val module = instMap(ref.name.Instance)
+              val portsMap = constSubInputs.getOrElseUpdate(module, mutable.HashMap.empty)
+              val portTokens = tokens.tail match {
+                case TargetToken.Field(subRef) +: rest => Ref(subRef) +: rest
+              }
+              portsMap(portTokens) = paddedLit +: portsMap.getOrElse(portTokens, List.empty)
+            case (RegKind, rhs) if !dontTouched =>
+             /* Checks if an RHS expression e of a register assignment is convertible to a constant assignment.
+              * Here, this means that e must be 1) a literal, 2) a self-connect, or 3) a mux tree of
+              * cases (1) and (2).  In case (3), it also recursively checks that the two mux cases can
+              * be resolved: each side is allowed one candidate register and one candidate literal to
+              * appear in their source trees, referring to the potential constant propagation case that
+              * they could allow. If the two are compatible (no different bound sources of either of
+              * the two types), they can be resolved by combining sources. Otherwise, they propagate
+              * NonConstant values.  When encountering a node reference, it expands the node by to its
+              * RHS assignment and recurses.
+              *
+              * @note Some optimization of Mux trees turn 1-bit mux operators into boolean operators. This
+              * can stifle register constant propagations, which looks at drivers through value-preserving
+              * Muxes and Connects only. By speculatively expanding some 1-bit Or and And operations into
+              * muxes, we can obtain the best possible insight on the value of the mux with a simple peephole
+              * de-optimization that does not actually appear in the output code.
+              *
+              * @return a RegCPEntry describing the constant prop-compatible sources driving this expression
+              */
 
-         /* Checks if an RHS expression e of a register assignment is convertible to a constant assignment.
-          * Here, this means that e must be 1) a literal, 2) a self-connect, or 3) a mux tree of
-          * cases (1) and (2).  In case (3), it also recursively checks that the two mux cases can
-          * be resolved: each side is allowed one candidate register and one candidate literal to
-          * appear in their source trees, referring to the potential constant propagation case that
-          * they could allow. If the two are compatible (no different bound sources of either of
-          * the two types), they can be resolved by combining sources. Otherwise, they propagate
-          * NonConstant values.  When encountering a node reference, it expands the node by to its
-          * RHS assignment and recurses.
-          *
-          * @note Some optimization of Mux trees turn 1-bit mux operators into boolean operators. This
-          * can stifle register constant propagations, which looks at drivers through value-preserving
-          * Muxes and Connects only. By speculatively expanding some 1-bit Or and And operations into
-          * muxes, we can obtain the best possible insight on the value of the mux with a simple peephole
-          * de-optimization that does not actually appear in the output code.
-          *
-          * @return a RegCPEntry describing the constant prop-compatible sources driving this expression
-          */
+              val unbound = RegCPEntry(UnboundConstant, UnboundConstant)
+              val selfBound = RegCPEntry(BoundConstant(tokens), UnboundConstant)
 
-          val unbound = RegCPEntry(UnboundConstant, UnboundConstant)
-          val selfBound = RegCPEntry(BoundConstant(lname), UnboundConstant)
+              def zero = passes.RemoveValidIf.getGroundZero(c.loc.tpe)
+              def regConstant(e: Expression, baseCase: RegCPEntry): RegCPEntry = e match {
+                case lit: Literal => baseCase.resolve(RegCPEntry(UnboundConstant, BoundConstant(lit)))
+                case _: WRef | _: WSubField | _: WSubIndex =>
+                  val (ref, tokens) = toTokens(e)
+                  ref.kind match {
+                    case RegKind =>
+                      baseCase.resolve(RegCPEntry(BoundConstant(tokens), UnboundConstant))
+                    case NodeKind =>
+                      val cached = if (nodeRegCPEntries.contains(tokens)) {
+                        nodeRegCPEntries(tokens)
+                      } else {
+                        val entry = regConstant(nodeMap.get(tokens).get, unbound)
+                        nodeRegCPEntries.insert(tokens, entry)
+                        entry
+                      }
+                      baseCase.resolve(cached)
+                    case _ =>
+                      RegCPEntry(NonConstant, NonConstant)
+                  }
+                // case WRef(regName, _, RegKind, _) =>
+                //   baseCase.resolve(RegCPEntry(BoundConstant(regName), UnboundConstant))
+                // case WRef(nodeName, _, NodeKind, _) if nodeMap.contains(Seq(Ref(nodeName))) =>
+                //   val cached = nodeRegCPEntries.getOrElseUpdate(nodeName, { regConstant(nodeMap.get(Seq(Ref(nodeName))).get, unbound) })
+                //   baseCase.resolve(cached)
+                case Mux(_, tval, fval, _) =>
+                  regConstant(tval, baseCase).resolve(regConstant(fval, baseCase))
+                case DoPrim(Or, Seq(a, b), _, BoolType) =>
+                  val aSel = regConstant(Mux(a, one, b, BoolType), baseCase)
+                  if (!aSel.nonConstant) aSel else regConstant(Mux(b, one, a, BoolType), baseCase)
+                case DoPrim(And, Seq(a, b), _, BoolType) =>
+                  val aSel = regConstant(Mux(a, b, zero, BoolType), baseCase)
+                  if (!aSel.nonConstant) aSel else regConstant(Mux(b, a, zero, BoolType), baseCase)
+                case _ =>
+                  RegCPEntry(NonConstant, NonConstant)
+              }
 
-          def zero = passes.RemoveValidIf.getGroundZero(ltpe)
-          def regConstant(e: Expression, baseCase: RegCPEntry): RegCPEntry = e match {
-            case lit: Literal => baseCase.resolve(RegCPEntry(UnboundConstant, BoundConstant(lit)))
-            case WRef(regName, _, RegKind, _) => baseCase.resolve(RegCPEntry(BoundConstant(regName), UnboundConstant))
-            case WRef(nodeName, _, NodeKind, _) if nodeMap.contains(Seq(Ref(nodeName))) =>
-              val cached = nodeRegCPEntries.getOrElseUpdate(nodeName, { regConstant(nodeMap.get(Seq(Ref(nodeName))).get, unbound) })
-              baseCase.resolve(cached)
-            case Mux(_, tval, fval, _) =>
-              regConstant(tval, baseCase).resolve(regConstant(fval, baseCase))
-            case DoPrim(Or, Seq(a, b), _, BoolType) =>
-              val aSel = regConstant(Mux(a, one, b, BoolType), baseCase)
-              if (!aSel.nonConstant) aSel else regConstant(Mux(b, one, a, BoolType), baseCase)
-            case DoPrim(And, Seq(a, b), _, BoolType) =>
-              val aSel = regConstant(Mux(a, b, zero, BoolType), baseCase)
-              if (!aSel.nonConstant) aSel else regConstant(Mux(b, a, zero, BoolType), baseCase)
+              // Updates nodeMap after analyzing the returned value from regConstant
+              def updateNodeMapIfConstant(e: Expression): Unit = regConstant(e, selfBound) match {
+                case RegCPEntry(UnboundConstant,  UnboundConstant)    => nodeMap.insert(tokens, padCPExp(zero))
+                case RegCPEntry(BoundConstant(_), UnboundConstant)    => nodeMap.insert(tokens, padCPExp(zero))
+                case RegCPEntry(UnboundConstant,  BoundConstant(lit)) => nodeMap.insert(tokens, padCPExp(lit))
+                case RegCPEntry(BoundConstant(_), BoundConstant(lit)) => nodeMap.insert(tokens, padCPExp(lit))
+                case _ =>
+              }
+
+              def padCPExp(e: Expression) = constPropExpression(nodeMap, instMap, constSubOutputs)(pad(e, c.loc.tpe))
+
+              asyncResetRegs.get(ref.name) match {
+                // Normal Register
+                case None => updateNodeMapIfConstant(rhs)
+                // Async Register
+                case Some(reg: DefRegister) => updateNodeMapIfConstant(Mux(reg.reset, reg.init, rhs))
+              }
             case _ =>
-              RegCPEntry(NonConstant, NonConstant)
           }
 
-          // Updates nodeMap after analyzing the returned value from regConstant
-          def updateNodeMapIfConstant(e: Expression): Unit = regConstant(e, selfBound) match {
-            case RegCPEntry(UnboundConstant,  UnboundConstant)    => nodeMap.insert(Seq(Ref(lname)), padCPExp(zero))
-            case RegCPEntry(BoundConstant(_), UnboundConstant)    => nodeMap.insert(Seq(Ref(lname)), padCPExp(zero))
-            case RegCPEntry(UnboundConstant,  BoundConstant(lit)) => nodeMap.insert(Seq(Ref(lname)), padCPExp(lit))
-            case RegCPEntry(BoundConstant(_), BoundConstant(lit)) => nodeMap.insert(Seq(Ref(lname)), padCPExp(lit))
-            case _ =>
-          }
+        // case Connect(_, WRef(wname, wtpe, WireKind, _), expr: Literal) if !dontTouches.containsToken(Ref(wname)) =>
+        //   val exprx = constPropExpression(nodeMap, instMap, constSubOutputs)(pad(expr, wtpe))
+        //   nodeMap.insert(Seq(Ref(wname)), exprx)
+        // // Record constants driving outputs
+        // case Connect(_, WRef(pname, ptpe, PortKind, _), lit: Literal) if !dontTouches.containsToken(Ref(pname)) =>
+        //   val paddedLit = constPropExpression(nodeMap, instMap, constSubOutputs)(pad(lit, ptpe)).asInstanceOf[Literal]
+        //   constOutputs.insert(Seq(Ref(pname)), paddedLit)
+        // // Const prop registers that are driven by a mux tree containing only instances of one constant or self-assigns
+        // // This requires that reset has been made explicit
+        // case Connect(_, lref @ WRef(lname, ltpe, RegKind, _), rhs) if !dontTouches.containsToken(Ref(lname)) =>
 
-          def padCPExp(e: Expression) = constPropExpression(nodeMap, instMap, constSubOutputs)(pad(e, ltpe))
+        //  /* Checks if an RHS expression e of a register assignment is convertible to a constant assignment.
+        //   * Here, this means that e must be 1) a literal, 2) a self-connect, or 3) a mux tree of
+        //   * cases (1) and (2).  In case (3), it also recursively checks that the two mux cases can
+        //   * be resolved: each side is allowed one candidate register and one candidate literal to
+        //   * appear in their source trees, referring to the potential constant propagation case that
+        //   * they could allow. If the two are compatible (no different bound sources of either of
+        //   * the two types), they can be resolved by combining sources. Otherwise, they propagate
+        //   * NonConstant values.  When encountering a node reference, it expands the node by to its
+        //   * RHS assignment and recurses.
+        //   *
+        //   * @note Some optimization of Mux trees turn 1-bit mux operators into boolean operators. This
+        //   * can stifle register constant propagations, which looks at drivers through value-preserving
+        //   * Muxes and Connects only. By speculatively expanding some 1-bit Or and And operations into
+        //   * muxes, we can obtain the best possible insight on the value of the mux with a simple peephole
+        //   * de-optimization that does not actually appear in the output code.
+        //   *
+        //   * @return a RegCPEntry describing the constant prop-compatible sources driving this expression
+        //   */
 
-          asyncResetRegs.get(lname) match {
-            // Normal Register
-            case None => updateNodeMapIfConstant(rhs)
-            // Async Register
-            case Some(reg: DefRegister) => updateNodeMapIfConstant(Mux(reg.reset, reg.init, rhs))
-          }
+        //   val unbound = RegCPEntry(UnboundConstant, UnboundConstant)
+        //   val selfBound = RegCPEntry(BoundConstant(lname), UnboundConstant)
 
-        // Mark instance inputs connected to a constant
-        case Connect(_, lref @ WSubField(WRef(inst, _, InstanceKind, _), port, ptpe, _), lit: Literal) =>
-          val paddedLit = constPropExpression(nodeMap, instMap, constSubOutputs)(pad(lit, ptpe)).asInstanceOf[Literal]
-          val module = instMap(inst.Instance)
-          val portsMap = constSubInputs.getOrElseUpdate(module, mutable.HashMap.empty)
-          val tokens = Seq(Ref(port))
-          portsMap(tokens) = paddedLit +: portsMap.getOrElse(tokens, List.empty)
+        //   def zero = passes.RemoveValidIf.getGroundZero(ltpe)
+        //   def regConstant(e: Expression, baseCase: RegCPEntry): RegCPEntry = e match {
+        //     case lit: Literal => baseCase.resolve(RegCPEntry(UnboundConstant, BoundConstant(lit)))
+        //     case WRef(regName, _, RegKind, _) => baseCase.resolve(RegCPEntry(BoundConstant(regName), UnboundConstant))
+        //     case WRef(nodeName, _, NodeKind, _) if nodeMap.contains(Seq(Ref(nodeName))) =>
+        //       val cached = nodeRegCPEntries.getOrElseUpdate(nodeName, { regConstant(nodeMap.get(Seq(Ref(nodeName))).get, unbound) })
+        //       baseCase.resolve(cached)
+        //     case Mux(_, tval, fval, _) =>
+        //       regConstant(tval, baseCase).resolve(regConstant(fval, baseCase))
+        //     case DoPrim(Or, Seq(a, b), _, BoolType) =>
+        //       val aSel = regConstant(Mux(a, one, b, BoolType), baseCase)
+        //       if (!aSel.nonConstant) aSel else regConstant(Mux(b, one, a, BoolType), baseCase)
+        //     case DoPrim(And, Seq(a, b), _, BoolType) =>
+        //       val aSel = regConstant(Mux(a, b, zero, BoolType), baseCase)
+        //       if (!aSel.nonConstant) aSel else regConstant(Mux(b, a, zero, BoolType), baseCase)
+        //     case _ =>
+        //       RegCPEntry(NonConstant, NonConstant)
+        //   }
+
+        //   // Updates nodeMap after analyzing the returned value from regConstant
+        //   def updateNodeMapIfConstant(e: Expression): Unit = regConstant(e, selfBound) match {
+        //     case RegCPEntry(UnboundConstant,  UnboundConstant)    => nodeMap.insert(Seq(Ref(lname)), padCPExp(zero))
+        //     case RegCPEntry(BoundConstant(_), UnboundConstant)    => nodeMap.insert(Seq(Ref(lname)), padCPExp(zero))
+        //     case RegCPEntry(UnboundConstant,  BoundConstant(lit)) => nodeMap.insert(Seq(Ref(lname)), padCPExp(lit))
+        //     case RegCPEntry(BoundConstant(_), BoundConstant(lit)) => nodeMap.insert(Seq(Ref(lname)), padCPExp(lit))
+        //     case _ =>
+        //   }
+
+        //   def padCPExp(e: Expression) = constPropExpression(nodeMap, instMap, constSubOutputs)(pad(e, ltpe))
+
+        //   asyncResetRegs.get(lname) match {
+        //     // Normal Register
+        //     case None => updateNodeMapIfConstant(rhs)
+        //     // Async Register
+        //     case Some(reg: DefRegister) => updateNodeMapIfConstant(Mux(reg.reset, reg.init, rhs))
+        //   }
+        // // Mark instance inputs connected to a constant
+        // case Connect(_, lref @ WSubField(WRef(inst, _, InstanceKind, _), port, ptpe, _), lit: Literal) =>
+        //   val paddedLit = constPropExpression(nodeMap, instMap, constSubOutputs)(pad(lit, ptpe)).asInstanceOf[Literal]
+        //   val module = instMap(inst.Instance)
+        //   val portsMap = constSubInputs.getOrElseUpdate(module, mutable.HashMap.empty)
+        //   val tokens = Seq(Ref(port))
+        //   portsMap(tokens) = paddedLit +: portsMap.getOrElse(tokens, List.empty)
         case _ =>
       }
       // Actually transform some statements
@@ -818,6 +1013,15 @@ class ConstantPropagation extends Transform with DependencyAPIMigration with Res
     }
 
     val modx = m.copy(body = backPropStmt(constPropStmt(m.body)))
+    // println("SWAP MAP")
+    // swapMap.foreach { case (tokens, node) =>
+    //   println(s"${tokens} -> ${node.serialize}")
+    // }
+
+    // println("NODE MAP")
+    // nodeMap.foreach { case (tokens, node) =>
+    //   println(s"${tokens} -> ${node.serialize}")
+    // }
 
     // When we call this function again, constOutputs and constSubInputs are reconstructed and
     // strictly a superset of the versions here

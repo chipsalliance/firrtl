@@ -15,6 +15,8 @@ import firrtl.constraint.{IsMax, IsMin}
 import firrtl.annotations.{ReferenceTarget, TargetToken}
 import _root_.logger.LazyLogging
 
+import annotation.tailrec
+
 object seqCat {
   def apply(args: Seq[Expression]): Expression = args.length match {
     case 0 => Utils.error("Empty Seq passed to seqcat")
@@ -301,6 +303,31 @@ object Utils extends LazyLogging {
     onExp(expression)
     ReferenceTarget(main, module, Nil, ref, tokens)
   }
+
+  @tailrec
+  def toTokens(expression: Expression, tail: Seq[TargetToken] = Seq.empty): (WRef, Seq[TargetToken]) = {
+    expression match {
+      case e: WRef => (e, TargetToken.Ref(e.name) +: tail)
+      case e: WSubField => toTokens(e.expr, TargetToken.Field(e.name) +: tail)
+      case e: WSubIndex => toTokens(e.expr, TargetToken.Index(e.value) +: tail)
+    }
+  }
+
+  @tailrec
+  def applyTokens(tokens: Seq[TargetToken], expression: Expression): Expression = {
+    if (tokens.isEmpty) {
+      expression
+    } else {
+      // TODO: fix source, flow
+      tokens.head match {
+        case TargetToken.Field(field) =>
+          applyTokens(tokens.tail, WSubField(expression, field))
+        case TargetToken.Index(index) =>
+          applyTokens(tokens.tail, WSubIndex(expression, index, UnknownType, UnknownFlow))
+      }
+    }
+  }
+
    @deprecated("get_flip is fundamentally slow, use to_flip(flow(expr))", "1.2")
    def get_flip(t: Type, i: Int, f: Orientation): Orientation = {
      if (i >= get_size(t)) throwInternalError(s"get_flip: shouldn't be here - $i >= get_size($t)")
