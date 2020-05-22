@@ -3,7 +3,7 @@
 package firrtl.analyses
 
 import firrtl.annotations._
-import firrtl.graph.{CyclicException, DiGraph, MutableDiGraph, PathNotFoundException}
+import firrtl.graph.{CyclicException, DiGraph, MutableDiGraph}
 import firrtl.ir._
 import firrtl.Mappers._
 import firrtl.annotations.TargetToken
@@ -362,7 +362,7 @@ class ConnectionGraph protected(val circuit: Circuit,
     * @param start the start node
     * @param end the destination node
     * @param blacklist list of nodes which break path, if encountered
-    * @throws PathNotFoundException
+    * @throws [[firrtl.graph.PathNotFoundException]]
     * @return a Seq[T] of nodes defining an arbitrary valid path
     */
   override def path(start: ReferenceTarget, end: ReferenceTarget, blacklist: collection.Set[ReferenceTarget]): Seq[ReferenceTarget] = {
