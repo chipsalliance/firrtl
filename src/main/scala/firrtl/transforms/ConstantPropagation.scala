@@ -661,8 +661,13 @@ class ConstantPropagation extends Transform with DependencyAPIMigration with Res
           swapMap.getParent(tokens) match {
             case Some((node, tailTokens)) =>
               nPropagated += 1
-              ResolveFlows.resolve_e(SourceFlow)(applyTokens(
-                tailTokens, WRef(node.name, node.value.tpe, ref.kind, ref.flow)))
+              val flow = expr match {
+                case w: WRef => w.flow
+                case w: WSubIndex => w.flow
+                case w: WSubField => w.flow
+              }
+              ResolveFlows.resolve_e(flow)(applyTokens(
+                tailTokens, WRef(node.name, node.value.tpe, ref.kind, UnknownFlow)))
             case None if ref.flow == SourceFlow => nodeMap.get(tokens) match {
               case None => expr
               case Some(lit) =>
