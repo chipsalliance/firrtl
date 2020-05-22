@@ -129,9 +129,17 @@ class DedupModules extends Transform with DependencyAPIMigration with PreservesA
 
     // Use old module list to preserve ordering
     // Lookup what a module deduped to, if its a duplicate, remove it
-    val dedupedModules = c.modules.flatMap { m =>
-      val mx = dedupMap(m.name)
-      if (mx.name == m.name) Some(mx) else None
+    val dedupedModules = {
+      val seen = mutable.Set[String]()
+      c.modules.flatMap { m =>
+        val dedupMod = dedupMap(m.name)
+        if (!seen(dedupMod.name)) {
+          seen += dedupMod.name
+          Some(dedupMod)
+        } else {
+          None
+        }
+      }
     }
 
     val ct = CircuitTarget(c.main)
