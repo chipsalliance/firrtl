@@ -6,7 +6,7 @@ package transforms
 import firrtl._
 import firrtl.annotations._
 import firrtl.ir._
-import firrtl.passes.{LowerTypes, ResolveFlows}
+import firrtl.passes.ResolveFlows
 import firrtl.Utils.{NodeMap => _, _}
 import firrtl.Mappers._
 import firrtl.PrimOps._
@@ -693,7 +693,8 @@ class ConstantPropagation extends Transform with DependencyAPIMigration with Res
           swapMap.getParent(tokens) match {
             case Some((node, tailTokens)) =>
               nPropagated += 1
-              ResolveFlows.resolve_e(SourceFlow)(applyTokens(tailTokens, WRef(node)))
+              ResolveFlows.resolve_e(SourceFlow)(applyTokens(
+                tailTokens, WRef(node.name, node.value.tpe, ref.kind, ref.flow)))
             case None if ref.flow == SourceFlow => nodeMap.get(tokens) match {
               case None => expr
               case Some(lit) =>
