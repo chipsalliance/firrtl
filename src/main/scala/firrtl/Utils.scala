@@ -323,7 +323,7 @@ object Utils extends LazyLogging {
         case TargetToken.Field(field) =>
           applyTokens(tokens.tail, WSubField(expression, field))
         case TargetToken.Index(index) =>
-          applyTokens(tokens.tail, WSubIndex(expression, index, UnknownType, UnknownFlow))
+          applyTokens(tokens.tail, WSubIndex(expression, index, sub_type(expression.tpe), UnknownFlow))
       }
     }
   }

@@ -6,7 +6,7 @@ package transforms
 import firrtl._
 import firrtl.annotations._
 import firrtl.ir._
-import firrtl.passes.LowerTypes
+import firrtl.passes.{LowerTypes, ResolveFlows}
 import firrtl.Utils.{NodeMap => _, _}
 import firrtl.Mappers._
 import firrtl.PrimOps._
@@ -687,13 +687,13 @@ class ConstantPropagation extends Transform with DependencyAPIMigration with Res
     def backPropExpr(expr: Expression): Expression = {
 
       val propagated = expr match {
-        // When swapping, we swap both rhs and lhs
         case _: WRef | _: WSubIndex | _: WSubField =>
           val (ref, tokens) = toTokens(expr)
+          // When swapping, we swap both rhs and lhs
           swapMap.getParent(tokens) match {
             case Some((node, tailTokens)) =>
               nPropagated += 1
-              applyTokens(tailTokens, WRef(node.name))
+              ResolveFlows.resolve_e(SourceFlow)(applyTokens(tailTokens, WRef(node)))
             case None if ref.flow == SourceFlow => nodeMap.get(tokens) match {
               case None => expr
               case Some(lit) =>
@@ -763,7 +763,7 @@ class ConstantPropagation extends Transform with DependencyAPIMigration with Res
           decl match {
             case node: DefNode =>
               trie.foreach { case (tokens, betterNameNode) =>
-                stmts += betterNameNode.copy(value = applyTokens(tokens, node.value))
+                stmts += ResolveFlows.resolve_s(betterNameNode.copy(value = applyTokens(tokens, node.value)))
               }
             case wire: DefWire =>
               trie.foreach { case (_, node) =>
@@ -775,14 +775,14 @@ class ConstantPropagation extends Transform with DependencyAPIMigration with Res
               }
             case reg: DefRegister =>
               trie.foreach { case (tokens, node) =>
-                stmts += DefRegister(
+                stmts += ResolveFlows.resolve_s(DefRegister(
                   node.info,
                   node.name,
                   node.value.tpe,
                   reg.clock,
                   reg.reset,
                   applyTokens(tokens, reg.init)
-                )
+                ))
               }
             case other => throwInternalError()
           }
