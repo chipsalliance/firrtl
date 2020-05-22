@@ -6,6 +6,12 @@ import logger._
 import java.io.Writer
 
 import scala.collection.mutable
+<<<<<<< HEAD
+=======
+import scala.util.Try
+import scala.util.control.NonFatal
+
+>>>>>>> db7928a4... Do not throw NonFatal exceptions in annotation logging
 import firrtl.annotations._
 import firrtl.ir.Circuit
 import firrtl.Utils.throwInternalError
@@ -189,7 +195,14 @@ private[firrtl] object Transform {
 
     logger.info(s"Form: ${after.form}")
     logger.trace(s"Annotations:")
-    logger.trace(JsonProtocol.serialize(remappedAnnotations))
+    logger.trace {
+      JsonProtocol.serializeTry(remappedAnnotations).recoverWith {
+        case NonFatal(e) =>
+          val msg = s"Exception thrown during Annotation serialization:\n  " +
+                    e.toString.replaceAll("\n", "\n  ")
+          Try(msg)
+      }.get
+    }
 
     logger.trace(s"Circuit:\n${after.circuit.serialize}")
     logger.info(s"======== Finished Transform $name ========\n")
