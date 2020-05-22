@@ -168,7 +168,7 @@ class EliminateTargetPaths extends Transform with DependencyAPIMigration with Pr
     lazy val finalModuleSet = finalModuleList.map{ case a: DefModule => a.name }.toSet
 
     // Records how targets have been renamed
-    val renameMap = RenameMap(this)
+    val renameMap = RenameMap()
 
     /* Foreach target, calculate the pathless version and only rename targets that are instantiated. Additionally, rename
      * module targets
@@ -329,7 +329,7 @@ class EliminateTargetPaths extends Transform with DependencyAPIMigration with Pr
       newCircuit.copy(modules = modulesx)
     }
 
-    val renamedModuleMap = RenameMap(this)
+    val renamedModuleMap = RenameMap()
 
     // If previous instance target mapped to a single previously deduped module, return original name
     // E.g. if previously ~Top|Top/foo:Foo was deduped to ~Top|Top/foo:Bar, then

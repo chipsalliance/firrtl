@@ -269,7 +269,7 @@ object RemoveCHIRRTL extends Transform with DependencyAPIMigration with Preserve
 
   def execute(state: CircuitState): CircuitState = {
     val c = state.circuit
-    val renames = RenameMap(this)
+    val renames = RenameMap()
     renames.setCircuit(c.main)
     val result = c copy (modules = c.modules map remove_chirrtl_m(renames))
     state.copy(circuit = result, renames = Some(renames))

@@ -79,7 +79,7 @@ class SimplifyMems extends Transform with DependencyAPIMigration with PreservesA
 
   override def execute(state: CircuitState): CircuitState = {
     val c = state.circuit
-    val renames = RenameMap(this)
+    val renames = RenameMap()
     state.copy(circuit = c.map(onModule(c, renames)), renames = Some(renames))
   }
 }

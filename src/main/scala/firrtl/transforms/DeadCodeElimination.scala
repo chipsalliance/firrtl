@@ -334,7 +334,7 @@ class DeadCodeElimination extends Transform
 
     val liveNodes = depGraph.reachableFrom(circuitSink) + circuitSink
     val deadNodes = depGraph.getVertices -- liveNodes
-    val renames = RenameMap(this)
+    val renames = RenameMap()
     renames.setCircuit(c.main)
 
     // As we delete deadCode, we will delete ports from Modules and somtimes complete modules

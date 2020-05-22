@@ -246,7 +246,7 @@ object Uniquify extends Transform with DependencyAPIMigration {
   // Everything wrapped in run so that it's thread safe
   def execute(state: CircuitState): CircuitState = {
     val c = state.circuit
-    val renames = RenameMap(this)
+    val renames = RenameMap()
     renames.setCircuit(c.main)
     // Debug state
     implicit var mname: String = ""

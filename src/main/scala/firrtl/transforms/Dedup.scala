@@ -114,7 +114,7 @@ class DedupModules extends Transform with DependencyAPIMigration with PreservesA
           previouslyDupedMap: Map[String, String]): (Circuit, RenameMap, AnnotationSeq) = {
 
     // RenameMap
-    val componentRenameMap = RenameMap(this)
+    val componentRenameMap = RenameMap()
     componentRenameMap.setCircuit(c.main)
 
     // Maps module name to corresponding dedup module
@@ -140,12 +140,12 @@ class DedupModules extends Transform with DependencyAPIMigration with PreservesA
       logger.debug(s"[Dedup] $from -> ${to.name}")
       ct.module(from).asInstanceOf[CompleteTarget] -> Seq(ct.module(to.name))
     }
-    val moduleRenameMap = RenameMap(this)
+    val moduleRenameMap = RenameMap()
     moduleRenameMap.recordAll(map)
 
     // Build instanceify renaming map
     val instanceGraph = new InstanceGraph(c)
-    val instanceify = RenameMap(this)
+    val instanceify = RenameMap()
     val moduleName2Index = c.modules.map(_.name).zipWithIndex.map { case (n, i) =>
       {
         c.modules.size match {

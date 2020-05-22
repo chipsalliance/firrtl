@@ -188,7 +188,7 @@ object ZeroWidth extends Transform with DependencyAPIMigration {
     // run executeEmptyMemStmt first to remove zero-width memories
     // then run InferTypes to update widths for addr, en, clk, etc
     val c = InferTypes.run(executeEmptyMemStmt(state).circuit)
-    val renames = RenameMap(this)
+    val renames = RenameMap()
     renames.setCircuit(c.main)
     val result = c.copy(modules = c.modules map onModule(renames))
     CircuitState(result, outputForm, state.annotations, Some(renames))

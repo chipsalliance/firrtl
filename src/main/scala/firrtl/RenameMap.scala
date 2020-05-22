@@ -24,9 +24,6 @@ object RenameMap {
   /** Initialize a new RenameMap */
   def apply(): RenameMap = new RenameMap
 
-  /** Initialize a new RenameMap associated with the provided transform */
-  def apply(associatedTransform: Transform): RenameMap = new RenameMap(associatedTransform = Some(associatedTransform))
-
   abstract class RenameTargetException(reason: String) extends Exception(reason)
   case class IllegalRenameException(reason: String) extends RenameTargetException(reason)
   case class CircularRenameException(reason: String) extends RenameTargetException(reason)
@@ -52,9 +49,9 @@ final class RenameMap private (
     */
   def andThen(next: RenameMap): RenameMap = {
     if (next.chained.isEmpty) {
-      new RenameMap(next.underlying, chained = Some(this), next.associatedTransform)
+      new RenameMap(next.underlying, chained = Some(this))
     } else {
-      new RenameMap(next.underlying, chained = next.chained.map(this.andThen(_)), next.associatedTransform)
+      new RenameMap(next.underlying, chained = next.chained.map(this.andThen(_)))
     }
   }
 

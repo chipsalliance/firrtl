@@ -23,10 +23,10 @@ class MorphismSpec extends FlatSpec with Matchers {
       if (target.isDefined) {
         renames.get(target.get) match {
           case None => Seq(this)
-          case Some(Seq()) => Seq(AnAnnotation(None, Some(this), renames.associatedTransform.map(_.name)))
+          case Some(Seq()) => Seq(AnAnnotation(None, Some(this)))
           case Some(targets) =>
             //TODO: Add cause of renaming, requires FIRRTL change to RenameMap
-            targets.map { t => AnAnnotation(Some(t), Some(this), renames.associatedTransform.map(_.name)) }
+            targets.map { t => AnAnnotation(Some(t), Some(this)) }
         }
       } else Seq(this)
     }
