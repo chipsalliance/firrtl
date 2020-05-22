@@ -817,11 +817,11 @@ class ConstantPropagation extends Transform with DependencyAPIMigration with Res
                   ref.kind match {
                     case RegKind =>
                       baseCase.resolve(RegCPEntry(BoundConstant(tokens), UnboundConstant))
-                    case NodeKind =>
+                    case NodeKind if nodeMap.contains(tokens) =>
                       val cached = if (nodeRegCPEntries.contains(tokens)) {
                         nodeRegCPEntries(tokens)
                       } else {
-                        val entry = regConstant(nodeMap.get(tokens).get, unbound)
+                        val entry = regConstant(nodeMap(tokens), unbound)
                         nodeRegCPEntries.insert(tokens, entry)
                         entry
                       }
