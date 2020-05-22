@@ -59,16 +59,16 @@ case class DedupedResult(original: ModuleTarget, duplicate: Option[IsModule], in
   * infinitely recurse.
   *
   * Deduped modules are renamed using a chain of 3 [[RenameMap]]s. The first
-  * [[RenameMap]] renames the original [[ModuleTarget]]s and relative
-  * [[InstanceTarget]]s to the groups of absolute [[InstanceTarget]]s that they
+  * [[RenameMap]] renames the original [[annotations.ModuleTarget]]s and relative
+  * [[annotations.InstanceTarget]]s to the groups of absolute [[annotations.InstanceTarget]]s that they
   * target. These renames only affect instance names and paths and use the old
   * module names. During this rename, modules will also have their instance
   * names renamed if they dedup with a module that has different instance
   * names.
   * The second [[RenameMap]] renames all component names within modules that
   * dedup with another module that has different component names.
-  * The third [[RenameMap]] renames original [[ModuleTarget]]s to their deduped
-  * [[ModuleTarget]].
+  * The third [[RenameMap]] renames original [[annotations.ModuleTarget]]s to their deduped
+  * [[annotations.ModuleTarget]].
   *
   * This transform will also emit [[DedupedResult]] for deduped modules that
   * only have one instance.
