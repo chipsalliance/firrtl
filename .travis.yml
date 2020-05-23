@@ -112,8 +112,12 @@ jobs:
         use: firrtl_build
       script:
         - benchmark/scripts/benchmark_cold_compile.py -N 2 --designs regress/ICache.fir --versions HEAD
+<<<<<<< HEAD
     - stage: test
       name: "[Release Branch] Check Binary-compatibility"
       script:
         - sbt compile
         - sbt +mimaReportBinaryIssues
+=======
+        - benchmark/scripts/find_heap_bound.py -- -cp firrtl*jar firrtl.stage.FirrtlMain -i regress/ICache.fir -o out -X verilog
+>>>>>>> f7ae514f... Add find_heap_bound.py script for finding minimum heap size
