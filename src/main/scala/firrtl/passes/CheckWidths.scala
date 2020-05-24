@@ -5,13 +5,14 @@ package firrtl.passes
 import firrtl._
 import firrtl.ir._
 import firrtl.PrimOps._
+import firrtl.checks.Check
 import firrtl.traversals.Foreachers._
 import firrtl.Utils._
 import firrtl.constraint.IsKnown
 import firrtl.annotations.{CircuitTarget, ModuleTarget, Target, TargetToken}
 import firrtl.options.{Dependency, PreservesAll}
 
-object CheckWidths extends Pass with PreservesAll[Transform] {
+object CheckWidths extends Check with PreservesAll[Transform] {
 
   override def prerequisites = Dependency[passes.InferWidths] +: firrtl.stage.Forms.WorkingIR
 

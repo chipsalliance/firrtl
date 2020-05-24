@@ -5,10 +5,11 @@ package firrtl.passes
 import firrtl._
 import firrtl.ir._
 import firrtl.Utils._
+import firrtl.checks.Check
 import firrtl.traversals.Foreachers._
 import firrtl.options.{Dependency, PreservesAll}
 
-object CheckFlows extends Pass with PreservesAll[Transform] {
+object CheckFlows extends Check with PreservesAll[Transform] {
 
   override def prerequisites = Dependency(passes.ResolveFlows) +: firrtl.stage.Forms.WorkingIR
 

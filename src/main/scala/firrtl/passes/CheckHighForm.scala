@@ -6,6 +6,7 @@ import firrtl._
 import firrtl.ir._
 import firrtl.PrimOps._
 import firrtl.Utils._
+import firrtl.checks.Check
 import firrtl.traversals.Foreachers._
 import firrtl.options.{Dependency, PreservesAll}
 
@@ -280,7 +281,7 @@ trait CheckHighFormLike { this: Pass =>
   }
 }
 
-object CheckHighForm extends Pass with CheckHighFormLike with PreservesAll[Transform] {
+object CheckHighForm extends Check with CheckHighFormLike with PreservesAll[Transform] {
 
   override def prerequisites = firrtl.stage.Forms.WorkingIR
 

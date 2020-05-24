@@ -4,9 +4,10 @@ package firrtl.passes
 
 import firrtl.Transform
 import firrtl.ir._
+import firrtl.checks.Check
 import firrtl.options.{Dependency, PreservesAll}
 
-object CheckChirrtl extends Pass with CheckHighFormLike with PreservesAll[Transform] {
+object CheckChirrtl extends Check with CheckHighFormLike with PreservesAll[Transform] {
 
   override val optionalPrerequisiteOf = firrtl.stage.Forms.ChirrtlForm ++
     Seq( Dependency(CInferTypes),

@@ -6,12 +6,13 @@ import firrtl._
 import firrtl.ir._
 import firrtl.PrimOps._
 import firrtl.Utils._
+import firrtl.checks.Check
 import firrtl.traversals.Foreachers._
 import firrtl.WrappedType._
 import firrtl.constraint.{Constraint, IsKnown}
 import firrtl.options.{Dependency, PreservesAll}
 
-object CheckTypes extends Pass with PreservesAll[Transform] {
+object CheckTypes extends Check with PreservesAll[Transform] {
 
   override def prerequisites = Dependency(InferTypes) +: firrtl.stage.Forms.WorkingIR
 
