@@ -226,9 +226,9 @@ class IRLookup private[analyses] ( private val declarations: mutable.LinkedHashM
       case Port(_, name, Input, tpe) => Utils.create_exps(WRef(name, tpe, PortKind, SinkFlow))
     }.foldLeft((Vector.empty[(ReferenceTarget, Type)], Vector.empty[(ReferenceTarget, Type)])) {
       case ((inputs, outputs), e) if Utils.flow(e) == SourceFlow =>
-        (inputs, outputs :+ (ConnectionGraph.asTarget(m, new TokenTagger())(e).asInstanceOf[ReferenceTarget], e.tpe))
+        (inputs, outputs :+ (ConnectionGraph.asTarget(m, new TokenTagger())(e) e.tpe))
       case ((inputs, outputs), e) =>
-        (inputs :+ (ConnectionGraph.asTarget(m, new TokenTagger())(e).asInstanceOf[ReferenceTarget], e.tpe), outputs)
+        (inputs :+ (ConnectionGraph.asTarget(m, new TokenTagger())(e) e.tpe), outputs)
     }
   }
 

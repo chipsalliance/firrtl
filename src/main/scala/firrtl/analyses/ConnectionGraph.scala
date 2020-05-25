@@ -2,11 +2,10 @@
 
 package firrtl.analyses
 
-import firrtl.annotations._
+import firrtl.Mappers._
+import firrtl.annotations.{TargetToken, _}
 import firrtl.graph.{CyclicException, DiGraph, MutableDiGraph}
 import firrtl.ir._
-import firrtl.Mappers._
-import firrtl.annotations.TargetToken
 import firrtl.passes.MemPortUtils
 import firrtl.{InstanceKind, PortKind, SinkFlow, SourceFlow, Utils, WDefInstance, WInvalid, WRef, WSubField, WSubIndex}
 
@@ -67,11 +66,11 @@ class ConnectionGraph protected(val circuit: Circuit,
     * All keys and values are local references.
     *
     * A BFS search will first query this map. If the query fails, then it continues and populates the map. If the query
-    *   succeeds, then the BFS shortcuts with the values provided by the query.
+    * succeeds, then the BFS shortcuts with the values provided by the query.
     *
     * Because this BFS implementation uses a priority queue which prioritizes exploring deeper instances first, a
-    *   successful query during BFS will only occur after all paths which leave the module from that reference have
-    *   already been searched.
+    * successful query during BFS will only occur after all paths which leave the module from that reference have
+    * already been searched.
     */
   private val bfsShortCuts: mutable.HashMap[ReferenceTarget, mutable.HashSet[ReferenceTarget]] =
     mutable.HashMap.empty[ReferenceTarget, mutable.HashSet[ReferenceTarget]]
@@ -81,21 +80,23 @@ class ConnectionGraph protected(val circuit: Circuit,
     * All keys and values are local references.
     *
     * If its keys contain a reference, then the value will be complete, in that all paths from the reference out of
-    *   the module will have been explored
+    * the module will have been explored
     *
     * For example, if Top>in connects to Top>out1 and Top>out2, then foundShortCuts(Top>in) will contain
-    *   Set(Top>out1, Top>out2), not Set(Top>out1) or Set(Top>out2)
+    * Set(Top>out1, Top>out2), not Set(Top>out1) or Set(Top>out2)
     */
   private val foundShortCuts: mutable.HashMap[ReferenceTarget, mutable.HashSet[ReferenceTarget]] =
     mutable.HashMap.empty[ReferenceTarget, mutable.HashSet[ReferenceTarget]]
 
   /** Returns whether a previous BFS search has found a shortcut out of a module, starting from target
+    *
     * @param target
     * @return
     */
   def hasShortCut(target: ReferenceTarget): Boolean = getShortCut(target).nonEmpty
 
   /** Optionally returns the shortcut a previous BFS search may have found out of a module, starting from target
+    *
     * @param target
     * @return
     */
@@ -103,12 +104,14 @@ class ConnectionGraph protected(val circuit: Circuit,
     foundShortCuts.get(target.pathlessTarget).map(set => set.map(_.setPathTarget(target.pathTarget)).toSet)
 
   /** Returns the shortcut a previous BFS search may have found out of a module, starting from target
+    *
     * @param target
     * @return
     */
   def shortCut(target: ReferenceTarget): Set[ReferenceTarget] = getShortCut(target).get
 
   /** Returns a new, reversed connection graph where edges point from sinks to sources
+    *
     * @return
     */
   def reverseConnectionGraph: ConnectionGraph = new ConnectionGraph(circuit, digraph.reverse, irLookup)
@@ -126,6 +129,7 @@ class ConnectionGraph protected(val circuit: Circuit,
         case None => recGetTag(root, node.stripHierarchy(1), tagMap).map(_.map(_.addHierarchy(node.module, node.path.head._1.value)))
       }
     }
+
     val ret = recGetTag(node.module, node, tagMap)
     ret
   }
@@ -184,20 +188,20 @@ class ConnectionGraph protected(val circuit: Circuit,
   protected def tagNode(node: ReferenceTarget,
                         tags: collection.Set[ReferenceTarget],
                         tagMap: mutable.LinkedHashMap[(String, ReferenceTarget), mutable.HashSet[ReferenceTarget]]): Unit = {
-    //require((tags.map(_.module) ++ node.module).size == 1, "All tags and nodes in the path must share their root module")
     val perModuleTags = mutable.HashMap[String, mutable.HashSet[ReferenceTarget]]()
     tags.foreach { tag => updatePerModuleTags(tag, perModuleTags) }
     setTag(node, perModuleTags, tagMap)
   }
 
   /** Tags a single node
+    *
     * @param node
     * @param perModuleTags
     * @param tagMap
     */
   private def setTag(node: ReferenceTarget,
-                  perModuleTags: collection.Map[String, collection.Set[ReferenceTarget]],
-                  tagMap: mutable.LinkedHashMap[(String, ReferenceTarget), mutable.HashSet[ReferenceTarget]]): Unit = {
+                     perModuleTags: collection.Map[String, collection.Set[ReferenceTarget]],
+                     tagMap: mutable.LinkedHashMap[(String, ReferenceTarget), mutable.HashSet[ReferenceTarget]]): Unit = {
     def recSetTag(root: String,
                   node: ReferenceTarget,
                   perModuleTags: collection.Map[String, collection.Set[ReferenceTarget]],
@@ -211,12 +215,13 @@ class ConnectionGraph protected(val circuit: Circuit,
         recSetTag(root, node.stripHierarchy(1), perModuleTags, tagMap)
       }
     }
+
     recSetTag(node.module, node, perModuleTags, tagMap)
   }
 
   private def updatePerModuleTags(tag: ReferenceTarget, perModuleTags: mutable.HashMap[String, mutable.HashSet[ReferenceTarget]]): Unit = {
     perModuleTags.getOrElseUpdate(tag.module, mutable.HashSet.empty[ReferenceTarget]) += tag
-    if(tag.path.nonEmpty) {
+    if (tag.path.nonEmpty) {
       updatePerModuleTags(tag.stripHierarchy(1), perModuleTags)
     }
   }
@@ -225,7 +230,7 @@ class ConnectionGraph protected(val circuit: Circuit,
 
     val prev = new mutable.LinkedHashMap[ReferenceTarget, ReferenceTarget]()
 
-    val ordering = new Ordering[ReferenceTarget]{
+    val ordering = new Ordering[ReferenceTarget] {
       override def compare(x: ReferenceTarget, y: ReferenceTarget): Int = x.path.size - y.path.size
     }
 
@@ -254,7 +259,7 @@ class ConnectionGraph protected(val circuit: Circuit,
     *
     * @throws CyclicException if the graph is cyclic
     * @return a Seq[T] describing the topological order of the DAG
-    * traversal
+    *         traversal
     */
   override def linearize: Seq[ReferenceTarget] = {
     // permanently marked nodes are implicitly held in order
@@ -282,7 +287,7 @@ class ConnectionGraph protected(val circuit: Circuit,
             callStack.push(LinearizeFrame(n, true))
             // We want to visit the first edge first (so push it last)
             for (m <- getEdges(n).toSeq.reverse) {
-              if(!unmarked.contains(m) && !tempMarked.contains(m) && !finished.contains(m)){
+              if (!unmarked.contains(m) && !tempMarked.contains(m) && !finished.contains(m)) {
                 unmarked += m
               }
               callStack.push(LinearizeFrame(m, false))
@@ -297,7 +302,7 @@ class ConnectionGraph protected(val circuit: Circuit,
     }
 
     // visited nodes are in post-traversal order, so must be reversed
-    order.reverse.toSeq
+    order.reverse
   }
 
   override def getEdges(source: ReferenceTarget): collection.Set[ReferenceTarget] = {
@@ -306,7 +311,7 @@ class ConnectionGraph protected(val circuit: Circuit,
     val localSource = source.pathlessTarget
 
     bfsShortCuts.get(localSource) match {
-      case Some(set) => set.map{x => x.setPathTarget(source.pathTarget)}
+      case Some(set) => set.map { x => x.setPathTarget(source.pathTarget) }
       case None =>
 
         val pathlessEdges = super.getEdges(localSource)
@@ -319,7 +324,7 @@ class ConnectionGraph protected(val circuit: Circuit,
 
           case localSink if enteringParentInstance(source)(localSink) =>
             val currentStack = portConnectivityStack.getOrElse(localSource, Nil)
-            if(currentStack.nonEmpty && currentStack.head.module == localSink.module) {
+            if (currentStack.nonEmpty && currentStack.head.module == localSink.module) {
               // Exiting back to parent module
               // Update shortcut path from entrance from parent to new exit to parent
               val instancePort = currentStack.head
@@ -359,8 +364,8 @@ class ConnectionGraph protected(val circuit: Circuit,
 
   /** Finds a path (if one exists) from one node to another, with a blacklist
     *
-    * @param start the start node
-    * @param end the destination node
+    * @param start     the start node
+    * @param end       the destination node
     * @param blacklist list of nodes which break path, if encountered
     * @throws [[firrtl.graph.PathNotFoundException]]
     * @return a Seq[T] of nodes defining an arbitrary valid path
@@ -371,7 +376,7 @@ class ConnectionGraph protected(val circuit: Circuit,
 
   private def insertShortCuts(path: Seq[ReferenceTarget]): Seq[ReferenceTarget] = {
     val soFar = mutable.HashSet[ReferenceTarget]()
-    if(path.size > 1) {
+    if (path.size > 1) {
       path.head +: path.sliding(2).flatMap {
         case Seq(from, to) =>
           getShortCut(from) match {
@@ -395,8 +400,8 @@ class ConnectionGraph protected(val circuit: Circuit,
     *
     * @param start the node to start at
     * @return a Map[T,Seq[Seq[T]]] where the value associated with v is the Seq of all paths from start to v
-    */
-  override def pathsInDAG(start: ReferenceTarget): mutable.LinkedHashMap[ReferenceTarget,Seq[Seq[ReferenceTarget]]] = {
+    * */
+  override def pathsInDAG(start: ReferenceTarget): mutable.LinkedHashMap[ReferenceTarget, Seq[Seq[ReferenceTarget]]] = {
     val linkedMap = super.pathsInDAG(start)
     linkedMap.keysIterator.foreach { key =>
       linkedMap(key) = linkedMap(key).map(insertShortCuts)
@@ -412,6 +417,7 @@ object ConnectionGraph {
   /** Returns a [[DiGraph]] of [[Target]] and corresponding [[IRLookup]]
     *
     * Represents the directed connectivity of a FIRRTL circuit
+    *
     * @param circuit
     * @return
     */
@@ -423,13 +429,14 @@ object ConnectionGraph {
 
   def isLiteral(t: ReferenceTarget): Boolean = {
     t.ref match {
-      case TokenTagger.literalRegex(value) => true
+      case TokenTagger.literalRegex(_) => true
       case _ => false
     }
   }
 
   /** Within a module, given an [[Expression]] inside a module, return a corresponding [[Target]]
-    * @param m Target of module containing the expression
+    *
+    * @param m      Target of module containing the expression
     * @param tagger Used to uniquely identify unnamed targets, e.g. primops
     * @param e
     * @return
@@ -456,34 +463,32 @@ object ConnectionGraph {
   }
 
   def enteringParentInstance(source: ReferenceTarget)(localSink: ReferenceTarget): Boolean = {
-    val b1 = source.path.nonEmpty
+    def b1 = source.path.nonEmpty
+
     def b2 = source.noComponents.targetParent.asInstanceOf[InstanceTarget].encapsulatingModule == localSink.module
+
     def b3 = localSink.ref == source.path.last._1.value
-    if(localSink.module == "AXI4Buffer_1" && localSink.ref == "Queue_1") {
-      println(s"$source -> $localSink")
-      println(s"$b1 $b2 $b3")
-    }
+
     b1 && b2 && b3
   }
 
   def enteringNonParentInstance(source: ReferenceTarget)(localSink: ReferenceTarget): Boolean = {
     source.path.nonEmpty &&
       (source.noComponents.targetParent.asInstanceOf[InstanceTarget].encapsulatingModule != localSink.module ||
-      localSink.ref != source.path.last._1.value)
+        localSink.ref != source.path.last._1.value)
   }
 
   def enteringChildInstance(source: ReferenceTarget)(localSink: ReferenceTarget): Boolean = source match {
-    case ReferenceTarget(_, top, path, instance, TargetToken.Field(port) +: comps)
+    case ReferenceTarget(_, _, _, _, TargetToken.Field(port) +: comps)
       if port == localSink.ref && comps == localSink.component => true
     case _ => false
   }
 
   def leavingRootInstance(source: ReferenceTarget)(localSink: ReferenceTarget): Boolean = source match {
-    case ReferenceTarget(_, top, Seq(), port, comps)
+    case ReferenceTarget(_, _, Seq(), port, comps)
       if port == localSink.component.head.value && comps == localSink.component.tail => true
     case _ => false
   }
-
 
 
   private def buildCircuitGraph(circuit: Circuit): ConnectionGraph = {
@@ -492,11 +497,8 @@ object ConnectionGraph {
     val circuitTarget = CircuitTarget(circuit.main)
     val moduleTypes = circuit.modules.map { m => m.name -> firrtl.Utils.module_type(m) }.toMap
     val moduleMap = circuit.modules.map { m => circuitTarget.module(m.name) -> m }.toMap
-    val top = circuitTarget.module(circuit.main)
 
     circuit map buildModule(circuitTarget)
-
-    def emptySet[T]: mutable.LinkedHashSet[T] = mutable.LinkedHashSet.empty[T]
 
     def addLabeledVertex(v: ReferenceTarget, f: FirrtlNode): Unit = {
       mdg.addVertex(v)
@@ -505,19 +507,16 @@ object ConnectionGraph {
 
     def buildModule(c: CircuitTarget)(module: DefModule): DefModule = {
       val m = c.module(module.name)
-      //addLabeledVertex(m, module)
-      module map buildPort(m, module) map buildStatement(m, new TokenTagger())
+      module map buildPort(m) map buildStatement(m, new TokenTagger())
     }
 
-    def buildPort(m: ModuleTarget, module: DefModule)(port: Port): Port = {
+    def buildPort(m: ModuleTarget)(port: Port): Port = {
       val p = m.ref(port.name)
       addLabeledVertex(p, port)
       port
     }
 
     def buildInstance(m: ModuleTarget, tagger: TokenTagger, name: String, ofModule: String, tpe: Type): Unit = {
-
-      val instTarget = m.instOf(name, ofModule)
       val instPorts = Utils.create_exps(WRef(name, tpe, InstanceKind, SinkFlow))
       val modulePorts = tpe.asInstanceOf[BundleType].fields.flatMap {
         // Module output
@@ -541,27 +540,28 @@ object ConnectionGraph {
 
     def buildMemory(mt: ModuleTarget, d: DefMemory): Unit = {
       val readers = d.readers.toSet
-      val writers = d.writers.toSet
       val readwriters = d.readwriters.toSet
       val mem = mt.ref(d.name)
       MemPortUtils.memType(d).fields.foreach {
-        case Field(name, flip, tpe: BundleType) if readers.contains(name) || readwriters.contains(name) =>
+        case Field(name, _, _: BundleType) if readers.contains(name) || readwriters.contains(name) =>
           val port = mem.field(name)
           val sources = Seq(
             port.field("clk"),
             port.field("en"),
             port.field("addr")
-          ) ++ (if(readwriters.contains(name)) Seq(port.field("wmode")) else Nil)
+          ) ++ (if (readwriters.contains(name)) Seq(port.field("wmode")) else Nil)
 
-          val data = if(readers.contains(name)) port.field("data") else port.field("rdata")
+          val data = if (readers.contains(name)) port.field("data") else port.field("rdata")
           val sinks = data.leafSubTargets(d.dataType)
 
-          sources.foreach { mdg.addVertex }
+          sources.foreach {
+            mdg.addVertex
+          }
           sinks.foreach { sink =>
             mdg.addVertex(sink)
             sources.foreach { source => mdg.addEdge(source, sink) }
           }
-        case other =>
+        case _ =>
       }
     }
 
@@ -570,8 +570,6 @@ object ConnectionGraph {
       val clockTarget = regTarget.clock
       val resetTarget = regTarget.reset
       val initTarget = regTarget.init
-      val regKidTargets = Seq(clockTarget, resetTarget, initTarget)
-      val regKids = Seq(d.clock, d.reset, d.init)
 
       // Build clock expression
       mdg.addVertex(clockTarget)
@@ -639,14 +637,14 @@ object ConnectionGraph {
           addLabeledVertex(m.ref(d.name), d)
           buildMemory(m, d)
 
-        case s: Conditionally => sys.error("Unsupported! Only works on Middle Firrtl")
+        /** @todo [[firrtl.Transform.prerequisites]] ++ [[firrtl.passes.ExpandWhensAndCheck]]*/
+        case _: Conditionally => sys.error("Unsupported! Only works on Middle Firrtl")
 
         case s: Block => s map buildStatement(m, tagger)
 
         case a: Attach =>
-          val attachTargets = a.exprs.map{ r =>
+          val attachTargets = a.exprs.map { r =>
             val at = asTarget(m, tagger)(r)
-            //addLabeledVertex(at, r)
             mdg.addVertex(at)
             at
           }
@@ -662,7 +660,7 @@ object ConnectionGraph {
     }
 
     def buildExpression(m: ModuleTarget, tagger: TokenTagger, sinkTarget: ReferenceTarget)(expr: Expression): Expression = {
-      require(expr.tpe.isInstanceOf[GroundType], "Expression must be a Ground Type. Must be on Middle FIRRTL.")
+      /** @todo [[firrtl.Transform.prerequisites]] ++ [[firrtl.stage.Forms.Resolved]]. */
       val sourceTarget = asTarget(m, tagger)(expr)
       mdg.addVertex(sourceTarget)
       mdg.addEdge(sourceTarget, sinkTarget)
@@ -670,7 +668,7 @@ object ConnectionGraph {
         case _: DoPrim | _: Mux | _: ValidIf | _: Literal =>
           addLabeledVertex(sourceTarget, expr)
           expr map buildExpression(m, tagger, sourceTarget)
-        case other =>
+        case _ =>
       }
       expr
     }
