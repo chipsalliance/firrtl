@@ -860,35 +860,22 @@ class VerilogDescriptionEmitterSpec extends FirrtlFlatSpec {
         |   * line6
         |   */
         |  (* parallel_case, mark_debug *)
-        |  `ifndef SYNTHESIS
-        |  real wire d;
-        |  `else
-        |  wire  d = 
-        |  `endif""".stripMargin
+        |  wire  d = """.stripMargin
     )
     // We don't use executeTest because we care about the spacing in the result
     val modName = ModuleName("Test", CircuitName("Test"))
-    def altFunc(alternative: ir.FirrtlNode): String = alternative match {
-      case ir.Port(_, name, dir, _) =>
-        s"real ${dir.serialize} $name"
-      case d: ir.IsDeclaration=>
-        s"real wire ${d.name};"
-      case m: ir.DefModule =>
-        s"module ${m.name}()"
-    }
     val annos = Seq(
       DocStringAnnotation(modName, "line1"),
       DocStringAnnotation(modName, "line2"),
       AttributeAnnotation(modName, "parallel_case"),
       DocStringAnnotation(ComponentName("a", modName), "line3"),
       DocStringAnnotation(ComponentName("a", modName), "line4"),
+      AttributeAnnotation(ComponentName("a", modName), "full_case"),
       DocStringAnnotation(ComponentName("d", modName), "line5"),
       DocStringAnnotation(ComponentName("d", modName), "line6"),
-      AttributeAnnotation(ComponentName("a", modName), "full_case"),
       AttributeAnnotation(ComponentName("d", modName), "parallel_case"),
       AttributeAnnotation(ComponentName("d", modName), "mark_debug")
     )
-    val writer = new java.io.StringWriter
     val finalState = compiler.compileAndEmit(CircuitState(parse(input), ChirrtlForm, annos), Seq.empty)
     val output = finalState.getEmittedCircuit.value
     for (c <- check) {
