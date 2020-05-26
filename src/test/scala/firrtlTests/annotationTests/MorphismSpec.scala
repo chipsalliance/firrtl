@@ -87,7 +87,7 @@ class MorphismSpec extends FlatSpec with Matchers {
 
   trait RightInverseFixture extends CircuitFixture {
 
-    /** An endomorphism */
+    /** An endomorphism i.e. a function mapping from CircuitState to CircuitState */
     val f: Seq[Transform]
 
     /** The right inverse of f */
