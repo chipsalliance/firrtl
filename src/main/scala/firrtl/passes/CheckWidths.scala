@@ -11,6 +11,8 @@ import firrtl.constraint.IsKnown
 import firrtl.annotations.{CircuitTarget, ModuleTarget, Target, TargetToken}
 import firrtl.options.{Dependency, PreservesAll}
 
+import scala.annotation.tailrec
+
 object CheckWidths extends Pass with PreservesAll[Transform] {
 
   override def prerequisites = Dependency[passes.InferWidths] +: firrtl.stage.Forms.WorkingIR
@@ -109,48 +111,47 @@ object CheckWidths extends Pass with PreservesAll[Transform] {
     def check_width_f(info: Info, target: Target)(f: Field): Unit =
       check_width_t(info, target.modify(tokens = target.tokens :+ TargetToken.Field(f.name)))(f.tpe)
 
-    def check_width_e(info: Info, target: Target)(e: Expression): Unit = {
-      var stack = List(e)
-      while (stack.nonEmpty) {
-        val currentExp = stack.head
-        stack = stack.tail
-        currentExp match {
-          case e @ UIntLiteral(v, w: IntWidth) if math.max(1, v.bitLength) > w.width =>
-            errors.append(new WidthTooSmall(info, target.serialize, v))
-          case e @ SIntLiteral(v, w: IntWidth) if v.bitLength + 1 > w.width =>
-            errors.append(new WidthTooSmall(info, target.serialize, v))
-          case e @ DoPrim(op, Seq(a, b), _, tpe) =>
-            // Binary primop
-            stack = a :: b :: stack
-            (op, a.tpe, b.tpe) match {
-              case (Squeeze, IntervalType(Closed(la), Closed(ua), _), IntervalType(Closed(lb), Closed(ub), _)) if (ua < lb) || (ub < la) =>
-                errors.append(new DisjointSqueeze(info, target.serialize, e))
-              case (Dshl, at, bt) if (hasWidth(at) && bitWidth(bt) >= DshlMaxWidth) =>
-                errors.append(new DshlTooBig(info, target.serialize))
-              case _ =>
-            }
-          case e @ DoPrim(op, Seq(a), consts, _) =>
-            stack = a :: stack
-            (op, consts) match {
-              case (Bits, Seq(hi, lo)) if (hasWidth(a.tpe) && bitWidth(a.tpe) <= hi) =>
-                errors.append(new BitsWidthException(info, target.serialize, hi, bitWidth(a.tpe), e.serialize))
-              case (Head, Seq(n)) if (hasWidth(a.tpe) && bitWidth(a.tpe) < n) =>
-                errors.append(new HeadWidthException(info, target.serialize, n, bitWidth(a.tpe)))
-              case (Tail, Seq(n)) if (hasWidth(a.tpe) && bitWidth(a.tpe) < n) =>
-                errors.append(new TailWidthException(info, target.serialize, n, bitWidth(a.tpe)))
-              case (AsClock, _) if (bitWidth(a.tpe) != 1) =>
-                errors.append(new MultiBitAsClock(info, target.serialize))
-              case (AsAsyncReset, _) if (bitWidth(a.tpe) != 1) =>
-                errors.append(new MultiBitAsAsyncReset(info, target.serialize))
-              case _ =>
-            }
-          case WSubField(e, _, _, _) => stack = e :: stack
-          case WSubIndex(e, _, _, _) => stack = e :: stack
-          case WSubAccess(e, _, _, _) => stack = e :: stack
-          case Mux(c, t, f, _) => stack = c :: t :: f :: stack
-          case ValidIf(c, v, _) => stack = c :: v :: stack
+    @tailrec
+    def check_width_e_inner(info: Info, target: Target, e: Expression): Seq[Expression] = e match {
+      case e @ UIntLiteral(v, w: IntWidth) if math.max(1, v.bitLength) > w.width =>
+        errors.append(new WidthTooSmall(info, target.serialize, v))
+        Nil
+      case e @ SIntLiteral(v, w: IntWidth) if v.bitLength + 1 > w.width =>
+        errors.append(new WidthTooSmall(info, target.serialize, v))
+        Nil
+      case e @ DoPrim(op, Seq(a, b), _, tpe) =>
+        (op, a.tpe, b.tpe) match {
+          case (Squeeze, IntervalType(Closed(la), Closed(ua), _), IntervalType(Closed(lb), Closed(ub), _)) if (ua < lb) || (ub < la) =>
+            errors.append(new DisjointSqueeze(info, target.serialize, e))
+          case (Dshl, at, bt) if (hasWidth(at) && bitWidth(bt) >= DshlMaxWidth) =>
+            errors.append(new DshlTooBig(info, target.serialize))
           case _ =>
         }
+        e.args
+      case e @ DoPrim(op, Seq(a), consts, _) =>
+        (op, consts) match {
+          case (Bits, Seq(hi, lo)) if (hasWidth(a.tpe) && bitWidth(a.tpe) <= hi) =>
+            errors.append(new BitsWidthException(info, target.serialize, hi, bitWidth(a.tpe), e.serialize))
+          case (Head, Seq(n)) if (hasWidth(a.tpe) && bitWidth(a.tpe) < n) =>
+            errors.append(new HeadWidthException(info, target.serialize, n, bitWidth(a.tpe)))
+          case (Tail, Seq(n)) if (hasWidth(a.tpe) && bitWidth(a.tpe) < n) =>
+            errors.append(new TailWidthException(info, target.serialize, n, bitWidth(a.tpe)))
+          case (AsClock, _) if (bitWidth(a.tpe) != 1) =>
+            errors.append(new MultiBitAsClock(info, target.serialize))
+          case (AsAsyncReset, _) if (bitWidth(a.tpe) != 1) =>
+            errors.append(new MultiBitAsAsyncReset(info, target.serialize))
+          case _ =>
+        }
+        check_width_e_inner(info, target, a)
+      case Mux(c, t, f, _) => Seq(c, t, f)
+      case ValidIf(c, t, _) => Seq(c, t)
+      case _ => Nil
+    }
+
+    def check_width_e(info: Info, target: Target)(expr: Expression): Unit = {
+      var stack = check_width_e_inner(info, target, expr)
+      while (stack.nonEmpty) {
+        stack = check_width_e_inner(info, target, stack.head) ++: stack.tail
       }
     }
 
