@@ -186,7 +186,7 @@ final class RenameMap private (
   }.mkString("\n")
 
   /** Records which local InstanceTargets will require modification.
-    * Used to reduce time to rename nonlocal targets who's path does not require renaming
+    * Used to reduce time to rename nonlocal targets whose path does not require renaming
     */
   private val sensitivity = mutable.HashSet[IsComponent]()
 

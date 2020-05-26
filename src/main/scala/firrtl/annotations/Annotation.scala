@@ -52,7 +52,7 @@ trait SingleTargetAnnotation[T <: Named] extends Annotation {
   def duplicate(n: T): Annotation
 
   // This mess of @unchecked and try-catch is working around the fact that T is unknown due to type
-  // erasure. We cannot that newTarget is of type T, but a CastClassException will be thrown upon
+  // erasure. We cannot test that newTarget is of type T, but a CastClassException will be thrown upon
   // invoking duplicate if newTarget cannot be cast to T (only possible in the concrete subclass)
   def update(renames: RenameMap): Seq[Annotation] = {
     target match {
@@ -78,22 +78,22 @@ trait SingleTargetAnnotation[T <: Named] extends Annotation {
 }
 
 /** [[MultiTargetAnnotation]] keeps the renamed targets grouped within a single annotation. */
-trait MultiTargetAnnotation extends Annotation {
+trait MultiTargetAnnotation[T <: Target] extends Annotation {
   /** Contains a sequence of [[Target]].
     * When created, [[targets]] should be assigned by `Seq(Seq(TargetA), Seq(TargetB), Seq(TargetC))`
     * */
-  val targets: Seq[Seq[Target]]
+  val targets: Seq[Seq[T]]
 
   /** Create another instance of this Annotation*/
-  def duplicate(n: Seq[Seq[Target]]): Annotation
+  def duplicate(n: Seq[Seq[T]]): Annotation
 
   /** Assume [[RenameMap]] is `Map(TargetA -> Seq(TargetA1, TargetA2, TargetA3), TargetB -> Seq(TargetB1, TargetB2))`
     * in the update, this Annotation is still one annotation, but the contents are renamed in the below form
     * Seq(Seq(TargetA1, TargetA2, TargetA3), Seq(TargetB1, TargetB2), Seq(TargetC))
     **/
-  def update(renames: RenameMap): Seq[Annotation] = Seq(duplicate(targets.map(ts => ts.flatMap(renames(_)))))
+  def update(renames: RenameMap): Seq[Annotation] = Seq(duplicate(targets.map(_.flatMap(renames(_).map(_.asInstanceOf[T])))))
 
-  private def crossJoin[T](list: Seq[Seq[T]]): Seq[Seq[T]] =
+  private def crossJoin[U](list: Seq[Seq[U]]): Seq[Seq[U]] =
     list match {
       case Nil => Nil
       case x :: Nil => x map (Seq(_))

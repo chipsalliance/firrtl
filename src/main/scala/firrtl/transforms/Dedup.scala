@@ -226,7 +226,7 @@ object DedupModules {
     * Will fixes up module if deduped instance's ports are differently named
     *
     * @param top CircuitTarget of circuit
-    * @param originalModule Module name who's instances will be deduped
+    * @param originalModule Module name whose instances will be deduped
     * @param moduleMap Map of module name to its original module
     * @param name2name Map of module name to the module deduping it. Not mutated in this function.
     * @param renameMap Will be modified to keep track of renames in this function
