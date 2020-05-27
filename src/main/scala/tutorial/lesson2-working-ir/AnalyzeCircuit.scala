@@ -4,9 +4,9 @@ package tutorial
 package lesson2
 
 // Compiler Infrastructure
-import firrtl.{Transform, LowForm, CircuitState, Utils}
+import firrtl.{Transform, LowForm, CircuitState}
 // Firrtl IR classes
-import firrtl.ir.{DefModule, Statement, DefInstance, Expression, Mux}
+import firrtl.ir.{DefModule, Statement, Expression, Mux}
 // Firrtl compiler's working IR classes (WIR)
 import firrtl.WDefInstance
 // Map functions
@@ -127,10 +127,6 @@ class AnalyzeCircuit extends Transform {
     // Map the functions walkStatement(ledger) and walkExpression(ledger)
     val visited = s map walkStatement(ledger) map walkExpression(ledger)
     visited match {
-      // IR node [[DefInstance]] is previously replaced by WDefInstance, a
-      //  "working" IR node
-      case DefInstance(info, name, module) =>
-        Utils.error("All DefInstances should have been replaced by WDefInstances")
       // Working IR Node [[WDefInstance]] is what the compiler uses
       // See src/main/scala/firrtl/WIR.scala for all working IR nodes
       case WDefInstance(info, name, module, tpe) =>

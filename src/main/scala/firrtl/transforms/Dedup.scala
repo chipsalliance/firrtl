@@ -302,7 +302,9 @@ object DedupModules extends LazyLogging {
       case WDefInstance(i, n, m, t) =>
         val newmod = renameOfModule(n, m)
         WDefInstance(reinfo(i), rename(n), newmod, retype(n)(t))
-      case DefInstance(i, n, m) => DefInstance(reinfo(i), rename(n), renameOfModule(n, m))
+      case DefInstance(i, n, m, t) =>
+        val newmod = renameOfModule(n, m)
+        WDefInstance(reinfo(i), rename(n), newmod, retype(n)(t))
       case d: DefMemory =>
         val oldType = MemPortUtils.memType(d)
         val newType = retype(d.name)(oldType)
