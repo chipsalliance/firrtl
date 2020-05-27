@@ -67,7 +67,7 @@ object EliminateTargetPaths {
     }
     def onStmt(s: Statement): Statement = s map onStmt match {
       case w@WDefInstance(info, name, module, tpe) if toRename.contains(module) => w.copy(module = toRename(module))
-      case w@DefInstance(info, name, module) if toRename.contains(module) => w.copy(module = toRename(module))
+      case w@DefInstance(info, name, module, _) if toRename.contains(module) => w.copy(module = toRename(module))
       case other => other
     }
     cx map onMod
