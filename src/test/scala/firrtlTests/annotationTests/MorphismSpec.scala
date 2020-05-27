@@ -303,6 +303,7 @@ class MorphismSpec extends FlatSpec with Matchers {
 
   behavior of "EliminateTargetPaths"
 
+  // NOTE: equivalience is defined structurally in this case
   trait RightInverseEliminateTargetsFixture extends RightInverseFixture with DefaultExample {
     override val f: Seq[Transform] = Seq(new firrtl.transforms.DedupModules)
     override val g: Seq[Transform] = Seq(new firrtl.annotations.transforms.EliminateTargetPaths)
