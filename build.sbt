@@ -99,7 +99,10 @@ lazy val antlrSettings = Seq(
 import com.typesafe.tools.mima.core._
 lazy val mimaSettings = Seq(
   mimaPreviousArtifacts := Set("edu.berkeley.cs" %% "firrtl" % "1.3.0"),
-  mimaBinaryIssueFilters ++= Seq()
+  mimaBinaryIssueFilters ++= Seq(
+    // Removed packaged private method (https://github.com/lightbend/mima/issues/53)
+    ProblemFilters.exclude[DirectMissingMethodProblem]("firrtl.stage.transforms.UpdateAnnotations.propagateAnnotations")
+  )
 )
 
 lazy val publishSettings = Seq(
