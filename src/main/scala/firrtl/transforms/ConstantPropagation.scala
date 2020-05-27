@@ -231,7 +231,7 @@ class ConstantPropagation extends Transform with DependencyAPIMigration with Res
          Dependency[VerilogEmitter] )
 
   override def invalidates(a: Transform): Boolean = a match {
-    case firrtl.passes.Legalize => true
+    case firrtl.passes.Legalize | firrtl.passes.RemoveEmpty => true
     case _ => false
   }
 
