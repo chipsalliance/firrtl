@@ -1656,9 +1656,10 @@ class ConstantPropagationMidForm extends ConstantPropagationSpec {
     bundle.value <= and(io.x, io.y)
     node _T_1 = bundle
     node n = bundle.value
-    io.z <= and(n, io.x)
+    io.z <= and(bundle.value, io.x)
 """
-      (parse(exec(input))) should be (parse(check))
+      val output = parse(exec(input))
+      (output) should be (parse(check))
    }
 
    // =============================

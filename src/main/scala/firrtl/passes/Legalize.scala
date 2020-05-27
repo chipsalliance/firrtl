@@ -12,7 +12,7 @@ import firrtl.Mappers._
 // TODO replace UInt with zero-width wire instead
 object Legalize extends Pass with PreservesAll[Transform] {
 
-  override def prerequisites = firrtl.stage.Forms.MidForm :+ Dependency(LowerTypes)
+  override def prerequisites = firrtl.stage.Forms.MidForm
 
   override def optionalPrerequisites = Seq.empty
 

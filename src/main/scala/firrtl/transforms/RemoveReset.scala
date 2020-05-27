@@ -8,6 +8,7 @@ import firrtl.Mappers._
 import firrtl.traversals.Foreachers._
 import firrtl.WrappedExpression.we
 import firrtl.options.Dependency
+import firrtl.Utils.{create_exps, toTokens, kind}
 
 import scala.collection.{immutable, mutable}
 
@@ -18,8 +19,7 @@ import scala.collection.{immutable, mutable}
 object RemoveReset extends Transform with DependencyAPIMigration {
 
   override def prerequisites = firrtl.stage.Forms.MidForm ++
-    Seq( Dependency(passes.LowerTypes),
-         Dependency(passes.Legalize) )
+    Seq( Dependency(passes.Legalize) )
 
   override def optionalPrerequisites = Seq.empty
 
@@ -49,21 +49,20 @@ object RemoveReset extends Transform with DependencyAPIMigration {
   }
 
   private def onModule(m: DefModule): DefModule = {
-    val resets = mutable.HashMap.empty[String, Reset]
+    val resets = mutable.HashMap.empty[WrappedExpression, Reset]
     val invalids = computeInvalids(m)
     def onStmt(stmt: Statement): Statement = {
       stmt match {
-        /* A register is initialized to an invalid expression */
-        case reg @ DefRegister(_, _, _, _, _, init) if invalids.contains(we(init)) =>
-          reg.copy(reset = Utils.zero, init = WRef(reg))
         case reg @ DefRegister(_, rname, _, _, Utils.zero, _) =>
           reg.copy(init = WRef(reg)) // canonicalize
         case reg @ DefRegister(_, rname, _, _, reset, init) if reset.tpe != AsyncResetType =>
-          // Add register reset to map
-          resets(rname) = Reset(reset, init)
+          create_exps(WRef(reg)).zip(create_exps(init)).collect {
+            case (ref, init) if !invalids(we(init)) =>
+              resets(we(ref)) = Reset(reset, init)
+          }
           reg.copy(reset = Utils.zero, init = WRef(reg))
-        case Connect(info, ref @ WRef(rname, _, RegKind, _), expr) if resets.contains(rname) =>
-          val reset = resets(rname)
+        case Connect(info, ref, expr) if resets.contains(we(ref)) && kind(ref) == RegKind =>
+          val reset = resets(we(ref))
           val muxType = Utils.mux_type_and_widths(reset.value, expr)
           Connect(info, ref, Mux(reset.cond, reset.value, expr, muxType))
         case other => other map onStmt

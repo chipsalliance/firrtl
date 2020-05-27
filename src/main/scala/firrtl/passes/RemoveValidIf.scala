@@ -29,7 +29,7 @@ object RemoveValidIf extends Pass {
     case other => throwInternalError(s"Unexpected type $other")
   }
 
-  override def prerequisites = firrtl.stage.Forms.LowForm
+  override def prerequisites = firrtl.stage.Forms.MidForm
 
   override def optionalPrerequisiteOf =
     Seq( Dependency[SystemVerilogEmitter],
