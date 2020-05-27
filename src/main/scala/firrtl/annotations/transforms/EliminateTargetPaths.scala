@@ -9,7 +9,7 @@ import firrtl.annotations.TargetToken.{Instance, OfModule, fromDefModuleToTarget
 import firrtl.annotations.analysis.DuplicationHelper
 import firrtl.annotations._
 import firrtl.ir._
-import firrtl.{AnnotationSeq, CircuitState, DependencyAPIMigration, FirrtlInternalException, RenameMap, Transform, WDefInstance}
+import firrtl.{AnnotationSeq, CircuitState, DependencyAPIMigration, FirrtlInternalException, RenameMap, Transform}
 import firrtl.options.PreservesAll
 import firrtl.stage.Forms
 import firrtl.transforms.DedupedResult
@@ -66,7 +66,6 @@ object EliminateTargetPaths {
       }
     }
     def onStmt(s: Statement): Statement = s map onStmt match {
-      case w@WDefInstance(info, name, module, tpe) if toRename.contains(module) => w.copy(module = toRename(module))
       case w@DefInstance(info, name, module, _) if toRename.contains(module) => w.copy(module = toRename(module))
       case other => other
     }
@@ -121,9 +120,6 @@ class EliminateTargetPaths extends Transform with DependencyAPIMigration with Pr
                     (originalModule: String, newModule: String)
                     (s: Statement): Statement = s match {
     case d@DefInstance(_, name, module, _) =>
-      val ofModule = dupMap.getNewOfModule(originalModule, newModule, Instance(name), OfModule(module)).value
-      d.copy(module = ofModule)
-    case d@WDefInstance(_, name, module, _) =>
       val ofModule = dupMap.getNewOfModule(originalModule, newModule, Instance(name), OfModule(module)).value
       d.copy(module = ofModule)
     case other => other map onStmt(dupMap)(originalModule, newModule)
