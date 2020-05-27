@@ -9,20 +9,20 @@ import firrtl.testutils.FirrtlFlatSpec
 import firrtlTests.execution._
 
 class MemInitSpec extends FirrtlFlatSpec {
-  def input: String =
-    """
+  def input(tpe: String): String =
+    s"""
       |circuit MemTest:
       |  module MemTest:
       |    input clock : Clock
       |    input rAddr : UInt<5>
       |    input rEnable : UInt<1>
       |    input wAddr : UInt<5>
-      |    input wData : UInt<32>
+      |    input wData : $tpe
       |    input wEnable : UInt<1>
-      |    output rData : UInt<32>
+      |    output rData : $tpe
       |
       |    mem m:
-      |      data-type => UInt<32>
+      |      data-type => $tpe
       |      depth => 32
       |      reader => r
       |      writer => w
@@ -39,13 +39,13 @@ class MemInitSpec extends FirrtlFlatSpec {
       |    m.w.addr <= wAddr
       |    m.w.en <= wEnable
       |    m.w.data <= wData
-      |    m.w.mask <= UInt<1>(1)
+      |    m.w.mask is invalid
       |
       |""".stripMargin
 
   val mRef = CircuitTarget("MemTest").module("MemTest").ref("m")
-  def compile(annos: AnnotationSeq): CircuitState = {
-    (new VerilogCompiler).compileAndEmit(CircuitState(parse(input), ChirrtlForm, annos))
+  def compile(annos: AnnotationSeq, tpe: String = "UInt<32>"): CircuitState = {
+    (new VerilogCompiler).compileAndEmit(CircuitState(parse(input(tpe)), ChirrtlForm, annos))
   }
 
   "NoAnnotation" should "create a randomized initialization" in {
@@ -122,6 +122,22 @@ class MemInitSpec extends FirrtlFlatSpec {
       val values = Seq.tabulate(33)(_ => BigInt(1))
       compile(Seq(MemoryInitAnnotation(mRef, MemoryArrayInit(values))))
     }
+  }
+
+  "InitMemoryAnnotation on Memory with Vector type" should "fail" in {
+    val caught = intercept[Exception] {
+      val annos = Seq(MemoryInitAnnotation(mRef, MemoryScalarInit(0)))
+      compile(annos, "UInt<32>[2]")
+    }
+    assert(caught.getMessage.endsWith("[module MemTest] Cannot initialize memory of non ground type UInt<32>[2]"))
+  }
+
+  "InitMemoryAnnotation on Memory with Bundle type" should "fail" in {
+    val caught = intercept[Exception] {
+      val annos = Seq(MemoryInitAnnotation(mRef, MemoryScalarInit(0)))
+      compile(annos, "{real: SInt<10>, imag: SInt<10>}")
+    }
+    assert(caught.getMessage.endsWith("[module MemTest] Cannot initialize memory of non ground type { real : SInt<10>, imag : SInt<10>}"))
   }
 }
 

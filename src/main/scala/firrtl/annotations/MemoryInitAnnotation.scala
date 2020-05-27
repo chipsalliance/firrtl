@@ -2,7 +2,7 @@
 
 package firrtl.annotations
 
-import firrtl.{MemoryEmissionOption, MemoryInitValue}
+import firrtl.{MemoryEmissionOption, MemoryInitValue, MemoryRandomInit}
 
 /**
  * Represents the initial value of the annotated memory.
@@ -13,4 +13,5 @@ case class MemoryInitAnnotation(target: ReferenceTarget, value: MemoryInitValue)
   SingleTargetAnnotation[ReferenceTarget] with MemoryEmissionOption {
   override def duplicate(n: ReferenceTarget): Annotation = copy(n)
   override def initValue: MemoryInitValue = value
+  def isRandomInit: Boolean = value.isInstanceOf[MemoryRandomInit]
 }
