@@ -608,6 +608,12 @@ object Utils extends LazyLogging {
     case WInvalid => SourceFlow
     case ex => throwInternalError(s"flow: shouldn't be here - $e")
   }
+  def getRef(e: Expression): WRef = e match {
+    case ex: WRef => ex
+    case ex: WSubField => getRef(ex.expr)
+    case ex: WSubIndex => getRef(ex.expr)
+    case ex: WSubAccess => getRef(ex.expr)
+  }
   def get_flow(s: Statement): Flow = s match {
     case sx: DefWire => DuplexFlow
     case sx: DefRegister => DuplexFlow

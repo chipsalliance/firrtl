@@ -1684,7 +1684,7 @@ class ConstantPropagationMidForm extends ConstantPropagationSpec {
     n <= and(io.x, io.y)
 """
       val output = parse(exec(input))
-      (output.serialize) should be (parse(check).serialize)
+      (output) should be (parse(check))
    }
 
    // =============================
@@ -1718,6 +1718,7 @@ class ConstantPropagationMidForm extends ConstantPropagationSpec {
     skip
 """
       val output = parse(exec(input))
+      println(output.serialize)
       (output) should be (parse(check))
    }
 
@@ -1764,6 +1765,7 @@ class ConstantPropagationMidForm extends ConstantPropagationSpec {
     in[4] <= n_b_1_d
 """
       val output = parse(exec(input))
+      println(output.serialize)
       (output) should be (parse(check))
    }
 
@@ -1820,6 +1822,7 @@ class ConstantPropagationMidForm extends ConstantPropagationSpec {
     out[2] <= r_b.d
 """
       val output = parse(exec(input))
+      println(output.serialize)
       (output) should be (parse(check))
    }
 }

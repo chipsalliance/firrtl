@@ -130,7 +130,7 @@ object TokenTrie {
 }
 
 object ConstantPropagation {
-  type Tokens = Seq[TargetToken]
+  type Tokens = String
   type NodeMap = mutable.HashMap[Tokens, Expression]
 
   private def litOfType(value: BigInt, t: Type): Literal = t match {
@@ -590,14 +590,9 @@ class ConstantPropagation extends Transform with DependencyAPIMigration with Res
     val propagated = old match {
       case p: DoPrim => constPropPrim(p)
       case m: Mux => constPropMux(m)
-      case ref @ WRef(rname, _,_, SourceFlow) if nodeMap.contains(Seq(Ref(rname))) =>
-        constPropNodeRef(ref, nodeMap.get(Seq(Ref(rname))).get)
-      case ref @ WSubField(WRef(inst, _, InstanceKind, _), pname, _, SourceFlow) =>
-        val module = instMap(inst.Instance)
-        // Check constSubOutputs to see if the submodule is driving a constant
-        constSubOutputs.get(module).flatMap(_.get(Seq(Ref(pname)))).getOrElse(ref)
       case expr@ (_: WRef | _: WSubIndex | _: WSubField) =>
-        val (ref, tokens) = toTokens(expr)
+        val tokens = expr.serialize
+        val ref = getRef(expr)
         (flow(expr), ref.kind) match {
           case (SourceFlow, _) if nodeMap.contains(tokens) =>
             constPropNodeRef(expr, nodeMap(tokens))
@@ -638,7 +633,8 @@ class ConstantPropagation extends Transform with DependencyAPIMigration with Res
       dontTouches: Set[Tokens],
       instMap: collection.Map[Instance, OfModule],
       constInputs: Map[Tokens, Literal],
-      constSubOutputs: Map[OfModule, Map[Tokens, Literal]]
+      constSubOutputs: Map[OfModule, Map[Tokens, Literal]],
+      iter: Int = 0
     ): (Module, Map[Tokens, Literal], Map[OfModule, Map[Tokens, Seq[Literal]]]) = {
 
     var nPropagated = 0L
@@ -647,14 +643,7 @@ class ConstantPropagation extends Transform with DependencyAPIMigration with Res
     // For cases where we are trying to constprop a bad name over a good one, we swap their names
     // during the second pass
     val swapMap = mutable.LinkedHashMap.empty[Tokens, DefNode]
-    lazy val swapMapByDecl: mutable.LinkedHashMap[TargetToken, mutable.LinkedHashMap[Tokens, DefNode]] = {
-      val result = mutable.LinkedHashMap.empty[TargetToken, mutable.LinkedHashMap[Tokens, DefNode]]
-      swapMap.foreach { case (tokens, node) =>
-        val inner = result.getOrElseUpdate(tokens.head, mutable.LinkedHashMap.empty[Tokens, DefNode])
-        inner(tokens.tail) = node
-      }
-      result
-    }
+    val swapMapByDecl = mutable.HashMap.empty[String, mutable.LinkedHashMap[Tokens, DefNode]]
 
     // const propped nodes with better names, which have thier nodes replaced with decls next to the bad name declaration
     val replaced = mutable.Set.empty[String]
@@ -687,7 +676,8 @@ class ConstantPropagation extends Transform with DependencyAPIMigration with Res
 
       val propagated = expr match {
         case _: WRef | _: WSubIndex | _: WSubField =>
-          val (ref, tokens) = toTokens(expr)
+          val tokens = expr.serialize
+          val ref = getRef(expr)
           // When swapping, we swap both rhs and lhs
           swapMap.get(tokens) match {
             case Some(node) =>
@@ -695,15 +685,13 @@ class ConstantPropagation extends Transform with DependencyAPIMigration with Res
               WRef(node.name, node.value.tpe, ref.kind, UnknownFlow)
             case None if flow(expr) == SourceFlow =>
               nodeMap.get(tokens) match {
-                case None => expr
                 case Some(lit) =>
                   val r = constPropNodeRef(expr, lit)
-                  if (r ne ref) {
-                    nPropagated += 1
-                  }
+                  if (r ne ref) { nPropagated += 1 }
                   r
+                case None => expr map backPropExpr
               }
-            case None => expr
+            case None => expr map backPropExpr
           }
         case x => x map backPropExpr
       }
@@ -713,7 +701,7 @@ class ConstantPropagation extends Transform with DependencyAPIMigration with Res
     def backPropStmt(stmt: Statement): Statement = stmt match {
       case reg: DefRegister if (WrappedExpression.weq(reg.init, WRef(reg))) =>
         // Self-init reset is an idiom for "no reset," and must be handled separately
-        swapMapByDecl.get(Ref(reg.name)).map { inner =>
+        swapMapByDecl.get(reg.name).map { inner =>
           val regs = mutable.ArrayBuffer.empty[DefRegister]
           regs += reg
           inner.foreach { case (_, node) =>
@@ -730,15 +718,16 @@ class ConstantPropagation extends Transform with DependencyAPIMigration with Res
         }.getOrElse(reg)
       case n: DefNode if replaced(n.name) => EmptyStmt
       case s => s map backPropExpr match {
-        case decl: IsDeclaration if swapMapByDecl.contains(Ref(decl.name)) =>
+        case decl: IsDeclaration if swapMapByDecl.contains(decl.name) =>
           nPropagated += 1
-          val inner = swapMapByDecl(Ref(decl.name))
+          val inner = swapMapByDecl(decl.name)
           val stmts = mutable.ArrayBuffer.empty[Statement]
           stmts += decl
           decl match {
             case node: DefNode =>
               inner.foreach { case (tokens, betterNameNode) =>
-                stmts += ResolveFlows.resolve_s(betterNameNode.copy(value = applyTokens(tokens, node.value)))
+                val value = mergeRef(node.value, splitRef(betterNameNode.value)._2)
+                stmts += ResolveFlows.resolve_s(betterNameNode.copy(value = value))
               }
             case wire: DefWire =>
               inner.foreach { case (_, node) =>
@@ -756,7 +745,7 @@ class ConstantPropagation extends Transform with DependencyAPIMigration with Res
                   node.value.tpe,
                   reg.clock,
                   reg.reset,
-                  applyTokens(tokens, reg.init)
+                  mergeRef(reg.init, splitRef(node.value)._2)
                 ))
               }
             case other => throwInternalError()
@@ -771,17 +760,19 @@ class ConstantPropagation extends Transform with DependencyAPIMigration with Res
       val lname = node.name
       node.value match {
         case _: WRef | _: WSubField | _: WSubIndex =>
-          val (ref, tokens) = toTokens(node.value)
+          val tokens = node.value.serialize
+          val ref = getRef(node.value)
           if (betterName(lname, ref.name)
             && !swapMap.contains(tokens)
             && ref.kind != PortKind) {
             // node declaration or the single connection to a wire or register
             swapMap(tokens) = node
+            swapMapByDecl.getOrElseUpdate(ref.name, mutable.LinkedHashMap.empty[Tokens, DefNode])(tokens) = node
             replaced += lname
           }
         case _ =>
       }
-      nodeMap(Seq(Ref(lname))) = node.value
+      nodeMap(lname) = node.value
     }
 
     def constPropStmt(s: Statement): Statement = {
@@ -789,11 +780,12 @@ class ConstantPropagation extends Transform with DependencyAPIMigration with Res
       // Record things that should be propagated
       stmtx match {
         // TODO: allow other sub-components to be propagated if dontTouch only affects a sub-component of the node
-        case x: DefNode if !dontTouches.contains(Seq(Ref(x.name))) => propagateRef(x)
+        case x: DefNode if !dontTouches.contains(x.name) => propagateRef(x)
         case reg: DefRegister if reg.reset.tpe == AsyncResetType =>
           asyncResetRegs(reg.name) = reg
         case c@ Connect(_, _: WRef| _: WSubField | _: WSubIndex, _) =>
-          val (ref, tokens) = toTokens(c.loc)
+          val tokens = c.loc.serialize
+          val ref = getRef(c.loc)
           val dontTouched = dontTouches.contains(tokens)
           (ref.kind, c.expr) match {
             case (WireKind, lit: Literal) if !dontTouched =>
@@ -806,8 +798,9 @@ class ConstantPropagation extends Transform with DependencyAPIMigration with Res
               val paddedLit = constPropExpression(nodeMap, instMap, constSubOutputs)(pad(lit, c.loc.tpe)).asInstanceOf[Literal]
               val module = instMap(ref.name.Instance)
               val portsMap = constSubInputs.getOrElseUpdate(module, mutable.HashMap.empty)
-              val portTokens = tokens.tail match {
-                case TargetToken.Field(subRef) +: rest => Ref(subRef) +: rest
+              val portTokens = {
+                val (_, portExpr) = splitRef(c.loc)
+                portExpr.serialize
               }
               portsMap(portTokens) = paddedLit +: portsMap.getOrElse(portTokens, List.empty)
             // Const prop registers that are driven by a mux tree containing only instances of one constant or self-assigns
@@ -842,7 +835,8 @@ class ConstantPropagation extends Transform with DependencyAPIMigration with Res
               def regConstantImp(e: Expression, baseCase: RegCPEntry): RegCPEntry = e match {
                 case lit: Literal => baseCase.resolve(RegCPEntry(UnboundConstant, BoundConstant(lit)))
                 case _: WRef | _: WSubField | _: WSubIndex =>
-                  val (ref, tokens) = toTokens(e)
+                  val ref = getRef(e)
+                  val tokens = e.serialize
                   ref.kind match {
                     case RegKind =>
                       baseCase.resolve(RegCPEntry(BoundConstant(tokens), UnboundConstant))
@@ -893,8 +887,8 @@ class ConstantPropagation extends Transform with DependencyAPIMigration with Res
       // Actually transform some statements
       stmtx match {
         // Propagate connections to references
-        case Connect(info, lhs, rref @ WRef(rname, _, NodeKind, _)) if !dontTouches.contains(Seq(Ref(rname))) =>
-          Connect(info, lhs, nodeMap.get(Seq(Ref(rname))).get)
+        case Connect(info, lhs, rref @ WRef(rname, _, NodeKind, _)) if !dontTouches.contains(rname) =>
+          Connect(info, lhs, nodeMap.get(rname).get)
         // If an Attach has at least 1 port, any wires are redundant and can be removed
         case Attach(info, exprs) if exprs.exists(kind(_) == PortKind) =>
           Attach(info, exprs.filterNot(kind(_) == WireKind))
@@ -915,8 +909,11 @@ class ConstantPropagation extends Transform with DependencyAPIMigration with Res
 
     // When we call this function again, constOutputs and constSubInputs are reconstructed and
     // strictly a superset of the versions here
-    if (nPropagated > 0) constPropModule(modx, dontTouches, instMap, constInputs, constSubOutputs)
-    else (modx, constOutputs.toMap, constSubInputs.mapValues(_.toMap).toMap)
+    if (nPropagated > 0) constPropModule(modx, dontTouches, instMap, constInputs, constSubOutputs, iter + 1)
+    else {
+      logger.warn(iter.toString)
+      (modx, constOutputs.toMap, constSubInputs.mapValues(_.toMap).toMap)
+    }
   }
 
   // Unify two maps using f to combine values of duplicate keys
@@ -1003,7 +1000,11 @@ class ConstantPropagation extends Transform with DependencyAPIMigration with Res
       case o => Nil
     }
     val dontTouches: Seq[(OfModule, Tokens)] = dontTouchRTs.map {
-      case Target(_, Some(m), tokens) => m.OfModule -> tokens
+      case Target(_, Some(m), tokens) => m.OfModule -> tokens.map {
+        case Ref(ref) => ref
+        case TargetToken.Field(field) => s".$field"
+        case Index(index) => s"[$index]"
+      }.mkString
     }
     // Map from module name to component names
     val dontTouchMap: Map[OfModule, Set[Tokens]] =
