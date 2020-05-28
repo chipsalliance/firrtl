@@ -598,8 +598,9 @@ class ConstantPropagation extends Transform with DependencyAPIMigration with Res
             constPropNodeRef(expr, nodeMap(tokens))
           case (SourceFlow, InstanceKind) =>
             val module = instMap(ref.name.Instance)
+            val (_, portExpr) = splitRef(expr)
             // Check constSubOutputs to see if the submodule is driving a constant
-            constSubOutputs.get(module).flatMap(_.get(tokens)).getOrElse(expr)
+            constSubOutputs.get(module).flatMap(_.get(portExpr.serialize)).getOrElse(expr)
           case _ => expr
         }
       case x => x
@@ -673,7 +674,7 @@ class ConstantPropagation extends Transform with DependencyAPIMigration with Res
     // to constant wires, we don't need to worry about propagating primops or muxes since we'll do
     // that on the next iteration if necessary
     def backPropExpr(expr: Expression): Expression = {
-
+      val old = expr map backPropExpr
       val propagated = expr match {
         case _: WRef | _: WSubIndex | _: WSubField =>
           val tokens = expr.serialize
@@ -681,19 +682,18 @@ class ConstantPropagation extends Transform with DependencyAPIMigration with Res
           // When swapping, we swap both rhs and lhs
           swapMap.get(tokens) match {
             case Some(node) =>
-              nPropagated += 1
               WRef(node.name, node.value.tpe, ref.kind, UnknownFlow)
             case None if flow(expr) == SourceFlow =>
               nodeMap.get(tokens) match {
-                case Some(lit) =>
-                  val r = constPropNodeRef(expr, lit)
-                  if (r ne ref) { nPropagated += 1 }
-                  r
-                case None => expr map backPropExpr
+                case Some(lit) => constPropNodeRef(expr, lit)
+                case None => old
               }
-            case None => expr map backPropExpr
+            case None => old
           }
-        case x => x map backPropExpr
+        case x => old
+      }
+      if (old ne propagated) {
+        nPropagated += 1
       }
       propagated
     }
@@ -909,9 +909,22 @@ class ConstantPropagation extends Transform with DependencyAPIMigration with Res
 
     // When we call this function again, constOutputs and constSubInputs are reconstructed and
     // strictly a superset of the versions here
-    if (nPropagated > 0) constPropModule(modx, dontTouches, instMap, constInputs, constSubOutputs, iter + 1)
-    else {
-      logger.warn(iter.toString)
+    if (nPropagated > 0) {
+      //println(nPropagated)
+      constPropModule(modx, dontTouches, instMap, constInputs, constSubOutputs, iter + 1)
+    } else {
+      //logger.warn(s"${m.name}: ${iter.toString}")
+  /*
+[info] RVCExpander: 0
+[info] MulDiv: 1
+[info] ALU: 0
+[info] BreakpointUnit: 0
+[info] CSRFile: 1
+[info] IBuf: 1
+[info] RocketCore: 3
+[info] BreakpointUnit: 0
+[info] RocketCore: 0
+   */
       (modx, constOutputs.toMap, constSubInputs.mapValues(_.toMap).toMap)
     }
   }
