@@ -7,7 +7,7 @@ import firrtl.ir._
 import firrtl.PrimOps._
 import firrtl.Utils._
 import firrtl.traversals.Foreachers._
-import firrtl.options.{Dependency, PreservesAll}
+import firrtl.options.{Dependency, IdentityLike, PreservesAll}
 
 trait CheckHighFormLike { this: Pass =>
   type NameSet = collection.mutable.HashSet[String]
@@ -280,7 +280,7 @@ trait CheckHighFormLike { this: Pass =>
   }
 }
 
-object CheckHighForm extends Pass with CheckHighFormLike with PreservesAll[Transform] {
+object CheckHighForm extends Pass with CheckHighFormLike with PreservesAll[Transform] with IdentityLike[CircuitState] {
 
   override def prerequisites = firrtl.stage.Forms.WorkingIR
 

@@ -8,7 +8,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.util.{Failure, Success}
 
 class Speculative[A](
-  identity: TransformLike[A] with IdentityLike[A],
+  identity: TransformLike[A],
   speculative: Seq[TransformLike[A]]) extends TransformLike[A] {
 
   override val name = s"speculating past ${identity.name}"
