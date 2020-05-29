@@ -256,6 +256,10 @@ trait DependencyManager[A, B <: TransformLike[A] with DependencyAPI[B]] extends 
 
     txs.foldRight(Seq.empty[TransformLike[A]]){
       case (a, acc) => a match {
+        case aa: firrtl.stage.transforms.WrappedTransform => aa.trueUnderlying match {
+          case _: IdentityLike[A] => Seq(new Speculative(aa, acc))
+          case _ => aa +: acc
+        }
         case aa: IdentityLike[A] => Seq(new Speculative(aa, acc))
         case aa => aa +: acc
       }
