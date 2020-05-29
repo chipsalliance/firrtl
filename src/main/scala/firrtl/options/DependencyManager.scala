@@ -247,20 +247,19 @@ trait DependencyManager[A, B <: TransformLike[A] with DependencyAPI[B]] extends 
      * applied while tracking the state of the underlying A. If the state ever disagrees with a prerequisite, then this
      * throws an exception.
      */
-    flattenedTransformOrder
+    val txs = flattenedTransformOrder
       .map{ t =>
         val w = wrappers.foldLeft(t){ case (tx, wrapper) => wrapper(tx) }
         wrapperToClass += (w -> t)
         w
-      }.foldLeft((annotations, _currentState)){ case ((a, state), t) =>
-          if (!t.prerequisites.toSet.subsetOf(state)) {
-            throw new DependencyManagerException(
-              s"""|Tried to execute '$t' for which run-time prerequisites were not satisfied:
-                  |  state: ${state.mkString("\n    -", "\n    -", "")}
-                  |  prerequisites: ${prerequisites.mkString("\n    -", "\n    -", "")}""".stripMargin)
-          }
-          (t.transform(a), ((state + wrapperToClass(t)).map(dToO).filterNot(t.invalidates).map(oToD)))
-      }._1
+      }
+
+    txs.foldRight(Seq.empty[TransformLike[A]]){
+      case (a, acc) => a match {
+        case aa: IdentityLike[A] => Seq(new Speculative(aa, acc))
+        case aa => aa +: acc
+      }
+    }.foldLeft(annotations){ case (a, t) => t.transform(a) }
   }
 
   /** This colormap uses Colorbrewer's 4-class OrRd color scheme */
