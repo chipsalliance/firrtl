@@ -107,6 +107,7 @@ stmt
   | 'printf(' exp exp StringLit ( exp)* ')' info?
   | 'skip' info?
   | 'attach' '(' exp+ ')' info?
+  | 'check' '(' exp ')' info?
   ;
 
 memField

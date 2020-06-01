@@ -788,6 +788,12 @@ class VerilogEmitter extends SeqTransform with Emitter {
       Seq("$fwrite(32'h80000002,", strx, ");")
     }
 
+    // formal
+    def check(expr: Expression): Seq[Any] = {
+      Seq("check(", expr, ");")
+    }
+    // end formal
+
     // turn strings into Seq[String] verilog comments
     def build_comment(desc: String): Seq[Seq[String]] = {
       val lines = desc.split("\n").toSeq
@@ -879,6 +885,10 @@ class VerilogEmitter extends SeqTransform with Emitter {
           simulate(sx.clk, sx.en, stop(sx.ret), Some("STOP_COND"), sx.info)
         case sx: Print =>
           simulate(sx.clk, sx.en, printf(sx.string, sx.args), Some("PRINTF_COND"), sx.info)
+        // formal
+        case sx: Check =>
+          check(sx.arg)
+        // end formal
         // If we are emitting an Attach, it must not have been removable in VerilogPrep
         case sx: Attach =>
           // For Synthesis

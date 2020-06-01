@@ -501,6 +501,23 @@ case class Print(
   def foreachString(f: String => Unit): Unit = Unit
   def foreachInfo(f: Info => Unit): Unit = f(info)
 }
+// formal
+case class Check(info: Info, arg: Expression) extends Statement with HasInfo {
+  def serialize: String = {
+    "assert(" + arg.serialize + ")" + info.serialize
+  }
+  def mapStmt(f: Statement => Statement): Statement = this
+  def mapExpr(f: Expression => Expression): Statement = Check(info, arg)
+  def mapType(f: Type => Type): Statement = this
+  def mapString(f: String => String): Statement = this
+  def mapInfo(f: Info => Info): Statement = this.copy(info = f(info))
+  def foreachStmt(f: Statement => Unit): Unit = Unit
+  def foreachExpr(f: Expression => Unit): Unit = f(arg)
+  def foreachType(f: Type => Unit): Unit = Unit
+  def foreachString(f: String => Unit): Unit = Unit
+  def foreachInfo(f: Info => Unit): Unit = f(info)
+}
+// end formal
 case object EmptyStmt extends Statement {
   def serialize: String = "skip"
   def mapStmt(f: Statement => Statement): Statement = this

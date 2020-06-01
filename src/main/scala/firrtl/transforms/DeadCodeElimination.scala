@@ -153,6 +153,10 @@ class DeadCodeElimination extends Transform
         Seq(clk, en).flatMap(getDeps(_)).foreach(ref => depGraph.addPairWithEdge(circuitSink, ref))
       case Print(_, _, args, clk, en) =>
         (args :+ clk :+ en).flatMap(getDeps(_)).foreach(ref => depGraph.addPairWithEdge(circuitSink, ref))
+      // formal
+      case Check(info, expr) =>
+        getDeps(expr).foreach(ref => depGraph.addPairWithEdge(circuitSink, ref))
+      // end formal
       case Block(stmts) => stmts.foreach(onStmt(_))
       case ignore @ (_: IsInvalid | _: WDefInstance | EmptyStmt) => // do nothing
       case other => throw new Exception(s"Unexpected Statement $other")
