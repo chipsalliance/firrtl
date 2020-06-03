@@ -7,11 +7,7 @@ import firrtl.ir._
 import firrtl.Utils._
 import firrtl.Mappers._
 
-<<<<<<< HEAD
 object InferTypes extends Pass {
-=======
-  @deprecated("This should never have been public", "1.3.2")
->>>>>>> a15f65c8... Use HashMap instead of LinkedHashMap in InferTypes
   type TypeMap = collection.mutable.LinkedHashMap[String, Type]
 
   private type TypeLookup = collection.mutable.HashMap[String, Type]
@@ -80,15 +76,7 @@ object InferTypes extends Pass {
   }
 }
 
-<<<<<<< HEAD
 object CInferTypes extends Pass {
-=======
-object CInferTypes extends Pass with PreservesAll[Transform] {
-
-  override def prerequisites = firrtl.stage.Forms.ChirrtlForm
-
-  @deprecated("This should never have been public", "1.3.2")
->>>>>>> a15f65c8... Use HashMap instead of LinkedHashMap in InferTypes
   type TypeMap = collection.mutable.LinkedHashMap[String, Type]
 
   private type TypeLookup = collection.mutable.HashMap[String, Type]
