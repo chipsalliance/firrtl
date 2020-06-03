@@ -4,7 +4,7 @@ import firrtl.PrimOps._
 import firrtl.Utils.{BoolType, error, zero}
 import firrtl.ir._
 import firrtl.options.{PreservesAll, Dependency}
-import firrtl.transforms.ConstantPropagation
+import firrtl.transforms.BaseConstantPropagation
 import firrtl.{Transform, bitWidth}
 import firrtl.Mappers._
 
@@ -21,7 +21,7 @@ object Legalize extends Pass with PreservesAll[Transform] {
   private def legalizeShiftRight(e: DoPrim): Expression = {
     require(e.op == Shr)
     e.args.head match {
-      case _: UIntLiteral | _: SIntLiteral => ConstantPropagation.foldShiftRight(e)
+      case _: UIntLiteral | _: SIntLiteral => BaseConstantPropagation.foldShiftRight(e)
       case _ =>
         val amount = e.consts.head.toInt
         val width = bitWidth(e.args.head.tpe)
@@ -41,7 +41,7 @@ object Legalize extends Pass with PreservesAll[Transform] {
   }
   private def legalizeBitExtract(expr: DoPrim): Expression = {
     expr.args.head match {
-      case _: UIntLiteral | _: SIntLiteral => ConstantPropagation.constPropBitExtract(expr)
+      case _: UIntLiteral | _: SIntLiteral => BaseConstantPropagation.constPropBitExtract(expr)
       case _ => expr
     }
   }

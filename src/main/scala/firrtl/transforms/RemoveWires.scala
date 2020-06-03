@@ -110,7 +110,7 @@ class RemoveWires extends Transform with DependencyAPIMigration with PreservesAl
         case con @ Connect(cinfo, lhs, rhs) => kind(lhs) match {
           case WireKind =>
             // Be sure to pad the rhs since nodes get their type from the rhs
-            val paddedRhs = ConstantPropagation.pad(rhs, lhs.tpe)
+            val paddedRhs = BaseConstantPropagation.pad(rhs, lhs.tpe)
             val dinfo = wireInfo(lhs)
             netlist(we(lhs)) = (Seq(paddedRhs), MultiInfo(dinfo, cinfo))
           case _ => otherStmts += con // Other connections just pass through

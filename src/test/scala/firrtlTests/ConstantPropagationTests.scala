@@ -552,9 +552,8 @@ class ConstantPropagationSingleModule extends ConstantPropagationSpec {
     input x : UInt<1>
     input y : UInt<1>
     output z : UInt<1>
-    node _T_1 = and(x, y)
     node n = and(x, y)
-    skip
+    node _T_1 = n
     z <= and(n, x)
 """
       val output = parse(exec(input))
@@ -580,9 +579,8 @@ class ConstantPropagationSingleModule extends ConstantPropagationSpec {
     input x : UInt<1>
     input y : UInt<1>
     output z : UInt<1>
-    wire _T_1 : UInt<1>
     wire n : UInt<1>
-    skip
+    node _T_1 = n
     z <= n
     n <= and(x, y)
 """
@@ -609,9 +607,8 @@ class ConstantPropagationSingleModule extends ConstantPropagationSpec {
     input clock : Clock
     input x : UInt<1>
     output z : UInt<1>
-    reg _T_1 : UInt<1>, clock with : (reset => (UInt<1>(0), _T_1))
     reg n : UInt<1>, clock with : (reset => (UInt<1>(0), n))
-    skip
+    node _T_1 = n
     z <= n
     n <= x
 """
@@ -638,9 +635,8 @@ class ConstantPropagationSingleModule extends ConstantPropagationSpec {
     input x : UInt<1>
     input y : UInt<1>
     output z : UInt<3>
-    node _T_1 = add(x, y)
     node n = add(x, y)
-    skip
+    node _T_1 = n
     node m = n
     z <= add(n, n)
 """
@@ -700,7 +696,9 @@ class ConstantPropagationSingleModule extends ConstantPropagationSpec {
     inst c of Child
     z <= UInt<1>(0)
 """
-      (parse(exec(input))) should be (parse(check))
+      val output = parse(exec(input))
+      println(output.serialize)
+      (output) should be (parse(check))
     }
 
    "ConstProp" should "propagate constant addition" in {
@@ -1615,6 +1613,13 @@ class ConstantPropagationEquivalenceSpec extends FirrtlFlatSpec {
 }
 
 class ConstantPropagationMidForm extends ConstantPropagationSpec {
+  override val transforms: Seq[Transform] = Seq(
+      ToWorkingIR,
+      ResolveKinds,
+      InferTypes,
+      ResolveFlows,
+      new InferWidths,
+      new MidFormConstantPropagation)
    // =============================
    "The rule x >= 0 " should " always be true if x is a UInt" in {
       val input =
@@ -1808,7 +1813,7 @@ class ConstantPropagationMidForm extends ConstantPropagationSpec {
     reset.b.d <= UInt<3>(0)
 
     reg _T_1: { a: UInt<1>, b: { c: UInt<2>, d: UInt<3> } }, clock with: (reset => (UInt<1>(0), reset))
-    reg r_a: UInt<1>, clock with: (reset => (UInt<1>(0), UInt<1>(0)))
+    reg r_a: UInt<1>, clock with: (reset => (UInt<1>(0), reset.a))
     reg r_b: { c: UInt<2>, d: UInt<3> }, clock with: (reset => (UInt<1>(0), reset.b))
     r_a <= in[0]
     r_b.c <= in[1]

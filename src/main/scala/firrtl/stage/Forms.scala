@@ -76,9 +76,10 @@ object Forms {
   val LowFormOptimized: Seq[TransformDependency] = {
     val (midform, lowform) = LowFormMinimumOptimized.splitAt(MidForm.size)
     midform ++:
-    Dependency[firrtl.transforms.ConstantPropagation] +:
+    Dependency[firrtl.transforms.MidFormConstantPropagation] +:
     lowform ++:
-    Seq( Dependency[firrtl.transforms.CombineCats],
+    Seq( Dependency[firrtl.transforms.ConstantPropagation],
+         Dependency[firrtl.transforms.CombineCats],
          Dependency(passes.CommonSubexpressionElimination),
          Dependency[firrtl.transforms.DeadCodeElimination] )
   }
