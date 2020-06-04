@@ -218,7 +218,7 @@ class MidFormConstantPropagation extends BaseConstantPropagation {
 
     // For cases where we are trying to constprop a bad name over a good one, we swap their names
     // during the second pass
-    val swapMap = mutable.LinkedHashMap.empty[Tokens, DefNode]
+    val swapMap = mutable.LinkedHashMap.empty[Tokens, String]
     val swapMapByDecl = mutable.HashMap.empty[String, mutable.LinkedHashMap[Tokens, DefNode]]
 
     // const propped nodes with better names, which have thier nodes replaced with decls next to the bad name declaration
@@ -245,27 +245,16 @@ class MidFormConstantPropagation extends BaseConstantPropagation {
       case _ =>
     }
 
-    // Note that on back propagation we *only* worry about swapping names and propagating references
-    // to constant wires, we don't need to worry about propagating primops or muxes since we'll do
-    // that on the next iteration if necessary
     def backPropExpr(expr: Expression): Expression = {
       val old = expr map backPropExpr
-      val propagated = expr match {
-        case _: WRef | _: WSubIndex | _: WSubField =>
-          val tokens = expr.serialize
-          val ref = getRef(expr)
-          // When swapping, we swap both rhs and lhs
-          swapMap.get(tokens) match {
-            case Some(node) =>
-              WRef(node.name, node.value.tpe, ref.kind, UnknownFlow)
-            case None if flow(expr) == SourceFlow =>
-              nodeMap.get(tokens) match {
-                case Some(lit) => constPropNodeRef(expr, lit)
-                case None => old
-              }
-            case None => old
-          }
-        case x => old
+      val propagated = old match {
+        // When swapping, we swap both rhs and lhs
+        case ref @ WRef(rname, _,_,_) if swapMap.contains(rname) =>
+          ref.copy(name = swapMap(rname))
+        // Only const prop on the rhs
+        case ref @ WRef(rname, _,_, SourceFlow) if nodeMap.contains(rname) =>
+          constPropNodeRef(ref, nodeMap(rname))
+        case x => x
       }
       if (old ne propagated) {
         nPropagated += 1
@@ -276,78 +265,35 @@ class MidFormConstantPropagation extends BaseConstantPropagation {
     def backPropStmt(stmt: Statement): Statement = stmt match {
       case reg: DefRegister if (WrappedExpression.weq(reg.init, WRef(reg))) =>
         // Self-init reset is an idiom for "no reset," and must be handled separately
-        swapMapByDecl.get(reg.name).map { inner =>
-          val regs = mutable.ArrayBuffer.empty[DefRegister]
-          regs += reg
-          inner.foreach { case (_, node) =>
-            regs += DefRegister(
-              node.info,
-              node.name,
-              node.value.tpe,
-              reg.clock,
-              reg.reset,
-              WRef(node.name, node.value.tpe, RegKind, UnknownFlow)
-            )
-          }
-          Block(regs)
-        }.getOrElse(reg)
-      case n: DefNode if replaced(n.name) => EmptyStmt
+        swapMap.get(reg.name)
+               .map(newName => reg.copy(name = newName, init = WRef(reg).copy(name = newName)))
+               .getOrElse(reg)
+      case node: DefNode if replaced(node.name) => EmptyStmt
       case s => s map backPropExpr match {
-        case decl: IsDeclaration if swapMapByDecl.contains(decl.name) =>
+        case decl: IsDeclaration if swapMap.contains(decl.name) =>
+          val newName = swapMap(decl.name)
           nPropagated += 1
-          val inner = swapMapByDecl(decl.name)
-          val stmts = mutable.ArrayBuffer.empty[Statement]
-          stmts += decl
           decl match {
-            case node: DefNode =>
-              inner.foreach { case (tokens, betterNameNode) =>
-                val value = mergeRef(node.value, splitRef(betterNameNode.value)._2)
-                stmts += ResolveFlows.resolve_s(betterNameNode.copy(value = value))
-              }
-            case wire: DefWire =>
-              inner.foreach { case (_, node) =>
-                stmts += DefWire(
-                  node.info,
-                  node.name,
-                  node.value.tpe
-                )
-              }
-            case reg: DefRegister =>
-              inner.foreach { case (tokens, node) =>
-                stmts += ResolveFlows.resolve_s(DefRegister(
-                  node.info,
-                  node.name,
-                  node.value.tpe,
-                  reg.clock,
-                  reg.reset,
-                  mergeRef(reg.init, splitRef(node.value)._2)
-                ))
-              }
+            case node: DefNode => node.copy(name = newName)
+            case wire: DefWire => wire.copy(name = newName)
+            case reg: DefRegister => reg.copy(name = newName)
             case other => throwInternalError()
           }
-          Block(stmts.toSeq)
         case other => other map backPropStmt
       }
     }
 
     // When propagating a reference, check if we want to keep the name that would be deleted
-    def propagateRef(node: DefNode): Unit = {
-      val lname = node.name
-      node.value match {
-        case _: WRef | _: WSubField | _: WSubIndex =>
-          val tokens = node.value.serialize
-          val ref = getRef(node.value)
-          if (betterName(lname, ref.name)
-            && !swapMap.contains(tokens)
-            && ref.kind != PortKind) {
-            // node declaration or the single connection to a wire or register
-            swapMap(tokens) = node
-            swapMapByDecl.getOrElseUpdate(ref.name, mutable.LinkedHashMap.empty[Tokens, DefNode])(tokens) = node
-            replaced += lname
-          }
+    def propagateRef(lname: String, value: Expression): Unit = {
+      value match {
+        case WRef(rname,_,kind,_) if betterName(lname, rname) && !swapMap.contains(rname) && kind != PortKind =>
+          assert(!swapMap.contains(lname)) // <- Shouldn't be possible because lname is either a
+          // node declaration or the single connection to a wire or register
+          swapMap(rname) = lname
+          replaced += lname
         case _ =>
       }
-      nodeMap(lname) = node.value
+      nodeMap(lname) = value
     }
 
     def constPropStmt(s: Statement): Statement = {
@@ -355,7 +301,7 @@ class MidFormConstantPropagation extends BaseConstantPropagation {
       // Record things that should be propagated
       stmtx match {
         // TODO: allow other sub-components to be propagated if dontTouch only affects a sub-component of the node
-        case x: DefNode if !dontTouches.contains(x.name) => propagateRef(x)
+        case x: DefNode if !dontTouches.contains(x.name) => propagateRef(x.name, x.value)
         case reg: DefRegister if reg.reset.tpe == AsyncResetType =>
           asyncResetRegs(reg.name) = reg
         case c@ Connect(_, _: WRef| _: WSubField | _: WSubIndex, _) =>
@@ -365,7 +311,7 @@ class MidFormConstantPropagation extends BaseConstantPropagation {
           (ref.kind, c.expr) match {
             case (WireKind, lit: Literal) if !dontTouched =>
               val exprx = constPropExpression(nodeMap, instMap, constSubOutputs)(pad(lit, c.loc.tpe))
-              nodeMap(tokens) = exprx
+              propagateRef(tokens, exprx)
             case (PortKind, lit: Literal) if !dontTouched =>
               val paddedLit = constPropExpression(nodeMap, instMap, constSubOutputs)(pad(lit, c.loc.tpe)).asInstanceOf[Literal]
               constOutputs(tokens) = paddedLit
