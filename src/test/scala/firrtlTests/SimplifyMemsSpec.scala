@@ -7,8 +7,7 @@ import firrtl._
 
 import CompilerUtils.getLoweringTransforms
 
-class SimplifyMemsSpec extends ConstantPropagationSpec {
-  override val transforms = getLoweringTransforms(ChirrtlForm, MidForm) ++ Seq(new SimplifyMems)
+class SimplifyMemsSpec extends ConstantPropagationSpec(getLoweringTransforms(ChirrtlForm, MidForm) ++ Seq(new SimplifyMems)) {
 
   "SimplifyMems" should "lower aggregate memories" in {
     val input =

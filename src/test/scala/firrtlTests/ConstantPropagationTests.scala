@@ -8,14 +8,25 @@ import firrtl.transforms._
 import firrtl.testutils._
 import firrtl.annotations.Annotation
 
-class ConstantPropagationSpec extends FirrtlFlatSpec {
-  val transforms: Seq[Transform] = Seq(
+object ConstantPropagationSpec {
+  val lowFormTransforms: Seq[Transform] = Seq(
       ToWorkingIR,
       ResolveKinds,
       InferTypes,
       ResolveFlows,
       new InferWidths,
       new ConstantPropagation)
+
+  val midFormTransforms: Seq[Transform] = Seq(
+      ToWorkingIR,
+      ResolveKinds,
+      InferTypes,
+      ResolveFlows,
+      new InferWidths,
+      new MidFormConstantPropagation)
+}
+
+class ConstantPropagationSpec(val transforms: Seq[Transform]) extends FirrtlFlatSpec {
   protected def exec(input: String, annos: Seq[Annotation] = Nil) = {
     transforms.foldLeft(CircuitState(parse(input), UnknownForm, AnnotationSeq(annos))) {
       (c: CircuitState, t: Transform) => t.runTransform(c)
@@ -23,7 +34,7 @@ class ConstantPropagationSpec extends FirrtlFlatSpec {
   }
 }
 
-class ConstantPropagationMultiModule extends ConstantPropagationSpec {
+class ConstantPropagationMultiModule(transforms: Seq[Transform]) extends ConstantPropagationSpec(transforms) {
    "ConstProp" should "propagate constant inputs" in {
       val input =
 """circuit Top :
@@ -179,6 +190,8 @@ s"""circuit Top :
       (parse(exec(input))) should be (parse(check))
    }
 }
+class LowFormConstantPropagationMultiModule extends ConstantPropagationMultiModule(ConstantPropagationSpec.lowFormTransforms)
+class MidFormConstantPropagationMultiModule extends ConstantPropagationMultiModule(ConstantPropagationSpec.midFormTransforms)
 
 // Tests the following cases for constant propagation:
 //   1) Unsigned integers are always greater than or
@@ -187,7 +200,7 @@ s"""circuit Top :
 //        than their maximum value
 //   3) Values are always greater than a number smaller
 //        than their minimum value
-class ConstantPropagationSingleModule extends ConstantPropagationSpec {
+class ConstantPropagationSingleModule(transforms: Seq[Transform]) extends ConstantPropagationSpec(transforms) {
    // =============================
    "The rule x >= 0 " should " always be true if x is a UInt" in {
       val input =
@@ -807,6 +820,8 @@ class ConstantPropagationSingleModule extends ConstantPropagationSpec {
     castCheck("AsyncReset", "asAsyncReset")
   }
 }
+class LowFormConstantPropagationSingleModule extends ConstantPropagationSingleModule(ConstantPropagationSpec.lowFormTransforms)
+class MidFormConstantPropagationSingleModule extends ConstantPropagationSingleModule(ConstantPropagationSpec.midFormTransforms)
 
 // More sophisticated tests of the full compiler
 class ConstantPropagationIntegrationSpec extends LowTransformSpec {
@@ -1610,224 +1625,4 @@ class ConstantPropagationEquivalenceSpec extends FirrtlFlatSpec {
          |    out <= head_temp""".stripMargin
     firrtlEquivalenceTest(input, transforms)
   }
-}
-
-class ConstantPropagationMidForm extends ConstantPropagationSpec {
-  override val transforms: Seq[Transform] = Seq(
-      ToWorkingIR,
-      ResolveKinds,
-      InferTypes,
-      ResolveFlows,
-      new InferWidths,
-      new MidFormConstantPropagation)
-   // =============================
-   "The rule x >= 0 " should " always be true if x is a UInt" in {
-      val input =
-"""circuit Top :
-  module Top :
-    input x : { in: UInt<10>, flip out: UInt<10> }
-    output y : { flip in: UInt<10>, out: UInt<10> }
-    y.out <= geq(x.in, UInt(0))
-    x.out <= geq(y.in, UInt(0))
-"""
-      val check =
-"""circuit Top :
-  module Top :
-    input x : { in: UInt<10>, flip out: UInt<10> }
-    output y : { flip in: UInt<10>, out: UInt<10> }
-    y.out <= UInt<1>("h1")
-    x.out <= UInt<1>("h1")
-"""
-      (parse(exec(input))) should be (parse(check))
-   }
-
-   // =============================
-   "ConstProp" should "swap named nodes with temporary nodes that drive them" in {
-      val input =
-"""circuit Top :
-  module Top :
-    input io : { x: UInt<1>, y: UInt<1>, flip z: UInt<1> }
-    wire bundle: { value: UInt<1> }
-    bundle.value <= and(io.x, io.y)
-    node _T_1 = bundle
-    node n = _T_1.value
-    io.z <= and(n, io.x)
-"""
-      val check =
-"""circuit Top :
-  module Top :
-    input io : { x: UInt<1>, y: UInt<1>, flip z: UInt<1> }
-    wire bundle: { value: UInt<1> }
-    bundle.value <= and(io.x, io.y)
-    node _T_1 = bundle
-    node n = bundle.value
-    io.z <= and(bundle.value, io.x)
-"""
-      val output = parse(exec(input))
-      (output) should be (parse(check))
-   }
-
-   // =============================
-   "ConstProp" should "swap named nodes with temporary wires that drive them" in {
-      val input =
-"""circuit Top :
-  module Top :
-    input io : { x: UInt<1>, y: UInt<1>, flip z: UInt<1> }
-    wire _T_1: { value: UInt<1> }
-    node n = _T_1.value
-    io.z <= n
-    _T_1.value <= and(io.x, io.y)
-"""
-      val check =
-"""circuit Top :
-  module Top :
-    input io : { x: UInt<1>, y: UInt<1>, flip z: UInt<1> }
-    wire _T_1: { value: UInt<1> }
-    wire n: UInt<1>
-    skip
-    io.z <= n
-    n <= and(io.x, io.y)
-"""
-      val output = parse(exec(input))
-      (output) should be (parse(check))
-   }
-
-   // =============================
-   "ConstProp" should "swap seprated named sub-nodes with temporary registers that drive them" in {
-      val input =
-"""circuit Top :
-  module Top :
-    input in : { x: UInt<2>, y: UInt<3> }
-
-    wire _T_1: { foobar: UInt<1>, baz: { foo: UInt<2>, bar: UInt<3> } }
-    _T_1.baz.foo <= in.x
-    _T_1.baz.bar <= in.y
-    _T_1.foobar <= and(in.x, in.y)
-
-    node baz = _T_1.baz
-    node foobar = _T_1.foobar
-"""
-      val check =
-"""circuit Top :
-  module Top :
-    input in : { x: UInt<2>, y: UInt<3> }
-
-    wire _T_1: { foobar: UInt<1>, baz: { foo: UInt<2>, bar: UInt<3> } }
-    wire baz: { foo: UInt<2>, bar: UInt<3> }
-    wire foobar: UInt<1>
-    baz.foo <= in.x
-    baz.bar <= in.y
-    foobar <= and(in.x, in.y)
-
-    skip
-    skip
-"""
-      val output = parse(exec(input))
-      println(output.serialize)
-      (output) should be (parse(check))
-   }
-
-   // =============================
-   "ConstProp" should "swap named sub-nodes within the same bundle with temporary registers that drive them" in {
-      val input =
-"""circuit Top :
-  module Top :
-    input in : UInt<1>[5]
-
-    wire _T_1: { a: UInt<1>, b: { c: UInt<2>, d: UInt<3> }[2] }
-
-    node n_a = _T_1.a
-    node n_b = _T_1.b
-    node n_b_0 = _T_1.b[0]
-    node n_b_1_d = _T_1.b[1].d
-
-    in[0] <= _T_1.a
-    in[1] <= _T_1.b[0].c
-    in[2] <= _T_1.b[0].d
-    in[3] <= _T_1.b[1].c
-    in[4] <= _T_1.b[1].d
-"""
-      val check =
-"""circuit Top :
-  module Top :
-    input in : UInt<1>[5]
-
-    wire _T_1: { a: UInt<1>, b: { c: UInt<2>, d: UInt<3> }[2] }
-    wire n_a: UInt<1>
-    wire n_b: { c: UInt<2>, d: UInt<3> }[2]
-    wire n_b_0: { c: UInt<2>, d: UInt<3> }
-    wire n_b_1_d: UInt<3>
-
-    skip
-    skip
-    skip
-    skip
-
-    in[0] <= n_a
-    in[1] <= n_b_0.c
-    in[2] <= n_b_0.d
-    in[3] <= n_b[1].c
-    in[4] <= n_b_1_d
-"""
-      val output = parse(exec(input))
-      println(output.serialize)
-      (output) should be (parse(check))
-   }
-
-   // =============================
-   "ConstProp" should "nlkjamed sub-nodes within the same bundle with temporary registers that drive them" in {
-      val input =
-"""circuit Top :
-  module Top :
-    input clock : Clock
-    input in : UInt<1>[3]
-    input out : UInt<1>[3]
-
-    wire reset: { a: UInt<1>, b: { c: UInt<2>, d: UInt<3> } }
-    reset.a <= UInt<1>(0)
-    reset.b.c <= UInt<2>(0)
-    reset.b.d <= UInt<3>(0)
-
-    reg _T_1: { a: UInt<1>, b: { c: UInt<2>, d: UInt<3> } }, clock with: (reset => (UInt<1>(0), reset))
-    _T_1.a <= in[0]
-    _T_1.b.c <= in[1]
-    _T_1.b.d <= in[2]
-
-    node r_a = _T_1.a
-    node r_b = _T_1.b
-
-    out[0] <= _T_1.a
-    out[1] <= _T_1.b.c
-    out[2] <= _T_1.b.d
-"""
-      val check =
-"""circuit Top :
-  module Top :
-    input clock : Clock
-    input in : UInt<1>[3]
-    input out : UInt<1>[3]
-
-    wire reset: { a: UInt<1>, b: { c: UInt<2>, d: UInt<3> } }
-    reset.a <= UInt<1>(0)
-    reset.b.c <= UInt<2>(0)
-    reset.b.d <= UInt<3>(0)
-
-    reg _T_1: { a: UInt<1>, b: { c: UInt<2>, d: UInt<3> } }, clock with: (reset => (UInt<1>(0), reset))
-    reg r_a: UInt<1>, clock with: (reset => (UInt<1>(0), reset.a))
-    reg r_b: { c: UInt<2>, d: UInt<3> }, clock with: (reset => (UInt<1>(0), reset.b))
-    r_a <= in[0]
-    r_b.c <= in[1]
-    r_b.d <= in[2]
-
-    skip
-    skip
-
-    out[0] <= r_a
-    out[1] <= r_b.c
-    out[2] <= r_b.d
-"""
-      val output = parse(exec(input))
-      println(output.serialize)
-      (output) should be (parse(check))
-   }
 }
