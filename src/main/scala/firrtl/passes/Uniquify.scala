@@ -188,11 +188,11 @@ object Uniquify extends Transform with DependencyAPIMigration {
   // Maps names in expression to new uniquified names
   private def uniquifyNamesExp(
       exp: Expression,
-      map: Map[String, NameMapNode])
+      map: collection.Map[String, NameMapNode])
       (implicit sinfo: Info, mname: String): Expression = {
     // Recursive Helper
-    def rec(exp: Expression, m: Map[String, NameMapNode]):
-        (Expression, Map[String, NameMapNode]) = exp match {
+    def rec(exp: Expression, m: collection.Map[String, NameMapNode]):
+        (Expression, collection.Map[String, NameMapNode]) = exp match {
       case e: WRef =>
         if (m.contains(e.name)) {
           val node = m(e.name)
@@ -262,7 +262,7 @@ object Uniquify extends Transform with DependencyAPIMigration {
 
       def uniquifyExp(e: Expression): Expression = e match {
         case (_: WRef | _: WSubField | _: WSubIndex | _: WSubAccess ) =>
-          uniquifyNamesExp(e, nameMap.toMap)
+          uniquifyNamesExp(e, nameMap)
         case e: Mux => e map uniquifyExp
         case e: ValidIf => e map uniquifyExp
         case (_: UIntLiteral | _: SIntLiteral) => e
