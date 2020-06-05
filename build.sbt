@@ -152,7 +152,7 @@ resolvers ++= Seq(
 // MiMa
 // All changes must be binary compatible with prior 1.2 minor releases
 import com.typesafe.tools.mima.core._
-mimaPreviousArtifacts := Set("edu.berkeley.cs" %% "firrtl" % "1.2.4")
+mimaPreviousArtifacts := Set("edu.berkeley.cs" %% "firrtl" % "1.2.6")
 mimaBinaryIssueFilters ++= Seq(
   // Removed private inner classes, see https://github.com/lightbend/mima/issues/54
   ProblemFilters.exclude[MissingClassProblem]("firrtl.transforms.CheckCombLoops$LogicNode$"),
