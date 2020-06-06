@@ -186,41 +186,38 @@ object Uniquify extends Transform with DependencyAPIMigration {
   }
 
   // Maps names in expression to new uniquified names
-  private def uniquifyNamesExp(
-      exp: Expression,
-      map: collection.Map[String, NameMapNode])
-      (implicit sinfo: Info, mname: String): Expression = {
-    // Recursive Helper
-    def rec(exp: Expression, m: collection.Map[String, NameMapNode]):
-        (Expression, collection.Map[String, NameMapNode]) = exp match {
+  private def uniquifyNamesExp(exp: Expression, map: collection.Map[String, NameMapNode]): Expression = {
+    // Returns Expression and Optional Map indicating if the expression has changed
+    def rec(exp: Expression): (Expression, Option[Map[String, NameMapNode]]) = exp match {
       case e: WRef =>
-        if (m.contains(e.name)) {
-          val node = m(e.name)
-          (WRef(node.name, e.tpe, e.kind, e.flow), node.elts)
-        }
-        else (e, Map())
+        map.get(e.name)
+           .map(node => (e.copy(name = node.name), Some(node.elts)))
+           .getOrElse((e, None))
       case e: WSubField =>
-        val (subExp, subMap) = rec(e.expr, m)
-        val (retName, retMap) =
-          if (subMap.contains(e.name)) {
-            val node = subMap(e.name)
-            (node.name, node.elts)
-          } else {
-            (e.name, Map[String, NameMapNode]())
+        val (subExp, subMap) = rec(e.expr)
+        subMap match {
+          case Some(map) => map.get(e.name) match {
+            case Some(node) => (e.copy(expr = subExp, name = node.name), Some(node.elts))
+            case None => (e.copy(expr = subExp), subMap)
           }
-        (WSubField(subExp, retName, e.tpe, e.flow), retMap)
+          case None => (e, None)
+        }
       case e: WSubIndex =>
-        val (subExp, subMap) = rec(e.expr, m)
-        (WSubIndex(subExp, e.value, e.tpe, e.flow), subMap)
+        val (subExp, subMap) = rec(e.expr)
+        val res = if (subMap.isDefined) e.copy(expr = subExp) else e
+        (res, subMap)
       case e: WSubAccess =>
-        val (subExp, subMap) = rec(e.expr, m)
-        val index = uniquifyNamesExp(e.index, map)
-        (WSubAccess(subExp, index, e.tpe, e.flow), subMap)
-      case (_: UIntLiteral | _: SIntLiteral) => (exp, m)
+        val (subExp, subMap) = rec(e.expr)
+        val (index, iSubMap) = rec(e.index)
+        // We don't want to return iSubMap, so return Some(Map()) if only iSubMap is defined
+        val resMap = subMap.orElse(iSubMap.map(_ => Map[String, NameMapNode]()))
+        val res = if (resMap.isDefined) e.copy(expr = subExp, index = index) else e
+        (res, resMap)
+      case (_: UIntLiteral | _: SIntLiteral) => (exp, None)
       case (_: Mux | _: ValidIf | _: DoPrim) =>
-        (exp map ((e: Expression) => uniquifyNamesExp(e, map)), m)
+        (exp map ((e: Expression) => uniquifyNamesExp(e, map)), None)
     }
-    rec(exp, map)._1
+    rec(exp)._1
   }
 
   // Uses map to recursively rename fields of tpe
