@@ -501,23 +501,76 @@ case class Print(
   def foreachString(f: String => Unit): Unit = Unit
   def foreachInfo(f: Info => Unit): Unit = f(info)
 }
+
 // formal
-case class Check(info: Info, arg: Expression) extends Statement with HasInfo {
-  def serialize: String = {
-    "assert(" + arg.serialize + ")" + info.serialize
-  }
+trait Formal[T <: Statement with HasInfo] { this: T =>
+  val info: Info
+  val clk: Expression
+  val cond: Expression
+  val en: Expression
+  val msg: StringLit
+  def serialize: String
   def mapStmt(f: Statement => Statement): Statement = this
-  def mapExpr(f: Expression => Expression): Statement = Check(info, arg)
+  // needs to be implemented
+  def mapExpr(f: Expression => Expression): Statement
   def mapType(f: Type => Type): Statement = this
   def mapString(f: String => String): Statement = this
-  def mapInfo(f: Info => Info): Statement = this.copy(info = f(info))
+  // needs to be implemented
+  def mapInfo(f: Info => Info): Statement
   def foreachStmt(f: Statement => Unit): Unit = Unit
-  def foreachExpr(f: Expression => Unit): Unit = f(arg)
+  def foreachExpr(f: Expression => Unit): Unit = { f(clk); f(cond); f(en); }
   def foreachType(f: Type => Unit): Unit = Unit
   def foreachString(f: String => Unit): Unit = Unit
   def foreachInfo(f: Info => Unit): Unit = f(info)
 }
+
+case class Assert(
+                   info: Info,
+                   clk: Expression,
+                   cond: Expression,
+                   en: Expression,
+                   msg: StringLit,
+                 ) extends Statement with HasInfo with Formal[Assert] {
+  def serialize: String = {
+    "assert(" + Seq(clk.serialize, cond.serialize, en.serialize)
+      .mkString(",") + msg.serialize + ")" + info.serialize
+  }
+  def mapExpr(f: Expression => Expression): Statement = Assert(info, f(clk), f(cond), f(en), msg)
+  def mapInfo(f: Info => Info): Statement = this.copy(info = f(info))
+}
+
+case class Assume(
+                   info: Info,
+                   clk: Expression,
+                   cond: Expression,
+                   en: Expression,
+                   msg: StringLit,
+                 ) extends Statement with HasInfo with Formal[Assume] {
+  def serialize: String = {
+    "assume(" + Seq(clk.serialize, cond.serialize, en.serialize)
+      .mkString(",") + msg.serialize + ")" + info.serialize
+  }
+  def mapExpr(f: Expression => Expression): Statement = Assume(info, f(clk), f(cond), f(en), msg)
+  def mapInfo(f: Info => Info): Statement = this.copy(info = f(info))
+}
+
+case class Cover(
+                   info: Info,
+                   clk: Expression,
+                   cond: Expression,
+                   en: Expression,
+                   msg: StringLit,
+                 ) extends Statement with HasInfo with Formal[Cover] {
+  def serialize: String = {
+    "cover(" + Seq(clk.serialize, cond.serialize, en.serialize)
+      .mkString(",") + msg.serialize + ")" + info.serialize
+  }
+  def mapExpr(f: Expression => Expression): Statement = Cover(info, f(clk), f(cond), f(en), msg)
+  def mapInfo(f: Info => Info): Statement = this.copy(info = f(info))
+}
+
 // end formal
+
 case object EmptyStmt extends Statement {
   def serialize: String = "skip"
   def mapStmt(f: Statement => Statement): Statement = this

@@ -587,6 +587,9 @@ class VerilogEmitter extends SeqTransform with Emitter {
     // post-randomize.
     val asyncInitials = ArrayBuffer[Seq[Any]]()
     val simulates = ArrayBuffer[Seq[Any]]()
+    // formal
+    val formals = mutable.LinkedHashMap[Expression, ArrayBuffer[Seq[Any]]]()
+    // end formal
 
     def bigIntToVLit(bi: BigInt): String =
       if (bi.isValidInt) bi.toString else s"${bi.bitLength}'d$bi"
@@ -781,6 +784,13 @@ class VerilogEmitter extends SeqTransform with Emitter {
       lines += Seq("`endif // SYNTHESIS")
     }
 
+    def addFormal(clk: Expression, en: Expression, stmt: Seq[Any], info: Info) = {
+      val lines = formals.getOrElseUpdate(clk, ArrayBuffer[Seq[Any]]())
+      lines += Seq("if (", en, ") begin")
+      lines += Seq(tab, stmt, info)
+      lines += Seq("end")
+    }
+
     def stop(ret: Int): Seq[Any] = Seq(if (ret == 0) "$finish;" else "$fatal;")
 
     def printf(str: StringLit, args: Seq[Expression]): Seq[Any] = {
@@ -789,8 +799,16 @@ class VerilogEmitter extends SeqTransform with Emitter {
     }
 
     // formal
-    def check(expr: Expression): Seq[Any] = {
-      Seq("check(", expr, ");")
+    def assert_(cond: Expression): Seq[Any] = {
+      Seq("assert(", cond, ");")
+    }
+
+    def assume(cond: Expression): Seq[Any] = {
+      Seq("assume(", cond, ");")
+    }
+
+    def cover(cond: Expression): Seq[Any] = {
+      Seq("cover(", cond, ");")
     }
     // end formal
 
@@ -886,8 +904,12 @@ class VerilogEmitter extends SeqTransform with Emitter {
         case sx: Print =>
           simulate(sx.clk, sx.en, printf(sx.string, sx.args), Some("PRINTF_COND"), sx.info)
         // formal
-        case sx: Check =>
-          check(sx.arg)
+        case sx: Assert =>
+          addFormal(sx.clk, sx.en, assert_(sx.cond), sx.info)
+        case sx: Assume =>
+          addFormal(sx.clk, sx.en, assume(sx.cond), sx.info)
+        case sx: Cover =>
+          addFormal(sx.clk, sx.en, cover(sx.cond), sx.info)
         // end formal
         // If we are emitting an Attach, it must not have been removable in VerilogPrep
         case sx: Attach =>
@@ -1086,6 +1108,16 @@ class VerilogEmitter extends SeqTransform with Emitter {
         emit(Seq("`FIRRTL_AFTER_INITIAL"))
         emit(Seq("`endif"))
         emit(Seq("`endif // SYNTHESIS"))
+      }
+
+      if (formals.keys.nonEmpty) {
+        emit(Seq("`ifdef FORMAL"))
+        for ((clk, content) <- formals if content.nonEmpty) {
+          emit(Seq(tab, "always @(posedge ", clk, ") begin"))
+          for (line <- content) emit(Seq(tab, tab, line))
+          emit(Seq(tab, "end"))
+        }
+        emit(Seq("`endif // FORMAL"))
       }
 
       emit(Seq("endmodule"))

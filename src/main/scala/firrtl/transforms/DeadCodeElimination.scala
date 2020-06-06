@@ -154,8 +154,18 @@ class DeadCodeElimination extends Transform
       case Print(_, _, args, clk, en) =>
         (args :+ clk :+ en).flatMap(getDeps(_)).foreach(ref => depGraph.addPairWithEdge(circuitSink, ref))
       // formal
-      case Check(info, expr) =>
-        getDeps(expr).foreach(ref => depGraph.addPairWithEdge(circuitSink, ref))
+      case Assert(info, clk, cond, en, msg) =>
+        for (expr <- Seq(clk, cond, en)) {
+          getDeps(expr).foreach(ref => depGraph.addPairWithEdge(circuitSink, ref))
+        }
+      case Assume(info, clk, cond, en, msg) =>
+        for (expr <- Seq(clk, cond, en)) {
+          getDeps(expr).foreach(ref => depGraph.addPairWithEdge(circuitSink, ref))
+        }
+      case Cover(info, clk, cond, en, msg) =>
+        for (expr <- Seq(clk, cond, en)) {
+          getDeps(expr).foreach(ref => depGraph.addPairWithEdge(circuitSink, ref))
+        }
       // end formal
       case Block(stmts) => stmts.foreach(onStmt(_))
       case ignore @ (_: IsInvalid | _: WDefInstance | EmptyStmt) => // do nothing
