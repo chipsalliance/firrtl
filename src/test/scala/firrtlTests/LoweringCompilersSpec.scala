@@ -121,12 +121,12 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
 
     val patched = scala.collection.immutable.TreeMap(m.toArray:_*).values.flatten
 
+    info(s"found ${b.flattenedTransformOrder.size} transforms")
+    patched.size should be (b.flattenedTransformOrder.size)
+
     patched
       .zip(b.flattenedTransformOrder.map(Dependency.fromTransform))
       .foreach{ case (aa, bb) => bb should be (aa) }
-
-    info(s"found ${b.flattenedTransformOrder.size} transforms")
-    patched.size should be (b.flattenedTransformOrder.size)
   }
 
   behavior of "ChirrtlToHighFirrtl"
@@ -156,7 +156,9 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
   behavior of "HighFirrtlToMiddleFirrtl"
 
   it should "replicate the old order" in {
-    val tm = new TransformManager(Forms.MidForm, Forms.Deduped)
+    // exclude AssertSubmoduleAssumptions pass, which was never in the old order
+    val oldMidForm = Forms.MidForm.slice(0, Forms.MidForm.length-1)
+    val tm = new TransformManager(oldMidForm, Forms.Deduped)
     val patches = Seq(
       Add(4, Seq(Dependency(firrtl.passes.ResolveFlows))),
       Add(5, Seq(Dependency(firrtl.passes.ResolveKinds))),
@@ -349,7 +351,7 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
         Seq(new Transforms.LowToLow, new firrtl.MinimumVerilogEmitter)
     val tm = (new TransformManager(Seq(Dependency[firrtl.MinimumVerilogEmitter], Dependency[Transforms.LowToLow])))
     val patches = Seq(
-      Add(60, Seq(Dependency[firrtl.transforms.LegalizeAndReductionsTransform]))
+      Add(61, Seq(Dependency[firrtl.transforms.LegalizeAndReductionsTransform]))
     )
     compare(expected, tm, patches)
   }
@@ -360,7 +362,7 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
         Seq(new Transforms.LowToLow, new firrtl.VerilogEmitter)
     val tm = (new TransformManager(Seq(Dependency[firrtl.VerilogEmitter], Dependency[Transforms.LowToLow])))
     val patches = Seq(
-      Add(67, Seq(Dependency[firrtl.transforms.LegalizeAndReductionsTransform]))
+      Add(68, Seq(Dependency[firrtl.transforms.LegalizeAndReductionsTransform]))
     )
     compare(expected, tm, patches)
   }

@@ -510,7 +510,7 @@ abstract class Formal(
   val clk: Expression,
   val cond: Expression,
   val en: Expression,
-  val msg: StringLit,
+  val msg: StringLit
 ) extends Statement with HasInfo {
   def serialize: String = name + "(" + Seq(clk, cond, en).map(_.serialize)
     .mkString(", ") + ", \"" + msg.serialize + "\")" + info.serialize
@@ -530,8 +530,8 @@ abstract class Formal(
     clk: Expression = this.clk,
     cond: Expression = this.cond,
     en: Expression = this.en,
-    msg: StringLit  = this.msg,
-  ) = {
+    msg: StringLit  = this.msg
+  ): Formal = {
     this match {
       case _: Assert => Assert(info, clk, cond, en, msg)
       case _: Assume => Assume(info, clk, cond, en, msg)
@@ -545,7 +545,7 @@ case class Assert(
   override val clk: Expression,
   override val cond: Expression,
   override val en: Expression,
-  override val msg: StringLit,
+  override val msg: StringLit
 ) extends Formal("assert", info, clk, cond, en, msg)
 
 case class Assume(
@@ -553,7 +553,7 @@ case class Assume(
   override val clk: Expression,
   override val cond: Expression,
   override val en: Expression,
-  override val msg: StringLit,
+  override val msg: StringLit
 ) extends Formal("assume", info, clk, cond, en, msg)
 
 case class Cover(
@@ -561,7 +561,7 @@ case class Cover(
   override val clk: Expression,
   override val cond: Expression,
   override val en: Expression,
-  override val msg: StringLit,
+  override val msg: StringLit
 ) extends Formal("cover", info, clk, cond, en, msg)
 
 // end formal

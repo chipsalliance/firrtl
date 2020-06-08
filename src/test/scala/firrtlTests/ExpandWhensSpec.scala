@@ -32,7 +32,6 @@ class ExpandWhensSpec extends FirrtlFlatSpec {
     val c = result.circuit
     val lines = c.serialize.split("\n") map normalized
 
-    println(lines.mkString("\n"))
     if (expected) {
       c.serialize.contains(check) should be (true)
     } else {
