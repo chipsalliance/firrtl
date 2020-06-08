@@ -259,6 +259,7 @@ class DeadCodeElimination extends Transform
           else decl
         case print: Print => deleteIfNotEnabled(print, print.en)
         case stop: Stop => deleteIfNotEnabled(stop, stop.en)
+        case formal: Formal => deleteIfNotEnabled(formal, formal.en)
         case con: Connect =>
           val node = getDeps(con.loc) match { case Seq(elt) => elt }
           if (deadNodes.contains(node)) EmptyStmt else con

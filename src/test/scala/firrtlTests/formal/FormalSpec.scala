@@ -12,7 +12,7 @@ class FormalSpec extends FirrtlFlatSpec {
     val input =
       """circuit Asserting :
         |  module Asserting :
-        |    input clock: UInt<1>
+        |    input clock: Clock
         |    input reset: UInt<1>
         |    input in: UInt<8>
         |    output out: UInt<8>

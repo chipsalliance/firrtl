@@ -45,6 +45,10 @@ object LegalizeClocksTransform {
         val node = DefNode(s.info, namespace.newTemp, s.clk)
         val sx = s.copy(clk = WRef(node))
         Block(Seq(node, sx))
+      case s: Formal if illegalClockExpr(s.clk) =>
+        val node = DefNode(s.info, namespace.newTemp, s.clk)
+        val sx = s.copy(clk = WRef(node))
+        Block(Seq(node, sx))
       case other => other
     }
 
