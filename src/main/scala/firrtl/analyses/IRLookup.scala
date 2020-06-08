@@ -6,7 +6,7 @@ import firrtl.annotations.TargetToken._
 import firrtl.annotations._
 import firrtl.ir._
 import firrtl.passes.MemPortUtils
-import firrtl.{DuplexFlow, ExpKind, SinkFlow, Flow, InstanceKind, Kind, SourceFlow, MemKind, PortKind, RegKind, UnknownFlow, Utils, WDefInstance, WInvalid, WRef, WSubField, WSubIndex, WireKind}
+import firrtl.{DuplexFlow, ExpKind, SinkFlow, Flow, InstanceKind, Kind, SourceFlow, MemKind, PortKind, RegKind, UnknownFlow, Utils, WInvalid, WireKind}
 
 import scala.collection.mutable
 
@@ -101,15 +101,15 @@ class IRLookup private[analyses] ( private val declarations: mutable.LinkedHashM
               exprCache.getOrElseUpdate((pathless, Utils.flow(e)), e)
             case d: IsDeclaration => d match {
               case n: DefNode =>
-                updateExpr(mt, WRef(n.name, n.value.tpe, ExpKind, SourceFlow))
+                updateExpr(mt, Reference(n.name, n.value.tpe, ExpKind, SourceFlow))
               case p: Port =>
-                updateExpr(mt, WRef(p.name, p.tpe, PortKind, Utils.get_flow(p)))
+                updateExpr(mt, Reference(p.name, p.tpe, PortKind, Utils.get_flow(p)))
               case w: DefInstance =>
-                updateExpr(mt, WRef(w.name, w.tpe, InstanceKind, SourceFlow))
+                updateExpr(mt, Reference(w.name, w.tpe, InstanceKind, SourceFlow))
               case w: DefWire =>
-                updateExpr(mt, WRef(w.name, w.tpe, WireKind, SourceFlow))
-                updateExpr(mt, WRef(w.name, w.tpe, WireKind, SinkFlow))
-                updateExpr(mt, WRef(w.name, w.tpe, WireKind, DuplexFlow))
+                updateExpr(mt, Reference(w.name, w.tpe, WireKind, SourceFlow))
+                updateExpr(mt, Reference(w.name, w.tpe, WireKind, SinkFlow))
+                updateExpr(mt, Reference(w.name, w.tpe, WireKind, DuplexFlow))
               case r: DefRegister if pathless.tokens.last == Clock =>
                 exprCache((pathless, SourceFlow)) = r.clock
               case r: DefRegister if pathless.tokens.isDefinedAt(1) && pathless.tokens(1) == Init =>
@@ -118,11 +118,11 @@ class IRLookup private[analyses] ( private val declarations: mutable.LinkedHashM
               case r: DefRegister if pathless.tokens.last == Reset =>
                 exprCache((pathless, SourceFlow)) = r.reset
               case r: DefRegister =>
-                updateExpr(mt, WRef(r.name, r.tpe, RegKind, SourceFlow))
-                updateExpr(mt, WRef(r.name, r.tpe, RegKind, SinkFlow))
-                updateExpr(mt, WRef(r.name, r.tpe, RegKind, DuplexFlow))
+                updateExpr(mt, Reference(r.name, r.tpe, RegKind, SourceFlow))
+                updateExpr(mt, Reference(r.name, r.tpe, RegKind, SinkFlow))
+                updateExpr(mt, Reference(r.name, r.tpe, RegKind, DuplexFlow))
               case m: DefMemory =>
-                updateExpr(mt, WRef(m.name, MemPortUtils.memType(m), MemKind, SourceFlow))
+                updateExpr(mt, Reference(m.name, MemPortUtils.memType(m), MemKind, SourceFlow))
               case other =>
                 sys.error(s"Cannot call expr with: $t, given declaration $other")
             }
@@ -221,8 +221,8 @@ class IRLookup private[analyses] ( private val declarations: mutable.LinkedHashM
                             module: DefModule
                            ): (Seq[(ReferenceTarget, Type)], Seq[(ReferenceTarget, Type)]) = {
     module.ports.flatMap {
-      case Port(_, name, Output, tpe) => Utils.create_exps(WRef(name, tpe, PortKind, SourceFlow))
-      case Port(_, name, Input, tpe) => Utils.create_exps(WRef(name, tpe, PortKind, SinkFlow))
+      case Port(_, name, Output, tpe) => Utils.create_exps(Reference(name, tpe, PortKind, SourceFlow))
+      case Port(_, name, Input, tpe) => Utils.create_exps(Reference(name, tpe, PortKind, SinkFlow))
     }.foldLeft((Vector.empty[(ReferenceTarget, Type)], Vector.empty[(ReferenceTarget, Type)])) {
       case ((inputs, outputs), e) if Utils.flow(e) == SourceFlow =>
         (inputs, outputs :+ (ConnectionGraph.asTarget(m, new TokenTagger())(e), e.tpe))
@@ -290,10 +290,10 @@ class IRLookup private[analyses] ( private val declarations: mutable.LinkedHashM
         exprCache((gt, g)) = e
       case VectorType(t, size) =>
         exprCache((gt, g)) = e
-        (0 until size).foreach { i => updateExpr(gt.index(i), WSubIndex(e, i, t, g)) }
+        (0 until size).foreach { i => updateExpr(gt.index(i), SubIndex(e, i, t, g)) }
       case BundleType(fields) =>
         exprCache((gt, g)) = e
-        fields.foreach { f => updateExpr(gt.field(f.name), WSubField(e, f.name, f.tpe, Utils.times(g, f.flip))) }
+        fields.foreach { f => updateExpr(gt.field(f.name), SubField(e, f.name, f.tpe, Utils.times(g, f.flip))) }
       case other => sys.error(s"Error! Unexpected type $other")
     }
   }

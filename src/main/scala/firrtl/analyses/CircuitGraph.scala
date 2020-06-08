@@ -2,10 +2,10 @@
 
 package firrtl.analyses
 
+import firrtl.Kind
 import firrtl.annotations.TargetToken.{Instance, OfModule}
-import firrtl.{Kind, WDefInstance}
 import firrtl.annotations._
-import firrtl.ir.Circuit
+import firrtl.ir.{Circuit, DefInstance}
 
 /** Use to construct [[CircuitGraph]]
   * Also contains useful related functions
@@ -80,7 +80,7 @@ class CircuitGraph private[analyses] (val connectionGraph: ConnectionGraph) {
     */
   def absolutePaths(mt: ModuleTarget): Seq[IsModule] = instanceGraph.findInstancesInHierarchy(mt.module).map {
     case seq if seq.nonEmpty => seq.foldLeft(CircuitTarget(circuit.main).module(circuit.main): IsModule) {
-      case (it, WDefInstance(_, instance, ofModule, _)) => it.instOf(instance, ofModule)
+      case (it, DefInstance(_, instance, ofModule, _)) => it.instOf(instance, ofModule)
     }
   }
 

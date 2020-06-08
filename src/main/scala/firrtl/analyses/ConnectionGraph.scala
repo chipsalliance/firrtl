@@ -7,7 +7,7 @@ import firrtl.annotations.{TargetToken, _}
 import firrtl.graph.{CyclicException, DiGraph, MutableDiGraph}
 import firrtl.ir._
 import firrtl.passes.MemPortUtils
-import firrtl.{InstanceKind, PortKind, SinkFlow, SourceFlow, Utils, WInvalid, WRef}
+import firrtl.{InstanceKind, PortKind, SinkFlow, SourceFlow, Utils, WInvalid}
 
 import scala.collection.mutable
 
@@ -492,7 +492,6 @@ object ConnectionGraph {
     val mdg = new MutableDiGraph[ReferenceTarget]()
     val declarations = mutable.LinkedHashMap[ModuleTarget, mutable.LinkedHashMap[ReferenceTarget, FirrtlNode]]()
     val circuitTarget = CircuitTarget(circuit.main)
-    val moduleTypes = circuit.modules.map { m => m.name -> firrtl.Utils.module_type(m) }.toMap
     val moduleMap = circuit.modules.map { m => circuitTarget.module(m.name) -> m }.toMap
 
     circuit map buildModule(circuitTarget)
@@ -514,12 +513,12 @@ object ConnectionGraph {
     }
 
     def buildInstance(m: ModuleTarget, tagger: TokenTagger, name: String, ofModule: String, tpe: Type): Unit = {
-      val instPorts = Utils.create_exps(WRef(name, tpe, InstanceKind, SinkFlow))
+      val instPorts = Utils.create_exps(Reference(name, tpe, InstanceKind, SinkFlow))
       val modulePorts = tpe.asInstanceOf[BundleType].fields.flatMap {
         // Module output
-        case firrtl.ir.Field(name, Default, tpe) => Utils.create_exps(WRef(name, tpe, PortKind, SourceFlow))
+        case firrtl.ir.Field(name, Default, tpe) => Utils.create_exps(Reference(name, tpe, PortKind, SourceFlow))
         // Module input
-        case firrtl.ir.Field(name, Flip, tpe) => Utils.create_exps(WRef(name, tpe, PortKind, SinkFlow))
+        case firrtl.ir.Field(name, Flip, tpe) => Utils.create_exps(Reference(name, tpe, PortKind, SinkFlow))
       }
       assert(instPorts.size == modulePorts.size)
       val o = m.circuitTarget.module(ofModule)
