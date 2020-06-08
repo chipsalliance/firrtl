@@ -153,20 +153,10 @@ class DeadCodeElimination extends Transform
         Seq(clk, en).flatMap(getDeps(_)).foreach(ref => depGraph.addPairWithEdge(circuitSink, ref))
       case Print(_, _, args, clk, en) =>
         (args :+ clk :+ en).flatMap(getDeps(_)).foreach(ref => depGraph.addPairWithEdge(circuitSink, ref))
-      // formal
-      case Assert(info, clk, cond, en, msg) =>
-        for (expr <- Seq(clk, cond, en)) {
+      case s: Formal =>
+        for (expr <- Seq(s.clk, s.cond, s.en)) {
           getDeps(expr).foreach(ref => depGraph.addPairWithEdge(circuitSink, ref))
         }
-      case Assume(info, clk, cond, en, msg) =>
-        for (expr <- Seq(clk, cond, en)) {
-          getDeps(expr).foreach(ref => depGraph.addPairWithEdge(circuitSink, ref))
-        }
-      case Cover(info, clk, cond, en, msg) =>
-        for (expr <- Seq(clk, cond, en)) {
-          getDeps(expr).foreach(ref => depGraph.addPairWithEdge(circuitSink, ref))
-        }
-      // end formal
       case Block(stmts) => stmts.foreach(onStmt(_))
       case ignore @ (_: IsInvalid | _: WDefInstance | EmptyStmt) => // do nothing
       case other => throw new Exception(s"Unexpected Statement $other")

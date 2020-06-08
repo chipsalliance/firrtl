@@ -8,8 +8,6 @@ import firrtl.stage.TransformManager.TransformDependency
 import firrtl.{CircuitState, FirrtlUserException, Transform}
 
 
-// TODO How do I actually make it so that this pass gets executed? Add it to a
-//      transform?
 object AssertSubmoduleAssumptions extends Pass {
   override def prerequisites: Seq[TransformDependency] =
     firrtl.stage.Forms.Deduped
@@ -25,7 +23,6 @@ object AssertSubmoduleAssumptions extends Pass {
 
   def run(c: Circuit): Circuit = {
     c.mapModule(mod => {
-      // TODO is this right?
       if (mod.name != c.main) {
         mod.mapStmt(assertAssumption)
       } else {

@@ -503,71 +503,66 @@ case class Print(
 }
 
 // formal
-trait Formal[T <: Statement with HasInfo] { this: T =>
-  val info: Info
-  val clk: Expression
-  val cond: Expression
-  val en: Expression
-  val msg: StringLit
-  def serialize: String
+
+abstract class Formal(
+  val name: String,
+  val info: Info,
+  val clk: Expression,
+  val cond: Expression,
+  val en: Expression,
+  val msg: StringLit,
+) extends Statement with HasInfo {
+  def serialize: String = name + "(" + Seq(clk, cond, en).map(_.serialize)
+    .mkString(", ") + ", \"" + msg.serialize + "\")" + info.serialize
   def mapStmt(f: Statement => Statement): Statement = this
-  // needs to be implemented
-  def mapExpr(f: Expression => Expression): Statement
+  def mapExpr(f: Expression => Expression): Statement =
+    copy(clk = f(clk), cond = f(cond), en = f(en))
   def mapType(f: Type => Type): Statement = this
   def mapString(f: String => String): Statement = this
-  // needs to be implemented
-  def mapInfo(f: Info => Info): Statement
+  def mapInfo(f: Info => Info): Statement = copy(info = f(info))
   def foreachStmt(f: Statement => Unit): Unit = Unit
   def foreachExpr(f: Expression => Unit): Unit = { f(clk); f(cond); f(en); }
   def foreachType(f: Type => Unit): Unit = Unit
   def foreachString(f: String => Unit): Unit = Unit
   def foreachInfo(f: Info => Unit): Unit = f(info)
+  def copy(
+    info: Info = this.info,
+    clk: Expression = this.clk,
+    cond: Expression = this.cond,
+    en: Expression = this.en,
+    msg: StringLit  = this.msg,
+  ) = {
+    this match {
+      case _: Assert => Assert(info, clk, cond, en, msg)
+      case _: Assume => Assume(info, clk, cond, en, msg)
+      case _: Cover => Cover(info, clk, cond, en, msg)
+    }
+  }
 }
 
 case class Assert(
-                   info: Info,
-                   clk: Expression,
-                   cond: Expression,
-                   en: Expression,
-                   msg: StringLit,
-                 ) extends Statement with HasInfo with Formal[Assert] {
-  def serialize: String = {
-    "assert(" + Seq(clk, cond, en).map(_.serialize).mkString(", ") +
-      ", \"" + msg.serialize + "\")" + info.serialize
-  }
-  def mapExpr(f: Expression => Expression): Statement = Assert(info, f(clk), f(cond), f(en), msg)
-  def mapInfo(f: Info => Info): Statement = this.copy(info = f(info))
-}
+  override val info: Info,
+  override val clk: Expression,
+  override val cond: Expression,
+  override val en: Expression,
+  override val msg: StringLit,
+) extends Formal("assert", info, clk, cond, en, msg)
 
 case class Assume(
-                   info: Info,
-                   clk: Expression,
-                   cond: Expression,
-                   en: Expression,
-                   msg: StringLit,
-                 ) extends Statement with HasInfo with Formal[Assume] {
-  def serialize: String = {
-    "assume(" + Seq(clk, cond, en).map(_.serialize).mkString(", ") +
-      ", \"" + msg.serialize + "\")" + info.serialize
-  }
-  def mapExpr(f: Expression => Expression): Statement = Assume(info, f(clk), f(cond), f(en), msg)
-  def mapInfo(f: Info => Info): Statement = this.copy(info = f(info))
-}
+  override val info: Info,
+  override val clk: Expression,
+  override val cond: Expression,
+  override val en: Expression,
+  override val msg: StringLit,
+) extends Formal("assume", info, clk, cond, en, msg)
 
 case class Cover(
-                   info: Info,
-                   clk: Expression,
-                   cond: Expression,
-                   en: Expression,
-                   msg: StringLit,
-                 ) extends Statement with HasInfo with Formal[Cover] {
-  def serialize: String = {
-    "cover(" + Seq(clk, cond, en).map(_.serialize).mkString(", ") +
-      ", \"" + msg.serialize + "\")" + info.serialize
-  }
-  def mapExpr(f: Expression => Expression): Statement = Cover(info, f(clk), f(cond), f(en), msg)
-  def mapInfo(f: Info => Info): Statement = this.copy(info = f(info))
-}
+  override val info: Info,
+  override val clk: Expression,
+  override val cond: Expression,
+  override val en: Expression,
+  override val msg: StringLit,
+) extends Formal("cover", info, clk, cond, en, msg)
 
 // end formal
 
