@@ -154,7 +154,9 @@ object ExpandWhens extends Pass {
         simlist += (if (weq(p, one)) sx else Stop(sx.info, sx.ret, sx.clk, AND(p, sx.en)))
         EmptyStmt
       // formal
-      case sx @ (_: Assert | _: Assume | _: Cover) => sx
+      case sx: Assert => if (weq(p, one)) sx else Assert(sx.info, sx.clk, sx.cond, AND(p, sx.en), sx.msg)
+      case sx: Assume => if (weq(p, one)) sx else Assume(sx.info, sx.clk, sx.cond, AND(p, sx.en), sx.msg)
+      case sx: Cover => if (weq(p, one)) sx else Cover(sx.info, sx.clk, sx.cond, AND(p, sx.en), sx.msg)
       // end formal
       // Expand conditionally, see comments below
       case sx: Conditionally =>
