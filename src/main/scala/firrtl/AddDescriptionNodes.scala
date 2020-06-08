@@ -185,11 +185,11 @@ class AddDescriptionNodes extends Transform with DependencyAPIMigration with Pre
     * @return List of `Description`s with some descriptions merged
     */
   def mergeDescriptions(descs: Seq[Description]): Seq[Description] = {
-    val (docs: Seq[DocString], nodocs) = descs.partition {
+    val (docs: Seq[DocString] @unchecked, nodocs) = descs.partition {
       case _: DocString => true
       case _ => false
     }
-    val (attrs: Seq[Attribute], rest) = nodocs.partition {
+    val (attrs: Seq[Attribute] @unchecked, rest) = nodocs.partition {
       case _: Attribute => true
       case _ => false
     }
