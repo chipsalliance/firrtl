@@ -104,7 +104,7 @@ class IRLookup private[analyses] ( private val declarations: mutable.LinkedHashM
                 updateExpr(mt, WRef(n.name, n.value.tpe, ExpKind, SourceFlow))
               case p: Port =>
                 updateExpr(mt, WRef(p.name, p.tpe, PortKind, Utils.get_flow(p)))
-              case w: WDefInstance =>
+              case w: DefInstance =>
                 updateExpr(mt, WRef(w.name, w.tpe, InstanceKind, SourceFlow))
               case w: DefWire =>
                 updateExpr(mt, WRef(w.name, w.tpe, WireKind, SourceFlow))
@@ -166,7 +166,6 @@ class IRLookup private[analyses] ( private val declarations: mutable.LinkedHashM
         case (rt, ir: DefNode) => updateRefs(ExpKind, rt)
         case (rt, ir: DefMemory) => updateRefs(MemKind, rt)
         case (rt, ir: DefInstance) => updateRefs(InstanceKind, rt)
-        case (rt, ir: WDefInstance) => updateRefs(InstanceKind, rt)
         case (rt, ir: Port) => updateRefs(PortKind, rt)
         case _ =>
       }
@@ -226,9 +225,9 @@ class IRLookup private[analyses] ( private val declarations: mutable.LinkedHashM
       case Port(_, name, Input, tpe) => Utils.create_exps(WRef(name, tpe, PortKind, SinkFlow))
     }.foldLeft((Vector.empty[(ReferenceTarget, Type)], Vector.empty[(ReferenceTarget, Type)])) {
       case ((inputs, outputs), e) if Utils.flow(e) == SourceFlow =>
-        (inputs, outputs :+ (ConnectionGraph.asTarget(m, new TokenTagger())(e) e.tpe))
+        (inputs, outputs :+ (ConnectionGraph.asTarget(m, new TokenTagger())(e), e.tpe))
       case ((inputs, outputs), e) =>
-        (inputs :+ (ConnectionGraph.asTarget(m, new TokenTagger())(e) e.tpe), outputs)
+        (inputs :+ (ConnectionGraph.asTarget(m, new TokenTagger())(e), e.tpe), outputs)
     }
   }
 
@@ -261,8 +260,7 @@ class IRLookup private[analyses] ( private val declarations: mutable.LinkedHashM
         all.map { x =>
           declarations.contains(x.moduleTarget) && declarations(x.moduleTarget).contains(x.asReference) &&
             (declarations(x.moduleTarget)(x.asReference) match {
-              case DefInstance(_, _, of) if of == x.ofModule => validPath(x.ofModuleTarget)
-              case WDefInstance(_, _, of, _) if of == x.ofModule => validPath(x.ofModuleTarget)
+              case DefInstance(_, _, of, _) if of == x.ofModule => validPath(x.ofModuleTarget)
               case _ => false
             })
         }.reduce(_ && _)

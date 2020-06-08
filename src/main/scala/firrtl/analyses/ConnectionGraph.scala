@@ -7,7 +7,7 @@ import firrtl.annotations.{TargetToken, _}
 import firrtl.graph.{CyclicException, DiGraph, MutableDiGraph}
 import firrtl.ir._
 import firrtl.passes.MemPortUtils
-import firrtl.{InstanceKind, PortKind, SinkFlow, SourceFlow, Utils, WDefInstance, WInvalid, WRef, WSubField, WSubIndex}
+import firrtl.{InstanceKind, PortKind, SinkFlow, SourceFlow, Utils, WInvalid, WRef}
 
 import scala.collection.mutable
 
@@ -443,11 +443,8 @@ object ConnectionGraph {
     */
   def asTarget(m: ModuleTarget, tagger: TokenTagger)(e: FirrtlNode): ReferenceTarget = e match {
     case l: Literal => m.ref(tagger.getRef(l.value.toString))
-    case w: WRef => m.ref(w.name)
     case r: Reference => m.ref(r.name)
-    case w: WSubIndex => asTarget(m, tagger)(w.expr).index(w.value)
     case s: SubIndex => asTarget(m, tagger)(s.expr).index(s.value)
-    case w: WSubField => asTarget(m, tagger)(w.expr).field(w.name)
     case s: SubField => asTarget(m, tagger)(s.expr).field(s.name)
     case d: DoPrim => m.ref(tagger.getRef(d.op.serialize))
     case _: Mux => m.ref(tagger.getRef("mux"))
@@ -621,13 +618,9 @@ object ConnectionGraph {
             mdg.addEdge(sourceTarget, st)
           }
 
-        case WDefInstance(_, name, ofModule, tpe) =>
+        case DefInstance(_, name, ofModule, tpe) =>
           addLabeledVertex(m.ref(name), stmt)
           buildInstance(m, tagger, name, ofModule, tpe)
-
-        case DefInstance(_, name, ofModule) =>
-          addLabeledVertex(m.ref(name), stmt)
-          buildInstance(m, tagger, name, ofModule, moduleTypes(ofModule))
 
         case d: DefRegister =>
           addLabeledVertex(m.ref(d.name), d)
