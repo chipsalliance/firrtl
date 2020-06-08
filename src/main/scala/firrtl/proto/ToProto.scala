@@ -267,6 +267,24 @@ object ToProto {
               .setClk(convert(clk))
               .setEn(convert(en))
             sb.setStop(stopb)
+          case ir.Assert(_, clk, cond, en, msg) =>
+            val ab = Firrtl.Statement.Assert.newBuilder()
+              .setClk(convert(clk))
+              .setCond(convert(cond))
+              .setEn(convert(en))
+              .setMsg(msg.string)
+          case ir.Assume(_, clk, cond, en, msg) =>
+            val ab = Firrtl.Statement.Assume.newBuilder()
+              .setClk(convert(clk))
+              .setCond(convert(cond))
+              .setEn(convert(en))
+              .setMsg(msg.string)
+          case ir.Cover(_, clk, cond, en, msg) =>
+            val ab = Firrtl.Statement.Cover.newBuilder()
+              .setClk(convert(clk))
+              .setCond(convert(cond))
+              .setEn(convert(en))
+              .setMsg(msg.string)
           case ir.IsInvalid(_, expr) =>
             val ib = Firrtl.Statement.IsInvalid.newBuilder()
               .setExpression(convert(expr))

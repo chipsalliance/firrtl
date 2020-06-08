@@ -177,6 +177,18 @@ object FromProto {
   def convert(stop: Firrtl.Statement.Stop, info: Firrtl.SourceInfo): ir.Stop =
     ir.Stop(convert(info), stop.getReturnValue, convert(stop.getClk), convert(stop.getEn))
 
+  def convert(_assert: Firrtl.Statement.Assert, info: Firrtl.SourceInfo): ir.Assert =
+    ir.Assert(convert(info), convert(_assert.getClk), convert(_assert.getCond),
+      convert(_assert.getEn), ir.StringLit(_assert.getMsg))
+
+  def convert(assume: Firrtl.Statement.Assume, info: Firrtl.SourceInfo): ir.Assume =
+    ir.Assume(convert(info), convert(assume.getClk), convert(assume.getCond),
+      convert(assume.getEn), ir.StringLit(assume.getMsg))
+
+  def convert(cover: Firrtl.Statement.Cover, info: Firrtl.SourceInfo): ir.Cover =
+    ir.Cover(convert(info), convert(cover.getClk), convert(cover.getCond),
+      convert(cover.getEn), ir.StringLit(cover.getMsg))
+
   def convert(mem: Firrtl.Statement.Memory, info: Firrtl.SourceInfo): ir.DefMemory = {
     val dtype = convert(mem.getType)
     val rs = mem.getReaderIdList.asScala

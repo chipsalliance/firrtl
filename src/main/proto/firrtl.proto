@@ -188,6 +188,39 @@ message Firrtl {
       Expression en = 4;
     }
 
+    message Assert {
+      // Required.
+      Expression clk = 1;
+      // Required.
+      Expression cond = 2;
+      // Required.
+      Expression en = 3;
+      // Required.
+      string msg = 4;
+    }
+
+    message Assume {
+      // Required.
+      Expression clk = 1;
+      // Required.
+      Expression cond = 2;
+      // Required.
+      Expression en = 3;
+      // Required.
+      string msg = 4;
+    }
+
+    message Cover {
+      // Required.
+      Expression clk = 1;
+      // Required.
+      Expression cond = 2;
+      // Required.
+      Expression en = 3;
+      // Required.
+      string msg = 4;
+    }
+
     message Skip {
       // Empty
     }
