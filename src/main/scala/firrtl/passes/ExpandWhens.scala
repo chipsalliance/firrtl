@@ -53,7 +53,7 @@ object ExpandWhens extends Pass {
   }
 
   /** Maps an expression to a declared node name. Used to memoize predicates */
-  @deprecated("This should never have been public", "1.3.2")
+  @deprecated("This will be removed in FIRRTL 1.4.0", "FIRRTL 1.3.2")
   type NodeMap = mutable.HashMap[MemoizedHash[Expression], String]
 
   private type NodeLookup = mutable.HashMap[WrappedExpression, String]
