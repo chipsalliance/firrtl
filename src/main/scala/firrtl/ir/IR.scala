@@ -532,8 +532,8 @@ case class Assert(
                    msg: StringLit,
                  ) extends Statement with HasInfo with Formal[Assert] {
   def serialize: String = {
-    "assert(" + Seq(clk.serialize, cond.serialize, en.serialize)
-      .mkString(",") + msg.serialize + ")" + info.serialize
+    "assert(" + Seq(clk, cond, en).map(_.serialize).mkString(", ") +
+      ", \"" + msg.serialize + "\")" + info.serialize
   }
   def mapExpr(f: Expression => Expression): Statement = Assert(info, f(clk), f(cond), f(en), msg)
   def mapInfo(f: Info => Info): Statement = this.copy(info = f(info))
@@ -547,8 +547,8 @@ case class Assume(
                    msg: StringLit,
                  ) extends Statement with HasInfo with Formal[Assume] {
   def serialize: String = {
-    "assume(" + Seq(clk.serialize, cond.serialize, en.serialize)
-      .mkString(",") + msg.serialize + ")" + info.serialize
+    "assume(" + Seq(clk, cond, en).map(_.serialize).mkString(", ") +
+      ", \"" + msg.serialize + "\")" + info.serialize
   }
   def mapExpr(f: Expression => Expression): Statement = Assume(info, f(clk), f(cond), f(en), msg)
   def mapInfo(f: Info => Info): Statement = this.copy(info = f(info))
@@ -562,8 +562,8 @@ case class Cover(
                    msg: StringLit,
                  ) extends Statement with HasInfo with Formal[Cover] {
   def serialize: String = {
-    "cover(" + Seq(clk.serialize, cond.serialize, en.serialize)
-      .mkString(",") + msg.serialize + ")" + info.serialize
+    "cover(" + Seq(clk, cond, en).map(_.serialize).mkString(", ") +
+      ", \"" + msg.serialize + "\")" + info.serialize
   }
   def mapExpr(f: Expression => Expression): Statement = Cover(info, f(clk), f(cond), f(en), msg)
   def mapInfo(f: Info => Info): Statement = this.copy(info = f(info))

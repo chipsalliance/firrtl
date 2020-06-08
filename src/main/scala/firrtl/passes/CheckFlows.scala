@@ -103,6 +103,15 @@ object CheckFlows extends Pass with PreservesAll[Transform] {
         case (s: Stop) =>
           check_flow(info, mname, flows, SourceFlow)(s.en)
           check_flow(info, mname, flows, SourceFlow)(s.clk)
+        case (s: Assert) =>
+          check_flow(info, mname, flows, SourceFlow)(s.en)
+          check_flow(info, mname, flows, SourceFlow)(s.clk)
+        case (s: Assume) =>
+          check_flow(info, mname, flows, SourceFlow)(s.en)
+          check_flow(info, mname, flows, SourceFlow)(s.clk)
+        case (s: Cover) =>
+          check_flow(info, mname, flows, SourceFlow)(s.en)
+          check_flow(info, mname, flows, SourceFlow)(s.clk)
         case _ =>
       }
       s foreach check_flows_e(info, mname, flows)
