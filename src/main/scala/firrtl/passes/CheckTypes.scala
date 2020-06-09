@@ -47,8 +47,6 @@ object CheckTypes extends Pass with PreservesAll[Transform] {
     s"$info: [module $mname]  Type of init must match type of DefRegister.")
   class PrintfArgNotGround(info: Info, mname: String) extends PassException(
     s"$info: [module $mname]  Printf arguments must be either UIntType or SIntType.")
-  class ModelCheckingNotGround(info: Info, mname: String) extends PassException(
-    s"$info: [module $mname]  Model checking condition must be either UIntType or SIntType.")
   class ReqClk(info: Info, mname: String) extends PassException(
     s"$info: [module $mname]  Requires a clock typed signal.")
   class RegReqClk(info: Info, mname: String, name: String) extends PassException(
@@ -310,10 +308,9 @@ object CheckTypes extends Pass with PreservesAll[Transform] {
             errors.append(new PrintfArgNotGround(info, mname))
           if (wt(sx.clk.tpe) != wt(ClockType)) errors.append(new ReqClk(info, mname))
           if (wt(sx.en.tpe) != wt(ut)) errors.append(new EnNotUInt(info, mname))
-        case sx: Formal =>
+        case sx: Verification =>
           if (wt(sx.clk.tpe) != wt(ClockType)) errors.append(new ReqClk(info, mname))
-          if (wt(sx.cond.tpe) != wt(ut) && wt(sx.cond.tpe) != wt(st))
-            errors.append(new ModelCheckingNotGround(info, mname))
+          if (wt(sx.pred.tpe) != wt(ut)) errors.append(new PredNotUInt(info, mname))
           if (wt(sx.en.tpe) != wt(ut)) errors.append(new EnNotUInt(info, mname))
         case sx: DefMemory => sx.dataType match {
           case AnalogType(w) => errors.append(new IllegalAnalogDeclaration(info, mname, sx.name))

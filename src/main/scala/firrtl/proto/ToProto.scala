@@ -6,7 +6,7 @@ package proto
 import java.io.OutputStream
 
 import FirrtlProtos._
-import Firrtl.Statement.ReadUnderWrite
+import Firrtl.Statement.{ReadUnderWrite, Formal}
 import Firrtl.Expression.PrimOp.Op
 import com.google.protobuf.{CodedOutputStream, WireFormat}
 import firrtl.PrimOps._
@@ -112,6 +112,12 @@ object ToProto {
     case ir.ReadUnderWrite.Undefined => ReadUnderWrite.UNDEFINED
     case ir.ReadUnderWrite.Old => ReadUnderWrite.OLD
     case ir.ReadUnderWrite.New => ReadUnderWrite.NEW
+  }
+
+  def convert(formal: ir.Formal.Value): Formal = formal match {
+    case ir.Formal.Assert => Formal.ASSERT
+    case ir.Formal.Assume => Formal.ASSUME
+    case ir.Formal.Cover => Formal.COVER
   }
 
   def convertToIntegerLiteral(value: BigInt): Firrtl.Expression.IntegerLiteral.Builder = {
@@ -267,20 +273,9 @@ object ToProto {
               .setClk(convert(clk))
               .setEn(convert(en))
             sb.setStop(stopb)
-          case ir.Assert(_, clk, cond, en, msg) =>
-            val ab = Firrtl.Statement.Assert.newBuilder()
-              .setClk(convert(clk))
-              .setCond(convert(cond))
-              .setEn(convert(en))
-              .setMsg(msg.string)
-          case ir.Assume(_, clk, cond, en, msg) =>
-            val ab = Firrtl.Statement.Assume.newBuilder()
-              .setClk(convert(clk))
-              .setCond(convert(cond))
-              .setEn(convert(en))
-              .setMsg(msg.string)
-          case ir.Cover(_, clk, cond, en, msg) =>
-            val ab = Firrtl.Statement.Cover.newBuilder()
+          case ir.Verification(op, _, clk, cond, en, msg) =>
+            val vb = Firrtl.Statement.Verification.newBuilder()
+              .setOp(convert(op))
               .setClk(convert(clk))
               .setCond(convert(cond))
               .setEn(convert(en))

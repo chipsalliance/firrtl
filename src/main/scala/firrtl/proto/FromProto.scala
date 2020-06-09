@@ -8,7 +8,7 @@ import java.io.{File, FileInputStream, InputStream}
 import collection.JavaConverters._
 import FirrtlProtos._
 import com.google.protobuf.CodedInputStream
-import Firrtl.Statement.ReadUnderWrite
+import Firrtl.Statement.{ReadUnderWrite, Formal}
 
 object FromProto {
 
@@ -177,17 +177,15 @@ object FromProto {
   def convert(stop: Firrtl.Statement.Stop, info: Firrtl.SourceInfo): ir.Stop =
     ir.Stop(convert(info), stop.getReturnValue, convert(stop.getClk), convert(stop.getEn))
 
-  def convert(_assert: Firrtl.Statement.Assert, info: Firrtl.SourceInfo): ir.Assert =
-    ir.Assert(convert(info), convert(_assert.getClk), convert(_assert.getCond),
-      convert(_assert.getEn), ir.StringLit(_assert.getMsg))
+  def convert(formal: Formal): ir.Formal.Value = formal match {
+    case Formal.ASSERT => ir.Formal.Assert
+    case Formal.ASSUME => ir.Formal.Assume
+    case Formal.COVER => ir.Formal.Cover
+  }
 
-  def convert(assume: Firrtl.Statement.Assume, info: Firrtl.SourceInfo): ir.Assume =
-    ir.Assume(convert(info), convert(assume.getClk), convert(assume.getCond),
-      convert(assume.getEn), ir.StringLit(assume.getMsg))
-
-  def convert(cover: Firrtl.Statement.Cover, info: Firrtl.SourceInfo): ir.Cover =
-    ir.Cover(convert(info), convert(cover.getClk), convert(cover.getCond),
-      convert(cover.getEn), ir.StringLit(cover.getMsg))
+  def convert(ver: Firrtl.Statement.Verification, info: Firrtl.SourceInfo): ir.Verification =
+    ir.Verification(convert(ver.getOp), convert(info), convert(ver.getClk),
+      convert(ver.getCond), convert(ver.getEn), ir.StringLit(ver.getMsg))
 
   def convert(mem: Firrtl.Statement.Memory, info: Firrtl.SourceInfo): ir.DefMemory = {
     val dtype = convert(mem.getType)

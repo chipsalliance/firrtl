@@ -124,7 +124,7 @@ class RemoveWires extends Transform with DependencyAPIMigration with PreservesAl
           }
         case other @ (_: Print | _: Stop | _: Attach) =>
           otherStmts += other
-        case other: Formal =>
+        case other: Verification =>
           otherStmts += other
         case EmptyStmt => // Dont bother keeping EmptyStmts around
         case block: Block => block.foreach(onStmt)

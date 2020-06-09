@@ -503,67 +503,34 @@ case class Print(
 }
 
 // formal
+object Formal extends Enumeration {
+  val Assert = Value("assert")
+  val Assume = Value("assume")
+  val Cover = Value("cover")
+}
 
-abstract class Formal(
-  val name: String,
-  val info: Info,
-  val clk: Expression,
-  val cond: Expression,
-  val en: Expression,
-  val msg: StringLit
+case class Verification(
+  op: Formal.Value,
+  info: Info,
+  clk: Expression,
+  pred: Expression,
+  en: Expression,
+  msg: StringLit
 ) extends Statement with HasInfo {
-  def serialize: String = name + "(" + Seq(clk, cond, en).map(_.serialize)
+  def serialize: String = op + "(" + Seq(clk, pred, en).map(_.serialize)
     .mkString(", ") + ", \"" + msg.serialize + "\")" + info.serialize
   def mapStmt(f: Statement => Statement): Statement = this
   def mapExpr(f: Expression => Expression): Statement =
-    copy(clk = f(clk), cond = f(cond), en = f(en))
+    copy(clk = f(clk), pred = f(pred), en = f(en))
   def mapType(f: Type => Type): Statement = this
   def mapString(f: String => String): Statement = this
   def mapInfo(f: Info => Info): Statement = copy(info = f(info))
   def foreachStmt(f: Statement => Unit): Unit = Unit
-  def foreachExpr(f: Expression => Unit): Unit = { f(clk); f(cond); f(en); }
+  def foreachExpr(f: Expression => Unit): Unit = { f(clk); f(pred); f(en); }
   def foreachType(f: Type => Unit): Unit = Unit
   def foreachString(f: String => Unit): Unit = Unit
   def foreachInfo(f: Info => Unit): Unit = f(info)
-  def copy(
-    info: Info = this.info,
-    clk: Expression = this.clk,
-    cond: Expression = this.cond,
-    en: Expression = this.en,
-    msg: StringLit  = this.msg
-  ): Formal = {
-    this match {
-      case _: Assert => Assert(info, clk, cond, en, msg)
-      case _: Assume => Assume(info, clk, cond, en, msg)
-      case _: Cover => Cover(info, clk, cond, en, msg)
-    }
-  }
 }
-
-case class Assert(
-  override val info: Info,
-  override val clk: Expression,
-  override val cond: Expression,
-  override val en: Expression,
-  override val msg: StringLit
-) extends Formal("assert", info, clk, cond, en, msg)
-
-case class Assume(
-  override val info: Info,
-  override val clk: Expression,
-  override val cond: Expression,
-  override val en: Expression,
-  override val msg: StringLit
-) extends Formal("assume", info, clk, cond, en, msg)
-
-case class Cover(
-  override val info: Info,
-  override val clk: Expression,
-  override val cond: Expression,
-  override val en: Expression,
-  override val msg: StringLit
-) extends Formal("cover", info, clk, cond, en, msg)
-
 // end formal
 
 case object EmptyStmt extends Statement {

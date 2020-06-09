@@ -4,7 +4,7 @@ import firrtl.VerilogCompiler
 import firrtl.testutils.FirrtlFlatSpec
 import logger.{LogLevel, Logger}
 
-class FormalSpec extends FirrtlFlatSpec {
+class VerificationSpec extends FirrtlFlatSpec {
   behavior of "Formal"
 
   it should "generate Verilog statements within FORMAL block" in {

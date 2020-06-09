@@ -188,37 +188,23 @@ message Firrtl {
       Expression en = 4;
     }
 
-    message Assert {
-      // Required.
-      Expression clk = 1;
-      // Required.
-      Expression cond = 2;
-      // Required.
-      Expression en = 3;
-      // Required.
-      string msg = 4;
+    enum Formal {
+      ASSERT = 0;
+      ASSUME = 1;
+      COVER = 2;
     }
 
-    message Assume {
+    message Verification {
       // Required.
-      Expression clk = 1;
+      Formal op = 1;
       // Required.
-      Expression cond = 2;
+      Expression clk = 2;
       // Required.
-      Expression en = 3;
+      Expression cond = 3;
       // Required.
-      string msg = 4;
-    }
-
-    message Cover {
+      Expression en = 4;
       // Required.
-      Expression clk = 1;
-      // Required.
-      Expression cond = 2;
-      // Required.
-      Expression en = 3;
-      // Required.
-      string msg = 4;
+      string msg = 5;
     }
 
     message Skip {
