@@ -6,7 +6,6 @@ package transforms
 import firrtl._
 import firrtl.annotations._
 import firrtl.ir._
-import firrtl.passes.ResolveFlows
 import firrtl.Utils.{NodeMap => _, _}
 import firrtl.Mappers._
 import firrtl.PrimOps._
@@ -14,7 +13,6 @@ import firrtl.annotations.TargetToken
 import firrtl.annotations.TargetToken.{Field => _, _}
 import firrtl.options.Dependency
 
-import annotation.tailrec
 import collection.mutable
 
 class MidFormConstantPropagation extends BaseConstantPropagation {
@@ -44,9 +42,21 @@ class MidFormConstantPropagation extends BaseConstantPropagation {
 
   override val annotationClasses: Traversable[Class[_]] = Seq(classOf[DontTouchAnnotation])
 
-  private def constPropNodeRef(r: Expression, e: Expression) = e match {
-    case _: UIntLiteral | _: SIntLiteral | _: WRef | _: WSubIndex | _: WSubField => e
-    case _ => r
+  private def nodeRefIsConstProped(r: Expression, e: Expression): Boolean = e match {
+    case _: UIntLiteral | _: SIntLiteral | _: WRef | _: WSubIndex | _: WSubField => true
+    case _ => false
+  }
+
+  private def declIsConstProped(nodeMap: NodeMap, decl: IsDeclaration): Boolean = {
+    if (nodeMap.contains(decl.name)) {
+      nodeRefIsConstProped(WRef(decl.name), nodeMap(decl.name))
+    } else {
+      false
+    }
+  }
+
+  private def constPropNodeRef(r: Expression, e: Expression): Expression = {
+    if (nodeRefIsConstProped(r, e)) { e } else { r }
   }
 
   private def constPropExpression(
@@ -136,18 +146,31 @@ class MidFormConstantPropagation extends BaseConstantPropagation {
     }
 
     def backPropExpr(expr: Expression): Expression = {
-      val old = expr map backPropExpr
+      val old = expr
       val propagated = old match {
         // When swapping, we swap both rhs and lhs
         case ref @ WRef(rname, _,_,_) if swapMap.contains(rname) =>
+          nPropagated += 1
           ref.copy(name = swapMap(rname))
         // Only const prop on the rhs
-        case ref @ WRef(rname, _,_, SourceFlow) if nodeMap.contains(rname) =>
-          constPropNodeRef(ref, nodeMap(rname))
-        case x => x
-      }
-      if (old ne propagated) {
-        nPropagated += 1
+        case _: WRef | _: WSubField | _: WSubIndex =>
+          val ref = getRef(old)
+          val result = (ref.kind, flow(old)) match {
+            case (InstanceKind, SourceFlow) =>
+              val module = instMap(ref.name.Instance)
+              val (_, portRef) = splitRef(old)
+              val portName = portRef.serialize
+              // Check constSubOutputs to see if the submodule is driving a constant
+              constSubOutputs.get(module).flatMap(_.get(portName)).getOrElse(old)
+            case (_, SourceFlow) if nodeMap.contains(old.serialize) =>
+              constPropNodeRef(old, nodeMap(old.serialize))
+            case _ => old
+          }
+          if (old ne result) {
+            nPropagated += 1
+          }
+          result
+        case x => x map backPropExpr
       }
       propagated
     }
@@ -158,8 +181,8 @@ class MidFormConstantPropagation extends BaseConstantPropagation {
         swapMap.get(reg.name)
                .map(newName => reg.copy(name = newName, init = WRef(reg).copy(name = newName)))
                .getOrElse(reg)
-      case node: DefNode if replaced(node.name) => EmptyStmt
-      case s => s map backPropExpr match {
+      case node: DefNode if replaced(node.name) || declIsConstProped(nodeMap, node) => EmptyStmt
+      case s => s match {
         case decl: IsDeclaration if swapMap.contains(decl.name) =>
           val newName = swapMap(decl.name)
           nPropagated += 1
@@ -169,7 +192,7 @@ class MidFormConstantPropagation extends BaseConstantPropagation {
             case reg: DefRegister => reg.copy(name = newName)
             case other => throwInternalError()
           }
-        case other => other map backPropStmt
+        case other => other map backPropExpr map backPropStmt
       }
     }
 
@@ -297,6 +320,7 @@ class MidFormConstantPropagation extends BaseConstantPropagation {
       }
       // Actually transform some statements
       stmtx match {
+        // case Connect(info, lhs, _: WRef | _: WSubField | _: WSubIndex) =>
         // Propagate connections to references
         case Connect(info, lhs, rref @ WRef(rname, _, NodeKind, _)) if !dontTouches.contains(rname) =>
           Connect(info, lhs, nodeMap.get(rname).get)
@@ -308,9 +332,10 @@ class MidFormConstantPropagation extends BaseConstantPropagation {
     }
 
     val modx = m.copy(body = backPropStmt(constPropStmt(m.body)))
+
     // println("SWAP MAP")
     // swapMap.foreach { case (tokens, node) =>
-    //   println(s"${tokens} -> ${node.serialize}")
+    //   println(s"${tokens} -> ${node}")
     // }
 
     // println("NODE MAP")
@@ -320,7 +345,9 @@ class MidFormConstantPropagation extends BaseConstantPropagation {
 
     // When we call this function again, constOutputs and constSubInputs are reconstructed and
     // strictly a superset of the versions here
-    (modx, constOutputs.toMap, constSubInputs.mapValues(_.toMap).toMap)
+    // (modx, constOutputs.toMap, constSubInputs.mapValues(_.toMap).toMap)
+    if (nPropagated > 0) constPropModule(modx, dontTouches, instMap, constInputs, constSubOutputs)
+    else (modx, constOutputs.toMap, constSubInputs.mapValues(_.toMap).toMap)
   }
 
   // Unify two maps using f to combine values of duplicate keys

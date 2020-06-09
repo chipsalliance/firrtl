@@ -164,6 +164,13 @@ class HighFirrtlEmitter extends FirrtlEmitter(HighForm)
 class MiddleFirrtlEmitter extends FirrtlEmitter(MidForm)
 class LowFirrtlEmitter extends FirrtlEmitter(LowForm)
 
+// emitter that should to work on any firrtl form
+class AnyFirrtlEmitter extends FirrtlEmitter(LowForm) {
+  override def prerequisites = Seq.empty
+  override def optionalPrerequisites = firrtl.stage.Forms.LowFormOptimized
+  override def optionalPrerequisiteOf = Seq.empty
+}
+
 case class VRandom(width: BigInt) extends Expression {
   def tpe = UIntType(IntWidth(width))
   def nWords = (width + 31) / 32

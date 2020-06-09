@@ -59,6 +59,8 @@ object Forms {
          Dependency(passes.ConvertFixedToSInt),
          Dependency(passes.ZeroWidth) )
 
+  val MidFormOptimized = MidForm :+ Dependency[firrtl.transforms.MidFormConstantPropagation]
+
   val LowForm: Seq[TransformDependency] = MidForm ++
     Seq( Dependency(passes.LowerTypes),
          Dependency(passes.Legalize),

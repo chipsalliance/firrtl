@@ -9,21 +9,13 @@ import firrtl.testutils._
 import firrtl.annotations.Annotation
 
 object ConstantPropagationSpec {
-  val lowFormTransforms: Seq[Transform] = Seq(
+  val transforms: Seq[Transform] = Seq(
       ToWorkingIR,
       ResolveKinds,
       InferTypes,
       ResolveFlows,
       new InferWidths,
       new ConstantPropagation)
-
-  val midFormTransforms: Seq[Transform] = Seq(
-      ToWorkingIR,
-      ResolveKinds,
-      InferTypes,
-      ResolveFlows,
-      new InferWidths,
-      new MidFormConstantPropagation)
 }
 
 class ConstantPropagationSpec(val transforms: Seq[Transform]) extends FirrtlFlatSpec {
@@ -190,8 +182,7 @@ s"""circuit Top :
       (parse(exec(input))) should be (parse(check))
    }
 }
-class LowFormConstantPropagationMultiModule extends ConstantPropagationMultiModule(ConstantPropagationSpec.lowFormTransforms)
-class MidFormConstantPropagationMultiModule extends ConstantPropagationMultiModule(ConstantPropagationSpec.midFormTransforms)
+class LowFormConstantPropagationMultiModule extends ConstantPropagationMultiModule(ConstantPropagationSpec.transforms)
 
 // Tests the following cases for constant propagation:
 //   1) Unsigned integers are always greater than or
@@ -820,8 +811,7 @@ class ConstantPropagationSingleModule(transforms: Seq[Transform]) extends Consta
     castCheck("AsyncReset", "asAsyncReset")
   }
 }
-class LowFormConstantPropagationSingleModule extends ConstantPropagationSingleModule(ConstantPropagationSpec.lowFormTransforms)
-class MidFormConstantPropagationSingleModule extends ConstantPropagationSingleModule(ConstantPropagationSpec.midFormTransforms)
+class LowFormConstantPropagationSingleModule extends ConstantPropagationSingleModule(ConstantPropagationSpec.transforms)
 
 // More sophisticated tests of the full compiler
 class ConstantPropagationIntegrationSpec extends LowTransformSpec {
@@ -1531,8 +1521,7 @@ class ConstantPropagationIntegrationSpec extends LowTransformSpec {
 
 }
 
-
-class ConstantPropagationEquivalenceSpec extends FirrtlFlatSpec {
+class ConstantPropagationEquivalenceSpec() extends FirrtlFlatSpec {
   private val srcDir = "/constant_propagation_tests"
   private val transforms = Seq(new ConstantPropagation)
 
