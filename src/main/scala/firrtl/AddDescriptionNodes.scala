@@ -12,34 +12,34 @@ import firrtl.options.{Dependency, PreservesAll}
   * Usually, we would like to emit these descriptions in some way.
   */
 sealed trait DescriptionAnnotation extends Annotation {
-  def named: Named
+  def target: Target
   def description: String
 }
 
 /**
   * A docstring description (a comment).
-  * @param named the object being described
+  * @param target the object being described
   * @param description the docstring describing the object
   */
-case class DocStringAnnotation(named: Named, description: String) extends DescriptionAnnotation {
+case class DocStringAnnotation(target: Target, description: String) extends DescriptionAnnotation {
   def update(renames: RenameMap): Seq[DocStringAnnotation] = {
-    renames.get(named) match {
+    renames.get(target) match {
       case None => Seq(this)
-      case Some(seq) => seq.map(n => this.copy(named = n))
+      case Some(seq) => seq.map(n => this.copy(target = n))
     }
   }
 }
 
 /**
   * An Verilog-style attribute.
-  * @param named the object being given an attribute
+  * @param target the object being given an attribute
   * @param description the attribute
   */
-case class AttributeAnnotation(named: Named, description: String) extends DescriptionAnnotation {
+case class AttributeAnnotation(target: Target, description: String) extends DescriptionAnnotation {
   def update(renames: RenameMap): Seq[AttributeAnnotation] = {
-    renames.get(named) match {
+    renames.get(target) match {
       case None => Seq(this)
-      case Some(seq) => seq.map(n => this.copy(named = n))
+      case Some(seq) => seq.map(n => this.copy(target = n))
     }
   }
 }
@@ -210,8 +210,8 @@ class AddDescriptionNodes extends Transform with DependencyAPIMigration with Pre
 
   def collectMaps(annos: Seq[Annotation]): (Map[String, Seq[Description]], Map[String, Map[String, Seq[Description]]]) = {
     val modList = annos.collect {
-      case DocStringAnnotation(ModuleName(m, _), desc) => (m, DocString(StringLit.unescape(desc)))
-      case AttributeAnnotation(ModuleName(m, _), desc) => (m, Attribute(StringLit.unescape(desc)))
+      case DocStringAnnotation(ModuleTarget(_, m), desc) => (m, DocString(StringLit.unescape(desc)))
+      case AttributeAnnotation(ModuleTarget(_, m), desc) => (m, Attribute(StringLit.unescape(desc)))
     }
 
     // map field 1 (module name) -> field 2 (a list of Descriptions)
@@ -220,9 +220,9 @@ class AddDescriptionNodes extends Transform with DependencyAPIMigration with Pre
       .mapValues(mergeDescriptions)
 
     val compList = annos.collect {
-      case DocStringAnnotation(ComponentName(c, ModuleName(m, _)), desc) =>
+      case DocStringAnnotation(ReferenceTarget(_, m, _, c, _), desc) =>
         (m, c, DocString(StringLit.unescape(desc)))
-      case AttributeAnnotation(ComponentName(c, ModuleName(m, _)), desc) =>
+      case AttributeAnnotation(ReferenceTarget(_, m, _, c, _), desc) =>
         (m, c, Attribute(StringLit.unescape(desc)))
     }
 
