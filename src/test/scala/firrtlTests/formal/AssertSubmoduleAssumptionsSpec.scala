@@ -54,10 +54,10 @@ class AssertSubmoduleAssumptionsSpec extends FirrtlFlatSpec {
         |    out <= in
         |    assume(clock, eq(in, UInt(1)), UInt(1), "assume1")
         |    assert(clock, eq(out, UInt(1)), UInt(1), "assert1")
-        |    """.stripMargin
+        |""".stripMargin
 
     val check = Seq(
-      "assert(clock, eq(in, UInt<1>(\"h1\")), UInt<1>(\"h1\"), \"assume1\")",
+      "assert(clock, eq(in, UInt<1>(\"h1\")), UInt<1>(\"h1\"), \"assume1\")"
     )
     run(input, check)
   }
@@ -99,11 +99,11 @@ class AssertSubmoduleAssumptionsSpec extends FirrtlFlatSpec {
         |    out <= in
         |    assume(clock, eq(in, UInt(2)), UInt(1), "assume2")
         |    assert(clock, eq(out, UInt(2)), UInt(1), "assert2")
-        |    """.stripMargin
+        |""".stripMargin
 
     val check = Seq(
       "assert(clock, eq(in, UInt<1>(\"h1\")), UInt<1>(\"h1\"), \"assume1\")",
-      "assert(clock, eq(in, UInt<2>(\"h2\")), UInt<1>(\"h1\"), \"assume2\")",
+      "assert(clock, eq(in, UInt<2>(\"h2\")), UInt<1>(\"h1\"), \"assume2\")"
     )
     run(input, check)
   }

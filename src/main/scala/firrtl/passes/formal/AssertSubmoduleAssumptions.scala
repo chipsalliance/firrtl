@@ -1,11 +1,10 @@
 
 package firrtl.passes.formal
 
-import firrtl.passes.{Pass, PullMuxes, ReplaceAccesses, ResolveFlows}
+import firrtl.passes.Pass
 import firrtl.ir.{Assert, Assume, Circuit, Statement}
-import firrtl.options.Dependency
 import firrtl.stage.TransformManager.TransformDependency
-import firrtl.{CircuitState, FirrtlUserException, Transform}
+import firrtl.Transform
 
 
 object AssertSubmoduleAssumptions extends Pass {
