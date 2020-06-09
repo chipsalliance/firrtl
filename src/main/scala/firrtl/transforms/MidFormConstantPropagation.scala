@@ -14,10 +14,121 @@ import firrtl.annotations.TargetToken.{Field => _, _}
 import firrtl.options.Dependency
 
 import collection.mutable
+import annotation.tailrec
+
+sealed trait TokenTrie[T] {
+  def value: Option[T]
+  protected def setValue(value: T): Unit
+  def children: mutable.LinkedHashMap[TargetToken, TokenTrie[T]]
+
+  @tailrec
+  def insert(tokens: Seq[TargetToken], value: T): Unit = {
+    if (tokens.isEmpty) {
+      setValue(value)
+    } else {
+      val child = children.getOrElseUpdate(tokens.head, TokenTrie.empty)
+      child.insert(tokens.tail, value)
+    }
+  }
+
+  @tailrec
+  def get(tokens: Seq[TargetToken]): Option[T] = {
+    if (tokens.isEmpty) {
+      value
+    } else if (children.contains(tokens.head)) {
+      children(tokens.head).get(tokens.tail)
+    } else {
+      None
+    }
+  }
+
+  @tailrec
+  def getChild(tokens: Seq[TargetToken]): Option[TokenTrie[T]] = {
+    if (tokens.isEmpty) {
+      Some(this)
+    } else if (children.contains(tokens.head)) {
+      children(tokens.head).getChild(tokens.tail)
+    } else {
+      None
+    }
+  }
+
+  def getChildToken(token: TargetToken): Option[TokenTrie[T]] = {
+    children.get(token)
+  }
+
+  def foreach(fn: (IndexedSeq[TargetToken], T) => Unit, parent: IndexedSeq[TargetToken] = IndexedSeq.empty): Unit = {
+    value.foreach(fn(parent, _))
+    children.foreach { case (token, child) =>
+      child.foreach(fn, parent :+ token)
+    }
+  }
+
+  def map[A](fn: T => A): TokenTrie[A]
+
+  def apply(tokens: Seq[TargetToken]): T = get(tokens).get
+
+  def contains(tokens: Seq[TargetToken]): Boolean = get(tokens).isDefined
+
+  def containsToken(token: TargetToken): Boolean = getToken(token).isDefined
+
+  def getToken(token: TargetToken): Option[T] = {
+    children.get(token).flatMap(_.value)
+  }
+
+  @tailrec
+  def getParent(
+    tokens: Seq[TargetToken],
+    default: Option[(T, Seq[TargetToken])] = None
+  ): Option[(T, Seq[TargetToken])] = {
+    val newDefault = value match {
+      case v: Some[T] => v.map(_ -> tokens)
+      case None => default
+    }
+    tokens.headOption match {
+      case Some(token) => children.get(token) match {
+        case Some(child) => child.getParent(tokens.tail, newDefault)
+        case None => newDefault
+      }
+      case None => newDefault
+    }
+  }
+
+  @tailrec
+  def pathExists(tokens: Seq[TargetToken]): Boolean = {
+    tokens.headOption match {
+      case Some(token) if children.contains(token) =>
+        children(token).pathExists(tokens)
+      case None => true
+      case _ => false
+    }
+  }
+}
+
+object TokenTrie {
+  def empty[T]: TokenTrie[T] = apply(None, mutable.LinkedHashMap.empty)
+
+  def apply[T](valuex: Option[T], childrenx: mutable.LinkedHashMap[TargetToken, TokenTrie[T]]): TokenTrie[T] = {
+    new TokenTrie[T] {
+      var value: Option[T] = None
+      def setValue(valuex: T): Unit = {
+        value = Some(valuex)
+      }
+      def map[A](fn: T => A): TokenTrie[A] = {
+        val newChildren = mutable.LinkedHashMap.empty[TargetToken, TokenTrie[A]]
+        children.foreach { case (token, child) =>
+          newChildren(token) = child.map(fn)
+        }
+        TokenTrie(value.map(fn), newChildren)
+      }
+      val children = childrenx
+    }
+  }
+}
 
 class MidFormConstantPropagation extends BaseConstantPropagation {
-  type Tokens = String
-  type NodeMap = mutable.HashMap[Tokens, Expression]
+  type Tokens = Seq[TargetToken]
+  type NodeMap = TokenTrie[Expression]
 
   import BaseConstantPropagation._
 
@@ -48,8 +159,8 @@ class MidFormConstantPropagation extends BaseConstantPropagation {
   }
 
   private def declIsConstProped(nodeMap: NodeMap, decl: IsDeclaration): Boolean = {
-    if (nodeMap.contains(decl.name)) {
-      nodeRefIsConstProped(WRef(decl.name), nodeMap(decl.name))
+    if (nodeMap.containsToken(Ref(decl.name))) {
+      nodeRefIsConstProped(WRef(decl.name), nodeMap(Seq(Ref(decl.name))))
     } else {
       false
     }
@@ -68,16 +179,16 @@ class MidFormConstantPropagation extends BaseConstantPropagation {
       case p: DoPrim => constPropPrim(p)
       case m: Mux => constPropMux(m)
       case expr@ (_: WRef | _: WSubIndex | _: WSubField) =>
-        val tokens = expr.serialize
-        val ref = getRef(expr)
+        val (ref, tokens) = toTokens(expr)
         (flow(expr), ref.kind) match {
           case (SourceFlow, _) if nodeMap.contains(tokens) =>
             constPropNodeRef(expr, nodeMap(tokens))
-          case (SourceFlow, InstanceKind) =>
+          case (SourceFlow, InstanceKind) if tokens.size > 1 =>
             val module = instMap(ref.name.Instance)
-            val (_, portExpr) = splitRef(expr)
             // Check constSubOutputs to see if the submodule is driving a constant
-            constSubOutputs.get(module).flatMap(_.get(portExpr.serialize)).getOrElse(expr)
+            val TargetToken.Field(portName) = tokens.tail.head
+            val portTokens = Ref(portName) +: tokens.tail.tail
+            constSubOutputs.get(module).flatMap(_.get(portTokens)).getOrElse(expr)
           case _ => expr
         }
       case x => x
@@ -112,14 +223,29 @@ class MidFormConstantPropagation extends BaseConstantPropagation {
       constInputs: Map[Tokens, Literal],
       constSubOutputs: Map[OfModule, Map[Tokens, Literal]]
     ): (Module, Map[Tokens, Literal], Map[OfModule, Map[Tokens, Seq[Literal]]]) = {
+    val dontTouchTrie = {
+      val trie = TokenTrie.empty[Unit]
+      dontTouches.foreach { case (tokens) =>
+        trie.insert(tokens, Unit)
+      }
+      trie
+    }
+    constPropModuleImp(m, dontTouchTrie, instMap, constInputs, constSubOutputs)
+  }
+
+  private def constPropModuleImp(
+      m: Module,
+      dontTouches: TokenTrie[Unit],
+      instMap: collection.Map[Instance, OfModule],
+      constInputs: Map[Tokens, Literal],
+      constSubOutputs: Map[OfModule, Map[Tokens, Literal]]
+    ): (Module, Map[Tokens, Literal], Map[OfModule, Map[Tokens, Seq[Literal]]]) = {
 
     var nPropagated = 0L
-    val nodeMap = mutable.HashMap.empty[Tokens, Expression]
-
+    val nodeMap = TokenTrie.empty[Expression]
     // For cases where we are trying to constprop a bad name over a good one, we swap their names
     // during the second pass
-    val swapMap = mutable.LinkedHashMap.empty[Tokens, String]
-    val swapMapByDecl = mutable.HashMap.empty[String, mutable.LinkedHashMap[Tokens, DefNode]]
+    val swapMap = mutable.HashMap.empty[String, String]
 
     // const propped nodes with better names, which have thier nodes replaced with decls next to the bad name declaration
     val replaced = mutable.Set.empty[String]
@@ -128,7 +254,7 @@ class MidFormConstantPropagation extends BaseConstantPropagation {
     val constOutputs = mutable.HashMap.empty[Tokens, Literal]
     // Keep track of any submodule inputs we drive with a constant
     // (can have more than 1 of the same submodule)
-    val constSubInputs = mutable.HashMap.empty[OfModule, mutable.HashMap[Tokens, Seq[Literal]]]
+    val constSubInputs = mutable.HashMap.empty[OfModule, mutable.HashMap[Seq[TargetToken], Seq[Literal]]]
     // AsyncReset registers don't have reset turned into a mux so we must be careful
     val asyncResetRegs = mutable.HashMap.empty[String, DefRegister]
 
@@ -136,15 +262,18 @@ class MidFormConstantPropagation extends BaseConstantPropagation {
     // Therefore, we must store some memoized information about how nodes can be canditates for
     // forming part of a register const-prop "self-loop," where a register gets some combination of
     // self-assignments and assignments of the same literal value.
-    val nodeRegCPEntries = new mutable.HashMap[Tokens, RegCPEntry]
+    val nodeRegCPEntries = new mutable.HashMap[Seq[TargetToken], RegCPEntry]
 
     // Copy constant mapping for constant inputs (except ones marked dontTouch!)
     constInputs.foreach {
       case (tokens, lit) if !dontTouches.contains(tokens) =>
-        nodeMap(tokens) = lit
+        nodeMap.insert(tokens, lit)
       case _ =>
     }
 
+    // Note that on back propagation we *only* worry about swapping names and propagating references
+    // to constant wires, we don't need to worry about propagating primops or muxes since we'll do
+    // that on the next iteration if necessary
     def backPropExpr(expr: Expression): Expression = {
       val old = expr
       val propagated = old match {
@@ -154,16 +283,16 @@ class MidFormConstantPropagation extends BaseConstantPropagation {
           ref.copy(name = swapMap(rname))
         // Only const prop on the rhs
         case _: WRef | _: WSubField | _: WSubIndex =>
-          val ref = getRef(old)
+          val (ref, tokens) = toTokens(old)
           val result = (ref.kind, flow(old)) match {
             case (InstanceKind, SourceFlow) =>
               val module = instMap(ref.name.Instance)
-              val (_, portRef) = splitRef(old)
-              val portName = portRef.serialize
+              val TargetToken.Field(portName) = tokens.tail.head
+              val portTokens = Ref(portName) +: tokens.tail.tail
               // Check constSubOutputs to see if the submodule is driving a constant
-              constSubOutputs.get(module).flatMap(_.get(portName)).getOrElse(old)
-            case (_, SourceFlow) if nodeMap.contains(old.serialize) =>
-              constPropNodeRef(old, nodeMap(old.serialize))
+              constSubOutputs.get(module).flatMap(_.get(portTokens)).getOrElse(old)
+            case (_, SourceFlow) if nodeMap.contains(tokens) =>
+              constPropNodeRef(old, nodeMap(tokens))
             case _ => old
           }
           if (old ne result) {
@@ -181,8 +310,8 @@ class MidFormConstantPropagation extends BaseConstantPropagation {
         swapMap.get(reg.name)
                .map(newName => reg.copy(name = newName, init = WRef(reg).copy(name = newName)))
                .getOrElse(reg)
-      case node: DefNode if replaced(node.name) || declIsConstProped(nodeMap, node) => EmptyStmt
-      case s => s match {
+      case node: DefNode if declIsConstProped(nodeMap, node) => EmptyStmt
+      case s => s map backPropExpr match {
         case decl: IsDeclaration if swapMap.contains(decl.name) =>
           val newName = swapMap(decl.name)
           nPropagated += 1
@@ -192,7 +321,7 @@ class MidFormConstantPropagation extends BaseConstantPropagation {
             case reg: DefRegister => reg.copy(name = newName)
             case other => throwInternalError()
           }
-        case other => other map backPropExpr map backPropStmt
+        case other => other map backPropStmt
       }
     }
 
@@ -202,11 +331,10 @@ class MidFormConstantPropagation extends BaseConstantPropagation {
         case WRef(rname,_,kind,_) if betterName(lname, rname) && !swapMap.contains(rname) && kind != PortKind =>
           assert(!swapMap.contains(lname)) // <- Shouldn't be possible because lname is either a
           // node declaration or the single connection to a wire or register
-          swapMap(rname) = lname
-          replaced += lname
+          swapMap += (lname -> rname, rname -> lname)
         case _ =>
       }
-      nodeMap(lname) = value
+      nodeMap.insert(Seq(Ref(lname)), value)
     }
 
     def constPropStmt(s: Statement): Statement = {
@@ -214,17 +342,16 @@ class MidFormConstantPropagation extends BaseConstantPropagation {
       // Record things that should be propagated
       stmtx match {
         // TODO: allow other sub-components to be propagated if dontTouch only affects a sub-component of the node
-        case x: DefNode if !dontTouches.contains(x.name) => propagateRef(x.name, x.value)
+        case x: DefNode if !dontTouches.containsToken(Ref(x.name)) => propagateRef(x.name, x.value)
         case reg: DefRegister if reg.reset.tpe == AsyncResetType =>
           asyncResetRegs(reg.name) = reg
         case c@ Connect(_, _: WRef| _: WSubField | _: WSubIndex, _) =>
-          val tokens = c.loc.serialize
-          val ref = getRef(c.loc)
+          val (ref, tokens) = toTokens(c.loc)
           val dontTouched = dontTouches.contains(tokens)
           (ref.kind, c.expr) match {
             case (WireKind, lit: Literal) if !dontTouched =>
               val exprx = constPropExpression(nodeMap, instMap, constSubOutputs)(pad(lit, c.loc.tpe))
-              propagateRef(tokens, exprx)
+              nodeMap.insert(tokens, exprx)
             case (PortKind, lit: Literal) if !dontTouched =>
               val paddedLit = constPropExpression(nodeMap, instMap, constSubOutputs)(pad(lit, c.loc.tpe)).asInstanceOf[Literal]
               constOutputs(tokens) = paddedLit
@@ -232,9 +359,8 @@ class MidFormConstantPropagation extends BaseConstantPropagation {
               val paddedLit = constPropExpression(nodeMap, instMap, constSubOutputs)(pad(lit, c.loc.tpe)).asInstanceOf[Literal]
               val module = instMap(ref.name.Instance)
               val portsMap = constSubInputs.getOrElseUpdate(module, mutable.HashMap.empty)
-              val portTokens = {
-                val (_, portExpr) = splitRef(c.loc)
-                portExpr.serialize
+              val portTokens = tokens.tail match {
+                case TargetToken.Field(subRef) +: rest => Ref(subRef) +: rest
               }
               portsMap(portTokens) = paddedLit +: portsMap.getOrElse(portTokens, List.empty)
             // Const prop registers that are driven by a mux tree containing only instances of one constant or self-assigns
@@ -269,8 +395,7 @@ class MidFormConstantPropagation extends BaseConstantPropagation {
               def regConstantImp(e: Expression, baseCase: RegCPEntry): RegCPEntry = e match {
                 case lit: Literal => baseCase.resolve(RegCPEntry(UnboundConstant, BoundConstant(lit)))
                 case _: WRef | _: WSubField | _: WSubIndex =>
-                  val ref = getRef(e)
-                  val tokens = e.serialize
+                  val (ref, tokens) = toTokens(e)
                   ref.kind match {
                     case RegKind =>
                       baseCase.resolve(RegCPEntry(BoundConstant(tokens), UnboundConstant))
@@ -299,10 +424,10 @@ class MidFormConstantPropagation extends BaseConstantPropagation {
 
               // Updates nodeMap after analyzing the returned value from regConstant
               def updateNodeMapIfConstant(e: Expression): Unit = regConstant(e, selfBound) match {
-                case RegCPEntry(UnboundConstant,  UnboundConstant)    => nodeMap(tokens) = padCPExp(zero)
-                case RegCPEntry(BoundConstant(_), UnboundConstant)    => nodeMap(tokens) = padCPExp(zero)
-                case RegCPEntry(UnboundConstant,  BoundConstant(lit)) => nodeMap(tokens) = padCPExp(lit)
-                case RegCPEntry(BoundConstant(_), BoundConstant(lit)) => nodeMap(tokens) = padCPExp(lit)
+                case RegCPEntry(UnboundConstant,  UnboundConstant)    => nodeMap.insert(tokens, padCPExp(zero))
+                case RegCPEntry(BoundConstant(_), UnboundConstant)    => nodeMap.insert(tokens, padCPExp(zero))
+                case RegCPEntry(UnboundConstant,  BoundConstant(lit)) => nodeMap.insert(tokens, padCPExp(lit))
+                case RegCPEntry(BoundConstant(_), BoundConstant(lit)) => nodeMap.insert(tokens, padCPExp(lit))
                 case _ =>
               }
 
@@ -320,10 +445,16 @@ class MidFormConstantPropagation extends BaseConstantPropagation {
       }
       // Actually transform some statements
       stmtx match {
-        // case Connect(info, lhs, _: WRef | _: WSubField | _: WSubIndex) =>
         // Propagate connections to references
-        case Connect(info, lhs, rref @ WRef(rname, _, NodeKind, _)) if !dontTouches.contains(rname) =>
-          Connect(info, lhs, nodeMap.get(rname).get)
+        case c@ Connect(info, lhs, _: WRef | _: WSubField | _: WSubIndex) =>
+          val (ref, tokens) = toTokens(c.expr)
+          if (ref.kind == NodeKind && !dontTouches.contains(tokens)) {
+            Connect(info, lhs, nodeMap(tokens))
+          } else {
+            c
+          }
+        //case Connect(info, lhs, rref @ WRef(rname, _, NodeKind, _)) if !dontTouches.containsToken(Ref(rname)) =>
+        //  Connect(info, lhs, nodeMap.get(Seq(Ref(rname))).get)
         // If an Attach has at least 1 port, any wires are redundant and can be removed
         case Attach(info, exprs) if exprs.exists(kind(_) == PortKind) =>
           Attach(info, exprs.filterNot(kind(_) == WireKind))
@@ -332,10 +463,9 @@ class MidFormConstantPropagation extends BaseConstantPropagation {
     }
 
     val modx = m.copy(body = backPropStmt(constPropStmt(m.body)))
-
     // println("SWAP MAP")
     // swapMap.foreach { case (tokens, node) =>
-    //   println(s"${tokens} -> ${node}")
+    //   println(s"${tokens} -> ${node.serialize}")
     // }
 
     // println("NODE MAP")
@@ -345,10 +475,12 @@ class MidFormConstantPropagation extends BaseConstantPropagation {
 
     // When we call this function again, constOutputs and constSubInputs are reconstructed and
     // strictly a superset of the versions here
-    // (modx, constOutputs.toMap, constSubInputs.mapValues(_.toMap).toMap)
-    if (nPropagated > 0) constPropModule(modx, dontTouches, instMap, constInputs, constSubOutputs)
-    else (modx, constOutputs.toMap, constSubInputs.mapValues(_.toMap).toMap)
+    // println(s"${m.name} -> $nPropagated")
+    // if (nPropagated > 0) constPropModuleImp(modx, dontTouches, instMap, constInputs, constSubOutputs)
+    // else (modx, constOutputs.toMap, constSubInputs.mapValues(_.toMap).toMap)
+    (modx, constOutputs.toMap, constSubInputs.mapValues(_.toMap).toMap)
   }
+  override def iterateMulti = false
 
   // Unify two maps using f to combine values of duplicate keys
   private def unify[K, V](a: Map[K, V], b: Map[K, V])(f: (V, V) => V): Map[K, V] =
@@ -357,10 +489,6 @@ class MidFormConstantPropagation extends BaseConstantPropagation {
     }
 
   def referenceToTokens(ref: ReferenceTarget): Tokens = ref match {
-    case Target(_, Some(m), tokens) => tokens.map {
-      case Ref(ref) => ref
-      case TargetToken.Field(field) => s".$field"
-      case Index(index) => s"[$index]"
-    }.mkString
+    case Target(_, Some(m), tokens) => tokens
   }
 }

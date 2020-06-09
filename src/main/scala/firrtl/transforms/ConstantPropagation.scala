@@ -421,6 +421,8 @@ abstract class BaseConstantPropagation extends Transform with DependencyAPIMigra
       constSubOutputs: Map[OfModule, Map[Tokens, Literal]]
     ): (Module, Map[Tokens, Literal], Map[OfModule, Map[Tokens, Seq[Literal]]])
 
+  protected def iterateMulti: Boolean = true
+
   private def run(c: Circuit, dontTouchMap: Map[OfModule, Set[Tokens]]): Circuit = {
     val iGraph = new InstanceGraph(c)
     val moduleDeps = iGraph.getChildrenInstanceMap
@@ -475,9 +477,14 @@ abstract class BaseConstantPropagation extends Transform with DependencyAPIMigra
         val modsWithConstInputs = newProppedInputs.keySet
         val newToVisit = modsWithConstInputs ++
                          modsWithConstInputs.flatMap(parentGraph.reachableFrom)
+        //println(newToVisit)
         // Combine const inputs (there can't be duplicate values in the inner maps)
         val nextConstInputs = unify(constInputs, newProppedInputs)((a, b) => a ++ b)
-        iterate(newToVisit.toSet, modulesx, nextConstInputs)
+        if (iterateMulti) {
+          iterate(newToVisit.toSet, modulesx, nextConstInputs)
+        } else {
+          modulesx
+        }
       }
     }
 
@@ -536,7 +543,7 @@ abstract class BaseConstantPropagation extends Transform with DependencyAPIMigra
   // A RegCPEntry tracks whether a given signal could be part of a register constant propagation
   // loop. It contains const prop bindings for a register name and a literal, which represent the
   // fact that a constant propagation loop can include both self-assignments and consistent literals.
-  protected case class RegCPEntry(r: ConstPropBinding[String], l: ConstPropBinding[Literal]) {
+  protected case class RegCPEntry(r: ConstPropBinding[Tokens], l: ConstPropBinding[Literal]) {
     def resolve(that: RegCPEntry) = RegCPEntry(r.resolve(that.r), l.resolve(that.l))
     def nonConstant: Boolean = r == NonConstant || l == NonConstant
   }
