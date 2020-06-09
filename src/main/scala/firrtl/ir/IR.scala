@@ -421,7 +421,10 @@ object Block {
 }
 
 case class Block(stmts: Seq[Statement]) extends Statement {
-  def serialize: String = stmts map (_.serialize) mkString "\n"
+  def serialize: String = {
+    val res = stmts.view.map(_.serialize).mkString("\n")
+    if (res.nonEmpty) res else EmptyStmt.serialize
+  }
   def mapStmt(f: Statement => Statement): Statement = {
     val res = new scala.collection.mutable.ArrayBuffer[Statement]()
     var it = stmts.iterator
