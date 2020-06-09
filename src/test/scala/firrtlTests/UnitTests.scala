@@ -179,6 +179,31 @@ class UnitTests extends FirrtlFlatSpec {
     executeTest(input, check, passes)
   }
 
+  "Simple compound expressions in muxes" should "be split" in {
+    val passes = Seq(
+      ToWorkingIR,
+      ResolveKinds,
+      InferTypes,
+      ResolveFlows,
+      new InferWidths,
+      SplitExpressions
+    )
+    val input =
+      """circuit Top :
+        |  module Top :
+        |    input cond : UInt<1>
+        |    input a : UInt<32>
+        |    input b : UInt<32>
+        |    input c : UInt<64>
+        |    output d : UInt<32>
+        |    d <= mux(cond, cat(a, b), c)""".stripMargin
+    val check = Seq(
+      "node _GEN_0 = cat(a, b)",
+      "d <= mux(cond, _GEN_0, c)"
+    )
+    executeTest(input, check, passes)
+  }
+
   "Smaller widths" should "be explicitly padded" in {
     val passes = Seq(
       ToWorkingIR,
