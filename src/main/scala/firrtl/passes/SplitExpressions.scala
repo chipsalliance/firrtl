@@ -55,6 +55,7 @@ object SplitExpressions extends Pass {
         def onExp(e: Expression): Expression =
           e map onExp match {
             case ex: DoPrim => ex map split
+            case ex: Mux => ex map split
             case ex => ex
          }
 
@@ -65,7 +66,7 @@ object SplitExpressions extends Pass {
              v += x
              v.size match {
                case 1 => v.head
-               case _ => Block(v.toSeq)
+               case _ => Block(v)
              }
         }
       }
