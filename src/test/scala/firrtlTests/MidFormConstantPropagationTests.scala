@@ -1414,3 +1414,88 @@ class MidFormConstantPropagationIntegrationSpec extends MiddleTransformSpec {
     execute(input, check, Seq.empty)
   }
 }
+
+class MidFormConstantPropagationEquivalenceSpec() extends FirrtlFlatSpec {
+  private val srcDir = "/mid_form_constant_propagation_tests"
+  private val transforms = Seq(new MidFormConstantPropagation)
+
+  "anything added to zero" should "be equal to itself" in {
+    val input =
+      s"""circuit AddZero :
+         |  module AddZero :
+         |    input io : { in : UInt<5>[1], flip out1 : UInt<6>[1], flip out2: UInt<6>[1] }
+         |    io.out1[0] <= add(io.in[0], UInt<5>("h0"))
+         |    io.out2[0] <= add(UInt<5>("h0"), io.in[0])""".stripMargin
+    firrtlEquivalenceTest(input, transforms)
+  }
+
+  "constants added together" should "be propagated" in {
+    val input =
+      s"""circuit AddLiterals :
+         |  module AddLiterals :
+         |    input io : { uin : UInt<5>[1], sin : SInt<5>[1], flip uout : UInt<6>[1], flip sout : SInt<6>[1] }
+         |    node uconst = add(UInt<5>("h1"), UInt<5>("h2"))
+         |    io.uout[0] <= add(uconst, io.uin[0])
+         |    node sconst = add(SInt<5>("h1"), SInt<5>("h-1"))
+         |    io.sout[0] <= add(sconst, io.sin[0])""".stripMargin
+    firrtlEquivalenceTest(input, transforms)
+  }
+
+  "UInt addition" should "have the correct widths" in {
+    val input =
+      s"""circuit WidthsAddUInt :
+         |  module WidthsAddUInt :
+         |    input io : { in : UInt<3>[1], flip out1: UInt<10>[1], flip out2 : UInt<10>[1] }
+         |    wire temp : UInt<5>
+         |    temp <= add(io.in[0], UInt<1>("h0"))
+         |    io.out1[0] <= cat(temp, temp)
+         |    node const = add(UInt<4>("h1"), UInt<3>("h2"))
+         |    io.out2[0] <= cat(const, const)""".stripMargin
+    firrtlEquivalenceTest(input, transforms)
+  }
+
+  "SInt addition" should "have the correct widths" in {
+    val input =
+      s"""circuit WidthsAddSInt :
+         |  module WidthsAddSInt :
+         |    input io : { in : SInt<3>[1], flip out1: UInt<10>[1], flip out2 : UInt<10>[1] }
+         |    wire temp : SInt<5>
+         |    temp <= add(io.in[0], SInt<7>("h0"))
+         |    io.out1[0] <= cat(temp, temp)
+         |    node const = add(SInt<4>("h1"), SInt<3>("h-2"))
+         |    io.out2[0] <= cat(const, const)""".stripMargin
+    firrtlEquivalenceTest(input, transforms)
+  }
+
+  "addition by zero width wires" should "have the correct widths" in {
+    val input =
+      s"""circuit ZeroWidthAdd:
+         |  module ZeroWidthAdd:
+         |    input io : { x : UInt<0>[1], flip y: UInt<7>[1] }
+         |    node temp = add(io.x[0], UInt<9>("h0"))
+         |    io.y[0] <= cat(temp, temp)""".stripMargin
+    firrtlEquivalenceTest(input, transforms)
+  }
+
+  "tail of constants" should "be propagated" in {
+    val input =
+      s"""circuit TailTester :
+         |  module TailTester :
+         |    input io : { flip out : UInt<1>[1] }
+         |    node temp = add(UInt<1>("h00"), UInt<5>("h017"))
+         |    node tail_temp = tail(temp, 1)
+         |    io.out[0] <= tail_temp""".stripMargin
+    firrtlEquivalenceTest(input, transforms)
+  }
+
+  "head of constants" should "be propagated" in {
+    val input =
+      s"""circuit TailTester :
+         |  module TailTester :
+         |    input io : { flip out : UInt<1>[1] }
+         |    node temp = add(UInt<1>("h00"), UInt<5>("h017"))
+         |    node head_temp = head(temp, 3)
+         |    io.out[0] <= head_temp""".stripMargin
+    firrtlEquivalenceTest(input, transforms)
+  }
+}
