@@ -121,6 +121,7 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
 
     val patched = scala.collection.immutable.TreeMap(m.toArray:_*).values.flatten
 
+    info(patched.mkString("\n"))
     patched
       .zip(b.flattenedTransformOrder.map(Dependency.fromTransform))
       .foreach{ case (aa, bb) => bb should be (aa) }
@@ -282,7 +283,19 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
         Some(new Transforms.MidToMid) ++
         (new TransformManager(Forms.LowForm, Forms.MidForm).flattenedTransformOrder)
     val tm = new TransformManager(Forms.LowForm :+ Dependency[Transforms.MidToMid])
-    compare(expected, tm)
+
+    // MidForm has optional prereqs on these transforms from LowForm so these shift up
+    val patches = Seq(
+      Add(43, Seq(
+        Dependency(passes.Legalize),
+        Dependency(firrtl.transforms.RemoveReset),
+        Dependency(firrtl.passes.ResolveFlows))),
+      Del(50),
+      Del(51),
+      Del(52)
+    )
+
+    compare(expected, tm, patches)
   }
 
   it should "work for Mid -> High" in {
@@ -291,7 +304,13 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
         Some(new Transforms.MidToHigh) ++
         (new TransformManager(Forms.LowForm, Forms.MinimalHighForm).flattenedTransformOrder)
     val tm = new TransformManager(Forms.LowForm :+ Dependency[Transforms.MidToHigh])
-    compare(expected, tm)
+    val patches = Seq(
+      Add(43, Seq(
+        Dependency(passes.Legalize),
+        Dependency(firrtl.transforms.RemoveReset),
+        Dependency(firrtl.passes.ResolveFlows))),
+    )
+    compare(expected, tm, patches)
   }
 
   it should "work for Mid -> Chirrtl" in {
@@ -300,7 +319,13 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
         Some(new Transforms.MidToChirrtl) ++
         (new TransformManager(Forms.LowForm, Forms.ChirrtlForm).flattenedTransformOrder)
     val tm = new TransformManager(Forms.LowForm :+ Dependency[Transforms.MidToChirrtl])
-    compare(expected, tm)
+    val patches = Seq(
+      Add(43, Seq(
+        Dependency(passes.Legalize),
+        Dependency(firrtl.transforms.RemoveReset),
+        Dependency(firrtl.passes.ResolveFlows))),
+    )
+    compare(expected, tm, patches)
   }
 
   it should "work for Low -> Low" in {
@@ -352,7 +377,7 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
         Seq(new Transforms.LowToLow, new firrtl.MinimumVerilogEmitter)
     val tm = (new TransformManager(Seq(Dependency[firrtl.MinimumVerilogEmitter], Dependency[Transforms.LowToLow])))
     val patches = Seq(
-      Add(62, Seq(Dependency[firrtl.transforms.LegalizeAndReductionsTransform]))
+      Add(63, Seq(Dependency[firrtl.transforms.LegalizeAndReductionsTransform]))
     )
     compare(expected, tm, patches)
   }
@@ -363,9 +388,8 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
         Seq(new Transforms.LowToLow, new firrtl.VerilogEmitter)
     val tm = (new TransformManager(Seq(Dependency[firrtl.VerilogEmitter], Dependency[Transforms.LowToLow])))
     val patches = Seq(
-      Add(69, Seq(Dependency[firrtl.transforms.LegalizeAndReductionsTransform]))
+      Add(71, Seq(Dependency[firrtl.transforms.LegalizeAndReductionsTransform]))
     )
     compare(expected, tm, patches)
   }
-
 }
