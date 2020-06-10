@@ -378,10 +378,21 @@ class EliminateTargetPathsSpec extends FirrtlPropSpec with FirrtlMatchers {
       """|circuit Foo:
          |  module Bar:
          |    node x = UInt<1>(0)
-         |    skip
          |  module Foo:
          |    inst bar of Bar
          |    inst baz of Bar""".stripMargin
+<<<<<<< HEAD
+=======
+    val check =
+      """|circuit Foo:
+         |  module Bar___Foo_bar:
+         |    node x = UInt<1>(0)
+         |  module Bar:
+         |    node x = UInt<1>(0)
+         |  module Foo:
+         |    inst bar of Bar___Foo_bar
+         |    inst baz of Bar""".stripMargin
+>>>>>>> 1e497ce3... Build ArrayBuffers in Block.mapStmt (#1669)
     val Bar_x = CircuitTarget("Foo").module("Bar").ref("x")
     val output = CircuitState(passes.ToWorkingIR.run(Parser.parse(input)), UnknownForm, Seq(DontTouchAnnotation(Bar_x)))
       .resolvePaths(Seq(CircuitTarget("Foo").module("Foo").instOf("bar", "Bar")))
@@ -406,7 +417,6 @@ class EliminateTargetPathsSpec extends FirrtlPropSpec with FirrtlMatchers {
          |  module Bar:
          |    node foo = UInt<1>(0)
          |    inst baz of Baz
-         |    skip
          |  module Foo:
          |    node foo = UInt<1>(0)
          |    inst bar of Bar
