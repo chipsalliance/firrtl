@@ -43,15 +43,8 @@ sealed trait TokenTrie[T] {
     }
   }
 
-  @tailrec
-  def getChild(tokens: Seq[TargetToken]): Option[TokenTrie[T]] = {
-    if (tokens.isEmpty) {
-      Some(this)
-    } else if (children.contains(tokens.head)) {
-      children(tokens.head).getChild(tokens.tail)
-    } else {
-      None
-    }
+  def getToken(token: TargetToken): Option[T] = {
+    children.get(token).flatMap(_.value)
   }
 
   def getChildToken(token: TargetToken): Option[TokenTrie[T]] = {
@@ -65,17 +58,11 @@ sealed trait TokenTrie[T] {
     }
   }
 
-  def map[A](fn: T => A): TokenTrie[A]
-
   def apply(tokens: Seq[TargetToken]): T = get(tokens).get
 
   def contains(tokens: Seq[TargetToken]): Boolean = get(tokens).isDefined
 
   def containsToken(token: TargetToken): Boolean = getToken(token).isDefined
-
-  def getToken(token: TargetToken): Option[T] = {
-    children.get(token).flatMap(_.value)
-  }
 
   @tailrec
   def getParent(
@@ -94,16 +81,6 @@ sealed trait TokenTrie[T] {
       case None => newDefault
     }
   }
-
-  @tailrec
-  def pathExists(tokens: Seq[TargetToken]): Boolean = {
-    tokens.headOption match {
-      case Some(token) if children.contains(token) =>
-        children(token).pathExists(tokens)
-      case None => true
-      case _ => false
-    }
-  }
 }
 
 object TokenTrie {
@@ -114,13 +91,6 @@ object TokenTrie {
       var value: Option[T] = None
       def setValue(valuex: T): Unit = {
         value = Some(valuex)
-      }
-      def map[A](fn: T => A): TokenTrie[A] = {
-        val newChildren = mutable.LinkedHashMap.empty[TargetToken, TokenTrie[A]]
-        children.foreach { case (token, child) =>
-          newChildren(token) = child.map(fn)
-        }
-        TokenTrie(value.map(fn), newChildren)
       }
       val children = childrenx
     }
@@ -401,11 +371,6 @@ class MidFormConstantPropagation extends BaseConstantPropagation {
                     case _ =>
                       RegCPEntry(NonConstant, NonConstant)
                   }
-                // case WRef(regName, _, RegKind, _) =>
-                //   baseCase.resolve(RegCPEntry(BoundConstant(regName), UnboundConstant))
-                // case WRef(nodeName, _, NodeKind, _) if nodeMap.contains(Seq(Ref(nodeName))) =>
-                //   val cached = nodeRegCPEntries.getOrElseUpdate(nodeName, { regConstant(nodeMap.get(Seq(Ref(nodeName))).get, unbound) })
-                //   baseCase.resolve(cached)
                 case Mux(_, tval, fval, _) =>
                   regConstant(tval, baseCase).resolve(regConstant(fval, baseCase))
                 case DoPrim(Or, Seq(a, b), _, BoolType) =>
@@ -457,9 +422,6 @@ class MidFormConstantPropagation extends BaseConstantPropagation {
               c.copy(expr = newExpr)
             case e => c
           }
-        //case Connect(info, lhs, rref @ WRef(rname, _, NodeKind, _)) if !dontTouches.containsToken(Ref(rname)) =>
-        //  Connect(info, lhs, nodeMap.get(Seq(Ref(rname))).get)
-        // If an Attach has at least 1 port, any wires are redundant and can be removed
         case Attach(info, exprs) if exprs.exists(kind(_) == PortKind) =>
           Attach(info, exprs.filterNot(kind(_) == WireKind))
         case other => other
@@ -467,21 +429,6 @@ class MidFormConstantPropagation extends BaseConstantPropagation {
     }
 
     val modx = m.copy(body = backPropStmt(constPropStmt(m.body)))
-    // println("SWAP MAP")
-    // swapMap.foreach { case (tokens, node) =>
-    //   println(s"${tokens} -> ${node.serialize}")
-    // }
-
-    // println("NODE MAP")
-    // nodeMap.foreach { case (tokens, node) =>
-    //   println(s"${tokens} -> ${node.serialize}")
-    // }
-
-    // When we call this function again, constOutputs and constSubInputs are reconstructed and
-    // strictly a superset of the versions here
-    // println(s"${m.name} -> $nPropagated")
-    // if (nPropagated > 0) constPropModuleImp(modx, dontTouches, instMap, constInputs, constSubOutputs)
-    // else (modx, constOutputs.toMap, constSubInputs.mapValues(_.toMap).toMap)
     ConstPropedModule(modx, constOutputs.toMap, constSubInputs.mapValues(_.toMap).toMap)
   }
 
