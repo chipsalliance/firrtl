@@ -102,9 +102,3 @@ trait HighTransformSpec extends SimpleTransformSpec {
    def transform: Transform
    def transforms = transform +: ReRunResolveAndCheck +: Forms.HighForm.map(_.getObject)
 }
-
-trait AnyTransformSpec extends SimpleTransformSpec {
-   def emitter = new AnyFirrtlEmitter
-   def transform: Transform
-   def transforms = Seq(transform, ReRunResolveAndCheck)
-}

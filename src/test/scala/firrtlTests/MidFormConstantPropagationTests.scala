@@ -674,7 +674,7 @@ class MidFormConstantPropagationSingleModule extends ConstantPropagationSpec(Mid
 }
 
 // More sophisticated tests of the full compiler
-class MidFormConstantPropagationIntegrationSpec extends AnyTransformSpec {
+class MidFormConstantPropagationIntegrationSpec extends MiddleTransformSpec {
   def transform = new MidFormConstantPropagation
 
   "ConstProp" should "NOT optimize across dontTouch on nodes" in {
