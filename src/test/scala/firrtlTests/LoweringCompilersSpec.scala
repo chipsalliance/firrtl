@@ -121,12 +121,12 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
 
     val patched = scala.collection.immutable.TreeMap(m.toArray:_*).values.flatten
 
-    info(s"found ${b.flattenedTransformOrder.size} transforms")
-    patched.size should be (b.flattenedTransformOrder.size)
-
     patched
       .zip(b.flattenedTransformOrder.map(Dependency.fromTransform))
       .foreach{ case (aa, bb) => bb should be (aa) }
+
+    info(s"found ${b.flattenedTransformOrder.size} transforms")
+    patched.size should be (b.flattenedTransformOrder.size)
   }
 
   behavior of "ChirrtlToHighFirrtl"

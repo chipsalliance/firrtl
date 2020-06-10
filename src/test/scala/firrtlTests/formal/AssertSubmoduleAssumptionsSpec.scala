@@ -1,18 +1,16 @@
+
 package firrtlTests.formal
 
-import firrtl.{CompilerUtils, HighForm, MidForm}
 import firrtl.{CircuitState, Parser, Transform, UnknownForm}
 import firrtl.testutils.FirrtlFlatSpec
-import firrtl.passes.formal.AssertSubmoduleAssumptions
+import firrtl.transforms.formal.AssertSubmoduleAssumptions
 import firrtl.stage.{Forms, TransformManager}
-import firrtl.transforms.DedupModules
-import logger.{LogLevel, Logger}
 
 class AssertSubmoduleAssumptionsSpec extends FirrtlFlatSpec {
   behavior of "AssertSubmoduleAssumptions"
 
   val transforms = new TransformManager(Forms.HighForm, Forms.MinimalHighForm)
-    .flattenedTransformOrder ++ Seq(AssertSubmoduleAssumptions)
+    .flattenedTransformOrder ++ Seq(new AssertSubmoduleAssumptions)
 
   def run(input: String, check: Seq[String], debug: Boolean = false) = {
     val circuit = Parser.parse(input.split("\n").toIterator)

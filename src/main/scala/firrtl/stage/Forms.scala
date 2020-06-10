@@ -58,7 +58,7 @@ object Forms {
          Dependency[passes.RemoveIntervals],
          Dependency(passes.ConvertFixedToSInt),
          Dependency(passes.ZeroWidth),
-         Dependency(passes.formal.AssertSubmoduleAssumptions))
+         Dependency[firrtl.transforms.formal.AssertSubmoduleAssumptions] )
 
   val LowForm: Seq[TransformDependency] = MidForm ++
     Seq( Dependency(passes.LowerTypes),
