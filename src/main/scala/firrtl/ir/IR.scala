@@ -427,15 +427,19 @@ case class Block(stmts: Seq[Statement]) extends Statement {
   }
   def mapStmt(f: Statement => Statement): Statement = {
     val res = new scala.collection.mutable.ArrayBuffer[Statement]()
-    var it = stmts.iterator
-    while (it.hasNext) {
-      it.next() match {
-        case EmptyStmt => // flatten out
-        case b: Block =>
-          val prev = it
-          it = b.stmts.iterator ++ prev
-        case other =>
-          res.append(f(other))
+    var its = stmts.iterator :: Nil
+    while (its.nonEmpty) {
+      val it = its.head
+      if (it.hasNext) {
+        it.next() match {
+          case EmptyStmt => // flatten out
+          case b: Block =>
+            its = b.stmts.iterator :: its
+          case other =>
+            res.append(f(other))
+        }
+      } else {
+        its = its.tail
       }
     }
     Block(res)
