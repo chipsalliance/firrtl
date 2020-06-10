@@ -218,29 +218,21 @@ class MidFormConstantPropagation extends BaseConstantPropagation {
    *   Map of submodule modulenames to Map of input port names to literal values)
    */
   final protected def constPropModule(
+      c: CircuitTarget,
       m: Module,
-      dontTouches: Set[Tokens],
+      dontTouchesMap: Set[Tokens],
       instMap: collection.Map[Instance, OfModule],
       constInputs: Map[Tokens, Literal],
-      constSubOutputs: Map[OfModule, Map[Tokens, Literal]]
-    ): (Module, Map[Tokens, Literal], Map[OfModule, Map[Tokens, Seq[Literal]]]) = {
-    val dontTouchTrie = {
+      constSubOutputs: Map[OfModule, Map[Tokens, Literal]],
+      renames: RenameMap
+    ): ConstPropedModule = {
+    val dontTouches = {
       val trie = TokenTrie.empty[Unit]
-      dontTouches.foreach { case (tokens) =>
+      dontTouchesMap.foreach { case (tokens) =>
         trie.insert(tokens, Unit)
       }
       trie
     }
-    constPropModuleImp(m, dontTouchTrie, instMap, constInputs, constSubOutputs)
-  }
-
-  private def constPropModuleImp(
-      m: Module,
-      dontTouches: TokenTrie[Unit],
-      instMap: collection.Map[Instance, OfModule],
-      constInputs: Map[Tokens, Literal],
-      constSubOutputs: Map[OfModule, Map[Tokens, Literal]]
-    ): (Module, Map[Tokens, Literal], Map[OfModule, Map[Tokens, Seq[Literal]]]) = {
 
     var nPropagated = 0L
     val nodeMap = TokenTrie.empty[Expression]
@@ -267,7 +259,7 @@ class MidFormConstantPropagation extends BaseConstantPropagation {
 
     // Copy constant mapping for constant inputs (except ones marked dontTouch!)
     constInputs.foreach {
-      case (tokens, lit) if !dontTouches.contains(tokens) =>
+      case (tokens, lit) if dontTouches.getParent(tokens).isEmpty =>
         nodeMap.insert(tokens, lit)
       case _ =>
     }
@@ -311,7 +303,9 @@ class MidFormConstantPropagation extends BaseConstantPropagation {
         swapMap.get(reg.name)
                .map(newName => reg.copy(name = newName, init = WRef(reg).copy(name = newName)))
                .getOrElse(reg)
-      case node: DefNode if replaced(node.name) || declIsConstProped(nodeMap, node) => EmptyStmt
+      case node: DefNode if replaced(node.name) || declIsConstProped(nodeMap, node) =>
+        renames.delete(ReferenceTarget(c.circuit, m.name, Seq.empty, node.name, Seq.empty))
+        EmptyStmt
       case s => s map backPropExpr match {
         case decl: IsDeclaration if swapMap.contains(decl.name) =>
           val newName = swapMap(decl.name)
@@ -344,7 +338,7 @@ class MidFormConstantPropagation extends BaseConstantPropagation {
       // Record things that should be propagated
       stmtx match {
         // TODO: allow other sub-components to be propagated if dontTouch only affects a sub-component of the node
-        case x: DefNode if !dontTouches.containsToken(Ref(x.name)) => propagateRef(x.name, x.value)
+        case x: DefNode if dontTouches.getChildToken(Ref(x.name)).isEmpty => propagateRef(x.name, x.value)
         case reg: DefRegister if reg.reset.tpe == AsyncResetType =>
           asyncResetRegs(reg.name) = reg
         case c@ Connect(_, _: WRef| _: WSubField | _: WSubIndex, _) =>
@@ -452,7 +446,7 @@ class MidFormConstantPropagation extends BaseConstantPropagation {
         case c@ Connect(info, lhs, _: WRef | _: WSubField | _: WSubIndex) =>
           val (ref, subRef) = splitRef(c.expr)
           ref match {
-            case WRef(rname, _, NodeKind, _) if !dontTouches.containsToken(Ref(rname)) =>
+            case WRef(rname, _, NodeKind, _) if dontTouches.getChildToken(Ref(rname)).isEmpty =>
               val nodeValue = nodeMap(Seq(Ref(rname)))
               val merged = mergeRef(nodeValue, subRef)
               val newExpr = nodeValue match {
@@ -488,8 +482,10 @@ class MidFormConstantPropagation extends BaseConstantPropagation {
     // println(s"${m.name} -> $nPropagated")
     // if (nPropagated > 0) constPropModuleImp(modx, dontTouches, instMap, constInputs, constSubOutputs)
     // else (modx, constOutputs.toMap, constSubInputs.mapValues(_.toMap).toMap)
-    (modx, constOutputs.toMap, constSubInputs.mapValues(_.toMap).toMap)
+    ConstPropedModule(modx, constOutputs.toMap, constSubInputs.mapValues(_.toMap).toMap)
   }
+
+  // only iterate through modules once
   override def iterateMulti = false
 
   // Unify two maps using f to combine values of duplicate keys

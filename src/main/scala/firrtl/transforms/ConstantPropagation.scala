@@ -413,23 +413,33 @@ abstract class BaseConstantPropagation extends Transform with DependencyAPIMigra
       acc + (k -> acc.get(k).map(f(_, v)).getOrElse(v))
     }
 
+  protected case class ConstPropedModule(
+    module: Module,
+    constOutputs: Map[Tokens, Literal],
+    constSubInputs: Map[OfModule, Map[Tokens, Seq[Literal]]]
+  )
+
   protected def constPropModule(
+      c: CircuitTarget,
       m: Module,
       dontTouches: Set[Tokens],
       instMap: collection.Map[Instance, OfModule],
       constInputs: Map[Tokens, Literal],
-      constSubOutputs: Map[OfModule, Map[Tokens, Literal]]
-    ): (Module, Map[Tokens, Literal], Map[OfModule, Map[Tokens, Seq[Literal]]])
+      constSubOutputs: Map[OfModule, Map[Tokens, Literal]],
+      renames: RenameMap
+    ): ConstPropedModule
 
   protected def iterateMulti: Boolean = true
 
-  private def run(c: Circuit, dontTouchMap: Map[OfModule, Set[Tokens]]): Circuit = {
+  private def run(c: Circuit, dontTouchMap: Map[OfModule, Set[Tokens]]): (Circuit, RenameMap) = {
     val iGraph = new InstanceGraph(c)
     val moduleDeps = iGraph.getChildrenInstanceMap
     val instCount = iGraph.staticInstanceCount
 
     // DiGraph using Module names as nodes, destination of edge is a parent Module
     val parentGraph: DiGraph[OfModule] = iGraph.graph.reverse.transformNodes(_.OfModule)
+    val renames = RenameMap()
+    val circuitName = CircuitTarget(c.main)
 
     // This outer loop works by applying constant propagation to the modules in a topologically
     // sorted order from leaf to root
@@ -457,8 +467,8 @@ abstract class BaseConstantPropagation extends Transform with DependencyAPIMigra
                           Map[OfModule, Map[Tokens, Seq[Literal]]]())) {
             case ((mmap, constOutputs, constInputsAcc), mname) =>
               val dontTouches = dontTouchMap.getOrElse(mname, Set.empty)
-              val (mx, mco, mci) = constPropModule(modules(mname), dontTouches, moduleDeps(mname),
-                                                   constInputs.getOrElse(mname, Map.empty), constOutputs)
+              val ConstPropedModule(mx, mco, mci) = constPropModule(circuitName, modules(mname), dontTouches, moduleDeps(mname),
+                                                   constInputs.getOrElse(mname, Map.empty), constOutputs, renames)
               // Accumulate all Literals used to drive a particular Module port
               val constInputsx = unify(constInputsAcc, mci)((a, b) => unify(a, b)((c, d) => c ++ d))
               (mmap + (mname -> mx), constOutputs + (mname -> mco), constInputsx)
@@ -477,7 +487,6 @@ abstract class BaseConstantPropagation extends Transform with DependencyAPIMigra
         val modsWithConstInputs = newProppedInputs.keySet
         val newToVisit = modsWithConstInputs ++
                          modsWithConstInputs.flatMap(parentGraph.reachableFrom)
-        //println(newToVisit)
         // Combine const inputs (there can't be duplicate values in the inner maps)
         val nextConstInputs = unify(constInputs, newProppedInputs)((a, b) => a ++ b)
         if (iterateMulti) {
@@ -496,7 +505,7 @@ abstract class BaseConstantPropagation extends Transform with DependencyAPIMigra
     }
 
 
-    Circuit(c.info, modulesx, c.main)
+    (Circuit(c.info, modulesx, c.main), renames)
   }
 
   def referenceToTokens(ref: ReferenceTarget): Tokens
@@ -513,7 +522,8 @@ abstract class BaseConstantPropagation extends Transform with DependencyAPIMigra
     val dontTouchMap: Map[OfModule, Set[Tokens]] =
       dontTouches.groupBy(_._1).mapValues(_.map(_._2).toSet)
 
-    state.copy(circuit = run(state.circuit, dontTouchMap))
+    val (newCircuit, renames) = run(state.circuit, dontTouchMap)
+    state.copy(circuit = newCircuit, renames = Some(renames))
   }
 
  /**********************************************
@@ -621,12 +631,14 @@ class ConstantPropagation extends BaseConstantPropagation {
    */
   @tailrec
   final protected def constPropModule(
+      c: CircuitTarget,
       m: Module,
       dontTouches: Set[String],
       instMap: collection.Map[Instance, OfModule],
       constInputs: Map[String, Literal],
-      constSubOutputs: Map[OfModule, Map[String, Literal]]
-    ): (Module, Map[String, Literal], Map[OfModule, Map[String, Seq[Literal]]]) = {
+      constSubOutputs: Map[OfModule, Map[String, Literal]],
+      renames: RenameMap
+    ): ConstPropedModule = {
 
     var nPropagated = 0L
     val nodeMap = new NodeMap()
@@ -803,8 +815,8 @@ class ConstantPropagation extends BaseConstantPropagation {
 
     // When we call this function again, constOutputs and constSubInputs are reconstructed and
     // strictly a superset of the versions here
-    if (nPropagated > 0) constPropModule(modx, dontTouches, instMap, constInputs, constSubOutputs)
-    else (modx, constOutputs.toMap, constSubInputs.mapValues(_.toMap).toMap)
+    if (nPropagated > 0) constPropModule(c, modx, dontTouches, instMap, constInputs, constSubOutputs, renames)
+    else ConstPropedModule(modx, constOutputs.toMap, constSubInputs.mapValues(_.toMap).toMap)
   }
 
   def referenceToTokens(ref: ReferenceTarget): Tokens = ref match {
