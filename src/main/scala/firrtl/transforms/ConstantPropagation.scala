@@ -419,6 +419,26 @@ abstract class BaseConstantPropagation extends Transform with DependencyAPIMigra
     constSubInputs: Map[OfModule, Map[Tokens, Seq[Literal]]]
   )
 
+  /* Constant propagate a Module
+   *
+   * Two pass process
+   * 1. Propagate constants in expressions and forward propagate references
+   * 2. Propagate references again for backwards reference (Wires)
+   * TODO Replacing all wires with nodes makes the second pass unnecessary
+   *   However, preserving decent names DOES require a second pass
+   *   Replacing all wires with nodes makes it unnecessary for preserving decent names to trigger an
+   *   extra iteration though
+   *
+   * @param c the CircuitTarget of the circuit containg the module
+   * @param m the Module to run constant propagation on
+   * @param dontTouches names of components local to m that should not be propagated across
+   * @param instMap map of instance names to Module name
+   * @param constInputs map of names of m's input ports to literal driving it (if applicable)
+   * @param constSubOutputs Map of Module name to Map of output port name to literal driving it
+   * @param renames the RenameMap to use for component renames
+   * @return (Constpropped Module, Map of output port names to literal value,
+   *   Map of submodule modulenames to Map of input port names to literal values)
+   */
   protected def constPropModule(
       c: CircuitTarget,
       m: Module,
@@ -429,7 +449,9 @@ abstract class BaseConstantPropagation extends Transform with DependencyAPIMigra
       renames: RenameMap
     ): ConstPropedModule
 
-  protected def iterateMulti: Boolean = true
+  /** Whether or not constant propagation should continue iterating across modules if new inputs are constant propagated
+    */
+  protected def allowMultipleModuleIterations: Boolean
 
   private def run(c: Circuit, dontTouchMap: Map[OfModule, Set[Tokens]]): (Circuit, RenameMap) = {
     val iGraph = new InstanceGraph(c)
@@ -473,23 +495,23 @@ abstract class BaseConstantPropagation extends Transform with DependencyAPIMigra
               val constInputsx = unify(constInputsAcc, mci)((a, b) => unify(a, b)((c, d) => c ++ d))
               (mmap + (mname -> mx), constOutputs + (mname -> mco), constInputsx)
           }
-        // Determine which module inputs have all of the same, new constants driving them
-        val newProppedInputs = constInputsx.flatMap { case (mname, ports) =>
-          val portsx = ports.flatMap { case (pname, lits) =>
-            val newPort = !constInputs.get(mname).map(_.contains(pname)).getOrElse(false)
-            val isModule = modules.contains(mname) // ExtModules are not contained in modules
-            val allSameConst = lits.size == instCount(mname) && lits.toSet.size == 1
-            if (isModule && newPort && allSameConst) Some(pname -> lits.head)
-            else None
+        if (allowMultipleModuleIterations) {
+          // Determine which module inputs have all of the same, new constants driving them
+          val newProppedInputs = constInputsx.flatMap { case (mname, ports) =>
+            val portsx = ports.flatMap { case (pname, lits) =>
+              val newPort = !constInputs.get(mname).map(_.contains(pname)).getOrElse(false)
+              val isModule = modules.contains(mname) // ExtModules are not contained in modules
+              val allSameConst = lits.size == instCount(mname) && lits.toSet.size == 1
+              if (isModule && newPort && allSameConst) Some(pname -> lits.head)
+              else None
+            }
+            if (portsx.nonEmpty) Some(mname -> portsx) else None
           }
-          if (portsx.nonEmpty) Some(mname -> portsx) else None
-        }
-        val modsWithConstInputs = newProppedInputs.keySet
-        val newToVisit = modsWithConstInputs ++
-                         modsWithConstInputs.flatMap(parentGraph.reachableFrom)
-        // Combine const inputs (there can't be duplicate values in the inner maps)
-        val nextConstInputs = unify(constInputs, newProppedInputs)((a, b) => a ++ b)
-        if (iterateMulti) {
+          val modsWithConstInputs = newProppedInputs.keySet
+          val newToVisit = modsWithConstInputs ++
+                           modsWithConstInputs.flatMap(parentGraph.reachableFrom)
+          // Combine const inputs (there can't be duplicate values in the inner maps)
+          val nextConstInputs = unify(constInputs, newProppedInputs)((a, b) => a ++ b)
           iterate(newToVisit.toSet, modulesx, nextConstInputs)
         } else {
           modulesx
@@ -508,6 +530,10 @@ abstract class BaseConstantPropagation extends Transform with DependencyAPIMigra
     (Circuit(c.info, modulesx, c.main), renames)
   }
 
+  /** Converts a [[ReferenceTarget]] to [[Tokens]]
+    *
+    * Used to convert dontTouched targets into tokens
+    */
   def referenceToTokens(ref: ReferenceTarget): Tokens
 
   def execute(state: CircuitState): CircuitState = {
@@ -822,4 +848,6 @@ class ConstantPropagation extends BaseConstantPropagation {
   def referenceToTokens(ref: ReferenceTarget): Tokens = ref match {
     case Target(_, Some(m), Seq(Ref(c))) => c
   }
+
+  def allowMultipleModuleIterations = true
 }

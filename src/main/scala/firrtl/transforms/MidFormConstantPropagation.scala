@@ -17,11 +17,15 @@ import firrtl.passes.PullMuxes
 import collection.mutable
 import annotation.tailrec
 
+/** A prefix tree using TargetTokens, useful for checking if subcomponents were dontTouched
+  */
 sealed trait TokenTrie[T] {
   def value: Option[T]
   protected def setValue(value: T): Unit
   def children: mutable.LinkedHashMap[TargetToken, TokenTrie[T]]
 
+  /** inserts a value into the trie
+    */
   @tailrec
   def insert(tokens: Seq[TargetToken], value: T): Unit = {
     if (tokens.isEmpty) {
@@ -32,6 +36,8 @@ sealed trait TokenTrie[T] {
     }
   }
 
+  /** get the value at the token path
+    */
   @tailrec
   def get(tokens: Seq[TargetToken]): Option[T] = {
     if (tokens.isEmpty) {
@@ -43,14 +49,20 @@ sealed trait TokenTrie[T] {
     }
   }
 
+  /** get the value at the token path consisting of only one token
+    */
   def getToken(token: TargetToken): Option[T] = {
     children.get(token).flatMap(_.value)
   }
 
+  /** get the sub-trie at the token prefix
+   (*/
   def getChildToken(token: TargetToken): Option[TokenTrie[T]] = {
     children.get(token)
   }
 
+  /** apply a side-effecting function to the trie values in breadth-first order
+    */
   def foreach(fn: (IndexedSeq[TargetToken], T) => Unit, parent: IndexedSeq[TargetToken] = IndexedSeq.empty): Unit = {
     value.foreach(fn(parent, _))
     children.foreach { case (token, child) =>
@@ -58,16 +70,29 @@ sealed trait TokenTrie[T] {
     }
   }
 
+  /** get the value at the token path
+    *
+    * throws an exception if there is to value present at the path
+    */
   def apply(tokens: Seq[TargetToken]): T = get(tokens).get
 
+  /* returns true if the a value exists in the trie at the token path
+   */
   def contains(tokens: Seq[TargetToken]): Boolean = get(tokens).isDefined
 
+  /** returns true if the a value exists in the trie at the token path consisting of only one token
+    */
   def containsToken(token: TargetToken): Boolean = getToken(token).isDefined
 
+  /** returns the sub-trie with the greatest matching prefix along with the prefix
+    */
+  def getParent(tokens: Seq[TargetToken]): Option[(T, Seq[TargetToken])] =
+    getParentImp(tokens, None)
+
   @tailrec
-  def getParent(
+  private def getParentImp(
     tokens: Seq[TargetToken],
-    default: Option[(T, Seq[TargetToken])] = None
+    default: Option[(T, Seq[TargetToken])]
   ): Option[(T, Seq[TargetToken])] = {
     val newDefault = value match {
       case v: Some[T] => v.map(_ -> tokens)
@@ -75,7 +100,7 @@ sealed trait TokenTrie[T] {
     }
     tokens.headOption match {
       case Some(token) => children.get(token) match {
-        case Some(child) => child.getParent(tokens.tail, newDefault)
+        case Some(child) => child.getParentImp(tokens.tail, newDefault)
         case None => newDefault
       }
       case None => newDefault
@@ -84,15 +109,15 @@ sealed trait TokenTrie[T] {
 }
 
 object TokenTrie {
-  def empty[T]: TokenTrie[T] = apply(None, mutable.LinkedHashMap.empty)
-
-  def apply[T](valuex: Option[T], childrenx: mutable.LinkedHashMap[TargetToken, TokenTrie[T]]): TokenTrie[T] = {
+  /** creates a new empty TokenTrie
+    */
+  def empty[T]: TokenTrie[T] = {
     new TokenTrie[T] {
       var value: Option[T] = None
       def setValue(valuex: T): Unit = {
         value = Some(valuex)
       }
-      val children = childrenx
+      val children = mutable.LinkedHashMap.empty[TargetToken, TokenTrie[T]]
     }
   }
 }
@@ -169,25 +194,7 @@ class MidFormConstantPropagation extends BaseConstantPropagation {
     else constPropExpression(nodeMap, instMap, constSubOutputs)(propagated)
   }
 
-  /* Constant propagate a Module
-   *
-   * Two pass process
-   * 1. Propagate constants in expressions and forward propagate references
-   * 2. Propagate references again for backwards reference (Wires)
-   * TODO Replacing all wires with nodes makes the second pass unnecessary
-   *   However, preserving decent names DOES require a second pass
-   *   Replacing all wires with nodes makes it unnecessary for preserving decent names to trigger an
-   *   extra iteration though
-   *
-   * @param m the Module to run constant propagation on
-   * @param dontTouches names of components local to m that should not be propagated across
-   * @param instMap map of instance names to Module name
-   * @param constInputs map of names of m's input ports to literal driving it (if applicable)
-   * @param constSubOutputs Map of Module name to Map of output port name to literal driving it
-   * @return (Constpropped Module, Map of output port names to literal value,
-   *   Map of submodule modulenames to Map of input port names to literal values)
-   */
-  final protected def constPropModule(
+  protected def constPropModule(
       c: CircuitTarget,
       m: Module,
       dontTouchesMap: Set[Tokens],
@@ -420,14 +427,8 @@ class MidFormConstantPropagation extends BaseConstantPropagation {
     ConstPropedModule(modx, constOutputs.toMap, constSubInputs.mapValues(_.toMap).toMap)
   }
 
-  // only iterate through modules once
-  override def iterateMulti = false
-
-  // Unify two maps using f to combine values of duplicate keys
-  private def unify[K, V](a: Map[K, V], b: Map[K, V])(f: (V, V) => V): Map[K, V] =
-    b.foldLeft(a) { case (acc, (k, v)) =>
-      acc + (k -> acc.get(k).map(f(_, v)).getOrElse(v))
-    }
+  // iterating multiple times eats up the runtime saved by propagating nodes
+  def allowMultipleModuleIterations = false
 
   def referenceToTokens(ref: ReferenceTarget): Tokens = ref match {
     case Target(_, Some(m), tokens) => tokens
