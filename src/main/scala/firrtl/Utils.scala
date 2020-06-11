@@ -305,15 +305,6 @@ object Utils extends LazyLogging {
   }
 
   @tailrec
-  def toTokens(expression: Expression, tail: Seq[TargetToken] = Seq.empty): (WRef, Seq[TargetToken]) = {
-    expression match {
-      case e: WRef => (e, TargetToken.Ref(e.name) +: tail)
-      case e: WSubField => toTokens(e.expr, TargetToken.Field(e.name) +: tail)
-      case e: WSubIndex => toTokens(e.expr, TargetToken.Index(e.value) +: tail)
-    }
-  }
-
-  @tailrec
   def applyTokens(tokens: Seq[TargetToken], expression: Expression): Expression = {
     if (tokens.isEmpty) {
       expression
@@ -658,6 +649,30 @@ object Utils extends LazyLogging {
         case EmptyExpression => (root, WRef(e.name, e.tpe, root.kind, e.flow))
         case exp => (root, WSubField(tail, e.name, e.tpe, e.flow))
       }
+  }
+
+  /** Splits the WRef from an Expression and converts the expression into a list of [[TargetTokens]]
+    *
+    * @example
+    *   Given:   SubField(SubIndex(SubField(Ref("a", UIntType(IntWidth(32))), "b"), 2), "c")
+    *   Returns: (WRef("a"), Seq(Ref("a"), Field("b"), Index(2), Field("c")))
+    * @example
+    *   Given:   SubField(SubIndex(Ref("b"), 2), "c")
+    *   Returns: (WRef("b"), Seq(Ref("B"), Index(2), Field("c")))
+    * @note unlike splitRef, the tail includes the root reference
+    * @note This function only supports WRef, WSubField, and WSubIndex
+    */
+  def splitRefTokens(expression: Expression): (WRef, Seq[TargetToken]) = {
+    splitRefTokensImp(expression, Seq.empty)
+  }
+
+  @tailrec
+  private def splitRefTokensImp(expression: Expression, tail: Seq[TargetToken]): (WRef, Seq[TargetToken]) = {
+    expression match {
+      case e: WRef => (e, TargetToken.Ref(e.name) +: tail)
+      case e: WSubField => splitRefTokensImp(e.expr, TargetToken.Field(e.name) +: tail)
+      case e: WSubIndex => splitRefTokensImp(e.expr, TargetToken.Index(e.value) +: tail)
+    }
   }
 
   /** Adds a root reference to some SubField/SubIndex chain */

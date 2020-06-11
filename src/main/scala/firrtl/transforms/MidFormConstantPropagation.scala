@@ -22,7 +22,7 @@ import annotation.tailrec
 sealed trait TokenTrie[T] {
   def value: Option[T]
   protected def setValue(value: T): Unit
-  def children: mutable.LinkedHashMap[TargetToken, TokenTrie[T]]
+  protected def children: mutable.LinkedHashMap[TargetToken, TokenTrie[T]]
 
   /** inserts a value into the trie
     */
@@ -175,7 +175,7 @@ class MidFormConstantPropagation extends BaseConstantPropagation {
       case p: DoPrim => constPropPrim(p)
       case m: Mux => constPropMux(m)
       case expr@ (_: WRef | _: WSubIndex | _: WSubField) =>
-        val (ref, tokens) = toTokens(expr)
+        val (ref, tokens) = splitRefTokens(expr)
         (flow(expr), ref.kind) match {
           case (SourceFlow, _) if nodeMap.contains(tokens) =>
             constPropNodeRef(expr, nodeMap(tokens))
@@ -247,7 +247,7 @@ class MidFormConstantPropagation extends BaseConstantPropagation {
           ref.copy(name = swapMap(rname))
         // Only const prop on the rhs
         case e@ (_: WRef | _: WSubField | _: WSubIndex) =>
-          val (ref, tokens) = toTokens(e)
+          val (ref, tokens) = splitRefTokens(e)
           (ref.kind, flow(e)) match {
             case (InstanceKind, SourceFlow) =>
               val module = instMap(ref.name.Instance)
@@ -307,7 +307,7 @@ class MidFormConstantPropagation extends BaseConstantPropagation {
         case reg: DefRegister if reg.reset.tpe == AsyncResetType =>
           asyncResetRegs(reg.name) = reg
         case c@ Connect(_, _: WRef| _: WSubField | _: WSubIndex, _) =>
-          val (ref, tokens) = toTokens(c.loc)
+          val (ref, tokens) = splitRefTokens(c.loc)
           val dontTouched = dontTouches.contains(tokens)
           (ref.kind, c.expr) match {
             case (WireKind, lit: Literal) if !dontTouched =>
@@ -356,7 +356,7 @@ class MidFormConstantPropagation extends BaseConstantPropagation {
               def regConstantImp(e: Expression, baseCase: RegCPEntry): RegCPEntry = e match {
                 case lit: Literal => baseCase.resolve(RegCPEntry(UnboundConstant, BoundConstant(lit)))
                 case _: WRef | _: WSubField | _: WSubIndex =>
-                  val (ref, tokens) = toTokens(e)
+                  val (ref, tokens) = splitRefTokens(e)
                   ref.kind match {
                     case RegKind =>
                       baseCase.resolve(RegCPEntry(BoundConstant(tokens), UnboundConstant))

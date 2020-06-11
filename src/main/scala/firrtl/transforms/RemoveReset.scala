@@ -8,7 +8,7 @@ import firrtl.Mappers._
 import firrtl.traversals.Foreachers._
 import firrtl.WrappedExpression.we
 import firrtl.options.Dependency
-import firrtl.Utils.{create_exps, toTokens, kind}
+import firrtl.Utils.{create_exps, kind}
 
 import scala.collection.{immutable, mutable}
 
