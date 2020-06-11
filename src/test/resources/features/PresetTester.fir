@@ -48,3 +48,4 @@ circuit PresetTester :
     ; Success!
     when eq(counter, UInt(3)) :
       stop(clock, UInt(1), 0)
+
