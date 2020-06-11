@@ -784,70 +784,7 @@ class MidFormConstantPropagationIntegrationSpec extends MiddleTransformSpec {
           |    io.z[0] <= UInt<1>(0)""".stripMargin
     execute(input, check, Seq.empty)
   }
-/*
-  it should "pad constant connections to wires when propagating" in {
-      val input =
-        """circuit Top :
-          |  module Top :
-          |    output z : UInt<16>
-          |    wire w : { a : UInt<8>[1], b : UInt<8>[1] }
-          |    z <= cat(w.a[0], w.b[0])
-          |    w.a[0] <= UInt<2>("h3")
-          |    w.b[0] <= UInt<2>("h3")""".stripMargin
-      val check =
-        """circuit Top :
-          |  module Top :
-          |    output z : UInt<16>
-          |    wire w : { a : UInt<8>[1], b : UInt<8>[1] }
-          |    z <= UInt<16>("h303")
-          |    w.a[0] <= UInt<2>("h3")
-          |    w.b[0] <= UInt<2>("h3")""".stripMargin
-    execute(input, check, Seq.empty)
-  }
 
-  it should "pad constant connections to registers when propagating" in {
-      val input =
-        """circuit Top :
-          |  module Top :
-          |    input clock : Clock
-          |    output z : UInt<16>
-          |    reg r : { a : UInt<8>, b : UInt<8> }, clock
-          |    r.a <= UInt<2>("h3")
-          |    r.b <= UInt<2>("h3")
-          |    z <= cat(r.a, r.b)""".stripMargin
-      val check =
-        """circuit Top :
-          |  module Top :
-          |    input clock : Clock
-          |    output z : UInt<16>
-          |    reg r : { a : UInt<8>, b : UInt<8> }, clock with: (reset => (UInt<1>("h0"), r))
-          |    z <= UInt<16>("h303")
-          |    r.a <= UInt<2>("h3")
-          |    r.b <= UInt<2>("h3")""".stripMargin
-    execute(input, check, Seq.empty)
-  }
-
-  it should "pad zero when constant propping a register replaced with zero" in {
-      val input =
-        """circuit Top :
-          |  module Top :
-          |    input clock : Clock
-          |    output z : UInt<16>
-          |    reg r : UInt<8>, clock
-          |    r <= or(r, UInt(0))
-          |    node n = UInt("hab")
-          |    z <= cat(n, r)""".stripMargin
-      val check =
-        """circuit Top :
-          |  module Top :
-          |    input clock : Clock
-          |    output z : UInt<16>
-          |    reg r : UInt<8>, clock with : (reset => (UInt<1>("h0"), r))
-          |    z <= UInt<16>("hab00")
-          |    r <= UInt<8>("h0")""".stripMargin
-    execute(input, check, Seq.empty)
-  }
-*/
   it should "pad constant connections to outputs when propagating" in {
       val input =
         """circuit Top :
@@ -869,33 +806,7 @@ class MidFormConstantPropagationIntegrationSpec extends MiddleTransformSpec {
           |    z <= UInt<10>("h303")""".stripMargin
     execute(input, check, Seq.empty)
   }
-/*
-  it should "pad constant connections to submodule inputs when propagating" in {
-      val input =
-        """circuit Top :
-          |  module Child :
-          |    input x : UInt<8>
-          |    output y : UInt<16>
-          |    y <= cat(UInt<2>("h3"), x)
-          |  module Top :
-          |    output z : UInt<16>
-          |    inst c of Child
-          |    c.x <= UInt<2>("h3")
-          |    z <= c.y""".stripMargin
-      val check =
-        """circuit Top :
-          |  module Child :
-          |    input x : UInt<8>
-          |    output y : UInt<16>
-          |    y <= UInt<10>("h303")
-          |  module Top :
-          |    output z : UInt<16>
-          |    inst c of Child
-          |    z <= UInt<16>("h303")
-          |    c.x <= UInt<2>("h3")""".stripMargin
-    execute(input, check, Seq.empty)
-  }
-*/
+
   it should "remove pads if the width is <= the width of the argument" in {
     def input(w: Int) =
      s"""circuit Top :
