@@ -8,7 +8,7 @@ import firrtl.transforms._
 import firrtl.testutils._
 import firrtl.annotations.Annotation
 
-object ConstantPropagationSpec {
+class ConstantPropagationSpec extends FirrtlFlatSpec {
   val transforms: Seq[Transform] = Seq(
       ToWorkingIR,
       ResolveKinds,
@@ -16,9 +16,6 @@ object ConstantPropagationSpec {
       ResolveFlows,
       new InferWidths,
       new ConstantPropagation)
-}
-
-class ConstantPropagationSpec(val transforms: Seq[Transform]) extends FirrtlFlatSpec {
   protected def exec(input: String, annos: Seq[Annotation] = Nil) = {
     transforms.foldLeft(CircuitState(parse(input), UnknownForm, AnnotationSeq(annos))) {
       (c: CircuitState, t: Transform) => t.runTransform(c)
@@ -26,7 +23,7 @@ class ConstantPropagationSpec(val transforms: Seq[Transform]) extends FirrtlFlat
   }
 }
 
-class ConstantPropagationMultiModule(transforms: Seq[Transform]) extends ConstantPropagationSpec(transforms) {
+class ConstantPropagationMultiModule extends ConstantPropagationSpec {
    "ConstProp" should "propagate constant inputs" in {
       val input =
 """circuit Top :
@@ -182,7 +179,6 @@ s"""circuit Top :
       (parse(exec(input))) should be (parse(check))
    }
 }
-class LowFormConstantPropagationMultiModule extends ConstantPropagationMultiModule(ConstantPropagationSpec.transforms)
 
 // Tests the following cases for constant propagation:
 //   1) Unsigned integers are always greater than or
@@ -191,7 +187,7 @@ class LowFormConstantPropagationMultiModule extends ConstantPropagationMultiModu
 //        than their maximum value
 //   3) Values are always greater than a number smaller
 //        than their minimum value
-class ConstantPropagationSingleModule(transforms: Seq[Transform]) extends ConstantPropagationSpec(transforms) {
+class ConstantPropagationSingleModule extends ConstantPropagationSpec {
    // =============================
    "The rule x >= 0 " should " always be true if x is a UInt" in {
       val input =
@@ -534,8 +530,7 @@ class ConstantPropagationSingleModule(transforms: Seq[Transform]) extends Consta
     y <= UInt<1>(0)
     z <= UInt<1>(0)
 """
-      val output = parse(exec(input))
-      (output) should be (parse(check))
+      (parse(exec(input))) should be (parse(check))
    }
 
    // =============================
@@ -560,8 +555,7 @@ class ConstantPropagationSingleModule(transforms: Seq[Transform]) extends Consta
     node _T_1 = n
     z <= and(n, x)
 """
-      val output = parse(exec(input))
-      (output.serialize) should be (parse(check).serialize)
+      (parse(exec(input))) should be (parse(check))
    }
 
    // =============================
@@ -588,8 +582,7 @@ class ConstantPropagationSingleModule(transforms: Seq[Transform]) extends Consta
     z <= n
     n <= and(x, y)
 """
-      val output = parse(exec(input))
-      (output) should be (parse(check))
+      (parse(exec(input))) should be (parse(check))
    }
 
    // =============================
@@ -616,8 +609,7 @@ class ConstantPropagationSingleModule(transforms: Seq[Transform]) extends Consta
     z <= n
     n <= x
 """
-      val output = parse(exec(input))
-      (output) should be (parse(check))
+      (parse(exec(input))) should be (parse(check))
    }
 
    // =============================
@@ -700,9 +692,7 @@ class ConstantPropagationSingleModule(transforms: Seq[Transform]) extends Consta
     inst c of Child
     z <= UInt<1>(0)
 """
-      val output = parse(exec(input))
-      println(output.serialize)
-      (output) should be (parse(check))
+      (parse(exec(input))) should be (parse(check))
     }
 
    "ConstProp" should "propagate constant addition" in {
@@ -811,7 +801,6 @@ class ConstantPropagationSingleModule(transforms: Seq[Transform]) extends Consta
     castCheck("AsyncReset", "asAsyncReset")
   }
 }
-class LowFormConstantPropagationSingleModule extends ConstantPropagationSingleModule(ConstantPropagationSpec.transforms)
 
 // More sophisticated tests of the full compiler
 class ConstantPropagationIntegrationSpec extends LowTransformSpec {
@@ -1521,7 +1510,8 @@ class ConstantPropagationIntegrationSpec extends LowTransformSpec {
 
 }
 
-class ConstantPropagationEquivalenceSpec() extends FirrtlFlatSpec {
+
+class ConstantPropagationEquivalenceSpec extends FirrtlFlatSpec {
   private val srcDir = "/constant_propagation_tests"
   private val transforms = Seq(new ConstantPropagation)
 

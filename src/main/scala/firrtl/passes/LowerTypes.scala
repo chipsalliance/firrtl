@@ -46,13 +46,6 @@ object LowerTypes extends Transform with DependencyAPIMigration {
     case e: WSubIndex => s"${loweredName(e.expr)}$delim${e.value}"
   }
   def loweredName(s: Seq[String]): String = s mkString delim
-  def tokensToLoweredName(s: Seq[TargetToken]): String = {
-    s.map {
-      case TargetToken.Ref(name) => name
-      case TargetToken.Field(field) => field
-      case TargetToken.Index(index) => index
-    }.mkString(delim)
-  }
   def renameExps(renames: RenameMap, n: String, t: Type, root: String): Seq[String] =
     renameExps(renames, WRef(n, t, ExpKind, UnknownFlow), root)
   def renameExps(renames: RenameMap, n: String, t: Type): Seq[String] =

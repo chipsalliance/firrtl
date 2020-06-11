@@ -6,8 +6,9 @@ import firrtl._
 import firrtl.passes._
 import firrtl.transforms._
 import firrtl.testutils._
+import firrtl.annotations.Annotation
 
-object MidFormConstantPropagationSpec {
+class MidFormConstantPropagationSpec extends FirrtlFlatSpec {
   val transforms: Seq[Transform] = Seq(
       ToWorkingIR,
       ResolveKinds,
@@ -15,9 +16,14 @@ object MidFormConstantPropagationSpec {
       ResolveFlows,
       new InferWidths,
       new MidFormConstantPropagation)
+  protected def exec(input: String, annos: Seq[Annotation] = Nil) = {
+    transforms.foldLeft(CircuitState(parse(input), UnknownForm, AnnotationSeq(annos))) {
+      (c: CircuitState, t: Transform) => t.runTransform(c)
+    }.circuit.serialize
+  }
 }
 
-class MidFormConstantPropagationMultiModule extends ConstantPropagationSpec(MidFormConstantPropagationSpec.transforms) {
+class MidFormConstantPropagationMultiModule extends MidFormConstantPropagationSpec {
    // =============================
    "ConstProp" should "do nothing on unrelated modules" in {
       val input =
@@ -90,7 +96,7 @@ class MidFormConstantPropagationMultiModule extends ConstantPropagationSpec(MidF
    }
 }
 
-class MidFormConstantPropagationSingleModule extends ConstantPropagationSpec(MidFormConstantPropagationSpec.transforms) {
+class MidFormConstantPropagationSingleModule extends MidFormConstantPropagationSpec {
    // =============================
    "The rule x >= 0 " should " always be true if x is a UInt" in {
       val input =
