@@ -304,21 +304,6 @@ object Utils extends LazyLogging {
     ReferenceTarget(main, module, Nil, ref, tokens)
   }
 
-  @tailrec
-  def applyTokens(tokens: Seq[TargetToken], expression: Expression): Expression = {
-    if (tokens.isEmpty) {
-      expression
-    } else {
-      // TODO: fix source, flow
-      tokens.head match {
-        case TargetToken.Field(field) =>
-          applyTokens(tokens.tail, WSubField(expression, field))
-        case TargetToken.Index(index) =>
-          applyTokens(tokens.tail, WSubIndex(expression, index, sub_type(expression.tpe), UnknownFlow))
-      }
-    }
-  }
-
    @deprecated("get_flip is fundamentally slow, use to_flip(flow(expr))", "1.2")
    def get_flip(t: Type, i: Int, f: Orientation): Orientation = {
      if (i >= get_size(t)) throwInternalError(s"get_flip: shouldn't be here - $i >= get_size($t)")
