@@ -308,7 +308,7 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
       Add(43, Seq(
         Dependency(passes.Legalize),
         Dependency(firrtl.transforms.RemoveReset),
-        Dependency(firrtl.passes.ResolveFlows))),
+        Dependency(firrtl.passes.ResolveFlows)))
     )
     compare(expected, tm, patches)
   }
@@ -323,7 +323,7 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
       Add(43, Seq(
         Dependency(passes.Legalize),
         Dependency(firrtl.transforms.RemoveReset),
-        Dependency(firrtl.passes.ResolveFlows))),
+        Dependency(firrtl.passes.ResolveFlows)))
     )
     compare(expected, tm, patches)
   }
