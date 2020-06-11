@@ -428,7 +428,7 @@ class MidFormConstantPropagation extends BaseConstantPropagation {
       }
     }
 
-    val modx = m.copy(body = backPropStmt(constPropStmt(m.body)))
+    val modx = m.copy(body = squashEmpty(backPropStmt(constPropStmt(m.body))))
     ConstPropedModule(modx, constOutputs.toMap, constSubInputs.mapValues(_.toMap).toMap)
   }
 

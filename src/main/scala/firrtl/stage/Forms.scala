@@ -79,16 +79,18 @@ object Forms {
          Dependency(passes.memlib.VerilogMemDelays),
          Dependency(passes.SplitExpressions) )
 
-  val LowFormOptimized: Seq[TransformDependency] = {
-    val (midform, lowform) = LowFormMinimumOptimized.splitAt(MidForm.size)
-    midform ++:
-    Dependency[firrtl.transforms.MidFormConstantPropagation] +:
-    lowform ++:
-    Seq( Dependency[firrtl.transforms.ConstantPropagation],
+  val LowFormOptimized: Seq[TransformDependency] = MidFormOptimized ++
+    Seq( Dependency(passes.LowerTypes),
+         Dependency[firrtl.transforms.CheckCombLoops],
+         Dependency[checks.CheckResets],
+         Dependency[firrtl.transforms.RemoveWires],
+         Dependency(passes.PadWidths),
+         Dependency(passes.memlib.VerilogMemDelays),
+         Dependency(passes.SplitExpressions),
+         Dependency[firrtl.transforms.ConstantPropagation],
          Dependency[firrtl.transforms.CombineCats],
          Dependency(passes.CommonSubexpressionElimination),
          Dependency[firrtl.transforms.DeadCodeElimination] )
-  }
 
   val VerilogMinimumOptimized: Seq[TransformDependency] = LowFormMinimumOptimized ++
     Seq( Dependency[firrtl.transforms.BlackBoxSourceHelper],

@@ -420,7 +420,6 @@ class MidFormConstantPropagationSingleModule extends ConstantPropagationSpec(Mid
     input y : UInt<1>
     output z : UInt<1>
     node n = and(x, y)
-    skip
     z <= and(n, x)
 """
       val output = parse(exec(input))
@@ -447,7 +446,6 @@ class MidFormConstantPropagationSingleModule extends ConstantPropagationSpec(Mid
     input y : UInt<1>
     output z : UInt<1>
     wire n : UInt<1>
-    skip
     z <= n
     n <= and(x, y)
 """
@@ -475,7 +473,6 @@ class MidFormConstantPropagationSingleModule extends ConstantPropagationSpec(Mid
     input x : UInt<1>
     output z : UInt<1>
     reg n : UInt<1>, clock with : (reset => (UInt<1>(0), n))
-    skip
     z <= n
     n <= x
 """
@@ -503,8 +500,6 @@ class MidFormConstantPropagationSingleModule extends ConstantPropagationSpec(Mid
     input y : UInt<1>
     output z : UInt<3>
     node n = add(x, y)
-    skip
-    skip
     z <= add(n, n)
 """
       (parse(exec(input))) should be (parse(check))
@@ -533,7 +528,6 @@ class MidFormConstantPropagationSingleModule extends ConstantPropagationSpec(Mid
     output z : UInt<1>
     wire hit : UInt<1>
     node _T_1 = or(x, y)
-    skip
     hit <= or(x, y)
     z <= hit
 """
@@ -581,8 +575,6 @@ class MidFormConstantPropagationSingleModule extends ConstantPropagationSpec(Mid
         |  module Top :
         |    input x : UInt<5>
         |    output z : UInt<5>
-        |    skip
-        |    skip
         |    z <= add(x, UInt<7>("h3"))
       """.stripMargin
     (parse(exec(input))) should be(parse(check))
