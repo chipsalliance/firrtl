@@ -4,7 +4,6 @@ package firrtl.passes
 
 import scala.collection.mutable
 import firrtl._
-import firrtl.annotations.TargetToken
 import firrtl.ir._
 import firrtl.Utils._
 import MemPortUtils.memType

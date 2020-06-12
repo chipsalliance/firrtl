@@ -530,7 +530,7 @@ abstract class BaseConstantPropagation extends Transform with DependencyAPIMigra
     (Circuit(c.info, modulesx, c.main), renames)
   }
 
-  /** Converts a [[ReferenceTarget]] to [[Tokens]]
+  /** Converts a [[firrtl.annotations.ReferenceTarget ReferenceTarget]] to [[Tokens]]
     *
     * Used to convert dontTouched targets into tokens
     */

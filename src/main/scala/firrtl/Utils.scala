@@ -630,7 +630,7 @@ object Utils extends LazyLogging {
       }
   }
 
-  /** Splits the WRef from an Expression and converts the expression into a list of [[TargetTokens]]
+  /** Splits the WRef from an Expression and converts the expression into a list of [[firrtl.annotations.TargetToken TargetTokens]]
     *
     * @example
     *   Given:   SubField(SubIndex(SubField(Ref("a", UIntType(IntWidth(32))), "b"), 2), "c")

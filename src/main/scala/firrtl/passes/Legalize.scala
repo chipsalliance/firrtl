@@ -3,7 +3,7 @@ package firrtl.passes
 import firrtl.PrimOps._
 import firrtl.Utils.{BoolType, error, zero}
 import firrtl.ir._
-import firrtl.options.{PreservesAll, Dependency}
+import firrtl.options.PreservesAll
 import firrtl.transforms.BaseConstantPropagation
 import firrtl.{Transform, bitWidth}
 import firrtl.Mappers._
