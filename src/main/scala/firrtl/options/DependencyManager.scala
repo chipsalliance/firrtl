@@ -172,8 +172,8 @@ trait DependencyManager[A, B <: TransformLike[A] with DependencyAPI[B]] extends 
           filtered ++= v.filter(p.invalidates).map(oToD(_))
           filtered -= oToD(p)
           filtered
-        }))
-      .reverse
+        })
+    ).reverse
   }
 
   /** Wrap a possible [[CyclicException]] thrown by a thunk in a [[DependencyManagerException]] */
