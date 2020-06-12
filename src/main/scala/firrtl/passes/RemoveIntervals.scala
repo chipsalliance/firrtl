@@ -10,6 +10,7 @@ import Implicits.{bigint2WInt}
 import firrtl.constraint.IsKnown
 import firrtl.options.{Dependency, PreservesAll}
 
+import scala.collection.mutable
 import scala.math.BigDecimal.RoundingMode._
 
 class WrapWithRemainder(info: Info, mname: String, wrap: DoPrim)
@@ -48,29 +49,32 @@ class RemoveIntervals extends Pass with PreservesAll[Transform] {
   def run(c: Circuit): Circuit = {
     val alignedCircuit = c
     val errors = new Errors()
-    val wiredCircuit = alignedCircuit map makeWireModule
-    val replacedCircuit = wiredCircuit map replaceModuleInterval(errors)
+    val replacedNodes = mutable.HashSet.empty[String]
+    val wiredCircuit = alignedCircuit map makeWireModule(replacedNodes)
+    val replacedCircuit = wiredCircuit map replaceModuleInterval(errors, replacedNodes.toSet)
     errors.trigger()
     InferTypes.run(replacedCircuit)
   }
 
   /* Replace interval types */
-  private def replaceModuleInterval(errors: Errors)(m: DefModule): DefModule =
-    m map replaceStmtInterval(errors, m.name) map replacePortInterval
+  private def replaceModuleInterval(errors: Errors, replacedNodes: Set[String])(m: DefModule): DefModule =
+    m map replaceStmtInterval(errors, m.name, replacedNodes) map replacePortInterval
 
-  private def replaceStmtInterval(errors: Errors, mname: String)(s: Statement): Statement = {
+  private def replaceStmtInterval(errors: Errors, mname: String, replacedNodes: Set[String])(s: Statement): Statement = {
     val info = s match {
       case h: HasInfo => h.info
       case _ => NoInfo
     }
-    s map replaceTypeInterval map replaceStmtInterval(errors, mname) map replaceExprInterval(errors, info, mname)
+    s map replaceTypeInterval map replaceStmtInterval(errors, mname, replacedNodes) map replaceExprInterval(errors, info, mname, replacedNodes)
 
   }
 
-  private def replaceExprInterval(errors: Errors, info: Info, mname: String)(e: Expression): Expression = e match {
+  private def replaceExprInterval(errors: Errors, info: Info, mname: String, replacedNodes: Set[String])(e: Expression): Expression = e match {
+    case ref: WRef if replacedNodes(ref.name) =>
+      ref.copy(kind = WireKind)
     case _: WRef | _: WSubIndex | _: WSubField => e
     case o =>
-      o map replaceExprInterval(errors, info, mname) match {
+      o map replaceExprInterval(errors, info, mname, replacedNodes) match {
         case DoPrim(AsInterval, Seq(a1), _, tpe) => DoPrim(AsSInt, Seq(a1), Seq.empty, tpe)
         case DoPrim(IncP, args, consts, tpe) => DoPrim(Shl, args, consts, tpe)
         case DoPrim(DecP, args, consts, tpe) => DoPrim(Shr, args, consts, tpe)
@@ -167,15 +171,16 @@ class RemoveIntervals extends Pass with PreservesAll[Transform] {
     * @param m module to replace nodes with wire + connection
     * @return
     */
-  private def makeWireModule(m: DefModule): DefModule = m map makeWireStmt
+  private def makeWireModule(replaced: mutable.HashSet[String])(m: DefModule): DefModule = m map makeWireStmt(replaced)
 
-  private def makeWireStmt(s: Statement): Statement = s match {
+  private def makeWireStmt(replaced: mutable.HashSet[String])(s: Statement): Statement = s match {
     case DefNode(info, name, value) => value.tpe match {
       case IntervalType(l, u, p) =>
         val newType = IntervalType(l, u, p)
+        replaced += name
         Block(Seq(DefWire(info, name, newType), Connect(info, WRef(name, newType, WireKind, SinkFlow), value)))
       case other => s
     }
-    case other => other map makeWireStmt
+    case other => other map makeWireStmt(replaced)
   }
 }
