@@ -532,12 +532,15 @@ class IntervalSpec extends FirrtlFlatSpec {
   "RemoveIntervals" should "fixup kinds of replaced nodes" in {
     val passes = Seq(ToWorkingIR, new ResolveAndCheck, new RemoveIntervals)
     val input =
-      s"""circuit Unit :
-         |  module Unit :
+      s"""circuit Foo :
+         |  module Foo :
          |    input in: Interval[2, 3].3
          |    output out: Interval[2, 3].3
          |    node temp = in
          |    out <= temp
+         |  module Bar :
+         |    node temp = UInt<1>("h0")
+         |    node bar = temp
          |    """.stripMargin
       val removed = compile(input, passes)
       removed should be (ResolveKinds.run(removed))

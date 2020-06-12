@@ -9,6 +9,7 @@ import firrtl.Mappers._
 import Implicits.{bigint2WInt}
 import firrtl.constraint.IsKnown
 import firrtl.options.{Dependency, PreservesAll}
+import firrtl.annotations.TargetToken.OfModule
 
 import scala.collection.mutable
 import scala.math.BigDecimal.RoundingMode._
@@ -49,16 +50,16 @@ class RemoveIntervals extends Pass with PreservesAll[Transform] {
   def run(c: Circuit): Circuit = {
     val alignedCircuit = c
     val errors = new Errors()
-    val replacedNodes = mutable.HashSet.empty[String]
+    val replacedNodes = mutable.HashMap.empty[OfModule, mutable.HashSet[String]]
     val wiredCircuit = alignedCircuit map makeWireModule(replacedNodes)
-    val replacedCircuit = wiredCircuit map replaceModuleInterval(errors, replacedNodes.toSet)
+    val replacedCircuit = wiredCircuit map replaceModuleInterval(errors, replacedNodes)
     errors.trigger()
     InferTypes.run(replacedCircuit)
   }
 
   /* Replace interval types */
-  private def replaceModuleInterval(errors: Errors, replacedNodes: Set[String])(m: DefModule): DefModule =
-    m map replaceStmtInterval(errors, m.name, replacedNodes) map replacePortInterval
+  private def replaceModuleInterval(errors: Errors, replacedNodes: mutable.HashMap[OfModule, mutable.HashSet[String]])(m: DefModule): DefModule =
+    m map replaceStmtInterval(errors, m.name, replacedNodes(OfModule(m.name)).toSet) map replacePortInterval
 
   private def replaceStmtInterval(errors: Errors, mname: String, replacedNodes: Set[String])(s: Statement): Statement = {
     val info = s match {
@@ -171,7 +172,9 @@ class RemoveIntervals extends Pass with PreservesAll[Transform] {
     * @param m module to replace nodes with wire + connection
     * @return
     */
-  private def makeWireModule(replaced: mutable.HashSet[String])(m: DefModule): DefModule = m map makeWireStmt(replaced)
+  private def makeWireModule(replaced: mutable.HashMap[OfModule, mutable.HashSet[String]])(m: DefModule): DefModule = {
+    m map makeWireStmt(replaced.getOrElseUpdate(OfModule(m.name), mutable.HashSet.empty[String]))
+  }
 
   private def makeWireStmt(replaced: mutable.HashSet[String])(s: Statement): Statement = s match {
     case DefNode(info, name, value) => value.tpe match {
