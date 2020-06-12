@@ -9,11 +9,14 @@ import firrtl.passes.CheckWidths.DisjointSqueeze
 import firrtl.testutils.FirrtlFlatSpec
 
 class IntervalSpec extends FirrtlFlatSpec {
-  private def executeTest(input: String, expected: Seq[String], passes: Seq[Transform]) = {
-    val c = passes.foldLeft(Parser.parse(input.split("\n").toIterator)) {
+  private def compile(input: String, passes: Seq[Transform]): Circuit = {
+    passes.foldLeft(Parser.parse(input.split("\n").toIterator)) {
       (c: Circuit, p: Transform) => 
         p.runTransform(CircuitState(c, UnknownForm, AnnotationSeq(Nil), None)).circuit
     }
+  }
+  private def executeTest(input: String, expected: Seq[String], passes: Seq[Transform]) = {
+    val c = compile(input, passes)
     val lines = c.serialize.split("\n") map normalized
 
     expected foreach { e =>
@@ -524,5 +527,19 @@ class IntervalSpec extends FirrtlFlatSpec {
       """.stripMargin
       compileToVerilog(input)
     }
+  }
+
+  "RemoveIntervals" should "fixup kinds of replaced nodes" in {
+    val passes = Seq(ToWorkingIR, new ResolveAndCheck, new RemoveIntervals)
+    val input =
+      s"""circuit Unit :
+         |  module Unit :
+         |    input in: Interval[2, 3].3
+         |    output out: Interval[2, 3].3
+         |    node temp = in
+         |    out <= temp
+         |    """.stripMargin
+      val removed = compile(input, passes)
+      removed should be (ResolveKinds.run(removed))
   }
 }
