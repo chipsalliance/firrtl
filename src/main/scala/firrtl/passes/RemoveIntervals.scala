@@ -50,7 +50,7 @@ class RemoveIntervals extends Pass with PreservesAll[Transform] {
   def run(c: Circuit): Circuit = {
     val alignedCircuit = c
     val errors = new Errors()
-    val replacedNodes = mutable.HashMap.empty[OfModule, mutable.HashSet[String]]
+    val replacedNodes = mutable.HashMap.empty[OfModule, mutable.Set[String]]
     val wiredCircuit = alignedCircuit map makeWireModule(replacedNodes)
     val replacedCircuit = wiredCircuit map replaceModuleInterval(errors, replacedNodes)
     errors.trigger()
@@ -58,10 +58,10 @@ class RemoveIntervals extends Pass with PreservesAll[Transform] {
   }
 
   /* Replace interval types */
-  private def replaceModuleInterval(errors: Errors, replacedNodes: mutable.HashMap[OfModule, mutable.HashSet[String]])(m: DefModule): DefModule =
-    m map replaceStmtInterval(errors, m.name, replacedNodes(OfModule(m.name)).toSet) map replacePortInterval
+  private def replaceModuleInterval(errors: Errors, replacedNodes: mutable.HashMap[OfModule, mutable.Set[String]])(m: DefModule): DefModule =
+    m map replaceStmtInterval(errors, m.name, replacedNodes(OfModule(m.name))) map replacePortInterval
 
-  private def replaceStmtInterval(errors: Errors, mname: String, replacedNodes: Set[String])(s: Statement): Statement = {
+  private def replaceStmtInterval(errors: Errors, mname: String, replacedNodes: mutable.Set[String])(s: Statement): Statement = {
     val info = s match {
       case h: HasInfo => h.info
       case _ => NoInfo
@@ -70,7 +70,7 @@ class RemoveIntervals extends Pass with PreservesAll[Transform] {
 
   }
 
-  private def replaceExprInterval(errors: Errors, info: Info, mname: String, replacedNodes: Set[String])(e: Expression): Expression = e match {
+  private def replaceExprInterval(errors: Errors, info: Info, mname: String, replacedNodes: mutable.Set[String])(e: Expression): Expression = e match {
     case ref: WRef if replacedNodes(ref.name) =>
       ref.copy(kind = WireKind)
     case _: WRef | _: WSubIndex | _: WSubField => e
@@ -172,11 +172,11 @@ class RemoveIntervals extends Pass with PreservesAll[Transform] {
     * @param m module to replace nodes with wire + connection
     * @return
     */
-  private def makeWireModule(replaced: mutable.HashMap[OfModule, mutable.HashSet[String]])(m: DefModule): DefModule = {
-    m map makeWireStmt(replaced.getOrElseUpdate(OfModule(m.name), mutable.HashSet.empty[String]))
+  private def makeWireModule(replaced: mutable.HashMap[OfModule, mutable.Set[String]])(m: DefModule): DefModule = {
+    m map makeWireStmt(replaced.getOrElseUpdate(OfModule(m.name), mutable.Set.empty[String]))
   }
 
-  private def makeWireStmt(replaced: mutable.HashSet[String])(s: Statement): Statement = s match {
+  private def makeWireStmt(replaced: mutable.Set[String])(s: Statement): Statement = s match {
     case DefNode(info, name, value) => value.tpe match {
       case IntervalType(l, u, p) =>
         val newType = IntervalType(l, u, p)
