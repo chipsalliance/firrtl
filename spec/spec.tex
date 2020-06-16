@@ -1026,13 +1026,13 @@ Format strings support the following escape characters:
 
 \subsection{Verification}
 
-To facilitate model checking and formal methods, there are three verification statements available: assert, assume and cover. Backends are free to generate the corresponding model checking constructs in the target language, but this is not required by the FIRRTL specification. For example, the Verilog emitter produces Verilog assert, assume and cover statements. However, backends should not generate any new synthesizable hardware when handling to verification statements. Backends that do not obey this rule should issue a warning.
+To facilitate simulation, model checking and formal methods, there are three non-synthesizable verification statements available: assert, assume and cover. Backends are free to generate the corresponding model checking constructs in the target language, but this is not required by the FIRRTL specification. For example, the System Verilog emitter produces System Verilog assert, assume and cover statements. However, backends should not generate any new synthesizable hardware when handling to verification statements. Backends that do not obey this rule should issue a warning.
 
 Each type of verification statement requires a clock signal, a predicate signal, an enable signal and an explanatory message string literal. The predicate and enable signals must have single bit unsigned integer type. When an assert is violated the explanatory message may be issued as guidance. The explanatory message may be phrased as if prefixed by the words ``Verifies that...''.
 
 \subsubsection{Assert}
 
-The assert statement verifies that the predicate is true at all time steps when the enable is true. In other words, it verifies that enable implies predicate. 
+The assert statement verifies that the predicate is true on the rising edge of any clock cycle when the enable is true. In other words, it verifies that enable implies predicate.
 
 \begin{lstlisting}
 wire clk:Clock
@@ -1043,7 +1043,7 @@ assert(clk, pred, en, "X equals Y when Z is valid")
 
 \subsubsection{Assume}
 
-The assume statement directs the model checker to disregard any states where the enable is true and the predicate is not true. In other words, it reduces the states to be checked to only those where enable implies predicate is true by definition.
+The assume statement directs the model checker to disregard any states where the enable is true and the predicate is not true at the rising edge of the clock cycle. In other words, it reduces the states to be checked to only those where enable implies predicate is true by definition. In simulation, assume is treated as an assert.
 
 \begin{lstlisting}
 wire clk:Clock
@@ -1054,7 +1054,7 @@ assume(clk, pred, en, "X equals Y when Z is valid")
 
 \subsubsection{Cover}
 
-The cover statement verifies that the predicate is true at some time step when the enable is true. In other words, it directs the model checker to find some way to make enable implies predicate true at some time step.
+The cover statement verifies that the predicate is true on the rising edge of some clock cycle when the enable is true. In other words, it directs the model checker to find some way to make enable implies predicate true at some time step.
 
 \begin{lstlisting}
 wire clk:Clock
