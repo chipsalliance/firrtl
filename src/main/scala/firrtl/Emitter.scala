@@ -454,6 +454,13 @@ class VerilogEmitter extends SeqTransform with Emitter {
       case m: Module => new VerilogRender(m, moduleMap)(writer)
     }
   }
+
+  def addFormalStatement(formals: mutable.Map[Expression, ArrayBuffer[Seq[Any]]],
+                                 clk: Expression, en: Expression,
+                                 stmt: Seq[Any], info: Info): Unit = {
+    throw EmitterException("Cannot emit verification statements in Verilog" +
+      "(2001). Use the SystemVerilog emitter instead.")
+  }
   
   /** 
     * Store Emission option per Target
@@ -783,10 +790,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
     }
 
     def addFormal(clk: Expression, en: Expression, stmt: Seq[Any], info: Info) = {
-      val lines = formals.getOrElseUpdate(clk, ArrayBuffer[Seq[Any]]())
-      lines += Seq("if (", en, ") begin")
-      lines += Seq(tab, stmt, info)
-      lines += Seq("end")
+      addFormalStatement(formals, clk, en, stmt, info)
     }
 
     def formalStatement(op: Formal.Value, cond: Expression): Seq[Any] = {
@@ -1093,13 +1097,11 @@ class VerilogEmitter extends SeqTransform with Emitter {
       }
 
       if (formals.keys.nonEmpty) {
-        emit(Seq("`ifdef FORMAL"))
         for ((clk, content) <- formals if content.nonEmpty) {
-          emit(Seq(tab, "always @(posedge ", clk, ") begin"))
-          for (line <- content) emit(Seq(tab, tab, line))
-          emit(Seq(tab, "end"))
+          emit(Seq("always @(posedge ", clk, ") begin"))
+          for (line <- content) emit(Seq(tab, line))
+          emit(Seq("end"))
         }
-        emit(Seq("`endif // FORMAL"))
       }
 
       emit(Seq("endmodule"))
@@ -1208,6 +1210,15 @@ class MinimumVerilogEmitter extends VerilogEmitter with Emitter {
 
 class SystemVerilogEmitter extends VerilogEmitter {
   override val outputSuffix: String = ".sv"
+
+  override def addFormalStatement(formals: mutable.Map[Expression, ArrayBuffer[Seq[Any]]],
+                                  clk: Expression, en: Expression,
+                                  stmt: Seq[Any], info: Info): Unit = {
+    val lines = formals.getOrElseUpdate(clk, ArrayBuffer[Seq[Any]]())
+    lines += Seq("if (", en, ") begin")
+    lines += Seq(tab, stmt, info)
+    lines += Seq("end")
+  }
 
   override def execute(state: CircuitState): CircuitState = {
     StageUtils.dramaticWarning("SystemVerilog Emitter is the same as the Verilog Emitter!")
