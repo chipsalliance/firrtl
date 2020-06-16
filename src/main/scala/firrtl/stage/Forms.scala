@@ -63,6 +63,7 @@ object Forms {
     Seq( Dependency(firrtl.passes.RemoveValidIf),
          Dependency(passes.Legalize),
          Dependency(firrtl.transforms.RemoveReset),
+         Dependency[checks.CheckResets],
          Dependency[firrtl.transforms.MidFormConstantPropagation] )
 
   val LowForm: Seq[TransformDependency] = MidForm ++
@@ -70,7 +71,6 @@ object Forms {
          Dependency(passes.Legalize),
          Dependency(firrtl.transforms.RemoveReset),
          Dependency[firrtl.transforms.CheckCombLoops],
-         Dependency[checks.CheckResets],
          Dependency[firrtl.transforms.RemoveWires] )
 
   val LowFormMinimumOptimized: Seq[TransformDependency] = LowForm ++
@@ -82,7 +82,6 @@ object Forms {
   val LowFormOptimized: Seq[TransformDependency] = MidFormOptimized ++
     Seq( Dependency(passes.LowerTypes),
          Dependency[firrtl.transforms.CheckCombLoops],
-         Dependency[checks.CheckResets],
          Dependency[firrtl.transforms.RemoveWires],
          Dependency(passes.PadWidths),
          Dependency(passes.memlib.VerilogMemDelays),

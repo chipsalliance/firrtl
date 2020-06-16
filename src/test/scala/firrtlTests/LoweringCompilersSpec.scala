@@ -183,7 +183,10 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
 
   it should "replicate the old order" in {
     val tm = new TransformManager(Forms.LowForm, Forms.MidForm)
-    compare(legacyTransforms(new MiddleFirrtlToLowFirrtl), tm)
+    val patches = Seq(
+      Del(10)
+    )
+    compare(legacyTransforms(new MiddleFirrtlToLowFirrtl), tm, patches)
   }
 
   behavior of "MinimumLowFirrtlOptimization"
@@ -202,7 +205,11 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
   it should "replicate the old order" in {
     val tm = new TransformManager(Forms.LowFormOptimized, Forms.LowForm)
     val patches = Seq(
-      Add(1, Seq(Dependency[firrtl.transforms.MidFormConstantPropagation])),
+      Add(1, Seq(
+        Dependency(firrtl.passes.Legalize),
+        Dependency[firrtl.checks.CheckResets],
+        Dependency[firrtl.transforms.MidFormConstantPropagation]
+      )),
       Add(6, Seq(Dependency(firrtl.passes.ResolveFlows))),
       Add(7, Seq(Dependency(firrtl.passes.Legalize))),
       Add(8, Seq(Dependency(firrtl.passes.ResolveKinds)))
@@ -377,7 +384,7 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
         Seq(new Transforms.LowToLow, new firrtl.MinimumVerilogEmitter)
     val tm = (new TransformManager(Seq(Dependency[firrtl.MinimumVerilogEmitter], Dependency[Transforms.LowToLow])))
     val patches = Seq(
-      Add(63, Seq(Dependency[firrtl.transforms.LegalizeAndReductionsTransform]))
+      Add(62, Seq(Dependency[firrtl.transforms.LegalizeAndReductionsTransform]))
     )
     compare(expected, tm, patches)
   }
@@ -388,7 +395,7 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
         Seq(new Transforms.LowToLow, new firrtl.VerilogEmitter)
     val tm = (new TransformManager(Seq(Dependency[firrtl.VerilogEmitter], Dependency[Transforms.LowToLow])))
     val patches = Seq(
-      Add(71, Seq(Dependency[firrtl.transforms.LegalizeAndReductionsTransform]))
+      Add(72, Seq(Dependency[firrtl.transforms.LegalizeAndReductionsTransform]))
     )
     compare(expected, tm, patches)
   }
