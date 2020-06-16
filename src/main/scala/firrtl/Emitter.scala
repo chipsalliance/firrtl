@@ -5,7 +5,6 @@ package firrtl
 import java.io.Writer
 
 import scala.collection.mutable
-
 import firrtl.ir._
 import firrtl.passes._
 import firrtl.transforms.LegalizeAndReductionsTransform
@@ -15,8 +14,9 @@ import firrtl.PrimOps._
 import firrtl.WrappedExpression._
 import Utils._
 import MemPortUtils.{memPortField, memType}
-import firrtl.options.{Dependency, HasShellOptions, ShellOption, StageUtils, PhaseException, Unserializable}
+import firrtl.options.{Dependency, HasShellOptions, PhaseException, ShellOption, StageUtils, Unserializable}
 import firrtl.stage.{RunFirrtlTransformAnnotation, TransformManager}
+import firrtl.transforms.formal.RemoveVerificationStatements
 // Datastructures
 import scala.collection.mutable.ArrayBuffer
 
@@ -182,6 +182,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
   def outputForm = LowForm
 
   override def prerequisites =
+    Dependency[RemoveVerificationStatements] +:
     Dependency[LegalizeAndReductionsTransform] +:
     firrtl.stage.Forms.LowFormOptimized
 
@@ -1098,9 +1099,9 @@ class VerilogEmitter extends SeqTransform with Emitter {
 
       if (formals.keys.nonEmpty) {
         for ((clk, content) <- formals if content.nonEmpty) {
-          emit(Seq("always @(posedge ", clk, ") begin"))
-          for (line <- content) emit(Seq(tab, line))
-          emit(Seq("end"))
+          emit(Seq(tab, "always @(posedge ", clk, ") begin"))
+          for (line <- content) emit(Seq(tab, tab, line))
+          emit(Seq(tab, "end"))
         }
       }
 
@@ -1211,6 +1212,10 @@ class MinimumVerilogEmitter extends VerilogEmitter with Emitter {
 class SystemVerilogEmitter extends VerilogEmitter {
   override val outputSuffix: String = ".sv"
 
+  override def prerequisites =
+      Dependency[LegalizeAndReductionsTransform] +:
+      firrtl.stage.Forms.LowFormOptimized
+
   override def addFormalStatement(formals: mutable.Map[Expression, ArrayBuffer[Seq[Any]]],
                                   clk: Expression, en: Expression,
                                   stmt: Seq[Any], info: Info): Unit = {
@@ -1221,7 +1226,6 @@ class SystemVerilogEmitter extends VerilogEmitter {
   }
 
   override def execute(state: CircuitState): CircuitState = {
-    StageUtils.dramaticWarning("SystemVerilog Emitter is the same as the Verilog Emitter!")
     super.execute(state)
   }
 }

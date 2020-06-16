@@ -12,7 +12,7 @@ class AssertSubmoduleAssumptionsSpec extends FirrtlFlatSpec {
   val transforms = new TransformManager(Forms.HighForm, Forms.MinimalHighForm)
     .flattenedTransformOrder ++ Seq(new AssertSubmoduleAssumptions)
 
-  def run(input: String, check: Seq[String], debug: Boolean = false) = {
+  def run(input: String, check: Seq[String], debug: Boolean = false): Unit = {
     val circuit = Parser.parse(input.split("\n").toIterator)
     val result = transforms.foldLeft(CircuitState(circuit, UnknownForm)) {
       (c: CircuitState, p: Transform) => p.runTransform(c)
