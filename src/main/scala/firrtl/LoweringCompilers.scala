@@ -174,5 +174,4 @@ class MinimumVerilogCompiler extends Compiler {
 )
 class SystemVerilogCompiler extends VerilogCompiler {
   override val emitter = new SystemVerilogEmitter
-  StageUtils.dramaticWarning("SystemVerilog Compiler behaves the same as the Verilog Compiler!")
 }
