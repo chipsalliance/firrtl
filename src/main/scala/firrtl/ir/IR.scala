@@ -141,7 +141,22 @@ abstract class Expression extends FirrtlNode {
   def foreachWidth(f: Width => Unit): Unit
 }
 
-case class Reference(name: String, tpe: Type, kind: Kind = UnknownKind, flow: Flow = UnknownFlow)
+object Reference {
+  /** Creates a Reference from a Wire */
+  def apply(wire: DefWire): Reference = Reference(wire.name, wire.tpe, WireKind, UnknownFlow)
+  /** Creates a Reference from a Register */
+  def apply(reg: DefRegister): Reference = Reference(reg.name, reg.tpe, RegKind, UnknownFlow)
+  /** Creates a Reference from a Node */
+  def apply(node: DefNode): Reference = Reference(node.name, node.value.tpe, NodeKind, SourceFlow)
+  /** Creates a Reference from a Port */
+  def apply(port: Port): Reference = Reference(port.name, port.tpe, PortKind, UnknownFlow)
+  /** Creates a Reference from a DefInstance */
+  def apply(i: DefInstance): Reference = Reference(i.name, i.tpe, InstanceKind, UnknownFlow)
+  /** Creates a Reference from a DefMemory */
+  def apply(mem: DefMemory): Reference = Reference(mem.name, passes.MemPortUtils.memType(mem), MemKind, UnknownFlow)
+}
+
+case class Reference(name: String, tpe: Type = UnknownType, kind: Kind = UnknownKind, flow: Flow = UnknownFlow)
     extends Expression with HasName {
   def serialize: String = name
   def mapExpr(f: Expression => Expression): Expression = this
@@ -152,7 +167,7 @@ case class Reference(name: String, tpe: Type, kind: Kind = UnknownKind, flow: Fl
   def foreachWidth(f: Width => Unit): Unit = Unit
 }
 
-case class SubField(expr: Expression, name: String, tpe: Type, flow: Flow = UnknownFlow)
+case class SubField(expr: Expression, name: String, tpe: Type = UnknownType, flow: Flow = UnknownFlow)
     extends Expression with HasName {
   def serialize: String = s"${expr.serialize}.$name"
   def mapExpr(f: Expression => Expression): Expression = this.copy(expr = f(expr))
@@ -307,6 +322,10 @@ case class DefRegister(
   def foreachInfo(f: Info => Unit): Unit = f(info)
 }
 
+object DefInstance {
+  def apply(name: String, module: String): DefInstance = DefInstance(NoInfo, name, module)
+}
+
 case class DefInstance(info: Info, name: String, module: String, tpe: Type = UnknownType)
     extends Statement with IsDeclaration {
   def serialize: String = s"inst $name of $module" + info.serialize
@@ -402,8 +421,29 @@ object Block {
 }
 
 case class Block(stmts: Seq[Statement]) extends Statement {
-  def serialize: String = stmts map (_.serialize) mkString "\n"
-  def mapStmt(f: Statement => Statement): Statement = Block(stmts map f)
+  def serialize: String = {
+    val res = stmts.view.map(_.serialize).mkString("\n")
+    if (res.nonEmpty) res else EmptyStmt.serialize
+  }
+  def mapStmt(f: Statement => Statement): Statement = {
+    val res = new scala.collection.mutable.ArrayBuffer[Statement]()
+    var its = stmts.iterator :: Nil
+    while (its.nonEmpty) {
+      val it = its.head
+      if (it.hasNext) {
+        it.next() match {
+          case EmptyStmt => // flatten out
+          case b: Block =>
+            its = b.stmts.iterator :: its
+          case other =>
+            res.append(f(other))
+        }
+      } else {
+        its = its.tail
+      }
+    }
+    Block(res)
+  }
   def mapExpr(f: Expression => Expression): Statement = this
   def mapType(f: Type => Type): Statement = this
   def mapString(f: String => String): Statement = this
@@ -859,6 +899,7 @@ case class Port(
     tpe: Type) extends FirrtlNode with IsDeclaration {
   def serialize: String = s"${direction.serialize} $name : ${tpe.serialize}" + info.serialize
   def mapType(f: Type => Type): Port = Port(info, name, direction, f(tpe))
+  def mapString(f: String => String): Port = Port(info, f(name), direction, tpe)
 }
 
 /** Parameters for external modules */
