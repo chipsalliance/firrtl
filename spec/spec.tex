@@ -1038,6 +1038,8 @@ The assert statement verifies that the predicate is true on the rising edge of a
 wire clk:Clock
 wire pred:UInt<1>
 wire en:UInt<1>
+pred <= eq(X, Y)
+en <= Z_valid
 assert(clk, pred, en, "X equals Y when Z is valid")
 \end{lstlisting}
 
@@ -1049,6 +1051,8 @@ The assume statement directs the model checker to disregard any states where the
 wire clk:Clock
 wire pred:UInt<1>
 wire en:UInt<1>
+pred <= eq(X, Y)
+en <= Z_valid
 assume(clk, pred, en, "X equals Y when Z is valid")
 \end{lstlisting}
 
@@ -1060,6 +1064,8 @@ The cover statement verifies that the predicate is true on the rising edge of so
 wire clk:Clock
 wire pred:UInt<1>
 wire en:UInt<1>
+pred <= eq(X, Y)
+en <= Z_valid
 cover(clk, pred, en, "X equals Y when Z is valid")
 \end{lstlisting}
 

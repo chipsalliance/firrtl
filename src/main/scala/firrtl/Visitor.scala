@@ -333,8 +333,8 @@ class Visitor(infoMode: InfoMode) extends AbstractParseTreeVisitor[FirrtlNode] w
           visitExp(ctx_exp(1)), visitExp(ctx_exp(2)),
           visitStringLit(ctx.StringLit))
         case "assume" => Verification(Formal.Assume, info, visitExp(ctx_exp(0)),
-      visitExp(ctx_exp(1)), visitExp(ctx_exp(2)),
-      visitStringLit(ctx.StringLit))
+          visitExp(ctx_exp(1)), visitExp(ctx_exp(2)),
+          visitStringLit(ctx.StringLit))
         case "cover" => Verification(Formal.Cover, info, visitExp(ctx_exp(0)),
           visitExp(ctx_exp(1)), visitExp(ctx_exp(2)),
           visitStringLit(ctx.StringLit))
