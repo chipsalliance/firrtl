@@ -156,9 +156,7 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
   behavior of "HighFirrtlToMiddleFirrtl"
 
   it should "replicate the old order" in {
-    // exclude AssertSubmoduleAssumptions pass, which was never in the old order
-    val oldMidForm = Forms.MidForm.slice(0, Forms.MidForm.length-1)
-    val tm = new TransformManager(oldMidForm, Forms.Deduped)
+    val tm = new TransformManager(Forms.MidForm, Forms.Deduped)
     val patches = Seq(
       Add(4, Seq(Dependency(firrtl.passes.ResolveFlows))),
       Add(5, Seq(Dependency(firrtl.passes.ResolveKinds))),
@@ -173,7 +171,8 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
       Del(13),
       Add(12, Seq(Dependency(firrtl.passes.ResolveFlows),
                   Dependency[firrtl.passes.InferWidths])),
-      Del(14)
+      Del(14),
+      Add(17, Seq(Dependency[firrtl.transforms.formal.AssertSubmoduleAssumptions]))
     )
     compare(legacyTransforms(new HighFirrtlToMiddleFirrtl), tm, patches)
   }
@@ -362,7 +361,8 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
         Seq(new Transforms.LowToLow, new firrtl.VerilogEmitter)
     val tm = (new TransformManager(Seq(Dependency[firrtl.VerilogEmitter], Dependency[Transforms.LowToLow])))
     val patches = Seq(
-      Add(68, Seq(Dependency[firrtl.transforms.LegalizeAndReductionsTransform]))
+      Add(68, Seq(Dependency[firrtl.transforms.LegalizeAndReductionsTransform],
+                  Dependency[firrtl.transforms.formal.RemoveVerificationStatements])),
     )
     compare(expected, tm, patches)
   }
