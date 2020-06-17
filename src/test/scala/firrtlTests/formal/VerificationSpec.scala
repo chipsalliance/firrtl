@@ -1,6 +1,6 @@
 package firrtlTests.formal
 
-import firrtl.VerilogCompiler
+import firrtl.{SystemVerilogCompiler}
 import firrtl.testutils.FirrtlFlatSpec
 import logger.{LogLevel, Logger}
 
@@ -8,7 +8,7 @@ class VerificationSpec extends FirrtlFlatSpec {
   behavior of "Formal"
 
   it should "generate Verilog statements within FORMAL block" in {
-    val compiler = new VerilogCompiler
+    val compiler = new SystemVerilogCompiler
     val input =
       """circuit Asserting :
         |  module Asserting :
@@ -37,7 +37,6 @@ class VerificationSpec extends FirrtlFlatSpec {
         |  wire inputEquals0xAA = in == 8'haa;
         |  wire outputEquals0xAA = out == 8'haa;
         |  assign out = in;
-        |`ifdef FORMAL
         |  always @(posedge clock) begin
         |    if (1'h1) begin
         |      assume(inputEquals0xAA);
@@ -49,7 +48,6 @@ class VerificationSpec extends FirrtlFlatSpec {
         |      cover(outputEquals0xAA);
         |    end
         |  end
-        |`endif // FORMAL
         |endmodule
         |""".stripMargin.split("\n") map normalized
     executeTest(input, expected, compiler)

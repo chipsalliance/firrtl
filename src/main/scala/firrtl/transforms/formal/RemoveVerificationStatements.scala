@@ -3,7 +3,7 @@ package firrtl.transforms.formal
 
 import firrtl.ir.{Circuit, EmptyStmt, Statement, Verification}
 import firrtl.{CircuitState, DependencyAPIMigration, MinimumVerilogEmitter, Transform, VerilogEmitter}
-import firrtl.options.{Dependency, PreservesAll}
+import firrtl.options.{Dependency, PreservesAll, StageUtils}
 import firrtl.stage.TransformManager.TransformDependency
 
 
@@ -24,8 +24,13 @@ class RemoveVerificationStatements extends Transform
     Seq( Dependency[VerilogEmitter],
       Dependency[MinimumVerilogEmitter])
 
+  private var removedCounter = 0
+
   def removeVerification(s: Statement): Statement = s match {
-    case _: Verification => EmptyStmt
+    case _: Verification => {
+      removedCounter += 1
+      EmptyStmt
+    }
     case t => t.mapStmt(removeVerification)
   }
 
@@ -36,6 +41,13 @@ class RemoveVerificationStatements extends Transform
   }
 
   def execute(state: CircuitState): CircuitState = {
-    state.copy(circuit = run(state.circuit))
+    val newState = state.copy(circuit = run(state.circuit))
+    if (removedCounter > 0) {
+      StageUtils.dramaticWarning(s"$removedCounter verification statements " +
+        "were removed when compiling to Verilog because the basic Verilog " +
+        "standard does not support them. If this was not intended, compile " +
+        "to System Verilog instead using the `-X sverilog` compiler flag.")
+    }
+    newState
   }
 }

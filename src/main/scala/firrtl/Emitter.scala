@@ -14,7 +14,7 @@ import firrtl.PrimOps._
 import firrtl.WrappedExpression._
 import Utils._
 import MemPortUtils.{memPortField, memType}
-import firrtl.options.{Dependency, HasShellOptions, PhaseException, ShellOption, StageUtils, Unserializable}
+import firrtl.options.{Dependency, HasShellOptions, PhaseException, ShellOption, Unserializable}
 import firrtl.stage.{RunFirrtlTransformAnnotation, TransformManager}
 import firrtl.transforms.formal.RemoveVerificationStatements
 // Datastructures
