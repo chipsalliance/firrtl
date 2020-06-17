@@ -9,9 +9,7 @@ import firrtl.Mappers._
 import Implicits.{bigint2WInt}
 import firrtl.constraint.IsKnown
 import firrtl.options.{Dependency, PreservesAll}
-import firrtl.annotations.TargetToken.OfModule
 
-import scala.collection.mutable
 import scala.math.BigDecimal.RoundingMode._
 
 class WrapWithRemainder(info: Info, mname: String, wrap: DoPrim)
@@ -38,7 +36,7 @@ class WrapWithRemainder(info: Info, mname: String, wrap: DoPrim)
   *      c. replace with SIntType
   * 3) Run InferTypes
   */
-class RemoveIntervals extends Pass with PreservesAll[Transform] {
+class RemoveIntervals extends Pass {
 
   override def prerequisites: Seq[Dependency[Transform]] =
     Seq( Dependency(PullMuxes),
@@ -47,35 +45,39 @@ class RemoveIntervals extends Pass with PreservesAll[Transform] {
          Dependency(RemoveAccesses),
          Dependency[ExpandWhensAndCheck] ) ++ firrtl.stage.Forms.Deduped
 
+  override def invalidates(transform: Transform): Boolean = {
+    transform match {
+      case InferTypes | ResolveKinds => true
+      case _ => false
+    }
+  }
+
   def run(c: Circuit): Circuit = {
     val alignedCircuit = c
     val errors = new Errors()
-    val replacedNodes = mutable.HashMap.empty[OfModule, mutable.Set[String]]
-    val wiredCircuit = alignedCircuit map makeWireModule(replacedNodes)
-    val replacedCircuit = wiredCircuit map replaceModuleInterval(errors, replacedNodes)
+    val wiredCircuit = alignedCircuit map makeWireModule
+    val replacedCircuit = wiredCircuit map replaceModuleInterval(errors)
     errors.trigger()
-    InferTypes.run(replacedCircuit)
+    replacedCircuit
   }
 
   /* Replace interval types */
-  private def replaceModuleInterval(errors: Errors, replacedNodes: mutable.HashMap[OfModule, mutable.Set[String]])(m: DefModule): DefModule =
-    m map replaceStmtInterval(errors, m.name, replacedNodes(OfModule(m.name))) map replacePortInterval
+  private def replaceModuleInterval(errors: Errors)(m: DefModule): DefModule =
+    m map replaceStmtInterval(errors, m.name) map replacePortInterval
 
-  private def replaceStmtInterval(errors: Errors, mname: String, replacedNodes: mutable.Set[String])(s: Statement): Statement = {
+  private def replaceStmtInterval(errors: Errors, mname: String)(s: Statement): Statement = {
     val info = s match {
       case h: HasInfo => h.info
       case _ => NoInfo
     }
-    s map replaceTypeInterval map replaceStmtInterval(errors, mname, replacedNodes) map replaceExprInterval(errors, info, mname, replacedNodes)
+    s map replaceTypeInterval map replaceStmtInterval(errors, mname) map replaceExprInterval(errors, info, mname)
 
   }
 
-  private def replaceExprInterval(errors: Errors, info: Info, mname: String, replacedNodes: mutable.Set[String])(e: Expression): Expression = e match {
-    case ref: WRef if replacedNodes(ref.name) =>
-      ref.copy(kind = WireKind)
+  private def replaceExprInterval(errors: Errors, info: Info, mname: String)(e: Expression): Expression = e match {
     case _: WRef | _: WSubIndex | _: WSubField => e
     case o =>
-      o map replaceExprInterval(errors, info, mname, replacedNodes) match {
+      o map replaceExprInterval(errors, info, mname) match {
         case DoPrim(AsInterval, Seq(a1), _, tpe) => DoPrim(AsSInt, Seq(a1), Seq.empty, tpe)
         case DoPrim(IncP, args, consts, tpe) => DoPrim(Shl, args, consts, tpe)
         case DoPrim(DecP, args, consts, tpe) => DoPrim(Shr, args, consts, tpe)
@@ -172,18 +174,15 @@ class RemoveIntervals extends Pass with PreservesAll[Transform] {
     * @param m module to replace nodes with wire + connection
     * @return
     */
-  private def makeWireModule(replaced: mutable.HashMap[OfModule, mutable.Set[String]])(m: DefModule): DefModule = {
-    m map makeWireStmt(replaced.getOrElseUpdate(OfModule(m.name), mutable.Set.empty[String]))
-  }
+  private def makeWireModule(m: DefModule): DefModule = m map makeWireStmt
 
-  private def makeWireStmt(replaced: mutable.Set[String])(s: Statement): Statement = s match {
+  private def makeWireStmt(s: Statement): Statement = s match {
     case DefNode(info, name, value) => value.tpe match {
       case IntervalType(l, u, p) =>
         val newType = IntervalType(l, u, p)
-        replaced += name
         Block(Seq(DefWire(info, name, newType), Connect(info, WRef(name, newType, WireKind, SinkFlow), value)))
       case other => s
     }
-    case other => other map makeWireStmt(replaced)
+    case other => other map makeWireStmt
   }
 }
