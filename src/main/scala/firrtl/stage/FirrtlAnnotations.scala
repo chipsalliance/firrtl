@@ -187,15 +187,22 @@ object RunFirrtlTransformAnnotation extends HasShellOptions {
       longOption = "custom-transforms",
       toAnnotationSeq = _.map(txName =>
         try {
-          val tx = Class.forName(txName).asInstanceOf[Class[_ <: Transform]].newInstance()
+          val tx = txName.endsWith("$") match {
+            case true =>
+              Dependency(Class.forName(txName).getField("MODULE$").get(null).asInstanceOf[Transform with Singleton])
+            case false =>
+              Dependency(Class.forName(txName).asInstanceOf[Class[_ <: Transform]])
+          }
           RunFirrtlTransformAnnotation(tx)
         } catch {
           case e: ClassNotFoundException => throw new OptionsException(
             s"Unable to locate custom transform $txName (did you misspell it?)", e)
           case e: InstantiationException => throw new OptionsException(
             s"Unable to create instance of Transform $txName (is this an anonymous class?)", e)
-          case e: Throwable => throw new OptionsException(
-            s"Unknown error when instantiating class $txName", e) }),
+          case e: ClassCastException => throw new OptionsException(
+            s"$txName is not a Transform (did you misspell it?)")
+          case e: Throwable =>
+            throw new OptionsException(s"Unknown error when instantiating class $txName", e) }),
       helpText = "Run these transforms during compilation",
       shortOption = Some("fct"),
       helpValueName = Some("<package>.<class>") ) )
