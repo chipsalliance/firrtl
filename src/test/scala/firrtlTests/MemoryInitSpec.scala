@@ -139,6 +139,29 @@ class MemInitSpec extends FirrtlFlatSpec {
     }
     assert(caught.getMessage.endsWith("[module MemTest] Cannot initialize memory of non ground type { real : SInt<10>, imag : SInt<10>}"))
   }
+
+  private def jsonAnno(value: String): String =
+    s"""[{"class": "firrtl.annotations.MemoryInitAnnotation", "target": "~MemTest|MemTest>m", "value": $value}]"""
+
+  "InitMemoryAnnotation w/ MemoryRandomInit" should "load from JSON" in {
+    val json = jsonAnno("""{ "class": "firrtl.MemoryRandomInit" }""")
+    val annos = JsonProtocol.deserialize(json)
+    assert(annos == Seq(MemoryInitAnnotation(mRef, MemoryRandomInit())))
+  }
+
+  "InitMemoryAnnotation w/ MemoryScalarInit" should "load from JSON" in {
+    val json = jsonAnno("""{ "class": "firrtl.MemoryScalarInit", "value": 1234567890 }""")
+    val annos = JsonProtocol.deserialize(json)
+    assert(annos == Seq(MemoryInitAnnotation(mRef, MemoryScalarInit(1234567890))))
+  }
+
+  "InitMemoryAnnotation w/ MemoryArrayInit" should "load from JSON" in {
+    val json = jsonAnno("""{ "class": "firrtl.MemoryArrayInit", "values": [10000000000, 20000000000] }""")
+    val annos = JsonProtocol.deserialize(json)
+    val largeSeq = Seq(BigInt("10000000000"), BigInt("20000000000"))
+    assert(annos == Seq(MemoryInitAnnotation(mRef, MemoryArrayInit(largeSeq))))
+  }
+
 }
 
 abstract class MemInitExecutionSpec(values: Seq[Int], init: MemoryInitValue) extends SimpleExecutionTest with VerilogExecution {
