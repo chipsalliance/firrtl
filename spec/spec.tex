@@ -1028,7 +1028,7 @@ Format strings support the following escape characters:
 
 To facilitate simulation, model checking and formal methods, there are three non-synthesizable verification statements available: assert, assume and cover. Each type of verification statement requires a clock signal, a predicate signal, an enable signal and an explanatory message string literal. The predicate and enable signals must have single bit unsigned integer type. When an assert is violated the explanatory message may be issued as guidance. The explanatory message may be phrased as if prefixed by the words ``Verifies that...''.
 
-Backends are free to generate the corresponding model checking constructs in the target language, but this is not required by the FIRRTL specification. Backends that do not generate such constructs should issue a warning. For example, the SystemVerilog emitter produces SystemVerilog assert, assume and cover statements, but the Verilog emitter does not and instead warns the user if any verification statements are encountered. Backends should not generate any new synthesizable hardware when handling verification statements. Backends that do not obey this rule should issue a warning.
+Backends are free to generate the corresponding model checking constructs in the target language, but this is not required by the FIRRTL specification. Backends that do not generate such constructs should issue a warning. For example, the SystemVerilog emitter produces SystemVerilog assert, assume and cover statements, but the Verilog emitter does not and instead warns the user if any verification statements are encountered.
 
 
 \subsubsection{Assert}
