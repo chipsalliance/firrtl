@@ -18,12 +18,14 @@ class FirrtlCliSpec extends AnyFlatSpec with Matchers {
     val args = Array(
       "--custom-transforms", "firrtl.transforms.BlackBoxSourceHelper,firrtl.transforms.CheckCombLoops",
       "--custom-transforms", "firrtl.transforms.CombineCats",
-      "--custom-transforms", "firrtl.transforms.ConstantPropagation" )
+      "--custom-transforms", "firrtl.transforms.ConstantPropagation",
+      "--custom-transforms", "firrtl.passes.InferTypes$")
     val expected = Seq(
       Dependency[firrtl.transforms.BlackBoxSourceHelper],
       Dependency[firrtl.transforms.CheckCombLoops],
       Dependency[firrtl.transforms.CombineCats],
-      Dependency[firrtl.transforms.ConstantPropagation] )
+      Dependency[firrtl.transforms.ConstantPropagation],
+      Dependency(firrtl.passes.InferTypes))
 
     shell
       .parse(args)
