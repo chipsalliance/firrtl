@@ -1201,6 +1201,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
 class MinimumVerilogEmitter extends VerilogEmitter with Emitter {
 
   override def prerequisites =
+    Dependency[RemoveVerificationStatements] +:
     Dependency[LegalizeAndReductionsTransform] +:
     firrtl.stage.Forms.LowFormMinimumOptimized
 

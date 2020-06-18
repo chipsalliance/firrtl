@@ -62,7 +62,7 @@ class RemoveVerificationStatementsSpec extends FirrtlFlatSpec {
       "cover(clock, eq(out, UInt<1>(\"h0\")), UInt<1>(\"h1\"), \"cover0\")",
       "assume(clock, eq(in, UInt<1>(\"h1\")), UInt<1>(\"h1\"), \"assume1\")",
       "assert(clock, eq(out, UInt<1>(\"h1\")), UInt<1>(\"h1\"), \"assert1\")",
-      "cover(clock, eq(out, UInt<1>(\"h1\")), UInt<1>(\"h1\"), \"cover1\")",
+      "cover(clock, eq(out, UInt<1>(\"h1\")), UInt<1>(\"h1\"), \"cover1\")"
     )
     run(input, antiCheck)
   }

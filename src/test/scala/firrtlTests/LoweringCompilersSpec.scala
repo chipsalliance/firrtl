@@ -350,7 +350,9 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
         Seq(new Transforms.LowToLow, new firrtl.MinimumVerilogEmitter)
     val tm = (new TransformManager(Seq(Dependency[firrtl.MinimumVerilogEmitter], Dependency[Transforms.LowToLow])))
     val patches = Seq(
-      Add(61, Seq(Dependency[firrtl.transforms.LegalizeAndReductionsTransform]))
+      Add(61, Seq(
+        Dependency[firrtl.transforms.formal.RemoveVerificationStatements],
+        Dependency[firrtl.transforms.LegalizeAndReductionsTransform]))
     )
     compare(expected, tm, patches)
   }

@@ -7,7 +7,7 @@ import logger.{LogLevel, Logger}
 class VerificationSpec extends FirrtlFlatSpec {
   behavior of "Formal"
 
-  it should "generate Verilog statements within FORMAL block" in {
+  it should "generate SystemVerilog verification statements" in {
     val compiler = new SystemVerilogCompiler
     val input =
       """circuit Asserting :
