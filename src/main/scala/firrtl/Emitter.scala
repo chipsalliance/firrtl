@@ -784,13 +784,13 @@ class VerilogEmitter extends SeqTransform with Emitter {
           }
         case MemoryScalarInit(value) =>
           checkValueRange(value, s.name)
-          // TODO: initvar is the index and thus should probably be of type UInt(log2ceil(depth))
+          // note: s.dataType is the incorrect type for initvar, but it is ignored in the serialization
           val index = wref("initvar", s.dataType)
           memoryInitials += Seq("for (initvar = 0; initvar < ", bigIntToVLit(s.depth), "; initvar = initvar+1)")
           memoryInitials += Seq(tab, WSubAccess(wref(s.name, s.dataType), index, s.dataType, SinkFlow),
             " = ", bigIntToVLit(value), ";")
-        case MemoryRandomInit() =>
-          // TODO: initvar is the index and thus should probably be of type UInt(log2ceil(depth))
+        case MemoryRandomInit =>
+          // note: s.dataType is the incorrect type for initvar, but it is ignored in the serialization
           val index = wref("initvar", s.dataType)
           val rstring = rand_string(s.dataType, "RANDOMIZE_MEM_INIT")
           ifdefInitials("RANDOMIZE_MEM_INIT") += Seq("for (initvar = 0; initvar < ", bigIntToVLit(s.depth), "; initvar = initvar+1)")

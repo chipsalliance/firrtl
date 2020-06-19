@@ -54,117 +54,118 @@ class MemInitSpec extends FirrtlFlatSpec {
     result should containLine ("    m[initvar] = _RAND_0[31:0];")
   }
 
-  "InitMemoryAnnotation w/ MemoryRandomInit" should "create a randomized initialization" in {
-    val annos = Seq(MemoryInitAnnotation(mRef, MemoryRandomInit()))
+  "MemoryRandomInitAnnotation" should "create a randomized initialization" in {
+    val annos = Seq(MemoryRandomInitAnnotation(mRef))
     val result = compile(annos)
     result should containLine ("    m[initvar] = _RAND_0[31:0];")
   }
 
-  "InitMemoryAnnotation w/ MemoryScalarInit(0)" should "create an initialization with all zeros" in {
-    val annos = Seq(MemoryInitAnnotation(mRef, MemoryScalarInit(0)))
+  "MemoryScalarInitAnnotation w/ 0" should "create an initialization with all zeros" in {
+    val annos = Seq(MemoryScalarInitAnnotation(mRef, 0))
     val result = compile(annos)
     result should containLine("    m[initvar] = 0;")
   }
 
   Seq(1, 3, 30, 400, 12345).foreach { value =>
-    s"InitMemoryAnnotation w/ MemoryScalarInit($value)" should
+    s"MemoryScalarInitAnnotation w/ $value" should
       s"create an initialization with all values set to $value" in {
-      val annos = Seq(MemoryInitAnnotation(mRef, MemoryScalarInit(value)))
+      val annos = Seq(MemoryScalarInitAnnotation(mRef, value))
       val result = compile(annos)
       result should containLine(s"    m[initvar] = $value;")
     }
   }
 
-  "InitMemoryAnnotation w/ MemoryArrayInit" should "initialize all addresses" in {
+  "MemoryArrayInitAnnotation" should "initialize all addresses" in {
     val values = Seq.tabulate(32)(ii => 2 * ii + 5).map(BigInt(_))
-    val annos = Seq(MemoryInitAnnotation(mRef, MemoryArrayInit(values)))
+    val annos = Seq(MemoryArrayInitAnnotation(mRef, values))
     val result = compile(annos)
     values.zipWithIndex.foreach { case (value, addr) =>
       result should containLine(s"  m[$addr] = $value;")
     }
   }
 
-  "InitMemoryAnnotation w/ MemoryScalarInit" should "fail for a negative value" in {
+  "MemoryScalarInitAnnotation" should "fail for a negative value" in {
     assertThrows[EmitterException] {
-      compile(Seq(MemoryInitAnnotation(mRef, MemoryScalarInit(-1))))
+      compile(Seq(MemoryScalarInitAnnotation(mRef, -1)))
     }
   }
 
-  "InitMemoryAnnotation w/ MemoryScalarInit" should "fail for a value that is too large" in {
+  "MemoryScalarInitAnnotation" should "fail for a value that is too large" in {
     assertThrows[EmitterException] {
-      compile(Seq(MemoryInitAnnotation(mRef, MemoryScalarInit(BigInt(1) << 32))))
+      compile(Seq(MemoryScalarInitAnnotation(mRef, BigInt(1) << 32)))
     }
   }
 
-  "InitMemoryAnnotation w/ MemoryArrayInit" should "fail for a negative value" in {
+  "MemoryArrayInitAnnotation" should "fail for a negative value" in {
     assertThrows[EmitterException] {
       val values = Seq.tabulate(32)(_ => BigInt(-1))
-      compile(Seq(MemoryInitAnnotation(mRef, MemoryArrayInit(values))))
+      compile(Seq(MemoryArrayInitAnnotation(mRef, values)))
     }
   }
 
-  "InitMemoryAnnotation w/ MemoryArrayInit" should "fail for a value that is too large" in {
+  "MemoryArrayInitAnnotation" should "fail for a value that is too large" in {
     assertThrows[EmitterException] {
       val values = Seq.tabulate(32)(_ => BigInt(1) << 32)
-      compile(Seq(MemoryInitAnnotation(mRef, MemoryArrayInit(values))))
+      compile(Seq(MemoryArrayInitAnnotation(mRef, values)))
     }
   }
 
-  "InitMemoryAnnotation w/ MemoryArrayInit" should "fail if the number of values is too small" in {
+  "MemoryArrayInitAnnotation" should "fail if the number of values is too small" in {
     assertThrows[EmitterException] {
       val values = Seq.tabulate(31)(_ => BigInt(1))
-      compile(Seq(MemoryInitAnnotation(mRef, MemoryArrayInit(values))))
+      compile(Seq(MemoryArrayInitAnnotation(mRef, values)))
     }
   }
 
-  "InitMemoryAnnotation w/ MemoryArrayInit" should "fail if the number of values is too large" in {
+  "MemoryArrayInitAnnotation" should "fail if the number of values is too large" in {
     assertThrows[EmitterException] {
       val values = Seq.tabulate(33)(_ => BigInt(1))
-      compile(Seq(MemoryInitAnnotation(mRef, MemoryArrayInit(values))))
+      compile(Seq(MemoryArrayInitAnnotation(mRef, values)))
     }
   }
 
-  "InitMemoryAnnotation on Memory with Vector type" should "fail" in {
+  "MemoryScalarInitAnnotation on Memory with Vector type" should "fail" in {
     val caught = intercept[Exception] {
-      val annos = Seq(MemoryInitAnnotation(mRef, MemoryScalarInit(0)))
+      val annos = Seq(MemoryScalarInitAnnotation(mRef, 0))
       compile(annos, "UInt<32>[2]")
     }
     assert(caught.getMessage.endsWith("[module MemTest] Cannot initialize memory of non ground type UInt<32>[2]"))
   }
 
-  "InitMemoryAnnotation on Memory with Bundle type" should "fail" in {
+  "MemoryScalarInitAnnotation on Memory with Bundle type" should "fail" in {
     val caught = intercept[Exception] {
-      val annos = Seq(MemoryInitAnnotation(mRef, MemoryScalarInit(0)))
+      val annos = Seq(MemoryScalarInitAnnotation(mRef, 0))
       compile(annos, "{real: SInt<10>, imag: SInt<10>}")
     }
     assert(caught.getMessage.endsWith("[module MemTest] Cannot initialize memory of non ground type { real : SInt<10>, imag : SInt<10>}"))
   }
 
-  private def jsonAnno(value: String): String =
-    s"""[{"class": "firrtl.annotations.MemoryInitAnnotation", "target": "~MemTest|MemTest>m", "value": $value}]"""
+  private def jsonAnno(name: String, suffix: String): String =
+    s"""[{"class": "firrtl.annotations.$name", "target": "~MemTest|MemTest>m"$suffix}]"""
 
-  "InitMemoryAnnotation w/ MemoryRandomInit" should "load from JSON" in {
-    val json = jsonAnno("""{ "class": "firrtl.MemoryRandomInit" }""")
+  "MemoryRandomInitAnnotation" should "load from JSON" in {
+    val json = jsonAnno("MemoryRandomInitAnnotation", "")
     val annos = JsonProtocol.deserialize(json)
-    assert(annos == Seq(MemoryInitAnnotation(mRef, MemoryRandomInit())))
+    assert(annos == Seq(MemoryRandomInitAnnotation(mRef)))
   }
 
-  "InitMemoryAnnotation w/ MemoryScalarInit" should "load from JSON" in {
-    val json = jsonAnno("""{ "class": "firrtl.MemoryScalarInit", "value": 1234567890 }""")
+  "MemoryScalarInitAnnotation" should "load from JSON" in {
+    val json = jsonAnno("MemoryScalarInitAnnotation", """, "value": 1234567890""")
     val annos = JsonProtocol.deserialize(json)
-    assert(annos == Seq(MemoryInitAnnotation(mRef, MemoryScalarInit(1234567890))))
+    assert(annos == Seq(MemoryScalarInitAnnotation(mRef, 1234567890)))
   }
 
-  "InitMemoryAnnotation w/ MemoryArrayInit" should "load from JSON" in {
-    val json = jsonAnno("""{ "class": "firrtl.MemoryArrayInit", "values": [10000000000, 20000000000] }""")
+  "MemoryArrayInitAnnotation" should "load from JSON" in {
+    val json = jsonAnno("MemoryArrayInitAnnotation", """, "values": [10000000000, 20000000000]""")
     val annos = JsonProtocol.deserialize(json)
     val largeSeq = Seq(BigInt("10000000000"), BigInt("20000000000"))
-    assert(annos == Seq(MemoryInitAnnotation(mRef, MemoryArrayInit(largeSeq))))
+    assert(annos == Seq(MemoryArrayInitAnnotation(mRef, largeSeq)))
   }
 
 }
 
-abstract class MemInitExecutionSpec(values: Seq[Int], init: MemoryInitValue) extends SimpleExecutionTest with VerilogExecution {
+abstract class MemInitExecutionSpec(values: Seq[Int], init: ReferenceTarget => Annotation)
+  extends SimpleExecutionTest with VerilogExecution {
   override val body: String =
     s"""
       |mem m:
@@ -179,24 +180,24 @@ abstract class MemInitExecutionSpec(values: Seq[Int], init: MemoryInitValue) ext
       |""".stripMargin
 
   val mRef = CircuitTarget("dut").module("dut").ref("m")
-  override val customAnnotations: AnnotationSeq = Seq(MemoryInitAnnotation(mRef, init))
+  override val customAnnotations: AnnotationSeq = Seq(init(mRef))
 
   override def commands: Seq[SimpleTestCommand] = (Seq(-1) ++  values).zipWithIndex.map { case (value, addr) =>
-    if(value == -1) Seq(Poke("m.r.addr", addr))
-    else if(addr >= values.length) Seq(Expect("m.r.data", value))
-    else Seq(Poke("m.r.addr", addr), Expect("m.r.data", value))
+    if(value == -1) { Seq(Poke("m.r.addr", addr)) }
+    else if(addr >= values.length) { Seq(Expect("m.r.data", value)) }
+    else { Seq(Poke("m.r.addr", addr), Expect("m.r.data", value)) }
   }.flatMap(_ ++ Seq(Step(1)))
 }
 
 class MemScalarInit0ExecutionSpec extends MemInitExecutionSpec(
-  Seq.tabulate(31)(_ => 0), MemoryScalarInit(0)
+  Seq.tabulate(31)(_ => 0), r => MemoryScalarInitAnnotation(r, 0)
 ) {}
 
 class MemScalarInit17ExecutionSpec extends MemInitExecutionSpec(
-  Seq.tabulate(31)(_ => 17), MemoryScalarInit(17)
+  Seq.tabulate(31)(_ => 17), r => MemoryScalarInitAnnotation(r, 17)
 ) {}
 
 class MemArrayInitExecutionSpec extends MemInitExecutionSpec(
   Seq.tabulate(31)(ii => ii * 5 + 7),
-  MemoryArrayInit(Seq.tabulate(31)(ii => ii * 5 + 7).map(BigInt(_)))
+  r => MemoryArrayInitAnnotation(r, Seq.tabulate(31)(ii => ii * 5 + 7).map(BigInt(_)))
 ) {}

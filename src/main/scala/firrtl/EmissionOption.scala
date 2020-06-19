@@ -11,11 +11,11 @@ trait EmissionOption
 
 /** Emission customization options for memories */
 trait MemoryEmissionOption extends EmissionOption {
-  def initValue: MemoryInitValue = MemoryRandomInit()
+  def initValue: MemoryInitValue = MemoryRandomInit
 }
 
 sealed trait MemoryInitValue
-case class MemoryRandomInit() extends MemoryInitValue
+case object MemoryRandomInit extends MemoryInitValue
 case class MemoryScalarInit(value: BigInt) extends MemoryInitValue
 case class MemoryArrayInit(values: Seq[BigInt]) extends MemoryInitValue
 
