@@ -173,7 +173,7 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
                   Dependency[firrtl.passes.InferWidths])),
       Del(14),
       Add(15, Seq(Dependency(firrtl.passes.ResolveKinds),
-                  Dependency(firrtl.passes.InferTypes))),
+                  Dependency(firrtl.passes.InferTypes)))
     )
     compare(legacyTransforms(new HighFirrtlToMiddleFirrtl), tm, patches)
   }

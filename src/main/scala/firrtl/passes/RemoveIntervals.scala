@@ -8,7 +8,7 @@ import firrtl._
 import firrtl.Mappers._
 import Implicits.{bigint2WInt}
 import firrtl.constraint.IsKnown
-import firrtl.options.{Dependency, PreservesAll}
+import firrtl.options.Dependency
 
 import scala.math.BigDecimal.RoundingMode._
 
