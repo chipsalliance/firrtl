@@ -124,6 +124,7 @@ class AddDescriptionNodes extends Transform with DependencyAPIMigration with Pre
     val compMap = annos.collect {
       case DescriptionAnnotation(ComponentName(comp, ModuleName(mod, CircuitName(circ))), desc) =>
         (mod, comp, desc)
+      case DescriptionAnnotation(ReferenceTarget(_, m, _, r, _), desc) => (m, r, desc)
     }.groupBy(_._1).mapValues(_.groupBy(_._2).mapValues(_.map(_._3)))
 
     (modMap, compMap)

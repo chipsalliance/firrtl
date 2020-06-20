@@ -2,7 +2,7 @@
 
 package firrtl
 
-import firrtl.transforms.IdentityTransform
+import firrtl.transforms.{DescribeFixed, IdentityTransform}
 import firrtl.options.StageUtils
 import firrtl.stage.{Forms, TransformManager}
 

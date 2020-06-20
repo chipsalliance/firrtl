@@ -36,6 +36,7 @@ object Forms {
          Dependency(passes.Uniquify),
          Dependency(passes.ResolveFlows),
          Dependency[passes.InferBinaryPoints],
+         Dependency[firrtl.transforms.DescribeFixed],
          Dependency[passes.TrimIntervals],
          Dependency[passes.InferWidths],
          Dependency[firrtl.transforms.InferResets] )
