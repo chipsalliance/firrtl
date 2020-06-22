@@ -59,12 +59,18 @@ object Forms {
          Dependency(passes.ConvertFixedToSInt),
          Dependency(passes.ZeroWidth) )
 
+  val MidFormOptimized = MidForm ++
+    Seq( Dependency(firrtl.passes.RemoveValidIf),
+         Dependency(passes.Legalize),
+         Dependency(firrtl.transforms.RemoveReset),
+         Dependency[checks.CheckResets],
+         Dependency[firrtl.transforms.MidFormConstantPropagation] )
+
   val LowForm: Seq[TransformDependency] = MidForm ++
     Seq( Dependency(passes.LowerTypes),
          Dependency(passes.Legalize),
          Dependency(firrtl.transforms.RemoveReset),
          Dependency[firrtl.transforms.CheckCombLoops],
-         Dependency[checks.CheckResets],
          Dependency[firrtl.transforms.RemoveWires] )
 
   val LowFormMinimumOptimized: Seq[TransformDependency] = LowForm ++
@@ -73,8 +79,14 @@ object Forms {
          Dependency(passes.memlib.VerilogMemDelays),
          Dependency(passes.SplitExpressions) )
 
-  val LowFormOptimized: Seq[TransformDependency] = LowFormMinimumOptimized ++
-    Seq( Dependency[firrtl.transforms.ConstantPropagation],
+  val LowFormOptimized: Seq[TransformDependency] = MidFormOptimized ++
+    Seq( Dependency(passes.LowerTypes),
+         Dependency[firrtl.transforms.CheckCombLoops],
+         Dependency[firrtl.transforms.RemoveWires],
+         Dependency(passes.PadWidths),
+         Dependency(passes.memlib.VerilogMemDelays),
+         Dependency(passes.SplitExpressions),
+         Dependency[firrtl.transforms.ConstantPropagation],
          Dependency[firrtl.transforms.CombineCats],
          Dependency(passes.CommonSubexpressionElimination),
          Dependency[firrtl.transforms.DeadCodeElimination] )

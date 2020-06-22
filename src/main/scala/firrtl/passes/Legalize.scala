@@ -3,8 +3,8 @@ package firrtl.passes
 import firrtl.PrimOps._
 import firrtl.Utils.{BoolType, error, zero}
 import firrtl.ir._
-import firrtl.options.{PreservesAll, Dependency}
-import firrtl.transforms.ConstantPropagation
+import firrtl.options.PreservesAll
+import firrtl.transforms.BaseConstantPropagation
 import firrtl.{Transform, bitWidth}
 import firrtl.Mappers._
 
@@ -12,7 +12,7 @@ import firrtl.Mappers._
 // TODO replace UInt with zero-width wire instead
 object Legalize extends Pass with PreservesAll[Transform] {
 
-  override def prerequisites = firrtl.stage.Forms.MidForm :+ Dependency(LowerTypes)
+  override def prerequisites = firrtl.stage.Forms.MidForm
 
   override def optionalPrerequisites = Seq.empty
 
@@ -21,7 +21,7 @@ object Legalize extends Pass with PreservesAll[Transform] {
   private def legalizeShiftRight(e: DoPrim): Expression = {
     require(e.op == Shr)
     e.args.head match {
-      case _: UIntLiteral | _: SIntLiteral => ConstantPropagation.foldShiftRight(e)
+      case _: UIntLiteral | _: SIntLiteral => BaseConstantPropagation.foldShiftRight(e)
       case _ =>
         val amount = e.consts.head.toInt
         val width = bitWidth(e.args.head.tpe)
@@ -41,7 +41,7 @@ object Legalize extends Pass with PreservesAll[Transform] {
   }
   private def legalizeBitExtract(expr: DoPrim): Expression = {
     expr.args.head match {
-      case _: UIntLiteral | _: SIntLiteral => ConstantPropagation.constPropBitExtract(expr)
+      case _: UIntLiteral | _: SIntLiteral => BaseConstantPropagation.constPropBitExtract(expr)
       case _ => expr
     }
   }

@@ -18,7 +18,7 @@ import firrtl.options.Dependency
 import annotation.tailrec
 import collection.mutable
 
-object ConstantPropagation {
+object BaseConstantPropagation {
   private def litOfType(value: BigInt, t: Type): Literal = t match {
     case UIntType(w) => UIntLiteral(value, w)
     case SIntType(w) => SIntLiteral(value, w)
@@ -62,65 +62,11 @@ object ConstantPropagation {
       case _ => e
     }
   }
-
-
- /**********************************************
-  * REGISTER CONSTANT PROPAGATION HELPER TYPES *
-  **********************************************/
-
-  // A utility class that is somewhat like an Option but with two variants containing Nothing.
-  // for register constant propagation (register or literal).
-  private abstract class ConstPropBinding[+T] {
-    def resolve[V >: T](that: ConstPropBinding[V]): ConstPropBinding[V] = (this, that) match {
-      case (x, y) if (x == y) => x
-      case (x, UnboundConstant) => x
-      case (UnboundConstant, y) => y
-      case _ => NonConstant
-    }
-  }
-
-  // BoundConstant means that it has exactly the one allowable source of that type.
-  private case class BoundConstant[T](value: T) extends ConstPropBinding[T]
-
-  // NonConstant indicates multiple distinct sources.
-  private case object NonConstant extends ConstPropBinding[Nothing]
-
-  // UnboundConstant means that a node does not yet have a source of the two allowable types
-  private case object UnboundConstant extends ConstPropBinding[Nothing]
-
-  // A RegCPEntry tracks whether a given signal could be part of a register constant propagation
-  // loop. It contains const prop bindings for a register name and a literal, which represent the
-  // fact that a constant propagation loop can include both self-assignments and consistent literals.
-  private case class RegCPEntry(r: ConstPropBinding[String], l: ConstPropBinding[Literal]) {
-    def resolve(that: RegCPEntry) = RegCPEntry(r.resolve(that.r), l.resolve(that.l))
-    def nonConstant: Boolean = r == NonConstant || l == NonConstant
-  }
-
 }
 
-class ConstantPropagation extends Transform with DependencyAPIMigration with ResolvedAnnotationPaths {
-  import ConstantPropagation._
-
-  override def prerequisites =
-    ((new mutable.LinkedHashSet())
-       ++ firrtl.stage.Forms.LowForm
-       - Dependency(firrtl.passes.Legalize)
-       + Dependency(firrtl.passes.RemoveValidIf)).toSeq
-
-  override def optionalPrerequisites = Seq.empty
-
-  override def optionalPrerequisiteOf =
-    Seq( Dependency(firrtl.passes.memlib.VerilogMemDelays),
-         Dependency(firrtl.passes.SplitExpressions),
-         Dependency[SystemVerilogEmitter],
-         Dependency[VerilogEmitter] )
-
-  override def invalidates(a: Transform): Boolean = a match {
-    case firrtl.passes.Legalize => true
-    case _ => false
-  }
-
-  override val annotationClasses: Traversable[Class[_]] = Seq(classOf[DontTouchAnnotation])
+abstract class BaseConstantPropagation extends Transform with DependencyAPIMigration with ResolvedAnnotationPaths {
+  protected type Tokens
+  import BaseConstantPropagation._
 
   sealed trait SimplifyBinaryOp {
     def matchingArgsValue(e: DoPrim, arg: Expression): Expression
@@ -382,7 +328,7 @@ class ConstantPropagation extends Transform with DependencyAPIMigration with Res
     override def reduce = (a: Boolean, b: Boolean) => a ^ b
   }
 
-  private def constPropPrim(e: DoPrim): Expression = e.op match {
+  protected def constPropPrim(e: DoPrim): Expression = e.op match {
     case Shl => foldShiftLeft(e)
     case Dshl => foldDynamicShiftLeft(e)
     case Shr => foldShiftRight(e)
@@ -447,7 +393,7 @@ class ConstantPropagation extends Transform with DependencyAPIMigration with Res
     case _ => m
   }
 
-  private def constPropMux(m: Mux): Expression = (m.tval, m.fval) match {
+  protected def constPropMux(m: Mux): Expression = (m.tval, m.fval) match {
     case _ if m.tval == m.fval => m.tval
     case (t: UIntLiteral, f: UIntLiteral)
       if t.value == BigInt(1) && f.value == BigInt(0) && bitWidth(m.tpe) == BigInt(1) => m.cond
@@ -458,16 +404,220 @@ class ConstantPropagation extends Transform with DependencyAPIMigration with Res
     case _ => constPropMuxCond(m)
   }
 
+  // Is "a" a "better name" than "b"?
+  protected def betterName(a: String, b: String): Boolean = (a.head != '_') && (b.head == '_')
+
+  // Unify two maps using f to combine values of duplicate keys
+  private def unify[K, V](a: Map[K, V], b: Map[K, V])(f: (V, V) => V): Map[K, V] =
+    b.foldLeft(a) { case (acc, (k, v)) =>
+      acc + (k -> acc.get(k).map(f(_, v)).getOrElse(v))
+    }
+
+  protected case class ConstPropedModule(
+    module: Module,
+    constOutputs: Map[Tokens, Literal],
+    constSubInputs: Map[OfModule, Map[Tokens, Seq[Literal]]]
+  )
+
+  /* Constant propagate a Module
+   *
+   * Two pass process
+   * 1. Propagate constants in expressions and forward propagate references
+   * 2. Propagate references again for backwards reference (Wires)
+   * TODO Replacing all wires with nodes makes the second pass unnecessary
+   *   However, preserving decent names DOES require a second pass
+   *   Replacing all wires with nodes makes it unnecessary for preserving decent names to trigger an
+   *   extra iteration though
+   *
+   * @param c the CircuitTarget of the circuit containg the module
+   * @param m the Module to run constant propagation on
+   * @param dontTouches names of components local to m that should not be propagated across
+   * @param instMap map of instance names to Module name
+   * @param constInputs map of names of m's input ports to literal driving it (if applicable)
+   * @param constSubOutputs Map of Module name to Map of output port name to literal driving it
+   * @param renames the RenameMap to use for component renames
+   * @return (Constpropped Module, Map of output port names to literal value,
+   *   Map of submodule modulenames to Map of input port names to literal values)
+   */
+  protected def constPropModule(
+      c: CircuitTarget,
+      m: Module,
+      dontTouches: Set[Tokens],
+      instMap: collection.Map[Instance, OfModule],
+      constInputs: Map[Tokens, Literal],
+      constSubOutputs: Map[OfModule, Map[Tokens, Literal]],
+      renames: RenameMap
+    ): ConstPropedModule
+
+  /** Whether or not constant propagation should continue iterating across modules if new inputs are constant propagated
+    */
+  protected def allowMultipleModuleIterations: Boolean
+
+  private def run(c: Circuit, dontTouchMap: Map[OfModule, Set[Tokens]]): (Circuit, RenameMap) = {
+    val iGraph = new InstanceGraph(c)
+    val moduleDeps = iGraph.getChildrenInstanceMap
+    val instCount = iGraph.staticInstanceCount
+
+    // DiGraph using Module names as nodes, destination of edge is a parent Module
+    val parentGraph: DiGraph[OfModule] = iGraph.graph.reverse.transformNodes(_.OfModule)
+    val renames = RenameMap()
+    val circuitName = CircuitTarget(c.main)
+
+    // This outer loop works by applying constant propagation to the modules in a topologically
+    // sorted order from leaf to root
+    // Modules will register any outputs they drive with a constant in constOutputs which is then
+    // checked by later modules in the same iteration (since we iterate from leaf to root)
+    // Since Modules can be instantiated multiple times, for inputs we must check that all instances
+    // are driven with the same constant value. Then, if we find a Module input where each instance
+    // is driven with the same constant (and not seen in a previous iteration), we iterate again
+    @tailrec
+    def iterate(toVisit: Set[OfModule],
+            modules: Map[OfModule, Module],
+            constInputs: Map[OfModule, Map[Tokens, Literal]]): Map[OfModule, DefModule] = {
+      if (toVisit.isEmpty) modules
+      else {
+        // Order from leaf modules to root so that any module driving an output
+        // with a constant will be visible to modules that instantiate it
+        // TODO Generating order as we execute constant propagation on each module would be faster
+        val order = parentGraph.subgraph(toVisit).linearize
+        // Execute constant propagation on each module in order
+        // Aggreagte Module outputs that are driven constant for use by instaniating Modules
+        // Aggregate submodule inputs driven constant for checking later
+        val (modulesx, _, constInputsx) =
+          order.foldLeft((modules,
+                          Map[OfModule, Map[Tokens, Literal]](),
+                          Map[OfModule, Map[Tokens, Seq[Literal]]]())) {
+            case ((mmap, constOutputs, constInputsAcc), mname) =>
+              val dontTouches = dontTouchMap.getOrElse(mname, Set.empty)
+              val ConstPropedModule(mx, mco, mci) = constPropModule(circuitName, modules(mname), dontTouches, moduleDeps(mname),
+                                                   constInputs.getOrElse(mname, Map.empty), constOutputs, renames)
+              // Accumulate all Literals used to drive a particular Module port
+              val constInputsx = unify(constInputsAcc, mci)((a, b) => unify(a, b)((c, d) => c ++ d))
+              (mmap + (mname -> mx), constOutputs + (mname -> mco), constInputsx)
+          }
+        if (allowMultipleModuleIterations) {
+          // Determine which module inputs have all of the same, new constants driving them
+          val newProppedInputs = constInputsx.flatMap { case (mname, ports) =>
+            val portsx = ports.flatMap { case (pname, lits) =>
+              val newPort = !constInputs.get(mname).map(_.contains(pname)).getOrElse(false)
+              val isModule = modules.contains(mname) // ExtModules are not contained in modules
+              val allSameConst = lits.size == instCount(mname) && lits.toSet.size == 1
+              if (isModule && newPort && allSameConst) Some(pname -> lits.head)
+              else None
+            }
+            if (portsx.nonEmpty) Some(mname -> portsx) else None
+          }
+          val modsWithConstInputs = newProppedInputs.keySet
+          val newToVisit = modsWithConstInputs ++
+                           modsWithConstInputs.flatMap(parentGraph.reachableFrom)
+          // Combine const inputs (there can't be duplicate values in the inner maps)
+          val nextConstInputs = unify(constInputs, newProppedInputs)((a, b) => a ++ b)
+          iterate(newToVisit.toSet, modulesx, nextConstInputs)
+        } else {
+          modulesx
+        }
+      }
+    }
+
+    val modulesx = {
+      val nameMap = c.modules.collect { case m: Module => m.OfModule -> m }.toMap
+      // We only pass names of Modules, we can't apply const prop to ExtModules
+      val mmap = iterate(nameMap.keySet, nameMap, Map.empty)
+      c.modules.map(m => mmap.getOrElse(m.OfModule, m))
+    }
+
+
+    (Circuit(c.info, modulesx, c.main), renames)
+  }
+
+  /** Converts a [[firrtl.annotations.ReferenceTarget ReferenceTarget]] to [[Tokens]]
+    *
+    * Used to convert dontTouched targets into tokens
+    */
+  def referenceToTokens(ref: ReferenceTarget): Tokens
+
+  def execute(state: CircuitState): CircuitState = {
+    val dontTouchRTs = state.annotations.flatMap {
+      case anno: HasDontTouches => anno.dontTouches
+      case o => Nil
+    }
+    val dontTouches: Seq[(OfModule, Tokens)] = dontTouchRTs.map {
+      case ref => ref.module.OfModule -> referenceToTokens(ref)
+    }
+    // Map from module name to component names
+    val dontTouchMap: Map[OfModule, Set[Tokens]] =
+      dontTouches.groupBy(_._1).mapValues(_.map(_._2).toSet)
+
+    val (newCircuit, renames) = run(state.circuit, dontTouchMap)
+    state.copy(circuit = newCircuit, renames = Some(renames))
+  }
+
+ /**********************************************
+  * REGISTER CONSTANT PROPAGATION HELPER TYPES *
+  **********************************************/
+
+  // A utility class that is somewhat like an Option but with two variants containing Nothing.
+  // for register constant propagation (register or literal).
+  protected abstract class ConstPropBinding[+T] {
+    def resolve[V >: T](that: ConstPropBinding[V]): ConstPropBinding[V] = (this, that) match {
+      case (x, y) if (x == y) => x
+      case (x, UnboundConstant) => x
+      case (UnboundConstant, y) => y
+      case _ => NonConstant
+    }
+  }
+
+  // BoundConstant means that it has exactly the one allowable source of that type.
+  protected case class BoundConstant[T](value: T) extends ConstPropBinding[T]
+
+  // NonConstant indicates multiple distinct sources.
+  protected case object NonConstant extends ConstPropBinding[Nothing]
+
+  // UnboundConstant means that a node does not yet have a source of the two allowable types
+  protected case object UnboundConstant extends ConstPropBinding[Nothing]
+
+  // A RegCPEntry tracks whether a given signal could be part of a register constant propagation
+  // loop. It contains const prop bindings for a register name and a literal, which represent the
+  // fact that a constant propagation loop can include both self-assignments and consistent literals.
+  protected case class RegCPEntry(r: ConstPropBinding[Tokens], l: ConstPropBinding[Literal]) {
+    def resolve(that: RegCPEntry) = RegCPEntry(r.resolve(that.r), l.resolve(that.l))
+    def nonConstant: Boolean = r == NonConstant || l == NonConstant
+  }
+}
+
+class ConstantPropagation extends BaseConstantPropagation {
+  protected type Tokens = String
+
+  import BaseConstantPropagation._
+
+  override def prerequisites =
+    ((new mutable.LinkedHashSet())
+       ++ firrtl.stage.Forms.LowForm
+       - Dependency(firrtl.passes.Legalize)
+       + Dependency(firrtl.passes.RemoveValidIf)).toSeq
+
+  override def optionalPrerequisites = Seq.empty
+
+  override def optionalPrerequisiteOf =
+    Seq( Dependency(firrtl.passes.memlib.VerilogMemDelays),
+         Dependency(firrtl.passes.SplitExpressions),
+         Dependency[SystemVerilogEmitter],
+         Dependency[VerilogEmitter] )
+
+  override def invalidates(a: Transform): Boolean = a match {
+    case firrtl.passes.Legalize => true
+    case _ => false
+  }
+
+  override val annotationClasses: Traversable[Class[_]] = Seq(classOf[DontTouchAnnotation])
+
+  def optimize(e: Expression): Expression = constPropExpression(new NodeMap(), Map.empty[Instance, OfModule], Map.empty[OfModule, Map[String, Literal]])(e)
+  def optimize(e: Expression, nodeMap: NodeMap): Expression = constPropExpression(nodeMap, Map.empty[Instance, OfModule], Map.empty[OfModule, Map[String, Literal]])(e)
+
   private def constPropNodeRef(r: WRef, e: Expression) = e match {
     case _: UIntLiteral | _: SIntLiteral | _: WRef => e
     case _ => r
   }
-
-  // Is "a" a "better name" than "b"?
-  private def betterName(a: String, b: String): Boolean = (a.head != '_') && (b.head == '_')
-
-  def optimize(e: Expression): Expression = constPropExpression(new NodeMap(), Map.empty[Instance, OfModule], Map.empty[OfModule, Map[String, Literal]])(e)
-  def optimize(e: Expression, nodeMap: NodeMap): Expression = constPropExpression(nodeMap, Map.empty[Instance, OfModule], Map.empty[OfModule, Map[String, Literal]])(e)
 
   private def constPropExpression(nodeMap: NodeMap, instMap: collection.Map[Instance, OfModule], constSubOutputs: Map[OfModule, Map[String, Literal]])(e: Expression): Expression = {
     val old = e map constPropExpression(nodeMap, instMap, constSubOutputs)
@@ -506,13 +656,15 @@ class ConstantPropagation extends Transform with DependencyAPIMigration with Res
    *   Map of submodule modulenames to Map of input port names to literal values)
    */
   @tailrec
-  private def constPropModule(
+  final protected def constPropModule(
+      c: CircuitTarget,
       m: Module,
       dontTouches: Set[String],
       instMap: collection.Map[Instance, OfModule],
       constInputs: Map[String, Literal],
-      constSubOutputs: Map[OfModule, Map[String, Literal]]
-    ): (Module, Map[String, Literal], Map[OfModule, Map[String, Seq[Literal]]]) = {
+      constSubOutputs: Map[OfModule, Map[String, Literal]],
+      renames: RenameMap
+    ): ConstPropedModule = {
 
     var nPropagated = 0L
     val nodeMap = new NodeMap()
@@ -689,100 +841,13 @@ class ConstantPropagation extends Transform with DependencyAPIMigration with Res
 
     // When we call this function again, constOutputs and constSubInputs are reconstructed and
     // strictly a superset of the versions here
-    if (nPropagated > 0) constPropModule(modx, dontTouches, instMap, constInputs, constSubOutputs)
-    else (modx, constOutputs.toMap, constSubInputs.mapValues(_.toMap).toMap)
+    if (nPropagated > 0) constPropModule(c, modx, dontTouches, instMap, constInputs, constSubOutputs, renames)
+    else ConstPropedModule(modx, constOutputs.toMap, constSubInputs.mapValues(_.toMap).toMap)
   }
 
-  // Unify two maps using f to combine values of duplicate keys
-  private def unify[K, V](a: Map[K, V], b: Map[K, V])(f: (V, V) => V): Map[K, V] =
-    b.foldLeft(a) { case (acc, (k, v)) =>
-      acc + (k -> acc.get(k).map(f(_, v)).getOrElse(v))
-    }
-
-
-  private def run(c: Circuit, dontTouchMap: Map[OfModule, Set[String]]): Circuit = {
-    val iGraph = new InstanceGraph(c)
-    val moduleDeps = iGraph.getChildrenInstanceMap
-    val instCount = iGraph.staticInstanceCount
-
-    // DiGraph using Module names as nodes, destination of edge is a parent Module
-    val parentGraph: DiGraph[OfModule] = iGraph.graph.reverse.transformNodes(_.OfModule)
-
-    // This outer loop works by applying constant propagation to the modules in a topologically
-    // sorted order from leaf to root
-    // Modules will register any outputs they drive with a constant in constOutputs which is then
-    // checked by later modules in the same iteration (since we iterate from leaf to root)
-    // Since Modules can be instantiated multiple times, for inputs we must check that all instances
-    // are driven with the same constant value. Then, if we find a Module input where each instance
-    // is driven with the same constant (and not seen in a previous iteration), we iterate again
-    @tailrec
-    def iterate(toVisit: Set[OfModule],
-            modules: Map[OfModule, Module],
-            constInputs: Map[OfModule, Map[String, Literal]]): Map[OfModule, DefModule] = {
-      if (toVisit.isEmpty) modules
-      else {
-        // Order from leaf modules to root so that any module driving an output
-        // with a constant will be visible to modules that instantiate it
-        // TODO Generating order as we execute constant propagation on each module would be faster
-        val order = parentGraph.subgraph(toVisit).linearize
-        // Execute constant propagation on each module in order
-        // Aggreagte Module outputs that are driven constant for use by instaniating Modules
-        // Aggregate submodule inputs driven constant for checking later
-        val (modulesx, _, constInputsx) =
-          order.foldLeft((modules,
-                          Map[OfModule, Map[String, Literal]](),
-                          Map[OfModule, Map[String, Seq[Literal]]]())) {
-            case ((mmap, constOutputs, constInputsAcc), mname) =>
-              val dontTouches = dontTouchMap.getOrElse(mname, Set.empty)
-              val (mx, mco, mci) = constPropModule(modules(mname), dontTouches, moduleDeps(mname),
-                                                   constInputs.getOrElse(mname, Map.empty), constOutputs)
-              // Accumulate all Literals used to drive a particular Module port
-              val constInputsx = unify(constInputsAcc, mci)((a, b) => unify(a, b)((c, d) => c ++ d))
-              (mmap + (mname -> mx), constOutputs + (mname -> mco), constInputsx)
-          }
-        // Determine which module inputs have all of the same, new constants driving them
-        val newProppedInputs = constInputsx.flatMap { case (mname, ports) =>
-          val portsx = ports.flatMap { case (pname, lits) =>
-            val newPort = !constInputs.get(mname).map(_.contains(pname)).getOrElse(false)
-            val isModule = modules.contains(mname) // ExtModules are not contained in modules
-            val allSameConst = lits.size == instCount(mname) && lits.toSet.size == 1
-            if (isModule && newPort && allSameConst) Some(pname -> lits.head)
-            else None
-          }
-          if (portsx.nonEmpty) Some(mname -> portsx) else None
-        }
-        val modsWithConstInputs = newProppedInputs.keySet
-        val newToVisit = modsWithConstInputs ++
-                         modsWithConstInputs.flatMap(parentGraph.reachableFrom)
-        // Combine const inputs (there can't be duplicate values in the inner maps)
-        val nextConstInputs = unify(constInputs, newProppedInputs)((a, b) => a ++ b)
-        iterate(newToVisit.toSet, modulesx, nextConstInputs)
-      }
-    }
-
-    val modulesx = {
-      val nameMap = c.modules.collect { case m: Module => m.OfModule -> m }.toMap
-      // We only pass names of Modules, we can't apply const prop to ExtModules
-      val mmap = iterate(nameMap.keySet, nameMap, Map.empty)
-      c.modules.map(m => mmap.getOrElse(m.OfModule, m))
-    }
-
-
-    Circuit(c.info, modulesx, c.main)
+  def referenceToTokens(ref: ReferenceTarget): Tokens = ref match {
+    case Target(_, Some(m), Seq(Ref(c))) => c
   }
 
-  def execute(state: CircuitState): CircuitState = {
-    val dontTouchRTs = state.annotations.flatMap {
-      case anno: HasDontTouches => anno.dontTouches
-      case o => Nil
-    }
-    val dontTouches: Seq[(OfModule, String)] = dontTouchRTs.map {
-      case Target(_, Some(m), Seq(Ref(c))) => m.OfModule -> c
-    }
-    // Map from module name to component names
-    val dontTouchMap: Map[OfModule, Set[String]] =
-      dontTouches.groupBy(_._1).mapValues(_.map(_._2).toSet)
-
-    state.copy(circuit = run(state.circuit, dontTouchMap))
-  }
+  def allowMultipleModuleIterations = true
 }

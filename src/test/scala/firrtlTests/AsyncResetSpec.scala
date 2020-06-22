@@ -302,7 +302,7 @@ class AsyncResetSpec extends FirrtlFlatSpec {
         |wire y : UInt<2>
         |x <= UInt<1>("h01")
         |node ad = add(x, y)
-        |node adt = tail(ad, 1)
+        |node adt = y
         |y <= adt
         |reg r : UInt, clock with : (reset => (reset, y))
         |""".stripMargin

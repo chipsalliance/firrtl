@@ -316,6 +316,7 @@ trait Transform extends TransformLike[CircuitState] with DependencyAPI[Transform
 
   override def optionalPrerequisites: Seq[Dependency[Transform]] = inputForm match {
     case L => Forms.LowFormOptimized
+    case M => Forms.MidFormOptimized
     case _ => Seq.empty
   }
 
@@ -338,7 +339,7 @@ trait Transform extends TransformLike[CircuitState] with DependencyAPI[Transform
     inputForm match {
       case C => (fullCompilerSet                           ++ emitters - selfDep).toSeq
       case H => (fullCompilerSet -- Forms.Deduped          ++ emitters - selfDep).toSeq
-      case M => (fullCompilerSet -- Forms.MidForm          ++ emitters - selfDep).toSeq
+      case M => (fullCompilerSet -- Forms.MidFormOptimized ++ emitters - selfDep).toSeq
       case L => (fullCompilerSet -- Forms.LowFormOptimized ++ emitters - selfDep).toSeq
       case U => Nil
     }

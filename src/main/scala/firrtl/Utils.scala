@@ -15,6 +15,8 @@ import firrtl.constraint.{IsMax, IsMin}
 import firrtl.annotations.{ReferenceTarget, TargetToken}
 import _root_.logger.LazyLogging
 
+import annotation.tailrec
+
 object seqCat {
   def apply(args: Seq[Expression]): Expression = args.length match {
     case 0 => Utils.error("Empty Seq passed to seqcat")
@@ -301,6 +303,7 @@ object Utils extends LazyLogging {
     onExp(expression)
     ReferenceTarget(main, module, Nil, ref, tokens)
   }
+
    @deprecated("get_flip is fundamentally slow, use to_flip(flow(expr))", "1.2")
    def get_flip(t: Type, i: Int, f: Orientation): Orientation = {
      if (i >= get_size(t)) throwInternalError(s"get_flip: shouldn't be here - $i >= get_size($t)")
@@ -625,6 +628,30 @@ object Utils extends LazyLogging {
         case EmptyExpression => (root, WRef(e.name, e.tpe, root.kind, e.flow))
         case exp => (root, WSubField(tail, e.name, e.tpe, e.flow))
       }
+  }
+
+  /** Splits the WRef from an Expression and converts the expression into a list of [[firrtl.annotations.TargetToken TargetTokens]]
+    *
+    * @example
+    *   Given:   SubField(SubIndex(SubField(Ref("a", UIntType(IntWidth(32))), "b"), 2), "c")
+    *   Returns: (WRef("a"), Seq(Ref("a"), Field("b"), Index(2), Field("c")))
+    * @example
+    *   Given:   SubField(SubIndex(Ref("b"), 2), "c")
+    *   Returns: (WRef("b"), Seq(Ref("B"), Index(2), Field("c")))
+    * @note unlike splitRef, the tail includes the root reference
+    * @note This function only supports WRef, WSubField, and WSubIndex
+    */
+  def splitRefTokens(expression: Expression): (WRef, Seq[TargetToken]) = {
+    splitRefTokensImp(expression, Seq.empty)
+  }
+
+  @tailrec
+  private def splitRefTokensImp(expression: Expression, tail: Seq[TargetToken]): (WRef, Seq[TargetToken]) = {
+    expression match {
+      case e: WRef => (e, TargetToken.Ref(e.name) +: tail)
+      case e: WSubField => splitRefTokensImp(e.expr, TargetToken.Field(e.name) +: tail)
+      case e: WSubIndex => splitRefTokensImp(e.expr, TargetToken.Index(e.value) +: tail)
+    }
   }
 
   /** Adds a root reference to some SubField/SubIndex chain */

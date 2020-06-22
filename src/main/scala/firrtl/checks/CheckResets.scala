@@ -9,6 +9,7 @@ import firrtl.ir._
 import firrtl.Utils.isCast
 import firrtl.traversals.Foreachers._
 import firrtl.WrappedExpression._
+import firrtl.transforms.CheckCombLoops
 
 import scala.collection.mutable
 import scala.annotation.tailrec
@@ -31,13 +32,12 @@ object CheckResets {
 class CheckResets extends Transform with DependencyAPIMigration with PreservesAll[Transform] {
 
   override def prerequisites =
-    Seq( Dependency(passes.LowerTypes),
-         Dependency(passes.Legalize),
+    Seq( Dependency(passes.Legalize),
          Dependency(firrtl.transforms.RemoveReset) ) ++ firrtl.stage.Forms.MidForm
 
-  override def optionalPrerequisites = Seq(Dependency[firrtl.transforms.CheckCombLoops])
+  override def optionalPrerequisites = Seq.empty
 
-  override def optionalPrerequisiteOf = Seq.empty
+  override def optionalPrerequisiteOf = Seq(Dependency[firrtl.transforms.MidFormConstantPropagation])
 
   import CheckResets._
 
@@ -56,12 +56,27 @@ class CheckResets extends Transform with DependencyAPIMigration with PreservesAl
   private def wireOrNode(kind: Kind) = (kind == WireKind || kind == NodeKind)
 
   @tailrec
-  private def findDriver(drivers: DirectDriverMap)(expr: Expression): Expression = expr match {
-    case lit: Literal => lit
-    case DoPrim(op, args, _,_) if isCast(op) => findDriver(drivers)(args.head)
-    case other => drivers.get(we(other)) match {
-      case Some(e) if wireOrNode(Utils.kind(other)) => findDriver(drivers)(e)
-      case _ => other
+  private def findDriver(
+    drivers: DirectDriverMap,
+    seen: mutable.LinkedHashSet[WrappedExpression])(expr: Expression): Either[Seq[WrappedExpression], Expression] = {
+    expr match {
+      case lit: Literal => Right(lit)
+      case DoPrim(op, args, _,_) if isCast(op) => findDriver(drivers, seen)(args.head)
+      case node if Utils.kind(node) == NodeKind =>
+        val (ref, subExpr) = Utils.splitRef(node)
+        seen += we(ref)
+        drivers.get(we(ref)) match {
+          case Some(e) if seen(we(e)) => Left(seen.toSeq)
+          case Some(e) => findDriver(drivers, seen)(Utils.mergeRef(e, subExpr))
+          case None => Right(node)
+        }
+      case other =>
+        seen += we(other)
+        drivers.get(we(other)) match {
+          case Some(e) if seen(we(e)) => Left(seen.toSeq)
+          case Some(e) if wireOrNode(Utils.kind(other)) => findDriver(drivers, seen)(e)
+          case _ => Right(other)
+        }
     }
   }
 
@@ -71,10 +86,13 @@ class CheckResets extends Transform with DependencyAPIMigration with PreservesAl
     mod.foreach(onStmt(regCheck, drivers))
     for ((init, reg) <- regCheck) {
       for (subInit <- Utils.create_exps(init)) {
-        findDriver(drivers)(subInit) match {
-          case lit: Literal => // All good
-          case other =>
+        findDriver(drivers, mutable.LinkedHashSet.empty)(subInit) match {
+          case Right(lit: Literal) => // All good
+          case Right(other) =>
             val e = new NonLiteralAsyncResetValueException(reg.info, mod.name, reg.name, other.serialize)
+            errors.append(e)
+          case Left(cycle) =>
+            val e = new CheckCombLoops.CombLoopException(reg.info, mod.name, cycle.map(_.e1.serialize))
             errors.append(e)
         }
       }
