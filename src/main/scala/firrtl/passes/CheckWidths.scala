@@ -9,9 +9,9 @@ import firrtl.traversals.Foreachers._
 import firrtl.Utils._
 import firrtl.constraint.IsKnown
 import firrtl.annotations.{CircuitTarget, ModuleTarget, Target, TargetToken}
-import firrtl.options.{Dependency, PreservesAll}
+import firrtl.options.{Dependency, IdentityLike, PreservesAll}
 
-object CheckWidths extends Pass with PreservesAll[Transform] {
+object CheckWidths extends Pass with PreservesAll[Transform] with IdentityLike[CircuitState] {
 
   override def prerequisites = Dependency[passes.InferWidths] +: firrtl.stage.Forms.WorkingIR
 

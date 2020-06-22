@@ -9,9 +9,9 @@ import firrtl.Utils._
 import firrtl.traversals.Foreachers._
 import firrtl.WrappedType._
 import firrtl.constraint.{Constraint, IsKnown}
-import firrtl.options.{Dependency, PreservesAll}
+import firrtl.options.{Dependency, IdentityLike, PreservesAll}
 
-object CheckTypes extends Pass with PreservesAll[Transform] {
+object CheckTypes extends Pass with PreservesAll[Transform] with IdentityLike[CircuitState] {
 
   override def prerequisites = Dependency(InferTypes) +: firrtl.stage.Forms.WorkingIR
 

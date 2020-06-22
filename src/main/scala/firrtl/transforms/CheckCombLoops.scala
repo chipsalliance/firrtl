@@ -12,7 +12,7 @@ import firrtl.annotations._
 import firrtl.Utils.throwInternalError
 import firrtl.graph._
 import firrtl.analyses.InstanceGraph
-import firrtl.options.{Dependency, PreservesAll, RegisteredTransform, ShellOption}
+import firrtl.options.{Dependency, IdentityLike, PreservesAll, RegisteredTransform, ShellOption}
 
 /**
   * A case class that represents a net in the circuit. This is necessary since combinational loop
@@ -101,7 +101,8 @@ case class CombinationalPath(sink: ReferenceTarget, sources: Seq[ReferenceTarget
 class CheckCombLoops extends Transform
     with RegisteredTransform
     with DependencyAPIMigration
-    with PreservesAll[Transform] {
+    with PreservesAll[Transform]
+    with IdentityLike[CircuitState] {
 
   override def prerequisites = firrtl.stage.Forms.MidForm ++
     Seq( Dependency(passes.LowerTypes),

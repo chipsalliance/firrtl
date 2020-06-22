@@ -2,11 +2,14 @@
 
 package firrtl.passes
 
-import firrtl.Transform
+import firrtl.{CircuitState, Transform}
 import firrtl.ir._
-import firrtl.options.{Dependency, PreservesAll}
+import firrtl.options.{Dependency, IdentityLike, PreservesAll}
 
-object CheckChirrtl extends Pass with CheckHighFormLike with PreservesAll[Transform] {
+object CheckChirrtl extends Pass
+    with CheckHighFormLike
+    with PreservesAll[Transform]
+    with IdentityLike[CircuitState] {
 
   override val optionalPrerequisiteOf = firrtl.stage.Forms.ChirrtlForm ++
     Seq( Dependency(CInferTypes),
