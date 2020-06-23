@@ -5,6 +5,11 @@ package firrtlTests
 import firrtl.FirrtlProtos.Firrtl
 import firrtl._
 import firrtl.ir._
+<<<<<<< HEAD
+=======
+import firrtl.testutils._
+import firrtl.Utils.BoolType
+>>>>>>> d1db9067... Add support for ValidIf to ProtoBuf [de]serialization
 
 class ProtoBufSpec extends FirrtlFlatSpec {
 
@@ -199,5 +204,14 @@ class ProtoBufSpec extends FirrtlFlatSpec {
   it should "support ResetTypes" in {
     val port = ir.Port(ir.NoInfo, "reset", ir.Input, ir.ResetType)
     FromProto.convert(ToProto.convert(port).build) should equal (port)
+  }
+
+  it should "support ValidIf" in {
+    val en = ir.Reference("en", BoolType, PortKind, SourceFlow)
+    val value = ir.Reference("x", UIntType(IntWidth(8)), PortKind, SourceFlow)
+    val vi = ir.ValidIf(en, value, value.tpe)
+    // Deserialized has almost nothing filled in
+    val expected = ir.ValidIf(ir.Reference("en"), ir.Reference("x"), UnknownType)
+    FromProto.convert(ToProto.convert(vi).build) should equal (expected)
   }
 }
