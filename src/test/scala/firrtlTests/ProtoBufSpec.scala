@@ -204,11 +204,7 @@ class ProtoBufSpec extends FirrtlFlatSpec {
   }
 
   it should "support ValidIf" in {
-    val en = ir.Reference("en", BoolType, PortKind, SourceFlow)
-    val value = ir.Reference("x", UIntType(IntWidth(8)), PortKind, SourceFlow)
-    val vi = ir.ValidIf(en, value, value.tpe)
-    // Deserialized has almost nothing filled in
-    val expected = ir.ValidIf(ir.Reference("en"), ir.Reference("x"), UnknownType)
-    FromProto.convert(ToProto.convert(vi).build) should equal (expected)
+    val vi = ir.ValidIf(ir.Reference("en", UnknownType), ir.Reference("x", UnknownType), UnknownType)
+    FromProto.convert(ToProto.convert(vi).build) should equal (vi)
   }
 }
