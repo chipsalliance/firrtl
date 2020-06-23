@@ -190,6 +190,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
 
   val outputSuffix = ".v"
   val tab = "  "
+  //scalastyle:off method.name
   def AND(e1: WrappedExpression, e2: WrappedExpression): Expression = {
     if (e1 == e2) e1.e1
     else if ((e1 == we(zero)) | (e2 == we(zero))) zero
@@ -198,6 +199,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
     else DoPrim(And, Seq(e1.e1, e2.e1), Nil, UIntType(IntWidth(1)))
   }
   def wref(n: String, t: Type) = WRef(n, t, ExpKind, UnknownFlow)
+  //scalastyle:off method.name
   def remove_root(ex: Expression): Expression = ex match {
     case ex: WSubField => ex.expr match {
       case (e: WSubField) => remove_root(e)
@@ -228,6 +230,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
     case _ => throwInternalError(s"trying to write unsupported type in the Verilog Emitter: $tpe")
   }
   def emit(x: Any)(implicit w: Writer): Unit = { emit(x, 0) }
+  //scalastyle:off cyclomatic.complexity
   def emit(x: Any, top: Int)(implicit w: Writer): Unit = {
     def cast(e: Expression): Any = e.tpe match {
       case (t: UIntType) => e
@@ -274,6 +277,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
   }
 
    //;------------- PASS -----------------
+   //scalastyle:off method.name
    def v_print(e: Expression)(implicit w: Writer) = e match {
      case UIntLiteral(value, IntWidth(width)) =>
        w write s"$width'h${value.toString(16)}"
@@ -289,6 +293,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
    // NOTE: We emit SInts as regular Verilog unsigned wires/regs so the real type of any SInt
    // reference is actually unsigned in the emitted Verilog. Thus we must cast refs as necessary
    // to ensure Verilog operations are signed.
+   //scalastyle:off cyclomatic.complexity method.length method.name
    def op_stream(doprim: DoPrim): Seq[Any] = {
      // Cast to SInt, don't cast multiple times
      def doCast(e: Expression): Any = e match {
@@ -530,6 +535,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
     * @param moduleMap        a map of modules so submodules can be discovered
     * @param writer           where rendered information is placed.
     */
+  //scalastyle:off number.of.methods
   class VerilogRender(description: Seq[Description],
                       portDescriptions: Map[String, Seq[Description]],
                       m: Module,
