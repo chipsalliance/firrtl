@@ -184,6 +184,11 @@ object ToProto {
           .setTValue(convert(tval))
           .setFValue(convert(fval))
         eb.setMux(mb)
+      case ir.ValidIf(cond, value, _) =>
+        val vb = Firrtl.Expression.ValidIf.newBuilder()
+          .setCondition(convert(cond))
+          .setValue(convert(value))
+        eb.setValidIf(vb)
     }
   }
 
