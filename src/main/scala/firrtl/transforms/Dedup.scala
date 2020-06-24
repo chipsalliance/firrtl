@@ -9,13 +9,7 @@ import firrtl.traversals.Foreachers._
 import firrtl.analyses.InstanceGraph
 import firrtl.annotations._
 import firrtl.passes.{InferTypes, MemPortUtils}
-<<<<<<< HEAD
-import firrtl.Utils.throwInternalError
-=======
 import firrtl.Utils.{kind, splitRef, throwInternalError}
-import firrtl.annotations.transforms.DupedResult
-import firrtl.annotations.TargetToken.{OfModule, Instance}
->>>>>>> e0e68568... Don't Dedup modules if it would change semantics (#1713)
 import firrtl.options.{HasShellOptions, ShellOption}
 
 import scala.annotation.tailrec
@@ -307,7 +301,7 @@ object DedupModules {
       def onStmt(stmt: Statement): Unit = {
         stmt.foreach(onStmt)
         stmt match {
-          case inst: DefInstance =>
+          case inst: WDefInstance =>
             instToModule(inst.name) = inst.module
           case Connect(_, lhs, rhs) =>
             markAggregatePorts(lhs)
@@ -410,10 +404,7 @@ object DedupModules {
 
         // Build tag
         val builder = new mutable.ArrayBuffer[Any]()
-<<<<<<< HEAD
-        agnosticModule.ports.foreach { builder ++= _.serialize }
         builder += agnosticAnnos
-=======
 
         // It may seem weird to use non-agnostified ports with an agnostified body because
         // technically it would be invalid FIRRTL, but it is logically sound for the purpose of
@@ -421,7 +412,6 @@ object DedupModules {
         val ports =
           if (dontAgnostifyPorts(originalModule.name)) originalModule.ports else agnosticModule.ports
         ports.foreach { builder ++= _.serialize }
->>>>>>> e0e68568... Don't Dedup modules if it would change semantics (#1713)
 
         agnosticModule match {
           case Module(i, n, ps, b) => builder ++= fastSerializedHash(b).toString()//.serialize
