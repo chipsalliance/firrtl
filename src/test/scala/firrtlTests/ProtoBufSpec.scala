@@ -6,6 +6,7 @@ import firrtl.FirrtlProtos.Firrtl
 import firrtl._
 import firrtl.ir._
 import firrtl.testutils._
+import firrtl.Utils.BoolType
 
 class ProtoBufSpec extends FirrtlFlatSpec {
 
@@ -200,5 +201,10 @@ class ProtoBufSpec extends FirrtlFlatSpec {
   it should "support ResetTypes" in {
     val port = ir.Port(ir.NoInfo, "reset", ir.Input, ir.ResetType)
     FromProto.convert(ToProto.convert(port).build) should equal (port)
+  }
+
+  it should "support ValidIf" in {
+    val vi = ir.ValidIf(ir.Reference("en", UnknownType), ir.Reference("x", UnknownType), UnknownType)
+    FromProto.convert(ToProto.convert(vi).build) should equal (vi)
   }
 }

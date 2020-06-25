@@ -253,6 +253,61 @@ class DedupModuleTests extends HighTransformSpec {
      val diff_params = mkfir(("BB", "BB"), ("0", "1"))
      execute(diff_params, diff_params, Seq.empty)
   }
+
+  "Modules with aggregate ports that are bulk connected" should "NOT dedup if their port names differ" in {
+    val input =
+      """
+        |circuit FooAndBarModule :
+        |  module FooModule :
+        |    output io : {flip foo : UInt<1>, fuzz : UInt<1>}
+        |    io.fuzz <= io.foo
+        |  module BarModule :
+        |    output io : {flip bar : UInt<1>, buzz : UInt<1>}
+        |    io.buzz <= io.bar
+        |  module FooAndBarModule :
+        |    output io : {foo : {flip foo : UInt<1>, fuzz : UInt<1>}, bar : {flip bar : UInt<1>, buzz : UInt<1>}}
+        |    inst foo of FooModule
+        |    inst bar of BarModule
+        |    io.foo <- foo.io
+        |    io.bar <- bar.io
+        |""".stripMargin
+    val check = input
+    execute(input, check, Seq.empty)
+  }
+
+  "Modules with aggregate ports that are bulk connected" should "dedup if their port names are the same" in {
+    val input =
+      """
+        |circuit FooAndBarModule :
+        |  module FooModule :
+        |    output io : {flip foo : UInt<1>, fuzz : UInt<1>}
+        |    io.fuzz <= io.foo
+        |  module BarModule :
+        |    output io : {flip foo : UInt<1>, fuzz : UInt<1>}
+        |    io.fuzz <= io.foo
+        |  module FooAndBarModule :
+        |    output io : {foo : {flip foo : UInt<1>, fuzz : UInt<1>}, bar : {flip bar : UInt<1>, buzz : UInt<1>}}
+        |    inst foo of FooModule
+        |    inst bar of BarModule
+        |    io.foo <- foo.io
+        |    io.bar <- bar.io
+        |""".stripMargin
+    val check =
+      """
+        |circuit FooAndBarModule :
+        |  module FooModule :
+        |    output io : {flip foo : UInt<1>, fuzz : UInt<1>}
+        |    io.fuzz <= io.foo
+        |  module FooAndBarModule :
+        |    output io : {foo : {flip foo : UInt<1>, fuzz : UInt<1>}, bar : {flip bar : UInt<1>, buzz : UInt<1>}}
+        |    inst foo of FooModule
+        |    inst bar of FooModule
+        |    io.foo <- foo.io
+        |    io.bar <- bar.io
+        |""".stripMargin
+    execute(input, check, Seq.empty)
+  }
+
   "The module A and B" should "be deduped with the first module in order" in {
     val input =
       """circuit Top :
@@ -547,6 +602,10 @@ class DedupModuleTests extends HighTransformSpec {
       """.stripMargin
     val check =
       """circuit main:
+        |  module dupe:
+        |    input in: UInt<8>
+        |    output out: UInt<8>
+        |    out <= in
         |  module main:
         |    input in:  UInt<8>
         |    output out: UInt<8>

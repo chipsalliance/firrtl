@@ -392,8 +392,29 @@ object Block {
 }
 
 case class Block(stmts: Seq[Statement]) extends Statement {
-  def serialize: String = stmts map (_.serialize) mkString "\n"
-  def mapStmt(f: Statement => Statement): Statement = Block(stmts map f)
+  def serialize: String = {
+    val res = stmts.view.map(_.serialize).mkString("\n")
+    if (res.nonEmpty) res else EmptyStmt.serialize
+  }
+  def mapStmt(f: Statement => Statement): Statement = {
+    val res = new scala.collection.mutable.ArrayBuffer[Statement]()
+    var its = stmts.iterator :: Nil
+    while (its.nonEmpty) {
+      val it = its.head
+      if (it.hasNext) {
+        it.next() match {
+          case EmptyStmt => // flatten out
+          case b: Block =>
+            its = b.stmts.iterator :: its
+          case other =>
+            res.append(f(other))
+        }
+      } else {
+        its = its.tail
+      }
+    }
+    Block(res)
+  }
   def mapExpr(f: Expression => Expression): Statement = this
   def mapType(f: Type => Type): Statement = this
   def mapString(f: String => String): Statement = this
@@ -817,6 +838,7 @@ case class Port(
     tpe: Type) extends FirrtlNode with IsDeclaration {
   def serialize: String = s"${direction.serialize} $name : ${tpe.serialize}" + info.serialize
   def mapType(f: Type => Type): Port = Port(info, name, direction, f(tpe))
+  def mapString(f: String => String): Port = Port(info, f(name), direction, tpe)
 }
 
 /** Parameters for external modules */

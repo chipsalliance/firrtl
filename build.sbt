@@ -98,8 +98,11 @@ lazy val antlrSettings = Seq(
 
 import com.typesafe.tools.mima.core._
 lazy val mimaSettings = Seq(
-  mimaPreviousArtifacts := Set("edu.berkeley.cs" %% "firrtl" % "1.3.0"),
-  mimaBinaryIssueFilters ++= Seq()
+  mimaPreviousArtifacts := Set("edu.berkeley.cs" %% "firrtl" % "1.3.1"),
+  mimaBinaryIssueFilters ++= Seq(
+    // Removed packaged private method (https://github.com/lightbend/mima/issues/53)
+    ProblemFilters.exclude[DirectMissingMethodProblem]("firrtl.stage.transforms.UpdateAnnotations.propagateAnnotations")
+  )
 )
 
 lazy val publishSettings = Seq(
@@ -192,3 +195,11 @@ lazy val firrtl = (project in file("."))
   .settings(publishSettings)
   .settings(docSettings)
   .settings(mimaSettings)
+
+lazy val benchmark = (project in file("benchmark"))
+  .dependsOn(firrtl)
+  .settings(
+    assemblyJarName in assembly := "firrtl-benchmark.jar",
+    test in assembly := {},
+    assemblyOutputPath in assembly := file("./utils/bin/firrtl-benchmark.jar")
+  )
