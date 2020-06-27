@@ -354,7 +354,7 @@ object Logger {
     */
   @deprecated("Use setOptions(annotations: AnnotationSeq)", "1.2")
   def setOptions(optionsManager: ExecutionOptionsManager): Unit =
-    setOptions(optionsManager.commonOptions.toAnnotations)
+    setOptions(optionsManager.commonOptions.toAnnotations.toSeq)
 
   /** Set logger options based on the content of an [[firrtl.AnnotationSeq AnnotationSeq]]
     * @param inputAnnotations annotation sequence containing logger options

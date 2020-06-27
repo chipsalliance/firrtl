@@ -213,7 +213,7 @@ object Driver {
     val phases: Seq[Phase] = {
       import DriverCompatibility._
       new PhaseManager(
-        Seq ( Dependency[AddImplicitFirrtlFile],
+         Seq(Dependency[AddImplicitFirrtlFile],
              Dependency[AddImplicitAnnotationFile],
              Dependency[AddImplicitOutputFile],
              Dependency[AddImplicitEmitter],
@@ -223,12 +223,12 @@ object Driver {
     }
 
     val annosx = try {
-      phases.foldLeft(annos)( (a, p) => p.transform(a) )
+      phases.foldLeft(annos)( (a, p) => p.transform(a.toSeq) )
     } catch {
       case e: firrtl.options.OptionsException => return FirrtlExecutionFailure(e.message)
     }
 
-    Viewer[FirrtlExecutionResult].view(annosx)
+    Viewer[FirrtlExecutionResult].view(annosx.toSeq)
   }
 
   /**
