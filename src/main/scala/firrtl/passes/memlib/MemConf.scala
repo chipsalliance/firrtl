@@ -19,10 +19,10 @@ object MemPort {
   def apply(s: String): Option[MemPort] = MemPort.all.find(_.name == s)
 
   def fromString(s: String): Map[MemPort, Int] = {
-    s.split(",").toSeq.map(MemPort.apply).map(_ match {
+    s.split(",").map(MemPort.apply).map(_ match {
       case Some(x) => x
       case _ => throw new Exception(s"Error parsing MemPort string : ${s}")
-    }).groupBy(identity).mapValues(_.size)
+    }).groupBy(identity).mapValues(_.size).toMap
   }
 }
 
@@ -57,13 +57,18 @@ object MemConf {
   }
 
   def apply(name: String, depth: BigInt, width: Int, readPorts: Int, writePorts: Int, readWritePorts: Int, maskGranularity: Option[Int]): MemConf = {
-    val ports: Map[MemPort, Int] = (if (maskGranularity.isEmpty) {
+    val ports: Map[MemPort, Int] = {
+      val tmp  = (if (maskGranularity.isEmpty) {
       (if (writePorts == 0) Map.empty[MemPort, Int] else Map(WritePort -> writePorts)) ++
       (if (readWritePorts == 0) Map.empty[MemPort, Int] else Map(ReadWritePort -> readWritePorts))
     } else {
       (if (writePorts == 0) Map.empty[MemPort, Int] else Map(MaskedWritePort -> writePorts)) ++
       (if (readWritePorts == 0) Map.empty[MemPort, Int] else Map(MaskedReadWritePort -> readWritePorts))
     }) ++ (if (readPorts == 0) Map.empty[MemPort, Int] else Map(ReadPort -> readPorts))
+
+    Map.from(tmp)
+    }
+      
     return new MemConf(name, depth, width, ports, maskGranularity)
   }
 }

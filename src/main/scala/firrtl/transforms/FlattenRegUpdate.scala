@@ -94,7 +94,7 @@ object FlattenRegUpdate {
     }
 
     val bodyx = onStmt(mod.body)
-    mod.copy(body = Block(bodyx +: regUpdates))
+    mod.copy(body = Block(bodyx +: regUpdates.toSeq))
   }
 
 }
