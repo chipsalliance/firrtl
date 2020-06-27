@@ -12,7 +12,7 @@ import FIRRTLParser._
 import Parser.{AppendInfo, GenInfo, IgnoreInfo, InfoMode, UseInfo}
 import firrtl.ir._
 import Utils.throwInternalError
-
+// import firrtl.compat.JavaConverters._
 
 class Visitor(infoMode: InfoMode) extends AbstractParseTreeVisitor[FirrtlNode] with ParseTreeVisitor[FirrtlNode] {
   // Strip file path

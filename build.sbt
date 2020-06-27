@@ -12,7 +12,6 @@ lazy val commonSettings = Seq(
     "-deprecation",
     "-unchecked",
     "-language:reflectiveCalls",
-    "-language:existentials",
     "-language:implicitConversions",
   ),
   libraryDependencies ++= Seq(
