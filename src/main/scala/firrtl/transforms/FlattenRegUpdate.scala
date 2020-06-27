@@ -48,36 +48,52 @@ object FlattenRegUpdate {
     * @return [[firrtl.ir.Module Module]] with register updates flattened
     */
   def flattenReg(mod: Module): Module = {
-    // We want to flatten Mux trees for reg updates into if-trees for
-    // improved QoR for conditional updates.  However, unbounded recursion
-    // would take exponential time, so don't redundantly flatten the same
-    // Mux more than a bounded number of times, preserving linear runtime.
-    // The threshold is empirical but ample.
-    val flattenThreshold = 4
-    val numTimesFlattened = mutable.HashMap[Mux, Int]()
-    def canFlatten(m: Mux): Boolean = {
-      val n = numTimesFlattened.getOrElse(m, 0)
-      numTimesFlattened(m) = n + 1
-      n < flattenThreshold
-    }
-
     val regUpdates = mutable.ArrayBuffer.empty[Connect]
     val netlist = buildNetlist(mod)
 
-    def constructRegUpdate(e: Expression): Expression = {
-      // Only walk netlist for nodes and wires, NOT registers or other state
-      val expr = kind(e) match {
-        case NodeKind | WireKind => netlist.getOrElse(e, e)
-        case _ => e
+    // We want to flatten Mux trees for reg updates into if-trees for improved
+    // QoR for conditional updates. However, when-otherwise structure often
+    // leads to defaults that are repeated all over and result in unreachable
+    // branches. Before performing the inline, we determine which references
+    // show up on multiple paths and mark those as endpoints where we stop
+    // inlining
+    val maxDepth = 4 // max depth of inlining
+    def determineEndpoints(expr: Expression): collection.Set[WrappedExpression] = {
+      val seen = mutable.HashSet.empty[WrappedExpression]
+      val endpoint = mutable.HashSet.empty[WrappedExpression]
+      def rec(depth: Int)(e: Expression): Unit = {
+        val ex = kind(e) match {
+          case NodeKind | WireKind if depth < maxDepth && !seen(e) =>
+            seen += e
+            netlist.getOrElse(e, e)
+          case _ => e
+        }
+        ex match {
+          case Mux(_, tval, fval, _) =>
+            rec(depth + 1)(tval)
+            rec(depth + 1)(fval)
+          case _ =>
+            // Mark e not ex because original reference is the endpoint, not op or whatever
+            endpoint += ex
+        }
       }
-      expr match {
-        case mux: Mux if canFlatten(mux) =>
-          val tvalx = constructRegUpdate(mux.tval)
-          val fvalx = constructRegUpdate(mux.fval)
-          mux.copy(tval = tvalx, fval = fvalx)
-        // Return the original expression to end flattening
-        case _ => e
+      rec(0)(expr)
+      endpoint
+    }
+
+    def constructRegUpdate(expr: Expression): Expression = {
+      val endpoints = determineEndpoints(expr)
+      def rec(e: Expression): Expression = {
+        val ex = kind(e) match {
+          case NodeKind | WireKind if !endpoints(e)=> netlist.getOrElse(e, e)
+          case _ => e
+        }
+        ex match {
+          case Mux(cond, tval, fval, tpe) => Mux(cond, rec(tval), rec(fval), tpe)
+          case _  => ex
+        }
       }
+      rec(expr)
     }
 
     def onStmt(stmt: Statement): Statement = stmt.map(onStmt) match {
