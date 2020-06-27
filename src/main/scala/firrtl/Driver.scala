@@ -210,10 +210,10 @@ object Driver {
 
     val annos = optionsManager.firrtlOptions.toAnnotations ++ optionsManager.commonOptions.toAnnotations
 
-    val phases: Seq[Phase] = {
+    val phases = {
       import DriverCompatibility._
       new PhaseManager(
-         Seq(Dependency[AddImplicitFirrtlFile],
+         immutable.Seq(Dependency[AddImplicitFirrtlFile],
              Dependency[AddImplicitAnnotationFile],
              Dependency[AddImplicitOutputFile],
              Dependency[AddImplicitEmitter],
