@@ -2,50 +2,20 @@
 
 enablePlugins(SiteScaladocPlugin)
 
-def scalacOptionsVersion(scalaVersion: String): Seq[String] = {
-  Seq() ++ {
-    // If we're building with Scala > 2.11, enable the compile option
-    //  switch to support our anonymous Bundle definitions:
-    //  https://github.com/scala/bug/issues/10047
-    CrossVersion.partialVersion(scalaVersion) match {
-      case Some((2, scalaMajor: Long)) if scalaMajor < 12 => Seq()
-      case _ => Seq("-Xsource:2.11")
-    }
-  }
-}
-
-def javacOptionsVersion(scalaVersion: String): Seq[String] = {
-  Seq() ++ {
-    // Scala 2.12 requires Java 8, but we continue to generate
-    //  Java 7 compatible code until we need Java 8 features
-    //  for compatibility with old clients.
-    CrossVersion.partialVersion(scalaVersion) match {
-      case Some((2, scalaMajor: Long)) if scalaMajor < 12 =>
-        Seq("-source", "1.7", "-target", "1.7")
-      case _ =>
-        Seq("-source", "1.8", "-target", "1.8")
-    }
-  }
-}
-
-
 lazy val commonSettings = Seq(
   organization := "edu.berkeley.cs",
   name := "firrtl",
   version := "1.4-SNAPSHOT",
   scalaVersion := "2.12.11",
   crossScalaVersions := Seq("2.12.11", "2.11.12"),
-  addCompilerPlugin(scalafixSemanticdb),
-  scalacOptions := scalacOptionsVersion(scalaVersion.value) ++ Seq(
+  scalacOptions := Seq(
     "-deprecation",
     "-unchecked",
     "-language:reflectiveCalls",
     "-language:existentials",
     "-language:implicitConversions",
-    "-Yrangepos",          // required by SemanticDB compiler plugin
-    "-Ywarn-unused-import" // required by `RemoveUnused` rule
+    "-Xsource:2.11"
   ),
-  javacOptions ++= javacOptionsVersion(scalaVersion.value),
   libraryDependencies ++= Seq(
     "org.scala-lang" % "scala-reflect" % scalaVersion.value,
     "org.scalatest" %% "scalatest" % "3.1.2" % "test",
@@ -166,7 +136,7 @@ lazy val docSettings = Seq(
         }
       s"https://github.com/freechipsproject/firrtl/tree/$branch€{FILE_PATH}.scala"
     }
-  ) ++ scalacOptionsVersion(scalaVersion.value) ++ scalacDocOptionsVersion(scalaVersion.value)
+  ) ++ scalacDocOptionsVersion(scalaVersion.value)
 )
 
 lazy val firrtl = (project in file("."))
@@ -193,3 +163,9 @@ lazy val benchmark = (project in file("benchmark"))
     test in assembly := {},
     assemblyOutputPath in assembly := file("./utils/bin/firrtl-benchmark.jar")
   )
+
+// Aliases
+addCommandAlias("rel", "reload")
+addCommandAlias("com", "all compile test:compile it:compile")
+addCommandAlias("fix", "all compile:scalafix test:scalafix")
+addCommandAlias("fmt", "all scalafmtSbt scalafmtAll")
