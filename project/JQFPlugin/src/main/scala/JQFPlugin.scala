@@ -15,7 +15,7 @@ object JQFPlugin extends AutoPlugin {
       "The the output directory where fuzzing results will be stored. " +
         "Defaults to ${compileTargetDir}/JQF")
 
-    val jqfInputDirectory = settingKey[Option[File]](
+    val jqfFuzzInputDirectory = settingKey[Option[File]](
       "The name of the input directory containing seed files. " +
         "If not provided, then fuzzing starts with randomly generated initial inputs.")
 
@@ -23,15 +23,23 @@ object JQFPlugin extends AutoPlugin {
       "Project containing the JQF main class. JQF tasks will use the runMain task of this project")
 
     val jqfFuzzMainClass = settingKey[String](
-      "The main class to run for the JQF Fuzz task. " +
+      "The main class to run for the jqfFuzz task. " +
         "Must accept --inputDirectory, --outputDirectory, and --classpathElements arguments")
-
-    val jqfFuzzExtraArguments = settingKey[Seq[String]](
-      "Additional command-line arguments to pass on every jqfFuzz invocation. "
-    )
 
     val jqfFuzz = inputKey[Unit](
       "Runs the jqfFuzzMainClass in the jqfProject. " +
+        "Supplies the '--classpathElements' argument with the current project's classpath")
+
+
+    val jqfReproMainClass = settingKey[String](
+      "The main class to run for the jqfRepro task. " +
+        "Must accept --input, and --classpathElements arguments")
+
+    val jqfReproInput = settingKey[Option[File]](
+      "Input file or directory to reproduce test case(s).")
+
+    val jqfRepro = inputKey[Unit](
+      "Runs the jqfReproMainClass in the jqfProject. " +
         "Supplies the '--classpathElements' argument with the current project's classpath")
   }
 
@@ -44,14 +52,11 @@ object JQFPlugin extends AutoPlugin {
   override def projectSettings: Seq[Def.Setting[_]] = Seq(
     jqfOutputDirectory := target.in(Compile).value / "JQF",
 
-    jqfInputDirectory := None,
-
-    jqfFuzzExtraArguments := Seq.empty,
+    jqfFuzzInputDirectory := None,
 
     jqfFuzz := (Def.inputTaskDyn {
-      val extraArgs = jqfFuzzExtraArguments.value
       val parsed = spaceDelimited("<arg>").parsed
-      val defaultArgs = toCmdlineArgs.value
+      val defaultArgs = fuzzCmdlineArgs.value
       val args = (defaultArgs ++ parsed).mkString(" ")
       val project = jqfProject.value
       val main = jqfFuzzMainClass.value
@@ -59,14 +64,35 @@ object JQFPlugin extends AutoPlugin {
         (project/runMain).in(Compile).toTask(s" $main $args")
       }
     }).evaluated,
+
+
+    jqfReproInput := None,
+
+    jqfRepro := (Def.inputTaskDyn {
+      val parsed = spaceDelimited("<arg>").parsed
+      val defaultArgs = reproCmdlineArgs.value
+      val args = (defaultArgs ++ parsed).mkString(" ")
+      val project = jqfProject.value
+      val main = jqfReproMainClass.value
+      Def.taskDyn {
+        (project/runMain).in(Compile).toTask(s" $main $args")
+      }
+    }).evaluated,
   )
 
 
-  private def toCmdlineArgs: Def.Initialize[Task[Seq[String]]] = Def.task {
+  private def fuzzCmdlineArgs: Def.Initialize[Task[Seq[String]]] = Def.task {
     Seq(
       "--classpathElements", (Compile / fullClasspathAsJars).toTask.value.files.mkString(":"),
       "--outputDirectory", jqfOutputDirectory.value.toString
     ) ++
-    jqfInputDirectory.value.map(f => Seq("--inputDirectory", f.toString)).getOrElse(Seq.empty)
+    jqfFuzzInputDirectory.value.map(f => Seq("--inputDirectory", f.toString)).getOrElse(Seq.empty)
+  }
+
+  private def reproCmdlineArgs: Def.Initialize[Task[Seq[String]]] = Def.task {
+    Seq(
+      "--classpathElements", (Compile / fullClasspathAsJars).toTask.value.files.mkString(":"),
+    ) ++
+    jqfReproInput.value.map(f => Seq("--input", f.toString)).getOrElse(Seq.empty)
   }
 }

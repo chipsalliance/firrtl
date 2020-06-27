@@ -214,5 +214,6 @@ lazy val fuzzer = (project in file("fuzzer"))
       "com.github.scopt" %% "scopt" % "3.7.1",
     ),
     jqfProject := jqf,
-    jqfFuzzMainClass := "firrtl.fuzzer.JQFFuzz",
+    jqfFuzzMainClass := "firrtl.jqf.JQFFuzz",
+    jqfReproMainClass := "firrtl.jqf.JQFRepro",
   )

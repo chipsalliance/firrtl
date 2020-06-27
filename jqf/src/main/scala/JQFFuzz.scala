@@ -1,4 +1,4 @@
-package firrtl.fuzzer
+package firrtl.jqf
 
 import java.io.{File, FileNotFoundException, IOException, PrintStream}
 import java.net.{MalformedURLException, URLClassLoader}
@@ -11,7 +11,7 @@ import edu.berkeley.cs.jqf.fuzz.junit.GuidedFuzzing
 import edu.berkeley.cs.jqf.instrument.InstrumentingClassLoader
 
 
-case class JQFException(message: String) extends Exception(message)
+case class JQFException(message: String, e: Throwable = null) extends Exception(message)
 
 sealed trait JQFEngine
 case object Zeal extends JQFEngine
@@ -40,7 +40,7 @@ case class JQFFuzzOptions(
 
 object JQFFuzz {
   final def main(args: Array[String]): Unit = {
-    val parser = new scopt.OptionParser[JQFFuzzOptions]("JQF-plugin") {
+    val parser = new scopt.OptionParser[JQFFuzzOptions]("JQF-Fuzz") {
         opt[String]("classpathElements")
           .required()
           .unbounded()
@@ -138,7 +138,7 @@ object JQFFuzz {
         Duration.parse("PT" + time);
       } catch {
         case e: DateTimeParseException =>
-          throw new JQFException("Invalid time duration: " + time)
+          throw new JQFException("Invalid time duration: " + time, e)
       }
     }.getOrElse(null)
 
@@ -155,7 +155,7 @@ object JQFFuzz {
       }
     } catch {
       case e: MalformedURLException =>
-        throw new JQFException("Could not get project classpath")
+        throw new JQFException("Could not get project classpath", e)
     }
 
     val guidance = try {
@@ -176,20 +176,20 @@ object JQFFuzz {
       guidance
     } catch {
       case e: FileNotFoundException =>
-        throw new JQFException("File not found")
+        throw new JQFException("File not found", e)
       case e: IOException =>
-        throw new JQFException("I/O error")
+        throw new JQFException("I/O error", e)
     }
 
     val result = try {
       GuidedFuzzing.run(opts.testClassName, opts.testMethod, loader, guidance, System.out)
     } catch {
       case e: ClassNotFoundException =>
-        throw new JQFException("could not load test class")
+        throw new JQFException("could not load test class", e)
       case e: IllegalArgumentException =>
-        throw new JQFException("Bad request")
+        throw new JQFException("Bad request", e)
       case e: RuntimeException =>
-        throw new JQFException("Internal error")
+        throw new JQFException("Internal error", e)
     }
 
     if (!result.wasSuccessful()) {
