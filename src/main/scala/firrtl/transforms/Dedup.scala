@@ -658,7 +658,7 @@ object DedupModules extends LazyLogging {
     }
 
     changeInternals(rename, retype, {i => i}, {(x, y) => x}, renameExps = false)(m)
-    refs
+    IndexedSeq(refs)
   }
 
   def computeRenameMap(originalNames: IndexedSeq[ReferenceTarget],
@@ -686,6 +686,6 @@ object DedupModules extends LazyLogging {
     }
 
     onExp(root)
-    all
+    all.toSeq
   }
 }

@@ -167,7 +167,7 @@ object RemoveCHIRRTL extends Transform with DependencyAPIMigration {
         (clks map (x => Connect(sx.info, SubField(portRef, x, ut), sx.exps(1)))) ++
         (ens map (x => Connect(sx.info,SubField(portRef, x, ut), one))) ++
          masks.map(lhs => Connect(sx.info, lhs, zero))
-      )
+      ).toSeq
     case sx => sx map collect_refs(mports, smems, types, refs, raddrs, renames)
   }
 
