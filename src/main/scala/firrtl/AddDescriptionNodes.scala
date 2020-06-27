@@ -219,7 +219,7 @@ class AddDescriptionNodes extends Transform with DependencyAPIMigration {
     // map field 1 (module name) -> field 2 (a list of Descriptions)
     val modMap = modList.groupBy(_._1).mapValues(_.map(_._2))
       // and then merge like descriptions (e.g. multiple docstrings into one big docstring)
-      .mapValues(mergeDescriptions)
+      .mapValues(mergeDescriptions).toMap
 
     val compList = annos.collect {
       case DocStringAnnotation(ReferenceTarget(_, m, _, c, _), desc) =>
@@ -233,9 +233,9 @@ class AddDescriptionNodes extends Transform with DependencyAPIMigration {
       // map field 2 (component name) -> field 3 (a list of Descriptions)
       _.groupBy(_._2).mapValues(_.map(_._3))
       // and then merge like descriptions (e.g. multiple docstrings into one big docstring)
-      .mapValues(mergeDescriptions))
+      .mapValues(mergeDescriptions).toMap)
 
-    (modMap, compMap)
+    (modMap, compMap.toMap)
   }
 
   def executeModule(module: DefModule, annos: Seq[Annotation]): DefModule = {

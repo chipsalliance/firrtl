@@ -213,7 +213,7 @@ object Driver {
     val phases: Seq[Phase] = {
       import DriverCompatibility._
       new PhaseManager(
-        Seq( Dependency[AddImplicitFirrtlFile],
+        Seq ( Dependency[AddImplicitFirrtlFile],
              Dependency[AddImplicitAnnotationFile],
              Dependency[AddImplicitOutputFile],
              Dependency[AddImplicitEmitter],

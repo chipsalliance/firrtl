@@ -280,7 +280,7 @@ class InferResets extends Transform with DependencyAPIMigration {
   // Assumes all ReferenceTargets are in the same module
   private def makeDeclMap(map: Map[ReferenceTarget, Type]): Map[String, TypeTree] =
     map.groupBy(_._1.ref).mapValues { ts =>
-      TypeTree.fromTokens(ts.toSeq.map { (target, tpe) => (target.component, tpe) }:_*)
+      TypeTree.fromTokens(ts.toSeq.map { case (target, tpe) => (target.component, tpe) }:_*)
     }.toMap
 
   private def implPort(map: Map[String, TypeTree])(port: Port): Port =
