@@ -92,9 +92,9 @@ object RemoveCHIRRTL extends Transform with DependencyAPIMigration {
         val portRef = SubField(Reference(sx.name, ut), r.name, ut)
         Seq(IsInvalid(sx.info, SubField(portRef, data, tdata)), IsInvalid(sx.info, SubField(portRef, mask, tmask)))
       }
-      val rds = (mports getOrElse (sx.name, EMPs)).readers
-      val wrs = (mports getOrElse (sx.name, EMPs)).writers
-      val rws = (mports getOrElse (sx.name, EMPs)).readwriters
+      val rds = (mports getOrElse (sx.name, EMPs)).readers.toSeq
+      val wrs = (mports getOrElse (sx.name, EMPs)).writers.toSeq
+      val rws = (mports getOrElse (sx.name, EMPs)).readwriters.toSeq
       val stmts = set_poison(rds) ++
         set_enable(rds, "en") ++
         set_poison(wrs) ++
