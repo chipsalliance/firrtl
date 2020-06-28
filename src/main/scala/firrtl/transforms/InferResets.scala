@@ -91,7 +91,7 @@ object InferResets {
                 .mapValues { ts =>
                   fromTokens(ts.map { case (_ +: t, tpe) => (t, tpe) }:_*)
                 }
-        BundleTree(fields)
+        BundleTree(fields.toMap)
     }
   }
 }
