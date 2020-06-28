@@ -6,8 +6,8 @@ lazy val commonSettings = Seq(
   organization := "edu.berkeley.cs",
   name := "firrtl",
   version := "1.4-SNAPSHOT",
-  scalaVersion := "2.11.12",
-  crossScalaVersions := Seq("2.11.12", "2.12.11", "2.13.2"),
+  scalaVersion := "2.12.11",
+  crossScalaVersions := Seq("2.11.12", "2.12.11", "2.13.3"),
   scalacOptions := Seq(
     "-deprecation",
     "-unchecked",
@@ -18,7 +18,7 @@ lazy val commonSettings = Seq(
     "org.scala-lang" % "scala-reflect" % scalaVersion.value,
     "org.scalatest" %% "scalatest" % "3.1.2" % "test",
     "org.scalatestplus" %% "scalacheck-1-14" % "3.1.1.1" % "test",
-    "com.github.scopt" %% "scopt" % "3.7.1",
+    "com.github.scopt" %% "scopt" % "4.0.0-RC2",
     "net.jcazevedo" %% "moultingyaml" % "0.4.2",
     "org.json4s" %% "json4s-native" % "3.6.8",
     "org.apache.commons" % "commons-text" % "1.8"

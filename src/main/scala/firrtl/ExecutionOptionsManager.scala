@@ -588,7 +588,7 @@ class ExecutionOptionsManager(val applicationName: String) extends HasParser(app
     parser.parse(args)
   }
 
-  def showUsageAsError(): Unit = parser.showUsageAsError()
+  def showUsageAsError(): Unit = parser.showUsageOnError
 
   /**
     * make sure that all levels of targetDirName exist
