@@ -217,7 +217,7 @@ class AddDescriptionNodes extends Transform with DependencyAPIMigration {
     }
 
     // map field 1 (module name) -> field 2 (a list of Descriptions)
-    val modMap = modList.groupBy(_._1).view.mapValues(_.map(_._2))
+    val modMap = modList.groupBy(_._1).mapValues(_.map(_._2))
       // and then merge like descriptions (e.g. multiple docstrings into one big docstring)
       .mapValues(mergeDescriptions).toMap
 
@@ -229,9 +229,9 @@ class AddDescriptionNodes extends Transform with DependencyAPIMigration {
     }
 
     // map field 1 (name) -> a map that we build
-    val compMap = compList.groupBy(_._1).view.mapValues(
+    val compMap = compList.groupBy(_._1).mapValues(
       // map field 2 (component name) -> field 3 (a list of Descriptions)
-      _.groupBy(_._2).view.mapValues(_.map(_._3))
+      _.groupBy(_._2).mapValues(_.map(_._3))
       // and then merge like descriptions (e.g. multiple docstrings into one big docstring)
       .mapValues(mergeDescriptions).toMap)
 
