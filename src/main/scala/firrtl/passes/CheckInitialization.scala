@@ -57,7 +57,7 @@ object CheckInitialization extends Pass {
           case _ => e.foreach(hasVoid)
         }
         hasVoid(e)
-        (void, voidDeps.toSeq)
+        (void, voidDeps)
       }
       def checkInitS(s: Statement): Unit = {
         s match {

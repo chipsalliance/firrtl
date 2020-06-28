@@ -124,7 +124,7 @@ object Logger {
     */
   @deprecated("Use makeScope(opts: FirrtlOptions)", "1.2")
   def makeScope[A](manager: ExecutionOptionsManager)(codeBlock: => A): A =
-    makeScope(manager.commonOptions.toAnnotations.toSeq)(codeBlock)
+    makeScope(manager.commonOptions.toAnnotations)(codeBlock)
 
   /**
     * See makeScope using manager.  This creates a manager from a command line arguments style
@@ -354,7 +354,7 @@ object Logger {
     */
   @deprecated("Use setOptions(annotations: AnnotationSeq)", "1.2")
   def setOptions(optionsManager: ExecutionOptionsManager): Unit =
-    setOptions(optionsManager.commonOptions.toAnnotations.toSeq)
+    setOptions(optionsManager.commonOptions.toAnnotations)
 
   /** Set logger options based on the content of an [[firrtl.AnnotationSeq AnnotationSeq]]
     * @param inputAnnotations annotation sequence containing logger options

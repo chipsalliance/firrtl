@@ -11,7 +11,7 @@ case object OptionsHelpException extends Exception("Usage help invoked")
 /** OptionParser mixin that causes the OptionParser to not call exit (call `sys.exit`) if the `--help` option is
   * passed */
 trait DoNotTerminateOnExit { this: OptionParser[_] =>
-  override def terminate(exitState: Either[String, Unit]): Unit = ()
+  override def terminate(exitState: Either[String, Unit]): Unit = Unit
 }
 
 /** OptionParser mixin that converts to [[OptionsException]]

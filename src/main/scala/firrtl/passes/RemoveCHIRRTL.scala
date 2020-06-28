@@ -92,9 +92,9 @@ object RemoveCHIRRTL extends Transform with DependencyAPIMigration {
         val portRef = SubField(Reference(sx.name, ut), r.name, ut)
         Seq(IsInvalid(sx.info, SubField(portRef, data, tdata)), IsInvalid(sx.info, SubField(portRef, mask, tmask)))
       }
-      val rds = (mports getOrElse (sx.name, EMPs)).readers.toSeq
-      val wrs = (mports getOrElse (sx.name, EMPs)).writers.toSeq
-      val rws = (mports getOrElse (sx.name, EMPs)).readwriters.toSeq
+      val rds = (mports getOrElse (sx.name, EMPs)).readers
+      val wrs = (mports getOrElse (sx.name, EMPs)).writers
+      val rws = (mports getOrElse (sx.name, EMPs)).readwriters
       val stmts = set_poison(rds) ++
         set_enable(rds, "en") ++
         set_poison(wrs) ++
@@ -163,10 +163,10 @@ object RemoveCHIRRTL extends Transform with DependencyAPIMigration {
         case MInfer => // do nothing if it's not being used
       }
       Block(
-        (addrs map (x => Connect(sx.info, SubField(portRef, x, ut), sx.exps.head))).toSeq ++
-        (clks map (x => Connect(sx.info, SubField(portRef, x, ut), sx.exps(1)))).toSeq ++
-        (ens map (x => Connect(sx.info,SubField(portRef, x, ut), one))).toSeq ++
-         masks.map(lhs => Connect(sx.info, lhs, zero)).toSeq
+        (addrs map (x => Connect(sx.info, SubField(portRef, x, ut), sx.exps.head))) ++
+        (clks map (x => Connect(sx.info, SubField(portRef, x, ut), sx.exps(1)))) ++
+        (ens map (x => Connect(sx.info,SubField(portRef, x, ut), one))) ++
+         masks.map(lhs => Connect(sx.info, lhs, zero))
       )
     case sx => sx map collect_refs(mports, smems, types, refs, raddrs, renames)
   }
@@ -233,7 +233,7 @@ object RemoveCHIRRTL extends Transform with DependencyAPIMigration {
             case Some(wmode) => stmts += Connect(info, wmode, one)
           }
         }
-        if (stmts.isEmpty) sx else Block(sx +: stmts.toSeq)
+        if (stmts.isEmpty) sx else Block(sx +: stmts)
       case PartialConnect(info, loc, expr) =>
         val locx = remove_chirrtl_e(SinkFlow)(loc)
         val rocx = remove_chirrtl_e(SourceFlow)(expr)
@@ -252,7 +252,7 @@ object RemoveCHIRRTL extends Transform with DependencyAPIMigration {
             case Some(wmode) => stmts += Connect(info, wmode, one)
           }
         }
-        if (stmts.isEmpty) sx else Block(sx +: stmts.toSeq)
+        if (stmts.isEmpty) sx else Block(sx +: stmts)
       case sx => sx map remove_chirrtl_s(refs, raddrs) map remove_chirrtl_e(SourceFlow)
     }
   }

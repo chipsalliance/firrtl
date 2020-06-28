@@ -1,0 +1,7 @@
+-Dfile.encoding=UTF8
+-Djava.awt.headless=true
+-XX:MaxMetaspaceSize=1g
+-XX:+CMSClassUnloadingEnabled
+-Xss8M
+-Xms3G
+-Xmx4G

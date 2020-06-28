@@ -82,7 +82,7 @@ class Compiler extends Phase with Translator[AnnotationSeq, Seq[CompilerRun]] {
         case annotation => d.copy(annotations = annotation +: d.annotations)
       }
     }
-    c.toSeq
+    c
   }
 
   /** Expand compiler output back into an [[AnnotationSeq]]. Annotations used in the construction of the compiler run are
@@ -111,10 +111,8 @@ class Compiler extends Phase with Translator[AnnotationSeq, Seq[CompilerRun]] {
       c.copy(stateOut = Some(annotationsOut))
     }
 
-    // No parallel for Seq in 2.13
-    // if (b.size <= 1) { b.map(f)         }
-    // else             { b.par.map(f).seq }
-    b.map(f)
+    if (b.size <= 1) { b.map(f)         }
+    else             { b.par.map(f).seq }
   }
 
   private def compilerToTransforms(a: FirrtlCompiler): Seq[TransformDependency] = a match {

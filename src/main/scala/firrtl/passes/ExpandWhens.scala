@@ -234,7 +234,7 @@ object ExpandWhens extends Pass {
       getFemaleRefs(name, tpe, to_flow(dir)) map (ref => we(ref) -> WVoid)
     })
     val bodyx = expandWhens(netlist, Seq(netlist), one)(m.body)
-    (netlist, simlist, attaches.toSeq, bodyx, infoMap)
+    (netlist, simlist, attaches, bodyx, infoMap)
   }
 
 

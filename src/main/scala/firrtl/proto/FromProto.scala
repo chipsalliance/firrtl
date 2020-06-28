@@ -86,8 +86,8 @@ object FromProto {
     ir.SubAccess(convert(access.getExpression), convert(access.getIndex), ir.UnknownType)
 
   def convert(primop: Firrtl.Expression.PrimOp): ir.DoPrim = {
-    val args = primop.getArgList.asScala.map(convert(_)).toSeq.toSeq
-    val consts = primop.getConstList.asScala.map(convert(_)).toSeq.toSeq
+    val args = primop.getArgList.asScala.map(convert(_))
+    val consts = primop.getConstList.asScala.map(convert(_))
     ir.DoPrim(convert(primop.getOp), args, consts, ir.UnknownType)
   }
 
@@ -133,8 +133,8 @@ object FromProto {
     ir.DefInstance(convert(info), inst.getId, inst.getModuleId)
 
   def convert(when: Firrtl.Statement.When, info: Firrtl.SourceInfo): ir.Conditionally = {
-    val conseq = compressStmts(when.getConsequentList.asScala.map(convert(_)).toSeq)
-    val alt = compressStmts(when.getOtherwiseList.asScala.map(convert(_)).toSeq)
+    val conseq = compressStmts(when.getConsequentList.asScala.map(convert(_)))
+    val alt = compressStmts(when.getOtherwiseList.asScala.map(convert(_)))
     ir.Conditionally(convert(info), convert(when.getPredicate), conseq, alt)
   }
 
@@ -173,7 +173,7 @@ object FromProto {
   }
 
   def convert(printf: Firrtl.Statement.Printf, info: Firrtl.SourceInfo): ir.Print = {
-    val args = printf.getArgList.asScala.map(convert(_)).toSeq.toSeq
+    val args = printf.getArgList.asScala.map(convert(_))
     val str = ir.StringLit(printf.getValue)
     ir.Print(convert(info), str, args, convert(printf.getClk), convert(printf.getEn))
   }
@@ -193,9 +193,9 @@ object FromProto {
 
   def convert(mem: Firrtl.Statement.Memory, info: Firrtl.SourceInfo): ir.DefMemory = {
     val dtype = convert(mem.getType)
-    val rs = mem.getReaderIdList.asScala.toSeq
-    val ws = mem.getWriterIdList.asScala.toSeq
-    val rws = mem.getReadwriterIdList.asScala.toSeq
+    val rs = mem.getReaderIdList.asScala
+    val ws = mem.getWriterIdList.asScala
+    val rws = mem.getReadwriterIdList.asScala
     import Firrtl.Statement.Memory._
     val depth = mem.getDepthCase.getNumber match {
       case UINT_DEPTH_FIELD_NUMBER => BigInt(mem.getUintDepth)
@@ -206,7 +206,7 @@ object FromProto {
   }
 
   def convert(attach: Firrtl.Statement.Attach, info: Firrtl.SourceInfo): ir.Attach = {
-    val exprs = attach.getExpressionList.asScala.map(convert(_)).toSeq
+    val exprs = attach.getExpressionList.asScala.map(convert(_))
     ir.Attach(convert(info), exprs)
   }
 
@@ -280,7 +280,7 @@ object FromProto {
       case RESET_TYPE_FIELD_NUMBER => ir.ResetType
       case ANALOG_TYPE_FIELD_NUMBER => convert(tpe.getAnalogType)
       case BUNDLE_TYPE_FIELD_NUMBER =>
-        ir.BundleType(tpe.getBundleType.getFieldList.asScala.map(convert(_)).toSeq)
+        ir.BundleType(tpe.getBundleType.getFieldList.asScala.map(convert(_)))
       case VECTOR_TYPE_FIELD_NUMBER => convert(tpe.getVectorType)
     }
   }
@@ -311,16 +311,16 @@ object FromProto {
 
   def convert(module: Firrtl.Module.UserModule): ir.Module = {
     val name = module.getId
-    val ports = module.getPortList.asScala.map(convert(_)).toSeq.toSeq
-    val stmts = module.getStatementList.asScala.map(convert(_)).toSeq.toSeq
+    val ports = module.getPortList.asScala.map(convert(_))
+    val stmts = module.getStatementList.asScala.map(convert(_))
     ir.Module(ir.NoInfo, name, ports, ir.Block(stmts))
   }
 
   def convert(module: Firrtl.Module.ExternalModule): ir.ExtModule = {
     val name = module.getId
-    val ports = module.getPortList.asScala.map(convert(_)).toSeq.toSeq
+    val ports = module.getPortList.asScala.map(convert(_))
     val defname = module.getDefinedName
-    val params = module.getParameterList.asScala.map(convert(_)).toSeq.toSeq
+    val params = module.getParameterList.asScala.map(convert(_))
     ir.ExtModule(ir.NoInfo, name, ports, defname, params)
   }
 
@@ -335,7 +335,7 @@ object FromProto {
     require(proto.getCircuitCount == 1, "Only 1 circuit is currently supported")
     val c = proto.getCircuit(0)
     require(c.getTopCount == 1, "Only 1 top is currently supported")
-    val modules = c.getModuleList.asScala.map(convert(_)).toSeq
+    val modules = c.getModuleList.asScala.map(convert(_))
     val top = c.getTop(0).getName
     ir.Circuit(ir.NoInfo, modules, top)
   }

@@ -77,7 +77,7 @@ case class CommonOptions(
     }
   }
 
-  def toAnnotations() = (if (topName.nonEmpty) Seq(TopNameAnnotation(topName)) else Seq()) ++
+  def toAnnotations: AnnotationSeq = (if (topName.nonEmpty) Seq(TopNameAnnotation(topName)) else Seq()) ++
     (if (targetDirName != ".") Some(TargetDirAnnotation(targetDirName)) else None) ++
     Some(LogLevelAnnotation(globalLogLevel)) ++
     (if (logToFile) { Some(LogFileAnnotation(None)) } else { None }) ++
@@ -307,7 +307,7 @@ extends ComposableOptions {
     optionsManager.getBuildFileName("anno", annotationFileNameOverride)
   }
 
-  def toAnnotations() = {
+  def toAnnotations: AnnotationSeq = {
     if (inferRW.nonEmpty) {
       StageUtils.dramaticWarning("User set FirrtlExecutionOptions.inferRW, but inferRW has no effect!")
     }

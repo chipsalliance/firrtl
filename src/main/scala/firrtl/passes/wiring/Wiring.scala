@@ -197,7 +197,7 @@ class Wiring(wiSeq: Seq[WiringInfo]) extends Pass {
               case Block(sx) => sx
               case s => Seq(s)
             }
-            Module(i, n, ps ++ ports, Block(defines.toSeq ++ stmts.toSeq ++ connects.toSeq))
+            Module(i, n, ps ++ ports, Block(defines ++ stmts ++ connects))
           case ExtModule(i, n, ps, dn, p) => ExtModule(i, n, ps ++ ports, dn, p)
         }
     }

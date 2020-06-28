@@ -146,7 +146,7 @@ object Target {
         case other =>
       }
     }
-    subComps.toSeq
+    subComps
   }
 
   /** Checks if seq only contains [[TargetToken]]'s with select keywords

@@ -210,10 +210,10 @@ object Driver {
 
     val annos = optionsManager.firrtlOptions.toAnnotations ++ optionsManager.commonOptions.toAnnotations
 
-    val phases = {
+    val phases: Seq[Phase] = {
       import DriverCompatibility._
       new PhaseManager(
-         immutable.Seq(Dependency[AddImplicitFirrtlFile],
+        Seq( Dependency[AddImplicitFirrtlFile],
              Dependency[AddImplicitAnnotationFile],
              Dependency[AddImplicitOutputFile],
              Dependency[AddImplicitEmitter],
@@ -223,12 +223,12 @@ object Driver {
     }
 
     val annosx = try {
-      phases.foldLeft(annos)( (a, p) => p.transform(a.toSeq) )
+      phases.foldLeft(annos)( (a, p) => p.transform(a) )
     } catch {
       case e: firrtl.options.OptionsException => return FirrtlExecutionFailure(e.message)
     }
 
-    Viewer[FirrtlExecutionResult].view(annosx.toSeq)
+    Viewer[FirrtlExecutionResult].view(annosx)
   }
 
   /**

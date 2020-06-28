@@ -47,7 +47,7 @@ class RemoveWires extends Transform with DependencyAPIMigration {
       e
     }
     rec(expr)
-    refs.toSeq
+    refs
   }
 
   // Transform netlist into DefNodes
@@ -138,7 +138,7 @@ class RemoveWires extends Transform with DependencyAPIMigration {
         onStmt(body)
         getOrderedNodes(netlist, regInfo) match {
           case Success(logic) =>
-            Module(info, name, ports, Block(decls.toSeq ++ logic.toSeq ++ otherStmts.toSeq))
+            Module(info, name, ports, Block(decls ++ logic ++ otherStmts))
           // If we hit a CyclicException, just abort removing wires
           case Failure(c: CyclicException) =>
             val problematicNode = c.node
