@@ -105,7 +105,7 @@ object RemoveCHIRRTL extends Transform with DependencyAPIMigration {
         set_enable(rws.toSeq, "en") ++
         set_write(rws.toSeq, "wdata", "wmask")
       val mem = DefMemory(sx.info, sx.name, sx.tpe, sx.size, 1, if (sx.seq) 1 else 0,
-                  rds map (_.name).toSeq, wrs map (_.name).toSeq, rws map (_.name).toSeq, sx.readUnderWrite)
+                  rds.map(v => v.name).toSeq, wrs.map(v => v.name).toSeq, rws.map (v => v.name).toSeq, sx.readUnderWrite)
       Block(mem +: stmts)
     case sx: CDefMPort =>
       types.get(sx.mem) match {
