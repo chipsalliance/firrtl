@@ -80,7 +80,7 @@ class PropagatePresetAnnotations extends Transform with DependencyAPIMigration {
     // store async-reset trees
     val asyncCoMap = new TargetSetMap()
     // Annotations to be appended and returned as result of the transform
-    def annos() = cs.annotations.to(mutable.ArrayBuffer)  --= mutable.ArrayBuffer.from(presetAnnos)
+    val annos = cs.annotations.to[mutable.ArrayBuffer] -- presetAnnos
 
     val circuitTarget = CircuitTarget(cs.circuit.main)
 
@@ -301,7 +301,7 @@ class PropagatePresetAnnotations extends Transform with DependencyAPIMigration {
 
     cs.circuit.foreachModule(processModule) // PHASE 1 : Initialize
     annotateAsyncSet(asyncToAnnotate)       // PHASE 2 : Annotate
-    annos.toSeq
+    annos
   }
 
   /*
