@@ -56,7 +56,7 @@ class OptionParserSpec extends AnyFlatSpec with Matchers with firrtl.testutils.U
     catchStatus { parser.terminate(Left("some message")) } should be (Right(()))
 
     info("no exit for success")
-    catchStatus { parser.terminate(Right[Unit]) } should be (Right(()))
+    catchStatus { parser.terminate(Right()) } should be (Right(()))
   }
 
   behavior of "An OptionParser with DuplicateHandling mixed in"
