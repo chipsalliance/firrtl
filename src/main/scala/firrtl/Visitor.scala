@@ -158,11 +158,14 @@ class Visitor(infoMode: InfoMode) extends AbstractParseTreeVisitor[FirrtlNode] w
                 case (_, "?") => UnknownBound
                 case ("(", v) => Open(string2BigDecimal(v))
                 case ("[", v) => Closed(string2BigDecimal(v))
+                case _ => UnknownBound
               }
               val upper = (ctx.upperBound.getText, ctx.boundValue(1).getText) match {
                 case (_, "?") => UnknownBound
                 case (")", v) => Open(string2BigDecimal(v))
                 case ("]", v) => Closed(string2BigDecimal(v))
+                case _ => UnknownBound
+
               }
               val point = ctx.intLit.size match {
                 case 0 => UnknownWidth
