@@ -5,7 +5,7 @@ package analyses
 
 import ir._
 import scala.annotation.tailrec
-import scala.collection.JavaConverters._
+import firrtl.compat.JavaConverters._
 
 /** This is not intended to be used as a metric for the size of an actual
   *   circuit, but rather to debug the compiler itself
