@@ -4,7 +4,6 @@ package firrtl
 
 import org.antlr.v4.runtime.ParserRuleContext
 import org.antlr.v4.runtime.tree.{AbstractParseTreeVisitor, ParseTreeVisitor, TerminalNode}
-import scala.collection.JavaConverters._
 import scala.collection.mutable
 import firrtl.antlr._
 import PrimOps._
@@ -12,6 +11,7 @@ import FIRRTLParser._
 import Parser.{AppendInfo, GenInfo, IgnoreInfo, InfoMode, UseInfo}
 import firrtl.ir._
 import Utils.throwInternalError
+import firrtl.compat.JavaConverters._
 
 
 class Visitor(infoMode: InfoMode) extends AbstractParseTreeVisitor[FirrtlNode] with ParseTreeVisitor[FirrtlNode] {
