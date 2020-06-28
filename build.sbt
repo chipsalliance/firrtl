@@ -202,18 +202,56 @@ lazy val jqf = (project in file("jqf"))
     ),
   )
 
+
+lazy val jqfFuzz = sbt.inputKey[Unit]("")
+lazy val jqfRepro = sbt.inputKey[Unit]("")
+
+lazy val mainClassAndMethodParser = {
+  import sbt.complete.DefaultParsers._
+
+  val testClassName = token(charClass(c => isScalaIDChar(c) || (c == '.')).+.string, "<test class name>")
+  val testMethod = token(charClass(isScalaIDChar).+.string, "<test method name>")
+  val rest = token(any.*.string, "<other args>")
+  (token(Space) ~> (testClassName <~ SpaceClass.+.string) ~ (testMethod <~ SpaceClass.+.string) ~ rest).map {
+    case ((a, b), c) => (a, b, c)
+  }
+}
+
 lazy val fuzzer = (project in file("fuzzer"))
-  .enablePlugins(JQFPlugin)
   .dependsOn(firrtl)
   .settings(
     addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.1"),
     libraryDependencies ++= Seq(
       "com.pholser" % "junit-quickcheck-core" % "0.8",
       "com.pholser" % "junit-quickcheck-generators" % "0.8",
-      "edu.berkeley.cs.jqf" % "jqf-fuzz" % "1.4",
-      "com.github.scopt" %% "scopt" % "3.7.1",
+      "edu.berkeley.cs.jqf" % "jqf-fuzz" % "1.4"
     ),
-    jqfProject := jqf,
-    jqfFuzzMainClass := "firrtl.jqf.JQFFuzz",
-    jqfReproMainClass := "firrtl.jqf.JQFRepro",
+
+    jqfFuzz := (Def.inputTaskDyn {
+      val (testClassName, testMethod, otherArgs) = mainClassAndMethodParser.parsed
+      val outputDir = target.in(Compile).value / "JQF"
+      val classpath = (Compile / fullClasspathAsJars).toTask.value.files.mkString(":")
+      Def.taskDyn {
+        (jqf/runMain).in(Compile).toTask(
+          s" firrtl.jqf.JQFFuzz " +
+          s"--testClassName $testClassName " +
+          s"--testMethod $testMethod " +
+          s"--classpathElements $classpath " +
+          s"--outputDirectory $outputDir/$testClassName/$testMethod " +
+          otherArgs)
+      }
+    }).evaluated,
+
+    jqfRepro := (Def.inputTaskDyn {
+      val (testClassName, testMethod, otherArgs) = mainClassAndMethodParser.parsed
+      val classpath = (Compile / fullClasspathAsJars).toTask.value.files.mkString(":")
+      Def.taskDyn {
+        (jqf/runMain).in(Compile).toTask(
+          s" firrtl.jqf.JQFRepro " +
+          s"--testClassName $testClassName " +
+          s"--testMethod $testMethod " +
+          s"--classpathElements $classpath " +
+          otherArgs)
+      }
+    }).evaluated,
   )

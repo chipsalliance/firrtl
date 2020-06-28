@@ -52,9 +52,9 @@ object JQFRepro {
         opt[Seq[String]]("includes")
           .unbounded()
           .action((x, c) => c.copy(includes = x))
-        opt[Boolean]("printArgs")
+        opt[Unit]("printArgs")
           .unbounded()
-          .action((x, c) => c.copy(printArgs = x))
+          .action((_, c) => c.copy(printArgs = true))
     }
 
     parser.parse(args, JQFReproOptions()) match {
