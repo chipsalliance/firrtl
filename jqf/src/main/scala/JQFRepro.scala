@@ -12,7 +12,7 @@ import edu.berkeley.cs.jqf.instrument.InstrumentingClassLoader;
 import org.junit.runner.Result;
 
 case class JQFReproOptions(
-  classpathElements: Seq[String] = null,
+  classpath: Seq[String] = null,
   testClassName: String = null,
   testMethod: String = null,
   input: File = null,
@@ -26,10 +26,10 @@ case class JQFReproOptions(
 object JQFRepro {
   final def main(args: Array[String]): Unit = {
     val parser = new scopt.OptionParser[JQFReproOptions]("JQF-Repro") {
-        opt[String]("classpathElements")
+        opt[String]("classpath")
           .required()
           .unbounded()
-          .action((x, c) => c.copy(classpathElements = x.split(":")))
+          .action((x, c) => c.copy(classpath = x.split(":")))
         opt[String]("testClassName")
           .required()
           .unbounded()
@@ -74,7 +74,7 @@ object JQFRepro {
 
     val loader = try {
       new InstrumentingClassLoader(
-        opts.classpathElements.toArray,
+        opts.classpath.toArray,
         getClass().getClassLoader())
     } catch  {
       case e: MalformedURLException =>

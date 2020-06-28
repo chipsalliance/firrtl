@@ -19,7 +19,7 @@ case object Zest extends JQFEngine
 
 case class JQFFuzzOptions(
   // required
-  classpathElements: Seq[String] = null,
+  classpath: Seq[String] = null,
   outputDirectory: File = null,
   testClassName: String = null,
   testMethod: String = null,
@@ -41,10 +41,10 @@ case class JQFFuzzOptions(
 object JQFFuzz {
   final def main(args: Array[String]): Unit = {
     val parser = new scopt.OptionParser[JQFFuzzOptions]("JQF-Fuzz") {
-        opt[String]("classpathElements")
+        opt[String]("classpath")
           .required()
           .unbounded()
-          .action((x, c) => c.copy(classpathElements = x.split(":")))
+          .action((x, c) => c.copy(classpath = x.split(":")))
         opt[File]("outputDirectory")
           .required()
           .unbounded()
@@ -143,14 +143,14 @@ object JQFFuzz {
     }.getOrElse(null)
 
     val loader = try {
-      val classpathElements = opts.classpathElements.toArray
+      val classpath = opts.classpath.toArray
       if (opts.disableCoverage) {
         new URLClassLoader(
-          classpathElements.map(cpe => new File(cpe).toURI().toURL()),
+          classpath.map(cpe => new File(cpe).toURI().toURL()),
           getClass().getClassLoader())
       } else {
         new InstrumentingClassLoader(
-          classpathElements,
+          classpath,
           getClass().getClassLoader())
       }
     } catch {
