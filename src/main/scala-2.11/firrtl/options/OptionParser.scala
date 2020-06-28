@@ -28,7 +28,7 @@ trait ExceptOnError { this: OptionParser[_] =>
   */
 trait DuplicateHandling extends OptionParser[AnnotationSeq] {
 
-  def parse(args: Seq[String], init: AnnotationSeq): Option[AnnotationSeq] = {
+  override def parse(args: Seq[String], init: AnnotationSeq): Option[AnnotationSeq] = {
 
     /** Message for found duplicate options */
     def msg(x: String, y: String) = s"""Duplicate $x "$y" (did your custom Transform or OptionsManager add this?)"""
