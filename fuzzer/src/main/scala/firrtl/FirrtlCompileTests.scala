@@ -8,6 +8,7 @@ import org.junit.Assert._
 import org.junit.Assume._
 import org.junit.runner.RunWith
 import firrtl.ir._
+import firrtl.Namespace
 
 import edu.berkeley.cs.jqf.fuzz.Fuzz;
 import edu.berkeley.cs.jqf.fuzz.JQF;
@@ -17,7 +18,9 @@ class FirrtlSingleModuleGenerator extends Generator[Circuit](classOf[Circuit]) {
     import firrtl.fuzzer._
     import GenMonad.implicits._
     implicit val r = Random(random)
-    val gen = Fuzzers.exprCircuit[ASTGen](10000)
+
+    val context = ExprContext(Set.empty, Set.empty, 10000, Namespace())
+    val gen = Fuzzers.exprCircuit[ASTGen](context)
     gen()
   }
 }
@@ -46,6 +49,7 @@ class FirrtlCompileTests {
     try {
       val res = compiler.compile(c, Seq())
     } catch {
+      case e: firrtl.CustomTransformException => assert(false, c.circuit.serialize + "\n" + e.cause.toString)
       case any : Throwable => assert(false, c.circuit.serialize + "\n" + any.toString)
     }
 

@@ -211,7 +211,7 @@ lazy val testClassAndMethodParser = {
   val spaces = SpaceClass.+.string
   val testClassName = token(Space) ~> token(charClass(c => isScalaIDChar(c) || (c == '.')).+.string, "<test class name>")
   val testMethod = spaces ~> token(charClass(isScalaIDChar).+.string, "<test method name>")
-  val rest = spaces ~> token(any.*.string, "<other args>")
+  val rest = spaces.? ~> token(any.*.string, "<other args>")
   (testClassName ~ testMethod ~ rest).map {
     case ((a, b), c) => (a, b, c)
   }
@@ -224,7 +224,7 @@ lazy val fuzzer = (project in file("fuzzer"))
     libraryDependencies ++= Seq(
       "com.pholser" % "junit-quickcheck-core" % "0.8",
       "com.pholser" % "junit-quickcheck-generators" % "0.8",
-      "edu.berkeley.cs.jqf" % "jqf-fuzz" % "1.4"
+      "edu.berkeley.cs.jqf" % "jqf-fuzz" % "1.4",
     ),
 
     jqfFuzz := (Def.inputTaskDyn {

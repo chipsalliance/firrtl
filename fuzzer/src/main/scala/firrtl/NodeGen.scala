@@ -4,107 +4,35 @@ import firrtl.ir._
 import firrtl.passes.CheckWidths
 import firrtl.{Namespace, PrimOps, Utils}
 
-import scala.annotation.tailrec
-
-trait ASTGen[A] {
-  def apply(): A
-  def flatMap[B](f: A => ASTGen[B]): ASTGen[B] = ASTGen { f(apply())() }
-  def map[B](f: A => B): ASTGen[B] = ASTGen { f(apply()) }
-  def widen[B >: A]: ASTGen[B] = ASTGen { apply() }
+trait Context[Gen[_]] {
+  def unboundRefs: Set[Reference] // should have type set
+  def decls: Set[IsDeclaration]
+  def maxDepth: Int
+  def withRef(ref: Reference): Context[Gen]
+  def decrementDepth: Context[Gen]
+  def incrementDepth: Context[Gen]
+  def namespace: Namespace
+  def exprGen(tpe: Type): Gen[(Context[Gen], Expression)]
 }
 
-object ASTGen {
-  def apply[T](f: => T): ASTGen[T] = new ASTGen[T] {
-    def apply(): T = f
-  }
-}
-
-
-trait Random {
-  def nextInt(min: Int, max: Int) : Int
-  def oneOf[T](items: Seq[T]) : T
-}
-
-object Random {
-  import com.pholser.junit.quickcheck.random.SourceOfRandomness
-
-  def apply(sor: SourceOfRandomness): Random = new Random {
-    def nextInt(min: Int, max: Int) : Int = sor.nextInt(min, max)
-    def oneOf[T](items: Seq[T]) : T = {
-      val a = scala.collection.JavaConverters.seqAsJavaList(items)
-      sor.choose(a)
+case class ExprContext(
+  unboundRefs: Set[Reference],
+  decls: Set[IsDeclaration],
+  maxDepth: Int,
+  namespace: Namespace,
+  exprGenFn: Type => Fuzzers.State[ASTGen, Context[ASTGen], Expression],
+  leafGenFn: Type => Fuzzers.State[ASTGen, Context[ASTGen], Expression]) extends Context[ASTGen] {
+  def withRef(ref: Reference): ExprContext = this.copy(unboundRefs = unboundRefs + ref)
+  def decrementDepth: ExprContext = this.copy(maxDepth = maxDepth - 1)
+  def incrementDepth: ExprContext = this.copy(maxDepth = maxDepth + 1)
+  def exprGen(tpe: Type): ASTGen[(Context[ASTGen], Expression)] = {
+    (if (maxDepth > 0) {
+      exprGenFn(tpe)(this.decrementDepth)
+    } else {
+      leafGenFn(tpe)(this)
+    }).map {
+      case (ctx, expr) => ctx.incrementDepth -> expr
     }
-  }
-}
-
-
-trait GenMonad[G[_]] {
-  def flatMap[A, B](a: G[A])(f: A => G[B]): G[B]
-  def flatten[A](gga: G[G[A]]): G[A]
-  def map[A, B](a: G[A])(f: A => B): G[B]
-  def choose(min: Int, max: Int): G[Int]
-  def oneOf[A](items: A*): G[A]
-  def const[A](c: A): G[A]
-  def widen[A, B >: A](ga: G[A]): G[B]
-
-  def identifier(maxLength: Int): G[String]
-}
-
-object GenMonad {
-  object implicits {
-    implicit def astGenGenMonadInstance(implicit r: Random): GenMonad[ASTGen] = new GenMonad[ASTGen] {
-      type G[T] = ASTGen[T]
-      def flatMap[A, B](a: G[A])(f: A => G[B]): G[B] = a.flatMap(f)
-      def flatten[A](gga: G[G[A]]): G[A] = gga.flatMap(ga => ga)
-      def map[A, B](a: G[A])(f: A => B): G[B] = a.map(f)
-      def choose(min: Int, max: Int): G[Int] = ASTGen {
-        r.nextInt(min, max)
-      }
-      def oneOf[T](items: T*): G[T] = {
-        const(items).map(r.oneOf(_))
-      }
-      def const[T](c: T): G[T] = ASTGen(c)
-      def widen[A, B >: A](ga: G[A]): G[B] = ga.widen[B]
-      private val Alpha : Seq[String] = (('a' to 'z') ++ ('A' to 'Z') ++ Seq('_')).map(_.toString)
-      private val AlphaNum : Seq[String] = Alpha ++ ('0' to '9').map(_.toString)
-      def identifier(maxLength: Int): G[String] = {
-        // (12 Details about Syntax):
-        // > The following characters are allowed in identifiers: upper and lower case letters, digits, and _.
-        // > Identifiers cannot begin with a digit.
-        assert(maxLength >= 1)
-        ASTGen {
-          val len = r.nextInt(1, maxLength)
-          val start = r.oneOf(Alpha)
-          if (len == 1) { start } else {
-            start + (1 until len).map(_ => r.oneOf(AlphaNum)).reduce(_ + _)
-          }
-        }
-      }
-    }
-  }
-
-  def apply[G[_]: GenMonad] = implicitly[GenMonad[G]]
-
-  object syntax {
-    final class GenMonadOps[G[_], A](ga: G[A]) {
-      def flatMap[B](f: A => G[B])(implicit GM: GenMonad[G]): G[B] = {
-        GM.flatMap(ga)(f)
-      }
-      def map[B](f: A => B)(implicit GM: GenMonad[G]): G[B] = {
-        GM.map(ga)(f)
-      }
-      def widen[B >: A](implicit GM: GenMonad[G]): G[B] = {
-        GM.widen[A, B](ga)
-      }
-    }
-    final class GenMonadFlattenOps[G[_], A](gga: G[G[A]]) {
-      def flatten(implicit GM: GenMonad[G]): G[A] = GM.flatten(gga)
-    }
-
-    implicit final def genMonadOps[G[_], A](ga: G[A]): GenMonadOps[G, A] =
-      new GenMonadOps(ga)
-    implicit final def genMonadFlattenOps[G[_], A](gga: G[G[A]]): GenMonadFlattenOps[G, A] =
-      new GenMonadFlattenOps(gga)
   }
 }
 
@@ -112,98 +40,136 @@ object Fuzzers {
   import GenMonad.implicits._
   import GenMonad.syntax._
 
-  def intWidth[G[_]: GenMonad]: G[IntWidth] =
-    GenMonad[G].choose(0, CheckWidths.MaxWidth).map(w => IntWidth(BigInt(w)))
+  type State[Gen[_], Ctx, A] = Ctx => Gen[(Ctx, A)]
 
-  def intOrUnknownWidth[G[_]: GenMonad]: G[Width] =
-    GenMonad[G].oneOf(
-      intWidth.widen[Width],
-      GenMonad[G].const(UnknownWidth).widen[Width]
-    ).flatten
-
-  def uintLit[G[_]: GenMonad]: G[UIntLiteral] = for {
-    value <- GenMonad[G].choose(0, Int.MaxValue)
-    width <- intOrUnknownWidth
-  } yield {
-    UIntLiteral(value, width)
+  def widthOp(width: Width)(op: BigInt => BigInt): Width = width match {
+    case IntWidth(i) => IntWidth(op(i))
+    case UnknownWidth => UnknownWidth
   }
 
-  def sintLit[G[_]: GenMonad]: G[SIntLiteral] = for {
-    value <- GenMonad[G].choose(Int.MinValue, Int.MaxValue)
-    width <- intOrUnknownWidth
-  } yield {
-    SIntLiteral(value, width)
-  }
-
-  def binaryPrimOp[G[_]: GenMonad]: G[PrimOp] = {
-    import PrimOps._
-    GenMonad[G].oneOf(
-      Add, Sub, Mul, Div, Rem, Lt, Leq, Gt, Geq,
-      Eq, Neq, /*Dshl, Dshr,*/ And, Or, Xor, Cat,
-      //Clip, Wrap, Squeeze
-    )
-  }
-
-  trait Context {
-    def refs: Set[Reference]
-    def maxDepth: Int
-    def withRef(ref: Reference): Context
-    def decrementDepth: Context
-    def namespace: Namespace
-  }
-
-  def binDoPrim[G[_]: GenMonad](ctx0: Context): G[(Context, Expression)] = {
+  def makeBinPrimOpGen[G[_]: GenMonad](
+    primOp: PrimOp,
+    typeFn: Type => G[(Type, Type)],
+    tpe: Type): State[G, Context[G], Expression] = (ctx0: Context[G]) => {
     for {
-      op <- binaryPrimOp
-      (ctx1, expr1) <- genExpr(ctx0)
-      (ctx2, expr2) <- genExpr(ctx1)
+      (tpe1, tpe2) <- typeFn(tpe)
+      (ctx1, expr1) <- ctx0.exprGen(tpe1)
+      (ctx2, expr2) <- ctx1.exprGen(tpe2)
     } yield {
-      ctx2 -> PrimOps.set_primop_type(
-        DoPrim(op, Seq(expr1, expr2), Seq.empty, UnknownType))
+      ctx2 -> DoPrim(primOp, Seq(expr1, expr2), Seq.empty, tpe)
     }
   }
 
-  def ref[G[_]: GenMonad](ctx0: Context, nameOpt: Option[String] = None): G[(Context, Reference)] = for {
-    width <- GenMonad[G].choose(0, CheckWidths.MaxWidth)
-    tpe <- GenMonad[G].oneOf(
-      SIntType(IntWidth(BigInt(width))),
-      UIntType(IntWidth(BigInt(width)))
-    )
-    name <- nameOpt.map(GenMonad[G].const).getOrElse(GenMonad[G].identifier(20))
-  } yield {
-    val ref = Reference(ctx0.namespace.newName(name), tpe)
-    ctx0.withRef(ref) -> ref
+  def genAddPrimOp[G[_]: GenMonad](tpe: Type): State[G, Context[G], Expression] = {
+    val typeFn: Type => G[(Type, Type)] = {
+      case UIntType(width) =>
+        val tpe = UIntType(widthOp(width)(_ - 1))
+        GenMonad[G].const(tpe -> tpe)
+      case SIntType(width) =>
+        val tpe = UIntType(widthOp(width)(_ - 1))
+        GenMonad[G].const(tpe -> tpe)
+      case UnknownType => for {
+        width1 <- GenMonad[G].choose(0, CheckWidths.MaxWidth)
+        width2 <- GenMonad[G].choose(0, CheckWidths.MaxWidth)
+        tpe <- GenMonad[G].oneOf(UIntType(_), SIntType(_))
+      } yield {
+        tpe(IntWidth(width1)) -> tpe(IntWidth(width2))
+      }
+    }
+    makeBinPrimOpGen(PrimOps.Add, typeFn, tpe)
   }
 
-  def leaf[G[_]: GenMonad](ctx0: Context): G[(Context, Expression)] = {
-    GenMonad[G].oneOf(
-      uintLit.map((e: Expression) => ctx0 -> e),
-      sintLit.map((e: Expression) => ctx0 -> e),
-      ref(ctx0).widen[(Context, Expression)]
-    ).flatten
+  def genUIntLiteralLeaf[G[_]: GenMonad](tpe: UIntType): State[G, Context[G], Expression] = (ctx: Context[G]) => {
+    val genWidth: G[Int] = tpe.width match {
+      case UnknownWidth => GenMonad[G].choose(0, CheckWidths.MaxWidth)
+      case IntWidth(width) => GenMonad[G].choose(0, math.max(CheckWidths.MaxWidth, width.toInt))
+    }
+    genWidth.flatMap { width =>
+      GenMonad[G].choose(0, math.max(Int.MaxValue, 1 << width)).map { value =>
+        ctx -> UIntLiteral(value, IntWidth(width))
+      }
+    }
   }
-
-  def genExpr[G[_]: GenMonad](ctx0: Context): G[(Context, Expression)] = {
-    if (ctx0.maxDepth <= 0) {
-      leaf(ctx0)
-    } else {
-      GenMonad[G].oneOf(
-        binDoPrim(ctx0.decrementDepth),
-        leaf(ctx0),
-      ).flatten
+  def genSIntLiteralLeaf[G[_]: GenMonad](tpe: SIntType): State[G, Context[G], Expression] = (ctx: Context[G]) => {
+    val genWidth: G[Int] = tpe.width match {
+      case UnknownWidth => GenMonad[G].choose(0, CheckWidths.MaxWidth)
+      case IntWidth(width) => GenMonad[G].choose(0, math.max(CheckWidths.MaxWidth, width.toInt))
+    }
+    genWidth.flatMap { width =>
+      GenMonad[G].choose(
+        math.min(Int.MinValue, 1 - (1 << width)),
+        math.max(Int.MaxValue, 1 << width)).map { value =>
+          ctx -> SIntLiteral(value, IntWidth(width))
+        }
     }
   }
 
-
-  case class Ctx(refs: Set[Reference], maxDepth: Int, namespace: Namespace) extends Context {
-    def withRef(ref: Reference): Context = this.copy(refs = refs + ref)
-    def decrementDepth: Context = this.copy(maxDepth = maxDepth - 1)
+  def genLiteralLeaf[G[_]: GenMonad](tpe: Type): State[G, Context[G], Expression] = {
+    tpe match {
+      case u: UIntType => genUIntLiteralLeaf(u)
+      case s: SIntType => genSIntLiteralLeaf(s)
+      case UnknownType => (ctx: Context[G]) =>
+        GenMonad[G].choose(0, CheckWidths.MaxWidth).flatMap { width =>
+          GenMonad[G].oneOf(
+            genUIntLiteralLeaf(UIntType(IntWidth(width))),
+            genSIntLiteralLeaf(SIntType(IntWidth(width)))
+          ).flatMap(_(ctx))
+        }
+    }
   }
 
-  def exprMod[G[_]: GenMonad](maxDepth: Int): G[(Context, Module)] = {
+  def genRefLeaf[G[_]: GenMonad](
+    nameOpt: Option[String]
+  )(tpe: Type): State[G, Context[G], Reference] = (ctx0: Context[G]) => {
+    val genType: G[Type] = tpe match {
+      case GroundType(UnknownWidth) =>
+        GenMonad[G].choose(0, CheckWidths.MaxWidth)
+          .map(w => tpe.mapWidth(_ => IntWidth(w)))
+      case GroundType(IntWidth(width)) =>
+        GenMonad[G].choose(0, math.max(CheckWidths.MaxWidth, width.toInt))
+          .map(w => tpe.mapWidth(_ => IntWidth(w)))
+      case UnknownType => GenMonad[G].const(UnknownType)
+    }
+
     for {
-      (ctx0, expr) <- genExpr(Ctx(Set.empty, maxDepth, Namespace()))
-      (ctx1, outputPortRef) <- ref(ctx0, Some("outputPort"))
+      tpe <- genType
+      name <- nameOpt.map(GenMonad[G].const).getOrElse(GenMonad[G].identifier(20))
+    } yield {
+      val ref = Reference(ctx0.namespace.newName(name), tpe)
+      ctx0.withRef(ref) -> ref
+    }
+  }
+
+  def genLeaf[G[_]: GenMonad](tpe: Type): State[G, Context[G], Expression] = (ctx0: Context[G]) => {
+    val stateGen: G[State[G, Context[G], Expression]] = GenMonad[G].oneOf(
+      (ctx: Context[G]) => genRefLeaf(None)(tpe)(GenMonad[G])(ctx).map {
+         case (s, a) => (s, a.asInstanceOf[Expression])
+       },
+      genLiteralLeaf(tpe),
+    )
+    stateGen.flatMap(_(ctx0))
+  }
+/*
+  def genSubPrimOp[G[_]: GenMonad](tpe: Type): Context[G] => G[(Context[G], Expression)] = {
+    val typeFn = (_: Type) match {
+      case UIntType(width) => UIntType(widthOp(width)(_ - 1))
+      case SIntType(width) => UIntType(widthOp(width)(_ - 1))
+    }
+    makeBinPrimOpGen(
+      PrimOps.Add, typeFn, typeFn, tpe)
+  }*/
+
+
+  def exprMod[G[_]: GenMonad](ctx0: Context[G]): G[(Context[G], Module)] = {
+    for {
+      tpe <- GenMonad[G].oneOf(
+        GenMonad[G].choose(0, CheckWidths.MaxWidth)
+          .map(w => UIntType(IntWidth(w))).widen[Type],
+        GenMonad[G].choose(0, CheckWidths.MaxWidth)
+          .map(w => SIntType(IntWidth(w))).widen[Type]
+      ).flatten
+      (ctx1, expr) <- ctx0.exprGen(tpe)
+      (ctx2, outputPortRef) <- genRefLeaf(Some("outputPort"))(tpe)(GenMonad[G])(ctx1)
     } yield {
       val outputPort = Port(
         NoInfo,
@@ -211,154 +177,22 @@ object Fuzzers {
         Output,
         outputPortRef.tpe
       )
-      ctx1 -> Module(
+      ctx2 -> Module(
         NoInfo,
         "foo",
-        ctx0.refs.map { ref =>
-          Port(NoInfo, ref.name, Input, ref.tpe)
+        ctx2.unboundRefs.flatMap {
+          case ref if ref.name == outputPortRef.name => None
+          case ref => Some(Port(NoInfo, ref.name, Input, ref.tpe))
         }.toSeq.sortBy(_.name) :+ outputPort,
         Connect(NoInfo, outputPortRef, expr)
       )
     }
   }
 
-  def exprCircuit[G[_]: GenMonad](maxDepth: Int): G[Circuit] = {
-    exprMod(maxDepth).map { case (_, m) =>
+  def exprCircuit[G[_]: GenMonad](ctx: Context[G]): G[Circuit] = {
+    exprMod(ctx).map { case (_, m) =>
       Circuit(NoInfo, Seq(m), m.name)
     }
   }
 }
-
-/*
-  def subField(
-    expr: Gen[Expression],
-    name: Gen[String]
-  ): Gen[SubField] = for {
-    e <- expr
-    n <- name
-  } yield {
-    SubField(e, n)
-  }
-
-  def subIndex(
-    expr: Gen[Expression],
-    value: Gen[Int],
-  ): Gen[SubIndex] = for {
-    e <- expr
-    v <- value
-  } yield {
-    SubIndex(e, v, UnknownType)
-  }
-
-  def mux(
-    cond: Gen[Expression],
-    tval: Gen[Expression],
-    fval: Gen[Expression]
-  ): Gen[Mux] = for {
-    c <- cond
-    t <- tval
-    f <- fval
-  } yield {
-    Mux(c, t, f, UnknownType)
-  }
-
-  def validIf(
-    cond: Gen[Expression],
-    value: Gen[Expression]
-  ): Gen[ValidIf] = for {
-    c <- cond
-    v <- value
-  } yield {
-    ValidIf(c, v, UnknownType)
-  }
-
-  def groundType(gen: Gen[Expression]): Gen[Expression] = {
-    gen.flatMap { expr =>
-      expr.tpe match {
-        case _: GroundType => Gen.const(expr)
-        case BundleType(fields) =>
-          groundType(Gen.oneOf(fields).map { f =>
-            SubField(expr, f.name, f.tpe)
-          })
-        case VectorType(tpe, size) =>
-          groundType(Gen.choose(0, size - 1).map { i =>
-            SubIndex(expr, i, tpe)
-          })
-      }
-    }
-  }
-
-  // def boolType(exprs: Gen[Expression]*): Gen[PrimOp] = {
-  //   for {
-  //     exprs
-  //   }
-  // }
-
-  def binaryDoPrim(exprs: Gen[Expression]*): Gen[DoPrim] = {
-    for {
-      op <- binaryPrimOp
-      expr1 <- Gen.oneOf(exprs).flatMap(groundType)
-      expr2 <- Gen.oneOf(exprs).flatMap(groundType)
-    } yield {
-      PrimOps.set_primop_type(
-        DoPrim(PrimOps.Add, Seq(expr1, expr2), Seq.empty, UnknownType))
-    }
-  }
-
-  sealed trait TypeConstraint
-  case object AnyType extends TypeConstraint
-  case class Equals(tpe: Type) extends TypeConstraint
-  case class ContainsField(field: String) extends TypeConstraint
-  case class ContainsIndex(tpe: Type) extends TypeConstraint
-  */
-
-/*
-  def anyExprGen(ctx: Context): ASTGen[Expression] = ???
-
-  def mux(ctx0: Context): ASTGen[Mux] = {
-    for {
-      (ctx1, cond) <- exprGenWithType(ctx0, UIntType(IntWidth(1)))
-      (ctx2, tval) <- anyExprGen(ctx1)
-      (ctx3, fval) <- exprGenWithType(ctx2, tval.tpe)
-    } yield {
-      ctx3 -> Mux(cond, tval, fval)
-    }
-  }
-
-  def getType(op: PrimOp, t1: Type, t2: Type): Type = {
-    op match {
-      case (UIntType, UIntType) =>
-    }
-  }
-
-  def exprGenWithType(ctx: Context, tpe: Type): ASTGen[Expression] = {
-    tpe match {
-      case UIntType(UnknownWidth) =>
-        doPrim()
-      case UIntType(IntWidth(width)) =>
-      case SIntType(UnknownWidth) =>
-      case SIntType(IntWidth(width)) =>
-      case FixedType =>
-      case IntervalType =>
-      case ClockType =>
-      case ResetType =>
-      case AsyncResetType =>
-      case AnalogType =>
-    }
-  }
-
-  def exprGenWithType(ctx: Context, tpe: Type): ASTGen[Expression] = ???
-
-  def groundTypeBinaryDoPrim(ctx0: Context, op: PrimOp, isSigned: Boolean): ASTGen[DoPrim] = {
-    val tpe = if (isSigned) SIntType(UnknownWidth) else UIntType(UnknownWidth)
-    for {
-      (ctx1, expr1) <- exprGenWithType(ctx0, tpe)
-      (ctx2, expr2) <- exprGenWithType(ctx1, tpe)
-    } yield {
-      ctx2 -> PrimOps.set_primop_type(
-        DoPrim(op, Seq(expr1, expr2), Seq.empty, UnknownType))
-    }
-  }
-*/
-
 
