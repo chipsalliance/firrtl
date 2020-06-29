@@ -79,6 +79,25 @@ object Fuzzers {
     makeBinPrimOpGen(PrimOps.Add, typeFn, tpe)
   }
 
+  def genSubPrimOp[G[_]: GenMonad](tpe: Type): State[G, Context[G], Expression] = {
+    val typeFn: Type => G[(Type, Type)] = {
+      case UIntType(width) =>
+        val tpe = UIntType(widthOp(width)(_ - 1))
+        GenMonad[G].const(tpe -> tpe)
+      case SIntType(width) =>
+        val tpe = UIntType(widthOp(width)(_ - 1))
+        GenMonad[G].const(tpe -> tpe)
+      case UnknownType => for {
+        width1 <- GenMonad[G].choose(0, CheckWidths.MaxWidth)
+        width2 <- GenMonad[G].choose(0, CheckWidths.MaxWidth)
+        tpe <- GenMonad[G].oneOf(UIntType(_), SIntType(_))
+      } yield {
+        tpe(IntWidth(width1)) -> tpe(IntWidth(width2))
+      }
+    }
+    makeBinPrimOpGen(PrimOps.Sub, typeFn, tpe)
+  }
+
   def genUIntLiteralLeaf[G[_]: GenMonad](tpe: UIntType): State[G, Context[G], Expression] = (ctx: Context[G]) => {
     val genWidth: G[Int] = tpe.width match {
       case UnknownWidth => GenMonad[G].choose(0, CheckWidths.MaxWidth)
