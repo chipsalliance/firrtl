@@ -27,6 +27,8 @@ class FastInstanceGraph(c: ir.Circuit) {
   private val roots = c.modules.map(_.name).filterNot(instantiated)
   private val graph = buildGraph(childInstances, roots)
   private val circuitTopInstance = topKey(c.main)
+  // cache vertices to speed up repeat calls to findInstancesInHierarchy
+  private lazy val vertices = graph.getVertices
 
 
   /** A list of absolute paths (each represented by a Seq of instances)
@@ -51,7 +53,7 @@ class FastInstanceGraph(c: ir.Circuit) {
     * @return a Seq[ Seq[WDefInstance] ] of absolute instance paths
     */
   def findInstancesInHierarchy(module: String): Seq[Seq[Key]] = {
-    val instances = graph.getVertices.filter(_.module == module).toSeq
+    val instances = vertices.filter(_.module == module).toSeq
     instances.flatMap{ i => fullHierarchy.getOrElse(i, Nil) }
   }
 }
