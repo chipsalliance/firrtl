@@ -20,20 +20,11 @@ case class ExprContext(
   decls: Set[IsDeclaration],
   maxDepth: Int,
   namespace: Namespace,
-  exprGenFn: Type => Fuzzers.State[ASTGen, Context[ASTGen], Expression],
-  leafGenFn: Type => Fuzzers.State[ASTGen, Context[ASTGen], Expression]) extends Context[ASTGen] {
+  exprGenFn: Type => Fuzzers.State[ASTGen, Context[ASTGen], Expression]) extends Context[ASTGen] {
   def withRef(ref: Reference): ExprContext = this.copy(unboundRefs = unboundRefs + ref)
   def decrementDepth: ExprContext = this.copy(maxDepth = maxDepth - 1)
   def incrementDepth: ExprContext = this.copy(maxDepth = maxDepth + 1)
-  def exprGen(tpe: Type): ASTGen[(Context[ASTGen], Expression)] = {
-    (if (maxDepth > 0) {
-      exprGenFn(tpe)(this.decrementDepth)
-    } else {
-      leafGenFn(tpe)(this)
-    }).map {
-      case (ctx, expr) => ctx.incrementDepth -> expr
-    }
-  }
+  def exprGen(tpe: Type): ASTGen[(Context[ASTGen], Expression)] = exprGenFn(tpe)(this)
 }
 
 object Fuzzers {

@@ -47,16 +47,16 @@ trait GenMonad[G[_]] {
 
   def identifier(maxLength: Int): G[String]
 
-  def frequency[A](pairs: (Int, A)*): G[A] = {
+  def frequency[a](pairs: (Int, a)*): G[a] = {
     assert(pairs.forall(_._1 > 0))
-    assert(pairs.size >=1 )
+    assert(pairs.size >= 1)
     val total = pairs.map(_._1).sum
-    map(choose(0, total)) { startNum =>
-      var num = startNum
+    map(choose(1, total)) { startnum =>
       var idx = 0
+      var num = startnum - pairs(idx)._1
       while (num > 0) {
-        num - pairs(idx)._1
-        idx -= 1
+        idx += 1
+        num -= pairs(idx)._1
       }
       pairs(idx)._2
     }

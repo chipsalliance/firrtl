@@ -101,9 +101,16 @@ object JQFFuzz {
           .action((x, c) => c.copy(runTimeout = Some(x)))
     }
 
-    parser.parse(args, JQFFuzzOptions()) match {
-      case Some(opts) => execute(opts)
-      case _ => System.exit(1)
+    try {
+      parser.parse(args, JQFFuzzOptions()) match {
+        case Some(opts) => execute(opts)
+        case _ => System.exit(1)
+      }
+      System.gc();
+    } catch {
+      case e: Throwable =>
+        System.gc();
+        throw e
     }
   }
 
