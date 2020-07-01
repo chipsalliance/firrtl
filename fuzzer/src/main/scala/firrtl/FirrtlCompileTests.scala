@@ -24,21 +24,13 @@ class FirrtlSingleModuleGenerator extends Generator[Circuit](classOf[Circuit]) {
     val context = ExprContext(
       unboundRefs = Set.empty,
       decls = Set.empty,
-      maxDepth = 100,
+      maxDepth = 1000,
       namespace = Namespace(),
       exprGenFn = (tpe: Type) => (ctx: Context[ASTGen]) => {
-        val branchGen = (tpe: Type) => (ctx: Context[ASTGen]) => {
-          val state: ASTGen[Fuzzers.State[ASTGen, Context[ASTGen], Expression]] = GenMonad[ASTGen].oneOf(
-            //(OldFuzzers.genExpr: Fuzzers.State[ASTGen, Context[ASTGen], Expression]),
-            Fuzzers.genAddPrimOp(tpe),
-            Fuzzers.genSubPrimOp(tpe)
-          )
-          state.flatMap(_(ctx))
-        }
         val leafGen: Type => Fuzzers.State[ASTGen, Context[ASTGen], Expression] = Fuzzers.genLeaf
         if (ctx.maxDepth > 0) {
           GenMonad[ASTGen].frequency(
-            3 -> (branchGen(tpe)(_: Context[ASTGen]).map {
+            3 -> (Fuzzers.recursiveExprGen(tpe, _: Context[ASTGen]).map {
               case (ctxx, expr) => ctxx.incrementDepth -> expr
             }),
             4 -> (leafGen(tpe)(_))
@@ -48,7 +40,9 @@ class FirrtlSingleModuleGenerator extends Generator[Circuit](classOf[Circuit]) {
         }
       })
     val gen = Fuzzers.exprCircuit[ASTGen](context)
-    gen()
+    val asdf = gen()
+    println(asdf.serialize)
+    asdf
   }
 }
 
@@ -76,6 +70,7 @@ class FirrtlCompileTests {
         throw e
     }
     compile(high)
+
     // compile(CircuitState(c, ChirrtlForm, Seq()))
   }
 
