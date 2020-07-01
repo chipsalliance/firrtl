@@ -57,6 +57,8 @@ class InstanceGraph(c: Circuit) {
     */
   lazy val graph = DiGraph(instanceGraph)
 
+  lazy val vertices = graph.getVertices
+
   /** A list of absolute paths (each represented by a Seq of instances)
     * of all module instances in the Circuit.
     */
@@ -90,7 +92,7 @@ class InstanceGraph(c: Circuit) {
     * @return a Seq[ Seq[WDefInstance] ] of absolute instance paths
     */
   def findInstancesInHierarchy(module: String): Seq[Seq[WDefInstance]] = {
-    val instances = graph.getVertices.filter(_.module == module).toSeq
+    val instances = vertices.filter(_.module == module).toSeq
     instances flatMap { i => fullHierarchy.getOrElse(i, Nil) }
   }
 
@@ -141,7 +143,7 @@ class InstanceGraph(c: Circuit) {
     childInstances.map(kv => kv._1.OfModule -> asOrderedMap(kv._2, (i: WDefInstance) => i.toTokens))
 
   /** The set of all modules in the circuit */
-  lazy val modules: collection.Set[OfModule] = graph.getVertices.map(_.OfModule)
+  lazy val modules: collection.Set[OfModule] = vertices.map(_.OfModule)
 
   /** The set of all modules in the circuit reachable from the top module */
   lazy val reachableModules: collection.Set[OfModule] =
@@ -162,8 +164,7 @@ object InstanceGraph {
     */
   def collectInstances(insts: mutable.Set[WDefInstance])
                       (s: Statement): Unit = s match {
-    case i: WDefInstance => insts += i
-    case i: DefInstance => throwInternalError("Expecting WDefInstance, found a DefInstance!")
+    case DefInstance(_, n, m, _) => insts += DefInstance(n, m)
     case i: WDefInstanceConnector => throwInternalError("Expecting WDefInstance, found a WDefInstanceConnector!")
     case _ => s.foreach(collectInstances(insts))
   }
