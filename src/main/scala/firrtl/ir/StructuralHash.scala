@@ -108,51 +108,10 @@ object StructuralHash {
     }
   }
 
-  //scalastyle:off cyclomatic.complexity method.length magic.number
-  private def primOp(p: PrimOp): Byte = p match {
-    case PrimOps.Add => -1
-    case PrimOps.Sub => -2
-    case PrimOps.Mul => -3
-    case PrimOps.Div => -4
-    case PrimOps.Rem => -5
-    case PrimOps.Lt => -6
-    case PrimOps.Leq => -7
-    case PrimOps.Gt => -8
-    case PrimOps.Geq => -9
-    case PrimOps.Eq => -10
-    case PrimOps.Neq => -11
-    case PrimOps.Pad => -12
-    case PrimOps.Shl => -13
-    case PrimOps.Shr => -14
-    case PrimOps.Dshl => -15
-    case PrimOps.Dshr => -16
-    case PrimOps.Cvt => -17
-    case PrimOps.Neg => -18
-    case PrimOps.Not => -19
-    case PrimOps.And => -20
-    case PrimOps.Or => -21
-    case PrimOps.Xor => -22
-    case PrimOps.Andr => -23
-    case PrimOps.Orr => -24
-    case PrimOps.Xorr => -25
-    case PrimOps.Cat => -26
-    case PrimOps.Bits => -27
-    case PrimOps.Head => -28
-    case PrimOps.Tail => -29
-    case PrimOps.IncP => -30
-    case PrimOps.DecP => -31
-    case PrimOps.SetP => -32
-    case PrimOps.AsUInt => -33
-    case PrimOps.AsSInt => -34
-    case PrimOps.AsClock => -35
-    case PrimOps.AsAsyncReset => -36
-    case PrimOps.AsFixedPoint => -37
-    case PrimOps.AsInterval => -38
-    case PrimOps.Squeeze => -39
-    case PrimOps.Wrap => -40
-    case PrimOps.Clip => -41
-  }
-  //scalastyle:on cyclomatic.complexity method.length magic.number
+  private val primOpToId = PrimOps.builtinPrimOps.zipWithIndex.map{ case (op, i) => op -> (-i -1).toByte }.toMap
+  assert(primOpToId.values.max == -1,  "PrimOp nodes use ids -1 ... -50")
+  assert(primOpToId.values.min >= -50, "PrimOp nodes use ids -1 ... -50")
+  private def primOp(p: PrimOp): Byte = primOpToId(p)
 
   // verification ops are not firrtl nodes and thus not part of the same id namespace
   private def verificationOp(op: Formal.Value): Byte = op match {
