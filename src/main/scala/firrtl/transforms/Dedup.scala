@@ -198,7 +198,7 @@ class DedupModules extends Transform with DependencyAPIMigration {
           // If dedupedAnnos is exactly annos, contains is because dedupedAnnos is type Option
           val newTargets = paths.map { path =>
             val root: IsModule = ct.module(c)
-            path.foldLeft(root -> root) { case ((oldRelPath, newRelPath), FastInstanceGraph.Key(_, name, mod)) =>
+            path.foldLeft(root -> root) { case ((oldRelPath, newRelPath), FastInstanceGraph.Key(name, mod)) =>
               if(mod == c) {
                 val mod = CircuitTarget(c).module(c)
                 mod -> mod
