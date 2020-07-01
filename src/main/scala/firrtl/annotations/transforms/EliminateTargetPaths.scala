@@ -3,7 +3,7 @@
 package firrtl.annotations.transforms
 
 import firrtl.Mappers._
-import firrtl.analyses.InstanceGraph
+import firrtl.analyses.FastInstanceGraph
 import firrtl.annotations.ModuleTarget
 import firrtl.annotations.TargetToken.{Instance, OfModule, fromDefModuleToTargetToken}
 import firrtl.annotations.analysis.DuplicationHelper
@@ -132,7 +132,7 @@ class EliminateTargetPaths extends Transform with DependencyAPIMigration {
     */
   def run(cir: Circuit,
           targets: Seq[IsMember],
-          iGraph: InstanceGraph
+          iGraph: FastInstanceGraph
          ): (Circuit, RenameMap, AnnotationSeq) = {
 
     val dupMap = DuplicationHelper(cir.modules.map(_.name).toSet)
@@ -239,8 +239,8 @@ class EliminateTargetPaths extends Transform with DependencyAPIMigration {
     val targets = targetsToEliminate.collect { case x: IsMember => x }
 
     // Check validity of paths in targets
-    val iGraph = new InstanceGraph(state.circuit)
-    val instanceOfModules = iGraph.getChildrenInstanceOfModule
+    val iGraph = new FastInstanceGraph(state.circuit)
+    val instanceOfModules = iGraph.getChildInstances.map{ case (k, v) => k -> v.map(_.toTokens) }
     val targetsWithInvalidPaths = mutable.ArrayBuffer[IsMember]()
     targets.foreach { t =>
       val path = t match {
@@ -311,7 +311,7 @@ class EliminateTargetPaths extends Transform with DependencyAPIMigration {
         nextRenameMap
       }
 
-    val iGraphx = new InstanceGraph(newCircuit)
+    val iGraphx = new FastInstanceGraph(newCircuit)
     val newlyUnreachableModules = iGraphx.unreachableModules diff iGraph.unreachableModules
 
     val newCircuitGC = {

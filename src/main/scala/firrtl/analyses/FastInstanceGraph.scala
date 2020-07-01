@@ -56,6 +56,16 @@ class FastInstanceGraph(c: ir.Circuit) {
     val instances = vertices.filter(_.module == module).toSeq
     instances.flatMap{ i => fullHierarchy.getOrElse(i, Nil) }
   }
+
+  /** The set of all modules in the circuit */
+  private def modules: collection.Set[OfModule] = graph.getVertices.map(_.OfModule)
+
+  /** The set of all modules in the circuit reachable from the top module */
+  private def reachableModules: collection.Set[OfModule] =
+    mutable.LinkedHashSet(circuitTopInstance.OfModule) ++ graph.reachableFrom(circuitTopInstance).map(_.OfModule)
+
+  /** The set of all modules *not* reachable in the circuit */
+  lazy val unreachableModules: collection.Set[OfModule] = modules diff reachableModules
 }
 
 
