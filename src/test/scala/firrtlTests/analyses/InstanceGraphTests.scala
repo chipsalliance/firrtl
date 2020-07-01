@@ -1,3 +1,5 @@
+// See LICENSE for license details.
+
 package firrtlTests.analyses
 
 import firrtl.annotations.TargetToken.OfModule
@@ -6,6 +8,8 @@ import firrtl.graph.DiGraph
 import firrtl.WDefInstance
 import firrtl.passes._
 import firrtl.testutils._
+import firrtl.ir
+import firrtl.ir.NoInfo
 
 class InstanceGraphTests extends FirrtlFlatSpec {
   private def getEdgeSet(graph: DiGraph[String]): collection.Map[String, collection.Set[String]] = {
@@ -261,5 +265,46 @@ circuit Top :
     iGraph.modules should contain theSameElementsAs Seq(OfModule("Top"), OfModule("Reachable"), OfModule("Unreachable"))
     iGraph.reachableModules should contain theSameElementsAs Seq(OfModule("Top"), OfModule("Reachable"))
     iGraph.unreachableModules should contain theSameElementsAs Seq(OfModule("Unreachable"))
+  }
+
+  behavior of "lowest common ancestor"
+
+  it should "find Top and not X" in {
+    // this test was implemented to ensure that equivalent DefInstance nodes in different modules
+    // do not confuse the lowestCommonAncestor method
+    val input =
+      """circuit Top:
+        |  module Top:
+        |    inst x of X
+        |    inst b of B
+        |  module X:
+        |    inst a of A
+        |  module A:
+        |    inst c of C
+        |  module C:
+        |    skip
+        |  module B:
+        |    inst c of C
+        |""".stripMargin
+    val fir = ToWorkingIR.run(parse(input))
+
+    def getDefInstance(parent: String, name: String): ir.DefInstance = fir.modules.find(_.name == parent).get
+      .asInstanceOf[ir.Module].body.asInstanceOf[ir.Block].stmts.collect{ case i : ir.DefInstance => i }
+      .find(_.name == name).get
+    val fakeTopInstance = ir.DefInstance(NoInfo, "Top", "Top", ir.UnknownType)
+    val instanceXinTop = getDefInstance("Top", "x")
+    val instanceBinTop = getDefInstance("Top", "b")
+    val instanceAinX = getDefInstance("X", "a")
+    val instanceCinA = getDefInstance("A", "c")
+    val instanceCinB = getDefInstance("B", "c")
+
+    assert(instanceCinA == instanceCinB,
+      "both DefInstance nodes should be equal since the have the same module and name")
+
+    val iGraph = new InstanceGraph(fir)
+    val common = iGraph.lowestCommonAncestor(
+      Seq(fakeTopInstance, instanceXinTop, instanceAinX, instanceCinA),
+      Seq(fakeTopInstance, instanceBinTop, instanceCinB))
+    assert(common == Seq(fakeTopInstance))
   }
 }
