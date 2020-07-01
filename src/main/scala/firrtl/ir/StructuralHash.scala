@@ -30,7 +30,7 @@ object StructuralHash {
   type Rename = String => String
   def md5(node: DefModule, moduleRename: Rename = m => m, debug: Boolean = false): HashCode = {
     val m = MessageDigest.getInstance("MD5")
-    new StructuralHash(MessageDigestHasher(m), moduleRename).hash(node)
+    new StructuralHash(new MessageDigestHasher(m), moduleRename).hash(node)
     if(debug) {
       new StructuralHash(DebugHasher, moduleRename).hash(node)
     }
@@ -46,7 +46,7 @@ object StructuralHash {
   /** This includes the names of ports and any port bundle field names in the hash. */
   def md5WithSignificantPortNames(module: DefModule, moduleRename: Rename = m => m): HashCode = {
     val m = MessageDigest.getInstance("MD5")
-    hashModuleAndPortNames(module, MessageDigestHasher(m), moduleRename)
+    hashModuleAndPortNames(module, new MessageDigestHasher(m), moduleRename)
     new MDHashCode(m.digest())
   }
 
@@ -56,7 +56,7 @@ object StructuralHash {
     */
   private[firrtl] def md5Node(node: FirrtlNode, debug: Boolean = false): HashCode = {
     val m = MessageDigest.getInstance("MD5")
-    hash(node, MessageDigestHasher(m), n => n)
+    hash(node, new MessageDigestHasher(m), n => n)
     if(debug) {
       hash(node, DebugHasher, n => n)
     }
@@ -153,7 +153,7 @@ private trait Hasher {
   }
 }
 
-private case class MessageDigestHasher(m: MessageDigest) extends Hasher {
+private class MessageDigestHasher(m: MessageDigest) extends Hasher {
   override def update(b: Byte): Unit = m.update(b)
   override def update(i: Int): Unit = {
     m.update(((i >>  0) & 0xff).toByte)
