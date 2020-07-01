@@ -25,7 +25,7 @@ class FastInstanceGraph(c: ir.Circuit) {
   }.toMap
   private val instantiated = childInstances.flatMap(_._2).map(_.module).toSet
   private val roots = c.modules.map(_.name).filterNot(instantiated)
-  private val graph = buildGraph(childInstances, roots)
+  val graph: DiGraph[Key] = buildGraph(childInstances, roots)
   private val circuitTopInstance = topKey(c.main)
   // cache vertices to speed up repeat calls to findInstancesInHierarchy
   private lazy val vertices = graph.getVertices
@@ -43,6 +43,24 @@ class FastInstanceGraph(c: ir.Circuit) {
   /** Returns a map from module name to instances defined in said module. */
   def getChildInstances: Map[String, Seq[Key]] = childInstances
 
+  /** A count of the *static* number of instances of each module. For any module other than the top (main) module,
+    * this is equivalent to the number of inst statements in the circuit instantiating each module,
+    * irrespective of the number of times (if any) the enclosing module appears in the hierarchy.
+    * Note that top module of the circuit has an associated count of one, even though it is never directly instantiated.
+    * Any modules *not* instantiated at all will have a count of zero.
+    */
+  lazy val staticInstanceCount: Map[OfModule, Int] = {
+    val foo = mutable.LinkedHashMap.empty[OfModule, Int]
+    childInstances.keys.foreach {
+      case main if main == c.main => foo += main.OfModule  -> 1
+      case other                  => foo += other.OfModule -> 0
+    }
+    childInstances.values.flatten.map(_.OfModule).foreach {
+      mod => foo += mod -> (foo(mod) + 1)
+    }
+    foo.toMap
+  }
+
   /** Finds the absolute paths (each represented by a Seq of instances
     * representing the chain of hierarchy) of all instances of a particular
     * module. Note that this includes one implicit instance of the top (main)
@@ -56,6 +74,21 @@ class FastInstanceGraph(c: ir.Circuit) {
     val instances = vertices.filter(_.module == module).toSeq
     instances.flatMap{ i => fullHierarchy.getOrElse(i, Nil) }
   }
+
+  // Transforms a TraversableOnce input into an order-preserving map
+  // Iterates only once, no intermediate collections
+  // Can possibly be replaced using LinkedHashMap.from(..) or better immutable map in Scala 2.13
+  private def asOrderedMap[K1, K2, V](it: TraversableOnce[K1], f: (K1) => (K2, V)): collection.Map[K2, V] = {
+    val lhmap = new mutable.LinkedHashMap[K2, V]
+    it.foreach { lhmap += f(_) }
+    lhmap
+  }
+
+  /** Given a circuit, returns a map from module name to a map
+    * in turn mapping instances names to corresponding module names
+    */
+  def getChildrenInstanceMap: collection.Map[OfModule, collection.Map[Instance, OfModule]] =
+    childInstances.map(kv => kv._1.OfModule -> asOrderedMap(kv._2, (i: Key) => i.toTokens))
 
   /** The set of all modules in the circuit */
   private def modules: collection.Set[OfModule] = graph.getVertices.map(_.OfModule)

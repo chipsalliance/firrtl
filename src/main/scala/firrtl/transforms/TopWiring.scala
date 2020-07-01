@@ -128,8 +128,8 @@ class TopWiringTransform extends Transform with DependencyAPIMigration {
   private def getSourcesMap(state: CircuitState): Map[String,Seq[(ComponentName, Type, Boolean, InstPath, String)]] = {
     val sSourcesModNames = getSourceModNames(state)
     val sSourcesNames = getSourceNames(state)
-    val instGraph = new firrtl.analyses.InstanceGraph(state.circuit)
-    val cMap = instGraph.getChildrenInstances.map{ case (m, wdis) =>
+    val instGraph = new firrtl.analyses.FastInstanceGraph(state.circuit)
+    val cMap = instGraph.getChildInstances.map{ case (m, wdis) =>
         (m -> wdis.map{ case wdi => (wdi.name, wdi.module) }.toSeq) }.toMap
     val topSort = instGraph.moduleOrder.reverse
 

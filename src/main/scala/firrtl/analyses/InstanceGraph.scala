@@ -68,6 +68,7 @@ class InstanceGraph(c: Circuit) {
     * associated count of one, even though it is never directly instantiated. Any modules *not* instantiated at all will
     * have a count of zero.
     */
+  @deprecated("Use FastInstanceGraph instead.", "FIRRTL 1.4")
   lazy val staticInstanceCount: Map[OfModule, Int] = {
     val foo = mutable.LinkedHashMap.empty[OfModule, Int]
     childInstances.keys.foreach {
@@ -89,12 +90,14 @@ class InstanceGraph(c: Circuit) {
     * @param module the name of the selected module
     * @return a Seq[ Seq[WDefInstance] ] of absolute instance paths
     */
+  @deprecated("Use FastInstanceGraph instead.", "FIRRTL 1.4")
   def findInstancesInHierarchy(module: String): Seq[Seq[WDefInstance]] = {
     val instances = graph.getVertices.filter(_.module == module).toSeq
     instances flatMap { i => fullHierarchy.getOrElse(i, Nil) }
   }
 
   /** An [[firrtl.graph.EulerTour EulerTour]] representation of the [[firrtl.graph.DiGraph DiGraph]] */
+  @deprecated("Should have been private. Do not use outside of InstanceGraph.", "FIRRTL 1.4")
   lazy val tour = EulerTour(graph, trueTopInstance)
 
   /** Finds the lowest common ancestor instances for two module names in
@@ -103,12 +106,13 @@ class InstanceGraph(c: Circuit) {
   def lowestCommonAncestor(moduleA: Seq[WDefInstance],
                            moduleB: Seq[WDefInstance]): Seq[WDefInstance] = {
     tour.rmq(moduleA, moduleB)
-  }
+  } // used in passes.wiring.Wiring
 
   /**
     * Module order from highest module to leaf module
     * @return sequence of modules in order from top to leaf
     */
+  @deprecated("Use FastInstanceGraph instead.", "FIRRTL 1.4")
   def moduleOrder: Seq[DefModule] = {
     graph.transformNodes(_.module).linearize.map(moduleMap(_))
   }
@@ -122,6 +126,7 @@ class InstanceGraph(c: Circuit) {
   /** Given a circuit, returns a map from module name to children
     * instance/module [[firrtl.annotations.TargetToken]]s
     */
+  @deprecated("Use FastInstanceGraph instead.", "FIRRTL 1.4")
   def getChildrenInstanceOfModule: mutable.LinkedHashMap[String, mutable.LinkedHashSet[(Instance, OfModule)]] =
     childInstances.map(kv => kv._1 -> kv._2.map(_.toTokens))
 
@@ -137,17 +142,21 @@ class InstanceGraph(c: Circuit) {
   /** Given a circuit, returns a map from module name to a map
     * in turn mapping instances names to corresponding module names
     */
+  @deprecated("Use FastInstanceGraph instead.", "FIRRTL 1.4")
   def getChildrenInstanceMap: collection.Map[OfModule, collection.Map[Instance, OfModule]] =
     childInstances.map(kv => kv._1.OfModule -> asOrderedMap(kv._2, (i: WDefInstance) => i.toTokens))
 
   /** The set of all modules in the circuit */
+  @deprecated("Use FastInstanceGraph instead.", "FIRRTL 1.4")
   lazy val modules: collection.Set[OfModule] = graph.getVertices.map(_.OfModule)
 
   /** The set of all modules in the circuit reachable from the top module */
+  @deprecated("Use FastInstanceGraph instead.", "FIRRTL 1.4")
   lazy val reachableModules: collection.Set[OfModule] =
     mutable.LinkedHashSet(trueTopInstance.OfModule) ++ graph.reachableFrom(trueTopInstance).map(_.OfModule)
 
   /** The set of all modules *not* reachable in the circuit */
+  @deprecated("Use FastInstanceGraph instead.", "FIRRTL 1.4")
   lazy val unreachableModules: collection.Set[OfModule] = modules diff reachableModules
 
 }
@@ -160,6 +169,7 @@ object InstanceGraph {
     * @param s statement to descend
     * @return
     */
+  @deprecated("Use FastInstanceGraph instead.", "FIRRTL 1.4")
   def collectInstances(insts: mutable.Set[WDefInstance])
                       (s: Statement): Unit = s match {
     case i: WDefInstance => insts += i
