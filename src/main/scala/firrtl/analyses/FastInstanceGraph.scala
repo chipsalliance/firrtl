@@ -61,13 +61,10 @@ class FastInstanceGraph(c: ir.Circuit) {
 
 object FastInstanceGraph {
   /** We want to only use this untyped version as key because hashing bundle types is expensive
-    * @param parent the name of the module containing the DefInstance
     * @param name the name of the instance
     * @param module the name of the module that is instantiated
-    * @note We add the [[parent]] field which isn't present in the DefInstance in order to
-    *       distinguish between instances of the same name and module in different parents.
     */
-  case class Key(parent: String, name: String, module: String) {
+  case class Key(name: String, module: String) {
     def Instance: Instance = TargetToken.Instance(name)
     def OfModule: OfModule = TargetToken.OfModule(module)
     def toTokens: (Instance, OfModule) = (Instance, OfModule)
@@ -79,8 +76,8 @@ object FastInstanceGraph {
     case ir.Module(_, _, _, body) => {
       val instances = mutable.ArrayBuffer[Key]()
       def onStmt(s: ir.Statement): Unit = s match {
-        case firrtl.WDefInstance(_, name, module, _) => instances += Key(m.name, name, module)
-        case ir.DefInstance(_, name, module, _)  => instances += Key(m.name, name, module)
+        case firrtl.WDefInstance(_, name, module, _) => instances += Key(name, module)
+        case ir.DefInstance(_, name, module, _)  => instances += Key(name, module)
         case _: firrtl.WDefInstanceConnector =>
           firrtl.Utils.throwInternalError("Expecting WDefInstance, found a WDefInstanceConnector!")
         case other => other.foreachStmt(onStmt)
@@ -90,7 +87,7 @@ object FastInstanceGraph {
     }
   }
 
-  private def topKey(module: String): Key = Key(module + "#TOP", module, module)
+  private def topKey(module: String): Key = Key(module, module)
 
   private def buildGraph(childInstances: Map[String, Seq[Key]], roots: Iterable[String]):
     DiGraph[Key] = {
