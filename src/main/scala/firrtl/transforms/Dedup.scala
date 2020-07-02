@@ -436,11 +436,11 @@ object DedupModules extends LazyLogging {
     moduleLinearization.foreach { originalModule =>
       val hash = if (noDedups.contains(originalModule.name)) {
         // if we do not want to dedup we just hash the name of the module which is guaranteed to be unique
-        StructuralHash.md5(originalModule.name)
+        StructuralHash.sha256(originalModule.name)
       } else if (dontAgnostifyPorts(originalModule.name)) {
-        StructuralHash.md5WithSignificantPortNames(originalModule, moduleNameToTag)
+        StructuralHash.sha256WithSignificantPortNames(originalModule, moduleNameToTag)
       } else {
-        StructuralHash.md5(originalModule, moduleNameToTag)
+        StructuralHash.sha256(originalModule, moduleNameToTag)
       }
 
       if (hashToTag.contains(hash)) {

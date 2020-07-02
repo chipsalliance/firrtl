@@ -7,11 +7,11 @@ import org.scalatest._
 import firrtl.{HighFirrtlCompiler}
 
 class StructuralHashSpec extends FlatSpec {
-  private def md5(n: DefModule): HashCode = StructuralHash.md5(n, n => n, false)
-  private def md5(c: Circuit): HashCode = StructuralHash.md5Node(c, false)
-  private def md5(e: Expression): HashCode = StructuralHash.md5Node(e, false)
-  private def md5(t: Type): HashCode = StructuralHash.md5Node(t, false)
-  private def md5(s: Statement): HashCode = StructuralHash.md5Node(s, false)
+  private def hash(n: DefModule): HashCode = StructuralHash.sha256(n, n => n, false)
+  private def hash(c: Circuit): HashCode = StructuralHash.sha256Node(c, false)
+  private def hash(e: Expression): HashCode = StructuralHash.sha256Node(e, false)
+  private def hash(t: Type): HashCode = StructuralHash.sha256Node(t, false)
+  private def hash(s: Statement): HashCode = StructuralHash.sha256Node(s, false)
   private val highFirrtlCompiler = new HighFirrtlCompiler
   private def parse(circuit: String): Circuit = {
     val rawFirrtl = firrtl.Parser.parse(circuit)
@@ -28,19 +28,19 @@ class StructuralHashSpec extends FlatSpec {
   private val add = DoPrim(Add, Seq(b0, b1), Seq(), UnknownType)
 
   it should "generate the same hash if the objects are structurally the same" in {
-    assert(md5(b0) == md5(UIntLiteral(0,IntWidth(1))))
-    assert(md5(b0) != md5(UIntLiteral(1,IntWidth(1))))
-    assert(md5(b0) != md5(UIntLiteral(1,IntWidth(2))))
+    assert(hash(b0) == hash(UIntLiteral(0,IntWidth(1))))
+    assert(hash(b0) != hash(UIntLiteral(1,IntWidth(1))))
+    assert(hash(b0) != hash(UIntLiteral(1,IntWidth(2))))
 
-    assert(md5(b1) == md5(UIntLiteral(1,IntWidth(1))))
-    assert(md5(b1) != md5(UIntLiteral(0,IntWidth(1))))
-    assert(md5(b1) != md5(UIntLiteral(1,IntWidth(2))))
+    assert(hash(b1) == hash(UIntLiteral(1,IntWidth(1))))
+    assert(hash(b1) != hash(UIntLiteral(0,IntWidth(1))))
+    assert(hash(b1) != hash(UIntLiteral(1,IntWidth(2))))
   }
 
   it should "ignore expression types" in {
-    assert(md5(add) == md5(DoPrim(Add, Seq(b0, b1), Seq(), UnknownType)))
-    assert(md5(add) == md5(DoPrim(Add, Seq(b0, b1), Seq(), UIntType(UnknownWidth))))
-    assert(md5(add) != md5(DoPrim(Add, Seq(b0, b0), Seq(), UnknownType)))
+    assert(hash(add) == hash(DoPrim(Add, Seq(b0, b1), Seq(), UnknownType)))
+    assert(hash(add) == hash(DoPrim(Add, Seq(b0, b1), Seq(), UIntType(UnknownWidth))))
+    assert(hash(add) != hash(DoPrim(Add, Seq(b0, b0), Seq(), UnknownType)))
   }
 
   it should "ignore variable names" in {
@@ -52,7 +52,7 @@ class StructuralHashSpec extends FlatSpec {
         |    y <= x
         |""".stripMargin
 
-    assert(md5(parse(a)) == md5(parse(a)), "the same circuit should always be equivalent")
+    assert(hash(parse(a)) == hash(parse(a)), "the same circuit should always be equivalent")
 
     val b =
       """circuit a:
@@ -62,7 +62,7 @@ class StructuralHashSpec extends FlatSpec {
         |    haha <= abc
         |""".stripMargin
 
-    assert(md5(parse(a)) == md5(parse(b)), "renaming ports should not affect the hash by default")
+    assert(hash(parse(a)) == hash(parse(b)), "renaming ports should not affect the hash by default")
 
     val c =
       """circuit a:
@@ -72,7 +72,7 @@ class StructuralHashSpec extends FlatSpec {
         |    y <= and(x, UInt<1>(0))
         |""".stripMargin
 
-    assert(md5(parse(a)) != md5(parse(c)), "changing an expression should affect the hash")
+    assert(hash(parse(a)) != hash(parse(c)), "changing an expression should affect the hash")
 
     val d =
       """circuit c:
@@ -82,13 +82,13 @@ class StructuralHashSpec extends FlatSpec {
         |    haha <= abc
         |""".stripMargin
 
-    assert(md5(parse(a)) != md5(parse(d)), "circuits with different names are always different")
-    assert(md5(parse(a).modules.head) == md5(parse(d).modules.head),
+    assert(hash(parse(a)) != hash(parse(d)), "circuits with different names are always different")
+    assert(hash(parse(a).modules.head) == hash(parse(d).modules.head),
       "modules with different names can be structurally different")
 
     // for the Dedup pass we do need a way to take the port names into account
-    assert(StructuralHash.md5WithSignificantPortNames(parse(a).modules.head) !=
-      StructuralHash.md5WithSignificantPortNames(parse(b).modules.head),
+    assert(StructuralHash.sha256WithSignificantPortNames(parse(a).modules.head) !=
+      StructuralHash.sha256WithSignificantPortNames(parse(b).modules.head),
       "renaming ports does affect the hash if we ask to")
   }
 
@@ -118,13 +118,13 @@ class StructuralHashSpec extends FlatSpec {
         |    z <= x
         |""".stripMargin
 
-    assert(StructuralHash.md5WithSignificantPortNames(parse(e).modules.head) !=
-      StructuralHash.md5WithSignificantPortNames(parse(f).modules.head),
+    assert(StructuralHash.sha256WithSignificantPortNames(parse(e).modules.head) !=
+      StructuralHash.sha256WithSignificantPortNames(parse(f).modules.head),
       "renaming ports does affect the hash if we ask to")
-    assert(StructuralHash.md5WithSignificantPortNames(parse(e).modules.head) ==
-      StructuralHash.md5WithSignificantPortNames(parse(g).modules.head),
+    assert(StructuralHash.sha256WithSignificantPortNames(parse(e).modules.head) ==
+      StructuralHash.sha256WithSignificantPortNames(parse(g).modules.head),
       "renaming internal wires should never affect the hash")
-    assert(md5(parse(e).modules.head) == md5(parse(g).modules.head),
+    assert(hash(parse(e).modules.head) == hash(parse(g).modules.head),
       "renaming internal wires should never affect the hash")
   }
 
@@ -153,15 +153,15 @@ class StructuralHashSpec extends FlatSpec {
         |    y.z <= x.x
         |""".stripMargin
 
-    assert(md5(parse(e).modules.head) == md5(parse(f).modules.head),
+    assert(hash(parse(e).modules.head) == hash(parse(f).modules.head),
       "renaming port bundles does normally not affect the hash")
-    assert(StructuralHash.md5WithSignificantPortNames(parse(e).modules.head) !=
-      StructuralHash.md5WithSignificantPortNames(parse(f).modules.head),
+    assert(StructuralHash.sha256WithSignificantPortNames(parse(e).modules.head) !=
+      StructuralHash.sha256WithSignificantPortNames(parse(f).modules.head),
       "renaming port bundles does affect the hash if we ask to")
-    assert(StructuralHash.md5WithSignificantPortNames(parse(e).modules.head) ==
-      StructuralHash.md5WithSignificantPortNames(parse(g).modules.head),
+    assert(StructuralHash.sha256WithSignificantPortNames(parse(e).modules.head) ==
+      StructuralHash.sha256WithSignificantPortNames(parse(g).modules.head),
       "renaming internal wire bundles should never affect the hash")
-    assert(md5(parse(e).modules.head) == md5(parse(g).modules.head),
+    assert(hash(parse(e).modules.head) == hash(parse(g).modules.head),
       "renaming internal wire bundles should never affect the hash")
   }
 
@@ -169,7 +169,7 @@ class StructuralHashSpec extends FlatSpec {
   it should "fail on Info" in {
     // it does not make sense to hash Info nodes
     assertThrows[RuntimeException] {
-      StructuralHash.md5Node(FileInfo(StringLit("")))
+      StructuralHash.sha256Node(FileInfo(StringLit("")))
     }
   }
 
@@ -186,18 +186,18 @@ class StructuralHashSpec extends FlatSpec {
     }
 
     val a = "{x: UInt<1>, y: UInt<1>}"
-    assert(md5(parse(a)) == md5(parse(a)), "the same bundle should always be equivalent")
+    assert(hash(parse(a)) == hash(parse(a)), "the same bundle should always be equivalent")
 
     val b = "{z: UInt<1>, y: UInt<1>}"
-    assert(md5(parse(a)) == md5(parse(b)), "changing a field name should maintain equivalence")
+    assert(hash(parse(a)) == hash(parse(b)), "changing a field name should maintain equivalence")
 
     val c = "{x: UInt<2>, y: UInt<1>}"
-    assert(md5(parse(a)) != md5(parse(c)), "changing a field type should not maintain equivalence")
+    assert(hash(parse(a)) != hash(parse(c)), "changing a field type should not maintain equivalence")
 
     val d = "{x: UInt<1>, y: {y: UInt<1>}}"
-    assert(md5(parse(a)) != md5(parse(d)), "changing the structure should not maintain equivalence")
+    assert(hash(parse(a)) != hash(parse(d)), "changing the structure should not maintain equivalence")
 
-    assert(md5(parse("{z: {y: {x: UInt<1>}}, a: UInt<1>}")) == md5(parse("{a: {b: {c: UInt<1>}}, z: UInt<1>}")))
+    assert(hash(parse("{z: {y: {x: UInt<1>}}, a: UInt<1>}")) == hash(parse("{a: {b: {c: UInt<1>}}, z: UInt<1>}")))
   }
 
   "ExtModules with different names but the same defname" should "be structurally equivalent" in {
@@ -216,10 +216,10 @@ class StructuralHashSpec extends FlatSpec {
         |""".stripMargin
 
     // TODO: should extmodule portnames always be significant since they map to the verilog pins?
-    assert(md5(parse(a).modules.head) == md5(parse(b).modules.head),
+    assert(hash(parse(a).modules.head) == hash(parse(b).modules.head),
       "two ext modules with the same defname and the same type and number of ports")
-    assert(StructuralHash.md5WithSignificantPortNames(parse(a).modules.head) !=
-      StructuralHash.md5WithSignificantPortNames(parse(b).modules.head),
+    assert(StructuralHash.sha256WithSignificantPortNames(parse(a).modules.head) !=
+      StructuralHash.sha256WithSignificantPortNames(parse(b).modules.head),
       "two ext modules with significant port names")
   }
 
@@ -229,19 +229,19 @@ class StructuralHashSpec extends FlatSpec {
 
     val a = Block(Seq(Block(Seq(stmtA)), stmtB))
     val b = Block(Seq(stmtA, stmtB))
-    assert(md5(a) == md5(b))
+    assert(hash(a) == hash(b))
 
     val c = Block(Seq(Block(Seq(Block(Seq(stmtA, stmtB))))))
-    assert(md5(a) == md5(c))
+    assert(hash(a) == hash(c))
 
     val d = Block(Seq(stmtA))
-    assert(md5(a) != md5(d))
+    assert(hash(a) != hash(d))
 
     val e = Block(Seq(Block(Seq(stmtB)), stmtB))
-    assert(md5(a) != md5(e))
+    assert(hash(a) != hash(e))
 
     val f = Block(Seq(Block(Seq(Block(Seq(stmtA, EmptyStmt, stmtB))))))
-    assert(md5(a) == md5(f))
+    assert(hash(a) == hash(f))
   }
 
   "Conditionally" should "properly separate if and else branch" in {
@@ -251,16 +251,16 @@ class StructuralHashSpec extends FlatSpec {
 
     val a = Conditionally(NoInfo, cond, stmtA, stmtB)
     val b = Conditionally(NoInfo, cond, Block(Seq(stmtA)), stmtB)
-    assert(md5(a) == md5(b))
+    assert(hash(a) == hash(b))
 
     val c = Conditionally(NoInfo, cond, Block(Seq(stmtA)), Block(Seq(EmptyStmt, stmtB)))
-    assert(md5(a) == md5(c))
+    assert(hash(a) == hash(c))
 
     val d = Block(Seq(Conditionally(NoInfo, cond, stmtA, EmptyStmt), stmtB))
-    assert(md5(a) != md5(d))
+    assert(hash(a) != hash(d))
 
     val e = Conditionally(NoInfo, cond, stmtA, EmptyStmt)
     val f = Conditionally(NoInfo, cond, EmptyStmt, stmtA)
-    assert(md5(e) != md5(f))
+    assert(hash(e) != hash(f))
   }
 }

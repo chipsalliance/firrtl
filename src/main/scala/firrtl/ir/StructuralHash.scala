@@ -28,8 +28,9 @@ import scala.collection.mutable
   * */
 object StructuralHash {
   type Rename = String => String
-  def md5(node: DefModule, moduleRename: Rename = m => m, debug: Boolean = false): HashCode = {
-    val m = MessageDigest.getInstance("MD5")
+
+  def sha256(node: DefModule, moduleRename: Rename = m => m, debug: Boolean = false): HashCode = {
+    val m = MessageDigest.getInstance(SHA256)
     new StructuralHash(new MessageDigestHasher(m), moduleRename).hash(node)
     if(debug) {
       new StructuralHash(DebugHasher, moduleRename).hash(node)
@@ -37,16 +38,16 @@ object StructuralHash {
     new MDHashCode(m.digest())
   }
 
-  def md5(str: String): HashCode = {
-    val m = MessageDigest.getInstance("MD5")
-    m.update(str.getBytes())
+  /** This includes the names of ports and any port bundle field names in the hash. */
+  def sha256WithSignificantPortNames(module: DefModule, moduleRename: Rename = m => m): HashCode = {
+    val m = MessageDigest.getInstance(SHA256)
+    hashModuleAndPortNames(module, new MessageDigestHasher(m), moduleRename)
     new MDHashCode(m.digest())
   }
 
-  /** This includes the names of ports and any port bundle field names in the hash. */
-  def md5WithSignificantPortNames(module: DefModule, moduleRename: Rename = m => m): HashCode = {
-    val m = MessageDigest.getInstance("MD5")
-    hashModuleAndPortNames(module, new MessageDigestHasher(m), moduleRename)
+  private[firrtl] def sha256(str: String): HashCode = {
+    val m = MessageDigest.getInstance(SHA256)
+    m.update(str.getBytes())
     new MDHashCode(m.digest())
   }
 
@@ -54,14 +55,17 @@ object StructuralHash {
     *   hash(`a <= 1`) == hash(`b <= 1`).
     * This method is package private to allow for unit testing but should not be exposed to the user.
     */
-  private[firrtl] def md5Node(node: FirrtlNode, debug: Boolean = false): HashCode = {
-    val m = MessageDigest.getInstance("MD5")
+  private[firrtl] def sha256Node(node: FirrtlNode, debug: Boolean = false): HashCode = {
+    val m = MessageDigest.getInstance(SHA256)
     hash(node, new MessageDigestHasher(m), n => n)
     if(debug) {
       hash(node, DebugHasher, n => n)
     }
     new MDHashCode(m.digest())
   }
+
+  // see: https://docs.oracle.com/javase/7/docs/api/java/security/MessageDigest.html
+  private val SHA256 = "SHA-256"
 
   //scalastyle:off cyclomatic.complexity
   private def hash(node: FirrtlNode, h: Hasher, rename: Rename): Unit = node match {
