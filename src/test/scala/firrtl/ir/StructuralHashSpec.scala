@@ -215,7 +215,9 @@ class StructuralHashSpec extends FlatSpec {
         |    defname = xyz
         |""".stripMargin
 
-    // TODO: should extmodule portnames always be significant since they map to the verilog pins?
+    // Q: should extmodule portnames always be significant since they map to the verilog pins?
+    // A: It would be a bug for two exmodules in the same circuit to have the same defname but different
+    //    port names. This should be detected by an earlier pass and thus we do not have to deal with that situation.
     assert(hash(parse(a).modules.head) == hash(parse(b).modules.head),
       "two ext modules with the same defname and the same type and number of ports")
     assert(StructuralHash.sha256WithSignificantPortNames(parse(a).modules.head) !=
