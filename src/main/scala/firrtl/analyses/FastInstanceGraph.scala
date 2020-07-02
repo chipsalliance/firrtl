@@ -4,7 +4,7 @@ package firrtl.analyses
 
 import firrtl.annotations._
 import firrtl.annotations.TargetToken._
-import firrtl.graph.{DiGraph, MutableDiGraph}
+import firrtl.graph.{DiGraph, EulerTour, MutableDiGraph}
 import firrtl.ir
 
 import scala.collection.mutable
@@ -36,6 +36,14 @@ class FastInstanceGraph(c: ir.Circuit) {
     */
   private lazy val fullHierarchy: mutable.LinkedHashMap[Key, Seq[Seq[Key]]] =
     graph.pathsInDAG(circuitTopInstance)
+
+  def getFullHierarchy: Seq[(Key, Seq[Seq[Key]])] = fullHierarchy.toSeq
+
+  /** Finds the lowest common ancestor instances for two module names in
+    * a design
+    */
+  def lowestCommonAncestor(moduleA: Seq[Key], moduleB: Seq[Key]): Seq[Key] = tour.rmq(moduleA, moduleB)
+  private val tour = EulerTour(graph, circuitTopInstance)
 
   /** Module order from highest module to leaf module */
   def moduleOrder: Seq[ir.DefModule] = graph.transformNodes(_.module).linearize.map(moduleMap(_))

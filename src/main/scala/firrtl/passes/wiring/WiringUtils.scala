@@ -7,11 +7,13 @@ import firrtl._
 import firrtl.ir._
 import firrtl.Utils._
 import firrtl.Mappers._
+import firrtl.analyses.FastInstanceGraph.Key
 import firrtl.traversals.Foreachers._
+
 import scala.collection.mutable
 import firrtl.annotations._
 import firrtl.annotations.AnnotationUtils._
-import firrtl.analyses.InstanceGraph
+import firrtl.analyses.{FastInstanceGraph, InstanceGraph}
 
 /** Declaration kind in lineage (e.g. input port, output port, wire)
   */
@@ -103,6 +105,71 @@ object WiringUtils {
   def getLineage(childrenMap: ChildrenMap, module: String): Lineage =
     Lineage(module, childrenMap(module) map { case (i, m) => (i, getLineage(childrenMap, m)) } )
 
+  type Key = FastInstanceGraph.Key
+  /** Return a map of sink instances to source instances that minimizes distance
+    * @param sinks a sequence of sink modules
+    * @param source the source module
+    * @param i a graph representing a circuit
+    * @return a map of sink instance names to source instance names
+    * @throws WiringException if a sink is equidistant to two sources
+    */
+  def sinksToSources(sinks: Seq[Named], source: String, i: FastInstanceGraph): Seq[(Seq[Key], Seq[Key])] = {
+    val owners = new mutable.LinkedHashMap[Seq[Key], List[Seq[Key]]].withDefaultValue(List())
+    val queue = new mutable.Queue[Seq[Key]]
+
+    val hierarchy = i.getFullHierarchy
+    val pathsToSource = hierarchy.find(_._1.module == source).get._2
+    pathsToSource.foreach { path =>
+      queue.enqueue(path)
+      owners(path) = List(path)
+    }
+
+    val sinkModuleNames = sinks.map(getModuleName)
+    val sinkInsts = hierarchy.filter(kv => sinkModuleNames.contains(kv._1.module)).flatMap(_._2).toSet
+
+    /** If we're lucky and there is only one source, then that source owns
+      * all sinks. If we're unlucky, we need to do a full (slow) BFS
+      * to figure out who owns what. Currently, the BFS is not
+      * performant.
+      *
+      * [todo] The performance of this will need to be improved.
+      * Possible directions are that if we're purely source-under-sink
+      * or sink-under-source, then ownership is trivially a mapping
+      * down/up. Ownership seems to require a BFS if we have
+      * sources/sinks not under sinks/sources.
+      */
+    if (queue.size == 1) {
+      val u = queue.dequeue
+      sinkInsts.foreach { v => owners(v) = List(u) }
+    } else {
+      val visited = new mutable.HashMap[Seq[Key], Boolean].withDefaultValue(false)
+      while (queue.nonEmpty) {
+        val u = queue.dequeue
+        visited(u) = true
+
+        val edges = (i.graph.getEdges(u.last).map(u :+ _).toVector :+ u.dropRight(1))
+
+        // [todo] This is the critical section
+        edges
+          .filter( e => !visited(e) && e.nonEmpty )
+          .foreach{ v =>
+            owners(v) = owners(v) ++ owners(u)
+            queue.enqueue(v)
+          }
+      }
+
+      // Check that every sink has one unique owner. The only time that
+      // this should fail is if a sink is equidistant to two sources.
+      sinkInsts.foreach { s =>
+        if (!owners.contains(s) || owners(s).size > 1) {
+          throw WiringException(s"Unable to determine source mapping for sink '${s.map(_.name)}'") }
+      }
+    }
+
+    owners.collect{ case (k, v) if sinkInsts.contains(k) => (k, v.flatten) }.toSeq
+  }
+
+
   /** Return a map of sink instances to source instances that minimizes
     * distance
     *
@@ -112,6 +179,7 @@ object WiringUtils {
     * @return a map of sink instance names to source instance names
     * @throws WiringException if a sink is equidistant to two sources
     */
+  @deprecated("Use sinksToSources with FastInstanceGraph instead.", "FIRRTL 1.4")
   def sinksToSources(sinks: Seq[Named],
                      source: String,
                      i: InstanceGraph):
