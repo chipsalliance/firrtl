@@ -312,7 +312,8 @@ class StructuralHash private(h: Hasher, renameModule: String => String) {
     case IntWidth(width) => id(40) ; hash(width)
     case UnknownWidth => id(41)
     case CalcWidth(arg) => id(42) ; hash(arg)
-    case VarWidth(name) => id(43) ; n(name)
+    // we are hashing the name of the `VarWidth` instead of using `n` since these Vars exist in a different namespace
+    case VarWidth(name) => id(43) ; hash(name)
     // ids 44 + 45 are reserved for future Width nodes
   }
 
@@ -403,7 +404,8 @@ class StructuralHash private(h: Hasher, renameModule: String => String) {
   private def hash(b: Bound): Unit = b match {
     case UnknownBound => id(-80)
     case CalcBound(arg) => id(-81) ; hash(arg)
-    case VarBound(name) => id(-82) ; n(name)
+    // we are hashing the name of the `VarBound` instead of using `n` since these Vars exist in a different namespace
+    case VarBound(name) => id(-82) ; hash(name)
     case Open(value) => id(-83) ; hash(value)
     case Closed(value) => id(-84) ; hash(value)
   }
