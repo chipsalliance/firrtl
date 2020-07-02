@@ -61,6 +61,8 @@ trait GenMonad[G[_]] {
       pairs(idx)._2
     }
   }
+
+  def applyGen[A](ga: G[A]): A
 }
 
 trait StateGen[S, G[_]] {
@@ -99,6 +101,7 @@ object GenMonad {
           }
         }
       }
+      def applyGen[A](ga: G[A]): A = ga.apply()
     }
   }
 

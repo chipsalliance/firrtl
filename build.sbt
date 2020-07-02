@@ -200,6 +200,8 @@ lazy val jqf = (project in file("jqf"))
       "edu.berkeley.cs.jqf" % "jqf-instrument" % "1.4",
       "com.github.scopt" %% "scopt" % "3.7.1",
     ),
+    // Compile / run / fork := true,
+    // outputStrategy := Some(StdoutOutput),
   )
 
 

@@ -8,6 +8,7 @@ trait Context[Gen[_]] {
   def unboundRefs: Set[Reference] // should have type set
   def decls: Set[IsDeclaration]
   def maxDepth: Int
+  def minDepth: Int
   def withRef(ref: Reference): Context[Gen]
   def decrementDepth: Context[Gen]
   def incrementDepth: Context[Gen]
@@ -18,13 +19,20 @@ trait Context[Gen[_]] {
 case class ExprContext(
   unboundRefs: Set[Reference],
   decls: Set[IsDeclaration],
+  minDepth: Int,
   maxDepth: Int,
   namespace: Namespace,
   exprGenFn: Type => Fuzzers.State[ASTGen, Context[ASTGen], Expression]) extends Context[ASTGen] {
   def withRef(ref: Reference): ExprContext = this.copy(unboundRefs = unboundRefs + ref)
-  def decrementDepth: ExprContext = this.copy(maxDepth = maxDepth - 1)
-  def incrementDepth: ExprContext = this.copy(maxDepth = maxDepth + 1)
-  def exprGen(tpe: Type): ASTGen[(Context[ASTGen], Expression)] = exprGenFn(tpe)(this)
+  def decrementDepth: ExprContext = this.copy(
+    maxDepth = maxDepth - 1,
+    minDepth = minDepth - 1
+  )
+  def incrementDepth: ExprContext = this.copy(
+    maxDepth = maxDepth + 1,
+    minDepth = minDepth + 1
+  )
+  def exprGen(tpe: Type): ASTGen[(Context[ASTGen], Expression)] = exprGenFn(tpe)(this.decrementDepth)
 }
 
 object Fuzzers {
@@ -40,32 +48,39 @@ object Fuzzers {
 
   def makeBinPrimOpGen[G[_]: GenMonad](
     primOp: PrimOp,
-    typeFn: Type => G[(Type, Type)],
+    typeFn: Type => G[(Type, Type, Type)],
     tpe: Type): State[G, Context[G], Expression] = (ctx0: Context[G]) => {
     for {
-      (tpe1, tpe2) <- typeFn(tpe)
+      (tpe1, tpe2, exprTpe) <- typeFn(tpe)
       (ctx1, expr1) <- ctx0.exprGen(tpe1)
       (ctx2, expr2) <- ctx1.exprGen(tpe2)
     } yield {
-      ctx2 -> DoPrim(primOp, Seq(expr1, expr2), Seq.empty, tpe)
+      ctx2 -> DoPrim(primOp, Seq(expr1, expr2), Seq.empty, exprTpe)
     }
   }
 
-  def genAddSubPrimOp[G[_]: GenMonad](isAdd: Boolean)(tpe: Type): State[G, Context[G], Expression] = {
-    val typeFn: Type => G[(Type, Type)] = {
-      case UIntType(width) =>
-        val tpe = UIntType(widthOp(width)(i => math.max(i.toInt - 1, 0)))
-        GenMonad[G].const(tpe -> tpe)
-      case SIntType(width) =>
-        val tpe = UIntType(widthOp(width)(i => math.max(i.toInt - 1, 0)))
-        GenMonad[G].const(tpe -> tpe)
-      case UnknownType => for {
-        width1 <- GenMonad[G].choose(0, CheckWidths.MaxWidth)
-        width2 <- GenMonad[G].choose(0, CheckWidths.MaxWidth)
-        tpe <- GenMonad[G].oneOf(UIntType(_), SIntType(_))
-      } yield {
-        tpe(IntWidth(width1)) -> tpe(IntWidth(width2))
+
+  final val MAX_WIDTH: Int = CheckWidths.MaxWidth
+  final val MAX_WIDTH_LOG2: Int = log2Ceil(MAX_WIDTH)
+
+  def handleUnknown[A, G[_]: GenMonad](fn: Type => G[A]): Type => G[A] = {
+    case UnknownType =>
+      GenMonad[G].oneOf(UIntType(_), SIntType(_)).flatMap { typeFn =>
+        anyWidth.flatMap { width =>
+          fn(typeFn(width))
+        }
       }
+    case known => fn(known)
+  }
+
+  def genAddSubPrimOp[G[_]: GenMonad](isAdd: Boolean)(tpe: Type): State[G, Context[G], Expression] = {
+    val typeFn: Type => G[(Type, Type, Type)] = handleUnknown {
+      case UIntType(width) =>
+        val argTpe = UIntType(widthOp(width)(i => math.max(i.toInt - 1, 0)))
+        GenMonad[G].const((argTpe, argTpe, tpe))
+      case SIntType(width) =>
+        val argTpe = SIntType(widthOp(width)(i => math.max(i.toInt - 1, 0)))
+        GenMonad[G].const((argTpe, argTpe, tpe))
     }
     makeBinPrimOpGen(if (isAdd) PrimOps.Add else PrimOps.Sub, typeFn, tpe)
   }
@@ -78,115 +93,111 @@ object Fuzzers {
 
 
   def genMulPrimOp[G[_]: GenMonad](tpe: Type): State[G, Context[G], Expression] = {
-    val anyWidth: G[(Width, Width)] = for {
-      totalWidth <- GenMonad[G].choose(0, CheckWidths.MaxWidth)
+    val anyWidth: G[(IntWidth, IntWidth)] = for {
+      totalWidth <- GenMonad[G].choose(0, MAX_WIDTH)
       width1 <- GenMonad[G].choose(0, totalWidth)
     } yield {
       val width2 = math.max(totalWidth - width1, 0)
       IntWidth(width1) -> IntWidth(width2)
     }
-    val typeFn: Type => G[(Type, Type)] = (_: Type) match {
+    val typeFn: Type => G[(Type, Type, Type)] = handleUnknown {
       case UIntType(UnknownWidth) =>
-        anyWidth.map { case (w1, w2) => UIntType(w1) -> UIntType(w2) }
+        anyWidth.map { case (w1, w2) =>
+          (UIntType(w1), UIntType(w2), UIntType(IntWidth(w1.width + w2.width)))
+        }
       case SIntType(UnknownWidth) =>
-        anyWidth.map { case (w1, w2) => SIntType(w1) -> SIntType(w2) }
+        anyWidth.map { case (w1, w2) =>
+          (SIntType(w1), SIntType(w2), SIntType(IntWidth(w1.width + w2.width)))
+        }
       case UIntType(IntWidth(totalWidth)) => for {
         width1 <- GenMonad[G].choose(0, totalWidth.toInt)
       } yield {
-        UIntType(IntWidth(width1)) -> UIntType(IntWidth(math.max(totalWidth.toInt - width1, 0)))
+        (UIntType(IntWidth(width1)), UIntType(IntWidth(math.max(totalWidth.toInt - width1, 0))), tpe)
       }
       case SIntType(IntWidth(totalWidth)) => for {
         width1 <- GenMonad[G].choose(0, totalWidth.toInt)
       } yield {
-        SIntType(IntWidth(width1)) -> SIntType(IntWidth(math.max(totalWidth.toInt - width1, 0)))
-      }
-      case UnknownType => for {
-        totalWidth <- GenMonad[G].choose(0, CheckWidths.MaxWidth)
-        width1 <- GenMonad[G].choose(0, totalWidth)
-        tpe <- GenMonad[G].oneOf(UIntType(_), SIntType(_))
-      } yield {
-        val width2 = math.max(totalWidth - width1, 0)
-        tpe(IntWidth(width1)) -> tpe(IntWidth(width2))
+        (SIntType(IntWidth(width1)), SIntType(IntWidth(math.max(totalWidth.toInt - width1, 0))), tpe)
       }
     }
     makeBinPrimOpGen(PrimOps.Mul, typeFn, tpe)
   }
 
-  def anyWidth[G[_]: GenMonad]: G[IntWidth] = GenMonad[G].choose(1, CheckWidths.MaxWidth).map(IntWidth(_))
+  def anyWidth[G[_]: GenMonad]: G[IntWidth] = GenMonad[G].choose(1, MAX_WIDTH).map(IntWidth(_))
 
   def genDivPrimOp[G[_]: GenMonad](tpe: Type): State[G, Context[G], Expression] = {
-    val typeFn: Type => G[(Type, Type)] = (_: Type) match {
+    val typeFn: Type => G[(Type, Type, Type)] = handleUnknown {
       case UIntType(UnknownWidth) => for {
         w1 <- anyWidth
         w2 <- anyWidth
       } yield {
-        UIntType(w1) -> UIntType(w2)
+        (UIntType(w1), UIntType(w2), UIntType(w1))
       }
       case SIntType(UnknownWidth) => for {
         w1 <- anyWidth
         w2 <- anyWidth
       } yield {
-        SIntType(w1) -> SIntType(w2)
+        (SIntType(w1), SIntType(w2), SIntType(IntWidth(math.max(w1.width.toInt - 1, 0))))
       }
       case UIntType(IntWidth(w)) => for {
         w1 <- GenMonad[G].choose(0, w.toInt)
         w2 <- anyWidth
       } yield {
-        UIntType(IntWidth(w1)) -> UIntType(w2)
+        (UIntType(IntWidth(w1)), UIntType(w2), tpe)
       }
       case SIntType(IntWidth(w)) => for {
         w1 <- GenMonad[G].choose(0, math.max(w.toInt - 1, 0))
         w2 <- anyWidth
       } yield {
-        SIntType(IntWidth(w1)) -> SIntType(w2)
+        (SIntType(IntWidth(w1)), SIntType(w2), tpe)
       }
     }
     makeBinPrimOpGen(PrimOps.Div, typeFn, tpe)
   }
 
   def genRemPrimOp[G[_]: GenMonad](tpe: Type): State[G, Context[G], Expression] = {
-    val typeFn: Type => G[(Type, Type)] = (_: Type) match {
+    val typeFn: Type => G[(Type, Type, Type)] = handleUnknown {
       case UIntType(UnknownWidth) => for {
         w1 <- anyWidth
         w2 <- anyWidth
       } yield {
-        UIntType(w1) -> UIntType(w2)
+        (UIntType(w1), UIntType(w2), UIntType(IntWidth(math.min(w1.width.toInt, w2.width.toInt))))
       }
       case SIntType(UnknownWidth) => for {
         w1 <- anyWidth
         w2 <- anyWidth
       } yield {
-        SIntType(w1) -> SIntType(w2)
+        (SIntType(w1), SIntType(w2), SIntType(IntWidth(math.min(w1.width.toInt, w2.width.toInt))))
       }
       case UIntType(IntWidth(w)) => for {
-        w1 <- GenMonad[G].choose(w.toInt, CheckWidths.MaxWidth)
-        w2 <- GenMonad[G].choose(w.toInt, CheckWidths.MaxWidth)
+        w1 <- GenMonad[G].choose(w.toInt, MAX_WIDTH)
+        w2 <- GenMonad[G].choose(w.toInt, MAX_WIDTH)
       } yield {
-        UIntType(IntWidth(w1)) -> UIntType(IntWidth(w2))
+        (UIntType(IntWidth(w1)), UIntType(IntWidth(w2)), tpe)
       }
       case SIntType(IntWidth(w)) => for {
-        w1 <- GenMonad[G].choose(w.toInt, CheckWidths.MaxWidth)
-        w2 <- GenMonad[G].choose(w.toInt, CheckWidths.MaxWidth)
+        w1 <- GenMonad[G].choose(w.toInt, MAX_WIDTH)
+        w2 <- GenMonad[G].choose(w.toInt, MAX_WIDTH)
       } yield {
-        SIntType(IntWidth(w1)) -> SIntType(IntWidth(w2))
+        (SIntType(IntWidth(w1)), SIntType(IntWidth(w2)), tpe)
       }
     }
     makeBinPrimOpGen(PrimOps.Rem, typeFn, tpe)
   }
 
   def makeCmpPrimOpGen[G[_]: GenMonad](primOp: PrimOp)(tpe: Type): State[G, Context[G], Expression] = {
-    val typeFn: Type => G[(Type, Type)] = (_: Type) match {
+    val typeFn: Type => G[(Type, Type, Type)] = handleUnknown {
       case _: UIntType => for {
         w1 <- anyWidth
         w2 <- anyWidth
       } yield {
-        UIntType(w1) -> UIntType(w2)
+        (UIntType(w1), UIntType(w2), Utils.BoolType)
       }
       case _: SIntType => for {
         w1 <- anyWidth
         w2 <- anyWidth
       } yield {
-        SIntType(w1) -> SIntType(w2)
+        (SIntType(w1), SIntType(w2), Utils.BoolType)
       }
     }
     makeBinPrimOpGen(primOp, typeFn, tpe)
@@ -201,30 +212,30 @@ object Fuzzers {
   def genPadPrimOp[G[_]: GenMonad](tpe: Type): State[G, Context[G], Expression] = (ctx0: Context[G]) => {
     tpe match {
       case UIntType(UnknownWidth) => for {
-        w1 <- GenMonad[G].choose(0, CheckWidths.MaxWidth)
-        w2 <- GenMonad[G].choose(0, CheckWidths.MaxWidth)
-        (ctx1, expr) <- ctx0.exprGen(UIntType(IntWidth(w1)))
+        w1 <- anyWidth
+        w2 <- GenMonad[G].choose(0, MAX_WIDTH)
+        (ctx1, expr) <- ctx0.exprGen(UIntType(w1))
       } yield {
-        ctx1 -> DoPrim(PrimOps.Pad, Seq(expr), Seq(w2), tpe)
+        ctx1 -> DoPrim(PrimOps.Pad, Seq(expr), Seq(w2), UIntType(IntWidth(math.max(w1.width.toInt, w2))))
       }
       case SIntType(UnknownWidth) => for {
-        w1 <- GenMonad[G].choose(0, CheckWidths.MaxWidth)
-        w2 <- GenMonad[G].choose(0, CheckWidths.MaxWidth)
-        (ctx1, expr) <- ctx0.exprGen(SIntType(IntWidth(w1)))
+        w1 <- anyWidth
+        w2 <- GenMonad[G].choose(0, MAX_WIDTH)
+        (ctx1, expr) <- ctx0.exprGen(SIntType(w1))
       } yield {
-        ctx1 -> DoPrim(PrimOps.Pad, Seq(expr), Seq(w2), tpe)
+        ctx1 -> DoPrim(PrimOps.Pad, Seq(expr), Seq(w2), SIntType(IntWidth(math.max(w1.width.toInt, w2))))
       }
       case UIntType(IntWidth(w)) => for {
-        w1 <- GenMonad[G].choose(0, w.toInt)
+        w1 <- anyWidth
         w2 <- GenMonad[G].choose(0, w.toInt)
-        (ctx1, expr) <- ctx0.exprGen(UIntType(IntWidth(w1)))
+        (ctx1, expr) <- ctx0.exprGen(UIntType(w1))
       } yield {
         ctx1 -> DoPrim(PrimOps.Pad, Seq(expr), Seq(w2), tpe)
       }
       case SIntType(IntWidth(w)) => for {
-        w1 <- GenMonad[G].choose(0, w.toInt)
+        w1 <- anyWidth
         w2 <- GenMonad[G].choose(0, w.toInt)
-        (ctx1, expr) <- ctx0.exprGen(SIntType(IntWidth(w1)))
+        (ctx1, expr) <- ctx0.exprGen(SIntType(w1))
       } yield {
         ctx1 -> DoPrim(PrimOps.Pad, Seq(expr), Seq(w2), tpe)
       }
@@ -235,17 +246,17 @@ object Fuzzers {
     tpe match {
       case UIntType(UnknownWidth) => for {
         w1 <- anyWidth
-        w2 <- GenMonad[G].choose(0, CheckWidths.MaxWidth - w1.width.toInt)
+        w2 <- GenMonad[G].choose(0, MAX_WIDTH - w1.width.toInt)
         (ctx1, expr) <- ctx0.exprGen(UIntType(w1))
       } yield {
-        ctx1 -> DoPrim(PrimOps.Shl, Seq(expr), Seq(w2), tpe)
+        ctx1 -> DoPrim(PrimOps.Shl, Seq(expr), Seq(w2), UIntType(IntWidth(w1.width + w2)))
       }
       case SIntType(UnknownWidth) => for {
         w1 <- anyWidth
-        w2 <- GenMonad[G].choose(0, CheckWidths.MaxWidth - w1.width.toInt)
+        w2 <- GenMonad[G].choose(0, MAX_WIDTH - w1.width.toInt)
         (ctx1, expr) <- ctx0.exprGen(SIntType(w1))
       } yield {
-        ctx1 -> DoPrim(PrimOps.Shl, Seq(expr), Seq(w2), tpe)
+        ctx1 -> DoPrim(PrimOps.Shl, Seq(expr), Seq(w2), SIntType(IntWidth(w1.width + w2)))
       }
       case UIntType(IntWidth(totalWidth)) => for {
         width1 <- GenMonad[G].choose(0, totalWidth.toInt)
@@ -262,7 +273,7 @@ object Fuzzers {
         ctx1 -> DoPrim(PrimOps.Shl, Seq(expr), Seq(width2), tpe)
       }
       case UnknownType => for {
-        totalWidth <- GenMonad[G].choose(0, CheckWidths.MaxWidth)
+        totalWidth <- GenMonad[G].choose(0, MAX_WIDTH)
         width1 <- GenMonad[G].choose(0, totalWidth)
         tpe <- GenMonad[G].oneOf(UIntType(_), SIntType(_))
         (ctx1, expr) <- ctx0.exprGen(tpe(IntWidth(width1)))
@@ -276,46 +287,134 @@ object Fuzzers {
   def genShrPrimOp[G[_]: GenMonad](tpe: Type): State[G, Context[G], Expression] = (ctx0: Context[G]) => {
     tpe match {
       case UIntType(UnknownWidth) => for {
-        shamt <- GenMonad[G].choose(0, CheckWidths.MaxWidth)
-        exprWidth <- GenMonad[G].choose(shamt.toInt, CheckWidths.MaxWidth)
+        shamt <- GenMonad[G].choose(0, MAX_WIDTH)
+        exprWidth <- GenMonad[G].choose(shamt.toInt, MAX_WIDTH)
         (ctx1, expr) <- ctx0.exprGen(UIntType(IntWidth(exprWidth)))
       } yield {
-        ctx1 -> DoPrim(PrimOps.Shl, Seq(expr), Seq(shamt), UIntType(IntWidth(exprWidth - shamt)))
+        ctx1 -> DoPrim(PrimOps.Shr, Seq(expr), Seq(shamt), UIntType(IntWidth(exprWidth - shamt)))
       }
       case SIntType(UnknownWidth) => for {
-        shamt <- GenMonad[G].choose(0, CheckWidths.MaxWidth)
-        exprWidth <- GenMonad[G].choose(shamt.toInt, CheckWidths.MaxWidth)
+        shamt <- GenMonad[G].choose(0, MAX_WIDTH)
+        exprWidth <- GenMonad[G].choose(shamt.toInt, MAX_WIDTH)
         (ctx1, expr) <- ctx0.exprGen(SIntType(IntWidth(exprWidth)))
       } yield {
-        ctx1 -> DoPrim(PrimOps.Shl, Seq(expr), Seq(shamt), SIntType(IntWidth(exprWidth - shamt)))
+        ctx1 -> DoPrim(PrimOps.Shr, Seq(expr), Seq(shamt), SIntType(IntWidth(exprWidth - shamt)))
       }
       case UIntType(IntWidth(minWidth)) => for {
-        exprWidth <- GenMonad[G].choose(minWidth.toInt, CheckWidths.MaxWidth)
+        exprWidth <- GenMonad[G].choose(minWidth.toInt, MAX_WIDTH)
         (ctx1, expr) <- ctx0.exprGen(UIntType(IntWidth(exprWidth)))
       } yield {
         val  shamt = exprWidth - minWidth
-        ctx1 -> DoPrim(PrimOps.Shl, Seq(expr), Seq(shamt), tpe)
+        ctx1 -> DoPrim(PrimOps.Shr, Seq(expr), Seq(shamt), tpe)
       }
       case SIntType(IntWidth(minWidth)) => for {
-        exprWidth <- GenMonad[G].choose(minWidth.toInt, CheckWidths.MaxWidth)
+        exprWidth <- GenMonad[G].choose(minWidth.toInt, MAX_WIDTH)
         (ctx1, expr) <- ctx0.exprGen(SIntType(IntWidth(exprWidth)))
       } yield {
         val  shamt = exprWidth - minWidth
-        ctx1 -> DoPrim(PrimOps.Shl, Seq(expr), Seq(shamt), tpe)
+        ctx1 -> DoPrim(PrimOps.Shr, Seq(expr), Seq(shamt), tpe)
       }
       case UnknownType => for {
-        shamt <- GenMonad[G].choose(0, CheckWidths.MaxWidth)
+        shamt <- GenMonad[G].choose(0, MAX_WIDTH)
         tpeFn <- GenMonad[G].oneOf(UIntType(_), SIntType(_))
-        exprWidth <- GenMonad[G].choose(shamt.toInt, CheckWidths.MaxWidth)
+        exprWidth <- GenMonad[G].choose(shamt.toInt, MAX_WIDTH)
         (ctx1, expr) <- ctx0.exprGen(tpeFn(IntWidth(exprWidth)))
       } yield {
-        ctx1 -> DoPrim(PrimOps.Shl, Seq(expr), Seq(shamt), tpeFn(IntWidth(exprWidth - shamt)))
+        ctx1 -> DoPrim(PrimOps.Shr, Seq(expr), Seq(shamt), tpeFn(IntWidth(exprWidth - shamt)))
       }
     }
   }
 
+
+  def log2Ceil(i: Int): Int = BigInt(i - 1).bitLength
+
+  def log2Floor(i: Int): Int = {
+    if (i > 0 && ((i & (i - 1)) == 0)) {
+      log2Ceil(i)
+    } else if (i == 0) {
+      0
+    } else {
+      log2Ceil(i) - 1
+    }
+  }
+
+  def genDshlPrimOp[G[_]: GenMonad](tpe: Type): State[G, Context[G], Expression] = {
+    val typeFn: Type => G[(Type, Type, Type)] = handleUnknown {
+      case UIntType(UnknownWidth) => for {
+        shWidth <- GenMonad[G].choose(0, MAX_WIDTH_LOG2)
+        w1 <- GenMonad[G].choose(0, 1 << (MAX_WIDTH_LOG2 - shWidth))
+      } yield {
+        (UIntType(IntWidth(w1)), UIntType(IntWidth(shWidth)), UIntType(IntWidth(w1 + (1 << shWidth) - 1)))
+      }
+      case SIntType(UnknownWidth) => for {
+        shWidth <- GenMonad[G].choose(0, MAX_WIDTH_LOG2)
+        w1 <- GenMonad[G].choose(0, 1 << (MAX_WIDTH_LOG2 - shWidth))
+      } yield {
+        (SIntType(IntWidth(w1)), UIntType(IntWidth(shWidth)), SIntType(IntWidth(w1 + (1 << shWidth) - 1)))
+      }
+      case UIntType(IntWidth(totalWidth)) => for {
+        shWidth <- GenMonad[G].choose(0, log2Floor(totalWidth.toInt))
+        w1 <- GenMonad[G].choose(0, math.max(totalWidth.toInt - (1 << shWidth), 0))
+      } yield {
+        (UIntType(IntWidth(w1)), UIntType(IntWidth(shWidth)), tpe)
+      }
+      case SIntType(IntWidth(totalWidth)) => for {
+        shWidth <- GenMonad[G].choose(0, log2Floor(totalWidth.toInt))
+        w1 <- GenMonad[G].choose(0, math.max(totalWidth.toInt - (1 << shWidth), 0))
+      } yield {
+        (SIntType(IntWidth(w1)), UIntType(IntWidth(shWidth)), tpe)
+      }
+    }
+    makeBinPrimOpGen(PrimOps.Dshl, typeFn, tpe)
+  }
+
+  def genDshrPrimOp[G[_]: GenMonad](tpe: Type): State[G, Context[G], Expression] = {
+    val typeFn: Type => G[(Type, Type, Type)] = handleUnknown {
+      case UIntType(UnknownWidth) => for {
+        w1 <- anyWidth
+        w2 <- anyWidth
+      } yield {
+        (UIntType(w1), UIntType(w2), UIntType(w1))
+      }
+      case SIntType(UnknownWidth) => for {
+        w1 <- anyWidth
+        w2 <- anyWidth
+      } yield {
+        (SIntType(w1), UIntType(w2), SIntType(w1))
+      }
+      case UIntType(IntWidth(w1)) => for {
+        w2 <- anyWidth
+      } yield {
+        (UIntType(IntWidth(w1)), UIntType(w2), tpe)
+      }
+      case SIntType(IntWidth(w1)) => for {
+        w2 <- anyWidth
+      } yield {
+        (SIntType(IntWidth(w1)), UIntType(w2), tpe)
+      }
+    }
+    makeBinPrimOpGen(PrimOps.Dshr, typeFn, tpe)
+  }
+
+  case class TraceException(trace: Seq[String], cause: Throwable) extends Exception(
+      s"failed: $cause\ntrace:\n${trace.reverse.mkString("\n")}"
+    )
+  def wrap[G[_]: GenMonad](name: String, fn: Type => State[G, Context[G], Expression]): Type => State[G, Context[G], Expression] = {
+    (tpe: Type) => (ctx: Context[G]) => {
+      GenMonad[G].choose(0, 1).map ( _ =>
+        try {
+          GenMonad[G].applyGen(fn(tpe)(ctx))//.map(s => wrap[G](name, (_: Type) => s)(tpe))
+        } catch {
+          case e: TraceException if e.trace.size < 10 =>
+            throw e.copy(trace = name +: e.trace)
+          case e: IllegalArgumentException =>
+            throw TraceException(Seq(name), e)
+        }
+      )
+    }
+  }
   def recursiveExprGen[G[_]: GenMonad](tpe: Type, ctx: Context[G]): G[(Context[G], Expression)] = {
-    val anyWidthBinOp: G[Type => Fuzzers.State[G, Context[G], Expression]] = GenMonad[G].oneOf(
+    val anyWidthBinOp: G[Type => State[G, Context[G], Expression]] = GenMonad[G].oneOf(
       genAddPrimOp(_),
       genSubPrimOp(_),
       genDivPrimOp(_),
@@ -324,8 +423,10 @@ object Fuzzers {
       genPadPrimOp(_),
       genShlPrimOp(_),
       genShrPrimOp(_),
+      genDshlPrimOp(_),
+      genDshrPrimOp(_)
     )
-    val boolBinOp: G[Type => Fuzzers.State[G, Context[G], Expression]] = GenMonad[G].oneOf(
+    val boolBinOp: G[Type => State[G, Context[G], Expression]] = GenMonad[G].oneOf(
       PrimOps.Lt,
       PrimOps.Leq,
       PrimOps.Gt,
@@ -347,24 +448,25 @@ object Fuzzers {
 
   def genUIntLiteralLeaf[G[_]: GenMonad](tpe: UIntType): State[G, Context[G], Expression] = (ctx: Context[G]) => {
     val genWidth: G[Int] = tpe.width match {
-      case UnknownWidth => GenMonad[G].choose(0, CheckWidths.MaxWidth)
-      case IntWidth(width) => GenMonad[G].choose(0, math.max(CheckWidths.MaxWidth, width.toInt))
+      case UnknownWidth => GenMonad[G].choose(1, MAX_WIDTH)
+      case IntWidth(width) => GenMonad[G].const(width.toInt)
     }
     genWidth.flatMap { width =>
-      GenMonad[G].choose(0, math.max(Int.MaxValue, 1 << width)).map { value =>
+      GenMonad[G].choose(0, math.min(Int.MaxValue, (1 << width) - 1)).map { value =>
         ctx -> UIntLiteral(value, IntWidth(width))
       }
     }
   }
+
   def genSIntLiteralLeaf[G[_]: GenMonad](tpe: SIntType): State[G, Context[G], Expression] = (ctx: Context[G]) => {
     val genWidth: G[Int] = tpe.width match {
-      case UnknownWidth => GenMonad[G].choose(0, CheckWidths.MaxWidth)
-      case IntWidth(width) => GenMonad[G].choose(0, math.max(CheckWidths.MaxWidth, width.toInt))
+      case UnknownWidth => GenMonad[G].choose(0, MAX_WIDTH)
+      case IntWidth(width) => GenMonad[G].const(width.toInt)
     }
     genWidth.flatMap { width =>
       GenMonad[G].choose(
-        math.min(Int.MinValue, 1 - (1 << width)),
-        math.max(Int.MaxValue, 1 << width)).map { value =>
+        math.min(Int.MinValue, -(1 << (width - 1))),
+        math.max(Int.MaxValue, (1 << (width - 1)) - 1)).map { value =>
           ctx -> SIntLiteral(value, IntWidth(width))
         }
     }
@@ -375,7 +477,7 @@ object Fuzzers {
       case u: UIntType => genUIntLiteralLeaf(u)
       case s: SIntType => genSIntLiteralLeaf(s)
       case UnknownType => (ctx: Context[G]) =>
-        GenMonad[G].choose(0, CheckWidths.MaxWidth).flatMap { width =>
+        GenMonad[G].choose(0, MAX_WIDTH).flatMap { width =>
           GenMonad[G].oneOf(
             genUIntLiteralLeaf(UIntType(IntWidth(width))),
             genSIntLiteralLeaf(SIntType(IntWidth(width)))
@@ -389,12 +491,15 @@ object Fuzzers {
   )(tpe: Type): State[G, Context[G], Reference] = (ctx0: Context[G]) => {
     val genType: G[Type] = tpe match {
       case GroundType(UnknownWidth) =>
-        GenMonad[G].choose(0, CheckWidths.MaxWidth)
+        GenMonad[G].choose(0, MAX_WIDTH)
           .map(w => tpe.mapWidth(_ => IntWidth(w)))
-      case GroundType(IntWidth(width)) =>
-        GenMonad[G].choose(0, math.max(CheckWidths.MaxWidth, width.toInt))
-          .map(w => tpe.mapWidth(_ => IntWidth(w)))
-      case UnknownType => GenMonad[G].const(UnknownType)
+      case GroundType(IntWidth(width)) => GenMonad[G].const(tpe)
+      case UnknownType => for {
+        typeFn <- GenMonad[G].oneOf(UIntType(_), SIntType(_))
+        width <- anyWidth
+      } yield {
+        typeFn(width)
+      }
     }
 
     for {
@@ -415,15 +520,12 @@ object Fuzzers {
     )
     stateGen.flatMap(_(ctx0))
   }
+  //def genLeaf[G[_]: GenMonad]: Type => State[G, Context[G], Expression] = wrap("leaf", genLeafa(_))
 
   def exprMod[G[_]: GenMonad](ctx0: Context[G]): G[(Context[G], Module)] = {
     for {
-      tpe <- GenMonad[G].oneOf(
-        GenMonad[G].choose(0, CheckWidths.MaxWidth)
-          .map(w => UIntType(IntWidth(w))).widen[Type],
-        GenMonad[G].choose(0, CheckWidths.MaxWidth)
-          .map(w => SIntType(IntWidth(w))).widen[Type]
-      ).flatten
+      width <- GenMonad[G].oneOf(anyWidth, GenMonad[G].const(IntWidth(1))).flatten
+      tpe <- GenMonad[G].oneOf(UIntType(width), SIntType(width))
       (ctx1, expr) <- ctx0.exprGen(tpe)
       (ctx2, outputPortRef) <- genRefLeaf(Some("outputPort"))(tpe)(GenMonad[G])(ctx1)
     } yield {
