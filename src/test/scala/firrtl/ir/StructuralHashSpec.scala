@@ -11,6 +11,7 @@ class StructuralHashSpec extends FlatSpec {
   private def md5(c: Circuit): HashCode = StructuralHash.md5Node(c, false)
   private def md5(e: Expression): HashCode = StructuralHash.md5Node(e, false)
   private def md5(t: Type): HashCode = StructuralHash.md5Node(t, false)
+  private def md5(s: Statement): HashCode = StructuralHash.md5Node(s, false)
   private val highFirrtlCompiler = new HighFirrtlCompiler
   private def parse(circuit: String): Circuit = {
     val rawFirrtl = firrtl.Parser.parse(circuit)
@@ -222,4 +223,44 @@ class StructuralHashSpec extends FlatSpec {
       "two ext modules with significant port names")
   }
 
+  "Blocks and empty statements" should "not affect structural equivalence" in {
+    val stmtA = DefNode(NoInfo, "a", UIntLiteral(1))
+    val stmtB = DefNode(NoInfo, "b", UIntLiteral(1))
+
+    val a = Block(Seq(Block(Seq(stmtA)), stmtB))
+    val b = Block(Seq(stmtA, stmtB))
+    assert(md5(a) == md5(b))
+
+    val c = Block(Seq(Block(Seq(Block(Seq(stmtA, stmtB))))))
+    assert(md5(a) == md5(c))
+
+    val d = Block(Seq(stmtA))
+    assert(md5(a) != md5(d))
+
+    val e = Block(Seq(Block(Seq(stmtB)), stmtB))
+    assert(md5(a) != md5(e))
+
+    val f = Block(Seq(Block(Seq(Block(Seq(stmtA, EmptyStmt, stmtB))))))
+    assert(md5(a) == md5(f))
+  }
+
+  "Conditionally" should "properly separate if and else branch" in {
+    val stmtA = DefNode(NoInfo, "a", UIntLiteral(1))
+    val stmtB = DefNode(NoInfo, "b", UIntLiteral(1))
+    val cond = UIntLiteral(1)
+
+    val a = Conditionally(NoInfo, cond, stmtA, stmtB)
+    val b = Conditionally(NoInfo, cond, Block(Seq(stmtA)), stmtB)
+    assert(md5(a) == md5(b))
+
+    val c = Conditionally(NoInfo, cond, Block(Seq(stmtA)), Block(Seq(EmptyStmt, stmtB)))
+    assert(md5(a) == md5(c))
+
+    val d = Block(Seq(Conditionally(NoInfo, cond, stmtA, EmptyStmt), stmtB))
+    assert(md5(a) != md5(d))
+
+    val e = Conditionally(NoInfo, cond, stmtA, EmptyStmt)
+    val f = Conditionally(NoInfo, cond, EmptyStmt, stmtA)
+    assert(md5(e) != md5(f))
+  }
 }

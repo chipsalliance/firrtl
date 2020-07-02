@@ -247,9 +247,11 @@ class StructuralHash private(h: Hasher, renameModule: String => String) {
     // all info fields are ignore
     case DefNode(_, name, value) => id(20) ; n(name) ; hash(value)
     case Connect(_, loc, expr) => id(21) ; hash(loc) ; hash(expr)
-    case Conditionally(_, pred, conseq, alt) => id(22) ; hash(pred) ; hash(conseq) ; hash(alt)
-    case EmptyStmt => id(23)
-    case Block(stmts) => id(24) ; hash(stmts.length) ; stmts.foreach(hash)
+    // we place the unique id 23 between conseq and alt to distinguish between them in case conseq is empty
+    // we place the unique id 24 after alt to distinguish between alt and the next statement in case alt is empty
+    case Conditionally(_, pred, conseq, alt) => id(22) ; hash(pred) ; hash(conseq) ; id(23) ; hash(alt) ; id(24)
+    case EmptyStmt => // empty statements are ignored
+    case Block(stmts) => stmts.foreach(hash) // block structure is ignored
     case Stop(_, ret, clk, en) => id(25) ; hash(ret) ; hash(clk) ; hash(en)
     case Print(_, string, args, clk, en) =>
       // the string is part of the side effect and thus part of the circuit behavior
