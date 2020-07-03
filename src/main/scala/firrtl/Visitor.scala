@@ -130,28 +130,29 @@ class Visitor(infoMode: InfoMode) extends AbstractParseTreeVisitor[FirrtlNode] w
     }
 
   // Match on a type instead of on strings?
+  private val typeFactory = new InterningTypeFactory()
   private def visitType(ctx: TypeContext): Type = {
-    def getWidth(n: IntLitContext): Width = IntWidth(string2BigInt(n.getText))
+    def getWidth(n: IntLitContext): BigInt = string2BigInt(n.getText)
     ctx.getChild(0) match {
       case term: TerminalNode =>
         term.getText match {
-          case "UInt" => if (ctx.getChildCount > 1) UIntType(getWidth(ctx.intLit(0)))
-          else UIntType(UnknownWidth)
-          case "SInt" => if (ctx.getChildCount > 1) SIntType(getWidth(ctx.intLit(0)))
-          else SIntType(UnknownWidth)
+          case "UInt" => if (ctx.getChildCount > 1) typeFactory.makeUInt(getWidth(ctx.intLit(0)))
+          else typeFactory.makeUIntWithUnknownWidth
+          case "SInt" => if (ctx.getChildCount > 1) typeFactory.makeSInt(getWidth(ctx.intLit(0)))
+          else typeFactory.makeSIntWithUnknownWidth
           case "Fixed" => ctx.intLit.size match {
-            case 0 => FixedType(UnknownWidth, UnknownWidth)
+            case 0 => typeFactory.makeFixedWithUnknownWidthAndPoint
             case 1 => ctx.getChild(2).getText match {
-              case "<" => FixedType(UnknownWidth, getWidth(ctx.intLit(0)))
-              case _ => FixedType(getWidth(ctx.intLit(0)), UnknownWidth)
+              case "<" => typeFactory.makeFixedWithUnknownWidth(getWidth(ctx.intLit(0)))
+              case _ => typeFactory.makeFixedWithUnknownPoint(getWidth(ctx.intLit(0)))
             }
-            case 2 => FixedType(getWidth(ctx.intLit(0)), getWidth(ctx.intLit(1)))
+            case 2 => typeFactory.makeFixed(getWidth(ctx.intLit(0)), getWidth(ctx.intLit(1)))
           }
           case "Interval" => ctx.boundValue.size match {
             case 0 =>
               val point = ctx.intLit.size match {
                 case 0 => UnknownWidth
-                case 1 => IntWidth(string2BigInt(ctx.intLit(0).getText))
+                case 1 => typeFactory.makeIntWidth(getWidth(ctx.intLit(0)))
               }
               IntervalType(UnknownBound, UnknownBound, point)
             case 2 =>
@@ -174,11 +175,11 @@ class Visitor(infoMode: InfoMode) extends AbstractParseTreeVisitor[FirrtlNode] w
           case "Clock" => ClockType
           case "AsyncReset" => AsyncResetType
           case "Reset" => ResetType
-          case "Analog" => if (ctx.getChildCount > 1) AnalogType(getWidth(ctx.intLit(0)))
-          else AnalogType(UnknownWidth)
-          case "{" => BundleType(ctx.field.asScala.map(visitField))
+          case "Analog" => if (ctx.getChildCount > 1) typeFactory.makeAnalog(getWidth(ctx.intLit(0)))
+          else typeFactory.makeAnalogWithUnknownWidth
+          case "{" =>  typeFactory.makeBundle(ctx.field.asScala.map(visitField))
         }
-      case typeContext: TypeContext => new VectorType(visitType(ctx.`type`), string2Int(ctx.intLit(0).getText))
+      case typeContext: TypeContext => typeFactory.makeVector(visitType(ctx.`type`), string2Int(ctx.intLit(0).getText))
     }
   }
 
@@ -197,7 +198,7 @@ class Visitor(infoMode: InfoMode) extends AbstractParseTreeVisitor[FirrtlNode] w
 
   private def visitField(ctx: FieldContext): Field = {
     val flip = if (ctx.getChild(0).getText == "flip") Flip else Default
-    Field(ctx.fieldId.getText, flip, visitType(ctx.`type`))
+    typeFactory.makeField(ctx.fieldId.getText, flip, visitType(ctx.`type`))
   }
 
   private def visitBlock(ctx: ModuleBlockContext): Statement =
