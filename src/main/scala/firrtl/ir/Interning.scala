@@ -98,7 +98,7 @@ class InterningExpressionFactory {
     doPrims.getOrElseUpdate(IdSeqAndEqKey(args, (op, consts)), DoPrim(op, args, consts, UnknownType))
 
   private val validIfs = mutable.HashMap[IdSeqKey[Expression], ValidIf]()
-  def makeValifId(cond: Expression, value: Expression): ValidIf =
+  def makeValifIf(cond: Expression, value: Expression): ValidIf =
     validIfs.getOrElseUpdate(IdSeqKey(Seq(cond, value)), ValidIf(cond, value, UnknownType))
 
   private val uIntLits = mutable.HashMap[IdAndEqKey[Width, BigInt], UIntLiteral]()

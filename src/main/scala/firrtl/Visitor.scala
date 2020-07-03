@@ -353,10 +353,11 @@ class Visitor(infoMode: InfoMode) extends AbstractParseTreeVisitor[FirrtlNode] w
     }
   }
 
+  private val exprFactory = new InterningExpressionFactory()
   private def visitExp(ctx: ExpContext): Expression = {
     val ctx_exp = ctx.exp.asScala
     ctx.getChild(0) match {
-      case _: IdContext => Reference(ctx.getText, UnknownType)
+      case _: IdContext => exprFactory.makeReference(ctx.getText)
       case _: ExpContext =>
         ctx.getChild(1).getText match {
           case "." =>
@@ -365,47 +366,44 @@ class Visitor(infoMode: InfoMode) extends AbstractParseTreeVisitor[FirrtlNode] w
             if (ctx.fieldId == null) {
               ctx.DoubleLit.getText.split('.') match {
                 case Array(a, b) if legalId(a) && legalId(b) =>
-                  val inner = new SubField(expr1, a, UnknownType)
-                  new SubField(inner, b, UnknownType)
+                  val inner = exprFactory.makeSubField(expr1, a)
+                  exprFactory.makeSubField(inner, b)
                 case Array() => throw new ParserException(s"Illegal Expression at ${ctx.getText}")
               }
             } else {
-              new SubField(expr1, ctx.fieldId.getText, UnknownType)
+              exprFactory.makeSubField(expr1, ctx.fieldId.getText)
             }
           case "[" =>
             if (ctx.exp(1) == null)
-              new SubIndex(visitExp(ctx_exp(0)), string2Int(ctx.intLit(0).getText), UnknownType)
+              exprFactory.makeSubIndex(visitExp(ctx_exp(0)), string2Int(ctx.intLit(0).getText))
             else
-              new SubAccess(visitExp(ctx_exp(0)), visitExp(ctx_exp(1)), UnknownType)
+              exprFactory.makeSubAccess(visitExp(ctx_exp(0)), visitExp(ctx_exp(1)))
         }
-      case _: PrimopContext =>
-        DoPrim(visitPrimop(ctx.primop),
-               ctx_exp.map(visitExp),
-               ctx.intLit.asScala.map(x => string2BigInt(x.getText)),
-               UnknownType)
+      case _: PrimopContext => exprFactory.makeDoPrim(visitPrimop(ctx.primop), ctx_exp.map(visitExp),
+                                                      ctx.intLit.asScala.map(x => string2BigInt(x.getText)))
       case _ =>
         ctx.getChild(0).getText match {
           case "UInt" =>
             if (ctx.getChildCount > 4) {
-              val width = IntWidth(string2BigInt(ctx.intLit(0).getText))
+              val width = typeFactory.makeIntWidth(string2BigInt(ctx.intLit(0).getText))
               val value = string2BigInt(ctx.intLit(1).getText)
-              UIntLiteral(value, width)
+              exprFactory.makeUIntLiteral(value, width)
             } else {
               val value = string2BigInt(ctx.intLit(0).getText)
-              UIntLiteral(value)
+              exprFactory.makeUIntLiteral(value)
             }
           case "SInt" =>
             if (ctx.getChildCount > 4) {
-              val width = string2BigInt(ctx.intLit(0).getText)
+              val width = typeFactory.makeIntWidth(string2BigInt(ctx.intLit(0).getText))
               val value = string2BigInt(ctx.intLit(1).getText)
-              SIntLiteral(value, IntWidth(width))
+              exprFactory.makeSIntLiteral(value, width)
             } else {
               val str = ctx.intLit(0).getText
               val value = string2BigInt(str)
-              SIntLiteral(value)
+              exprFactory.makeSIntLiteral(value)
             }
-          case "validif(" => ValidIf(visitExp(ctx_exp(0)), visitExp(ctx_exp(1)), UnknownType)
-          case "mux(" => Mux(visitExp(ctx_exp(0)), visitExp(ctx_exp(1)), visitExp(ctx_exp(2)), UnknownType)
+          case "validif(" => exprFactory.makeValifIf(visitExp(ctx_exp(0)), visitExp(ctx_exp(1)))
+          case "mux(" => exprFactory.makeMux(visitExp(ctx_exp(0)), visitExp(ctx_exp(1)), visitExp(ctx_exp(2)))
         }
     }
   }
