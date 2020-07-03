@@ -118,8 +118,7 @@ class InterningExpressionFactory {
 
 private class IdSeqKey[T <: AnyRef](val e: Seq[T]) {
   override def equals(obj: Any): Boolean = obj match {
-    // todo: what if e and i are of different lengths?
-    case i : IdSeqKey[_] => e.zip(i.e).forall{ case (a,b) => a.eq(b) } && e.length == i.e.length
+    case other : IdSeqKey[_] => e.zip(other.e).forall{ case (a,b) => a.eq(b) } && e.length == other.e.length
     case _ => false
   }
   override val hashCode: Int = e.map(System.identityHashCode).hashCode()
@@ -127,7 +126,7 @@ private class IdSeqKey[T <: AnyRef](val e: Seq[T]) {
 private object IdSeqKey { def apply[T <: AnyRef](e: Seq[T]): IdSeqKey[T] = new IdSeqKey[T](e) }
 private class IdKey[T <: AnyRef](val k: T) {
   override def equals(obj: Any): Boolean = obj match {
-    case i : IdKey[_] => i.eq(k)
+    case other : IdKey[_] => other.eq(k)
     case _ => false
   }
   override val hashCode: Int = System.identityHashCode(k)
@@ -135,7 +134,7 @@ private class IdKey[T <: AnyRef](val k: T) {
 private object IdKey { def apply[T <: AnyRef](e: T): IdKey[T] = new IdKey[T](e) }
 private class IdAndEqKey[I <: AnyRef, E](val i: I, val e: E) {
   override def equals(obj: Any): Boolean = obj match {
-    case i : IdAndEqKey[_, _] => i.i.eq(i) && i.e == e
+    case other : IdAndEqKey[_, _] => other.i.eq(i) && other.e == e
     case _ => false
   }
   override val hashCode: Int = (System.identityHashCode(i), e).hashCode()
@@ -145,8 +144,8 @@ private object IdAndEqKey {
 }
 private class IdSeqAndEqKey[I <: AnyRef, E](val i: Seq[I], val e: E) {
   override def equals(obj: Any): Boolean = obj match {
-    case o : IdSeqAndEqKey[_, _] =>
-      i.zip(o.i).forall{ case (a,b) => a.eq(b) } && i.length == o.i.length && o.e == e
+    case other : IdSeqAndEqKey[_, _] =>
+      i.zip(other.i).forall{ case (a,b) => a.eq(b) } && i.length == other.i.length && other.e == e
     case _ => false
   }
   override val hashCode: Int = (i.map(System.identityHashCode).hashCode(), e.hashCode()).hashCode()
