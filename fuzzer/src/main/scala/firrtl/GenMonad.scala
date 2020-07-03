@@ -1,5 +1,7 @@
 package firrtl.fuzzer
 
+import firrtl.ir._
+
 import scala.annotation.tailrec
 
 trait ASTGen[A] {
@@ -65,8 +67,23 @@ trait GenMonad[G[_]] {
   def applyGen[A](ga: G[A]): A
 }
 
-trait StateGen[S, G[_]] {
+/* type class for types T where T[S, G[_]] = S => G[(S, A)].
+ *
+ * i.e. functions that take an input state and return a random generator that
+ * generates a new state paired with a value
+ */
+trait ExprStateGen[S, G[_]] {
   type State[A] = S => G[(S, A)]
+
+  // def unboundRefs: Set[Reference] // should have type set
+  // def decls: Set[IsDeclaration]
+
+  def withRef(s: S, ref: Reference): S
+  def getValidName(name: String): State[String]
+  def exprGen[G[_]: GenMonad](tpe: Type): State[Expression]
+
+  def pureG[A](a: G[A]): State[A]
+  def pure[A](a: A): State[A]
 
   def flatMap[A, B](a: State[A])(f: A => State[B]): State[B]
   def map[A, B](a: State[A])(f: A => B): State[B]

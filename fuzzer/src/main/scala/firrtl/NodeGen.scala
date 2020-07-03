@@ -396,9 +396,127 @@ object Fuzzers {
     makeBinPrimOpGen(PrimOps.Dshr, typeFn, tpe)
   }
 
+  def makeUnaryPrimOpGen[G[_]: GenMonad](
+    primOp: PrimOp,
+    typeFn: Type => G[(Type, Type)],
+    tpe: Type): State[G, Context[G], Expression] = (ctx0: Context[G]) => {
+    for {
+      (tpe1, exprTpe) <- typeFn(tpe)
+      (ctx1, expr1) <- ctx0.exprGen(tpe1)
+    } yield {
+      ctx1 -> DoPrim(primOp, Seq(expr1), Seq.empty, exprTpe)
+    }
+  }
+
+  def genCvtPrimOp[G[_]: GenMonad](tpe: Type): State[G, Context[G], Expression] = {
+    val typeFn: Type => G[(Type, Type)] = {
+      case SIntType(UnknownWidth) => for {
+        width <- anyWidth
+        isUInt <- GenMonad[G].oneOf(true, false)
+      } yield {
+        if (isUInt) {
+          UIntType(IntWidth(math.max(width.width.toInt - 1, 0))) -> SIntType(width)
+        } else {
+          SIntType(width) -> SIntType(width)
+        }
+      }
+      case SIntType(IntWidth(width)) => for {
+        isUInt <- GenMonad[G].oneOf(true, false)
+      } yield {
+        if (isUInt) {
+          UIntType(IntWidth(math.max(width.toInt - 1, 0))) -> tpe
+        } else {
+          tpe -> tpe
+        }
+      }
+    }
+    makeUnaryPrimOpGen(PrimOps.Cvt, typeFn, tpe)
+  }
+
+  def genNegPrimOp[G[_]: GenMonad](tpe: Type): State[G, Context[G], Expression] = {
+    val typeFn: Type => G[(Type, Type)] = {
+      case SIntType(UnknownWidth) => for {
+        width <- anyWidth
+        isUInt <- GenMonad[G].oneOf(true, false)
+      } yield {
+        if (isUInt) {
+          UIntType(IntWidth(math.max(width.width.toInt - 1, 0))) -> SIntType(width)
+        } else {
+          SIntType(IntWidth(math.max(width.width.toInt - 1, 0))) -> SIntType(width)
+        }
+      }
+      case SIntType(IntWidth(width)) => for {
+        isUInt <- GenMonad[G].oneOf(true, false)
+      } yield {
+        if (isUInt) {
+          UIntType(IntWidth(math.max(width.toInt - 1, 0))) -> tpe
+        } else {
+          SIntType(IntWidth(math.max(width.toInt - 1, 0))) -> tpe
+        }
+      }
+    }
+    makeUnaryPrimOpGen(PrimOps.Neg, typeFn, tpe)
+  }
+
+  def genNotPrimOp[G[_]: GenMonad](tpe: Type): State[G, Context[G], Expression] = {
+    val typeFn: Type => G[(Type, Type)] = {
+      case UIntType(UnknownWidth) => for {
+        width <- anyWidth
+        isUInt <- GenMonad[G].oneOf(true, false)
+      } yield {
+        if (isUInt) {
+          UIntType(width) -> UIntType(width)
+        } else {
+          SIntType(width) -> UIntType(width)
+        }
+      }
+      case UIntType(width) => for {
+        isUInt <- GenMonad[G].oneOf(true, false)
+      } yield {
+        if (isUInt) {
+          tpe -> tpe
+        } else {
+          SIntType(width) -> tpe
+        }
+      }
+    }
+    makeUnaryPrimOpGen(PrimOps.Not, typeFn, tpe)
+  }
+
+  def makeBitwisePrimOpGen[G[_]: GenMonad](primOp: PrimOp)(tpe: Type): State[G, Context[G], Expression] = {
+    val typeFn: Type => G[(Type, Type, Type)] = {
+      case UIntType(UnknownWidth) | UnknownType => for {
+        width1 <- anyWidth
+        width2 <- anyWidth
+      } yield {
+        (UIntType(width1), UIntType(width2), UIntType(IntWidth(math.max(width1.width.toInt, width2.width.toInt))))
+      }
+      case UIntType(IntWidth(width)) => for {
+        width1 <- anyWidth
+        width2 <- anyWidth
+      } yield {
+        (UIntType(width1), UIntType(width2), UIntType(IntWidth(math.max(width1.width.toInt, width2.width.toInt))))
+      }
+    }
+    makeBinPrimOpGen(primOp, typeFn, tpe)
+  }
+
+  def makeReducePrimOpGen[G[_]: GenMonad](primOp: PrimOp)(tpe: Type): State[G, Context[G], Expression] = {
+    val typeFn: Type => G[(Type, Type)] = {
+      case Utils.BoolType | UnknownType => for {
+        width1 <- anyWidth
+        tpeFn <- GenMonad[G].oneOf(UIntType(_), SIntType(_))
+      } yield {
+        (tpeFn(width1), Utils.BoolType)
+      }
+    }
+    makeUnaryPrimOpGen(primOp, typeFn, tpe)
+  }
+
   case class TraceException(trace: Seq[String], cause: Throwable) extends Exception(
       s"failed: $cause\ntrace:\n${trace.reverse.mkString("\n")}"
     )
+
   def wrap[G[_]: GenMonad](name: String, fn: Type => State[G, Context[G], Expression]): Type => State[G, Context[G], Expression] = {
     (tpe: Type) => (ctx: Context[G]) => {
       GenMonad[G].choose(0, 1).map ( _ =>
@@ -413,8 +531,9 @@ object Fuzzers {
       )
     }
   }
+
   def recursiveExprGen[G[_]: GenMonad](tpe: Type, ctx: Context[G]): G[(Context[G], Expression)] = {
-    val anyWidthBinOp: G[Type => State[G, Context[G], Expression]] = GenMonad[G].oneOf(
+    val anyBinOp: G[Type => State[G, Context[G], Expression]] = GenMonad[G].oneOf(
       genAddPrimOp(_),
       genSubPrimOp(_),
       genDivPrimOp(_),
@@ -427,21 +546,40 @@ object Fuzzers {
       genDshrPrimOp(_)
     )
     val boolBinOp: G[Type => State[G, Context[G], Expression]] = GenMonad[G].oneOf(
-      PrimOps.Lt,
-      PrimOps.Leq,
-      PrimOps.Gt,
-      PrimOps.Geq,
-      PrimOps.Eq,
-      PrimOps.Neq
-    ).flatMap { primOp =>
-      GenMonad[G].const(makeCmpPrimOpGen(primOp)(_))
-    }
+      makeCmpPrimOpGen(PrimOps.Lt)(_),
+      makeCmpPrimOpGen(PrimOps.Leq)(_),
+      makeCmpPrimOpGen(PrimOps.Gt)(_),
+      makeCmpPrimOpGen(PrimOps.Geq)(_),
+      makeCmpPrimOpGen(PrimOps.Eq)(_),
+      makeCmpPrimOpGen(PrimOps.Neq)(_),
+
+      makeReducePrimOpGen(PrimOps.Andr)(_),
+      makeReducePrimOpGen(PrimOps.Orr)(_),
+      makeReducePrimOpGen(PrimOps.Xorr)(_),
+    )
+    val uintBinOp: G[Type => State[G, Context[G], Expression]] = GenMonad[G].oneOf(
+      makeBitwisePrimOpGen(PrimOps.And)(_),
+      makeBitwisePrimOpGen(PrimOps.Or)(_),
+      makeBitwisePrimOpGen(PrimOps.Xor)(_),
+    )
+    val sintBinOp: G[Type => State[G, Context[G], Expression]] = GenMonad[G].oneOf(
+      genCvtPrimOp(_),
+      genNegPrimOp(_),
+    )
     tpe match {
-      case UnknownType | Utils.BoolType => GenMonad[G].oneOf(
+      case Utils.BoolType => GenMonad[G].oneOf(
         boolBinOp,
-        anyWidthBinOp
       ).flatten.map(_(tpe)(ctx)).flatten
-      case _ => anyWidthBinOp.map(_(tpe)(ctx)).flatten
+      case _: UIntType => GenMonad[G].oneOf(
+        uintBinOp,
+        anyBinOp,
+      ).flatten.map(_(tpe)(ctx)).flatten
+      case _: SIntType => GenMonad[G].oneOf(
+        sintBinOp,
+        anyBinOp,
+      ).flatten.map(_(tpe)(ctx)).flatten
+      case _ =>
+        anyBinOp.flatMap(_(tpe)(ctx))
     }
   }
 
