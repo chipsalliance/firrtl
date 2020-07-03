@@ -16,42 +16,13 @@ class NodeCount private (node: FirrtlNode) {
   // Counts the number of unique objects in a Firrtl graph
   // There is no IdentityHashSet
   private val identityMap = new java.util.IdentityHashMap[Any, Boolean]()
-  // This is a strict subset of the keys of identityMap
-  private val regularSet = new collection.mutable.HashSet[Any]
-
-  @tailrec
-  private final def rec(xs: List[Any]): Unit =
-    if (xs.isEmpty) { }
-    else {
-      val node = xs.head
-      require(node.isInstanceOf[Product] || !node.isInstanceOf[FirrtlNode],
-        "Unexpected FirrtlNode that does not implement Product!")
-      val moreToVisit =
-        if (identityMap.containsKey(node)) List.empty
-        else { // Haven't seen yet
-          identityMap.put(node, true)
-          regularSet += node
-          node match { // FirrtlNodes are Products
-            case p: Product => p.productIterator
-            case i: Iterable[Any] => i
-            case _ => List.empty
-          }
-        }
-      rec(moreToVisit ++: xs.tail)
-    }
-  rec(List(node))
+  NodeCount.count(node, identityMap)
 
   /** Number of nodes that are referentially unique
     *
     * !(a eq b)
     */
   def unique: Long = identityMap.size
-
-  /** Number of nodes that are different
-    *
-    * !(a == b)
-    */
-  def nonequivalent: Long = regularSet.size
 
   /** Number of nodes in this NodeCount that are NOT present in that NodeCount */
   def uniqueFrom(that: NodeCount): Long =
@@ -60,4 +31,21 @@ class NodeCount private (node: FirrtlNode) {
 
 object NodeCount {
   def apply(node: FirrtlNode) = new NodeCount(node)
+  private def count(node: FirrtlNode, identityMap: java.util.IdentityHashMap[Any, Boolean]): Unit = {
+    val stack = scala.collection.mutable.ArrayStack[Any]()
+    stack.push(node)
+    while(stack.nonEmpty) {
+      val node = stack.pop()
+      require(node.isInstanceOf[Product] || !node.isInstanceOf[FirrtlNode],
+        "Unexpected FirrtlNode that does not implement Product!")
+      if (!identityMap.containsKey(node)) {
+        identityMap.put(node, true)
+        node match { // FirrtlNodes are Products
+          case p: Product => p.productIterator.foreach(stack.push)
+          case i: Iterable[Any] => i.foreach(stack.push)
+          case _ => List.empty
+        }
+      }
+    }
+  }
 }
