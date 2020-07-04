@@ -4,35 +4,16 @@ import firrtl.ir._
 import firrtl.passes.CheckWidths
 import firrtl.{Namespace, PrimOps, Utils}
 
-trait Context[Gen[_]] {
+trait Context {
   def unboundRefs: Set[Reference] // should have type set
   def decls: Set[IsDeclaration]
   def maxDepth: Int
   def minDepth: Int
-  def withRef(ref: Reference): Context[Gen]
-  def decrementDepth: Context[Gen]
-  def incrementDepth: Context[Gen]
+  def withRef(ref: Reference): Context
+  def decrementDepth: Context
+  def incrementDepth: Context
   def namespace: Namespace
-  def exprGen(tpe: Type): Gen[(Context[Gen], Expression)]
-}
-
-case class ExprContext(
-  unboundRefs: Set[Reference],
-  decls: Set[IsDeclaration],
-  minDepth: Int,
-  maxDepth: Int,
-  namespace: Namespace,
-  exprGenFn: Type => Fuzzers.State[ASTGen, Context[ASTGen], Expression]) extends Context[ASTGen] {
-  def withRef(ref: Reference): ExprContext = this.copy(unboundRefs = unboundRefs + ref)
-  def decrementDepth: ExprContext = this.copy(
-    maxDepth = maxDepth - 1,
-    minDepth = minDepth - 1
-  )
-  def incrementDepth: ExprContext = this.copy(
-    maxDepth = maxDepth + 1,
-    minDepth = minDepth + 1
-  )
-  def exprGen(tpe: Type): ASTGen[(Context[ASTGen], Expression)] = exprGenFn(tpe)(this.decrementDepth)
+  def exprGen[G[_]: GenMonad](tpe: Type): G[(Context, Expression)]
 }
 
 object Fuzzers {
@@ -49,7 +30,7 @@ object Fuzzers {
   def makeBinPrimOpGen[G[_]: GenMonad](
     primOp: PrimOp,
     typeFn: Type => G[(Type, Type, Type)],
-    tpe: Type): State[G, Context[G], Expression] = (ctx0: Context[G]) => {
+    tpe: Type): State[G, Context, Expression] = (ctx0: Context) => {
     for {
       (tpe1, tpe2, exprTpe) <- typeFn(tpe)
       (ctx1, expr1) <- ctx0.exprGen(tpe1)
@@ -73,7 +54,7 @@ object Fuzzers {
     case known => fn(known)
   }
 
-  def genAddSubPrimOp[G[_]: GenMonad](isAdd: Boolean)(tpe: Type): State[G, Context[G], Expression] = {
+  def genAddSubPrimOp[G[_]: GenMonad](isAdd: Boolean)(tpe: Type): State[G, Context, Expression] = {
     val typeFn: Type => G[(Type, Type, Type)] = handleUnknown {
       case UIntType(width) =>
         val argTpe = UIntType(widthOp(width)(i => math.max(i.toInt - 1, 0)))
@@ -85,14 +66,14 @@ object Fuzzers {
     makeBinPrimOpGen(if (isAdd) PrimOps.Add else PrimOps.Sub, typeFn, tpe)
   }
 
-  def genAddPrimOp[G[_]: GenMonad](tpe: Type): State[G, Context[G], Expression] =
+  def genAddPrimOp[G[_]: GenMonad](tpe: Type): State[G, Context, Expression] =
     genAddSubPrimOp(true)(tpe)
 
-  def genSubPrimOp[G[_]: GenMonad](tpe: Type): State[G, Context[G], Expression] =
+  def genSubPrimOp[G[_]: GenMonad](tpe: Type): State[G, Context, Expression] =
     genAddSubPrimOp(false)(tpe)
 
 
-  def genMulPrimOp[G[_]: GenMonad](tpe: Type): State[G, Context[G], Expression] = {
+  def genMulPrimOp[G[_]: GenMonad](tpe: Type): State[G, Context, Expression] = {
     val anyWidth: G[(IntWidth, IntWidth)] = for {
       totalWidth <- GenMonad[G].choose(0, MAX_WIDTH)
       width1 <- GenMonad[G].choose(0, totalWidth)
@@ -125,7 +106,7 @@ object Fuzzers {
 
   def anyWidth[G[_]: GenMonad]: G[IntWidth] = GenMonad[G].choose(1, MAX_WIDTH).map(IntWidth(_))
 
-  def genDivPrimOp[G[_]: GenMonad](tpe: Type): State[G, Context[G], Expression] = {
+  def genDivPrimOp[G[_]: GenMonad](tpe: Type): State[G, Context, Expression] = {
     val typeFn: Type => G[(Type, Type, Type)] = handleUnknown {
       case UIntType(UnknownWidth) => for {
         w1 <- anyWidth
@@ -155,7 +136,7 @@ object Fuzzers {
     makeBinPrimOpGen(PrimOps.Div, typeFn, tpe)
   }
 
-  def genRemPrimOp[G[_]: GenMonad](tpe: Type): State[G, Context[G], Expression] = {
+  def genRemPrimOp[G[_]: GenMonad](tpe: Type): State[G, Context, Expression] = {
     val typeFn: Type => G[(Type, Type, Type)] = handleUnknown {
       case UIntType(UnknownWidth) => for {
         w1 <- anyWidth
@@ -185,7 +166,7 @@ object Fuzzers {
     makeBinPrimOpGen(PrimOps.Rem, typeFn, tpe)
   }
 
-  def makeCmpPrimOpGen[G[_]: GenMonad](primOp: PrimOp)(tpe: Type): State[G, Context[G], Expression] = {
+  def makeCmpPrimOpGen[G[_]: GenMonad](primOp: PrimOp)(tpe: Type): State[G, Context, Expression] = {
     val typeFn: Type => G[(Type, Type, Type)] = handleUnknown {
       case _: UIntType => for {
         w1 <- anyWidth
@@ -203,13 +184,13 @@ object Fuzzers {
     makeBinPrimOpGen(primOp, typeFn, tpe)
   }
 
-  def genCmpPrimOp[G[_]: GenMonad](tpe: Type): State[G, Context[G], Expression] = (ctx: Context[G]) => {
+  def genCmpPrimOp[G[_]: GenMonad](tpe: Type): State[G, Context, Expression] = (ctx: Context) => {
     GenMonad[G].oneOf(PrimOps.Lt, PrimOps.Leq, PrimOps.Gt, PrimOps.Geq, PrimOps.Eq, PrimOps.Neq).flatMap { primOp =>
       makeCmpPrimOpGen(primOp)(tpe)(GenMonad[G])(ctx)
     }
   }
 
-  def genPadPrimOp[G[_]: GenMonad](tpe: Type): State[G, Context[G], Expression] = (ctx0: Context[G]) => {
+  def genPadPrimOp[G[_]: GenMonad](tpe: Type): State[G, Context, Expression] = (ctx0: Context) => {
     tpe match {
       case UIntType(UnknownWidth) => for {
         w1 <- anyWidth
@@ -242,7 +223,7 @@ object Fuzzers {
     }
   }
 
-  def genShlPrimOp[G[_]: GenMonad](tpe: Type): State[G, Context[G], Expression] = (ctx0: Context[G]) => {
+  def genShlPrimOp[G[_]: GenMonad](tpe: Type): State[G, Context, Expression] = (ctx0: Context) => {
     tpe match {
       case UIntType(UnknownWidth) => for {
         w1 <- anyWidth
@@ -284,7 +265,7 @@ object Fuzzers {
     }
   }
 
-  def genShrPrimOp[G[_]: GenMonad](tpe: Type): State[G, Context[G], Expression] = (ctx0: Context[G]) => {
+  def genShrPrimOp[G[_]: GenMonad](tpe: Type): State[G, Context, Expression] = (ctx0: Context) => {
     tpe match {
       case UIntType(UnknownWidth) => for {
         shamt <- GenMonad[G].choose(0, MAX_WIDTH)
@@ -338,7 +319,7 @@ object Fuzzers {
     }
   }
 
-  def genDshlPrimOp[G[_]: GenMonad](tpe: Type): State[G, Context[G], Expression] = {
+  def genDshlPrimOp[G[_]: GenMonad](tpe: Type): State[G, Context, Expression] = {
     val typeFn: Type => G[(Type, Type, Type)] = handleUnknown {
       case UIntType(UnknownWidth) => for {
         shWidth <- GenMonad[G].choose(0, MAX_WIDTH_LOG2)
@@ -368,7 +349,7 @@ object Fuzzers {
     makeBinPrimOpGen(PrimOps.Dshl, typeFn, tpe)
   }
 
-  def genDshrPrimOp[G[_]: GenMonad](tpe: Type): State[G, Context[G], Expression] = {
+  def genDshrPrimOp[G[_]: GenMonad](tpe: Type): State[G, Context, Expression] = {
     val typeFn: Type => G[(Type, Type, Type)] = handleUnknown {
       case UIntType(UnknownWidth) => for {
         w1 <- anyWidth
@@ -399,7 +380,7 @@ object Fuzzers {
   def makeUnaryPrimOpGen[G[_]: GenMonad](
     primOp: PrimOp,
     typeFn: Type => G[(Type, Type)],
-    tpe: Type): State[G, Context[G], Expression] = (ctx0: Context[G]) => {
+    tpe: Type): State[G, Context, Expression] = (ctx0: Context) => {
     for {
       (tpe1, exprTpe) <- typeFn(tpe)
       (ctx1, expr1) <- ctx0.exprGen(tpe1)
@@ -408,7 +389,7 @@ object Fuzzers {
     }
   }
 
-  def genCvtPrimOp[G[_]: GenMonad](tpe: Type): State[G, Context[G], Expression] = {
+  def genCvtPrimOp[G[_]: GenMonad](tpe: Type): State[G, Context, Expression] = {
     val typeFn: Type => G[(Type, Type)] = {
       case SIntType(UnknownWidth) => for {
         width <- anyWidth
@@ -433,7 +414,7 @@ object Fuzzers {
     makeUnaryPrimOpGen(PrimOps.Cvt, typeFn, tpe)
   }
 
-  def genNegPrimOp[G[_]: GenMonad](tpe: Type): State[G, Context[G], Expression] = {
+  def genNegPrimOp[G[_]: GenMonad](tpe: Type): State[G, Context, Expression] = {
     val typeFn: Type => G[(Type, Type)] = {
       case SIntType(UnknownWidth) => for {
         width <- anyWidth
@@ -458,7 +439,7 @@ object Fuzzers {
     makeUnaryPrimOpGen(PrimOps.Neg, typeFn, tpe)
   }
 
-  def genNotPrimOp[G[_]: GenMonad](tpe: Type): State[G, Context[G], Expression] = {
+  def genNotPrimOp[G[_]: GenMonad](tpe: Type): State[G, Context, Expression] = {
     val typeFn: Type => G[(Type, Type)] = {
       case UIntType(UnknownWidth) => for {
         width <- anyWidth
@@ -483,7 +464,7 @@ object Fuzzers {
     makeUnaryPrimOpGen(PrimOps.Not, typeFn, tpe)
   }
 
-  def makeBitwisePrimOpGen[G[_]: GenMonad](primOp: PrimOp)(tpe: Type): State[G, Context[G], Expression] = {
+  def makeBitwisePrimOpGen[G[_]: GenMonad](primOp: PrimOp)(tpe: Type): State[G, Context, Expression] = {
     val typeFn: Type => G[(Type, Type, Type)] = {
       case UIntType(UnknownWidth) | UnknownType => for {
         width1 <- anyWidth
@@ -501,7 +482,7 @@ object Fuzzers {
     makeBinPrimOpGen(primOp, typeFn, tpe)
   }
 
-  def makeReducePrimOpGen[G[_]: GenMonad](primOp: PrimOp)(tpe: Type): State[G, Context[G], Expression] = {
+  def makeReducePrimOpGen[G[_]: GenMonad](primOp: PrimOp)(tpe: Type): State[G, Context, Expression] = {
     val typeFn: Type => G[(Type, Type)] = {
       case Utils.BoolType | UnknownType => for {
         width1 <- anyWidth
@@ -517,8 +498,8 @@ object Fuzzers {
       s"failed: $cause\ntrace:\n${trace.reverse.mkString("\n")}"
     )
 
-  def wrap[G[_]: GenMonad](name: String, fn: Type => State[G, Context[G], Expression]): Type => State[G, Context[G], Expression] = {
-    (tpe: Type) => (ctx: Context[G]) => {
+  def wrap[G[_]: GenMonad](name: String, fn: Type => State[G, Context, Expression]): Type => State[G, Context, Expression] = {
+    (tpe: Type) => (ctx: Context) => {
       GenMonad[G].choose(0, 1).map ( _ =>
         try {
           GenMonad[G].applyGen(fn(tpe)(ctx))//.map(s => wrap[G](name, (_: Type) => s)(tpe))
@@ -532,8 +513,8 @@ object Fuzzers {
     }
   }
 
-  def recursiveExprGen[G[_]: GenMonad](tpe: Type, ctx: Context[G]): G[(Context[G], Expression)] = {
-    val anyBinOp: G[Type => State[G, Context[G], Expression]] = GenMonad[G].oneOf(
+  def recursiveExprGen[G[_]: GenMonad](tpe: Type): State[G, Context, Expression] = (ctx: Context) => {
+    val anyBinOp: G[Type => State[G, Context, Expression]] = GenMonad[G].oneOf(
       genAddPrimOp(_),
       genSubPrimOp(_),
       genDivPrimOp(_),
@@ -545,7 +526,7 @@ object Fuzzers {
       genDshlPrimOp(_),
       genDshrPrimOp(_)
     )
-    val boolBinOp: G[Type => State[G, Context[G], Expression]] = GenMonad[G].oneOf(
+    val boolBinOp: G[Type => State[G, Context, Expression]] = GenMonad[G].oneOf(
       makeCmpPrimOpGen(PrimOps.Lt)(_),
       makeCmpPrimOpGen(PrimOps.Leq)(_),
       makeCmpPrimOpGen(PrimOps.Gt)(_),
@@ -557,12 +538,12 @@ object Fuzzers {
       makeReducePrimOpGen(PrimOps.Orr)(_),
       makeReducePrimOpGen(PrimOps.Xorr)(_),
     )
-    val uintBinOp: G[Type => State[G, Context[G], Expression]] = GenMonad[G].oneOf(
+    val uintBinOp: G[Type => State[G, Context, Expression]] = GenMonad[G].oneOf(
       makeBitwisePrimOpGen(PrimOps.And)(_),
       makeBitwisePrimOpGen(PrimOps.Or)(_),
       makeBitwisePrimOpGen(PrimOps.Xor)(_),
     )
-    val sintBinOp: G[Type => State[G, Context[G], Expression]] = GenMonad[G].oneOf(
+    val sintBinOp: G[Type => State[G, Context, Expression]] = GenMonad[G].oneOf(
       genCvtPrimOp(_),
       genNegPrimOp(_),
     )
@@ -584,7 +565,7 @@ object Fuzzers {
   }
 
 
-  def genUIntLiteralLeaf[G[_]: GenMonad](tpe: UIntType): State[G, Context[G], Expression] = (ctx: Context[G]) => {
+  def genUIntLiteralLeaf[G[_]: GenMonad](tpe: UIntType): State[G, Context, Expression] = (ctx: Context) => {
     val genWidth: G[Int] = tpe.width match {
       case UnknownWidth => GenMonad[G].choose(1, MAX_WIDTH)
       case IntWidth(width) => GenMonad[G].const(width.toInt)
@@ -596,7 +577,7 @@ object Fuzzers {
     }
   }
 
-  def genSIntLiteralLeaf[G[_]: GenMonad](tpe: SIntType): State[G, Context[G], Expression] = (ctx: Context[G]) => {
+  def genSIntLiteralLeaf[G[_]: GenMonad](tpe: SIntType): State[G, Context, Expression] = (ctx: Context) => {
     val genWidth: G[Int] = tpe.width match {
       case UnknownWidth => GenMonad[G].choose(0, MAX_WIDTH)
       case IntWidth(width) => GenMonad[G].const(width.toInt)
@@ -610,11 +591,11 @@ object Fuzzers {
     }
   }
 
-  def genLiteralLeaf[G[_]: GenMonad](tpe: Type): State[G, Context[G], Expression] = {
+  def genLiteralLeaf[G[_]: GenMonad](tpe: Type): State[G, Context, Expression] = {
     tpe match {
       case u: UIntType => genUIntLiteralLeaf(u)
       case s: SIntType => genSIntLiteralLeaf(s)
-      case UnknownType => (ctx: Context[G]) =>
+      case UnknownType => (ctx: Context) =>
         GenMonad[G].choose(0, MAX_WIDTH).flatMap { width =>
           GenMonad[G].oneOf(
             genUIntLiteralLeaf(UIntType(IntWidth(width))),
@@ -626,7 +607,7 @@ object Fuzzers {
 
   def genRefLeaf[G[_]: GenMonad](
     nameOpt: Option[String]
-  )(tpe: Type): State[G, Context[G], Reference] = (ctx0: Context[G]) => {
+  )(tpe: Type): State[G, Context, Reference] = (ctx0: Context) => {
     val genType: G[Type] = tpe match {
       case GroundType(UnknownWidth) =>
         GenMonad[G].choose(0, MAX_WIDTH)
@@ -649,18 +630,18 @@ object Fuzzers {
     }
   }
 
-  def genLeaf[G[_]: GenMonad](tpe: Type): State[G, Context[G], Expression] = (ctx0: Context[G]) => {
-    val stateGen: G[State[G, Context[G], Expression]] = GenMonad[G].oneOf(
-      (ctx: Context[G]) => genRefLeaf(None)(tpe)(GenMonad[G])(ctx).map {
+  def genLeaf[G[_]: GenMonad](tpe: Type): State[G, Context, Expression] = (ctx0: Context) => {
+    val stateGen: G[State[G, Context, Expression]] = GenMonad[G].oneOf(
+      (ctx: Context) => genRefLeaf(None)(tpe)(GenMonad[G])(ctx).map {
          case (s, a) => (s, a.asInstanceOf[Expression])
        },
       genLiteralLeaf(tpe),
     )
     stateGen.flatMap(_(ctx0))
   }
-  //def genLeaf[G[_]: GenMonad]: Type => State[G, Context[G], Expression] = wrap("leaf", genLeafa(_))
+  //def genLeaf[G[_]: GenMonad]: Type => State[G, Context, Expression] = wrap("leaf", genLeafa(_))
 
-  def exprMod[G[_]: GenMonad](ctx0: Context[G]): G[(Context[G], Module)] = {
+  def exprMod[G[_]: GenMonad](ctx0: Context): G[(Context, Module)] = {
     for {
       width <- GenMonad[G].oneOf(anyWidth, GenMonad[G].const(IntWidth(1))).flatten
       tpe <- GenMonad[G].oneOf(UIntType(width), SIntType(width))
@@ -685,7 +666,7 @@ object Fuzzers {
     }
   }
 
-  def exprCircuit[G[_]: GenMonad](ctx: Context[G]): G[Circuit] = {
+  def exprCircuit[G[_]: GenMonad](ctx: Context): G[Circuit] = {
     exprMod(ctx).map { case (_, m) =>
       Circuit(NoInfo, Seq(m), m.name)
     }

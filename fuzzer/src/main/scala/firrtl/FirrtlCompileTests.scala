@@ -15,9 +15,45 @@ import java.io.{PrintWriter, StringWriter}
 import edu.berkeley.cs.jqf.fuzz.Fuzz;
 import edu.berkeley.cs.jqf.fuzz.JQF;
 
+case class ExprContext(
+  unboundRefs: Set[Reference],
+  decls: Set[IsDeclaration],
+  minDepth: Int,
+  maxDepth: Int,
+  namespace: Namespace) extends Context {
+  def withRef(ref: Reference): ExprContext = this.copy(unboundRefs = unboundRefs + ref)
+  def decrementDepth: ExprContext = this.copy(
+    maxDepth = maxDepth - 1,
+    minDepth = minDepth - 1
+  )
+  def incrementDepth: ExprContext = this.copy(
+    maxDepth = maxDepth + 1,
+    minDepth = minDepth + 1
+  )
+  def exprGen[G[_]: GenMonad](tpe: Type): G[(Context, Expression)] = {
+    import GenMonad.syntax._
+    val leafGen: Type => Fuzzers.State[G, Context, Expression] = Fuzzers.genLeaf
+    if (minDepth > 0) {
+      val state = Fuzzers.recursiveExprGen(tpe)
+      state(this.decrementDepth).map {
+        case (ctxx, expr) => ctxx.incrementDepth -> expr
+      }
+    } else if (maxDepth > 0) {
+      GenMonad[G].frequency(
+        5 -> Fuzzers.recursiveExprGen(tpe),
+        2 -> leafGen(tpe)
+      ).flatMap(_(this.decrementDepth).map {
+        case (ctx, expr) => ctx.incrementDepth -> expr
+      })
+    } else {
+      leafGen(tpe)(this)
+    }
+  }
+}
+
+
 class FirrtlSingleModuleGenerator extends Generator[Circuit](classOf[Circuit]) {
   override def generate(random: SourceOfRandomness, status: GenerationStatus) : Circuit = {
-    import firrtl.fuzzer._
     import GenMonad.implicits._
     implicit val r = Random(random)
 
@@ -26,24 +62,7 @@ class FirrtlSingleModuleGenerator extends Generator[Circuit](classOf[Circuit]) {
       decls = Set.empty,
       maxDepth = 1000,
       minDepth = 5,
-      namespace = Namespace(),
-      exprGenFn = (tpe: Type) => (ctx: Context[ASTGen]) => {
-        val leafGen: Type => Fuzzers.State[ASTGen, Context[ASTGen], Expression] = Fuzzers.genLeaf
-        if (ctx.minDepth > 0) {
-          Fuzzers.recursiveExprGen(tpe, ctx).map {
-            case (ctxx, expr) => ctxx.incrementDepth -> expr
-          }
-        } else if (ctx.maxDepth > 0) {
-          GenMonad[ASTGen].frequency(
-            5 -> (Fuzzers.recursiveExprGen(tpe, _: Context[ASTGen]).map {
-              case (ctxx, expr) => ctxx.incrementDepth -> expr
-            }),
-            2 -> (leafGen(tpe)(_))
-          ).flatMap(_(ctx))
-        } else {
-          leafGen(tpe)(ctx)
-        }
-      }
+      namespace = Namespace()
     )
     val gen = Fuzzers.exprCircuit[ASTGen](context)
     val asdf = gen()
