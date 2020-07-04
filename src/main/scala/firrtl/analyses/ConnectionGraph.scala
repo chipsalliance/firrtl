@@ -16,6 +16,17 @@ class ConnectionGraph protected(val circuit: Circuit,
                                 val irLookup: IRLookup)
   extends DiGraph[ReferenceTarget](digraph.getEdgeMap.asInstanceOf[mutable.LinkedHashMap[ReferenceTarget, mutable.LinkedHashSet[ReferenceTarget]]]) {
 
+  lazy val serialize: String = s"""{
+       |${getEdgeMap.map { case (k, vs) =>
+      s"""  "$k": {
+         |    "kind": "${irLookup.kind(k)}",
+         |    "type": "${irLookup.tpe(k)}",
+         |    "expr": "${irLookup.expr(k, irLookup.flow(k))}",
+         |    "sinks": [${vs.map { v => s""""$v"""" }.mkString(", ")}],
+         |    "declaration": "${irLookup.declaration(k)}"
+         |  }""".stripMargin }.mkString(",\n")}
+       |}""".stripMargin
+
   /** Used by BFS to map each visited node to the list of instance inputs visited thus far
     *
     * When BFS descends into a child instance, the child instance port is prepended to the list
@@ -31,13 +42,13 @@ class ConnectionGraph protected(val circuit: Circuit,
     *     input in: UInt
     *     output out: UInt
     *     inst a of A
-    *     a.in <= in
-    *     out <= a.out
+    *       a.in <= in
+    *       out <= a.out
     *   module A:
     *     input in: UInt
     *     output out: UInt
     *     inst b of B
-    *     b.in <= in
+    *       b.in <= in
     *     out <= b.out
     *   module B:
     *     input in: UInt
@@ -45,17 +56,17 @@ class ConnectionGraph protected(val circuit: Circuit,
     *     out <= in
     *
     * We perform BFS starting at Top>in
-    *  Node                ConnectivityStack
-    *  Top>in              List()
-    *  Top>a.in            List()
-    *  Top/a:A>in          List(Top>a.in)
-    *  Top/a:A>b.in        List(Top>a.in)
-    *  Top/a:A/b:B/in      List(Top/a:A>b.in, Top>a.in)
-    *  Top/a:A/b:B/out     List(Top/a:A>b.in, Top>a.in)
-    *  Top/a:A>b.out       List(Top>a.in)
-    *  Top/a:A>out         List(Top>a.in)
-    *  Top>a.out           List()
-    *  Top>out             List()
+    * Node                ConnectivityStack
+    * Top>in              List()
+    * Top>a.in            List()
+    * Top/a:A>in          List(Top>a.in)
+    * Top/a:A>b.in        List(Top>a.in)
+    * Top/a:A/b:B/in      List(Top/a:A>b.in, Top>a.in)
+    * Top/a:A/b:B/out     List(Top/a:A>b.in, Top>a.in)
+    * Top/a:A>b.out       List(Top>a.in)
+    * Top/a:A>out         List(Top>a.in)
+    * Top>a.out           List()
+    * Top>out             List()
     * when we reach Top/a:A>in the stack is List
     */
   private val portConnectivityStack: mutable.HashMap[ReferenceTarget, List[ReferenceTarget]] =
@@ -141,10 +152,11 @@ class ConnectionGraph protected(val circuit: Circuit,
     * TagMap will also contain more local versions of the key/values pair, if they are legal (see example)
     *
     * For example, if we are tagging node Top/a:A>x with Set(Top/a:A>clk, Top>clk) :
-    *   TagMap:
-    *   Key         Value
-    *   Top/a:A>x   Set(Top/a:A>clk, Top>clk)
-    *   A>x         Set(A>clk)
+    * TagMap:
+    * Key         Value
+    * Top/a:A>x   Set(Top/a:A>clk, Top>clk)
+    * A>x         Set(A>clk)
+    *
     * @param destination
     * @param prev
     * @param tags
@@ -177,10 +189,11 @@ class ConnectionGraph protected(val circuit: Circuit,
     * TagMap will also contain more local versions of the key/values pair, if they are legal (see example)
     *
     * For example, if we are tagging node Top/a:A>x with Set(Top/a:A>clk, Top>clk) :
-    *   TagMap:
-    *   Key         Value
-    *   Top/a:A>x   Set(Top/a:A>clk, Top>clk)
-    *   A>x         Set(A>clk)
+    * TagMap:
+    * Key         Value
+    * Top/a:A>x   Set(Top/a:A>clk, Top>clk)
+    * A>x         Set(A>clk)
+    *
     * @param node
     * @param tags
     * @param tagMap
@@ -257,7 +270,7 @@ class ConnectionGraph protected(val circuit: Circuit,
 
   /** Linearizes (topologically sorts) a DAG
     *
-    * @throws CyclicException if the graph is cyclic
+    * @throws firrtl.graph.CyclicException if the graph is cyclic
     * @return a Seq[T] describing the topological order of the DAG
     *         traversal
     */
@@ -367,7 +380,7 @@ class ConnectionGraph protected(val circuit: Circuit,
     * @param start     the start node
     * @param end       the destination node
     * @param blacklist list of nodes which break path, if encountered
-    * @throws [[firrtl.graph.PathNotFoundException]]
+    * @throws firrtl.graph.PathNotFoundException
     * @return a Seq[T] of nodes defining an arbitrary valid path
     */
   override def path(start: ReferenceTarget, end: ReferenceTarget, blacklist: collection.Set[ReferenceTarget]): Seq[ReferenceTarget] = {
@@ -414,7 +427,7 @@ class ConnectionGraph protected(val circuit: Circuit,
 
 object ConnectionGraph {
 
-  /** Returns a [[DiGraph]] of [[Target]] and corresponding [[IRLookup]]
+  /** Returns a [[firrtl.graph.DiGraph]] of [[firrtl.annotations.Target]] and corresponding [[IRLookup]]
     *
     * Represents the directed connectivity of a FIRRTL circuit
     *
@@ -434,7 +447,7 @@ object ConnectionGraph {
     }
   }
 
-  /** Within a module, given an [[Expression]] inside a module, return a corresponding [[Target]]
+  /** Within a module, given an [[firrtl.ir.Expression]] inside a module, return a corresponding [[firrtl.annotations.Target]]
     *
     * @param m      Target of module containing the expression
     * @param tagger Used to uniquely identify unnamed targets, e.g. primops

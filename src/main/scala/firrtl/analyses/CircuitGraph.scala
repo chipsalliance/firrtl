@@ -13,13 +13,13 @@ import firrtl.ir.{Circuit, DefInstance}
 object CircuitGraph {
 
   /** Build a CircuitGraph
-    * [[Circuit]] must be of MiddleForm or lower
+    * [[firrtl.ir.Circuit]] must be of MiddleForm or lower
     * @param circuit
     * @return
     */
   def apply(circuit: Circuit): CircuitGraph = new CircuitGraph(ConnectionGraph(circuit))
 
-  /** Return a nicely-formatted string of a path of [[ReferenceTarget]]
+  /** Return a nicely-formatted string of a path of [[firrtl.annotations.ReferenceTarget]]
     * @param path
     * @param tab
     * @return
