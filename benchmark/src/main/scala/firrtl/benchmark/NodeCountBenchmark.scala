@@ -5,6 +5,8 @@ package firrtl.benchmark
 import firrtl.CircuitState
 import firrtl.analyses.NodeCount
 import firrtl.benchmark.util._
+import firrtl.options.Dependency
+import firrtl.passes.CheckChirrtl
 import firrtl.stage.{Forms, TransformManager}
 
 object NodeCountBenchmark extends App {
@@ -16,12 +18,17 @@ object NodeCountBenchmark extends App {
     println(s"Node count directly after parsing $inputFile: $initialCount")
   } else{
     val form = args(1)
-    val manager = new TransformManager(form match {
+    val targets = form match {
+      case "CheckChirrtl" => Forms.WorkingIR
       case "WorkingIR" => Forms.WorkingIR
       case "Checks" => Forms.Checks
       case "Resolved" => Forms.Resolved
       case other => throw new RuntimeException(s"Unknown Pass $other")
-    })
+    }
+    val reducedTarget = if(args.length < 3) { targets } else {
+      targets.take(args(2).toInt)
+    }
+    val manager = new TransformManager(reducedTarget)
     val after = manager.transform(CircuitState(input, Seq())).circuit
     val count = NodeCount(after).unique
 
@@ -30,7 +37,7 @@ object NodeCountBenchmark extends App {
 
     val delta = count - initialCount
     val percentDelta = (delta * 100) / initialCount
-    println(s"Node count after $form: $count vs $initialCount after parsing (+$percentDelta%).")
+    println(s"Node count after transforms: $count vs $initialCount after parsing (+$percentDelta%).")
   }
 
 }
