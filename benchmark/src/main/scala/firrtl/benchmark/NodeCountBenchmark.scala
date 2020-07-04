@@ -28,7 +28,9 @@ object NodeCountBenchmark extends App {
     println("Ran the following transforms after parsing:")
     manager.flattenedTransformOrder.foreach(t => println(t.name))
 
-    println(s"Node count after $form: $count vs $initialCount after parsing.")
+    val delta = count - initialCount
+    val percentDelta = (delta * 100) / initialCount
+    println(s"Node count after $form: $count vs $initialCount after parsing (+$percentDelta%).")
   }
 
 }
