@@ -88,7 +88,7 @@ object FromProto {
   def convert(primop: Firrtl.Expression.PrimOp): ir.DoPrim = {
     val args = primop.getArgList.asScala.map(convert(_))
     val consts = primop.getConstList.asScala.map(convert(_))
-    ir.DoPrim(convert(primop.getOp), args, consts, ir.UnknownType)
+    ir.DoPrim(convert(primop.getOp), args.toSeq, consts.toSeq, ir.UnknownType)
   }
 
   def convert(mux: Firrtl.Expression.Mux): ir.Mux =
@@ -133,8 +133,8 @@ object FromProto {
     ir.DefInstance(convert(info), inst.getId, inst.getModuleId)
 
   def convert(when: Firrtl.Statement.When, info: Firrtl.SourceInfo): ir.Conditionally = {
-    val conseq = compressStmts(when.getConsequentList.asScala.map(convert(_)))
-    val alt = compressStmts(when.getOtherwiseList.asScala.map(convert(_)))
+    val conseq = compressStmts(when.getConsequentList.asScala.map(convert(_)).toSeq)
+    val alt = compressStmts(when.getOtherwiseList.asScala.map(convert(_)).toSeq)
     ir.Conditionally(convert(info), convert(when.getPredicate), conseq, alt)
   }
 
@@ -175,7 +175,7 @@ object FromProto {
   def convert(printf: Firrtl.Statement.Printf, info: Firrtl.SourceInfo): ir.Print = {
     val args = printf.getArgList.asScala.map(convert(_))
     val str = ir.StringLit(printf.getValue)
-    ir.Print(convert(info), str, args, convert(printf.getClk), convert(printf.getEn))
+    ir.Print(convert(info), str, args.toSeq, convert(printf.getClk), convert(printf.getEn))
   }
 
   def convert(stop: Firrtl.Statement.Stop, info: Firrtl.SourceInfo): ir.Stop =
@@ -202,12 +202,12 @@ object FromProto {
       case BIGINT_DEPTH_FIELD_NUMBER => convert(mem.getBigintDepth)
     }
     ir.DefMemory(convert(info), mem.getId, dtype, depth, mem.getWriteLatency, mem.getReadLatency,
-                 rs, ws, rws, convert(mem.getReadUnderWrite))
+                 rs.toSeq, ws.toSeq, rws.toSeq, convert(mem.getReadUnderWrite))
   }
 
   def convert(attach: Firrtl.Statement.Attach, info: Firrtl.SourceInfo): ir.Attach = {
     val exprs = attach.getExpressionList.asScala.map(convert(_))
-    ir.Attach(convert(info), exprs)
+    ir.Attach(convert(info), exprs.toSeq)
   }
 
   def convert(stmt: Firrtl.Statement): ir.Statement = {
@@ -280,7 +280,7 @@ object FromProto {
       case RESET_TYPE_FIELD_NUMBER => ir.ResetType
       case ANALOG_TYPE_FIELD_NUMBER => convert(tpe.getAnalogType)
       case BUNDLE_TYPE_FIELD_NUMBER =>
-        ir.BundleType(tpe.getBundleType.getFieldList.asScala.map(convert(_)))
+        ir.BundleType(tpe.getBundleType.getFieldList.asScala.map(convert(_)).toSeq)
       case VECTOR_TYPE_FIELD_NUMBER => convert(tpe.getVectorType)
     }
   }
@@ -313,7 +313,7 @@ object FromProto {
     val name = module.getId
     val ports = module.getPortList.asScala.map(convert(_))
     val stmts = module.getStatementList.asScala.map(convert(_))
-    ir.Module(ir.NoInfo, name, ports, ir.Block(stmts))
+    ir.Module(ir.NoInfo, name, ports.toSeq, ir.Block(stmts.toSeq))
   }
 
   def convert(module: Firrtl.Module.ExternalModule): ir.ExtModule = {
@@ -321,7 +321,7 @@ object FromProto {
     val ports = module.getPortList.asScala.map(convert(_))
     val defname = module.getDefinedName
     val params = module.getParameterList.asScala.map(convert(_))
-    ir.ExtModule(ir.NoInfo, name, ports, defname, params)
+    ir.ExtModule(ir.NoInfo, name, ports.toSeq, defname, params.toSeq)
   }
 
   def convert(module: Firrtl.Module): ir.DefModule =
@@ -337,6 +337,6 @@ object FromProto {
     require(c.getTopCount == 1, "Only 1 top is currently supported")
     val modules = c.getModuleList.asScala.map(convert(_))
     val top = c.getTop(0).getName
-    ir.Circuit(ir.NoInfo, modules, top)
+    ir.Circuit(ir.NoInfo, modules.toSeq, top)
   }
 }

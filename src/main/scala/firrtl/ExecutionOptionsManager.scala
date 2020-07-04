@@ -77,13 +77,18 @@ case class CommonOptions(
     }
   }
 
-  def toAnnotations: AnnotationSeq = (if (topName.nonEmpty) Seq(TopNameAnnotation(topName)) else Seq()) ++
-    (if (targetDirName != ".") Some(TargetDirAnnotation(targetDirName)) else None) ++
-    Some(LogLevelAnnotation(globalLogLevel)) ++
-    (if (logToFile) { Some(LogFileAnnotation(None)) } else { None }) ++
-    (if (logClassNames) { Some(LogClassNamesAnnotation) } else { None }) ++
-    classLogLevels.map{ case (c, v) => ClassLogLevelAnnotation(c, v) } ++
-    programArgs.map( a => ProgramArgsAnnotation(a) )
+  def toAnnotations: AnnotationSeq = {
+
+    val tmp = (if (topName.nonEmpty) Seq(TopNameAnnotation(topName)) else Seq()) ++
+        (if (targetDirName != ".") Some(TargetDirAnnotation(targetDirName)) else None) ++
+        Some(LogLevelAnnotation(globalLogLevel)) ++
+        (if (logToFile) { Some(LogFileAnnotation(None)) } else { None }) ++
+        (if (logClassNames) { Some(LogClassNamesAnnotation) } else { None }) ++
+        classLogLevels.map{ case (c, v) => ClassLogLevelAnnotation(c, v) } ++
+        programArgs.map( a => ProgramArgsAnnotation(a) )
+      
+    tmp.toSeq 
+  }
 }
 
 @deprecated("Specify command line arguments in an Annotation mixing in HasScoptOptions", "1.2")
@@ -312,7 +317,7 @@ extends ComposableOptions {
       StageUtils.dramaticWarning("User set FirrtlExecutionOptions.inferRW, but inferRW has no effect!")
     }
 
-    (if (inputFileNameOverride.nonEmpty) Seq(FirrtlFileAnnotation(inputFileNameOverride)) else Seq()) ++
+    val tmp = (if (inputFileNameOverride.nonEmpty) Seq(FirrtlFileAnnotation(inputFileNameOverride)) else Seq()) ++
       (if (outputFileNameOverride.nonEmpty) { Some(OutputFileAnnotation(outputFileNameOverride)) } else { None }) ++
       Some(CompilerAnnotation(compilerName)) ++
       Some(InfoModeAnnotation(infoModeName)) ++
@@ -326,6 +331,8 @@ extends ComposableOptions {
       (if (noDCE) { Some(NoDCEAnnotation) } else { None }) ++
       annotationFileNames.map(InputAnnotationFileAnnotation(_)) ++
       firrtlCircuit.map(FirrtlCircuitAnnotation(_))
+
+    tmp.toSeq
   }
 }
 
@@ -581,7 +588,7 @@ class ExecutionOptionsManager(val applicationName: String) extends HasParser(app
     parser.parse(args)
   }
 
-  def showUsageAsError(): Unit = parser.showUsageAsError()
+  def showUsageAsError(): Unit = parser.showUsageOnError
 
   /**
     * make sure that all levels of targetDirName exist

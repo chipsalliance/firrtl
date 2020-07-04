@@ -20,6 +20,9 @@ import firrtl.transforms.formal.{RemoveVerificationStatements, ConvertAsserts}
 // Datastructures
 import scala.collection.mutable.ArrayBuffer
 
+import firrtl.compat.instances.{ EmissionOptionMap}
+import firrtl.compat.wrappers.{ ArrSeqWrapper }
+
 case class EmitterException(message: String) extends PassException(message)
 
 // ***** Annotations for telling the Emitters what to emit *****
@@ -127,7 +130,7 @@ sealed abstract class FirrtlEmitter(form: CircuitForm) extends Transform with Em
         case other => other.foreach(onStmt)
       }
       onStmt(mod.body)
-      modules.distinct
+      modules.distinct.wrap()
     }
     val modMap = circuit.modules.map(m => m.name -> m).toMap
     // Turn each module into it's own circuit with it as the top and all instantied modules as ExtModules
@@ -172,9 +175,9 @@ case class VRandom(width: BigInt) extends Expression {
   def mapExpr(f: Expression => Expression): Expression = this
   def mapType(f: Type => Type): Expression = this
   def mapWidth(f: Width => Width): Expression = this
-  def foreachExpr(f: Expression => Unit): Unit = Unit
-  def foreachType(f: Type => Unit): Unit = Unit
-  def foreachWidth(f: Width => Unit): Unit = Unit
+  def foreachExpr(f: Expression => Unit): Unit = ()
+  def foreachType(f: Type => Unit): Unit = ()
+  def foreachWidth(f: Width => Unit): Unit = ()
 }
 
 class VerilogEmitter extends SeqTransform with Emitter {
@@ -462,19 +465,6 @@ class VerilogEmitter extends SeqTransform with Emitter {
                                  stmt: Seq[Any], info: Info, msg: StringLit): Unit = {
     throw EmitterException("Cannot emit verification statements in Verilog" +
       "(2001). Use the SystemVerilog emitter instead.")
-  }
-  
-  /** 
-    * Store Emission option per Target
-    * Guarantee only one emission option per Target 
-    */
-  private[firrtl] class EmissionOptionMap[V <: EmissionOption](val df : V) extends collection.mutable.HashMap[ReferenceTarget, V] {
-    override def default(key: ReferenceTarget) = df
-    override def +=(elem : (ReferenceTarget, V)) : EmissionOptionMap.this.type = {
-      if (this.contains(elem._1))
-        throw EmitterException(s"Multiple EmissionOption for the target ${elem._1} (${this(elem._1)} ; ${elem._2})")
-      super.+=(elem)
-    } 
   }
   
   /** Provide API to retrieve EmissionOptions based on the provided [[AnnotationSeq]]

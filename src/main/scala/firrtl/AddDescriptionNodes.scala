@@ -7,6 +7,8 @@ import firrtl.annotations._
 import firrtl.Mappers._
 import firrtl.options.Dependency
 
+import firrtl.compat.wrappers.{ MapViewWrapper }
+
 /**
   * A base trait for `Annotation`s that describe a `FirrtlNode`.
   * Usually, we would like to emit these descriptions in some way.
@@ -233,9 +235,9 @@ class AddDescriptionNodes extends Transform with DependencyAPIMigration {
       // map field 2 (component name) -> field 3 (a list of Descriptions)
       _.groupBy(_._2).mapValues(_.map(_._3))
       // and then merge like descriptions (e.g. multiple docstrings into one big docstring)
-      .mapValues(mergeDescriptions))
+      .mapValues(mergeDescriptions).wrap())
 
-    (modMap, compMap)
+    (modMap.wrap() , compMap.wrap())
   }
 
   def executeModule(module: DefModule, annos: Seq[Annotation]): DefModule = {
