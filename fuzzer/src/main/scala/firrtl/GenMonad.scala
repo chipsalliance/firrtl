@@ -72,25 +72,55 @@ trait GenMonad[G[_]] {
  * i.e. functions that take an input state and return a random generator that
  * generates a new state paired with a value
  */
-trait ExprStateGen[S, G[_]] {
-  type State[A] = S => G[(S, A)]
+case class StateGen[S, G[_], A](fn: S => G[(S, A)]) {
+  final type State[T] = StateGen[S, G, T]
 
-  // def unboundRefs: Set[Reference] // should have type set
-  // def decls: Set[IsDeclaration]
+  def flatMap[B](ffn: A => State[B])(implicit GM: GenMonad[G]): State[B] = StateGen { s =>
+    GM.flatMap(fn(s)) { case (sx, a) =>
+      ffn(a).fn(sx)
+    }
+  }
 
-  def withRef(s: S, ref: Reference): S
-  def getValidName(name: String): State[String]
-  def exprGen[G[_]: GenMonad](tpe: Type): State[Expression]
+  def map[B](f: A => B)(implicit GM: GenMonad[G]): State[B] = StateGen { s =>
+    GM.map(fn(s)) { case (sx, a) =>
+      sx -> f(a)
+    }
+  }
 
-  def pureG[A](a: G[A]): State[A]
-  def pure[A](a: A): State[A]
+  def widen[B >: A](implicit GM: GenMonad[G]): State[B] = StateGen { s =>
+    GM.map(fn(s)) { case (s, a) => s -> a }
+  }
 
-  def flatMap[A, B](a: State[A])(f: A => State[B]): State[B]
-  def map[A, B](a: State[A])(f: A => B): State[B]
+  def inspect[S, G[_]: GenMonad, B](fn: S => B)(implicit GM: GenMonad[G]): StateGen[S, G, B] = StateGen { s =>
+    GM.const(s -> fn(s))
+  }
+}
+
+object StateGen {
+  def pureG[S, G[_]: GenMonad, A](ga: G[A]): StateGen[S, G, A] = {
+    StateGen((s: S) => GenMonad[G].map(ga)(s -> _))
+  }
+  def pure[S, G[_]: GenMonad, A](a: A): StateGen[S, G, A] = {
+    StateGen((s: S) => GenMonad[G].const(s -> a))
+  }
+
+  def inspect[S, G[_]: GenMonad, A](fn: S => A): StateGen[S, G, A] = {
+    StateGen(s => GenMonad[G].const((s, fn(s))))
+  }
+}
+
+trait ExprState[State] {
+  def withRef[G[_]: GenMonad](ref: Reference): StateGen[State, G, Reference]
+  def exprGen[G[_]: GenMonad](tpe: Type): StateGen[State, G, Expression]
+  def unboundRefs(s: State): Set[Reference]
+}
+
+object ExprState {
+  def apply[S: ExprState] = implicitly[ExprState[S]]
 }
 
 object GenMonad {
-  object implicits {
+  object instances {
     implicit def astGenGenMonadInstance(implicit r: Random): GenMonad[ASTGen] = new GenMonad[ASTGen] {
       type G[T] = ASTGen[T]
       def flatMap[A, B](a: G[A])(f: A => G[B]): G[B] = a.flatMap(f)
