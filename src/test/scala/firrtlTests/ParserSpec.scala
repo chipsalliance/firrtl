@@ -19,7 +19,7 @@ class ParserSpec extends FirrtlFlatSpec {
                      "readwriter" -> "c"
                     )
     def fieldsToSeq(m: Map[String, String]): Seq[String] =
-      m map { case (k,v) => s"      ${k} => ${v}" } toSeq
+      m.map { case (k,v) => s"      ${k} => ${v}" }.toSeq
   }
 
   private object RegTests {

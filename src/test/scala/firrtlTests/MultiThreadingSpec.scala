@@ -37,11 +37,11 @@ class MultiThreadingSpec extends FirrtlPropSpec {
       // Execute for each compiler
       val compilerResults = compilers map { compiler =>
         // Run compiler serially once
-        val serialResult = runCompiler(inputStrings, compiler)
+        val serialResult = runCompiler(inputStrings.toSeq, compiler)
         Future {
           val threadFutures = (0 until numThreads) map { i =>
               Future {
-                runCompiler(inputStrings, compiler) == serialResult
+                runCompiler(inputStrings.toSeq, compiler) == serialResult
               }
             }
           Await.result(Future.sequence(threadFutures), Duration.Inf)
