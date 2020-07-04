@@ -20,6 +20,8 @@ import scala.annotation.tailrec
 // Datastructures
 import scala.collection.mutable
 
+import firrtl.compat.wrappers.{ ArrISeqWrapper }
+
 
 /** A component, e.g. register etc. Must be declared only once under the TopAnnotation */
 case class NoDedupAnnotation(target: ModuleTarget) extends SingleTargetAnnotation[ModuleTarget] {
@@ -658,7 +660,7 @@ object DedupModules extends LazyLogging {
     }
 
     changeInternals(rename, retype, {i => i}, {(x, y) => x}, renameExps = false)(m)
-    refs
+    refs.wrap()
   }
 
   def computeRenameMap(originalNames: IndexedSeq[ReferenceTarget],
@@ -686,6 +688,6 @@ object DedupModules extends LazyLogging {
     }
 
     onExp(root)
-    all
+    all.wrap()
   }
 }

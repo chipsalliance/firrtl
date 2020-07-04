@@ -20,8 +20,10 @@ addSbtPlugin("com.simplytyped" % "sbt-antlr4" % "0.8.2")
 
 addSbtPlugin("com.github.gseitz" % "sbt-protobuf" % "0.6.5")
 
-addSbtPlugin("ch.epfl.scala" % "sbt-scalafix" % "0.9.15")
+addSbtPlugin("ch.epfl.scala" % "sbt-scalafix" % "0.9.17")
 
 addSbtPlugin("com.thoughtworks.sbt-api-mappings" % "sbt-api-mappings" % "3.0.0")
+
+addSbtPlugin("io.github.davidgregory084" % "sbt-tpolecat" % "0.1.13")
 
 libraryDependencies += "com.github.os72" % "protoc-jar" % "3.11.4"

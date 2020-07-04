@@ -8,7 +8,9 @@ import firrtl.annotations._
 import firrtl.ir.{AsyncResetType, _}
 import firrtl.options.Dependency
 
-import scala.collection.mutable
+import scala.collection.mutable.{ ArrayBuffer, HashMap, HashSet }
+import firrtl.compat.wrappers.{ ArrSeqWrapper }
+import firrtl.compat.{ Annos }
 
 object PropagatePresetAnnotations {
   val advice = "Please Note that a Preset-annotated AsyncReset shall NOT be casted to other types with any of the following functions: asInterval, asUInt, asSInt, asClock, asFixedPoint, asAsyncReset."
@@ -51,9 +53,9 @@ class PropagatePresetAnnotations extends Transform with DependencyAPIMigration {
 
   import PropagatePresetAnnotations._
 
-  private type TargetSet = mutable.HashSet[ReferenceTarget]
-  private type TargetMap = mutable.HashMap[ReferenceTarget,String]
-  private type TargetSetMap = mutable.HashMap[ReferenceTarget, TargetSet]
+  private type TargetSet = HashSet[ReferenceTarget]
+  private type TargetMap = HashMap[ReferenceTarget,String]
+  private type TargetSetMap = HashMap[ReferenceTarget, TargetSet]
 
   private val toCleanUp = new TargetSet()
 
@@ -80,7 +82,7 @@ class PropagatePresetAnnotations extends Transform with DependencyAPIMigration {
     // store async-reset trees
     val asyncCoMap = new TargetSetMap()
     // Annotations to be appended and returned as result of the transform
-    val annos = cs.annotations.to[mutable.ArrayBuffer] -- presetAnnos
+    def annos() = Annos.annos(cs, presetAnnos)
 
     val circuitTarget = CircuitTarget(cs.circuit.main)
 
@@ -301,7 +303,7 @@ class PropagatePresetAnnotations extends Transform with DependencyAPIMigration {
 
     cs.circuit.foreachModule(processModule) // PHASE 1 : Initialize
     annotateAsyncSet(asyncToAnnotate)       // PHASE 2 : Annotate
-    annos
+    annos.wrap()
   }
 
   /*
