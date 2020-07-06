@@ -5,6 +5,7 @@ package firrtl.passes
 import firrtl._
 import firrtl.ir._
 import firrtl.Mappers._
+import firrtl.traversals.Foreachers._
 import firrtl.options.Dependency
 import Utils.throwInternalError
 
@@ -16,7 +17,8 @@ object CInferMDir extends Pass {
 
   type MPortDirMap = collection.mutable.LinkedHashMap[String, MPortDir]
 
-  def infer_mdir_e(mports: MPortDirMap, dir: MPortDir)(e: Expression): Expression = e match {
+  // analyze references to memory ports
+  def infer_mdir_e(mports: MPortDirMap, dir: MPortDir)(e: Expression): Unit = e match {
     case e: Reference =>
       mports get e.name match {
         case None =>
@@ -39,18 +41,17 @@ object CInferMDir extends Pass {
           case (MReadWrite, MReadWrite) => MReadWrite
         }
       }
-      e
     case e: SubAccess =>
       infer_mdir_e(mports, dir)(e.expr)
       infer_mdir_e(mports, MRead)(e.index) // index can't be a write port
-      e
-    case e => e map infer_mdir_e(mports, dir)
+    case e => e.foreach(infer_mdir_e(mports, dir))
   }
 
   def infer_mdir_s(mports: MPortDirMap)(s: Statement): Statement = s match {
     case sx: CDefMPort =>
        mports(sx.name) = sx.direction
-       sx map infer_mdir_e(mports, MRead)
+       sx.foreach(infer_mdir_e(mports, MRead))
+       sx
     case sx: Connect =>
        infer_mdir_e(mports, MRead)(sx.expr)
        infer_mdir_e(mports, MWrite)(sx.loc)
@@ -59,7 +60,10 @@ object CInferMDir extends Pass {
        infer_mdir_e(mports, MRead)(sx.expr)
        infer_mdir_e(mports, MWrite)(sx.loc)
        sx
-    case sx => sx map infer_mdir_s(mports) map infer_mdir_e(mports, MRead)
+    case sx =>
+      val sn = sx.mapStmt(infer_mdir_s(mports))
+      sn.foreach(infer_mdir_e(mports, MRead))
+      sn
   }
 
   def set_mdir_s(mports: MPortDirMap)(s: Statement): Statement = s match {
