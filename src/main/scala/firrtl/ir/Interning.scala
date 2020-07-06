@@ -124,14 +124,14 @@ private class IdSeqKey[T <: AnyRef](val e: Seq[T]) {
   override val hashCode: Int = e.map(System.identityHashCode).hashCode()
 }
 private object IdSeqKey { def apply[T <: AnyRef](e: Seq[T]): IdSeqKey[T] = new IdSeqKey[T](e) }
-private class IdKey[T <: AnyRef](val k: T) {
+private[firrtl] class IdKey[I <: AnyRef](val i: I) {
   override def equals(obj: Any): Boolean = obj match {
-    case other : IdKey[_] => other.eq(k)
+    case other : IdKey[_] => other.i.eq(i)
     case _ => false
   }
-  override val hashCode: Int = System.identityHashCode(k)
+  override val hashCode: Int = System.identityHashCode(i)
 }
-private object IdKey { def apply[T <: AnyRef](e: T): IdKey[T] = new IdKey[T](e) }
+private[firrtl] object IdKey { def apply[I <: AnyRef](i: I): IdKey[I] = new IdKey[I](i) }
 private class IdAndEqKey[I <: AnyRef, E](val i: I, val e: E) {
   override def equals(obj: Any): Boolean = obj match {
     case other : IdAndEqKey[_, _] => other.i.eq(i) && other.e == e
