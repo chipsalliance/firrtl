@@ -8,11 +8,14 @@ import firrtl._
 import firrtl.ir._
 import firrtl.Utils._
 import firrtl.Mappers._
+import firrtl.traversals.Foreachers._
 import firrtl.options.Dependency
 
 case class MPort(name: String, clk: Expression)
 case class MPorts(readers: ArrayBuffer[MPort], writers: ArrayBuffer[MPort], readwriters: ArrayBuffer[MPort])
 case class DataRef(exp: Expression, male: String, female: String, mask: String, rdwrite: Boolean)
+
+//scalastyle:off
 
 object RemoveCHIRRTL extends Transform with DependencyAPIMigration {
 
@@ -29,6 +32,7 @@ object RemoveCHIRRTL extends Transform with DependencyAPIMigration {
   type DataRefMap = collection.mutable.LinkedHashMap[String, DataRef]
   type AddrMap = collection.mutable.HashMap[String, Expression]
 
+  // TODO: use an interning factory
   def create_all_exps(ex: Expression): Seq[Expression] = ex.tpe match {
     case _: GroundType => Seq(ex)
     case t: BundleType => (t.fields foldLeft Seq[Expression]())((exps, f) =>
@@ -57,7 +61,7 @@ object RemoveCHIRRTL extends Transform with DependencyAPIMigration {
 
   private def EMPs: MPorts = MPorts(ArrayBuffer[MPort](), ArrayBuffer[MPort](), ArrayBuffer[MPort]())
 
-  def collect_smems_and_mports(mports: MPortMap, smems: SeqMemSet)(s: Statement): Statement = {
+  def collect_smems_and_mports(mports: MPortMap, smems: SeqMemSet)(s: Statement): Unit = {
     s match {
       case sx: CDefMemory if sx.seq => smems += sx.name
       case sx: CDefMPort =>
@@ -71,7 +75,7 @@ object RemoveCHIRRTL extends Transform with DependencyAPIMigration {
         mports(sx.mem) = p
       case _ =>
     }
-    s map collect_smems_and_mports(mports, smems)
+    s.foreach(collect_smems_and_mports(mports, smems))
   }
 
   def collect_refs(mports: MPortMap, smems: SeqMemSet, types: MPortTypeMap,
@@ -130,7 +134,7 @@ object RemoveCHIRRTL extends Transform with DependencyAPIMigration {
           val es = create_all_exps(WRef(sx.name, sx.tpe))
           val rs = create_all_exps(WRef(s"${sx.mem}.${sx.name}.rdata", sx.tpe))
           val ws = create_all_exps(WRef(s"${sx.mem}.${sx.name}.wdata", sx.tpe))
-          ((es zip rs) zip ws) map {
+          ((es zip rs) zip ws).foreach {
              case ((e, r), w) => renames.rename(e.serialize, Seq(r.serialize, w.serialize))
           }
         case MWrite =>
@@ -142,7 +146,7 @@ object RemoveCHIRRTL extends Transform with DependencyAPIMigration {
           renames.rename(sx.name, s"${sx.mem}.${sx.name}.data")
           val es = create_all_exps(WRef(sx.name, sx.tpe))
           val ws = create_all_exps(WRef(s"${sx.mem}.${sx.name}.data", sx.tpe))
-          (es zip ws) map {
+          (es zip ws).foreach {
             case (e, w) => renames.rename(e.serialize, w.serialize)
           }
         case MRead =>
@@ -157,7 +161,7 @@ object RemoveCHIRRTL extends Transform with DependencyAPIMigration {
           renames.rename(sx.name, s"${sx.mem}.${sx.name}.data")
           val es = create_all_exps(WRef(sx.name, sx.tpe))
           val rs = create_all_exps(WRef(s"${sx.mem}.${sx.name}.data", sx.tpe))
-          (es zip rs) map {
+          (es zip rs).foreach {
             case (e, r) => renames.rename(e.serialize, r.serialize)
           }
         case MInfer => // do nothing if it's not being used
@@ -168,7 +172,7 @@ object RemoveCHIRRTL extends Transform with DependencyAPIMigration {
         (ens map (x => Connect(sx.info,SubField(portRef, x, ut), one))) ++
          masks.map(lhs => Connect(sx.info, lhs, zero))
       )
-    case sx => sx map collect_refs(mports, smems, types, refs, raddrs, renames)
+    case sx => sx.map(collect_refs(mports, smems, types, refs, raddrs, renames))
   }
 
   def get_mask(refs: DataRefMap)(e: Expression): Expression =
@@ -180,32 +184,38 @@ object RemoveCHIRRTL extends Transform with DependencyAPIMigration {
       case ex => ex
     }
 
-  def remove_chirrtl_s(refs: DataRefMap, raddrs: AddrMap)(s: Statement): Statement = {
+  private type ExprMap = collection.mutable.HashMap[IdKey[Expression], Expression]
+  private type ExprCache = Map[Flow, ExprMap]
+  def remove_chirrtl_s(refs: DataRefMap, raddrs: AddrMap, cache: ExprCache)(s: Statement): Statement = {
     var has_write_mport = false
     var has_readwrite_mport: Option[Expression] = None
     var has_read_mport: Option[Expression] = None
-    def remove_chirrtl_e(g: Flow)(e: Expression): Expression = e match {
-      case Reference(name, tpe, _, _) => refs get name match {
-        case Some(p) => g match {
-          case SinkFlow =>
-            has_write_mport = true
-            if (p.rdwrite) has_readwrite_mport = Some(SubField(p.exp, "wmode", BoolType))
-            SubField(p.exp, p.female, tpe)
-          case SourceFlow =>
-            SubField(p.exp, p.male, tpe)
-        }
-        case None => g match {
-          case SinkFlow => raddrs get name match {
-            case Some(en) => has_read_mport = Some(en) ; e
-            case None => e
+    def remove_chirrtl_e(g: Flow)(e: Expression): Expression = {
+      cache(g).getOrElseUpdate(IdKey(e), {
+        e match {
+          case Reference(name, tpe, _, _) => refs get name match {
+            case Some(p) => g match {
+              case SinkFlow =>
+                has_write_mport = true
+                if (p.rdwrite) has_readwrite_mport = Some(SubField(p.exp, "wmode", BoolType))
+                SubField(p.exp, p.female, tpe)
+              case SourceFlow =>
+                SubField(p.exp, p.male, tpe)
+            }
+            case None => g match {
+              case SinkFlow => raddrs get name match {
+                case Some(en) => has_read_mport = Some(en); e
+                case None => e
+              }
+              case SourceFlow => e
+            }
           }
-          case SourceFlow => e
+          case SubAccess(expr, index, tpe, _) => SubAccess(
+            remove_chirrtl_e(g)(expr), remove_chirrtl_e(SourceFlow)(index), tpe)
+          case ex => ex map remove_chirrtl_e(g)
         }
-      }
-      case SubAccess(expr, index, tpe, _) => SubAccess(
-        remove_chirrtl_e(g)(expr), remove_chirrtl_e(SourceFlow)(index), tpe)
-      case ex => ex map remove_chirrtl_e(g)
-   }
+      })
+    }
    s match {
       case DefNode(info, name, value) =>
         val valuex = remove_chirrtl_e(SourceFlow)(value)
@@ -253,20 +263,23 @@ object RemoveCHIRRTL extends Transform with DependencyAPIMigration {
           }
         }
         if (stmts.isEmpty) sx else Block(sx +: stmts)
-      case sx => sx map remove_chirrtl_s(refs, raddrs) map remove_chirrtl_e(SourceFlow)
+      case sx => sx map remove_chirrtl_s(refs, raddrs, cache) map remove_chirrtl_e(SourceFlow)
     }
   }
 
   def remove_chirrtl_m(renames: RenameMap)(m: DefModule): DefModule = {
+    renames.setModule(m.name)
+
     val mports = new MPortMap
     val smems = new SeqMemSet
+    m.foreach(collect_smems_and_mports(mports, smems))
+
     val types = new MPortTypeMap
     val refs = new DataRefMap
     val raddrs = new AddrMap
-    renames.setModule(m.name)
-    (m map collect_smems_and_mports(mports, smems)
-       map collect_refs(mports, smems, types, refs, raddrs, renames)
-       map remove_chirrtl_s(refs, raddrs))
+    val exprCache: ExprCache = Seq(SourceFlow -> new ExprMap, SinkFlow -> new ExprMap).toMap
+    m.map(collect_refs(mports, smems, types, refs, raddrs, renames))
+      .map(remove_chirrtl_s(refs, raddrs, exprCache))
   }
 
   def execute(state: CircuitState): CircuitState = {
