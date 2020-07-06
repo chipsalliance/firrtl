@@ -101,31 +101,36 @@ object CInferTypes extends Pass {
   type TypeMap = collection.mutable.LinkedHashMap[String, Type]
 
   private type TypeLookup = collection.mutable.HashMap[String, Type]
+ // private type ExprCache = java.util.IdentityHashMap[Expression, Expression]
+  private type ExprCache = collection.mutable.HashMap[IdKey[Expression], Expression]
 
   def run(c: Circuit): Circuit = {
     val mtypes = (c.modules map (m => m.name -> module_type(m))).toMap
 
-    def infer_types_e(types: TypeLookup)(e: Expression) : Expression =
-      e map infer_types_e(types) match {
-         case (e: Reference) => e copy (tpe = types.getOrElse(e.name, UnknownType))
-         case (e: SubField) => e copy (tpe = field_type(e.expr.tpe, e.name))
-         case (e: SubIndex) => e copy (tpe = sub_type(e.expr.tpe))
-         case (e: SubAccess) => e copy (tpe = sub_type(e.expr.tpe))
-         case (e: DoPrim) => PrimOps.set_primop_type(e)
-         case (e: Mux) => e copy (tpe = mux_type(e.tval, e.fval))
-         case (e: ValidIf) => e copy (tpe = e.value.tpe)
-         case e @ (_: UIntLiteral | _: SIntLiteral) => e
-      }
+    def infer_types_e(types: TypeLookup, cache: ExprCache)(e: Expression) : Expression = {
+      cache.getOrElseUpdate(IdKey(e), {
+        e map infer_types_e(types, cache) match {
+          case (e: Reference) => e copy (tpe = types.getOrElse(e.name, UnknownType))
+          case (e: SubField) => e copy (tpe = field_type(e.expr.tpe, e.name))
+          case (e: SubIndex) => e copy (tpe = sub_type(e.expr.tpe))
+          case (e: SubAccess) => e copy (tpe = sub_type(e.expr.tpe))
+          case (e: DoPrim) => PrimOps.set_primop_type(e)
+          case (e: Mux) => e copy (tpe = mux_type(e.tval, e.fval))
+          case (e: ValidIf) => e copy (tpe = e.value.tpe)
+          case e@(_: UIntLiteral | _: SIntLiteral) => e
+        }
+      })
+    }
 
-    def infer_types_s(types: TypeLookup)(s: Statement): Statement = s match {
+    def infer_types_s(types: TypeLookup, cache: ExprCache)(s: Statement): Statement = s match {
       case sx: DefRegister =>
         types(sx.name) = sx.tpe
-        sx map infer_types_e(types)
+        sx map infer_types_e(types, cache)
       case sx: DefWire =>
         types(sx.name) = sx.tpe
         sx
       case sx: DefNode =>
-        val sxx = (sx map infer_types_e(types)).asInstanceOf[DefNode]
+        val sxx = (sx map infer_types_e(types, cache)).asInstanceOf[DefNode]
         types(sxx.name) = sxx.value.tpe
         sxx
       case sx: DefMemory =>
@@ -141,7 +146,7 @@ object CInferTypes extends Pass {
       case sx: DefInstance =>
         types(sx.name) = mtypes(sx.module)
         sx
-      case sx => sx map infer_types_s(types) map infer_types_e(types)
+      case sx => sx map infer_types_s(types, cache) map infer_types_e(types, cache)
     }
 
     def infer_types_p(types: TypeLookup)(p: Port): Port = {
@@ -151,7 +156,8 @@ object CInferTypes extends Pass {
 
     def infer_types(m: DefModule): DefModule = {
       val types = new TypeLookup
-      m map infer_types_p(types) map infer_types_s(types)
+      val cache = new ExprCache()
+      m map infer_types_p(types) map infer_types_s(types, cache)
     }
 
     c copy (modules = c.modules map infer_types)
