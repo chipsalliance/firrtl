@@ -17,6 +17,7 @@ object InferTypes extends Pass {
   type TypeMap = collection.mutable.LinkedHashMap[String, Type]
 
   private type TypeLookup = collection.mutable.HashMap[String, Type]
+  private type ExprCache = collection.mutable.HashMap[IdKey[Expression], Expression]
 
   def run(c: Circuit): Circuit = {
     val namespace = Namespace()
@@ -40,19 +41,22 @@ object InferTypes extends Pass {
       }
     }
 
-    def infer_types_e(types: TypeLookup)(e: Expression): Expression =
-      e map infer_types_e(types) match {
-        case e: WRef => e copy (tpe = types(e.name))
-        case e: WSubField => e copy (tpe = field_type(e.expr.tpe, e.name))
-        case e: WSubIndex => e copy (tpe = sub_type(e.expr.tpe))
-        case e: WSubAccess => e copy (tpe = sub_type(e.expr.tpe))
-        case e: DoPrim => PrimOps.set_primop_type(e)
-        case e: Mux => e copy (tpe = mux_type_and_widths(e.tval, e.fval))
-        case e: ValidIf => e copy (tpe = e.value.tpe)
-        case e @ (_: UIntLiteral | _: SIntLiteral) => e
-      }
+    def infer_types_e(types: TypeLookup, cache: ExprCache)(e: Expression): Expression = {
+      cache.getOrElseUpdate(IdKey(e), {
+        e map infer_types_e(types, cache) match {
+          case e: WRef => e copy (tpe = types(e.name))
+          case e: WSubField => e copy (tpe = field_type(e.expr.tpe, e.name))
+          case e: WSubIndex => e copy (tpe = sub_type(e.expr.tpe))
+          case e: WSubAccess => e copy (tpe = sub_type(e.expr.tpe))
+          case e: DoPrim => PrimOps.set_primop_type(e)
+          case e: Mux => e copy (tpe = mux_type_and_widths(e.tval, e.fval))
+          case e: ValidIf => e copy (tpe = e.value.tpe)
+          case e@(_: UIntLiteral | _: SIntLiteral) => e
+        }
+      })
+    }
 
-    def infer_types_s(types: TypeLookup)(s: Statement): Statement = s match {
+    def infer_types_s(types: TypeLookup, cache: ExprCache)(s: Statement): Statement = s match {
       case sx: WDefInstance =>
         val t = mtypes(sx.module)
         types(sx.name) = t
@@ -62,19 +66,19 @@ object InferTypes extends Pass {
         types(sx.name) = t
         sx copy (tpe = t)
       case sx: DefNode =>
-        val sxx = (sx map infer_types_e(types)).asInstanceOf[DefNode]
+        val sxx = (sx map infer_types_e(types, cache)).asInstanceOf[DefNode]
         val t = remove_unknowns(sxx.value.tpe)
         types(sx.name) = t
         sxx
       case sx: DefRegister =>
         val t = remove_unknowns(sx.tpe)
         types(sx.name) = t
-        sx copy (tpe = t) map infer_types_e(types)
+        sx copy (tpe = t) map infer_types_e(types, cache)
       case sx: DefMemory =>
         val t = remove_unknowns(MemPortUtils.memType(sx))
         types(sx.name) = t
         sx copy (dataType = remove_unknowns(sx.dataType))
-      case sx => sx map infer_types_s(types) map infer_types_e(types)
+      case sx => sx map infer_types_s(types, cache) map infer_types_e(types, cache)
     }
 
     def infer_types_p(types: TypeLookup)(p: Port): Port = {
@@ -85,7 +89,9 @@ object InferTypes extends Pass {
 
     def infer_types(m: DefModule): DefModule = {
       val types = new TypeLookup
-      m map infer_types_p(types) map infer_types_s(types)
+      val cache = new ExprCache()
+      val res = m map infer_types_p(types) map infer_types_s(types, cache)
+      res
     }
 
     c copy (modules = c.modules map infer_types)
@@ -101,7 +107,6 @@ object CInferTypes extends Pass {
   type TypeMap = collection.mutable.LinkedHashMap[String, Type]
 
   private type TypeLookup = collection.mutable.HashMap[String, Type]
- // private type ExprCache = java.util.IdentityHashMap[Expression, Expression]
   private type ExprCache = collection.mutable.HashMap[IdKey[Expression], Expression]
 
   def run(c: Circuit): Circuit = {
@@ -157,7 +162,8 @@ object CInferTypes extends Pass {
     def infer_types(m: DefModule): DefModule = {
       val types = new TypeLookup
       val cache = new ExprCache()
-      m map infer_types_p(types) map infer_types_s(types, cache)
+      val res = m map infer_types_p(types) map infer_types_s(types, cache)
+      res
     }
 
     c copy (modules = c.modules map infer_types)
