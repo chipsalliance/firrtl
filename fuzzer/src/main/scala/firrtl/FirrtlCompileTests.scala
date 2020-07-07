@@ -20,7 +20,11 @@ case class ExprContext(
   decls: Set[IsDeclaration],
   minDepth: Int,
   maxDepth: Int,
+  maxWidth: Int,
   namespace: Namespace) {
+
+  require(maxWidth > 0, "maxWidth must be greater than zero")
+
   def decrementDepth: ExprContext = this.copy(
     maxDepth = maxDepth - 1,
     minDepth = minDepth - 1
@@ -33,18 +37,21 @@ case class ExprContext(
 
 object ExprContext {
   implicit val ESG: ExprState[ExprContext] = new ExprState[ExprContext] {
-    def withRef[G[_]: GenMonad](ref: Reference): StateGen[ExprContext, G, Reference] = StateGen { (s: ExprContext) =>
-      val refx = ref.copy(name = s.namespace.newName(ref.name))
-      GenMonad[G].const(s.copy(unboundRefs = s.unboundRefs + refx) -> refx)
+    def withRef[G[_]: GenMonad](ref: Reference): StateGen[ExprContext, G, Reference] = {
+      StateGen { (s: ExprContext) =>
+        val refx = ref.copy(name = s.namespace.newName(ref.name))
+        GenMonad[G].const(s.copy(unboundRefs = s.unboundRefs + refx) -> refx)
+      }
     }
     def unboundRefs(s: ExprContext): Set[Reference] = s.unboundRefs
+    def maxWidth(s: ExprContext): Int = s.maxWidth
 
     def exprGen[G[_]: GenMonad](tpe: Type): StateGen[ExprContext, G, Expression] = {
-      val leafGen: Type => StateGen[ExprContext, G, Expression] = Fuzzers.newLeafExprGen(_)
+      val leafGen: Type => StateGen[ExprContext, G, Expression] = Generators.leafExprGen(_)
       val branchGen: Type => StateGen[ExprContext, G, Expression] = (tpe: Type) => {
-        Fuzzers.newRecursiveExprGen(tpe).flatMap {
+        Generators.recursiveExprGen(tpe).flatMap {
           case None => leafGen(tpe)
-          case Some(e) => StateGen.lift(e)
+          case Some(e) => StateGen.pure(e)
         }
       }
       StateGen { (s: ExprContext) =>
@@ -55,7 +62,7 @@ object ExprContext {
             case (ss, expr) => ss.incrementDepth -> expr
           }
         } else if (s.maxDepth > 0) {
-          GenMonad[G].frequency(
+          GenMonad.frequency(
             5 -> (branchGen(_)),
             1 -> (leafGen(_))
           ).flatMap(_(tpe).fn(s.decrementDepth).map {
@@ -130,11 +137,12 @@ class FirrtlSingleModuleGenerator extends Generator[Circuit](classOf[Circuit]) {
       decls = Set.empty,
       maxDepth = 1000,
       minDepth = 0,
+      maxWidth = 500,
       namespace = Namespace()
     )
 
     println("START")
-    val (_, asdf) = Fuzzers.exprCircuit[ExprContext, ASTGen].fn(context)()
+    val (_, asdf) = Generators.exprCircuit[ExprContext, ASTGen].fn(context)()
     println(asdf.serialize)
     println("END")
     asdf
