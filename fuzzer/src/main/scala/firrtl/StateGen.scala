@@ -7,6 +7,9 @@ package firrtl.fuzzer
   * @tparam A the type of the value returned by this function
   */
 final case class StateGen[State, Gen[_], A](fn: State => Gen[(State, A)]) {
+
+  /** Creates a new [[StateGen]] that applies the function to the result of this [[StateGen]] and flattens the result
+    */
   def flatMap[B](ffn: A => StateGen[State, Gen, B])(implicit GM: GenMonad[Gen]): StateGen[State, Gen, B] = {
     StateGen { state =>
       GM.flatMap(fn(state)) { case (sx, a) =>
@@ -15,12 +18,16 @@ final case class StateGen[State, Gen[_], A](fn: State => Gen[(State, A)]) {
     }
   }
 
+  /** Creates a new [[StateGen]] that applies the function to the result of this [[StateGen]]
+    */
   def map[B](f: A => B)(implicit GM: GenMonad[Gen]): StateGen[State, Gen, B] = StateGen { state =>
     GM.map(fn(state)) { case (sx, a) =>
       sx -> f(a)
     }
   }
 
+  /** Returns the same [[StateGen]] but with a wider result type parameter
+    */
   def widen[B >: A](implicit GM: GenMonad[Gen]): StateGen[State, Gen, B] = StateGen { state =>
     GM.map(fn(state)) { case (state, a) => state -> a }
   }

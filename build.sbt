@@ -227,6 +227,7 @@ lazy val fuzzer = (project in file("fuzzer"))
       "com.pholser" % "junit-quickcheck-core" % "0.8",
       "com.pholser" % "junit-quickcheck-generators" % "0.8",
       "edu.berkeley.cs.jqf" % "jqf-fuzz" % "1.4",
+      "org.scalacheck" %% "scalacheck" % "1.14.3" % Test
     ),
 
     jqfFuzz := (Def.inputTaskDyn {

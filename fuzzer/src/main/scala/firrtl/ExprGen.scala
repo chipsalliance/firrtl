@@ -5,19 +5,42 @@ import firrtl.passes.CheckWidths
 import firrtl.{Namespace, PrimOps, Utils}
 
 trait ExprGen[E <: Expression] { self =>
+  /** The name of this generator, used for logging
+    */
   def name: String
+
+  /** A [[StateGen]] that produces a one width UInt [[Expression]]
+    */
   def boolUIntGen[S: ExprState, G[_]: GenMonad]: Option[StateGen[S, G, E]]
+
+  /** Takes a width and returns a [[StateGen]] that produces a UInt [[Expression]] with the given width
+    *
+    * The input width will be greater than 1 and less than the maximum width
+    * allowed specified by the input state
+    */
   def uintGen[S: ExprState, G[_]: GenMonad]: Option[BigInt => StateGen[S, G, E]]
 
+  /** A [[StateGen]] that produces a one width SInt [[Expression]]
+    */
   def boolSIntGen[S: ExprState, G[_]: GenMonad]: Option[StateGen[S, G, E]]
+
+  /** Takes a width and returns a [[StateGen]] that produces a SInt [[Expression]] with the given width
+    *
+    * The input width will be greater than 1 and less than the maximum width
+    * allowed by the input state
+    */
   def sintGen[S: ExprState, G[_]: GenMonad]: Option[BigInt => StateGen[S, G, E]]
 
-  // usefull for debuggin
+  /** Returns a copy of this [[ExprGen]] that throws better exceptions
+    *
+    * Wraps this [[ExprGen]]'s functions with a try-catch that will wrap
+    * exceptions and record the name of this generator in an
+    * [[ExprGen.TraceException]].
+    */
   def withTrace: ExprGen[E] = new ExprGen[E] {
     import GenMonad.syntax._
 
     def name = self.name
-
 
     private def wrap[S: ExprState, G[_]: GenMonad](
       name: String,
@@ -31,6 +54,7 @@ trait ExprGen[E <: Expression] { self =>
             case e: ExprGen.TraceException if e.trace.size < 10 =>
               throw e.copy(trace = s"$name: ${tpe.serialize}" +: e.trace)
             case e: IllegalArgumentException =>
+            // case e if !e.isInstanceOf[ExprGen.TraceException] =>
               throw ExprGen.TraceException(Seq(s"$name: ${tpe.serialize}"), e)
           }
         )
@@ -53,27 +77,67 @@ trait ExprGen[E <: Expression] { self =>
   }
 }
 
+/** An Expression Generator that generates [[DoPrim]]s of the given operator
+  */
+abstract class DoPrimGen(val primOp: PrimOp) extends ExprGen[DoPrim] {
+  def name = primOp.serialize
+}
+
 object ExprGen {
+  import GenMonad.syntax._
   private def printStack(e: Throwable): String = {
-    import java.io.{StringWriter, PrintWriter}
-    val sw = new StringWriter()
-    val pw = new PrintWriter(sw)
+    val sw = new java.io.StringWriter()
+    val pw = new java.io.PrintWriter(sw)
     e.printStackTrace(pw)
     pw.flush()
     sw.toString
   }
 
   case class TraceException(trace: Seq[String], cause: Throwable) extends Exception(
-    s"failed: ${printStack(cause)}\ntrace:\n${trace.reverse.mkString("\n")}\n"
+    s"cause: ${printStack(cause)}\ntrace:\n${trace.reverse.mkString("\n")}\n"
   )
-}
 
-abstract class DoPrimGen(val primOp: PrimOp) extends ExprGen[DoPrim] {
-  def name = primOp.serialize
-}
+  private def genWidth[G[_]: GenMonad](min: Int, max: Int): G[IntWidth] = GenMonad[G].choose(min, max).map(IntWidth(_))
+  private def genWidthMax[G[_]: GenMonad](max: Int): G[IntWidth] = genWidth(1, max)
 
-object Generators {
-  import GenMonad.syntax._
+  private def makeBinDoPrimStateGen[S: ExprState, G[_]: GenMonad](
+    primOp: PrimOp,
+    typeGen: Int => G[(Type, Type, Type)]): StateGen[S, G, DoPrim] = {
+    for {
+      (tpe1, tpe2, exprTpe) <- StateGen.inspectG((s: S) => typeGen(ExprState[S].maxWidth(s)))
+      expr1 <- ExprState[S].exprGen(tpe1)
+      expr2 <- ExprState[S].exprGen(tpe2)
+    } yield {
+      DoPrim(primOp, Seq(expr1, expr2), Seq.empty, exprTpe)
+    }
+  }
+
+  private def makeUnaryDoPrimStateGen[S: ExprState, G[_]: GenMonad](
+    primOp: PrimOp,
+    typeGen: Int => G[(Type, Type)]): StateGen[S, G, DoPrim] = {
+    for {
+      (tpe1, exprTpe) <- StateGen.inspectG((s: S) => typeGen(ExprState[S].maxWidth(s)))
+      expr1 <- ExprState[S].exprGen(tpe1)
+    } yield {
+      DoPrim(primOp, Seq(expr1), Seq.empty, exprTpe)
+    }
+  }
+
+  private def log2Floor(i: Int): Int = {
+    if (i > 0 && ((i & (i - 1)) == 0)) {
+      BigInt(i - 1).bitLength
+    } else {
+      BigInt(i - 1).bitLength - 1
+    }
+  }
+
+  def inspectMinWidth[S: ExprState, G[_]: GenMonad](min: Int): StateGen[S, G, IntWidth] = {
+    StateGen.inspectG { s =>
+      val maxWidth = ExprState[S].maxWidth(s)
+      GenMonad[G].choose(min, maxWidth).map(IntWidth(_))
+    }
+  }
+
 
   object ReferenceGen extends ExprGen[Reference] {
     def name = "Ref"
@@ -138,20 +202,7 @@ object Generators {
     }
   }
 
-  def makeBinDoPrimStateGen[S: ExprState, G[_]: GenMonad](
-    primOp: PrimOp,
-    typeGen: Int => G[(Type, Type, Type)]): StateGen[S, G, DoPrim] = {
-    for {
-      (tpe1, tpe2, exprTpe) <- StateGen.inspectG((s: S) => typeGen(ExprState[S].maxWidth(s)))
-      expr1 <- ExprState[S].exprGen(tpe1)
-      expr2 <- ExprState[S].exprGen(tpe2)
-    } yield {
-      DoPrim(primOp, Seq(expr1, expr2), Seq.empty, exprTpe)
-    }
-  }
-
   abstract class AddSubDoPrimGen(isAdd: Boolean) extends DoPrimGen(if (isAdd) PrimOps.Add else PrimOps.Sub) {
-
     def boolUIntGen[S: ExprState, G[_]: GenMonad]: Option[StateGen[S, G, DoPrim]] = None
     def uintGen[S: ExprState, G[_]: GenMonad]: Option[BigInt => StateGen[S, G, DoPrim]] = {
       Some { width =>
@@ -214,11 +265,7 @@ object Generators {
     def sintGen[S: ExprState, G[_]: GenMonad]: Option[BigInt => StateGen[S, G, DoPrim]] = imp(isUInt = false)
   }
 
-  def genWidth[G[_]: GenMonad](min: Int, max: Int): G[IntWidth] = GenMonad[G].choose(min, max).map(IntWidth(_))
-  def genWidthMax[G[_]: GenMonad](max: Int): G[IntWidth] = genWidth(1, max)
-
   object DivDoPrimGen extends DoPrimGen(PrimOps.Div) {
-
     private def imp[S: ExprState, G[_]: GenMonad](isUInt: Boolean): Option[BigInt => StateGen[S, G, DoPrim]] = {
       val tpe = if (isUInt) UIntType(_) else SIntType(_)
       Some { resultWidth =>
@@ -240,7 +287,6 @@ object Generators {
   }
 
   object RemDoPrimGen extends DoPrimGen(PrimOps.Rem) {
-
     private def imp[S: ExprState, G[_]: GenMonad](isUInt: Boolean): Option[BigInt => StateGen[S, G, DoPrim]] = {
       val tpe = if (isUInt) UIntType(_) else SIntType(_)
       Some { resultWidth =>
@@ -292,7 +338,7 @@ object Generators {
       val tpe = if (isUInt) UIntType(_) else SIntType(_)
       Some { resultWidth =>
         for {
-          width1 <- inspectMinWidth(resultWidth.toInt)
+          width1 <- StateGen.liftG(genWidthMax(resultWidth.toInt))
           flip <- StateGen.liftG(GenMonad.bool)
           expr <- ExprState[S].exprGen(tpe(if (flip) IntWidth(resultWidth) else width1))
         } yield {
@@ -313,10 +359,10 @@ object Generators {
       val tpe = if (isUInt) UIntType(_) else SIntType(_)
       Some { totalWidth =>
         for {
-          width1 <- inspectMinWidth(log2Floor(totalWidth.toInt))
+          width1 <- StateGen.liftG(genWidthMax(totalWidth.toInt))
           expr <- ExprState[S].exprGen(tpe(width1))
         } yield {
-          val width2 = math.max(totalWidth.toInt - width1.width.toInt, 0)
+          val width2 = totalWidth.toInt - width1.width.toInt
           DoPrim(primOp, Seq(expr), Seq(width2), tpe(IntWidth(totalWidth)))
         }
       }
@@ -354,24 +400,16 @@ object Generators {
     def sintGen[S: ExprState, G[_]: GenMonad]: Option[BigInt => StateGen[S, G, DoPrim]] = imp(isUInt = false)
   }
 
-  def log2Ceil(i: Int): Int = BigInt(i - 1).bitLength
-
-  def log2Floor(i: Int): Int = {
-    if (i > 0 && ((i & (i - 1)) == 0)) {
-      log2Ceil(i)
-    } else {
-      log2Ceil(i) - 1
-    }
-  }
-
   object DshlDoPrimGen extends DoPrimGen(PrimOps.Dshl) {
     private def imp[S: ExprState, G[_]: GenMonad](isUInt: Boolean): Option[BigInt => StateGen[S, G, DoPrim]] = {
       val tpe = if (isUInt) UIntType(_) else SIntType(_)
       Some { totalWidth =>
+        val shWidthMax = log2Floor(totalWidth.toInt)
         def typeGen(maxWidth: Int): G[(Type, Type, Type)] = for {
-          shWidth <- genWidthMax(log2Floor(totalWidth.toInt))
+          shWidth <- genWidthMax(shWidthMax)
         } yield {
           val w1 = totalWidth.toInt - ((1 << shWidth.width.toInt) - 1)
+          // println(s"TOTALWIDTH: $totalWidth, SHWIDHTMAX: ${shWidthMax}, SHWIDTH: $shWidth, ARGWITH: $w1")
           (tpe(IntWidth(w1)), UIntType(shWidth), tpe(IntWidth(totalWidth)))
         }
         makeBinDoPrimStateGen(primOp, typeGen)
@@ -403,17 +441,6 @@ object Generators {
 
     def boolSIntGen[S: ExprState, G[_]: GenMonad]: Option[StateGen[S, G, DoPrim]] = sintGen.map(_(1))
     def sintGen[S: ExprState, G[_]: GenMonad]: Option[BigInt => StateGen[S, G, DoPrim]] = imp(isUInt = false)
-  }
-
-  def makeUnaryDoPrimStateGen[S: ExprState, G[_]: GenMonad](
-    primOp: PrimOp,
-    typeGen: Int => G[(Type, Type)]): StateGen[S, G, DoPrim] = {
-    for {
-      (tpe1, exprTpe) <- StateGen.inspectG((s: S) => typeGen(ExprState[S].maxWidth(s)))
-      expr1 <- ExprState[S].exprGen(tpe1)
-    } yield {
-      DoPrim(primOp, Seq(expr1), Seq.empty, exprTpe)
-    }
   }
 
   object CvtDoPrimGen extends DoPrimGen(PrimOps.Cvt) {
@@ -495,7 +522,7 @@ object Generators {
     def uintGen[S: ExprState, G[_]: GenMonad]: Option[BigInt => StateGen[S, G, DoPrim]] = {
       Some { width =>
         def typeGen(maxWidth: Int): G[(Type, Type, Type)] = for {
-          width1 <- genWidth(width.toInt, maxWidth)
+          width1 <- genWidthMax(width.toInt)
           flip <- GenMonad.bool
           tpe <- GenMonad[G].oneOf(UIntType(_), SIntType(_))
         } yield {
@@ -556,13 +583,6 @@ object Generators {
 
     def boolSIntGen[S: ExprState, G[_]: GenMonad]: Option[StateGen[S, G, DoPrim]] = None
     def sintGen[S: ExprState, G[_]: GenMonad]: Option[BigInt => StateGen[S, G, DoPrim]] = None
-  }
-
-  def inspectMinWidth[S: ExprState, G[_]: GenMonad](min: Int): StateGen[S, G, IntWidth] = {
-    StateGen.inspectG { s =>
-      val maxWidth = ExprState[S].maxWidth(s)
-      GenMonad[G].choose(min, maxWidth).map(IntWidth(_))
-    }
   }
 
   object BitsDoPrimGen extends DoPrimGen(PrimOps.Bits) {

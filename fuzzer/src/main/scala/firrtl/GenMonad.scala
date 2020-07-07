@@ -3,22 +3,46 @@ package firrtl.fuzzer
 /** Monads that represent a random value generator
   */
 trait GenMonad[Gen[_]] {
+  /** Creates a new generator that applies the function to the output of the first generator and flattens the result
+    */
   def flatMap[A, B](a: Gen[A])(f: A => Gen[B]): Gen[B]
+
+  /** Creates a new generator that applies the function to the output of the first generator
+    */
   def map[A, B](a: Gen[A])(f: A => B): Gen[B]
 
+  /** Flattens a nested generator into a single generator
+    */
   def flatten[A](gga: Gen[Gen[A]]): Gen[A] = flatMap(gga)(ga => ga)
 
+  /** Creates a generator that produces values uniformly distributed across the range
+    *
+    * The generated values are inclusive of both min and max.
+    */
   def choose(min: Int, max: Int): Gen[Int]
+
+  /** Creates a generator that uniformly selects from a list of items
+    */
   def oneOf[A](items: A*): Gen[A]
+
+  /** Creates a generator that always returns the same value
+    */
   def const[A](c: A): Gen[A]
+
+  /** Returns the same generator but with a wider type parameter
+    */
   def widen[A, B >: A](ga: Gen[A]): Gen[B]
 
+  /** Runs the given generator and returns the generated value
+    */
   def applyGen[A](ga: Gen[A]): A
 }
 
 object GenMonad {
   def apply[Gen[_]: GenMonad] = implicitly[GenMonad[Gen]]
 
+  /** Creates a generator that pick between true and false
+    */
   def bool[Gen[_]: GenMonad]: Gen[Boolean] = GenMonad[Gen].oneOf(true, false)
 
   /** Creates a generator that generates values based on the weights paired with each value
