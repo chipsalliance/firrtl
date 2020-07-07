@@ -19,7 +19,7 @@ class RemoveVerificationStatements extends Transform
   with PreservesAll[Transform] {
 
   override def prerequisites: Seq[TransformDependency] = Seq.empty
-  override def optionalPrerequisites: Seq[TransformDependency] = Seq.empty
+  override def optionalPrerequisites: Seq[TransformDependency] = Seq(Dependency(ConvertAsserts))
   override def optionalPrerequisiteOf: Seq[TransformDependency] =
     Seq( Dependency[VerilogEmitter],
       Dependency[MinimumVerilogEmitter])
@@ -44,6 +44,7 @@ class RemoveVerificationStatements extends Transform
     val newState = state.copy(circuit = run(state.circuit))
     if (removedCounter > 0) {
       StageUtils.dramaticWarning(s"$removedCounter verification statements " +
+        "(assert, assume or cover) " +
         "were removed when compiling to Verilog because the basic Verilog " +
         "standard does not support them. If this was not intended, compile " +
         "to System Verilog instead using the `-X sverilog` compiler flag.")
