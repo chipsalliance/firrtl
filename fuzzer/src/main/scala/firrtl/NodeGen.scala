@@ -4,21 +4,198 @@ import firrtl.ir._
 import firrtl.passes.CheckWidths
 import firrtl.{Namespace, PrimOps, Utils}
 
+trait ExprGen[E <: Expression] { self =>
+  def name: String
+  def boolUIntGen[S: ExprState, G[_]: GenMonad]: Option[StateGen[S, G, E]]
+  def uintGen[S: ExprState, G[_]: GenMonad]: Option[BigInt => StateGen[S, G, E]]
+
+  def boolSIntGen[S: ExprState, G[_]: GenMonad]: Option[StateGen[S, G, E]]
+  def sintGen[S: ExprState, G[_]: GenMonad]: Option[BigInt => StateGen[S, G, E]]
+
+  // usefull for debuggin
+  def withTrace: ExprGen[E] = new ExprGen[E] {
+    import GenMonad.syntax._
+
+    def name = self.name
+
+
+    private def wrap[S: ExprState, G[_]: GenMonad](
+      name: String,
+      tpe: Type,
+      stateGen: StateGen[S, G, E]): StateGen[S, G, E] = {
+      StateGen { (s: S) =>
+        GenMonad[G].choose(0, 1).map ( _ =>
+          try {
+            GenMonad[G].applyGen(stateGen.fn(s))
+          } catch {
+            case e: ExprGen.TraceException if e.trace.size < 10 =>
+              throw e.copy(trace = s"$name: ${tpe.serialize}" +: e.trace)
+            case e: IllegalArgumentException =>
+              throw ExprGen.TraceException(Seq(s"$name: ${tpe.serialize}"), e)
+          }
+        )
+      }
+    }
+
+    def boolUIntGen[S: ExprState, G[_]: GenMonad]: Option[StateGen[S, G, E]] = {
+      self.boolUIntGen.map(wrap(self.name, Utils.BoolType, _))
+    }
+    def uintGen[S: ExprState, G[_]: GenMonad]: Option[BigInt => StateGen[S, G, E]] = {
+      self.uintGen.map(fn => (width: BigInt) => wrap(self.name, UIntType(IntWidth(width)), fn(width)))
+    }
+
+    def boolSIntGen[S: ExprState, G[_]: GenMonad]: Option[StateGen[S, G, E]] = {
+      self.boolSIntGen.map(wrap(self.name, SIntType(IntWidth(1)), _))
+    }
+    def sintGen[S: ExprState, G[_]: GenMonad]: Option[BigInt => StateGen[S, G, E]] = {
+      self.sintGen.map(fn => (width: BigInt) => wrap(self.name, SIntType(IntWidth(width)), fn(width)))
+    }
+  }
+}
+
+object ExprGen {
+  private def printStack(e: Throwable): String = {
+    import java.io.{StringWriter, PrintWriter}
+    val sw = new StringWriter()
+    val pw = new PrintWriter(sw)
+    e.printStackTrace(pw)
+    pw.flush()
+    sw.toString
+  }
+
+  case class TraceException(trace: Seq[String], cause: Throwable) extends Exception(
+    s"failed: ${printStack(cause)}\ntrace:\n${trace.reverse.mkString("\n")}\n"
+  )
+}
+
+abstract class DoPrimGen(val primOp: PrimOp) extends ExprGen[DoPrim] {
+  def name = primOp.serialize
+}
+
 object Fuzzers {
   import GenMonad.syntax._
 
-  def widthOp(width: Width)(op: BigInt => BigInt): Width = width match {
-    case IntWidth(i) => IntWidth(op(i))
-    case UnknownWidth => UnknownWidth
+  object ReferenceGen extends ExprGen[Reference] {
+    def name = "Ref"
+    def boolUIntGen[S: ExprState, G[_]: GenMonad]: Option[StateGen[S, G, Reference]] = uintGen.map(_(1))
+    def uintGen[S: ExprState, G[_]: GenMonad]: Option[BigInt => StateGen[S, G, Reference]] = Some { width =>
+      referenceGenImp(UIntType(IntWidth(width)))
+    }
+
+    def boolSIntGen[S: ExprState, G[_]: GenMonad]: Option[StateGen[S, G, Reference]]  = sintGen.map(_(1))
+    def sintGen[S: ExprState, G[_]: GenMonad]: Option[BigInt => StateGen[S, G, Reference]] = Some { width =>
+      referenceGenImp(SIntType(IntWidth(width)))
+    }
+
+    def referenceGenImp[S: ExprState, G[_]: GenMonad](tpe: Type): StateGen[S, G, Reference] = {
+      for {
+        // don't bother randomizing name, because it usually does not help with coverage
+        tryName <- StateGen.pure("ref")
+        ref <- ExprState[S].withRef(Reference(tryName, tpe))
+      } yield {
+        ref
+      }
+    }
   }
 
+  object LiteralGen extends ExprGen[Literal] {
+    def name = "Literal"
+    def boolUIntGen[S: ExprState, G[_]: GenMonad]: Option[StateGen[S, G, Literal]] = uintGen.map(_(1))
+    def uintGen[S: ExprState, G[_]: GenMonad]: Option[BigInt => StateGen[S, G, Literal]] = Some { width =>
+      uintLiteralGenImp(width)
+    }
+
+    def boolSIntGen[S: ExprState, G[_]: GenMonad]: Option[StateGen[S, G, Literal]] = sintGen.map(_(1))
+    def sintGen[S: ExprState, G[_]: GenMonad]: Option[BigInt => StateGen[S, G, Literal]] = Some { width =>
+      sintLiteralGenImp(width)
+    }
+
+    def uintLiteralGenImp[S: ExprState, G[_]: GenMonad](width: BigInt): StateGen[S, G, Literal] = {
+      val maxValue = if (width < BigInt(31)) {
+        (1 << width.toInt) - 1
+      } else {
+        Int.MaxValue
+      }
+      StateGen.liftG(for {
+        value <- GenMonad[G].choose(0, maxValue)
+      } yield {
+        UIntLiteral(value, IntWidth(width))
+      })
+    }
+
+    def sintLiteralGenImp[S: ExprState, G[_]: GenMonad](width: BigInt): StateGen[S, G, Literal] = {
+      StateGen.liftG(
+        if (width <= BigInt(32)) {
+          GenMonad[G].choose(-(1 << (width.toInt - 1)), (1 << (width.toInt - 1)) - 1).map { value =>
+            SIntLiteral(value, IntWidth(width))
+          }
+        } else {
+          GenMonad[G].choose(Int.MinValue, Int.MaxValue).map { value =>
+            SIntLiteral(value, IntWidth(width))
+          }
+        }
+      )
+    }
+  }
+
+  def makeBinDoPrimStateGen[S: ExprState, G[_]: GenMonad](
+    primOp: PrimOp,
+    typeGen: G[(Type, Type, Type)]): StateGen[S, G, DoPrim] = {
+    for {
+      (tpe1, tpe2, exprTpe) <- StateGen.liftG(typeGen)
+      expr1 <- ExprState[S].exprGen(tpe1)
+      expr2 <- ExprState[S].exprGen(tpe2)
+    } yield {
+      DoPrim(primOp, Seq(expr1, expr2), Seq.empty, exprTpe)
+    }
+  }
+
+  abstract class AddSubDoPrimGen(isAdd: Boolean) extends DoPrimGen(if (isAdd) PrimOps.Add else PrimOps.Sub) {
+
+    def boolUIntGen[S: ExprState, G[_]: GenMonad]: Option[StateGen[S, G, DoPrim]] = None
+    def uintGen[S: ExprState, G[_]: GenMonad]: Option[BigInt => StateGen[S, G, DoPrim]] = {
+      Some { width =>
+        val typeGen: G[(Type, Type, Type)] = for {
+          randWidth <- GenMonad[G].choose(1, width.toInt - 1)
+          flip <- GenMonad[G].bool
+        } yield {
+          if (flip) {
+            (UIntType(IntWidth(randWidth)), UIntType(IntWidth(width.toInt - 1)), UIntType(IntWidth(width)))
+          } else {
+            (UIntType(IntWidth(width.toInt - 1)), UIntType(IntWidth(randWidth)), UIntType(IntWidth(width)))
+          }
+        }
+        makeBinDoPrimStateGen(primOp, typeGen)
+      }
+    }
+
+    def boolSIntGen[S: ExprState, G[_]: GenMonad]: Option[StateGen[S, G, DoPrim]] = None
+    def sintGen[S: ExprState, G[_]: GenMonad]: Option[BigInt => StateGen[S, G, DoPrim]] = {
+      Some { width =>
+        val typeGen: G[(Type, Type, Type)] = for {
+          randWidth <- GenMonad[G].choose(1, width.toInt - 1)
+          flip <- GenMonad[G].bool
+        } yield {
+          if (flip) {
+            (SIntType(IntWidth(randWidth)), SIntType(IntWidth(width.toInt - 1)), SIntType(IntWidth(width)))
+          } else {
+            (SIntType(IntWidth(width.toInt - 1)), SIntType(IntWidth(randWidth)), SIntType(IntWidth(width)))
+          }
+        }
+        makeBinDoPrimStateGen(primOp, typeGen)
+      }
+    }
+  }
+
+  object AddDoPrimGen extends AddSubDoPrimGen(isAdd = true)
+  object SubDoPrimGen extends AddSubDoPrimGen(isAdd = false)
 
   def makeBinPrimOpGen[S: ExprState, G[_]: GenMonad](
     primOp: PrimOp,
     typeFn: Type => G[(Type, Type, Type)],
     tpe: Type): StateGen[S, G, Expression] = {
     for {
-      (tpe1, tpe2, exprTpe) <- StateGen.pureG(typeFn(tpe))
+      (tpe1, tpe2, exprTpe) <- StateGen.liftG(typeFn(tpe))
       expr1 <- ExprState[S].exprGen(tpe1)
       expr2 <- ExprState[S].exprGen(tpe1)
     } yield {
@@ -40,321 +217,292 @@ object Fuzzers {
     case known => fn(known)
   }
 
-  def genAddSubPrimOp[S: ExprState, G[_]: GenMonad](isAdd: Boolean)(tpe: Type): StateGen[S, G, Expression] = {
-    val typeFn: Type => G[(Type, Type, Type)] = handleUnknown {
-      case UIntType(width) =>
-        val argTpe = UIntType(widthOp(width)(i => math.max(i.toInt - 1, 0)))
-        GenMonad[G].const((argTpe, argTpe, tpe))
-      case SIntType(width) =>
-        val argTpe = SIntType(widthOp(width)(i => math.max(i.toInt - 1, 0)))
-        GenMonad[G].const((argTpe, argTpe, tpe))
-    }
-    makeBinPrimOpGen(if (isAdd) PrimOps.Add else PrimOps.Sub, typeFn, tpe)
-  }
+  object MulDoPrimGen extends DoPrimGen(PrimOps.Mul) {
 
-  def genAddPrimOp[S: ExprState, G[_]: GenMonad](tpe: Type): StateGen[S, G, Expression] =
-    genAddSubPrimOp(true)(tpe)
-
-  def genSubPrimOp[S: ExprState, G[_]: GenMonad](tpe: Type): StateGen[S, G, Expression] =
-    genAddSubPrimOp(false)(tpe)
-
-
-  def genMulPrimOp[S: ExprState, G[_]: GenMonad](tpe: Type): StateGen[S, G, Expression] = {
-    val anyWidth: G[(IntWidth, IntWidth)] = for {
-      totalWidth <- GenMonad[G].choose(0, MAX_WIDTH)
-      width1 <- GenMonad[G].choose(0, totalWidth)
-    } yield {
-      val width2 = math.max(totalWidth - width1, 0)
-      IntWidth(width1) -> IntWidth(width2)
-    }
-    val typeFn: Type => G[(Type, Type, Type)] = handleUnknown {
-      case UIntType(UnknownWidth) =>
-        anyWidth.map { case (w1, w2) =>
-          (UIntType(w1), UIntType(w2), UIntType(IntWidth(w1.width + w2.width)))
+    private def imp[S: ExprState, G[_]: GenMonad](isUInt: Boolean): Option[BigInt => StateGen[S, G, DoPrim]] = {
+      val tpe = if (isUInt) UIntType(_) else SIntType(_)
+      Some { totalWidth =>
+        val typeGen: G[(Type, Type, Type)] = for {
+          width1 <- GenMonad[G].choose(1, totalWidth.toInt - 1)
+          flip <- GenMonad[G].bool
+        } yield {
+          val t1 = tpe(IntWidth(math.max(totalWidth.toInt - width1, 0)))
+          val t2 = tpe(IntWidth(width1))
+          val t3 = tpe(IntWidth(totalWidth))
+          if (flip) (t2, t1, t3) else (t1, t2, t3)
         }
-      case SIntType(UnknownWidth) =>
-        anyWidth.map { case (w1, w2) =>
-          (SIntType(w1), SIntType(w2), SIntType(IntWidth(w1.width + w2.width)))
-        }
-      case UIntType(IntWidth(totalWidth)) => for {
-        width1 <- GenMonad[G].choose(0, totalWidth.toInt)
-      } yield {
-        (UIntType(IntWidth(width1)), UIntType(IntWidth(math.max(totalWidth.toInt - width1, 0))), tpe)
-      }
-      case SIntType(IntWidth(totalWidth)) => for {
-        width1 <- GenMonad[G].choose(0, totalWidth.toInt)
-      } yield {
-        (SIntType(IntWidth(width1)), SIntType(IntWidth(math.max(totalWidth.toInt - width1, 0))), tpe)
+        makeBinDoPrimStateGen(primOp, typeGen)
       }
     }
-    makeBinPrimOpGen(PrimOps.Mul, typeFn, tpe)
+
+    def boolUIntGen[S: ExprState, G[_]: GenMonad]: Option[StateGen[S, G, DoPrim]] = None
+    def uintGen[S: ExprState, G[_]: GenMonad]: Option[BigInt => StateGen[S, G, DoPrim]] = imp(isUInt = true)
+
+    def boolSIntGen[S: ExprState, G[_]: GenMonad]: Option[StateGen[S, G, DoPrim]] = None
+    def sintGen[S: ExprState, G[_]: GenMonad]: Option[BigInt => StateGen[S, G, DoPrim]] = imp(isUInt = false)
   }
 
   def anyWidth[G[_]: GenMonad]: G[IntWidth] = GenMonad[G].choose(1, MAX_WIDTH).map(IntWidth(_))
+  def genWidth[G[_]: GenMonad](max: Int): G[IntWidth] = genWidth(1, max)
+  def genWidth[G[_]: GenMonad](min: Int, max: Int): G[IntWidth] = GenMonad[G].choose(min, math.min(max, MAX_WIDTH)).map(IntWidth(_))
 
-  def genDivPrimOp[S: ExprState, G[_]: GenMonad](tpe: Type): StateGen[S, G, Expression] = {
-    val typeFn: Type => G[(Type, Type, Type)] = handleUnknown {
-      case UIntType(UnknownWidth) => for {
-        w1 <- anyWidth
-        w2 <- anyWidth
-      } yield {
-        (UIntType(w1), UIntType(w2), UIntType(w1))
-      }
-      case SIntType(UnknownWidth) => for {
-        w1 <- anyWidth
-        w2 <- anyWidth
-      } yield {
-        (SIntType(w1), SIntType(w2), SIntType(IntWidth(math.max(w1.width.toInt - 1, 0))))
-      }
-      case UIntType(IntWidth(w)) => for {
-        w1 <- GenMonad[G].choose(0, w.toInt)
-        w2 <- anyWidth
-      } yield {
-        (UIntType(IntWidth(w1)), UIntType(w2), tpe)
-      }
-      case SIntType(IntWidth(w)) => for {
-        w1 <- GenMonad[G].choose(0, math.max(w.toInt - 1, 0))
-        w2 <- anyWidth
-      } yield {
-        (SIntType(IntWidth(w1)), SIntType(w2), tpe)
+  object DivDoPrimGen extends DoPrimGen(PrimOps.Div) {
+
+    private def imp[S: ExprState, G[_]: GenMonad](isUInt: Boolean): Option[BigInt => StateGen[S, G, DoPrim]] = {
+      val tpe = if (isUInt) UIntType(_) else SIntType(_)
+      Some { resultWidth =>
+        val numWidth = if (isUInt) resultWidth.toInt else (resultWidth.toInt - 1)
+        val typeGen: G[(Type, Type, Type)] = for {
+          denWidth <- anyWidth
+        } yield {
+          (tpe(IntWidth(numWidth)), tpe(denWidth), tpe(IntWidth(resultWidth)))
+        }
+        makeBinDoPrimStateGen(primOp, typeGen)
       }
     }
-    makeBinPrimOpGen(PrimOps.Div, typeFn, tpe)
+
+    def boolUIntGen[S: ExprState, G[_]: GenMonad]: Option[StateGen[S, G, DoPrim]] = None
+    def uintGen[S: ExprState, G[_]: GenMonad]: Option[BigInt => StateGen[S, G, DoPrim]] = imp(isUInt = true)
+
+    def boolSIntGen[S: ExprState, G[_]: GenMonad]: Option[StateGen[S, G, DoPrim]] = None
+    def sintGen[S: ExprState, G[_]: GenMonad]: Option[BigInt => StateGen[S, G, DoPrim]] = imp(isUInt = false)
   }
 
-  def genRemPrimOp[S: ExprState, G[_]: GenMonad](tpe: Type): StateGen[S, G, Expression] = {
-    val typeFn: Type => G[(Type, Type, Type)] = handleUnknown {
-      case UIntType(UnknownWidth) => for {
-        w1 <- anyWidth
-        w2 <- anyWidth
-      } yield {
-        (UIntType(w1), UIntType(w2), UIntType(IntWidth(math.min(w1.width.toInt, w2.width.toInt))))
-      }
-      case SIntType(UnknownWidth) => for {
-        w1 <- anyWidth
-        w2 <- anyWidth
-      } yield {
-        (SIntType(w1), SIntType(w2), SIntType(IntWidth(math.min(w1.width.toInt, w2.width.toInt))))
-      }
-      case UIntType(IntWidth(w)) => for {
-        w1 <- GenMonad[G].choose(w.toInt, MAX_WIDTH)
-        w2 <- GenMonad[G].choose(w.toInt, MAX_WIDTH)
-      } yield {
-        (UIntType(IntWidth(w1)), UIntType(IntWidth(w2)), tpe)
-      }
-      case SIntType(IntWidth(w)) => for {
-        w1 <- GenMonad[G].choose(w.toInt, MAX_WIDTH)
-        w2 <- GenMonad[G].choose(w.toInt, MAX_WIDTH)
-      } yield {
-        (SIntType(IntWidth(w1)), SIntType(IntWidth(w2)), tpe)
+  object RemDoPrimGen extends DoPrimGen(PrimOps.Rem) {
+
+    private def imp[S: ExprState, G[_]: GenMonad](isUInt: Boolean): Option[BigInt => StateGen[S, G, DoPrim]] = {
+      val tpe = if (isUInt) UIntType(_) else SIntType(_)
+      Some { resultWidth =>
+        val typeGen: G[(Type, Type, Type)] = for {
+          argWidth <- genWidth(resultWidth.toInt, MAX_WIDTH)
+          flip <- GenMonad[G].bool
+        } yield {
+          val t1 = UIntType(argWidth)
+          val t2 = UIntType(IntWidth(resultWidth))
+          val t3 = t2
+          if (flip) (t2, t1, t3) else (t1, t2, t3)
+        }
+        makeBinDoPrimStateGen(primOp, typeGen)
       }
     }
-    makeBinPrimOpGen(PrimOps.Rem, typeFn, tpe)
+
+    def boolUIntGen[S: ExprState, G[_]: GenMonad]: Option[StateGen[S, G, DoPrim]] = uintGen.map(_(1))
+    def uintGen[S: ExprState, G[_]: GenMonad]: Option[BigInt => StateGen[S, G, DoPrim]] = imp(isUInt = true)
+
+    def boolSIntGen[S: ExprState, G[_]: GenMonad]: Option[StateGen[S, G, DoPrim]] = sintGen.map(_(1))
+    def sintGen[S: ExprState, G[_]: GenMonad]: Option[BigInt => StateGen[S, G, DoPrim]] = imp(isUInt = false)
   }
 
-  def makeCmpPrimOpGen[S: ExprState, G[_]: GenMonad](primOp: PrimOp)(tpe: Type): StateGen[S, G, Expression] = {
-    val typeFn: Type => G[(Type, Type, Type)] = handleUnknown {
-      case _: UIntType => for {
-        w1 <- anyWidth
-        w2 <- anyWidth
+  abstract class CmpDoPrimGen(primOp: PrimOp) extends DoPrimGen(primOp) {
+    def boolUIntGen[S: ExprState, G[_]: GenMonad]: Option[StateGen[S, G, DoPrim]] = {
+      val typeGen: G[(Type, Type, Type)] = for {
+        width1 <- anyWidth
+        width2 <- anyWidth
+        tpe <- GenMonad[G].oneOf(UIntType(_), SIntType(_))
       } yield {
-        (UIntType(w1), UIntType(w2), Utils.BoolType)
+        (tpe(width1), tpe(width2), Utils.BoolType)
       }
-      case _: SIntType => for {
-        w1 <- anyWidth
-        w2 <- anyWidth
-      } yield {
-        (SIntType(w1), SIntType(w2), Utils.BoolType)
+      Some(makeBinDoPrimStateGen(primOp, typeGen))
+    }
+    def uintGen[S: ExprState, G[_]: GenMonad]: Option[BigInt => StateGen[S, G, DoPrim]] = None
+
+    def boolSIntGen[S: ExprState, G[_]: GenMonad]: Option[StateGen[S, G, DoPrim]] = None
+    def sintGen[S: ExprState, G[_]: GenMonad]: Option[BigInt => StateGen[S, G, DoPrim]] = None
+  }
+  object LtDoPrimGen extends CmpDoPrimGen(PrimOps.Lt)
+  object LeqDoPrimGen extends CmpDoPrimGen(PrimOps.Leq)
+  object GtDoPrimGen extends CmpDoPrimGen(PrimOps.Gt)
+  object GeqDoPrimGen extends CmpDoPrimGen(PrimOps.Geq)
+  object EqDoPrimGen extends CmpDoPrimGen(PrimOps.Eq)
+  object NeqDoPrimGen extends CmpDoPrimGen(PrimOps.Neq)
+
+  object PadDoPrimGen extends DoPrimGen(PrimOps.Pad) {
+
+    private def imp[S: ExprState, G[_]: GenMonad](isUInt: Boolean): Option[BigInt => StateGen[S, G, DoPrim]] = {
+      val tpe = if (isUInt) UIntType(_) else SIntType(_)
+      Some { resultWidth =>
+        for {
+          width1 <- StateGen.liftG(genWidth(resultWidth.toInt))
+          flip <- StateGen.liftG(GenMonad[G].bool)
+          expr <- ExprState[S].exprGen(tpe(if (flip) IntWidth(resultWidth) else width1))
+        } yield {
+          DoPrim(primOp, Seq(expr), Seq(if (flip) width1.width else resultWidth), tpe(IntWidth(resultWidth)))
+        }
       }
     }
-    makeBinPrimOpGen(primOp, typeFn, tpe)
+
+    def boolUIntGen[S: ExprState, G[_]: GenMonad]: Option[StateGen[S, G, DoPrim]] = uintGen.map(_(1))
+    def uintGen[S: ExprState, G[_]: GenMonad]: Option[BigInt => StateGen[S, G, DoPrim]] = imp(isUInt = true)
+
+    def boolSIntGen[S: ExprState, G[_]: GenMonad]: Option[StateGen[S, G, DoPrim]] = sintGen.map(_(1))
+    def sintGen[S: ExprState, G[_]: GenMonad]: Option[BigInt => StateGen[S, G, DoPrim]] = imp(isUInt = false)
   }
 
-  def genPadPrimOp[S: ExprState, G[_]: GenMonad](tpe: Type): StateGen[S, G, Expression] = {
-    tpe match {
-      case UIntType(UnknownWidth) => for {
-        w1 <- StateGen.pureG(anyWidth)
-        w2 <- StateGen.pureG(GenMonad[G].choose(0, MAX_WIDTH))
-        expr <- ExprState[S].exprGen(UIntType(w1))
-      } yield {
-        DoPrim(PrimOps.Pad, Seq(expr), Seq(w2), UIntType(IntWidth(math.max(w1.width.toInt, w2))))
-      }
-      case SIntType(UnknownWidth) => for {
-        w1 <- StateGen.pureG(anyWidth)
-        w2 <- StateGen.pureG(GenMonad[G].choose(0, MAX_WIDTH))
-        expr <- ExprState[S].exprGen(SIntType(w1))
-      } yield {
-        DoPrim(PrimOps.Pad, Seq(expr), Seq(w2), SIntType(IntWidth(math.max(w1.width.toInt, w2))))
-      }
-      case UIntType(IntWidth(w)) => for {
-        w1 <- StateGen.pureG(anyWidth)
-        w2 <- StateGen.pureG(GenMonad[G].choose(0, w.toInt))
-        expr <- ExprState[S].exprGen(UIntType(w1))
-      } yield {
-        DoPrim(PrimOps.Pad, Seq(expr), Seq(w2), tpe)
-      }
-      case SIntType(IntWidth(w)) => for {
-        w1 <- StateGen.pureG(anyWidth)
-        w2 <- StateGen.pureG(GenMonad[G].choose(0, w.toInt))
-        expr <- ExprState[S].exprGen(SIntType(w1))
-      } yield {
-        DoPrim(PrimOps.Pad, Seq(expr), Seq(w2), tpe)
+  object ShlDoPrimGen extends DoPrimGen(PrimOps.Shl) {
+
+    private def imp[S: ExprState, G[_]: GenMonad](isUInt: Boolean): Option[BigInt => StateGen[S, G, DoPrim]] = {
+      val tpe = if (isUInt) UIntType(_) else SIntType(_)
+      Some { totalWidth =>
+        for {
+          width1 <- StateGen.liftG(genWidth(log2Floor(totalWidth.toInt)))
+          expr <- ExprState[S].exprGen(tpe(width1))
+        } yield {
+          val width2 = math.max(totalWidth.toInt - width1.width.toInt, 0)
+          DoPrim(primOp, Seq(expr), Seq(width2), tpe(IntWidth(totalWidth)))
+        }
       }
     }
+
+    def boolUIntGen[S: ExprState, G[_]: GenMonad]: Option[StateGen[S, G, DoPrim]] = None
+    def uintGen[S: ExprState, G[_]: GenMonad]: Option[BigInt => StateGen[S, G, DoPrim]] = imp(isUInt = true)
+
+    def boolSIntGen[S: ExprState, G[_]: GenMonad]: Option[StateGen[S, G, DoPrim]] = None
+    def sintGen[S: ExprState, G[_]: GenMonad]: Option[BigInt => StateGen[S, G, DoPrim]] = imp(isUInt = false)
   }
 
-  def genShlPrimOp[S: ExprState, G[_]: GenMonad](tpe: Type): StateGen[S, G, Expression] = {
-    tpe match {
-      case UIntType(UnknownWidth) => for {
-        w1 <- StateGen.pureG(anyWidth)
-        w2 <- StateGen.pureG(GenMonad[G].choose(0, MAX_WIDTH - w1.width.toInt))
-        expr <- ExprState[S].exprGen(UIntType(w1))
-      } yield {
-        DoPrim(PrimOps.Shl, Seq(expr), Seq(w2), UIntType(IntWidth(w1.width + w2)))
-      }
-      case SIntType(UnknownWidth) => for {
-        w1 <- StateGen.pureG(anyWidth)
-        w2 <- StateGen.pureG(GenMonad[G].choose(0, MAX_WIDTH - w1.width.toInt))
-        expr <- ExprState[S].exprGen(SIntType(w1))
-      } yield {
-        DoPrim(PrimOps.Shl, Seq(expr), Seq(w2), SIntType(IntWidth(w1.width + w2)))
-      }
-      case UIntType(IntWidth(totalWidth)) => for {
-        width1 <- StateGen.pureG(GenMonad[G].choose(0, totalWidth.toInt))
-        expr <- ExprState[S].exprGen(UIntType(IntWidth(width1)))
-      } yield {
-        val width2 = math.max(totalWidth.toInt - width1, 0)
-        DoPrim(PrimOps.Shl, Seq(expr), Seq(width2), tpe)
-      }
-      case SIntType(IntWidth(totalWidth)) => for {
-        width1 <- StateGen.pureG(GenMonad[G].choose(0, totalWidth.toInt))
-        expr <- ExprState[S].exprGen(SIntType(IntWidth(width1)))
-      } yield {
-        val width2 = math.max(totalWidth.toInt - width1, 0)
-        DoPrim(PrimOps.Shl, Seq(expr), Seq(width2), tpe)
-      }
-      case UnknownType => for {
-        totalWidth <- StateGen.pureG(GenMonad[G].choose(0, MAX_WIDTH))
-        width1 <- StateGen.pureG(GenMonad[G].choose(0, totalWidth))
-        tpe <- StateGen.pureG(GenMonad[G].oneOf(UIntType(_), SIntType(_)))
-        expr <- ExprState[S].exprGen(tpe(IntWidth(width1)))
-      } yield {
-        val width2 = math.max(totalWidth - width1, 0)
-        DoPrim(PrimOps.Shl, Seq(expr), Seq(width2), tpe(IntWidth(totalWidth)))
+  object ShrDoPrimGen extends DoPrimGen(PrimOps.Shr) {
+
+    private def imp[S: ExprState, G[_]: GenMonad](isUInt: Boolean): Option[BigInt => StateGen[S, G, DoPrim]] = {
+      val tpe = if (isUInt) UIntType(_) else SIntType(_)
+      Some { minWidth =>
+        for {
+          exprWidth <- StateGen.liftG(genWidth(minWidth.toInt, MAX_WIDTH))
+          expr <- ExprState[S].exprGen(tpe(exprWidth))
+          shamt <- StateGen.liftG(if (minWidth == BigInt(1)) {
+            GenMonad[G].choose(exprWidth.width.toInt - minWidth.toInt, Int.MaxValue)
+          } else {
+            GenMonad[G].const(exprWidth.width.toInt - minWidth.toInt)
+          })
+        } yield {
+          DoPrim(primOp, Seq(expr), Seq(shamt), tpe(IntWidth(minWidth)))
+        }
       }
     }
-  }
 
-  def genShrPrimOp[S: ExprState, G[_]: GenMonad](tpe: Type): StateGen[S, G, Expression] = {
-    tpe match {
-      case UIntType(UnknownWidth) => for {
-        shamt <- StateGen.pureG(GenMonad[G].choose(0, MAX_WIDTH))
-        exprWidth <- StateGen.pureG(GenMonad[G].choose(shamt.toInt, MAX_WIDTH))
-        expr <- ExprState[S].exprGen(UIntType(IntWidth(exprWidth)))
-      } yield {
-        DoPrim(PrimOps.Shr, Seq(expr), Seq(shamt), UIntType(IntWidth(exprWidth - shamt)))
-      }
-      case SIntType(UnknownWidth) => for {
-        shamt <- StateGen.pureG(GenMonad[G].choose(0, MAX_WIDTH))
-        exprWidth <- StateGen.pureG(GenMonad[G].choose(shamt.toInt, MAX_WIDTH))
-        expr <- ExprState[S].exprGen(SIntType(IntWidth(exprWidth)))
-      } yield {
-        DoPrim(PrimOps.Shr, Seq(expr), Seq(shamt), SIntType(IntWidth(exprWidth - shamt)))
-      }
-      case UIntType(IntWidth(minWidth)) => for {
-        exprWidth <- StateGen.pureG(GenMonad[G].choose(minWidth.toInt, MAX_WIDTH))
-        expr <- ExprState[S].exprGen(UIntType(IntWidth(exprWidth)))
-      } yield {
-        val  shamt = exprWidth - minWidth
-        DoPrim(PrimOps.Shr, Seq(expr), Seq(shamt), tpe)
-      }
-      case SIntType(IntWidth(minWidth)) => for {
-        exprWidth <- StateGen.pureG(GenMonad[G].choose(minWidth.toInt, MAX_WIDTH))
-        expr <- ExprState[S].exprGen(SIntType(IntWidth(exprWidth)))
-      } yield {
-        val  shamt = exprWidth - minWidth
-        DoPrim(PrimOps.Shr, Seq(expr), Seq(shamt), tpe)
-      }
-      case UnknownType => for {
-        shamt <- StateGen.pureG(GenMonad[G].choose(0, MAX_WIDTH))
-        tpeFn <- StateGen.pureG(GenMonad[G].oneOf(UIntType(_), SIntType(_)))
-        exprWidth <- StateGen.pureG(GenMonad[G].choose(shamt.toInt, MAX_WIDTH))
-        expr <- ExprState[S].exprGen(tpeFn(IntWidth(exprWidth)))
-      } yield {
-        DoPrim(PrimOps.Shr, Seq(expr), Seq(shamt), tpeFn(IntWidth(exprWidth - shamt)))
-      }
-    }
-  }
+    def boolUIntGen[S: ExprState, G[_]: GenMonad]: Option[StateGen[S, G, DoPrim]] = uintGen.map(_(1))
+    def uintGen[S: ExprState, G[_]: GenMonad]: Option[BigInt => StateGen[S, G, DoPrim]] = imp(isUInt = true)
 
+    def boolSIntGen[S: ExprState, G[_]: GenMonad]: Option[StateGen[S, G, DoPrim]] = sintGen.map(_(1))
+    def sintGen[S: ExprState, G[_]: GenMonad]: Option[BigInt => StateGen[S, G, DoPrim]] = imp(isUInt = false)
+  }
 
   def log2Ceil(i: Int): Int = BigInt(i - 1).bitLength
 
   def log2Floor(i: Int): Int = {
     if (i > 0 && ((i & (i - 1)) == 0)) {
       log2Ceil(i)
-    } else if (i == 0) {
-      0
     } else {
       log2Ceil(i) - 1
     }
   }
 
-  def genDshlPrimOp[S: ExprState, G[_]: GenMonad](tpe: Type): StateGen[S, G, Expression] = {
-    val typeFn: Type => G[(Type, Type, Type)] = handleUnknown {
-      case UIntType(UnknownWidth) => for {
-        shWidth <- GenMonad[G].choose(0, MAX_WIDTH_LOG2)
-        w1 <- GenMonad[G].choose(0, 1 << (MAX_WIDTH_LOG2 - shWidth))
-      } yield {
-        (UIntType(IntWidth(w1)), UIntType(IntWidth(shWidth)), UIntType(IntWidth(w1 + (1 << shWidth) - 1)))
-      }
-      case SIntType(UnknownWidth) => for {
-        shWidth <- GenMonad[G].choose(0, MAX_WIDTH_LOG2)
-        w1 <- GenMonad[G].choose(0, 1 << (MAX_WIDTH_LOG2 - shWidth))
-      } yield {
-        (SIntType(IntWidth(w1)), UIntType(IntWidth(shWidth)), SIntType(IntWidth(w1 + (1 << shWidth) - 1)))
-      }
-      case UIntType(IntWidth(totalWidth)) => for {
-        shWidth <- GenMonad[G].choose(0, log2Floor(totalWidth.toInt))
-        w1 <- GenMonad[G].choose(0, math.max(totalWidth.toInt - (1 << shWidth), 0))
-      } yield {
-        (UIntType(IntWidth(w1)), UIntType(IntWidth(shWidth)), tpe)
-      }
-      case SIntType(IntWidth(totalWidth)) => for {
-        shWidth <- GenMonad[G].choose(0, log2Floor(totalWidth.toInt))
-        w1 <- GenMonad[G].choose(0, math.max(totalWidth.toInt - (1 << shWidth), 0))
-      } yield {
-        (SIntType(IntWidth(w1)), UIntType(IntWidth(shWidth)), tpe)
+  object DshlDoPrimGen extends DoPrimGen(PrimOps.Dshl) {
+
+    private def imp[S: ExprState, G[_]: GenMonad](isUInt: Boolean): Option[BigInt => StateGen[S, G, DoPrim]] = {
+      val tpe = if (isUInt) UIntType(_) else SIntType(_)
+      Some { totalWidth =>
+        val typeGen: G[(Type, Type, Type)] = for {
+          shWidth <- genWidth(log2Floor(totalWidth.toInt))
+        } yield {
+          val w1 = totalWidth.toInt - ((1 << shWidth.width.toInt) - 1)
+          // println(s"TOTALWIDTH: $totalWidth, SHWIDHTMAX: ${log2Floor(totalWidth.toInt)}, SHWIDTH: $shWidth, ARGWITH: $w1")
+          (tpe(IntWidth(w1)), UIntType(shWidth), tpe(IntWidth(totalWidth)))
+        }
+        makeBinDoPrimStateGen(primOp, typeGen)
       }
     }
-    makeBinPrimOpGen(PrimOps.Dshl, typeFn, tpe)
+
+    def boolUIntGen[S: ExprState, G[_]: GenMonad]: Option[StateGen[S, G, DoPrim]] = None
+    def uintGen[S: ExprState, G[_]: GenMonad]: Option[BigInt => StateGen[S, G, DoPrim]] = imp(isUInt = true)
+
+    def boolSIntGen[S: ExprState, G[_]: GenMonad]: Option[StateGen[S, G, DoPrim]] = None
+    def sintGen[S: ExprState, G[_]: GenMonad]: Option[BigInt => StateGen[S, G, DoPrim]] = imp(isUInt = false)
   }
 
-  def genDshrPrimOp[S: ExprState, G[_]: GenMonad](tpe: Type): StateGen[S, G, Expression] = {
-    val typeFn: Type => G[(Type, Type, Type)] = handleUnknown {
-      case UIntType(UnknownWidth) => for {
-        w1 <- anyWidth
-        w2 <- anyWidth
-      } yield {
-        (UIntType(w1), UIntType(w2), UIntType(w1))
-      }
-      case SIntType(UnknownWidth) => for {
-        w1 <- anyWidth
-        w2 <- anyWidth
-      } yield {
-        (SIntType(w1), UIntType(w2), SIntType(w1))
-      }
-      case UIntType(IntWidth(w1)) => for {
-        w2 <- anyWidth
-      } yield {
-        (UIntType(IntWidth(w1)), UIntType(w2), tpe)
-      }
-      case SIntType(IntWidth(w1)) => for {
-        w2 <- anyWidth
-      } yield {
-        (SIntType(IntWidth(w1)), UIntType(w2), tpe)
+  object DshrDoPrimGen extends DoPrimGen(PrimOps.Dshr) {
+
+    private def imp[S: ExprState, G[_]: GenMonad](isUInt: Boolean): Option[BigInt => StateGen[S, G, DoPrim]] = {
+      val tpe = if (isUInt) UIntType(_) else SIntType(_)
+      Some { width =>
+        val typeGen: G[(Type, Type, Type)] = for {
+          w2 <- anyWidth
+        } yield {
+          (tpe(IntWidth(width)), tpe(w2), tpe(IntWidth(width)))
+        }
+        makeBinDoPrimStateGen(primOp, typeGen)
       }
     }
-    makeBinPrimOpGen(PrimOps.Dshr, typeFn, tpe)
+
+    def boolUIntGen[S: ExprState, G[_]: GenMonad]: Option[StateGen[S, G, DoPrim]] = uintGen.map(_(1))
+    def uintGen[S: ExprState, G[_]: GenMonad]: Option[BigInt => StateGen[S, G, DoPrim]] = imp(isUInt = true)
+
+    def boolSIntGen[S: ExprState, G[_]: GenMonad]: Option[StateGen[S, G, DoPrim]] = sintGen.map(_(1))
+    def sintGen[S: ExprState, G[_]: GenMonad]: Option[BigInt => StateGen[S, G, DoPrim]] = imp(isUInt = false)
+  }
+
+  def makeUnaryDoPrimStateGen[S: ExprState, G[_]: GenMonad](
+    primOp: PrimOp,
+    typeGen: G[(Type, Type)]): StateGen[S, G, DoPrim] = {
+    for {
+      (tpe1, exprTpe) <- StateGen.liftG(typeGen)
+      expr1 <- ExprState[S].exprGen(tpe1)
+    } yield {
+      DoPrim(primOp, Seq(expr1), Seq.empty, exprTpe)
+    }
+  }
+
+  object CvtDoPrimGen extends DoPrimGen(PrimOps.Cvt) {
+
+    def boolUIntGen[S: ExprState, G[_]: GenMonad]: Option[StateGen[S, G, DoPrim]] = None
+    def uintGen[S: ExprState, G[_]: GenMonad]: Option[BigInt => StateGen[S, G, DoPrim]] = None
+
+    def boolSIntGen[S: ExprState, G[_]: GenMonad]: Option[StateGen[S, G, DoPrim]] = {
+      Some {
+        val typeGen: G[(Type, Type)] = {
+          val resultType = SIntType(IntWidth(1))
+          GenMonad[G].const(resultType -> resultType)
+        }
+        makeUnaryDoPrimStateGen(primOp, typeGen)
+      }
+    }
+    def sintGen[S: ExprState, G[_]: GenMonad]: Option[BigInt => StateGen[S, G, DoPrim]] = {
+      Some { width =>
+        val typeGen: G[(Type, Type)] = for {
+          isUInt <- GenMonad[G].oneOf(true, false)
+        } yield {
+          val resultType = SIntType(IntWidth(width))
+          if (isUInt) {
+            UIntType(IntWidth(width.toInt - 1)) -> resultType
+          } else {
+            resultType -> resultType
+          }
+        }
+        makeUnaryDoPrimStateGen(primOp, typeGen)
+      }
+    }
+  }
+
+  object NegDoPrimGen extends DoPrimGen(PrimOps.Neg) {
+
+    def boolUIntGen[S: ExprState, G[_]: GenMonad]: Option[StateGen[S, G, DoPrim]] = None
+    def uintGen[S: ExprState, G[_]: GenMonad]: Option[BigInt => StateGen[S, G, DoPrim]] = None
+
+    def boolSIntGen[S: ExprState, G[_]: GenMonad]: Option[StateGen[S, G, DoPrim]] = None
+    def sintGen[S: ExprState, G[_]: GenMonad]: Option[BigInt => StateGen[S, G, DoPrim]] = {
+      Some { width =>
+        val typeGen: G[(Type, Type)] = for {
+          isUInt <- GenMonad[G].oneOf(true, false)
+        } yield {
+          val resultType = SIntType(IntWidth(width))
+          if (isUInt) {
+            UIntType(IntWidth(width.toInt - 1)) -> resultType
+          } else {
+            SIntType(IntWidth(width.toInt - 1)) -> resultType
+          }
+        }
+        makeUnaryDoPrimStateGen(primOp, typeGen)
+      }
+    }
   }
 
   def makeUnaryPrimOpGen[S: ExprState, G[_]: GenMonad](
@@ -362,268 +510,335 @@ object Fuzzers {
     typeFn: Type => G[(Type, Type)],
     tpe: Type): StateGen[S, G, Expression] = {
     for {
-      (tpe1, exprTpe) <- StateGen.pureG(typeFn(tpe))
+      (tpe1, exprTpe) <- StateGen.liftG(typeFn(tpe))
       expr1 <- ExprState[S].exprGen(tpe1)
     } yield {
       DoPrim(primOp, Seq(expr1), Seq.empty, exprTpe)
     }
   }
 
-  def genCvtPrimOp[S: ExprState, G[_]: GenMonad](tpe: Type): StateGen[S, G, Expression] = {
-    val typeFn: Type => G[(Type, Type)] = {
-      case SIntType(UnknownWidth) => for {
-        width <- anyWidth
-        isUInt <- GenMonad[G].oneOf(true, false)
-      } yield {
-        if (isUInt) {
-          UIntType(IntWidth(math.max(width.width.toInt - 1, 0))) -> SIntType(width)
-        } else {
-          SIntType(width) -> SIntType(width)
+  object NotDoPrimGen extends DoPrimGen(PrimOps.Not) {
+
+    def boolUIntGen[S: ExprState, G[_]: GenMonad]: Option[StateGen[S, G, DoPrim]] = uintGen.map(_(1))
+    def uintGen[S: ExprState, G[_]: GenMonad]: Option[BigInt => StateGen[S, G, DoPrim]] = {
+      Some { width =>
+        val typeGen: G[(Type, Type)] = for {
+          isUInt <- GenMonad[G].oneOf(true, false)
+        } yield {
+          val resultType = UIntType(IntWidth(width))
+          if (isUInt) {
+            resultType -> resultType
+          } else {
+            SIntType(IntWidth(width)) -> resultType
+          }
         }
-      }
-      case SIntType(IntWidth(width)) => for {
-        isUInt <- GenMonad[G].oneOf(true, false)
-      } yield {
-        if (isUInt) {
-          UIntType(IntWidth(math.max(width.toInt - 1, 0))) -> tpe
-        } else {
-          tpe -> tpe
-        }
+        makeUnaryDoPrimStateGen(primOp, typeGen)
       }
     }
-    makeUnaryPrimOpGen(PrimOps.Cvt, typeFn, tpe)
+
+    def boolSIntGen[S: ExprState, G[_]: GenMonad]: Option[StateGen[S, G, DoPrim]] = None
+    def sintGen[S: ExprState, G[_]: GenMonad]: Option[BigInt => StateGen[S, G, DoPrim]] = None
   }
 
-  def genNegPrimOp[S: ExprState, G[_]: GenMonad](tpe: Type): StateGen[S, G, Expression] = {
-    val typeFn: Type => G[(Type, Type)] = {
-      case SIntType(UnknownWidth) => for {
-        width <- anyWidth
-        isUInt <- GenMonad[G].oneOf(true, false)
-      } yield {
-        if (isUInt) {
-          UIntType(IntWidth(math.max(width.width.toInt - 1, 0))) -> SIntType(width)
-        } else {
-          SIntType(IntWidth(math.max(width.width.toInt - 1, 0))) -> SIntType(width)
+  abstract class BitwiseDoPrimGen(primOp: PrimOp) extends DoPrimGen(primOp) {
+
+    def boolUIntGen[S: ExprState, G[_]: GenMonad]: Option[StateGen[S, G, DoPrim]] = uintGen.map(_(1))
+    def uintGen[S: ExprState, G[_]: GenMonad]: Option[BigInt => StateGen[S, G, DoPrim]] = {
+      Some { width =>
+        val typeGen: G[(Type, Type, Type)] = for {
+          width1 <- genWidth(width.toInt)
+          flip <- GenMonad[G].bool
+          tpe <- GenMonad[G].oneOf(UIntType(_), SIntType(_))
+        } yield {
+          val t1 = tpe(width1)
+          val t2 = tpe(IntWidth(width))
+          val t3 = UIntType(IntWidth(width))
+          if (flip) (t2, t1, t3) else (t1, t2, t3)
         }
-      }
-      case SIntType(IntWidth(width)) => for {
-        isUInt <- GenMonad[G].oneOf(true, false)
-      } yield {
-        if (isUInt) {
-          UIntType(IntWidth(math.max(width.toInt - 1, 0))) -> tpe
-        } else {
-          SIntType(IntWidth(math.max(width.toInt - 1, 0))) -> tpe
-        }
+        makeBinDoPrimStateGen(primOp, typeGen)
       }
     }
-    makeUnaryPrimOpGen(PrimOps.Neg, typeFn, tpe)
+
+    def boolSIntGen[S: ExprState, G[_]: GenMonad]: Option[StateGen[S, G, DoPrim]] = None
+    def sintGen[S: ExprState, G[_]: GenMonad]: Option[BigInt => StateGen[S, G, DoPrim]] = None
+  }
+  object AndDoPrimGen extends BitwiseDoPrimGen (PrimOps.And)
+  object OrDoPrimGen extends BitwiseDoPrimGen (PrimOps.Or)
+  object XorDoPrimGen extends BitwiseDoPrimGen (PrimOps.Xor)
+
+  abstract class ReductionDoPrimGen(primOp: PrimOp) extends DoPrimGen(primOp) {
+
+    def boolUIntGen[S: ExprState, G[_]: GenMonad]: Option[StateGen[S, G, DoPrim]] = {
+      Some {
+        val typeGen: G[(Type, Type)] = for {
+          width1 <- anyWidth
+          tpeFn <- GenMonad[G].oneOf(UIntType(_), SIntType(_))
+        } yield {
+          (tpeFn(width1), Utils.BoolType)
+        }
+        makeUnaryDoPrimStateGen(primOp, typeGen)
+      }
+    }
+    def uintGen[S: ExprState, G[_]: GenMonad]: Option[BigInt => StateGen[S, G, DoPrim]] = None
+
+    def boolSIntGen[S: ExprState, G[_]: GenMonad]: Option[StateGen[S, G, DoPrim]] = None
+    def sintGen[S: ExprState, G[_]: GenMonad]: Option[BigInt => StateGen[S, G, DoPrim]] = None
+  }
+  object AndrDoPrimGen extends ReductionDoPrimGen(PrimOps.Andr)
+  object OrrDoPrimGen extends ReductionDoPrimGen(PrimOps.Orr)
+  object XorrDoPrimGen extends ReductionDoPrimGen(PrimOps.Xorr)
+
+  object CatDoPrimGen extends DoPrimGen(PrimOps.Cat) {
+
+    def boolUIntGen[S: ExprState, G[_]: GenMonad]: Option[StateGen[S, G, DoPrim]] = None
+    def uintGen[S: ExprState, G[_]: GenMonad]: Option[BigInt => StateGen[S, G, DoPrim]] = {
+      Some { totalWidth =>
+        val typeGen: G[(Type, Type, Type)] = for {
+          width1 <- GenMonad[G].choose(1, totalWidth.toInt - 1)
+          flip <- GenMonad[G].bool
+          tpe <- GenMonad[G].oneOf(UIntType(_), SIntType(_))
+        } yield {
+          val t1 = tpe(IntWidth(totalWidth.toInt - width1))
+          val t2 = tpe(IntWidth(width1))
+          val t3 = UIntType(IntWidth(totalWidth))
+          if (flip) (t2, t1, t3) else (t1, t2, t3)
+        }
+        makeBinDoPrimStateGen(primOp, typeGen)
+      }
+    }
+
+    def boolSIntGen[S: ExprState, G[_]: GenMonad]: Option[StateGen[S, G, DoPrim]] = None
+    def sintGen[S: ExprState, G[_]: GenMonad]: Option[BigInt => StateGen[S, G, DoPrim]] = None
   }
 
-  def genNotPrimOp[S: ExprState, G[_]: GenMonad](tpe: Type): StateGen[S, G, Expression] = {
-    val typeFn: Type => G[(Type, Type)] = {
-      case UIntType(UnknownWidth) => for {
-        width <- anyWidth
-        isUInt <- GenMonad[G].oneOf(true, false)
-      } yield {
-        if (isUInt) {
-          UIntType(width) -> UIntType(width)
-        } else {
-          SIntType(width) -> UIntType(width)
-        }
-      }
-      case UIntType(width) => for {
-        isUInt <- GenMonad[G].oneOf(true, false)
-      } yield {
-        if (isUInt) {
-          tpe -> tpe
-        } else {
-          SIntType(width) -> tpe
+  object BitsDoPrimGen extends DoPrimGen(PrimOps.Bits) {
+
+    def boolUIntGen[S: ExprState, G[_]: GenMonad]: Option[StateGen[S, G, DoPrim]] = uintGen.map(_(1))
+    def uintGen[S: ExprState, G[_]: GenMonad]: Option[BigInt => StateGen[S, G, DoPrim]] = {
+      Some { resultWidth =>
+        for {
+          argWidth <- StateGen.liftG(genWidth(resultWidth.toInt, MAX_WIDTH))
+          lo <- StateGen.liftG(GenMonad[G].choose(0, argWidth.width.toInt - resultWidth.toInt))
+          tpe <- StateGen.liftG(GenMonad[G].oneOf(UIntType(_), SIntType(_)))
+          arg <- ExprState[S].exprGen(tpe(argWidth))
+        } yield {
+          DoPrim(primOp, Seq(arg), Seq(lo + resultWidth - 1, lo), UIntType(IntWidth(resultWidth)))
         }
       }
     }
-    makeUnaryPrimOpGen(PrimOps.Not, typeFn, tpe)
+
+    def boolSIntGen[S: ExprState, G[_]: GenMonad]: Option[StateGen[S, G, DoPrim]] = None
+    def sintGen[S: ExprState, G[_]: GenMonad]: Option[BigInt => StateGen[S, G, DoPrim]] = None
   }
 
-  def makeBitwisePrimOpGen[S: ExprState, G[_]: GenMonad](primOp: PrimOp)(tpe: Type): StateGen[S, G, Expression] = {
-    val typeFn: Type => G[(Type, Type, Type)] = {
-      case UIntType(UnknownWidth) | UnknownType => for {
-        width1 <- anyWidth
-        width2 <- anyWidth
-      } yield {
-        (UIntType(width1), UIntType(width2), UIntType(IntWidth(math.max(width1.width.toInt, width2.width.toInt))))
-      }
-      case UIntType(IntWidth(width)) => for {
-        width1 <- anyWidth
-        width2 <- anyWidth
-      } yield {
-        (UIntType(width1), UIntType(width2), UIntType(IntWidth(math.max(width1.width.toInt, width2.width.toInt))))
-      }
-    }
-    makeBinPrimOpGen(primOp, typeFn, tpe)
-  }
+  object HeadDoPrimGen extends DoPrimGen(PrimOps.Head) {
 
-  def makeReducePrimOpGen[S: ExprState, G[_]: GenMonad](primOp: PrimOp)(tpe: Type): StateGen[S, G, Expression] = {
-    val typeFn: Type => G[(Type, Type)] = {
-      case Utils.BoolType | UnknownType => for {
-        width1 <- anyWidth
-        tpeFn <- GenMonad[G].oneOf(UIntType(_), SIntType(_))
-      } yield {
-        (tpeFn(width1), Utils.BoolType)
-      }
-    }
-    makeUnaryPrimOpGen(primOp, typeFn, tpe)
-  }
-
-  case class TraceException(trace: Seq[String], cause: Throwable) extends Exception(
-      s"failed: $cause\ntrace:\n${trace.reverse.mkString("\n")}"
-    )
-
-  def wrap[S: ExprState, G[_]: GenMonad](name: String, fn: Type => StateGen[S, G, Expression]): Type => StateGen[S, G, Expression] = {
-    (tpe: Type) => StateGen { (s: S) =>
-      GenMonad[G].choose(0, 1).map ( _ =>
-        try {
-          GenMonad[G].applyGen(fn(tpe).fn(s))//.map(s => wrap[G](name, (_: Type) => s)(tpe))
-        } catch {
-          case e: TraceException if e.trace.size < 10 =>
-            throw e.copy(trace = name +: e.trace)
-          case e: IllegalArgumentException =>
-            throw TraceException(Seq(name), e)
+    def boolUIntGen[S: ExprState, G[_]: GenMonad]: Option[StateGen[S, G, DoPrim]] = uintGen.map(_(1))
+    def uintGen[S: ExprState, G[_]: GenMonad]: Option[BigInt => StateGen[S, G, DoPrim]] = {
+      Some { resultWidth =>
+        for {
+          argWidth <- StateGen.liftG(genWidth(resultWidth.toInt, MAX_WIDTH))
+          tpe <- StateGen.liftG(GenMonad[G].oneOf(UIntType(_), SIntType(_)))
+          arg <- ExprState[S].exprGen(tpe(argWidth))
+        } yield {
+          DoPrim(primOp, Seq(arg), Seq(resultWidth), UIntType(IntWidth(resultWidth)))
         }
-      )
+      }
+    }
+
+    def boolSIntGen[S: ExprState, G[_]: GenMonad]: Option[StateGen[S, G, DoPrim]] = None
+    def sintGen[S: ExprState, G[_]: GenMonad]: Option[BigInt => StateGen[S, G, DoPrim]] = None
+  }
+
+  object TailDoPrimGen extends DoPrimGen(PrimOps.Tail) {
+
+    def boolUIntGen[S: ExprState, G[_]: GenMonad]: Option[StateGen[S, G, DoPrim]] = uintGen.map(_(1))
+    def uintGen[S: ExprState, G[_]: GenMonad]: Option[BigInt => StateGen[S, G, DoPrim]] = {
+      Some { totalWidth =>
+        for {
+          tailNum <- StateGen.liftG(GenMonad[G].choose(1, MAX_WIDTH - totalWidth.toInt))
+          tpe <- StateGen.liftG(GenMonad[G].oneOf(UIntType(_), SIntType(_)))
+          arg <- ExprState[S].exprGen(tpe(IntWidth(totalWidth + tailNum)))
+        } yield {
+          DoPrim(primOp, Seq(arg), Seq(tailNum), UIntType(IntWidth(totalWidth)))
+        }
+      }
+    }
+
+    def boolSIntGen[S: ExprState, G[_]: GenMonad]: Option[StateGen[S, G, DoPrim]] = None
+    def sintGen[S: ExprState, G[_]: GenMonad]: Option[BigInt => StateGen[S, G, DoPrim]] = None
+  }
+
+  object AsUIntDoPrimGen extends DoPrimGen(PrimOps.AsUInt) {
+    def boolUIntGen[S: ExprState, G[_]: GenMonad]: Option[StateGen[S, G, DoPrim]] = uintGen.map(_(1))
+    def uintGen[S: ExprState, G[_]: GenMonad]: Option[BigInt => StateGen[S, G, DoPrim]] = {
+      Some { width =>
+        val intWidth = IntWidth(width)
+        for {
+          tpe <- StateGen.liftG(GenMonad[G].oneOf(UIntType(_), SIntType(_)))
+          arg <- ExprState[S].exprGen(tpe(intWidth))
+        } yield {
+          DoPrim(primOp, Seq(arg), Seq(), UIntType(intWidth))
+        }
+      }
+    }
+
+    def boolSIntGen[S: ExprState, G[_]: GenMonad]: Option[StateGen[S, G, DoPrim]] = None
+    def sintGen[S: ExprState, G[_]: GenMonad]: Option[BigInt => StateGen[S, G, DoPrim]] = None
+  }
+
+  object AsSIntDoPrimGen extends DoPrimGen(PrimOps.AsSInt) {
+    def boolUIntGen[S: ExprState, G[_]: GenMonad]: Option[StateGen[S, G, DoPrim]] = None
+    def uintGen[S: ExprState, G[_]: GenMonad]: Option[BigInt => StateGen[S, G, DoPrim]] = None
+
+    def boolSIntGen[S: ExprState, G[_]: GenMonad]: Option[StateGen[S, G, DoPrim]] = sintGen.map(_(1))
+    def sintGen[S: ExprState, G[_]: GenMonad]: Option[BigInt => StateGen[S, G, DoPrim]] = {
+      Some { width =>
+        val intWidth = IntWidth(width)
+        for {
+          tpe <- StateGen.liftG(GenMonad[G].oneOf(UIntType(_), SIntType(_)))
+          arg <- ExprState[S].exprGen(tpe(intWidth))
+        } yield {
+          DoPrim(primOp, Seq(arg), Seq(), SIntType(intWidth))
+        }
+      }
     }
   }
 
-  def recursiveExprGen[S: ExprState, G[_]: GenMonad](tpe: Type): StateGen[S, G, Expression] = StateGen((ctx: S) => {
-    val anyBinOp: G[Type => StateGen[S, G, Expression]] = GenMonad[G].oneOf(
-      genAddPrimOp(_),
-      genSubPrimOp(_),
-      genDivPrimOp(_),
-      genMulPrimOp(_),
-      genRemPrimOp(_),
-      genPadPrimOp(_),
-      genShlPrimOp(_),
-      genShrPrimOp(_),
-      genDshlPrimOp(_),
-      genDshrPrimOp(_)
-    )
-    val boolBinOp: G[Type => StateGen[S, G, Expression]] = GenMonad[G].oneOf(
-      makeCmpPrimOpGen(PrimOps.Lt)(_),
-      makeCmpPrimOpGen(PrimOps.Leq)(_),
-      makeCmpPrimOpGen(PrimOps.Gt)(_),
-      makeCmpPrimOpGen(PrimOps.Geq)(_),
-      makeCmpPrimOpGen(PrimOps.Eq)(_),
-      makeCmpPrimOpGen(PrimOps.Neq)(_),
+  def newRecursiveExprGen[S: ExprState, G[_]: GenMonad](tpe: Type): StateGen[S, G, Option[Expression]] = {
+    val exprGenerators = Seq(
+      AddDoPrimGen,
+      SubDoPrimGen,
+      MulDoPrimGen,
+      DivDoPrimGen,
+      LtDoPrimGen,
+      LeqDoPrimGen,
+      GtDoPrimGen,
+      GeqDoPrimGen,
+      EqDoPrimGen,
+      NeqDoPrimGen,
+      PadDoPrimGen,
+      ShlDoPrimGen,
+      ShrDoPrimGen,
+      DshlDoPrimGen,
+      CvtDoPrimGen,
+      NegDoPrimGen,
+      NotDoPrimGen,
+      AndDoPrimGen,
+      OrDoPrimGen,
+      XorDoPrimGen,
+      AndrDoPrimGen,
+      OrrDoPrimGen,
+      XorrDoPrimGen,
+      CatDoPrimGen,
+      BitsDoPrimGen,
+      HeadDoPrimGen,
+      TailDoPrimGen,
+      AsUIntDoPrimGen,
+      AsSIntDoPrimGen,
+    ).map(_.withTrace)
 
-      makeReducePrimOpGen(PrimOps.Andr)(_),
-      makeReducePrimOpGen(PrimOps.Orr)(_),
-      makeReducePrimOpGen(PrimOps.Xorr)(_),
-    )
-    val uintBinOp: G[Type => StateGen[S, G, Expression]] = GenMonad[G].oneOf(
-      makeBitwisePrimOpGen(PrimOps.And)(_),
-      makeBitwisePrimOpGen(PrimOps.Or)(_),
-      makeBitwisePrimOpGen(PrimOps.Xor)(_),
-    )
-    val sintBinOp: G[Type => StateGen[S, G, Expression]] = GenMonad[G].oneOf(
-      genCvtPrimOp(_),
-      genNegPrimOp(_),
-    )
-    tpe match {
-      case Utils.BoolType => GenMonad[G].oneOf(
-        boolBinOp,
-      ).flatten.map(_(tpe).fn(ctx)).flatten
-      case _: UIntType => GenMonad[G].oneOf(
-        uintBinOp,
-        anyBinOp,
-      ).flatten.map(_(tpe).fn(ctx)).flatten
-      case _: SIntType => GenMonad[G].oneOf(
-        sintBinOp,
-        anyBinOp,
-      ).flatten.map(_(tpe).fn(ctx)).flatten
-      case _ =>
-        anyBinOp.flatMap(_(tpe).fn(ctx))
-    }
-  })
-
-
-  def genUIntLiteralLeaf[S: ExprState, G[_]: GenMonad](tpe: UIntType): StateGen[S, G, Expression] = {
-    val genWidth: G[Int] = tpe.width match {
-      case UnknownWidth => GenMonad[G].choose(1, MAX_WIDTH)
-      case IntWidth(width) => GenMonad[G].const(width.toInt)
-    }
-    StateGen.pureG(for {
-      width <- genWidth
-      value <- GenMonad[G].choose(0, math.min(Int.MaxValue, (1 << width) - 1))
-    } yield {
-      UIntLiteral(value, IntWidth(width))
+    val boolUIntStateGens = exprGenerators.flatMap(_.boolUIntGen.map(_.widen[Expression]))
+    val uintStateGenFns = exprGenerators.flatMap(_.uintGen.map { fn =>
+      (width: BigInt) => fn(width).widen[Expression]
     })
-  }
-
-  def genSIntLiteralLeaf[S: ExprState, G[_]: GenMonad](tpe: SIntType): StateGen[S, G, Expression] = {
-    val genWidth: G[Int] = tpe.width match {
-      case UnknownWidth => GenMonad[G].choose(0, MAX_WIDTH)
-      case IntWidth(width) => GenMonad[G].const(width.toInt)
-    }
-    StateGen.pureG(genWidth.flatMap { width =>
-      GenMonad[G].choose(
-        math.min(Int.MinValue, -(1 << (width - 1))),
-        math.max(Int.MaxValue, (1 << (width - 1)) - 1)).map { value =>
-          SIntLiteral(value, IntWidth(width))
-        }
+    val boolSIntStateGens = exprGenerators.flatMap(_.boolSIntGen.map(_.widen[Expression]))
+    val sintStateGenFns = exprGenerators.flatMap(_.sintGen.map { fn =>
+      (width: BigInt) => fn(width).widen[Expression]
     })
-  }
-
-  def genLiteralLeaf[S: ExprState, G[_]: GenMonad](tpe: Type): StateGen[S, G, Expression] = {
-    tpe match {
-      case u: UIntType => genUIntLiteralLeaf(u)
-      case s: SIntType => genSIntLiteralLeaf(s)
-      case UnknownType => StateGen((s: S) =>
-        GenMonad[G].choose(0, MAX_WIDTH).flatMap { width =>
-          GenMonad[G].oneOf(
-            genUIntLiteralLeaf(UIntType(IntWidth(width))),
-            genSIntLiteralLeaf(SIntType(IntWidth(width)))
-          ).flatMap(_.fn(s))
-        }
-      )
-    }
-  }
-
-  def genRefLeaf[S: ExprState, G[_]: GenMonad](nameOpt: Option[String])(tpe: Type): StateGen[S, G, Reference] = {
-    val genType: G[Type] = tpe match {
-      case GroundType(UnknownWidth) =>
-        GenMonad[G].choose(0, MAX_WIDTH)
-          .map(w => tpe.mapWidth(_ => IntWidth(w)))
-      case GroundType(IntWidth(width)) => GenMonad[G].const(tpe)
+    val typeGen: G[Type] = tpe match {
       case UnknownType => for {
-        typeFn <- GenMonad[G].oneOf(UIntType(_), SIntType(_))
         width <- anyWidth
+        typeFn <- GenMonad[G].oneOf(UIntType(_), SIntType(_))
       } yield {
         typeFn(width)
       }
+      case GroundType(UnknownWidth) => anyWidth.map { width =>
+        tpe.mapWidth(_ => width)
+      }
+      case _ => GenMonad[G].const(tpe)
     }
-
-    for {
-      tpe <- StateGen.pureG(genType)
-      tryName <- StateGen.pureG(nameOpt.map(GenMonad[G].const).getOrElse(GenMonad[G].identifier(20)))
-      ref <- ExprState[S].withRef(Reference(tryName, tpe))
-    } yield {
-      ref
+    val genStateGens: G[Seq[StateGen[S, G, Expression]]] = typeGen.map (_ match {
+      case Utils.BoolType => boolUIntStateGens
+      case UIntType(IntWidth(width)) => uintStateGenFns.map(_(width))
+      case SIntType(IntWidth(width)) if width.toInt == 1 => boolSIntStateGens
+      case SIntType(IntWidth(width)) => sintStateGenFns.map(_(width))
+    })
+    StateGen { (s: S) =>
+      genStateGens.flatMap { stateGens =>
+        if (stateGens.isEmpty) {
+          GenMonad[G].const(s -> None)
+        } else if (stateGens.size == 1) {
+          stateGens(0).fn(s).map { case (ss, expr) => ss -> Some(expr) }
+        } else {
+          GenMonad[G].oneOf(stateGens: _*).flatMap { stateGen =>
+            stateGen.fn(s).map { case (ss, expr) => ss -> Some(expr) }
+          }
+        }
+      }
     }
   }
 
-  def genLeaf[S: ExprState, G[_]: GenMonad](tpe: Type): StateGen[S, G, Expression] = StateGen { (s: S) =>
-    val stateGen: G[StateGen[S, G, Expression]] = GenMonad[G].oneOf(
-      genRefLeaf(None)(tpe).widen[Expression],
-      genLiteralLeaf(tpe),
-    )
-    stateGen.flatMap(_.fn(s))
+  def newLeafExprGen[S: ExprState, G[_]: GenMonad](tpe: Type): StateGen[S, G, Expression] = {
+    val exprGenerators = Seq(
+      LiteralGen,
+      ReferenceGen
+    ).map(_.withTrace)
+
+    val boolUIntStateGens = exprGenerators.flatMap(_.boolUIntGen.map(_.widen[Expression]))
+    val uintStateGenFns = exprGenerators.flatMap(_.uintGen.map { fn =>
+      (width: BigInt) => fn(width).widen[Expression]
+    })
+    val boolSIntStateGens = exprGenerators.flatMap(_.boolSIntGen.map(_.widen[Expression]))
+    val sintStateGenFns = exprGenerators.flatMap(_.sintGen.map { fn =>
+      (width: BigInt) => fn(width).widen[Expression]
+    })
+    val typeGen: G[Type] = tpe match {
+      case UnknownType => for {
+        width <- anyWidth
+        typeFn <- GenMonad[G].oneOf(UIntType(_), SIntType(_))
+      } yield {
+        typeFn(width)
+      }
+      case GroundType(UnknownWidth) => anyWidth.map { width =>
+        tpe.mapWidth(_ => width)
+      }
+      case _ => GenMonad[G].const(tpe)
+    }
+    val genStateGens: G[Seq[StateGen[S, G, Expression]]] = typeGen.map (_ match {
+      case Utils.BoolType => boolUIntStateGens
+      case UIntType(IntWidth(width)) => uintStateGenFns.map(_(width))
+      case SIntType(IntWidth(width)) if width.toInt == 1 => boolSIntStateGens
+      case SIntType(IntWidth(width)) => sintStateGenFns.map(_(width))
+    })
+    StateGen { (s: S) =>
+      genStateGens.flatMap { stateGens =>
+        if (stateGens.size == 1) {
+          stateGens(0).fn(s)
+        } else {
+          GenMonad[G].oneOf(stateGens: _*).flatMap { stateGen =>
+            stateGen.fn(s)
+          }
+        }
+      }
+    }
   }
 
   def exprMod[S: ExprState, G[_]: GenMonad]: StateGen[S, G, Module] = {
     for {
-      width <- StateGen.pureG(GenMonad[G].oneOf(anyWidth, GenMonad[G].const(IntWidth(1))).flatten)
-      tpe <- StateGen.pureG(GenMonad[G].oneOf(UIntType(width), SIntType(width)))
+      width <- StateGen.liftG(anyWidth)
+      tpe <- StateGen.liftG(GenMonad[G].frequency(
+        2 -> UIntType(width),
+        2 -> SIntType(width),
+        1 -> Utils.BoolType
+      ))
       expr <- ExprState[S].exprGen(tpe)
-      outputPortRef <- genRefLeaf(Some("outputPort"))(tpe)
+      outputPortRef <- tpe match {
+        case UIntType(IntWidth(width)) if width == BigInt(1) => ReferenceGen.boolUIntGen.get
+        case UIntType(IntWidth(width)) => ReferenceGen.uintGen.get(width)
+        case SIntType(IntWidth(width)) if width == BigInt(1) => ReferenceGen.boolSIntGen.get
+        case SIntType(IntWidth(width)) => ReferenceGen.sintGen.get(width)
+      }
       unboundRefs <- StateGen.inspect { ExprState[S].unboundRefs(_) }
     } yield {
       val outputPort = Port(

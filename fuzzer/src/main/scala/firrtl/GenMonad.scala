@@ -4,37 +4,6 @@ import firrtl.ir._
 
 import scala.annotation.tailrec
 
-trait ASTGen[A] {
-  def apply(): A
-  def flatMap[B](f: A => ASTGen[B]): ASTGen[B] = ASTGen { f(apply())() }
-  def map[B](f: A => B): ASTGen[B] = ASTGen { f(apply()) }
-  def widen[B >: A]: ASTGen[B] = ASTGen { apply() }
-}
-
-object ASTGen {
-  def apply[T](f: => T): ASTGen[T] = new ASTGen[T] {
-    def apply(): T = f
-  }
-}
-
-
-trait Random {
-  def nextInt(min: Int, max: Int) : Int
-  def oneOf[T](items: Seq[T]) : T
-}
-
-object Random {
-  import com.pholser.junit.quickcheck.random.SourceOfRandomness
-
-  def apply(sor: SourceOfRandomness): Random = new Random {
-    def nextInt(min: Int, max: Int) : Int = sor.nextInt(min, max)
-    def oneOf[T](items: Seq[T]): T = {
-      val a = scala.collection.JavaConverters.seqAsJavaList(items)
-      sor.choose(a)
-    }
-  }
-}
-
 
 trait GenMonad[G[_]] {
   def flatMap[A, B](a: G[A])(f: A => G[B]): G[B]
@@ -46,6 +15,9 @@ trait GenMonad[G[_]] {
   def oneOf[A](items: A*): G[A]
   def const[A](c: A): G[A]
   def widen[A, B >: A](ga: G[A]): G[B]
+
+  def bool: G[Boolean] =
+    oneOf(true, false)
 
   def identifier(maxLength: Int): G[String]
 
@@ -67,9 +39,7 @@ trait GenMonad[G[_]] {
   def applyGen[A](ga: G[A]): A
 }
 
-/* type class for types T where T[S, G[_]] = S => G[(S, A)].
- *
- * i.e. functions that take an input state and return a random generator that
+/* Functions that take an input state and return a random generator that
  * generates a new state paired with a value
  */
 case class StateGen[S, G[_], A](fn: S => G[(S, A)]) {
@@ -94,10 +64,17 @@ case class StateGen[S, G[_], A](fn: S => G[(S, A)]) {
   def inspect[S, G[_]: GenMonad, B](fn: S => B)(implicit GM: GenMonad[G]): StateGen[S, G, B] = StateGen { s =>
     GM.const(s -> fn(s))
   }
+
+  def modify[S, G[_]: GenMonad, B](fn: S => S)(implicit GM: GenMonad[G]): StateGen[S, G, Unit] = StateGen { s =>
+    GM.const(fn(s) -> Unit)
+  }
 }
 
 object StateGen {
-  def pureG[S, G[_]: GenMonad, A](ga: G[A]): StateGen[S, G, A] = {
+  def lift[S, G[_]: GenMonad, A](a: A): StateGen[S, G, A] = {
+    StateGen((s: S) => GenMonad[G].const(s -> a))
+  }
+  def liftG[S, G[_]: GenMonad, A](ga: G[A]): StateGen[S, G, A] = {
     StateGen((s: S) => GenMonad[G].map(ga)(s -> _))
   }
   def pure[S, G[_]: GenMonad, A](a: A): StateGen[S, G, A] = {
@@ -106,6 +83,9 @@ object StateGen {
 
   def inspect[S, G[_]: GenMonad, A](fn: S => A): StateGen[S, G, A] = {
     StateGen(s => GenMonad[G].const((s, fn(s))))
+  }
+  def inspectG[S, G[_]: GenMonad, A](fn: S => G[A]): StateGen[S, G, A] = {
+    StateGen(s => GenMonad[G].map(fn(s)) { s -> _ })
   }
 }
 
@@ -120,38 +100,6 @@ object ExprState {
 }
 
 object GenMonad {
-  object instances {
-    implicit def astGenGenMonadInstance(implicit r: Random): GenMonad[ASTGen] = new GenMonad[ASTGen] {
-      type G[T] = ASTGen[T]
-      def flatMap[A, B](a: G[A])(f: A => G[B]): G[B] = a.flatMap(f)
-      def map[A, B](a: G[A])(f: A => B): G[B] = a.map(f)
-      def choose(min: Int, max: Int): G[Int] = ASTGen {
-        r.nextInt(min, max)
-      }
-      def oneOf[T](items: T*): G[T] = {
-        const(items).map(r.oneOf(_))
-      }
-      def const[T](c: T): G[T] = ASTGen(c)
-      def widen[A, B >: A](ga: G[A]): G[B] = ga.widen[B]
-      private val Alpha : Seq[String] = (('a' to 'z') ++ ('A' to 'Z') ++ Seq('_')).map(_.toString)
-      private val AlphaNum : Seq[String] = Alpha ++ ('0' to '9').map(_.toString)
-      def identifier(maxLength: Int): G[String] = {
-        // (12 Details about Syntax):
-        // > The following characters are allowed in identifiers: upper and lower case letters, digits, and _.
-        // > Identifiers cannot begin with a digit.
-        assert(maxLength >= 1)
-        ASTGen {
-          val len = r.nextInt(1, maxLength)
-          val start = r.oneOf(Alpha)
-          if (len == 1) { start } else {
-            start + (1 until len).map(_ => r.oneOf(AlphaNum)).reduce(_ + _)
-          }
-        }
-      }
-      def applyGen[A](ga: G[A]): A = ga.apply()
-    }
-  }
-
   def apply[G[_]: GenMonad] = implicitly[GenMonad[G]]
 
   object syntax {
