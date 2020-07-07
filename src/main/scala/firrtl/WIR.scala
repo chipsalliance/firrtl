@@ -169,6 +169,29 @@ case object Dshlw extends PrimOp {
   }
 }
 
+// Used privately to include Infos in the Netlist
+private[firrtl] case class InfoExpr(info: Info, expr: Expression) extends Expression {
+  // Members declared in firrtl.ir.Expression
+  def foreachExpr(f: firrtl.ir.Expression => Unit): Unit = f(expr)
+  def foreachType(f: firrtl.ir.Type => Unit): Unit = ()
+  def foreachWidth(f: firrtl.ir.Width => Unit): Unit = ()
+  def mapExpr(f: firrtl.ir.Expression => firrtl.ir.Expression): firrtl.ir.Expression =
+    this.copy(expr = f(this.expr))
+  def mapType(f: firrtl.ir.Type => firrtl.ir.Type): firrtl.ir.Expression = this
+  def mapWidth(f: firrtl.ir.Width => firrtl.ir.Width): firrtl.ir.Expression = this
+  def tpe: firrtl.ir.Type = expr.tpe
+
+  // Members declared in firrtl.ir.FirrtlNode
+  def serialize: String = s"(${expr.serialize}: ${info.serialize})"
+}
+
+private[firrtl] object InfoExpr {
+  def unwrap(expr: Expression): (Info, Expression) = expr match {
+    case InfoExpr(i, e) => (i, e)
+    case other          => (NoInfo, other)
+  }
+}
+
 object WrappedExpression {
   def apply(e: Expression) = new WrappedExpression(e)
   def we(e: Expression) = new WrappedExpression(e)

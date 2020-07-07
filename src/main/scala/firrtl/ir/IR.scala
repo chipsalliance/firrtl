@@ -43,12 +43,18 @@ case class MultiInfo(infos: Seq[Info]) extends Info {
 }
 object MultiInfo {
   def apply(infos: Info*) = {
-    val infosx = infos.filterNot(_ == NoInfo)
-    infosx.size match {
+    infos.size match {
       case 0 => NoInfo
-      case 1 => infosx.head
-      case _ => new MultiInfo(infosx)
+      case 1 => infos.head
+      case _ => new MultiInfo(infos)
     }
+  }
+
+  // Internal utility for unpacking implicit MultiInfo structure for muxes
+  // TODO should this be made into an API?
+  private[firrtl] def demux(info: Info): (Info, Info, Info) = info match {
+    case MultiInfo(infos) if infos.lengthCompare(3) == 0 => (infos(0), infos(1), infos(2))
+    case other => (other, NoInfo, NoInfo) // if not exactly 3, we don't know what to do
   }
 }
 
