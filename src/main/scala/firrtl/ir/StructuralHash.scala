@@ -6,13 +6,12 @@ import firrtl.PrimOps
 import java.security.MessageDigest
 import scala.collection.mutable
 
-/**
-  * This object can performs a "structural" hash over any firrtl Module.
+/** This object can performs a "structural" hash over any firrtl Module.
   * It ignores:
-  * - `Expression` types
-  * - Any `Info` fields
+  * - [firrtl.ir.Expression Expression] types
+  * - Any [firrtl.ir.Info Info] fields
   * - Description on DescribedStmt
-  * - each identifier name is replaced by a unique integer which only depends on the oder of declaration
+  * - each identifier name is replaced by a unique integer which only depends on the order of declaration
   *   and is thus deterministic
   * - Module names are ignored.
   *
@@ -27,19 +26,14 @@ import scala.collection.mutable
   * @author Kevin Laeufer <laeufer@cs.berkeley.edu>
   * */
 object StructuralHash {
-  type Rename = String => String
-
-  def sha256(node: DefModule, moduleRename: Rename = m => m, debug: Boolean = false): HashCode = {
+  def sha256(node: DefModule, moduleRename: String => String = identity): HashCode = {
     val m = MessageDigest.getInstance(SHA256)
     new StructuralHash(new MessageDigestHasher(m), moduleRename).hash(node)
-    if(debug) {
-      new StructuralHash(DebugHasher, moduleRename).hash(node)
-    }
     new MDHashCode(m.digest())
   }
 
   /** This includes the names of ports and any port bundle field names in the hash. */
-  def sha256WithSignificantPortNames(module: DefModule, moduleRename: Rename = m => m): HashCode = {
+  def sha256WithSignificantPortNames(module: DefModule, moduleRename: String => String = identity): HashCode = {
     val m = MessageDigest.getInstance(SHA256)
     hashModuleAndPortNames(module, new MessageDigestHasher(m), moduleRename)
     new MDHashCode(m.digest())
@@ -55,12 +49,9 @@ object StructuralHash {
     *   hash(`a <= 1`) == hash(`b <= 1`).
     * This method is package private to allow for unit testing but should not be exposed to the user.
     */
-  private[firrtl] def sha256Node(node: FirrtlNode, debug: Boolean = false): HashCode = {
+  private[firrtl] def sha256Node(node: FirrtlNode): HashCode = {
     val m = MessageDigest.getInstance(SHA256)
-    hash(node, new MessageDigestHasher(m), n => n)
-    if(debug) {
-      hash(node, DebugHasher, n => n)
-    }
+    hash(node, new MessageDigestHasher(m), identity)
     new MDHashCode(m.digest())
   }
 
@@ -68,7 +59,7 @@ object StructuralHash {
   private val SHA256 = "SHA-256"
 
   //scalastyle:off cyclomatic.complexity
-  private def hash(node: FirrtlNode, h: Hasher, rename: Rename): Unit = node match {
+  private def hash(node: FirrtlNode, h: Hasher, rename: String => String): Unit = node match {
     case n : Expression => new StructuralHash(h, rename).hash(n)
     case n : Statement => new StructuralHash(h, rename).hash(n)
     case n : Type => new StructuralHash(h, rename).hash(n)
@@ -85,7 +76,7 @@ object StructuralHash {
   }
   //scalastyle:on cyclomatic.complexity
 
-  private def hashModuleAndPortNames(m: DefModule, h: Hasher, rename: Rename): Unit = {
+  private def hashModuleAndPortNames(m: DefModule, h: Hasher, rename: String => String): Unit = {
     val sh = new StructuralHash(h, rename)
     sh.hash(m)
     // hash port names
@@ -101,7 +92,7 @@ object StructuralHash {
     case _ => // ignore ground types since they do not have field names nor sub-types
   }
 
-  private def hashCircuit(c: Circuit, h: Hasher, rename: Rename): Unit = {
+  private def hashCircuit(c: Circuit, h: Hasher, rename: String => String): Unit = {
     h.update(127)
     h.update(c.main)
     // sort modules to make hash more useful
@@ -178,14 +169,6 @@ private class MessageDigestHasher(m: MessageDigest) extends Hasher {
   // the encoding of the bytes should not matter as long as we are on the same platform
   override def update(s: String): Unit = m.update(s.getBytes())
   override def update(b: Array[Byte]): Unit = m.update(b)
-}
-
-private case object DebugHasher extends Hasher {
-  override def update(b: Byte): Unit = println(s"b(${b.toInt & 0xff})")
-  override def update(i: Int): Unit = println(s"i(${i})")
-  override def update(l: Long): Unit = println(s"l(${l})")
-  override def update(s: String): Unit = println(s"s(${s})")
-  override def update(b: Array[Byte]): Unit = println(s"bytes(${b.map(x => x.toInt & 0xff).mkString(", ")})")
 }
 
 class StructuralHash private(h: Hasher, renameModule: String => String) {

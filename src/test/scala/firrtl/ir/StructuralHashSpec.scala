@@ -3,16 +3,17 @@
 package firrtl.ir
 
 import firrtl.PrimOps._
-import org.scalatest._
-import firrtl.{HighFirrtlCompiler}
+import org.scalatest.flatspec.AnyFlatSpec
 
-class StructuralHashSpec extends FlatSpec {
-  private def hash(n: DefModule): HashCode = StructuralHash.sha256(n, n => n, false)
-  private def hash(c: Circuit): HashCode = StructuralHash.sha256Node(c, false)
-  private def hash(e: Expression): HashCode = StructuralHash.sha256Node(e, false)
-  private def hash(t: Type): HashCode = StructuralHash.sha256Node(t, false)
-  private def hash(s: Statement): HashCode = StructuralHash.sha256Node(s, false)
-  private val highFirrtlCompiler = new HighFirrtlCompiler
+class StructuralHashSpec extends AnyFlatSpec {
+  private def hash(n: DefModule): HashCode = StructuralHash.sha256(n, n => n)
+  private def hash(c: Circuit): HashCode = StructuralHash.sha256Node(c)
+  private def hash(e: Expression): HashCode = StructuralHash.sha256Node(e)
+  private def hash(t: Type): HashCode = StructuralHash.sha256Node(t)
+  private def hash(s: Statement): HashCode = StructuralHash.sha256Node(s)
+  private val highFirrtlCompiler = new firrtl.stage.transforms.Compiler(
+    targets = firrtl.stage.Forms.HighForm
+  )
   private def parse(circuit: String): Circuit = {
     val rawFirrtl = firrtl.Parser.parse(circuit)
     // TODO: remove requirement that Firrtl needs to be type checked.
@@ -265,4 +266,12 @@ class StructuralHashSpec extends FlatSpec {
     val f = Conditionally(NoInfo, cond, EmptyStmt, stmtA)
     assert(hash(e) != hash(f))
   }
+}
+
+private case object DebugHasher extends Hasher {
+  override def update(b: Byte): Unit = println(s"b(${b.toInt & 0xff})")
+  override def update(i: Int): Unit = println(s"i(${i})")
+  override def update(l: Long): Unit = println(s"l(${l})")
+  override def update(s: String): Unit = println(s"s(${s})")
+  override def update(b: Array[Byte]): Unit = println(s"bytes(${b.map(x => x.toInt & 0xff).mkString(", ")})")
 }
