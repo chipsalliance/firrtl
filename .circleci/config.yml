@@ -58,7 +58,6 @@ testJVM: &testJVM
   steps:
     - checkout
     - <<: *load_cache
-    - <<: *install_jdk
     - run:
         name: Run tests
         command: sbt ++${SCALA_VERSION}! test
