@@ -26,6 +26,7 @@ object FirrtlEquivalenceTestUtils {
       val block = (_: Target) => false
 
       val allow: Target => Boolean = {
+        case _: ModuleTarget => true
         case _: CircuitTarget => true
         case _: Target => false
       }
