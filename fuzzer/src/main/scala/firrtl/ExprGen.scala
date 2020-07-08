@@ -681,38 +681,17 @@ object ExprGen {
     }
   }
 
-  def recursiveExprGen[S: ExprState, G[_]: GenMonad](tpe: Type): StateGen[S, G, Option[Expression]] = {
-    val exprGenerators = Seq(
-      AddDoPrimGen,
-      SubDoPrimGen,
-      MulDoPrimGen,
-      DivDoPrimGen,
-      LtDoPrimGen,
-      LeqDoPrimGen,
-      GtDoPrimGen,
-      GeqDoPrimGen,
-      EqDoPrimGen,
-      NeqDoPrimGen,
-      PadDoPrimGen,
-      ShlDoPrimGen,
-      ShrDoPrimGen,
-      DshlDoPrimGen,
-      CvtDoPrimGen,
-      NegDoPrimGen,
-      NotDoPrimGen,
-      AndDoPrimGen,
-      OrDoPrimGen,
-      XorDoPrimGen,
-      AndrDoPrimGen,
-      OrrDoPrimGen,
-      XorrDoPrimGen,
-      CatDoPrimGen,
-      BitsDoPrimGen,
-      HeadDoPrimGen,
-      TailDoPrimGen,
-      AsUIntDoPrimGen,
-      AsSIntDoPrimGen,
-    ).map(_.withTrace)
+  case class RecursiveExprGenParams(
+    exprGenerators: Seq[ExprGen[_ <: Expression]],
+    trace: Boolean
+  )
+
+  def recursiveExprGen[S: ExprState, G[_]: GenMonad](params: RecursiveExprGenParams)(tpe: Type): StateGen[S, G, Option[Expression]] = {
+    val exprGenerators = if (params.trace) {
+      params.exprGenerators.map(_.withTrace)
+    } else {
+      params.exprGenerators
+    }
 
     val boolUIntStateGens = exprGenerators.flatMap(_.boolUIntGen.map(_.widen[Expression]))
     val uintStateGenFns = exprGenerators.flatMap(_.uintGen.map { fn =>

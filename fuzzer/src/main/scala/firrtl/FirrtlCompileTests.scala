@@ -57,10 +57,48 @@ object ExprContext {
     def unboundRefs(s: ExprContext): Set[Reference] = s.unboundRefs
     def maxWidth(s: ExprContext): Int = s.maxWidth
 
+    private def params: ExprGen.RecursiveExprGenParams = {
+      import ExprGen._
+      RecursiveExprGenParams(
+        Seq(
+          AddDoPrimGen,
+          SubDoPrimGen,
+          MulDoPrimGen,
+          DivDoPrimGen,
+          LtDoPrimGen,
+          LeqDoPrimGen,
+          GtDoPrimGen,
+          GeqDoPrimGen,
+          EqDoPrimGen,
+          NeqDoPrimGen,
+          PadDoPrimGen,
+          ShlDoPrimGen,
+          ShrDoPrimGen,
+          DshlDoPrimGen,
+          CvtDoPrimGen,
+          NegDoPrimGen,
+          NotDoPrimGen,
+          AndDoPrimGen,
+          OrDoPrimGen,
+          XorDoPrimGen,
+          AndrDoPrimGen,
+          OrrDoPrimGen,
+          XorrDoPrimGen,
+          CatDoPrimGen,
+          BitsDoPrimGen,
+          HeadDoPrimGen,
+          TailDoPrimGen,
+          AsUIntDoPrimGen,
+          AsSIntDoPrimGen,
+        ),
+        true
+      )
+    }
+
     def exprGen[G[_]: GenMonad](tpe: Type): StateGen[ExprContext, G, Expression] = {
       val leafGen: Type => StateGen[ExprContext, G, Expression] = ExprGen.leafExprGen(_)
       val branchGen: Type => StateGen[ExprContext, G, Expression] = (tpe: Type) => {
-        ExprGen.recursiveExprGen(tpe).flatMap {
+        ExprGen.recursiveExprGen(params)(tpe).flatMap {
           case None => leafGen(tpe)
           case Some(e) => StateGen.pure(e)
         }
