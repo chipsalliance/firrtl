@@ -3,14 +3,25 @@ package firrtl.fuzzer
 import com.pholser.junit.quickcheck.From
 import com.pholser.junit.quickcheck.generator.{Generator, GenerationStatus}
 import com.pholser.junit.quickcheck.random.SourceOfRandomness
-import firrtl.{ChirrtlForm, CircuitState, LowFirrtlCompiler}
+
+import firrtl.{
+  ChirrtlForm,
+  CircuitState,
+  EmitCircuitAnnotation,
+  LowFirrtlCompiler,
+  MinimumVerilogEmitter,
+  Namespace,
+  VerilogEmitter
+}
+import firrtl.ir._
+import firrtl.stage.Forms.{BackendEmitters, VerilogMinimumOptimized, VerilogOptimized}
+import firrtl.stage.TransformManager
+
 import org.junit.Assert
 import org.junit.Assume
 import org.junit.runner.RunWith
-import firrtl.ir._
-import firrtl.Namespace
 
-import java.io.{PrintWriter, StringWriter}
+import java.io.{File, PrintWriter, StringWriter}
 
 import edu.berkeley.cs.jqf.fuzz.Fuzz;
 import edu.berkeley.cs.jqf.fuzz.JQF;
@@ -161,5 +172,31 @@ class FirrtlCompileTests {
         Assert.assertTrue(message(c.circuit, any), false)
     }
 
+  }
+}
+
+@RunWith(classOf[JQF])
+class FirrtlEquivalenceTests {
+  private val lowFirrtlCompiler = new LowFirrtlCompiler()
+  private val header = "=" * 50 + "\n"
+  private val footer = header
+  private def message(c: Circuit, t: Throwable): String = {
+    val sw = new StringWriter()
+    val pw = new PrintWriter(sw)
+    t.printStackTrace(pw)
+    pw.flush()
+    header + c.serialize + "\n" + sw.toString + footer
+  }
+  private val baseTestDir = new File("fuzzer/test_run_dir")
+
+  @Fuzz
+  def compileSingleModule(@From(value = classOf[FirrtlSingleModuleGenerator]) c: Circuit) = {
+    Assert.assertTrue(FirrtlEquivalenceTestUtils.firrtlEquivalenceTestPass(
+      circuit = c,
+      referenceCompiler = new TransformManager(VerilogMinimumOptimized),
+      referenceAnnos = Seq(),
+      customCompiler = new TransformManager(VerilogOptimized),
+      customAnnos = Seq(),
+      testDir = new File(baseTestDir, c.hashCode.toString)))
   }
 }

@@ -193,11 +193,14 @@ lazy val benchmark = (project in file("benchmark"))
     assemblyOutputPath in assembly := file("./utils/bin/firrtl-benchmark.jar")
   )
 
+// val JQF_VERSION = "1.6-SNAPSHOT"
+val JQF_VERSION = "1.5"
+
 lazy val jqf = (project in file("jqf"))
   .settings(
     libraryDependencies ++= Seq(
-      "edu.berkeley.cs.jqf" % "jqf-fuzz" % "1.4",
-      "edu.berkeley.cs.jqf" % "jqf-instrument" % "1.4",
+      "edu.berkeley.cs.jqf" % "jqf-fuzz" % JQF_VERSION,
+      "edu.berkeley.cs.jqf" % "jqf-instrument" % JQF_VERSION,
       "com.github.scopt" %% "scopt" % "3.7.1",
     ),
     // Compile / run / fork := true,
@@ -226,7 +229,7 @@ lazy val fuzzer = (project in file("fuzzer"))
     libraryDependencies ++= Seq(
       "com.pholser" % "junit-quickcheck-core" % "0.8",
       "com.pholser" % "junit-quickcheck-generators" % "0.8",
-      "edu.berkeley.cs.jqf" % "jqf-fuzz" % "1.4",
+      "edu.berkeley.cs.jqf" % "jqf-fuzz" % JQF_VERSION,
       "org.scalacheck" %% "scalacheck" % "1.14.3" % Test
     ),
 
