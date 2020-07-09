@@ -681,6 +681,28 @@ object ExprGen {
     }
   }
 
+  object MuxGen extends ExprGen[Mux] {
+    def name = "mux"
+    private def imp[S: ExprState, G[_]: GenMonad](tpe: Type): StateGen[S, G, Mux] = {
+      for {
+        cond <- ExprState[S].exprGen(Utils.BoolType)
+        expr1 <- ExprState[S].exprGen(tpe)
+        expr2 <- ExprState[S].exprGen(tpe)
+      } yield {
+        Mux(cond, expr1, expr2, tpe)
+      }
+    }
+    def boolUIntGen[S: ExprState, G[_]: GenMonad]: Option[StateGen[S, G, Mux]] = uintGen.map(_(1))
+    def uintGen[S: ExprState, G[_]: GenMonad]: Option[BigInt => StateGen[S, G, Mux]] = {
+      Some { width => imp(UIntType(IntWidth(width))) }
+    }
+
+    def boolSIntGen[S: ExprState, G[_]: GenMonad]: Option[StateGen[S, G, Mux]] = sintGen.map(_(1))
+    def sintGen[S: ExprState, G[_]: GenMonad]: Option[BigInt => StateGen[S, G, Mux]] = {
+      Some { width => imp(SIntType(IntWidth(width)))}
+    }
+  }
+
   case class RecursiveExprGenParams(
     exprGenerators: Seq[ExprGen[_ <: Expression]],
     trace: Boolean
