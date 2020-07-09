@@ -160,11 +160,7 @@ class ConstantPropagation extends Transform with DependencyAPIMigration with Res
         case IntWidth(b) => b
       }
 
-      val maskedValue = if (a.value.signum < 0) {
-        a.value & ((BigInt(1) << w.toInt) - 1)
-      } else {
-        a.value
-      }
+      val maskedValue = a.value & ((BigInt(1) << w.toInt) - 1)
       val v: Seq[Boolean] = s"%${w}s".format(maskedValue.toString(2)).map(_ == '1')
 
       (BigInt(0) until w).zip(v).foldLeft(identityValue) {
