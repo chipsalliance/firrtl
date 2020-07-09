@@ -23,6 +23,7 @@ class InfoSpec extends FirrtlFlatSpec with FirrtlMatchers {
   val Info1 = FileInfo(StringLit("Source.scala 1:4"))
   val Info2 = FileInfo(StringLit("Source.scala 2:4"))
   val Info3 = FileInfo(StringLit("Source.scala 3:4"))
+  val Info4 = FileInfo(StringLit("Source.scala 4:4"))
 
   "Source locators on module ports" should "be propagated to Verilog" in {
     val result = compileBody(s"""
@@ -155,8 +156,12 @@ class InfoSpec extends FirrtlFlatSpec with FirrtlMatchers {
       """.stripMargin
 
     val result = (new LowFirrtlCompiler).compileAndEmit(CircuitState(parse(input), ChirrtlForm), List.empty)
-    result should containLine ("x <= _GEN_2 @[GCD.scala 17:22 GCD.scala 19:19]")
-    result should containLine ("y <= _GEN_3 @[GCD.scala 18:22 GCD.scala 19:30]")
+    result should containLine ("node _GEN_0 = mux(_T_14, _T_16, x) @[GCD.scala 17:18 GCD.scala 17:22 GCD.scala 15:14]")
+    result should containLine ("node _GEN_2 = mux(io_e, io_a, _GEN_0) @[GCD.scala 19:15 GCD.scala 19:19]")
+    result should containLine ("x <= _GEN_2")
+    result should containLine ("node _GEN_1 = mux(_T_18, _T_20, y) @[GCD.scala 18:18 GCD.scala 18:22 GCD.scala 16:14]")
+    result should containLine ("node _GEN_3 = mux(io_e, io_b, _GEN_1) @[GCD.scala 19:15 GCD.scala 19:30]")
+    result should containLine ("y <= _GEN_3")
   }
 
   "source locators for append option" should "use multiinfo" in {
@@ -171,5 +176,52 @@ class InfoSpec extends FirrtlFlatSpec with FirrtlMatchers {
     val circuitState = CircuitState(circuit, UnknownForm)
     val expectedInfos = Seq(FileInfo(StringLit("Top.scala 15:14")), FileInfo(StringLit("myfile.fir 6:4")))
     circuitState should containTree { case MultiInfo(`expectedInfos`) => true }
+  }
+
+  "source locators for basic register updates" should "be propagated to Verilog" in {
+    val result = compileBody(s"""
+      |input clock : Clock
+      |input reset : UInt<1>
+      |output io : { flip in : UInt<8>, out : UInt<8>}
+      |reg r : UInt<8>, clock
+      |r <= io.in $Info1
+      |io.out <= r $Info2
+      |""".stripMargin
+    )
+    result should containLine (s"r <= io_in; //$Info1")
+  }
+
+  "source locators for register reset" should "be propagated to Verilog" in {
+    val result = compileBody(s"""
+      |input clock : Clock
+      |input reset : UInt<1>
+      |output io : { flip in : UInt<8>, out : UInt<8>}
+      |reg r : UInt<8>, clock with : (reset => (reset, UInt<8>("h0"))) $Info3
+      |r <= io.in $Info1
+      |io.out <= r $Info2
+      |""".stripMargin
+    )
+    result should containLine (s"if (reset) begin //$Info3")
+    result should containLine (s"r <= 8'h0; //$Info3")
+    result should containLine (s"r <= io_in; //$Info1")
+  }
+
+  "source locators for complex register updates" should "be propagated to Verilog" in {
+    val result = compileBody(s"""
+      |input clock : Clock
+      |input reset : UInt<1>
+      |output io : { flip in : UInt<8>, flip a : UInt<1>, out : UInt<8>}
+      |reg r : UInt<8>, clock with : (reset => (reset, UInt<8>("h0"))) $Info1
+      |r <= UInt<2>(2) $Info2
+      |when io.a : $Info3
+      |  r <= io.in $Info4
+      |io.out <= r
+      |""".stripMargin
+    )
+    result should containLine (s"if (reset) begin //$Info1")
+    result should containLine (s"r <= 8'h0; //$Info1")
+    result should containLine (s"end else if (io_a) begin //$Info3")
+    result should containLine (s"r <= io_in; //$Info4")
+    result should containLine (s"r <= 8'h2; //$Info2")
   }
 }

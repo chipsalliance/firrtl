@@ -17,7 +17,8 @@ object FlattenRegUpdate {
   // Combination function for dealing with inlining of muxes and the handling of Triples of infos
   private def combineInfos(muxInfo: Info, tinfo: Info, finfo: Info): Info = {
     val (eninfo, tinfoAlt, finfoAlt) = MultiInfo.demux(muxInfo)
-    MultiInfo(eninfo, orElse(tinfo, tinfoAlt), orElse(finfo, finfoAlt))
+    // Use MultiInfo constructor to preserve NoInfos
+    new MultiInfo(List(eninfo, orElse(tinfo, tinfoAlt), orElse(finfo, finfoAlt)))
   }
 
   /** Mapping from references to the [[firrtl.ir.Expression Expression]]s that drive them */

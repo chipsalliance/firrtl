@@ -43,7 +43,8 @@ case class MultiInfo(infos: Seq[Info]) extends Info {
 }
 object MultiInfo {
   def apply(infos: Info*) = {
-    infos.size match {
+    val infosx = infos.filterNot(_ == NoInfo)
+    infosx.size match {
       case 0 => NoInfo
       case 1 => infos.head
       case _ => new MultiInfo(infos)

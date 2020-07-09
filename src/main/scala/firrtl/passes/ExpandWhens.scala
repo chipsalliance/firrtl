@@ -196,7 +196,8 @@ object ExpandWhens extends Pass {
                 val name = namespace.newTemp
                 nodes(res) = name
                 netlist(lvalue) = WRef(name, res.tpe, NodeKind, SourceFlow)
-                val info = MultiInfo(sx.info, info0, info1)
+                // Use MultiInfo constructor to preserve NoInfos
+                val info = new MultiInfo(List(sx.info, info0, info1))
                 DefNode(info, name, res)
             }
             case _ =>
