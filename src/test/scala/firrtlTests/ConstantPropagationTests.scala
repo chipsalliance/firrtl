@@ -1609,9 +1609,9 @@ class ConstantPropagationEquivalenceSpec extends FirrtlFlatSpec {
     val input =
       s"""circuit ConstPropReductionTester :
          |  module ConstPropReductionTester :
-         |    output out1 : UInt<2>
-         |    output out2 : UInt<2>
-         |    output out3 : UInt<2>
+         |    output out1 : UInt<1>
+         |    output out2 : UInt<1>
+         |    output out3 : UInt<1>
          |    out1 <= xorr(SInt<2>(-1))
          |    out2 <= andr(SInt<2>(-1))
          |    out3 <= orr(SInt<2>(-1))""".stripMargin
