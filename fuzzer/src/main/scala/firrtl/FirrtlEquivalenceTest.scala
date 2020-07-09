@@ -13,7 +13,7 @@ import firrtl.stage.phases.WriteEmitted
 import firrtl.transforms.ManipulateNames
 import firrtl.util.BackendCompilationUtilities
 
-import java.io.File
+import java.io.{File, FileWriter}
 
 object FirrtlEquivalenceTestUtils {
 
@@ -50,9 +50,6 @@ object FirrtlEquivalenceTestUtils {
                             customAnnos: Seq[Annotation],
                             testDir: File,
                             timesteps: Int = 1): Boolean = {
-    val prefix = circuit.main
-    val namespace = Namespace(circuit)
-
     val baseAnnos = Seq(
       InfoModeAnnotation("ignore"),
       FirrtlCircuitAnnotation(circuit)
@@ -60,38 +57,34 @@ object FirrtlEquivalenceTestUtils {
 
     testDir.mkdirs()
 
-    val customResult =
-      (new MinimumVerilogEmitter).transform(
-        (new AddSuffixToTop("_custom")).transform(
-          referenceCompiler.transform(
-            CircuitState(
-              circuit,
-              ChirrtlForm,
-              baseAnnos ++:
-              EmitCircuitAnnotation(classOf[MinimumVerilogEmitter]) +:
-              customAnnos
-            )
-          )
-        )
-      )
+    val customTransforms = Seq(
+      customCompiler,
+      new AddSuffixToTop("_custom"),
+      new VerilogEmitter
+    )
+    val customResult = customTransforms.foldLeft(CircuitState(
+      circuit,
+      ChirrtlForm,
+      baseAnnos ++:
+      EmitCircuitAnnotation(classOf[VerilogEmitter]) +:
+      customAnnos
+    )) { case (state, transform) => transform.transform(state) }
     val customName = customResult.circuit.main
     val customOutputFile = new File(testDir, s"$customName.v")
     writeEmitted(customResult, customOutputFile.toString)
 
-    val referenceResult =
-      (new VerilogEmitter).transform(
-        (new AddSuffixToTop("_reference")).transform(
-          referenceCompiler.transform(
-            CircuitState(
-              circuit,
-              ChirrtlForm,
-              baseAnnos ++:
-              EmitCircuitAnnotation(classOf[VerilogEmitter]) +:
-              referenceAnnos
-            )
-          )
-        )
-      )
+    val referenceTransforms = Seq(
+      referenceCompiler,
+      new AddSuffixToTop("_reference"),
+      new MinimumVerilogEmitter
+    )
+    val referenceResult = referenceTransforms.foldLeft(CircuitState(
+      circuit,
+      ChirrtlForm,
+      baseAnnos ++:
+      EmitCircuitAnnotation(classOf[MinimumVerilogEmitter]) +:
+      referenceAnnos
+    )) { case (state, transform) => transform.transform(state) }
     val referenceName = referenceResult.circuit.main
     val referenceOutputFile = new File(testDir, s"$referenceName.v")
     writeEmitted(referenceResult, referenceOutputFile.toString)

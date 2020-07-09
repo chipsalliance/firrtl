@@ -21,7 +21,7 @@ import org.junit.Assert
 import org.junit.Assume
 import org.junit.runner.RunWith
 
-import java.io.{File, PrintWriter, StringWriter}
+import java.io.{File, FileWriter, PrintWriter, StringWriter}
 
 import edu.berkeley.cs.jqf.fuzz.Fuzz;
 import edu.berkeley.cs.jqf.fuzz.JQF;
@@ -230,14 +230,21 @@ class FirrtlEquivalenceTests {
   @Fuzz
   def compileSingleModule(@From(value = classOf[FirrtlSingleModuleGenerator]) c: Circuit) = {
     val testDir = new File(baseTestDir, f"${c.hashCode}%08x")
-    Assert.assertTrue(
-      s"not equivalent to reference compiler on input ${testDir}:\n${c.serialize}\n",
-      FirrtlEquivalenceTestUtils.firrtlEquivalenceTestPass(
+    val passed = FirrtlEquivalenceTestUtils.firrtlEquivalenceTestPass(
       circuit = c,
       referenceCompiler = new TransformManager(VerilogMinimumOptimized),
       referenceAnnos = Seq(),
       customCompiler = new TransformManager(VerilogOptimized),
       customAnnos = Seq(),
-      testDir = testDir))
+      testDir = testDir
+    )
+
+    if (!passed) {
+      val fileWriter = new FileWriter(new File(testDir, s"${c.main}.fir"))
+      fileWriter.write(c.serialize)
+      fileWriter.close()
+      Assert.assertTrue(
+        s"not equivalent to reference compiler on input ${testDir}:\n${c.serialize}\n", false)
+    }
   }
 }
