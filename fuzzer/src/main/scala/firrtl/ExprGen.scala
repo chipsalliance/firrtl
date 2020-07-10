@@ -688,23 +688,27 @@ object ExprGen {
 
   object MuxGen extends ExprGen[Mux] {
     def name = "mux"
-    private def imp[S: ExprState, G[_]: GenMonad](tpe: Type): StateGen[S, G, Mux] = {
+    private def imp[S: ExprState, G[_]: GenMonad](isUInt: Boolean)(width: BigInt): StateGen[S, G, Mux] = {
+      val tpe = if (isUInt) UIntType(_) else SIntType(_)
+      // spec states that types must be equivalent, but in practice we allow differing widths
       for {
         cond <- ExprState[S].exprGen(Utils.BoolType)
-        expr1 <- ExprState[S].exprGen(tpe)
-        expr2 <- ExprState[S].exprGen(tpe)
+        flip <- StateGen.liftG(GenMonad.bool)
+        expr1 <- ExprState[S].exprGen(tpe(IntWidth(width)))
+        width2 <- StateGen.liftG(genWidthMax(width.toInt))
+        expr2 <- ExprState[S].exprGen(tpe(width2))
       } yield {
-        Mux(cond, expr1, expr2, tpe)
+        Mux(cond, expr1, expr2, tpe(IntWidth(width)))
       }
     }
     def boolUIntGen[S: ExprState, G[_]: GenMonad]: Option[StateGen[S, G, Mux]] = uintGen.map(_(1))
     def uintGen[S: ExprState, G[_]: GenMonad]: Option[Width => StateGen[S, G, Mux]] = {
-      Some { width => imp(UIntType(IntWidth(width))) }
+      Some { imp(isUInt = true) }
     }
 
     def boolSIntGen[S: ExprState, G[_]: GenMonad]: Option[StateGen[S, G, Mux]] = sintGen.map(_(1))
     def sintGen[S: ExprState, G[_]: GenMonad]: Option[Width => StateGen[S, G, Mux]] = {
-      Some { width => imp(SIntType(IntWidth(width)))}
+      Some { imp(isUInt = false) }
     }
   }
 
