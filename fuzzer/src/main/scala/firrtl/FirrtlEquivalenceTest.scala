@@ -122,19 +122,26 @@ class FirrtlEquivalenceTests {
   @Fuzz
   def compileSingleModule(@From(value = classOf[FirrtlSingleModuleGenerator]) c: Circuit) = {
     val testDir = new File(baseTestDir, f"${c.hashCode}%08x")
-    val passed = FirrtlEquivalenceTestUtils.firrtlEquivalenceTestPass(
-      circuit = c,
-      referenceCompiler = new TransformManager(VerilogMinimumOptimized),
-      referenceAnnos = Seq(),
-      customCompiler = new TransformManager(VerilogOptimized),
-      customAnnos = Seq(),
-      testDir = testDir
-    )
+    val fileWriter = new FileWriter(new File(testDir, s"${c.main}.fir"))
+    fileWriter.write(c.serialize)
+    fileWriter.close()
+    val passed = try {
+      FirrtlEquivalenceTestUtils.firrtlEquivalenceTestPass(
+        circuit = c,
+        referenceCompiler = new TransformManager(VerilogMinimumOptimized),
+        referenceAnnos = Seq(),
+        customCompiler = new TransformManager(VerilogOptimized),
+        customAnnos = Seq(),
+        testDir = testDir
+      )
+    } catch {
+      case e: Throwable => {
+        Assert.assertTrue(s"exception thrown on input ${testDir}:\n${message(c, e)}", false)
+        throw e
+      }
+    }
 
     if (!passed) {
-      val fileWriter = new FileWriter(new File(testDir, s"${c.main}.fir"))
-      fileWriter.write(c.serialize)
-      fileWriter.close()
       Assert.assertTrue(
         s"not equivalent to reference compiler on input ${testDir}:\n${c.serialize}\n", false)
     }

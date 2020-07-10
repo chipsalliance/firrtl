@@ -208,6 +208,5 @@ class FirrtlCompileTests {
       case any : Throwable =>
         Assert.assertTrue(message(c.circuit, any), false)
     }
-
   }
 }
