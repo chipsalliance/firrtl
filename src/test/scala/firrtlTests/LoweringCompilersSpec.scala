@@ -8,7 +8,7 @@ import firrtl._
 import firrtl.passes
 import firrtl.options.Dependency
 import firrtl.stage.{Forms, TransformManager}
-import firrtl.transforms.{IdentityTransform, LegalizeAndReductionsTransform}
+import firrtl.transforms.IdentityTransform
 
 sealed trait PatchAction { val line: Int }
 
@@ -329,30 +329,6 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
         Seq(new Transforms.LowToChirrtl) ++
         (new TransformManager(Forms.LowFormOptimized, Forms.ChirrtlForm).flattenedTransformOrder)
     val tm = new TransformManager(Forms.LowFormOptimized :+ Dependency[Transforms.LowToChirrtl])
-    compare(expected, tm)
-  }
-
-  it should "schedule inputForm=LowForm after MiddleFirrtlToLowFirrtl for the LowFirrtlEmitter" in {
-    val expected =
-      new TransformManager(Forms.LowForm).flattenedTransformOrder ++
-        Seq(new Transforms.LowToLow, new firrtl.LowFirrtlEmitter)
-    val tm = (new TransformManager(Seq(Dependency[firrtl.LowFirrtlEmitter], Dependency[Transforms.LowToLow])))
-    compare(expected, tm)
-  }
-
-  it should "schedule inputForm=LowForm after MinimumLowFirrtlOptimizations for the MinimalVerilogEmitter" in {
-    val expected =
-      new TransformManager(Forms.LowFormMinimumOptimized).flattenedTransformOrder ++
-        Seq(new Transforms.LowToLow, new LegalizeAndReductionsTransform, new firrtl.MinimumVerilogEmitter)
-    val tm = (new TransformManager(Seq(Dependency[firrtl.MinimumVerilogEmitter], Dependency[Transforms.LowToLow])))
-    compare(expected, tm)
-  }
-
-  it should "schedule inputForm=LowForm after LowFirrtlOptimizations for the VerilogEmitter" in {
-    val expected =
-      new TransformManager(Forms.LowFormOptimized).flattenedTransformOrder ++
-        Seq(new Transforms.LowToLow, new LegalizeAndReductionsTransform, new firrtl.VerilogEmitter)
-    val tm = (new TransformManager(Seq(Dependency[firrtl.VerilogEmitter], Dependency[Transforms.LowToLow])))
     compare(expected, tm)
   }
 
