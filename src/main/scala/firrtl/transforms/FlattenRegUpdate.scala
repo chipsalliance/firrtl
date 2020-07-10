@@ -7,12 +7,11 @@ import firrtl.ir._
 import firrtl.Mappers._
 import firrtl.Utils._
 import firrtl.options.Dependency
+import firrtl.InfoExpr.orElse
 
 import scala.collection.mutable
 
 object FlattenRegUpdate {
-
-  private def orElse(info: Info, alt: => Info): Info = if (info == NoInfo) alt else info
 
   // Combination function for dealing with inlining of muxes and the handling of Triples of infos
   private def combineInfos(muxInfo: Info, tinfo: Info, finfo: Info): Info = {

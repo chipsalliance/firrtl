@@ -186,9 +186,20 @@ private[firrtl] case class InfoExpr(info: Info, expr: Expression) extends Expres
 }
 
 private[firrtl] object InfoExpr {
+  def wrap(info: Info, expr: Expression): Expression =
+    if (info == NoInfo) expr else InfoExpr(info, expr)
+
   def unwrap(expr: Expression): (Info, Expression) = expr match {
     case InfoExpr(i, e) => (i, e)
     case other          => (NoInfo, other)
+  }
+
+  def orElse(info: Info, alt: => Info): Info = if (info == NoInfo) alt else info
+
+  // TODO this the right name?
+  def map(expr: Expression)(f: Expression => Expression): Expression = expr match {
+    case ie: InfoExpr => ie.mapExpr(f)
+    case e            => f(e)
   }
 }
 

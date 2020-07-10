@@ -120,6 +120,21 @@ class InfoSpec extends FirrtlFlatSpec with FirrtlMatchers {
     result should containLine (s"Child c ( //$Info1")
   }
 
+  it should "be propagated across direct node assignments and connections" in {
+    val result = compile(s"""
+      |circuit Test :
+      |  module Test :
+      |    input in : UInt<8>
+      |    output out : UInt<8>
+      |    node a = in $Info1
+      |    node b = a
+      |    out <= b
+      |""".stripMargin
+    )
+    result should containTree { case Connect(Info1, Reference("out", _,_,_), Reference("in", _,_,_)) => true }
+    result should containLine (s"assign out = in; //$Info1")
+  }
+
   "source locators" should "be propagated through ExpandWhens" in {
     val input = """
      |;buildInfoPackage: chisel3, version: 3.1-SNAPSHOT, scalaVersion: 2.11.7, sbtVersion: 0.13.11, builtAtString: 2016-11-26 18:48:38.030, builtAtMillis: 1480186118030
