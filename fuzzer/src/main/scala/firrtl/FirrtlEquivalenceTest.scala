@@ -1,5 +1,12 @@
 package firrtl.fuzzer
 
+import com.pholser.junit.quickcheck.From
+import com.pholser.junit.quickcheck.generator.Generator
+import com.pholser.junit.quickcheck.random.SourceOfRandomness
+
+import edu.berkeley.cs.jqf.fuzz.Fuzz;
+import edu.berkeley.cs.jqf.fuzz.JQF;
+
 import firrtl._
 import firrtl.annotations.{
   Annotation,
@@ -9,11 +16,16 @@ import firrtl.annotations.{
 }
 import firrtl.ir.Circuit
 import firrtl.stage.{FirrtlCircuitAnnotation, InfoModeAnnotation, OutputFileAnnotation, TransformManager}
+import firrtl.stage.Forms.{BackendEmitters, VerilogMinimumOptimized, VerilogOptimized}
 import firrtl.stage.phases.WriteEmitted
 import firrtl.transforms.ManipulateNames
 import firrtl.util.BackendCompilationUtilities
 
+import java.io.{File, FileWriter, PrintWriter, StringWriter}
 import java.io.{File, FileWriter}
+
+import org.junit.Assert
+import org.junit.runner.RunWith
 
 object FirrtlEquivalenceTestUtils {
 
@@ -90,5 +102,41 @@ object FirrtlEquivalenceTestUtils {
     writeEmitted(referenceResult, referenceOutputFile.toString)
 
     BackendCompilationUtilities.yosysExpectSuccess(customName, referenceName, testDir, timesteps)
+  }
+}
+
+@RunWith(classOf[JQF])
+class FirrtlEquivalenceTests {
+  private val lowFirrtlCompiler = new LowFirrtlCompiler()
+  private val header = "=" * 50 + "\n"
+  private val footer = header
+  private def message(c: Circuit, t: Throwable): String = {
+    val sw = new StringWriter()
+    val pw = new PrintWriter(sw)
+    t.printStackTrace(pw)
+    pw.flush()
+    header + c.serialize + "\n" + sw.toString + footer
+  }
+  private val baseTestDir = new File("fuzzer/test_run_dir")
+
+  @Fuzz
+  def compileSingleModule(@From(value = classOf[FirrtlSingleModuleGenerator]) c: Circuit) = {
+    val testDir = new File(baseTestDir, f"${c.hashCode}%08x")
+    val passed = FirrtlEquivalenceTestUtils.firrtlEquivalenceTestPass(
+      circuit = c,
+      referenceCompiler = new TransformManager(VerilogMinimumOptimized),
+      referenceAnnos = Seq(),
+      customCompiler = new TransformManager(VerilogOptimized),
+      customAnnos = Seq(),
+      testDir = testDir
+    )
+
+    if (!passed) {
+      val fileWriter = new FileWriter(new File(testDir, s"${c.main}.fir"))
+      fileWriter.write(c.serialize)
+      fileWriter.close()
+      Assert.assertTrue(
+        s"not equivalent to reference compiler on input ${testDir}:\n${c.serialize}\n", false)
+    }
   }
 }

@@ -76,6 +76,7 @@ object GenMonad {
         GM.widen[A, B](ga)
       }
     }
+
     final class GenMonadFlattenOps[Gen[_], A](gga: Gen[Gen[A]]) {
       def flatten(implicit GM: GenMonad[Gen]): Gen[A] = GM.flatten(gga)
     }

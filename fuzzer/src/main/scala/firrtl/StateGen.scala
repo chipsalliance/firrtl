@@ -6,14 +6,14 @@ package firrtl.fuzzer
   * @tparam Gen the random context that wraps the return value of this function
   * @tparam A the type of the value returned by this function
   */
-final case class StateGen[State, Gen[_], A](fn: State => Gen[(State, A)]) {
+final case class StateGen[State, Gen[_], A](run: State => Gen[(State, A)]) {
 
   /** Creates a new [[StateGen]] that applies the function to the result of this [[StateGen]] and flattens the result
     */
-  def flatMap[B](ffn: A => StateGen[State, Gen, B])(implicit GM: GenMonad[Gen]): StateGen[State, Gen, B] = {
+  def flatMap[B](fn: A => StateGen[State, Gen, B])(implicit GM: GenMonad[Gen]): StateGen[State, Gen, B] = {
     StateGen { state =>
-      GM.flatMap(fn(state)) { case (sx, a) =>
-        ffn(a).fn(sx)
+      GM.flatMap(run(state)) { case (sx, a) =>
+        fn(a).run(sx)
       }
     }
   }
@@ -21,7 +21,7 @@ final case class StateGen[State, Gen[_], A](fn: State => Gen[(State, A)]) {
   /** Creates a new [[StateGen]] that applies the function to the result of this [[StateGen]]
     */
   def map[B](f: A => B)(implicit GM: GenMonad[Gen]): StateGen[State, Gen, B] = StateGen { state =>
-    GM.map(fn(state)) { case (sx, a) =>
+    GM.map(run(state)) { case (sx, a) =>
       sx -> f(a)
     }
   }
@@ -29,7 +29,7 @@ final case class StateGen[State, Gen[_], A](fn: State => Gen[(State, A)]) {
   /** Returns the same [[StateGen]] but with a wider result type parameter
     */
   def widen[B >: A](implicit GM: GenMonad[Gen]): StateGen[State, Gen, B] = StateGen { state =>
-    GM.map(fn(state)) { case (state, a) => state -> a }
+    GM.map(run(state)) { case (state, a) => state -> a }
   }
 }
 

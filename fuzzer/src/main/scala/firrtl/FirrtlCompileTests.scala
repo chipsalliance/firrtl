@@ -14,7 +14,6 @@ import firrtl.{
   VerilogEmitter
 }
 import firrtl.ir._
-import firrtl.stage.Forms.{BackendEmitters, VerilogMinimumOptimized, VerilogOptimized}
 import firrtl.stage.TransformManager
 
 import org.junit.Assert
@@ -26,28 +25,42 @@ import java.io.{File, FileWriter, PrintWriter, StringWriter}
 import edu.berkeley.cs.jqf.fuzz.Fuzz;
 import edu.berkeley.cs.jqf.fuzz.JQF;
 
-case class ExprContext(
-  unboundRefs: Set[Reference],
-  decls: Set[IsDeclaration],
-  minDepth: Int,
+case class ExprContext private (
+  private val unboundRefs: Set[Reference],
+  private val decls: Set[IsDeclaration],
   maxDepth: Int,
   maxWidth: Int,
-  namespace: Namespace) {
+  private val namespace: Namespace,
+  generators: Seq[(Int, ExprGen[_ <: Expression])]) {
 
   require(maxWidth > 0, "maxWidth must be greater than zero")
 
   def decrementDepth: ExprContext = this.copy(
     maxDepth = maxDepth - 1,
-    minDepth = minDepth - 1
   )
   def incrementDepth: ExprContext = this.copy(
     maxDepth = maxDepth + 1,
-    minDepth = minDepth + 1
   )
 }
 
+// TODO: factor out to helper method. with frequency params for generators
 object ExprContext {
-  implicit val ESG: ExprState[ExprContext] = new ExprState[ExprContext] {
+  def apply(
+    maxDepth: Int,
+    maxWidth: Int,
+    generators: Seq[(Int, ExprGen[_ <: Expression])]
+  ): ExprContext = {
+    ExprContext(
+      Set.empty,
+      Set.empty,
+      maxDepth,
+      maxWidth,
+      Namespace(),
+      generators
+    )
+  }
+
+  implicit val exprStateExprContextInstance: ExprState[ExprContext] = new ExprState[ExprContext] {
     def withRef[G[_]: GenMonad](ref: Reference): StateGen[ExprContext, G, Reference] = {
       StateGen { (s: ExprContext) =>
         val refx = ref.copy(name = s.namespace.newName(ref.name))
@@ -57,69 +70,26 @@ object ExprContext {
     def unboundRefs(s: ExprContext): Set[Reference] = s.unboundRefs
     def maxWidth(s: ExprContext): Int = s.maxWidth
 
-    private def params: ExprGen.RecursiveExprGenParams = {
-      import ExprGen._
-      RecursiveExprGenParams(
-        Seq(
-          AddDoPrimGen,
-          SubDoPrimGen,
-          MulDoPrimGen,
-          DivDoPrimGen,
-          LtDoPrimGen,
-          LeqDoPrimGen,
-          GtDoPrimGen,
-          GeqDoPrimGen,
-          EqDoPrimGen,
-          NeqDoPrimGen,
-          PadDoPrimGen,
-          ShlDoPrimGen,
-          ShrDoPrimGen,
-          DshlDoPrimGen,
-          CvtDoPrimGen,
-          NegDoPrimGen,
-          NotDoPrimGen,
-          AndDoPrimGen,
-          OrDoPrimGen,
-          XorDoPrimGen,
-          AndrDoPrimGen,
-          OrrDoPrimGen,
-          XorrDoPrimGen,
-          CatDoPrimGen,
-          BitsDoPrimGen,
-          HeadDoPrimGen,
-          TailDoPrimGen,
-          AsUIntDoPrimGen,
-          AsSIntDoPrimGen,
-        ),
-        true
-      )
-    }
-
     def exprGen[G[_]: GenMonad](tpe: Type): StateGen[ExprContext, G, Expression] = {
-      val leafGen: Type => StateGen[ExprContext, G, Expression] = ExprGen.leafExprGen(_)
-      val branchGen: Type => StateGen[ExprContext, G, Expression] = (tpe: Type) => {
-        ExprGen.recursiveExprGen(params)(tpe).flatMap {
-          case None => leafGen(tpe)
-          case Some(e) => StateGen.pure(e)
-        }
-      }
       StateGen { (s: ExprContext) =>
         import GenMonad.syntax._
-        (if (s.minDepth > 0) {
-          val state = branchGen(tpe)
-          state.fn(s.decrementDepth).map {
-            case (ss, expr) => ss.incrementDepth -> expr
+        val leafGen: Type => StateGen[ExprContext, G, Expression] = ExprGen.leafExprGen(_)
+        val branchGen: Type => StateGen[ExprContext, G, Expression] = (tpe: Type) => {
+          ExprGen.recursiveExprGen(false, s.generators)(tpe).flatMap {
+            case None => leafGen(tpe)
+            case Some(e) => StateGen.pure(e)
           }
-        } else if (s.maxDepth > 0) {
+        }
+        if (s.maxDepth > 0) {
           GenMonad.frequency(
             5 -> (branchGen(_)),
             1 -> (leafGen(_))
-          ).flatMap(_(tpe).fn(s.decrementDepth).map {
+          ).flatMap(_(tpe).run(s.decrementDepth).map {
             case (ss, e) => ss.incrementDepth -> e
           })
         } else {
-          leafGen(tpe).fn(s)
-        })
+          leafGen(tpe).run(s)
+        }
       }
     }
   }
@@ -165,17 +135,46 @@ object SourceOfRandomnessGen {
 class FirrtlSingleModuleGenerator extends Generator[Circuit](classOf[Circuit]) {
   override def generate(random: SourceOfRandomness, status: GenerationStatus): Circuit = {
     implicit val r = random
+    import ExprGen._
 
     val context = ExprContext(
-      unboundRefs = Set.empty,
-      decls = Set.empty,
       maxDepth = 50,
-      minDepth = 0,
       maxWidth = 31,
-      namespace = Namespace()
+      generators = Seq(
+        1 -> AddDoPrimGen,
+        1 -> SubDoPrimGen,
+        1 -> MulDoPrimGen,
+        1 -> DivDoPrimGen,
+        1 -> LtDoPrimGen,
+        1 -> LeqDoPrimGen,
+        1 -> GtDoPrimGen,
+        1 -> GeqDoPrimGen,
+        1 -> EqDoPrimGen,
+        1 -> NeqDoPrimGen,
+        1 -> PadDoPrimGen,
+        1 -> ShlDoPrimGen,
+        1 -> ShrDoPrimGen,
+        1 -> DshlDoPrimGen,
+        1 -> CvtDoPrimGen,
+        1 -> NegDoPrimGen,
+        30 -> NotDoPrimGen,
+        1 -> AndDoPrimGen,
+        1 -> OrDoPrimGen,
+        1 -> XorDoPrimGen,
+        1 -> AndrDoPrimGen,
+        1 -> OrrDoPrimGen,
+        1 -> XorrDoPrimGen,
+        1 -> CatDoPrimGen,
+        1 -> BitsDoPrimGen,
+        1 -> HeadDoPrimGen,
+        1 -> TailDoPrimGen,
+        1 -> AsUIntDoPrimGen,
+        1 -> AsSIntDoPrimGen,
+      )
     )
 
-    val (_, circuit) = ExprGen.exprCircuit[ExprContext, SourceOfRandomnessGen].fn(context)()
+    val (_, circuit) = ExprGen.exprCircuit[ExprContext, SourceOfRandomnessGen].run(context)()
+    println(circuit.serialize)
     circuit
   }
 }
@@ -210,41 +209,5 @@ class FirrtlCompileTests {
         Assert.assertTrue(message(c.circuit, any), false)
     }
 
-  }
-}
-
-@RunWith(classOf[JQF])
-class FirrtlEquivalenceTests {
-  private val lowFirrtlCompiler = new LowFirrtlCompiler()
-  private val header = "=" * 50 + "\n"
-  private val footer = header
-  private def message(c: Circuit, t: Throwable): String = {
-    val sw = new StringWriter()
-    val pw = new PrintWriter(sw)
-    t.printStackTrace(pw)
-    pw.flush()
-    header + c.serialize + "\n" + sw.toString + footer
-  }
-  private val baseTestDir = new File("fuzzer/test_run_dir")
-
-  @Fuzz
-  def compileSingleModule(@From(value = classOf[FirrtlSingleModuleGenerator]) c: Circuit) = {
-    val testDir = new File(baseTestDir, f"${c.hashCode}%08x")
-    val passed = FirrtlEquivalenceTestUtils.firrtlEquivalenceTestPass(
-      circuit = c,
-      referenceCompiler = new TransformManager(VerilogMinimumOptimized),
-      referenceAnnos = Seq(),
-      customCompiler = new TransformManager(VerilogOptimized),
-      customAnnos = Seq(),
-      testDir = testDir
-    )
-
-    if (!passed) {
-      val fileWriter = new FileWriter(new File(testDir, s"${c.main}.fir"))
-      fileWriter.write(c.serialize)
-      fileWriter.close()
-      Assert.assertTrue(
-        s"not equivalent to reference compiler on input ${testDir}:\n${c.serialize}\n", false)
-    }
   }
 }
