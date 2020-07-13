@@ -52,7 +52,7 @@ trait ExprGen[E <: Expression] { self =>
       StateGen { (s: S) =>
         GenMonad[G].choose(0, 1).map ( _ =>
           try {
-            GenMonad[G].applyGen(stateGen.run(s))
+            GenMonad[G].generate(stateGen.run(s))
           } catch {
             case e: ExprGen.TraceException if e.trace.size < 10 =>
               throw e.copy(trace = s"$name: ${tpe.serialize}" +: e.trace)
@@ -102,8 +102,8 @@ object ExprGen {
     s"cause: ${printStack(cause)}\ntrace:\n${trace.reverse.mkString("\n")}\n"
   )
 
-  private def genWidth[G[_]: GenMonad](min: Int, max: Int): G[IntWidth] = GenMonad[G].choose(min, max).map(IntWidth(_))
-  private def genWidthMax[G[_]: GenMonad](max: Int): G[IntWidth] = genWidth(1, max)
+  def genWidth[G[_]: GenMonad](min: Int, max: Int): G[IntWidth] = GenMonad[G].choose(min, max).map(IntWidth(_))
+  def genWidthMax[G[_]: GenMonad](max: Int): G[IntWidth] = genWidth(1, max)
 
   private def makeBinDoPrimStateGen[S: ExprState, G[_]: GenMonad](
     primOp: PrimOp,
@@ -712,23 +712,9 @@ object ExprGen {
     }
   }
 
-  case class RecursiveExprGenParams(
-    exprGenerators: Seq[ExprGen[_ <: Expression]],
-    trace: Boolean
-  )
-
-  def recursiveExprGen[S: ExprState, G[_]: GenMonad](
-    trace: Boolean,
-    generators: Seq[(Int, ExprGen[_ <: Expression])]
+  def combineExprGens[S: ExprState, G[_]: GenMonad](
+    exprGenerators: Seq[(Int, ExprGen[_ <: Expression])]
   )(tpe: Type): StateGen[S, G, Option[Expression]] = {
-    val exprGenerators = if (trace) {
-      generators.map {
-        case (frequency, gen) => frequency -> gen.withTrace
-      }
-    } else {
-      generators
-    }
-
     val boolUIntStateGens = exprGenerators.flatMap {
       case (freq, gen) => gen.boolUIntGen.map(freq -> _.widen[Expression])
     }
@@ -792,47 +778,6 @@ object ExprGen {
           stateGen.run(s)
         }
       }
-    }
-  }
-
-  def exprMod[S: ExprState, G[_]: GenMonad]: StateGen[S, G, Module] = {
-    for {
-      width <- StateGen.inspectG((s: S) => genWidth(1, ExprState[S].maxWidth(s)))
-      tpe <- StateGen.liftG(GenMonad.frequency(
-        2 -> UIntType(width),
-        2 -> SIntType(width),
-        1 -> Utils.BoolType
-      ))
-      expr <- ExprState[S].exprGen(tpe)
-      outputPortRef <- tpe match {
-        case UIntType(IntWidth(width)) if width == BigInt(1) => ReferenceGen.boolUIntGen.get
-        case UIntType(IntWidth(width)) => ReferenceGen.uintGen.get(width)
-        case SIntType(IntWidth(width)) if width == BigInt(1) => ReferenceGen.boolSIntGen.get
-        case SIntType(IntWidth(width)) => ReferenceGen.sintGen.get(width)
-      }
-      unboundRefs <- StateGen.inspect { ExprState[S].unboundRefs(_) }
-    } yield {
-      val outputPort = Port(
-        NoInfo,
-        outputPortRef.name,
-        Output,
-        outputPortRef.tpe
-      )
-      Module(
-        NoInfo,
-        "foo",
-        unboundRefs.flatMap {
-          case ref if ref.name == outputPortRef.name => None
-          case ref => Some(Port(NoInfo, ref.name, Input, ref.tpe))
-        }.toSeq.sortBy(_.name) :+ outputPort,
-        Connect(NoInfo, outputPortRef, expr)
-      )
-    }
-  }
-
-  def exprCircuit[S: ExprState, G[_]: GenMonad]: StateGen[S, G, Circuit] = {
-    exprMod.map { m =>
-      Circuit(NoInfo, Seq(m), m.name)
     }
   }
 }

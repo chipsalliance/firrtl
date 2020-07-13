@@ -122,6 +122,7 @@ class FirrtlEquivalenceTests {
   @Fuzz
   def compileSingleModule(@From(value = classOf[FirrtlSingleModuleGenerator]) c: Circuit) = {
     val testDir = new File(baseTestDir, f"${c.hashCode}%08x")
+    testDir.mkdirs()
     val fileWriter = new FileWriter(new File(testDir, s"${c.main}.fir"))
     fileWriter.write(c.serialize)
     fileWriter.close()

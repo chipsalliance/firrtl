@@ -4,16 +4,8 @@ import com.pholser.junit.quickcheck.From
 import com.pholser.junit.quickcheck.generator.{Generator, GenerationStatus}
 import com.pholser.junit.quickcheck.random.SourceOfRandomness
 
-import firrtl.{
-  ChirrtlForm,
-  CircuitState,
-  EmitCircuitAnnotation,
-  LowFirrtlCompiler,
-  MinimumVerilogEmitter,
-  Namespace,
-  VerilogEmitter
-}
-import firrtl.ir._
+import firrtl.{ChirrtlForm, CircuitState, LowFirrtlCompiler, Namespace}
+import firrtl.ir.Circuit
 import firrtl.stage.TransformManager
 
 import org.junit.Assert
@@ -25,76 +17,8 @@ import java.io.{File, FileWriter, PrintWriter, StringWriter}
 import edu.berkeley.cs.jqf.fuzz.Fuzz;
 import edu.berkeley.cs.jqf.fuzz.JQF;
 
-case class ExprContext private (
-  private val unboundRefs: Set[Reference],
-  private val decls: Set[IsDeclaration],
-  maxDepth: Int,
-  maxWidth: Int,
-  private val namespace: Namespace,
-  generators: Seq[(Int, ExprGen[_ <: Expression])]) {
-
-  require(maxWidth > 0, "maxWidth must be greater than zero")
-
-  def decrementDepth: ExprContext = this.copy(
-    maxDepth = maxDepth - 1,
-  )
-  def incrementDepth: ExprContext = this.copy(
-    maxDepth = maxDepth + 1,
-  )
-}
-
-// TODO: factor out to helper method. with frequency params for generators
-object ExprContext {
-  def apply(
-    maxDepth: Int,
-    maxWidth: Int,
-    generators: Seq[(Int, ExprGen[_ <: Expression])]
-  ): ExprContext = {
-    ExprContext(
-      Set.empty,
-      Set.empty,
-      maxDepth,
-      maxWidth,
-      Namespace(),
-      generators
-    )
-  }
-
-  implicit val exprStateExprContextInstance: ExprState[ExprContext] = new ExprState[ExprContext] {
-    def withRef[G[_]: GenMonad](ref: Reference): StateGen[ExprContext, G, Reference] = {
-      StateGen { (s: ExprContext) =>
-        val refx = ref.copy(name = s.namespace.newName(ref.name))
-        GenMonad[G].const(s.copy(unboundRefs = s.unboundRefs + refx) -> refx)
-      }
-    }
-    def unboundRefs(s: ExprContext): Set[Reference] = s.unboundRefs
-    def maxWidth(s: ExprContext): Int = s.maxWidth
-
-    def exprGen[G[_]: GenMonad](tpe: Type): StateGen[ExprContext, G, Expression] = {
-      StateGen { (s: ExprContext) =>
-        import GenMonad.syntax._
-        val leafGen: Type => StateGen[ExprContext, G, Expression] = ExprGen.leafExprGen(_)
-        val branchGen: Type => StateGen[ExprContext, G, Expression] = (tpe: Type) => {
-          ExprGen.recursiveExprGen(false, s.generators)(tpe).flatMap {
-            case None => leafGen(tpe)
-            case Some(e) => StateGen.pure(e)
-          }
-        }
-        if (s.maxDepth > 0) {
-          GenMonad.frequency(
-            5 -> (branchGen(_)),
-            1 -> (leafGen(_))
-          ).flatMap(_(tpe).run(s.decrementDepth).map {
-            case (ss, e) => ss.incrementDepth -> e
-          })
-        } else {
-          leafGen(tpe).run(s)
-        }
-      }
-    }
-  }
-}
-
+/** a GenMonad backed by [[SourceOfRandomness]]
+  */
 trait SourceOfRandomnessGen[A] {
   def apply(): A
 
@@ -109,7 +33,7 @@ trait SourceOfRandomnessGen[A] {
 }
 
 object SourceOfRandomnessGen {
-  implicit def astGenGenMonadInstance(implicit r: SourceOfRandomness): GenMonad[SourceOfRandomnessGen] = new GenMonad[SourceOfRandomnessGen] {
+  implicit def sourceOfRandomnessGenGenMonadInstance(implicit r: SourceOfRandomness): GenMonad[SourceOfRandomnessGen] = new GenMonad[SourceOfRandomnessGen] {
     import scala.collection.JavaConverters.seqAsJavaList
     type G[T] = SourceOfRandomnessGen[T]
     def flatMap[A, B](a: G[A])(f: A => G[B]): G[B] = a.flatMap(f)
@@ -123,7 +47,7 @@ object SourceOfRandomnessGen {
     }
     def const[T](c: T): G[T] = SourceOfRandomnessGen(c)
     def widen[A, B >: A](ga: G[A]): G[B] = ga.widen[B]
-    def applyGen[A](ga: G[A]): A = ga.apply()
+    def generate[A](ga: G[A]): A = ga.apply()
   }
 
   def apply[T](f: => T): SourceOfRandomnessGen[T] = new SourceOfRandomnessGen[T] {
@@ -137,7 +61,7 @@ class FirrtlSingleModuleGenerator extends Generator[Circuit](classOf[Circuit]) {
     implicit val r = random
     import ExprGen._
 
-    val context = ExprContext(
+    val params = ExprGenParams(
       maxDepth = 50,
       maxWidth = 31,
       generators = Seq(
@@ -172,10 +96,7 @@ class FirrtlSingleModuleGenerator extends Generator[Circuit](classOf[Circuit]) {
         1 -> AsSIntDoPrimGen,
       )
     )
-
-    val (_, circuit) = ExprGen.exprCircuit[ExprContext, SourceOfRandomnessGen].run(context)()
-    println(circuit.serialize)
-    circuit
+    params.generateSingleExprCircuit[SourceOfRandomnessGen]()
   }
 }
 

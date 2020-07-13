@@ -35,7 +35,7 @@ trait GenMonad[Gen[_]] {
 
   /** Runs the given generator and returns the generated value
     */
-  def applyGen[A](ga: Gen[A]): A
+  def generate[A](ga: Gen[A]): A
 }
 
 object GenMonad {
@@ -65,15 +65,18 @@ object GenMonad {
   /** Provides extension methods like .flatMap and .flatten for [[GenMonad]]s
     */
   object syntax {
-    final class GenMonadOps[Gen[_], A](ga: Gen[A]) {
-      def flatMap[B](f: A => Gen[B])(implicit GM: GenMonad[Gen]): Gen[B] = {
+    final class GenMonadOps[Gen[_], A](ga: Gen[A])(implicit GM: GenMonad[Gen]) {
+      def flatMap[B](f: A => Gen[B]): Gen[B] = {
         GM.flatMap(ga)(f)
       }
-      def map[B](f: A => B)(implicit GM: GenMonad[Gen]): Gen[B] = {
+      def map[B](f: A => B): Gen[B] = {
         GM.map(ga)(f)
       }
-      def widen[B >: A](implicit GM: GenMonad[Gen]): Gen[B] = {
+      def widen[B >: A]: Gen[B] = {
         GM.widen[A, B](ga)
+      }
+      def generate(): A = {
+        GM.generate(ga)
       }
     }
 
@@ -81,7 +84,7 @@ object GenMonad {
       def flatten(implicit GM: GenMonad[Gen]): Gen[A] = GM.flatten(gga)
     }
 
-    implicit def genMonadOps[Gen[_], A](ga: Gen[A]): GenMonadOps[Gen, A] =
+    implicit def genMonadOps[Gen[_]: GenMonad, A](ga: Gen[A]): GenMonadOps[Gen, A] =
       new GenMonadOps(ga)
 
     implicit def genMonadFlattenOps[Gen[_], A](gga: Gen[Gen[A]]): GenMonadFlattenOps[Gen, A] =
