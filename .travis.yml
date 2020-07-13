@@ -5,10 +5,13 @@ scala:
 services:
   - docker
 
+RUNCMD: "unidoc;test"
+
 sctipt: |
   docker run -it --net=host \
     -e TRAVIS_SCALA_VERSION=$TRAVIS_SCALA_VERSION \
     -e TRAVIS_BUILD_DIR=$TRAVIS_BUILD_DIR \
+    -e RUNCMD=$RUNCMD \
     -v $HOME/.ivy2:/root/.ivy2 \
     -v $HOME/.coursier:/root/.coursier \
     -v $HOME/.sbt:/root/.sbt \
@@ -20,7 +23,14 @@ sctipt: |
     java --version
     verilator --version
     yosys -V
-    ./sbt -sbt-launch-dir ./launchers/ ++$TRAVIS_SCALA_VERSION test"
+    ./sbt -sbt-launch-dir ./launchers/ ++$TRAVIS_SCALA_VERSION $RUNCMD
+    ./.run_chisel_tests.sh
+    ./.run_formal_checks.sh Ops
+    ./.run_formal_checks.sh AddNot
+    ./.run_formal_checks.sh FPU
+    ./.run_formal_checks.sh ICache
+    ./.run_formal_checks.sh RocketCore
+    "
     
 after_script:
   - pwd 
