@@ -55,7 +55,16 @@ javacOptions ++= javacOptionsVersion(scalaVersion.value)
 
 libraryDependencies += "org.scala-lang" % "scala-reflect" % scalaVersion.value
 
+<<<<<<< HEAD
 libraryDependencies += "com.typesafe.scala-logging" %% "scala-logging" % "3.9.0"
+=======
+lazy val protobufSettings = Seq(
+  sourceDirectory in ProtobufConfig := baseDirectory.value / "src" / "main" / "proto",
+  protobufRunProtoc in ProtobufConfig := (args =>
+    com.github.os72.protocjar.Protoc.runProtoc("-v351" +: args.toArray)
+  )
+)
+>>>>>>> c14330d6... Change ProtoBuf generated directory (#1762)
 
 libraryDependencies += "ch.qos.logback" % "logback-classic" % "1.2.3"
 
