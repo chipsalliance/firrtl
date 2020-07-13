@@ -5,13 +5,10 @@ scala:
 services:
   - docker
 
-RUNCMD: "unidoc;test"
-
 sctipt: |
   docker run -it --net=host \
-    -e TRAVIS_SCALA_VERSION=$TRAVIS_SCALA_VERSION \
+    -e TRAVIS_SCALA_VERSION=${TRAVIS_SCALA_VERSION} \
     -e TRAVIS_BUILD_DIR=$TRAVIS_BUILD_DIR \
-    -e RUNCMD=$RUNCMD \
     -v $HOME/.ivy2:/root/.ivy2 \
     -v $HOME/.coursier:/root/.coursier \
     -v $HOME/.sbt:/root/.sbt \
@@ -25,10 +22,9 @@ sctipt: |
     yosys -V
     chmod 777 .run_chisel_tests.sh
     chmod 777 .run_formal_checks.sh
-    ./sbt -sbt-launch-dir ./launchers/ ++${TRAVIS_SCALA_VERSION} ${RUNCMD}
+    ./sbt -sbt-launch-dir ./launchers/ ++${TRAVIS_SCALA_VERSION} \"unidoc;test\"
     ./.run_chisel_tests.sh
-    ./.run_formal_checks.sh Ops
-    "
+    ./.run_formal_checks.sh Ops"
     
 after_script:
   - pwd 
