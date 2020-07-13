@@ -5,37 +5,29 @@ scala:
 services:
   - docker
 
-sctipt: |
-  docker run -it --net=host \
-    -e TRAVIS_SCALA_VERSION=${TRAVIS_SCALA_VERSION} \
-    -e TRAVIS_BUILD_DIR=$TRAVIS_BUILD_DIR \
-    -v $HOME/.ivy2:/root/.ivy2 \
-    -v $HOME/.coursier:/root/.coursier \
-    -v $HOME/.sbt:/root/.sbt \
-    -v $TRAVIS_BUILD_DIR:/firrtl \
-    tampler/chisel-crew-base:11 bash -c "
-    set -e # exit on failure
-    set -x # trace for debug
-    cd /firrtl
-    java --version
-    verilator --version
-    yosys -V
-    chmod 777 .run_chisel_tests.sh
-    chmod 777 .run_formal_checks.sh
-    ./sbt -sbt-launch-dir ./launchers/ ++${TRAVIS_SCALA_VERSION} \"unidoc;test\"
-    ./.run_chisel_tests.sh
-    ./.run_formal_checks.sh Ops"
-    
+before_install:
+  # Load cached docker images
+  - if [[ -d $HOME/docker ]]; then ls $HOME/docker/*.tar.gz | xargs -I {file} sh -c "zcat {file} | docker load"; fi
+
+sctipt:
+  bash rundocker.sh
+
 after_script:
-  - pwd 
+  - pwd
 
 cache:
+  bundler: true
   directories:
     - $HOME/.cache/coursier
     - $HOME/.ivy2/cache
     - $HOME/.sbt
+    - $HOME/docker
 
 before_cache:
   - rm -fv $HOME/.ivy2/.sbt.ivy.lock
   - find $HOME/.ivy2/cache -name "ivydata-*.properties" -print -delete
   - find $HOME/.sbt        -name "*.lock"               -print -delete
+  # Save tagged docker images
+  - >
+    mkdir -p $HOME/docker && docker images -a --filter="dangling=false" --format "{{.Repository}}:{{.Tag}} {{.ID}}"
+    | xargs -n 2 -t sh -c "test -e $HOME/docker/$1.tar.gz || docker save $0 | gzip -2 > $HOME/docker/$1.tar.gz"
