@@ -62,6 +62,7 @@ project/project/
 out/
 .bloop
 .metals
+project/metals.sbt
 
 *~
 *#*#
