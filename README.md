@@ -95,7 +95,7 @@ utils/bin/firrtl -i regress/rocket.fir -o regress/rocket.v -X verilog // Compile
 utils/bin/firrtl --help // Returns usage string
 ```
 
-##### Using the fuzzer
+##### Using the JQF Fuzzer
 The `build.sbt` defines the `fuzzer/jqfFuzz` and `fuzzer/jqfRepro` tasks. These
 can be used to randomly generate and run test cases and reproduce failing test
 cases respectively. These tasks are Scala implementations of the [FuzzGoal and
