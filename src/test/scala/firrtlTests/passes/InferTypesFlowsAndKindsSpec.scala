@@ -98,7 +98,7 @@ class InferTypesFlowsAndKindsSpec extends FlatSpec {
 
 
     // node i_x = i.x
-    val x = node("i_x_").asInstanceOf[ir.SubField]
+    val x = node("i_x").asInstanceOf[ir.SubField]
     assert(x.tpe.isInstanceOf[ir.BundleType])
     assert(x.tpe.asInstanceOf[ir.BundleType].fields.head.name == "y")
     assert(x.tpe.asInstanceOf[ir.BundleType].fields.head.tpe == node("i_x_y").tpe)
