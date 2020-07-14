@@ -16,6 +16,6 @@ object ScalaCheckGenMonad {
 
     def widen[A, B >: A](ga: Gen[A]): Gen[B] = ga
 
-    def applyGen[A](ga: Gen[A]): A = ga.sample.get
+    def generate[A](ga: Gen[A]): A = ga.sample.get
   }
 }
