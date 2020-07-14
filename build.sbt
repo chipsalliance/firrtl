@@ -193,7 +193,6 @@ lazy val benchmark = (project in file("benchmark"))
     assemblyOutputPath in assembly := file("./utils/bin/firrtl-benchmark.jar")
   )
 
-// val JQF_VERSION = "1.6-SNAPSHOT"
 val JQF_VERSION = "1.5"
 
 lazy val jqf = (project in file("jqf"))
@@ -202,14 +201,12 @@ lazy val jqf = (project in file("jqf"))
       "edu.berkeley.cs.jqf" % "jqf-fuzz" % JQF_VERSION,
       "edu.berkeley.cs.jqf" % "jqf-instrument" % JQF_VERSION,
       "com.github.scopt" %% "scopt" % "3.7.1",
-    ),
-    // Compile / run / fork := true,
-    // outputStrategy := Some(StdoutOutput),
+    )
   )
 
 
-lazy val jqfFuzz = sbt.inputKey[Unit]("")
-lazy val jqfRepro = sbt.inputKey[Unit]("")
+lazy val jqfFuzz = sbt.inputKey[Unit]("input task that runs the firrtl.jqf.JQFFuzz main method")
+lazy val jqfRepro = sbt.inputKey[Unit]("input task that runs the firrtl.jqf.JQFRepro main method")
 
 lazy val testClassAndMethodParser = {
   import sbt.complete.DefaultParsers._

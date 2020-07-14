@@ -93,7 +93,7 @@ class FirrtlSingleModuleGenerator extends Generator[Circuit](classOf[Circuit]) {
         1 -> HeadDoPrimGen,
         1 -> TailDoPrimGen,
         1 -> AsUIntDoPrimGen,
-        1 -> AsSIntDoPrimGen,
+        1 -> AsSIntDoPrimGen
       )
     )
     params.generateSingleExprCircuit[SourceOfRandomnessGen]()
