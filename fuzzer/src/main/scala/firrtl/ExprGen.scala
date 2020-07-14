@@ -59,23 +59,32 @@ trait ExprGen[E <: Expression] { self =>
             case e: ExprGen.TraceException if e.trace.size < 10 =>
               throw e.copy(trace = s"$name: ${tpe.serialize}" +: e.trace)
             case e: IllegalArgumentException =>
-            // case e if !e.isInstanceOf[ExprGen.TraceException] =>
               throw ExprGen.TraceException(Seq(s"$name: ${tpe.serialize}"), e)
           }
         )
       }
     }
 
+    /** Identical to self.boolUIntGen, but will wrap exceptions in a [[ExprGen.TraceException]]
+      */
     def boolUIntGen[S: ExprState, G[_]: GenMonad]: Option[StateGen[S, G, E]] = {
       self.boolUIntGen.map(wrap(self.name, Utils.BoolType, _))
     }
+
+    /** Identical to self.uintGen, but will wrap exceptions in a [[ExprGen.TraceException]]
+      */
     def uintGen[S: ExprState, G[_]: GenMonad]: Option[Width => StateGen[S, G, E]] = {
       self.uintGen.map(fn => (width: Width) => wrap(self.name, UIntType(IntWidth(width)), fn(width)))
     }
 
+    /** Identical to self.boolSIntGen, but will wrap exceptions in a [[ExprGen.TraceException]]
+      */
     def boolSIntGen[S: ExprState, G[_]: GenMonad]: Option[StateGen[S, G, E]] = {
       self.boolSIntGen.map(wrap(self.name, SIntType(IntWidth(1)), _))
     }
+
+    /** Identical to self.sintGen, but will wrap exceptions in a [[ExprGen.TraceException]]
+      */
     def sintGen[S: ExprState, G[_]: GenMonad]: Option[Width => StateGen[S, G, E]] = {
       self.sintGen.map(fn => (width: Width) => wrap(self.name, SIntType(IntWidth(width)), fn(width)))
     }
