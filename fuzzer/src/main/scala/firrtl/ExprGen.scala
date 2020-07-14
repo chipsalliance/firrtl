@@ -92,6 +92,7 @@ object ExprGen {
   type Width = BigInt
 
   import GenMonad.syntax._
+
   private def printStack(e: Throwable): String = {
     val sw = new java.io.StringWriter()
     val pw = new java.io.PrintWriter(sw)

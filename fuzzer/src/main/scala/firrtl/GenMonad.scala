@@ -3,6 +3,7 @@ package firrtl.fuzzer
 /** Monads that represent a random value generator
   */
 trait GenMonad[Gen[_]] {
+
   /** Creates a new generator that applies the function to the output of the first generator and flattens the result
     */
   def flatMap[A, B](a: Gen[A])(f: A => Gen[B]): Gen[B]
@@ -80,14 +81,14 @@ object GenMonad {
       }
     }
 
-    final class GenMonadFlattenOps[Gen[_], A](gga: Gen[Gen[A]]) {
-      def flatten(implicit GM: GenMonad[Gen]): Gen[A] = GM.flatten(gga)
+    final class GenMonadFlattenOps[Gen[_], A](gga: Gen[Gen[A]])(implicit GM: GenMonad[Gen]) {
+      def flatten: Gen[A] = GM.flatten(gga)
     }
 
     implicit def genMonadOps[Gen[_]: GenMonad, A](ga: Gen[A]): GenMonadOps[Gen, A] =
       new GenMonadOps(ga)
 
-    implicit def genMonadFlattenOps[Gen[_], A](gga: Gen[Gen[A]]): GenMonadFlattenOps[Gen, A] =
+    implicit def genMonadFlattenOps[Gen[_]: GenMonad, A](gga: Gen[Gen[A]]): GenMonadFlattenOps[Gen, A] =
       new GenMonadFlattenOps(gga)
   }
 }
