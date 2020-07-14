@@ -127,7 +127,7 @@ sealed abstract class FirrtlEmitter(form: CircuitForm) extends Transform with Em
         case other => other.foreach(onStmt)
       }
       onStmt(mod.body)
-      modules.distinct
+      modules.distinct.toSeq
     }
     val modMap = circuit.modules.map(m => m.name -> m).toMap
     // Turn each module into it's own circuit with it as the top and all instantied modules as ExtModules
@@ -172,9 +172,9 @@ case class VRandom(width: BigInt) extends Expression {
   def mapExpr(f: Expression => Expression): Expression = this
   def mapType(f: Type => Type): Expression = this
   def mapWidth(f: Width => Width): Expression = this
-  def foreachExpr(f: Expression => Unit): Unit = Unit
-  def foreachType(f: Type => Unit): Unit = Unit
-  def foreachWidth(f: Width => Unit): Unit = Unit
+  def foreachExpr(f: Expression => Unit): Unit = ()
+  def foreachType(f: Type => Unit): Unit = ()
+  def foreachWidth(f: Width => Unit): Unit = ()
 }
 
 class VerilogEmitter extends SeqTransform with Emitter {
