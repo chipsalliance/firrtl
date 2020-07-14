@@ -138,27 +138,71 @@ private case class TypeDestruction()
 
 /** Calculate new type layouts and names.
   */
-private class LowerTypes(opts: LowerTypesOptions) {
+private class DestructTypes(opts: LowerTypesOptions) {
   type Namespace = mutable.HashSet[String]
-  def apply(ref: Reference)(implicit namespace: Namespace, renames: RenameMap): Seq[Reference] = ref.tpe match {
+  def apply(ref: Reference)(implicit namespace: Namespace, renames: RenameMap): Seq[ExpressionWithFlow] =
+    ref.tpe match {
+      case BundleType(fields) =>
+        // we rename bottom-up
+        val localNamespace = new Namespace() ++ fields.map(_.name)
+
+
+    }
+
+
+
+
+  private def destruct(ref: Field, namespace: Option[Namespace])(implicit rename: RenameMap): Seq[Field] = ref.tpe match {
     case BundleType(fields) =>
-      fields.foreach { f =>
-        val name = ref.name + "." + f.name
-        assert(!namespace.contains(name))
-        namespace.add(name)
-      }
-      if(opts.lowerBundles) {
-        fields.map(f => Reference(ref.name + "_" + f.name, f.tpe, ref.kind, Utils.times(ref.flow, f.flip))).flatMap(apply)
-      } else {
-        BundleType(fields.)
+      // we rename bottom-up
+      val localNamespace = new Namespace() ++ fields.map(_.name)
+      val renamedFields = fields.flatMap(f => destruct(f, Some(localNamespace)))
+
+      // Need leading _ for findValidPrefix, it doesn't add _ for checks
+      val suffixNames: Seq[String] = renamedFields.map(f => LowerTypes.delim + f.name)
+      val prefix = namespace match {
+        case Some(n) => Uniquify.findValidPrefix(ref.name, suffixNames, n)
+        case None => ref.name
       }
 
+      // We added f.name in previous map, delete if we change it
+      if (prefix != ref.name) {
+        namespace -= ref.name
+        namespace += prefix
+      }
 
+      renamedFields.map(f => Field(prefix + LowerTypes.delim + f.name, Utils.times(ref.flip, f.flip), f.tpe))
 
     case VectorType(tpe, size) =>
+      // vector fields cannot thus there is no need for a namespace
+      val renamedFields = (0 until size).flatMap(i => destruct(Field(i.toString, Default, tpe), None))
+      renamedFields.map(f => Field(prefix + LowerTypes.delim + f.name, Utils.times(ref.flip, f.flip), f.tpe))
+    case GroundType
 
   }
 
+
+
+
+//    ref.tpe match {
+//    case BundleType(fields) =>
+//      fields.foreach { f =>
+//        val name = ref.name + "." + f.name
+//        assert(!namespace.contains(name))
+//        namespace.add(name)
+//      }
+//      if(opts.lowerBundles) {
+//        fields.map(f => Reference(ref.name + "_" + f.name, f.tpe, ref.kind, Utils.times(ref.flow, f.flip))).flatMap(apply)
+//      } else {
+//        BundleType(fields.)
+//      }
+//
+//
+//
+//    case VectorType(tpe, size) =>
+//
+//  }
+//
 
 }
 
