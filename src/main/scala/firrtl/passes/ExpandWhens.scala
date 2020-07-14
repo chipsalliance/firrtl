@@ -57,15 +57,6 @@ object ExpandWhens extends Pass {
   /** Maps a reference to whatever connects to it. Used to resolve last connect semantics */
   type Netlist = mutable.LinkedHashMap[WrappedExpression, Expression]
 
-  /** Collects Info data serialized names for nodes, aggregating into MultiInfo when necessary */
-  class InfoMap extends mutable.HashMap[String, Info] {
-    override def default(key: String): Info = {
-      val x = NoInfo
-      this(key) = x
-      x
-    }
-  }
-
   /** Contains all simulation constructs */
   type Simlist = mutable.ArrayBuffer[Statement]
 
@@ -75,7 +66,7 @@ object ExpandWhens extends Pass {
   type Defaults = Seq[mutable.Map[WrappedExpression, Expression]]
 
   /** Expands a module's when statements */
-  def onModule(m: Module): Module = {
+  private def onModule(m: Module): Module = {
     val namespace = Namespace(m)
     val simlist = new Simlist
 

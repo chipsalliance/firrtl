@@ -200,7 +200,7 @@ class InfoSpec extends FirrtlFlatSpec with FirrtlMatchers {
       |output io : { flip in : UInt<8>, out : UInt<8>}
       |reg r : UInt<8>, clock
       |r <= io.in $Info1
-      |io.out <= r $Info2
+      |io.out <= r
       |""".stripMargin
     )
     result should containLine (s"r <= io_in; //$Info1")
@@ -213,7 +213,7 @@ class InfoSpec extends FirrtlFlatSpec with FirrtlMatchers {
       |output io : { flip in : UInt<8>, out : UInt<8>}
       |reg r : UInt<8>, clock with : (reset => (reset, UInt<8>("h0"))) $Info3
       |r <= io.in $Info1
-      |io.out <= r $Info2
+      |io.out <= r
       |""".stripMargin
     )
     result should containLine (s"if (reset) begin //$Info3")

@@ -545,19 +545,19 @@ class VerilogEmitter extends SeqTransform with Emitter {
       this(Seq(), Map.empty, m, moduleMap, "", new EmissionOptions(Seq.empty))(writer)
     }
 
-    val netlist = mutable.LinkedHashMap[WrappedExpression, (Expression, Info)]()
+    val netlist = mutable.LinkedHashMap[WrappedExpression, InfoExpr]()
     val namespace = Namespace(m)
     namespace.newName("_RAND") // Start rand names at _RAND_0
     def build_netlist(s: Statement): Unit = {
       s.foreach(build_netlist)
       s match {
-        case sx: Connect => netlist(sx.loc) = (sx.expr, sx.info)
+        case sx: Connect => netlist(sx.loc) = InfoExpr(sx.info, sx.expr)
         case sx: IsInvalid => error("Should have removed these!")
         // TODO Since only register update and memories use the netlist anymore, I think nodes are
         // unnecessary
         case sx: DefNode =>
           val e = WRef(sx.name, sx.value.tpe, NodeKind, SourceFlow)
-          netlist(e) = (sx.value, sx.info)
+          netlist(e) = InfoExpr(sx.info, sx.value)
         case _ =>
       }
     }
@@ -660,8 +660,8 @@ class VerilogEmitter extends SeqTransform with Emitter {
     def declare(b: String, n: String, t: Type, info: Info): Unit =
       declare(b, n, t, info, None)
 
-    def assign(e: Expression, valueAndInfo: (Expression, Info)): Unit =
-      assign(e, valueAndInfo._1, valueAndInfo._2)
+    def assign(e: Expression, infoExpr: InfoExpr): Unit =
+      assign(e, infoExpr.expr, infoExpr.info)
 
     def assign(e: Expression, value: Expression, info: Info): Unit = {
       assigns += Seq("assign ", e, " = ", value, ";", info)
@@ -723,12 +723,12 @@ class VerilogEmitter extends SeqTransform with Emitter {
         case e => Seq(Seq(tabs, r, " <= ", e, ";", info))
       }
       if (weq(init, r)) { // Synchronous Reset
-        val (e, info) = netlist(r)
+        val InfoExpr(info, e) = netlist(r)
         noResetAlwaysBlocks.getOrElseUpdate(clk, ArrayBuffer[Seq[Any]]()) ++= addUpdate(info, e, "")
       } else { // Asynchronous Reset
         assert(reset.tpe == AsyncResetType, "Error! Synchronous reset should have been removed!")
         val tv = init
-        val (fv, finfo) = netlist(r)
+        val InfoExpr(finfo, fv) = netlist(r)
         // TODO add register info argument and build a MultiInfo to pass
         asyncResetAlwaysBlocks += ((clk, reset, addUpdate(NoInfo, Mux(reset, tv, fv, mux_type_and_widths(tv, fv)), "")))
       }
@@ -1019,7 +1019,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
             val en = memPortField(sx, w, "en")
             //Ports should share an always@posedge, so can't have intermediary wire
             // TODO should we use the info here for anything?
-            val (clk, _) = netlist(memPortField(sx, w, "clk"))
+            val InfoExpr(_, clk) = netlist(memPortField(sx, w, "clk"))
 
             declare("wire", LowerTypes.loweredName(data), data.tpe, sx.info)
             declare("wire", LowerTypes.loweredName(addr), addr.tpe, sx.info)

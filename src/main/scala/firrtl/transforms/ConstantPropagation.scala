@@ -14,7 +14,6 @@ import firrtl.graph.DiGraph
 import firrtl.analyses.InstanceGraph
 import firrtl.annotations.TargetToken.Ref
 import firrtl.options.Dependency
-import firrtl.InfoExpr.{unwrap, orElse}
 
 import annotation.tailrec
 import collection.mutable
@@ -479,7 +478,7 @@ class ConstantPropagation extends Transform with DependencyAPIMigration with Res
       case p: DoPrim => constPropPrim(p)
       case m: Mux => constPropMux(m)
       case ref @ WRef(rname, _,_, SourceFlow) if nodeMap.contains(rname) =>
-        constPropNodeRef(ref, unwrap(nodeMap(rname))._2)
+        constPropNodeRef(ref, InfoExpr.unwrap(nodeMap(rname))._2)
       case ref @ WSubField(WRef(inst, _, InstanceKind, _), pname, _, SourceFlow) =>
         val module = instMap(inst.Instance)
         // Check constSubOutputs to see if the submodule is driving a constant
@@ -492,7 +491,8 @@ class ConstantPropagation extends Transform with DependencyAPIMigration with Res
   }
 
   /** Hacky way of propagating source locators across nodes and connections that have just a
-    *   reference on the right-hand side
+    * reference on the right-hand side
+    *
     * @todo generalize source locator propagation across Expressions and delete this method
     * @todo is the `orElse` the way we want to do propagation here?
     */
@@ -500,11 +500,11 @@ class ConstantPropagation extends Transform with DependencyAPIMigration with Res
                                                (stmt: Statement): Statement = stmt match {
     // We check rname because inlining it would cause the original declaration to go away
     case node @ DefNode(info0, name, WRef(rname, _, NodeKind, _)) if !dontTouch(rname) =>
-      val (info1, _) = unwrap(nodeMap(rname))
-      node.copy(info = orElse(info1, info0))
+      val (info1, _) = InfoExpr.unwrap(nodeMap(rname))
+      node.copy(info = InfoExpr.orElse(info1, info0))
     case con @ Connect(info0, lhs, rref @ WRef(rname, _, NodeKind, _)) if !dontTouch(rname) =>
-      val (info1, _) = unwrap(nodeMap(rname))
-      con.copy(info = orElse(info1, info0))
+      val (info1, _) = InfoExpr.unwrap(nodeMap(rname))
+      con.copy(info = InfoExpr.orElse(info1, info0))
     case other => other
   }
 
@@ -657,7 +657,7 @@ class ConstantPropagation extends Transform with DependencyAPIMigration with Res
             case lit: Literal => baseCase.resolve(RegCPEntry(UnboundConstant, BoundConstant(lit)))
             case WRef(regName, _, RegKind, _) => baseCase.resolve(RegCPEntry(BoundConstant(regName), UnboundConstant))
             case WRef(nodeName, _, NodeKind, _) if nodeMap.contains(nodeName) =>
-              val (_, expr) = unwrap(nodeMap(nodeName))
+              val (_, expr) = InfoExpr.unwrap(nodeMap(nodeName))
               val cached = nodeRegCPEntries.getOrElseUpdate(nodeName, { regConstant(expr, unbound) })
               baseCase.resolve(cached)
             case Mux(_, tval, fval, _) =>
@@ -702,8 +702,10 @@ class ConstantPropagation extends Transform with DependencyAPIMigration with Res
       stmtx match {
         // Propagate connections to references
         case Connect(info0, lhs, rref @ WRef(rname, _, NodeKind, _)) if !dontTouches.contains(rname) =>
-          val (info1, value) = unwrap(nodeMap(rname))
-          Connect(orElse(info0, info1), lhs, value)
+          val (info1, value) = InfoExpr.unwrap(nodeMap(rname))
+          // Is this the right info combination/propagation function?
+          // See propagateDirectConnectionInfoOnly
+          Connect(InfoExpr.orElse(info1, info0), lhs, value)
         // If an Attach has at least 1 port, any wires are redundant and can be removed
         case Attach(info, exprs) if exprs.exists(kind(_) == PortKind) =>
           Attach(info, exprs.filterNot(kind(_) == WireKind))

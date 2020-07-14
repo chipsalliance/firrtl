@@ -169,17 +169,21 @@ case object Dshlw extends PrimOp {
   }
 }
 
-// Used privately to include Infos in the Netlist
+/** Internal class used for propagating [[Info]] across [[Expression]]s
+  *
+  * In particular, this is useful in "Netlist" datastructures mapping node or other [[Statement]]s
+  * to [[Expression]]s
+  *
+  * @note This is not allowed to leak from any transform
+  */
 private[firrtl] case class InfoExpr(info: Info, expr: Expression) extends Expression {
-  // Members declared in firrtl.ir.Expression
-  def foreachExpr(f: firrtl.ir.Expression => Unit): Unit = f(expr)
-  def foreachType(f: firrtl.ir.Type => Unit): Unit = ()
-  def foreachWidth(f: firrtl.ir.Width => Unit): Unit = ()
-  def mapExpr(f: firrtl.ir.Expression => firrtl.ir.Expression): firrtl.ir.Expression =
-    this.copy(expr = f(this.expr))
-  def mapType(f: firrtl.ir.Type => firrtl.ir.Type): firrtl.ir.Expression = this
-  def mapWidth(f: firrtl.ir.Width => firrtl.ir.Width): firrtl.ir.Expression = this
-  def tpe: firrtl.ir.Type = expr.tpe
+  def foreachExpr(f: Expression => Unit): Unit = f(expr)
+  def foreachType(f: Type => Unit): Unit = ()
+  def foreachWidth(f: Width => Unit): Unit = ()
+  def mapExpr(f: Expression => Expression): Expression = this.copy(expr = f(this.expr))
+  def mapType(f: Type => Type): Expression = this
+  def mapWidth(f: Width => Width): Expression = this
+  def tpe: Type = expr.tpe
 
   // Members declared in firrtl.ir.FirrtlNode
   def serialize: String = s"(${expr.serialize}: ${info.serialize})"
