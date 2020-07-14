@@ -17,6 +17,5 @@ docker run -it --net=host \
   yosys -V
   chmod 777 .run_chisel_tests.sh
   chmod 777 .run_formal_checks.sh
-  sbt ++$TRAVIS_SCALA_VERSION \"unidoc;\"
-  ./.run_chisel_tests.sh
-  ./.run_formal_checks.sh Ops"
+  sbt ++$TRAVIS_SCALA_VERSION \"unidoc;test\"
+  "
