@@ -5,6 +5,8 @@ import firrtl.passes.CheckWidths
 import firrtl.{Namespace, PrimOps, Utils}
 
 
+/** A generator that generates expressions of a certain type for a given IR type
+  */
 trait ExprGen[E <: Expression] { self =>
   type Width = BigInt
 
@@ -18,8 +20,8 @@ trait ExprGen[E <: Expression] { self =>
 
   /** Takes a width and returns a [[StateGen]] that produces a UInt [[Expression]] with the given width
     *
-    * The input width will be greater than 1 and less than the maximum width
-    * allowed specified by the input state
+    * The input width will be greater than 1 and less than or equal to the
+    * maximum width allowed specified by the input state
     */
   def uintGen[S: ExprState, G[_]: GenMonad]: Option[Width => StateGen[S, G, E]]
 
@@ -29,8 +31,8 @@ trait ExprGen[E <: Expression] { self =>
 
   /** Takes a width and returns a [[StateGen]] that produces a SInt [[Expression]] with the given width
     *
-    * The input width will be greater than 1 and less than the maximum width
-    * allowed by the input state
+    * The input width will be greater than 1 and less than or equal to the
+    * maximum width allowed by the input state
     */
   def sintGen[S: ExprState, G[_]: GenMonad]: Option[Width => StateGen[S, G, E]]
 
@@ -709,75 +711,6 @@ object ExprGen {
     def boolSIntGen[S: ExprState, G[_]: GenMonad]: Option[StateGen[S, G, Mux]] = sintGen.map(_(1))
     def sintGen[S: ExprState, G[_]: GenMonad]: Option[Width => StateGen[S, G, Mux]] = {
       Some { imp(isUInt = false) }
-    }
-  }
-
-  def combineExprGens[S: ExprState, G[_]: GenMonad](
-    exprGenerators: Seq[(Int, ExprGen[_ <: Expression])]
-  )(tpe: Type): StateGen[S, G, Option[Expression]] = {
-    val boolUIntStateGens = exprGenerators.flatMap {
-      case (freq, gen) => gen.boolUIntGen.map(freq -> _.widen[Expression])
-    }
-    val uintStateGenFns = exprGenerators.flatMap {
-      case (freq, gen) => gen.uintGen.map { fn =>
-        (width: Width) => freq -> fn(width).widen[Expression]
-      }
-    }
-    val boolSIntStateGens = exprGenerators.flatMap {
-      case (freq, gen) => gen.boolSIntGen.map(freq -> _.widen[Expression])
-    }
-    val sintStateGenFns = exprGenerators.flatMap {
-      case (freq, gen) => gen.sintGen.map { fn =>
-        (width: Width) => freq -> fn(width).widen[Expression]
-      }
-    }
-    val stateGens: Seq[(Int, StateGen[S, G, Expression])] = tpe match {
-      case Utils.BoolType => boolUIntStateGens
-      case UIntType(IntWidth(width)) => uintStateGenFns.map(_(width))
-      case SIntType(IntWidth(width)) if width.toInt == 1 => boolSIntStateGens
-      case SIntType(IntWidth(width)) => sintStateGenFns.map(_(width))
-    }
-    StateGen { (s: S) =>
-      if (stateGens.isEmpty) {
-        GenMonad[G].const(s -> None)
-      } else if (stateGens.size == 1) {
-        stateGens(0)._2.run(s).map { case (ss, expr) => ss -> Some(expr) }
-      } else {
-        GenMonad.frequency(stateGens: _*).flatMap { stateGen =>
-          stateGen.run(s).map { case (ss, expr) => ss -> Some(expr) }
-        }
-      }
-    }
-  }
-
-  def leafExprGen[S: ExprState, G[_]: GenMonad](tpe: Type): StateGen[S, G, Expression] = {
-    val exprGenerators = Seq(
-      LiteralGen,
-      ReferenceGen
-    ).map(_.withTrace)
-
-    val boolUIntStateGens = exprGenerators.flatMap(_.boolUIntGen.map(_.widen[Expression]))
-    val uintStateGenFns = exprGenerators.flatMap(_.uintGen.map { fn =>
-      (width: Width) => fn(width).widen[Expression]
-    })
-    val boolSIntStateGens = exprGenerators.flatMap(_.boolSIntGen.map(_.widen[Expression]))
-    val sintStateGenFns = exprGenerators.flatMap(_.sintGen.map { fn =>
-      (width: Width) => fn(width).widen[Expression]
-    })
-    val stateGens: Seq[StateGen[S, G, Expression]] = tpe match {
-      case Utils.BoolType => boolUIntStateGens
-      case UIntType(IntWidth(width)) => uintStateGenFns.map(_(width))
-      case SIntType(IntWidth(width)) if width.toInt == 1 => boolSIntStateGens
-      case SIntType(IntWidth(width)) => sintStateGenFns.map(_(width))
-    }
-    StateGen { (s: S) =>
-      if (stateGens.size == 1) {
-        stateGens(0).run(s)
-      } else {
-        GenMonad[G].oneOf(stateGens: _*).flatMap { stateGen =>
-          stateGen.run(s)
-        }
-      }
     }
   }
 }

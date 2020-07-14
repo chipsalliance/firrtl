@@ -81,7 +81,7 @@ class FirrtlSingleModuleGenerator extends Generator[Circuit](classOf[Circuit]) {
         1 -> DshlDoPrimGen,
         1 -> CvtDoPrimGen,
         1 -> NegDoPrimGen,
-        30 -> NotDoPrimGen,
+        1 -> NotDoPrimGen,
         1 -> AndDoPrimGen,
         1 -> OrDoPrimGen,
         1 -> XorDoPrimGen,
