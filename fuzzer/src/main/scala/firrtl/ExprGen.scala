@@ -159,7 +159,7 @@ object ExprGen {
       referenceGenImp(SIntType(IntWidth(width)))
     }
 
-    def referenceGenImp[S: ExprState, G[_]: GenMonad](tpe: Type): StateGen[S, G, Reference] = {
+    private def referenceGenImp[S: ExprState, G[_]: GenMonad](tpe: Type): StateGen[S, G, Reference] = {
       for {
         // don't bother randomizing name, because it usually does not help with coverage
         tryName <- StateGen.pure("ref")
@@ -182,7 +182,7 @@ object ExprGen {
       sintLiteralGenImp(width)
     }
 
-    def uintLiteralGenImp[S: ExprState, G[_]: GenMonad](width: Width): StateGen[S, G, Literal] = {
+    private def uintLiteralGenImp[S: ExprState, G[_]: GenMonad](width: Width): StateGen[S, G, Literal] = {
       val maxValue = if (width < BigInt(31)) {
         (1 << width.toInt) - 1
       } else {
@@ -195,7 +195,7 @@ object ExprGen {
       })
     }
 
-    def sintLiteralGenImp[S: ExprState, G[_]: GenMonad](width: Width): StateGen[S, G, Literal] = {
+    private def sintLiteralGenImp[S: ExprState, G[_]: GenMonad](width: Width): StateGen[S, G, Literal] = {
       StateGen.liftG(
         if (width <= BigInt(32)) {
           GenMonad[G].choose(-(1 << (width.toInt - 1)), (1 << (width.toInt - 1)) - 1).map { value =>
