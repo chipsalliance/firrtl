@@ -85,8 +85,6 @@ sourceDirectory in ProtobufConfig := baseDirectory.value / "src" / "main" / "pro
 protobufRunProtoc in ProtobufConfig := (args =>
   com.github.os72.protocjar.Protoc.runProtoc("-v351" +: args.toArray))
 
-javaSource in ProtobufConfig := (sourceManaged in Compile).value
-
 // Assembly
 
 assemblyJarName in assembly := "firrtl.jar"
