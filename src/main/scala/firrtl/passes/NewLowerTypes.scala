@@ -136,51 +136,141 @@ private class LoweringTable(global: GlobalLoweringTable, lowerVecs: Boolean) ext
 
 private case class TypeDestruction()
 
+private object TypeOps {
+
+
+}
+
+
+
 /** Calculate new type layouts and names.
   */
 private class DestructTypes(opts: LowerTypesOptions) {
   type Namespace = mutable.HashSet[String]
-  def apply(ref: Reference)(implicit namespace: Namespace, renames: RenameMap): Seq[ExpressionWithFlow] =
-    ref.tpe match {
-      case BundleType(fields) =>
-        // we rename bottom-up
-        val localNamespace = new Namespace() ++ fields.map(_.name)
 
 
+  /** Takes an "access" expression consisting of Reference, SubField, SubIndex, SubAccess expressions
+    * and turns it into an access to the lowered type.
+    */
+  private def destructAccess(ref: ExpressionWithFlow): ExpressionWithFlow = ref match {
+    case r : Reference => r
+    case s: SubField =>
+      if(opts.lowerBundles) { /** TODO */ }
+      else { /** TODO */ }
+    case i: SubIndex =>
+
+  }
+
+
+  private def arrayOfStruct(ref: ExpressionWithFlow): ExpressionWithFlow = {
+    /** sort into bundle vs. vector expressions */
+    def rec(e: Expression): (Expression, Expression) = e match {
+      case r: Reference => (r, Reference(""))
+      case s: SubField => val r = rec(s.expr)  ; (s.copy(expr=r._1), r._1)
+      case i: SubIndex => val r = rec(i.expr)  ; (r._1, i.copy(expr=r._2))
+      case i: SubAccess => val r = rec(i.expr) ; (r._1, i.copy(expr=r._2))
     }
+    // prepend outer to inner
+    def prepend(e: Expression, prefix: Expression): Expression = prefix match {
+      case _: Reference => e
+      case i: SubIndex => i.copy(expr = prepend(e, i.expr))
+      case i: SubAccess => i.copy(expr = prepend(e, i.expr))
+    }
+    val (inner, outer) = rec(ref)
+    prepend(inner, outer).asInstanceOf[ExpressionWithFlow]
+  }
+  private def uniquifyNames(
+                             t: BundleType,
+                             namespace: collection.mutable.HashSet[String])
+                           (implicit sinfo: Info, mname: String): BundleType = {
+    def recUniquifyNames(t: Type, namespace: collection.mutable.HashSet[String]): (Type, Seq[String]) = t match {
+      case tx: BundleType =>
+        // First add everything
+        val newFieldsAndElts = tx.fields.map { f => f.tpe match {
+          case _: GroundType => (f, Seq[String](f.name))
+          case _ =>
+            val (tpe, eltsx) = recUniquifyNames(f.tpe, collection.mutable.HashSet())
+            // Need leading _ for findValidPrefix, it doesn't add _ for checks
+            val eltsNames: Seq[String] = eltsx map (e => "_" + e)
+            val prefix = findValidPrefix(f.name, eltsNames, namespace)
+            // We added f.name in previous map, delete if we change it
+            if (prefix != f.name) {
+              namespace -= f.name
+              namespace += prefix
+            }
+            val newElts: Seq[String] = eltsx map (e => LowerTypes.loweredName(prefix +: Seq(e)))
+            namespace ++= newElts
+            (Field(prefix, f.flip, tpe), prefix +: newElts)
+        }
+        }
+        val (newFields, elts) = newFieldsAndElts.unzip
+        (BundleType(newFields), elts.flatten)
+      case tx: VectorType =>
+        val (tpe, elts) = recUniquifyNames(tx.tpe, namespace)
+        val newElts = ((0 until tx.size) map (i => i.toString)) ++
+          ((0 until tx.size) flatMap { i =>
+            elts map (e => LowerTypes.loweredName(Seq(i.toString, e)))
+          })
+        (VectorType(tpe, tx.size), newElts)
+      case tx => (tx, Nil)
+    }
+    val (tpe, _) = recUniquifyNames(t, namespace)
+    tpe match {
+      case tx: BundleType => tx
+      case tx => throwInternalError(s"uniquifyNames: shouldn't be here - $tx")
+    }
+  }
 
 
 
-
-  private def destruct(ref: Field, namespace: Option[Namespace])(implicit rename: RenameMap): Seq[Field] = ref.tpe match {
+//  def apply(ref: Reference)(implicit namespace: Namespace, renames: RenameMap): Seq[ExpressionWithFlow] =
+//    ref.tpe match {
+//      case BundleType(fields) =>
+//        // we rename bottom-up
+//        val localNamespace = new Namespace() ++ fields.map(_.name)
+//
+//
+//    }
+//
+//
+//  private def destruct(ref: ExpressionWithFlow, namespace: Namespace)(implicit rename: RenameMap)
+//
+//
+  private def destruct(ref: Field, namespace: Namespace)(implicit rename: RenameMap): Seq[Field] =
+    ref.tpe match {
     case BundleType(fields) =>
       // we rename bottom-up
       val localNamespace = new Namespace() ++ fields.map(_.name)
-      val renamedFields = fields.flatMap(f => destruct(f, Some(localNamespace)))
+      val renamedFields = fields.flatMap(f => destruct(f, localNamespace)
 
       // Need leading _ for findValidPrefix, it doesn't add _ for checks
       val suffixNames: Seq[String] = renamedFields.map(f => LowerTypes.delim + f.name)
-      val prefix = namespace match {
-        case Some(n) => Uniquify.findValidPrefix(ref.name, suffixNames, n)
+      val prefix = Uniquify.findValidPrefix(ref.name, suffixNames, n)
+      // We added f.name in previous map, delete if we change it
+      if (prefix != ref.name) {
+        n -= ref.name
+        n += pref
+      }
         case None => ref.name
       }
 
-      // We added f.name in previous map, delete if we change it
-      if (prefix != ref.name) {
-        namespace -= ref.name
-        namespace += prefix
-      }
+
 
       renamedFields.map(f => Field(prefix + LowerTypes.delim + f.name, Utils.times(ref.flip, f.flip), f.tpe))
 
     case VectorType(tpe, size) =>
-      // vector fields cannot thus there is no need for a namespace
-      val renamedFields = (0 until size).flatMap(i => destruct(Field(i.toString, Default, tpe), None))
-      renamedFields.map(f => Field(prefix + LowerTypes.delim + f.name, Utils.times(ref.flip, f.flip), f.tpe))
-    case GroundType
+      // if Vecs are to be lowered, we can just treat them like a bundle
+      if(opts.lowerVecs) {
+        val fields = (0 until size).map(i => Field(i.toString, Default, tpe))
+        destruct(ref.copy(tpe = BundleType(fields)), namespace)
+      } else {
+
+      }
+
+    case _ : GroundType => Seq(ref)
 
   }
-
+//
 
 
 
