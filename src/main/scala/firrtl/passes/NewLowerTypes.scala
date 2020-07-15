@@ -193,6 +193,9 @@ private class DestructTypes(opts: LowerTypesOptions) {
 
   private case class RenameNode(name: String, children: Map[String, RenameNode])
 
+  /** Implements the core functionality of the old Uniquify pass: rename bundle fields and top-level references
+    * where necessary in order to avoid name clashes when lowering aggregate type with the `_` delimiter.
+    * We don't actually do the rename here but just calculate a rename tree. */
   private def uniquify(ref: Field, namespace: Namespace): (Option[RenameNode], Seq[String]) = ref.tpe match {
     case BundleType(fields) =>
       // we rename bottom-up
