@@ -147,6 +147,8 @@ private class DestructTypes(opts: LowerTypesOptions) {
     * - generates all ground type fields
     */
   def destruct(parent: ModuleTarget, ref: Field, namespace: Namespace, renameMap: RenameMap): Seq[Field] = {
+    // ensure that the field name is part of the namespace
+    namespace.add(ref.name)
     // field renames (uniquify) are computed bottom up
     val (rename, _) = uniquify(ref, namespace)
 
@@ -215,7 +217,7 @@ private class DestructTypes(opts: LowerTypesOptions) {
         Some(RenameNode(prefix, children))
       } else { None }
 
-      (rename, suffixes)
+      (rename, suffixes :+ prefix)
     case v : VectorType=>
       // if Vecs are to be lowered, we can just treat them like a bundle
       if(opts.lowerVecs) {
