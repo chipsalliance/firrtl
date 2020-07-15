@@ -4,20 +4,18 @@ import com.pholser.junit.quickcheck.From
 import com.pholser.junit.quickcheck.generator.{Generator, GenerationStatus}
 import com.pholser.junit.quickcheck.random.SourceOfRandomness
 
-import firrtl.{ChirrtlForm, CircuitState, LowFirrtlCompiler, Namespace}
+import firrtl.{ChirrtlForm, CircuitState, LowFirrtlCompiler}
 import firrtl.ir.Circuit
-import firrtl.stage.TransformManager
 
 import org.junit.Assert
-import org.junit.Assume
 import org.junit.runner.RunWith
 
-import java.io.{File, FileWriter, PrintWriter, StringWriter}
+import java.io.{PrintWriter, StringWriter}
 
 import edu.berkeley.cs.jqf.fuzz.Fuzz;
 import edu.berkeley.cs.jqf.fuzz.JQF;
 
-/** a GenMonad backed by [[SourceOfRandomness]]
+/** a GenMonad backed by [[com.pholser.junit.quickcheck.random.SourceOfRandomness SourceOfRandomness]]
   */
 trait SourceOfRandomnessGen[A] {
   def apply(): A

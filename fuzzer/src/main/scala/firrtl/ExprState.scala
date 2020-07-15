@@ -2,6 +2,8 @@ package firrtl.fuzzer
 
 import firrtl.ir.{Expression, Reference, Type}
 
+import scala.language.higherKinds
+
 /** A typeclass for types that represent the state of a random expression generator
   */
 trait ExprState[State] {
@@ -10,7 +12,7 @@ trait ExprState[State] {
     */
   def withRef[Gen[_]: GenMonad](ref: Reference): StateGen[State, Gen, Reference]
 
-  /** Creates a [[StateGen]] that returns an [[Expression]] with the specified type
+  /** Creates a [[StateGen]] that returns an [[firrtl.ir.Expression Expression]] with the specified type
     */
   def exprGen[Gen[_]: GenMonad](tpe: Type): StateGen[State, Gen, Expression]
 

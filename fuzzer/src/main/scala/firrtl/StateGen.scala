@@ -1,5 +1,7 @@
 package firrtl.fuzzer
 
+import scala.language.higherKinds
+
 /** Wraps a function that takes a function an produces a random state transition and value
   *
   * @tparam State the type of the initial and resulting state of this random computation

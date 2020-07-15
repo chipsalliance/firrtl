@@ -222,7 +222,6 @@ lazy val testClassAndMethodParser = {
 lazy val fuzzer = (project in file("fuzzer"))
   .dependsOn(firrtl)
   .settings(
-    addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.1"),
     libraryDependencies ++= Seq(
       "com.pholser" % "junit-quickcheck-core" % "0.8",
       "com.pholser" % "junit-quickcheck-generators" % "0.8",

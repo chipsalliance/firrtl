@@ -2,14 +2,12 @@ package firrtl.jqf
 
 import collection.JavaConverters._
 
-import java.io.{File, FileNotFoundException, IOException, PrintStream, PrintWriter}
+import java.io.{File, FileNotFoundException, IOException, PrintWriter}
 import java.net.MalformedURLException
 
-import edu.berkeley.cs.jqf.fuzz.junit.GuidedFuzzing;
-import edu.berkeley.cs.jqf.fuzz.repro.ReproGuidance;
-import edu.berkeley.cs.jqf.instrument.InstrumentingClassLoader;
-
-import org.junit.runner.Result;
+import edu.berkeley.cs.jqf.fuzz.junit.GuidedFuzzing
+import edu.berkeley.cs.jqf.fuzz.repro.ReproGuidance
+import edu.berkeley.cs.jqf.instrument.InstrumentingClassLoader
 
 case class JQFReproOptions(
   classpath: Seq[String] = null,

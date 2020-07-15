@@ -1,9 +1,9 @@
 package firrtl.fuzzer
 
 import firrtl.ir._
-import firrtl.passes.CheckWidths
-import firrtl.{Namespace, PrimOps, Utils}
+import firrtl.{PrimOps, Utils}
 
+import scala.language.higherKinds
 
 /** A generator that generates expressions of a certain type for a given IR type
   */
@@ -14,22 +14,22 @@ trait ExprGen[E <: Expression] { self =>
     */
   def name: String
 
-  /** A [[StateGen]] that produces a one width UInt [[Expression]]
+  /** A [[StateGen]] that produces a one width UInt [[firrtl.ir.Expression Expression]]
     */
   def boolUIntGen[S: ExprState, G[_]: GenMonad]: Option[StateGen[S, G, E]]
 
-  /** Takes a width and returns a [[StateGen]] that produces a UInt [[Expression]] with the given width
+  /** Takes a width and returns a [[StateGen]] that produces a UInt [[firrtl.ir.Expression Expression]] with the given width
     *
     * The input width will be greater than 1 and less than or equal to the
     * maximum width allowed specified by the input state
     */
   def uintGen[S: ExprState, G[_]: GenMonad]: Option[Width => StateGen[S, G, E]]
 
-  /** A [[StateGen]] that produces a one width SInt [[Expression]]
+  /** A [[StateGen]] that produces a one width SInt [[firrtl.ir.Expression Expression]]
     */
   def boolSIntGen[S: ExprState, G[_]: GenMonad]: Option[StateGen[S, G, E]]
 
-  /** Takes a width and returns a [[StateGen]] that produces a SInt [[Expression]] with the given width
+  /** Takes a width and returns a [[StateGen]] that produces a SInt [[firrtl.ir.Expression Expression]] with the given width
     *
     * The input width will be greater than 1 and less than or equal to the
     * maximum width allowed by the input state
@@ -91,7 +91,7 @@ trait ExprGen[E <: Expression] { self =>
   }
 }
 
-/** An Expression Generator that generates [[DoPrim]]s of the given operator
+/** An Expression Generator that generates [[firrtl.ir.DoPrim DoPrim]]s of the given operator
   */
 abstract class DoPrimGen(val primOp: PrimOp) extends ExprGen[DoPrim] {
   def name = primOp.serialize
@@ -121,7 +121,8 @@ object ExprGen {
     primOp: PrimOp,
     typeGen: Int => G[(Type, Type, Type)]): StateGen[S, G, DoPrim] = {
     for {
-      (tpe1, tpe2, exprTpe) <- StateGen.inspectG((s: S) => typeGen(ExprState[S].maxWidth(s)))
+      t <- StateGen.inspectG((s: S) => typeGen(ExprState[S].maxWidth(s)))
+      (tpe1, tpe2, exprTpe) = t
       expr1 <- ExprState[S].exprGen(tpe1)
       expr2 <- ExprState[S].exprGen(tpe2)
     } yield {
@@ -133,7 +134,8 @@ object ExprGen {
     primOp: PrimOp,
     typeGen: Int => G[(Type, Type)]): StateGen[S, G, DoPrim] = {
     for {
-      (tpe1, exprTpe) <- StateGen.inspectG((s: S) => typeGen(ExprState[S].maxWidth(s)))
+      p <- StateGen.inspectG((s: S) => typeGen(ExprState[S].maxWidth(s)))
+      (tpe1, exprTpe) = p
       expr1 <- ExprState[S].exprGen(tpe1)
     } yield {
       DoPrim(primOp, Seq(expr1), Seq.empty, exprTpe)

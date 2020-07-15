@@ -1,6 +1,6 @@
 package firrtl.jqf
 
-import java.io.{File, FileNotFoundException, IOException, PrintStream}
+import java.io.{File, FileNotFoundException, IOException}
 import java.net.{MalformedURLException, URLClassLoader}
 import java.time.Duration
 import java.time.format.DateTimeParseException

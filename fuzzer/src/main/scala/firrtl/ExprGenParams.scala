@@ -3,7 +3,9 @@ package firrtl.fuzzer
 import firrtl.{Namespace, Utils}
 import firrtl.ir._
 
-/** A set of parameters for randomly generating [[Expression]]s
+import scala.language.higherKinds
+
+/** A set of parameters for randomly generating [[firrtl.ir.Expression Expression]]s
   */
 sealed trait ExprGenParams {
 
@@ -29,7 +31,7 @@ sealed trait ExprGenParams {
     */
   protected def unboundRefs: Set[Reference]
 
-  /** The namespace to use for generating new [[References]]
+  /** The namespace to use for generating new [[firrtl.ir.Reference Reference]]s
     */
   protected def namespace: Namespace
 

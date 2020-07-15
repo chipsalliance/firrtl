@@ -1,8 +1,6 @@
 package firrtl.fuzzer
 
 import com.pholser.junit.quickcheck.From
-import com.pholser.junit.quickcheck.generator.Generator
-import com.pholser.junit.quickcheck.random.SourceOfRandomness
 
 import edu.berkeley.cs.jqf.fuzz.Fuzz;
 import edu.berkeley.cs.jqf.fuzz.JQF;
@@ -11,7 +9,7 @@ import firrtl._
 import firrtl.annotations.{Annotation, CircuitTarget, ModuleTarget, Target}
 import firrtl.ir.Circuit
 import firrtl.stage.{FirrtlCircuitAnnotation, InfoModeAnnotation, OutputFileAnnotation, TransformManager}
-import firrtl.stage.Forms.{BackendEmitters, VerilogMinimumOptimized, VerilogOptimized}
+import firrtl.stage.Forms.{VerilogMinimumOptimized, VerilogOptimized}
 import firrtl.stage.phases.WriteEmitted
 import firrtl.transforms.ManipulateNames
 import firrtl.util.BackendCompilationUtilities

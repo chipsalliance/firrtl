@@ -1,5 +1,7 @@
 package firrtl.fuzzer
 
+import scala.language.higherKinds
+
 /** Monads that represent a random value generator
   */
 trait GenMonad[Gen[_]] {
