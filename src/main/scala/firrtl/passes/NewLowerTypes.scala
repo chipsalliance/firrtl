@@ -2,14 +2,13 @@
 
 package firrtl.passes
 
+import firrtl.annotations.{IsMember, ModuleName, ModuleTarget, ReferenceTarget}
 import firrtl.{DuplexFlow, GlobalSymbolTable, Kind, RenameMap, SinkFlow, SourceFlow, StandardSymbolTable, SymbolTable, Utils}
 import firrtl.ir._
+
 import scala.collection.mutable
 
-case class LowerTypesOptions(lowerBundles: Boolean, lowerVecs: Boolean, onlyUniquify: Boolean) {
-  assert(lowerBundles && lowerVecs, "for now we can only lower bundles and vecs together!")
-  assert(!onlyUniquify, "only uniquify is not supported at the moment!")
-}
+case class LowerTypesOptions(lowerBundles: Boolean, lowerVecs: Boolean, onlyUniquify: Boolean)
 object LowerTypesOptions {
   val Default = LowerTypesOptions(lowerBundles = true, lowerVecs = true, onlyUniquify = false)
 }
@@ -133,23 +132,61 @@ private class LoweringTable(global: GlobalLoweringTable, lowerVecs: Boolean) ext
   def getDataTypes(name: String): List[Type] = ???
 }
 
+//scalastyle:off
 
 /** Calculate new type layouts and names.
   */
 private class DestructTypes(opts: LowerTypesOptions) {
+  assert(opts.lowerBundles && opts.lowerVecs, "for now we can only lower bundles and vecs together!")
+  assert(!opts.onlyUniquify, "only uniquify is not supported at the moment!")
   type Namespace = mutable.HashSet[String]
-
 
   /** Does the following with a reference:
     * - rename reference and any bundle fields to avoid name collisions after destruction
     * - updates rename map with new targets
     * - generates all ground type fields
     */
-  def destruct(ref: Field, namespace: Namespace, rename: RenameMap): Unit = {
+  def destruct(parent: ModuleTarget, ref: Field, namespace: Namespace, renameMap: RenameMap): Seq[Field] = {
     // field renames (uniquify) are computed bottom up
     val (rename, _) = uniquify(ref, namespace)
 
     // the reference renames are computed top down since they do need the full path
+    destruct(parent, ref, rename)(renameMap)
+  }
+
+  private def destruct(m: ModuleTarget, field: Field, rename: Option[RenameNode])
+                      (implicit renameMap: RenameMap): Seq[Field] =
+    destruct(m, prefix = "", parentRenamed = false, oldParent = None, oldField = field,
+      isVecField = false, rename = rename)
+
+  private def destruct(m: ModuleTarget, prefix: String, parentRenamed: Boolean,
+                       oldParent: Option[ReferenceTarget], oldField: Field,
+                       isVecField: Boolean, rename: Option[RenameNode])
+                      (implicit renameMap: RenameMap): Seq[Field] = {
+    val newName = rename.map(_.name).getOrElse(oldField.name)
+    val isRenamed = parentRenamed || newName != oldField.name
+    val newPrefix = prefix + newName + LowerTypes.delim
+    val oldRef = oldParent match {
+      case Some(p) => if(isVecField) { p.index(oldField.name.toInt) } else { p.field(oldField.name) }
+      case None => m.ref(oldField.name)
+    }
+    val ref = m.ref(prefix + newName)
+
+    if(isRenamed) { renameMap.record(oldRef, ref) }
+
+    oldField.tpe match {
+      case _ : GroundType =>
+        if(prefix == "" && !isRenamed) { List(oldField) }
+        else { List(oldField.copy(name = prefix + newName)) }
+      case BundleType(fields) =>
+        fields.map(f => f.copy(flip = Utils.times(f.flip, oldField.flip))).flatMap { f =>
+          destruct(m, newPrefix, isRenamed, Some(oldRef), f, false, rename.flatMap(_.children.get(f.name)))
+        }
+      case v : VectorType =>
+        vecToBundle(v).fields.map(_.copy(flip = oldField.flip)).flatMap { f =>
+          destruct(m, newPrefix, isRenamed, Some(oldRef), f, true, rename.flatMap(_.children.get(f.name)))
+        }
+    }
   }
 
   private case class RenameNode(name: String, children: Map[String, RenameNode])
@@ -179,14 +216,17 @@ private class DestructTypes(opts: LowerTypesOptions) {
       } else { None }
 
       (rename, suffixes)
-    case VectorType(tpe, size) =>
+    case v : VectorType=>
       // if Vecs are to be lowered, we can just treat them like a bundle
       if(opts.lowerVecs) {
-        val fields = (0 until size).map(i => Field(i.toString, Default, tpe))
-        uniquify(ref.copy(tpe = BundleType(fields)), namespace)
+        uniquify(ref.copy(tpe = vecToBundle(v)), namespace)
       } else {
         throw new NotImplementedError("TODO")
       }
     case _ : GroundType => (None, List(ref.name))
+  }
+
+  private def vecToBundle(v: VectorType): BundleType = {
+    BundleType(( 0 until v.size).map(i => Field(i.toString, Default, v.tpe)))
   }
 }

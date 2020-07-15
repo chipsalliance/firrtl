@@ -1,6 +1,7 @@
 // See LICENSE for license details.
 
 package firrtl.passes
+import firrtl.annotations.CircuitTarget
 import firrtl.{CircuitState, RenameMap}
 import firrtl.options.Dependency
 import firrtl.stage.TransformManager
@@ -42,10 +43,11 @@ class NewLowerTypesSpec extends LowerTypesBaseSpec {
   }
   override protected def lower(n: String, tpe: String, namespace: Set[String])
                               (implicit opts: LowerTypesOptions): Seq[String] = {
-    val ref = firrtl.ir.Reference(n, tpe=parseType(tpe))
+    val ref = firrtl.ir.Field(n, firrtl.ir.Default, parseType(tpe))
     val renames = RenameMap()
     val mutableSet = scala.collection.mutable.HashSet[String]() ++ namespace
-    new DestructTypes(opts)(ref)(mutableSet, renames).map(r => s"${r.name}: ${r.tpe.serialize}")
+    val parent = CircuitTarget("c").module("c")
+    new DestructTypes(opts).destruct(parent, ref, mutableSet, renames).map(r => s"${r.name} : ${r.tpe.serialize}")
   }
 }
 
@@ -101,7 +103,7 @@ abstract class LowerTypesBaseSpec extends AnyFlatSpec {
       Seq("a_a : UInt<1>", "a_b_0 : UInt<1>", "a_b_1 : UInt<1>", "a_b_c : UInt<1>"))
   }
 
-  it should "only uniquify bundles and vectors" in {
+  it should "only uniquify bundles and vectors" ignore {
     implicit val opts = LowerTypesOptions(lowerBundles = true, lowerVecs = true, onlyUniquify = true)
 
     assert(lower("a", "{ a : UInt<1>, b : UInt<1>}") == Seq("a : { a : UInt<1>, b : UInt<1>}"))
