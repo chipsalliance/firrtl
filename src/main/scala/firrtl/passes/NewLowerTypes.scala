@@ -158,15 +158,14 @@ private class DestructTypes(opts: LowerTypesOptions) {
 
   private def destruct(m: ModuleTarget, field: Field, rename: Option[RenameNode])
                       (implicit renameMap: RenameMap): Seq[Field] =
-    destruct(m, prefix = "", parentRenamed = false, oldParent = None, oldField = field,
-      isVecField = false, rename = rename)
+    destruct(m, prefix = "", oldParent = None, oldField = field, isVecField = false, rename = rename)
 
-  private def destruct(m: ModuleTarget, prefix: String, parentRenamed: Boolean,
+  private def destruct(m: ModuleTarget, prefix: String,
                        oldParent: Option[ReferenceTarget], oldField: Field,
                        isVecField: Boolean, rename: Option[RenameNode])
                       (implicit renameMap: RenameMap): Seq[Field] = {
     val newName = rename.map(_.name).getOrElse(oldField.name)
-    val isRenamed = parentRenamed || newName != oldField.name
+    val isRenamed = prefix != "" || newName != oldField.name
     val newPrefix = prefix + newName + LowerTypes.delim
     val oldRef = oldParent match {
       case Some(p) => if(isVecField) { p.index(oldField.name.toInt) } else { p.field(oldField.name) }
@@ -178,15 +177,15 @@ private class DestructTypes(opts: LowerTypesOptions) {
 
     oldField.tpe match {
       case _ : GroundType =>
-        if(prefix == "" && !isRenamed) { List(oldField) }
-        else { List(oldField.copy(name = prefix + newName)) }
+        if(isRenamed) { List(oldField.copy(name = prefix + newName)) }
+        else { List(oldField) }
       case BundleType(fields) =>
         fields.map(f => f.copy(flip = Utils.times(f.flip, oldField.flip))).flatMap { f =>
-          destruct(m, newPrefix, isRenamed, Some(oldRef), f, false, rename.flatMap(_.children.get(f.name)))
+          destruct(m, newPrefix, Some(oldRef), f, false, rename.flatMap(_.children.get(f.name)))
         }
       case v : VectorType =>
         vecToBundle(v).fields.map(_.copy(flip = oldField.flip)).flatMap { f =>
-          destruct(m, newPrefix, isRenamed, Some(oldRef), f, true, rename.flatMap(_.children.get(f.name)))
+          destruct(m, newPrefix, Some(oldRef), f, true, rename.flatMap(_.children.get(f.name)))
         }
     }
   }
