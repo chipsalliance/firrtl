@@ -165,7 +165,6 @@ private class DestructTypes(opts: LowerTypesOptions) {
                        isVecField: Boolean, rename: Option[RenameNode])
                       (implicit renameMap: RenameMap): Seq[Field] = {
     val newName = rename.map(_.name).getOrElse(oldField.name)
-    val isRenamed = prefix != "" || newName != oldField.name
     val newPrefix = prefix + newName + LowerTypes.delim
     val oldRef = oldParent match {
       case Some(p) => if(isVecField) { p.index(oldField.name.toInt) } else { p.field(oldField.name) }
@@ -173,20 +172,26 @@ private class DestructTypes(opts: LowerTypesOptions) {
     }
     val ref = m.ref(prefix + newName)
 
-    if(isRenamed) { renameMap.record(oldRef, ref) }
-
     oldField.tpe match {
       case _ : GroundType =>
-        if(isRenamed) { List(oldField.copy(name = prefix + newName)) }
+        val isRenamed = prefix != "" || newName != oldField.name
+        if(isRenamed) {
+          renameMap.record(oldRef, ref)
+          List(oldField.copy(name = prefix + newName))
+        }
         else { List(oldField) }
-      case BundleType(fields) =>
-        fields.map(f => f.copy(flip = Utils.times(f.flip, oldField.flip))).flatMap { f =>
-          destruct(m, newPrefix, Some(oldRef), f, false, rename.flatMap(_.children.get(f.name)))
+      case _ : BundleType | _ : VectorType =>
+        val isVecField = oldField.tpe.isInstanceOf[VectorType]
+        val fields = oldField.tpe match {
+          case v : VectorType => vecToBundle(v).fields
+          case BundleType(fields) => fields
         }
-      case v : VectorType =>
-        vecToBundle(v).fields.map(_.copy(flip = oldField.flip)).flatMap { f =>
-          destruct(m, newPrefix, Some(oldRef), f, true, rename.flatMap(_.children.get(f.name)))
+        val children = fields.map(_.copy(flip = oldField.flip)).flatMap { f =>
+          destruct(m, newPrefix, Some(oldRef), f, isVecField, rename.flatMap(_.children.get(f.name)))
         }
+        val childRefs = children.map(c => m.ref(c.name))
+        renameMap.record(oldRef, childRefs)
+        children
     }
   }
 
