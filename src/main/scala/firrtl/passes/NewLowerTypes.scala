@@ -138,7 +138,6 @@ private class LoweringTable(global: GlobalLoweringTable, lowerVecs: Boolean) ext
   */
 private class DestructTypes(opts: LowerTypesOptions) {
   assert(opts.lowerBundles && opts.lowerVecs, "for now we can only lower bundles and vecs together!")
-  assert(!opts.onlyUniquify, "only uniquify is not supported at the moment!")
   type Namespace = mutable.HashSet[String]
 
   /** Does the following with a reference:
@@ -175,11 +174,8 @@ private class DestructTypes(opts: LowerTypesOptions) {
     oldField.tpe match {
       case _ : GroundType =>
         val isRenamed = prefix != "" || newName != oldField.name
-        if(isRenamed) {
-          renameMap.record(oldRef, ref)
-          List(oldField.copy(name = prefix + newName))
-        }
-        else { List(oldField) }
+        if(isRenamed) { renameMap.record(oldRef, ref) }
+        List(oldField.copy(name = prefix + newName))
       case _ : BundleType | _ : VectorType =>
         val isVecField = oldField.tpe.isInstanceOf[VectorType]
         val fields = oldField.tpe match {
