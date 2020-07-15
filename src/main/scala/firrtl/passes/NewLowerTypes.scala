@@ -6,20 +6,19 @@ import firrtl.{DuplexFlow, GlobalSymbolTable, Kind, RenameMap, SinkFlow, SourceF
 import firrtl.ir._
 import scala.collection.mutable
 
-case class LowerTypesOptions(lowerBundles: Boolean, lowerVecs: Boolean, onlyUniquify: Boolean)
+case class LowerTypesOptions(lowerBundles: Boolean, lowerVecs: Boolean, onlyUniquify: Boolean) {
+  assert(lowerBundles && lowerVecs, "for now we can only lower bundles and vecs together!")
+  assert(!onlyUniquify, "only uniquify is not supported at the moment!")
+}
 object LowerTypesOptions {
   val Default = LowerTypesOptions(lowerBundles = true, lowerVecs = true, onlyUniquify = false)
 }
 
 
 /** Flattens Bundles and Vecs.
-  * - If you want to lowerVecs, you need to remove all SubAccess nodes befre running this pass.
+  * - all SubAccess nodes need to be removed before running this pass.
   * - Combines the following legacy passes:
   *   - Uniquify, ExpandConnect, LowerTypes
-  * - If we are only trying to get rid of bundles, we convert vecs of bundles to bundles of vecs.
-  * - Only getting rid of vecs but not bundles just removes all dynamic accesses and turns a vec field into
-  *   multiple bundle fields.
-  * - We might also want to add an option to turn multi-dimensional vecs into 1D arrays.
   * - Some implicit bundle types remain, but with a limited depth:
   *   - the type of a memory is still a bundle with depth 2 (mem -> port -> field)
   *   - the type of a module instance is still a bundle with depth 1 (instance -> port)
@@ -134,14 +133,6 @@ private class LoweringTable(global: GlobalLoweringTable, lowerVecs: Boolean) ext
   def getDataTypes(name: String): List[Type] = ???
 }
 
-private case class TypeDestruction()
-
-private object TypeOps {
-
-
-}
-
-
 
 /** Calculate new type layouts and names.
   */
@@ -149,213 +140,53 @@ private class DestructTypes(opts: LowerTypesOptions) {
   type Namespace = mutable.HashSet[String]
 
 
-  /** Takes an "access" expression consisting of Reference, SubField, SubIndex, SubAccess expressions
-    * and turns it into an access to the lowered type.
+  /** Does the following with a reference:
+    * - rename reference and any bundle fields to avoid name collisions after destruction
+    * - updates rename map with new targets
+    * - generates all ground type fields
     */
-  private def destructAccess(ref: ExpressionWithFlow): ExpressionWithFlow = ref match {
-    case r : Reference => r
-    case s: SubField =>
-      if(opts.lowerBundles) { /** TODO */ }
-      else { /** TODO */ }
-    case i: SubIndex =>
+  def destruct(ref: Field, namespace: Namespace, rename: RenameMap): Unit = {
+    // field renames (uniquify) are computed bottom up
+    val (rename, _) = uniquify(ref, namespace)
 
+    // the reference renames are computed top down since they do need the full path
   }
 
+  private case class RenameNode(name: String, children: Map[String, RenameNode])
 
-  private def arrayOfStruct(ref: ExpressionWithFlow): ExpressionWithFlow = {
-    /** sort into bundle vs. vector expressions */
-    def rec(e: Expression): (Expression, Expression) = e match {
-      case r: Reference => (r, Reference(""))
-      case s: SubField => val r = rec(s.expr)  ; (s.copy(expr=r._1), r._1)
-      case i: SubIndex => val r = rec(i.expr)  ; (r._1, i.copy(expr=r._2))
-      case i: SubAccess => val r = rec(i.expr) ; (r._1, i.copy(expr=r._2))
-    }
-    // prepend outer to inner
-    def prepend(e: Expression, prefix: Expression): Expression = prefix match {
-      case _: Reference => e
-      case i: SubIndex => i.copy(expr = prepend(e, i.expr))
-      case i: SubAccess => i.copy(expr = prepend(e, i.expr))
-    }
-    val (inner, outer) = rec(ref)
-    prepend(inner, outer).asInstanceOf[ExpressionWithFlow]
-  }
-  private def uniquifyNames(
-                             t: BundleType,
-                             namespace: collection.mutable.HashSet[String])
-                           (implicit sinfo: Info, mname: String): BundleType = {
-    def recUniquifyNames(t: Type, namespace: collection.mutable.HashSet[String]): (Type, Seq[String]) = t match {
-      case tx: BundleType =>
-        // First add everything
-        val newFieldsAndElts = tx.fields.map { f => f.tpe match {
-          case _: GroundType => (f, Seq[String](f.name))
-          case _ =>
-            val (tpe, eltsx) = recUniquifyNames(f.tpe, collection.mutable.HashSet())
-            // Need leading _ for findValidPrefix, it doesn't add _ for checks
-            val eltsNames: Seq[String] = eltsx map (e => "_" + e)
-            val prefix = findValidPrefix(f.name, eltsNames, namespace)
-            // We added f.name in previous map, delete if we change it
-            if (prefix != f.name) {
-              namespace -= f.name
-              namespace += prefix
-            }
-            val newElts: Seq[String] = eltsx map (e => LowerTypes.loweredName(prefix +: Seq(e)))
-            namespace ++= newElts
-            (Field(prefix, f.flip, tpe), prefix +: newElts)
-        }
-        }
-        val (newFields, elts) = newFieldsAndElts.unzip
-        (BundleType(newFields), elts.flatten)
-      case tx: VectorType =>
-        val (tpe, elts) = recUniquifyNames(tx.tpe, namespace)
-        val newElts = ((0 until tx.size) map (i => i.toString)) ++
-          ((0 until tx.size) flatMap { i =>
-            elts map (e => LowerTypes.loweredName(Seq(i.toString, e)))
-          })
-        (VectorType(tpe, tx.size), newElts)
-      case tx => (tx, Nil)
-    }
-    val (tpe, _) = recUniquifyNames(t, namespace)
-    tpe match {
-      case tx: BundleType => tx
-      case tx => throwInternalError(s"uniquifyNames: shouldn't be here - $tx")
-    }
-  }
-
-
-
-//  def apply(ref: Reference)(implicit namespace: Namespace, renames: RenameMap): Seq[ExpressionWithFlow] =
-//    ref.tpe match {
-//      case BundleType(fields) =>
-//        // we rename bottom-up
-//        val localNamespace = new Namespace() ++ fields.map(_.name)
-//
-//
-//    }
-//
-//
-//  private def destruct(ref: ExpressionWithFlow, namespace: Namespace)(implicit rename: RenameMap)
-//
-//
-  private def destruct(ref: Field, namespace: Namespace)(implicit rename: RenameMap): Seq[Field] =
-    ref.tpe match {
+  private def uniquify(ref: Field, namespace: Namespace): (Option[RenameNode], Seq[String]) = ref.tpe match {
     case BundleType(fields) =>
       // we rename bottom-up
       val localNamespace = new Namespace() ++ fields.map(_.name)
-      val renamedFields = fields.flatMap(f => destruct(f, localNamespace)
+      val renamedFields = fields.map(f => uniquify(f, localNamespace))
 
       // Need leading _ for findValidPrefix, it doesn't add _ for checks
-      val suffixNames: Seq[String] = renamedFields.map(f => LowerTypes.delim + f.name)
-      val prefix = Uniquify.findValidPrefix(ref.name, suffixNames, n)
+      val renamedFieldNames = renamedFields.flatMap(_._2)
+      val suffixNames: Seq[String] = renamedFieldNames.map(f => LowerTypes.delim + f)
+      val prefix = Uniquify.findValidPrefix(ref.name, suffixNames, namespace)
       // We added f.name in previous map, delete if we change it
-      if (prefix != ref.name) {
-        n -= ref.name
-        n += pref
+      val renamed = prefix != ref.name
+      if (renamed) {
+        namespace -= ref.name
+        namespace += prefix
       }
-        case None => ref.name
-      }
+      val suffixes = renamedFieldNames.map(f => prefix + LowerTypes.delim + f)
 
+      val anyChildRenamed = renamedFields.exists(_._1.isDefined)
+      val rename = if(renamed || anyChildRenamed){
+        val children = renamedFields.map(_._1).zip(fields).collect{ case (Some(r), f) => f.name -> r }.toMap
+        Some(RenameNode(prefix, children))
+      } else { None }
 
-
-      renamedFields.map(f => Field(prefix + LowerTypes.delim + f.name, Utils.times(ref.flip, f.flip), f.tpe))
-
+      (rename, suffixes)
     case VectorType(tpe, size) =>
       // if Vecs are to be lowered, we can just treat them like a bundle
       if(opts.lowerVecs) {
         val fields = (0 until size).map(i => Field(i.toString, Default, tpe))
-        destruct(ref.copy(tpe = BundleType(fields)), namespace)
+        uniquify(ref.copy(tpe = BundleType(fields)), namespace)
       } else {
-
+        throw new NotImplementedError("TODO")
       }
-
-    case _ : GroundType => Seq(ref)
-
+    case _ : GroundType => (None, List(ref.name))
   }
-//
-
-
-
-//    ref.tpe match {
-//    case BundleType(fields) =>
-//      fields.foreach { f =>
-//        val name = ref.name + "." + f.name
-//        assert(!namespace.contains(name))
-//        namespace.add(name)
-//      }
-//      if(opts.lowerBundles) {
-//        fields.map(f => Reference(ref.name + "_" + f.name, f.tpe, ref.kind, Utils.times(ref.flow, f.flip))).flatMap(apply)
-//      } else {
-//        BundleType(fields.)
-//      }
-//
-//
-//
-//    case VectorType(tpe, size) =>
-//
-//  }
-//
-
-}
-
-
-object UniquifyNames {
-  type Namespace = mutable.HashSet[String]
-
-
-//  private def uniquify(tpe: Type)(implicit namespace: Namespace): (Type, Seq[String]) = tpe match {
-//    case BundleType(fields) =>
-//
-//  }
-
-//  def apply(tpe: Type, namespace: Namespace)
-//
-//
-//  def apply() = {
-//    // Accepts a Type and an initial namespace
-//    // Returns new Type with uniquified names
-//    private def uniquifyNames(
-//                               t: BundleType,
-//                               namespace: collection.mutable.HashSet[String])
-//                             (implicit sinfo: Info, mname: String): BundleType = {
-//      def recUniquifyNames(t: Type, namespace: collection.mutable.HashSet[String]): (Type, Seq[String]) = t match {
-//        case tx: BundleType =>
-//          // First add everything
-//          val newFieldsAndElts = tx.fields map { f =>
-//            val newName = findValidPrefix(f.name, Seq(""), namespace)
-//            namespace += newName
-//            Field(newName, f.flip, f.tpe)
-//          } map { f => f.tpe match {
-//            case _: GroundType => (f, Seq[String](f.name))
-//            case _ =>
-//              val (tpe, eltsx) = recUniquifyNames(f.tpe, collection.mutable.HashSet())
-//              // Need leading _ for findValidPrefix, it doesn't add _ for checks
-//              val eltsNames: Seq[String] = eltsx map (e => "_" + e)
-//              val prefix = findValidPrefix(f.name, eltsNames, namespace)
-//              // We added f.name in previous map, delete if we change it
-//              if (prefix != f.name) {
-//                namespace -= f.name
-//                namespace += prefix
-//              }
-//              val newElts: Seq[String] = eltsx map (e => LowerTypes.loweredName(prefix +: Seq(e)))
-//              namespace ++= newElts
-//              (Field(prefix, f.flip, tpe), prefix +: newElts)
-//          }
-//          }
-//          val (newFields, elts) = newFieldsAndElts.unzip
-//          (BundleType(newFields), elts.flatten)
-//        case tx: VectorType =>
-//          val (tpe, elts) = recUniquifyNames(tx.tpe, namespace)
-//          val newElts = ((0 until tx.size) map (i => i.toString)) ++
-//            ((0 until tx.size) flatMap { i =>
-//              elts map (e => LowerTypes.loweredName(Seq(i.toString, e)))
-//            })
-//          (VectorType(tpe, tx.size), newElts)
-//        case tx => (tx, Nil)
-//      }
-//      val (tpe, _) = recUniquifyNames(t, namespace)
-//      tpe match {
-//        case tx: BundleType => tx
-//        case tx => throwInternalError(s"uniquifyNames: shouldn't be here - $tx")
-//      }
-//    }
-//  }
 }
