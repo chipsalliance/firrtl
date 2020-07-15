@@ -6,7 +6,7 @@ package transforms
 import firrtl.ir._
 import firrtl.Mappers._
 import firrtl.traversals.Foreachers._
-import firrtl.analyses.FastInstanceGraph
+import firrtl.analyses.InstanceKeyGraph
 import firrtl.annotations._
 import firrtl.passes.{InferTypes, MemPortUtils}
 import firrtl.Utils.{kind, splitRef, throwInternalError}
@@ -157,7 +157,7 @@ class DedupModules extends Transform with DependencyAPIMigration {
     moduleRenameMap.recordAll(map)
 
     // Build instanceify renaming map
-    val instanceGraph = new FastInstanceGraph(c)
+    val instanceGraph = new InstanceKeyGraph(c)
     val instanceify = RenameMap()
     val moduleName2Index = c.modules.map(_.name).zipWithIndex.map { case (n, i) =>
       {
@@ -174,7 +174,7 @@ class DedupModules extends Transform with DependencyAPIMigration {
       val childrenMap = instanceGraph.getChildInstances
       val newModsMap = dedupMap.map {
         case (_, m: Module) =>
-          m.name -> FastInstanceGraph.collectInstances(m)
+          m.name -> InstanceKeyGraph.collectInstances(m)
         case (_, m: DefModule) =>
           m.name -> List()
       }.toMap
@@ -198,7 +198,7 @@ class DedupModules extends Transform with DependencyAPIMigration {
           // If dedupedAnnos is exactly annos, contains is because dedupedAnnos is type Option
           val newTargets = paths.map { path =>
             val root: IsModule = ct.module(c)
-            path.foldLeft(root -> root) { case ((oldRelPath, newRelPath), FastInstanceGraph.Key(name, mod)) =>
+            path.foldLeft(root -> root) { case ((oldRelPath, newRelPath), InstanceKeyGraph.InstanceKey(name, mod)) =>
               if(mod == c) {
                 val mod = CircuitTarget(c).module(c)
                 mod -> mod
@@ -332,7 +332,7 @@ object DedupModules extends LazyLogging {
     if (module.isInstanceOf[ExtModule]) return module
 
     // Get all instances to know what to rename in the module s
-    val instances = FastInstanceGraph.collectInstances(module)
+    val instances = InstanceKeyGraph.collectInstances(module)
     val instanceModuleMap = instances.map(i => i.name -> i.module).toMap
 
     def getNewModule(old: String): DefModule = {
@@ -467,7 +467,7 @@ object DedupModules extends LazyLogging {
                   renameMap: RenameMap): Map[String, DefModule] = {
 
     val (moduleMap, moduleLinearization) = {
-      val iGraph = new FastInstanceGraph(circuit)
+      val iGraph = new InstanceKeyGraph(circuit)
       (iGraph.moduleMap, iGraph.moduleOrder.reverse)
     }
     val main = circuit.main
