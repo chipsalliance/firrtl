@@ -16,14 +16,15 @@ class LowerTypesSpec extends LowerTypesBaseSpec {
       s"""circuit c:
          |  module c:
          |$inputs
-         |    input $n : $tpe
+         |    output $n : $tpe
+         |    $n is invalid
          |""".stripMargin
     val c = CircuitState(firrtl.Parser.parse(src), Seq())
     val c2 = if(onlyUniquify) { uniquifyCompiler.execute(c) }
     else { lowerTypesCompiler.execute(c) }
     val ps = c2.circuit.modules.head.ports.filterNot(p => namespace.contains(p.name))
     ps.map{p =>
-      val orientation = Utils.to_flip(Utils.swap(p.direction))
+      val orientation = Utils.to_flip(p.direction)
       s"${orientation.serialize}${p.name} : ${p.tpe.serialize}"}
   }
 
@@ -153,5 +154,16 @@ abstract class LowerTypesBaseSpec extends AnyFlatSpec {
       Seq("a : { a : UInt<1>, b_ : UInt<1>[2], b_0 : UInt<1>}"))
     assert(lower("a", "{ a : UInt<1>, b : UInt<1>[2], b_c : UInt<1>}") ==
       Seq("a : { a : UInt<1>, b : UInt<1>[2], b_c : UInt<1>}"))
+  }
+
+  it should "correctly lower the orientation" in {
+    implicit val opts = LowerTypesOptions(lowerBundles = true, lowerVecs = true, onlyUniquify = false)
+
+    assert(lower("a", "{ flip a : UInt<1>, b : UInt<1>}") == Seq("flip a_a : UInt<1>", "a_b : UInt<1>"))
+    assert(lower("a", "{ flip a : UInt<1>[2], b : UInt<1>}") ==
+      Seq("flip a_a_0 : UInt<1>", "flip a_a_1 : UInt<1>", "a_b : UInt<1>"))
+    assert(lower("a", "{ a : { flip c : UInt<1>, d : UInt<1>}[2], b : UInt<1>}") ==
+      Seq("flip a_a_0_c : UInt<1>", "a_a_0_d : UInt<1>", "flip a_a_1_c : UInt<1>", "a_a_1_d : UInt<1>", "a_b : UInt<1>")
+    )
   }
 }
