@@ -8,12 +8,6 @@ import firrtl.ir._
 
 import scala.collection.mutable
 
-case class LowerTypesOptions(lowerBundles: Boolean, lowerVecs: Boolean)
-object LowerTypesOptions {
-  val Default = LowerTypesOptions(lowerBundles = true, lowerVecs = true)
-}
-
-
 /** Flattens Bundles and Vecs.
   * - all SubAccess nodes need to be removed before running this pass.
   * - Combines the following legacy passes:
@@ -22,14 +16,14 @@ object LowerTypesOptions {
   *   - the type of a memory is still a bundle with depth 2 (mem -> port -> field)
   *   - the type of a module instance is still a bundle with depth 1 (instance -> port)
   */
-private class NewLowerTypes(c: Circuit, opt: LowerTypesOptions = LowerTypesOptions.Default) {
+private class NewLowerTypes(c: Circuit) {
   import NewLowerTypes._
   val renames = RenameMap()
   renames.setCircuit(c.main)
   private val global = GlobalSymbolTable.scanModuleTypes(c, new GlobalLoweringTable(renames))
 
   def onModule(m: Module): Module = {
-    val symbols = SymbolTable.scanModule(new LoweringTable(global, lowerVecs = opt.lowerVecs), m)
+    val symbols = SymbolTable.scanModule(new LoweringTable(global), m)
 
     // TODO
     m
@@ -117,7 +111,7 @@ private class GlobalLoweringTable(val renames: RenameMap) extends GlobalSymbolTa
   override def moduleType(name: String): Option[BundleType] = ???
 }
 
-private class LoweringTable(global: GlobalLoweringTable, lowerVecs: Boolean) extends StandardSymbolTable(global) {
+private class LoweringTable(global: GlobalLoweringTable, lowerVecs: Boolean = true) extends StandardSymbolTable(global) {
   // TODO: compute flow from declaration similar to how it is done in ExpandConnects
   def getReferences(name: String): List[Reference] = ???
 
@@ -136,8 +130,7 @@ private class LoweringTable(global: GlobalLoweringTable, lowerVecs: Boolean) ext
 
 /** Calculate new type layouts and names.
   */
-private class DestructTypes(opts: LowerTypesOptions) {
-  assert(opts.lowerBundles && opts.lowerVecs, "for now we can only lower bundles and vecs together!")
+private object DestructTypes {
   type Namespace = mutable.HashSet[String]
 
   /** Does the following with a reference:
@@ -224,11 +217,7 @@ private class DestructTypes(opts: LowerTypesOptions) {
       (rename, suffixes :+ prefix)
     case v : VectorType=>
       // if Vecs are to be lowered, we can just treat them like a bundle
-      if(opts.lowerVecs) {
-        uniquify(ref.copy(tpe = vecToBundle(v)), namespace)
-      } else {
-        throw new NotImplementedError("TODO")
-      }
+      uniquify(ref.copy(tpe = vecToBundle(v)), namespace)
     case _ : GroundType => (None, List(ref.name))
   }
 

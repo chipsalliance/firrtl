@@ -26,8 +26,7 @@ class LowerTypesSpec extends LowerTypesBaseSpec {
       s"${orientation.serialize}${p.name} : ${p.tpe.serialize}"}
   }
 
-  override protected def lower(n: String, tpe: String, namespace: Set[String])
-                   (implicit opts: LowerTypesOptions): Seq[String] =
+  override protected def lower(n: String, tpe: String, namespace: Set[String]): Seq[String] =
     legacyLower(n, tpe, namespace)
 }
 
@@ -42,25 +41,21 @@ class NewLowerTypesSpec extends LowerTypesBaseSpec {
     val c = CircuitState(firrtl.Parser.parse(src), Seq())
     typedCompiler.execute(c).circuit.modules.head.ports.head.tpe
   }
-  override protected def lower(n: String, tpe: String, namespace: Set[String])
-                              (implicit opts: LowerTypesOptions): Seq[String] = {
+  override protected def lower(n: String, tpe: String, namespace: Set[String]): Seq[String] = {
     val ref = firrtl.ir.Field(n, firrtl.ir.Default, parseType(tpe))
     val renames = RenameMap()
     val mutableSet = scala.collection.mutable.HashSet[String]() ++ namespace
     val parent = CircuitTarget("c").module("c")
-    new DestructTypes(opts).destruct(parent, ref, mutableSet, renames)
+    DestructTypes.destruct(parent, ref, mutableSet, renames)
       .map(r => s"${r.flip.serialize}${r.name} : ${r.tpe.serialize}")
   }
 }
 
 
 abstract class LowerTypesBaseSpec extends AnyFlatSpec {
-  protected def lower(n: String, tpe: String, namespace: Set[String] = Set())
-                   (implicit opts: LowerTypesOptions): Seq[String]
+  protected def lower(n: String, tpe: String, namespace: Set[String] = Set()): Seq[String]
 
   it should "lower bundles and vectors" in {
-    implicit val opts = LowerTypesOptions(lowerBundles = true, lowerVecs = true)
-
     assert(lower("a", "{ a : UInt<1>, b : UInt<1>}") == Seq("a_a : UInt<1>", "a_b : UInt<1>"))
     assert(lower("a", "{ a : UInt<1>, b : { c : UInt<1>}}") == Seq("a_a : UInt<1>", "a_b_c : UInt<1>"))
     assert(lower("a", "{ a : UInt<1>, b : UInt<1>[2]}") == Seq("a_a : UInt<1>", "a_b_0 : UInt<1>", "a_b_1 : UInt<1>"))
@@ -106,8 +101,6 @@ abstract class LowerTypesBaseSpec extends AnyFlatSpec {
   }
 
   it should "correctly lower the orientation" in {
-    implicit val opts = LowerTypesOptions(lowerBundles = true, lowerVecs = true)
-
     assert(lower("a", "{ flip a : UInt<1>, b : UInt<1>}") == Seq("flip a_a : UInt<1>", "a_b : UInt<1>"))
     assert(lower("a", "{ flip a : UInt<1>[2], b : UInt<1>}") ==
       Seq("flip a_a_0 : UInt<1>", "flip a_a_1 : UInt<1>", "a_b : UInt<1>"))
