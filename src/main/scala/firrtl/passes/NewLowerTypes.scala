@@ -182,7 +182,8 @@ private class DestructTypes(opts: LowerTypesOptions) {
           case v : VectorType => vecToBundle(v).fields
           case BundleType(fields) => fields
         }
-        val children = fields.map(_.copy(flip = oldField.flip)).flatMap { f =>
+        val fieldsWithCorrectOrientation = fields.map(f => f.copy(flip = Utils.times(f.flip, oldField.flip)))
+        val children = fieldsWithCorrectOrientation.flatMap { f =>
           destruct(m, newPrefix, Some(oldRef), f, isVecField, rename.flatMap(_.children.get(f.name)))
         }
         val childRefs = children.map(c => m.ref(c.name))
