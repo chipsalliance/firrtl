@@ -265,7 +265,12 @@ class VerilogEmitter extends SeqTransform with Emitter {
       case (i: BigInt) => w write i.toString
       case (i: Info) => i match {
         case NoInfo => // Do nothing
-        case ix => w.write(s" //$ix")
+        case f: FileInfo =>
+          val escaped = FileInfo.escapedToVerilog(f.escaped)
+          w.write(s" // @[$escaped]")
+        case m: MultiInfo =>
+          val escaped = FileInfo.escapedToVerilog(m.flatten.map(_.escaped).mkString(" "))
+          w.write(s" // @[$escaped]")
       }
       case (s: Seq[Any]) =>
         s foreach (emit(_, top + 1))
@@ -459,7 +464,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
 
   def addFormalStatement(formals: mutable.Map[Expression, ArrayBuffer[Seq[Any]]],
                                  clk: Expression, en: Expression,
-                                 stmt: Seq[Any], info: Info): Unit = {
+                                 stmt: Seq[Any], info: Info, msg: StringLit): Unit = {
     throw EmitterException("Cannot emit verification statements in Verilog" +
       "(2001). Use the SystemVerilog emitter instead.")
   }
@@ -836,8 +841,8 @@ class VerilogEmitter extends SeqTransform with Emitter {
       lines += Seq("`endif // SYNTHESIS")
     }
 
-    def addFormal(clk: Expression, en: Expression, stmt: Seq[Any], info: Info) = {
-      addFormalStatement(formals, clk, en, stmt, info)
+    def addFormal(clk: Expression, en: Expression, stmt: Seq[Any], info: Info, msg: StringLit): Unit = {
+      addFormalStatement(formals, clk, en, stmt, info, msg)
     }
 
     def formalStatement(op: Formal.Value, cond: Expression): Seq[Any] = {
@@ -948,7 +953,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
         case sx: Print =>
           simulate(sx.clk, sx.en, printf(sx.string, sx.args), Some("PRINTF_COND"), sx.info)
         case sx: Verification =>
-          addFormal(sx.clk, sx.en, formalStatement(sx.op, sx.pred), sx.info)
+          addFormal(sx.clk, sx.en, formalStatement(sx.op, sx.pred), sx.info, sx.msg)
         // If we are emitting an Attach, it must not have been removable in VerilogPrep
         case sx: Attach =>
           // For Synthesis
@@ -1268,8 +1273,9 @@ class SystemVerilogEmitter extends VerilogEmitter {
 
   override def addFormalStatement(formals: mutable.Map[Expression, ArrayBuffer[Seq[Any]]],
                                   clk: Expression, en: Expression,
-                                  stmt: Seq[Any], info: Info): Unit = {
+                                  stmt: Seq[Any], info: Info, msg: StringLit): Unit = {
     val lines = formals.getOrElseUpdate(clk, ArrayBuffer[Seq[Any]]())
+    lines += Seq("// ", msg.serialize)
     lines += Seq("if (", en, ") begin")
     lines += Seq(tab, stmt, info)
     lines += Seq("end")

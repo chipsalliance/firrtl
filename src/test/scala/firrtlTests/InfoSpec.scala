@@ -239,4 +239,27 @@ class InfoSpec extends FirrtlFlatSpec with FirrtlMatchers {
     result should containLine (s"r <= io_in; //$Info4")
     result should containLine (s"r <= 8'h2; //$Info2")
   }
+
+  "FileInfo" should "be able to contain a escaped characters" in {
+    def input(info: String): String =
+      s"""circuit m: @[$info]
+        |  module m:
+        |    skip
+        |""".stripMargin
+    def parseInfo(info: String): FileInfo = {
+      firrtl.Parser.parse(input(info)).info.asInstanceOf[FileInfo]
+    }
+
+    parseInfo("test\\ntest").escaped should be ("test\\ntest")
+    parseInfo("test\\ntest").unescaped should be ("test\ntest")
+    parseInfo("test\\ttest").escaped should be ("test\\ttest")
+    parseInfo("test\\ttest").unescaped should be ("test\ttest")
+    parseInfo("test\\\\test").escaped should be ("test\\\\test")
+    parseInfo("test\\\\test").unescaped should be ("test\\test")
+    parseInfo("test\\]test").escaped should be ("test\\]test")
+    parseInfo("test\\]test").unescaped should be ("test]test")
+    parseInfo("test[\\][\\]test").escaped should be ("test[\\][\\]test")
+    parseInfo("test[\\][\\]test").unescaped should be ("test[][]test")
+  }
+
 }

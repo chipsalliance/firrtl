@@ -100,7 +100,7 @@ object ExpandWhens extends Pass {
                     defaults: Defaults,
                     p: Expression)
                     (s: Statement): Statement = s match {
-      // For each non-register declaration, update netlist with value WVoid for each female reference
+      // For each non-register declaration, update netlist with value WVoid for each sink reference
       // Return self, unchanged
       case stmt @ (_: DefNode | EmptyStmt) => stmt
       case w: DefWire =>
@@ -215,7 +215,7 @@ object ExpandWhens extends Pass {
   }
 
 
-  /** Returns all references to all Female leaf subcomponents of a reference */
+  /** Returns all references to all sink leaf subcomponents of a reference */
   private def getSinkRefs(n: String, t: Type, g: Flow): Seq[Expression] = {
     val exps = create_exps(WRef(n, t, ExpKind, g))
     exps.flatMap { case exp =>
