@@ -8,9 +8,8 @@ import firrtl.stage.TransformManager
 import org.scalatest.flatspec.AnyFlatSpec
 
 class LowerTypesSpec extends LowerTypesBaseSpec {
-  val uniquifyCompiler = new TransformManager(Seq(Dependency(Uniquify)))
-  val lowerTypesCompiler = new TransformManager(Seq(Dependency(LowerTypes)))
-  private def legacyLower(n: String, tpe: String, namespace: Set[String], onlyUniquify: Boolean): Seq[String] = {
+  private val lowerTypesCompiler = new TransformManager(Seq(Dependency(LowerTypes)))
+  private def legacyLower(n: String, tpe: String, namespace: Set[String]): Seq[String] = {
     val inputs = namespace.map(n => s"    input $n : UInt<1>").mkString("\n")
     val src =
       s"""circuit c:
@@ -20,8 +19,7 @@ class LowerTypesSpec extends LowerTypesBaseSpec {
          |    $n is invalid
          |""".stripMargin
     val c = CircuitState(firrtl.Parser.parse(src), Seq())
-    val c2 = if(onlyUniquify) { uniquifyCompiler.execute(c) }
-    else { lowerTypesCompiler.execute(c) }
+    val c2 =  lowerTypesCompiler.execute(c)
     val ps = c2.circuit.modules.head.ports.filterNot(p => namespace.contains(p.name))
     ps.map{p =>
       val orientation = Utils.to_flip(p.direction)
@@ -30,7 +28,7 @@ class LowerTypesSpec extends LowerTypesBaseSpec {
 
   override protected def lower(n: String, tpe: String, namespace: Set[String])
                    (implicit opts: LowerTypesOptions): Seq[String] =
-    legacyLower(n, tpe, namespace, opts.onlyUniquify)
+    legacyLower(n, tpe, namespace)
 }
 
 class NewLowerTypesSpec extends LowerTypesBaseSpec {
@@ -61,7 +59,7 @@ abstract class LowerTypesBaseSpec extends AnyFlatSpec {
                    (implicit opts: LowerTypesOptions): Seq[String]
 
   it should "lower bundles and vectors" in {
-    implicit val opts = LowerTypesOptions(lowerBundles = true, lowerVecs = true, onlyUniquify = false)
+    implicit val opts = LowerTypesOptions(lowerBundles = true, lowerVecs = true)
 
     assert(lower("a", "{ a : UInt<1>, b : UInt<1>}") == Seq("a_a : UInt<1>", "a_b : UInt<1>"))
     assert(lower("a", "{ a : UInt<1>, b : { c : UInt<1>}}") == Seq("a_a : UInt<1>", "a_b_c : UInt<1>"))
@@ -107,57 +105,8 @@ abstract class LowerTypesBaseSpec extends AnyFlatSpec {
       Seq("a_a : UInt<1>", "a_b_0 : UInt<1>", "a_b_1 : UInt<1>", "a_b_c : UInt<1>"))
   }
 
-  it should "only uniquify bundles and vectors" ignore {
-    implicit val opts = LowerTypesOptions(lowerBundles = true, lowerVecs = true, onlyUniquify = true)
-
-    assert(lower("a", "{ a : UInt<1>, b : UInt<1>}") == Seq("a : { a : UInt<1>, b : UInt<1>}"))
-    assert(lower("a", "{ a : UInt<1>, b : { c : UInt<1>}}") == Seq("a : { a : UInt<1>, b : { c : UInt<1>}}"))
-    assert(lower("a", "{ a : UInt<1>, b : UInt<1>[2]}") == Seq("a : { a : UInt<1>, b : UInt<1>[2]}"))
-    assert(lower("a", "{ a : UInt<1>, b : UInt<1>}[2]") == Seq("a : { a : UInt<1>, b : UInt<1>}[2]"))
-
-    // with conflicts
-    assert(lower("a", "{ a : UInt<1>, b : UInt<1>}", Set("a_a")) == Seq("a_ : { a : UInt<1>, b : UInt<1>}"))
-    assert(lower("a", "{ a : UInt<1>, b : UInt<1>}", Set("a_b")) == Seq("a_ : { a : UInt<1>, b : UInt<1>}"))
-    assert(lower("a", "{ a : UInt<1>, b : UInt<1>}", Set("a_c")) == Seq("a : { a : UInt<1>, b : UInt<1>}"))
-
-    assert(lower("a", "{ a : UInt<1>, b : { c : UInt<1>}}", Set("a_a")) ==
-      Seq("a_ : { a : UInt<1>, b : { c : UInt<1>}}"))
-    // in this case we do not have a "real" conflict, but it appears so initially and thus a is still changed to a_
-    assert(lower("a", "{ a: UInt<1>, b: { c : UInt<1>}}", Set("a_b")) ==
-      Seq("a_ : { a : UInt<1>, b : { c : UInt<1>}}"))
-    assert(lower("a", "{ a: UInt<1>, b: { c : UInt<1>}}", Set("a_b_c")) ==
-      Seq("a_ : { a : UInt<1>, b : { c : UInt<1>}}"))
-
-    assert(lower("a", "{ a : UInt<1>, b : UInt<1>[2]}", Set("a_a")) ==
-      Seq("a_ : { a : UInt<1>, b : UInt<1>[2]}"))
-    assert(lower("a", "{ a : UInt<1>, b : UInt<1>[2]}", Set("a_a", "a_b_0")) ==
-      Seq("a_ : { a : UInt<1>, b : UInt<1>[2]}"))
-    assert(lower("a", "{ a : UInt<1>, b : UInt<1>[2]}", Set("a_b_0")) ==
-      Seq("a_ : { a : UInt<1>, b : UInt<1>[2]}"))
-
-    assert(lower("a", "{ a : UInt<1>, b : UInt<1>}[2]", Set("a_0")) ==
-      Seq("a_ : { a : UInt<1>, b : UInt<1>}[2]"))
-    assert(lower("a", "{ a : UInt<1>, b : UInt<1>}[2]", Set("a_3")) ==
-      Seq("a : { a : UInt<1>, b : UInt<1>}[2]"))
-    assert(lower("a", "{ a : UInt<1>, b : UInt<1>}[2]", Set("a_0_a")) ==
-      Seq("a_ : { a : UInt<1>, b : UInt<1>}[2]"))
-    assert(lower("a", "{ a : UInt<1>, b : UInt<1>}[2]", Set("a_0_c")) ==
-      Seq("a : { a : UInt<1>, b : UInt<1>}[2]"))
-
-    // collisions inside the bundle
-    assert(lower("a", "{ a : UInt<1>, b : { c : UInt<1>}, b_c : UInt<1>}") ==
-      Seq("a : { a : UInt<1>, b_ : { c : UInt<1>}, b_c : UInt<1>}"))
-    assert(lower("a", "{ a : UInt<1>, b : { c : UInt<1>}, b_b : UInt<1>}") ==
-      Seq("a : { a : UInt<1>, b : { c : UInt<1>}, b_b : UInt<1>}"))
-
-    assert(lower("a", "{ a : UInt<1>, b : UInt<1>[2], b_0 : UInt<1>}") ==
-      Seq("a : { a : UInt<1>, b_ : UInt<1>[2], b_0 : UInt<1>}"))
-    assert(lower("a", "{ a : UInt<1>, b : UInt<1>[2], b_c : UInt<1>}") ==
-      Seq("a : { a : UInt<1>, b : UInt<1>[2], b_c : UInt<1>}"))
-  }
-
   it should "correctly lower the orientation" in {
-    implicit val opts = LowerTypesOptions(lowerBundles = true, lowerVecs = true, onlyUniquify = false)
+    implicit val opts = LowerTypesOptions(lowerBundles = true, lowerVecs = true)
 
     assert(lower("a", "{ flip a : UInt<1>, b : UInt<1>}") == Seq("flip a_a : UInt<1>", "a_b : UInt<1>"))
     assert(lower("a", "{ flip a : UInt<1>[2], b : UInt<1>}") ==

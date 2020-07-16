@@ -8,9 +8,9 @@ import firrtl.ir._
 
 import scala.collection.mutable
 
-case class LowerTypesOptions(lowerBundles: Boolean, lowerVecs: Boolean, onlyUniquify: Boolean)
+case class LowerTypesOptions(lowerBundles: Boolean, lowerVecs: Boolean)
 object LowerTypesOptions {
-  val Default = LowerTypesOptions(lowerBundles = true, lowerVecs = true, onlyUniquify = false)
+  val Default = LowerTypesOptions(lowerBundles = true, lowerVecs = true)
 }
 
 
