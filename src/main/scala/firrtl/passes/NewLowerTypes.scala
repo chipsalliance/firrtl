@@ -2,8 +2,10 @@
 
 package firrtl.passes
 
-import firrtl.annotations.{CircuitTarget, IsComponent, IsMember, ModuleName, ModuleTarget, ReferenceTarget}
-import firrtl.{CircuitForm, CircuitState, DuplexFlow, GlobalSymbolTable, Kind, RenameMap, SinkFlow, SourceFlow, StandardSymbolTable, SymbolTable, Transform, UnknownForm, Utils}
+import firrtl.annotations.{CircuitTarget, ModuleTarget, ReferenceTarget}
+import firrtl.{CircuitForm, CircuitState, DuplexFlow,
+  InstanceKind, Kind, MemKind, NodeKind, RegKind, RenameMap, SinkFlow, SourceFlow,
+  SymbolTable, Transform, UnknownForm, Utils, WireKind}
 import firrtl.ir._
 import firrtl.options.Dependency
 import firrtl.stage.TransformManager.TransformDependency
@@ -31,79 +33,74 @@ object NewLowerTypes extends Transform {
   override def optionalPrerequisiteOf: Seq[TransformDependency]  = Seq.empty
   override def invalidates(a: Transform): Boolean = false
 
+  private type LoweringInfo = Seq[(Field, Seq[String])]
+
   override def execute(state: CircuitState): CircuitState = {
     implicit val renameMap: RenameMap = RenameMap()
     renameMap.setCircuit(state.circuit.main)
 
-    // remember module types
-    implicit val global: GlobalSymbolTable = GlobalSymbolTable.scanModuleTypes(state.circuit)
+    // we first lower ports since the port lowering info will be needed at every DefInstance
+    val c = CircuitTarget(state.circuit.main)
+    val loweredPortsAndInfo = state.circuit.modules.map(lowerPorts(c, _))
+    implicit val moduleLoweringInfo: Map[String, LoweringInfo] =
+      loweredPortsAndInfo.map{ case (m, i) => m.name -> i }.toMap
 
     // TODO: we could get a potential speedup by only calculating the module ports/type lowering once per module
     //       instead of calculating it for every module and instance.
-    val result = state.circuit.mapModule(onModule)
+    val result = state.circuit.mapModule(onModule(c, _))
 
     state.copy(circuit = result, renames = Some(renameMap))
   }
 
-  def lowerPorts(c: CircuitTarget, m: Module)(implicit renameMap: RenameMap): Module = {
+  def lowerPorts(c: CircuitTarget, m: DefModule)(implicit renameMap: RenameMap): (DefModule, LoweringInfo) = {
     renameMap.setModule(m.name)
     val ref = c.module(m.name)
     val namespace = mutable.HashSet[String]() ++ m.ports.map(_.name)
+    // ports are like fields with an additional Info field
     val portsAndReferences = m.ports.flatMap { p => DestructTypes.destruct(ref, p, namespace, renameMap) }
-    // TODO: save reference -> port lookup in global table
-    m.copy(ports =  portsAndReferences.map(_._1))
+    val mWithRenamedPorts = m match {
+      case x: Module => x.copy(ports = portsAndReferences.map(_._1))
+      case x: ExtModule => x.copy(ports = portsAndReferences.map(_._1))
+    }
+    val loweringInfo = portsAndReferences.map{ case (p, r) => Field(p.name, Utils.to_flip(p.direction), p.tpe) -> r }
+    (mWithRenamedPorts, loweringInfo)
   }
 
-  def onModule(m: DefModule)(implicit renameMap: RenameMap, global: GlobalSymbolTable): DefModule = {
-    val symbols = SymbolTable.scanModule(new LoweringTable(global), m)
-
-    // TODO
-    m
-  }
-
-  // very similar to Utils.create_exps
-  def onExpression(e: Expression)(implicit symbols: LoweringTable): Seq[Expression] = e match {
-    case Mux(cond, tval, fval, _) =>
-      val loweredCond = onExpressionOne(cond)
-      onExpression(tval).zip(onExpression(fval)).map { case(t, f) =>
-        Mux(loweredCond, t, f, Utils.mux_type_and_widths(t, f))
-      }
-    case ValidIf(cond, value, _) =>
-      val loweredCond = onExpressionOne(cond)
-      onExpression(value).map(v => ValidIf(loweredCond, v, v.tpe))
-    case r : ExpressionWithFlow => symbols.getReferences(r, lhs = false)
-    case other => assert(other.tpe.isInstanceOf[GroundType]) ; List(other)
-  }
-
-  /** ensures that the result is a single expression */
-  def onExpressionOne(e: Expression)(implicit symbols: LoweringTable): Expression = {
-    val es = onExpression(e)
-    assert(es.length == 1)
-    es.head
+  def onModule(c: CircuitTarget, m: DefModule)
+              (implicit renameMap: RenameMap, moduleLoweringInfo: Map[String, LoweringInfo]): DefModule = m match {
+    case x: ExtModule => x
+    case mod: Module =>
+      renameMap.setModule(mod.name)
+      val ref = c.module(mod.name)
+      // scan modules to find all references
+      val scan = SymbolTable.scanModule(new LoweringSymbolTable, mod)
+      // replace all declarations and references with the destructed types
+      implicit val symbols: DestructTable = new DestructTable(scan, moduleLoweringInfo, renameMap, ref)
+      mod.copy(body = Block(onStatement(mod.body)))
   }
 
   //scalastyle:off cyclomatic.complexity
-  def onStatement(s: Statement)(implicit symbols: LoweringTable): Seq[Statement] = s match {
+  def onStatement(s: Statement)(implicit symbols: DestructTable): Seq[Statement] = s match {
     // declarations
     case DefWire(info, name, _) =>
-      symbols.getReferences(name).map(r => DefWire(info, r.name, r.tpe))
+      symbols.destruct(name).map(r => DefWire(info, r.name, r.tpe))
     case DefRegister(info, name, _, clock, reset, init) =>
       val loweredClock = onExpressionOne(clock)
       val loweredReset = onExpressionOne(reset)
       val inits = onExpression(init)
-      val refs = symbols.getReferences(name)
+      val refs = symbols.destruct(name)
       refs.zip(inits).map{ case (r, i) => DefRegister(info, r.name, r.tpe, loweredClock, loweredReset, i)}
     case DefMemory(info, name, _, depth, wLatency, rLatency, rs, ws, rws, readUnderWrite) =>
       // TODO: can the name of readers/writers change?
-      val refs = symbols.getReferences(name)
+      val refs = symbols.destruct(name)
       refs.zip(symbols.getDataTypes(name)).map { case (r, dataTpe) =>
         DefMemory(info, r.name, dataTpe, depth, wLatency, rLatency, rs, ws, rws, readUnderWrite)
       }
     case DefInstance(info, name, module, _) =>
-      val List(ref) = symbols.getReferences(name)
+      val List(ref) = symbols.destruct(name)
       List(DefInstance(info, ref.name, module, ref.tpe))
     case DefNode(info, name, value) =>
-      val refs = symbols.getReferences(name)
+      val refs = symbols.destruct(name)
       refs.zip(onExpression(value)).map{ case(r, v) => DefNode(info, r.name, v) }
     // connections
     case Connect(info, loc, expr) =>
@@ -129,20 +126,69 @@ object NewLowerTypes extends Transform {
     case other => List(other.mapExpr(onExpressionOne))
   }
   //scalastyle:on cyclomatic.complexity
+
+  // very similar to Utils.create_exps
+  def onExpression(e: Expression)(implicit symbols: DestructTable): Seq[Expression] = e match {
+    case Mux(cond, tval, fval, _) =>
+      val loweredCond = onExpressionOne(cond)
+      onExpression(tval).zip(onExpression(fval)).map { case(t, f) =>
+        Mux(loweredCond, t, f, Utils.mux_type_and_widths(t, f))
+      }
+    case ValidIf(cond, value, _) =>
+      val loweredCond = onExpressionOne(cond)
+      onExpression(value).map(v => ValidIf(loweredCond, v, v.tpe))
+    case r : ExpressionWithFlow => symbols.getReferences(r, lhs = false)
+    case other => assert(other.tpe.isInstanceOf[GroundType]) ; List(other)
+  }
+
+  /** ensures that the result is a single expression */
+  def onExpressionOne(e: Expression)(implicit symbols: DestructTable): Expression = {
+    val es = onExpression(e)
+    assert(es.length == 1)
+    es.head
+  }
 }
 
-private class GlobalLoweringTable(global: GlobalSymbolTable) {
-  //private val moduleRenames =
+// used for first scan of the module to discover all declarations
+private class LoweringSymbolTable extends SymbolTable {
+  def declare(name: String, tpe: Type, kind: Kind): Unit = symbols.append((name, kind, tpe, None))
+  def declareInstance(name: String, module: String): Unit =
+    symbols.append((name, InstanceKind, UnknownType, Some(module)))
+  private val symbols = mutable.ArrayBuffer[(String, Kind, Type, Option[String])]()
+  def getSymbols: Seq[(String, Kind, Type, Option[String])] = symbols
 }
 
-private class LoweringTable(global: GlobalSymbolTable, lowerVecs: Boolean = true) extends StandardSymbolTable(global) {
+// generates the destructed types
+private class DestructTable(symbols: LoweringSymbolTable, modules: Map[String, Seq[(Field, Seq[String])]],
+                            renameMap: RenameMap, m: ModuleTarget) {
+  private val namespace = mutable.HashSet[String]() ++ symbols.getSymbols.map(_._1)
+  private val kinds = symbols.getSymbols.map(s => s._1 -> s._2).toMap
+  // serialized old access string to new ground type fields
+  private val refToFields = mutable.HashMap[String, Seq[Field]]()
+
+
   // TODO: compute flow from declaration similar to how it is done in ExpandConnects
-  def getReferences(name: String): List[Reference] = ???
+  def destruct(name: String, tpe: Type = UnknownType): Seq[Field] = kinds(name) match {
+    case WireKind | RegKind | NodeKind =>
+      assert(tpe != UnknownType)
+      val fieldsAndRefs = DestructTypes.destruct(m, Field(name, Default, tpe), namespace, renameMap)
+      refToFields ++= fieldsAndRefs.flatMap{ case (f, refs) => refs.map(r => r -> f) }
+                                   .groupBy(_._1).mapValues(_.map(_._2))
+      fieldsAndRefs.map(_._1)
+    case MemKind =>
+      assert(tpe != UnknownType)
+      throw new NotImplementedError("TODO")
+    case InstanceKind =>
+      assert(tpe == UnknownType)
+      // the ports are already lowered, so the only change would be a rename of the instance
+
+
+
+    ???
+  }
 
   def getReferences(expr: ExpressionWithFlow, lhs: Boolean): List[ExpressionWithFlow] = expr match {
-    case SubAccess(expr, index, tpe, flow) =>
-      assert(!lowerVecs, "If you want to lower vecs, please run RemoveAccesses first!")
-      ???
+    case SubAccess(expr, index, tpe, flow) => ???
     case SubIndex(expr, value, tpe, flow) => ???
     case Reference(name, tpe, kind, flow) => ???
     case SubField(expr, name, tpe, flow) => ???

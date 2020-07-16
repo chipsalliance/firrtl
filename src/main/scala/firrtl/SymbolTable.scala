@@ -39,8 +39,8 @@ private[firrtl] class StandardSymbolTable(global: GlobalSymbolTable)  extends Sy
 }
 
 object SymbolTable {
-  def scanModule(t: SymbolTable, m: DefModule): SymbolTable = {
-    val table: SymbolTable = t
+  def scanModule[T <: SymbolTable](t: T, m: DefModule): T = {
+    val table = t
     m match {
       case Module(_, _, _, body) => scanStatement(body)(table)
       case _ : ExtModule =>
