@@ -2,37 +2,65 @@
 
 package firrtl.passes
 
-import firrtl.annotations.{IsMember, ModuleName, ModuleTarget, ReferenceTarget}
-import firrtl.{DuplexFlow, GlobalSymbolTable, Kind, RenameMap, SinkFlow, SourceFlow, StandardSymbolTable, SymbolTable, Utils}
+import firrtl.annotations.{CircuitTarget, IsComponent, IsMember, ModuleName, ModuleTarget, ReferenceTarget}
+import firrtl.{CircuitForm, CircuitState, DuplexFlow, GlobalSymbolTable, Kind, RenameMap, SinkFlow, SourceFlow, StandardSymbolTable, SymbolTable, Transform, UnknownForm, Utils}
 import firrtl.ir._
+import firrtl.options.Dependency
+import firrtl.stage.TransformManager.TransformDependency
 
 import scala.collection.mutable
 
 /** Flattens Bundles and Vecs.
   * - all SubAccess nodes need to be removed before running this pass.
   * - Combines the following legacy passes:
-  *   - Uniquify, ExpandConnect, LowerTypes
+  *   - Uniquify, LowerTypes + some of the ExpandConnect functionality (modulo PartialConnects)
   * - Some implicit bundle types remain, but with a limited depth:
   *   - the type of a memory is still a bundle with depth 2 (mem -> port -> field)
   *   - the type of a module instance is still a bundle with depth 1 (instance -> port)
   */
-private class NewLowerTypes(c: Circuit) {
-  import NewLowerTypes._
-  val renames = RenameMap()
-  renames.setCircuit(c.main)
-  private val global = GlobalSymbolTable.scanModuleTypes(c, new GlobalLoweringTable(renames))
+object NewLowerTypes extends Transform {
+  override def inputForm: CircuitForm = UnknownForm
+  override def outputForm: CircuitForm = UnknownForm
 
-  def onModule(m: Module): Module = {
+  override def prerequisites: Seq[TransformDependency] = Seq(
+    Dependency(CheckFlows),     // we assume that the flows are correct
+    Dependency(RemoveAccesses), // we require all SubAccess nodes to have been removed
+    Dependency(CheckTypes),     // we require all types to be correct
+    Dependency(ExpandConnects)  // we require all PartialConnect nodes to have been expanded
+  )
+  override def optionalPrerequisiteOf: Seq[TransformDependency]  = Seq.empty
+  override def invalidates(a: Transform): Boolean = false
+
+  override def execute(state: CircuitState): CircuitState = {
+    implicit val renameMap: RenameMap = RenameMap()
+    renameMap.setCircuit(state.circuit.main)
+
+    // remember module types
+    implicit val global: GlobalSymbolTable = GlobalSymbolTable.scanModuleTypes(state.circuit)
+
+    // TODO: we could get a potential speedup by only calculating the module ports/type lowering once per module
+    //       instead of calculating it for every module and instance.
+    val result = state.circuit.mapModule(onModule)
+
+    state.copy(circuit = result, renames = Some(renameMap))
+  }
+
+  def lowerPorts(c: CircuitTarget, m: Module)(implicit renameMap: RenameMap): Module = {
+    renameMap.setModule(m.name)
+    val ref = c.module(m.name)
+    val namespace = mutable.HashSet[String]() ++ m.ports.map(_.name)
+    val portsAndReferences = m.ports.flatMap { p => DestructTypes.destruct(ref, p, namespace, renameMap) }
+    // TODO: save reference -> port lookup in global table
+    m.copy(ports =  portsAndReferences.map(_._1))
+  }
+
+  def onModule(m: DefModule)(implicit renameMap: RenameMap, global: GlobalSymbolTable): DefModule = {
     val symbols = SymbolTable.scanModule(new LoweringTable(global), m)
 
     // TODO
     m
   }
 
-
-}
-
-private object NewLowerTypes {
   // very similar to Utils.create_exps
   def onExpression(e: Expression)(implicit symbols: LoweringTable): Seq[Expression] = e match {
     case Mux(cond, tval, fval, _) =>
@@ -103,15 +131,11 @@ private object NewLowerTypes {
   //scalastyle:on cyclomatic.complexity
 }
 
-private class GlobalLoweringTable(val renames: RenameMap) extends GlobalSymbolTable {
-  override def declare(name: String, tpe: BundleType): Unit = {
-
-  }
-
-  override def moduleType(name: String): Option[BundleType] = ???
+private class GlobalLoweringTable(global: GlobalSymbolTable) {
+  //private val moduleRenames =
 }
 
-private class LoweringTable(global: GlobalLoweringTable, lowerVecs: Boolean = true) extends StandardSymbolTable(global) {
+private class LoweringTable(global: GlobalSymbolTable, lowerVecs: Boolean = true) extends StandardSymbolTable(global) {
   // TODO: compute flow from declaration similar to how it is done in ExpandConnects
   def getReferences(name: String): List[Reference] = ???
 
@@ -137,25 +161,36 @@ private object DestructTypes {
     * - rename reference and any bundle fields to avoid name collisions after destruction
     * - updates rename map with new targets
     * - generates all ground type fields
+    * - generates a list of all old reference name that now refer to the particular ground type field
+    * - updates namespace with all possibly conflicting names
     */
-  def destruct(parent: ModuleTarget, ref: Field, namespace: Namespace, renameMap: RenameMap): Seq[Field] = {
+  def destruct(parent: ModuleTarget, ref: Field, namespace: Namespace, renameMap: RenameMap): Seq[(Field, Seq[String])] = {
     // ensure that the field name is part of the namespace
     namespace.add(ref.name)
     // field renames (uniquify) are computed bottom up
     val (rename, _) = uniquify(ref, namespace)
 
     // the reference renames are computed top down since they do need the full path
-    destruct(parent, ref, rename)(renameMap)
+    val res = destruct(parent, ref, rename)(renameMap)
+
+    // convert ReferenceTargets to Strings
+    res.map{ case(c, r) => (c, r.map(_.serialize)) }
+  }
+
+  /** convenience overload that handles the conversion from/to Port */
+  def destruct(parent: ModuleTarget, ref: Port, namespace: Namespace, renameMap: RenameMap): Seq[(Port, Seq[String])] = {
+    destruct(parent, Field(ref.name, Utils.to_flip(ref.direction), ref.tpe), namespace, renameMap)
+      .map{ case(f, l) => (Port(ref.info, f.name, Utils.to_dir(f.flip), f.tpe), l) }
   }
 
   private def destruct(m: ModuleTarget, field: Field, rename: Option[RenameNode])
-                      (implicit renameMap: RenameMap): Seq[Field] =
+                      (implicit renameMap: RenameMap): Seq[(Field, Seq[ReferenceTarget])] =
     destruct(m, prefix = "", oldParent = None, oldField = field, isVecField = false, rename = rename)
 
   private def destruct(m: ModuleTarget, prefix: String,
                        oldParent: Option[ReferenceTarget], oldField: Field,
                        isVecField: Boolean, rename: Option[RenameNode])
-                      (implicit renameMap: RenameMap): Seq[Field] = {
+                      (implicit renameMap: RenameMap): Seq[(Field, Seq[ReferenceTarget])] = {
     val newName = rename.map(_.name).getOrElse(oldField.name)
     val newPrefix = prefix + newName + LowerTypes.delim
     val oldRef = oldParent match {
@@ -168,7 +203,7 @@ private object DestructTypes {
       case _ : GroundType =>
         val isRenamed = prefix != "" || newName != oldField.name
         if(isRenamed) { renameMap.record(oldRef, ref) }
-        List(oldField.copy(name = prefix + newName))
+        List((oldField.copy(name = prefix + newName), List(oldRef)))
       case _ : BundleType | _ : VectorType =>
         val isVecField = oldField.tpe.isInstanceOf[VectorType]
         val fields = oldField.tpe match {
@@ -179,9 +214,10 @@ private object DestructTypes {
         val children = fieldsWithCorrectOrientation.flatMap { f =>
           destruct(m, newPrefix, Some(oldRef), f, isVecField, rename.flatMap(_.children.get(f.name)))
         }
-        val childRefs = children.map(c => m.ref(c.name))
+        // the bundle/vec reference refers to all children
+        val childRefs = children.map{ case (c, _) => m.ref(c.name) }
         renameMap.record(oldRef, childRefs)
-        children
+        children.map{ case(c, r) => (c, r :+ oldRef) }
     }
   }
 

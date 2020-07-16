@@ -72,5 +72,6 @@ private class StandardGlobalSymbolTable extends GlobalSymbolTable {
 
 object GlobalSymbolTable {
   def scanModuleTypes[T <: GlobalSymbolTable](c: Circuit, t: => T): T = scanModuleTypes(c.modules, t)
+  def scanModuleTypes(c: Circuit): GlobalSymbolTable = scanModuleTypes(c.modules, new StandardGlobalSymbolTable)
   def scanModuleTypes[T <: GlobalSymbolTable](m: Iterable[DefModule], t: => T): T = { m.foreach(t.declare) ; t }
 }

@@ -46,8 +46,8 @@ class NewLowerTypesSpec extends LowerTypesBaseSpec {
     val renames = RenameMap()
     val mutableSet = scala.collection.mutable.HashSet[String]() ++ namespace
     val parent = CircuitTarget("c").module("c")
-    DestructTypes.destruct(parent, ref, mutableSet, renames)
-      .map(r => s"${r.flip.serialize}${r.name} : ${r.tpe.serialize}")
+    val fieldsAndRefs = DestructTypes.destruct(parent, ref, mutableSet, renames)
+    fieldsAndRefs.map(_._1).map(r => s"${r.flip.serialize}${r.name} : ${r.tpe.serialize}")
   }
 }
 
