@@ -31,16 +31,7 @@ class LowerTypesSpec extends LowerTypesBaseSpec {
 }
 
 class NewLowerTypesSpec extends LowerTypesBaseSpec {
-  val typedCompiler = new TransformManager(Seq(Dependency(InferTypes)))
-  private def parseType(tpe: String): firrtl.ir.Type = {
-    val src =
-      s"""circuit c:
-         |  module c:
-         |    input c: $tpe
-         |""".stripMargin
-    val c = CircuitState(firrtl.Parser.parse(src), Seq())
-    typedCompiler.execute(c).circuit.modules.head.ports.head.tpe
-  }
+  import LowerTypesSpecUtils._
   override protected def lower(n: String, tpe: String, namespace: Set[String]): Seq[String] = {
     val ref = firrtl.ir.Field(n, firrtl.ir.Default, parseType(tpe))
     val renames = RenameMap()
@@ -108,4 +99,47 @@ abstract class LowerTypesBaseSpec extends AnyFlatSpec {
       Seq("flip a_a_0_c : UInt<1>", "a_a_0_d : UInt<1>", "flip a_a_1_c : UInt<1>", "a_a_1_d : UInt<1>", "a_b : UInt<1>")
     )
   }
+}
+
+class LowerTypesRenamingSpec extends AnyFlatSpec {
+  import LowerTypesSpecUtils._
+  protected def lower(n: String, tpe: String, namespace: Set[String]): Seq[String] = {
+    val ref = firrtl.ir.Field(n, firrtl.ir.Default, parseType(tpe))
+    val renames = RenameMap()
+    val mutableSet = scala.collection.mutable.HashSet[String]() ++ namespace
+    val parent = CircuitTarget("c").module("c")
+    val fieldsAndRefs = DestructTypes.destruct(parent, ref, mutableSet, renames)
+    fieldsAndRefs.map(_._1).map(r => s"${r.flip.serialize}${r.name} : ${r.tpe.serialize}")
+  }
+}
+
+class LowerInstancesSpec extends AnyFlatSpec {
+  import LowerTypesSpecUtils._
+  protected def lower(n: String, tpe: String, namespace: Set[String]): Unit = {
+    val ref = firrtl.ir.Field(n, firrtl.ir.Default, parseType(tpe))
+    val renames = RenameMap()
+    val mutableSet = scala.collection.mutable.HashSet[String]() ++ namespace
+    val parent = CircuitTarget("c").module("c")
+    val (newInstance, refs) = DestructTypes.destructInstance(parent, ref, mutableSet, renames)
+    println()
+  }
+
+  it should "lower an instance correctly" in {
+    lower("instance", "{ a : UInt<1>}", Set("instance_a"))
+  }
+}
+
+private object LowerTypesSpecUtils {
+  private val typedCompiler = new TransformManager(Seq(Dependency(InferTypes)))
+  def parseType(tpe: String): firrtl.ir.Type = {
+    val src =
+      s"""circuit c:
+         |  module c:
+         |    input c: $tpe
+         |""".stripMargin
+    val c = CircuitState(firrtl.Parser.parse(src), Seq())
+    typedCompiler.execute(c).circuit.modules.head.ports.head.tpe
+  }
+  case class DestructResult(fields: Seq[String], renameMap: RenameMap)
+  def destruct(n: String, tpe: String, namespace: Seq[String])
 }
