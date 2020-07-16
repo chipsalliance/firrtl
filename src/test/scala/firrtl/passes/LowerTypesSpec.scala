@@ -2,7 +2,7 @@
 
 package firrtl.passes
 import firrtl.annotations.CircuitTarget
-import firrtl.{CircuitState, RenameMap}
+import firrtl.{CircuitState, RenameMap, Utils}
 import firrtl.options.Dependency
 import firrtl.stage.TransformManager
 import org.scalatest.flatspec.AnyFlatSpec
@@ -22,7 +22,9 @@ class LowerTypesSpec extends LowerTypesBaseSpec {
     val c2 = if(onlyUniquify) { uniquifyCompiler.execute(c) }
     else { lowerTypesCompiler.execute(c) }
     val ps = c2.circuit.modules.head.ports.filterNot(p => namespace.contains(p.name))
-    ps.map(p => s"${p.name} : ${p.tpe.serialize}")
+    ps.map{p =>
+      val orientation = Utils.to_flip(Utils.swap(p.direction))
+      s"${orientation.serialize}${p.name} : ${p.tpe.serialize}"}
   }
 
   override protected def lower(n: String, tpe: String, namespace: Set[String])
@@ -47,7 +49,8 @@ class NewLowerTypesSpec extends LowerTypesBaseSpec {
     val renames = RenameMap()
     val mutableSet = scala.collection.mutable.HashSet[String]() ++ namespace
     val parent = CircuitTarget("c").module("c")
-    new DestructTypes(opts).destruct(parent, ref, mutableSet, renames).map(r => s"${r.name} : ${r.tpe.serialize}")
+    new DestructTypes(opts).destruct(parent, ref, mutableSet, renames)
+      .map(r => s"${r.flip.serialize}${r.name} : ${r.tpe.serialize}")
   }
 }
 
