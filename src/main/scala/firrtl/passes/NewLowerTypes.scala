@@ -152,8 +152,7 @@ private class LoweringTable(global: GlobalSymbolTable, lowerVecs: Boolean = true
 
 //scalastyle:off
 
-/** Calculate new type layouts and names.
-  */
+/** Calculate new type layouts and names. */
 private object DestructTypes {
   type Namespace = mutable.HashSet[String]
 
@@ -164,7 +163,8 @@ private object DestructTypes {
     * - generates a list of all old reference name that now refer to the particular ground type field
     * - updates namespace with all possibly conflicting names
     */
-  def destruct(parent: ModuleTarget, ref: Field, namespace: Namespace, renameMap: RenameMap): Seq[(Field, Seq[String])] = {
+  def destruct(parent: ModuleTarget, ref: Field, namespace: Namespace, renameMap: RenameMap):
+    Seq[(Field, Seq[String])] = {
     // ensure that the field name is part of the namespace
     namespace.add(ref.name)
     // field renames (uniquify) are computed bottom up
@@ -173,12 +173,13 @@ private object DestructTypes {
     // the reference renames are computed top down since they do need the full path
     val res = destruct(parent, ref, rename)(renameMap)
 
-    // convert ReferenceTargets to Strings
-    res.map{ case(c, r) => (c, r.map(_.serialize)) }
+    // convert references to strings relative to the module
+    res.map{ case(c,r) => c -> r.map(_.serialize.dropWhile(_ != '>').tail) }
   }
 
   /** convenience overload that handles the conversion from/to Port */
-  def destruct(parent: ModuleTarget, ref: Port, namespace: Namespace, renameMap: RenameMap): Seq[(Port, Seq[String])] = {
+  def destruct(parent: ModuleTarget, ref: Port, namespace: Namespace, renameMap: RenameMap):
+    Seq[(Port, Seq[String])] = {
     destruct(parent, Field(ref.name, Utils.to_flip(ref.direction), ref.tpe), namespace, renameMap)
       .map{ case(f, l) => (Port(ref.info, f.name, Utils.to_dir(f.flip), f.tpe), l) }
   }
