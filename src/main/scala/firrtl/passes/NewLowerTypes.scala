@@ -206,7 +206,8 @@ private object DestructTypes {
     val (rename, _) = uniquify(ref, namespace)
 
     // the reference renames are computed top down since they do need the full path
-    val res = destruct(m, ref, rename)(new RenameMapWrap(renameMap))
+    val res = destruct(m, ref, rename)
+    recordRenames(res, renameMap, ModuleParentRef(m))
 
     // convert references to strings relative to the module
     res.map{ case(c,r) => c -> r.map(_.serialize.dropWhile(_ != '>').tail) }
@@ -233,11 +234,12 @@ private object DestructTypes {
     // only destruct the sub-fields (aka ports)
     val newParent = RefParentRef(m.ref(newName))
     val oldParent = RefParentRef(m.ref(instance.name))
-    val renameWrap = new RenameMapWrap(renameMap)
     val children = instance.tpe.asInstanceOf[BundleType].fields.flatMap { f =>
       val childRename = rename.flatMap(_.children.get(f.name))
-      destruct("", newParent, oldParent, f, isVecField = false, rename = childRename)(renameWrap)
+      destruct("", oldParent, f, isVecField = false, rename = childRename)
     }
+
+    // record all renames
 
     // rename all references to the instance if necessary
     if(newName != instance.name) { renameMap.record(oldParent.r, newParent.r) }
@@ -258,13 +260,10 @@ private object DestructTypes {
     val (rename, _) = uniquify(memBundle(mem), namespace)
 
     // Destruct only the data type. This requires us to track renames separately and then fix them later.
-    val tracker = new RenameTracker
-    val res = destruct(m, Field(mem.name, Default, mem.dataType), rename)(tracker)
+    val res = destruct(m, Field(mem.name, Default, mem.dataType), rename)
     // Renames are now of the form `mem.a.b` --> `mem_a_b`.
     // We want to turn them into `mem.r.data.a.b` --> `mem_a_b.r.data`, etc. (for all readers, writers and for all ports)
 
-
-    println(tracker.renames)
   }
 
   private def memBundle(mem: DefMemory): Field = mem.dataType match {
@@ -274,38 +273,35 @@ private object DestructTypes {
       Field(mem.name, Default, BundleType(fields))
   }
 
-  private def destruct(m: ModuleTarget, field: Field, rename: Option[RenameNode])
-                      (implicit renameMap: Renamer): Seq[(Field, Seq[ReferenceTarget])] = {
-    val parent = ModuleParentRef(m)
-    destruct(prefix = "", newParent = parent, oldParent = parent, oldField = field, isVecField = false, rename = rename)
+  private def recordRenames(fieldToRefs: Seq[(Field, Seq[ReferenceTarget])], renameMap: RenameMap, parent: ParentRef):
+  Unit = {
+    // TODO: if we group by ReferenceTarget, we could reduce the number of calls to `record`. Is it worth it?
+    fieldToRefs.foreach { case(field, refs) =>
+      val fieldRef = parent.ref(field.name)
+      refs.foreach{ r => renameMap.record(r, fieldRef) }
+    }
   }
 
+  private def destruct(m: ModuleTarget, field: Field, rename: Option[RenameNode]): Seq[(Field, Seq[ReferenceTarget])] =
+    destruct(prefix = "", oldParent = ModuleParentRef(m), oldField = field, isVecField = false, rename = rename)
 
-  private def destruct(prefix: String,
-                       newParent: ParentRef,
-                       oldParent: ParentRef, oldField: Field,
-                       isVecField: Boolean, rename: Option[RenameNode])
-                      (implicit renameMap: Renamer): Seq[(Field, Seq[ReferenceTarget])] = {
+
+  private def destruct(prefix: String, oldParent: ParentRef, oldField: Field,
+                       isVecField: Boolean, rename: Option[RenameNode]): Seq[(Field, Seq[ReferenceTarget])] = {
     val newName = rename.map(_.name).getOrElse(oldField.name)
     val oldRef = oldParent.ref(oldField.name, isVecField)
 
     oldField.tpe match {
-      case _ : GroundType =>
-        val ref = newParent.ref(prefix + newName, isVecField)
-        val isRenamed = prefix != "" || newName != oldField.name
-        if(isRenamed) { renameMap.record(oldRef, ref) }
-        List((oldField.copy(name = prefix + newName), List(oldRef)))
+      case _ : GroundType => List((oldField.copy(name = prefix + newName), List(oldRef)))
       case _ : BundleType | _ : VectorType =>
         val newPrefix = prefix + newName + LowerTypes.delim
         val isVecField = oldField.tpe.isInstanceOf[VectorType]
         val fields = getFields(oldField.tpe)
         val fieldsWithCorrectOrientation = fields.map(f => f.copy(flip = Utils.times(f.flip, oldField.flip)))
         val children = fieldsWithCorrectOrientation.flatMap { f =>
-          destruct(newPrefix, newParent, RefParentRef(oldRef), f, isVecField, rename.flatMap(_.children.get(f.name)))
+          destruct(newPrefix, RefParentRef(oldRef), f, isVecField, rename.flatMap(_.children.get(f.name)))
         }
         // the bundle/vec reference refers to all children
-        val childRefs = children.map{ case (c, _) => newParent.ref(c.name, false) }
-        renameMap.record(oldRef, childRefs)
         children.map{ case(c, r) => (c, r :+ oldRef) }
     }
   }
@@ -355,26 +351,12 @@ private object DestructTypes {
     BundleType(( 0 until v.size).map(i => Field(i.toString, Default, v.tpe)))
   }
 
-  private trait Renamer {
-    def record(from: IsMember, to: IsMember): Unit
-    def record(from: IsMember, to: Seq[IsMember]): Unit
-  }
-  private class RenameMapWrap(rename: RenameMap) extends Renamer {
-    override def record(from: IsMember, to: IsMember): Unit = rename.record(from, to)
-    override def record(from: IsMember, to: Seq[IsMember]): Unit = rename.record(from, to)
-  }
-  private class RenameTracker extends Renamer {
-    val renames = mutable.ArrayBuffer[(IsMember, Seq[IsMember])]()
-    override def record(from: IsMember, to: IsMember): Unit = renames.append((from, List(to)))
-    override def record(from: IsMember, to: Seq[IsMember]): Unit = renames.append((from, to))
-  }
-
-  private trait ParentRef { def ref(name: String, isVecField: Boolean): ReferenceTarget }
+  private trait ParentRef { def ref(name: String, asVecField: Boolean = false): ReferenceTarget }
   private case class ModuleParentRef(m: ModuleTarget) extends ParentRef {
-    override def ref(name: String, isVecField: Boolean): ReferenceTarget = m.ref(name)
+    override def ref(name: String, asVecField: Boolean): ReferenceTarget = m.ref(name)
   }
   private case class RefParentRef(r: ReferenceTarget) extends ParentRef {
-    override def ref(name: String, isVecField: Boolean): ReferenceTarget =
-      if(isVecField) { r.index(name.toInt) } else { r.field(name) }
+    override def ref(name: String, asVecField: Boolean): ReferenceTarget =
+      if(asVecField) { r.index(name.toInt) } else { r.field(name) }
   }
 }
