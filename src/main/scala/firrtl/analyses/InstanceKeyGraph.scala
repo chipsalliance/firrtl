@@ -21,9 +21,9 @@ class InstanceKeyGraph(c: ir.Circuit) {
   private val nameToModule: Map[String, ir.DefModule] = c.modules.map({m => (m.name,m) }).toMap
   def moduleMap: Map[String, ir.DefModule] = nameToModule
 
-  private val childInstances: Map[String, Seq[InstanceKey]] = c.modules.map { m =>
+  private val childInstances: Seq[(String, Seq[InstanceKey])] = c.modules.map { m =>
     m.name -> InstanceKeyGraph.collectInstances(m)
-  }.toMap
+  }
   private val instantiated = childInstances.flatMap(_._2).map(_.module).toSet
   private val roots = c.modules.map(_.name).filterNot(instantiated)
   private val graph = buildGraph(childInstances, roots)
@@ -41,8 +41,8 @@ class InstanceKeyGraph(c: ir.Circuit) {
   /** Module order from highest module to leaf module */
   def moduleOrder: Seq[ir.DefModule] = graph.transformNodes(_.module).linearize.map(nameToModule(_))
 
-  /** Returns a map from module name to instances defined in said module. */
-  def getChildInstances: Map[String, Seq[InstanceKey]] = childInstances
+  /** Returns a sequence that can be turned into a map from module name to instances defined in said module. */
+  def getChildInstances: Seq[(String, Seq[InstanceKey])] = childInstances
 
   /** Finds the absolute paths (each represented by a Seq of instances
     * representing the chain of hierarchy) of all instances of a particular
@@ -90,9 +90,10 @@ object InstanceKeyGraph {
 
   private def topKey(module: String): InstanceKey = InstanceKey(module, module)
 
-  private def buildGraph(childInstances: Map[String, Seq[InstanceKey]], roots: Iterable[String]):
+  private def buildGraph(childInstances: Seq[(String, Seq[InstanceKey])], roots: Iterable[String]):
     DiGraph[InstanceKey] = {
     val instanceGraph = new MutableDiGraph[InstanceKey]
+    val childInstanceMap = childInstances.toMap
 
     // iterate over all modules that are not instantiated and thus act as a root
     roots.foreach { subTop =>
@@ -104,7 +105,7 @@ object InstanceKeyGraph {
       while (instanceQueue.nonEmpty) {
         val current = instanceQueue.dequeue
         instanceGraph.addVertex(current)
-        for (child <- childInstances(current.module)) {
+        for (child <- childInstanceMap(current.module)) {
           if (!instanceGraph.contains(child)) {
             instanceQueue.enqueue(child)
             instanceGraph.addVertex(child)
