@@ -221,7 +221,11 @@ private object DestructTypes {
       .map{ case(f, l) => (Port(ref.info, f.name, Utils.to_dir(f.flip), f.tpe), l) }
   }
 
-  /** instances are special because they remain a 1-deep bundle */
+  /** instances are special because they remain a 1-deep bundle
+    * @return The potentially renamed instance with newly flattened type.
+    *         Note that the list of fields is only of the child fields, and needs a SubField node
+    *         instead of a flat Reference when turning them into access expressions.
+    */
   def destructInstance(m: ModuleTarget, instance: Field, namespace: Namespace, renameMap: RenameMap):
   (Field, Seq[(Field, Seq[String])]) = {
     namespace.add(instance.name)
@@ -247,7 +251,16 @@ private object DestructTypes {
 
 
   /** memories are special because they end up a 2-deep bundle */
-  def destructMemory(): Unit = {}
+  def destructMemory(m: ModuleTarget, name: String, tpe: String, namespace: Namespace, renameMap: RenameMap): Unit = {
+    // When memories get split up into ground types, the access order is changes.
+    // E.g. `mem.r.data.x` becomes `mem_x.r.data`.
+    // This is why we need to create the new bundle structure before we can resolve any name clashes.
+
+  }
+
+  private def memBundle(tpe: Type): Type = {
+    
+  }
 
   private def destruct(m: ModuleTarget, field: Field, rename: Option[RenameNode])
                       (implicit renameMap: RenameMap): Seq[(Field, Seq[ReferenceTarget])] = {
