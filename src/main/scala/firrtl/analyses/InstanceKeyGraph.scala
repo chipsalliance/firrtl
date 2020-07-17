@@ -17,10 +17,7 @@ import scala.collection.mutable
 class InstanceKeyGraph(c: ir.Circuit) {
   import InstanceKeyGraph._
 
-  /** maps module names to the DefModule node */
   private val nameToModule: Map[String, ir.DefModule] = c.modules.map({m => (m.name,m) }).toMap
-  def moduleMap: Map[String, ir.DefModule] = nameToModule
-
   private val childInstances: Seq[(String, Seq[InstanceKey])] = c.modules.map { m =>
     m.name -> InstanceKeyGraph.collectInstances(m)
   }
@@ -31,12 +28,12 @@ class InstanceKeyGraph(c: ir.Circuit) {
   // cache vertices to speed up repeat calls to findInstancesInHierarchy
   private lazy val vertices = graph.getVertices
 
-
-  /** A list of absolute paths (each represented by a Seq of instances)
-    * of all module instances in the Circuit.
-    */
+  /** A list of absolute paths (each represented by a Seq of instances) of all module instances in the Circuit. */
   private lazy val fullHierarchy: mutable.LinkedHashMap[InstanceKey, Seq[Seq[InstanceKey]]] =
     graph.pathsInDAG(circuitTopInstance)
+
+  /** maps module names to the DefModule node */
+  def moduleMap: Map[String, ir.DefModule] = nameToModule
 
   /** Module order from highest module to leaf module */
   def moduleOrder: Seq[ir.DefModule] = graph.transformNodes(_.module).linearize.map(nameToModule(_))
