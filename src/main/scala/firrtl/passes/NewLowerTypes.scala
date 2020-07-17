@@ -232,7 +232,8 @@ private object DestructTypes {
     val newParent = RefParentRef(m.ref(newName))
     val oldParent = RefParentRef(m.ref(instance.name))
     val children = instance.tpe.asInstanceOf[BundleType].fields.flatMap { f =>
-      destruct("", newParent, oldParent, f, isVecField = false, rename = rename)(renameMap)
+      val childRename = rename.flatMap(_.children.get(f.name))
+      destruct("", newParent, oldParent, f, isVecField = false, rename = childRename)(renameMap)
     }
 
     // rename all references to the instance if necessary
@@ -261,7 +262,6 @@ private object DestructTypes {
                        isVecField: Boolean, rename: Option[RenameNode])
                       (implicit renameMap: RenameMap): Seq[(Field, Seq[ReferenceTarget])] = {
     val newName = rename.map(_.name).getOrElse(oldField.name)
-    val newPrefix = prefix + newName + LowerTypes.delim
     val oldRef = oldParent.ref(oldField.name, isVecField)
 
     oldField.tpe match {
@@ -271,6 +271,7 @@ private object DestructTypes {
         if(isRenamed) { renameMap.record(oldRef, ref) }
         List((oldField.copy(name = prefix + newName), List(oldRef)))
       case _ : BundleType | _ : VectorType =>
+        val newPrefix = prefix + newName + LowerTypes.delim
         val isVecField = oldField.tpe.isInstanceOf[VectorType]
         val fields = oldField.tpe match {
           case v : VectorType => vecToBundle(v).fields

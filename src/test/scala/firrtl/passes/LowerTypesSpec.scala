@@ -141,5 +141,5 @@ private object LowerTypesSpecUtils {
     typedCompiler.execute(c).circuit.modules.head.ports.head.tpe
   }
   case class DestructResult(fields: Seq[String], renameMap: RenameMap)
-  def destruct(n: String, tpe: String, namespace: Seq[String])
+  //def destruct(n: String, tpe: String, namespace: Seq[String])
 }
