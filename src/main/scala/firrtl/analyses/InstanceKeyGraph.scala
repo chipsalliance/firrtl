@@ -18,7 +18,8 @@ class InstanceKeyGraph(c: ir.Circuit) {
   import InstanceKeyGraph._
 
   /** maps module names to the DefModule node */
-  val moduleMap: Map[String, ir.DefModule] = c.modules.map({m => (m.name,m) }).toMap
+  private val nameToModule: Map[String, ir.DefModule] = c.modules.map({m => (m.name,m) }).toMap
+  def moduleMap: Map[String, ir.DefModule] = nameToModule
 
   private val childInstances: Map[String, Seq[InstanceKey]] = c.modules.map { m =>
     m.name -> InstanceKeyGraph.collectInstances(m)
@@ -38,7 +39,7 @@ class InstanceKeyGraph(c: ir.Circuit) {
     graph.pathsInDAG(circuitTopInstance)
 
   /** Module order from highest module to leaf module */
-  def moduleOrder: Seq[ir.DefModule] = graph.transformNodes(_.module).linearize.map(moduleMap(_))
+  def moduleOrder: Seq[ir.DefModule] = graph.transformNodes(_.module).linearize.map(nameToModule(_))
 
   /** Returns a map from module name to instances defined in said module. */
   def getChildInstances: Map[String, Seq[InstanceKey]] = childInstances
