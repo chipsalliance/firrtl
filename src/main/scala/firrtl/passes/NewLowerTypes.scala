@@ -221,28 +221,28 @@ private object DestructTypes {
   }
 
   /** instances are special because they remain a 1-deep bundle
+    * @note this relies on the ports of the module having been properly renamed.
     * @return The potentially renamed instance with newly flattened type.
     *         Note that the list of fields is only of the child fields, and needs a SubField node
     *         instead of a flat Reference when turning them into access expressions.
     */
-  def destructInstance(m: ModuleTarget, instance: Field, namespace: Namespace, renameMap: RenameMap):
+  def destructInstance(m: ModuleTarget, instance: DefInstance, namespace: Namespace, renameMap: RenameMap):
   (Field, Seq[(Field, Seq[String])]) = {
     namespace.add(instance.name)
-    val (rename, _) = uniquify(instance, namespace)
+    val (rename, _) = uniquify(Field(instance.name, Default, instance.tpe), namespace)
     val newName = rename.map(_.name).getOrElse(instance.name)
 
     // only destruct the sub-fields (aka ports)
-    val newParent = RefParentRef(m.ref(newName))
     val oldParent = RefParentRef(m.ref(instance.name))
     val children = instance.tpe.asInstanceOf[BundleType].fields.flatMap { f =>
       val childRename = rename.flatMap(_.children.get(f.name))
       destruct("", oldParent, f, isVecField = false, rename = childRename)
     }
 
-    // record all renames
-
     // rename all references to the instance if necessary
-    if(newName != instance.name) { renameMap.record(oldParent.r, newParent.r) }
+    if(newName != instance.name) {
+      renameMap.record(m.instOf(instance.name, instance.module), m.instOf(newName, instance.module))
+    }
 
     val newInstance = Field(newName, Default, BundleType(children.map(_._1)))
     val refs = children.map{ case(c,r) => c -> r.map(_.serialize.dropWhile(_ != '>').tail) }

@@ -181,20 +181,33 @@ class LowerTypesRenamingSpec extends AnyFlatSpec {
 
 class LowerInstancesSpec extends AnyFlatSpec {
   import LowerTypesSpecUtils._
-  protected def lower(n: String, tpe: String, namespace: Set[String]): Unit = {
-    val ref = firrtl.ir.Field(n, firrtl.ir.Default, parseType(tpe))
+  private case class Lower(inst: firrtl.ir.Field, fields: Seq[String], renameMap: RenameMap)
+  private val m = CircuitTarget("c").module("c")
+  private def lower(n: String, tpe: String, module: String, namespace: Set[String]): Lower = {
+    val ref = firrtl.ir.DefInstance(firrtl.ir.NoInfo, n, module, parseType(tpe))
     val renames = RenameMap()
     val mutableSet = scala.collection.mutable.HashSet[String]() ++ namespace
-    val parent = CircuitTarget("c").module("c")
-    val (newInstance, refs) = DestructTypes.destructInstance(parent, ref, mutableSet, renames)
-    println()
+    val (newInstance, res) = DestructTypes.destructInstance(m, ref, mutableSet, renames)
+    Lower(newInstance, resultToFieldSeq(res), renames)
   }
+  private def get(l: Lower, m: IsMember): Set[IsMember] = l.renameMap.get(m).get.toSet
 
   // Instances are a special case since they do not get completely destructed but instead become a 1-deep bundle.
 
 
   it should "lower an instance correctly" in {
-    lower("instance", "{ a : UInt<1>}", Set("instance_a"))
+    val instance = m.instOf("instance", "other")
+
+    {
+      val l = lower("instance", "{ a : UInt<1>}", "other", Set("instance_a"))
+      assert(l.inst.name == "instance_")
+      assert(l.inst.tpe.isInstanceOf[firrtl.ir.BundleType])
+      assert(l.inst.tpe.serialize == "{ a : UInt<1>}")
+
+      assert(get(l, instance) == Set(m.instOf("instance_", "other")))
+
+      assert(l.fields == Seq("a : UInt<1>"))
+    }
   }
 }
 
@@ -237,8 +250,9 @@ private object LowerTypesSpecUtils {
     val renames = RenameMap()
     val mutableSet = scala.collection.mutable.HashSet[String]() ++ namespace
     val parent = CircuitTarget("c").module("c")
-    val fieldsAndRefs = DestructTypes.destruct(parent, ref, mutableSet, renames)
-    val fields = fieldsAndRefs.map(_._1).map(r => s"${r.flip.serialize}${r.name} : ${r.tpe.serialize}")
-    DestructResult(fields, renames)
+    val res = DestructTypes.destruct(parent, ref, mutableSet, renames)
+    DestructResult(resultToFieldSeq(res), renames)
   }
+  def resultToFieldSeq(res: Seq[(firrtl.ir.Field, Seq[String])]): Seq[String] =
+    res.map(_._1).map(r => s"${r.flip.serialize}${r.name} : ${r.tpe.serialize}")
 }
