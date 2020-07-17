@@ -2,10 +2,8 @@
 
 package firrtl.passes
 
-import firrtl.annotations.{CircuitTarget, ModuleTarget, ReferenceTarget}
-import firrtl.{CircuitForm, CircuitState, DuplexFlow,
-  InstanceKind, Kind, MemKind, NodeKind, RegKind, RenameMap, SinkFlow, SourceFlow,
-  SymbolTable, Transform, UnknownForm, Utils, WireKind}
+import firrtl.annotations.{CircuitTarget, IsMember, ModuleTarget, ReferenceTarget}
+import firrtl.{CircuitForm, CircuitState, DuplexFlow, InstanceKind, Kind, MemKind, NodeKind, RegKind, RenameMap, SinkFlow, SourceFlow, SymbolTable, Transform, UnknownForm, Utils, WireKind}
 import firrtl.ir._
 import firrtl.options.Dependency
 import firrtl.stage.TransformManager.TransformDependency
@@ -208,7 +206,7 @@ private object DestructTypes {
     val (rename, _) = uniquify(ref, namespace)
 
     // the reference renames are computed top down since they do need the full path
-    val res = destruct(m, ref, rename)(renameMap)
+    val res = destruct(m, ref, rename)(new RenameMapWrap(renameMap))
 
     // convert references to strings relative to the module
     res.map{ case(c,r) => c -> r.map(_.serialize.dropWhile(_ != '>').tail) }
@@ -235,9 +233,10 @@ private object DestructTypes {
     // only destruct the sub-fields (aka ports)
     val newParent = RefParentRef(m.ref(newName))
     val oldParent = RefParentRef(m.ref(instance.name))
+    val renameWrap = new RenameMapWrap(renameMap)
     val children = instance.tpe.asInstanceOf[BundleType].fields.flatMap { f =>
       val childRename = rename.flatMap(_.children.get(f.name))
-      destruct("", newParent, oldParent, f, isVecField = false, rename = childRename)(renameMap)
+      destruct("", newParent, oldParent, f, isVecField = false, rename = childRename)(renameWrap)
     }
 
     // rename all references to the instance if necessary
@@ -251,19 +250,32 @@ private object DestructTypes {
 
 
   /** memories are special because they end up a 2-deep bundle */
-  def destructMemory(m: ModuleTarget, name: String, tpe: String, namespace: Namespace, renameMap: RenameMap): Unit = {
+  def destructMemory(m: ModuleTarget, mem: DefMemory, namespace: Namespace, renameMap: RenameMap): Unit = {
+    namespace.add(mem.name)
     // When memories get split up into ground types, the access order is changes.
     // E.g. `mem.r.data.x` becomes `mem_x.r.data`.
     // This is why we need to create the new bundle structure before we can resolve any name clashes.
+    val (rename, _) = uniquify(memBundle(mem), namespace)
 
+    // Destruct only the data type. This requires us to track renames separately and then fix them later.
+    val tracker = new RenameTracker
+    val res = destruct(m, Field(mem.name, Default, mem.dataType), rename)(tracker)
+    // Renames are now of the form `mem.a.b` --> `mem_a_b`.
+    // We want to turn them into `mem.r.data.a.b` --> `mem_a_b.r.data`, etc. (for all readers, writers and for all ports)
+
+
+    println(tracker.renames)
   }
 
-  private def memBundle(tpe: Type): Type = {
-    
+  private def memBundle(mem: DefMemory): Field = mem.dataType match {
+    case g: GroundType => Field(mem.name, Default, MemPortUtils.memType(mem))
+    case _: BundleType | _: VectorType =>
+      val fields = getFields(mem.dataType).map(f => mem.copy(name = f.name, dataType = f.tpe)).map(memBundle)
+      Field(mem.name, Default, BundleType(fields))
   }
 
   private def destruct(m: ModuleTarget, field: Field, rename: Option[RenameNode])
-                      (implicit renameMap: RenameMap): Seq[(Field, Seq[ReferenceTarget])] = {
+                      (implicit renameMap: Renamer): Seq[(Field, Seq[ReferenceTarget])] = {
     val parent = ModuleParentRef(m)
     destruct(prefix = "", newParent = parent, oldParent = parent, oldField = field, isVecField = false, rename = rename)
   }
@@ -273,7 +285,7 @@ private object DestructTypes {
                        newParent: ParentRef,
                        oldParent: ParentRef, oldField: Field,
                        isVecField: Boolean, rename: Option[RenameNode])
-                      (implicit renameMap: RenameMap): Seq[(Field, Seq[ReferenceTarget])] = {
+                      (implicit renameMap: Renamer): Seq[(Field, Seq[ReferenceTarget])] = {
     val newName = rename.map(_.name).getOrElse(oldField.name)
     val oldRef = oldParent.ref(oldField.name, isVecField)
 
@@ -286,10 +298,7 @@ private object DestructTypes {
       case _ : BundleType | _ : VectorType =>
         val newPrefix = prefix + newName + LowerTypes.delim
         val isVecField = oldField.tpe.isInstanceOf[VectorType]
-        val fields = oldField.tpe match {
-          case v : VectorType => vecToBundle(v).fields
-          case BundleType(fields) => fields
-        }
+        val fields = getFields(oldField.tpe)
         val fieldsWithCorrectOrientation = fields.map(f => f.copy(flip = Utils.times(f.flip, oldField.flip)))
         val children = fieldsWithCorrectOrientation.flatMap { f =>
           destruct(newPrefix, newParent, RefParentRef(oldRef), f, isVecField, rename.flatMap(_.children.get(f.name)))
@@ -337,8 +346,27 @@ private object DestructTypes {
     case _ : GroundType => (None, List(ref.name))
   }
 
+  private def getFields(tpe: Type): Seq[Field] = tpe match {
+    case BundleType(fields) => fields
+    case v : VectorType => vecToBundle(v).fields
+  }
+
   private def vecToBundle(v: VectorType): BundleType = {
     BundleType(( 0 until v.size).map(i => Field(i.toString, Default, v.tpe)))
+  }
+
+  private trait Renamer {
+    def record(from: IsMember, to: IsMember): Unit
+    def record(from: IsMember, to: Seq[IsMember]): Unit
+  }
+  private class RenameMapWrap(rename: RenameMap) extends Renamer {
+    override def record(from: IsMember, to: IsMember): Unit = rename.record(from, to)
+    override def record(from: IsMember, to: Seq[IsMember]): Unit = rename.record(from, to)
+  }
+  private class RenameTracker extends Renamer {
+    val renames = mutable.ArrayBuffer[(IsMember, Seq[IsMember])]()
+    override def record(from: IsMember, to: IsMember): Unit = renames.append((from, List(to)))
+    override def record(from: IsMember, to: Seq[IsMember]): Unit = renames.append((from, to))
   }
 
   private trait ParentRef { def ref(name: String, isVecField: Boolean): ReferenceTarget }
