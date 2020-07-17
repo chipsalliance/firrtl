@@ -82,7 +82,7 @@ class InstanceKeyGraphSpec extends FirrtlFlatSpec {
     val circuit = parse(input)
     val instGraph = new InstanceKeyGraph(circuit)
     val order = instGraph.moduleOrder.map(_.name)
-    // Where it has freedom, the order will contain the last declared instance.
+    // Where it has freedom, the instance declaration order will be reversed.
     order should equal (Seq("Top", "Child3", "Child4", "Child2", "Child1", "Child1b", "Child1a"))
   }
 
