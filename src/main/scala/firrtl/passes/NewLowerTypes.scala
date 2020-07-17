@@ -267,7 +267,7 @@ private object DestructTypes {
   }
 
   private def memBundle(mem: DefMemory): Field = mem.dataType match {
-    case g: GroundType => Field(mem.name, Default, MemPortUtils.memType(mem))
+    case _: GroundType => Field(mem.name, Default, MemPortUtils.memType(mem))
     case _: BundleType | _: VectorType =>
       val fields = getFields(mem.dataType).map(f => mem.copy(name = f.name, dataType = f.tpe)).map(memBundle)
       Field(mem.name, Default, BundleType(fields))

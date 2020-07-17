@@ -183,9 +183,9 @@ class LowerInstancesSpec extends AnyFlatSpec {
   import LowerTypesSpecUtils._
   private case class Lower(inst: firrtl.ir.Field, fields: Seq[String], renameMap: RenameMap)
   private val m = CircuitTarget("c").module("c")
-  private def lower(n: String, tpe: String, module: String, namespace: Set[String]): Lower = {
+  private def lower(n: String, tpe: String, module: String, namespace: Set[String], renames: RenameMap = RenameMap()):
+  Lower = {
     val ref = firrtl.ir.DefInstance(firrtl.ir.NoInfo, n, module, parseType(tpe))
-    val renames = RenameMap()
     val mutableSet = scala.collection.mutable.HashSet[String]() ++ namespace
     val (newInstance, res) = DestructTypes.destructInstance(m, ref, mutableSet, renames)
     Lower(newInstance, resultToFieldSeq(res), renames)
@@ -193,21 +193,58 @@ class LowerInstancesSpec extends AnyFlatSpec {
   private def get(l: Lower, m: IsMember): Set[IsMember] = l.renameMap.get(m).get.toSet
 
   // Instances are a special case since they do not get completely destructed but instead become a 1-deep bundle.
-
-
   it should "lower an instance correctly" in {
-    val instance = m.instOf("instance", "other")
+    val i = m.instOf("i", "c")
+    val l = lower("i", "{ a : UInt<1>}", "c", Set("i_a"))
+    assert(l.inst.name == "i_")
+    assert(l.inst.tpe.isInstanceOf[firrtl.ir.BundleType])
+    assert(l.inst.tpe.serialize == "{ a : UInt<1>}")
 
+    assert(get(l, i) == Set(m.instOf("i_", "c")))
+    assert(l.fields == Seq("a : UInt<1>"))
+  }
+
+  it should "update the rename map with the changed port names" in {
+    // without lowering ports
     {
-      val l = lower("instance", "{ a : UInt<1>}", "other", Set("instance_a"))
-      assert(l.inst.name == "instance_")
-      assert(l.inst.tpe.isInstanceOf[firrtl.ir.BundleType])
-      assert(l.inst.tpe.serialize == "{ a : UInt<1>}")
-
-      assert(get(l, instance) == Set(m.instOf("instance_", "other")))
-
-      assert(l.fields == Seq("a : UInt<1>"))
+      val i = m.instOf("i", "c")
+      val l = lower("i", "{ b : { c : UInt<1>}, b_c : UInt<1>}", "c", Set("i_b_c"))
+      // the instance was renamed because of the collision with "i_b_c"
+      assert(get(l, i) == Set(m.instOf("i_", "c")))
+      // the rename of e.g. `instance.b` to `instance_.b__c` was not recorded since we never performed the
+      // port renaming and thus we won't get a result
+      assert(get(l, i.ref("b")) == Set(m.instOf("i_", "c").ref("b")))
     }
+
+    // same as above but with lowered port
+    {
+      // global rename map
+      val r = RenameMap()
+
+      // The child module "c" which we assume has the following ports: b : { c : UInt<1>} and b_c : UInt<1>
+      val c = CircuitTarget("m").module("c")
+      val portB = firrtl.ir.Port(firrtl.ir.NoInfo, "b", firrtl.ir.Output, parseType("{ c : UInt<1>}"))
+      val portB_C = firrtl.ir.Port(firrtl.ir.NoInfo, "b_c", firrtl.ir.Output, parseType("UInt<1>"))
+
+      // lower ports
+      val namespaceC = scala.collection.mutable.HashSet[String]() ++ Seq("b", "b_c")
+      DestructTypes.destruct(c, portB, namespaceC, r)
+      DestructTypes.destruct(c, portB_C, namespaceC, r)
+      // only port b is renamed, port b_c stays the same
+      assert(r.get(c.ref("b")).get == Seq(c.ref("b__c")))
+
+      // in module m we then lower the instance i of c
+      val l = lower("i", "{ b : { c : UInt<1>}, b_c : UInt<1>}", "c", Set("i_b_c"), r)
+      val i = m.instOf("i", "c")
+      // the instance was renamed because of the collision with "i_b_c"
+      val i_ = m.instOf("i_", "c")
+      assert(get(l, i) == Set(i_))
+
+      // the ports renaming is also noted
+      assert(get(l, i.ref("b")) == Set(i_.ref("b__c")))
+      assert(get(l, i.ref("b").field("c")) == Set(i_.ref("b__c")))
+      assert(get(l, i.ref("b_c")) == Set(i_.ref("b_c")))
+     }
   }
 }
 
