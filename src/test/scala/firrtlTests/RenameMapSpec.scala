@@ -838,11 +838,16 @@ class RenameMapSpec extends FirrtlFlatSpec {
     val top = CircuitTarget("top").module("top")
     val child = CircuitTarget("top").module("child")
 
-    val r = RenameMap()
-    r.record(child.ref("a"), Seq(child.ref("a_0"), child.ref("a_1")))
+    val portRenames = RenameMap()
+    portRenames.record(child.ref("a"), Seq(child.ref("a_0"), child.ref("a_1")))
+
+    val instanceRenames = RenameMap()
     val i = top.instOf("i", "child")
     val i_ = top.instOf("i_", "child")
-    r.record(i, i_)
+    instanceRenames.record(i, i_)
+
+    // The port and instance renames must be *explicitly* chained!
+    val r = portRenames.andThen(instanceRenames)
     r.get(i.ref("a")) should be (Some(Seq(i_.ref("a_0"), i_.ref("a_1"))))
   }
 }
