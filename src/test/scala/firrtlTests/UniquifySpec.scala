@@ -258,6 +258,36 @@ class UniquifySpec extends FirrtlFlatSpec {
     executeTest(input, expected)
   }
 
+  it should "rename read/write ports of memories if they conflict after lowering" in {
+    val input =
+      """circuit Test :
+        |  module Test :
+        |    input clock : Clock
+        |    mem mem :
+        |      data-type => UInt<1>
+        |      depth => 32
+        |      read-latency => 0
+        |      write-latency => 1
+        |      reader => r
+        |      writer => r_data
+        |    node x = mem.r.data
+        |
+        |    mem.r.addr is invalid
+        |    mem.r.en <= UInt(1)
+        |    mem.r.clk <= clock
+        |    mem.r_data.data is invalid
+        |    mem.r_data.mask is invalid
+        |    mem.r_data.addr is invalid
+        |    mem.r_data.en <= UInt(0)
+        |    mem.r_data.clk <= clock
+      """.stripMargin
+    val expected = Seq(
+      "reader => r__",
+      "node x = mem.r__.data") map normalized
+
+    executeTest(input, expected)
+  }
+
   it should "rename instances and their ports" in {
     val input =
      """circuit Test :
