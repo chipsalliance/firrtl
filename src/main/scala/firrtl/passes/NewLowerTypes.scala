@@ -227,7 +227,7 @@ private object DestructTypes {
     *         instead of a flat Reference when turning them into access expressions.
     */
   def destructInstance(m: ModuleTarget, instance: DefInstance, namespace: Namespace, renameMap: RenameMap):
-  (Field, Seq[(Field, Seq[String])]) = {
+  (DefInstance, Seq[(Field, Seq[String])]) = {
     namespace.add(instance.name)
     val (rename, _) = uniquify(Field(instance.name, Default, instance.tpe), namespace)
     val newName = rename.map(_.name).getOrElse(instance.name)
@@ -245,34 +245,87 @@ private object DestructTypes {
     }
     // The ports do not need to be explicitly renamed here. They are renamed when the module ports are lowered.
 
-    val newInstance = Field(newName, Default, BundleType(children.map(_._1)))
+    val newInstance = instance.copy(name = newName, tpe = BundleType(children.map(_._1)))
     val refs = children.map{ case(c,r) => c -> r.map(_.serialize.dropWhile(_ != '>').tail) }
 
     (newInstance, refs)
   }
 
+  private val BoolType = UIntType(IntWidth(1))
 
   /** memories are special because they end up a 2-deep bundle */
-  def destructMemory(m: ModuleTarget, mem: DefMemory, namespace: Namespace, renameMap: RenameMap): Unit = {
-    namespace.add(mem.name)
-    // When memories get split up into ground types, the access order is changes.
+  def destructMemory(m: ModuleTarget, mem: DefMemory, namespace: Namespace, renameMap: RenameMap):
+  (Seq[DefMemory], Seq[(SubField, Seq[String])]) = {
+    // See if any read/write ports need to be renamed. This can happen, e.g., with two ports named `r` and `r_data`.
+    // While the renaming isn't necessary for LowerTypes as the port bundles are not lowered in this pass, it will
+    // be needed for Verilog emission later on.
+    val oldDummyField = Field("dummy", Default, MemPortUtils.memType(mem.copy(dataType = BoolType)))
+    val (rawPortRenames, _) = uniquify(oldDummyField, new Namespace())
+    val portRenames: Map[String, String] = rawPortRenames.map(_.children.mapValues(_.name)).getOrElse(Map())
+    val memRenamedPorts = mem.copy(
+      readers = mem.readers.map(n => portRenames.getOrElse(n, n)),
+      writers = mem.writers.map(n => portRenames.getOrElse(n, n)),
+      readwriters = mem.readwriters.map(n => portRenames.getOrElse(n, n))
+    )
+
+    // Uniquify the lowered memory names: When memories get split up into ground types, the access order is changes.
     // E.g. `mem.r.data.x` becomes `mem_x.r.data`.
     // This is why we need to create the new bundle structure before we can resolve any name clashes.
     val bundle = memBundle(mem)
-    val (rename, _) = uniquify(bundle, namespace)
+    namespace.add(mem.name)
+    val (dataTypeRenames, _) = uniquify(bundle, namespace)
+    val res = destruct(m, Field(mem.name, Default, mem.dataType), dataTypeRenames)
 
-    // Destruct only the data type. This requires us to track renames separately and then fix them later.
-    val res = destruct(m, Field(mem.name, Default, mem.dataType), rename)
     // Renames are now of the form `mem.a.b` --> `mem_a_b`.
     // We want to turn them into `mem.r.data.a.b` --> `mem_a_b.r.data`, etc. (for all readers, writers and for all ports)
+    val oldMemRef = m.ref(mem.name)
 
-    println(res)
+    val newMemAndSubFields = res.map { case (field, refs) =>
+      val newMem = memRenamedPorts.copy(name = field.name, dataType = field.tpe)
+      val newMemRef = m.ref(field.name)
+      val memWasRenamed = field.name != mem.name // false iff the dataType was a GroundType
+      if(memWasRenamed) { renameMap.record(oldMemRef, newMemRef) }
+
+      val newMemReference = Reference(field.name, MemPortUtils.memType(newMem), MemKind)
+      val refSuffixes = refs.map(_.component).filterNot(_.isEmpty)
+
+      val subFields = oldDummyField.tpe.asInstanceOf[BundleType].fields.flatMap { port =>
+        val oldPortRef = oldMemRef.field(port.name)
+        val newPortName = portRenames.getOrElse(port.name, port.name)
+        val newPortRef = newMemRef.field(newPortName)
+        val portWasRenamed = newPortName != port.name
+        if(portWasRenamed) { renameMap.record(oldPortRef, newPortRef) }
+
+        val newPortType = newMemReference.tpe.asInstanceOf[BundleType].fields.find(_.name == newPortName).get.tpe
+        val newPortAccess = SubField(newMemReference, newPortName, newPortType)
+
+        port.tpe.asInstanceOf[BundleType].fields.map { portField =>
+          val oldPortFieldBaseRef = oldPortRef.field(portField.name)
+          // there might have been multiple different fields which now alias to the same lowered field.
+          val oldFieldRefs = refSuffixes.map(s => oldPortFieldBaseRef.copy(component = oldPortFieldBaseRef.component ++ s))
+          val newPortFieldRef = newPortRef.field(portField.name)
+          val newPortFieldAccess = SubField(newPortAccess, portField.name, field.tpe)
+
+          // record renames only for the data field which is the only port field of non-ground type
+          if(memWasRenamed && portField.name == "data") {
+            oldFieldRefs.foreach { o => renameMap.record(o, newPortFieldRef) }
+          }
+
+          val oldFieldStringRefs = oldFieldRefs.map(_.serialize.dropWhile(_ != '>').tail)
+          (newPortFieldAccess, oldFieldStringRefs)
+        }
+      }
+      (newMem, subFields)
+    }
+
+    (newMemAndSubFields.map(_._1), newMemAndSubFields.flatMap(_._2))
   }
 
   private def memBundle(mem: DefMemory): Field = mem.dataType match {
-    case _: GroundType => Field(mem.name, Default, MemPortUtils.memType(mem))
+    case _: GroundType => Field(mem.name, Default, mem.dataType)
     case _: BundleType | _: VectorType =>
-      val fields = getFields(mem.dataType).map(f => mem.copy(name = f.name, dataType = f.tpe)).map(memBundle)
+      val subMems = getFields(mem.dataType).map(f => mem.copy(name = f.name, dataType = f.tpe))
+      val fields = subMems.map(memBundle)
       Field(mem.name, Default, BundleType(fields))
   }
 

@@ -102,7 +102,6 @@ class LowerTypesRenamingSpec extends AnyFlatSpec {
     destruct(n, tpe, namespace).renameMap
 
   it should "properly rename lowered bundles and vectors" in {
-    def get(r: RenameMap, m: IsMember): Set[IsMember] = r.get(m).get.toSet
     val m = CircuitTarget("c").module("c")
     val a = m.ref("a")
 
@@ -181,7 +180,7 @@ class LowerTypesRenamingSpec extends AnyFlatSpec {
 
 class LowerInstancesSpec extends AnyFlatSpec {
   import LowerTypesSpecUtils._
-  private case class Lower(inst: firrtl.ir.Field, fields: Seq[String], renameMap: RenameMap)
+  private case class Lower(inst: firrtl.ir.DefInstance, fields: Seq[String], renameMap: RenameMap)
   private val m = CircuitTarget("m").module("m")
   private def lower(n: String, tpe: String, module: String, namespace: Set[String], renames: RenameMap = RenameMap()):
   Lower = {
@@ -255,23 +254,81 @@ class LowerInstancesSpec extends AnyFlatSpec {
 
 class LowerMemorySpec extends AnyFlatSpec {
   import LowerTypesSpecUtils._
-  protected def lower(name: String, tpe: String, namespace: Set[String],
-                      r: Seq[String] = List("r"), w: Seq[String] = List("w")): Unit = {
+  private case class Lower(mems: Seq[firrtl.ir.DefMemory], refs: Seq[(firrtl.ir.SubField, Seq[String])],
+                           renameMap: RenameMap)
+  private val m = CircuitTarget("m").module("m")
+  private val mem = m.ref("mem")
+  private def lower(name: String, tpe: String, namespace: Set[String],
+                      r: Seq[String] = List("r"), w: Seq[String] = List("w")): Lower = {
     val dataType = parseType(tpe)
     val mem = firrtl.ir.DefMemory(firrtl.ir.NoInfo, name, dataType, depth = 2, writeLatency = 1, readLatency = 1,
       readUnderWrite = firrtl.ir.ReadUnderWrite.Undefined, readers = r, writers = w, readwriters = Seq())
     val renames = RenameMap()
     val mutableSet = scala.collection.mutable.HashSet[String]() ++ namespace
-    val parent = CircuitTarget("m").module("m")
-    DestructTypes.destructMemory(parent, mem, mutableSet, renames)
-    println()
+    val(mems, refs) = DestructTypes.destructMemory(m, mem, mutableSet, renames)
+    Lower(mems, refs, renames)
   }
 
   // Memories are a special case.
+  it should "not rename anything for a ground type memory if there was no conflict" in {
+    val l = lower("mem", "UInt<1>", Set("mem_r", "mem_r_data"), w=Seq("w"))
+    assert(l.renameMap.underlying.isEmpty)
+  }
 
+  it should "rename even ground type memories if there are conflicts on the ports" in {
+    // Conflicting port names are not a problem for lower types, since ports do not get flattened at this stage.
+    // However, they later do get flattened and it is easiest to just do the renaming here.
+    val r = lower("mem", "UInt<1>", Set("mem_r", "mem_r_data"), w=Seq("r_data")).renameMap
 
-  it should "lower an memory correctly" in {
-    lower("mem", "{ a : UInt<1>}", Set("mem_a"))
+    assert(r.get(mem).isEmpty, "memory was not renamed")
+    assert(r.get(mem.field("r")).get == Seq(mem.field("r_")), "read port was renamed")
+    assert(r.underlying.size == 1, "only change should be the port rename")
+  }
+
+  it should "rename references to lowered and/or renamed ports" in {
+    val r = lower("mem", "{ a : UInt<1>, b : UInt<1>}", Set("mem_a"), r=Seq("r", "r_data")).renameMap
+
+    // complete memory
+    assert(get(r, mem) == Set(m.ref("mem__a"), m.ref("mem__b")))
+
+    // read ports
+    assert(get(r, mem.field("r")) ==
+      Set(m.ref("mem__a").field("r_"), m.ref("mem__b").field("r_")))
+    assert(get(r, mem.field("r_data")) ==
+      Set(m.ref("mem__a").field("r_data"), m.ref("mem__b").field("r_data")))
+
+    // port fields
+    assert(get(r, mem.field("r").field("data")) ==
+      Set(m.ref("mem__a").field("r_").field("data"),
+        m.ref("mem__b").field("r_").field("data")))
+    assert(get(r, mem.field("r").field("addr")) ==
+      Set(m.ref("mem__a").field("r_").field("addr"),
+        m.ref("mem__b").field("r_").field("addr")))
+    assert(get(r, mem.field("r").field("en")) ==
+      Set(m.ref("mem__a").field("r_").field("en"),
+        m.ref("mem__b").field("r_").field("en")))
+    assert(get(r, mem.field("r").field("clk")) ==
+      Set(m.ref("mem__a").field("r_").field("clk"),
+        m.ref("mem__b").field("r_").field("clk")))
+    assert(get(r, mem.field("w").field("mask")) ==
+      Set(m.ref("mem__a").field("w").field("mask"),
+        m.ref("mem__b").field("w").field("mask")))
+
+    // port sub-fields
+    assert(get(r, mem.field("r").field("data").field("a")) ==
+      Set(m.ref("mem__a").field("r_").field("data")))
+    assert(get(r, mem.field("r").field("data").field("b")) ==
+      Set(m.ref("mem__b").field("r_").field("data")))
+
+    // need to rename the following:
+    // mem -> mem__a, mem__b
+    // mem.r -> mem__a.r_, mem__b.r_
+    // mem.r.data.{a,b} -> mem__{a,b}.r_.data
+    // mem.w.data.{a,b} -> mem__{a,b}.w.data
+    // mem.r_data.data.{a,b} -> mem__{a,b}.r_data.data
+    val renameCount = r.underlying.map(_._2.size).sum
+    assert(renameCount == 10, "it is enough to rename *to* 10 different signals")
+    assert(r.underlying.size == 8, "it is enough to rename (from) 8 different signals")
   }
 }
 
@@ -297,4 +354,5 @@ private object LowerTypesSpecUtils {
   }
   def resultToFieldSeq(res: Seq[(firrtl.ir.Field, Seq[String])]): Seq[String] =
     res.map(_._1).map(r => s"${r.flip.serialize}${r.name} : ${r.tpe.serialize}")
+  def get(r: RenameMap, m: IsMember): Set[IsMember] = r.get(m).get.toSet
 }
