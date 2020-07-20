@@ -182,7 +182,7 @@ class LowerTypesRenamingSpec extends AnyFlatSpec {
 class LowerInstancesSpec extends AnyFlatSpec {
   import LowerTypesSpecUtils._
   private case class Lower(inst: firrtl.ir.Field, fields: Seq[String], renameMap: RenameMap)
-  private val m = CircuitTarget("c").module("c")
+  private val m = CircuitTarget("m").module("m")
   private def lower(n: String, tpe: String, module: String, namespace: Set[String], renames: RenameMap = RenameMap()):
   Lower = {
     val ref = firrtl.ir.DefInstance(firrtl.ir.NoInfo, n, module, parseType(tpe))
@@ -218,8 +218,12 @@ class LowerInstancesSpec extends AnyFlatSpec {
 
     // same as above but with lowered port
     {
-      // global rename map
-      val r = RenameMap()
+      // We need two distinct rename maps: one for the port renaming and one for everything else.
+      // This is to accommodate the use-case where a port as well as an instance needs to be renames
+      // thus requiring a two-stage translation process for reference to the port of the instance.
+      // This two-stage translation is only supported through chaining rename maps.
+      val portRenames = RenameMap()
+      val otherRenames = RenameMap()
 
       // The child module "c" which we assume has the following ports: b : { c : UInt<1>} and b_c : UInt<1>
       val c = CircuitTarget("m").module("c")
@@ -228,22 +232,23 @@ class LowerInstancesSpec extends AnyFlatSpec {
 
       // lower ports
       val namespaceC = scala.collection.mutable.HashSet[String]() ++ Seq("b", "b_c")
-      DestructTypes.destruct(c, portB, namespaceC, r)
-      DestructTypes.destruct(c, portB_C, namespaceC, r)
+      DestructTypes.destruct(c, portB, namespaceC, portRenames)
+      DestructTypes.destruct(c, portB_C, namespaceC, portRenames)
       // only port b is renamed, port b_c stays the same
-      assert(r.get(c.ref("b")).get == Seq(c.ref("b__c")))
+      assert(portRenames.get(c.ref("b")).get == Seq(c.ref("b__c")))
 
       // in module m we then lower the instance i of c
-      val l = lower("i", "{ b : { c : UInt<1>}, b_c : UInt<1>}", "c", Set("i_b_c"), r)
+      val l = lower("i", "{ b : { c : UInt<1>}, b_c : UInt<1>}", "c", Set("i_b_c"), otherRenames)
       val i = m.instOf("i", "c")
       // the instance was renamed because of the collision with "i_b_c"
       val i_ = m.instOf("i_", "c")
       assert(get(l, i) == Set(i_))
 
       // the ports renaming is also noted
-      assert(get(l, i.ref("b")) == Set(i_.ref("b__c")))
-      assert(get(l, i.ref("b").field("c")) == Set(i_.ref("b__c")))
-      assert(get(l, i.ref("b_c")) == Set(i_.ref("b_c")))
+      val r = portRenames.andThen(otherRenames)
+      assert(r.get(i.ref("b")).get == Seq(i_.ref("b__c")))
+      assert(r.get(i.ref("b").field("c")).get == Seq(i_.ref("b__c")))
+      assert(r.get(i.ref("b_c")).get == Seq(i_.ref("b_c")))
      }
   }
 }
