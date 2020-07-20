@@ -243,6 +243,7 @@ private object DestructTypes {
     if(newName != instance.name) {
       renameMap.record(m.instOf(instance.name, instance.module), m.instOf(newName, instance.module))
     }
+    // The ports do not need to be explicitly renamed here. They are renamed when the module ports are lowered.
 
     val newInstance = Field(newName, Default, BundleType(children.map(_._1)))
     val refs = children.map{ case(c,r) => c -> r.map(_.serialize.dropWhile(_ != '>').tail) }
@@ -257,13 +258,15 @@ private object DestructTypes {
     // When memories get split up into ground types, the access order is changes.
     // E.g. `mem.r.data.x` becomes `mem_x.r.data`.
     // This is why we need to create the new bundle structure before we can resolve any name clashes.
-    val (rename, _) = uniquify(memBundle(mem), namespace)
+    val bundle = memBundle(mem)
+    val (rename, _) = uniquify(bundle, namespace)
 
     // Destruct only the data type. This requires us to track renames separately and then fix them later.
     val res = destruct(m, Field(mem.name, Default, mem.dataType), rename)
     // Renames are now of the form `mem.a.b` --> `mem_a_b`.
     // We want to turn them into `mem.r.data.a.b` --> `mem_a_b.r.data`, etc. (for all readers, writers and for all ports)
 
+    println(res)
   }
 
   private def memBundle(mem: DefMemory): Field = mem.dataType match {

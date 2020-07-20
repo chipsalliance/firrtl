@@ -262,7 +262,7 @@ class LowerMemorySpec extends AnyFlatSpec {
       readUnderWrite = firrtl.ir.ReadUnderWrite.Undefined, readers = r, writers = w, readwriters = Seq())
     val renames = RenameMap()
     val mutableSet = scala.collection.mutable.HashSet[String]() ++ namespace
-    val parent = CircuitTarget("c").module("c")
+    val parent = CircuitTarget("m").module("m")
     DestructTypes.destructMemory(parent, mem, mutableSet, renames)
     println()
   }
