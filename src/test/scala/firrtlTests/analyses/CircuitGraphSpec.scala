@@ -43,7 +43,7 @@ class CircuitGraphSpec extends FirrtlFlatSpec {
         val circuitGraph = CircuitGraph(circuit)
         val C = CircuitTarget("Child0")
         val Child0 = C.module("Child0")
-        circuitGraph.path(Child0.ref("in"), Child0.ref("out"))
+        circuitGraph.connectionPath(Child0.ref("in"), Child0.ref("out"))
       }
     }
 

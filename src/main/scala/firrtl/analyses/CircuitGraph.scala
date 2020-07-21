@@ -20,12 +20,12 @@ object CircuitGraph {
   def apply(circuit: Circuit): CircuitGraph = new CircuitGraph(ConnectionGraph(circuit))
 
   /** Return a nicely-formatted string of a path of [[firrtl.annotations.ReferenceTarget]]
-    * @param path
+    * @param connectionPath
     * @param tab
     * @return
     */
-  def prettyToString(path: Seq[ReferenceTarget], tab: String = ""): String = {
-    tab + path.mkString(s"\n$tab")
+  def prettyToString(connectionPath: Seq[ReferenceTarget], tab: String = ""): String = {
+    tab + connectionPath.mkString(s"\n$tab")
   }
 }
 
@@ -89,7 +89,7 @@ class CircuitGraph private[analyses] (val connectionGraph: ConnectionGraph) {
     * @param sink
     * @return
     */
-  def path(source: ReferenceTarget, sink: ReferenceTarget): Seq[ReferenceTarget] =
+  def connectionPath(source: ReferenceTarget, sink: ReferenceTarget): Seq[ReferenceTarget] =
     connectionGraph.path(source, sink)
 
   /** Return a reference to all nodes of given kind, directly contained in the referenced module/instance

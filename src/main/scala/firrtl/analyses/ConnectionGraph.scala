@@ -67,7 +67,7 @@ class ConnectionGraph protected(val circuit: Circuit,
     * Top/a:A>out         List(Top>a.in)
     * Top>a.out           List()
     * Top>out             List()
-    * when we reach Top/a:A>in the stack is List
+    * when we reach Top/a:A> in the stack is List
     */
   private val portConnectivityStack: mutable.HashMap[ReferenceTarget, List[ReferenceTarget]] =
     mutable.HashMap.empty[ReferenceTarget, List[ReferenceTarget]]
