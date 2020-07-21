@@ -103,8 +103,14 @@ class LowerTypesRenamingSpec extends AnyFlatSpec {
   protected def lower(n: String, tpe: String, namespace: Set[String] = Set()): RenameMap =
     destruct(n, tpe, namespace).renameMap
 
+  private val m = CircuitTarget("m").module("m")
+
+  it should "not rename ground types" in {
+    val r = lower("a", "UInt<1>")
+    assert(r.underlying.isEmpty)
+  }
+
   it should "properly rename lowered bundles and vectors" in {
-    val m = CircuitTarget("c").module("c")
     val a = m.ref("a")
 
     def one(namespace: Set[String], prefix: String): Unit = {
@@ -193,6 +199,11 @@ class LowerInstancesSpec extends AnyFlatSpec {
     Lower(newInstance, resultToFieldSeq(res), renames)
   }
   private def get(l: Lower, m: IsMember): Set[IsMember] = l.renameMap.get(m).get.toSet
+
+  it should "not rename instances if the instance name does not change" in {
+    val l = lower("i", "{ a : UInt<1>}", "c", Set())
+    assert(l.renameMap.underlying.isEmpty)
+  }
 
   it should "lower an instance correctly" in {
     val i = m.instOf("i", "c")
@@ -356,6 +367,10 @@ class LowerMemorySpec extends AnyFlatSpec {
       Set(m.ref("mem__b_c").field("r").field("data")))
     assert(get(r, mem.field("r").field("data").field("b").field("c")) ==
       Set(m.ref("mem__b_c").field("r").field("data")))
+
+    val renameCount = r.underlying.map(_._2.size).sum
+    assert(renameCount == 8, "it is enough to rename *to* 8 different signals")
+    assert(r.underlying.size == 7, "it is enough to rename (from) 7 different signals")
   }
 
   it should "rename references for vector type memories" in {
@@ -376,6 +391,10 @@ class LowerMemorySpec extends AnyFlatSpec {
       Set(m.ref("mem__0").field("r").field("data")))
     assert(get(r, mem.field("r").field("data").index(1)) ==
       Set(m.ref("mem__1").field("r").field("data")))
+
+    val renameCount = r.underlying.map(_._2.size).sum
+    assert(renameCount == 8, "it is enough to rename *to* 8 different signals")
+    assert(r.underlying.size == 7, "it is enough to rename (from) 7 different signals")
   }
 
 }
@@ -396,11 +415,11 @@ private object LowerTypesSpecUtils {
     val ref = firrtl.ir.Field(n, firrtl.ir.Default, parseType(tpe))
     val renames = RenameMap()
     val mutableSet = scala.collection.mutable.HashSet[String]() ++ namespace
-    val parent = CircuitTarget("c").module("c")
-    val res = DestructTypes.destruct(parent, ref, mutableSet, renames)
+    val res = DestructTypes.destruct(m, ref, mutableSet, renames)
     DestructResult(resultToFieldSeq(res), renames)
   }
   def resultToFieldSeq(res: Seq[(firrtl.ir.Field, Seq[String])]): Seq[String] =
     res.map(_._1).map(r => s"${r.flip.serialize}${r.name} : ${r.tpe.serialize}")
   def get(r: RenameMap, m: IsMember): Set[IsMember] = r.get(m).get.toSet
+  protected val m = CircuitTarget("m").module("m")
 }

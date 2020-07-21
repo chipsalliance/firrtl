@@ -199,18 +199,21 @@ private object DestructTypes {
     * - updates namespace with all possibly conflicting names
     */
   def destruct(m: ModuleTarget, ref: Field, namespace: Namespace, renameMap: RenameMap):
-    Seq[(Field, Seq[String])] = {
-    // ensure that the field name is part of the namespace
-    namespace.add(ref.name)
-    // field renames (uniquify) are computed bottom up
-    val (rename, _) = uniquify(ref, namespace)
+    Seq[(Field, Seq[String])] = ref.tpe match {
+    case _: GroundType => // early exit for ground types
+      Seq((ref, Seq(ref.name)))
+    case _ =>
+      // ensure that the field name is part of the namespace
+      namespace.add(ref.name)
+      // field renames (uniquify) are computed bottom up
+      val (rename, _) = uniquify(ref, namespace)
 
-    // the reference renames are computed top down since they do need the full path
-    val res = destruct(m, ref, rename)
-    recordRenames(res, renameMap, ModuleParentRef(m))
+      // the reference renames are computed top down since they do need the full path
+      val res = destruct(m, ref, rename)
+      recordRenames(res, renameMap, ModuleParentRef(m))
 
-    // convert references to strings relative to the module
-    res.map{ case(c,r) => c -> r.map(_.serialize.dropWhile(_ != '>').tail) }
+      // convert references to strings relative to the module
+      res.map { case (c, r) => c -> r.map(_.serialize.dropWhile(_ != '>').tail) }
   }
 
   /** convenience overload that handles the conversion from/to Port */
