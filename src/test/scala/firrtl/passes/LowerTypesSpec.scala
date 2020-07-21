@@ -36,7 +36,7 @@ class NewLowerTypesSpec extends LowerTypesBaseSpec {
     destruct(n, tpe, namespace).fields
 }
 
-
+/** this spec can be tested with either the new or the old LowerTypes pass */
 abstract class LowerTypesBaseSpec extends AnyFlatSpec {
   protected def lower(n: String, tpe: String, namespace: Set[String] = Set()): Seq[String]
 
@@ -95,7 +95,9 @@ abstract class LowerTypesBaseSpec extends AnyFlatSpec {
   }
 }
 
-// Test the renaming for "regular" references, i.e. Wires, Nodes and Register. Memories and Instances are special cases.
+/** Test the renaming for "regular" references, i.e. Wires, Nodes and Register.
+  * Memories and Instances are special cases.
+  */
 class LowerTypesRenamingSpec extends AnyFlatSpec {
   import LowerTypesSpecUtils._
   protected def lower(n: String, tpe: String, namespace: Set[String] = Set()): RenameMap =
@@ -178,6 +180,7 @@ class LowerTypesRenamingSpec extends AnyFlatSpec {
   }
 }
 
+/** Instances are a special case since they do not get completely destructed but instead become a 1-deep bundle. */
 class LowerInstancesSpec extends AnyFlatSpec {
   import LowerTypesSpecUtils._
   private case class Lower(inst: firrtl.ir.DefInstance, fields: Seq[String], renameMap: RenameMap)
@@ -191,7 +194,6 @@ class LowerInstancesSpec extends AnyFlatSpec {
   }
   private def get(l: Lower, m: IsMember): Set[IsMember] = l.renameMap.get(m).get.toSet
 
-  // Instances are a special case since they do not get completely destructed but instead become a 1-deep bundle.
   it should "lower an instance correctly" in {
     val i = m.instOf("i", "c")
     val l = lower("i", "{ a : UInt<1>}", "c", Set("i_a"))
@@ -252,6 +254,9 @@ class LowerInstancesSpec extends AnyFlatSpec {
   }
 }
 
+/** Memories are a special case as they remain 2-deep bundles and fields of the datatype are pulled into the front.
+  * E.g., `mem.r.data.a` becomes `mem_a.r.data`
+  */
 class LowerMemorySpec extends AnyFlatSpec {
   import LowerTypesSpecUtils._
   private case class Lower(mems: Seq[firrtl.ir.DefMemory], refs: Seq[(firrtl.ir.SubField, Seq[String])],
@@ -268,8 +273,8 @@ class LowerMemorySpec extends AnyFlatSpec {
     val(mems, refs) = DestructTypes.destructMemory(m, mem, mutableSet, renames)
     Lower(mems, refs, renames)
   }
+  private val UInt1 = firrtl.ir.UIntType(firrtl.ir.IntWidth(1))
 
-  // Memories are a special case.
   it should "not rename anything for a ground type memory if there was no conflict" in {
     val l = lower("mem", "UInt<1>", Set("mem_r", "mem_r_data"), w=Seq("w"))
     assert(l.renameMap.underlying.isEmpty)
@@ -330,6 +335,49 @@ class LowerMemorySpec extends AnyFlatSpec {
     assert(renameCount == 10, "it is enough to rename *to* 10 different signals")
     assert(r.underlying.size == 8, "it is enough to rename (from) 8 different signals")
   }
+
+  it should "rename references for a memory with a nested data type" in {
+    val l = lower("mem", "{ a : UInt<1>, b : { c : UInt<1>} }", Set("mem_a"))
+    assert(l.mems.map(_.name) == Seq("mem__a", "mem__b_c"))
+    assert(l.mems.map(_.dataType) == Seq(UInt1, UInt1))
+
+    // complete memory
+    val r = l.renameMap
+    assert(get(r, mem) == Set(m.ref("mem__a"), m.ref("mem__b_c")))
+
+    // read port
+    assert(get(r, mem.field("r")) ==
+      Set(m.ref("mem__a").field("r"), m.ref("mem__b_c").field("r")))
+
+    // port sub-fields
+    assert(get(r, mem.field("r").field("data").field("a")) ==
+      Set(m.ref("mem__a").field("r").field("data")))
+    assert(get(r, mem.field("r").field("data").field("b")) ==
+      Set(m.ref("mem__b_c").field("r").field("data")))
+    assert(get(r, mem.field("r").field("data").field("b").field("c")) ==
+      Set(m.ref("mem__b_c").field("r").field("data")))
+  }
+
+  it should "rename references for vector type memories" in {
+    val l = lower("mem", "UInt<1>[2]", Set("mem_0"))
+    assert(l.mems.map(_.name) == Seq("mem__0", "mem__1"))
+    assert(l.mems.map(_.dataType) == Seq(UInt1, UInt1))
+
+    // complete memory
+    val r = l.renameMap
+    assert(get(r, mem) == Set(m.ref("mem__0"), m.ref("mem__1")))
+
+    // read port
+    assert(get(r, mem.field("r")) ==
+      Set(m.ref("mem__0").field("r"), m.ref("mem__1").field("r")))
+
+    // port sub-fields
+    assert(get(r, mem.field("r").field("data").index(0)) ==
+      Set(m.ref("mem__0").field("r").field("data")))
+    assert(get(r, mem.field("r").field("data").index(1)) ==
+      Set(m.ref("mem__1").field("r").field("data")))
+  }
+
 }
 
 private object LowerTypesSpecUtils {
