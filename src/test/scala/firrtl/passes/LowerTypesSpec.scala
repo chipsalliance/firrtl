@@ -5,10 +5,27 @@ import firrtl.annotations.{CircuitTarget, IsMember}
 import firrtl.{CircuitState, RenameMap, Utils}
 import firrtl.options.Dependency
 import firrtl.stage.TransformManager
+import firrtl.stage.TransformManager.TransformDependency
 import org.scalatest.flatspec.AnyFlatSpec
 
-class LowerTypesSpec extends LowerTypesBaseSpec {
-  private val lowerTypesCompiler = new TransformManager(Seq(Dependency(LowerTypes)))
+class LegacyLowerTypesSpec extends LowerTypesEndToEndSpec {
+  override protected def pass: TransformDependency = Dependency(LowerTypes)
+}
+
+class NewLowerTypesEndToEndSpec extends LowerTypesEndToEndSpec {
+  override protected def pass: TransformDependency = Dependency(NewLowerTypes)
+}
+
+class NewLowerTypesUnitTestSpec extends LowerTypesBaseSpec {
+  import LowerTypesSpecUtils._
+  override protected def lower(n: String, tpe: String, namespace: Set[String]): Seq[String] =
+    destruct(n, tpe, namespace).fields
+}
+
+/** Runs the lowering pass in the context of the compiler instead of directly calling internal functions. */
+abstract class LowerTypesEndToEndSpec extends LowerTypesBaseSpec {
+  protected def pass: TransformDependency
+  private lazy val lowerTypesCompiler = new TransformManager(Seq(pass))
   private def legacyLower(n: String, tpe: String, namespace: Set[String]): Seq[String] = {
     val inputs = namespace.map(n => s"    input $n : UInt<1>").mkString("\n")
     val src =
@@ -28,12 +45,6 @@ class LowerTypesSpec extends LowerTypesBaseSpec {
 
   override protected def lower(n: String, tpe: String, namespace: Set[String]): Seq[String] =
     legacyLower(n, tpe, namespace)
-}
-
-class NewLowerTypesSpec extends LowerTypesBaseSpec {
-  import LowerTypesSpecUtils._
-  override protected def lower(n: String, tpe: String, namespace: Set[String]): Seq[String] =
-    destruct(n, tpe, namespace).fields
 }
 
 /** this spec can be tested with either the new or the old LowerTypes pass */

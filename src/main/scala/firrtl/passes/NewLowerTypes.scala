@@ -103,7 +103,6 @@ object NewLowerTypes extends Transform {
       }
       Connect(info, onExpression(loc), onExpression(expr))
     case p : PartialConnect =>
-      // TODO: maybe we can handle partial connects
       throw new RuntimeException(s"NewLowerTypes expects PartialConnects to be resolved! $p")
     case IsInvalid(info, expr) =>
       if(!expr.tpe.isInstanceOf[GroundType]) {
