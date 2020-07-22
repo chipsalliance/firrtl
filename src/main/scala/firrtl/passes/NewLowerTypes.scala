@@ -11,9 +11,7 @@ import firrtl.stage.TransformManager.TransformDependency
 import scala.collection.mutable
 
 /** Flattens Bundles and Vecs.
-  * - all SubAccess nodes need to be removed before running this pass.
-  * - Combines the following legacy passes:
-  *   - Uniquify, LowerTypes + some of the ExpandConnect functionality (modulo PartialConnects)
+  * - Combines the following two legacy passes: Uniquify and LowerTypes
   * - Some implicit bundle types remain, but with a limited depth:
   *   - the type of a memory is still a bundle with depth 2 (mem -> port -> field)
   *   - the type of a module instance is still a bundle with depth 1 (instance -> port)
@@ -70,11 +68,11 @@ object NewLowerTypes extends Transform {
       // scan modules to find all references
       val scan = SymbolTable.scanModule(new LoweringSymbolTable, mod)
       // replace all declarations and references with the destructed types
-      implicit val symbols: DestructTable = new DestructTable(scan, renameMap, ref, portRefs)
+      implicit val symbols: LoweringTable = new LoweringTable(scan, renameMap, ref, portRefs)
       (mod.copy(body = Block(onStatement(mod.body))), Some(renameMap))
   }
 
-  def onStatement(s: Statement)(implicit symbols: DestructTable): Statement = s match {
+  def onStatement(s: Statement)(implicit symbols: LoweringTable): Statement = s match {
     // declarations
     case d : DefWire =>
       Block(symbols.lower(d.name, d.tpe).map{case (name, tpe) => d.copy(name=name, tpe=tpe) })
@@ -114,13 +112,13 @@ object NewLowerTypes extends Transform {
   }
 
   /** Replaces all Reference, SubIndex and SubField nodes with the updated references */
-  def onExpression(e: Expression)(implicit symbols: DestructTable): Expression = e match {
+  def onExpression(e: Expression)(implicit symbols: LoweringTable): Expression = e match {
     case r: ExpressionWithFlow => symbols.getReference(r)
     case other => other.mapExpr(onExpression)
   }
 }
 
-// used for first scan of the module to discover the global namespace
+// Holds the first level of the module-level namespace.
 private class LoweringSymbolTable extends SymbolTable {
   def declare(name: String, tpe: Type, kind: Kind): Unit = symbols.append(name)
   def declareInstance(name: String, module: String): Unit = symbols.append(name)
@@ -128,11 +126,11 @@ private class LoweringSymbolTable extends SymbolTable {
   def getSymbolNames: Seq[String] = symbols
 }
 
-// generates the destructed types
-private class DestructTable(table: LoweringSymbolTable, renameMap: RenameMap, m: ModuleTarget,
+// Lowers types and keeps track of references to lowered types.
+private class LoweringTable(table: LoweringSymbolTable, renameMap: RenameMap, m: ModuleTarget,
                             portRefs: Seq[(String, Reference)]) {
   private val namespace = mutable.HashSet[String]() ++ table.getSymbolNames
-  // serialized old access string to new ground type reference
+  // Serialized old access string to new ground type reference.
   private val nameToExpr = mutable.HashMap[String, ExpressionWithFlow]() ++ portRefs
 
   def lower(mem: DefMemory): Seq[DefMemory] = {
