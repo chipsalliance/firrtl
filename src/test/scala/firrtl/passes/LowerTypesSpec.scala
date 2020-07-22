@@ -418,7 +418,7 @@ private object LowerTypesSpecUtils {
     val res = DestructTypes.destruct(m, ref, mutableSet, renames)
     DestructResult(resultToFieldSeq(res), renames)
   }
-  def resultToFieldSeq(res: Seq[(firrtl.ir.Field, Seq[String])]): Seq[String] =
+  def resultToFieldSeq(res: Seq[(firrtl.ir.Field, String)]): Seq[String] =
     res.map(_._1).map(r => s"${r.flip.serialize}${r.name} : ${r.tpe.serialize}")
   def get(r: RenameMap, m: IsMember): Set[IsMember] = r.get(m).get.toSet
   protected val m = CircuitTarget("m").module("m")

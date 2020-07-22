@@ -29,22 +29,27 @@ object NewLowerTypes extends Transform {
     Dependency(ExpandConnects)  // we require all PartialConnect nodes to have been expanded
   )
   override def optionalPrerequisiteOf: Seq[TransformDependency]  = Seq.empty
-  override def invalidates(a: Transform): Boolean = false
+  override def invalidates(a: Transform): Boolean = a match {
+    case CheckFlows => true // we generate UnknownFlow for now (could be fixed)
+    case _ => false
+  }
 
   override def execute(state: CircuitState): CircuitState = {
-    implicit val renameMap: RenameMap = RenameMap()
-    renameMap.setCircuit(state.circuit.main)
     val oldModuleTypes = state.circuit.modules.map(m => m.name -> Utils.module_type(m)).toMap
 
     // we first lower ports since the port lowering info will be needed at every DefInstance
+    val portRenameMap = RenameMap()
     val c = CircuitTarget(state.circuit.main)
-    val loweredPorts = state.circuit.mapModule(lowerPorts(c, _))
+    val loweredPorts = state.circuit.modules.map(lowerPorts(c, _, portRenameMap))
 
-    val result = loweredPorts.mapModule(onModule(c, _, oldModuleTypes, renameMap))
-    state.copy(circuit = result, renames = Some(renameMap))
+    val resultAndRenames = loweredPorts.map(onModule(c, _, oldModuleTypes))
+    val result = state.circuit.copy(modules = resultAndRenames.map(_._1))
+    // TODO: chain rename maps in correct order!
+    val moduleRenames = resultAndRenames.collect{ case(m,Some(r)) => m.name -> r }
+    state.copy(circuit = result, renames = None)
   }
 
-  def lowerPorts(c: CircuitTarget, m: DefModule)(implicit renameMap: RenameMap): DefModule = {
+  def lowerPorts(c: CircuitTarget, m: DefModule, renameMap: RenameMap): DefModule = {
     renameMap.setModule(m.name)
     val ref = c.module(m.name)
     val namespace = mutable.HashSet[String]() ++ m.ports.map(_.name)
@@ -56,17 +61,17 @@ object NewLowerTypes extends Transform {
     }
   }
 
-  def onModule(c: CircuitTarget, m: DefModule, oldModuleTypes: Map[String, Type], renameMap: RenameMap): DefModule =
+  def onModule(c: CircuitTarget, m: DefModule, oldModuleTypes: Map[String, Type]): (DefModule, Option[RenameMap]) =
     m match {
-    case x: ExtModule => x
+    case x: ExtModule => (x, None)
     case mod: Module =>
-      renameMap.setModule(mod.name)
+      val renameMap = RenameMap()
       val ref = c.module(mod.name)
       // scan modules to find all references
       val scan = SymbolTable.scanModule(new LoweringSymbolTable(oldModuleTypes), mod)
       // replace all declarations and references with the destructed types
       implicit val symbols: DestructTable = new DestructTable(scan, renameMap, ref)
-      mod.copy(body = Block(onStatement(mod.body)))
+      (mod.copy(body = Block(onStatement(mod.body))), Some(renameMap))
   }
 
   //scalastyle:off cyclomatic.complexity
@@ -160,8 +165,7 @@ private class DestructTable(table: LoweringSymbolTable,
     kinds match {
       case WireKind | RegKind | NodeKind =>
         val fieldsAndRefs = DestructTypes.destruct(m, Field(name, Default, tpe), namespace, renameMap)
-        refToFields ++= fieldsAndRefs.flatMap{ case (f, refs) => refs.map(r => r -> f) }
-          .groupBy(_._1).mapValues(_.map(_._2))
+        refToFields ++= fieldsAndRefs.map{ case (f, ref) => ref -> Seq(f) }
         fieldsAndRefs.map(_._1)
       case MemKind =>
         assert(tpe != UnknownType)
@@ -199,9 +203,9 @@ private object DestructTypes {
     * - updates namespace with all possibly conflicting names
     */
   def destruct(m: ModuleTarget, ref: Field, namespace: Namespace, renameMap: RenameMap):
-    Seq[(Field, Seq[String])] = ref.tpe match {
+    Seq[(Field, String)] = ref.tpe match {
     case _: GroundType => // early exit for ground types
-      Seq((ref, Seq(ref.name)))
+      Seq((ref, ref.name))
     case _ =>
       // ensure that the field name is part of the namespace
       namespace.add(ref.name)
@@ -212,13 +216,12 @@ private object DestructTypes {
       val res = destruct(m, ref, rename)
       recordRenames(res, renameMap, ModuleParentRef(m))
 
-      // convert references to strings relative to the module
-      res.map { case (c, r) => c -> r.map(_.serialize.dropWhile(_ != '>').tail) }
+      res.map{ case (c,r) => c -> extractGroundTypeRefString(r) }
   }
 
   /** convenience overload that handles the conversion from/to Port */
   def destruct(m: ModuleTarget, ref: Port, namespace: Namespace, renameMap: RenameMap):
-    Seq[(Port, Seq[String])] = {
+    Seq[(Port, String)] = {
     destruct(m, Field(ref.name, Utils.to_flip(ref.direction), ref.tpe), namespace, renameMap)
       .map{ case(f, l) => (Port(ref.info, f.name, Utils.to_dir(f.flip), f.tpe), l) }
   }
@@ -230,7 +233,7 @@ private object DestructTypes {
     *         instead of a flat Reference when turning them into access expressions.
     */
   def destructInstance(m: ModuleTarget, instance: DefInstance, namespace: Namespace, renameMap: RenameMap):
-  (DefInstance, Seq[(Field, Seq[String])]) = {
+  (DefInstance, Seq[(Field, String)]) = {
     namespace.add(instance.name)
     val (rename, _) = uniquify(Field(instance.name, Default, instance.tpe), namespace)
     val newName = rename.map(_.name).getOrElse(instance.name)
@@ -249,7 +252,7 @@ private object DestructTypes {
     // The ports do not need to be explicitly renamed here. They are renamed when the module ports are lowered.
 
     val newInstance = instance.copy(name = newName, tpe = BundleType(children.map(_._1)))
-    val refs = children.map{ case(c,r) => c -> r.map(_.serialize.dropWhile(_ != '>').tail) }
+    val refs = children.map{ case(c,r) => c -> extractGroundTypeRefString(r) }
 
     (newInstance, refs)
   }
@@ -339,6 +342,14 @@ private object DestructTypes {
       val fieldRef = parent.ref(field.name)
       refs.foreach{ r => renameMap.record(r, fieldRef) }
     }
+  }
+
+  private def extractGroundTypeRefString(refs: Seq[ReferenceTarget]): String = {
+    // Since we depend on ExpandConnects any reference we encounter will be of ground type
+    // and thus the one with the longest access path.
+    refs.reduceLeft((x,y) => if (x.component.length > y.component.length) x else y)
+    // convert references to strings relative to the module
+      .serialize.dropWhile(_ != '>').tail
   }
 
   private def destruct(m: ModuleTarget, field: Field, rename: Option[RenameNode]): Seq[(Field, Seq[ReferenceTarget])] =
