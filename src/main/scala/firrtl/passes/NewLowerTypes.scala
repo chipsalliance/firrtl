@@ -35,14 +35,12 @@ object NewLowerTypes extends Transform {
   }
 
   override def execute(state: CircuitState): CircuitState = {
-    val oldModuleTypes = state.circuit.modules.map(m => m.name -> Utils.module_type(m)).toMap
-
     // we first lower ports since the port lowering info will be needed at every DefInstance
     val portRenameMap = RenameMap()
     val c = CircuitTarget(state.circuit.main)
     val loweredPorts = state.circuit.modules.map(lowerPorts(c, _, portRenameMap))
 
-    val resultAndRenames = loweredPorts.map(onModule(c, _, oldModuleTypes))
+    val resultAndRenames = loweredPorts.map(onModule(c, _))
     val result = state.circuit.copy(modules = resultAndRenames.map(_._1))
     // TODO: chain rename maps in correct order!
     val moduleRenames = resultAndRenames.collect{ case(m,Some(r)) => m.name -> r }
@@ -61,14 +59,14 @@ object NewLowerTypes extends Transform {
     }
   }
 
-  def onModule(c: CircuitTarget, m: DefModule, oldModuleTypes: Map[String, Type]): (DefModule, Option[RenameMap]) =
+  def onModule(c: CircuitTarget, m: DefModule): (DefModule, Option[RenameMap]) =
     m match {
     case x: ExtModule => (x, None)
     case mod: Module =>
       val renameMap = RenameMap()
       val ref = c.module(mod.name)
       // scan modules to find all references
-      val scan = SymbolTable.scanModule(new LoweringSymbolTable(oldModuleTypes), mod)
+      val scan = SymbolTable.scanModule(new LoweringSymbolTable, mod)
       // replace all declarations and references with the destructed types
       implicit val symbols: DestructTable = new DestructTable(scan, renameMap, ref)
       (mod.copy(body = Block(onStatement(mod.body))), Some(renameMap))
@@ -121,18 +119,17 @@ object NewLowerTypes extends Transform {
 }
 
 // used for first scan of the module to discover the global namespace
-private class LoweringSymbolTable(oldModuleType: Map[String, Type]) extends SymbolTable {
-  def declare(name: String, tpe: Type, kind: Kind): Unit = symbols.append((name, kind, tpe))
-  def declareInstance(name: String, module: String): Unit = symbols.append((name, InstanceKind, oldModuleType(name)))
-  private val symbols = mutable.ArrayBuffer[(String, Kind, Type)]()
-  def getSymbols: Seq[(String, Kind, Type)] = symbols
+private class LoweringSymbolTable extends SymbolTable {
+  def declare(name: String, tpe: Type, kind: Kind): Unit = symbols.append(name)
+  def declareInstance(name: String, module: String): Unit = symbols.append(name)
+  private val symbols = mutable.ArrayBuffer[String]()
+  def getSymbolNames: Seq[String] = symbols
 }
 
 // generates the destructed types
 private class DestructTable(table: LoweringSymbolTable,
                             renameMap: RenameMap, m: ModuleTarget) {
-  private val namespace = mutable.HashSet[String]() ++ table.getSymbols.map(_._1)
-  private val symbols = table.getSymbols.map(s => s._1 -> (s._2, s._3)).toMap
+  private val namespace = mutable.HashSet[String]() ++ table.getSymbolNames
   // serialized old access string to new ground type reference
   private val nameToExpr = mutable.HashMap[String, ExpressionWithFlow]()
 
