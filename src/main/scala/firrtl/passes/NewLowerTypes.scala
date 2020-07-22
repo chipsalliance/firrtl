@@ -2,8 +2,8 @@
 
 package firrtl.passes
 
-import firrtl.annotations.{CircuitTarget, IsMember, ModuleTarget, ReferenceTarget}
-import firrtl.{CircuitForm, CircuitState, DuplexFlow, InstanceKind, Kind, MemKind, NodeKind, RegKind, RenameMap, SinkFlow, SourceFlow, SymbolTable, Transform, UnknownForm, Utils, WireKind}
+import firrtl.annotations.{CircuitTarget, ModuleTarget, ReferenceTarget}
+import firrtl.{CircuitForm, CircuitState, InstanceKind, Kind, MemKind, RenameMap, SymbolTable, Transform, UnknownForm, Utils}
 import firrtl.ir._
 import firrtl.options.Dependency
 import firrtl.stage.TransformManager.TransformDependency
@@ -30,7 +30,7 @@ object NewLowerTypes extends Transform {
   )
   override def optionalPrerequisiteOf: Seq[TransformDependency]  = Seq.empty
   override def invalidates(a: Transform): Boolean = a match {
-    case CheckFlows => true // we generate UnknownFlow for now (could be fixed)
+    case ResolveFlows => true // we generate UnknownFlow for now (could be fixed)
     case _ => false
   }
 
@@ -74,77 +74,54 @@ object NewLowerTypes extends Transform {
       (mod.copy(body = Block(onStatement(mod.body))), Some(renameMap))
   }
 
-  //scalastyle:off cyclomatic.complexity
-  def onStatement(s: Statement)(implicit symbols: DestructTable): Seq[Statement] = s match {
+  def onStatement(s: Statement)(implicit symbols: DestructTable): Statement = s match {
     // declarations
-    case DefWire(info, name, _) =>
-      symbols.destruct(name).map(r => DefWire(info, r.name, r.tpe))
-    case DefRegister(info, name, _, clock, reset, init) =>
-      val loweredClock = onExpressionOne(clock)
-      val loweredReset = onExpressionOne(reset)
-      val inits = onExpression(init)
-      val refs = symbols.destruct(name)
-      refs.zip(inits).map{ case (r, i) => DefRegister(info, r.name, r.tpe, loweredClock, loweredReset, i)}
-    case DefMemory(info, name, _, depth, wLatency, rLatency, rs, ws, rws, readUnderWrite) =>
-      // TODO: can the name of readers/writers change?
-      val refs = symbols.destruct(name)
-      refs.zip(symbols.getDataTypes(name)).map { case (r, dataTpe) =>
-        DefMemory(info, r.name, dataTpe, depth, wLatency, rLatency, rs, ws, rws, readUnderWrite)
-      }
-    case DefInstance(info, name, module, _) =>
-      val List(ref) = symbols.destruct(name)
-      List(DefInstance(info, ref.name, module, ref.tpe))
-    case DefNode(info, name, value) =>
-      val refs = symbols.destruct(name)
-      refs.zip(onExpression(value)).map{ case(r, v) => DefNode(info, r.name, v) }
+    case d : DefWire =>
+      Block(symbols.lower(d.name, d.tpe).map{case (name, tpe) => d.copy(name=name, tpe=tpe) })
+    case d @ DefRegister(info, _, _, clock, reset, _) =>
+      // clock and reset are always of ground type
+      val loweredClock = onExpression(clock)
+      val loweredReset = onExpression(reset)
+      val inits = Utils.create_exps(d.init)
+      Block(
+        symbols.lower(d.name, d.tpe).zip(inits).map { case ((name, tpe), init) =>
+          DefRegister(info, name, tpe, loweredClock, loweredReset, init)
+      })
+    case d : DefNode =>
+      val values = Utils.create_exps(d.value)
+      Block(
+        symbols.lower(d.name, d.value.tpe).zip(values).map{ case((name, tpe), value) =>
+          assert(tpe == value.tpe)
+          DefNode(d.info, name, value)
+      })
+    case d : DefMemory => Block(symbols.lower(d))
+    case d : DefInstance => symbols.lower(d)
     // connections
     case Connect(info, loc, expr) =>
-      val refs = symbols.getReferences(loc.asInstanceOf[ExpressionWithFlow], lhs = true)
-      refs.zip(onExpression(expr)).map{ case (r,e) => r.flow match {
-        case SinkFlow => Connect(info, r, e)
-        case SourceFlow => Connect(info, e, r)
-      }}
+      if(!expr.tpe.isInstanceOf[GroundType]) {
+        throw new RuntimeException(s"NewLowerTypes expects Connects to have been expanded! ${expr.tpe.serialize}")
+      }
+      Connect(info, onExpression(loc), onExpression(expr))
     case p : PartialConnect =>
       // TODO: maybe we can handle partial connects
       throw new RuntimeException(s"NewLowerTypes expects PartialConnects to be resolved! $p")
     case IsInvalid(info, expr) =>
-      val refs = symbols.getReferences(expr.asInstanceOf[ExpressionWithFlow], lhs = true)
-        .filter(r => r.flow == DuplexFlow || r.flow == SinkFlow)
-      refs.map(r => IsInvalid(info, r))
-    // blocks
-    case Block(stmts) => stmts.flatMap(onStatement)
-    case Conditionally(info, pred, conseq, alt) =>
-      val loweredPred = onExpressionOne(pred)
-      List(Conditionally(info, loweredPred, Block(onStatement(conseq)), Block(onStatement(alt))))
-    case EmptyStmt => List()
-    // others
-    case other => List(other.mapExpr(onExpressionOne))
-  }
-  //scalastyle:on cyclomatic.complexity
-
-  // very similar to Utils.create_exps
-  def onExpression(e: Expression)(implicit symbols: DestructTable): Seq[Expression] = e match {
-    case Mux(cond, tval, fval, _) =>
-      val loweredCond = onExpressionOne(cond)
-      onExpression(tval).zip(onExpression(fval)).map { case(t, f) =>
-        Mux(loweredCond, t, f, Utils.mux_type_and_widths(t, f))
+      if(!expr.tpe.isInstanceOf[GroundType]) {
+        throw new RuntimeException(s"NewLowerTypes expects IsInvalids to have been expanded! ${expr.tpe.serialize}")
       }
-    case ValidIf(cond, value, _) =>
-      val loweredCond = onExpressionOne(cond)
-      onExpression(value).map(v => ValidIf(loweredCond, v, v.tpe))
-    case r : ExpressionWithFlow => symbols.getReferences(r, lhs = false)
-    case other => assert(other.tpe.isInstanceOf[GroundType]) ; List(other)
+      IsInvalid(info, onExpression(expr))
+    // others
+    case other => other.mapExpr(onExpression).mapStmt(onStatement)
   }
 
-  /** ensures that the result is a single expression */
-  def onExpressionOne(e: Expression)(implicit symbols: DestructTable): Expression = {
-    val es = onExpression(e)
-    assert(es.length == 1)
-    es.head
+  /** Replaces all Reference, SubIndex and SubField nodes with the updated references */
+  def onExpression(e: Expression)(implicit symbols: DestructTable): Expression = e match {
+    case r: ExpressionWithFlow => symbols.getReference(r)
+    case other => other.mapExpr(onExpression)
   }
 }
 
-// used for first scan of the module to discover all declarations
+// used for first scan of the module to discover the global namespace
 private class LoweringSymbolTable(oldModuleType: Map[String, Type]) extends SymbolTable {
   def declare(name: String, tpe: Type, kind: Kind): Unit = symbols.append((name, kind, tpe))
   def declareInstance(name: String, module: String): Unit = symbols.append((name, InstanceKind, oldModuleType(name)))
@@ -157,39 +134,37 @@ private class DestructTable(table: LoweringSymbolTable,
                             renameMap: RenameMap, m: ModuleTarget) {
   private val namespace = mutable.HashSet[String]() ++ table.getSymbols.map(_._1)
   private val symbols = table.getSymbols.map(s => s._1 -> (s._2, s._3)).toMap
-  // serialized old access string to new ground type fields
-  private val refToFields = mutable.HashMap[String, Seq[Field]]()
+  // serialized old access string to new ground type reference
+  private val nameToExpr = mutable.HashMap[String, ExpressionWithFlow]()
 
-  def destruct(name: String): Seq[Field] = {
-    val (kinds, tpe) = symbols(name)
-    kinds match {
-      case WireKind | RegKind | NodeKind =>
-        val fieldsAndRefs = DestructTypes.destruct(m, Field(name, Default, tpe), namespace, renameMap)
-        refToFields ++= fieldsAndRefs.map{ case (f, ref) => ref -> Seq(f) }
-        fieldsAndRefs.map(_._1)
-      case MemKind =>
-        assert(tpe != UnknownType)
-        throw new NotImplementedError("TODO")
-      case InstanceKind =>
-        // We re-destruct the type in order to get all renames recorded
-        // since the algorithm is deterministic for all sub-fields, the results will always be consistent.
-        val fieldsAndRefs = DestructTypes.destruct(m, Field(name, Default, tpe), namespace, renameMap)
-
-
-        fieldsAndRefs.map(_._1)
-    }
+  def lower(mem: DefMemory): Seq[DefMemory] = {
+    val (mems, refs) = DestructTypes.destructMemory(m, mem, namespace, renameMap)
+    nameToExpr ++= refs.map { case (r, name) => name -> r }
+    mems
+  }
+  def lower(inst: DefInstance): DefInstance = {
+    val (newInst, refs) = DestructTypes.destructInstance(m, inst, namespace, renameMap)
+    nameToExpr ++= refs.map { case (r, name) => name -> r }
+    newInst
+  }
+  /** used to lower nodes, registers and wires */
+  def lower(name: String, tpe: Type): Seq[(String, Type)] = {
+    val fieldsAndRefs = DestructTypes.destruct(m, Field(name, Default, tpe), namespace, renameMap)
+    nameToExpr ++= fieldsAndRefs.map{ case (f, ref) => ref -> Reference(f.name, f.tpe) }
+    fieldsAndRefs.map { case (f, _) => (f.name, f.tpe) }
   }
 
-  def getReferences(expr: ExpressionWithFlow, lhs: Boolean): List[ExpressionWithFlow] = expr match {
-    case SubAccess(expr, index, tpe, flow) => ???
-    case SubIndex(expr, value, tpe, flow) => ???
-    case Reference(name, tpe, kind, flow) => ???
-    case SubField(expr, name, tpe, flow) => ???
+  def getReference(expr: ExpressionWithFlow): ExpressionWithFlow = nameToExpr(serialize(expr))
+
+  // We could just use FirrtlNode.serialize here, but we want to make sure there are not SubAccess nodes left.
+  private def serialize(expr: ExpressionWithFlow): String = expr match {
+    case Reference(name, _, _, _) => name
+    case SubField(expr, name, _, _) => serialize(expr.asInstanceOf[ExpressionWithFlow]) + "." + name
+    case SubIndex(expr, index, _, _) => serialize(expr.asInstanceOf[ExpressionWithFlow]) + "[" + index.toString + "]"
+    case a : SubAccess =>
+      throw new RuntimeException(s"NewLowerTypes expects all SubAccesses to have been expanded! ${a.serialize}")
   }
-  def getDataTypes(name: String): List[Type] = ???
 }
-
-//scalastyle:off
 
 /** Calculate new type layouts and names. */
 private object DestructTypes {
