@@ -191,6 +191,8 @@ class LowerInstancesSpec extends AnyFlatSpec {
   import LowerTypesSpecUtils._
   private case class Lower(inst: firrtl.ir.DefInstance, fields: Seq[String], renameMap: RenameMap)
   private val m = CircuitTarget("m").module("m")
+  def resultToFieldSeq(res: Seq[(firrtl.ir.SubField, String)]): Seq[String] =
+    res.map(_._1).map(r => s"${r.name} : ${r.tpe.serialize}")
   private def lower(n: String, tpe: String, module: String, namespace: Set[String], renames: RenameMap = RenameMap()):
   Lower = {
     val ref = firrtl.ir.DefInstance(firrtl.ir.NoInfo, n, module, parseType(tpe))
@@ -270,7 +272,7 @@ class LowerInstancesSpec extends AnyFlatSpec {
   */
 class LowerMemorySpec extends AnyFlatSpec {
   import LowerTypesSpecUtils._
-  private case class Lower(mems: Seq[firrtl.ir.DefMemory], refs: Seq[(firrtl.ir.SubField, Seq[String])],
+  private case class Lower(mems: Seq[firrtl.ir.DefMemory], refs: Seq[(firrtl.ir.SubField, String)],
                            renameMap: RenameMap)
   private val m = CircuitTarget("m").module("m")
   private val mem = m.ref("mem")

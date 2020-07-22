@@ -233,7 +233,7 @@ private object DestructTypes {
     *         instead of a flat Reference when turning them into access expressions.
     */
   def destructInstance(m: ModuleTarget, instance: DefInstance, namespace: Namespace, renameMap: RenameMap):
-  (DefInstance, Seq[(Field, String)]) = {
+  (DefInstance, Seq[(SubField, String)]) = {
     namespace.add(instance.name)
     val (rename, _) = uniquify(Field(instance.name, Default, instance.tpe), namespace)
     val newName = rename.map(_.name).getOrElse(instance.name)
@@ -252,7 +252,8 @@ private object DestructTypes {
     // The ports do not need to be explicitly renamed here. They are renamed when the module ports are lowered.
 
     val newInstance = instance.copy(name = newName, tpe = BundleType(children.map(_._1)))
-    val refs = children.map{ case(c,r) => c -> extractGroundTypeRefString(r) }
+    val instanceRef = Reference(newName, newInstance.tpe, InstanceKind)
+    val refs = children.map{ case(c,r) => SubField(instanceRef, c.name, c.tpe) -> extractGroundTypeRefString(r) }
 
     (newInstance, refs)
   }
@@ -261,7 +262,7 @@ private object DestructTypes {
 
   /** memories are special because they end up a 2-deep bundle */
   def destructMemory(m: ModuleTarget, mem: DefMemory, namespace: Namespace, renameMap: RenameMap):
-  (Seq[DefMemory], Seq[(SubField, Seq[String])]) = {
+  (Seq[DefMemory], Seq[(SubField, String)]) = {
     // See if any read/write ports need to be renamed. This can happen, e.g., with two ports named `r` and `r_data`.
     // While the renaming isn't necessary for LowerTypes as the port bundles are not lowered in this pass, it will
     // be needed for Verilog emission later on.
@@ -317,8 +318,8 @@ private object DestructTypes {
             oldFieldRefs.foreach { o => renameMap.record(o, newPortFieldRef) }
           }
 
-          val oldFieldStringRefs = oldFieldRefs.map(_.serialize.dropWhile(_ != '>').tail)
-          (newPortFieldAccess, oldFieldStringRefs)
+          val oldFieldStringRef = extractGroundTypeRefString(oldFieldRefs)
+          (newPortFieldAccess, oldFieldStringRef)
         }
       }
       (newMem, subFields)
