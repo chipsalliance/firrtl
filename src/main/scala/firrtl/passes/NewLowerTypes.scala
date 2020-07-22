@@ -3,7 +3,7 @@
 package firrtl.passes
 
 import firrtl.annotations.{CircuitTarget, ModuleTarget, ReferenceTarget}
-import firrtl.{CircuitForm, CircuitState, InstanceKind, Kind, MemKind, RenameMap, SymbolTable, Transform, UnknownForm, Utils}
+import firrtl.{CircuitForm, CircuitState, InstanceKind, Kind, MemKind, PortKind, RenameMap, SymbolTable, Transform, UnknownForm, Utils}
 import firrtl.ir._
 import firrtl.options.Dependency
 import firrtl.stage.TransformManager.TransformDependency
@@ -40,26 +40,28 @@ object NewLowerTypes extends Transform {
     val c = CircuitTarget(state.circuit.main)
     val loweredPorts = state.circuit.modules.map(lowerPorts(c, _, portRenameMap))
 
-    val resultAndRenames = loweredPorts.map(onModule(c, _))
+    val resultAndRenames = loweredPorts.map{case (m, refs) => onModule(c, m, refs)}
     val result = state.circuit.copy(modules = resultAndRenames.map(_._1))
     // TODO: chain rename maps in correct order!
     val moduleRenames = resultAndRenames.collect{ case(m,Some(r)) => m.name -> r }
     state.copy(circuit = result, renames = None)
   }
 
-  def lowerPorts(c: CircuitTarget, m: DefModule, renameMap: RenameMap): DefModule = {
+  def lowerPorts(c: CircuitTarget, m: DefModule, renameMap: RenameMap): (DefModule, Seq[(String, Reference)]) = {
     renameMap.setModule(m.name)
     val ref = c.module(m.name)
     val namespace = mutable.HashSet[String]() ++ m.ports.map(_.name)
     // ports are like fields with an additional Info field
-    val ports = m.ports.flatMap { p => DestructTypes.destruct(ref, p, namespace, renameMap).map(_._1) }
-    m match {
-      case x: Module => x.copy(ports = ports)
-      case x: ExtModule => x.copy(ports = ports)
+    val portsAndRefs = m.ports.flatMap { p => DestructTypes.destruct(ref, p, namespace, renameMap) }
+    val newM = m match {
+      case x: Module => x.copy(ports = portsAndRefs.map(_._1))
+      case x: ExtModule => x.copy(ports = portsAndRefs.map(_._1))
     }
+    val refs = portsAndRefs.map{ case (port, name) => name -> Reference(port.name, port.tpe, PortKind) }
+    (newM, refs)
   }
 
-  def onModule(c: CircuitTarget, m: DefModule): (DefModule, Option[RenameMap]) =
+  def onModule(c: CircuitTarget, m: DefModule, portRefs: Seq[(String, Reference)]): (DefModule, Option[RenameMap]) =
     m match {
     case x: ExtModule => (x, None)
     case mod: Module =>
@@ -68,7 +70,7 @@ object NewLowerTypes extends Transform {
       // scan modules to find all references
       val scan = SymbolTable.scanModule(new LoweringSymbolTable, mod)
       // replace all declarations and references with the destructed types
-      implicit val symbols: DestructTable = new DestructTable(scan, renameMap, ref)
+      implicit val symbols: DestructTable = new DestructTable(scan, renameMap, ref, portRefs)
       (mod.copy(body = Block(onStatement(mod.body))), Some(renameMap))
   }
 
@@ -127,11 +129,11 @@ private class LoweringSymbolTable extends SymbolTable {
 }
 
 // generates the destructed types
-private class DestructTable(table: LoweringSymbolTable,
-                            renameMap: RenameMap, m: ModuleTarget) {
+private class DestructTable(table: LoweringSymbolTable, renameMap: RenameMap, m: ModuleTarget,
+                            portRefs: Seq[(String, Reference)]) {
   private val namespace = mutable.HashSet[String]() ++ table.getSymbolNames
   // serialized old access string to new ground type reference
-  private val nameToExpr = mutable.HashMap[String, ExpressionWithFlow]()
+  private val nameToExpr = mutable.HashMap[String, ExpressionWithFlow]() ++ portRefs
 
   def lower(mem: DefMemory): Seq[DefMemory] = {
     val (mems, refs) = DestructTypes.destructMemory(m, mem, namespace, renameMap)
