@@ -11,6 +11,12 @@ import firrtl.{InstanceKind, PortKind, SinkFlow, SourceFlow, Utils, WInvalid}
 
 import scala.collection.mutable
 
+/** Class to represent circuit connection.
+  *
+  * @param circuit firrtl AST of this graph.
+  * @param digraph Directed graph of ReferenceTarget in the AST.
+  * @param irLookup [[IRLookup]] instance of circuit graph.
+  * */
 class ConnectionGraph protected(val circuit: Circuit,
                                 val digraph: DiGraph[ReferenceTarget],
                                 val irLookup: IRLookup)
@@ -55,8 +61,9 @@ class ConnectionGraph protected(val circuit: Circuit,
     *     output out: UInt
     *     out <= in
     *
-    * We perform BFS starting at Top>in
-    * Node                ConnectivityStack
+    * We perform BFS starting at `Top>in`,
+    * Node                [[portConnectivityStack]]
+    *
     * Top>in              List()
     * Top>a.in            List()
     * Top/a:A>in          List(Top>a.in)
@@ -67,7 +74,10 @@ class ConnectionGraph protected(val circuit: Circuit,
     * Top/a:A>out         List(Top>a.in)
     * Top>a.out           List()
     * Top>out             List()
-    * when we reach Top/a:A> in the stack is List
+    * when we reach `Top/a:A>`, `Top>a.in` will be pushed into [[portConnectivityStack]];
+    * when we reach `Top/a:A/b:B>`, `Top/a:A>b.in` will be pushed into [[portConnectivityStack]];
+    * when we leave `Top/a:A/b:B>`, `Top/a:A>b.in` will be popped from [[portConnectivityStack]];
+    * when we leave `Top/a:A>`, `Top/a:A>b.in` will be popped from [[portConnectivityStack]].
     */
   private val portConnectivityStack: mutable.HashMap[ReferenceTarget, List[ReferenceTarget]] =
     mutable.HashMap.empty[ReferenceTarget, List[ReferenceTarget]]
@@ -101,30 +111,27 @@ class ConnectionGraph protected(val circuit: Circuit,
 
   /** Returns whether a previous BFS search has found a shortcut out of a module, starting from target
     *
-    * @param target
-    * @return
+    * @param target first target to find shortcut.
+    * @return true if find a shortcut.
     */
   def hasShortCut(target: ReferenceTarget): Boolean = getShortCut(target).nonEmpty
 
   /** Optionally returns the shortcut a previous BFS search may have found out of a module, starting from target
     *
-    * @param target
-    * @return
+    * @param target first target to find shortcut.
+    * @return [[ReferenceTarget]] of short cut.
     */
   def getShortCut(target: ReferenceTarget): Option[Set[ReferenceTarget]] =
     foundShortCuts.get(target.pathlessTarget).map(set => set.map(_.setPathTarget(target.pathTarget)).toSet)
 
   /** Returns the shortcut a previous BFS search may have found out of a module, starting from target
     *
-    * @param target
-    * @return
+    * @param target first target to find shortcut.
+    * @return [[ReferenceTarget]] of short cut.
     */
   def shortCut(target: ReferenceTarget): Set[ReferenceTarget] = getShortCut(target).get
 
-  /** Returns a new, reversed connection graph where edges point from sinks to sources
-    *
-    * @return
-    */
+  /** @return a new, reversed connection graph where edges point from sinks to sources. */
   def reverseConnectionGraph: ConnectionGraph = new ConnectionGraph(circuit, digraph.reverse, irLookup)
 
   def getTag(node: ReferenceTarget,
@@ -428,29 +435,17 @@ class ConnectionGraph protected(val circuit: Circuit,
 object ConnectionGraph {
 
   /** Returns a [[firrtl.graph.DiGraph]] of [[firrtl.annotations.Target]] and corresponding [[IRLookup]]
-    *
     * Represents the directed connectivity of a FIRRTL circuit
     *
-    * @param circuit
-    * @return
+    * @param circuit firrtl AST of graph to be constructed.
+    * @return [[ConnectionGraph]] of this `circuit`.
     */
   def apply(circuit: Circuit): ConnectionGraph = buildCircuitGraph(circuit)
 
-  def isAsClock(t: ReferenceTarget): Boolean = t.ref.length >= 9 && t.ref.substring(0, 9) == "@asClock#"
-
-  def isInvalid(t: ReferenceTarget): Boolean = t.ref.length >= 9 && t.ref.substring(0, 9) == "@invalid#"
-
-  def isLiteral(t: ReferenceTarget): Boolean = {
-    t.ref match {
-      case TokenTagger.literalRegex(_) => true
-      case _ => false
-    }
-  }
-
-  /** Within a module, given an [[firrtl.ir.Expression]] inside a module, return a corresponding [[firrtl.annotations.Target]]
+  /** Within a module, given an [[firrtl.ir.Expression]] inside a module, return a corresponding [[firrtl.annotations.ReferenceTarget]]
+    * @todo why no subaccess.
     *
     * @param m      Target of module containing the expression
-    * @param tagger Used to uniquely identify unnamed targets, e.g. primops
     * @param e
     * @return
     */
