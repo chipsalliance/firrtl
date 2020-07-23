@@ -134,130 +134,13 @@ class ConnectionGraph protected(val circuit: Circuit,
   /** @return a new, reversed connection graph where edges point from sinks to sources. */
   def reverseConnectionGraph: ConnectionGraph = new ConnectionGraph(circuit, digraph.reverse, irLookup)
 
-  def getTag(node: ReferenceTarget,
-             tagMap: mutable.LinkedHashMap[(String, ReferenceTarget), mutable.HashSet[ReferenceTarget]]
-            ): Option[collection.Set[ReferenceTarget]] = {
-    def recGetTag(root: String,
-                  node: ReferenceTarget,
-                  tagMap: mutable.LinkedHashMap[(String, ReferenceTarget), mutable.HashSet[ReferenceTarget]]
-                 ): Option[collection.Set[ReferenceTarget]] = {
-      tagMap.get(root, node) match {
-        case Some(set) => Some(set)
-        case None if node.path.isEmpty => None
-        case None => recGetTag(root, node.stripHierarchy(1), tagMap).map(_.map(_.addHierarchy(node.module, node.path.head._1.value)))
-      }
-    }
-
-    val ret = recGetTag(node.module, node, tagMap)
-    ret
-  }
-
-  /** For each node in the path from the search start until the destination, update tagMap with the provided tags
-    *
-    * Tags should be rooted in the same module its ok to be non-local, e.g. Top/a:A>clk is ok.
-    * All values in tagMap will share their key's root module
-    * TagMap will also contain more local versions of the key/values pair, if they are legal (see example)
-    *
-    * For example, if we are tagging node Top/a:A>x with Set(Top/a:A>clk, Top>clk) :
-    * TagMap:
-    * Key         Value
-    * Top/a:A>x   Set(Top/a:A>clk, Top>clk)
-    * A>x         Set(A>clk)
-    *
-    * @param destination
-    * @param prev
-    * @param tags
-    * @param tagMap
-    */
-  protected def tagPath(destination: ReferenceTarget,
-                        prev: collection.Map[ReferenceTarget, ReferenceTarget],
-                        tags: collection.Set[ReferenceTarget],
-                        tagMap: mutable.LinkedHashMap[(String, ReferenceTarget), mutable.HashSet[ReferenceTarget]]): Unit = {
-
-    val modules = tags.map(_.module) + destination.module
-    require(modules.size == 1, s"All tags ($tags) and nodes ($destination) in the path must share their root module ($modules)")
-
-    val perModuleTags = mutable.HashMap[String, mutable.HashSet[ReferenceTarget]]()
-    tags.foreach { tag => updatePerModuleTags(tag, perModuleTags) }
-
-    val nodePath = new mutable.ArrayBuffer[ReferenceTarget]()
-    nodePath += destination
-    while (prev.contains(nodePath.last)) {
-      setTag(nodePath.last, perModuleTags, tagMap)
-      nodePath += prev(nodePath.last)
-    }
-    setTag(nodePath.last, perModuleTags, tagMap)
-  }
-
-  /** Update tagMap with the provided tags for node
-    *
-    * Tags should be rooted in the same  be non-local, e.g. Top/a:A>clk is ok.
-    * All values in tagMap will share their key's root module
-    * TagMap will also contain more local versions of the key/values pair, if they are legal (see example)
-    *
-    * For example, if we are tagging node Top/a:A>x with Set(Top/a:A>clk, Top>clk) :
-    * TagMap:
-    * Key         Value
-    * Top/a:A>x   Set(Top/a:A>clk, Top>clk)
-    * A>x         Set(A>clk)
-    *
-    * @param node
-    * @param tags
-    * @param tagMap
-    */
-  protected def tagNode(node: ReferenceTarget,
-                        tags: collection.Set[ReferenceTarget],
-                        tagMap: mutable.LinkedHashMap[(String, ReferenceTarget), mutable.HashSet[ReferenceTarget]]): Unit = {
-    val perModuleTags = mutable.HashMap[String, mutable.HashSet[ReferenceTarget]]()
-    tags.foreach { tag => updatePerModuleTags(tag, perModuleTags) }
-    setTag(node, perModuleTags, tagMap)
-  }
-
-  /** Tags a single node
-    *
-    * @param node
-    * @param perModuleTags
-    * @param tagMap
-    */
-  private def setTag(node: ReferenceTarget,
-                     perModuleTags: collection.Map[String, collection.Set[ReferenceTarget]],
-                     tagMap: mutable.LinkedHashMap[(String, ReferenceTarget), mutable.HashSet[ReferenceTarget]]): Unit = {
-    def recSetTag(root: String,
-                  node: ReferenceTarget,
-                  perModuleTags: collection.Map[String, collection.Set[ReferenceTarget]],
-                  tagMap: mutable.LinkedHashMap[(String, ReferenceTarget), mutable.HashSet[ReferenceTarget]]): Unit = {
-      perModuleTags.get(node.module) match {
-        case Some(tags) =>
-          tagMap.getOrElseUpdate((root, node), mutable.HashSet.empty[ReferenceTarget]) ++= tags
-        case None =>
-      }
-      if (node.path.nonEmpty) {
-        recSetTag(root, node.stripHierarchy(1), perModuleTags, tagMap)
-      }
-    }
-
-    recSetTag(node.module, node, perModuleTags, tagMap)
-  }
-
-  private def updatePerModuleTags(tag: ReferenceTarget, perModuleTags: mutable.HashMap[String, mutable.HashSet[ReferenceTarget]]): Unit = {
-    perModuleTags.getOrElseUpdate(tag.module, mutable.HashSet.empty[ReferenceTarget]) += tag
-    if (tag.path.nonEmpty) {
-      updatePerModuleTags(tag.stripHierarchy(1), perModuleTags)
-    }
-  }
-
   override def BFS(root: ReferenceTarget, blacklist: collection.Set[ReferenceTarget]): collection.Map[ReferenceTarget, ReferenceTarget] = {
-
     val prev = new mutable.LinkedHashMap[ReferenceTarget, ReferenceTarget]()
-
     val ordering = new Ordering[ReferenceTarget] {
       override def compare(x: ReferenceTarget, y: ReferenceTarget): Int = x.path.size - y.path.size
     }
-
     val bfsQueue = new mutable.PriorityQueue[ReferenceTarget]()(ordering)
-
     bfsQueue.enqueue(root)
-
     while (bfsQueue.nonEmpty) {
       val u = bfsQueue.dequeue
       for (v <- getEdges(u)) {
@@ -382,14 +265,6 @@ class ConnectionGraph protected(val circuit: Circuit,
 
   }
 
-  /** Finds a path (if one exists) from one node to another, with a blacklist
-    *
-    * @param start     the start node
-    * @param end       the destination node
-    * @param blacklist list of nodes which break path, if encountered
-    * @throws firrtl.graph.PathNotFoundException
-    * @return a Seq[T] of nodes defining an arbitrary valid path
-    */
   override def path(start: ReferenceTarget, end: ReferenceTarget, blacklist: collection.Set[ReferenceTarget]): Seq[ReferenceTarget] = {
     insertShortCuts(super.path(start, end, blacklist))
   }
@@ -403,7 +278,7 @@ class ConnectionGraph protected(val circuit: Circuit,
             case Some(set) if set.contains(to) && soFar.contains(from.pathlessTarget) =>
               soFar += from.pathlessTarget
               Seq(from.pathTarget.ref("..."), to)
-            case other =>
+            case _ =>
               soFar += from.pathlessTarget
               Seq(to)
           }
@@ -419,8 +294,8 @@ class ConnectionGraph protected(val circuit: Circuit,
     * in a traversable order.
     *
     * @param start the node to start at
-    * @return a Map[T,Seq[Seq[T]]] where the value associated with v is the Seq of all paths from start to v
-    * */
+    * @return a `Map[T,Seq[Seq[T]]]` where the value associated with v is the Seq of all paths from start to v
+    */
   override def pathsInDAG(start: ReferenceTarget): mutable.LinkedHashMap[ReferenceTarget, Seq[Seq[ReferenceTarget]]] = {
     val linkedMap = super.pathsInDAG(start)
     linkedMap.keysIterator.foreach { key =>
