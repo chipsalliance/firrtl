@@ -406,8 +406,8 @@ class LowerMemorySpec extends AnyFlatSpec {
       Set(m.ref("mem__1").field("r").field("data")))
 
     val renameCount = r.underlying.map(_._2.size).sum
-    assert(renameCount == 8, "it is enough to rename *to* 8 different signals")
-    assert(r.underlying.size == 7, "it is enough to rename (from) 7 different signals")
+    assert(renameCount == 6, "it is enough to rename *to* 6 different signals")
+    assert(r.underlying.size == 5, "it is enough to rename (from) 5 different signals")
   }
 
 }

@@ -316,7 +316,8 @@ private object DestructTypes {
     }
   }
 
-  private def extractGroundTypeRefString(refs: Seq[ReferenceTarget]): String = {
+  private def extractGroundTypeRefString(refs: Seq[ReferenceTarget]): String =
+  if(refs.isEmpty) { "" } else {
     // Since we depend on ExpandConnects any reference we encounter will be of ground type
     // and thus the one with the longest access path.
     refs.reduceLeft((x,y) => if (x.component.length > y.component.length) x else y)
