@@ -113,7 +113,7 @@ object NewLowerTypes extends Transform {
 
   /** Replaces all Reference, SubIndex and SubField nodes with the updated references */
   def onExpression(e: Expression)(implicit symbols: LoweringTable): Expression = e match {
-    case r: ExpressionWithFlow => symbols.getReference(r)
+    case r: RefLikeExpression => symbols.getReference(r)
     case other => other.mapExpr(onExpression)
   }
 }
@@ -131,7 +131,7 @@ private class LoweringTable(table: LoweringSymbolTable, renameMap: RenameMap, m:
                             portRefs: Seq[(String, Reference)]) {
   private val namespace = mutable.HashSet[String]() ++ table.getSymbolNames
   // Serialized old access string to new ground type reference.
-  private val nameToExpr = mutable.HashMap[String, ExpressionWithFlow]() ++ portRefs
+  private val nameToExpr = mutable.HashMap[String, RefLikeExpression]() ++ portRefs
 
   def lower(mem: DefMemory): Seq[DefMemory] = {
     val (mems, refs) = DestructTypes.destructMemory(m, mem, namespace, renameMap)
@@ -150,13 +150,13 @@ private class LoweringTable(table: LoweringSymbolTable, renameMap: RenameMap, m:
     fieldsAndRefs.map { case (f, _) => (f.name, f.tpe) }
   }
 
-  def getReference(expr: ExpressionWithFlow): ExpressionWithFlow = nameToExpr(serialize(expr))
+  def getReference(expr: RefLikeExpression): RefLikeExpression = nameToExpr(serialize(expr))
 
   // We could just use FirrtlNode.serialize here, but we want to make sure there are not SubAccess nodes left.
-  private def serialize(expr: ExpressionWithFlow): String = expr match {
+  private def serialize(expr: RefLikeExpression): String = expr match {
     case Reference(name, _, _, _) => name
-    case SubField(expr, name, _, _) => serialize(expr.asInstanceOf[ExpressionWithFlow]) + "." + name
-    case SubIndex(expr, index, _, _) => serialize(expr.asInstanceOf[ExpressionWithFlow]) + "[" + index.toString + "]"
+    case SubField(expr, name, _, _) => serialize(expr.asInstanceOf[RefLikeExpression]) + "." + name
+    case SubIndex(expr, index, _, _) => serialize(expr.asInstanceOf[RefLikeExpression]) + "[" + index.toString + "]"
     case a : SubAccess =>
       throw new RuntimeException(s"NewLowerTypes expects all SubAccesses to have been expanded! ${a.serialize}")
   }
