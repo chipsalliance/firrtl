@@ -548,7 +548,7 @@ object ConnectionGraph {
       expr
     }
 
-    new ConnectionGraph(circuit, DiGraph(mdg), new IRLookup(declarations, moduleMap))
+    new ConnectionGraph(circuit, DiGraph(mdg), new IRLookup(declarations.mapValues(_.toMap).toMap, moduleMap))
   }
 }
 

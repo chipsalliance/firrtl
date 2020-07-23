@@ -100,7 +100,7 @@ class CircuitGraph private[analyses] (val connectionGraph: ConnectionGraph) {
     */
   def localReferences(path: IsModule, kind: Kind): Seq[ReferenceTarget] = {
     val leafModule = path.leafModule
-    irLookup.references(ModuleTarget(circuit.main, leafModule), kind).map(_.setPathTarget(path))
+    irLookup.kindFinder(ModuleTarget(circuit.main, leafModule), kind).map(_.setPathTarget(path))
   }
 
   /** Return a reference to all nodes of given kind, contained in the referenced module/instance or any child instance

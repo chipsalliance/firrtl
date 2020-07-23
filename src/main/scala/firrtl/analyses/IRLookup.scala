@@ -6,7 +6,7 @@ import firrtl.annotations.TargetToken._
 import firrtl.annotations._
 import firrtl.ir._
 import firrtl.passes.MemPortUtils
-import firrtl.{DuplexFlow, ExpKind, SinkFlow, Flow, InstanceKind, Kind, SourceFlow, MemKind, PortKind, RegKind, UnknownFlow, Utils, WInvalid, WireKind}
+import firrtl.{DuplexFlow, ExpKind, Flow, InstanceKind, Kind, MemKind, PortKind, RegKind, SinkFlow, SourceFlow, UnknownFlow, Utils, WInvalid, WireKind}
 
 import scala.collection.mutable
 
@@ -15,86 +15,52 @@ object IRLookup {
 }
 
 /** Handy lookup for obtaining AST information about a given Target
+  *
   * @param declarations Maps references (not subreferences) to declarations
-  * @param modules Maps module targets to modules
+  * @param modules      Maps module targets to modules
   */
-class IRLookup private[analyses] ( private val declarations: mutable.LinkedHashMap[ModuleTarget, mutable.LinkedHashMap[ReferenceTarget, FirrtlNode]],
-                                   private val modules: Map[ModuleTarget, DefModule]) {
+class IRLookup private[analyses](private val declarations: Map[ModuleTarget, Map[ReferenceTarget, FirrtlNode]],
+                                 private val modules: Map[ModuleTarget, DefModule]) {
 
   private val flowCache = mutable.HashMap[ReferenceTarget, Flow]()
   private val kindCache = mutable.HashMap[ReferenceTarget, Kind]()
   private val tpeCache = mutable.HashMap[ReferenceTarget, Type]()
   private val exprCache = mutable.HashMap[(ReferenceTarget, Flow), Expression]()
-
   private val refCache = mutable.HashMap[ModuleTarget, mutable.LinkedHashMap[Kind, mutable.ArrayBuffer[ReferenceTarget]]]()
-
-
 
   /** Returns the target converted to its local reference
     * E.g. Given ~Top|MyModule/inst:Other>foo.bar, returns ~Top|Other>foo
+    *
     * @param t
     * @return
     */
   def asLocalRef(t: ReferenceTarget): ReferenceTarget = t.pathlessTarget.copy(component = Nil)
 
-  /** Returns the flow of t
-    * @param t
-    * @return
-    */
-  def flow(t: ReferenceTarget): Flow = {
-    val pathless = t.pathlessTarget
-    if(flowCache.contains(pathless)) return flowCache(pathless)
-    val flow = Utils.flow(expr(pathless))
-    flowCache(pathless) = flow
-    flow
-  }
+  def flow(t: ReferenceTarget): Flow = flowCache.getOrElseUpdate(t.pathlessTarget, Utils.flow(expr(t.pathlessTarget)))
 
-  /** Returns the kind of t
-    * @param t
-    * @return
-    */
-  def kind(t: ReferenceTarget): Kind = {
-    val pathless = t.pathlessTarget
-    if(kindCache.contains(pathless)) return kindCache(pathless)
+  def kind(t: ReferenceTarget): Kind = kindCache.getOrElseUpdate(t.pathlessTarget, Utils.kind(expr(t.pathlessTarget)))
 
-    val kind = Utils.kind(expr(pathless))
-    kindCache(pathless) = kind
-    kind
-  }
+  def tpe(t: ReferenceTarget): Type = tpeCache.getOrElseUpdate(t.pathlessTarget, expr(t.pathlessTarget).tpe)
 
-  /** Returns the type of t
-    * @param t
-    * @return
-    */
-  def tpe(t: ReferenceTarget): Type = {
-    val pathless = t.pathlessTarget
-    if(tpeCache.contains(pathless)) return tpeCache(pathless)
-
-    val tpe = expr(pathless).tpe
-    tpeCache(pathless) = tpe
-    tpe
-  }
-
-  /** Returns Some(e) if expression exists, None if it does not
-    *
+  /** get expression of the target.
     * It can return None for many reasons, including
     *  - declaration is missing
     *  - flow is wrong
     *  - component is wrong
     *
-    * @param t
-    * @param flow
-    * @return
+    * @param t    [[ReferenceTarget]] to be queried.
+    * @param flow flow of the target
+    * @return Some(e) if expression exists, None if it does not
     */
   def getExpr(t: ReferenceTarget, flow: Flow): Option[Expression] = {
     val pathless = t.pathlessTarget
 
     inCache(pathless, flow) match {
-      case Some(e) => e
+      case e@Some(_) => return e
       case None =>
         val mt = pathless.moduleTarget
         val emt = t.encapsulatingModuleTarget
-        if(declarations.contains(emt) && declarations(emt).contains(asLocalRef(t))){
+        if (declarations.contains(emt) && declarations(emt).contains(asLocalRef(t))) {
           declarations(emt)(asLocalRef(t)) match {
             case e: Expression =>
               require(e.tpe.isInstanceOf[GroundType])
@@ -126,19 +92,19 @@ class IRLookup private[analyses] ( private val declarations: mutable.LinkedHashM
               case other =>
                 sys.error(s"Cannot call expr with: $t, given declaration $other")
             }
-            case x: IsInvalid =>
+            case _: IsInvalid =>
               exprCache((pathless, SourceFlow)) = WInvalid
           }
-        } else None
+        }
     }
 
     inCache(pathless, flow)
   }
 
-  /** Returns an expression corresponding to the target
-    * @param t
-    * @param flow
-    * @return
+  /**
+    * @param t    [[ReferenceTarget]] to be queried.
+    * @param flow flow of the target
+    * @return expression of `t`
     */
   def expr(t: ReferenceTarget, flow: Flow = UnknownFlow): Expression = {
     require(contains(t), s"Cannot find\n${t.prettyPrint()}\nin circuit!")
@@ -150,32 +116,34 @@ class IRLookup private[analyses] ( private val declarations: mutable.LinkedHashM
     }
   }
 
-  private def updateRefs(kind: Kind, rt: ReferenceTarget): Unit = {
-    val kindMap = refCache.getOrElseUpdate(rt.moduleTarget, mutable.LinkedHashMap.empty[Kind, mutable.ArrayBuffer[ReferenceTarget]])
-    kindMap.getOrElseUpdate(kind, mutable.ArrayBuffer.empty[ReferenceTarget]) += rt
-  }
+  /** find all kind in a [[ModuleTarget]]
+    * @param moduleTarget [[ModuleTarget]] to be queried.
+    * @param kind [[Kind]] to be find.
+    * @return all [[ReferenceTarget]] in this node. */
+  def kindFinder(moduleTarget: ModuleTarget, kind: Kind): Seq[ReferenceTarget] = {
+    def updateRefs(kind: Kind, rt: ReferenceTarget): Unit = refCache
+      .getOrElseUpdate(rt.moduleTarget, mutable.LinkedHashMap.empty[Kind, mutable.ArrayBuffer[ReferenceTarget]])
+      .getOrElseUpdate(kind, mutable.ArrayBuffer.empty[ReferenceTarget]) += rt
 
-  def references(moduleTarget: ModuleTarget, kind: Kind): Seq[ReferenceTarget] = {
     require(contains(moduleTarget), s"Cannot find\n${moduleTarget.prettyPrint()}\nin circuit!")
-    if(refCache.contains(moduleTarget) && refCache(moduleTarget).contains(kind)) refCache(moduleTarget)(kind)
+    if (refCache.contains(moduleTarget) && refCache(moduleTarget).contains(kind)) refCache(moduleTarget)(kind)
     else {
-      modules(moduleTarget)
       declarations(moduleTarget).foreach {
-        case (rt, ir: DefRegister) => updateRefs(RegKind, rt)
-        case (rt, ir: DefWire) => updateRefs(WireKind, rt)
-        case (rt, ir: DefNode) => updateRefs(ExpKind, rt)
-        case (rt, ir: DefMemory) => updateRefs(MemKind, rt)
-        case (rt, ir: DefInstance) => updateRefs(InstanceKind, rt)
-        case (rt, ir: Port) => updateRefs(PortKind, rt)
+        case (rt, _: DefRegister) => updateRefs(RegKind, rt)
+        case (rt, _: DefWire) => updateRefs(WireKind, rt)
+        case (rt, _: DefNode) => updateRefs(ExpKind, rt)
+        case (rt, _: DefMemory) => updateRefs(MemKind, rt)
+        case (rt, _: DefInstance) => updateRefs(InstanceKind, rt)
+        case (rt, _: Port) => updateRefs(PortKind, rt)
         case _ =>
       }
       refCache.get(moduleTarget).map(_.getOrElse(kind, Seq.empty[ReferenceTarget])).getOrElse(Seq.empty[ReferenceTarget])
     }
   }
 
-  /** Returns the statement containing the declaration of the target
+  /**
     * @param t
-    * @return
+    * @return the statement containing the declaration of the target
     */
   def declaration(t: ReferenceTarget): FirrtlNode = {
     require(contains(t), s"Cannot find\n${t.prettyPrint()}\nin circuit!")
@@ -183,6 +151,7 @@ class IRLookup private[analyses] ( private val declarations: mutable.LinkedHashM
   }
 
   /** Returns the references to the module's ports
+    *
     * @param mt
     */
   def ports(mt: ModuleTarget): Seq[ReferenceTarget] = {
@@ -192,10 +161,11 @@ class IRLookup private[analyses] ( private val declarations: mutable.LinkedHashM
 
   /** Returns a target to each sub-component, including intermediate subcomponents
     * E.g.
-    *   Given:
-    *     A ReferenceTarget of ~Top|Module>ref and a type of {foo: {bar: UInt}}
-    *   Return:
-    *     Seq(~Top|Module>ref, ~Top|Module>ref.foo, ~Top|Module>ref.foo.bar)
+    * Given:
+    * A ReferenceTarget of ~Top|Module>ref and a type of {foo: {bar: UInt}}
+    * Return:
+    * Seq(~Top|Module>ref, ~Top|Module>ref.foo, ~Top|Module>ref.foo.bar)
+    *
     * @param r
     * @return
     */
@@ -203,16 +173,18 @@ class IRLookup private[analyses] ( private val declarations: mutable.LinkedHashM
 
   /** Returns a target to each sub-component, excluding intermediate subcomponents
     * E.g.
-    *   Given:
-    *     A ReferenceTarget of ~Top|Module>ref and a type of {foo: {bar: UInt}}
-    *   Return:
-    *     Seq(~Top|Module>ref.foo.bar)
+    * Given:
+    * A ReferenceTarget of ~Top|Module>ref and a type of {foo: {bar: UInt}}
+    * Return:
+    * Seq(~Top|Module>ref.foo.bar)
+    *
     * @param r
     * @return
     */
   def leafTargets(r: ReferenceTarget): Seq[ReferenceTarget] = r.leafSubTargets(tpe(r))
 
   /** Returns target and type of each module port
+    *
     * @param m
     * @param module
     * @return Returns ((inputs, outputs))
@@ -231,24 +203,24 @@ class IRLookup private[analyses] ( private val declarations: mutable.LinkedHashM
     }
   }
 
-  /** Returns whether a ReferenceTarget is contained in this IRLookup
-    * @param t
-    * @return
+  /**
+    * @param t [[ReferenceTarget]] to be queried.
+    * @return whether a ReferenceTarget is contained in this IRLookup
     */
-  def contains(t: ReferenceTarget): Boolean = {
-    validPath(t.pathTarget) &&
-      declarations.contains(t.encapsulatingModuleTarget) &&
-      declarations(t.encapsulatingModuleTarget).contains(asLocalRef(t)) &&
-      getExpr(t, UnknownFlow).nonEmpty
-  }
+  def contains(t: ReferenceTarget): Boolean = validPath(t.pathTarget) &&
+    declarations.contains(t.encapsulatingModuleTarget) &&
+    declarations(t.encapsulatingModuleTarget).contains(asLocalRef(t)) &&
+    getExpr(t, UnknownFlow).nonEmpty
 
   /** Returns whether a ModuleTarget or InstanceTarget is contained in this IRLookup
+    *
     * @param mt
     * @return
     */
   def contains(mt: IsModule): Boolean = validPath(mt)
 
   /** Returns whether a given IsModule is valid, given the circuit's module/instance hierarchy
+    *
     * @param t
     * @return
     */
@@ -268,6 +240,7 @@ class IRLookup private[analyses] ( private val declarations: mutable.LinkedHashM
   }
 
   /** Updates expression cache with expression
+    *
     * @param mt
     * @param ref
     */
@@ -280,6 +253,7 @@ class IRLookup private[analyses] ( private val declarations: mutable.LinkedHashM
   }
 
   /** Updates expression cache with expression
+    *
     * @param gt
     * @param e
     */
@@ -299,6 +273,7 @@ class IRLookup private[analyses] ( private val declarations: mutable.LinkedHashM
   }
 
   /** Optionally returns the expression corresponding to the target if contained in the expression cache
+    *
     * @param pathless
     * @param flow
     * @return
@@ -309,12 +284,12 @@ class IRLookup private[analyses] ( private val declarations: mutable.LinkedHashM
       exprCache.contains((pathless, SinkFlow)),
       exprCache.contains(pathless, DuplexFlow)
     ) match {
-      case (SourceFlow,          true,  _,     _)     => Some(exprCache((pathless, flow)))
-      case (SinkFlow,        _,     true,  _)     => Some(exprCache((pathless, flow)))
-      case (DuplexFlow,      _,     _,     true)  => Some(exprCache((pathless, DuplexFlow)))
-      case (UnknownFlow, _,     _,     true)  => Some(exprCache((pathless, DuplexFlow)))
-      case (UnknownFlow, true,  false, false) => Some(exprCache((pathless, SourceFlow)))
-      case (UnknownFlow, false, true,  false) => Some(exprCache((pathless, SinkFlow)))
+      case (SourceFlow, true, _, _) => Some(exprCache((pathless, flow)))
+      case (SinkFlow, _, true, _) => Some(exprCache((pathless, flow)))
+      case (DuplexFlow, _, _, true) => Some(exprCache((pathless, DuplexFlow)))
+      case (UnknownFlow, _, _, true) => Some(exprCache((pathless, DuplexFlow)))
+      case (UnknownFlow, true, false, false) => Some(exprCache((pathless, SourceFlow)))
+      case (UnknownFlow, false, true, false) => Some(exprCache((pathless, SinkFlow)))
       case other => None
     }
   }
@@ -327,6 +302,7 @@ class IRLookup private[analyses] ( private val declarations: mutable.LinkedHashM
   */
 class TokenTagger {
   private val counterMap = mutable.HashMap[String, Int]()
+
   def getTag(label: String): Int = {
     val tag = counterMap.getOrElse(label, 0)
     counterMap(label) = tag + 1

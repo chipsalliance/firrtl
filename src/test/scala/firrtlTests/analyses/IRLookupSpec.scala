@@ -68,7 +68,7 @@ class IRLookupSpec extends FirrtlFlatSpec {
     irLookup.declaration(Test.ref("r").clock) shouldBe reg
     irLookup.declaration(Test.ref("r").reset) shouldBe reg
     irLookup.declaration(Test.ref("r").init) shouldBe reg
-
+    irLookup.kindFinder(Test, RegKind) shouldBe Seq(Test.ref("r"))
     irLookup.declaration(Test.ref("x")) shouldBe
       DefNode(NoInfo, "x", WRef("r", uint8, RegKind, SourceFlow))
 
