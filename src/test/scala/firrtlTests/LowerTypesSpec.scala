@@ -30,7 +30,7 @@ class LowerTypesSpec extends FirrtlFlatSpec {
     InferTypes,
     ResolveFlows,
     new InferWidths,
-    LowerTypes)
+    NewLowerTypes)
 
   private def executeTest(input: String, expected: Seq[String]) = {
     val circuit = Parser.parse(input.split("\n").toIterator)

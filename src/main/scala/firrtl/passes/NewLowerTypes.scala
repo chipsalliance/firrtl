@@ -32,6 +32,20 @@ object NewLowerTypes extends Transform {
     case _ => false
   }
 
+  /** Delimiter used in lowering names */
+  val delim = "_"
+  /** Expands a chain of referential [[firrtl.ir.Expression]]s into the equivalent lowered name
+    * @param e [[firrtl.ir.Expression]] made up of _only_ [[firrtl.WRef]], [[firrtl.WSubField]], and [[firrtl.WSubIndex]]
+    * @return Lowered name of e
+    * @note Please make sure that there will be no name collisions when you use this outside of the context of LowerTypes!
+    */
+  def loweredName(e: Expression): String = e match {
+    case e: Reference => e.name
+    case e: SubField => s"${loweredName(e.expr)}$delim${e.name}"
+    case e: SubIndex => s"${loweredName(e.expr)}$delim${e.value}"
+  }
+  def loweredName(s: Seq[String]): String = s.mkString(delim)
+
   override def execute(state: CircuitState): CircuitState = {
     // When memories are lowered to ground type, we have to fix the init annotation or error on it.
     val (memInitAnnos, otherAnnos) = state.annotations.partition {
@@ -356,7 +370,7 @@ private object DestructTypes {
     oldField.tpe match {
       case _ : GroundType => List((oldField.copy(name = prefix + newName), List(oldRef)))
       case _ : BundleType | _ : VectorType =>
-        val newPrefix = prefix + newName + LowerTypes.delim
+        val newPrefix = prefix + newName + NewLowerTypes.delim
         val isVecField = oldField.tpe.isInstanceOf[VectorType]
         val fields = getFields(oldField.tpe)
         val fieldsWithCorrectOrientation = fields.map(f => f.copy(flip = Utils.times(f.flip, oldField.flip)))
@@ -381,7 +395,7 @@ private object DestructTypes {
 
       // Need leading _ for findValidPrefix, it doesn't add _ for checks
       val renamedFieldNames = renamedFields.flatMap(_._2)
-      val suffixNames: Seq[String] = renamedFieldNames.map(f => LowerTypes.delim + f)
+      val suffixNames: Seq[String] = renamedFieldNames.map(f => NewLowerTypes.delim + f)
       val prefix = Uniquify.findValidPrefix(ref.name, suffixNames, namespace)
       // We added f.name in previous map, delete if we change it
       val renamed = prefix != ref.name
@@ -389,7 +403,7 @@ private object DestructTypes {
         namespace -= ref.name
         namespace += prefix
       }
-      val suffixes = renamedFieldNames.map(f => prefix + LowerTypes.delim + f)
+      val suffixes = renamedFieldNames.map(f => prefix + NewLowerTypes.delim + f)
 
       val anyChildRenamed = renamedFields.exists(_._1.isDefined)
       val rename = if(renamed || anyChildRenamed){

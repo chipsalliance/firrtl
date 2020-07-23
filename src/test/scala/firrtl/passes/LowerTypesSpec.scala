@@ -9,7 +9,7 @@ import firrtl.stage.TransformManager.TransformDependency
 import org.scalatest.flatspec.AnyFlatSpec
 
 class LegacyLowerTypesSpec extends LowerTypesEndToEndSpec {
-  override protected def pass: TransformDependency = Dependency(LowerTypes)
+  override protected def pass: TransformDependency = Dependency(NewLowerTypes)
 }
 
 class NewLowerTypesEndToEndSpec extends LowerTypesEndToEndSpec {

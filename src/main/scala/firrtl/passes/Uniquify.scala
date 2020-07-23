@@ -12,7 +12,7 @@ import firrtl.options.Dependency
 
 import MemPortUtils.memType
 
-/** Resolve name collisions that would occur in [[LowerTypes]]
+/** Resolve name collisions that would occur in the old [[LowerTypes]] pass
   *
   *  @note Must be run after [[InferTypes]] because [[ir.DefNode]]s need type
   *  @example

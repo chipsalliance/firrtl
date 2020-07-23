@@ -23,7 +23,7 @@ import scala.util.{Try, Success, Failure}
 class RemoveWires extends Transform with DependencyAPIMigration {
 
   override def prerequisites = firrtl.stage.Forms.MidForm ++
-    Seq( Dependency(passes.LowerTypes),
+    Seq( Dependency(passes.NewLowerTypes),
          Dependency(passes.Legalize),
          Dependency(passes.ResolveKinds),
          Dependency(transforms.RemoveReset),

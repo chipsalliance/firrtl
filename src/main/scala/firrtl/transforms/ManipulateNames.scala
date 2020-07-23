@@ -170,7 +170,7 @@ abstract class ManipulateNames[A <: ManipulateNames[_] : ClassTag] extends Trans
   /** A function used to manipulate a name in a FIRRTL circuit */
   def manipulate: (String, Namespace) => Option[String]
 
-  override def prerequisites: Seq[TransformDependency] = Seq(Dependency(firrtl.passes.LowerTypes))
+  override def prerequisites: Seq[TransformDependency] = Seq(Dependency(firrtl.passes.NewLowerTypes))
   override def optionalPrerequisites: Seq[TransformDependency] = Seq.empty
   override def optionalPrerequisiteOf: Seq[TransformDependency] = Forms.LowEmitters
   override def invalidates(a: Transform) = a match {

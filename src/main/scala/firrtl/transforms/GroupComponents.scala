@@ -4,7 +4,7 @@ import firrtl._
 import firrtl.Mappers._
 import firrtl.ir._
 import firrtl.annotations.{Annotation, ComponentName}
-import firrtl.passes.{InferTypes, LowerTypes, ResolveKinds}
+import firrtl.passes.{InferTypes, NewLowerTypes, ResolveKinds}
 import firrtl.graph.MutableDiGraph
 import firrtl.stage.Forms
 
@@ -176,7 +176,7 @@ class GroupComponents extends Transform with DependencyAPIMigration {
     }
 
     def addPort(group: String, exp: Expression, d: Direction): String = {
-      val source = LowerTypes.loweredName(exp)
+      val source = NewLowerTypes.loweredName(exp)
       val portNames = groupPortNames(group)
       val suffix = d match {
         case Output => label2annotation(group).outputSuffix.getOrElse("")

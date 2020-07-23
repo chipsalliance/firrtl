@@ -77,7 +77,7 @@ object VerilogPrep extends Pass {
   def run(c: Circuit): Circuit = {
     def lowerE(e: Expression): Expression = e match {
       case (_: WRef | _: WSubField) if kind(e) == InstanceKind =>
-        WRef(LowerTypes.loweredName(e), e.tpe, kind(e), flow(e))
+        WRef(NewLowerTypes.loweredName(e), e.tpe, kind(e), flow(e))
       case _ => e map lowerE
     }
 
@@ -90,7 +90,7 @@ object VerilogPrep extends Pass {
             case Some(ref) => (p -> ref, None)
             // If no source, create a wire corresponding to the port and connect it up
             case None =>
-              val wire = DefWire(info, LowerTypes.loweredName(p), p.tpe)
+              val wire = DefWire(info, NewLowerTypes.loweredName(p), p.tpe)
               (p -> WRef(wire), Some(wire))
           }
         }.unzip

@@ -5,7 +5,7 @@ package benchmark
 package hot
 
 import firrtl._
-import firrtl.passes.LowerTypes
+import firrtl.passes.{LowerTypes, NewLowerTypes}
 import firrtl.stage.TransformManager
 import firrtl.benchmark.util._
 import firrtl.transforms.DedupModules
@@ -25,5 +25,6 @@ abstract class TransformBenchmark(factory: () => Transform) extends App {
 }
 
 object LowerTypesBenchmark extends TransformBenchmark(() => LowerTypes)
+object NewLowerTypesBenchmark extends TransformBenchmark(() => NewLowerTypes)
 
 object DedupBenchmark extends TransformBenchmark(() => new DedupModules())
