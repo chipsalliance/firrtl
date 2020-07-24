@@ -8,7 +8,7 @@ import firrtl.annotations._
 import firrtl.ir.{AsyncResetType, _}
 import firrtl.options.Dependency
 
-import scala.collection.mutable.{ ArrayBuffer, HashMap, HashSet }
+import scala.collection.mutable
 import firrtl.compat.wrappers.{ ArrSeqWrapper }
 import firrtl.compat.{ Annos }
 
@@ -53,9 +53,9 @@ class PropagatePresetAnnotations extends Transform with DependencyAPIMigration {
 
   import PropagatePresetAnnotations._
 
-  private type TargetSet = HashSet[ReferenceTarget]
-  private type TargetMap = HashMap[ReferenceTarget,String]
-  private type TargetSetMap = HashMap[ReferenceTarget, TargetSet]
+  private type TargetSet = mutable.HashSet[ReferenceTarget]
+  private type TargetMap = mutable.HashMap[ReferenceTarget,String]
+  private type TargetSetMap = mutable.HashMap[ReferenceTarget, TargetSet]
 
   private val toCleanUp = new TargetSet()
 
