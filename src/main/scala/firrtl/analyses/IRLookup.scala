@@ -22,22 +22,23 @@ object IRLookup {
 class IRLookup private[analyses](private val declarations: Map[ModuleTarget, Map[ReferenceTarget, FirrtlNode]],
                                  private val modules: Map[ModuleTarget, DefModule]) {
 
-  private val flowCache = mutable.HashMap[ReferenceTarget, Flow]()
-  private val kindCache = mutable.HashMap[ReferenceTarget, Kind]()
-  private val tpeCache = mutable.HashMap[ReferenceTarget, Type]()
-  private val exprCache = mutable.HashMap[(ReferenceTarget, Flow), Expression]()
+  private val flowCache = mutable.HashMap[ModuleTarget, mutable.HashMap[ReferenceTarget, Flow]]()
+  private val kindCache = mutable.HashMap[ModuleTarget, mutable.HashMap[ReferenceTarget, Kind]]()
+  private val tpeCache = mutable.HashMap[ModuleTarget, mutable.HashMap[ReferenceTarget, Type]]()
+  private val exprCache = mutable.HashMap[ModuleTarget, mutable.HashMap[(ReferenceTarget, Flow), Expression]]()
   private val refCache = mutable.HashMap[ModuleTarget, mutable.LinkedHashMap[Kind, mutable.ArrayBuffer[ReferenceTarget]]]()
+
 
   /** @example Given ~Top|MyModule/inst:Other>foo.bar, returns ~Top|Other>foo
     * @return the target converted to its local reference
     */
   def asLocalRef(t: ReferenceTarget): ReferenceTarget = t.pathlessTarget.copy(component = Nil)
 
-  def flow(t: ReferenceTarget): Flow = flowCache.getOrElseUpdate(t.pathlessTarget, Utils.flow(expr(t.pathlessTarget)))
+  def flow(t: ReferenceTarget): Flow = flowCache.getOrElseUpdate(t.moduleTarget, mutable.HashMap[ReferenceTarget, Flow]()).getOrElseUpdate(t.pathlessTarget, Utils.flow(expr(t.pathlessTarget)))
 
-  def kind(t: ReferenceTarget): Kind = kindCache.getOrElseUpdate(t.pathlessTarget, Utils.kind(expr(t.pathlessTarget)))
+  def kind(t: ReferenceTarget): Kind = kindCache.getOrElseUpdate(t.moduleTarget, mutable.HashMap[ReferenceTarget, Kind]()).getOrElseUpdate(t.pathlessTarget, Utils.kind(expr(t.pathlessTarget)))
 
-  def tpe(t: ReferenceTarget): Type = tpeCache.getOrElseUpdate(t.pathlessTarget, expr(t.pathlessTarget).tpe)
+  def tpe(t: ReferenceTarget): Type = tpeCache.getOrElseUpdate(t.moduleTarget, mutable.HashMap[ReferenceTarget, Type]()).getOrElseUpdate(t.pathlessTarget, expr(t.pathlessTarget).tpe)
 
   /** get expression of the target.
     * It can return None for many reasons, including
@@ -61,7 +62,7 @@ class IRLookup private[analyses](private val declarations: Map[ModuleTarget, Map
           declarations(emt)(asLocalRef(t)) match {
             case e: Expression =>
               require(e.tpe.isInstanceOf[GroundType])
-              exprCache.getOrElseUpdate((pathless, Utils.flow(e)), e)
+              exprCache.getOrElseUpdate(pathless.moduleTarget, mutable.HashMap[(ReferenceTarget, Flow), Expression]()).getOrElseUpdate((pathless, Utils.flow(e)), e)
             case d: IsDeclaration => d match {
               case n: DefNode =>
                 updateExpr(mt, Reference(n.name, n.value.tpe, ExpKind, SourceFlow))
@@ -74,12 +75,12 @@ class IRLookup private[analyses](private val declarations: Map[ModuleTarget, Map
                 updateExpr(mt, Reference(w.name, w.tpe, WireKind, SinkFlow))
                 updateExpr(mt, Reference(w.name, w.tpe, WireKind, DuplexFlow))
               case r: DefRegister if pathless.tokens.last == Clock =>
-                exprCache((pathless, SourceFlow)) = r.clock
+                exprCache.getOrElseUpdate(pathless.moduleTarget, mutable.HashMap[(ReferenceTarget, Flow), Expression]())((pathless, SourceFlow)) = r.clock
               case r: DefRegister if pathless.tokens.isDefinedAt(1) && pathless.tokens(1) == Init =>
-                exprCache((pathless, SourceFlow)) = r.init
+                exprCache.getOrElseUpdate(pathless.moduleTarget, mutable.HashMap[(ReferenceTarget, Flow), Expression]())((pathless, SourceFlow)) = r.init
                 updateExpr(pathless, r.init)
               case r: DefRegister if pathless.tokens.last == Reset =>
-                exprCache((pathless, SourceFlow)) = r.reset
+                exprCache.getOrElseUpdate(pathless.moduleTarget, mutable.HashMap[(ReferenceTarget, Flow), Expression]())((pathless, SourceFlow)) = r.reset
               case r: DefRegister =>
                 updateExpr(mt, Reference(r.name, r.tpe, RegKind, SourceFlow))
                 updateExpr(mt, Reference(r.name, r.tpe, RegKind, SinkFlow))
@@ -90,7 +91,7 @@ class IRLookup private[analyses](private val declarations: Map[ModuleTarget, Map
                 sys.error(s"Cannot call expr with: $t, given declaration $other")
             }
             case _: IsInvalid =>
-              exprCache((pathless, SourceFlow)) = WInvalid
+              exprCache.getOrElseUpdate(pathless.moduleTarget, mutable.HashMap[(ReferenceTarget, Flow), Expression]())((pathless, SourceFlow)) = WInvalid
           }
         }
     }
@@ -225,7 +226,7 @@ class IRLookup private[analyses](private val declarations: Map[ModuleTarget, Map
     val refs = Utils.expandRef(ref)
     refs.foreach { e =>
       val target = ConnectionGraph.asTarget(mt, new TokenTagger())(e)
-      exprCache((target, Utils.flow(e))) = e
+      exprCache(target.moduleTarget)((target, Utils.flow(e))) = e
     }
   }
 
@@ -234,12 +235,12 @@ class IRLookup private[analyses](private val declarations: Map[ModuleTarget, Map
     val g = Utils.flow(e)
     e.tpe match {
       case _: GroundType =>
-        exprCache((gt, g)) = e
+        exprCache(gt.moduleTarget)((gt, g)) = e
       case VectorType(t, size) =>
-        exprCache((gt, g)) = e
+        exprCache(gt.moduleTarget)((gt, g)) = e
         (0 until size).foreach { i => updateExpr(gt.index(i), SubIndex(e, i, t, g)) }
       case BundleType(fields) =>
-        exprCache((gt, g)) = e
+        exprCache(gt.moduleTarget)((gt, g)) = e
         fields.foreach { f => updateExpr(gt.field(f.name), SubField(e, f.name, f.tpe, Utils.times(g, f.flip))) }
       case other => sys.error(s"Error! Unexpected type $other")
     }
@@ -248,16 +249,16 @@ class IRLookup private[analyses](private val declarations: Map[ModuleTarget, Map
   /** Optionally returns the expression corresponding to the target if contained in the expression cache. */
   private def inCache(pathless: ReferenceTarget, flow: Flow): Option[Expression] = {
     (flow,
-      exprCache.contains((pathless, SourceFlow)),
-      exprCache.contains((pathless, SinkFlow)),
-      exprCache.contains(pathless, DuplexFlow)
+      exprCache.getOrElseUpdate(pathless.moduleTarget, mutable.HashMap[(ReferenceTarget, Flow), Expression]()).contains((pathless, SourceFlow)),
+      exprCache.getOrElseUpdate(pathless.moduleTarget, mutable.HashMap[(ReferenceTarget, Flow), Expression]()).contains((pathless, SinkFlow)),
+      exprCache.getOrElseUpdate(pathless.moduleTarget, mutable.HashMap[(ReferenceTarget, Flow), Expression]()).contains(pathless, DuplexFlow)
     ) match {
-      case (SourceFlow, true, _, _) => Some(exprCache((pathless, flow)))
-      case (SinkFlow, _, true, _) => Some(exprCache((pathless, flow)))
-      case (DuplexFlow, _, _, true) => Some(exprCache((pathless, DuplexFlow)))
-      case (UnknownFlow, _, _, true) => Some(exprCache((pathless, DuplexFlow)))
-      case (UnknownFlow, true, false, false) => Some(exprCache((pathless, SourceFlow)))
-      case (UnknownFlow, false, true, false) => Some(exprCache((pathless, SinkFlow)))
+      case (SourceFlow, true, _, _) => Some(exprCache.getOrElseUpdate(pathless.moduleTarget, mutable.HashMap[(ReferenceTarget, Flow), Expression]())((pathless, flow)))
+      case (SinkFlow, _, true, _) => Some(exprCache.getOrElseUpdate(pathless.moduleTarget, mutable.HashMap[(ReferenceTarget, Flow), Expression]())((pathless, flow)))
+      case (DuplexFlow, _, _, true) => Some(exprCache.getOrElseUpdate(pathless.moduleTarget, mutable.HashMap[(ReferenceTarget, Flow), Expression]())((pathless, DuplexFlow)))
+      case (UnknownFlow, _, _, true) => Some(exprCache.getOrElseUpdate(pathless.moduleTarget, mutable.HashMap[(ReferenceTarget, Flow), Expression]())((pathless, DuplexFlow)))
+      case (UnknownFlow, true, false, false) => Some(exprCache.getOrElseUpdate(pathless.moduleTarget, mutable.HashMap[(ReferenceTarget, Flow), Expression]())((pathless, SourceFlow)))
+      case (UnknownFlow, false, true, false) => Some(exprCache.getOrElseUpdate(pathless.moduleTarget, mutable.HashMap[(ReferenceTarget, Flow), Expression]())((pathless, SinkFlow)))
       case _ => None
     }
   }
