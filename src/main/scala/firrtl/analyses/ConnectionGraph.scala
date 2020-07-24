@@ -552,3 +552,22 @@ object ConnectionGraph {
   }
 }
 
+
+/** Used for obtaining a tag for a given label unnamed Target. */
+class TokenTagger {
+  private val counterMap = mutable.HashMap[String, Int]()
+
+  def getTag(label: String): Int = {
+    val tag = counterMap.getOrElse(label, 0)
+    counterMap(label) = tag + 1
+    tag
+  }
+
+  def getRef(label: String): String = {
+    "@" + label + "#" + getTag(label)
+  }
+}
+
+object TokenTagger {
+  val literalRegex = "@([-]?[0-9]+)#[0-9]+".r
+}

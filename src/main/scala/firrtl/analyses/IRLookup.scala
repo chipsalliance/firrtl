@@ -28,11 +28,8 @@ class IRLookup private[analyses](private val declarations: Map[ModuleTarget, Map
   private val exprCache = mutable.HashMap[(ReferenceTarget, Flow), Expression]()
   private val refCache = mutable.HashMap[ModuleTarget, mutable.LinkedHashMap[Kind, mutable.ArrayBuffer[ReferenceTarget]]]()
 
-  /** Returns the target converted to its local reference
-    * E.g. Given ~Top|MyModule/inst:Other>foo.bar, returns ~Top|Other>foo
-    *
-    * @param t
-    * @return
+  /** @example Given ~Top|MyModule/inst:Other>foo.bar, returns ~Top|Other>foo
+    * @return the target converted to its local reference
     */
   def asLocalRef(t: ReferenceTarget): ReferenceTarget = t.pathlessTarget.copy(component = Nil)
 
@@ -116,9 +113,10 @@ class IRLookup private[analyses](private val declarations: Map[ModuleTarget, Map
     }
   }
 
-  /** find all kind in a [[ModuleTarget]]
+  /** Find [[ReferenceTarget]] with a specific [[Kind]] in a [[ModuleTarget]]
+    *
     * @param moduleTarget [[ModuleTarget]] to be queried.
-    * @param kind [[Kind]] to be find.
+    * @param kind         [[Kind]] to be find.
     * @return all [[ReferenceTarget]] in this node. */
   def kindFinder(moduleTarget: ModuleTarget, kind: Kind): Seq[ReferenceTarget] = {
     def updateRefs(kind: Kind, rt: ReferenceTarget): Unit = refCache
@@ -142,7 +140,7 @@ class IRLookup private[analyses](private val declarations: Map[ModuleTarget, Map
   }
 
   /**
-    * @param t
+    * @param t [[ReferenceTarget]] to be queried.
     * @return the statement containing the declaration of the target
     */
   def declaration(t: ReferenceTarget): FirrtlNode = {
@@ -152,47 +150,35 @@ class IRLookup private[analyses](private val declarations: Map[ModuleTarget, Map
 
   /** Returns the references to the module's ports
     *
-    * @param mt
+    * @param mt [[ModuleTarget]] to be queried.
+    * @return the port references of `mt`
     */
   def ports(mt: ModuleTarget): Seq[ReferenceTarget] = {
     require(contains(mt), s"Cannot find\n${mt.prettyPrint()}\nin circuit!")
     modules(mt).ports.map { p => mt.ref(p.name) }
   }
 
-  /** Returns a target to each sub-component, including intermediate subcomponents
-    * E.g.
-    * Given:
-    * A ReferenceTarget of ~Top|Module>ref and a type of {foo: {bar: UInt}}
+  /** Given:
+    * A ReferenceTarget of ~Top|Module>ref, which is a type of {foo: {bar: UInt}}
     * Return:
     * Seq(~Top|Module>ref, ~Top|Module>ref.foo, ~Top|Module>ref.foo.bar)
     *
-    * @param r
-    * @return
+    * @return a target to each sub-component, including intermediate subcomponents
     */
   def allTargets(r: ReferenceTarget): Seq[ReferenceTarget] = r.allSubTargets(tpe(r))
 
-  /** Returns a target to each sub-component, excluding intermediate subcomponents
-    * E.g.
-    * Given:
+  /** Given:
     * A ReferenceTarget of ~Top|Module>ref and a type of {foo: {bar: UInt}}
     * Return:
     * Seq(~Top|Module>ref.foo.bar)
     *
-    * @param r
-    * @return
+    * @return a target to each sub-component, excluding intermediate subcomponents.
     */
   def leafTargets(r: ReferenceTarget): Seq[ReferenceTarget] = r.leafSubTargets(tpe(r))
 
-  /** Returns target and type of each module port
-    *
-    * @param m
-    * @param module
-    * @return Returns ((inputs, outputs))
-    */
-  def moduleLeafPortTargets(m: ModuleTarget,
-                            module: DefModule
-                           ): (Seq[(ReferenceTarget, Type)], Seq[(ReferenceTarget, Type)]) = {
-    module.ports.flatMap {
+  /** @return Returns ((inputs, outputs)) target and type of each module port. */
+  def moduleLeafPortTargets(m: ModuleTarget): (Seq[(ReferenceTarget, Type)], Seq[(ReferenceTarget, Type)]) =
+    modules(m).ports.flatMap {
       case Port(_, name, Output, tpe) => Utils.create_exps(Reference(name, tpe, PortKind, SourceFlow))
       case Port(_, name, Input, tpe) => Utils.create_exps(Reference(name, tpe, PortKind, SinkFlow))
     }.foldLeft((Vector.empty[(ReferenceTarget, Type)], Vector.empty[(ReferenceTarget, Type)])) {
@@ -201,10 +187,9 @@ class IRLookup private[analyses](private val declarations: Map[ModuleTarget, Map
       case ((inputs, outputs), e) =>
         (inputs :+ (ConnectionGraph.asTarget(m, new TokenTagger())(e), e.tpe), outputs)
     }
-  }
 
-  /**
-    * @param t [[ReferenceTarget]] to be queried.
+
+  /** @param t [[ReferenceTarget]] to be queried.
     * @return whether a ReferenceTarget is contained in this IRLookup
     */
   def contains(t: ReferenceTarget): Boolean = validPath(t.pathTarget) &&
@@ -212,17 +197,13 @@ class IRLookup private[analyses](private val declarations: Map[ModuleTarget, Map
     declarations(t.encapsulatingModuleTarget).contains(asLocalRef(t)) &&
     getExpr(t, UnknownFlow).nonEmpty
 
-  /** Returns whether a ModuleTarget or InstanceTarget is contained in this IRLookup
-    *
-    * @param mt
-    * @return
+  /** @param mt [[ModuleTarget]] or [[InstanceTarget]] to be queried.
+    * @return whether a ModuleTarget or InstanceTarget is contained in this IRLookup
     */
   def contains(mt: IsModule): Boolean = validPath(mt)
 
-  /** Returns whether a given IsModule is valid, given the circuit's module/instance hierarchy
-    *
-    * @param t
-    * @return
+  /** @param t [[ReferenceTarget]] to be queried.
+    * @return whether a given [[IsModule]] is valid, given the circuit's module/instance hierarchy
     */
   def validPath(t: IsModule): Boolean = {
     t match {
@@ -239,11 +220,7 @@ class IRLookup private[analyses](private val declarations: Map[ModuleTarget, Map
     }
   }
 
-  /** Updates expression cache with expression
-    *
-    * @param mt
-    * @param ref
-    */
+  /** Updates expression cache with expression. */
   private def updateExpr(mt: ModuleTarget, ref: Expression): Unit = {
     val refs = Utils.expandRef(ref)
     refs.foreach { e =>
@@ -252,11 +229,7 @@ class IRLookup private[analyses](private val declarations: Map[ModuleTarget, Map
     }
   }
 
-  /** Updates expression cache with expression
-    *
-    * @param gt
-    * @param e
-    */
+  /** Updates expression cache with expression. */
   private def updateExpr(gt: ReferenceTarget, e: Expression): Unit = {
     val g = Utils.flow(e)
     e.tpe match {
@@ -272,12 +245,7 @@ class IRLookup private[analyses](private val declarations: Map[ModuleTarget, Map
     }
   }
 
-  /** Optionally returns the expression corresponding to the target if contained in the expression cache
-    *
-    * @param pathless
-    * @param flow
-    * @return
-    */
+  /** Optionally returns the expression corresponding to the target if contained in the expression cache. */
   private def inCache(pathless: ReferenceTarget, flow: Flow): Option[Expression] = {
     (flow,
       exprCache.contains((pathless, SourceFlow)),
@@ -290,30 +258,7 @@ class IRLookup private[analyses](private val declarations: Map[ModuleTarget, Map
       case (UnknownFlow, _, _, true) => Some(exprCache((pathless, DuplexFlow)))
       case (UnknownFlow, true, false, false) => Some(exprCache((pathless, SourceFlow)))
       case (UnknownFlow, false, true, false) => Some(exprCache((pathless, SinkFlow)))
-      case other => None
+      case _ => None
     }
   }
-}
-
-
-/** Used for obtaining a tag for a given label
-  *
-  * E.g. Used for constructing unnamed tokens
-  */
-class TokenTagger {
-  private val counterMap = mutable.HashMap[String, Int]()
-
-  def getTag(label: String): Int = {
-    val tag = counterMap.getOrElse(label, 0)
-    counterMap(label) = tag + 1
-    tag
-  }
-
-  def getRef(label: String): String = {
-    "@" + label + "#" + getTag(label)
-  }
-}
-
-object TokenTagger {
-  val literalRegex = "@([-]?[0-9]+)#[0-9]+".r
 }
