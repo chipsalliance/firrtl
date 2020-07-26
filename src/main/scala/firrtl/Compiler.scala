@@ -18,10 +18,13 @@ import firrtl.stage.Forms
 
 /** Container of all annotations for a Firrtl compiler */
 class AnnotationSeq private (private[firrtl] val underlying: List[Annotation]) {
-  def toSeq: Seq[Annotation] = underlying.toSeq
+  def toSeq: Seq[Annotation] = underlying.toSeq  
 }
 object AnnotationSeq {
   def apply(xs: Seq[Annotation]): AnnotationSeq = new AnnotationSeq(xs.toList)
+
+  // Empty Annotation list for integration, debug and testing
+  val empty = Seq.empty[Annotation]
 }
 
 /** Current State of the Circuit
