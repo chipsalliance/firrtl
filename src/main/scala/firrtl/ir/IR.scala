@@ -5,7 +5,9 @@ package ir
 
 import Utils.{dec2string, indent, trim}
 import firrtl.constraint.{Constraint, IsKnown, IsVar}
+import org.apache.commons.text.translate.{AggregateTranslator, JavaUnicodeEscaper, LookupTranslator}
 
+import scala.collection.JavaConverters._
 import scala.math.BigDecimal.RoundingMode._
 
 /** Intermediate Representation */
@@ -22,33 +24,93 @@ case object NoInfo extends Info {
   override def toString: String = ""
   def ++(that: Info): Info = that
 }
-case class FileInfo(info: StringLit) extends Info {
-  override def toString: String = " @[" + info.serialize + "]"
-  //scalastyle:off method.name
+
+/** Stores the string of a file info annotation in its escaped form. */
+case class FileInfo(escaped: String) extends Info {
+  override def toString: String = " @[" + escaped + "]"
   def ++(that: Info): Info = if (that == NoInfo) this else MultiInfo(Seq(this, that))
+  def unescaped: String = FileInfo.unescape(escaped)
+  @deprecated("Use FileInfo.unescaped instead. FileInfo.info will be removed in FIRRTL 1.5.", "FIRRTL 1.4")
+  def info: StringLit = StringLit(this.unescaped)
 }
+
+object FileInfo {
+  @deprecated("Use FileInfo.fromUnEscaped instead. FileInfo.apply will be removed in FIRRTL 1.5.", "FIRRTL 1.4")
+  def apply(info: StringLit): FileInfo = new FileInfo(escape(info.string))
+  def fromEscaped(s: String): FileInfo = new FileInfo(s)
+  def fromUnescaped(s: String): FileInfo = new FileInfo(escape(s))
+  /** prepends a `\` to: `\`, `\n`, `\t` and `]` */
+  def escape(s: String): String = EscapeFirrtl.translate(s)
+  /** removes the `\` in front of `\`, `\n`, `\t` and `]` */
+  def unescape(s: String): String = UnescapeFirrtl.translate(s)
+  /** take an already escaped String and do the additional escaping needed for Verilog comment */
+  def escapedToVerilog(s: String) = EscapedToVerilog.translate(s)
+
+  // custom `CharSequenceTranslator` for FIRRTL Info String escaping
+  type CharMap = (CharSequence, CharSequence)
+  private val EscapeFirrtl = new LookupTranslator(Seq[CharMap](
+    "\\" -> "\\\\",
+    "\n" -> "\\n",
+    "\t" -> "\\t",
+    "]" -> "\\]"
+  ).toMap.asJava)
+  private val UnescapeFirrtl = new LookupTranslator(Seq[CharMap](
+    "\\\\" -> "\\",
+    "\\n" -> "\n",
+    "\\t" -> "\t",
+    "\\]" -> "]"
+  ).toMap.asJava)
+  // EscapeFirrtl + EscapedToVerilog essentially does the same thing as running StringEscapeUtils.unescapeJava
+  private val EscapedToVerilog = new AggregateTranslator(
+    new LookupTranslator(Seq[CharMap](
+      // ] is the one character that firrtl needs to be escaped that does not need to be escaped in
+      "\\]" -> "]",
+      "\"" -> "\\\"",
+      // \n and \t are already escaped
+      "\b" -> "\\b",
+      "\f" -> "\\f",
+      "\r" -> "\\r"
+    ).toMap.asJava),
+    JavaUnicodeEscaper.outsideOf(32, 0x7f)
+  )
+
+}
+
 case class MultiInfo(infos: Seq[Info]) extends Info {
-  private def collectStringLits(info: Info): Seq[StringLit] = info match {
-    case FileInfo(lit) => Seq(lit)
-    case MultiInfo(seq) => seq flatMap collectStringLits
+  private def collectStrings(info: Info): Seq[String] = info match {
+    case f : FileInfo => Seq(f.escaped)
+    case MultiInfo(seq) => seq flatMap collectStrings
     case NoInfo => Seq.empty
   }
   override def toString: String = {
-    val parts = collectStringLits(this)
-    if (parts.nonEmpty) parts.map(_.serialize).mkString(" @[", " ", "]")
+    val parts = collectStrings(this)
+    if (parts.nonEmpty) parts.mkString(" @[", " ", "]")
     else ""
   }
-  //scalastyle:off method.name
   def ++(that: Info): Info = if (that == NoInfo) this else MultiInfo(infos :+ that)
+  def flatten: Seq[FileInfo] = MultiInfo.flattenInfo(infos)
 }
 object MultiInfo {
   def apply(infos: Info*) = {
     val infosx = infos.filterNot(_ == NoInfo)
     infosx.size match {
       case 0 => NoInfo
-      case 1 => infosx.head
-      case _ => new MultiInfo(infosx)
+      case 1 => infos.head
+      case _ => new MultiInfo(infos)
     }
+  }
+
+  // Internal utility for unpacking implicit MultiInfo structure for muxes
+  // TODO should this be made into an API?
+  private[firrtl] def demux(info: Info): (Info, Info, Info) = info match {
+    case MultiInfo(infos) if infos.lengthCompare(3) == 0 => (infos(0), infos(1), infos(2))
+    case other => (other, NoInfo, NoInfo) // if not exactly 3, we don't know what to do
+  }
+  
+  private def flattenInfo(infos: Seq[Info]): Seq[FileInfo] = infos.flatMap {
+    case NoInfo => Seq()
+    case f : FileInfo => Seq(f)
+    case MultiInfo(infos) => flattenInfo(infos)
   }
 }
 
@@ -235,6 +297,15 @@ case class UIntLiteral(value: BigInt, width: Width) extends Literal {
 object UIntLiteral {
   def minWidth(value: BigInt): Width = IntWidth(math.max(value.bitLength, 1))
   def apply(value: BigInt): UIntLiteral = new UIntLiteral(value, minWidth(value))
+
+  /** Utility to construct UIntLiterals masked by the width
+    *
+    * This supports truncating negative values as well as values that are too wide for the width
+    */
+  def masked(value: BigInt, width: IntWidth): UIntLiteral = {
+    val mask = (BigInt(1) << width.width.toInt) - 1
+    UIntLiteral(value & mask, width)
+  }
 }
 case class SIntLiteral(value: BigInt, width: Width) extends Literal {
   def tpe = SIntType(width)
@@ -421,8 +492,29 @@ object Block {
 }
 
 case class Block(stmts: Seq[Statement]) extends Statement {
-  def serialize: String = stmts map (_.serialize) mkString "\n"
-  def mapStmt(f: Statement => Statement): Statement = Block(stmts map f)
+  def serialize: String = {
+    val res = stmts.view.map(_.serialize).mkString("\n")
+    if (res.nonEmpty) res else EmptyStmt.serialize
+  }
+  def mapStmt(f: Statement => Statement): Statement = {
+    val res = new scala.collection.mutable.ArrayBuffer[Statement]()
+    var its = stmts.iterator :: Nil
+    while (its.nonEmpty) {
+      val it = its.head
+      if (it.hasNext) {
+        it.next() match {
+          case EmptyStmt => // flatten out
+          case b: Block =>
+            its = b.stmts.iterator :: its
+          case other =>
+            res.append(f(other))
+        }
+      } else {
+        its = its.tail
+      }
+    }
+    Block(res)
+  }
   def mapExpr(f: Expression => Expression): Statement = this
   def mapType(f: Type => Type): Statement = this
   def mapString(f: String => String): Statement = this
@@ -520,6 +612,38 @@ case class Print(
   def foreachString(f: String => Unit): Unit = Unit
   def foreachInfo(f: Info => Unit): Unit = f(info)
 }
+
+// formal
+object Formal extends Enumeration {
+  val Assert = Value("assert")
+  val Assume = Value("assume")
+  val Cover = Value("cover")
+}
+
+case class Verification(
+  op: Formal.Value,
+  info: Info,
+  clk: Expression,
+  pred: Expression,
+  en: Expression,
+  msg: StringLit
+) extends Statement with HasInfo {
+  def serialize: String = op + "(" + Seq(clk, pred, en).map(_.serialize)
+    .mkString(", ") + ", \"" + msg.serialize + "\")" + info.serialize
+  def mapStmt(f: Statement => Statement): Statement = this
+  def mapExpr(f: Expression => Expression): Statement =
+    copy(clk = f(clk), pred = f(pred), en = f(en))
+  def mapType(f: Type => Type): Statement = this
+  def mapString(f: String => String): Statement = this
+  def mapInfo(f: Info => Info): Statement = copy(info = f(info))
+  def foreachStmt(f: Statement => Unit): Unit = Unit
+  def foreachExpr(f: Expression => Unit): Unit = { f(clk); f(pred); f(en); }
+  def foreachType(f: Type => Unit): Unit = Unit
+  def foreachString(f: String => Unit): Unit = Unit
+  def foreachInfo(f: Info => Unit): Unit = f(info)
+}
+// end formal
+
 case object EmptyStmt extends Statement {
   def serialize: String = "skip"
   def mapStmt(f: Statement => Statement): Statement = this

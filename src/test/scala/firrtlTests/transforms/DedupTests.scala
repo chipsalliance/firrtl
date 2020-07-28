@@ -3,6 +3,7 @@
 package firrtlTests
 package transforms
 
+import firrtl._
 import firrtl.RenameMap
 import firrtl.annotations._
 import firrtl.transforms.{DedupModules, NoCircuitDedupAnnotation}
@@ -252,6 +253,61 @@ class DedupModuleTests extends HighTransformSpec {
      val diff_params = mkfir(("BB", "BB"), ("0", "1"))
      execute(diff_params, diff_params, Seq.empty)
   }
+
+  "Modules with aggregate ports that are bulk connected" should "NOT dedup if their port names differ" in {
+    val input =
+      """
+        |circuit FooAndBarModule :
+        |  module FooModule :
+        |    output io : {flip foo : UInt<1>, fuzz : UInt<1>}
+        |    io.fuzz <= io.foo
+        |  module BarModule :
+        |    output io : {flip bar : UInt<1>, buzz : UInt<1>}
+        |    io.buzz <= io.bar
+        |  module FooAndBarModule :
+        |    output io : {foo : {flip foo : UInt<1>, fuzz : UInt<1>}, bar : {flip bar : UInt<1>, buzz : UInt<1>}}
+        |    inst foo of FooModule
+        |    inst bar of BarModule
+        |    io.foo <- foo.io
+        |    io.bar <- bar.io
+        |""".stripMargin
+    val check = input
+    execute(input, check, Seq.empty)
+  }
+
+  "Modules with aggregate ports that are bulk connected" should "dedup if their port names are the same" in {
+    val input =
+      """
+        |circuit FooAndBarModule :
+        |  module FooModule :
+        |    output io : {flip foo : UInt<1>, fuzz : UInt<1>}
+        |    io.fuzz <= io.foo
+        |  module BarModule :
+        |    output io : {flip foo : UInt<1>, fuzz : UInt<1>}
+        |    io.fuzz <= io.foo
+        |  module FooAndBarModule :
+        |    output io : {foo : {flip foo : UInt<1>, fuzz : UInt<1>}, bar : {flip bar : UInt<1>, buzz : UInt<1>}}
+        |    inst foo of FooModule
+        |    inst bar of BarModule
+        |    io.foo <- foo.io
+        |    io.bar <- bar.io
+        |""".stripMargin
+    val check =
+      """
+        |circuit FooAndBarModule :
+        |  module FooModule :
+        |    output io : {flip foo : UInt<1>, fuzz : UInt<1>}
+        |    io.fuzz <= io.foo
+        |  module FooAndBarModule :
+        |    output io : {foo : {flip foo : UInt<1>, fuzz : UInt<1>}, bar : {flip bar : UInt<1>, buzz : UInt<1>}}
+        |    inst foo of FooModule
+        |    inst bar of FooModule
+        |    io.foo <- foo.io
+        |    io.bar <- bar.io
+        |""".stripMargin
+    execute(input, check, Seq.empty)
+  }
+
   "The module A and B" should "be deduped with the first module in order" in {
     val input =
       """circuit Top :
@@ -760,6 +816,63 @@ class DedupModuleTests extends HighTransformSpec {
       Top.instOf("a2", "A").instOf("b", "B").instOf("c", "C")
     ),0))
     cs.deletedAnnotations.isEmpty should be (true)
+  }
+
+  "dedup" should "properly rename target components after retyping" in {
+    val input = """
+      |circuit top:
+      |  module top:
+      |    input ia: {z: {y: {x: UInt<1>}}, a: UInt<1>}
+      |    input ib: {a: {b: {c: UInt<1>}}, z: UInt<1>}
+      |    output oa: {z: {y: {x: UInt<1>}}, a: UInt<1>}
+      |    output ob: {a: {b: {c: UInt<1>}}, z: UInt<1>}
+      |    inst a of a
+      |    a.i.z.y.x <= ia.z.y.x
+      |    a.i.a <= ia.a
+      |    oa.z.y.x <= a.o.z.y.x
+      |    oa.a <= a.o.a
+      |    inst b of b
+      |    b.q.a.b.c <= ib.a.b.c
+      |    b.q.z <= ib.z
+      |    ob.a.b.c <= b.r.a.b.c
+      |    ob.z <= b.r.z
+      |  module a:
+      |    input i: {z: {y: {x: UInt<1>}}, a: UInt<1>}
+      |    output o: {z: {y: {x: UInt<1>}}, a: UInt<1>}
+      |    o <= i
+      |  module b:
+      |    input q: {a: {b: {c: UInt<1>}}, z: UInt<1>}
+      |    output r: {a: {b: {c: UInt<1>}}, z: UInt<1>}
+      |    r <= q
+      |""".stripMargin
+
+    case class DummyRTAnnotation(target: ReferenceTarget) extends SingleTargetAnnotation[ReferenceTarget] {
+      def duplicate(n: ReferenceTarget) = DummyRTAnnotation(n)
+    }
+
+    val annA = DummyRTAnnotation(ReferenceTarget("top", "a", Nil, "i", Seq(TargetToken.Field("a"))))
+    val annB = DummyRTAnnotation(ReferenceTarget("top", "b", Nil, "q", Seq(TargetToken.Field("a"))))
+
+
+    val cs = CircuitState(Parser.parseString(input, Parser.IgnoreInfo), Seq(annA, annB))
+
+    val deduper = new stage.transforms.Compiler(stage.Forms.Deduped, Nil)
+    val csDeduped = deduper.execute(cs)
+
+    /*
+     During dedup, input q of b gets "retyped." The connections get updated to reflect this
+     retyping, and annotations with a non-empty "component" must get renamed to reflect this
+     retyping. Since the "retyping" maps b.q.a onto a.i.z in its structural significance and
+     connection, and since failure to rename "component" will result in annotations that are
+     fundamentally illegal, the deduplication of these modules (if it occurs) must include a rename
+     mapping from ~top|b>q.a to ~top|a>i.z to best capture the retyping.
+     */
+    val aPath = Seq((TargetToken.Instance("a"), TargetToken.OfModule("a")))
+    val bPath = Seq((TargetToken.Instance("b"), TargetToken.OfModule("a")))
+    val expectedAnnA = DummyRTAnnotation(ReferenceTarget("top", "top", aPath, "i", Seq(TargetToken.Field("a"))))
+    val expectedAnnB = DummyRTAnnotation(ReferenceTarget("top", "top", aPath, "i", Seq(TargetToken.Field("a"))))
+    csDeduped.annotations.toSeq should contain (expectedAnnA)
+    csDeduped.annotations.toSeq should contain (expectedAnnB)
   }
 }
 

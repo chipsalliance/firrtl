@@ -6,7 +6,7 @@ package proto
 import java.io.OutputStream
 
 import FirrtlProtos._
-import Firrtl.Statement.ReadUnderWrite
+import Firrtl.Statement.{ReadUnderWrite, Formal}
 import Firrtl.Expression.PrimOp.Op
 import com.google.protobuf.{CodedOutputStream, WireFormat}
 import firrtl.PrimOps._
@@ -114,6 +114,12 @@ object ToProto {
     case ir.ReadUnderWrite.New => ReadUnderWrite.NEW
   }
 
+  def convert(formal: ir.Formal.Value): Formal = formal match {
+    case ir.Formal.Assert => Formal.ASSERT
+    case ir.Formal.Assume => Formal.ASSUME
+    case ir.Formal.Cover => Formal.COVER
+  }
+
   def convertToIntegerLiteral(value: BigInt): Firrtl.Expression.IntegerLiteral.Builder = {
     Firrtl.Expression.IntegerLiteral.newBuilder()
       .setValue(value.toString)
@@ -129,8 +135,8 @@ object ToProto {
     info match {
       case ir.NoInfo =>
         ib.setNone(Firrtl.SourceInfo.None.newBuilder)
-      case ir.FileInfo(ir.StringLit(text)) =>
-        ib.setText(text)
+      case f : ir.FileInfo =>
+        ib.setText(f.unescaped)
       // TODO properly implement MultiInfo
       case ir.MultiInfo(infos) =>
         val x = if (infos.nonEmpty) infos.head else ir.NoInfo
@@ -188,6 +194,11 @@ object ToProto {
           .setTValue(convert(tval))
           .setFValue(convert(fval))
         eb.setMux(mb)
+      case ir.ValidIf(cond, value, _) =>
+        val vb = Firrtl.Expression.ValidIf.newBuilder()
+          .setCondition(convert(cond))
+          .setValue(convert(value))
+        eb.setValidIf(vb)
     }
   }
 
@@ -267,6 +278,13 @@ object ToProto {
               .setClk(convert(clk))
               .setEn(convert(en))
             sb.setStop(stopb)
+          case ir.Verification(op, _, clk, cond, en, msg) =>
+            val vb = Firrtl.Statement.Verification.newBuilder()
+              .setOp(convert(op))
+              .setClk(convert(clk))
+              .setCond(convert(cond))
+              .setEn(convert(en))
+              .setMsg(msg.string)
           case ir.IsInvalid(_, expr) =>
             val ib = Firrtl.Statement.IsInvalid.newBuilder()
               .setExpression(convert(expr))

@@ -8,7 +8,6 @@ import firrtl._
 import firrtl.passes
 import firrtl.options.Dependency
 import firrtl.stage.{Forms, TransformManager}
-import firrtl.transforms.IdentityTransform
 
 sealed trait PatchAction { val line: Int }
 
@@ -171,7 +170,11 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
       Del(13),
       Add(12, Seq(Dependency(firrtl.passes.ResolveFlows),
                   Dependency[firrtl.passes.InferWidths])),
-      Del(14)
+      Del(14),
+      Add(15, Seq(Dependency(firrtl.passes.ResolveKinds),
+                  Dependency(firrtl.passes.InferTypes))),
+      // TODO
+      Add(17, Seq(Dependency[firrtl.transforms.formal.AssertSubmoduleAssumptions]))
     )
     compare(legacyTransforms(new HighFirrtlToMiddleFirrtl), tm, patches)
   }
@@ -189,7 +192,8 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
     val tm = new TransformManager(Forms.LowFormMinimumOptimized, Forms.LowForm)
     val patches = Seq(
       Add(4, Seq(Dependency(firrtl.passes.ResolveFlows))),
-      Add(5, Seq(Dependency(firrtl.passes.ResolveKinds)))
+      Add(6, Seq(Dependency[firrtl.transforms.LegalizeAndReductionsTransform],
+                 Dependency(firrtl.passes.ResolveKinds)))
     )
     compare(legacyTransforms(new MinimumLowFirrtlOptimization), tm, patches)
   }
@@ -201,7 +205,8 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
     val patches = Seq(
       Add(6, Seq(Dependency(firrtl.passes.ResolveFlows))),
       Add(7, Seq(Dependency(firrtl.passes.Legalize))),
-      Add(8, Seq(Dependency(firrtl.passes.ResolveKinds)))
+      Add(8, Seq(Dependency[firrtl.transforms.LegalizeAndReductionsTransform],
+                 Dependency(firrtl.passes.ResolveKinds)))
     )
     compare(legacyTransforms(new LowFirrtlOptimization), tm, patches)
   }
@@ -333,36 +338,6 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
         (new TransformManager(Forms.LowFormOptimized, Forms.ChirrtlForm).flattenedTransformOrder)
     val tm = new TransformManager(Forms.LowFormOptimized :+ Dependency[Transforms.LowToChirrtl])
     compare(expected, tm)
-  }
-
-  it should "schedule inputForm=LowForm after MiddleFirrtlToLowFirrtl for the LowFirrtlEmitter" in {
-    val expected =
-      new TransformManager(Forms.LowForm).flattenedTransformOrder ++
-        Seq(new Transforms.LowToLow, new firrtl.LowFirrtlEmitter)
-    val tm = (new TransformManager(Seq(Dependency[firrtl.LowFirrtlEmitter], Dependency[Transforms.LowToLow])))
-    compare(expected, tm)
-  }
-
-  it should "schedule inputForm=LowForm after MinimumLowFirrtlOptimizations for the MinimalVerilogEmitter" in {
-    val expected =
-      new TransformManager(Forms.LowFormMinimumOptimized).flattenedTransformOrder ++
-        Seq(new Transforms.LowToLow, new firrtl.MinimumVerilogEmitter)
-    val tm = (new TransformManager(Seq(Dependency[firrtl.MinimumVerilogEmitter], Dependency[Transforms.LowToLow])))
-    val patches = Seq(
-      Add(60, Seq(Dependency[firrtl.transforms.LegalizeAndReductionsTransform]))
-    )
-    compare(expected, tm, patches)
-  }
-
-  it should "schedule inputForm=LowForm after LowFirrtlOptimizations for the VerilogEmitter" in {
-    val expected =
-      new TransformManager(Forms.LowFormOptimized).flattenedTransformOrder ++
-        Seq(new Transforms.LowToLow, new firrtl.VerilogEmitter)
-    val tm = (new TransformManager(Seq(Dependency[firrtl.VerilogEmitter], Dependency[Transforms.LowToLow])))
-    val patches = Seq(
-      Add(67, Seq(Dependency[firrtl.transforms.LegalizeAndReductionsTransform]))
-    )
-    compare(expected, tm, patches)
   }
 
 }
