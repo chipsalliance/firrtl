@@ -8,17 +8,19 @@ import firrtl._
 import firrtl.ir._
 import firrtl.Utils._
 import firrtl.Mappers._
-import firrtl.options.{Dependency, PreservesAll}
+import firrtl.options.Dependency
 
 case class MPort(name: String, clk: Expression)
 case class MPorts(readers: ArrayBuffer[MPort], writers: ArrayBuffer[MPort], readwriters: ArrayBuffer[MPort])
-case class DataRef(exp: Expression, male: String, female: String, mask: String, rdwrite: Boolean)
+case class DataRef(exp: Expression, source: String, sink: String, mask: String, rdwrite: Boolean)
 
-object RemoveCHIRRTL extends Transform with DependencyAPIMigration with PreservesAll[Transform] {
+object RemoveCHIRRTL extends Transform with DependencyAPIMigration {
 
   override def prerequisites = firrtl.stage.Forms.ChirrtlForm ++
     Seq( Dependency(passes.CInferTypes),
          Dependency(passes.CInferMDir) )
+
+  override def invalidates(a: Transform) = false
 
   val ut = UnknownType
   type MPortMap = collection.mutable.LinkedHashMap[String, MPorts]
@@ -188,9 +190,9 @@ object RemoveCHIRRTL extends Transform with DependencyAPIMigration with Preserve
           case SinkFlow =>
             has_write_mport = true
             if (p.rdwrite) has_readwrite_mport = Some(SubField(p.exp, "wmode", BoolType))
-            SubField(p.exp, p.female, tpe)
+            SubField(p.exp, p.sink, tpe)
           case SourceFlow =>
-            SubField(p.exp, p.male, tpe)
+            SubField(p.exp, p.source, tpe)
         }
         case None => g match {
           case SinkFlow => raddrs get name match {

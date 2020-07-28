@@ -13,7 +13,7 @@ import firrtl.annotations._
 import firrtl.ir.Circuit
 import firrtl.Utils.throwInternalError
 import firrtl.annotations.transforms.{EliminateTargetPaths, ResolvePaths}
-import firrtl.options.{DependencyAPI, Dependency, PreservesAll, StageUtils, TransformLike}
+import firrtl.options.{DependencyAPI, Dependency, StageUtils, TransformLike}
 import firrtl.stage.Forms
 
 /** Container of all annotations for a Firrtl compiler */
@@ -114,7 +114,6 @@ sealed abstract class CircuitForm(private val value: Int) extends Ordered[Circui
   def outputSuffix: String
 }
 
-// scalastyle:off magic.number
 // These magic numbers give an ordering to CircuitForm
 /** Chirrtl Form
   *
@@ -191,7 +190,6 @@ final case object UnknownForm extends CircuitForm(-1) {
 
   val outputSuffix: String = ".unknown.fir"
 }
-// scalastyle:on magic.number
 
 // Internal utilities to keep code DRY, not a clean interface
 private[firrtl] object Transform {
@@ -315,7 +313,7 @@ trait Transform extends TransformLike[CircuitState] with DependencyAPI[Transform
   }
 
   override def optionalPrerequisites: Seq[Dependency[Transform]] = inputForm match {
-    case L => Forms.LowFormOptimized
+    case L => Forms.LowFormOptimized ++ Forms.AssertsRemoved
     case _ => Seq.empty
   }
 
@@ -420,7 +418,10 @@ trait ResolvedAnnotationPaths {
 }
 
 /** Defines old API for Emission. Deprecated */
-trait Emitter extends Transform with PreservesAll[Transform] {
+trait Emitter extends Transform {
+
+  override def invalidates(a: Transform) = false
+
   @deprecated("Use emission annotations instead", "firrtl 1.0")
   def emit(state: CircuitState, writer: Writer): Unit
 

@@ -8,7 +8,7 @@ import java.io.{File, FileInputStream, InputStream}
 import collection.JavaConverters._
 import FirrtlProtos._
 import com.google.protobuf.CodedInputStream
-import Firrtl.Statement.ReadUnderWrite
+import Firrtl.Statement.{ReadUnderWrite, Formal}
 
 object FromProto {
 
@@ -45,9 +45,9 @@ object FromProto {
       case Firrtl.SourceInfo.POSITION_FIELD_NUMBER =>
         val pos = info.getPosition
         val str = s"${pos.getFilename} ${pos.getLine}:${pos.getColumn}"
-        ir.FileInfo(ir.StringLit(str))
+        ir.FileInfo.fromUnescaped(str)
       case Firrtl.SourceInfo.TEXT_FIELD_NUMBER =>
-        ir.FileInfo(ir.StringLit(info.getText))
+        ir.FileInfo.fromUnescaped(info.getText)
       // NONE_FIELD_NUMBER or anything else
       case _ => ir.NoInfo
     }
@@ -94,6 +94,9 @@ object FromProto {
   def convert(mux: Firrtl.Expression.Mux): ir.Mux =
     ir.Mux(convert(mux.getCondition), convert(mux.getTValue), convert(mux.getFValue), ir.UnknownType)
 
+  def convert(validif: Firrtl.Expression.ValidIf): ir.ValidIf =
+    ir.ValidIf(convert(validif.getCondition), convert(validif.getValue), ir.UnknownType)
+
   def convert(expr: Firrtl.Expression): ir.Expression = {
     import Firrtl.Expression._
     expr.getExpressionCase.getNumber match {
@@ -106,6 +109,7 @@ object FromProto {
       case FIXED_LITERAL_FIELD_NUMBER => convert(expr.getFixedLiteral)
       case PRIM_OP_FIELD_NUMBER => convert(expr.getPrimOp)
       case MUX_FIELD_NUMBER => convert(expr.getMux)
+      case VALID_IF_FIELD_NUMBER => convert(expr.getValidIf)
     }
   }
 
@@ -176,6 +180,16 @@ object FromProto {
 
   def convert(stop: Firrtl.Statement.Stop, info: Firrtl.SourceInfo): ir.Stop =
     ir.Stop(convert(info), stop.getReturnValue, convert(stop.getClk), convert(stop.getEn))
+
+  def convert(formal: Formal): ir.Formal.Value = formal match {
+    case Formal.ASSERT => ir.Formal.Assert
+    case Formal.ASSUME => ir.Formal.Assume
+    case Formal.COVER => ir.Formal.Cover
+  }
+
+  def convert(ver: Firrtl.Statement.Verification, info: Firrtl.SourceInfo): ir.Verification =
+    ir.Verification(convert(ver.getOp), convert(info), convert(ver.getClk),
+      convert(ver.getCond), convert(ver.getEn), ir.StringLit(ver.getMsg))
 
   def convert(mem: Firrtl.Statement.Memory, info: Firrtl.SourceInfo): ir.DefMemory = {
     val dtype = convert(mem.getType)

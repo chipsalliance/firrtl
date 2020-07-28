@@ -125,14 +125,14 @@ trait DependencyAPI[A <: DependencyAPI[A]] { this: TransformLike[_] =>
     * $seqNote
     */
   def prerequisites: Seq[Dependency[A]] = Seq.empty
-  private[options] lazy val _prerequisites: LinkedHashSet[Dependency[A]] = new LinkedHashSet() ++ prerequisites.toSet
+  private[options] lazy val _prerequisites: LinkedHashSet[Dependency[A]] = new LinkedHashSet() ++ prerequisites
 
   /** All transforms that, if a prerequisite of *another* transform, will run before this transform.
     * $seqNote
     */
   def optionalPrerequisites: Seq[Dependency[A]] = Seq.empty
   private[options] lazy val _optionalPrerequisites: LinkedHashSet[Dependency[A]] =
-    new LinkedHashSet() ++ optionalPrerequisites.toSet
+    new LinkedHashSet() ++ optionalPrerequisites
 
   /** All transforms that must run ''after'' this transform
     *
@@ -171,7 +171,7 @@ trait DependencyAPI[A <: DependencyAPI[A]] { this: TransformLike[_] =>
     */
   def optionalPrerequisiteOf: Seq[Dependency[A]] = dependents
   private[options] lazy val _optionalPrerequisiteOf: LinkedHashSet[Dependency[A]] =
-    new LinkedHashSet() ++ optionalPrerequisiteOf.toSet
+    new LinkedHashSet() ++ optionalPrerequisiteOf
 
   /** A function that, given *another* transform (parameter `a`) will return true if this transform invalidates/undos the
     * effects of the *other* transform (parameter `a`).
@@ -184,6 +184,8 @@ trait DependencyAPI[A <: DependencyAPI[A]] { this: TransformLike[_] =>
 /** A trait indicating that no invalidations occur, i.e., all previous transforms are preserved
   * @tparam A some [[TransformLike]]
   */
+@deprecated("Use an explicit `override def invalidates` returning false. This will be removed in FIRRTL 1.5.",
+            "FIRRTL 1.4")
 trait PreservesAll[A <: DependencyAPI[A]] { this: DependencyAPI[A] =>
 
   override final def invalidates(a: A): Boolean = false

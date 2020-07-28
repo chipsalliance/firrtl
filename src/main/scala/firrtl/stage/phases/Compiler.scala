@@ -3,7 +3,7 @@
 package firrtl.stage.phases
 
 import firrtl.{AnnotationSeq, ChirrtlForm, CircuitState, Compiler => FirrtlCompiler, Transform, seqToAnnoSeq}
-import firrtl.options.{Dependency, Phase, PhasePrerequisiteException, PreservesAll, Translator}
+import firrtl.options.{Dependency, Phase, PhasePrerequisiteException, Translator}
 import firrtl.stage.{CompilerAnnotation, FirrtlCircuitAnnotation, Forms, RunFirrtlTransformAnnotation}
 import firrtl.stage.TransformManager.TransformDependency
 
@@ -42,7 +42,7 @@ private [stage] case class Defaults(
   * FirrtlCircuitAnnotation(y). Note: A(b) ''may'' overwrite A(a) if this is a CompilerAnnotation.
   * FirrtlCircuitAnnotation(z) has no annotations, so it only gets the default A(a).
   */
-class Compiler extends Phase with Translator[AnnotationSeq, Seq[CompilerRun]] with PreservesAll[Phase] {
+class Compiler extends Phase with Translator[AnnotationSeq, Seq[CompilerRun]] {
 
   override def prerequisites =
     Seq(Dependency[AddDefaults],
@@ -52,6 +52,8 @@ class Compiler extends Phase with Translator[AnnotationSeq, Seq[CompilerRun]] wi
         Dependency[AddImplicitOutputFile])
 
   override def optionalPrerequisiteOf = Seq(Dependency[WriteEmitted])
+
+  override def invalidates(a: Phase) = false
 
   /** Convert an [[AnnotationSeq]] into a sequence of compiler runs. */
   protected def aToB(a: AnnotationSeq): Seq[CompilerRun] = {
@@ -100,12 +102,12 @@ class Compiler extends Phase with Translator[AnnotationSeq, Seq[CompilerRun]] wi
       val tm = new firrtl.stage.transforms.Compiler(targets)
       /* Transform order is lazily evaluated. Force it here to remove its resolution time from actual compilation. */
       val (timeResolveDependencies, _) = firrtl.Utils.time { tm.flattenedTransformOrder }
-      logger.error(f"Computed transform order in: $timeResolveDependencies%.1f ms")
+      logger.info(f"Computed transform order in: $timeResolveDependencies%.1f ms")
       /* Show the determined transform order */
       logger.info("Determined Transform order that will be executed:\n" + tm.prettyPrint("  "))
       /* Run all determined transforms tracking how long everything takes to run */
       val (timeExecute, annotationsOut) = firrtl.Utils.time { tm.transform(c.stateIn) }
-      logger.error(f"Total FIRRTL Compile Time: $timeExecute%.1f ms")
+      logger.info(f"Total FIRRTL Compile Time: $timeExecute%.1f ms")
       c.copy(stateOut = Some(annotationsOut))
     }
 
@@ -115,7 +117,7 @@ class Compiler extends Phase with Translator[AnnotationSeq, Seq[CompilerRun]] wi
 
   private def compilerToTransforms(a: FirrtlCompiler): Seq[TransformDependency] = a match {
     case _: firrtl.NoneCompiler                                      => Forms.ChirrtlForm
-    case _: firrtl.HighFirrtlCompiler                                => Forms.HighForm
+    case _: firrtl.HighFirrtlCompiler                                => Forms.MinimalHighForm
     case _: firrtl.MiddleFirrtlCompiler                              => Forms.MidForm
     case _: firrtl.LowFirrtlCompiler                                 => Forms.LowForm
     case _: firrtl.VerilogCompiler | _: firrtl.SystemVerilogCompiler => Forms.LowFormOptimized
