@@ -958,6 +958,87 @@ In such cases, the data that is read out of the read port is undefined.
 
 In all cases, if a memory location is written to by more than one port on the same cycle, the stored value is undefined.
 
+\subsubsection{Inferred Memory Ports}
+
+An inferred memory port is one that is not explicitly declared in the original
+definition of the memory. Extra memory ports can be inferred for any memory that
+is in scope with the `read mport`, `write mport`, and `readwrite mport`
+statements. For this section, we will consider the following memory with no
+explicitly-declared ports.
+
+\begin{lstlisting}
+mem syncmem :
+  data-type => UInt<32>
+  depth => 256
+  read-latency => 1
+  write-latency => 1
+  read-under-write => undefined
+\end{lstlisting}
+
+\subsubsection{Inferred Read Ports}
+
+An inferred read port statement has four mandatory arguments: the name of the
+port, the memory to access, the address signal, and the clock. This has the
+effect of implicitly declaring the specified port and connecting the address and
+clock signals to the corresponding fields (`addr` and `clk`) of the new port.
+Thereafter, references to the port will implicitly yield the read data.
+
+Inferred read ports may also accept an optional enable signal, which is
+implicity connected to the `en` field of the new read port. If this argument is
+omitted, the read occurs unconditionally, regardless of the conditional context
+that contains the inferred read port.
+
+In this example, the read data from the inferred read port `r` is
+unconditionally accessible by referring to the signal `r`, even though the
+result is conditionally assigned to the signal `bus.rdata`.
+
+\begin{lstlisting}
+read mport r = syncmem[cmd.addr], clk ; unconditional read
+when (cmd.ren) :
+  resp.rdata <= r
+\end{lstlisting}
+
+In contrast, when the enable signal is provided explicitly, the memory read
+operation itself is conditional on the enable signal.
+
+\begin{lstlisting}
+read mport r = syncmem[cmd.addr], clk, cmd.ren ; conditional read
+when (cmd.ren) :
+  resp.rdata <= r
+\end{lstlisting}
+
+\subsubsection{Inferred Write Ports}
+
+An inferred write port statement accepts four mandatory arguments: the name of the port, the memory
+to access, the address signal, and the clock. This has the effect of implicitly declaring the
+specified port and connecting the address and clock signals to the corresponding fields (`addr` and
+`clk`) of the new port.
+
+Once an inferred write port is declared, write operations can be performed using the connection
+statement. Intuitively, when the port is used on the left-hand side of an assignment, this
+corresponds to connecting the right-hand side of the assignment to the `data` field of an explicit
+write port and asserting that port's `en` signal. As with any connection, the connection (and
+therefore the write operation) is conditional on any \verb|when| conditions that appear between the
+declaration of the inferred write port and the connection statement.
+
+\begin{lstlisting}
+write mport w = syncmem[cmd.addr], clk
+when (cmd.wen) :
+  w <= cmd.wdata ; conditional write operation
+
+; last-connect semantics apply to inferred writes
+when (cmd.wen && cmd.isClear) :
+  w <= UInt<32>(``h00'') ; different condition
+\end{lstlisting}
+
+Inferred write ports do not support masked writes; therefore, all write operations inherently have
+all subfields enabled. When the conditions are such that no connection to the inferred write port
+occurs, no write operation will occur on that port.
+
+\subsubsection{Inferred Readwrite Ports}
+
+TODO: should these exist, or just be generated as merges from InferReadWrite?
+
 \subsection{Instances}\label{instances}
 FIRRTL modules are instantiated with the instance statement. The following example demonstrates creating an instance named \verb|myinstance| of the \verb|MyModule| module within the top level module \verb|Top|.
 
@@ -1934,6 +2015,7 @@ A FIRRTL circuit is defined to be a valid MidFIRRTL circuit if it obeys the foll
 \item All widths must be explicitly defined.
 \item The conditional statement is not used.
 \item The dynamic sub-access expression is not used.
+\item The inferred memory port statements are not used.
 \item All components are connected to exactly once.
 \end{itemize}
 
@@ -1943,12 +2025,13 @@ A FIRRTL circuit is defined to be a valid LoFIRRTL circuit if it obeys the follo
 \begin{itemize}
 \item All widths must be explicitly defined.
 \item The conditional statement is not used.
+\item The inferred memory port statements are not used.
 \item All components are connected to exactly once.
 \item All components must be declared with a ground type.
 \item The partial connect statement is not used.
 \end{itemize}
 
-The first three restrictions follow from the fact that any LoFIRRTL circuit is also a legal MidFIRRTL circuit. The additional restrictions give LoFIRRTL a direct correspondence to a circuit netlist.
+The first four restrictions follow from the fact that any LoFIRRTL circuit is also a legal MidFIRRTL circuit. The additional restrictions give LoFIRRTL a direct correspondence to a circuit netlist.
 
 Low level circuit transformations can be conveniently written by first lowering a circuit to its LoFIRRTL form, then operating on the restricted (and thus simpler) subset of constructs. Note that circuit transformations are still free to generate high level constructs as they can simply be lowered again.
 
