@@ -93,7 +93,7 @@ object NewLowerTypes extends Transform {
   def onStatement(s: Statement)(implicit symbols: LoweringTable, memInit: Seq[MemoryInitAnnotation]): Statement = s match {
     // declarations
     case d : DefWire =>
-      Block(symbols.lower(d.name, d.tpe, firrtl.WireKind).map{case (name, tpe, _) => d.copy(name=name, tpe=tpe) })
+      Block(symbols.lower(d.name, d.tpe, firrtl.WireKind).map { case (name, tpe, _) => d.copy(name=name, tpe=tpe) })
     case d @ DefRegister(info, _, _, clock, reset, _) =>
       // clock and reset are always of ground type
       val loweredClock = onExpression(clock)
@@ -121,7 +121,7 @@ object NewLowerTypes extends Transform {
         val msg = s"[module $mod] Cannot initialize memory ${d.name} of non ground type ${d.dataType.serialize}"
         throw new RuntimeException(msg)
       }
-      Block(symbols.lower(d))
+      Block(mems)
     case d : DefInstance => symbols.lower(d)
     // connections
     case Connect(info, loc, expr) =>
@@ -149,12 +149,16 @@ object NewLowerTypes extends Transform {
   def onExpression(e: Expression)(implicit symbols: LoweringTable): Expression = e match {
     case r: RefLikeExpression =>
       // When reading (and not assigning to) an expression, we can always just pick the first one.
+      // Only very few ground-type references are duplicated and they are all related to lowered memories.
+      // e.g., the `clk` field of a memory port gets duplicated when the memory is split into ground-types.
+      // We ensure that all of these references carry the same value when they are expanded in onStatement.
       symbols.getReferences(r).head
     case other => other.mapExpr(onExpression)
   }
 }
 
 // Holds the first level of the module-level namespace.
+// (i.e. everything that can be addressed directly by a Reference node)
 private class LoweringSymbolTable extends SymbolTable {
   def declare(name: String, tpe: Type, kind: Kind): Unit = symbols.append(name)
   def declareInstance(name: String, module: String): Unit = symbols.append(name)
@@ -349,19 +353,26 @@ private object DestructTypes {
     }
   }
 
-  private def extractGroundTypeRefString(refs: Seq[ReferenceTarget]): String =
-  if(refs.isEmpty) { "" } else {
-    // Since we depend on ExpandConnects any reference we encounter will be of ground type
-    // and thus the one with the longest access path.
-    refs.reduceLeft((x,y) => if (x.component.length > y.component.length) x else y)
-    // convert references to strings relative to the module
-      .serialize.dropWhile(_ != '>').tail
+  private def extractGroundTypeRefString(refs: Seq[ReferenceTarget]): String = {
+    if (refs.isEmpty) { "" } else {
+      // Since we depend on ExpandConnects any reference we encounter will be of ground type
+      // and thus the one with the longest access path.
+      refs.reduceLeft((x, y) => if (x.component.length > y.component.length) x else y)
+        // convert references to strings relative to the module
+        .serialize.dropWhile(_ != '>').tail
+    }
   }
 
   private def destruct(m: ModuleTarget, field: Field, rename: Option[RenameNode]): Seq[(Field, Seq[ReferenceTarget])] =
     destruct(prefix = "", oldParent = ModuleParentRef(m), oldField = field, isVecField = false, rename = rename)
 
-
+  /** Lowers a field into its ground type fields.
+    * @param prefix carries the prefix of the new ground type name
+    * @param isVecField is used to generate an appropriate old (field/index) reference
+    * @param rename The information from the `uniquify` function is consumed to appropriately rename generated fields.
+    * @return a sequence of ground type fields with new names and, for each field,
+    *         a sequence of old references that should to be renamed to point to the particular field
+    */
   private def destruct(prefix: String, oldParent: ParentRef, oldField: Field,
                        isVecField: Boolean, rename: Option[RenameNode]): Seq[(Field, Seq[ReferenceTarget])] = {
     val newName = rename.map(_.name).getOrElse(oldField.name)
@@ -428,6 +439,10 @@ private object DestructTypes {
     BundleType(( 0 until v.size).map(i => Field(i.toString, Default, v.tpe)))
   }
 
+  /** Used to abstract over module and reference parents.
+    * This helps us simplify the `destruct` method as it does not need to distinguish between
+    * a module (in the initial call) or a bundle/vector (in the recursive call) reference as parent.
+    */
   private trait ParentRef { def ref(name: String, asVecField: Boolean = false): ReferenceTarget }
   private case class ModuleParentRef(m: ModuleTarget) extends ParentRef {
     override def ref(name: String, asVecField: Boolean): ReferenceTarget = m.ref(name)
