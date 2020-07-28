@@ -146,6 +146,12 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
   it should "replicate the old order" in {
     val tm = new TransformManager(Forms.Resolved, Forms.WorkingIR)
     val patches = Seq(
+      // ResolveFlows no longer depends in Uniquify (ResolveKinds and InferTypes are fixup passes that get moved as well)
+      Del(5), Del(6), Del(7),
+      // Uniquify now is run before InferBinary Points which claims to need Uniquify
+      Add(9, Seq(Dependency(firrtl.passes.Uniquify),
+                 Dependency(firrtl.passes.ResolveKinds),
+                 Dependency(firrtl.passes.InferTypes))),
       Add(14, Seq(Dependency.fromTransform(firrtl.passes.CheckTypes)))
     )
     compare(legacyTransforms(new ResolveAndCheck), tm, patches)
@@ -163,7 +169,8 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
                  Dependency(firrtl.passes.ResolveFlows))),
       Del(7),
       Del(8),
-      Add(7, Seq(Dependency[firrtl.passes.ExpandWhensAndCheck])),
+      Add(7, Seq(Dependency(firrtl.passes.ResolveKinds),
+                 Dependency[firrtl.passes.ExpandWhensAndCheck])),
       Del(11),
       Del(12),
       Del(13),
