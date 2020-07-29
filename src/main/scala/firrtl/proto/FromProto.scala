@@ -175,7 +175,7 @@ object FromProto {
   def convert(printf: Firrtl.Statement.Printf, info: Firrtl.SourceInfo): ir.Print = {
     val args = printf.getArgList.asScala.map(convert(_))
     val str = ir.StringLit(printf.getValue)
-    ir.Print(convert(info), str, args, convert(printf.getClk), convert(printf.getEn))
+    ir.Print(convert(info), str, args.toSeq, convert(printf.getClk), convert(printf.getEn))
   }
 
   def convert(stop: Firrtl.Statement.Stop, info: Firrtl.SourceInfo): ir.Stop =
@@ -313,7 +313,7 @@ object FromProto {
     val name = module.getId
     val ports = module.getPortList.asScala.map(convert(_))
     val stmts = module.getStatementList.asScala.map(convert(_))
-    ir.Module(ir.NoInfo, name, ports, ir.Block(stmts))
+    ir.Module(ir.NoInfo, name, ports.toSeq, ir.Block(stmts.toSeq))
   }
 
   def convert(module: Firrtl.Module.ExternalModule): ir.ExtModule = {
@@ -321,7 +321,7 @@ object FromProto {
     val ports = module.getPortList.asScala.map(convert(_))
     val defname = module.getDefinedName
     val params = module.getParameterList.asScala.map(convert(_))
-    ir.ExtModule(ir.NoInfo, name, ports, defname, params)
+    ir.ExtModule(ir.NoInfo, name, ports.toSeq, defname, params.toSeq)
   }
 
   def convert(module: Firrtl.Module): ir.DefModule =
@@ -337,6 +337,6 @@ object FromProto {
     require(c.getTopCount == 1, "Only 1 top is currently supported")
     val modules = c.getModuleList.asScala.map(convert(_))
     val top = c.getTop(0).getName
-    ir.Circuit(ir.NoInfo, modules, top)
+    ir.Circuit(ir.NoInfo, modules.toSeq, top)
   }
 }

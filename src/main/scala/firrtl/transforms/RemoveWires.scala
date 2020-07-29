@@ -47,7 +47,7 @@ class RemoveWires extends Transform with DependencyAPIMigration {
       e
     }
     rec(expr)
-    refs
+    refs.toSeq
   }
 
   // Transform netlist into DefNodes

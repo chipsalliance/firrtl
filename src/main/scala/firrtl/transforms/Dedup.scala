@@ -578,6 +578,6 @@ object DedupModules extends LazyLogging {
     }
 
     onExp(root)
-    all
+    all.toSeq
   }
 }
