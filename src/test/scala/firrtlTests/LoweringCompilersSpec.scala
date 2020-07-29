@@ -147,12 +147,8 @@ class LoweringCompilersSpec extends AnyFlatSpec with Matchers {
   it should "replicate the old order" in {
     val tm = new TransformManager(Forms.Resolved, Forms.WorkingIR)
     val patches = Seq(
-      // ResolveFlows no longer depends in Uniquify (ResolveKinds and InferTypes are fixup passes that get moved as well)
+      // Uniquify is now part of [[firrtl.passes.NewLowerTypes]]
       Del(5), Del(6), Del(7),
-      // Uniquify now is run before InferBinary Points which claims to need Uniquify
-      Add(9, Seq(Dependency(firrtl.passes.Uniquify),
-                 Dependency(firrtl.passes.ResolveKinds),
-                 Dependency(firrtl.passes.InferTypes))),
       Add(14, Seq(Dependency.fromTransform(firrtl.passes.CheckTypes)))
     )
     compare(legacyTransforms(new ResolveAndCheck), tm, patches)
@@ -165,9 +161,9 @@ class LoweringCompilersSpec extends AnyFlatSpec with Matchers {
     val patches = Seq(
       Add(4, Seq(Dependency(firrtl.passes.ResolveFlows))),
       Add(5, Seq(Dependency(firrtl.passes.ResolveKinds))),
-      Add(6, Seq(Dependency(firrtl.passes.ResolveKinds),
-                 Dependency(firrtl.passes.InferTypes),
-                 Dependency(firrtl.passes.ResolveFlows))),
+      // Uniquify is now part of [[firrtl.passes.NewLowerTypes]]
+      Del(6),
+      Add(6, Seq(Dependency(firrtl.passes.ResolveFlows))),
       Del(7),
       Del(8),
       Add(7, Seq(Dependency(firrtl.passes.ResolveKinds),
@@ -191,6 +187,9 @@ class LoweringCompilersSpec extends AnyFlatSpec with Matchers {
   it should "replicate the old order" in {
     val tm = new TransformManager(Forms.LowForm, Forms.MidForm)
     val patches = Seq(
+      // LowerTypes was replaced by a NewLowerTypes
+      Del(1), Del(2), Del(3), Del(5),
+      Add(1, Seq(Dependency(firrtl.passes.NewLowerTypes))),
       // RemoveWires now visibly invalidates ResolveKinds
       Add(11, Seq(Dependency(firrtl.passes.ResolveKinds)))
     )
