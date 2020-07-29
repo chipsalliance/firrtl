@@ -8,6 +8,9 @@ import firrtl.annotations._
 import firrtl.ir.{AsyncResetType, _}
 import firrtl.options.Dependency
 
+import firrtl.compat.wrappers.{ ArrSeqWrapper }
+import firrtl.compat.{ Annos }
+
 import scala.collection.mutable
 
 object PropagatePresetAnnotations {
@@ -80,7 +83,7 @@ class PropagatePresetAnnotations extends Transform with DependencyAPIMigration {
     // store async-reset trees
     val asyncCoMap = new TargetSetMap()
     // Annotations to be appended and returned as result of the transform
-    val annos = cs.annotations.to[mutable.ArrayBuffer] -- presetAnnos
+    def annos() = Annos.annos(cs, presetAnnos)
 
     val circuitTarget = CircuitTarget(cs.circuit.main)
 
@@ -301,7 +304,7 @@ class PropagatePresetAnnotations extends Transform with DependencyAPIMigration {
 
     cs.circuit.foreachModule(processModule) // PHASE 1 : Initialize
     annotateAsyncSet(asyncToAnnotate)       // PHASE 2 : Annotate
-    annos
+    annos.toSeq
   }
 
   /*
