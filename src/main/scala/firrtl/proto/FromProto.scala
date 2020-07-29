@@ -86,8 +86,8 @@ object FromProto {
     ir.SubAccess(convert(access.getExpression), convert(access.getIndex), ir.UnknownType)
 
   def convert(primop: Firrtl.Expression.PrimOp): ir.DoPrim = {
-    val args = primop.getArgList.asScala.map(convert(_))
-    val consts = primop.getConstList.asScala.map(convert(_))
+    val args = primop.getArgList.asScala.map(convert(_)).toSeq
+    val consts = primop.getConstList.asScala.map(convert(_)).toSeq
     ir.DoPrim(convert(primop.getOp), args, consts, ir.UnknownType)
   }
 
@@ -133,8 +133,8 @@ object FromProto {
     ir.DefInstance(convert(info), inst.getId, inst.getModuleId)
 
   def convert(when: Firrtl.Statement.When, info: Firrtl.SourceInfo): ir.Conditionally = {
-    val conseq = compressStmts(when.getConsequentList.asScala.map(convert(_)))
-    val alt = compressStmts(when.getOtherwiseList.asScala.map(convert(_)))
+    val conseq = compressStmts(when.getConsequentList.asScala.map(convert(_)).toSeq)
+    val alt = compressStmts(when.getOtherwiseList.asScala.map(convert(_)).toSeq)
     ir.Conditionally(convert(info), convert(when.getPredicate), conseq, alt)
   }
 
@@ -193,9 +193,9 @@ object FromProto {
 
   def convert(mem: Firrtl.Statement.Memory, info: Firrtl.SourceInfo): ir.DefMemory = {
     val dtype = convert(mem.getType)
-    val rs = mem.getReaderIdList.asScala
-    val ws = mem.getWriterIdList.asScala
-    val rws = mem.getReadwriterIdList.asScala
+    val rs = mem.getReaderIdList.asScala.toSeq
+    val ws = mem.getWriterIdList.asScala.toSeq
+    val rws = mem.getReadwriterIdList.asScala.toSeq
     import Firrtl.Statement.Memory._
     val depth = mem.getDepthCase.getNumber match {
       case UINT_DEPTH_FIELD_NUMBER => BigInt(mem.getUintDepth)
@@ -206,7 +206,7 @@ object FromProto {
   }
 
   def convert(attach: Firrtl.Statement.Attach, info: Firrtl.SourceInfo): ir.Attach = {
-    val exprs = attach.getExpressionList.asScala.map(convert(_))
+    val exprs = attach.getExpressionList.asScala.map(convert(_)).toSeq
     ir.Attach(convert(info), exprs)
   }
 
@@ -280,7 +280,7 @@ object FromProto {
       case RESET_TYPE_FIELD_NUMBER => ir.ResetType
       case ANALOG_TYPE_FIELD_NUMBER => convert(tpe.getAnalogType)
       case BUNDLE_TYPE_FIELD_NUMBER =>
-        ir.BundleType(tpe.getBundleType.getFieldList.asScala.map(convert(_)))
+        ir.BundleType(tpe.getBundleType.getFieldList.asScala.map(convert(_)).toSeq)
       case VECTOR_TYPE_FIELD_NUMBER => convert(tpe.getVectorType)
     }
   }
