@@ -81,7 +81,7 @@ class Wiring(wiSeq: Seq[WiringInfo]) extends Pass {
         case (a, (c, m)) => a ++ Map(m -> (Seq(c) ++ a.getOrElse(m, Nil)) ) }
 
     // Determine "ownership" of sources to sinks via minimum distance
-    val owners = sinksToSources(sinks, source, iGraph)
+    val owners = sinksToSourcesSeq(sinks, source, iGraph)
 
     // Determine port and pending modifications for all sink--source
     // ownership pairs
