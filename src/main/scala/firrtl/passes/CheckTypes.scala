@@ -195,7 +195,7 @@ object CheckTypes extends Pass {
       e.op match {
         case AsUInt | AsSInt | AsClock | AsFixedPoint | AsAsyncReset | AsInterval =>
           // All types are ok
-        case Dshl | Dshr =>
+        case Dshl | Dshr | Dshlw =>
           checkAllTypes(Seq(e.args.head), okUInt=true, okSInt=true,  okClock=false, okFix=true,  okAsync=false, okInterval=true)
           checkAllTypes(Seq(e.args(1)),   okUInt=true, okSInt=false, okClock=false, okFix=false, okAsync=false, okInterval=false)
         case Add | Sub | Mul | Lt | Leq | Gt | Geq | Eq | Neq =>
